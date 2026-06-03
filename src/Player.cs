@@ -17,6 +17,11 @@ public partial class Player : Area2D
 
     // 当たり半径（極小）
     private const float HitRadius = 2f;
+    // グレイズ半径（かすり判定の広さ）
+    private const float GrazeRadius = 11f;
+
+    // ボム入力のエッジ検出用
+    private bool _bombHeld = false;
 
     // プレイ領域
     private const float MinX = 0f;
@@ -36,6 +41,11 @@ public partial class Player : Area2D
     // 表示用スプライト（algo.png）。読み込めない場合は null のまま → _Draw フォールバック。
     private Sprite2D _sprite = null!;
     private bool _hasTexture = false;
+
+    // 常時ふわふわ浮遊（スプライトのみ上下に揺らす。当たり判定点は固定）
+    private float _bobTime = 0f;
+    private const float BobSpeed = 3.2f; // 角速度(rad/s) 約2秒周期
+    private const float BobAmp = 2.0f;   // 揺れ幅(px)
 
     // Pool 取得用キャッシュ
     private BulletPool _pool = null!;
@@ -59,8 +69,9 @@ public partial class Player : Area2D
         AddChild(shape);
 
         // テクスチャ読み込み（失敗時は _Draw フォールバック）
-        // 透過済みカットアウトを優先。無ければ元イラストにフォールバック。
-        var tex = ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
+        // ドット絵スプライトを優先。無ければ透過カットアウト→元イラストにフォールバック。
+        var tex = ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
+                  ?? ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");
         if (tex != null)
         {
@@ -69,13 +80,15 @@ public partial class Player : Area2D
             {
                 Name = "Sprite",
                 Texture = tex,
-                Centered = true
+                Centered = true,
+                // 背景に合わせ、なめらか高精細で小さく表示（リニア縮小）
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear
             };
-            // 表示高さ約48pxへスケール
+            // 表示高さ約36px（弾幕向けに小さめ）
             float texHeight = tex.GetHeight();
             if (texHeight > 0)
             {
-                float scale = 48f / texHeight;
+                float scale = 36f / texHeight;
                 _sprite.Scale = new Vector2(scale, scale);
             }
             AddChild(_sprite);
@@ -83,6 +96,19 @@ public partial class Player : Area2D
 
         // 被弾検出（敵 / 敵弾）
         AreaEntered += OnAreaEntered;
+
+        // グレイズ判定エリア（自機より広い円。敵弾(=layer8)のかすりを検出）
+        var grazeArea = new Area2D
+        {
+            Name = "GrazeArea",
+            CollisionLayer = 0,
+            CollisionMask = 8, // 敵弾
+            Monitoring = true,
+            Monitorable = false,
+        };
+        grazeArea.AddChild(new CollisionShape2D { Shape = new CircleShape2D { Radius = GrazeRadius } });
+        AddChild(grazeArea);
+        grazeArea.AreaEntered += OnGrazeAreaEntered;
 
         // Pool 取得
         _pool = GetNode<BulletPool>("/root/Pool");
@@ -117,6 +143,12 @@ public partial class Player : Area2D
             _fireCooldown = FireInterval;
         }
 
+        // ボム（X）: 押した瞬間だけ発動
+        bool bombKey = Input.IsKeyPressed(Key.X);
+        if (bombKey && !_bombHeld)
+            TryBomb();
+        _bombHeld = bombKey;
+
         // 無敵・点滅更新
         if (_invincible)
         {
@@ -133,6 +165,13 @@ public partial class Player : Area2D
                 bool show = ((int)(_blinkPhase * 20f) % 2) == 0;
                 SetSpriteVisible(show);
             }
+        }
+
+        // 常時ふわふわ浮遊（スプライトのみ上下に揺らす）
+        _bobTime += dt;
+        if (_hasTexture && _sprite != null)
+        {
+            _sprite.Position = new Vector2(0f, Mathf.Sin(_bobTime * BobSpeed) * BobAmp);
         }
 
         // ヒットボックス点を毎フレーム更新描画
@@ -170,6 +209,45 @@ public partial class Player : Area2D
             if (_pool != null)
                 _pool.Despawn(b);
         }
+    }
+
+    // グレイズ（敵弾のかすり）検出 → 加点。
+    private void OnGrazeAreaEntered(Area2D area)
+    {
+        if (area is Bullet b && b.IsEnemy && b.Active && !b.Grazed)
+        {
+            b.Grazed = true;
+            GetNodeOrNull<GameManager>("/root/Game")?.AddGraze();
+        }
+    }
+
+    // ボム「魔法陣・解放」: 画面の敵弾を消去＋画面内の敵を浄化＋短時間無敵＋画面フラッシュ。
+    private void TryBomb()
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (game == null || !game.UseBomb())
+            return;
+
+        // 画面内の敵弾を消去（加点）
+        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
+        {
+            if (node is Bullet b && b.Active)
+            {
+                game.AddBulletCleared();
+                _pool?.Despawn(b);
+            }
+        }
+
+        // 画面内の敵を浄化
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (node is Enemy e)
+                e.Purify();
+        }
+
+        // 短時間無敵 ＋ 画面フラッシュ
+        StartInvincible();
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
     }
 
     public void TakeHit()

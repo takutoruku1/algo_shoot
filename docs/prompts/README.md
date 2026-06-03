@@ -5,6 +5,8 @@
 
 > 全体方針・命名規則・仕上げ手順の大元は [../CHARACTER_ASSETS.md](../CHARACTER_ASSETS.md)、世界観は [../GAME_DESIGN.md](../GAME_DESIGN.md) を参照。
 
+> 新コンセプト（SNSの悪意で悪魔化した人々を algo が浄化する／[../CONCEPT_V2.md](../CONCEPT_V2.md)）の敵は [ENEMY_SNS_PROMPTS.md](ENEMY_SNS_PROMPTS.md) にまとめています（本体＝浄化前/浄化後＋旋回する黒い吹き出しパネル）。
+
 ## 作成順（実装優先度に対応）
 
 | 順 | フェーズ | ファイル | 対象アセット | 状態 |

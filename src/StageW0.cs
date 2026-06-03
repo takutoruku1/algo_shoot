@@ -72,7 +72,7 @@ public partial class StageW0 : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowMessage("Shoot: Z / Zキーでショット");
+            Hud.ShowMessage("Zで光弾。黒い吹き出しを剥がそう");
             SpawnPageShard(new Vector2(SpawnX, 108));
         }
 
@@ -93,14 +93,13 @@ public partial class StageW0 : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowMessage("Dodge & purify! / 撃って浄化しよう");
+            Hud.ShowMessage("全部剥がして浄化！やさしさが連鎖するよ");
 
-            // 数体を縦にばらして生成
-            SpawnGlyphMote(new Vector2(SpawnX, 60));
-            SpawnGlyphMote(new Vector2(SpawnX + 40, 108));
-            SpawnGlyphMote(new Vector2(SpawnX + 80, 156));
-            SpawnGlyphMote(new Vector2(SpawnX + 120, 84));
-            SpawnGlyphMote(new Vector2(SpawnX + 160, 132));
+            // 連鎖(波紋)が起きやすいよう、やや密集して生成
+            SpawnGlyphMote(new Vector2(SpawnX, 92));
+            SpawnGlyphMote(new Vector2(SpawnX + 34, 120));
+            SpawnGlyphMote(new Vector2(SpawnX + 70, 100));
+            SpawnGlyphMote(new Vector2(SpawnX + 104, 128));
         }
 
         // 全滅したらクリアへ（生成直後の0判定を避けるため少し待つ）

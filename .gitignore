@@ -27,3 +27,12 @@ obj/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Secrets (APIキー等。絶対にコミットしない)
+.secrets/
+*.key
+.openai_key.txt
+.env
+
+# 生成元の高解像度raw（再生成可・大きいのでコミットしない）
+char/raw/

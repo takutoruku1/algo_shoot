@@ -18,6 +18,9 @@ public partial class Main : Node2D
 
     public override void _Ready()
     {
+        // ゲーム状態（スコア/コンボ/ボム）をリセット
+        GetNodeOrNull<GameManager>("/root/Game")?.ResetRun();
+
         // パララックス空背景（char/bg/w0/bg_w0_sky.png があれば流れる）
         var background = new Background { Name = "Background" };
         AddChild(background); // _Ready で HasSky が確定する

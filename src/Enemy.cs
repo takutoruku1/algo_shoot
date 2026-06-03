@@ -1,164 +1,207 @@
 using Godot;
+using System.Collections.Generic;
 
-// Enemy 基底 : Area2D。グループ "enemies"。
-// 自機弾(Bullet で IsEnemy==false)とのArea重なりを検出し、Hp -= bullet.Damage、
-// その弾を Pool.Despawn。Hp<=0 で Die()。
-// 画面左外(x<-16)に出たら QueueFree。
-// 衝突レイヤー: Enemy layer=4, mask=2 (自機弾=2 を検出)。
+// Enemy : SNSの悪意で「悪魔化した人間」本体。不滅で“倒さない/殺さない”。
+// 周囲を旋回する黒い吹き出しパネル(Panel)を持ち、全部剥がされると【浄化(改心)】される。
+// 浄化後は敵グループを抜け、笑顔の味方コメントとして左へ流れ、画面外でfree。
+// 浄化の瞬間に「やさしさの波紋(Ripple)」を出し、近くの人を連鎖浄化する。
+// 衝突: 本体 layer=4(接触で自機被弾)。パネルは Panel 側(layer16)。
 public partial class Enemy : Area2D
 {
-    public int Hp;
+    // 浄化(改心)時の基礎得点（派生で上書き）。
+    protected int Points = 100;
+    protected float BodyRadius = 9f;
 
-    // 当たり半径（派生クラスで上書き可）。
-    protected float Radius = 8f;
+    // パネル構成（派生で設定）。
+    protected int PanelCount = 3;
+    protected int PanelInk = 2;
+    protected float OrbitRadius = 18f;
+    protected float SpinSpeed = 1.4f; // rad/s
+    protected bool PanelsFire = true;
+    protected float PanelFireInterval = 1.9f;
+    protected float EnemyBulletSpeed = 90f;
 
-    private CollisionShape2D _shape = null!;
+    // スプライト素材（null/未設定なら _Draw のプレースホルダ図形を使う）
+    protected string PreTexPath = "";
+    protected string PostTexPath = "";
+    protected string PanelTexPath = "";
+    protected float BodyDisplayH = 40f;
+    protected bool FaceLeft = true; // 進行方向(左=プレイヤー側)を向く。素材は右向きなので反転。
+    private Sprite2D _bodySprite = null!;
+    private bool _hasBodyTex;
 
-    // 浄化演出（Die後）の進行用フラグ。
-    private bool _dying = false;
+    private readonly List<Panel> _panels = new List<Panel>();
+    private bool _purified;
+    private bool _flashing;
+    private double _flashT;
+    private const double FlashDur = 0.5;
 
-    // 派生クラスが「浄化演出中は本体を描かない」判定に使う。
-    protected bool IsDying => _dying;
-    private double _dieTimer = 0.0;
-    private const double DieDuration = 0.25; // 演出時間
-    private Vector2[] _moteOffsets = System.Array.Empty<Vector2>();
+    private CollisionShape2D _bodyShape = null!;
+
+    public bool IsPurified => _purified;
+    public int PanelsRemaining => _panels.Count;
 
     public override void _Ready()
     {
         AddToGroup("enemies");
-
-        // 衝突レイヤー設定: Enemy=4、自機弾=2 を検出。
-        CollisionLayer = 4;
-        CollisionMask = 2;
-
-        Monitoring = true;
+        CollisionLayer = 4;  // 敵本体（接触で自機被弾）
+        CollisionMask = 0;
+        Monitoring = false;
         Monitorable = true;
-
-        // 当たり判定 CircleShape2D を子に追加。
-        _shape = new CollisionShape2D
-        {
-            Shape = new CircleShape2D { Radius = Radius }
-        };
-        AddChild(_shape);
-
-        // 自機弾被弾検出。
-        AreaEntered += OnAreaEntered;
+        _bodyShape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius } };
+        AddChild(_bodyShape);
 
         OnEnemyReady();
+        SetupBodySprite();
+        SpawnPanels();
     }
 
-    // 派生クラスの初期化フック（_Ready の最後に呼ばれる）。
-    protected virtual void OnEnemyReady()
-    {
-    }
+    protected virtual void OnEnemyReady() { }
 
-    protected BulletPool GetPool()
+    private void SetupBodySprite()
     {
-        return GetNode<BulletPool>("/root/Pool");
-    }
-
-    private void OnAreaEntered(Area2D area)
-    {
-        if (_dying)
+        if (string.IsNullOrEmpty(PreTexPath)) return;
+        var t = ResourceLoader.Load<Texture2D>(PreTexPath);
+        if (t == null) return;
+        _hasBodyTex = true;
+        _bodySprite = new Sprite2D
         {
-            return;
+            Name = "Body",
+            Texture = t,
+            Centered = true,
+            TextureFilter = CanvasItem.TextureFilterEnum.Linear, // 高解像度素材を滑らかに縮小
+            ZIndex = -1, // パネルより奥
+            FlipH = FaceLeft, // 素材は右向き→左(進行方向)へ反転
+        };
+        float s = BodyDisplayH / t.GetHeight();
+        _bodySprite.Scale = new Vector2(s, s);
+        AddChild(_bodySprite);
+    }
+
+    private void SpawnPanels()
+    {
+        for (int i = 0; i < PanelCount; i++)
+        {
+            var p = new Panel();
+            float baseAngle = Mathf.Tau * i / Mathf.Max(1, PanelCount);
+            p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath);
+            AddChild(p);
+            _panels.Add(p);
         }
-
-        if (area is Bullet b && !b.IsEnemy && b.Active)
-        {
-            Hp -= b.Damage;
-            GetPool().Despawn(b);
-
-            if (Hp <= 0)
-            {
-                Die();
-            }
-        }
     }
 
-    public override void _PhysicsProcess(double delta)
+    // パネルが砕けた通知。最後の1枚が剥がれたら浄化。
+    public void OnPanelStripped(Panel p)
     {
-        if (_dying)
-        {
-            _dieTimer += delta;
+        _panels.Remove(p);
+        if (_panels.Count == 0 && !_purified)
+            Redeem();
+        else
             QueueRedraw();
-            if (_dieTimer >= DieDuration)
-            {
-                QueueFree();
-            }
-            return;
-        }
-
-        UpdateMovement(delta);
-
-        // 画面左外でQueueFree。
-        if (GlobalPosition.X < -16f)
-        {
-            QueueFree();
-        }
     }
 
-    // 派生クラスが移動・攻撃ロジックを実装する。
-    protected virtual void UpdateMovement(double delta)
+    // 外部（ボム等）から強制浄化。全パネルを剥がす。
+    public void Purify()
     {
+        if (_purified) return;
+        foreach (var p in new List<Panel>(_panels))
+            p.Shatter();
+        if (!_purified) Redeem();
     }
 
-    // 浄化演出（白→紫の小フラッシュ＋数個の得点パーティクル風の点を散らす簡易演出）の後 QueueFree。
-    protected virtual void Die()
+    // 改心処理（消さない。味方化して残る）。
+    private void Redeem()
     {
-        if (_dying)
-        {
-            return;
-        }
-        _dying = true;
-        _dieTimer = 0.0;
+        if (_purified) return;
+        _purified = true;
+        RemoveFromGroup("enemies");
 
-        // 当たり判定を無効化（演出中は被弾しない）。
-        Monitoring = false;
+        // 接触で自機を傷つけないようにする。
         Monitorable = false;
-        // Disabled は CollisionShape2D のプロパティ。Area2D 自身ではなく shape に対して設定する。
-        if (_shape != null)
-            _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
+        if (_bodyShape != null)
+            _bodyShape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
 
-        // 散らす点の配置を生成。
-        var rng = new RandomNumberGenerator();
-        rng.Randomize();
-        int count = 6;
-        _moteOffsets = new Vector2[count];
-        for (int i = 0; i < count; i++)
+        _flashing = true;
+        _flashT = 0;
+
+        // 本体スプライトを「浄化後（笑顔）」へ差し替え。
+        if (_hasBodyTex && !string.IsNullOrEmpty(PostTexPath))
         {
-            float ang = rng.RandfRange(0f, Mathf.Tau);
-            float dist = rng.RandfRange(6f, 18f);
-            _moteOffsets[i] = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * dist;
+            var t = ResourceLoader.Load<Texture2D>(PostTexPath);
+            if (t != null)
+            {
+                _bodySprite.Texture = t;
+                float s = BodyDisplayH / t.GetHeight();
+                _bodySprite.Scale = new Vector2(s, s);
+            }
+        }
+
+        // スコア＋コンボ（連鎖＝やさしさの広がり）。
+        GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
+
+        // やさしさの波紋（連鎖浄化のトリガー）。
+        var parent = GetParent();
+        if (parent != null)
+        {
+            var ripple = new Ripple();
+            parent.AddChild(ripple);
+            ripple.GlobalPosition = GlobalPosition;
         }
 
         QueueRedraw();
     }
 
-    public override void _Draw()
+    public override void _PhysicsProcess(double delta)
     {
-        if (_dying)
+        if (_flashing)
         {
-            DrawPurifyEffect();
+            _flashT += delta;
+            if (_flashT >= FlashDur) _flashing = false;
+            QueueRedraw();
         }
+
+        if (_purified)
+        {
+            // 笑顔の味方コメントとしてゆっくり左へ流れて退場。
+            GlobalPosition += new Vector2(-30f * (float)delta, 0f);
+            if (GlobalPosition.X < -24f) QueueFree();
+            return;
+        }
+
+        UpdateMovement(delta);
+        if (GlobalPosition.X < -24f) QueueFree();
     }
 
-    private void DrawPurifyEffect()
+    protected virtual void UpdateMovement(double delta) { }
+
+    public override void _Draw()
     {
-        float t = (float)(_dieTimer / DieDuration);
-        t = Mathf.Clamp(t, 0f, 1f);
-
-        // 中央フラッシュ: 白→紫へ。
-        Color flash = new Color(1f, 1f, 1f).Lerp(new Color(0.66f, 0.45f, 0.9f), t);
-        flash.A = 1f - t;
-        float flashR = Mathf.Lerp(Radius, Radius * 2.2f, t);
-        DrawCircle(Vector2.Zero, flashR, flash);
-
-        // 散らばる得点パーティクル風の点。
-        Color mote = new Color(0.85f, 0.7f, 1f, 1f - t);
-        foreach (var off in _moteOffsets)
+        // 改心の虹色フラッシュ（スプライト有無に関わらず重ねる）
+        if (_flashing)
         {
-            DrawCircle(off * t, Mathf.Lerp(2.5f, 0.5f, t), mote);
+            float t = (float)(_flashT / FlashDur);
+            var c = Color.FromHsv(Mathf.PosMod(t * 2f, 1f), 0.5f, 1f);
+            DrawCircle(Vector2.Zero, BodyRadius + 8f * (1f - t), new Color(c.R, c.G, c.B, 0.55f * (1f - t)));
         }
+
+        // スプライトが無い時だけプレースホルダ図形を描く
+        if (!_hasBodyTex)
+            DrawPerson(_purified ? new Color(1f, 0.86f, 0.62f) : new Color(0.55f, 0.6f, 0.78f), happy: _purified);
+
+        // 波紋射程プレビュー（残り1枚＝剥がし切ると波紋がここまで届く）
+        if (!_purified && _panels.Count == 1)
+            DrawArc(Vector2.Zero, Ripple.MaxRadius, 0, Mathf.Tau, 40, new Color(0.7f, 0.92f, 1f, 0.28f), 1f);
+    }
+
+    private void DrawPerson(Color body, bool happy)
+    {
+        DrawCircle(new Vector2(0, 2), BodyRadius, body);                       // 体
+        DrawCircle(new Vector2(0, -6), 5f, new Color(1f, 0.92f, 0.85f));       // 頭
+        var eye = happy ? new Color(0.2f, 0.1f, 0.1f) : new Color(0.1f, 0.1f, 0.2f);
+        float ey = happy ? -7f : -5f;
+        DrawCircle(new Vector2(-2, ey), 0.9f, eye);
+        DrawCircle(new Vector2(2, ey), 0.9f, eye);
+        if (happy)
+            DrawArc(new Vector2(0, -5), 2.2f, 0.2f, Mathf.Pi - 0.2f, 8, new Color(0.6f, 0.25f, 0.25f), 1f); // 笑み
     }
 }

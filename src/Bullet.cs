@@ -22,6 +22,7 @@ public partial class Bullet : Area2D
     public bool IsEnemy;
     public int Damage;
     public bool Active;
+    public bool Grazed;  // グレイズ済みか（重複加点防止）
 
     public float Radius { get; private set; } = 3f;
 
@@ -47,8 +48,12 @@ public partial class Bullet : Area2D
         Damage = damage;
         Radius = radius;
         Active = true;
+        Grazed = false;
 
         GlobalPosition = pos;
+
+        // グループ登録（ボムの一括消去・グレイズ判定用）
+        AddToGroup(isEnemy ? "enemy_bullets" : "player_bullets");
 
         // 当たり半径を反映
         if (_circle != null)
@@ -83,6 +88,10 @@ public partial class Bullet : Area2D
     {
         Active = false;
         Velocity = Vector2.Zero;
+
+        // グループから外す（プール返却時）
+        RemoveFromGroup("enemy_bullets");
+        RemoveFromGroup("player_bullets");
 
         Visible = false;
         Monitoring = false;
