@@ -15,6 +15,11 @@ public partial class Hud : CanvasLayer
     private ColorRect _kindBg = null!;     // やさしさゲージ 背景
     private ColorRect _kindFill = null!;   // やさしさゲージ 中身
     private Label _overloadLabel = null!;  // 「やさしさ全開！」
+    private ColorRect _purifyBg = null!;   // 浄化ゲージ 背景（上部中央・ステージ目標）
+    private ColorRect _purifyFill = null!; // 浄化ゲージ 中身
+    private Label _purifyLabel = null!;    // 「浄化 XX%」
+    private const float PurifyGaugeX = 100f;
+    private const float PurifyGaugeW = 150f;
     private SpeechBubble _bubble = null!;  // 下部の吹き出し（ドット絵調）
     private TextureRect _portrait = null!; // algoの立ち絵（会話時）
 
@@ -121,6 +126,17 @@ public partial class Hud : CanvasLayer
         _overloadLabel.Visible = false;
         AddChild(_overloadLabel);
 
+        // 浄化ゲージ（上部中央・ステージの目標）。空が晴れていく度合いを表す。
+        _purifyBg = new ColorRect { Name = "PurifyBg", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(PurifyGaugeW, 6), Color = new Color(0.12f, 0.10f, 0.18f, 0.6f) };
+        _purifyBg.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_purifyBg);
+        _purifyFill = new ColorRect { Name = "PurifyFill", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(0, 6), Color = new Color("8fd3ff") };
+        _purifyFill.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_purifyFill);
+        _purifyLabel = new Label { Name = "PurifyLabel", Position = new Vector2(PurifyGaugeX, 13), Size = new Vector2(PurifyGaugeW, 10), HorizontalAlignment = HorizontalAlignment.Center };
+        StyleLabel(_purifyLabel, 8, new Color(0.22f, 0.18f, 0.32f));
+        AddChild(_purifyLabel);
+
         // スコア: 右上（右寄せ）
         _scoreLabel = new Label
         {
@@ -192,6 +208,11 @@ public partial class Hud : CanvasLayer
             _overloadLabel.Visible = game.IsOverload;
             if (game.IsOverload) _overloadLabel.Text = "やさしさ全開！";
             if (game.JustOverloaded) { ShowBanner("やさしさ全開！"); Flash(); }
+
+            // 浄化ゲージ（目標達成度）。色は冷たい青→暖色へ。
+            _purifyFill.Size = new Vector2(PurifyGaugeW * game.StageProgress, 6);
+            _purifyFill.Color = new Color(0.56f, 0.83f, 1f).Lerp(new Color(1f, 0.85f, 0.55f), game.StageProgress);
+            _purifyLabel.Text = $"浄化 {Mathf.RoundToInt(game.StageProgress * 100f)}%";
         }
 
         // ボムフラッシュの減衰
@@ -228,14 +249,7 @@ public partial class Hud : CanvasLayer
     public void ShowMessage(string text)
     {
         _portrait.Visible = false;
-        _bubble.Position = new Vector2(18, Main.ScreenHeight - 32);
-        _bubble.SetBox(new Vector2(348, 24), 170f);
-        _messageLabel.Position = new Vector2(22, Main.ScreenHeight - 31);
-        _messageLabel.Size = new Vector2(340, 22);
-        _messageLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        _messageLabel.Text = text;
-        _bubble.Visible = true;
-        _messageLabel.Visible = true;
+        LayoutBubble(text, dialog: false);
         _messageTimer = 4.5;
     }
 
@@ -243,15 +257,45 @@ public partial class Hud : CanvasLayer
     public void ShowDialog(string text)
     {
         _portrait.Visible = true;
-        _bubble.Position = new Vector2(60, Main.ScreenHeight - 40);
-        _bubble.SetBox(new Vector2(316, 32), 8f);
-        _messageLabel.Position = new Vector2(66, Main.ScreenHeight - 39);
-        _messageLabel.Size = new Vector2(304, 30);
-        _messageLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        LayoutBubble(text, dialog: true);
+        _messageTimer = 6.0;
+    }
+
+    // 吹き出しとテキストを配置。日本語は空白が無いので任意位置で折り返し、
+    // テキスト量に応じて吹き出しの高さを自動調整して下端に揃える（はみ出し防止）。
+    private void LayoutBubble(string text, bool dialog)
+    {
+        const float padX = 6f, padY = 5f, margin = 4f;
+        float bubbleX = dialog ? 60f : 18f;
+        float bubbleW = dialog ? 316f : 348f;
+        float innerW = bubbleW - padX * 2f;
+        var halign = dialog ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+
+        _messageLabel.AutowrapMode = TextServer.AutowrapMode.Arbitrary; // CJKは任意位置で折り返す
+
+        // 折り返し後の高さを実測（ラベルの Arbitrary 折り返しに合わせ GraphemeBound で計測）
+        float textH = 14f;
+        if (_font != null)
+        {
+            Vector2 sz = _font.GetMultilineStringSize(
+                text, halign, innerW, 12, -1,
+                TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.GraphemeBound);
+            textH = Mathf.Max(14f, Mathf.Ceil(sz.Y) + 2f);
+        }
+        float bubbleH = textH + padY * 2f;
+        float bubbleY = Main.ScreenHeight - bubbleH - margin;
+
+        _bubble.Position = new Vector2(bubbleX, bubbleY);
+        _bubble.SetBox(new Vector2(bubbleW, bubbleH), dialog ? 8f : bubbleW / 2f - 4f);
+
+        _messageLabel.Position = new Vector2(bubbleX + padX, bubbleY + padY);
+        _messageLabel.Size = new Vector2(innerW, textH);
+        _messageLabel.HorizontalAlignment = halign;
+        _messageLabel.VerticalAlignment = VerticalAlignment.Top;
         _messageLabel.Text = text;
+
         _bubble.Visible = true;
         _messageLabel.Visible = true;
-        _messageTimer = 6.0;
     }
 
     // 中央大きめの一時バナー（例: "STAGE CLEAR!"）。

@@ -8,10 +8,18 @@ public partial class GameManager : Node
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
 
-    // 累計浄化数と「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」
+    // 累計浄化数。
     public int PurifiedCount { get; private set; }
-    private const float WarmthTarget = 12f; // この人数を救うと完全に暖かくなる
-    public float Warmth => Mathf.Clamp(PurifiedCount / WarmthTarget, 0f, 1f);
+
+    // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
+    public int StageTarget { get; private set; } = 24;
+    public void SetStageTarget(int t) => StageTarget = Mathf.Max(1, t);
+    // 浄化ゲージ(0..1)＝目標までの達成度。世界の暖かさもこれに連動する。
+    public float StageProgress => Mathf.Clamp((float)PurifiedCount / StageTarget, 0f, 1f);
+    public bool StageCleared => PurifiedCount >= StageTarget;
+
+    // 「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」＝浄化の進捗。
+    public float Warmth => StageProgress;
 
     // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
     private float _kindFill;            // 0..1 蓄積

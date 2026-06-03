@@ -17,14 +17,17 @@ public partial class StageW0 : Node
     private int _step;
     private bool _stepStarted;
     private double _stepTime;
+    private Spawner _spawner = null!;
 
     private const float SpawnX = 390f;
+    private const int StageTarget = 24; // このタイムラインを浄化しきる人数
 
     public override void _Ready()
     {
         _step = 1;
         _stepStarted = false;
         _stepTime = 0;
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(StageTarget);
     }
 
     public override void _Process(double delta)
@@ -42,7 +45,11 @@ public partial class StageW0 : Node
             case 6: Step_Move(); break;
             case 7: Step_Shoot(); break;
             case 8: Step_Wave(); break;
-            case 9: Step_Clear(); break;
+            case 9: Step_TutorialClear(); break;
+            // ステージ本編：連続スポナー＋浄化ゲージ目標
+            case 10: Step_MainStart(); break;
+            case 11: Step_MainLoop(); break;
+            case 12: Step_StageClear(); break;
         }
     }
 
@@ -103,14 +110,51 @@ public partial class StageW0 : Node
         if (_stepTime >= 1.0 && CountEnemies() == 0) Advance();
     }
 
-    // ---- 7: 浄化完了（締め） ----
-    private void Step_Clear()
+    // ---- 9: チュートリアル浄化完了（本編への導入） ----
+    private void Step_TutorialClear()
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
             Hud.ShowBanner("やさしさが、ひろがった。");
-            Hud.ShowDialog("ね、やさしさって…ちゃんと、ひろがるんだ。奥へ行こう。");
+            Hud.ShowDialog("ね、やさしさって…ちゃんと、ひろがるんだ。この先は、声の濁流。みんなを浄化して、空を晴らそう！");
+        }
+        if (_stepTime >= 4.5) Advance(); // 会話を見せてから本編へ
+    }
+
+    // ---- 10: 本編開始（スポナー起動＋目標提示） ----
+    private void Step_MainStart()
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _spawner = new Spawner { Name = "Spawner", World = World };
+            AddChild(_spawner);
+            _spawner.Begin();
+            Hud.ShowMessage("浄化ゲージを満タンに！タイムラインを晴らそう");
+        }
+        if (_stepTime >= 1.0) Advance();
+    }
+
+    // ---- 11: 本編ループ（目標到達まで） ----
+    private void Step_MainLoop()
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (game != null && game.StageCleared)
+        {
+            _spawner?.Stop();
+            Advance();
+        }
+    }
+
+    // ---- 12: ステージクリア（空が晴れる） ----
+    private void Step_StageClear()
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            Hud.ShowBanner("空が、晴れた。");
+            Hud.ShowDialog("みんな、もう一人じゃない。やさしさが、世界を温め直してる…。ハル、待っててね。");
             Advance();
         }
     }
