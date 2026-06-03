@@ -45,6 +45,9 @@ public partial class Ripple : Area2D
     {
         float prog = Mathf.Min(1f, (float)(_t / Duration));
         float a = 0.55f * (1f - prog);
-        DrawArc(Vector2.Zero, _circle.Radius, 0, Mathf.Tau, 48, new Color(0.8f, 0.95f, 1f, a), 2f);
+        float r = _circle.Radius;
+        // 外側＝淡紫、内側＝水色〜白（やさしさの光の波）
+        DrawArc(Vector2.Zero, r, 0, Mathf.Tau, 48, new Color(0.79f, 0.72f, 0.94f, a * 0.85f), 2f);      // 淡紫
+        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 48, new Color(0.92f, 0.98f, 1f, a), 1.5f);        // 水色〜白
     }
 }

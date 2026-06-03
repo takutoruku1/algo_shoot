@@ -21,6 +21,10 @@ public partial class Main : Node2D
         // ゲーム状態（スコア/コンボ/ボム）をリセット
         GetNodeOrNull<GameManager>("/root/Game")?.ResetRun();
 
+        // 世界の色味（冷→暖トランジション用）。浄化が進むと暖かくなる。
+        _canvasModulate = new CanvasModulate { Name = "WorldTint", Color = ColdTint };
+        AddChild(_canvasModulate);
+
         // パララックス空背景（char/bg/w0/bg_w0_sky.png があれば流れる）
         var background = new Background { Name = "Background" };
         AddChild(background); // _Ready で HasSky が確定する
@@ -44,6 +48,10 @@ public partial class Main : Node2D
         World = new Node2D { Name = "World" };
         AddChild(World);
 
+        // 演出レイヤー（パーティクル）と シェイク用カメラ
+        World.AddChild(new FxLayer { Name = "FxLayer" });
+        AddChild(new GameCamera { Name = "GameCamera" });
+
         // Player を (60,108) に生成
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -64,6 +72,12 @@ public partial class Main : Node2D
 
     private bool _rHeld;
 
+    // 世界の色味: 冷たい荒れた世界 → 暖かい浄化された世界
+    private CanvasModulate _canvasModulate = null!;
+    private static readonly Color ColdTint = new Color(0.80f, 0.85f, 0.98f); // やや青暗い
+    private static readonly Color WarmTint = new Color(1.06f, 1.0f, 0.94f);  // やや暖かく明るい
+    private float _warmth = 0f;
+
     public override void _Process(double delta)
     {
         // R キーで最初からリスタート
@@ -71,6 +85,12 @@ public partial class Main : Node2D
         if (r && !_rHeld)
             Restart();
         _rHeld = r;
+
+        // 浄化が進むほど世界を暖色へ（なめらかに追従）
+        float target = GetNodeOrNull<GameManager>("/root/Game")?.Warmth ?? 0f;
+        _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.5f);
+        if (_canvasModulate != null)
+            _canvasModulate.Color = ColdTint.Lerp(WarmTint, _warmth);
     }
 
     private void Restart()

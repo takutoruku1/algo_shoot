@@ -131,21 +131,17 @@ public partial class Bullet : Area2D
 
         if (IsEnemy)
         {
-            // 敵弾: 温色（赤〜オレンジ; 明コア + 濃リング）
-            // 濃い赤リング
-            DrawCircle(Vector2.Zero, r, new Color(0.85f, 0.15f, 0.10f));
-            // オレンジ中間
-            DrawCircle(Vector2.Zero, r * 0.7f, new Color(1.0f, 0.55f, 0.15f));
-            // 明コア
-            DrawCircle(Vector2.Zero, r * 0.4f, new Color(1.0f, 0.92f, 0.70f));
+            // 暴言＝黒インク＋ホットな縁（赤マゼンタ）。黒コアで淡背景でも沈まない。
+            DrawCircle(Vector2.Zero, r, new Color(1.0f, 0.24f, 0.43f));            // ホット縁
+            DrawCircle(Vector2.Zero, r * 0.74f, new Color(0.09f, 0.06f, 0.12f));   // 黒インク
+            DrawCircle(Vector2.Zero, r * 0.30f, new Color(1.0f, 0.45f, 0.55f, 0.9f)); // 中心の熱
         }
         else
         {
-            // 自機弾: 白〜水色（明コア + 水色）
-            // 水色の外側
-            DrawCircle(Vector2.Zero, r, new Color(0.45f, 0.85f, 1.0f, 0.85f));
-            // 明コア（白）
-            DrawCircle(Vector2.Zero, r * 0.55f, new Color(1.0f, 1.0f, 1.0f));
+            // 光のインク＝白コア＋水色グロー（＋薄い暗縁で視認性確保）
+            DrawCircle(Vector2.Zero, r * 1.05f, new Color(0.10f, 0.18f, 0.30f, 0.45f)); // 薄い暗縁
+            DrawCircle(Vector2.Zero, r, new Color(0.50f, 0.86f, 1.0f, 0.95f));          // 水色グロー
+            DrawCircle(Vector2.Zero, r * 0.5f, new Color(1.0f, 1.0f, 1.0f));            // 白コア
         }
     }
 }

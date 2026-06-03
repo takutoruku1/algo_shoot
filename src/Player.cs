@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // Player : Area2D。グループ "player" に追加。
 // 移動(通常110 / 低速50 px/s)、連射(Pool経由・右方向+260・上下2way)、被弾無敵点滅、TakeHit、Lives。
@@ -22,6 +23,30 @@ public partial class Player : Area2D
 
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
+
+    // フォロワー（浄化した人＝味方オプション）
+    private readonly List<Follower> _followers = new List<Follower>();
+    private const int MaxFollowers = 4;
+    private const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）
+    private int _savedCount = 0;
+    private int _shotParity = 0;            // フォロワーの発射間引き用
+    private static readonly Vector2[] FollowerSlots =
+    {
+        new Vector2(-14, -11), new Vector2(-14, 11),
+        new Vector2(-26, -5), new Vector2(-26, 5),
+    };
+
+    // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
+    public void AddFollower(Vector2 globalFromPos)
+    {
+        _savedCount++;
+        if (_followers.Count >= MaxFollowers) return;
+        if (_savedCount % SavedPerFollower != 0) return; // 3人救うごとに1体
+        var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
+        AddChild(f);
+        f.Position = ToLocal(globalFromPos); // 浄化した位置から飛んでくる
+        _followers.Add(f);
+    }
 
     // プレイ領域
     private const float MinX = 0f;
@@ -190,6 +215,15 @@ public partial class Player : Area2D
         // 上下に少しずらした 2way
         _pool.Spawn(muzzle + new Vector2(0f, -4f), vel, isEnemy: false, 3f, 1);
         _pool.Spawn(muzzle + new Vector2(0f, 4f), vel, isEnemy: false, 3f, 1);
+
+        // フォロワーは2回に1回だけ同期発射（火力を抑える）
+        _shotParity++;
+        if ((_shotParity & 1) == 0)
+            foreach (var f in _followers)
+                f.Fire();
+
+        // マズルフラッシュ
+        FxLayer.Instance?.Muzzle(muzzle);
     }
 
     private void OnAreaEntered(Area2D area)
@@ -218,6 +252,7 @@ public partial class Player : Area2D
         {
             b.Grazed = true;
             GetNodeOrNull<GameManager>("/root/Game")?.AddGraze();
+            FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光
         }
     }
 
@@ -228,12 +263,18 @@ public partial class Player : Area2D
         if (game == null || !game.UseBomb())
             return;
 
-        // 画面内の敵弾を消去（加点）
+        // ボム演出（魔法陣＋光の波）＋画面効果
+        FxLayer.Instance?.Bomb(GlobalPosition);
+        GameCamera.Instance?.Shake(4.5f, 0.15f);
+        GameCamera.Instance?.Hitstop(0.05);
+
+        // 画面内の敵弾を「花びらに変換」して消去（加点）
         foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
         {
             if (node is Bullet b && b.Active)
             {
                 game.AddBulletCleared();
+                FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
                 _pool?.Despawn(b);
             }
         }
@@ -255,6 +296,9 @@ public partial class Player : Area2D
         // 無敵中は無効
         if (_invincible)
             return;
+
+        // 被弾演出（自機周囲のフラッシュ＋波紋＋軽いシェイク）
+        FxLayer.Instance?.PlayerHit(GlobalPosition);
 
         // フラッシュ＋短時間無敵
         StartInvincible();

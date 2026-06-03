@@ -8,6 +8,11 @@ public partial class GameManager : Node
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
 
+    // 累計浄化数と「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」
+    public int PurifiedCount { get; private set; }
+    private const float WarmthTarget = 12f; // この人数を救うと完全に暖かくなる
+    public float Warmth => Mathf.Clamp(PurifiedCount / WarmthTarget, 0f, 1f);
+
     private double _comboTimer;
     private const double ComboWindow = 2.0; // この時間内に倒し続けるとコンボ継続
     private const int MaxCombo = 16;
@@ -28,6 +33,7 @@ public partial class GameManager : Node
         Combo = Mathf.Min(Combo + 1, MaxCombo);
         _comboTimer = ComboWindow;
         Score += basePoints * Mathf.Max(1, Combo);
+        PurifiedCount++;
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
@@ -63,5 +69,6 @@ public partial class GameManager : Node
         Combo = 0;
         _comboTimer = 0;
         Bombs = 3;
+        PurifiedCount = 0;
     }
 }

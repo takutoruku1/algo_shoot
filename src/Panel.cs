@@ -130,6 +130,7 @@ public partial class Panel : Area2D
         Monitorable = false;
         if (_shape != null) _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
         GetNodeOrNull<GameManager>("/root/Game")?.AddBulletCleared(); // 剥がし小加点
+        FxLayer.Instance?.Shatter(GlobalPosition); // 砕け＋やさしさの粒
         _owner?.OnPanelStripped(this);
         QueueFree();
     }

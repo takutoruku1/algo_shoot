@@ -139,6 +139,15 @@ public partial class Enemy : Area2D
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
         GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
 
+        // 浄化バースト演出＋「ありがとう」
+        FxLayer.Instance?.PurifyBurst(GlobalPosition);
+        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), "ありがとう", FxLayer.Sig2);
+
+        // 救った人を algo のフォロワー（味方オプション）に。
+        var players = GetTree().GetNodesInGroup("player");
+        if (players.Count > 0 && players[0] is Player pl)
+            pl.AddFollower(GlobalPosition);
+
         // やさしさの波紋（連鎖浄化のトリガー）。
         var parent = GetParent();
         if (parent != null)
@@ -176,12 +185,12 @@ public partial class Enemy : Area2D
 
     public override void _Draw()
     {
-        // 改心の虹色フラッシュ（スプライト有無に関わらず重ねる）
+        // 改心フラッシュ（やさしい色：淡ピンク→淡紫に着地）
         if (_flashing)
         {
             float t = (float)(_flashT / FlashDur);
-            var c = Color.FromHsv(Mathf.PosMod(t * 2f, 1f), 0.5f, 1f);
-            DrawCircle(Vector2.Zero, BodyRadius + 8f * (1f - t), new Color(c.R, c.G, c.B, 0.55f * (1f - t)));
+            var c = new Color(1f, 0.85f, 0.92f).Lerp(new Color(0.79f, 0.72f, 0.94f), t); // 淡ピンク→淡紫
+            DrawCircle(Vector2.Zero, BodyRadius + 10f * (1f - t), new Color(c.R, c.G, c.B, 0.6f * (1f - t)));
         }
 
         // スプライトが無い時だけプレースホルダ図形を描く
