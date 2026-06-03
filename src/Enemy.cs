@@ -139,9 +139,9 @@ public partial class Enemy : Area2D
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
         GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
 
-        // 浄化バースト演出＋「ありがとう」
+        // 浄化バースト演出＋やさしい言葉（バリエーション）
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), "ありがとう", FxLayer.Sig2);
+        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
 
         // 救った人を algo のフォロワー（味方オプション）に。
         var players = GetTree().GetNodesInGroup("player");
@@ -177,6 +177,8 @@ public partial class Enemy : Area2D
             return;
         }
 
+        if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
+
         UpdateMovement(delta);
         if (GlobalPosition.X < -24f) QueueFree();
     }
@@ -201,6 +203,10 @@ public partial class Enemy : Area2D
         if (!_purified && _panels.Count == 1)
             DrawArc(Vector2.Zero, Ripple.MaxRadius, 0, Mathf.Tau, 40, new Color(0.7f, 0.92f, 1f, 0.28f), 1f);
     }
+
+    private static readonly string[] KindWords = { "ありがとう", "だいじょうぶ", "きみは悪くないよ", "ごめんね", "また話そう" };
+    private static readonly RandomNumberGenerator _kw = new RandomNumberGenerator();
+    private static string PickKindWord() => KindWords[_kw.RandiRange(0, KindWords.Length - 1)];
 
     private void DrawPerson(Color body, bool happy)
     {

@@ -30,6 +30,7 @@ public partial class Player : Area2D
     private const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）
     private int _savedCount = 0;
     private int _shotParity = 0;            // フォロワーの発射間引き用
+    private bool _overload = false;         // やさしさ全開中か（GameManager）
     private static readonly Vector2[] FollowerSlots =
     {
         new Vector2(-14, -11), new Vector2(-14, 11),
@@ -139,6 +140,11 @@ public partial class Player : Area2D
         _pool = GetNode<BulletPool>("/root/Pool");
 
         ZIndex = 10;
+
+        // 開始/リスタート直後の被弾を防ぐスポーン無敵（点滅）
+        _invincible = true;
+        _invincibleTimer = 1.5f;
+        _blinkPhase = 0f;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -161,11 +167,14 @@ public partial class Player : Area2D
         if (_fireCooldown > 0f)
             _fireCooldown -= dt;
 
+        // やさしさ全開なら連射が速くなる
+        _overload = GetNodeOrNull<GameManager>("/root/Game")?.IsOverload ?? false;
+
         bool shoot = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept");
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            _fireCooldown = FireInterval;
+            _fireCooldown = _overload ? 0.07f : FireInterval;
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -216,9 +225,9 @@ public partial class Player : Area2D
         _pool.Spawn(muzzle + new Vector2(0f, -4f), vel, isEnemy: false, 3f, 1);
         _pool.Spawn(muzzle + new Vector2(0f, 4f), vel, isEnemy: false, 3f, 1);
 
-        // フォロワーは2回に1回だけ同期発射（火力を抑える）
+        // フォロワーは通常2回に1回、全開中は毎ショット同期発射
         _shotParity++;
-        if ((_shotParity & 1) == 0)
+        if (_overload || (_shotParity & 1) == 0)
             foreach (var f in _followers)
                 f.Fire();
 
@@ -291,20 +300,49 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
     }
 
+    private bool _gameOver = false;
+
     public void TakeHit()
     {
-        // 無敵中は無効
-        if (_invincible)
+        // 無敵中・ゲームオーバー中は無効
+        if (_invincible || _gameOver)
             return;
 
         // 被弾演出（自機周囲のフラッシュ＋波紋＋軽いシェイク）
         FxLayer.Instance?.PlayerHit(GlobalPosition);
 
+        // ♥（残機）を1つ減らして HUD 更新
+        Lives = Mathf.Max(0, Lives - 1);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
+
+        // 被弾でフォロワーも全員離れてしまう（やさしさの輪がほどける）
+        foreach (var f in _followers)
+        {
+            FxLayer.Instance?.KindnessMote(f.GlobalPosition);
+            f.QueueFree();
+        }
+        _followers.Clear();
+
         // フラッシュ＋短時間無敵
         StartInvincible();
 
-        // W0 は練習扱い: 残機を減らさない（ゲームオーバーにしない）。
-        // 残機を実際に減らす運用に切り替える場合はここで Lives-- する。
+        if (Lives <= 0)
+            GameOver();
+    }
+
+    private void GameOver()
+    {
+        _gameOver = true;
+        _invincible = true;
+        _invincibleTimer = 9999f; // 以降は無敵で待機
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("くじけちゃった… Rでもう一度");
+        // 少し見せてから自動リスタート
+        var t = GetTree().CreateTimer(1.8);
+        t.Timeout += () =>
+        {
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            GetTree().ReloadCurrentScene();
+        };
     }
 
     private void StartInvincible()

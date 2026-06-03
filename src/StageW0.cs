@@ -1,25 +1,23 @@
 using Godot;
 
-// StageW0 : チュートリアル進行（W0 やすらぎの庭）
+// StageW0 : チュートリアル進行（W0 やすらぎの庭）＋ 物語の導入。
 // 経過時間ベースの簡易ステップ機械でタイムラインを進める。
-//   Step1: 移動説明
-//   Step2: ショット説明 + PageShard を1体出す
-//   Step3: 撃って浄化しよう + GlyphMote を数体ウェーブ生成
-//   Step4: 敵殲滅後 STAGE CLEAR バナー
-// 参照（Player/Hud/World）は Main から受け取る。敵は World 配下に add する。
+//   1-3: オープニング導入（世界・algo・目的）
+//   4  : 移動チュートリアル
+//   5  : ショット説明 + うつむきさん(練習台)
+//   6  : 浄化＆連鎖の本番ウェーブ
+//   7  : エリア浄化完了（締め）
+// 参照（Player/Hud/World）は Main から受け取る。
 public partial class StageW0 : Node
 {
-    // Main から渡される参照
     public Player Player = null!;
     public Hud Hud = null!;
     public Node2D World = null!;
 
-    // 簡易ステップ機械
-    private int _step;            // 現在のステップ番号（1..）
-    private bool _stepStarted;    // 現在ステップの開始処理が済んだか
-    private double _stepTime;     // 現在ステップ開始からの経過時間
+    private int _step;
+    private bool _stepStarted;
+    private double _stepTime;
 
-    // 敵スポーンの基準座標（右外から登場）
     private const float SpawnX = 390f;
 
     public override void _Ready()
@@ -32,18 +30,22 @@ public partial class StageW0 : Node
     public override void _Process(double delta)
     {
         _stepTime += delta;
-
         switch (_step)
         {
-            case 1: Step1_Move(); break;
-            case 2: Step2_Shoot(); break;
-            case 3: Step3_Wave(); break;
-            case 4: Step4_Clear(); break;
-            // case 5: 完了（何もしない）
+            // 冒頭：algo が話すシーン（立ち絵＋吹き出し）
+            case 1: Talk("…ん。めが、さめた。", 3.0); break;
+            case 2: Talk("ここは、声が流れる世界 ― タイムライン。", 3.4); break;
+            case 3: Talk("黒い言葉が、みんなの心を歪めてる…。", 3.4); break;
+            case 4: Talk("だいじょうぶ。わたしが“やさしさ”を取り戻すよ。", 3.6); break;
+            case 5: Talk("ハル……あなたを、もう一度さがしに行くね。", 3.6); break;
+            // チュートリアル＆本番
+            case 6: Step_Move(); break;
+            case 7: Step_Shoot(); break;
+            case 8: Step_Wave(); break;
+            case 9: Step_Clear(); break;
         }
     }
 
-    // ステップ遷移ヘルパ
     private void Advance()
     {
         _step++;
@@ -51,80 +53,69 @@ public partial class StageW0 : Node
         _stepTime = 0;
     }
 
-    // Step1: 移動説明（数秒）
-    private void Step1_Move()
+    // ---- algo が話す（立ち絵＋吹き出し）。表示中は敵が止まる ----
+    private void Talk(string line, double dur)
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowMessage("Move: Arrow Keys / 矢印キーで移動");
+            Hud.ShowDialog(line);
         }
-
-        if (_stepTime >= 4.0)
-        {
-            Advance();
-        }
+        if (_stepTime >= dur) Advance();
     }
 
-    // Step2: ショット説明 + PageShard 1体
-    private void Step2_Shoot()
+    // ---- 4: 移動 ----
+    private void Step_Move()
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowMessage("Zで光弾。黒い吹き出しを剥がそう");
+            Hud.ShowMessage("矢印キーで動こう（Shiftでゆっくり）");
+        }
+        if (_stepTime >= 4.0) Advance();
+    }
+
+    // ---- 5: ショット説明 + うつむきさん ----
+    private void Step_Shoot()
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            Hud.ShowMessage("Zの光で、黒い吹き出しを剥がそう");
             SpawnPageShard(new Vector2(SpawnX, 108));
         }
-
-        // 出した PageShard を撃破したら次へ。安全のため一定時間で先に進む保険も用意。
-        if (_stepTime >= 1.0 && CountEnemies() == 0)
-        {
-            Advance();
-        }
-        else if (_stepTime >= 14.0)
-        {
-            Advance();
-        }
+        if (_stepTime >= 1.0 && CountEnemies() == 0) Advance();
+        else if (_stepTime >= 16.0) Advance();
     }
 
-    // Step3: GlyphMote ウェーブ
-    private void Step3_Wave()
+    // ---- 6: 浄化＆連鎖の本番 ----
+    private void Step_Wave()
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowMessage("全部剥がして浄化！やさしさが連鎖するよ");
-
-            // 連鎖(波紋)が起きやすいよう、やや密集して生成
+            Hud.ShowMessage("全部剥がせば“浄化”！やさしさは連鎖する");
             SpawnGlyphMote(new Vector2(SpawnX, 92));
             SpawnGlyphMote(new Vector2(SpawnX + 34, 120));
             SpawnGlyphMote(new Vector2(SpawnX + 70, 100));
             SpawnGlyphMote(new Vector2(SpawnX + 104, 128));
         }
-
-        // 全滅したらクリアへ（生成直後の0判定を避けるため少し待つ）
-        if (_stepTime >= 1.0 && CountEnemies() == 0)
-        {
-            Advance();
-        }
+        if (_stepTime >= 1.0 && CountEnemies() == 0) Advance();
     }
 
-    // Step4: STAGE CLEAR バナー
-    private void Step4_Clear()
+    // ---- 7: 浄化完了（締め） ----
+    private void Step_Clear()
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowBanner("STAGE CLEAR!  W0 やすらぎの庭");
-            Advance(); // 以後は何もしないステップへ
+            Hud.ShowBanner("やさしさが、ひろがった。");
+            Hud.ShowDialog("ね、やさしさって…ちゃんと、ひろがるんだ。奥へ行こう。");
+            Advance();
         }
     }
 
-    // "enemies" グループの現在数を数える
-    private int CountEnemies()
-    {
-        return GetTree().GetNodesInGroup("enemies").Count;
-    }
+    private int CountEnemies() => GetTree().GetNodesInGroup("enemies").Count;
 
     private void SpawnPageShard(Vector2 pos)
     {

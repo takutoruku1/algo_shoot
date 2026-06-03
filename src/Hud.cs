@@ -12,6 +12,14 @@ public partial class Hud : CanvasLayer
     private Label _comboLabel = null!;     // コンボ（右上・スコア下）
     private Label _bombLabel = null!;      // ボム数（ハート下）
     private ColorRect _flash = null!;      // ボム発動時の全画面フラッシュ
+    private ColorRect _kindBg = null!;     // やさしさゲージ 背景
+    private ColorRect _kindFill = null!;   // やさしさゲージ 中身
+    private Label _overloadLabel = null!;  // 「やさしさ全開！」
+    private SpeechBubble _bubble = null!;  // 下部の吹き出し（ドット絵調）
+    private TextureRect _portrait = null!; // algoの立ち絵（会話時）
+
+    // 吹き出し表示中は敵を止める（他クラスから参照）
+    public static bool BubblePaused = false;
 
     private double _messageTimer;          // メッセージの自動消去残り時間
     private double _bannerTimer;           // バナーの自動消去残り時間
@@ -34,19 +42,37 @@ public partial class Hud : CanvasLayer
             _font.MultichannelSignedDistanceField = false;
         }
 
-        // メッセージ: 画面下中央
+        // algo 立ち絵（会話時に左下に表示）。元の高解像度イラストを使用。
+        var portraitTex = ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
+                          ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");
+        _portrait = new TextureRect
+        {
+            Name = "Portrait",
+            Texture = portraitTex,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            Position = new Vector2(2, Main.ScreenHeight - 62),
+            Size = new Vector2(54, 60),
+            Visible = false,
+        };
+        _portrait.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_portrait);
+
+        // 下部の吹き出し（ドット絵調・自前描画）
+        _bubble = new SpeechBubble { Name = "Bubble", Visible = false };
+        AddChild(_bubble);
+
+        // メッセージ本文（吹き出しの上に乗せる）
         _messageLabel = new Label
         {
             Name = "MessageLabel",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            // 画面下部に横いっぱいの帯として配置（内部解像度 384x216 前提）
             Position = new Vector2(0, Main.ScreenHeight - 28),
             Size = new Vector2(Main.ScreenWidth, 20),
+            ZIndex = 1,
         };
-        _messageLabel.AddThemeColorOverride("font_color", new Color(0.15f, 0.10f, 0.05f));
-        _messageLabel.AddThemeColorOverride("font_outline_color", new Color(1f, 1f, 1f, 0.7f));
-        _messageLabel.AddThemeConstantOverride("outline_size", 2);
+        _messageLabel.AddThemeColorOverride("font_color", new Color(0.18f, 0.12f, 0.22f));
         if (_font != null) _messageLabel.AddThemeFontOverride("font", _font);
         _messageLabel.AddThemeFontSizeOverride("font_size", 12);
         _messageLabel.Visible = false;
@@ -82,6 +108,18 @@ public partial class Hud : CanvasLayer
         };
         StyleLabel(_bombLabel, 8, new Color(0.20f, 0.12f, 0.05f));
         AddChild(_bombLabel);
+
+        // やさしさゲージ（ハート/ボムの下）
+        _kindBg = new ColorRect { Name = "KindBg", Position = new Vector2(5, 28), Size = new Vector2(64, 4), Color = new Color(0.15f, 0.12f, 0.20f, 0.55f) };
+        _kindBg.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_kindBg);
+        _kindFill = new ColorRect { Name = "KindFill", Position = new Vector2(5, 28), Size = new Vector2(0, 4), Color = new Color("ffd98a") };
+        _kindFill.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_kindFill);
+        _overloadLabel = new Label { Name = "OverloadLabel", Position = new Vector2(72, 25), Size = new Vector2(140, 12) };
+        StyleLabel(_overloadLabel, 8, new Color("ff7fb0"));
+        _overloadLabel.Visible = false;
+        AddChild(_overloadLabel);
 
         // スコア: 右上（右寄せ）
         _scoreLabel = new Label
@@ -146,6 +184,14 @@ public partial class Hud : CanvasLayer
             {
                 _comboLabel.Visible = false;
             }
+
+            // やさしさゲージ
+            float kw = 64f * Mathf.Clamp(game.Kindness, 0f, 1f);
+            _kindFill.Size = new Vector2(kw, 4);
+            _kindFill.Color = game.IsOverload ? new Color("ff7fb0") : new Color("ffd98a");
+            _overloadLabel.Visible = game.IsOverload;
+            if (game.IsOverload) _overloadLabel.Text = "やさしさ全開！";
+            if (game.JustOverloaded) { ShowBanner("やさしさ全開！"); Flash(); }
         }
 
         // ボムフラッシュの減衰
@@ -161,8 +207,12 @@ public partial class Hud : CanvasLayer
             if (_messageTimer <= 0)
             {
                 _messageLabel.Visible = false;
+                _bubble.Visible = false;
+                _portrait.Visible = false;
             }
         }
+        // 吹き出し表示中は敵を止める
+        BubblePaused = _bubble.Visible;
 
         if (_bannerTimer > 0)
         {
@@ -174,12 +224,34 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    // 画面下中央のチュートリアル指示（数秒で消す/上書き）。
+    // テロップ（吹き出し）でメッセージ表示。立ち絵なし。
     public void ShowMessage(string text)
     {
+        _portrait.Visible = false;
+        _bubble.Position = new Vector2(18, Main.ScreenHeight - 32);
+        _bubble.SetBox(new Vector2(348, 24), 170f);
+        _messageLabel.Position = new Vector2(22, Main.ScreenHeight - 31);
+        _messageLabel.Size = new Vector2(340, 22);
+        _messageLabel.HorizontalAlignment = HorizontalAlignment.Center;
         _messageLabel.Text = text;
+        _bubble.Visible = true;
         _messageLabel.Visible = true;
-        _messageTimer = 4.0; // 数秒で消える（後続 ShowMessage で上書き）
+        _messageTimer = 4.5;
+    }
+
+    // algo が話す会話（立ち絵＋吹き出し）。
+    public void ShowDialog(string text)
+    {
+        _portrait.Visible = true;
+        _bubble.Position = new Vector2(60, Main.ScreenHeight - 40);
+        _bubble.SetBox(new Vector2(316, 32), 8f);
+        _messageLabel.Position = new Vector2(66, Main.ScreenHeight - 39);
+        _messageLabel.Size = new Vector2(304, 30);
+        _messageLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        _messageLabel.Text = text;
+        _bubble.Visible = true;
+        _messageLabel.Visible = true;
+        _messageTimer = 6.0;
     }
 
     // 中央大きめの一時バナー（例: "STAGE CLEAR!"）。

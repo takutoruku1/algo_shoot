@@ -76,6 +76,7 @@ public partial class Panel : Area2D
     public override void _PhysicsProcess(double delta)
     {
         if (_dead) return;
+        if (Hud.BubblePaused) return; // 吹き出し表示中は攻撃・旋回を止める
         UpdateOrbit(delta);
 
         if (_fires)

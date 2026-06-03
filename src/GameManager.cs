@@ -13,17 +13,47 @@ public partial class GameManager : Node
     private const float WarmthTarget = 12f; // この人数を救うと完全に暖かくなる
     public float Warmth => Mathf.Clamp(PurifiedCount / WarmthTarget, 0f, 1f);
 
+    // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
+    private float _kindFill;            // 0..1 蓄積
+    public bool IsOverload { get; private set; }
+    private double _overloadT;
+    private const double OverloadDur = 5.0;
+    private const float GrazeGain = 0.035f;
+    private const float PurifyGain = 0.12f;
+    public bool JustOverloaded { get; private set; } // 発動した瞬間のフラグ（UI用、1フレーム）
+    // ゲージ表示値: 全開中は残り時間、通常は蓄積量
+    public float Kindness => IsOverload ? (float)(_overloadT / OverloadDur) : _kindFill;
+
     private double _comboTimer;
     private const double ComboWindow = 2.0; // この時間内に倒し続けるとコンボ継続
     private const int MaxCombo = 16;
 
     public override void _Process(double delta)
     {
+        JustOverloaded = false;
         if (_comboTimer > 0)
         {
             _comboTimer -= delta;
             if (_comboTimer <= 0)
                 Combo = 0;
+        }
+        if (IsOverload)
+        {
+            _overloadT -= delta;
+            if (_overloadT <= 0) { IsOverload = false; _kindFill = 0f; }
+        }
+    }
+
+    // やさしさゲージを貯める。満タンで「やさしさ全開」発動。
+    private void AddKindness(float amount)
+    {
+        if (IsOverload) return;
+        _kindFill += amount;
+        if (_kindFill >= 1f)
+        {
+            IsOverload = true;
+            _overloadT = OverloadDur;
+            JustOverloaded = true;
         }
     }
 
@@ -34,12 +64,14 @@ public partial class GameManager : Node
         _comboTimer = ComboWindow;
         Score += basePoints * Mathf.Max(1, Combo);
         PurifiedCount++;
+        AddKindness(PurifyGain);
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
     public void AddGraze()
     {
         Score += 10;
+        AddKindness(GrazeGain);
     }
 
     // ボムで敵弾を消した時の小加点。
@@ -70,5 +102,8 @@ public partial class GameManager : Node
         _comboTimer = 0;
         Bombs = 3;
         PurifiedCount = 0;
+        _kindFill = 0f;
+        IsOverload = false;
+        _overloadT = 0;
     }
 }
