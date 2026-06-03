@@ -25,13 +25,25 @@ public partial class Enemy : Area2D
     protected string PreTexPath = "";
     protected string PostTexPath = "";
     protected string PanelTexPath = "";
+    // 任意：浄化の瞬間に一時表示する「大泣き」スプライト。設定すると pre→cry→(CryHoldDur秒)→post の3段階に。
+    protected string CryTexPath = "";
+    protected double CryHoldDur = 0;
     protected float BodyDisplayH = 40f;
     protected bool FaceLeft = true; // 進行方向(左=プレイヤー側)を向く。素材は右向きなので反転。
     private Sprite2D _bodySprite = null!;
     private bool _hasBodyTex;
 
+    // ボス用：HP制（>0でHPバー方式に。剥がした枚数ぶんHPが減り、パネルは補充される）。
+    protected int MaxHp = 0;
+    protected float PanelRespawnDelay = 0f; // >0でパネル補充（ボス用）
+    private int _hp;
+    public bool HasHpBar => MaxHp > 0;
+    public float HpRatio => MaxHp > 0 ? (float)_hp / MaxHp : 0f;
+
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
+    private bool _crying;     // 大泣き中（3段階浄化の中間）
+    private double _cryT;
     private bool _flashing;
     private double _flashT;
     private const double FlashDur = 0.5;
@@ -52,6 +64,7 @@ public partial class Enemy : Area2D
         AddChild(_bodyShape);
 
         OnEnemyReady();
+        _hp = MaxHp;
         SetupBodySprite();
         SpawnPanels();
     }
@@ -81,33 +94,76 @@ public partial class Enemy : Area2D
     private void SpawnPanels()
     {
         for (int i = 0; i < PanelCount; i++)
-        {
-            var p = new Panel();
-            float baseAngle = Mathf.Tau * i / Mathf.Max(1, PanelCount);
-            p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath);
-            AddChild(p);
-            _panels.Add(p);
-        }
+            SpawnOnePanel(Mathf.Tau * i / Mathf.Max(1, PanelCount));
     }
 
-    // パネルが砕けた通知。最後の1枚が剥がれたら浄化。
+    private void SpawnOnePanel(float baseAngle)
+    {
+        var p = new Panel();
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath);
+        AddChild(p);
+        _panels.Add(p);
+    }
+
+    // パネルが砕けた通知。
+    // 通常敵：全部剥がれたら浄化。 ボス(HP制)：剥がした枚数ぶんHPを削り、パネルを補充。HP0で浄化。
     public void OnPanelStripped(Panel p)
     {
         _panels.Remove(p);
+
+        if (MaxHp > 0)
+        {
+            if (_purified) return;
+            _hp = Mathf.Max(0, _hp - 1);
+            OnHpChanged();
+            if (_hp <= 0) { Redeem(); return; }
+            SchedulePanelRespawn();
+            QueueRedraw();
+            return;
+        }
+
         if (_panels.Count == 0 && !_purified)
             Redeem();
         else
             QueueRedraw();
     }
 
-    // 外部（ボム等）から強制浄化。全パネルを剥がす。
+    private void SchedulePanelRespawn()
+    {
+        if (PanelRespawnDelay <= 0f) return;
+        var t = GetTree().CreateTimer(PanelRespawnDelay);
+        t.Timeout += () =>
+        {
+            if (_purified || _crying || !IsInstanceValid(this)) return;
+            if (_panels.Count < PanelCount) SpawnOnePanel(GD.Randf() * Mathf.Tau);
+        };
+    }
+
+    // 外部（ボム等）から強制浄化。
+    // ボス(HP制)はボムで即浄化しない：今あるパネルを剥がす（HPが少し減る）だけ。
     public void Purify()
     {
         if (_purified) return;
+        if (MaxHp > 0)
+        {
+            foreach (var p in new List<Panel>(_panels))
+                p.Shatter();
+            return;
+        }
         foreach (var p in new List<Panel>(_panels))
             p.Shatter();
         if (!_purified) Redeem();
     }
+
+    // 進行方向に体を向ける（素材は右向き。flipH=true で左向き）。
+    protected void SetSpriteFlip(bool flipH)
+    {
+        if (_hasBodyTex && _bodySprite != null)
+            _bodySprite.FlipH = flipH;
+    }
+
+    // HPが変化した（HUDバー更新用フック）。
+    protected virtual void OnHpChanged() { }
 
     // 改心処理（消さない。味方化して残る）。
     private void Redeem()
@@ -124,29 +180,12 @@ public partial class Enemy : Area2D
         _flashing = true;
         _flashT = 0;
 
-        // 本体スプライトを「浄化後（笑顔）」へ差し替え。
-        if (_hasBodyTex && !string.IsNullOrEmpty(PostTexPath))
-        {
-            var t = ResourceLoader.Load<Texture2D>(PostTexPath);
-            if (t != null)
-            {
-                _bodySprite.Texture = t;
-                float s = BodyDisplayH / t.GetHeight();
-                _bodySprite.Scale = new Vector2(s, s);
-            }
-        }
-
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
         GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
-
-        // 救った人を algo のフォロワー（味方オプション）に。
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Player pl)
-            pl.AddFollower(GlobalPosition);
 
         // やさしさの波紋（連鎖浄化のトリガー）。
         var parent = GetParent();
@@ -157,8 +196,45 @@ public partial class Enemy : Area2D
             ripple.GlobalPosition = GlobalPosition;
         }
 
+        // 3段階対応：Cry が設定されていれば先に大泣きを見せてから笑顔へ。
+        if (_hasBodyTex && !string.IsNullOrEmpty(CryTexPath) && CryHoldDur > 0)
+        {
+            SwapBody(CryTexPath);
+            _crying = true;
+            _cryT = 0;
+            OnCryStart();
+        }
+        else
+        {
+            SwapBody(PostTexPath);
+            GrantFollower();
+        }
+
         QueueRedraw();
     }
+
+    // 本体スプライトを差し替えて表示高さに合わせて再スケール。
+    private void SwapBody(string path)
+    {
+        if (!_hasBodyTex || string.IsNullOrEmpty(path)) return;
+        var t = ResourceLoader.Load<Texture2D>(path);
+        if (t == null) return;
+        _bodySprite.Texture = t;
+        float s = BodyDisplayH / t.GetHeight();
+        _bodySprite.Scale = new Vector2(s, s);
+    }
+
+    // 救った人を algo のフォロワー（味方オプション）にする。派生で上書き可（ボス＝ヒカゲ強化）。
+    protected virtual void GrantFollower()
+    {
+        var players = GetTree().GetNodesInGroup("player");
+        if (players.Count > 0 && players[0] is Player pl)
+            pl.AddFollower(GlobalPosition);
+    }
+
+    // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。
+    protected virtual void OnCryStart() { }
+    protected virtual void OnCryEnd() { }
 
     public override void _PhysicsProcess(double delta)
     {
@@ -167,6 +243,20 @@ public partial class Enemy : Area2D
             _flashT += delta;
             if (_flashT >= FlashDur) _flashing = false;
             QueueRedraw();
+        }
+
+        // 大泣き中はその場に留まり、CryHoldDur 経過で笑顔へ着地。
+        if (_crying)
+        {
+            _cryT += delta;
+            if (_cryT >= CryHoldDur)
+            {
+                _crying = false;
+                SwapBody(PostTexPath);
+                OnCryEnd();
+                GrantFollower();
+            }
+            return;
         }
 
         if (_purified)

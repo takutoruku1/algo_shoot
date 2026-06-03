@@ -131,10 +131,12 @@ public partial class Bullet : Area2D
 
         if (IsEnemy)
         {
-            // 暴言＝黒インク＋ホットな縁（赤マゼンタ）。黒コアで淡背景でも沈まない。
-            DrawCircle(Vector2.Zero, r, new Color(1.0f, 0.24f, 0.43f));            // ホット縁
-            DrawCircle(Vector2.Zero, r * 0.74f, new Color(0.09f, 0.06f, 0.12f));   // 黒インク
-            DrawCircle(Vector2.Zero, r * 0.30f, new Color(1.0f, 0.45f, 0.55f, 0.9f)); // 中心の熱
+            // 明るいクリームのハロー → 黒インク本体 → 中心の熱。
+            // 明色ハローで淡いピンク背景からもくっきり浮く（視認性最優先）。
+            DrawCircle(Vector2.Zero, r + 2.2f, new Color(1f, 0.97f, 0.9f, 0.55f));    // 外側の柔らかな明ハロー
+            DrawCircle(Vector2.Zero, r + 1.1f, new Color(1f, 0.95f, 0.88f, 0.95f));   // 明るいフチ
+            DrawCircle(Vector2.Zero, r, new Color(0.06f, 0.04f, 0.09f));              // 黒インク本体
+            DrawCircle(Vector2.Zero, r * 0.5f, new Color(1.0f, 0.32f, 0.46f));        // 中心の熱
         }
         else
         {

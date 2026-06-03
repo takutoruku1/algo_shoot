@@ -15,11 +15,18 @@ public partial class Hud : CanvasLayer
     private ColorRect _kindBg = null!;     // やさしさゲージ 背景
     private ColorRect _kindFill = null!;   // やさしさゲージ 中身
     private Label _overloadLabel = null!;  // 「やさしさ全開！」
+    private Label _skillLabel = null!;     // ヒカゲ専用スキルの表示（C）
     private ColorRect _purifyBg = null!;   // 浄化ゲージ 背景（上部中央・ステージ目標）
     private ColorRect _purifyFill = null!; // 浄化ゲージ 中身
     private Label _purifyLabel = null!;    // 「浄化 XX%」
     private const float PurifyGaugeX = 100f;
     private const float PurifyGaugeW = 150f;
+    private ColorRect _bossBg = null!;      // ボスHPバー 背景
+    private ColorRect _bossFill = null!;    // ボスHPバー 中身
+    private Label _bossLabel = null!;       // ボス名
+    private const float BossBarX = 92f;
+    private const float BossBarY = 32f;
+    private const float BossBarW = 200f;
     private SpeechBubble _bubble = null!;  // 下部の吹き出し（ドット絵調）
     private TextureRect _portrait = null!; // algoの立ち絵（会話時）
 
@@ -29,6 +36,7 @@ public partial class Hud : CanvasLayer
     private double _messageTimer;          // メッセージの自動消去残り時間
     private double _bannerTimer;           // バナーの自動消去残り時間
     private float _flashAlpha;             // フラッシュの現在アルファ
+    private Color _flashRgb = new Color(1f, 1f, 1f); // フラッシュ色（白=ボム/赤=被弾）
 
     private FontFile _font = null!;
 
@@ -126,6 +134,12 @@ public partial class Hud : CanvasLayer
         _overloadLabel.Visible = false;
         AddChild(_overloadLabel);
 
+        // ヒカゲ専用スキル表示（やさしさゲージの下）。ヒカゲ加入時のみ表示。
+        _skillLabel = new Label { Name = "SkillLabel", Position = new Vector2(5, 34), Size = new Vector2(160, 12) };
+        StyleLabel(_skillLabel, 8, new Color("ff7fb0"));
+        _skillLabel.Visible = false;
+        AddChild(_skillLabel);
+
         // 浄化ゲージ（上部中央・ステージの目標）。空が晴れていく度合いを表す。
         _purifyBg = new ColorRect { Name = "PurifyBg", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(PurifyGaugeW, 6), Color = new Color(0.12f, 0.10f, 0.18f, 0.6f) };
         _purifyBg.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -136,6 +150,18 @@ public partial class Hud : CanvasLayer
         _purifyLabel = new Label { Name = "PurifyLabel", Position = new Vector2(PurifyGaugeX, 13), Size = new Vector2(PurifyGaugeW, 10), HorizontalAlignment = HorizontalAlignment.Center };
         StyleLabel(_purifyLabel, 8, new Color(0.22f, 0.18f, 0.32f));
         AddChild(_purifyLabel);
+
+        // ボスHPバー（中ボス戦のみ表示）
+        _bossBg = new ColorRect { Name = "BossBg", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = new Color(0.14f, 0.06f, 0.12f, 0.7f), Visible = false };
+        _bossBg.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_bossBg);
+        _bossFill = new ColorRect { Name = "BossFill", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = new Color(1f, 0.32f, 0.5f), Visible = false };
+        _bossFill.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(_bossFill);
+        _bossLabel = new Label { Name = "BossLabel", Position = new Vector2(BossBarX, BossBarY - 11), Size = new Vector2(BossBarW, 10) };
+        StyleLabel(_bossLabel, 8, new Color(0.9f, 0.35f, 0.5f));
+        _bossLabel.Visible = false;
+        AddChild(_bossLabel);
 
         // スコア: 右上（右寄せ）
         _scoreLabel = new Label
@@ -219,7 +245,7 @@ public partial class Hud : CanvasLayer
         if (_flashAlpha > 0f)
         {
             _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
-            _flash.Color = new Color(1f, 1f, 1f, _flashAlpha);
+            _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
         }
 
         if (_messageTimer > 0)
@@ -254,8 +280,16 @@ public partial class Hud : CanvasLayer
     }
 
     // algo が話す会話（立ち絵＋吹き出し）。
-    public void ShowDialog(string text)
+    public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
+
+    // 話者の立ち絵を指定して会話表示（ボス等のかけあい用）。
+    public void ShowDialog(string text, string portraitResPath)
     {
+        if (!string.IsNullOrEmpty(portraitResPath))
+        {
+            var tex = ResourceLoader.Load<Texture2D>(portraitResPath);
+            if (tex != null) _portrait.Texture = tex;
+        }
         _portrait.Visible = true;
         LayoutBubble(text, dialog: true);
         _messageTimer = 6.0;
@@ -306,16 +340,55 @@ public partial class Hud : CanvasLayer
         _bannerTimer = 5.0;
     }
 
+    // ヒカゲ専用スキルの表示（加入時のみ。準備OKでピンク、充填中はグレー）。
+    public void SetHikageSkill(bool has, bool ready)
+    {
+        _skillLabel.Visible = has;
+        if (!has) return;
+        _skillLabel.Text = ready ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
+        _skillLabel.AddThemeColorOverride("font_color", ready ? new Color("ff7fb0") : new Color(0.6f, 0.55f, 0.62f));
+    }
+
+    // ボスHPバー表示／更新／非表示。
+    public void ShowBossBar(string bossName)
+    {
+        _bossLabel.Text = bossName;
+        _bossBg.Visible = true;
+        _bossFill.Visible = true;
+        _bossLabel.Visible = true;
+    }
+
+    public void UpdateBossBar(float frac)
+    {
+        _bossFill.Size = new Vector2(BossBarW * Mathf.Clamp(frac, 0f, 1f), 7);
+    }
+
+    public void HideBossBar()
+    {
+        _bossBg.Visible = false;
+        _bossFill.Visible = false;
+        _bossLabel.Visible = false;
+    }
+
     // 残機表示の更新（ドットハート）。
     public void SetLives(int n)
     {
         _hearts.SetCount(n);
     }
 
-    // ボム発動時の全画面フラッシュ。
+    // ボム発動時の全画面フラッシュ（白）。
     public void Flash()
     {
+        _flashRgb = new Color(1f, 1f, 1f);
         _flashAlpha = 0.55f;
-        _flash.Color = new Color(1f, 1f, 1f, _flashAlpha);
+        _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
+    }
+
+    // 被弾時の全画面フラッシュ（赤）。何に当たったか分かるよう強めに。
+    public void HitFlash()
+    {
+        _flashRgb = new Color(1f, 0.2f, 0.28f);
+        _flashAlpha = 0.7f;
+        _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
     }
 }

@@ -18,9 +18,12 @@ public partial class StageW0 : Node
     private bool _stepStarted;
     private double _stepTime;
     private Spawner _spawner = null!;
+    private BossHikage _boss = null!;
+    private int _mainBase; // 本編開始時の累計浄化数（ウェーブ進捗の基準）
 
     private const float SpawnX = 390f;
-    private const int StageTarget = 24; // このタイムラインを浄化しきる人数
+    private const int WaveCount = 12;   // 本編で浄化する雑魚の数（ボス前）
+    private const int StageTarget = 18; // 浄化ゲージ満タン＝チュートリアル＋本編＋ボス想定
 
     public override void _Ready()
     {
@@ -49,7 +52,10 @@ public partial class StageW0 : Node
             // ステージ本編：連続スポナー＋浄化ゲージ目標
             case 10: Step_MainStart(); break;
             case 11: Step_MainLoop(); break;
-            case 12: Step_StageClear(); break;
+            // climax：炎上ボス「ヒカゲ」
+            case 12: Step_BossIntro(); break;
+            case 13: Step_BossWait(); break;
+            case 14: Step_StageClear(); break;
         }
     }
 
@@ -128,6 +134,7 @@ public partial class StageW0 : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            _mainBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
             _spawner = new Spawner { Name = "Spawner", World = World };
             AddChild(_spawner);
             _spawner.Begin();
@@ -136,15 +143,47 @@ public partial class StageW0 : Node
         if (_stepTime >= 1.0) Advance();
     }
 
-    // ---- 11: 本編ループ（目標到達まで） ----
+    // ---- 11: 本編ループ（ウェーブ規定数を浄化したらボスへ） ----
     private void Step_MainLoop()
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        if (game != null && game.StageCleared)
+        if (game != null && game.PurifiedCount - _mainBase >= WaveCount)
         {
             _spawner?.Stop();
             Advance();
         }
+    }
+
+    // ---- 12: ボス前の予兆＋登場 ----
+    private void Step_BossIntro()
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            Hud.ShowDialog("……来る。すごく大きな、炎上だ。");
+        }
+        // 残った雑魚がはけて会話を見せたら、ヒカゲ登場
+        if (_stepTime >= 3.5 && CountEnemies() == 0)
+        {
+            _boss = new BossHikage { Name = "BossHikage" };
+            World.AddChild(_boss);
+            _boss.GlobalPosition = new Vector2(SpawnX + 20f, 108f);
+            Advance();
+        }
+        else if (_stepTime >= 10.0) // 念のためのタイムアウト
+        {
+            _boss = new BossHikage { Name = "BossHikage" };
+            World.AddChild(_boss);
+            _boss.GlobalPosition = new Vector2(SpawnX + 20f, 108f);
+            Advance();
+        }
+    }
+
+    // ---- 13: ボス戦（浄化→大泣き→最高の笑顔の完了まで） ----
+    private void Step_BossWait()
+    {
+        if (!IsInstanceValid(_boss) || _boss.Finished)
+            Advance();
     }
 
     // ---- 12: ステージクリア（空が晴れる） ----
@@ -154,7 +193,7 @@ public partial class StageW0 : Node
         {
             _stepStarted = true;
             Hud.ShowBanner("空が、晴れた。");
-            Hud.ShowDialog("みんな、もう一人じゃない。やさしさが、世界を温め直してる…。ハル、待っててね。");
+            Hud.ShowDialog("ヒカゲ、もう ひとりじゃないよ。やさしさが、世界を温め直してる…。ハル、もうすこし、まっててね。");
             Advance();
         }
     }

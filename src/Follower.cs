@@ -6,6 +6,7 @@ using Godot;
 public partial class Follower : Node2D
 {
     public Vector2 SlotOffset; // algoローカル座標での定位置
+    public bool IsHikage { get; private set; } // ヒカゲ強化フォロワーか
 
     private Sprite2D _sprite = null!;
     private float _bobT;
@@ -43,6 +44,30 @@ public partial class Follower : Node2D
     public void Fire()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        pool?.Spawn(GlobalPosition, new Vector2(300f, 0f), isEnemy: false, 2.5f, 1);
+        if (pool == null) return;
+        if (IsHikage)
+        {
+            // 強化：太く速い弾を上下2way（火力アップ）
+            pool.Spawn(GlobalPosition + new Vector2(0f, -3f), new Vector2(380f, 0f), isEnemy: false, 3.6f, 2);
+            pool.Spawn(GlobalPosition + new Vector2(0f, 3f), new Vector2(380f, 0f), isEnemy: false, 3.6f, 2);
+        }
+        else
+        {
+            pool.Spawn(GlobalPosition, new Vector2(300f, 0f), isEnemy: false, 2.5f, 1);
+        }
+    }
+
+    // 通常フォロワーをヒカゲに強化（見た目と火力を変える）。
+    public void PromoteToHikage()
+    {
+        IsHikage = true;
+        var tex = ResourceLoader.Load<Texture2D>("res://char/enemy_hikage_post.png");
+        if (tex != null && _sprite != null)
+        {
+            _sprite.Texture = tex;
+            float s = 24f / tex.GetHeight(); // 通常より少し大きい
+            _sprite.Scale = new Vector2(s, s);
+        }
+        ZIndex = 9;
     }
 }
