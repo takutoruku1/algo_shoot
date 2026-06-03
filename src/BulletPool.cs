@@ -48,6 +48,14 @@ public partial class BulletPool : Node2D
         return b;
     }
 
+    // 画面上の全弾を一括で非アクティブ化（リスタート時のクリア用）。
+    public void DespawnAll()
+    {
+        foreach (Node c in GetChildren())
+            if (c is Bullet b && b.Active)
+                Despawn(b);
+    }
+
     // 弾を非アクティブ化してプールへ返却。
     public void Despawn(Bullet b)
     {

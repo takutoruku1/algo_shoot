@@ -61,4 +61,22 @@ public partial class Main : Node2D
         Stage.World = World;
         AddChild(Stage);
     }
+
+    private bool _rHeld;
+
+    public override void _Process(double delta)
+    {
+        // R キーで最初からリスタート
+        bool r = Input.IsKeyPressed(Key.R);
+        if (r && !_rHeld)
+            Restart();
+        _rHeld = r;
+    }
+
+    private void Restart()
+    {
+        // オートロードのプールに残る弾をクリアしてからシーン再読込。
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        GetTree().ReloadCurrentScene();
+    }
 }
