@@ -26,7 +26,7 @@ public partial class BossHikage : Enemy
     private const double LineDur = 2.6;
     private static readonly (string text, bool algo)[] Lines =
     {
-        ("…わたし、ずっと わらうの、へただった。", false),
+        ("…うち、ずっと わらうの、へただった。", false),
         ("そのままで いいよ。いっしょに わらお？", true),
         ("…うん。ありがとう…ともだちに なってくれて。", false),
     };
@@ -158,7 +158,7 @@ public partial class BossHikage : Enemy
     {
         _seq = false;
         Finished = true;
-        GetHud()?.ShowDialog("…わたしも、ちゃんと わらえた。", "res://char/hikage_face_happy.png");
+        GetHud()?.ShowDialog("…うちも、ちゃんと わらえた。", "res://char/hikage_face_happy.png");
     }
 
     // ボスはヒカゲ強化フォロワーを付与（満員なら1体を強化）。
