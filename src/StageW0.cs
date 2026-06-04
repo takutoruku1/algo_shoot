@@ -42,7 +42,7 @@ public partial class StageW0 : Node
             case 1: Talk("…ん。めが、さめた。", 3.0); break;
             case 2: Talk("ここは、声が流れる世界 ― タイムライン。", 3.4); break;
             case 3: Talk("黒い言葉が、みんなの心を歪めてる…。", 3.4); break;
-            case 4: Talk("だいじょうぶ。わたしが“やさしさ”を取り戻すよ。", 3.6); break;
+            case 4: Talk("だいじょうぶ。ボクが“やさしさ”を取り戻すよ。", 3.6); break;
             case 5: Talk("ハル……あなたを、もう一度さがしに行くね。", 3.6); break;
             // チュートリアル＆本番
             case 6: Step_Move(); break;
