@@ -10,7 +10,8 @@ public partial class Prologue : Node2D
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
-    private Texture2D _minaTex = null!; // MINA立ち絵（会話用）
+    private Texture2D _minaTex = null!;   // MINA立ち絵（会話用）
+    private Texture2D _shonenTex = null!; // 少年立ち絵（会話用）
     private double _t;        // フェーズ内経過
     private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title
     private bool _zHeld;
@@ -46,6 +47,7 @@ public partial class Prologue : Node2D
             _font.Hinting = TextServer.Hinting.None;
         }
         _minaTex = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
+        _shonenTex = ResourceLoader.Load<Texture2D>("res://char/shonen_face.png");
 
         // コードレインの行（ブートログ＋それっぽいフィラー）
         string[] boot =
@@ -200,28 +202,17 @@ public partial class Prologue : Node2D
         }
     }
 
-    // --- フェーズ3：話者ビジュアル（MINAは立ち絵／少年は暖色の光） ---
+    // --- フェーズ3：話者の立ち絵を中央に表示（MINA / 少年） ---
     private void DrawTalkSpeakers()
     {
         bool mina = _line < _talk.Count && _talk[_line].Mina;
-        if (mina && _minaTex != null)
+        var tex = mina ? _minaTex : _shonenTex;
+        if (tex != null)
         {
             float th = 132f;
-            float tw = th * _minaTex.GetWidth() / _minaTex.GetHeight();
+            float tw = th * tex.GetWidth() / tex.GetHeight();
             float px = (W - tw) / 2f; // 中央寄せ
-            DrawTextureRect(_minaTex, new Rect2(px, H - 56f - th + 8f, tw, th), false);
-        }
-        else
-        {
-            // 少年が話す：暖色グロー（左）＋ ミナの小さな冷光（中央）
-            Vector2 b = new Vector2(64f, 78f);
-            for (int r = 4; r >= 1; r--)
-                DrawCircle(b, 2f + r * 3f, new Color(Warm.R, Warm.G, Warm.B, 0.08f));
-            DrawCircle(b, 3f, new Color(1f, 0.93f, 0.78f));
-            Vector2 c = new Vector2(W / 2f, 92f);
-            for (int r = 3; r >= 1; r--)
-                DrawCircle(c, 3f + r * 3f, new Color(Cool.R, Cool.G, Cool.B, 0.08f));
-            DrawCircle(c, 4f, new Color(0.9f, 0.97f, 1f));
+            DrawTextureRect(tex, new Rect2(px, H - 56f - th + 8f, tw, th), false);
         }
     }
 

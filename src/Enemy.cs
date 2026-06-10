@@ -236,6 +236,16 @@ public partial class Enemy : Area2D
     protected virtual void OnCryStart() { }
     protected virtual void OnCryEnd() { }
 
+    // 手動送りで会話を終えたとき、Cry（その場停止）を即終了して笑顔へ着地。
+    protected void EndCryNow()
+    {
+        if (!_crying) return;
+        _crying = false;
+        SwapBody(PostTexPath);
+        OnCryEnd();
+        GrantFollower();
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         if (_flashing)

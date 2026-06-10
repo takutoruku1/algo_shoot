@@ -27,11 +27,12 @@ public partial class BossAkari : Enemy
         (0.26f, "ごめんなさい……あなたを、好きに、なんて。"),
     };
 
-    // 浄化時のかけあい（who: 0=少年テロップ / 1=ミナ立ち絵 / 2=あかり立ち絵）
+    // 浄化時のかけあい（who: 0=少年 / 1=ミナ / 2=あかり）。Zで手動送り。
     private bool _seq;
     private int _line;
     private double _lineT;
-    private const double LineDur = 3.4;
+    private bool _zHeld;
+    private bool _beatPending; // 戦闘中の独白(1行)をZ待ちで表示中
     private static readonly (int who, string text)[] Lines =
     {
         (0, "きみが誰かを想って、その人に拒まれて、それでも喪ったとして——"),
@@ -60,7 +61,7 @@ public partial class BossAkari : Enemy
         PostTexPath = "res://char/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         BodyDisplayH = 52f;
-        CryHoldDur = 14.5;       // 改心を見せて会話する尺
+        CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 
     public override void _Ready()
@@ -157,13 +158,16 @@ public partial class BossAkari : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(HpRatio);
-        // HPが閾値を割るたびに“あかりの独白”を挟み、攻撃パターンを変える。
-        if (_beatsFired < Beats.Length && HpRatio <= Beats[_beatsFired].hp)
+        // HPが閾値を割るたびに“あかりの独白”を挟み（Z送り）、攻撃パターンを変える。
+        if (!_beatPending && _beatsFired < Beats.Length && HpRatio <= Beats[_beatsFired].hp)
         {
             var (_, line) = Beats[_beatsFired];
-            GetHud()?.ShowDialog(line, "res://char/akari_face.png");
+            var hud = GetHud();
+            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/akari_face.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
+            _beatPending = true;
+            _lineT = 0;
         }
     }
 
@@ -172,25 +176,47 @@ public partial class BossAkari : Enemy
     protected override void OnCryStart()
     {
         GetHud()?.HideBossBar();
+        var hud = GetHud();
+        if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
     }
 
     protected override void OnCryEnd()
     {
-        _seq = false;
         Finished = true;
     }
 
+    // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
     {
-        if (!_seq) return;
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept");
+        bool zEdge = z && !_zHeld;
+        _zHeld = z;
         _lineT += delta;
-        if (_lineT >= LineDur)
+
+        if (_seq)
         {
-            _lineT = 0; _line++;
-            if (_line >= Lines.Length) { _seq = false; return; }
-            ShowLine();
+            if (zEdge && _lineT >= 0.25)
+            {
+                _lineT = 0; _line++;
+                if (_line >= Lines.Length)
+                {
+                    _seq = false;
+                    var hud = GetHud();
+                    if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
+                    EndCryNow(); // 改心の笑顔へ着地し退場
+                }
+                else ShowLine();
+            }
+            return;
+        }
+
+        if (_beatPending && zEdge && _lineT >= 0.25)
+        {
+            _beatPending = false;
+            var hud = GetHud();
+            if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
         }
     }
 
@@ -199,7 +225,7 @@ public partial class BossAkari : Enemy
         var (who, text) = Lines[_line];
         var hud = GetHud();
         if (hud == null) return;
-        if (who == 0) hud.ShowMessage(text);                                  // 少年（声＝テロップ）
+        if (who == 0) hud.ShowDialog(text, "res://char/shonen_face.png");     // 少年
         else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");  // ミナ
         else hud.ShowDialog(text, "res://char/akari_face.png");              // あかり
     }

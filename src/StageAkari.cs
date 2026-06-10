@@ -15,8 +15,10 @@ public partial class StageAkari : Node
     private int _step;
     private bool _stepStarted;
     private double _stepTime;
-    private double _lineT;
+    private double _lineHold;   // 行表示からの経過（誤連打防止の最小表示時間用）
     private int _introLine;
+    private bool _zHeld;
+    private bool _zEdge;
     private BossAkari _boss = null!;
     private bool _bossActive;
     private double _rainT;
@@ -52,6 +54,10 @@ public partial class StageAkari : Node
     public override void _Process(double delta)
     {
         _stepTime += delta;
+        _lineHold += delta;
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept");
+        _zEdge = z && !_zHeld;
+        _zHeld = z;
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
@@ -70,22 +76,28 @@ public partial class StageAkari : Node
         _stepTime = 0;
     }
 
-    // ---- 会話ステップ（配列を順に流す。少年=テロップ／ミナ=立ち絵） ----
+    // ---- 会話ステップ（配列を順に流す。Zで手動送り。会話中は弾が止まる） ----
     private void Step_Lines(double delta, (int who, string text)[] lines)
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
             _introLine = 0;
-            _lineT = 0;
+            _lineHold = 0;
+            Hud.HoldBubble = true; // 自動で消えない＝手動送り
             ShowLine(lines);
         }
-        _lineT += delta;
-        if (_lineT >= 3.7)
+        if (_zEdge && _lineHold >= 0.25)
         {
-            _lineT = 0;
+            _lineHold = 0;
             _introLine++;
-            if (_introLine >= lines.Length) { Advance(); return; }
+            if (_introLine >= lines.Length)
+            {
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                Advance();
+                return;
+            }
             ShowLine(lines);
         }
     }
@@ -93,8 +105,8 @@ public partial class StageAkari : Node
     private void ShowLine((int who, string text)[] lines)
     {
         var (who, text) = lines[_introLine];
-        if (who == 0) Hud.ShowMessage(text);
-        else Hud.ShowDialog(text, "res://char/mina_face.png");
+        if (who == 0) Hud.ShowDialog(text, "res://char/shonen_face.png"); // 少年
+        else Hud.ShowDialog(text, "res://char/mina_face.png");            // ミナ
     }
 
     // ---- 2: ボス出現 ----

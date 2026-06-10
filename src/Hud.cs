@@ -32,6 +32,8 @@ public partial class Hud : CanvasLayer
 
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
+    // true の間は吹き出しを自動で消さない（手動送り用）。送り側が HideBubble で閉じる。
+    public bool HoldBubble = false;
 
     private double _messageTimer;          // メッセージの自動消去残り時間
     private double _bannerTimer;           // バナーの自動消去残り時間
@@ -250,7 +252,7 @@ public partial class Hud : CanvasLayer
 
         if (_messageTimer > 0)
         {
-            _messageTimer -= delta;
+            if (!HoldBubble) _messageTimer -= delta; // 手動送り中は減らさない＝消えない
             if (_messageTimer <= 0)
             {
                 _messageLabel.Visible = false;
@@ -330,6 +332,15 @@ public partial class Hud : CanvasLayer
 
         _bubble.Visible = true;
         _messageLabel.Visible = true;
+    }
+
+    // 吹き出しを即座に閉じる（手動送りの終了時に呼ぶ）。
+    public void HideBubble()
+    {
+        _messageTimer = 0;
+        _messageLabel.Visible = false;
+        _bubble.Visible = false;
+        _portrait.Visible = false;
     }
 
     // 中央大きめの一時バナー（例: "STAGE CLEAR!"）。
