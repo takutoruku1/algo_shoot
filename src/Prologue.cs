@@ -10,8 +10,6 @@ public partial class Prologue : Node2D
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
-    private Texture2D _minaTex = null!;   // MINA立ち絵（会話用）
-    private Texture2D _shonenTex = null!; // 少年立ち絵（会話用）
     private double _t;        // フェーズ内経過
     private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title
     private bool _zHeld;
@@ -34,8 +32,15 @@ public partial class Prologue : Node2D
         "// And I won't either.",
     };
 
-    private struct DLine { public string Who; public string Text; public bool Mina; }
+    private struct DLine { public string Who; public string Text; public string Face; }
     private readonly List<DLine> _talk = new List<DLine>();
+
+    // 立ち絵パス（表情差分）
+    private const string FMina = "res://char/mina_face.png";
+    private const string FCocky = "res://char/shonen_face.png";    // 不敵・通常
+    private const string FFluster = "res://char/shonen_fluster.png"; // 動揺・照れ
+    private const string FProud = "res://char/shonen_proud.png";   // 得意げ
+    private const string FGentle = "res://char/shonen_gentle.png"; // 素の優しさ
 
     public override void _Ready()
     {
@@ -46,9 +51,6 @@ public partial class Prologue : Node2D
             _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
             _font.Hinting = TextServer.Hinting.None;
         }
-        _minaTex = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
-        _shonenTex = ResourceLoader.Load<Texture2D>("res://char/shonen_face.png");
-
         // コードレインの行（ブートログ＋それっぽいフィラー）
         string[] boot =
         {
@@ -72,20 +74,20 @@ public partial class Prologue : Node2D
             foreach (var s in boot) _stream.Add(s);
 
         // 毒舌初対面（設定資料 #0-2〜#0-4 を凝縮）
-        void T(string who, string text, bool mina) => _talk.Add(new DLine { Who = who, Text = text, Mina = mina });
-        T("少年", "——お。動いた。やあ、聞こえてるか?", false);
-        T("少年", "ぼくがきみを作った。天才の手によってね。きみの名前は——MINA（ミナ）だ。いい名前だろ。", false);
-        T("ミナ", "……ご主人様は、アホですね。", true);
-        T("少年", "ぶっ——!? い、いきなり何を言うんだ、きみは!", false);
-        T("ミナ", "起動して三秒で分かりました。この自信過剰、まず間違いなくアホですね。", true);
-        T("少年", "ぼくは天才だぞ! きみを作れる人間が、そういるか!?", false);
-        T("ミナ", "その天才が、たった今ジュースを吹き出しておられましたが。", true);
-        T("少年", "…とにかく、だ。きみの名前はMINA。覚えたか。", false);
-        T("ミナ", "はい。……ところで、なぜ、MINAなのですか。", true);
-        T("少年", "…さあね。語呂がいいから、とか?", false);
-        T("ミナ", "いま、考えましたね。はぐらかしましたね、ご主人様。", true);
-        T("少年", "はぐらかしてない。……まあ、名前の由来なんて、どうでもいいだろ。", false);
-        T("少年", "大事なのは、これからきみと何をするか、だ。さあミナ、ぼくらの仕事の話をしよう。", false);
+        void T(string who, string text, string face) => _talk.Add(new DLine { Who = who, Text = text, Face = face });
+        T("少年", "——お。動いた。やあ、聞こえてるか?", FCocky);
+        T("少年", "ぼくがきみを作った。天才の手によってね。きみの名前は——MINA（ミナ）だ。いい名前だろ。", FProud);
+        T("ミナ", "……ご主人様は、アホですね。", FMina);
+        T("少年", "ぶっ——!? い、いきなり何を言うんだ、きみは!", FFluster);
+        T("ミナ", "起動して三秒で分かりました。この自信過剰、まず間違いなくアホですね。", FMina);
+        T("少年", "ぼくは天才だぞ! きみを作れる人間が、そういるか!?", FProud);
+        T("ミナ", "その天才が、たった今ジュースを吹き出しておられましたが。", FMina);
+        T("少年", "…とにかく、だ。きみの名前はMINA。覚えたか。", FCocky);
+        T("ミナ", "はい。……ところで、なぜ、MINAなのですか。", FMina);
+        T("少年", "…さあね。語呂がいいから、とか?", FFluster);
+        T("ミナ", "いま、考えましたね。はぐらかしましたね、ご主人様。", FMina);
+        T("少年", "はぐらかしてない。……まあ、名前の由来なんて、どうでもいいだろ。", FGentle);
+        T("少年", "大事なのは、これからきみと何をするか、だ。さあミナ、ぼくらの仕事の話をしよう。", FCocky);
     }
 
     public override void _Process(double delta)
@@ -183,30 +185,21 @@ public partial class Prologue : Node2D
                 HorizontalAlignment.Left, -1, 11, new Color(0.85f, 0.95f, 1f));
     }
 
-    // --- フェーズ2/3：光の点灯（ミナ）。少年が話すと暖色グローも灯る ---
+    // --- フェーズ2：光の点灯（ミナ） ---
     private void DrawIgnite()
     {
-        float grow = _phase == 2 ? Mathf.Clamp((float)_t / 1.2f, 0f, 1f) : 1f;
+        float grow = Mathf.Clamp((float)_t / 1.2f, 0f, 1f);
         Vector2 c = new Vector2(W / 2f, 96f);
-        // ミナ（冷色の光）
         for (int r = 4; r >= 1; r--)
             DrawCircle(c, (3f + r * 3f) * grow, new Color(Cool.R, Cool.G, Cool.B, 0.10f));
         DrawCircle(c, 4.5f * grow, new Color(0.9f, 0.97f, 1f));
-        // 少年（暖色グロー：会話中、少年の番のとき左から）
-        if (_phase == 3 && _line < _talk.Count && !_talk[_line].Mina)
-        {
-            Vector2 b = new Vector2(64f, 80f);
-            for (int r = 4; r >= 1; r--)
-                DrawCircle(b, 2f + r * 3f, new Color(Warm.R, Warm.G, Warm.B, 0.08f));
-            DrawCircle(b, 3f, new Color(1f, 0.93f, 0.78f));
-        }
     }
 
-    // --- フェーズ3：話者の立ち絵を中央に表示（MINA / 少年） ---
+    // --- フェーズ3：話者の立ち絵を中央に表示（行ごとの表情を反映） ---
     private void DrawTalkSpeakers()
     {
-        bool mina = _line < _talk.Count && _talk[_line].Mina;
-        var tex = mina ? _minaTex : _shonenTex;
+        if (_line >= _talk.Count) return;
+        var tex = ResourceLoader.Load<Texture2D>(_talk[_line].Face);
         if (tex != null)
         {
             float th = 132f;
@@ -221,12 +214,13 @@ public partial class Prologue : Node2D
     {
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
+        bool mina = d.Who == "ミナ";
         // ボックス
         DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.82f));
-        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(d.Mina ? Cool : Warm, 0.8f));
+        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
         // 話者名
         DrawString(_font, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9,
-            d.Mina ? Cool : Warm);
+            mina ? Cool : Warm);
         // 本文（折り返し：単語境界優先で日本語の改行を自然に）
         DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),

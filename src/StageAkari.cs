@@ -26,22 +26,25 @@ public partial class StageAkari : Node
 
     private const float SpawnX = 300f;
 
-    // 導入会話（who: 0=少年テロップ / 1=ミナ立ち絵）
-    private static readonly (int who, string text)[] Intro =
+    private const string SCocky = "res://char/shonen_face.png";
+    private const string SGentle = "res://char/shonen_gentle.png";
+
+    // 導入会話（who: 0=少年 / 1=ミナ、face=少年の表情）
+    private static readonly (int who, string text, string face)[] Intro =
     {
-        (0, "Xで、ひとり溺れてる子がいる。自分を責めて、責めて……心が穢れちまった。"),
-        (1, "それで、わざわざ他人の心の中まで潜るんですか。ご主人様、物好きですね。"),
-        (0, "穢れを祓えば、その子は少し楽になれる。ここは、その子の心象世界だ。"),
-        (1, "雨の、教室……。ずいぶん、降っていますね。"),
-        (0, "……ああ。降りやまない自責の雨だ。いくよ、ミナ。"),
+        (0, "Xで、ひとり溺れてる子がいる。自分を責めて、責めて……心が穢れちまった。", SGentle),
+        (1, "それで、わざわざ他人の心の中まで潜るんですか。ご主人様、物好きですね。", ""),
+        (0, "穢れを祓えば、その子は少し楽になれる。ここは、その子の心象世界だ。", SCocky),
+        (1, "雨の、教室……。ずいぶん、降っていますね。", ""),
+        (0, "……ああ。降りやまない自責の雨だ。いくよ、ミナ。", SGentle),
     };
 
     // ボス登場時の説明（who: 0=少年 / 1=ミナ）
-    private static readonly (int who, string text)[] BossIntro =
+    private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (0, "来た。あれが、この子の“ゆるせないわたし”——自責が形になった穢れだ。"),
-        (0, "本人を撃つんじゃない。あの子を縛ってる“自責”を剥がして、奥の光に届かせろ。"),
-        (1, "……はいはい。あの子を傷つけずに、穢れだけ、ですね。やってみましょう。"),
+        (0, "来た。あれが、この子の“ゆるせないわたし”——自責が形になった穢れだ。", SCocky),
+        (0, "本人を撃つんじゃない。あの子を縛ってる“自責”を剥がして、奥の光に届かせろ。", SCocky),
+        (1, "……はいはい。あの子を傷つけずに、穢れだけ、ですね。やってみましょう。", ""),
     };
 
     public override void _Ready()
@@ -77,7 +80,7 @@ public partial class StageAkari : Node
     }
 
     // ---- 会話ステップ（配列を順に流す。Zで手動送り。会話中は弾が止まる） ----
-    private void Step_Lines(double delta, (int who, string text)[] lines)
+    private void Step_Lines(double delta, (int who, string text, string face)[] lines)
     {
         if (!_stepStarted)
         {
@@ -102,11 +105,11 @@ public partial class StageAkari : Node
         }
     }
 
-    private void ShowLine((int who, string text)[] lines)
+    private void ShowLine((int who, string text, string face)[] lines)
     {
-        var (who, text) = lines[_introLine];
-        if (who == 0) Hud.ShowDialog(text, "res://char/shonen_face.png"); // 少年
-        else Hud.ShowDialog(text, "res://char/mina_face.png");            // ミナ
+        var (who, text, face) = lines[_introLine];
+        if (who == 0) Hud.ShowDialog(text, face);              // 少年（行ごとの表情）
+        else Hud.ShowDialog(text, "res://char/mina_face.png"); // ミナ
     }
 
     // ---- 2: ボス出現 ----

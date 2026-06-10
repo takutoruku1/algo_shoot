@@ -33,12 +33,12 @@ public partial class BossAkari : Enemy
     private double _lineT;
     private bool _zHeld;
     private bool _beatPending; // 戦闘中の独白(1行)をZ待ちで表示中
-    private static readonly (int who, string text)[] Lines =
+    private static readonly (int who, string text, string face)[] Lines =
     {
-        (0, "きみが誰かを想って、その人に拒まれて、それでも喪ったとして——"),
-        (0, "想ったことも、拒まれたことも、喪ったことも、きみのせいじゃない。"),
-        (2, "……あったかい、声がした気がする。だれ、だったんだろう。"),
-        (1, "さあ。……アホなご主人様の、お知り合いでは?"),
+        (0, "きみが誰かを想って、その人に拒まれて、それでも喪ったとして——", "res://char/shonen_gentle.png"),
+        (0, "想ったことも、拒まれたことも、喪ったことも、きみのせいじゃない。", "res://char/shonen_gentle.png"),
+        (2, "……あったかい、声がした気がする。だれ、だったんだろう。", ""),
+        (1, "さあ。……アホなご主人様の、お知り合いでは?", ""),
     };
 
     protected override void OnEnemyReady()
@@ -222,10 +222,10 @@ public partial class BossAkari : Enemy
 
     private void ShowLine()
     {
-        var (who, text) = Lines[_line];
+        var (who, text, face) = Lines[_line];
         var hud = GetHud();
         if (hud == null) return;
-        if (who == 0) hud.ShowDialog(text, "res://char/shonen_face.png");     // 少年
+        if (who == 0) hud.ShowDialog(text, face);                            // 少年（行ごとの表情）
         else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");  // ミナ
         else hud.ShowDialog(text, "res://char/akari_face.png");              // あかり
     }
