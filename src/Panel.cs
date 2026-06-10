@@ -140,13 +140,27 @@ public partial class Panel : Area2D
     {
         if (_dead || _hasTex) return; // スプライトがあれば図形は描かない
         float r = 3.2f + Ink * 0.8f; // インクが多いほど大きい
-        // 視認性のための高彩度フチ（黒弾が背景に埋もれない）
-        DrawCircle(Vector2.Zero, r + 1f, new Color(1f, 0.35f, 0.55f, 0.9f));
-        // 黒インク本体
-        DrawCircle(Vector2.Zero, r, new Color(0.10f, 0.08f, 0.13f));
-        // 「・・・」（暴言の抽象表現）
-        DrawCircle(new Vector2(-1.4f, 0), 0.5f, new Color(0.85f, 0.85f, 0.9f));
-        DrawCircle(new Vector2(0f, 0), 0.5f, new Color(0.85f, 0.85f, 0.9f));
-        DrawCircle(new Vector2(1.4f, 0), 0.5f, new Color(0.85f, 0.85f, 0.9f));
+        // ドットの黒い吹き出し（滑らかな円でなくピクセルで）
+        PixelDisc(r + 1f, new Color(1f, 0.35f, 0.55f, 0.9f)); // ホット縁
+        PixelDisc(r, new Color(0.10f, 0.08f, 0.13f));         // 黒インク本体
+        // 「・・・」を1pxドットで
+        var dot = new Color(0.85f, 0.85f, 0.9f);
+        DrawRect(new Rect2(-2, 0, 1, 1), dot);
+        DrawRect(new Rect2(0, 0, 1, 1), dot);
+        DrawRect(new Rect2(2, 0, 1, 1), dot);
+    }
+
+    // 1x1の正方ドットで塗る“ピクセルの円”。
+    private void PixelDisc(float r, Color col)
+    {
+        int ri = Mathf.CeilToInt(r);
+        float r2 = r * r;
+        for (int y = -ri; y < ri; y++)
+            for (int x = -ri; x < ri; x++)
+            {
+                float cx = x + 0.5f, cy = y + 0.5f;
+                if (cx * cx + cy * cy <= r2)
+                    DrawRect(new Rect2(x, y, 1, 1), col);
+            }
     }
 }

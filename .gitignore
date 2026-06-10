@@ -15,6 +15,7 @@ mono_crash.*.json
 # Build results
 bin/
 obj/
+build/
 
 # Visual Studio / Rider / VS Code
 .vs/

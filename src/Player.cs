@@ -134,7 +134,8 @@ public partial class Player : Area2D
 
         // テクスチャ読み込み（失敗時は _Draw フォールバック）
         // ドット絵スプライトを優先。無ければ透過カットアウト→元イラストにフォールバック。
-        var tex = ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
+        var tex = ResourceLoader.Load<Texture2D>("res://char/mina_idle.png")
+                  ?? ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");
         if (tex != null)
@@ -209,7 +210,8 @@ public partial class Player : Area2D
         // やさしさ全開なら連射が速くなる
         _overload = GetNodeOrNull<GameManager>("/root/Game")?.IsOverload ?? false;
 
-        bool shoot = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept");
+        // 会話中（吹き出し表示中）はショット不可
+        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept")) && !Hud.BubblePaused;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -218,14 +220,14 @@ public partial class Player : Area2D
 
         // ボム（X）: 押した瞬間だけ発動
         bool bombKey = Input.IsKeyPressed(Key.X);
-        if (bombKey && !_bombHeld)
+        if (bombKey && !_bombHeld && !Hud.BubblePaused)
             TryBomb();
         _bombHeld = bombKey;
 
         // ヒカゲ専用スキル（C）: ヒカゲが仲間にいる時だけ・クールダウン制
         if (_specialCd > 0f) _specialCd -= dt;
         bool specialKey = Input.IsKeyPressed(Key.C);
-        if (specialKey && !_specialHeld)
+        if (specialKey && !_specialHeld && !Hud.BubblePaused)
             TryHikageSpecial();
         _specialHeld = specialKey;
         // HUDにスキル状態を反映

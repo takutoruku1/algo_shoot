@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0algoakari000"]
+
+[ext_resource type="Script" path="res://src/AkariRoot.cs" id="1_akari"]
+
+[node name="Akari" type="Node2D"]
+script = ExtResource("1_akari")

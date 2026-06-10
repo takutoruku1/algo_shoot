@@ -107,6 +107,10 @@ public partial class Bullet : Area2D
         if (!Active)
             return;
 
+        // 会話中（吹き出し表示中）は飛んでいる弾も止める＝攻撃を停止
+        if (Hud.BubblePaused)
+            return;
+
         GlobalPosition += Velocity * (float)delta;
 
         // 画面外(余白16px)に出たら Despawn
@@ -131,19 +135,32 @@ public partial class Bullet : Area2D
 
         if (IsEnemy)
         {
-            // 明るいクリームのハロー → 黒インク本体 → 中心の熱。
-            // 明色ハローで淡いピンク背景からもくっきり浮く（視認性最優先）。
-            DrawCircle(Vector2.Zero, r + 2.2f, new Color(1f, 0.97f, 0.9f, 0.55f));    // 外側の柔らかな明ハロー
-            DrawCircle(Vector2.Zero, r + 1.1f, new Color(1f, 0.95f, 0.88f, 0.95f));   // 明るいフチ
-            DrawCircle(Vector2.Zero, r, new Color(0.06f, 0.04f, 0.09f));              // 黒インク本体
-            DrawCircle(Vector2.Zero, r * 0.5f, new Color(1.0f, 0.32f, 0.46f));        // 中心の熱
+            // ドット弾：明ハロー → 明フチ → 黒インク → 中心の熱
+            PixelDisc(r + 2f, new Color(1f, 0.97f, 0.9f, 0.5f));
+            PixelDisc(r + 1f, new Color(1f, 0.95f, 0.88f, 0.95f));
+            PixelDisc(r, new Color(0.06f, 0.04f, 0.09f));
+            PixelDisc(r * 0.5f, new Color(1.0f, 0.32f, 0.46f));
         }
         else
         {
-            // 光のインク＝白コア＋水色グロー（＋薄い暗縁で視認性確保）
-            DrawCircle(Vector2.Zero, r * 1.05f, new Color(0.10f, 0.18f, 0.30f, 0.45f)); // 薄い暗縁
-            DrawCircle(Vector2.Zero, r, new Color(0.50f, 0.86f, 1.0f, 0.95f));          // 水色グロー
-            DrawCircle(Vector2.Zero, r * 0.5f, new Color(1.0f, 1.0f, 1.0f));            // 白コア
+            // ドット弾：暗縁 → 水色 → 白コア
+            PixelDisc(r + 1f, new Color(0.10f, 0.18f, 0.30f, 0.5f));
+            PixelDisc(r, new Color(0.50f, 0.86f, 1.0f, 0.95f));
+            PixelDisc(r * 0.55f, new Color(1.0f, 1.0f, 1.0f));
         }
+    }
+
+    // 1x1の正方ドットで塗る“ピクセルの円”。滑らかな円でなくドット絵に見せる。
+    private void PixelDisc(float r, Color col)
+    {
+        int ri = Mathf.CeilToInt(r);
+        float r2 = r * r;
+        for (int y = -ri; y < ri; y++)
+            for (int x = -ri; x < ri; x++)
+            {
+                float cx = x + 0.5f, cy = y + 0.5f;
+                if (cx * cx + cy * cy <= r2)
+                    DrawRect(new Rect2(x, y, 1, 1), col);
+            }
     }
 }

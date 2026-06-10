@@ -305,15 +305,15 @@ public partial class Hud : CanvasLayer
         float innerW = bubbleW - padX * 2f;
         var halign = dialog ? HorizontalAlignment.Left : HorizontalAlignment.Center;
 
-        _messageLabel.AutowrapMode = TextServer.AutowrapMode.Arbitrary; // CJKは任意位置で折り返す
+        _messageLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart; // 単語境界優先で自然に折り返す
 
-        // 折り返し後の高さを実測（ラベルの Arbitrary 折り返しに合わせ GraphemeBound で計測）
+        // 折り返し後の高さを実測（WordSmart に合わせ WordBound+GraphemeBound で計測）
         float textH = 14f;
         if (_font != null)
         {
             Vector2 sz = _font.GetMultilineStringSize(
                 text, halign, innerW, 12, -1,
-                TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.GraphemeBound);
+                TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
             textH = Mathf.Max(14f, Mathf.Ceil(sz.Y) + 2f);
         }
         float bubbleH = textH + padY * 2f;
