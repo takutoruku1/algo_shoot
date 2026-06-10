@@ -192,7 +192,8 @@ public partial class Player : Area2D
 
         // 移動入力
         Vector2 dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
-        bool focus = Input.IsKeyPressed(Key.Shift);
+        // 低速＝Shift / 肩ボタン(L1・R1)
+        bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
         _focus = focus;
         float speed = focus ? FocusSpeed : NormalSpeed;
 
@@ -210,8 +211,8 @@ public partial class Player : Area2D
         // やさしさ全開なら連射が速くなる
         _overload = GetNodeOrNull<GameManager>("/root/Game")?.IsOverload ?? false;
 
-        // 会話中（吹き出し表示中）はショット不可
-        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept")) && !Hud.BubblePaused;
+        // ショット＝Z / Aボタン。会話中（吹き出し表示中）は不可
+        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A)) && !Hud.BubblePaused;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -219,14 +220,16 @@ public partial class Player : Area2D
         }
 
         // ボム（X）: 押した瞬間だけ発動
-        bool bombKey = Input.IsKeyPressed(Key.X);
+        // ボム＝X / Xボタン（□）
+        bool bombKey = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
         if (bombKey && !_bombHeld && !Hud.BubblePaused)
             TryBomb();
         _bombHeld = bombKey;
 
         // ヒカゲ専用スキル（C）: ヒカゲが仲間にいる時だけ・クールダウン制
         if (_specialCd > 0f) _specialCd -= dt;
-        bool specialKey = Input.IsKeyPressed(Key.C);
+        // スキル＝C / Yボタン（△）
+        bool specialKey = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
         if (specialKey && !_specialHeld && !Hud.BubblePaused)
             TryHikageSpecial();
         _specialHeld = specialKey;

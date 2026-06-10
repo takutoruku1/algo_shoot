@@ -70,7 +70,7 @@ public partial class AkariRoot : Node2D
 
     public override void _Process(double delta)
     {
-        bool r = Input.IsKeyPressed(Key.R);
+        bool r = Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start);
         if (r && !_rHeld)
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();

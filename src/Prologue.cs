@@ -94,11 +94,11 @@ public partial class Prologue : Node2D
     {
         _t += delta;
 
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept");
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        if (Input.IsKeyPressed(Key.R))
+        if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start))
         {
             GetTree().ReloadCurrentScene();
             return;

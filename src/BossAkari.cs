@@ -190,7 +190,7 @@ public partial class BossAkari : Enemy
     // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
     {
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept");
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
         _zHeld = z;
         _lineT += delta;
