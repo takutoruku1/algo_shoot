@@ -54,10 +54,13 @@ public partial class StageAkari : Node
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1); // ボスを浄化＝100%（部屋が晴れる）
     }
 
+    private bool _startBannerShown;
+
     public override void _Process(double delta)
     {
         _stepTime += delta;
         _lineHold += delta;
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 2 START"); }
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         _zEdge = z && !_zHeld;
         _zHeld = z;
@@ -142,7 +145,7 @@ public partial class StageAkari : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            Hud.ShowBanner("灯が、ともった。");
+            Hud.ShowBanner("STAGE 2 CLEAR");
             Hud.ShowDialog("……行きましょう、ご主人様。次の人のところへ。", "res://char/mina_face.png");
             Advance();
         }
