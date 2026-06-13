@@ -99,6 +99,7 @@ Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手�
 - 1フレームも落とさず固定60fpsで録れる（Movie Maker は描画タイミングと録画を分離するため）。なので尺＝指定 `--seconds` どおりになる。
 - 真っ黒な動画になる典型：`--headless` を付けてしまった／ビルドエラーで即落ちした（手順1で弾く）／`--demo` を `--` の **前**に置いてユーザ引数として渡っていない。
 - 自機が動かない・撃たない typeのときは `DemoPilot` が無効化されている（autoload 登録漏れ or `--demo` 未到達）。`demo.log` に `[DemoPilot] active... difficulty=EASY` が出ているか見る。
-- それでも被弾してしまう（ノーダメで通らない）場合は [src/DemoPilot.cs](../../../src/DemoPilot.cs) の回避パラメータを調整する：`Horizon`（先読み秒数を伸ばすと早めに逃げる）, `SafeGap`（大きいほど慎重に定位置から離れる）, `NearRange`, `PanicGap`（ボムを切る閾値）。それでも厳しければ `--easy` のまま尺を短くするか、`--seconds` を会話パートに絞る。
+- 移動は[src/DemoPilot.cs](../../../src/DemoPilot.cs)の統一スコアラ（16方向＋静止＋定位置寄せを弾道シミュレーションし `安全度＋ホーム接近` で1手選ぶ）。挙動の調整つまみ：`ComfortGap`（小さいほど弾の近くまで踏ん張って撃つ＝攻め／大きいほど早めに離れる＝安全）, `HomeBonus`（射線(ボスY)への張り付き強さ＝DPS）, `Horizon`（先読み秒数）, `PanicGap`（緊急ボムを切る閾値）。ノーダメが崩れるなら `ComfortGap` を上げる、DPSが足りず削り切れないなら `HomeBonus` を上げる。
+- **録画が `--seconds` の途中で終わる（`demo.log` に `[DemoPilot] done.` が出ていない／AVIが妙に小さい）**：浄化の連鎖が物理シグナルのフラッシュ中にコリジョン状態を書き換える Godot のレース。根因の Ripple 生成は遅延化して直した（[src/Enemy.cs](../../../src/Enemy.cs) の `Redeem` で `CallDeferred(AddChild)`）が、ごく稀に再発しうる。**そのときは録り直せば通る**（ヘッドレス `--headless`（ただし真っ黒）／ウィンドウ実行では出ない＝ムービーモード固有）。
 - セリフ送りの速さは `StoryPeriod`（既定 0.30s/行＝最速。各行に 0.25s の最短ゲートがあるのでこれ未満にしても速くならない）。ストーリーを読ませたいなら 0.85 など大きくする。会話中は弾も自機も止まるのでノーダメには影響しない。
 - ffmpeg は winget の `Gyan.FFmpeg`。導入済みでも PATH に乗っていないことがあるので、毎回 `$ff`（実体パス）で呼ぶ。
