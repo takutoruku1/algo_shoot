@@ -18,6 +18,8 @@ config/features=PackedStringArray("4.3", "C#", "Forward Plus")
 
 Pool="*res://src/BulletPool.cs"
 Game="*res://src/GameManager.cs"
+DemoPilot="*res://src/DemoPilot.cs"
+QaPilot="*res://src/QaPilot.cs"
 
 [display]
 

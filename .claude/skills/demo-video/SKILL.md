@@ -1,0 +1,87 @@
+---
+name: demo-video
+description: Record an autoplay demo video (mp4) of this Godot/.NET game. The built-in DemoPilot autoplays a stage (auto-advances dialogue, shoots, weaves, bombs) while Godot's Movie Maker records it, then ffmpeg transcodes to a small mp4. Use when the user asks to make/redo a demo/gameplay/promo video (e.g. "デモ動画を作って", "プレイ動画を録って", "デモ録画して", "STAGE1のデモ動画", "もっと長く録って").
+---
+
+# demo-video — 自動操縦のデモプレイ動画(mp4)を録る
+
+このプロジェクト（Godot 4.6.3 mono / C#・.NET 8）を **自動操縦で勝手にプレイさせ**、
+Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手順。手で操作する必要はない。
+
+仕組み：オートロード `DemoPilot`（[src/DemoPilot.cs](../../../src/DemoPilot.cs)・`project.godot` に登録済み）が、
+起動時のユーザ引数に `--demo` があるときだけ合成入力を流す。Z をパルスして撃つ＋会話送り（会話中は
+読める速さに自動で落とす）、方向キーで自機をウィーブ、たまにボム。指定秒で自分で `Quit()` して録画を確定する。
+ゲーム本体のプレイコードは一切書き換えていない（入力をポーリングしている各シーンに、本物のキーと同じ経路で
+合成イベントを注入しているだけ）。
+
+## 変数
+- Godot 実行ファイル（mono・エディタ兼用）:
+  `C:\Users\takut\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.6.3-stable_mono_win64\Godot_v4.6.3-stable_mono_win64.exe`
+  ※見つからなければ `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "Godot_v*mono*win64.exe"`。
+- ffmpeg（winget導入。手順1で実体パスを解決する）:
+  `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffmpeg.exe"` の先頭。
+- プロジェクト: `d:\dev\algo_shoot`
+- 録画するシーン（既定 STAGE1）: `res://Rei.tscn`。他に `res://Akari.tscn`（STAGE2）, `res://Koharu.tscn`（STAGE3）。
+  ※タイトルから流したいなら `res://Prologue.tscn`（既定難易度でダイブする）。
+- 尺（既定 80秒）: `--seconds N` で指定。STAGE1 は会話イントロが長く、戦闘が映り始めるのは概ね 35秒以降。
+  戦闘までしっかり見せたいなら 80〜120秒推奨。
+- 中間 AVI（無圧縮・巨大／使い捨て）: `build\demo.avi`
+- 出力 mp4: `build\demo.mp4`
+
+## 手順
+
+1. **C# ビルド確認 ＆ ffmpeg を用意**:
+   ```powershell
+   dotnet build   # 0 Error(s) を確認（壊れたまま録画すると即落ちする）
+   $ff = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffmpeg.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+   if (-not $ff) {
+     winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements --disable-interactivity | Out-Null
+     $ff = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffmpeg.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+   }
+   "ffmpeg: $ff"   # 空なら導入失敗 → ユーザーに相談
+   ```
+   ※winget 導入直後は PATH が未更新なので、`ffmpeg` という名前では呼ばず **実体パス `$ff`** で呼ぶこと。
+
+2. **録画**（PowerShell。Movie Maker は実時間より遅い＝80秒の動画でも収録に数十秒かかる。終わるまで待つ）:
+   ```powershell
+   $godot = "C:\Users\takut\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.6.3-stable_mono_win64\Godot_v4.6.3-stable_mono_win64.exe"
+   $scene = "res://Rei.tscn"   # 録りたいシーン
+   $sec   = 80                  # 尺（秒）
+   New-Item -ItemType Directory -Force -Path "d:\dev\algo_shoot\build" | Out-Null
+   $avi = "d:\dev\algo_shoot\build\demo.avi"
+   if (Test-Path $avi) { Remove-Item $avi -Force }
+   $args = @('--path','d:\dev\algo_shoot','--write-movie',$avi,'--fixed-fps','60',$scene,'--','--demo','--seconds',"$sec")
+   $p = Start-Process $godot -ArgumentList $args -PassThru `
+        -RedirectStandardOutput "d:\dev\algo_shoot\build\demo.log" -RedirectStandardError "d:\dev\algo_shoot\build\demo.err"
+   $p.WaitForExit(600000) | Out-Null   # 長尺なら余裕を持って待つ
+   if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force; "TIMEOUT" }
+   "avi MB: $([math]::Round((Get-Item $avi).Length/1MB,1))"   # 出ていれば録画成功（DemoPilot のログは demo.log）
+   ```
+   - 引数の順序が肝：`--write-movie` `--fixed-fps` `<scene>` は **エンジン引数として `--` の前**、
+     `--demo` `--seconds N` は **`--` の後ろ**（`OS.GetCmdlineUserArgs()` に渡る）。
+   - `--headless` は付けない（Movie Maker は描画が要る。headless だと真っ黒になる）。
+
+3. **mp4 に圧縮**（H.264 / yuv420p。AVI は無圧縮で巨大なので変換後は消す）:
+   ```powershell
+   $mp4 = "d:\dev\algo_shoot\build\demo.mp4"
+   & $ff -y -i $avi -c:v libx264 -pix_fmt yuv420p -crf 20 -c:a aac -b:a 128k $mp4 *> $null
+   if (Test-Path $mp4) { Remove-Item $avi -Force }   # 巨大な中間ファイルを掃除
+   "mp4 MB: $([math]::Round((Get-Item $mp4).Length/1MB,2))"
+   ```
+   - X(Twitter)等で軽くしたい/長尺なら `-crf 23` や `-vf "scale=768:-2"` で更に縮む。
+   - 無音で良ければ `-c:a aac -b:a 128k` を `-an` に。
+
+4. **確認**（任意）：中盤フレームを抜いて、戦闘が映っているか目視する。
+   ```powershell
+   & $ff -y -ss 38 -i $mp4 -frames:v 1 "d:\dev\algo_shoot\build\demo_frame.png" *> $null
+   ```
+   抜いた png を Read ツールで開いて、自機のショットと敵弾が出ているか確認 → OK ならユーザーへ mp4 のパス・尺・サイズを報告。
+
+## 注意・つまずき
+- **`build/` は `.gitignore` 済み**。動画も AVI もコミットしない。中間 AVI は手順3で必ず消す（8秒で約38MB＝1分で約280MB）。
+- Movie Maker は **実時間の約30%速度**で収録する（80秒の動画＝実時間で約4〜5分）。`WaitForExit` のタイムアウトは長めに。
+- 1フレームも落とさず固定60fpsで録れる（Movie Maker は描画タイミングと録画を分離するため）。なので尺＝指定 `--seconds` どおりになる。
+- 真っ黒な動画になる典型：`--headless` を付けてしまった／ビルドエラーで即落ちした（手順1で弾く）／`--demo` を `--` の **前**に置いてユーザ引数として渡っていない。
+- 自機が動かない・撃たない typeのときは `DemoPilot` が無効化されている（autoload 登録漏れ or `--demo` 未到達）。`demo.log` に `[DemoPilot] active...` が出ているか見る。
+- セリフ送りが速すぎ/遅すぎる、ボムの頻度を変えたい等は [src/DemoPilot.cs](../../../src/DemoPilot.cs) の周期定数を調整する（会話中 0.65s / 戦闘中 0.16s、ボム 18s 間隔）。
+- ffmpeg は winget の `Gyan.FFmpeg`。導入済みでも PATH に乗っていないことがあるので、毎回 `$ff`（実体パス）で呼ぶ。
