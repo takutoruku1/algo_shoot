@@ -8,6 +8,16 @@ public partial class GameManager : Node
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
 
+    // 難易度（オートロードなのでシーンをまたいで保持）。
+    public enum Diff { Easy, Normal, Hard }
+    public Diff Difficulty = Diff.Normal;
+    public int StartLives => Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, _ => 3 };
+    public int StartBombs => Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, _ => 3 };
+    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.72f, Diff.Hard => 1.18f, _ => 1f };
+    public float BossHpMul => Difficulty switch { Diff.Easy => 0.55f, Diff.Hard => 1.25f, _ => 1f };
+    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 1.6f, Diff.Hard => 0.85f, _ => 1f };
+    public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", _ => "NORMAL" };
+
     // 累計浄化数。
     public int PurifiedCount { get; private set; }
 
@@ -108,7 +118,7 @@ public partial class GameManager : Node
         Score = 0;
         Combo = 0;
         _comboTimer = 0;
-        Bombs = 3;
+        Bombs = StartBombs;
         PurifiedCount = 0;
         _kindFill = 0f;
         IsOverload = false;

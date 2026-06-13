@@ -158,7 +158,8 @@ public partial class StageAkari : Node
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         _rainT += delta;
-        if (_rainT < 0.16) return;
+        float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
+        if (_rainT < 0.16 * mul) return;
         _rainT = 0;
         float x = _rng.RandfRange(8f, 376f);
         float vx = _rng.RandfRange(-10f, 10f);

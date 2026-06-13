@@ -18,6 +18,11 @@ public partial class Prologue : Node2D
     private int _line;
     private double _lineT;
 
+    // 難易度選択（タイトル）
+    private int _diffSel = 1; // 0:Easy 1:Normal 2:Hard
+    private bool _lrHeld;
+    private static readonly string[] DiffNames = { "EASY", "NORMAL", "HARD" };
+
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
     private static readonly Color Code = new Color(0.46f, 1f, 0.6f);   // コード緑
@@ -51,6 +56,8 @@ public partial class Prologue : Node2D
             _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
             _font.Hinting = TextServer.Hinting.None;
         }
+        _diffSel = (int)(GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal);
+
         // コードレインの行（ブートログ＋それっぽいフィラー）
         string[] boot =
         {
@@ -118,8 +125,18 @@ public partial class Prologue : Node2D
                     if (_line >= _talk.Count) NextPhase();
                 }
                 break;
-            case 4: // Title → Zでダイブ（STAGE1 あかり）
-                if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Akari.tscn");
+            case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 レイ）
+                bool left = Input.IsActionPressed("ui_left");
+                bool right = Input.IsActionPressed("ui_right");
+                if ((left || right) && !_lrHeld)
+                {
+                    if (left) _diffSel = Mathf.Max(0, _diffSel - 1);
+                    if (right) _diffSel = Mathf.Min(2, _diffSel + 1);
+                    var g = GetNodeOrNull<GameManager>("/root/Game");
+                    if (g != null) g.Difficulty = (GameManager.Diff)_diffSel;
+                }
+                _lrHeld = left || right;
+                if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Rei.tscn");
                 break;
         }
 
@@ -236,12 +253,17 @@ public partial class Prologue : Node2D
     {
         if (_font == null) return;
         float a = Mathf.Clamp((float)_t / 1.0f, 0f, 1f);
-        DrawString(_font, new Vector2(0, 92f), "X — タイムライン", HorizontalAlignment.Center, W, 16,
+        DrawString(_font, new Vector2(0, 78f), "X — タイムライン", HorizontalAlignment.Center, W, 16,
             new Color(0.9f, 0.92f, 1f, a));
-        DrawString(_font, new Vector2(0, 120f), "STAGE 1 : あかり", HorizontalAlignment.Center, W, 11,
+        DrawString(_font, new Vector2(0, 104f), "STAGE 1 : レイ", HorizontalAlignment.Center, W, 11,
             new Color(Cool.R, Cool.G, Cool.B, a * 0.9f));
-        if (_t > 1.4 && ((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, 150f), "Z：ダイブ  R：最初から", HorizontalAlignment.Center, W, 9,
-                new Color(1f, 1f, 1f, 0.7f));
+
+        // 難易度選択（◀ ▶ で変更）
+        DrawString(_font, new Vector2(0, 132f), "難易度  ◀ " + DiffNames[_diffSel] + " ▶",
+            HorizontalAlignment.Center, W, 11, new Color(1f, 0.92f, 0.6f, a));
+
+        if (_t > 1.0 && ((int)(_t * 1.5f) % 2) == 0)
+            DrawString(_font, new Vector2(0, 158f), "← → 難易度   Z：ダイブ   R：最初から",
+                HorizontalAlignment.Center, W, 9, new Color(1f, 1f, 1f, 0.7f));
     }
 }

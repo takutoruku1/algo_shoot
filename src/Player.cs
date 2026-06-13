@@ -118,6 +118,9 @@ public partial class Player : Area2D
     {
         AddToGroup("player");
 
+        // 難易度に応じた残機。
+        Lives = GetNodeOrNull<GameManager>("/root/Game")?.StartLives ?? 3;
+
         // 衝突レイヤー: layer=1, mask=12（敵=4, 敵弾=8）
         CollisionLayer = 1;
         CollisionMask = 12;

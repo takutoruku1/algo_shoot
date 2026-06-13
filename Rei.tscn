@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0algorei0000"]
+
+[ext_resource type="Script" path="res://src/ReiRoot.cs" id="1_rei"]
+
+[node name="Rei" type="Node2D"]
+script = ExtResource("1_rei")

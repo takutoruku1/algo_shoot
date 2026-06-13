@@ -64,6 +64,12 @@ public partial class Enemy : Area2D
         AddChild(_bodyShape);
 
         OnEnemyReady();
+        // 難易度でボスHP（剥がし回数）をスケール。
+        if (MaxHp > 0)
+        {
+            float mul = GetNodeOrNull<GameManager>("/root/Game")?.BossHpMul ?? 1f;
+            MaxHp = Mathf.Max(1, Mathf.RoundToInt(MaxHp * mul));
+        }
         _hp = MaxHp;
         SetupBodySprite();
         SpawnPanels();

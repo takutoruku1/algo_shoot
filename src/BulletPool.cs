@@ -33,6 +33,13 @@ public partial class BulletPool : Node2D
     // プール枯渇時は追加生成して可。
     public Bullet Spawn(Vector2 pos, Vector2 vel, bool isEnemy, float radius = 3f, int damage = 1)
     {
+        // 難易度で敵弾の速度をスケール（やさしいほど遅く＝避けやすい）。
+        if (isEnemy)
+        {
+            float mul = GetNodeOrNull<GameManager>("/root/Game")?.BulletSpeedMul ?? 1f;
+            vel *= mul;
+        }
+
         Bullet b;
         if (_free.Count > 0)
         {
