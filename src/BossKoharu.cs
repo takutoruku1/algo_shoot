@@ -63,9 +63,11 @@ public partial class BossKoharu : Enemy
         MaxHp = 44;
         PanelRespawnDelay = 1.4f;
 
-        // 専用立ち絵は未用意 → プレースホルダ人型を使用（PreTexPath を空に）。
+        PreTexPath = "res://char/enemy_koharu_pre.png";   // 穢れ・病んだ核
+        CryTexPath = "res://char/enemy_koharu_post.png";  // 浄化＝改心を見せながら会話（その場で静止）
+        PostTexPath = "res://char/enemy_koharu_post.png";
         BodyDisplayH = 52f;
-        CryHoldDur = 9999.0;
+        CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 
     public override void _Ready()
@@ -164,7 +166,8 @@ public partial class BossKoharu : Enemy
         {
             var (_, line) = Beats[_beatsFired];
             var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/koharu_face.png"); }
+            // 戦闘中は病んで無機質な表情差分を使う。
+            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/koharu_face_pale.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             _beatPending = true;

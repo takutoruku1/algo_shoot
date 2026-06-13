@@ -14,8 +14,8 @@ public partial class KoharuRoot : Node2D
     public Node2D World { get; private set; } = null!;
 
     private CanvasModulate _tint = null!;
-    private static readonly Color Cold = new Color(0.46f, 0.50f, 0.66f); // 冷めた台所
-    private static readonly Color Warm = new Color(1.06f, 0.96f, 0.84f); // 灯のともった食卓
+    private static readonly Color Cold = new Color(0.64f, 0.68f, 0.84f); // 冷めた台所（背景が元々暗いので濃くしすぎない）
+    private static readonly Color Warm = new Color(1.10f, 1.00f, 0.86f); // 灯のともった食卓
     private float _warmth;
     private bool _rHeld;
 
