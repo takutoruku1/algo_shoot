@@ -23,27 +23,23 @@ public partial class BossKoharu : Enemy
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    private bool _beatPending;
 
-    private const string SGentle = "res://char/shonen_gentle.png";
     private const string SCocky = "res://char/shonen_face.png";
 
-    // 戦闘中に挟むこはるの独白（HPがこの割合を下回るたび）。無力感が他責の怒りへ。（v2 [P-03]）
-    private static readonly (float hp, string line)[] Beats =
-    {
-        (0.78f, "あたしが何をつくっても、お兄ちゃんは——"),
-        (0.50f, "あたしのごはんは、お兄ちゃんを助けられない……!"),
-        (0.26f, "意味なんて、ない……! なにを、つくっても……!"),
-    };
+    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
+    private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
     // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。少年はミナの声で“中継”して届ける。
+    // 設計書 v2 [P-03] のボス節を順序通りに（ミナの気遣い・少年の取り繕いも含む）。
     private static readonly (int who, string text, string face)[] Lines =
     {
         (2, "お兄ちゃんが、いなくなる。", ""),
-        (0, "ミナ。この子に、ぼくの言葉を届けてくれ。", SGentle),
+        (2, "あたしが何をつくっても、お兄ちゃんは——", ""),
+        (1, "……ご主人様?", ""),
+        (0, "……なんでもない。続けるぞ。", SCocky),
         (1, "——怒りの下にある悲しみを、ちゃんと悲しんでいい。", ""),
         (2, "あたしのごはんは、お兄ちゃんを助けられない……! 意味なんて、ない……!", ""),
-        (1, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからです。", ""),
+        (1, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからだ。", ""),
         (1, "祈りは、届いてたよ。ちゃんと。", ""),
         (2, "……ちゃんと、食べてくれるかな。今日は。", ""),
     };
@@ -162,16 +158,10 @@ public partial class BossKoharu : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(HpRatio);
-        if (!_beatPending && _beatsFired < Beats.Length && HpRatio <= Beats[_beatsFired].hp)
+        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
-            var (_, line) = Beats[_beatsFired];
-            var hud = GetHud();
-            // 戦闘中は病んで無機質な表情差分を使う。
-            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/koharu_face_pale.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
-            _beatPending = true;
-            _lineT = 0;
         }
     }
 
@@ -210,13 +200,6 @@ public partial class BossKoharu : Enemy
                 else ShowLine();
             }
             return;
-        }
-
-        if (_beatPending && zEdge && _lineT >= 0.25)
-        {
-            _beatPending = false;
-            var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
         }
     }
 

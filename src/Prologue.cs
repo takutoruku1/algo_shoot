@@ -116,7 +116,10 @@ public partial class Prologue : Node2D
             case 2: if (_t >= 1.6 || zEdge) NextPhase(); break;          // Ignite
             case 3:                                                       // Talk（手動送り：Zで進む。自動送りはしない）
                 _lineT += delta;
-                if (zEdge && _lineT >= 0.25)
+                // 名前の由来を問われた直後の少年の答え（index 6）には、不自然な“間”を置く
+                // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
+                double minHold = (_line == 6) ? 1.2 : 0.25;
+                if (zEdge && _lineT >= minHold)
                 {
                     _lineT = 0;
                     _line++;
@@ -240,8 +243,9 @@ public partial class Prologue : Node2D
         DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-        // 送り三角
-        if (((int)(_t * 2f) % 2) == 0)
+        // 送り三角（名前の由来の“間”の最中は出さない＝不自然な沈黙）
+        bool inPause = _line == 6 && _lineT < 1.2;
+        if (((int)(_t * 2f) % 2) == 0 && !inPause)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
     }

@@ -55,6 +55,7 @@ public partial class KoharuRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Koharu }); // 空席に箸・冷める食卓
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -81,8 +82,14 @@ public partial class KoharuRoot : Node2D
         }
         _rHeld = r;
 
-        float target = GetNodeOrNull<GameManager>("/root/Game")?.Warmth ?? 0f;
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        float target = game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+
+        // 汚染ゲージ：STAGE3は「縁の濁り(0.42)→深刻に翳る(0.72)」（設計書 4-b）。次のFINALで黒く溶ける(1.0)。
+        float corr = Mathf.Lerp(0.42f, 0.72f, game?.StageProgress ?? 0f);
+        game?.SetContamination(corr);
+        Player?.SetCorruption(corr);
     }
 }

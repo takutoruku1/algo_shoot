@@ -22,27 +22,19 @@ public partial class BossRei : Enemy
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    private bool _beatPending;
 
-    private const string SGentle = "res://char/shonen_gentle.png";
-
-    // 戦闘中に挟むレイの独白（HPがこの割合を下回るたび）。攻撃パターンも変える。（v2 [P-01b]）
-    private static readonly (float hp, string line)[] Beats =
-    {
-        (0.78f, "次は、私が勝つから。……次は。次は……"),
-        (0.50f, "なのに、なんで——なんで、戦ってくれないのよ!"),
-        (0.26f, "私はあいつにとって、本気で戦う価値も、なかったの……?"),
-    };
+    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
+    private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
     // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
+    // 設計書 v2 [P-01b] のボス節を順序通りに：レイの悔しさ → 中継 → 好敵手だったと認める。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (0, "ミナ。この子に、ぼくの言葉を届けてくれ。", SGentle),
-        (1, "——きみの努力を、ずっと見ていた者がいます。", ""),
+        (2, "次は、私が勝つから。……次は。次は……", ""),
+        (2, "なのに、なんで——なんで、戦ってくれないのよ!", ""),
+        (1, "——きみの努力を、ずっと見ていた者がいる。", ""),
         (1, "本気で戦う価値のある、唯一の好敵手だと、思っていた者がいる。", ""),
         (2, "ほんとに、私……ちゃんと、ライバルだった……?", ""),
-        (1, "ええ。————次は、あなたが勝つ。それは、ずっと変わらない約束です。", ""),
-        (2, "……次は、私が勝つから。……なんで、涙が出るんだろ。", ""),
     };
 
     protected override void OnEnemyReady()
@@ -149,15 +141,10 @@ public partial class BossRei : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(HpRatio);
-        if (!_beatPending && _beatsFired < Beats.Length && HpRatio <= Beats[_beatsFired].hp)
+        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
-            var (_, line) = Beats[_beatsFired];
-            var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/rei_face.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
-            _beatPending = true;
-            _lineT = 0;
         }
     }
 
@@ -196,13 +183,6 @@ public partial class BossRei : Enemy
                 else ShowLine();
             }
             return;
-        }
-
-        if (_beatPending && zEdge && _lineT >= 0.25)
-        {
-            _beatPending = false;
-            var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
         }
     }
 

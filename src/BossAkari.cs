@@ -19,32 +19,31 @@ public partial class BossAkari : Enemy
     private int _beatsFired;    // 流した独白の数
     private const int PatternCount = 4;
 
-    // 戦闘中に挟む“あかりの自責の独白”。HPがこの割合を下回るごとに1つ流し、攻撃パターンを変える。
-    private static readonly (float hp, string line)[] Beats =
-    {
-        (0.78f, "あたしのせいだ。あたしが、呼び出したりしなければ。"),
-        (0.52f, "来ないで……っ。あたしは、助けてもらっちゃいけないの。"),
-        (0.26f, "ごめんなさい……あなたを、好きに、なんて。"),
-    };
+    // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
+    private static readonly float[] PatternThresholds = { 0.78f, 0.52f, 0.26f };
 
-    // 浄化時のかけあい（who: 0=少年 / 1=ミナ / 2=あかり）。Zで手動送り。
+    // 浄化時のかけあい（who: 0=少年 / 1=ミナ / 2=あかり / 3=地・記憶＝ミナ語り＋記憶フラッシュ）。Zで手動送り。
     private bool _seq;
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    private bool _beatPending; // 戦闘中の独白(1行)をZ待ちで表示中
-    // 浄化のかけあい（決定稿準拠）。少年は自分の声では言えず、ミナが“中継”して届ける。
+    // 浄化のかけあい（設計書 v2 [P-02b] のボス節を順序通りに）。少年は自分の声では言えず、ミナが“中継”して届ける。
     // ※「あなたのせいじゃない」は最も効かない言葉＝禁止。庇った側の意志を立てる言葉で解く。
     private const string SGentle = "res://char/shonen_gentle.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "名前で、呼んでよ。……いつから、あたしは“キミ”になったの……?", ""),
+        (2, "……名前で、呼んでよ。", ""),
+        (2, "いつから、あたしは“キミ”になったの……?", ""),
+        (1, "“キミ”……? ご主人様、これは", ""),
+        (0, "————行こう。奥だ。", SGentle),
+        (2, "来ないで……っ。あたしは、助けてもらっちゃいけないの。", ""),
+        (3, "雨の交差点。言いかけた唇。「あのね、あたし——」。クラクション。", ""),
         (0, "ミナ。ぼくの言葉を、きみの声で届けてくれ。", SGentle),
         (1, "ご主人様が、直接言えばいいでしょう。", ""),
         (0, "————ぼくの声じゃ、だめなんだ。", SGentle),
-        (1, "——誰かを想うことは、罪じゃありません。", ""),
-        (1, "言えなかった言葉は、消えない。届けられなかった想いは、なかったことには、なりません。", ""),
-        (1, "————きっと、相手にも。とっくに、届いています。", ""),
+        (1, "——誰かを想うことは、罪じゃない。", ""),
+        (1, "言えなかった言葉は、消えない。届けられなかった想いは、なかったことにはならない。", ""),
+        (1, "————きっと、相手にも。とっくに、届いてる。", ""),
         (2, "……すき、だったの。ずっと。……それだけ、なのに。", ""),
         (1, "うん。————知ってるよ。", ""),
     };
@@ -166,16 +165,11 @@ public partial class BossAkari : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(HpRatio);
-        // HPが閾値を割るたびに“あかりの独白”を挟み（Z送り）、攻撃パターンを変える。
-        if (!_beatPending && _beatsFired < Beats.Length && HpRatio <= Beats[_beatsFired].hp)
+        // HPが閾値を割るたびに攻撃パターンを変える。
+        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
-            var (_, line) = Beats[_beatsFired];
-            var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/akari_face.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
-            _beatPending = true;
-            _lineT = 0;
         }
     }
 
@@ -219,13 +213,6 @@ public partial class BossAkari : Enemy
             }
             return;
         }
-
-        if (_beatPending && zEdge && _lineT >= 0.25)
-        {
-            _beatPending = false;
-            var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
-        }
     }
 
     private void ShowLine()
@@ -235,6 +222,11 @@ public partial class BossAkari : Enemy
         if (hud == null) return;
         if (who == 0) hud.ShowDialog(text, face);                            // 少年（行ごとの表情）
         else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");  // ミナ
+        else if (who == 3)                                                    // 地・記憶（ミナ語り＋記憶フラッシュ）
+        {
+            (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerMemoryFlash();
+            hud.ShowDialog(text, "res://char/mina_face.png");
+        }
         else hud.ShowDialog(text, "res://char/akari_face.png");              // あかり
     }
 

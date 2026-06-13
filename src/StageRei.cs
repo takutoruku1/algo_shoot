@@ -40,18 +40,11 @@ public partial class StageRei : Node
         (1, "——着いた先は、終わりのないコンテスト会場でした。", ""),    // 地
         (0, "飛んでくるのは、この人を苦しめてる“言葉”だ。本人じゃない。撃って祓っていい。", SCocky),
         (0, "いや。倒すんじゃない。いちばん奥の“本人”に、光を届けるんだ。", SGentle),
-        (0, "怖がらず、近づけ。弾にかすって、相手の本音に触れにいくんだ。", SGentle),
-        (1, "……人使いが荒いですね、ご主人様は。やってみますけど。", ""),
     };
 
-    // ボス登場時の説明
+    // ボス登場時の説明（設計書 [P-01b] に該当なし＝空。説明セリフは挟まない）
     private static readonly (int who, string text, string face)[] BossIntro =
-    {
-        (0, "来た。あれが、この人の心を覆ってる“穢れ”の核だ。", SCocky),
-        (1, "ご主人様、ずいぶん張り切ってますね。初仕事だからですか。", ""),
-        (0, "当然だろ。天才のデビュー戦だぞ。完璧に決めるさ。", SProud),
-        (1, "デビュー戦で空回りしないことを祈りますね。", ""),
-    };
+        System.Array.Empty<(int, string, string)>();
 
     // 帰還（v2 [P-01c]）。投稿の変化＋伏線②（会ったこともない相手を言い切る確信）をミナが流す。
     private static readonly (int who, string text, string face)[] Clear =
@@ -104,6 +97,7 @@ public partial class StageRei : Node
             _stepStarted = true;
             _introLine = 0;
             _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
             Hud.HoldBubble = true;
             ShowLine(lines);
         }
@@ -167,7 +161,9 @@ public partial class StageRei : Node
         GetTree().ChangeSceneToFile("res://Akari.tscn");
     }
 
-    // 道中の言葉弾（「どうせ二番」等が降る）。会話中は止む。
+    // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。
+    private int _wordTick;
+    private static readonly string[] Words = { "どうせ二番", "届かない", "努力は天才に勝てない", "私を見て" };
     private void Rain(double delta)
     {
         if (Hud.BubblePaused) return;
@@ -177,6 +173,13 @@ public partial class StageRei : Node
         float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
         if (_rainT < 0.17 * mul) return;
         _rainT = 0;
+        if ((++_wordTick % 7) == 0)
+        {
+            // 言葉弾：ゆっくり落ちて読める。中心の小さなドットが当たり判定。
+            var b = pool.Spawn(new Vector2(_rng.RandfRange(70f, 314f), -8f), new Vector2(0f, 46f), isEnemy: true, 3f, 1);
+            b.SetWord(Words[_rng.RandiRange(0, Words.Length - 1)]);
+            return;
+        }
         float x = _rng.RandfRange(8f, 376f);
         float vx = _rng.RandfRange(-12f, 12f);
         pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 72f), isEnemy: true, 3f, 1);

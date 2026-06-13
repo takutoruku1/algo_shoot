@@ -35,18 +35,11 @@ public partial class StageKoharu : Node
     {
         (1, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
         (1, "——そこは、台所でした。夕食の支度が、永遠に続いている。", ""),     // 地
-        (0, "作っても料理は冷め、席は空のまま。ここは、この子の心だ。", SGentle),
-        (1, "ご主人様。今日は、いつもより口数が少ないですね。", ""),
-        (0, "……なんでもない。続けるぞ。", SCocky),
     };
 
-    // ボス登場時の説明
+    // ボス登場時の説明（設計書 [P-03] に該当なし＝空。こはるの独白と中継はボス側に集約）
     private static readonly (int who, string text, string face)[] BossIntro =
-    {
-        (0, "あれが、この子を覆ってる穢れだ。怒りの形をしている。", SCocky),
-        (0, "怒りの下にあるのは、悲しみだ。剥がして、奥へ光を届けろ。", SGentle),
-        (1, "……はい。あの子を傷つけずに、穢れだけ。やってみましょう。", ""),
-    };
+        System.Array.Empty<(int, string, string)>();
 
     // 帰還（v2 [P-03] 末尾）。投稿の変化＋伏線④。
     private static readonly (int who, string text, string face)[] Clear =
@@ -97,6 +90,7 @@ public partial class StageKoharu : Node
             _stepStarted = true;
             _introLine = 0;
             _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
             Hud.HoldBubble = true;
             ShowLine(lines);
         }
@@ -161,7 +155,9 @@ public partial class StageKoharu : Node
         GetTree().ChangeSceneToFile("res://Final.tscn");
     }
 
-    // 道中の言葉弾（「むだだよ」等が降る）。会話中は止む。
+    // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。
+    private int _wordTick;
+    private static readonly string[] Words = { "むだだよ", "なにをつくっても", "もう帰ってこない", "ひとりになる" };
     private void Rain(double delta)
     {
         if (Hud.BubblePaused) return;
@@ -171,6 +167,12 @@ public partial class StageKoharu : Node
         float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
         if (_rainT < 0.17 * mul) return;
         _rainT = 0;
+        if ((++_wordTick % 7) == 0)
+        {
+            var b = pool.Spawn(new Vector2(_rng.RandfRange(70f, 314f), -8f), new Vector2(0f, 44f), isEnemy: true, 3f, 1);
+            b.SetWord(Words[_rng.RandiRange(0, Words.Length - 1)]);
+            return;
+        }
         float x = _rng.RandfRange(8f, 376f);
         float vx = _rng.RandfRange(-11f, 11f);
         pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 72f), isEnemy: true, 3f, 1);

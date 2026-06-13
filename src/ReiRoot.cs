@@ -54,6 +54,7 @@ public partial class ReiRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 順位掲示板の海
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -80,8 +81,14 @@ public partial class ReiRoot : Node2D
         }
         _rHeld = r;
 
-        float target = GetNodeOrNull<GameManager>("/root/Game")?.Warmth ?? 0f;
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        float target = game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+
+        // 汚染ゲージ：祓うほど濁る。STAGE1は「澄み(0)→わずか(0.16)」（設計書 4-b）。
+        float corr = Mathf.Lerp(0f, 0.16f, game?.StageProgress ?? 0f);
+        game?.SetContamination(corr);
+        Player?.SetCorruption(corr);
     }
 }

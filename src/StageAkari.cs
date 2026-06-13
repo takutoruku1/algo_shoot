@@ -47,7 +47,6 @@ public partial class StageAkari : Node
         (1, "黒板の字。自分を責める言葉に、好意の言葉が混ざっていますね。", ""),
         (0, "……この人は、誰かを好きになったことを、罪だと思ってる。", SGentle),
         (0, "————そういう罪も、あるんだよ。この世界にはね。", SGentle),
-        (1, "……穢れだけを剥がして、奥の光に届かせる。やってみましょう。", ""),
     };
 
     // 帰還（v2 [P-02c]）。投稿の変化＋あかりの残響＋ミナの核心の問い（伏線③）。
@@ -107,6 +106,7 @@ public partial class StageAkari : Node
             _stepStarted = true;
             _introLine = 0;
             _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
             Hud.HoldBubble = true; // 自動で消えない＝手動送り
             ShowLine(lines);
         }

@@ -23,6 +23,30 @@ public partial class Bullet : Area2D
     public int Damage;
     public bool Active;
     public bool Grazed;  // グレイズ済みか（重複加点防止）
+    public string Word = "";  // 非空なら「言葉弾」＝文字そのものが弾（道中の敵。設計書 4）
+
+    // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
+    private static FontFile? _wordFont;
+    private static FontFile? WordFont
+    {
+        get
+        {
+            if (_wordFont == null)
+            {
+                _wordFont = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
+                if (_wordFont != null)
+                {
+                    _wordFont.Antialiasing = TextServer.FontAntialiasing.None;
+                    _wordFont.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
+                    _wordFont.Hinting = TextServer.Hinting.None;
+                }
+            }
+            return _wordFont;
+        }
+    }
+
+    // 言葉弾にする（Spawn 後に呼ぶ）。再描画して文字を反映。
+    public void SetWord(string w) { Word = w; QueueRedraw(); }
 
     public float Radius { get; private set; } = 3f;
 
@@ -49,6 +73,7 @@ public partial class Bullet : Area2D
         Radius = radius;
         Active = true;
         Grazed = false;
+        Word = "";  // 再利用時に前の言葉を持ち越さない
 
         GlobalPosition = pos;
 
@@ -135,6 +160,19 @@ public partial class Bullet : Area2D
             return;
 
         float r = Radius;
+
+        // 言葉弾：文字そのものが弾（背後に薄い黒い吹き出し帯）。本人ではなく“苦しめる言葉”。
+        var wf = WordFont;
+        if (!string.IsNullOrEmpty(Word) && wf != null)
+        {
+            var sz = wf.GetStringSize(Word, HorizontalAlignment.Left, -1, 9);
+            const float pad = 2f;
+            DrawRect(new Rect2(-sz.X / 2f - pad, -sz.Y / 2f - pad, sz.X + pad * 2f, sz.Y + pad * 2f),
+                new Color(0.06f, 0.04f, 0.09f, 0.62f));
+            DrawString(wf, new Vector2(-sz.X / 2f, sz.Y / 2f - 2f), Word,
+                HorizontalAlignment.Left, -1, 9, new Color(1f, 0.62f, 0.68f));
+            return;
+        }
 
         if (IsEnemy)
         {

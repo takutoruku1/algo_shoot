@@ -55,6 +55,7 @@ public partial class AkariRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Akari }); // 黒板の自責・机が天井へ・記憶
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -82,8 +83,14 @@ public partial class AkariRoot : Node2D
         _rHeld = r;
 
         // 浄化が進むと部屋が晴れる（寒色→暖色）。
-        float target = GetNodeOrNull<GameManager>("/root/Game")?.Warmth ?? 0f;
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        float target = game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+
+        // 汚染ゲージ：STAGE2は「わずか(0.16)→縁の濁り(0.42)」（設計書 4-b）。
+        float corr = Mathf.Lerp(0.16f, 0.42f, game?.StageProgress ?? 0f);
+        game?.SetContamination(corr);
+        Player?.SetCorruption(corr);
     }
 }
