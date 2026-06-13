@@ -31,6 +31,11 @@ public partial class GameManager : Node
     // 「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」＝浄化の進捗。
     public float Warmth => StageProgress;
 
+    // ミナの汚染ゲージ（0=澄んでいる → 1=黒く溶ける）。穢れを祓うほど自機の光が濁る。
+    // シーンをまたいで保持し、各ステージで段階的に上げる（ResetRun では消さない＝物語の背骨）。
+    public float Contamination { get; private set; }
+    public void SetContamination(float v) => Contamination = Mathf.Clamp(v, 0f, 1f);
+
     // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
     private float _kindFill;            // 0..1 蓄積
     public bool IsOverload { get; private set; }

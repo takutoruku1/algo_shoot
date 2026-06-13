@@ -285,14 +285,13 @@ public partial class Hud : CanvasLayer
     public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
 
     // 話者の立ち絵を指定して会話表示（ボス等のかけあい用）。
+    // 立ち絵が無い／読み込めない場合は立ち絵を隠す（前の話者の絵が残らないように）。
     public void ShowDialog(string text, string portraitResPath)
     {
-        if (!string.IsNullOrEmpty(portraitResPath))
-        {
-            var tex = ResourceLoader.Load<Texture2D>(portraitResPath);
-            if (tex != null) _portrait.Texture = tex;
-        }
-        _portrait.Visible = true;
+        Texture2D? tex = string.IsNullOrEmpty(portraitResPath)
+            ? null : ResourceLoader.Load<Texture2D>(portraitResPath);
+        if (tex != null) { _portrait.Texture = tex; _portrait.Visible = true; }
+        else _portrait.Visible = false; // 地の文／立ち絵未用意の話者は立ち絵なし
         LayoutBubble(text, dialog: true);
         _messageTimer = 6.0;
     }

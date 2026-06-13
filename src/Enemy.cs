@@ -202,8 +202,10 @@ public partial class Enemy : Area2D
             ripple.GlobalPosition = GlobalPosition;
         }
 
-        // 3段階対応：Cry が設定されていれば先に大泣きを見せてから笑顔へ。
-        if (_hasBodyTex && !string.IsNullOrEmpty(CryTexPath) && CryHoldDur > 0)
+        // 3段階対応：Cry の尺が設定されていれば先に大泣きを見せてから笑顔へ。
+        // 専用立ち絵が無いボス（こはる等）でも会話に入れるよう、CryHoldDur のみで判定する
+        //（SwapBody は内部で _hasBodyTex を確認するため、立ち絵が無ければ素通りする）。
+        if (CryHoldDur > 0)
         {
             SwapBody(CryTexPath);
             _crying = true;

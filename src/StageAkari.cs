@@ -29,22 +29,38 @@ public partial class StageAkari : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
-    // 導入会話（who: 0=少年 / 1=ミナ、face=少年の表情）
+    // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。who: 0=少年 / 1=ミナ・地。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (0, "Xで、ひとり溺れてる子がいる。自分を責めて、責めて……心が穢れちまった。", SGentle),
-        (1, "それで、わざわざ他人の心の中まで潜るんですか。ご主人様、物好きですね。", ""),
-        (0, "穢れを祓えば、その子は少し楽になれる。ここは、その子の心象世界だ。", SCocky),
-        (1, "雨の、教室……。ずいぶん、降っていますね。", ""),
-        (0, "……ああ。降りやまない自責の雨だ。いくよ、ミナ。", SGentle),
+        (1, "ご主人様。次の“成敗”は? 今日はずいぶん静かですね。", ""),
+        (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
+        (1, "「すきになって、ごめんなさい。」", ""),                       // 投稿
+        (0, "…………この人の、ところへ行こう。", SGentle),
+        (1, "おや。決めゼリフはどうしたんですか。", ""),
+        (0, "……いいから。行くぞ。", SCocky),
+        (1, "——雨の、降りやまない教室でした。机も椅子も、天井へ落ちていく。", ""),   // 地
     };
 
-    // ボス登場時の説明（who: 0=少年 / 1=ミナ）
+    // ボス登場時の説明（v2 [P-02b]。who: 0=少年 / 1=ミナ）
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (0, "来た。あれが、この子の“ゆるせないわたし”——自責が形になった穢れだ。", SCocky),
-        (0, "本人を撃つんじゃない。あの子を縛ってる“自責”を剥がして、奥の光に届かせろ。", SCocky),
-        (1, "……はいはい。あの子を傷つけずに、穢れだけ、ですね。やってみましょう。", ""),
+        (1, "黒板の字。自分を責める言葉に、好意の言葉が混ざっていますね。", ""),
+        (0, "……この人は、誰かを好きになったことを、罪だと思ってる。", SGentle),
+        (0, "————そういう罪も、あるんだよ。この世界にはね。", SGentle),
+        (1, "……穢れだけを剥がして、奥の光に届かせる。やってみましょう。", ""),
+    };
+
+    // 帰還（v2 [P-02c]）。投稿の変化＋あかりの残響＋ミナの核心の問い（伏線③）。
+    private static readonly (int who, string text, string face)[] Clear =
+    {
+        (1, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
+        (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
+        (1, "あなた、この人を——知ってるんですか?", ""),
+        (0, "…………まさか。赤の他人さ。", SCocky),
+        (1, "……即答までに、二秒かかりましたね。", ""),
+        (0, "ミナ。シェイクスピアは言った。\"Parting is such sweet sorrow.\"", SCocky),
+        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", ""),
+        (0, "————一般論だよ。", SGentle),
     };
 
     public override void _Ready()
@@ -70,7 +86,8 @@ public partial class StageAkari : Node
             case 2: Step_BossSpawn(); break;
             case 3: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
             case 4: Step_BossWait(); break;
-            case 5: Step_Clear(); break;
+            case 5: Step_Clear(delta); break;
+            case 6: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
     }
@@ -111,8 +128,9 @@ public partial class StageAkari : Node
     private void ShowLine((int who, string text, string face)[] lines)
     {
         var (who, text, face) = lines[_introLine];
-        if (who == 0) Hud.ShowDialog(text, face);              // 少年（行ごとの表情）
-        else Hud.ShowDialog(text, "res://char/mina_face.png"); // ミナ
+        if (who == 0) Hud.ShowDialog(text, face);                       // 少年（行ごとの表情）
+        else if (who == 2) Hud.ShowDialog(text, "res://char/akari_face.png"); // あかり
+        else Hud.ShowDialog(text, "res://char/mina_face.png");          // ミナ・地の文
     }
 
     // ---- 2: ボス出現 ----
@@ -139,16 +157,22 @@ public partial class StageAkari : Node
         }
     }
 
-    // ---- 4: クリア ----
-    private void Step_Clear()
+    // ---- 5: クリア（帰還の会話を手動送り） ----
+    private bool _clearBannerShown;
+    private void Step_Clear(double delta)
     {
-        if (!_stepStarted)
-        {
-            _stepStarted = true;
-            Hud.ShowBanner("STAGE 2 CLEAR");
-            Hud.ShowDialog("……行きましょう、ご主人様。次の人のところへ。", "res://char/mina_face.png");
-            Advance();
-        }
+        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 2 CLEAR"); }
+        Step_Lines(delta, Clear);
+    }
+
+    // ---- 6: STAGE3（こはる）へ ----
+    private bool _clearing;
+    private void Step_Transition()
+    {
+        if (_clearing) return;
+        _clearing = true;
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        GetTree().ChangeSceneToFile("res://Koharu.tscn");
     }
 
     // 天井から降る「自責の雨」（会話中は止む）。

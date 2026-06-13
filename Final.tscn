@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0algofinal000"]
+
+[ext_resource type="Script" path="res://src/Final.cs" id="1_final"]
+
+[node name="Final" type="Node2D"]
+script = ExtResource("1_final")

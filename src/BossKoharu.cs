@@ -1,16 +1,17 @@
 using Godot;
 
-// BossRei : STAGE1「レイ（順位掲示板の海）」のボス＝穢れの核「二番のわたし」。
-// 順位に縛られた悔しさの弾幕。剥がしてHPを削り切る＝奥の“本当のレイ”の光に届く＝改心。
-// 改心の会話：少年がミナに託し、ミナが届ける（少年は正体を隠す）。禁止語「あなたのせいじゃない」は使わない。
-public partial class BossRei : Enemy
+// BossKoharu : STAGE3「こはる（永遠に夕食を作り続ける台所）」のボス＝穢れの核「むだなわたし」。
+// 兄の余命を知り、家事＝祈りが砕けた無力感。怒り（他責）の下にある悲しみへ光を届ける。
+// 専用立ち絵は未用意のため、Enemy の _Draw プレースホルダ（人型）で本体を表示する。
+// 禁止語「あなたのせいじゃない」は使わない。祈りが届いていたことを伝えて解く。
+public partial class BossKoharu : Enemy
 {
     public bool Finished { get; private set; }
 
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
     private Vector2 _moveTarget;
     private bool _hasTarget;
-    private const float RoamSpeed = 42f;
+    private const float RoamSpeed = 38f;
 
     private double _fireT;
     private float _ringOff;
@@ -25,44 +26,44 @@ public partial class BossRei : Enemy
     private bool _beatPending;
 
     private const string SGentle = "res://char/shonen_gentle.png";
+    private const string SCocky = "res://char/shonen_face.png";
 
-    // 戦闘中に挟むレイの独白（HPがこの割合を下回るたび）。攻撃パターンも変える。（v2 [P-01b]）
+    // 戦闘中に挟むこはるの独白（HPがこの割合を下回るたび）。無力感が他責の怒りへ。（v2 [P-03]）
     private static readonly (float hp, string line)[] Beats =
     {
-        (0.78f, "次は、私が勝つから。……次は。次は……"),
-        (0.50f, "なのに、なんで——なんで、戦ってくれないのよ!"),
-        (0.26f, "私はあいつにとって、本気で戦う価値も、なかったの……?"),
+        (0.78f, "あたしが何をつくっても、お兄ちゃんは——"),
+        (0.50f, "あたしのごはんは、お兄ちゃんを助けられない……!"),
+        (0.26f, "意味なんて、ない……! なにを、つくっても……!"),
     };
 
-    // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
+    // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。少年はミナの声で“中継”して届ける。
     private static readonly (int who, string text, string face)[] Lines =
     {
+        (2, "お兄ちゃんが、いなくなる。", ""),
         (0, "ミナ。この子に、ぼくの言葉を届けてくれ。", SGentle),
-        (1, "——きみの努力を、ずっと見ていた者がいます。", ""),
-        (1, "本気で戦う価値のある、唯一の好敵手だと、思っていた者がいる。", ""),
-        (2, "ほんとに、私……ちゃんと、ライバルだった……?", ""),
-        (1, "ええ。————次は、あなたが勝つ。それは、ずっと変わらない約束です。", ""),
-        (2, "……次は、私が勝つから。……なんで、涙が出るんだろ。", ""),
+        (1, "——怒りの下にある悲しみを、ちゃんと悲しんでいい。", ""),
+        (2, "あたしのごはんは、お兄ちゃんを助けられない……! 意味なんて、ない……!", ""),
+        (1, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからです。", ""),
+        (1, "祈りは、届いてたよ。ちゃんと。", ""),
+        (2, "……ちゃんと、食べてくれるかな。今日は。", ""),
     };
 
     protected override void OnEnemyReady()
     {
         _rng.Randomize();
-        Points = 1500;
+        Points = 1800;
         BodyRadius = 9f;
-        PanelCount = 5;          // 「二番」の言葉（黒い吹き出し）
+        PanelCount = 5;          // 「むだだよ」等の言葉（黒い吹き出し）
         PanelInk = 2;
         OrbitRadius = 26f;
-        SpinSpeed = 0.9f;
+        SpinSpeed = 0.85f;
         PanelsFire = false;
-        EnemyBulletSpeed = 82f;
+        EnemyBulletSpeed = 80f;
 
-        MaxHp = 38;
+        MaxHp = 44;
         PanelRespawnDelay = 1.4f;
 
-        PreTexPath = "res://char/enemy_rei_pre.png";
-        CryTexPath = "res://char/enemy_rei_post.png";
-        PostTexPath = "res://char/enemy_rei_post.png";
+        // 専用立ち絵は未用意 → プレースホルダ人型を使用（PreTexPath を空に）。
         BodyDisplayH = 52f;
         CryHoldDur = 9999.0;
     }
@@ -70,7 +71,7 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
-        GetHud()?.ShowBossBar("二番のわたし");
+        GetHud()?.ShowBossBar("むだなわたし");
         GetHud()?.UpdateBossBar(HpRatio);
     }
 
@@ -89,7 +90,6 @@ public partial class BossRei : Enemy
         _hasTarget = true;
     }
 
-    // 攻撃パターン（セリフを挟むたびに変化）。
     private void FirePattern(double delta)
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
@@ -97,8 +97,8 @@ public partial class BossRei : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= 1.0) { _fireT = 0; Ring(pool, 14, 70f); } break;
-            case 1: if (_fireT >= 1.1) { _fireT = 0; Ring(pool, 18, 76f); } break;
+            case 0: if (_fireT >= 1.0) { _fireT = 0; Ring(pool, 16, 70f); } break;
+            case 1: if (_fireT >= 1.1) { _fireT = 0; FanDown(pool); } break;
             case 2: if (_fireT >= 0.7) { _fireT = 0; Aimed(pool); } break;
             default: if (_fireT >= 0.085) { _fireT = 0; Spiral(pool); } break;
         }
@@ -106,11 +106,22 @@ public partial class BossRei : Enemy
 
     private void Ring(BulletPool pool, int k, float spd)
     {
-        _ringOff += Mathf.DegToRad(9f);
+        _ringOff += Mathf.DegToRad(8f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
             pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, isEnemy: true, 3.4f, 1);
+        }
+    }
+
+    private void FanDown(BulletPool pool)
+    {
+        const int k = 9;
+        for (int i = 0; i < k; i++)
+        {
+            float t = (float)i / (k - 1) - 0.5f;
+            float a = Mathf.Pi / 2f + t * Mathf.DegToRad(78f);
+            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, isEnemy: true, 3.4f, 1);
         }
     }
 
@@ -121,17 +132,17 @@ public partial class BossRei : Enemy
         for (int i = -1; i <= 1; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 98f, isEnemy: true, 3.4f, 1);
+            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, isEnemy: true, 3.4f, 1);
         }
     }
 
     private void Spiral(BulletPool pool)
     {
-        _ringOff += Mathf.DegToRad(13f);
+        _ringOff += Mathf.DegToRad(12f);
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, isEnemy: true, 3.2f, 1);
+            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 88f, isEnemy: true, 3.2f, 1);
         }
     }
 
@@ -153,7 +164,7 @@ public partial class BossRei : Enemy
         {
             var (_, line) = Beats[_beatsFired];
             var hud = GetHud();
-            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/rei_face.png"); }
+            if (hud != null) { hud.HoldBubble = true; hud.ShowDialog(line, "res://char/koharu_face.png"); }
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             _beatPending = true;
@@ -213,7 +224,7 @@ public partial class BossRei : Enemy
         if (hud == null) return;
         if (who == 0) hud.ShowDialog(text, face);
         else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");
-        else hud.ShowDialog(text, "res://char/rei_face.png");
+        else hud.ShowDialog(text, "res://char/koharu_face.png");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

@@ -1,20 +1,21 @@
 using Godot;
 
-// ReiRoot : STAGE1「レイ」のルート（Rei.tscn にアタッチ）。
-// 順位掲示板の海の背景を敷き、Player(=ミナ)/Hud/StageRei を生成。改心が進むと少し晴れる。
-public partial class ReiRoot : Node2D
+// KoharuRoot : STAGE3「こはる」のルート（Koharu.tscn にアタッチ）。
+// 台所の心象世界を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
+// 専用背景は未用意のため、暖色の暗いフィルで台所の薄暗さを表現する。
+public partial class KoharuRoot : Node2D
 {
     public const int ScreenWidth = 384;
     public const int ScreenHeight = 216;
 
     public Player Player { get; private set; } = null!;
     public Hud Hud { get; private set; } = null!;
-    public StageRei Stage { get; private set; } = null!;
+    public StageKoharu Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
 
     private CanvasModulate _tint = null!;
-    private static readonly Color Cold = new Color(0.58f, 0.66f, 0.95f); // サイバー寒色
-    private static readonly Color Warm = new Color(1.02f, 1.0f, 0.96f);
+    private static readonly Color Cold = new Color(0.46f, 0.50f, 0.66f); // 冷めた台所
+    private static readonly Color Warm = new Color(1.06f, 0.96f, 0.84f); // 灯のともった食卓
     private float _warmth;
     private bool _rHeld;
 
@@ -25,7 +26,7 @@ public partial class ReiRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/rei/board.png");
+        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/koharu/kitchen.png");
         if (tex != null)
         {
             float scale = Mathf.Max((float)ScreenWidth / tex.GetWidth(), (float)ScreenHeight / tex.GetHeight());
@@ -45,7 +46,7 @@ public partial class ReiRoot : Node2D
         }
         else
         {
-            var fill = new ColorRect { Name = "Fill", Color = new Color(0.08f, 0.10f, 0.18f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
+            var fill = new ColorRect { Name = "Fill", Color = new Color(0.14f, 0.12f, 0.13f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
             fill.MouseFilter = Control.MouseFilterEnum.Ignore;
             AddChild(fill);
         }
@@ -58,15 +59,15 @@ public partial class ReiRoot : Node2D
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
-        // STAGE1：ミナの光はまだ澄んでいる（汚染なし）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0f);
-        Player.SetCorruption(0f);
+        // STAGE3：縁の濁りがはっきり広がる段階。漫才の裏で深刻化していく。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.42f);
+        Player.SetCorruption(0.42f);
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
         Hud.SetLives(Player.Lives);
 
-        Stage = new StageRei { Name = "StageRei", Player = Player, Hud = Hud, World = World };
+        Stage = new StageKoharu { Name = "StageKoharu", Player = Player, Hud = Hud, World = World };
         AddChild(Stage);
     }
 

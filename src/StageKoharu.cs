@@ -1,12 +1,13 @@
 using Godot;
 
-// StageRei : STAGE1「レイ（順位掲示板の海）」進行＋操作チュートリアル（移動/ショット/かすり）。
-//   1: 導線・着地＋チュートリアル会話
+// StageKoharu : STAGE3「こはる（永遠に夕食を作り続ける台所）」進行（v2 [P-03]）。
+//   1: ダイブ前〜着地の会話
 //   2: ボス出現
 //   3: ボス前の説明
 //   4: ボス戦
-//   5: クリア → STAGE2(あかり)へ
-public partial class StageRei : Node
+//   5: 帰還の会話（投稿変化＋伏線④「妹を見ててくれ」）
+//   6: FINAL（汚染暴走）へ遷移
+public partial class StageKoharu : Node
 {
     public Player Player = null!;
     public Hud Hud = null!;
@@ -17,7 +18,7 @@ public partial class StageRei : Node
     private double _stepTime;
     private double _lineHold;
     private int _introLine;
-    private BossRei _boss = null!;
+    private BossKoharu _boss = null!;
     private bool _bossActive;
     private double _rainT;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
@@ -28,39 +29,31 @@ public partial class StageRei : Node
     private const float SpawnX = 300f;
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
-    private const string SProud = "res://char/shonen_proud.png";
 
-    // ダイブ前〜着地＋チュートリアル（v2 [P-01a]/[P-01b] 準拠。who: 0=少年 / 1=ミナ・地の文）
+    // ダイブ前〜着地（v2 [P-03]）。who: 0=少年 / 1=ミナ・地 / 2=こはる。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (1, "「どうせ私は二番手。一番には、もうなれない。」", ""),      // 投稿
-        (1, "ずいぶん拗ねた投稿ですね。これを?", ""),
-        (0, "ああ。こいつの心は、いま濁ってる。放っておけない。", SGentle),
-        (1, "おや。意外と優しいことを言うんですね。", ""),
-        (1, "——着いた先は、終わりのないコンテスト会場でした。", ""),    // 地
-        (0, "飛んでくるのは、この人を苦しめてる“言葉”だ。本人じゃない。撃って祓っていい。", SCocky),
-        (0, "いや。倒すんじゃない。いちばん奥の“本人”に、光を届けるんだ。", SGentle),
-        (0, "怖がらず、近づけ。弾にかすって、相手の本音に触れにいくんだ。", SGentle),
-        (1, "……人使いが荒いですね、ご主人様は。やってみますけど。", ""),
+        (1, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
+        (1, "——そこは、台所でした。夕食の支度が、永遠に続いている。", ""),     // 地
+        (0, "作っても料理は冷め、席は空のまま。ここは、この子の心だ。", SGentle),
+        (1, "ご主人様。今日は、いつもより口数が少ないですね。", ""),
+        (0, "……なんでもない。続けるぞ。", SCocky),
     };
 
     // ボス登場時の説明
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (0, "来た。あれが、この人の心を覆ってる“穢れ”の核だ。", SCocky),
-        (1, "ご主人様、ずいぶん張り切ってますね。初仕事だからですか。", ""),
-        (0, "当然だろ。天才のデビュー戦だぞ。完璧に決めるさ。", SProud),
-        (1, "デビュー戦で空回りしないことを祈りますね。", ""),
+        (0, "あれが、この子を覆ってる穢れだ。怒りの形をしている。", SCocky),
+        (0, "怒りの下にあるのは、悲しみだ。剥がして、奥へ光を届けろ。", SGentle),
+        (1, "……はい。あの子を傷つけずに、穢れだけ。やってみましょう。", ""),
     };
 
-    // 帰還（v2 [P-01c]）。投稿の変化＋伏線②（会ったこともない相手を言い切る確信）をミナが流す。
+    // 帰還（v2 [P-03] 末尾）。投稿の変化＋伏線④。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (1, "「次こそ、勝つ。覚悟しなさいよね。」", ""),                 // 投稿が変化
-        (1, "投稿が変わりましたね。元気が出たようで何よりです。", ""),
-        (0, "ああ。……いい目を、してた。", SGentle),
-        (1, "——会ったこともない相手のことを、なぜそこまで言い切れるのか。", ""),
-        (1, "わたくしは少し不思議に思って——初仕事で張り切っているのだろう、と流しました。", ""),
+        (1, "「ちゃんと食べてね。……あたしも、食べるから。」", ""),            // 投稿が変化
+        (0, "もしぼくが寝坊して来られない日があったらさ。妹の様子でも、見ててくれよ。", SGentle),
+        (1, "妹が、いらしたんですか。", ""),
     };
 
     public override void _Ready()
@@ -77,7 +70,7 @@ public partial class StageRei : Node
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 1 START"); }
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 3 START"); }
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
@@ -126,6 +119,7 @@ public partial class StageRei : Node
     {
         var (who, text, face) = lines[_introLine];
         if (who == 0) Hud.ShowDialog(text, face);
+        else if (who == 2) Hud.ShowDialog(text, "res://char/koharu_face.png"); // 立ち絵未用意＝立ち絵なし
         else Hud.ShowDialog(text, "res://char/mina_face.png");
     }
 
@@ -134,7 +128,7 @@ public partial class StageRei : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _boss = new BossRei { Name = "BossRei" };
+            _boss = new BossKoharu { Name = "BossKoharu" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
@@ -154,7 +148,7 @@ public partial class StageRei : Node
     private bool _clearBannerShown;
     private void Step_Clear(double delta)
     {
-        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 1 CLEAR"); }
+        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 3 CLEAR"); }
         Step_Lines(delta, Clear);
     }
 
@@ -164,10 +158,10 @@ public partial class StageRei : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile("res://Akari.tscn");
+        GetTree().ChangeSceneToFile("res://Final.tscn");
     }
 
-    // 道中の言葉弾（「どうせ二番」等が降る）。会話中は止む。
+    // 道中の言葉弾（「むだだよ」等が降る）。会話中は止む。
     private void Rain(double delta)
     {
         if (Hud.BubblePaused) return;
@@ -178,7 +172,7 @@ public partial class StageRei : Node
         if (_rainT < 0.17 * mul) return;
         _rainT = 0;
         float x = _rng.RandfRange(8f, 376f);
-        float vx = _rng.RandfRange(-12f, 12f);
+        float vx = _rng.RandfRange(-11f, 11f);
         pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 72f), isEnemy: true, 3f, 1);
     }
 }

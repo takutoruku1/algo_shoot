@@ -29,6 +29,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Claude Code 個人設定（ローカル権限など。コミットしない）
+.claude/settings.local.json
+
 # Secrets (APIキー等。絶対にコミットしない)
 .secrets/
 *.key

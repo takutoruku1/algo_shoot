@@ -106,6 +106,13 @@ public partial class Player : Area2D
 
     private bool _focus = false; // 低速（Shift）中か。ヒットボックス強調表示に使う。
 
+    // ミナの汚染ティント（0=澄んだ光 → 1=黒く濁る）。スプライトの SelfModulate にのみ掛け、
+    // 被弾点滅（Modulate のα）とは独立に作用させる。
+    private float _corruption = 0f;
+    private static readonly Color CleanTint = new Color(1f, 1f, 1f);
+    private static readonly Color MurkTint = new Color(0.42f, 0.40f, 0.52f); // 濁った藍鼠
+    public void SetCorruption(float level) => _corruption = Mathf.Clamp(level, 0f, 1f);
+
     // 常時ふわふわ浮遊（スプライトのみ上下に揺らす。当たり判定点は固定）
     private float _bobTime = 0f;
     private const float BobSpeed = 3.2f; // 角速度(rad/s) 約2秒周期
@@ -262,6 +269,8 @@ public partial class Player : Area2D
         if (_hasTexture && _sprite != null)
         {
             _sprite.Position = new Vector2(0f, Mathf.Sin(_bobTime * BobSpeed) * BobAmp);
+            // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）
+            _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
         }
 
         // ヒットボックス点を毎フレーム更新描画

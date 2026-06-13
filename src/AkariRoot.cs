@@ -59,6 +59,9 @@ public partial class AkariRoot : Node2D
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
+        // STAGE2：STAGE1を祓った分、ミナの光がわずかに濁り始める（伏線的に気づかない程度）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.16f);
+        Player.SetCorruption(0.16f);
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
