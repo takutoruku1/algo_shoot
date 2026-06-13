@@ -76,6 +76,11 @@ public partial class Enemy : Area2D
     protected int Dn(int baseCount) =>
         GetNodeOrNull<GameManager>("/root/Game")?.ScaleBullets(baseCount) ?? baseCount;
 
+    // 難易度に応じた発射間隔。やさしいほど長く（連射が遅く）なる。
+    // 派生ボスは `_fireT >= Di(基準秒)` の形でしきい値に掛けて使う。
+    protected double Di(double baseInterval) =>
+        baseInterval * (GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f);
+
     private void SetupBodySprite()
     {
         if (string.IsNullOrEmpty(PreTexPath)) return;

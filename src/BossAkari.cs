@@ -102,10 +102,10 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= 1.0) { _fireT = 0; FanDown(pool); } break;       // 下向きの雨の扇
-            case 1: if (_fireT >= 1.2) { _fireT = 0; Ring(pool); } break;          // 回転する放射リング
-            case 2: if (_fireT >= 0.7) { _fireT = 0; AimedSpread(pool); } break;   // 自機狙いの3way連射
-            default: if (_fireT >= 0.085) { _fireT = 0; Spiral(pool); } break;     // 二重スパイラル
+            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; FanDown(pool); } break;       // 下向きの雨の扇
+            case 1: if (_fireT >= Di(1.2)) { _fireT = 0; Ring(pool); } break;          // 回転する放射リング
+            case 2: if (_fireT >= Di(0.7)) { _fireT = 0; AimedSpread(pool); } break;   // 自機狙いの3way連射
+            default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;     // 二重スパイラル
         }
     }
 

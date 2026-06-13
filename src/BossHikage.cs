@@ -87,7 +87,7 @@ public partial class BossHikage : Enemy
         if (hp > 0.66f)
         {
             // フェーズ1：放射リング（毎回少しずつ回転）。ゆっくりで避けやすい。
-            if (_fireT >= 1.1)
+            if (_fireT >= Di(1.1))
             {
                 _fireT = 0;
                 int k = Dn(18);
@@ -103,7 +103,7 @@ public partial class BossHikage : Enemy
         else if (hp > 0.33f)
         {
             // フェーズ2：二重スパイラル（連続回転）。
-            if (_fireT >= 0.085)
+            if (_fireT >= Di(0.085))
             {
                 _fireT = 0;
                 _spiralAngle += Mathf.DegToRad(13f);
@@ -117,7 +117,7 @@ public partial class BossHikage : Enemy
         else
         {
             // フェーズ3：花型（複数リングを角度・速度オフセットで重ねる）。やや密。
-            if (_fireT >= 0.72)
+            if (_fireT >= Di(0.72))
             {
                 _fireT = 0;
                 int k = Dn(12);

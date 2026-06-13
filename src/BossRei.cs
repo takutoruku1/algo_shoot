@@ -89,10 +89,10 @@ public partial class BossRei : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= 1.0) { _fireT = 0; Ring(pool, Dn(14), 70f); } break;
-            case 1: if (_fireT >= 1.1) { _fireT = 0; Ring(pool, Dn(18), 76f); } break;
-            case 2: if (_fireT >= 0.7) { _fireT = 0; Aimed(pool); } break;
-            default: if (_fireT >= 0.085) { _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; Ring(pool, Dn(14), 70f); } break;
+            case 1: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(18), 76f); } break;
+            case 2: if (_fireT >= Di(0.7)) { _fireT = 0; Aimed(pool); } break;
+            default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;
         }
     }
 
