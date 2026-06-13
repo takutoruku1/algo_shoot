@@ -158,7 +158,8 @@ public partial class StageRei : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile("res://Akari.tscn");
+        GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("rei");
+        GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
     // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。

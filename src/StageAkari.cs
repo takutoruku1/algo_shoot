@@ -172,7 +172,8 @@ public partial class StageAkari : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile("res://Koharu.tscn");
+        GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("akari");
+        GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
     // 天井から降る「自責の雨」（会話中は止む）。

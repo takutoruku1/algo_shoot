@@ -137,7 +137,7 @@ public partial class Prologue : Node2D
                     if (g != null) g.Difficulty = (GameManager.Diff)_diffSel;
                 }
                 _lrHeld = left || right;
-                if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Rei.tscn");
+                if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Hub.tscn");
                 break;
         }
 

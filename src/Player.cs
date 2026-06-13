@@ -121,12 +121,23 @@ public partial class Player : Area2D
     // Pool 取得用キャッシュ
     private BulletPool _pool = null!;
 
+    // GameManager キャッシュ（恒久強化の効果を毎フレーム参照する）
+    private GameManager _game = null!;
+    // 当たり判定の実効半径（回避域強化で縮小）。_Ready で確定。
+    private float _hitR = HitRadius;
+
     public override void _Ready()
     {
         AddToGroup("player");
 
-        // 難易度に応じた残機。
-        Lives = GetNodeOrNull<GameManager>("/root/Game")?.StartLives ?? 3;
+        // GameManager をキャッシュ（残機・恒久強化の効果取得）。
+        _game = GetNodeOrNull<GameManager>("/root/Game")!;
+
+        // 難易度＋恒久強化（最大♥）に応じた残機。
+        Lives = _game?.StartLives ?? 3;
+
+        // 回避域強化で当たり判定を縮小。
+        _hitR = HitRadius * (_game?.HitRadiusMul ?? 1f);
 
         // 衝突レイヤー: layer=1, mask=12（敵=4, 敵弾=8）
         CollisionLayer = 1;
@@ -134,11 +145,11 @@ public partial class Player : Area2D
         Monitoring = true;
         Monitorable = true;
 
-        // 当たり判定（CircleShape2D, 半径2px）
+        // 当たり判定（CircleShape2D）。半径は回避域強化で縮む。
         var shape = new CollisionShape2D
         {
             Name = "HitShape",
-            Shape = new CircleShape2D { Radius = HitRadius }
+            Shape = new CircleShape2D { Radius = _hitR }
         };
         AddChild(shape);
 
@@ -216,7 +227,8 @@ public partial class Player : Area2D
         // 低速＝Shift / 肩ボタン(L1・R1)
         bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
         _focus = focus;
-        float speed = focus ? FocusSpeed : NormalSpeed;
+        // 機動力強化で移動速度UP。
+        float speed = (focus ? FocusSpeed : NormalSpeed) * (_game?.MoveSpeedMul ?? 1f);
 
         Vector2 pos = GlobalPosition + dir * speed * dt;
 
@@ -237,7 +249,8 @@ public partial class Player : Area2D
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            _fireCooldown = _overload ? 0.07f : FireInterval;
+            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。
+            _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f);
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -297,9 +310,10 @@ public partial class Player : Area2D
         Vector2 muzzle = GlobalPosition + new Vector2(20f, 0f);
         Vector2 vel = new Vector2(360f, 0f);
 
-        // 上下に少しずらした 2way
-        _pool.Spawn(muzzle + new Vector2(0f, -4f), vel, isEnemy: false, 3f, 1);
-        _pool.Spawn(muzzle + new Vector2(0f, 4f), vel, isEnemy: false, 3f, 1);
+        // 上下に少しずらした 2way。光の出力強化でダメージ増。
+        int dmg = 1 + (_game?.ShotDamageBonus ?? 0);
+        _pool.Spawn(muzzle + new Vector2(0f, -4f), vel, isEnemy: false, 3f, dmg);
+        _pool.Spawn(muzzle + new Vector2(0f, 4f), vel, isEnemy: false, 3f, dmg);
 
         // フォロワーは通常2回に1回、全開中は毎ショット同期発射
         _shotParity++;
@@ -505,7 +519,7 @@ public partial class Player : Area2D
         // 低速(Shift)中はリングで明確化。
         if (_focus)
             DrawArc(Vector2.Zero, 5.5f, 0f, Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.85f), 1f);
-        DrawCircle(Vector2.Zero, HitRadius + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで沈まない
-        DrawCircle(Vector2.Zero, HitRadius, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
+        DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで沈まない
+        DrawCircle(Vector2.Zero, _hitR, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
     }
 }

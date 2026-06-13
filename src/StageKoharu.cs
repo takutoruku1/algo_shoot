@@ -152,7 +152,8 @@ public partial class StageKoharu : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile("res://Final.tscn");
+        GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("koharu");
+        GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
     // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。
