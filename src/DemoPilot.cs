@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // DemoPilot : デモプレイ動画用の自動操縦オートロード (/root/DemoPilot)。
 //
@@ -8,45 +9,91 @@ using Godot;
 // 本物のキー入力と同じ経路で合成イベントを注入すれば、ゲーム側を一切書き換えずに動く。
 //
 //   有効化:   res://...tscn -- --demo
-//   尺の指定: -- --demo --seconds 80     （省略時 DefaultSeconds）
+//   尺の指定: -- --demo --seconds 80        （省略時 DefaultSeconds）
+//   難易度:   -- --demo --normal / --hard   （既定は Easy ＝ 安全運転でストーリー見せ）
 //
-// ・Z をパルス（撃つ＋会話送り兼用）。会話中（Hud.BubblePaused）は周期を伸ばして
-//   セリフが読める速さにする。
-// ・方向キー(ui_*)をサインで揺らして自機をウィーブさせ、生きている画にする。
-// ・たまにボム(X)を撃って画面を派手にする。
-// ・指定秒で GetTree().Quit() し、--write-movie の録画を確定させる。
+// 設計思想：この動画の目的は「ストーリーを見せる」こと。途中で死ぬと話が中断し
+// リスタートしてしまうので、最優先は“ノーダメージで完走する”こと。そのために：
+//   ・回避は開ループのサイン波ではなく、敵弾を毎フレーム観測して速度ごと先読みする
+//     閉ループ。16方向＋静止を弾道シミュレーションし、最も自機から弾が離れる動きを選ぶ。
+//   ・脅威が無いときは攻撃定位置（自機は右へ撃つので左寄り＋ボスのYに合わせる）へ
+//     寄って撃ち、ボスを削って先へ進める。
+//   ・どう動いても被弾が避けられない瞬間だけ、最後の保険としてボム（画面弾消し＋無敵）。
+//   ・既定は Easy 難易度（弾数55%・弾速72%）。話を見せるのが目的なので弾幕は薄めで十分。
+//   ・会話中（Hud.BubblePaused）は Z をゆっくりパルスして“読める速さ”でセリフを送り、
+//     戦闘中は Z を押しっぱなしにして最大火力で撃つ。会話中は弾も自機も止まる設計なので安全。
+//   ・指定秒で GetTree().Quit() し、--write-movie の録画を確定させる。
 public partial class DemoPilot : Node
 {
     private const double DefaultSeconds = 80.0;
 
+    // ---- プレイ領域・自機諸元（Player.cs と一致）----
+    private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
+    private const float PlayerSpeed = 150f;   // Player.NormalSpeed
+    private const float HitRadius = 2f;        // Player.HitRadius（極小の被弾点）
+
+    // ---- 回避パラメータ ----
+    private const int DirCount = 16;            // 評価する移動方向数（これに静止を加える）
+    private const float Horizon = 0.5f;         // 先読み秒数
+    private const int Steps = 8;                // 先読みの時間分割
+    private const float NearRange = 150f;       // この距離内の脅威だけ評価（負荷削減）
+    private const float GapCap = 24f;           // これ以上のクリアランスは同点扱い（無駄に逃げない）
+    private const float SafeGap = 14f;          // 静止してもこれ以上空くなら「安全」＝攻撃定位置へ
+    private const float EnemyRadius = 14f;      // 敵本体の安全側半径（BodyRadius は private）
+    private const float HomeX = 84f;            // 攻撃定位置のX（自機は右へ撃つので左寄り）
+    private const float PanicGap = 1.0f;        // 最善手でもこれ未満＝被弾不可避 → ボム
+    private const double BombRearm = 2.0;       // ボム連発防止の再武装待ち
+    private const double StoryPeriod = 0.85;    // 会話送りの周期（読める速さ）
+
+    // ---- フラグ・時間 ----
     private bool _active;
+    private GameManager.Diff _diff = GameManager.Diff.Easy; // 既定は安全運転
     private double _seconds = DefaultSeconds;
     private double _t;
 
-    // Z パルス状態
+    private GameManager _game = null!;
+
+    // ---- 入力パルス状態 ----
     private bool _zDown;
     private double _zPhase;
-
-    // ボムパルス状態
-    private double _bombPhase;
     private bool _xDown;
+    private double _bombArm;
+    private int _prevDir;       // 慣性用（0=静止, 1..DirCount=方向インデックス+1）
+
+    // ---- 毎フレーム再利用する脅威リスト（割り当てを抑える）----
+    private readonly List<(Vector2 pos, Vector2 vel, float rad)> _threats = new();
+    private float _aimY = 108f;  // 攻撃定位置のY（最寄りの敵に合わせる）
 
     public override void _Ready()
     {
         var user = OS.GetCmdlineUserArgs();
         for (int i = 0; i < user.Length; i++)
         {
-            if (user[i] == "--demo") _active = true;
-            else if (user[i] == "--seconds" && i + 1 < user.Length
-                     && double.TryParse(user[i + 1], out var s)) _seconds = s;
+            switch (user[i])
+            {
+                case "--demo": _active = true; break;
+                case "--normal": _diff = GameManager.Diff.Normal; break;
+                case "--hard": _diff = GameManager.Diff.Hard; break;
+                case "--easy": _diff = GameManager.Diff.Easy; break;
+                case "--seconds":
+                    if (i + 1 < user.Length && double.TryParse(user[i + 1], out var s)) _seconds = s;
+                    break;
+            }
         }
 
         if (!_active)
         {
             SetProcess(false);
+            SetPhysicsProcess(false);
             return;
         }
-        GD.Print($"[DemoPilot] active. recording {_seconds:0}s of autoplay.");
+
+        // Game は DemoPilot より前に登録済みのオートロード（project.godot 参照）。
+        // 自機の残機・ボム数やスポーンの弾数/弾速はここで決めた難易度を読む。
+        _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (_game != null) _game.Difficulty = _diff;
+
+        GD.Print($"[DemoPilot] active. recording {_seconds:0}s of autoplay. difficulty={(_game?.DiffName ?? "?")}");
     }
 
     public override void _Process(double delta)
@@ -58,23 +105,152 @@ public partial class DemoPilot : Node
             GetTree().Quit();
             return;
         }
-
-        DriveMovement();
         DriveShootAndAdvance(delta);
-        DriveBomb(delta);
     }
 
-    // 自機を左右に大きく、上下に小さく揺らして“避けている風”に動かす。
-    // 画面外には Player 側でクランプされるので行き過ぎは気にしない。
-    private void DriveMovement()
+    // 当たり判定・弾の移動は物理フレームで起きるので、回避もここで観測・操作する。
+    // オートロードはシーンより先に処理されるため、ここで入力を仕込めば同フレームの
+    // Player._PhysicsProcess が GetVector でそれを読む。
+    public override void _PhysicsProcess(double delta)
     {
-        float vx = Mathf.Sin((float)_t * 1.3f) * 0.9f + Mathf.Sin((float)_t * 0.37f) * 0.4f;
-        float vy = Mathf.Sin((float)_t * 0.8f + 1.1f) * 0.55f;
-        SetAxis("ui_left", "ui_right", vx);
-        SetAxis("ui_up", "ui_down", vy);
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        bool talking = Hud.BubblePaused;
+
+        float bestGap = 9999f;
+        if (player == null || talking)
+        {
+            // 会話中は弾も自機も止まる＝動かす必要なし。軸を解放しておく。
+            ReleaseAxes();
+        }
+        else
+        {
+            bestGap = DriveDodge(player.GlobalPosition);
+        }
+
+        DriveBomb(delta, bestGap, talking);
     }
 
-    // 1軸ぶんの ui_neg / ui_pos を強さ付きで注入する（GetVector がこれを読む）。
+    // =====================  回避ブレイン  =====================
+
+    // 戻り値：どう動いても確保できる“最善のクリアランス”（ボム判定に使う）。
+    private float DriveDodge(Vector2 ppos)
+    {
+        BuildThreats(ppos);
+
+        // 静止し続けたときの最接近。十分空くなら危険でない → 攻撃定位置へ寄せる。
+        float stayGap = Simulate(ppos, Vector2.Zero);
+        if (stayGap >= SafeGap)
+        {
+            SeekHome(ppos);
+            return 9999f;
+        }
+
+        // 危険：16方向＋静止を弾道シミュレーションし、最も弾が離れる動きを選ぶ。
+        float bestScore = float.NegativeInfinity;
+        float bestGap = stayGap;
+        Vector2 bestDir = Vector2.Zero;
+        int bestIdx = 0;
+
+        // 候補0：静止（小さなボーナスでムダな揺れを抑える）
+        {
+            float score = Mathf.Min(stayGap, GapCap) + 0.6f + (_prevDir == 0 ? 1.0f : 0f);
+            bestScore = score; bestDir = Vector2.Zero; bestIdx = 0;
+        }
+
+        for (int i = 0; i < DirCount; i++)
+        {
+            float a = Mathf.Tau * i / DirCount;
+            Vector2 dir = new(Mathf.Cos(a), Mathf.Sin(a));
+            float g = Simulate(ppos, dir);
+            if (g > bestGap) bestGap = g;
+
+            float score = Mathf.Min(g, GapCap);
+            if (_prevDir == i + 1) score += 1.0f; // 慣性：同じ方向を続けると見栄えが安定
+            // 同点帯では攻撃定位置に近い着地点を僅かに優遇（隅に追い込まれにくくする）
+            Vector2 end = ppos + dir * PlayerSpeed * Horizon;
+            float distHome = Mathf.Abs(end.X - HomeX) + Mathf.Abs(end.Y - _aimY);
+            score -= 0.012f * distHome;
+
+            if (score > bestScore) { bestScore = score; bestDir = dir; bestIdx = i + 1; }
+        }
+
+        _prevDir = bestIdx;
+        ApplyMove(bestDir, 1f); // 回避は全速
+        return bestGap;
+    }
+
+    // 攻撃定位置（HomeX, 最寄りの敵のY）へ向けて、距離に比例した強さでにじり寄る。
+    // 近づくほど弱くするので行き過ぎ・小刻みな揺れが出ない＝意図ある定位置取りに見える。
+    private void SeekHome(Vector2 ppos)
+    {
+        Vector2 home = new(HomeX, _aimY);
+        Vector2 d = home - ppos;
+        float dist = d.Length();
+        if (dist < 1.5f) { ReleaseAxes(); _prevDir = 0; return; }
+        ApplyMove(d / dist, Mathf.Clamp(dist / 24f, 0f, 1f));
+        _prevDir = 0;
+    }
+
+    // 近傍の敵弾（速度つき）と敵本体を脅威として集める。攻撃定位置のYも更新。
+    private void BuildThreats(Vector2 ppos)
+    {
+        _threats.Clear();
+        float near2 = NearRange * NearRange;
+
+        foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
+            if (n is Bullet b && b.Active && ppos.DistanceSquaredTo(b.GlobalPosition) <= near2)
+                _threats.Add((b.GlobalPosition, b.Velocity, b.Radius));
+
+        float bestEnemyY = 108f, bestEnemyDist = float.MaxValue;
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (n is not Enemy e || e.IsPurified) continue;
+            Vector2 ep = e.GlobalPosition;
+            float d2 = ppos.DistanceSquaredTo(ep);
+            if (d2 <= near2) _threats.Add((ep, Vector2.Zero, EnemyRadius));
+            if (d2 < bestEnemyDist) { bestEnemyDist = d2; bestEnemyY = ep.Y; }
+        }
+        _aimY = Mathf.Clamp(bestEnemyY, MinY + 8f, MaxY - 8f);
+    }
+
+    // dir 方向へ PlayerSpeed で進んだとき、先読み区間中に脅威表面とどれだけ近づくか。
+    // 返すのは区間中の最小クリアランス（負＝重なり）。
+    private float Simulate(Vector2 ppos, Vector2 dir)
+    {
+        float minGap = 9999f;
+        for (int s = 0; s <= Steps; s++)
+        {
+            float tt = Horizon * s / Steps;
+            Vector2 pp = ppos + dir * PlayerSpeed * tt;
+            pp.X = Mathf.Clamp(pp.X, MinX, MaxX);
+            pp.Y = Mathf.Clamp(pp.Y, MinY, MaxY);
+            foreach (var th in _threats)
+            {
+                Vector2 bp = th.pos + th.vel * tt;
+                float g = pp.DistanceTo(bp) - (th.rad + HitRadius);
+                if (g < minGap)
+                {
+                    minGap = g;
+                    if (minGap < -4f) return minGap; // 深く重なる方向はこれ以上見ても無駄
+                }
+            }
+        }
+        return minGap;
+    }
+
+    // 1軸ぶんの ui_neg / ui_pos を強さ付きで注入する（Player の GetVector がこれを読む）。
+    private void ApplyMove(Vector2 dir, float strength)
+    {
+        SetAxis("ui_left", "ui_right", dir.X * strength);
+        SetAxis("ui_up", "ui_down", dir.Y * strength);
+    }
+
+    private void ReleaseAxes()
+    {
+        SetAxis("ui_left", "ui_right", 0f);
+        SetAxis("ui_up", "ui_down", 0f);
+    }
+
     private static void SetAxis(string neg, string pos, float v)
     {
         v = Mathf.Clamp(v, -1f, 1f);
@@ -82,35 +258,48 @@ public partial class DemoPilot : Node
         Send(new InputEventAction { Action = neg, Pressed = v < -0.05f, Strength = Mathf.Max(0f, -v) });
     }
 
-    // Z パルス。撃つのと会話送りを兼ねる。会話中はゆっくり（読める速さ）にする。
+    // =====================  撃つ／会話送り  =====================
+
+    // 戦闘中は Z を押しっぱなしで最大火力。会話中は読める速さでパルスして1行ずつ送る
+    //（会話送りは Z の押下エッジ＝1回押すごとに1行）。
     private void DriveShootAndAdvance(double delta)
     {
-        bool talking = Hud.BubblePaused;
-        double period = talking ? 0.65 : 0.16; // 会話中は約1.5Hz、戦闘中は約6Hz
-        _zPhase += delta;
-        if (_zPhase >= period) _zPhase -= period;
-        bool down = _zPhase < period * 0.45; // 周期の前半だけ押下
-        if (down != _zDown)
+        if (!Hud.BubblePaused)
         {
-            _zDown = down;
-            Send(new InputEventKey { Keycode = Key.Z, Pressed = down });
+            _zPhase = 0;
+            SetZ(true);
+            return;
         }
+        _zPhase += delta;
+        if (_zPhase >= StoryPeriod) _zPhase -= StoryPeriod;
+        SetZ(_zPhase < StoryPeriod * 0.4); // 周期の前半だけ押下 → 1周期に1回のエッジ
     }
 
-    // 約18秒ごとにボムを1発。会話中は撃たない。
-    private void DriveBomb(double delta)
+    private void SetZ(bool down)
     {
-        _bombPhase += delta;
-        bool wantPress = !Hud.BubblePaused && _bombPhase >= 18.0;
-        if (wantPress && !_xDown)
+        if (down == _zDown) return;
+        _zDown = down;
+        Send(new InputEventKey { Keycode = Key.Z, Pressed = down });
+    }
+
+    // =====================  ボム（最後の保険）  =====================
+
+    // どう動いても避けられない瞬間（最善のクリアランスが PanicGap 未満）だけ、
+    // ボムが残っていれば1発撃って画面の弾を消し被弾を防ぐ。会話中は撃たない。
+    private void DriveBomb(double delta, float bestGap, bool talking)
+    {
+        if (_bombArm > 0) _bombArm -= delta;
+
+        bool panic = !talking && bestGap < PanicGap && (_game?.Bombs ?? 0) > 0 && _bombArm <= 0;
+        if (panic && !_xDown)
         {
             _xDown = true;
             Send(new InputEventKey { Keycode = Key.X, Pressed = true });
         }
-        else if (_xDown && _bombPhase >= 18.0 + 0.12)
+        else if (_xDown)
         {
             _xDown = false;
-            _bombPhase = 0.0;
+            _bombArm = BombRearm;
             Send(new InputEventKey { Keycode = Key.X, Pressed = false });
         }
     }

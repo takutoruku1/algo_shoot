@@ -1,6 +1,6 @@
 ---
 name: demo-video
-description: Record an autoplay demo video (mp4) of this Godot/.NET game. The built-in DemoPilot autoplays a stage (auto-advances dialogue, shoots, weaves, bombs) while Godot's Movie Maker records it, then ffmpeg transcodes to a small mp4. Use when the user asks to make/redo a demo/gameplay/promo video (e.g. "デモ動画を作って", "プレイ動画を録って", "デモ録画して", "STAGE1のデモ動画", "もっと長く録って").
+description: Record an autoplay demo video (mp4) of this Godot/.NET game. The built-in DemoPilot autoplays a stage NO-DAMAGE (closed-loop bullet dodging + emergency bomb), auto-advances dialogue at a readable pace, and runs on Easy by default — tuned to show the STORY through to the end without dying/restarting — while Godot's Movie Maker records it, then ffmpeg transcodes to a small mp4. Use when the user asks to make/redo a demo/gameplay/promo video (e.g. "デモ動画を作って", "プレイ動画を録って", "デモ録画して", "STAGE1のデモ動画", "もっと長く録って").
 ---
 
 # demo-video — 自動操縦のデモプレイ動画(mp4)を録る
@@ -9,10 +9,20 @@ description: Record an autoplay demo video (mp4) of this Godot/.NET game. The bu
 Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手順。手で操作する必要はない。
 
 仕組み：オートロード `DemoPilot`（[src/DemoPilot.cs](../../../src/DemoPilot.cs)・`project.godot` に登録済み）が、
-起動時のユーザ引数に `--demo` があるときだけ合成入力を流す。Z をパルスして撃つ＋会話送り（会話中は
-読める速さに自動で落とす）、方向キーで自機をウィーブ、たまにボム。指定秒で自分で `Quit()` して録画を確定する。
-ゲーム本体のプレイコードは一切書き換えていない（入力をポーリングしている各シーンに、本物のキーと同じ経路で
-合成イベントを注入しているだけ）。
+起動時のユーザ引数に `--demo` があるときだけ合成入力を流す。**この動画の目的は「ストーリーを見せる」こと**
+なので、途中で死んで話が中断・リスタートしないよう **ノーダメージ完走を最優先**に作ってある：
+
+- **閉ループ回避**：毎フレーム近傍の敵弾を速度ごと観測し、16方向＋静止を弾道シミュレーションして
+  「最も弾から離れられる動き」を選ぶ（昔のサイン波ウィーブ＝弾を見ない開ループではない）。
+- **攻撃定位置取り**：脅威が無いときは左寄り＋ボスのYに合わせた定位置へ寄って撃ち、ボスを削って先へ進める。
+- **緊急ボム**：どう動いても被弾が避けられない瞬間だけ、残っていればボム（画面弾消し＋無敵）を1発。
+- **既定 Easy 難易度**（弾数55%・弾速72%・残機5・ボム5）。話を見せるのが目的なので弾幕は薄めで十分＝
+  ノーダメ完走しやすい。`--normal` / `--hard` で上書き可。
+- **会話送り**は読める速さ（約0.85s/行）でパルス、**戦闘中は Z 押しっぱなし**で最大火力。会話中は弾も自機も
+  止まる設計なので安全。
+
+指定秒で自分で `Quit()` して録画を確定する。ゲーム本体のプレイコードは一切書き換えていない
+（入力をポーリングしている各シーンに、本物のキーと同じ経路で合成イベントを注入しているだけ）。
 
 ## 変数
 - Godot 実行ファイル（mono・エディタ兼用）:
@@ -25,6 +35,8 @@ Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手�
   ※タイトルから流したいなら `res://Prologue.tscn`（既定難易度でダイブする）。
 - 尺（既定 80秒）: `--seconds N` で指定。STAGE1 は会話イントロが長く、戦闘が映り始めるのは概ね 35秒以降。
   戦闘までしっかり見せたいなら 80〜120秒推奨。
+- 難易度（既定 Easy）: `--demo` の後ろに `--normal` / `--hard` / `--easy`。既定の Easy はノーダメ完走を
+  狙った安全運転。難しい弾幕を見せたいときだけ `--normal`（被弾リスクは上がる）。
 - 中間 AVI（無圧縮・巨大／使い捨て）: `build\demo.avi`
 - 出力 mp4: `build\demo.mp4`
 
@@ -82,6 +94,7 @@ Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手�
 - Movie Maker は **実時間の約30%速度**で収録する（80秒の動画＝実時間で約4〜5分）。`WaitForExit` のタイムアウトは長めに。
 - 1フレームも落とさず固定60fpsで録れる（Movie Maker は描画タイミングと録画を分離するため）。なので尺＝指定 `--seconds` どおりになる。
 - 真っ黒な動画になる典型：`--headless` を付けてしまった／ビルドエラーで即落ちした（手順1で弾く）／`--demo` を `--` の **前**に置いてユーザ引数として渡っていない。
-- 自機が動かない・撃たない typeのときは `DemoPilot` が無効化されている（autoload 登録漏れ or `--demo` 未到達）。`demo.log` に `[DemoPilot] active...` が出ているか見る。
-- セリフ送りが速すぎ/遅すぎる、ボムの頻度を変えたい等は [src/DemoPilot.cs](../../../src/DemoPilot.cs) の周期定数を調整する（会話中 0.65s / 戦闘中 0.16s、ボム 18s 間隔）。
+- 自機が動かない・撃たない typeのときは `DemoPilot` が無効化されている（autoload 登録漏れ or `--demo` 未到達）。`demo.log` に `[DemoPilot] active... difficulty=EASY` が出ているか見る。
+- それでも被弾してしまう（ノーダメで通らない）場合は [src/DemoPilot.cs](../../../src/DemoPilot.cs) の回避パラメータを調整する：`Horizon`（先読み秒数を伸ばすと早めに逃げる）, `SafeGap`（大きいほど慎重に定位置から離れる）, `NearRange`, `PanicGap`（ボムを切る閾値）。それでも厳しければ `--easy` のまま尺を短くするか、`--seconds` を会話パートに絞る。
+- セリフ送りが速すぎ/遅すぎるのは `StoryPeriod`（既定 0.85s/行）を調整。会話中は弾も自機も止まるので、ここを伸ばしてもノーダメには影響しない（ただし尺を食うので戦闘が映る前に終わらないか注意）。
 - ffmpeg は winget の `Gyan.FFmpeg`。導入済みでも PATH に乗っていないことがあるので、毎回 `$ff`（実体パス）で呼ぶ。
