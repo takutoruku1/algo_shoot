@@ -10,6 +10,7 @@ public partial class Hud : CanvasLayer
     private HeartsBar _hearts = null!;     // 残機表示（ドットハート）
     private Label _scoreLabel = null!;     // スコア（右上）
     private Label _comboLabel = null!;     // コンボ（右上・スコア下）
+    private Label _burnLabel = null!;      // 炎上中の弱体表示
     private Label _bombLabel = null!;      // ボム数（ハート下）
     private ColorRect _flash = null!;      // ボム発動時の全画面フラッシュ
     private ColorRect _kindBg = null!;     // やさしさゲージ 背景
@@ -188,6 +189,18 @@ public partial class Hud : CanvasLayer
         _comboLabel.Visible = false;
         AddChild(_comboLabel);
 
+        // 炎上中インジケータ（中央上・赤）
+        _burnLabel = new Label
+        {
+            Name = "BurnLabel",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Position = new Vector2(Main.ScreenWidth / 2 - 80, 26),
+            Size = new Vector2(160, 12),
+        };
+        StyleLabel(_burnLabel, 9, new Color(0.78f, 0.18f, 0.16f)); // 赤
+        _burnLabel.Visible = false;
+        AddChild(_burnLabel);
+
         // ボム発動フラッシュ（全画面・最前面・初期は透明）
         _flash = new ColorRect
         {
@@ -219,6 +232,8 @@ public partial class Hud : CanvasLayer
         {
             _scoreLabel.Text = $"SCORE {game.Score:N0}";
             _bombLabel.Text = $"BOMB x{game.Bombs}";
+            _burnLabel.Visible = game.BurningThisRun;
+            if (game.BurningThisRun) _burnLabel.Text = "炎上中  発射↓ 移動↓ Imp↓";
             if (game.Combo >= 2)
             {
                 _comboLabel.Text = $"やさしさが {game.Combo}人にひろがった！";

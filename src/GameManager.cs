@@ -13,17 +13,24 @@ public partial class GameManager : Node
     public int Bombs { get; private set; } = 3;
 
     // 難易度（オートロードなのでシーンをまたいで保持）。
-    // ※ルナティックは STEP4 で追加予定（弾数スケールを流用）。
-    public enum Diff { Easy, Normal, Hard }
+    // ルナティックは最高難度＝玉数×2.2。メタ強化が乗らないと現実的にクリア不能（②-4）。
+    public enum Diff { Easy, Normal, Hard, Lunatic }
     public Diff Difficulty = Diff.Normal;
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
-    public int StartLives => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, _ => 3 }) + MaxLifeBonus;
-    public int StartBombs => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, _ => 3 }) + BombCountBonus;
-    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.72f, Diff.Hard => 1.18f, _ => 1f };
+    public int StartLives => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, Diff.Lunatic => 3, _ => 3 }) + MaxLifeBonus;
+    public int StartBombs => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, Diff.Lunatic => 3, _ => 3 }) + BombCountBonus;
+    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.72f, Diff.Hard => 1.18f, Diff.Lunatic => 1.25f, _ => 1f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
-    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.55f, Diff.Hard => 1.45f, _ => 1f };
-    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 1.6f, Diff.Hard => 0.85f, _ => 1f };
-    public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", _ => "NORMAL" };
+    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.55f, Diff.Hard => 1.45f, Diff.Lunatic => 2.2f, _ => 1f };
+    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 1.6f, Diff.Hard => 0.85f, Diff.Lunatic => 0.7f, _ => 1f };
+    public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
+
+    // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
+    public const int LunaticFollowerReq = 300;
+    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || GetUpgradeLevel("shot_power") >= 4;
+
+    // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
+    public string PendingStageScene = "res://Rei.tscn";
 
     // 弾幕の本数を難易度でスケール（最低1発は残す）。各ボスのリング/扇の本数に掛ける。
     public int ScaleBullets(int baseCount) => Mathf.Max(1, Mathf.RoundToInt(baseCount * BulletCountMul));
@@ -68,6 +75,12 @@ public partial class GameManager : Node
     };
 
     private readonly HashSet<string> _cleared = new();
+    // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
+    public string? JustClearedStageId;
+    // コメント返信済みのステージ（セッション内・1回だけ報酬）。
+    private readonly HashSet<string> _replied = new();
+    public bool HasReplied(string id) => _replied.Contains(id);
+    public void MarkReplied(string id) => _replied.Add(id);
     public bool IsStageCleared(string id) => _cleared.Contains(id);
     public bool AllStoryCleared
     {
@@ -86,6 +99,41 @@ public partial class GameManager : Node
     {
         RegisterStageClear();
         _cleared.Add(id);
+        JustClearedStageId = id; // ハブで帰還会話＆自動投稿を再生する
+    }
+
+    // ─── 周回（同ステージ再プレイ）報酬の逓減（①-7）───
+    //   同ステージを同難度以下で連続周回すると Imp/Fol が逓減（×0.8^連続回数、下限0.4）。
+    //   別ステージへ移る or 難度を上げると逓減リセット。
+    private string _lastRunStage = "";
+    private int _lastRunDiff = -1;
+    private int _repeatStreak;
+    public float ReplayMul { get; private set; } = 1f;
+    private readonly Dictionary<string, int> _stagePlays = new();
+    public int StagePlays(string id) => _stagePlays.TryGetValue(id, out var v) ? v : 0;
+
+    // ─── 炎上（②-5 / ③-6）───
+    //   発生は一度きり（STAGE2クリア後）。次のダイブ1ステージだけ弱体化（発射↓/移動↓/インプレ×0.6）。
+    public bool Burning;          // 炎上発生済みで未消費（次のダイブで適用）
+    public bool BurningThisRun;   // 現在のステージrunが炎上下か（Player/Hudが参照）
+    private bool _burnHappened;    // 一度きりのストーリーイベント済みか
+    public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "akari" && !_burnHappened;
+    public void TriggerBurn() { if (!_burnHappened) { Burning = true; _burnHappened = true; } }
+
+    // ステージ開始時に各ステージルートから呼ぶ：周回逓減の更新＋炎上の消費。
+    public void BeginStageRun(string id)
+    {
+        bool diffIncreased = (int)Difficulty > _lastRunDiff;
+        if (id == _lastRunStage && !diffIncreased) _repeatStreak++;
+        else _repeatStreak = 0;
+        _lastRunStage = id;
+        _lastRunDiff = (int)Difficulty;
+        ReplayMul = Mathf.Max(0.4f, Mathf.Pow(0.8f, _repeatStreak));
+        _stagePlays[id] = StagePlays(id) + 1;
+
+        // 炎上は「次の1ステージだけ」。ここで消費してこのrun限定で有効化。
+        BurningThisRun = Burning;
+        Burning = false;
     }
 
     // ───────────────────────────────────────────────────────────
@@ -172,14 +220,17 @@ public partial class GameManager : Node
     public float FollowerImpressionMul => 1f + Mathf.Min(0.50f, Followers * 0.00008f);
 
     // ── 難易度・強化由来のインプレ倍率 ──
-    public float DifficultyImpressionMul => Difficulty switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, _ => 1f };
+    public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, Diff.Lunatic => 2.2f, _ => 1f };
+    public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
     public float UpgradeImpressionMul => 1f + 0.12f * GetUpgradeLevel("imp_mult");
-    public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul;
+    public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
     // ── 強化効果アクセサ（Player/Hud が STEP3 で参照する）──
     public int ShotDamageBonus => GetUpgradeLevel("shot_power");                            // 弾ダメージ +Lv
-    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * GetUpgradeLevel("fire_rate")); // 発射間隔×
-    public float MoveSpeedMul => 1f + 0.12f * GetUpgradeLevel("move_speed");
+    // 発射間隔×（連射強化で短縮、炎上中は +30% 延長＝弱体）。
+    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * GetUpgradeLevel("fire_rate")) * (BurningThisRun ? 1.3f : 1f);
+    // 移動速度×（機動強化で増、炎上中は -10%）。
+    public float MoveSpeedMul => (1f + 0.12f * GetUpgradeLevel("move_speed")) * (BurningThisRun ? 0.9f : 1f);
     public float HitRadiusMul => Mathf.Max(0.4f, 1f - 0.12f * GetUpgradeLevel("hitbox"));
     public int MaxLifeBonus => GetUpgradeLevel("max_life");
     public int BombCountBonus => GetUpgradeLevel("bomb_count");
@@ -191,7 +242,7 @@ public partial class GameManager : Node
     public long GainImpression(long baseAmount)
     {
         if (baseAmount <= 0) return 0;
-        long g = (long)Mathf.Round(baseAmount * TotalImpressionMul);
+        long g = (long)Mathf.Round(baseAmount * TotalImpressionMul * ReplayMul);
         Impression += g;
         RunImpression += g;
         return g;
@@ -207,7 +258,8 @@ public partial class GameManager : Node
     public void RegisterStageClear()
     {
         LastClearImpression = (int)GainImpression(120);
-        int fol = Mathf.RoundToInt(40 * (1f + 0.15f * GetUpgradeLevel("fol_gain")));
+        // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
+        int fol = Mathf.RoundToInt(40 * (1f + 0.15f * GetUpgradeLevel("fol_gain")) * ReplayMul);
         AddFollowers(fol);
         LastClearFollowers = fol;
         Save();

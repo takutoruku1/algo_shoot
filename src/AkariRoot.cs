@@ -20,7 +20,9 @@ public partial class AkariRoot : Node2D
 
     public override void _Ready()
     {
-        GetNodeOrNull<GameManager>("/root/Game")?.ResetRun();
+        var g = GetNodeOrNull<GameManager>("/root/Game");
+        g?.ResetRun();
+        g?.BeginStageRun("akari");
 
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);

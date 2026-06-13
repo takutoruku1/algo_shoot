@@ -20,7 +20,9 @@ public partial class ReiRoot : Node2D
 
     public override void _Ready()
     {
-        GetNodeOrNull<GameManager>("/root/Game")?.ResetRun();
+        var g = GetNodeOrNull<GameManager>("/root/Game");
+        g?.ResetRun();
+        g?.BeginStageRun("rei");
 
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
