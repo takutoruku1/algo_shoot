@@ -64,18 +64,17 @@ public partial class Enemy : Area2D
         AddChild(_bodyShape);
 
         OnEnemyReady();
-        // 難易度でボスHP（剥がし回数）をスケール。
-        if (MaxHp > 0)
-        {
-            float mul = GetNodeOrNull<GameManager>("/root/Game")?.BossHpMul ?? 1f;
-            MaxHp = Mathf.Max(1, Mathf.RoundToInt(MaxHp * mul));
-        }
+        // 難易度は体力ではなく弾数で調整する方針のため、HP（剥がし回数）は固定。
         _hp = MaxHp;
         SetupBodySprite();
         SpawnPanels();
     }
 
     protected virtual void OnEnemyReady() { }
+
+    // 難易度に応じた弾数。派生ボスが弾幕パターンの本数を安全にスケールするために使う。
+    protected int Dn(int baseCount) =>
+        GetNodeOrNull<GameManager>("/root/Game")?.ScaleBullets(baseCount) ?? baseCount;
 
     private void SetupBodySprite()
     {
@@ -178,8 +177,8 @@ public partial class Enemy : Area2D
         _purified = true;
         RemoveFromGroup("enemies");
 
-        // 接触で自機を傷つけないようにする。
-        Monitorable = false;
+        // 接触で自機を傷つけないようにする。浄化は被弾シグナル中に走ることがあるため遅延設定。
+        SetDeferred(Area2D.PropertyName.Monitorable, false);
         if (_bodyShape != null)
             _bodyShape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
 

@@ -260,8 +260,12 @@ public partial class Hud : CanvasLayer
                 _portrait.Visible = false;
             }
         }
-        // 吹き出し表示中は敵を止める
-        BubblePaused = _bubble.Visible;
+        // 吹き出し表示中は敵を止める。会話が始まった瞬間（false→true）に、
+        // 画面上に飛んでいる敵弾をすべて消す＝しゃべり始めたら攻撃をリセットする。
+        bool nowPaused = _bubble.Visible;
+        if (nowPaused && !BubblePaused)
+            ClearEnemyBullets();
+        BubblePaused = nowPaused;
 
         if (_bannerTimer > 0)
         {
@@ -271,6 +275,16 @@ public partial class Hud : CanvasLayer
                 _bannerLabel.Visible = false;
             }
         }
+    }
+
+    // 会話開始時に画面上の敵弾を一掃する（攻撃のリセット）。
+    private void ClearEnemyBullets()
+    {
+        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        if (pool == null) return;
+        foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
+            if (n is Bullet b && b.Active)
+                pool.Despawn(b);
     }
 
     // テロップ（吹き出し）でメッセージ表示。立ち絵なし。

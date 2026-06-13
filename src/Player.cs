@@ -200,8 +200,19 @@ public partial class Player : Area2D
     {
         float dt = (float)delta;
 
-        // 移動入力
-        Vector2 dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+        // 移動入力。会話中（吹き出し表示中）は動けない。
+        Vector2 dir = Vector2.Zero;
+        if (!Hud.BubblePaused)
+        {
+            dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+            // WASD でも動けるように。矢印キーは「↑+←+Z」など3キー同時押しが
+            // 安価なキーボードでゴースト（入力が消える）するため、代替手段を用意する。
+            Vector2 wasd = new Vector2(
+                (Input.IsKeyPressed(Key.D) ? 1f : 0f) - (Input.IsKeyPressed(Key.A) ? 1f : 0f),
+                (Input.IsKeyPressed(Key.S) ? 1f : 0f) - (Input.IsKeyPressed(Key.W) ? 1f : 0f));
+            if (wasd != Vector2.Zero) dir = wasd;
+            dir = dir.LimitLength(1f);
+        }
         // 低速＝Shift / 肩ボタン(L1・R1)
         bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
         _focus = focus;
@@ -304,13 +315,15 @@ public partial class Player : Area2D
     {
         // 敵 or 敵弾との接触で TakeHit。
         // 弾側の damage 処理は敵側 / 弾側で行うため、ここでは被弾のみ扱う。
-        if (area is Enemy)
+        if (area is Enemy e && !e.IsPurified)
         {
             TakeHit();
             return;
         }
 
-        if (area is Bullet b && b.IsEnemy)
+        // b.Active を必須にする。プールへ返却済み（=非アクティブ）の弾が
+        // 当たり判定だけ残っていても被弾しないようにする。
+        if (area is Bullet b && b.IsEnemy && b.Active)
         {
             TakeHit();
             // 当たった敵弾は消す

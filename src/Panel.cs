@@ -127,8 +127,9 @@ public partial class Panel : Area2D
     {
         if (_dead) return;
         _dead = true;
-        Monitoring = false;
-        Monitorable = false;
+        // 砕けは被弾シグナル(OnAreaEntered)中に走るため、衝突無効化は遅延設定する。
+        SetDeferred(Area2D.PropertyName.Monitoring, false);
+        SetDeferred(Area2D.PropertyName.Monitorable, false);
         if (_shape != null) _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
         GetNodeOrNull<GameManager>("/root/Game")?.AddBulletCleared(); // 剥がし小加点
         FxLayer.Instance?.Shatter(GlobalPosition); // 砕け＋やさしさの粒

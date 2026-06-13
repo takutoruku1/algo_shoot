@@ -99,7 +99,7 @@ public partial class BossKoharu : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= 1.0) { _fireT = 0; Ring(pool, 16, 70f); } break;
+            case 0: if (_fireT >= 1.0) { _fireT = 0; Ring(pool, Dn(16), 70f); } break;
             case 1: if (_fireT >= 1.1) { _fireT = 0; FanDown(pool); } break;
             case 2: if (_fireT >= 0.7) { _fireT = 0; Aimed(pool); } break;
             default: if (_fireT >= 0.085) { _fireT = 0; Spiral(pool); } break;
@@ -118,7 +118,7 @@ public partial class BossKoharu : Enemy
 
     private void FanDown(BulletPool pool)
     {
-        const int k = 9;
+        int k = Dn(9);
         for (int i = 0; i < k; i++)
         {
             float t = (float)i / (k - 1) - 0.5f;

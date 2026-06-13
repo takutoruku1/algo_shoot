@@ -71,14 +71,14 @@ public partial class Bullet : Area2D
             CollisionMask = MaskPlayerBullet;   // 4
         }
 
-        // 可視化・検出有効化
+        // 可視化・検出有効化。衝突状態の変更はシグナル中でも安全なよう遅延設定する
+        // （Deactivate と順序を揃え、再利用時の取り違えを防ぐ）。
         Visible = true;
-        Monitoring = true;
-        Monitorable = true;
         SetPhysicsProcess(true);
-
+        SetDeferred(Area2D.PropertyName.Monitoring, true);
+        SetDeferred(Area2D.PropertyName.Monitorable, true);
         if (_shape != null)
-            _shape.Disabled = false;
+            _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, false);
 
         QueueRedraw();
     }
@@ -94,12 +94,15 @@ public partial class Bullet : Area2D
         RemoveFromGroup("player_bullets");
 
         Visible = false;
-        Monitoring = false;
-        Monitorable = false;
         SetPhysicsProcess(false);
-
+        // 衝突の無効化は遅延で行う。被弾シグナル（OnAreaEntered → Despawn）の最中に
+        // monitoring / shape.disabled を直接書き換えると Godot にブロックされ、
+        // 「見えないのに当たり判定だけ残る弾」が発生していた。Active=false は即時なので、
+        // 消費側（Player/Panel）が Active を見ている限り遅延中の1フレームも安全。
+        SetDeferred(Area2D.PropertyName.Monitoring, false);
+        SetDeferred(Area2D.PropertyName.Monitorable, false);
         if (_shape != null)
-            _shape.Disabled = true;
+            _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
     }
 
     public override void _PhysicsProcess(double delta)

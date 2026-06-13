@@ -112,7 +112,7 @@ public partial class BossAkari : Enemy
 
     private void FanDown(BulletPool pool)
     {
-        const int k = 9;
+        int k = Dn(9);
         for (int i = 0; i < k; i++)
         {
             float t = (float)i / (k - 1) - 0.5f;
@@ -123,7 +123,7 @@ public partial class BossAkari : Enemy
 
     private void Ring(BulletPool pool)
     {
-        const int k = 16;
+        int k = Dn(16);
         _ringOff += Mathf.DegToRad(11f);
         for (int i = 0; i < k; i++)
         {

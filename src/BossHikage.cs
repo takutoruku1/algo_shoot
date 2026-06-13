@@ -90,7 +90,7 @@ public partial class BossHikage : Enemy
             if (_fireT >= 1.1)
             {
                 _fireT = 0;
-                const int k = 18;
+                int k = Dn(18);
                 float off = _volley * Mathf.DegToRad(9f);
                 for (int i = 0; i < k; i++)
                 {
@@ -120,7 +120,7 @@ public partial class BossHikage : Enemy
             if (_fireT >= 0.72)
             {
                 _fireT = 0;
-                const int k = 12;
+                int k = Dn(12);
                 const int rings = 3;
                 for (int r = 0; r < rings; r++)
                 {
