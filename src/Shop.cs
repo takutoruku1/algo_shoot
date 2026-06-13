@@ -1,192 +1,141 @@
 using Godot;
 
-// Shop : 恒久強化ショップ（タイムラインハブから開く）。STEP3。
-//   - インプレッションを消費して強化を購入。強化は永続（被弾・リトライ・汚染で溶けない・§0-3）。
-//   - ↑↓ で選択、Z で購入、X/Esc でハブへ戻る。
-//   - 効果が未配線の項目（ボム威力=既に全画面 / 拡散サブ / 汚染耐性）は「準備中」表示。
+// Shop : 恒久強化ショップ（ダークモードX風）。ハブから X で開く。
+//   - インプレッションで強化を購入。強化は永続（被弾・リトライ・汚染で溶けない・§0-3）。
+//   - ↑↓ 選択、Z 購入、X/Esc でハブへ。効果未配線の項目は「準備中」。
 //   設計: docs/20260613/MINA_システム拡張設計書_v1.md ④-4
 public partial class Shop : Node2D
 {
     private FontFile _font = null!;
     private GameManager _game = null!;
+    private const float W = 384f, H = 216f;
 
-    private const float W = 384f;
-    private const float H = 216f;
-
-    private static readonly Color BgCol = new(0.93f, 0.94f, 0.97f);
-    private static readonly Color HeaderCol = new(0.88f, 0.90f, 0.96f);
-    private static readonly Color SelCol = new(0.16f, 0.50f, 0.95f);
-    private static readonly Color SelBg = new(0.80f, 0.88f, 1.0f);
-    private static readonly Color TextDark = new(0.15f, 0.13f, 0.20f);
-    private static readonly Color TextMuted = new(0.50f, 0.48f, 0.55f);
-    private static readonly Color OkCol = new(0.10f, 0.45f, 0.20f);
-    private static readonly Color NgCol = new(0.65f, 0.20f, 0.25f);
-
-    private const float RowX = 8f;
-    private const float RowW = 368f;
-    private const float FirstRowY = 30f;
-    private const float RowH = 13.5f;
-
-    // 効果が未配線の項目（購入不可・準備中表示）。
     private static readonly System.Collections.Generic.HashSet<string> Deferred = new()
-    {
-        "bomb_power",   // ボムは既に全画面消去のため範囲強化が無意味
-        "option_sub",   // 追従オプションの恒久付与は未配線
-        "contam_resist" // 汚染は各ステージで絶対値設定のため未配線
-    };
+    { "bomb_power", "option_sub", "contam_resist" };
 
-    private Label _titleLabel = null!;
-    private Label _impLabel = null!;
-    private Label _noteLabel = null!;
-    private Label _footerLabel = null!;
-    private Label _toastLabel = null!;
-    private Label[] _rows = System.Array.Empty<Label>();
+    private const float FirstRowY = 40f, RowH = 12.5f;
 
     private int _sel;
-    private bool _navHeld;
-    private bool _zHeld;
-    private bool _backHeld;
-    private double _t;
-    private double _toastT;
+    private bool _navHeld, _zHeld, _backHeld;
+    private double _t, _toastT;
     private string _toast = "";
-    private Color _toastCol = OkCol;
+    private Color _toastCol = Ui.Ok;
     private bool _autoplay;
 
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
-
-        _titleLabel = MakeLabel(new Vector2(8, 3), new Vector2(220, 12), TextDark, 12);
-        _titleLabel.Text = "ミナ強化";
-        _impLabel = MakeLabel(new Vector2(160, 3), new Vector2(216, 12), TextDark, 12);
-        _impLabel.HorizontalAlignment = HorizontalAlignment.Right;
-        _noteLabel = MakeLabel(new Vector2(8, 15), new Vector2(W - 16, 10), TextMuted, 12);
-        _noteLabel.Text = "強化は永続。汚染やリトライで失われません。";
-
-        _footerLabel = MakeLabel(new Vector2(8, H - 26), new Vector2(W - 16, 22), TextMuted, 12);
-        _footerLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _toastLabel = MakeLabel(new Vector2(8, H - 40), new Vector2(W - 16, 12), OkCol, 12);
-        _toastLabel.Visible = false;
-
-        var defs = GameManager.Upgrades;
-        _rows = new Label[defs.Length];
-        for (int i = 0; i < defs.Length; i++)
-            _rows[i] = MakeLabel(new Vector2(RowX + 4, FirstRowY + i * RowH + 1), new Vector2(RowW - 8, 12), TextDark, 12);
-    }
-
-    private Label MakeLabel(Vector2 pos, Vector2 size, Color color, int fontSize)
-    {
-        var l = new Label { Position = pos, Size = size };
-        l.AddThemeColorOverride("font_color", color);
-        if (_font != null) l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", fontSize);
-        AddChild(l);
-        return l;
     }
 
     public override void _Process(double delta)
     {
         _t += delta;
-        _impLabel.Text = $"Imp 所持: {_game?.Impression ?? 0}";
+        if (_toastT > 0) _toastT -= delta;
+
+        if (_autoplay) { GetTree().ChangeSceneToFile("res://Hub.tscn"); return; }
 
         var defs = GameManager.Upgrades;
-        for (int i = 0; i < defs.Length; i++)
-        {
-            var d = defs[i];
-            int lv = _game?.GetUpgradeLevel(d.Id) ?? 0;
-            string state;
-            if (Deferred.Contains(d.Id)) state = "準備中";
-            else if (lv >= d.MaxLevel) state = "MAX";
-            else state = $"Imp {_game?.GetUpgradeCost(d.Id) ?? 0}";
-            _rows[i].Text = $"{d.Name}   Lv {lv}/{d.MaxLevel}   {state}";
-
-            Color c = TextDark;
-            if (Deferred.Contains(d.Id)) c = TextMuted;
-            else if (lv >= d.MaxLevel) c = OkCol;
-            else if (!(_game?.CanPurchase(d.Id) ?? false)) c = TextMuted; // 買えない（資金不足）
-            _rows[i].AddThemeColorOverride("font_color", c);
-        }
-
-        // 選択項目の説明
-        var sd = defs[Mathf.Clamp(_sel, 0, defs.Length - 1)];
-        _footerLabel.Text = $"{sd.Desc}\nZ 購入    X もどる";
-
-        if (_toastT > 0)
-        {
-            _toastT -= delta;
-            _toastLabel.Visible = true;
-            _toastLabel.Text = _toast;
-            _toastLabel.AddThemeColorOverride("font_color", _toastCol);
-        }
-        else _toastLabel.Visible = false;
-
-        // autoplay では即ハブへ戻る（パイロットがショップに留まらないよう防御）
-        if (_autoplay) { Back(); QueueRedraw(); return; }
-
-        // ナビ
-        bool up = Input.IsActionPressed("ui_up");
-        bool down = Input.IsActionPressed("ui_down");
-        if ((up || down) && !_navHeld && defs.Length > 0)
+        bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
+        if ((up || down) && !_navHeld)
         {
             if (up) _sel = (_sel - 1 + defs.Length) % defs.Length;
             if (down) _sel = (_sel + 1) % defs.Length;
         }
         _navHeld = up || down;
 
-        // 購入
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
-        bool zEdge = z && !_zHeld;
-        _zHeld = z;
-        if (zEdge && _t > 0.2) TryBuy(sd);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        if (zEdge && _t > 0.2) TryBuy(defs[_sel]);
 
-        // 戻る
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
-        bool backEdge = back && !_backHeld;
-        _backHeld = back;
-        if (backEdge && _t > 0.2) Back();
+        bool backEdge = back && !_backHeld; _backHeld = back;
+        if (backEdge && _t > 0.2) GetTree().ChangeSceneToFile("res://Hub.tscn");
 
         QueueRedraw();
     }
 
     private void TryBuy(GameManager.UpgradeDef d)
     {
-        if (Deferred.Contains(d.Id)) { Toast("準備中の強化です", NgCol); return; }
+        if (Deferred.Contains(d.Id)) { Toast("準備中の強化です", Ui.TextMuted); return; }
         int lv = _game?.GetUpgradeLevel(d.Id) ?? 0;
-        if (lv >= d.MaxLevel) { Toast("すでに最大です", TextMuted); return; }
-        if (!(_game?.CanPurchase(d.Id) ?? false)) { Toast("インプレッションが足りません", NgCol); return; }
+        if (lv >= d.MaxLevel) { Toast("すでに最大です", Ui.TextMuted); return; }
+        if (!(_game?.CanPurchase(d.Id) ?? false)) { Toast("インプレッションが足りません", Ui.Burn); return; }
         if (_game!.TryPurchase(d.Id))
-            Toast($"{d.Name} を強化しました！  Lv {_game.GetUpgradeLevel(d.Id)}", OkCol);
+            Toast($"{d.Name} を強化！  Lv {_game.GetUpgradeLevel(d.Id)}", Ui.Ok);
     }
 
-    private void Toast(string msg, Color col)
-    {
-        _toast = msg; _toastCol = col; _toastT = 1.8;
-    }
-
-    private void Back()
-    {
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
-    }
+    private void Toast(string msg, Color col) { _toast = msg; _toastCol = col; _toastT = 1.8; }
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(0, 0, W, H), BgCol);
-        DrawRect(new Rect2(0, 0, W, 26), HeaderCol);
-        DrawRect(new Rect2(0, 25, W, 1), new Color(0.7f, 0.72f, 0.80f));
+        DrawRect(new Rect2(0, 0, W, H), Ui.Bg);
+
+        // ヘッダ
+        DrawRect(new Rect2(0, 0, W, 26), Ui.HeaderBg);
+        Ui.Avatar(this, _font, new Vector2(14, 13), 8f, Ui.Mina, "ミ");
+        Ui.Text(this, _font, new Vector2(27, 7), "ミナ強化", 11, Ui.TextMain);
+        long imp = _game?.Impression ?? 0;
+        string impS = Ui.Abbrev(imp);
+        float impW = 12f + Ui.TextW(_font, impS, 10);
+        DrawCircle(new Vector2(W - 8 - impW + 3, 12), 2.8f, new Color(0.98f, 0.78f, 0.30f));
+        Ui.Text(this, _font, new Vector2(W - 8 - impW + 9, 6), impS, 10, Ui.TextMain);
+        DrawRect(new Rect2(0, 25, W, 1), Ui.Divider);
+        Ui.Text(this, _font, new Vector2(8, 28), "強化は永続。汚染やリトライで失われません。", 8, Ui.TextMuted);
 
         var defs = GameManager.Upgrades;
         for (int i = 0; i < defs.Length; i++)
+            DrawRow(defs[i], i, FirstRowY + i * RowH);
+
+        // フッタ（選択中の説明＋操作）
+        var sd = defs[Mathf.Clamp(_sel, 0, defs.Length - 1)];
+        Ui.Text(this, _font, new Vector2(8, 194), sd.Desc, 9, Ui.TextSub);
+        Ui.Text(this, _font, new Vector2(8, 204), "↑↓ えらぶ   Z 購入   X もどる", 9, Ui.TextMuted);
+
+        if (_toastT > 0)
         {
-            float ry = FirstRowY + i * RowH;
-            if (i == _sel)
-            {
-                DrawRect(new Rect2(RowX, ry, RowW, RowH), SelBg);
-                DrawRect(new Rect2(RowX, ry, 2f, RowH), SelCol);
-            }
+            float w = Ui.TextW(_font, _toast, 9) + 16;
+            float x = (W - w) / 2;
+            Ui.Box(this, new Rect2(x, 176, w, 14), new Color(0.10f, 0.12f, 0.15f, 0.96f), 7f, new Color(_toastCol, 0.8f), 1f);
+            Ui.Text(this, _font, new Vector2(x + 8, 178), _toast, 9, _toastCol);
         }
+    }
+
+    private void DrawRow(GameManager.UpgradeDef d, int i, float ry)
+    {
+        bool sel = i == _sel;
+        int lv = _game?.GetUpgradeLevel(d.Id) ?? 0;
+        bool deferred = Deferred.Contains(d.Id);
+        bool maxed = lv >= d.MaxLevel;
+        bool affordable = !deferred && !maxed && (_game?.CanPurchase(d.Id) ?? false);
+
+        if (sel)
+        {
+            Ui.Box(this, new Rect2(6, ry - 0.5f, W - 12, RowH), Ui.CardSel, 4f, new Color(Ui.Blue, 0.9f), 1f);
+            DrawRect(new Rect2(6, ry + 1.5f, 2f, RowH - 4), Ui.Blue);
+        }
+
+        Color nameCol = deferred ? Ui.TextMuted : Ui.TextMain;
+        if (!deferred && !maxed && !affordable) nameCol = Ui.TextSub;
+        Ui.Text(this, _font, new Vector2(12, ry), d.Name, 9, nameCol);
+
+        // レベルピップ（●現在 / ○残り）
+        float px = 96;
+        for (int k = 0; k < d.MaxLevel; k++)
+        {
+            var c = new Vector2(px + k * 5.5f, ry + 5.5f);
+            if (k < lv) DrawCircle(c, 2f, deferred ? Ui.TextMuted : Ui.Mina);
+            else { DrawCircle(c, 2f, Ui.Border); DrawCircle(c, 1.1f, Ui.Card); }
+        }
+
+        // 右：状態チップ
+        string state; Color scol;
+        if (deferred) { state = "準備中"; scol = Ui.TextMuted; }
+        else if (maxed) { state = "MAX"; scol = Ui.Repost; }
+        else { state = "Imp " + (_game?.GetUpgradeCost(d.Id) ?? 0); scol = affordable ? Ui.Blue : Ui.TextMuted; }
+        float sw = Ui.TextW(_font, state, 9);
+        Ui.Text(this, _font, new Vector2(W - 12 - sw, ry), state, 9, scol);
     }
 }
