@@ -10,19 +10,23 @@ using System.Collections.Generic;
 //
 //   有効化:   res://...tscn -- --demo
 //   尺の指定: -- --demo --seconds 80        （省略時 DefaultSeconds）
-//   難易度:   -- --demo --normal / --hard   （既定は Easy ＝ 安全運転でストーリー見せ）
+//   難易度:   -- --demo --normal / --hard   （既定は Easy ＝ 安全運転）
 //
-// 設計思想：この動画の目的は「ストーリーを見せる」こと。途中で死ぬと話が中断し
-// リスタートしてしまうので、最優先は“ノーダメージで完走する”こと。そのために：
+// 設計思想：「ノーダメージで、できるだけ速くクリアする」AI。被弾は絶対に避けつつ
+// （死ぬと話が中断しリスタートしてしまう）、無駄な時間を一切作らないよう振る舞う：
 //   ・回避は開ループのサイン波ではなく、敵弾を毎フレーム観測して速度ごと先読みする
 //     閉ループ。16方向＋静止を弾道シミュレーションし、最も自機から弾が離れる動きを選ぶ。
 //   ・脅威が無いときは攻撃定位置（自機は右へ撃つので左寄り＋ボスのYに合わせる）へ
-//     寄って撃ち、ボスを削って先へ進める。
+//     張り付いて撃ち続け、最大DPSでボスのパネルを剥がす。ボスHPは難易度非依存で固定
+//     なので（弾数だけが変わる）、Easy でもクリア所要は変わらず、むしろ弾が薄く回避に
+//     使う時間が減る＝攻撃定位置に居られる時間が増える＝最速。だから既定は Easy。
+//   ・会話送りは“読める速さ”ではなく最速（各行のゲート 0.25s ぎりぎり）でスキップする。
+//     戦闘中は Z を押しっぱなしにして最大火力。会話中は弾も自機も止まる設計なので安全。
 //   ・どう動いても被弾が避けられない瞬間だけ、最後の保険としてボム（画面弾消し＋無敵）。
-//   ・既定は Easy 難易度（弾数55%・弾速72%）。話を見せるのが目的なので弾幕は薄めで十分。
-//   ・会話中（Hud.BubblePaused）は Z をゆっくりパルスして“読める速さ”でセリフを送り、
-//     戦闘中は Z を押しっぱなしにして最大火力で撃つ。会話中は弾も自機も止まる設計なので安全。
 //   ・指定秒で GetTree().Quit() し、--write-movie の録画を確定させる。
+//
+// ※「ストーリーをゆっくり見せたい」用途には不向き（会話を高速スキップする）。
+//   その場合は StoryPeriod を大きく戻す。
 public partial class DemoPilot : Node
 {
     private const double DefaultSeconds = 80.0;
@@ -38,12 +42,15 @@ public partial class DemoPilot : Node
     private const int Steps = 8;                // 先読みの時間分割
     private const float NearRange = 150f;       // この距離内の脅威だけ評価（負荷削減）
     private const float GapCap = 24f;           // これ以上のクリアランスは同点扱い（無駄に逃げない）
-    private const float SafeGap = 14f;          // 静止してもこれ以上空くなら「安全」＝攻撃定位置へ
+    private const float SafeGap = 11f;          // 静止してもこれ以上空くなら「安全」＝攻撃定位置へ。
+                                                // 小さいほど逃げ腰をやめて撃ち続ける＝速いが攻めすぎ注意。
     private const float EnemyRadius = 14f;      // 敵本体の安全側半径（BodyRadius は private）
-    private const float HomeX = 84f;            // 攻撃定位置のX（自機は右へ撃つので左寄り）
+    private const float HomeX = 104f;           // 攻撃定位置のX（自機は右へ撃つので左寄り。
+                                                // ボスにやや近づけて弾の到達を早め、削り出しを速める）
     private const float PanicGap = 1.0f;        // 最善手でもこれ未満＝被弾不可避 → ボム
     private const double BombRearm = 2.0;       // ボム連発防止の再武装待ち
-    private const double StoryPeriod = 0.85;    // 会話送りの周期（読める速さ）
+    private const double StoryPeriod = 0.30;    // 会話送りの周期。各行の最短ゲート 0.25s ぎりぎりまで
+                                                // 詰めた最速スキップ（読ませる用途なら大きくする）。
 
     // ---- フラグ・時間 ----
     private bool _active;
@@ -260,8 +267,8 @@ public partial class DemoPilot : Node
 
     // =====================  撃つ／会話送り  =====================
 
-    // 戦闘中は Z を押しっぱなしで最大火力。会話中は読める速さでパルスして1行ずつ送る
-    //（会話送りは Z の押下エッジ＝1回押すごとに1行）。
+    // 戦闘中は Z を押しっぱなしで最大火力。会話中は最速でパルスして1行ずつ飛ばす
+    //（会話送りは Z の押下エッジ＝1回押すごとに1行。各行 0.25s のゲートがあるのでそれ以上は速くならない）。
     private void DriveShootAndAdvance(double delta)
     {
         if (!Hud.BubblePaused)
