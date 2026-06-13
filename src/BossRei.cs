@@ -32,8 +32,8 @@ public partial class BossRei : Enemy
     {
         (2, "次は、私が勝つから。……次は。次は……", ""),
         (2, "なのに、なんで——なんで、戦ってくれないのよ!", ""),
-        (1, "——きみの努力を、ずっと見ていた者がいる。", ""),
-        (1, "本気で戦う価値のある、唯一の好敵手だと、思っていた者がいる。", ""),
+        (5, "——きみの努力を、ずっと見ていた者がいる。", ""),
+        (5, "本気で戦う価値のある、唯一の好敵手だと、思っていた者がいる。", ""),
         (2, "ほんとに、私……ちゃんと、ライバルだった……?", ""),
     };
 
@@ -191,9 +191,14 @@ public partial class BossRei : Enemy
         var (who, text, face) = Lines[_line];
         var hud = GetHud();
         if (hud == null) return;
-        if (who == 0) hud.ShowDialog(text, face);
-        else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");
-        else hud.ShowDialog(text, "res://char/rei_face.png");
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,
+            Hud.LineKind.Other => "res://char/rei_face.png",
+            _ => "res://char/mina_face.png", // ミナ・中継
+        };
+        hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

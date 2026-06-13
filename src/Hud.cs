@@ -6,6 +6,7 @@ using Godot;
 public partial class Hud : CanvasLayer
 {
     private Label _messageLabel = null!;   // 画面下中央のチュートリアル指示
+    private Label _speakerLabel = null!;   // 吹き出し上の話者名（種類で色分け）
     private Label _bannerLabel = null!;    // 中央大きめの一時バナー
     private HeartsBar _hearts = null!;     // 残機表示（ドットハート）
     private Label _scoreLabel = null!;     // スコア（右上）
@@ -93,6 +94,21 @@ public partial class Hud : CanvasLayer
         _messageLabel.AddThemeFontSizeOverride("font_size", 12);
         _messageLabel.Visible = false;
         AddChild(_messageLabel);
+
+        // 話者名（吹き出しの左上に乗せる。種類ごとに色分けして「誰の何か」を明示）
+        _speakerLabel = new Label
+        {
+            Name = "SpeakerLabel",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            ZIndex = 1,
+            Visible = false,
+        };
+        _speakerLabel.AddThemeColorOverride("font_outline_color", new Color(1f, 1f, 1f, 0.9f));
+        _speakerLabel.AddThemeConstantOverride("outline_size", 3);
+        if (_font != null) _speakerLabel.AddThemeFontOverride("font", _font);
+        _speakerLabel.AddThemeFontSizeOverride("font_size", 10);
+        AddChild(_speakerLabel);
 
         // バナー: 中央大きめ
         _bannerLabel = new Label
@@ -271,6 +287,7 @@ public partial class Hud : CanvasLayer
             if (_messageTimer <= 0)
             {
                 _messageLabel.Visible = false;
+                _speakerLabel.Visible = false;
                 _bubble.Visible = false;
                 _portrait.Visible = false;
             }
@@ -310,24 +327,69 @@ public partial class Hud : CanvasLayer
         _messageTimer = 4.5;
     }
 
-    // algo が話す会話（立ち絵＋吹き出し）。
+    // テキストボックスに出す「行の種類」。誰のセリフ／ナレ／投稿／中継かを区別する。
+    public enum LineKind
+    {
+        Boy = 0,        // 少年のセリフ
+        Mina = 1,       // ミナのセリフ
+        Other = 2,      // 相手（ボス）のセリフ
+        Narration = 3,  // 地の文・記憶（ミナの語り）＝話者名なし・中央寄せ
+        Post = 4,       // X投稿（UI本文）＝「Ｘ 投稿」枠
+        Relay = 5,      // 中継：少年の言葉をミナの声で届ける
+    }
+
+    private static readonly Color SpeakerBoyCol = new(0.20f, 0.42f, 0.78f);
+    private static readonly Color SpeakerMinaCol = new(0.62f, 0.24f, 0.50f);
+    private static readonly Color SpeakerOtherCol = new(0.16f, 0.50f, 0.95f);
+    private static readonly Color SpeakerPostCol = new(0.40f, 0.42f, 0.48f);
+
+    // algo が話す会話（立ち絵＋吹き出し）。旧チュートリアル用。話者名は出さない。
     public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
 
-    // 話者の立ち絵を指定して会話表示（ボス等のかけあい用）。
+    // 話者の立ち絵を指定して会話表示（旧API：話者名ラベルなし）。
     // 立ち絵が無い／読み込めない場合は立ち絵を隠す（前の話者の絵が残らないように）。
     public void ShowDialog(string text, string portraitResPath)
+    {
+        SetPortrait(portraitResPath);
+        LayoutBubble(text, dialog: true);
+        _messageTimer = 6.0;
+    }
+
+    // 種類つき会話表示。話者名ラベルと描き分け（地の文＝中央ナレ／投稿＝Ｘ枠／中継＝少年(ミナの声)）。
+    // portrait は呼び出し側が指定（少年は行ごとの表情、相手はそのボスの立ち絵）。
+    // otherName は LineKind.Other のときの話者名（例「レイ」）。
+    public void ShowDialog(LineKind kind, string text, string portrait = "", string otherName = "")
+    {
+        string speaker;
+        Color color;
+        bool dialog = true;
+        string portraitToUse = portrait;
+        switch (kind)
+        {
+            case LineKind.Boy:   speaker = "少年"; color = SpeakerBoyCol; break;
+            case LineKind.Mina:  speaker = "ミナ"; color = SpeakerMinaCol; break;
+            case LineKind.Other: speaker = otherName; color = SpeakerOtherCol; break;
+            case LineKind.Relay: speaker = "少年（ミナの声）"; color = SpeakerBoyCol; break;
+            case LineKind.Post:  speaker = "Ｘ 投稿"; color = SpeakerPostCol; portraitToUse = ""; break;
+            default: // Narration：話者名なし・立ち絵なし・テロップ調（中央寄せ）で「語り」と分かる
+                speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
+        }
+        SetPortrait(portraitToUse);
+        LayoutBubble(text, dialog: dialog, speaker: speaker, speakerColor: color);
+        _messageTimer = 6.0;
+    }
+
+    private void SetPortrait(string portraitResPath)
     {
         Texture2D? tex = string.IsNullOrEmpty(portraitResPath)
             ? null : ResourceLoader.Load<Texture2D>(portraitResPath);
         if (tex != null) { _portrait.Texture = tex; _portrait.Visible = true; }
         else _portrait.Visible = false; // 地の文／立ち絵未用意の話者は立ち絵なし
-        LayoutBubble(text, dialog: true);
-        _messageTimer = 6.0;
     }
 
     // 吹き出しとテキストを配置。日本語は空白が無いので任意位置で折り返し、
     // テキスト量に応じて吹き出しの高さを自動調整して下端に揃える（はみ出し防止）。
-    private void LayoutBubble(string text, bool dialog)
+    private void LayoutBubble(string text, bool dialog, string speaker = "", Color? speakerColor = null)
     {
         const float padX = 6f, padY = 5f, margin = 4f;
         float bubbleX = dialog ? 60f : 18f;
@@ -360,6 +422,17 @@ public partial class Hud : CanvasLayer
 
         _bubble.Visible = true;
         _messageLabel.Visible = true;
+
+        // 話者名ラベルを吹き出しの左上に乗せる（空＝地の文等は非表示）
+        if (!string.IsNullOrEmpty(speaker))
+        {
+            _speakerLabel.Text = speaker;
+            _speakerLabel.AddThemeColorOverride("font_color", speakerColor ?? new Color(0.3f, 0.3f, 0.3f));
+            _speakerLabel.Position = new Vector2(bubbleX + 4f, bubbleY - 13f);
+            _speakerLabel.Size = new Vector2(bubbleW - 8f, 12f);
+            _speakerLabel.Visible = true;
+        }
+        else _speakerLabel.Visible = false;
     }
 
     // 吹き出しを即座に閉じる（手動送りの終了時に呼ぶ）。
@@ -367,6 +440,7 @@ public partial class Hud : CanvasLayer
     {
         _messageTimer = 0;
         _messageLabel.Visible = false;
+        _speakerLabel.Visible = false;
         _bubble.Visible = false;
         _portrait.Visible = false;
     }

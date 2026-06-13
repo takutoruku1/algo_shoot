@@ -30,14 +30,15 @@ public partial class StageRei : Node
     private const string SGentle = "res://char/shonen_gentle.png";
     private const string SProud = "res://char/shonen_proud.png";
 
-    // ダイブ前〜着地＋チュートリアル（v2 [P-01a]/[P-01b] 準拠。who: 0=少年 / 1=ミナ・地の文）
+    // ダイブ前〜着地＋チュートリアル（v2 [P-01a]/[P-01b] 準拠。
+    // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継）
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (1, "「どうせ私は二番手。一番には、もうなれない。」", ""),      // 投稿
+        (4, "「どうせ私は二番手。一番には、もうなれない。」", ""),      // 投稿
         (1, "ずいぶん拗ねた投稿ですね。これを?", ""),
         (0, "ああ。こいつの心は、いま濁ってる。放っておけない。", SGentle),
         (1, "おや。意外と優しいことを言うんですね。", ""),
-        (1, "——着いた先は、終わりのないコンテスト会場でした。", ""),    // 地
+        (3, "——着いた先は、終わりのないコンテスト会場でした。", ""),    // 地
         (0, "飛んでくるのは、この人を苦しめてる“言葉”だ。本人じゃない。撃って祓っていい。", SCocky),
         (0, "いや。倒すんじゃない。いちばん奥の“本人”に、光を届けるんだ。", SGentle),
     };
@@ -49,11 +50,11 @@ public partial class StageRei : Node
     // 帰還（v2 [P-01c]）。投稿の変化＋伏線②（会ったこともない相手を言い切る確信）をミナが流す。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (1, "「次こそ、勝つ。覚悟しなさいよね。」", ""),                 // 投稿が変化
+        (4, "「次こそ、勝つ。覚悟しなさいよね。」", ""),                 // 投稿が変化
         (1, "投稿が変わりましたね。元気が出たようで何よりです。", ""),
         (0, "ああ。……いい目を、してた。", SGentle),
-        (1, "——会ったこともない相手のことを、なぜそこまで言い切れるのか。", ""),
-        (1, "わたくしは少し不思議に思って——初仕事で張り切っているのだろう、と流しました。", ""),
+        (3, "——会ったこともない相手のことを、なぜそこまで言い切れるのか。", ""),
+        (3, "わたくしは少し不思議に思って——初仕事で張り切っているのだろう、と流しました。", ""),
     };
 
     public override void _Ready()
@@ -119,8 +120,14 @@ public partial class StageRei : Node
     private void ShowLine((int who, string text, string face)[] lines)
     {
         var (who, text, face) = lines[_introLine];
-        if (who == 0) Hud.ShowDialog(text, face);
-        else Hud.ShowDialog(text, "res://char/mina_face.png");
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,
+            Hud.LineKind.Other => "res://char/rei_face.png",
+            _ => "res://char/mina_face.png",
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
 
     private void Step_BossSpawn()

@@ -193,12 +193,15 @@ public partial class Enemy : Area2D
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
 
         // やさしさの波紋（連鎖浄化のトリガー）。
+        // Redeem は被弾/パネル砕けのシグナル（物理クエリのフラッシュ中）から呼ばれることがある。
+        // その最中に Ripple を即 AddChild すると Ripple._Ready が監視状態やコリジョン形状を
+        // 物理フラッシュ中に書き換え（"Can't change this state while flushing queries"）、
+        // 連鎖浄化が多発する場面で物理サーバを壊して落ちる。生成はフラッシュ後へ遅延する。
         var parent = GetParent();
         if (parent != null)
         {
-            var ripple = new Ripple();
-            parent.AddChild(ripple);
-            ripple.GlobalPosition = GlobalPosition;
+            var ripple = new Ripple { Position = Position }; // 親が同じ＝同じ座標系のローカル位置をそのまま使う
+            parent.CallDeferred(Node.MethodName.AddChild, ripple);
         }
 
         // 3段階対応：Cry の尺が設定されていれば先に大泣きを見せてから笑顔へ。

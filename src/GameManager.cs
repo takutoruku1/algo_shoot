@@ -17,12 +17,12 @@ public partial class GameManager : Node
     public enum Diff { Easy, Normal, Hard, Lunatic }
     public Diff Difficulty = Diff.Normal;
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
-    public int StartLives => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, Diff.Lunatic => 3, _ => 3 }) + MaxLifeBonus;
-    public int StartBombs => (Difficulty switch { Diff.Easy => 5, Diff.Hard => 2, Diff.Lunatic => 3, _ => 3 }) + BombCountBonus;
-    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.72f, Diff.Hard => 1.18f, Diff.Lunatic => 1.25f, _ => 1f };
+    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + MaxLifeBonus;
+    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + BombCountBonus;
+    public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
-    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.55f, Diff.Hard => 1.45f, Diff.Lunatic => 2.2f, _ => 1f };
-    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 1.6f, Diff.Hard => 0.85f, Diff.Lunatic => 0.7f, _ => 1f };
+    public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };
+    public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 2.1f, Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。

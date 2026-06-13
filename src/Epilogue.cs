@@ -210,13 +210,15 @@ public partial class Epilogue : Node2D
     private void DrawLineBox(DLine d)
     {
         bool ui = d.Who == "UI";
-        Color edge = ui ? new Color(0.7f, 0.9f, 0.8f) : Cool;
+        bool narr = d.Who == "地";        // ミナの語り＝話者名なし・中央寄せでセリフと区別
+        Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? new Color(0.7f, 0.9f, 0.8f) : Cool);
         DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.85f));
         DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, 0.8f));
-        string label = d.Who == "地" ? "" : d.Who;
+        string label = narr ? "" : d.Who;
         if (label != "")
             DrawString(_font, new Vector2(20, H - 44), label, HorizontalAlignment.Left, -1, 9, edge);
-        DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
+        var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, align,
             W - 52, 11, -1, Ink,
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
         if (((int)(_t * 2f) % 2) == 0)

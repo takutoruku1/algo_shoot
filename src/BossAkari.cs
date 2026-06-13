@@ -41,11 +41,11 @@ public partial class BossAkari : Enemy
         (0, "ミナ。ぼくの言葉を、きみの声で届けてくれ。", SGentle),
         (1, "ご主人様が、直接言えばいいでしょう。", ""),
         (0, "————ぼくの声じゃ、だめなんだ。", SGentle),
-        (1, "——誰かを想うことは、罪じゃない。", ""),
-        (1, "言えなかった言葉は、消えない。届けられなかった想いは、なかったことにはならない。", ""),
-        (1, "————きっと、相手にも。とっくに、届いてる。", ""),
+        (5, "——誰かを想うことは、罪じゃない。", ""),
+        (5, "言えなかった言葉は、消えない。届けられなかった想いは、なかったことにはならない。", ""),
+        (5, "————きっと、相手にも。とっくに、届いてる。", ""),
         (2, "……すき、だったの。ずっと。……それだけ、なのに。", ""),
-        (1, "うん。————知ってるよ。", ""),
+        (5, "うん。————知ってるよ。", ""),
     };
 
     protected override void OnEnemyReady()
@@ -220,14 +220,16 @@ public partial class BossAkari : Enemy
         var (who, text, face) = Lines[_line];
         var hud = GetHud();
         if (hud == null) return;
-        if (who == 0) hud.ShowDialog(text, face);                            // 少年（行ごとの表情）
-        else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");  // ミナ
-        else if (who == 3)                                                    // 地・記憶（ミナ語り＋記憶フラッシュ）
-        {
+        var kind = (Hud.LineKind)who;
+        if (kind == Hud.LineKind.Narration) // 地・記憶：記憶フラッシュを焚く
             (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerMemoryFlash();
-            hud.ShowDialog(text, "res://char/mina_face.png");
-        }
-        else hud.ShowDialog(text, "res://char/akari_face.png");              // あかり
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
+            Hud.LineKind.Other => "res://char/akari_face.png", // あかり
+            _ => "res://char/mina_face.png",                // ミナ・中継
+        };
+        hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

@@ -30,11 +30,12 @@ public partial class StageKoharu : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
-    // ダイブ前〜着地（v2 [P-03]）。who: 0=少年 / 1=ミナ・地 / 2=こはる。
+    // ダイブ前〜着地（v2 [P-03]）。
+    // who: 0=少年 / 1=ミナ / 2=こはる / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (1, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
-        (1, "——そこは、台所でした。夕食の支度が、永遠に続いている。", ""),     // 地
+        (4, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
+        (3, "——そこは、台所でした。夕食の支度が、永遠に続いている。", ""),     // 地
     };
 
     // ボス登場時の説明（設計書 [P-03] に該当なし＝空。こはるの独白と中継はボス側に集約）
@@ -44,7 +45,7 @@ public partial class StageKoharu : Node
     // 帰還（v2 [P-03] 末尾）。投稿の変化＋伏線④。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (1, "「ちゃんと食べてね。……あたしも、食べるから。」", ""),            // 投稿が変化
+        (4, "「ちゃんと食べてね。……あたしも、食べるから。」", ""),            // 投稿が変化
         (0, "もしぼくが寝坊して来られない日があったらさ。妹の様子でも、見ててくれよ。", SGentle),
         (1, "妹が、いらしたんですか。", ""),
     };
@@ -112,9 +113,14 @@ public partial class StageKoharu : Node
     private void ShowLine((int who, string text, string face)[] lines)
     {
         var (who, text, face) = lines[_introLine];
-        if (who == 0) Hud.ShowDialog(text, face);
-        else if (who == 2) Hud.ShowDialog(text, "res://char/koharu_face.png"); // 立ち絵未用意＝立ち絵なし
-        else Hud.ShowDialog(text, "res://char/mina_face.png");
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,
+            Hud.LineKind.Other => "res://char/koharu_face.png",
+            _ => "res://char/mina_face.png",
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }
 
     private void Step_BossSpawn()

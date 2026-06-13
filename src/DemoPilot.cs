@@ -36,14 +36,23 @@ public partial class DemoPilot : Node
     private const float PlayerSpeed = 150f;   // Player.NormalSpeed
     private const float HitRadius = 2f;        // Player.HitRadius（極小の被弾点）
 
-    // ---- 回避パラメータ ----
-    private const int DirCount = 16;            // 評価する移動方向数（これに静止を加える）
+    // ---- 移動ブレインのパラメータ ----
+    // 毎フレーム「16方向＋静止＋定位置へぴたり寄る」候補を弾道シミュレーションし、
+    //   スコア = 安全度(min(クリアランス,GapCap)) ＋ ホーム接近ボーナス
+    // が最大の動きを選ぶ。ただしホームボーナスは“安全な手”(クリアランス≥ComfortGap)にしか
+    // 与えない。これで「安全は常に最優先（射線取りのために危険へ突っ込まない）／安全な範囲では
+    // できるだけ射線(ボスのY)に張り付いて最大DPS」を両立する。
+    private const int DirCount = 16;            // 評価する移動方向数（これに静止＋定位置寄せを加える）
     private const float Horizon = 0.5f;         // 先読み秒数
     private const int Steps = 8;                // 先読みの時間分割
     private const float NearRange = 150f;       // この距離内の脅威だけ評価（負荷削減）
     private const float GapCap = 24f;           // これ以上のクリアランスは同点扱い（無駄に逃げない）
-    private const float SafeGap = 11f;          // 静止してもこれ以上空くなら「安全」＝攻撃定位置へ。
-                                                // 小さいほど逃げ腰をやめて撃ち続ける＝速いが攻めすぎ注意。
+    private const float ComfortGap = 8f;        // クリアランスがこれ未満の手にはホーム加点しない
+                                                // ＝危険な手は純粋な安全度のみで選ぶ（被弾防止の要）。
+    private const float HomeBonus = 6f;         // ホーム接近ボーナスの最大値（安全度レンジ24より十分小さく）
+    private const float HomeFar = 180f;         // この距離で接近ボーナス0、近いほど満点に近づく
+    private const float Hyst = 1.0f;            // 同じ選択を続ける慣性（ガタつき防止）
+    private const float StayBonus = 0.5f;       // 静止のわずかな優遇（無駄な揺れを抑える）
     private const float EnemyRadius = 14f;      // 敵本体の安全側半径（BodyRadius は private）
     private const float HomeX = 104f;           // 攻撃定位置のX（自機は右へ撃つので左寄り。
                                                 // ボスにやや近づけて弾の到達を早め、削り出しを速める）
@@ -137,65 +146,58 @@ public partial class DemoPilot : Node
         DriveBomb(delta, bestGap, talking);
     }
 
-    // =====================  回避ブレイン  =====================
+    // =====================  移動ブレイン（回避＋射線張り付き）  =====================
 
+    // 候補（速度ベクトル）を全部弾道シミュレーションして1手選ぶ統一スコアラ。
     // 戻り値：どう動いても確保できる“最善のクリアランス”（ボム判定に使う）。
     private float DriveDodge(Vector2 ppos)
     {
         BuildThreats(ppos);
+        Vector2 home = new(HomeX, _aimY); // 攻撃定位置（左寄りＸ・ボスのＹ）
 
-        // 静止し続けたときの最接近。十分空くなら危険でない → 攻撃定位置へ寄せる。
-        float stayGap = Simulate(ppos, Vector2.Zero);
-        if (stayGap >= SafeGap)
-        {
-            SeekHome(ppos);
-            return 9999f;
-        }
-
-        // 危険：16方向＋静止を弾道シミュレーションし、最も弾が離れる動きを選ぶ。
         float bestScore = float.NegativeInfinity;
-        float bestGap = stayGap;
-        Vector2 bestDir = Vector2.Zero;
+        float bestAchievableGap = -9999f;
+        Vector2 bestVel = Vector2.Zero;
         int bestIdx = 0;
 
-        // 候補0：静止（小さなボーナスでムダな揺れを抑える）
+        // 1つの候補速度を評価して暫定ベストを更新する。
+        void Consider(Vector2 vel, int idx)
         {
-            float score = Mathf.Min(stayGap, GapCap) + 0.6f + (_prevDir == 0 ? 1.0f : 0f);
-            bestScore = score; bestDir = Vector2.Zero; bestIdx = 0;
+            float g = Simulate(ppos, vel);
+            if (g > bestAchievableGap) bestAchievableGap = g;
+
+            float score = Mathf.Min(g, GapCap); // 安全度（クリアランス）が土台
+            // ホーム接近ボーナスは“安全な手”だけに与える。危険な手(クリアランス<ComfortGap)は
+            // 純粋に安全度だけで競わせる＝射線取りのために弾へ突っ込まない（被弾防止の要）。
+            if (g >= ComfortGap)
+            {
+                Vector2 end = ppos + vel * Horizon;
+                end.X = Mathf.Clamp(end.X, MinX, MaxX);
+                end.Y = Mathf.Clamp(end.Y, MinY, MaxY);
+                float homeReward = 1f - Mathf.Clamp(end.DistanceTo(home) / HomeFar, 0f, 1f);
+                score += HomeBonus * homeReward;
+            }
+            if (idx == _prevDir) score += Hyst;
+            if (idx == 0) score += StayBonus;
+
+            if (score > bestScore) { bestScore = score; bestVel = vel; bestIdx = idx; }
         }
 
-        for (int i = 0; i < DirCount; i++)
+        Consider(Vector2.Zero, 0);                                  // 静止
+        for (int i = 0; i < DirCount; i++)                          // 16方向・全速
         {
             float a = Mathf.Tau * i / DirCount;
-            Vector2 dir = new(Mathf.Cos(a), Mathf.Sin(a));
-            float g = Simulate(ppos, dir);
-            if (g > bestGap) bestGap = g;
-
-            float score = Mathf.Min(g, GapCap);
-            if (_prevDir == i + 1) score += 1.0f; // 慣性：同じ方向を続けると見栄えが安定
-            // 同点帯では攻撃定位置に近い着地点を僅かに優遇（隅に追い込まれにくくする）
-            Vector2 end = ppos + dir * PlayerSpeed * Horizon;
-            float distHome = Mathf.Abs(end.X - HomeX) + Mathf.Abs(end.Y - _aimY);
-            score -= 0.012f * distHome;
-
-            if (score > bestScore) { bestScore = score; bestDir = dir; bestIdx = i + 1; }
+            Consider(new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * PlayerSpeed, i + 1);
         }
+        // 攻撃定位置へ“ぴたり”寄る候補（近いほど低速＝行き過ぎない）。これで射線へ正確に乗る。
+        Vector2 toHome = home - ppos;
+        float dist = toHome.Length();
+        if (dist > 0.5f)
+            Consider(toHome / dist * Mathf.Min(PlayerSpeed, dist / (float)Horizon), DirCount + 1);
 
         _prevDir = bestIdx;
-        ApplyMove(bestDir, 1f); // 回避は全速
-        return bestGap;
-    }
-
-    // 攻撃定位置（HomeX, 最寄りの敵のY）へ向けて、距離に比例した強さでにじり寄る。
-    // 近づくほど弱くするので行き過ぎ・小刻みな揺れが出ない＝意図ある定位置取りに見える。
-    private void SeekHome(Vector2 ppos)
-    {
-        Vector2 home = new(HomeX, _aimY);
-        Vector2 d = home - ppos;
-        float dist = d.Length();
-        if (dist < 1.5f) { ReleaseAxes(); _prevDir = 0; return; }
-        ApplyMove(d / dist, Mathf.Clamp(dist / 24f, 0f, 1f));
-        _prevDir = 0;
+        ApplyMove(bestVel);
+        return bestAchievableGap;
     }
 
     // 近傍の敵弾（速度つき）と敵本体を脅威として集める。攻撃定位置のYも更新。
@@ -220,15 +222,15 @@ public partial class DemoPilot : Node
         _aimY = Mathf.Clamp(bestEnemyY, MinY + 8f, MaxY - 8f);
     }
 
-    // dir 方向へ PlayerSpeed で進んだとき、先読み区間中に脅威表面とどれだけ近づくか。
+    // 速度 vel(px/s) で進んだとき、先読み区間中に脅威表面とどれだけ近づくか。
     // 返すのは区間中の最小クリアランス（負＝重なり）。
-    private float Simulate(Vector2 ppos, Vector2 dir)
+    private float Simulate(Vector2 ppos, Vector2 vel)
     {
         float minGap = 9999f;
         for (int s = 0; s <= Steps; s++)
         {
             float tt = Horizon * s / Steps;
-            Vector2 pp = ppos + dir * PlayerSpeed * tt;
+            Vector2 pp = ppos + vel * tt;
             pp.X = Mathf.Clamp(pp.X, MinX, MaxX);
             pp.Y = Mathf.Clamp(pp.Y, MinY, MaxY);
             foreach (var th in _threats)
@@ -245,11 +247,11 @@ public partial class DemoPilot : Node
         return minGap;
     }
 
-    // 1軸ぶんの ui_neg / ui_pos を強さ付きで注入する（Player の GetVector がこれを読む）。
-    private void ApplyMove(Vector2 dir, float strength)
+    // 速度ベクトルを各軸の強さ(-1..1)に直して注入する（Player の GetVector がこれを読む）。
+    private void ApplyMove(Vector2 vel)
     {
-        SetAxis("ui_left", "ui_right", dir.X * strength);
-        SetAxis("ui_up", "ui_down", dir.Y * strength);
+        SetAxis("ui_left", "ui_right", vel.X / PlayerSpeed);
+        SetAxis("ui_up", "ui_down", vel.Y / PlayerSpeed);
     }
 
     private void ReleaseAxes()

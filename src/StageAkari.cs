@@ -29,16 +29,17 @@ public partial class StageAkari : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
-    // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。who: 0=少年 / 1=ミナ・地。
+    // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。
+    // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
         (1, "ご主人様。次の“成敗”は? 今日はずいぶん静かですね。", ""),
         (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
-        (1, "「すきになって、ごめんなさい。」", ""),                       // 投稿
+        (4, "「すきになって、ごめんなさい。」", ""),                       // 投稿
         (0, "…………この人の、ところへ行こう。", SGentle),
         (1, "おや。決めゼリフはどうしたんですか。", ""),
         (0, "……いいから。行くぞ。", SCocky),
-        (1, "——雨の、降りやまない教室でした。机も椅子も、天井へ落ちていく。", ""),   // 地
+        (3, "——雨の、降りやまない教室でした。机も椅子も、天井へ落ちていく。", ""),   // 地
     };
 
     // ボス登場時の説明（v2 [P-02b]。who: 0=少年 / 1=ミナ）
@@ -52,7 +53,7 @@ public partial class StageAkari : Node
     // 帰還（v2 [P-02c]）。投稿の変化＋あかりの残響＋ミナの核心の問い（伏線③）。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (1, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
+        (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
         (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
         (1, "あなた、この人を——知ってるんですか?", ""),
         (0, "…………まさか。赤の他人さ。", SCocky),
@@ -128,9 +129,14 @@ public partial class StageAkari : Node
     private void ShowLine((int who, string text, string face)[] lines)
     {
         var (who, text, face) = lines[_introLine];
-        if (who == 0) Hud.ShowDialog(text, face);                       // 少年（行ごとの表情）
-        else if (who == 2) Hud.ShowDialog(text, "res://char/akari_face.png"); // あかり
-        else Hud.ShowDialog(text, "res://char/mina_face.png");          // ミナ・地の文
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
+            Hud.LineKind.Other => "res://char/akari_face.png", // あかり
+            _ => "res://char/mina_face.png",                // ミナ・中継
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }
 
     // ---- 2: ボス出現 ----

@@ -37,10 +37,10 @@ public partial class BossKoharu : Enemy
         (2, "あたしが何をつくっても、お兄ちゃんは——", ""),
         (1, "……ご主人様?", ""),
         (0, "……なんでもない。続けるぞ。", SCocky),
-        (1, "——怒りの下にある悲しみを、ちゃんと悲しんでいい。", ""),
+        (5, "——怒りの下にある悲しみを、ちゃんと悲しんでいい。", ""),
         (2, "あたしのごはんは、お兄ちゃんを助けられない……! 意味なんて、ない……!", ""),
-        (1, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからだ。", ""),
-        (1, "祈りは、届いてたよ。ちゃんと。", ""),
+        (5, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからだ。", ""),
+        (5, "祈りは、届いてたよ。ちゃんと。", ""),
         (2, "……ちゃんと、食べてくれるかな。今日は。", ""),
     };
 
@@ -208,9 +208,14 @@ public partial class BossKoharu : Enemy
         var (who, text, face) = Lines[_line];
         var hud = GetHud();
         if (hud == null) return;
-        if (who == 0) hud.ShowDialog(text, face);
-        else if (who == 1) hud.ShowDialog(text, "res://char/mina_face.png");
-        else hud.ShowDialog(text, "res://char/koharu_face.png");
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,
+            Hud.LineKind.Other => "res://char/koharu_face.png",
+            _ => "res://char/mina_face.png", // ミナ・中継
+        };
+        hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;
