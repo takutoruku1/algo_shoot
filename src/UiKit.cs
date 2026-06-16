@@ -126,6 +126,19 @@ public static class UiKit
             HorizontalAlignment.Left, -1, size, new Color(0.06f, 0.05f, 0.10f, 0.92f));
     }
 
+    // ── ハート（HP）──
+    public static void Heart(CanvasItem ci, Vector2 c, float r, Color col)
+    {
+        ci.DrawCircle(new Vector2(c.X - r * 0.42f, c.Y - r * 0.28f), r * 0.54f, col);
+        ci.DrawCircle(new Vector2(c.X + r * 0.42f, c.Y - r * 0.28f), r * 0.54f, col);
+        ci.DrawColoredPolygon(new[]
+        {
+            new Vector2(c.X - r * 0.9f, c.Y + r * 0.04f),
+            new Vector2(c.X + r * 0.9f, c.Y + r * 0.04f),
+            new Vector2(c.X, c.Y + r),
+        }, col);
+    }
+
     // 1000以上を 1.2k / 3.4M に省略。
     public static string Abbrev(long n)
     {

@@ -1,519 +1,355 @@
 using Godot;
 
-// Hud : CanvasLayer
-// 画面下中央のチュートリアル指示、中央大きめの一時バナー、残機表示を Label で行う。
-// 日本語フォント未設定でも読めるよう英語併記の簡潔文言を使う。
+// Hud : ゲーム中HUD（CanvasLayer）。RefrainHTML/Refrain HUD A.dc.html を忠実移植（非ピクセル「Clean Glass」）。
+//   左上 LIFE/BOMB ガラスパネル・中央上 浄化カプセル・右上 SCORE＋テレメトリ・中央 ボスXカード・
+//   下部「降ってくる言葉」ティッカー。被弾＝赤エッジ、浄化100%＝発光。会話はシネマ下部バー（タイプライター）。
+//   描画は子 Node2D(_canvas) が UiKit で設計座標(1280x720)に行う。公開APIは従来どおり。
 public partial class Hud : CanvasLayer
 {
-    private Label _messageLabel = null!;   // 画面下中央のチュートリアル指示
-    private Label _speakerLabel = null!;   // 吹き出し上の話者名（種類で色分け）
-    private Label _bannerLabel = null!;    // 中央大きめの一時バナー
-    private HeartsBar _hearts = null!;     // 残機表示（ドットハート）
-    private Label _scoreLabel = null!;     // スコア（右上）
-    private Label _comboLabel = null!;     // コンボ（右上・スコア下）
-    private Label _burnLabel = null!;      // 炎上中の弱体表示
-    private ColorRect[] _bombPips = System.Array.Empty<ColorRect>(); // ボム数（紫の四角ピップ）
-    private ColorRect _flash = null!;      // ボム発動時の全画面フラッシュ
-    private ColorRect _kindBg = null!;     // やさしさゲージ 背景
-    private ColorRect _kindFill = null!;   // やさしさゲージ 中身
-    private Label _overloadLabel = null!;  // 「やさしさ全開！」
-    private Label _skillLabel = null!;     // ヒカゲ専用スキルの表示（C）
-    private ColorRect _purifyBg = null!;   // 浄化ゲージ 背景（上部中央・ステージ目標）
-    private ColorRect _purifyFill = null!; // 浄化ゲージ 中身
-    private Label _purifyLabel = null!;    // 「浄化 XX%」
-    private const float PurifyGaugeX = 100f;
-    private const float PurifyGaugeW = 150f;
-    private ColorRect _bossBg = null!;      // ボスHPバー 背景
-    private ColorRect _bossFill = null!;    // ボスHPバー 中身
-    private Label _bossLabel = null!;       // ボス名
-    private const float BossBarX = 92f;
-    private const float BossBarY = 32f;
-    private const float BossBarW = 200f;
-    private SpeechBubble _bubble = null!;  // 下部の吹き出し（ドット絵調）
-    private TextureRect _portrait = null!; // algoの立ち絵（会話時）
+    private GameManager _game = null!;
+    private HudCanvas _canvas = null!;
 
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
-    // true の間は吹き出しを自動で消さない（手動送り用）。送り側が HideBubble で閉じる。
     public bool HoldBubble = false;
 
-    private double _messageTimer;          // メッセージの自動消去残り時間
-    private double _bannerTimer;           // バナーの自動消去残り時間
-    private float _flashAlpha;             // フラッシュの現在アルファ
-    private Color _flashRgb = new Color(1f, 1f, 1f); // フラッシュ色（白=ボム/赤=被弾）
+    private int _lives = 3;
 
-    private FontFile _font = null!;
+    // ボス
+    private bool _bossVisible;
+    private string _bossName = "";
+    private string _bossHandle = "";
+    private float _bossFrac = 1f;
+    private long _bossReplies = 2847;
+
+    // バナー
+    private string _bannerText = "";
+    private double _bannerTimer;
+
+    // フラッシュ
+    private float _flashAlpha;
+    private Color _flashRgb = new(1f, 1f, 1f);
+    private double _hurtEdge; // 被弾エッジの残り時間
+
+    // ヒカゲスキル
+    private bool _skillHas, _skillReady;
+
+    // 会話／メッセージ
+    private string _dlgText = "";
+    private string _dlgSpeaker = "";
+    private Color _dlgSpeakerCol = Colors.White;
+    private bool _dlgIsDialog;          // true=シネマバー / false=ナレーション（中央）
+    private Texture2D? _dlgPortrait;
+    private double _messageTimer;
+    private float _dlgRevealed;         // タイプライター表示済み文字数
+    private const float CharsPerSec = 48f;
+
+    // ティッカー（降ってくる言葉）
+    private double _t;
+    private static readonly (string h, string w)[] TickerWords =
+    {
+        ("@anon_03", "あたしのせいだ"), ("@kako__", "どうせ、とどかない"), ("@nobody_7", "もういない"),
+        ("@ame_", "きえたい"), ("@_void", "なんで庇ったの"),
+    };
 
     public override void _Ready()
     {
-        AddToGroup("hud"); // Player のボム発動からフラッシュを呼べるように
-
-        // ピクセルフォント（PixelMplus）。ドット感を保つため AA/サブピクセル/ヒンティングを無効化。
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-        if (_font != null)
-        {
-            _font.Antialiasing = TextServer.FontAntialiasing.None;
-            _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-            _font.Hinting = TextServer.Hinting.None;
-            _font.ForceAutohinter = false;
-            _font.MultichannelSignedDistanceField = false;
-        }
-
-        // algo 立ち絵（会話時に左下に表示）。元の高解像度イラストを使用。
-        var portraitTex = ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
-                          ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");
-        _portrait = new TextureRect
-        {
-            Name = "Portrait",
-            Texture = portraitTex,
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            Position = new Vector2(2, Main.ScreenHeight - 62),
-            Size = new Vector2(54, 60),
-            Visible = false,
-        };
-        _portrait.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_portrait);
-
-        // 下部の吹き出し（ドット絵調・自前描画）
-        _bubble = new SpeechBubble { Name = "Bubble", Visible = false };
-        AddChild(_bubble);
-
-        // メッセージ本文（吹き出しの上に乗せる）
-        _messageLabel = new Label
-        {
-            Name = "MessageLabel",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Position = new Vector2(0, Main.ScreenHeight - 28),
-            Size = new Vector2(Main.ScreenWidth, 20),
-            ZIndex = 1,
-        };
-        _messageLabel.AddThemeColorOverride("font_color", new Color(0.18f, 0.12f, 0.22f));
-        if (_font != null) _messageLabel.AddThemeFontOverride("font", _font);
-        _messageLabel.AddThemeFontSizeOverride("font_size", 12);
-        _messageLabel.Visible = false;
-        AddChild(_messageLabel);
-
-        // 話者名（吹き出しの左上に乗せる。種類ごとに色分けして「誰の何か」を明示）
-        _speakerLabel = new Label
-        {
-            Name = "SpeakerLabel",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            ZIndex = 1,
-            Visible = false,
-        };
-        _speakerLabel.AddThemeColorOverride("font_outline_color", new Color(1f, 1f, 1f, 0.9f));
-        _speakerLabel.AddThemeConstantOverride("outline_size", 3);
-        if (_font != null) _speakerLabel.AddThemeFontOverride("font", _font);
-        _speakerLabel.AddThemeFontSizeOverride("font_size", 10);
-        AddChild(_speakerLabel);
-
-        // バナー: 中央大きめ
-        _bannerLabel = new Label
-        {
-            Name = "BannerLabel",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Position = new Vector2(0, Main.ScreenHeight / 2 - 16),
-            Size = new Vector2(Main.ScreenWidth, 32),
-        };
-        _bannerLabel.AddThemeColorOverride("font_color", Ui.Light); // 光（淡い金）
-        _bannerLabel.AddThemeColorOverride("font_outline_color", Ui.OutlineDark);
-        _bannerLabel.AddThemeConstantOverride("outline_size", 3);
-        if (_font != null) _bannerLabel.AddThemeFontOverride("font", _font);
-        _bannerLabel.AddThemeFontSizeOverride("font_size", 24); // native 12 の2倍でクリスプ
-        _bannerLabel.Visible = false;
-        AddChild(_bannerLabel);
-
-        // 残機: 左上（ドットハート）
-        _hearts = new HeartsBar { Name = "Hearts", Position = new Vector2(5, 5) };
-        AddChild(_hearts);
-
-        // ボム数: ハートの下（紫の四角ピップ。残機ハートと並ぶピクセル調）
-        const int maxPips = 8;
-        _bombPips = new ColorRect[maxPips];
-        for (int i = 0; i < maxPips; i++)
-        {
-            var pip = new ColorRect
-            {
-                Name = $"BombPip{i}",
-                Position = new Vector2(5 + i * 6, 18),
-                Size = new Vector2(4, 4),
-                Color = Ui.Bomb,
-                Visible = false,
-            };
-            pip.MouseFilter = Control.MouseFilterEnum.Ignore;
-            AddChild(pip);
-            _bombPips[i] = pip;
-        }
-
-        // やさしさゲージ（ハート/ボムの下）
-        _kindBg = new ColorRect { Name = "KindBg", Position = new Vector2(5, 28), Size = new Vector2(64, 4), Color = new Color(0.15f, 0.12f, 0.20f, 0.55f) };
-        _kindBg.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_kindBg);
-        _kindFill = new ColorRect { Name = "KindFill", Position = new Vector2(5, 28), Size = new Vector2(0, 4), Color = Ui.Light };
-        _kindFill.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_kindFill);
-        _overloadLabel = new Label { Name = "OverloadLabel", Position = new Vector2(72, 25), Size = new Vector2(140, 12) };
-        StyleLabel(_overloadLabel, 8, Ui.Hp);
-        _overloadLabel.Visible = false;
-        AddChild(_overloadLabel);
-
-        // ヒカゲ専用スキル表示（やさしさゲージの下）。ヒカゲ加入時のみ表示。
-        _skillLabel = new Label { Name = "SkillLabel", Position = new Vector2(5, 34), Size = new Vector2(160, 12) };
-        StyleLabel(_skillLabel, 8, Ui.Hp);
-        _skillLabel.Visible = false;
-        AddChild(_skillLabel);
-
-        // 浄化ゲージ（上部中央・ステージの目標）。空が晴れていく度合いを表す。
-        _purifyBg = new ColorRect { Name = "PurifyBg", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(PurifyGaugeW, 6), Color = new Color(0.12f, 0.10f, 0.18f, 0.6f) };
-        _purifyBg.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_purifyBg);
-        _purifyFill = new ColorRect { Name = "PurifyFill", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(0, 6), Color = Ui.Purify };
-        _purifyFill.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_purifyFill);
-        _purifyLabel = new Label { Name = "PurifyLabel", Position = new Vector2(PurifyGaugeX, 13), Size = new Vector2(PurifyGaugeW, 10), HorizontalAlignment = HorizontalAlignment.Center };
-        StyleLabel(_purifyLabel, 8, Ui.Purify);
-        AddChild(_purifyLabel);
-
-        // ボスHPバー（中ボス戦のみ表示）
-        _bossBg = new ColorRect { Name = "BossBg", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = new Color(0.14f, 0.06f, 0.12f, 0.7f), Visible = false };
-        _bossBg.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_bossBg);
-        _bossFill = new ColorRect { Name = "BossFill", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = Ui.Kegare, Visible = false };
-        _bossFill.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_bossFill);
-        _bossLabel = new Label { Name = "BossLabel", Position = new Vector2(BossBarX, BossBarY - 11), Size = new Vector2(BossBarW, 10) };
-        StyleLabel(_bossLabel, 8, Ui.Kegare);
-        _bossLabel.Visible = false;
-        AddChild(_bossLabel);
-
-        // スコア: 右上（右寄せ）
-        _scoreLabel = new Label
-        {
-            Name = "ScoreLabel",
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Position = new Vector2(Main.ScreenWidth - 128, 4),
-            Size = new Vector2(124, 12),
-        };
-        StyleLabel(_scoreLabel, 10, Ui.Score);
-        AddChild(_scoreLabel);
-
-        // コンボ: スコアの下（右寄せ・x2以上で表示）
-        _comboLabel = new Label
-        {
-            Name = "ComboLabel",
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Position = new Vector2(Main.ScreenWidth - 128, 16),
-            Size = new Vector2(124, 12),
-        };
-        StyleLabel(_comboLabel, 8, Ui.Mina); // 紫
-        _comboLabel.Visible = false;
-        AddChild(_comboLabel);
-
-        // 炎上中インジケータ（中央上・赤）
-        _burnLabel = new Label
-        {
-            Name = "BurnLabel",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Position = new Vector2(Main.ScreenWidth / 2 - 80, 26),
-            Size = new Vector2(160, 12),
-        };
-        StyleLabel(_burnLabel, 9, Ui.Burn); // 赤
-        _burnLabel.Visible = false;
-        AddChild(_burnLabel);
-
-        // ボム発動フラッシュ（全画面・最前面・初期は透明）
-        _flash = new ColorRect
-        {
-            Name = "BombFlash",
-            Color = new Color(1f, 1f, 1f, 0f),
-            Position = Vector2.Zero,
-            Size = new Vector2(Main.ScreenWidth, Main.ScreenHeight),
-            ZIndex = 100,
-        };
-        _flash.MouseFilter = Control.MouseFilterEnum.Ignore;
-        AddChild(_flash);
-    }
-
-    // ラベルにピクセルフォント・サイズ・暗アウトラインを適用するヘルパ。
-    // Refrain パレットは明るい役割色（金/シアン/桃）が多いので、縁取りは夜色にして
-    // 明るいステージ背景でも沈まず読めるようにする。
-    private void StyleLabel(Label l, int size, Color color)
-    {
-        l.AddThemeColorOverride("font_color", color);
-        l.AddThemeColorOverride("font_outline_color", Ui.OutlineDark);
-        l.AddThemeConstantOverride("outline_size", 2);
-        if (_font != null) l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        AddToGroup("hud");
+        _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        _canvas = new HudCanvas { Name = "HudCanvas", Hud = this };
+        AddChild(_canvas);
     }
 
     public override void _Process(double delta)
     {
-        // スコア・コンボ・ボム表示の更新
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        if (game != null)
-        {
-            _scoreLabel.Text = $"SCORE {game.Score:N0}";
-            for (int i = 0; i < _bombPips.Length; i++)
-                _bombPips[i].Visible = i < game.Bombs;
-            _burnLabel.Visible = game.BurningThisRun;
-            if (game.BurningThisRun) _burnLabel.Text = "炎上中  発射↓ 移動↓ Imp↓";
-            if (game.Combo >= 2)
-            {
-                _comboLabel.Text = $"やさしさが {game.Combo}人にひろがった！";
-                _comboLabel.Visible = true;
-            }
-            else
-            {
-                _comboLabel.Visible = false;
-            }
+        _t += delta;
 
-            // やさしさゲージ
-            float kw = 64f * Mathf.Clamp(game.Kindness, 0f, 1f);
-            _kindFill.Size = new Vector2(kw, 4);
-            _kindFill.Color = game.IsOverload ? Ui.Hp : Ui.Light;
-            _overloadLabel.Visible = game.IsOverload;
-            if (game.IsOverload) _overloadLabel.Text = "やさしさ全開！";
-            if (game.JustOverloaded) { ShowBanner("やさしさ全開！"); Flash(); }
+        if (_flashAlpha > 0f) _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
+        if (_hurtEdge > 0) _hurtEdge -= delta;
 
-            // 浄化ゲージ（目標達成度）。色は冷たい青→暖色へ。
-            _purifyFill.Size = new Vector2(PurifyGaugeW * game.StageProgress, 6);
-            _purifyFill.Color = Ui.Purify.Lerp(Ui.PurifyHi, game.StageProgress);
-            _purifyLabel.Text = $"浄化 {Mathf.RoundToInt(game.StageProgress * 100f)}%";
-        }
-
-        // ボムフラッシュの減衰
-        if (_flashAlpha > 0f)
-        {
-            _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
-            _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
-        }
+        // タイプライター送り
+        if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
+            _dlgRevealed = Mathf.Min(_dlgText.Length, _dlgRevealed + (float)delta * CharsPerSec);
 
         if (_messageTimer > 0)
         {
-            if (!HoldBubble) _messageTimer -= delta; // 手動送り中は減らさない＝消えない
-            if (_messageTimer <= 0)
-            {
-                _messageLabel.Visible = false;
-                _speakerLabel.Visible = false;
-                _bubble.Visible = false;
-                _portrait.Visible = false;
-            }
+            if (!HoldBubble) _messageTimer -= delta;
+            if (_messageTimer <= 0) ClearDialog();
         }
-        // 吹き出し表示中は敵を止める。会話が始まった瞬間（false→true）に、
-        // 画面上に飛んでいる敵弾をすべて消す＝しゃべり始めたら攻撃をリセットする。
-        bool nowPaused = _bubble.Visible;
-        if (nowPaused && !BubblePaused)
-            ClearEnemyBullets();
+
+        // 会話開始の瞬間に敵弾を一掃
+        bool nowPaused = _messageTimer > 0 && _dlgIsDialog;
+        if (nowPaused && !BubblePaused) ClearEnemyBullets();
         BubblePaused = nowPaused;
 
-        if (_bannerTimer > 0)
-        {
-            _bannerTimer -= delta;
-            if (_bannerTimer <= 0)
-            {
-                _bannerLabel.Visible = false;
-            }
-        }
+        if (_bannerTimer > 0) { _bannerTimer -= delta; }
+
+        _canvas.QueueRedraw();
     }
 
-    // 会話開始時に画面上の敵弾を一掃する（攻撃のリセット）。
     private void ClearEnemyBullets()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
-            if (n is Bullet b && b.Active)
-                pool.Despawn(b);
+            if (n is Bullet b && b.Active) pool.Despawn(b);
     }
 
-    // テロップ（吹き出し）でメッセージ表示。立ち絵なし。
+    private void ClearDialog()
+    {
+        _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgRevealed = 0;
+    }
+
+    // ───────── テキストボックスの行の種類 ─────────
+    public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5 }
+
     public void ShowMessage(string text)
     {
-        _portrait.Visible = false;
-        LayoutBubble(text, dialog: false);
+        SetDialog(text, "", default, dialog: false, portrait: "");
         _messageTimer = 4.5;
     }
 
-    // テキストボックスに出す「行の種類」。誰のセリフ／ナレ／投稿／中継かを区別する。
-    public enum LineKind
-    {
-        Boy = 0,        // 少年のセリフ
-        Mina = 1,       // ミナのセリフ
-        Other = 2,      // 相手（ボス）のセリフ
-        Narration = 3,  // 地の文・記憶（ミナの語り）＝話者名なし・中央寄せ
-        Post = 4,       // X投稿（UI本文）＝「Ｘ 投稿」枠
-        Relay = 5,      // 中継：少年の言葉をミナの声で届ける
-    }
-
-    // 話者名の色（Refrain: 少年＝浄化シアン／ミナ＝紫／相手＝穢れマゼンタ／投稿＝ミュート）。
-    private static readonly Color SpeakerBoyCol = Ui.Purify;
-    private static readonly Color SpeakerMinaCol = Ui.Mina;
-    private static readonly Color SpeakerOtherCol = Ui.Kegare;
-    private static readonly Color SpeakerPostCol = Ui.TextMuted;
-
-    // algo が話す会話（立ち絵＋吹き出し）。旧チュートリアル用。話者名は出さない。
     public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
 
-    // 話者の立ち絵を指定して会話表示（旧API：話者名ラベルなし）。
-    // 立ち絵が無い／読み込めない場合は立ち絵を隠す（前の話者の絵が残らないように）。
     public void ShowDialog(string text, string portraitResPath)
     {
-        SetPortrait(portraitResPath);
-        LayoutBubble(text, dialog: true);
+        SetDialog(text, "", default, dialog: true, portrait: portraitResPath);
         _messageTimer = 6.0;
     }
 
-    // 種類つき会話表示。話者名ラベルと描き分け（地の文＝中央ナレ／投稿＝Ｘ枠／中継＝少年(ミナの声)）。
-    // portrait は呼び出し側が指定（少年は行ごとの表情、相手はそのボスの立ち絵）。
-    // otherName は LineKind.Other のときの話者名（例「レイ」）。
     public void ShowDialog(LineKind kind, string text, string portrait = "", string otherName = "")
     {
-        string speaker;
-        Color color;
-        bool dialog = true;
-        string portraitToUse = portrait;
+        string speaker; Color color; bool dialog = true; string portraitToUse = portrait;
         switch (kind)
         {
-            case LineKind.Boy:   speaker = "少年"; color = SpeakerBoyCol; break;
-            case LineKind.Mina:  speaker = "ミナ"; color = SpeakerMinaCol; break;
-            case LineKind.Other: speaker = otherName; color = SpeakerOtherCol; break;
-            case LineKind.Relay: speaker = "少年（ミナの声）"; color = SpeakerBoyCol; break;
-            case LineKind.Post:  speaker = "Ｘ 投稿"; color = SpeakerPostCol; portraitToUse = ""; break;
-            default: // Narration：話者名なし・立ち絵なし・テロップ調（中央寄せ）で「語り」と分かる
-                speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
+            case LineKind.Boy:   speaker = "少年"; color = UiKit.Info; break;
+            case LineKind.Mina:  speaker = "ミナ"; color = UiKit.Mina; break;
+            case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
+            case LineKind.Relay: speaker = "少年（ミナの声）"; color = UiKit.Info; break;
+            case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
+            default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        SetPortrait(portraitToUse);
-        LayoutBubble(text, dialog: dialog, speaker: speaker, speakerColor: color);
+        SetDialog(text, speaker, color, dialog, portraitToUse);
         _messageTimer = 6.0;
     }
 
-    private void SetPortrait(string portraitResPath)
+    private void SetDialog(string text, string speaker, Color speakerCol, bool dialog, string portrait)
     {
-        Texture2D? tex = string.IsNullOrEmpty(portraitResPath)
-            ? null : ResourceLoader.Load<Texture2D>(portraitResPath);
-        if (tex != null) { _portrait.Texture = tex; _portrait.Visible = true; }
-        else _portrait.Visible = false; // 地の文／立ち絵未用意の話者は立ち絵なし
+        _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
+        _dlgIsDialog = dialog; _dlgRevealed = 0;
+        _dlgPortrait = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
     }
 
-    // 吹き出しとテキストを配置。日本語は空白が無いので任意位置で折り返し、
-    // テキスト量に応じて吹き出しの高さを自動調整して下端に揃える（はみ出し防止）。
-    private void LayoutBubble(string text, bool dialog, string speaker = "", Color? speakerColor = null)
-    {
-        const float padX = 6f, padY = 5f, margin = 4f;
-        float bubbleX = dialog ? 60f : 18f;
-        float bubbleW = dialog ? 316f : 348f;
-        float innerW = bubbleW - padX * 2f;
-        var halign = dialog ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+    public void HideBubble() { _messageTimer = 0; ClearDialog(); }
 
-        _messageLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart; // 単語境界優先で自然に折り返す
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; }
 
-        // 折り返し後の高さを実測（WordSmart に合わせ WordBound+GraphemeBound で計測）
-        float textH = 14f;
-        if (_font != null)
-        {
-            Vector2 sz = _font.GetMultilineStringSize(
-                text, halign, innerW, 12, -1,
-                TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-            textH = Mathf.Max(14f, Mathf.Ceil(sz.Y) + 2f);
-        }
-        float bubbleH = textH + padY * 2f;
-        float bubbleY = Main.ScreenHeight - bubbleH - margin;
+    public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
 
-        _bubble.Position = new Vector2(bubbleX, bubbleY);
-        _bubble.SetBox(new Vector2(bubbleW, bubbleH), dialog ? 8f : bubbleW / 2f - 4f);
-
-        _messageLabel.Position = new Vector2(bubbleX + padX, bubbleY + padY);
-        _messageLabel.Size = new Vector2(innerW, textH);
-        _messageLabel.HorizontalAlignment = halign;
-        _messageLabel.VerticalAlignment = VerticalAlignment.Top;
-        _messageLabel.Text = text;
-
-        _bubble.Visible = true;
-        _messageLabel.Visible = true;
-
-        // 話者名ラベルを吹き出しの左上に乗せる（空＝地の文等は非表示）
-        if (!string.IsNullOrEmpty(speaker))
-        {
-            _speakerLabel.Text = speaker;
-            _speakerLabel.AddThemeColorOverride("font_color", speakerColor ?? new Color(0.3f, 0.3f, 0.3f));
-            _speakerLabel.Position = new Vector2(bubbleX + 4f, bubbleY - 13f);
-            _speakerLabel.Size = new Vector2(bubbleW - 8f, 12f);
-            _speakerLabel.Visible = true;
-        }
-        else _speakerLabel.Visible = false;
-    }
-
-    // 吹き出しを即座に閉じる（手動送りの終了時に呼ぶ）。
-    public void HideBubble()
-    {
-        _messageTimer = 0;
-        _messageLabel.Visible = false;
-        _speakerLabel.Visible = false;
-        _bubble.Visible = false;
-        _portrait.Visible = false;
-    }
-
-    // 中央大きめの一時バナー（例: "STAGE CLEAR!"）。
-    public void ShowBanner(string text)
-    {
-        _bannerLabel.Text = text;
-        _bannerLabel.Visible = true;
-        _bannerTimer = 5.0;
-    }
-
-    // ヒカゲ専用スキルの表示（加入時のみ。準備OKでピンク、充填中はグレー）。
-    public void SetHikageSkill(bool has, bool ready)
-    {
-        _skillLabel.Visible = has;
-        if (!has) return;
-        _skillLabel.Text = ready ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
-        _skillLabel.AddThemeColorOverride("font_color", ready ? Ui.Hp : Ui.TextMuted);
-    }
-
-    // ボスHPバー表示／更新／非表示。
     public void ShowBossBar(string bossName)
     {
-        _bossLabel.Text = bossName;
-        _bossBg.Visible = true;
-        _bossFill.Visible = true;
-        _bossLabel.Visible = true;
+        _bossName = bossName; _bossVisible = true;
+        _bossHandle = "@" + System.Text.RegularExpressions.Regex.Replace(bossName, "[^A-Za-z0-9]", "").ToLower();
+        if (_bossHandle.Length <= 1) _bossHandle = "@boss";
+    }
+    public void UpdateBossBar(float frac) { _bossFrac = Mathf.Clamp(frac, 0f, 1f); }
+    public void HideBossBar() { _bossVisible = false; }
+
+    public void SetLives(int n) { _lives = Mathf.Max(0, n); }
+
+    public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
+    public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
+
+    // ───────── 描画（子 HudCanvas から呼ばれる。設計座標 1280x720）─────────
+    public void DrawAll(HudCanvas ci)
+    {
+        UiKit.BeginDesign(ci);
+        DrawLifeBomb(ci);
+        DrawPurify(ci);
+        DrawScore(ci);
+        if (_bossVisible) DrawBossCard(ci);
+        if (_skillHas) DrawSkill(ci);
+        DrawTicker(ci);
+        if (_dlgText.Length > 0) DrawDialog(ci);
+        if (_bannerTimer > 0) DrawBanner(ci);
+        // 被弾エッジ
+        if (_hurtEdge > 0)
+            UiKit.Box(ci, new Rect2(8, 8, 1280 - 16, 720 - 16), null, 18f, new Color(0.9f, 0.16f, 0.16f, 0.5f * (float)(_hurtEdge / 0.9)), 14f);
+        // フラッシュ（全画面・最前面）
+        if (_flashAlpha > 0f)
+            ci.DrawRect(new Rect2(0, 0, 1280, 720), new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha));
+        UiKit.EndDesign(ci);
     }
 
-    public void UpdateBossBar(float frac)
+    private void GlassPanel(HudCanvas ci, Rect2 r, Color? border = null)
+        => UiKit.Box(ci, r, new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f, border ?? new Color(1, 1, 1, 0.12f), 1f);
+
+    private void DrawLifeBomb(HudCanvas ci)
     {
-        _bossFill.Size = new Vector2(BossBarW * Mathf.Clamp(frac, 0f, 1f), 7);
+        int maxLives = Mathf.Max(_lives, _game?.StartLives ?? 4);
+        int bombs = _game?.Bombs ?? 0;
+        int maxBombs = Mathf.Max(bombs, _game?.StartBombs ?? 4);
+        bool low = _lives <= 2;
+
+        float x = 22, y = 20, w = 70 + maxLives * 25, h = 78;
+        GlassPanel(ci, new Rect2(x, y, w, h), low ? new Color(1f, 0.35f, 0.42f, 0.4f) : null);
+        // LIFE
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 14), "LIFE", 12, UiKit.Text2);
+        float hx = x + 70;
+        for (int i = 0; i < maxLives; i++)
+        {
+            Color hc = i < _lives ? (low ? new Color("ff5a6a") : UiKit.Hp) : new Color(UiKit.Hp, 0.22f);
+            UiKit.Heart(ci, new Vector2(hx + i * 25 + 10, y + 22), 10f, hc);
+        }
+        ci.DrawRect(new Rect2(x + 14, y + 42, w - 28, 1f), new Color(1, 1, 1, 0.08f));
+        // BOMB
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 52), "BOMB", 11, new Color("c8b0ec"));
+        float bx = x + 70;
+        for (int i = 0; i < maxBombs; i++)
+            ci.DrawCircle(new Vector2(bx + i * 16 + 6, y + 58), 5f, i < bombs ? UiKit.Mina : new Color(UiKit.Mina, 0.28f));
     }
 
-    public void HideBossBar()
+    private void DrawPurify(HudCanvas ci)
     {
-        _bossBg.Visible = false;
-        _bossFill.Visible = false;
-        _bossLabel.Visible = false;
+        float prog = _game?.StageProgress ?? 0f;
+        bool full = prog >= 0.999f;
+        float capW = 420, x = 640 - capW / 2f, y = 20, h = 30;
+        UiKit.Box(ci, new Rect2(x, y, capW, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 15f,
+            full ? new Color(UiKit.PurifyHi, 0.9f) : new Color(1, 1, 1, 0.12f), full ? 1.5f : 1f);
+        ci.DrawCircle(new Vector2(x + 22, y + h / 2f), 7f, UiKit.Purify);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 38, y + 7), "浄化", 13, UiKit.Info);
+        float barX = x + 80, barW = capW - 80 - 56, barY = y + h / 2f - 5;
+        UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.08f), 5f);
+        if (prog > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * prog, 10f), full ? UiKit.PurifyHi : UiKit.Purify, 5f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + capW - 50, y + 6), $"{Mathf.RoundToInt(prog * 100f)}%", 15, UiKit.PurifyHi, HorizontalAlignment.Right, 42);
     }
 
-    // 残機表示の更新（ドットハート）。
-    public void SetLives(int n)
+    private void DrawScore(HudCanvas ci)
     {
-        _hearts.SetCount(n);
+        long score = _game?.Score ?? 0;
+        float w = 220, x = 1280 - 22 - w, y = 20;
+        UiKit.Box(ci, new Rect2(x, y, w, 36f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 14f, new Color(UiKit.Gold, 0.3f), 1f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 14, y + 12), "SCORE", 11, new Color("f0d98a"));
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, score.ToString("000,000"), 22), y + 6), score.ToString("000,000"), 22, new Color("f0d98a"));
+
+        // テレメトリ・チップ（イ＝インプレ / コンボ or フォロワー）
+        long imp = _game?.RunImpression ?? 0;
+        int combo = _game?.Combo ?? 0;
+        string c1 = "イ " + UiKit.Abbrev(imp);
+        string c2 = combo >= 2 ? $"× {combo}" : UiKit.Abbrev(_game?.Followers ?? 0);
+        float cy = y + 44;
+        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11);
+        float c2x = 1280 - 22 - c2w;
+        UiKit.Box(ci, new Rect2(c2x, cy, c2w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(c2x + 12, cy + 5), c2, 11, new Color("c8b0ec"));
+        float c1w = 30 + UiKit.TextW(UiKit.Mono, c1, 11);
+        float c1x = c2x - 7 - c1w;
+        UiKit.Box(ci, new Rect2(c1x, cy, c1w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.4f), 1f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(c1x + 12, cy + 5), c1, 11, UiKit.Info);
     }
 
-    // ボム発動時の全画面フラッシュ（白）。
-    public void Flash()
+    private void DrawBossCard(HudCanvas ci)
     {
-        _flashRgb = new Color(1f, 1f, 1f);
-        _flashAlpha = 0.55f;
-        _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
+        float w = 560, x = 640 - w / 2f, y = 60, h = 60;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(18 / 255f, 12 / 255f, 22 / 255f, 0.62f), 16f, new Color(UiKit.Kegare, 0.4f), 1.2f);
+        // アバター（穢れ）＋認証
+        Vector2 ac = new(x + 34, y + h / 2f);
+        UiKit.RadialGlow(ci, ac, 28f, UiKit.Kegare, 0.4f);
+        ci.DrawCircle(ac, 22f, new Color(0.35f, 0.13f, 0.27f));
+        ci.DrawCircle(ac + new Vector2(15, 15), 9f, UiKit.Kegare);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 11, ac.Y + 6), "✓", 11, UiKit.White);
+        // 名前＋ハンドル＋リプ
+        float tx = x + 70;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 10), _bossName, 16, UiKit.White);
+        float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 16);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 14), _bossHandle, 12, UiKit.Text3);
+        string rep = UiKit.Abbrev((long)(_bossReplies * _bossFrac));
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, rep, 12), y + 12), rep, 12, new Color("f0a8cf"));
+        // 穢れバー
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 36), "穢れ", 10, new Color("f0a8cf"));
+        float barX = tx + 34, barW = w - (barX - x) - 60, barY = y + 37;
+        UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
+        if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), UiKit.Kegare, 5f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{Mathf.RoundToInt(_bossFrac * 100f)}%", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
     }
 
-    // 被弾時の全画面フラッシュ（赤）。何に当たったか分かるよう強めに。
-    public void HitFlash()
+    private void DrawSkill(HudCanvas ci)
     {
-        _flashRgb = new Color(1f, 0.2f, 0.28f);
-        _flashAlpha = 0.7f;
-        _flash.Color = new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha);
+        string txt = _skillReady ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(22, 104), txt, 13, _skillReady ? UiKit.Hp : UiKit.Text3);
     }
+
+    private void DrawTicker(HudCanvas ci)
+    {
+        float barH = 38, y = 720 - barH;
+        UiKit.VGradient(ci, new Rect2(0, y, 1280, barH),
+            new[] { new Color(10 / 255f, 8 / 255f, 16 / 255f, 0f), new Color(10 / 255f, 8 / 255f, 16 / 255f, 0.82f) }, new[] { 0f, 1f });
+        ci.DrawRect(new Rect2(0, y, 1280, 1f), new Color(UiKit.Kegare, 0.18f));
+        // ラベル
+        ci.DrawRect(new Rect2(0, y, 150, barH), new Color(UiKit.Kegare, 0.14f));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(14, y + barH / 2f - 7), "降ってくる言葉", 12, new Color("f0a8cf"));
+        // スクロール
+        float startX = 164, gap = 40;
+        float block = 0f;
+        foreach (var (h, wd) in TickerWords) block += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
+        float scroll = ((float)_t * 70f) % block;
+        float cx = startX - scroll + block; // 1ブロック先行
+        for (int rep = 0; rep < 3; rep++)
+        {
+            foreach (var (h, wd) in TickerWords)
+            {
+                if (cx > 150 && cx < 1280)
+                {
+                    UiKit.Text(ci, UiKit.Mono, new Vector2(cx, y + barH / 2f - 7), h, 12, UiKit.Text3);
+                    float hw = UiKit.TextW(UiKit.Mono, h, 12) + 6;
+                    UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, y + barH / 2f - 8), wd, 14, UiKit.Text2);
+                }
+                cx += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
+            }
+        }
+    }
+
+    private void DrawDialog(HudCanvas ci)
+    {
+        int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, _dlgText.Length);
+        string shown = _dlgText.Substring(0, n);
+
+        if (!_dlgIsDialog)
+        {
+            // ナレーション：中央寄せの淡いテロップ（バー無し）
+            UiKit.Box(ci, new Rect2(140, 600, 1000, 80), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
+            UiKit.Multi(ci, UiKit.Zen, new Vector2(180, 618), shown, 20, new Color(0.9f, 0.9f, 0.95f), 920, 2);
+            return;
+        }
+
+        // シネマ下部バー
+        float x = 40, y = 540, w = 1200, h = 150;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.95f), 16f, new Color(_dlgSpeakerCol, 0.5f), 1.4f);
+        float textX = x + 36;
+        // 立ち絵（あれば左に）
+        if (_dlgPortrait != null)
+        {
+            float ph = h - 8, pw = ph * _dlgPortrait.GetWidth() / Mathf.Max(1, _dlgPortrait.GetHeight());
+            ci.DrawTextureRect(_dlgPortrait, new Rect2(x + 10, y + 4, pw, ph), false);
+            textX = x + 10 + pw + 20;
+        }
+        if (_dlgSpeaker.Length > 0)
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 18), _dlgSpeaker, 18, _dlgSpeakerCol);
+        UiKit.Multi(ci, UiKit.Zen, new Vector2(textX, y + 52), shown, 22, new Color(0.95f, 0.95f, 0.98f), x + w - textX - 30, 3);
+    }
+
+    private void DrawBanner(HudCanvas ci)
+    {
+        float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
+        float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, 52);
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, 52, new Color(UiKit.Light, a),
+            HorizontalAlignment.Left, -1);
+    }
+}
+
+// HUD 描画用ノード（Hud にぶら下げ、Hud.DrawAll を呼ぶだけ）。
+public partial class HudCanvas : Node2D
+{
+    public Hud Hud = null!;
+    public override void _Draw() => Hud?.DrawAll(this);
 }
