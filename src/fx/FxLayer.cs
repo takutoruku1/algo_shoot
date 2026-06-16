@@ -57,7 +57,7 @@ public partial class FxLayer : Node2D
         Instance = this;
         ZIndex = 20;
         _rng.Randomize();
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
+        _font = UiKit.Mono; // 非ピクセル（演出の数値・ラベル）
 
         _add = new AddDraw { Owner2D = this, ZIndex = 21, ZAsRelative = false };
         _add.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };

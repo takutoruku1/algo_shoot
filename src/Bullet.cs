@@ -31,16 +31,7 @@ public partial class Bullet : Area2D
     {
         get
         {
-            if (_wordFont == null)
-            {
-                _wordFont = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-                if (_wordFont != null)
-                {
-                    _wordFont.Antialiasing = TextServer.FontAntialiasing.None;
-                    _wordFont.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-                    _wordFont.Hinting = TextServer.Hinting.None;
-                }
-            }
+            _wordFont ??= UiKit.Zen; // 言葉弾も滑らかゴシック（非ピクセル）
             return _wordFont;
         }
     }

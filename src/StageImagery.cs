@@ -20,13 +20,7 @@ public partial class StageImagery : Node2D
         ZIndex = -50;
         ZAsRelative = false;
         AddToGroup("imagery");
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-        if (_font != null)
-        {
-            _font.Antialiasing = TextServer.FontAntialiasing.None;
-            _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-            _font.Hinting = TextServer.Hinting.None;
-        }
+        _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
     }
 
     // BossAkari の「地・記憶」行で呼ばれ、雨の交差点のフラッシュを一瞬焚く（伏線：あかりとの記憶）。

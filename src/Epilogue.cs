@@ -47,13 +47,7 @@ public partial class Epilogue : Node2D
 
     public override void _Ready()
     {
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-        if (_font != null)
-        {
-            _font.Antialiasing = TextServer.FontAntialiasing.None;
-            _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-            _font.Hinting = TextServer.Hinting.None;
-        }
+        _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
 
         void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
         I("地", "次の日、ご主人様は来ませんでした。");

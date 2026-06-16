@@ -49,13 +49,7 @@ public partial class Prologue : Node2D
 
     public override void _Ready()
     {
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-        if (_font != null)
-        {
-            _font.Antialiasing = TextServer.FontAntialiasing.None;
-            _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-            _font.Hinting = TextServer.Hinting.None;
-        }
+        _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
         _diffSel = (int)(GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal);
 
         // コードレインの行（ブートログ＋それっぽいフィラー）
@@ -246,11 +240,11 @@ public partial class Prologue : Node2D
         // ボックス
         DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.82f));
         DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
-        // 話者名
-        DrawString(_font, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9,
+        // 話者名（滑らかゴシック）
+        DrawString(UiKit.ZenBold, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9,
             mina ? Cool : Warm);
         // 本文（折り返し：単語境界優先で日本語の改行を自然に）
-        DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
+        DrawMultilineString(UiKit.Zen, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
         // 送り三角（名前の由来の“間”の最中は出さない＝不自然な沈黙）

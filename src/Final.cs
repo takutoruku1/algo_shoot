@@ -34,13 +34,7 @@ public partial class Final : Node2D
     public override void _Ready()
     {
         _rng.Randomize();
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
-        if (_font != null)
-        {
-            _font.Antialiasing = TextServer.FontAntialiasing.None;
-            _font.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
-            _font.Hinting = TextServer.Hinting.None;
-        }
+        _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
         // 汚染ゲージの終着点：黒く溶ける。
         GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(1f);
 
