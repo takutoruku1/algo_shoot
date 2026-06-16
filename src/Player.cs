@@ -94,6 +94,9 @@ public partial class Player : Area2D
     // 残機
     public int Lives { get; private set; } = 3;
 
+    // 自機の見た目スキン（"mina"=銀髪メイド / "boy"=少年）。AddChild 前にセットする。
+    public string Skin = "mina";
+
     // 無敵・点滅
     private bool _invincible = false;
     private float _invincibleTimer = 0f;
@@ -155,7 +158,8 @@ public partial class Player : Area2D
 
         // テクスチャ読み込み（失敗時は _Draw フォールバック）
         // ドット絵スプライトを優先。無ければ透過カットアウト→元イラストにフォールバック。
-        var tex = ResourceLoader.Load<Texture2D>("res://char/mina_idle.png")
+        var tex = (Skin == "boy" ? ResourceLoader.Load<Texture2D>("res://char/shonen_idle.png") : null)
+                  ?? ResourceLoader.Load<Texture2D>("res://char/mina_idle.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");

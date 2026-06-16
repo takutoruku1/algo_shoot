@@ -1,0 +1,152 @@
+using Godot;
+
+// StageMina : FINAL「暴走したミナ」進行。役割反転——少年が操作して、暴走したミナの穢れを撃ち祓う。
+//   1: 導入（少年がミナの内側へ）
+//   2: ボス出現（BossMina）
+//   3: ボス戦（撃破＝穢れを祓う／中で短い邂逅セリフ）
+//   4: Final（対話で帰還）へ
+public partial class StageMina : Node
+{
+    public Player Player = null!;
+    public Hud Hud = null!;
+    public Node2D World = null!;
+
+    private int _step;
+    private bool _stepStarted;
+    private double _stepTime;
+    private double _lineHold;
+    private int _introLine;
+    private BossMina _boss = null!;
+    private bool _bossActive;
+    private double _rainT;
+    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
+    private bool _zHeld, _zEdge, _startBannerShown;
+
+    private const float SpawnX = 300f;
+    private const string SCocky = "res://char/shonen_face.png";
+    private const string SGentle = "res://char/shonen_gentle.png";
+    private const string SProud = "res://char/shonen_proud.png";
+
+    // 導入（who: 0=少年 / 1=ミナ / 3=地の文）。
+    private static readonly (int who, string text, string face)[] Intro =
+    {
+        (3, "三人ぶんの穢れが、ミナの中で——限界に達した。", ""),
+        (3, "銀の光が、黒く溶けていく。世界中の悲鳴が、彼女に流れ込む。", ""),
+        (0, "……ぼくは、ずっと見てるだけだった。光を、お前に握らせて。", SGentle),
+        (0, "今度は、ぼくが行く番だ。待ってろ、ミナ。", SProud),
+    };
+
+    public override void _Ready()
+    {
+        _rng.Randomize();
+        _step = 1;
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1);
+    }
+
+    public override void _Process(double delta)
+    {
+        _stepTime += delta;
+        _lineHold += delta;
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        _zEdge = z && !_zHeld;
+        _zHeld = z;
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("FINAL — 暴走"); }
+        switch (_step)
+        {
+            case 1: Step_Lines(delta, Intro); break;
+            case 2: Step_BossSpawn(); break;
+            case 3: Step_BossWait(); break;
+            case 4: Step_Transition(); break;
+        }
+        if (_bossActive) Rain(delta);
+    }
+
+    private void Advance() { _step++; _stepStarted = false; _stepTime = 0; }
+
+    private void Step_Lines(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _introLine = 0; _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
+            Hud.HoldBubble = true;
+            ShowLine(lines);
+        }
+        if (_zEdge && _lineHold >= 0.25)
+        {
+            _lineHold = 0; _introLine++;
+            if (_introLine >= lines.Length)
+            {
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                Advance();
+                return;
+            }
+            ShowLine(lines);
+        }
+    }
+
+    private void ShowLine((int who, string text, string face)[] lines)
+    {
+        var (who, text, face) = lines[_introLine];
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => face,
+            _ => "res://char/mina_face.png",
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
+    }
+
+    private void Step_BossSpawn()
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _boss = new BossMina { Name = "BossMina" };
+            World.AddChild(_boss);
+            _boss.GlobalPosition = new Vector2(SpawnX, 70f);
+            _bossActive = true;
+            Advance();
+        }
+    }
+
+    private void Step_BossWait()
+    {
+        if (!IsInstanceValid(_boss) || _boss.Finished)
+        {
+            _bossActive = false;
+            Advance();
+        }
+    }
+
+    private bool _clearing;
+    private void Step_Transition()
+    {
+        if (_clearing) return;
+        _clearing = true;
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。
+        GetTree().ChangeSceneToFile("res://Final.tscn");
+    }
+
+    // 暴走中に渦巻く悲鳴の言葉（会話中は止む）。
+    private int _wordTick;
+    private static readonly string[] Words = { "むだだよ", "どうせ", "ごめんなさい", "とどかない", "もういない", "わたしのせいだ" };
+    private void Rain(double delta)
+    {
+        if (Hud.BubblePaused) return;
+        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        if (pool == null) return;
+        _rainT += delta;
+        float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
+        if (_rainT < 0.2 * mul) return;
+        _rainT = 0;
+        if ((++_wordTick % 6) == 0)
+        {
+            var b = pool.Spawn(new Vector2(_rng.RandfRange(40f, 344f), -6f), new Vector2(0, _rng.RandfRange(46f, 74f)), isEnemy: true, 4f, 1);
+            b?.SetWord(Words[_rng.RandiRange(0, Words.Length - 1)]);
+        }
+    }
+}

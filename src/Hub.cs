@@ -97,7 +97,7 @@ public partial class Hub : Node2D
         {
             list.Add(new Entry
             {
-                IsFinal = true, Id = "final", Scene = "res://Final.tscn", Name = "ミナ", Handle = "@mina_ai_",
+                IsFinal = true, Id = "final", Scene = "res://MinaBattle.tscn", Name = "ミナ", Handle = "@mina_ai_",
                 Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                 Unlocked = true, Cleared = false,
             });
@@ -228,7 +228,7 @@ public partial class Hub : Node2D
         if (next != null)
             foreach (var s in GameManager.Stages)
                 if (s.Id == next) { Dive(s.Scene); return; }
-        Dive("res://Final.tscn");
+        Dive("res://MinaBattle.tscn");
     }
 
     private void Dive(string scene)
