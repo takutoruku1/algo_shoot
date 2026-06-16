@@ -77,8 +77,8 @@ public partial class Hud : CanvasLayer
             if (_messageTimer <= 0) ClearDialog();
         }
 
-        // 会話開始の瞬間に敵弾を一掃
-        bool nowPaused = _messageTimer > 0 && _dlgIsDialog;
+        // 会話・メッセージ表示中は敵を止める（種類を問わず。旧挙動を踏襲）。開始の瞬間に敵弾を一掃。
+        bool nowPaused = _messageTimer > 0 && _dlgText.Length > 0;
         if (nowPaused && !BubblePaused) ClearEnemyBullets();
         BubblePaused = nowPaused;
 
