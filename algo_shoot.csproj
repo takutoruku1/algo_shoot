@@ -4,4 +4,8 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <!-- UI/RefrainScripts は Unity C# のデザイン参照（UnityEngine 依存）。Godot ビルドには含めない。 -->
+  <ItemGroup>
+    <Compile Remove="UI\**\*.cs" />
+  </ItemGroup>
 </Project>

@@ -5,24 +5,36 @@ using Godot;
 //   （配置をピクセル単位で完全制御するため）。角丸カードは StyleBoxFlat。
 public static class Ui
 {
-    // ── 配色（X ダークモード基調）──
-    public static readonly Color Bg = new(0.075f, 0.086f, 0.102f);     // ほぼ黒（青み）
-    public static readonly Color HeaderBg = new(0.098f, 0.110f, 0.129f);
-    public static readonly Color Divider = new(0.18f, 0.20f, 0.23f);
-    public static readonly Color Card = new(0.118f, 0.133f, 0.157f);
-    public static readonly Color CardSel = new(0.150f, 0.180f, 0.220f);
-    public static readonly Color CardLocked = new(0.092f, 0.100f, 0.115f);
-    public static readonly Color Border = new(0.20f, 0.23f, 0.27f);
-    public static readonly Color Blue = new(0.114f, 0.608f, 0.941f);    // X ブルー #1d9bf0
-    public static readonly Color TextMain = new(0.906f, 0.914f, 0.918f);
-    public static readonly Color TextSub = new(0.62f, 0.65f, 0.69f);
-    public static readonly Color TextMuted = new(0.42f, 0.46f, 0.50f);
-    public static readonly Color Mina = new(0.83f, 0.46f, 0.72f);       // ミナ＝桃紫
-    public static readonly Color Like = new(0.97f, 0.18f, 0.52f);       // いいね
-    public static readonly Color Repost = new(0.0f, 0.73f, 0.49f);      // リポスト
-    public static readonly Color Contam = new(0.55f, 0.33f, 0.78f);     // 汚染
-    public static readonly Color Burn = new(0.96f, 0.20f, 0.24f);       // 炎上
-    public static readonly Color Ok = new(0.18f, 0.78f, 0.55f);
+    // ── 配色（Refrain of Light デザイントークン: スキャフォールド RefrainTheme 準拠）──
+    //   深い夜紫のサーフェスに、役割色（浄化シアン／ミナ紫／穢れマゼンタ／HP桃／SCORE金）を載せる。
+    //   面: BgDeep #070a16 / Panel #14101e。テキストは紫味の階調。
+    public static readonly Color Bg = new("070a16");         // BgDeep 深い夜（最背面）
+    public static readonly Color HeaderBg = new("0d0b1a");   // ヘッダ面（Panel より僅かに明）
+    public static readonly Color Divider = new("241d36");    // 紫味の区切り線
+    public static readonly Color Card = new("171225");       // カード面（Panel 近傍）
+    public static readonly Color CardSel = new("241a38");    // 選択カード面
+    public static readonly Color CardLocked = new("0f0b18"); // ロック面（沈める）
+    public static readonly Color Border = new("2c2442");     // 枠線
+    public static readonly Color Blue = new("6cbcd8");       // ＝Purify 浄化シアン（選択ハイライト/アクセント）
+    public static readonly Color TextMain = new("eef1f6");   // Text
+    public static readonly Color TextSub = new("c8b8d8");    // Text2（紫味）
+    public static readonly Color TextMuted = new("8a7a9a");  // Text3
+    public static readonly Color Mina = new("9a72d9");       // ミナ／BOMB＝紫
+    public static readonly Color Like = new("e8769c");       // いいね＝HP桃
+    public static readonly Color Repost = new("00ba7c");     // リポスト＝緑
+    public static readonly Color Contam = new("e072ac");     // 汚染／穢れ＝マゼンタ（Kegare）
+    public static readonly Color Burn = new("f2353d");       // 炎上＝赤
+    public static readonly Color Ok = new("2ec78c");
+
+    // ── 追加の役割色トークン（HUD 等で直接使う）──
+    public static readonly Color Hp = new("e8769c");         // 体力＝桃
+    public static readonly Color Bomb = new("9a72d9");       // ボム＝紫（＝Mina）
+    public static readonly Color Purify = new("6cbcd8");     // 浄化／光＝シアン
+    public static readonly Color PurifyHi = new("d7f3ff");   // 浄化100%の冴え
+    public static readonly Color Kegare = new("e072ac");     // ボス穢れ＝マゼンタ
+    public static readonly Color Score = new("e8c45a");      // SCORE／インプレ＝金
+    public static readonly Color Light = new("ffd98a");      // 本人（光）＝淡い金
+    public static readonly Color OutlineDark = new(0.027f, 0.039f, 0.086f, 0.78f); // HUD文字の暗縁（明背景でも読める）
 
     // アカウント別アバター色。
     public static Color AccountColor(string id) => id switch

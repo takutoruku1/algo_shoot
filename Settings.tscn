@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0algosetng000"]
+
+[ext_resource type="Script" path="res://src/Settings.cs" id="1_set"]
+
+[node name="Settings" type="Node2D"]
+script = ExtResource("1_set")

@@ -1,16 +1,14 @@
 using Godot;
 
-// Hub : タイムラインハブ（ステージ間の中枢）。ダークモードX風UI。
+// Hub : タイムラインハブ（ステージ間の中枢）。RefrainHTML のデザイン言語で非ピクセル化。
 //   - ヘッダ：ミナのアカウント（アバター/名前/フォロワー/インプレ/汚染）。
-//   - 角丸の投稿カード（NEW/CLEAR/LOCK）を ↑↓ で選び Z でダイブ（通常は難易度選択を挟む）。
+//   - 角丸ガラスの投稿カード（NEW/CLEAR/LOCK）を ↑↓ で選び Z でダイブ（通常は難易度選択を挟む）。
 //   - クリア帰還で少年×ミナの会話＋自動投稿。クリア済カードで C：コメント返信（1回）。
 //   - 全クリアで FINAL カード。autoplay は会話を自動送り→自動ダイブ。
-//   設計: docs/20260613/MINA_システム拡張設計書_v1.md ④-3 / ③
 public partial class Hub : Node2D
 {
-    private FontFile _font = null!;
     private GameManager _game = null!;
-    private const float W = 384f, H = 216f;
+    private const float W = UiKit.DesignW, H = UiKit.DesignH;
 
     private struct Entry
     {
@@ -35,15 +33,23 @@ public partial class Hub : Node2D
 
     private double _toastT;
     private string _toast = "";
-    private Color _toastCol = Ui.Ok;
+    private Color _toastCol = UiKit.Info;
 
     private bool _autoplay;
     private const double AutoDiveDelay = 1.1, AutoAdvance = 1.4;
 
+    private static Color AccountColor(string id) => id switch
+    {
+        "mina" => UiKit.Mina,
+        "rei" => new Color(0.90f, 0.52f, 0.38f),
+        "akari" => new Color(0.40f, 0.62f, 0.88f),
+        "koharu" => new Color(0.46f, 0.74f, 0.52f),
+        _ => UiKit.Kegare,
+    };
+
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
@@ -92,7 +98,7 @@ public partial class Hub : Node2D
             list.Add(new Entry
             {
                 IsFinal = true, Id = "final", Scene = "res://Final.tscn", Name = "ミナ", Handle = "@mina_ai_",
-                Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "!",
+                Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                 Unlocked = true, Cleared = false,
             });
         }
@@ -152,19 +158,19 @@ public partial class Hub : Node2D
             _game?.AddFollowers(12);
             _game?.MarkReplied(_dlgReplyId);
             BuildEntries();
-            Toast($"返信が伸びた！  Imp +{imp}  フォロワー +12", Ui.Ok);
+            Toast($"返信が伸びた！  Imp +{imp}  フォロワー +12", UiKit.Ok);
         }
         else
         {
             long imp = _game?.GainImpression(40) ?? 0;
             _game?.AddFollowers(8);
-            Toast($"投稿が届いた  Imp +{imp}  フォロワー +8", Ui.Ok);
+            Toast($"投稿が届いた  Imp +{imp}  フォロワー +8", UiKit.Ok);
         }
         if (_pendingBurn)
         {
             _pendingBurn = false;
             _game?.TriggerBurn();
-            Toast("炎上中… 次のダイブはミナが弱体化します", Ui.Burn);
+            Toast("炎上中… 次のダイブはミナが弱体化します", UiKit.Burn);
         }
         _game?.Save();
         _mode = Mode.Cards;
@@ -236,131 +242,170 @@ public partial class Hub : Node2D
     // ───────── 描画 ─────────
     public override void _Draw()
     {
-        DrawRect(new Rect2(0, 0, W, H), Ui.Bg);
+        UiKit.BeginDesign(this);
+        UiKit.VGradient(this, new Rect2(0, 0, W, H),
+            new[] { new Color("0e1430"), new Color("0a0e22"), new Color("070a16") }, new[] { 0f, 0.55f, 1f });
+        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 500f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.12f);
+        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
+
         DrawHeader();
 
-        if (_mode == Mode.Dialogue) { DrawCardsDim(); DrawDialog(); DrawToast(); return; }
-        DrawCards();
+        if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); UiKit.EndDesign(this); return; }
+        DrawCards(1f);
         DrawFooter();
         DrawToast();
+        UiKit.EndDesign(this);
     }
 
     private void DrawHeader()
     {
-        DrawRect(new Rect2(0, 0, W, 28), Ui.HeaderBg);
-        Ui.Avatar(this, _font, new Vector2(15, 14), 8f, Ui.AccountColor("mina"), "ミ");
-        Ui.Text(this, _font, new Vector2(28, 3), "ミナ", 11, Ui.TextMain);
-        Ui.Text(this, _font, new Vector2(28, 16), "@mina_ai_", 9, Ui.TextSub);
+        float padX = 40f, hy = 24f;
+        UiKit.Avatar(this, new Vector2(padX + 28, hy + 28), 28f, UiKit.Mina, "ミ");
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", 22, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", 14, UiKit.Text3);
 
-        // 右側：フォロワー＆インプレのチップ
         long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
-        string folS = Ui.Abbrev(fol), impS = Ui.Abbrev(imp);
-        float impW = 12f + Ui.TextW(_font, impS, 9);
-        float folW = 12f + Ui.TextW(_font, folS, 9);
-        float impX = W - 8 - impW, folX = impX - 8 - folW;
-        Ui.IconLike(this, new Vector2(folX + 3, 12), Ui.Like);
-        Ui.Text(this, _font, new Vector2(folX + 9, 7), folS, 9, Ui.TextMain);
-        DrawCircle(new Vector2(impX + 3, 12), 2.6f, new Color(0.98f, 0.78f, 0.30f)); // インプレ＝金コイン
-        Ui.Text(this, _font, new Vector2(impX + 9, 7), impS, 9, Ui.TextMain);
+        string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
+        // インプレ（金）
+        float impW = 40f + UiKit.TextW(UiKit.Mono, impS, 18);
+        float impX = W - padX - impW, chipY = hy + 12f;
+        UiKit.Box(this, new Rect2(impX, chipY, impW, 34f), new Color(UiKit.Gold, 0.1f), 17f, new Color(UiKit.Gold, 0.4f), 1f);
+        DrawCircle(new Vector2(impX + 17, chipY + 17), 7f, UiKit.Gold);
+        UiKit.Text(this, UiKit.Mono, new Vector2(impX + 30, chipY + 8), impS, 18, new Color("f0d98a"));
+        // フォロワー（桃ハート）
+        float folW = 40f + UiKit.TextW(UiKit.Mono, folS, 18);
+        float folX = impX - 12 - folW;
+        UiKit.Box(this, new Rect2(folX, chipY, folW, 34f), new Color(UiKit.Hp, 0.1f), 17f, new Color(UiKit.Hp, 0.4f), 1f);
+        DrawHeart(new Vector2(folX + 18, chipY + 17), 6f, UiKit.Hp);
+        UiKit.Text(this, UiKit.Mono, new Vector2(folX + 30, chipY + 8), folS, 18, new Color("f3aec6"));
 
-        DrawRect(new Rect2(0, 27, W, 1), Ui.Divider);
+        DrawRect(new Rect2(0, hy + 64, W, 1f), new Color(1, 1, 1, 0.08f));
         // 汚染バー
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
-        DrawRect(new Rect2(0, 28, W, 1.5f), new Color(Ui.Contam, 0.25f));
-        DrawRect(new Rect2(0, 28, W * contam, 1.5f), Ui.Contam);
+        DrawRect(new Rect2(0, hy + 65, W, 3f), new Color(UiKit.Kegare, 0.18f));
+        if (contam > 0) DrawRect(new Rect2(0, hy + 65, W * contam, 3f), UiKit.Kegare);
     }
 
     private (float top, float h, float gap) CardMetrics()
     {
         int n = Mathf.Max(1, _entries.Length);
-        float top = 34f, bottom = 198f, gap = 5f;
-        float h = Mathf.Min(46f, (bottom - top - gap * (n - 1)) / n);
+        float top = 112f, bottom = 656f, gap = 14f;
+        float h = Mathf.Min(150f, (bottom - top - gap * (n - 1)) / n);
         return (top, h, gap);
     }
 
-    private void DrawCards()
+    private void DrawCards(float alpha)
     {
         var (top, h, gap) = CardMetrics();
         for (int i = 0; i < _entries.Length; i++)
-            DrawCard(_entries[i], top + i * (h + gap), h, i == _sel, 1f);
-    }
-
-    private void DrawCardsDim()
-    {
-        var (top, h, gap) = CardMetrics();
-        for (int i = 0; i < _entries.Length; i++)
-            DrawCard(_entries[i], top + i * (h + gap), h, false, 0.25f);
+            DrawCard(_entries[i], top + i * (h + gap), h, _mode == Mode.Cards && i == _sel, alpha);
     }
 
     private void DrawCard(Entry e, float cy, float h, bool sel, float alpha)
     {
-        float x = 8f, w = W - 16f;
-        Color bg = e.Cleared ? Ui.Card : (e.Unlocked ? Ui.Card : Ui.CardLocked);
-        if (sel) bg = Ui.CardSel;
-        Color border = sel ? Ui.Blue : Ui.Border;
-        Ui.Box(this, new Rect2(x, cy, w, h), new Color(bg, alpha), 6f, new Color(border, alpha), sel ? 1.4f : 0.8f);
-        if (sel) DrawRect(new Rect2(x, cy + 4, 2.5f, h - 8), new Color(Ui.Blue, alpha)); // 左アクセント
+        float x = 40f, w = W - 80f;
+        Color bg = e.Unlocked ? new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f * alpha) : new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.45f * alpha);
+        Color border = sel ? new Color(UiKit.Purify, 0.85f * alpha) : new Color(1, 1, 1, 0.09f * alpha);
+        UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
 
-        Color acc = e.IsFinal ? Ui.Contam : Ui.AccountColor(e.Id);
-        float ax = x + 16, ay = cy + 15;
-        Ui.Avatar(this, _font, new Vector2(ax, ay), 7.5f, new Color(acc, alpha), e.Initial);
+        Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)) with { A = alpha };
+        float ax = x + 36, ay = cy + 36;
+        UiKit.Avatar(this, new Vector2(ax, ay), 24f, acc, e.Initial);
 
-        float tx = x + 30, w2 = w - 38;
-        Color main = new(Ui.TextMain, e.Unlocked ? alpha : alpha * 0.5f);
-        Color sub = new(Ui.TextSub, alpha);
-        // 名前
-        Ui.Text(this, _font, new Vector2(tx, cy + 4), e.Name, 10, main);
-        float nameW = Ui.TextW(_font, e.Name, 10);
-        Ui.Text(this, _font, new Vector2(tx + nameW + 5, cy + 5), e.Handle, 8, sub);
-        // バッジ
+        float tx = x + 74, w2 = w - 110;
+        Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.5f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 16), e.Name, 19, main);
+        float nameW = UiKit.TextW(UiKit.ZenBold, e.Name, 19);
+        UiKit.Text(this, UiKit.Mono, new Vector2(tx + nameW + 12, cy + 22), e.Handle, 13, new Color(UiKit.Text3, alpha));
+
+        // バッジ（右上）
         string badge = e.IsFinal ? "FINAL" : e.Cleared ? "✓ CLEAR" : e.Unlocked ? "NEW" : "LOCKED";
-        Color bcol = e.IsFinal ? Ui.Contam : e.Cleared ? Ui.Repost : e.Unlocked ? Ui.Blue : Ui.TextMuted;
-        float bw = Ui.TextW(_font, badge, 8);
-        Ui.Text(this, _font, new Vector2(x + w - bw - 8, cy + 5), badge, 8, new Color(bcol, alpha));
+        Color bcol = e.IsFinal ? UiKit.Kegare : e.Cleared ? UiKit.Ok : e.Unlocked ? UiKit.Purify : UiKit.Text4;
+        float bw = UiKit.TextW(UiKit.Mono, badge, 12);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - bw - 24, cy + 18), badge, 12, new Color(bcol, alpha));
 
         // 本文
         string body = e.Unlocked ? e.Tweet : "ロック中 — まだダイブできません";
-        Ui.MultiText(this, _font, new Vector2(tx, cy + 16), body, 9, new Color(main, e.Unlocked ? alpha : alpha * 0.6f), w2, 2);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), body, 16, new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? alpha : alpha * 0.6f), w2, 2);
 
         // エンゲージメント（ロック/最終以外）
-        if (e.Unlocked && !e.IsFinal)
+        if (e.Unlocked && !e.IsFinal && h > 110f)
         {
-            float ey = cy + h - 11;
-            float ex = tx;
-            ex = Ui.Engagement(this, _font, ex, ey, 0, e.Replies, new Color(Ui.TextMuted, alpha));
-            ex = Ui.Engagement(this, _font, ex, ey, 1, e.Reposts, new Color(Ui.Repost, alpha));
-            Ui.Engagement(this, _font, ex, ey, 2, e.Likes, new Color(Ui.Like, alpha));
+            float ey = cy + h - 26f, ex = tx;
+            ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
+            ex = Metric(ex, ey, 1, e.Reposts, new Color(0f, 0.73f, 0.49f, alpha));
+            Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
         }
+    }
+
+    // 小さなエンゲージメント指標（0=返信 1=リポスト 2=いいね）。次の x を返す。
+    private float Metric(float x, float y, int kind, long count, Color col)
+    {
+        var c = new Vector2(x + 8, y + 8);
+        switch (kind)
+        {
+            case 0: UiKit.Box(this, new Rect2(c.X - 7, c.Y - 6, 14, 10), null, 3f, col, 1.4f); break;
+            case 1:
+                DrawLine(new Vector2(c.X - 6, c.Y - 3), new Vector2(c.X + 5, c.Y - 3), col, 1.4f);
+                DrawLine(new Vector2(c.X + 6, c.Y + 3), new Vector2(c.X - 5, c.Y + 3), col, 1.4f);
+                break;
+            default: DrawHeart(c, 6f, col); break;
+        }
+        string s = UiKit.Abbrev(count);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 20, y), s, 13, col);
+        return x + 20 + UiKit.TextW(UiKit.Mono, s, 13) + 26;
+    }
+
+    private void DrawHeart(Vector2 c, float r, Color col)
+    {
+        DrawCircle(new Vector2(c.X - r * 0.45f, c.Y - r * 0.25f), r * 0.55f, col);
+        DrawCircle(new Vector2(c.X + r * 0.45f, c.Y - r * 0.25f), r * 0.55f, col);
+        DrawColoredPolygon(new[] { new Vector2(c.X - r * 0.9f, c.Y), new Vector2(c.X + r * 0.9f, c.Y), new Vector2(c.X, c.Y + r) }, col);
     }
 
     private void DrawFooter()
     {
-        string hint = CanReplySel()
-            ? "↑↓ えらぶ   Z ダイブ   C 返信   X 強化"
-            : "↑↓ えらぶ   Z ダイブ   X 強化";
-        Ui.Text(this, _font, new Vector2(8, 202), hint, 9, Ui.TextMuted);
+        float y = H - 40f, x = 40f;
+        x = Hint(x, y, "↑↓", "えらぶ", false);
+        x = Hint(x, y, "Z", "ダイブ", true);
+        if (CanReplySel()) x = Hint(x, y, "C", "返信", false);
+        Hint(x, y, "X", "強化", false);
+    }
+
+    private float Hint(float x, float y, string key, string label, bool accent)
+    {
+        Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
+        Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
+        UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 14, accent ? UiKit.Info : UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 14) + 24f;
     }
 
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        float w = Ui.TextW(_font, _toast, 9) + 16;
-        float x = (W - w) / 2;
-        Ui.Box(this, new Rect2(x, 186, w, 14), new Color(0.10f, 0.12f, 0.15f, 0.96f), 7f, new Color(_toastCol, 0.8f), 1f);
-        Ui.Text(this, _font, new Vector2(x + 8, 188), _toast, 9, _toastCol);
+        float w = UiKit.TextW(UiKit.ZenBold, _toast, 15) + 48;
+        float x = (W - w) / 2f;
+        UiKit.Box(this, new Rect2(x, H - 120, w, 40f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 110), _toast, 15, _toastCol, HorizontalAlignment.Center, w);
     }
 
     private void DrawDialog()
     {
         var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
-        Color spc = sp.Contains("少年") ? Ui.Blue : sp.StartsWith("ミナ") ? Ui.Mina : Ui.AccountColor("rei");
-        var box = new Rect2(8, 120, W - 16, 84);
-        Ui.Box(this, box, new Color(0.11f, 0.13f, 0.16f, 0.98f), 8f, new Color(spc, 0.55f), 1.2f);
-        // 話者アバター
-        Ui.Avatar(this, _font, new Vector2(22, 134), 8f, spc, sp.Length > 0 ? sp.Substring(0, 1) : "?");
-        Ui.Text(this, _font, new Vector2(36, 126), sp, 10, spc);
-        Ui.MultiText(this, _font, new Vector2(16, 146), tx, 11, Ui.TextMain, W - 32, 3);
-        Ui.Text(this, _font, new Vector2(W - 70, 190), _autoplay ? "" : "Z すすむ ▸", 9, Ui.TextMuted);
+        Color spc = sp.Contains("少年") ? UiKit.Info : sp.StartsWith("ミナ") ? UiKit.Mina : AccountColor("rei");
+        var box = new Rect2(40, 470, W - 80, 200);
+        UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
+        UiKit.Avatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spc, sp.Length > 0 ? sp.Substring(0, 1) : "?");
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, 18, spc);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), tx, 21, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
+        if (!_autoplay)
+        {
+            float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
+            UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),
+                "Z すすむ ▸", 14, new Color(UiKit.Info, blink));
+        }
     }
 
     // ───────── 会話データ（③-2 / ③-3 / ③-6）─────────

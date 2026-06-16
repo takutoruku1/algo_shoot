@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#16131d;}
+  @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  @keyframes softPulse{0%,100%{opacity:.85;filter:drop-shadow(0 0 8px rgba(154,114,217,.55))}50%{opacity:1;filter:drop-shadow(0 0 18px rgba(200,180,255,.8))}}
+  @keyframes selGlow{0%,100%{box-shadow:0 0 0 1.5px rgba(108,188,216,.85),0 0 18px rgba(108,188,216,.4),inset 0 0 18px rgba(108,188,216,.08)}50%{box-shadow:0 0 0 1.5px rgba(159,222,245,.95),0 0 26px rgba(108,188,216,.6),inset 0 0 22px rgba(108,188,216,.14)}}
+  @keyframes promptBlink{0%,100%{opacity:1}50%{opacity:.45}}
+  @keyframes diveScan{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+  @keyframes caret{0%,100%{opacity:1}50%{opacity:0}}
+  @keyframes shootFly{0%{left:0;opacity:0;transform:translateY(-50%) scale(.55)}12%{opacity:1}86%{opacity:1}100%{left:100%;opacity:0;transform:translateY(-50%) scale(1)}}
+  @keyframes muzzle{0%,100%{opacity:.35;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.35)}}
+  @keyframes minaBob{0%,100%{transform:translateY(-50%)}50%{transform:translateY(-72%)}}
+  @keyframes streak{0%{transform:translateX(0);opacity:0}12%{opacity:1}82%{opacity:1}100%{transform:translateX(190px);opacity:0}}
+  @keyframes minaMove{0%,100%{top:64%}50%{top:26%}}
+  @keyframes flyLeft{0%{left:100%;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:2%;opacity:0}}
+  @keyframes ringPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.65}50%{transform:translate(-50%,-50%) scale(1.16);opacity:1}}
+  @keyframes homeCurve{0%{left:13%;top:50%;opacity:0}12%{opacity:1}55%{left:54%;top:30%}100%{left:82%;top:30%;opacity:.15}}
+  @keyframes impRise{0%{opacity:0;transform:translateY(6px) scale(.7)}20%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-38px) scale(1)}}
+  @keyframes comboShrink{0%{width:100%}100%{width:0%}}
+  @keyframes bombRing{0%{transform:translate(-50%,-50%) scale(.3);opacity:.9}100%{transform:translate(-50%,-50%) scale(4.2);opacity:0}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#221b30 0%,#16131d 55%,#100d16 100%);padding:48px 32px 72px;display:flex;flex-direction:column;align-items:center;gap:44px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <!-- HEADER -->
+  <header style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Screens / 全画面統一</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;letter-spacing:.01em;line-height:1.1;">STAGE START・難易度選択・ミナ強化</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:760px;line-height:1.6;">HUDと同じトークンで統一。<strong style="color:#fff;">選択＝シアン</strong>／<strong style="color:#fff;">インプレ＝金</strong>／<strong style="color:#fff;">報酬倍率＝緑</strong>／<strong style="color:#fff;">解禁条件・ミナの光＝紫</strong>。見出し＝Zen Kaku Gothic New、数値＝JetBrains Mono。カクカクのドットフォントは廃止。</p>
+  </header>
+
+  <!-- ============ SCREEN 1 — STAGE START / DIVE ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="STAGE START">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;box-shadow:0 0 14px rgba(108,188,216,.5);">1</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">STAGE START — 心象ダイブ</div><div style="font-size:13px;color:#8a7a9a;">相手を苦しめている“投稿”へ飛び込む。ステージの導入をX投稿カードで提示。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 22%,rgba(120,150,210,.2),transparent 60%),radial-gradient(52% 52% at 18% 92%,rgba(154,114,217,.16),transparent 65%),linear-gradient(180deg,#0e1834 0%,#0a1126 55%,#070a16 100%);"></div>
+      <span style="position:absolute;left:11%;top:30%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:21px;color:rgba(200,184,216,.12);transform:rotate(-4deg);white-space:nowrap;">あたしのせいだ</span>
+      <span style="position:absolute;right:12%;top:34%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:19px;color:rgba(200,184,216,.1);white-space:nowrap;">とどかない</span>
+      <span style="position:absolute;left:16%;bottom:24%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:18px;color:rgba(200,184,216,.1);white-space:nowrap;">ひとりになる</span>
+      <span style="position:absolute;left:70%;bottom:30%;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:24%;top:62%;width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 8px rgba(224,114,172,.65);"></span>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.5;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 150px 50px rgba(0,0,0,.62);pointer-events:none;"></div>
+
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:0 40px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-family:'JetBrains Mono';font-weight:800;font-size:14px;letter-spacing:.34em;color:#a6dcec;">STAGE 1</span>
+          <span style="width:6px;height:6px;border-radius:50%;background:#6cbcd8;box-shadow:0 0 8px #6cbcd8;"></span>
+          <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;letter-spacing:.12em;color:#c8b8d8;">心象世界へダイブ</span>
+        </div>
+
+        <!-- target X post card -->
+        <div style="width:620px;background:rgba(18,16,28,.62);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:20px 22px;box-shadow:0 18px 44px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);">
+          <div style="display:flex;align-items:center;gap:13px;margin-bottom:14px;">
+            <div style="width:50px;height:50px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,#7fa6d6,#2a3f66);box-shadow:0 0 0 1.5px rgba(150,180,230,.4),0 0 14px rgba(120,150,210,.35);"></div>
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:17px;color:#fff;">レイ</span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;color:#8a7a9a;">@rei_0w0</span>
+            </div>
+            <span style="margin-left:auto;font-family:'JetBrains Mono';font-size:12px;color:#6b6478;">3:14 AM</span>
+          </div>
+          <p style="margin:0 0 16px;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:21px;line-height:1.6;color:#e8e0f0;">ごめん、もう無理かも。<br>みんなのこと、ちゃんと好きだったよ。</p>
+          <div style="display:flex;align-items:center;gap:22px;padding-top:13px;border-top:1px solid rgba(255,255,255,.08);">
+            <span style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono';font-size:13px;color:#8a7a9a;"><i style="width:15px;height:15px;background:#8a7a9a;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></i>1,204</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono';font-size:13px;color:#8a7a9a;"><i style="width:15px;height:15px;background:#8a7a9a;-webkit-mask:url(hud/icons/repost.svg) center/contain no-repeat;mask:url(hud/icons/repost.svg) center/contain no-repeat;"></i>892</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono';font-size:13px;color:#e072ac;"><i style="width:15px;height:15px;background:#e072ac;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;"></i>89.4k 表示</span>
+            <span style="margin-left:auto;font-family:'Zen Kaku Gothic New';font-size:12px;color:#f0a8cf;letter-spacing:.06em;">心の核 検出</span>
+          </div>
+          <!-- dive scan line -->
+          <div style="position:relative;margin-top:16px;height:4px;border-radius:999px;background:rgba(108,188,216,.14);overflow:hidden;">
+            <div style="position:absolute;top:0;bottom:0;width:38%;border-radius:999px;background:linear-gradient(90deg,transparent,#6cbcd8,#d7f3ff);box-shadow:0 0 12px rgba(108,188,216,.8);animation:diveScan 2.2s ease-in-out infinite;"></div>
+          </div>
+        </div>
+
+        <!-- title -->
+        <div style="text-align:center;">
+          <div style="font-family:'Zen Kaku Gothic New';font-weight:900;font-size:46px;letter-spacing:.04em;color:#fff;text-shadow:0 0 24px rgba(108,188,216,.5),0 0 50px rgba(154,114,217,.35);">レイ へダイブ</div>
+        </div>
+
+        <!-- prompt -->
+        <div style="display:flex;align-items:center;gap:20px;">
+          <div style="display:inline-flex;align-items:center;gap:10px;padding:11px 22px;border-radius:999px;background:rgba(108,188,216,.12);border:1px solid rgba(108,188,216,.5);box-shadow:0 0 18px rgba(108,188,216,.25);animation:promptBlink 1.6s ease-in-out infinite;">
+            <span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.1);border:1px solid rgba(159,222,245,.5);font-family:'JetBrains Mono';font-weight:800;font-size:13px;color:#d7f3ff;">Z</span>
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#d7f3ff;letter-spacing:.08em;">ダイブ</span>
+          </div>
+          <div style="display:inline-flex;align-items:center;gap:9px;">
+            <span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">X</span>
+            <span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">もどる</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2 — DIFFICULTY SELECT ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="難易度選択">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;box-shadow:0 0 14px rgba(108,188,216,.5);">2</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">難易度選択</div><div style="font-size:13px;color:#8a7a9a;">弾密度メーターを追加。報酬倍率＝緑、解禁条件＝紫、選択＝シアン。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(60% 50% at 50% 0%,rgba(120,150,210,.14),transparent 60%),linear-gradient(180deg,#0c142a 0%,#0a1022 55%,#070a16 100%);"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.4;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 140px 46px rgba(0,0,0,.5);pointer-events:none;"></div>
+
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:40px 56px 0;">
+        <!-- header -->
+        <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.1);">
+          <span style="font-family:'JetBrains Mono';font-weight:800;font-size:13px;letter-spacing:.24em;color:#a6dcec;">STAGE 1</span>
+          <h2 style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:28px;color:#fff;">レイ へダイブ</h2>
+          <span style="margin-left:auto;font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">難易度で「弾の数」が変わります（インプレ報酬も変動）</span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:13px;padding-top:22px;flex:1;">
+          <!-- やさしい -->
+          <div style="display:flex;align-items:center;gap:20px;background:rgba(22,18,34,.55);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:16px 22px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:22px;color:#fff;">やさしい</span>
+              <span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">弾は少なく、ゆっくり。物語を追いたい人へ。</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;">
+              <span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:11px;height:8px;border-radius:2px;background:#6cbcd8;"></i><i style="width:11px;height:8px;border-radius:2px;background:#6cbcd8;"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i></span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:#7ec880;">報酬 ×0.7</span>
+            </div>
+          </div>
+          <!-- ふつう (selected) -->
+          <div style="display:flex;align-items:center;gap:20px;background:rgba(20,30,40,.6);border-radius:14px;padding:16px 22px;animation:selGlow 2.2s ease-in-out infinite;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <span style="display:inline-flex;align-items:center;gap:10px;"><span style="font-family:'JetBrains Mono';font-weight:800;font-size:15px;color:#6cbcd8;line-height:1;">▸</span><span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:22px;color:#fff;">ふつう</span></span>
+              <span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#a6c4d4;padding-left:19px;">標準的な弾幕。</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;">
+              <span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:11px;height:8px;border-radius:2px;background:#6cbcd8;"></i><i style="width:11px;height:8px;border-radius:2px;background:#6cbcd8;"></i><i style="width:11px;height:8px;border-radius:2px;background:#6cbcd8;"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i></span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:#7ec880;">報酬 ×1.0</span>
+            </div>
+          </div>
+          <!-- むずかしい -->
+          <div style="display:flex;align-items:center;gap:20px;background:rgba(22,18,34,.55);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:16px 22px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:22px;color:#fff;">むずかしい</span>
+              <span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">弾が増え、密度が上がる。</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;">
+              <span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:11px;height:8px;border-radius:2px;background:#e89460;"></i><i style="width:11px;height:8px;border-radius:2px;background:#e89460;"></i><i style="width:11px;height:8px;border-radius:2px;background:#e89460;"></i><i style="width:11px;height:8px;border-radius:2px;background:#e89460;"></i><i style="width:11px;height:8px;border-radius:2px;background:rgba(255,255,255,.12);"></i></span>
+              <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:#7ec880;">報酬 ×1.4</span>
+            </div>
+          </div>
+          <!-- ルナティック (locked) -->
+          <div style="display:flex;align-items:center;gap:20px;background:rgba(16,14,24,.5);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:16px 22px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <span style="display:inline-flex;align-items:center;gap:9px;"><i style="width:15px;height:15px;background:#7a6f8f;-webkit-mask:url(hud/icons/star.svg) center/contain no-repeat;mask:url(hud/icons/star.svg) center/contain no-repeat;"></i><span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:22px;color:#6b6478;">ルナティック</span></span>
+              <span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#9a72d9;padding-left:24px;">解禁：フォロワー 300 または 威力 Lv4</span>
+            </div>
+            <span style="font-family:'JetBrains Mono';font-size:12px;font-weight:700;color:#6b6478;letter-spacing:.1em;">LOCKED</span>
+          </div>
+        </div>
+
+        <!-- footer hints -->
+        <div style="display:flex;align-items:center;gap:24px;padding:18px 0;border-top:1px solid rgba(255,255,255,.08);">
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">↑↓</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">えらぶ</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(108,188,216,.12);border:1px solid rgba(159,222,245,.5);font-family:'JetBrains Mono';font-weight:800;font-size:12px;color:#d7f3ff;">Z</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#a6dcec;">ダイブ</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">X</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">もどる</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 3 — MINA UPGRADE SHOP ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="ミナ強化">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;box-shadow:0 0 14px rgba(108,188,216,.5);">3</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">ミナ強化（ショップ）</div><div style="font-size:13px;color:#8a7a9a;">リスト＋詳細パネル。インプレ＝金、習得済み＝ミナ紫、準備中＝グレー。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(60% 50% at 78% 30%,rgba(154,114,217,.16),transparent 60%),linear-gradient(180deg,#0d0b1c 0%,#0a0916 55%,#070611 100%);"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.4;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 140px 46px rgba(0,0,0,.5);pointer-events:none;"></div>
+
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:32px 40px 0;">
+        <!-- header bar -->
+        <div style="display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.1);">
+          <div style="width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 50%,#9a72d9);box-shadow:0 0 0 1.5px rgba(154,114,217,.5),0 0 14px rgba(154,114,217,.4);"></div>
+          <h2 style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:26px;color:#fff;">ミナ強化</h2>
+          <span style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#8a7a9a;margin-left:6px;align-self:flex-end;padding-bottom:4px;">強化は永続。汚染やリトライで失われません。</span>
+          <div style="margin-left:auto;display:inline-flex;align-items:center;gap:9px;background:rgba(232,196,90,.1);border:1px solid rgba(232,196,90,.4);border-radius:999px;padding:8px 16px;">
+            <i style="width:16px;height:16px;background:#e8c45a;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(232,196,90,.6));"></i>
+            <span style="font-family:'Zen Kaku Gothic New';font-size:12px;color:#f0d98a;letter-spacing:.06em;">インプレ</span>
+            <span style="font-family:'JetBrains Mono';font-weight:800;font-size:20px;color:#f0d98a;font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(232,196,90,.5);">{{ currency }}</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:22px;padding-top:18px;flex:1;min-height:0;">
+          <!-- LIST -->
+          <div style="flex:1.25;display:flex;flex-direction:column;gap:4px;">
+            <sc-for list="{{ items }}" as="it" hint-placeholder-count="13">
+              <div onClick="{{ it.onSelect }}" style="{{ it.rowStyle }}">
+                <span style="{{ it.caretStyle }}">▸</span>
+                <span style="{{ it.labelStyle }}">{{ it.label }}</span>
+                {{ it.pipsEl }}
+                <span style="{{ it.costStyle }}">{{ it.costLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- DETAIL PANEL -->
+          <div style="flex:1;background:rgba(20,16,30,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:56px;height:56px;border-radius:50%;flex:none;background:radial-gradient(circle at 42% 38%,#fff,#d7f3ff 38%,#9a72d9);box-shadow:0 0 28px rgba(108,188,216,.6),0 0 50px rgba(154,114,217,.4);animation:softPulse 2.8s ease-in-out infinite;"></div>
+              <div>
+                <div style="font-family:'Zen Kaku Gothic New';font-weight:900;font-size:23px;color:#fff;">{{ dName }}</div>
+                <div style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#a6dcec;">{{ dDesc }}</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:rgba(255,255,255,.08);"></div>
+
+            <!-- level -->
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="font-family:'JetBrains Mono';font-size:12px;color:#8a7a9a;letter-spacing:.1em;">LEVEL</span>
+              {{ levelEl }}
+              <span style="margin-left:auto;font-family:'JetBrains Mono';font-size:13px;color:#8a7a9a;">{{ dLevelLabel }}</span>
+            </div>
+
+            <!-- shooting preview stage (per-item, JS-driven) -->
+            {{ preview }}
+
+            <!-- effect compact -->
+            <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;">
+              {{ effNowEl }}
+              <span style="font-family:'JetBrains Mono';font-weight:800;font-size:18px;color:#6cbcd8;">→</span>
+              {{ effNextEl }}
+              <span style="font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;">{{ dNote }}</span>
+            </div>
+
+            <div style="flex:1;"></div>
+
+            <!-- cost + buy -->
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;flex-direction:column;gap:2px;">
+                <span style="font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;">必要インプレ</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;"><i style="width:18px;height:18px;background:#e8c45a;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(232,196,90,.6));"></i><span style="font-family:'JetBrains Mono';font-weight:800;font-size:24px;color:{{ dCostColor }};text-shadow:0 0 12px rgba(232,196,90,.45);">{{ dCostLabel }}</span></span>
+              </div>
+              {{ buyEl }}
+            </div>
+          </div>
+        </div>
+
+        <!-- footer hints -->
+        <div style="display:flex;align-items:center;gap:24px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);">
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">↑↓</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">えらぶ</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(108,188,216,.12);border:1px solid rgba(159,222,245,.5);font-family:'JetBrains Mono';font-weight:800;font-size:12px;color:#d7f3ff;">Z</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#a6dcec;">購入</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">X</span><span style="font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;">もどる</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="width:1280px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    HUD（採用案A）と共通のトークンで全画面を統一。SnsTD デザイントークン準拠：選択=--info（シアン）／インプレ=--gold（金）／報酬倍率=--cat-yougo（緑）／ミナの光・解禁条件=--primary（紫）／体力=--hp（ピンク）。STAGE START は「相手のX投稿へダイブする」導入として再設計。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { sel: 0 };
+
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; const k=t.slice(0,i).trim().replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const args=[].slice.call(arguments); if(props&&props.style){ args[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,args); }
+
+  data() {
+    return [
+      {n:'光の出力',k:'power',max:5,own:2,cost:800,now:'威力 +12%',next:'威力 +18%',desc:'届ける光の威力 UP',note:'玉サイズ・輝度 UP'},
+      {n:'連射速度',k:'rate',max:4,own:1,cost:700,now:'間隔 0.20s',next:'間隔 0.14s',desc:'光を撃つ間隔が縮む',note:'連射数 UP'},
+      {n:'ホーミング',k:'homing',max:3,own:0,cost:1000,now:'追尾 なし',next:'弱 追尾',desc:'光が穢れに吸い寄せられる',note:'NEW 自動追尾'},
+      {n:'拡散力',k:'spread',max:3,own:0,cost:600,now:'3 way',next:'5 way',desc:'光が扇状に広がる',note:'同時着弾 UP'},
+      {n:'機動力',k:'mobility',max:3,own:1,cost:500,now:'速度 100%',next:'速度 130%',desc:'ミナの移動が速くなる',note:'残像 強化'},
+      {n:'回避域',k:'evade',max:3,own:0,cost:1200,now:'判定 4px',next:'判定 3px',desc:'被弾判定が小さくなる',note:'グレイズ域 拡大'},
+      {n:'ボム所持',k:'bomb',max:3,own:1,cost:900,now:'所持 +1',next:'所持 +2',desc:'ボム最大所持 UP',note:'画面浄化'},
+      {n:'ボム威力',k:'soon',max:3,own:0,cost:null},
+      {n:'最大体力',k:'maxhp',max:3,own:1,cost:1500,now:'体力 5',next:'体力 6',desc:'最大体力 UP',note:'ハート +1'},
+      {n:'インプレ倍率',k:'impr',max:4,own:2,cost:600,now:'×1.2',next:'×1.4',desc:'獲得インプレ UP',note:'報酬 増加'},
+      {n:'コンボ持続',k:'combo',max:3,own:1,cost:600,now:'2.0s',next:'2.6s',desc:'コンボ保持時間 UP',note:'倍率 維持'},
+      {n:'汚染耐性',k:'soon',max:3,own:0,cost:null},
+      {n:'拡散サブ',k:'soon',max:2,own:0,cost:null},
+    ];
+  }
+
+  fmt(n){ return n.toLocaleString('en-US'); }
+
+  listPips(own,max){
+    const e=this.E.bind(this);
+    const arr=[];
+    for(let i=0;i<max;i++){
+      arr.push(e('i',{key:i,style:`width:9px;height:9px;border-radius:50%;background:${i<own?'#9a72d9':'rgba(255,255,255,.14)'};box-shadow:${i<own?'0 0 6px rgba(154,114,217,.8)':'none'};`}));
+    }
+    return e('span',{style:'display:inline-flex;gap:5px;'},arr);
+  }
+
+  levelPips(own,max){
+    const e=this.E.bind(this);
+    const arr=[];
+    for(let i=0;i<max;i++){
+      let st;
+      if(i<own) st='width:13px;height:13px;border-radius:50%;background:#9a72d9;box-shadow:0 0 8px rgba(154,114,217,.85);';
+      else if(i===own) st='width:13px;height:13px;border-radius:50%;background:rgba(159,222,245,.35);box-shadow:inset 0 0 0 1.5px rgba(159,222,245,.7);';
+      else st='width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.12);';
+      arr.push(e('i',{key:i,style:st}));
+    }
+    return e('span',{style:'display:inline-flex;gap:7px;'},arr);
+  }
+
+  // ---- preview helpers ----
+  lane(top,size,bg,glow,dur,count){
+    const e=this.E.bind(this);
+    const orbs=[];
+    for(let i=0;i<count;i++){
+      orbs.push(e('span',{key:i,style:`position:absolute;top:50%;left:0;width:${size}px;height:${size}px;border-radius:50%;background:${bg};box-shadow:${glow};animation:shootFly ${dur}s linear infinite ${(dur/count*i).toFixed(2)}s;`}));
+    }
+    return e('div',{style:`position:absolute;left:64px;right:8px;top:${top};height:0;`},orbs);
+  }
+
+  mina(anim){
+    return this.E('div',{style:`position:absolute;left:40px;top:50%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 52%,#9a72d9);box-shadow:0 0 16px rgba(154,114,217,.85),0 0 30px rgba(200,180,255,.4);${anim||'animation:minaBob 2.4s ease-in-out infinite;'}`});
+  }
+  muzzle(){
+    return this.E('div',{style:'position:absolute;left:58px;top:50%;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle,#fff,rgba(159,222,245,0) 70%);animation:muzzle .55s ease-in-out infinite;'});
+  }
+
+  buildPreview(u){
+    const e=this.E.bind(this);
+    const DIM='radial-gradient(circle at 40% 35%,#fff,#9be0f5 62%,#3f7fa0)';
+    const BRIGHT='radial-gradient(circle at 40% 35%,#fff,#d7f3ff 50%,#6cbcd8)';
+    const MAG='radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a)';
+    const gDim='0 0 7px rgba(108,188,216,.55)';
+    const gBri='0 0 16px rgba(159,222,245,.95),0 0 30px rgba(108,188,216,.55)';
+    const gMed='0 0 10px rgba(108,188,216,.7)';
+    const stageStyle='position:relative;height:158px;border-radius:13px;overflow:hidden;background:radial-gradient(60% 80% at 12% 50%,rgba(154,114,217,.16),transparent 60%),linear-gradient(180deg,#0c1428,#090e1c);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 0 34px rgba(0,0,0,.55);';
+
+    const overlay=[
+      e('div',{key:'sc',style:'position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);opacity:.5;pointer-events:none;'}),
+      e('span',{key:'lb',style:"position:absolute;left:13px;top:10px;font-family:'JetBrains Mono';font-size:10px;letter-spacing:.18em;color:#8a7a9a;"},'射撃プレビュー'),
+    ];
+    if(u.k!=='soon'){
+      overlay.push(e('div',{key:'bd',style:'position:absolute;right:12px;top:9px;display:flex;gap:6px;'},[
+        e('span',{key:0,style:"font-family:'JetBrains Mono';font-size:10px;color:#8a8398;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 7px;"},'現在 Lv.'+u.own),
+        e('span',{key:1,style:"font-family:'JetBrains Mono';font-size:10px;color:#d7f3ff;background:rgba(108,188,216,.16);border:1px solid rgba(159,222,245,.5);border-radius:6px;padding:2px 7px;"},'次 Lv.'+(u.own+1)),
+      ]));
+    }
+
+    let kids=[];
+    const k=u.k;
+    if(k==='power'){
+      kids=[this.mina(),this.muzzle(),
+        e('span',{key:'nl',style:"position:absolute;left:13px;top:34%;transform:translateY(-50%);font-family:'JetBrains Mono';font-size:9px;color:#8a8398;"},'NOW'),
+        e('span',{key:'xl',style:"position:absolute;left:13px;top:70%;transform:translateY(-50%);font-family:'JetBrains Mono';font-size:9px;color:#a6dcec;"},'NEXT'),
+        this.lane('34%',8,DIM,gDim,1.7,4),this.lane('70%',17,BRIGHT,gBri,1.45,4)];
+    } else if(k==='rate'){
+      kids=[this.mina(),this.muzzle(),
+        e('span',{key:'nl',style:"position:absolute;left:13px;top:34%;transform:translateY(-50%);font-family:'JetBrains Mono';font-size:9px;color:#8a8398;"},'NOW'),
+        e('span',{key:'xl',style:"position:absolute;left:13px;top:70%;transform:translateY(-50%);font-family:'JetBrains Mono';font-size:9px;color:#a6dcec;"},'NEXT'),
+        this.lane('34%',12,BRIGHT,gMed,1.95,3),this.lane('70%',12,BRIGHT,gMed,1.0,6)];
+    } else if(k==='spread'){
+      const fan=[-30,-15,0,15,30].map((a,i)=>e('div',{key:i,style:`position:absolute;left:64px;top:54%;transform:rotate(${a}deg);transform-origin:left center;`},
+        e('span',{style:`display:block;width:13px;height:13px;border-radius:50%;background:${BRIGHT};box-shadow:${gBri};animation:streak 1.3s linear infinite ${(i*0.1).toFixed(2)}s;`})));
+      kids=[this.mina(),this.muzzle(),...fan];
+    } else if(k==='mobility'){
+      const trail=[0.30,0.20,0.12].map((op,i)=>e('div',{key:i,style:`position:absolute;left:40px;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 52%,#9a72d9);opacity:${op};animation:minaMove 1.1s ease-in-out infinite;animation-delay:${(-0.08*(i+1)).toFixed(2)}s;`}));
+      const minaM=e('div',{key:'m',style:'position:absolute;left:40px;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 52%,#9a72d9);box-shadow:0 0 16px rgba(154,114,217,.85),0 0 30px rgba(200,180,255,.4);animation:minaMove 1.1s ease-in-out infinite;'});
+      kids=[...trail,minaM,this.lane('50%',12,BRIGHT,gMed,1.3,3)];
+    } else if(k==='evade'){
+      const bullets=[0,1,2,3].map(i=>e('span',{key:i,style:`position:absolute;top:${28+i*15}%;width:9px;height:9px;border-radius:50%;background:${MAG};box-shadow:0 0 8px rgba(224,114,172,.7);animation:flyLeft 1.7s linear infinite ${(i*0.42).toFixed(2)}s;`}));
+      kids=[
+        e('div',{key:'ring',style:'position:absolute;left:54px;top:50%;width:50px;height:50px;border-radius:50%;border:1.5px solid rgba(159,222,245,.7);transform:translate(-50%,-50%);animation:ringPulse 1.8s ease-in-out infinite;'}),
+        e('div',{key:'core',style:'position:absolute;left:54px;top:50%;width:9px;height:9px;border-radius:50%;background:#fff;box-shadow:0 0 10px #fff,0 0 18px rgba(159,222,245,.8);transform:translate(-50%,-50%);'}),
+        e('span',{key:'gl',style:"position:absolute;left:80px;top:50%;transform:translateY(-50%);font-family:'JetBrains Mono';font-size:10px;color:#a6dcec;"},'グレイズ域'),
+        e('div',{key:'b',style:'position:absolute;left:0;right:0;top:0;bottom:0;'},bullets)];
+    } else if(k==='homing'){
+      const orbs=[0,1,2,3].map(i=>e('span',{key:i,style:`position:absolute;width:12px;height:12px;border-radius:50%;background:${BRIGHT};box-shadow:${gBri};animation:homeCurve 1.7s ease-in-out infinite ${(i*0.38).toFixed(2)}s;`}));
+      kids=[this.mina(),this.muzzle(),
+        e('div',{key:'t',style:'position:absolute;right:7%;top:30%;width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);box-shadow:0 0 0 1.5px rgba(224,114,172,.5),0 0 16px rgba(224,114,172,.45);transform:translateY(-50%);'}),
+        e('span',{key:'tl',style:"position:absolute;right:6%;top:48%;font-family:'JetBrains Mono';font-size:9px;color:#f0a8cf;"},'穢れ'),
+        ...orbs];
+    } else if(k==='bomb'){
+      kids=[this.mina(),
+        e('div',{key:'r1',style:'position:absolute;left:54px;top:50%;width:40px;height:40px;border-radius:50%;border:2px solid rgba(159,222,245,.7);animation:bombRing 1.8s ease-out infinite;'}),
+        e('div',{key:'r2',style:'position:absolute;left:54px;top:50%;width:40px;height:40px;border-radius:50%;border:2px solid rgba(159,222,245,.5);animation:bombRing 1.8s ease-out infinite .9s;'}),
+        e('span',{key:'m1',style:`position:absolute;left:62%;top:36%;width:11px;height:11px;border-radius:50%;background:${MAG};box-shadow:0 0 8px rgba(224,114,172,.6);opacity:.5;`}),
+        e('span',{key:'m2',style:`position:absolute;left:74%;top:62%;width:11px;height:11px;border-radius:50%;background:${MAG};box-shadow:0 0 8px rgba(224,114,172,.6);opacity:.5;`}),
+        e('span',{key:'lab',style:"position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-family:'JetBrains Mono';font-size:10px;color:#a6dcec;"},'画面の言葉を一掃')];
+    } else if(k==='maxhp'){
+      const row=(n,top,col,lab)=>{
+        const hs=[];
+        for(let i=0;i<n;i++){
+          const isNew=(n===6&&i===5);
+          hs.push(e('span',{key:i,style:`width:21px;height:21px;background:${col};-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;${isNew?'animation:softPulse 1.4s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(232,118,156,.9));':'filter:drop-shadow(0 0 4px rgba(232,118,156,.5));'}`}));
+        }
+        return e('div',{style:`position:absolute;left:22px;top:${top};transform:translateY(-50%);display:flex;align-items:center;gap:10px;`},[
+          e('span',{key:'l',style:"font-family:'JetBrains Mono';font-size:10px;color:#8a8398;width:34px;"},lab),
+          e('span',{key:'h',style:'display:flex;gap:5px;'},hs)]);
+      };
+      kids=[row(5,'34%','#e8769c','NOW'),row(6,'70%','#e8769c','NEXT')];
+    } else if(k==='impr'){
+      const nums=[['+12','34%',16,'#c8b8d8',0],['+18','64%',22,'#f0d98a',0.5]];
+      kids=[this.mina(),
+        ...nums.map((p,i)=>e('span',{key:i,style:`position:absolute;left:46%;top:${p[1]};font-family:'JetBrains Mono';font-weight:800;font-size:${p[2]}px;color:${p[3]};text-shadow:0 0 12px rgba(232,196,90,.5);animation:impRise 1.8s ease-out infinite ${p[4]}s;`},'+Imp '+p[0])),
+        e('span',{key:'l',style:"position:absolute;right:12px;bottom:12px;font-family:'JetBrains Mono';font-size:10px;color:#8a8398;"},'獲得インプレ ↑')];
+    } else if(k==='combo'){
+      const bar=(top,col,dur,lab)=>e('div',{style:`position:absolute;left:24px;right:24px;top:${top};`},[
+        e('div',{key:'l',style:`font-family:'JetBrains Mono';font-size:11px;color:${col};margin-bottom:5px;`},lab),
+        e('div',{key:'t',style:'height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;'},
+          e('div',{style:`height:100%;border-radius:999px;background:linear-gradient(90deg,#6cbcd8,#d7f3ff);animation:comboShrink ${dur}s linear infinite;`}))]);
+      kids=[
+        e('div',{key:'c',style:"position:absolute;left:24px;top:18px;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:22px;color:#d7f3ff;text-shadow:0 0 14px rgba(108,188,216,.5);"},'COMBO ×8'),
+        bar('60%','#8a8398',2.0,'NOW 2.0s'),bar('80%','#a6dcec',2.6,'NEXT 2.6s')];
+    } else { // soon
+      kids=[e('div',{key:'s',style:'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;'},[
+        e('div',{key:0,style:"font-family:'Zen Kaku Gothic New';font-weight:900;font-size:22px;color:#6b6478;"},'準備中'),
+        e('div',{key:1,style:"font-family:'JetBrains Mono';font-size:11px;letter-spacing:.2em;color:#4f4a5e;"},'COMING SOON')])];
+    }
+    return e('div',{style:stageStyle},[...overlay,...kids]);
+  }
+
+  effBox(label,val,next){
+    const e=this.E.bind(this);
+    return e('span',{style:`display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap;flex:none;${next?'background:rgba(108,188,216,.12);border:1px solid rgba(159,222,245,.4);':'background:rgba(0,0,0,.24);'}border-radius:9px;padding:6px 12px;`},[
+      e('span',{key:'l',style:`font-family:'Zen Kaku Gothic New';font-size:11px;color:${next?'#a6dcec':'#8a7a9a'};`},label),
+      e('span',{key:'v',style:`font-family:'JetBrains Mono';font-weight:800;font-size:16px;color:${next?'#d7f3ff':'#c8b8d8'};${next?'text-shadow:0 0 10px rgba(108,188,216,.5);':''}`},val)]);
+  }
+
+  buildBuy(u,cur){
+    const e=this.E.bind(this);
+    if(u.k==='soon'||u.cost==null){
+      return e('div',{style:"display:inline-flex;align-items:center;padding:13px 26px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#6b6478;"},'準備中');
+    }
+    const ok=u.cost<=cur;
+    if(!ok){
+      return e('div',{style:"display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:999px;background:rgba(232,90,90,.1);border:1px solid rgba(232,90,90,.4);font-family:'Zen Kaku Gothic New';font-weight:700;font-size:15px;color:#ef9a9a;"},'インプレ不足');
+    }
+    return e('button',{onClick:()=>{},style:'display:inline-flex;align-items:center;gap:10px;padding:13px 26px;border-radius:999px;background:linear-gradient(180deg,#9be0f5,#3f7fa0);box-shadow:0 0 20px rgba(108,188,216,.45);'},[
+      e('span',{key:'z',style:"display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 5px;border-radius:6px;background:rgba(255,255,255,.25);font-family:'JetBrains Mono';font-weight:800;font-size:12px;color:#fff;"},'Z'),
+      e('span',{key:'t',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#fff;letter-spacing:.08em;"},'購入')]);
+  }
+
+  renderVals(){
+    const cur=1280;
+    const list=this.data();
+    const sel=this.state.sel;
+    const items=list.map((u,i)=>{
+      const isSel=i===sel;
+      const soon=u.k==='soon';
+      let rowStyle='display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:11px;cursor:pointer;';
+      if(isSel) rowStyle+='background:rgba(20,30,40,.6);animation:selGlow 2.2s ease-in-out infinite;';
+      if(soon) rowStyle+='opacity:.45;';
+      const labelStyle=`flex:1;font-family:'Zen Kaku Gothic New';font-weight:${isSel?700:500};font-size:17px;color:${soon?'#8a7a9a':(isSel?'#fff':'#d8cfe6')};`;
+      const caretStyle=`font-family:'JetBrains Mono';font-weight:800;font-size:13px;line-height:1;width:10px;color:${isSel?'#6cbcd8':'transparent'};`;
+      const costStyle=`width:88px;text-align:right;font-family:${soon?"'Zen Kaku Gothic New'":"'JetBrains Mono'"};font-weight:700;font-size:${soon?13:14}px;color:${soon?'#6b6478':'#f0d98a'};`;
+      return {
+        onSelect:()=>this.setState({sel:i}),
+        rowStyle:this.css(rowStyle), labelStyle:this.css(labelStyle), caretStyle:this.css(caretStyle), costStyle:this.css(costStyle),
+        label:u.n,
+        costLabel: soon?'準備中':this.fmt(u.cost),
+        pipsEl:this.listPips(u.own,u.max),
+      };
+    });
+    const u=list[sel];
+    const soon=u.k==='soon';
+    const e=this.E.bind(this);
+    return {
+      currency:this.fmt(cur),
+      items,
+      dName:u.n,
+      dDesc: soon?'実装予定の強化です':u.desc,
+      dLevelLabel: soon?'—':(u.own>=u.max?'MAX':('Lv.'+u.own+' → Lv.'+(u.own+1))),
+      levelEl:this.levelPips(u.own,u.max),
+      preview:this.buildPreview(u),
+      effNowEl:this.effBox('現在', soon?'—':u.now, false),
+      effNextEl:this.effBox('次', soon?'—':u.next, true),
+      dNote: soon?'実装予定':u.note,
+      dCostLabel: soon?'準備中':this.fmt(u.cost),
+      dCostColor: soon?'#6b6478':'#f0d98a',
+      buyEl:this.buildBuy(u,cur),
+    };
+  }
+}
+</script>
+</body>
+</html>

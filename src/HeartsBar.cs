@@ -17,7 +17,7 @@ public partial class HeartsBar : Node2D
     private const int Cell = 2;     // 1セルのpxサイズ（2 → ハート約14x12px）
     private const int GapCells = 2; // ハート間の隙間（セル数）
 
-    private readonly Color _fill = new Color(0.93f, 0.27f, 0.42f);    // ハート赤
+    private readonly Color _fill = Ui.Hp;    // ハート＝HP桃（Refrain 役割色）
 
     private int _count = 3;
 

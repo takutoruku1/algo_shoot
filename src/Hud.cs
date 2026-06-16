@@ -12,7 +12,7 @@ public partial class Hud : CanvasLayer
     private Label _scoreLabel = null!;     // スコア（右上）
     private Label _comboLabel = null!;     // コンボ（右上・スコア下）
     private Label _burnLabel = null!;      // 炎上中の弱体表示
-    private Label _bombLabel = null!;      // ボム数（ハート下）
+    private ColorRect[] _bombPips = System.Array.Empty<ColorRect>(); // ボム数（紫の四角ピップ）
     private ColorRect _flash = null!;      // ボム発動時の全画面フラッシュ
     private ColorRect _kindBg = null!;     // やさしさゲージ 背景
     private ColorRect _kindFill = null!;   // やさしさゲージ 中身
@@ -119,8 +119,8 @@ public partial class Hud : CanvasLayer
             Position = new Vector2(0, Main.ScreenHeight / 2 - 16),
             Size = new Vector2(Main.ScreenWidth, 32),
         };
-        _bannerLabel.AddThemeColorOverride("font_color", new Color(0.35f, 0.15f, 0.45f)); // 紫系
-        _bannerLabel.AddThemeColorOverride("font_outline_color", new Color(1f, 1f, 1f, 0.9f));
+        _bannerLabel.AddThemeColorOverride("font_color", Ui.Light); // 光（淡い金）
+        _bannerLabel.AddThemeColorOverride("font_outline_color", Ui.OutlineDark);
         _bannerLabel.AddThemeConstantOverride("outline_size", 3);
         if (_font != null) _bannerLabel.AddThemeFontOverride("font", _font);
         _bannerLabel.AddThemeFontSizeOverride("font_size", 24); // native 12 の2倍でクリスプ
@@ -131,31 +131,39 @@ public partial class Hud : CanvasLayer
         _hearts = new HeartsBar { Name = "Hearts", Position = new Vector2(5, 5) };
         AddChild(_hearts);
 
-        // ボム数: ハートの下
-        _bombLabel = new Label
+        // ボム数: ハートの下（紫の四角ピップ。残機ハートと並ぶピクセル調）
+        const int maxPips = 8;
+        _bombPips = new ColorRect[maxPips];
+        for (int i = 0; i < maxPips; i++)
         {
-            Name = "BombLabel",
-            Position = new Vector2(5, 16),
-            Size = new Vector2(80, 12),
-        };
-        StyleLabel(_bombLabel, 8, new Color(0.20f, 0.12f, 0.05f));
-        AddChild(_bombLabel);
+            var pip = new ColorRect
+            {
+                Name = $"BombPip{i}",
+                Position = new Vector2(5 + i * 6, 18),
+                Size = new Vector2(4, 4),
+                Color = Ui.Bomb,
+                Visible = false,
+            };
+            pip.MouseFilter = Control.MouseFilterEnum.Ignore;
+            AddChild(pip);
+            _bombPips[i] = pip;
+        }
 
         // やさしさゲージ（ハート/ボムの下）
         _kindBg = new ColorRect { Name = "KindBg", Position = new Vector2(5, 28), Size = new Vector2(64, 4), Color = new Color(0.15f, 0.12f, 0.20f, 0.55f) };
         _kindBg.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_kindBg);
-        _kindFill = new ColorRect { Name = "KindFill", Position = new Vector2(5, 28), Size = new Vector2(0, 4), Color = new Color("ffd98a") };
+        _kindFill = new ColorRect { Name = "KindFill", Position = new Vector2(5, 28), Size = new Vector2(0, 4), Color = Ui.Light };
         _kindFill.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_kindFill);
         _overloadLabel = new Label { Name = "OverloadLabel", Position = new Vector2(72, 25), Size = new Vector2(140, 12) };
-        StyleLabel(_overloadLabel, 8, new Color("ff7fb0"));
+        StyleLabel(_overloadLabel, 8, Ui.Hp);
         _overloadLabel.Visible = false;
         AddChild(_overloadLabel);
 
         // ヒカゲ専用スキル表示（やさしさゲージの下）。ヒカゲ加入時のみ表示。
         _skillLabel = new Label { Name = "SkillLabel", Position = new Vector2(5, 34), Size = new Vector2(160, 12) };
-        StyleLabel(_skillLabel, 8, new Color("ff7fb0"));
+        StyleLabel(_skillLabel, 8, Ui.Hp);
         _skillLabel.Visible = false;
         AddChild(_skillLabel);
 
@@ -163,22 +171,22 @@ public partial class Hud : CanvasLayer
         _purifyBg = new ColorRect { Name = "PurifyBg", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(PurifyGaugeW, 6), Color = new Color(0.12f, 0.10f, 0.18f, 0.6f) };
         _purifyBg.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_purifyBg);
-        _purifyFill = new ColorRect { Name = "PurifyFill", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(0, 6), Color = new Color("8fd3ff") };
+        _purifyFill = new ColorRect { Name = "PurifyFill", Position = new Vector2(PurifyGaugeX, 6), Size = new Vector2(0, 6), Color = Ui.Purify };
         _purifyFill.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_purifyFill);
         _purifyLabel = new Label { Name = "PurifyLabel", Position = new Vector2(PurifyGaugeX, 13), Size = new Vector2(PurifyGaugeW, 10), HorizontalAlignment = HorizontalAlignment.Center };
-        StyleLabel(_purifyLabel, 8, new Color(0.22f, 0.18f, 0.32f));
+        StyleLabel(_purifyLabel, 8, Ui.Purify);
         AddChild(_purifyLabel);
 
         // ボスHPバー（中ボス戦のみ表示）
         _bossBg = new ColorRect { Name = "BossBg", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = new Color(0.14f, 0.06f, 0.12f, 0.7f), Visible = false };
         _bossBg.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_bossBg);
-        _bossFill = new ColorRect { Name = "BossFill", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = new Color(1f, 0.32f, 0.5f), Visible = false };
+        _bossFill = new ColorRect { Name = "BossFill", Position = new Vector2(BossBarX, BossBarY), Size = new Vector2(BossBarW, 7), Color = Ui.Kegare, Visible = false };
         _bossFill.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_bossFill);
         _bossLabel = new Label { Name = "BossLabel", Position = new Vector2(BossBarX, BossBarY - 11), Size = new Vector2(BossBarW, 10) };
-        StyleLabel(_bossLabel, 8, new Color(0.9f, 0.35f, 0.5f));
+        StyleLabel(_bossLabel, 8, Ui.Kegare);
         _bossLabel.Visible = false;
         AddChild(_bossLabel);
 
@@ -190,7 +198,7 @@ public partial class Hud : CanvasLayer
             Position = new Vector2(Main.ScreenWidth - 128, 4),
             Size = new Vector2(124, 12),
         };
-        StyleLabel(_scoreLabel, 10, new Color(0.20f, 0.12f, 0.05f));
+        StyleLabel(_scoreLabel, 10, Ui.Score);
         AddChild(_scoreLabel);
 
         // コンボ: スコアの下（右寄せ・x2以上で表示）
@@ -201,7 +209,7 @@ public partial class Hud : CanvasLayer
             Position = new Vector2(Main.ScreenWidth - 128, 16),
             Size = new Vector2(124, 12),
         };
-        StyleLabel(_comboLabel, 8, new Color(0.45f, 0.20f, 0.55f)); // 紫
+        StyleLabel(_comboLabel, 8, Ui.Mina); // 紫
         _comboLabel.Visible = false;
         AddChild(_comboLabel);
 
@@ -213,7 +221,7 @@ public partial class Hud : CanvasLayer
             Position = new Vector2(Main.ScreenWidth / 2 - 80, 26),
             Size = new Vector2(160, 12),
         };
-        StyleLabel(_burnLabel, 9, new Color(0.78f, 0.18f, 0.16f)); // 赤
+        StyleLabel(_burnLabel, 9, Ui.Burn); // 赤
         _burnLabel.Visible = false;
         AddChild(_burnLabel);
 
@@ -230,11 +238,13 @@ public partial class Hud : CanvasLayer
         AddChild(_flash);
     }
 
-    // ラベルにピクセルフォント・サイズ・白アウトラインを適用するヘルパ。
+    // ラベルにピクセルフォント・サイズ・暗アウトラインを適用するヘルパ。
+    // Refrain パレットは明るい役割色（金/シアン/桃）が多いので、縁取りは夜色にして
+    // 明るいステージ背景でも沈まず読めるようにする。
     private void StyleLabel(Label l, int size, Color color)
     {
         l.AddThemeColorOverride("font_color", color);
-        l.AddThemeColorOverride("font_outline_color", new Color(1f, 1f, 1f, 0.85f));
+        l.AddThemeColorOverride("font_outline_color", Ui.OutlineDark);
         l.AddThemeConstantOverride("outline_size", 2);
         if (_font != null) l.AddThemeFontOverride("font", _font);
         l.AddThemeFontSizeOverride("font_size", size);
@@ -247,7 +257,8 @@ public partial class Hud : CanvasLayer
         if (game != null)
         {
             _scoreLabel.Text = $"SCORE {game.Score:N0}";
-            _bombLabel.Text = $"BOMB x{game.Bombs}";
+            for (int i = 0; i < _bombPips.Length; i++)
+                _bombPips[i].Visible = i < game.Bombs;
             _burnLabel.Visible = game.BurningThisRun;
             if (game.BurningThisRun) _burnLabel.Text = "炎上中  発射↓ 移動↓ Imp↓";
             if (game.Combo >= 2)
@@ -263,14 +274,14 @@ public partial class Hud : CanvasLayer
             // やさしさゲージ
             float kw = 64f * Mathf.Clamp(game.Kindness, 0f, 1f);
             _kindFill.Size = new Vector2(kw, 4);
-            _kindFill.Color = game.IsOverload ? new Color("ff7fb0") : new Color("ffd98a");
+            _kindFill.Color = game.IsOverload ? Ui.Hp : Ui.Light;
             _overloadLabel.Visible = game.IsOverload;
             if (game.IsOverload) _overloadLabel.Text = "やさしさ全開！";
             if (game.JustOverloaded) { ShowBanner("やさしさ全開！"); Flash(); }
 
             // 浄化ゲージ（目標達成度）。色は冷たい青→暖色へ。
             _purifyFill.Size = new Vector2(PurifyGaugeW * game.StageProgress, 6);
-            _purifyFill.Color = new Color(0.56f, 0.83f, 1f).Lerp(new Color(1f, 0.85f, 0.55f), game.StageProgress);
+            _purifyFill.Color = Ui.Purify.Lerp(Ui.PurifyHi, game.StageProgress);
             _purifyLabel.Text = $"浄化 {Mathf.RoundToInt(game.StageProgress * 100f)}%";
         }
 
@@ -338,10 +349,11 @@ public partial class Hud : CanvasLayer
         Relay = 5,      // 中継：少年の言葉をミナの声で届ける
     }
 
-    private static readonly Color SpeakerBoyCol = new(0.20f, 0.42f, 0.78f);
-    private static readonly Color SpeakerMinaCol = new(0.62f, 0.24f, 0.50f);
-    private static readonly Color SpeakerOtherCol = new(0.16f, 0.50f, 0.95f);
-    private static readonly Color SpeakerPostCol = new(0.40f, 0.42f, 0.48f);
+    // 話者名の色（Refrain: 少年＝浄化シアン／ミナ＝紫／相手＝穢れマゼンタ／投稿＝ミュート）。
+    private static readonly Color SpeakerBoyCol = Ui.Purify;
+    private static readonly Color SpeakerMinaCol = Ui.Mina;
+    private static readonly Color SpeakerOtherCol = Ui.Kegare;
+    private static readonly Color SpeakerPostCol = Ui.TextMuted;
 
     // algo が話す会話（立ち絵＋吹き出し）。旧チュートリアル用。話者名は出さない。
     public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
@@ -459,7 +471,7 @@ public partial class Hud : CanvasLayer
         _skillLabel.Visible = has;
         if (!has) return;
         _skillLabel.Text = ready ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
-        _skillLabel.AddThemeColorOverride("font_color", ready ? new Color("ff7fb0") : new Color(0.6f, 0.55f, 0.62f));
+        _skillLabel.AddThemeColorOverride("font_color", ready ? Ui.Hp : Ui.TextMuted);
     }
 
     // ボスHPバー表示／更新／非表示。

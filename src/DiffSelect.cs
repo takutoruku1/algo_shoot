@@ -1,41 +1,40 @@
 using Godot;
 
-// DiffSelect : ダイブ直前の難易度選択（ダークモードX風）。ハブ→ここ→ステージ。
-//   - やさしい/ふつう/むずかしい/ルナティックの4ティア。難度は「弾の数」で変わる。
-//   - ルナティックはメタ強化で解禁（未解禁はロック）。
-//   設計: docs/20260613/MINA_システム拡張設計書_v1.md ④-5 / ②-2
+// DiffSelect : 難易度選択。RefrainHTML/Refrain Screens.dc.html(Screen 2) を忠実移植（非ピクセル）。
+//   4ティア＋弾密度メーター。報酬倍率＝緑／選択＝シアン／ルナ解禁＝紫。↑↓ えらぶ・Z ダイブ・X もどる。
 public partial class DiffSelect : Node2D
 {
-    private FontFile _font = null!;
     private GameManager _game = null!;
-    private const float W = 384f, H = 216f;
+    private const float W = UiKit.DesignW, H = UiKit.DesignH;
 
-    private const float RowX = 10f, RowW = 364f, FirstRowY = 44f, RowH = 36f, RowGap = 4f;
-
-    private struct Tier { public string Name, Desc; public GameManager.Diff Diff; }
+    private struct Tier { public string Name, Desc; public GameManager.Diff Diff; public int Density; }
     private static readonly Tier[] Tiers =
     {
-        new() { Name = "やさしい",     Desc = "弾は少なく、ゆっくり。物語を追いたい人へ。", Diff = GameManager.Diff.Easy },
-        new() { Name = "ふつう",       Desc = "標準的な弾幕。",                             Diff = GameManager.Diff.Normal },
-        new() { Name = "むずかしい",   Desc = "弾が増え、密度が上がる。",                   Diff = GameManager.Diff.Hard },
-        new() { Name = "ルナティック", Desc = "極限の弾幕。最大強化前提の挑戦。",           Diff = GameManager.Diff.Lunatic },
+        new() { Name = "やさしい",     Desc = "弾は少なく、ゆっくり。物語を追いたい人へ。", Diff = GameManager.Diff.Easy,    Density = 2 },
+        new() { Name = "ふつう",       Desc = "標準的な弾幕。",                             Diff = GameManager.Diff.Normal,  Density = 3 },
+        new() { Name = "むずかしい",   Desc = "弾が増え、密度が上がる。",                   Diff = GameManager.Diff.Hard,    Density = 4 },
+        new() { Name = "ルナティック", Desc = "極限の弾幕。最大強化前提の挑戦。",           Diff = GameManager.Diff.Lunatic, Density = 5 },
     };
 
     private int _sel;
     private bool _navHeld, _zHeld, _backHeld;
     private double _t;
     private bool _autoplay;
-    private string _title = "ダイブ";
+    private string _stageTag = "STAGE 1", _diveName = "レイ";
 
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        _font = ResourceLoader.Load<FontFile>("res://assets/fonts/PixelMplus12-Regular.ttf");
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
         foreach (var s in GameManager.Stages)
-            if (s.Scene == _game?.PendingStageScene) { _title = $"{s.Title} へダイブ"; break; }
+            if (s.Scene == _game?.PendingStageScene)
+            {
+                if (s.Title.Contains("—")) { var p = s.Title.Split('—'); _stageTag = p[0].Trim(); _diveName = p[^1].Trim(); }
+                else _diveName = s.Title;
+                break;
+            }
 
         _sel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
         if (!Selectable(_sel)) _sel = (int)GameManager.Diff.Hard;
@@ -83,47 +82,94 @@ public partial class DiffSelect : Node2D
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(0, 0, W, H), Ui.Bg);
-        DrawRect(new Rect2(0, 0, W, 28), Ui.HeaderBg);
-        Ui.Text(this, _font, new Vector2(10, 5), _title, 11, Ui.TextMain);
-        Ui.Text(this, _font, new Vector2(10, 17), "難易度で「弾の数」が変わります（インプレ報酬も変動）。", 8, Ui.TextMuted);
-        DrawRect(new Rect2(0, 27, W, 1), Ui.Divider);
+        UiKit.BeginDesign(this);
 
+        UiKit.VGradient(this, new Rect2(0, 0, W, H),
+            new[] { new Color("0c142a"), new Color("0a1022"), new Color("070a16") }, new[] { 0f, 0.55f, 1f });
+        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 460f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.14f);
+        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
+
+        float padX = 56f, top = 40f;
+        // ── ヘッダ ──
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, 13, UiKit.Info);
+        float tagW = UiKit.TextW(UiKit.Mono, _stageTag, 13);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へダイブ", 28, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（インプレ報酬も変動）", 14, UiKit.Text3,
+            HorizontalAlignment.Right, W - padX * 2);
+        DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
+
+        // ── ティア行 ──
+        float rowTop = top + 66f, rowH = 96f, gap = 13f, rowW = W - padX * 2;
         for (int i = 0; i < Tiers.Length; i++)
-            DrawTier(i, FirstRowY + i * (RowH + RowGap));
+            DrawTier(i, padX, rowTop + i * (rowH + gap), rowW, rowH);
 
-        Ui.Text(this, _font, new Vector2(10, H - 14), "↑↓ えらぶ   Z ダイブ   X もどる", 9, Ui.TextMuted);
+        // ── フッタ ──
+        float fy = H - 56f;
+        DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
+        float fx = padX;
+        fx = Hint(fx, fy, "↑↓", "えらぶ", false);
+        fx = Hint(fx, fy, "Z", "ダイブ", true);
+        Hint(fx, fy, "X", "もどる", false);
+
+        UiKit.EndDesign(this);
     }
 
-    private void DrawTier(int i, float ry)
+    private void DrawTier(int i, float x, float y, float w, float h)
     {
         var tr = Tiers[i];
         bool sel = i == _sel;
         bool luna = tr.Diff == GameManager.Diff.Lunatic;
         bool locked = luna && !(_game?.IsLunaticUnlocked ?? false);
-        Color acc = luna ? Ui.Contam : Ui.Blue;
 
-        Color bg = locked ? Ui.CardLocked : (sel ? Ui.CardSel : Ui.Card);
-        Color border = sel ? acc : Ui.Border;
-        Ui.Box(this, new Rect2(RowX, ry, RowW, RowH), bg, 6f, border, sel ? 1.4f : 0.8f);
-        if (sel) DrawRect(new Rect2(RowX, ry + 4, 2.5f, RowH - 8), acc);
+        if (locked)
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f), 14f, new Color(1, 1, 1, 0.05f), 1f);
+        else if (sel)
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f), 14f, new Color(UiKit.Purify, 0.85f), 1.5f);
+        else
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f), 14f, new Color(1, 1, 1, 0.09f), 1f);
 
-        Color nameCol = locked ? Ui.TextMuted : (luna ? Ui.Contam : Ui.TextMain);
-        Ui.Text(this, _font, new Vector2(RowX + 12, ry + 5), tr.Name, 11, nameCol);
+        float tx = x + 24f;
         if (locked)
         {
-            string lk = "🔒 ロック";
-            // 鍵は環境フォント非依存にするためテキスト「LOCKED」で代替
-            Ui.Text(this, _font, new Vector2(RowX + 12, ry + 19),
-                $"解禁: フォロワー {GameManager.LunaticFollowerReq} または 威力Lv4", 8, Ui.Contam);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), "★ " + tr.Name, 22, UiKit.Text4);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), "解禁：フォロワー 300 または 威力 Lv4", 14, UiKit.Mina);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 100, y + h / 2f - 7), "LOCKED", 12, UiKit.Text4);
+            return;
+        }
+
+        // 名前（選択時 ▸ カーソル）
+        if (sel)
+        {
+            UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 24), "▸", 15, UiKit.Purify);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + 22, y + 20), tr.Name, 22, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx + 22, y + 54), tr.Desc, 14, new Color(166 / 255f, 196 / 255f, 212 / 255f));
         }
         else
         {
-            Ui.Text(this, _font, new Vector2(RowX + 12, ry + 19), tr.Desc, 8, Ui.TextSub);
-            float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
-            string reward = $"報酬 ×{mul:0.0}";
-            float rw = Ui.TextW(_font, reward, 9);
-            Ui.Text(this, _font, new Vector2(RowX + RowW - rw - 10, ry + 6), reward, 9, luna ? Ui.Contam : Ui.Repost);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 20), tr.Name, 22, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), tr.Desc, 14, UiKit.Text3);
         }
+
+        // 右：弾密度メーター＋報酬倍率
+        Color pipCol = luna ? UiKit.Kegare : (tr.Diff == GameManager.Diff.Hard ? new Color("e89460") : UiKit.Purify);
+        float pipW = 11f, pipH = 8f, pipGap = 4f;
+        float meterW = 5 * pipW + 4 * pipGap;
+        float mx = x + w - 24f - meterW, my = y + 28f;
+        for (int k = 0; k < 5; k++)
+            UiKit.Box(this, new Rect2(mx + k * (pipW + pipGap), my, pipW, pipH), k < tr.Density ? pipCol : new Color(1, 1, 1, 0.12f), 2f);
+
+        float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
+        string reward = $"報酬 ×{mul:0.0}";
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, 13), y + 50), reward, 13, new Color("7ec880"));
+    }
+
+    private float Hint(float x, float y, string key, string label, bool accent)
+    {
+        Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
+        Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
+        UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 14, accent ? UiKit.Info : UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 14) + 24f;
     }
 }

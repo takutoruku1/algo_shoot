@@ -123,7 +123,8 @@ public partial class Prologue : Node2D
                 {
                     _lineT = 0;
                     _line++;
-                    if (_line >= _talk.Count) NextPhase();
+                    // 会話が終わったら、スタート画面（タイトルメニュー）へ。
+                    if (_line >= _talk.Count) { GoTitle(); return; }
                 }
                 break;
             case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 レイ）
@@ -149,6 +150,15 @@ public partial class Prologue : Node2D
         _phase++;
         _t = 0;
         _lineT = 0;
+    }
+
+    // 起動カットシーンの後はスタート画面（タイトルメニュー）へ遷移。
+    private bool _toTitle;
+    private void GoTitle()
+    {
+        if (_toTitle) return;
+        _toTitle = true;
+        GetTree().ChangeSceneToFile("res://TitleMenu.tscn");
     }
 
     public override void _Draw()
