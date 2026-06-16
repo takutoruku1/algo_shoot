@@ -166,18 +166,18 @@ public partial class GameManager : Node
 
     public static readonly UpgradeDef[] Upgrades =
     {
-        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 5, BaseCost = 800,  CostMul = 1.7f },
-        new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 700,  CostMul = 1.6f },
-        new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 500,  CostMul = 1.5f },
-        new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 1200, CostMul = 1.8f },
-        new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 900,  CostMul = 1.6f },
-        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボムの一掃範囲UP",        MaxLevel = 3, BaseCost = 700,  CostMul = 1.5f },
-        new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 1500, CostMul = 1.9f },
-        new() { Id = "imp_mult",      Name = "インプレ倍率", Desc = "獲得インプレUP",        MaxLevel = 4, BaseCost = 600,  CostMul = 1.6f },
-        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP",    MaxLevel = 3, BaseCost = 600,  CostMul = 1.6f },
-        new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 400,  CostMul = 1.5f },
-        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を緩和(演出は維持)", MaxLevel = 3, BaseCost = 1300, CostMul = 1.8f },
-        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプションを追加",     MaxLevel = 2, BaseCost = 2000, CostMul = 2.0f },
+        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 5, BaseCost = 400,  CostMul = 1.5f },
+        new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.45f },
+        new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
+        new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
+        new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
+        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボムの一掃範囲UP",        MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
+        new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 700,  CostMul = 1.6f },
+        new() { Id = "imp_mult",      Name = "インプレ倍率", Desc = "獲得インプレUP",        MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
+        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP",    MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
+        new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
+        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を緩和(演出は維持)", MaxLevel = 3, BaseCost = 650,  CostMul = 1.55f },
+        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプションを追加",     MaxLevel = 2, BaseCost = 1000, CostMul = 1.7f },
     };
 
     public static UpgradeDef? GetUpgradeDef(string id)
