@@ -24,6 +24,10 @@ public partial class Player : Area2D
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
 
+    // ショットモード切替（V / Pad B）のエッジ検出。_modeInit で初回に HUD へ現在モードを通知。
+    private bool _modeHeld = false;
+    private bool _modeInit = false;
+
     // ヒカゲ専用スキル（フォロワーにヒカゲがいる時だけ・Cキー）
     private bool _specialHeld = false;
     private float _specialCd = 0f;
@@ -249,12 +253,35 @@ public partial class Player : Area2D
         _overload = GetNodeOrNull<GameManager>("/root/Game")?.IsOverload ?? false;
 
         // ショット＝Z / Aボタン。会話中（吹き出し表示中）は不可
+        // 初回に HUD へ現在モードを通知（HUD の _Ready 順に依存しないよう最初の物理フレームで）。
+        if (!_modeInit && _game != null)
+        {
+            if (!_game.IsModeUnlocked(_game.SelectedShotMode)) _game.SelectedShotMode = GameManager.ShotMode.Rapid;
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetShotMode(_game.SelectedShotMode, false);
+            _modeInit = true;
+        }
+
+        // ショットモード切替＝V / Pad B。解放済みモードを循環。会話中は不可。
+        bool modeKey = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.B);
+        if (modeKey && !_modeHeld && !Hud.BubblePaused && _game != null)
+        {
+            var nm = _game.NextUnlockedMode(_game.SelectedShotMode);
+            if (nm != _game.SelectedShotMode)
+            {
+                _game.SelectedShotMode = nm;
+                _game.Save(); // 選択を次回へ保存
+                (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetShotMode(nm, true);
+            }
+        }
+        _modeHeld = modeKey;
+
         bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A)) && !Hud.BubblePaused;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。
-            _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f);
+            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。ホーミングは間隔×1.15。
+            float modeMul = (_game?.SelectedShotMode == GameManager.ShotMode.Homing) ? 1.15f : 1f;
+            _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -310,14 +337,17 @@ public partial class Player : Area2D
         if (_pool == null)
             return;
 
-        // 銃口（中心からやや右）
+        // 銃口（中心からやや右）。光の出力強化でダメージ増。
         Vector2 muzzle = GlobalPosition + new Vector2(20f, 0f);
-        Vector2 vel = new Vector2(360f, 0f);
-
-        // 上下に少しずらした 2way。光の出力強化でダメージ増。
         int dmg = 1 + (_game?.ShotDamageBonus ?? 0);
-        _pool.Spawn(muzzle + new Vector2(0f, -4f), vel, isEnemy: false, 3f, dmg);
-        _pool.Spawn(muzzle + new Vector2(0f, 4f), vel, isEnemy: false, 3f, dmg);
+
+        // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
+        switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
+        {
+            case GameManager.ShotMode.Spread: FireSpread(muzzle, dmg); break;
+            case GameManager.ShotMode.Homing: FireHoming(muzzle, dmg); break;
+            default:                          FireRapid(muzzle, dmg);  break;
+        }
 
         // フォロワーは通常2回に1回、全開中は毎ショット同期発射
         _shotParity++;
@@ -327,6 +357,45 @@ public partial class Player : Area2D
 
         // マズルフラッシュ
         FxLayer.Instance?.Muzzle(muzzle);
+    }
+
+    // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
+    private void FireRapid(Vector2 muzzle, int dmg)
+    {
+        Vector2 vel = new Vector2(360f, 0f);
+        int lines = Mathf.Clamp(2 + (_game?.ShotDamageBonus ?? 0) / 2, 2, 4);
+        float[] offs = lines <= 2 ? new[] { -4f, 4f }
+                     : lines == 3 ? new[] { -6f, 0f, 6f }
+                                  : new[] { -10f, -4f, 4f, 10f };
+        foreach (float dy in offs)
+            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, dmg);
+    }
+
+    // 拡散：右方向へ扇状 n-way（±28°）。1発威力 ×0.8（下限1）＝面制圧。
+    private void FireSpread(Vector2 muzzle, int dmg)
+    {
+        int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
+        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.8f));
+        for (int i = 0; i < n; i++)
+        {
+            float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
+            float ang = t * Mathf.DegToRad(56f);
+            Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg);
+        }
+    }
+
+    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速260。追尾数 2→3→4（誘導Lv）。
+    private void FireHoming(Vector2 muzzle, int dmg)
+    {
+        int shots = Mathf.Max(2, _game?.HomingShots ?? 2);
+        for (int i = 0; i < shots; i++)
+        {
+            float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
+            float ang = t * Mathf.DegToRad(40f);
+            Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+            _pool.Spawn(muzzle, dir * 260f, isEnemy: false, 3f, dmg, BulletShape.Orb, null, homing: true);
+        }
     }
 
     private void OnAreaEntered(Area2D area)

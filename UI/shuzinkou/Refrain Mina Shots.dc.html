@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0a0813;}
+  @keyframes shotRight{0%{transform:translateX(0);opacity:0}10%{opacity:1}88%{opacity:1}100%{transform:translateX(var(--rt,300px));opacity:0}}
+  @keyframes homeTo{0%{transform:translate(0,0);opacity:0}14%{opacity:1}52%{transform:translate(var(--mx,90px),var(--my,0px))}100%{transform:translate(var(--ex,150px),var(--ey,0px));opacity:.12}}
+  @keyframes minaBob{0%,100%{transform:translate(0,-50%)}50%{transform:translate(0,calc(-50% - 5px))}}
+  @keyframes muzzle{0%,100%{opacity:.3;transform:translate(-50%,-50%) scale(.7)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.3)}}
+  @keyframes tgtPulse{0%,100%{box-shadow:0 0 0 1.5px rgba(224,114,172,.5),0 0 12px rgba(224,114,172,.4)}50%{box-shadow:0 0 0 1.5px rgba(224,114,172,.8),0 0 22px rgba(224,114,172,.6)}}
+  @keyframes notifDot{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#1d1530 0%,#0f0b1a 55%,#080611 100%);padding:48px 32px 80px;display:flex;flex-direction:column;align-items:center;gap:28px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Mina Shot Patterns</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;line-height:1.1;">主人公ミナの攻撃 — 拡散 ／ ホーミング ／ 連射</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:880px;line-height:1.6;">届ける光は<strong style="color:#fff;">シアン</strong>、自機ミナは<strong style="color:#fff;">紫</strong>、穢れの標的は<strong style="color:#fff;">マゼンタ</strong>。下のフィールドは実際に弾が動き、<strong style="color:#fff;">強化レベル</strong>で挙動が変わります（「ミナ強化」ショップと連動）。</p>
+  </header>
+
+  <div style="width:1180px;max-width:100%;position:sticky;top:0;z-index:50;background:rgba(15,11,26,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 18px;box-shadow:0 8px 22px rgba(0,0,0,.4);">
+    {{ levelbar }}
+  </div>
+
+  <section style="width:1180px;max-width:100%;" data-screen-label="ミナ攻撃3種">
+    {{ cards }}
+  </section>
+
+  <footer style="width:1180px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    自機ミナは画面左中央から右へ光を撃つ（横スクロールSTG）。拡散＝扇状の同時着弾、ホーミング＝穢れへ吸い寄せられる曲射、連射＝直線高速ストリーム。強化レベル（Lv.1〜3）で way 数・追尾数・発射間隔が変化。色は SnsTD トークン（光=--info／自機=--primary／標的=--accent）準拠。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { lv: 1 }; // 0:Lv1 1:Lv2 2:Lv3
+  W=360; H=240;
+
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; let k=t.slice(0,i).trim(); if(!k.startsWith('--')) k=k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const a=[].slice.call(arguments); if(props&&props.style){ a[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,a); }
+
+  LIGHT='radial-gradient(circle at 45% 40%,#ffffff 0 34%,#9be0f5 52%,rgba(108,188,216,0) 80%)';
+
+  // ----- shared sprites -----
+  mina(){
+    return this.E('div',{key:'mina',style:`position:absolute;left:18px;top:50%;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);box-shadow:0 0 14px rgba(154,114,217,.85),0 0 28px rgba(200,180,255,.4);transform:translate(0,-50%);animation:minaBob 2.6s ease-in-out infinite;`});
+  }
+  muzzle(){
+    return this.E('div',{key:'mz',style:'position:absolute;left:38px;top:50%;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,#fff,rgba(159,222,245,0) 70%);transform:translate(-50%,-50%);animation:muzzle .5s ease-in-out infinite;'});
+  }
+  target(x,y,key){
+    return this.E('div',{key,style:`position:absolute;left:${x}px;top:${y}px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);transform:translate(-50%,-50%);animation:tgtPulse 2.4s ease-in-out infinite;`});
+  }
+
+  lightBullet(key,size,extraStyle){
+    return this.E('span',{key,style:`position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${this.LIGHT};box-shadow:0 0 8px rgba(108,188,216,.85);${extraStyle}`});
+  }
+
+  // ----- 拡散 spread: fan of bullets to the right -----
+  genSpread(ways,dur){
+    const out=[this.mina(),this.muzzle()];
+    const spread=88, base=-spread/2;
+    for(let i=0;i<ways;i++){
+      const deg = ways===1?0 : base+spread*(i/(ways-1));
+      const inner=this.lightBullet('b'+i,13,`left:0;top:0;margin:-6px 0 0 0;--rt:300px;animation:shotRight ${dur}s linear infinite ${(i%3*0.12).toFixed(2)}s;`);
+      out.push(this.E('div',{key:'w'+i,style:`position:absolute;left:38px;top:50%;width:1px;height:1px;transform:rotate(${deg.toFixed(1)}deg);transform-origin:left center;`}, inner));
+    }
+    return out;
+  }
+
+  // ----- ホーミング homing: bullets curve toward magenta targets on the right -----
+  genHoming(shots,dur){
+    const out=[this.mina(),this.muzzle()];
+    const tg=[[300,70],[298,172],[250,120],[322,52]].slice(0,Math.max(2,Math.min(4,shots)));
+    tg.forEach((t,ti)=>out.push(this.target(t[0],t[1],'t'+ti)));
+    const mx0=38, my0=this.H/2; // mina muzzle origin
+    tg.forEach((t,ti)=>{
+      const ex=(t[0]-mx0), ey=(t[1]-my0);
+      const mmx=ex*0.55+10, mmy=ey*0.3; // travel right first, slight vertical
+      for(let r=0;r<2;r++){
+        const inner=this.lightBullet('h'+ti+'-'+r,12,`left:0;top:0;margin:-6px 0 0 0;--mx:${mmx.toFixed(0)}px;--my:${mmy.toFixed(0)}px;--ex:${ex.toFixed(0)}px;--ey:${ey.toFixed(0)}px;animation:homeTo ${dur}s ease-in-out infinite ${(ti*0.2+r*(dur/2)).toFixed(2)}s;`);
+        out.push(this.E('div',{key:'hw'+ti+'-'+r,style:'position:absolute;left:38px;top:50%;width:1px;height:1px;'}, inner));
+      }
+    });
+    return out;
+  }
+
+  // ----- 連射 rapid: fast straight stream to the right (rows lines) -----
+  genRapid(rows,dur,perRow){
+    const out=[this.mina(),this.muzzle()];
+    const offs = rows===1?[0]:(rows===2?[-7,7]:[-12,0,12]);
+    offs.forEach((dy,c)=>{
+      for(let i=0;i<perRow;i++){
+        const inner=this.lightBullet('r'+c+'-'+i,11,`left:0;top:0;margin:-5px 0 0 0;--rt:312px;animation:shotRight ${dur}s linear infinite ${(i*(dur/perRow)+c*0.06).toFixed(2)}s;`);
+        out.push(this.E('div',{key:'rw'+c+'-'+i,style:`position:absolute;left:38px;top:calc(50% + ${dy}px);width:1px;height:1px;`}, inner));
+      }
+    });
+    return out;
+  }
+
+  field(nodes){
+    const e=this.E.bind(this);
+    const kids=[...nodes,
+      e('div',{key:'sc',style:'position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.4;pointer-events:none;'}),
+      e('div',{key:'vg',style:'position:absolute;inset:0;box-shadow:inset 0 0 90px 28px rgba(0,0,0,.55);pointer-events:none;'}),
+    ];
+    return e('div',{style:`position:relative;width:100%;height:${this.H}px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:radial-gradient(55% 70% at 0% 50%,rgba(108,150,220,.16),transparent 62%),linear-gradient(90deg,#0e1430,#070a18);`},kids);
+  }
+
+  specRow(label,val,color){
+    const e=this.E.bind(this);
+    return e('div',{style:'display:flex;justify-content:space-between;align-items:baseline;gap:10px;'},[
+      e('span',{key:'l',style:"font-family:'JetBrains Mono';font-size:10px;letter-spacing:.12em;color:#8a7a9a;text-transform:uppercase;"},label),
+      e('span',{key:'v',style:`font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:${color||'#e6dcf0'};text-align:right;`},val)
+    ]);
+  }
+
+  card(p){
+    const e=this.E.bind(this);
+    return e('div',{style:'width:360px;flex:none;display:flex;flex-direction:column;gap:11px;'},[
+      e('div',{key:'f'},this.field(p.nodes)),
+      // X spell-style declaration
+      e('div',{key:'tw',style:'display:flex;align-items:flex-start;gap:9px;background:rgba(16,20,30,.6);border:1px solid rgba(108,188,216,.3);border-radius:12px;padding:10px 12px;'},[
+        e('div',{key:'av',style:'position:relative;width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);box-shadow:0 0 0 1.5px rgba(108,188,216,.6);'},
+          e('span',{key:'v',style:'position:absolute;bottom:-2px;right:-2px;width:13px;height:13px;border-radius:50%;background:#6cbcd8;display:grid;place-items:center;color:#fff;font-size:8px;font-weight:800;border:1.5px solid #0e1422;'},'✓')),
+        e('div',{key:'b',style:'flex:1;min-width:0;'},[
+          e('div',{key:'h',style:'display:flex;align-items:center;gap:6px;'},[
+            e('span',{key:'n',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#fff;"},'ミナ'),
+            e('span',{key:'hd',style:"font-family:'JetBrains Mono';font-size:11px;color:#8a7a9a;"},'@mina_ai_'),
+            e('span',{key:'sp',style:'margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-family:\'JetBrains Mono\';font-size:9px;color:#6cbcd8;'},[
+              e('i',{key:'d',style:'width:6px;height:6px;border-radius:50%;background:#6cbcd8;animation:notifDot 1.4s ease-in-out infinite;'}),'光を放つ'
+            ])
+          ]),
+          e('div',{key:'t',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:15px;color:#d7f3ff;margin-top:2px;"},p.name),
+          e('div',{key:'s',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;line-height:1.45;margin-top:3px;"},p.tagline)
+        ])
+      ]),
+      // spec
+      e('div',{key:'spec',style:'display:flex;flex-direction:column;gap:7px;background:rgba(20,16,30,.5);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px 15px;'},
+        p.specs.map((r,i)=>e('div',{key:i},this.specRow(r[0],r[1],r[2])))
+      ),
+    ]);
+  }
+
+  levelBar(){
+    const e=this.E.bind(this);
+    const labels=['Lv.1','Lv.2','Lv.3'];
+    const chips=labels.map((l,i)=>{
+      const on=i===this.state.lv;
+      return e('div',{key:i,onClick:()=>this.setState({lv:i}),style:`cursor:pointer;padding:8px 20px;border-radius:10px;font-family:'JetBrains Mono';font-weight:800;font-size:14px;letter-spacing:.06em;transition:all .15s;${on?'background:linear-gradient(180deg,#9be0f5,#3f7fa0);color:#fff;box-shadow:0 0 14px rgba(108,188,216,.45);':'background:rgba(255,255,255,.05);color:#8a7a9a;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);'}`},l);
+    });
+    return e('div',{style:'display:flex;align-items:center;gap:14px;flex-wrap:wrap;'},[
+      e('span',{key:'lab',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;color:#c8b8d8;"},'強化レベル'),
+      e('div',{key:'c',style:'display:flex;gap:8px;'},chips),
+      e('span',{key:'note',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;"},'— way数・追尾数・発射間隔が変化（ショップ「拡散力／ホーミング／連射速度」と連動）')
+    ]);
+  }
+
+  renderVals(){
+    const lv=this.state.lv; // 0,1,2
+    // per-level params
+    const spreadWays=[3,5,7][lv];
+    const spreadDur=[1.6,1.4,1.2][lv];
+    const homeShots=[2,3,4][lv];
+    const homeDur=[1.9,1.7,1.5][lv];
+    const rapidCols=[1,2,3][lv];
+    const rapidPer=[5,7,9][lv];
+    const rapidDur=[1.1,0.85,0.62][lv];
+
+    const cards=[
+      {name:'拡散ショット', tagline:'扇状に広げ、複数の穢れへ同時に光を届ける。範囲制圧向き。',
+        nodes:this.genSpread(spreadWays,spreadDur),
+        specs:[['弾形 / 色','円弾・シアン光','#a6dcec'],['挙動','上方向へ '+spreadWays+' way 扇','#fff'],['発射間隔',spreadDur.toFixed(1)+'s','#fff'],['対応強化','拡散力 Lv.'+(lv+1),'#9be0f5'],['用途','雑魚散らし・広範囲','#8a7a9a']]},
+      {name:'ホーミングショット', tagline:'光が穢れに吸い寄せられて曲がる。避けられても当たる追尾弾。',
+        nodes:this.genHoming(homeShots,homeDur),
+        specs:[['弾形 / 色','円弾・シアン光','#a6dcec'],['挙動',homeShots+' 体へ自動追尾','#fff'],['発射間隔',homeDur.toFixed(1)+'s','#fff'],['対応強化','ホーミング Lv.'+(lv+1),'#9be0f5'],['用途','動く核・ボス追尾','#8a7a9a']]},
+      {name:'連射ショット', tagline:'直線の高速ストリーム。正面の一点に火力を集中させる。',
+        nodes:this.genRapid(rapidCols,rapidDur,rapidPer),
+        specs:[['弾形 / 色','小円弾・シアン光','#a6dcec'],['挙動','直線 '+rapidCols+' 段・高速','#fff'],['発射間隔',rapidDur.toFixed(2)+'s','#fff'],['対応強化','連射速度 Lv.'+(lv+1),'#9be0f5'],['用途','単体火力・浄化加速','#8a7a9a']]},
+    ];
+
+    return {
+      levelbar: this.levelBar(),
+      cards: this.E('div',{style:'display:flex;gap:25px;flex-wrap:wrap;'}, cards.map((p,i)=>React.cloneElement(this.card(p),{key:i+'-'+lv})))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -16,6 +16,27 @@ public partial class GameManager : Node
     // ルナティックは最高難度＝玉数×2.2。メタ強化が乗らないと現実的にクリア不能（②-4）。
     public enum Diff { Easy, Normal, Hard, Lunatic }
     public Diff Difficulty = Diff.Normal;
+
+    // ───── ショットモード（設計書 §3）。連射は初期解放、拡散/ホーミングはショップ購入で解放 ─────
+    public enum ShotMode { Rapid, Spread, Homing }
+    public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
+    public bool HasSpread => GetUpgradeLevel("shot_spread") >= 1;
+    public bool HasHoming => GetUpgradeLevel("shot_homing") >= 1;
+    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→3→4（Lv に対応）。
+    public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(GetUpgradeLevel("shot_spread"), 0, 3)];
+    public int HomingShots => new[] { 0, 2, 3, 4 }[Mathf.Clamp(GetUpgradeLevel("shot_homing"), 0, 3)];
+    public bool IsModeUnlocked(ShotMode m) => m switch { ShotMode.Spread => HasSpread, ShotMode.Homing => HasHoming, _ => true };
+    // 解放済みモードを循環（連射→拡散→ホーミング→連射…・未解放はスキップ）。
+    public ShotMode NextUnlockedMode(ShotMode cur)
+    {
+        for (int i = 1; i <= 3; i++)
+        {
+            var m = (ShotMode)(((int)cur + i) % 3);
+            if (IsModeUnlocked(m)) return m;
+        }
+        return ShotMode.Rapid;
+    }
+    public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
     public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + MaxLifeBonus;
     public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + BombCountBonus;
@@ -168,6 +189,8 @@ public partial class GameManager : Node
     {
         new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 5, BaseCost = 400,  CostMul = 1.5f },
         new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.45f },
+        new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.5f },
+        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→3→4)", MaxLevel = 3, BaseCost = 700, CostMul = 1.5f },
         new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
         new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
         new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
@@ -276,6 +299,7 @@ public partial class GameManager : Node
         {
             ["impression"] = Impression,
             ["followers"] = Followers,
+            ["shotmode"] = (int)SelectedShotMode,
         };
         var up = new Godot.Collections.Dictionary();
         foreach (var kv in _upgrades)
@@ -305,6 +329,12 @@ public partial class GameManager : Node
             var up = data["upgrades"].AsGodotDictionary();
             foreach (var k in up.Keys)
                 _upgrades[k.AsString()] = up[k].AsInt32();
+        }
+        // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
+        if (data.ContainsKey("shotmode"))
+        {
+            var m = (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 2);
+            SelectedShotMode = IsModeUnlocked(m) ? m : ShotMode.Rapid;
         }
     }
 

@@ -42,6 +42,11 @@ public partial class Hud : CanvasLayer
     // ヒカゲスキル
     private bool _skillHas, _skillReady;
 
+    // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
+    private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
+    private double _shotModeToast;
+    private const double ShotModeToastDur = 2.0;
+
     // 会話／メッセージ
     private string _dlgText = "";
     private string _dlgSpeaker = "";
@@ -92,6 +97,7 @@ public partial class Hud : CanvasLayer
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
         if (_spellTimer > 0) { _spellTimer -= delta; }
+        if (_shotModeToast > 0) { _shotModeToast -= delta; }
 
         _canvas.QueueRedraw();
     }
@@ -162,6 +168,13 @@ public partial class Hud : CanvasLayer
 
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
 
+    // 現在のショットモードを設定。announce=true で切替トーストを表示。
+    public void SetShotMode(GameManager.ShotMode m, bool announce)
+    {
+        _shotMode = m;
+        if (announce) _shotModeToast = ShotModeToastDur;
+    }
+
     public void ShowBossBar(string bossName)
     {
         _bossName = bossName; _bossVisible = true;
@@ -185,8 +198,10 @@ public partial class Hud : CanvasLayer
         DrawScore(ci);
         if (_bossVisible) DrawBossCard(ci);
         if (_spellTimer > 0) DrawSpellCard(ci);
+        DrawShotMode(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
+        if (_shotModeToast > 0) DrawShotModeToast(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         // 被弾エッジ
@@ -330,7 +345,34 @@ public partial class Hud : CanvasLayer
     private void DrawSkill(HudCanvas ci)
     {
         string txt = _skillReady ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(22, 104), txt, 13, _skillReady ? UiKit.Hp : UiKit.Text3);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(22, 134), txt, 13, _skillReady ? UiKit.Hp : UiKit.Text3);
+    }
+
+    // 現在のショットモードチップ（LIFE/BOMB の直下・常時表示）。光=シアン基調。
+    private void DrawShotMode(HudCanvas ci)
+    {
+        string name = _game?.ShotModeName(_shotMode) ?? "連射";
+        string label = "ショット  " + name;
+        const float padL = 16f, h = 24f;
+        float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
+        float x = 22, y = 104;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 11f, new Color(UiKit.Info, 0.45f), 1f);
+        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, UiKit.Info);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, UiKit.PurifyHi);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 6), "V 切替", 10, UiKit.Text3);
+    }
+
+    // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。
+    private void DrawShotModeToast(HudCanvas ci)
+    {
+        float a = Mathf.Clamp((float)(_shotModeToast / 0.45), 0f, 1f); // 終わり際にフェード
+        string name = _game?.ShotModeName(_shotMode) ?? "連射";
+        string t = "MODE ▸ " + name;
+        float w = UiKit.TextW(UiKit.ZenBlack, t, 30) + 90;
+        float x = 640 - w / 2f, y = 150;
+        UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.06f, 0.10f, 0.14f, 0.9f * a), 15f, new Color(UiKit.Info, 0.6f * a), 1.4f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 22, y + 9), "MODE", 12, new Color(UiKit.Info, a));
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, 30, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
     }
 
     private void DrawTicker(HudCanvas ci)

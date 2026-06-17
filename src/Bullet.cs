@@ -33,6 +33,11 @@ public partial class Bullet : Area2D
     public Color Tint;
     public bool TintSet;
 
+    // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
+    public bool Homing;
+    private Node2D? _homeTarget;
+    private const float HomingTurnRate = 200f; // deg/s（吸い寄せ感を残すため急旋回しすぎない）
+
     // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
     private static FontFile? _wordFont;
     private static FontFile? WordFont
@@ -77,7 +82,7 @@ public partial class Bullet : Area2D
 
     // layer/mask/見た目/位置を設定し、可視化・monitoring 有効化。
     public void Activate(Vector2 pos, Vector2 vel, bool isEnemy, float radius, int damage,
-        BulletShape shape = BulletShape.Orb, Color? tint = null)
+        BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false)
     {
         Velocity = vel;
         IsEnemy = isEnemy;
@@ -89,6 +94,8 @@ public partial class Bullet : Area2D
         Shape = shape;
         TintSet = tint.HasValue;
         if (tint.HasValue) Tint = tint.Value;
+        Homing = homing;
+        _homeTarget = null;
 
         GlobalPosition = pos;
 
@@ -154,6 +161,10 @@ public partial class Bullet : Area2D
         if (Hud.BubblePaused)
             return;
 
+        // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
+        if (Homing && !IsEnemy)
+            SteerToTarget((float)delta);
+
         GlobalPosition += Velocity * (float)delta;
 
         // 画面外(余白16px)に出たら Despawn
@@ -167,6 +178,39 @@ public partial class Bullet : Area2D
             else
                 Deactivate();
         }
+    }
+
+    // 標的を一度ロックし、消滅/浄化時のみ再探索（毎フレーム全探索は重いので）。
+    private void SteerToTarget(float delta)
+    {
+        var tgt = _homeTarget;
+        if (tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified))
+            tgt = _homeTarget = AcquireTarget();
+        if (tgt == null) return; // 標的が無ければ直進
+
+        float spd = Velocity.Length();
+        if (spd < 0.01f) return;
+        float cur = Velocity.Angle();
+        float want = (tgt.GlobalPosition - GlobalPosition).Angle();
+        float maxStep = Mathf.DegToRad(HomingTurnRate) * delta;
+        float na = cur + Mathf.Clamp(Mathf.AngleDifference(cur, want), -maxStep, maxStep);
+        Velocity = new Vector2(Mathf.Cos(na), Mathf.Sin(na)) * spd;
+    }
+
+    // 右側（X が自分より大きい）の未浄化の敵本体から最寄りを選ぶ。
+    private Node2D? AcquireTarget()
+    {
+        Node2D? best = null;
+        float bestD = float.MaxValue;
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (n is Enemy e && !e.IsPurified && e.GlobalPosition.X > GlobalPosition.X - 4f)
+            {
+                float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
+                if (d < bestD) { bestD = d; best = e; }
+            }
+        }
+        return best;
     }
 
     public override void _Draw()
