@@ -53,6 +53,8 @@ public partial class StageRei : Node
         (4, "「次こそ、勝つ。覚悟しなさいよね。」", ""),                 // 投稿が変化
         (1, "投稿が変わりましたね。元気が出たようで何よりです。", ""),
         (0, "ああ。……いい目を、してた。", SGentle),
+        (1, "ご主人様は、ご自分では潜らないんですね。いつも、わたくしばかり。", ""),
+        (0, "ぼくは指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", SCocky),
         (3, "——会ったこともない相手のことを、なぜそこまで言い切れるのか。", ""),
         (3, "わたくしは少し不思議に思って——初仕事で張り切っているのだろう、と流しました。", ""),
     };
@@ -102,7 +104,13 @@ public partial class StageRei : Node
             Hud.HoldBubble = true;
             ShowLine(lines);
         }
-        if (_zEdge && _lineHold >= 0.25)
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _introLine++;

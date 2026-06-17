@@ -73,7 +73,12 @@ public partial class StageMina : Node
             Hud.HoldBubble = true;
             ShowLine(lines);
         }
-        if (_zEdge && _lineHold >= 0.25)
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow(); _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
         {
             _lineHold = 0; _introLine++;
             if (_introLine >= lines.Length)

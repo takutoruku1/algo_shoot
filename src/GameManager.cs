@@ -74,6 +74,10 @@ public partial class GameManager : Node
     public float Contamination { get; private set; }
     public void SetContamination(float v) => Contamination = Mathf.Clamp(v, 0f, 1f);
 
+    // 設定（Settings 画面から反映）：会話のタイプライター速度／オート送り。
+    public float MsgCharsPerSec { get; set; } = 48f;
+    public bool AutoAdvanceDialog { get; set; }
+
     // ───────────────────────────────────────────────────────────
     // 物語ステージ進行（タイムラインハブのルーティング用・STEP2）
     //   ※クリア状態はセッション内のみ保持（永続化は周回設計とともに後続STEPで検討）。

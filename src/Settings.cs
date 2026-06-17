@@ -165,6 +165,19 @@ public partial class Settings : Node2D
             case "se":     SetBusDb("SE",     d.F); break;
             case "voice":  SetBusDb("Voice",  d.F); break;
             case "amb":    SetBusDb("Amb",    d.F); break;
+            // 会話：メッセージ速度（遅/中/速）とオート送り。GameManager へ反映。
+            case "msg":
+            {
+                var gm = GetNodeOrNull<GameManager>("/root/Game");
+                if (gm != null) gm.MsgCharsPerSec = d.I == 0 ? 28f : d.I == 2 ? 80f : 48f;
+                break;
+            }
+            case "auto":
+            {
+                var gm = GetNodeOrNull<GameManager>("/root/Game");
+                if (gm != null) gm.AutoAdvanceDialog = d.B;
+                break;
+            }
             case "mode":
                 DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;

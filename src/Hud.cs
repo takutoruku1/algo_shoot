@@ -57,6 +57,11 @@ public partial class Hud : CanvasLayer
     private float _dlgRevealed;         // タイプライター表示済み文字数
     private const float CharsPerSec = 48f;
 
+    // やさしさゲージ（HUD表示用）
+    private double _overloadToast;
+    private float _kindPulse;
+    private float _prevKind;
+
     // ティッカー（降ってくる言葉）
     private double _t;
     private static readonly (string h, string w)[] TickerWords =
@@ -82,7 +87,7 @@ public partial class Hud : CanvasLayer
 
         // タイプライター送り
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
-            _dlgRevealed = Mathf.Min(_dlgText.Length, _dlgRevealed + (float)delta * CharsPerSec);
+            _dlgRevealed = Mathf.Min(_dlgText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec));
 
         if (_messageTimer > 0)
         {
@@ -98,6 +103,14 @@ public partial class Hud : CanvasLayer
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
         if (_spellTimer > 0) { _spellTimer -= delta; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
+
+        // やさしさゲージの演出更新（全開トースト＋グレイズで貯まる手応え）
+        if (_game?.JustOverloaded ?? false) _overloadToast = 1.4;
+        if (_overloadToast > 0) _overloadToast -= delta;
+        float kNow = _game?.Kindness ?? 0f;
+        if (!(_game?.IsOverload ?? false) && kNow > _prevKind + 0.001f) _kindPulse = 1f;
+        _prevKind = kNow;
+        if (_kindPulse > 0) _kindPulse = Mathf.Max(0f, _kindPulse - (float)delta * 4f);
 
         _canvas.QueueRedraw();
     }
@@ -157,6 +170,11 @@ public partial class Hud : CanvasLayer
 
     public void HideBubble() { _messageTimer = 0; ClearDialog(); }
 
+    // 会話送り（ステージの Step_Lines から使う）：全文表示済みか／即時全文表示／オート送りON。
+    public bool DialogRevealed => _dlgText.Length == 0 || _dlgRevealed >= _dlgText.Length;
+    public void RevealDialogNow() { if (_dlgText.Length > 0) _dlgRevealed = _dlgText.Length; }
+    public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
+
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
@@ -199,9 +217,11 @@ public partial class Hud : CanvasLayer
         if (_bossVisible) DrawBossCard(ci);
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
+        DrawKindness(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
+        if (_overloadToast > 0) DrawOverloadToast(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         // 被弾エッジ
@@ -373,6 +393,37 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.06f, 0.10f, 0.14f, 0.9f * a), 15f, new Color(UiKit.Info, 0.6f * a), 1.4f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 22, y + 9), "MODE", 12, new Color(UiKit.Info, a));
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, 30, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
+    }
+
+    // やさしさゲージ（ショットチップの直下）。蓄積＝紫、全開＝金で残時間が減る。満タン手前でふち明滅。
+    private void DrawKindness(HudCanvas ci)
+    {
+        float fill = Mathf.Clamp(_game?.Kindness ?? 0f, 0f, 1f);
+        bool over = _game?.IsOverload ?? false;
+        float x = 22, y = 132, w = 168, h = 20;
+        float pulse = (!over && fill >= 0.85f) ? (0.5f + 0.5f * Mathf.Sin((float)_t * 9f)) : 0f;
+        Color border = over ? new Color(UiKit.Gold, 0.9f) : new Color(UiKit.Mina, 0.12f + 0.6f * pulse);
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 10f, border, 1f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 4), "やさしさ", 12, over ? UiKit.Gold : UiKit.Mina);
+        float barX = x + 62, barW = w - 62 - 12;
+        UiKit.Box(ci, new Rect2(barX, y + h / 2f - 4, barW, 8f), new Color(1, 1, 1, 0.08f), 4f);
+        if (fill > 0)
+        {
+            float bh = 8f + _kindPulse * 4f;
+            UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), over ? UiKit.Gold : UiKit.Mina, 4f);
+        }
+        if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, UiKit.Gold);
+    }
+
+    // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。
+    private void DrawOverloadToast(HudCanvas ci)
+    {
+        float a = Mathf.Clamp((float)(_overloadToast / 0.4), 0f, 1f);
+        const string t = "やさしさ全開";
+        float w = UiKit.TextW(UiKit.ZenBlack, t, 30) + 90;
+        float x = 640 - w / 2f, y = 150;
+        UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.10f, 0.08f, 0.04f, 0.9f * a), 15f, new Color(UiKit.Gold, 0.6f * a), 1.4f);
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, 30, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
     }
 
     private void DrawTicker(HudCanvas ci)

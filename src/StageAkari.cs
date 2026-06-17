@@ -111,7 +111,13 @@ public partial class StageAkari : Node
             Hud.HoldBubble = true; // 自動で消えない＝手動送り
             ShowLine(lines);
         }
-        if (_zEdge && _lineHold >= 0.25)
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
         {
             _lineHold = 0;
             _introLine++;
