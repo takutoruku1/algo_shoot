@@ -49,7 +49,8 @@ public partial class BossMina : Enemy
     {
         (0, "ミナ! ……ぼくだ。迎えに来た。", "res://char/shonen_gentle.png"),
         (1, "……ご主人、様? だめ……わたくしに、近づいては……穢れて、しまいます……", ""),
-        (0, "うるさい。お前を置いて帰れるか。——今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"),
+        (0, "ぼくはずっと、自分が行くのが怖かった。お前に光を握らせて、後ろにいた。", "res://char/shonen_gentle.png"),
+        (0, "……でも、お前を一人にする方が、もっと怖い。今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"),
     };
 
     protected override void OnEnemyReady()
