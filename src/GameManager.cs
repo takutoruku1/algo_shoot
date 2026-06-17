@@ -155,6 +155,9 @@ public partial class GameManager : Node
         // 炎上は「次の1ステージだけ」。ここで消費してこのrun限定で有効化。
         BurningThisRun = Burning;
         Burning = false;
+
+        // ステージBGM開始（全ステージ共通フック）。同じ曲なら継続＝リトライで途切れない。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmStage);
     }
 
     // ───────────────────────────────────────────────────────────

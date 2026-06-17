@@ -21,6 +21,11 @@ Game="*res://src/GameManager.cs"
 DemoPilot="*res://src/DemoPilot.cs"
 QaPilot="*res://src/QaPilot.cs"
 Shot="*res://src/Shot.cs"
+Audio="*res://src/Audio.cs"
+
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
 
 [display]
 

@@ -206,8 +206,9 @@ public partial class Enemy : Area2D
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
         GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
 
-        // 浄化バースト演出＋やさしい言葉（バリエーション）
+        // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
+        Audio.Instance?.PlayPurify();
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
 
         // やさしさの波紋（連鎖浄化のトリガー）。

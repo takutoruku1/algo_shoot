@@ -355,8 +355,9 @@ public partial class Player : Area2D
             foreach (var f in _followers)
                 f.Fire();
 
-        // マズルフラッシュ
+        // マズルフラッシュ＋発射音（画と同フレーム）
         FxLayer.Instance?.Muzzle(muzzle);
+        Audio.Instance?.PlayShot(_overload);
     }
 
     // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
@@ -427,6 +428,7 @@ public partial class Player : Area2D
             b.Grazed = true;
             GetNodeOrNull<GameManager>("/root/Game")?.AddGraze();
             FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光
+            Audio.Instance?.PlayGraze();
         }
     }
 
@@ -518,6 +520,7 @@ public partial class Player : Area2D
 
         // 被弾演出（自機周囲のフラッシュ＋波紋）＋ 赤フラッシュ・シェイク・ヒットストップで「被弾」を明確化。
         FxLayer.Instance?.PlayerHit(GlobalPosition);
+        Audio.Instance?.PlayHit(); // 最優先（Alertバス）。実時間再生でヒットストップに引きずられない
         GameCamera.Instance?.Shake(5.5f, 0.28f);
         GameCamera.Instance?.Hitstop(0.09);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HitFlash();

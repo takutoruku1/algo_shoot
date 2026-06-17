@@ -146,14 +146,25 @@ public partial class Settings : Node2D
     }
 
     private void ApplyAll() { foreach (var c in _cats) foreach (var d in c.Items) Apply(d); }
+
+    // 0..100 のスライダー値を該当バスの音量に反映（0.5以下は実質ミュート）。
+    private static void SetBusDb(string bus, float f)
+    {
+        int i = AudioServer.GetBusIndex(bus);
+        if (i >= 0) AudioServer.SetBusVolumeDb(i, f <= 0.5f ? -80f : Mathf.LinearToDb(f / 100f));
+    }
+
     private void Apply(Def d)
     {
         switch (d.Key)
         {
-            case "master":
-                int bus = AudioServer.GetBusIndex("Master");
-                if (bus >= 0) AudioServer.SetBusVolumeDb(bus, d.F <= 0.5f ? -80f : Mathf.LinearToDb(d.F / 100f));
-                break;
+            // 音量（バスは default_bus_layout.tres で定義）。
+            // Alert（被弾等の最優先音）は Master のみに従属させ、ここでは下げない。
+            case "master": SetBusDb("Master", d.F); break;
+            case "bgm":    SetBusDb("Music",  d.F); break;
+            case "se":     SetBusDb("SE",     d.F); break;
+            case "voice":  SetBusDb("Voice",  d.F); break;
+            case "amb":    SetBusDb("Amb",    d.F); break;
             case "mode":
                 DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;
