@@ -30,8 +30,9 @@ public partial class BulletPool : Node2D
     }
 
     // pos に vel で移動する弾を取り出して有効化。
-    // プール枯渇時は追加生成して可。
-    public Bullet Spawn(Vector2 pos, Vector2 vel, bool isEnemy, float radius = 3f, int damage = 1)
+    // プール枯渇時は追加生成して可。shape/tint で弾形・スペル色を指定（敵弾のみ反映）。
+    public Bullet Spawn(Vector2 pos, Vector2 vel, bool isEnemy, float radius = 3f, int damage = 1,
+        BulletShape shape = BulletShape.Orb, Color? tint = null)
     {
         // 難易度で敵弾の速度をスケール（やさしいほど遅く＝避けやすい）。
         if (isEnemy)
@@ -51,7 +52,7 @@ public partial class BulletPool : Node2D
             b = CreateBullet();
         }
 
-        b.Activate(pos, vel, isEnemy, radius, damage);
+        b.Activate(pos, vel, isEnemy, radius, damage, shape, tint);
         return b;
     }
 

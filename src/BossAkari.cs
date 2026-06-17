@@ -14,6 +14,8 @@ public partial class BossAkari : Enemy
     private const float RoamSpeed = 40f;
 
     private double _fireT;
+    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
+    private bool _finale;     // HP2割以下＝2スペル同時展開
     private float _ringOff;
     private int _pattern;       // 現在の攻撃パターン（セリフを挟むたびに変化）
     private int _beatsFired;    // 流した独白の数
@@ -21,6 +23,21 @@ public partial class BossAkari : Enemy
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.52f, 0.26f };
+
+    // スペルカード（RefrainHTML Danmaku v3 STAGE2 あかり＝雨の教室・青と白の寒色）。
+    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    {
+        ("雨（降りやまない）",   BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針
+        ("机が落ちる",           BulletShape.Diamond, new Color("4a6aa0")), // 藍・大きく遅い菱形
+        ("あの——（ためらい）", BulletShape.Orb,     new Color("a8c8e8")), // 淡青・狙い撃ち
+        ("す——（言いかけ）",   BulletShape.Needle,  new Color("e8f0ff")), // 白・言いかけて弾ける
+    };
+    private void ApplySpell()
+    {
+        var s = Spells[_pattern % Spells.Length];
+        SetSpellVisual(s.shape, s.tint);
+        GetHud()?.AnnounceSpell("あかり", "@akari_ame", s.name, s.tint);
+    }
 
     // 浄化時のかけあい（who: 0=少年 / 1=ミナ / 2=あかり / 3=地・記憶＝ミナ語り＋記憶フラッシュ）。Zで手動送り。
     private bool _seq;
@@ -76,6 +93,7 @@ public partial class BossAkari : Enemy
         base._Ready();
         GetHud()?.ShowBossBar("ゆるせないわたし");
         GetHud()?.UpdateBossBar(HpRatio);
+        ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
@@ -99,6 +117,7 @@ public partial class BossAkari : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
         {
@@ -109,6 +128,14 @@ public partial class BossAkari : Enemy
         }
     }
 
+    // フィナーレ（HP2割以下）：「雨」(雨青の針)＋「机が落ちる」(藍の菱形螺旋)を同時展開。
+    private void FireFinale(BulletPool pool, double delta)
+    {
+        _fireT += delta; _fireT2 += delta;
+        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint); FanDown(pool); }
+        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); Spiral(pool); }
+    }
+
     private void FanDown(BulletPool pool)
     {
         int k = Dn(9);
@@ -116,7 +143,7 @@ public partial class BossAkari : Enemy
         {
             float t = (float)i / (k - 1) - 0.5f;
             float a = Mathf.Pi / 2f + t * Mathf.DegToRad(80f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.4f);
         }
     }
 
@@ -127,7 +154,7 @@ public partial class BossAkari : Enemy
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 72f, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 72f, 3.4f);
         }
     }
 
@@ -137,7 +164,7 @@ public partial class BossAkari : Enemy
         for (int i = -1; i <= 1; i++)
         {
             float a = baseA + i * Mathf.DegToRad(14f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
         }
     }
 
@@ -147,7 +174,7 @@ public partial class BossAkari : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, isEnemy: true, 3.2f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
         }
     }
 
@@ -170,6 +197,12 @@ public partial class BossAkari : Enemy
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
+            ApplySpell();
+        }
+        if (!_finale && HpRatio <= 0.2f)
+        {
+            _finale = true;
+            GetHud()?.AnnounceSpell("あかり", "@akari_ame", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }
 

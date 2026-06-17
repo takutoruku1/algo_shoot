@@ -26,6 +26,14 @@ public partial class Hud : CanvasLayer
     private string _bannerText = "";
     private double _bannerTimer;
 
+    // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
+    private string _spellName = "";
+    private string _spellWho = "";
+    private string _spellHandle = "";
+    private Color _spellCol = Colors.White;
+    private double _spellTimer;
+    private const double SpellShowDur = 3.8;
+
     // フラッシュ
     private float _flashAlpha;
     private Color _flashRgb = new(1f, 1f, 1f);
@@ -83,6 +91,7 @@ public partial class Hud : CanvasLayer
         BubblePaused = nowPaused;
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
+        if (_spellTimer > 0) { _spellTimer -= delta; }
 
         _canvas.QueueRedraw();
     }
@@ -144,6 +153,13 @@ public partial class Hud : CanvasLayer
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; }
 
+    // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
+    public void AnnounceSpell(string who, string handle, string spellName, Color col)
+    {
+        _spellWho = who; _spellHandle = handle; _spellName = spellName;
+        _spellCol = col; _spellTimer = SpellShowDur;
+    }
+
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
 
     public void ShowBossBar(string bossName)
@@ -168,6 +184,7 @@ public partial class Hud : CanvasLayer
         DrawPurify(ci);
         DrawScore(ci);
         if (_bossVisible) DrawBossCard(ci);
+        if (_spellTimer > 0) DrawSpellCard(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
@@ -271,6 +288,43 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
         if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), UiKit.Kegare, 5f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{Mathf.RoundToInt(_bossFrac * 100f)}%", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
+    }
+
+    // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
+    private void DrawSpellCard(HudCanvas ci)
+    {
+        double age = SpellShowDur - _spellTimer;
+        float a = 1f;
+        if (age < 0.25) a = (float)(age / 0.25);                 // スライドイン
+        else if (_spellTimer < 0.7) a = (float)(_spellTimer / 0.7); // フェードアウト
+        a = Mathf.Clamp(a, 0f, 1f);
+
+        string title = "『" + _spellName + "』";
+        float titleW = UiKit.TextW(UiKit.ZenBold, title, 16);
+        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 13) + UiKit.TextW(UiKit.Mono, _spellHandle, 11) + 90f;
+        float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 80f, 360f, 760f);
+        float x = 640 - w / 2f, y = 128 - (1f - a) * 8f, h = 56;
+
+        Color col = _spellCol;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.047f, 0.035f, 0.071f, 0.82f * a), 12f, new Color(col, 0.45f * a), 1.2f);
+        // アバター＋認証
+        Vector2 ac = new(x + 28, y + h / 2f);
+        UiKit.RadialGlow(ci, ac, 16f, col, 0.4f * a);
+        ci.DrawCircle(ac, 13f, new Color(col.R * 0.45f, col.G * 0.45f, col.B * 0.45f, a));
+        ci.DrawCircle(ac + new Vector2(9, 9), 5.5f, new Color(col, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 6, ac.Y + 4), "✓", 8, new Color(1, 1, 1, a));
+        // 名前＋ハンドル
+        float tx = x + 52;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 9), _spellWho, 13, new Color(1, 1, 1, a));
+        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 13);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, y + 12), _spellHandle, 11, new Color(UiKit.Text3, a));
+        // 右肩「● スペル発動」（点滅の余裕として常時表示）
+        string tag = "スペル発動";
+        float tagW = UiKit.TextW(UiKit.Mono, tag, 10) + 14;
+        ci.DrawCircle(new Vector2(x + w - tagW - 8, y + 15), 3.2f, new Color(col, a));
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - tagW, y + 9), tag, 10, new Color(col, a));
+        // スペル名
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 30), title, 16, new Color(0.94f, 0.9f, 0.96f, a));
     }
 
     private void DrawSkill(HudCanvas ci)

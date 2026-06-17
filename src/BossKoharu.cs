@@ -14,6 +14,8 @@ public partial class BossKoharu : Enemy
     private const float RoamSpeed = 38f;
 
     private double _fireT;
+    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
+    private bool _finale;     // HP2割以下＝2スペル同時展開
     private float _ringOff;
     private int _pattern;
     private int _beatsFired;
@@ -28,6 +30,21 @@ public partial class BossKoharu : Enemy
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
+
+    // スペルカード（RefrainHTML Danmaku v3 STAGE3 こはる＝台所・琥珀と深紅の暖色）。
+    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    {
+        ("むだだよ",             BulletShape.Orb,     new Color("e8a24a")), // 琥珀・台所の灯
+        ("怒り（他責）",         BulletShape.Diamond, new Color("d6443f")), // 深紅・高速ダイヤ雨
+        ("もう帰ってこない",     BulletShape.Needle,  new Color("e87a3c")), // 橙・十字バースト
+        ("ひとりになる",         BulletShape.Rice,    new Color("ffa14a")), // 燃え残り・扇の粒弾
+    };
+    private void ApplySpell()
+    {
+        var s = Spells[_pattern % Spells.Length];
+        SetSpellVisual(s.shape, s.tint);
+        GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", s.name, s.tint);
+    }
 
     // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。少年はミナの声で“中継”して届ける。
     // 設計書 v2 [P-03] のボス節を順序通りに（ミナの気遣い・少年の取り繕いも含む）。
@@ -71,6 +88,7 @@ public partial class BossKoharu : Enemy
         base._Ready();
         GetHud()?.ShowBossBar("むだなわたし");
         GetHud()?.UpdateBossBar(HpRatio);
+        ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
@@ -92,6 +110,7 @@ public partial class BossKoharu : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
         {
@@ -102,13 +121,21 @@ public partial class BossKoharu : Enemy
         }
     }
 
+    // フィナーレ（HP2割以下）：「むだだよ」(琥珀の円弾リング)＋「怒り（他責）」(深紅の菱形雨)を同時展開。
+    private void FireFinale(BulletPool pool, double delta)
+    {
+        _fireT += delta; _fireT2 += delta;
+        if (_fireT >= Di(0.95)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint); Ring(pool, Dn(16), 70f); }
+        if (_fireT2 >= Di(0.85)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); FanDown(pool); }
+    }
+
     private void Ring(BulletPool pool, int k, float spd)
     {
         _ringOff += Mathf.DegToRad(8f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.4f);
         }
     }
 
@@ -119,7 +146,7 @@ public partial class BossKoharu : Enemy
         {
             float t = (float)i / (k - 1) - 0.5f;
             float a = Mathf.Pi / 2f + t * Mathf.DegToRad(78f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.4f);
         }
     }
 
@@ -130,7 +157,7 @@ public partial class BossKoharu : Enemy
         for (int i = -1; i <= 1; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
         }
     }
 
@@ -140,7 +167,7 @@ public partial class BossKoharu : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 88f, isEnemy: true, 3.2f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 88f, 3.2f);
         }
     }
 
@@ -162,6 +189,12 @@ public partial class BossKoharu : Enemy
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
+            ApplySpell();
+        }
+        if (!_finale && HpRatio <= 0.2f)
+        {
+            _finale = true;
+            GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }
 

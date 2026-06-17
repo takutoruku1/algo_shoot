@@ -13,6 +13,8 @@ public partial class BossRei : Enemy
     private const float RoamSpeed = 42f;
 
     private double _fireT;
+    private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
+    private bool _finale;     // HP2割以下＝2スペル同時展開
     private float _ringOff;
     private int _pattern;
     private int _beatsFired;
@@ -25,6 +27,22 @@ public partial class BossRei : Enemy
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
+
+    // スペルカード（RefrainHTML Danmaku v3 STAGE1 レイ＝順位掲示板・銀菫金ティール）。
+    // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
+    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    {
+        ("どうせ二番",           BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円
+        ("努力は天才に勝てない", BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル
+        ("私を見て",             BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞
+        ("届かない",             BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング
+    };
+    private void ApplySpell()
+    {
+        var s = Spells[_pattern % Spells.Length];
+        SetSpellVisual(s.shape, s.tint);
+        GetHud()?.AnnounceSpell("レイ", "@rei_compete", s.name, s.tint);
+    }
 
     // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
     // 設計書 v2 [P-01b] のボス節を順序通りに：レイの悔しさ → 中継 → 好敵手だったと認める。
@@ -64,6 +82,7 @@ public partial class BossRei : Enemy
         base._Ready();
         GetHud()?.ShowBossBar("二番のわたし");
         GetHud()?.UpdateBossBar(HpRatio);
+        ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
@@ -86,6 +105,7 @@ public partial class BossRei : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
         {
@@ -96,13 +116,21 @@ public partial class BossRei : Enemy
         }
     }
 
+    // フィナーレ（HP2割以下）：「私を見て」(星金リング)＋「届かない」(ティールのリング螺旋)を同時展開。
+    private void FireFinale(BulletPool pool, double delta)
+    {
+        _fireT += delta; _fireT2 += delta;
+        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14), 72f); }
+        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
+    }
+
     private void Ring(BulletPool pool, int k, float spd)
     {
         _ringOff += Mathf.DegToRad(9f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.4f);
         }
     }
 
@@ -113,7 +141,7 @@ public partial class BossRei : Enemy
         for (int i = -1; i <= 1; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 98f, isEnemy: true, 3.4f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 98f, 3.4f);
         }
     }
 
@@ -123,7 +151,7 @@ public partial class BossRei : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, isEnemy: true, 3.2f, 1);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
         }
     }
 
@@ -145,6 +173,12 @@ public partial class BossRei : Enemy
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
+            ApplySpell();
+        }
+        if (!_finale && HpRatio <= 0.2f)
+        {
+            _finale = true;
+            GetHud()?.AnnounceSpell("レイ", "@rei_compete", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
     }
 

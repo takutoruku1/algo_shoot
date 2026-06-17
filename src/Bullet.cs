@@ -1,5 +1,8 @@
 using Godot;
 
+// 弾形（RefrainHTML/Refrain Danmaku v3 の弾形7種）。言葉弾は Bullet.Word で別扱い。
+public enum BulletShape { Orb, Diamond, Star, Ring, Needle, Rice }
+
 // Bullet : Area2D。Pool により生成・使い回しされる弾。
 // 当たり判定（被弾処理）は敵側/自機側で行うため、Bullet 自身は Area 重なり処理を持たない。
 // _PhysicsProcess で等速直線移動し、画面外(余白16px)に出たら Pool.Despawn(this)。
@@ -24,6 +27,11 @@ public partial class Bullet : Area2D
     public bool Active;
     public bool Grazed;  // グレイズ済みか（重複加点防止）
     public string Word = "";  // 非空なら「言葉弾」＝文字そのものが弾（道中の敵。設計書 4）
+
+    // 弾形とスペル色（敵弾のみ反映）。色未指定時は既定の穢れ色。
+    public BulletShape Shape = BulletShape.Orb;
+    public Color Tint;
+    public bool TintSet;
 
     // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
     private static FontFile? _wordFont;
@@ -68,7 +76,8 @@ public partial class Bullet : Area2D
     }
 
     // layer/mask/見た目/位置を設定し、可視化・monitoring 有効化。
-    public void Activate(Vector2 pos, Vector2 vel, bool isEnemy, float radius, int damage)
+    public void Activate(Vector2 pos, Vector2 vel, bool isEnemy, float radius, int damage,
+        BulletShape shape = BulletShape.Orb, Color? tint = null)
     {
         Velocity = vel;
         IsEnemy = isEnemy;
@@ -77,6 +86,9 @@ public partial class Bullet : Area2D
         Active = true;
         Grazed = false;
         Word = "";  // 再利用時に前の言葉を持ち越さない
+        Shape = shape;
+        TintSet = tint.HasValue;
+        if (tint.HasValue) Tint = tint.Value;
 
         GlobalPosition = pos;
 
@@ -177,34 +189,120 @@ public partial class Bullet : Area2D
             return;
         }
 
-        if (IsEnemy)
-            DrawGlassBullet(r, EnemyMid, EnemyEdge, EnemyGlow);
-        else
+        if (!IsEnemy)
+        {
+            // 自機弾は常にガラス円弾（浄化の水色）。
             DrawGlassBullet(r, PlayerMid, PlayerEdge, PlayerGlow);
+            return;
+        }
+
+        // 敵弾：スペルの色（未指定なら既定の穢れ色）と弾形で描く。
+        Color c = TintSet ? Tint : EnemyMid;
+        switch (Shape)
+        {
+            case BulletShape.Diamond: DrawDiamond(r, c); break;
+            case BulletShape.Star:    DrawStar(r, c);    break;
+            case BulletShape.Ring:    DrawRing(r, c);    break;
+            case BulletShape.Needle:  DrawNeedle(r, c);  break;
+            case BulletShape.Rice:    DrawRice(r, c);    break;
+            default:                  DrawOrb(r, c);     break; // 円弾＝白リング＋暗芯（芯色のみ可変）
+        }
     }
 
-    // HTML(Refrain HUD A) の弾を再現：外周グロー(box-shadow 相当)＋
-    // 白ハイライト(オフセット) → 中間色 → 暗エッジ の滑らかなグラデ円。
-    // DrawCircle は antialiased:true でドットにならず滑らかに描かれる。
-    private void DrawGlassBullet(float r, Color mid, Color edge, Color glow)
+    // 外周グロー（box-shadow 相当）：薄い同心円を外→内に重ねてぼかしを近似。
+    private void DrawGlow(float baseR, Color glow, float reach = 1.3f)
     {
-        // 外周グロー：薄い同心円を外→内に重ねてぼかしを近似（box-shadow blur 相当）
         const int gSteps = 5;
         for (int i = gSteps; i >= 1; i--)
         {
-            float t = i / (float)gSteps;                 // 1=最外周
-            float gr = r * (1f + 1.3f * t);
-            float a = 0.16f * (1f - t) + 0.04f;          // 外ほど薄い
+            float t = i / (float)gSteps;
+            float gr = baseR * (1f + reach * t);
+            float a = 0.16f * (1f - t) + 0.04f;
             DrawCircle(Vector2.Zero, gr, new Color(glow.R, glow.G, glow.B, a), true, -1f, true);
         }
+    }
 
-        // 本体：エッジ → 中間 → 中間寄りの薄帯 → 白ハイライト
+    // HTML(Refrain HUD A) のガラス円弾：外周グロー＋白ハイライト→中間→暗エッジのグラデ。
+    private void DrawGlassBullet(float r, Color mid, Color edge, Color glow)
+    {
+        DrawGlow(r, glow);
         DrawCircle(Vector2.Zero, r, edge, true, -1f, true);
         DrawCircle(Vector2.Zero, r * 0.82f, edge.Lerp(mid, 0.6f), true, -1f, true);
         DrawCircle(Vector2.Zero, r * 0.60f, mid, true, -1f, true);
-
-        // 白ハイライト：HTML の "circle at ~35% 30%" を再現して左上にオフセット
         var hl = new Vector2(-0.28f * r, -0.36f * r);
         DrawCircle(hl, r * 0.34f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
+    }
+
+    // 円弾：作品準拠の「白リング＋暗芯」。芯色のみスペル色で可変（Danmaku v3 shapeInner orb）。
+    private void DrawOrb(float r, Color core)
+    {
+        DrawGlow(r, core);
+        DrawCircle(Vector2.Zero, r, new Color(1f, 1f, 1f, 0.95f), true, -1f, true); // 白リング
+        DrawCircle(Vector2.Zero, r * 0.70f, new Color(0.086f, 0.039f, 0.071f), true, -1f, true); // 暗芯リング
+        DrawCircle(Vector2.Zero, r * 0.40f, core, true, -1f, true); // 芯色
+    }
+
+    // 菱形：45度回転の四角＋グロー（shapeInner diamond）。
+    private void DrawDiamond(float r, Color c)
+    {
+        DrawGlow(r, c, 1.1f);
+        float s = r * 1.15f;
+        var pts = new[] { new Vector2(0, -s), new Vector2(s, 0), new Vector2(0, s), new Vector2(-s, 0) };
+        DrawColoredPolygon(pts, c);
+        DrawColoredPolygon(Scale(pts, 0.5f), new Color(1f, 1f, 1f, 0.85f)); // 芯の光
+    }
+
+    // 星：5芒星（shapeInner star の clip-path 相当）。
+    private void DrawStar(float r, Color c)
+    {
+        DrawGlow(r, c, 1.1f);
+        var pts = new Vector2[10];
+        for (int i = 0; i < 10; i++)
+        {
+            float ang = Mathf.DegToRad(-90f + i * 36f);
+            float rad = (i % 2 == 0) ? r * 1.15f : r * 0.48f;
+            pts[i] = new Vector2(Mathf.Cos(ang) * rad, Mathf.Sin(ang) * rad);
+        }
+        DrawColoredPolygon(pts, c);
+    }
+
+    // リング：中空の輪（shapeInner ring）。
+    private void DrawRing(float r, Color c)
+    {
+        DrawGlow(r, c, 1.0f);
+        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, c, Mathf.Max(1.4f, r * 0.42f), true);
+        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, new Color(c.R, c.G, c.B, 0.5f), 0.9f, true);
+    }
+
+    // 針：進行方向へ伸びる細い弾（shapeInner needle）。
+    private void DrawNeedle(float r, Color c)
+    {
+        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
+        DrawSetTransform(Vector2.Zero, ang, Vector2.One);
+        float len = r * 2.8f, w = r * 0.78f;
+        DrawGlow(r * 0.8f, c, 0.8f);
+        DrawRect(new Rect2(-len * 0.5f, -w * 0.5f, len, w), c);
+        DrawCircle(new Vector2(-len * 0.5f, 0), w * 0.5f, c, true, -1f, true); // 後端の丸
+        DrawCircle(new Vector2(len * 0.5f, 0), w * 0.5f, c, true, -1f, true);  // 先端の丸
+        DrawRect(new Rect2(-len * 0.5f, -w * 0.18f, len, w * 0.36f), new Color(1f, 1f, 1f, 0.55f)); // 中央のハイライト
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // 粒弾：進行方向へ細長い楕円（shapeInner rice）。
+    private void DrawRice(float r, Color c)
+    {
+        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
+        DrawGlow(r * 0.8f, c, 0.8f);
+        DrawSetTransform(Vector2.Zero, ang, new Vector2(1.15f, 0.5f));
+        DrawCircle(Vector2.Zero, r, c, true, -1f, true);
+        DrawCircle(new Vector2(-r * 0.25f, -r * 0.25f), r * 0.4f, new Color(1f, 1f, 1f, 0.7f), true, -1f, true);
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    private static Vector2[] Scale(Vector2[] pts, float s)
+    {
+        var o = new Vector2[pts.Length];
+        for (int i = 0; i < pts.Length; i++) o[i] = pts[i] * s;
+        return o;
     }
 }

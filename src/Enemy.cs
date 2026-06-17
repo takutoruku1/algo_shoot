@@ -72,6 +72,19 @@ public partial class Enemy : Area2D
 
     protected virtual void OnEnemyReady() { }
 
+    // ─── スペルカードの弾形・色（RefrainHTML Danmaku v3）───
+    // 派生ボスがパターン切替時に SetSpellVisual で更新し、FireBullet が反映する。
+    protected BulletShape CurShape = BulletShape.Orb;
+    protected Color CurTint;
+    protected bool CurTintSet;
+    protected void SetSpellVisual(BulletShape shape, Color tint)
+    {
+        CurShape = shape; CurTint = tint; CurTintSet = true;
+    }
+    // 現在のスペルの弾形・色で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
+    protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1)
+        => pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
+
     // 難易度に応じた弾数。派生ボスが弾幕パターンの本数を安全にスケールするために使う。
     protected int Dn(int baseCount) =>
         GetNodeOrNull<GameManager>("/root/Game")?.ScaleBullets(baseCount) ?? baseCount;
