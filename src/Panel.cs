@@ -137,31 +137,32 @@ public partial class Panel : Area2D
         QueueFree();
     }
 
+    // 穢れの吹き出し（設計色 #e072ac）。ドット絵ではなく、マゼンタのグロー＋明リング＋
+    // 暗マルーン核（radial-gradient rgba(70,24,52)→#180812 相当）＋滑らかな「・・・」。
+    private static readonly Color KegareRim = new Color(0.882f, 0.447f, 0.675f);   // #e072ac
+    private static readonly Color MaroonMid = new Color(0.274f, 0.094f, 0.204f);   // rgba(70,24,52)
+    private static readonly Color MaroonCore = new Color(0.094f, 0.031f, 0.071f);  // #180812
+    private static readonly Color BubbleDot = new Color(0.92f, 0.86f, 0.92f);
+
     public override void _Draw()
     {
         if (_dead || _hasTex) return; // スプライトがあれば図形は描かない
-        float r = 3.2f + Ink * 0.8f; // インクが多いほど大きい
-        // ドットの黒い吹き出し（滑らかな円でなくピクセルで）
-        PixelDisc(r + 1f, new Color(1f, 0.35f, 0.55f, 0.9f)); // ホット縁
-        PixelDisc(r, new Color(0.10f, 0.08f, 0.13f));         // 黒インク本体
-        // 「・・・」を1pxドットで
-        var dot = new Color(0.85f, 0.85f, 0.9f);
-        DrawRect(new Rect2(-2, 0, 1, 1), dot);
-        DrawRect(new Rect2(0, 0, 1, 1), dot);
-        DrawRect(new Rect2(2, 0, 1, 1), dot);
-    }
+        float r = 3.2f + Ink * 0.8f;  // インクが多いほど大きい
 
-    // 1x1の正方ドットで塗る“ピクセルの円”。
-    private void PixelDisc(float r, Color col)
-    {
-        int ri = Mathf.CeilToInt(r);
-        float r2 = r * r;
-        for (int y = -ri; y < ri; y++)
-            for (int x = -ri; x < ri; x++)
-            {
-                float cx = x + 0.5f, cy = y + 0.5f;
-                if (cx * cx + cy * cy <= r2)
-                    DrawRect(new Rect2(x, y, 1, 1), col);
-            }
+        // 外周グロー（box-shadow 相当）。
+        for (int i = 3; i >= 1; i--)
+        {
+            float t = i / 3f;
+            DrawCircle(Vector2.Zero, r * (1f + 0.9f * t),
+                new Color(KegareRim.R, KegareRim.G, KegareRim.B, 0.12f * (1f - t) + 0.05f), true, -1f, true);
+        }
+        DrawCircle(Vector2.Zero, r + 1.2f, new Color(KegareRim, 0.9f), true, -1f, true); // 明マゼンタリング
+        DrawCircle(Vector2.Zero, r, MaroonMid, true, -1f, true);                         // マルーン
+        DrawCircle(Vector2.Zero, r * 0.66f, MaroonCore, true, -1f, true);                // 暗芯
+
+        // 「・・・」（滑らかな白ドット）。
+        DrawCircle(new Vector2(-2f, 0f), 0.7f, BubbleDot, true, -1f, true);
+        DrawCircle(new Vector2(0f, 0f), 0.7f, BubbleDot, true, -1f, true);
+        DrawCircle(new Vector2(2f, 0f), 0.7f, BubbleDot, true, -1f, true);
     }
 }
