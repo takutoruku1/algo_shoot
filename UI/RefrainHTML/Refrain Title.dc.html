@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#16131d;}
+  @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  @keyframes lightPulse{0%,100%{opacity:.92;filter:drop-shadow(0 0 24px rgba(255,236,180,.55))}50%{opacity:1;filter:drop-shadow(0 0 44px rgba(255,240,200,.8))}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.32}}
+  @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  @keyframes wordDrift{0%{transform:translateY(0)}50%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#221b30 0%,#16131d 55%,#100d16 100%);padding:48px 32px 72px;display:flex;flex-direction:column;align-items:center;gap:30px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Title / スタート画面</div>
+    <p style="margin:0;color:#c8b8d8;font-size:14px;">他画面と同じトークン。メニューは↑↓で選択（クリックでも動作）。</p>
+  </header>
+
+  <section style="width:1280px;max-width:100%;" data-screen-label="スタート">
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <!-- backdrop -->
+      <div style="position:absolute;inset:0;background:radial-gradient(60% 60% at 76% 30%,rgba(120,150,210,.22),transparent 60%),radial-gradient(50% 50% at 18% 92%,rgba(154,114,217,.18),transparent 65%),linear-gradient(180deg,#0e1834 0%,#0a1126 55%,#070a16 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 32%,rgba(150,180,230,.06) 48%,transparent 62%);"></div>
+
+      <!-- floating words -->
+      <span style="position:absolute;left:12%;top:24%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:20px;color:rgba(200,184,216,.12);transform:rotate(-4deg);white-space:nowrap;animation:wordDrift 7s ease-in-out infinite;">あたしのせいだ</span>
+      <span style="position:absolute;left:58%;top:66%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:18px;color:rgba(200,184,216,.1);white-space:nowrap;animation:wordDrift 8s ease-in-out infinite .6s;">きえたい</span>
+      <span style="position:absolute;left:80%;top:54%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:17px;color:rgba(200,184,216,.1);white-space:nowrap;animation:wordDrift 9s ease-in-out infinite 1.2s;">とどかない</span>
+      <span style="position:absolute;left:44%;top:18%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:16px;color:rgba(200,184,216,.09);white-space:nowrap;animation:wordDrift 7.5s ease-in-out infinite .9s;">ひとりになる</span>
+
+      <!-- drifting danmaku -->
+      <span style="position:absolute;left:66%;top:40%;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.6);"></span>
+      <span style="position:absolute;left:88%;top:64%;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#6cbcd8 65%);box-shadow:0 0 8px rgba(108,188,216,.7);"></span>
+
+      <!-- 本人（光）orb -->
+      <div style="position:absolute;right:13%;top:30%;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle at 44% 40%,#fff,#fff0c4 38%,#ffd98a 64%,rgba(255,200,120,0) 78%);animation:lightPulse 4s ease-in-out infinite,orbFloat 7s ease-in-out infinite;"></div>
+      <!-- Mina orb -->
+      <div style="position:absolute;right:30%;top:58%;width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);box-shadow:0 0 16px rgba(154,114,217,.8),0 0 32px rgba(200,180,255,.4);animation:orbFloat 5s ease-in-out infinite;"></div>
+
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.5;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 150px 50px rgba(0,0,0,.6);pointer-events:none;"></div>
+
+      <!-- title + menu -->
+      <div style="position:absolute;left:88px;top:94px;display:flex;flex-direction:column;gap:26px;max-width:560px;">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="font-family:'JetBrains Mono';font-weight:800;font-size:15px;letter-spacing:.5em;color:#a6dcec;text-shadow:0 0 12px rgba(108,188,216,.5);">ALGO :</div>
+          <h1 style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:62px;line-height:1.08;padding-bottom:10px;letter-spacing:.01em;background:linear-gradient(160deg,#ffffff 0%,#d7f3ff 38%,#9bb7e8 64%,#9a72d9 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 rgba(20,16,40,.6)) drop-shadow(0 8px 26px rgba(108,150,220,.4));">Refrain<br>of Light</h1>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+            <span style="width:34px;height:2px;background:linear-gradient(90deg,#6cbcd8,transparent);"></span>
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#c8b8d8;letter-spacing:.06em;">心象シューティング</span>
+          </div>
+          <p style="margin:4px 0 0;font-family:'Zen Kaku Gothic New';font-size:14px;color:#8a7a9a;letter-spacing:.04em;">— その痛みに、光を届けに。</p>
+        </div>
+
+        {{ menu }}
+      </div>
+
+      <!-- bottom-left prompt -->
+      <div style="position:absolute;left:88px;bottom:30px;display:flex;align-items:center;gap:14px;">
+        <span style="display:inline-flex;align-items:center;gap:9px;animation:blink 1.6s ease-in-out infinite;">
+          <span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(108,188,216,.14);border:1px solid rgba(159,222,245,.5);font-family:'JetBrains Mono';font-weight:800;font-size:12px;color:#d7f3ff;">Z</span>
+          <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#a6dcec;letter-spacing:.1em;">けってい</span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:9px;">
+          <span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">↑↓</span>
+          <span style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#8a7a9a;">えらぶ</span>
+        </span>
+      </div>
+
+      <!-- bottom-right version -->
+      <div style="position:absolute;right:26px;bottom:24px;text-align:right;font-family:'JetBrains Mono';font-size:11px;color:#6b6478;line-height:1.7;">
+        <div>ver 0.3.0 — 体験版</div>
+        <div>© 2026 algo project</div>
+      </div>
+
+      <!-- subtle X feed ticker -->
+      <div style="position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(10,8,16,.55),rgba(10,8,16,0));overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;height:100%;">
+          <span style="width:12px;height:12px;background:#6cbcd8;-webkit-mask:url(hud/icons/stream.svg) center/contain no-repeat;mask:url(hud/icons/stream.svg) center/contain no-repeat;"></span>
+          <span style="font-family:'JetBrains Mono';font-size:10px;letter-spacing:.14em;color:#8a7a9a;">DIVING</span>
+        </div>
+        <div style="flex:1;overflow:hidden;position:relative;height:100%;">
+          <div style="position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:38px;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-size:12px;color:rgba(200,184,216,.5);animation:ticker 30s linear infinite;">
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@rei_0w0</span> ごめん、もう無理かも。</span>
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@kako__</span> どうせ、とどかない</span>
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@nobody_7</span> もういない</span>
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@rei_0w0</span> ごめん、もう無理かも。</span>
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@kako__</span> どうせ、とどかない</span>
+            <span><span style="color:#6b6478;font-family:'JetBrains Mono';">@nobody_7</span> もういない</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="width:1280px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    全画面共通トークン：選択=シアン(--info)／ミナ=紫(--primary)／光=金(--gold)。上部の小さなXフィード（DIVING）が、相手の投稿へ飛び込むという作品のモチーフを示す。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { sel: 0 };
+
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; const k=t.slice(0,i).trim().replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const args=[].slice.call(arguments); if(props&&props.style){ args[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,args); }
+
+  items(){
+    return [
+      {n:'はじめから',s:'NEW GAME'},
+      {n:'つづきから',s:'CONTINUE'},
+      {n:'ギャラリー',s:'GALLERY'},
+      {n:'設定',s:'SETTINGS'},
+      {n:'おわる',s:'QUIT'},
+    ];
+  }
+
+  renderVals(){
+    const e=this.E.bind(this);
+    const sel=this.state.sel;
+    const cont=this.state.sel===1; // つづきから availability flag (demo: has save)
+    const rows=this.items().map((it,i)=>{
+      const on=i===sel;
+      const dim=(i===1 && false); // keep all enabled for demo
+      return e('div',{key:i,onClick:()=>this.setState({sel:i}),style:`position:relative;display:flex;align-items:center;gap:14px;padding:10px 18px;border-radius:12px;cursor:pointer;transition:background .15s;${on?'background:rgba(20,30,40,.55);box-shadow:inset 0 0 0 1px rgba(159,222,245,.4),0 0 20px rgba(108,188,216,.18);':''}`},[
+        e('span',{key:'c',style:`font-family:'JetBrains Mono';font-weight:800;font-size:15px;line-height:1;width:12px;color:${on?'#6cbcd8':'transparent'};text-shadow:${on?'0 0 8px rgba(108,188,216,.8)':'none'};`},'▸'),
+        e('span',{key:'n',style:`font-family:'Zen Kaku Gothic New';font-weight:${on?900:700};font-size:23px;color:${on?'#fff':'#b9aecb'};letter-spacing:.04em;text-shadow:${on?'0 0 16px rgba(108,188,216,.4)':'none'};`},it.n),
+        e('span',{key:'s',style:`margin-left:auto;white-space:nowrap;font-family:'JetBrains Mono';font-size:10px;letter-spacing:.16em;color:${on?'#a6dcec':'#6b6478'};`},it.s)
+      ]);
+    });
+    return {
+      menu: e('div',{style:'display:flex;flex-direction:column;gap:3px;width:340px;'},rows)
+    };
+  }
+}
+</script>
+</body>
+</html>

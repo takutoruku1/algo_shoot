@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0a0813;}
+  @keyframes mFall{0%{transform:translateY(-14px) translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(var(--ty,220px)) translateX(var(--tx,0px));opacity:.12}}
+  @keyframes mRad{0%{transform:translate(0,0) scale(.4);opacity:0}16%{opacity:1}100%{transform:translate(var(--tx,0px),var(--ty,0px)) scale(1);opacity:.08}}
+  @keyframes mWord{0%{transform:translateY(-8px);opacity:0}14%{opacity:.6}86%{opacity:.6}100%{transform:translateY(var(--ty,180px));opacity:0}}
+  @keyframes orbF{0%,100%{transform:translateY(-50%)}50%{transform:translateY(-62%)}}
+  @keyframes bossP{0%,100%{box-shadow:0 0 0 2px rgba(224,114,172,.5),0 0 20px rgba(224,114,172,.4)}50%{box-shadow:0 0 0 2px rgba(224,114,172,.8),0 0 34px rgba(224,114,172,.6)}}
+  @keyframes spellIn{0%{opacity:0;transform:translateX(-10px)}10%{opacity:1;transform:translateX(0)}90%{opacity:1;transform:translateX(0)}100%{opacity:.55;transform:translateX(0)}}
+  @keyframes notifDot{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:.4;box-shadow:0 0 3px currentColor}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#1d1530 0%,#0f0b1a 55%,#080611 100%);padding:48px 32px 80px;display:flex;flex-direction:column;align-items:center;gap:30px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Danmaku Spell Cards v2</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;line-height:1.1;">弾幕パターン設計 v3 — レイ／あかり／こはる／ミナ</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:880px;line-height:1.6;">各キャラに <strong style="color:#fff;">3〜5種のスペルカード</strong>。パターンごとに<strong style="color:#fff;">弾色と弾形</strong>を変え、心象テーマと幾何を結びつけた。下のカードは実際に弾が動きます。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;align-items:center;">
+      <span style="font-size:11px;letter-spacing:.16em;color:#8a7a9a;text-transform:uppercase;margin-right:2px;">弾形</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">● 円弾</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">◆ 菱形</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">★ 星</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">○ リング</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">／ 針</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">米 粒弾</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#c8b8d8;padding:5px 11px;border-radius:999px;font-size:12px;">語 言葉弾</span>
+    </div>
+  </header>
+
+  <div style="width:1180px;max-width:100%;position:sticky;top:0;z-index:50;background:rgba(15,11,26,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 18px;box-shadow:0 8px 22px rgba(0,0,0,.4);">
+    {{ diffbar }}
+  </div>
+
+  <!-- STAGE 1 -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="STAGE1 レイ">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">1</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">STAGE 1 ／ レイ <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 終わらないコンテスト会場・順位掲示板</span></div><div style="font-size:13px;color:#8a7a9a;">勝負の宙吊り。「どうせ二番」。銀・菫・金・ティールの順位の弾。</div></div>
+    </div>
+    {{ s1 }}
+  </section>
+
+  <!-- STAGE 2 -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="STAGE2 あかり">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#c9a6f0,#7a55b5);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">2</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">STAGE 2 ／ あかり <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 雨の降りやまない無人の教室</span></div><div style="font-size:13px;color:#8a7a9a;">告白の宙吊り・自責。雨・言いかけて弾ける白い吹き出し。青と白の寒色。</div></div>
+    </div>
+    {{ s2 }}
+  </section>
+
+  <!-- STAGE 3 -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="STAGE3 こはる">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#f0a6cd,#b85291);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">3</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">STAGE 3 ／ こはる <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 永遠に夕食を作り続ける台所</span></div><div style="font-size:13px;color:#8a7a9a;">祈りの崩壊→他責の怒り。「むだだよ」。琥珀・深紅の暖色、家庭的な弾。</div></div>
+    </div>
+    {{ s3 }}
+  </section>
+
+  <!-- BOSS -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="FINAL ミナ暴走">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#e0729c,#7a2f5a);font-family:'JetBrains Mono';font-weight:800;font-size:13px;">B</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">FINAL ／ ミナ（暴走） <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 汚染の暴走・世界中の悲鳴が流れ込む（5種）</span></div><div style="font-size:13px;color:#8a7a9a;">全ステージの攻撃を融合。レイ／あかり／こはるの弾形・色が代わる代わる襲い、最後に全部が同時に。</div></div>
+    </div>
+    {{ boss }}
+  </section>
+
+  <footer style="width:1180px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    弾形＝円弾／菱形／星／リング／針／粒弾／言葉弾。色はキャラのテーマに沿った系統（レイ＝銀金菫ティール／あかり＝雨青と白／こはる＝琥珀と深紅／ミナ＝濁った全色）。ミナ（FINAL）は全ステージの弾形・色を組み合わせて使う。円弾は白リング＋暗芯の作品準拠スタイルを保持し芯色のみ可変。難易度で弾数・速度が変動する想定。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { diff: 1 };
+  // difficulty profiles — 弾数倍率 cnt / 速度倍率 spd(小=速い) / 落下行数 rows / レーン間引き lane
+  DIFFS = [
+    {key:'EASY',    label:'EASY',    cnt:0.55, spd:1.35, rows:1, laneStep:2, color:'#7ec880'},
+    {key:'NORMAL',  label:'NORMAL',  cnt:1.0,  spd:1.0,  rows:2, laneStep:1, color:'#6cbcd8'},
+    {key:'HARD',    label:'HARD',    cnt:1.5,  spd:0.78, rows:3, laneStep:1, color:'#e8945a'},
+    {key:'LUNATIC', label:'LUNATIC', cnt:2.2,  spd:0.62, rows:4, laneStep:1, color:'#e072ac'},
+  ];
+  get D(){ return this.DIFFS[this.state.diff]; }
+  sc(n){ return Math.max(2, Math.round(n*this.D.cnt)); }       // scale a count
+  sp(d){ return +(d*this.D.spd).toFixed(2); }                  // scale a duration
+
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; let k=t.slice(0,i).trim(); if(!k.startsWith('--')) k=k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const a=[].slice.call(arguments); if(props&&props.style){ a[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,a); }
+
+  W=272; H=212;
+  STAR='polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)';
+
+  // ----- inner shape visual -----
+  shapeInner(shape,size,c){
+    const e=this.E.bind(this);
+    let st;
+    switch(shape){
+      case 'diamond': st=`width:${(size*0.82).toFixed(0)}px;height:${(size*0.82).toFixed(0)}px;background:${c};border-radius:2px;transform:rotate(45deg);box-shadow:0 0 7px ${c}aa`; break;
+      case 'star':    st=`width:${size}px;height:${size}px;background:${c};clip-path:${this.STAR};box-shadow:0 0 8px ${c}bb`; break;
+      case 'ring':    st=`width:${size}px;height:${size}px;border-radius:50%;background:transparent;border:2px solid ${c};box-shadow:0 0 8px ${c}aa,inset 0 0 4px ${c}88`; break;
+      case 'rice':    st=`width:${(size*0.5).toFixed(0)}px;height:${size}px;border-radius:50%;background:${c};box-shadow:0 0 7px ${c}aa`; break;
+      case 'needle':  st=`width:3px;height:${(size*1.5).toFixed(0)}px;border-radius:2px;background:linear-gradient(${c},${c}22);box-shadow:0 0 6px ${c}aa`; break;
+      default:        st=`width:${size}px;height:${size}px;border-radius:50%;background:radial-gradient(circle at 50% 50%,${c} 0 26%,#160a12 28% 52%,#fff 55% 74%,rgba(255,255,255,0) 76%)`;
+    }
+    return e('span',{style:st});
+  }
+
+  // ----- a single moving bullet -----
+  bullet(key,x,y,shape,size,c,anim,tx,ty){
+    const e=this.E.bind(this);
+    if(shape==='word'){
+      return e('span',{key,style:`position:absolute;left:${x}px;top:${y}px;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:13px;white-space:nowrap;color:${c};text-shadow:0 0 7px ${c}99;--ty:${ty}px;animation:${anim};`},c.txt||'');
+    }
+    return e('span',{key,style:`position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;display:grid;place-items:center;--tx:${tx}px;--ty:${ty}px;animation:${anim};`}, this.shapeInner(shape,size,c));
+  }
+
+  wordBullet(key,x,y,text,c,ty,dur,delay){
+    const e=this.E.bind(this);
+    return e('span',{key,style:`position:absolute;left:${x}px;top:${y}px;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:13px;white-space:nowrap;color:${c};text-shadow:0 0 7px ${c}99;--ty:${ty}px;animation:mWord ${dur}s linear infinite ${delay}s;`},text);
+  }
+
+  // ----- generators (return arrays of bullet nodes) -----
+  genFall(color,shape,size,lanes,dur){
+    const out=[]; const H=this.H; const rows=this.D.rows; const step=this.D.laneStep; dur=this.sp(dur);
+    lanes.filter((_,i)=>i%step===0).forEach((x,i)=>{ for(let r=0;r<rows;r++){
+      out.push(this.bullet('f'+i+'-'+r, x,10, shape,size,color, `mFall ${(dur+(i%3)*0.3).toFixed(2)}s linear infinite ${(i*0.3+r*(dur/rows)).toFixed(2)}s`, (i%2?10:-10), H-2));
+    }});
+    return out;
+  }
+  genRadial(color,shape,size,count,dur,rx,ry,spiral){
+    const out=[]; const cx=this.W/2-size/2, cy=40; count=this.sc(count); dur=this.sp(dur);
+    for(let k=0;k<count;k++){
+      const a=(k/count)*Math.PI*2;
+      const tx=Math.cos(a)*rx, ty=Math.sin(a)*ry;
+      const delay = spiral? (k*(dur/count)) : 0;
+      out.push(this.bullet('r'+k, cx,cy, shape,size,color, `mRad ${dur}s linear infinite ${delay.toFixed(2)}s`, tx.toFixed(0), ty.toFixed(0)));
+    }
+    return out;
+  }
+  genAim(color,shape,size,count,dur){
+    const out=[]; const cx=this.W/2-size/2, cy=36; const tgtx=30, tgty=this.H-26; count=this.sc(count); dur=this.sp(dur);
+    for(let i=0;i<count;i++){
+      out.push(this.bullet('a'+i, cx,cy, shape,size,color, `mRad ${dur}s linear infinite ${(i*(dur/count)).toFixed(2)}s`, (tgtx-cx).toFixed(0), (tgty-cy).toFixed(0)));
+    }
+    return out;
+  }
+  genCross(color,shape,size,dur){
+    const out=[]; const cx=this.W/2-size/2, cy=44; const d=[[0,150],[0,-44],[150,70],[-150,70]]; dur=this.sp(dur); const per=Math.max(2,Math.round(3*this.D.cnt));
+    d.forEach((v,di)=>{ for(let i=0;i<per;i++){
+      out.push(this.bullet('x'+di+'-'+i, cx,cy, shape,size,color, `mRad ${dur}s linear infinite ${(i*(dur/per)).toFixed(2)}s`, v[0], v[1]));
+    }});
+    return out;
+  }
+  genFan(color,shape,size,count,dur){
+    const out=[]; const cx=this.W/2-size/2, cy=40; const spread=120, base=90-spread/2; count=this.sc(count); dur=this.sp(dur);
+    for(let i=0;i<count;i++){
+      const deg=base+(spread*(i/(count-1))); const a=deg*Math.PI/180;
+      out.push(this.bullet('fn'+i, cx,cy, shape,size,color, `mRad ${dur}s linear infinite ${(i%3*0.3).toFixed(2)}s`, (Math.cos(a)*150).toFixed(0), (Math.sin(a)*150).toFixed(0)));
+    }
+    return out;
+  }
+  genWords(c,arr,dur){
+    const out=[]; const H=this.H;
+    arr.forEach((w,i)=>out.push(this.wordBullet('w'+i, w[1],10, w[0], c, H-30, dur+i, (i*1.5).toFixed(2))));
+    return out;
+  }
+
+  field(p){
+    const e=this.E.bind(this);
+    const kids=[...p.nodes];
+    if(p.boss!==false) kids.push(e('div',{key:'boss',style:`position:absolute;left:${this.W/2-13}px;top:24px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);animation:bossP 3.2s ease-in-out infinite;`}));
+    kids.push(e('div',{key:'sc',style:'position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.4;pointer-events:none;'}));
+    kids.push(e('div',{key:'vg',style:'position:absolute;inset:0;box-shadow:inset 0 0 80px 26px rgba(0,0,0,.55);pointer-events:none;'}));
+    kids.push(this.spellOverlay(p));
+    return e('div',{style:`position:relative;width:100%;height:${this.H}px;border-radius:13px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:${p.bg};`},kids);
+  }
+
+  shapeGlyph(shape){ return ({orb:'●',diamond:'◆',star:'★',ring:'○',needle:'／',rice:'米',word:'語'})[shape]||'●'; }
+
+  // X-style spell declaration overlay (tweet + notification)
+  spellOverlay(p){
+    const e=this.E.bind(this);
+    return e('div',{style:'position:absolute;left:8px;right:8px;top:8px;display:flex;align-items:flex-start;gap:8px;background:rgba(12,9,18,.74);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid '+p.color+'55;border-radius:11px;padding:7px 9px;box-shadow:0 6px 16px rgba(0,0,0,.5);animation:spellIn 4s ease-out infinite;'},[
+      e('div',{key:'av',style:`position:relative;width:26px;height:26px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,${p.color},#160a12);box-shadow:0 0 0 1.5px ${p.color}88;`},
+        e('span',{key:'v',style:`position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:${p.color};display:grid;place-items:center;color:#fff;font-size:8px;font-weight:800;border:1.5px solid #0c0912;`},'✓')),
+      e('div',{key:'b',style:'flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;'},[
+        e('div',{key:'h',style:'display:flex;align-items:center;gap:5px;'},[
+          e('span',{key:'n',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:12px;color:#fff;white-space:nowrap;"},p.who),
+          e('span',{key:'hd',style:"font-family:'JetBrains Mono';font-size:10px;color:#8a7a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"},p.handle),
+          e('span',{key:'sp',style:`margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-family:'JetBrains Mono';font-size:9px;letter-spacing:.08em;color:${p.color};white-space:nowrap;`},[
+            e('i',{key:'d',style:`width:6px;height:6px;border-radius:50%;background:${p.color};color:${p.color};animation:notifDot 1.4s ease-in-out infinite;`}), 'スペル発動'
+          ])
+        ]),
+        e('div',{key:'tw',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#f0e6f5;line-height:1.25;"},'『'+p.name.replace(/[「」]/g,'')+'』'),
+        e('div',{key:'m',style:"display:flex;gap:11px;margin-top:1px;font-family:'JetBrains Mono';font-size:9px;color:#8a7a9a;"},[
+          e('span',{key:0},'↩ '+p.rt), e('span',{key:1,style:`color:${p.color}bb;`},'♥ '+p.lk), e('span',{key:2},'◷ '+p.imp)
+        ])
+      ])
+    ]);
+  }
+
+  card(p){
+    const e=this.E.bind(this);
+    return e('div',{style:'width:272px;display:flex;flex-direction:column;gap:9px;'},[
+      e('div',{key:'f'},this.field(p)),
+      e('div',{key:'nm',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:15px;color:#fff;"},p.name),
+      e('div',{key:'meta',style:'display:flex;align-items:center;gap:8px;flex-wrap:wrap;'},[
+        e('span',{key:'sh',style:"display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:11px;color:#c8b8d8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:3px 8px;"},[
+          e('span',{key:'g',style:`color:${p.color};`},this.shapeGlyph(p.shape)), p.shapeLabel
+        ]),
+        e('span',{key:'cl',style:'display:inline-flex;align-items:center;gap:6px;font-family:\'Zen Kaku Gothic New\';font-size:11px;color:#c8b8d8;'},[
+          e('i',{key:'sw',style:`width:11px;height:11px;border-radius:50%;background:${p.color};box-shadow:0 0 6px ${p.color}aa;`}), p.colorLabel
+        ]),
+      ]),
+      e('div',{key:'mo',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;line-height:1.4;"},p.motion),
+    ]);
+  }
+
+  row(list){ return this.E('div',{style:'display:flex;gap:18px;flex-wrap:wrap;'}, list.map((p,i)=>React.cloneElement(this.card(p),{key:i}))); }
+
+  renderVals(){
+    const S1='linear-gradient(180deg,#0f1330,#080611)';
+    const S2='linear-gradient(180deg,#0d1730,#070b18)';
+    const S3='linear-gradient(180deg,#1e1208,#0c0704)';
+    const SB='linear-gradient(180deg,#1a0a1e,#08040a)';
+
+    // STAGE 1 レイ — 順位掲示板（銀・菫・金・ティール）
+    const s1=[
+      {name:'「どうせ二番」', shape:'orb', shapeLabel:'円弾', color:'#b9c2d0', colorLabel:'銀', motion:'全方位の同心円。順位の輪が広がる。', bg:S1, nodes:this.genRadial('#b9c2d0','orb',14,16,3.0,118,86,false)},
+      {name:'「努力は天才に勝てない」', shape:'diamond', shapeLabel:'菱形', color:'#9a72d9', colorLabel:'菫', motion:'回転スパイラル。隙間が回り続ける。', bg:S1, nodes:this.genRadial('#9a72d9','diamond',13,14,3.0,120,90,true)},
+      {name:'「私を見て」', shape:'star', shapeLabel:'星', color:'#e8c45a', colorLabel:'金', motion:'全方位の星乱舞。きらびやかで圧。', bg:S1, nodes:this.genRadial('#e8c45a','star',14,15,3.2,124,88,false)},
+      {name:'「届かない」', shape:'ring', shapeLabel:'リング', color:'#5fb8c0', colorLabel:'ティール', motion:'中空リングの二重波。重なりで隙間が動く。', bg:S1, nodes:this.genRadial('#5fb8c0','ring',14,12,3.4,120,88,true)},
+    ];
+    // STAGE 2 あかり — 雨の教室（青・白の寒色）
+    const s2=[
+      {name:'雨（降りやまない）', shape:'needle', shapeLabel:'針', color:'#6c9cd8', colorLabel:'雨青', motion:'高密度の降雨。針が縦に刺さり続ける。', bg:S2, nodes:this.genFall('#6c9cd8','needle',16,[20,52,84,116,148,180,212,244],2.2), boss:false},
+      {name:'「す——」（言いかけ）', shape:'word', shapeLabel:'言葉弾', color:'#e8f0ff', colorLabel:'白', motion:'言いかけた言葉が降り、弾けて消える。', bg:S2, nodes:this.genWords('#e8f0ff',[['す——',46],['あの——',150],['ね、——',214]],5.5), boss:false},
+      {name:'「あの——」（ためらい）', shape:'orb', shapeLabel:'円弾', color:'#a8c8e8', colorLabel:'淡青', motion:'ためらいの狙い撃ち。一発ずつ重い。', bg:S2, nodes:this.genAim('#a8c8e8','orb',15,5,2.6)},
+      {name:'机が落ちる', shape:'diamond', shapeLabel:'菱形', color:'#4a6aa0', colorLabel:'藍', motion:'天井へ落ちる机の塊。大きく遅い。', bg:S2, nodes:this.genFall('#4a6aa0','diamond',17,[60,140,210],3.0), boss:false},
+    ];
+    // STAGE 3 こはる — 台所（琥珀・深紅の暖色）
+    const s3=[
+      {name:'「むだだよ」', shape:'orb', shapeLabel:'円弾', color:'#e8a24a', colorLabel:'琥珀', motion:'レーンを落ちる円弾。台所の灯。', bg:S3, nodes:this.genFall('#e8a24a','orb',15,[26,60,98,136,174,212,246],3.2), boss:false},
+      {name:'「なにをつくっても」', shape:'word', shapeLabel:'言葉弾', color:'#e8c89a', colorLabel:'小麦', motion:'祈りの言葉がゆっくり降り視界を奪う。', bg:S3, nodes:this.genWords('#e8c89a',[['なにをつくっても',30],['もう帰ってこない',150]],6), boss:false},
+      {name:'怒り（他責）', shape:'diamond', shapeLabel:'菱形', color:'#d6443f', colorLabel:'深紅', motion:'高速のダイヤ雨。砕けた祈りの怒り。', bg:S3, nodes:this.genFall('#d6443f','diamond',13,[24,58,92,126,160,194,228,248],2.0), boss:false},
+      {name:'「もう帰ってこない」', shape:'needle', shapeLabel:'針', color:'#e87a3c', colorLabel:'橙', motion:'四方向の十字バースト。逃げ場を切る。', bg:S3, nodes:this.genCross('#e87a3c','needle',15,2.2)},
+      {name:'「ひとりになる」', shape:'rice', shapeLabel:'粒弾', color:'#ffa14a', colorLabel:'燃え残り', motion:'扇状にばら撒く粒弾。広く薄く。', bg:S3, nodes:this.genFan('#ffa14a','rice',13,11,2.6)},
+    ];
+    // FINAL ミナ暴走 — 全ステージの攻撃を組み合わせ（光が濁る）
+    const boss=[
+      {name:'第1：レイの渦＋あかりの雨', shape:'diamond', shapeLabel:'菱形＋針', color:'#b07cd0', colorLabel:'濁紫', motion:'順位の回転スパイラルに雨の針が重なる。', bg:SB, nodes:this.genRadial('#b07cd0','diamond',13,14,3.0,120,90,true).concat(this.genFall('#6c9cd8','needle',14,[40,110,180,240],2.2))},
+      {name:'第2：こはるの怒り＋レイの星', shape:'star', shapeLabel:'星＋菱形', color:'#e0648c', colorLabel:'濁桃', motion:'全方位の星に、暖色のダイヤ雨が降り注ぐ。', bg:SB, nodes:this.genRadial('#cfa0d8','star',14,16,3.2,124,90,false).concat(this.genFall('#d6443f','diamond',13,[30,100,170,240],2.0))},
+      {name:'第3：世界中の悲鳴（全員の言葉）', shape:'word', shapeLabel:'言葉弾', color:'#d8a0c0', colorLabel:'灰桃', motion:'三人の否定の言葉が雨のように流れ込む。', bg:SB, nodes:this.genWords('#d8a0c0',[['どうせ二番',30],['ひとりになる',128],['す——',206]],6), boss:false},
+      {name:'第4：あかりの落下＋こはるの扇', shape:'rice', shapeLabel:'粒弾＋菱形', color:'#9a8cd0', colorLabel:'濁藍', motion:'机の落下塊と、うねる粒弾の扇の複合。', bg:SB, nodes:this.genFan('#86bccf','rice',13,11,2.6).concat(this.genFall('#4a6aa0','diamond',16,[70,160,230],3.0))},
+      {name:'第5：心象の核（全部同時）', shape:'ring', shapeLabel:'全弾形', color:'#f0d98a', colorLabel:'濁金', motion:'渦・星・言葉・扇が同時に。最終局面。', bg:SB, nodes:this.genRadial('#e072ac','orb',14,16,3.0,120,90,true).concat(this.genFan('#f0d98a','star',13,9,2.8)).concat(this.genWords('#d8a0c0',[['きえたい',180]],6))},
+    ];
+
+    // identity per character + tweet-style metrics
+    const stamp=(arr,who,handle)=>arr.forEach((p,i)=>{
+      const seed=(i+1)*7+who.length;
+      Object.assign(p,{who,handle,rt:(seed*13%900+40),lk:((seed*29%80)/10+1).toFixed(1)+'k',imp:((seed*53%400)/10+2).toFixed(1)+'万'});
+    });
+    stamp(s1,'レイ','@rei_compete');
+    stamp(s2,'あかり','@akari_ame');
+    stamp(s3,'こはる','@koharu_kitchen');
+    stamp(boss,'ミナ','@mina_ai_');
+
+    return { s1:this.row(s1), s2:this.row(s2), s3:this.row(s3), boss:this.row(boss), diffbar:this.diffBar() };
+  }
+
+  diffBar(){
+    const e=this.E.bind(this);
+    const chips=this.DIFFS.map((d,i)=>{
+      const on=i===this.state.diff;
+      return e('div',{key:i,onClick:()=>this.setState({diff:i}),style:`cursor:pointer;display:flex;flex-direction:column;gap:2px;align-items:center;padding:8px 16px;border-radius:10px;transition:all .15s;${on?`background:${d.color}22;box-shadow:inset 0 0 0 1.5px ${d.color};`:'background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);'}`},[
+        e('span',{key:'l',style:`font-family:'JetBrains Mono';font-weight:800;font-size:13px;letter-spacing:.1em;color:${on?d.color:'#8a7a9a'};`},d.label),
+        e('span',{key:'r',style:`font-family:'JetBrains Mono';font-size:10px;color:${on?'#c8b8d8':'#6b6478'};`},'弾量 ×'+d.cnt.toFixed(1))
+      ]);
+    });
+    return e('div',{style:'display:flex;align-items:center;gap:14px;flex-wrap:wrap;'},[
+      e('span',{key:'lab',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;color:#c8b8d8;"},'難易度'),
+      e('div',{key:'c',style:'display:flex;gap:8px;'},chips),
+      e('span',{key:'note',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;"},'— 弾数・速度・落下行数が変化（ボスHPは非依存）')
+    ]);
+  }
+}
+</script>
+</body>
+</html>

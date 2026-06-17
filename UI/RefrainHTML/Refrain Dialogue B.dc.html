@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#16131d;}
+  @keyframes caretB{0%,100%{opacity:1;transform:translateY(0)}50%{opacity:.2;transform:translateY(2px)}}
+  @keyframes orbF{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#221b30 0%,#16131d 55%,#100d16 100%);padding:48px 32px 72px;display:flex;flex-direction:column;align-items:center;gap:30px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Dialogue 採用案 B</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;line-height:1.1;">シネマ下部バー ／ Cinematic Bar</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:780px;line-height:1.6;">画面下に一本化したバー。丸アバター＋名前は<strong style="color:#fff;">キャラ別カラーの下線</strong>。名前色＝少年:青 / ミナ:紫 / あかり:ピンク。<strong style="color:#fff;">①キャラ ②ナレーター ③名前・立ち絵なし</strong> を収録。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">
+      <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(108,188,216,.1);border:1px solid rgba(108,188,216,.4);color:#a6dcec;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#6cbcd8;"></i>少年</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(154,114,217,.1);border:1px solid rgba(154,114,217,.4);color:#c8b0ec;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;"></i>ミナ</span>
+      <span style="white-space:nowrap;display:inline-flex;align-items:center;gap:7px;background:rgba(224,114,172,.1);border:1px solid rgba(224,114,172,.4);color:#f0a8cf;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#e072ac;"></i>あかり</span>
+    </div>
+  </header>
+
+  <!-- ① CHARACTER — 少年 (blue) -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:13px;" data-screen-label="キャラ 少年">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:13px;">①</span><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:17px;">キャラクター（立ち絵＋名前）</div></div>
+    <div style="position:relative;width:1180px;height:340px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 48px rgba(0,0,0,.5);">
+      <div style="position:absolute;inset:0;background:radial-gradient(66% 60% at 60% 8%,rgba(120,150,210,.2),transparent 60%),linear-gradient(180deg,#0e1834,#080c18);"></div>
+      <span style="position:absolute;left:54%;top:18%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:18px;color:rgba(200,184,216,.12);white-space:nowrap;">あたしのせいだ</span>
+      <span style="position:absolute;left:78%;top:30%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:16px;color:rgba(200,184,216,.1);white-space:nowrap;">とどかない</span>
+      <div style="position:absolute;left:46%;top:30%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);box-shadow:0 0 16px rgba(154,114,217,.8);animation:orbF 5s ease-in-out infinite;"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.45;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 120px 40px rgba(0,0,0,.5);pointer-events:none;"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:166px;background:linear-gradient(180deg,rgba(8,10,20,0),rgba(8,10,20,.82) 34%,rgba(8,10,20,.96));border-top:1px solid rgba(108,188,216,.32);">
+        <div style="position:absolute;left:36px;bottom:28px;width:100px;height:100px;border-radius:50%;background:linear-gradient(180deg,rgba(40,46,68,.7),rgba(18,22,36,.5));border:2px solid rgba(108,188,216,.5);box-shadow:0 0 18px rgba(108,188,216,.4);overflow:hidden;">
+          <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 45% 40%,rgba(150,180,230,.85),transparent 72%);"></div>
+          <div style="position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);width:96px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 50% 30%,rgba(120,150,210,.6),transparent 68%);"></div>
+        </div>
+        <div style="position:absolute;left:166px;right:48px;bottom:32px;">
+          <div style="display:inline-flex;align-items:center;gap:10px;border-bottom:2px solid #6cbcd8;padding-bottom:5px;margin-bottom:14px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:900;font-size:20px;color:#fff;letter-spacing:.04em;">少年</span>
+            <span style="font-family:'JetBrains Mono';font-size:11px;color:#a6dcec;letter-spacing:.1em;">BOY</span>
+          </div>
+          <p style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:25px;line-height:1.5;color:#eef1f6;">飛んでくるのは、この人を苦しめてる&ldquo;言葉&rdquo;だ。本人じゃない。撃って祓っていい。</p>
+        </div>
+        <span style="position:absolute;right:34px;bottom:22px;font-size:16px;color:#6cbcd8;animation:caretB 1.1s ease-in-out infinite;">▼</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ① CHARACTER — あかり (pink) -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:13px;" data-screen-label="キャラ あかり">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(180deg,#f0a6cd,#b85291);font-family:'JetBrains Mono';font-weight:800;font-size:13px;">①</span><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:17px;">キャラクター — 名前色のバリエーション（ボス）</div></div>
+    <div style="position:relative;width:1180px;height:340px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 48px rgba(0,0,0,.5);">
+      <div style="position:absolute;inset:0;background:radial-gradient(60% 60% at 64% 8%,rgba(224,114,172,.18),transparent 60%),linear-gradient(180deg,#1c0e1c,#0a0610);"></div>
+      <span style="position:absolute;left:58%;top:20%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:18px;color:rgba(224,160,200,.14);white-space:nowrap;">ゆるせない</span>
+      <div style="position:absolute;right:18%;top:24%;width:74px;height:74px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);box-shadow:0 0 0 2px rgba(224,114,172,.5),0 0 26px rgba(224,114,172,.4);"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.45;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 120px 40px rgba(0,0,0,.5);pointer-events:none;"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:166px;background:linear-gradient(180deg,rgba(14,8,16,0),rgba(14,8,16,.82) 34%,rgba(14,8,16,.96));border-top:1px solid rgba(224,114,172,.32);">
+        <div style="position:absolute;left:36px;bottom:28px;width:100px;height:100px;border-radius:50%;background:linear-gradient(180deg,rgba(64,30,50,.7),rgba(26,12,22,.5));border:2px solid rgba(224,114,172,.5);box-shadow:0 0 18px rgba(224,114,172,.4);overflow:hidden;">
+          <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 45% 40%,rgba(240,168,207,.85),transparent 72%);"></div>
+          <div style="position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);width:96px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 50% 30%,rgba(224,114,172,.6),transparent 68%);"></div>
+        </div>
+        <div style="position:absolute;left:166px;right:48px;bottom:32px;">
+          <div style="display:inline-flex;align-items:center;gap:10px;border-bottom:2px solid #e072ac;padding-bottom:5px;margin-bottom:14px;">
+            <span style="white-space:nowrap;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:20px;color:#fff;letter-spacing:.04em;">あかり</span>
+            <span style="white-space:nowrap;font-family:'Zen Kaku Gothic New';font-size:12px;color:#f0a8cf;">「ゆるせないわたし」</span>
+          </div>
+          <p style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:25px;line-height:1.5;color:#f6ecf1;">……あたしが、ぜんぶ悪いの。だから、もう放っておいて。</p>
+        </div>
+        <span style="position:absolute;right:34px;bottom:22px;font-size:16px;color:#f0a8cf;animation:caretB 1.1s ease-in-out infinite;">▼</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② NARRATOR + ③ PLAIN -->
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:13px;" data-screen-label="ナレーター・名前なし">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:800;font-size:13px;">②③</span><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:17px;">ナレーター ／ 名前・立ち絵なし</div></div>
+    <div style="display:flex;gap:14px;">
+      <!-- narrator -->
+      <div style="position:relative;flex:1;height:230px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 16px 40px rgba(0,0,0,.45);">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,#0b0a16,#05040e);"></div>
+        <div style="position:absolute;left:0;right:0;top:0;height:40px;background:rgba(0,0,0,.85);"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:40px;background:rgba(0,0,0,.85);"></div>
+        <span style="position:absolute;left:10px;top:50px;font-family:'JetBrains Mono';font-size:10px;letter-spacing:.18em;color:#a6dcec;background:rgba(108,188,216,.08);border:1px solid rgba(108,188,216,.25);border-radius:6px;padding:3px 9px;">② ナレーター</span>
+        <div style="position:absolute;left:54px;right:54px;top:50%;transform:translateY(-50%);text-align:center;">
+          <p style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:400;font-style:italic;font-size:20px;line-height:1.6;color:#cdc4dc;letter-spacing:.05em;">穢れを祓うたび、それはわたくしの中に溜まっていった。</p>
+        </div>
+      </div>
+      <!-- plain -->
+      <div style="position:relative;flex:1;height:230px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 16px 40px rgba(0,0,0,.45);">
+        <div style="position:absolute;inset:0;background:radial-gradient(60% 60% at 50% 6%,rgba(120,150,210,.12),transparent 60%),linear-gradient(180deg,#0e1834,#080c18);"></div>
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.4;pointer-events:none;"></div>
+        <span style="position:absolute;left:10px;top:10px;font-family:'JetBrains Mono';font-size:10px;letter-spacing:.18em;color:#8a7a9a;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:3px 9px;">③ 名前・立ち絵なし</span>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(180deg,rgba(8,10,20,0),rgba(8,10,20,.92) 40%);border-top:1px solid rgba(108,188,216,.28);">
+          <p style="position:absolute;left:36px;right:54px;bottom:36px;margin:0;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:23px;line-height:1.5;color:#eef1f6;">——どうして、わたしばっかり。</p>
+          <span style="position:absolute;right:30px;bottom:18px;font-size:15px;color:#6cbcd8;animation:caretB 1.1s ease-in-out infinite;">▼</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="width:1180px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    採用案B。本文＝Zen Kaku Gothic New／補助＝JetBrains Mono、送り三角 ▼ 点滅。名前下線＝キャラ別カラー（少年=--info 青／ミナ=--primary 紫／あかり=--accent ピンク）。丸アバター・立ち絵領域はプレースホルダー（実アセットに差し替え可）。ナレーターはレターボックス＋イタリック、名前なし版はバーのみ。
+  </footer>
+</div>
+</x-dc>
+</body>
+</html>

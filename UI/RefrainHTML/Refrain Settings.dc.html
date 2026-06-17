@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#16131d;}
+  @keyframes selGlow{0%,100%{box-shadow:inset 0 0 0 1px rgba(108,188,216,.5),0 0 16px rgba(108,188,216,.18)}50%{box-shadow:inset 0 0 0 1px rgba(159,222,245,.8),0 0 22px rgba(108,188,216,.32)}}
+  @keyframes dotPulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#221b30 0%,#16131d 55%,#100d16 100%);padding:48px 32px 72px;display:flex;flex-direction:column;align-items:center;gap:34px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Settings / 設定</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;letter-spacing:.01em;line-height:1.1;">設定画面</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:760px;line-height:1.6;">HUD・他画面と同じトークン。左カテゴリ→右コントロール。<strong style="color:#fff;">タブ・トグル・セグメント・スライダーはクリックで動作</strong>します。</p>
+  </header>
+
+  <section style="width:1280px;max-width:100%;" data-screen-label="設定">
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(60% 50% at 80% 0%,rgba(154,114,217,.16),transparent 60%),linear-gradient(180deg,#0d0b1c 0%,#0a0916 55%,#070611 100%);"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.4;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 140px 46px rgba(0,0,0,.5);pointer-events:none;"></div>
+
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;padding:30px 40px 0;">
+        <!-- header bar -->
+        <div style="display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.1);">
+          <div style="width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(108,188,216,.12);border:1px solid rgba(159,222,245,.35);">
+            <div style="width:18px;height:18px;border-radius:50%;border:3px solid #a6dcec;border-right-color:transparent;border-bottom-color:transparent;transform:rotate(40deg);"></div>
+          </div>
+          <h2 style="margin:0;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:25px;color:#fff;">設定</h2>
+          <span style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:.2em;color:#6b6478;align-self:flex-end;padding-bottom:5px;">SETTINGS</span>
+          <span style="margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-family:'Zen Kaku Gothic New';font-size:12px;color:#a6dcec;">
+            <i style="width:7px;height:7px;border-radius:50%;background:#6cbcd8;box-shadow:0 0 8px #6cbcd8;animation:dotPulse 1.6s ease-in-out infinite;"></i>未保存の変更
+          </span>
+        </div>
+
+        <!-- body -->
+        <div style="display:flex;gap:26px;padding-top:20px;flex:1;min-height:0;">
+          {{ nav }}
+          {{ panel }}
+        </div>
+
+        <!-- footer -->
+        <div style="display:flex;align-items:center;gap:22px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);">
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">↑↓</span><span style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#8a7a9a;">項目</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">←→</span><span style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#8a7a9a;">調整</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#c8b8d8;">X</span><span style="font-family:'Zen Kaku Gothic New';font-size:13px;color:#8a7a9a;">もどる</span></span>
+          <div style="margin-left:auto;display:flex;gap:10px;">
+            <button style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;color:#c8b8d8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:10px 20px;cursor:pointer;">既定に戻す</button>
+            <button style="display:inline-flex;align-items:center;gap:9px;font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;color:#fff;background:linear-gradient(180deg,#9be0f5,#3f7fa0);border:none;border-radius:999px;padding:10px 22px;cursor:pointer;box-shadow:0 0 18px rgba(108,188,216,.4);letter-spacing:.06em;"><span style="display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.25);font-family:'JetBrains Mono';font-weight:800;font-size:11px;">Z</span>保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="width:1280px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    全画面共通トークン：選択=シアン(--info)／ミナ=紫(--primary)／体力=ピンク(--hp)／インプレ=金(--gold)。X連携カテゴリは作品の「Xに飛び込む」モチーフをそのまま設定項目化。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    tab: 0,
+    vals: {
+      mode:1, res:'1920 × 1080', fps:0, scan:40, bloom:65, pixel:true,
+      master:80, bgm:70, se:85, voice:90, amb:55,
+      bright:true, hitbox:false, shake:30, flash:60, msg:1, auto:false,
+      reduceflash:true, cvd:0, textsize:1, softhit:false, contrast:false,
+      share:true, showid:true, realposts:false, notif:50, filter:true
+    }
+  };
+
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; const k=t.slice(0,i).trim().replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const args=[].slice.call(arguments); if(props&&props.style){ args[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,args); }
+
+  setVal(k,v){ this.setState(s=>({ vals: Object.assign({}, s.vals, {[k]:v}) })); }
+
+  tabs(){
+    return [
+      {id:'display',name:'表示',sub:'Display',rows:[
+        {t:'seg',k:'mode',label:'画面モード',opts:['ウィンドウ','フルスクリーン']},
+        {t:'select',k:'res',label:'解像度'},
+        {t:'seg',k:'fps',label:'リフレッシュレート',opts:['60','120','144']},
+        {t:'slider',k:'scan',label:'スキャンライン',sub:'レトロな走査線の濃さ'},
+        {t:'slider',k:'bloom',label:'ブルーム',sub:'光のにじみ'},
+        {t:'toggle',k:'pixel',label:'ピクセルパーフェクト',sub:'内部384×216を整数倍で表示'},
+      ]},
+      {id:'audio',name:'サウンド',sub:'Audio',rows:[
+        {t:'slider',k:'master',label:'マスター音量'},
+        {t:'slider',k:'bgm',label:'BGM'},
+        {t:'slider',k:'se',label:'効果音 (SE)'},
+        {t:'slider',k:'voice',label:'ボイス'},
+        {t:'slider',k:'amb',label:'環境音',sub:'心象世界のノイズ'},
+      ]},
+      {id:'game',name:'ゲームプレイ',sub:'Gameplay',rows:[
+        {t:'toggle',k:'bright',label:'弾を明るく表示',sub:'視認性を上げる'},
+        {t:'toggle',k:'hitbox',label:'当たり判定を常時表示'},
+        {t:'slider',k:'shake',label:'画面振動'},
+        {t:'slider',k:'flash',label:'被弾フラッシュ',sub:'赤い明滅の強さ'},
+        {t:'seg',k:'msg',label:'メッセージ速度',opts:['遅','中','速']},
+        {t:'toggle',k:'auto',label:'オート会話送り'},
+      ]},
+      {id:'controls',name:'操作',sub:'Controls',rows:[
+        {t:'key',k:'move',label:'移動',keys:['↑','↓','←','→']},
+        {t:'key',k:'shot',label:'ショット',keys:['Z']},
+        {t:'key',k:'bomb',label:'ボム',keys:['X']},
+        {t:'key',k:'slow',label:'低速移動',sub:'判定を見ながら避ける',keys:['Shift']},
+        {t:'key',k:'pause',label:'ポーズ',keys:['Esc']},
+      ]},
+      {id:'a11y',name:'アクセシビリティ',sub:'Accessibility',rows:[
+        {t:'toggle',k:'reduceflash',label:'明滅を抑える',sub:'フラッシュ表現を軽減'},
+        {t:'seg',k:'cvd',label:'色覚サポート',opts:['OFF','1型','2型','3型']},
+        {t:'seg',k:'textsize',label:'文字サイズ',opts:['小','中','大']},
+        {t:'toggle',k:'softhit',label:'被弾演出を控えめに'},
+        {t:'toggle',k:'contrast',label:'高コントラストUI'},
+      ]},
+      {id:'x',name:'X連携',sub:'X Integration',rows:[
+        {t:'toggle',k:'share',label:'浄化の結果をXに投稿'},
+        {t:'toggle',k:'showid',label:'スコアカードに@IDを表示'},
+        {t:'toggle',k:'realposts',label:'「降ってくる言葉」を実投稿から生成',sub:'体験版では固定フレーズ'},
+        {t:'slider',k:'notif',label:'リプ通知演出'},
+        {t:'toggle',k:'filter',label:'センシティブ表現フィルタ'},
+      ]},
+    ];
+  }
+
+  buildNav(tabs,cur){
+    const e=this.E.bind(this);
+    const items=tabs.map((t,i)=>{
+      const on=i===cur;
+      return e('div',{key:i,onClick:()=>this.setState({tab:i}),style:`display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:11px;cursor:pointer;${on?'background:rgba(20,30,40,.6);box-shadow:inset 0 0 0 1px rgba(159,222,245,.4);':''}`},[
+        e('div',{key:'b',style:`width:4px;height:24px;border-radius:999px;flex:none;background:${on?'#6cbcd8':'transparent'};box-shadow:${on?'0 0 8px #6cbcd8':'none'};`}),
+        e('div',{key:'t',style:'display:flex;flex-direction:column;gap:1px;'},[
+          e('div',{key:0,style:`font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:${on?'#fff':'#c8b8d8'};`},t.name),
+          e('div',{key:1,style:`font-family:'JetBrains Mono';font-size:9px;letter-spacing:.12em;color:${on?'#a6dcec':'#6b6478'};`},t.sub.toUpperCase())
+        ])
+      ]);
+    });
+    return e('div',{style:'width:236px;flex:none;display:flex;flex-direction:column;gap:5px;'},items);
+  }
+
+  ctlSlider(r,v){
+    const e=this.E.bind(this);
+    const track=e('div',{onClick:(ev)=>{const t=ev.currentTarget;const rect=t.getBoundingClientRect();let p=Math.round((ev.clientX-rect.left)/rect.width*100);p=Math.max(0,Math.min(100,p));this.setVal(r.k,p);},style:'position:relative;flex:1;height:8px;border-radius:999px;background:rgba(255,255,255,.1);cursor:pointer;'},[
+      e('div',{key:'f',style:`position:absolute;left:0;top:0;bottom:0;width:${v}%;border-radius:999px;background:linear-gradient(90deg,#3f7fa0,#6cbcd8);box-shadow:0 0 10px rgba(108,188,216,.5);`}),
+      e('div',{key:'k',style:`position:absolute;top:50%;left:${v}%;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(159,222,245,.85);transform:translate(-50%,-50%);`})
+    ]);
+    return e('div',{style:'display:flex;align-items:center;gap:14px;width:286px;'},[
+      track,
+      e('span',{key:'v',style:"font-family:'JetBrains Mono';font-weight:700;font-size:15px;color:#d7f3ff;width:34px;text-align:right;"},String(v))
+    ]);
+  }
+
+  ctlToggle(r,v){
+    const e=this.E.bind(this);
+    return e('div',{onClick:()=>this.setVal(r.k,!v),style:`position:relative;width:48px;height:27px;border-radius:999px;cursor:pointer;transition:background .2s;background:${v?'#6cbcd8':'rgba(255,255,255,.14)'};box-shadow:${v?'0 0 12px rgba(108,188,216,.5)':'inset 0 0 0 1px rgba(255,255,255,.08)'};`},
+      e('div',{style:`position:absolute;top:3px;left:${v?'24px':'3px'};width:21px;height:21px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.45);`}));
+  }
+
+  ctlSeg(r,v){
+    const e=this.E.bind(this);
+    return e('div',{style:'display:inline-flex;gap:4px;background:rgba(0,0,0,.28);border-radius:10px;padding:4px;'},
+      r.opts.map((o,oi)=>e('div',{key:oi,onClick:()=>this.setVal(r.k,oi),style:`cursor:pointer;padding:7px 15px;border-radius:7px;font-family:'Zen Kaku Gothic New';font-weight:700;font-size:14px;transition:color .15s;${oi===v?'background:linear-gradient(180deg,#9be0f5,#3f7fa0);color:#fff;box-shadow:0 0 12px rgba(108,188,216,.4);':'color:#8a8398;'}`},o)));
+  }
+
+  ctlSelect(r,v){
+    const e=this.E.bind(this);
+    return e('div',{style:'display:inline-flex;align-items:center;gap:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:9px 16px;cursor:pointer;'},[
+      e('span',{key:'v',style:"font-family:'JetBrains Mono';font-weight:700;font-size:14px;color:#d7f3ff;"},v),
+      e('span',{key:'c',style:'font-size:10px;color:#8a8398;'},'▾')
+    ]);
+  }
+
+  ctlKey(r){
+    const e=this.E.bind(this);
+    return e('div',{style:'display:inline-flex;gap:6px;'},
+      r.keys.map((kk,ki)=>e('div',{key:ki,style:"display:inline-grid;place-items:center;min-width:32px;height:32px;padding:0 9px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);box-shadow:0 2px 0 rgba(0,0,0,.4);font-family:'JetBrains Mono';font-weight:700;font-size:14px;color:#e8e2f0;"},kk)));
+  }
+
+  buildPanel(tab){
+    const e=this.E.bind(this);
+    const v=this.state.vals;
+    const cards=tab.rows.map((r,i)=>{
+      let ctl;
+      if(r.t==='slider') ctl=this.ctlSlider(r,v[r.k]);
+      else if(r.t==='toggle') ctl=this.ctlToggle(r,v[r.k]);
+      else if(r.t==='seg') ctl=this.ctlSeg(r,v[r.k]);
+      else if(r.t==='select') ctl=this.ctlSelect(r,v[r.k]);
+      else if(r.t==='key') ctl=this.ctlKey(r);
+      const left=e('div',{style:'display:flex;flex-direction:column;gap:3px;'},[
+        e('div',{key:'l',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#fff;"},r.label),
+        r.sub?e('div',{key:'s',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;"},r.sub):null
+      ]);
+      return e('div',{key:i,style:'display:flex;align-items:center;justify-content:space-between;gap:20px;background:rgba(22,18,34,.5);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:13px 18px;'},[left,ctl]);
+    });
+    const title=e('div',{style:'display:flex;align-items:baseline;gap:11px;margin-bottom:2px;'},[
+      e('h3',{key:'h',style:"margin:0;font-family:'Zen Kaku Gothic New';font-weight:900;font-size:20px;color:#fff;"},tab.name),
+      e('span',{key:'s',style:"font-family:'JetBrains Mono';font-size:10px;letter-spacing:.16em;color:#6b6478;"},tab.sub.toUpperCase())
+    ]);
+    return e('div',{style:'flex:1;display:flex;flex-direction:column;gap:9px;min-width:0;'},[title,...cards]);
+  }
+
+  renderVals(){
+    const tabs=this.tabs();
+    const cur=this.state.tab;
+    return {
+      nav: this.buildNav(tabs,cur),
+      panel: this.buildPanel(tabs[cur]),
+    };
+  }
+}
+</script>
+</body>
+</html>

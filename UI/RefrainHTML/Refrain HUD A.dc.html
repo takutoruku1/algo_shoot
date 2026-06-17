@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#16131d;}
+  @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  @keyframes softPulse{0%,100%{opacity:.85;filter:drop-shadow(0 0 8px rgba(154,114,217,.55))}50%{opacity:1;filter:drop-shadow(0 0 18px rgba(200,180,255,.8))}}
+  @keyframes lightPulse{0%,100%{opacity:.9;filter:drop-shadow(0 0 14px rgba(255,236,180,.7))}50%{opacity:1;filter:drop-shadow(0 0 30px rgba(255,240,200,.95))}}
+  @keyframes gaugeShimmer{0%{transform:translateX(-60%)}100%{transform:translateX(360%)}}
+  @keyframes bossPulse{0%,100%{box-shadow:0 0 0 2px rgba(224,114,172,.45),0 0 28px rgba(224,114,172,.4),inset 0 0 22px rgba(224,114,172,.3)}50%{box-shadow:0 0 0 2px rgba(224,114,172,.7),0 0 44px rgba(224,114,172,.6),inset 0 0 30px rgba(224,114,172,.45)}}
+  @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes toastIn{0%{opacity:0;transform:translateX(14px)}12%{opacity:1;transform:translateX(0)}82%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(14px)}}
+  @keyframes heartWarn{0%,100%{filter:drop-shadow(0 0 4px rgba(232,118,156,.6))}50%{filter:drop-shadow(0 0 12px rgba(255,90,106,.95))}}
+  @keyframes dmgFloat{0%{opacity:0;transform:translate(-50%,4px) scale(.6)}18%{opacity:1;transform:translate(-50%,-8px) scale(1.15)}100%{opacity:0;transform:translate(-50%,-54px) scale(1)}}
+  @keyframes hurtEdge{0%,100%{opacity:.25}50%{opacity:.7}}
+  @keyframes purifyRing{0%{opacity:.6;transform:translate(-50%,-50%) scale(.4)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.8)}}
+  @keyframes fullGlow{0%,100%{box-shadow:inset 0 0 0 1px rgba(108,188,216,.5),0 0 16px rgba(108,188,216,.55)}50%{box-shadow:inset 0 0 0 1px rgba(215,243,255,.9),0 0 30px rgba(108,188,216,.9)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#221b30 0%,#16131d 55%,#100d16 100%);padding:48px 32px 72px;display:flex;flex-direction:column;align-items:center;gap:44px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <!-- ============ HEADER ============ -->
+  <header style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:18px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;margin-bottom:8px;">algo: Refrain of Light — HUD 採用案 A</div>
+        <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:36px;letter-spacing:.01em;line-height:1.1;">整理 ／ Clean Glass <span style="color:#8a7a9a;font-weight:700;font-size:22px;">＋ 降ってくる言葉</span></h1>
+        <p style="margin:10px 0 0;color:#c8b8d8;font-size:15px;max-width:720px;line-height:1.6;">案A（浮遊ガラスモジュール）を採用し、C案の<strong style="color:#fff;">「降ってくる言葉」ティッカー</strong>を下部に統合。HUDの反応を <strong style="color:#fff;">通常 → 被弾 → 浄化100%</strong> の3状態で提示。</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:380px;justify-content:flex-end;">
+        <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(232,118,156,.1);border:1px solid rgba(232,118,156,.4);color:#f3aec5;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#e8769c;"></i>体力</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(154,114,217,.1);border:1px solid rgba(154,114,217,.4);color:#c8b0ec;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;"></i>BOMB</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(108,188,216,.1);border:1px solid rgba(108,188,216,.4);color:#a6dcec;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#6cbcd8;"></i>浄化</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(224,114,172,.1);border:1px solid rgba(224,114,172,.4);color:#f0a8cf;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#e072ac;"></i>穢れ</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;background:rgba(232,196,90,.1);border:1px solid rgba(232,196,90,.4);color:#f0d98a;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;"><i style="width:9px;height:9px;border-radius:50%;background:#e8c45a;"></i>SCORE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ STATE 1 — NORMAL ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="状態1 通常">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#c97aff,#7a55b5);font-family:'JetBrains Mono';font-weight:800;font-size:15px;box-shadow:0 0 14px rgba(154,114,217,.5);">1</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">通常プレイ</div><div style="font-size:13px;color:#8a7a9a;">弾幕を抜けて奥の「本人（光）」へ届ける。下部に降ってくる言葉が流れる。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(72% 55% at 50% 6%,rgba(120,150,210,.2),transparent 60%),radial-gradient(52% 52% at 16% 92%,rgba(154,114,217,.16),transparent 65%),linear-gradient(180deg,#0e1834 0%,#0a1126 55%,#070a16 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 34%,rgba(150,180,230,.06) 48%,transparent 60%);"></div>
+      <span style="position:absolute;left:13%;top:34%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:23px;color:rgba(200,184,216,.15);transform:rotate(-4deg);">あたしのせいだ</span>
+      <span style="position:absolute;left:46%;top:52%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:19px;color:rgba(200,184,216,.13);transform:rotate(3deg);">むだだよ</span>
+      <span style="position:absolute;left:62%;top:62%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:21px;color:rgba(200,184,216,.12);">きえたい</span>
+      <span style="position:absolute;left:20%;top:52%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:17px;color:rgba(200,184,216,.1);">ひとりになる</span>
+      <span style="position:absolute;left:74%;top:40%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:20px;color:rgba(200,184,216,.13);">とどかない</span>
+      <span style="position:absolute;left:64%;top:34%;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.75);"></span>
+      <span style="position:absolute;left:58%;top:46%;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:69%;top:52%;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 8px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:50%;top:58%;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 8px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:33%;bottom:32%;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#6cbcd8 65%);box-shadow:0 0 8px rgba(108,188,216,.8);"></span>
+      <span style="position:absolute;left:36%;bottom:42%;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#6cbcd8 65%);box-shadow:0 0 8px rgba(108,188,216,.8);"></span>
+      <div style="position:absolute;right:14%;top:24%;width:94px;height:94px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);animation:bossPulse 3.2s ease-in-out infinite;"></div>
+      <div style="position:absolute;left:30%;bottom:28%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);animation:orbFloat 4s ease-in-out infinite,softPulse 2.6s ease-in-out infinite;"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.5;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 130px 44px rgba(0,0,0,.55);pointer-events:none;"></div>
+
+      <!-- LIFE + BOMB -->
+      <div style="position:absolute;left:22px;top:20px;display:flex;flex-direction:column;gap:9px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px 15px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;letter-spacing:.22em;color:#c8b8d8;text-transform:uppercase;font-family:'JetBrains Mono';">LIFE</span>
+          <span style="display:flex;gap:4px;">
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.22);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+          </span>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,.08);"></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <span style="width:16px;height:16px;background:#9a72d9;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(154,114,217,.7));"></span>
+          <span style="font-size:11px;letter-spacing:.16em;color:#c8b0ec;font-family:'JetBrains Mono';font-weight:700;">BOMB</span>
+          <span style="display:flex;gap:4px;margin-left:2px;">
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+          </span>
+        </div>
+      </div>
+
+      <!-- 浄化 capsule -->
+      <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 18px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+        <span style="width:17px;height:17px;background:#6cbcd8;-webkit-mask:url(hud/icons/stream.svg) center/contain no-repeat;mask:url(hud/icons/stream.svg) center/contain no-repeat;filter:drop-shadow(0 0 6px rgba(108,188,216,.8));"></span>
+        <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#a6dcec;letter-spacing:.08em;">浄化</span>
+        <span style="position:relative;width:300px;height:11px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);">
+          <span style="position:absolute;inset:0;width:34%;border-radius:999px;background:linear-gradient(90deg,#3f7fa0,#6cbcd8 70%,#d7f3ff);box-shadow:0 0 12px rgba(108,188,216,.7);"></span>
+          <span style="position:absolute;top:0;bottom:0;left:0;width:40px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55));animation:gaugeShimmer 2.8s linear infinite;"></span>
+        </span>
+        <span style="font-family:'JetBrains Mono';font-weight:800;font-size:15px;color:#d7f3ff;font-variant-numeric:tabular-nums;">34<span style="font-size:11px;opacity:.7;">%</span></span>
+      </div>
+
+      <!-- SCORE + telemetry -->
+      <div style="position:absolute;right:22px;top:20px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(232,196,90,.3);border-radius:14px;padding:8px 16px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+          <span style="font-size:10px;letter-spacing:.24em;color:#f0d98a;text-transform:uppercase;font-family:'JetBrains Mono';">SCORE</span>
+          <span style="font-family:'JetBrains Mono';font-weight:800;font-size:24px;color:#f0d98a;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-shadow:0 0 14px rgba(232,196,90,.5);">012,480</span>
+        </div>
+        <div style="display:flex;gap:7px;">
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#a6dcec;font-weight:700;"><i style="width:12px;height:12px;background:#6cbcd8;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;"></i>イ 16.2k</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#c8b0ec;font-weight:700;"><i style="width:12px;height:12px;background:#9a72d9;-webkit-mask:url(hud/icons/repost.svg) center/contain no-repeat;mask:url(hud/icons/repost.svg) center/contain no-repeat;"></i>1,204</span>
+        </div>
+      </div>
+
+      <!-- boss X-profile card -->
+      <div style="position:absolute;left:50%;top:74px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:560px;background:rgba(18,12,22,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,114,172,.32);border-radius:16px;padding:11px 16px;box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);">
+        <div style="position:relative;width:46px;height:46px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,#5a2244,#1a0a14);box-shadow:0 0 0 2px rgba(224,114,172,.6),0 0 16px rgba(224,114,172,.45);">
+          <span style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#e072ac;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;border:2px solid #160a12;">✓</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;">
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#fff;">むだなわたし</span>
+            <span style="font-family:'JetBrains Mono';font-size:12px;color:#8a7a9a;">@mudana_watashi</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:12px;color:#f0a8cf;font-weight:700;"><i style="width:13px;height:13px;background:#e072ac;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></i>2,847</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:10px;letter-spacing:.14em;color:#f0a8cf;">穢れ</span>
+            <span style="position:relative;flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(224,114,172,.18);">
+              <span style="position:absolute;inset:0;width:72%;border-radius:999px;background:linear-gradient(90deg,#7a2f5a,#e072ac 75%,#ffb3da);box-shadow:0 0 12px rgba(224,114,172,.6);"></span>
+            </span>
+            <span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#f0a8cf;font-variant-numeric:tabular-nums;">72%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 降ってくる言葉 ticker -->
+      <div style="position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(10,8,16,0),rgba(10,8,16,.82));border-top:1px solid rgba(224,114,172,.18);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;background:rgba(224,114,172,.14);height:100%;border-right:1px solid rgba(224,114,172,.22);">
+          <span style="width:14px;height:14px;background:#e072ac;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></span>
+          <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:12px;color:#f0a8cf;letter-spacing:.06em;">降ってくる言葉</span>
+        </div>
+        <div style="flex:1;overflow:hidden;position:relative;height:100%;">
+          <div style="position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:34px;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-size:14px;animation:ticker 24s linear infinite;will-change:transform;">
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@anon_03</span> あたしのせいだ</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@kako__</span> どうせ、とどかない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@nobody_7</span> もういない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@ame_</span> きえたい</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@_void</span> なんで庇ったの</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@anon_03</span> あたしのせいだ</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@kako__</span> どうせ、とどかない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@nobody_7</span> もういない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@ame_</span> きえたい</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@_void</span> なんで庇ったの</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATE 2 — HIT / DAMAGE ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="状態2 被弾">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#ff7a6a,#c83232);font-family:'JetBrains Mono';font-weight:800;font-size:15px;box-shadow:0 0 14px rgba(232,90,90,.5);">2</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">被弾 — ライフ減・警告</div><div style="font-size:13px;color:#8a7a9a;">残ライフが少ないとハートが赤く明滅、画面端が赤くパルス。-1 ダメージが浮上。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(72% 55% at 50% 6%,rgba(120,150,210,.2),transparent 60%),radial-gradient(52% 52% at 16% 92%,rgba(154,114,217,.16),transparent 65%),linear-gradient(180deg,#0e1834 0%,#0a1126 55%,#070a16 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 34%,rgba(150,180,230,.06) 48%,transparent 60%);"></div>
+      <span style="position:absolute;left:13%;top:34%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:23px;color:rgba(200,184,216,.15);transform:rotate(-4deg);">あたしのせいだ</span>
+      <span style="position:absolute;left:46%;top:52%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:19px;color:rgba(200,184,216,.13);transform:rotate(3deg);">むだだよ</span>
+      <span style="position:absolute;left:62%;top:62%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:21px;color:rgba(200,184,216,.12);">きえたい</span>
+      <span style="position:absolute;left:74%;top:40%;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:20px;color:rgba(200,184,216,.13);">とどかない</span>
+      <span style="position:absolute;left:40%;bottom:34%;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.75);"></span>
+      <span style="position:absolute;left:34%;bottom:30%;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 9px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:64%;top:34%;width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 8px rgba(224,114,172,.7);"></span>
+      <span style="position:absolute;left:58%;top:46%;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#e072ac 60%,#7a2f5a);box-shadow:0 0 8px rgba(224,114,172,.7);"></span>
+      <div style="position:absolute;right:14%;top:24%;width:94px;height:94px;border-radius:50%;background:radial-gradient(circle at 40% 35%,rgba(70,24,52,.95),#180812 72%);animation:bossPulse 3.2s ease-in-out infinite;"></div>
+      <!-- player orb hit (red tint) -->
+      <div style="position:absolute;left:30%;bottom:28%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#ffb0b0 50%,#e85a5a);box-shadow:0 0 16px rgba(232,90,90,.85);"></div>
+      <!-- -1 damage float -->
+      <span style="position:absolute;left:30%;bottom:34%;font-family:'JetBrains Mono';font-weight:800;font-size:26px;color:#ff6a6a;text-shadow:0 0 12px rgba(232,90,90,.7),0 2px 0 #3a0606;animation:dmgFloat 1.8s ease-out infinite;">-1</span>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.5;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 130px 44px rgba(0,0,0,.55);pointer-events:none;"></div>
+      <!-- hurt red edge -->
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 110px 30px rgba(232,40,40,.55);pointer-events:none;animation:hurtEdge 1.1s ease-in-out infinite;"></div>
+
+      <!-- LIFE(2) + BOMB(4) -->
+      <div style="position:absolute;left:22px;top:20px;display:flex;flex-direction:column;gap:9px;background:rgba(28,14,18,.6);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,90,106,.4);border-radius:16px;padding:12px 15px;box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 18px rgba(232,60,60,.3),inset 0 1px 0 rgba(255,255,255,.06);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;letter-spacing:.22em;color:#ffb0bb;text-transform:uppercase;font-family:'JetBrains Mono';">LIFE</span>
+          <span style="display:flex;gap:4px;">
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;animation:heartWarn .85s ease-in-out infinite;"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;animation:heartWarn .85s ease-in-out infinite .2s;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.2);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.2);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.2);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.2);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+          </span>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,.08);"></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <span style="width:16px;height:16px;background:#9a72d9;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(154,114,217,.7));"></span>
+          <span style="font-size:11px;letter-spacing:.16em;color:#c8b0ec;font-family:'JetBrains Mono';font-weight:700;">BOMB</span>
+          <span style="display:flex;gap:4px;margin-left:2px;">
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+          </span>
+        </div>
+      </div>
+
+      <!-- 浄化 capsule -->
+      <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 18px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+        <span style="width:17px;height:17px;background:#6cbcd8;-webkit-mask:url(hud/icons/stream.svg) center/contain no-repeat;mask:url(hud/icons/stream.svg) center/contain no-repeat;filter:drop-shadow(0 0 6px rgba(108,188,216,.8));"></span>
+        <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#a6dcec;letter-spacing:.08em;">浄化</span>
+        <span style="position:relative;width:300px;height:11px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);">
+          <span style="position:absolute;inset:0;width:41%;border-radius:999px;background:linear-gradient(90deg,#3f7fa0,#6cbcd8 70%,#d7f3ff);box-shadow:0 0 12px rgba(108,188,216,.7);"></span>
+          <span style="position:absolute;top:0;bottom:0;left:0;width:40px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55));animation:gaugeShimmer 2.8s linear infinite;"></span>
+        </span>
+        <span style="font-family:'JetBrains Mono';font-weight:800;font-size:15px;color:#d7f3ff;font-variant-numeric:tabular-nums;">41<span style="font-size:11px;opacity:.7;">%</span></span>
+      </div>
+
+      <!-- SCORE -->
+      <div style="position:absolute;right:22px;top:20px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(232,196,90,.3);border-radius:14px;padding:8px 16px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+          <span style="font-size:10px;letter-spacing:.24em;color:#f0d98a;text-transform:uppercase;font-family:'JetBrains Mono';">SCORE</span>
+          <span style="font-family:'JetBrains Mono';font-weight:800;font-size:24px;color:#f0d98a;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-shadow:0 0 14px rgba(232,196,90,.5);">021,360</span>
+        </div>
+        <div style="display:flex;gap:7px;">
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#a6dcec;font-weight:700;"><i style="width:12px;height:12px;background:#6cbcd8;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;"></i>イ 18.9k</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#c8b0ec;font-weight:700;"><i style="width:12px;height:12px;background:#9a72d9;-webkit-mask:url(hud/icons/repost.svg) center/contain no-repeat;mask:url(hud/icons/repost.svg) center/contain no-repeat;"></i>1,455</span>
+        </div>
+      </div>
+
+      <!-- boss card -->
+      <div style="position:absolute;left:50%;top:74px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:560px;background:rgba(18,12,22,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,114,172,.32);border-radius:16px;padding:11px 16px;box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);">
+        <div style="position:relative;width:46px;height:46px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,#5a2244,#1a0a14);box-shadow:0 0 0 2px rgba(224,114,172,.6),0 0 16px rgba(224,114,172,.45);">
+          <span style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#e072ac;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;border:2px solid #160a12;">✓</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;">
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#fff;">むだなわたし</span>
+            <span style="font-family:'JetBrains Mono';font-size:12px;color:#8a7a9a;">@mudana_watashi</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:12px;color:#f0a8cf;font-weight:700;"><i style="width:13px;height:13px;background:#e072ac;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></i>2,610</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:10px;letter-spacing:.14em;color:#f0a8cf;">穢れ</span>
+            <span style="position:relative;flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(224,114,172,.18);">
+              <span style="position:absolute;inset:0;width:64%;border-radius:999px;background:linear-gradient(90deg,#7a2f5a,#e072ac 75%,#ffb3da);box-shadow:0 0 12px rgba(224,114,172,.6);"></span>
+            </span>
+            <span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#f0a8cf;font-variant-numeric:tabular-nums;">64%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- hit notification toast -->
+      <div style="position:absolute;right:22px;bottom:64px;display:flex;align-items:center;gap:10px;background:rgba(30,12,16,.74);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,90,106,.4);border-radius:12px;padding:10px 14px;box-shadow:0 10px 24px rgba(0,0,0,.5);animation:toastIn 4s ease-in-out infinite;">
+        <span style="width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 35%,#7a2020,#2a0808);box-shadow:0 0 0 1.5px rgba(255,90,106,.55);display:grid;place-items:center;color:#ffb0b0;font-family:'JetBrains Mono';font-weight:800;font-size:13px;">!</span>
+        <div style="font-size:12px;line-height:1.4;"><strong style="font-family:'Zen Kaku Gothic New';color:#fff;">被弾</strong> <span style="color:#8a7a9a;">ライフ</span> <span style="font-family:'JetBrains Mono';color:#ff8a8a;font-weight:700;">-1</span><br><span style="font-family:'Zen Kaku Gothic New';color:#ffb0b0;">「とどかない」が刺さった</span></div>
+      </div>
+
+      <!-- ticker -->
+      <div style="position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(10,8,16,0),rgba(10,8,16,.82));border-top:1px solid rgba(224,114,172,.18);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;background:rgba(224,114,172,.14);height:100%;border-right:1px solid rgba(224,114,172,.22);">
+          <span style="width:14px;height:14px;background:#e072ac;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></span>
+          <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:12px;color:#f0a8cf;letter-spacing:.06em;">降ってくる言葉</span>
+        </div>
+        <div style="flex:1;overflow:hidden;position:relative;height:100%;">
+          <div style="position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:34px;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-size:14px;animation:ticker 19s linear infinite;will-change:transform;">
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@_void</span> なんで庇ったの</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@anon_03</span> あたしのせいだ</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@ame_</span> きえたい</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@kako__</span> どうせ、とどかない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@nobody_7</span> もういない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@_void</span> なんで庇ったの</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@anon_03</span> あたしのせいだ</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@ame_</span> きえたい</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@kako__</span> どうせ、とどかない</span>
+            <span style="color:#c8b8d8;"><span style="color:#8a7a9a;font-family:'JetBrains Mono';font-size:12px;">@nobody_7</span> もういない</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STATE 3 — PURIFY COMPLETE ============ -->
+  <section style="width:1280px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="状態3 浄化100%">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:15px;box-shadow:0 0 14px rgba(108,188,216,.5);">3</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">浄化 100% 達成 — ボス浄化</div><div style="font-size:13px;color:#8a7a9a;">浄化ゲージ満タンで発光、穢れが鎮まり、認証マークが穏やかな光に。本人（光）が戻る。</div></div>
+    </div>
+    <div style="position:relative;width:1280px;height:720px;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 60px rgba(0,0,0,.55);">
+      <div style="position:absolute;inset:0;background:radial-gradient(70% 60% at 64% 30%,rgba(180,210,240,.22),transparent 58%),radial-gradient(72% 55% at 50% 6%,rgba(120,150,210,.18),transparent 60%),linear-gradient(180deg,#102038 0%,#0c1428 55%,#080c18 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(190,220,245,.1) 48%,transparent 64%);"></div>
+      <span style="position:absolute;left:13%;top:36%;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:22px;color:rgba(200,220,240,.1);transform:rotate(-4deg);">あたしのせいだ</span>
+      <span style="position:absolute;left:70%;top:48%;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-weight:500;font-size:18px;color:rgba(200,220,240,.08);">とどかない</span>
+      <!-- player orb -->
+      <div style="position:absolute;left:32%;bottom:30%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);animation:orbFloat 4s ease-in-out infinite,softPulse 2.6s ease-in-out infinite;"></div>
+      <!-- expanding purify rings -->
+      <div style="position:absolute;right:17.5%;top:33%;width:120px;height:120px;border-radius:50%;border:2px solid rgba(159,222,245,.7);transform:translate(-50%,-50%);animation:purifyRing 2.6s ease-out infinite;"></div>
+      <div style="position:absolute;right:17.5%;top:33%;width:120px;height:120px;border-radius:50%;border:2px solid rgba(159,222,245,.6);transform:translate(-50%,-50%);animation:purifyRing 2.6s ease-out infinite 1.3s;"></div>
+      <!-- 本人（光）orb -->
+      <div style="position:absolute;right:14%;top:24%;width:94px;height:94px;border-radius:50%;background:radial-gradient(circle at 42% 38%,#fff,#fff0c4 45%,#ffd98a 78%);box-shadow:0 0 50px rgba(255,236,180,.85),0 0 90px rgba(255,224,150,.45);animation:lightPulse 3s ease-in-out infinite;"></div>
+      <!-- central 浄化 burst -->
+      <div style="position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);text-align:center;">
+        <div style="font-family:'Zen Kaku Gothic New';font-weight:900;font-size:64px;letter-spacing:.12em;color:#fff;text-shadow:0 0 22px rgba(159,222,245,.9),0 0 50px rgba(108,188,216,.6);">浄化</div>
+        <div style="font-family:'JetBrains Mono';font-weight:700;font-size:14px;letter-spacing:.34em;color:#a6dcec;margin-top:6px;">PURIFIED</div>
+      </div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:.4;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 130px 44px rgba(0,0,0,.4);pointer-events:none;"></div>
+
+      <!-- LIFE + BOMB -->
+      <div style="position:absolute;left:22px;top:20px;display:flex;flex-direction:column;gap:9px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px 15px;box-shadow:0 8px 22px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;letter-spacing:.22em;color:#c8b8d8;text-transform:uppercase;font-family:'JetBrains Mono';">LIFE</span>
+          <span style="display:flex;gap:4px;">
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:#e8769c;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;filter:drop-shadow(0 0 4px rgba(232,118,156,.6));"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.22);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.22);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+            <span style="width:21px;height:21px;background:rgba(232,118,156,.22);-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></span>
+          </span>
+        </div>
+        <div style="height:1px;background:rgba(255,255,255,.08);"></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <span style="width:16px;height:16px;background:#9a72d9;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(154,114,217,.7));"></span>
+          <span style="font-size:11px;letter-spacing:.16em;color:#c8b0ec;font-family:'JetBrains Mono';font-weight:700;">BOMB</span>
+          <span style="display:flex;gap:4px;margin-left:2px;">
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:#9a72d9;box-shadow:0 0 6px rgba(154,114,217,.8);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+            <i style="width:9px;height:9px;border-radius:50%;background:rgba(154,114,217,.28);"></i>
+          </span>
+        </div>
+      </div>
+
+      <!-- 浄化 100% full -->
+      <div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:rgba(16,22,30,.6);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(159,222,245,.5);border-radius:999px;padding:9px 18px;animation:fullGlow 1.8s ease-in-out infinite;">
+        <span style="width:17px;height:17px;background:#d7f3ff;-webkit-mask:url(hud/icons/stream.svg) center/contain no-repeat;mask:url(hud/icons/stream.svg) center/contain no-repeat;filter:drop-shadow(0 0 8px rgba(159,222,245,.95));"></span>
+        <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#d7f3ff;letter-spacing:.08em;">浄化</span>
+        <span style="position:relative;width:300px;height:11px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(159,222,245,.3);">
+          <span style="position:absolute;inset:0;width:100%;border-radius:999px;background:linear-gradient(90deg,#6cbcd8,#9be0f5 60%,#fff);box-shadow:0 0 16px rgba(159,222,245,.9);"></span>
+          <span style="position:absolute;top:0;bottom:0;left:0;width:60px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7));animation:gaugeShimmer 2s linear infinite;"></span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;font-family:'JetBrains Mono';font-weight:800;font-size:15px;color:#fff;font-variant-numeric:tabular-nums;">100<span style="font-size:11px;opacity:.8;">%</span></span>
+      </div>
+
+      <!-- SCORE -->
+      <div style="position:absolute;right:22px;top:20px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;background:rgba(16,14,26,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);border:1px solid rgba(232,196,90,.45);border-radius:14px;padding:8px 16px;box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 18px rgba(232,196,90,.25),inset 0 1px 0 rgba(255,255,255,.07);">
+          <span style="font-size:10px;letter-spacing:.24em;color:#f0d98a;text-transform:uppercase;font-family:'JetBrains Mono';">SCORE</span>
+          <span style="font-family:'JetBrains Mono';font-weight:800;font-size:24px;color:#ffe9a8;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(232,196,90,.7);">048,920</span>
+        </div>
+        <div style="display:flex;gap:7px;">
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#a6dcec;font-weight:700;"><i style="width:12px;height:12px;background:#6cbcd8;-webkit-mask:url(hud/icons/buzz.svg) center/contain no-repeat;mask:url(hud/icons/buzz.svg) center/contain no-repeat;"></i>イ 24.0k</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(16,14,26,.5);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:4px 10px;font-family:'JetBrains Mono';font-size:11px;color:#a6dcec;font-weight:700;"><i style="width:12px;height:12px;background:#6cbcd8;-webkit-mask:url(hud/icons/heart.svg) center/contain no-repeat;mask:url(hud/icons/heart.svg) center/contain no-repeat;"></i>3,902</span>
+        </div>
+      </div>
+
+      <!-- boss card — purified -->
+      <div style="position:absolute;left:50%;top:74px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:560px;background:rgba(16,22,30,.58);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(159,222,245,.4);border-radius:16px;padding:11px 16px;box-shadow:0 10px 26px rgba(0,0,0,.45),0 0 22px rgba(108,188,216,.22),inset 0 1px 0 rgba(255,255,255,.06);">
+        <div style="position:relative;width:46px;height:46px;border-radius:50%;flex:none;background:radial-gradient(circle at 42% 38%,#fff,#fff0c4 50%,#e7c98a);box-shadow:0 0 0 2px rgba(159,222,245,.7),0 0 20px rgba(255,236,180,.6);">
+          <span style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#6cbcd8;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;border:2px solid #0e1a22;">✓</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;">
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:16px;color:#fff;">むだなわたし</span>
+            <span style="font-family:'JetBrains Mono';font-size:12px;color:#8a98a8;">@mudana_watashi</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-family:'Zen Kaku Gothic New';font-size:12px;color:#a6dcec;font-weight:700;">浄化完了</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;">
+            <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:10px;letter-spacing:.14em;color:#a6dcec;">穢れ</span>
+            <span style="position:relative;flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(159,222,245,.25);">
+              <span style="position:absolute;inset:0;width:5%;border-radius:999px;background:linear-gradient(90deg,#6cbcd8,#9be0f5);box-shadow:0 0 12px rgba(159,222,245,.7);"></span>
+            </span>
+            <span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px;color:#a6dcec;font-variant-numeric:tabular-nums;">5%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- purified toast -->
+      <div style="position:absolute;right:22px;bottom:64px;display:flex;align-items:center;gap:10px;background:rgba(14,22,28,.74);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(159,222,245,.4);border-radius:12px;padding:10px 14px;box-shadow:0 10px 24px rgba(0,0,0,.5);animation:toastIn 5s ease-in-out infinite;">
+        <span style="width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 42% 38%,#fff,#fff0c4 55%,#e7c98a);box-shadow:0 0 0 1.5px rgba(159,222,245,.6),0 0 14px rgba(255,236,180,.5);"></span>
+        <div style="font-size:12px;line-height:1.4;"><strong style="font-family:'Zen Kaku Gothic New';color:#fff;">むだなわたし</strong> <span style="color:#8a98a8;">を浄化した</span><br><span style="font-family:'Zen Kaku Gothic New';color:#a6dcec;">「あったかい声がした気がする」</span></div>
+      </div>
+
+      <!-- ticker — fading out -->
+      <div style="position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(10,8,16,0),rgba(12,18,24,.7));border-top:1px solid rgba(159,222,245,.14);overflow:hidden;opacity:.5;">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;background:rgba(108,188,216,.12);height:100%;border-right:1px solid rgba(159,222,245,.2);">
+          <span style="width:14px;height:14px;background:#a6dcec;-webkit-mask:url(hud/icons/speech.svg) center/contain no-repeat;mask:url(hud/icons/speech.svg) center/contain no-repeat;"></span>
+          <span style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:12px;color:#a6dcec;letter-spacing:.06em;">降ってくる言葉</span>
+        </div>
+        <div style="flex:1;overflow:hidden;position:relative;height:100%;">
+          <div style="position:absolute;top:0;bottom:0;display:flex;align-items:center;gap:34px;white-space:nowrap;font-family:'Zen Kaku Gothic New';font-size:14px;animation:ticker 30s linear infinite;will-change:transform;">
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@mina_</span> ……もう、だいじょうぶ</span>
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@_light</span> ひとりじゃない</span>
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@mina_</span> ……もう、だいじょうぶ</span>
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@_light</span> ひとりじゃない</span>
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@mina_</span> ……もう、だいじょうぶ</span>
+            <span style="color:#9aa8b6;"><span style="color:#6a7886;font-family:'JetBrains Mono';font-size:12px;">@_light</span> ひとりじゃない</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="width:1280px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    採用案 A（整理／Clean Glass）＋ 降ってくる言葉ティッカー。役割色は SnsTD トークン（--hp / --primary / --info / --accent / --gold）準拠。浄化完了で穢れ色（マゼンタ）が光（シアン〜金）へ転調し、降ってくる言葉も否定から肯定へ反転する。
+  </footer>
+</div>
+</x-dc>
+</body>
+</html>

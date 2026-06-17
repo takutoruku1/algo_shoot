@@ -41,6 +41,18 @@ public partial class Bullet : Area2D
 
     public float Radius { get; private set; } = 3f;
 
+    // RefrainScripts_tama / Refrain HUD A.dc.html の弾デザイン。
+    // ドット絵ではなく「白ハイライト→中間色→暗エッジのグラデ＋外周グロー」の滑らかな弾。
+    // 敵弾: radial-gradient(circle at 35% 30%, #fff, #e072ac 60%, #7a2f5a) + glow rgba(224,114,172,.75)
+    private static readonly Color EnemyMid  = new Color(0.882f, 0.447f, 0.675f); // #e072ac ボス穢れ
+    private static readonly Color EnemyEdge = new Color(0.478f, 0.184f, 0.353f); // #7a2f5a 暗マゼンタ縁
+    private static readonly Color EnemyGlow = new Color(0.878f, 0.447f, 0.675f); // rgba(224,114,172)
+    // 自機弾: radial-gradient(circle at 40% 35%, #fff, #6cbcd8 65%) + glow rgba(108,188,216,.8)
+    private static readonly Color PlayerMid  = new Color(0.424f, 0.737f, 0.847f); // #6cbcd8 浄化
+    private static readonly Color PlayerEdge = new Color(0.247f, 0.490f, 0.604f); // 暗めの水色縁
+    private static readonly Color PlayerGlow = new Color(0.424f, 0.737f, 0.847f); // rgba(108,188,216)
+    private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
+
     private CollisionShape2D _shape = null!;
     private CircleShape2D _circle = null!;
 
@@ -161,38 +173,38 @@ public partial class Bullet : Area2D
             DrawRect(new Rect2(-sz.X / 2f - pad, -sz.Y / 2f - pad, sz.X + pad * 2f, sz.Y + pad * 2f),
                 new Color(0.06f, 0.04f, 0.09f, 0.62f));
             DrawString(wf, new Vector2(-sz.X / 2f, sz.Y / 2f - 2f), Word,
-                HorizontalAlignment.Left, -1, 9, new Color(1f, 0.62f, 0.68f));
+                HorizontalAlignment.Left, -1, 9, KegareWord);
             return;
         }
 
         if (IsEnemy)
-        {
-            // ドット弾：明ハロー → 明フチ → 黒インク → 中心の熱
-            PixelDisc(r + 2f, new Color(1f, 0.97f, 0.9f, 0.5f));
-            PixelDisc(r + 1f, new Color(1f, 0.95f, 0.88f, 0.95f));
-            PixelDisc(r, new Color(0.06f, 0.04f, 0.09f));
-            PixelDisc(r * 0.5f, new Color(1.0f, 0.32f, 0.46f));
-        }
+            DrawGlassBullet(r, EnemyMid, EnemyEdge, EnemyGlow);
         else
-        {
-            // ドット弾：暗縁 → 水色 → 白コア
-            PixelDisc(r + 1f, new Color(0.10f, 0.18f, 0.30f, 0.5f));
-            PixelDisc(r, new Color(0.50f, 0.86f, 1.0f, 0.95f));
-            PixelDisc(r * 0.55f, new Color(1.0f, 1.0f, 1.0f));
-        }
+            DrawGlassBullet(r, PlayerMid, PlayerEdge, PlayerGlow);
     }
 
-    // 1x1の正方ドットで塗る“ピクセルの円”。滑らかな円でなくドット絵に見せる。
-    private void PixelDisc(float r, Color col)
+    // HTML(Refrain HUD A) の弾を再現：外周グロー(box-shadow 相当)＋
+    // 白ハイライト(オフセット) → 中間色 → 暗エッジ の滑らかなグラデ円。
+    // DrawCircle は antialiased:true でドットにならず滑らかに描かれる。
+    private void DrawGlassBullet(float r, Color mid, Color edge, Color glow)
     {
-        int ri = Mathf.CeilToInt(r);
-        float r2 = r * r;
-        for (int y = -ri; y < ri; y++)
-            for (int x = -ri; x < ri; x++)
-            {
-                float cx = x + 0.5f, cy = y + 0.5f;
-                if (cx * cx + cy * cy <= r2)
-                    DrawRect(new Rect2(x, y, 1, 1), col);
-            }
+        // 外周グロー：薄い同心円を外→内に重ねてぼかしを近似（box-shadow blur 相当）
+        const int gSteps = 5;
+        for (int i = gSteps; i >= 1; i--)
+        {
+            float t = i / (float)gSteps;                 // 1=最外周
+            float gr = r * (1f + 1.3f * t);
+            float a = 0.16f * (1f - t) + 0.04f;          // 外ほど薄い
+            DrawCircle(Vector2.Zero, gr, new Color(glow.R, glow.G, glow.B, a), true, -1f, true);
+        }
+
+        // 本体：エッジ → 中間 → 中間寄りの薄帯 → 白ハイライト
+        DrawCircle(Vector2.Zero, r, edge, true, -1f, true);
+        DrawCircle(Vector2.Zero, r * 0.82f, edge.Lerp(mid, 0.6f), true, -1f, true);
+        DrawCircle(Vector2.Zero, r * 0.60f, mid, true, -1f, true);
+
+        // 白ハイライト：HTML の "circle at ~35% 30%" を再現して左上にオフセット
+        var hl = new Vector2(-0.28f * r, -0.36f * r);
+        DrawCircle(hl, r * 0.34f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
     }
 }
