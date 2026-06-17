@@ -235,13 +235,12 @@ public partial class GameManager : Node
         return c >= 0 && Impression >= c;
     }
 
-    // 強化を1段購入。成功で true。購入のたびセーブ（恒久＝§0-3）。
+    // 強化を1段購入。成功で true。保存はポーズメニューの手動セーブで行う。
     public bool TryPurchase(string id)
     {
         if (!CanPurchase(id)) return false;
         Impression -= GetUpgradeCost(id);
         _upgrades[id] = GetUpgradeLevel(id) + 1;
-        Save();
         return true;
     }
 
@@ -292,15 +291,18 @@ public partial class GameManager : Node
         int fol = Mathf.RoundToInt(40 * (1f + 0.15f * GetUpgradeLevel("fol_gain")) * ReplayMul);
         AddFollowers(fol);
         LastClearFollowers = fol;
-        Save();
+        AutoSave(); // クリアでオートセーブ（slot 0）
     }
 
     // ───────────────────────────────────────────────────────────
-    // セーブ / ロード（user://save.json）。経済・強化のみ永続。
+    // セーブ / ロード（スロット制：user://save_1..3.json）。経済・強化のみ永続。
+    // 手動セーブ（ポーズメニュー）でのみ書き込む。起動時の自動ロードはしない。
     // ───────────────────────────────────────────────────────────
-    private const string SavePath = "user://save.json";
+    public const int SlotCount = 3;
+    private static string SlotPath(int slot) => $"user://save_{slot}.json";
+    public bool SlotExists(int slot) => FileAccess.FileExists(SlotPath(slot));
 
-    public void Save()
+    public void SaveToSlot(int slot)
     {
         var data = new Godot.Collections.Dictionary
         {
@@ -313,23 +315,24 @@ public partial class GameManager : Node
             up[kv.Key] = kv.Value;
         data["upgrades"] = up;
 
-        using var f = FileAccess.Open(SavePath, FileAccess.ModeFlags.Write);
+        using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
             f.StoreString(Json.Stringify(data));
     }
 
-    public void Load()
+    public bool LoadFromSlot(int slot)
     {
-        if (!FileAccess.FileExists(SavePath)) return;
-        using var f = FileAccess.Open(SavePath, FileAccess.ModeFlags.Read);
-        if (f == null) return;
+        string path = SlotPath(slot);
+        if (!FileAccess.FileExists(path)) return false;
+        using var f = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+        if (f == null) return false;
         var json = new Json();
-        if (json.Parse(f.GetAsText()) != Error.Ok) return;
-        if (json.Data.VariantType != Variant.Type.Dictionary) return;
+        if (json.Parse(f.GetAsText()) != Error.Ok) return false;
+        if (json.Data.VariantType != Variant.Type.Dictionary) return false;
         var data = json.Data.AsGodotDictionary();
 
-        if (data.ContainsKey("impression")) Impression = data["impression"].AsInt64();
-        if (data.ContainsKey("followers")) Followers = data["followers"].AsInt32();
+        Impression = data.ContainsKey("impression") ? data["impression"].AsInt64() : 0;
+        Followers = data.ContainsKey("followers") ? data["followers"].AsInt32() : 0;
         _upgrades.Clear();
         if (data.ContainsKey("upgrades"))
         {
@@ -343,17 +346,22 @@ public partial class GameManager : Node
             var m = (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 2);
             SelectedShotMode = IsModeUnlocked(m) ? m : ShotMode.Rapid;
         }
+        return true;
     }
 
-    // デバッグ用：セーブを全消去して初期状態へ（開発時のリセット）。
-    public void WipeSave()
+    // はじめから＝メモリ上の永続状態を初期化（スロットのファイルは消さない）。
+    public void ResetPersistent()
     {
         Impression = 0;
         Followers = 0;
         _upgrades.Clear();
-        if (FileAccess.FileExists(SavePath))
-            DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(SavePath));
+        SelectedShotMode = ShotMode.Rapid;
     }
+
+    // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。
+    // 設定でON/OFF（既定ON）。クリア・Hub帰還・タイトルへ戻る時などのマイルストーンで呼ぶ。
+    public bool AutoSaveEnabled { get; set; } = true;
+    public void AutoSave() { if (AutoSaveEnabled) SaveToSlot(0); }
 
     // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
     private float _kindFill;            // 0..1 蓄積
@@ -373,7 +381,7 @@ public partial class GameManager : Node
 
     public override void _Ready()
     {
-        Load();
+        // セーブはスロット制（手動）。起動時は自動ロードしない。
     }
 
     public override void _Process(double delta)

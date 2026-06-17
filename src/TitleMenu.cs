@@ -35,7 +35,8 @@ public partial class TitleMenu : Node2D
     };
 
     private int _sel;
-    private bool _navHeld, _zHeld, _hasSave;
+    private bool _navHeld, _zHeld, _backHeld, _hasSave, _picking;
+    private int _pick; // つづきから：選択中スロット(0..2)
     private double _t, _toastT;
     private string _toast = "";
     private bool _autoplay, _dived;
@@ -43,7 +44,7 @@ public partial class TitleMenu : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        _hasSave = FileAccess.FileExists("user://save.json");
+        _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
         _sel = _hasSave ? 1 : 0;
@@ -56,6 +57,29 @@ public partial class TitleMenu : Node2D
         if (_dived) { QueueRedraw(); return; }
         if (_autoplay) { if (_t > 0.3) Go("res://Hub.tscn"); QueueRedraw(); return; }
 
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld;
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_backHeld;
+
+        // 「つづきから」スロット選択中：↑↓で選び Z=ロード / X=やめる（0=オートセーブ）
+        if (_picking)
+        {
+            int n = GameManager.SlotCount + 1; // 0=オート + 1..3=手動
+            bool pu = Input.IsActionPressed("ui_up"), pd = Input.IsActionPressed("ui_down");
+            if ((pu || pd) && !_navHeld)
+            {
+                if (pu) _pick = (_pick + n - 1) % n;
+                if (pd) _pick = (_pick + 1) % n;
+            }
+            _navHeld = pu || pd;
+            if (zEdge && _game.SlotExists(_pick)) { _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
+            else if (backEdge) _picking = false;
+            _zHeld = z; _backHeld = back;
+            QueueRedraw();
+            return;
+        }
+
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
         {
@@ -64,9 +88,8 @@ public partial class TitleMenu : Node2D
         }
         _navHeld = up || down;
 
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
-        bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) Confirm();
+        _zHeld = z; _backHeld = back;
 
         QueueRedraw();
     }
@@ -75,8 +98,15 @@ public partial class TitleMenu : Node2D
     {
         switch (Items[_sel].item)
         {
-            case Item.NewGame:  Go("res://Hub.tscn"); break;
-            case Item.Continue: if (_hasSave) Go("res://Hub.tscn"); else Toast("セーブデータがありません"); break;
+            case Item.NewGame:
+                // はじめから＝まっさらスタート（スロットは消さない。進行は後でメニューから保存）。
+                _game.ResetPersistent();
+                Go("res://Prologue.tscn");
+                break;
+            case Item.Continue:
+                if (_hasSave) { _picking = true; _pick = FirstSlot(); }
+                else Toast("セーブデータがありません");
+                break;
             case Item.Gallery:  Toast("ギャラリーは準備中です"); break;
             case Item.Settings: Go("res://Settings.tscn"); break;
             case Item.Quit:     GetTree().Quit(); break;
@@ -85,6 +115,12 @@ public partial class TitleMenu : Node2D
 
     private void Toast(string msg) { _toast = msg; _toastT = 2.0; }
     private void Go(string scene) { if (_dived) return; _dived = true; GetTree().ChangeSceneToFile(scene); }
+    private int FirstSlot()
+    {
+        for (int i = 0; i <= GameManager.SlotCount; i++) // 0(オート)..3
+            if (_game.SlotExists(i)) return i;
+        return 0;
+    }
 
     public override void _Draw()
     {
@@ -141,7 +177,37 @@ public partial class TitleMenu : Node2D
 
         DrawTicker();
         DrawToast();
+        if (_picking) DrawSlotPicker();
         UiKit.EndDesign(this);
+    }
+
+    // 「つづきから」スロット選択ダイアログ（オート＋3スロット・空きはグレー）。
+    private void DrawSlotPicker()
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.6f)); // 暗幕
+        int n = GameManager.SlotCount + 1;
+        float w = 560, rowH = 56, h = 100 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "つづきから — スロットを選ぶ", 18, UiKit.White, HorizontalAlignment.Center, w);
+        float top = y + 64;
+        for (int i = 0; i < n; i++)
+        {
+            float ry = top + i * rowH;
+            bool on = i == _pick;
+            bool exists = _game.SlotExists(i);
+            if (on)
+            {
+                UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 46), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 14), "▸", 16, UiKit.Purify);
+            }
+            Color nameCol = exists ? (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)) : UiKit.Text4;
+            string name = i == 0 ? "オートセーブ" : $"スロット {i}";
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 12), name, 19, nameCol);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 220, ry + 15), exists ? "セーブあり" : "—— 空き ——", 12,
+                exists ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 192);
+        }
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 28), "Z 決定    X 戻る", 11, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     private void DrawDanmaku(Vector2 c, float r, Color col)

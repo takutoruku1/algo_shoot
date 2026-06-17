@@ -269,7 +269,6 @@ public partial class Player : Area2D
             if (nm != _game.SelectedShotMode)
             {
                 _game.SelectedShotMode = nm;
-                _game.Save(); // 選択を次回へ保存
                 (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetShotMode(nm, true);
             }
         }

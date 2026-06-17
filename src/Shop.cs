@@ -142,7 +142,6 @@ public partial class Shop : Node2D
         if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) Toast("まだ解放されていません", UiKit.Text4); return; }
         if (_game!.SelectedShotMode == m && !silent) { return; }
         _game.SelectedShotMode = m;
-        _game.Save();
         _sweepName = _game.ShotModeName(m);
         _sweepT = 1.1;
     }

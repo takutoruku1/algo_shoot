@@ -68,6 +68,7 @@ public partial class Settings : Node2D
         gp.Items.Add(Slider("flash", "被弾フラッシュ", 60, "赤い明滅の強さ"));
         gp.Items.Add(Seg("msg", "メッセージ速度", new[] { "遅", "中", "速" }, 1));
         gp.Items.Add(Toggle("auto", "オート会話送り", false));
+        gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
 
         var ctrl = C("controls", "操作", "Controls");
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
@@ -176,6 +177,12 @@ public partial class Settings : Node2D
             {
                 var gm = GetNodeOrNull<GameManager>("/root/Game");
                 if (gm != null) gm.AutoAdvanceDialog = d.B;
+                break;
+            }
+            case "autosave":
+            {
+                var gm = GetNodeOrNull<GameManager>("/root/Game");
+                if (gm != null) gm.AutoSaveEnabled = d.B;
                 break;
             }
             case "mode":
