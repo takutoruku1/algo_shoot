@@ -254,7 +254,8 @@ public partial class Audio : Node
                 float arp = Arp(t, ch) * 0.06f;
                 // メロディ：モチーフ1音（柔らかいフルート）
                 float mel = Mathf.Sin(Mathf.Tau * motif[b] * t) * Swell(t, bar, 0.10f, 0.7f) * 0.08f;
-                s[baseI + i] = pad + bass + arp + mel;
+                // マスターゲイン：SE（控えめ）に対して BGM が大きすぎないよう全体を下げる
+                s[baseI + i] = (pad + bass + arp + mel) * 0.4f;
             }
         }
         FadeEnds(s, (int)(0.006f * Rate)); // 端を数msフェード＝継ぎ目を完全に無音化
