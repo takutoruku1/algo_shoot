@@ -29,6 +29,11 @@ public partial class StageAkari : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
+    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。
+    private Spawner _spawner = null!;
+    private int _waveBase;
+    private const int MidWaveCount = 8;
+
     // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。
     // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
@@ -37,8 +42,10 @@ public partial class StageAkari : Node
         (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
         (4, "「すきになって、ごめんなさい。」", ""),                       // 投稿
         (0, "…………この人の、ところへ行こう。", SGentle),
-        (1, "おや。決めゼリフはどうしたんですか。", ""),
+        (1, "おや。決めゼリフはどうしたんですか。……それに、いつもの「Stay」も。", ""),
         (0, "……いいから。行くぞ。", SCocky),
+        // 合言葉の“不在”＝違和感（転の予兆）。少年は動揺して、いつもの「Stay」を言い忘れる。
+        (3, "——その日、ご主人様は「Stay」と言わなかった。わたくしは、なぜか少しだけ、落ち着きませんでした。", ""),
         (3, "——雨の、降りやまない教室でした。机も椅子も、天井へ落ちていく。", ""),   // 地
     };
 
@@ -48,6 +55,23 @@ public partial class StageAkari : Node
         (1, "黒板の字。自分を責める言葉に、好意の言葉が混ざっていますね。", ""),
         (0, "……この人は、誰かを好きになったことを、罪だと思ってる。", SGentle),
         (0, "————そういう罪も、あるんだよ。この世界にはね。", SGentle),
+    };
+
+    // 道中突入の小話（世界観：自責の声の雨）。道中ザコ戦の前に出す。
+    private static readonly (int who, string text, string face)[] Mid =
+    {
+        (3, "——その雨の中を、白い吹き出しが、いくつも漂っていました。", ""),
+        (1, "ここの声は……どれも、自分に向かっていますね。", ""),
+        (0, "ああ。誰かを責めるより、自分を責めるほうが、ずっと痛い。", SGentle),
+        (1, "……やけに、詳しいんですね。", ""),
+        (0, "————行くぞ。", SCocky),
+    };
+
+    // 道中後の小話（ボスへの引き）。
+    private static readonly (int who, string text, string face)[] MidEnd =
+    {
+        (1, "黒板の奥に、あの子が。……ご主人様、ほんとうに、いいんですね?", ""),
+        (0, "……ぼくが、やらなきゃいけないんだ。", SGentle),
     };
 
     // 帰還（v2 [P-02c]）。投稿の変化＋あかりの残響＋ミナの核心の問い（伏線③）。
@@ -67,7 +91,8 @@ public partial class StageAkari : Node
     {
         _rng.Randomize();
         _step = 1;
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1); // ボスを浄化＝100%（部屋が晴れる）
+        // 道中8体＋ボス1で浄化カプセルが満ちる（部屋が晴れる）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveCount + 1);
     }
 
     private bool _startBannerShown;
@@ -83,11 +108,14 @@ public partial class StageAkari : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_BossSpawn(); break;
-            case 3: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
-            case 4: Step_BossWait(); break;
-            case 5: Step_Clear(delta); break;
-            case 6: Step_Transition(); break;
+            case 2: Step_Lines(delta, Mid); break;       // 道中突入の小話
+            case 3: Step_Midwave(delta); break;          // 道中ザコ戦
+            case 4: Step_Lines(delta, MidEnd); break;    // 道中後の小話
+            case 5: Step_BossSpawn(); break;
+            case 6: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
+            case 7: Step_BossWait(); break;
+            case 8: Step_Clear(delta); break;
+            case 9: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
     }
@@ -145,6 +173,25 @@ public partial class StageAkari : Node
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }
 
+    // ---- 道中ザコ戦：Spawner起動→MidWaveCount体浄化で抜ける ----
+    private void Step_Midwave(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _spawner = new Spawner { Name = "Spawner", World = World };
+            AddChild(_spawner);
+            _spawner.Begin();
+        }
+        if (game != null && game.PurifiedCount - _waveBase >= MidWaveCount)
+        {
+            _spawner.Stop();
+            Advance();
+        }
+    }
+
     // ---- 2: ボス出現 ----
     private void Step_BossSpawn()
     {
@@ -173,7 +220,12 @@ public partial class StageAkari : Node
     private bool _clearBannerShown;
     private void Step_Clear(double delta)
     {
-        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 2 CLEAR"); }
+        if (!_clearBannerShown)
+        {
+            _clearBannerShown = true;
+            Hud.ShowBanner("STAGE 2 CLEAR");
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+        }
         Step_Lines(delta, Clear);
     }
 

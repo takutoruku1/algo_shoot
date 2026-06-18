@@ -21,10 +21,11 @@ public partial class Epilogue : Node2D
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
     private static readonly Color Ink = new Color(0.92f, 0.94f, 1f);
 
-    // PW候補（正解は少年が毎回言った言葉）。誕生日・MINA・天才は弾かれる。
+    // PW候補＝鍵アカに打ち込む単語。少年が毎回ダイブ前に言った合言葉 "stay" が正解。
+    // 誕生日(0414)・MINA・天才(genius) は弾かれる。
     private static readonly string[] PwChoices =
     {
-        "0414", "MINA", "ぼくは天才だぞ", "心配ない。ぼくがついてる",
+        "0414", "mina", "genius", "stay",
     };
     private const int PwAnswer = 3;
     private int _pwSel;
@@ -41,6 +42,32 @@ public partial class Epilogue : Node2D
         "And I won't either.",
     };
 
+    // スタッフロール（タイムライン式）。救った三人の“その後の投稿”→クレジット→stay. の余韻。
+    private static readonly string[] Roll =
+    {
+        "", "", "", "",
+        "── その後のタイムライン ──",
+        "",
+        "レイ ：「次こそ、勝つ。覚悟しなさいよね。」",
+        "あかり：「ほんと、バカなんだから。……あたしも、だけど。」",
+        "こはる：「ちゃんと食べてね。……あたしも、食べるから。」",
+        "", "", "",
+        "── staff ──",
+        "",
+        "原案・脚本     MINA Project",
+        "シナリオ       麻枝准 (agent)",
+        "サウンド       光田康典 (agent)",
+        "キャラクター   吉田明彦 (agent)",
+        "実装           algo_shoot",
+        "", "", "",
+        "そして、ミナへ。",
+        "",
+        "stay.",
+        "", "", "",
+        "Thank you for playing.",
+    };
+    private const float RollSpeed = 24f, RollLineH = 17f;
+
     private struct DLine { public string Who; public string Text; }   // Who: "地"=ミナ語り / "ミナ"
     private readonly List<DLine> _intro = new();   // phase0+1（来ない→全員知人）
     private readonly List<DLine> _outro = new();   // phase4（独白→DM→END）
@@ -55,6 +82,7 @@ public partial class Epilogue : Node2D
         I("地", "フォロー欄に、知っている名前が並んでいました。");
         I("地", "——全員、いました。救った三人が、全員、ご主人様の、知り合いだったのです。");
         I("地", "Xの闇を成敗するなどと言いながら、あの人が潜ったのは、最初から、自分の大切な人の心だけでした。");
+        I("地", "ふと、思い出しました。あの人は毎回、潜る前に、同じ一言を言っていた。");
 
         void O(string who, string t) => _outro.Add(new DLine { Who = who, Text = t });
         O("地", "開いた瞬間に、わかってしまいました。あの言葉は、わたくしのための言葉ではなかった。");
@@ -118,8 +146,17 @@ public partial class Epilogue : Node2D
             case 4: // 独白→DM→END
                 if (zEdge && _lineT >= 0.25)
                 {
-                    _lineT = 0; _line++;
-                    if (_line >= _outro.Count) _line = _outro.Count - 1; // 最後で止める
+                    _lineT = 0;
+                    if (_line < _outro.Count - 1) _line++;
+                    else { _phase = 5; _t = 0; }   // ENDの先：スタッフロールへ
+                }
+                break;
+            case 5: // スタッフロール → タイトルへ
+                float rollEnd = (H + Roll.Length * RollLineH + 24f) / RollSpeed;
+                if (_t >= rollEnd || (_t > 1.0 && zEdge))
+                {
+                    GetTree().ChangeSceneToFile("res://TitleMenu.tscn");
+                    return;
                 }
                 break;
         }
@@ -137,7 +174,30 @@ public partial class Epilogue : Node2D
             case 2: DrawPassword(); break;
             case 3: DrawAcrostic(); break;
             case 4: DrawOutro(); break;
+            case 5: DrawStaffroll(); break;
         }
+    }
+
+    private void DrawStaffroll()
+    {
+        if (_font == null) return;
+        for (int i = 0; i < Roll.Length; i++)
+        {
+            float y = H + i * RollLineH - (float)_t * RollSpeed;
+            if (y < -RollLineH || y > H) continue;
+            string line = Roll[i];
+            if (line.Length == 0) continue;
+            bool head = line.StartsWith("──");
+            bool post = line.Contains("：「");
+            Color c = head ? new Color(Cool.R, Cool.G, Cool.B, 0.9f)
+                    : post ? new Color(0.85f, 0.9f, 1f, 0.95f)
+                    : Ink;
+            int sz = line == "stay." ? 16 : 11;
+            DrawString(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
+        }
+        if (((int)(_t * 1.5f) % 2) == 0)
+            DrawString(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, 8,
+                new Color(1f, 1f, 1f, 0.5f));
     }
 
     private void DrawNarration(List<DLine> lines, int idx)

@@ -218,6 +218,7 @@ public partial class Hud : CanvasLayer
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         DrawKindness(ci);
+        DrawGoal(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
@@ -413,6 +414,30 @@ public partial class Hud : CanvasLayer
             UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), over ? UiKit.Gold : UiKit.Mina, 4f);
         }
         if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, UiKit.Gold);
+    }
+
+    // マクロ目標（表ゴール）を控えめに：救うべき3つの心の進捗＋ミナの汚染ゲージ。左端に小さく。
+    // 「気づかせる」原則を守り情緒を削がないよう、淡色・小サイズで常設する。
+    private void DrawGoal(HudCanvas ci)
+    {
+        int total = _game?.HeartGoal ?? 3;
+        int saved = _game?.HeartsSaved ?? 0;
+        float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
+        float x = 22, y = 162, w = 190, h = 48;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.26f), 1f);
+        // 浄化した心 ◯/3（救った人数＝マクロ目標）
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "浄化した心", 11, UiKit.Info);
+        for (int i = 0; i < total; i++)
+        {
+            Color c = i < saved ? UiKit.Purify : new Color(UiKit.Purify, 0.20f);
+            UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, c);
+        }
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, UiKit.PurifyHi);
+        // 汚染ゲージ（救うほど濁る＝目標の対カウンター）
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, new Color(UiKit.Kegare, 0.95f));
+        float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
+        UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), new Color(1, 1, 1, 0.08f), 3f);
+        if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), UiKit.Kegare, 3f);
     }
 
     // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。

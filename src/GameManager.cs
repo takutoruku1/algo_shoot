@@ -107,6 +107,9 @@ public partial class GameManager : Node
     public bool HasReplied(string id) => _replied.Contains(id);
     public void MarkReplied(string id) => _replied.Add(id);
     public bool IsStageCleared(string id) => _cleared.Contains(id);
+    // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
+    public int HeartGoal => Stages.Length;
+    public int HeartsSaved { get { int n = 0; foreach (var s in Stages) if (_cleared.Contains(s.Id)) n++; return n; } }
     public bool AllStoryCleared
     {
         get { foreach (var s in Stages) if (!_cleared.Contains(s.Id)) return false; return true; }

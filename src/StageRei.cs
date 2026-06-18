@@ -25,6 +25,11 @@ public partial class StageRei : Node
     private bool _zEdge;
     private bool _startBannerShown;
 
+    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。MidWaveCount体を浄化で抜ける。
+    private Spawner _spawner = null!;
+    private int _waveBase;
+    private const int MidWaveCount = 8;
+
     private const float SpawnX = 300f;
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
@@ -38,9 +43,30 @@ public partial class StageRei : Node
         (1, "ずいぶん拗ねた投稿ですね。これを?", ""),
         (0, "ああ。こいつの心は、いま濁ってる。放っておけない。", SGentle),
         (1, "おや。意外と優しいことを言うんですね。", ""),
+        (0, "Stay——だ。ちゃんと戻ってこいよ。", SCocky),                 // 合言葉の反復（ダイブ前／PW=stay）
+        (1, "はいはい、毎度どうも。……いってまいります。", ""),
         (3, "——着いた先は、終わりのないコンテスト会場でした。", ""),    // 地
         (0, "飛んでくるのは、この人を苦しめてる“言葉”だ。本人じゃない。撃って祓っていい。", SCocky),
         (0, "いや。倒すんじゃない。いちばん奥の“本人”に、光を届けるんだ。", SGentle),
+        (1, "撃って、祓って、奥の本人へ届ける。……これが、わたくしの役目なんですね。", ""), // 起＝MINAの機能の確認
+        (0, "そうだ。きみにしかできない仕事さ。頼んだぞ、ミナ。", SProud),
+    };
+
+    // 道中突入の小話（世界観：レイを苦しめるのは“世界中の声”）。道中ザコ戦の前に出す。
+    private static readonly (int who, string text, string face)[] Mid =
+    {
+        (3, "——会場の空気は、ひりついていました。", ""),
+        (1, "道中、見たことのない“声”が群れています。これも、祓っていいんですね?", ""),
+        (0, "ああ。レイを苦しめてるのは、彼女ひとりの声じゃない。", SGentle),
+        (0, "「比べろ」「負けるな」「二位に価値はない」——そういう、世界中の声だ。", SCocky),
+        (1, "……ずいぶん、世知辛い世界ですね。", ""),
+    };
+
+    // 道中後の小話（ボスへの引き）。
+    private static readonly (int who, string text, string face)[] MidEnd =
+    {
+        (1, "片付きました。……奥に、ひときわ濁った光が。", ""),
+        (0, "ああ。あれが本人——レイだ。行くぞ。", SCocky),
     };
 
     // ボス登場時の説明（設計書 [P-01b] に該当なし＝空。説明セリフは挟まない）
@@ -55,6 +81,10 @@ public partial class StageRei : Node
         (0, "ああ。……いい目を、してた。", SGentle),
         (1, "ご主人様は、ご自分では潜らないんですね。いつも、わたくしばかり。", ""),
         (0, "ぼくは指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", SCocky),
+        (1, "ねえご主人様。外の世界は、今日はどんな天気ですか。", ""),       // 帰還ビート（無目的な雑談＋ミナの小さな願い）
+        (0, "……さあな。ぼくも、ろくに外なんか見ちゃいない。", SGentle),
+        (1, "つまらないご主人様。いつか、わたくしにも見せてくださいよ。", ""),
+        (0, "ああ。……いつか、な。", SGentle),
         (3, "——会ったこともない相手のことを、なぜそこまで言い切れるのか。", ""),
         (3, "わたくしは少し不思議に思って——初仕事で張り切っているのだろう、と流しました。", ""),
     };
@@ -63,7 +93,8 @@ public partial class StageRei : Node
     {
         _rng.Randomize();
         _step = 1;
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1);
+        // 道中ザコ＋ボスで浄化カプセルが満ちるよう目標を設定（道中8体＋ボス1）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveCount + 1);
     }
 
     public override void _Process(double delta)
@@ -77,11 +108,14 @@ public partial class StageRei : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_BossSpawn(); break;
-            case 3: Step_Lines(delta, BossIntro); break;
-            case 4: Step_BossWait(); break;
-            case 5: Step_Clear(delta); break;
-            case 6: Step_Transition(); break;
+            case 2: Step_Lines(delta, Mid); break;       // 道中突入の小話
+            case 3: Step_Midwave(delta); break;          // 道中ザコ戦
+            case 4: Step_Lines(delta, MidEnd); break;    // 道中後の小話
+            case 5: Step_BossSpawn(); break;
+            case 6: Step_Lines(delta, BossIntro); break;
+            case 7: Step_BossWait(); break;
+            case 8: Step_Clear(delta); break;
+            case 9: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
     }
@@ -138,6 +172,25 @@ public partial class StageRei : Node
         Hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
 
+    // 道中ザコ戦：Spawnerを起動し、MidWaveCount体を浄化したら抜ける。
+    private void Step_Midwave(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _spawner = new Spawner { Name = "Spawner", World = World };
+            AddChild(_spawner);
+            _spawner.Begin();
+        }
+        if (game != null && game.PurifiedCount - _waveBase >= MidWaveCount)
+        {
+            _spawner.Stop();
+            Advance();
+        }
+    }
+
     private void Step_BossSpawn()
     {
         if (!_stepStarted)
@@ -163,7 +216,12 @@ public partial class StageRei : Node
     private bool _clearBannerShown;
     private void Step_Clear(double delta)
     {
-        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 1 CLEAR"); }
+        if (!_clearBannerShown)
+        {
+            _clearBannerShown = true;
+            Hud.ShowBanner("STAGE 1 CLEAR");
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+        }
         Step_Lines(delta, Clear);
     }
 

@@ -30,12 +30,37 @@ public partial class StageKoharu : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
+    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。
+    private Spawner _spawner = null!;
+    private int _waveBase;
+    private const int MidWaveCount = 8;
+
     // ダイブ前〜着地（v2 [P-03]）。
     // who: 0=少年 / 1=ミナ / 2=こはる / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
         (4, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
+        (0, "……ミナ。Stay——だ。", SGentle),                                  // 合言葉の回帰（今度は少年自身の祈りとして滲む）
+        (1, "……はい。今日は、ちゃんと言ってくれるんですね。", ""),
+        (0, "……ああ。きみは、ぼくのそばにいてくれ。", SGentle),
         (3, "——そこは、台所でした。夕食の支度が、永遠に続いている。", ""),     // 地
+    };
+
+    // 道中突入の小話（世界観：空席の食卓と「むだ」の声）。道中ザコ戦の前に出す。
+    private static readonly (int who, string text, string face)[] Mid =
+    {
+        (3, "——湯気の向こうに、たくさんの食卓が並んでいました。どれも、空席でした。", ""),
+        (1, "この声たちは……「むだだ」と、繰り返しています。", ""),
+        (0, "祈るほど、報われない。……そう思い込まされてる声だ。", SGentle),
+        (1, "……ご主人様の声、また、すこし掠れていますよ。", ""),
+        (0, "気のせいさ。……行こう。", SGentle),
+    };
+
+    // 道中後の小話（ボスへの引き）。
+    private static readonly (int who, string text, string face)[] MidEnd =
+    {
+        (1, "いちばん奥の食卓に、あの子が。", ""),
+        (0, "ああ。……こはるだ。", SGentle),
     };
 
     // ボス登場時の説明（設計書 [P-03] に該当なし＝空。こはるの独白と中継はボス側に集約）
@@ -54,7 +79,8 @@ public partial class StageKoharu : Node
     {
         _rng.Randomize();
         _step = 1;
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1);
+        // 道中8体＋ボス1で浄化カプセルが満ちる。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveCount + 1);
     }
 
     public override void _Process(double delta)
@@ -68,11 +94,14 @@ public partial class StageKoharu : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_BossSpawn(); break;
-            case 3: Step_Lines(delta, BossIntro); break;
-            case 4: Step_BossWait(); break;
-            case 5: Step_Clear(delta); break;
-            case 6: Step_Transition(); break;
+            case 2: Step_Lines(delta, Mid); break;       // 道中突入の小話
+            case 3: Step_Midwave(delta); break;          // 道中ザコ戦
+            case 4: Step_Lines(delta, MidEnd); break;    // 道中後の小話
+            case 5: Step_BossSpawn(); break;
+            case 6: Step_Lines(delta, BossIntro); break;
+            case 7: Step_BossWait(); break;
+            case 8: Step_Clear(delta); break;
+            case 9: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
     }
@@ -129,6 +158,25 @@ public partial class StageKoharu : Node
         Hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }
 
+    // 道中ザコ戦：Spawner起動→MidWaveCount体浄化で抜ける。
+    private void Step_Midwave(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _spawner = new Spawner { Name = "Spawner", World = World };
+            AddChild(_spawner);
+            _spawner.Begin();
+        }
+        if (game != null && game.PurifiedCount - _waveBase >= MidWaveCount)
+        {
+            _spawner.Stop();
+            Advance();
+        }
+    }
+
     private void Step_BossSpawn()
     {
         if (!_stepStarted)
@@ -154,7 +202,12 @@ public partial class StageKoharu : Node
     private bool _clearBannerShown;
     private void Step_Clear(double delta)
     {
-        if (!_clearBannerShown) { _clearBannerShown = true; Hud.ShowBanner("STAGE 3 CLEAR"); }
+        if (!_clearBannerShown)
+        {
+            _clearBannerShown = true;
+            Hud.ShowBanner("STAGE 3 CLEAR");
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+        }
         Step_Lines(delta, Clear);
     }
 
