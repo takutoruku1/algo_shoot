@@ -7,14 +7,14 @@ public partial class TitleMenu : Node2D
 {
     private GameManager _game = null!;
 
-    private enum Item { NewGame, Continue, Gallery, Settings, Quit }
+    private enum Item { NewGame, Continue, HowToPlay, Settings, Quit }
     private static readonly (Item item, string jp, string en)[] Items =
     {
-        (Item.NewGame,  "はじめから", "NEW GAME"),
-        (Item.Continue, "つづきから", "CONTINUE"),
-        (Item.Gallery,  "ギャラリー", "GALLERY"),
-        (Item.Settings, "設定",       "SETTINGS"),
-        (Item.Quit,     "おわる",     "QUIT"),
+        (Item.NewGame,   "はじめから", "NEW GAME"),
+        (Item.Continue,  "つづきから", "CONTINUE"),
+        (Item.HowToPlay, "あそびかた", "HOW TO PLAY"),
+        (Item.Settings,  "設定",       "SETTINGS"),
+        (Item.Quit,      "おわる",     "QUIT"),
     };
 
     // 浮遊する言葉（left%, top%, size, alpha, driftSpeed, phase）
@@ -44,6 +44,7 @@ public partial class TitleMenu : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
@@ -71,10 +72,11 @@ public partial class TitleMenu : Node2D
             {
                 if (pu) _pick = (_pick + n - 1) % n;
                 if (pd) _pick = (_pick + 1) % n;
+                Audio.Instance?.PlayUiMove();
             }
             _navHeld = pu || pd;
-            if (zEdge && _game.SlotExists(_pick)) { _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
-            else if (backEdge) _picking = false;
+            if (zEdge && _game.SlotExists(_pick)) { Audio.Instance?.PlayUiConfirm(); _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
+            else if (backEdge) { Audio.Instance?.PlayUiCancel(); _picking = false; }
             _zHeld = z; _backHeld = back;
             QueueRedraw();
             return;
@@ -85,10 +87,11 @@ public partial class TitleMenu : Node2D
         {
             if (up) _sel = (_sel - 1 + Items.Length) % Items.Length;
             if (down) _sel = (_sel + 1) % Items.Length;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
-        if (zEdge && _t > 0.2) Confirm();
+        if (zEdge && _t > 0.2) { Audio.Instance?.PlayUiConfirm(); Confirm(); }
         _zHeld = z; _backHeld = back;
 
         QueueRedraw();
@@ -107,7 +110,11 @@ public partial class TitleMenu : Node2D
                 if (_hasSave) { _picking = true; _pick = FirstSlot(); }
                 else Toast("セーブデータがありません");
                 break;
-            case Item.Gallery:  Toast("ギャラリーは準備中です"); break;
+            case Item.HowToPlay:
+                // 「あそびかた」＝STAGE1にチュートリアルを重ねて強制再生（既読フラグは変えない）。
+                _game.ForceTutorialReplay = true;
+                Go("res://Rei.tscn");
+                break;
             case Item.Settings: Go("res://Settings.tscn"); break;
             case Item.Quit:     GetTree().Quit(); break;
         }

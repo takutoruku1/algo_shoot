@@ -126,6 +126,73 @@ public static class UiKit
             HorizontalAlignment.Left, -1, size, new Color(0.06f, 0.05f, 0.10f, 0.92f));
     }
 
+    // ── 顔アバター（円形クリップした立ち絵の頭部 ＋ アカウント色リング）──
+    //   face!=null : 下敷き色円(r+2) → 32角形の円ファン+UV（縦長立ち絵の頭部だけを正方窓で抜き、円に内接させる）→ 選択時グロウ。
+    //                window: x=0, y=topCrop, w=1.0, h=tw/th（縦長画像の上部・幅いっぱいを正方サンプリング＝顔が円に収まる）。
+    //   face==null : ロック表示（暗円＋グレーリング＋"?"）にフォールバック。
+    public static void FaceAvatar(CanvasItem ci, Vector2 center, float r, Texture2D? face, Color ringCol,
+        bool selected, float topCrop = 0.06f, float alpha = 1f, double t = 0)
+    {
+        const int seg = 32;
+        if (face == null)
+        {
+            // ロック：暗円 → グレーリング → "?"
+            ci.DrawCircle(center, r, new Color(0.10f, 0.09f, 0.14f, 0.9f * alpha));
+            DrawRing(ci, center, r, seg, new Color(0.45f, 0.42f, 0.52f, 0.7f * alpha), 2f);
+            int qs = Mathf.Max(12, (int)(r * 1.2f));
+            float qasc = ZenBold.GetAscent(qs), qdesc = ZenBold.GetDescent(qs);
+            float qw = TextW(ZenBold, "?", qs);
+            ci.DrawString(ZenBold, new Vector2(center.X - qw / 2f, center.Y + (qasc - qdesc) / 2f), "?",
+                HorizontalAlignment.Left, -1, qs, new Color(0.62f, 0.58f, 0.70f, alpha));
+            return;
+        }
+
+        // 選択時の背面グロウ（外側に淡くにじむ・呼吸）
+        if (selected)
+        {
+            float pulse = 0.18f + 0.10f * Mathf.Sin((float)t * 2.4f);
+            RadialGlow(ci, center, r * 1.9f, ringCol, pulse * alpha);
+        }
+
+        // 下敷き色円（隙間からの背景抜けを隠す）
+        ci.DrawCircle(center, r + 2f, new Color(ringCol.R * 0.5f, ringCol.G * 0.5f, ringCol.B * 0.5f, 0.9f * alpha));
+
+        // 円ファン（中心＋外周 seg+1 点）＋ UV（縦長立ち絵の頭部正方窓）
+        int tw = face.GetWidth(), th = face.GetHeight();
+        float winH = Mathf.Min(1f, (float)tw / Mathf.Max(1, th)); // 正方サンプル窓の高さ（UV）
+        float winY = topCrop;
+        var pts = new Vector2[seg + 2];
+        var uvs = new Vector2[seg + 2];
+        pts[0] = center;
+        uvs[0] = new Vector2(0.5f, winY + winH * 0.5f);
+        for (int i = 0; i <= seg; i++)
+        {
+            float a = i / (float)seg * Mathf.Tau - Mathf.Pi * 0.5f; // 上から時計回り
+            float cx = Mathf.Cos(a), cy = Mathf.Sin(a);
+            pts[i + 1] = new Vector2(center.X + cx * r, center.Y + cy * r);
+            // 円内 [-1,1] → UV窓へ。x:0→1, y:winY→winY+winH。
+            uvs[i + 1] = new Vector2(0.5f + cx * 0.5f, winY + winH * (0.5f + cy * 0.5f));
+        }
+        var modulate = new Color(1, 1, 1, alpha);
+        var cols = new Color[pts.Length];
+        for (int i = 0; i < cols.Length; i++) cols[i] = modulate;
+        ci.DrawPolygon(pts, cols, uvs, face);
+
+        // アカウント色リング
+        DrawRing(ci, center, r, seg, ringCol with { A = (selected ? 1f : 0.85f) * alpha }, selected ? 2.4f : 1.8f);
+    }
+
+    private static void DrawRing(CanvasItem ci, Vector2 center, float r, int seg, Color col, float width)
+    {
+        var ring = new Vector2[seg + 1];
+        for (int i = 0; i <= seg; i++)
+        {
+            float a = i / (float)seg * Mathf.Tau;
+            ring[i] = new Vector2(center.X + Mathf.Cos(a) * r, center.Y + Mathf.Sin(a) * r);
+        }
+        ci.DrawPolyline(ring, col, width, true);
+    }
+
     // ── ハート（HP）──
     public static void Heart(CanvasItem ci, Vector2 c, float r, Color col)
     {

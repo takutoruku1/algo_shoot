@@ -27,6 +27,7 @@ public partial class BossKoharu : Enemy
     private bool _zHeld;
 
     private const string SCocky = "res://char/shonen_face.png";
+    private const string SGentle = "res://char/shonen_gentle.png";
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
@@ -34,10 +35,10 @@ public partial class BossKoharu : Enemy
     // スペルカード（RefrainHTML Danmaku v3 STAGE3 こはる＝台所・琥珀と深紅の暖色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("むだだよ",             BulletShape.Orb,     new Color("e8a24a")), // 琥珀・台所の灯
-        ("怒り（他責）",         BulletShape.Diamond, new Color("d6443f")), // 深紅・高速ダイヤ雨
-        ("もう帰ってこない",     BulletShape.Needle,  new Color("e87a3c")), // 橙・十字バースト
-        ("ひとりになる",         BulletShape.Rice,    new Color("ffa14a")), // 燃え残り・扇の粒弾
+        ("ぜんぶ食べて",         BulletShape.Orb,     new Color("e8a24a")), // 琥珀・台所の灯
+        ("のこしちゃだめ",       BulletShape.Diamond, new Color("d6443f")), // 深紅・高速ダイヤ雨
+        ("じっとしてて",         BulletShape.Needle,  new Color("e87a3c")), // 橙・十字バースト（動くな）
+        ("あたしがちゃんとするから", BulletShape.Rice, new Color("ffa14a")), // 燃え残り・扇の粒弾
     };
     private void ApplySpell()
     {
@@ -48,17 +49,25 @@ public partial class BossKoharu : Enemy
 
     // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。少年はミナの声で“中継”して届ける。
     // 設計書 v2 [P-03] のボス節を順序通りに（ミナの気遣い・少年の取り繕いも含む）。
+    // 躁的暴走＝支配的な世話焼き。傷＝兄の死に抗える唯一の力＝完璧にすれば失わない、という呪術。
+    // 決定打＝劇的アイロニー。兄＝死にゆく少年が、妹に。言い切らせず観客に繋がせ、ミナが半分気づく。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "お兄ちゃんが、いなくなる。", ""),
-        (2, "あたしが何をつくっても、お兄ちゃんは——", ""),
-        (1, "……ご主人様?", ""),
+        (2, "ごはん、できたよ! ぜんぶ食べてね。残したら……許さないんだから。", ""),
+        (2, "あ、そこ汚れてる。掃除するから、じっとしてて。動かないで。ね?", ""),
+        (2, "だいじょうぶ。あたしがちゃんとするから。お兄ちゃんは、なにもしなくていいの。", ""),
+        (1, "……ご主人様? お顔の色が。", ""),
         (0, "……なんでもない。続けるぞ。", SCocky),
-        (5, "——怒りの下にある悲しみを、ちゃんと悲しんでいい。", ""),
-        (2, "あたしのごはんは、お兄ちゃんを助けられない……! 意味なんて、ない……!", ""),
-        (5, "お兄さんが今日まで生きてこられたのは……きみの食卓が、あったからだ。", ""),
-        (5, "祈りは、届いてたよ。ちゃんと。", ""),
-        (2, "……ちゃんと、食べてくれるかな。今日は。", ""),
+        (2, "ちゃんと作って、ちゃんと食べさせて、ちゃんと、ちゃんとしてれば——", ""),
+        (2, "……ちゃんとしてれば、お兄ちゃん、いなくならないでしょ? ねえ、いなくならないよね……?", ""),
+        (5, "——怒りの下の悲しみを、ちゃんと、悲しんでいい。", ""),
+        (2, "あたしのごはんじゃ、お兄ちゃんは助からない……! じゃあ、なんの、意味が……!", ""),
+        (5, "お兄さんが今日まで生きてこられたのは——きみの食卓が、あったからだ。祈りは、届いてたよ。", ""),
+        (2, "……ほんとに? ……ちゃんと、食べて、くれるかな。今日は。", ""),       // 日常語＝小さな願い
+        (0, "……ああ。残さず、食べるよ。", SGentle),                              // 兄が、妹に（観客だけが意味を知る）
+        (0, "明日のぶんは——……いや。たくさん、作ってやってくれ。きみは、えらいよ。", SGentle), // “明日のぶんはいい”を呑み込む
+        (1, "ご主人様。いまの……どなたに、おっしゃったんですか。", ""),         // ミナが半分気づく（Final/伏線へ）
+        (0, "…………帰ろう、ミナ。", SCocky),                                      // 再仮面
     };
 
     protected override void OnEnemyReady()
@@ -86,7 +95,9 @@ public partial class BossKoharu : Enemy
     public override void _Ready()
     {
         base._Ready();
-        GetHud()?.ShowBossBar("むだなわたし");
+        // ボス登場＝道中BGMからボスBGMへクロスフェード。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        GetHud()?.ShowBossBar("とまれないわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
     }

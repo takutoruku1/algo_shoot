@@ -59,6 +59,8 @@ public partial class BossHikage : Enemy
     public override void _Ready()
     {
         base._Ready();
+        // ボス登場＝道中BGMからボスBGMへクロスフェード。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
         GetHud()?.ShowBossBar("ヒカゲ");
         GetHud()?.UpdateBossBar(HpRatio);
     }

@@ -10,6 +10,7 @@ public partial class Epilogue : Node2D
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
+    private Texture2D? _tears;   // クライマックスのミナ落涙立ち絵
     private double _t;
     private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END
     private bool _zHeld;
@@ -48,7 +49,7 @@ public partial class Epilogue : Node2D
         "", "", "", "",
         "── その後のタイムライン ──",
         "",
-        "レイ ：「次こそ、勝つ。覚悟しなさいよね。」",
+        "レイ ：「次は、本気のあなたと。——逃げたら、承知しないから。」",
         "あかり：「ほんと、バカなんだから。……あたしも、だけど。」",
         "こはる：「ちゃんと食べてね。……あたしも、食べるから。」",
         "", "", "",
@@ -75,6 +76,9 @@ public partial class Epilogue : Node2D
     public override void _Ready()
     {
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
+        // 静かな主題（温かいメニューBGM）。終わりの余韻に主題が戻る。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        _tears = ResourceLoader.Load<Texture2D>("res://char/mina_tears.png");
 
         void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
         I("地", "次の日、ご主人様は来ませんでした。");
@@ -256,6 +260,14 @@ public partial class Epilogue : Node2D
     private void DrawOutro()
     {
         if (_font == null || _line >= _outro.Count) return;
+        // クライマックス：ミナの台詞行で落涙の立ち絵を差す（画をピークに集める／§8）。
+        if (_outro[_line].Who == "ミナ" && _tears != null)
+        {
+            float a = Mathf.Clamp((float)_lineT / 0.5f, 0f, 1f);
+            float ph = 116f, pw = ph * _tears.GetWidth() / Mathf.Max(1, _tears.GetHeight());
+            DrawTextureRect(_tears, new Rect2(W / 2f - pw / 2f, H - 56f - ph + 6f, pw, ph), false,
+                new Color(1f, 1f, 1f, a));
+        }
         DrawLineBox(_outro[_line]);
         if (_line >= _outro.Count - 1)
             DrawString(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, 16,

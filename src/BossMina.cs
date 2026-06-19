@@ -78,6 +78,8 @@ public partial class BossMina : Enemy
     public override void _Ready()
     {
         base._Ready();
+        // ボス登場＝道中BGMからボスBGMへクロスフェード。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
         GetHud()?.ShowBossBar("穢れたわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();

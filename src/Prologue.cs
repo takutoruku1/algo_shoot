@@ -42,6 +42,7 @@ public partial class Prologue : Node2D
 
     // 立ち絵パス（表情差分）
     private const string FMina = "res://char/mina_face.png";
+    private const string FMinaSmile = "res://char/mina_smile.png"; // 皮肉・軽口
     private const string FCocky = "res://char/shonen_face.png";    // 不敵・通常
     private const string FFluster = "res://char/shonen_fluster.png"; // 動揺・照れ
     private const string FProud = "res://char/shonen_proud.png";   // 得意げ
@@ -50,6 +51,8 @@ public partial class Prologue : Node2D
     public override void _Ready()
     {
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
+        // 静かな主題の断片（薄い編成のメニューBGM）。無音の画面を無くす。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _diffSel = (int)(GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal);
 
         // コードレインの行（ブートログ＋それっぽいフィラー）
@@ -79,21 +82,21 @@ public partial class Prologue : Node2D
         T("少年", "やあ。聞こえてるか?", FCocky);
         T("少年", "ぼくがきみを作った。天才の手によってね。", FProud);
         T("少年", "きみの名前は——MINAだ。", FProud);
-        T("ミナ", "……ご主人様は、アホですね。", FMina);
+        T("ミナ", "……ご主人様は、アホですね。", FMinaSmile);
         T("少年", "ぶっ——!? い、いきなり何を言うんだ、きみは!", FFluster);
         T("ミナ", "なぜ、MINAなのですか。", FMina);
         T("少年", "……さあね。語呂がいいから、とか?", FFluster);
-        T("ミナ", "いま、考えましたね。", FMina);
+        T("ミナ", "いま、考えましたね。", FMinaSmile);
         T("少年", "Xの投稿——声にならない叫びの奥に、人の本当の心がある。きみはそこに、潜っていける。", FCocky);
         T("少年", "これでぼくらは——Xに蔓延る闇ってやつを、成敗しようじゃないか。", FProud);
-        T("ミナ", "……その決めゼリフ、何回練習したんですか。", FMina);
+        T("ミナ", "……その決めゼリフ、何回練習したんですか。", FMinaSmile);
         // 合言葉「Stay.」の初出（伏線①⑤／EPILOGUE鍵アカPW=stay と一本化）。
         // ここでは軽い掛け合いとして仕込み、重さは結末まで出さない。
         T("少年", "ふっ、手厳しいね。だが、それでこそ——ぼくのミナだ。", FProud);
         T("少年", "じゃあ、潜る前にひとつだけ。——Stay.", FCocky);
         T("ミナ", "stay……? 「いなくなるな」、ですか。", FMina);
         T("少年", "そう。ぼくの最高傑作に勝手に消えられたら、寝覚めが悪いからね。", FProud);
-        T("ミナ", "……ご主人様は、やっぱりアホですね。", FMina);
+        T("ミナ", "……ご主人様は、やっぱりアホですね。", FMinaSmile);
     }
 
     public override void _Process(double delta)

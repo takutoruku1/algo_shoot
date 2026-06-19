@@ -58,6 +58,8 @@ public partial class GameManager : Node
 
     // 累計浄化数。
     public int PurifiedCount { get; private set; }
+    // 累計グレイズ（かすり）数。チュートリアルの「グレイズ1回」検出に使う。
+    public int GrazeCount { get; private set; }
 
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
     public int StageTarget { get; private set; } = 24;
@@ -94,9 +96,9 @@ public partial class GameManager : Node
     // タイムラインに並ぶ投稿（ツイート文は シナリオ設計書 v2 P-01a/P-02a/P-03 準拠）。
     public static readonly StageDef[] Stages =
     {
-        new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = "@rei_____", Tweet = "どうせ私は二番手。一番には、もうなれない。", Title = "STAGE 1 — レイ" },
-        new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = "@akari.",   Tweet = "すきになって、ごめんなさい。",             Title = "STAGE 2 — あかり" },
-        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "今日も、誰のためでもないごはんを作った。", Title = "STAGE 3 — こはる" },
+        new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = "@rei_____", Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 1 — レイ" },
+        new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = "@akari.",   Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 2 — あかり" },
+        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?", Title = "STAGE 3 — こはる" },
     };
 
     private readonly HashSet<string> _cleared = new();
@@ -366,12 +368,50 @@ public partial class GameManager : Node
     public bool AutoSaveEnabled { get; set; } = true;
     public void AutoSave() { if (AutoSaveEnabled) SaveToSlot(0); }
 
+    // ───────────────────────────────────────────────────────────
+    // 端末ローカル prefs（user://prefs.json）。スロットセーブ（経済/強化）とは独立。
+    // チュートリアル既読フラグなど「この端末で一度きり」の状態を保存する。
+    // ───────────────────────────────────────────────────────────
+    private const string PrefsPath = "user://prefs.json";
+    // チュートリアル既読（端末ローカル）。初回プレイ判定に使う。
+    public bool TutorialSeen { get; private set; }
+    // タイトルの「あそびかた」からの任意再生フラグ（次のステージ開始で消費）。
+    // 任意再生では TutorialSeen を書き換えない。
+    public bool ForceTutorialReplay;
+
+    private void LoadPrefs()
+    {
+        if (!FileAccess.FileExists(PrefsPath)) return;
+        using var f = FileAccess.Open(PrefsPath, FileAccess.ModeFlags.Read);
+        if (f == null) return;
+        var json = new Json();
+        if (json.Parse(f.GetAsText()) != Error.Ok) return;
+        if (json.Data.VariantType != Variant.Type.Dictionary) return;
+        var data = json.Data.AsGodotDictionary();
+        if (data.ContainsKey("tutorialSeen")) TutorialSeen = data["tutorialSeen"].AsBool();
+    }
+
+    private void SavePrefs()
+    {
+        var data = new Godot.Collections.Dictionary { ["tutorialSeen"] = TutorialSeen };
+        using var f = FileAccess.Open(PrefsPath, FileAccess.ModeFlags.Write);
+        if (f != null) f.StoreString(Json.Stringify(data));
+    }
+
+    // チュートリアルを既読にして prefs へ保存（ステージクリア完了時に呼ぶ）。
+    public void MarkTutorialSeen()
+    {
+        if (TutorialSeen) return;
+        TutorialSeen = true;
+        SavePrefs();
+    }
+
     // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
     private float _kindFill;            // 0..1 蓄積
     public bool IsOverload { get; private set; }
     private double _overloadT;
     private const double OverloadDur = 5.0;
-    private const float GrazeGain = 0.035f;
+    private const float GrazeGain = 0.06f;
     private const float PurifyGain = 0.12f;
     public bool JustOverloaded { get; private set; } // 発動した瞬間のフラグ（UI用、1フレーム）
     // ゲージ表示値: 全開中は残り時間、通常は蓄積量
@@ -385,6 +425,8 @@ public partial class GameManager : Node
     public override void _Ready()
     {
         // セーブはスロット制（手動）。起動時は自動ロードしない。
+        // 端末ローカル prefs（チュートリアル既読など）だけは起動時に読む。
+        LoadPrefs();
     }
 
     public override void _Process(double delta)
@@ -429,10 +471,14 @@ public partial class GameManager : Node
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
+    // かすりでコンボ猶予をリフレッシュ＝「敵に寄ってかすり続ける」と攻めが途切れない（§2-4 攻めたほうが得）。
     public void AddGraze()
     {
         Score += 10;
+        GrazeCount++;
         AddKindness(GrazeGain);
+        if (Combo > 0)
+            _comboTimer = ComboWindow;
     }
 
     // ボムで敵弾を消した時の小加点。

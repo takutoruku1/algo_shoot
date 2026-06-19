@@ -32,10 +32,10 @@ public partial class BossRei : Enemy
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("どうせ二番",           BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円
-        ("努力は天才に勝てない", BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル
-        ("私を見て",             BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞
-        ("届かない",             BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング
+        ("Q.E.D.",       BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円（証明終わり）
+        ("凡人の定理",   BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル
+        ("敵などいない", BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞
+        ("孤高の王座",   BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング（裏に孤独）
     };
     private void ApplySpell()
     {
@@ -46,13 +46,21 @@ public partial class BossRei : Enemy
 
     // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
     // 設計書 v2 [P-01b] のボス節を順序通りに：レイの悔しさ → 中継 → 好敵手だったと認める。
+    // 躁的暴走＝全能感の誇示。傷＝唯一の好敵手が手を抜いた“頂点の孤独”。
+    // 決定打は説明でなく“具体の記録”で示す（行動で証明）。最後は言わせず余白で抜く。
+    private const string SGentle = "res://char/shonen_gentle.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "次は、私が勝つから。……次は。次は……", ""),
-        (2, "なのに、なんで——なんで、戦ってくれないのよ!", ""),
-        (5, "——きみの努力を、ずっと見ていた者がいる。", ""),
-        (5, "本気で戦う価値のある、唯一の好敵手だと、思っていた者がいる。", ""),
-        (2, "ほんとに、私……ちゃんと、ライバルだった……?", ""),
+        (2, "完璧。わたしの式に、誤りはひとつもない。", ""),
+        (2, "世界中の誰も、わたしには追いつけない。——当然でしょう?", ""),
+        (2, "二位? 笑わせないで。わたし以外が、ぜんぶ二位なの。", ""),
+        (2, "だから……だからなんで、あなたは、本気で来てくれないのよ!", ""),
+        (0, "……ぼくのせいだ。ぼくが、本気で挑むのを、やめたから。", SGentle),     // 少年が割れる一拍
+        (5, "——三年前の、地区予選。最終問題。きみは、二十二分で解いた。", ""),
+        (5, "ぼくは、二十三分かかった。ぼくが本気で負けた相手は、後にも先にも、きみひとりだ。", ""),
+        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", ""),
+        (5, "強くなってくれ。ぼくが、もう一度挑みたくなるくらい。——挑めなく、なっても。", ""),
+        (2, "…………。", ""),                                                       // 言わせない・余白
     };
 
     protected override void OnEnemyReady()
@@ -80,7 +88,9 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
-        GetHud()?.ShowBossBar("二番のわたし");
+        // ボス登場＝道中BGMからボスBGMへクロスフェード（同じM.I.N.A.モチーフの翳った変奏）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        GetHud()?.ShowBossBar("孤高のわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
     }

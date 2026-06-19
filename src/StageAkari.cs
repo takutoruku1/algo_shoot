@@ -40,7 +40,7 @@ public partial class StageAkari : Node
     {
         (1, "ご主人様。次の“成敗”は? 今日はずいぶん静かですね。", ""),
         (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
-        (4, "「すきになって、ごめんなさい。」", ""),                       // 投稿
+        (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""),     // 投稿
         (0, "…………この人の、ところへ行こう。", SGentle),
         (1, "おや。決めゼリフはどうしたんですか。……それに、いつもの「Stay」も。", ""),
         (0, "……いいから。行くぞ。", SCocky),
@@ -52,18 +52,18 @@ public partial class StageAkari : Node
     // ボス登場時の説明（v2 [P-02b]。who: 0=少年 / 1=ミナ）
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (1, "黒板の字。自分を責める言葉に、好意の言葉が混ざっていますね。", ""),
-        (0, "……この人は、誰かを好きになったことを、罪だと思ってる。", SGentle),
-        (0, "————そういう罪も、あるんだよ。この世界にはね。", SGentle),
+        (1, "黒板も、机も、窓も……ぜんぶ「すき」で、埋め尽くされていますね。", ""),
+        (0, "……この人は、好きという気持ちを、持て余してる。誰にも渡せないまま。", SGentle),
+        (0, "————渡せなかった想いってのは、ああやって、あふれるんだ。この世界ではね。", SGentle),
     };
 
     // 道中突入の小話（世界観：自責の声の雨）。道中ザコ戦の前に出す。
     private static readonly (int who, string text, string face)[] Mid =
     {
         (3, "——その雨の中を、白い吹き出しが、いくつも漂っていました。", ""),
-        (1, "ここの声は……どれも、自分に向かっていますね。", ""),
-        (0, "ああ。誰かを責めるより、自分を責めるほうが、ずっと痛い。", SGentle),
-        (1, "……やけに、詳しいんですね。", ""),
+        (1, "ここの声は……どれも、「ねえ見て」「すき」と、すがりついてきます。", ""),
+        (0, "ああ。たった一人に渡せなかったぶん、誰彼かまわず掴もうとしてる。", SGentle),
+        (1, "……やけに、詳しいんですね。", "res://char/mina_worried.png"),
         (0, "————行くぞ。", SCocky),
     };
 
@@ -79,11 +79,11 @@ public partial class StageAkari : Node
     {
         (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
         (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
-        (1, "あなた、この人を——知ってるんですか?", ""),
+        (1, "あなた、この人を——知ってるんですか?", "res://char/mina_worried.png"),
         (0, "…………まさか。赤の他人さ。", SCocky),
         (1, "……即答までに、二秒かかりましたね。", ""),
         (0, "ミナ。シェイクスピアは言った。\"Parting is such sweet sorrow.\"", SCocky),
-        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", ""),
+        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", "res://char/mina_smile.png"),
         (0, "————一般論だよ。", SGentle),
     };
 
@@ -168,7 +168,8 @@ public partial class StageAkari : Node
         {
             Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
             Hud.LineKind.Other => "res://char/akari_face.png", // あかり
-            _ => "res://char/mina_face.png",                // ミナ・中継
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
+            _ => "res://char/mina_face.png",                // 中継ほか
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }

@@ -31,6 +31,9 @@ public partial class Shop : Node2D
     private static readonly Color Magenta = new("cf90b5"); // ホーミングのアクセント
     private static readonly Color Orange = new("ff8a5a");  // 過熱
 
+    // 射撃プレビューのミナ立ち絵（右へ撃つポーズ）。毎フレームLoadしないよう_Readyで一度だけキャッシュ。
+    private Texture2D? _minaShot;
+
     // 入力エッジ
     private bool _navHeld, _zHeld, _equipHeld, _olHeld, _backHeld;
     private double _t, _toastT;
@@ -51,9 +54,11 @@ public partial class Shop : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         // 起動時、装備中モードにカーソルを合わせる。
         _sel = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
         if (_sel < 0) _sel = 0;
+        _minaShot = ResourceLoader.Load<Texture2D>("res://char/mina_shoot.png");
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
     }
@@ -75,6 +80,7 @@ public partial class Shop : Node2D
         {
             if (prev) _sel = (_sel - 1 + ItemCount) % ItemCount;
             if (next) _sel = (_sel + 1) % ItemCount;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = prev || next;
 
@@ -99,7 +105,7 @@ public partial class Shop : Node2D
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) GetTree().ChangeSceneToFile("res://Hub.tscn");
+        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
 
         QueueRedraw();
     }
@@ -124,10 +130,11 @@ public partial class Shop : Node2D
         int lv = _game?.GetUpgradeLevel(id) ?? 0;
         var d = GameManager.GetUpgradeDef(id);
         if (d == null) return;
-        if (lv >= d.MaxLevel) { Toast("すでに最大です", UiKit.Text4); return; }
-        if (!(_game?.CanPurchase(id) ?? false)) { Toast("インプレッションが足りません", new Color("ef9a9a")); return; }
+        if (lv >= d.MaxLevel) { Audio.Instance?.PlayUiDeny(); Toast("すでに最大です", UiKit.Text4); return; }
+        if (!(_game?.CanPurchase(id) ?? false)) { Audio.Instance?.PlayUiDeny(); Toast("インプレッションが足りません", new Color("ef9a9a")); return; }
         if (_game!.TryPurchase(id))
         {
+            Audio.Instance?.PlayUiBuy(); // 購入成功＝達成音
             string label = lv == 0 && (id == "shot_spread" || id == "shot_homing") ? "解放" : "強化";
             Toast($"{d.Name} を{label}！  Lv {_game.GetUpgradeLevel(id)}", UiKit.Info);
             _buyFxT = 0.7; _walletPopT = 0.5; _buyFxItem = item; _buyFxAt = at;
@@ -139,8 +146,9 @@ public partial class Shop : Node2D
     private void EquipMode(int idx, bool silent = false)
     {
         var m = Modes[idx];
-        if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) Toast("まだ解放されていません", UiKit.Text4); return; }
+        if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("まだ解放されていません", UiKit.Text4); } return; }
         if (_game!.SelectedShotMode == m && !silent) { return; }
+        if (!silent) Audio.Instance?.PlayUiConfirm(); // 装備＝決定音
         _game.SelectedShotMode = m;
         _sweepName = _game.ShotModeName(m);
         _sweepT = 1.1;
@@ -402,11 +410,23 @@ public partial class Shop : Node2D
         for (float yy = y; yy < y + h; yy += 3f) DrawRect(new Rect2(x, yy, w, 1f), new Color(0, 0, 0, 0.16f));
 
         float t = (float)_t;
-        Vector2 mina = new(x + 24, y + h / 2f + Mathf.Sin(t * 2.6f) * 4f);
+
+        // 射撃リズム（モード別）に同期した微リコイル＋アンティシペーション。
+        // 各発射サイクルで「タメ（前傾・わずか前進）→発射の反動（後方へキック）→余韻（戻し）」。
+        float cycle = i == 0 ? 0.7f : i == 1 ? 1.0f : 1.3f;       // DrawLightBullet の位相と同周期
+        float fp = (t / cycle) % 1f;                               // 0..1 発射位相
+        float recoil;                                             // +で後方(左)へ引く
+        if (fp < 0.12f) recoil = -Mathf.Lerp(0f, 2f, fp / 0.12f); // タメ：わずか前傾(前進)
+        else if (fp < 0.30f) recoil = Mathf.Lerp(-2f, 5f, (fp - 0.12f) / 0.18f); // 発射：後方へキック
+        else recoil = Mathf.Lerp(5f, 0f, (fp - 0.30f) / 0.70f);   // 余韻：ゆっくり戻す
+        float breath = Mathf.Sin(t * 2.6f) * 4f;
+        Vector2 mina = new(x + 28 - recoil, y + h / 2f + breath);
 
         if (!locked)
         {
-            float x0 = mina.X + 12, x1 = x + w - 8;
+            // 光弾の発射口は突き出した右手のあたり（mina中心より右寄り・腕の高さで少し上）。
+            float x0 = mina.X + 30, x1 = x + w - 8;
+            Vector2 muzzle = new(x0, mina.Y - 3f);
             switch (i)
             {
                 case 0: // 連射：直線レーン
@@ -427,7 +447,7 @@ public partial class Shop : Node2D
                         float ang = tt * Mathf.DegToRad(56f);
                         float ph = (t / 1.0f + b * 0.06f) % 1f;
                         Vector2 dir = new(Mathf.Cos(ang), Mathf.Sin(ang));
-                        DrawLightBullet(mina + new Vector2(12, 0) + dir * (ph * (w * 0.72f)), 3.5f, ph);
+                        DrawLightBullet(muzzle + dir * (ph * (w * 0.72f)), 3.5f, ph);
                     }
                     break;
                 default: // ホーミング：標的へ曲射
@@ -443,18 +463,30 @@ public partial class Shop : Node2D
                         var tp = tg[s % tg.Length];
                         float ph = (t / 1.3f + s * 0.22f) % 1f;
                         float e = ph * ph * (3f - 2f * ph); // smoothstep
-                        Vector2 mid = new(mina.X + (tp.X - mina.X) * 0.5f, mina.Y);
-                        Vector2 p = QuadBezier(mina + new Vector2(12, 0), mid, tp, e);
+                        Vector2 mid = new(muzzle.X + (tp.X - muzzle.X) * 0.5f, muzzle.Y);
+                        Vector2 p = QuadBezier(muzzle, mid, tp, e);
                         DrawLightBullet(p, 3.5f, ph);
                     }
                     break;
             }
         }
 
-        // ミナ
-        UiKit.RadialGlow(this, mina, 22f, UiKit.Mina, 0.7f);
-        DrawCircle(mina, 11f, UiKit.Mina);
-        DrawCircle(mina - new Vector2(2, 3), 4f, new Color(1, 1, 1, 0.9f));
+        // ミナ：右へ撃つ射撃ポーズの立ち絵（呼吸揺れ＋微リコイルは mina 座標に反映済み）。
+        UiKit.RadialGlow(this, mina, 22f, UiKit.Mina, 0.6f);
+        if (_minaShot != null)
+        {
+            float dh = Mathf.Min(h - 12f, 86f);
+            float dw = dh * _minaShot.GetWidth() / _minaShot.GetHeight();
+            // 体の中心を mina に合わせ、突き出した右手（テクスチャ右端寄り）が発射口側へ来るよう配置。
+            var dst = new Rect2(mina.X - dw * 0.5f, mina.Y - dh * 0.5f, dw, dh);
+            DrawTextureRect(_minaShot, dst, false);
+        }
+        else
+        {
+            // フォールバック（テクスチャ未ロード時）。
+            DrawCircle(mina, 11f, UiKit.Mina);
+            DrawCircle(mina - new Vector2(2, 3), 4f, new Color(1, 1, 1, 0.9f));
+        }
 
         if (locked)
         {

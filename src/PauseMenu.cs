@@ -12,13 +12,29 @@ public partial class PauseMenu : CanvasLayer
     private PauseCanvas _canvas = null!;
     private bool _open;
     private int _sel;
-    private bool _navHeld, _zHeld, _escHeld;
+    private bool _navHeld, _lrHeld, _zHeld, _escHeld;
     private double _savedToast;
     private int _savedSlot;
     private bool _autoplay;
 
-    // 0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = タイトルへ
+    // ───────── 行モデル ─────────
+    // 先頭に音量スライダー3行（←→で調整）、続いてアクション5行（Zで決定）。
+    // 設定シーンへ遷移するとステージが消えるため、ポーズ中の音量はここでインライン調整する。
+    public static readonly (string Key, string Label)[] VolRows =
+    {
+        ("master", "マスター音量"),
+        ("bgm",    "BGM"),
+        ("se",     "効果音 (SE)"),
+    };
+    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = タイトルへ
     public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "タイトルへ" };
+
+    private static int RowCount => VolRows.Length + ItemsJp.Length;
+    private bool IsVolRow(int sel) => sel < VolRows.Length;
+    private int ActionIndex(int sel) => sel - VolRows.Length; // 音量行の下＝アクション
+
+    // 表示用にキャッシュした音量（0..100）。Open 時に保存値から読む。
+    private readonly float[] _vol = new float[VolRows.Length];
 
     public override void _Ready()
     {
@@ -58,23 +74,43 @@ public partial class PauseMenu : CanvasLayer
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
         {
-            if (up) _sel = (_sel + ItemsJp.Length - 1) % ItemsJp.Length;
-            if (down) _sel = (_sel + 1) % ItemsJp.Length;
+            if (up) _sel = (_sel + RowCount - 1) % RowCount;
+            if (down) _sel = (_sel + 1) % RowCount;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
+        // ←→：音量行のときだけ ±5 調整＝即バス反映＋保存（SEは鳴らして耳で確認）。
+        bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+        if ((left || right) && !_lrHeld && IsVolRow(_sel))
+        {
+            _vol[_sel] = Mathf.Clamp(_vol[_sel] + (right ? 5f : -5f), 0f, 100f);
+            AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
+            Audio.Instance?.PlayUiMove();
+        }
+        _lrHeld = left || right;
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge) Choose();
-        else if (escEdge) Close(); // Esc でも閉じる（＝つづける）
+        // 音量行で Z＝ミュート/復帰のトグル（0 ⇄ 既定相当）。アクション行は従来どおり決定。
+        if (zEdge && IsVolRow(_sel))
+        {
+            _vol[_sel] = _vol[_sel] > 0.5f ? 0f : 80f;
+            AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
+            Audio.Instance?.PlayUiConfirm();
+        }
+        else if (zEdge) { Audio.Instance?.PlayUiConfirm(); Choose(ActionIndex(_sel)); }
+        else if (escEdge) { Audio.Instance?.PlayUiCancel(); Close(); } // Esc でも閉じる（＝つづける）
 
         _canvas.QueueRedraw();
     }
 
     private void Open()
     {
+        Audio.Instance?.PlayUiCancel(); // ポーズ＝開く合図（柔らかい下降）
         _open = true; _sel = 0;
-        _navHeld = false; _zHeld = false;
+        _navHeld = false; _lrHeld = false; _zHeld = false;
+        for (int i = 0; i < VolRows.Length; i++) _vol[i] = AudioConfig.Get(VolRows[i].Key); // 保存値を読む
         GetTree().Paused = true;
         _canvas.QueueRedraw();
     }
@@ -86,14 +122,14 @@ public partial class PauseMenu : CanvasLayer
         _canvas.QueueRedraw();
     }
 
-    private void Choose()
+    private void Choose(int action)
     {
-        if (_sel < GameManager.SlotCount)
+        if (action < GameManager.SlotCount)
         {
-            _game?.SaveToSlot(_sel + 1);       // スロットへ保存（上書き）
-            _savedSlot = _sel + 1; _savedToast = 1.8;
+            _game?.SaveToSlot(action + 1);       // スロットへ保存（上書き）
+            _savedSlot = action + 1; _savedToast = 1.8;
         }
-        else if (_sel == GameManager.SlotCount) Close();           // つづける
+        else if (action == GameManager.SlotCount) Close();           // つづける
         else { _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); } // タイトルへ（離脱時オートセーブ）
     }
 
@@ -102,6 +138,8 @@ public partial class PauseMenu : CanvasLayer
     public bool ShowHint => !_open && !_autoplay && CanOpenHere();
     public bool SlotFilled(int slot) => _game?.SlotExists(slot) ?? false;
     public string SavedText => _savedToast > 0 ? $"スロット{_savedSlot}にセーブしました" : "";
+    // 描画用：音量行の現在値（0..100）。
+    public float VolValue(int i) => i >= 0 && i < _vol.Length ? _vol[i] : 0f;
 }
 
 // ポーズメニュー＆ヒントの描画（CanvasLayer の子。設計座標 1280x720）。
@@ -123,35 +161,63 @@ public partial class PauseCanvas : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
-        float w = 440, h = 392, x = (W - w) / 2f, y = (H - h) / 2f;
+        int nVol = PauseMenu.VolRows.Length;
+        float w = 460, h = 476, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", 13, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
 
-        float top = y + 68, rowH = 46;
-        for (int i = 0; i < PauseMenu.ItemsJp.Length; i++)
+        // ── 音量セクション（←→ で調整／Z でミュート切替）──
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 62), "音量  VOLUME", 10, UiKit.Text4);
+        float volTop = y + 80, rowH = 38;
+        for (int i = 0; i < nVol; i++)
         {
-            float ry = top + i * rowH;
+            float ry = volTop + i * rowH;
             bool on = i == Menu.Sel;
             if (on)
             {
-                UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 40), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 11), "▸", 16, UiKit.Purify);
+                UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 34), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 9f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", 15, UiKit.Purify);
             }
-            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 8), PauseMenu.ItemsJp[i], 18,
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.VolRows[i].Label, 15,
+                on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
+            // バー（トラック＋塗り）＋数値
+            float v = Menu.VolValue(i);
+            float barW = 132f, barX = x + w - barW - 64f, barY = ry + 14f, barH = 6f;
+            DrawRect(new Rect2(barX, barY, barW, barH), new Color(1, 1, 1, 0.12f));
+            DrawRect(new Rect2(barX, barY, barW * v / 100f, barH), new Color(UiKit.Info, on ? 0.95f : 0.7f));
+            UiKit.Text(this, UiKit.Mono, new Vector2(barX + barW + 8f, ry + 9), Mathf.RoundToInt(v).ToString(), 12,
+                on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 40);
+        }
+
+        float divY = volTop + nVol * rowH + 6f;
+        DrawRect(new Rect2(x + 28, divY, w - 56, 1f), new Color(1, 1, 1, 0.08f));
+
+        // ── アクション（Z で決定）──
+        float top = divY + 16f; rowH = 40f;
+        for (int i = 0; i < PauseMenu.ItemsJp.Length; i++)
+        {
+            float ry = top + i * rowH;
+            bool on = (nVol + i) == Menu.Sel;
+            if (on)
+            {
+                UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 36), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", 16, UiKit.Purify);
+            }
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.ItemsJp[i], 17,
                 on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
             // セーブスロット行は状態（空き/保存済み）を右に出す
             if (i < GameManager.SlotCount)
             {
                 bool filled = Menu.SlotFilled(i + 1);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 12), filled ? "保存済み" : "空き", 11,
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 11), filled ? "保存済み" : "空き", 11,
                     filled ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 108);
             }
         }
 
         if (Menu.SavedText.Length > 0)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 56), Menu.SavedText, 14, UiKit.PurifyHi, HorizontalAlignment.Center, w);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "Z 決定    Esc 閉じる", 11, UiKit.Text3, HorizontalAlignment.Center, w);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 54), Menu.SavedText, 14, UiKit.PurifyHi, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "←→ 音量    Z 決定    Esc 閉じる", 11, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     // 「Esc メニュー」ヒント（画面右下・ティッカーの上）。常時表示。

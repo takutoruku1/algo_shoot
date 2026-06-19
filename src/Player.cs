@@ -125,6 +125,15 @@ public partial class Player : Area2D
     private const float BobSpeed = 3.2f; // 角速度(rad/s) 約2秒周期
     private const float BobAmp = 2.0f;   // 揺れ幅(px)
 
+    // 移動バンク（進行方向へ体を傾け＋わずかに先行。見た目=_spriteのみ／当たり判定は不動）。
+    // _lean を入力方向へ指数補間して慣性を持たせる＝予備動作（タメ）と余韻（揺り戻し）が自動で出る。
+    private Vector2 _lean = Vector2.Zero;
+    private static readonly float BankX = Mathf.DegToRad(8f);  // 前後（横移動）の前傾
+    private static readonly float BankY = Mathf.DegToRad(13f); // 上下（縦移動）のバンク
+    private const float LeadPx = 2.5f;        // 進行方向への体の先行量(px)
+    private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
+    private const float FocusLeanMul = 0.45f; // 低速(Shift)時はバンクを抑える＝丁寧さを画で見せる
+
     // Pool 取得用キャッシュ
     private BulletPool _pool = null!;
 
@@ -218,6 +227,9 @@ public partial class Player : Area2D
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
+
+        // 操作ガイドの KB/パッド出し分け用に、直近デバイスを毎フレーム判定。
+        Pad.PollDevice();
 
         // 移動入力。会話中（吹き出し表示中）は動けない。
         Vector2 dir = Vector2.Zero;
@@ -318,11 +330,18 @@ public partial class Player : Area2D
             }
         }
 
-        // 常時ふわふわ浮遊（スプライトのみ上下に揺らす）
+        // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
+        // 慣性つきで入力方向へ寄せる（会話中は dir=0 なので自然に直立へ戻る＝余韻）。
+        _lean = _lean.Lerp(dir, 1f - Mathf.Exp(-LeanResponse * dt));
         if (_hasTexture && _sprite != null)
         {
-            _sprite.Position = new Vector2(0f, Mathf.Sin(_bobTime * BobSpeed) * BobAmp);
+            float leanMul = _focus ? FocusLeanMul : 1f;
+            float bobY = Mathf.Sin(_bobTime * BobSpeed) * BobAmp;
+            // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
+            _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
+            // 前傾＋バンク：右移動で前へ、上下移動で機首を振る。
+            _sprite.Rotation = (_lean.X * BankX + _lean.Y * BankY) * leanMul;
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）
             _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
         }
@@ -440,6 +459,7 @@ public partial class Player : Area2D
 
         // ボム演出（魔法陣＋光の波）＋画面効果
         FxLayer.Instance?.Bomb(GlobalPosition);
+        Audio.Instance?.PlayBomb(); // ③溜め→開放の二段。破壊でなく「鎮める／光が満ちる」
         GameCamera.Instance?.Shake(4.5f, 0.15f);
         GameCamera.Instance?.Hitstop(0.05);
 

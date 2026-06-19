@@ -25,6 +25,7 @@ public partial class DiffSelect : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
@@ -58,16 +59,17 @@ public partial class DiffSelect : Node2D
             int n = Tiers.Length;
             if (up) _sel = (_sel - 1 + n) % n;
             if (down) _sel = (_sel + 1) % n;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.2 && Selectable(_sel)) Dive();
+        if (zEdge && _t > 0.2 && Selectable(_sel)) { Audio.Instance?.PlayUiConfirm(); Dive(); }
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) GetTree().ChangeSceneToFile("res://Hub.tscn");
+        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
 
         QueueRedraw();
     }

@@ -133,6 +133,7 @@ public partial class Panel : Area2D
         if (_shape != null) _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
         GetNodeOrNull<GameManager>("/root/Game")?.AddBulletCleared(); // 剥がし小加点
         FxLayer.Instance?.Shatter(GlobalPosition); // 砕け＋やさしさの粒
+        Audio.Instance?.PlayStrip(); // ④軽い剥離「コツッ」（浄化成立より一段軽い）
         _owner?.OnPanelStripped(this);
         QueueFree();
     }

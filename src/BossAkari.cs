@@ -27,10 +27,10 @@ public partial class BossAkari : Enemy
     // スペルカード（RefrainHTML Danmaku v3 STAGE2 あかり＝雨の教室・青と白の寒色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("雨（降りやまない）",   BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針
-        ("机が落ちる",           BulletShape.Diamond, new Color("4a6aa0")), // 藍・大きく遅い菱形
-        ("あの——（ためらい）", BulletShape.Orb,     new Color("a8c8e8")), // 淡青・狙い撃ち
-        ("す——（言いかけ）",   BulletShape.Needle,  new Color("e8f0ff")), // 白・言いかけて弾ける
+        ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針
+        ("すきって言って",   BulletShape.Diamond, new Color("4a6aa0")), // 藍・大きく遅い菱形
+        ("ずっと一緒",       BulletShape.Orb,     new Color("a8c8e8")), // 淡青・狙い撃ち（包囲）
+        ("離さない",         BulletShape.Needle,  new Color("e8f0ff")), // 白・追尾で逃がさない
     };
     private void ApplySpell()
     {
@@ -47,22 +47,26 @@ public partial class BossAkari : Enemy
     // 浄化のかけあい（設計書 v2 [P-02b] のボス節を順序通りに）。少年は自分の声では言えず、ミナが“中継”して届ける。
     // ※「あなたのせいじゃない」は最も効かない言葉＝禁止。庇った側の意志を立てる言葉で解く。
     private const string SGentle = "res://char/shonen_gentle.png";
+    // 躁的暴走＝愛の洪水（love-bombing）。傷＝本命に言えなかった「好き」が宛先を失い溢れる。
+    // 決定打＝本作の主モチーフ「名前を呼ぶ」（lines§2）。本人が乞うた一語で抜く。
+    // 伏線③「ぼくの声じゃだめ」は維持＝名前はミナの声で届ける（少年は正体を隠す代償）。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "……名前で、呼んでよ。", ""),
-        (2, "いつから、あたしは“キミ”になったの……?", ""),
-        (1, "“キミ”……? ご主人様、これは", ""),
+        (2, "ねえ、こっち見て。ねえってば。あたしのこと、見て。", ""),
+        (2, "好き? 好きって言って。あたしも好き。だいすき。ずっと一緒にいようね。離さないから。", ""),
+        (2, "……ねえ。どうして、名前で、呼んでくれないの。", ""),
+        (2, "いつから、あたしは……“キミ”に、なったの……?", ""),
+        (1, "“キミ”……? ご主人様、これは——", ""),
         (0, "————行こう。奥だ。", SGentle),
-        (2, "来ないで……っ。あたしは、助けてもらっちゃいけないの。", ""),
+        (2, "来ないで……っ。あたしの“好き”は、迷惑なだけ。だから、世界中に、ばら撒くしか——", ""),
         (3, "雨の交差点。言いかけた唇。「あのね、あたし——」。クラクション。", ""),
-        (0, "ミナ。ぼくの言葉を、きみの声で届けてくれ。", SGentle),
-        (1, "ご主人様が、直接言えばいいでしょう。", ""),
-        (0, "————ぼくの声じゃ、だめなんだ。", SGentle),
-        (5, "——誰かを想うことは、罪じゃない。", ""),
-        (5, "言えなかった言葉は、消えない。届けられなかった想いは、なかったことにはならない。", ""),
-        (5, "————きっと、相手にも。とっくに、届いてる。", ""),
-        (2, "……すき、だったの。ずっと。……それだけ、なのに。", ""),
-        (5, "うん。————知ってるよ。", ""),
+        (0, "ミナ。……一度だけ。ぼくの代わりに、あの子の名前を、呼んでやってくれ。", SGentle),
+        (1, "ご主人様の、お声では。いけないんですか。", ""),
+        (0, "————ぼくの声じゃ、だめなんだ。気づかれて、しまうから。", SGentle),
+        (5, "——あかり。", ""),                                                   // 決定打＝名前（一行手前で無音→ここで主題）
+        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", ""),
+        (5, "きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。", ""),
+        (2, "……ぁ……", ""),                                                     // 言わせない
     };
 
     protected override void OnEnemyReady()
@@ -91,7 +95,9 @@ public partial class BossAkari : Enemy
     public override void _Ready()
     {
         base._Ready();
-        GetHud()?.ShowBossBar("ゆるせないわたし");
+        // ボス登場＝道中BGMからボスBGMへクロスフェード。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        GetHud()?.ShowBossBar("あふれるわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
     }

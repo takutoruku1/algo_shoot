@@ -9,7 +9,7 @@
 ---
 
 ## 0. 現状の要点（最重要事実）
-- **ミナ＝主人公なのに表情1枚**（`char/mina_face.png` のみ）。全ステージ道中・中継・自分のボス戦まで同じ顔で喋る。Final/Epilogue では立ち絵が無く**色付きの円**で描かれる。
+- ~~**ミナ＝主人公なのに表情1枚**~~ → **解消(2026-06-20)**: `mina_smile/worried/tears` を生成・配線済み（採用版 mina_face=滑らかアニメ塗りに画風を厳密に合わせた）。Prologue/3ステージの ShowLine をミナも行ごと差し替え可に開き、Epilogue クライマックスに tears 立ち絵を差した。※採用版 mina_face はドット絵 raw でなく **maid_smooth 系の滑らかアニメ塗り**である点に注意（gen-asset 既定のドット絵指定は使わない）。残: Final にも tears を差す余地／自分のボス戦(BossMina)は未タグ。
 - **少年は4差分を正しく行ごとに使い分け**（`shonen_face`=不敵 / `shonen_proud`=得意げ / `shonen_gentle`=優しさ / `shonen_fluster`=動揺・照れ）＝手本。ただし「怖がり/自己嫌悪」差分は無い。
 - **改心 cry 機構は実装済みだが3ボスで遊んでいる**。`enemy_hikage_cry.png` ＋ `hikage_face_cry/happy/smile` を持つヒカゲのみ三段（pre→cry→post）を正しく使用。rei/akari/koharu は cry スプライトが無く `CryTexPath=PostTexPath`（＝最初から改心後の顔）。
 - **死蔵アセット**: `char/koharu_face_pale.png` が生成済みなのに**コードから一度も参照されていない**。
@@ -20,7 +20,7 @@
 ## 1. 立ち絵・スプライト資産（char/ 現物。Glob `char/*.png`）
 | キャラ | 立ち絵(face) | 自機/敵スプライト | 表情差分の状況 |
 |---|---|---|---|
-| **ミナ** | `mina_face.png`（1枚のみ） | 自機 `mina_idle.png` ／ ボス `enemy_mina_pre/post.png` | **★最大の穴**：smile/worried/tears が無い |
+| **ミナ** | `mina_face` ＋ `mina_smile/worried/tears`（計4枚・滑らかアニメ塗り／474x720統一） | 自機 `mina_idle.png` ／ ボス `enemy_mina_pre/post.png` | ◎4表情を配線済（穴解消） |
 | **少年** | `shonen_face / fluster / proud / gentle`（4枚） | `shonen_idle.png` | 良好。ただし afraid（怖がり）無し |
 | **レイ** | `rei_face.png` | `enemy_rei_pre/post.png`（cry無し） | cry無し／face差分薄い |
 | **あかり** | `akari_face.png` | `enemy_akari_pre/post.png`（cry無し） | cry無し（告白の感情に対し顔が一定） |

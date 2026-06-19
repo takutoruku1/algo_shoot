@@ -19,6 +19,10 @@ public partial class Hub : Node2D
     }
     private Entry[] _entries = System.Array.Empty<Entry>();
 
+    // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
+    private Texture2D? _minaFace;
+
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _dived;
     private double _t, _cardsEnteredT;
@@ -50,10 +54,12 @@ public partial class Hub : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
         BuildEntries();
+        LoadFaces();
         _sel = DefaultSelection();
 
         string? cleared = _game?.JustClearedStageId;
@@ -104,6 +110,22 @@ public partial class Hub : Node2D
         }
         _entries = list.ToArray();
     }
+
+    // 各Entryの顔テクスチャを一度だけロードしてキャッシュ。final はミナ本体なので mina_face。
+    private void LoadFaces()
+    {
+        _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
+        foreach (var e in _entries)
+        {
+            string id = e.Id;
+            if (_faces.ContainsKey(id)) continue;
+            if (e.IsFinal) { _faces[id] = _minaFace; continue; }
+            string path = $"res://char/{id}_face.png";
+            _faces[id] = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        }
+    }
+
+    private Texture2D? FaceFor(string id) => _faces.TryGetValue(id, out var t) ? t : null;
 
     private int DefaultSelection()
     {
@@ -194,6 +216,7 @@ public partial class Hub : Node2D
         {
             if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
             if (down) _sel = (_sel + 1) % _entries.Length;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
@@ -204,9 +227,11 @@ public partial class Hub : Node2D
             var e = _entries[_sel];
             if (e.Unlocked)
             {
+                Audio.Instance?.PlayUiConfirm();
                 if (e.IsFinal) Dive(e.Scene);
                 else { if (_game != null) _game.PendingStageScene = e.Scene; Dive("res://DiffSelect.tscn"); }
             }
+            else Audio.Instance?.PlayUiDeny(); // 未解放ステージ
         }
 
         bool c = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
@@ -214,12 +239,12 @@ public partial class Hub : Node2D
         if (cEdge && CanReplySel())
         {
             var lines = ReplyDialog(_entries[_sel].Id);
-            if (lines.Length > 0) StartDialogue(lines, _entries[_sel].Id);
+            if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
         }
 
         bool x = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
         bool xEdge = x && !_xHeld; _xHeld = x;
-        if (xEdge && _t > 0.3 && !_dived) { _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn"); }
+        if (xEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn"); }
     }
 
     private void DiveAuto()
@@ -260,7 +285,7 @@ public partial class Hub : Node2D
     private void DrawHeader()
     {
         float padX = 40f, hy = 24f;
-        UiKit.Avatar(this, new Vector2(padX + 28, hy + 28), 28f, UiKit.Mina, "ミ");
+        UiKit.FaceAvatar(this, new Vector2(padX + 28, hy + 28), 28f, _minaFace, UiKit.Mina, false, 0.06f, 1f, _t);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", 22, UiKit.White);
         UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", 14, UiKit.Text3);
 
@@ -308,9 +333,9 @@ public partial class Hub : Node2D
         Color border = sel ? new Color(UiKit.Purify, 0.85f * alpha) : new Color(1, 1, 1, 0.09f * alpha);
         UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
 
-        Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)) with { A = alpha };
+        Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id));
         float ax = x + 36, ay = cy + 36;
-        UiKit.Avatar(this, new Vector2(ax, ay), 24f, acc, e.Initial);
+        UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel, 0.06f, alpha, _t);
 
         float tx = x + 74, w2 = w - 110;
         Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.5f);
@@ -413,7 +438,7 @@ public partial class Hub : Node2D
     {
         "rei" => new (string, string)[]
         {
-            ("ミナの投稿", "本日、二番手であることに拗ねておられる方を一名、無事に一番手の心へお戻ししました。世のご主人様方も、たまにはご自身の傑作を労ってはいかがでしょう。"),
+            ("ミナの投稿", "本日、「敵などいない」と気を吐いておられた天才を、お一人、お救いしました。頂点はさぞ寒かったでしょう。本気で張り合える相手がいる——それだけで、世界はずいぶん暖かいものです。"),
             ("少年", "おい待て、なに勝手に投稿してるんだ!? しかも“ご自身の傑作”ってぼくのことだろ!"),
             ("ミナ", "あら、自覚はおありなんですね。労う気はおありでない、と。"),
             ("ミナ", "アカウントの名義、どなたでしたっけ。M・I・N・A。わたくしです。"),

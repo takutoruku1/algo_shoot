@@ -195,6 +195,9 @@ public partial class Enemy : Area2D
         _purified = true;
         RemoveFromGroup("enemies");
 
+        // 戦闘終了の瞬間：画面に残った自機の弾を消す（改心の会話に弾が飛び続けないように）。
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnPlayerBullets();
+
         // 接触で自機を傷つけないようにする。浄化は被弾シグナル中に走ることがあるため遅延設定。
         SetDeferred(Area2D.PropertyName.Monitorable, false);
         if (_bodyShape != null)

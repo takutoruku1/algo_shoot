@@ -56,6 +56,7 @@ public partial class ReiRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Rei }); // 近景パララックス：前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 順位掲示板の海
 
         Player = new Player { Name = "Player" };

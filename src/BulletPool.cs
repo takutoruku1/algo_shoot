@@ -64,6 +64,14 @@ public partial class BulletPool : Node2D
                 Despawn(b);
     }
 
+    // 画面上の自機弾だけを一括で非アクティブ化（戦闘終了＝ボス浄化の瞬間に残弾を片付ける用）。
+    public void DespawnPlayerBullets()
+    {
+        foreach (Node n in GetTree().GetNodesInGroup("player_bullets"))
+            if (n is Bullet b && b.Active)
+                Despawn(b);
+    }
+
     // 弾を非アクティブ化してプールへ返却。
     public void Despawn(Bullet b)
     {

@@ -39,7 +39,7 @@ public partial class StageKoharu : Node
     // who: 0=少年 / 1=ミナ / 2=こはる / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (4, "「今日も、誰のためでもないごはんを作った。」", ""),               // 投稿
+        (4, "「ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?」", ""),  // 投稿
         (0, "……ミナ。Stay——だ。", SGentle),                                  // 合言葉の回帰（今度は少年自身の祈りとして滲む）
         (1, "……はい。今日は、ちゃんと言ってくれるんですね。", ""),
         (0, "……ああ。きみは、ぼくのそばにいてくれ。", SGentle),
@@ -52,7 +52,7 @@ public partial class StageKoharu : Node
         (3, "——湯気の向こうに、たくさんの食卓が並んでいました。どれも、空席でした。", ""),
         (1, "この声たちは……「むだだ」と、繰り返しています。", ""),
         (0, "祈るほど、報われない。……そう思い込まされてる声だ。", SGentle),
-        (1, "……ご主人様の声、また、すこし掠れていますよ。", ""),
+        (1, "……ご主人様の声、また、すこし掠れていますよ。", "res://char/mina_worried.png"),
         (0, "気のせいさ。……行こう。", SGentle),
     };
 
@@ -153,6 +153,7 @@ public partial class StageKoharu : Node
         {
             Hud.LineKind.Boy => face,
             Hud.LineKind.Other => "res://char/koharu_face.png",
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "こはる");

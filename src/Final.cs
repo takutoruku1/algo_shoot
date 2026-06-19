@@ -35,6 +35,8 @@ public partial class Final : Node2D
     {
         _rng.Randomize();
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
+        // 主題の濁り＝緊張のボスBGM（短調寄り・不協和の変奏）。挿入歌の一点投入はphase5。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
         // 汚染ゲージの終着点：黒く溶ける。
         GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(1f);
 
