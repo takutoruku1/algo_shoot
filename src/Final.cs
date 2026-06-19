@@ -15,6 +15,8 @@ public partial class Final : Node2D
     private bool _zHeld;
     private int _line;
     private double _lineT;
+    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
@@ -38,7 +40,8 @@ public partial class Final : Node2D
         // 主題の濁り＝緊張のボスBGM（短調寄り・不協和の変奏）。挿入歌の一点投入はphase5。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
         // 汚染ゲージの終着点：黒く溶ける。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(1f);
+        _game = GetNodeOrNull<GameManager>("/root/Game");
+        _game?.SetContamination(1f);
 
         for (int i = 0; i < 22; i++)
             _drift.Add((Screams[i % Screams.Length],
@@ -88,10 +91,18 @@ public partial class Final : Node2D
             case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;          // 暴走の見せ
             case 1:                                                       // 対話（手動送り）
                 _lineT += delta;
+                // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。
+                int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
+                if (_reveal < len)
+                    _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
                 if (zEdge && _lineT >= 0.25)
                 {
-                    _lineT = 0; _line++;
-                    if (_line >= _talk.Count) NextPhase();
+                    if (_reveal < len) { _reveal = len; } // 1回目で全文（早送り）
+                    else
+                    {
+                        _lineT = 0; _reveal = 0; _line++;
+                        if (_line >= _talk.Count) NextPhase();
+                    }
                 }
                 break;
             case 2: // 帰還（白）→ EPILOGUE
@@ -101,7 +112,7 @@ public partial class Final : Node2D
         QueueRedraw();
     }
 
-    private void NextPhase() { _phase++; _t = 0; _lineT = 0; }
+    private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; }
 
     public override void _Draw()
     {
@@ -171,10 +182,14 @@ public partial class Final : Node2D
         if (!narr)
             DrawString(_font, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, align,
+        // タイプライターで表示済みの分だけ描画。
+        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
+        string body = d.Text.Substring(0, shown);
+        DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-        if (((int)(_t * 2f) % 2) == 0)
+        // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
+        if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
     }

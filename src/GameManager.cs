@@ -22,9 +22,9 @@ public partial class GameManager : Node
     public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
     public bool HasSpread => GetUpgradeLevel("shot_spread") >= 1;
     public bool HasHoming => GetUpgradeLevel("shot_homing") >= 1;
-    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→3→4（Lv に対応）。
+    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（Lv に対応・上振れを抑え強すぎを是正）。
     public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(GetUpgradeLevel("shot_spread"), 0, 3)];
-    public int HomingShots => new[] { 0, 2, 3, 4 }[Mathf.Clamp(GetUpgradeLevel("shot_homing"), 0, 3)];
+    public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(GetUpgradeLevel("shot_homing"), 0, 3)];
     public bool IsModeUnlocked(ShotMode m) => m switch { ShotMode.Spread => HasSpread, ShotMode.Homing => HasHoming, _ => true };
     // 解放済みモードを循環（連射→拡散→ホーミング→連射…・未解放はスキップ）。
     public ShotMode NextUnlockedMode(ShotMode cur)
@@ -202,7 +202,7 @@ public partial class GameManager : Node
         new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 5, BaseCost = 400,  CostMul = 1.5f },
         new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.45f },
         new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.5f },
-        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→3→4)", MaxLevel = 3, BaseCost = 700, CostMul = 1.5f },
+        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 700, CostMul = 1.5f },
         new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
         new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
         new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },

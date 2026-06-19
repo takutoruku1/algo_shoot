@@ -57,6 +57,7 @@ public partial class KoharuRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Koharu }); // 近景パララックス：湯気/冷気の対流で凪いだ前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Koharu }); // 空席に箸・冷める食卓
 
         Player = new Player { Name = "Player" };

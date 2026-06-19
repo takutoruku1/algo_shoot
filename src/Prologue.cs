@@ -17,6 +17,8 @@ public partial class Prologue : Node2D
     // 会話送り
     private int _line;
     private double _lineT;
+    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // 難易度選択（タイトル）
     private int _diffSel = 1; // 0:Easy 1:Normal 2:Hard
@@ -53,7 +55,8 @@ public partial class Prologue : Node2D
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
         // 静かな主題の断片（薄い編成のメニューBGM）。無音の画面を無くす。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
-        _diffSel = (int)(GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal);
+        _game = GetNodeOrNull<GameManager>("/root/Game");
+        _diffSel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
 
         // コードレインの行（ブートログ＋それっぽいフィラー）
         string[] boot =
@@ -120,15 +123,27 @@ public partial class Prologue : Node2D
             case 2: if (_t >= 1.6 || zEdge) NextPhase(); break;          // Ignite
             case 3:                                                       // Talk（手動送り：Zで進む。自動送りはしない）
                 _lineT += delta;
+                // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。
+                int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
+                if (_reveal < len)
+                    _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
                 // 名前の由来を問われた直後の少年の答え（index 6）には、不自然な“間”を置く
                 // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
                 double minHold = (_line == 6) ? 1.2 : 0.25;
                 if (zEdge && _lineT >= minHold)
                 {
-                    _lineT = 0;
-                    _line++;
-                    // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
-                    if (_line >= _talk.Count) { StartGame(); return; }
+                    if (_reveal < len)
+                    {
+                        _reveal = len; // まず全文を即時表示（本編と同じ：1回目で早送り）
+                    }
+                    else
+                    {
+                        _lineT = 0;
+                        _reveal = 0;
+                        _line++;
+                        // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
+                        if (_line >= _talk.Count) { StartGame(); return; }
+                    }
                 }
                 break;
             case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 レイ）
@@ -154,6 +169,7 @@ public partial class Prologue : Node2D
         _phase++;
         _t = 0;
         _lineT = 0;
+        _reveal = 0; // 会話フェーズに入ったら1行目を最初から打ち出す
     }
 
     // オープニング（起動カットシーン）の後はハブへ。タイトルは起動時に先に表示する。
@@ -175,7 +191,7 @@ public partial class Prologue : Node2D
             case 0: DrawRain(); break;
             case 1: DrawIdentity(); break;
             case 2: DrawIgnite(); break;
-            case 3: DrawTalkSpeakers(); DrawTalk(); break;
+            case 3: DrawTalkBackdrop(); DrawTalkSpeakers(); DrawTalk(); break;
             case 4: DrawTitle(); break;
         }
     }
@@ -227,6 +243,102 @@ public partial class Prologue : Node2D
         DrawCircle(c, 4.5f * grow, new Color(0.9f, 0.97f, 1f));
     }
 
+    // --- フェーズ3：会話の背後に流す「デジタル空間」背景 ---
+    // フェーズ0 DrawRain の資産（_stream / コード緑 / 上昇スクロール）を流用し、
+    // “さらに薄く・遅く”流す。立ち絵・会話ボックス・本文の可読性を絶対に侵さないよう、
+    // 画面下40%（ボックス帯）と立ち絵の真後ろは能動的にアルファを落とす。
+    //
+    // 調整ポイント（強度ノブ）：いずれもアルファ上限。0.14 を超えると本文と競り始める＝危険域。
+    private const float BgRainMax = 0.10f; // コードレイン（薄め・遅め）
+    private const float BgGridA   = 0.045f; // デジタルグリッド
+    private const float BgDotMax  = 0.11f; // 漂うドット粒子
+    private const float BgWashMax = 0.05f; // 上方の青い奥行きウォッシュ（Cool）
+    private const float BoxTopY   = H - 56f; // 会話ボックス上端。これ以下は背景を消していく
+    private const float FadeReach = 44f;     // ボックス上端の何px手前から背景を絞り始めるか
+
+    // y 位置の背景許容率（下＝ボックス帯ほど 0 に。上は 1）。文字可読性を守る最重要ガード。
+    private static float BgYGate(float y) => Mathf.Clamp((BoxTopY - y) / FadeReach, 0f, 1f);
+
+    // 立ち絵の真後ろ（中央バンド）を落として、シルエットを澄んだ空間に立てる（吉田 §1）。
+    private static float BgCenterDim(float x, float y)
+    {
+        float dx = (x - W / 2f) / 70f;
+        float dy = (y - 92f) / 70f;
+        float d = Mathf.Sqrt(dx * dx + dy * dy);
+        return Mathf.Clamp(d - 0.25f, 0f, 1f); // 中心ほど 0（背景を消す）、外ほど 1
+    }
+
+    private void DrawTalkBackdrop()
+    {
+        if (_font == null) return;
+
+        // レイヤー1：奥行きウォッシュ。上に薄く Cool、中盤で黒へ。ボックス帯は素の黒のまま。
+        int bands = 5;
+        for (int i = 0; i < bands; i++)
+        {
+            float y0 = i * (BoxTopY / bands);
+            float a = BgWashMax * (1f - (float)i / bands);
+            DrawRect(new Rect2(0, y0, W, BoxTopY / bands + 1f),
+                new Color(Cool.R, Cool.G, Cool.B, a));
+        }
+
+        // レイヤー2：デジタルグリッド（コード緑・上昇ドリフト）。空間の床に見せる。
+        float gScroll = (float)_t * 14f;
+        const float gStep = 22f;
+        float gy0 = -Mathf.PosMod(gScroll, gStep);
+        for (float gy = gy0; gy < BoxTopY; gy += gStep)
+        {
+            float a = BgGridA * BgYGate(gy);
+            if (a <= 0.002f) continue;
+            DrawRect(new Rect2(0, gy, W, 1f), new Color(Code.R, Code.G, Code.B, a));
+        }
+        for (float gx = Mathf.PosMod(-gScroll, gStep); gx < W; gx += gStep)
+        {
+            // 縦線は y方向に薄くグラデートしながら（下ほど消す）
+            for (float gy = 0f; gy < BoxTopY; gy += 4f)
+            {
+                float a = BgGridA * 0.7f * BgYGate(gy) * BgCenterDim(gx, gy);
+                if (a <= 0.002f) continue;
+                DrawRect(new Rect2(gx, gy, 1f, 4f), new Color(Code.R, Code.G, Code.B, a));
+            }
+        }
+
+        // レイヤー3：コードレイン（フェーズ0の _stream を流用。半分の速度・大きい行間・低アルファ）。
+        const float lineH = 16f;            // phase0=11 より疎に
+        float scroll = (float)_t * 30f;     // phase0=78 の半分以下＝ゆっくり
+        float baseBottom = BoxTopY - 4f;
+        for (int i = 0; i < _stream.Count; i++)
+        {
+            float y = baseBottom + i * lineH - scroll;
+            if (y < -lineH || y > BoxTopY) continue;
+            float top = 1f - Mathf.Clamp((H - y) / H, 0f, 1f) * 0.5f; // 上ほどさらに薄く
+            float a = BgRainMax * top * BgYGate(y) * BgCenterDim(40f, y);
+            if (a <= 0.003f) continue;
+            // 横位置は流れごとにずらして単調さを消す（決定論的）
+            float x = 8f + ((i * 53) % 300);
+            DrawString(_font, new Vector2(x, y), _stream[i], HorizontalAlignment.Left, -1, 8,
+                new Color(Code.R, Code.G, Code.B, a));
+        }
+
+        // レイヤー4：漂うドット粒子（決定論ハッシュで配置。新規依存なし）。Code/Cool を混ぜる。
+        const int dots = 20;
+        float pScroll = (float)_t * 9f;
+        for (int i = 0; i < dots; i++)
+        {
+            float hx = ((i * 73 + 11) % 100) / 100f;
+            float hy = ((i * 137 + 41) % 100) / 100f;
+            float x = hx * W;
+            float y = Mathf.PosMod(hy * (BoxTopY + 60f) - pScroll, BoxTopY + 60f) - 30f;
+            if (y < 0f || y > BoxTopY) continue;
+            float twinkle = 0.6f + 0.4f * Mathf.Sin((float)_t * 1.6f + i * 1.3f);
+            float a = BgDotMax * twinkle * BgYGate(y) * BgCenterDim(x, y);
+            if (a <= 0.004f) continue;
+            bool blue = (i % 3) == 0;
+            var c = blue ? Cool : Code;
+            DrawCircle(new Vector2(x, y), (i % 2 == 0) ? 1.0f : 0.7f, new Color(c.R, c.G, c.B, a));
+        }
+    }
+
     // --- フェーズ3：話者の立ち絵を中央に表示（行ごとの表情を反映） ---
     private void DrawTalkSpeakers()
     {
@@ -253,13 +365,16 @@ public partial class Prologue : Node2D
         // 話者名（滑らかゴシック）
         DrawString(UiKit.ZenBold, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9,
             mina ? Cool : Warm);
-        // 本文（折り返し：単語境界優先で日本語の改行を自然に）
-        DrawMultilineString(UiKit.Zen, new Vector2(20, H - 30), d.Text, HorizontalAlignment.Left,
+        // 本文（タイプライターで表示済みの分だけ。折り返しは単語境界優先で自然に）
+        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
+        string body = d.Text.Substring(0, shown);
+        DrawMultilineString(UiKit.Zen, new Vector2(20, H - 30), body, HorizontalAlignment.Left,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-        // 送り三角（名前の由来の“間”の最中は出さない＝不自然な沈黙）
+        // 送り三角は「全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
+        bool revealed = _reveal >= d.Text.Length;
         bool inPause = _line == 6 && _lineT < 1.2;
-        if (((int)(_t * 2f) % 2) == 0 && !inPause)
+        if (revealed && ((int)(_t * 2f) % 2) == 0 && !inPause)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
     }

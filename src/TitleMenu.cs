@@ -112,6 +112,8 @@ public partial class TitleMenu : Node2D
                 break;
             case Item.HowToPlay:
                 // 「あそびかた」＝STAGE1にチュートリアルを重ねて強制再生（既読フラグは変えない）。
+                // DiffSelect を通らないので難易度は Easy に固定（直前の選択を引き継がせない）。
+                _game.Difficulty = GameManager.Diff.Easy;
                 _game.ForceTutorialReplay = true;
                 Go("res://Rei.tscn");
                 break;

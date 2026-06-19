@@ -193,6 +193,20 @@ public static class UiKit
         ci.DrawPolyline(ring, col, width, true);
     }
 
+    // ── 認証バッジ（X風の塗り円＋白チェック）。center は円中心、r は円半径。──
+    public static void VerifiedBadge(CanvasItem ci, Vector2 center, float r, Color col, float alpha = 1f)
+    {
+        ci.DrawCircle(center, r, col with { A = col.A * alpha });
+        // 白チェック（√型の2線）
+        float s = r * 0.62f;
+        var p0 = new Vector2(center.X - s * 0.72f, center.Y + s * 0.06f);
+        var p1 = new Vector2(center.X - s * 0.16f, center.Y + s * 0.56f);
+        var p2 = new Vector2(center.X + s * 0.78f, center.Y - s * 0.52f);
+        var w = new Color(1, 1, 1, alpha);
+        ci.DrawLine(p0, p1, w, Mathf.Max(1.2f, r * 0.28f), true);
+        ci.DrawLine(p1, p2, w, Mathf.Max(1.2f, r * 0.28f), true);
+    }
+
     // ── ハート（HP）──
     public static void Heart(CanvasItem ci, Vector2 c, float r, Color col)
     {

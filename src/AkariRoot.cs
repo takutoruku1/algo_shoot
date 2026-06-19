@@ -57,6 +57,7 @@ public partial class AkariRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Akari }); // 近景パララックス：手前の雨筋で前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Akari }); // 黒板の自責・机が天井へ・記憶
 
         Player = new Player { Name = "Player" };

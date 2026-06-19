@@ -113,6 +113,10 @@ public partial class Player : Area2D
 
     private bool _focus = false; // 低速（Shift）中か。ヒットボックス強調表示に使う。
 
+    // 「今かすった」を自機側のリングで一瞬光らせる残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
+    private float _grazeFlash = 0f;
+    private const float GrazeFlashDecay = 6f; // 約0.17秒で消える（即・短く＝テンポを殺さない）
+
     // ミナの汚染ティント（0=澄んだ光 → 1=黒く濁る）。スプライトの SelfModulate にのみ掛け、
     // 被弾点滅（Modulate のα）とは独立に作用させる。
     private float _corruption = 0f;
@@ -330,6 +334,10 @@ public partial class Player : Area2D
             }
         }
 
+        // グレイズ残光の減衰
+        if (_grazeFlash > 0f)
+            _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
+
         // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
         // 慣性つきで入力方向へ寄せる（会話中は dir=0 なので自然に直立へ戻る＝余韻）。
@@ -404,16 +412,18 @@ public partial class Player : Area2D
         }
     }
 
-    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速260。追尾数 2→3→4（誘導Lv）。
+    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速200。追尾数 2→2→3（誘導Lv）。
+    // 自動追尾が価値＝その対価としてDPSを rapid/spread 未満に抑える（弾速↓・威力×0.7の追尾税）。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
-        int shots = Mathf.Max(2, _game?.HomingShots ?? 2);
+        int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
+        int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.7f)); // 追尾税（拡散の×0.8より重い＝当て易さの対価）
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
             float ang = t * Mathf.DegToRad(40f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 260f, isEnemy: false, 3f, dmg, BulletShape.Orb, null, homing: true);
+            _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Orb, null, homing: true); // 弾速 260→200
         }
     }
 
@@ -447,6 +457,7 @@ public partial class Player : Area2D
             GetNodeOrNull<GameManager>("/root/Game")?.AddGraze();
             FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光
             Audio.Instance?.PlayGraze();
+            _grazeFlash = 1f; // 自機側のグレイズリングを一瞬光らせる（“今かすった”を強調）
         }
     }
 
@@ -610,11 +621,18 @@ public partial class Player : Area2D
             DrawLine(new Vector2(0f, -4f), new Vector2(0f, 4f), purple, 1.5f);
         }
 
-        // 当たり判定点（常に描画。被弾するのはこの点だけ＝どこで当たるか分かる目安）
-        // 低速(Shift)中はリングで明確化。
-        if (_focus)
-            DrawArc(Vector2.Zero, 5.5f, 0f, Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.85f), 1f);
-        DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで沈まない
+        // ── グレイズ境界（外側リング）＝「ぎりぎり回避＝ご褒美」になる範囲 ──
+        // 実際の判定値 GrazeRadius(11f) に必ず一致させて描く（旧 5.5f の不一致を廃止）。
+        // 控えめなシアン：被弾点(赤)と意味が一目で違う。通常時は薄く、低速(Shift)時は濃く＝精密回避を促す。
+        // “今かすった”残光(_grazeFlash)を上乗せして一瞬明るくする。
+        float grazeBaseA = _focus ? 0.55f : 0.22f;
+        float grazeA = Mathf.Min(0.95f, grazeBaseA + _grazeFlash * 0.6f);
+        float grazeW = _focus ? 1.4f : 1f;
+        DrawArc(Vector2.Zero, GrazeRadius, 0f, Mathf.Tau, 40,
+            new Color(0.45f, 0.95f, 1f, grazeA), grazeW); // シアンの細いリング＝グレイズ境界
+
+        // ── 被弾点（中心・常時・最も目立つ）＝この赤い点に当たると死ぬ ──
+        DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
         DrawCircle(Vector2.Zero, _hitR, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
     }
 }

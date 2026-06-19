@@ -17,6 +17,8 @@ public partial class Epilogue : Node2D
     private bool _lrHeld;
     private int _line;
     private double _lineT;
+    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
@@ -79,6 +81,7 @@ public partial class Epilogue : Node2D
         // 静かな主題（温かいメニューBGM）。終わりの余韻に主題が戻る。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _tears = ResourceLoader.Load<Texture2D>("res://char/mina_tears.png");
+        _game = GetNodeOrNull<GameManager>("/root/Game");
 
         void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
         I("地", "次の日、ご主人様は来ませんでした。");
@@ -118,14 +121,23 @@ public partial class Epilogue : Node2D
         }
         if (_pwRejectT > 0) _pwRejectT -= delta;
 
+        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。語り/会話の行フェーズだけ）。
+        string? curT = CurLineText();
+        if (curT != null && _reveal < curT.Length)
+            _reveal = Mathf.Min(curT.Length, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+
         switch (_phase)
         {
             case 0:
             case 1:
                 if (zEdge && _lineT >= 0.25)
                 {
-                    _lineT = 0; _line++;
-                    if (_line >= _intro.Count) { _phase = 2; _t = 0; }
+                    if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
+                    else
+                    {
+                        _lineT = 0; _reveal = 0; _line++;
+                        if (_line >= _intro.Count) { _phase = 2; _t = 0; }
+                    }
                 }
                 break;
             case 2: // PW選択
@@ -145,14 +157,18 @@ public partial class Epilogue : Node2D
                 }
                 break;
             case 3: // 解錠：4行英文を順に見せ、Zで phase4 へ
-                if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; }
+                if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; _reveal = 0; }
                 break;
             case 4: // 独白→DM→END
                 if (zEdge && _lineT >= 0.25)
                 {
-                    _lineT = 0;
-                    if (_line < _outro.Count - 1) _line++;
-                    else { _phase = 5; _t = 0; }   // ENDの先：スタッフロールへ
+                    if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
+                    else
+                    {
+                        _lineT = 0; _reveal = 0;
+                        if (_line < _outro.Count - 1) _line++;
+                        else { _phase = 5; _t = 0; }   // ENDの先：スタッフロールへ
+                    }
                 }
                 break;
             case 5: // スタッフロール → タイトルへ
@@ -202,6 +218,14 @@ public partial class Epilogue : Node2D
         if (((int)(_t * 1.5f) % 2) == 0)
             DrawString(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, 8,
                 new Color(1f, 1f, 1f, 0.5f));
+    }
+
+    // タイプライターで送る現在行のテキスト（語り phase0/1 と アウトロ phase4 のみ）。
+    private string? CurLineText()
+    {
+        if (_phase == 0 || _phase == 1) return _line < _intro.Count ? _intro[_line].Text : null;
+        if (_phase == 4) return _line < _outro.Count ? _outro[_line].Text : null;
+        return null;
     }
 
     private void DrawNarration(List<DLine> lines, int idx)
@@ -286,10 +310,14 @@ public partial class Epilogue : Node2D
         if (label != "")
             DrawString(_font, new Vector2(20, H - 44), label, HorizontalAlignment.Left, -1, 9, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        DrawMultilineString(_font, new Vector2(20, H - 30), d.Text, align,
+        // タイプライターで表示済みの分だけ描画。
+        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
+        string body = d.Text.Substring(0, shown);
+        DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
             W - 52, 11, -1, Ink,
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-        if (((int)(_t * 2f) % 2) == 0)
+        // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
+        if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
     }

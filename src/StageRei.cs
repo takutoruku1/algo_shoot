@@ -425,8 +425,9 @@ public partial class StageRei : Node
                 {
                     _tphaseStarted = true;
                     _t1Moved = false; _t1Shot = false; _t1ShotCount = 0;
-                    Hud.SetTutorialHint("移動=WASD/方向　ショット=Z");
                 }
+                // 毎フレーム張り直す（全開トーストの自動Clearで指示が消えても復帰する）。
+                Hud.SetTutorialHint("移動=WASD/方向　ショット=Z");
                 if (TutMovePressed()) _t1Moved = true;
                 // ショットは自弾の発生で計測（連射0.11s間隔。約12フレーム弾を見たら5発相当）。
                 if (CountPlayerBullets() >= 1) _t1ShotCount++;
@@ -443,8 +444,8 @@ public partial class StageRei : Node
                 {
                     _tphaseStarted = true;
                     _t2FocusHeld = 0; _t2Moved = false;
-                    Hud.SetTutorialHint("Shift=低速移動");
                 }
+                Hud.SetTutorialHint("Shift=低速移動"); // 毎フレーム張り直し（全開トースト対策）
                 bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
                 if (focus) _t2FocusHeld += delta;
                 if (focus && TutMovePressed()) _t2Moved = true;
@@ -461,9 +462,9 @@ public partial class StageRei : Node
                     _tphaseStarted = true;
                     _t3GrazeBase = GetNodeOrNull<GameManager>("/root/Game")?.GrazeCount ?? 0;
                     _t3Refill = 0;
-                    Hud.SetTutorialHint("弾にかすると やさしさ↑");
                     Tutorial_SpawnGrazeBullets();
                 }
+                Hud.SetTutorialHint("弾にかすると やさしさ↑"); // 毎フレーム張り直し（全開トースト対策）
                 // 避けられて尽きたら少しずつ補充（かすれる弾を絶やさない）。
                 _t3Refill += delta;
                 if (_t3Refill > 1.6 && CountEnemyBullets() < 3) { _t3Refill = 0; Tutorial_SpawnGrazeBullets(); }
@@ -493,8 +494,8 @@ public partial class StageRei : Node
                     _tphaseStarted = true;
                     _t4BombBase = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? 0;
                     _t4Bombed = false;
-                    Hud.SetTutorialHint("X=ボム");
                 }
+                Hud.SetTutorialHint("X=ボム"); // 毎フレーム張り直し（全開トースト対策）
                 int bombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? 0;
                 if (bombs < _t4BombBase) _t4Bombed = true; // ボム消費＝発動
                 if (_t4Bombed || _tphaseTime > 6.0)
@@ -579,6 +580,8 @@ public partial class StageRei : Node
             return false;
         }
         bool purified = (game?.PurifiedCount ?? 0) - _t5PurifyBase >= 1;
+        // 浄化前は毎フレーム指示を張り直す（全開トーストの自動Clearで消えても復帰する）。
+        if (!_t5OkStarted) Hud.SetTutorialHint("敵の周囲パネルを全破壊=浄化");
         // 浄化されるまで操作させる（FBなし＝浄化しないと進めない設計）。
         // ただし1体が画面外へ逃げて全滅すると詰むので、未浄化なら湧き直す（密度は1体に保つ）。
         if (!purified && GetTree().GetNodesInGroup("enemies").Count == 0)

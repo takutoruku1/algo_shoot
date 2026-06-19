@@ -56,6 +56,10 @@ public partial class Hud : CanvasLayer
     private double _messageTimer;
     private float _dlgRevealed;         // タイプライター表示済み文字数
     private const float CharsPerSec = 48f;
+    // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
+    private LineKind _dlgKind = LineKind.Narration;
+    private int _typePrevRevealed;      // 直前フレームの revealed 整数部（新しく出た文字を差分検出）
+    private const int TypeStride = 2;   // 何文字に1回鳴らすか（毎文字は鳴らしすぎ）
 
     // やさしさゲージ（HUD表示用）
     private double _overloadToast;
@@ -110,7 +114,19 @@ public partial class Hud : CanvasLayer
 
         // タイプライター送り
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
+        {
             _dlgRevealed = Mathf.Min(_dlgText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec));
+            // 文字が新たに出た瞬間だけ、TypeStride 文字に1回、話者の音色で送り音（Voiceバス）。
+            // ナレ（Narration）は PlayType 側で無音。即時全文表示（RevealDialogNow）は差分が一気に増えるが
+            // 「1ストライド境界を跨いだか」だけで判定するので、増分の数だけ連打しない＝大量再生を防ぐ。
+            int rev = Mathf.FloorToInt(_dlgRevealed);
+            if (rev > _typePrevRevealed)
+            {
+                if (rev < _dlgText.Length && rev / TypeStride != _typePrevRevealed / TypeStride)
+                    Audio.Instance?.PlayType(_dlgKind);
+                _typePrevRevealed = rev;
+            }
+        }
 
         if (_messageTimer > 0)
         {
@@ -195,6 +211,7 @@ public partial class Hud : CanvasLayer
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
         SetDialog(text, speaker, color, dialog, portraitToUse);
+        _dlgKind = kind; // 送り音の音色＝話者（ナレは PlayType 側で無音）
         _messageTimer = 6.0;
     }
 
@@ -202,6 +219,9 @@ public partial class Hud : CanvasLayer
     {
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
         _dlgIsDialog = dialog; _dlgRevealed = 0;
+        // 新しい行＝送り音の差分検出をリセット。話者は既定で無音（ナレ）。
+        // LineKind を取る ShowDialog だけが直後に _dlgKind を上書きする。
+        _typePrevRevealed = 0; _dlgKind = LineKind.Narration;
         _dlgPortrait = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
     }
 

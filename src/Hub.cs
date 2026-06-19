@@ -26,12 +26,18 @@ public partial class Hub : Node2D
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _dived;
     private double _t, _cardsEnteredT;
+    private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
+    private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
+
+    // デバッグ限定プレビュー：--hub-preview <all|final|lock> で表示状態だけ上書き（本番セーブ非汚染）。
+    private string? _previewState;
 
     private enum Mode { Cards, Dialogue }
     private Mode _mode = Mode.Cards;
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
+    private double _dlgReveal;     // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private string? _dlgReplyId;
     private bool _pendingBurn;
 
@@ -55,12 +61,17 @@ public partial class Hub : Node2D
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
+        var args = OS.GetCmdlineUserArgs();
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--demo" || args[i] == "--qa") _autoplay = true;
+            if (args[i] == "--hub-preview" && i + 1 < args.Length) _previewState = args[i + 1];
+        }
 
         BuildEntries();
+        ApplyPreview();
         LoadFaces();
-        _sel = DefaultSelection();
+        if (_previewState == null) _sel = DefaultSelection();
 
         string? cleared = _game?.JustClearedStageId;
         if (cleared != null)
@@ -76,6 +87,9 @@ public partial class Hub : Node2D
             }
             if (lines.Length > 0) StartDialogue(lines, null);
         }
+
+        // [一時/デバッグ] スクショ検証：--hub-preview dlg でクリア後会話を強制再生。
+        if (_previewState == "dlg") StartDialogue(ReturnDialog("rei"), null);
     }
 
     private void BuildEntries()
@@ -111,6 +125,47 @@ public partial class Hub : Node2D
         _entries = list.ToArray();
     }
 
+    // デバッグ限定：表示状態だけを上書き（GameManager のセーブは一切触らない）。
+    //   all   = 全ステージ解放＆クリア済（FINAL も表示）
+    //   final = ストーリー全クリア直後（カードは CLEAR、FINAL を強調）
+    //   lock  = 1枚目のみ NEW・以降 LOCKED（初回起動の見え方）
+    private void ApplyPreview()
+    {
+        if (_previewState == null) return;
+        var list = new System.Collections.Generic.List<Entry>(_entries);
+        // 既存の final カードを一旦除外（再構成のため）
+        list.RemoveAll(e => e.IsFinal);
+
+        switch (_previewState)
+        {
+            case "all":
+            case "final":
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var e = list[i]; e.Unlocked = true; e.Cleared = true; list[i] = e;
+                }
+                list.Add(new Entry
+                {
+                    IsFinal = true, Id = "final", Scene = "res://MinaBattle.tscn",
+                    Name = "ミナ", Handle = "@mina_ai_",
+                    Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
+                    Unlocked = true, Cleared = false,
+                });
+                break;
+            case "lock":
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var e = list[i];
+                    e.Cleared = false;
+                    e.Unlocked = (i == 0); // 1枚目だけ NEW
+                    list[i] = e;
+                }
+                break;
+        }
+        _entries = list.ToArray();
+        _sel = _previewState == "final" ? _entries.Length - 1 : 0; // final は FINAL カードを選択表示
+    }
+
     // 各Entryの顔テクスチャを一度だけロードしてキャッシュ。final はミナ本体なので mina_face。
     private void LoadFaces()
     {
@@ -127,6 +182,18 @@ public partial class Hub : Node2D
 
     private Texture2D? FaceFor(string id) => _faces.TryGetValue(id, out var t) ? t : null;
 
+    // 立ち絵ごとに頭部の高さが違うため、円窓の上端 UV を顔に合わせて個別調整（(C) topCrop キャラ別）。
+    //   値が小さいほど画像上部（=頭頂寄り）をサンプル。各立ち絵を実測して顔が円中心に来る値。
+    private static float TopCropFor(string id) => id switch
+    {
+        "rei" => 0.045f,
+        "akari" => 0.05f,
+        "koharu" => 0.04f,
+        "mina" => 0.05f,
+        "final" => 0.05f,
+        _ => 0.06f,
+    };
+
     private int DefaultSelection()
     {
         string? next = _game?.NextUnclearedStageId();
@@ -140,6 +207,9 @@ public partial class Hub : Node2D
     {
         _t += delta;
         if (_toastT > 0) _toastT -= delta;
+        // 選択の寄り（0.12s で 0→1 に近づける lerp。選択が変わったら 0 へリセット）
+        if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
+        _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
         if (_dived) { QueueRedraw(); return; }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         ProcessCards();
@@ -150,25 +220,35 @@ public partial class Hub : Node2D
     private void StartDialogue((string, string)[] lines, string? replyId)
     {
         _mode = Mode.Dialogue;
-        _dlg = lines; _dlgIdx = 0; _dlgLineT = 0; _dlgReplyId = replyId;
+        _dlg = lines; _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
     }
 
     private void ProcessDialogue(double delta)
     {
+        int len = _dlg.Length > 0 ? _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)].tx.Length : 0;
         if (_autoplay)
         {
+            _dlgReveal = len; // デモ/オートは即時全文（送りペースを変えない）
             _dlgLineT += delta;
             if (_dlgLineT >= AutoAdvance) { _dlgLineT = 0; AdvanceDialogue(); }
             return;
         }
+        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。
+        if (_dlgReveal < len)
+            _dlgReveal = Mathf.Min(len, (float)(_dlgReveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.15) AdvanceDialogue();
+        if (zEdge && _t > 0.15)
+        {
+            if (_dlgReveal < len) _dlgReveal = len; // 1回目で全文（早送り）
+            else AdvanceDialogue();
+        }
     }
 
     private void AdvanceDialogue()
     {
         _dlgIdx++;
+        _dlgReveal = 0;
         if (_dlgIdx >= _dlg.Length) EndDialogue();
     }
 
@@ -285,9 +365,15 @@ public partial class Hub : Node2D
     private void DrawHeader()
     {
         float padX = 40f, hy = 24f;
-        UiKit.FaceAvatar(this, new Vector2(padX + 28, hy + 28), 28f, _minaFace, UiKit.Mina, false, 0.06f, 1f, _t);
+        UiKit.FaceAvatar(this, new Vector2(padX + 28, hy + 28), 28f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), 1f, _t);
+        // 名前＋認証バッジ
         UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", 22, UiKit.White);
+        float nameW = UiKit.TextW(UiKit.ZenBold, "ミナ", 22);
+        UiKit.VerifiedBadge(this, new Vector2(padX + 70 + nameW + 13, hy + 18), 8f, UiKit.Purify);
+        // ハンドル · 時刻（X風メタ行）
         UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", 14, UiKit.Text3);
+        float hW = UiKit.TextW(UiKit.Mono, "@mina_ai_", 14);
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70 + hW + 8, hy + 36), "· now", 14, UiKit.Text4);
 
         long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
         string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
@@ -323,25 +409,64 @@ public partial class Hub : Node2D
     {
         var (top, h, gap) = CardMetrics();
         for (int i = 0; i < _entries.Length; i++)
-            DrawCard(_entries[i], top + i * (h + gap), h, _mode == Mode.Cards && i == _sel, alpha);
+        {
+            bool sel = _mode == Mode.Cards && i == _sel;
+            float st = sel ? _selT : 0f; // 寄りの進捗（0→1）
+            DrawCard(_entries[i], top + i * (h + gap), h, sel, st, alpha);
+        }
     }
 
-    private void DrawCard(Entry e, float cy, float h, bool sel, float alpha)
+    private void DrawCard(Entry e, float cy, float h, bool sel, float st, float alpha)
     {
         float x = 40f, w = W - 80f;
-        Color bg = e.Unlocked ? new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f * alpha) : new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.45f * alpha);
-        Color border = sel ? new Color(UiKit.Purify, 0.85f * alpha) : new Color(1, 1, 1, 0.09f * alpha);
+        // (B) 選択時の寄り：右へ +6・上へ -3（0.12s lerp の st で補間）。隣カードと干渉しない控えめ量。
+        float dx = sel ? 6f * st : 0f;
+        float dy = sel ? -3f * st : 0f;
+        x += dx; cy += dy;
+
+        // (B) 背面グロウ（0.06→0.09 を呼吸で行き来。選択カードの後ろにアカウント色を淡く敷く）
+        if (sel)
+        {
+            Color acc0 = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
+            float glow = (0.06f + 0.03f * (0.5f + 0.5f * Mathf.Sin((float)_t * 2.2f))) * st * alpha;
+            UiKit.RadialGlow(this, new Vector2(x + w * 0.5f, cy + h * 0.5f), w * 0.55f, acc0, glow);
+        }
+
+        Color bg = e.Unlocked
+            ? new Color(22 / 255f, 18 / 255f, 34 / 255f, (0.55f + 0.12f * st) * alpha)
+            : new Color(13 / 255f, 11 / 255f, 19 / 255f, 0.42f * alpha); // (A) ロックはさらに沈める
+        Color border = sel
+            ? new Color(UiKit.Purify, (0.55f + 0.30f * st) * alpha)
+            : new Color(1, 1, 1, (e.Unlocked ? 0.09f : 0.05f) * alpha);
         UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
+
+        // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く
+        Color barCol = sel ? new Color(UiKit.Purify, (0.5f + 0.5f * st) * alpha)
+                           : new Color((e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)), (e.Unlocked ? 0.35f : 0.18f) * alpha);
+        DrawRect(new Rect2(x + 4, cy + 10, 3, h - 20), barCol);
 
         Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id));
         float ax = x + 36, ay = cy + 36;
-        UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel, 0.06f, alpha, _t);
+        UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel,
+            TopCropFor(e.IsFinal ? "final" : e.Id), alpha, _t);
 
         float tx = x + 74, w2 = w - 110;
-        Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.5f);
+        Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.45f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 16), e.Name, 19, main);
         float nameW = UiKit.TextW(UiKit.ZenBold, e.Name, 19);
-        UiKit.Text(this, UiKit.Mono, new Vector2(tx + nameW + 12, cy + 22), e.Handle, 13, new Color(UiKit.Text3, alpha));
+        // (C) 認証バッジ（解放済のみ）→ ハンドル · 時刻
+        float metaX = tx + nameW + 12;
+        if (e.Unlocked)
+        {
+            UiKit.VerifiedBadge(this, new Vector2(metaX + 7, cy + 26), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
+            metaX += 22;
+        }
+        UiKit.Text(this, UiKit.Mono, new Vector2(metaX, cy + 22), e.Handle, 13, new Color(UiKit.Text3, e.Unlocked ? alpha : alpha * 0.5f));
+        if (e.Unlocked && !e.IsFinal)
+        {
+            float hW = UiKit.TextW(UiKit.Mono, e.Handle, 13);
+            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), 13, new Color(UiKit.Text4, alpha));
+        }
 
         // バッジ（右上）
         string badge = e.IsFinal ? "FINAL" : e.Cleared ? "✓ CLEAR" : e.Unlocked ? "NEW" : "LOCKED";
@@ -349,19 +474,46 @@ public partial class Hub : Node2D
         float bw = UiKit.TextW(UiKit.Mono, badge, 12);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - bw - 24, cy + 18), badge, 12, new Color(bcol, alpha));
 
-        // 本文
-        string body = e.Unlocked ? e.Tweet : "ロック中 — まだダイブできません";
-        UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), body, 16, new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? alpha : alpha * 0.6f), w2, 2);
+        // 本文（(A) ロックは伏字バーで内容を隠す）
+        if (e.Unlocked)
+        {
+            UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, 16,
+                new Color(232 / 255f, 224 / 255f, 240 / 255f, alpha), w2, 2);
+        }
+        else
+        {
+            RedactedBars(tx, cy + 50, w2, alpha);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, cy + 44 + (h > 110f ? 34f : 18f)),
+                "ロック中 — まだダイブできません", 13, new Color(UiKit.Text4, alpha * 0.85f));
+        }
 
-        // エンゲージメント（ロック/最終以外）
+        // エンゲージメント（ロック/最終以外）。(C) ビュー指標を末尾に追加。
         if (e.Unlocked && !e.IsFinal && h > 110f)
         {
             float ey = cy + h - 26f, ex = tx;
             ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
             ex = Metric(ex, ey, 1, e.Reposts, new Color(0f, 0.73f, 0.49f, alpha));
-            Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
+            ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
+            Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
         }
     }
+
+    // ロックカードの伏字バー（X の非表示投稿風。寸法は控えめに2本）
+    private void RedactedBars(float x, float y, float w, float alpha)
+    {
+        var c = new Color(1, 1, 1, 0.06f * alpha);
+        DrawRect(new Rect2(x, y, w * 0.82f, 9f), c);
+        DrawRect(new Rect2(x, y + 16f, w * 0.54f, 9f), c);
+    }
+
+    // クリア順に基づくゆるい相対時刻（X風メタ表示・実害なし）。
+    private static string RelTime(string id) => id switch
+    {
+        "rei" => "3h", "akari" => "5h", "koharu" => "1d", _ => "now",
+    };
+
+    // ビュー（表示回数）= だいたい likes×8 の概算。
+    private static long ViewsFor(Entry e) => e.Likes > 0 ? e.Likes * 8 + e.Reposts * 30 : 0;
 
     // 小さなエンゲージメント指標（0=返信 1=リポスト 2=いいね）。次の x を返す。
     private float Metric(float x, float y, int kind, long count, Color col)
@@ -373,6 +525,11 @@ public partial class Hub : Node2D
             case 1:
                 DrawLine(new Vector2(c.X - 6, c.Y - 3), new Vector2(c.X + 5, c.Y - 3), col, 1.4f);
                 DrawLine(new Vector2(c.X + 6, c.Y + 3), new Vector2(c.X - 5, c.Y + 3), col, 1.4f);
+                break;
+            case 3: // ビュー指標（小さな棒グラフ）
+                DrawRect(new Rect2(c.X - 6, c.Y + 1, 2.4f, 4f), col);
+                DrawRect(new Rect2(c.X - 2, c.Y - 2, 2.4f, 7f), col);
+                DrawRect(new Rect2(c.X + 2, c.Y - 5, 2.4f, 10f), col);
                 break;
             default: DrawHeart(c, 6f, col); break;
         }
@@ -424,8 +581,12 @@ public partial class Hub : Node2D
         UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
         UiKit.Avatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spc, sp.Length > 0 ? sp.Substring(0, 1) : "?");
         UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, 18, spc);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), tx, 21, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
-        if (!_autoplay)
+        // タイプライターで表示済みの分だけ描画。
+        int shown = Mathf.Clamp((int)_dlgReveal, 0, tx.Length);
+        string body = tx.Substring(0, shown);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), body, 21, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
+        // 送り表示は全文表示後だけ点滅（本編と同じ作法）。
+        if (!_autoplay && _dlgReveal >= tx.Length)
         {
             float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
             UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),

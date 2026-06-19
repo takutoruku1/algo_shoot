@@ -17,13 +17,29 @@ public partial class Audio : Node
 
     private const int SePoolSize = 12;     // 同時発音（弾幕で飽和しても破綻しない）
     private const int AlertPoolSize = 3;   // 被弾など最優先音
+    private const int VoicePoolSize = 3;   // テキスト送り音（重ならない＝2〜3で十分）
     private const float SilentDb = -60f;   // フェード時の実質無音
 
     private readonly List<AudioStreamPlayer> _sePool = new();
     private readonly List<AudioStreamPlayer> _alertPool = new();
+    private readonly List<AudioStreamPlayer> _voicePool = new();
     private AudioStreamPlayer _musicA = null!, _musicB = null!;
     private bool _useA = true;
     private readonly RandomNumberGenerator _rng = new();
+
+    // ───────── アダプティブ（汚染ゲージ連動。設計 §3-3 / 1-5「連続=フィルタ」）─────────
+    //   ステージ中だけ、汚染が進むほど BGM の高域を削り（こもらせ）、心象の「濁りパッド」を増す。
+    //   浄化(Warmth)が進むと晴れる方向へ戻す。すべて毎フレーム指数補間＝ジッパーノイズ回避。
+    //   メニュー等ステージ外では cutoff 開放（透過）・パッド無音へ戻す（こもったまま残さない）。
+    private AudioStreamPlayer _ambPad = null!;          // Amb バスに常駐する濁りパッド
+    public AudioStreamWav MurkPad = null!;              // その音源（シームレスループ）
+    private AudioStream? _currentMusic;                 // 今鳴っている BGM（ステージ判定に使う）
+    private float _murkCutoff = MurkCutoffOpen;         // 現在の LowPass カットオフ（平滑後）
+    private float _ambDb = SilentDb;                    // 現在の Amb 音量dB（平滑後）
+    private const float MurkCutoffOpen = 16000f;        // 汚染0＝ほぼ透過（高域を通す）
+    private const float MurkCutoffMurk = 800f;          // 汚染1＝こもる（設計 §3-3 の下限）
+    private const float AmbDbMax = -12f;                // 汚染1で聞こえる程度（控えめ上限）
+    private const float MurkSmooth = 4.0f;              // 平滑の速さ（1/秒。大きいほど速く追従）
 
     // コアSE（コードで合成したプレースホルダ。実音源が来たら差し替える）。
     public AudioStreamWav SfxShot = null!, SfxGraze = null!, SfxHit = null!, SfxPurify = null!;
@@ -34,6 +50,11 @@ public partial class Audio : Node
     // UI操作音（カーソル/決定/キャンセル/購入成功/失敗）。全画面で共通＝一貫性。
     public AudioStreamWav SfxUiMove = null!, SfxUiConfirm = null!, SfxUiCancel = null!,
                           SfxUiBuy = null!, SfxUiDeny = null!;
+
+    // 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色を変える」）。
+    //   少年=温かい木質 / ミナ=澄んだガラス / ボス（穢れ）=低くくぐもり。ナレ=無音。
+    //   ごく短い（10〜25ms）ブリップ。1〜2文字に1回だけ・ピッチ微ゆらぎで機械反復を避ける。
+    public AudioStreamWav TypBoy = null!, TypMina = null!, TypBoss = null!;
 
     // BGM（コード合成のループ。実音源が来たら差し替える）。
     //   全曲で M.I.N.A. モチーフ（ド ミ レ ソ＝523/659/587/784Hz）を共有し「一つの主題の変奏」に。
@@ -52,8 +73,12 @@ public partial class Audio : Node
 
         for (int i = 0; i < SePoolSize; i++) _sePool.Add(MakePlayer("SE"));
         for (int i = 0; i < AlertPoolSize; i++) _alertPool.Add(MakePlayer("Alert"));
+        for (int i = 0; i < VoicePoolSize; i++) _voicePool.Add(MakePlayer("Voice"));
         _musicA = MakePlayer("Music");
         _musicB = MakePlayer("Music");
+        // 濁りパッドは Amb バスでステージ中ずっとループ。初期は実質無音から立ち上げる。
+        _ambPad = MakePlayer("Amb");
+        _ambPad.VolumeDb = SilentDb;
 
         SfxShot   = SynthShot();
         SfxGraze  = SynthGraze();
@@ -69,9 +94,21 @@ public partial class Audio : Node
         SfxUiCancel  = SynthUiCancel();
         SfxUiBuy     = SynthUiBuy();
         SfxUiDeny    = SynthUiDeny();
+        TypBoy  = SynthTypeBoy();
+        TypMina = SynthTypeMina();
+        TypBoss = SynthTypeBoss();
         BgmMenu   = BuildBgmMenu();
         BgmStage  = BuildBgm();
         BgmBoss   = BuildBgmBoss();
+        MurkPad   = BuildMurkPad();
+
+        // 濁りパッドはステージ判定で音量を抜き差しするだけ＝常時ループ再生で位相を保つ。
+        // --qa（Muted）では負荷/無音前提を壊さないよう再生しない。
+        if (!Muted)
+        {
+            _ambPad.Stream = MurkPad;
+            _ambPad.Play();
+        }
 
         // 保存済みの音量設定をバスへ適用（設定画面を開かなくても効く／再起動でも保たれる）。
         AudioConfig.ApplySaved();
@@ -86,6 +123,46 @@ public partial class Audio : Node
         return p;
     }
 
+    // ───────── アダプティブ更新（汚染→こもり＋濁りパッド。設計 §3-3 / 1-5）─────────
+    //   毎フレーム、目標値（汚染/Warmth から算出）へ指数補間で滑らかに寄せる＝ジッパー回避。
+    //   ステージ外（メニュー/カットシーン）では cutoff 開放・パッド無音へ戻す。
+    public override void _Process(double delta)
+    {
+        float dt = (float)delta;
+        // 補間係数：1 - e^(-k·dt)。フレームレートに依らず一定の追従感。
+        float a = 1f - Mathf.Exp(-MurkSmooth * dt);
+
+        // ステージ中だけ濁す。それ以外（メニュー等）は開放・無音を目標にする。
+        bool inStage = !Muted && (_currentMusic == BgmStage || _currentMusic == BgmBoss);
+
+        float targetCutoff = MurkCutoffOpen;
+        float targetAmbDb  = SilentDb;
+
+        if (inStage)
+        {
+            var gm = GetNodeOrNull<GameManager>("/root/Game");
+            if (gm != null)
+            {
+                // 実効汚染：浄化(Warmth)が進むほど晴らす方向へ割り引く（設計の「晴れる」）。
+                float murk = Mathf.Clamp(gm.Contamination - 0.3f * gm.Warmth, 0f, 1f);
+                // 汚染0で透過(高め)／汚染1でこもる(800Hz)。聴感に合わせ指数寄りで下げる。
+                targetCutoff = Mathf.Lerp(MurkCutoffOpen, MurkCutoffMurk, murk * murk * 0.5f + murk * 0.5f);
+                // 濁りパッド：汚染0かつ晴れていればほぼ無音、汚染1で控えめに聞こえる。
+                targetAmbDb  = murk <= 0.001f ? SilentDb : Mathf.Lerp(SilentDb, AmbDbMax, murk);
+            }
+        }
+
+        _murkCutoff = Mathf.Lerp(_murkCutoff, targetCutoff, a);
+        _ambDb      = Mathf.Lerp(_ambDb, targetAmbDb, a);
+
+        // Music バスの LowPass（effect slot 0）を駆動。null/型不一致は安全に握りつぶす。
+        int mb = AudioServer.GetBusIndex("Music");
+        if (mb >= 0 && AudioServer.GetBusEffect(mb, 0) is AudioEffectLowPassFilter lp)
+            lp.CutoffHz = _murkCutoff;
+
+        if (_ambPad != null) _ambPad.VolumeDb = _ambDb;
+    }
+
     // ───────── SE（効果音）─────────
     // FxLayer の視覚フックと同フレームで鳴らす。プール枯渇時は最古を奪う。
     public void Se(AudioStream stream, float volDb = 0f, float pitch = 1f)
@@ -94,6 +171,11 @@ public partial class Audio : Node
     // ───────── Alert（被弾・残機・段階移行など最優先音）─────────
     public void AlertSe(AudioStream stream, float volDb = 0f, float pitch = 1f)
         => Play(_alertPool, stream, volDb, pitch);
+
+    // ───────── Voice（テキスト送り音・ボイス）─────────
+    // 「ボイス」スライダー（Settings key="voice"）が効く専用バスで鳴らす。
+    public void VoiceSe(AudioStream stream, float volDb = 0f, float pitch = 1f)
+        => Play(_voicePool, stream, volDb, pitch);
 
     private void Play(List<AudioStreamPlayer> pool, AudioStream stream, float volDb, float pitch)
     {
@@ -116,6 +198,8 @@ public partial class Audio : Node
         var cur = _useA ? _musicA : _musicB;
         var nxt = _useA ? _musicB : _musicA;
         if (cur.Stream == stream && cur.Playing) return;
+
+        _currentMusic = stream; // ステージ判定（BgmStage/BgmBoss なら濁し有効）に使う
 
         if (stream != null)
         {
@@ -165,6 +249,25 @@ public partial class Audio : Node
     // ④パネル剥がし：軽い「コツッ」。浄化成立（PlayPurify）より一段軽い剥離音。
     public void PlayStrip()
         => Se(SfxStrip, volDb: -22f, pitch: _rng.RandfRange(0.97f, 1.04f));
+
+    // ───────── 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色」）─────────
+    //   少年=温かい木 / ミナ=澄んだガラス / ボス=くぐもり / ナレ=無音。
+    //   Relay（少年＝ミナの声）は少年寄り、Post（X投稿）はごく控えめ。
+    //   Hud のタイプライターから 1〜2文字に1回だけ呼ぶ（毎文字は鳴らしすぎ／Hud側で間引く）。
+    //   ピッチを毎回 ±数% 微ゆらぎさせ、機械的な反復を避ける。
+    public void PlayType(Hud.LineKind kind)
+    {
+        float p = _rng.RandfRange(0.97f, 1.03f);
+        switch (kind)
+        {
+            case Hud.LineKind.Boy:   VoiceSe(TypBoy,  volDb: -18f, pitch: p); break;
+            case Hud.LineKind.Mina:  VoiceSe(TypMina, volDb: -19f, pitch: p); break;
+            case Hud.LineKind.Other: VoiceSe(TypBoss, volDb: -18f, pitch: p); break;
+            case Hud.LineKind.Relay: VoiceSe(TypBoy,  volDb: -19f, pitch: p * 1.04f); break; // 少年寄り・やや高く
+            case Hud.LineKind.Post:  VoiceSe(TypMina, volDb: -28f, pitch: p * 1.08f); break; // ごく控えめ・素っ気ない
+            default: return; // Narration＝無音（語りとセリフを耳で区別）
+        }
+    }
 
     // ───────── UI操作音（⑧。全画面共通＝一貫性）─────────
     public void PlayUiMove()    => Se(SfxUiMove,    volDb: -20f, pitch: _rng.RandfRange(0.99f, 1.02f));
@@ -457,6 +560,66 @@ public partial class Audio : Node
         return MakeWav(s);
     }
 
+    // ───────── 会話タイプライター送り音（話者で音色を変える。設計 1-4）─────────
+    // 少年：中域の柔らかい正弦（木質＝倍音少なめ・角を丸く）。~16ms。
+    private AudioStreamWav SynthTypeBoy()
+    {
+        float dur = 0.016f; int n = (int)(Rate * dur);
+        var s = new float[n];
+        const float f0 = 320f; // 中域・温かい
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            // 立ち上がりをわずかに鈍らせ「角を丸く」。短い指数減衰。
+            float atk = t < 0.0018f ? t / 0.0018f : 1f;
+            float env = atk * Mathf.Exp(-t / 0.006f);
+            float v = Mathf.Sin(Mathf.Tau * f0 * t)
+                    + 0.10f * Mathf.Sin(Mathf.Tau * f0 * 2f * t); // 倍音はごく薄く＝木質
+            s[i] = v * env * 0.5f;
+        }
+        FadeEnds(s, (int)(0.0008f * Rate));
+        return MakeWav(s);
+    }
+
+    // ミナ：高域の澄んだガラス質（基音高め＋わずかな上倍音、速くクリアに減衰）。~14ms。
+    private AudioStreamWav SynthTypeMina()
+    {
+        float dur = 0.014f; int n = (int)(Rate * dur);
+        var s = new float[n];
+        const float f0 = 920f; // 高め・澄んだ
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            float atk = t < 0.0006f ? t / 0.0006f : 1f; // 鋭く澄んだ立ち上がり
+            float env = atk * Mathf.Exp(-t / 0.0045f);
+            float v = Mathf.Sin(Mathf.Tau * f0 * t)
+                    + 0.22f * Mathf.Sin(Mathf.Tau * f0 * 2.76f * t); // 非整数の上倍音＝ガラスのきらめき
+            s[i] = v * env * 0.42f;
+        }
+        FadeEnds(s, (int)(0.0008f * Rate));
+        return MakeWav(s);
+    }
+
+    // ボス（穢れ）：低めでくぐもった音（ローパスで倍音を削る）。~22ms。
+    private AudioStreamWav SynthTypeBoss()
+    {
+        float dur = 0.022f; int n = (int)(Rate * dur);
+        var s = new float[n]; float lp = 0f;
+        const float f0 = 165f; // 低め
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            float atk = t < 0.0025f ? t / 0.0025f : 1f;
+            float env = atk * Mathf.Exp(-t / 0.008f);
+            float raw = Mathf.Sin(Mathf.Tau * f0 * t)
+                      + 0.18f * Mathf.Sin(Mathf.Tau * f0 * 2f * t);
+            lp += (raw - lp) * 0.10f; // 一極ローパス＝高域を削り「くぐもり」
+            s[i] = lp * env * 0.55f;
+        }
+        FadeEnds(s, (int)(0.0008f * Rate));
+        return MakeWav(s);
+    }
+
     // ───────── BGM 合成（M.I.N.A. モチーフを核にした 8 秒シームレスループ）─────────
     // 進行 Am - F - C - G（vi-IV-I-V＝“泣ける”カノン系）。各小節2秒。
     // パッド/ベース/メロディは小節端で振幅0へ戻すので、ループ継ぎ目でクリックしない。
@@ -599,6 +762,54 @@ public partial class Audio : Node
             }
         }
         FadeEnds(s, (int)(0.006f * Rate));
+
+        var w = MakeWav(s);
+        w.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        w.LoopBegin = 0;
+        w.LoopEnd = n;
+        return w;
+    }
+
+    // ───────── 濁りパッド（Amb バス常駐。設計 1-5「濁り＝想いの重さ」）─────────
+    //   低いドローン（根音＋わずかに濁すテンション）＋ごく薄いローパスノイズ。不穏だが小音量。
+    //   音量で抜き差しするので素材自体は常に同レベル。汚染ゲージが大きさ＝存在感を決める。
+    //   シームレスループ：ループ長(8s)で各正弦が整数周期になる周波数を選び、端を FadeEnds。
+    private AudioStreamWav BuildMurkPad()
+    {
+        const float loop = 8.0f;            // ループ長（s）
+        int n = (int)(Rate * loop);
+        var s = new float[n];
+        float baseHz = 1f / loop;           // この整数倍なら loop 端で位相が0に戻る＝継ぎ目なし
+
+        // ドローン構成音（Aを基調にした低く重い和声）。loop で整数周期になるよう量子化。
+        // 65.41=C2 / 98.0=G2 / 110.0=A2、それに半音弱ずらした濁し成分を薄く重ねる。
+        float f1 = Mathf.Round(55.00f / baseHz) * baseHz;   // A1（地盤）
+        float f2 = Mathf.Round(82.41f / baseHz) * baseHz;   // E2（5度＝安定の芯）
+        float f3 = Mathf.Round(110.00f / baseHz) * baseHz;  // A2
+        float murk = Mathf.Round(116.54f / baseHz) * baseHz; // 半音上(B♭2弱)＝うなり/不協和の濁り
+        // ごく緩い LFO（呼吸のような揺らぎ）も loop で整数周期に。
+        float lfo = Mathf.Round(0.5f / baseHz) * baseHz;
+
+        float lp = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            float breathe = 0.75f + 0.25f * Mathf.Sin(Mathf.Tau * lfo * t); // 0.5..1.0 の緩い脈
+
+            float drone = (Mathf.Sin(Mathf.Tau * f1 * t)
+                         + 0.7f * Mathf.Sin(Mathf.Tau * f2 * t)
+                         + 0.6f * Mathf.Sin(Mathf.Tau * f3 * t)
+                         + 0.25f * Mathf.Sin(Mathf.Tau * murk * t)) // 薄い濁し（うなり）
+                        * breathe * 0.16f;
+
+            // ごく薄いローパスノイズ（ざらつき＝不穏。高域は削って刺さらせない）。
+            float white = _rng.Randf() * 2f - 1f;
+            lp += (white - lp) * 0.012f; // 一極ローパス＝重い低域ノイズ
+            float hiss = lp * 0.10f;
+
+            s[i] = drone + hiss;
+        }
+        FadeEnds(s, (int)(0.02f * Rate)); // 端を20msフェード＝継ぎ目を完全に無音化
 
         var w = MakeWav(s);
         w.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
