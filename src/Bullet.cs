@@ -293,7 +293,7 @@ public partial class Bullet : Area2D
         float s = r * 1.15f;
         var pts = new[] { new Vector2(0, -s), new Vector2(s, 0), new Vector2(0, s), new Vector2(-s, 0) };
         DrawColoredPolygon(pts, c);
-        DrawColoredPolygon(Scale(pts, 0.5f), new Color(1f, 1f, 1f, 0.85f)); // 芯の光
+        DrawColoredPolygon(ScalePts(pts, 0.5f), new Color(1f, 1f, 1f, 0.85f)); // 芯の光
     }
 
     // 星：5芒星（shapeInner star の clip-path 相当）。
@@ -343,7 +343,7 @@ public partial class Bullet : Area2D
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 
-    private static Vector2[] Scale(Vector2[] pts, float s)
+    private static Vector2[] ScalePts(Vector2[] pts, float s)
     {
         var o = new Vector2[pts.Length];
         for (int i = 0; i < pts.Length; i++) o[i] = pts[i] * s;

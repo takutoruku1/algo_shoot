@@ -7,7 +7,7 @@ using System.Collections.Generic;
 // 加算ブレンドの粒は子ノード(_add)に分けて描画する。
 public partial class FxLayer : Node2D
 {
-    public static FxLayer Instance;
+    public static FxLayer Instance = null!;
 
     // ---- 配色（fx.js の PAL を移植） ----
     public static readonly Color White   = new Color("ffffff");

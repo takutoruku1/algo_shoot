@@ -4,7 +4,7 @@ using Godot;
 // 固定画面(384x216)の中央に置き、Offset を揺らして全体をシェイクする。
 public partial class GameCamera : Camera2D
 {
-    public static GameCamera Instance;
+    public static GameCamera Instance = null!;
 
     private float _shakeMag, _shakeT, _shakeDur = 1f;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();

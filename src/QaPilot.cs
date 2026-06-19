@@ -261,7 +261,7 @@ public partial class QaPilot : Node
         if (_aimT < AimInterval) return;
         _aimT = 0;
 
-        Node2D target = null;
+        Node2D? target = null;
         float best = float.MaxValue;
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
         {
