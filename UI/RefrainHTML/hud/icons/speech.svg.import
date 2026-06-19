@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dsq7ocee4mf4a"
-path="res://.godot/imported/star.svg-790f3a1e127063e7959d3310c046faad.ctex"
+uid="uid://3p6pmdt71f0"
+path="res://.godot/imported/speech.svg-85c49878a9e350596cf094848f8c4681.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://UI/RefrainScripts_tama/RefrainHTML/hud/icons/star.svg"
-dest_files=["res://.godot/imported/star.svg-790f3a1e127063e7959d3310c046faad.ctex"]
+source_file="res://UI/RefrainHTML/hud/icons/speech.svg"
+dest_files=["res://.godot/imported/speech.svg-85c49878a9e350596cf094848f8c4681.ctex"]
 
 [params]
 

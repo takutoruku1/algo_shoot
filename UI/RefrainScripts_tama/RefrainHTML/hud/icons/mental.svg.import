@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cqr3mxwxit6pp"
-path="res://.godot/imported/mental.svg-9952972505ef2ddc1c29e8a6d66eb5b2.ctex"
+path="res://.godot/imported/mental.svg-47ad33326b89b067c96c992d43c2bcbb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://UI/RefrainScripts/RefrainHTML/hud/icons/mental.svg"
-dest_files=["res://.godot/imported/mental.svg-9952972505ef2ddc1c29e8a6d66eb5b2.ctex"]
+source_file="res://UI/RefrainScripts_tama/RefrainHTML/hud/icons/mental.svg"
+dest_files=["res://.godot/imported/mental.svg-47ad33326b89b067c96c992d43c2bcbb.ctex"]
 
 [params]
 

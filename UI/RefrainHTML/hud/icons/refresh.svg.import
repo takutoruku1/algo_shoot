@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dsq7ocee4mf4a"
-path="res://.godot/imported/star.svg-790f3a1e127063e7959d3310c046faad.ctex"
+uid="uid://cy8t7e6fqomhp"
+path="res://.godot/imported/refresh.svg-7922ec760f8eb6baa3dd62f2dbf70fd7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://UI/RefrainScripts_tama/RefrainHTML/hud/icons/star.svg"
-dest_files=["res://.godot/imported/star.svg-790f3a1e127063e7959d3310c046faad.ctex"]
+source_file="res://UI/RefrainHTML/hud/icons/refresh.svg"
+dest_files=["res://.godot/imported/refresh.svg-7922ec760f8eb6baa3dd62f2dbf70fd7.ctex"]
 
 [params]
 

@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://jneejrxawjyv"
-path="res://.godot/imported/repost.svg-730aacd87f886a81656dc8f992a13cbb.ctex"
+path="res://.godot/imported/repost.svg-b712b98b26ef9f1bc445d1b8f8a0fd54.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://UI/RefrainScripts/RefrainHTML/hud/icons/repost.svg"
-dest_files=["res://.godot/imported/repost.svg-730aacd87f886a81656dc8f992a13cbb.ctex"]
+source_file="res://UI/RefrainScripts_tama/RefrainHTML/hud/icons/repost.svg"
+dest_files=["res://.godot/imported/repost.svg-b712b98b26ef9f1bc445d1b8f8a0fd54.ctex"]
 
 [params]
 
