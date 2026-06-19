@@ -62,6 +62,29 @@ public partial class Hud : CanvasLayer
     private float _kindPulse;
     private float _prevKind;
 
+    // 操作ガイド：プレイ開始時に一度だけ下部へ操作一覧を数秒出す（§9 説明より体験／一度だけで間延びさせない）。
+    // オープニング会話が明けて「操作を握った瞬間」に出す（開幕の一瞬で消えないように）。
+    private double _controlsTimer;
+    private double _sceneTime;
+    private bool _sawDialogue;
+    private static bool _controlsShown;
+
+    // チュートリアルの常駐指示（操作させる区間に下部へ出す小帯）。会話と違い敵/自機は止めない
+    //（ShowMessage は BubblePaused を立ててしまうため、止めない専用の表示を用意する）。
+    // 値が空でない間だけ描画する。チュートリアル中は既存 DrawControls（6.5秒一覧）を抑止する。
+    private string _tutorialHint = "";
+    public bool TutorialActive { get; set; }
+    public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
+    public void ClearTutorialHint() => _tutorialHint = "";
+
+    // 操作子トークン（直近デバイスで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
+    private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z";
+    private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
+    private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
+    private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
+    private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
+
     // ティッカー（降ってくる言葉）
     private double _t;
     private static readonly (string h, string w)[] TickerWords =
@@ -97,15 +120,29 @@ public partial class Hud : CanvasLayer
 
         // 会話・メッセージ表示中は敵を止める（種類を問わず。旧挙動を踏襲）。開始の瞬間に敵弾を一掃。
         bool nowPaused = _messageTimer > 0 && _dlgText.Length > 0;
-        if (nowPaused && !BubblePaused) ClearEnemyBullets();
+        if (nowPaused && !BubblePaused) { ClearEnemyBullets(); Audio.Instance?.PlayCalm(); } // ⑦鎮まる音で転換
         BubblePaused = nowPaused;
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
         if (_spellTimer > 0) { _spellTimer -= delta; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
 
+        // 操作ガイド：オープニング会話が明けて操作を握った瞬間に一度だけ提示。
+        //   ・会話があった後の最初の非会話フレーム、または会話なしステージでは1.2秒経過後。
+        //   ・開幕（会話前）の一瞬で出して消えてしまうのを防ぐ。
+        _sceneTime += delta;
+        if (BubblePaused) _sawDialogue = true;
+        // チュートリアル中は操作一覧を抑止（チュートリアルが個別に教えるため。2周目以降の通常プレイでのみ出す）。
+        if (!_controlsShown && !TutorialActive && !BubblePaused && (_sawDialogue || _sceneTime > 1.2)
+            && GetTree().GetFirstNodeInGroup("player") != null)
+        {
+            _controlsShown = true;
+            _controlsTimer = 6.5;
+        }
+        if (_controlsTimer > 0) _controlsTimer -= delta;
+
         // やさしさゲージの演出更新（全開トースト＋グレイズで貯まる手応え）
-        if (_game?.JustOverloaded ?? false) _overloadToast = 1.4;
+        if (_game?.JustOverloaded ?? false) { _overloadToast = 1.4; Audio.Instance?.PlayOverload(); } // ⑥ピークの告知
         if (_overloadToast > 0) _overloadToast -= delta;
         float kNow = _game?.Kindness ?? 0f;
         if (!(_game?.IsOverload ?? false) && kNow > _prevKind + 0.001f) _kindPulse = 1f;
@@ -182,6 +219,7 @@ public partial class Hud : CanvasLayer
     {
         _spellWho = who; _spellHandle = handle; _spellName = spellName;
         _spellCol = col; _spellTimer = SpellShowDur;
+        Audio.Instance?.PlaySpell(); // ⑩弾幕変化を耳で予告（Alert・被弾の下/グレイズの上）
     }
 
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
@@ -221,6 +259,8 @@ public partial class Hud : CanvasLayer
         DrawGoal(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
+        if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
+        if (_controlsTimer > 0) DrawControls(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
         if (_overloadToast > 0) DrawOverloadToast(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
@@ -236,6 +276,15 @@ public partial class Hud : CanvasLayer
 
     private void GlassPanel(HudCanvas ci, Rect2 r, Color? border = null)
         => UiKit.Box(ci, r, new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f, border ?? new Color(1, 1, 1, 0.12f), 1f);
+
+    // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
+    private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f)
+    {
+        float w = UiKit.TextW(UiKit.Mono, token, 11) + 12, h = 18;
+        UiKit.Box(ci, new Rect2(p.X, p.Y, w, h), new Color(0.10f, 0.09f, 0.16f, 0.92f * a), 5f, new Color(accent, 0.75f * a), 1f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(p.X + 6, p.Y + 3), token, 11, new Color(accent, 0.98f * a));
+        return w;
+    }
 
     private void DrawLifeBomb(HudCanvas ci)
     {
@@ -255,11 +304,13 @@ public partial class Hud : CanvasLayer
             UiKit.Heart(ci, new Vector2(hx + i * 25 + 10, y + 22), 10f, hc);
         }
         ci.DrawRect(new Rect2(x + 14, y + 42, w - 28, 1f), new Color(1, 1, 1, 0.08f));
-        // BOMB
+        // BOMB（残数＋発動キーのバッジ＝「どのボタンで撃つか」を常時提示）
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 52), "BOMB", 11, new Color("c8b0ec"));
         float bx = x + 70;
         for (int i = 0; i < maxBombs; i++)
             ci.DrawCircle(new Vector2(bx + i * 16 + 6, y + 58), 5f, i < bombs ? UiKit.Mina : new Color(UiKit.Mina, 0.28f));
+        float badgeW = UiKit.TextW(UiKit.Mono, TokBomb, 11) + 12;
+        KeyBadge(ci, new Vector2(x + w - badgeW - 10, y + 50), TokBomb, UiKit.Mina);
     }
 
     private void DrawPurify(HudCanvas ci)
@@ -363,10 +414,18 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 30), title, 16, new Color(0.94f, 0.9f, 0.96f, a));
     }
 
+    // ヒカゲ専用スキルのチップ（目標パネルの直下）。発動キーのバッジ＋名前＋状態。
     private void DrawSkill(HudCanvas ci)
     {
-        string txt = _skillReady ? "C: ヒカゲの大波 OK!" : "C: ヒカゲの大波 充填中…";
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(22, 134), txt, 13, _skillReady ? UiKit.Hp : UiKit.Text3);
+        Color accent = _skillReady ? UiKit.Hp : UiKit.Text3;
+        string label = "ヒカゲの大波  " + (_skillReady ? "OK!" : "充填中…");
+        const float h = 24f;
+        float badgeW = UiKit.TextW(UiKit.Mono, TokSkill, 11) + 12;
+        float w = 12 + badgeW + 8 + UiKit.TextW(UiKit.ZenBold, label, 13) + 12;
+        float x = 22, y = 216;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 11f, new Color(accent, 0.5f), 1f);
+        float bw = KeyBadge(ci, new Vector2(x + 12, y + 3), TokSkill, accent);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 5), label, 13, accent);
     }
 
     // 現在のショットモードチップ（LIFE/BOMB の直下・常時表示）。光=シアン基調。
@@ -380,7 +439,9 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 11f, new Color(UiKit.Info, 0.45f), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, UiKit.Info);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, UiKit.PurifyHi);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 6), "V 切替", 10, UiKit.Text3);
+        // 切替キーのバッジ（KB=V / パッド=B を出し分け）
+        float bw = KeyBadge(ci, new Vector2(x + w + 8, y + 3), TokMode, UiKit.Info);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", 10, UiKit.Text3);
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。
@@ -449,6 +510,56 @@ public partial class Hud : CanvasLayer
         float x = 640 - w / 2f, y = 150;
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.10f, 0.08f, 0.04f, 0.9f * a), 15f, new Color(UiKit.Gold, 0.6f * a), 1.4f);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, 30, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
+    }
+
+    // 操作ガイド：プレイ開始直後に一度だけ、下部中央へ「ボタン→動作」の一覧を数秒。
+    // 直近デバイスで KB/パッドを出し分け、終わり際にフェード（テンポを侵さない）。
+    private void DrawControls(HudCanvas ci)
+    {
+        float a = Mathf.Clamp((float)(_controlsTimer < 0.8 ? _controlsTimer / 0.8 : 1.0), 0f, 1f);
+
+        var items = new System.Collections.Generic.List<(string tok, string label)>
+        {
+            (TokMove, "移動"), (TokShot, "撃つ"), (TokFocus, "低速"), (TokBomb, "ボム"),
+        };
+        bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
+                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
+        if (hasModes) items.Add((TokMode, "切替"));
+        if (_skillHas) items.Add((TokSkill, "技"));
+
+        const float pad = 14f, gap = 18f, itemGap = 8f, h = 36f;
+        var ws = new float[items.Count];
+        float total = pad;
+        for (int i = 0; i < items.Count; i++)
+        {
+            float bw = UiKit.TextW(UiKit.Mono, items[i].tok, 11) + 12;
+            float lw = UiKit.TextW(UiKit.ZenBold, items[i].label, 13);
+            ws[i] = bw + itemGap + lw;
+            total += ws[i] + (i < items.Count - 1 ? gap : 0);
+        }
+        total += pad;
+
+        float x = 640 - total / 2f, y = 470;
+        UiKit.Box(ci, new Rect2(x, y, total, h), new Color(0.05f, 0.04f, 0.09f, 0.86f * a), 12f, new Color(UiKit.Info, 0.45f * a), 1.2f);
+        float cx = x + pad;
+        for (int i = 0; i < items.Count; i++)
+        {
+            float bw = KeyBadge(ci, new Vector2(cx, y + 9), items[i].tok, UiKit.PurifyHi, a);
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + itemGap, y + 10), items[i].label, 13, new Color(0.92f, 0.92f, 0.97f, a));
+            cx += ws[i] + gap;
+        }
+    }
+
+    // チュートリアルの常駐指示帯（操作させる区間・下部中央）。会話バーより上、ティッカーの上に出す。
+    // ミナ色のふちで「今やること」を一行で示す。会話と違い敵/自機を止めないのが肝。
+    private void DrawTutorialHint(HudCanvas ci)
+    {
+        float pulse = 0.6f + 0.4f * Mathf.Sin((float)_t * 4f);
+        float w = UiKit.TextW(UiKit.ZenBold, _tutorialHint, 15) + 56;
+        float x = 640 - w / 2f, y = 500, h = 38;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.9f), 12f, new Color(UiKit.Mina, 0.4f + 0.4f * pulse), 1.4f);
+        ci.DrawCircle(new Vector2(x + 20, y + h / 2f), 4.5f, new Color(UiKit.Mina, pulse));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), _tutorialHint, 15, new Color(0.94f, 0.92f, 0.99f));
     }
 
     private void DrawTicker(HudCanvas ci)

@@ -32,6 +32,7 @@ public partial class Settings : Node2D
     {
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         BuildDefaults();
         LoadSettings();
         ApplyAll();
@@ -71,6 +72,7 @@ public partial class Settings : Node2D
         gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
 
         var ctrl = C("controls", "操作", "Controls");
+        ctrl.Items.Add(Seg("padstyle", "コントローラ表記", new[] { "Xbox", "PlayStation" }, 0, "パッドのボタン表記"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
         ctrl.Items.Add(Keys("shot", "ショット", new[] { "Z" }));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
@@ -106,6 +108,7 @@ public partial class Settings : Node2D
             if (cprev) _cat = (_cat - 1 + _cats.Count) % _cats.Count;
             if (cnext) _cat = (_cat + 1) % _cats.Count;
             _row = 0;
+            Audio.Instance?.PlayUiMove();
         }
         _catHeld = cprev || cnext;
 
@@ -114,20 +117,21 @@ public partial class Settings : Node2D
         {
             if (up) _row = (_row - 1 + Cur.Count) % Cur.Count;
             if (down) _row = (_row + 1) % Cur.Count;
+            Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
         bool l = Input.IsActionPressed("ui_left"), r = Input.IsActionPressed("ui_right");
-        if ((l || r) && !_lrHeld) Adjust(l ? -1 : 1);
+        if ((l || r) && !_lrHeld) { Adjust(l ? -1 : 1); Audio.Instance?.PlayUiMove(); } // 値変更も手応え（SE音量を耳で確認）
         _lrHeld = l || r;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.2) Adjust(1, viaZ: true);
+        if (zEdge && _t > 0.2) { Adjust(1, viaZ: true); Audio.Instance?.PlayUiConfirm(); }
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
+        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
 
         QueueRedraw();
     }
@@ -148,12 +152,8 @@ public partial class Settings : Node2D
 
     private void ApplyAll() { foreach (var c in _cats) foreach (var d in c.Items) Apply(d); }
 
-    // 0..100 のスライダー値を該当バスの音量に反映（0.5以下は実質ミュート）。
-    private static void SetBusDb(string bus, float f)
-    {
-        int i = AudioServer.GetBusIndex(bus);
-        if (i >= 0) AudioServer.SetBusVolumeDb(i, f <= 0.5f ? -80f : Mathf.LinearToDb(f / 100f));
-    }
+    // 0..100 のスライダー値を該当バスの音量に反映（実体は AudioConfig＝ポーズ画面と同一カーブ）。
+    private static void SetBusDb(string bus, float f) => AudioConfig.SetBus(bus, f);
 
     private void Apply(Def d)
     {
@@ -187,6 +187,10 @@ public partial class Settings : Node2D
             }
             case "mode":
                 DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
+                break;
+            // コントローラのボタン表記（0=Xbox / 1=PlayStation）。HUD の操作ガイドへ即反映。
+            case "padstyle":
+                Pad.Style = d.I == 1 ? Pad.ButtonStyle.PlayStation : Pad.ButtonStyle.Xbox;
                 break;
         }
     }
