@@ -58,8 +58,19 @@ public partial class Audio : Node
 
     // BGM（コード合成のループ。実音源が来たら差し替える）。
     //   全曲で M.I.N.A. モチーフ（ド ミ レ ソ＝523/659/587/784Hz）を共有し「一つの主題の変奏」に。
-    //   BgmMenu=温かく遅い薄編成 / BgmStage=道中 / BgmBoss=短調寄り・密度高め・緊張。
+    //   BgmMenu=温かく遅い薄編成 / BgmStage=道中 / BgmBoss=短調寄り・密度高め・緊張（汎用＝Mina/Hikage 用）。
     public AudioStreamWav BgmMenu = null!, BgmStage = null!, BgmBoss = null!;
+
+    // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
+    //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
+    //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
+    //   Akari＝フレーズが途中で切れる（"す——"／言いかけて言えない好き）。
+    //   Koharu＝温かい旋律が冷えて減衰する（台所の灯が消えていく／祈りが冷える）。
+    public AudioStreamWav BgmBossRei = null!, BgmBossAkari = null!, BgmBossKoharu = null!;
+
+    // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
+    //   3ボスとも主題 M.I.N.A.（C/E/D/G）の構成音に解決する＝Epilogue で主題に溶ける布石。
+    public AudioStreamWav RedeemRei = null!, RedeemAkari = null!, RedeemKoharu = null!;
 
     public override void _Ready()
     {
@@ -100,6 +111,12 @@ public partial class Audio : Node
         BgmMenu   = BuildBgmMenu();
         BgmStage  = BuildBgm();
         BgmBoss   = BuildBgmBoss();
+        BgmBossRei    = BuildBgmBossRei();
+        BgmBossAkari  = BuildBgmBossAkari();
+        BgmBossKoharu = BuildBgmBossKoharu();
+        RedeemRei    = BuildRedeem(0);
+        RedeemAkari  = BuildRedeem(1);
+        RedeemKoharu = BuildRedeem(2);
         MurkPad   = BuildMurkPad();
 
         // 濁りパッドはステージ判定で音量を抜き差しするだけ＝常時ループ再生で位相を保つ。
@@ -133,7 +150,10 @@ public partial class Audio : Node
         float a = 1f - Mathf.Exp(-MurkSmooth * dt);
 
         // ステージ中だけ濁す。それ以外（メニュー等）は開放・無音を目標にする。
-        bool inStage = !Muted && (_currentMusic == BgmStage || _currentMusic == BgmBoss);
+        // ボス別テーマ（Rei/Akari/Koharu）も「ステージ戦闘曲」＝汚染LowPassの対象に含める。
+        bool inStage = !Muted && (_currentMusic == BgmStage || _currentMusic == BgmBoss
+                                  || _currentMusic == BgmBossRei || _currentMusic == BgmBossAkari
+                                  || _currentMusic == BgmBossKoharu);
 
         float targetCutoff = MurkCutoffOpen;
         float targetAmbDb  = SilentDb;
@@ -218,6 +238,26 @@ public partial class Audio : Node
     }
 
     public void StopMusic(float fade = 0.5f) => Music(null, fade);
+
+    // ───────── 改心の解決音（完）。設計 §1-2「未完→完」─────────
+    //   改心が始まる確実な瞬間（各ボス OnCryStart）から boss=0:レイ/1:あかり/2:こはる で呼ぶ。
+    //   戦闘BGM（未完モチーフ）を温かい解決アレンジへ素早くクロスフェードし、
+    //   そのループに主題 M.I.N.A. 構成音へ解決する一節を内包させる。破壊でなく「届いた」。
+    //   退場後（OnCryEnd→次シーン）は通常の Music()/StopMusic() がそのまま上書きするので破綻しない。
+    public void PlayRedeem(int boss)
+    {
+        if (Muted) return;
+        AudioStream? redeem = boss switch
+        {
+            0 => RedeemRei,
+            1 => RedeemAkari,
+            2 => RedeemKoharu,
+            _ => null,
+        };
+        if (redeem == null) return;
+        // 温かい解決へ少し速め（0.8s）に橋渡し。汚染LowPassの対象外なので、こもらず晴れて鳴る。
+        Music(redeem, fade: 0.8f);
+    }
 
     // ───────── コアSE 再生（呼び出し側はこれだけ叩く）─────────
     // 発射：短く・減衰速く・ピッチ微ゆらぎ。全開中は高揚（ピッチ上げ）。
@@ -768,6 +808,132 @@ public partial class Audio : Node
         w.LoopBegin = 0;
         w.LoopEnd = n;
         return w;
+    }
+
+    // ───────── ボス別テーマ：共通の土台（BuildBgmBoss と同じ枠で、編成だけ差し替える）─────────
+    //   設計 §1-2「各ボスの固有モチーフ＝未完→完」。3曲とも M.I.N.A. 構成音（C E D G）を核にし、
+    //   それぞれ別の「未完の仕方」でモチーフを翳らせる。改心（PlayRedeem）が同じ音形を「完」に解く。
+    //   進行は BuildBgmBoss と同じ Am-Dm-E-Am（緊張と解決の反復）。各小節1.6秒＝6.4秒ループ。
+    private static readonly float[][] BossChords =
+    {
+        new[] { 110.00f, 220.00f, 261.63f, 329.63f }, // Am
+        new[] { 146.83f, 293.66f, 349.23f, 440.00f }, // Dm
+        new[] { 164.81f, 329.63f, 415.30f, 493.88f }, // E（G#=415 導音の緊張）
+        new[] { 110.00f, 220.00f, 261.63f, 329.63f }, // Am
+    };
+
+    // 共通の伴奏（ベース脈動＋パッド＋刻みアルペジオ）。melFn が各ボス固有のメロディ（未完の仕方）。
+    //   melFn(b, t, n のうちの小節内秒) → メロディ振幅。返り値は概ね ±0.07 スケールで足す。
+    private AudioStreamWav BuildBossBase(System.Func<int, float, float> melFn, float density = 1f)
+    {
+        const float bar = 1.6f; const int bars = 4;
+        int barN = (int)(Rate * bar), n = barN * bars;
+        var s = new float[n];
+        for (int b = 0; b < bars; b++)
+        {
+            float[] ch = BossChords[b];
+            int baseI = b * barN;
+            for (int i = 0; i < barN; i++)
+            {
+                float t = (float)i / Rate;
+                float pulse = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(Mathf.Tau * (1f / 0.2f) * t));
+                float bass = (Mathf.Sin(Mathf.Tau * ch[0] * t) + 0.5f * Mathf.Sin(Mathf.Tau * ch[0] * 0.5f * t))
+                           * Swell(t, bar, 0.03f, 0.2f) * pulse * 0.2f;
+                float pad = (Mathf.Sin(Mathf.Tau * ch[1] * t) + Mathf.Sin(Mathf.Tau * ch[2] * t)
+                           + Mathf.Sin(Mathf.Tau * ch[3] * t)) * Swell(t, bar, 0.1f, 0.3f) * 0.075f;
+                float arp = ArpFast(t, ch) * 0.07f * density;
+                float mel = melFn(b, t);
+                s[baseI + i] = (bass + pad + arp + mel) * 0.4f;
+            }
+        }
+        FadeEnds(s, (int)(0.006f * Rate));
+        var w = MakeWav(s);
+        w.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        w.LoopBegin = 0;
+        w.LoopEnd = n;
+        return w;
+    }
+
+    // M.I.N.A. モチーフ（ド ミ レ ソ）の小節別の主音。
+    private static readonly float[] MinaMotif = { 523.25f, 659.25f, 587.33f, 783.99f };
+
+    // Rei：主音の「直前」で半音落ちる＝あと一歩で一番になれない（順位＝届かない）。
+    //   各小節、モチーフ音へ向かう途中で目標の半音下に滑り落ちて減衰する。
+    private AudioStreamWav BuildBgmBossRei()
+    {
+        return BuildBossBase((b, t) =>
+        {
+            float target = MinaMotif[b];
+            float reach = target * 0.9438f;                      // 半音下＝届かない音
+            // 前半は target を目指して立ち上がるが、後半で reach へずり落ちる（グリッサンド）。
+            float k = Mathf.Clamp((t - 0.5f) / 0.6f, 0f, 1f);
+            float f = Mathf.Lerp(target, reach, k);
+            float env = Swell(t, 1.6f, 0.06f, 0.5f);
+            return Mathf.Sin(Mathf.Tau * f * t) * env * 0.07f;
+        });
+    }
+
+    // Akari：フレーズが途中で切れる＝言いかけて言えない（"す——"）。
+    //   モチーフ音を鳴らし始めてすぐ（~0.5s）でぷつりと断ち、残りの小節は沈黙（間＝言えなさ）。
+    private AudioStreamWav BuildBgmBossAkari()
+    {
+        return BuildBossBase((b, t) =>
+        {
+            const float cut = 0.5f;                              // ここで言葉が切れる
+            if (t > cut) return 0f;
+            float env = (t < 0.02f ? t / 0.02f : 1f) * Mathf.Min(1f, (cut - t) / 0.06f); // 末端を急に断つ
+            return Mathf.Sin(Mathf.Tau * MinaMotif[b] * t) * env * 0.08f;
+        });
+    }
+
+    // Koharu：温かい旋律が冷えて減衰する＝台所の灯が消えていく／祈りが冷える。
+    //   モチーフ音は柔らかく立ち上がるが、ピッチがわずかに沈み、減衰が速まって「冷えて」消える。
+    private AudioStreamWav BuildBgmBossKoharu()
+    {
+        return BuildBossBase((b, t) =>
+        {
+            float chill = 1f - 0.012f * t;                       // ごくわずかに沈む（冷える）
+            float f = MinaMotif[b] * chill;
+            float env = (t < 0.04f ? t / 0.04f : 1f) * Mathf.Exp(-t / 0.55f); // 温かい立ち上がり→冷えて減衰
+            float warm = Mathf.Sin(Mathf.Tau * f * t)
+                       + 0.18f * Mathf.Sin(Mathf.Tau * f * 2f * t); // 薄い倍音＝木質の温もり
+            return warm * env * 0.07f;
+        }, density: 0.7f); // 刻みを薄め＝温度のある静けさ
+    }
+
+    // ───────── 改心の「解決音（完）」（OnCryStart でクロスフェード再生する一節）─────────
+    //   戦闘テーマで「未完」だったモチーフ（C E D G）を、ここで主音まで届かせて解く＝赦し・救い。
+    //   減衰の長い柔らかいベル＋下支えのパッドで「壊した」でなく「届いた」温かさ（pitfalls P4）。
+    //   which: 0=Rei / 1=Akari / 2=Koharu。3者とも同じ M.I.N.A. 解決＝Epilogue で主題に溶ける布石。
+    private AudioStreamWav BuildRedeem(int which)
+    {
+        float dur = 2.6f; int n = (int)(Rate * dur);
+        var s = new float[n];
+        // モチーフ ド ミ レ ソ を、最後にもう一音「ド（高）」で締めて主音へ解決させる。
+        float[] notes = { 523.25f, 659.25f, 587.33f, 783.99f, 1046.5f }; // C5 E5 D5 G5 C6
+        float step = 0.42f;                                              // ゆったり歌わせる
+        // ボスごとの色付け：Rei=澄んだ高め / Akari=息のある中庸 / Koharu=温かい厚み。
+        float warm = which == 2 ? 0.5f : which == 1 ? 0.34f : 0.22f; // 倍音の厚み（温度）
+        float padHz = BossChords[3][1];                              // Am の上3度（解決先の支え）
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            // メロディ：1音ずつ立ち上げ、最後の C6 で長く伸ばして「届いた」を残す。
+            int k = Mathf.Min(notes.Length - 1, (int)(t / step));
+            float lt = t - k * step;
+            float rel = k == notes.Length - 1 ? 1.1f : 0.34f;        // 最後の音だけ長い余韻
+            float env = (lt < 0.012f ? lt / 0.012f : 1f) * Mathf.Exp(-lt / rel);
+            float bell = (Mathf.Sin(Mathf.Tau * notes[k] * lt)
+                       + warm * Mathf.Sin(Mathf.Tau * notes[k] * 2f * lt)
+                       + 0.12f * Mathf.Sin(Mathf.Tau * notes[k] * 3f * lt)) * env;
+            // 下支えパッド：Am→C系の温かい和声を全体に薄く敷き、解決を包む。
+            float pad = (Mathf.Sin(Mathf.Tau * padHz * t)
+                       + 0.7f * Mathf.Sin(Mathf.Tau * padHz * 1.5f * t))
+                       * Swell(t, dur, 0.4f, 0.9f) * 0.06f;
+            s[i] = bell * 0.2f + pad;
+        }
+        FadeEnds(s, (int)(0.01f * Rate));
+        return MakeWav(s); // 一度きりの再生（ループしない）
     }
 
     // ───────── 濁りパッド（Amb バス常駐。設計 1-5「濁り＝想いの重さ」）─────────

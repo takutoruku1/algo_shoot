@@ -30,6 +30,7 @@ public partial class Player : Area2D
 
     // ヒカゲ専用スキル（フォロワーにヒカゲがいる時だけ・Cキー）
     private bool _specialHeld = false;
+    private bool _kindHeld = false; // やさしさ全開の手動発動エッジ検出
     private float _specialCd = 0f;
     private const float SpecialCdMax = 7f;
 
@@ -122,6 +123,9 @@ public partial class Player : Area2D
     private float _corruption = 0f;
     private static readonly Color CleanTint = new Color(1f, 1f, 1f);
     private static readonly Color MurkTint = new Color(0.42f, 0.40f, 0.52f); // 濁った藍鼠
+    // やさしさ全開のオーラ（金色に発光・脈動）。SelfModulate を 1 超で持ち上げて光らせる。
+    private static readonly Color OverloadTint   = new Color(1.15f, 1.05f, 0.72f);
+    private static readonly Color OverloadTintHi = new Color(1.5f, 1.35f, 0.9f);
     public void SetCorruption(float level) => _corruption = Mathf.Clamp(level, 0f, 1f);
 
     // 常時ふわふわ浮遊（スプライトのみ上下に揺らす。当たり判定点は固定）
@@ -265,8 +269,10 @@ public partial class Player : Area2D
         if (_fireCooldown > 0f)
             _fireCooldown -= dt;
 
-        // やさしさ全開なら連射が速くなる
-        _overload = GetNodeOrNull<GameManager>("/root/Game")?.IsOverload ?? false;
+        // やさしさ全開なら連射が速くなる。発動の瞬間（立ち上がり）にカタルシス演出を出す。
+        bool nowOverload = _game?.IsOverload ?? false;
+        if (nowOverload && !_overload) OnOverloadStart();
+        _overload = nowOverload;
 
         // ショット＝Z / Aボタン。会話中（吹き出し表示中）は不可
         // 初回に HUD へ現在モードを通知（HUD の _Ready 順に依存しないよう最初の物理フレームで）。
@@ -316,6 +322,15 @@ public partial class Player : Area2D
         // HUDにスキル状態を反映
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f);
 
+        // やさしさ全開＝手動発動（満タン時に Space / R3）。自動発動をやめ“使う”判断を委ねる。
+        bool kindKey = Input.IsKeyPressed(Key.Space) || Pad.Pressed(JoyButton.RightStick);
+        if (kindKey && !_kindHeld && !Hud.BubblePaused && (_game?.TryActivateKindness() ?? false))
+        {
+            FxLayer.Instance?.PurifyBurst(GlobalPosition);
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+        }
+        _kindHeld = kindKey;
+
         // 無敵・点滅更新
         if (_invincible)
         {
@@ -350,8 +365,15 @@ public partial class Player : Area2D
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
             // 前傾＋バンク：右移動で前へ、上下移動で機首を振る。
             _sprite.Rotation = (_lean.X * BankX + _lean.Y * BankY) * leanMul;
-            // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）
-            _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
+            // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
+            // 全開中は汚染を上書きして金色に発光＝「やさしさ全開」を体で示す（脈動）。
+            if (_overload)
+            {
+                float pulse = 0.5f + 0.5f * Mathf.Sin(_bobTime * 11f);
+                _sprite.SelfModulate = OverloadTint.Lerp(OverloadTintHi, pulse);
+            }
+            else
+                _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
         }
 
         // ヒットボックス点を毎フレーム更新描画
@@ -631,8 +653,39 @@ public partial class Player : Area2D
         DrawArc(Vector2.Zero, GrazeRadius, 0f, Mathf.Tau, 40,
             new Color(0.45f, 0.95f, 1f, grazeA), grazeW); // シアンの細いリング＝グレイズ境界
 
+        // ── やさしさ全開オーラ（金の二重リングが脈動）＝全開中だと一目で分かる ──
+        if (_overload)
+        {
+            float pulse = 0.5f + 0.5f * Mathf.Sin(_bobTime * 11f);
+            float r = GrazeRadius + 5f + pulse * 4f;
+            var gold = new Color(1f, 0.86f, 0.45f, 0.35f + 0.4f * pulse);
+            DrawArc(Vector2.Zero, r, 0f, Mathf.Tau, 44, gold, 1.6f);
+            DrawArc(Vector2.Zero, r + 3f, 0f, Mathf.Tau, 44, new Color(1f, 0.95f, 0.7f, 0.18f * pulse), 1f);
+        }
+
         // ── 被弾点（中心・常時・最も目立つ）＝この赤い点に当たると死ぬ ──
         DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
         DrawCircle(Vector2.Zero, _hitR, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
+    }
+
+    // やさしさ全開・発動の瞬間のカタルシス演出（§4 止め＋光＋揺れ／§8 解放の谷）。
+    // SE とトーストは Hud が JustOverloaded で鳴らす。ここは画の爆ぜと弾の浄化を担う。
+    private void OnOverloadStart()
+    {
+        FxLayer.Instance?.PurifyBurst(GlobalPosition);
+        GameCamera.Instance?.Shake(4f, 0.22f);
+        GameCamera.Instance?.Hitstop(0.06);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+
+        // 画面内の敵弾を花びらに変えて消す＝積み上げた緊張への一拍の解放（ボムより軽く・無敵なし）。
+        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
+        {
+            if (node is Bullet b && b.Active)
+            {
+                _game?.AddBulletCleared();
+                FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
+                _pool?.Despawn(b);
+            }
+        }
     }
 }

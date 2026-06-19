@@ -28,6 +28,8 @@ public partial class BossKoharu : Enemy
 
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
+    // 絶望（兄が消える恐怖に呑まれる）行だけ、こはるの蒼白＝血色を失った立ち絵に差し替える。
+    private const string KPale = "res://char/koharu_face_pale.png";
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
@@ -59,9 +61,9 @@ public partial class BossKoharu : Enemy
         (1, "……ご主人様? お顔の色が。", ""),
         (0, "……なんでもない。続けるぞ。", SCocky),
         (2, "ちゃんと作って、ちゃんと食べさせて、ちゃんと、ちゃんとしてれば——", ""),
-        (2, "……ちゃんとしてれば、お兄ちゃん、いなくならないでしょ? ねえ、いなくならないよね……?", ""),
+        (2, "……ちゃんとしてれば、お兄ちゃん、いなくならないでしょ? ねえ、いなくならないよね……?", KPale), // 絶望＝蒼白
         (5, "——怒りの下の悲しみを、ちゃんと、悲しんでいい。", ""),
-        (2, "あたしのごはんじゃ、お兄ちゃんは助からない……! じゃあ、なんの、意味が……!", ""),
+        (2, "あたしのごはんじゃ、お兄ちゃんは助からない……! じゃあ、なんの、意味が……!", KPale),     // 絶望＝蒼白
         (5, "お兄さんが今日まで生きてこられたのは——きみの食卓が、あったからだ。祈りは、届いてたよ。", ""),
         (2, "……ほんとに? ……ちゃんと、食べて、くれるかな。今日は。", ""),       // 日常語＝小さな願い
         (0, "……ああ。残さず、食べるよ。", SGentle),                              // 兄が、妹に（観客だけが意味を知る）
@@ -86,7 +88,9 @@ public partial class BossKoharu : Enemy
         PanelRespawnDelay = 1.4f;
 
         PreTexPath = "res://char/enemy_koharu_pre.png";   // 穢れ・病んだ核
-        CryTexPath = "res://char/enemy_koharu_post.png";  // 浄化＝改心を見せながら会話（その場で静止）
+        // 改心の三段：穢れ(pre)→泣き(cry＝黒い炎が熾火へ鎮まり大粒の涙)→笑顔(post)。
+        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
+        CryTexPath = "res://char/enemy_koharu_cry.png";
         PostTexPath = "res://char/enemy_koharu_post.png";
         BodyDisplayH = 52f;
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
@@ -95,8 +99,8 @@ public partial class BossKoharu : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ボス登場＝道中BGMからボスBGMへクロスフェード。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // ボス登場＝道中BGMからこはる固有テーマへクロスフェード（温かい旋律が冷えて減衰＝未完）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossKoharu);
         GetHud()?.ShowBossBar("とまれないわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
@@ -214,6 +218,8 @@ public partial class BossKoharu : Enemy
     protected override void OnCryStart()
     {
         GetHud()?.HideBossBar();
+        // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝冷えていた旋律に温かい残響が戻る。
+        Audio.Instance?.PlayRedeem(2);
         var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
@@ -256,7 +262,8 @@ public partial class BossKoharu : Enemy
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => "res://char/koharu_face.png",
+            // こはるは通常 koharu_face。絶望行だけ face に蒼白(pale)を指定して差し替える。
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/koharu_face.png" : face,
             _ => "res://char/mina_face.png", // ミナ・中継
         };
         hud.ShowDialog(kind, text, portrait, otherName: "こはる");

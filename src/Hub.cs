@@ -87,9 +87,6 @@ public partial class Hub : Node2D
             }
             if (lines.Length > 0) StartDialogue(lines, null);
         }
-
-        // [一時/デバッグ] スクショ検証：--hub-preview dlg でクリア後会話を強制再生。
-        if (_previewState == "dlg") StartDialogue(ReturnDialog("rei"), null);
     }
 
     private void BuildEntries()

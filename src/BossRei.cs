@@ -79,17 +79,19 @@ public partial class BossRei : Enemy
         PanelRespawnDelay = 1.4f;
 
         PreTexPath = "res://char/enemy_rei_pre.png";
-        CryTexPath = "res://char/enemy_rei_post.png";
+        // 改心の三段：穢れ(pre)→泣き(cry＝穢れ剥がれかけ・涙)→笑顔(post)。
+        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
+        CryTexPath = "res://char/enemy_rei_cry.png";
         PostTexPath = "res://char/enemy_rei_post.png";
         BodyDisplayH = 52f;
-        CryHoldDur = 9999.0;
+        CryHoldDur = 9999.0;     // 自動終了させない＝cry を会話尺いっぱい保持（EndCryNow で post へ）
     }
 
     public override void _Ready()
     {
         base._Ready();
-        // ボス登場＝道中BGMからボスBGMへクロスフェード（同じM.I.N.A.モチーフの翳った変奏）。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
         GetHud()?.ShowBossBar("孤高のわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
@@ -197,6 +199,8 @@ public partial class BossRei : Enemy
     protected override void OnCryStart()
     {
         GetHud()?.HideBossBar();
+        // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝半音で落ちていたモチーフが主音に届く。
+        Audio.Instance?.PlayRedeem(0);
         var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;

@@ -8,15 +8,18 @@
 
 ---
 
-## 0. 現状＝完全無音（最重要事実）
-- 音声ファイル（.wav/.ogg/.mp3）が**リポジトリに0件**。
-- `project.godot` に **AudioBusLayout（default_bus_layout.tres）の指定なし** → Godot 既定の **Master バスのみ**存在。
-- `AudioStreamPlayer` / `AudioStreamPlayer2D` の使用箇所 **0件**。
-- `Settings.cs` に音量スライダーが **5本** 定義済みだが、配線されているのは Master のみ：
-  - 定義: `src/Settings.cs:58-62` — `master`(80) / `bgm`(70) / `se`(85) / `voice`(90) / `amb`(55「心象世界のノイズ」)
-  - 配線: `src/Settings.cs:153-156` — `case "master"` が `AudioServer.GetBusIndex("Master")` を引いて音量反映。**bgm/se/voice/amb は受け皿のバスが無く、動かしても無音**。
-  - 関連: `src/Settings.cs:69` `msg`（メッセージ速度 遅/中/速）, `:70` `auto`（オート会話送り）, `:67` `shake`（画面振動）, `:68` `flash`（被弾フラッシュ）, `:80` `reduceflash`（明滅を抑える）— 会話/被弾演出の同期・アクセシビリティに関わる。
-- **第一の仕事**: バス（Music/SE/Voice/Amb）を作り、5スライダーを配線する（`mitsuda-implementation.md` §バス）。
+## 0. 現状＝実装済み・実際に鳴る（2026-06-20 更新。旧記述「完全無音」は失効）
+**全SE・全BGM がコード合成（`AudioStreamWav`）で実装され、フックも各所に配線済み。`dotnet build -c Debug` 0エラー。Rei ステージ＋DemoPilot で起動し audio エラー無しを確認。** 実音源（録音/挿入歌）が来たら差し替える前提のプレースホルダだが「鳴る」状態。
+- **バス**: `default_bus_layout.tres` 実在。`Master ─ Music / SE / Voice / Amb / Alert`。Music に LowPass を1枚（汚染連動の濁し枠）。`project.godot:29` で指定済み。
+- **オートロード**: `Audio="*res://src/Audio.cs"`（`project.godot:24`）。`src/Audio.cs` が起動時に全SE/BGMを合成し常駐。
+- **音量スライダー**: `AudioConfig.cs` が `user://settings.json` を単一窓口で読み書きし、master→Master / bgm→Music / se→SE / voice→Voice / amb→Amb へ全配線（旧「Masterのみ」は解消）。起動時 `Audio._Ready`→`AudioConfig.ApplySaved()`。
+- **SE（合成）**: ショット/グレイズ/被弾/浄化/ボム/全開/鎮まり/スペル宣言/パネル剥がし/UI5種/タイプライター3話者。`Audio.Play*()`。被弾は Alert バス（最優先）。
+- **BGM（合成・8秒前後シームレスループ）**: `BgmMenu`(タイトル/ハブ/ショップ/設定/難易度) / `BgmStage`(道中) / `BgmBoss`(汎用ボス＝Mina/Hikage) / `BgmBossRei` / `BgmBossAkari` / `BgmBossKoharu`（ボス別）。全曲 M.I.N.A. モチーフ（C E D G）の変奏。
+- **改心の解決音**: `RedeemRei/Akari/Koharu` ＝ `Audio.PlayRedeem(boss)`。`BossRei.cs:201` / `BossAkari.cs:221` 等の OnCryStart で発火（未完モチーフ→主音へ解決＝「届いた」）。
+- **アダプティブ**: `Audio._Process` が `GameManager.Contamination/Warmth` で Music の LowPass を駆動＋ Amb の濁りパッド音量を抜き差し（連続値＝フィルタ／style §6）。ステージ戦闘曲のみ対象。
+- **QA**: `--qa` で `Audio.Muted=true`（無音・高速を維持）。`--demo` は鳴る（demo-video に乗る）。
+
+> 残課題（コード側で対応済みでないもの）は §7「未/要対応」を参照。
 
 ---
 
@@ -93,3 +96,28 @@
 - **難易度は弾の量・速度・間隔で／HP固定**。音で難易度を変えない（緊張感の演出は可、長さは変えない）。
 - SEは既存の `FxLayer` フックに同期させ、**画と音をズラさない**。
 - 音源未調達のものは、暫定音/結線で先に体験を通し、差し替えポイントを明示（SKILL「できること」節）。
+
+---
+
+## 7. キャラ別ライトモチーフ計画（メイン楽器・未完→完）— 設計
+> 光田 style §1「一つの主題、多くの編曲」/ §3「楽器で心を描き分ける」の MINA 翻訳。
+> **共通主題 M.I.N.A.（ド ミ レ ソ＝C5 E5 D5 G5）を全曲が共有**し、ボスごとに「未完の仕方（翳り）」と「メイン楽器（音色）」を変える。
+> 改心（`PlayRedeem`）で同じ音形を主音 C6 まで届かせて**解決＝「届いた」**。Epilogue で主題に溶ける布石。
+> 現状は全てコード合成のプレースホルダ。下記の「実楽器」列は**実音源差し替え時の指針**（合成では音色を近似）。
+
+| キャラ | 未完の仕方（戦闘テーマ） | メイン楽器（実音源指針／合成での近似） | 解決音(Redeem) | 実装 |
+|---|---|---|---|---|
+| **ミナ（主題本体）** | 汎用 `BgmBoss`（短調・半音上テンションで濁す＝未完） | 澄んだガラス/グロッケン＋フルート（合成=高域正弦＋非整数倍音） | （Final/Epilogue で主題フル＝回収） | `BuildBgmBoss` / TypMina |
+| **レイ（順位・孤高）** | 主音の直前で**半音落ちる**＝あと一歩で一番になれない | 硬質ピアノ/プルックの単音（合成=グリッサンド正弦） | `RedeemRei`（澄んだ高め・C6 へ届く） | `BuildBgmBossRei` / `BuildRedeem(0)` |
+| **あかり（言えない好き）** | フレーズが**途中で切れる**（"す——"／言いかけて沈黙） | 息のあるリード/木管（合成=中庸正弦を ~0.5s で断つ） | `RedeemAkari`（息のある中庸） | `BuildBgmBossAkari` / `BuildRedeem(1)` |
+| **こはる（冷える祈り）** | 温かい旋律が**冷えて減衰**（台所の灯が消える） | 温かい弦/木質パッド（合成=倍音付き正弦＋速い減衰＋微ピッチ降下） | `RedeemKoharu`（温かい厚み） | `BuildBgmBossKoharu` / `BuildRedeem(2)` |
+| **ヒカゲ** | 汎用 `BgmBoss`（専用テーマ未／要対応） | 未定 | 専用 Redeem 無し | `BossHikage.cs:63` |
+
+**話者別タイプライター音（既実装）**: 少年=温かい木質(TypBoy 320Hz) / ミナ=澄んだガラス(TypMina 920Hz) / ボス=低くくぐもり(TypBoss 165Hz) / ナレ=無音。`Audio.PlayType(Hud.LineKind)`。
+
+## 8. 未/要対応（残課題）
+- **ヒカゲ専用ボステーマ＋Redeem** が無く汎用 `BgmBoss` 流用。固有モチーフを与えるなら `BuildBgmBossHikage`/`BuildRedeem(3)` を追加し `BossHikage.cs` を該当に差し替え（要・他ファイル編集の合意）。
+- **実音源（録音・生楽器・ボーカル挿入歌）が未調達**。現状は全てコード合成のプレースホルダ。Final 決定打の**挿入歌は未実装**（§7 一点投入の枠だけ確保）。`/maeda maeda-music.md` のト書きと行単位で対応づけて実装する。
+- **記憶フラッシュ（`StageImagery`/`BossAkari` の TriggerMemoryFlash）専用音** は未配線。生楽器の主題一音＋環境音を 2.4s で立てる枠が空いている（要・該当ファイルへのフック追加合意）。
+- **Prologue/Final/Epilogue の独自レンダラ**は `BgmMenu`/`BgmBoss` を流用中。フェーズ遷移に合わせた専用変奏・無音区間は未調整。
+- 合成BGMは尺が短め（6〜12秒ループ）で長時間プレイでは反復感が出る。実音源差し替えで解消想定。

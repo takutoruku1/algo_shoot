@@ -167,7 +167,7 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _spawner = new Spawner { Name = "Spawner", World = World };
+            _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu };
             AddChild(_spawner);
             _spawner.Begin();
         }

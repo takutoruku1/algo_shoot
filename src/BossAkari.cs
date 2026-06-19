@@ -85,7 +85,9 @@ public partial class BossAkari : Enemy
         PanelRespawnDelay = 1.4f;
 
         PreTexPath = "res://char/enemy_akari_pre.png";
-        CryTexPath = "res://char/enemy_akari_post.png";  // 浄化＝改心を見せながら会話（その場で静止）
+        // 改心の三段：穢れ(pre)→泣き(cry＝触手がほどけ涙があふれる中間)→笑顔(post)。
+        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
+        CryTexPath = "res://char/enemy_akari_cry.png";
         PostTexPath = "res://char/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         BodyDisplayH = 52f;
@@ -95,8 +97,8 @@ public partial class BossAkari : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ボス登場＝道中BGMからボスBGMへクロスフェード。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
         GetHud()?.ShowBossBar("あふれるわたし");
         GetHud()?.UpdateBossBar(HpRatio);
         ApplySpell();
@@ -217,6 +219,8 @@ public partial class BossAkari : Enemy
     protected override void OnCryStart()
     {
         GetHud()?.HideBossBar();
+        // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝途切れていたフレーズが最後まで歌われる。
+        Audio.Instance?.PlayRedeem(1);
         var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;

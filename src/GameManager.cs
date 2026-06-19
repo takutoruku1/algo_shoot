@@ -411,8 +411,8 @@ public partial class GameManager : Node
     public bool IsOverload { get; private set; }
     private double _overloadT;
     private const double OverloadDur = 5.0;
-    private const float GrazeGain = 0.06f;
-    private const float PurifyGain = 0.12f;
+    private const float GrazeGain = 0.10f;
+    private const float PurifyGain = 0.09f;
     public bool JustOverloaded { get; private set; } // 発動した瞬間のフラグ（UI用、1フレーム）
     // ゲージ表示値: 全開中は残り時間、通常は蓄積量
     public float Kindness => IsOverload ? (float)(_overloadT / OverloadDur) : _kindFill;
@@ -445,17 +445,26 @@ public partial class GameManager : Node
         }
     }
 
-    // やさしさゲージを貯める。満タンで「やさしさ全開」発動。
+    // やさしさゲージを貯める。満タンになっても自動発動はせず、満タン(=Ready)で待機する。
+    // 発動はプレイヤーの手動操作（TryActivateKindness）に委ねる＝“使う”判断が生まれる。
     private void AddKindness(float amount)
     {
         if (IsOverload) return;
-        _kindFill += amount;
-        if (_kindFill >= 1f)
-        {
-            IsOverload = true;
-            _overloadT = OverloadDur;
-            JustOverloaded = true;
-        }
+        _kindFill = Mathf.Min(1f, _kindFill + amount);
+    }
+
+    // やさしさが満タンで、手動発動できる状態か。
+    public bool KindnessReady => !IsOverload && _kindFill >= 1f;
+
+    // 「やさしさ全開」を手動発動。満タンなら消費して発動し true を返す。
+    public bool TryActivateKindness()
+    {
+        if (IsOverload || _kindFill < 1f) return false;
+        IsOverload = true;
+        _overloadT = OverloadDur;
+        JustOverloaded = true;
+        _kindFill = 0f; // 発動と同時に消費（ゲージは全開タイマー表示へ切り替わる）
+        return true;
     }
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。

@@ -7,6 +7,9 @@ using Godot;
 public partial class Spawner : Node
 {
     public Node2D World = null!;
+    // ステージの「心象世界」テーマ。湧くザコ2種の絵・挙動をここで切り替える。
+    // 既定は Default（既存アンチくん/うつむきさん）＝StageW0 等は従来どおり。
+    public StageTheme Theme = StageTheme.Default;
     public bool Active { get; private set; }
 
     private const float SpawnX = 398f;   // 画面右外
@@ -55,7 +58,21 @@ public partial class Spawner : Node
     private void SpawnOne()
     {
         float y = _rng.RandfRange(46f, 172f);
-        Enemy e = _rng.Randf() < 0.25f ? new PageShard() : new GlyphMote();
+        bool drifter = _rng.Randf() < 0.25f; // 25%で撃たない種、75%で撃つ種
+
+        Enemy e;
+        if (Theme == StageTheme.Default)
+        {
+            // 既存挙動はそのまま（チュートリアル等の見た目・挙動を一切変えない）。
+            e = drifter ? new PageShard() : new GlyphMote();
+        }
+        else
+        {
+            var (shooter, drift) = EnemyTable.For(Theme);
+            var me = new MidEnemy();
+            me.Configure(drifter ? drift : shooter);
+            e = me;
+        }
         World.AddChild(e);
         e.GlobalPosition = new Vector2(SpawnX, y);
     }

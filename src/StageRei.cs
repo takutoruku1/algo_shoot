@@ -274,7 +274,7 @@ public partial class StageRei : Node
     private void StartMidwaveSpawner()
     {
         if (_spawner != null) return;
-        _spawner = new Spawner { Name = "Spawner", World = World };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei };
         AddChild(_spawner);
         _spawner.Begin();
     }
@@ -431,7 +431,7 @@ public partial class StageRei : Node
                 if (TutMovePressed()) _t1Moved = true;
                 // ショットは自弾の発生で計測（連射0.11s間隔。約12フレーム弾を見たら5発相当）。
                 if (CountPlayerBullets() >= 1) _t1ShotCount++;
-                if (_t1ShotCount >= 12) _t1Shot = true;
+                if (_t1ShotCount >= 7) _t1Shot = true;
                 if ((_t1Moved && _t1Shot) || _tphaseTime > 6.0) TutNext();
                 break;
 
@@ -535,7 +535,7 @@ public partial class StageRei : Node
         for (int i = 0; i < 4; i++)
         {
             float y = 40f + i * 36f;
-            pool.Spawn(new Vector2(Mathf.Min(360f, px + 140f + i * 10f), y), new Vector2(-40f, 0f), isEnemy: true, 3f, 1);
+            pool.Spawn(new Vector2(Mathf.Min(360f, px + 95f + i * 10f), y), new Vector2(-26f, 0f), isEnemy: true, 3f, 1);
         }
     }
     private double _t3Refill;
@@ -545,7 +545,7 @@ public partial class StageRei : Node
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
-        for (int i = 0; i < 14; i++)
+        for (int i = 0; i < 10; i++)
         {
             float x = _rng.RandfRange(40f, 360f);
             float y = _rng.RandfRange(-40f, -4f);

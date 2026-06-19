@@ -1,10 +1,15 @@
 using Godot;
 
-// StageImagery : 各ステージの「心象世界」をエンジン描画で重ねる軽量レイヤー（設計書 4 / 6 の演出ト書き）。
-//   Rei   : 終わらないコンテスト会場。「２位」が無限に並ぶ順位掲示板／「１位」は白飛びで読めない。
-//   Akari : 雨の教室。黒板に「あたしのせいだ」が無限、隙間に「すき」「ごめん」。机が天井へ落ちていく。記憶フラッシュ。
-//   Koharu: 永遠に夕食を作り続ける台所。空席に箸だけ。料理は冷めていく（湯気が細る）。
+// StageImagery : 各ステージの「心象世界」を、汚染された SNS(X) のタイムラインが上→下へ流れ落ちる
+//   ツイート風カードとしてエンジン描画で重ねる軽量レイヤー（設計書 4 / 6 の演出ト書きを SNS で翻訳）。
+//   Rei   : 順位晒しのタイムライン。「２位おめでとう（笑）」等の心ない投稿／「１位」は白飛びの固定ポスト。
+//   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す。
+//   Koharu: 孤独の静かな投稿。「だれも、こない」。いいねは 0（誰も反応しない）。台所の余韻は残す。暗背景なのでα低め。
 // 背景画像(ZIndex -90)の上、ゲーム要素(0..10)の下(ZIndex -50)に描く。浄化が進む(Warmth↑)と薄れて晴れる。
+//
+// 弾幕の視認性最優先：カードは「画面奥で流れ落ちる世間の声」で前に出さない。無彩色〜淡い同系色（弾の濃ピンク/
+//   黒グリフと色相分離）、加算しない、α上限おおむね0.20（合算込み・こはるは暗背景で一段低い）、同時4枚・中央回避・
+//   24px/s（ScrollFx近層96より遥か遅い＝奥）。乱数は使わず Frac(Mathf.Sin(i*..)*..) の決定論パターン。
 public partial class StageImagery : Node2D
 {
     public enum StageKind { Rei, Akari, Koharu }
@@ -47,65 +52,136 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE1 レイ：順位掲示板の海 ----
-    private void DrawRei(float fade)
+    // ───────── 共通：汚染SNSタイムラインのツイート風カード ─────────
+    // 全ステージ共通の小カード。上→下へ 24px/s でループ。同時4枚・横2レーン（中央は弾の主戦場なので空ける）。
+    private const float CardW = 148f, CardH = 40f;
+    private const float ScrollSpeed = 24f;     // px/s（ScrollFx近層96より遥か遅い＝奥）
+    private const int CardCount = 4;            // 同時表示（控えめ）
+    private static readonly float[] Lanes = { 14f, W - CardW - 14f }; // 左右の縁。中央を空ける
+
+    private static float Frac(float v) => v - Mathf.Floor(v);
+
+    // 匿名アカウント名を決定論生成（@nanashi_99 / @mob_2434 風）。
+    private static readonly string[] Handles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "_398" };
+    private string Handle(int i)
     {
-        const float cell = 30f;
-        float scroll = (float)(_t * 10.0) % cell; // ゆっくり上昇
-        var dim = new Color(0.78f, 0.86f, 1f, 0.10f * fade);
-        for (int row = -1; row * cell < H + cell; row++)
-        {
-            float y = row * cell - scroll + 8f;
-            for (int col = 0; col * cell < W; col++)
-            {
-                float x = col * cell + 6f;
-                _font.DrawString(GetCanvasItem(), new Vector2(x, y), "２位",
-                    HorizontalAlignment.Left, -1, 12, dim);
-            }
-        }
-        // 「１位」は白飛び（読めない）。中央上に眩しい矩形＋微かな文字。
-        var glow = new Color(1f, 1f, 1f, 0.20f * fade);
-        DrawRect(new Rect2(W / 2f - 34f, 20f, 68f, 22f), glow);
-        DrawRect(new Rect2(W / 2f - 34f, 20f, 68f, 22f), new Color(1f, 1f, 1f, 0.10f * fade), false, 1f);
-        _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 16f, 38f), "１位",
-            HorizontalAlignment.Left, -1, 13, new Color(1f, 1f, 1f, 0.5f * fade));
+        int s = (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * Handles.Length);
+        int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
+        return $"@{Handles[s % Handles.Length]}_{num}";
     }
 
-    // ---- STAGE2 あかり：雨の教室／黒板の自責／机が天井へ ----
+    // 1枚のカードを描く。本文・@名・メタは i 固定（周回でチラつかない）。
+    //   panel : パネル基本色（α込みの基準を fade で乗算）, text : 本文色, accent : アイコン色
+    //   likes/rts : メタ数字（晒し＝多い／孤独＝0）, quote : リプライ引用線（あかり）
+    private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
+                          string handle, string body, int likes, int rts, bool quote = false)
+    {
+        var ci = GetCanvasItem();
+        float a = pa * fade;
+        // パネル（半透明）＋枠線（型を出すが主張させない）。ドット解像度なので素の矩形＋1px枠で「カード」感。
+        DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a));
+        DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a * 0.7f), false, 1f);
+
+        // アイコン（左上の角丸シルエット＝8x8 の塗り＋四隅を1px欠いて丸める）。
+        float ix = x + 6f, iy = y + 6f;
+        var ic = new Color(accent.R, accent.G, accent.B, a * 1.4f);
+        // 角丸風：8x8 の塗りから四隅の1pxを欠く（中央十字＋辺で丸みを出す）。
+        DrawRect(new Rect2(ix + 1f, iy, 6f, 8f), ic);
+        DrawRect(new Rect2(ix, iy + 1f, 8f, 6f), ic);
+
+        // @ユーザー名（アイコン右、9px、やや低α）。
+        _font.DrawString(ci, new Vector2(x + 18f, y + 13f), handle,
+            HorizontalAlignment.Left, -1, 9, new Color(text.R, text.G, text.B, a * 1.5f));
+
+        // 本文（10px）。引用リプ（quote）なら左にスレッド線＋字下げ。
+        float bx = x + 18f, by = y + 26f;
+        if (quote)
+        {
+            DrawLine(new Vector2(x + 16f, y + 18f), new Vector2(x + 16f, y + 34f),
+                new Color(text.R, text.G, text.B, a * 1.2f), 1f);
+            bx = x + 21f;
+        }
+        _font.DrawString(ci, new Vector2(bx, by), body,
+            HorizontalAlignment.Left, -1, 10, new Color(text.R, text.G, text.B, Mathf.Min(a * 2.4f, 0.55f)));
+
+        // 下部メタ：ハート(小三角)＋数字 / RT(点2つ)＋数字（9px・低α）。
+        float my = y + CardH - 4f;
+        var meta = new Color(text.R, text.G, text.B, a * 1.2f);
+        // ハート＝小さな塗り三角の代用（2pxの点）
+        DrawRect(new Rect2(x + 18f, my - 5f, 2f, 2f), meta);
+        _font.DrawString(ci, new Vector2(x + 23f, my), likes.ToString(),
+            HorizontalAlignment.Left, -1, 9, meta);
+        // RT＝点2つ
+        float rx = x + 50f;
+        DrawRect(new Rect2(rx, my - 4f, 1f, 1f), meta);
+        DrawRect(new Rect2(rx + 3f, my - 4f, 1f, 1f), meta);
+        _font.DrawString(ci, new Vector2(rx + 6f, my), rts.ToString(),
+            HorizontalAlignment.Left, -1, 9, meta);
+    }
+
+    // 4枚のカードのループ y を等間隔で配り、各ステージの描画を行う。
+    private void DrawTimeline(float fade, Color panel, Color text, Color accent,
+                              string[] bodies, System.Func<int, (int likes, int rts, bool quote)> meta, float panelA)
+    {
+        float span = H + CardH;
+        for (int i = 0; i < CardCount; i++)
+        {
+            float y = (i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span - CardH;
+            float x = Lanes[i % Lanes.Length];
+            var (likes, rts, quote) = meta(i);
+            DrawCard(x, y, panelA, fade, panel, text, accent, Handle(i), bodies[i % bodies.Length], likes, rts, quote);
+        }
+    }
+
+    // ---- STAGE1 レイ：順位晒しのタイムライン（Cold=青系）----
+    private static readonly string[] ReiBodies =
+        { "２位おめでとう（笑）", "所詮この程度", "期待して損した", "また２位ｗ", "がんばっただけ", "知ってた" };
+    private void DrawRei(float fade)
+    {
+        // 「１位」は白飛びの固定ポスト（ピン留め）。スクロールしない最上部のカード。読めない眩しさ。
+        var glow = new Color(1f, 1f, 1f, 0.16f * fade);
+        DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), glow);
+        DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(1f, 1f, 1f, 0.09f * fade), false, 1f);
+        _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 16f, 22f), "１位",
+            HorizontalAlignment.Left, -1, 12, new Color(1f, 1f, 1f, 0.42f * fade));
+
+        // 順位晒しのタイムライン。冷たい青、メタは不自然に多い（晒しの拡散）。
+        var panel = new Color(0.80f, 0.86f, 1f);
+        var text = new Color(0.82f, 0.88f, 1f);
+        var accent = new Color(0.86f, 0.90f, 1f);
+        DrawTimeline(fade, panel, text, accent, ReiBodies, i =>
+        {
+            int likes = 60 + (int)(Frac(Mathf.Sin(i * 17.1f) * 5123.7f) * 180f); // 60〜240（晒し）
+            int rts = 20 + (int)(Frac(Mathf.Sin(i * 29.3f) * 3317.1f) * 90f);
+            return (likes, rts, false);
+        }, panelA: 0.13f);
+    }
+
+    // ---- STAGE2 あかり：自責リプのスレッド（雨の湿度を残す）----
+    // 本文は引用RT/リプ構造。「すき」「ごめん」は本人の声＝桃の差し色（DrawCardAkariBody で別色）。
+    private static readonly string[] AkariBodies =
+        { "> あたしのせいだ", "ごめん", "すき", "ぜんぶ、あたしの", "ごめんね", "> あたしのせいだ" };
     private void DrawAkari(float fade)
     {
-        // 黒板（上部）。「あたしのせいだ」を無限に、隙間に「すき」「ごめん」。
-        DrawRect(new Rect2(20f, 12f, W - 40f, 64f), new Color(0.08f, 0.14f, 0.10f, 0.45f * fade));
-        var chalk = new Color(0.85f, 0.95f, 0.88f, 0.16f * fade);
-        var chalk2 = new Color(0.95f, 0.85f, 0.9f, 0.18f * fade);
-        for (int r = 0; r < 4; r++)
+        // 自責リプのタイムライン。寒色ニュートラルのパネルに、本人の声だけ桃の差し色。
+        var panel = new Color(0.80f, 0.85f, 1f);
+        var accent = new Color(0.86f, 0.88f, 0.95f);
+        float span = H + CardH;
+        for (int i = 0; i < CardCount; i++)
         {
-            float y = 26f + r * 15f;
-            for (int c = 0; c < 4; c++)
-            {
-                float x = 28f + c * 86f;
-                _font.DrawString(GetCanvasItem(), new Vector2(x, y), "あたしのせいだ",
-                    HorizontalAlignment.Left, -1, 9, chalk);
-            }
-            if (r % 2 == 0)
-                _font.DrawString(GetCanvasItem(), new Vector2(300f, y), "すき", HorizontalAlignment.Left, -1, 9, chalk2);
-            else
-                _font.DrawString(GetCanvasItem(), new Vector2(300f, y), "ごめん", HorizontalAlignment.Left, -1, 9, chalk2);
+            float y = (i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span - CardH;
+            float x = Lanes[i % Lanes.Length];
+            string body = AkariBodies[i % AkariBodies.Length];
+            bool isVoice = body == "すき" || body.StartsWith("ごめん"); // 本人の声＝桃
+            bool quote = body.StartsWith(">");
+            var text = isVoice ? new Color(0.95f, 0.86f, 0.90f) : new Color(0.82f, 0.86f, 0.96f);
+            DrawCard(x, y, 0.13f, fade, panel, text, accent, Handle(i), body,
+                     likes: 2 + (int)(Frac(Mathf.Sin(i * 13.7f) * 2113.3f) * 9f), // 2〜11（小さなリプ欄）
+                     rts: (int)(Frac(Mathf.Sin(i * 23.1f) * 1777.7f) * 4f),       // 0〜3
+                     quote: quote);
         }
 
-        // 机が天井へ落ちていく（上向きに浮上してループ）。
-        var deskCol = new Color(0.5f, 0.42f, 0.32f, 0.22f * fade);
-        for (int i = 0; i < 6; i++)
-        {
-            float phase = (float)((_t * 14.0 + i * 33.0) % 150.0);
-            float y = H - phase;                       // 下から上へ
-            float x = 40f + (i * 61) % (int)(W - 80f);
-            DrawRect(new Rect2(x, y, 22f, 6f), deskCol);          // 天板
-            DrawRect(new Rect2(x + 2f, y + 6f, 3f, 7f), deskCol); // 脚
-            DrawRect(new Rect2(x + 17f, y + 6f, 3f, 7f), deskCol);
-        }
-
-        // 雨（細い斜線）。
+        // 雨（細い斜線）。画面（X）越しに降る雨の教室の湿度を残す。
         var rain = new Color(0.7f, 0.8f, 1f, 0.10f * fade);
         for (int i = 0; i < 26; i++)
         {
@@ -159,9 +235,22 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE3 こはる：台所／空席に箸／冷めていく料理 ----
+    // ---- STAGE3 こはる：孤独の静かな投稿（暗背景・α一段低め）＋台所の余韻 ----
+    // いいねは 0 か 1（誰も反応しない孤独）。叫ばない。台所の食卓・空席・箸・湯気は残す。
+    private static readonly string[] KoharuBodies =
+        { "だれも、こない", "つくりすぎた", "きょうも、ひとり", "いただきます", "おかえり、って", "…" };
     private void DrawKoharu(float fade)
     {
+        // 孤独のタイムライン。暗背景なので一段低い α(0.07)。反応ゼロ＝いいね 0/1。
+        var panel = new Color(0.85f, 0.84f, 0.82f);   // ニュートラル暖
+        var text = new Color(0.86f, 0.85f, 0.83f);
+        var accent = new Color(0.90f, 0.89f, 0.86f);
+        DrawTimeline(fade, panel, text, accent, KoharuBodies, i =>
+        {
+            int likes = (int)(Frac(Mathf.Sin(i * 19.3f) * 1303.1f) * 1.6f); // 0 か 1
+            return (likes, 0, false);                                       // RT は常に 0
+        }, panelA: 0.07f);
+
         // 食卓（テーブル天板）
         float ty = 150f;
         DrawRect(new Rect2(60f, ty, W - 120f, 10f), new Color(0.42f, 0.30f, 0.22f, 0.40f * fade));

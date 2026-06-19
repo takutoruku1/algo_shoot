@@ -495,6 +495,11 @@ public partial class Hud : CanvasLayer
             UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), over ? UiKit.Gold : UiKit.Mina, 4f);
         }
         if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, UiKit.Gold);
+        else if (_game?.KindnessReady ?? false) // 満タン＝手動発動できる（Space/R3）。点滅で誘導。
+        {
+            float ba = 0.55f + 0.45f * Mathf.Sin((float)_t * 7f);
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！Space", 11, new Color(UiKit.Gold, ba));
+        }
     }
 
     // マクロ目標（表ゴール）を控えめに：救うべき3つの心の進捗＋ミナの汚染ゲージ。左端に小さく。
