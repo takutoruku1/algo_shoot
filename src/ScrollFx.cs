@@ -9,7 +9,8 @@ using Godot;
 //   近層 ZIndex -55 : 速い(遠の約2.3倍)・やや濃い・縦ストリーク（手前を過ぎ去る）
 //   ※ 既存 StageImagery(ZIndex -50) より奥。弾(0..)には絶対かぶらない。
 //
-// 弾幕の視認性最優先：α上限0.18・ほぼ無彩色(白〜淡い同系色)・通常合成(加算しない)・線/粒1〜2px。
+// 弾幕の視認性最優先：α上限0.21・ほぼ無彩色(白〜淡い同系色／弾の濃ピンク・黒グリフと色相を分離)・
+//   通常合成(加算しない)・線/粒1〜2px。実機で弾より目立たないことを確認済み。
 // Warmth(浄化進行)に連動：晴れるほど α を下げ速度を落とす（流れが凪ぐ）。StageImagery と同じ
 //   fade = 1f - Warmth の語彙で統一。
 //
@@ -75,8 +76,10 @@ public partial class ScrollFx : Node2D
             {
                 // 遠層：読めない順位の光点。下方向 26〜34px/s、α0.06〜0.10、1px の点／短い縦ストリーク。
                 // 画面に 24 個。決定論的に散らす（疑似乱数を i から作る）。
-                const int count = 24;
-                float spd = 30f;
+                // 実機確認：board.png(-90)が明るく細密なため α0.06〜0.10では流れが全く読めず静止に見えた。
+                // 弾(濃いピンク/黒グリフ＝高コントラスト)とは色相が違い埋もれないので、粒数・α・速度を一段上げる。
+                const int count = 36;
+                float spd = 42f;
                 for (int i = 0; i < count; i++)
                 {
                     float seedx = Frac(Mathf.Sin(i * 12.9898f) * 43758.5453f);
@@ -84,21 +87,23 @@ public partial class ScrollFx : Node2D
                     float x = seedx * W;
                     float span = H + 24f;
                     float y = (seedy * span + t * spd) % span - 12f;
-                    float a = (0.06f + seedx * 0.04f) * fade; // 0.06〜0.10
+                    float a = (0.10f + seedx * 0.05f) * fade; // 0.10〜0.15
                     var col = new Color(0.80f, 0.87f, 1f, a);
-                    // 半分は点、半分は短い 1px 縦ストリーク（読めない粒感）。
+                    // 半分は点、半分は短い 1px 縦ストリーク（読めない粒感）。流れを見せるため少し長く。
                     if (i % 2 == 0)
                         DrawRect(new Rect2(x, y, 1f, 1f), col);
                     else
-                        DrawLine(new Vector2(x, y), new Vector2(x, y + 3f), col, 1f);
+                        DrawLine(new Vector2(x, y), new Vector2(x, y + 5f), col, 1f);
                 }
             }
             else
             {
                 // 近層：下へ流れる横罫線（順位掲示板のスキャンライン）。70px/s（遠の約2.3倍）、
                 // α0.12〜0.16、長さ8〜16px の横ストリークを段組みで。16 本。
-                const int rows = 16;
-                float spd = 70f;
+                // 実機確認で凪ぎすぎ＝静止見え。近層は速さ・α・本数を上げ「過ぎ去る」流れを明確化。
+                // 横罫線は弾と直交方向（横）なので縦に流れても弾の追従を妨げない。
+                const int rows = 20;
+                float spd = 96f;
                 float gap = H / rows;
                 float scroll = (t * spd) % gap;
                 for (int r = -1; r < rows + 1; r++)
@@ -106,15 +111,15 @@ public partial class ScrollFx : Node2D
                     float y = r * gap + scroll;
                     float seed = Frac(Mathf.Sin(r * 34.17f) * 9817.31f);
                     float x = seed * (W - 16f);
-                    float len = 8f + seed * 8f;                  // 8〜16px
-                    float a = (0.12f + seed * 0.04f) * fade;     // 0.12〜0.16
+                    float len = 10f + seed * 12f;                 // 10〜22px（流れの手掛かりを長く）
+                    float a = (0.16f + seed * 0.05f) * fade;      // 0.16〜0.21
                     var col = new Color(0.78f, 0.85f, 1f, a);
                     DrawLine(new Vector2(x, y), new Vector2(x + len, y), col, 1f);
                     // たまに 2px の太め罫線（手前感）。
                     if (r % 4 == 0)
                     {
                         float x2 = Frac(seed + 0.37f) * (W - 24f);
-                        DrawLine(new Vector2(x2, y + gap * 0.5f), new Vector2(x2 + 14f, y + gap * 0.5f),
+                        DrawLine(new Vector2(x2, y + gap * 0.5f), new Vector2(x2 + 16f, y + gap * 0.5f),
                             new Color(0.80f, 0.86f, 1f, a * 0.9f), 2f);
                     }
                 }
