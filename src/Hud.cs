@@ -72,6 +72,20 @@ public partial class Hud : CanvasLayer
     private int _typePrevRevealed;      // 直前フレームの revealed 整数部（新しく出た文字を差分検出）
     private const int TypeStride = 2;   // 何文字に1回鳴らすか（毎文字は鳴らしすぎ）
 
+    // ───────── 立ち絵の生命感（吉田明彦：常時の微細な生命感／見た目のみ・進行に無影響）─────────
+    // 呼吸：話者の立ち絵だけを Sin で上下に微細に揺らす。やりすぎない。
+    private const float BreathPeriod = 3.6f;   // 呼吸周期（秒）
+    private const float BreathAmp    = 1.6f;    // 振幅（±px・設計1280x720座標）
+    // 表情クロスフェード：face テクスチャ切替の瞬間、旧→新を短時間でα合成。
+    private const float PortraitFade = 0.12f;   // クロスフェード秒
+    private Texture2D? _dlgPortraitPrev;        // 直前の立ち絵（フェードアウト側）
+    private double _portraitFadeT;              // 0..PortraitFade を減算（>0 の間だけ旧絵を重ねる）
+    // うなずき：タイプ送り完了の瞬間に立ち絵を 1px ほど下げて戻す相づち。
+    private const float NodAmp  = 1.4f;         // うなずき深さ（px）
+    private const float NodTime = 0.26f;        // うなずき1往復の所要（秒）
+    private double _nodT;                       // 0..NodTime を減算（>0 の間だけうなずく）
+    private bool _revealWasDone;                // 直前フレームでタイプ送りが完了していたか（完了の立ち上がり検出）
+
     // やさしさゲージ（HUD表示用）
     private double _overloadToast;
     private float _kindPulse;
@@ -139,6 +153,15 @@ public partial class Hud : CanvasLayer
             }
         }
 
+        // 立ち絵の生命感タイマー（見た目のみ・進行に無影響）。
+        if (_portraitFadeT > 0) _portraitFadeT -= delta;        // 表情クロスフェードの残り
+        if (_nodT > 0) _nodT -= delta;                          // うなずきの残り
+        // うなずき：その行のタイプ送りが「いま完了した瞬間」だけ1回トリガ。
+        bool revealDone = _messageTimer > 0 && _dlgIsDialog && _dlgPortrait != null
+                          && _dlgText.Length > 0 && _dlgRevealed >= _dlgText.Length;
+        if (revealDone && !_revealWasDone) _nodT = NodTime;
+        _revealWasDone = revealDone;
+
         if (_messageTimer > 0)
         {
             if (!HoldBubble) _messageTimer -= delta;
@@ -191,6 +214,7 @@ public partial class Hud : CanvasLayer
     private void ClearDialog()
     {
         _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgRevealed = 0;
+        _dlgPortraitPrev = null; _portraitFadeT = 0; _nodT = 0; _revealWasDone = false;
     }
 
     // ───────── テキストボックスの行の種類 ─────────
@@ -234,7 +258,22 @@ public partial class Hud : CanvasLayer
         // 新しい行＝送り音の差分検出をリセット。話者は既定で無音（ナレ）。
         // LineKind を取る ShowDialog だけが直後に _dlgKind を上書きする。
         _typePrevRevealed = 0; _dlgKind = LineKind.Narration;
-        _dlgPortrait = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
+        Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
+        // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
+        // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
+        if (next != null && _dlgPortrait != null && next != _dlgPortrait)
+        {
+            _dlgPortraitPrev = _dlgPortrait;
+            _portraitFadeT = PortraitFade;
+        }
+        else
+        {
+            _dlgPortraitPrev = null;
+            _portraitFadeT = 0;
+        }
+        _dlgPortrait = next;
+        // 新しい行：うなずきは未完了から仕切り直し。
+        _nodT = 0; _revealWasDone = false;
     }
 
     public void HideBubble() { _messageTimer = 0; ClearDialog(); }
@@ -406,10 +445,10 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 14, y + 12), "SCORE", 11, new Color("f0d98a"));
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, score.ToString("000,000"), 22), y + 6), score.ToString("000,000"), 22, new Color("f0d98a"));
 
-        // テレメトリ・チップ（イ＝インプレ / コンボ or フォロワー）
+        // テレメトリ・チップ（♥＝浄化した心 / コンボ or フォロワー）
         long imp = _game?.RunImpression ?? 0;
         int combo = _game?.Combo ?? 0;
-        string c1 = "イ " + UiKit.Abbrev(imp);
+        string c1 = "♥ " + UiKit.Abbrev(imp);
         string c2 = combo >= 2 ? $"× {combo}" : UiKit.Abbrev(_game?.Followers ?? 0);
         float cy = y + 44;
         float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11);
@@ -427,11 +466,17 @@ public partial class Hud : CanvasLayer
     private void DrawTimer(HudCanvas ci)
     {
         string t = UiKit.FormatTime(_elapsed);
-        float w = 132, x = 1280 - 22 - w, y = 90, h = 28;
+        // 幅は内容から動的に算出：丸(28) + "TIME" + 余白(12) + 値 + 右余白(14)。
+        // 分が2桁(例 12:34.56)に伸びても「TIME」と数字が重ならず、右端は従来位置のまま左へ伸びる。
+        float labelW = UiKit.TextW(UiKit.Mono, "TIME", 11);
+        float valW = UiKit.TextW(UiKit.Mono, t, 17);
+        float h = 28;
+        float w = 28 + labelW + 12 + valW + 14;
+        float x = 1280 - 22 - w, y = 90;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 12f, new Color(UiKit.Info, 0.4f), 1f);
         ci.DrawCircle(new Vector2(x + 16, y + h / 2f), 4f, UiKit.Info);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 28, y + 8), "TIME", 11, UiKit.Text2);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, t, 17), y + 5), t, 17, UiKit.PurifyHi);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - valW, y + 5), t, 17, UiKit.PurifyHi);
     }
 
     private void DrawBossCard(HudCanvas ci)
@@ -583,8 +628,8 @@ public partial class Hud : CanvasLayer
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
         float x = 22, y = 162, w = 190, h = 48;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.26f), 1f);
-        // 浄化した心 ◯/3（救った人数＝マクロ目標）
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "浄化した心", 11, UiKit.Info);
+        // 救った人 ◯/3（=HeartsSaved＝到達度マクロ目標）。通貨「浄化した心」と名前で分離する。
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "救った人", 11, UiKit.Info);
         for (int i = 0; i < total; i++)
         {
             Color c = i < saved ? UiKit.Purify : new Color(UiKit.Purify, 0.20f);
@@ -706,11 +751,31 @@ public partial class Hud : CanvasLayer
         float x = 40, y = 540, w = 1200, h = 150;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.95f), 16f, new Color(_dlgSpeakerCol, 0.5f), 1.4f);
         float textX = x + 36;
-        // 立ち絵（あれば左に）
+        // 立ち絵（あれば左に）。常時の微細な生命感：呼吸（上下揺れ）＋表情クロスフェード＋うなずき。
+        // ここで描く立ち絵＝いま発話中の話者なので、揺れは「話者だけ」に自然に閉じる。
         if (_dlgPortrait != null)
         {
             float ph = h - 8, pw = ph * _dlgPortrait.GetWidth() / Mathf.Max(1, _dlgPortrait.GetHeight());
-            ci.DrawTextureRect(_dlgPortrait, new Rect2(x + 10, y + 4, pw, ph), false);
+            float px = x + 10;
+            // 呼吸：ゆっくりした上下のサイン。基準位置 y+4 を中心に ±BreathAmp。
+            float breath = BreathAmp * Mathf.Sin((float)_t * (Mathf.Tau / BreathPeriod));
+            // うなずき：完了直後に下→戻る。半周期 Sin の山（下が＋）。タイプ送り完了の相づち。
+            float nod = 0f;
+            if (_nodT > 0f)
+                nod = NodAmp * Mathf.Sin((float)((NodTime - _nodT) / NodTime) * Mathf.Pi);
+            float py = y + 4 + breath + nod;
+            // 表情クロスフェード：旧絵をフェードアウトしつつ新絵をフェードイン（同じ揺れ位置で重ねる）。
+            if (_portraitFadeT > 0f && _dlgPortraitPrev != null)
+            {
+                float f = Mathf.Clamp((float)(_portraitFadeT / PortraitFade), 0f, 1f); // 1→0
+                float pwOld = ph * _dlgPortraitPrev.GetWidth() / Mathf.Max(1, _dlgPortraitPrev.GetHeight());
+                ci.DrawTextureRect(_dlgPortraitPrev, new Rect2(px, py, pwOld, ph), false, new Color(1f, 1f, 1f, f));
+                ci.DrawTextureRect(_dlgPortrait, new Rect2(px, py, pw, ph), false, new Color(1f, 1f, 1f, 1f - f));
+            }
+            else
+            {
+                ci.DrawTextureRect(_dlgPortrait, new Rect2(px, py, pw, ph), false);
+            }
             textX = x + 10 + pw + 20;
         }
         if (_dlgSpeaker.Length > 0)

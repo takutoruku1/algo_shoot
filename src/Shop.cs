@@ -131,7 +131,7 @@ public partial class Shop : Node2D
         var d = GameManager.GetUpgradeDef(id);
         if (d == null) return;
         if (lv >= d.MaxLevel) { Audio.Instance?.PlayUiDeny(); Toast("すでに最大です", UiKit.Text4); return; }
-        if (!(_game?.CanPurchase(id) ?? false)) { Audio.Instance?.PlayUiDeny(); Toast("インプレッションが足りません", new Color("ef9a9a")); return; }
+        if (!(_game?.CanPurchase(id) ?? false)) { Audio.Instance?.PlayUiDeny(); Toast("浄化した心が足りません", new Color("ef9a9a")); return; }
         if (_game!.TryPurchase(id))
         {
             Audio.Instance?.PlayUiBuy(); // 購入成功＝達成音
@@ -216,7 +216,7 @@ public partial class Shop : Node2D
         float pillX = W - PadX - pillW, pillY = 30f;
         UiKit.Box(this, new Rect2(pillX, pillY, pillW, 44f), new Color(232 / 255f, 196 / 255f, 90 / 255f, 0.1f), 14f, new Color(UiKit.Gold, 0.4f), 1f);
         DrawCircle(new Vector2(pillX + 22, pillY + 22), 8f, UiKit.Gold);
-        UiKit.Text(this, UiKit.Zen, new Vector2(pillX + 38, pillY + 14), "インプレッション", 12, new Color("f0d98a"));
+        UiKit.Text(this, UiKit.Zen, new Vector2(pillX + 38, pillY + 14), "浄化した心", 12, new Color("f0d98a"));
         if (popA > 0) UiKit.RadialGlow(this, new Vector2(pillX + pillW - 24 - numW / 2f, pillY + 22), 50f, UiKit.Gold, 0.45f * popA);
         Color impCol = new Color("f0d98a").Lerp(UiKit.White, popA);
         UiKit.Text(this, UiKit.Mono, new Vector2(pillX + pillW - 18 - numW, pillY + 22 - impSize / 2f - popA * 1.5f), impS, impSize, impCol);
@@ -385,7 +385,8 @@ public partial class Shop : Node2D
             bool maxed = lv >= maxLv;
             bool can = !maxed && (_game?.CanPurchase(up) ?? false);
             string label = locked ? "Z 解放" : (maxed ? "MAX" : "Z 強化");
-            string cost = maxed ? "" : "◈" + (_game?.GetUpgradeCost(up) ?? 0).ToString("N0");
+            // コスト＝「浄化した心」。心アイコン(♥)＋数値で示す（◈から差し替え）。
+            string cost = maxed ? "" : "♥" + (_game?.GetUpgradeCost(up) ?? 0).ToString("N0");
             Color bg = can ? UiKit.Info : new Color(1, 1, 1, 0.05f);
             Color tx = can ? UiKit.White : (maxed ? new Color("c9b6ef") : UiKit.Text4);
             UiKit.Box(this, new Rect2(buyX, y, buyW, 36f), bg, 10f, can ? new Color(0, 0, 0, 0) : new Color(1, 1, 1, 0.12f), can ? 0f : 1f);
@@ -541,7 +542,7 @@ public partial class Shop : Node2D
             }
             else
             {
-                string cost = "◈" + (_game?.GetUpgradeCost(id) ?? 0).ToString("N0");
+                string cost = "♥" + (_game?.GetUpgradeCost(id) ?? 0).ToString("N0"); // 浄化した心（◈から差し替え）
                 UiKit.Box(this, new Rect2(bx, y + 9, bw, 32f), can ? new Color("f0d98a") : new Color(1, 1, 1, 0.05f), 9f,
                     can ? new Color(0, 0, 0, 0) : new Color(1, 1, 1, 0.12f), can ? 0f : 1f);
                 UiKit.Text(this, UiKit.Mono, new Vector2(bx, y + 16), cost, 14, can ? new Color("2a1e08") : UiKit.Text4, HorizontalAlignment.Center, bw);

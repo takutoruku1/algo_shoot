@@ -142,7 +142,7 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, 13, UiKit.Info);
         float tagW = UiKit.TextW(UiKit.Mono, _stageTag, 13);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へダイブ", 28, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（インプレ報酬も変動）", 14, UiKit.Text3,
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（浄化した心の報酬も変動）", 14, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 

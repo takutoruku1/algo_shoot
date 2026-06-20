@@ -66,7 +66,6 @@ public partial class DemoPilot : Node
     private GameManager.Diff _diff = GameManager.Diff.Easy; // 既定は安全運転
     private double _seconds = DefaultSeconds;
     private double _t;
-    private double _wordCamT; // [一時/デバッグ] 言葉弾スクショ用タイマー
 
     private GameManager _game = null!;
 
@@ -132,20 +131,6 @@ public partial class DemoPilot : Node
     {
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         bool talking = Hud.BubblePaused;
-
-        // [一時/デバッグ] 言葉弾の当たり点確認用：ゆっくり降る言葉弾を定期的に出す。
-        if (player != null && !talking)
-        {
-            _wordCamT += delta;
-            if (_wordCamT >= 0.5)
-            {
-                int k = (int)(_t / 0.5);
-                _wordCamT = 0;
-                var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-                string[] ws = { "努力は天才に勝てない", "届かない", "どうせ二番", "私を見て" };
-                pool?.Spawn(new Vector2(70f + (k * 53 % 240), -6f), new Vector2(0f, 28f), isEnemy: true, 3f, 1)?.SetWord(ws[k % ws.Length]);
-            }
-        }
 
         float bestGap = 9999f;
         if (player == null || talking)

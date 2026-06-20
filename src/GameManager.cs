@@ -247,7 +247,7 @@ public partial class GameManager : Node
         new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
         new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボムの一掃範囲UP",        MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
         new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 700,  CostMul = 1.6f },
-        new() { Id = "imp_mult",      Name = "インプレ倍率", Desc = "獲得インプレUP",        MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
+        new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP",    MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
         new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を抑え、やさしさの鈍りを緩和", MaxLevel = 3, BaseCost = 650,  CostMul = 1.55f },
