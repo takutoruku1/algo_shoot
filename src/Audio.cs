@@ -61,6 +61,16 @@ public partial class Audio : Node
     //   BgmMenu=温かく遅い薄編成 / BgmStage=道中 / BgmBoss=短調寄り・密度高め・緊張（汎用＝Mina/Hikage 用）。
     public AudioStreamWav BgmMenu = null!, BgmStage = null!, BgmBoss = null!;
 
+    // Final の「音楽的解決」（設計 §1-3「感情の節目で帰ってくる」/ §7「無音→解決音」）。
+    //   Final は濁った BgmBoss を全編流し、感情が音楽的に解決しないまま終わっていた。
+    //   ミナの反転号令の直前で BgmBoss を切って完全無音にし、「返事は、ありませんでした。」の
+    //   一行と同時にこの曲を ppp で立ち上げる。沈黙→解決音の落差が決定打。
+    //   主題 M.I.N.A.（ド ミ レ ソ＝C E D G）を、戦闘で「未完／濁り」だった姿から
+    //   主音 C へ解決させる温かい長調の変奏（BgmMenu と同じ C-Am-F-G の和声圏）。
+    //   Epilogue が BgmMenu へクロスフェードするので、同じ主題・同じ和声圏で自然に橋渡しされる。
+    //   ※本物のボーカル挿入歌が来たら、この BgmFinalResolve を実音源に差し替えれば成立する。
+    public AudioStreamWav BgmFinalResolve = null!;
+
     // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
     //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
     //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
@@ -111,6 +121,7 @@ public partial class Audio : Node
         BgmMenu   = BuildBgmMenu();
         BgmStage  = BuildBgm();
         BgmBoss   = BuildBgmBoss();
+        BgmFinalResolve = BuildBgmFinalResolve();
         BgmBossRei    = BuildBgmBossRei();
         BgmBossAkari  = BuildBgmBossAkari();
         BgmBossKoharu = BuildBgmBossKoharu();
@@ -257,6 +268,17 @@ public partial class Audio : Node
         if (redeem == null) return;
         // 温かい解決へ少し速め（0.8s）に橋渡し。汚染LowPassの対象外なので、こもらず晴れて鳴る。
         Music(redeem, fade: 0.8f);
+    }
+
+    // ───────── Final の音楽的解決（設計 §7「無音→解決音」一点投入）─────────
+    //   Final.cs から「返事は、ありませんでした。」の表示と同時に呼ぶ。直前で StopMusic 済み＝無音から立ち上げる。
+    //   ppp で始め、ゆっくり（既定 4.0s）クロスフェードイン。BgmMenu と同じ和声圏なので
+    //   Epilogue の BgmMenu へ自然に溶ける（Epilogue 側 Music(BgmMenu) がそのまま橋渡し）。
+    //   汚染LowPassの対象外（_currentMusic 判定に含めない）ので、こもらず晴れて鳴る。
+    public void PlayFinalResolve(float fade = 4.0f)
+    {
+        if (Muted) return;
+        Music(BgmFinalResolve, fade: fade);
     }
 
     // ───────── コアSE 再生（呼び出し側はこれだけ叩く）─────────
@@ -750,6 +772,66 @@ public partial class Audio : Node
             }
         }
         FadeEnds(s, (int)(0.008f * Rate));
+
+        var w = MakeWav(s);
+        w.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        w.LoopBegin = 0;
+        w.LoopEnd = n;
+        return w;
+    }
+
+    // ───────── BgmFinalResolve（Final の音楽的解決。設計 §1-3「節目で帰る」/ §7「無音→解決」）─────────
+    //   Final の決定打。沈黙の直後に ppp で立ち上がる、主題 M.I.N.A. の「完」。
+    //   和声は BgmMenu と同じ C-Am-F-G（温かい長調圏）＝Epilogue の BgmMenu へ継ぎ目なく溶ける。
+    //   各小節4秒のごく緩い16秒ループ＝余韻を長く持続。BgmBoss の不協和な「未完」モチーフが、
+    //   ここでは半音テンションを取り去り、最後に主音 C6 へ「届いて」解決する（破壊でなく赦し）。
+    //   全体ゲインを BgmMenu より一段下げ ppp とし、沈黙からの立ち上がりの落差を生かす。
+    private AudioStreamWav BuildBgmFinalResolve()
+    {
+        const float bar = 4.0f; const int bars = 4;   // ごく緩く・長い余韻
+        int barN = (int)(Rate * bar), n = barN * bars;
+        var s = new float[n];
+
+        // BgmMenu と同じ和声圏（C-Am-F-G）＝主題が「帰る」場所。
+        float[][] chords =
+        {
+            new[] { 130.81f, 261.63f, 329.63f, 392.00f }, // C  （主音＝解決の地盤）
+            new[] { 110.00f, 220.00f, 261.63f, 329.63f }, // Am
+            new[] {  87.31f, 174.61f, 220.00f, 261.63f }, // F
+            new[] {  98.00f, 196.00f, 246.94f, 293.66f }, // G  （次へ＝主音へ戻す推進）
+        };
+        // M.I.N.A. モチーフ（ド ミ レ ソ）を1小節1音。最終小節で主音 C へ「届く」よう、
+        //   G(784) の次に解決の高音 C6(1046) を内包させる（BgmBoss では半音下に濁って届かなかった音）。
+        float[] motif = { 523.25f, 659.25f, 587.33f, 783.99f }; // C5 E5 D5 G5
+
+        for (int b = 0; b < bars; b++)
+        {
+            float[] ch = chords[b];
+            int baseI = b * barN;
+            for (int i = 0; i < barN; i++)
+            {
+                float t = (float)i / Rate;
+                // パッド：三和音の、呼吸のように長いスウェル（両端0＝継ぎ目なし）。
+                float pad = (Mathf.Sin(Mathf.Tau * ch[1] * t) + Mathf.Sin(Mathf.Tau * ch[2] * t)
+                           + Mathf.Sin(Mathf.Tau * ch[3] * t)) * Swell(t, bar, 0.9f, 1.2f) * 0.09f;
+                // ベース：根音、やわらかく。
+                float bass = Mathf.Sin(Mathf.Tau * ch[0] * t) * Swell(t, bar, 0.3f, 0.9f) * 0.12f;
+                // メロディ：モチーフ1音を澄んだベルで、間を活かしてぽつりと。
+                //   倍音を薄く重ね「届いた」温かさ（破壊でなく赦し＝pitfalls P4）。
+                float mhz = motif[b];
+                float mel = (Mathf.Sin(Mathf.Tau * mhz * t)
+                           + 0.3f * Mathf.Sin(Mathf.Tau * mhz * 2f * t)) // 純正な倍音＝晴れ（半音濁りは無し）
+                           * Swell(t, bar, 0.25f, 1.6f) * 0.075f;
+                // 最終小節：G の上に解決の主音 C6 を重ね、主題を主音へ「届かせて」締める。
+                float resolve = 0f;
+                if (b == bars - 1)
+                    resolve = Mathf.Sin(Mathf.Tau * 1046.5f * t)
+                            * Swell(t, bar, 1.4f, 1.8f) * 0.06f; // 遅れて立ち上がり、長く伸びて余韻
+                // 全体を BgmMenu(0.38) より下げ ppp に。
+                s[baseI + i] = (pad + bass + mel + resolve) * 0.3f;
+            }
+        }
+        FadeEnds(s, (int)(0.01f * Rate)); // 端を10msフェード＝ループ継ぎ目を無音化
 
         var w = MakeWav(s);
         w.LoopMode = AudioStreamWav.LoopModeEnum.Forward;

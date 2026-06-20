@@ -59,6 +59,7 @@ public partial class KoharuRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Koharu }); // 近景パララックス：湯気/冷気の対流で凪いだ前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Koharu }); // 空席に箸・冷める食卓
+        AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -91,7 +92,10 @@ public partial class KoharuRoot : Node2D
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：STAGE3は「縁の濁り(0.42)→深刻に翳る(0.72)」（設計書 4-b）。次のFINALで黒く溶ける(1.0)。
-        float corr = Mathf.Lerp(0.42f, 0.72f, game?.StageProgress ?? 0f);
+        // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
+        const float baseFrom = 0.42f, baseTo = 0.72f;
+        float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
+        float corr = baseFrom + gained;
         game?.SetContamination(corr);
         Player?.SetCorruption(corr);
     }

@@ -7,9 +7,7 @@ public partial class BossRei : Enemy
 {
     public bool Finished { get; private set; }
 
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
-    private Vector2 _moveTarget;
-    private bool _hasTarget;
+    private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 42f;
 
     private double _fireT;
@@ -65,7 +63,6 @@ public partial class BossRei : Enemy
 
     protected override void OnEnemyReady()
     {
-        _rng.Randomize();
         Points = 1500;
         BodyRadius = 9f;
         PanelCount = 5;          // 「二番」の言葉（黒い吹き出し）
@@ -75,8 +72,8 @@ public partial class BossRei : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = 82f;
 
-        MaxHp = 38;
-        PanelRespawnDelay = 1.4f;
+        // HPバー本数は難易度別（通常ボス：Easy3/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
+        BarCount = DiffBars(finalBoss: false);
 
         PreTexPath = "res://char/enemy_rei_pre.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ剥がれかけ・涙)→笑顔(post)。
@@ -92,24 +89,19 @@ public partial class BossRei : Enemy
         base._Ready();
         // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
-        GetHud()?.ShowBossBar("孤高のわたし");
-        GetHud()?.UpdateBossBar(HpRatio);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
+        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+        GetHud()?.ShowBossBar("孤高のわたし", "@rei_____");
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
     {
-        if (!_hasTarget) PickTarget();
-        Vector2 to = _moveTarget - GlobalPosition;
-        if (to.Length() < 8f) { PickTarget(); to = _moveTarget - GlobalPosition; }
-        GlobalPosition += to.Normalized() * RoamSpeed * (float)delta;
+        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         FirePattern(delta);
-    }
-
-    private void PickTarget()
-    {
-        _moveTarget = new Vector2(_rng.RandfRange(70f, 320f), _rng.RandfRange(38f, 108f));
-        _hasTarget = true;
     }
 
     // 攻撃パターン（セリフを挟むたびに変化）。
@@ -180,18 +172,33 @@ public partial class BossRei : Enemy
 
     protected override void OnHpChanged()
     {
-        GetHud()?.UpdateBossBar(HpRatio);
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
         }
-        if (!_finale && HpRatio <= 0.2f)
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
+        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
             GetHud()?.AnnounceSpell("レイ", "@rei_compete", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
+    }
+
+    // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気。サイクルごとに index を進め、超えたら最後を使い回す）。
+    private static readonly string[] RecloseLines =
+    {
+        "近づかないで。わたしの式は、まだ完璧よ。",
+        "……二位のくせに。わたしに触れる気?",
+        "や……やめて。崩さないで、わたしを……",
+    };
+    private int _recloseIdx;
+    protected override void OnRecloseLine()
+    {
+        ShowRecloseLine("レイ", RecloseLines[Mathf.Min(_recloseIdx, RecloseLines.Length - 1)]);
+        _recloseIdx++;
     }
 
     protected override void GrantFollower() { }

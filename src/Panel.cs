@@ -26,7 +26,9 @@ public partial class Panel : Area2D
         _baseAngle = baseAngle;
         _orbitRadius = orbitRadius;
         _spinSpeed = spinSpeed;
-        _fires = fires;
+        // 発射は本体(Enemy/MidEnemy)へ一括移管したため、パネル自前の発射は常に無効。
+        // パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する（引数 fires は後方互換のため残置）。
+        _fires = false;
         _fireInterval = fireInterval;
         Ink = ink;
         _bulletSpeed = bulletSpeed;
@@ -76,32 +78,9 @@ public partial class Panel : Area2D
     public override void _PhysicsProcess(double delta)
     {
         if (_dead) return;
-        if (Hud.BubblePaused) return; // 吹き出し表示中は攻撃・旋回を止める
+        if (Hud.BubblePaused) return; // 吹き出し表示中は旋回を止める
         UpdateOrbit(delta);
-
-        if (_fires)
-        {
-            _fireTimer += delta;
-            if (_fireTimer >= _fireInterval)
-            {
-                _fireTimer = 0;
-                Fire();
-            }
-        }
-    }
-
-    private void Fire()
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        Vector2 dir = new Vector2(-1, 0);
-        var players = GetTree().GetNodesInGroup("player");
-        if (players.Count > 0 && players[0] is Node2D pl)
-        {
-            var d = pl.GlobalPosition - GlobalPosition;
-            if (d.LengthSquared() > 0.01f) dir = d.Normalized();
-        }
-        pool.Spawn(GlobalPosition, dir * _bulletSpeed, isEnemy: true, 3f, 1);
+        // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
     }
 
     private void OnAreaEntered(Area2D area)

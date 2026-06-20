@@ -15,16 +15,27 @@ public partial class Hud : CanvasLayer
 
     private int _lives = 3;
 
+    // ステージ経過タイム（秒）。各ステージシーンが毎フレーム SetElapsed で渡す。
+    // delta基準でステージ側が積算するため、ポーズ中（ツリーpause）は自然に止まる。
+    private float _elapsed;
+    public void SetElapsed(float sec) => _elapsed = sec;
+
     // ボス
     private bool _bossVisible;
     private string _bossName = "";
     private string _bossHandle = "";
-    private float _bossFrac = 1f;
+    private float _bossFrac = 1f;          // 現在の1本ぶん（0〜1）。窓ごとに1本削れて次の本へリフィル。
+    private int _bossBarIndex;             // 残バーの先頭インデックス（0始まり）
+    private int _bossBarsTotal = 1;        // 総バー数
     private long _bossReplies = 2847;
 
     // バナー
     private string _bannerText = "";
     private double _bannerTimer;
+    // クリアリザルトのタイム行（バナー直下）。空なら描かない。
+    private string _bannerTime = "";     // 例 "TIME 1:23.45"
+    private string _bannerBest = "";     // 例 "NEW BEST!" or "BEST 1:20.00"
+    private bool _bannerNewBest;
 
     // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
     private string _spellName = "";
@@ -140,6 +151,7 @@ public partial class Hud : CanvasLayer
         BubblePaused = nowPaused;
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
+        if (_bossLineTimer > 0) { _bossLineTimer -= delta; if (_bossLineTimer <= 0) _bossLine = ""; }
         if (_spellTimer > 0) { _spellTimer -= delta; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
 
@@ -232,7 +244,30 @@ public partial class Hud : CanvasLayer
     public void RevealDialogNow() { if (_dlgText.Length > 0) _dlgRevealed = _dlgText.Length; }
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; }
+
+    // クリアリザルト用バナー：見出し＋ TIME 行（＋自己ベスト更新なら NEW BEST! / でなければ旧ベスト併記）。
+    //   seconds=今回タイム、isBest=自己ベスト更新か、prevBest=更新前のベスト（初回 null）。
+    public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest)
+    {
+        _bannerText = text; _bannerTimer = 5.0;
+        _bannerTime = "TIME " + UiKit.FormatTime(seconds);
+        _bannerNewBest = isBest;
+        if (isBest) _bannerBest = "NEW BEST!";
+        else if (prevBest != null) _bannerBest = "BEST " + UiKit.FormatTime(prevBest.Value);
+        else _bannerBest = "";
+    }
+
+    // 無防備窓サイクル用の短い字幕（弾を止めない＝テンポ維持）。BREAK の合図・RECLOSE の弱気セリフに使う。
+    // 通常の会話バブル(ShowDialog)は BubblePaused を立てて弾を止めるため、これとは別経路。
+    private string _bossLine = "";
+    private string _bossLineSpeaker = "";
+    private Color _bossLineCol = Colors.White;
+    private double _bossLineTimer;
+    public void ShowBossLine(string speaker, string text, Color col, double dur)
+    {
+        _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
+    }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
     public void AnnounceSpell(string who, string handle, string spellName, Color col)
@@ -251,13 +286,26 @@ public partial class Hud : CanvasLayer
         if (announce) _shotModeToast = ShotModeToastDur;
     }
 
-    public void ShowBossBar(string bossName)
+    public void ShowBossBar(string bossName) => ShowBossBar(bossName, "");
+    // handle を明示すると固有ハンドルで表示（X世界観の没入＝§11）。空なら名前から自動生成（日本語名は @boss）。
+    public void ShowBossBar(string bossName, string handle)
     {
         _bossName = bossName; _bossVisible = true;
+        if (!string.IsNullOrEmpty(handle))
+        {
+            _bossHandle = handle;
+            return;
+        }
         _bossHandle = "@" + System.Text.RegularExpressions.Regex.Replace(bossName, "[^A-Za-z0-9]", "").ToLower();
         if (_bossHandle.Length <= 1) _bossHandle = "@boss";
     }
-    public void UpdateBossBar(float frac) { _bossFrac = Mathf.Clamp(frac, 0f, 1f); }
+    // 1本リフィル方式：メインバーは「現在の1本ぶん」を 0〜1 で描く。残バー数は pip と「残/総」で示す。
+    public void UpdateBossBar(int barIndex, int totalBars, float frac)
+    {
+        _bossBarsTotal = Mathf.Max(1, totalBars);
+        _bossBarIndex = Mathf.Clamp(barIndex, 0, _bossBarsTotal - 1);
+        _bossFrac = Mathf.Clamp(frac, 0f, 1f);
+    }
     public void HideBossBar() { _bossVisible = false; }
 
     public void SetLives(int n) { _lives = Mathf.Max(0, n); }
@@ -272,6 +320,7 @@ public partial class Hud : CanvasLayer
         DrawLifeBomb(ci);
         DrawPurify(ci);
         DrawScore(ci);
+        DrawTimer(ci);
         if (_bossVisible) DrawBossCard(ci);
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
@@ -284,6 +333,7 @@ public partial class Hud : CanvasLayer
         if (_shotModeToast > 0) DrawShotModeToast(ci);
         if (_overloadToast > 0) DrawOverloadToast(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
+        if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         // 被弾エッジ
         if (_hurtEdge > 0)
@@ -372,6 +422,18 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(c1x + 12, cy + 5), c1, 11, UiKit.Info);
     }
 
+    // ステージ経過タイム（右上・SCORE/テレメトリの直下）。タイムアタック感を出す等幅・発光ふち。
+    // SCOREパネル(右上)と同じ右端に揃え、汚染カプセル(中央上)とは干渉しない。
+    private void DrawTimer(HudCanvas ci)
+    {
+        string t = UiKit.FormatTime(_elapsed);
+        float w = 132, x = 1280 - 22 - w, y = 90, h = 28;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 12f, new Color(UiKit.Info, 0.4f), 1f);
+        ci.DrawCircle(new Vector2(x + 16, y + h / 2f), 4f, UiKit.Info);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 28, y + 8), "TIME", 11, UiKit.Text2);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, t, 17), y + 5), t, 17, UiKit.PurifyHi);
+    }
+
     private void DrawBossCard(HudCanvas ci)
     {
         float w = 560, x = 640 - w / 2f, y = 60, h = 60;
@@ -387,14 +449,24 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 10), _bossName, 16, UiKit.White);
         float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 16);
         UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 14), _bossHandle, 12, UiKit.Text3);
-        string rep = UiKit.Abbrev((long)(_bossReplies * _bossFrac));
+        // 残バー数（=index+1）と総バー数。リプ数は総HP比で減らす（演出）。
+        int barsLeft = _bossBarIndex + 1;
+        float overall = (_bossBarIndex + _bossFrac) / _bossBarsTotal;
+        string rep = UiKit.Abbrev((long)(_bossReplies * overall));
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, rep, 12), y + 12), rep, 12, new Color("f0a8cf"));
-        // 穢れバー
+        // 穢れバー（現在の1本ぶん）＋残バー数の● pip。
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 36), "穢れ", 10, new Color("f0a8cf"));
-        float barX = tx + 34, barW = w - (barX - x) - 60, barY = y + 37;
+        float pipsW = _bossBarsTotal * 9f;
+        float barX = tx + 34, barW = w - (barX - x) - 66 - pipsW, barY = y + 37;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
         if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), UiKit.Kegare, 5f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{Mathf.RoundToInt(_bossFrac * 100f)}%", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
+        // 残バー pip（左から「残っている本数」を満たす）。
+        float pipX = barX + barW + 8f;
+        for (int i = 0; i < _bossBarsTotal; i++)
+            ci.DrawCircle(new Vector2(pipX + i * 9f + 3f, barY + 5f), 3f,
+                i < barsLeft ? UiKit.Kegare : new Color(UiKit.Kegare, 0.22f));
+        // 「残/総」表示。
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{barsLeft}/{_bossBarsTotal}", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
@@ -646,12 +718,39 @@ public partial class Hud : CanvasLayer
         UiKit.Multi(ci, UiKit.Zen, new Vector2(textX, y + 52), shown, 22, new Color(0.95f, 0.95f, 0.98f), x + w - textX - 30, 3);
     }
 
+    // 無防備窓サイクルの短い字幕（弾を止めない）。下部・話者色つきの一行カード。
+    private void DrawBossLine(HudCanvas ci)
+    {
+        float a = Mathf.Clamp((float)_bossLineTimer * 2f, 0f, 1f);
+        string sp = _bossLineSpeaker.Length > 0 ? _bossLineSpeaker + "  " : "";
+        float spW = UiKit.TextW(UiKit.ZenBold, sp, 18);
+        float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, 20);
+        float w = spW + tw + 36, x = 640 - w / 2f, y = 540, h = 38;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.74f * a), 12f,
+            new Color(_bossLineCol, 0.55f * a), 1.2f);
+        if (sp.Length > 0)
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18, y + 10), sp, 18, new Color(_bossLineCol, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, 20, new Color(UiKit.White, a));
+    }
+
     private void DrawBanner(HudCanvas ci)
     {
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, 52);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, 52, new Color(UiKit.Light, a),
             HorizontalAlignment.Left, -1);
+        // クリアリザルトのタイム行（見出しの下）。
+        if (_bannerTime.Length > 0)
+        {
+            UiKit.Text(ci, UiKit.Mono, new Vector2(0, 366), _bannerTime, 26, new Color(UiKit.PurifyHi, a),
+                HorizontalAlignment.Center, 1280);
+            if (_bannerBest.Length > 0)
+            {
+                Color bc = _bannerNewBest ? UiKit.Gold : UiKit.Text2;
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 402), _bannerBest, 20, new Color(bc, a),
+                    HorizontalAlignment.Center, 1280);
+            }
+        }
     }
 }
 

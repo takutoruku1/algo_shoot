@@ -8,9 +8,7 @@ public partial class BossAkari : Enemy
 {
     public bool Finished { get; private set; }
 
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
-    private Vector2 _moveTarget;
-    private bool _hasTarget;
+    private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 40f;
 
     private double _fireT;
@@ -71,7 +69,6 @@ public partial class BossAkari : Enemy
 
     protected override void OnEnemyReady()
     {
-        _rng.Randomize();
         Points = 1500;
         BodyRadius = 9f;
         PanelCount = 5;          // 自責の言葉（黒い吹き出し）
@@ -81,8 +78,8 @@ public partial class BossAkari : Enemy
         PanelsFire = false;      // 攻撃は本体の自責弾
         EnemyBulletSpeed = 80f;
 
-        MaxHp = 40;
-        PanelRespawnDelay = 1.4f;
+        // HPバー本数は難易度別（通常ボス：Easy3/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
+        BarCount = DiffBars(finalBoss: false);
 
         PreTexPath = "res://char/enemy_akari_pre.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝触手がほどけ涙があふれる中間)→笑顔(post)。
@@ -99,25 +96,19 @@ public partial class BossAkari : Enemy
         base._Ready();
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
-        GetHud()?.ShowBossBar("あふれるわたし");
-        GetHud()?.UpdateBossBar(HpRatio);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
+        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+        GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
     {
-        if (!_hasTarget) PickTarget();
-        Vector2 to = _moveTarget - GlobalPosition;
-        if (to.Length() < 8f) { PickTarget(); to = _moveTarget - GlobalPosition; }
-        GlobalPosition += to.Normalized() * RoamSpeed * (float)delta;
-
+        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         FirePattern(delta);
-    }
-
-    private void PickTarget()
-    {
-        _moveTarget = new Vector2(_rng.RandfRange(70f, 320f), _rng.RandfRange(38f, 108f));
-        _hasTarget = true;
     }
 
     // 攻撃パターン（セリフを挟むたびに _pattern が変わる）。
@@ -199,7 +190,7 @@ public partial class BossAkari : Enemy
 
     protected override void OnHpChanged()
     {
-        GetHud()?.UpdateBossBar(HpRatio);
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // HPが閾値を割るたびに攻撃パターンを変える。
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
@@ -207,11 +198,26 @@ public partial class BossAkari : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        if (!_finale && HpRatio <= 0.2f)
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
+        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
             GetHud()?.AnnounceSpell("あかり", "@akari_ame", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
+    }
+
+    // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気）。
+    private static readonly string[] RecloseLines =
+    {
+        "やだ、まだ見て。離さないってば。",
+        "来ないで……っ。あたしの“好き”は、迷惑なだけ。",
+        "ひとりにしないで……お願い、まだ……",
+    };
+    private int _recloseIdx;
+    protected override void OnRecloseLine()
+    {
+        ShowRecloseLine("あかり", RecloseLines[Mathf.Min(_recloseIdx, RecloseLines.Length - 1)]);
+        _recloseIdx++;
     }
 
     protected override void GrantFollower() { } // 新canonにフォロワーは無い

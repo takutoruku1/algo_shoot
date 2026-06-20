@@ -58,6 +58,7 @@ public partial class ReiRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Rei }); // 近景パララックス：前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 順位掲示板の海
+        AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -90,7 +91,10 @@ public partial class ReiRoot : Node2D
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：祓うほど濁る。STAGE1は「澄み(0)→わずか(0.16)」（設計書 4-b）。
-        float corr = Mathf.Lerp(0f, 0.16f, game?.StageProgress ?? 0f);
+        // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
+        const float baseFrom = 0f, baseTo = 0.16f;
+        float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
+        float corr = baseFrom + gained;
         game?.SetContamination(corr);
         Player?.SetCorruption(corr);
     }

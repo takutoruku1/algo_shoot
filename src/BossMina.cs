@@ -7,9 +7,7 @@ public partial class BossMina : Enemy
 {
     public bool Finished { get; private set; }
 
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
-    private Vector2 _moveTarget;
-    private bool _hasTarget;
+    private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 38f;
 
     private double _fireT;
@@ -55,7 +53,6 @@ public partial class BossMina : Enemy
 
     protected override void OnEnemyReady()
     {
-        _rng.Randomize();
         Points = 3000;
         BodyRadius = 10f;
         PanelCount = 6;          // 渦巻く悲鳴の言葉（黒い吹き出し）
@@ -65,8 +62,8 @@ public partial class BossMina : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = 86f;
 
-        MaxHp = 56;              // ラスボス＝堅め
-        PanelRespawnDelay = 1.2f;
+        // HPバー本数は難易度別（ラスボス格は +1本：Easy4/Normal5/Hard6/Lunatic7）。総HP=BarHp×本数。
+        BarCount = DiffBars(finalBoss: true);
 
         PreTexPath = "res://char/enemy_mina_pre.png";
         CryTexPath = "res://char/enemy_mina_post.png";
@@ -80,24 +77,19 @@ public partial class BossMina : Enemy
         base._Ready();
         // ボス登場＝道中BGMからボスBGMへクロスフェード。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
-        GetHud()?.ShowBossBar("穢れたわたし");
-        GetHud()?.UpdateBossBar(HpRatio);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
+        _mover.Configure(new Vector2(200f, 68f), 90f, 28f, RoamSpeed);
+        GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
     }
 
     protected override void UpdateMovement(double delta)
     {
-        if (!_hasTarget) PickTarget();
-        Vector2 to = _moveTarget - GlobalPosition;
-        if (to.Length() < 8f) { PickTarget(); to = _moveTarget - GlobalPosition; }
-        GlobalPosition += to.Normalized() * RoamSpeed * (float)delta;
+        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
         FirePattern(delta);
-    }
-
-    private void PickTarget()
-    {
-        _moveTarget = new Vector2(_rng.RandfRange(80f, 320f), _rng.RandfRange(36f, 104f));
-        _hasTarget = true;
     }
 
     private void FirePattern(double delta)
@@ -179,18 +171,40 @@ public partial class BossMina : Enemy
 
     protected override void OnHpChanged()
     {
-        GetHud()?.UpdateBossBar(HpRatio);
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
         }
-        if (!_finale && HpRatio <= 0.2f)
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
+        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
             GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", Spells[3].name + "＋" + Spells[4].name, Spells[4].tint);
         }
+    }
+
+    // BREAK 合図：ミナ本人が敵なので「ミナが煽る」共通実装は使わず、話者なしの合図にする。
+    protected override void OnBreakCue()
+    {
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
+            .ShowBossLine("", "いまです──穢れを、撃ち抜いて!", UiKit.Mina, 0.45 + 4.0);
+    }
+
+    // RECLOSE のキャラ別弱気セリフ（高貴さの仮面の下で剥がれを拒む）。
+    private static readonly string[] RecloseLines =
+    {
+        "いけません……これ以上、近づいては……",
+        "わたくしに、触れないでくださいまし……穢れて、しまう……",
+        "おやめください……あなたまで、汚したくない……",
+    };
+    private int _recloseIdx;
+    protected override void OnRecloseLine()
+    {
+        ShowRecloseLine("ミナ", RecloseLines[Mathf.Min(_recloseIdx, RecloseLines.Length - 1)]);
+        _recloseIdx++;
     }
 
     protected override void GrantFollower() { }

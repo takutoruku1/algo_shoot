@@ -50,7 +50,16 @@ public partial class Bullet : Area2D
     }
 
     // 言葉弾にする（Spawn 後に呼ぶ）。再描画して文字を反映。
-    public void SetWord(string w) { Word = w; QueueRedraw(); }
+    public void SetWord(string w)
+    {
+        Word = w;
+        // 晒し投稿らしい“いいね数”を語ごとに固定で付与（X感／毎フレーム再計算しない）。
+        int h = 0; foreach (char c in w) h = h * 31 + c;
+        int likes = 800 + (Mathf.Abs(h) % 47000);
+        _wordLikes = likes >= 10000 ? $"{likes / 10000f:0.0}万" : likes.ToString("#,0");
+        QueueRedraw();
+    }
+    private string _wordLikes = "";
 
     public float Radius { get; private set; } = 3f;
 
@@ -220,16 +229,40 @@ public partial class Bullet : Area2D
 
         float r = Radius;
 
-        // 言葉弾：文字そのものが弾（背後に薄い黒い吹き出し帯）。本人ではなく“苦しめる言葉”。
+        // 言葉弾：X の“晒し投稿”として描く（アバター＋認証＋本文＋いいね）。本人ではなく“苦しめる言葉”。
         var wf = WordFont;
         if (!string.IsNullOrEmpty(Word) && wf != null)
         {
-            var sz = wf.GetStringSize(Word, HorizontalAlignment.Left, -1, 9);
-            const float pad = 2f;
-            DrawRect(new Rect2(-sz.X / 2f - pad, -sz.Y / 2f - pad, sz.X + pad * 2f, sz.Y + pad * 2f),
-                new Color(0.06f, 0.04f, 0.09f, 0.62f));
-            DrawString(wf, new Vector2(-sz.X / 2f, sz.Y / 2f - 2f), Word,
-                HorizontalAlignment.Left, -1, 9, KegareWord);
+            const int fs = 9;
+            var sz = wf.GetStringSize(Word, HorizontalAlignment.Left, -1, fs);
+            const float av = 5.5f, pad = 3f, gap = 3.5f, metaH = 7f;
+            float cw = pad + av * 2f + gap + sz.X + pad;
+            float ch = pad + Mathf.Max(av * 2f, sz.Y) + metaH + pad;
+            float x0 = -cw / 2f, y0 = -ch / 2f;
+
+            // 投稿カード（X ダーク）＋細い縁
+            DrawRect(new Rect2(x0, y0, cw, ch), new Color(0.05f, 0.06f, 0.10f, 0.86f));
+            DrawRect(new Rect2(x0, y0, cw, ch), new Color(KegareWord.R, KegareWord.G, KegareWord.B, 0.28f), false, 1f);
+
+            // アバター（穢れ）＋認証バッジ（右下の小さな桃丸）
+            Vector2 ac = new Vector2(x0 + pad + av, y0 + pad + av);
+            DrawCircle(ac, av, new Color(0.35f, 0.13f, 0.27f));
+            DrawCircle(ac + new Vector2(av * 0.65f, av * 0.65f), av * 0.42f, KegareWord);
+
+            // 本文（晒し言葉）
+            float bx = x0 + pad + av * 2f + gap;
+            DrawString(wf, new Vector2(bx, y0 + pad + sz.Y - 2f), Word, HorizontalAlignment.Left, -1, fs, KegareWord);
+
+            // いいね（小さなハート＋数）＝拡散の重み
+            float ly = y0 + ch - 2.5f;
+            DrawWordHeart(new Vector2(bx + 2f, ly - 2.6f), 2.3f, new Color(KegareWord.R, KegareWord.G, KegareWord.B, 0.9f));
+            DrawString(wf, new Vector2(bx + 8f, ly), _wordLikes, HorizontalAlignment.Left, -1, 7,
+                new Color(0.78f, 0.62f, 0.74f, 0.9f));
+
+            // 致命点（カード中心＝当たり判定）。自機の被弾点と同じ記号語彙＝赤コア＋白フチ。
+            // 「文字は脅し、刺さるのはこの点」を一目で読ませる（§3 視認性／§7 理不尽回避）。
+            DrawCircle(Vector2.Zero, Radius + 1f, new Color(1f, 1f, 1f, 0.95f));
+            DrawCircle(Vector2.Zero, Radius, new Color(1f, 0.2f, 0.3f, 1f));
             return;
         }
 
@@ -251,6 +284,17 @@ public partial class Bullet : Area2D
             case BulletShape.Rice:    DrawRice(r, c);    break;
             default:                  DrawOrb(r, c);     break; // 円弾＝白リング＋暗芯（芯色のみ可変）
         }
+    }
+
+    // 言葉弾カードの小さなハート（いいね）。2円＋三角で簡易描画。
+    private void DrawWordHeart(Vector2 c, float r, Color col)
+    {
+        DrawCircle(c + new Vector2(-r * 0.45f, -r * 0.2f), r * 0.6f, col);
+        DrawCircle(c + new Vector2(r * 0.45f, -r * 0.2f), r * 0.6f, col);
+        DrawColoredPolygon(new[]
+        {
+            c + new Vector2(-r * 0.9f, 0f), c + new Vector2(r * 0.9f, 0f), c + new Vector2(0f, r),
+        }, col);
     }
 
     // 外周グロー（box-shadow 相当）：薄い同心円を外→内に重ねてぼかしを近似。

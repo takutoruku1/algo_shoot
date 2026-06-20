@@ -6,6 +6,8 @@ using Godot;
 public partial class GlyphMote : Enemy
 {
     private const float MoveSpeed = 50f;
+    private float _campX;   // この位置まで来たら居座る（倒さない限り画面外に出ない）
+    private float _vy;      // 居座り中の上下往復
 
     protected override void OnEnemyReady()
     {
@@ -25,10 +27,22 @@ public partial class GlyphMote : Enemy
         PanelTexPath = "res://char/panel_anti.png";
         BodyDisplayH = 28f;
         OrbitRadius = 14f;
+
+        _campX = GD.Randf() * 150f + 120f;                 // 120〜270 のどこかに陣取る
+        _vy = (GD.Randf() < 0.5f ? -1f : 1f) * 16f;
     }
 
+    // 左へ進入 → _campX に着いたら居座る（上下にゆっくり往復・画面外へ出ない）。倒すまで去らない。
     protected override void UpdateMovement(double delta)
     {
-        GlobalPosition += new Vector2(-MoveSpeed * (float)delta, 0f);
+        float dt = (float)delta;
+        if (GlobalPosition.X > _campX)
+        {
+            GlobalPosition += new Vector2(-MoveSpeed * dt, 0f);
+            return;
+        }
+        float ny = GlobalPosition.Y + _vy * dt;
+        if (ny < 28f || ny > 188f) { _vy = -_vy; ny = Mathf.Clamp(ny, 28f, 188f); }
+        GlobalPosition = new Vector2(_campX, ny);
     }
 }

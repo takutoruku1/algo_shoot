@@ -8,9 +8,7 @@ public partial class BossHikage : Enemy
 {
     public bool Finished { get; private set; }
 
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
-    private Vector2 _moveTarget;
-    private bool _hasTarget;
+    private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 72f;
 
     // 幾何学弾幕（HPフェーズで変化）
@@ -33,8 +31,6 @@ public partial class BossHikage : Enemy
 
     protected override void OnEnemyReady()
     {
-        _rng.Randomize();
-
         Points = 1200;
         BodyRadius = 9f;
         PanelCount = 6;          // 黒い炎のリング（盾＝剥がしてHPを削る。攻撃は本体の弾幕）
@@ -44,9 +40,8 @@ public partial class BossHikage : Enemy
         PanelsFire = false;      // 弾はパネルでなく本体の幾何学弾幕で撃つ
         EnemyBulletSpeed = 95f;
 
-        // HP制：剥がした枚数ぶんHPを削る。約1分戦えるよう多め（要調整）。
-        MaxHp = 42;
-        PanelRespawnDelay = 1.25f;
+        // HPバー方式（言葉のシールド＋無防備窓サイクル）。本数は難易度別（通常ボス）。
+        BarCount = DiffBars(finalBoss: false);
 
         PreTexPath = "res://char/enemy_hikage_pre.png";
         CryTexPath = "res://char/enemy_hikage_cry.png";
@@ -61,20 +56,18 @@ public partial class BossHikage : Enemy
         base._Ready();
         // ボス登場＝道中BGMからボスBGMへクロスフェード。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
-        GetHud()?.ShowBossBar("ヒカゲ");
-        GetHud()?.UpdateBossBar(HpRatio);
+        // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに。旧 RoamSpeed を踏襲。
+        _mover.Configure(new Vector2(192f, 74f), 110f, 34f, RoamSpeed, accelTime: 0.4f);
+        GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
+        GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }
 
-    // 画面全体をうろつき、進行方向を向く。
+    // 画面上部を漂い、進行方向へ少し傾きながら向く（向き反映は BossMover 経由）。
     protected override void UpdateMovement(double delta)
     {
-        if (!_hasTarget) PickTarget();
-        Vector2 to = _moveTarget - GlobalPosition;
-        if (to.Length() < 8f) { PickTarget(); to = _moveTarget - GlobalPosition; }
-        Vector2 step = to.Normalized() * RoamSpeed * (float)delta;
-        GlobalPosition += step;
-        if (Mathf.Abs(step.X) > 0.01f) SetSpriteFlip(step.X < 0f); // 進行方向へ向く
-
+        GlobalPosition = _mover.Step(GlobalPosition, delta);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Hikage, GlobalPosition, (float)delta, 28f);
         FirePatterns(delta);
     }
 
@@ -139,13 +132,14 @@ public partial class BossHikage : Enemy
         }
     }
 
-    private void PickTarget()
-    {
-        _moveTarget = new Vector2(_rng.RandfRange(52f, 332f), _rng.RandfRange(36f, 182f));
-        _hasTarget = true;
-    }
+    protected override void OnHpChanged() => GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
 
-    protected override void OnHpChanged() => GetHud()?.UpdateBossBar(HpRatio);
+    // BREAK 合図：ヒカゲ戦にミナは絡まないため、話者なしの合図にする（共通の「ミナが煽る」は使わない）。
+    protected override void OnBreakCue()
+    {
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
+            .ShowBossLine("", "いまだ──黒い炎を、撃ち抜け!", UiKit.Kegare, 0.45 + 4.0);
+    }
 
     protected override void OnCryStart()
     {

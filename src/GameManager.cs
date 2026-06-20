@@ -46,6 +46,12 @@ public partial class GameManager : Node
     public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 2.1f, Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
 
+    // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
+    // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
+    // 通常ボス: Easy3/Normal4/Hard5/Lunatic6。ラスボス格(Mina)は +1本（finalBoss=true）。
+    public int DiffBarBonus(bool finalBoss) =>
+        (Difficulty switch { Diff.Easy => 3, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 1 : 0);
+
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 300;
     public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || GetUpgradeLevel("shot_power") >= 4;
@@ -104,6 +110,39 @@ public partial class GameManager : Node
     private readonly HashSet<string> _cleared = new();
     // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
     public string? JustClearedStageId;
+
+    // ───── クリアタイム記録（ステージ×難易度のベスト・永続） ─────
+    //   キーは "{stageId}_{Diff}"（例 "rei_Normal"）、値は秒(float)。
+    //   1ステージ=1連続クリアタイム。Save/Load(save_N.json) の "clearTimes" に永続。
+    public Dictionary<string, float> ClearTimes { get; } = new();
+    private static string ClearTimeKey(string stageId, Diff diff) => $"{stageId}_{diff}";
+    // ベスト取得（未記録は null）。
+    public float? GetBestTime(string stageId, Diff diff)
+        => ClearTimes.TryGetValue(ClearTimeKey(stageId, diff), out var v) ? v : (float?)null;
+    // クリアタイムを記録：既存ベストより速ければ更新。戻り値 isBest=自己ベスト更新か / prev=更新前のベスト（初回は null）。
+    public (bool isBest, float? prev) RecordClearTime(string stageId, Diff diff, float seconds)
+    {
+        string key = ClearTimeKey(stageId, diff);
+        bool had = ClearTimes.TryGetValue(key, out var prev);
+        if (!had || seconds < prev)
+        {
+            ClearTimes[key] = seconds;
+            return (true, had ? prev : (float?)null);
+        }
+        return (false, prev);
+    }
+    // そのステージで記録のある最速難易度のベスト（ハブのカード表示用）。記録なしは null。
+    public (Diff diff, float sec)? BestAcrossDiffs(string stageId)
+    {
+        (Diff diff, float sec)? best = null;
+        foreach (Diff d in System.Enum.GetValues(typeof(Diff)))
+        {
+            var t = GetBestTime(stageId, d);
+            if (t != null && (best == null || t.Value < best.Value.sec))
+                best = (d, t.Value);
+        }
+        return best;
+    }
     // コメント返信済みのステージ（セッション内・1回だけ報酬）。
     private readonly HashSet<string> _replied = new();
     public bool HasReplied(string id) => _replied.Contains(id);
@@ -211,7 +250,7 @@ public partial class GameManager : Node
         new() { Id = "imp_mult",      Name = "インプレ倍率", Desc = "獲得インプレUP",        MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP",    MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
-        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を緩和(演出は維持)", MaxLevel = 3, BaseCost = 650,  CostMul = 1.55f },
+        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を抑え、やさしさの鈍りを緩和", MaxLevel = 3, BaseCost = 650,  CostMul = 1.55f },
         new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプションを追加",     MaxLevel = 2, BaseCost = 1000, CostMul = 1.7f },
     };
 
@@ -272,6 +311,10 @@ public partial class GameManager : Node
     public int OptionSubCount => GetUpgradeLevel("option_sub");
     public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * GetUpgradeLevel("contam_resist")); // 上昇を緩めるのみ
 
+    // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
+    // 汚染0.00→1.00 / 0.16→0.98 / 0.42→0.89 / 0.72→0.73 / 1.00→0.55。
+    public float KindnessGainMul => Mathf.Max(0.55f, 1f - 0.45f * Mathf.Pow(Contamination, 1.6f));
+
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
     {
@@ -319,6 +362,11 @@ public partial class GameManager : Node
         foreach (var kv in _upgrades)
             up[kv.Key] = kv.Value;
         data["upgrades"] = up;
+        // クリアタイム（"{stageId}_{Diff}" → 秒）。後方互換：読み手はキー無しを空扱い。
+        var ct = new Godot.Collections.Dictionary();
+        foreach (var kv in ClearTimes)
+            ct[kv.Key] = kv.Value;
+        data["clearTimes"] = ct;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -344,6 +392,14 @@ public partial class GameManager : Node
             var up = data["upgrades"].AsGodotDictionary();
             foreach (var k in up.Keys)
                 _upgrades[k.AsString()] = up[k].AsInt32();
+        }
+        // クリアタイム復元（キー無し＝旧セーブは空のまま＝後方互換）。
+        ClearTimes.Clear();
+        if (data.ContainsKey("clearTimes"))
+        {
+            var ct = data["clearTimes"].AsGodotDictionary();
+            foreach (var k in ct.Keys)
+                ClearTimes[k.AsString()] = (float)ct[k].AsDouble();
         }
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
         if (data.ContainsKey("shotmode"))
@@ -427,6 +483,21 @@ public partial class GameManager : Node
         // セーブはスロット制（手動）。起動時は自動ロードしない。
         // 端末ローカル prefs（チュートリアル既読など）だけは起動時に読む。
         LoadPrefs();
+
+        // 検証専用：--seed-records でダミーのクリアタイムをメモリに注入（記録画面/カードの確認用）。
+        // セーブには一切書かない（手動セーブしない限り消える）＝本番フロー/既存スロットを汚さない。
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a == "--seed-records") { SeedDebugRecords(); break; }
+    }
+
+    // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。
+    private void SeedDebugRecords()
+    {
+        void Put(string id, Diff d, float s) => ClearTimes[ClearTimeKey(id, d)] = s;
+        Put("rei", Diff.Easy, 95.40f);   Put("rei", Diff.Normal, 83.12f);  Put("rei", Diff.Hard, 78.55f);
+        Put("akari", Diff.Normal, 102.30f); Put("akari", Diff.Hard, 99.80f);
+        Put("koharu", Diff.Easy, 121.00f);  Put("koharu", Diff.Lunatic, 140.67f);
+        Put("final", Diff.Normal, 156.25f);
     }
 
     public override void _Process(double delta)
@@ -450,7 +521,8 @@ public partial class GameManager : Node
     private void AddKindness(float amount)
     {
         if (IsOverload) return;
-        _kindFill = Mathf.Min(1f, _kindFill + amount);
+        // 汚染が高いほど“やさしさ”の溜まりが鈍る（#2-A）。グレイズ/浄化の両方がここを通る。
+        _kindFill = Mathf.Min(1f, _kindFill + amount * KindnessGainMul);
     }
 
     // やさしさが満タンで、手動発動できる状態か。

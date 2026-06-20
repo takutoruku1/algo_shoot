@@ -19,6 +19,7 @@ public partial class StageImagery : Node2D
     private FontFile _font = null!;
     private double _t;
     private double _flashT;   // Akari の記憶フラッシュ（>0 の間だけ描画）
+    private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
 
     public override void _Ready()
     {
@@ -35,6 +36,10 @@ public partial class StageImagery : Node2D
     {
         _t += delta;
         if (_flashT > 0) _flashT -= delta;
+        // 敵弾が増えるほど背景の声カードを一段引く（20発まで等倍→80発で0.45倍）。なめらかに追従。
+        int bullets = GetTree().GetNodesInGroup("enemy_bullets").Count;
+        float target = Mathf.Lerp(1f, 0.45f, Mathf.Clamp((bullets - 20) / 60f, 0f, 1f));
+        _bulletDamp = Mathf.Lerp(_bulletDamp, target, 1f - Mathf.Exp(-6f * (float)delta));
         QueueRedraw();
     }
 
@@ -43,7 +48,7 @@ public partial class StageImagery : Node2D
     public override void _Draw()
     {
         if (_font == null) return;
-        float fade = 1f - Mathf.Clamp(Warmth, 0f, 1f); // 浄化で晴れる
+        float fade = (1f - Mathf.Clamp(Warmth, 0f, 1f)) * _bulletDamp; // 浄化で晴れる＋弾密度で引く
         switch (Kind)
         {
             case StageKind.Rei: DrawRei(fade); break;
@@ -52,17 +57,19 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ───────── 共通：汚染SNSタイムラインのツイート風カード ─────────
+    // ───────── 共通：汚染SNSタイムラインの「X(旧Twitter)投稿」カード ─────────
     // 全ステージ共通の小カード。上→下へ 24px/s でループ。同時4枚・横2レーン（中央は弾の主戦場なので空ける）。
-    private const float CardW = 148f, CardH = 40f;
-    private const float ScrollSpeed = 24f;     // px/s（ScrollFx近層96より遥か遅い＝奥）
-    private const int CardCount = 4;            // 同時表示（控えめ）
+    // 本物の X 投稿の骨格に寄せる：①円アイコン＋表示名(太め)＋@ハンドル(灰)＋「· 2時間」相対時刻(中黒)＋時々青認証
+    //   ②本文 ③アクション行4つ（返信/リポスト/いいね/閲覧数）を X の並び順で極小シルエット＋数字。
+    private const float CardW = 156f, CardH = 52f;   // アクション行を入れる余地（奥行きは速度24px/sで担保）
+    private const float ScrollSpeed = 24f;           // px/s（ScrollFx近層96より遥か遅い＝奥）
+    private const int CardCount = 4;                 // 同時表示（控えめ）
     private static readonly float[] Lanes = { 14f, W - CardW - 14f }; // 左右の縁。中央を空ける
 
     private static float Frac(float v) => v - Mathf.Floor(v);
 
-    // 匿名アカウント名を決定論生成（@nanashi_99 / @mob_2434 風）。
-    private static readonly string[] Handles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "_398" };
+    // 匿名アカウントの @ハンドルを決定論生成（@nanashi_3942 風）。
+    private static readonly string[] Handles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "tori398" };
     private string Handle(int i)
     {
         int s = (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * Handles.Length);
@@ -70,66 +77,152 @@ public partial class StageImagery : Node2D
         return $"@{Handles[s % Handles.Length]}_{num}";
     }
 
-    // 1枚のカードを描く。本文・@名・メタは i 固定（周回でチラつかない）。
-    //   panel : パネル基本色（α込みの基準を fade で乗算）, text : 本文色, accent : アイコン色
-    //   likes/rts : メタ数字（晒し＝多い／孤独＝0）, quote : リプライ引用線（あかり）
+    // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）を決定論生成。
+    private static readonly string[] Names = { "名無し", "通りすがり", "匿名", "ロム専", "外野", "観測者", "ふぉろわ" };
+    private string DisplayName(int i)
+    {
+        int s = (int)(Frac(Mathf.Sin(i * 61.7f) * 8861.1f) * Names.Length);
+        return Names[s % Names.Length];
+    }
+
+    // 相対時刻「· 2時間」等。決定論で 分/時間 を散らす（中黒「·」で区切る）。
+    private string RelTime(int i)
+    {
+        float r = Frac(Mathf.Sin(i * 73.9f) * 4129.7f);
+        if (r < 0.45f) return $"· {1 + (int)(r * 130f)}分";
+        return $"· {1 + (int)((r - 0.45f) * 40f)}時間";
+    }
+
+    // 認証バッジを付けるか（時々だけ＝決定論）。
+    private bool Verified(int i) => Frac(Mathf.Sin(i * 113.3f) * 2671.7f) > 0.72f;
+
+    // 極小アイコン群（すべて点・線・三角の簡易シルエット。彩度は上げない＝text色の濃淡で描く）。
+    // X のアクション行の並び：返信(吹き出し)・リポスト(二本矢印)・いいね(ハート)・閲覧数(棒グラフ)。
+    private void IconReply(float x, float y, Color c)   // 吹き出し（角丸枠＋下のしっぽ）
+    {
+        DrawRect(new Rect2(x, y, 6f, 4f), new Color(c.R, c.G, c.B, c.A), false, 1f);
+        DrawRect(new Rect2(x + 1f, y + 4f, 2f, 1f), c); // しっぽ
+    }
+    private void IconRepost(float x, float y, Color c)  // 二本矢印（リサイクル）＝上下の横線＋両端の縦
+    {
+        DrawLine(new Vector2(x, y + 1f), new Vector2(x + 6f, y + 1f), c, 1f);
+        DrawLine(new Vector2(x, y + 4f), new Vector2(x + 6f, y + 4f), c, 1f);
+        DrawRect(new Rect2(x, y + 1f, 1f, 3f), c);      // 左端の縦
+        DrawRect(new Rect2(x + 5f, y + 1f, 1f, 3f), c); // 右端の縦
+    }
+    private void IconHeart(float x, float y, Color c)   // ハート＝上2点＋下三角の簡易シルエット
+    {
+        DrawRect(new Rect2(x, y, 2f, 2f), c);
+        DrawRect(new Rect2(x + 3f, y, 2f, 2f), c);
+        DrawRect(new Rect2(x + 1f, y + 2f, 3f, 1f), c);
+        DrawRect(new Rect2(x + 2f, y + 3f, 1f, 1f), c);
+    }
+    private void IconViews(float x, float y, Color c)   // 閲覧数＝棒グラフ（高さの違う3本）
+    {
+        DrawRect(new Rect2(x, y + 3f, 1f, 2f), c);
+        DrawRect(new Rect2(x + 2f, y + 1f, 1f, 4f), c);
+        DrawRect(new Rect2(x + 4f, y, 1f, 5f), c);
+    }
+
+    // 1枚の X 投稿カードを描く。本文・名前・メタは i 固定（周回でチラつかない）。
+    //   panel : パネル基本色, text : 本文/名前色, accent : アイコン色
+    //   replies/reposts/likes/views : アクション行の数字, liked : いいね済み（ハートを淡桃に）, quote : 引用リプ線（あかり）
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
-                          string handle, string body, int likes, int rts, bool quote = false)
+                          int i, string body, int replies, int reposts, int likes, int views,
+                          bool liked = false, bool quote = false)
     {
         var ci = GetCanvasItem();
         float a = pa * fade;
-        // パネル（半透明）＋枠線（型を出すが主張させない）。ドット解像度なので素の矩形＋1px枠で「カード」感。
+        // パネル（半透明）＋枠線（型を出すが主張させない）。
         DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a));
         DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a * 0.7f), false, 1f);
 
-        // アイコン（左上の角丸シルエット＝8x8 の塗り＋四隅を1px欠いて丸める）。
-        float ix = x + 6f, iy = y + 6f;
-        var ic = new Color(accent.R, accent.G, accent.B, a * 1.4f);
-        // 角丸風：8x8 の塗りから四隅の1pxを欠く（中央十字＋辺で丸みを出す）。
-        DrawRect(new Rect2(ix + 1f, iy, 6f, 8f), ic);
-        DrawRect(new Rect2(ix, iy + 1f, 8f, 6f), ic);
+        // ① 円アイコン（左上・本物の X に寄せて真円に）。
+        float cx = x + 11f, cy = y + 11f;
+        DrawCircle(new Vector2(cx, cy), 5f, new Color(accent.R, accent.G, accent.B, a * 1.4f));
 
-        // @ユーザー名（アイコン右、9px、やや低α）。
-        _font.DrawString(ci, new Vector2(x + 18f, y + 13f), handle,
-            HorizontalAlignment.Left, -1, 9, new Color(text.R, text.G, text.B, a * 1.5f));
+        // 表示名（太め濃いめ＝1pxずらして二度描きで擬似ボールド・α高め）。
+        var nameC = new Color(text.R, text.G, text.B, Mathf.Min(a * 2.6f, 0.6f));
+        string name = DisplayName(i);
+        var headY = new Vector2(x + 20f, y + 11f);
+        _font.DrawString(ci, headY, name, HorizontalAlignment.Left, -1, 9, nameC);
+        _font.DrawString(ci, headY + new Vector2(0.6f, 0f), name, HorizontalAlignment.Left, -1, 9, nameC);
+        float nameW = _font.GetStringSize(name, HorizontalAlignment.Left, -1, 9).X;
+        float hx = x + 20f + nameW + 2f;
 
-        // 本文（10px）。引用リプ（quote）なら左にスレッド線＋字下げ。
-        float bx = x + 18f, by = y + 26f;
+        // 認証バッジ（時々）＝小さな青丸＋白チェック。彩度は控えめ・弾の色相と分離した薄青。
+        if (Verified(i))
+        {
+            DrawCircle(new Vector2(hx + 2.5f, y + 8f), 2.5f, new Color(0.45f, 0.62f, 0.85f, a * 2.0f));
+            DrawLine(new Vector2(hx + 1.3f, y + 8f), new Vector2(hx + 2.2f, y + 9f),
+                new Color(0.95f, 0.97f, 1f, a * 2.2f), 1f);
+            DrawLine(new Vector2(hx + 2.2f, y + 9f), new Vector2(hx + 3.6f, y + 6.8f),
+                new Color(0.95f, 0.97f, 1f, a * 2.2f), 1f);
+            hx += 6f;
+        }
+
+        // @ハンドル（灰色＝低α）＋「· 2時間」相対時刻（中黒区切り）。
+        var grey = new Color(text.R, text.G, text.B, a * 1.25f);
+        string handle = Handle(i);
+        _font.DrawString(ci, new Vector2(hx, y + 11f), handle, HorizontalAlignment.Left, -1, 8, grey);
+        float thx = hx + _font.GetStringSize(handle, HorizontalAlignment.Left, -1, 8).X + 2f;
+        _font.DrawString(ci, new Vector2(thx, y + 11f), RelTime(i), HorizontalAlignment.Left, -1, 8, grey);
+
+        // ② 本文（10px）。引用リプ（quote）なら左にスレッド線＋字下げ。
+        float bx = x + 20f, by = y + 28f;
         if (quote)
         {
-            DrawLine(new Vector2(x + 16f, y + 18f), new Vector2(x + 16f, y + 34f),
+            DrawLine(new Vector2(x + 18f, y + 18f), new Vector2(x + 18f, y + 32f),
                 new Color(text.R, text.G, text.B, a * 1.2f), 1f);
-            bx = x + 21f;
+            bx = x + 23f;
         }
         _font.DrawString(ci, new Vector2(bx, by), body,
             HorizontalAlignment.Left, -1, 10, new Color(text.R, text.G, text.B, Mathf.Min(a * 2.4f, 0.55f)));
 
-        // 下部メタ：ハート(小三角)＋数字 / RT(点2つ)＋数字（9px・低α）。
-        float my = y + CardH - 4f;
-        var meta = new Color(text.R, text.G, text.B, a * 1.2f);
-        // ハート＝小さな塗り三角の代用（2pxの点）
-        DrawRect(new Rect2(x + 18f, my - 5f, 2f, 2f), meta);
-        _font.DrawString(ci, new Vector2(x + 23f, my), likes.ToString(),
-            HorizontalAlignment.Left, -1, 9, meta);
-        // RT＝点2つ
-        float rx = x + 50f;
-        DrawRect(new Rect2(rx, my - 4f, 1f, 1f), meta);
-        DrawRect(new Rect2(rx + 3f, my - 4f, 1f, 1f), meta);
-        _font.DrawString(ci, new Vector2(rx + 6f, my), rts.ToString(),
-            HorizontalAlignment.Left, -1, 9, meta);
+        // ③ アクション行（X の並び順で4つ＝返信・リポスト・いいね・閲覧数）。極小アイコン＋数字を横並び。
+        float ay = y + CardH - 9f;       // アイコンの上端
+        float ty = y + CardH - 3f;       // 数字のベースライン
+        var meta = new Color(text.R, text.G, text.B, a * 1.15f);
+        float ax = x + 20f;
+        float step = (CardW - 26f) / 4f; // 4等分で横並び
+        // 返信
+        IconReply(ax, ay, meta);
+        _font.DrawString(ci, new Vector2(ax + 8f, ty), replies.ToString(), HorizontalAlignment.Left, -1, 8, meta);
+        // リポスト
+        ax += step;
+        IconRepost(ax, ay, meta);
+        _font.DrawString(ci, new Vector2(ax + 8f, ty), reposts.ToString(), HorizontalAlignment.Left, -1, 8, meta);
+        // いいね（押されていれば淡い桃＝Xのワンポイント。弾の濃ピンクと被らない範囲の低彩度桃）。
+        ax += step;
+        var heartC = liked ? new Color(0.78f, 0.55f, 0.62f, a * 1.7f) : meta;
+        IconHeart(ax, ay, heartC);
+        _font.DrawString(ci, new Vector2(ax + 8f, ty), likes.ToString(), HorizontalAlignment.Left, -1, 8,
+            liked ? heartC : meta);
+        // 閲覧数
+        ax += step;
+        IconViews(ax, ay, meta);
+        _font.DrawString(ci, new Vector2(ax + 8f, ty), FmtCount(views), HorizontalAlignment.Left, -1, 8, meta);
     }
+
+    // 閲覧数は大きくなりがちなので 1.2万 / 980 のように省略表記（X感）。
+    private static string FmtCount(int n)
+        => n >= 10000 ? $"{n / 1000 / 10f:0.#}万" : n.ToString();
+
+    // アクション行の4数字＋いいね済みをまとめて運ぶ（引用線は Akari 専用パスで個別指定）。
+    private struct CardMeta { public int Replies, Reposts, Likes, Views; public bool Liked; }
 
     // 4枚のカードのループ y を等間隔で配り、各ステージの描画を行う。
     private void DrawTimeline(float fade, Color panel, Color text, Color accent,
-                              string[] bodies, System.Func<int, (int likes, int rts, bool quote)> meta, float panelA)
+                              string[] bodies, System.Func<int, CardMeta> meta, float panelA)
     {
         float span = H + CardH;
         for (int i = 0; i < CardCount; i++)
         {
             float y = (i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span - CardH;
             float x = Lanes[i % Lanes.Length];
-            var (likes, rts, quote) = meta(i);
-            DrawCard(x, y, panelA, fade, panel, text, accent, Handle(i), bodies[i % bodies.Length], likes, rts, quote);
+            var m = meta(i);
+            DrawCard(x, y, panelA, fade, panel, text, accent, i, bodies[i % bodies.Length],
+                     m.Replies, m.Reposts, m.Likes, m.Views, m.Liked, quote: false);
         }
     }
 
@@ -149,11 +242,14 @@ public partial class StageImagery : Node2D
         var panel = new Color(0.80f, 0.86f, 1f);
         var text = new Color(0.82f, 0.88f, 1f);
         var accent = new Color(0.86f, 0.90f, 1f);
-        DrawTimeline(fade, panel, text, accent, ReiBodies, i =>
+        DrawTimeline(fade, panel, text, accent, ReiBodies, i => new CardMeta
         {
-            int likes = 60 + (int)(Frac(Mathf.Sin(i * 17.1f) * 5123.7f) * 180f); // 60〜240（晒し）
-            int rts = 20 + (int)(Frac(Mathf.Sin(i * 29.3f) * 3317.1f) * 90f);
-            return (likes, rts, false);
+            // 順位晒し＝拡散して数字が不自然に多い。閲覧数は万単位（晒しの伸び）。
+            Replies = 12 + (int)(Frac(Mathf.Sin(i * 11.3f) * 4127.1f) * 80f),
+            Reposts = 20 + (int)(Frac(Mathf.Sin(i * 29.3f) * 3317.1f) * 90f),
+            Likes = 60 + (int)(Frac(Mathf.Sin(i * 17.1f) * 5123.7f) * 180f),  // 60〜240
+            Views = 8000 + (int)(Frac(Mathf.Sin(i * 37.7f) * 6619.3f) * 40000f),
+            Liked = Frac(Mathf.Sin(i * 53.1f) * 2237.7f) > 0.5f,             // 半分はいいね済み（淡桃）
         }, panelA: 0.13f);
     }
 
@@ -175,9 +271,13 @@ public partial class StageImagery : Node2D
             bool isVoice = body == "すき" || body.StartsWith("ごめん"); // 本人の声＝桃
             bool quote = body.StartsWith(">");
             var text = isVoice ? new Color(0.95f, 0.86f, 0.90f) : new Color(0.82f, 0.86f, 0.96f);
-            DrawCard(x, y, 0.13f, fade, panel, text, accent, Handle(i), body,
-                     likes: 2 + (int)(Frac(Mathf.Sin(i * 13.7f) * 2113.3f) * 9f), // 2〜11（小さなリプ欄）
-                     rts: (int)(Frac(Mathf.Sin(i * 23.1f) * 1777.7f) * 4f),       // 0〜3
+            // 自責リプ＝小さなスレッド。数字は控えめ。本人の声(isVoice)だけ淡桃のいいねが灯る。
+            DrawCard(x, y, 0.13f, fade, panel, text, accent, i, body,
+                     replies: 1 + (int)(Frac(Mathf.Sin(i * 31.7f) * 1913.1f) * 6f),  // 1〜7
+                     reposts: (int)(Frac(Mathf.Sin(i * 23.1f) * 1777.7f) * 4f),       // 0〜3
+                     likes: 2 + (int)(Frac(Mathf.Sin(i * 13.7f) * 2113.3f) * 9f),     // 2〜11
+                     views: 80 + (int)(Frac(Mathf.Sin(i * 41.3f) * 2551.9f) * 600f),
+                     liked: isVoice,
                      quote: quote);
         }
 
@@ -245,10 +345,14 @@ public partial class StageImagery : Node2D
         var panel = new Color(0.85f, 0.84f, 0.82f);   // ニュートラル暖
         var text = new Color(0.86f, 0.85f, 0.83f);
         var accent = new Color(0.90f, 0.89f, 0.86f);
-        DrawTimeline(fade, panel, text, accent, KoharuBodies, i =>
+        DrawTimeline(fade, panel, text, accent, KoharuBodies, i => new CardMeta
         {
-            int likes = (int)(Frac(Mathf.Sin(i * 19.3f) * 1303.1f) * 1.6f); // 0 か 1
-            return (likes, 0, false);                                       // RT は常に 0
+            // 孤独＝誰も反応しない。返信・リポスト・いいねは 0/1。閲覧数だけわずか（読まれてはいる）。
+            Replies = 0,
+            Reposts = 0,
+            Likes = (int)(Frac(Mathf.Sin(i * 19.3f) * 1303.1f) * 1.6f),     // 0 か 1
+            Views = 1 + (int)(Frac(Mathf.Sin(i * 27.7f) * 911.3f) * 8f),    // 1〜8（既読の冷たさ）
+            Liked = false,                                                   // 誰もハートを押さない
         }, panelA: 0.07f);
 
         // 食卓（テーブル天板）

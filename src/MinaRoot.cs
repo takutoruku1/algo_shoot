@@ -27,6 +27,7 @@ public partial class MinaRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
+        AddChild(new MurkVignette { Name = "MurkVignette" }); // FINAL=汚染頂点：端から寄る濁りビネット（弾より奥・中央は抜け）
 
         // 自機＝少年（役割反転）。少年は穢れていないので浄化度0。
         Player = new Player { Name = "Player", Skin = "boy" };

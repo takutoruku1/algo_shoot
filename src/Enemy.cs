@@ -33,25 +33,64 @@ public partial class Enemy : Area2D
     private Sprite2D _bodySprite = null!;
     private bool _hasBodyTex;
 
-    // ボス用：HP制（>0でHPバー方式に。剥がした枚数ぶんHPが減り、パネルは補充される）。
-    protected int MaxHp = 0;
-    protected float PanelRespawnDelay = 0f; // >0でパネル補充（ボス用）
+    // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
+    // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
+    //  → 全パネル破壊で BREAK（タメ＋合図演出）
+    //  → EXPOSED 無防備窓（プレイヤー弾の威力が本体HPへ直通。パネル復活なし）
+    //  → 窓終了で RECLOSE（キャラ別セリフ→パネル一括再生成）→ SHIELDED
+    //  → HP<=0 で Redeem()
+    protected enum BossPhase { Shielded, Break, Exposed, Reclose }
+    private BossPhase _phase = BossPhase.Shielded;
+    private double _phaseT; // 現フェーズ経過秒
+    public const int BarHp = 100;                 // 1本=100（HUDで大きく動く）
+    protected int BarCount = 0;                    // >0でHPバー方式に。総HP=BarHp×BarCount（派生が設定）。
+    private const double VulnDur = 4.0;            // 無防備窓（全難易度共通）
+    private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
+    private const double RecloseLineDur = 1.2;     // RECLOSE セリフ尺
+    private const double RespawnGap = 0.3;         // RECLOSE 後パネル一括再生成までの間
+    private const double VulnWarnLead = 0.8;       // 窓終了この秒前から明滅を速める（終了予告）
+    private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
-    public bool HasHpBar => MaxHp > 0;
-    public float HpRatio => MaxHp > 0 ? (float)_hp / MaxHp : 0f;
+    public bool HasHpBar => _maxHp > 0;
+    public float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
+    // HUD「1本リフィル方式」用。現在の1本ぶんを 0〜1 で、残バー数を index/total で示す。
+    public int TotalBars => BarCount;
+    public int CurrentBarIndex => _maxHp <= 0 ? 0 : Mathf.Clamp((_hp - 1) / BarHp, 0, BarCount - 1); // 残バーの先頭(0始まり)
+    public float CurrentBarFrac => _maxHp <= 0 ? 0f : (_hp <= 0 ? 0f : (float)(((_hp - 1) % BarHp) + 1) / BarHp);
 
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
+    private bool _becameFollower; // この本人がフォロワーに化けた＝退場（左流れ）をスキップして二重表示を防ぐ
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
     private bool _flashing;
     private double _flashT;
     private const double FlashDur = 0.5;
 
+    // ─── 改心の“溶けるような”差し替え演出（クロスフェード＋squash→pop）の調整定数 ───
+    // 当たり判定は一切動かさない：すべて _bodySprite の Transform/Modulate のみで表現する。
+    private const double SwapFadeDur = 0.12; // 旧→新テクスチャのクロスフェード尺
+    private const float SquashScale = 1.15f; // 差し替え瞬間の最大ふくらみ（×BaseScale）
+    private const float PopLiftPx = 6f;      // フォロースルーで一瞬持ち上げる量(px・見た目のみ)
+    private const double HitstopDur = 0.08;  // 改心確定の一拍で止める長さ
+
+    // 立ち絵の“素”のスケール（BodyDisplayH/テクスチャ高で決まる）。squash はこれに係数を掛ける。
+    private float _baseScale = 1f;
+    // ApplyBossMotion が与える呼吸/浮遊オフセット。pop の持ち上げはこれに加算して描く（呼吸と喧嘩しない）。
+    private Vector2 _motionOffset = Vector2.Zero;
+
+    // 差し替えクロスフェード：旧テクスチャを別 Sprite2D に退避してα落とし、本体(新)をα上げ。
+    private Sprite2D? _fadeSprite;
+    // squash→pop の進行（0..1）。差し替えの瞬間に起動し、SwapAnimDur で 1 に達して終わる。
+    private bool _swapAnim;
+    private double _swapAnimT;
+    private const double SwapAnimDur = 0.22; // squash→pop の全長（クロスフェードより少し長く余韻を残す）
+
     private CollisionShape2D _bodyShape = null!;
 
     public bool IsPurified => _purified;
     public int PanelsRemaining => _panels.Count;
+    public bool IsExposed => _phase == BossPhase.Exposed; // 派生／演出が「今は殴れる」を参照
 
     public override void _Ready()
     {
@@ -62,10 +101,13 @@ public partial class Enemy : Area2D
         Monitorable = true;
         _bodyShape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius } };
         AddChild(_bodyShape);
+        // 無防備窓中だけ本体が自機弾を拾う（EnterExposed/EnterReclose で mask=2 を開閉する）。
+        AreaEntered += OnBodyHitByPlayerBullet;
 
         OnEnemyReady();
-        // 難易度は体力ではなく弾数で調整する方針のため、HP（剥がし回数）は固定。
-        _hp = MaxHp;
+        // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
+        _maxHp = BarCount * BarHp;
+        _hp = _maxHp;
         SetupBodySprite();
         SpawnPanels();
     }
@@ -84,6 +126,10 @@ public partial class Enemy : Area2D
     // 現在のスペルの弾形・色で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
     protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1)
         => pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
+
+    // 難易度別HPバー本数（総HP=BarHp×本数）。派生ボスが OnEnemyReady で BarCount に設定する。
+    protected int DiffBars(bool finalBoss) =>
+        GetNodeOrNull<GameManager>("/root/Game")?.DiffBarBonus(finalBoss) ?? (finalBoss ? 5 : 4);
 
     // 難易度に応じた弾数。派生ボスが弾幕パターンの本数を安全にスケールするために使う。
     protected int Dn(int baseCount) =>
@@ -110,6 +156,7 @@ public partial class Enemy : Area2D
             FlipH = FaceLeft, // 素材は右向き→左(進行方向)へ反転
         };
         float s = BodyDisplayH / t.GetHeight();
+        _baseScale = s;
         _bodySprite.Scale = new Vector2(s, s);
         AddChild(_bodySprite);
     }
@@ -129,19 +176,21 @@ public partial class Enemy : Area2D
     }
 
     // パネルが砕けた通知。
-    // 通常敵：全部剥がれたら浄化。 ボス(HP制)：剥がした枚数ぶんHPを削り、パネルを補充。HP0で浄化。
+    // 通常敵：全部剥がれたら浄化。
+    // ボス(HPバー方式)：本体HPは減らさない＝残数カウントのみ。0枚で BREAK へ遷移し、無防備窓を開く。
     public void OnPanelStripped(Panel p)
     {
         _panels.Remove(p);
 
-        if (MaxHp > 0)
+        if (_maxHp > 0)
         {
             if (_purified) return;
-            _hp = Mathf.Max(0, _hp - 1);
-            OnHpChanged();
-            if (_hp <= 0) { Redeem(); return; }
-            SchedulePanelRespawn();
-            QueueRedraw();
+            // SHIELDED 中に全パネルを剥がし切ったら BREAK（合図）へ。
+            // BREAK/EXPOSED 中はパネルが無いので通常ここには来ないが、保険で残数だけ見る。
+            if (_phase == BossPhase.Shielded && _panels.Count == 0)
+                EnterBreak();
+            else
+                QueueRedraw();
             return;
         }
 
@@ -151,24 +200,77 @@ public partial class Enemy : Area2D
             QueueRedraw();
     }
 
-    private void SchedulePanelRespawn()
+    // ─── 無防備窓サイクルのフェーズ遷移 ───
+    private void EnterBreak()
     {
-        if (PanelRespawnDelay <= 0f) return;
-        var t = GetTree().CreateTimer(PanelRespawnDelay);
-        t.Timeout += () =>
+        _phase = BossPhase.Break; _phaseT = 0;
+        // 合図演出：画面フラッシュ＋ BREAK! 表示。ミナの煽りセリフは OnBreakCue（弾を止めない字幕）で。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -14), "BREAK!", FxLayer.Sig2);
+        Audio.Instance?.PlaySpell();
+        OnBreakCue(); // 派生：ミナの煽りセリフ等（共通実装あり）
+        QueueRedraw();
+    }
+
+    private void EnterExposed()
+    {
+        _phase = BossPhase.Exposed; _phaseT = 0;
+        // 無防備窓：本体が自機弾を拾うよう監視・マスクを開く（衝突中の変更は遅延設定）。
+        SetDeferred(Area2D.PropertyName.Monitoring, true);
+        SetCollisionMaskValue(2, true); // 自機弾 layer=2 を拾う
+        if (_bodyShape != null)
+            _bodyShape.SetDeferred(CollisionShape2D.PropertyName.Disabled, false);
+        QueueRedraw();
+    }
+
+    private void EnterReclose()
+    {
+        _phase = BossPhase.Reclose; _phaseT = 0;
+        // 本体を再び無敵化（自機弾を拾わない）。
+        SetDeferred(Area2D.PropertyName.Monitoring, false);
+        SetCollisionMaskValue(2, false);
+        OnRecloseLine(); // 派生：キャラ別の弱気セリフを最短表示
+        QueueRedraw();
+    }
+
+    private void EnterShielded()
+    {
+        _phase = BossPhase.Shielded; _phaseT = 0;
+        if (_panels.Count == 0) SpawnPanels(); // パネル一括再生成
+        QueueRedraw();
+    }
+
+    // 無防備窓中：本体に当たった自機弾の威力ぶん本体HPを削る。
+    private void OnBodyHitByPlayerBullet(Area2D area)
+    {
+        if (_phase != BossPhase.Exposed || _purified) return;
+        if (area is Bullet b && !b.IsEnemy && b.Active)
         {
-            if (_purified || _crying || !IsInstanceValid(this)) return;
-            if (_panels.Count < PanelCount) SpawnOnePanel(GD.Randf() * Mathf.Tau);
-        };
+            GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+            int dmg = Mathf.Clamp(b.Damage, 1, 4); // ExposedHitDmg=1+ShotDamageBonus を Bullet.Damage 経由で（上限4）
+            _hp = Mathf.Max(0, _hp - dmg);
+            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
+            OnHpChanged();
+            if (_hp <= 0)
+            {
+                // 窓中の本体撃破。Redeem は被弾シグナル中に走るため監視・形状の無効化は遅延される。
+                // マスク書換も衝突シグナルのディスパッチ中（フラッシュ中）なので遅延化する。
+                CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
+                Redeem();
+                return;
+            }
+            QueueRedraw();
+        }
     }
 
     // 外部（ボム等）から強制浄化。
-    // ボス(HP制)はボムで即浄化しない：今あるパネルを剥がす（HPが少し減る）だけ。
+    // ボス(HPバー方式)はボムで即浄化しない：今あるパネルを全砕き→ BREAK を誘発するだけ。
     public void Purify()
     {
         if (_purified) return;
-        if (MaxHp > 0)
+        if (_maxHp > 0)
         {
+            // 無防備窓中／合図中はパネルが無いので何も起きない（直減もしない）。
             foreach (var p in new List<Panel>(_panels))
                 p.Shatter();
             return;
@@ -178,11 +280,43 @@ public partial class Enemy : Area2D
         if (!_purified) Redeem();
     }
 
+    // 合図・弱気セリフの派生フック。
+    // BREAK 合図は全ボス共通でミナが煽る（who=1）。RECLOSE は派生がキャラ別の弱気セリフを出す。
+    // どちらも ShowBossLine 経由＝弾を止めない（テンポ維持）。
+    protected virtual void OnBreakCue()
+    {
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
+            .ShowBossLine("ミナ", "シールドが、剥がれました! いまです、撃ち抜いて!", UiKit.Mina, BreakCueDur + VulnDur);
+    }
+    protected virtual void OnRecloseLine() { }
+
+    // RECLOSE セリフを表示するヘルパー（派生から呼ぶ）。サイクルごとに index を進め、超えたら最後を使い回す。
+    protected void ShowRecloseLine(string speaker, string text)
+    {
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
+            .ShowBossLine(speaker, text, UiKit.Kegare, RecloseLineDur);
+    }
+
     // 進行方向に体を向ける（素材は右向き。flipH=true で左向き）。
     protected void SetSpriteFlip(bool flipH)
     {
         if (_hasBodyTex && _bodySprite != null)
             _bodySprite.FlipH = flipH;
+    }
+
+    // ボス徘徊の“見た目だけ”の演出を立ち絵(_bodySprite)へ適用する（BossMover 経由）。
+    // visualOffset=呼吸/浮遊の微小オフセット、lean=進行方向への傾き(rad)、faceLeft=向き。
+    // ★当たり判定（本体 Area2D の GlobalPosition と _bodyShape）は一切動かさない＝弾避けの公平性を保つ。
+    // 立ち絵が無い（プレースホルダ図形の）ボスでは何もしない。
+    protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft)
+    {
+        if (!_hasBodyTex || _bodySprite == null) return;
+        _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
+        // 差し替えアニメ中は _PhysicsProcess 側が Position/Scale を握る（pop の持ち上げを潰さない）。
+        if (!_swapAnim)
+            _bodySprite.Position = visualOffset;
+        _bodySprite.Rotation = lean;
+        _bodySprite.FlipH = faceLeft;
     }
 
     // HPが変化した（HUDバー更新用フック）。
@@ -210,6 +344,8 @@ public partial class Enemy : Area2D
         GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
+        // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
+        GameCamera.Instance?.Hitstop(HitstopDur);
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
         Audio.Instance?.PlayPurify();
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
@@ -245,15 +381,92 @@ public partial class Enemy : Area2D
         QueueRedraw();
     }
 
-    // 本体スプライトを差し替えて表示高さに合わせて再スケール。
+    // 本体スプライトを“溶けるように”差し替える（クロスフェード＋squash→pop）。
+    // 旧テクスチャを別 Sprite2D(_fadeSprite) に退避してα落とししつつ、本体(新)をα上げ。
+    // 同時に squash→pop（Scale を一瞬ふくらませて弾み、見た目を少し持ち上げて戻す）を起動。
+    // ★テクスチャ差し替え／再スケールの基準だけ確定し、実アニメは _PhysicsProcess(TickSwapAnim) が進める。
+    // ★当たり判定は触らない：動かすのは _bodySprite と _fadeSprite の Transform/Modulate だけ。
     private void SwapBody(string path)
     {
         if (!_hasBodyTex || string.IsNullOrEmpty(path)) return;
         var t = ResourceLoader.Load<Texture2D>(path);
         if (t == null) return;
+
+        // 旧テクスチャをそのままの見た目で退避（同じ Transform/Flip/ZIndex）し、α落とし用に使う。
+        var old = _bodySprite.Texture;
+        if (old != null)
+        {
+            _fadeSprite?.QueueFree();
+            _fadeSprite = new Sprite2D
+            {
+                Texture = old,
+                Centered = true,
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+                ZIndex = _bodySprite.ZIndex,
+                FlipH = _bodySprite.FlipH,
+                Position = _bodySprite.Position,
+                Rotation = _bodySprite.Rotation,
+                Scale = _bodySprite.Scale,
+            };
+            AddChild(_fadeSprite);
+        }
+
+        // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
         _bodySprite.Texture = t;
-        float s = BodyDisplayH / t.GetHeight();
-        _bodySprite.Scale = new Vector2(s, s);
+        _baseScale = BodyDisplayH / t.GetHeight();
+        _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
+        _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
+
+        // squash→pop を起動（_PhysicsProcess で進める）。
+        _swapAnim = true;
+        _swapAnimT = 0;
+    }
+
+    // squash→pop ＋ クロスフェードを 1 フレームぶん進める。
+    // squash: BaseScale×SquashScale から BaseScale へ Back/Out 風に弾ませる。
+    // pop:    見た目を PopLiftPx 持ち上げて戻す（呼吸オフセット _motionOffset に加算＝当たり判定は不変）。
+    private void TickSwapAnim(double delta)
+    {
+        if (!_swapAnim) return;
+        _swapAnimT += delta;
+        float u = (float)Mathf.Clamp(_swapAnimT / SwapAnimDur, 0, 1);
+
+        // Back/Out 風：行き過ぎてから戻す。t=0 で +(SquashScale-1)、t=1 で ±0 に収束。
+        float over = BackOut(u);                 // 0→1（途中で >1 にオーバーシュート）
+        float scaleMul = Mathf.Lerp(SquashScale, 1f, over);
+        _bodySprite.Scale = new Vector2(_baseScale * scaleMul, _baseScale * scaleMul);
+
+        // pop の持ち上げ：序盤に最大、終盤で 0（sin の山）。呼吸オフセットへ加算。
+        float lift = -PopLiftPx * Mathf.Sin(u * Mathf.Pi);
+        _bodySprite.Position = _motionOffset + new Vector2(0f, lift);
+
+        // クロスフェード：旧(_fadeSprite)をα落とし、新(_bodySprite)をα上げ。
+        if (_fadeSprite != null)
+        {
+            float fa = (float)Mathf.Clamp(_swapAnimT / SwapFadeDur, 0, 1); // フェード進行
+            _bodySprite.SelfModulate = new Color(1f, 1f, 1f, fa);
+            _fadeSprite.SelfModulate = new Color(1f, 1f, 1f, 1f - fa);
+            _fadeSprite.Scale = _bodySprite.Scale; // 同じ squash に乗せて一体に揺らす
+            _fadeSprite.Position = _bodySprite.Position;
+            if (fa >= 1f) { _fadeSprite.QueueFree(); _fadeSprite = null; }
+        }
+
+        if (u >= 1f)
+        {
+            _swapAnim = false;
+            _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
+            _bodySprite.Position = _motionOffset;
+            _bodySprite.SelfModulate = Colors.White;
+            if (_fadeSprite != null) { _fadeSprite.QueueFree(); _fadeSprite = null; }
+        }
+    }
+
+    // Back/Out 風イージング（行き過ぎてから 1 へ収束）。
+    private static float BackOut(float x)
+    {
+        const float c1 = 1.70158f, c3 = c1 + 1f;
+        float p = x - 1f;
+        return 1f + c3 * p * p * p + c1 * p * p;
     }
 
     // 救った人を algo のフォロワー（味方オプション）にする。派生で上書き可（ボス＝ヒカゲ強化）。
@@ -261,7 +474,7 @@ public partial class Enemy : Area2D
     {
         var players = GetTree().GetNodesInGroup("player");
         if (players.Count > 0 && players[0] is Player pl)
-            pl.AddFollower(GlobalPosition);
+            _becameFollower = pl.AddFollower(GlobalPosition); // フォロワー化したら本体は退場せず引き継ぐ
     }
 
     // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。
@@ -280,6 +493,9 @@ public partial class Enemy : Area2D
 
     public override void _PhysicsProcess(double delta)
     {
+        // 差し替えアニメ（クロスフェード＋squash→pop）は状態に関わらず常に進める。
+        if (_swapAnim) { TickSwapAnim(delta); QueueRedraw(); }
+
         if (_flashing)
         {
             _flashT += delta;
@@ -303,16 +519,44 @@ public partial class Enemy : Area2D
 
         if (_purified)
         {
-            // 笑顔の味方コメントとしてゆっくり左へ流れて退場。
+            // フォロワー化した本人は、その場に湧いた Follower が見た目を引き継ぐので本体は即退場
+            //（救った娘が去りつつ別の娘がくっつく“二重表示”を防ぐ＝救った本人がそのまま付くように見える）。
+            if (_becameFollower) { QueueFree(); return; }
+            // それ以外：笑顔の味方コメントとしてゆっくり左へ流れて退場。
             GlobalPosition += new Vector2(-30f * (float)delta, 0f);
             if (GlobalPosition.X < -24f) QueueFree();
             return;
         }
 
+        // 無防備窓サイクルの進行（BubblePaused でも止めない＝合図/窓が固まらないように）。
+        if (_maxHp > 0) TickBossPhase(delta);
+
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
 
         UpdateMovement(delta);
         if (GlobalPosition.X < -24f) QueueFree();
+    }
+
+    // BREAK→EXPOSED→RECLOSE→SHIELDED の尺管理。SHIELDED 中は何もしない（パネル待ち）。
+    private void TickBossPhase(double delta)
+    {
+        if (_phase == BossPhase.Shielded) return;
+        _phaseT += delta;
+        switch (_phase)
+        {
+            case BossPhase.Break:
+                if (_phaseT >= BreakCueDur) EnterExposed();
+                else QueueRedraw();
+                break;
+            case BossPhase.Exposed:
+                QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
+                if (_phaseT >= VulnDur) EnterReclose();
+                break;
+            case BossPhase.Reclose:
+                // 弱気セリフ(RecloseLineDur)を見せ、RespawnGap 置いてパネルを一括再生成＝SHIELDED へ。
+                if (_phaseT >= RecloseLineDur + RespawnGap) EnterShielded();
+                break;
+        }
     }
 
     protected virtual void UpdateMovement(double delta) { }
@@ -325,6 +569,27 @@ public partial class Enemy : Area2D
             float t = (float)(_flashT / FlashDur);
             var c = new Color(1f, 0.85f, 0.92f).Lerp(new Color(0.79f, 0.72f, 0.94f), t); // 淡ピンク→淡紫
             DrawCircle(Vector2.Zero, BodyRadius + 10f * (1f - t), new Color(c.R, c.G, c.B, 0.6f * (1f - t)));
+        }
+
+        // 合図・無防備窓の本体演出（「今は殴れる」の可視化）。
+        if (!_purified && _maxHp > 0)
+        {
+            if (_phase == BossPhase.Break)
+            {
+                // タメ：白く膨らむ合図リング。
+                float t = (float)(_phaseT / BreakCueDur);
+                DrawCircle(Vector2.Zero, BodyRadius + 4f + 18f * t, new Color(1f, 1f, 1f, 0.5f * (1f - t)));
+            }
+            else if (_phase == BossPhase.Exposed)
+            {
+                // 露出中：黄金の明滅オーラ。終了 VulnWarnLead 秒前から点滅を速めて終了を予告。
+                double rem = VulnDur - _phaseT;
+                float hz = rem <= VulnWarnLead ? 9f : 3.2f;
+                float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * hz * Mathf.Tau);
+                var aura = new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
+                DrawCircle(Vector2.Zero, BodyRadius + 6f + 3f * pulse, aura);
+                DrawArc(Vector2.Zero, BodyRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
+            }
         }
 
         // スプライトが無い時だけプレースホルダ図形を描く

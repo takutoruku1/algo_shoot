@@ -14,6 +14,7 @@ public partial class StageMina : Node
     private int _step;
     private bool _stepStarted;
     private double _stepTime;
+    private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private double _lineHold;
     private int _introLine;
     private BossMina _boss = null!;
@@ -47,6 +48,7 @@ public partial class StageMina : Node
     {
         _stepTime += delta;
         _lineHold += delta;
+        if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         _zEdge = z && !_zHeld;
         _zHeld = z;
@@ -131,6 +133,10 @@ public partial class StageMina : Node
     {
         if (_clearing) return;
         _clearing = true;
+        // FINAL クリア確定＝この瞬間に経過秒を確定しベスト記録（記録画面/カードで参照）。
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        game?.RecordClearTime("final", game.Difficulty, (float)_stageElapsed);
+        game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。
         GetTree().ChangeSceneToFile("res://Final.tscn");

@@ -11,6 +11,20 @@ public enum StageTheme
     Koharu,  // 台所（包丁・まな板 / 鍋・お玉）
 }
 
+// 道中ザコの固有攻撃パターン。本体(MidEnemy)が _spec.Pattern で発射を分岐する。
+// None=撃たない（drifter の無弾種・Default drifter）。弾数/間隔は Enemy.Dn/Di で難易度スケールする。
+public enum AttackPattern
+{
+    None,            // 撃たない
+    ReiLockBurst,    // レイ偵察ドローン：ロックオン連射（予告→自機方向3連バースト）
+    ReiPulseRing,    // レイ監視カメラの目：視線パルス放射（全方位等間隔リング）
+    AkariScatter,    // あかり机・椅子：ばらまき投擲（固定左方向扇）
+    AkariDrop,       // あかりノート・教科書：落書きドロップ（真下へ低速）
+    KoharuSharp3,    // こはる包丁・まな板：高速鋭3WAY（短予告→自機方向3本）
+    KoharuSimmer,    // こはる鍋・お玉：とろ火ゆらぎ弾（自機狙い超低速単発）
+    DefaultAim,      // アンチくん：自機狙い単発（現状踏襲）
+}
+
 // 1種のザコの見た目（pre/post テクスチャ）と挙動パラメータ。
 public readonly struct EnemySpec
 {
@@ -25,10 +39,12 @@ public readonly struct EnemySpec
     public readonly float BulletSpeed;
     public readonly float SwayAmp;     // 上下うねりの振幅（0=直進）
     public readonly float SwayFreq;
+    public readonly AttackPattern Pattern; // 固有攻撃パターン（既定 None＝撃たない、後方互換）
 
     public EnemySpec(string pre, string post, int points, float bodyRadius,
         float moveSpeed, float spinSpeed, bool fires, float fireInterval,
-        float bulletSpeed, float swayAmp = 0f, float swayFreq = 0f)
+        float bulletSpeed, float swayAmp = 0f, float swayFreq = 0f,
+        AttackPattern pattern = AttackPattern.None)
     {
         PreTexPath = pre;
         PostTexPath = post;
@@ -41,6 +57,7 @@ public readonly struct EnemySpec
         BulletSpeed = bulletSpeed;
         SwayAmp = swayAmp;
         SwayFreq = swayFreq;
+        Pattern = pattern;
     }
 }
 
@@ -53,32 +70,38 @@ public static class EnemyTable
     // レイ＝監視カメラ・目 / あかり＝ノート・教科書 / こはる＝鍋・お玉。
     public static (EnemySpec shooter, EnemySpec drifter) For(StageTheme theme) => theme switch
     {
+        // 発射は本体(MidEnemy)が Pattern で行う。fires/fireInterval/bulletSpeed はパネル発射用の旧値で、
+        // 本体発射では参照しない（Panel 側の自前発射は無効化済み）。各種の弾速・間隔・弾数は MidEnemy 内で定義。
         StageTheme.Rei => (
             new EnemySpec("res://char/enemy_rei_drone_pre.png", "res://char/enemy_rei_drone_post.png",
-                100, 4f, moveSpeed: 56f, spinSpeed: 1.5f, fires: true, fireInterval: 1.8f, bulletSpeed: 95f),
+                100, 4f, moveSpeed: 56f, spinSpeed: 1.5f, fires: true, fireInterval: 1.8f, bulletSpeed: 95f,
+                pattern: AttackPattern.ReiLockBurst),
             new EnemySpec("res://char/enemy_rei_eye_pre.png", "res://char/enemy_rei_eye_post.png",
                 80, 5f, moveSpeed: 26f, spinSpeed: 0.9f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
-                swayAmp: 12f, swayFreq: 1.6f)),
+                swayAmp: 12f, swayFreq: 1.6f, pattern: AttackPattern.ReiPulseRing)),
 
         StageTheme.Akari => (
             new EnemySpec("res://char/enemy_akari_desk_pre.png", "res://char/enemy_akari_desk_post.png",
-                100, 5f, moveSpeed: 46f, spinSpeed: 1.2f, fires: true, fireInterval: 2.0f, bulletSpeed: 90f),
+                100, 5f, moveSpeed: 46f, spinSpeed: 1.2f, fires: true, fireInterval: 2.0f, bulletSpeed: 90f,
+                pattern: AttackPattern.AkariScatter),
             new EnemySpec("res://char/enemy_akari_note_pre.png", "res://char/enemy_akari_note_post.png",
                 80, 4f, moveSpeed: 30f, spinSpeed: 1.1f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
-                swayAmp: 16f, swayFreq: 1.3f)),
+                swayAmp: 16f, swayFreq: 1.3f, pattern: AttackPattern.AkariDrop)),
 
         StageTheme.Koharu => (
             new EnemySpec("res://char/enemy_koharu_knife_pre.png", "res://char/enemy_koharu_knife_post.png",
-                100, 4f, moveSpeed: 60f, spinSpeed: 1.6f, fires: true, fireInterval: 1.7f, bulletSpeed: 100f),
+                100, 4f, moveSpeed: 60f, spinSpeed: 1.6f, fires: true, fireInterval: 1.7f, bulletSpeed: 100f,
+                pattern: AttackPattern.KoharuSharp3),
             new EnemySpec("res://char/enemy_koharu_pot_pre.png", "res://char/enemy_koharu_pot_post.png",
                 80, 6f, moveSpeed: 24f, spinSpeed: 0.8f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
-                swayAmp: 10f, swayFreq: 1.1f)),
+                swayAmp: 10f, swayFreq: 1.1f, pattern: AttackPattern.KoharuSimmer)),
 
         // Default: 既存アンチくん/うつむきさん素材。Spawner が GlyphMote/PageShard を直接使う想定だが、
         // テーブル経由でも同じ姿が出るよう一応そろえておく。
         _ => (
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
-                100, 4f, moveSpeed: 50f, spinSpeed: 1.4f, fires: true, fireInterval: 1.9f, bulletSpeed: 90f),
+                100, 4f, moveSpeed: 50f, spinSpeed: 1.4f, fires: true, fireInterval: 1.9f, bulletSpeed: 90f,
+                pattern: AttackPattern.DefaultAim),
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
                 80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f, bulletSpeed: 0f)),
     };

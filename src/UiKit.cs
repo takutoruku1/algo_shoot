@@ -228,6 +228,17 @@ public static class UiKit
         return n.ToString();
     }
 
+    // クリアタイム表記 m:ss.cc（分:秒.センチ秒、例 1:23.45）。負値は 0 扱い。
+    public static string FormatTime(float sec)
+    {
+        if (sec < 0f) sec = 0f;
+        int totalCenti = Mathf.RoundToInt(sec * 100f);
+        int minutes = totalCenti / 6000;
+        int seconds = (totalCenti / 100) % 60;
+        int centi = totalCenti % 100;
+        return $"{minutes}:{seconds:00}.{centi:00}";
+    }
+
     // ── キーキャップ（Z や ↑↓ の角丸チップ）。中央寄せのモノ文字 ──
     public static void Key(CanvasItem ci, Vector2 pos, string label, Color bg, Color border, Color textCol, float h = 24f, float minW = 24f)
     {

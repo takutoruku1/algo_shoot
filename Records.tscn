@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0algorecords00"]
+
+[ext_resource type="Script" path="res://src/Records.cs" id="1_records"]
+
+[node name="Records" type="Node2D"]
+script = ExtResource("1_records")

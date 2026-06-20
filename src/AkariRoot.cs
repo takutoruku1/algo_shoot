@@ -59,6 +59,7 @@ public partial class AkariRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Akari }); // 近景パララックス：手前の雨筋で前進感（弾より奥 -60/-55）
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Akari }); // 黒板の自責・机が天井へ・記憶
+        AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
@@ -92,7 +93,10 @@ public partial class AkariRoot : Node2D
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：STAGE2は「わずか(0.16)→縁の濁り(0.42)」（設計書 4-b）。
-        float corr = Mathf.Lerp(0.16f, 0.42f, game?.StageProgress ?? 0f);
+        // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
+        const float baseFrom = 0.16f, baseTo = 0.42f;
+        float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
+        float corr = baseFrom + gained;
         game?.SetContamination(corr);
         Player?.SetCorruption(corr);
     }

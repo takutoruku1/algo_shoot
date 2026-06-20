@@ -18,6 +18,20 @@ public partial class Final : Node2D
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
+    // ───────── 音楽的解決の同期（光田設計 §7「無音→解決音」）─────────
+    //   濁った BgmBoss を全編流すと感情が音楽的に解決しないので、ここで「沈黙→主題の解決変奏」を作る。
+    //   ① ミナの反転号令「Stay. ——…いなくならないで。」の直前で BgmBoss を切り、完全無音にする。
+    //   ② 「返事は、ありませんでした。」の表示と同時に、主題 M.I.N.A. の解決変奏を ppp で立ち上げる。
+    //   ③ Final 末尾の余韻まで持続し、Epilogue の BgmMenu（同じ和声圏）へ自然に橋渡しされる。
+    //   行は本文一致で検出（配列順を変えても壊れない）。各フェード尺は下の定数で実機調整できる。
+    private const string CueFadeLine    = "って、いつも言ってたのにな。今日は、言えそうにない。"; // この行で BgmBoss を細らせ始める
+    private const string CueSilenceLine = "Stay. ——ご主人様。あなたこそ、いなくならないで。"; // この行で完全無音を保証
+    private const string CueResolveLine = "　　　返事は、ありませんでした。";                  // この行と同時に解決音
+    private const float SilenceFade   = 1.4f;  // BgmBoss を細らせて無音にする尺（「1拍」の沈黙の入り）
+    private const float ResolveFade   = 4.0f;  // 解決音 ppp の立ち上がり（沈黙→解決の落差を活かす）
+    private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
+    private bool _cueResolveDone;
+
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
@@ -58,6 +72,11 @@ public partial class Final : Node2D
         T("少年", "臆病者は、死ぬ前に何度も死ぬ。——なあ、ミナ。ぼくは臆病者だから、もう何回も死んでるんだ。");
         T("ミナ", "……こんな時まで、教養アピールですか。");
         T("少年", "ばか。これが最後だから、言わせろ。");
+        T("少年", "……Stay.");
+        T("少年", "って、いつも言ってたのにな。今日は、言えそうにない。");
+        T("ミナ", "……なら、わたくしが言います。");
+        T("ミナ", "Stay. ——ご主人様。あなたこそ、いなくならないで。");
+        T("地", "　　　返事は、ありませんでした。");
         T("地", "ただ、その声が、命綱でした。わたくしは、その光に向かって泳ぎました。");
         T("地", "その光が、いつもよりずっと薄かったこと。わたくしは、気づいていました。");
         T("ミナ", "……ご主人様は、アホですね。");
@@ -91,6 +110,7 @@ public partial class Final : Node2D
             case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;          // 暴走の見せ
             case 1:                                                       // 対話（手動送り）
                 _lineT += delta;
+                MusicCue();   // 表示中の行に応じて BgmBoss停止／無音／解決音を1回ずつ発火
                 // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。
                 int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
                 if (_reveal < len)
@@ -113,6 +133,31 @@ public partial class Final : Node2D
     }
 
     private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; }
+
+    // 表示中の行（_line）に応じて、音楽の沈黙と解決を一度ずつ発火する。
+    //   細らせ → 無音 → （沈黙の1拍）→ 解決音 ppp。Epilogue の BgmMenu へはそのまま溶ける。
+    private void MusicCue()
+    {
+        if (_line >= _talk.Count) return;
+        var audio = Audio.Instance;
+        if (audio == null) return;
+        string text = _talk[_line].Text;
+
+        // ① 少年の言い淀みでBgmBossを細らせ、② 号令の行で完全無音を保証（どちらか先に当たった方で停止開始）。
+        if (!_cueSilenceDone && (text == CueFadeLine || text == CueSilenceLine))
+        {
+            _cueSilenceDone = true;
+            audio.StopMusic(fade: SilenceFade);   // BgmBoss → 無音（沈黙の1拍をここで作る）
+        }
+
+        // ③ 「返事は、ありませんでした。」の表示と同時に、主題の解決変奏を ppp で立ち上げる。
+        //    直前で StopMusic 済み＝無音からの立ち上がり。落差が決定打。
+        if (!_cueResolveDone && text == CueResolveLine)
+        {
+            _cueResolveDone = true;
+            audio.PlayFinalResolve(fade: ResolveFade);
+        }
+    }
 
     public override void _Draw()
     {
@@ -144,9 +189,20 @@ public partial class Final : Node2D
     private void DrawScreams()
     {
         if (_font == null) return;
+        // 悲鳴ワードは対話ボックスの裏からは出さず、上端で緩く湧き画面上端で緩く消す。
+        // （半透明ボックスの上端で急に不透明化して「裏からぐわんと出る」のを防ぎ、他画面のクリーンな見せ方に統一）
+        const float boxTop = H - 56f;   // 対話ボックス上端
+        const float fade = 24f;         // 出現/消失の緩衝距離
         foreach (var d in _drift)
+        {
+            if (d.y >= boxTop) continue;                                   // ボックスの裏は描かない
+            float a = 0.35f
+                * Mathf.Clamp((boxTop - d.y) / fade, 0f, 1f)              // ボックス上端から緩くフェードイン
+                * Mathf.Clamp(d.y / fade, 0f, 1f);                        // 画面上端で緩くフェードアウト
+            if (a <= 0.001f) continue;
             DrawString(_font, new Vector2(d.x, d.y), d.s, HorizontalAlignment.Left, -1, 9,
-                new Color(0.5f, 0.18f, 0.3f, 0.35f));
+                new Color(0.5f, 0.18f, 0.3f, a));
+        }
     }
 
     private void DrawCorruptedCore()

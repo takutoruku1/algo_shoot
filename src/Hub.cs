@@ -24,7 +24,7 @@ public partial class Hub : Node2D
     private Texture2D? _minaFace;
 
     private int _sel;
-    private bool _navHeld, _zHeld, _xHeld, _cHeld, _dived;
+    private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _dived;
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
@@ -322,6 +322,11 @@ public partial class Hub : Node2D
         bool x = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
         bool xEdge = x && !_xHeld; _xHeld = x;
         if (xEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn"); }
+
+        // T：クリアタイムの記録画面へ（戻ると Hub に復帰）。
+        bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
+        bool tEdge = tk && !_tHeld; _tHeld = tk;
+        if (tEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
     }
 
     private void DiveAuto()
@@ -493,7 +498,37 @@ public partial class Hub : Node2D
             ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
             Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
         }
+
+        // ベストタイム（右下・記録のある最速難易度＋その難易度ラベル。記録なしは "--"）。
+        if (e.Unlocked && !e.IsFinal)
+            DrawCardBest(e.Id, x + w - 24f, cy + h - 26f, alpha);
     }
+
+    // カード右下のベストタイム表示。最速難易度のベスト＋小さな難易度ラベル。
+    private void DrawCardBest(string id, float right, float y, float alpha)
+    {
+        var best = _game?.BestAcrossDiffs(id);
+        string timeStr = best != null ? UiKit.FormatTime(best.Value.sec) : "--";
+        string diffStr = best != null ? DiffShort(best.Value.diff) : "";
+        // 「BEST 1:23.45  NORMAL」を右揃えで一行。
+        float tw = UiKit.TextW(UiKit.Mono, timeStr, 14);
+        float dw = diffStr.Length > 0 ? UiKit.TextW(UiKit.Mono, diffStr, 10) + 8 : 0;
+        float lw = UiKit.TextW(UiKit.Mono, "BEST", 10) + 6;
+        float x0 = right - (lw + tw + dw);
+        Color tc = best != null ? UiKit.Gold : UiKit.Text4;
+        UiKit.Text(this, UiKit.Mono, new Vector2(x0, y + 3), "BEST", 10, new Color(UiKit.Text3, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, 14, new Color(tc, alpha));
+        if (diffStr.Length > 0)
+            UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw + tw + 8, y + 3), diffStr, 10, new Color(UiKit.Info, alpha));
+    }
+
+    private static string DiffShort(GameManager.Diff d) => d switch
+    {
+        GameManager.Diff.Easy => "EASY",
+        GameManager.Diff.Hard => "HARD",
+        GameManager.Diff.Lunatic => "LUNA",
+        _ => "NORMAL",
+    };
 
     // ロックカードの伏字バー（X の非表示投稿風。寸法は控えめに2本）
     private void RedactedBars(float x, float y, float w, float alpha)
@@ -548,7 +583,8 @@ public partial class Hub : Node2D
         x = Hint(x, y, "↑↓", "えらぶ", false);
         x = Hint(x, y, "Z", "ダイブ", true);
         if (CanReplySel()) x = Hint(x, y, "C", "返信", false);
-        Hint(x, y, "X", "強化", false);
+        x = Hint(x, y, "X", "強化", false);
+        Hint(x, y, "T", "記録", false);
     }
 
     private float Hint(float x, float y, string key, string label, bool accent)
