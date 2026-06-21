@@ -244,7 +244,13 @@ public partial class CameoBoss : Enemy
         _defeatSeq = true; _defeatIdx = -1; _defeatT = DefeatLineDur; // 即・最初の行へ
     }
 
-    protected override void OnCryEnd() => Finished = true;
+    protected override void OnCryEnd()
+    {
+        Finished = true;
+        // 道中へ戻るのでステージBGMへ復帰する。撃破時の PlayRedeem は「一度きり（ループしない）」の
+        // 2.6秒ワンショットなので、ここで戻さないと道中後半が鳴り切ったあと無音のままになる（#BGM消失）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmStage);
+    }
 
     public override void _Process(double delta)
     {

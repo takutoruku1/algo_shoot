@@ -101,6 +101,10 @@ public partial class BossAkari : Enemy
         GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
+
+        var caster = new AreaSpellCaster();
+        caster.Configure("akari", GetParent());
+        AddChild(caster);
     }
 
     protected override void UpdateMovement(double delta)

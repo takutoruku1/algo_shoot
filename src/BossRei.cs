@@ -94,6 +94,11 @@ public partial class BossRei : Enemy
         GetHud()?.ShowBossBar("孤高のわたし", "@rei_____");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
+
+        // 予測攻撃（テレグラフ）キャスター：技名宣告→予測線/予測エリア。数は難易度でスケール。
+        var caster = new AreaSpellCaster();
+        caster.Configure("rei", GetParent());
+        AddChild(caster);
     }
 
     protected override void UpdateMovement(double delta)

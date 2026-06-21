@@ -82,6 +82,10 @@ public partial class BossMina : Enemy
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
+
+        var caster = new AreaSpellCaster();
+        caster.Configure("mina", GetParent());
+        AddChild(caster);
     }
 
     protected override void UpdateMovement(double delta)

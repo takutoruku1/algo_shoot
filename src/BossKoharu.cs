@@ -103,6 +103,10 @@ public partial class BossKoharu : Enemy
         GetHud()?.ShowBossBar("とまれないわたし", "@koharu");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
+
+        var caster = new AreaSpellCaster();
+        caster.Configure("koharu", GetParent());
+        AddChild(caster);
     }
 
     protected override void UpdateMovement(double delta)

@@ -174,7 +174,11 @@ public partial class StageKoharu : Node
             case 13: Step_Clear(delta); break;
             case 14: Step_Transition(); break;
         }
-        if (_bossActive) Rain(delta);
+        // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一。
+        // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
+        // こはる面は固有の悲鳴フレーズ（Words）を源にする＝その面のテーマ語が降る一体感。
+        // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 44f);
     }
 
     private void Advance()
@@ -393,26 +397,9 @@ public partial class StageKoharu : Node
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
-    // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。
+    // 投稿弾（言葉弾）の周期/tick 用アキュムレータ。湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約。
     private int _wordTick;
-    private static readonly string[] Words = { "むだだよ", "なにをつくっても", "もう帰ってこない", "ひとりになる" };
-    private void Rain(double delta)
-    {
-        if (Hud.BubblePaused) return;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        _rainT += delta;
-        float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
-        if (_rainT < 0.17 * mul) return;
-        _rainT = 0;
-        if ((++_wordTick % 7) == 0)
-        {
-            var b = pool.Spawn(new Vector2(_rng.RandfRange(70f, 314f), -8f), new Vector2(0f, 44f), isEnemy: true, 3f, 1);
-            b.SetWord(Words[_rng.RandiRange(0, Words.Length - 1)]);
-            return;
-        }
-        float x = _rng.RandfRange(8f, 376f);
-        float vx = _rng.RandfRange(-11f, 11f);
-        pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 72f), isEnemy: true, 3f, 1);
-    }
+    // こはる面固有の“声”プール（投稿弾の源）。ハンドルは無し（""）＝この面のテーマ語だけを降らせる。
+    private static readonly (string h, string w)[] PostWords =
+        { ("", "むだだよ"), ("", "なにをつくっても"), ("", "もう帰ってこない"), ("", "ひとりになる") };
 }

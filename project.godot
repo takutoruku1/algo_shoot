@@ -23,6 +23,7 @@ QaPilot="*res://src/QaPilot.cs"
 Shot="*res://src/Shot.cs"
 Audio="*res://src/Audio.cs"
 PauseMenu="*res://src/PauseMenu.cs"
+HowTo="*res://src/HowToPlay.cs"
 
 [audio]
 

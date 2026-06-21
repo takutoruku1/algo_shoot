@@ -144,6 +144,41 @@ public partial class Player : Area2D
     private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
     private const float FocusLeanMul = 0.45f; // 低速(Shift)時はバンクを抑える＝丁寧さを画で見せる
 
+    // ───────── 回避（ドッジ）─────────
+    // 入力＝ALT / パッド L3(LeftStick)。短い無敵で弾を「すり抜ける」攻めの回避。
+    // 値は控えめ＝乱用させず、ここぞの一回が気持ちいい範囲に置く（tunable）。
+    private const float DodgeIFrame   = 0.45f;  // 無敵時間（この主旨どおり回避中は被弾しない）
+    private const float DodgeDuration = 0.55f;  // 回避モーション全体の長さ（変位＋余韻）。ゆっくり見せる
+    private const float DodgeDistance = 64f;    // ダッシュ総変位(px)
+    private const float DodgeCooldown = 0.8f;   // 再回避までのクールダウン
+    private const float DodgeAntic    = 0.05f;  // アンティシペーション（一瞬の逆タメ）秒
+    private const int   DodgeSpins    = 3;      // 回避中に回す回転数（縦軸ピルエット＝トリプルアクセル感の3）。tunable。
+    private const float DodgeLift     = 8f;     // ジャンプスピンの軽い浮き(px・上方向)。やり過ぎない。
+    private const float DodgeTrailGap = 0.03f;  // 残像を置く間隔(秒)＝最大10枚程度
+    private const float DodgeTrailTtl = 0.18f;  // 残像1枚が消えるまで(秒)
+    private const int   DodgeTrailMax = 8;      // 同時に存在する残像の上限（プール）
+
+    private bool _dodgeHeld = false;            // 入力エッジ検出
+    private float _dodgeTimer = 0f;             // 残り回避時間（>0で回避中）
+    private float _dodgeInv = 0f;               // 残り回避無敵時間（>0で被弾しない）
+    private float _dodgeCd = 0f;                // 残りクールダウン
+    private Vector2 _dodgeDir = Vector2.Zero;   // 回避の進行方向（正規化）。その場回避では Zero＝変位なし。
+    private bool _dodgeInPlace = false;         // 方向入力なしの回避＝その場でスピンのみ（ダッシュ変位ゼロ）。
+    private Vector2 _dodgeFrom = Vector2.Zero;  // 回避開始位置
+    private float _dodgeTrailAccum = 0f;        // 残像スポーン用タイマ
+    private bool _dodgeFlip = false;            // 回避中のスプライト左右反転（スピンの8ステップで真横以降のフレームを FlipH 流用するために使う）
+    private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
+    private float _baseScaleX = 1f;             // 素の横スケール（高さ正規化値）。フレーム差し替えのたびにこの基準で再計算する。
+    private int _dodgeGrazeCount = 0;           // 今回の回避でよけた弾数（farming防止のCap判定用）。TryDodge でリセット。
+    private const int DodgeGrazeCap = 12;       // 1回の回避で報酬対象にする弾数の上限（壁に突っ込んで無限に稼げないように）
+    // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
+    private Texture2D _idleTex = null!;
+    // 回転各アングルの差分イラスト（0/45/90/135/180°）。225/270/315° は FlipH で 03/02/01 を流用。
+    // boyスキン等で読めない場合は要素が null。_spinReady で全周ロード成否を持つ。
+    private readonly Texture2D[] _spinTex = new Texture2D[5];
+    private bool _spinReady = false;            // 5枚すべて読めたか（false なら従来の idle 単一フレームへフォールバック）
+    private readonly List<Sprite2D> _trail = new List<Sprite2D>(); // 残像スプライトのプール
+
     // Pool 取得用キャッシュ
     private BulletPool _pool = null!;
 
@@ -189,6 +224,7 @@ public partial class Player : Area2D
         if (tex != null)
         {
             _hasTexture = true;
+            _idleTex = tex; // 回避終了時に戻す通常テクスチャ
             _sprite = new Sprite2D
             {
                 Name = "Sprite",
@@ -203,8 +239,23 @@ public partial class Player : Area2D
             {
                 float scale = 36f / texHeight;
                 _sprite.Scale = new Vector2(scale, scale);
+                _baseScaleX = scale; // 縦軸スピンの cos 駆動はこの素値を基準にする（向きは FlipH 固定＝符号は常に正）。
             }
             AddChild(_sprite);
+        }
+
+        // 回避スピンのフレーム5枚を一度だけロードしてキャッシュ（mina のみ。boy 等は絵が無い）。
+        // 5枚すべて読めたときだけ _spinReady=true＝本物のフレームアニメで回す。1枚でも欠けたら
+        // _spinReady=false のまま idle 単一フレームへフォールバック（落とさない）。
+        if (Skin != "boy")
+        {
+            bool allLoaded = true;
+            for (int i = 0; i < _spinTex.Length; i++)
+            {
+                _spinTex[i] = ResourceLoader.Load<Texture2D>($"res://char/mina_spin_{i:00}.png");
+                if (_spinTex[i] == null) allLoaded = false;
+            }
+            _spinReady = allLoaded;
         }
 
         // 被弾検出（敵 / 敵弾）
@@ -260,12 +311,52 @@ public partial class Player : Area2D
         // 機動力強化で移動速度UP。
         float speed = (focus ? FocusSpeed : NormalSpeed) * (_game?.MoveSpeedMul ?? 1f);
 
-        Vector2 pos = GlobalPosition + dir * speed * dt;
+        // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
+        // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
+        bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick);
+        if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
+            TryDodge(dir);
+        _dodgeHeld = dodgeKey;
+        if (_dodgeCd > 0f) _dodgeCd -= dt;
+        if (_dodgeInv > 0f) _dodgeInv -= dt;
+
+        Vector2 pos;
+        if (_dodgeTimer > 0f)
+        {
+            // 回避中は入力移動を無視し、ダッシュ軌道で位置を駆動する。
+            _dodgeTimer -= dt;
+            float t = Mathf.Clamp(1f - _dodgeTimer / DodgeDuration, 0f, 1f); // 0→1
+            // アンティシペーション（最初だけ逆方向にわずかに引く）→ イーズアウトで一気に滑る→ 余韻。
+            float anticK = DodgeAntic / DodgeDuration;
+            float disp;
+            if (t < anticK)
+                disp = -DodgeDistance * 0.12f * (t / anticK);            // 逆タメ
+            else
+            {
+                float u = (t - anticK) / (1f - anticK);                  // 0→1
+                disp = DodgeDistance * (1f - (1f - u) * (1f - u));       // ease-out quad（フォロースルー）
+            }
+            pos = _dodgeFrom + _dodgeDir * disp;
+            // 残像トレイル（一定間隔で薄い分身を置く。テクスチャはキャッシュ済み＝Load しない）。
+            _dodgeTrailAccum += dt;
+            if (_dodgeTrailAccum >= DodgeTrailGap)
+            {
+                _dodgeTrailAccum = 0f;
+                SpawnTrail();
+            }
+            if (_dodgeTimer <= 0f) EndDodge();
+        }
+        else
+        {
+            pos = GlobalPosition + dir * speed * dt;
+        }
 
         // プレイ領域内にクランプ
         pos.X = Mathf.Clamp(pos.X, MinX, MaxX);
         pos.Y = Mathf.Clamp(pos.Y, MinY, MaxY);
         GlobalPosition = pos;
+        // 残像は自機に追従しない独立座標なので、毎フレーム減衰させる。
+        UpdateTrail(dt);
 
         // ショット
         if (_fireCooldown > 0f)
@@ -377,6 +468,29 @@ public partial class Player : Area2D
             }
             else
                 _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
+
+            // ── 回避中は「その場ピルエット」＝縦軸まわりの本物のスピン（回転各アングルの差分イラストを送る）──
+            // 旧実装の Scale.X=cos によるカードスピン擬似（紙っぽさの原因）は廃止し、5枚のフレーム＋FlipH 流用で
+            // 全周8ステップのフレームアニメにする。Rotation はスピン中 0（直立）を保つ。
+            if (_dodgeTimer > 0f)
+            {
+                float k = Mathf.Clamp(1f - _dodgeTimer / DodgeDuration, 0f, 1f); // 0→1
+                // 変位と同じカーブ：アンティシペーション区間は据え置き、本体は ease-out quad（回り出し速く終端で減速）。
+                float anticK = DodgeAntic / DodgeDuration;
+                float spinEase = k < anticK ? 0f : 1f - (1f - (k - anticK) / (1f - anticK)) * (1f - (k - anticK) / (1f - anticK));
+                // 位相 θ：0→2π*DodgeSpins。終端で spinEase=1 → 周回数ちょうど → 正面(00)に着地する。
+                float theta = Mathf.Tau * DodgeSpins * spinEase;
+                if (_spinReady) ApplySpinFrame(theta);
+                _sprite.Rotation = 0f; // 直立を保つ＝側転(Z回転)はしない。通常バンクも回避中は無効化。
+                // ジャンプスピンの軽い浮き＋進行方向への先行（やり過ぎない）。
+                _sprite.Position += _dodgeDir * (3f * Mathf.Sin(k * Mathf.Pi)) - new Vector2(0f, DodgeLift * Mathf.Sin(k * Mathf.Pi));
+                // 回避無敵を発光＋点滅で可視化（i-frame 終了で通常へ）。
+                if (_dodgeInv > 0f)
+                {
+                    float gl = 0.6f + 0.4f * Mathf.Sin(_bobTime * 40f);
+                    _sprite.SelfModulate = new Color(0.8f, 1.1f, 1.4f).Lerp(new Color(1.4f, 1.6f, 2.0f), gl);
+                }
+            }
         }
 
         // ヒットボックス点を毎フレーム更新描画
@@ -452,6 +566,146 @@ public partial class Player : Area2D
         }
     }
 
+    // ───────── 回避（ドッジ）アクション ─────────
+    // 入力方向があればその方向へ短い無敵ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵のみ）。
+    // クールダウン中・会話中・ゲームオーバー中は不可。
+    private void TryDodge(Vector2 dir)
+    {
+        if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;
+
+        // 方向入力あり＝その方向へダッシュ。無し＝その場回避（変位ゼロ＝_dodgeDir を Zero に）。
+        _dodgeInPlace = dir.LengthSquared() <= 0.01f;
+        _dodgeDir = _dodgeInPlace ? Vector2.Zero : dir.Normalized();
+        _dodgeFrom = GlobalPosition;
+        _dodgeTimer = DodgeDuration;
+        _dodgeInv = DodgeIFrame;
+        _dodgeCd = DodgeCooldown;
+        _dodgeGrazeCount = 0; // 回避ごとに報酬カウンタをリセット（Cap=DodgeGrazeCap までが高報酬対象）
+        _dodgeTrailAccum = 0f;
+        _dodgeFlip = false; // 開始は正面フレーム（00・FlipHなし）。ApplySpinFrame が毎フレーム更新する。
+        // スピンの回り始めの向き：右/下回避=正、左/上回避=負。横成分があればそちらを優先。
+        // 横成分が無い（真上/真下）回避は、上方向なら負・下方向なら正＝進行方向へ巻き込む自然な向き。
+        // その場回避（方向入力なし）は既定で右回り（正）。
+        if (_dodgeInPlace)
+            _dodgeSpinSign = 1f;
+        else if (Mathf.Abs(_dodgeDir.X) > 0.01f)
+            _dodgeSpinSign = _dodgeDir.X >= 0f ? 1f : -1f;
+        else
+            _dodgeSpinSign = _dodgeDir.Y >= 0f ? 1f : -1f;
+
+        // スプライトを回避スピンの開始フレーム（正面 00）へ。フレームが揃っているときだけ（mina）。
+        // 揃っていないスキン（boy 等）は idle のまま回す＝フォールバック（落とさない）。
+        if (_hasTexture && _sprite != null && _spinReady)
+            ApplySpinFrame(0f);
+
+        // 踏み込みの SE/演出（既存のグレイズ閃光を流用＝専用アセット不要で“抜けた”手応え）。
+        FxLayer.Instance?.Graze(GlobalPosition);
+        Audio.Instance?.PlayGraze();
+        SpawnTrail();
+    }
+
+    // 位相 θ（0→2π*DodgeSpins）から全周8ステップのフレームを引いてスプライトに適用する。
+    // 8分割インデックス k=floor(frac(θ/2π)*8)。マッピング（正回り _dodgeSpinSign>=0）:
+    //   0→00,flip- / 1→01,flip- / 2→02,flip- / 3→03,flip- / 4→04,flip- / 5→03,flip+ / 6→02,flip+ / 7→01,flip+
+    // 逆回り（_dodgeSpinSign<0）は k を反転（00→07→06…相当）して左右逆に見せる＝(8-k)%8 を引く。
+    // 高さは全フレーム360で統一されているので高さ正規化スケール(36f/h)はどのフレームでも同一になる。
+    private static readonly int[]  SpinFrameIdx  = { 0, 1, 2, 3, 4, 3, 2, 1 };
+    private static readonly bool[] SpinFrameFlip = { false, false, false, false, false, true, true, true };
+    private void ApplySpinFrame(float theta)
+    {
+        float frac = theta / Mathf.Tau;
+        frac -= Mathf.Floor(frac);                 // 0..1（周回を畳む）
+        int k = (int)(frac * 8f);
+        if (k > 7) k = 7;                          // frac→1.0 の境界保険
+        if (_dodgeSpinSign < 0f) k = (8 - k) % 8;  // 逆回り＝たどり順を反転（00→07→06…）
+
+        var tex = _spinTex[SpinFrameIdx[k]];
+        if (tex == null) return;                   // 念のため null 安全（_spinReady 前提だが）
+        _sprite.Texture = tex;
+        _dodgeFlip = SpinFrameFlip[k];
+        _sprite.FlipH = _dodgeFlip;
+        // フレーム差し替えごとに高さ正規化スケールを再計算（高さ360で統一＝実質どれも同一値）。
+        float h = tex.GetHeight();
+        if (h > 0)
+        {
+            float scale = 36f / h;
+            _baseScaleX = scale;
+            _sprite.Scale = new Vector2(scale, scale);
+        }
+    }
+
+    // 回避終了：必ず正面フレーム(00)・FlipH=false・Rotation=0・idle テクスチャへ戻す。中途半端なフレームで固定しない。
+    private void EndDodge()
+    {
+        _dodgeTimer = 0f;
+        _dodgeFlip = false;
+        if (_hasTexture && _sprite != null)
+        {
+            _sprite.FlipH = false;
+            _sprite.Rotation = 0f; // 直立・正位置へ（次フレームから通常バンク／idle が滑らかに引き継ぐ）
+            if (_idleTex != null)
+            {
+                _sprite.Texture = _idleTex;
+                float h = _idleTex.GetHeight();
+                if (h > 0) { _baseScaleX = 36f / h; }
+            }
+            // スケールを素値へきっちり戻す（Scale.X=Scale.Y=baseScale）。
+            _sprite.Scale = new Vector2(_baseScaleX, _baseScaleX);
+        }
+    }
+
+    // 残像を1枚置く。Sprite2D を上限数だけ使い回す（毎フレーム Load も new もしない）。
+    private void SpawnTrail()
+    {
+        if (!_hasTexture || _sprite == null) return;
+        // プールが満杯なら一番古い（=リストの先頭）を使い回す。
+        Sprite2D s;
+        if (_trail.Count >= DodgeTrailMax)
+        {
+            s = _trail[0];
+            _trail.RemoveAt(0);
+        }
+        else
+        {
+            s = new Sprite2D
+            {
+                Centered = true,
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+                ZIndex = ZIndex - 1, // 自機の背面に薄く残す
+            };
+            // 自機と同じ親（World）直下に置き、自機に追従させない（その場に残る残像）。
+            GetParent().AddChild(s);
+        }
+        s.Texture = _sprite.Texture;   // その瞬間のスピンフレームを写す＝“回ってる残像”になる
+        s.Scale = _sprite.Scale;
+        s.FlipH = _sprite.FlipH;       // フレームごとの左右反転も写す（真横以降の FlipH 流用フレームを正しく残す）
+        s.Rotation = _sprite.Rotation; // 回避中は 0（直立）＝側転痕は残らない
+        s.GlobalPosition = _sprite.GlobalPosition;
+        s.SelfModulate = new Color(0.7f, 0.9f, 1.2f); // 薄い青白の分身
+        s.Modulate = new Color(1f, 1f, 1f, 0.45f);
+        s.SetMeta("ttl", DodgeTrailTtl);
+        s.SetMeta("age", 0f);
+        s.Visible = true;
+        _trail.Add(s);
+    }
+
+    // 残像をフェードアウト。寿命切れは Visible=false で隠してプールに残す（再利用）。
+    private void UpdateTrail(float dt)
+    {
+        for (int i = _trail.Count - 1; i >= 0; i--)
+        {
+            var s = _trail[i];
+            if (!IsInstanceValid(s)) { _trail.RemoveAt(i); continue; }
+            if (!s.Visible) continue;
+            float age = (float)s.GetMeta("age") + dt;
+            float ttl = (float)s.GetMeta("ttl");
+            if (age >= ttl) { s.Visible = false; continue; }
+            s.SetMeta("age", age);
+            float a = (1f - age / ttl) * 0.45f;
+            s.Modulate = new Color(1f, 1f, 1f, a);
+        }
+    }
+
     private void OnAreaEntered(Area2D area)
     {
         // 敵 or 敵弾との接触で TakeHit。
@@ -478,9 +732,25 @@ public partial class Player : Area2D
     {
         if (area is Bullet b && b.IsEnemy && b.Active && !b.Grazed)
         {
-            b.Grazed = true;
-            GetNodeOrNull<GameManager>("/root/Game")?.AddGraze();
-            FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光
+            b.Grazed = true; // どちらの分岐でも立てて二重取りを防ぐ
+            var game = GetNodeOrNull<GameManager>("/root/Game");
+
+            // 回避の無敵中（_dodgeInv>0）に貫通した敵弾は「回避よけ」＝高報酬＋お金。
+            // ただし1回避あたり DodgeGrazeCap 発まで。超過分は貫通するが追加報酬なし（farming防止）。
+            // i-frame が切れた回避モーション後半（_dodgeInv==0 だが _dodgeTimer>0）は通常グレイズ扱い。
+            if (_dodgeInv > 0f && _dodgeGrazeCount < DodgeGrazeCap && game != null)
+            {
+                _dodgeGrazeCount++;
+                long imp = game.AddDodgeGraze();
+                // 回避よけのフィードバックは通常グレイズと差別化＝自機位置に金色「+N」（N=稼いだインプレ）。
+                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -16), "+" + imp, FxLayer.Gold, 12);
+            }
+            else
+            {
+                game?.AddGraze();
+            }
+
+            FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光（共通の手応え）
             Audio.Instance?.PlayGraze();
             _grazeFlash = 1f; // 自機側のグレイズリングを一瞬光らせる（“今かすった”を強調）
         }
@@ -569,8 +839,8 @@ public partial class Player : Area2D
 
     public void TakeHit()
     {
-        // 無敵中・ゲームオーバー中は無効
-        if (_invincible || _gameOver)
+        // 無敵中・回避無敵中・ゲームオーバー中は無効（回避の主旨＝回避中は被弾しない）
+        if (_invincible || _dodgeInv > 0f || _gameOver)
             return;
 
         // 被弾演出（自機周囲のフラッシュ＋波紋）＋ 赤フラッシュ・シェイク・ヒットストップで「被弾」を明確化。
@@ -605,13 +875,8 @@ public partial class Player : Area2D
         _invincible = true;
         _invincibleTimer = 9999f; // 以降は無敵で待機
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("くじけちゃった… Rでもう一度");
-        // 少し見せてから自動リスタート
-        var t = GetTree().CreateTimer(1.8);
-        t.Timeout += () =>
-        {
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            GetTree().ReloadCurrentScene();
-        };
+        // 自動リロードはしない。各ステージルート(*Root.cs)の _Process が R＝リトライ／Q＝抜ける を
+        // 受け付けるので、プレイヤーが選ぶまでこのまま無敵で待機する。
     }
 
     private void StartInvincible()

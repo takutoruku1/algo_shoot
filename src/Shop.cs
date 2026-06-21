@@ -212,7 +212,10 @@ public partial class Shop : Node2D
         float popA = _walletPopT > 0 ? (float)(_walletPopT / 0.5) : 0f;
         int impSize = 24 + Mathf.RoundToInt(3f * popA);
         float numW = UiKit.TextW(UiKit.Mono, impS, impSize);
-        float pillW = 150f + numW;
+        // ラベル実幅から pill 幅を算出＝「浄化した心」と数値が桁伸びでも衝突しないよう動的化。
+        // 構成: [左余白16 + 円16 + 余白6] ラベル [ギャップ16] 数値 [右余白18]
+        float lblW = UiKit.TextW(UiKit.Zen, "浄化した心", 12);
+        float pillW = 16f + 16f + 6f + lblW + 16f + numW + 18f;
         float pillX = W - PadX - pillW, pillY = 30f;
         UiKit.Box(this, new Rect2(pillX, pillY, pillW, 44f), new Color(232 / 255f, 196 / 255f, 90 / 255f, 0.1f), 14f, new Color(UiKit.Gold, 0.4f), 1f);
         DrawCircle(new Vector2(pillX + 22, pillY + 22), 8f, UiKit.Gold);
@@ -298,10 +301,10 @@ public partial class Shop : Node2D
         float ix = x + 14f, iw = w - 28f;
 
         // 射撃プレビュー
-        DrawModeField(ix, y + 14, iw, 104f, i, locked);
+        DrawModeField(ix, y + 14, iw, 100f, i, locked);
 
         // ヘッダ：アイコン＋名前＋EN＋装備中
-        float hy = y + 130f;
+        float hy = y + 124f;
         DrawModeIcon(new Vector2(ix + 9, hy + 9), i, UiKit.Info);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 24, hy), _game?.ShotModeName(m) ?? "", 19, UiKit.White);
         float nmW = UiKit.TextW(UiKit.ZenBlack, _game?.ShotModeName(m) ?? "", 19);
@@ -315,11 +318,11 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 14 - bw + 16, hy + 2), b, 10, UiKit.PurifyHi);
         }
 
-        // 説明
-        UiKit.Text(this, UiKit.Zen, new Vector2(ix, hy + 26), ModeDesc[i], 12, UiKit.Text3, HorizontalAlignment.Left, iw);
+        // 説明（最大2行に制限し、下要素への食い込みを防ぐ）
+        UiKit.Multi(this, UiKit.Zen, new Vector2(ix, hy + 24), ModeDesc[i], 12, UiKit.Text3, iw, 2);
 
         // スペックグリッド（3セル）
-        float gy = hy + 66f, cellW = (iw - 16f) / 3f;
+        float gy = hy + 62f, cellW = (iw - 16f) / 3f;
         (string, string, Color)[] stats = StatsFor(i, lv);
         for (int s = 0; s < 3; s++)
         {
@@ -329,22 +332,22 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Mono, new Vector2(cxp + 8, gy + 18), stats[s].Item2, 14, stats[s].Item3);
         }
 
-        // レベル行（ダイヤル＋効果）or 連射＝初期解放
-        float ly = gy + 50f;
+        // レベル行（ダイヤル＋効果）or 連射＝初期解放。
+        // スペックグリッド下端(gy+40)とボタン上端(ay)の中間に置き、両者と重ならないよう配置。
+        float ay = y + h - 44f;
+        float ly = (gy + 40f + ay) / 2f - 6f;  // グリッド下端とボタン上端の中央付近
         if (string.IsNullOrEmpty(up))
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ly + 6), "初期解放・常時使用可", 12, new Color("7ec880"));
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ly), "初期解放・常時使用可", 12, new Color("7ec880"));
         }
         else
         {
-            UiKit.Text(this, UiKit.Mono, new Vector2(ix, ly + 8), locked ? "解放Lv" : "Lv", 10, UiKit.Text3);
-            DrawDial(new Vector2(ix + 50, ly + 12), 15f, lv, maxLv, UiKit.Info, i);
+            UiKit.Text(this, UiKit.Mono, new Vector2(ix, ly + 2), locked ? "解放Lv" : "Lv", 10, UiKit.Text3);
+            DrawDial(new Vector2(ix + 50, ly + 6), 13f, lv, maxLv, UiKit.Info, i);
+            // 効果ラベルは TextW で実幅を測り、右端から動的に左寄せ＝桁の窮屈・食い込みを防ぐ。
             string eff = lv == 0 ? "未解放" : (i == 1 ? _game!.SpreadWays + "way" : _game!.HomingShots + "体追尾");
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Zen, eff, 12), ly + 6), eff, 12, new Color("a6dcec"));
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Zen, eff, 12), ly), eff, 12, new Color("a6dcec"));
         }
-
-        // アクションボタン
-        float ay = y + h - 46f;
         DrawModeButtons(ix, ay, iw, i, locked, equipped, lv, maxLv, up);
     }
 
@@ -563,22 +566,25 @@ public partial class Shop : Node2D
         float x = BalX, y = SecY, w = W - PadX - BalX;
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, y), "モード別バランス早見", 18, UiKit.White);
         float ty = y + 34f;
-        UiKit.Box(this, new Rect2(x, ty, w, 168f), new Color(20 / 255f, 16 / 255f, 30 / 255f, 0.5f), 12f, new Color(1, 1, 1, 0.08f), 1f);
+        // 表本体(ヘッダ28 + 3行×42 = 154)＋キャプチャ行22 を内包する高さに合わせる。
+        const float headH = 28f, rowPitch = 42f;
+        float tableH = headH + rowPitch * 3f + 22f;
+        UiKit.Box(this, new Rect2(x, ty, w, tableH), new Color(20 / 255f, 16 / 255f, 30 / 255f, 0.5f), 12f, new Color(1, 1, 1, 0.08f), 1f);
 
         string[] head = { "モード", "弾速", "本数", "威力", "間隔" };
         float[] cw = { 0.32f, 0.17f, 0.17f, 0.17f, 0.17f };
         float rowY = ty;
         // ヘッダ
-        DrawRect(new Rect2(x, ty, w, 30f), new Color(1, 1, 1, 0.04f));
+        DrawRect(new Rect2(x, ty, w, headH), new Color(1, 1, 1, 0.04f));
         float hx = x;
         for (int c = 0; c < head.Length; c++)
         {
             float cwp = w * cw[c];
-            UiKit.Text(this, UiKit.Mono, new Vector2(hx + (c == 0 ? 12 : 0), ty + 10), head[c], 10, UiKit.Text3,
+            UiKit.Text(this, UiKit.Mono, new Vector2(hx + (c == 0 ? 12 : 0), ty + 9), head[c], 10, UiKit.Text3,
                 c == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Center, c == 0 ? cwp - 12 : cwp);
             hx += cwp;
         }
-        rowY = ty + 30f;
+        rowY = ty + headH;
         (string, string, string, string, string, Color)[] rows =
         {
             ("連射", "360", "2〜段", "×1.0", "×1.0", Light),
@@ -593,13 +599,14 @@ public partial class Shop : Node2D
             for (int c = 0; c < cells.Length; c++)
             {
                 float cwp = w * cw[c];
-                UiKit.Text(this, c == 0 ? UiKit.ZenBold : UiKit.Mono, new Vector2(rx + (c == 0 ? 12 : 0), rowY + 14), cells[c], 13,
+                UiKit.Text(this, c == 0 ? UiKit.ZenBold : UiKit.Mono, new Vector2(rx + (c == 0 ? 12 : 0), rowY + 13), cells[c], 13,
                     c == 0 ? rr.Item6 : new Color("e6dcf0"), c == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Center, c == 0 ? cwp - 12 : cwp);
                 rx += cwp;
             }
-            rowY += 44f;
+            rowY += rowPitch;
         }
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, rowY + 4), "連射＝単体DPS／拡散＝面制圧／ホーミング＝自動追尾。", 12, UiKit.Text3, HorizontalAlignment.Left, w);
+        // キャプチャ行は表内の左パディングに合わせ、box下端の内側に収める。
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 12, rowY + 2), "連射＝単体DPS／拡散＝面制圧／ホーミング＝自動追尾。", 11, UiKit.Text3, HorizontalAlignment.Left, w - 24);
     }
 
     // レベルダイヤル：充填リング（-90°起点）＋中央のレベル数値。購入直後は外周グロー。

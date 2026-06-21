@@ -116,7 +116,9 @@ public partial class Epilogue : Node2D
 
         if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start))
         {
-            GetTree().ChangeSceneToFile("res://Prologue.tscn");
+            // クリア演出(スタッフロール=phase5)では R/Start も「タイトルへ」。
+            // それ以前は従来どおり最初から(Prologue)＝演出のやり直し。
+            GetTree().ChangeSceneToFile(_phase >= 5 ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
             return;
         }
         if (_pwRejectT > 0) _pwRejectT -= delta;

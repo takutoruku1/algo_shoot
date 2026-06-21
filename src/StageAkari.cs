@@ -188,7 +188,11 @@ public partial class StageAkari : Node
             case 13: Step_Clear(delta); break;
             case 14: Step_Transition(); break;
         }
-        if (_bossActive) Rain(delta);
+        // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）に統一。
+        // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
+        // あかり面も共通 TickerWords を引く（下を流れるコメントがそのまま降る一体感）。
+        // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 48f);
     }
 
     private void Advance()
@@ -412,18 +416,7 @@ public partial class StageAkari : Node
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
-    // 天井から降る「自責の雨」（会話中は止む）。
-    private void Rain(double delta)
-    {
-        if (Hud.BubblePaused) return;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        _rainT += delta;
-        float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
-        if (_rainT < 0.16 * mul) return;
-        _rainT = 0;
-        float x = _rng.RandfRange(8f, 376f);
-        float vx = _rng.RandfRange(-10f, 10f);
-        pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 74f), isEnemy: true, 3f, 1);
-    }
+    // 投稿弾（ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
+    // 湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
+    private int _wordTick;
 }

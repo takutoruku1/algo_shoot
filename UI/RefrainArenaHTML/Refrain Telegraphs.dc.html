@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0a0813;}
+  @keyframes tgGuide{0%{opacity:0}7%{opacity:.9}54%{opacity:.9}60%{opacity:1}65%{opacity:0}100%{opacity:0}}
+  @keyframes tgFillY{0%{transform:scaleY(.1);opacity:.12}54%{transform:scaleY(1);opacity:.5}63%{transform:scaleY(1);opacity:.55}68%{opacity:0}100%{opacity:0}}
+  @keyframes tgFillX{0%{transform:scaleX(.1);opacity:.12}54%{transform:scaleX(1);opacity:.5}63%{transform:scaleX(1);opacity:.55}68%{opacity:0}100%{opacity:0}}
+  @keyframes tgFillS{0%{transform:scale(.1);opacity:.12}54%{transform:scale(1);opacity:.45}63%{transform:scale(1);opacity:.5}68%{opacity:0}100%{opacity:0}}
+  @keyframes tgStrike{0%,60%{opacity:0}64%{opacity:.95}70%{opacity:.8}100%{opacity:0}}
+  @keyframes tgPunch{0%,60%{opacity:0;transform:scale(.92)}64%{opacity:.92;transform:scale(1.05)}82%{opacity:.4;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+  @keyframes tgSweep{0%,60%{opacity:0;transform:translateX(-110%)}64%{opacity:.85}99%{opacity:.18;transform:translateX(360%)}100%{opacity:0}}
+  @keyframes tgSweepV{0%,60%{opacity:0;transform:translateY(-110%)}64%{opacity:.85}99%{opacity:.18;transform:translateY(360%)}100%{opacity:0}}
+  @keyframes tgWarn{0%,100%{opacity:.35}50%{opacity:1}}
+  @keyframes tgBurst{0%,60%{opacity:0;transform:scale(.4)}66%{opacity:.78;transform:scale(1)}100%{opacity:0;transform:scale(1.8)}}
+  @keyframes tgBurnout{0%,60%{opacity:0;transform:scale(.7)}64%{opacity:.85;transform:scale(1.12)}74%{opacity:.7;transform:scale(1.26)}88%{opacity:.28;transform:scale(1.4)}100%{opacity:0;transform:scale(1.48)}}
+  @keyframes tgScorchA{0%,56%{opacity:0}61%{opacity:.9}67%{opacity:0}100%{opacity:0}}
+  @keyframes tgScorchB{0%,64%{opacity:0}69%{opacity:.72}90%{opacity:.18}100%{opacity:0}}
+  @keyframes tgCorrupt{0%,60%{opacity:0}62%{opacity:.92;transform:translateX(-2px)}64%{opacity:.3;transform:translateX(2px)}66%{opacity:.9;transform:translateX(-1px)}69%{opacity:.5;transform:translateX(1px)}74%{opacity:.7;transform:translateX(0)}100%{opacity:0}}
+  @keyframes orbF{0%,100%{transform:translateY(-50%)}50%{transform:translateY(-62%)}}
+  @keyframes bossP{0%,100%{box-shadow:0 0 0 2px rgba(224,114,172,.5),0 0 20px rgba(224,114,172,.4)}50%{box-shadow:0 0 0 2px rgba(224,114,172,.8),0 0 34px rgba(224,114,172,.6)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(120% 80% at 50% -10%,#1d1530 0%,#0f0b1a 55%,#080611 100%);padding:48px 32px 80px;display:flex;flex-direction:column;align-items:center;gap:30px;font-family:'Noto Sans JP',sans-serif;color:#fff;">
+
+  <header style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:12px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;color:#8a7a9a;text-transform:uppercase;">algo: Refrain of Light — Attack Telegraph UI</div>
+    <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:900;font-size:34px;line-height:1.1;">敵の攻撃予測 UI — 予兆・予測線・予測エリア・着弾</h1>
+    <p style="margin:2px 0 0;color:#c8b8d8;font-size:15px;max-width:880px;line-height:1.6;">攻撃の前に<strong style="color:#fff;">予兆（点滅輪郭）</strong>→<strong style="color:#fff;">予測線／予測エリアが充填</strong>→<strong style="color:#fff;">着弾フラッシュ</strong>の3段で危険を予告。各キャラのテーマ色・形状に合わせた範囲攻撃のテレグラフ。下のカードは実際に1サイクルでループします。</p>
+    {{ legend }}
+  </header>
+
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="レイ 予測">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#9be0f5,#3f7fa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">1</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">レイ <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 順位掲示板・整然と裁く予測</span></div><div style="font-size:13px;color:#8a7a9a;">金・菫の直線的テレグラフ。長めの予兆で“宣告”するように撃つ。</div></div>
+    </div>
+    {{ rei }}
+  </section>
+
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="あかり 予測">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#a8c8e8,#4a6aa0);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">2</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">あかり <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 雨の教室・降る前に予報</span></div><div style="font-size:13px;color:#8a7a9a;">雨青・白の予測。降雨カラム・沈黙の波紋・浸水域。</div></div>
+    </div>
+    {{ akari }}
+  </section>
+
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="こはる 予測">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#e8a24a,#b85220);font-family:'JetBrains Mono';font-weight:800;font-size:14px;">3</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">こはる <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 台所・熱してから一気に</span></div><div style="font-size:13px;color:#8a7a9a;">琥珀・深紅の予測。短い予兆で素早く着弾。フライパン・包丁・沸騰鍋。</div></div>
+    </div>
+    {{ koharu }}
+  </section>
+
+  <section style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;" data-screen-label="ミナ 予測">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <span style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(180deg,#e0729c,#7a2f5a);font-family:'JetBrains Mono';font-weight:800;font-size:13px;">B</span>
+      <div><div style="font-family:'Zen Kaku Gothic New';font-weight:700;font-size:19px;">ミナ（暴走） <span style="color:#8a7a9a;font-weight:500;font-size:15px;">— 全テレグラフ同時・濁った全色</span></div><div style="font-size:13px;color:#8a7a9a;">レイ／あかり／こはるの予測線・予測エリアが代わる代わる、最後に全部同時に走る。</div></div>
+    </div>
+    {{ mina }}
+  </section>
+
+  <footer style="width:1180px;max-width:100%;color:#6b6478;font-size:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:18px;line-height:1.6;">
+    予測タイミング：予兆（点滅輪郭）→充填（予測エリア/予測線が満ちる）→着弾（白熱フラッシュ＋輪郭バースト）。着弾色は心象に対応：<strong style="color:#c8b8d8;">レイ＝1位の白飛び（純白バーンアウト）</strong>／あかり＝冷たい水しぶき（蒼白）／こはる＝加熱（琥珀→深紅→白熱）／ミナ＝銀光が濁るグリッチ（白⇄濁桃）。予兆時間はキャラ可変（レイ＝長／こはる＝短）。実装では予兆中に当たり判定なし、着弾フレームのみ判定 ON を想定。
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  css(s){ if(typeof s!=='string') return s; const o={}; s.split(';').forEach(d=>{ const t=d.trim(); if(!t) return; const i=t.indexOf(':'); if(i<0) return; let k=t.slice(0,i).trim(); if(!k.startsWith('--')) k=k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); o[k]=t.slice(i+1).trim(); }); return o; }
+  E(tag,props){ const a=[].slice.call(arguments); if(props&&props.style){ a[1]=Object.assign({},props,{style:this.css(props.style)}); } return React.createElement.apply(React,a); }
+  H=200;
+
+  // ---- one telegraph (3-phase: guide → fill → strike) ----
+  // ---- 心象モチーフの着弾色変化 (overlays on top of base strike) ----
+  motifLayers(motif,shape,vert,com){
+    if(!motif) return [];
+    const e=this.E.bind(this);
+    const out=[];
+    if(motif==='burnout'){
+      // レイ：1位＝白飛び → 金色に飽和して飛ばす
+      out.push(e('div',{key:'mo',style: (shape==='beam'||shape==='beamV')
+        ? `position:absolute;inset:-5px;background:linear-gradient(${vert?'90deg':'180deg'},transparent,#ffe39a 50%,transparent);animation:tgBurnout ${com};`
+        : `position:absolute;inset:-15%;background:radial-gradient(circle,#fff3c4 0 22%,#f0c24a 46%,rgba(232,196,90,0) 70%);animation:tgBurnout ${com};`}));
+    } else if(motif==='chill'){
+      // あかり：冷たい水しぶき → 蒼い光
+      out.push(e('div',{key:'mo',style:`position:absolute;inset:-13%;background:radial-gradient(circle,#dff1ff 0 22%,#6cbcf0 48%,rgba(108,156,216,0) 72%);animation:tgBurnout ${com};`}));
+    } else if(motif==='scorch'){
+      // こはる：加熱。琥珀→深紅とヒートが上がる
+      out.push(e('div',{key:'ma',style:`position:absolute;inset:0;background:radial-gradient(circle,#ffd9a0,#e8945a 60%,rgba(232,148,96,0) 80%);animation:tgScorchA ${com};`}));
+      out.push(e('div',{key:'mb',style:`position:absolute;inset:0;background:radial-gradient(circle,#ff6a4a,#d6443f 58%,rgba(214,68,63,0) 82%);animation:tgScorchB ${com};`}));
+    } else if(motif==='corrupt'){
+      // ミナ：銀光が濁る → 濁桃にグリッチ明滅
+      out.push(e('div',{key:'mo',style:`position:absolute;inset:-9%;background:radial-gradient(circle,#ffc6e2 0 20%,#e072ac 48%,rgba(224,114,172,0) 74%);animation:tgCorrupt ${com};`}));
+    }
+    return out;
+  }
+
+  // 着弾コア色（白の代わりに各心象の鮮やかな明色）
+  hotColor(motif){ return ({burnout:'#ffe39a',chill:'#a9dcff',scorch:'#ffc06a',corrupt:'#ff8cc4'})[motif] || '#ffe9c8'; }
+
+  tg(key,o){
+    const e=this.E.bind(this);
+    const {shape,x,y,w,h,color,dur=2.6,delay=0,rot=0,mark}=o;
+    const motif = o.motif || this._mt;
+    const hot = o.hot || this.hotColor(motif);
+    const com=`${dur}s linear infinite ${delay}s`;
+    const layers=[];
+    if(shape==='beam' || shape==='beamV'){
+      const vert = shape==='beamV';
+      // 予測線：範囲の両端を2本の点線で囲う（内側＝攻撃範囲）
+      layers.push(e('div',{key:'g',style: vert
+        ? `position:absolute;inset:0;border-left:2px dashed ${color};border-right:2px dashed ${color};background:linear-gradient(90deg,${color}1f,${color}0a,${color}1f);animation:tgGuide ${com};`
+        : `position:absolute;inset:0;border-top:2px dashed ${color};border-bottom:2px dashed ${color};background:linear-gradient(180deg,${color}1f,${color}0a,${color}1f);animation:tgGuide ${com};`}));
+      // 予測エリア：warning band fills (thickens)
+      layers.push(e('div',{key:'f',style:`position:absolute;inset:0;border-radius:3px;background:linear-gradient(${vert?'90deg':'180deg'},${color}00,${color}66,${color}00);transform-origin:center;animation:${vert?'tgFillX':'tgFillY'} ${com};`}));
+      // 着弾：white-hot beam
+      layers.push(e('div',{key:'s',style:`position:absolute;inset:0;border-radius:3px;background:linear-gradient(${vert?'90deg':'180deg'},${color}00,${hot},${color}00);box-shadow:0 0 16px ${color};animation:tgStrike ${com};`}));
+      // sweeping core at strike
+      layers.push(e('div',{key:'sw',style: vert
+        ? `position:absolute;left:0;right:0;top:0;height:26%;background:linear-gradient(0deg,transparent,${hot},transparent);animation:tgSweepV ${com};`
+        : `position:absolute;top:0;bottom:0;left:0;width:26%;background:linear-gradient(90deg,transparent,${hot},transparent);animation:tgSweep ${com};`}));
+    } else if(shape==='cone'){
+      const clip='polygon(100% 8%,100% 92%,0 50%)';
+      layers.push(e('div',{key:'g',style:`position:absolute;inset:0;clip-path:${clip};background:${color}26;box-shadow:inset 0 0 0 2px ${color}99;animation:tgGuide ${com};`}));
+      layers.push(e('div',{key:'f',style:`position:absolute;inset:0;clip-path:${clip};background:linear-gradient(270deg,${color}77,${color}11);transform-origin:right center;animation:tgFillX ${com};`}));
+      layers.push(e('div',{key:'s',style:`position:absolute;inset:0;clip-path:${clip};background:linear-gradient(270deg,${hot},${color}cc 60%,${color}00);box-shadow:0 0 14px ${color};animation:tgPunch ${com};`}));
+    } else {
+      // circle / rect : area zone
+      const radius = shape==='circle'? '50%' : '8px';
+      layers.push(e('div',{key:'g',style:`position:absolute;inset:0;border:2px dashed ${color};border-radius:${radius};animation:tgGuide ${com};`}));
+      layers.push(e('div',{key:'f',style:`position:absolute;inset:0;border-radius:${radius};background:radial-gradient(circle,${color}55,${color}11 70%);transform-origin:center;animation:tgFillS ${com};`}));
+      layers.push(e('div',{key:'s',style:`position:absolute;inset:0;border-radius:${radius};background:radial-gradient(circle,${hot},${color}cc 55%,${color}00 76%);box-shadow:0 0 14px ${color};animation:tgPunch ${com};`}));
+      layers.push(e('div',{key:'b',style:`position:absolute;inset:0;border-radius:${radius};border:2px solid ${color}cc;animation:tgBurst ${com};`}));
+    }
+    this.motifLayers(motif, shape, shape==='beamV', com).forEach(n=>layers.push(n));
+    if(mark!==false) layers.push(e('div',{key:'w',style:`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'JetBrains Mono';font-weight:800;font-size:15px;color:#fff;text-shadow:0 0 8px ${color};animation:tgWarn ${com};`},'!'));
+    return e('div',{key,style:`position:absolute;left:${x};top:${y};width:${w}px;height:${h}px;transform:translate(-50%,-50%) rotate(${rot}deg);`},layers);
+  }
+
+  playerOrb(){ return this.E('div',{key:'p',style:`position:absolute;left:24px;top:50%;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#c9b6ef 55%,#9a72d9);box-shadow:0 0 12px rgba(154,114,217,.8);transform:translateY(-50%);animation:orbF 4s ease-in-out infinite;`}); }
+  enemyOrb(x,tint){ const c=tint||'#e072ac'; return this.E('div',{key:'e',style:`position:absolute;left:${x||'88%'};top:18px;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 40% 35%,${c},#180812 74%);box-shadow:0 0 0 2px ${c}88,0 0 22px ${c}66;animation:bossP 3.2s ease-in-out infinite;`}); }
+
+  // ---- per-character signature palette ----
+  palette(name,sub,swatches){
+    const e=this.E.bind(this);
+    const chips=swatches.map((s,i)=>e('div',{key:i,style:'display:inline-flex;align-items:center;gap:7px;'},[
+      e('i',{key:'sw',style:`width:15px;height:15px;border-radius:4px;background:${s[0]};box-shadow:0 0 7px ${s[0]}99;border:1px solid rgba(255,255,255,.18);`}),
+      e('span',{key:'l',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#c8b8d8;"},s[1]),
+      e('span',{key:'h',style:"font-family:'JetBrains Mono';font-size:10px;color:#6b6478;"},s[0])
+    ]));
+    return e('div',{style:'display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(15,11,26,.5);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 16px;'},[
+      e('span',{key:'t',style:"font-family:'JetBrains Mono';font-size:10px;letter-spacing:.16em;color:#8a7a9a;text-transform:uppercase;"},'PALETTE'),
+      ...chips,
+      e('span',{key:'s',style:"margin-left:auto;font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;"},sub)
+    ]);
+  }
+  section(pal,list){ return this.E('div',{style:'display:flex;flex-direction:column;gap:16px;'},[pal,this.row(list)]); }
+
+  field(nodes,bg,opts){
+    const e=this.E.bind(this);
+    opts=opts||{};
+    const kids=[];
+    if(opts.player!==false) kids.push(this.playerOrb());
+    if(opts.enemy) kids.push(this.enemyOrb(opts.enemyX,opts.enemyColor));
+    nodes.forEach(n=>kids.push(n));
+    kids.push(e('div',{key:'sc',style:'position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.4;pointer-events:none;'}));
+    kids.push(e('div',{key:'vg',style:'position:absolute;inset:0;box-shadow:inset 0 0 80px 24px rgba(0,0,0,.55);pointer-events:none;'}));
+    return e('div',{style:`position:relative;width:100%;height:${this.H}px;border-radius:13px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:${bg||'linear-gradient(90deg,#0e1430,#070a18)'};`},kids);
+  }
+
+  card(p){
+    const e=this.E.bind(this);
+    return e('div',{style:`width:${p.wide?1148:268}px;flex:none;display:flex;flex-direction:column;gap:10px;`},[
+      e('div',{key:'f'},this.field(p.nodes,p.bg,p.opts)),
+      e('div',{key:'nm',style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:15px;color:#fff;"},p.name),
+      e('div',{key:'meta',style:'display:flex;align-items:center;gap:8px;flex-wrap:wrap;'},[
+        e('span',{key:'ty',style:`display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:11px;color:#c8b8d8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:3px 8px;`}, p.type),
+        e('span',{key:'cl',style:'display:inline-flex;align-items:center;gap:6px;font-family:\'Zen Kaku Gothic New\';font-size:11px;color:#c8b8d8;'},[
+          e('i',{key:'sw',style:`width:11px;height:11px;border-radius:50%;background:${p.color};box-shadow:0 0 6px ${p.color}aa;`}), p.colorLabel
+        ]),
+        p.warn? e('span',{key:'wn',style:"font-family:'JetBrains Mono';font-size:10px;color:#8a7a9a;"},'予兆 '+p.warn) : null
+      ]),
+      e('div',{key:'mo',style:"font-family:'Zen Kaku Gothic New';font-size:12px;color:#8a7a9a;line-height:1.45;"},p.motion),
+    ]);
+  }
+
+  row(list){ return this.E('div',{style:'display:flex;gap:20px;flex-wrap:wrap;'}, list.map((p,i)=>React.cloneElement(this.card(p),{key:i}))); }
+
+  // ---- phase legend (mini animated demo) ----
+  buildLegend(){
+    const e=this.E.bind(this);
+    const step=(n,t,d)=>e('div',{key:n,style:'display:flex;align-items:center;gap:9px;'},[
+      e('span',{key:'n',style:"width:20px;height:20px;flex:none;border-radius:6px;display:grid;place-items:center;background:rgba(108,188,216,.14);border:1px solid rgba(159,222,245,.4);font-family:'JetBrains Mono';font-weight:800;font-size:11px;color:#a6dcec;"},n),
+      e('div',{key:'t'},[
+        e('div',{key:0,style:"font-family:'Zen Kaku Gothic New';font-weight:700;font-size:13px;color:#fff;"},t),
+        e('div',{key:1,style:"font-family:'Zen Kaku Gothic New';font-size:11px;color:#8a7a9a;"},d)
+      ])
+    ]);
+    const arrow=k=>e('span',{key:k,style:'font-family:\'JetBrains Mono\';font-weight:800;color:#6cbcd8;font-size:14px;'},'→');
+    // mini live demo on the right
+    const demo=e('div',{key:'demo',style:'position:relative;width:150px;height:54px;border-radius:9px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:linear-gradient(90deg,#0e1430,#070a18);margin-left:auto;'},[
+      this.tg('d',{shape:'beam',x:'50%',y:'50%',w:130,h:24,color:'#6cbcd8',dur:2.6,mark:false}),
+      e('div',{key:'lab',style:"position:absolute;left:8px;bottom:5px;font-family:'JetBrains Mono';font-size:9px;letter-spacing:.1em;color:#8a7a9a;"},'LIVE')
+    ]);
+    return e('div',{style:'display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(15,11,26,.6);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 18px;margin-top:6px;'},[
+      step('1','予兆','点滅する危険輪郭'),arrow('a1'),
+      step('2','予測線／予測エリア','満ちていく範囲'),arrow('a2'),
+      step('3','着弾','白熱フラッシュ＋判定ON'),
+      demo
+    ]);
+  }
+
+  renderVals(){
+    const REI='radial-gradient(60% 70% at 88% 12%,rgba(120,120,170,.18),transparent 60%),linear-gradient(90deg,#11142e,#080a18)';
+    const AKA='radial-gradient(60% 80% at 50% 0%,rgba(90,130,190,.2),transparent 60%),linear-gradient(180deg,#0d1730,#070b18)';
+    const KOH='radial-gradient(60% 70% at 88% 80%,rgba(190,110,50,.18),transparent 60%),linear-gradient(90deg,#1e1208,#0c0704)';
+    const MINA='radial-gradient(60% 70% at 50% 50%,rgba(180,80,140,.16),transparent 62%),linear-gradient(90deg,#1a0a1e,#08040a)';
+
+    // ---- レイ : orderly straight telegraphs (long warn) ----
+    this._mt='burnout';
+    const rei=[
+      {name:'ランキングレーザー', type:'予測線・横ビーム', color:'#e8c45a', colorLabel:'金', warn:'1.7s', motion:'順位の段ごとに横ビームを宣告。長い予兆で整然と。',
+       bg:REI, opts:{enemy:true,enemyColor:'#cdb9e0'},
+       nodes:[ this.tg('a',{shape:'beam',x:'52%',y:'30%',w:230,h:22,color:'#e8c45a',dur:2.8,delay:0}),
+               this.tg('b',{shape:'beam',x:'52%',y:'70%',w:230,h:22,color:'#e8c45a',dur:2.8,delay:1.4}) ]},
+      {name:'表彰台圏', type:'予測エリア・矩形', color:'#9a72d9', colorLabel:'菫', warn:'1.6s', motion:'三段の台座状ゾーンが満ちて爆ぜる。位置取りで回避。',
+       bg:REI, opts:{enemy:true,enemyColor:'#cdb9e0'},
+       nodes:[ this.tg('a',{shape:'rect',x:'40%',y:'62%',w:52,h:70,color:'#9a72d9',dur:2.8,delay:0}),
+               this.tg('b',{shape:'rect',x:'60%',y:'50%',w:52,h:96,color:'#9a72d9',dur:2.8,delay:.5}),
+               this.tg('c',{shape:'rect',x:'80%',y:'40%',w:52,h:122,color:'#9a72d9',dur:2.8,delay:1.0}) ]},
+      {name:'序列の楔', type:'予測エリア・扇', color:'#5fb8c0', colorLabel:'ティール', warn:'1.6s', motion:'掲示板から自機側へ広がる扇。後ろへ逃げて避ける。',
+       bg:REI, opts:{enemy:true,enemyX:'90%',enemyColor:'#cdb9e0'},
+       nodes:[ this.tg('a',{shape:'cone',x:'52%',y:'50%',w:210,h:150,color:'#5fb8c0',dur:2.8,delay:0}) ]},
+    ];
+
+    // ---- あかり : rain / classroom (medium warn) ----
+    this._mt='chill';
+    const akari=[
+      {name:'豪雨予報', type:'予測エリア・縦カラム', color:'#6c9cd8', colorLabel:'雨青', warn:'1.3s', motion:'降る位置を予報する縦カラム。満ちると雨が一斉に落ちる。',
+       bg:AKA, opts:{enemy:false},
+       nodes:[ this.tg('a',{shape:'beamV',x:'30%',y:'50%',w:34,h:188,color:'#6c9cd8',dur:2.4,delay:0}),
+               this.tg('b',{shape:'beamV',x:'55%',y:'50%',w:34,h:188,color:'#6c9cd8',dur:2.4,delay:.6}),
+               this.tg('c',{shape:'beamV',x:'78%',y:'50%',w:34,h:188,color:'#6c9cd8',dur:2.4,delay:1.2}) ]},
+      {name:'沈黙の波紋', type:'予測エリア・円', color:'#cfe0ff', colorLabel:'白', warn:'1.4s', motion:'言葉を飲み込む静寂が円で広がり、満ちて弾ける。',
+       bg:AKA, opts:{enemy:false},
+       nodes:[ this.tg('a',{shape:'circle',x:'46%',y:'42%',w:92,h:92,color:'#cfe0ff',dur:2.4,delay:0}),
+               this.tg('b',{shape:'circle',x:'72%',y:'66%',w:70,h:70,color:'#cfe0ff',dur:2.4,delay:.9}) ]},
+      {name:'浸水域', type:'予測エリア・矩形', color:'#4a6aa0', colorLabel:'藍', warn:'1.5s', motion:'床に水が溜まる帯。満水で一気に跳ね上がる。',
+       bg:AKA, opts:{enemy:false},
+       nodes:[ this.tg('a',{shape:'rect',x:'50%',y:'78%',w:220,h:46,color:'#4a6aa0',dur:2.5,delay:0}) ]},
+    ];
+
+    // ---- こはる : kitchen (short warn, fast) ----
+    this._mt='scorch';
+    const koharu=[
+      {name:'熱したフライパン', type:'予測エリア・円', color:'#e8a24a', colorLabel:'琥珀', warn:'0.9s', motion:'丸い加熱面が一気に赤熱して爆ぜる。予兆短め・高速。',
+       bg:KOH, opts:{enemy:true,enemyX:'86%',enemyColor:'#e88a5a'},
+       nodes:[ this.tg('a',{shape:'circle',x:'44%',y:'40%',w:86,h:86,color:'#e8a24a',dur:2.0,delay:0}),
+               this.tg('b',{shape:'circle',x:'70%',y:'64%',w:74,h:74,color:'#e8a24a',dur:2.0,delay:.7}) ]},
+      {name:'包丁の軌跡', type:'予測線・斜めビーム', color:'#d6443f', colorLabel:'深紅', warn:'0.8s', motion:'斜めの一閃を予告。短い予兆から鋭く斬る。',
+       bg:KOH, opts:{enemy:true,enemyX:'86%',enemyColor:'#e88a5a'},
+       nodes:[ this.tg('a',{shape:'beam',x:'52%',y:'48%',w:240,h:18,color:'#d6443f',dur:2.0,delay:0,rot:-26}),
+               this.tg('b',{shape:'beam',x:'52%',y:'56%',w:240,h:18,color:'#d6443f',dur:2.0,delay:1.0,rot:24}) ]},
+      {name:'沸騰鍋', type:'予測エリア・矩形', color:'#ffa14a', colorLabel:'燃え残り', warn:'1.0s', motion:'煮立つ鍋の範囲。満ちると吹きこぼれて噴出。',
+       bg:KOH, opts:{enemy:true,enemyX:'86%',enemyColor:'#e88a5a'},
+       nodes:[ this.tg('a',{shape:'rect',x:'48%',y:'56%',w:120,h:96,color:'#ffa14a',dur:2.1,delay:0}) ]},
+    ];
+
+    // ---- ミナ : combined, corrupted colors ----
+    this._mt='corrupt';
+    const mina=[
+      {name:'第1：全テレグラフ同時', type:'予測線＋予測エリア（複合）', color:'#e072ac', colorLabel:'濁桃', warn:'可変', wide:true, motion:'横ビーム・縦カラム・円・扇が一斉に予告 → 同時着弾。全方向に逃げ場を作りながら捌く最終局面。',
+       bg:MINA, opts:{enemy:true,enemyX:'94%',enemyColor:'#d7c4ec'},
+       nodes:[
+         this.tg('a',{shape:'beam',x:'52%',y:'24%',w:1000,h:20,color:'#e072ac',dur:2.6,delay:0}),
+         this.tg('b',{shape:'beam',x:'52%',y:'78%',w:1000,h:20,color:'#b07cd0',dur:2.6,delay:.4}),
+         this.tg('c',{shape:'beamV',x:'34%',y:'50%',w:30,h:188,color:'#6c9cd8',dur:2.6,delay:.2}),
+         this.tg('d',{shape:'beamV',x:'66%',y:'50%',w:30,h:188,color:'#6c9cd8',dur:2.6,delay:.6}),
+         this.tg('e',{shape:'circle',x:'50%',y:'50%',w:108,h:108,color:'#f0d98a',dur:2.6,delay:.3}),
+         this.tg('f',{shape:'cone',x:'82%',y:'50%',w:300,h:150,color:'#9a72d9',dur:2.6,delay:.5}) ]},
+      {name:'第2：渦＋雨（複合）', type:'予測エリア・円＋縦カラム', color:'#b07cd0', colorLabel:'濁紫', warn:'1.2s', motion:'円ゾーンの内側に雨カラム。中心から逃げつつ縦の隙間を抜ける。',
+       bg:MINA, opts:{enemy:true,enemyX:'88%',enemyColor:'#d98ac0'},
+       nodes:[ this.tg('a',{shape:'circle',x:'46%',y:'50%',w:120,h:120,color:'#b07cd0',dur:2.4,delay:0}),
+               this.tg('b',{shape:'beamV',x:'70%',y:'50%',w:30,h:188,color:'#6c9cd8',dur:2.4,delay:.5}) ]},
+      {name:'第3：十字斬＋熱面', type:'予測線・十字＋円', color:'#ff7aa0', colorLabel:'濁紅', warn:'1.0s', motion:'こはるの斜め斬とレイの横ビームが交差、合間に加熱円。',
+       bg:MINA, opts:{enemy:true,enemyX:'88%',enemyColor:'#d98ac0'},
+       nodes:[ this.tg('a',{shape:'beam',x:'52%',y:'50%',w:230,h:16,color:'#ff7aa0',dur:2.2,delay:0,rot:-22}),
+               this.tg('b',{shape:'beam',x:'52%',y:'50%',w:230,h:16,color:'#ff7aa0',dur:2.2,delay:0,rot:22}),
+               this.tg('c',{shape:'circle',x:'72%',y:'40%',w:66,h:66,color:'#e8a24a',dur:2.2,delay:1.0}) ]},
+    ];
+
+    const palRei=this.palette('レイ','順位掲示板 ／ 1位は白飛び',[['#f4f1ea','白飛び'],['#b9c2d0','努力の銀'],['#e8c45a','金'],['#9a72d9','菫'],['#5fb8c0','ティール']]);
+    const palAka=this.palette('あかり','雨の降りやまない教室',[['#6c9cd8','雨青'],['#a8c8e8','淡青'],['#cfe0ff','白'],['#4a6aa0','藍']]);
+    const palKoh=this.palette('こはる','台所 ／ 祈り→他責の怒り',[['#f0d9b0','温白'],['#e8a24a','琥珀'],['#e8945a','橙'],['#d6443f','深紅']]);
+    const palMina=this.palette('ミナ','銀色の光が濁る（汚染）',[['#d7e3f0','銀光'],['#b07cd0','濁紫'],['#e072ac','濁桃'],['#ff7aa0','濁紅'],['#e8c45a','濁金']]);
+
+    return {
+      legend:this.buildLegend(),
+      rei:this.section(palRei,rei), akari:this.section(palAka,akari), koharu:this.section(palKoh,koharu), mina:this.section(palMina,mina)
+    };
+  }
+}
+</script>
+</body>
+</html>

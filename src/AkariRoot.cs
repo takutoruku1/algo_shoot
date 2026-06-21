@@ -17,6 +17,7 @@ public partial class AkariRoot : Node2D
     private static readonly Color Warm = new Color(1.05f, 0.99f, 0.92f); // 晴れた暖色
     private float _warmth;
     private bool _rHeld;
+    private bool _exitHeld;
 
     public override void _Ready()
     {
@@ -85,6 +86,13 @@ public partial class AkariRoot : Node2D
             GetTree().ReloadCurrentScene();
         }
         _rHeld = r;
+
+        // ゲームオーバー（残機0）中は「抜ける（ハブへ戻る）」を受付。お金は保存して持ち帰る。
+        if ((Player?.Lives ?? 1) <= 0)
+        {
+            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
+        }
+        else { Hud?.ShowGameOverPrompt(""); _exitHeld = false; }
 
         // 浄化が進むと部屋が晴れる（寒色→暖色）。
         var game = GetNodeOrNull<GameManager>("/root/Game");

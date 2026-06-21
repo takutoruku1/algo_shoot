@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // Hud : ゲーム中HUD（CanvasLayer）。RefrainHTML/Refrain HUD A.dc.html を忠実移植（非ピクセル「Clean Glass」）。
 //   左上 LIFE/BOMB ガラスパネル・中央上 浄化カプセル・右上 SCORE＋テレメトリ・中央 ボスXカード・
@@ -36,6 +37,9 @@ public partial class Hud : CanvasLayer
     private string _bannerTime = "";     // 例 "TIME 1:23.45"
     private string _bannerBest = "";     // 例 "NEW BEST!" or "BEST 1:20.00"
     private bool _bannerNewBest;
+    // ゲームオーバー時の追加プロンプト（バナー直下）。「リトライ／ハブへ抜ける」の選択肢を出す。
+    // *Root.cs が残機0を検知して ShowGameOverPrompt で立て、抜けキー受付中だけ表示する。
+    private string _gameOverPrompt = "";
 
     // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
     private string _spellName = "";
@@ -47,6 +51,32 @@ public partial class Hud : CanvasLayer
     private const double SpellPopDur = 0.30;   // ポップイン（アンティシペーション→オーバーシュート着地）
     private const double SpellFadeDur = 0.80;  // フォロースルー（フェード＋わずかにスケールダウン）
     private double _spellGlow;                 // 発動の瞬間に立つ宣言まわりの加算グロー（自前・短命。弾は隠さない）
+
+    // ───────── スペル宣言カットイン（吉田明彦：袖から差し込むバストアップ。初回のみ）─────────
+    //   既存スペルカード（上中央 DrawSpellCard）は置換せず共存。カットイン（袖）が一拍先に走り、カードが続く二段。
+    //   弾フィールドは設計座標 1280x720 の全域（=384x216 を Scale 0.3 で投影）。物理的なベゼル帯が無いので、
+    //   左袖に密着配置し「不透明は最初の一拍だけ／以降は速やかにフェード→0」で弾の視認を守る（総尺<1秒）。
+    //   who→texture マップに Rei だけ登録。texture が無い who では従来どおりカードのみ（自然に Rei 限定）。
+    private Texture2D? _cutinTex;              // 現在のカットイン絵（null の間は描かない）
+    private Color _cutinCol = Colors.White;    // リム発光のキーカラー（発動スペルの tint）
+    private double _cutinTimer;                // 残り時間（0 で消滅）
+    private bool _cutinDoneThisBoss;          // このボス戦で既にカットインを出したか（初回のみ＝true で抑止）
+    private static Dictionary<string, string>? _cutinTexPaths; // who → 専用カットイン絵のパス（Rei のみ登録）
+    // 演出尺（すべて定数で調整可能）。anticipation→slide-in(BackOut)→着地flash+shake→hold→袖へ抜ける。
+    // 5 段構成：slideIn → impactHold(不透明・大きく＝インパクト) → settle(α/位置を半透明・外寄りへ遷移)
+    //          → lingerHold(半透明で端に滞在＝弾が透けて読める余韻) → fade(袖へ抜ける)。
+    // 総尺は各段の合算（≒1.85s）。「ドンと読ませる→端で薄く余韻→抜ける」を尺・α・位置の定数で調整可能に。
+    private const double CutinSlideDur   = 0.34;  // スライドイン（BackOut でオーバーシュート着地）。気持ち遅く
+    private const double CutinImpactDur  = 0.40;  // 着地後の不透明ホールド一拍（インパクト＝読ませる）
+    private const double CutinSettleDur  = 0.22;  // 不透明→半透明・着地→外寄りへ移る遷移
+    private const double CutinLingerDur  = 0.55;  // 半透明で端に滞在（弾が透ける余韻）
+    private const double CutinFadeDur    = 0.34;  // フォロースルー（袖へ抜けつつ α→0）
+    private const double CutinDur        = CutinSlideDur + CutinImpactDur + CutinSettleDur + CutinLingerDur + CutinFadeDur; // 総尺（≒1.85s）
+    private const float  CutinRenderH    = 460f;  // 描画高（設計座標1280x720）。袖に縦差しするバストアップ
+    private const float  CutinSlideX     = 84f;   // 袖外→着地までの横移動量（px・設計座標）
+    private const float  CutinHoldA      = 0.92f; // インパクト時の不透明（弾を完全には隠さない上限）
+    private const float  CutinLingerA    = 0.30f; // 滞在時の半透明（α≈0.3＝弾が透けて見える）
+    private const float  CutinLingerX    = 150f;  // 滞在時にさらに外（左）へ寄せる量（footprint 縮小）
 
     // フラッシュ
     private float _flashAlpha;
@@ -94,12 +124,31 @@ public partial class Hud : CanvasLayer
     private float _kindPulse;
     private float _prevKind;
 
-    // 操作ガイド：プレイ開始時に一度だけ下部へ操作一覧を数秒出す（§9 説明より体験／一度だけで間延びさせない）。
-    // オープニング会話が明けて「操作を握った瞬間」に出す（開幕の一瞬で消えないように）。
-    private double _controlsTimer;
+    // ───────── 左上HUDの自動退避（視認性：弾と自機は常に最前面で見える）─────────
+    //   HUD は CanvasLayer なので World の弾(Node2D)より必ず前面に描かれる。左上から降る雨弾は
+    //   LIFE/BOMB・各チップの footprint を通過する間だけガラスパネル裏に隠れ「急に被弾」に見える。
+    //   そこで「左上クラスタの占有域に敵弾が入っている間だけ、そのクラスタを薄く（半透明化）する」。
+    //   弾が抜ければ元の不透明に滑らかに戻る＝可読性は通常時そのまま、弾が来た時だけ透ける。
+    //   当たり判定・難易度・弾の挙動には一切触れない（見た目のフェードのみ）。
+    private float _topLeftFade = 1f;            // 1=通常表示／TopLeftFadeMin まで弾接近で下がる
+    private const float TopLeftFadeMin = 0.18f; // 退避時の最小α（うっすら残して位置だけ把握できる）
+    private const float TopLeftFadeSpeed = 6f;  // 薄くなる方の追従速度（MoveToward/秒。速め）
+    // 戻る（濃くなる）方はゆっくり。急に戻ってまた薄くなる“しゃくり”を抑える（フリッカ対策の主役その2）。
+    private const float TopLeftRestoreSpeed = 1.6f;
+    // 退避の保持（ヒステリシス）：弾がゾーンに居るフレームでこの秒数にリセットし、毎フレーム減算。
+    // 0 より大きい間は弾が一瞬途切れても薄いまま＝弾の切れ目で濃くならずチカチカしない（フリッカ対策の主役）。
+    private double _topLeftHold;
+    private const double TopLeftHoldDur = 0.6;  // 弾が完全に途切れてから濃く戻り始めるまでの保持時間（秒）
+    // 左上クラスタの占有域（設計座標1280x720）。LIFE/BOMB・ショット・やさしさ・目標・スキルの
+    // 各チップを内包する矩形。弾がこの域に入っている間だけクラスタを薄くして弾を透かす。
+    private static readonly Rect2 TopLeftZone = new Rect2(10, 12, 240, 240);
+
+    // 操作ガイド：プレイ中ずっと右端に常駐する縦パネル（一度きりの旧タイマー方式は廃止）。
+    // 会話・チュートリアル中は透過を下げて弾と説明の邪魔をしない（後述 DrawControls 参照）。
+    // 出現は「操作を握った瞬間」から：開幕会話前の一瞬で出さないよう、会話を見た後 or 1.2秒経過後にフェードイン。
+    private float _controlsAlpha;   // 0→1 へ滑らかに立ち上げる常駐パネルの基準α
     private double _sceneTime;
     private bool _sawDialogue;
-    private static bool _controlsShown;
 
     // チュートリアルの常駐指示（操作させる区間に下部へ出す小帯）。会話と違い敵/自機は止めない
     //（ShowMessage は BubblePaused を立ててしまうため、止めない専用の表示を用意する）。
@@ -117,6 +166,7 @@ public partial class Hud : CanvasLayer
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
+    private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
@@ -128,9 +178,10 @@ public partial class Hud : CanvasLayer
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
 
-    // ティッカー（降ってくる言葉）
+    // ティッカー（降ってくる言葉）＝晒し投稿の共有プール。
+    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（StageRei.Rain）。
     private double _t;
-    private static readonly (string h, string w)[] TickerWords =
+    public static readonly (string h, string w)[] TickerWords =
     {
         ("@anon_03", "あたしのせいだ"), ("@kako__", "どうせ、とどかない"), ("@nobody_7", "もういない"),
         ("@ame_", "きえたい"), ("@_void", "なんで庇ったの"),
@@ -194,21 +245,23 @@ public partial class Hud : CanvasLayer
         //   発動＝宣言の同期はそのままに、見せ場だけ非バブル中に揃える。）
         if (_spellTimer > 0 && !BubblePaused) { _spellTimer -= delta; }
         if (_spellGlow > 0 && !BubblePaused) { _spellGlow = Mathf.Max(0.0, _spellGlow - delta / 0.45); } // 約0.45秒で収束
+        // カットインも会話バブル中は時間を止める（カードと同じく“戦闘の瞬間”に確実に見せる）。
+        if (_cutinTimer > 0 && !BubblePaused) { _cutinTimer -= delta; if (_cutinTimer <= 0) _cutinTex = null; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
 
-        // 操作ガイド：オープニング会話が明けて操作を握った瞬間に一度だけ提示。
-        //   ・会話があった後の最初の非会話フレーム、または会話なしステージでは1.2秒経過後。
-        //   ・開幕（会話前）の一瞬で出して消えてしまうのを防ぐ。
+        // 操作ガイド（常駐）：プレイ中ずっと右端に出す。立ち上げは「操作を握った瞬間」から。
+        //   ・会話を一度見た後、または会話なしステージでは1.2秒経過後、かつ自機が存在する間。
+        //   ・会話／チュートリアル中は α を絞って弾と説明を邪魔しない（親切設計に追従）。
         _sceneTime += delta;
         if (BubblePaused) _sawDialogue = true;
-        // チュートリアル中は操作一覧を抑止（チュートリアルが個別に教えるため。2周目以降の通常プレイでのみ出す）。
-        if (!_controlsShown && !TutorialActive && !BubblePaused && (_sawDialogue || _sceneTime > 1.2)
-            && GetTree().GetFirstNodeInGroup("player") != null)
-        {
-            _controlsShown = true;
-            _controlsTimer = 6.5;
-        }
-        if (_controlsTimer > 0) _controlsTimer -= delta;
+        bool wantControls = (_sawDialogue || _sceneTime > 1.2)
+                            && GetTree().GetFirstNodeInGroup("player") != null;
+        // 目標α：通常=1.0／会話中=0.22（裏で薄く残す）／チュートリアル中=0.0（個別指導と重複を避け完全に引く）。
+        float targetAlpha = !wantControls ? 0f
+                          : TutorialActive ? 0f
+                          : BubblePaused ? 0.22f
+                          : 1f;
+        _controlsAlpha = Mathf.MoveToward(_controlsAlpha, targetAlpha, (float)delta * 3.2f);
 
         // やさしさゲージの演出更新（全開トースト＋グレイズで貯まる手応え）
         if (_game?.JustOverloaded ?? false) { _overloadToast = 1.4; Audio.Instance?.PlayOverload(); } // ⑥ピークの告知
@@ -217,6 +270,10 @@ public partial class Hud : CanvasLayer
         if (!(_game?.IsOverload ?? false) && kNow > _prevKind + 0.001f) _kindPulse = 1f;
         _prevKind = kNow;
         if (_kindPulse > 0) _kindPulse = Mathf.Max(0f, _kindPulse - (float)delta * 4f);
+
+        // 左上HUDの自動退避：敵弾が左上クラスタの占有域に入っている間だけ薄くする（弾を透かす）。
+        // 弾位置は World 座標(384x216)。設計座標の占有域を World へ畳んで内外判定する。
+        UpdateTopLeftFade((float)delta);
 
         _canvas.QueueRedraw();
     }
@@ -227,6 +284,34 @@ public partial class Hud : CanvasLayer
         if (pool == null) return;
         foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
             if (n is Bullet b && b.Active) pool.Despawn(b);
+    }
+
+    // 左上クラスタに敵弾が掛かっているかを判定し、掛かっていれば _topLeftFade を下げる（透かす）。
+    // 占有域 TopLeftZone は設計座標(1280x720)。弾は World 座標(384x216)なので Scale(0.3) で世界へ畳む。
+    // 余白 BulletPad は弾半径＋αで、弾がパネル縁に差し掛かった瞬間から透け始める“先読み”。
+    private void UpdateTopLeftFade(float delta)
+    {
+        // 占有域を World 座標へ変換（design * Scale）。
+        Rect2 zone = new Rect2(TopLeftZone.Position * UiKit.Scale, TopLeftZone.Size * UiKit.Scale);
+        const float bulletPad = 6f; // 弾半径ぶんの先読み余白（World px）
+        zone = zone.Grow(bulletPad);
+
+        bool occluded = false;
+        foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
+        {
+            if (n is Bullet b && b.Active && zone.HasPoint(b.GlobalPosition)) { occluded = true; break; }
+        }
+
+        // ヒステリシス：弾が居れば保持タイマーを満タンに。居なくても保持が残っている間は薄いまま。
+        // これで弾の切れ目（数フレームの空白）で濃く戻らず＝チカチカが消える。
+        if (occluded) _topLeftHold = TopLeftHoldDur;
+        else if (_topLeftHold > 0) _topLeftHold -= delta;
+
+        bool stayFaded = occluded || _topLeftHold > 0;
+        float target = stayFaded ? TopLeftFadeMin : 1f;
+        // 薄くなる時は速く、濃く戻る時はゆっくり（戻り中の再退避による“しゃくり”を抑える）。
+        float speed = (_topLeftFade > target) ? TopLeftFadeSpeed : TopLeftRestoreSpeed;
+        _topLeftFade = Mathf.MoveToward(_topLeftFade, target, delta * speed);
     }
 
     private void ClearDialog()
@@ -303,6 +388,9 @@ public partial class Hud : CanvasLayer
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; }
 
+    // ゲームオーバー中の追加プロンプト（バナー直下）。空文字でクリア。*Root.cs が毎フレーム立てる。
+    public void ShowGameOverPrompt(string text) { _gameOverPrompt = text; }
+
     // クリアリザルト用バナー：見出し＋ TIME 行（＋自己ベスト更新なら NEW BEST! / でなければ旧ベスト併記）。
     //   seconds=今回タイム、isBest=自己ベスト更新か、prevBest=更新前のベスト（初回 null）。
     public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest)
@@ -336,6 +424,35 @@ public partial class Hud : CanvasLayer
         // 「溜め→放つ」を体で：ごく短いヒットストップ＋軽い振動（被弾0.09/5.5 より弱く控えめ）。
         GameCamera.Instance?.Hitstop(0.05);
         GameCamera.Instance?.Shake(2.6f, 0.20f);
+        // 初回のみ：そのボス戦で最初の単独スペル宣言に、専用絵を持つ who だけ袖カットインを乗せる。
+        TryShowSpellCutin(who, col);
+    }
+
+    // このボス戦で「最初の1回だけ」カットインを出す。who に専用カットイン絵が登録されていなければ何もしない
+    //（＝texture の有無で自然に Rei 限定になる）。DemoPilot/QA では出さない（自動プレイの尺を汚さない）。
+    private void TryShowSpellCutin(string who, Color col)
+    {
+        if (_cutinDoneThisBoss) return;
+        if (IsAutoplay()) return;                       // --demo/--qa はスキップ
+        _cutinTexPaths ??= new Dictionary<string, string>
+        {
+            ["レイ"] = "res://char/cutin_rei.png",
+        };
+        if (!_cutinTexPaths.TryGetValue(who, out string? path)) return;
+        var tex = ResourceLoader.Load<Texture2D>(path);
+        if (tex == null) return;                        // 絵が無ければカードのみ（従来どおり）
+        _cutinTex = tex; _cutinCol = col; _cutinTimer = CutinDur;
+        _cutinDoneThisBoss = true;                      // 以降このボス戦では出さない
+    }
+
+    // ボス戦開始でフラグをリセット（次のボス戦の初回宣言で再びカットインが出る）。各ボスの ShowBossBar 経由でも可。
+    public void ResetSpellCutin() { _cutinDoneThisBoss = false; _cutinTex = null; _cutinTimer = 0; }
+
+    private static bool IsAutoplay()
+    {
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a == "--demo" || a == "--qa") return true;
+        return false;
     }
 
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
@@ -352,6 +469,7 @@ public partial class Hud : CanvasLayer
     public void ShowBossBar(string bossName, string handle)
     {
         _bossName = bossName; _bossVisible = true;
+        ResetSpellCutin();   // ボス戦開始＝このボス戦のカットイン初回フラグをリセット
         if (!string.IsNullOrEmpty(handle))
         {
             _bossHandle = handle;
@@ -383,6 +501,7 @@ public partial class Hud : CanvasLayer
         DrawScore(ci);
         DrawTimer(ci);
         if (_bossVisible) DrawBossCard(ci);
+        if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         DrawKindness(ci);
@@ -390,12 +509,13 @@ public partial class Hud : CanvasLayer
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
-        if (_controlsTimer > 0) DrawControls(ci);
+        if (_controlsAlpha > 0.01f) DrawControls(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
         if (_overloadToast > 0) DrawOverloadToast(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
+        if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
         // 被弾エッジ
         if (_hurtEdge > 0)
             UiKit.Box(ci, new Rect2(8, 8, 1280 - 16, 720 - 16), null, 18f, new Color(0.9f, 0.16f, 0.16f, 0.5f * (float)(_hurtEdge / 0.9)), 14f);
@@ -406,7 +526,11 @@ public partial class Hud : CanvasLayer
     }
 
     private void GlassPanel(HudCanvas ci, Rect2 r, Color? border = null)
-        => UiKit.Box(ci, r, new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f, border ?? new Color(1, 1, 1, 0.12f), 1f);
+        => UiKit.Box(ci, r, Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f)), 16f, Fa(border ?? new Color(1, 1, 1, 0.12f)), 1f);
+
+    // 左上クラスタの自動退避用：色のαに _topLeftFade を乗じる（弾接近時だけ薄くなる）。
+    // 左上の5要素（LIFE/BOMB・ショット・やさしさ・目標・スキル）の描画色はこれを通す。
+    private Color Fa(Color c) => new Color(c.R, c.G, c.B, c.A * _topLeftFade);
 
     // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
     private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f)
@@ -425,7 +549,10 @@ public partial class Hud : CanvasLayer
         bool low = _lives <= 2;
 
         float x = 22, y = 20, w = 70 + maxLives * 25, h = 78;
-        GlassPanel(ci, new Rect2(x, y, w, h), low ? new Color(1f, 0.35f, 0.42f, 0.4f) : null);
+        // LIFE/BOMB は最重要情報のため弾接近の自動退避(fade)を掛けず常時不透明(α=1)で描く。
+        // 他の左上要素(やさしさ/目標/ショット/スキル)は従来どおり Fa() で透ける。
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f,
+            low ? new Color(1f, 0.35f, 0.42f, 0.4f) : new Color(1, 1, 1, 0.12f), 1f);
         // LIFE
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 14), "LIFE", 12, UiKit.Text2);
         float hx = x + 70;
@@ -441,7 +568,7 @@ public partial class Hud : CanvasLayer
         for (int i = 0; i < maxBombs; i++)
             ci.DrawCircle(new Vector2(bx + i * 16 + 6, y + 58), 5f, i < bombs ? UiKit.Mina : new Color(UiKit.Mina, 0.28f));
         float badgeW = UiKit.TextW(UiKit.Mono, TokBomb, 11) + 12;
-        KeyBadge(ci, new Vector2(x + w - badgeW - 10, y + 50), TokBomb, UiKit.Mina);
+        KeyBadge(ci, new Vector2(x + w - badgeW - 10, y + 50), TokBomb, UiKit.Mina, 1f);
     }
 
     private void DrawPurify(HudCanvas ci)
@@ -470,17 +597,25 @@ public partial class Hud : CanvasLayer
         // テレメトリ・チップ（♥＝浄化した心 / コンボ or フォロワー）
         long imp = _game?.RunImpression ?? 0;
         int combo = _game?.Combo ?? 0;
+        bool showCombo = combo >= 2;
         string c1 = "♥ " + UiKit.Abbrev(imp);
-        string c2 = combo >= 2 ? $"× {combo}" : UiKit.Abbrev(_game?.Followers ?? 0);
+        string c2 = showCombo ? $"× {combo}" : UiKit.Abbrev(_game?.Followers ?? 0);
         float cy = y + 44;
-        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11);
+        // 右チップ：コンボ未満はフォロワー＝極小「人」を添えて正体を示す（フォロワーはハブで常時見えるので控えめに）。
+        string c2suffix = showCombo ? "" : "人";
+        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11) + (c2suffix.Length > 0 ? UiKit.TextW(UiKit.Zen, c2suffix, 9) + 2 : 0);
         float c2x = 1280 - 22 - c2w;
         UiKit.Box(ci, new Rect2(c2x, cy, c2w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(c2x + 12, cy + 5), c2, 11, new Color("c8b0ec"));
-        float c1w = 30 + UiKit.TextW(UiKit.Mono, c1, 11);
+        if (c2suffix.Length > 0)
+            UiKit.Text(ci, UiKit.Zen, new Vector2(c2x + 12 + UiKit.TextW(UiKit.Mono, c2, 11) + 2, cy + 7), c2suffix, 9, new Color("c8b0ec", 0.75f));
+        // 左チップ：♥＝通貨（浄化した心）。無ラベルだと通貨と分からないので極小「心」を1字添える。
+        const string c1suffix = "心";
+        float c1w = 30 + UiKit.TextW(UiKit.Mono, c1, 11) + UiKit.TextW(UiKit.Zen, c1suffix, 9) + 2;
         float c1x = c2x - 7 - c1w;
         UiKit.Box(ci, new Rect2(c1x, cy, c1w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.4f), 1f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(c1x + 12, cy + 5), c1, 11, UiKit.Info);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(c1x + 12 + UiKit.TextW(UiKit.Mono, c1, 11) + 2, cy + 7), c1suffix, 9, new Color(UiKit.Info, 0.8f));
     }
 
     // ステージ経過タイム（右上・SCORE/テレメトリの直下）。タイムアタック感を出す等幅・発光ふち。
@@ -613,6 +748,86 @@ public partial class Hud : CanvasLayer
         ci.DrawSetTransform(Vector2.Zero, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
     }
 
+    // スペル宣言の袖カットイン（吉田明彦：anticipation→slide-in→着地flash+shake→hold→袖へ抜ける）。
+    //   左袖に密着し、不透明は着地〜ホールドの一拍だけ。以降はフェード＋袖へ戻りつつ消える＝弾の視認を守る。
+    //   設計座標 1280x720。弾フィールドは全域だが、左端密着＋短命フェードで実プレイ妨害を最小化する。
+    private void DrawSpellCutin(HudCanvas ci)
+    {
+        if (_cutinTex == null) return;
+        double age = CutinDur - _cutinTimer;                 // 経過（0→CutinDur）
+
+        // 5 段のリズム。slideIn(BackOut でオーバーシュート＝決め) → impactHold(不透明・着地で大きく＝読ませる)
+        // → settle(不透明→半透明・着地→外寄りへ遷移) → lingerHold(半透明で端に滞在＝弾が透ける余韻)
+        // → fade(さらに袖へ抜けつつ α→0)。位相境界をタイムラインで先に決める。
+        const double tImpactEnd = CutinSlideDur + CutinImpactDur;                 // 不透明区間の終わり
+        const double tSettleEnd = tImpactEnd + CutinSettleDur;                    // 半透明遷移の終わり
+        const double tLingerEnd = tSettleEnd + CutinLingerDur;                    // 滞在の終わり（以降 fade）
+
+        float a;       // 不透明度
+        float dx;      // 横オフセット（負＝袖の外へ。0＝インパクト着地。さらに負＝外へ逃がす）
+        bool justLanded = false;
+        if (age < CutinSlideDur)
+        {
+            float p = (float)(age / CutinSlideDur);          // 0→1
+            float bo = BackOut(p);
+            dx = -CutinSlideX * (1f - bo);                   // 袖外(-Slide)→着地(0)。終端で気持ち食い込んで戻る
+            a = Mathf.Clamp(p / 0.4f, 0f, 1f) * CutinHoldA;  // 立ち上がりは速く
+        }
+        else if (age < tImpactEnd)
+        {
+            dx = 0f; a = CutinHoldA;                          // 不透明・大きく見せるインパクト一拍
+            justLanded = age < CutinSlideDur + 0.05;
+        }
+        else if (age < tSettleEnd)
+        {
+            float p = (float)((age - tImpactEnd) / CutinSettleDur); // 0→1
+            float e = p * p * (3f - 2f * p);                  // smoothstep
+            dx = -CutinLingerX * e;                           // 着地(0)→外寄り(-LingerX) で footprint 縮小
+            a = Mathf.Lerp(CutinHoldA, CutinLingerA, e);      // 不透明→半透明
+        }
+        else if (age < tLingerEnd)
+        {
+            dx = -CutinLingerX; a = CutinLingerA;             // 端で半透明滞在（弾が透けて読める余韻）
+        }
+        else
+        {
+            float p = (float)(_cutinTimer / CutinFadeDur);   // 1→0
+            dx = -CutinLingerX - CutinSlideX * 0.7f * (1f - p); // さらに袖へ抜けながら
+            a = CutinLingerA * p;                            // 半透明から α→0
+        }
+
+        // 着地の瞬間：白フラッシュ1F＋既存 Shake（演出ビートの“止め／決め”）。描画ループ内なので一度だけ立てる。
+        if (justLanded && !_cutinLandedFlashed)
+        {
+            _cutinLandedFlashed = true;
+            _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.28f; // 控えめな白フラッシュ（弾を飛ばさない程度）
+            GameCamera.Instance?.Shake(2.2f, 0.16f);
+        }
+        if (age < CutinSlideDur) _cutinLandedFlashed = false;       // 次回着地で再びフラッシュできるよう戻す
+
+        // 描画寸法：高さ CutinRenderH を基準に元アスペクトで幅算出。左端に密着（x の左端 = base + dx）。
+        float ph = CutinRenderH;
+        float pw = ph * _cutinTex.GetWidth() / Mathf.Max(1, _cutinTex.GetHeight());
+        // 縦位置：LIFE/BOMB・モードチップ（左上 y<240）を避け、やや下へ。画面下に少し掛けて“袖から覗く”量感。
+        float baseX = -10f;                                  // 左端を少しだけ画面外に出して密着感
+        float x = baseX + dx;
+        float y = 720f - ph - 6f;                            // 下端を画面下に寄せる（袖から立ち上がる構図）
+
+        // リムの色を一点：着地直後（インパクト区間）だけスペル tint の加算グローを輪郭背後に薄く（弾は隠さない）。
+        // 半透明滞在では glow を消す（余韻は静かに・弾を侵さない）。
+        float glow = Mathf.Clamp((float)((tImpactEnd - age) / CutinImpactDur), 0f, 1f);
+        if (glow > 0.001f)
+            UiKit.RadialGlow(ci, new Vector2(x + pw * 0.45f, y + ph * 0.4f), 150f, _cutinCol, 0.16f * glow);
+
+        // 本体（α込み・キーカラーをほんのり乗算して“この技の色”に染める）。弾の視認を侵さないよう淡く。
+        Color tint = new Color(
+            Mathf.Lerp(1f, _cutinCol.R, 0.10f),
+            Mathf.Lerp(1f, _cutinCol.G, 0.10f),
+            Mathf.Lerp(1f, _cutinCol.B, 0.10f), a);
+        ci.DrawTextureRect(_cutinTex, new Rect2(x, y, pw, ph), false, tint);
+    }
+    private bool _cutinLandedFlashed;
+
     // Back ease-out（弾性オーバーシュート）：終端で1.0をわずかに超えて戻る。
     private static float BackOut(float p)
     {
@@ -630,9 +845,9 @@ public partial class Hud : CanvasLayer
         float badgeW = UiKit.TextW(UiKit.Mono, TokSkill, 11) + 12;
         float w = 12 + badgeW + 8 + UiKit.TextW(UiKit.ZenBold, label, 13) + 12;
         float x = 22, y = 216;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 11f, new Color(accent, 0.5f), 1f);
-        float bw = KeyBadge(ci, new Vector2(x + 12, y + 3), TokSkill, accent);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 5), label, 13, accent);
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(accent, 0.5f)), 1f);
+        float bw = KeyBadge(ci, new Vector2(x + 12, y + 3), TokSkill, accent, _topLeftFade);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 5), label, 13, Fa(accent));
     }
 
     // 現在のショットモードチップ（LIFE/BOMB の直下・常時表示）。光=シアン基調。
@@ -643,12 +858,12 @@ public partial class Hud : CanvasLayer
         const float padL = 16f, h = 24f;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
         float x = 22, y = 104;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 11f, new Color(UiKit.Info, 0.45f), 1f);
-        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, UiKit.Info);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, UiKit.PurifyHi);
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Info, 0.45f)), 1f);
+        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Info));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.PurifyHi));
         // 切替キーのバッジ（KB=V / パッド=B を出し分け）
-        float bw = KeyBadge(ci, new Vector2(x + w + 8, y + 3), TokMode, UiKit.Info);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", 10, UiKit.Text3);
+        float bw = KeyBadge(ci, new Vector2(x + w + 8, y + 3), TokMode, UiKit.Info, _topLeftFade);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", 10, Fa(UiKit.Text3));
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。
@@ -672,20 +887,20 @@ public partial class Hud : CanvasLayer
         float x = 22, y = 132, w = 168, h = 20;
         float pulse = (!over && fill >= 0.85f) ? (0.5f + 0.5f * Mathf.Sin((float)_t * 9f)) : 0f;
         Color border = over ? new Color(UiKit.Gold, 0.9f) : new Color(UiKit.Mina, 0.12f + 0.6f * pulse);
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 10f, border, 1f);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 4), "やさしさ", 12, over ? UiKit.Gold : UiKit.Mina);
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 10f, Fa(border), 1f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 4), "やさしさ", 12, Fa(over ? UiKit.Gold : UiKit.Mina));
         float barX = x + 62, barW = w - 62 - 12;
-        UiKit.Box(ci, new Rect2(barX, y + h / 2f - 4, barW, 8f), new Color(1, 1, 1, 0.08f), 4f);
+        UiKit.Box(ci, new Rect2(barX, y + h / 2f - 4, barW, 8f), Fa(new Color(1, 1, 1, 0.08f)), 4f);
         if (fill > 0)
         {
             float bh = 8f + _kindPulse * 4f;
-            UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), over ? UiKit.Gold : UiKit.Mina, 4f);
+            UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), Fa(over ? UiKit.Gold : UiKit.Mina), 4f);
         }
-        if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, UiKit.Gold);
+        if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, Fa(UiKit.Gold));
         else if (_game?.KindnessReady ?? false) // 満タン＝手動発動できる（Ctrl/R3）。点滅で誘導。
         {
             float ba = 0.55f + 0.45f * Mathf.Sin((float)_t * 7f);
-            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！" + AllKind, 11, new Color(UiKit.Gold, ba));
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！" + AllKind, 11, Fa(new Color(UiKit.Gold, ba)));
         }
     }
 
@@ -697,20 +912,20 @@ public partial class Hud : CanvasLayer
         int saved = _game?.HeartsSaved ?? 0;
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
         float x = 22, y = 162, w = 190, h = 48;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.26f), 1f);
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f)), 11f, Fa(new Color(UiKit.Purify, 0.26f)), 1f);
         // 救った人 ◯/3（=HeartsSaved＝到達度マクロ目標）。通貨「浄化した心」と名前で分離する。
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "救った人", 11, UiKit.Info);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "救った人", 11, Fa(UiKit.Info));
         for (int i = 0; i < total; i++)
         {
             Color c = i < saved ? UiKit.Purify : new Color(UiKit.Purify, 0.20f);
-            UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, c);
+            UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, Fa(c));
         }
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, UiKit.PurifyHi);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, Fa(UiKit.PurifyHi));
         // 汚染ゲージ（救うほど濁る＝目標の対カウンター）
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, new Color(UiKit.Kegare, 0.95f));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, Fa(new Color(UiKit.Kegare, 0.95f)));
         float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
-        UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), new Color(1, 1, 1, 0.08f), 3f);
-        if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), UiKit.Kegare, 3f);
+        UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), Fa(new Color(1, 1, 1, 0.08f)), 3f);
+        if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), Fa(UiKit.Kegare), 3f);
     }
 
     // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。
@@ -724,69 +939,67 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, 30, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
     }
 
-    // 操作ガイド：プレイ開始直後に一度だけ、下部中央へ「ボタン→動作」の一覧を数秒。
-    // 直近デバイスで KB/パッドを出し分け、終わり際にフェード（テンポを侵さない）。
+    // 操作ガイド（常駐）：プレイ中ずっと画面「右下」に「ボタン→動作」を横一列で出す。
+    //   座席：右下（右端 22px ＋下端アンカー）。下の Esc メニューヒント(上端≈652)の直上に右寄せで収め、
+    //         中央の弾フィールドにも左ゲージ群にも掛けない。半透明ピル＋小キー枠で上品にまとめる。
+    //   表記：Pad.Display(KB/PS/Xbox) に追従する代表トークン Tok*（移動=WASD/L 等、コンパクト優先）。
+    //   出し分け：ヒカゲ技は所持時のみ点灯、非所持時は淡色で「技（未所持）」と添える。
+    //             モード切替はモード解放時のみ。全体αは _controlsAlpha（会話=薄/チュートリアル=消）。
     private void DrawControls(HudCanvas ci)
     {
-        float a = Mathf.Clamp((float)(_controlsTimer < 0.8 ? _controlsTimer / 0.8 : 1.0), 0f, 1f);
+        float a = _controlsAlpha;
+        if (a <= 0.01f) return;
 
-        // 全割り当てを列挙（選択中の表示モードに属するもの全部）。やさしさ全開も含める。
-        var items = new System.Collections.Generic.List<(string tok, string label)>
-        {
-            (AllMove, "移動"), (AllShot, "撃つ"), (AllFocus, "低速"), (AllBomb, "ボム"),
-        };
+        // 行データ：トークン・動作名・有効か（無効は淡色＝まだ使えない/未解放を自然に示す）。
         bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
                      || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
-        if (hasModes) items.Add((AllMode, "切替"));
-        if (_skillHas) items.Add((AllSkill, "技"));
-        items.Add((AllKind, "全開"));
+        var items = new System.Collections.Generic.List<(string tok, string label, bool on)>
+        {
+            (TokMove,  "移動",  true),
+            (TokShot,  "撃つ",  true),
+            (TokFocus, "低速",  true),
+            (TokBomb,  "ボム",  true),
+            (TokMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
+            (TokSkill, "技",    _skillHas), // ヒカゲが仲間の時だけ点灯
+            (TokKind,  "全開",  true),
+        };
 
-        // 各項目の幅を測り、画面幅に収まるよう必要なら複数行へ折り返す（はみ出し防止・視認性最優先）。
-        const float pad = 14f, gap = 16f, itemGap = 8f, rowH = 36f, rowGap = 6f, maxBarW = 1180f;
-        var ws = new float[items.Count];
+        // レイアウト（設計1280x720）：右下に横一列。各アイテム＝[キー枠][動作名]、右寄せで並べる。
+        const float labelSize = 12f, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = 18f;
+
+        // 右寄せのため、先に各アイテム幅と総幅を測る（KeyBadge と同じ式でバッジ幅を算出）。
+        string Label(string label, bool on) => (label == "技" && !on) ? "技(仲間時)" : label;
+        float[] iw = new float[items.Count];
+        float contentW = 0f;
         for (int i = 0; i < items.Count; i++)
         {
-            float bw = UiKit.TextW(UiKit.Mono, items[i].tok, 11) + 12;
-            float lw = UiKit.TextW(UiKit.ZenBold, items[i].label, 13);
-            ws[i] = bw + itemGap + lw;
+            float badgeW = UiKit.TextW(UiKit.Mono, items[i].tok, 11) + 12f;
+            float labelW = UiKit.TextW(UiKit.ZenBold, Label(items[i].label, items[i].on), (int)labelSize);
+            iw[i] = badgeW + badgeGap + labelW;
+            contentW += iw[i];
         }
+        contentW += itemGap * (items.Count - 1);
 
-        // 貪欲に行へ詰める：1行が maxBarW を超えそうなら改行。
-        var rows = new System.Collections.Generic.List<System.Collections.Generic.List<int>>();
-        var cur = new System.Collections.Generic.List<int>();
-        float curW = pad * 2;
+        float h = padY * 2 + badgeH;
+        float w = contentW + padX * 2;
+        float x = 1280 - 22 - w;   // 右下・右端 22px に揃える
+        float y = 648f - h;        // 下の Esc メニューヒント(上端≈652) の直上
+
+        // 背景ピル（薄め＝弾より目立たない・文字は読める明度）。
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.62f * a), h * 0.5f,
+            new Color(UiKit.Info, 0.34f * a), 1f);
+
+        // 左→右に [キー枠][動作名] を並べる。無効（未解放/未所持）はαを落として淡く。
+        float cx = x + padX, by = y + padY;
         for (int i = 0; i < items.Count; i++)
         {
-            float add = ws[i] + (cur.Count > 0 ? gap : 0);
-            if (cur.Count > 0 && curW + add > maxBarW)
-            {
-                rows.Add(cur);
-                cur = new System.Collections.Generic.List<int>();
-                curW = pad * 2;
-                add = ws[i];
-            }
-            cur.Add(i);
-            curW += add;
-        }
-        if (cur.Count > 0) rows.Add(cur);
-
-        float blockH = rows.Count * rowH + (rows.Count - 1) * rowGap;
-        float y0 = 470 - (blockH - rowH); // 最下行が元の y=470 に来るよう上方向へ積む
-        for (int r = 0; r < rows.Count; r++)
-        {
-            var row = rows[r];
-            float total = pad * 2;
-            for (int j = 0; j < row.Count; j++) total += ws[row[j]] + (j > 0 ? gap : 0);
-            float x = 640 - total / 2f, y = y0 + r * (rowH + rowGap);
-            UiKit.Box(ci, new Rect2(x, y, total, rowH), new Color(0.05f, 0.04f, 0.09f, 0.86f * a), 12f, new Color(UiKit.Info, 0.45f * a), 1.2f);
-            float cx = x + pad;
-            for (int j = 0; j < row.Count; j++)
-            {
-                int i = row[j];
-                float bw = KeyBadge(ci, new Vector2(cx, y + 9), items[i].tok, UiKit.PurifyHi, a);
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + itemGap, y + 10), items[i].label, 13, new Color(0.92f, 0.92f, 0.97f, a));
-                cx += ws[i] + gap;
-            }
+            var (tok, label, on) = items[i];
+            float ra = a * (on ? 1f : 0.4f);
+            Color accent = on ? UiKit.PurifyHi : UiKit.Text3;
+            float bw = KeyBadge(ci, new Vector2(cx, by), tok, accent, ra);
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + badgeGap, by + 3), Label(label, on), (int)labelSize,
+                new Color(0.92f, 0.92f, 0.97f, ra));
+            cx += iw[i] + itemGap;
         }
     }
 
@@ -914,6 +1127,13 @@ public partial class Hud : CanvasLayer
                     HorizontalAlignment.Center, 1280);
             }
         }
+    }
+
+    // ゲームオーバー時の選択肢プロンプト（バナー直下）。バナーのフェードに依らず常時表示。
+    private void DrawGameOverPrompt(HudCanvas ci)
+    {
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 372), _gameOverPrompt, 24, new Color(UiKit.Text2, 1f),
+            HorizontalAlignment.Center, 1280);
     }
 }
 

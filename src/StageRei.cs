@@ -227,6 +227,16 @@ public partial class StageRei : Node
             game.ForceTutorialReplay = false; // 任意再生フラグは消費（TutorialSeen は触らない）
         }
         if (Hud != null) Hud.TutorialActive = _tutorial;
+
+        // [一時/デバッグ] --boss : 道中を飛ばしてボス戦から始める（予測攻撃のテストプレイ用）。
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a == "--boss")
+            {
+                _tutorial = false;
+                if (Hud != null) Hud.TutorialActive = false;
+                _step = 10; // Step_BossSpawn へ直行
+                break;
+            }
     }
 
     public override void _Process(double delta)
@@ -266,7 +276,10 @@ public partial class StageRei : Node
             case 13: Step_Clear(delta); break;
             case 14: Step_Transition(); break;
         }
-        if (_bossActive) Rain(delta);
+        // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
+        // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。レイ面は共通 TickerWords。
+        // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f);
         if (_tutorial) Tutorial_OverloadWatch(delta);
     }
 
@@ -518,29 +531,9 @@ public partial class StageRei : Node
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
-    // 道中の言葉弾。会話中は止む。時々、設計書の具体フレーズを“文字の弾”として降らせる。
+    // 投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
+    // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
     private int _wordTick;
-    private static readonly string[] Words = { "どうせ二番", "届かない", "努力は天才に勝てない", "私を見て" };
-    private void Rain(double delta)
-    {
-        if (Hud.BubblePaused) return;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        _rainT += delta;
-        float mul = GetNodeOrNull<GameManager>("/root/Game")?.DanmakuIntervalMul ?? 1f;
-        if (_rainT < 0.17 * mul) return;
-        _rainT = 0;
-        if ((++_wordTick % 7) == 0)
-        {
-            // 言葉弾：ゆっくり落ちて読める。中心の小さなドットが当たり判定。
-            var b = pool.Spawn(new Vector2(_rng.RandfRange(70f, 314f), -8f), new Vector2(0f, 46f), isEnemy: true, 3f, 1);
-            b.SetWord(Words[_rng.RandiRange(0, Words.Length - 1)]);
-            return;
-        }
-        float x = _rng.RandfRange(8f, 376f);
-        float vx = _rng.RandfRange(-12f, 12f);
-        pool.Spawn(new Vector2(x, -6f), new Vector2(vx, 72f), isEnemy: true, 3f, 1);
-    }
 
     // ════════════════════ チュートリアル本体 ════════════════════
     // _tphase で①〜④を順に回す。説明会話＝Hud(止まる)／操作させる区間＝Hud.SetTutorialHint(止めない)。

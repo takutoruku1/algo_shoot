@@ -18,6 +18,7 @@ public partial class KoharuRoot : Node2D
     private static readonly Color Warm = new Color(1.10f, 1.00f, 0.86f); // 灯のともった食卓
     private float _warmth;
     private bool _rHeld;
+    private bool _exitHeld;
 
     public override void _Ready()
     {
@@ -85,6 +86,13 @@ public partial class KoharuRoot : Node2D
             GetTree().ReloadCurrentScene();
         }
         _rHeld = r;
+
+        // ゲームオーバー（残機0）中は「抜ける（ハブへ戻る）」を受付。お金は保存して持ち帰る。
+        if ((Player?.Lives ?? 1) <= 0)
+        {
+            if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
+        }
+        else { Hud?.ShowGameOverPrompt(""); _exitHeld = false; }
 
         var game = GetNodeOrNull<GameManager>("/root/Game");
         float target = game?.Warmth ?? 0f;

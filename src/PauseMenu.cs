@@ -26,12 +26,37 @@ public partial class PauseMenu : CanvasLayer
         ("bgm",    "BGM"),
         ("se",     "効果音 (SE)"),
     };
-    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = タイトルへ
-    public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "タイトルへ" };
+    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = あそびかた / 5 = タイトルへ
+    public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "あそびかた", "タイトルへ" };
 
-    private static int RowCount => VolRows.Length + ItemsJp.Length;
+    // 行構成：音量3行 → 操作表示1行（←→/Zで切替）→ アクション6行。
+    private static int RowCount => VolRows.Length + 1 + ItemsJp.Length;
     private bool IsVolRow(int sel) => sel < VolRows.Length;
-    private int ActionIndex(int sel) => sel - VolRows.Length; // 音量行の下＝アクション
+    private bool IsDisplayRow(int sel) => sel == VolRows.Length;       // 音量行のすぐ下
+    private int ActionIndex(int sel) => sel - VolRows.Length - 1;      // 操作表示行の下＝アクション
+    public static int DisplayRowGlobalIndex => VolRows.Length;         // 描画用：操作表示行のグローバル行番号
+
+    // 操作表示モードの循環（Auto は含めず KB→PS→Xbox の3値を回す）。
+    private static readonly Pad.DisplayMode[] DispCycle =
+        { Pad.DisplayMode.Keyboard, Pad.DisplayMode.PadPlayStation, Pad.DisplayMode.PadXbox };
+
+    public static string DisplayLabel(Pad.DisplayMode m) => m switch
+    {
+        Pad.DisplayMode.Keyboard       => "キーボード",
+        Pad.DisplayMode.PadPlayStation => "PlayStation",
+        Pad.DisplayMode.PadXbox        => "Xbox",
+        _                              => "自動",
+    };
+    public string DisplayValue => DisplayLabel(Pad.Display);
+
+    // ←→/Z で操作表示モードを循環し、即反映＋保存（Pad 側がファイルへマージ書き込み）。
+    private void CycleDisplay(int dir)
+    {
+        int idx = System.Array.IndexOf(DispCycle, Pad.Display);
+        idx = idx < 0 ? 0 : (idx + dir + DispCycle.Length) % DispCycle.Length; // Auto は KB から
+        Pad.SetDisplayAndSave(DispCycle[idx]);
+        Audio.Instance?.PlayUiMove();
+    }
 
     // 表示用にキャッシュした音量（0..100）。Open 時に保存値から読む。
     private readonly float[] _vol = new float[VolRows.Length];
@@ -60,8 +85,11 @@ public partial class PauseMenu : CanvasLayer
     {
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;
+        // 操作説明オーバーレイが上に開いている間は、ポーズメニュー側の入力を止める（Esc/Z の二重処理を防ぐ）。
+        if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }) { _canvas.QueueRedraw(); return; }
 
-        bool esc = Input.IsKeyPressed(Key.Escape);
+        // Esc（キーボード）／Start（パッド）どちらでも開閉できる。
+        bool esc = Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.Start);
         bool escEdge = esc && !_escHeld; _escHeld = esc;
 
         if (!_open)
@@ -82,11 +110,15 @@ public partial class PauseMenu : CanvasLayer
 
         // ←→：音量行のときだけ ±5 調整＝即バス反映＋保存（SEは鳴らして耳で確認）。
         bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
-        if ((left || right) && !_lrHeld && IsVolRow(_sel))
+        if ((left || right) && !_lrHeld)
         {
-            _vol[_sel] = Mathf.Clamp(_vol[_sel] + (right ? 5f : -5f), 0f, 100f);
-            AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
-            Audio.Instance?.PlayUiMove();
+            if (IsVolRow(_sel))
+            {
+                _vol[_sel] = Mathf.Clamp(_vol[_sel] + (right ? 5f : -5f), 0f, 100f);
+                AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
+                Audio.Instance?.PlayUiMove();
+            }
+            else if (IsDisplayRow(_sel)) CycleDisplay(right ? 1 : -1);
         }
         _lrHeld = left || right;
 
@@ -99,6 +131,7 @@ public partial class PauseMenu : CanvasLayer
             AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
             Audio.Instance?.PlayUiConfirm();
         }
+        else if (zEdge && IsDisplayRow(_sel)) CycleDisplay(1); // Z でも前へ循環
         else if (zEdge) { Audio.Instance?.PlayUiConfirm(); Choose(ActionIndex(_sel)); }
         else if (escEdge) { Audio.Instance?.PlayUiCancel(); Close(); } // Esc でも閉じる（＝つづける）
 
@@ -130,6 +163,11 @@ public partial class PauseMenu : CanvasLayer
             _savedSlot = action + 1; _savedToast = 1.8;
         }
         else if (action == GameManager.SlotCount) Close();           // つづける
+        else if (action == GameManager.SlotCount + 1)
+        {
+            // あそびかた：ポーズを保ったまま操作説明オーバーレイを重ねる（閉じたらポーズへ戻る）。
+            GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
+        }
         else { _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); } // タイトルへ（離脱時オートセーブ）
     }
 
@@ -162,7 +200,7 @@ public partial class PauseCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
         int nVol = PauseMenu.VolRows.Length;
-        float w = 460, h = 476, x = (W - w) / 2f, y = (H - h) / 2f;
+        float w = 460, h = 600, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", 13, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
@@ -190,7 +228,24 @@ public partial class PauseCanvas : Node2D
                 on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 40);
         }
 
-        float divY = volTop + nVol * rowH + 6f;
+        // ── 操作表示モード（←→/Z で キーボード / PlayStation / Xbox）──
+        float dispLabelY = volTop + nVol * rowH + 8f;
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, dispLabelY), "操作表示  BUTTONS", 10, UiKit.Text4);
+        float dispRowY = dispLabelY + 18f;
+        {
+            bool on = Menu.Sel == PauseMenu.DisplayRowGlobalIndex;
+            if (on)
+            {
+                UiKit.Box(this, new Rect2(x + 22, dispRowY, w - 44, 34), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 9f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, dispRowY + 9), "▸", 15, UiKit.Purify);
+            }
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, dispRowY + 7), "ボタン表記", 15,
+                on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - 64 - 200, dispRowY + 7), "◂ " + Menu.DisplayValue + " ▸", 14,
+                on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 200);
+        }
+
+        float divY = dispRowY + 34f + 8f;
         DrawRect(new Rect2(x + 28, divY, w - 56, 1f), new Color(1, 1, 1, 0.08f));
 
         // ── アクション（Z で決定）──
@@ -217,7 +272,8 @@ public partial class PauseCanvas : Node2D
 
         if (Menu.SavedText.Length > 0)
             UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 54), Menu.SavedText, 14, UiKit.PurifyHi, HorizontalAlignment.Center, w);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "←→ 音量    Z 決定    Esc 閉じる", 11, UiKit.Text3, HorizontalAlignment.Center, w);
+        string footer = $"←→ 音量・表示    {Pad.ConfirmToken} 決定    {Pad.PauseToken} 閉じる";
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), footer, 11, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     // 「Esc メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
@@ -226,10 +282,11 @@ public partial class PauseCanvas : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float y = H - 38f - 30f;
         const string label = "メニュー";
-        float keyW = Mathf.Max(28f, UiKit.TextW(UiKit.Mono, "Esc", 12) + 14f);
+        string keyTok = Pad.PauseToken; // 表示モードに追従（Esc / MENU / OPTIONS）
+        float keyW = Mathf.Max(28f, UiKit.TextW(UiKit.Mono, keyTok, 12) + 14f);
         float labelW = UiKit.TextW(UiKit.ZenBold, label, 13);
         float x = W - 24f - (keyW + 8f + labelW);
-        UiKit.Key(this, new Vector2(x, y), "Esc", new Color(1, 1, 1, 0.06f), new Color(UiKit.Info, 0.4f), UiKit.Info);
+        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, 0.06f), new Color(UiKit.Info, 0.4f), UiKit.Info);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 8f, y + 4f), label, 13, UiKit.Text2);
     }
 }

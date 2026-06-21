@@ -75,9 +75,15 @@ public static class Pad
             JoyButton.LeftShoulder  => ps ? "L1" : "LB",
             JoyButton.RightShoulder => ps ? "R1" : "RB",
             JoyButton.RightStick    => ps ? "R3" : "R3",
+            JoyButton.Start         => ps ? "OPTIONS" : "MENU", // PS=OPTIONS / Xbox=メニュー(≡)ボタン
             _ => b.ToString(),
         };
     }
+
+    // ポーズ開閉の操作子表記：キーボード表示なら Esc、パッド表示なら Start(MENU/OPTIONS)。
+    public static string PauseToken => ShowKeyboard ? "Esc" : Face(JoyButton.Start);
+    // 決定の操作子表記：キーボードなら Z、パッドなら A(〇)。
+    public static string ConfirmToken => ShowKeyboard ? "Z" : Face(JoyButton.A);
 
     // ───────── 永続化 ─────────
     // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox) の両方を扱う。

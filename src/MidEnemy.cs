@@ -27,6 +27,24 @@ public partial class MidEnemy : Enemy
     private Vector2 _burstDir;  // バースト方向（予告で固定した自機方向）
     private double _telegraphT;  // 予告中の残り秒（>0 で予告表示中＝まだ撃たない）
 
+    // 進入が遅すぎると居座る前に浄化されて「撃たずに去る」ので、進入だけ最低速度を保証する
+    // （居座り後の上下うねり＝種の性格は据え置き）。居座った瞬間に初弾を素早く撃つ＝設置→即攻撃。
+    private const float ApproachFloor = 78f;     // 進入の最低速度(px/s)。遅い種でも約2.5sで居座る。
+    private const double FirstShotDelay = 0.55;  // 居座り後この秒で初弾（撃つ前に倒され続けるのを防ぐ）。
+
+    // パターン別の基準発射間隔（秒・難易度スケール前）。Di() を掛けて使う。初弾プライムと共用。
+    private double BaseInterval() => _spec.Pattern switch
+    {
+        AttackPattern.ReiLockBurst => 2.2,
+        AttackPattern.ReiPulseRing => 3.6,
+        AttackPattern.AkariScatter => 2.0,
+        AttackPattern.AkariDrop    => 3.2,
+        AttackPattern.KoharuSharp3 => 1.6,
+        AttackPattern.KoharuSimmer => 3.0,
+        AttackPattern.DefaultAim   => 1.9,
+        _ => 999.0,
+    };
+
     // ─── “自走している生命感”モーション（吉田演出：1枚絵をtransformだけで生かす）───
     // _bodySprite(=子ノード"Body")の Position/Rotation/Scale だけを毎フレーム合成する。
     // 当たり判定（本体 Area2D／_bodyShape）と進行ロジック・SwayAmp は一切触らない（純・装飾）。
@@ -138,11 +156,15 @@ public partial class MidEnemy : Enemy
             Vector2 to = camp - GlobalPosition;
             if (to.Length() > 3f)
             {
-                GlobalPosition += to.Normalized() * _spec.MoveSpeed * dt;
+                // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる。
+                float approach = Mathf.Max(_spec.MoveSpeed, ApproachFloor);
+                GlobalPosition += to.Normalized() * approach * dt;
                 return;
             }
             _camped = true;   // 居座り開始＝以降は発射ロジックが動く
             _baseY = camp.Y;  // 以降の上下往復の中心
+            // 居座った瞬間に初弾を素早く（FirstShotDelay 秒後）。出現→即浄化でも一矢報いるように。
+            _fireT = Mathf.Max(0.0, Di(BaseInterval()) - FirstShotDelay);
         }
 
         // 居座り：camp.X に留まり、上下にゆっくり往復（画面外へ出ない）。
@@ -189,15 +211,17 @@ public partial class MidEnemy : Enemy
         }
 
         _fireT += delta;
+        if (_fireT < Di(BaseInterval())) return; // 基準間隔（初弾は居座り時にプライム済み）
+        _fireT = 0;
         switch (_spec.Pattern)
         {
-            case AttackPattern.ReiLockBurst:  if (_fireT >= Di(2.2)) { _fireT = 0; BeginLockBurst(); }   break;
-            case AttackPattern.ReiPulseRing:  if (_fireT >= Di(3.6)) { _fireT = 0; FirePulseRing(); }    break;
-            case AttackPattern.AkariScatter:  if (_fireT >= Di(2.0)) { _fireT = 0; FireScatter(); }      break;
-            case AttackPattern.AkariDrop:     if (_fireT >= Di(3.2)) { _fireT = 0; FireDrop(); }         break;
-            case AttackPattern.KoharuSharp3:  if (_fireT >= Di(1.6)) { _fireT = 0; BeginSharp3(); }      break;
-            case AttackPattern.KoharuSimmer:  if (_fireT >= Di(3.0)) { _fireT = 0; FireSimmer(); }       break;
-            case AttackPattern.DefaultAim:    if (_fireT >= Di(1.9)) { _fireT = 0; FireDefaultAim(); }   break;
+            case AttackPattern.ReiLockBurst:  BeginLockBurst();  break;
+            case AttackPattern.ReiPulseRing:  FirePulseRing();   break;
+            case AttackPattern.AkariScatter:  FireScatter();     break;
+            case AttackPattern.AkariDrop:     FireDrop();        break;
+            case AttackPattern.KoharuSharp3:  BeginSharp3();     break;
+            case AttackPattern.KoharuSimmer:  FireSimmer();      break;
+            case AttackPattern.DefaultAim:    FireDefaultAim();  break;
         }
     }
 
@@ -221,23 +245,33 @@ public partial class MidEnemy : Enemy
         return new Vector2(v.X * cs - v.Y * sn, v.X * sn + v.Y * cs);
     }
 
-    // ── レイ shooter：ロックオン連射 ──
-    // 0.5s 照準予告（自機へ細線）→ その方向に 3連バースト(0.08s間隔, ±4°拡散) → セット間隔 Di(2.2) 休む。
+    // ── レイ shooter：ロックオンビーム ──
+    // 自機方向へ予測線（予兆＝薄い危険色ライン・当たり判定なし）を BeamWarn 秒出してから、
+    // 実体ビーム（着弾フレームのみ判定ON）を撃つ。予兆中の自機方向で固定＝避けられる必殺。
+    // 予兆／実体／被弾は AreaStrike（ボスの範囲技と共用の予測攻撃基盤）に一任する。
+    private const double BeamWarn = 0.5;       // 予兆時間の基準秒（Di で難易度伸縮：易しいほど猶予増）。
+    private const float BeamLen = 240f;        // 画面を貫く長さ（はみ出しは画面外で見えないだけ）
+    private const float BeamHalfThick = 5.5f;  // ビームの半太さ(px)。細長＝判定は線分への最短距離で取る。
     private void BeginLockBurst()
     {
-        _burstDir = AimDir();
-        _telegraphT = 0.5;
-        FxLayer.Instance?.AimLine(GlobalPosition, _burstDir, 0.5f, new Color(0.85f, 0.55f, 0.80f));
+        var dir = AimDir();
+        double warn = Di(BeamWarn); // 予兆時間（難易度で伸縮＝易しいほど避ける猶予が増える）。
+        var z = new AreaStrike();
+        // 予測線/着弾色はボス・レイの予測攻撃（AreaSpellCaster "rei"）と同じ金/明金パレットに統一。
+        // ＝道中ドローンの予兆もボス予兆と同系統に見え、危険色の意味（金＝レイの裁き）が一貫する。
+        z.ConfigureBeam(dir, BeamLen, BeamHalfThick, warn,
+            new Color("e8c45a"), new Color("ffe39a"));
+        // 敵が浄化されて消えても予測線→着弾は最後まで完遂させたいので、World（親）へぶら下げる。
+        var host = GetParent() ?? this;
+        host.AddChild(z);
+        z.GlobalPosition = GlobalPosition; // 発射源＝この瞬間のドローン位置（以降は固定＝避けられる）。
+        SquishBody(); // 撃つ前の溜め（縦スカッシュ）で“来る”を本体でも示す。
     }
     private void FireAfterTelegraph()
     {
-        // 予告終了。パターン別に本射へ。
-        if (_spec.Pattern == AttackPattern.ReiLockBurst)
-        {
-            _burstLeft = Mathf.Max(1, Dn(3)); // 1セット=Dn(3)発、最低1発保証
-            _burstT = 0;
-        }
-        else if (_spec.Pattern == AttackPattern.KoharuSharp3)
+        // ReiLockBurst のビームは AreaStrike が自前で予兆→着弾するため、ここでは何もしない。
+        // KoharuSharp3 のみ MidEnemy 側の短予告を消費して本射する。
+        if (_spec.Pattern == AttackPattern.KoharuSharp3)
         {
             FireSharp3();
         }

@@ -48,9 +48,9 @@ public partial class GameManager : Node
 
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
-    // 通常ボス: Easy3/Normal4/Hard5/Lunatic6。ラスボス格(Mina)は +1本（finalBoss=true）。
+    // 通常ボス: Easy2/Normal3/Hard4/Lunatic5（各難易度から1本減＝難度緩和）。ラスボス格(Mina)は +1本（finalBoss=true）。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 3, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 1 : 0);
+        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 4, Diff.Lunatic => 5, _ => 3 }) + (finalBoss ? 1 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 300;
@@ -296,6 +296,8 @@ public partial class GameManager : Node
     public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, Diff.Lunatic => 2.2f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
     public float UpgradeImpressionMul => 1f + 0.12f * GetUpgradeLevel("imp_mult");
+    // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
+    public const float MoneyGainMul = 2f;
     public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
     // ── 強化効果アクセサ（Player/Hud が STEP3 で参照する）──
@@ -319,7 +321,7 @@ public partial class GameManager : Node
     public long GainImpression(long baseAmount)
     {
         if (baseAmount <= 0) return 0;
-        long g = (long)Mathf.Round(baseAmount * TotalImpressionMul * ReplayMul);
+        long g = (long)Mathf.Round(baseAmount * TotalImpressionMul * ReplayMul * MoneyGainMul);
         Impression += g;
         RunImpression += g;
         return g;
@@ -574,6 +576,26 @@ public partial class GameManager : Node
             _comboTimer = ComboWindow;
     }
 
+    // 回避（ドッジ）の無敵中に敵弾をかすめてよけた時の高報酬（§リスクとリターン）。
+    // 通常グレイズ(Score+10・お金なし)より大きめ＝回避クールダウン0.8sを切って敵弾に突っ込むリスク相応。
+    //   ・スコアは DodgeGrazeScore（通常10の5倍）。
+    //   ・お金（インプレ＝ショップ通貨）を GainImpression(DodgeGrazeImpBase) で稼ぐ。倍率は内部で自動適用。
+    //     実加算額を返す＝ポップアップ「+N」表示に使う。
+    //   ・コンボ猶予をリフレッシュ（AddGraze と同様、攻めが途切れない）。やさしさも同程度。
+    // farming上限は呼び出し側(Player)が1回避ごとにカウントして制御する。
+    public long AddDodgeGraze()
+    {
+        Score += DodgeGrazeScore;
+        DodgeGrazeCount++;
+        AddKindness(GrazeGain);
+        if (Combo > 0)
+            _comboTimer = ComboWindow;
+        return GainImpression(DodgeGrazeImpBase);
+    }
+    private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア（通常グレイズ10の5倍）
+    private const int DodgeGrazeImpBase = 4;  // 回避よけ1発の基礎インプレ（倍率は GainImpression 内で適用）
+    public int DodgeGrazeCount { get; private set; }
+
     // ボムで敵弾を消した時の小加点。
     public void AddBulletCleared()
     {
@@ -606,5 +628,30 @@ public partial class GameManager : Node
         _kindFill = 0f;
         IsOverload = false;
         _overloadT = 0;
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // ゲームオーバー時の「ステージから抜ける（ハブへ戻る）」共通処理。
+    // 各 *Root.cs が _Process で残機0を検知したら毎フレーム呼ぶ。
+    //   ・抜けプロンプトを HUD に出し続ける（リトライ＝R/Start は従来どおり別経路で有効）。
+    //   ・Q / パッドBack(Select) で「抜ける」を選んだら、ランで貯めたインプレを AutoSave で
+    //     確定保存（恒久値なので破棄しない・§0-3）してから Hub へ遷移する。
+    // 戻り値 true ＝抜けを実行（呼び元はそれ以降の処理を打ち切ってよい）。
+    public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld)
+    {
+        hud?.ShowGameOverPrompt("R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）");
+
+        bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.Back);
+        bool fired = exit && !exitHeld;
+        exitHeld = exit;
+        if (!fired) return false;
+
+        // ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、ここで確実に保存してから帰還。
+        var game = root.GetNodeOrNull<GameManager>("/root/Game");
+        game?.AutoSave();
+        root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        Audio.Instance?.PlayUiCancel();
+        root.GetTree().ChangeSceneToFile("res://Hub.tscn");
+        return true;
     }
 }

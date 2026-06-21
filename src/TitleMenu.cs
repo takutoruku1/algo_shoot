@@ -7,14 +7,15 @@ public partial class TitleMenu : Node2D
 {
     private GameManager _game = null!;
 
-    private enum Item { NewGame, Continue, HowToPlay, Settings, Quit }
+    private enum Item { NewGame, Continue, HowToPlay, Tutorial, Settings, Quit }
     private static readonly (Item item, string jp, string en)[] Items =
     {
-        (Item.NewGame,   "はじめから", "NEW GAME"),
-        (Item.Continue,  "つづきから", "CONTINUE"),
-        (Item.HowToPlay, "あそびかた", "HOW TO PLAY"),
-        (Item.Settings,  "設定",       "SETTINGS"),
-        (Item.Quit,      "おわる",     "QUIT"),
+        (Item.NewGame,   "はじめから",       "NEW GAME"),
+        (Item.Continue,  "つづきから",       "CONTINUE"),
+        (Item.HowToPlay, "あそびかた",       "HOW TO PLAY"),
+        (Item.Tutorial,  "チュートリアル",   "TUTORIAL"),
+        (Item.Settings,  "設定",             "SETTINGS"),
+        (Item.Quit,      "おわる",           "QUIT"),
     };
 
     // 浮遊する言葉（left%, top%, size, alpha, driftSpeed, phase）
@@ -67,6 +68,8 @@ public partial class TitleMenu : Node2D
         if (_toastT > 0) _toastT -= delta;
         if (_dived) { QueueRedraw(); return; }
         if (_autoplay) { if (_t > 0.3) Go("res://Hub.tscn"); QueueRedraw(); return; }
+        // 操作説明オーバーレイが開いている間はタイトル側の入力を止める（Z/Xの二重処理を防ぐ）。
+        if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }) { QueueRedraw(); return; }
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
@@ -148,7 +151,11 @@ public partial class TitleMenu : Node2D
                 else Toast("セーブデータがありません");
                 break;
             case Item.HowToPlay:
-                // 「あそびかた」＝STAGE1にチュートリアルを重ねて強制再生（既読フラグは変えない）。
+                // 「あそびかた」＝いつでも引ける静的な操作説明オーバーレイ（シーン遷移しない）。
+                GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
+                break;
+            case Item.Tutorial:
+                // 「チュートリアル」＝STAGE1にチュートリアルを重ねて強制再生（既読フラグは変えない）。
                 // DiffSelect を通らないので難易度は Easy に固定（直前の選択を引き継がせない）。
                 _game.Difficulty = GameManager.Diff.Easy;
                 _game.ForceTutorialReplay = true;
