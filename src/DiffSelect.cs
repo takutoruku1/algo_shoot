@@ -26,10 +26,17 @@ public partial class DiffSelect : Node2D
     };
 
     private int _sel;
-    private bool _navHeld, _zHeld, _backHeld;
+    private bool _navHeld, _zHeld, _backHeld, _hNavHeld;
     private double _t;
     private bool _autoplay;
     private string _stageTag = "STAGE 1", _diveName = "レイ";
+
+    // ── チェックポイント入口（最初から / 中ボスから / ボスから）──
+    //   中ボスを持つ3ステージでのみ表示。←→ で選ぶ。未解放はロック（中ボス=IsMidBossCleared / ボス=IsStageCleared で解放）。
+    private string? _stageId;
+    private bool _hasMidBoss;
+    private int _entrySel; // 0=最初から / 1=中ボスから / 2=ボスから
+    private static readonly string[] EntryNames = { "最初から", "中ボスから", "ボスから" };
 
     // ── MINA 立ち絵（表情クロスフェード）──
     //   選択が変わると _faceFrom→_faceTo を _xfade(0→1) で溶かす。瞬間差し替えにしない（吉田 §C）。
@@ -53,6 +60,11 @@ public partial class DiffSelect : Node2D
                 else _diveName = s.Title;
                 break;
             }
+
+        // 選択中ステージのIDと、入口選択を出す対象（中ボス持ち）かを判定。入口の既定は「最初から」。
+        _stageId = GameManager.StageIdForScene(_game?.PendingStageScene ?? "");
+        _hasMidBoss = _stageId != null && GameManager.StageHasMidBoss(_stageId);
+        _entrySel = 0;
 
         _sel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
         if (!Selectable(_sel)) _sel = (int)GameManager.Diff.Hard;
@@ -92,6 +104,18 @@ public partial class DiffSelect : Node2D
         return true;
     }
 
+    // 入口の解放判定：最初から＝常時／中ボスから＝中ボス撃破済み／ボスから＝ステージクリア済み。
+    private bool EntryUnlocked(int e)
+    {
+        if (_stageId == null) return e == 0;
+        return e switch
+        {
+            1 => _game?.IsMidBossCleared(_stageId) ?? false,
+            2 => _game?.IsStageCleared(_stageId) ?? false,
+            _ => true,
+        };
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
@@ -109,6 +133,23 @@ public partial class DiffSelect : Node2D
         }
         _navHeld = up || down;
 
+        // ←→：チェックポイント入口の選択（中ボス持ちステージのみ）。未解放はスキップして次の解放済みへ。
+        if (_hasMidBoss)
+        {
+            bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+            if ((left || right) && !_hNavHeld)
+            {
+                int dir = right ? 1 : -1;
+                for (int k = 0; k < EntryNames.Length; k++)
+                {
+                    _entrySel = (_entrySel + dir + EntryNames.Length) % EntryNames.Length;
+                    if (EntryUnlocked(_entrySel)) break;
+                }
+                Audio.Instance?.PlayUiMove();
+            }
+            _hNavHeld = left || right;
+        }
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2 && Selectable(_sel)) { Audio.Instance?.PlayUiConfirm(); Dive(); }
@@ -123,6 +164,11 @@ public partial class DiffSelect : Node2D
     private void Dive()
     {
         if (_game != null && Selectable(_sel)) _game.Difficulty = Tiers[_sel].Diff;
+        // 選んだ入口を GameManager へ（ラン単位・非セーブ）。未解放や非対象ステージは「最初から」へフォールバック。
+        if (_game != null)
+            _game.SelectedEntry = (_hasMidBoss && EntryUnlocked(_entrySel))
+                ? (GameManager.StageEntry)_entrySel
+                : GameManager.StageEntry.Start;
         string scene = _game?.PendingStageScene ?? "res://Rei.tscn";
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GetTree().ChangeSceneToFile(scene);
@@ -152,16 +198,24 @@ public partial class DiffSelect : Node2D
         DrawMinaColumn(colX, top + 66f, colW, H - 56f - (top + 66f) - 18f);
 
         // ── ティア行（左カラムへ寄せる）──
-        float rowTop = top + 66f, rowH = 96f, gap = 13f;
+        float rowTop = top + 66f, rowH = 84f, gap = 12f;
         float rowW = colX - padX - 28f;          // 立ち絵カラムとの間に余白
         for (int i = 0; i < Tiers.Length; i++)
             DrawTier(i, padX, rowTop + i * (rowH + gap), rowW, rowH);
+
+        // ── 入口（チェックポイント）選択：ティアの下に横並び（中ボス持ちステージのみ）──
+        if (_hasMidBoss)
+        {
+            float ey = rowTop + Tiers.Length * (rowH + gap) + 6f;
+            DrawEntryRow(padX, ey, rowW, 58f);
+        }
 
         // ── フッタ ──
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         float fx = padX;
-        fx = Hint(fx, fy, "↑↓", "えらぶ", false);
+        fx = Hint(fx, fy, "↑↓", "難易度", false);
+        if (_hasMidBoss) fx = Hint(fx, fy, "←→", "入口", false);
         fx = Hint(fx, fy, "Z", "ダイブ", true);
         Hint(fx, fy, "X", "もどる", false);
 
@@ -215,6 +269,43 @@ public partial class DiffSelect : Node2D
         float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
         string reward = $"報酬 ×{mul:0.0}";
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, 13), y + 50), reward, 13, new Color("7ec880"));
+    }
+
+    // ── 入口（チェックポイント）選択：最初から / 中ボスから / ボスから を横並びで描く ──
+    //   未解放はグレーで LOCK 表示。選択中はシアン枠＋▸。←→ で選ぶ。
+    private void DrawEntryRow(float x, float y, float w, float h)
+    {
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y - 16), "STAGE ENTRY ／ 入口", 11, UiKit.Text3);
+
+        int n = EntryNames.Length;
+        float gap = 12f;
+        float cellW = (w - gap * (n - 1)) / n;
+        for (int i = 0; i < n; i++)
+        {
+            float cx = x + i * (cellW + gap);
+            bool unlocked = EntryUnlocked(i);
+            bool sel = i == _entrySel;
+
+            Color bg, border; float bw;
+            if (!unlocked) { bg = new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f); border = new Color(1, 1, 1, 0.05f); bw = 1f; }
+            else if (sel) { bg = new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f); border = new Color(UiKit.Purify, 0.85f); bw = 1.5f; }
+            else { bg = new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f); border = new Color(1, 1, 1, 0.09f); bw = 1f; }
+            UiKit.Box(this, new Rect2(cx, y, cellW, h), bg, 12f, border, bw);
+
+            float tx = cx + 16f;
+            if (sel && unlocked) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 14), "▸", 14, UiKit.Purify); tx += 18f; }
+            Color nameCol = unlocked ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4;
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 12), EntryNames[i], 16, nameCol);
+
+            // サブ説明 or ロック解放条件
+            string sub = unlocked
+                ? i switch { 1 => "中ボス戦から開始", 2 => "ボス戦から開始", _ => "道中の最初から" }
+                : i switch { 1 => "解放：中ボスを倒す", _ => "解放：ステージクリア" };
+            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 16f, y + 34), sub, 12, unlocked ? UiKit.Text3 : UiKit.Mina);
+
+            if (!unlocked)
+                UiKit.Text(this, UiKit.Mono, new Vector2(cx + cellW - UiKit.TextW(UiKit.Mono, "LOCKED", 10) - 12, y + 12), "LOCKED", 10, UiKit.Text4);
+        }
     }
 
     // ── 右カラム：MINA 立ち絵 ＋ 一言（選択難易度の表情をクロスフェードで反映）──

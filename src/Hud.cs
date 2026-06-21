@@ -159,6 +159,20 @@ public partial class Hud : CanvasLayer
     public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
     public void ClearTutorialHint() => _tutorialHint = "";
 
+    // チュートリアル（ステージ0）のスポットライト暗転：全画面を暗幕で覆い、対象矩形だけ“避けて”見せる。
+    // 説明会話中（停止中）だけ ON。MurkVignette は弾より奥なので流用不可＝CanvasLayer のここで描く（弾・自機より前面）。
+    // α上限 0.55（弾・自機・ダミーが暗転で見えなくならないこと最優先）。
+    private bool _spotActive;
+    private Rect2 _spotRect;     // 設計座標(1280x720)。Size≈0 なら穴なし＝全画面を一様に暗転。
+    private float _spotAlpha;
+    public void SetSpot(Rect2 designRect, float darkAlpha)
+    {
+        _spotActive = true;
+        _spotRect = designRect;
+        _spotAlpha = Mathf.Min(0.55f, Mathf.Max(0f, darkAlpha));
+    }
+    public void ClearSpot() => _spotActive = false;
+
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z";
@@ -519,6 +533,8 @@ public partial class Hud : CanvasLayer
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
+        // チュートリアルのスポット暗転（フラッシュ直前＝最前面に近い層。弾より前だが、α上限0.55で弾は透ける）。
+        if (_spotActive) DrawTutorialSpot(ci);
         // 被弾エッジ
         if (_hurtEdge > 0)
             UiKit.Box(ci, new Rect2(8, 8, 1280 - 16, 720 - 16), null, 18f, new Color(0.9f, 0.16f, 0.16f, 0.5f * (float)(_hurtEdge / 0.9)), 14f);
@@ -958,15 +974,18 @@ public partial class Hud : CanvasLayer
                      || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
         var items = new System.Collections.Generic.List<(string tok, string label, bool on)>
         {
-            (TokMove,  "移動",  true),
-            (TokShot,  "撃つ",  true),
-            (TokFocus, "低速",  true),
+            // 同じ動作に複数の割り当てがあるものは All*（全部列挙）。単一割り当ては Tok* のまま。
+            (AllMove,  "移動",  true),
+            (AllShot,  "撃つ",  true),
+            (AllFocus, "低速",  true),
             (TokDodge, "回避",  _dodgeReady), // 低速の隣（共に回避手段）。CD中は淡色＝使える時だけ点灯
-            (TokBomb,  "ボム",  true),
-            (TokMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
-            (TokSkill, "技",    _skillHas), // ヒカゲが仲間の時だけ点灯
-            (TokKind,  "全開",  true),
+            (AllBomb,  "ボム",  true),
+            (AllMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
         };
+        // 「技」（C/Y＝ヒカゲ大波）はヒカゲが仲間の時だけ出す。本編ではヒカゲは加入しない＝
+        // 常時表示すると“使えないボタン”になるため、仲間にいる時だけ列に加える（W0 等）。
+        if (_skillHas) items.Add((AllSkill, "技", true));
+        items.Add((AllKind, "全開", true));
 
         // レイアウト（設計1280x720）：右下に横一列。各アイテム＝[キー枠][動作名]、右寄せで並べる。
         const float labelSize = 12f, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = 18f;
@@ -1017,6 +1036,43 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.9f), 12f, new Color(UiKit.Mina, 0.4f + 0.4f * pulse), 1.4f);
         ci.DrawCircle(new Vector2(x + 20, y + h / 2f), 4.5f, new Color(UiKit.Mina, pulse));
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), _tutorialHint, 15, new Color(0.94f, 0.92f, 0.99f));
+    }
+
+    // チュートリアルのスポット暗転：全画面を暗幕で覆い、_spotRect だけ避けて四分割の帯で描く（MurkVignette の四分割テクの矩形版）。
+    // 穴の縁は薄いグラデ1枚で柔らかく。Size≈0 の矩形なら穴なし＝全画面を一様に暗転（ステップ0の導入用）。
+    private void DrawTutorialSpot(HudCanvas ci)
+    {
+        if (_spotAlpha <= 0.001f) return;
+        var dark = new Color(0.03f, 0.03f, 0.06f, _spotAlpha);
+        const float W = 1280f, Hh = 720f;
+
+        // 穴なし＝全画面を一様に覆う。
+        if (_spotRect.Size.X <= 1f || _spotRect.Size.Y <= 1f)
+        {
+            ci.DrawRect(new Rect2(0, 0, W, Hh), dark);
+            return;
+        }
+
+        // 穴に少し余白を足して、ゲージ全体がはっきり見えるようにする。
+        Rect2 hole = _spotRect.Grow(10f);
+        float l = Mathf.Clamp(hole.Position.X, 0, W);
+        float t = Mathf.Clamp(hole.Position.Y, 0, Hh);
+        float r = Mathf.Clamp(hole.Position.X + hole.Size.X, 0, W);
+        float b = Mathf.Clamp(hole.Position.Y + hole.Size.Y, 0, Hh);
+
+        // 四分割の帯で穴を避けて全画面を覆う（上・下・左・右）。
+        ci.DrawRect(new Rect2(0, 0, W, t), dark);              // 上帯
+        ci.DrawRect(new Rect2(0, b, W, Hh - b), dark);         // 下帯
+        ci.DrawRect(new Rect2(0, t, l, b - t), dark);          // 左帯
+        ci.DrawRect(new Rect2(r, t, W - r, b - t), dark);      // 右帯
+
+        // 穴の縁を薄いグラデ1枚で柔らかく（内側に向けて薄くなる細い枠）。
+        float edge = 8f;
+        var soft = new Color(dark.R, dark.G, dark.B, dark.A * 0.5f);
+        ci.DrawRect(new Rect2(l, t, r - l, edge), soft);             // 上縁
+        ci.DrawRect(new Rect2(l, b - edge, r - l, edge), soft);      // 下縁
+        ci.DrawRect(new Rect2(l, t, edge, b - t), soft);            // 左縁
+        ci.DrawRect(new Rect2(r - edge, t, edge, b - t), soft);      // 右縁
     }
 
     private void DrawTicker(HudCanvas ci)

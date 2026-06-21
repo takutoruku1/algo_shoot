@@ -59,6 +59,28 @@ public partial class GameManager : Node
     // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
     public string PendingStageScene = "res://Rei.tscn";
 
+    // ───── チェックポイント入口（最初から / 中ボスから / ボスから）─────
+    //   中ボス(cameo)を持つ3ステージ（レイ/あかり/こはる）で道中をスキップして任意の戦闘から始められる。
+    //   SelectedEntry は「ラン単位」＝非セーブ。DiffSelect がダイブ直前にセットし、Stage が _Ready で読む。
+    //   解放ゲート：MidBoss は中ボス撃破で解放（IsMidBossCleared）、Boss はステージクリアで解放（IsStageCleared）。
+    public enum StageEntry { Start, MidBoss, Boss }
+    public StageEntry SelectedEntry = StageEntry.Start;
+
+    // 中ボス(cameo)撃破フラグ（ステージID集合・永続＝save_N.json）。「中ボスから」解放の判定に使う。
+    private readonly HashSet<string> _midBossCleared = new();
+    public bool IsMidBossCleared(string id) => _midBossCleared.Contains(id);
+    // 中ボス撃破を記録。戻り値 firstEver＝「全ゲーム通して初めて中ボスを倒した」か（初回ショップ導線の判定用）。
+    public bool MarkMidBossCleared(string id)
+    {
+        bool firstEver = _midBossCleared.Count == 0;
+        _midBossCleared.Add(id);
+        return firstEver;
+    }
+
+    // 初回ショップ説明を見たか（全ゲーム通して一度きり・永続＝save_N.json）。
+    // 「初めて中ボスを倒した」瞬間にショップ説明へ離脱し、完了後 true にする。以降の中ボス撃破では離脱しない。
+    public bool ShopTutorialSeen;
+
     // 弾幕の本数を難易度でスケール（最低1発は残す）。各ボスのリング/扇の本数に掛ける。
     public int ScaleBullets(int baseCount) => Mathf.Max(1, Mathf.RoundToInt(baseCount * BulletCountMul));
 
@@ -106,6 +128,16 @@ public partial class GameManager : Node
         new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = "@akari.",   Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 2 — あかり" },
         new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?", Title = "STAGE 3 — こはる" },
     };
+
+    // シーンパス → ステージID（DiffSelect が選択中ステージの解放ゲートを引くのに使う）。未登録は null。
+    public static string? StageIdForScene(string scene)
+    {
+        foreach (var s in Stages)
+            if (s.Scene == scene) return s.Id;
+        return null;
+    }
+    // 中ボス(cameo)を持つ＝チェックポイント入口を出す対象ステージか（レイ/あかり/こはる）。
+    public static bool StageHasMidBoss(string id) => id is "rei" or "akari" or "koharu";
 
     private readonly HashSet<string> _cleared = new();
     // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
@@ -369,6 +401,13 @@ public partial class GameManager : Node
         foreach (var kv in ClearTimes)
             ct[kv.Key] = kv.Value;
         data["clearTimes"] = ct;
+        // 中ボス撃破フラグ（ステージID配列）。後方互換：キー無し＝空扱い。
+        var mb = new Godot.Collections.Array();
+        foreach (var id in _midBossCleared)
+            mb.Add(id);
+        data["midBossCleared"] = mb;
+        // 初回ショップ説明の既読フラグ。後方互換：キー無し＝false 扱い。
+        data["shopTutorialSeen"] = ShopTutorialSeen;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -403,6 +442,16 @@ public partial class GameManager : Node
             foreach (var k in ct.Keys)
                 ClearTimes[k.AsString()] = (float)ct[k].AsDouble();
         }
+        // 中ボス撃破フラグ復元（キー無し＝旧セーブは空のまま＝後方互換）。
+        _midBossCleared.Clear();
+        if (data.ContainsKey("midBossCleared"))
+        {
+            var mb = data["midBossCleared"].AsGodotArray();
+            foreach (var v in mb)
+                _midBossCleared.Add(v.AsString());
+        }
+        // 初回ショップ説明の既読（キー無し＝旧セーブは false＝後方互換）。
+        ShopTutorialSeen = data.ContainsKey("shopTutorialSeen") && data["shopTutorialSeen"].AsBool();
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
         if (data.ContainsKey("shotmode"))
         {
@@ -419,6 +468,9 @@ public partial class GameManager : Node
         Followers = 0;
         _upgrades.Clear();
         SelectedShotMode = ShotMode.Rapid;
+        _midBossCleared.Clear();
+        ShopTutorialSeen = false;
+        SelectedEntry = StageEntry.Start;
     }
 
     // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。
@@ -436,6 +488,10 @@ public partial class GameManager : Node
     // タイトルの「あそびかた」からの任意再生フラグ（次のステージ開始で消費）。
     // 任意再生では TutorialSeen を書き換えない。
     public bool ForceTutorialReplay;
+
+    // チュートリアル（ステージ0）の練習モード：ON の間はボム・残機を消費しない（詰み防止）。
+    // 非セーブ＝ラン単位。Stage0Root の _Ready で立て、Hub 遷移時に倒す。
+    public bool TutorialNoConsume;
 
     private void LoadPrefs()
     {
@@ -549,6 +605,22 @@ public partial class GameManager : Node
     {
         AddKindness(CameoKindnessReward);  // 直後の本ボス戦で全開を撃ちやすくする量
         Score += CameoScoreReward;         // スコア少々
+
+        // 難易度緩和：中ボス撃破で BOMB+1 と ♥+1 を回復する（どちらも上限でキャップ＝超えない）。
+        //   ・ボム上限＝初期ボム数(StartBombs＝難易度＋ボム所持強化)。既に上限なら増やさない。
+        //   ・♥上限＝初期残機(StartLives＝難易度＋最大♥強化)。回復は Player.AddLife がキャップする。
+        // 回復できた分だけ控えめにバナーで知らせる（やり過ぎない／何も増えなければ黙る）。
+        bool gotBomb = false;
+        if (Bombs < StartBombs) { Bombs = Mathf.Min(StartBombs, Bombs + 1); gotBomb = true; }
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        bool gotLife = player?.AddLife(1) ?? false;
+        if (gotBomb || gotLife)
+        {
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            string msg = (gotLife && gotBomb) ? "♥ +1　BOMB +1"
+                       : gotLife ? "♥ +1" : "BOMB +1";
+            hud?.ShowBanner(msg);
+        }
     }
     private const float CameoKindnessReward = 0.6f;
     private const int CameoScoreReward = 900;
@@ -603,13 +675,19 @@ public partial class GameManager : Node
     }
 
     // ボムを使う。残があれば消費して true。
+    // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。
     public bool UseBomb()
     {
+        if (TutorialNoConsume) return true;
         if (Bombs <= 0)
             return false;
         Bombs--;
         return true;
     }
+
+    // チュートリアル（ステージ0）ステップ7用：やさしさゲージを一度だけ満タンにする。
+    // 全開中は触らない（タイマー表示と競合させない）。
+    public void FillKindnessForTutorial() { if (!IsOverload) _kindFill = 1f; }
 
     public void AddBomb(int n = 1)
     {

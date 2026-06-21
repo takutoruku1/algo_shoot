@@ -130,6 +130,10 @@ public partial class Player : Area2D
     private static readonly Color OverloadTintHi = new Color(1.5f, 1.35f, 0.9f);
     public void SetCorruption(float level) => _corruption = Mathf.Clamp(level, 0f, 1f);
 
+    // チュートリアル（ステージ0）の自機系ステップで、自機を“光らせて”目立たせる（既存グレイズ残光を流用）。
+    // World↔設計座標変換の事故を避けるため、Hudの暗転穴ではなく自機側の発光で注意を引く方式。
+    public void TutorialGlow() => _grazeFlash = Mathf.Max(_grazeFlash, 0.6f);
+
     // 常時ふわふわ浮遊（スプライトのみ上下に揺らす。当たり判定点は固定）
     private float _bobTime = 0f;
     private const float BobSpeed = 3.2f; // 角速度(rad/s) 約2秒周期
@@ -171,6 +175,7 @@ public partial class Player : Area2D
     // HUD・チュートリアル向けの公開アクセサ（挙動には一切影響しない読み取り専用情報）。
     public bool DodgeReady => _dodgeCd <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
+    public int  BombCount { get; private set; }  // ボムを発動した累計回数（練習モードでは残数が減らないのでチュートリアルはこの増分で発動検出）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
     private float _baseScaleX = 1f;             // 素の横スケール（高さ正規化値）。フレーム差し替えのたびにこの基準で再計算する。
     private int _dodgeGrazeCount = 0;           // 今回の回避でよけた弾数（farming防止のCap判定用）。TryDodge でリセット。
@@ -770,6 +775,8 @@ public partial class Player : Area2D
         if (game == null || !game.UseBomb())
             return;
 
+        BombCount++; // 発動成功＝累計を加算（練習モードの発動検出用。残数では見れないため）
+
         // ボム演出（魔法陣＋光の波）＋画面効果
         FxLayer.Instance?.Bomb(GlobalPosition);
         Audio.Instance?.PlayBomb(); // ③溜め→開放の二段。破壊でなく「鎮める／光が満ちる」
@@ -857,6 +864,14 @@ public partial class Player : Area2D
         GameCamera.Instance?.Hitstop(0.09);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HitFlash();
 
+        // チュートリアル練習モード：被弾演出は出すが、残機を減らさず・ゲームオーバーにせず・フォロワーも離さない（詰み防止）。
+        // 短時間無敵だけ付けて先へ進める（同じ弾で連続被弾しない）。
+        if (_game?.TutorialNoConsume ?? false)
+        {
+            StartInvincible();
+            return;
+        }
+
         // ♥（残機）を1つ減らして HUD 更新
         Lives = Mathf.Max(0, Lives - 1);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
@@ -874,6 +889,19 @@ public partial class Player : Area2D
 
         if (Lives <= 0)
             GameOver();
+    }
+
+    // ♥（残機）を回復する。上限は難易度＋最大♥強化由来の初期値（StartLives）。
+    // 既に上限なら増やさない。戻り値＝実際に増えたか（フィードバック演出の判定用）。
+    // 中ボス撃破の回復報酬（GameManager.RewardCameoDefeat）から呼ぶ。
+    public bool AddLife(int n = 1)
+    {
+        if (_gameOver || n <= 0) return false;
+        int cap = _game?.StartLives ?? 3;
+        if (Lives >= cap) return false;
+        Lives = Mathf.Min(cap, Lives + n);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
+        return true;
     }
 
     private void GameOver()

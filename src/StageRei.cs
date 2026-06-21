@@ -29,37 +29,21 @@ public partial class StageRei : Node
 
     // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。三部構成で「後半ほど圧が上がる」緩急を作る：
     //   前半A（緩い導入）→ ボスのチラ見せ → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
-    // 体数より“密度と変化”で長さを作る方針（§3 緩急）：合計20体だが3波で圧と構成を変えて間延びさせない。
+    // 体数より“密度と変化”で長さを作る方針（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
-    private const int MidWaveA = 21;  // 導入（チラ見せ前）。緩く立ち上がる。※道中3倍（旧7）
-    private const int MidWaveB = 18;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。※道中3倍（旧6）
-    private const int MidWaveC = 21;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計60体）。※道中3倍（旧7）
+    // STAGE1緩和（難易度高すぎ）：道中ザコ総数を 60→45（約25%減）。過密な導入Aを多めに削り、
+    // 終盤Cは最大密度の山として残す（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
+    private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
+    private const int MidWaveB = 14;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。旧18（-4）
+    private const int MidWaveC = 16;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧21（-5）
 
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
     private CameoBoss _cameo = null!;
 
-    // ───────── チュートリアル（StageRei に重ねる操作講座）─────────
-    // 初回プレイ(tutorialSeen==false)で自動 ON、タイトル「あそびかた」から強制再生も可。
-    // 教える順：①移動&ショット ②Focus低速 ③グレイズ（→やさしさゲージの満タン→B全開まで） ④ボム
-    //   ⑤浄化（→救った証=インプレ→ショップ強化／代償=汚染ゲージ↑）⑥やさしさ全開（満ちた瞬間の告知）。
-    // 各ヒントは「会話で止めて説明 → 常駐指示を残して操作させる → 能動条件で解除（FBにタイムアウト）」の3拍。
-    // 教え役はミナ（who1）。会話は既存 Step_Lines を流用、指示帯は Hud.SetTutorialHint（敵/自機は止めない）。
-    private bool _tutorial;          // このランがチュートリアルか
-    private int _tphase;             // チュートリアルの進行（0..）。Intro 後に T1 から回す。
-    private bool _tphaseStarted;
-    private double _tphaseTime;
-    // 操作させる区間の達成カウント用ベースライン。
-    private bool _t1Moved; private bool _t1Shot;
-    private double _t2FocusHeld; private bool _t2Moved;
-    private int _tDodgeBase; private bool _tDodged; // 回避（②の直後）：Player.DodgeCount のベースラインと達成フラグ
-    private int _t3GrazeBase;
-    private int _t4BombBase;
-    private int _t5PurifyBase;
-    private bool _tutorialMidwaveTaught; // T5（最初の1体の浄化講座）を完了したか
-    private bool _t6Shown;               // やさしさ全開トーストを一度出したか
+    // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。STAGE1 からは撤去済み。
 
     private const float SpawnX = 300f;
     private const string SCocky = "res://char/shonen_face.png";
@@ -83,39 +67,7 @@ public partial class StageRei : Node
         (0, "そうだ。きみにしかできない仕事さ。頼んだぞ、ミナ。", SProud),
     };
 
-    // ───────── チュートリアル会話（ミナ＝who1。説明会話で止め、指示帯を残して操作させる）─────────
-    private const string SMina = "res://char/mina_face.png";
-    // T1 移動&ショット
-    private static readonly (int who, string text, string face)[] TutMove =
-        { (1, "まずは身体慣らしです。動いて、撃つ。それだけ。", SMina) };
-    // T2 Focus低速
-    private static readonly (int who, string text, string face)[] TutFocus =
-        { (1, "狭いところは Shift。ゆっくり、丁寧に。", SMina) };
-    // T2.5 回避（低速と対：丁寧に避ける／無敵で抜ける）
-    private static readonly (int who, string text, string face)[] TutDodge =
-        { (1, "危ない時は Alt。一瞬だけ無敵になって、弾を“抜ける”。", SMina) };
-    // T3 グレイズ（練習弾を少数だけ手動Spawn）
-    private static readonly (int who, string text, string face)[] TutGraze =
-        { (1, "弾は怖いだけじゃありません。掠めるほど、左の“やさしさゲージ”が満ちる。寄って、ごらんなさい。", SMina) };
-    // 「やさしさ」が満ちると何が嬉しいか（満タン→Ctrl で全開）まで言い切る。
-    private static readonly (int who, string text, string face)[] TutGrazeOk =
-        { (1, "お見事。", SMina),
-          (1, "やさしさは、浄化でも満ちます。満タンになったら Ctrl。数秒だけ光が溢れ、弾を祓いやすくなりますよ。", SMina) };
-    // T4 ボム
-    private static readonly (int who, string text, string face)[] TutBomb =
-        { (1, "囲まれたら X。一掃して、仕切り直す。", SMina) };
-    private static readonly (int who, string text, string face)[] TutBombSkip =
-        { (1, "次は、ここぞで。", SMina) };
-    // T5 浄化（道中の最初の1体に同期して割り込み）
-    private static readonly (int who, string text, string face)[] TutPurify =
-        { (1, "あの“声”、周りの板を全部祓えば本体に光が届きます。撃ち込みなさい。", SMina) };
-    // 浄化の“ごほうび”（浄化した心＝通貨→ショップ強化）と、その代償（汚染↑→やさしさが鈍る）を1概念1ビートで。
-    private static readonly (int who, string text, string face)[] TutPurifyOk =
-        { (1, "その調子。浄化するたび“浄化した心”が貯まって、ハブのショップで わたくしを強化できます。", SMina),
-          (1, "“救った人 ◯/3”はゴールの目印。心は強化に使うお金——別物ですよ。", SMina),
-          (0, "……ただ、祓うほど左下の“汚染ゲージ”がじわっと上がる。ミナの光が、少しずつ濁るんだ。", SGentle),
-          (0, "濁るほど、かすりや浄化で満ちる“やさしさ”が、ほんの少しずつ届きにくくなる。", SGentle),
-          (1, "ここではまだ無痛。でも奥へ行くほど重くなる。……今は気にせず行きましょう。", SMina) };
+    // ※操作チュートリアルの会話・進行は独立ステージ0（StageZero）へ移設した（A案）。
 
     // 道中突入の小話（世界観：レイを苦しめるのは“世界中の声”）。道中ザコ戦の前に出す。
     private static readonly (int who, string text, string face)[] Mid =
@@ -154,10 +106,10 @@ public partial class StageRei : Node
         (1, "……ご主人様の指示、やけに先回りしていますね。まるで手の内を知っているみたいに。", "res://char/mina_worried.png"),
         (0, "……まだだ。レイは、ここからが本番なんだよ。", SCocky),
     };
-    // 攻撃②の後：少年がうっかり名を呼ぶ＝伏線②の山。
+    // 攻撃②の後：レイが“見透かされる”不安に触れる（伏線②は道中では薄く。名指しは避け、終盤の「全員知人」の反転を温存する）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "……ねえ。あなた、さっきから——どうして、わたしのことを“レイ”って呼ぶの?", RFace),
+        (2, "……なんなの、あなた。さっきから、調子が狂う。まるで、ぜんぶ、見透かされてるみたい。", RFace),
         (0, "————。", SGentle),                                   // 沈黙
         (1, "ご主人様?", "res://char/mina_worried.png"),
         (0, "……気にするな。さあ、来い。きみの全部を、見せてみろ。", SProud),
@@ -219,28 +171,24 @@ public partial class StageRei : Node
         // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（20体＋ボス1）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
-        // チュートリアル発火判定：初回(tutorialSeen==false) or 任意再生(ForceTutorialReplay)。
-        // ただし自動操縦（--demo/--qa）では進行を乱さないよう OFF。
+        // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。STAGE1 は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        bool autoplay = false;
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--demo" || a == "--qa") { autoplay = true; break; }
-        if (game != null && !autoplay && (!game.TutorialSeen || game.ForceTutorialReplay))
-        {
-            _tutorial = true;
-            game.ForceTutorialReplay = false; // 任意再生フラグは消費（TutorialSeen は触らない）
-        }
-        if (Hud != null) Hud.TutorialActive = _tutorial;
+        if (Hud != null) Hud.TutorialActive = false;
 
         // [一時/デバッグ] --boss : 道中を飛ばしてボス戦から始める（予測攻撃のテストプレイ用）。
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--boss")
             {
-                _tutorial = false;
-                if (Hud != null) Hud.TutorialActive = false;
                 _step = 10; // Step_BossSpawn へ直行
                 break;
             }
+
+        // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
+        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
+        if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
+        {
+            _step = game.SelectedEntry == GameManager.StageEntry.Boss ? 10 : 5;
+        }
     }
 
     public override void _Process(double delta)
@@ -253,15 +201,6 @@ public partial class StageRei : Node
         _zEdge = z && !_zHeld;
         _zHeld = z;
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 1 START"); }
-
-        // チュートリアル①〜④：Intro 会話の直後（BubblePaused 解除の瞬間）から、Mid 小話の前に挿入する。
-        // 完了するまで本編 step を 2 へ進めず、ここで操作講座（移動&ショット/Focus/グレイズ/ボム）を回す。
-        if (_tutorial && _step == 2 && _tphase < TutDone)
-        {
-            Tutorial_PreMid(delta);
-            Tutorial_OverloadWatch(delta); // 練習中でも満ちたら全開トースト
-            return;
-        }
 
         switch (_step)
         {
@@ -284,7 +223,6 @@ public partial class StageRei : Node
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。レイ面は共通 TickerWords。
         // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
         if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f);
-        if (_tutorial) Tutorial_OverloadWatch(delta);
     }
 
     private void Advance()
@@ -341,7 +279,6 @@ public partial class StageRei : Node
     }
 
     // 道中ザコ戦“前半”：Spawnerを起動し、MidWaveA体を浄化したら抜ける（→ボスのツイート→チラ見せへ）。
-    // チュートリアル⑤：最初の1体だけ手動で湧かせ、出た瞬間に浄化講座を割り込ませる。
     private void Step_MidwaveA(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -350,19 +287,7 @@ public partial class StageRei : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             _waveSpawnDone = false;
-            if (_tutorial && !_tutorialMidwaveTaught)
-            {
-                Tutorial_PurifyBegin(game);
-                return; // Spawner はまだ起こさない（講座中は1体だけ）
-            }
             StartMidwaveSpawner();
-        }
-
-        // チュートリアル⑤の進行（最初の1体の浄化＋締めの会話）。完了後に Spawner を起動。
-        if (_tutorial && !_tutorialMidwaveTaught)
-        {
-            if (Tutorial_PurifyStep(delta, game)) StartMidwaveSpawner();
-            return;
         }
 
         // ２段階ゲート：①規定数を浄化（or 目標到達でスポーナ自動停止）したらスポーンだけ止める（残ザコは消さない）→②画面のザコを全滅させてから次へ。
@@ -465,6 +390,8 @@ public partial class StageRei : Node
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
+            if (CheckpointFlow.OnMidBossCleared(this, "rei", false)) return;
             Advance();
         }
     }
@@ -529,8 +456,6 @@ public partial class StageRei : Node
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        // チュートリアルを最後まで通せたら既読化（途中離脱なら未読のまま＝次回また出す）。
-        if (_tutorial) game?.MarkTutorialSeen();
         game?.CompleteStage("rei");
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
@@ -539,293 +464,4 @@ public partial class StageRei : Node
     // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
     private int _wordTick;
 
-    // ════════════════════ チュートリアル本体 ════════════════════
-    // _tphase で①〜④を順に回す。説明会話＝Hud(止まる)／操作させる区間＝Hud.SetTutorialHint(止めない)。
-    // 解除＝能動条件（移動/ショット/Focus/グレイズ/ボム）。届かない時はタイムアウト(FB)で流す。
-    private const int TutDone = 12; // ①移動&撃つ ②低速 ②.5回避 ③グレイズ ④ボム の全フェーズ完了
-
-    // 会話用ミニプレイヤ（Step_Lines とは独立の状態を使う）。終了で true。
-    private int _tLine;
-    private bool _tTalkStarted;
-    private bool TutTalk(double delta, (int who, string text, string face)[] lines)
-    {
-        if (!_tTalkStarted)
-        {
-            _tTalkStarted = true;
-            _tLine = 0;
-            _lineHold = 0;
-            Hud.HoldBubble = true;
-            Hud.ClearTutorialHint(); // 説明会話中は常駐指示を消す
-            TutShowLine(lines);
-        }
-        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
-        {
-            Hud.RevealDialogNow();
-            _lineHold = 0;
-        }
-        else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
-        {
-            _lineHold = 0;
-            _tLine++;
-            if (_tLine >= lines.Length)
-            {
-                Hud.HoldBubble = false;
-                Hud.HideBubble();
-                _tTalkStarted = false;
-                return true;
-            }
-            TutShowLine(lines);
-        }
-        return false;
-    }
-
-    private void TutShowLine((int who, string text, string face)[] lines)
-    {
-        var (who, text, face) = lines[_tLine];
-        Hud.ShowDialog((Hud.LineKind)who, text, string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, otherName: "レイ");
-    }
-
-    // フェーズ移行ヘルパ。会話/指示の状態を初期化して次へ。
-    private void TutNext()
-    {
-        _tphase++;
-        _tphaseStarted = false;
-        _tphaseTime = 0;
-        Hud.ClearTutorialHint();
-    }
-
-    private bool TutMovePressed() =>
-        Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down").Length() > 0.2f
-        || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.D);
-
-    // ①〜④（Mid 小話の前）。会話→指示→能動条件解除（FBタイムアウト）の3拍を順に回す。
-    private void Tutorial_PreMid(double delta)
-    {
-        _tphaseTime += delta;
-        switch (_tphase)
-        {
-            // ── ① 移動&ショット ──
-            case 0: // T1 説明
-                if (TutTalk(delta, TutMove)) TutNext();
-                break;
-            case 1: // T1 操作（移動入力＋ショット）。FB6秒。
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    _t1Moved = false; _t1Shot = false; _t1ShotCount = 0;
-                }
-                // 毎フレーム張り直す（全開トーストの自動Clearで指示が消えても復帰する）。
-                Hud.SetTutorialHint("移動=WASD/方向　ショット=Z");
-                if (TutMovePressed()) _t1Moved = true;
-                // ショットは自弾の発生で計測（連射0.11s間隔。約12フレーム弾を見たら5発相当）。
-                if (CountPlayerBullets() >= 1) _t1ShotCount++;
-                if (_t1ShotCount >= 7) _t1Shot = true;
-                if ((_t1Moved && _t1Shot) || _tphaseTime > 6.0) TutNext();
-                break;
-
-            // ── ② Focus 低速 ──
-            case 2: // T2 説明
-                if (TutTalk(delta, TutFocus)) TutNext();
-                break;
-            case 3: // T2 操作（Shift押下0.5秒以上＋移動）。FB5秒。
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    _t2FocusHeld = 0; _t2Moved = false;
-                }
-                Hud.SetTutorialHint("Shift=低速移動"); // 毎フレーム張り直し（全開トースト対策）
-                bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
-                if (focus) _t2FocusHeld += delta;
-                if (focus && TutMovePressed()) _t2Moved = true;
-                if ((_t2FocusHeld >= 0.5 && _t2Moved) || _tphaseTime > 5.0) TutNext();
-                break;
-
-            // ── ②.5 回避（低速の対：丁寧に避ける／無敵で抜ける）──
-            case 4: // T2.5 説明
-                if (TutTalk(delta, TutDodge)) TutNext();
-                break;
-            case 5: // T2.5 操作（実際に1回回避＝Player.DodgeCount 増分で検出）。FB6秒。
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    _tDodgeBase = Player?.DodgeCount ?? 0;
-                    _tDodged = false;
-                }
-                Hud.SetTutorialHint("Alt=回避（無敵）"); // 毎フレーム張り直し（全開トースト対策）
-                if ((Player?.DodgeCount ?? 0) - _tDodgeBase >= 1) _tDodged = true; // 1回でも回避したら達成
-                if (_tDodged || _tphaseTime > 6.0) TutNext();
-                break;
-
-            // ── ③ グレイズ（練習弾を少数だけ手動Spawn）──
-            case 6: // T3 説明
-                if (TutTalk(delta, TutGraze)) TutNext();
-                break;
-            case 7: // T3 操作（弾を数発撒く→グレイズ1回でクリア）。FB8秒。
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    _t3GrazeBase = GetNodeOrNull<GameManager>("/root/Game")?.GrazeCount ?? 0;
-                    _t3Refill = 0;
-                    Tutorial_SpawnGrazeBullets();
-                }
-                Hud.SetTutorialHint("弾にかすると やさしさ↑"); // 毎フレーム張り直し（全開トースト対策）
-                // 避けられて尽きたら少しずつ補充（かすれる弾を絶やさない）。
-                _t3Refill += delta;
-                if (_t3Refill > 1.6 && CountEnemyBullets() < 3) { _t3Refill = 0; Tutorial_SpawnGrazeBullets(); }
-                int gz = GetNodeOrNull<GameManager>("/root/Game")?.GrazeCount ?? 0;
-                if (gz - _t3GrazeBase >= 1 || _tphaseTime > 8.0)
-                {
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    TutNext();
-                }
-                break;
-            case 8: // T3 「お見事」
-                if (TutTalk(delta, TutGrazeOk)) TutNext();
-                break;
-
-            // ── ④ ボム ──
-            case 9: // T4 説明（弾を少し濃いめに撒いてから割り込み）
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    Tutorial_SpawnBombBullets();
-                }
-                if (TutTalk(delta, TutBomb)) TutNext();
-                break;
-            case 10: // T4 操作（ボム1回発動）。FB6秒。
-                if (!_tphaseStarted)
-                {
-                    _tphaseStarted = true;
-                    _t4BombBase = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? 0;
-                    _t4Bombed = false;
-                }
-                Hud.SetTutorialHint("X=ボム"); // 毎フレーム張り直し（全開トースト対策）
-                int bombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? 0;
-                if (bombs < _t4BombBase) _t4Bombed = true; // ボム消費＝発動
-                if (_t4Bombed || _tphaseTime > 6.0)
-                {
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    // 撃たずに流れたときだけ「次は、ここぞで」で締める。撃てたら締め会話は省略。
-                    if (_t4Bombed) TutNext(); // case11 を飛ばす
-                    TutNext();
-                }
-                break;
-            case 11: // T4 結果会話（撃たなかった時のみ来る：「次は、ここぞで」）
-                if (TutTalk(delta, TutBombSkip)) TutNext();
-                break;
-        }
-    }
-
-    // 自弾の本数（ショット練習の達成計測用）。enemy=false の弾を数える。
-    private int _t1ShotCount;
-    private int CountPlayerBullets()
-    {
-        int n = 0;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return 0;
-        foreach (Node c in pool.GetChildren())
-            if (c is Bullet b && b.Active && !b.IsEnemy) n++;
-        return n;
-    }
-
-    private int CountEnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").Count;
-
-    // ③練習弾：少数だけ右側からゆっくり横切らせる（密度を完全制御＝かすりやすい）。
-    private void Tutorial_SpawnGrazeBullets()
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        float px = Player?.GlobalPosition.X ?? 60f;
-        for (int i = 0; i < 4; i++)
-        {
-            float y = 40f + i * 36f;
-            pool.Spawn(new Vector2(Mathf.Min(360f, px + 95f + i * 10f), y), new Vector2(-26f, 0f), isEnemy: true, 3f, 1);
-        }
-    }
-    private double _t3Refill;
-
-    // ④練習弾：少し濃いめ。囲まれ感を出してからボムを促す。
-    private void Tutorial_SpawnBombBullets()
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        for (int i = 0; i < 10; i++)
-        {
-            float x = _rng.RandfRange(40f, 360f);
-            float y = _rng.RandfRange(-40f, -4f);
-            pool.Spawn(new Vector2(x, y), new Vector2(_rng.RandfRange(-16f, 16f), 50f), isEnemy: true, 3f, 1);
-        }
-    }
-    private bool _t4Bombed;
-
-    // ── ⑤ 浄化（道中の最初の1体に同期）──
-    private bool _t5TalkDone;
-    private bool _t5OkStarted;
-    private void Tutorial_PurifyBegin(GameManager? game)
-    {
-        _t5PurifyBase = game?.PurifiedCount ?? 0;
-        _t5TalkDone = false; _t5OkStarted = false;
-        // 最初の1体を手動で湧かせ、出た“瞬間”に会話で割り込む。
-        var e = new GlyphMote();
-        World.AddChild(e);
-        e.GlobalPosition = new Vector2(360f, 108f);
-    }
-
-    // ⑤の進行。浄化（+1）＋締めの「その調子。」まで終えたら true（Spawner 起動へ）。
-    private bool Tutorial_PurifyStep(double delta, GameManager? game)
-    {
-        if (!_t5TalkDone)
-        {
-            if (TutTalk(delta, TutPurify))
-            {
-                _t5TalkDone = true;
-                Hud.SetTutorialHint("敵の周囲パネルを全破壊=浄化");
-            }
-            return false;
-        }
-        bool purified = (game?.PurifiedCount ?? 0) - _t5PurifyBase >= 1;
-        // 浄化前は毎フレーム指示を張り直す（全開トーストの自動Clearで消えても復帰する）。
-        if (!_t5OkStarted) Hud.SetTutorialHint("敵の周囲パネルを全破壊=浄化");
-        // 浄化されるまで操作させる（FBなし＝浄化しないと進めない設計）。
-        // ただし1体が画面外へ逃げて全滅すると詰むので、未浄化なら湧き直す（密度は1体に保つ）。
-        if (!purified && GetTree().GetNodesInGroup("enemies").Count == 0)
-        {
-            var e = new GlyphMote();
-            World.AddChild(e);
-            e.GlobalPosition = new Vector2(360f, 108f);
-        }
-        if (purified)
-        {
-            if (!_t5OkStarted) { _t5OkStarted = true; Hud.ClearTutorialHint(); }
-            if (TutTalk(delta, TutPurifyOk))
-            {
-                _tutorialMidwaveTaught = true;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // ── ⑥ やさしさ全開（表示のみ。会話で止めない）──
-    // 全開が初めて発生した瞬間に Banner＋ナレ。以降はフラグで通常演出（HUD既存トースト）に任せる。
-    private double _t6NarrT;
-    private void Tutorial_OverloadWatch(double delta)
-    {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        if (game == null) return;
-        if (!_t6Shown && game.JustOverloaded)
-        {
-            _t6Shown = true;
-            Hud.ShowBanner("やさしさ全開！");
-            // 直後ナレは「止めない」を守るため、会話バーでなく非停止の指示帯で短く出す。
-            Hud.SetTutorialHint("満ちると5秒、光が溢れる。");
-            _t6NarrT = 3.0;
-        }
-        if (_t6NarrT > 0)
-        {
-            _t6NarrT -= delta;
-            if (_t6NarrT <= 0) Hud.ClearTutorialHint();
-        }
-    }
 }

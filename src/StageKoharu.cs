@@ -145,7 +145,13 @@ public partial class StageKoharu : Node
         _rng.Randomize();
         _step = 1;
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
+
+        // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
+        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
+        if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
+            _step = game.SelectedEntry == GameManager.StageEntry.Boss ? 10 : 5;
     }
 
     public override void _Process(double delta)
@@ -346,6 +352,8 @@ public partial class StageKoharu : Node
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
+            if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
         }
     }

@@ -11,8 +11,13 @@ public partial class Prologue : Node2D
 
     private FontFile _font = null!;
     private double _t;        // フェーズ内経過
-    private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title
+    private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
     private bool _zHeld;
+    private bool _backHeld;
+
+    // 受講確認（既プレイ時のみ）：はい→Stage0 / いいえ→Hub。
+    private int _askSel; // 0=はい / 1=いいえ
+    private bool _askNavHeld;
 
     // 会話送り
     private int _line;
@@ -159,6 +164,29 @@ public partial class Prologue : Node2D
                 _lrHeld = left || right;
                 if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Hub.tscn");
                 break;
+            case 5: // 受講確認（既プレイ時のみ）：↑↓で はい/いいえ、Z決定、X=いいえ。
+                bool au = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_left");
+                bool ad = Input.IsActionPressed("ui_down") || Input.IsActionPressed("ui_right");
+                if ((au || ad) && !_askNavHeld)
+                {
+                    _askSel = (_askSel + 1) % 2; // 2択トグル
+                    Audio.Instance?.PlayUiMove();
+                }
+                _askNavHeld = au || ad;
+                bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+                bool backEdge = back && !_backHeld;
+                _backHeld = back;
+                if (zEdge && _t > 0.2)
+                {
+                    Audio.Instance?.PlayUiConfirm();
+                    GetTree().ChangeSceneToFile(_askSel == 0 ? "res://Stage0.tscn" : "res://Hub.tscn");
+                }
+                else if (backEdge)
+                {
+                    Audio.Instance?.PlayUiCancel();
+                    GetTree().ChangeSceneToFile("res://Hub.tscn"); // X＝受けない
+                }
+                break;
         }
 
         QueueRedraw();
@@ -172,13 +200,26 @@ public partial class Prologue : Node2D
         _reveal = 0; // 会話フェーズに入ったら1行目を最初から打ち出す
     }
 
-    // オープニング（起動カットシーン）の後はハブへ。タイトルは起動時に先に表示する。
+    // オープニング（起動カットシーン）の後の遷移分岐。
+    //   ・チュートリアル未受講(TutorialSeen==false) → 確認を出さず自動でステージ0（完全チュートリアル）へ。
+    //   ・受講済み(TutorialSeen==true)            → 受講確認（はい/いいえ）を出す。はい→Stage0 / いいえ→Hub。
+    //   ※「はじめから」は ResetPersistent 済みだが TutorialSeen は端末ローカル prefs で別管理（消えない）＝
+    //     一度通したプレイヤーには毎回スキップ選択肢を出す、という設計。
     private bool _started;
     private void StartGame()
     {
         if (_started) return;
-        _started = true;
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        var g = GetNodeOrNull<GameManager>("/root/Game");
+        if (g == null || !g.TutorialSeen)
+        {
+            _started = true;
+            GetTree().ChangeSceneToFile("res://Stage0.tscn");
+            return;
+        }
+        // 受講済み：確認フェーズへ（シーン遷移はそこで決める）。
+        _phase = 5;
+        _t = 0;
+        _askSel = 0;
     }
 
     public override void _Draw()
@@ -193,7 +234,39 @@ public partial class Prologue : Node2D
             case 2: DrawIgnite(); break;
             case 3: DrawTalkBackdrop(); DrawTalkSpeakers(); DrawTalk(); break;
             case 4: DrawTitle(); break;
+            case 5: DrawTutorialAsk(); break;
         }
+    }
+
+    // 受講確認ダイアログ（既プレイ時）。TitleMenu.DrawDisplayPicker の作り（暗幕＋角丸Box＋↑↓選択＋Z決定/X戻る）を流用。
+    private void DrawTutorialAsk()
+    {
+        UiKit.BeginDesign(this);
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.66f)); // 暗幕
+        var choices = new[] { "はい（チュートリアルを受ける）", "いいえ（そのまま始める）" };
+        int n = choices.Length;
+        float w = 640, rowH = 60, h = 150 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "チュートリアルを受けますか?", 20, UiKit.White, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 54), "操作の手ほどきです（受けなくても、すぐ始められます）", 12,
+            UiKit.Text3, HorizontalAlignment.Center, w);
+        float top = y + 86;
+        for (int i = 0; i < n; i++)
+        {
+            float ry = top + i * rowH;
+            bool on = i == _askSel;
+            if (on)
+            {
+                UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 50), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", 16, UiKit.Purify);
+            }
+            Color nameCol = on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), choices[i], 19, nameCol);
+        }
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ えらぶ    Z けってい    X 受けない", 11,
+            UiKit.Text3, HorizontalAlignment.Center, w);
+        UiKit.EndDesign(this);
     }
 
     // --- フェーズ0：コードレイン（上昇）＋ アクロスティックの一瞬フラッシュ ---

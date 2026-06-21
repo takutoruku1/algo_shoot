@@ -155,11 +155,10 @@ public partial class TitleMenu : Node2D
                 GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
                 break;
             case Item.Tutorial:
-                // 「チュートリアル」＝STAGE1にチュートリアルを重ねて強制再生（既読フラグは変えない）。
+                // 「チュートリアル」＝独立ステージ0（完全チュートリアル）を再生（既読フラグは変えない）。
                 // DiffSelect を通らないので難易度は Easy に固定（直前の選択を引き継がせない）。
                 _game.Difficulty = GameManager.Diff.Easy;
-                _game.ForceTutorialReplay = true;
-                Go("res://Rei.tscn");
+                Go("res://Stage0.tscn");
                 break;
             case Item.Settings: Go("res://Settings.tscn"); break;
             case Item.Quit:     GetTree().Quit(); break;

@@ -9,6 +9,9 @@ public partial class GlyphMote : Enemy
     private float _campX;   // この位置まで来たら居座る（倒さない限り画面外に出ない）
     private float _vy;      // 居座り中の上下往復
 
+    // チュートリアル（ステージ0 ステップ7）用：弾を撃たない無害な“撃ち込み台”にする。
+    public bool Harmless;
+
     protected override void OnEnemyReady()
     {
         Points = 100;
@@ -28,6 +31,8 @@ public partial class GlyphMote : Enemy
         PanelTexPath = "res://char/panel_anti.png";
         BodyDisplayH = 23f;             // 一回り小さく
         OrbitRadius = 11.5f;
+
+        if (Harmless) PanelsFire = false; // 無害化：弾を撃たない撃ち込み台（やさしさ全開の練習用）
 
         _campX = GD.Randf() * 150f + 120f;                 // 120〜270 のどこかに陣取る
         _vy = (GD.Randf() < 0.5f ? -1f : 1f) * 16f;
