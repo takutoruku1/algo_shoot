@@ -54,6 +54,7 @@ public partial class StageRei : Node
     // 操作させる区間の達成カウント用ベースライン。
     private bool _t1Moved; private bool _t1Shot;
     private double _t2FocusHeld; private bool _t2Moved;
+    private int _tDodgeBase; private bool _tDodged; // 回避（②の直後）：Player.DodgeCount のベースラインと達成フラグ
     private int _t3GrazeBase;
     private int _t4BombBase;
     private int _t5PurifyBase;
@@ -90,6 +91,9 @@ public partial class StageRei : Node
     // T2 Focus低速
     private static readonly (int who, string text, string face)[] TutFocus =
         { (1, "狭いところは Shift。ゆっくり、丁寧に。", SMina) };
+    // T2.5 回避（低速と対：丁寧に避ける／無敵で抜ける）
+    private static readonly (int who, string text, string face)[] TutDodge =
+        { (1, "危ない時は Alt。一瞬だけ無敵になって、弾を“抜ける”。", SMina) };
     // T3 グレイズ（練習弾を少数だけ手動Spawn）
     private static readonly (int who, string text, string face)[] TutGraze =
         { (1, "弾は怖いだけじゃありません。掠めるほど、左の“やさしさゲージ”が満ちる。寄って、ごらんなさい。", SMina) };
@@ -538,7 +542,7 @@ public partial class StageRei : Node
     // ════════════════════ チュートリアル本体 ════════════════════
     // _tphase で①〜④を順に回す。説明会話＝Hud(止まる)／操作させる区間＝Hud.SetTutorialHint(止めない)。
     // 解除＝能動条件（移動/ショット/Focus/グレイズ/ボム）。届かない時はタイムアウト(FB)で流す。
-    private const int TutDone = 10; // ①〜④の全フェーズ完了
+    private const int TutDone = 12; // ①移動&撃つ ②低速 ②.5回避 ③グレイズ ④ボム の全フェーズ完了
 
     // 会話用ミニプレイヤ（Step_Lines とは独立の状態を使う）。終了で true。
     private int _tLine;
@@ -637,11 +641,27 @@ public partial class StageRei : Node
                 if ((_t2FocusHeld >= 0.5 && _t2Moved) || _tphaseTime > 5.0) TutNext();
                 break;
 
+            // ── ②.5 回避（低速の対：丁寧に避ける／無敵で抜ける）──
+            case 4: // T2.5 説明
+                if (TutTalk(delta, TutDodge)) TutNext();
+                break;
+            case 5: // T2.5 操作（実際に1回回避＝Player.DodgeCount 増分で検出）。FB6秒。
+                if (!_tphaseStarted)
+                {
+                    _tphaseStarted = true;
+                    _tDodgeBase = Player?.DodgeCount ?? 0;
+                    _tDodged = false;
+                }
+                Hud.SetTutorialHint("Alt=回避（無敵）"); // 毎フレーム張り直し（全開トースト対策）
+                if ((Player?.DodgeCount ?? 0) - _tDodgeBase >= 1) _tDodged = true; // 1回でも回避したら達成
+                if (_tDodged || _tphaseTime > 6.0) TutNext();
+                break;
+
             // ── ③ グレイズ（練習弾を少数だけ手動Spawn）──
-            case 4: // T3 説明
+            case 6: // T3 説明
                 if (TutTalk(delta, TutGraze)) TutNext();
                 break;
-            case 5: // T3 操作（弾を数発撒く→グレイズ1回でクリア）。FB8秒。
+            case 7: // T3 操作（弾を数発撒く→グレイズ1回でクリア）。FB8秒。
                 if (!_tphaseStarted)
                 {
                     _tphaseStarted = true;
@@ -660,12 +680,12 @@ public partial class StageRei : Node
                     TutNext();
                 }
                 break;
-            case 6: // T3 「お見事」
+            case 8: // T3 「お見事」
                 if (TutTalk(delta, TutGrazeOk)) TutNext();
                 break;
 
             // ── ④ ボム ──
-            case 7: // T4 説明（弾を少し濃いめに撒いてから割り込み）
+            case 9: // T4 説明（弾を少し濃いめに撒いてから割り込み）
                 if (!_tphaseStarted)
                 {
                     _tphaseStarted = true;
@@ -673,7 +693,7 @@ public partial class StageRei : Node
                 }
                 if (TutTalk(delta, TutBomb)) TutNext();
                 break;
-            case 8: // T4 操作（ボム1回発動）。FB6秒。
+            case 10: // T4 操作（ボム1回発動）。FB6秒。
                 if (!_tphaseStarted)
                 {
                     _tphaseStarted = true;
@@ -687,11 +707,11 @@ public partial class StageRei : Node
                 {
                     GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                     // 撃たずに流れたときだけ「次は、ここぞで」で締める。撃てたら締め会話は省略。
-                    if (_t4Bombed) TutNext(); // case9 を飛ばす
+                    if (_t4Bombed) TutNext(); // case11 を飛ばす
                     TutNext();
                 }
                 break;
-            case 9: // T4 結果会話（撃たなかった時のみ来る：「次は、ここぞで」）
+            case 11: // T4 結果会話（撃たなかった時のみ来る：「次は、ここぞで」）
                 if (TutTalk(delta, TutBombSkip)) TutNext();
                 break;
         }

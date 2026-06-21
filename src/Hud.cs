@@ -85,6 +85,7 @@ public partial class Hud : CanvasLayer
 
     // ヒカゲスキル
     private bool _skillHas, _skillReady;
+    private bool _dodgeReady = true; // 回避がCD明けで使えるか（操作ガイドの点灯/淡色に使う。既定は使える）
 
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
     private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
@@ -167,6 +168,7 @@ public partial class Hud : CanvasLayer
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
+    private static string TokDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
@@ -456,6 +458,7 @@ public partial class Hud : CanvasLayer
     }
 
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
+    public void SetDodgeReady(bool ready) => _dodgeReady = ready;
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
     public void SetShotMode(GameManager.ShotMode m, bool announce)
@@ -958,6 +961,7 @@ public partial class Hud : CanvasLayer
             (TokMove,  "移動",  true),
             (TokShot,  "撃つ",  true),
             (TokFocus, "低速",  true),
+            (TokDodge, "回避",  _dodgeReady), // 低速の隣（共に回避手段）。CD中は淡色＝使える時だけ点灯
             (TokBomb,  "ボム",  true),
             (TokMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
             (TokSkill, "技",    _skillHas), // ヒカゲが仲間の時だけ点灯

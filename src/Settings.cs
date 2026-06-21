@@ -78,6 +78,7 @@ public partial class Settings : Node2D
         ctrl.Items.Add(Keys("shot", "ショット", new[] { "Z" }));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
         ctrl.Items.Add(Keys("slow", "低速移動", new[] { "Shift" }, "判定を見ながら避ける"));
+        ctrl.Items.Add(Keys("dodge", "回避", new[] { "Alt" }, "一瞬無敵で弾を抜ける"));
         ctrl.Items.Add(Keys("pause", "ポーズ", new[] { "Esc" }));
 
         var a11y = C("a11y", "アクセシビリティ", "Accessibility");

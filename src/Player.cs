@@ -167,6 +167,10 @@ public partial class Player : Area2D
     private Vector2 _dodgeFrom = Vector2.Zero;  // 回避開始位置
     private float _dodgeTrailAccum = 0f;        // 残像スポーン用タイマ
     private bool _dodgeFlip = false;            // 回避中のスプライト左右反転（スピンの8ステップで真横以降のフレームを FlipH 流用するために使う）
+
+    // HUD・チュートリアル向けの公開アクセサ（挙動には一切影響しない読み取り専用情報）。
+    public bool DodgeReady => _dodgeCd <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）
+    public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
     private float _baseScaleX = 1f;             // 素の横スケール（高さ正規化値）。フレーム差し替えのたびにこの基準で再計算する。
     private int _dodgeGrazeCount = 0;           // 今回の回避でよけた弾数（farming防止のCap判定用）。TryDodge でリセット。
@@ -414,6 +418,8 @@ public partial class Player : Area2D
         _specialHeld = specialKey;
         // HUDにスキル状態を反映
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f);
+        // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
 
         // やさしさ全開＝手動発動（満タン時に Ctrl / R3）。自動発動をやめ“使う”判断を委ねる。
         // Space は ui_accept（＝ショット）と重複し誤発動するため Ctrl（左右どちらも）に変更。
@@ -580,6 +586,7 @@ public partial class Player : Area2D
         _dodgeTimer = DodgeDuration;
         _dodgeInv = DodgeIFrame;
         _dodgeCd = DodgeCooldown;
+        DodgeCount++;         // 実行回数を加算（チュートリアルの回避検出用。報酬や挙動には無関係）
         _dodgeGrazeCount = 0; // 回避ごとに報酬カウンタをリセット（Cap=DodgeGrazeCap までが高報酬対象）
         _dodgeTrailAccum = 0f;
         _dodgeFlip = false; // 開始は正面フレーム（00・FlipHなし）。ApplySpinFrame が毎フレーム更新する。
