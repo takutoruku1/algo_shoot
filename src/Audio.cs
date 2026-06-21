@@ -47,6 +47,8 @@ public partial class Audio : Node
     // 拡張SE（設計書 ③④⑥⑦⑧⑩）。同じくプレースホルダ。
     public AudioStreamWav SfxBomb = null!, SfxOverload = null!, SfxCalm = null!,
                           SfxSpell = null!, SfxStrip = null!;
+    // ボス無防備窓の本体ヒット専用（通常／大威力）。剥離(SfxStrip)・自機被弾(SfxHit)と音域を分ける。
+    public AudioStreamWav SfxBossHit = null!, SfxBossHitHeavy = null!;
     // UI操作音（カーソル/決定/キャンセル/購入成功/失敗）。全画面で共通＝一貫性。
     public AudioStreamWav SfxUiMove = null!, SfxUiConfirm = null!, SfxUiCancel = null!,
                           SfxUiBuy = null!, SfxUiDeny = null!;
@@ -110,6 +112,8 @@ public partial class Audio : Node
         SfxCalm     = SynthCalm();
         SfxSpell    = SynthSpell();
         SfxStrip    = SynthStrip();
+        SfxBossHit      = SynthBossHit();
+        SfxBossHitHeavy = SynthBossHitHeavy();
         SfxUiMove    = SynthUiMove();
         SfxUiConfirm = SynthUiConfirm();
         SfxUiCancel  = SynthUiCancel();
@@ -311,6 +315,16 @@ public partial class Audio : Node
     // ④パネル剥がし：軽い「コツッ」。浄化成立（PlayPurify）より一段軽い剥離音。
     public void PlayStrip()
         => Se(SfxStrip, volDb: -22f, pitch: _rng.RandfRange(0.97f, 1.04f));
+    // ⑪本体ヒット（無防備窓の撃ち込み）：中低域の「刺さる／ドスッ」。
+    //   dmg>=3 は低音を重ねた重い版＝GameCamera.Shake と同期して決定打を映す。
+    //   連射で毎フレーム鳴りうるので小音量・ピッチ微ゆらぎ。SEバス（剥離・被弾と音域を分ける）。
+    public void PlayBossHit(int dmg)
+    {
+        if (dmg >= 3)
+            Se(SfxBossHitHeavy, volDb: -12f, pitch: _rng.RandfRange(0.97f, 1.02f));
+        else
+            Se(SfxBossHit, volDb: -16f, pitch: _rng.RandfRange(0.96f, 1.04f));
+    }
 
     // ───────── 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色」）─────────
     //   少年=温かい木 / ミナ=澄んだガラス / ボス=くぐもり / ナレ=無音。
@@ -535,6 +549,61 @@ public partial class Audio : Node
             float b = Mathf.Sin(Mathf.Tau * 2100f * t) * 0.3f;
             s[i] = (a + b) * env * 0.3f;
         }
+        return MakeWav(s);
+    }
+
+    // ───────── 本体ヒット（無防備窓の撃ち込み専用。設計 §5「手応え＝刺さる」）─────────
+    //   ボスEXPOSED中、本体に自機弾が通った一発ごとの「刺さる／ドスッ」。
+    //   音域を意図的に PlayStrip（高い1400-2100Hzの軽い「コツッ」）と PlayHit（自機被弾＝
+    //   150-80Hzのくぐもったノイズ）の“間”＝中低域に置き、3者を耳で取り違えない。
+    //   ・打撃トランジェント（短いノイズのクリック）＋胴鳴り（220→120Hzのピッチ落ちトーン）。
+    //   ・短く（~90ms）・速い減衰・小音量＝無防備窓で連射しても飽和しても破綻しない。
+    private AudioStreamWav SynthBossHit()
+    {
+        float dur = 0.09f; int n = (int)(Rate * dur);
+        var s = new float[n]; float phase = 0f; float lp = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            // 胴鳴り：中低域のピッチ落ちトーン（刺さりの芯）。
+            float freq = Mathf.Lerp(220f, 120f, t / dur);
+            phase += freq / Rate;
+            float body = Mathf.Sin(phase * Mathf.Tau) * Mathf.Exp(-t / 0.035f);
+            // 打撃トランジェント：ごく短いローパス済みノイズのクリック（“ドスッ”のアタック）。
+            float white = _rng.Randf() * 2f - 1f;
+            lp += (white - lp) * 0.30f; // 一極ローパス：耳に刺さる高域を削る
+            float click = lp * Mathf.Exp(-t / 0.006f);
+            s[i] = (0.72f * body + 0.28f * click) * 0.5f;
+        }
+        FadeEnds(s, (int)(0.003f * Rate));
+        return MakeWav(s);
+    }
+
+    // 大威力（dmg>=3）版：上の芯に低音“ドスッ”を一枚重ねて重く（GameCamera.Shake と同期）。
+    //   サブ（70→45Hz）の胴を足し、少し長く（~150ms）伸ばす＝決定打の重み。
+    private AudioStreamWav SynthBossHitHeavy()
+    {
+        float dur = 0.15f; int n = (int)(Rate * dur);
+        var s = new float[n]; float phase = 0f, subPhase = 0f; float lp = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+            // 胴鳴り（通常版よりやや低く・長く）。
+            float freq = Mathf.Lerp(190f, 95f, t / dur);
+            phase += freq / Rate;
+            float body = Mathf.Sin(phase * Mathf.Tau) * Mathf.Exp(-t / 0.05f);
+            // 低音“ドスッ”レイヤー：サブ正弦（70→45Hz）。アタックを丸く・長く伸ばす重み。
+            float subF = Mathf.Lerp(70f, 45f, t / dur);
+            subPhase += subF / Rate;
+            float sub = Mathf.Sin(subPhase * Mathf.Tau)
+                      * (t < 0.004f ? t / 0.004f : 1f) * Mathf.Exp(-t / 0.09f);
+            // 打撃トランジェント。
+            float white = _rng.Randf() * 2f - 1f;
+            lp += (white - lp) * 0.30f;
+            float click = lp * Mathf.Exp(-t / 0.007f);
+            s[i] = (0.5f * body + 0.45f * sub + 0.22f * click) * 0.55f;
+        }
+        FadeEnds(s, (int)(0.004f * Rate));
         return MakeWav(s);
     }
 

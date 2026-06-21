@@ -16,6 +16,7 @@ public partial class Enemy : Area2D
     protected int PanelCount = 3;
     protected int PanelInk = 2;
     protected float OrbitRadius = 18f;
+    protected float PanelDisplayScale = 1f; // パネル絵＆当たりの拡縮（ザコ縮小用。ボスは1のまま）
     protected float SpinSpeed = 1.4f; // rad/s
     protected bool PanelsFire = true;
     protected float PanelFireInterval = 1.9f;
@@ -47,8 +48,14 @@ public partial class Enemy : Area2D
     private const double VulnDur = 4.0;            // 無防備窓（全難易度共通）
     private const double BreakCueDur = 0.45;       // BREAK タメ＋合図
     private const double RecloseLineDur = 1.2;     // RECLOSE セリフ尺
-    private const double RespawnGap = 0.3;         // RECLOSE 後パネル一括再生成までの間
-    private const double VulnWarnLead = 0.8;       // 窓終了この秒前から明滅を速める（終了予告）
+    private const double RespawnGap = 0.15;        // RECLOSE 後パネル一括再生成までの間（弱気セリフ後の空白を詰めてテンポ維持）
+    private const double VulnWarnLead = 1.0;       // 窓終了この秒前から明滅を速める（終了予告）
+    // ── 無防備窓の「密着ボーナス」(桜井: 引き撃ちだけが最適にならないよう、近いほど得) ──
+    // 本体 GlobalPosition と自機の距離が PointBlankRange 以内なら密着クリティカル。
+    // 当たり判定(_bodyShape/本体GlobalPosition/自機ヒット半径)は一切変えない＝ダメージ計算のみ。
+    private const float PointBlankRange = 48f;     // この内側はクリティカル（2バンドで明快に）
+    private const float PointBlankMult = 1.6f;     // 密着クリティカル倍率（約+60%）
+    private const int   PointBlankCap = 6;         // クリティカル時の上限（過剰即殺を防ぎバー方式の手応えを保つ）
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
@@ -66,6 +73,12 @@ public partial class Enemy : Area2D
     private bool _flashing;
     private double _flashT;
     private const double FlashDur = 0.5;
+
+    // 無防備窓で本体を撃ち込んだ瞬間の手応え（“効いてる”実感）。
+    // 当たり判定は一切触らず、_Draw の発光リング＋音＋（大ダメージ時）軽い揺れ/止めだけで返す。
+    private double _hitFlashT;                 // 被弾発光の残り（_Draw が参照）
+    private const double HitFlashDur = 0.16;   // 短く・即・尾を引かせない（テンポ維持）
+    private float _hitFlashMag;                // 直近被弾の威力（リングの強さに反映）
 
     // ─── 改心の“溶けるような”差し替え演出（クロスフェード＋squash→pop）の調整定数 ───
     // 当たり判定は一切動かさない：すべて _bodySprite の Transform/Modulate のみで表現する。
@@ -170,7 +183,7 @@ public partial class Enemy : Area2D
     private void SpawnOnePanel(float baseAngle)
     {
         var p = new Panel();
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }
@@ -248,9 +261,39 @@ public partial class Enemy : Area2D
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             int dmg = Mathf.Clamp(b.Damage, 1, 4); // ExposedHitDmg=1+ShotDamageBonus を Bullet.Damage 経由で（上限4）
+
+            // 密着ボーナス：自機が本体に PointBlankRange 以内まで踏み込むとクリティカル（約+60%・上限6）。
+            // 当たり判定は不変＝近づくこと自体が接触被弾＆濃い弾幕というリスクの対価。
+            // 自機が取れない場合は base ダメージにフォールバック（null安全）。
+            bool crit = false;
+            if (GetTree().GetFirstNodeInGroup("player") is Player pl)
+            {
+                float d = GlobalPosition.DistanceTo(pl.GlobalPosition);
+                if (d <= PointBlankRange)
+                {
+                    crit = true;
+                    dmg = Mathf.Min(PointBlankCap, Mathf.RoundToInt(dmg * PointBlankMult));
+                }
+            }
+
             _hp = Mathf.Max(0, _hp - dmg);
-            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
+            // クリティカルは金色＋一回り大きく＋"!" で「密着が効いている」を視認させる（通常は既存色）。
+            if (crit)
+                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -10), dmg + "!", FxLayer.Gold, 13);
+            else
+                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
             OnHpChanged();
+
+            // 手応え：本体に当たった一発ごとに「効いてる」を即・短く返す（当たり判定は不変）。
+            // ・発光リング(_Draw)＋本体ヒット専用SE(PlayBossHit)。大威力(>=3)は揺れも足して“刺さった”感を強調。
+            //   PlayBossHit は中低域の「刺さる／ドスッ」＝剥離(PlayStrip)・自機被弾(PlayHit)と音域を分け混同回避。
+            //   dmg>=3 では重い低音版が鳴り、下の GameCamera.Shake と同期して決定打が映える。
+            //   密着クリティカルは dmg が上がるので重い音＋Shake が自然に発火し、リングも気持ち強める。
+            _hitFlashT = HitFlashDur;
+            _hitFlashMag = crit ? dmg + 2 : dmg;
+            Audio.Instance?.PlayBossHit(dmg);
+            if (dmg >= 3) GameCamera.Instance?.Shake(1.6f, 0.10f);
+
             if (_hp <= 0)
             {
                 // 窓中の本体撃破。Redeem は被弾シグナル中に走るため監視・形状の無効化は遅延される。
@@ -549,6 +592,7 @@ public partial class Enemy : Area2D
                 else QueueRedraw();
                 break;
             case BossPhase.Exposed:
+                if (_hitFlashT > 0) _hitFlashT -= delta; // 被弾発光の減衰
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
                 if (_phaseT >= VulnDur) EnterReclose();
                 break;
@@ -584,11 +628,34 @@ public partial class Enemy : Area2D
             {
                 // 露出中：黄金の明滅オーラ。終了 VulnWarnLead 秒前から点滅を速めて終了を予告。
                 double rem = VulnDur - _phaseT;
-                float hz = rem <= VulnWarnLead ? 9f : 3.2f;
+                bool warn = rem <= VulnWarnLead;
+                float hz = warn ? 9f : 3.2f;
                 float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * hz * Mathf.Tau);
-                var aura = new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
+                // 終了予告中はオーラを金→白へ寄せて「閉じる」を色でも伝える（明滅速度だけだと見落としやすい）。
+                var aura = warn
+                    ? new Color(1f, 0.97f, 0.85f, 0.30f + 0.45f * pulse)
+                    : new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
                 DrawCircle(Vector2.Zero, BodyRadius + 6f + 3f * pulse, aura);
                 DrawArc(Vector2.Zero, BodyRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
+                // スイートスポット：PointBlankRange の薄い金リング＝「ここまで近づくと大ダメージ」を学習させる。
+                // 弾を隠さない淡さ＆破線風（点描）で控えめに。当たり判定とは無関係の見せかけ。
+                DrawArc(Vector2.Zero, PointBlankRange, 0, Mathf.Tau, 48,
+                        new Color(1f, 0.84f, 0.32f, 0.10f + 0.06f * pulse), 1f);
+                // 終了予告：窓が「閉じてくる」収縮リング（外→内へ詰まる＝残り時間を直感的に見せる）。
+                if (warn)
+                {
+                    float closing = (float)(rem / VulnWarnLead); // 1→0
+                    float rr = BodyRadius + 9f + 16f * closing;
+                    DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 32, new Color(1f, 1f, 1f, 0.55f * closing), 2f);
+                }
+                // 被弾の手応え：撃ち込んだ瞬間の白い衝撃リング（短く・即・尾を引かない）。
+                if (_hitFlashT > 0)
+                {
+                    float h = (float)(_hitFlashT / HitFlashDur);     // 1→0
+                    float rr = BodyRadius + 4f + (10f + 4f * _hitFlashMag) * (1f - h);
+                    DrawCircle(Vector2.Zero, rr, new Color(1f, 1f, 1f, 0.5f * h));
+                    DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 28, new Color(1f, 1f, 1f, 0.85f * h), 2f);
+                }
             }
         }
 

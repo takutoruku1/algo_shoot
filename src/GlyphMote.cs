@@ -12,10 +12,11 @@ public partial class GlyphMote : Enemy
     protected override void OnEnemyReady()
     {
         Points = 100;
-        BodyRadius = 4f;   // 当たり判定小さめ
+        BodyRadius = 3.4f;   // 当たり判定小さめ（一回り小さく）
         PanelCount = 3;
         PanelInk = 2;
-        OrbitRadius = 14f;
+        OrbitRadius = 11.5f;
+        PanelDisplayScale = 0.82f; // 一回り小さく
         SpinSpeed = 1.4f;
         PanelsFire = true;
         PanelFireInterval = 1.9f;
@@ -25,8 +26,8 @@ public partial class GlyphMote : Enemy
         PreTexPath = "res://char/enemy_anti_pre.png";
         PostTexPath = "res://char/enemy_anti_post.png";
         PanelTexPath = "res://char/panel_anti.png";
-        BodyDisplayH = 28f;
-        OrbitRadius = 14f;
+        BodyDisplayH = 23f;             // 一回り小さく
+        OrbitRadius = 11.5f;
 
         _campX = GD.Randf() * 150f + 120f;                 // 120〜270 のどこかに陣取る
         _vy = (GD.Randf() < 0.5f ? -1f : 1f) * 16f;

@@ -72,7 +72,8 @@ public partial class Settings : Node2D
         gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
 
         var ctrl = C("controls", "操作", "Controls");
-        ctrl.Items.Add(Seg("padstyle", "コントローラ表記", new[] { "Xbox", "PlayStation" }, 0, "パッドのボタン表記"));
+        // 操作表示モード：ヒント/ボタン表記を固定（0=キーボード / 1=PlayStation / 2=Xbox。inputdisplay と一致）。
+        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "PlayStation", "Xbox" }, 0, "ヒントの表記を固定"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
         ctrl.Items.Add(Keys("shot", "ショット", new[] { "Z" }));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
@@ -188,9 +189,10 @@ public partial class Settings : Node2D
             case "mode":
                 DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;
-            // コントローラのボタン表記（0=Xbox / 1=PlayStation）。HUD の操作ガイドへ即反映。
-            case "padstyle":
-                Pad.Style = d.I == 1 ? Pad.ButtonStyle.PlayStation : Pad.ButtonStyle.Xbox;
+            // 操作表示モード（0=キーボード / 1=PlayStation / 2=Xbox）。HUD の操作ガイドへ即反映。
+            // 旧 padstyle(0=Xbox/1=PS) は Pad 側で後方互換に読むだけ（このセグメントが上書きする）。
+            case "inputdisplay":
+                Pad.Display = Pad.IntToDisplay(d.I); // 0/1/2 → Keyboard/PS/Xbox
                 break;
         }
     }
@@ -223,6 +225,12 @@ public partial class Settings : Node2D
             else if (d.Type == SType.Toggle) d.B = data[d.Key].AsBool();
             else if (d.Type == SType.Segment) d.I = data[d.Key].AsInt32();
         }
+        // 操作表示モードが未保存（旧データ）なら、起動時に復元済みの Pad.Display を反映して
+        // セグメントの初期値が実態とズレないようにする（Auto のときは Xbox 表示に寄せる）。
+        if (!data.ContainsKey("inputdisplay"))
+            foreach (var c in _cats) foreach (var d in c.Items)
+                if (d.Key == "inputdisplay")
+                    d.I = Pad.Display == Pad.DisplayMode.Auto ? 2 : Pad.DisplayToInt(Pad.Display);
     }
 
     // ───────── 描画（設計座標 1280×720）─────────

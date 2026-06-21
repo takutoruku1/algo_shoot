@@ -27,27 +27,23 @@ public partial class StageRei : Node
     private bool _zEdge;
     private bool _startBannerShown;
 
-    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。前半→ボスのチラ見せ→後半 の二部構成。
+    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。三部構成で「後半ほど圧が上がる」緩急を作る：
+    //   前半A（緩い導入）→ ボスのチラ見せ → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
+    // 体数より“密度と変化”で長さを作る方針（§3 緩急）：合計20体だが3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWaveA = 6;  // チラ見せ前の道中
-    private const int MidWaveB = 6;  // チラ見せ後の道中（合計12体＝ボリュームUP）
+    private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
+    private const int MidWaveA = 21;  // 導入（チラ見せ前）。緩く立ち上がる。※道中3倍（旧7）
+    private const int MidWaveB = 18;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。※道中3倍（旧6）
+    private const int MidWaveC = 21;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計60体）。※道中3倍（旧7）
 
-    // ボスの“チラ見せ”（カメオ）＝短いミニボス戦。登場→戦闘ループ(撃ち合い)→2ゲージ削り切りで捨て台詞→逃走。
-    // 退場はHP駆動のみ（_cameoHit.Escaped）。会話は一行オーバーレイ(ShowBossLine)で挟むだけ＝弾も移動も止めない。
-    private Sprite2D _cameoSprite = null!;
-    private CameoHit _cameoHit = null!; // カメオの被弾判定（撃つと当たる／削り切りで離脱）
-    private int _cameoPhase;            // 0=登場 1=戦闘ループ 2=捨て台詞 3=逃走
-    private double _cameoT;             // フェーズ内の経過秒
-    private double _cameoBattleT;       // 戦闘ループ全体の経過（保険タイマー用）
-    private double _cameoVolleyT;       // 次の一斉射までのクールタイム
-    private int _cameoPostLine;         // 捨て台詞の表示中インデックス
-    private bool _cameoGaugeTaunt;      // 1ゲージ割った時の挑発を出し終えたか
-    private double _cameoTauntT;        // 定期挑発のクールタイム
+    // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
+    // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
+    private CameoBoss _cameo = null!;
 
     // ───────── チュートリアル（StageRei に重ねる操作講座）─────────
     // 初回プレイ(tutorialSeen==false)で自動 ON、タイトル「あそびかた」から強制再生も可。
-    // 教える順：①移動&ショット ②Focus低速 ③グレイズ（→やさしさゲージの満タン→Space全開まで） ④ボム
+    // 教える順：①移動&ショット ②Focus低速 ③グレイズ（→やさしさゲージの満タン→B全開まで） ④ボム
     //   ⑤浄化（→救った証=インプレ→ショップ強化／代償=汚染ゲージ↑）⑥やさしさ全開（満ちた瞬間の告知）。
     // 各ヒントは「会話で止めて説明 → 常駐指示を残して操作させる → 能動条件で解除（FBにタイムアウト）」の3拍。
     // 教え役はミナ（who1）。会話は既存 Step_Lines を流用、指示帯は Hud.SetTutorialHint（敵/自機は止めない）。
@@ -97,10 +93,10 @@ public partial class StageRei : Node
     // T3 グレイズ（練習弾を少数だけ手動Spawn）
     private static readonly (int who, string text, string face)[] TutGraze =
         { (1, "弾は怖いだけじゃありません。掠めるほど、左の“やさしさゲージ”が満ちる。寄って、ごらんなさい。", SMina) };
-    // 「やさしさ」が満ちると何が嬉しいか（満タン→Space で全開）まで言い切る。
+    // 「やさしさ」が満ちると何が嬉しいか（満タン→Ctrl で全開）まで言い切る。
     private static readonly (int who, string text, string face)[] TutGrazeOk =
         { (1, "お見事。", SMina),
-          (1, "やさしさは、浄化でも満ちます。満タンになったら Space。数秒だけ光が溢れ、弾を祓いやすくなりますよ。", SMina) };
+          (1, "やさしさは、浄化でも満ちます。満タンになったら Ctrl。数秒だけ光が溢れ、弾を祓いやすくなりますよ。", SMina) };
     // T4 ボム
     private static readonly (int who, string text, string face)[] TutBomb =
         { (1, "囲まれたら X。一掃して、仕切り直す。", SMina) };
@@ -172,6 +168,19 @@ public partial class StageRei : Node
         (3, "——レイの影は、ひときわ大きな弾幕を残して、嵐のように奥へ消えていきました。", ""),
     };
 
+    // ───────── ミッドシナリオ枠（後半Bと終盤Cの境＝ボス前の“溜め”）─────────
+    // ここはシナリオ担当が本文を差し込むスロット（who=Hud.LineKind 0=少年/1=ミナ/2=レイ/3=ナレ/4=投稿/5=中継）。
+    // しっかり読ませたいので吹き出し会話（Step_Lines）で出す＝弾は止まる。レイ面のテーマ＝競争/監視に馴染む位置に。
+    // ※プレースホルダ。長さは2〜数行を想定（テンポを殺さない範囲）。
+    private static readonly (int who, string text, string face)[] MidStory =
+    {
+        (3, "——気づけば、無数の“目”が、こちらを採点していました。", ""),  // ザコ＝偵察ドローン/監視カメラの目
+        (1, "この目……ぜんぶ、奥の彼女を、見ているんですね。", "res://char/mina_worried.png"),
+        (0, "ああ。世界中が見てる。誰も追いつけないところまで来て、それでも、誰も隣にいない。", SGentle),
+        (1, "……てっぺんは、こんなに寒いんですか。", ""),
+        (0, "だから——ぼくらだけは、点数をつけずに行くんだ。", SProud),
+    };
+
     // 道中後の小話（ボスへの引き）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
@@ -203,8 +212,8 @@ public partial class StageRei : Node
     {
         _rng.Randomize();
         _step = 1;
-        // 道中ザコ（前半＋後半）＋ボスで浄化カプセルが満ちるよう目標を設定（12体＋ボス1）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + 1);
+        // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（20体＋ボス1）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
         // チュートリアル発火判定：初回(tutorialSeen==false) or 任意再生(ForceTutorialReplay)。
         // ただし自動操縦（--demo/--qa）では進行を乱さないよう OFF。
@@ -244,16 +253,18 @@ public partial class StageRei : Node
         {
             case 1: Step_Lines(delta, Intro); break;
             case 2: Step_Lines(delta, Mid); break;        // 道中突入の小話
-            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦（前半）
+            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             case 4: Step_Lines(delta, BossTalk); break;   // ボスのツイート→MINA×少年の考察
             case 5: Step_BossCameo(delta); break;         // ボスのチラ見せ（登場/挑発/攻撃/逃走）
-            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦（後半）
-            case 7: Step_Lines(delta, MidEnd); break;     // 道中後の小話
-            case 8: Step_BossSpawn(); break;
-            case 9: Step_Lines(delta, BossIntro); break;
-            case 10: Step_BossWait(); break;
-            case 11: Step_Clear(delta); break;
-            case 12: Step_Transition(); break;
+            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
+            case 7: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
+            case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
+            case 9: Step_Lines(delta, MidEnd); break;     // 道中後の小話
+            case 10: Step_BossSpawn(); break;
+            case 11: Step_Lines(delta, BossIntro); break;
+            case 12: Step_BossWait(); break;
+            case 13: Step_Clear(delta); break;
+            case 14: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
         if (_tutorial) Tutorial_OverloadWatch(delta);
@@ -321,6 +332,7 @@ public partial class StageRei : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
+            _waveSpawnDone = false;
             if (_tutorial && !_tutorialMidwaveTaught)
             {
                 Tutorial_PurifyBegin(game);
@@ -336,17 +348,23 @@ public partial class StageRei : Node
             return;
         }
 
-        if (game != null && game.PurifiedCount - _waveBase >= MidWaveA)
+        // ２段階ゲート：①規定数を浄化（or 目標到達でスポーナ自動停止）したらスポーンだけ止める（残ザコは消さない）→②画面のザコを全滅させてから次へ。
+        // StageCleared を OR に入れるのは保険：浄化総数が目標(StageTarget)に達すると Spawner が自動停止し、
+        // それ以上湧かない＝この波の規定数(MidWaveX)に届かないことがある。その場合も残ザコを倒し切って次へ進める（ソフトロック回避）。
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
         {
             _spawner?.Stop();
             _spawner = null!; // 後半で新規に湧かせるため解放
-            ClearStageEnemies(); // 倒し残した居座りザコを片付けてチラ見せへ
+            _waveSpawnDone = true; // 以降は新規スポーンなし。残ザコを全部倒すまで待つ。
+        }
+        if (_waveSpawnDone && GetTree().GetNodesInGroup("enemies").Count == 0)
+        {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Advance();
         }
     }
 
-    // 道中ザコ戦“後半”：チラ見せの後。MidWaveB体を浄化したら本ボスへ。
+    // 道中ザコ戦“B（後半）”：チラ見せの後。やや詰めて始める（StartIntensity 0.35）。MidWaveB体でミッドシナリオへ。
     private void Step_MidwaveB(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -354,201 +372,90 @@ public partial class StageRei : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner();
+            _waveSpawnDone = false;
+            StartMidwaveSpawner(0.35f);
         }
-        if (game != null && game.PurifiedCount - _waveBase >= MidWaveB)
+        // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅でミッドシナリオへ。
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
         {
             _spawner?.Stop();
             _spawner = null!;
-            ClearStageEnemies(); // 倒し残しを片付けて本ボスへ
+            _waveSpawnDone = true;
+        }
+        if (_waveSpawnDone && GetTree().GetNodesInGroup("enemies").Count == 0)
+        {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Advance();
         }
     }
 
-    // ボスの“チラ見せ”（カメオ）：スライド登場→挑発→短い弾幕→捨て台詞→逃走。
-    // 本戦の BossRei は使わず、Stage 側で軽量に制御（立ち絵スプライト＋手撃ち弾＋退場tween）。
+    // 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度（StartIntensity 0.7）でボス直前の山を作る。
+    private void Step_MidwaveC(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _waveSpawnDone = false;
+            StartMidwaveSpawner(0.7f);
+        }
+        // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅で本ボスへ。
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
+        {
+            _spawner?.Stop();
+            _spawner = null!;
+            _waveSpawnDone = true;
+        }
+        if (_waveSpawnDone && GetTree().GetNodesInGroup("enemies").Count == 0)
+        {
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Advance();
+        }
+    }
+
+    // ボスの“チラ見せ”（カメオ）：CameoBoss（本戦ボスと同じ Enemy 派生・シールド制・BossMover）を1体スポーン。
+    // 撃破（HP/サイクル削り切り＝改心）して捨て台詞を流し切る（Finished）まで Stage は進まない。保険退場は無し。
     private void Step_BossCameo(double delta)
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _cameoPhase = 0; _cameoT = 0; _cameoGaugeTaunt = false; _cameoPostLine = -1;
-            var tex = ResourceLoader.Load<Texture2D>("res://char/enemy_rei_pre.png");
-            _cameoSprite = new Sprite2D
+            _cameo = new CameoBoss
             {
-                Name = "ReiCameo", Texture = tex, Centered = true, FlipH = true, // 右向き素材→左（自機側）へ
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear, ZIndex = 5,
+                Name = "ReiCameo",
+                Theme = new CameoTheme
+                {
+                    DisplayName = "レイ", Handle = "@rei_____",
+                    PreTex = "res://char/enemy_rei_pre.png",
+                    CryTex = "res://char/enemy_rei_cry.png",
+                    PostTex = "res://char/enemy_rei_post.png",
+                    Face = RFace,
+                    SpellTint = new Color("b9c2d0"), SpellShape = BulletShape.Orb,
+                    Fire = CameoFireTheme.ReiAggressive,
+                    Aura = FxLayer.BossAura.Rei,
+                    Bgm = Audio.Instance?.BgmBossRei,
+                    IntroLines = CameoTalk1, TauntLines = CameoTalk3, DefeatLines = CameoPost,
+                },
             };
-            if (tex != null) { float s = 64f / tex.GetHeight(); _cameoSprite.Scale = new Vector2(s, s); }
-            World.AddChild(_cameoSprite);
-            _cameoSprite.GlobalPosition = new Vector2(440f, 78f);
-            // 被弾判定を生成して追従（撃てば当たる）。
-            _cameoHit = new CameoHit { Name = "ReiCameoHit" };
-            World.AddChild(_cameoHit);
-            _cameoHit.Bind(_cameoSprite);
-            // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）を出す。本ボス前なので時系列は重ならない。
-            Hud.ShowBossBar("レイ", "@rei_____");
-            Hud.UpdateBossBar(_cameoHit.BarIndex, _cameoHit.TotalBars, _cameoHit.BarFrac);
+            World.AddChild(_cameo);
+            _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
         }
 
-        // 被弾判定をスプライトへ追従＋フラッシュ減衰。逃走確定までは累積を見て早期離脱を判定。
-        if (IsInstanceValid(_cameoHit))
+        // 撃破→捨て台詞を流し切ったら次フェーズへ（本ボスへ向かう道中後半）。
+        if (!IsInstanceValid(_cameo) || _cameo.Finished)
         {
-            _cameoHit.Tick(delta);
-            // 残ゲージ本数・現ゲージ残量をボスバーへ反映（本戦ボスと同じ規約）。
-            Hud.UpdateBossBar(_cameoHit.BarIndex, _cameoHit.TotalBars, _cameoHit.BarFrac);
-        }
-        // 戦闘ループ中(phase1)に2ゲージ削り切ったら捨て台詞→逃走へ。
-        if (_cameoPhase == 1 && IsInstanceValid(_cameoHit) && _cameoHit.Escaped)
-            BeginCameoExit();
-
-        // 登場→戦闘ループ→捨て台詞→逃走。会話で戦闘を止めない（ShowBossLineの一行オーバーレイのみ）。
-        switch (_cameoPhase)
-        {
-            case 0: // スライド登場＋第一声（しっかり見せる演出）
-                _cameoT += delta;
-                float ki = Mathf.Min(1f, (float)_cameoT / 0.6f);
-                _cameoSprite.GlobalPosition = new Vector2(Mathf.Lerp(440f, 300f, (float)Mathf.Ease(ki, 0.4f)), 78f);
-                _cameoBob();
-                if (ki >= 1f && _cameoT > 0.6 && !_cameoGaugeTaunt)
-                {
-                    _cameoGaugeTaunt = true; // 第一声フラグ代わりに流用（戦闘入りで false に戻す）
-                    Hud.ShowBossLine("レイ", CameoHit.FirstBossLine(CameoTalk1), UiKit.Kegare, 2.6);
-                }
-                if (ki >= 1f && _cameoT > 1.0)
-                {
-                    _cameoPhase = 1; _cameoT = 0;
-                    _cameoBattleT = 0; _cameoVolleyT = 0.2; _cameoTauntT = 6.0; _cameoGaugeTaunt = false;
-                }
-                break;
-            case 1: CameoBattleLoop(delta); break;                  // 戦闘ループ（撃ち合い）
-            case 2: CameoPostTalk(delta); break;                    // 捨て台詞（一行オーバーレイで順送り）
-            case 3: // 逃走（奥へスライド＋フェード）
-                _cameoT += delta;
-                float ko = Mathf.Min(1f, (float)_cameoT / 0.8f);
-                _cameoSprite.GlobalPosition = new Vector2(Mathf.Lerp(300f, 470f, ko), Mathf.Lerp(78f, 16f, ko));
-                _cameoSprite.SelfModulate = new Color(1f, 1f, 1f, 1f - ko);
-                if (ko >= 1f)
-                {
-                    _cameoSprite.QueueFree();
-                    if (IsInstanceValid(_cameoHit)) _cameoHit.QueueFree(); // 残留判定を残さない
-                    Hud.HideBossBar();                                     // バー出っ放しにしない（後で本ボスが再表示）
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    Advance();
-                }
-                break;
+            Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            Advance();
         }
     }
 
-    // 戦闘ループ：弾幕を一定間隔で撃ち続け、ゲージの節目で挑発を一行差し込む。弾も移動も止めない。
-    // 退場はHP駆動(BeginCameoExit)のみ。保険タイマー(CameoSafetySec)超過でも退場（QA等で詰まらせない）。
-    private void CameoBattleLoop(double delta)
-    {
-        _cameoBob();
-        _cameoBattleT += delta;
-        _cameoVolleyT -= delta;
-        _cameoTauntT -= delta;
-
-        // ゲージ激化：削れたぶん kind を上げる（2ゲージ＝0→1、終盤の駄目押しで時間でも2へ）。
-        int kind = IsInstanceValid(_cameoHit) ? (CameoHit.CameoBars - 1 - _cameoHit.BarIndex) : 0;
-        if (_cameoBattleT > 14.0) kind = Mathf.Max(kind, 2);
-        kind = Mathf.Clamp(kind, 0, 2);
-
-        if (_cameoVolleyT <= 0)
-        {
-            CameoFireVolley(kind);
-            _cameoVolleyT = 1.4 - kind * 0.2; // 激化で間隔短縮（1.4→1.0）
-        }
-
-        // 1ゲージ目を割った瞬間に一度だけ挑発、その後は定期挑発で世界観を保つ。
-        if (!_cameoGaugeTaunt && IsInstanceValid(_cameoHit) && _cameoHit.BarIndex < CameoHit.CameoBars - 1)
-        {
-            _cameoGaugeTaunt = true;
-            Hud.ShowBossLine("レイ", CameoHit.FirstBossLine(CameoTalk2), UiKit.Kegare, 2.4);
-            _cameoTauntT = 5.0;
-        }
-        else if (_cameoTauntT <= 0)
-        {
-            Hud.ShowBossLine("レイ", CameoHit.FirstBossLine(CameoTalk3), UiKit.Kegare, 2.4);
-            _cameoTauntT = 7.0;
-        }
-
-        // 保険：通常プレイなら先にHPが尽きる長さ。撃たない/与ダメ0でも詰まらせない。
-        if (_cameoBattleT > CameoHit.SafetySec) BeginCameoExit();
-    }
-
-    // 戦闘終了→捨て台詞へ。被弾判定を止めて破棄（以降ノーダメージ）。弾は残したまま（戦闘の余韻）。
-    private void BeginCameoExit()
-    {
-        if (IsInstanceValid(_cameoHit)) { _cameoHit.Monitoring = false; _cameoHit.QueueFree(); }
-        _cameoPhase = 2; _cameoT = 0; _cameoPostLine = -1;
-    }
-
-    // 捨て台詞：CameoPost のボス行(who=2)を一行オーバーレイで順に見せ、終わったら逃走へ。
-    private void CameoPostTalk(double delta)
-    {
-        _cameoBob();
-        _cameoT += delta;
-        if (_cameoPostLine < 0 || _cameoT >= CameoHit.PostLineDur)
-        {
-            _cameoT = 0;
-            _cameoPostLine++;
-            // CameoPost からボス(who=2)の行だけ拾って表示。尽きたら逃走へ。
-            string? line = CameoHit.NextBossLine(CameoPost, ref _cameoPostLine);
-            if (line == null) { _cameoPhase = 3; _cameoT = 0; return; }
-            Hud.ShowBossLine("レイ", line, UiKit.Kegare, CameoHit.PostLineDur);
-        }
-    }
-
-    // 登場後の軽い上下動（“居る”感）。スプライトのYだけ揺らす。
-    private double _cameoBobT;
-    private void _cameoBob()
-    {
-        if (!IsInstanceValid(_cameoSprite)) return;
-        _cameoBobT += 0.016;
-        var p = _cameoSprite.GlobalPosition;
-        _cameoSprite.GlobalPosition = new Vector2(p.X, 78f + Mathf.Sin((float)_cameoBobT * 3f) * 2.5f);
-    }
-
-    // チラ見せの弾幕（kind で強度を上げる）。自機狙いの扇＋全方位。本数は難易度スケール。
-    private void CameoFireVolley(int kind)
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null || !IsInstanceValid(_cameoSprite)) return;
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        Vector2 from = _cameoSprite.GlobalPosition;
-        float spd = 95f * (game?.BulletSpeedMul ?? 1f);
-
-        // 自機狙いの扇（kindで広く・多く）
-        Vector2 toP = ((Player?.GlobalPosition ?? new Vector2(60f, 108f)) - from).Normalized();
-        float baseAng = Mathf.Atan2(toP.Y, toP.X);
-        int fan = game?.ScaleBullets(5 + kind * 2) ?? (5 + kind * 2);
-        float spread = 44f + kind * 12f;
-        for (int i = 0; i < fan; i++)
-        {
-            float a = baseAng + Mathf.DegToRad(((float)i / Mathf.Max(1, fan - 1) - 0.5f) * spread);
-            pool.Spawn(from, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, isEnemy: true, 3f, 1);
-        }
-        // 全方位リング（kindで本数増・第2の回転リングを足す）
-        int ring = game?.ScaleBullets(8 + kind * 4) ?? (8 + kind * 4);
-        for (int i = 0; i < ring; i++)
-        {
-            float a = Mathf.Tau * i / ring;
-            pool.Spawn(from, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (spd * 0.7f), isEnemy: true, 3f, 1);
-        }
-        if (kind >= 2) // 攻撃③だけ：少しずらした第2リングで“本気の片鱗”
-            for (int i = 0; i < ring; i++)
-            {
-                float a = Mathf.Tau * i / ring + Mathf.Tau / (ring * 2);
-                pool.Spawn(from, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (spd * 0.5f), isEnemy: true, 3f, 1);
-            }
-    }
-
-    private void StartMidwaveSpawner()
+    private void StartMidwaveSpawner(float startIntensity = 0f)
     {
         if (_spawner != null) return;
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
     }

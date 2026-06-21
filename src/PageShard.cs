@@ -11,10 +11,11 @@ public partial class PageShard : Enemy
     protected override void OnEnemyReady()
     {
         Points = 80;
-        BodyRadius = 5f;   // 当たり判定小さめ
+        BodyRadius = 4.2f;   // 当たり判定小さめ（一回り小さく）
         PanelCount = 3;
         PanelInk = 2;
-        OrbitRadius = 14f;
+        OrbitRadius = 11.5f;
+        PanelDisplayScale = 0.82f; // 一回り小さく
         SpinSpeed = 1.0f;
         PanelsFire = false; // 無口（最初の練習台）
 
@@ -22,7 +23,7 @@ public partial class PageShard : Enemy
         PreTexPath = "res://char/enemy_anti_pre.png";
         PostTexPath = "res://char/enemy_anti_post.png";
         PanelTexPath = "res://char/panel_anti.png";
-        BodyDisplayH = 28f;
+        BodyDisplayH = 23f;             // 一回り小さく
 
         _campX = GD.Randf() * 150f + 130f;                 // 130〜280
         _vy = (GD.Randf() < 0.5f ? -1f : 1f) * 12f;

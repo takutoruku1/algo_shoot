@@ -37,6 +37,16 @@ public partial class TitleMenu : Node2D
     private int _sel;
     private bool _navHeld, _zHeld, _backHeld, _hasSave, _picking;
     private int _pick; // つづきから：選択中スロット(0..2)
+
+    // 「はじめから」後の操作表示モード3択（毎回必ず通す）。
+    private bool _choosingDisplay;
+    private int _dispSel; // 0=キーボード / 1=コントローラ(PS) / 2=コントローラ(Xbox)
+    private static readonly (Pad.DisplayMode mode, string jp, string en)[] DisplayChoices =
+    {
+        (Pad.DisplayMode.Keyboard,       "キーボード",          "KEYBOARD"),
+        (Pad.DisplayMode.PadPlayStation, "コントローラ（PS）",  "GAMEPAD / PS"),
+        (Pad.DisplayMode.PadXbox,        "コントローラ（Xbox）","GAMEPAD / XBOX"),
+    };
     private double _t, _toastT;
     private string _toast = "";
     private bool _autoplay, _dived;
@@ -62,6 +72,32 @@ public partial class TitleMenu : Node2D
         bool zEdge = z && !_zHeld;
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld;
+
+        // 「はじめから」後の操作表示モード3択中：←→/↑↓で選び Z=決定（＝ゲーム開始）/ X=やめる。
+        if (_choosingDisplay)
+        {
+            int n = DisplayChoices.Length;
+            bool nu = Input.IsActionPressed("ui_up")   || Input.IsActionPressed("ui_left");
+            bool nd = Input.IsActionPressed("ui_down") || Input.IsActionPressed("ui_right");
+            if ((nu || nd) && !_navHeld)
+            {
+                if (nu) _dispSel = (_dispSel + n - 1) % n;
+                if (nd) _dispSel = (_dispSel + 1) % n;
+                Audio.Instance?.PlayUiMove();
+            }
+            _navHeld = nu || nd;
+            if (zEdge)
+            {
+                Audio.Instance?.PlayUiConfirm();
+                Pad.SetDisplayAndSave(DisplayChoices[_dispSel].mode); // 反映＋永続化
+                _game.ResetPersistent();                              // はじめから＝まっさらスタート
+                Go("res://Prologue.tscn");
+            }
+            else if (backEdge) { Audio.Instance?.PlayUiCancel(); _choosingDisplay = false; }
+            _zHeld = z; _backHeld = back;
+            QueueRedraw();
+            return;
+        }
 
         // 「つづきから」スロット選択中：↑↓で選び Z=ロード / X=やめる（0=オートセーブ）
         if (_picking)
@@ -102,9 +138,10 @@ public partial class TitleMenu : Node2D
         switch (Items[_sel].item)
         {
             case Item.NewGame:
-                // はじめから＝まっさらスタート（スロットは消さない。進行は後でメニューから保存）。
-                _game.ResetPersistent();
-                Go("res://Prologue.tscn");
+                // はじめから＝まず操作表示モードを必ず選ばせる（決定でリセット＋プロローグへ）。
+                // 既存の選択があればそれを初期カーソルに（無ければキーボード）。
+                _choosingDisplay = true;
+                _dispSel = Pad.Display == Pad.DisplayMode.Auto ? 0 : Pad.DisplayToInt(Pad.Display);
                 break;
             case Item.Continue:
                 if (_hasSave) { _picking = true; _pick = FirstSlot(); }
@@ -187,6 +224,7 @@ public partial class TitleMenu : Node2D
         DrawTicker();
         DrawToast();
         if (_picking) DrawSlotPicker();
+        if (_choosingDisplay) DrawDisplayPicker();
         UiKit.EndDesign(this);
     }
 
@@ -217,6 +255,37 @@ public partial class TitleMenu : Node2D
                 exists ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 192);
         }
         UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 28), "Z 決定    X 戻る", 11, UiKit.Text3, HorizontalAlignment.Center, w);
+    }
+
+    // 「はじめから」後の操作表示モード3択ダイアログ（キーボード / コントローラPS / コントローラXbox）。
+    // ここで選んだ表記でゲーム中のヒントを統一する（入力自体はどのデバイスも常に有効）。
+    private void DrawDisplayPicker()
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.6f)); // 暗幕
+        int n = DisplayChoices.Length;
+        float w = 600, rowH = 60, h = 132 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 24), "操作表示を選ぶ", 19, UiKit.White, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 50), "ヒントの表記を統一します（入力はどれでも使えます）", 12,
+            UiKit.Text3, HorizontalAlignment.Center, w);
+        float top = y + 80;
+        for (int i = 0; i < n; i++)
+        {
+            float ry = top + i * rowH;
+            bool on = i == _dispSel;
+            if (on)
+            {
+                UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 50), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", 16, UiKit.Purify);
+            }
+            Color nameCol = on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), DisplayChoices[i].jp, 20, nameCol);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 230, ry + 18), DisplayChoices[i].en, 12,
+                on ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 200);
+        }
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ / ←→ えらぶ    Z はじめる    X もどる", 11,
+            UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     private void DrawDanmaku(Vector2 c, float r, Color col)

@@ -12,13 +12,17 @@ public partial class Spawner : Node
     public StageTheme Theme = StageTheme.Default;
     public bool Active { get; private set; }
 
-    private const float SpawnX = 398f;   // 画面右外
-    private const float RampDur = 60f;    // この秒数で最大密度に
-    private const float IntervalStart = 2.0f;
-    private const float IntervalEnd = 0.9f;
-    private const int MaxAlive = 9;       // 同時出現の上限
+    // 道中の“波ごとの圧”を変える起点。0=ふつうに緩く立ち上がる、1=最初から最大密度。
+    // 道中を三部構成にして「後半ほど詰めてくる」緩急を作るため、後続の波で上げて渡す（§3 緩急）。
+    public float StartIntensity = 0f;
 
-    private double _t;   // Begin からの経過
+    private const float SpawnX = 398f;   // 画面右外
+    private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
+    private const float IntervalStart = 2.0f;
+    private const float IntervalEnd = 0.8f;
+    private const int MaxAlive = 10;      // 同時出現の上限
+
+    private double _t;   // Begin からの経過（StartIntensity ぶん前倒しした実効時間）
     private double _cd;  // 次の出現までの残り
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
@@ -27,8 +31,10 @@ public partial class Spawner : Node
     public void Begin()
     {
         Active = true;
-        _t = 0;
-        _cd = 0.8;
+        // 後半の波は StartIntensity ぶんランプを前倒し＝最初からやや詰まった圧で始める。
+        float si = Mathf.Clamp(StartIntensity, 0f, 1f);
+        _t = si * RampDur;
+        _cd = Mathf.Lerp(0.8f, 0.4f, si);
     }
 
     public void Stop() => Active = false;
@@ -61,19 +67,40 @@ public partial class Spawner : Node
         bool drifter = _rng.Randf() < 0.25f; // 25%で撃たない種、75%で撃つ種
 
         Enemy e;
+        Vector2 pos;
         if (Theme == StageTheme.Default)
         {
-            // 既存挙動はそのまま（チュートリアル等の見た目・挙動を一切変えない）。
+            // 既存挙動はそのまま（チュートリアル等の見た目・挙動を一切変えない）＝右から左進。
             e = drifter ? new PageShard() : new GlyphMote();
+            pos = new Vector2(SpawnX, y);
         }
         else
         {
             var (shooter, drift) = EnemyTable.For(Theme);
             var me = new MidEnemy();
             me.Configure(drifter ? drift : shooter);
+            // 出現エッジを散らす：右60% / 右上20% / 右下20%。各エッジから場内の居座り点へ進入する。
+            int edge = _rng.Randf() < 0.6f ? 0 : (_rng.Randf() < 0.5f ? 1 : 2);
+            Vector2 camp;
+            switch (edge)
+            {
+                case 1: // 画面上部・右上から下りてくる
+                    pos = new Vector2(_rng.RandfRange(230f, 360f), -12f);
+                    camp = new Vector2(_rng.RandfRange(180f, 300f), _rng.RandfRange(55f, 110f));
+                    break;
+                case 2: // 画面下部・右下から上ってくる
+                    pos = new Vector2(_rng.RandfRange(324f, 374f), 228f);
+                    camp = new Vector2(_rng.RandfRange(120f, 240f), _rng.RandfRange(110f, 165f));
+                    break;
+                default: // 右から（従来）
+                    pos = new Vector2(SpawnX, y);
+                    camp = new Vector2(_rng.RandfRange(150f, 280f), y);
+                    break;
+            }
+            me.SetEntry(camp);
             e = me;
         }
         World.AddChild(e);
-        e.GlobalPosition = new Vector2(SpawnX, y);
+        e.GlobalPosition = pos;
     }
 }

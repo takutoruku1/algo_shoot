@@ -17,11 +17,13 @@ public partial class Panel : Area2D
     private string _texPath = "";
     private Sprite2D _sprite = null!;
     private bool _hasTex;
+    private float _displayScale = 1f; // ザコ縮小用。絵＆当たりに掛ける（ボスは1）
     private const float DisplayH = 14f;
 
     public void Setup(Enemy owner, float baseAngle, float orbitRadius, float spinSpeed,
-                      bool fires, float fireInterval, int ink, float bulletSpeed, string texPath = "")
+                      bool fires, float fireInterval, int ink, float bulletSpeed, string texPath = "", float displayScale = 1f)
     {
+        _displayScale = displayScale;
         _owner = owner;
         _baseAngle = baseAngle;
         _orbitRadius = orbitRadius;
@@ -41,7 +43,7 @@ public partial class Panel : Area2D
         CollisionMask = 2;   // 自機弾
         Monitoring = true;
         Monitorable = true;
-        _shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = 3f } };
+        _shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = 3f * _displayScale } };
         AddChild(_shape);
         AreaEntered += OnAreaEntered;
 
@@ -58,7 +60,7 @@ public partial class Panel : Area2D
                     Centered = true,
                     TextureFilter = CanvasItem.TextureFilterEnum.Linear,
                 };
-                float s = DisplayH / t.GetHeight();
+                float s = DisplayH * _displayScale / t.GetHeight();
                 _sprite.Scale = new Vector2(s, s);
                 AddChild(_sprite);
             }

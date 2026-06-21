@@ -31,23 +31,18 @@ public partial class StageAkari : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
-    // 道中ザコ戦（Spawner）。Intro後・ボス前に挿入。前半→ボスのチラ見せ→後半 の二部構成。
+    // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る：
+    //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
+    // 体数より“密度と変化”で長さを作る（§3 緩急）：合計20体だが3波で構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private const int MidWaveA = 6;
-    private const int MidWaveB = 6;
-    // ボスの“チラ見せ”（カメオ）＝短いミニボス戦。あかり＝怯え・自責で、攻撃も悲嘆寄り。
-    // 退場はHP駆動のみ（_cameoHit.Escaped）。会話は一行オーバーレイ(ShowBossLine)で挟むだけ＝弾も移動も止めない。
-    private Sprite2D _cameoSprite = null!;
-    private CameoHit _cameoHit = null!; // カメオの被弾判定（撃つと当たる／削り切りで離脱）
-    private int _cameoPhase;            // 0=登場 1=戦闘ループ 2=捨て台詞 3=逃走
-    private double _cameoT;             // フェーズ内の経過秒
-    private double _cameoBattleT;       // 戦闘ループ全体の経過（保険タイマー用）
-    private double _cameoVolleyT;       // 次の一斉射までのクールタイム
-    private int _cameoPostLine;         // 捨て台詞の表示中インデックス
-    private bool _cameoGaugeTaunt;      // 1ゲージ割った時の挑発を出し終えたか
-    private double _cameoTauntT;        // 定期挑発のクールタイム
-    private double _cameoBobT;
+    private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
+    private const int MidWaveA = 21;  // 道中3倍（旧7）
+    private const int MidWaveB = 18;  // 道中3倍（旧6）
+    private const int MidWaveC = 21;  // 道中3倍（旧7）＝合計60体
+    // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
+    // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
+    private CameoBoss _cameo = null!;
 
     // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。
     // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継。
@@ -123,6 +118,19 @@ public partial class StageAkari : Node
         (0, "……いいわけ、ないだろ。だから——奥で、ちゃんと、届けるんだ。", SGentle),
     };
 
+    // ───────── ミッドシナリオ枠（後半Bと終盤Cの境＝ボス前の“溜め”）─────────
+    // シナリオ担当が本文を差し込むスロット（who=Hud.LineKind 0=少年/1=ミナ/2=あかり/3=ナレ/4=投稿/5=中継）。
+    // 吹き出し会話（Step_Lines）で出す＝弾は止まる。あかり面のテーマ＝教室/告白に馴染む位置に。
+    // ※プレースホルダ。2〜数行を想定。
+    private static readonly (int who, string text, string face)[] MidStory =
+    {
+        (3, "——宙に浮いた机に、開きっぱなしのノートが一冊。同じ三文字だけが、ずっと並んでいました。", ""),  // ザコ＝宙浮きの机/開いたノート
+        (1, "「すき」「すき」「すき」……書いては、消して。一度も、渡せなかったんですね。", "res://char/mina_worried.png"),
+        (0, "ああ。言えなかった言葉は、消えやしない。こうやって、教室に残り続ける。", SGentle),
+        (1, "……たった一言、伝わっていれば。それだけのことが、いちばん遠い。", ""),
+        (0, "だから——奥で、ちゃんと言わせてやるんだ。最後まで言いそびれた、その続きを。", SCocky),
+    };
+
     // 道中後の小話（ボスへの引き）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
@@ -147,8 +155,8 @@ public partial class StageAkari : Node
     {
         _rng.Randomize();
         _step = 1;
-        // 道中（前半＋後半）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + 1);
+        // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
     }
 
     private bool _startBannerShown;
@@ -167,16 +175,18 @@ public partial class StageAkari : Node
         {
             case 1: Step_Lines(delta, Intro); break;
             case 2: Step_Lines(delta, Mid); break;        // 道中突入の小話
-            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦（前半）
+            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             case 4: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察
             case 5: Step_BossCameo(delta); break;         // ボスのチラ見せ
-            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦（後半）
-            case 7: Step_Lines(delta, MidEnd); break;     // 道中後の小話
-            case 8: Step_BossSpawn(); break;
-            case 9: Step_Lines(delta, BossIntro); break;  // ボスは出現済みだが会話中は止まる
-            case 10: Step_BossWait(); break;
-            case 11: Step_Clear(delta); break;
-            case 12: Step_Transition(); break;
+            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
+            case 7: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
+            case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
+            case 9: Step_Lines(delta, MidEnd); break;     // 道中後の小話
+            case 10: Step_BossSpawn(); break;
+            case 11: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
+            case 12: Step_BossWait(); break;
+            case 13: Step_Clear(delta); break;
+            case 14: Step_Transition(); break;
         }
         if (_bossActive) Rain(delta);
     }
@@ -243,9 +253,12 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
+            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
-        if (game != null && game.PurifiedCount - _waveBase >= MidWaveA)
+        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
+        // 全滅ハント（60体の中で最後の1体探し）を要求しない＝進行不能を防ぐ。戦闘中の居座りは維持。
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
@@ -254,7 +267,7 @@ public partial class StageAkari : Node
         }
     }
 
-    // ---- 道中ザコ戦“後半”：チラ見せの後。MidWaveB体浄化で本ボスへ ----
+    // ---- 道中ザコ戦“B（後半）”：チラ見せの後。やや詰めて始める。MidWaveB体でミッドシナリオへ ----
     private void Step_MidwaveB(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -262,9 +275,11 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            StartMidwaveSpawner();
+            _waveSpawnDone = false;
+            StartMidwaveSpawner(0.35f);
         }
-        if (game != null && game.PurifiedCount - _waveBase >= MidWaveB)
+        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋ミッドシナリオへ（全滅ハント不要＝進行不能を防ぐ）。
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
@@ -273,10 +288,31 @@ public partial class StageAkari : Node
         }
     }
 
-    private void StartMidwaveSpawner()
+    // ---- 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度でボス直前の山を作る。MidWaveC体で本ボスへ ----
+    private void Step_MidwaveC(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _waveSpawnDone = false;
+            StartMidwaveSpawner(0.7f);
+        }
+        // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
+        {
+            _spawner?.Stop(); _spawner = null!;
+            ClearStageEnemies();
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Advance();
+        }
+    }
+
+    private void StartMidwaveSpawner(float startIntensity = 0f)
     {
         if (_spawner != null) return;
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari };
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
     }
@@ -287,157 +323,41 @@ public partial class StageAkari : Node
             if (n is Enemy e) e.QueueFree();
     }
 
-    // ---- ボスの“チラ見せ”：登場→（怯えの掛け合い→悲嘆の弾）×3→『見ないで』→逃走 ----
+    // ---- ボスの“チラ見せ”：CameoBoss（本戦ボスと同じ Enemy 派生・シールド制・BossMover）を1体スポーン ----
+    // 撃破（HP/サイクル削り切り＝改心）して捨て台詞を流し切る（Finished）まで Stage は進まない。保険退場は無し。
     private void Step_BossCameo(double delta)
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _cameoPhase = 0; _cameoT = 0; _cameoGaugeTaunt = false; _cameoPostLine = -1;
-            var tex = ResourceLoader.Load<Texture2D>("res://char/enemy_akari_pre.png");
-            _cameoSprite = new Sprite2D { Name = "AkariCameo", Texture = tex, Centered = true, FlipH = true,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear, ZIndex = 5 };
-            if (tex != null) { float s = 64f / tex.GetHeight(); _cameoSprite.Scale = new Vector2(s, s); }
-            World.AddChild(_cameoSprite);
-            _cameoSprite.GlobalPosition = new Vector2(440f, 78f);
-            _cameoHit = new CameoHit { Name = "AkariCameoHit" };
-            World.AddChild(_cameoHit);
-            _cameoHit.Bind(_cameoSprite);
-            // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）を出す。本ボス前なので時系列は重ならない。
-            Hud.ShowBossBar("あかり", "@akari.");
-            Hud.UpdateBossBar(_cameoHit.BarIndex, _cameoHit.TotalBars, _cameoHit.BarFrac);
-        }
-
-        // 被弾判定の追従＋早期離脱判定（2ゲージ削り切ったら捨て台詞→逃走へ）＋ボスバー反映。
-        if (IsInstanceValid(_cameoHit))
-        {
-            _cameoHit.Tick(delta);
-            Hud.UpdateBossBar(_cameoHit.BarIndex, _cameoHit.TotalBars, _cameoHit.BarFrac);
-        }
-        // 戦闘ループ中(phase1)に2ゲージ削り切ったら捨て台詞→逃走へ。
-        if (_cameoPhase == 1 && IsInstanceValid(_cameoHit) && _cameoHit.Escaped)
-            BeginCameoExit();
-
-        // 登場→戦闘ループ→捨て台詞→逃走。会話で戦闘を止めない（ShowBossLineの一行オーバーレイのみ）。
-        switch (_cameoPhase)
-        {
-            case 0: // スライド登場＋第一声（しっかり見せる演出）
-                _cameoT += delta;
-                float ki = Mathf.Min(1f, (float)_cameoT / 0.6f);
-                _cameoSprite.GlobalPosition = new Vector2(Mathf.Lerp(440f, 300f, (float)Mathf.Ease(ki, 0.4f)), 78f);
-                CameoBob();
-                if (ki >= 1f && _cameoT > 0.6 && !_cameoGaugeTaunt)
+            _cameo = new CameoBoss
+            {
+                Name = "AkariCameo",
+                Theme = new CameoTheme
                 {
-                    _cameoGaugeTaunt = true;
-                    Hud.ShowBossLine("あかり", CameoHit.FirstBossLine(CameoTalk1), UiKit.Kegare, 2.6);
-                }
-                if (ki >= 1f && _cameoT > 1.0)
-                {
-                    _cameoPhase = 1; _cameoT = 0;
-                    _cameoBattleT = 0; _cameoVolleyT = 0.2; _cameoTauntT = 6.0; _cameoGaugeTaunt = false;
-                }
-                break;
-            case 1: CameoBattleLoop(delta); break;                  // 戦闘ループ（撃ち合い）
-            case 2: CameoPostTalk(delta); break;                    // 捨て台詞（一行オーバーレイで順送り）
-            case 3: // 逃走（奥へスライド＋フェード）
-                _cameoT += delta;
-                float ko = Mathf.Min(1f, (float)_cameoT / 0.8f);
-                _cameoSprite.GlobalPosition = new Vector2(Mathf.Lerp(300f, 470f, ko), Mathf.Lerp(78f, 16f, ko));
-                _cameoSprite.SelfModulate = new Color(1f, 1f, 1f, 1f - ko);
-                if (ko >= 1f)
-                {
-                    _cameoSprite.QueueFree();
-                    if (IsInstanceValid(_cameoHit)) _cameoHit.QueueFree(); // 残留判定を残さない
-                    Hud.HideBossBar();                                     // バー出っ放しにしない（後で本ボスが再表示）
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    Advance();
-                }
-                break;
-        }
-    }
-
-    // 戦闘ループ：弾幕を一定間隔で撃ち続け、ゲージの節目で挑発を一行差し込む。弾も移動も止めない。
-    // 退場はHP駆動(BeginCameoExit)のみ。保険タイマー(CameoHit.SafetySec)超過でも退場（詰まらせない）。
-    private void CameoBattleLoop(double delta)
-    {
-        CameoBob();
-        _cameoBattleT += delta;
-        _cameoVolleyT -= delta;
-        _cameoTauntT -= delta;
-
-        int kind = IsInstanceValid(_cameoHit) ? (CameoHit.CameoBars - 1 - _cameoHit.BarIndex) : 0;
-        if (_cameoBattleT > 14.0) kind = Mathf.Max(kind, 2);
-        kind = Mathf.Clamp(kind, 0, 2);
-
-        if (_cameoVolleyT <= 0)
-        {
-            CameoFireVolley(kind);
-            _cameoVolleyT = 1.4 - kind * 0.2;
+                    DisplayName = "あかり", Handle = "@akari.",
+                    PreTex = "res://char/enemy_akari_pre.png",
+                    CryTex = "res://char/enemy_akari_cry.png",
+                    PostTex = "res://char/enemy_akari_post.png",
+                    Face = AFace,
+                    SpellTint = new Color("6c9cd8"), SpellShape = BulletShape.Needle,
+                    Fire = CameoFireTheme.AkariGrief,
+                    Aura = FxLayer.BossAura.Akari,
+                    Bgm = Audio.Instance?.BgmBossAkari,
+                    IntroLines = CameoTalk1, TauntLines = CameoTalk3, DefeatLines = CameoPost,
+                },
+            };
+            World.AddChild(_cameo);
+            _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
         }
 
-        if (!_cameoGaugeTaunt && IsInstanceValid(_cameoHit) && _cameoHit.BarIndex < CameoHit.CameoBars - 1)
+        // 撃破→捨て台詞を流し切ったら次フェーズへ（道中後半）。
+        if (!IsInstanceValid(_cameo) || _cameo.Finished)
         {
-            _cameoGaugeTaunt = true;
-            Hud.ShowBossLine("あかり", CameoHit.FirstBossLine(CameoTalk2), UiKit.Kegare, 2.4);
-            _cameoTauntT = 5.0;
-        }
-        else if (_cameoTauntT <= 0)
-        {
-            Hud.ShowBossLine("あかり", CameoHit.FirstBossLine(CameoTalk3), UiKit.Kegare, 2.4);
-            _cameoTauntT = 7.0;
-        }
-
-        if (_cameoBattleT > CameoHit.SafetySec) BeginCameoExit();
-    }
-
-    // 戦闘終了→捨て台詞へ。被弾判定を止めて破棄（以降ノーダメージ）。弾は残したまま（余韻）。
-    private void BeginCameoExit()
-    {
-        if (IsInstanceValid(_cameoHit)) { _cameoHit.Monitoring = false; _cameoHit.QueueFree(); }
-        _cameoPhase = 2; _cameoT = 0; _cameoPostLine = -1;
-    }
-
-    // 捨て台詞：CameoPost のボス行(who=2)を一行オーバーレイで順に見せ、終わったら逃走へ。
-    private void CameoPostTalk(double delta)
-    {
-        CameoBob();
-        _cameoT += delta;
-        if (_cameoPostLine < 0 || _cameoT >= CameoHit.PostLineDur)
-        {
-            _cameoT = 0;
-            _cameoPostLine++;
-            string? line = CameoHit.NextBossLine(CameoPost, ref _cameoPostLine);
-            if (line == null) { _cameoPhase = 3; _cameoT = 0; return; }
-            Hud.ShowBossLine("あかり", line, UiKit.Kegare, CameoHit.PostLineDur);
-        }
-    }
-    private void CameoBob()
-    {
-        if (!IsInstanceValid(_cameoSprite)) return;
-        _cameoBobT += 0.016;
-        var p = _cameoSprite.GlobalPosition;
-        _cameoSprite.GlobalPosition = new Vector2(p.X, 78f + Mathf.Sin((float)_cameoBobT * 3f) * 2.5f);
-    }
-
-    // あかりの弾は“悲嘆の雨”寄り：上から降る自責の雨＋本人周りの弱いリング（弾速控えめ・攻撃的でない）。
-    private void CameoFireVolley(int kind)
-    {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null || !IsInstanceValid(_cameoSprite)) return;
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        Vector2 from = _cameoSprite.GlobalPosition;
-        float spd = 80f * (game?.BulletSpeedMul ?? 1f);
-        int rain = game?.ScaleBullets(7 + kind * 2) ?? (7 + kind * 2);
-        for (int i = 0; i < rain; i++)
-        {
-            float x = 20f + 344f * (i + 0.5f) / rain;
-            pool.Spawn(new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd * 0.9f), isEnemy: true, 3f, 1);
-        }
-        int ring = game?.ScaleBullets(6 + kind * 3) ?? (6 + kind * 3);
-        for (int i = 0; i < ring; i++)
-        {
-            float a = Mathf.Tau * i / ring;
-            pool.Spawn(from, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (spd * 0.6f), isEnemy: true, 3f, 1);
+            Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            Advance();
         }
     }
 

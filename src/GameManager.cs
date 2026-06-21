@@ -467,8 +467,9 @@ public partial class GameManager : Node
     public bool IsOverload { get; private set; }
     private double _overloadT;
     private const double OverloadDur = 5.0;
-    private const float GrazeGain = 0.10f;
-    private const float PurifyGain = 0.09f;
+    // 全開の充填は「倒す（浄化）」を主役に、かすりは前に出るほど効くブースターに（§2-4 攻めたほうが得）。
+    private const float GrazeGain = 0.07f;   // 約14回（risky な薬味）
+    private const float PurifyGain = 0.12f;  // 約8体（攻めて倒すのが全開の主動力）
     public bool JustOverloaded { get; private set; } // 発動した瞬間のフラグ（UI用、1フレーム）
     // ゲージ表示値: 全開中は残り時間、通常は蓄積量
     public float Kindness => IsOverload ? (float)(_overloadT / OverloadDur) : _kindFill;
@@ -538,6 +539,17 @@ public partial class GameManager : Node
         _kindFill = 0f; // 発動と同時に消費（ゲージは全開タイマー表示へ切り替わる）
         return true;
     }
+
+    // 道中カメオ（ミニボス）をHP削り切りで撃破した時の報酬。Escaped経路のみ・1回だけ呼ぶ。
+    // やさしさゲージは「半分〜大きめ一気」を狙って 0.6 を加算（グレイズ/浄化と同じ AddKindness 経路＝
+    // KindnessGainMul もかかる）。インプレは付けず、スコアのみ少々加点する。
+    public void RewardCameoDefeat()
+    {
+        AddKindness(CameoKindnessReward);  // 直後の本ボス戦で全開を撃ちやすくする量
+        Score += CameoScoreReward;         // スコア少々
+    }
+    private const float CameoKindnessReward = 0.6f;
+    private const int CameoScoreReward = 900;
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
     public void AddPurify(int basePoints)

@@ -43,7 +43,10 @@ public partial class Hud : CanvasLayer
     private string _spellHandle = "";
     private Color _spellCol = Colors.White;
     private double _spellTimer;
-    private const double SpellShowDur = 3.8;
+    private const double SpellShowDur = 5.0;   // 保持を延ばし「必殺技が来た」を見落とさせない（旧3.8）
+    private const double SpellPopDur = 0.30;   // ポップイン（アンティシペーション→オーバーシュート着地）
+    private const double SpellFadeDur = 0.80;  // フォロースルー（フェード＋わずかにスケールダウン）
+    private double _spellGlow;                 // 発動の瞬間に立つ宣言まわりの加算グロー（自前・短命。弾は隠さない）
 
     // フラッシュ
     private float _flashAlpha;
@@ -106,13 +109,24 @@ public partial class Hud : CanvasLayer
     public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
     public void ClearTutorialHint() => _tutorialHint = "";
 
-    // 操作子トークン（直近デバイスで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
+    // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
+    // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z";
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
+
+    // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
+    // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
+    private static string AllShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z / Space / Enter";
+    private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
+    private static string AllFocus => Pad.UsingPad ? $"{Pad.Face(JoyButton.LeftShoulder)} / {Pad.Face(JoyButton.RightShoulder)}" : "Shift";
+    private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
+    private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
+    private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
 
     // ティッカー（降ってくる言葉）
     private double _t;
@@ -175,7 +189,11 @@ public partial class Hud : CanvasLayer
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
         if (_bossLineTimer > 0) { _bossLineTimer -= delta; if (_bossLineTimer <= 0) _bossLine = ""; }
-        if (_spellTimer > 0) { _spellTimer -= delta; }
+        // スペル宣言は会話バブル表示中は時間を止める＝発動の宣言を“戦闘が始まる瞬間”に確実に見せる。
+        // （ボス _Ready の宣言が開幕イントロのバブルに食われて見落とされていた問題への対処。
+        //   発動＝宣言の同期はそのままに、見せ場だけ非バブル中に揃える。）
+        if (_spellTimer > 0 && !BubblePaused) { _spellTimer -= delta; }
+        if (_spellGlow > 0 && !BubblePaused) { _spellGlow = Mathf.Max(0.0, _spellGlow - delta / 0.45); } // 約0.45秒で収束
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
 
         // 操作ガイド：オープニング会話が明けて操作を握った瞬間に一度だけ提示。
@@ -313,7 +331,11 @@ public partial class Hud : CanvasLayer
     {
         _spellWho = who; _spellHandle = handle; _spellName = spellName;
         _spellCol = col; _spellTimer = SpellShowDur;
+        _spellGlow = 1.0; // 発動の瞬間に立つ加算グロー（宣言まわりだけ・短命）。弾の視認は侵さない。
         Audio.Instance?.PlaySpell(); // ⑩弾幕変化を耳で予告（Alert・被弾の下/グレイズの上）
+        // 「溜め→放つ」を体で：ごく短いヒットストップ＋軽い振動（被弾0.09/5.5 より弱く控えめ）。
+        GameCamera.Instance?.Hitstop(0.05);
+        GameCamera.Instance?.Shake(2.6f, 0.20f);
     }
 
     public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
@@ -518,37 +540,85 @@ public partial class Hud : CanvasLayer
     private void DrawSpellCard(HudCanvas ci)
     {
         double age = SpellShowDur - _spellTimer;
-        float a = 1f;
-        if (age < 0.25) a = (float)(age / 0.25);                 // スライドイン
-        else if (_spellTimer < 0.7) a = (float)(_spellTimer / 0.7); // フェードアウト
-        a = Mathf.Clamp(a, 0f, 1f);
+
+        // ── 三段のリズム：ポップイン（アンティシペーション→オーバーシュート）→ ホールド → フォロースルー ──
+        float a;        // 不透明度
+        float scale;    // 中心まわりのスケール
+        float slide;    // 縦スライド（上から差して、消えるとき上へ抜ける）
+        if (age < SpellPopDur)
+        {
+            float p = (float)(age / SpellPopDur);                 // 0→1
+            a = Mathf.Clamp(p / 0.55f, 0f, 1f);                  // 立ち上がりは速く
+            // Back ease-out：0.86 から 1.06 をかすめて 1.0 へ着地（弾性オーバーシュート）
+            float bo = BackOut(p);
+            scale = 0.86f + 0.14f * bo;
+            slide = -14f * (1f - bo);                            // 上から差し込む
+        }
+        else if (_spellTimer < SpellFadeDur)
+        {
+            float p = (float)(_spellTimer / SpellFadeDur);        // 1→0
+            a = Mathf.Clamp(p, 0f, 1f);
+            scale = 0.97f + 0.03f * p;                           // わずかに縮みながら
+            slide = -6f * (1f - p);                              // 上へ抜けて消える
+        }
+        else { a = 1f; scale = 1f; slide = 0f; }                 // ホールド
+
+        float glow = (float)_spellGlow;                          // 発動の瞬間に立つ加算成分（短命）
 
         string title = "『" + _spellName + "』";
-        float titleW = UiKit.TextW(UiKit.ZenBold, title, 16);
-        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 13) + UiKit.TextW(UiKit.Mono, _spellHandle, 11) + 90f;
-        float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 80f, 360f, 760f);
-        float x = 640 - w / 2f, y = 128 - (1f - a) * 8f, h = 56;
+        float titleW = UiKit.TextW(UiKit.ZenBold, title, 17);
+        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 14) + UiKit.TextW(UiKit.Mono, _spellHandle, 11) + 96f;
+        float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 84f, 380f, 780f);
+        float h = 60f;
+        float x = 640 - w / 2f, y = 126f + slide;
+        Vector2 center = new(640f, y + h / 2f);
 
         Color col = _spellCol;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.047f, 0.035f, 0.071f, 0.82f * a), 12f, new Color(col, 0.45f * a), 1.2f);
+
+        // 中心まわりにスケール（弾の視認を侵さないよう、宣言カードだけ拡縮。設計スケールは維持）。
+        ci.DrawSetTransform(center * UiKit.Scale, 0f, new Vector2(UiKit.Scale * scale, UiKit.Scale * scale));
+
+        // 発動の瞬間：カード背後に広がる加算グロー（控えめ・短命＝弾は隠さない）。
+        if (glow > 0.001f)
+            UiKit.RadialGlow(ci, Vector2.Zero, 150f + 40f * glow, col, 0.30f * glow);
+
+        // カード本体（中心ローカル座標）。背景を少し濃く・縁を太く＝背景タイムラインに埋もれない。
+        Rect2 box = new(-w / 2f, -h / 2f, w, h);
+        UiKit.Box(ci, box, new Color(0.043f, 0.031f, 0.065f, 0.90f * a), 13f,
+            new Color(col, (0.55f + 0.45f * glow) * a), 1.4f + 0.8f * glow);
+
+        float left = -w / 2f, top = -h / 2f;
         // アバター＋認証
-        Vector2 ac = new(x + 28, y + h / 2f);
-        UiKit.RadialGlow(ci, ac, 16f, col, 0.4f * a);
-        ci.DrawCircle(ac, 13f, new Color(col.R * 0.45f, col.G * 0.45f, col.B * 0.45f, a));
-        ci.DrawCircle(ac + new Vector2(9, 9), 5.5f, new Color(col, a));
+        Vector2 ac = new(left + 30, 0f);
+        UiKit.RadialGlow(ci, ac, 17f, col, (0.45f + 0.4f * glow) * a);
+        ci.DrawCircle(ac, 14f, new Color(col.R * 0.45f, col.G * 0.45f, col.B * 0.45f, a));
+        ci.DrawCircle(ac + new Vector2(9, 9), 5.8f, new Color(col, a));
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 6, ac.Y + 4), "✓", 8, new Color(1, 1, 1, a));
         // 名前＋ハンドル
-        float tx = x + 52;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 9), _spellWho, 13, new Color(1, 1, 1, a));
-        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 13);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, y + 12), _spellHandle, 11, new Color(UiKit.Text3, a));
-        // 右肩「● スペル発動」（点滅の余裕として常時表示）
+        float tx = left + 56;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 10), _spellWho, 14, new Color(1, 1, 1, a));
+        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 14);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, top + 14), _spellHandle, 11, new Color(UiKit.Text3, a));
+        // 右肩「● スペル発動」（発動直後は明滅で“今来た”を主張）
         string tag = "スペル発動";
         float tagW = UiKit.TextW(UiKit.Mono, tag, 10) + 14;
-        ci.DrawCircle(new Vector2(x + w - tagW - 8, y + 15), 3.2f, new Color(col, a));
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - tagW, y + 9), tag, 10, new Color(col, a));
-        // スペル名
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 30), title, 16, new Color(0.94f, 0.9f, 0.96f, a));
+        float tagPulse = 0.7f + 0.3f * Mathf.Sin((float)age * 12f);
+        ci.DrawCircle(new Vector2(-w / 2f + w - tagW - 8, top + 15), 3.4f, new Color(col, a * tagPulse));
+        UiKit.Text(ci, UiKit.Mono, new Vector2(-w / 2f + w - tagW, top + 9), tag, 10, new Color(col, a * tagPulse));
+        // スペル名（少し大きく・明るく＝視認のピーク）
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 31), title, 17,
+            new Color(0.96f + 0.04f * glow, 0.92f, 0.97f, a));
+
+        // 設計スケールへ戻す（後続描画に影響させない）。
+        ci.DrawSetTransform(Vector2.Zero, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
+    }
+
+    // Back ease-out（弾性オーバーシュート）：終端で1.0をわずかに超えて戻る。
+    private static float BackOut(float p)
+    {
+        const float s = 1.70158f;
+        p -= 1f;
+        return p * p * ((s + 1f) * p + s) + 1f;
     }
 
     // ヒカゲ専用スキルのチップ（目標パネルの直下）。発動キーのバッジ＋名前＋状態。
@@ -612,10 +682,10 @@ public partial class Hud : CanvasLayer
             UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), over ? UiKit.Gold : UiKit.Mina, 4f);
         }
         if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, UiKit.Gold);
-        else if (_game?.KindnessReady ?? false) // 満タン＝手動発動できる（Space/R3）。点滅で誘導。
+        else if (_game?.KindnessReady ?? false) // 満タン＝手動発動できる（Ctrl/R3）。点滅で誘導。
         {
             float ba = 0.55f + 0.45f * Mathf.Sin((float)_t * 7f);
-            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！Space", 11, new Color(UiKit.Gold, ba));
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！" + AllKind, 11, new Color(UiKit.Gold, ba));
         }
     }
 
@@ -660,35 +730,63 @@ public partial class Hud : CanvasLayer
     {
         float a = Mathf.Clamp((float)(_controlsTimer < 0.8 ? _controlsTimer / 0.8 : 1.0), 0f, 1f);
 
+        // 全割り当てを列挙（選択中の表示モードに属するもの全部）。やさしさ全開も含める。
         var items = new System.Collections.Generic.List<(string tok, string label)>
         {
-            (TokMove, "移動"), (TokShot, "撃つ"), (TokFocus, "低速"), (TokBomb, "ボム"),
+            (AllMove, "移動"), (AllShot, "撃つ"), (AllFocus, "低速"), (AllBomb, "ボム"),
         };
         bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
                      || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
-        if (hasModes) items.Add((TokMode, "切替"));
-        if (_skillHas) items.Add((TokSkill, "技"));
+        if (hasModes) items.Add((AllMode, "切替"));
+        if (_skillHas) items.Add((AllSkill, "技"));
+        items.Add((AllKind, "全開"));
 
-        const float pad = 14f, gap = 18f, itemGap = 8f, h = 36f;
+        // 各項目の幅を測り、画面幅に収まるよう必要なら複数行へ折り返す（はみ出し防止・視認性最優先）。
+        const float pad = 14f, gap = 16f, itemGap = 8f, rowH = 36f, rowGap = 6f, maxBarW = 1180f;
         var ws = new float[items.Count];
-        float total = pad;
         for (int i = 0; i < items.Count; i++)
         {
             float bw = UiKit.TextW(UiKit.Mono, items[i].tok, 11) + 12;
             float lw = UiKit.TextW(UiKit.ZenBold, items[i].label, 13);
             ws[i] = bw + itemGap + lw;
-            total += ws[i] + (i < items.Count - 1 ? gap : 0);
         }
-        total += pad;
 
-        float x = 640 - total / 2f, y = 470;
-        UiKit.Box(ci, new Rect2(x, y, total, h), new Color(0.05f, 0.04f, 0.09f, 0.86f * a), 12f, new Color(UiKit.Info, 0.45f * a), 1.2f);
-        float cx = x + pad;
+        // 貪欲に行へ詰める：1行が maxBarW を超えそうなら改行。
+        var rows = new System.Collections.Generic.List<System.Collections.Generic.List<int>>();
+        var cur = new System.Collections.Generic.List<int>();
+        float curW = pad * 2;
         for (int i = 0; i < items.Count; i++)
         {
-            float bw = KeyBadge(ci, new Vector2(cx, y + 9), items[i].tok, UiKit.PurifyHi, a);
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + itemGap, y + 10), items[i].label, 13, new Color(0.92f, 0.92f, 0.97f, a));
-            cx += ws[i] + gap;
+            float add = ws[i] + (cur.Count > 0 ? gap : 0);
+            if (cur.Count > 0 && curW + add > maxBarW)
+            {
+                rows.Add(cur);
+                cur = new System.Collections.Generic.List<int>();
+                curW = pad * 2;
+                add = ws[i];
+            }
+            cur.Add(i);
+            curW += add;
+        }
+        if (cur.Count > 0) rows.Add(cur);
+
+        float blockH = rows.Count * rowH + (rows.Count - 1) * rowGap;
+        float y0 = 470 - (blockH - rowH); // 最下行が元の y=470 に来るよう上方向へ積む
+        for (int r = 0; r < rows.Count; r++)
+        {
+            var row = rows[r];
+            float total = pad * 2;
+            for (int j = 0; j < row.Count; j++) total += ws[row[j]] + (j > 0 ? gap : 0);
+            float x = 640 - total / 2f, y = y0 + r * (rowH + rowGap);
+            UiKit.Box(ci, new Rect2(x, y, total, rowH), new Color(0.05f, 0.04f, 0.09f, 0.86f * a), 12f, new Color(UiKit.Info, 0.45f * a), 1.2f);
+            float cx = x + pad;
+            for (int j = 0; j < row.Count; j++)
+            {
+                int i = row[j];
+                float bw = KeyBadge(ci, new Vector2(cx, y + 9), items[i].tok, UiKit.PurifyHi, a);
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + itemGap, y + 10), items[i].label, 13, new Color(0.92f, 0.92f, 0.97f, a));
+                cx += ws[i] + gap;
+            }
         }
     }
 

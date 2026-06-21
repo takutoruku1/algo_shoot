@@ -324,8 +324,9 @@ public partial class Player : Area2D
         // HUDにスキル状態を反映
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f);
 
-        // やさしさ全開＝手動発動（満タン時に Space / R3）。自動発動をやめ“使う”判断を委ねる。
-        bool kindKey = Input.IsKeyPressed(Key.Space) || Pad.Pressed(JoyButton.RightStick);
+        // やさしさ全開＝手動発動（満タン時に Ctrl / R3）。自動発動をやめ“使う”判断を委ねる。
+        // Space は ui_accept（＝ショット）と重複し誤発動するため Ctrl（左右どちらも）に変更。
+        bool kindKey = Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightStick);
         if (kindKey && !_kindHeld && !Hud.BubblePaused && (_game?.TryActivateKindness() ?? false))
         {
             FxLayer.Instance?.PurifyBurst(GlobalPosition);
@@ -679,10 +680,12 @@ public partial class Player : Area2D
         GameCamera.Instance?.Hitstop(0.06);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
 
-        // 画面内の敵弾を花びらに変えて消す＝積み上げた緊張への一拍の解放（ボムより軽く・無敵なし）。
+        // 自機周囲だけの浄化パルス（全消しはボム専任＝全開は“攻め”の見返り／§15 役割分離）。
+        // 近接の弾だけ花びら化＝一拍の局所的な解放（§8）。守りの保険には使えない＝温存退避の遊びを断つ。
+        const float pulseR = 40f;
         foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
         {
-            if (node is Bullet b && b.Active)
+            if (node is Bullet b && b.Active && b.GlobalPosition.DistanceTo(GlobalPosition) <= pulseR)
             {
                 _game?.AddBulletCleared();
                 FxLayer.Instance?.BulletToPetal(b.GlobalPosition);

@@ -184,7 +184,13 @@ public partial class FxLayer : Node2D
 
     public void DamageNumber(Vector2 pos, string text, Color col)
     {
-        Add0(new P { Type = T.Dmg, X = pos.X, Y = pos.Y, Vy = -26, Drag = 1.5f, Size = 9, Ttl = 0.7f, Text = text, Col = col });
+        DamageNumber(pos, text, col, 9);
+    }
+
+    // size 付き：密着クリティカルなど「一回り大きく」見せたい数字向け（既定9は通常被弾）。
+    public void DamageNumber(Vector2 pos, string text, Color col, float size)
+    {
+        Add0(new P { Type = T.Dmg, X = pos.X, Y = pos.Y, Vy = -26, Drag = 1.5f, Size = size, Ttl = 0.7f, Text = text, Col = col });
     }
 
     // ボム：魔法陣 + 光の波（弾→花びら変換と画面効果は Player.TryBomb 側）
