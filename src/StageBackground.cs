@@ -26,8 +26,8 @@ public partial class StageBackground : Node2D
     public bool StartInBoss = false; // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
 
     // ───── tunable（控えめに） ─────
-    public float MidScrollSpeed = 26f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない）
-    public float BossDriftSpeed = 8f;      // px/s。ボス背景の横ドリフト（ゆっくり）
+    public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
+    public float BossDriftSpeed = 4f;      // px/s。ボス背景の横ドリフト（ゆっくり／半減）
     public float BossBreathAmp = 0.012f;   // 呼吸スケール振幅（±1.2%。やり過ぎない）
     public float BossBreathHz = 0.18f;     // 呼吸の周期（Hz）
     public float BossPulseAmp = 0.06f;     // 光の明滅振幅（modulate ±6%）

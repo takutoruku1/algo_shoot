@@ -18,16 +18,6 @@ public partial class TitleMenu : Node2D
         (Item.Quit,      "おわる",           "QUIT"),
     };
 
-    // 浮遊する言葉（left%, top%, size, alpha, driftSpeed, phase）
-    private static readonly (float x, float y, int size, float a, float spd, float ph)[] Words =
-    {
-        (0.12f, 0.24f, 20, 0.12f, 7f,   0f),
-        (0.58f, 0.66f, 18, 0.10f, 8f,   0.6f),
-        (0.80f, 0.54f, 17, 0.10f, 9f,   1.2f),
-        (0.44f, 0.18f, 16, 0.09f, 7.5f, 0.9f),
-    };
-    private static readonly string[] WordText = { "あたしのせいだ", "きえたい", "とどかない", "ひとりになる" };
-
     private static readonly (string h, string t)[] Ticker =
     {
         ("@rei_0w0", "ごめん、もう無理かも。"),
@@ -52,9 +42,14 @@ public partial class TitleMenu : Node2D
     private string _toast = "";
     private bool _autoplay, _dived;
 
+    // タイトルのキービジュアル＝画面全体を覆うフル16:9の1枚絵（_Ready で一度だけロードしてキャッシュ）。
+    private Texture2D? _kvTex;
+
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        _kvTex = ResourceLoader.Exists("res://char/title_kv.png")
+            ? ResourceLoader.Load<Texture2D>("res://char/title_kv.png") : null;
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -180,44 +175,50 @@ public partial class TitleMenu : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float t = (float)_t;
 
-        // ── 背景（縦グラデ ＋ 放射グロウ）──
-        UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0e1834"), new Color("0a1126"), new Color("070a16") },
-            new[] { 0f, 0.55f, 1f });
-        UiKit.RadialGlow(this, new Vector2(W * 0.76f, H * 0.30f), 460f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.22f);
-        UiKit.RadialGlow(this, new Vector2(W * 0.18f, H * 0.92f), 360f, new Color(154 / 255f, 114 / 255f, 217 / 255f), 0.18f);
+        // ── 呼吸の位相（KV全体のごく僅かな呼吸的拡縮＆パララックス。やり過ぎない）──
+        float breath = Mathf.Sin(t * Mathf.Pi * 2f / 6.0f);          // 周期6s（ゆったり）
+        float kvScale = 1f + (0.5f + 0.5f * breath) * 0.018f;        // 1.000〜1.018 のごく僅かな脈
+        float kvDx = breath * 4f;                                     // 水平のわずかな漂い(px)
 
-        // ── 浮遊する言葉 ──
-        for (int i = 0; i < Words.Length; i++)
+        // ── 全画面キービジュアル（フル16:9・最背面に画面全面へ）。アスペクト維持でカバー＝はみ出しはトリム ──
+        if (_kvTex != null)
         {
-            var w = Words[i];
-            float dy = Mathf.Sin(t / w.spd * Mathf.Pi * 2f + w.ph * 6f) * 8f;
-            UiKit.Text(this, UiKit.Zen, new Vector2(w.x * W, w.y * H + dy), WordText[i], w.size,
-                new Color(200 / 255f, 184 / 255f, 216 / 255f, w.a));
+            float tw = _kvTex.GetWidth(), th = _kvTex.GetHeight();
+            // 「カバー」：画面を必ず覆うスケール。呼吸でさらに僅かに拡大。
+            float cover = Mathf.Max(W / tw, H / th) * kvScale;
+            float dw = tw * cover, dh = th * cover;
+            float dx = (W - dw) / 2f + kvDx;                          // 中央寄せ＋呼吸の漂い
+            float dy = (H - dh) / 2f;
+            DrawTextureRect(_kvTex, new Rect2(dx, dy, dw, dh), false);
+        }
+        else
+        {
+            // フォールバック：KVが無い時だけ夜グラデで埋める（黒画面回避）。
+            UiKit.VGradient(this, new Rect2(0, 0, W, H),
+                new[] { new Color("0e1834"), new Color("0a1126"), new Color("070a16") },
+                new[] { 0f, 0.55f, 1f });
         }
 
-        // ── 漂う弾（グロウ付き）──
-        DrawDanmaku(new Vector2(W * 0.66f, H * 0.40f), 6f, UiKit.Kegare);
-        DrawDanmaku(new Vector2(W * 0.88f, H * 0.64f), 5f, UiKit.Purify);
+        // ── 可読性スクリム（KVの上・UIの下）──
+        // 左を暗くする横グラデ（左=半透明ダーク→右=透明）。タイトル文字とメニューのコントラストを保証。
+        HGradient(new Rect2(0, 0, W * 0.62f, H),
+            new Color(6 / 255f, 9 / 255f, 20 / 255f, 0.74f), new Color(6 / 255f, 9 / 255f, 20 / 255f, 0f));
+        // 下端の薄いスクリム（プロンプト・バージョン表記の足元を沈める）。
+        UiKit.VGradient(this, new Rect2(0, H - 150f, W, 150f),
+            new[] { new Color(6 / 255f, 9 / 255f, 20 / 255f, 0f), new Color(6 / 255f, 9 / 255f, 20 / 255f, 0.55f) },
+            new[] { 0f, 1f });
+        // 上端の薄いスクリム（ティッカー帯の可読性）。
+        UiKit.VGradient(this, new Rect2(0, 0, W, 90f),
+            new[] { new Color(6 / 255f, 9 / 255f, 20 / 255f, 0.45f), new Color(6 / 255f, 9 / 255f, 20 / 255f, 0f) },
+            new[] { 0f, 1f });
 
-        // ── 本人（光）オーブ：脈動 ──
-        Vector2 oc = new(884 + 115, 216 + 115);
-        float pulse = 0.92f + 0.08f * Mathf.Sin(t * Mathf.Pi * 2f / 4f);
-        UiKit.RadialGlow(this, oc, 150f, UiKit.Light, 0.5f * pulse);
-        UiKit.RadialGlow(this, oc, 100f, new Color(1f, 0.94f, 0.77f), 0.85f * pulse);
-        DrawCircle(oc, 42f, new Color(1f, 1f, 1f, 0.95f * pulse));
+        // ── 漂う光の弾（KVに溶け込む空気・脇役）──
+        float kegPulse = 0.5f + 0.5f * (0.5f + 0.5f * Mathf.Sin(t * Mathf.Pi * 2f / 2.4f));
+        DrawDanmaku(new Vector2(W * 0.60f, H * 0.34f), 4f, new Color(150 / 255f, 200 / 255f, 1f, kegPulse));
 
-        // ── ミナ オーブ ──
-        Vector2 mc = new(866 + 15, 417 + 15);
-        float mFloat = Mathf.Sin(t * Mathf.Pi * 2f / 5f) * 6f;
-        mc.Y += mFloat;
-        UiKit.RadialGlow(this, mc, 36f, new Color(200 / 255f, 180 / 255f, 1f), 0.5f);
-        DrawCircle(mc, 15f, UiKit.Mina);
-        DrawCircle(mc - new Vector2(3, 4), 5f, new Color(1, 1, 1, 0.9f));
-
-        // ── スキャンライン（控えめ）──
+        // ── スキャンライン（控えめ・画面の質感を統一）──
         for (float y = 0; y < H; y += 6f)
-            DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.08f));
+            DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.07f));
 
         DrawTitleBlock();
         DrawMenu();
@@ -292,6 +293,19 @@ public partial class TitleMenu : Node2D
         }
         UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ / ←→ えらぶ    Z はじめる    X もどる", 11,
             UiKit.Text3, HorizontalAlignment.Center, w);
+    }
+
+    // 横リニアグラデ矩形（左→右に色を補間）。立ち絵の硬い矩形エッジを夜へ溶かすのに使う。
+    private void HGradient(Rect2 r, Color left, Color right)
+    {
+        var g = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { left, right } };
+        var tex = new GradientTexture2D
+        {
+            Gradient = g, Width = 256, Height = 8,
+            Fill = GradientTexture2D.FillEnum.Linear,
+            FillFrom = new Vector2(0, 0), FillTo = new Vector2(1, 0),
+        };
+        DrawTextureRect(tex, r, false);
     }
 
     private void DrawDanmaku(Vector2 c, float r, Color col)

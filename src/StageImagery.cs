@@ -1,15 +1,17 @@
 using Godot;
 
-// StageImagery : 各ステージの「心象世界」を、汚染された SNS(X) のタイムラインが上→下へ流れ落ちる
+// StageImagery : 各ステージの「心象世界」を、汚染された SNS(X) のタイムラインが右→左へ流れる
 //   ツイート風カードとしてエンジン描画で重ねる軽量レイヤー（設計書 4 / 6 の演出ト書きを SNS で翻訳）。
+//   流れは ScrollFx / StageBackground と同じ左方向に統一＝左→右の前進感（縦の上昇感は出さない）。
 //   Rei   : 順位晒しのタイムライン。「２位おめでとう（笑）」等の心ない投稿／「１位」は白飛びの固定ポスト。
-//   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す。
+//   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す（左流れ・弱め）。
 //   Koharu: 孤独の静かな投稿。「だれも、こない」。いいねは 0（誰も反応しない）。台所の余韻は残す。暗背景なのでα低め。
 // 背景画像(ZIndex -90)の上、ゲーム要素(0..10)の下(ZIndex -50)に描く。浄化が進む(Warmth↑)と薄れて晴れる。
 //
-// 弾幕の視認性最優先：カードは「画面奥で流れ落ちる世間の声」で前に出さない。無彩色〜淡い同系色（弾の濃ピンク/
+// 弾幕の視認性最優先：カードは「画面奥で流れ去る世間の声」で前に出さない。無彩色〜淡い同系色（弾の濃ピンク/
 //   黒グリフと色相分離）、加算しない、α上限おおむね0.20（合算込み・こはるは暗背景で一段低い）、同時4枚・中央回避・
-//   24px/s（ScrollFx近層96より遥か遅い＝奥）。乱数は使わず Frac(Mathf.Sin(i*..)*..) の決定論パターン。
+//   12px/s（ScrollFx近層より遥か遅い＝奥）。乱数は使わず Frac(Mathf.Sin(i*..)*..) の決定論パターン。
+//   レーンは上下2段（画面の縦中央＝弾の主戦場を空ける）。横スクロールでも弾の視認性を確保する。
 public partial class StageImagery : Node2D
 {
     public enum StageKind { Rei, Akari, Koharu }
@@ -58,13 +60,14 @@ public partial class StageImagery : Node2D
     }
 
     // ───────── 共通：汚染SNSタイムラインの「X(旧Twitter)投稿」カード ─────────
-    // 全ステージ共通の小カード。上→下へ 24px/s でループ。同時4枚・横2レーン（中央は弾の主戦場なので空ける）。
+    // 全ステージ共通の小カード。右→左へ 12px/s でループ。同時4枚・上下2段レーン（縦中央は弾の主戦場なので空ける）。
     // 本物の X 投稿の骨格に寄せる：①円アイコン＋表示名(太め)＋@ハンドル(灰)＋「· 2時間」相対時刻(中黒)＋時々青認証
     //   ②本文 ③アクション行4つ（返信/リポスト/いいね/閲覧数）を X の並び順で極小シルエット＋数字。
     private const float CardW = 156f, CardH = 52f;   // アクション行を入れる余地（奥行きは速度24px/sで担保）
-    private const float ScrollSpeed = 24f;           // px/s（ScrollFx近層96より遥か遅い＝奥）
+    private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
     private const int CardCount = 4;                 // 同時表示（控えめ）
-    private static readonly float[] Lanes = { 14f, W - CardW - 14f }; // 左右の縁。中央を空ける
+    // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=52）。
+    private static readonly float[] LaneRows = { 8f, H - CardH - 8f }; // 上段 y=8 / 下段 y=156
 
     private static float Frac(float v) => v - Mathf.Floor(v);
 
@@ -211,15 +214,16 @@ public partial class StageImagery : Node2D
     // アクション行の4数字＋いいね済みをまとめて運ぶ（引用線は Akari 専用パスで個別指定）。
     private struct CardMeta { public int Replies, Reposts, Likes, Views; public bool Liked; }
 
-    // 4枚のカードのループ y を等間隔で配り、各ステージの描画を行う。
+    // 4枚のカードのループ x を等間隔で配り、右→左へ流す。各カードは上下2段に交互配置（縦中央を空ける）。
     private void DrawTimeline(float fade, Color panel, Color text, Color accent,
                               string[] bodies, System.Func<int, CardMeta> meta, float panelA)
     {
-        float span = H + CardH;
+        float span = W + CardW;
         for (int i = 0; i < CardCount; i++)
         {
-            float y = (i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span - CardH;
-            float x = Lanes[i % Lanes.Length];
+            // 等間隔に置いた初期 x から左へ流し、画面左外へ出たら右外へ巻き戻す（横ループ）。
+            float x = span - ((i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span);
+            float y = LaneRows[i % LaneRows.Length];
             var m = meta(i);
             DrawCard(x, y, panelA, fade, panel, text, accent, i, bodies[i % bodies.Length],
                      m.Replies, m.Reposts, m.Likes, m.Views, m.Liked, quote: false);
@@ -259,14 +263,14 @@ public partial class StageImagery : Node2D
         { "> あたしのせいだ", "ごめん", "すき", "ぜんぶ、あたしの", "ごめんね", "> あたしのせいだ" };
     private void DrawAkari(float fade)
     {
-        // 自責リプのタイムライン。寒色ニュートラルのパネルに、本人の声だけ桃の差し色。
+        // 自責リプのタイムライン。寒色ニュートラルのパネルに、本人の声だけ桃の差し色。右→左・上下2段。
         var panel = new Color(0.80f, 0.85f, 1f);
         var accent = new Color(0.86f, 0.88f, 0.95f);
-        float span = H + CardH;
+        float span = W + CardW;
         for (int i = 0; i < CardCount; i++)
         {
-            float y = (i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span - CardH;
-            float x = Lanes[i % Lanes.Length];
+            float x = span - ((i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span);
+            float y = LaneRows[i % LaneRows.Length];
             string body = AkariBodies[i % AkariBodies.Length];
             bool isVoice = body == "すき" || body.StartsWith("ごめん"); // 本人の声＝桃
             bool quote = body.StartsWith(">");
@@ -281,13 +285,15 @@ public partial class StageImagery : Node2D
                      quote: quote);
         }
 
-        // 雨（細い斜線）。画面（X）越しに降る雨の教室の湿度を残す。
-        var rain = new Color(0.7f, 0.8f, 1f, 0.10f * fade);
+        // 雨（細い横斜線）。画面（X）越しに降る雨の教室の湿度を残すが、進行＝横流れを優先＝左へ強く流す。
+        // 縦の落下が主役にならないよう α は控えめ(0.07)、横へ寝た斜め(左:下 ≈ 4:1)。
+        var rain = new Color(0.7f, 0.8f, 1f, 0.07f * fade);
+        float rainSpan = W + 12f;
         for (int i = 0; i < 26; i++)
         {
-            float rx = (i * 53 + (float)(_t * 220.0)) % W;
-            float ry = (i * 71 + (float)(_t * 320.0)) % H;
-            DrawLine(new Vector2(rx, ry), new Vector2(rx - 2f, ry + 8f), rain, 1f);
+            float rx = rainSpan - ((i * 53 + (float)(_t * 150.0)) % rainSpan); // 半減（画面酔い対策）
+            float ry = (i * 71) % (int)H;
+            DrawLine(new Vector2(rx, ry), new Vector2(rx - 9f, ry + 2.5f), rain, 1f);
         }
 
         // 言いかけて弾ける白い吹き出し（道中の演出）。文字が浮かびかけ、言い切る前に弾けて消える。

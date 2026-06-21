@@ -253,7 +253,7 @@ public partial class PauseCanvas : Node2D
         for (int i = 0; i < PauseMenu.ItemsJp.Length; i++)
         {
             float ry = top + i * rowH;
-            bool on = (nVol + i) == Menu.Sel;
+            bool on = (nVol + 1 + i) == Menu.Sel; // +1 は操作表示行ぶん（これが無いと表示が1行上にずれ、表示行とセーブ1が同時選択に見える）
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 36), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);

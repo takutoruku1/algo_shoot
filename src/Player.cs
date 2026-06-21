@@ -402,8 +402,8 @@ public partial class Player : Area2D
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。ホーミングは間隔×1.15。
-            float modeMul = (_game?.SelectedShotMode == GameManager.ShotMode.Homing) ? 1.15f : 1f;
+            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。ホーミングは強すぎるので間隔を広げる（×1.7）。
+            float modeMul = (_game?.SelectedShotMode == GameManager.ShotMode.Homing) ? 1.7f : 1f;
             _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 

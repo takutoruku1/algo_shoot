@@ -71,7 +71,7 @@ public partial class Shop : Node2D
         if (_walletPopT > 0) _walletPopT -= delta;
         if (_sweepT > 0) _sweepT -= delta;
         if (_olFlashT > 0) _olFlashT -= delta;
-        if (_autoplay) { GetTree().ChangeSceneToFile("res://Hub.tscn"); return; }
+        if (_autoplay) { ExitShop(); return; }
 
         // カーソル移動：↑← で前、↓→ で次（0..5 を循環）。
         bool prev = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_left");
@@ -105,9 +105,23 @@ public partial class Shop : Node2D
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
+        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
 
         QueueRedraw();
+    }
+
+    // ショップ退出先：初回ショップ導線で復帰先(PendingResumeScene)が立っていれば、ハブでなくそのステージへ戻り
+    // “中ボスの続き”から再開する（消費して以降は通常どおりハブへ）。それ以外は従来どおりハブ。
+    private void ExitShop()
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        string dest = "res://Hub.tscn";
+        if (game != null && !string.IsNullOrEmpty(game.PendingResumeScene))
+        {
+            dest = game.PendingResumeScene!;
+            game.PendingResumeScene = null; // 消費
+        }
+        GetTree().ChangeSceneToFile(dest);
     }
 
     private void OnConfirm()
@@ -191,7 +205,9 @@ public partial class Shop : Node2D
         fx = Hint(fx, fy, "Z", "購入", true);
         fx = Hint(fx, fy, "C", "装備", false);
         fx = Hint(fx, fy, "V", "過熱", false);
-        Hint(fx, fy, "X", "もどる", false);
+        // 初回ショップ導線で復帰先がある間は、退出＝ステージの続きへ＝「つづける」表記にする。
+        bool resuming = !string.IsNullOrEmpty(GetNodeOrNull<GameManager>("/root/Game")?.PendingResumeScene);
+        Hint(fx, fy, "X", resuming ? "つづける" : "もどる", false);
 
         DrawBuyFx();
         DrawModeSweep();

@@ -22,6 +22,7 @@ public partial class Hub : Node2D
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
     private Texture2D? _minaFace;
+    private Texture2D? _shonenFace; // 小話会話の少年アイコン用（カード非依存）
 
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _dived;
@@ -167,6 +168,8 @@ public partial class Hub : Node2D
     private void LoadFaces()
     {
         _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
+        if (ResourceLoader.Exists("res://char/shonen_face.png"))
+            _shonenFace = ResourceLoader.Load<Texture2D>("res://char/shonen_face.png");
         foreach (var e in _entries)
         {
             string id = e.Id;
@@ -606,13 +609,26 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 110), _toast, 15, _toastCol, HorizontalAlignment.Center, w);
     }
 
+    // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
+    //   少年=shonen_face / ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
+    private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
+    {
+        if (sp.Contains("少年")) return (_shonenFace, UiKit.Info, 0.05f);
+        if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
+        if (sp.Contains("rei")) return (FaceFor("rei"), AccountColor("rei"), TopCropFor("rei"));
+        if (sp.Contains("akari")) return (FaceFor("akari"), AccountColor("akari"), TopCropFor("akari"));
+        if (sp.Contains("koharu")) return (FaceFor("koharu"), AccountColor("koharu"), TopCropFor("koharu"));
+        return (null, AccountColor("rei"), 0.06f);
+    }
+
     private void DrawDialog()
     {
         var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
-        Color spc = sp.Contains("少年") ? UiKit.Info : sp.StartsWith("ミナ") ? UiKit.Mina : AccountColor("rei");
+        var (spFace, spc, spTop) = SpeakerFace(sp);
         var box = new Rect2(40, 470, W - 80, 200);
         UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
-        UiKit.Avatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spc, sp.Length > 0 ? sp.Substring(0, 1) : "?");
+        // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
+        UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, 18, spc);
         // タイプライターで表示済みの分だけ描画。
         int shown = Mathf.Clamp((int)_dlgReveal, 0, tx.Length);

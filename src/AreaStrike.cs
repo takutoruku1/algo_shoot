@@ -37,6 +37,12 @@ public partial class AreaStrike : Node2D
     private double _t;
     private bool _struck;
 
+    // 発生源（任意）。設定すると、着弾前に発生源が消滅/浄化された時点で予測線ごとキャンセルする。
+    //   ＝「予兆中に倒せば攻撃も消える」。道中ザコのロックオンビームで使う（ボスの範囲技は未設定＝従来どおり完遂）。
+    private Node2D? _owner;
+    private bool _cancelOnOwnerLoss;
+    public void SetOwner(Node2D owner) { _owner = owner; _cancelOnOwnerLoss = true; }
+
     public void Configure(Shape shape, float halfW, float halfH, double warn, Color tint, Color hot)
     {
         _shape = shape; _hw = halfW; _hh = halfH;
@@ -63,6 +69,17 @@ public partial class AreaStrike : Node2D
 
     public override void _Process(double delta)
     {
+        // 発生源が着弾前に消えた／浄化されたら、予測線ごとキャンセル（倒せば攻撃も消える）。
+        if (!_struck && _cancelOnOwnerLoss
+            && (_owner == null || !IsInstanceValid(_owner) || (_owner is Enemy e && e.IsPurified)))
+        {
+            QueueFree();
+            return;
+        }
+
+        // 会話中（吹き出し表示中）は弾と同じく時間を止める＝動けない自機に着弾させない。
+        if (Hud.BubblePaused) return;
+
         _t += delta;
         if (!_struck && _t >= _warn) { _struck = true; Strike(); }
         if (_t >= _warn + StrikeFlash) { QueueFree(); return; }

@@ -37,6 +37,9 @@ public partial class DiffSelect : Node2D
     private bool _hasMidBoss;
     private int _entrySel; // 0=最初から / 1=中ボスから / 2=ボスから
     private static readonly string[] EntryNames = { "最初から", "中ボスから", "ボスから" };
+    // 入口はダイアログで選ぶ：難易度を Z で確定 → このダイアログが開く（中ボス持ち＆解放済み入口がある時のみ）。
+    private bool _entryDialog;
+    private double _dlgOpenT;
 
     // ── MINA 立ち絵（表情クロスフェード）──
     //   選択が変わると _faceFrom→_faceTo を _xfade(0→1) で溶かす。瞬間差し替えにしない（吉田 §C）。
@@ -65,6 +68,10 @@ public partial class DiffSelect : Node2D
         _stageId = GameManager.StageIdForScene(_game?.PendingStageScene ?? "");
         _hasMidBoss = _stageId != null && GameManager.StageHasMidBoss(_stageId);
         _entrySel = 0;
+
+        // [一時/デバッグ] --entrydlg : 中ボスを解放済みにして入口ダイアログをテスト可能にする（Z確定で開く）。
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a == "--entrydlg" && _stageId != null) { _game?.MarkMidBossCleared(_stageId); }
 
         _sel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
         if (!Selectable(_sel)) _sel = (int)GameManager.Diff.Hard;
@@ -122,6 +129,9 @@ public partial class DiffSelect : Node2D
         if (_xfade < 1.0) _xfade = System.Math.Min(1.0, _xfade + delta / XfadeDur);
         if (_autoplay) { Dive(); QueueRedraw(); return; }
 
+        // 入口ダイアログ表示中は、そちらの操作だけ受ける。
+        if (_entryDialog) { ProcessEntryDialog(); QueueRedraw(); return; }
+
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
         {
@@ -133,32 +143,52 @@ public partial class DiffSelect : Node2D
         }
         _navHeld = up || down;
 
-        // ←→：チェックポイント入口の選択（中ボス持ちステージのみ）。未解放はスキップして次の解放済みへ。
-        if (_hasMidBoss)
-        {
-            bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
-            if ((left || right) && !_hNavHeld)
-            {
-                int dir = right ? 1 : -1;
-                for (int k = 0; k < EntryNames.Length; k++)
-                {
-                    _entrySel = (_entrySel + dir + EntryNames.Length) % EntryNames.Length;
-                    if (EntryUnlocked(_entrySel)) break;
-                }
-                Audio.Instance?.PlayUiMove();
-            }
-            _hNavHeld = left || right;
-        }
-
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.2 && Selectable(_sel)) { Audio.Instance?.PlayUiConfirm(); Dive(); }
+        if (zEdge && _t > 0.2 && Selectable(_sel))
+        {
+            Audio.Instance?.PlayUiConfirm();
+            if (_game != null) _game.Difficulty = Tiers[_sel].Diff; // 難易度はここで確定
+            // 中ボス持ち＆解放済みの入口（中ボス/ボス）があるなら、入口ダイアログを開く。
+            // 解放が「最初から」だけなら問い不要＝そのままダイブ。
+            if (_hasMidBoss && (EntryUnlocked(1) || EntryUnlocked(2)))
+            {
+                _entryDialog = true; _entrySel = 0; _dlgOpenT = _t;
+            }
+            else { _entrySel = 0; Dive(); }
+        }
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
 
         QueueRedraw();
+    }
+
+    // 入口ダイアログの操作：←→（↑↓）で解放済みの入口を選ぶ／Z 決定でダイブ／X で難易度選択へ戻る。
+    private void ProcessEntryDialog()
+    {
+        bool left = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up");
+        bool right = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
+        if ((left || right) && !_hNavHeld)
+        {
+            int dir = right ? 1 : -1;
+            for (int k = 0; k < EntryNames.Length; k++)
+            {
+                _entrySel = (_entrySel + dir + EntryNames.Length) % EntryNames.Length;
+                if (EntryUnlocked(_entrySel)) break;
+            }
+            Audio.Instance?.PlayUiMove();
+        }
+        _hNavHeld = left || right;
+
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        if (zEdge && _t > _dlgOpenT + 0.15 && EntryUnlocked(_entrySel)) { Audio.Instance?.PlayUiConfirm(); Dive(); }
+
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_backHeld; _backHeld = back;
+        if (backEdge && _t > _dlgOpenT + 0.15) { Audio.Instance?.PlayUiCancel(); _entryDialog = false; }
     }
 
     private void Dive()
@@ -203,21 +233,16 @@ public partial class DiffSelect : Node2D
         for (int i = 0; i < Tiers.Length; i++)
             DrawTier(i, padX, rowTop + i * (rowH + gap), rowW, rowH);
 
-        // ── 入口（チェックポイント）選択：ティアの下に横並び（中ボス持ちステージのみ）──
-        if (_hasMidBoss)
-        {
-            float ey = rowTop + Tiers.Length * (rowH + gap) + 6f;
-            DrawEntryRow(padX, ey, rowW, 58f);
-        }
-
         // ── フッタ ──
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         float fx = padX;
         fx = Hint(fx, fy, "↑↓", "難易度", false);
-        if (_hasMidBoss) fx = Hint(fx, fy, "←→", "入口", false);
         fx = Hint(fx, fy, "Z", "ダイブ", true);
         Hint(fx, fy, "X", "もどる", false);
+
+        // ── 入口ダイアログ（難易度確定後・中ボス持ちステージのみ）──
+        if (_entryDialog) DrawEntryDialog();
 
         UiKit.EndDesign(this);
     }
@@ -271,41 +296,58 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, 13), y + 50), reward, 13, new Color("7ec880"));
     }
 
-    // ── 入口（チェックポイント）選択：最初から / 中ボスから / ボスから を横並びで描く ──
-    //   未解放はグレーで LOCK 表示。選択中はシアン枠＋▸。←→ で選ぶ。
-    private void DrawEntryRow(float x, float y, float w, float h)
+    // ── 入口ダイアログ（難易度確定後に開くモーダル）：最初から / 中ボスから / ボスから を選ぶ ──
+    private void DrawEntryDialog()
     {
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y - 16), "STAGE ENTRY ／ 入口", 11, UiKit.Text3);
+        // 暗幕（後ろの難易度画面を沈める）
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f));
 
+        float cw = 780f, ch = 320f, cx = (W - cw) / 2f, cy = (H - ch) / 2f;
+        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 16 / 255f, 28 / 255f, 0.98f), 18f, new Color(UiKit.Purify, 0.5f), 1.5f);
+
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(cx + 34, cy + 26), "どこから始めますか?", 24, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 34, cy + 64), $"{_diveName}  ／  {Tiers[_sel].Name}", 14, UiKit.Info);
+
+        // 3つの入口セル（横並び）
+        float pad = 34f, rowY = cy + 98f, rowH = 132f, gap = 14f, rowW = cw - pad * 2f;
         int n = EntryNames.Length;
-        float gap = 12f;
-        float cellW = (w - gap * (n - 1)) / n;
+        float cellW = (rowW - gap * (n - 1)) / n;
         for (int i = 0; i < n; i++)
-        {
-            float cx = x + i * (cellW + gap);
-            bool unlocked = EntryUnlocked(i);
-            bool sel = i == _entrySel;
+            DrawEntryCell(cx + pad + i * (cellW + gap), rowY, cellW, rowH, i);
 
-            Color bg, border; float bw;
-            if (!unlocked) { bg = new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f); border = new Color(1, 1, 1, 0.05f); bw = 1f; }
-            else if (sel) { bg = new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f); border = new Color(UiKit.Purify, 0.85f); bw = 1.5f; }
-            else { bg = new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f); border = new Color(1, 1, 1, 0.09f); bw = 1f; }
-            UiKit.Box(this, new Rect2(cx, y, cellW, h), bg, 12f, border, bw);
+        // ヒント（ダイアログ下部）
+        float fy = cy + ch - 26f;
+        float fx = cx + pad;
+        fx = Hint(fx, fy, "←→", "えらぶ", false);
+        fx = Hint(fx, fy, "Z", "けってい", true);
+        Hint(fx, fy, "X", "もどる", false);
+    }
 
-            float tx = cx + 16f;
-            if (sel && unlocked) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 14), "▸", 14, UiKit.Purify); tx += 18f; }
-            Color nameCol = unlocked ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4;
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 12), EntryNames[i], 16, nameCol);
+    // 入口セル1つ（未解放はグレーで LOCK・選択中はシアン枠＋▸）。
+    private void DrawEntryCell(float cx, float y, float w, float h, int i)
+    {
+        bool unlocked = EntryUnlocked(i);
+        bool sel = i == _entrySel;
 
-            // サブ説明 or ロック解放条件
-            string sub = unlocked
-                ? i switch { 1 => "中ボス戦から開始", 2 => "ボス戦から開始", _ => "道中の最初から" }
-                : i switch { 1 => "解放：中ボスを倒す", _ => "解放：ステージクリア" };
-            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 16f, y + 34), sub, 12, unlocked ? UiKit.Text3 : UiKit.Mina);
+        Color bg, border; float bw;
+        if (!unlocked) { bg = new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f); border = new Color(1, 1, 1, 0.05f); bw = 1f; }
+        else if (sel) { bg = new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f); border = new Color(UiKit.Purify, 0.9f); bw = 1.5f; }
+        else { bg = new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.55f); border = new Color(1, 1, 1, 0.09f); bw = 1f; }
+        UiKit.Box(this, new Rect2(cx, y, w, h), bg, 12f, border, bw);
 
-            if (!unlocked)
-                UiKit.Text(this, UiKit.Mono, new Vector2(cx + cellW - UiKit.TextW(UiKit.Mono, "LOCKED", 10) - 12, y + 12), "LOCKED", 10, UiKit.Text4);
-        }
+        float tx = cx + 16f;
+        if (sel && unlocked) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 18), "▸", 16, UiKit.Purify); tx += 20f; }
+        Color nameCol = unlocked ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 14), EntryNames[i], 19, nameCol);
+
+        string sub = unlocked
+            ? i switch { 1 => "中ボス戦から開始", 2 => "ボス戦から開始", _ => "道中の最初から" }
+            : i switch { 1 => "解放：中ボスを倒す", _ => "解放：ステージクリア" };
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 16f, y + 48), sub, 12, unlocked ? UiKit.Text3 : UiKit.Mina,
+            HorizontalAlignment.Left, w - 28f);
+
+        if (!unlocked)
+            UiKit.Text(this, UiKit.Mono, new Vector2(cx + w - UiKit.TextW(UiKit.Mono, "LOCKED", 10) - 12, y + 14), "LOCKED", 10, UiKit.Text4);
     }
 
     // ── 右カラム：MINA 立ち絵 ＋ 一言（選択難易度の表情をクロスフェードで反映）──

@@ -165,7 +165,12 @@ public partial class StageAkari : Node
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
-            _step = game.SelectedEntry == GameManager.StageEntry.Boss ? 10 : 5;
+            _step = game.SelectedEntry switch
+            {
+                GameManager.StageEntry.Boss => 10,
+                GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
+                _ => 5,
+            };
     }
 
     private bool _startBannerShown;

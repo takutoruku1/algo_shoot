@@ -160,6 +160,14 @@ public partial class Hud : CanvasLayer
     public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
     public void ClearTutorialHint() => _tutorialHint = "";
 
+    // チュートリアル（ステージ0）：今のステップの操作に割り当たった“全ボタン”を指示帯の上にバッジで出す。
+    // StageZero が操作名（"move"/"shot"/"focus"/"dodge"/"bomb"/"kind"）をセット → ここで All* トークンに展開して描く。
+    // KB/パッドの出し分けは Pad に従い、KB でも複数キー（Z/Space/Enter 等）はバッジ内に並べて全部見せる。
+    // 説明会話中も実践中も出す（会話の停止/非停止に依らず、操作名が空でなければ描画）。
+    private string _tutorialOp = "";
+    public void SetTutorialOp(string op) => _tutorialOp = op ?? "";
+    public void ClearTutorialOp() => _tutorialOp = "";
+
     // チュートリアル（ステージ0）のスポットライト暗転：全画面を暗幕で覆い、対象矩形だけ“避けて”見せる。
     // 説明会話中（停止中）だけ ON。MurkVignette は弾より奥なので流用不可＝CanvasLayer のここで描く（弾・自機より前面）。
     // α上限 0.55（弾・自機・ダミーが暗転で見えなくならないこと最優先）。
@@ -194,6 +202,8 @@ public partial class Hud : CanvasLayer
     private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
+    // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
+    private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
     // ティッカー（降ってくる言葉）＝晒し投稿の共有プール。
     // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（StageRei.Rain）。
@@ -531,15 +541,18 @@ public partial class Hud : CanvasLayer
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
+        if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_controlsAlpha > 0.01f) DrawControls(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
         if (_overloadToast > 0) DrawOverloadToast(ci);
+        // チュートリアルのスポット暗転は会話/バナーより前(下)に描く＝会話テキスト・立ち絵は
+        // 暗幕の上にフル輝度で読める（暗転がセリフ枠を覆って読みづらい問題への対処 #3）。
+        // 弾より前だが、α上限0.55で弾は透ける。会話ボックス矩形も穴抜きの対象にして二重に保護する。
+        if (_spotActive) DrawTutorialSpot(ci);
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
-        // チュートリアルのスポット暗転（フラッシュ直前＝最前面に近い層。弾より前だが、α上限0.55で弾は透ける）。
-        if (_spotActive) DrawTutorialSpot(ci);
         // 被弾エッジ
         if (_hurtEdge > 0)
             UiKit.Box(ci, new Rect2(8, 8, 1280 - 16, 720 - 16), null, 18f, new Color(0.9f, 0.16f, 0.16f, 0.5f * (float)(_hurtEdge / 0.9)), 14f);
@@ -1055,41 +1068,138 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), _tutorialHint, 15, new Color(0.94f, 0.92f, 0.99f));
     }
 
-    // チュートリアルのスポット暗転：全画面を暗幕で覆い、_spotRect だけ避けて四分割の帯で描く（MurkVignette の四分割テクの矩形版）。
-    // 穴の縁は薄いグラデ1枚で柔らかく。Size≈0 の矩形なら穴なし＝全画面を一様に暗転（ステップ0の導入用）。
+    // チュートリアルの「対応ボタン一覧」帯（指示帯の真上・下部中央）。
+    // _tutorialOp（操作名）を All*（全割り当て）トークンに展開し、[操作名][キーバッジ群] を1行で示す。
+    // KB 表示時は "Z / Space / Enter" のように複数キーがトークン内に並ぶ＝1キーしか出ない不親切を解消する。
+    private void DrawTutorialKeys(HudCanvas ci)
+    {
+        // 操作名 → (見出し, 全割り当てトークン, アクセント色)。Player.cs の入力判定と一致させる。
+        (string label, string tok, Color accent) info = _tutorialOp switch
+        {
+            "move"  => ("移動",       AllMove,  UiKit.Info),
+            "shot"  => ("撃つ",       AllShot,  UiKit.Purify),   // 浄化ステップも板を“撃って”祓う＝ショット表記
+            "focus" => ("低速",       AllFocus, UiKit.Info),
+            "dodge" => ("回避",       AllDodge, UiKit.Gold),
+            "bomb"  => ("ボム",       AllBomb,  UiKit.Mina),
+            "kind"  => ("やさしさ全開", AllKind,  UiKit.PurifyHi),
+            _       => ("",           "",       UiKit.White),
+        };
+        if (info.label.Length == 0) return;
+
+        const int labelSize = 14, tokSize = 12;
+        float pulse = 0.6f + 0.4f * Mathf.Sin((float)_t * 4f);
+
+        float labelW = UiKit.TextW(UiKit.ZenBold, info.label, labelSize);
+        float badgeW = UiKit.TextW(UiKit.Mono, info.tok, tokSize) + 16f;
+        const float gap = 12f, padX = 16f, h = 30f;
+        float contentW = labelW + gap + badgeW;
+        float w = contentW + padX * 2f;
+        float x = 640 - w / 2f, y = 462f; // 指示帯(y=500)の真上。会話ボックスより上で弾/セリフと干渉しにくい。
+
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.88f), 10f,
+            new Color(info.accent, 0.4f + 0.4f * pulse), 1.3f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padX, y + 7), info.label, labelSize, new Color(0.94f, 0.92f, 0.99f));
+        // キーバッジ（KeyBadge と同寸・高さ18・縦中央寄せ）。KB なら複数キーがトークン内に並ぶ。
+        KeyBadge(ci, new Vector2(x + padX + labelW + gap, y + (h - 18f) / 2f), info.tok, info.accent);
+    }
+
+    // チュートリアルのスポット暗転：全画面を暗幕で覆い、_spotRect だけ避けて帯で描く（MurkVignette の四分割テクの矩形版）。
+    // 「どこが明るいか」が一目で分かるよう、穴の縁を太い黄色枠でくっきり囲み、ゆっくり明滅（パルス）させ、
+    //  「ここ！」の小ラベルを添える（#2 スポットを分かりやすく）。会話ボックス矩形も暗転の対象外に抜く（#3 セリフを暗くしない）。
+    // Size≈0 の矩形なら穴なし＝全画面を一様に暗転（ステップ0の導入用、ただし会話矩形だけは抜く）。
     private void DrawTutorialSpot(HudCanvas ci)
     {
         if (_spotAlpha <= 0.001f) return;
         var dark = new Color(0.03f, 0.03f, 0.06f, _spotAlpha);
         const float W = 1280f, Hh = 720f;
 
-        // 穴なし＝全画面を一様に覆う。
+        // 会話表示中はそのボックス矩形を暗幕から除外する（セリフ・立ち絵がフル輝度で読める）。
+        bool hasDlg = _dlgText.Length > 0;
+        Rect2 dlgBox = _dlgIsDialog ? new Rect2(40, 540, 1200, 150) : new Rect2(140, 600, 1000, 80);
+
+        // 穴なし＝全画面を一様に覆う（会話矩形だけは避ける）。
         if (_spotRect.Size.X <= 1f || _spotRect.Size.Y <= 1f)
         {
-            ci.DrawRect(new Rect2(0, 0, W, Hh), dark);
+            if (hasDlg) FillExcept(ci, new Rect2(0, 0, W, Hh), dlgBox, dark);
+            else        ci.DrawRect(new Rect2(0, 0, W, Hh), dark);
             return;
         }
 
         // 穴に少し余白を足して、ゲージ全体がはっきり見えるようにする。
-        Rect2 hole = _spotRect.Grow(10f);
+        Rect2 hole = _spotRect.Grow(12f);
         float l = Mathf.Clamp(hole.Position.X, 0, W);
         float t = Mathf.Clamp(hole.Position.Y, 0, Hh);
         float r = Mathf.Clamp(hole.Position.X + hole.Size.X, 0, W);
         float b = Mathf.Clamp(hole.Position.Y + hole.Size.Y, 0, Hh);
 
-        // 四分割の帯で穴を避けて全画面を覆う（上・下・左・右）。
-        ci.DrawRect(new Rect2(0, 0, W, t), dark);              // 上帯
-        ci.DrawRect(new Rect2(0, b, W, Hh - b), dark);         // 下帯
-        ci.DrawRect(new Rect2(0, t, l, b - t), dark);          // 左帯
-        ci.DrawRect(new Rect2(r, t, W - r, b - t), dark);      // 右帯
+        // 四分割の帯で穴を避けて全画面を覆う（上・下・左・右）。会話矩形は各帯からさらに抜く。
+        DarkBand(ci, new Rect2(0, 0, W, t), dlgBox, hasDlg, dark);              // 上帯
+        DarkBand(ci, new Rect2(0, b, W, Hh - b), dlgBox, hasDlg, dark);        // 下帯
+        DarkBand(ci, new Rect2(0, t, l, b - t), dlgBox, hasDlg, dark);         // 左帯
+        DarkBand(ci, new Rect2(r, t, W - r, b - t), dlgBox, hasDlg, dark);     // 右帯
 
-        // 穴の縁を薄いグラデ1枚で柔らかく（内側に向けて薄くなる細い枠）。
-        float edge = 8f;
-        var soft = new Color(dark.R, dark.G, dark.B, dark.A * 0.5f);
-        ci.DrawRect(new Rect2(l, t, r - l, edge), soft);             // 上縁
-        ci.DrawRect(new Rect2(l, b - edge, r - l, edge), soft);      // 下縁
-        ci.DrawRect(new Rect2(l, t, edge, b - t), soft);            // 左縁
-        ci.DrawRect(new Rect2(r - edge, t, edge, b - t), soft);      // 右縁
+        // ── 明部の強調 ──
+        // ゆっくりした明滅(パルス)。0.5〜1.0 の範囲で脈打たせる。
+        float pulse = 0.5f + 0.5f * (0.5f + 0.5f * Mathf.Sin((float)_t * 3.4f));
+        // 太い黄色枠でくっきり囲む（2本：外側に細い白、内側に太い黄）。
+        var glowY = new Color(1.0f, 0.86f, 0.18f, 0.55f + 0.40f * pulse);
+        var glowW = new Color(1.0f, 1.0f, 1.0f, 0.35f + 0.30f * pulse);
+        float thick = 5f;
+        // 内側の太い黄枠（穴の縁ぴったり）。
+        ci.DrawRect(new Rect2(l, t, r - l, thick), glowY);                 // 上
+        ci.DrawRect(new Rect2(l, b - thick, r - l, thick), glowY);         // 下
+        ci.DrawRect(new Rect2(l, t, thick, b - t), glowY);                 // 左
+        ci.DrawRect(new Rect2(r - thick, t, thick, b - t), glowY);         // 右
+        // 外側の細い白枠（パルスでにじむ）。
+        float go = thick + 4f;
+        ci.DrawRect(new Rect2(l - go, t - go, (r - l) + go * 2f, 2f), glowW);
+        ci.DrawRect(new Rect2(l - go, b + go - 2f, (r - l) + go * 2f, 2f), glowW);
+        ci.DrawRect(new Rect2(l - go, t - go, 2f, (b - t) + go * 2f), glowW);
+        ci.DrawRect(new Rect2(r + go - 2f, t - go, 2f, (b - t) + go * 2f), glowW);
+
+        // 「ここ！」の指差しラベル＋下向き三角を穴の上に添える（穴の真上に余白があれば）。
+        float labA = 0.7f + 0.3f * pulse;
+        string tag = "ここ！";
+        float fs = 18f, padX = 10f, padY = 5f;
+        float tw = UiKit.TextW(UiKit.ZenBold, tag, (int)fs);
+        float boxW = tw + padX * 2f, boxH = fs + padY * 2f;
+        float cx = Mathf.Clamp((l + r) * 0.5f, boxW * 0.5f + 4f, W - boxW * 0.5f - 4f);
+        float labY = t - go - 8f - boxH - 8f; // 三角ぶんの隙間
+        if (labY < 4f) labY = b + go + 14f;   // 上に入らなければ下に出す
+        var labBg = new Color(0.12f, 0.10f, 0.04f, 0.92f);
+        UiKit.Box(ci, new Rect2(cx - boxW * 0.5f, labY, boxW, boxH), labBg, 7f, new Color(1.0f, 0.86f, 0.18f, labA), 1.5f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx - tw * 0.5f, labY + padY - 1f), tag, (int)fs, new Color(1.0f, 0.92f, 0.5f, labA));
+        // 穴へ向かう小さな三角（上ラベルなら下向き／下ラベルなら上向き）。
+        float ty = labY < t ? labY + boxH : labY - 9f;
+        float dir = labY < t ? 1f : -1f;
+        ci.DrawColoredPolygon(new[]
+        {
+            new Vector2(cx - 7f, ty),
+            new Vector2(cx + 7f, ty),
+            new Vector2(cx, ty + 9f * dir),
+        }, new Color(1.0f, 0.86f, 0.18f, labA));
+    }
+
+    // 暗幕の1帯を描く。会話矩形 dlg と交差する分は抜く（hasDlg のときだけ）。
+    private void DarkBand(HudCanvas ci, Rect2 band, Rect2 dlg, bool hasDlg, Color dark)
+    {
+        if (band.Size.X <= 0f || band.Size.Y <= 0f) return;
+        if (hasDlg && band.Intersects(dlg)) FillExcept(ci, band, dlg, dark);
+        else ci.DrawRect(band, dark);
+    }
+
+    // area から hole（会話矩形）を避けて、最大4枚の矩形で塗る。
+    private void FillExcept(HudCanvas ci, Rect2 area, Rect2 hole, Color col)
+    {
+        float al = area.Position.X, at = area.Position.Y;
+        float ar = al + area.Size.X, ab = at + area.Size.Y;
+        float hl = Mathf.Max(al, hole.Position.X), ht = Mathf.Max(at, hole.Position.Y);
+        float hr = Mathf.Min(ar, hole.Position.X + hole.Size.X), hb = Mathf.Min(ab, hole.Position.Y + hole.Size.Y);
+        if (hr <= hl || hb <= ht) { ci.DrawRect(area, col); return; } // 交差なし
+        if (ht > at) ci.DrawRect(new Rect2(al, at, ar - al, ht - at), col);   // 上
+        if (hb < ab) ci.DrawRect(new Rect2(al, hb, ar - al, ab - hb), col);   // 下
+        if (hl > al) ci.DrawRect(new Rect2(al, ht, hl - al, hb - ht), col);   // 左
+        if (hr < ar) ci.DrawRect(new Rect2(hr, ht, ar - hr, hb - ht), col);   // 右
     }
 
     private void DrawTicker(HudCanvas ci)

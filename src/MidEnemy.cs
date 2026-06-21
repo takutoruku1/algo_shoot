@@ -261,9 +261,11 @@ public partial class MidEnemy : Enemy
         // ＝道中ドローンの予兆もボス予兆と同系統に見え、危険色の意味（金＝レイの裁き）が一貫する。
         z.ConfigureBeam(dir, BeamLen, BeamHalfThick, warn,
             new Color("e8c45a"), new Color("ffe39a"));
-        // 敵が浄化されて消えても予測線→着弾は最後まで完遂させたいので、World（親）へぶら下げる。
+        // World（親）へぶら下げて発射源の Transform に依存させない。ただし発生源（このドローン）を
+        // owner に渡し、予兆中に倒されたら予測線ごとキャンセルさせる（倒せば攻撃も消える＝理不尽回避）。
         var host = GetParent() ?? this;
         host.AddChild(z);
+        z.SetOwner(this);
         z.GlobalPosition = GlobalPosition; // 発射源＝この瞬間のドローン位置（以降は固定＝避けられる）。
         SquishBody(); // 撃つ前の溜め（縦スカッシュ）で“来る”を本体でも示す。
     }

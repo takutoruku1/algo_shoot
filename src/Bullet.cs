@@ -36,7 +36,7 @@ public partial class Bullet : Area2D
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
     private Node2D? _homeTarget;
-    private const float HomingTurnRate = 200f; // deg/s（吸い寄せ感を残すため急旋回しすぎない）
+    private const float HomingTurnRate = 95f; // deg/s（精度控えめ＝外した弾は旋回しきれず画面外へ抜ける＝常駐しない）
 
     // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
     private static FontFile? _wordFont;

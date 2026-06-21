@@ -27,6 +27,10 @@ public static class CheckpointFlow
         if (firstEver && !game.ShopTutorialSeen && !tutorial && !autoplay)
         {
             game.ShopTutorialSeen = true;  // 一度きり（説明完了後にセーブで永続化）
+            // 強化ショップのあと、このランの“中ボスの続き”（道中後半）から再開する＝中ボスを再戦させない。
+            // ショップ退出が PendingResumeScene を消費してこのステージへ戻り、_Ready が AfterMidBoss を読んで Step_MidwaveB から始める。
+            game.PendingResumeScene = stage.GetTree().CurrentScene?.SceneFilePath;
+            game.SelectedEntry = GameManager.StageEntry.AfterMidBoss;
             game.AutoSave();               // ランで貯めたインプレ＋既読＋中ボス撃破フラグを確定保存
             stage.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             stage.GetTree().ChangeSceneToFile("res://ShopTutorial.tscn");

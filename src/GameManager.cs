@@ -63,8 +63,13 @@ public partial class GameManager : Node
     //   中ボス(cameo)を持つ3ステージ（レイ/あかり/こはる）で道中をスキップして任意の戦闘から始められる。
     //   SelectedEntry は「ラン単位」＝非セーブ。DiffSelect がダイブ直前にセットし、Stage が _Ready で読む。
     //   解放ゲート：MidBoss は中ボス撃破で解放（IsMidBossCleared）、Boss はステージクリアで解放（IsStageCleared）。
-    public enum StageEntry { Start, MidBoss, Boss }
+    //   AfterMidBoss は DiffSelect には出さない“続きから再開”専用（初回ショップ導線がプログラム的にセット）。
+    public enum StageEntry { Start, MidBoss, Boss, AfterMidBoss }
     public StageEntry SelectedEntry = StageEntry.Start;
+
+    // 初回ショップ導線の復帰先：非nullなら、ショップ退出時にハブでなくこのステージへ戻り、
+    // 中ボスの“続き”（道中後半＝Step_MidwaveB）から再開する（ラン単位・非セーブ。退出時に消費してnullへ）。
+    public string? PendingResumeScene;
 
     // 中ボス(cameo)撃破フラグ（ステージID集合・永続＝save_N.json）。「中ボスから」解放の判定に使う。
     private readonly HashSet<string> _midBossCleared = new();
@@ -409,6 +414,14 @@ public partial class GameManager : Node
         data["midBossCleared"] = mb;
         // 初回ショップ説明の既読フラグ。後方互換：キー無し＝false 扱い。
         data["shopTutorialSeen"] = ShopTutorialSeen;
+        // ステージ進行（クリア済みステージID＝救った人数・解放・到達度の本体）。後方互換：キー無し＝空。
+        var cl = new Godot.Collections.Array();
+        foreach (var id in _cleared)
+            cl.Add(id);
+        data["cleared"] = cl;
+        // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
+        data["burnHappened"] = _burnHappened;
+        data["burning"] = Burning;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -453,6 +466,17 @@ public partial class GameManager : Node
         }
         // 初回ショップ説明の既読（キー無し＝旧セーブは false＝後方互換）。
         ShopTutorialSeen = data.ContainsKey("shopTutorialSeen") && data["shopTutorialSeen"].AsBool();
+        // ステージ進行（クリア済み）復元。キー無し＝旧セーブは空＝後方互換。
+        _cleared.Clear();
+        if (data.ContainsKey("cleared"))
+        {
+            var cl = data["cleared"].AsGodotArray();
+            foreach (var v in cl)
+                _cleared.Add(v.AsString());
+        }
+        // 炎上イベント状態復元（キー無し＝false）。
+        _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
+        Burning = data.ContainsKey("burning") && data["burning"].AsBool();
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
         if (data.ContainsKey("shotmode"))
         {
@@ -472,6 +496,8 @@ public partial class GameManager : Node
         _midBossCleared.Clear();
         ShopTutorialSeen = false;
         SelectedEntry = StageEntry.Start;
+        _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
+        _burnHappened = false; Burning = false; BurningThisRun = false;
     }
 
     // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。

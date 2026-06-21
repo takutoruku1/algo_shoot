@@ -3,7 +3,10 @@ using Godot;
 // StageZero : ステージ0「完全チュートリアル」の進行。
 //   Prologue 直後・Hub 入場前に独立シーンとして 9 ステップで各操作を教える。
 //   各ステップ＝「①暗転＋対象ゲージだけスポット→少年が説明（会話＝ツリー停止）→
-//                ②指示帯を残して実践（停止解除）→③能動達成 or タイムアウト(FB) で次へ」の3拍。
+//                ②指示帯を残して実践（停止解除）→③その技を“やり遂げる”まで進まない」の3拍。
+//   実践は押した瞬間/短時間では進まず、撃破数・回避回数・ボム巻き込み数・全開での撃破など
+//   「教えた操作を実際に使った結果」を達成条件にする。標的が尽きたら自動で湧き直し、
+//   進行不能を避けるため保険タイムアウト(SafetyTimeout=60s)だけ長めに置く。進捗は指示帯に n/N で出す。
 //   練習モード（Stage0Root が GameManager.TutorialNoConsume=ON）なのでゲージ/残機/ボムは消費しない。
 //   進行ロジックは StageRei の Tutorial 経路（TutTalk/TutNext/SetTutorialHint 機構）を抽出・再構成したもの。
 public partial class StageZero : Node
@@ -31,11 +34,23 @@ public partial class StageZero : Node
 
     // 達成計測用ベースライン／フラグ。
     private double _t1Up, _t1Down, _t1Left, _t1Right;
-    private int _t2ShotCount;
-    private double _t3FocusHeld; private bool _t3Moved;
-    private int _t4DodgeBase;
-    private int _t6PurifyBase;
+    private int _t2KillBase;                              // ショット：ダミー撃破の起点（PurifiedCount 増分で判定）
+    private double _t3FocusHeld; private bool _t3Moved;   // 低速：Shift 保持秒／低速中の移動
+    private int _t4DodgeBase;                             // 回避：DodgeCount の起点
+    private int _t6PurifyBase;                            // 浄化：PurifiedCount の起点
+    private int _t7OverloadKillBase; private bool _t7Activated; // 全開：発動済みフラグと、発動後の撃破起点
+    private double _t7ActivatedT;                               // 全開：発動した時刻（_phaseTime 基準）。フォールバック判定用
     private double _refill;
+
+    // 各ステップの達成目標。
+    private const int ShotKillNeed   = 3;   // ショットでダミーを倒す数
+    private const int DodgeNeed      = 3;   // 回避を成功させる回数
+    private const int BombKillNeed   = 3;   // ボムでまとめて巻き込んで倒す数
+    private const int PurifyNeed     = 2;   // 浄化する数
+    private const double SlowHoldNeed = 1.0; // 低速で動き続ける最低秒
+
+    // 進行不能回避のための保険タイムアウト（十分長く＝通常プレイで勝手に進まない）。
+    private const double SafetyTimeout = 60.0;
 
     // スポット矩形（設計座標 1280x720）。Hud.cs の各 Draw* の実座標から確定。
     private static readonly Rect2 SpotBomb     = new Rect2(18, 16, 200, 86);   // DrawLifeBomb（LIFE/BOMB パネル）
@@ -59,24 +74,24 @@ public partial class StageZero : Node
     };
     private static readonly (int who, string text, string face)[] Tut1Move =
     {
-        (0, "まずは、動くこと。矢印キーで、上下左右。", "res://char/shonen_face.png"),
+        (0, "まずは、動くこと。下のボタンで、上下左右。", "res://char/shonen_face.png"),
         (0, "斜めも入れて、ぜんぶで8方向。光の中を、好きに泳いでごらん。", "res://char/shonen_gentle.png"),
         (1, "泳ぐ、ですか。……ふわふわして、なんだか心地いいですね。", "res://char/mina_smile.png"),
         (0, "その調子だ。身体が、きみのものになってきた証拠だよ。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut2Shot =
     {
-        (0, "次は、撃つ。Z キーだ。押しっぱなしで、光が出る。", "res://char/shonen_face.png"),
+        (0, "次は、撃つ。下のボタンを押しっぱなしで、光が出る。", "res://char/shonen_face.png"),
         (0, "飛んでくる“言葉”や“板”——あれを、その光で祓うんだ。", "res://char/shonen_gentle.png"),
         (1, "撃つ、というより……払いのける感じですね。", "res://char/mina_face.png"),
-        (0, "そう。倒すんじゃない。やさしく、どかすだけ。Z を、押してみて。", "res://char/shonen_proud.png"),
+        (0, "そう。倒すんじゃない。やさしく、どかすだけ。さあ、撃ってみて。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut3Slow =
     {
-        (0, "狭い隙間を抜けたい時は、Shift。押すと、ゆっくり動ける。", "res://char/shonen_face.png"),
+        (0, "狭い隙間を抜けたい時は、低速。下のボタンを押すと、ゆっくり動ける。", "res://char/shonen_face.png"),
         (0, "それと——きみの真ん中に、小さな赤い点が見えるだろ。", "res://char/shonen_gentle.png"),
         (1, "あ、ほんとうだ。これが……?", "res://char/mina_face.png"),
-        (0, "それが、当たる所。そこさえ弾に触れなきゃ平気だ。Shift で、丁寧に避けてごらん。", "res://char/shonen_proud.png"),
+        (0, "それが、当たる所。そこさえ弾に触れなきゃ平気だ。低速で、丁寧に避けてごらん。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut4Dash =
     {
@@ -88,11 +103,11 @@ public partial class StageZero : Node
     };
     private static readonly (int who, string text, string face)[] Tut5Bomb =
     {
-        (0, "それでも、囲まれて逃げ場がない時がある。そんな時は——X。", "res://char/shonen_face.png"),
+        (0, "それでも、囲まれて逃げ場がない時がある。そんな時は——ボムだ。", "res://char/shonen_face.png"),
         (0, "画面じゅうの弾を、まとめて吹き飛ばす。その間、きみは無敵だ。", "res://char/shonen_gentle.png"),
         (1, "そんな大技、いくらでも使えるんですか?", "res://char/mina_face.png"),
         (0, "いや。右の“ボム残り”を、ひとつ食う。ここぞ、って時のための切り札さ。", "res://char/shonen_gentle.png"),
-        (0, "ほら、ダミーの弾だ。怖がらず、X。", "res://char/shonen_proud.png"),
+        (0, "ほら、ダミーの弾だ。怖がらず、下のボタンでボムを。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut6Purify =
     {
@@ -141,9 +156,28 @@ public partial class StageZero : Node
         Drive(delta);
     }
 
+    // 各ステップ（説明会話フェーズ＆実践フェーズ）で、その操作に割り当たった“全ボタン”を
+    // 指示帯の上にバッジで出すための操作名。Player.cs の入力判定と一致させる。
+    //   move=移動 / shot=撃つ（浄化も板を撃って祓う）/ focus=低速 / dodge=回避 / bomb=ボム / kind=やさしさ全開。
+    //   導入(0)・締め(15) は操作なし＝空。会話／実践のどちらのフェーズでも同じ操作名を出す。
+    private static string OpForPhase(int phase) => phase switch
+    {
+        1 or 2   => "move",
+        3 or 4   => "shot",
+        5 or 6   => "focus",
+        7 or 8   => "dodge",
+        9 or 10  => "bomb",
+        11 or 12 => "shot",   // 浄化＝ショットで板を祓う
+        13 or 14 => "kind",
+        _        => "",       // 0=導入 / 15=締め は操作ボタンを出さない
+    };
+
     // 各フェーズ。説明会話＝Hud(止まる)＋スポットON／実践＝指示帯(止めない)＋スポット弱め。
     private void Drive(double delta)
     {
+        // 今のステップに対応する“全ボタン”バッジを毎フレーム指定（Hud が All* に展開して描く）。
+        Hud.SetTutorialOp(OpForPhase(_phase));
+
         switch (_phase)
         {
             // ── 0 導入（会話のみ・全画面うっすら暗転） ──
@@ -177,16 +211,27 @@ public partial class StageZero : Node
             case 3:
                 if (TutTalk(Tut2Shot)) NextPhase();
                 break;
-            case 4: // 自弾7発相当 or 6s
-                if (!_phaseStarted) { _phaseStarted = true; _t2ShotCount = 0; Hud.ClearSpot(); }
-                Hud.SetTutorialHint("Z で撃ってみよう");
-                Player?.TutorialGlow();
-                if (CountPlayerBullets() >= 1) _t2ShotCount++;
-                if (_t2ShotCount >= 7 || _phaseTime > 6.0)
+            case 4: // ダミーを Z で3体撃破（倒すたび湧き直し）→達成で次へ
+                if (!_phaseStarted)
                 {
-                    Hud.ClearTutorialHint();
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    NextPhase();
+                    _phaseStarted = true;
+                    _t2KillBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
+                    Hud.ClearSpot();
+                    SpawnDummy(true); // 弾を撃たない無害ダミー（撃って祓う標的）
+                }
+                Player?.TutorialGlow();
+                {
+                    int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
+                    // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
+                    if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
+                    Hud.SetTutorialHint($"Z で ダミーを たおそう（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
+                    if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
+                    {
+                        Hud.ClearTutorialHint();
+                        ClearDummies();
+                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                        NextPhase();
+                    }
                 }
                 break;
 
@@ -194,15 +239,28 @@ public partial class StageZero : Node
             case 5:
                 if (TutTalk(Tut3Slow)) NextPhase();
                 break;
-            case 6: // Shift保持0.5s＋移動 or 5s
-                if (!_phaseStarted) { _phaseStarted = true; _t3FocusHeld = 0; _t3Moved = false; Hud.ClearSpot(); }
-                Hud.SetTutorialHint("Shift を押しながら動こう");
+            case 6: // ゆっくり弾を流す中、低速(Shift)を保ったまま動き続ける体験（1秒以上＋移動）→達成で次へ
+                if (!_phaseStarted)
+                {
+                    _phaseStarted = true; _t3FocusHeld = 0; _t3Moved = false; _refill = 0;
+                    Hud.ClearSpot();
+                    SpawnSlowBullets(); // 精密回避の的になるゆっくり弾
+                }
                 Player?.TutorialGlow();
+                _refill += delta;
+                if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); } // 隙間を絶やさない
                 {
                     bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
-                    if (focus) _t3FocusHeld += delta;
-                    if (focus && MovePressed()) _t3Moved = true;
-                    if ((_t3FocusHeld >= 0.5 && _t3Moved) || _phaseTime > 5.0) { Hud.ClearTutorialHint(); NextPhase(); }
+                    // 低速を保ったまま動いている間だけ加算（離す/止まると進捗は溜まらない＝低速の意味を体験）。
+                    if (focus && MovePressed()) { _t3FocusHeld += delta; _t3Moved = true; }
+                    int pct = Mathf.Clamp((int)(_t3FocusHeld / SlowHoldNeed * 100), 0, 100);
+                    Hud.SetTutorialHint($"Shift で低速のまま 弾の隙間を ぬけよう（{pct}%）");
+                    if ((_t3FocusHeld >= SlowHoldNeed && _t3Moved) || _phaseTime > SafetyTimeout)
+                    {
+                        Hud.ClearTutorialHint();
+                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                        NextPhase();
+                    }
                 }
                 break;
 
@@ -210,7 +268,7 @@ public partial class StageZero : Node
             case 7:
                 if (TutTalk(Tut4Dash)) NextPhase();
                 break;
-            case 8: // DodgeCount が3増える or 10s（ゆっくりダミー弾を流す）
+            case 8: // 回避を3回成功（DodgeCount+3）→達成で次へ。弾を絶やさず「弾の近くで抜ける」感を出す。
                 if (!_phaseStarted)
                 {
                     _phaseStarted = true;
@@ -219,15 +277,18 @@ public partial class StageZero : Node
                     Hud.ClearSpot();
                     SpawnSlowBullets();
                 }
-                Hud.SetTutorialHint("いろんな方向に回避してみよう");
                 Player?.TutorialGlow();
                 _refill += delta;
                 if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); }
-                if ((Player?.DodgeCount ?? 0) - _t4DodgeBase >= 3 || _phaseTime > 10.0)
                 {
-                    Hud.ClearTutorialHint();
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    NextPhase();
+                    int dodged = (Player?.DodgeCount ?? 0) - _t4DodgeBase;
+                    Hud.SetTutorialHint($"いろんな方向に 回避してみよう（{Mathf.Min(dodged, DodgeNeed)}/{DodgeNeed}）");
+                    if (dodged >= DodgeNeed || _phaseTime > SafetyTimeout)
+                    {
+                        Hud.ClearTutorialHint();
+                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                        NextPhase();
+                    }
                 }
                 break;
 
@@ -236,21 +297,39 @@ public partial class StageZero : Node
                 if (!_phaseStarted) { _phaseStarted = true; Hud.SetSpot(SpotBomb, 0.5f); }
                 if (TutTalk(Tut5Bomb)) NextPhase();
                 break;
-            case 10: // ダミー弾を濃いめに撒く→ボム発動検出 or 6s
+            case 10: // ダミー敵をボム範囲に固めて出す→ X でまとめて3体巻き込んで倒す→達成で次へ
                 if (!_phaseStarted)
                 {
                     _phaseStarted = true;
                     _t5BombBase = Player?.BombCount ?? 0;
+                    _t5PurifyBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     Hud.SetSpot(SpotBomb, 0.25f);
-                    SpawnDenseBullets();
+                    SpawnBombCluster(); // 自機の少し上に3体まとめて
                 }
-                Hud.SetTutorialHint("ダミーの弾が来た。X で一掃しよう");
-                if ((Player?.BombCount ?? 0) - _t5BombBase >= 1 || _phaseTime > 6.0)
                 {
-                    Hud.ClearTutorialHint();
-                    Hud.ClearSpot();
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    NextPhase();
+                    var game = GetNodeOrNull<GameManager>("/root/Game");
+                    int caught = (game?.PurifiedCount ?? 0) - _t5PurifyBase;
+                    bool bombed = (Player?.BombCount ?? 0) - _t5BombBase >= 1;
+                    // ボムを撃ったのに3体まとめられなかった＝固め直して再挑戦（押すだけでは進めない）。
+                    if (bombed && caught < BombKillNeed)
+                    {
+                        _t5BombBase = Player?.BombCount ?? 0;
+                        _t5PurifyBase = game?.PurifiedCount ?? 0;
+                        ClearDummies();
+                        SpawnBombCluster();
+                    }
+                    // 散らばって標的が尽きたら固め直し（詰み防止）。
+                    else if (!bombed && CountLiveEnemies() == 0)
+                        SpawnBombCluster();
+                    Hud.SetTutorialHint($"ダミーを 3体まとめて X のボムで（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
+                    if (caught >= BombKillNeed || _phaseTime > SafetyTimeout)
+                    {
+                        Hud.ClearTutorialHint();
+                        Hud.ClearSpot();
+                        ClearDummies();
+                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                        NextPhase();
+                    }
                 }
                 break;
 
@@ -268,7 +347,7 @@ public partial class StageZero : Node
                     NextPhase();
                 }
                 break;
-            case 12: // GlyphMote 1体→PurifiedCount+1（FBなし＝未浄化で全滅したら湧き直し）
+            case 12: // GlyphMote をパネル剥がしで浄化（2体）→達成で次へ。未浄化で全滅したら湧き直し。
                 if (!_phaseStarted)
                 {
                     _phaseStarted = true;
@@ -276,16 +355,17 @@ public partial class StageZero : Node
                     Hud.SetSpot(SpotHeart, 0.25f); // 浄化で増える♥心チップをそっと示す
                     SpawnDummy(false);
                 }
-                Hud.SetTutorialHint("ダミーの敵を浄化してみよう");
                 {
                     var game = GetNodeOrNull<GameManager>("/root/Game");
-                    bool purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase >= 1;
-                    if (!purified && GetTree().GetNodesInGroup("enemies").Count == 0)
-                        SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止・FBなし設計）
-                    if (purified)
+                    int purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase;
+                    if (purified < PurifyNeed && CountLiveEnemies() == 0)
+                        SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止）
+                    Hud.SetTutorialHint($"ダミーの敵を 浄化してみよう（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
+                    if (purified >= PurifyNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
                         Hud.ClearSpot();
+                        ClearDummies();
                         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                         NextPhase();
                     }
@@ -306,23 +386,70 @@ public partial class StageZero : Node
                     NextPhase();
                 }
                 break;
-            case 14: // 無害ダミーを出す→JustOverloaded 検出 or FB(12s)
+            case 14: // 満タン→Ctrlで全開発動→（できれば全開中にダミーを撃ち込む）→達成で次へ
                 if (!_phaseStarted)
                 {
                     _phaseStarted = true;
-                    var g = GetNodeOrNull<GameManager>("/root/Game");
-                    if (!(g?.IsOverload ?? false) && !(g?.KindnessReady ?? false)) g?.FillKindnessForTutorial(); // 念押しで満タン保証
-                    Hud.SetSpot(SpotKindness, 0.25f);
-                    SpawnDummy(true); // 無害な撃ち込み台
+                    _t7Activated = false;
+                    _t7ActivatedT = 0;
+                    var g0 = GetNodeOrNull<GameManager>("/root/Game");
+                    g0?.FillKindnessForTutorial();           // 確実に満タンから始める
+                    Hud.SetSpot(SpotKindness, 0.30f);
+                    SpawnDummy(true);                        // 無害な撃ち込み台
                 }
-                Hud.SetTutorialHint("やさしさ全開（Ctrl）で、ダミーの敵に撃ち込もう");
+                Player?.TutorialGlow();
                 {
                     var game = GetNodeOrNull<GameManager>("/root/Game");
-                    if ((game?.JustOverloaded ?? false) || _phaseTime > 12.0)
+                    bool overloadNow = game?.IsOverload ?? false;
+
+                    // 発動の検出は1フレームの JustOverloaded を取りこぼしても拾えるよう、
+                    // 「JustOverloaded か、現在 IsOverload か」のどちらかで一度でも立てたら保持する。
+                    if (!_t7Activated && ((game?.JustOverloaded ?? false) || overloadNow))
+                    {
+                        _t7Activated = true;
+                        _t7ActivatedT = _phaseTime;          // 発動からの経過を測る
+                        _t7OverloadKillBase = game?.PurifiedCount ?? 0;
+                    }
+
+                    if (!_t7Activated)
+                    {
+                        // 発動前：毎フレーム満タンを維持。発動で消費されても次フレームで満タンに戻すので
+                        // 「消費で即未満→発動扱いにならない」事故が起きない（発動自体は上で検出済み）。
+                        if (!overloadNow && !(game?.KindnessReady ?? false)) game?.FillKindnessForTutorial();
+                        Hud.SetTutorialHint("ゲージ満タン。Ctrl で やさしさ全開!");
+                    }
+                    else
+                    {
+                        // 発動後：全開中にダミーを撃ち込めたら理想だが、必須にして詰む経路は作らない。
+                        // ① 全開中にダミー撃破できたら即完了。標的が尽きたら全開のうちに湧き直す。
+                        // ② 全開が切れても（撃破前でも）「発動から少し体験したら」フォールバックで完了。
+                        int killed = (game?.PurifiedCount ?? 0) - _t7OverloadKillBase;
+                        if (overloadNow && killed < 1 && CountLiveEnemies() == 0) SpawnDummy(true);
+
+                        Hud.SetTutorialHint(overloadNow
+                            ? "全開のまま ダミーに撃ち込んで 倒そう!"
+                            : "やさしさ全開、できました！");
+
+                        // 完了条件（いずれか）：撃破した／全開が切れた（一度発動したら必ず体験完了に）／発動から十分経った。
+                        bool done = killed >= 1
+                                    || (!overloadNow)                            // 全開が自然終了＝発動を体験し切った
+                                    || (_phaseTime - _t7ActivatedT > 6.0);        // 念のための時間フォールバック
+                        if (done)
+                        {
+                            Hud.ClearTutorialHint();
+                            Hud.ClearSpot();
+                            ClearDummies();
+                            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                            NextPhase();
+                        }
+                    }
+
+                    // 最終保険：発動すらされないまま保険時間を超えても必ず進む（softlock 根絶）。
+                    if (!_t7Activated && _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
                         Hud.ClearSpot();
-                        foreach (Node n in GetTree().GetNodesInGroup("enemies")) if (n is Enemy e) e.QueueFree();
+                        ClearDummies();
                         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                         NextPhase();
                     }
@@ -349,6 +476,7 @@ public partial class StageZero : Node
     {
         if (_started) return;
         _started = true;
+        Hud.ClearTutorialOp();
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (game != null) game.TutorialNoConsume = false; // 練習モード解除（Stage0Root._ExitTree でも保険的に解除）
         game?.MarkTutorialSeen();
@@ -401,18 +529,24 @@ public partial class StageZero : Node
         || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.D);
 
     // ════════════════════ ダミー弾・ダミー敵 ════════════════════
-    // 自弾の本数（ショット練習の達成計測用）。
-    private int CountPlayerBullets()
+    private int CountEnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").Count;
+    private int _t5BombBase, _t5PurifyBase;
+
+    // まだ改心していない（＝倒せる）ダミー敵の数。湧き直し判定・進捗計測の補助に使う。
+    private int CountLiveEnemies()
     {
         int n = 0;
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return 0;
-        foreach (Node c in pool.GetChildren())
-            if (c is Bullet b && b.Active && !b.IsEnemy) n++;
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is Enemy e && !e.IsPurified) n++;
         return n;
     }
-    private int CountEnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").Count;
-    private int _t5BombBase;
+
+    // ステップ間の取りこぼし防止：場に残ったダミー敵（改心済みフォロワー含む）を片付ける。
+    private void ClearDummies()
+    {
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is Enemy e) e.QueueFree();
+    }
 
     // 回避練習：ゆっくり横切るダミー弾を少数（避けやすい／回避で抜けやすい）。
     private void SpawnSlowBullets()
@@ -427,24 +561,22 @@ public partial class StageZero : Node
         }
     }
 
-    // ボム練習：少し濃いめ。囲まれ感を出してから X を促す。
-    private void SpawnDenseBullets()
+    // ボム練習：ダミー敵を3体まとめて出す（ボムは全画面浄化なので3体居れば1発で巻き込める）。
+    private void SpawnBombCluster()
     {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        for (int i = 0; i < 12; i++)
+        for (int i = 0; i < BombKillNeed; i++)
         {
-            float x = _rng.RandfRange(40f, 360f);
-            float y = _rng.RandfRange(-40f, -4f);
-            pool.Spawn(new Vector2(x, y), new Vector2(_rng.RandfRange(-16f, 16f), 50f), isEnemy: true, 3f, 1);
+            var e = new GlyphMote { Harmless = true }; // 弾を撃たない＝練習中に痛手なし
+            World.AddChild(e);
+            e.GlobalPosition = new Vector2(330f + i * 18f, 80f + i * 34f);
         }
     }
 
-    // ダミー敵（GlyphMote）。harmless=true で弾を撃たない撃ち込み台（やさしさ全開の練習用）。
+    // ダミー敵（GlyphMote）。harmless=true で弾を撃たない撃ち込み台。
     private void SpawnDummy(bool harmless)
     {
         var e = new GlyphMote { Harmless = harmless };
         World.AddChild(e);
-        e.GlobalPosition = new Vector2(360f, 108f);
+        e.GlobalPosition = new Vector2(360f, _rng.RandfRange(70f, 150f));
     }
 }
