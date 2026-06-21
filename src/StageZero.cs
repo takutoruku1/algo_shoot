@@ -30,7 +30,7 @@ public partial class StageZero : Node
     private bool _bannerShown;
 
     // 達成計測用ベースライン／フラグ。
-    private bool _t1Moved, _t1MovedH, _t1MovedV;
+    private double _t1Up, _t1Down, _t1Left, _t1Right;
     private int _t2ShotCount;
     private double _t3FocusHeld; private bool _t3Moved;
     private int _t4DodgeBase;
@@ -156,17 +156,21 @@ public partial class StageZero : Node
             case 1: // 説明
                 if (TutTalk(Tut1Move)) NextPhase();
                 break;
-            case 2: // 実践（上下＋左右の入力 or 6s）
-                if (!_phaseStarted) { _phaseStarted = true; _t1MovedH = _t1MovedV = _t1Moved = false; Hud.ClearSpot(); }
-                Hud.SetTutorialHint("↑↓←→ で、8方向に動いてみよう");
+            case 2: // 実践（上下左右をそれぞれ約1秒ずつ押す＝全方向そろうまで進まない）
+                if (!_phaseStarted) { _phaseStarted = true; _t1Up = _t1Down = _t1Left = _t1Right = 0; Hud.ClearSpot(); }
                 Player?.TutorialGlow();
                 {
+                    const double need = 1.0; // 各方向これだけ押し続けたらカウント
                     Vector2 v = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
-                    if (Mathf.Abs(v.X) > 0.2f || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.D)) _t1MovedH = true;
-                    if (Mathf.Abs(v.Y) > 0.2f || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.S)) _t1MovedV = true;
+                    if (v.X < -0.2f || Input.IsKeyPressed(Key.A)) _t1Left  += delta;
+                    if (v.X >  0.2f || Input.IsKeyPressed(Key.D)) _t1Right += delta;
+                    if (v.Y < -0.2f || Input.IsKeyPressed(Key.W)) _t1Up    += delta;
+                    if (v.Y >  0.2f || Input.IsKeyPressed(Key.S)) _t1Down  += delta;
+                    int done = (_t1Up >= need ? 1 : 0) + (_t1Down >= need ? 1 : 0)
+                             + (_t1Left >= need ? 1 : 0) + (_t1Right >= need ? 1 : 0);
+                    Hud.SetTutorialHint($"上下左右を それぞれ1秒くらい 押してみよう（{done}/4）");
+                    if (done >= 4 || _phaseTime > 30.0) { Hud.ClearTutorialHint(); NextPhase(); }
                 }
-                if (_t1MovedH && _t1MovedV) _t1Moved = true;
-                if (_t1Moved || _phaseTime > 6.0) { Hud.ClearTutorialHint(); NextPhase(); }
                 break;
 
             // ── 2 ショット（Z） ──

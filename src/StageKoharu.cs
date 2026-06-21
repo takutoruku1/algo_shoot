@@ -49,6 +49,8 @@ public partial class StageKoharu : Node
     // who: 0=少年 / 1=ミナ / 2=こはる / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
+        (0, "なあミナ。……いま、腹が鳴った。聞こえたか?", SCocky),                 // 無目的な雑談（音で分かる＝視点の断絶を守る）
+        (1, "ええ、ばっちりと。電脳ごしでも、ご主人様の腹の音だけは、よく届きます。", "res://char/mina_smile.png"),
         (4, "「ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?」", ""),  // 投稿
         (0, "……ミナ。Stay——だ。", SGentle),                                  // 合言葉の回帰（今度は少年自身の祈りとして滲む）
         (1, "……はい。今日は、ちゃんと言ってくれるんですね。", ""),
@@ -138,6 +140,9 @@ public partial class StageKoharu : Node
         (4, "「ちゃんと食べてね。……あたしも、食べるから。」", ""),            // 投稿が変化
         (0, "もしぼくが寝坊して来られない日があったらさ。妹の様子でも、見ててくれよ。", SGentle),
         (1, "妹が、いらしたんですか。", ""),
+        (0, "……さあ。どうだったかな。", SCocky),                              // はぐらかす（伏線④を未回収のまま引きずる）
+        (1, "……さっきの「どなたに」も、はぐらかされたままです。", "res://char/mina_worried.png"),
+        (3, "——その問いは、行き場をなくして、わたくしの中に沈んでいきました。まだ、飲み込めずに。", ""), // ミナが飲み込めない一拍（死は描かない）
     };
 
     public override void _Ready()
@@ -367,6 +372,8 @@ public partial class StageKoharu : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
+            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             Advance();
         }
     }

@@ -48,6 +48,8 @@ public partial class StageAkari : Node
     // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
+        (1, "ご主人様、いま、あくびしましたね。声が、半分とけていましたよ。", "res://char/mina_smile.png"), // 無目的な雑談（声で分かる＝視点の断絶を守る）
+        (0, "……地獄耳だな、きみは。AIのくせに。", SCocky),
         (1, "ご主人様。次の“成敗”は? 今日はずいぶん静かですね。", ""),
         (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""),     // 投稿
@@ -143,6 +145,7 @@ public partial class StageAkari : Node
     {
         (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
         (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
+        (2, "……でも、もう、ごめんねは言わない。あたしの好きは、まちがってなかった。", ""), // 自分の意思で前を向く（P4・尊厳）
         (1, "あなた、この人を——知ってるんですか?", "res://char/mina_worried.png"),
         (0, "…………まさか。赤の他人さ。", SCocky),
         (1, "……即答までに、二秒かかりましたね。", ""),
@@ -383,6 +386,8 @@ public partial class StageAkari : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
+            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             Advance(); // 出現と同時に説明会話へ（会話中はボス停止・雨も止む）
         }
     }

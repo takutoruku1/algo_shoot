@@ -61,7 +61,8 @@ public partial class Hud : CanvasLayer
     private Color _cutinCol = Colors.White;    // リム発光のキーカラー（発動スペルの tint）
     private double _cutinTimer;                // 残り時間（0 で消滅）
     private bool _cutinDoneThisBoss;          // このボス戦で既にカットインを出したか（初回のみ＝true で抑止）
-    private static Dictionary<string, string>? _cutinTexPaths; // who → 専用カットイン絵のパス（Rei のみ登録）
+    private string _cutinLine = "";           // カットインに合わせて出すキャラ別バトルセリフ
+    private static Dictionary<string, (string path, string line)>? _cutinData; // who → (カットイン絵, セリフ)
     // 演出尺（すべて定数で調整可能）。anticipation→slide-in(BackOut)→着地flash+shake→hold→袖へ抜ける。
     // 5 段構成：slideIn → impactHold(不透明・大きく＝インパクト) → settle(α/位置を半透明・外寄りへ遷移)
     //          → lingerHold(半透明で端に滞在＝弾が透けて読める余韻) → fade(袖へ抜ける)。
@@ -450,19 +451,23 @@ public partial class Hud : CanvasLayer
     {
         if (_cutinDoneThisBoss) return;
         if (IsAutoplay()) return;                       // --demo/--qa はスキップ
-        _cutinTexPaths ??= new Dictionary<string, string>
+        // who → (専用カットイン絵, カットインに合わせたバトルセリフ)。絵が無い who はカードのみ（自然にスキップ）。
+        _cutinData ??= new Dictionary<string, (string, string)>
         {
-            ["レイ"] = "res://char/cutin_rei.png",
+            ["レイ"]   = ("res://char/cutin_rei.png",    "——追いつけるものなら、どうぞ？"),
+            ["あかり"] = ("res://char/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
+            ["こはる"] = ("res://char/cutin_koharu.png", "ぜんぶ食べてね。のこしちゃ、だめ。"),
+            ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),
         };
-        if (!_cutinTexPaths.TryGetValue(who, out string? path)) return;
-        var tex = ResourceLoader.Load<Texture2D>(path);
+        if (!_cutinData.TryGetValue(who, out var d)) return;
+        var tex = ResourceLoader.Load<Texture2D>(d.path);
         if (tex == null) return;                        // 絵が無ければカードのみ（従来どおり）
-        _cutinTex = tex; _cutinCol = col; _cutinTimer = CutinDur;
+        _cutinTex = tex; _cutinCol = col; _cutinTimer = CutinDur; _cutinLine = d.line;
         _cutinDoneThisBoss = true;                      // 以降このボス戦では出さない
     }
 
     // ボス戦開始でフラグをリセット（次のボス戦の初回宣言で再びカットインが出る）。各ボスの ShowBossBar 経由でも可。
-    public void ResetSpellCutin() { _cutinDoneThisBoss = false; _cutinTex = null; _cutinTimer = 0; }
+    public void ResetSpellCutin() { _cutinDoneThisBoss = false; _cutinTex = null; _cutinTimer = 0; _cutinLine = ""; }
 
     private static bool IsAutoplay()
     {
@@ -844,6 +849,18 @@ public partial class Hud : CanvasLayer
             Mathf.Lerp(1f, _cutinCol.G, 0.10f),
             Mathf.Lerp(1f, _cutinCol.B, 0.10f), a);
         ci.DrawTextureRect(_cutinTex, new Rect2(x, y, pw, ph), false, tint);
+
+        // カットインに合わせたバトルセリフ（バストアップの右・中央高さ）。カットインの不透明に同調してフェード。
+        if (!string.IsNullOrEmpty(_cutinLine))
+        {
+            float sa = Mathf.Clamp(a / CutinHoldA, 0f, 1f);
+            float sx = x + pw * 0.82f;
+            float sy = 348f;
+            // 左に色アクセントの縦バー（この技の色）＋影＋本体（大きめ ZenBold）。
+            ci.DrawRect(new Rect2(sx - 14f, sy - 4f, 4f, 40f), new Color(_cutinCol.R, _cutinCol.G, _cutinCol.B, 0.85f * sa));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx + 2f, sy + 2f), _cutinLine, 28, new Color(0f, 0f, 0f, 0.5f * sa));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx, sy), _cutinLine, 28, new Color(0.97f, 0.96f, 1f, sa));
+        }
     }
     private bool _cutinLandedFlashed;
 

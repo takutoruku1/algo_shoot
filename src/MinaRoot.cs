@@ -46,7 +46,9 @@ public partial class MinaRoot : Node2D
 
     private void DrawBackdrop()
     {
-        // 縦グラデの暗い背景を Sprite(GradientTexture2D) で敷く。
+        // FINAL は道中の無いボス専用ステージ。暗いグラデを生成テクスチャとして StageBackground に渡し、
+        // 最初からボス背景モードで軽く動かす（ゆっくり横ドリフト＋呼吸＋光の明滅）。
+        // グラデは横方向に均一なので横ドリフトでも継ぎ目が出ない。
         var grad = new Gradient
         {
             Offsets = new[] { 0f, 0.55f, 1f },
@@ -54,15 +56,18 @@ public partial class MinaRoot : Node2D
         };
         var tex = new GradientTexture2D
         {
-            Gradient = grad, Width = 8, Height = 256,
+            // 横ドリフト用に横幅を持たせる（8→32px）。縦グラデは FillFrom/To で維持。
+            Gradient = grad, Width = 32, Height = 256,
             Fill = GradientTexture2D.FillEnum.Linear, FillFrom = new Vector2(0, 0), FillTo = new Vector2(0, 1),
         };
-        var bg = new Sprite2D
+        var bg = new StageBackground
         {
-            Name = "Backdrop", Texture = tex, Centered = false,
-            Scale = new Vector2(ScreenWidth / 8f, ScreenHeight / 256f),
-            ZIndex = -100, ZAsRelative = false,
-            TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+            Name = "StageBackground",
+            BossBgTexture = tex,
+            StartInBoss = true,
+            BossDriftSpeed = 5f,    // 暗い心象世界＝最もゆっくり
+            BossBreathAmp = 0.010f,
+            BossPulseAmp = 0.05f,
         };
         AddChild(bg);
     }

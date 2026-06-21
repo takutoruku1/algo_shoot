@@ -420,6 +420,8 @@ public partial class StageRei : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
+            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             Advance();
         }
     }

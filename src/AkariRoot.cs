@@ -28,26 +28,17 @@ public partial class AkariRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        // 雨の教室背景（画面いっぱいにカバー表示）
-        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/akari/classroom.png");
-        if (tex != null)
+        // 雨の教室背景。道中＝横スクロールで前進感／ボス＝専用背景へ切替（StageBackground）。
+        // 新アートが来たら Mid/Boss のパスを差すだけ。今は既存アートを道中背景に流用、
+        // ボス専用背景は未用意のため当面 classroom.png を流用（突入で軽い動き＝差替え機構の動作確認）。
+        var bg = new StageBackground
         {
-            float scale = Mathf.Max((float)ScreenWidth / tex.GetWidth(), (float)ScreenHeight / tex.GetHeight());
-            float w = tex.GetWidth() * scale, h = tex.GetHeight() * scale;
-            var bg = new Sprite2D
-            {
-                Name = "BG",
-                Texture = tex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2((ScreenWidth - w) / 2f, (ScreenHeight - h) / 2f),
-                ZIndex = -90,
-                ZAsRelative = false,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(bg);
-        }
-        else
+            Name = "StageBackground",
+            MidBgPath = "res://char/bg/akari/classroom.png",
+            BossBgPath = "res://char/bg/akari/classroom.png",
+        };
+        AddChild(bg);
+        if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.12f, 0.14f, 0.20f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
             fill.MouseFilter = Control.MouseFilterEnum.Ignore;

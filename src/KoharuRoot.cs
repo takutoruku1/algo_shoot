@@ -29,25 +29,18 @@ public partial class KoharuRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/koharu/kitchen.png");
-        if (tex != null)
+        // 台所背景。道中＝横スクロールで前進感／ボス＝専用背景へ切替（StageBackground）。
+        // 新アートが来たら Mid/Boss のパスを差すだけ。今は既存アートを道中背景に流用、
+        // ボス専用背景は未用意のため当面 kitchen.png を流用（突入で軽い動き＝差替え機構の動作確認）。
+        var bg = new StageBackground
         {
-            float scale = Mathf.Max((float)ScreenWidth / tex.GetWidth(), (float)ScreenHeight / tex.GetHeight());
-            float w = tex.GetWidth() * scale, h = tex.GetHeight() * scale;
-            var bg = new Sprite2D
-            {
-                Name = "BG",
-                Texture = tex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2((ScreenWidth - w) / 2f, (ScreenHeight - h) / 2f),
-                ZIndex = -90,
-                ZAsRelative = false,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(bg);
-        }
-        else
+            Name = "StageBackground",
+            MidBgPath = "res://char/bg/koharu/kitchen.png",
+            BossBgPath = "res://char/bg/koharu/kitchen.png",
+            MidScrollSpeed = 18f, // 台所は凪いだ空気＝最も控えめな前進感
+        };
+        AddChild(bg);
+        if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.14f, 0.12f, 0.13f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
             fill.MouseFilter = Control.MouseFilterEnum.Ignore;

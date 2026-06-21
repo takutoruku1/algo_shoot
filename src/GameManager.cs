@@ -302,6 +302,7 @@ public partial class GameManager : Node
         if (d == null) return -1;
         int lv = GetUpgradeLevel(id);
         if (lv >= d.MaxLevel) return -1;
+        if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
         return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
     }
 
@@ -547,6 +548,10 @@ public partial class GameManager : Node
         // セーブには一切書かない（手動セーブしない限り消える）＝本番フロー/既存スロットを汚さない。
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--seed-records") { SeedDebugRecords(); break; }
+
+        // [一時/デバッグ] --boss : チェックポイント入口を「ボスから」にして各ステージをボス戦開始にする。
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a == "--boss") { SelectedEntry = StageEntry.Boss; break; }
     }
 
     // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。

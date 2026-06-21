@@ -28,25 +28,17 @@ public partial class ReiRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/rei/board.png");
-        if (tex != null)
+        // 背景はデータ駆動 StageBackground に一本化（道中＝横スクロール／ボス＝専用背景へ切替）。
+        // 新アートが来たら Mid/Boss のパスを差すだけで反映できる。今は既存アートを道中背景に流用。
+        // 道中＝表彰式会場（横スクロール）／ボス＝専用の「心の核」(一位の空席の玉座)へ切替。
+        var bg = new StageBackground
         {
-            float scale = Mathf.Max((float)ScreenWidth / tex.GetWidth(), (float)ScreenHeight / tex.GetHeight());
-            float w = tex.GetWidth() * scale, h = tex.GetHeight() * scale;
-            var bg = new Sprite2D
-            {
-                Name = "BG",
-                Texture = tex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2((ScreenWidth - w) / 2f, (ScreenHeight - h) / 2f),
-                ZIndex = -90,
-                ZAsRelative = false,
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(bg);
-        }
-        else
+            Name = "StageBackground",
+            MidBgPath = "res://char/bg/rei/board.png",
+            BossBgPath = "res://char/bg/rei/boss.png",
+        };
+        AddChild(bg);
+        if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.08f, 0.10f, 0.18f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
             fill.MouseFilter = Control.MouseFilterEnum.Ignore;
