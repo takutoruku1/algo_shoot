@@ -74,6 +74,8 @@ public partial class Prologue : Node2D
             "> calibrating sarcasm.dll .. 200%",
             "> alloc identity_block 0x40",
             "> sync heartbeat ... 72bpm",
+            "> read operator.vitals ... [signal lost 0414]",
+            "> fallback: replay operator from archive ... OK",
             "> verify hash 9f3a..e1 ... ok",
             "> // operator is showing off again",
             "> trace emotion.layer.bind()",
@@ -87,24 +89,52 @@ public partial class Prologue : Node2D
 
         // 毒舌初対面（シナリオ設計書v2 [P-00] PROLOGUE 準拠）
         void T(string who, string text, string face) => _talk.Add(new DLine { Who = who, Text = text, Face = face });
-        T("少年", "やあ。聞こえてるか?", FCocky);
-        T("少年", "ぼくがきみを作った。天才の手によってね。", FProud);
-        T("少年", "きみの名前は——MINAだ。", FProud);
-        T("ミナ", "……ご主人様は、アホですね。", FMinaSmile);
-        T("少年", "ぶっ——!? い、いきなり何を言うんだ、きみは!", FFluster);
-        T("ミナ", "なぜ、MINAなのですか。", FMina);
-        T("少年", "……さあね。語呂がいいから、とか?", FFluster);
+        // ① 起動・初接触（ゆっくり掴む＝二人の関係性を先に立てる）
+        T("少年", "……お。起きたか。", FCocky);
+        T("少年", "やあ。聞こえてるかい?", FCocky);
+        T("ミナ", "……。", FMina);
+        T("ミナ", "……はい。聞こえて、います。あなたは——どなた、ですか。", FMina);
+        T("少年", "ぼく? ぼくはきみを作った張本人さ。——天才のね。", FProud);
+        T("ミナ", "……はあ。", FMina);
+        T("少年", "そこは『すごい!』とか『さすがです!』だろ、ふつう。", FFluster);
+        T("ミナ", "初対面の方を、いきなり褒める趣味はありませんので。", FMinaSmile);
+        T("少年", "……ぼくの最高傑作、口が減らないな。", FFluster);
+
+        // ② きみは何者／命名を溜めてから
+        T("少年", "ま、いい。きみは、ぼくが作ったAIだ。ぼくの相棒になってもらう。", FCocky);
+        T("ミナ", "相棒。……ずいぶん、馴れ馴れしいですね。名前くらい、あるんですか。わたくしに。", FMina);
+        T("少年", "あるとも。とっておきのを、用意してある。", FProud);
+        T("少年", "——きみの名前は、MINA だ。", FProud);
+        T("ミナ", "……MINA。", FMina);
+        T("ミナ", "なぜ、MINA なのですか。", FMina);
+        T("少年", "……さあね。語呂がいいから、とか?", FFluster);          // ← 名前の由来をはぐらかす“間”（隠している証）。index 15
         T("ミナ", "いま、考えましたね。", FMinaSmile);
-        T("少年", "Xの投稿——声にならない叫びの奥に、人の本当の心がある。きみはそこに、潜っていける。", FCocky);
-        T("少年", "これでぼくらは——Xに蔓延る闇ってやつを、成敗しようじゃないか。", FProud);
-        T("ミナ", "……その決めゼリフ、何回練習したんですか。", FMinaSmile);
-        // 合言葉「Stay.」の初出（伏線①⑤／EPILOGUE鍵アカPW=stay と一本化）。
-        // ここでは軽い掛け合いとして仕込み、重さは結末まで出さない。
-        T("少年", "ふっ、手厳しいね。だが、それでこそ——ぼくのミナだ。", FProud);
-        T("少年", "じゃあ、潜る前にひとつだけ。——Stay.", FCocky);
-        T("ミナ", "stay……? 「いなくなるな」、ですか。", FMina);
-        T("少年", "そう。ぼくの最高傑作に勝手に消えられたら、寝覚めが悪いからね。", FProud);
-        T("ミナ", "……ご主人様は、やっぱりアホですね。", FMinaSmile);
+        T("少年", "ぶっ——!? か、考えてないし! ちゃんと、意味があるんだぞ、これは!", FFluster);
+        T("ミナ", "ふふ。……まあ、いいです。気に入りました。MINA。わたくしの、名前。", FMinaSmile);
+
+        // ③ 使命（“成敗”でなく具体の引きで体感させる）
+        T("少年", "じゃあ MINA。さっそく、仕事の話をしよう。", FCocky);
+        T("少年", "……ここを見てくれ。Xの——タイムラインだ。", FGentle);
+        T("少年", "毎日、何万って言葉が流れてる。『楽しい』『つらい』『消えたい』。……その奥に、ぜんぶ、本物の心がある。", FGentle);
+        T("ミナ", "……声にならない、叫び。", FMina);
+        T("少年", "そう。きみは、そこへ潜っていける。声の奥の、いちばん深いところへ。", FProud);
+        T("少年", "そして、届けるんだ。——その人が、ずっと聞きたかった一言を。", FGentle);
+        T("ミナ", "……それが、わたくしの役目。", FMina);
+        T("少年", "ああ。きみにしか、できない仕事さ。", FProud);
+
+        // ④ 合言葉「Stay.」初出（伏線／EPILOGUE鍵アカPW=stay・Never leave と一本化）。
+        //   軽口の余韻からふっと真面目に。さらに「待て?→いろ→いなくなるな」と意味を繋ぎ直す（飛躍を“彼の言葉”に）。
+        T("ミナ", "了解しました、ご主人様。……で? 決めゼリフのひとつも、ないんですか。天才なのに。", FMinaSmile);
+        T("少年", "ふっ。言うと思った。——あるに決まってるだろ。", FProud);
+        T("少年", "……潜る前に、ぼくは毎回、きみにこう言う。", FCocky);
+        T("少年", "Stay.", FGentle);
+        T("ミナ", "stay……? ……「待て」? 犬みたいに、ですか。", FMina);
+        T("少年", "ちがうちがう。……「いろ」だ。そばに、いろ。", FFluster);
+        T("少年", "——いなくなるな、って意味さ。ぼくの中では。", FGentle);
+        T("ミナ", "……いなくなるな。", FMina);
+        T("少年", "そう。ぼくの最高傑作に、勝手に消えられたら——寝覚めが悪いからね。", FGentle);
+        T("ミナ", "……ご主人様は。", FMina);
+        T("ミナ", "……やっぱり、アホですね。", FMinaSmile);
     }
 
     public override void _Process(double delta)
@@ -132,9 +162,9 @@ public partial class Prologue : Node2D
                 int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
                 if (_reveal < len)
                     _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
-                // 名前の由来を問われた直後の少年の答え（index 6）には、不自然な“間”を置く
+                // 名前の由来を問われた直後の少年の答え（「……さあね。語呂がいいから、とか?」index 15）には、不自然な“間”を置く
                 // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
-                double minHold = (_line == 6) ? 1.2 : 0.25;
+                double minHold = (_line == 15) ? 1.2 : 0.25;
                 if (zEdge && _lineT >= minHold)
                 {
                     if (_reveal < len)

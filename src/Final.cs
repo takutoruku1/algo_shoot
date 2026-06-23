@@ -24,7 +24,7 @@ public partial class Final : Node2D
     //   ② 「返事は、ありませんでした。」の表示と同時に、主題 M.I.N.A. の解決変奏を ppp で立ち上げる。
     //   ③ Final 末尾の余韻まで持続し、Epilogue の BgmMenu（同じ和声圏）へ自然に橋渡しされる。
     //   行は本文一致で検出（配列順を変えても壊れない）。各フェード尺は下の定数で実機調整できる。
-    private const string CueFadeLine    = "って、いつも言ってたのにな。今日は、言えそうにない。"; // この行で BgmBoss を細らせ始める
+    private const string CueFadeLine    = "って、いつも言ってたのにな。今日は——……ぼく、は、"; // この行で BgmBoss を細らせ始める
     private const string CueSilenceLine = "Stay. ——ご主人様。あなたこそ、いなくならないで。"; // この行で完全無音を保証
     private const string CueResolveLine = "　　　返事は、ありませんでした。";                  // この行と同時に解決音
     private const float SilenceFade   = 1.4f;  // BgmBoss を細らせて無音にする尺（「1拍」の沈黙の入り）
@@ -73,7 +73,7 @@ public partial class Final : Node2D
         T("ミナ", "……こんな時まで、教養アピールですか。");
         T("少年", "ばか。これが最後だから、言わせろ。");
         T("少年", "……Stay.");
-        T("少年", "って、いつも言ってたのにな。今日は、言えそうにない。");
+        T("少年", "って、いつも言ってたのにな。今日は——……ぼく、は、");
         T("ミナ", "……なら、わたくしが言います。");
         T("ミナ", "Stay. ——ご主人様。あなたこそ、いなくならないで。");
         T("地", "　　　返事は、ありませんでした。");

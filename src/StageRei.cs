@@ -109,7 +109,7 @@ public partial class StageRei : Node
     // 攻撃②の後：レイが“見透かされる”不安に触れる（伏線②は道中では薄く。名指しは避け、終盤の「全員知人」の反転を温存する）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "……なんなの、あなた。さっきから、調子が狂う。まるで、ぜんぶ、見透かされてるみたい。", RFace),
+        (2, "あら。二番手にしては、よけるじゃない。……でも、わたしに勝てるのは、わたしだけよ。", RFace),
         (0, "————。", SGentle),                                   // 沈黙
         (1, "ご主人様?", "res://char/mina_worried.png"),
         (0, "……気にするな。さあ、来い。きみの全部を、見せてみろ。", SProud),
