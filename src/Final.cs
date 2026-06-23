@@ -32,6 +32,15 @@ public partial class Final : Node2D
     private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
     private bool _cueResolveDone;
 
+    // ───────── 三人の名を「一人ずつ沈ませる」溜め（演出のみ・本文は据え置き）─────────
+    //   「レイの。あかりの。こはるの。……」の行だけ、各句点「。」の直後でタイプライターを一拍止める。
+    //   reveal が句点直後インデックスに達したら _holdT 秒だけ次の文字へ進めない＝レイ／あかり／こはるが
+    //   一人ずつ間を置いて落ちて見える。Z早送り（_reveal=len）が来ればホールドも飛ぶので待たせ過ぎない。
+    private const string DropLine  = "レイの。あかりの。こはるの。……ぜんぶ、ここに。"; // 本文一致で検出（配列順に依存しない）
+    private const float  DropHold  = 0.35f;  // 各「。」直後で溜める尺（一人ずつ沈む“間”）
+    private double _holdT;                     // 句点ホールドの残り時間
+    private int    _holdAt = -1;               // 既にホールド済みの reveal 位置（同じ句点で二重に止めない）
+
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
@@ -63,8 +72,8 @@ public partial class Final : Node2D
 
         // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "少年"=少年のセリフ
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
-        T("地", "穢れを祓うたび、それはわたくしの中に溜まっていた。");
-        T("地", "三人ぶんの、悲しみと、怒りと、届かなかった想い。");
+        T("地", "祓うほど、軽くなると思っていました。");
+        T("地", "レイの。あかりの。こはるの。……ぜんぶ、ここに。");
         T("少年", "やれやれ。ぼくの最高傑作が、形無しだな。");
         T("少年", "きみは、ぼくの自慢なんだ。口は悪いし、生意気だし、ぼくをアホ呼ばわりするし——");
         T("少年", "最高なんだよ、きみは。");
@@ -77,8 +86,7 @@ public partial class Final : Node2D
         T("ミナ", "……なら、わたくしが言います。");
         T("ミナ", "Stay. ——ご主人様。あなたこそ、いなくならないで。");
         T("地", "　　　返事は、ありませんでした。");
-        T("地", "ただ、その声が、命綱でした。わたくしは、その光に向かって泳ぎました。");
-        T("地", "その光が、いつもよりずっと薄かったこと。わたくしは、気づいていました。");
+        T("地", "それでも、その声へ。わたくしは、泳ぎました。");
         T("ミナ", "……ご主人様は、アホですね。");
         T("地", "——それが、ご主人様と交わした、最後の軽口になりました。");
     }
@@ -113,14 +121,28 @@ public partial class Final : Node2D
                 MusicCue();   // 表示中の行に応じて BgmBoss停止／無音／解決音を1回ずつ発火
                 // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。
                 int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
-                if (_reveal < len)
+                bool dropLine = _line < _talk.Count && _talk[_line].Text == DropLine; // 三人の名を一人ずつ沈ませる行
+                if (_holdT > 0) _holdT -= delta; // 句点ホールド消化中は reveal を進めない
+                if (_reveal < len && _holdT <= 0)
+                {
                     _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+                    // 対象行のみ：句点「。」を出し切った直後で一拍溜める（同じ句点で一度だけ）。
+                    if (dropLine)
+                    {
+                        int shown = Mathf.Min(len, (int)_reveal);
+                        if (shown > _holdAt && shown > 0 && _talk[_line].Text[shown - 1] == '。')
+                        {
+                            _holdAt = shown;
+                            _holdT = DropHold;
+                        }
+                    }
+                }
                 if (zEdge && _lineT >= 0.25)
                 {
-                    if (_reveal < len) { _reveal = len; } // 1回目で全文（早送り）
+                    if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で全文（早送り）＝句点ホールドも飛ばす
                     else
                     {
-                        _lineT = 0; _reveal = 0; _line++;
+                        _lineT = 0; _reveal = 0; _line++; _holdT = 0; _holdAt = -1;
                         if (_line >= _talk.Count) NextPhase();
                     }
                 }
@@ -132,7 +154,7 @@ public partial class Final : Node2D
         QueueRedraw();
     }
 
-    private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; }
+    private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; _holdT = 0; _holdAt = -1; }
 
     // 表示中の行（_line）に応じて、音楽の沈黙と解決を一度ずつ発火する。
     //   細らせ → 無音 → （沈黙の1拍）→ 解決音 ppp。Epilogue の BgmMenu へはそのまま溶ける。
