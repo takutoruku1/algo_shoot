@@ -14,7 +14,7 @@ public partial class ShopTutorial : Node2D
     // who: 0=少年 / 1=ミナ / 3=ナレ。少年の振り→ミナの種明かし→少年のツッコミの掛け合いで案内する。
     private static readonly (int who, string text, string face)[] ShopTutorialLines =
     {
-        (3, "　　　　最初の“声”が、静かになった。", ""),
+        (1, "……ご主人様。聞こえますか。最初の“声”が、静かになりました。", "res://char/mina_face.png"),
         (1, "ひと息つきましょう、ご主人様。せっかく稼いだのです、使い道をご案内しますわ。", "res://char/mina_smile.png"),
         (0, "稼いだ……？　ぼく、お金なんて拾った覚えないけど。", "res://char/shonen_face.png"),
         (1, "敵を浄化するたび、Alt で弾を“抜ける”たびに、貯まっておりますのよ。——“浄化した心”、♥の数が、それです。", "res://char/mina_face.png"),

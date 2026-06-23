@@ -191,11 +191,12 @@ public partial class BossMina : Enemy
         }
     }
 
-    // BREAK 合図：ミナ本人が敵なので「ミナが煽る」共通実装は使わず、話者なしの合図にする。
+    // BREAK 合図：ミナ本人が敵なので「ミナが煽る」共通実装は使わない。
+    // ナレ全廃方針＝話者なしのシステム声は廃し、役割反転で前に出た少年（＝MINA再生）の号令にする。
     protected override void OnBreakCue()
     {
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine("", "いまです──穢れを、撃ち抜いて!", UiKit.Mina, 0.45 + 4.0);
+            .ShowBossLine("少年", "ミナ! いまだ、撃ち抜け!", UiKit.Info, 0.45 + 4.0);
     }
 
     // RECLOSE のキャラ別弱気セリフ（高貴さの仮面の下で剥がれを拒む）。

@@ -67,6 +67,9 @@ public partial class BossKoharu : Enemy
         (0, "……ああ。残さず、食べるよ。", SGentle),                              // 兄が、妹に（観客だけが意味を知る）
         (0, "明日のぶんは——……いや。たくさん、作ってやってくれ。きみは、えらいよ。", SGentle), // “明日のぶんはいい”を呑み込む
         (1, "ご主人様。いまの……どなたに、おっしゃったんですか。", ""),         // ミナが半分気づく（Final/伏線へ）
+        // ② こはるの否認「ちゃんとすれば、いなくならない」と、ミナ自身の否認が同型。
+        //    説明せず、ミナが半秒だけ自分の否認に触れる“間”の一行（Final受容への助走）。
+        (1, "……ちゃんとしてれば、いなくならない。……ええ。わたくしも、そう思っていたいです。", "res://char/mina_worried.png"),
         (0, "…………帰ろう、ミナ。", SCocky),                                      // 再仮面
     };
 
@@ -275,7 +278,8 @@ public partial class BossKoharu : Enemy
             Hud.LineKind.Boy => face,
             // こはるは通常 koharu_face。絶望行だけ face に蒼白(pale)を指定して差し替える。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/koharu_face.png" : face,
-            _ => "res://char/mina_face.png", // ミナ・中継
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情（worried 等）
+            _ => "res://char/mina_face.png", // 中継ほか
         };
         hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }

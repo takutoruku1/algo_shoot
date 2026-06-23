@@ -57,7 +57,7 @@ public partial class BossAkari : Enemy
         (1, "“キミ”……? ご主人様、これは——", ""),
         (0, "————行こう。奥だ。", SGentle),
         (2, "来ないで……っ。あたしの“好き”は、迷惑なだけ。だから、世界中に、ばら撒くしか——", ""),
-        (3, "雨の交差点。言いかけた唇。「あのね、あたし——」。クラクション。", ""),
+        (1, "……見えました。雨の交差点。言いかけた唇。「あのね、あたし——」。そして、クラクション。", ""), // MemFlashLine：記憶フラッシュを焚く
         (0, "ミナ。……一度だけ。ぼくの代わりに、あの子の名前を、呼んでやってくれ。", SGentle),
         (1, "ご主人様の、お声では。いけないんですか。", ""),
         (0, "————ぼくの声じゃ、だめなんだ。気づかれて、しまうから。", SGentle),
@@ -214,7 +214,7 @@ public partial class BossAkari : Enemy
     private static readonly string[] RecloseLines =
     {
         "やだ、まだ見て。離さないってば。",
-        "来ないで……っ。あたしの“好き”は、迷惑なだけ。",
+        "お願い、嫌わないで……ちゃんと、いい子にするから……",
         "ひとりにしないで……お願い、まだ……",
     };
     private int _recloseIdx;
@@ -274,7 +274,9 @@ public partial class BossAkari : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        if (kind == Hud.LineKind.Narration) // 地・記憶：記憶フラッシュを焚く
+        // 記憶フラッシュ：ナレ枠は廃したので、回想の核となる行（雨の交差点）の内容でトリガする。
+        // 語り手はミナ(who=1)に統一しても、この一行で記憶フラッシュ演出は焚かれる。
+        if (text.Contains("雨の交差点"))
             (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerMemoryFlash();
         string portrait = kind switch
         {

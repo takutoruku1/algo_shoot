@@ -65,8 +65,8 @@ public partial class StageZero : Node
     // who: 0=少年 / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。
     private static readonly (int who, string text, string face)[] Tut0Intro =
     {
-        (3, "　　　　——どこまでも、暗い場所だった。", ""),
-        (1, "ご主人様……ここ、まっくらで、なにも見えませんよ。", "res://char/mina_worried.png"),
+        (1, "……ここは。どこまでも、暗い。", "res://char/mina_worried.png"),
+        (1, "ご主人様……まっくらで、なにも見えませんよ。", "res://char/mina_worried.png"),
         (0, "心配ない。ここはぼくが付きっきりで教える。", "res://char/shonen_gentle.png"),
         (0, "暗い中で“光った所”だけ見てればいい。それ以外は、見なくていいんだ。", "res://char/shonen_gentle.png"),
         (1, "……光った所だけ。それなら、わたくしにもできそうです。", "res://char/mina_face.png"),
@@ -132,7 +132,7 @@ public partial class StageZero : Node
         (0, "——これで、全部だ。動いて、撃って、避けて、抜けて、囲まれたら祓う。", "res://char/shonen_gentle.png"),
         (1, "ぜんぶ、覚えました。……ご主人様が、そばで教えてくれましたから。", "res://char/mina_smile.png"),
         (0, "ぼくは、ずっとここにいる。きみが迷っても、ちゃんと声が届く所に。", "res://char/shonen_gentle.png"),
-        (3, "　　　　暗闇に、ひとつだけ、行く先の光が灯った。", ""),
+        (1, "……あ。ご主人様、見てください。暗闇に、ひとつだけ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
         (0, "行こう、ミナ。——きみは、ひとりじゃない。ぼくが、ここにいる（Stay）。", "res://char/shonen_proud.png"),
     };
 
