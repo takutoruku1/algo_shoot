@@ -13,6 +13,7 @@ public partial class BossRei : Enemy
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
     private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _accelerated; // HP2割以下で戦闘BGMを一度だけ加速させた（多重発火防止）
     private float _ringOff;
     private int _pattern;
     private int _beatsFired;
@@ -183,6 +184,14 @@ public partial class BossRei : Enemy
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
+        }
+        // 適応演出：総HPの2割を割った瞬間に、実音源の戦闘BGMを一度だけ加速させる（緊迫の高揚）。
+        //   PitchScale を 0.6秒かけて約1.15へ滑らかに上げる＝ピッチも少し上がる（合意済み）。
+        //   フェードで別曲に切り替わると Audio.Music() 側で 1.0 に戻る＝ボス戦を抜けたら通常速度。
+        if (!_accelerated && HpRatio <= 0.2f)
+        {
+            _accelerated = true;
+            Audio.Instance?.SetMusicSpeed(1.15f);
         }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))

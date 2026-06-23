@@ -42,25 +42,182 @@ public partial class TitleMenu : Node2D
     private string _toast = "";
     private bool _autoplay, _dived;
 
-    // タイトルのキービジュアル＝画面全体を覆うフル16:9の1枚絵（_Ready で一度だけロードしてキャッシュ）。
+    // タイトルのキービジュアル＝画面全体を覆うフル16:9の1枚絵。
+    //   ★顔・表情は一切動かさない（過去に笑顔モーフ/合成が"不気味"と強NG）。
+    //     よって KV は「完全静止の Sprite2D」を最背面に1枚だけ敷く。
+    //     モーフ・呼吸・髪なびき・パララックスは全廃。顔は1pxも動かない。
+    //   「世界が動く」演出は _Draw 側で KV の上に “流れる光の粒”（データの川）を
+    //     加算で重ねて作る（顔矩形は除外＝顔に光は被せない）。継ぎ目リスクゼロ。
     private Texture2D? _kvTex;
+    private Sprite2D? _kvSprite;
+
+    // ── データの川を流れる光の粒（顔は不動・世界だけ動く）──
+    //   KV の青いデータストリームは画面左下→右上奥の消失点へ斜行する。
+    //   粒はその川筋に沿って奥（右上）へゆっくり吸い込まれる。速度は控えめ＝上品。
+    //   流域は右側〜下縁に限定し、顔の矩形(FaceRect)には絶対に入れない。
+    private struct LightMote
+    {
+        public Vector2 Pos;     // 設計座標(1280×720)
+        public float Speed;     // px/s（川に沿う進行）
+        public float Drift;     // 川筋からの直交ぶれ係数（束をばらす）
+        public float Size;      // 芯半径(設計px)
+        public float Phase;     // 明滅の位相
+        public float Life, MaxLife; // フェードイン/アウト管理
+        public Color Col;       // 芯色（Purify / PurifyHi / Light）
+    }
+    private LightMote[] _motes = System.Array.Empty<LightMote>();
+    private LightLayer? _lightLayer;           // 加算合成で粒/グロウを描く子レイヤ
+    private const int MoteCount = 22;          // 同時表示（控えめ）
+    private static readonly Vector2 RiverDir = new Vector2(0.62f, -0.78f).Normalized(); // 左下→右上奥
+    // 顔・キャラ主部の矩形（設計座標）。ここには粒・グロウを一切置かない。
+    private static readonly Rect2 FaceRect = new Rect2(
+        UiKit.DesignW * 0.26f, UiKit.DesignH * 0.02f,
+        UiKit.DesignW * 0.34f, UiKit.DesignH * 0.62f);
+    // 金オーブのおおよその位置（ミナが手に持つ光）。ここだけグロウを脈動させる。
+    private static readonly Vector2 OrbPos = new Vector2(UiKit.DesignW * 0.455f, UiKit.DesignH * 0.62f);
+    private readonly RandomNumberGenerator _rng = new();
 
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         _kvTex = ResourceLoader.Exists("res://char/title_kv.png")
             ? ResourceLoader.Load<Texture2D>("res://char/title_kv.png") : null;
+        BuildKvSprite();
+        InitMotes();
+        BuildLightLayer();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
+        var uargs = OS.GetCmdlineUserArgs();
+        for (int i = 0; i < uargs.Length; i++)
+        {
+            if (uargs[i] == "--demo" || uargs[i] == "--qa") _autoplay = true;
+        }
         _sel = _hasSave ? 1 : 0;
+    }
+
+    // KV を完全静止の Sprite2D（最背面・アスペクト維持カバー）として敷く。
+    //   シェーダ無し・モーフ無し・呼吸無し＝顔は1pxも動かない。
+    private void BuildKvSprite()
+    {
+        if (_kvTex == null) return; // KV が無ければフォールバック（_Draw 側で夜グラデ）。
+        float s = UiKit.Scale;       // 設計1280→内部384 の倍率(0.3)
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        float tw = _kvTex.GetWidth(), th = _kvTex.GetHeight();
+        float cover = Mathf.Max(W / tw, H / th); // 画面いっぱいに覆う（端を露出させない）
+        _kvSprite = new Sprite2D
+        {
+            Texture = _kvTex,
+            Centered = true,
+            ZIndex = -10,            // UI(_Draw)より必ず背面
+            ZAsRelative = false,
+            Scale = new Vector2(cover * s, cover * s),
+            Position = new Vector2(W * s / 2f, H * s / 2f),
+        };
+        AddChild(_kvSprite);
+    }
+
+    // 加算合成の光レイヤを作る（KVの上・UIの下＝ZIndex -5）。粒/オーブグロウを描く。
+    private void BuildLightLayer()
+    {
+        _lightLayer = new LightLayer
+        {
+            Host = this,
+            ZIndex = -5,        // 静止KV(-10)の上、UI(_Draw=0)の下
+            ZAsRelative = false,
+            Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
+        };
+        AddChild(_lightLayer);
+    }
+
+    // 光の粒を初期化（川の各所にばらまく＝起動直後から流れている状態にする）。
+    private void InitMotes()
+    {
+        _rng.Randomize();
+        _motes = new LightMote[MoteCount];
+        for (int i = 0; i < _motes.Length; i++)
+            _motes[i] = SpawnMote(true);
+    }
+
+    // 1粒を生成。spread=true なら川全体に分散配置（初期化用）、false なら川の上流端から。
+    //   流域＝右側〜下縁。顔矩形に入る座標は採用せず再抽選する。
+    private LightMote SpawnMote(bool spread)
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        Vector2 pos = Vector2.Zero;
+        for (int tries = 0; tries < 8; tries++)
+        {
+            float x, y;
+            if (spread)
+            {
+                // 川全体（右側〜下縁）に散らす。
+                x = _rng.RandfRange(W * 0.42f, W * 1.02f);
+                y = _rng.RandfRange(H * 0.40f, H * 1.02f);
+            }
+            else
+            {
+                // 上流端＝画面の下〜左下寄りから流し始める（右上奥へ向かう）。
+                x = _rng.RandfRange(W * 0.40f, W * 0.95f);
+                y = _rng.RandfRange(H * 0.78f, H * 1.06f);
+            }
+            pos = new Vector2(x, y);
+            if (!FaceRect.HasPoint(pos)) break; // 顔矩形は避ける
+        }
+
+        // 色：シアン主、白寄りを芯に少々、オーブ近傍だけ金をごく僅か混ぜる。
+        Color col;
+        float roll = _rng.Randf();
+        if (pos.DistanceTo(OrbPos) < 180f && roll < 0.45f) col = UiKit.Light;       // オーブの漏れ光
+        else if (roll < 0.30f) col = UiKit.PurifyHi;                                  // 白寄りの芯
+        else col = UiKit.Purify;                                                      // 主色シアン
+
+        return new LightMote
+        {
+            Pos = pos,
+            Speed = _rng.RandfRange(22f, 40f),     // 控えめ＝上品（画面横断に~30秒）
+            Drift = _rng.RandfRange(-0.14f, 0.14f),// 川筋からの微小ぶれ（束をばらす）
+            Size = _rng.RandfRange(0.8f, 2.2f),
+            Phase = _rng.RandfRange(0f, Mathf.Tau),
+            Life = spread ? _rng.RandfRange(0.4f, 1f) : 0f, // 初期は途中から、以後0からフェードイン
+            MaxLife = _rng.RandfRange(7f, 13f),
+            Col = col,
+        };
+    }
+
+    // 光の粒を毎フレーム流す（顔は不動・世界だけ動く）。KV スプライトには触れない。
+    private void UpdateMotes(double delta)
+    {
+        float dt = (float)delta;
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        // 川筋に直交するベクトル（ぶれ方向）。
+        Vector2 perp = new Vector2(-RiverDir.Y, RiverDir.X);
+        for (int i = 0; i < _motes.Length; i++)
+        {
+            ref LightMote m = ref _motes[i];
+            m.Life += dt;
+            Vector2 vel = (RiverDir + perp * m.Drift) * m.Speed;
+            m.Pos += vel * dt;
+            // 寿命切れ／画面外（右上奥へ抜けた）／顔矩形へ侵入したら、上流端から再生成。
+            bool gone = m.Life >= m.MaxLife
+                || m.Pos.X > W * 1.05f || m.Pos.Y < -H * 0.05f
+                || FaceRect.HasPoint(m.Pos);
+            if (gone) m = SpawnMote(false);
+        }
+    }
+
+    // 1粒の不透明度（フェードイン→巡航→フェードアウト）。端の硬さを殺す。
+    private static float MoteAlpha(in LightMote m)
+    {
+        float fadeIn = Mathf.Clamp(m.Life / 1.2f, 0f, 1f);
+        float fadeOut = Mathf.Clamp((m.MaxLife - m.Life) / 1.5f, 0f, 1f);
+        return fadeIn * fadeOut;
     }
 
     public override void _Process(double delta)
     {
         _t += delta;
         if (_toastT > 0) _toastT -= delta;
+        UpdateMotes(delta);
+        _lightLayer?.QueueRedraw(); // 流れる光を毎フレーム描き直す（顔/KVは静止のまま）
         if (_dived) { QueueRedraw(); return; }
         if (_autoplay) { if (_t > 0.3) Go("res://Hub.tscn"); QueueRedraw(); return; }
         // 操作説明オーバーレイが開いている間はタイトル側の入力を止める（Z/Xの二重処理を防ぐ）。
@@ -175,29 +332,17 @@ public partial class TitleMenu : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float t = (float)_t;
 
-        // ── 呼吸の位相（KV全体のごく僅かな呼吸的拡縮＆パララックス。やり過ぎない）──
-        float breath = Mathf.Sin(t * Mathf.Pi * 2f / 6.0f);          // 周期6s（ゆったり）
-        float kvScale = 1f + (0.5f + 0.5f * breath) * 0.018f;        // 1.000〜1.018 のごく僅かな脈
-        float kvDx = breath * 4f;                                     // 水平のわずかな漂い(px)
-
-        // ── 全画面キービジュアル（フル16:9・最背面に画面全面へ）。アスペクト維持でカバー＝はみ出しはトリム ──
-        if (_kvTex != null)
+        // ── キービジュアルは最背面の静止 Sprite2D が描く（_Ready の BuildKvSprite。顔は不動）。
+        //    ここでは KV を直貼りしない。KV が無い時だけ夜グラデで黒画面を回避する。
+        if (_kvSprite == null)
         {
-            float tw = _kvTex.GetWidth(), th = _kvTex.GetHeight();
-            // 「カバー」：画面を必ず覆うスケール。呼吸でさらに僅かに拡大。
-            float cover = Mathf.Max(W / tw, H / th) * kvScale;
-            float dw = tw * cover, dh = th * cover;
-            float dx = (W - dw) / 2f + kvDx;                          // 中央寄せ＋呼吸の漂い
-            float dy = (H - dh) / 2f;
-            DrawTextureRect(_kvTex, new Rect2(dx, dy, dw, dh), false);
-        }
-        else
-        {
-            // フォールバック：KVが無い時だけ夜グラデで埋める（黒画面回避）。
             UiKit.VGradient(this, new Rect2(0, 0, W, H),
                 new[] { new Color("0e1834"), new Color("0a1126"), new Color("070a16") },
                 new[] { 0f, 0.55f, 1f });
         }
+
+        // ── 流れる光の粒＋オーブ脈動は専用の加算レイヤ（_lightLayer・最背面KVの上）が描く。
+        //    ここ（通常合成のUIレイヤ）では描かない＝文字/メニューに加算が掛からない。
 
         // ── 可読性スクリム（KVの上・UIの下）──
         // 左を暗くする横グラデ（左=半透明ダーク→右=透明）。タイトル文字とメニューのコントラストを保証。
@@ -313,6 +458,44 @@ public partial class TitleMenu : Node2D
         UiKit.RadialGlow(this, c, r * 2.4f, col, 0.6f);
         DrawCircle(c, r, col);
         DrawCircle(c - new Vector2(r * 0.3f, r * 0.35f), r * 0.4f, new Color(1, 1, 1, 0.9f));
+    }
+
+    // 流れる光の粒＋オーブ脈動を描く加算レイヤ（TitleMenu の子 Node2D）。
+    //   CanvasItemMaterial=Add をノードに載せる＝この層の描画だけが加算合成になり、
+    //   親(_Draw)の文字/メニューには加算が掛からない（DrawSetBlendMode は _Draw に存在しないため）。
+    //   親が時刻 t と粒配列を渡し、毎フレーム QueueRedraw する。
+    public partial class LightLayer : Node2D
+    {
+        public TitleMenu? Host;
+        public override void _Draw()
+        {
+            if (Host == null) return;
+            UiKit.BeginDesign(this);
+            float t = (float)Host._t;
+
+            // ── データの川を流れる光の粒：芯（明るい小円）＋外周グロウ（低アルファ）──
+            foreach (var m in Host._motes)
+            {
+                float a = MoteAlpha(m);
+                if (a <= 0.01f) continue;
+                // ゆっくりした明滅（個体ごとの位相）で“息づく”質感。
+                float twinkle = 0.7f + 0.3f * (0.5f + 0.5f * Mathf.Sin(t * 1.6f + m.Phase));
+                float alpha = Mathf.Min(0.5f, a * twinkle * 0.5f);
+                var core = new Color(m.Col.R, m.Col.G, m.Col.B, alpha);
+                var halo = new Color(m.Col.R, m.Col.G, m.Col.B, alpha * 0.45f);
+                UiKit.RadialGlow(this, m.Pos, m.Size * 3.4f, halo); // 外周グロウ
+                DrawCircle(m.Pos, m.Size, core);                    // 芯
+            }
+
+            // ── 金オーブの脈動グロウ（世界の鼓動・1点だけ・周期3.6s・振幅控えめ）──
+            //    顔の下に位置するので顔は無傷。
+            float pulse = 0.5f + 0.5f * Mathf.Sin(t * Mathf.Pi * 2f / 3.6f);
+            float oa = 0.10f + 0.06f * pulse;   // 0.10〜0.16
+            float orad = 78f + 10f * pulse;
+            UiKit.RadialGlow(this, OrbPos, orad, new Color(UiKit.Light, oa));
+
+            UiKit.EndDesign(this);
+        }
     }
 
     private void DrawTitleBlock()

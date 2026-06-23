@@ -31,7 +31,7 @@ public struct CameoTheme
     public BulletShape SpellShape; // 弾形
     public CameoFireTheme Fire;    // 弾幕パターンの作法
     public FxLayer.BossAura Aura;  // 徘徊オーラ
-    public AudioStreamWav? Bgm;    // 登場時に流すテーマ（null可）
+    public AudioStream? Bgm;       // 登場時に流すテーマ（null可。実音源/合成どちらも受ける）
 
     // セリフ：登場の第一声(who=2)・戦闘中の挑発(who=2)群・撃破後の締め(who=2)群。
     public (int who, string text, string face)[] IntroLines; // 登場の掛け合い（FirstBossLine で本人の一声だけ拾う）
@@ -249,7 +249,7 @@ public partial class CameoBoss : Enemy
         Finished = true;
         // 道中へ戻るのでステージBGMへ復帰する。撃破時の PlayRedeem は「一度きり（ループしない）」の
         // 2.6秒ワンショットなので、ここで戻さないと道中後半が鳴り切ったあと無音のままになる（#BGM消失）。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmStage);
+        if (Audio.Instance != null) Audio.Instance.ResumeStageMusic();
     }
 
     public override void _Process(double delta)

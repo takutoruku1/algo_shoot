@@ -75,8 +75,9 @@ public partial class BossMina : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ボス登場＝道中BGMからボスBGMへクロスフェード。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // ボス登場＝道中BGMからボスBGMへクロスフェード。ミナ戦本体は専用の実音源 BgmBossMina
+        //   （Final/ヒカゲの汎用 BgmBoss は据え置き）。実音源は MusicTargetDb で粒を揃えて鳴る。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossMina);
         // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
         _mover.Configure(new Vector2(200f, 68f), 90f, 28f, RoamSpeed);
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");

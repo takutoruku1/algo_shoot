@@ -242,7 +242,9 @@ public partial class GameManager : Node
         Burning = false;
 
         // ステージBGM開始（全ステージ共通フック）。同じ曲なら継続＝リトライで途切れない。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmStage);
+        //   ステージ別の道中曲を引く（rei＝実音源 BgmStageRei／他＝合成 BgmStage）。
+        //   StageBgm() に渡す id は中ボス撃破後の道中復帰でも再利用するため Audio に控える。
+        if (Audio.Instance != null) Audio.Instance.SetStageMusic(id);
     }
 
     // ───────────────────────────────────────────────────────────
