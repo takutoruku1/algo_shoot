@@ -170,7 +170,8 @@ public partial class BossHikage : Enemy
     {
         if (!_seq) return;
         _lineT += delta;
-        if (_lineT >= LineDur)
+        // スキップ（Shift長押し）中は自動送り間隔を詰めて一気に流す。Z手送りは無いシーンなのでこれが効く。
+        if (_lineT >= (Hud.SkipHeld ? 0.12 : LineDur))
         {
             _lineT = 0;
             _line++;

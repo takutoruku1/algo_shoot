@@ -252,7 +252,7 @@ public partial class BossAkari : Enemy
 
         if (_seq)
         {
-            if (zEdge && _lineT >= 0.25)
+            if ((zEdge || Hud.SkipHeld) && _lineT >= Hud.SkipHold(0.25))
             {
                 _lineT = 0; _line++;
                 if (_line >= Lines.Length)

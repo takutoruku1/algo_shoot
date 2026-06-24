@@ -136,7 +136,7 @@ public partial class Epilogue : Node2D
         {
             case 0:
             case 1:
-                if (zEdge && _lineT >= 0.25)
+                if ((zEdge || Hud.SkipHeld) && _lineT >= Hud.SkipHold(0.25))
                 {
                     if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
                     else
@@ -166,7 +166,7 @@ public partial class Epilogue : Node2D
                 if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; _reveal = 0; }
                 break;
             case 4: // 独白→DM→END
-                if (zEdge && _lineT >= 0.25)
+                if ((zEdge || Hud.SkipHeld) && _lineT >= Hud.SkipHold(0.25))
                 {
                     if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
                     else

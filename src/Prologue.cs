@@ -164,8 +164,8 @@ public partial class Prologue : Node2D
                     _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
                 // 名前の由来を問われた直後の少年の答え（「……さあね。語呂がいいから、とか?」index 15）には、不自然な“間”を置く
                 // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
-                double minHold = (_line == 15) ? 1.2 : 0.25;
-                if (zEdge && _lineT >= minHold)
+                double minHold = Hud.SkipHold((_line == 15) ? 1.2 : 0.25);
+                if ((zEdge || Hud.SkipHeld) && _lineT >= minHold)
                 {
                     if (_reveal < len)
                     {

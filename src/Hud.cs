@@ -413,6 +413,18 @@ public partial class Hud : CanvasLayer
     public void RevealDialogNow() { if (_dlgText.Length > 0) _dlgRevealed = _dlgText.Length; }
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
 
+    // ───── シーン一括スキップ（会話の残り行を一気送り）─────
+    // STG目当て層向け。Shift 長押し中は各シーンの会話送りループが「即・全文表示→即・次行」と
+    // 最短サイクルで自走する＝Z 連打の代わり。シーン遷移ロジック自体は各シーンの送りループに
+    // 委ねたまま（行カウンタを正規に進めて HideBubble→Advance を踏ませる）なので、改心 cry→post
+    // のような“画で見せる演出フェーズ”を飛び越えて softlock することはない。会話中は弾が止まり
+    // Shift(低速移動)が無意味なので、ゲームプレイ入力とは衝突しない。
+    //   各送りループは「zEdge 相当 || Hud.SkipHeld」で次行へ、hold 閾値は SkipMinHold で潰す。
+    public static bool SkipHeld =>
+        Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
+    // スキップ中は最低保持を 0 に（全文表示と次行送りを同フレームで連鎖させ一気に流す）。
+    public static double SkipHold(double normal) => SkipHeld ? 0.0 : normal;
+
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; }
 
     // ゲームオーバー中の追加プロンプト（バナー直下）。空文字でクリア。*Root.cs が毎フレーム立てる。
