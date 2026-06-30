@@ -199,15 +199,15 @@ public partial class Shop : Node2D
         DrawCorePanel();
         DrawBalanceTable();
 
-        // フッタ操作ヒント
+        // フッタ操作ヒント（ボタン表記は Pad に集約＝KB/PS/Xbox 切替に追従）。
         float fy = H - 34f, fx = PadX;
-        fx = Hint(fx, fy, "↑↓←→", "えらぶ", false);
-        fx = Hint(fx, fy, "Z", "購入", true);
-        fx = Hint(fx, fy, "C", "装備", false);
-        fx = Hint(fx, fy, "V", "過熱", false);
+        fx = Hint(fx, fy, Pad.MoveToken, "えらぶ", false);
+        fx = Hint(fx, fy, Pad.ConfirmToken, "購入", true);
+        fx = Hint(fx, fy, Pad.EquipToken, "装備", false);
+        fx = Hint(fx, fy, Pad.ModeToken, "過熱", false);
         // 初回ショップ導線で復帰先がある間は、退出＝ステージの続きへ＝「つづける」表記にする。
         bool resuming = !string.IsNullOrEmpty(GetNodeOrNull<GameManager>("/root/Game")?.PendingResumeScene);
-        Hint(fx, fy, "X", resuming ? "つづける" : "もどる", false);
+        Hint(fx, fy, Pad.CancelToken, resuming ? "つづける" : "もどる", false);
 
         DrawBuyFx();
         DrawModeSweep();
@@ -271,8 +271,9 @@ public partial class Shop : Node2D
         DrawCircle(new Vector2(cx + 20, y + h / 2f), 4.5f, ol ? UiKit.White : Orange);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 30, y + h / 2f - 8), "過熱 " + (ol ? "ON" : "OFF"), 12, ol ? UiKit.White : new Color("ff9a78"));
 
-        // 右：V で循環/プレビュー
-        UiKit.Key(this, new Vector2(x + w - 168, y + h / 2f - 13), "V", new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
+        // 右：過熱の循環/プレビュー操作子（Pad 経由＝表示モードに追従）。
+        string olTok = Pad.ModeToken;
+        UiKit.Key(this, new Vector2(x + w - 168, y + h / 2f - 13), olTok, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
         UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 140, y + h / 2f - 8), "過熱プレビュー", 12, UiKit.Text3);
     }
 
@@ -394,7 +395,7 @@ public partial class Shop : Node2D
             Color bg = equipped ? new Color(UiKit.Info, 0.18f) : new Color(1, 1, 1, 0.05f);
             Color bd = equipped ? UiKit.Info : new Color(1, 1, 1, 0.16f);
             UiKit.Box(this, r, bg, 10f, bd, 1f);
-            string lab = locked ? "未解放" : (equipped ? "装備中" : "C 装備");
+            string lab = locked ? "未解放" : (equipped ? "装備中" : Pad.EquipToken + " 装備");
             UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 10), lab, 13,
                 locked ? UiKit.Text4 : (equipped ? UiKit.PurifyHi : UiKit.Text2), HorizontalAlignment.Center, selW);
             buyX = x + selW + gap; buyW = w - selW - gap;
@@ -403,7 +404,7 @@ public partial class Shop : Node2D
         {
             bool maxed = lv >= maxLv;
             bool can = !maxed && (_game?.CanPurchase(up) ?? false);
-            string label = locked ? "Z 解放" : (maxed ? "MAX" : "Z 強化");
+            string label = locked ? Pad.ConfirmToken + " 解放" : (maxed ? "MAX" : Pad.ConfirmToken + " 強化");
             // コスト＝「浄化した心」。心アイコン(♥)＋数値で示す（◈から差し替え）。
             string cost = maxed ? "" : "♥" + (_game?.GetUpgradeCost(up) ?? 0).ToString("N0");
             Color bg = can ? UiKit.Info : new Color(1, 1, 1, 0.05f);

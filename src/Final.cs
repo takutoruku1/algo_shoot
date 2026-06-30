@@ -259,7 +259,9 @@ public partial class Final : Node2D
         DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, 0.8f));
         if (!narr)
             DrawString(_font, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9, edge);
-        var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。
+        //   タイプライター自体は残す（左→右の素直な送り。三人の名を一人ずつ沈ませる句点ホールドも保つ）。
+        var align = HorizontalAlignment.Left;
         // タイプライターで表示済みの分だけ描画。
         int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
         string body = d.Text.Substring(0, shown);

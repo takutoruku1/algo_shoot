@@ -583,11 +583,12 @@ public partial class Hub : Node2D
     private void DrawFooter()
     {
         float y = H - 40f, x = 40f;
+        // ボタン表記は Pad に集約＝操作表示モード(KB/PS/Xbox)に追従。T(記録)はパッドでは LB(L1)。
         x = Hint(x, y, "↑↓", "えらぶ", false);
-        x = Hint(x, y, "Z", "ダイブ", true);
-        if (CanReplySel()) x = Hint(x, y, "C", "返信", false);
-        x = Hint(x, y, "X", "強化", false);
-        Hint(x, y, "T", "記録", false);
+        x = Hint(x, y, Pad.ConfirmToken, "ダイブ", true);
+        if (CanReplySel()) x = Hint(x, y, Pad.EquipToken, "返信", false);
+        x = Hint(x, y, Pad.BombToken, "強化", false); // ProcessCards は Key.X / JoyButton.X(□) に対応
+        Hint(x, y, Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder), "記録", false);
     }
 
     private float Hint(float x, float y, string key, string label, bool accent)

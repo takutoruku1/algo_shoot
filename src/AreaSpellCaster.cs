@@ -21,11 +21,70 @@ public partial class AreaSpellCaster : Node2D
 
     private readonly RandomNumberGenerator _rng = new();
     private Node _world = null!;
+    // このキャスターを抱えるボス（＝攻撃の発生源）。浄化されたら予約中の宣告・出現済みの予兆を全てキャンセルする。
+    // ＝「ボスが改心したのに、撃ち終わった範囲技だけが後から着弾する」残留攻撃を断つ。AddChild 先の親＝ボス。
+    private Enemy? _owner;
 
     private double _castT, _fireT;
     private bool _pending;
     private AreaStrike.Shape? _pendShape;
     private double _fireDelay = 0.7; // 技名宣告 → 予兆出現までの溜め
+
+    // ── 全画面AOE（ラスボスMina専用・通常ランダム枠とは独立した専用経路）──
+    //   CastFullscreen で予約 → _aoeFireT 後に Fullscreen の AreaStrike を1枚出す。
+    //   AoeActive は宣告〜予兆着弾まで true＝ボス側が通常弾(FirePattern)をこの間だけ止める(gate)のに使う。
+    private bool _aoePending;            // 宣告済み・予兆出現待ち
+    private double _aoeFireT;            // 予兆出現までの残り
+    private bool _aoeWithSafe;           // 安置あり(true)／全面(false)
+    private const float AoeWarn = 1.6f;  // 全画面AOEの予兆尺（WarnMul で難易度補正）
+    private const float AoeFireDelay = 0.7f; // 宣告→予兆出現の溜め
+    private const float AoeSafeR = 30f;  // 安置(セーフゾーン)半径（28-32px帯）
+    private AreaStrike? _aoeStrike;      // 出現中の全画面予兆（生存＝AOE進行中の判定に使う）
+    // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。
+    public bool AoeActive => _aoePending || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
+
+    // ボス側（BossMina.OnHpChanged）から全画面AOEを1回予約する。withSafeZone=false で安置なしの全面型。
+    public void CastFullscreen(bool withSafeZone)
+    {
+        if (AoeActive) return; // 多重予約しない（HP閾値の同フレーム多重発火対策）
+        _aoeWithSafe = withSafeZone;
+        _aoePending = true;
+        _aoeFireT = AoeFireDelay;
+        string name = withSafeZone ? "全画面浄化・安置" : "全画面浄化・絶域";
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
+    }
+
+    private void TickFullscreen(double delta)
+    {
+        if (!_aoePending) return;
+        _aoeFireT -= delta;
+        if (_aoeFireT > 0) return;
+        _aoePending = false;
+
+        // 安置位置：自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
+        Vector2 safe = Vector2.Zero;
+        float r = _aoeWithSafe ? AoeSafeR : 0f;
+        if (_aoeWithSafe)
+        {
+            Vector2 player = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
+                             ?? new Vector2(W / 2f, H / 2f);
+            float margin = r + 14f; // 端から離す
+            // 自機から十分離れた点を最大12回試行（避けられる安置にする）。
+            safe = new Vector2(W / 2f, H / 2f);
+            for (int i = 0; i < 12; i++)
+            {
+                var cand = new Vector2(_rng.RandfRange(margin, W - margin), _rng.RandfRange(margin, H - margin));
+                if (cand.DistanceTo(player) >= 70f) { safe = cand; break; }
+            }
+        }
+
+        var z = new AreaStrike();
+        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul(), _tint, _hot);
+        if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
+        _world.AddChild(z);
+        z.GlobalPosition = Vector2.Zero; // 画面座標基準（Fullscreen は内部で安置座標を画面系で扱う）
+        _aoeStrike = z;
+    }
 
     public void Configure(string key, Node world)
     {
@@ -68,7 +127,22 @@ public partial class AreaSpellCaster : Node2D
 
     public override void _Process(double delta)
     {
+        // 発生源（ボス）を一度キャッシュ：AddChild 先の親がボス（Configure とは独立にここで拾う）。
+        _owner ??= GetParent() as Enemy;
+        // ボスが浄化（改心）されたら、以降は宣告も予兆出現もしない＝攻撃が終わった後に技が残らない。
+        // 予約済み（宣告→出現待ち）の発火も破棄する。出現済みの予兆は AreaStrike 側が owner 浄化で自滅する。
+        if (_owner != null && _owner.IsPurified)
+        {
+            _pending = false;
+            _aoePending = false; // 予約中の全画面AOEも破棄（出現済みは AreaStrike が owner 浄化で自滅）
+            return;
+        }
+
         if (Hud.BubblePaused) return; // 会話中は出さない
+
+        // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
+        TickFullscreen(delta);
+        if (AoeActive) return;
 
         if (_pending)
         {
@@ -128,6 +202,8 @@ public partial class AreaSpellCaster : Node2D
                 if (OverlapsAny(shape, g.c, g.hw, g.hh)) continue;
                 var z = new AreaStrike();
                 z.Configure(shape, g.hw, g.hh, warn, _tint, _hot);
+                // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
+                if (_owner != null) z.SetOwner(_owner);
                 _world.AddChild(z);
                 z.GlobalPosition = g.c;
                 _placed.Add((shape, g.c, g.hw, g.hh));

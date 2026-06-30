@@ -70,6 +70,46 @@ public static class UiKit
 
     public static float TextW(Font f, string s, int size) => f.GetStringSize(s, HorizontalAlignment.Left, -1, size).X;
 
+    // 行間（leading）を足して読みやすくした複数行描画。会話ボックス用。
+    //   width で語境界折り返し。各行は font 高さ + extraLeading(px) 間隔で送る。
+    //   maxLines>0 ならその行数で打ち切り（末尾「…」は付けない＝会話は1画面に収まる前提で行数を増やす）。
+    //   返り値：描画に使った総高さ（box 高さの算出に使える）。
+    public static float MultiLeading(CanvasItem ci, Font f, Vector2 topLeft, string s, int size, Color c,
+        float width, float extraLeading, int maxLines = -1)
+    {
+        var lines = WrapLines(f, s, size, width);
+        float lineH = f.GetHeight(size) + extraLeading;
+        float asc = f.GetAscent(size);
+        int n = maxLines > 0 ? Mathf.Min(maxLines, lines.Count) : lines.Count;
+        for (int i = 0; i < n; i++)
+            ci.DrawString(f, new Vector2(topLeft.X, topLeft.Y + asc + i * lineH), lines[i],
+                HorizontalAlignment.Left, -1, size, c);
+        return n * lineH;
+    }
+
+    // 語境界（日本語は文字境界）で width に収まるよう折り返す。明示改行 '\n' は尊重。
+    private static System.Collections.Generic.List<string> WrapLines(Font f, string s, int size, float width)
+    {
+        var outLines = new System.Collections.Generic.List<string>();
+        foreach (var para in s.Split('\n'))
+        {
+            if (para.Length == 0) { outLines.Add(""); continue; }
+            var cur = new System.Text.StringBuilder();
+            foreach (var ch in para)
+            {
+                string trial = cur.ToString() + ch;
+                if (TextW(f, trial, size) > width && cur.Length > 0)
+                {
+                    outLines.Add(cur.ToString());
+                    cur.Clear();
+                }
+                cur.Append(ch);
+            }
+            if (cur.Length > 0) outLines.Add(cur.ToString());
+        }
+        return outLines;
+    }
+
     // ── 角丸ボックス（border/塗り）──
     public static void Box(CanvasItem ci, Rect2 r, Color? bg, float radius, Color? border = null, float borderW = 0f)
     {

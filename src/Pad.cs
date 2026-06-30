@@ -85,6 +85,20 @@ public static class Pad
     // 決定の操作子表記：キーボードなら Z、パッドなら A(〇)。
     public static string ConfirmToken => ShowKeyboard ? "Z" : Face(JoyButton.A);
 
+    // ───────── 共通の操作子表記（UI 横断の単一の真実）─────────
+    // 各画面（Shop / Settings / Hud …）はボタン名を直書きせず、ここを通すことで Pad.Display(KB/PS/Xbox)
+    // 切替に必ず追従する。物理マッピング（JoyButton）と KB キーの対応は Player.cs / *.cs の入力判定と一致させる。
+    //   Cancel  … X(KB) / B(パッド＝×・もどる/キャンセル)
+    //   Equip   … C(KB) / Y(パッド＝△・装備/サブ操作)
+    //   Bomb    … X(KB) / X(パッド＝□)
+    //   ModeSw  … V(KB) / B(パッド) … ショップの「過熱」プレビューや HUD のモード切替に流用
+    public static string CancelToken => ShowKeyboard ? "X" : Face(JoyButton.B);
+    public static string EquipToken  => ShowKeyboard ? "C" : Face(JoyButton.Y);
+    public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);
+    public static string ModeToken   => ShowKeyboard ? "V" : Face(JoyButton.B);
+    // 移動（方向）。キーボードは矢印、パッドは左スティック表記。
+    public static string MoveToken   => ShowKeyboard ? "↑↓←→" : "L";
+
     // ───────── 永続化 ─────────
     // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox) の両方を扱う。
     // 後方互換：inputdisplay が無ければ Display=Auto のまま、padstyle で _autoStyle だけ復元する。

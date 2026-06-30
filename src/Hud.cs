@@ -350,17 +350,69 @@ public partial class Hud : CanvasLayer
     // ───────── テキストボックスの行の種類 ─────────
     public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5 }
 
+    // ───────── 会話ログ（バックログ）─────────
+    // ストーリー重視ゲームの読み返し用に、表示済みの会話/ナレ/投稿を蓄積する（ADV のバックログ相当）。
+    // SetDialog を通る全行（who=話者名/text/col=話者色/kind=種別）をここに積む。Backlog 画面が参照する。
+    // シーンを跨いで保持したいので static（ゲーム1周ぶん）。古い行は上限で先頭から捨てる。
+    public readonly record struct LogLine(string Speaker, string Text, Color Color, LineKind Kind);
+    private static readonly List<LogLine> _backlog = new();
+    private const int BacklogMax = 200;
+    public static System.Collections.Generic.IReadOnlyList<LogLine> Backlog => _backlog;
+
+    // 1行を会話ログへ積む（空テキスト＝クリアは積まない／直前と完全同一の連続行も積まない）。
+    private static void PushBacklog(string speaker, string text, Color col, LineKind kind)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        if (_backlog.Count > 0)
+        {
+            var last = _backlog[^1];
+            if (last.Text == text && last.Speaker == speaker) return; // 同一行の二重表示は弾く
+        }
+        _backlog.Add(new LogLine(speaker, text, col, kind));
+        if (_backlog.Count > BacklogMax) _backlog.RemoveRange(0, _backlog.Count - BacklogMax);
+    }
+    public static void ClearBacklog() => _backlog.Clear();
+
+    // 種別→ログ表示色（既存トークン/UiKit に合わせる。ShowDialog(LineKind) の色分けと一致）。
+    public static Color KindColor(LineKind k) => k switch
+    {
+        LineKind.Boy   => UiKit.Info,
+        LineKind.Mina  => UiKit.Mina,
+        LineKind.Other => UiKit.Kegare,
+        LineKind.Relay => UiKit.Info,
+        LineKind.Post  => UiKit.Text3,
+        _              => UiKit.Text2, // Narration（ナレ＝ミナの語り）は淡色
+    };
+
+    // 会話ログに出す話者ラベル。speaker が空（素の ShowDialog 経路）でも種別から補う。
+    private static string BacklogSpeaker(LineKind k, string speaker)
+    {
+        if (!string.IsNullOrEmpty(speaker)) return speaker;
+        return k switch
+        {
+            LineKind.Boy   => "少年",
+            LineKind.Mina  => "ミナ",
+            LineKind.Relay => "少年（ミナの声）",
+            LineKind.Post  => "Ｘ 投稿",
+            LineKind.Narration => "ナレーション",
+            _              => "",
+        };
+    }
+
     public void ShowMessage(string text)
     {
-        SetDialog(text, "", default, dialog: false, portrait: "");
+        // 立ち絵なしの中央メッセージ＝ナレ扱い（地の文。会話ログにもナレとして残す）。
+        SetDialog(text, "", default, dialog: false, portrait: "", kind: LineKind.Narration);
         _messageTimer = 4.5;
     }
 
+    // 立ち絵付きの素の会話（少年/ヒカゲ等、LineKind を取らない旧経路）。
+    // 送り音は従来どおり無音（Narration）に保つが、会話ログには発話として残るよう logKind=Boy で積む。
     public void ShowDialog(string text) => ShowDialog(text, "res://char/algo_cutout.png");
 
     public void ShowDialog(string text, string portraitResPath)
     {
-        SetDialog(text, "", default, dialog: true, portrait: portraitResPath);
+        SetDialog(text, "", default, dialog: true, portrait: portraitResPath, kind: LineKind.Narration, logKind: LineKind.Boy);
         _messageTimer = 6.0;
     }
 
@@ -376,18 +428,24 @@ public partial class Hud : CanvasLayer
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        SetDialog(text, speaker, color, dialog, portraitToUse);
-        _dlgKind = kind; // 送り音の音色＝話者（ナレは PlayType 側で無音）
+        SetDialog(text, speaker, color, dialog, portraitToUse, kind);
         _messageTimer = 6.0;
     }
 
-    private void SetDialog(string text, string speaker, Color speakerCol, bool dialog, string portrait)
+    // kind   … 送り音の音色（＝表示中の話者。Narration は無音）。
+    // logKind … 会話ログに残すときの種別（既定で kind と同じ。送り音は無音にしたいが
+    //            ログ上は発話として残したい旧経路（少年/ヒカゲの ShowDialog(string)）で使い分ける）。
+    private void SetDialog(string text, string speaker, Color speakerCol, bool dialog, string portrait,
+        LineKind kind = LineKind.Narration, LineKind? logKind = null)
     {
+        // 表示前に会話ログ（バックログ）へ積む。話者色は未指定（default＝ナレ）のとき種別から補う。
+        LineKind lk = logKind ?? kind;
+        Color logCol = speakerCol.A <= 0f ? KindColor(lk) : speakerCol;
+        PushBacklog(BacklogSpeaker(lk, speaker), text, logCol, lk);
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
         _dlgIsDialog = dialog; _dlgRevealed = 0;
-        // 新しい行＝送り音の差分検出をリセット。話者は既定で無音（ナレ）。
-        // LineKind を取る ShowDialog だけが直後に _dlgKind を上書きする。
-        _typePrevRevealed = 0; _dlgKind = LineKind.Narration;
+        // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
+        _typePrevRevealed = 0; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
         // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
         // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
@@ -1115,7 +1173,7 @@ public partial class Hud : CanvasLayer
 
         // 会話表示中はそのボックス矩形を暗幕から除外する（セリフ・立ち絵がフル輝度で読める）。
         bool hasDlg = _dlgText.Length > 0;
-        Rect2 dlgBox = _dlgIsDialog ? new Rect2(40, 540, 1200, 150) : new Rect2(140, 600, 1000, 80);
+        Rect2 dlgBox = _dlgIsDialog ? new Rect2(40, 520, 1200, 170) : new Rect2(140, 590, 1000, 96);
 
         // 穴なし＝全画面を一様に覆う（会話矩形だけは避ける）。
         if (_spotRect.Size.X <= 1f || _spotRect.Size.Y <= 1f)
@@ -1217,17 +1275,52 @@ public partial class Hud : CanvasLayer
         foreach (var (h, wd) in TickerWords) block += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
         float scroll = ((float)_t * 70f) % block;
         float cx = startX - scroll + block; // 1ブロック先行
+        // ───────── コメントの入退場演出（ログイン/ログ アウト風／SNSの接続・切断の手触り）─────────
+        //   ティッカーは連続スクロールなので「右端で接続して入る／左ラベル際で切断して抜ける」を
+        //   各セルの横位置から導く。入＝右端域でα0→1にポップ＋ハンドル頭に小さな接続ドットが点灯し
+        //   外周リングが一拍広がる（ログイン）。出＝左ラベル際でα1→0へ薄れつつ僅かに上へスッと退く（ログアウト）。
+        //   弾の視認は損なわない（下部ティッカー帯の中だけ・加算グローは極小・本数を増やさない）。
+        const float bandL = 150f, bandR = 1280f;     // 可視帯（左ラベル境界〜右端）
+        const float inSpan = 130f;                    // 右端からこの幅ぶんが「接続中（入場）」
+        const float outSpan = 96f;                    // 左ラベル際このぶんが「切断中（退場）」
+        float midY = y + barH / 2f;
         for (int rep = 0; rep < 3; rep++)
         {
             foreach (var (h, wd) in TickerWords)
             {
-                if (cx > 150 && cx < 1280)
+                float hw = UiKit.TextW(UiKit.Mono, h, 12) + 6;
+                float cellW = hw + UiKit.TextW(UiKit.Zen, wd, 14);
+                float cellL = cx, cellR = cx + cellW;
+                if (cellR > bandL && cellL < bandR)
                 {
-                    UiKit.Text(ci, UiKit.Mono, new Vector2(cx, y + barH / 2f - 7), h, 12, UiKit.Text3);
-                    float hw = UiKit.TextW(UiKit.Mono, h, 12) + 6;
-                    UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, y + barH / 2f - 8), wd, 14, UiKit.Text2);
+                    // 入場t：右端 inSpan に入った瞬間 0、抜け切ったら 1（ログイン進捗）
+                    float tIn = Mathf.Clamp((bandR - cellL) / inSpan, 0f, 1f);
+                    // 退場t：左ラベル際 outSpan に入ると 1→0（ログアウト進捗）
+                    float tOut = Mathf.Clamp((cellR - bandL) / outSpan, 0f, 1f);
+                    float life = Mathf.Min(tIn, tOut);              // 0=端／1=安定表示
+                    float alpha = Mathf.SmoothStep(0f, 1f, life);
+                    // ログイン：入場側だけ下からスッと持ち上げる小さなポップ。退場側は上へ抜ける。
+                    float rise = (1f - tIn) * 5f;                   // 入＝下から
+                    float exitLift = (1f - tOut) * 4f;             // 出＝上へ
+                    float dy = rise - exitLift;
+                    float th = y + barH / 2f - 7 - dy;
+                    UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, 12, new Color(UiKit.Text3, alpha));
+                    UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, th - 1), wd, 14, new Color(UiKit.Text2, alpha));
+                    // 接続ドット：ハンドル頭の左に小点。入場の一拍だけ光って“ログインした”を示す。
+                    float dotX = cx - 9f, dotY = midY - dy;
+                    // 入場の立ち上がり（tIn が 0→~0.5）で外周リングが広がるログイン・パルス。
+                    if (tIn < 0.55f)
+                    {
+                        float p = tIn / 0.55f;                      // 0→1
+                        float ringR = 3f + p * 7f;                 // 広がる
+                        float ringA = (1f - p) * 0.5f * alpha;     // 薄れる
+                        ci.DrawArc(new Vector2(dotX, dotY), ringR, 0, Mathf.Tau, 18, new Color("8fe9c0", ringA), 1.3f, true);
+                    }
+                    // 接続インジケータ本体（緑＝オンライン）。退場側では赤寄りに転じ消灯（切断）。
+                    Color dotCol = tOut < 0.5f ? new Color("ff7a90") : new Color("7fe6b0");
+                    ci.DrawCircle(new Vector2(dotX, dotY), 2.2f, new Color(dotCol, alpha));
                 }
-                cx += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
+                cx += cellW + gap;
             }
         }
     }
@@ -1239,14 +1332,14 @@ public partial class Hud : CanvasLayer
 
         if (!_dlgIsDialog)
         {
-            // ナレーション：中央寄せの淡いテロップ（バー無し）
-            UiKit.Box(ci, new Rect2(140, 600, 1000, 80), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
-            UiKit.Multi(ci, UiKit.Zen, new Vector2(180, 618), shown, 20, new Color(0.9f, 0.9f, 0.95f), 920, 2);
+            // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。
+            UiKit.Box(ci, new Rect2(140, 590, 1000, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
+            UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, 20, new Color(0.9f, 0.9f, 0.95f), 920, NarrLeading, 3);
             return;
         }
 
-        // シネマ下部バー
-        float x = 40, y = 540, w = 1200, h = 150;
+        // シネマ下部バー（少し背を高く・行間を足して読みやすく）
+        float x = 40, y = 520, w = 1200, h = 170;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.95f), 16f, new Color(_dlgSpeakerCol, 0.5f), 1.4f);
         float textX = x + 36;
         // 立ち絵（あれば左に）。常時の微細な生命感：呼吸（上下揺れ）＋表情クロスフェード＋うなずき。
@@ -1277,9 +1370,15 @@ public partial class Hud : CanvasLayer
             textX = x + 10 + pw + 20;
         }
         if (_dlgSpeaker.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 18), _dlgSpeaker, 18, _dlgSpeakerCol);
-        UiKit.Multi(ci, UiKit.Zen, new Vector2(textX, y + 52), shown, 22, new Color(0.95f, 0.95f, 0.98f), x + w - textX - 30, 3);
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 16), _dlgSpeaker, 18, _dlgSpeakerCol);
+        // 本文：行間(DlgLeading)を足して詰まりを解消。背の高いバーに合わせ最大3行まで（はみ出し防止）。
+        UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(textX, y + 48), shown, 22, new Color(0.95f, 0.95f, 0.98f),
+            x + w - textX - 30, DlgLeading, 3);
     }
+
+    // 会話本文の行間（leading・px）。フォント既定より少し開けて読みやすく。
+    private const float DlgLeading = 9f;
+    private const float NarrLeading = 8f;
 
     // 無防備窓サイクルの短い字幕（弾を止めない）。下部・話者色つきの一行カード。
     private void DrawBossLine(HudCanvas ci)

@@ -13,7 +13,7 @@ public partial class Player : Area2D
     private const float FocusSpeed = 65f;
 
     // 連射
-    private const float FireInterval = 0.11f;
+    private const float FireInterval = 0.13f;
     private float _fireCooldown = 0f;
 
     // 当たり半径（極小）
@@ -109,6 +109,9 @@ public partial class Player : Area2D
     private float _invincibleTimer = 0f;
     private const float InvincibleDuration = 1.2f;
     private float _blinkPhase = 0f;
+    // 「被弾直後の無敵」かどうか。被弾無敵の間だけ経済加算（グレイズ報酬）を止め、無敵を盾にした稼ぎ(farming)を断つ。
+    // スポーン無敵・ボム無敵・回避無敵はこのフラグを立てない＝それらの最中は従来どおり稼げる。
+    private bool _hitInvincible = false;
 
     // 表示用スプライト（algo.png）。読み込めない場合は null のまま → _Draw フォールバック。
     private Sprite2D _sprite = null!;
@@ -182,6 +185,18 @@ public partial class Player : Area2D
     private const int DodgeGrazeCap = 12;       // 1回の回避で報酬対象にする弾数の上限（壁に突っ込んで無限に稼げないように）
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
     private Texture2D _idleTex = null!;
+
+    // ───────── 少年の登場ポーズ：ミナ（画面右のボス）を指さす一拍（boy スキンのみ）─────────
+    //   FINAL戦＝役割反転。自機になった少年が、開幕のイントロ会話の間（Hud.BubblePaused 中）だけ
+    //   「画面右にいるミナ」へ右腕を伸ばして指さすポーズを取る＝「迎えに来た／今度はぼくが行く番だ」を画で示す。
+    //   イントロ会話が初めて明けた瞬間に通常 idle へ滑らかにクロスフェードして戻り、以降は二度と出さない（一度きりの導入演出）。
+    //   操作・当たり判定・難易度には一切影響しない（テクスチャ差し替え＋見た目の前傾だけ）。
+    private Texture2D? _pointTex;               // 指さしスプライト（boy のみ・無ければ null＝従来通り idle）
+    private bool _pointActive;                  // いま指さしポーズ表示中か
+    private bool _pointDone;                    // 既に指さし導入を終えたか（true で恒久抑止）
+    private bool _sawIntroPause;                // 開幕のイントロ会話（BubblePaused）を一度でも見たか
+    private float _pointSettle;                 // idle へ戻すクロスフェード残量（1→0）
+    private const float PointSettleDur = 0.45f; // 指さし→idle のクロスフェード秒
     // 回転各アングルの差分イラスト（0/45/90/135/180°）。225/270/315° は FlipH で 03/02/01 を流用。
     // boyスキン等で読めない場合は要素が null。_spinReady で全周ロード成否を持つ。
     private readonly Texture2D[] _spinTex = new Texture2D[5];
@@ -265,6 +280,18 @@ public partial class Player : Area2D
                 if (_spinTex[i] == null) allLoaded = false;
             }
             _spinReady = allLoaded;
+        }
+
+        // 少年の登場ポーズ用テクスチャ（boy のみ）。読めなければ _pointTex=null＝指さし導入を出さない。
+        if (Skin == "boy")
+        {
+            _pointTex = ResourceLoader.Load<Texture2D>("res://char/shonen_point.png");
+            // 開幕がイントロ会話（停止中）で始まるなら、最初のフレームから指さしポーズで立つ。
+            if (_pointTex != null && Hud.BubblePaused)
+            {
+                _pointActive = true;
+                if (_sprite != null) _sprite.Texture = _pointTex;
+            }
         }
 
         // 被弾検出（敵 / 敵弾）
@@ -398,7 +425,9 @@ public partial class Player : Area2D
         }
         _modeHeld = modeKey;
 
-        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A)) && !Hud.BubblePaused;
+        // 緊急回避中（_dodgeTimer 稼働＝DodgeDuration の間）はショット入力を無効化する＝回避は「避け」に専念。
+        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A))
+                     && !Hud.BubblePaused && _dodgeTimer <= 0f;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -444,6 +473,7 @@ public partial class Player : Area2D
             if (_invincibleTimer <= 0f)
             {
                 _invincible = false;
+                _hitInvincible = false; // 被弾無敵が明けたら経済加算を再開
                 SetSpriteVisible(true);
             }
             else
@@ -460,6 +490,34 @@ public partial class Player : Area2D
 
         // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
+
+        // ── 少年の登場ポーズ：ミナ（画面右のボス）を指さす一拍（boy のみ・一度きり）──
+        // 開幕のイントロ会話（BubblePaused）中は指さしテクスチャを保持。会話が初めて明けたら
+        // settle クロスフェードで idle に戻し、_pointDone を立てて以降は出さない。
+        if (_pointTex != null && _idleTex != null && !_pointDone && _sprite != null)
+        {
+            if (Hud.BubblePaused)
+            {
+                // イントロ会話中：指さしポーズで待機（一度でも会話を見た記録を残す）。
+                _sawIntroPause = true;
+                if (!_pointActive) { _pointActive = true; _sprite.Texture = _pointTex; }
+            }
+            else if (_pointActive)
+            {
+                // 会話が明けた：idle へ戻すクロスフェードを開始し、二度と出さない。
+                _pointActive = false;
+                _pointDone = true;
+                _pointSettle = PointSettleDur;
+                _sprite.Texture = _idleTex; // 以降は通常 idle（残量中だけ前傾の余韻を足す）
+            }
+            else if (_sawIntroPause)
+            {
+                // 会話を一度も「停止」では見ずに通り過ぎた等の保険：以降は通常運用に委ねる。
+                _pointDone = true;
+            }
+        }
+        if (_pointSettle > 0f) _pointSettle = Mathf.Max(0f, _pointSettle - dt); // 余韻の前傾を抜く
+
         // 慣性つきで入力方向へ寄せる（会話中は dir=0 なので自然に直立へ戻る＝余韻）。
         _lean = _lean.Lerp(dir, 1f - Mathf.Exp(-LeanResponse * dt));
         if (_hasTexture && _sprite != null)
@@ -470,6 +528,13 @@ public partial class Player : Area2D
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
             // 前傾＋バンク：右移動で前へ、上下移動で機首を振る。
             _sprite.Rotation = (_lean.X * BankX + _lean.Y * BankY) * leanMul;
+            // 指さし中＋戻りの余韻：ミナの方（右）へほんの少し前傾＋先行して「見据える」勢いを足す。
+            if (_pointActive || _pointSettle > 0f)
+            {
+                float k = _pointActive ? 1f : Mathf.Clamp(_pointSettle / PointSettleDur, 0f, 1f);
+                _sprite.Rotation += Mathf.DegToRad(5f) * k;          // 右前へわずかに傾く
+                _sprite.Position += new Vector2(LeadPx * 1.2f * k, 0f); // 右へ先行
+            }
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
             // 全開中は汚染を上書きして金色に発光＝「やさしさ全開」を体で示す（脈動）。
             if (_overload)
@@ -548,15 +613,15 @@ public partial class Player : Area2D
             _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, dmg);
     }
 
-    // 拡散：右方向へ扇状 n-way（±28°）。1発威力 ×0.8（下限1）＝面制圧。
+    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×0.65（下限1）＝面制圧（弱体化：DPSを下げ角を広げる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
-        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.8f));
+        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.65f));
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
-            float ang = t * Mathf.DegToRad(56f);
+            float ang = t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg);
         }
@@ -747,6 +812,12 @@ public partial class Player : Area2D
             b.Grazed = true; // どちらの分岐でも立てて二重取りを防ぐ
             var game = GetNodeOrNull<GameManager>("/root/Game");
 
+            // 被弾直後の無敵中は経済加算をスキップ＝「無敵を盾に稼ぎ続ける」抜け穴を塞ぐ（farming防止）。
+            // 視覚フィードバック（グレイズ閃光・残光）は出さず、報酬も入らない＝無敵中の弾は“ただ抜ける”。
+            // 回避(Dodge)由来の無敵は _hitInvincible を立てないため対象外＝従来どおり回避よけで稼げる。
+            if (_hitInvincible)
+                return;
+
             // 回避の無敵中（_dodgeInv>0）に貫通した敵弾は「回避よけ」＝高報酬＋お金。
             // ただし1回避あたり DodgeGrazeCap 発まで。超過分は貫通するが追加報酬なし（farming防止）。
             // i-frame が切れた回避モーション後半（_dodgeInv==0 だが _dodgeTimer>0）は通常グレイズ扱い。
@@ -868,7 +939,7 @@ public partial class Player : Area2D
         // 短時間無敵だけ付けて先へ進める（同じ弾で連続被弾しない）。
         if (_game?.TutorialNoConsume ?? false)
         {
-            StartInvincible();
+            StartInvincible(fromHit: true);
             return;
         }
 
@@ -884,8 +955,8 @@ public partial class Player : Area2D
         }
         _followers.Clear();
 
-        // フラッシュ＋短時間無敵
-        StartInvincible();
+        // フラッシュ＋短時間無敵（被弾由来＝この無敵中はグレイズ報酬が入らない）
+        StartInvincible(fromHit: true);
 
         if (Lives <= 0)
             GameOver();
@@ -914,11 +985,13 @@ public partial class Player : Area2D
         // 受け付けるので、プレイヤーが選ぶまでこのまま無敵で待機する。
     }
 
-    private void StartInvincible()
+    // fromHit=true（被弾由来）の無敵だけ経済加算を止める。ボム無敵は fromHit=false＝稼ぎは止めない。
+    private void StartInvincible(bool fromHit = false)
     {
         _invincible = true;
         _invincibleTimer = InvincibleDuration;
         _blinkPhase = 0f;
+        _hitInvincible = fromHit;
         // 被弾フラッシュ（一瞬非表示にして点滅開始の合図）
         SetSpriteVisible(false);
     }

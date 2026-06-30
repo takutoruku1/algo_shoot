@@ -56,6 +56,16 @@ public partial class Enemy : Area2D
     private const float PointBlankRange = 48f;     // この内側はクリティカル（2バンドで明快に）
     private const float PointBlankMult = 1.6f;     // 密着クリティカル倍率（約+60%）
     private const int   PointBlankCap = 6;         // クリティカル時の上限（過剰即殺を防ぎバー方式の手応えを保つ）
+    // ── 1つの無防備窓で本体へ通せる被ダメ上限（窓キャップ）──
+    //   1窓で削れる量を頭打ちにし、密着クリティカル＋高連射での「1窓即殺」を抑える。
+    //   到達後はその窓では本体HPが減らない（弾の Despawn は継続＝撃ち心地は残す）。EnterExposed で 0 にリセット。
+    //   密着クリティカルは上限を超えず「到達を早める」だけ＝近づく価値は残しつつ過剰削りを抑える。
+    private const int   ExposedDamageCap = 90;
+    private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
+    private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
+    // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
+    private double _bodyHitCd;
+    private const double BodyHitCd = 0.05;
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
@@ -228,6 +238,9 @@ public partial class Enemy : Area2D
     private void EnterExposed()
     {
         _phase = BossPhase.Exposed; _phaseT = 0;
+        _windowDamage = 0;            // 窓キャップを新しい窓ぶんリセット
+        _windowCapNotified = false;
+        _bodyHitCd = 0;
         // 無防備窓：本体が自機弾を拾うよう監視・マスクを開く（衝突中の変更は遅延設定）。
         SetDeferred(Area2D.PropertyName.Monitoring, true);
         SetCollisionMaskValue(2, true); // 自機弾 layer=2 を拾う
@@ -260,6 +273,21 @@ public partial class Enemy : Area2D
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+
+            // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
+            // 到達の瞬間だけ "MAX" を1回出して「これ以上は次の窓で」を伝える。
+            if (_windowDamage >= ExposedDamageCap)
+            {
+                if (!_windowCapNotified)
+                {
+                    _windowCapNotified = true;
+                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -12), "MAX", FxLayer.Gold, 13);
+                }
+                return;
+            }
+            // 本体ヒットのクールダウン中は削らない（同一フレーム多重弾の過剰削りを軽く抑える補助）。
+            if (_bodyHitCd > 0) return;
+
             int dmg = Mathf.Clamp(b.Damage, 1, 4); // ExposedHitDmg=1+ShotDamageBonus を Bullet.Damage 経由で（上限4）
 
             // 密着ボーナス：自機が本体に PointBlankRange 以内まで踏み込むとクリティカル（約+60%・上限6）。
@@ -276,6 +304,10 @@ public partial class Enemy : Area2D
                 }
             }
 
+            // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
+            dmg = Mathf.Min(dmg, ExposedDamageCap - _windowDamage);
+            _windowDamage += dmg;
+            _bodyHitCd = BodyHitCd;
             _hp = Mathf.Max(0, _hp - dmg);
             // クリティカルは金色＋一回り大きく＋"!" で「密着が効いている」を視認させる（通常は既存色）。
             if (crit)
@@ -593,6 +625,7 @@ public partial class Enemy : Area2D
                 break;
             case BossPhase.Exposed:
                 if (_hitFlashT > 0) _hitFlashT -= delta; // 被弾発光の減衰
+                if (_bodyHitCd > 0) _bodyHitCd -= delta; // 本体ヒットCDの消化
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
                 if (_phaseT >= VulnDur) EnterReclose();
                 break;

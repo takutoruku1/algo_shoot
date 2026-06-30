@@ -97,7 +97,7 @@ public partial class Records : Node2D
         // ── フッタ ──
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
-        Hint(padX, fy, "X", "もどる", true);
+        Hint(padX, fy, Pad.CancelToken, "もどる", true);
 
         UiKit.EndDesign(this);
     }

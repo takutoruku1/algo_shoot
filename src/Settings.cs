@@ -88,8 +88,8 @@ public partial class Settings : Node2D
         a11y.Items.Add(Toggle("softhit", "被弾演出を控えめに", false));
         a11y.Items.Add(Toggle("contrast", "高コントラストUI", false));
 
-        var x = C("x", "X連携", "X Integration");
-        x.Items.Add(Toggle("share", "浄化の結果をXに投稿", true));
+        var x = C("x", "Y連携", "Y Integration");
+        x.Items.Add(Toggle("share", "浄化の結果をYに投稿", true));
         x.Items.Add(Toggle("showid", "スコアカードに@IDを表示", true));
         x.Items.Add(Toggle("realposts", "「降ってくる言葉」を実投稿から生成", false, "体験版では固定フレーズ"));
         x.Items.Add(Slider("notif", "リプ通知演出", 50));
@@ -266,10 +266,12 @@ public partial class Settings : Node2D
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         float fx = padX;
+        // ボタン表記は Pad 経由＝操作表示モードに追従。Q/E はパッドでは LB/RB(L1/R1)。
+        string catTok = Pad.ShowKeyboard ? "Q E" : $"{Pad.Face(JoyButton.LeftShoulder)} {Pad.Face(JoyButton.RightShoulder)}";
         fx = FootHint(fx, fy, "↑↓", "項目");
         fx = FootHint(fx, fy, "←→", "調整");
-        fx = FootHint(fx, fy, "Q E", "カテゴリ");
-        FootHint(fx, fy, "X", "もどる");
+        fx = FootHint(fx, fy, catTok, "カテゴリ");
+        FootHint(fx, fy, Pad.CancelToken, "もどる");
 
         UiKit.EndDesign(this);
     }
@@ -381,16 +383,48 @@ public partial class Settings : Node2D
     private void DrawKeys(Def d, float right, float cy)
     {
         float h = 32f, gap = 6f;
+        // 表記は Pad に集約：操作表示モード(KB/PS/Xbox)に応じて各操作のキー/ボタン表記を出し分ける。
+        // d.Keys（BuildDefaults の静的キーボード表記）は KB 表示時のフォールバックにのみ使う。
+        string[] toks = KeyTokens(d.Key);
         // 右端から逆順に配置
         float x = right;
-        for (int i = d.Keys.Length - 1; i >= 0; i--)
+        for (int i = toks.Length - 1; i >= 0; i--)
         {
-            float kw = Mathf.Max(32f, UiKit.TextW(UiKit.Mono, d.Keys[i], 14) + 18f);
+            float kw = Mathf.Max(32f, UiKit.TextW(UiKit.Mono, toks[i], 14) + 18f);
             x -= kw;
             UiKit.Box(this, new Rect2(x, cy - h / 2f, kw, h), new Color(1, 1, 1, 0.07f), 7f, new Color(1, 1, 1, 0.18f), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x, cy - 9), d.Keys[i], 14, new Color("e8e2f0"), HorizontalAlignment.Center, kw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x, cy - 9), toks[i], 14, new Color("e8e2f0"), HorizontalAlignment.Center, kw);
             x -= gap;
         }
+    }
+
+    // 操作キーバインド行の表記を、操作表示モード(Pad.Display)に従って解決する。
+    // KB 表示時は従来どおりキーボードキー（移動=矢印、ショット=Z…）。
+    // パッド表示時は Pad.Face で物理 JoyButton を Xbox/PS 表記に出し分ける（物理マッピングは不変・表記のみ）。
+    private static string[] KeyTokens(string rowKey)
+    {
+        if (Pad.ShowKeyboard)
+            return rowKey switch
+            {
+                "move"  => new[] { "↑", "↓", "←", "→" },
+                "shot"  => new[] { "Z" },
+                "bomb"  => new[] { "X" },
+                "slow"  => new[] { "Shift" },
+                "dodge" => new[] { "Alt" },
+                "pause" => new[] { "Esc" },
+                _       => System.Array.Empty<string>(),
+            };
+        // パッド表記（Pad.Style に従い Xbox/PS）。Player.cs の入力判定と一致させる。
+        return rowKey switch
+        {
+            "move"  => new[] { "L" },                                    // 左スティック
+            "shot"  => new[] { Pad.Face(JoyButton.A) },
+            "bomb"  => new[] { Pad.Face(JoyButton.X) },
+            "slow"  => new[] { Pad.Face(JoyButton.LeftShoulder), Pad.Face(JoyButton.RightShoulder) },
+            "dodge" => new[] { Pad.Face(JoyButton.LeftStick) },
+            "pause" => new[] { Pad.Face(JoyButton.Start) },
+            _       => System.Array.Empty<string>(),
+        };
     }
 
     private float FootHint(float x, float y, string key, string label)

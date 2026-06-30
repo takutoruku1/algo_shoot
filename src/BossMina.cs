@@ -23,6 +23,10 @@ public partial class BossMina : Enemy
     private double _lineT;
     private bool _zHeld;
 
+    // 全画面AOEキャスター（このボス専用）。HP閾値で安置型/全面型を1回ずつ撃たせ、予告中は通常弾を止める。
+    private AreaSpellCaster _caster = null!;
+    private bool _aoe62Done, _aoe42Done, _aoeFinaleDone; // 各閾値ワンショット
+
     // HPがこの割合を割るたびに弾幕パターンを変える。
     private static readonly float[] PatternThresholds = { 0.82f, 0.62f, 0.42f, 0.22f };
 
@@ -84,16 +88,24 @@ public partial class BossMina : Enemy
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
-        var caster = new AreaSpellCaster();
-        caster.Configure("mina", GetParent());
-        AddChild(caster);
+        _caster = new AreaSpellCaster();
+        _caster.Configure("mina", GetParent());
+        AddChild(_caster);
     }
 
     protected override void UpdateMovement(double delta)
     {
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
-        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
+        // 全画面AOE予告中は詠唱モーション：小刻みに身震いさせ（visualOffset を揺らす）、オーラを強める。
+        bool casting = _caster != null && _caster.AoeActive;
+        Vector2 vis = _mover.VisualOffset;
+        if (casting)
+        {
+            float q = Mathf.Sin((float)Time.GetTicksMsec() * 0.03f) * 1.6f;
+            vis += new Vector2(q, -Mathf.Abs(q) * 0.5f);
+        }
+        ApplyBossMotion(vis, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, casting ? 64f : 36f);
         FirePattern(delta);
     }
 
@@ -101,6 +113,8 @@ public partial class BossMina : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        // 全画面AOEの予告〜着弾中は通常弾を止める（避け先＝安置へ集中させる／弾の過密回避）。
+        if (_caster != null && _caster.AoeActive) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -183,11 +197,17 @@ public partial class BossMina : Enemy
             _beatsFired++;
             ApplySpell();
         }
+        // 全画面AOE（ラスボス専用）：HP 0.62 / 0.42 を割った瞬間に安置型を1回ずつ。
+        // フィナーレ突入時に安置なしの全面型を1回（計3回）。各ワンショット。
+        if (!_aoe62Done && HpRatio <= 0.62f) { _aoe62Done = true; _caster?.CastFullscreen(withSafeZone: true); }
+        if (!_aoe42Done && HpRatio <= 0.42f) { _aoe42Done = true; _caster?.CastFullscreen(withSafeZone: true); }
+
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
             GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", Spells[3].name + "＋" + Spells[4].name, Spells[4].tint);
+            if (!_aoeFinaleDone) { _aoeFinaleDone = true; _caster?.CastFullscreen(withSafeZone: false); }
         }
     }
 

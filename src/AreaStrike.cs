@@ -17,10 +17,16 @@ using Godot;
 //   world.AddChild(z); z.GlobalPosition = origin;
 public partial class AreaStrike : Node2D
 {
-    public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg }
+    public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg, Fullscreen }
 
     private const float PlayerHit = 2.5f;     // 自機の被弾半径ぶんの寄せ
     private const double StrikeFlash = 0.20;  // 着弾フラッシュの尺
+    private const float W = 384f, H = 216f;   // 全画面AOEの画面寸法
+
+    // Fullscreen（全画面AOE）専用：画面全体を被弾域にし、安置(セーフゾーン)円だけをくり抜く。
+    // _safeR<=0 なら安置なし＝全面（避けられない＝予告で必ず逃げ切れる短い警告と併用）。
+    private Vector2 _safeCenter;
+    private float _safeR;
 
     private Shape _shape;
     private float _hw, _hh;                    // 矩形/ビームの半幅・半高（円は _hw を半径に使う）
@@ -38,7 +44,8 @@ public partial class AreaStrike : Node2D
     private bool _struck;
 
     // 発生源（任意）。設定すると、着弾前に発生源が消滅/浄化された時点で予測線ごとキャンセルする。
-    //   ＝「予兆中に倒せば攻撃も消える」。道中ザコのロックオンビームで使う（ボスの範囲技は未設定＝従来どおり完遂）。
+    //   ＝「予兆中に倒せば攻撃も消える」。道中ザコのロックオンビーム＋ボスの範囲技(AreaSpellCaster)で使う。
+    //   ボスは改心(IsPurified)した瞬間に出現済みの予兆まで自滅させ、「攻撃が終わったのに後から着弾する」残留を断つ。
     private Node2D? _owner;
     private bool _cancelOnOwnerLoss;
     public void SetOwner(Node2D owner) { _owner = owner; _cancelOnOwnerLoss = true; }
@@ -49,6 +56,19 @@ public partial class AreaStrike : Node2D
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
         ZIndex = -10; ZAsRelative = false;
+    }
+
+    // 全画面AOE。画面全体が被弾域で、安置(セーフゾーン)円(safeCenter/safeR)だけが安全。
+    // safeR<=0 で安置なしの全面型。位置は画面基準で固定するので GlobalPosition=Zero で AddChild する。
+    // 弾の下・背景の上に描く他形状と違い、全面tintは弾より上にも欲しいので ZIndex を少し上げる。
+    public void ConfigureFullscreen(Vector2 safeCenter, float safeR, double warn, Color tint, Color hot)
+    {
+        _shape = Shape.Fullscreen;
+        _safeCenter = safeCenter;
+        _safeR = Mathf.Max(0f, safeR);
+        _warn = Mathf.Max(0.35, warn);
+        _tint = tint; _hot = hot;
+        ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下で画面を満たす
     }
 
     // 任意向きビーム（線分）。dir 方向へ length 伸び、半太さ halfThick で判定する。
@@ -88,6 +108,13 @@ public partial class AreaStrike : Node2D
 
     private bool Inside(Vector2 p)
     {
+        // 全画面AOE：安置(セーフゾーン)円の内側だけ安全。安置外（または安置なし）は全員被弾。
+        // p は画面座標そのまま（このノードは GlobalPosition=Zero で置く）。
+        if (_shape == Shape.Fullscreen)
+        {
+            if (_safeR <= 0f) return true; // 安置なし＝全面
+            return p.DistanceTo(_safeCenter) > _safeR + PlayerHit; // 安置外なら被弾
+        }
         Vector2 d = p - GlobalPosition;
         if (_shape == Shape.Circle) return d.Length() <= Radius + PlayerHit;
         // 任意向きビーム：原点→_segLen の線分への最短距離が（半太さ＋自機半径）以内なら被弾。
@@ -105,7 +132,9 @@ public partial class AreaStrike : Node2D
     {
         if (GetTree().GetFirstNodeInGroup("player") is Player p && Inside(p.GlobalPosition))
             p.TakeHit();
-        GameCamera.Instance?.Shake(3.4f, 0.16f);
+        // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
+        if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);
+        else GameCamera.Instance?.Shake(3.4f, 0.16f);
     }
 
     public override void _Draw()
@@ -123,6 +152,8 @@ public partial class AreaStrike : Node2D
         Color fill = new Color(_tint.R, _tint.G, _tint.B, 0.12f + 0.26f * k); // 面のベタ塗り＝範囲を面で示す
         Color edge = new Color(_tint.R, _tint.G, _tint.B, 0.6f + 0.4f * pulse);
         Color core = new Color(_hot.R, _hot.G, _hot.B, 0.08f + 0.14f * k);
+
+        if (_shape == Shape.Fullscreen) { DrawFullscreenTelegraph(k, pulse); return; }
 
         if (_shape == Shape.Circle)
         {
@@ -169,6 +200,13 @@ public partial class AreaStrike : Node2D
         float f = 1f - st;
         Color core = new Color(_hot.R, _hot.G, _hot.B, 0.6f * f);
         Color rim = new Color(1f, 1f, 1f, f);
+        if (_shape == Shape.Fullscreen)
+        {
+            // 全画面着弾：画面全体を白フラッシュ。安置だけは抜く（そこにいた自機は無傷の余韻）。
+            DrawRect(new Rect2(0, 0, W, H), new Color(1f, 1f, 1f, 0.85f * f));
+            if (_safeR > 0f) DrawCircle(_safeCenter, _safeR, new Color(0.4f, 0.95f, 0.6f, 0.25f * f));
+            return;
+        }
         if (_shape == Shape.Circle)
         {
             DrawCircle(Vector2.Zero, Radius, core);
@@ -194,6 +232,63 @@ public partial class AreaStrike : Node2D
         }
         DrawRect(rr, core);
         DrawBoxBorder(rim, 2.6f);
+    }
+
+    // 全画面AOEの予兆：画面全体を濁桃tintで満たし、安置(セーフゾーン)だけα0でくり抜く＋緑の脈動リング。
+    //   くり抜きは「画面矩形に円の穴を空けたキーホール多角形」で実現（穴の内側は塗られない＝真にα0）。
+    //   tintは着弾へ向け濃く（k）。終了直前(k>0.82)に白フレームを内側へ収束させて着弾を予告する。
+    private void DrawFullscreenTelegraph(float k, float pulse)
+    {
+        // 画面を満たす濁桃tint（安置を穴として抜く）。弾の視認のため α は中程度までに抑える。
+        Color danger = new Color(_tint.R, _tint.G, _tint.B, 0.18f + 0.30f * k);
+        if (_safeR > 0f)
+            DrawColoredPolygon(ScreenWithHole(_safeCenter, _safeR), danger);
+        else
+            DrawRect(new Rect2(0, 0, W, H), danger); // 安置なし＝全面
+
+        if (_safeR > 0f)
+        {
+            // 安置：淡い緑のフィル＋脈動する緑リング（ここが安全だと一目で分かる色）。
+            var green = new Color(0.4f, 0.95f, 0.6f);
+            DrawCircle(_safeCenter, _safeR, new Color(green.R, green.G, green.B, 0.10f + 0.06f * pulse));
+            DrawArc(_safeCenter, _safeR, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.55f + 0.45f * pulse), 2f);
+            DrawArc(_safeCenter, _safeR + 3f, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.20f * pulse), 1f);
+        }
+
+        // 着弾予告：終了直前に画面外周から白フレームが収束（“来る”の合図）。
+        if (k > 0.82f)
+        {
+            float c = (k - 0.82f) / 0.18f; // 0→1
+            float inset = Mathf.Lerp(0f, 10f, c);
+            var white = new Color(1f, 1f, 1f, 0.5f * c);
+            DrawRect(new Rect2(inset, inset, W - inset * 2f, H - inset * 2f), white, false, 2.5f);
+        }
+    }
+
+    // 画面矩形に circle(中心 c・半径 r)の穴を空けたキーホール多角形を返す（穴の内側は塗られない）。
+    private static Vector2[] ScreenWithHole(Vector2 c, float r)
+    {
+        const int seg = 36;
+        var pts = new System.Collections.Generic.List<Vector2>(seg + 8);
+        // 外周（左上→右上→右下→左下）。最後に左上付近へ戻り、橋を渡して円へ。
+        pts.Add(new Vector2(0, 0));
+        pts.Add(new Vector2(W, 0));
+        pts.Add(new Vector2(W, H));
+        pts.Add(new Vector2(0, H));
+        pts.Add(new Vector2(0, 0));
+        // 橋：外周(左上)→円の最上点へ。
+        Vector2 bridge = new Vector2(c.X, c.Y - r);
+        pts.Add(bridge);
+        // 円を一周（CW）して穴を作る。
+        for (int i = 0; i <= seg; i++)
+        {
+            float a = -Mathf.Pi / 2f - Mathf.Tau * i / seg; // 上から時計回り
+            pts.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+        }
+        // 橋を戻して外周へ閉じる。
+        pts.Add(bridge);
+        pts.Add(new Vector2(0, 0));
+        return pts.ToArray();
     }
 
     // ビーム＝範囲の両端を線で囲う（予測線）／矩形＝四辺。

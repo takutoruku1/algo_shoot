@@ -88,7 +88,7 @@ public partial class Epilogue : Node2D
         I("地", "その次の日も。その次の日も。");
         I("地", "フォロー欄に、知っている名前が並んでいました。");
         I("地", "——全員、いました。救った三人が、全員、ご主人様の、知り合いだったのです。");
-        I("地", "Xの闇を成敗するなどと言いながら、あの人が潜ったのは、最初から、自分の大切な人の心だけでした。");
+        I("地", "Yの闇を成敗するなどと言いながら、あの人が潜ったのは、最初から、自分の大切な人の心だけでした。");
         I("地", "ふと、思い出しました。あの人は毎回、潜る前に、同じ一言を言っていた。");
 
         void O(string who, string t) => _outro.Add(new DLine { Who = who, Text = t });
@@ -316,14 +316,29 @@ public partial class Epilogue : Node2D
         if (label != "")
             DrawString(_font, new Vector2(20, H - 44), label, HorizontalAlignment.Left, -1, 9, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        // タイプライターで表示済みの分だけ描画。
-        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-        string body = d.Text.Substring(0, shown);
+        // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、全文をその場でフェードイン表示。
+        //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
+        // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
+        Color ink = Ink;
+        string body;
+        if (narr)
+        {
+            body = d.Text;                                   // 全文をその場で（広がる演出なし）
+            float a = Mathf.Clamp((float)_lineT / 0.35f, 0f, 1f); // 短いフェードイン
+            ink = new Color(Ink.R, Ink.G, Ink.B, a);
+        }
+        else
+        {
+            int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
+            body = d.Text.Substring(0, shown);
+        }
         DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
-            W - 52, 11, -1, Ink,
+            W - 52, 11, -1, ink,
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
         // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
-        if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)
+        // ナレは全文を即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
+        bool ready = narr ? _lineT >= 0.35 : _reveal >= d.Text.Length;
+        if (ready && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
     }

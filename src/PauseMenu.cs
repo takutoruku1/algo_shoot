@@ -26,8 +26,8 @@ public partial class PauseMenu : CanvasLayer
         ("bgm",    "BGM"),
         ("se",     "効果音 (SE)"),
     };
-    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = あそびかた / 5 = タイトルへ
-    public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "あそびかた", "タイトルへ" };
+    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = 会話ログ / 5 = あそびかた / 6 = タイトルへ
+    public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "会話ログ", "あそびかた", "タイトルへ" };
 
     // 行構成：音量3行 → 操作表示1行（←→/Zで切替）→ アクション6行。
     private static int RowCount => VolRows.Length + 1 + ItemsJp.Length;
@@ -85,8 +85,9 @@ public partial class PauseMenu : CanvasLayer
     {
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;
-        // 操作説明オーバーレイが上に開いている間は、ポーズメニュー側の入力を止める（Esc/Z の二重処理を防ぐ）。
+        // 操作説明・会話ログのオーバーレイが上に開いている間は、ポーズメニュー側の入力を止める（Esc/Z の二重処理を防ぐ）。
         if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }) { _canvas.QueueRedraw(); return; }
+        if (GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true }) { _canvas.QueueRedraw(); return; }
 
         // Esc（キーボード）／Start（パッド）どちらでも開閉できる。
         bool esc = Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.Start);
@@ -165,6 +166,11 @@ public partial class PauseMenu : CanvasLayer
         else if (action == GameManager.SlotCount) Close();           // つづける
         else if (action == GameManager.SlotCount + 1)
         {
+            // 会話ログ：ポーズを保ったままバックログ・オーバーレイを重ねる（閉じたらポーズへ戻る）。
+            GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
+        }
+        else if (action == GameManager.SlotCount + 2)
+        {
             // あそびかた：ポーズを保ったまま操作説明オーバーレイを重ねる（閉じたらポーズへ戻る）。
             GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
         }
@@ -200,7 +206,7 @@ public partial class PauseCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
         int nVol = PauseMenu.VolRows.Length;
-        float w = 460, h = 600, x = (W - w) / 2f, y = (H - h) / 2f;
+        float w = 460, h = 648, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", 13, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
