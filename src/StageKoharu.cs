@@ -34,7 +34,7 @@ public partial class StageKoharu : Node
 
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る：
     //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
-    // 体数より“密度と変化”で長さを作る（§3 緩急）：合計20体だが3波で構成を変えて間延びさせない。
+    // 体数より“密度と変化”で長さを作る（§3 緩急）：合計60体だが3波で構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
@@ -111,7 +111,7 @@ public partial class StageKoharu : Node
     // ───────── ミッドシナリオ枠（後半Bと終盤Cの境＝ボス前の“溜め”）─────────
     // シナリオ担当が本文を差し込むスロット（who=Hud.LineKind 0=少年/1=ミナ/2=こはる/3=ナレ/4=投稿/5=中継）。
     // 吹き出し会話（Step_Lines）で出す＝弾は止まる。こはる面のテーマ＝台所/無力感に馴染む位置に。
-    // ※プレースホルダ。2〜数行を想定。
+    // 本文執筆済み（差し替えはこの配列ごと）。テンポを殺さないよう2〜数行を維持。
     private static readonly (int who, string text, string face)[] MidStory =
     {
         (1, "ご主人様、聞こえますか。トン、トン、と。……誰もいない台所で、刻む音だけが、まだ続いています。", "res://char/mina_worried.png"),  // ザコ＝包丁/まな板・鍋/お玉

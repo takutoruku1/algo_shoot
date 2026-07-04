@@ -133,7 +133,7 @@ public partial class StageZero : Node
         (1, "ぜんぶ、覚えました。……ご主人様が、そばで教えてくれましたから。", "res://char/mina_smile.png"),
         (0, "ぼくは、ずっとここにいる。きみが迷っても、ちゃんと声が届く所に。", "res://char/shonen_gentle.png"),
         (1, "……あ。ご主人様、見てください。暗闇に、ひとつだけ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
-        (0, "行こう、ミナ。——きみは、ひとりじゃない。ぼくが、ここにいる（Stay）。", "res://char/shonen_proud.png"),
+        (0, "行こう、ミナ。——Stay。きみは、ひとりじゃない。ぼくも、ここにいるから。", "res://char/shonen_proud.png"), // 合言葉を注釈なしで＝意味は本編Prologueで定義済み。「ぼくも」＝Acrostic“And I won't either.”の先触れ
     };
 
     public override void _Ready()

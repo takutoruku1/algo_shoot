@@ -476,7 +476,7 @@ public partial class Prologue : Node2D
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
         // 送り三角は「全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
         bool revealed = _reveal >= d.Text.Length;
-        bool inPause = _line == 6 && _lineT < 1.2;
+        bool inPause = _line == 15 && _lineT < 1.2; // “間”ホールド行（_Process の minHold=index 15）と同期。会話追加時は両方直す
         if (revealed && ((int)(_t * 2f) % 2) == 0 && !inPause)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
                 new Color(1f, 1f, 1f, 0.7f));
