@@ -15,7 +15,7 @@
 リリース可否に直結する項目。他の作業と並行せず先に潰す。
 
 - [ ] **クレジット差し替え**: `src/Epilogue.cs` スタッフロールの「麻枝准(agent)/光田康典(agent)/吉田明彦(agent)」表記を撤去。実在の人物名は権利リスク。「Scenario: Claude (AI) directed by <開発者名>」等の実態に即した表記へ。
-- [ ] **フォントライセンス同梱**: ZenKakuGothicNew (SIL OFL) と JetBrainsMono (Apache 2.0) のライセンス文を `assets/fonts/` に追加（PixelMplusは同梱済）。ゲーム内クレジットにもフォント表記。
+- [x] **フォントライセンス同梱**（2026-07-02 完了）: ZenKakuGothicNew と JetBrainsMono（同梱ttfはv2.211、**SIL OFL 1.1**。Apache 2.0は旧版のみ）のライセンス全文を `assets/fonts/` に追加。PixelMplusは同梱済み確認。残: ゲーム内クレジットへのフォント表記、配布zipへのLICENSE同梱（Phase 3のexport-build手順に追加）。
 - [ ] **AI生成アセットの棚卸し**: `char/` のgpt-image生成物、BGMの由来を一覧化。SteamはAI生成コンテンツの**申告が必須**（ストア提出フォームで開示。開示すればリリース可能）。gpt-image生成物は商用利用可だが、申告文面を用意しておく。
 - [ ] **リポジトリ衛生**: `.openai_key.txt` はgitignore済み・未コミットを確認済み（2026-07-02）。配布ビルドに混入しないこと（`export_presets.cfg` の exclude 確認）。
 
