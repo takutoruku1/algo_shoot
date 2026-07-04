@@ -27,6 +27,24 @@ public partial class BossRei : Enemy
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
+    // ── 「また逃げる」ギミック（#12 機構側）：攻めない時間が続くと弾密度が漸増する圧 ──
+    //   パネル/本体への与ダメがゼロのまま 6秒 で+1、以降 4秒 ごとに+1（上限+2）。リング系の弾数と
+    //   自機狙いの扇の枚数に乗る。1ヒットごとに1段階即緩む＝「攻めれば密度が下がる」。
+    //   タイマーは SHIELDED（殴れる時間）だけ進める＝BREAK/RECLOSE や会話中の理不尽な加圧を防ぐ。
+    private double _noDmgT;
+    private int _pressure;
+    private const int PressureMax = 2;
+    private const double PressureDelay = 6.0; // 最初の加圧まで（与ダメゼロ許容時間）
+    private const double PressureStep = 4.0;  // 2段階目までの追加時間
+    private double _tauntCd;                  // 挑発字幕の連発防止
+    private int _tauntIdx;
+    // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
+    private static readonly string[] TauntLines =
+    {
+        "……また、逃げるの?",
+        "戦ってよ。わたしを、ちゃんと見てよ。",
+    };
+
     // スペルカード（RefrainHTML Danmaku v3 STAGE1 レイ＝順位掲示板・銀菫金ティール）。
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
@@ -40,6 +58,7 @@ public partial class BossRei : Enemy
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
+        GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("レイ", "@rei_compete", s.name, s.tint);
     }
 
@@ -73,7 +92,7 @@ public partial class BossRei : Enemy
         PanelsFire = false;
         EnemyBulletSpeed = 82f;
 
-        // HPバー本数は難易度別（通常ボス：Easy3/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
+        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
         BarCount = DiffBars(finalBoss: false);
 
         PreTexPath = "res://char/enemy_rei_pre.png";
@@ -107,7 +126,35 @@ public partial class BossRei : Enemy
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
+        TickPressure(delta);
         FirePattern(delta);
+    }
+
+    // 「また逃げる」圧の進行。UpdateMovement 経由＝会話中(BubblePaused)・登場演出中は自然に止まる。
+    private void TickPressure(double delta)
+    {
+        if (_tauntCd > 0) _tauntCd -= delta;
+        if (!IsShieldPhase) return; // 殴れない時間（合図/窓/セリフ）は与ダメゼロを咎めない
+        _noDmgT += delta;
+        int want = _noDmgT < PressureDelay ? 0
+                 : Mathf.Min(PressureMax, 1 + (int)((_noDmgT - PressureDelay) / PressureStep));
+        if (want > _pressure)
+        {
+            _pressure = want;
+            if (_tauntCd <= 0)
+            {
+                _tauntCd = 8.0;
+                GetHud()?.ShowBossLine("レイ", TauntLines[Mathf.Min(_tauntIdx, TauntLines.Length - 1)], UiKit.Kegare, 1.6);
+                _tauntIdx++;
+            }
+        }
+    }
+
+    // 有効打（パネルのインク削り／無防備窓の本体ヒット）のたびに圧が1段階すぐ緩む。
+    public override void OnPlayerDealtDamage()
+    {
+        _noDmgT = 0;
+        if (_pressure > 0) _pressure--;
     }
 
     // 攻撃パターン（セリフを挟むたびに変化）。
@@ -117,10 +164,11 @@ public partial class BossRei : Enemy
         if (pool == null) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
+        // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; Ring(pool, Dn(14), 70f); } break;
-            case 1: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(18), 76f); } break;
+            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; Ring(pool, Dn(14) + _pressure, 70f); } break;
+            case 1: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(18) + _pressure, 76f); } break;
             case 2: if (_fireT >= Di(0.7)) { _fireT = 0; Aimed(pool); } break;
             default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;
         }
@@ -130,7 +178,7 @@ public partial class BossRei : Enemy
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14), 72f); }
+        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
         if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
     }
 
@@ -148,7 +196,8 @@ public partial class BossRei : Enemy
     {
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        for (int i = -1; i <= 1; i++)
+        int wing = 1 + _pressure; // 「また逃げる」圧：3way→5way→7way（角度は不変＝扇が広がる）
+        for (int i = -wing; i <= wing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 98f, 3.4f);
@@ -197,6 +246,7 @@ public partial class BossRei : Enemy
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
+            GetHud()?.SetBossBarTint(Spells[2].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("レイ", "@rei_compete", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
     }

@@ -48,9 +48,10 @@ public partial class GameManager : Node
 
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
-    // 通常ボス: Easy2/Normal3/Hard4/Lunatic5（各難易度から1本減＝難度緩和）。ラスボス格(Mina)は +1本（finalBoss=true）。
+    // 通常ボス: Easy2/Normal4/Hard5/Lunatic6（#25: Easyは据え置き＝入口を守り、Normal以上を+1本）。
+    // ラスボス格(Mina)は +1本（finalBoss=true）。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 4, Diff.Lunatic => 5, _ => 3 }) + (finalBoss ? 1 : 0);
+        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 1 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 200;
@@ -706,6 +707,15 @@ public partial class GameManager : Node
     {
         Score += 5;
     }
+
+    // こはる戦の「祈り弾」（消せる下方向弾）を自機弾で受け止めた時の加点（#12 機構側／#20）。
+    // やさしさゲージ微加算＝“祈りを受け止める”が浄化/グレイズと同じ経路（KindnessGainMul込み）で報われる。
+    public void AddPrayerCleared()
+    {
+        Score += 15;
+        AddKindness(PrayerGain);
+    }
+    private const float PrayerGain = 0.02f; // 微加算（グレイズ0.07より小さく＝受け止めは薬味）
 
     // ボムを使う。残があれば消費して true。
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。

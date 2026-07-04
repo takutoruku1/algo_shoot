@@ -43,6 +43,7 @@ public partial class BossMina : Enemy
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
+        GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", s.name, s.tint);
     }
 
@@ -206,6 +207,7 @@ public partial class BossMina : Enemy
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
+            GetHud()?.SetBossBarTint(Spells[4].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", Spells[3].name + "＋" + Spells[4].name, Spells[4].tint);
             if (!_aoeFinaleDone) { _aoeFinaleDone = true; _caster?.CastFullscreen(withSafeZone: false); }
         }

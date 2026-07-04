@@ -33,6 +33,13 @@ public partial class Bullet : Area2D
     public Color Tint;
     public bool TintSet;
 
+    // ─── ボス別弾幕ギミック（#12 機構側）の弾フラグ ───
+    // Erasable: 自機弾で消せる「祈り弾」（こはる FanDown）。消すと双方消滅＋やさしさ微加算。
+    // SoftenOnGraze: グレイズすると一度だけ減速×0.75＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
+    public bool Erasable;
+    public bool SoftenOnGraze;
+    public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
+
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
     private Node2D? _homeTarget;
@@ -89,6 +96,9 @@ public partial class Bullet : Area2D
         _shape = new CollisionShape2D { Shape = _circle };
         AddChild(_shape);
 
+        // 「祈り弾」（Erasable）のみ自機弾との重なりを自前処理する（MakeErasable が mask を開く）。
+        AreaEntered += OnAreaEntered;
+
         // 初期状態は非アクティブ
         Deactivate();
     }
@@ -104,6 +114,9 @@ public partial class Bullet : Area2D
         Active = true;
         Grazed = false;
         Word = "";  // 再利用時に前の言葉を持ち越さない
+        Erasable = false;       // ギミックフラグも再利用時に持ち越さない
+        SoftenOnGraze = false;
+        Softened = false;
         Shape = shape;
         TintSet = tint.HasValue;
         if (tint.HasValue) Tint = tint.Value;
@@ -163,6 +176,41 @@ public partial class Bullet : Area2D
         SetDeferred(Area2D.PropertyName.Monitorable, false);
         if (_shape != null)
             _shape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
+    }
+
+    // 「祈り弾」にする（Spawn 後に呼ぶ。こはる FanDown）。自機弾(layer=2)を拾う mask を開き、
+    // 消せる合図の淡い暖色ハロを再描画で反映する。Activate が mask/フラグを毎回リセットするので持ち越さない。
+    public void MakeErasable()
+    {
+        Erasable = true;
+        CollisionMask |= LayerPlayerBullet;
+        QueueRedraw();
+    }
+
+    // 祈り弾×自機弾の重なり：双方消して「受け止めた」の手応え＋やさしさ微加算。
+    // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
+    private void OnAreaEntered(Area2D area)
+    {
+        if (!Active || !IsEnemy || !Erasable) return;
+        if (area is Bullet pb && !pb.IsEnemy && pb.Active)
+        {
+            var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+            pool?.Despawn(pb);
+            FxLayer.Instance?.BulletToPetal(GlobalPosition); // 弾が花びらへ＝“祈りを受け止めた”
+            Audio.Instance?.PlayStrip();                     // 軽い「コツッ」（剥離と同域＝浄化より一段軽い）
+            GetNodeOrNull<GameManager>("/root/Game")?.AddPrayerCleared();
+            if (pool != null) pool.Despawn(this); else Deactivate();
+        }
+    }
+
+    // 「キミ弾」のグレイズ軟化（あかり）：一度だけ減速×0.75＋淡色化。
+    // 当たり判定（半径・被弾処理）は一切変えない＝“安全になる”のではなく“読める”ようになる。
+    public void ApplyGrazeSoften()
+    {
+        if (!SoftenOnGraze || Softened) return;
+        Softened = true;
+        Velocity *= 0.75f;
+        QueueRedraw();
     }
 
     public override void _PhysicsProcess(double delta)
@@ -298,6 +346,8 @@ public partial class Bullet : Area2D
 
         // 敵弾：スペルの色（未指定なら既定の穢れ色）と弾形で描く。
         Color c = TintSet ? Tint : EnemyMid;
+        // グレイズ軟化済み（キミ弾）：白へ寄せた淡色＝「和らいだ」を色で読ませる（判定は不変）。
+        if (Softened) c = c.Lerp(new Color(1f, 1f, 1f), 0.5f);
         switch (Shape)
         {
             case BulletShape.Diamond: DrawDiamond(r, c); break;
@@ -307,6 +357,14 @@ public partial class Bullet : Area2D
             case BulletShape.Rice:    DrawRice(r, c);    break;
             default:                  DrawOrb(r, c);     break; // 円弾＝白リング＋暗芯（芯色のみ可変）
         }
+
+        // 当たり芯（#16 見える化）：弾中心の高輝度ドット＝「刺さるのはこの点」。
+        // 言葉弾の赤コアと同じ発想を通常弾へ。弾形の色を隠さないよう小さく・白のみ（派手にしない）。
+        DrawCircle(Vector2.Zero, Mathf.Min(1.5f, r * 0.42f), new Color(1f, 1f, 1f, 0.9f), true, -1f, true);
+
+        // 祈り弾（消せる弾）の合図：淡い暖白のハロリング＝「自機弾で受け止められる」を一目で。
+        if (Erasable)
+            DrawArc(Vector2.Zero, r + 2.4f, 0, Mathf.Tau, 24, new Color(1f, 0.95f, 0.8f, 0.55f), 1.1f, true);
     }
 
     // 認証バッジの白✓。極小サイズではフォント✓が潰れるので2線分のチェック記号で描く。

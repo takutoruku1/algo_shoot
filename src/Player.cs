@@ -144,8 +144,13 @@ public partial class Player : Area2D
 
     // 移動バンク（進行方向へ体を傾け＋わずかに先行。見た目=_spriteのみ／当たり判定は不動）。
     // _lean を入力方向へ指数補間して慣性を持たせる＝予備動作（タメ）と余韻（揺り戻し）が自動で出る。
+    // ★#4 左右の向き差分の結論：FlipH（左右反転）は不採用。ミナ機は非対称デザイン
+    //  （髪の流れ・エプロン・視線が右向き＝射撃方向）で、反転すると顔が射撃方向と逆を向いて破綻する。
+    //  専用絵も作らない：横シューの自機は常に敵(右)を見据えたまま、傾き（バンク）だけで進行方向を語る。
+    //  そのうえで前進(右=攻め)は深く・後退(左=引き)は浅く傾ける非対称バンクにし、攻守を姿勢で描き分ける。
     private Vector2 _lean = Vector2.Zero;
-    private static readonly float BankX = Mathf.DegToRad(8f);  // 前後（横移動）の前傾
+    private static readonly float BankXFwd = Mathf.DegToRad(9f);   // 前進（右＝射撃方向へ攻める）はしっかり前傾
+    private static readonly float BankXBack = Mathf.DegToRad(5.5f); // 後退（左）は控えめ＝顔は敵へ向けたまま引く
     private static readonly float BankY = Mathf.DegToRad(13f); // 上下（縦移動）のバンク
     private const float LeadPx = 2.5f;        // 進行方向への体の先行量(px)
     private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
@@ -526,8 +531,9 @@ public partial class Player : Area2D
             float bobY = Mathf.Sin(_bobTime * BobSpeed) * BobAmp;
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
-            // 前傾＋バンク：右移動で前へ、上下移動で機首を振る。
-            _sprite.Rotation = (_lean.X * BankX + _lean.Y * BankY) * leanMul;
+            // 前傾＋バンク：右移動で前へ、上下移動で機首を振る（前進は深く・後退は浅い非対称バンク）。
+            float bankX = _lean.X >= 0f ? BankXFwd : BankXBack;
+            _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * leanMul;
             // 指さし中＋戻りの余韻：ミナの方（右）へほんの少し前傾＋先行して「見据える」勢いを足す。
             if (_pointActive || _pointSettle > 0f)
             {
@@ -810,6 +816,9 @@ public partial class Player : Area2D
         if (area is Bullet b && b.IsEnemy && b.Active && !b.Grazed)
         {
             b.Grazed = true; // どちらの分岐でも立てて二重取りを防ぐ
+            // あかりの「キミ弾」：かすった弾だけ減速×0.75＋淡色化（フラグ弾のみ・判定不変）。
+            // 報酬系（farming防止の分岐）とは独立したボス側ギミックなので、加点の前に無条件で適用する。
+            b.ApplyGrazeSoften();
             var game = GetNodeOrNull<GameManager>("/root/Game");
 
             // 被弾直後の無敵中は経済加算をスキップ＝「無敵を盾に稼ぎ続ける」抜け穴を塞ぐ（farming防止）。

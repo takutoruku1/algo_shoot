@@ -228,6 +228,7 @@ public partial class Hud : CanvasLayer
 
         if (_flashAlpha > 0f) _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
         if (_hurtEdge > 0) _hurtEdge -= delta;
+        if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
 
         // タイプライター送り
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
@@ -559,6 +560,7 @@ public partial class Hud : CanvasLayer
     public void ShowBossBar(string bossName, string handle)
     {
         _bossName = bossName; _bossVisible = true;
+        _bossTint = null; _bossBarFlash = 0; // 次のボスへ前ボスのスペル色/フラッシュを持ち越さない
         ResetSpellCutin();   // ボス戦開始＝このボス戦のカットイン初回フラグをリセット
         if (!string.IsNullOrEmpty(handle))
         {
@@ -576,6 +578,15 @@ public partial class Hud : CanvasLayer
         _bossFrac = Mathf.Clamp(frac, 0f, 1f);
     }
     public void HideBossBar() { _bossVisible = false; }
+
+    // ── フェーズ移行の可視化（#26）──
+    // 現行スペルの色をHPバーへ連動させる（各ボスの ApplySpell が呼ぶ）。null=既定の穢れ色。
+    private Color? _bossTint;
+    public void SetBossBarTint(Color c) => _bossTint = c;
+    // HPバー1本割れの白フラッシュ（Enemy の本体ヒットでバー境界を跨いだ瞬間に焚く）。
+    private double _bossBarFlash;
+    private const double BossBarFlashDur = 0.32;
+    public void FlashBossBarBreak() => _bossBarFlash = BossBarFlashDur;
 
     public void SetLives(int n) { _lives = Mathf.Max(0, n); }
 
@@ -752,16 +763,24 @@ public partial class Hud : CanvasLayer
         string rep = UiKit.Abbrev((long)(_bossReplies * overall));
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, rep, 12), y + 12), rep, 12, new Color("f0a8cf"));
         // 穢れバー（現在の1本ぶん）＋残バー数の● pip。
+        // バー/pip の色は現行スペルの色に連動（#26 フェーズ移行の可視化。未設定なら既定の穢れ色）。
+        Color barCol = _bossTint ?? UiKit.Kegare;
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 36), "穢れ", 10, new Color("f0a8cf"));
         float pipsW = _bossBarsTotal * 9f;
         float barX = tx + 34, barW = w - (barX - x) - 66 - pipsW, barY = y + 37;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
-        if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), UiKit.Kegare, 5f);
+        if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), barCol, 5f);
+        // バー1本割れの白フラッシュ（割れた一拍を「ゲージが光る」で読ませる）。
+        if (_bossBarFlash > 0)
+        {
+            float f = (float)(_bossBarFlash / BossBarFlashDur);
+            UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1f, 1f, 1f, 0.7f * f), 5f);
+        }
         // 残バー pip（左から「残っている本数」を満たす）。
         float pipX = barX + barW + 8f;
         for (int i = 0; i < _bossBarsTotal; i++)
             ci.DrawCircle(new Vector2(pipX + i * 9f + 3f, barY + 5f), 3f,
-                i < barsLeft ? UiKit.Kegare : new Color(UiKit.Kegare, 0.22f));
+                i < barsLeft ? barCol : new Color(barCol, 0.22f));
         // 「残/総」表示。
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{barsLeft}/{_bossBarsTotal}", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
     }

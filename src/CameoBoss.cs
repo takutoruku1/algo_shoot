@@ -97,6 +97,10 @@ public partial class CameoBoss : Enemy
         BodyDisplayH = CameoBodyH;
         // 撃破の会話尺いっぱい cry を保持し、流し切った EndCryNow で post（笑顔）へ着地。
         CryHoldDur = 9999.0;
+
+        // 登場演出はカメオ簡易版：短く・揺れ控えめ（道中のテンポを削らない。本戦の見得は本戦だけ豪華に）。
+        EntranceDur = 0.85;
+        EntranceShake = 1.6f;
     }
 
     public override void _Ready()

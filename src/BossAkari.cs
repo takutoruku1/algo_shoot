@@ -1,6 +1,6 @@
 using Godot;
 
-// BossAkari : STAGE1「あかり（雨の教室）」のボス＝穢れの核「ゆるせないわたし」。
+// BossAkari : STAGE2「あかり（雨の教室）」のボス＝穢れの核「ゆるせないわたし」。
 // 自責の言葉（黒い吹き出し＝パネル）を旋回させ、下向きの自責弾を撒く。
 // パネルを剥がしてHPを削り切る＝奥の“本当のあかり”の光に届く＝浄化（改心）。
 // 浄化後は改心の姿を見せながら、少年（正体を隠したまま）が普遍化した言葉を贈る。フォロワーにはしない。
@@ -34,6 +34,7 @@ public partial class BossAkari : Enemy
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
+        GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("あかり", "@akari_ame", s.name, s.tint);
     }
 
@@ -78,7 +79,7 @@ public partial class BossAkari : Enemy
         PanelsFire = false;      // 攻撃は本体の自責弾
         EnemyBulletSpeed = 80f;
 
-        // HPバー本数は難易度別（通常ボス：Easy3/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
+        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
         BarCount = DiffBars(finalBoss: false);
 
         PreTexPath = "res://char/enemy_akari_pre.png";
@@ -161,13 +162,17 @@ public partial class BossAkari : Enemy
         }
     }
 
+    // 「キミ弾」ギミック（#12 機構側）：自機を追う2スペル（「ずっと一緒」「離さない」）の弾だけ、
+    // グレイズ（かすり）すると減速×0.75＋淡色化する＝名前を知らない“キミ”呼びの距離が、触れると和らぐ。
+    // 被弾判定は不変（安全化しすぎ防止）。フィナーレでは無効＝最後の圧は緩めない。
     private void AimedSpread(BulletPool pool)
     {
         float baseA = Mathf.Atan2(AimAtPlayer().Y, AimAtPlayer().X);
         for (int i = -1; i <= 1; i++)
         {
             float a = baseA + i * Mathf.DegToRad(14f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
+            b.SoftenOnGraze = true; // AimedSpread は「ずっと一緒」(pattern2)専用＝スペル限定が自然に成立
         }
     }
 
@@ -177,7 +182,8 @@ public partial class BossAkari : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
+            if (_pattern == 3 && !_finale) b.SoftenOnGraze = true; // 「離さない」中のみ（フィナーレ流用時は付けない）
         }
     }
 
@@ -206,6 +212,7 @@ public partial class BossAkari : Enemy
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
             _finale = true;
+            GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("あかり", "@akari_ame", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }

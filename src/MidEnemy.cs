@@ -98,6 +98,10 @@ public partial class MidEnemy : Enemy
         _motion = MotionFor(_spec.Pattern);
         _motionPhase = GD.Randf() * Mathf.Tau;   // 0〜2π：群れが同期しないよう全位相を散らす
         _gazeT = GD.RandRange(1.2, 2.6);         // 監視カメラ：最初の視線変更までの間
+
+        // 生命感モーション持ちは姿勢(Rotation)を自前で握る＝基底の移動バンクと競合させない。
+        // None（アンチくん系＝素のまま）だけ基底 AutoBank に任せ、移動方向への傾きを得る。
+        AutoBank = _motion == LivingMotion.None;
     }
 
     // モチーフ別の動きの型を弾幕パターンから引く（種が動きでも見分けられるように1:1）。

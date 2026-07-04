@@ -60,7 +60,8 @@ public partial class Enemy : Area2D
     //   1窓で削れる量を頭打ちにし、密着クリティカル＋高連射での「1窓即殺」を抑える。
     //   到達後はその窓では本体HPが減らない（弾の Despawn は継続＝撃ち心地は残す）。EnterExposed で 0 にリセット。
     //   密着クリティカルは上限を超えず「到達を早める」だけ＝近づく価値は残しつつ過剰削りを抑える。
-    private const int   ExposedDamageCap = 90;
+    //   #25 のHP増（Normal以上+1本）に合わせ 90→100＝ちょうど1本ぶん。未強化でも窓数が伸びすぎない。
+    private const int   ExposedDamageCap = 100;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
     // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
@@ -97,6 +98,36 @@ public partial class Enemy : Area2D
     private const float PopLiftPx = 6f;      // フォロースルーで一瞬持ち上げる量(px・見た目のみ)
     private const double HitstopDur = 0.08;  // 改心確定の一拍で止める長さ
 
+    // ─── ボス登場演出（吉田 §6 登場・§4 三段：予備動作→本動作→余韻）───
+    // BarCount>0（ボス/カメオ）のスポーンで自動再生する：右端に一瞬だけ顔を見せ（予告）→
+    // 画面外へ引いてタメ → 急加速で突入し着地点を通り過ぎ → ブレーキ（前傾）で揺り戻して静止。
+    // 静止してから盾(パネル)を展開＝焦らし→開放。演出中は当たり判定OFF・移動/弾幕停止
+    //（見た目が画面外なのに当たる/撃つ理不尽を断つ）。Boss*.cs 側の変更は不要（基底で完結）。
+    protected double EntranceDur = 1.15;   // 全長(s)。カメオは OnEnemyReady で短縮する（簡易版）。
+    protected float EntranceShake = 2.5f;  // ブレーキの一拍で入れる画面揺れ（カメオは控えめ）。
+    private bool _entering;
+    private bool _entInit;                 // ステージが GlobalPosition を入れた後（初回tick）に軌道を確定
+    private double _entT;
+    private Vector2 _entTarget, _entPeek, _entPull, _entPrev;
+    private float _entLean;                // 速度由来の前傾（ブレーキで自然に揺り戻る）
+    private bool _entBraked;               // ブレーキ開始の一拍（Shake+白閃）を一度だけ
+    private const float EntAnticFrac = 0.22f;  // ここまで＝引き（顔見せ→画面外へタメ）
+    private const float EntDashFrac = 0.60f;   // ここまで＝急加速IN（以降ブレーキ）
+    private const float EntOvershootPx = 26f;  // 着地点を一度通り過ぎる距離(px)
+    private const float EntLandXMax = 324f;    // 画面外スポーン(W0等)でも画面内に着地させる上限X
+
+    // ─── ザコの移動バンク（#4 向き差分：専用絵なし・コードのみ）───
+    // 速度から進行方向へ立ち絵(_bodySprite)を傾ける。見た目のみ＝当たり判定・進行は不変。
+    // ボス/カメオ(ApplyBossMotion=BossMover.Lean)と生命感モーション持ち(MidEnemy)は
+    // 姿勢を自前で握るので AutoBank を切る（二重に回転を書いて喧嘩しない）。
+    protected bool AutoBank = true;
+    private Vector2 _bankPrev;
+    private bool _bankPrevSet;
+    private float _bank;
+    private const float BankLeanMax = 0.14f;  // 横速度フルで約±8°（弾より目立たない控えめ）
+    private const float BankPitchMax = 0.05f; // 縦（居座りの上下往復）は±3°弱の揺らぎ
+    private const float BankSpeedRef = 60f;   // この速度(px/s)でフルバンク
+
     // 立ち絵の“素”のスケール（BodyDisplayH/テクスチャ高で決まる）。squash はこれに係数を掛ける。
     private float _baseScale = 1f;
     // ApplyBossMotion が与える呼吸/浮遊オフセット。pop の持ち上げはこれに加算して描く（呼吸と喧嘩しない）。
@@ -114,6 +145,11 @@ public partial class Enemy : Area2D
     public bool IsPurified => _purified;
     public int PanelsRemaining => _panels.Count;
     public bool IsExposed => _phase == BossPhase.Exposed; // 派生／演出が「今は殴れる」を参照
+    protected bool IsShieldPhase => _phase == BossPhase.Shielded; // 派生ギミックが「今は殴れる時間か」を参照
+
+    // 自機がこのボスへ有効打を入れた瞬間のフック（パネルのインク削り＝Panel 側／無防備窓の本体ヒット）。
+    // 派生ボスの「攻めているか」駆動ギミック（レイの逃げ腰圧など）が上書きする。基底は何もしない。
+    public virtual void OnPlayerDealtDamage() { }
 
     public override void _Ready()
     {
@@ -132,7 +168,117 @@ public partial class Enemy : Area2D
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
         SetupBodySprite();
-        SpawnPanels();
+        // ボス/カメオ（HPバー方式）は登場演出から始める：盾(パネル)は着地後に展開（焦らし→開放）。
+        // 立ち絵が無い場合は演出をスキップして従来どおり即展開（プレースホルダで滑空しても見得にならない）。
+        if (BarCount > 0 && _hasBodyTex) BeginEntrance();
+        else SpawnPanels();
+    }
+
+    // 登場演出の開始。演出中は触れられない/撃たれない（見た目が画面外なのに当たるのを防ぐ）。
+    private void BeginEntrance()
+    {
+        _entering = true;
+        Monitorable = false;
+        _bodyShape.Disabled = true;
+        // ステージが GlobalPosition を入れてから初回 physics tick で軌道が確定するまでの
+        // 数フレーム、スポーン地点に立ち絵が見えてしまう（登場の驚きが割れる）のを防ぐ。
+        // TickEntrance の初期化＝右端の“顔見せ”位置へ移した瞬間に表示へ戻す。
+        if (_bodySprite != null) _bodySprite.Visible = false;
+    }
+
+    // 登場演出を1フレーム進める（_PhysicsProcess が演出中はこれだけを回す＝移動/弾幕は止まる）。
+    // 動かすのは本体 GlobalPosition と _bodySprite.Rotation のみ。会話(BubblePaused)中も進む＝
+    // ボスイントロの会話に重ねて「現れる」を見せる。
+    private void TickEntrance(double delta)
+    {
+        if (!_entInit)
+        {
+            // ステージは AddChild の後に GlobalPosition を入れるので、軌道確定は初回tickまで遅延する。
+            _entInit = true;
+            _entTarget = new Vector2(Mathf.Min(GlobalPosition.X, EntLandXMax), GlobalPosition.Y);
+            _entPeek = new Vector2(392f, _entTarget.Y); // 右端に体の端がわずかに覗く位置
+            _entPull = new Vector2(438f, _entTarget.Y); // 完全に画面外（タメ）
+            GlobalPosition = _entPeek;
+            _entPrev = _entPeek;
+            if (_bodySprite != null) _bodySprite.Visible = true; // 軌道確定＝ここから見せる
+            return;
+        }
+
+        _entT += delta;
+        float dt = (float)delta;
+        float u = Mathf.Clamp((float)(_entT / EntranceDur), 0f, 1f);
+        Vector2 overshoot = _entTarget + new Vector2(-EntOvershootPx, 0f);
+        Vector2 pos;
+        if (u < EntAnticFrac)
+        {
+            // 予備動作：右端に一瞬だけ姿を見せ、すっと画面外へ引く（「来る」の予告）。
+            float k = u / EntAnticFrac;
+            float e = 1f - (1f - k) * (1f - k);            // ease-out
+            pos = _entPeek.Lerp(_entPull, e);
+        }
+        else if (u < EntDashFrac)
+        {
+            // 本動作：タメから解放。一気に加速して着地点を通り過ぎる。
+            float k = (u - EntAnticFrac) / (EntDashFrac - EntAnticFrac);
+            float e = k * k * k;                            // ease-in cubic（終端で最速）
+            pos = _entPull.Lerp(overshoot, e);
+        }
+        else
+        {
+            // 余韻：ブレーキ。行き過ぎた分を戻しながら減速して静止（揺り戻し）。
+            float k = (u - EntDashFrac) / (1f - EntDashFrac);
+            float e = 1f - (1f - k) * (1f - k) * (1f - k);  // ease-out cubic
+            pos = overshoot.Lerp(_entTarget, e);
+            if (!_entBraked)
+            {
+                _entBraked = true;
+                // ブレーキの一拍＝「現れた」の合図（小シェイク＋白閃）。弾幕はまだ＝焦らし。
+                GameCamera.Instance?.Shake(EntranceShake, 0.15f);
+                FxLayer.Instance?.AimFlash(_entTarget, new Color(1f, 1f, 1f, 0.9f));
+            }
+        }
+        GlobalPosition = pos;
+
+        // 速度由来の前傾：突入中は進行方向へ深く倒れ、ブレーキで自然に揺り戻る（フォロースルー）。
+        if (dt > 0f)
+        {
+            Vector2 vel = (pos - _entPrev) / dt;
+            _entPrev = pos;
+            float targetLean = Mathf.Clamp(vel.X / 480f, -1f, 1f) * 0.45f;
+            _entLean = Mathf.Lerp(_entLean, targetLean, 1f - Mathf.Exp(-12f * dt));
+            if (_bodySprite != null) _bodySprite.Rotation = _entLean;
+        }
+
+        if (u >= 1f)
+        {
+            _entering = false;
+            GlobalPosition = _entTarget;
+            if (_bodySprite != null) _bodySprite.Rotation = 0f;
+            // 静止 → 盾（言葉のパネル）を展開して戦闘へ（登場の見得を切ってから開放）。
+            SpawnPanels();
+            // 当たり判定を解禁（作法として遅延セットで戻す）。
+            SetDeferred(Area2D.PropertyName.Monitorable, true);
+            _bodyShape?.SetDeferred(CollisionShape2D.PropertyName.Disabled, false);
+            // 着地の余韻：既存の squash→pop（差し替えアニメ機構）を流用して一拍だけ弾ませる。
+            _swapAnim = true;
+            _swapAnimT = 0;
+        }
+    }
+
+    // ザコの移動バンク：直近フレームの実速度から傾きを決め、指数補間で慣性を持たせる
+    //（加速で倒れ・停止で起き上がる＝予備動作と余韻が自動で出る）。見た目のみ・判定不変。
+    private void TickAutoBank(double delta)
+    {
+        if (!AutoBank || !_hasBodyTex || _bodySprite == null) return;
+        float dt = (float)delta;
+        if (dt <= 0f) return;
+        if (!_bankPrevSet) { _bankPrev = GlobalPosition; _bankPrevSet = true; return; }
+        Vector2 vel = (GlobalPosition - _bankPrev) / dt;
+        _bankPrev = GlobalPosition;
+        float target = Mathf.Clamp(vel.X / BankSpeedRef, -1f, 1f) * BankLeanMax
+                     + Mathf.Clamp(vel.Y / BankSpeedRef, -1f, 1f) * BankPitchMax;
+        _bank = Mathf.Lerp(_bank, target, 1f - Mathf.Exp(-7f * dt));
+        _bodySprite.Rotation = _bank;
     }
 
     protected virtual void OnEnemyReady() { }
@@ -273,6 +419,7 @@ public partial class Enemy : Area2D
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+            OnPlayerDealtDamage(); // 「攻めている」の通知（キャップ/CD で削れないヒットも攻めは攻め）
 
             // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
             // 到達の瞬間だけ "MAX" を1回出して「これ以上は次の窓で」を伝える。
@@ -308,7 +455,13 @@ public partial class Enemy : Area2D
             dmg = Mathf.Min(dmg, ExposedDamageCap - _windowDamage);
             _windowDamage += dmg;
             _bodyHitCd = BodyHitCd;
+            int prevBarsLeft = (_hp + BarHp - 1) / BarHp; // 減算前の残バー数（切り上げ）
             _hp = Mathf.Max(0, _hp - dmg);
+            // HPバー1本割れ（#26 フェーズ移行の可視化）：バー境界を跨いだ一拍を
+            // 白フラッシュ＋バー発光＋スペル音＋squash→pop で「モードが進んだ」と読ませる。
+            // 撃破（_hp==0）は Redeem 側の改心演出に譲る＝二重に鳴らさない。
+            if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
+                OnBarBroken();
             // クリティカルは金色＋一回り大きく＋"!" で「密着が効いている」を視認させる（通常は既存色）。
             if (crit)
                 FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -10), dmg + "!", FxLayer.Gold, 13);
@@ -336,6 +489,17 @@ public partial class Enemy : Area2D
             }
             QueueRedraw();
         }
+    }
+
+    // HPバーが1本割れた瞬間の一拍（#26）。姿勢の所有権は動かさず、既存の squash→pop
+    //（_swapAnim。ApplyBossMotion と喧嘩しない差し替えアニメ機構）を流用して体を一度だけ弾ませる。
+    private void OnBarBroken()
+    {
+        var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        hud?.Flash();             // 画面白フラッシュ（BREAK と同語彙＝「節目」の合図）
+        hud?.FlashBossBarBreak(); // HPバー自体も白く光らせ「1本割れた」を視線先で読ませる
+        Audio.Instance?.PlaySpell();
+        if (_hasBodyTex) { _swapAnim = true; _swapAnimT = 0; } // 一拍の弾み（演出過多にしない＝これ以上足さない）
     }
 
     // 外部（ボム等）から強制浄化。
@@ -385,6 +549,7 @@ public partial class Enemy : Area2D
     // 立ち絵が無い（プレースホルダ図形の）ボスでは何もしない。
     protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft)
     {
+        AutoBank = false; // 姿勢はこちら(BossMover.Lean)が握る＝基底の自動バンクと競合させない
         if (!_hasBodyTex || _bodySprite == null) return;
         _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
         // 差し替えアニメ中は _PhysicsProcess 側が Position/Scale を握る（pop の持ち上げを潰さない）。
@@ -436,6 +601,10 @@ public partial class Enemy : Area2D
             var ripple = new Ripple { Position = Position }; // 親が同じ＝同じ座標系のローカル位置をそのまま使う
             parent.CallDeferred(Node.MethodName.AddChild, ripple);
         }
+
+        // 改心の着地は直立で（移動バンクの傾きを残さない）。差し替え前に戻す＝旧絵(fade)ごと素直に立つ。
+        _bank = 0f;
+        if (AutoBank && _hasBodyTex && _bodySprite != null) _bodySprite.Rotation = 0f;
 
         // 3段階対応：Cry の尺が設定されていれば先に大泣きを見せてから笑顔へ。
         // 専用立ち絵が無いボス（こはる等）でも会話に入れるよう、CryHoldDur のみで判定する
@@ -578,6 +747,10 @@ public partial class Enemy : Area2D
             QueueRedraw();
         }
 
+        // ボス登場演出中は演出だけを進める（移動・弾幕・フェーズは止まる＝見得の間）。
+        // 会話(BubblePaused)中も進む＝ボスイントロの会話に重ねて「現れる」を見せる。
+        if (_entering) { TickEntrance(delta); return; }
+
         // 大泣き中はその場に留まり、CryHoldDur 経過で笑顔へ着地。
         if (_crying)
         {
@@ -609,6 +782,7 @@ public partial class Enemy : Area2D
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
 
         UpdateMovement(delta);
+        TickAutoBank(delta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
         if (GlobalPosition.X < -24f) QueueFree();
     }
 
