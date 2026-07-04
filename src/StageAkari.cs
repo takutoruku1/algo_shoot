@@ -31,15 +31,16 @@ public partial class StageAkari : Node
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
 
-    // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る：
-    //   前半A（緩い導入）→ チラ見せ → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
-    // 体数より“密度と変化”で長さを作る（§3 緩急）：合計60体だが3波で構成を変えて間延びさせない。
+    // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。あかりは型崩し（S2）で“カメオ先出し”：
+    //   チラ見せ（先出し）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
+    // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
-    private const int MidWaveA = 21;  // 道中3倍（旧7）
-    private const int MidWaveB = 18;  // 道中3倍（旧6）
-    private const int MidWaveC = 21;  // 道中3倍（旧7）＝合計60体
+    // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
+    private const int MidWaveA = 15;  // 導入（チラ見せ＝先出しの後）。緩く立ち上がる。旧21（-6）
+    private const int MidWaveB = 14;  // 考察の後。やや詰めて始める。旧18（-4）
+    private const int MidWaveC = 16;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧21（-5）
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -164,13 +165,13 @@ public partial class StageAkari : Node
         game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
-        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
+        // 型崩し（S2）対応：中ボス（カメオ先出し）＝Step_BossCameo(2)／ボスから＝Step_BossSpawn(10)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
             _step = game.SelectedEntry switch
             {
                 GameManager.StageEntry.Boss => 10,
-                GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
-                _ => 5,
+                GameManager.StageEntry.AfterMidBoss => 3, // 中ボスの直後（小話→道中A）から＝再戦しない（初回ショップ後の続き）
+                _ => 2,
             };
     }
 
@@ -186,13 +187,15 @@ public partial class StageAkari : Node
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         _zEdge = z && !_zHeld;
         _zHeld = z;
+        // 型崩し（S2）：あかりは“カメオ先出し”。着地した瞬間、待ち構えていたあかりが飛び出してくる
+        //（「既読3秒」の性格＝向こうから会いに来る）。3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_Lines(delta, Mid); break;        // 道中突入の小話
-            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 4: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察
-            case 5: Step_BossCameo(delta); break;         // ボスのチラ見せ
+            case 2: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから来る）
+            case 3: Step_Lines(delta, Mid); break;        // 道中突入の小話
+            case 4: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
+            case 5: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察（会った後＝少年の詳しさが際立つ）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 7: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
@@ -264,7 +267,7 @@ public partial class StageAkari : Node
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }
 
-    // ---- 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化でチラ見せへ ----
+    // ---- 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化で考察（BossTalk）へ（型崩し後：カメオは既に済み） ----
     private void Step_MidwaveA(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -281,12 +284,12 @@ public partial class StageAkari : Node
         {
             _spawner?.Stop(); _spawner = null!;
             ClearStageEnemies();
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // チラ見せ前に片付ける
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // 会話（考察）前に片付ける
             Advance();
         }
     }
 
-    // ---- 道中ザコ戦“B（後半）”：チラ見せの後。やや詰めて始める。MidWaveB体でミッドシナリオへ ----
+    // ---- 道中ザコ戦“B（後半）”：考察（BossTalk）の後。やや詰めて始める。MidWaveB体でミッドシナリオへ ----
     private void Step_MidwaveB(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -370,7 +373,7 @@ public partial class StageAkari : Node
             _cameo.GlobalPosition = new Vector2(SpawnX, 70f);
         }
 
-        // 撃破→捨て台詞を流し切ったら次フェーズへ（道中後半）。
+        // 撃破→捨て台詞を流し切ったら次フェーズへ（型崩し後：道中突入の小話 Mid へ）。
         if (!IsInstanceValid(_cameo) || _cameo.Finished)
         {
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）

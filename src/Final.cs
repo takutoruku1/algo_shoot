@@ -71,6 +71,11 @@ public partial class Final : Node2D
                 _rng.RandfRange(0, W), _rng.RandfRange(0, H), _rng.RandfRange(10f, 34f)));
 
         // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "少年"=少年のセリフ
+        // 正典 v3（S2 点検済み・本文改稿なし）：この「少年」は archive replay の最後の一回。
+        //   ・「ばか。これが最後だから、言わせろ。」…彼はミナの返しを知っていた（自分の声で作ったから）＝既定応答。
+        //   ・「今日は——……ぼく、は、」…録音が尽きかけて言い切れない（1周目は動揺、2周目は残量として読める二重読み）。
+        //   ・「返事は、ありませんでした。」…応答アーカイブが尽きた瞬間。兆候（StageMina/BossMina の針飛び）の答え合わせ。
+        //   ※ CueFadeLine/CueSilenceLine/CueResolveLine/DropLine と本文一致で音楽が同期しているため、該当行の変更禁止。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
         T("地", "祓うほど、軽くなると思っていました。");
         T("地", "レイの。あかりの。こはるの。……ぜんぶ、ここに。");

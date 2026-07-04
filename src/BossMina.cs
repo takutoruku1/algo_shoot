@@ -48,12 +48,15 @@ public partial class BossMina : Enemy
     }
 
     // 邂逅のかけあい（who: 0=少年 / 1=ミナ）。本決着は Final（対話）に委ねるので、ここは短い一拍。
+    // 正典 v3（S2 点検済み）：この声は archive replay。ミナの叫びに“正確には応えない”＝自分の告白を
+    // 自分のペースで続ける（3〜4行目）のが replay の既定応答感。末尾の同語反復（StageMina Intro と同じ
+    // 「今度は、ぼくが行く番だ」）は録音の反復＝兆候として意図的に残す。明言はしない（種明かしは Epilogue）。
     private static readonly (int who, string text, string face)[] Lines =
     {
         (0, "ミナ! ……ぼくだ。迎えに来た。", "res://char/shonen_gentle.png"),
-        (1, "……ご主人、様? だめ……わたくしに、近づいては……穢れて、しまいます……", ""),
-        (0, "ぼくはずっと、自分が行くのが怖かった。お前に光を握らせて、後ろにいた。", "res://char/shonen_gentle.png"),
-        (0, "……でも、お前を一人にする方が、もっと怖い。今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"),
+        (1, "……ご主人、様? だめ……来ないで……わたくしに、近づいては……穢れて、しまいます……", ""),
+        (0, "ぼくはずっと、自分が行くのが怖かった。お前に光を握らせて、後ろにいた。", "res://char/shonen_gentle.png"), // ミナの「来ないで」には答えない＝自分の告白を続ける（既定応答感）
+        (0, "……でも、お前を一人にする方が、もっと怖い。——今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"), // StageMina Intro:39 と同語＝録音の反復（兆候）
     };
 
     protected override void OnEnemyReady()
