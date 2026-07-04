@@ -32,7 +32,12 @@ public partial class StageImagery : Node2D
     }
 
     // BossAkari の「地・記憶」行で呼ばれ、雨の交差点のフラッシュを一瞬焚く（伏線：あかりとの記憶）。
-    public void TriggerMemoryFlash() => _flashT = 2.4;
+    //   専用SE（雨＋遠いクラクション＋言いかけて切れる一音）を白フラッシュと同フレームで鳴らす（音と画の同期）。
+    public void TriggerMemoryFlash()
+    {
+        _flashT = 2.4;
+        Audio.Instance?.PlayMemoryFlash();
+    }
 
     public override void _Process(double delta)
     {

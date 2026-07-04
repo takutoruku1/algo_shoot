@@ -54,8 +54,8 @@ public partial class BossHikage : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ボス登場＝道中BGMからボスBGMへクロスフェード。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // ボス登場＝道中BGMからヒカゲ専用テーマ（The_Frozen_Threshold）へクロスフェード。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossHikage);
         // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに。旧 RoamSpeed を踏襲。
         _mover.Configure(new Vector2(192f, 74f), 110f, 34f, RoamSpeed, accelTime: 0.4f);
         GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
@@ -144,6 +144,8 @@ public partial class BossHikage : Enemy
     protected override void OnCryStart()
     {
         GetHud()?.HideBossBar();
+        // 改心の解決音（未完→完）。戦闘テーマから温かくクロスフェード＝「届いた」（他ボスと同じ作法）。
+        Audio.Instance?.PlayRedeem(3);
         _seq = true;
         _line = 0;
         _lineT = 0;
@@ -154,6 +156,8 @@ public partial class BossHikage : Enemy
     {
         _seq = false;
         Finished = true;
+        // 解決音（一度きり・ループなし）が鳴り終わっているので、晴れた道中曲へ復帰（CameoBoss と同じ作法）。
+        Audio.Instance?.ResumeStageMusic();
         GetHud()?.ShowDialog("…うちも、ちゃんと わらえた。", "res://char/hikage_face_happy.png");
     }
 

@@ -103,15 +103,16 @@ public partial class Audio : Node
     public AudioStream BgmStageAkari = null!;
     public AudioStream BgmStageKoharu = null!;
 
-    // Final の「音楽的解決」（設計 §1-3「感情の節目で帰ってくる」/ §7「無音→解決音」）。
-    //   Final は濁った BgmBoss を全編流し、感情が音楽的に解決しないまま終わっていた。
+    // Final の「音楽的解決」＝挿入歌枠（設計 §1-3「感情の節目で帰ってくる」/ §7「無音→挿入歌の一点投入」）。
     //   ミナの反転号令の直前で BgmBoss を切って完全無音にし、「返事は、ありませんでした。」の
-    //   一行と同時にこの曲を ppp で立ち上げる。沈黙→解決音の落差が決定打。
-    //   主題 M.I.N.A.（ド ミ レ ソ＝C E D G）を、戦闘で「未完／濁り」だった姿から
-    //   主音 C へ解決させる温かい長調の変奏（BgmMenu と同じ C-Am-F-G の和声圏）。
-    //   Epilogue が BgmMenu へクロスフェードするので、同じ主題・同じ和声圏で自然に橋渡しされる。
-    //   ※本物のボーカル挿入歌が来たら、この BgmFinalResolve を実音源に差し替えれば成立する。
-    public AudioStreamWav BgmFinalResolve = null!;
+    //   一行と同時にこの曲を ppp で立ち上げる。沈黙→曲の入りの落差が決定打。
+    //   実音源＝res://audio/bgm_final_resolve.ogg（原曲 Morning_Light_on_Glass 29.4秒の末尾フェードを
+    //   トリムした 0..27.0秒・-3dB・頭40ms/尻120msの極小フェード・loop=true）。
+    //   歌唱は用意できないためインスト＝主旋律が「声」を担う（挿入歌の器はこの1枠のみ＝一点投入）。
+    //   「朝の光がガラスに」＝帰還の白／ミナ（ガラスの音色）の朝。BgmMenu と同じ温かい長調圏なので
+    //   Epilogue の BgmMenu へ自然に橋渡しされる。ボーカル入り実音源が来たらこのファイルを差し替えるだけ。
+    //   ロード失敗時は従来のコード合成 BuildBgmFinalResolve()（主題 M.I.N.A. の解決変奏）にフォールバック。
+    public AudioStream BgmFinalResolve = null!;
 
     // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
     //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
@@ -136,9 +137,20 @@ public partial class Audio : Node
     //   _Process の inStage 判定にも含める＝「ステージ戦闘曲」として汚染LowPassの対象。
     public AudioStream BgmBossMina = null!;
 
+    // W0 炎上中ボス「ヒカゲ」の専用テーマ＝ユーザー制作の実音源（res://audio/bgm_boss_hikage.ogg）。
+    //   原曲 The_Frozen_Threshold（30.8秒・末尾フェード無しの平坦な持久曲）を -3dB・頭40ms/尻120ms の
+    //   極小フェードでループ継ぎ目をなじませた ogg（loop=true）。
+    //   「凍った敷居」＝友達の輪に踏み込めず、敷居の前で立ち尽くして凍えていた子（笑うのが、へた）。
+    //   ロード失敗時は合成 BuildBgmBossHikage()（モチーフが影に沈む変奏）にフォールバック。
+    public AudioStream BgmBossHikage = null!;
+
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
-    //   3ボスとも主題 M.I.N.A.（C/E/D/G）の構成音に解決する＝Epilogue で主題に溶ける布石。
-    public AudioStreamWav RedeemRei = null!, RedeemAkari = null!, RedeemKoharu = null!;
+    //   4ボスとも主題 M.I.N.A.（C/E/D/G）の構成音に解決する＝Epilogue で主題に溶ける布石。
+    public AudioStreamWav RedeemRei = null!, RedeemAkari = null!, RedeemKoharu = null!, RedeemHikage = null!;
+
+    // あかり戦の記憶フラッシュ（雨の交差点。言いかけた唇。クラクション）専用SE。
+    //   StageImagery.TriggerMemoryFlash()（白フラッシュ 2.4s）と同フレームで鳴らす（設計 §4 画と音の同期）。
+    public AudioStreamWav SfxMemoryFlash = null!;
 
     public override void _Ready()
     {
@@ -184,14 +196,17 @@ public partial class Audio : Node
         BgmStageAkari  = LoadBgmStageAkari();
         BgmStageKoharu = LoadBgmStageKoharu();
         BgmBoss   = BuildBgmBoss();
-        BgmFinalResolve = BuildBgmFinalResolve();
+        BgmFinalResolve = LoadBgmFinalResolve();
         BgmBossRei    = LoadBgmBossRei();
         BgmBossAkari  = LoadBgmBossAkari();
         BgmBossKoharu = LoadBgmBossKoharu();
         BgmBossMina   = LoadBgmBossMina();
+        BgmBossHikage = LoadBgmBossHikage();
         RedeemRei    = BuildRedeem(0);
         RedeemAkari  = BuildRedeem(1);
         RedeemKoharu = BuildRedeem(2);
+        RedeemHikage = BuildRedeem(3);
+        SfxMemoryFlash = SynthMemoryFlash();
         MurkPad   = BuildMurkPad();
 
         // 濁りパッドはステージ判定で音量を抜き差しするだけ＝常時ループ再生で位相を保つ。
@@ -230,7 +245,8 @@ public partial class Audio : Node
                                   || _currentMusic == BgmStageAkari || _currentMusic == BgmStageKoharu
                                   || _currentMusic == BgmBoss
                                   || _currentMusic == BgmBossRei || _currentMusic == BgmBossAkari
-                                  || _currentMusic == BgmBossKoharu || _currentMusic == BgmBossMina);
+                                  || _currentMusic == BgmBossKoharu || _currentMusic == BgmBossMina
+                                  || _currentMusic == BgmBossHikage);
 
         float targetCutoff = MurkCutoffOpen;
         float targetAmbDb  = SilentDb;
@@ -298,6 +314,9 @@ public partial class Audio : Node
     {
         if (stream == null) return 0f;
         if (stream == BgmMenu) return 0f; // メニュー実音源は今回対象外
+        // 挿入歌（Final の解決）は BgmMenu と同じ 0dB＝無音から ppp で立ち上がったのち満ちて、
+        //   Epilogue の BgmMenu（0dB）へ同じ土俵・同じ和声圏で段差なく橋渡しする。
+        if (stream == BgmFinalResolve) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
         return isReal ? StageBgmRealDb : 0f;
     }
@@ -356,7 +375,7 @@ public partial class Audio : Node
     }
 
     // ───────── 改心の解決音（完）。設計 §1-2「未完→完」─────────
-    //   改心が始まる確実な瞬間（各ボス OnCryStart）から boss=0:レイ/1:あかり/2:こはる で呼ぶ。
+    //   改心が始まる確実な瞬間（各ボス OnCryStart）から boss=0:レイ/1:あかり/2:こはる/3:ヒカゲ で呼ぶ。
     //   戦闘BGM（未完モチーフ）を温かい解決アレンジへ素早くクロスフェードし、
     //   そのループに主題 M.I.N.A. 構成音へ解決する一節を内包させる。破壊でなく「届いた」。
     //   退場後（OnCryEnd→次シーン）は通常の Music()/StopMusic() がそのまま上書きするので破綻しない。
@@ -368,6 +387,7 @@ public partial class Audio : Node
             0 => RedeemRei,
             1 => RedeemAkari,
             2 => RedeemKoharu,
+            3 => RedeemHikage,
             _ => null,
         };
         if (redeem == null) return;
@@ -375,9 +395,11 @@ public partial class Audio : Node
         Music(redeem, fade: 0.8f);
     }
 
-    // ───────── Final の音楽的解決（設計 §7「無音→解決音」一点投入）─────────
+    // ───────── Final の挿入歌（設計 §7「無音→挿入歌」一点投入）─────────
     //   Final.cs から「返事は、ありませんでした。」の表示と同時に呼ぶ。直前で StopMusic 済み＝無音から立ち上げる。
-    //   ppp で始め、ゆっくり（既定 4.0s）クロスフェードイン。BgmMenu と同じ和声圏なので
+    //   ppp で始め、ゆっくり（既定 4.0s）クロスフェードイン＝無音→曲の入りのタイミングは Final.cs の
+    //   行キュー（CueSilenceLine→CueResolveLine）が握る。ここは器＝呼ばれた瞬間に立ち上げるだけ。
+    //   実音源 bgm_final_resolve.ogg（インスト挿入歌＝主旋律が「声」）。BgmMenu と同じ和声圏・同じ 0dB なので
     //   Epilogue の BgmMenu へ自然に溶ける（Epilogue 側 Music(BgmMenu) がそのまま橋渡し）。
     //   汚染LowPassの対象外（_currentMusic 判定に含めない）ので、こもらず晴れて鳴る。
     public void PlayFinalResolve(float fade = 4.0f)
@@ -426,6 +448,13 @@ public partial class Audio : Node
         else
             Se(SfxBossHit, volDb: -16f, pitch: _rng.RandfRange(0.96f, 1.04f));
     }
+
+    // ───────── 記憶フラッシュ（あかり戦：雨の交差点）─────────
+    //   StageImagery.TriggerMemoryFlash()（白フラッシュ 2.4s）と同フレームで一度だけ鳴らす。
+    //   雨のスウェル＋遠いクラクション二度鳴き＋言いかけて切れる木管の一音（"す——"）。
+    //   会話中（BubblePaused）に焚かれる語りの音なので控えめ＝タイプ音や次の行を潰さない。
+    public void PlayMemoryFlash()
+        => Se(SfxMemoryFlash, volDb: -8f);
 
     // ───────── 会話タイプライター送り音（Voiceバス。設計 1-4「話者で音色」）─────────
     //   少年=温かい木 / ミナ=澄んだガラス / ボス=くぐもり / ナレ=無音。
@@ -650,6 +679,58 @@ public partial class Audio : Node
             float b = Mathf.Sin(Mathf.Tau * 2100f * t) * 0.3f;
             s[i] = (a + b) * env * 0.3f;
         }
+        return MakeWav(s);
+    }
+
+    // ───────── 記憶フラッシュ（あかり戦：雨の交差点）の合成（~2.4s＝StageImagery の白フラッシュと同尺）─────────
+    //   ①雨：ローパスノイズのスウェル（一瞬で景色が「あの日」に飛ぶ）。
+    //   ②クラクション：遠く二度鳴き（F4+A4 の濁った二音＝車のホーン。ローパス済みで刺さらせない）。
+    //   ③言いかけた唇：あかりの音 E5（MinaMotif[1]）の木管風の一音が、伸びかけて "す——" とぷつり切れる
+    //     （BuildBgmBossAkari と同じ「フレーズが途中で切れる」語法＝画面の文字と同じことを耳で言う）。
+    //   すべて減衰で 2.4 秒へ収束＝フラッシュの消え際と一緒に引く。
+    private AudioStreamWav SynthMemoryFlash()
+    {
+        float dur = 2.4f; int n = (int)(Rate * dur);
+        var s = new float[n]; float lp = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / Rate;
+
+            // ① 雨：立ち上がり 0.25s → ゆっくり減衰。一極ローパスで「遠い雨」に。
+            float white = _rng.Randf() * 2f - 1f;
+            lp += (white - lp) * 0.06f;
+            float rainEnv = Mathf.Min(1f, t / 0.25f) * Mathf.Exp(-t / 0.9f);
+            float rain = lp * rainEnv * 0.34f;
+
+            // ② クラクション二度鳴き（0.12-0.45s / 0.62-1.00s）。F4+A4 の濁った持続音、角は丸く。
+            float horn = 0f;
+            void Horn(float st, float en)
+            {
+                if (t < st || t > en) return;
+                float ht = t - st;
+                float env = Mathf.Min(1f, ht / 0.015f) * Mathf.Min(1f, (en - t) / 0.05f);
+                horn += (Mathf.Sin(Mathf.Tau * 349.23f * ht) + 0.8f * Mathf.Sin(Mathf.Tau * 440f * ht))
+                      * env * 0.10f;
+            }
+            Horn(0.12f, 0.45f);
+            Horn(0.62f, 1.00f);
+
+            // ③ 言いかけの一音：E5（あかり）。1.1s から柔らかく立ち上がり、1.75s でぷつり切れる。
+            float say = 0f;
+            const float st3 = 1.1f, cut = 1.75f;
+            if (t >= st3 && t <= cut)
+            {
+                float wt = t - st3;
+                float vib = 1f + 0.006f * Mathf.Sin(Mathf.Tau * 5f * wt);        // 息のゆらぎ
+                float env = Mathf.Min(1f, wt / 0.06f) * Mathf.Min(1f, (cut - t) / 0.03f); // 末端を急に断つ
+                say = (Mathf.Sin(Mathf.Tau * 659.25f * vib * wt)
+                     + 0.16f * Mathf.Sin(Mathf.Tau * 659.25f * 2f * wt))          // 薄い倍音＝木管
+                    * env * 0.16f;
+            }
+
+            s[i] = rain + horn + say;
+        }
+        FadeEnds(s, (int)(0.01f * Rate));
         return MakeWav(s);
     }
 
@@ -1007,6 +1088,33 @@ public partial class Audio : Node
         return BgmBoss;
     }
 
+    // ───────── BgmBossHikage のロード（ヒカゲ戦の実音源 → 失敗時は合成 BuildBgmBossHikage へフォールバック）─────────
+    //   res://audio/bgm_boss_hikage.ogg（原曲 The_Frozen_Threshold 30.8秒を -3dB・頭40ms/尻120ms の
+    //   極小フェードでループ継ぎ目をなじませた ogg。import 設定 loop=true）を読む。BgmBossRei と同じ作法。
+    //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
+    private AudioStream LoadBgmBossHikage()
+    {
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_hikage.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmBossHikage: res://audio/bgm_boss_hikage.ogg をロードできず、合成 BuildBgmBossHikage にフォールバック");
+        return BuildBgmBossHikage();
+    }
+
+    // ───────── BgmFinalResolve のロード（Final 挿入歌の実音源 → 失敗時は合成 BuildBgmFinalResolve へフォールバック）─────────
+    //   res://audio/bgm_final_resolve.ogg（原曲 Morning_Light_on_Glass 29.4秒の末尾フェードをトリムした
+    //   0..27.0秒・-3dB・極小フェード・loop=true）を読む。頭からフルレベルで鳴る曲だが、入りは
+    //   PlayFinalResolve(fade:4.0) の ppp クロスフェードが受け持つ＝無音→曲の入りの設計は Final.cs 側のまま。
+    //   ボーカル入りの本挿入歌が来たら、このファイルを置き換えるだけで成立する。
+    private AudioStream LoadBgmFinalResolve()
+    {
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_final_resolve.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmFinalResolve: res://audio/bgm_final_resolve.ogg をロードできず、合成 BuildBgmFinalResolve にフォールバック");
+        return BuildBgmFinalResolve();
+    }
+
     // ───────── ステージ別の道中BGMを引く（将来 akari/koharu の実音源はここに足すだけ）─────────
     //   BeginStageRun(id) と、中ボス撃破後の道中復帰（CameoBoss）から共通で使う。
     //   rei＝実音源 BgmStageRei。それ以外は従来の合成 BgmStage。
@@ -1283,10 +1391,33 @@ public partial class Audio : Node
         }, density: 0.7f); // 刻みを薄め＝温度のある静けさ
     }
 
+    // Hikage：モチーフが影に沈む＝笑おうとして、途中でオクターブ下へ引っ込む（日陰＝人前で笑えない）。
+    //   各小節、モチーフ音が立ち上がりかけた直後に1オクターブ下へ落ち、小さく震えながら消える。
+    //   実音源 bgm_boss_hikage.ogg のロード失敗時のみ鳴るフォールバック。
+    private AudioStreamWav BuildBgmBossHikage()
+    {
+        return BuildBossBase((b, t) =>
+        {
+            float f0 = MinaMotif[b];
+            const float duck = 0.35f;                            // ここで影に引っ込む
+            if (t < duck)
+            {
+                // 立ち上がりかけ：目標音で明るく出ようとする。
+                float env = (t < 0.03f ? t / 0.03f : 1f) * Mathf.Min(1f, (duck - t) / 0.08f);
+                return Mathf.Sin(Mathf.Tau * f0 * t) * env * 0.08f;
+            }
+            // 影：1オクターブ下で、震え（弱いビブラート）ながら小さく消える。
+            float lt = t - duck;
+            float vib = 1f + 0.008f * Mathf.Sin(Mathf.Tau * 5.5f * lt);  // 震え＝こわごわ
+            float env2 = Mathf.Exp(-lt / 0.5f);
+            return Mathf.Sin(Mathf.Tau * f0 * 0.5f * vib * lt) * env2 * 0.05f;
+        }, density: 0.85f);
+    }
+
     // ───────── 改心の「解決音（完）」（OnCryStart でクロスフェード再生する一節）─────────
     //   戦闘テーマで「未完」だったモチーフ（C E D G）を、ここで主音まで届かせて解く＝赦し・救い。
     //   減衰の長い柔らかいベル＋下支えのパッドで「壊した」でなく「届いた」温かさ（pitfalls P4）。
-    //   which: 0=Rei / 1=Akari / 2=Koharu。3者とも同じ M.I.N.A. 解決＝Epilogue で主題に溶ける布石。
+    //   which: 0=Rei / 1=Akari / 2=Koharu / 3=Hikage。全員同じ M.I.N.A. 解決＝Epilogue で主題に溶ける布石。
     private AudioStreamWav BuildRedeem(int which)
     {
         float dur = 2.6f; int n = (int)(Rate * dur);
@@ -1294,8 +1425,8 @@ public partial class Audio : Node
         // モチーフ ド ミ レ ソ を、最後にもう一音「ド（高）」で締めて主音へ解決させる。
         float[] notes = { 523.25f, 659.25f, 587.33f, 783.99f, 1046.5f }; // C5 E5 D5 G5 C6
         float step = 0.42f;                                              // ゆったり歌わせる
-        // ボスごとの色付け：Rei=澄んだ高め / Akari=息のある中庸 / Koharu=温かい厚み。
-        float warm = which == 2 ? 0.5f : which == 1 ? 0.34f : 0.22f; // 倍音の厚み（温度）
+        // ボスごとの色付け：Rei=澄んだ高め / Akari=息のある中庸 / Koharu=温かい厚み / Hikage=はにかんだ温もり。
+        float warm = which == 2 ? 0.5f : which == 3 ? 0.42f : which == 1 ? 0.34f : 0.22f; // 倍音の厚み（温度）
         float padHz = BossChords[3][1];                              // Am の上3度（解決先の支え）
         for (int i = 0; i < n; i++)
         {

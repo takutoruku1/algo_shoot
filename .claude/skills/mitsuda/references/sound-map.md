@@ -111,13 +111,21 @@
 | **レイ（順位・孤高）** | 主音の直前で**半音落ちる**＝あと一歩で一番になれない | 硬質ピアノ/プルックの単音（合成=グリッサンド正弦） | `RedeemRei`（澄んだ高め・C6 へ届く） | `BuildBgmBossRei` / `BuildRedeem(0)` |
 | **あかり（言えない好き）** | フレーズが**途中で切れる**（"す——"／言いかけて沈黙） | 息のあるリード/木管（合成=中庸正弦を ~0.5s で断つ） | `RedeemAkari`（息のある中庸） | `BuildBgmBossAkari` / `BuildRedeem(1)` |
 | **こはる（冷える祈り）** | 温かい旋律が**冷えて減衰**（台所の灯が消える） | 温かい弦/木質パッド（合成=倍音付き正弦＋速い減衰＋微ピッチ降下） | `RedeemKoharu`（温かい厚み） | `BuildBgmBossKoharu` / `BuildRedeem(2)` |
-| **ヒカゲ** | 汎用 `BgmBoss`（専用テーマ未／要対応） | 未定 | 専用 Redeem 無し | `BossHikage.cs:63` |
+| **ヒカゲ（凍った敷居）** | モチーフが**影に沈む**（立ち上がりかけてオクターブ下へ引っ込む＝人前で笑えない） | 実音源 `audio/bgm_boss_hikage.ogg`（The_Frozen_Threshold, -3dB, loop）／合成= `BuildBgmBossHikage` | `RedeemHikage`（はにかんだ温もり warm=0.42） | `BossHikage.cs:58` Music / `:148` PlayRedeem(3) / `:161` OnCryEnd→ResumeStageMusic |
 
 **話者別タイプライター音（既実装）**: 少年=温かい木質(TypBoy 320Hz) / ミナ=澄んだガラス(TypMina 920Hz) / ボス=低くくぐもり(TypBoss 165Hz) / ナレ=無音。`Audio.PlayType(Hud.LineKind)`。
 
-## 8. 未/要対応（残課題）
-- **ヒカゲ専用ボステーマ＋Redeem** が無く汎用 `BgmBoss` 流用。固有モチーフを与えるなら `BuildBgmBossHikage`/`BuildRedeem(3)` を追加し `BossHikage.cs` を該当に差し替え（要・他ファイル編集の合意）。
-- **実音源（録音・生楽器・ボーカル挿入歌）が未調達**。現状は全てコード合成のプレースホルダ。Final 決定打の**挿入歌は未実装**（§7 一点投入の枠だけ確保）。`/maeda maeda-music.md` のト書きと行単位で対応づけて実装する。
-- **記憶フラッシュ（`StageImagery`/`BossAkari` の TriggerMemoryFlash）専用音** は未配線。生楽器の主題一音＋環境音を 2.4s で立てる枠が空いている（要・該当ファイルへのフック追加合意）。
-- **Prologue/Final/Epilogue の独自レンダラ**は `BgmMenu`/`BgmBoss` を流用中。フェーズ遷移に合わせた専用変奏・無音区間は未調整。
-- 合成BGMは尺が短め（6〜12秒ループ）で長時間プレイでは反復感が出る。実音源差し替えで解消想定。
+## 8. 未/要対応（残課題）— 2026-07-02 更新
+実音源化の現況（`audio/*.ogg`＝加工済みループ／`BGM/*.mp3`＝原曲）：
+- ✅ メニュー=bgm_menu_mina.ogg / レイ道中=The_Watcher_in_the_Hall.mp3 / レイ戦=bgm_boss_rei.ogg /
+  あかり道中=bgm_stage_akari.ogg / あかり戦=Akari_s_Last_Corridor.mp3 / こはる道中=bgm_stage_koharu.ogg /
+  こはる戦=The_Leaking_Tap.mp3 / ミナ戦=bgm_boss_mina.ogg / **ヒカゲ戦=bgm_boss_hikage.ogg（The_Frozen_Threshold）** /
+  **Final挿入歌=bgm_final_resolve.ogg（Morning_Light_on_Glass, インスト＝主旋律が声。0dB＝BgmMenuと同土俵）**
+- **合成のまま（実音源スロットに素材が無い）**：①`BgmStage`（汎用道中＝W0チュートリアル "tutorial" のみが使用）
+  ②`BgmBoss`（汎用ボス＝Final 冒頭の濁り曲のみが使用。意図的な「濁り切った未完」なので据え置きでも成立）
+  ③`Redeem*` 4種（改心ジングル＝合成ベルの設計意図どおり。差し替え不要）
+- **未使用の実音源**：`BGM/Mina_s_Window.mp3`（30.8s。bgm_menu_mina の別テイク＝予備）、`BGM/Mina_s_Window (1).mp3`（原曲）
+- **ボーカル入り挿入歌**は依然未調達。来たら `audio/bgm_final_resolve.ogg` を差し替えるだけ（結線・キュー・音量は完成済み）。
+- ✅ 記憶フラッシュ専用音：`SynthMemoryFlash`（雨＋遠いクラクション二度鳴き＋E5が"す——"と切れる 2.4s）を
+  `Audio.PlayMemoryFlash()`（-8dB, SEバス）で `StageImagery.TriggerMemoryFlash()` に同フレーム結線。
+- Prologue/Epilogue の独自レンダラは `BgmMenu` 流用中（フェーズ別変奏は未着手・低優先）。
