@@ -12,7 +12,7 @@ using System.Collections.Generic;
 //   尺:           -- --qa --seconds 240
 //   進行テスト:    -- --qa --assist          （= --god --aim、死なずに最後まで進む）
 //   個別:          -- --qa --god / --aim
-//   難易度固定:    -- --qa --easy
+//   難易度固定:    -- --qa --easy / --normal / --hard / --lunatic（省略時はセーブ値のまま）
 //   終了:          -- --qa --quit            （Epilogue 到達 or 尺で Quit）
 //
 // 検出して [QA-WARN] / [QA-ERROR] を出すもの:
@@ -46,7 +46,7 @@ public partial class QaPilot : Node
     private bool _god;
     private bool _aim;
     private bool _quitOnEnd;
-    private bool _easy;
+    private GameManager.Diff? _diff;   // 難易度固定（--easy/--normal/--hard/--lunatic。null=セーブ値のまま）
     private double _seconds = DefaultSeconds;
 
     // ---- 時間 ----
@@ -93,7 +93,10 @@ public partial class QaPilot : Node
                 case "--aim": _aim = true; break;
                 case "--assist": _god = true; _aim = true; break;
                 case "--quit": _quitOnEnd = true; break;
-                case "--easy": _easy = true; break;
+                case "--easy": _diff = GameManager.Diff.Easy; break;
+                case "--normal": _diff = GameManager.Diff.Normal; break;
+                case "--hard": _diff = GameManager.Diff.Hard; break;
+                case "--lunatic": _diff = GameManager.Diff.Lunatic; break;
                 case "--seconds":
                     if (i + 1 < user.Length && double.TryParse(user[i + 1], out var s)) _seconds = s;
                     break;
@@ -109,10 +112,10 @@ public partial class QaPilot : Node
 
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (_easy && _game != null) _game.Difficulty = GameManager.Diff.Easy;
+        if (_diff.HasValue && _game != null) _game.Difficulty = _diff.Value;
 
         _lastProgressT = 0;
-        GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} easy={_easy}");
+        GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} diff={_diff?.ToString() ?? "(save)"}");
     }
 
     public override void _Process(double delta)

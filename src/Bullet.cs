@@ -35,10 +35,13 @@ public partial class Bullet : Area2D
 
     // ─── ボス別弾幕ギミック（#12 機構側）の弾フラグ ───
     // Erasable: 自機弾で消せる「祈り弾」（こはる FanDown）。消すと双方消滅＋やさしさ微加算。
-    // SoftenOnGraze: グレイズすると一度だけ減速×0.75＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
+    // SoftenOnGraze: グレイズすると一度だけ減速×GrazeSoftenMul＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
     public bool Erasable;
     public bool SoftenOnGraze;
     public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
+    // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
+    // “読める”手応えは残しつつ、グレイズ＝安全化ではなくす。
+    public const float GrazeSoftenMul = 0.85f;
 
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
@@ -203,13 +206,13 @@ public partial class Bullet : Area2D
         }
     }
 
-    // 「キミ弾」のグレイズ軟化（あかり）：一度だけ減速×0.75＋淡色化。
+    // 「キミ弾」のグレイズ軟化（あかり）：一度だけ減速×GrazeSoftenMul＋淡色化。
     // 当たり判定（半径・被弾処理）は一切変えない＝“安全になる”のではなく“読める”ようになる。
     public void ApplyGrazeSoften()
     {
         if (!SoftenOnGraze || Softened) return;
         Softened = true;
-        Velocity *= 0.75f;
+        Velocity *= GrazeSoftenMul;
         QueueRedraw();
     }
 
