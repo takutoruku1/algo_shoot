@@ -20,9 +20,16 @@ public partial class Epilogue : Node2D
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
+    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
+    // PW選択(2)・縦読み(3)・スタッフロール(5)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
+    private int _readKey = -1;     // 既読チェック済みの行キー（phase×1000+line。フェーズ跨ぎの index 重複を区別）
+    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
+    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+
     private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
     private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
     private static readonly Color Ink = new Color(0.92f, 0.94f, 1f);
+    private static readonly Color Code = new Color(0.46f, 1f, 0.6f);   // コード緑（Prologue bootログと同値＝視覚照応）
 
     // PW候補＝鍵アカに打ち込む単語。少年が毎回ダイブ前に言った合言葉 "stay" が正解。
     // 消失日(0414＝あの事故の日。正典v3。Prologue bootログ "[signal lost 0414]" と同一)・MINA・天才(genius) は弾かれる。
@@ -138,11 +145,21 @@ public partial class Epilogue : Node2D
         if (curT != null && _reveal < curT.Length)
             _reveal = Mathf.Min(curT.Length, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
 
+        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
+        int readKey = _phase * 1000 + _line;
+        if (curT != null && _readKey != readKey)
+        {
+            _readKey = readKey;
+            _lineWasRead = _game?.IsLineRead(curT) ?? false;
+            _game?.MarkLineRead(curT);
+        }
+        _ffNow = curT != null && Hud.SkipHeld && _lineWasRead; // 未読行では効かない
+
         switch (_phase)
         {
             case 0:
             case 1:
-                if (zEdge && _lineT >= 0.25)
+                if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
                     if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
                     else
@@ -172,7 +189,7 @@ public partial class Epilogue : Node2D
                 if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; _reveal = 0; }
                 break;
             case 4: // 独白→DM→END
-                if (zEdge && _lineT >= 0.25)
+                if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
                     if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
                     else
@@ -315,17 +332,22 @@ public partial class Epilogue : Node2D
     {
         bool ui = d.Who == "UI";
         bool narr = d.Who == "地";        // ミナの語り＝話者名なし・中央寄せでセリフと区別
-        Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? new Color(0.7f, 0.9f, 0.8f) : Cool);
+        // S3: 起動記録（bootログ）の再掲行（"> " 始まり）は Prologue と同じ等幅フォント＋コード緑で出す。
+        //   「最初の記憶＝機械の生ログ」であることを、言葉でなく書体と色で Prologue に照応させる。
+        //   話者ラベルも出さない（コンソール行に話者はいない）。
+        bool boot = ui && d.Text.StartsWith(">");
+        var font = boot ? UiKit.Mono : _font;
+        Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? (boot ? Code : new Color(0.7f, 0.9f, 0.8f)) : Cool);
         DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.85f));
-        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, 0.8f));
-        string label = narr ? "" : d.Who;
+        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, boot ? 0.6f : 0.8f));
+        string label = narr || boot ? "" : d.Who;
         if (label != "")
             DrawString(_font, new Vector2(20, H - 44), label, HorizontalAlignment.Left, -1, 9, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、全文をその場でフェードイン表示。
         //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
         // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
-        Color ink = Ink;
+        Color ink = boot ? Code : Ink;   // bootログ行はコード緑（Prologue と同値）
         string body;
         if (narr)
         {
@@ -336,11 +358,15 @@ public partial class Epilogue : Node2D
         else
         {
             int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-            body = d.Text.Substring(0, shown);
+            body = d.Text.Substring(0, shown);               // bootログもタイプライター＝端末に流れる感を保つ
         }
-        DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
+        DrawMultilineString(font, new Vector2(20, H - 30), body, align,
             W - 52, 11, -1, ink,
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
+        if (_ffNow)
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+                new Color(Cool, 0.8f));
         // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
         // ナレは全文を即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
         bool ready = narr ? _lineT >= 0.35 : _reveal >= d.Text.Length;

@@ -22,6 +22,8 @@ public partial class StageImagery : Node2D
     private double _t;
     private double _flashT;   // Akari の記憶フラッシュ（>0 の間だけ描画）
     private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
+    private double _revT = -1;      // S3 画の反転：<0=未発火。TriggerReversal() から 0 で進行を始める
+    private const float RevDur = 12f; // 反転の全尺（改心直後の会話〜帰還ビートの背景でゆっくり満ちる）
 
     public override void _Ready()
     {
@@ -39,10 +41,24 @@ public partial class StageImagery : Node2D
         Audio.Instance?.PlayMemoryFlash();
     }
 
+    // S3 画の反転：改心成立（cry→post 遷移）の瞬間に各ボスの OnCryEnd から呼ばれる。
+    //   汚染の象徴イメージ（白飛びの「１位」／自責スレッド／細る湯気）が、改心後の会話〜帰還ビートの
+    //   背景で“ゆっくり”反転していく。ズームもフラッシュも鳴らさない＝プレイヤーが自分で気づく余白を残す。
+    public void TriggerReversal() { if (_revT < 0) _revT = 0; }
+
+    // 反転の局所進行：全尺 RevDur のうち t0..t1 秒の区間を 0..1 に正規化して smoothstep（ゆっくり入りゆっくり止まる）。
+    private float RevPhase(float t0, float t1)
+    {
+        if (_revT < 0) return 0f;
+        float u = Mathf.Clamp(((float)_revT - t0) / Mathf.Max(0.001f, t1 - t0), 0f, 1f);
+        return u * u * (3f - 2f * u);
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
         if (_flashT > 0) _flashT -= delta;
+        if (_revT >= 0) _revT += delta; // S3 画の反転の進行（改心成立後）
         // 敵弾が増えるほど背景の声カードを一段引く（20発まで等倍→80発で0.45倍）。なめらかに追従。
         int bullets = GetTree().GetNodesInGroup("enemy_bullets").Count;
         float target = Mathf.Lerp(1f, 0.45f, Mathf.Clamp((bullets - 20) / 60f, 0f, 1f));
@@ -56,12 +72,23 @@ public partial class StageImagery : Node2D
     {
         if (_font == null) return;
         float fade = (1f - Mathf.Clamp(Warmth, 0f, 1f)) * _bulletDamp; // 浄化で晴れる＋弾密度で引く
+        // S3 画の反転：反転が始まったら「前」の汚染イメージは静かに引く（チェックポイント入場等で
+        //   Warmth が満ちていない周回でも、反転後の象徴と旧イメージが二重写しにならないように）。
+        fade *= 1f - RevPhase(0f, 4f);
         switch (Kind)
         {
             case StageKind.Rei: DrawRei(fade); break;
             case StageKind.Akari: DrawAkari(fade); break;
             case StageKind.Koharu: DrawKoharu(fade); break;
         }
+        // 反転レイヤー（改心成立後のみ）。fade（汚染の濃さ）とは独立に、自前のαでゆっくり浮かぶ。
+        if (_revT >= 0)
+            switch (Kind)
+            {
+                case StageKind.Rei: DrawReiReversal(); break;
+                case StageKind.Akari: DrawAkariReversal(); break;
+                case StageKind.Koharu: DrawKoharuReversal(); break;
+            }
     }
 
     // ───────── 共通：汚染SNSタイムラインの「X(旧Twitter)投稿」カード ─────────
@@ -132,7 +159,7 @@ public partial class StageImagery : Node2D
         DrawRect(new Rect2(x + 4f, y, 1f, 5f), c);
     }
 
-    // 1枚の X 投稿カードを描く。本文・名前・メタは i 固定（周回でチラつかない）。
+    // 1枚の X 投稿カードを描く。本文・名前・メタは i で決定論（周回中は固定＝チラつかない。切替は画面外）。
     //   panel : パネル基本色, text : 本文/名前色, accent : アイコン色
     //   replies/reposts/likes/views : アクション行の数字, liked : いいね済み（ハートを淡桃に）, quote : 引用リプ線（あかり）
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
@@ -141,13 +168,15 @@ public partial class StageImagery : Node2D
     {
         var ci = GetCanvasItem();
         float a = pa * fade;
-        // パネル（半透明）＋枠線（型を出すが主張させない）。
-        DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a));
-        DrawRect(new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a * 0.7f), false, 1f);
+        // パネル（半透明・角丸）＋枠線（型を出すが主張させない）。角丸は投稿弾（Bullet.cs）や
+        // ハブのカードと同じ UiKit.Box ＝「SNSの投稿カード」の語彙を画面全体で統一。α は従来のまま。
+        UiKit.Box(this, new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a), 5f,
+            new Color(panel.R, panel.G, panel.B, a * 0.7f), 1f);
 
-        // ① 円アイコン（左上・本物の X に寄せて真円に）。
+        // ① 円アイコン（左上・本物の X に寄せて真円に）＋薄い外周リング（アバターの縁取り）。
         float cx = x + 11f, cy = y + 11f;
         DrawCircle(new Vector2(cx, cy), 5f, new Color(accent.R, accent.G, accent.B, a * 1.4f));
+        DrawArc(new Vector2(cx, cy), 5.5f, 0f, Mathf.Tau, 20, new Color(text.R, text.G, text.B, a * 0.9f), 1f);
 
         // 表示名（太め濃いめ＝1pxずらして二度描きで擬似ボールド・α高め）。
         var nameC = new Color(text.R, text.G, text.B, Mathf.Min(a * 2.6f, 0.6f));
@@ -220,6 +249,8 @@ public partial class StageImagery : Node2D
     private struct CardMeta { public int Replies, Reposts, Likes, Views; public bool Liked; }
 
     // 4枚のカードのループ x を等間隔で配り、右→左へ流す。各カードは上下2段に交互配置（縦中央を空ける）。
+    // #11：巻き戻し（周回）ごとに本文/アカウントのインデックスを +CardCount ずらし、bodies 8件が
+    //   「4枚ずつ・順番に」全部流れる。切替は必ず画面外（右外→左外の折り返し瞬間）＝画面内でチラつかない。
     private void DrawTimeline(float fade, Color panel, Color text, Color accent,
                               string[] bodies, System.Func<int, CardMeta> meta, float panelA)
     {
@@ -227,17 +258,23 @@ public partial class StageImagery : Node2D
         for (int i = 0; i < CardCount; i++)
         {
             // 等間隔に置いた初期 x から左へ流し、画面左外へ出たら右外へ巻き戻す（横ループ）。
-            float x = span - ((i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span);
+            // x は W→-CardW（入退場とも完全に画面外）＝巻き戻しの瞬間が見えない。
+            float raw = i * (span / CardCount) + (float)(_t * ScrollSpeed);
+            float x = W - raw % span;
             float y = LaneRows[i % LaneRows.Length];
-            var m = meta(i);
-            DrawCard(x, y, panelA, fade, panel, text, accent, i, bodies[i % bodies.Length],
+            int idx = (i + (int)(raw / span) * CardCount) % bodies.Length; // 周回ごとに +CardCount
+            var m = meta(idx);
+            DrawCard(x, y, panelA, fade, panel, text, accent, idx, bodies[idx],
                      m.Replies, m.Reposts, m.Likes, m.Views, m.Liked, quote: false);
         }
     }
 
     // ---- STAGE1 レイ：順位晒しのタイムライン（Cold=青系）----
+    // #11 文面改稿（maeda）：観測者の声＝ミーム的な軽さ7:刺さる一言3。個人特定なし。
+    // ※4枚ずつ・周回ごとに +4 して 8 件全部が順に流れる（DrawTimeline）。刺さる枠は前半 index 2／後半に2枚。
     private static readonly string[] ReiBodies =
-        { "２位おめでとう（笑）", "所詮この程度", "期待して損した", "また２位ｗ", "がんばっただけ", "知ってた" };
+        { "また２位ｗ", "点数バグってて草", "１位以外、覚えてないや", "実質優勝でよくない?",
+          "２位おめでとう（笑）", "努力は裏切らない（笑）", "天才って、こわ", "がんばったね、で終わる話" };
     private void DrawRei(float fade)
     {
         // 「１位」は白飛びの固定ポスト（ピン留め）。スクロールしない最上部のカード。読めない眩しさ。
@@ -262,30 +299,36 @@ public partial class StageImagery : Node2D
         }, panelA: 0.13f);
     }
 
-    // ---- STAGE2 あかり：自責リプのスレッド（雨の湿度を残す）----
-    // 本文は引用RT/リプ構造。「すき」「ごめん」は本人の声＝桃の差し色（DrawCardAkariBody で別色）。
+    // ---- STAGE2 あかり：自責の雨のタイムライン（雨の湿度を残す）----
+    // #11 文面改稿（maeda）：背景は“世界中の声”＝言えなかった側の観測者たち。ボス本人の声（すき/ごめん）は
+    // 背景カードから外し、mutter（言いかけて弾ける吹き出し）に集約＝isVoice の桃差し色はあえて発火させない。
+    // "> " 始まりは引用リプ線（既存ロジック・index 0 のみ）。4枚ずつ周回で 8 件全部が順に流れる。
     private static readonly string[] AkariBodies =
-        { "> あたしのせいだ", "ごめん", "すき", "ぜんぶ、あたしの", "ごめんね", "> あたしのせいだ" };
+        { "> 雨、やばくない?", "片想いは無料です", "既読は、ついてる", "あの時ああ言えば",
+          "言いかけて、やめた", "下書きが、増えてく", "傘、二本あるのに", "送信は、できなかった" };
     private void DrawAkari(float fade)
     {
         // 自責リプのタイムライン。寒色ニュートラルのパネルに、本人の声だけ桃の差し色。右→左・上下2段。
+        // DrawTimeline と同じ周回ローテ（+CardCount）で 8 件全部を順に流す（切替は画面外）。
         var panel = new Color(0.80f, 0.85f, 1f);
         var accent = new Color(0.86f, 0.88f, 0.95f);
         float span = W + CardW;
         for (int i = 0; i < CardCount; i++)
         {
-            float x = span - ((i * (span / CardCount) + (float)(_t * ScrollSpeed)) % span);
+            float raw = i * (span / CardCount) + (float)(_t * ScrollSpeed);
+            float x = W - raw % span;
             float y = LaneRows[i % LaneRows.Length];
-            string body = AkariBodies[i % AkariBodies.Length];
-            bool isVoice = body == "すき" || body.StartsWith("ごめん"); // 本人の声＝桃
+            int idx = (i + (int)(raw / span) * CardCount) % AkariBodies.Length;
+            string body = AkariBodies[idx];
+            bool isVoice = body == "すき" || body.StartsWith("ごめん"); // 本人の声＝桃（#11 文面では意図的に不発）
             bool quote = body.StartsWith(">");
             var text = isVoice ? new Color(0.95f, 0.86f, 0.90f) : new Color(0.82f, 0.86f, 0.96f);
             // 自責リプ＝小さなスレッド。数字は控えめ。本人の声(isVoice)だけ淡桃のいいねが灯る。
-            DrawCard(x, y, 0.13f, fade, panel, text, accent, i, body,
-                     replies: 1 + (int)(Frac(Mathf.Sin(i * 31.7f) * 1913.1f) * 6f),  // 1〜7
-                     reposts: (int)(Frac(Mathf.Sin(i * 23.1f) * 1777.7f) * 4f),       // 0〜3
-                     likes: 2 + (int)(Frac(Mathf.Sin(i * 13.7f) * 2113.3f) * 9f),     // 2〜11
-                     views: 80 + (int)(Frac(Mathf.Sin(i * 41.3f) * 2551.9f) * 600f),
+            DrawCard(x, y, 0.13f, fade, panel, text, accent, idx, body,
+                     replies: 1 + (int)(Frac(Mathf.Sin(idx * 31.7f) * 1913.1f) * 6f),  // 1〜7
+                     reposts: (int)(Frac(Mathf.Sin(idx * 23.1f) * 1777.7f) * 4f),       // 0〜3
+                     likes: 2 + (int)(Frac(Mathf.Sin(idx * 13.7f) * 2113.3f) * 9f),     // 2〜11
+                     views: 80 + (int)(Frac(Mathf.Sin(idx * 41.3f) * 2551.9f) * 600f),
                      liked: isVoice,
                      quote: quote);
         }
@@ -348,8 +391,10 @@ public partial class StageImagery : Node2D
 
     // ---- STAGE3 こはる：孤独の静かな投稿（暗背景・α一段低め）＋台所の余韻 ----
     // いいねは 0 か 1（誰も反応しない孤独）。叫ばない。台所の食卓・空席・箸・湯気は残す。
+    // #11 文面改稿（maeda）：日常の軽さの中に“空席”が透ける。死の直接言及なし。4枚ずつ周回で 8 件全部が順に流れる。
     private static readonly string[] KoharuBodies =
-        { "だれも、こない", "つくりすぎた", "きょうも、ひとり", "いただきます", "おかえり、って", "…" };
+        { "今日も、つくりすぎた", "レンチンでいいのに", "お味噌汁、具なんこまで?", "二人ぶんの、くせで",
+          "特売で、買いすぎた", "おかえりって、練習してる", "いただきます", "…" };
     private void DrawKoharu(float fade)
     {
         // 孤独のタイムライン。暗背景なので一段低い α(0.07)。反応ゼロ＝いいね 0/1。
@@ -396,5 +441,125 @@ public partial class StageImagery : Node2D
         // 「誰のためでもないごはん」の余韻：薄い文字が床に滲む
         _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 64f, 196f),
             "だれも、こない", HorizontalAlignment.Left, -1, 10, new Color(0.8f, 0.8f, 0.86f, 0.10f * fade));
+    }
+
+    // ═════════ S3 画の反転（改心成立＝cry→post 後、帰還ビートの背景でゆっくり進む） ═════════
+    // 共通の作法：①同じ場所・同じ形で戻す（道中で見た象徴だと分かる）②白/寒色 → 暖色は
+    //   クロスフェード（瞬間切替しない）③α上限は「前」と同水準（説明的に明るくしない・指ししない）。
+
+    // ---- レイ：白飛びしていた「１位」のピン留めに、色が差す ----
+    //   読めない眩しさ（＝1位の専制）が夜明けの暖色に置き換わり、その下に「２位」が同じ光で灯る。
+    //   順位は変わらない。当たる光だけが等しくなる＝「2位にも価値」を言葉でなく色で言う。
+    private void DrawReiReversal()
+    {
+        float aIn = RevPhase(0f, 4.5f);       // カードが戻ってくる
+        float col = RevPhase(2f, 9f);         // 白 → 暖色（色が差す）
+        float second = RevPhase(6.5f, 12f);   // 「２位」が同じ色で灯る
+        if (aIn <= 0f) return;
+        var ci = GetCanvasItem();
+
+        // パネル：白飛びの glow と同じ矩形が、色温度だけ変えて同じ場所に戻る。
+        var warm = new Color(1f, 0.78f, 0.45f); // 夜明けの琥珀（寒色の画面で洗われない程度に彩度を持つ）
+        var pc = new Color(Mathf.Lerp(1f, warm.R, col), Mathf.Lerp(1f, warm.G, col), Mathf.Lerp(1f, warm.B, col));
+        DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(pc.R, pc.G, pc.B, 0.14f * aIn));
+        DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(pc.R, pc.G, pc.B, 0.09f * aIn), false, 1f);
+        // 「１位」：白飛び(0.42)から“読める”暖色へ。眩しさが取れて、ただの一枚の投稿に戻る。
+        var t1 = new Color(Mathf.Lerp(1f, 1f, col), Mathf.Lerp(1f, 0.83f, col), Mathf.Lerp(1f, 0.50f, col),
+            Mathf.Lerp(0.40f, 0.62f, col) * aIn);
+        _font.DrawString(ci, new Vector2(W / 2f - 16f, 22f), "１位", HorizontalAlignment.Left, -1, 12, t1);
+
+        // 「２位」：ひとまわり小さく、同じ暖色・同じ光で下に灯る（大きさの序列は残す＝嘘をつかない）。
+        if (second > 0f)
+        {
+            DrawRect(new Rect2(W / 2f - 28f, 32f, 56f, 16f), new Color(warm.R, warm.G, warm.B, 0.10f * second));
+            DrawRect(new Rect2(W / 2f - 28f, 32f, 56f, 16f), new Color(warm.R, warm.G, warm.B, 0.07f * second), false, 1f);
+            _font.DrawString(ci, new Vector2(W / 2f - 12f, 44f), "２位",
+                HorizontalAlignment.Left, -1, 10, new Color(1f, 0.83f, 0.50f, 0.55f * second));
+        }
+    }
+
+    // ---- あかり：自責の言葉が「ありがとう」へ溶けて変わる ----
+    //   スレッドの「あたしのせいだ」が残響として薄く戻り、重なったまま桃色の「ありがとう」と
+    //   クロスフェード。最後に淡桃のいいねが“1”つ灯る＝はじめて誰かが応えた。
+    private void DrawAkariReversal()
+    {
+        float echo = RevPhase(0f, 3.5f);    // 自責の残響が薄く戻る
+        float cross = RevPhase(3f, 9f);     // 自責 → ありがとう（重ねたまま入れ替わる）
+        float heart = RevPhase(9f, 12f);    // 淡桃のいいねが 1 つ灯る
+        if (echo <= 0f) return;
+        var ci = GetCanvasItem();
+
+        const float y = 42f;
+        string oldS = "あたしのせいだ", newS = "ありがとう";
+        float oldW = _font.GetStringSize(oldS, HorizontalAlignment.Left, -1, 11).X;
+        float newW = _font.GetStringSize(newS, HorizontalAlignment.Left, -1, 11).X;
+
+        // 旧：寒色の自責（引用スレッドの線ごと戻り、クロスフェードで消えていく）。
+        float oldA = 0.34f * echo * (1f - cross);
+        if (oldA > 0.003f)
+        {
+            float ox = W / 2f - oldW / 2f;
+            DrawLine(new Vector2(ox - 5f, y - 10f), new Vector2(ox - 5f, y + 2f),
+                new Color(0.82f, 0.86f, 0.96f, oldA * 0.8f), 1f);
+            _font.DrawString(ci, new Vector2(ox, y), oldS, HorizontalAlignment.Left, -1, 11,
+                new Color(0.82f, 0.86f, 0.96f, oldA));
+        }
+
+        // 新：本人の声の桃色（DrawAkari の isVoice と同系だが、雨の寒色に洗われない程度に一段深く）。
+        float newA = 0.58f * cross;
+        if (newA > 0.003f)
+        {
+            float nx = W / 2f - newW / 2f;
+            _font.DrawString(ci, new Vector2(nx, y), newS, HorizontalAlignment.Left, -1, 11,
+                new Color(0.97f, 0.72f, 0.80f, newA));
+            // いいね“1”：孤独に0だった数字ではなく、たった一つの応答が灯る。
+            if (heart > 0f)
+            {
+                var hc = new Color(0.78f, 0.55f, 0.62f, 0.55f * heart);
+                IconHeart(nx + newW + 6f, y - 8f, hc);
+                _font.DrawString(ci, new Vector2(nx + newW + 14f, y - 1f), "1",
+                    HorizontalAlignment.Left, -1, 8, hc);
+            }
+        }
+    }
+
+    // ---- こはる：空席の箸の前で、細っていた湯気が戻る ----
+    //   冷めていく食卓（DrawKoharu と同じ場所・同じ形）が戻り、湯気だけが“逆再生”のように
+    //   本数を増やし、高く、あたたかく立ちのぼる。会話バーの上に湯気が届く高さまで伸びる。
+    private void DrawKoharuReversal()
+    {
+        float back = RevPhase(0f, 4f);      // 食卓・箸・茶碗が戻る
+        float steam = RevPhase(2.5f, 11f);  // 湯気の回復（細り→ふくらむ）
+        if (back <= 0f) return;
+
+        float ty = 150f;
+        // 食卓（前と同じ形。色温度だけほんの少し暖かく）
+        DrawRect(new Rect2(60f, ty, W - 120f, 10f), new Color(0.46f, 0.33f, 0.23f, 0.40f * back));
+        DrawRect(new Rect2(70f, ty + 10f, 8f, 36f), new Color(0.42f, 0.30f, 0.21f, 0.36f * back));
+        DrawRect(new Rect2(W - 78f, ty + 10f, 8f, 36f), new Color(0.42f, 0.30f, 0.21f, 0.36f * back));
+        // 空席の椅子（席はまだ空いている＝帰る場所は残っている、を同じ形で）
+        var chair = new Color(0.44f, 0.37f, 0.29f, 0.30f * back);
+        DrawRect(new Rect2(W / 2f - 8f, ty + 14f, 16f, 4f), chair);
+        DrawRect(new Rect2(W / 2f - 8f, ty + 18f, 3f, 24f), chair);
+        DrawRect(new Rect2(W / 2f + 5f, ty + 18f, 3f, 24f), chair);
+        // 箸（同じ場所に、少しだけ明るく）
+        var hashi = new Color(0.90f, 0.82f, 0.62f, 0.60f * back);
+        DrawLine(new Vector2(W / 2f - 18f, ty - 2f), new Vector2(W / 2f - 2f, ty - 5f), hashi, 1.4f);
+        DrawLine(new Vector2(W / 2f - 18f, ty + 1f), new Vector2(W / 2f - 2f, ty - 2f), hashi, 1.4f);
+        // 茶碗
+        DrawRect(new Rect2(W / 2f - 40f, ty - 6f, 14f, 6f), new Color(0.74f, 0.74f, 0.78f, 0.45f * back));
+
+        // 湯気：前は「3本・低く・消え入りそう」。steam に応じて 3→5本、高さ 16→34px、αも回復。
+        //   説明的に白くしない（α上限 0.26）。揺らぎは前と同じサイン＝同じ湯気が“戻った”と読める。
+        int lines = 3 + (int)(steam * 2.99f);                       // 3 → 5 本
+        float rise = 16f + steam * 18f;                             // 16 → 34 px
+        float sa = (0.10f + 0.16f * steam) * back * (0.7f + 0.3f * Mathf.Sin((float)_t * 2f));
+        var sc = new Color(0.95f, 0.93f, 0.90f, sa);
+        for (int i = 0; i < lines; i++)
+        {
+            float sx = W / 2f - 37f + i * 3.5f + Mathf.Sin((float)_t * (2.2f + 0.3f * i) + i * 1.7f) * (2f + steam * 1.5f);
+            float h = rise - Mathf.Abs(i - (lines - 1) / 2f) * 4f;  // 中央の一本がいちばん高い
+            DrawLine(new Vector2(sx, ty - 8f), new Vector2(sx + Mathf.Sin((float)_t * 1.6f + i) * 1.5f, ty - 8f - h), sc, 1f);
+        }
     }
 }

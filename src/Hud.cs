@@ -205,13 +205,15 @@ public partial class Hud : CanvasLayer
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
-    // ティッカー（降ってくる言葉）＝晒し投稿の共有プール。
-    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（StageRei.Rain）。
+    // ティッカー（降ってくる言葉）＝「Xの川」の共有ノイズプール。
+    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（PostBullets）。
+    // #11 文面改稿（maeda）：バズ・断片・広告っぽい軽さ7 : 沈む一言3。個人特定・死の直接言及・ボス本人の声は入れない
+    //（旧「あたしのせいだ」「なんで庇ったの」は本人特定に近いため撤去）。ハンドル空欄はティッカー側で幅を詰める（TickerHandleW）。
     private double _t;
     public static readonly (string h, string w)[] TickerWords =
     {
-        ("@anon_03", "あたしのせいだ"), ("@kako__", "どうせ、とどかない"), ("@nobody_7", "もういない"),
-        ("@ame_", "きえたい"), ("@_void", "なんで庇ったの"),
+        ("", "それな"), ("", "拡散希望"), ("", "バズる呪文おしえて"), ("", "【広告】幸せ、届きます"),
+        ("", "はいはい優勝優勝"), ("", "だれか、みてる?"), ("", "どうせ、とどかない"), ("", "きえたい"),
     };
 
     public override void _Ready()
@@ -229,6 +231,9 @@ public partial class Hud : CanvasLayer
         if (_flashAlpha > 0f) _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
         if (_hurtEdge > 0) _hurtEdge -= delta;
         if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
+
+        // 既読高速送り中は全文を即時表示（行送り自体は各シーンの Step_Lines が FastForwarding を見て進める）。
+        if (FastForwarding) _dlgRevealed = _dlgText.Length;
 
         // タイプライター送り
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
@@ -440,9 +445,14 @@ public partial class Hud : CanvasLayer
         LineKind kind = LineKind.Narration, LineKind? logKind = null)
     {
         // 表示前に会話ログ（バックログ）へ積む。話者色は未指定（default＝ナレ）のとき種別から補う。
+        // ※既読スキップ（高速送り）で飛ばした行もここを通る＝バックログには必ず残る。
         LineKind lk = logKind ?? kind;
         Color logCol = speakerCol.A <= 0f ? KindColor(lk) : speakerCol;
         PushBacklog(BacklogSpeaker(lk, speaker), text, logCol, lk);
+        // 既読スキップ（#22）：この行が過去に表示済みかを先に控え（＝高速送りの可否は表示前の状態で決める）、
+        // 表示と同時に既読へ記録する（read.json・全スロット共有）。
+        _dlgReadBefore = _game?.IsLineRead(text) ?? false;
+        _game?.MarkLineRead(text);
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
         _dlgIsDialog = dialog; _dlgRevealed = 0;
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
@@ -471,6 +481,15 @@ public partial class Hud : CanvasLayer
     public bool DialogRevealed => _dlgText.Length == 0 || _dlgRevealed >= _dlgText.Length;
     public void RevealDialogNow() { if (_dlgText.Length > 0) _dlgRevealed = _dlgText.Length; }
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
+
+    // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
+    //   Ctrl（左右どちらも）/ パッド RB を「押しっぱなし」の間、既読の行だけ高速送りする。
+    //   未読行では効かない＝誤スキップで物語を取りこぼさせない（判定は行単位・表示前の既読状態）。
+    //   Ctrl はやさしさ全開と同キーだが、全開はエッジ検出＋会話中(BubblePaused)無効（Player.cs）なので衝突しない。
+    //   DemoPilot/QaPilot は Z/X と移動軸しか送出しない＝自動プレイの会話送りとは干渉しない。
+    private bool _dlgReadBefore;   // 現在行が「表示された時点で」既読だったか（SetDialog で確定）
+    public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
+    public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; }
 
@@ -578,6 +597,9 @@ public partial class Hud : CanvasLayer
         _bossFrac = Mathf.Clamp(frac, 0f, 1f);
     }
     public void HideBossBar() { _bossVisible = false; }
+    // スペル宣告カード（＋袖カットイン）を即時に消す。会話バブル中は _spellTimer が停止する仕様のため、
+    // 改心開始（各ボス OnCryStart）で明示的に消さないと、宣告カードが改心演出〜帰還会話まで残留する。
+    public void HideSpellCard() { _spellTimer = 0; _spellGlow = 0; _cutinTimer = 0; _cutinTex = null; }
 
     // ── フェーズ移行の可視化（#26）──
     // 現行スペルの色をHPバーへ連動させる（各ボスの ApplySpell が呼ぶ）。null=既定の穢れ色。
@@ -1291,7 +1313,7 @@ public partial class Hud : CanvasLayer
         // スクロール
         float startX = 164, gap = 40;
         float block = 0f;
-        foreach (var (h, wd) in TickerWords) block += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
+        foreach (var (h, wd) in TickerWords) block += TickerHandleW(h) + UiKit.TextW(UiKit.Zen, wd, 14) + gap;
         float scroll = ((float)_t * 70f) % block;
         float cx = startX - scroll + block; // 1ブロック先行
         // ───────── コメントの入退場演出（ログイン/ログ アウト風／SNSの接続・切断の手触り）─────────
@@ -1307,7 +1329,7 @@ public partial class Hud : CanvasLayer
         {
             foreach (var (h, wd) in TickerWords)
             {
-                float hw = UiKit.TextW(UiKit.Mono, h, 12) + 6;
+                float hw = TickerHandleW(h);
                 float cellW = hw + UiKit.TextW(UiKit.Zen, wd, 14);
                 float cellL = cx, cellR = cx + cellW;
                 if (cellR > bandL && cellL < bandR)
@@ -1323,7 +1345,7 @@ public partial class Hud : CanvasLayer
                     float exitLift = (1f - tOut) * 4f;             // 出＝上へ
                     float dy = rise - exitLift;
                     float th = y + barH / 2f - 7 - dy;
-                    UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, 12, new Color(UiKit.Text3, alpha));
+                    if (hw > 0f) UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, 12, new Color(UiKit.Text3, alpha));
                     UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, th - 1), wd, 14, new Color(UiKit.Text2, alpha));
                     // 接続ドット：ハンドル頭の左に小点。入場の一拍だけ光って“ログインした”を示す。
                     float dotX = cx - 9f, dotY = midY - dy;
@@ -1344,6 +1366,11 @@ public partial class Hud : CanvasLayer
         }
     }
 
+    // ティッカー1件ぶんのハンドル列幅。空欄（#11 文面改稿＝ハンドル無し投稿）は 0 を返して本文を詰める
+    //（旧実装は空欄でも +6px のギャップが残った）。block 計算とセル描画の両方でこれを使い、幅を一致させる。
+    private static float TickerHandleW(string h)
+        => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, 12) + 6f;
+
     private void DrawDialog(HudCanvas ci)
     {
         int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, _dlgText.Length);
@@ -1354,6 +1381,7 @@ public partial class Hud : CanvasLayer
             // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。
             UiKit.Box(ci, new Rect2(140, 590, 1000, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
             UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, 20, new Color(0.9f, 0.9f, 0.95f), 920, NarrLeading, 3);
+            if (FastForwarding) DrawSkipChip(ci, new Vector2(140 + 1000 - 20, 598));
             return;
         }
 
@@ -1393,6 +1421,16 @@ public partial class Hud : CanvasLayer
         // 本文：行間(DlgLeading)を足して詰まりを解消。背の高いバーに合わせ最大3行まで（はみ出し防止）。
         UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(textX, y + 48), shown, 22, new Color(0.95f, 0.95f, 0.98f),
             x + w - textX - 30, DlgLeading, 3);
+        // 既読高速送り中の控えめな表示（バー右上・#22）。
+        if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
+    }
+
+    // 既読スキップ中インジケータ「▶▶」（右上アンカー基準・控えめ）。他シーンの独自レンダラからも呼べるよう static。
+    public static void DrawSkipChip(CanvasItem ci, Vector2 rightTop)
+    {
+        const string t = "▶▶";
+        float tw = UiKit.TextW(UiKit.ZenBold, t, 14);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(rightTop.X - tw, rightTop.Y), t, 14, new Color(UiKit.Info, 0.75f));
     }
 
     // 会話本文の行間（leading・px）。フォント既定より少し開けて読みやすく。

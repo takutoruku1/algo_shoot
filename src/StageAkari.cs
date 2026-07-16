@@ -148,6 +148,7 @@ public partial class StageAkari : Node
         (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
         (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
         (2, "……でも、もう、ごめんねは言わない。あたしの好きは、まちがってなかった。", ""), // 自分の意思で前を向く（P4・尊厳）
+        (1, "……字が、変わっていく。——『ありがとう』。……♥も、ひとつ。", ""), // S3反転の目撃（読み上げ型）：思わず読むだけ。解釈しない
         (1, "あなた、この人を——知ってるんですか?", "res://char/mina_worried.png"),
         (0, "…………まさか。赤の他人さ。", SCocky),
         (1, "……即答までに、二秒かかりましたね。", ""),
@@ -210,7 +211,9 @@ public partial class StageAkari : Node
         // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
         // あかり面も共通 TickerWords を引く（下を流れるコメントがそのまま降る一体感）。
         // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 48f);
+        // イライラ棒「雨の帰り道」（CorridorRun 展開中）は降らせない＝通路避けに弾を重ねる理不尽を断つ。
+        if (_bossActive && GetTree().GetFirstNodeInGroup("corridor") == null)
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 48f);
     }
 
     private void Advance()
@@ -238,7 +241,7 @@ public partial class StageAkari : Node
             _lineHold = 0;
         }
         else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
         {
             _lineHold = 0;
             _introLine++;

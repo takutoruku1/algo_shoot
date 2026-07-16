@@ -18,6 +18,11 @@ public partial class Final : Node2D
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
+    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
+    private int _readIdx = -1;     // 既読チェック済みの行 index
+    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
+    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+
     // ───────── 音楽的解決の同期（光田設計 §7「無音→解決音」）─────────
     //   濁った BgmBoss を全編流すと感情が音楽的に解決しないので、ここで「沈黙→主題の解決変奏」を作る。
     //   ① ミナの反転号令「Stay. ——…いなくならないで。」の直前で BgmBoss を切り、完全無音にする。
@@ -142,7 +147,15 @@ public partial class Final : Node2D
                         }
                     }
                 }
-                if (zEdge && _lineT >= 0.25)
+                // 既読スキップ（#22）：行の表示開始時に一度だけ既読かを控え、表示と同時に既読へ記録。
+                if (_readIdx != _line && _line < _talk.Count)
+                {
+                    _readIdx = _line;
+                    _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
+                    _game?.MarkLineRead(_talk[_line].Text);
+                }
+                _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
+                if ((zEdge || _ffNow) && _lineT >= 0.25)
                 {
                     if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で全文（早送り）＝句点ホールドも飛ばす
                     else
@@ -273,6 +286,10 @@ public partial class Final : Node2D
         DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
+        if (_ffNow)
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+                new Color(Cool, 0.8f));
         // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
         if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,

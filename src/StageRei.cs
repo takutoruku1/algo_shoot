@@ -154,6 +154,7 @@ public partial class StageRei : Node
         (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),     // 投稿が変化
         (1, "投稿が変わりましたね。誰かと、本気で戦いたくなったようで。", ""),
         (0, "ああ。……いい目を、してた。", SGentle),
+        (1, "——あ。ご主人様、あれ。……いちばん眩しいところの隣で、「２位」が、灯りました。", "res://char/mina_smile.png"), // S3反転の目撃（指差し型）：意味は言わず視線だけ画へ
         (1, "ご主人様は、ご自分では潜らないんですね。いつも、わたくしばかり。", ""),
         (0, "ぼくは指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", SCocky),
         (1, "ねえご主人様。外の世界は、今日はどんな天気ですか。", ""),       // 帰還ビート（無目的な雑談＋ミナの小さな願い）
@@ -254,7 +255,7 @@ public partial class StageRei : Node
             _lineHold = 0;
         }
         else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
         {
             _lineHold = 0;
             _introLine++;

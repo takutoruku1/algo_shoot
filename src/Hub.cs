@@ -1,10 +1,12 @@
 using Godot;
 
 // Hub : タイムラインハブ（ステージ間の中枢）。RefrainHTML のデザイン言語で非ピクセル化。
-//   - ヘッダ：ミナのアカウント（アバター/名前/フォロワー/インプレ/汚染）。
-//   - 角丸ガラスの投稿カード（NEW/CLEAR/LOCK）を ↑↓ で選び Z でダイブ（通常は難易度選択を挟む）。
+//   - ヘッダ：ミナのアカウント（アバター/名前/フォロワー/インプレ/汚染）＋ X風タブ（おすすめ/フォロー中）。
+//   - 角丸ガラスの投稿カード（NEW/CLEAR/LOCK ピル）を ↑↓ で選び Z でダイブ（通常は難易度選択を挟む）。
+//     カードは下から滑り込む流入アニメ（帰還投稿後は「タイムライン更新」として再流入）。
+//     エンゲージ数はクリア状態・フォロワー数と連動し、クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
 //   - クリア帰還で少年×ミナの会話＋自動投稿。クリア済カードで C：コメント返信（1回）。
-//   - 全クリアで FINAL カード。autoplay は会話を自動送り→自動ダイブ。
+//   - 全クリアで FINAL カード（枠とピルは穢れ色・♥=フォロワー/ビュー=インプレの生値）。autoplay は会話を自動送り→自動ダイブ。
 public partial class Hub : Node2D
 {
     private GameManager _game = null!;
@@ -29,6 +31,9 @@ public partial class Hub : Node2D
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
+    private float _scroll; // 右端スクロールバー用：選択 index を滑らかに追う値
+    // クリア済カードにぶら下げる「ミナの自動投稿」の短縮テキスト（1行に収まるよう省略・キャッシュ）
+    private readonly System.Collections.Generic.Dictionary<string, string> _minaPosts = new();
 
     // デバッグ限定プレビュー：--hub-preview <all|final|lock> で表示状態だけ上書き（本番セーブ非汚染）。
     private string? _previewState;
@@ -41,6 +46,11 @@ public partial class Hub : Node2D
     private double _dlgReveal;     // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private string? _dlgReplyId;
     private bool _pendingBurn;
+
+    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・ハブ小話用）。
+    private int _dlgReadIdx = -1;  // 既読チェック済みの行 index
+    private bool _dlgReadBefore;   // 現在行が「表示開始時点で」既読だったか
+    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
 
     private double _toastT;
     private string _toast = "";
@@ -97,12 +107,16 @@ public partial class Hub : Node2D
         {
             ["rei"] = (12, 3, 48), ["akari"] = (34, 9, 210), ["koharu"] = (58, 21, 402),
         };
+        long fol = _game?.Followers ?? 0;
         foreach (var s in GameManager.Stages)
         {
             bool cleared = _game?.IsStageCleared(s.Id) ?? false;
             bool unlocked = _game?.IsStageUnlocked(s.Id) ?? true;
             string name = s.Title.Contains("—") ? s.Title.Split('—')[^1].Trim() : s.Title;
             var (rep, rt, lk) = counts.TryGetValue(s.Id, out var c) ? c : (0L, 0L, 0L);
+            // クリア＝浄化が届いた投稿は伸びる（ミナのフォロワー数と連動。数字に物語の意味を持たせる）。
+            if (cleared)
+                ApplyClearBoost(ref rep, ref rt, ref lk, fol, _game?.HasReplied(s.Id) ?? false);
             list.Add(new Entry
             {
                 IsFinal = false, Id = s.Id, Scene = s.Scene, Name = name, Handle = s.Handle,
@@ -123,6 +137,13 @@ public partial class Hub : Node2D
         _entries = list.ToArray();
     }
 
+    // クリア済投稿のエンゲージ伸長（浄化が届いた投稿は伸びる）。BuildEntries と ApplyPreview で共用。
+    private static void ApplyClearBoost(ref long rep, ref long rt, ref long lk, long fol, bool replied)
+    {
+        lk = lk * 4 + fol * 2; rt = rt * 3 + fol / 4; rep = rep * 2 + fol / 8;
+        if (replied) { lk += 180; rt += 22; rep += 46; } // ミナの返信でさらに伸びた
+    }
+
     // デバッグ限定：表示状態だけを上書き（GameManager のセーブは一切触らない）。
     //   all   = 全ステージ解放＆クリア済（FINAL も表示）
     //   final = ストーリー全クリア直後（カードは CLEAR、FINAL を強調）
@@ -140,7 +161,14 @@ public partial class Hub : Node2D
             case "final":
                 for (int i = 0; i < list.Count; i++)
                 {
-                    var e = list[i]; e.Unlocked = true; e.Cleared = true; list[i] = e;
+                    var e = list[i]; e.Unlocked = true;
+                    if (!e.Cleared) // 実セーブで未クリアの分だけ、クリア連動のエンゲージ伸長も表示に反映
+                    {
+                        long rep = e.Replies, rt = e.Reposts, lk = e.Likes;
+                        ApplyClearBoost(ref rep, ref rt, ref lk, _game?.Followers ?? 0, false);
+                        e.Replies = rep; e.Reposts = rt; e.Likes = lk;
+                    }
+                    e.Cleared = true; list[i] = e;
                 }
                 list.Add(new Entry
                 {
@@ -210,6 +238,8 @@ public partial class Hub : Node2D
         // 選択の寄り（0.12s で 0→1 に近づける lerp。選択が変わったら 0 へリセット）
         if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
         _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
+        // 右端スクロールバーのつまみは選択を滑らかに追う（フィードのスクロール感）
+        _scroll = Mathf.Lerp(_scroll, _sel, Mathf.Min(1f, (float)delta * 10f));
         if (_dived) { QueueRedraw(); return; }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         ProcessCards();
@@ -221,6 +251,7 @@ public partial class Hub : Node2D
     {
         _mode = Mode.Dialogue;
         _dlg = lines; _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
+        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false;
     }
 
     private void ProcessDialogue(double delta)
@@ -233,9 +264,24 @@ public partial class Hub : Node2D
             if (_dlgLineT >= AutoAdvance) { _dlgLineT = 0; AdvanceDialogue(); }
             return;
         }
+        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
+        if (_dlgReadIdx != _dlgIdx && _dlg.Length > 0 && _dlgIdx < _dlg.Length)
+        {
+            _dlgReadIdx = _dlgIdx;
+            _dlgReadBefore = _game?.IsLineRead(_dlg[_dlgIdx].tx) ?? false;
+            _game?.MarkLineRead(_dlg[_dlgIdx].tx);
+        }
+        _ffNow = Hud.SkipHeld && _dlgReadBefore; // 未読行では効かない
+        _dlgLineT += delta;
         // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。
         if (_dlgReveal < len)
             _dlgReveal = Mathf.Min(len, (float)(_dlgReveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+        // 高速送り：全文即時表示 → 行ゲート0.15秒で次へ（Ctrl/RB を離した瞬間に止まる）。
+        if (_ffNow)
+        {
+            _dlgReveal = len;
+            if (_dlgLineT >= 0.15) { _dlgLineT = 0; AdvanceDialogue(); return; }
+        }
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.15)
@@ -249,6 +295,7 @@ public partial class Hub : Node2D
     {
         _dlgIdx++;
         _dlgReveal = 0;
+        _dlgLineT = 0; // 既読スキップの行ゲート用（オート送りは呼び出し側で別途リセット済み）
         if (_dlgIdx >= _dlg.Length) EndDialogue();
     }
 
@@ -266,6 +313,7 @@ public partial class Hub : Node2D
         {
             long imp = _game?.GainImpression(40) ?? 0;
             _game?.AddFollowers(8);
+            BuildEntries(); // タイムライン更新（クリア/フォロワー連動のエンゲージ数を反映）
             Toast($"投稿が届いた  Imp +{imp}  フォロワー +8", UiKit.Ok);
         }
         if (_pendingBurn)
@@ -400,12 +448,27 @@ public partial class Hub : Node2D
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
         DrawRect(new Rect2(0, hy + 65, W, 3f), new Color(UiKit.Kegare, 0.18f));
         if (contam > 0) DrawRect(new Rect2(0, hy + 65, W * contam, 3f), UiKit.Kegare);
+
+        // X風タブ（おすすめ｜フォロー中）。装飾＝「これはタイムラインだ」と一目で言う行。
+        //   アクティブ側だけ白太字＋Purify の下線。カード列（top=122）との間に一拍の余白。
+        float tabY = hy + 70f;
+        string[] tabs = { "おすすめ", "フォロー中" };
+        for (int i = 0; i < tabs.Length; i++)
+        {
+            bool act = i == 0;
+            float cx = W * (0.5f + (i == 0 ? -0.09f : 0.09f));
+            var font = act ? UiKit.ZenBold : UiKit.Zen;
+            float tw = UiKit.TextW(font, tabs[i], 13);
+            UiKit.Text(this, font, new Vector2(cx - tw / 2f, tabY), tabs[i], 13,
+                act ? UiKit.White : UiKit.Text4);
+            if (act) UiKit.Box(this, new Rect2(cx - 26f, tabY + 21f, 52f, 3f), UiKit.Purify, 1.5f);
+        }
     }
 
     private (float top, float h, float gap) CardMetrics()
     {
         int n = Mathf.Max(1, _entries.Length);
-        float top = 112f, bottom = 656f, gap = 14f;
+        float top = 122f, bottom = 656f, gap = 14f;
         float h = Mathf.Min(150f, (bottom - top - gap * (n - 1)) / n);
         return (top, h, gap);
     }
@@ -417,8 +480,25 @@ public partial class Hub : Node2D
         {
             bool sel = _mode == Mode.Cards && i == _sel;
             float st = sel ? _selT : 0f; // 寄りの進捗（0→1）
-            DrawCard(_entries[i], top + i * (h + gap), h, sel, st, alpha);
+            // 流入アニメ：フィード読み込み風。下から 26px 滑り込みつつフェードイン、1枚ずつ 0.06s ずらす。
+            //   帰還小話の後は _cardsEnteredT が更新される＝投稿後の「タイムライン更新」として再流入する。
+            float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.06f) / 0.28f, 0f, 1f);
+            ep = 1f - Mathf.Pow(1f - ep, 3f); // easeOutCubic（滑り込んで、すっと止まる）
+            DrawCard(_entries[i], top + i * (h + gap) + (1f - ep) * 26f, h, sel, st, alpha * ep);
         }
+        DrawScrollHint(top, alpha);
+    }
+
+    // 右端のスクロールバー風ヒント（3px）。つまみが選択カードに滑らかに追従＝縦フィードの現在地。
+    private void DrawScrollHint(float top, float alpha)
+    {
+        int n = _entries.Length;
+        if (n <= 1) return;
+        float x = W - 18f, y0 = top, y1 = 656f;
+        DrawRect(new Rect2(x, y0, 3f, y1 - y0), new Color(1, 1, 1, 0.05f * alpha));
+        float th = Mathf.Max(28f, (y1 - y0) / n);
+        float ty = y0 + (y1 - y0 - th) * Mathf.Clamp(_scroll / (n - 1), 0f, 1f);
+        UiKit.Box(this, new Rect2(x, ty, 3f, th), new Color(UiKit.Purify, 0.45f * alpha), 2f);
     }
 
     private void DrawCard(Entry e, float cy, float h, bool sel, float st, float alpha)
@@ -442,7 +522,9 @@ public partial class Hub : Node2D
             : new Color(13 / 255f, 11 / 255f, 19 / 255f, 0.42f * alpha); // (A) ロックはさらに沈める
         Color border = sel
             ? new Color(UiKit.Purify, (0.55f + 0.30f * st) * alpha)
-            : new Color(1, 1, 1, (e.Unlocked ? 0.09f : 0.05f) * alpha);
+            : e.IsFinal
+                ? new Color(UiKit.Kegare, 0.32f * alpha) // FINAL は非選択でも穢れ色の枠＝ただ事でない投稿
+                : new Color(1, 1, 1, (e.Unlocked ? 0.09f : 0.05f) * alpha);
         UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
 
         // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く
@@ -473,11 +555,10 @@ public partial class Hub : Node2D
             UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), 13, new Color(UiKit.Text4, alpha));
         }
 
-        // バッジ（右上）
+        // バッジ（右上）— X風のピル。NEW（＝次のダイブ推奨）と FINAL は塗り＋淡い明滅で目を引き、
+        //   CLEAR は枠のみ、LOCKED は沈める。状態差がひと目で読める階調にする。
         string badge = e.IsFinal ? "FINAL" : e.Cleared ? "✓ CLEAR" : e.Unlocked ? "NEW" : "LOCKED";
-        Color bcol = e.IsFinal ? UiKit.Kegare : e.Cleared ? UiKit.Ok : e.Unlocked ? UiKit.Purify : UiKit.Text4;
-        float bw = UiKit.TextW(UiKit.Mono, badge, 12);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - bw - 24, cy + 18), badge, 12, new Color(bcol, alpha));
+        DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
 
         // 本文（(A) ロックは伏字バーで内容を隠す）
         if (e.Unlocked)
@@ -492,7 +573,11 @@ public partial class Hub : Node2D
                 "ロック中 — まだダイブできません", 13, new Color(UiKit.Text4, alpha * 0.85f));
         }
 
-        // エンゲージメント（ロック/最終以外）。(C) ビュー指標を末尾に追加。
+        // ミナの自動投稿（クリア済カードにスレッド返信風でぶら下げる＝ミナの投稿が同じタイムラインに混ざる）
+        if (e.Unlocked && e.Cleared && !e.IsFinal && h >= 118f)
+            DrawMinaReply(e.Id, x, cy, w, h, alpha);
+
+        // エンゲージメント（ロック以外）。(C) ビュー指標を末尾に追加。
         if (e.Unlocked && !e.IsFinal && h > 110f)
         {
             float ey = cy + h - 26f, ex = tx;
@@ -500,6 +585,13 @@ public partial class Hub : Node2D
             ex = Metric(ex, ey, 1, e.Reposts, new Color(0f, 0.73f, 0.49f, alpha));
             ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
             Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
+        }
+        else if (e.IsFinal && h > 96f)
+        {
+            // FINAL＝ミナ自身の投稿。数字は「いま」のミナ（♥=フォロワー / ビュー=インプレ）に直結させる。
+            float ey = cy + h - 26f;
+            float ex = Metric(tx, ey, 2, _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
+            Metric(ex, ey, 3, _game?.Impression ?? 0, new Color(UiKit.Text4, alpha));
         }
 
         // ベストタイム（右下・記録のある最速難易度＋その難易度ラベル。記録なしは "--"）。
@@ -532,6 +624,69 @@ public partial class Hub : Node2D
         GameManager.Diff.Lunatic => "LUNA",
         _ => "NORMAL",
     };
+
+    // カード右上のステータスピル。NEW/FINAL は塗り（明滅）、CLEAR は枠、LOCKED は沈み。
+    private void DrawBadgePill(Entry e, string badge, float right, float y, float alpha)
+    {
+        float bw = UiKit.TextW(UiKit.Mono, badge, 11) + 20f;
+        var r = new Rect2(right - bw, y, bw, 20f);
+        if (e.IsFinal)
+        {
+            float pulse = 0.72f + 0.20f * Mathf.Sin((float)_t * 2.6f);
+            UiKit.Box(this, r, new Color(UiKit.Kegare, pulse * alpha), 10f);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+        }
+        else if (e.Cleared)
+        {
+            UiKit.Box(this, r, new Color(UiKit.Ok, 0.10f * alpha), 10f, new Color(UiKit.Ok, 0.55f * alpha), 1f);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
+        }
+        else if (e.Unlocked)
+        {
+            // NEW＝次のダイブ推奨。塗りピルの淡い明滅で「ここへ」を誘導（常時アニメはこれと選択グロウのみ）。
+            float pulse = 0.74f + 0.18f * Mathf.Sin((float)_t * 3.0f);
+            UiKit.Box(this, r, new Color(UiKit.Purify, pulse * alpha), 10f);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+        }
+        else
+        {
+            UiKit.Box(this, r, new Color(1, 1, 1, 0.04f * alpha), 10f, new Color(1, 1, 1, 0.10f * alpha), 1f);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.Text4, alpha), HorizontalAlignment.Center, bw);
+        }
+    }
+
+    // クリア済カードの下段：ミナの自動投稿をスレッド返信風に 1 行で。親アバターから細い会話線で繋ぐ。
+    //   帰還小話で見た「ミナの投稿」が、そのままタイムラインに残っている——という画。
+    private void DrawMinaReply(string id, float x, float cy, float w, float h, float alpha)
+    {
+        float ax = x + 36f, tx = x + 74f;
+        float sy = cy + h - 52f; // 指標行（cy+h-26）の 1 行上
+        // スレッド線（親アバター下端 → ミナのミニアバター上端）
+        DrawLine(new Vector2(ax, cy + 62f), new Vector2(ax, sy - 3f), new Color(1, 1, 1, 0.12f * alpha), 1.5f);
+        UiKit.FaceAvatar(this, new Vector2(ax, sy + 8f), 11f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        float px = tx;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(px, sy), "ミナ", 12, new Color(UiKit.White, 0.92f * alpha));
+        px += UiKit.TextW(UiKit.ZenBold, "ミナ", 12) + 8f;
+        const string meta = "@mina_ai_ · 返信";
+        UiKit.Text(this, UiKit.Mono, new Vector2(px, sy + 1f), meta, 11, new Color(UiKit.Text4, alpha));
+        px += UiKit.TextW(UiKit.Mono, meta, 11) + 10f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(px, sy), MinaPostShort(id, x + w - 30f - px), 12, new Color(UiKit.Text2, alpha));
+    }
+
+    // ミナの自動投稿の 1 行短縮（幅に収まるよう末尾を「…」で省略。レイアウト幅は固定なので id キャッシュで足りる）。
+    private string MinaPostShort(string id, float maxW)
+    {
+        if (_minaPosts.TryGetValue(id, out var cached)) return cached;
+        var d = ReturnDialog(id);
+        string s = d.Length > 0 ? d[0].Item2 : "";
+        if (UiKit.TextW(UiKit.Zen, s, 12) > maxW)
+        {
+            while (s.Length > 1 && UiKit.TextW(UiKit.Zen, s + "…", 12) > maxW) s = s.Substring(0, s.Length - 1);
+            s += "…";
+        }
+        _minaPosts[id] = s;
+        return s;
+    }
 
     // ロックカードの伏字バー（X の非表示投稿風。寸法は控えめに2本）
     private void RedactedBars(float x, float y, float w, float alpha)
@@ -635,6 +790,8 @@ public partial class Hub : Node2D
         int shown = Mathf.Clamp((int)_dlgReveal, 0, tx.Length);
         string body = tx.Substring(0, shown);
         UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), body, 21, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
+        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
+        if (_ffNow) Hud.DrawSkipChip(this, new Vector2(box.Position.X + box.Size.X - 20, box.Position.Y + 14));
         // 送り表示は全文表示後だけ点滅（本編と同じ作法）。
         if (!_autoplay && _dlgReveal >= tx.Length)
         {

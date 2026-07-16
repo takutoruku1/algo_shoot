@@ -25,6 +25,11 @@ public partial class Prologue : Node2D
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
+    // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
+    private int _readIdx = -1;     // 既読チェック済みの行 index（行が変わった瞬間に一度だけ判定）
+    private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか＝高速送りの可否
+    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+
     // 難易度選択（タイトル）
     private int _diffSel = 1; // 0:Easy 1:Normal 2:Hard
     private bool _lrHeld;
@@ -162,10 +167,18 @@ public partial class Prologue : Node2D
                 int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
                 if (_reveal < len)
                     _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+                // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
+                if (_readIdx != _line && _line < _talk.Count)
+                {
+                    _readIdx = _line;
+                    _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
+                    _game?.MarkLineRead(_talk[_line].Text);
+                }
+                _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
                 // 名前の由来を問われた直後の少年の答え（「……さあね。語呂がいいから、とか?」index 15）には、不自然な“間”を置く
                 // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
                 double minHold = (_line == 15) ? 1.2 : 0.25;
-                if (zEdge && _lineT >= minHold)
+                if ((zEdge || _ffNow) && _lineT >= minHold)
                 {
                     if (_reveal < len)
                     {
@@ -474,6 +487,10 @@ public partial class Prologue : Node2D
         DrawMultilineString(UiKit.Zen, new Vector2(20, H - 30), body, HorizontalAlignment.Left,
             W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
             TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
+        if (_ffNow)
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+                new Color(Cool, 0.8f));
         // 送り三角は「全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
         bool revealed = _reveal >= d.Text.Length;
         bool inPause = _line == 15 && _lineT < 1.2; // “間”ホールド行（_Process の minHold=index 15）と同期。会話追加時は両方直す

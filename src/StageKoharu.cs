@@ -138,6 +138,7 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] Clear =
     {
         (4, "「ちゃんと食べてね。……あたしも、食べるから。」", ""),            // 投稿が変化
+        (1, "……いい匂い。ごらんになって。空いていた席の前で、湯気が——あんなに、高く。", "res://char/mina_smile.png"), // S3反転の目撃（感覚型）：嗅覚→視線誘導。意味は言わない
         (0, "もしぼくが寝坊して来られない日があったらさ。妹の様子でも、見ててくれよ。", SGentle),
         (1, "妹が、いらしたんですか。", ""),
         (0, "……さあ。どうだったかな。", SCocky),                              // はぐらかす（伏線④を未回収のまま引きずる）
@@ -192,7 +193,7 @@ public partial class StageKoharu : Node
             case 12: Step_Clear(delta); break;
             case 13: Step_Transition(); break;
             case 15: Step_Lines(delta, MidStory); break;  // ★ボス戦中割込み（完了で Advance→16）
-            case 16: _step = 11; break;                   // 戦闘再開（BossWait へ復帰）
+            case 16: SetQuietVeil(false); _step = 11; break; // 戦闘再開（BossWait へ復帰。S3: 静けさの膜をそっと明ける）
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一。
         // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
@@ -225,7 +226,7 @@ public partial class StageKoharu : Node
             _lineHold = 0;
         }
         else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || (Hud.AutoAdvance && _lineHold >= 1.4)))
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))  // FastForwarding=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
         {
             _lineHold = 0;
             _introLine++;
@@ -409,8 +410,38 @@ public partial class StageKoharu : Node
                 _step = 15;            // → case 15: Step_Lines(MidStory) → Advance()で16 → 11へ復帰
                 _stepStarted = false;
                 _stepTime = 0;
+                SetQuietVeil(true);    // S3: 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
             }
         }
+    }
+
+    // ───── S3: ボス戦中割込み（MidStory）の「静けさの溜め」 ─────
+    // 突入で画面全体をわずかに鈍色へ沈め（彩度と対比が一段引いた“息を潜める”画）、戦闘再開でそっと明ける。
+    // 弾・敵の停止はエンジン側（Hud.BubblePaused）＝この膜は画の温度だけを担当。
+    // HUD・会話バブルは CanvasLayer 上なので沈まない（文字の読みやすさは侵さない）。
+    private ColorRect? _quiet;
+    private Tween? _quietTw;
+    private void SetQuietVeil(bool on)
+    {
+        if (_quiet == null || !IsInstanceValid(_quiet))
+        {
+            if (!on) return; // 明ける指示だけ来た（膜が無い）＝何もしない
+            _quiet = new ColorRect
+            {
+                Name = "QuietVeil",
+                Color = new Color(0.52f, 0.55f, 0.62f, 0f), // 中明度の鈍色＝薄く重ねると彩度・対比が少し引く
+                Size = new Vector2(384f, 216f),
+                ZIndex = 30,                // 弾(0..)・自機(10)・FxLayer(20..21)の上、HUD(CanvasLayer)の下
+                ZAsRelative = false,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+            };
+            World.AddChild(_quiet);
+        }
+        _quietTw?.Kill();
+        _quietTw = CreateTween();
+        // 入り 0.9s（ゆっくり沈む＝溜め）／明け 1.4s（会話の余韻を残してそっと戻す）。Sine/Out で線形にしない。
+        _quietTw.TweenProperty(_quiet, "color:a", on ? 0.16f : 0f, on ? 0.9 : 1.4)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
     }
 
     private bool _clearBannerShown;
