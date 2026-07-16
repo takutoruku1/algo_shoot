@@ -24,6 +24,16 @@ public partial class BossRei : Enemy
     private double _lineT;
     private bool _zHeld;
 
+    // 予測攻撃キャスター（通常テレグラフ＋安置リレー「最終選考」の発火に使う）。
+    private AreaSpellCaster _caster = null!;
+    // ── 安置リレー「最終選考」（HP26%ワンショット）──
+    //   全画面AOEの安置を2〜4回連結し、緑リングを頼りに走り継がせる終盤の山場。
+    //   完走判定＝開始/終了時の Player.Lives 比較（被弾してもリレー自体は止まらない）。
+    //   無被弾完走の報酬＝レイの動的セリフ＋最終安置に回復ハート1個（AddLife。♥上限ならスコアで返す）。
+    private bool _relayFired;      // 発火ワンショット
+    private bool _relayWatching;   // リレー進行中（完走判定待ち）
+    private int _relayStartLives;
+
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
@@ -116,9 +126,9 @@ public partial class BossRei : Enemy
         ApplySpell();
 
         // 予測攻撃（テレグラフ）キャスター：技名宣告→予測線/予測エリア。数は難易度でスケール。
-        var caster = new AreaSpellCaster();
-        caster.Configure("rei", GetParent());
-        AddChild(caster);
+        _caster = new AreaSpellCaster();
+        _caster.Configure("rei", GetParent());
+        AddChild(_caster);
     }
 
     protected override void UpdateMovement(double delta)
@@ -126,14 +136,40 @@ public partial class BossRei : Enemy
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
+        TickRelayWatch();
         TickPressure(delta);
         FirePattern(delta);
+    }
+
+    // 安置リレーの完走判定：AoeActive が落ちた瞬間（最終ホップの着弾終了）に残機を開始時と比較する。
+    // 無被弾完走→レイが初めて認める一言＋最終安置に回復ハート1個（既存 Player.AddLife 経由。
+    // 専用ドロップ機構は無いので即時付与＋その場にフィードバック表示。♥上限時はスコアボーナスで返す）。
+    private void TickRelayWatch()
+    {
+        if (!_relayWatching || _caster == null || _caster.AoeActive) return;
+        _relayWatching = false;
+        if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
+        if (_relayStartLives < 0 || pl.Lives < _relayStartLives) return; // 被弾あり＝報酬なし（リレー自体は完走済み）
+        GetHud()?.ShowBossLine("レイ", "……っ、合格。……なんて、言ってあげないんだから。", UiKit.Kegare, 2.4); // 本音（合格）が先に漏れ、負け惜しみで引っ込める＝改心の先取りはしない（scenario推敲済み）
+        Vector2 at = _caster.LastChainSafe; // 最終安置＝報酬の出現位置
+        if (pl.AddLife(1))
+        {
+            FxLayer.Instance?.DamageNumber(at, "♥+1", FxLayer.Heart, 13);
+        }
+        else
+        {
+            // ♥が上限で受け取れない時はスコアで返す（+1000。AddBulletCleared=+5 の純スコア加算を束ねる）。
+            var game = GetNodeOrNull<GameManager>("/root/Game");
+            if (game != null) for (int i = 0; i < 200; i++) game.AddBulletCleared();
+            FxLayer.Instance?.DamageNumber(at, "+1000", FxLayer.Gold, 13);
+        }
     }
 
     // 「また逃げる」圧の進行。UpdateMovement 経由＝会話中(BubblePaused)・登場演出中は自然に止まる。
     private void TickPressure(double delta)
     {
         if (_tauntCd > 0) _tauntCd -= delta;
+        if (_caster != null && _caster.AoeActive) return; // 安置リレー中＝走るのが正解の時間。逃げ腰を咎めない
         if (!IsShieldPhase) return; // 殴れない時間（合図/窓/セリフ）は与ダメゼロを咎めない
         _noDmgT += delta;
         int want = _noDmgT < PressureDelay ? 0
@@ -162,6 +198,8 @@ public partial class BossRei : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        // 安置リレー（最終選考）の宣告〜最終着弾中は通常弾を止める（避け先＝安置へ集中させる）。
+        if (_caster != null && _caster.AoeActive) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
@@ -242,6 +280,24 @@ public partial class BossRei : Enemy
             _accelerated = true;
             Audio.Instance?.SetMusicSpeed(1.15f);
         }
+        // 安置リレー「最終選考」：HP26%を割った瞬間に一度だけ（パターン最終切替と同じ節目＝終盤の山）。
+        // ホップ数と距離帯は難易度別。距離上限は到達限界（(予兆1.6s×WarnMul−反応0.3s)×150px/s＋安置r30）内：
+        //   Easy 297px / Normal 225px / Hard 189px / Lunatic 158px ≧ 各帯の上限。
+        if (!_relayFired && HpRatio <= 0.26f)
+        {
+            _relayFired = true;
+            var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
+            var (hops, hopMin, hopMax) = diff switch
+            {
+                GameManager.Diff.Easy => (2, 140f, 190f),
+                GameManager.Diff.Hard => (3, 130f, 165f),
+                GameManager.Diff.Lunatic => (4, 110f, 145f),
+                _ => (3, 140f, 190f),
+            };
+            _caster?.CastFullscreenChain(hops, hopMin, hopMax);
+            _relayWatching = true;
+            _relayStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
+        }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
@@ -269,16 +325,24 @@ public partial class BossRei : Enemy
 
     protected override void OnCryStart()
     {
-        GetHud()?.HideBossBar();
+        var hud = GetHud();
+        hud?.HideBossBar();
+        hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝半音で落ちていたモチーフが主音に届く。
         Audio.Instance?.PlayRedeem(0);
-        var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
     }
 
-    protected override void OnCryEnd() => Finished = true;
+    protected override void OnCryEnd()
+    {
+        // S3 画の反転：改心成立（cry→post）で、白飛びしていた「１位」に色が差し始める
+        //（帰還の会話の背景でゆっくり進む。ズーム/フラッシュで指ししない＝気づく余白）。
+        (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
+        Finished = true;
+    }
 
     public override void _Process(double delta)
     {

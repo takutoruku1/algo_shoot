@@ -201,10 +201,11 @@ public partial class BossMina : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        // 全画面AOE（ラスボス専用）：HP 0.62 / 0.42 を割った瞬間に安置型を1回ずつ。
+        // 全画面AOE（ラスボス専用）：HP 0.62 で安置型の単発（学習）→ 0.42 で安置リレー2連（強化）。
         // フィナーレ突入時に安置なしの全面型を1回（計3回）。各ワンショット。
+        // リレーの距離帯 140-190px は到達限界（(1.6s×WarnMul−0.3s)×150px/s＋r30。Normal 225px）内。
         if (!_aoe62Done && HpRatio <= 0.62f) { _aoe62Done = true; _caster?.CastFullscreen(withSafeZone: true); }
-        if (!_aoe42Done && HpRatio <= 0.42f) { _aoe42Done = true; _caster?.CastFullscreen(withSafeZone: true); }
+        if (!_aoe42Done && HpRatio <= 0.42f) { _aoe42Done = true; _caster?.CastFullscreenChain(2, 140f, 190f); }
 
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
@@ -242,8 +243,10 @@ public partial class BossMina : Enemy
 
     protected override void OnCryStart()
     {
-        GetHud()?.HideBossBar();
         var hud = GetHud();
+        hud?.HideBossBar();
+        hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();

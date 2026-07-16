@@ -41,11 +41,18 @@ public partial class QaPilot : Node
     // プレイ領域（Player.cs と一致）
     private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
 
+    // --god 中は範囲攻撃(AreaStrike)の着弾も無効化する（GodClear は敵弾しか消せないため、
+    // 長尺 assist 走行が AOE で削られてゲームオーバーになるのを防ぐ）。AreaStrike.Strike が参照。
+    // 通常プレイでは QaPilot が非起動＝常に false なので本編の挙動には影響しない。
+    public static bool GodActive { get; private set; }
+
     // ---- フラグ ----
     private bool _active;
     private bool _god;
     private bool _aim;
     private bool _quitOnEnd;
+    private bool _skipTest;   // --skiptest : Ctrl を押しっぱなしにして既読スキップ（#22）の検証をする
+    private bool _ctrlSent;   // Ctrl 押下イベントを送出済みか（1回だけ送る）
     private GameManager.Diff? _diff;   // 難易度固定（--easy/--normal/--hard/--lunatic。null=セーブ値のまま）
     private double _seconds = DefaultSeconds;
 
@@ -74,6 +81,7 @@ public partial class QaPilot : Node
     // 被弾の瞬間に「直前フレーム」の最接近距離を使う（被弾で弾が即消えるレース回避）
     private float _prevBulletGap = 9999f;  // 表面ギャップ（負=重なり）
     private float _prevEnemyGap = 9999f;
+    private bool _prevAoeHit;              // 直前フレーム、着弾中(struck)の AreaStrike 範囲内にいたか
 
     // ---- 集計 ----
     private readonly Dictionary<string, int> _counts = new();
@@ -93,6 +101,7 @@ public partial class QaPilot : Node
                 case "--aim": _aim = true; break;
                 case "--assist": _god = true; _aim = true; break;
                 case "--quit": _quitOnEnd = true; break;
+                case "--skiptest": _skipTest = true; break;
                 case "--easy": _diff = GameManager.Diff.Easy; break;
                 case "--normal": _diff = GameManager.Diff.Normal; break;
                 case "--hard": _diff = GameManager.Diff.Hard; break;
@@ -114,6 +123,8 @@ public partial class QaPilot : Node
         _pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (_diff.HasValue && _game != null) _game.Difficulty = _diff.Value;
 
+        GodActive = _god;
+
         _lastProgressT = 0;
         GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} diff={_diff?.ToString() ?? "(save)"}");
     }
@@ -121,6 +132,15 @@ public partial class QaPilot : Node
     public override void _Process(double delta)
     {
         _t += delta;
+
+        // 既読スキップ検証（--skiptest）：Ctrl を押しっぱなしにする（1回送れば離すまで押下扱い）。
+        // 既読行だけが高速送りになるはず＝1周目（未読）はペース不変／2周目（既読）は速くなる、をログで見る。
+        if (_skipTest && !_ctrlSent)
+        {
+            _ctrlSent = true;
+            Send(new InputEventKey { Keycode = Key.Ctrl, Pressed = true });
+            GD.Print("[QA] skiptest: holding Ctrl (read-line fast-forward)");
+        }
 
         DriveMovement();
         DriveShootAndAdvance(delta);
@@ -178,13 +198,22 @@ public partial class QaPilot : Node
                 if (g < enemyGap) enemyGap = g;
             }
         }
+        // 範囲攻撃：致死判定中(IsStriking)の範囲内に自機がいるか（弾でも敵本体でもないAOE被弾の観測）。
+        // AreaStrike の着弾は idle フレームで起きるが、着弾フラッシュ0.2sの間ノードが残るので次の物理フレームでも拾える。
+        // 観測は具体型でなく IAoeHazard（"aoe" グループと対）で走査＝CorridorRun（イライラ棒の壁）等も同じ経路で正規被弾扱い。
+        bool aoeHit = false;
+        foreach (Node n in GetTree().GetNodesInGroup("aoe"))
+            if (n is IAoeHazard a && a.IsStriking && a.CoversPoint(ppos)) { aoeHit = true; break; }
 
         // --- 被弾検出（残機が減った瞬間）---
         int lives = player.Lives;
         if (_prevLives != int.MinValue && lives < _prevLives)
         {
-            // 直前フレームのギャップで判定（被弾フレームでは弾がもう消えていることがある）
-            if (_prevBulletGap > SuspiciousGap && _prevEnemyGap > SuspiciousGap)
+            // 直前フレームのギャップで判定（被弾フレームでは弾がもう消えていることがある）。
+            // AOE は今フレーム/直前フレームのどちらかで着弾範囲内なら正規の被弾＝suspicious にしない。
+            if (aoeHit || _prevAoeHit)
+                GD.Print($"[QA] hit (ok, aoe) struck AreaStrike covers player at {Fmt(ppos)} lives={lives} t={_t:0.0}");
+            else if (_prevBulletGap > SuspiciousGap && _prevEnemyGap > SuspiciousGap)
                 Flag("suspicious-hit",
                     $"lost a life but nearest enemy_bullet gap={_prevBulletGap:0.0}px, enemy gap={_prevEnemyGap:0.0}px (>{SuspiciousGap}px) at {Fmt(ppos)} scene={_scene} t={_t:0.0}");
             else
@@ -193,6 +222,7 @@ public partial class QaPilot : Node
         _prevLives = lives;
         _prevBulletGap = bulletGap;
         _prevEnemyGap = enemyGap;
+        _prevAoeHit = aoeHit;
 
         if (_god) GodClear(ppos);
         if (_aim) AimAssist(delta, ppos);

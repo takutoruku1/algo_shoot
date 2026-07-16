@@ -15,7 +15,17 @@ using Godot;
 //   var z = new AreaStrike();
 //   z.ConfigureBeam(dir, length, halfThick, warn, tint, hot);
 //   world.AddChild(z); z.GlobalPosition = origin;
-public partial class AreaStrike : Node2D
+
+// QA用の観測インターフェース：QaPilot が「今この点は正規の範囲攻撃に覆われているか」を
+// 型に依存せず走査できるようにする（"aoe" グループと対。AreaStrike / CorridorRun が実装）。
+// ゲーム本編では誰も参照しない＝被弾分類（AOE被弾を suspicious-hit にしない）専用。
+public interface IAoeHazard
+{
+    bool IsStriking { get; }          // 今まさに致死判定が生きているか
+    bool CoversPoint(Vector2 p);      // 点 p が被弾域内か
+}
+
+public partial class AreaStrike : Node2D, IAoeHazard
 {
     public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg, Fullscreen }
 
@@ -49,6 +59,15 @@ public partial class AreaStrike : Node2D
     private Node2D? _owner;
     private bool _cancelOnOwnerLoss;
     public void SetOwner(Node2D owner) { _owner = owner; _cancelOnOwnerLoss = true; }
+
+    // QA用の観測フック：QaPilot が被弾分類（AOE被弾を suspicious-hit にしない）に使う。
+    //   IsStriking … 着弾済み（着弾フラッシュ0.2sの間 true のまま残る）
+    //   CoversPoint … 点 p が被弾域内か（安置くり抜き含む Inside と同一判定）
+    public bool IsStriking => _struck;
+    public bool CoversPoint(Vector2 p) => Inside(p);
+
+    // 全形状共通で "aoe" グループに入れる（QaPilot が走査する）。ゲーム本編では誰も参照しない。
+    public override void _Ready() => AddToGroup("aoe");
 
     public void Configure(Shape shape, float halfW, float halfH, double warn, Color tint, Color hot)
     {
@@ -128,9 +147,11 @@ public partial class AreaStrike : Node2D
     }
 
     // 着弾：範囲内に自機がいれば被弾（無敵判定は Player 側）。閃光＋軽いシェイク。
+    // QAの --god（無敵進行テスト）中だけ被弾をスキップする。GodClear は敵弾しか消せず、
+    // 範囲攻撃で assist 走行が削られてしまうため。通常プレイでは QaPilot.GodActive は常に false。
     private void Strike()
     {
-        if (GetTree().GetFirstNodeInGroup("player") is Player p && Inside(p.GlobalPosition))
+        if (!QaPilot.GodActive && GetTree().GetFirstNodeInGroup("player") is Player p && Inside(p.GlobalPosition))
             p.TakeHit();
         // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
         if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);

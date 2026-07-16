@@ -237,16 +237,24 @@ public partial class BossKoharu : Enemy
 
     protected override void OnCryStart()
     {
-        GetHud()?.HideBossBar();
+        var hud = GetHud();
+        hud?.HideBossBar();
+        hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝冷えていた旋律に温かい残響が戻る。
         Audio.Instance?.PlayRedeem(2);
-        var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
     }
 
-    protected override void OnCryEnd() => Finished = true;
+    protected override void OnCryEnd()
+    {
+        // S3 画の反転：改心成立（cry→post）で、空席の箸に湯気が戻り始める
+        //（帰還の会話の背景でゆっくり回復。指ししない＝気づく余白）。
+        (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
+        Finished = true;
+    }
 
     public override void _Process(double delta)
     {

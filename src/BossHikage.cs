@@ -143,7 +143,10 @@ public partial class BossHikage : Enemy
 
     protected override void OnCryStart()
     {
-        GetHud()?.HideBossBar();
+        var hud = GetHud();
+        hud?.HideBossBar();
+        hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心の解決音（未完→完）。戦闘テーマから温かくクロスフェード＝「届いた」（他ボスと同じ作法）。
         Audio.Instance?.PlayRedeem(3);
         _seq = true;

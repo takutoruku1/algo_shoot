@@ -7,6 +7,9 @@ using Godot;
 public partial class Panel : Area2D
 {
     public int Ink = 2;
+    // 一時不可侵（Enemy.SetPanelsInvulnerable 経由）。演出でボスが画面外へ退場している間、
+    // 流れ弾・ボム・波紋でパネルが剥がれて BREAK が空撃ちされるのを防ぐ（あかり戦「雨の帰り道」）。
+    public bool Invulnerable;
 
     private Enemy _owner = null!;
     private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _bulletSpeed, _fireInterval;
@@ -87,7 +90,7 @@ public partial class Panel : Area2D
 
     private void OnAreaEntered(Area2D area)
     {
-        if (_dead) return;
+        if (_dead || Invulnerable) return; // 不可侵中は弾も受けない（消しもしない＝素通し）
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
@@ -106,7 +109,7 @@ public partial class Panel : Area2D
 
     public void Shatter()
     {
-        if (_dead) return;
+        if (_dead || Invulnerable) return; // 不可侵中はボム/波紋の一括砕きも効かない（退場中のBREAK空撃ち防止）
         _dead = true;
         // 砕けは被弾シグナル(OnAreaEntered)中に走るため、衝突無効化は遅延設定する。
         SetDeferred(Area2D.PropertyName.Monitoring, false);

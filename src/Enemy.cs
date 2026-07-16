@@ -503,13 +503,15 @@ public partial class Enemy : Area2D
     }
 
     // 外部（ボム等）から強制浄化。
-    // ボス(HPバー方式)はボムで即浄化しない：今あるパネルを全砕き→ BREAK を誘発するだけ。
+    // ボス(HPバー方式)はボムで即浄化しない：SHIELDED 中は今あるパネルを全砕き→ BREAK を誘発するだけ。
+    // EXPOSED（無防備窓）中は「ボム直撃」＝ BombStrikeBase×BombPowerMul を窓キャップ内で本体HPへ通す
+    //（ボム威力強化の作用先。合図/RECLOSE 中は従来どおり何も起きない）。
     public void Purify()
     {
         if (_purified) return;
         if (_maxHp > 0)
         {
-            // 無防備窓中／合図中はパネルが無いので何も起きない（直減もしない）。
+            if (_phase == BossPhase.Exposed) { BombStrike(); return; }
             foreach (var p in new List<Panel>(_panels))
                 p.Shatter();
             return;
@@ -517,6 +519,75 @@ public partial class Enemy : Area2D
         foreach (var p in new List<Panel>(_panels))
             p.Shatter();
         if (!_purified) Redeem();
+    }
+
+    // ボム直撃（EXPOSED 限定）：基礎 BombStrikeBase × BombPowerMul(1+0.25×Lv)。
+    // 弾ヒットと同じ帳簿（窓キャップ・バー割れ・OnHpChanged・Redeem）を通す＝「1窓即殺」抑止の設計を壊さない。
+    // Shop の効果表示（Eff）はこの定数から算出するので、変えるときは片方だけにしない。
+    public const int BombStrikeBase = 20;
+    private void BombStrike()
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        int dmg = Mathf.RoundToInt(BombStrikeBase * (game?.BombPowerMul ?? 1f));
+        dmg = Mathf.Min(dmg, ExposedDamageCap - _windowDamage); // 窓キャップの残り許容内でだけ通す
+        if (dmg <= 0)
+        {
+            // キャップ到達済み：弾ヒットと同じ「MAX」ワンショットで「次の窓で」を伝える。
+            if (!_windowCapNotified)
+            {
+                _windowCapNotified = true;
+                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -12), "MAX", FxLayer.Gold, 13);
+            }
+            return;
+        }
+        _windowDamage += dmg;
+        int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
+        _hp = Mathf.Max(0, _hp - dmg);
+        if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
+            OnBarBroken();
+        // 金色・大きめの数字＝「ボムが刺さった」を通常ヒットと見分けさせる。
+        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
+        OnHpChanged();
+        _hitFlashT = HitFlashDur;
+        _hitFlashMag = 4f;
+        Audio.Instance?.PlayBossHit(4);
+        GameCamera.Instance?.Shake(1.6f, 0.10f);
+        if (_hp <= 0)
+        {
+            // Redeem 内の監視停止と揃え、マスク書換は遅延化（ボム経路でも作法を統一）。
+            CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
+            Redeem();
+            return;
+        }
+        QueueRedraw();
+    }
+
+    // 外部ギミックからHPバー方式ボスの本体HPを直接削る固定ダメージ経路
+    //（あかり戦「言葉の残滓」の撃破報酬＝総HPの4%直撃）。無防備窓・窓キャップとは独立＝SHIELDED中でも通る。
+    // バー割れ演出・OnHpChanged・Redeem は弾ヒット/ボム直撃と同じ帳簿を通す（設計を二重化しない）。
+    public void DealDirectDamage(int dmg)
+    {
+        if (_purified || _maxHp <= 0 || dmg <= 0) return;
+        int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
+        _hp = Mathf.Max(0, _hp - dmg);
+        if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
+            OnBarBroken();
+        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
+        OnHpChanged();
+        if (_hp <= 0)
+        {
+            CallDeferred(MethodName.SetCollisionMaskValue, 2, false);
+            Redeem();
+            return;
+        }
+        QueueRedraw();
+    }
+
+    // パネル（言葉の盾）を一時的に不可侵にする（あかり戦「雨の帰り道」：ボスが画面外へ退場している間、
+    // 流れ弾やボムでパネルが剥がれて BREAK が空撃ちされる事故を防ぐ）。演出退場するボスの専用スイッチ。
+    public void SetPanelsInvulnerable(bool v)
+    {
+        foreach (var p in _panels) p.Invulnerable = v;
     }
 
     // 合図・弱気セリフの派生フック。

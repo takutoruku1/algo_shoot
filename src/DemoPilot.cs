@@ -138,12 +138,29 @@ public partial class DemoPilot : Node
             // 会話中は弾も自機も止まる＝動かす必要なし。軸を解放しておく。
             ReleaseAxes();
         }
+        else if (GetTree().GetFirstNodeInGroup("corridor") is CorridorRun cor && cor.Steering)
+        {
+            // イライラ棒「雨の帰り道」中は回避ブレインを使わず、通路の中心線に追従する最小対応。
+            DriveCorridor(player.GlobalPosition, cor);
+        }
         else
         {
             bestGap = DriveDodge(player.GlobalPosition);
         }
 
         DriveBomb(delta, bestGap, talking);
+    }
+
+    // 通路追従：壁は右から流れてくるので、少し先（スクロール0.3s分）の中心線を目標Yに、
+    // Xは左寄り(84)で保持＝壁の到着までの反応時間を最大化する。中心線上＝安全＋「言葉の残滓」の射線。
+    // bestGap は返さない（=9999扱い）＝ボムを撃たない：壁はボムで消えず、拡幅で温存する価値もデモでは薄い。
+    private void DriveCorridor(Vector2 ppos, CorridorRun cor)
+    {
+        Vector2 target = new(84f, cor.GuideYAt(ppos.X + cor.ScrollSpeed * 0.3f));
+        Vector2 to = target - ppos;
+        float dist = to.Length();
+        Vector2 vel = dist > 0.5f ? to / dist * Mathf.Min(PlayerSpeed, dist / 0.08f) : Vector2.Zero;
+        ApplyMove(vel);
     }
 
     // =====================  移動ブレイン（回避＋射線張り付き）  =====================

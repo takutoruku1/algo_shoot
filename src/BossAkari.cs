@@ -22,6 +22,18 @@ public partial class BossAkari : Enemy
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.52f, 0.26f };
 
+    // 予測攻撃キャスター（フィールド化：通路中は宣告ごと止めるため）。
+    private AreaSpellCaster _caster = null!;
+    // ── イライラ棒「雨の帰り道」（HP52%ワンショット）──
+    //   宣告→ボスが画面右外(x≈434)へ退場・不可侵化・弾幕停止→1.5s非致死プレビュー→通路12s→
+    //   出口到達でパネル全砕き(Purify)→BREAK窓＝完走のご褒美→ボス帰還。
+    //   退場位置は自機弾の消滅境界(x>400)より外＝パネル軌道(26+3px)込みで物理的に届かない。
+    private bool _corridorFired;   // 発火ワンショット
+    private int _corridorPhase;    // 0=なし / 1=退場〜通路中 / 2=帰還中
+    private CorridorRun? _corridor;
+    private const float AwayX = 434f;   // 退場先X（弾消滅境界400 ＋ パネル軌道29 ＋ 余白）
+    private const float DashSpeed = 320f; // 退場/帰還の移動速度（通路の尺を演出で食わない）
+
     // スペルカード（RefrainHTML Danmaku v3 STAGE2 あかり＝雨の教室・青と白の寒色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
@@ -103,9 +115,9 @@ public partial class BossAkari : Enemy
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
-        var caster = new AreaSpellCaster();
-        caster.Configure("akari", GetParent());
-        AddChild(caster);
+        _caster = new AreaSpellCaster();
+        _caster.Configure("akari", GetParent());
+        AddChild(_caster);
     }
 
     protected override void UpdateMovement(double delta)
@@ -113,7 +125,46 @@ public partial class BossAkari : Enemy
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
+        if (_corridorPhase != 0) { TickCorridor(); return; } // 通路中は撃たない（避けに集中させる）
         FirePattern(delta);
+    }
+
+    // 「雨の帰り道」の進行。UpdateMovement 経由＝会話中は通路(CorridorRun)側と一緒に凍る。
+    private void TickCorridor()
+    {
+        if (_corridorPhase == 1)
+        {
+            // 通路の完走（or ボス浄化で解散）を待って帰還へ。
+            if (_corridor == null || !IsInstanceValid(_corridor) || _corridor.Finished)
+            {
+                _corridorPhase = 2;
+                _mover.Configure(new Vector2(200f, 70f), 90f, 28f, DashSpeed); // 高速で戦線に戻る
+            }
+        }
+        else if (_corridorPhase == 2 && GlobalPosition.X <= 330f)
+        {
+            // 帰還完了：徘徊を通常速度へ戻し、宣告を再開。
+            _corridorPhase = 0;
+            _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+            _caster.SetProcess(true);
+            SetPanelsInvulnerable(false);
+            // 出口報酬：パネル全砕き→BREAK窓誘発（SHIELDED中の Purify＝ボム時 Enemy.Purify と同じ経路）。
+            if (!IsPurified) Purify();
+        }
+    }
+
+    // HP52%ワンショット：宣告→退場→通路生成。以降の進行は TickCorridor。
+    private void StartCorridor()
+    {
+        _corridorPhase = 1;
+        GetHud()?.AnnounceSpell("あかり", "@akari_ame", "雨の帰り道", Spells[0].tint);
+        GetHud()?.ShowBossLine("あかり", "来ないで……っ", UiKit.Kegare, 2.0);
+        _mover.Configure(new Vector2(AwayX, 70f), 4f, 6f, DashSpeed); // 画面右外へ退場
+        SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
+        _caster.SetProcess(false);     // 通常テレグラフの宣告も止める（通路に集中させる）
+        _corridor = new CorridorRun { Boss = this };
+        GetParent().AddChild(_corridor);
+        _corridor.GlobalPosition = Vector2.Zero; // 画面座標基準で描く（Fullscreen AOE と同作法）
     }
 
     // 攻撃パターン（セリフを挟むたびに _pattern が変わる）。
@@ -208,6 +259,13 @@ public partial class BossAkari : Enemy
             _beatsFired++;
             ApplySpell();
         }
+        // イライラ棒「雨の帰り道」：HP52%を割った瞬間に一度だけ（パターン第2切替と同じ節目＝中盤の山）。
+        // 上の ApplySpell と同フレームで重なり得るが、宣告は後勝ち＝「雨の帰り道」が表示される。
+        if (!_corridorFired && HpRatio <= 0.52f)
+        {
+            _corridorFired = true;
+            StartCorridor();
+        }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
         {
@@ -235,10 +293,12 @@ public partial class BossAkari : Enemy
 
     protected override void OnCryStart()
     {
-        GetHud()?.HideBossBar();
+        var hud = GetHud();
+        hud?.HideBossBar();
+        hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝途切れていたフレーズが最後まで歌われる。
         Audio.Instance?.PlayRedeem(1);
-        var hud = GetHud();
         if (hud != null) hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -246,6 +306,9 @@ public partial class BossAkari : Enemy
 
     protected override void OnCryEnd()
     {
+        // S3 画の反転：改心成立（cry→post）で、自責の言葉が「ありがとう」へ溶け始める
+        //（帰還の会話の背景でゆっくりクロスフェード。指ししない＝気づく余白）。
+        (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
         Finished = true;
     }
 

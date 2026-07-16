@@ -13,6 +13,7 @@ public partial class AreaSpellCaster : Node2D
 {
     private const float W = 384f, H = 216f;
 
+    private string _key = "";  // Configure のプロファイルキー（rei/akari/koharu/mina。リレー宣告の文言分岐に使う）
     private string _disp = "", _handle = "";
     private Color _tint = new(1f, 0.34f, 0.30f), _hot = new(1f, 0.92f, 0.7f);
     private double _warnMin = 1.0, _warnMax = 1.4, _interval = 6.0;
@@ -40,8 +41,23 @@ public partial class AreaSpellCaster : Node2D
     private const float AoeFireDelay = 0.7f; // 宣告→予兆出現の溜め
     private const float AoeSafeR = 30f;  // 安置(セーフゾーン)半径（28-32px帯）
     private AreaStrike? _aoeStrike;      // 出現中の全画面予兆（生存＝AOE進行中の判定に使う）
-    // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。
-    public bool AoeActive => _aoePending || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
+    // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。安置リレー中はホップ間の
+    // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
+    public bool AoeActive => _aoePending || _chainRemain > 0 || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
+
+    // ── 安置リレー（レイ「最終選考」／ミナ強化枠で共用）──
+    //   全画面AOEを hops 回連結する。各ホップ：予兆(1.6s×WarnMul)→着弾0.2s→生存確認の間(0.35s)→次ホップ。
+    //   初回の安置＝既存の「70px以上の最近傍」。2ホップ目以降＝前の安置中心を起点に距離帯 [hopMin,hopMax]
+    //   のランダム方向（ジグザグ保証つき）。安置半径は r=30 固定＝公平性は予兆尺（WarnMul）側で担保する。
+    private int _chainRemain;            // 未出現のホップ数（>0 の間はリレー進行中＝AoeActive を保つ）
+    private int _chainTotal;             // リレーの全ホップ数（宣告ラベルの何次/最終の判定に使う）
+    private Vector2 _chainPrevSafe;      // 直前ホップの安置中心（次ホップの起点）
+    private Vector2 _chainPrevDir;       // 直前ホップの進行方向（内積<0.5 になるまで採り直し＝ジグザグ保証）
+    private float _chainHopMin, _chainHopMax; // ホップ距離帯（難易度別にボス側が渡す）
+    private double _restT;               // 着弾後〜次ホップ予兆までの「生存確認の間」の残り
+    private const double ChainRestDur = 0.35; // 生存確認の間（着弾フラッシュが消えてから計時）
+    // 直近ホップの安置中心（リレー完走報酬の出現位置。BossRei が参照）。
+    public Vector2 LastChainSafe { get; private set; }
 
     // ボス側（BossMina.OnHpChanged）から全画面AOEを1回予約する。withSafeZone=false で安置なしの全面型。
     public void CastFullscreen(bool withSafeZone)
@@ -54,30 +70,129 @@ public partial class AreaSpellCaster : Node2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
 
+    // ボス側から安置リレーを1回予約する（レイ HP26%／ミナ HP42%）。hops=連結数、[hopMin,hopMax]=ホップ距離帯。
+    // 距離帯の上限は「予兆尺×自機速度＋安置半径」の到達限界（ルナ約158px＋帯調整）を超えないようボス側が選ぶ。
+    public void CastFullscreenChain(int hops, float hopMin, float hopMax)
+    {
+        if (AoeActive) return; // 多重予約しない
+        _chainTotal = _chainRemain = Mathf.Max(1, hops);
+        _chainHopMin = hopMin; _chainHopMax = hopMax;
+        _chainPrevDir = Vector2.Zero;
+        _aoeWithSafe = true;
+        _aoePending = true;
+        _aoeFireT = AoeFireDelay;
+        // 技名：レイは「最終選考・N連」。他ボス（ミナ）はレイの技を濁して写した体＝汎用名にする。
+        string name = _key == "rei"
+            ? "最終選考・" + (hops switch { 2 => "二連", 4 => "四連", _ => "三連" })
+            : "全画面浄化・連鎖";
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
+    }
+
     private void TickFullscreen(double delta)
     {
+        // リレー中：直前ホップの着弾（_aoeStrike）が消えてから「生存確認の間」を置いて次ホップの予兆を出す。
+        // 被弾してもリレーは止めない＝被弾をスキップ手段にしない（残機比較の完走判定はボス側）。
+        if (_chainRemain > 0 && !_aoePending && (_aoeStrike == null || !IsInstanceValid(_aoeStrike)))
+        {
+            _restT -= delta;
+            if (_restT <= 0) SpawnChainHop();
+            return;
+        }
+
         if (!_aoePending) return;
         _aoeFireT -= delta;
         if (_aoeFireT > 0) return;
         _aoePending = false;
 
-        // 安置位置：自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
-        Vector2 safe = Vector2.Zero;
+        if (_chainRemain > 0) { SpawnChainHop(); return; } // リレーの初回ホップ
+
+        // 単発：安置位置は自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
         float r = _aoeWithSafe ? AoeSafeR : 0f;
-        if (_aoeWithSafe)
+        Vector2 safe = _aoeWithSafe ? PickSafeNearPlayer(r + 14f) : Vector2.Zero;
+        SpawnFullscreenStrike(safe, r);
+    }
+
+    // 安置候補を12点引き、「自機から70px以上」のうち最も自機に近い点を採用する。
+    // 70pxの下限＝自機の真上に安置が湧いて棒立ちで済む事故の防止。上限を設けない代わりに
+    // 最近傍を選ぶことで、難易度によらず「予兆内に到達できる」ことを担保する：
+    //   予兆尺 = AoeWarn(1.6s) × WarnMul（易1.3 / 普1.0 / 難0.85 / ルナ0.72）＝最短1.15s(ルナ)。
+    //   反応0.3sを引いた移動猶予 0.85s × 自機速度150px/s ≈ 128px ＋ 安置半径30px
+    //   ＝ 安置中心まで約158pxなら間に合う。盤面(384×216)で一様12候補の「70px以上の最近傍」は
+    //   ほぼ確実に70〜130px帯に収まるため、ルナティックでも到達可能。
+    //   （旧実装は「70px以上を見つけ次第採用」で上限がなく、最悪381px先＝到達不能な安置が出得た）
+    private Vector2 PickSafeNearPlayer(float margin)
+    {
+        Vector2 player = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
+                         ?? new Vector2(W / 2f, H / 2f);
+        Vector2 safe = new Vector2(W / 2f, H / 2f); // 全候補が70px未満（自機がほぼ中央）の時のフォールバック＝中央
+        float bestD = float.MaxValue;
+        for (int i = 0; i < 12; i++)
         {
-            Vector2 player = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
-                             ?? new Vector2(W / 2f, H / 2f);
-            float margin = r + 14f; // 端から離す
-            // 自機から十分離れた点を最大12回試行（避けられる安置にする）。
-            safe = new Vector2(W / 2f, H / 2f);
-            for (int i = 0; i < 12; i++)
+            var cand = new Vector2(_rng.RandfRange(margin, W - margin), _rng.RandfRange(margin, H - margin));
+            float d = cand.DistanceTo(player);
+            if (d >= 70f && d < bestD) { bestD = d; safe = cand; }
+        }
+        return safe;
+    }
+
+    // リレーのホップを1つ出す。初回＝既存の最近傍安置。2ホップ目以降＝前の安置中心を起点に
+    // 距離帯からランダム方向へ。前ホップ方向と内積<0.5になるまで採り直し（ジグザグ保証）、
+    // 画面端は margin=r+14 でクランプする。クランプで距離が潰れた候補（緊張が抜ける）も採り直す。
+    private void SpawnChainHop()
+    {
+        int hopIdx = _chainTotal - _chainRemain; // 0始まり
+        _chainRemain--;
+        float margin = AoeSafeR + 14f;
+        Vector2 safe;
+        if (hopIdx == 0)
+        {
+            safe = PickSafeNearPlayer(margin);
+            _chainPrevDir = Vector2.Zero;
+        }
+        else
+        {
+            safe = _chainPrevSafe;
+            for (int i = 0; i < 24; i++)
             {
-                var cand = new Vector2(_rng.RandfRange(margin, W - margin), _rng.RandfRange(margin, H - margin));
-                if (cand.DistanceTo(player) >= 70f) { safe = cand; break; }
+                float a = _rng.RandfRange(0f, Mathf.Tau);
+                var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                if (_chainPrevDir != Vector2.Zero && dir.Dot(_chainPrevDir) >= 0.5f) continue; // 同方向すぎ＝採り直し
+                var cand = _chainPrevSafe + dir * _rng.RandfRange(_chainHopMin, _chainHopMax);
+                cand.X = Mathf.Clamp(cand.X, margin, W - margin);
+                cand.Y = Mathf.Clamp(cand.Y, margin, H - margin);
+                if (cand.DistanceTo(_chainPrevSafe) < _chainHopMin * 0.9f) continue; // 端クランプで潰れた＝採り直し（0.9: 縦216pxで垂直系候補が潰れやすく、棄却→再抽選で横方向が創発的に優先される。sakurai査定 2026-07-05）
+                safe = cand;
+                break;
             }
+            // 全採り直し失敗（角に追い詰められた等）の保険：中央方向へ hopMin ぶん逃がす。
+            if (safe == _chainPrevSafe)
+            {
+                var dir = (new Vector2(W / 2f, H / 2f) - _chainPrevSafe).Normalized();
+                safe = _chainPrevSafe + dir * _chainHopMin;
+                safe.X = Mathf.Clamp(safe.X, margin, W - margin);
+                safe.Y = Mathf.Clamp(safe.Y, margin, H - margin);
+            }
+            _chainPrevDir = (safe - _chainPrevSafe).Normalized();
+        }
+        _chainPrevSafe = safe;
+        LastChainSafe = safe;
+
+        // ホップ宣告（レイの選考演出）：一次選考→二次選考→（三次選考→）最終選考。
+        // 他ボス（ミナ）は選考モチーフが合わないので初回宣告のみ＝安置の緑リング自体が次の合図。
+        if (_key == "rei")
+        {
+            string label = _chainRemain == 0 ? "最終選考"
+                         : hopIdx switch { 0 => "一次選考", 1 => "二次選考", _ => "三次選考" };
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, label, _tint);
         }
 
+        SpawnFullscreenStrike(safe, AoeSafeR); // 安置 r=30 固定（難易度で縮めない）
+        _restT = ChainRestDur; // 次ホップまでの生存確認の間（着弾フラッシュが消えてから計時される）
+    }
+
+    // 全画面予兆を1枚出す（単発／リレー共用）。
+    private void SpawnFullscreenStrike(Vector2 safe, float r)
+    {
         var z = new AreaStrike();
         z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul(), _tint, _hot);
         if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
@@ -88,6 +203,7 @@ public partial class AreaSpellCaster : Node2D
 
     public void Configure(string key, Node world)
     {
+        _key = key;
         _world = world;
         _rng.Randomize();
         var H_ = AreaStrike.Shape.BeamH; var V = AreaStrike.Shape.BeamV;
@@ -135,6 +251,7 @@ public partial class AreaSpellCaster : Node2D
         {
             _pending = false;
             _aoePending = false; // 予約中の全画面AOEも破棄（出現済みは AreaStrike が owner 浄化で自滅）
+            _chainRemain = 0;    // 進行中の安置リレーも打ち切る（改心後にホップが続かないように）
             return;
         }
 
