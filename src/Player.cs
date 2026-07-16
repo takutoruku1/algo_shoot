@@ -585,8 +585,9 @@ public partial class Player : Area2D
             return;
 
         // 銃口（中心からやや右）。光の出力強化でダメージ増。
+        // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + new Vector2(20f, 0f);
-        int dmg = 1 + (_game?.ShotDamageBonus ?? 0);
+        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f)));
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -795,7 +796,9 @@ public partial class Player : Area2D
         // 弾側の damage 処理は敵側 / 弾側で行うため、ここでは被弾のみ扱う。
         if (area is Enemy e && !e.IsPurified)
         {
-            TakeHit();
+            // QA(--god/--assist) 走行では敵本体との接触被弾もスキップ（god の GodClear は敵弾しか
+            // 消せないため）。通常プレイでは QaPilot.GodActive は常に false（AreaStrike と同じ作法）。
+            if (!QaPilot.GodActive) TakeHit();
             return;
         }
 

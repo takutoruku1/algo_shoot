@@ -273,24 +273,26 @@ public partial class GameManager : Node
         public string Desc = "";
         public int MaxLevel;
         public long BaseCost;
-        public float CostMul; // 次レベルの価格は BaseCost * CostMul^(現Lv)
+        public float CostMul; // 次レベルの価格は BaseCost * CostMul^(現Lv-1)（Lv0→1 は一律100）
     }
 
     public static readonly UpgradeDef[] Upgrades =
     {
-        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 5, BaseCost = 400,  CostMul = 1.35f },
+        // shot_power: MaxLevel 5→4（無防備窓の弾ダメージは Clamp(_,1,4) ＝ Lv5 は効果の無い死にレベルだった）。
+        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 4, BaseCost = 400,  CostMul = 1.35f },
         new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.32f },
         new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.38f },
         new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 550, CostMul = 1.5f },
         new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
         new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
         new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
-        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボムの一掃範囲UP",        MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
+        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボム直撃が穢れを深く祓う（無防備の本体ダメージUP）", MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
         new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 550,  CostMul = 1.45f },
         new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
-        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP",    MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
+        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP（フォロワーは火力と収入を底上げ）", MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
-        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を抑え、やさしさの鈍りを緩和", MaxLevel = 3, BaseCost = 650,  CostMul = 1.55f },
+        // contam_resist: 効果最小なのに最大級価格だった是正（650/1.55→300/1.4）＋「やさしさの鈍り下限」緩和を実装（KindnessGainMul）。
+        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を抑え、やさしさの鈍りを緩和", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f },
         new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプションを追加",     MaxLevel = 2, BaseCost = 1000, CostMul = 1.7f },
     };
 
@@ -311,7 +313,8 @@ public partial class GameManager : Node
         int lv = GetUpgradeLevel(id);
         if (lv >= d.MaxLevel) return -1;
         if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
-        return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
+        // Lv1→2 は BaseCost そのもの（CostMul^0）。旧式 CostMul^lv だと 100→BaseCost×CostMul の急ジャンプになっていた。
+        return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv - 1));
     }
 
     public bool CanPurchase(string id)
@@ -330,7 +333,8 @@ public partial class GameManager : Node
     }
 
     // ── フォロワー由来の常時バフ（天井付き・§①-5）──
-    public float FollowerPowerMul => 1f + Mathf.Min(0.50f, Followers * 0.00010f);
+    // PowerMul は Player.Fire の弾ダメージに実配線（fol_gain＝“火力の遠回り投資”の受け皿）。係数 0.00010→0.00025＝2,000人で上限+50%。
+    public float FollowerPowerMul => 1f + Mathf.Min(0.50f, Followers * 0.00025f);
     public float FollowerImpressionMul => 1f + Mathf.Min(0.50f, Followers * 0.00008f);
 
     // ── 難易度・強化由来のインプレ倍率 ──
@@ -356,7 +360,9 @@ public partial class GameManager : Node
 
     // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
     // 汚染0.00→1.00 / 0.16→0.98 / 0.42→0.89 / 0.72→0.73 / 1.00→0.55。
-    public float KindnessGainMul => Mathf.Max(0.55f, 1f - 0.45f * Mathf.Pow(Contamination, 1.6f));
+    // 汚染耐性(contam_resist)は下限も +0.05/Lv 引き上げる（Lv3で0.70）＝高汚染域での“鈍り”緩和を実装。
+    public float KindnessGainMul =>
+        Mathf.Max(0.55f + 0.05f * GetUpgradeLevel("contam_resist"), 1f - 0.45f * Mathf.Pow(Contamination, 1.6f));
 
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
@@ -550,6 +556,58 @@ public partial class GameManager : Node
         SavePrefs();
     }
 
+    // ───────────────────────────────────────────────────────────
+    // 会話の既読ログ（user://read.json・全スロット共有＝端末ローカル）— Epic G #22
+    //   2周目の「既読スキップ（押しっぱなし高速送り）」の判定に使う。粒度は会話1行。
+    //   キーは行テキストの FNV-1a 64bit ハッシュ（同一テキスト＝同一行とみなす最小キー。
+    //   全文を保存しないのでファイルが太らない）。スロット非依存にする理由：既読は
+    //   「プレイヤーがその文章を読んだか」であってセーブデータの進行ではない＝
+    //   スロットを替えても・はじめからでも、読んだ話は読んだ話（周回に親切）。
+    //   ResetPersistent（はじめから）でも消さない。
+    // ───────────────────────────────────────────────────────────
+    private const string ReadLogPath = "user://read.json";
+    private readonly HashSet<string> _readLines = new();
+
+    // この行テキストは表示済み（既読）か。空文字は常に未読扱い。
+    public bool IsLineRead(string text)
+        => !string.IsNullOrEmpty(text) && _readLines.Contains(LineHash(text));
+
+    // 行を既読として記録。新規のときだけファイルへ書く（既読行の再表示では I/O しない）。
+    public void MarkLineRead(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        if (_readLines.Add(LineHash(text))) SaveReadLog();
+    }
+
+    // FNV-1a 64bit ハッシュ → 16桁hex。行テキストの固定長キー化。
+    private static string LineHash(string text)
+    {
+        ulong h = 14695981039346656037UL;
+        foreach (char c in text) { h ^= c; h *= 1099511628211UL; }
+        return h.ToString("x16");
+    }
+
+    private void LoadReadLog()
+    {
+        if (!FileAccess.FileExists(ReadLogPath)) return;
+        using var f = FileAccess.Open(ReadLogPath, FileAccess.ModeFlags.Read);
+        if (f == null) return;
+        var json = new Json();
+        if (json.Parse(f.GetAsText()) != Error.Ok) return;
+        if (json.Data.VariantType != Variant.Type.Array) return;
+        foreach (var v in json.Data.AsGodotArray())
+            _readLines.Add(v.AsString());
+    }
+
+    private void SaveReadLog()
+    {
+        var arr = new Godot.Collections.Array();
+        foreach (var k in _readLines)
+            arr.Add(k);
+        using var f = FileAccess.Open(ReadLogPath, FileAccess.ModeFlags.Write);
+        if (f != null) f.StoreString(Json.Stringify(arr));
+    }
+
     // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
     private float _kindFill;            // 0..1 蓄積
     public bool IsOverload { get; private set; }
@@ -570,8 +628,9 @@ public partial class GameManager : Node
     public override void _Ready()
     {
         // セーブはスロット制（手動）。起動時は自動ロードしない。
-        // 端末ローカル prefs（チュートリアル既読など）だけは起動時に読む。
+        // 端末ローカル prefs（チュートリアル既読など）と会話の既読ログだけは起動時に読む。
         LoadPrefs();
+        LoadReadLog();
 
         // 検証専用：--seed-records でダミーのクリアタイムをメモリに注入（記録画面/カードの確認用）。
         // セーブには一切書かない（手動セーブしない限り消える）＝本番フロー/既存スロットを汚さない。
@@ -749,7 +808,14 @@ public partial class GameManager : Node
         _kindFill = 0f;
         IsOverload = false;
         _overloadT = 0;
+        RedemptionActive = false;
     }
+
+    // 改心演出中か。本戦ボスの OnCryStart が立て、次のラン開始（ResetRun）で下りる。
+    // 残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケースで、ゲームオーバーの
+    // 「R/Q」抜けプロンプトを改心演出〜帰還会話に重ねないための判定（HandleGameOverExit が参照）。
+    public bool RedemptionActive { get; private set; }
+    public void NotifyRedemptionStart() => RedemptionActive = true;
 
     // ───────────────────────────────────────────────────────────
     // ゲームオーバー時の「ステージから抜ける（ハブへ戻る）」共通処理。
@@ -760,6 +826,18 @@ public partial class GameManager : Node
     // 戻り値 true ＝抜けを実行（呼び元はそれ以降の処理を打ち切ってよい）。
     public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld)
     {
+        var game = root.GetNodeOrNull<GameManager>("/root/Game");
+
+        // 改心演出が始まっていたら勝負は決着＝ゲームオーバー扱いを取り下げ、演出を優先する
+        //（残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケース。プロンプトを重ねない）。
+        // R リトライは各 *Root.cs の別経路で従来どおり有効。
+        if (game?.RedemptionActive ?? false)
+        {
+            hud?.ShowGameOverPrompt("");
+            exitHeld = false;
+            return false;
+        }
+
         hud?.ShowGameOverPrompt("R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）");
 
         bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.Back);
@@ -768,7 +846,6 @@ public partial class GameManager : Node
         if (!fired) return false;
 
         // ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、ここで確実に保存してから帰還。
-        var game = root.GetNodeOrNull<GameManager>("/root/Game");
         game?.AutoSave();
         root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();

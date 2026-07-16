@@ -29,16 +29,19 @@ public partial class Shop : Node2D
     };
 
     // 共通強化の一覧（カテゴリ別・行優先2列で並ぶ）。cat: 0=攻撃 / 1=生存 / 2=応援。
-    // GameManager.Upgrades に定義済みの全強化をここで売る（従来は3種のみ販売＝残りが死蔵だった）。
+    // GameManager.Upgrades に定義済みの強化をここで売る（従来は3種のみ販売＝残りが死蔵だった）。
+    // option_sub は効果（OptionSubCount）が未実装＝“幽霊商品”なので、実装されるまで販売しない。
     private static readonly (string id, int cat)[] CoreItems =
     {
         ("shot_power", 0), ("fire_rate", 0),
-        ("option_sub", 0), ("max_life", 1),
-        ("bomb_count", 1), ("bomb_power", 1),
-        ("move_speed", 1), ("hitbox", 1),
-        ("contam_resist", 1), ("imp_mult", 2),
-        ("fol_gain", 2), ("combo_hold", 2),
+        ("max_life", 1), ("bomb_count", 1),
+        ("bomb_power", 1), ("move_speed", 1),
+        ("hitbox", 1), ("contam_resist", 1),
+        ("imp_mult", 2), ("fol_gain", 2),
+        ("combo_hold", 2),
     };
+    // 初回おすすめ（迷ったらこれ）：効果が体感しやすい3種に、未購入の間だけ小バッジを出す。
+    private static readonly string[] Recommended = { "shot_power", "fire_rate", "max_life" };
     private static readonly string[] CatName = { "攻撃", "生存", "応援" };
     private static readonly Color[] CatCol = { new("9be0f5"), new("7ec880"), new("f0d98a") };
     private const int GridCols = 2;
@@ -590,7 +593,7 @@ public partial class Shop : Node2D
     }
 
     // ───────────────────────── 共通強化グリッド ─────────────────────────
-    // 12種を「攻撃／生存／応援」の色タグ付き2列で一覧。行は名前・Lvピップ・コストだけに絞り、
+    // 11種を「攻撃／生存／応援」の色タグ付き2列で一覧。行は名前・Lvピップ・コストだけに絞り、
     // 「何がどう変わるか」は右の詳細パネルに寄せる（一覧=見つける／詳細=決める、の分業）。
     private void DrawCoreGrid()
     {
@@ -634,6 +637,16 @@ public partial class Shop : Node2D
                 bool filled = p < lv;
                 DrawCircle(new Vector2(px + p * 11f, py), 3.2f,
                     filled ? new Color(CatCol[cat], 0.95f) : new Color(1, 1, 1, 0.14f));
+            }
+
+            // 初回おすすめバッジ（未購入の定番3種）。迷う初回の意思決定を短くする道しるべ。
+            if (lv == 0 && System.Array.IndexOf(Recommended, id) >= 0)
+            {
+                const string rec = "おすすめ";
+                float rw = UiKit.TextW(UiKit.Zen, rec, 10) + 12f;
+                var rr2 = new Rect2(px + d.MaxLevel * 11f + 8f, r.Position.Y + 6f, rw, 16f);
+                UiKit.Box(this, rr2, new Color(UiKit.Gold, 0.14f), 999f, new Color(UiKit.Gold, 0.5f), 1f);
+                UiKit.Text(this, UiKit.Zen, new Vector2(rr2.Position.X, r.Position.Y + 7f), rec, 10, new Color("f0d98a"), HorizontalAlignment.Center, rw);
             }
 
             // 右端：コスト or MAX
@@ -742,13 +755,12 @@ public partial class Shop : Node2D
     {
         "shot_power" => $"威力 +{lv}",
         "fire_rate" => $"発射間隔 ×{Mathf.Max(0.4f, 1f - 0.08f * lv):0.00}",
-        "option_sub" => $"オプション {lv}基",
         "max_life" => $"ライフ上限 +{lv}",
         "bomb_count" => $"初期ボム +{lv}",
-        "bomb_power" => $"ボム範囲 ×{1f + 0.25f * lv:0.00}",
+        "bomb_power" => $"ボム直撃 {Mathf.RoundToInt(Enemy.BombStrikeBase * (1f + 0.25f * lv))}ダメージ",
         "move_speed" => $"移動速度 ×{1f + 0.12f * lv:0.00}",
         "hitbox" => $"被弾判定 ×{Mathf.Max(0.4f, 1f - 0.12f * lv):0.00}",
-        "contam_resist" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * lv):0.00}",
+        "contam_resist" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * lv):0.00}・鈍り下限 {0.55f + 0.05f * lv:0.00}",
         "imp_mult" => $"獲得心 ×{1f + 0.12f * lv:0.00}",
         "fol_gain" => $"拡散 ×{1f + 0.15f * lv:0.00}",
         "combo_hold" => $"コンボ猶予 {2.0 + 0.4 * lv:0.0}秒",
