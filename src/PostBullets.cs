@@ -109,7 +109,8 @@ public static class PostBullets
     {
         var src = words ?? Hud.TickerWords;
         var (h, w) = src[rng.RandiRange(0, src.Length - 1)];
-        var b = pool.Spawn(new Vector2(rng.RandfRange(70f, 314f), -8f), new Vector2(0f, fallSpeed), isEnemy: true, 3f, 1);
+        // 落下X範囲は左右の縁まで（旧70〜314）。中央帯だけ降ると画面端（特に左端）が安置化するため崩す。
+        var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fallSpeed), isEnemy: true, 3f, 1);
         b?.SetWord(w, h);
     }
 }

@@ -84,12 +84,12 @@ public partial class Audio : Node
     public AudioStream BgmMenu = null!;
     public AudioStreamWav BgmStage = null!, BgmBoss = null!;
 
-    // ステージ1（レイ）の道中＝ユーザー制作の実音源（res://BGM/The_Watcher_in_the_Hall.mp3）。
+    // ステージ1（レイ）の道中＝ユーザー制作の実音源（res://audio/bgm_stage_rei.ogg、
+    //   原曲 BGM/The_Watcher_in_the_Hall.mp3 を -3dB・極小フェードで整えた加工済みループ）。
     //   BgmMenu と同じ作法：実ファイルを読み、失敗時は従来の合成 BgmStage にフォールバック（型を
     //   AudioStream に広げる）。汚染連動の高域カットに乗せるため _Process の inStage 判定にも含める。
-    //   mp3 は import 設定 loop=true で焼いてあるが、念のため AudioStreamMP3.Loop も明示する
+    //   ogg は import 設定 loop=true で焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する
     //   （Music() は曲尾で止めず鳴らしっぱなしにするため）。
-    //   将来 akari/koharu の道中実音源が来たら StageBgm() のマップに足すだけにできる。
     public AudioStream BgmStageRei = null!;
 
     // ステージ2（あかり）／ステージ3（こはる）の道中＝ユーザー制作の実音源。
@@ -121,8 +121,9 @@ public partial class Audio : Node
     //   Koharu＝温かい旋律が冷えて減衰する（台所の灯が消えていく／祈りが冷える）。
     //   Rei は戦闘BGMをユーザー制作の実音源（res://audio/bgm_boss_rei.ogg）に差し替え（型を
     //   AudioStream に広げる。BgmMenu/BgmStageRei と同じ作法でロード失敗時は合成へフォールバック）。
-    //   Akari もユーザー制作の実音源（res://BGM/Akari_s_Last_Corridor.mp3, loop=true）に差し替え。
-    //   Koharu もユーザー制作の実音源（res://BGM/The_Leaking_Tap.mp3, loop=true）に差し替え。
+    //   Akari もユーザー制作の実音源（res://audio/bgm_boss_akari.ogg, loop=true）に差し替え。
+    //   Koharu もユーザー制作の実音源（res://audio/bgm_boss_koharu.ogg, loop=true）に差し替え。
+    //   ※3曲とも原曲 mp3（BGM/）直読みから、-3dB・末尾フェードトリム済みの加工 ogg（audio/）へ統一済み。
     public AudioStream BgmBossRei = null!;
     public AudioStream BgmBossAkari = null!;
     public AudioStream BgmBossKoharu = null!;
@@ -998,14 +999,17 @@ public partial class Audio : Node
     }
 
     // ───────── BgmStageRei のロード（レイ道中の実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://BGM/The_Watcher_in_the_Hall.mp3（loop=true で再インポート済み）を読む。
+    //   res://audio/bgm_stage_rei.ogg（原曲 The_Watcher_in_the_Hall 30.8秒＝末尾フェード無しの平坦な持久曲を
+    //   -3dB・頭40ms/尻120ms の極小フェードで他BGMと粒を揃えた ogg。import 設定 loop=true）を読む。
+    //   旧実装は原曲 mp3（res://BGM/）直読みだったが、ピーク0dB＝他曲より約3dB突出していたため
+    //   加工済み ogg（audio/bgm_<役割>.ogg）へ統一した。原曲 mp3 は BGM/ にマスターとして残る（export除外）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BgmStage に戻す（事故防止）。
     private AudioStream LoadBgmStageRei()
     {
-        var s = ResourceLoader.Load<AudioStream>("res://BGM/The_Watcher_in_the_Hall.mp3");
-        if (s is AudioStreamMP3 mp3) { mp3.Loop = true; return mp3; }
-        if (s != null) return s; // 念のため（ogg 等に差し替えても受ける）
-        GD.PushWarning("BgmStageRei: res://BGM/The_Watcher_in_the_Hall.mp3 をロードできず、合成BgmStageにフォールバック");
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_rei.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmStageRei: res://audio/bgm_stage_rei.ogg をロードできず、合成BgmStageにフォールバック");
         return BgmStage;
     }
 
@@ -1048,30 +1052,39 @@ public partial class Audio : Node
     }
 
     // ───────── BgmBossAkari のロード（あかり戦闘の実音源 → 失敗時は合成 BuildBgmBossAkari へフォールバック）─────────
-    //   res://BGM/Akari_s_Last_Corridor.mp3（loop=true で再インポート済み）を読む。BgmStageRei と同じ作法。
-    //   mp3 は import 設定 loop=true で焼いてあるが、念のため AudioStreamMP3.Loop も明示する（Music() は鳴らしっぱなし）。
+    //   res://audio/bgm_boss_akari.ogg（原曲 Akari_s_Last_Corridor 106.1秒の末尾フェードをトリムした
+    //   0..104.5秒・-3dB・頭40ms/尻120ms の極小フェード・loop=true）を読む。BgmStageRei と同じ作法。
+    //   旧実装は原曲 mp3 直読みで、①ピーク0dB＝他曲より約3dB突出 ②末尾約1.6秒のフェードアウトを
+    //   そのままループ＝毎周「無音の谷」が出ていた。トリムで谷を除去（静かな尾章 100..104.5秒は
+    //   静かな導入 0..2秒へ橋渡しする「ループの呼吸」として残す）。原曲 mp3 は BGM/ にマスターとして残る。
+    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossAkari() に戻す（事故防止）。
     private AudioStream LoadBgmBossAkari()
     {
-        var s = ResourceLoader.Load<AudioStream>("res://BGM/Akari_s_Last_Corridor.mp3");
-        if (s is AudioStreamMP3 mp3) { mp3.Loop = true; return mp3; }
-        if (s != null) return s; // 念のため（ogg 等に差し替えても受ける）
-        GD.PushWarning("BgmBossAkari: res://BGM/Akari_s_Last_Corridor.mp3 をロードできず、合成 BuildBgmBossAkari にフォールバック");
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_akari.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmBossAkari: res://audio/bgm_boss_akari.ogg をロードできず、合成 BuildBgmBossAkari にフォールバック");
         return BuildBgmBossAkari();
     }
 
     // ───────── BgmBossKoharu のロード（こはる戦闘の実音源 → 失敗時は合成 BuildBgmBossKoharu へフォールバック）─────────
-    //   res://BGM/The_Leaking_Tap.mp3（loop=true で再インポート済み）を読む。BgmBossAkari と同じ作法。
-    //   mp3 は import 設定 loop=true で焼いてあるが、念のため AudioStreamMP3.Loop も明示する（Music() は鳴らしっぱなし）。
+    //   res://audio/bgm_boss_koharu.ogg（原曲 The_Leaking_Tap 145.9秒の末尾フェードをトリムした
+    //   0..140.5秒・-3dB・頭40ms/尻120ms の極小フェード・loop=true）を読む。BgmBossAkari と同じ作法。
+    //   旧実装は原曲 mp3 直読みで、①ピーク0dB＝他曲より約3dB突出 ②末尾約5.5秒のフェードアウトを
+    //   そのままループ＝毎周長い「無音の谷」が出ていた。トリム位置 140.5秒はフェード開始直後＝
+    //   減衰の入りを 120ms フェードで受け、静かな導入（水滴の 0..3秒）へ自然に橋渡しする。
+    //   原曲 mp3 は BGM/ にマスターとして残る（export除外）。
+    //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossKoharu() に戻す（事故防止）。
     private AudioStream LoadBgmBossKoharu()
     {
-        var s = ResourceLoader.Load<AudioStream>("res://BGM/The_Leaking_Tap.mp3");
-        if (s is AudioStreamMP3 mp3) { mp3.Loop = true; return mp3; }
-        if (s != null) return s; // 念のため（ogg 等に差し替えても受ける）
-        GD.PushWarning("BgmBossKoharu: res://BGM/The_Leaking_Tap.mp3 をロードできず、合成 BuildBgmBossKoharu にフォールバック");
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_koharu.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmBossKoharu: res://audio/bgm_boss_koharu.ogg をロードできず、合成 BuildBgmBossKoharu にフォールバック");
         return BuildBgmBossKoharu();
     }
 

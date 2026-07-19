@@ -228,7 +228,10 @@ public partial class StageRei : Node
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。レイ面は共通 TickerWords。
         // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f);
+        // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
+        // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
+        if (_bossActive && !(IsInstanceValid(_boss) && _boss.AoeGateActive))
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f);
     }
 
     private void Advance()

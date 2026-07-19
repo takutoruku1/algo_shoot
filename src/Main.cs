@@ -70,7 +70,7 @@ public partial class Main : Node2D
         AddChild(Stage);
     }
 
-    private bool _rHeld;
+    private readonly RetryHold _retry = new();
 
     // 世界の色味: 冷たい荒れた世界 → 暖かい浄化された世界
     private CanvasModulate _canvasModulate = null!;
@@ -80,11 +80,17 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
-        // R キーで最初からリスタート
-        bool r = Input.IsKeyPressed(Key.R);
-        if (r && !_rHeld)
+        // ポーズメニュー等を閉じた押下の漏れがこのフレームに誤発火しないよう食う。
+        if (Pad.UiBlocked(this)) return;
+
+        // R 長押し(0.7s)で最初からリスタート（即発は誤爆しやすい週次PT指摘→長押し化。残機0中は即発）。
+        bool gameOver = (Player?.Lives ?? 1) <= 0;
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
+        {
             Restart();
-        _rHeld = r;
+            return;
+        }
+        Hud?.SetRetryHold(_retry.Progress);
 
         // 浄化が進むほど世界を暖色へ（なめらかに追従）
         float target = GetNodeOrNull<GameManager>("/root/Game")?.Warmth ?? 0f;

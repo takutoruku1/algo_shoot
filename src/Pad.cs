@@ -13,30 +13,39 @@ public static class Pad
         return false;
     }
 
-    // 直近に使った入力デバイス。HUDの操作ガイドを KB / パッドで出し分けるためだけに使う。
+    // ───────── UIゲート（オーバーレイの入力食い）─────────
+    // ポーズメニュー等のオーバーレイは、開いている間 毎フレーム ConsumeUi(this) を呼ぶ。
+    // 下の画面は UiBlocked(this) の間、キーを「既押し」扱い（held=true）にして入力を食う。
+    // これで「オーバーレイを閉じた Esc/Z/Start の同じ押下」が下の画面の もどる/決定/リトライ として
+    // 二重処理されない（例：ショップで Esc→Esc がメニューだけでなくショップごと閉じる不具合の修正）。
+    private static object? _uiGateOwner;
+    private static ulong _uiGateFrame;
+    public static void ConsumeUi(object owner) { _uiGateOwner = owner; _uiGateFrame = Engine.GetProcessFrames(); }
+    public static bool UiBlocked(object self) =>
+        _uiGateOwner != null && !ReferenceEquals(_uiGateOwner, self)
+        && Engine.GetProcessFrames() - _uiGateFrame <= 1;
+
+    // 直近に使った入力デバイス。ボタンプロンプト表記を KB / パッドで動的に出し分ける根拠。
     // （パッド表記は Godot の JoyButton 配列＝Xbox 系の A/B/X/Y/LB に一致）。
-    // ※ Display!=Auto のときは「操作表示モード」が固定なので、この自動判定は表記に使わない。
+    // パッドで開始→途中でキーボードへ持ち替え（逆も）ても、PollDevice が毎フレーム追跡して
+    // 表記は「最後に触ったデバイス」へ自動で切り替わる（週次プレイテスト指摘の修正）。
     private static bool _autoUsingPad;
 
-    // ───────── 操作表示モード（ヒント/ボタン表記をどれで固定して見せるか）─────────
-    // タイトル「はじめから」で必ず1度選び、設定でも変更可。入力自体は KB/パッド常に有効で、
-    // これは“見た目（表記）”だけを固定する。Auto のときだけ従来どおり直近デバイスで自動判定。
-    //   Keyboard       … キーボード表記（Z / Shift / …）
-    //   PadPlayStation … PS 表記（〇 × □ △ / L1 R1）
-    //   PadXbox        … Xbox 表記（A B X Y / LB RB）
-    //   Auto           … 直近に使ったデバイスで KB/パッドを出し分け（旧挙動・後方互換の既定）
+    // ───────── 操作表示モード（ボタン表記の初期値とパッド表記スタイル）─────────
+    // タイトル「はじめから」で必ず1度選び、設定でも変更可。入力自体は KB/パッド常に有効。
+    // KB/パッドどちらの表記を出すかは常に「直近に使ったデバイス」へ自動追従し（PollDevice）、
+    // Display は「パッド使用時にどの表記(PS/Xbox)で見せるか」と起動直後の初期表示を決める。
+    //   Keyboard       … 初期表示＝キーボード表記（Z / Shift / …）
+    //   PadPlayStation … 初期表示＝パッド・PS 表記（〇 × □ △ / L1 R1）
+    //   PadXbox        … 初期表示＝パッド・Xbox 表記（A B X Y / LB RB）
+    //   Auto           … 未選択（旧セーブ互換）。パッド表記は旧 padstyle に従う
     public enum DisplayMode { Auto, Keyboard, PadPlayStation, PadXbox }
 
     public static DisplayMode Display { get; set; } = DisplayMode.Auto;
 
-    // 表記がキーボードか（Display で固定／Auto は直近デバイスから）。
-    public static bool ShowKeyboard => Display switch
-    {
-        DisplayMode.Keyboard       => true,
-        DisplayMode.PadPlayStation => false,
-        DisplayMode.PadXbox        => false,
-        _                          => !_autoUsingPad,
-    };
+    // 表記がキーボードか＝直近に使ったデバイスがキーボードか。常に自動追従する
+    // （固定はしない＝ゲームパッドで開始→途中でKBに持ち替えても表記が付いてくる）。
+    public static bool ShowKeyboard => !_autoUsingPad;
 
     // 表記がパッドか（＝!ShowKeyboard）。HUD トークンが使う。
     public static bool UsingPad => !ShowKeyboard;
@@ -76,6 +85,7 @@ public static class Pad
             JoyButton.RightShoulder => ps ? "R1" : "RB",
             JoyButton.RightStick    => ps ? "R3" : "R3",
             JoyButton.Start         => ps ? "OPTIONS" : "MENU", // PS=OPTIONS / Xbox=メニュー(≡)ボタン
+            JoyButton.Back          => ps ? "SHARE" : "VIEW",   // PS=SHARE / Xbox=ビュー(左小)ボタン
             _ => b.ToString(),
         };
     }
@@ -126,6 +136,8 @@ public static class Pad
     public static void SetDisplayAndSave(DisplayMode m)
     {
         Display = m;
+        // 表記の初期デバイスもここから種まき（以降は PollDevice が直近デバイスで上書きし続ける）。
+        _autoUsingPad = m == DisplayMode.PadPlayStation || m == DisplayMode.PadXbox;
         const string path = "user://settings.json";
         var data = new Godot.Collections.Dictionary();
         if (FileAccess.FileExists(path))
@@ -157,9 +169,13 @@ public static class Pad
         // 旧 padstyle（Auto 用のパッド表記）。
         if (data.ContainsKey(SettingKey))
             _autoStyle = data[SettingKey].AsInt32() == 1 ? ButtonStyle.PlayStation : ButtonStyle.Xbox;
-        // 新 inputdisplay（操作表示モード）。あれば固定表示、無ければ Auto のまま。
+        // 新 inputdisplay（操作表示モード）。あれば初期表示の種に、無ければ Auto のまま。
         if (data.ContainsKey(DisplayKey))
+        {
             Display = IntToDisplay(data[DisplayKey].AsInt32());
+            // 起動直後の表記は選択済みモードに合わせる（初回入力からは直近デバイスに自動追従）。
+            _autoUsingPad = Display == DisplayMode.PadPlayStation || Display == DisplayMode.PadXbox;
+        }
     }
 
     private static readonly JoyButton[] HintButtons =
@@ -172,11 +188,12 @@ public static class Pad
     private static readonly Key[] HintKeys =
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
-        Key.Z, Key.X, Key.C, Key.V, Key.Shift, Key.Ctrl,
+        Key.Z, Key.X, Key.C, Key.V, Key.Shift, Key.Ctrl, Key.Alt,
+        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.Tab,
     };
 
     // 毎フレーム呼ぶ：パッド操作があれば _autoUsingPad=true、キー操作があれば false（無操作なら直前を維持）。
-    // Display!=Auto の固定表示中は表記に使わないが、Auto に戻したときのために更新は続ける。
+    // ゲーム中は Player が、メニュー/ハブ/カットシーン等は常駐の PauseMenu が呼ぶ＝全画面で表記が追従する。
     public static void PollDevice()
     {
         foreach (var dev in Input.GetConnectedJoypads())

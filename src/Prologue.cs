@@ -4,7 +4,7 @@ using System.Collections.Generic;
 // Prologue : 新canon プロローグ「起動」。
 // コードレイン（緑モノスペースが上昇／MINAの4行英文を可読限界以下で一瞬フラッシュ）
 // → identity = MINA 表示 → 光の点灯（ミナ）→ 少年×ミナの毒舌初対面 → タイトル。
-// 全編エンジン描画のカットシーン。Zで送り/スキップ、Rで最初から。
+// 全編エンジン描画のカットシーン。Zで送り/スキップ、R/Start 長押しで最初から。
 public partial class Prologue : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -14,6 +14,7 @@ public partial class Prologue : Node2D
     private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
     private bool _zHeld;
     private bool _backHeld;
+    private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
 
     // 受講確認（既プレイ時のみ）：はい→Stage0 / いいえ→Hub。
     private int _askSel; // 0=はい / 1=いいえ
@@ -67,6 +68,9 @@ public partial class Prologue : Node2D
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _diffSel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
+        // 会話ログ（バックログ）は「ゲーム1周ぶん」＝周回の起点であるプロローグで前周の行を消す
+        //（残したままだと新しい周のログに前周の行が混ざって見える）。
+        Hud.ClearBacklog();
 
         // コードレインの行（ブートログ＋それっぽいフィラー）
         string[] boot =
@@ -150,7 +154,9 @@ public partial class Prologue : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start))
+        // R / Start 長押し(0.7s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
+        // カットシーンはポーズメニュー対象外なので Start をここで使える。
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
             GetTree().ReloadCurrentScene();
             return;
@@ -278,6 +284,15 @@ public partial class Prologue : Node2D
             case 3: DrawTalkBackdrop(); DrawTalkSpeakers(); DrawTalk(); break;
             case 4: DrawTitle(); break;
             case 5: DrawTutorialAsk(); break;
+        }
+
+        // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
+        if (_retry.Progress > 0f)
+        {
+            UiKit.BeginDesign(this);
+            Hud.DrawRetryHoldChip(this, _retry.Progress,
+                (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start)) + " 長押しでさいしょから");
+            UiKit.EndDesign(this);
         }
     }
 
@@ -475,21 +490,23 @@ public partial class Prologue : Node2D
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
         bool mina = d.Who == "ミナ";
+        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
+        var lines = UiKit.WrapLines(UiKit.Zen, d.Text, 11, W - 52);
+        float lineH = UiKit.Zen.GetHeight(11);
+        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
         // ボックス
-        DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.82f));
-        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
+        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.82f));
+        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
         // 話者名（滑らかゴシック）
-        DrawString(UiKit.ZenBold, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9,
+        DrawString(UiKit.ZenBold, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, 9,
             mina ? Cool : Warm);
-        // 本文（タイプライターで表示済みの分だけ。折り返しは単語境界優先で自然に）
+        // 本文（タイプライターで表示済みの分だけ、確定済みの行に沿って描画）
         int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-        string body = d.Text.Substring(0, shown);
-        DrawMultilineString(UiKit.Zen, new Vector2(20, H - 30), body, HorizontalAlignment.Left,
-            W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
-            TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(20, boxTop + 26f), W - 52, 11,
+            new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
                 new Color(Cool, 0.8f));
         // 送り三角は「全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
         bool revealed = _reveal >= d.Text.Length;

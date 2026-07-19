@@ -20,6 +20,7 @@ public partial class ShopTutorial : Node2D
         (1, "敵を浄化するたび、Alt で弾を“抜ける”たびに、貯まっておりますのよ。——“浄化した心”、♥の数が、それです。", "res://char/mina_face.png"),
         (0, "よけてるだけでお金が……ぼく、知らないうちに小金持ち？", "res://char/shonen_face.png"),
         (1, "その心を、強化ショップで わたくしに注いでくださいまし。拡散やホーミングの解放、光の出力・連射速度・拡散力——買えば心は減りますが、わたくしは確かに強くなります。", "res://char/mina_face.png"),
+        (1, "それと——系統を奥まで伸ばしてくださると、その型だけの“奥義”が開きますのよ。楽しみになさって。", "res://char/mina_smile.png"),
         (1, "歯が立たない相手なら、無理は禁物。一度ここで強くなって、出直せばよろしいのです。", "res://char/mina_worried.png"),
         (1, "わたくしを、よく研いでおいてくださいね。——では、まいりましょう。", "res://char/mina_smile.png"),
     };
@@ -63,6 +64,9 @@ public partial class ShopTutorial : Node2D
             QueueRedraw();
             return;
         }
+
+        // ポーズメニューを閉じた Z の同じ押下が漏れて会話が1行進まないよう食う（Pad.UiBlocked）。
+        if (Pad.UiBlocked(this)) { _zHeld = true; QueueRedraw(); return; }
 
         // タイプライター（本編HUDと同じ速度。未設定なら48）。
         if (_reveal < len)

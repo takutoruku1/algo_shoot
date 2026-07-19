@@ -72,8 +72,9 @@ public partial class Settings : Node2D
         gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
 
         var ctrl = C("controls", "操作", "Controls");
-        // 操作表示モード：ヒント/ボタン表記を固定（0=キーボード / 1=PlayStation / 2=Xbox。inputdisplay と一致）。
-        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "PlayStation", "Xbox" }, 0, "ヒントの表記を固定"));
+        // 操作表示モード：ヒント/ボタン表記の既定（0=キーボード / 1=PlayStation / 2=Xbox。inputdisplay と一致）。
+        // KB⇔パッドの出し分けは直近デバイスへ自動追従し、ここはパッド時の表記スタイル（PS/Xbox）と初期値を決める。
+        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "PlayStation", "Xbox" }, 0, "パッド時の表記（KB⇔パッドは自動切替）"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
         ctrl.Items.Add(Keys("shot", "ショット", new[] { "Z" }));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));

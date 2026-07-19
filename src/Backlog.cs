@@ -44,7 +44,10 @@ public partial class Backlog : CanvasLayer
     {
         if (_autoplay) { onClose?.Invoke(); return; }
         _open = true;
-        _navHeld = false; _backHeld = false;
+        // 開くのに使ったキー（L/Tab/Back）は閉じキーとも共通なので「押されたまま」として扱う。
+        // false で初期化すると、押しっぱなしの同じキーを翌フレームに閉じエッジとして拾い、
+        // 開いた瞬間に閉じる→また開く…のちらつきになる（週次PT「会話ログが安定しない」の主因）。
+        _navHeld = true; _backHeld = true;
         _onClose = onClose;
         _scroll = 0f; // 0=最新（最下）を表示
         // 直接開いた（=まだ誰もポーズしていない）ときだけ自前でポーズし、閉じる時に自分で解除する。
@@ -58,12 +61,22 @@ public partial class Backlog : CanvasLayer
     private void Close()
     {
         _open = false;
+        _navHeld = true;   // 閉じたキー（L/Tab/Back）が押されたままの間は再オープンさせない
         Audio.Instance?.PlayUiCancel();
-        if (_pausedBySelf) { GetTree().Paused = false; _pausedBySelf = false; }
+        // Esc で閉じたとき、同じ押下を PauseMenu が開閉エッジとして拾わないよう通知（1回ぶん吸収）。
+        GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.NoteOverlayClosed();
+        // 自前ポーズの解除は即時にはやらず _Process 側で「閉じキーが離れてから」行う（_pausedBySelf を保持）。
+        // ここで解除すると、閉じるのに使った X がそのままボム（Player は X の押下で発動）に、
+        // Esc がポーズ開閉に化けるなど、押しっぱなしのキーがゲーム側へ漏れる。
         var cb = _onClose; _onClose = null;
         _canvas.QueueRedraw();
         cb?.Invoke();
     }
+
+    // 開閉に使うキーのどれかが押されているか（自前ポーズの解除待ち判定用）。
+    private static bool AnyToggleKeyHeld()
+        => Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Input.IsKeyPressed(Key.X)
+        || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.Back) || Pad.Pressed(JoyButton.B);
 
     public override void _Process(double delta)
     {
@@ -71,6 +84,14 @@ public partial class Backlog : CanvasLayer
 
         if (!_open)
         {
+            // 自前ポーズの解除待ち：閉じキーが全て離れてから解除する（Close のコメント参照）。
+            if (_pausedBySelf)
+            {
+                // 待機中にポーズメニューが開いたら、ポーズの所有権をそちらへ譲る（二重解除防止）。
+                if (GetNodeOrNull<PauseMenu>("/root/PauseMenu") is { IsOpen: true }) { _pausedBySelf = false; return; }
+                if (!AnyToggleKeyHeld()) { GetTree().Paused = false; _pausedBySelf = false; }
+                return;
+            }
             // プレイ中の専用キー/ボタンで直接開く（ポーズも HowTo も開いていないとき限定）。
             bool pauseOpen = GetNodeOrNull<PauseMenu>("/root/PauseMenu") is { IsOpen: true };
             bool howOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true };
@@ -81,6 +102,10 @@ public partial class Backlog : CanvasLayer
             if (openEdge && !pauseOpen && !howOpen && CanOpenHere() && Hud.Backlog.Count > 0) Open();
             return;
         }
+
+        // 開いている間＝下の画面（ポーズ/ステージ/ハブ）への入力を食う
+        //（閉じた Esc/X の同じ押下が下で二重処理されないための門・Pad.UiBlocked）。
+        Pad.ConsumeUi(this);
 
         // スクロール（↑↓ / 左スティック上下）。上＝過去へ（scroll を増やす）、下＝最新へ。
         float ax = 0f;
@@ -210,10 +235,9 @@ public partial class BacklogCanvas : Node2D
     {
         float speakerH = UiKit.ZenBold.GetHeight(speakerSize);
         float bodyW = w - 8f;
-        // 折り返し行数：DrawMultilineString と同じ語境界折り返しの近似。GetMultilineStringSize で実測。
-        var size = UiKit.Zen.GetMultilineStringSize(line.Text, HorizontalAlignment.Left, bodyW, bodySize,
-            -1, TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-        return speakerH + 4f + size.Y + 2f;
+        // 折り返し行数：描画（UiKit.Multi＝禁則つき WrapLines）と同一ロジックで実測＝高さズレを作らない。
+        int n = UiKit.WrapLines(UiKit.Zen, line.Text, bodySize, bodyW).Count;
+        return speakerH + 4f + n * UiKit.Zen.GetHeight(bodySize) + 2f;
     }
 
     private void DrawBlock(Hud.LogLine line, float x, float y, float w, int speakerSize, int bodySize)

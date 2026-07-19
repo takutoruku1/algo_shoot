@@ -115,12 +115,20 @@
 
 **話者別タイプライター音（既実装）**: 少年=温かい木質(TypBoy 320Hz) / ミナ=澄んだガラス(TypMina 920Hz) / ボス=低くくぐもり(TypBoss 165Hz) / ナレ=無音。`Audio.PlayType(Hud.LineKind)`。
 
-## 8. 未/要対応（残課題）— 2026-07-02 更新
-実音源化の現況（`audio/*.ogg`＝加工済みループ／`BGM/*.mp3`＝原曲）：
-- ✅ メニュー=bgm_menu_mina.ogg / レイ道中=The_Watcher_in_the_Hall.mp3 / レイ戦=bgm_boss_rei.ogg /
-  あかり道中=bgm_stage_akari.ogg / あかり戦=Akari_s_Last_Corridor.mp3 / こはる道中=bgm_stage_koharu.ogg /
-  こはる戦=The_Leaking_Tap.mp3 / ミナ戦=bgm_boss_mina.ogg / **ヒカゲ戦=bgm_boss_hikage.ogg（The_Frozen_Threshold）** /
-  **Final挿入歌=bgm_final_resolve.ogg（Morning_Light_on_Glass, インスト＝主旋律が声。0dB＝BgmMenuと同土俵）**
+## 8. 未/要対応（残課題）— 2026-07-19 更新（BGM棚卸し・配置統一済み）
+**配置規約（2026-07-19 統一）**: 使用する実音源はすべて `audio/bgm_<役割>.ogg`（-3dB・末尾フェードトリム・
+頭40ms/尻120ms 極小フェード・import loop=true）。`BGM/*.mp3` は**原曲マスター置き場**（コードから直読みしない。
+export_presets.cfg の exclude_filter `BGM/*` で配布から一括除外）。
+実音源化の現況：
+- ✅ メニュー=bgm_menu_mina.ogg / レイ道中=**bgm_stage_rei.ogg**（原曲 The_Watcher_in_the_Hall） / レイ戦=bgm_boss_rei.ogg /
+  あかり道中=bgm_stage_akari.ogg / あかり戦=**bgm_boss_akari.ogg**（原曲 Akari_s_Last_Corridor 0..104.5s トリム） /
+  こはる道中=bgm_stage_koharu.ogg / こはる戦=**bgm_boss_koharu.ogg**（原曲 The_Leaking_Tap 0..140.5s トリム） /
+  ミナ戦=bgm_boss_mina.ogg / ヒカゲ戦=bgm_boss_hikage.ogg（The_Frozen_Threshold） /
+  Final挿入歌=bgm_final_resolve.ogg（Morning_Light_on_Glass, インスト＝主旋律が声。0dB＝BgmMenuと同土俵）
+  ※旧: レイ道中/あかり戦/こはる戦は BGM/*.mp3 直読みだった＝ピーク0dB で他曲より約3dB 突出＋
+  あかり戦/こはる戦は末尾フェードごとループして毎周「無音の谷」。2026-07-19 に加工 ogg へ統一して解消。
+- ✅ FINAL 導入の無音：`StageMina._Ready` に `StopMusic(fade:1.2)` を配線（設計コメント「無音に委ねる」の実装。
+  ハブの BgmMenu 持ち越しを止め、BossMina 出現の BgmBossMina 立ち上げまで沈黙）。
 - **合成のまま（実音源スロットに素材が無い）**：①`BgmStage`（汎用道中＝W0チュートリアル "tutorial" のみが使用）
   ②`BgmBoss`（汎用ボス＝Final 冒頭の濁り曲のみが使用。意図的な「濁り切った未完」なので据え置きでも成立）
   ③`Redeem*` 4種（改心ジングル＝合成ベルの設計意図どおり。差し替え不要）

@@ -265,7 +265,8 @@ public partial class GameManager : Node
     // 恒久強化レベル（id → 現在Lv）。未所持は 0。
     private readonly Dictionary<string, int> _upgrades = new();
 
-    // 強化カタログ（§①-4）。表示名/説明は仮。効果は下の各アクセサで定義。
+    // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
+    // スキルツリー化：3幹（連射/拡散/ホーミング）×3段＋共通帯。前提（Prereq）は各幹の段3カプストーンのみ。
     public sealed class UpgradeDef
     {
         public string Id = "";
@@ -274,6 +275,11 @@ public partial class GameManager : Node
         public int MaxLevel;
         public long BaseCost;
         public float CostMul; // 次レベルの価格は BaseCost * CostMul^(現Lv-1)（Lv0→1 は一律100）
+        // ツリー前提（カプストーンのみ設定）。PrereqId 非空なら「PrereqId が PrereqLv 以上」で購入可。
+        // 判定は“次の Lv を買う瞬間”のみ＝前提未達でも所持済み Lv は没収・無効化しない（グランドファーザー規則）。
+        public string PrereqId = "";
+        public int PrereqLv;
+        public bool Capstone; // 段3奥義。Lv0→1 の一律100を適用しない（Lv1=BaseCost・以降 ×CostMul）
     }
 
     public static readonly UpgradeDef[] Upgrades =
@@ -283,7 +289,8 @@ public partial class GameManager : Node
         new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.32f },
         new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.38f },
         new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 550, CostMul = 1.5f },
-        new() { Id = "move_speed",    Name = "機動力",     Desc = "移動速度UP",              MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
+        // move_speed: 「機動力」→「身のこなし」リワーク（IDは不変＝セーブ互換）。移動UPに加え回避のキレ（CD/距離）も伸びる。
+        new() { Id = "move_speed",    Name = "身のこなし", Desc = "移動速度UP＋回避のキレ（CD短縮・距離延長）", MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
         new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
         new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
         new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボム直撃が穢れを深く祓う（無防備の本体ダメージUP）", MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
@@ -291,9 +298,14 @@ public partial class GameManager : Node
         new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP（フォロワーは火力と収入を底上げ）", MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
         new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
-        // contam_resist: 効果最小なのに最大級価格だった是正（650/1.55→300/1.4）＋「やさしさの鈍り下限」緩和を実装（KindnessGainMul）。
-        new() { Id = "contam_resist", Name = "汚染耐性",   Desc = "汚染の上昇を抑え、やさしさの鈍りを緩和", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f },
-        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプションを追加",     MaxLevel = 2, BaseCost = 1000, CostMul = 1.7f },
+        // contam_resist: 「汚染耐性」→「澄んだ心」リワーク（IDは不変＝セーブ互換）。上昇抑制は現行維持＋
+        // やさしさ効率を承認式（×(1+0.06Lv)・上限1.1）で底上げ＝無汚染でも Lv1-2 が確かに効く。
+        new() { Id = "contam_resist", Name = "澄んだ心",   Desc = "汚染の上昇を抑え、やさしさの効率を底上げ", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f },
+        // ── 段3カプストーン（各幹の奥義。前提＝各1条件のみ・一律100の適用除外）──
+        // option_sub: 幽霊商品の実体化＝拡散幹の奥義（追従オプション。威力×0.5でメイン同期射撃）。価格改定 1000/1.7→900/1.6。
+        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプション+1（威力×0.5でメイン同期射撃）", MaxLevel = 2, BaseCost = 900, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true },
+        new() { Id = "shot_pierce",   Name = "貫く光",     Desc = "連射弾が敵をLv体まで貫通する", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true },
+        new() { Id = "counter_light", Name = "返し光",     Desc = "回避よけした弾を追尾光弾に変えて撃ち返す", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true },
     };
 
     public static UpgradeDef? GetUpgradeDef(string id)
@@ -312,15 +324,26 @@ public partial class GameManager : Node
         if (d == null) return -1;
         int lv = GetUpgradeLevel(id);
         if (lv >= d.MaxLevel) return -1;
+        // カプストーン（段3奥義）は一律100の適用除外：Lv1=BaseCost・以降 ×CostMul（例 800/1280）。
+        if (d.Capstone) return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
         if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
         // Lv1→2 は BaseCost そのもの（CostMul^0）。旧式 CostMul^lv だと 100→BaseCost×CostMul の急ジャンプになっていた。
         return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv - 1));
     }
 
+    // ツリー前提を満たしているか。前提を持たないノードは常に true。
+    // 判定は購入時（次のLv）のみ＝前提未達でも所持済みLvは有効のまま（グランドファーザー規則）。
+    public bool IsPrereqMet(string id)
+    {
+        var d = GetUpgradeDef(id);
+        if (d == null || string.IsNullOrEmpty(d.PrereqId)) return true;
+        return GetUpgradeLevel(d.PrereqId) >= d.PrereqLv;
+    }
+
     public bool CanPurchase(string id)
     {
         long c = GetUpgradeCost(id);
-        return c >= 0 && Impression >= c;
+        return c >= 0 && Impression >= c && IsPrereqMet(id);
     }
 
     // 強化を1段購入。成功で true。保存はポーズメニューの手動セーブで行う。
@@ -356,13 +379,22 @@ public partial class GameManager : Node
     public int BombCountBonus => GetUpgradeLevel("bomb_count");
     public float BombPowerMul => 1f + 0.25f * GetUpgradeLevel("bomb_power");
     public int OptionSubCount => GetUpgradeLevel("option_sub");
+    public int ShotPierceCount => GetUpgradeLevel("shot_pierce");     // 連射弾の貫通数（貫く光。0=貫通なし）
+    public int CounterLightLevel => GetUpgradeLevel("counter_light"); // 返し光（回避よけ弾の追尾光弾化）
     public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * GetUpgradeLevel("contam_resist")); // 上昇を緩めるのみ
+    // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.7/0.6/0.5s・距離 64→68/72/76px。
+    // Player.TryDodge が回避開始時に参照する（低速 Focus と同様、i-frame 秒は手触り固定＝触らない）。
+    public float DodgeCooldown => 0.8f - 0.1f * GetUpgradeLevel("move_speed");
+    public float DodgeDistance => 64f + 4f * GetUpgradeLevel("move_speed");
 
     // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
     // 汚染0.00→1.00 / 0.16→0.98 / 0.42→0.89 / 0.72→0.73 / 1.00→0.55。
-    // 汚染耐性(contam_resist)は下限も +0.05/Lv 引き上げる（Lv3で0.70）＝高汚染域での“鈍り”緩和を実装。
-    public float KindnessGainMul =>
-        Mathf.Max(0.55f + 0.05f * GetUpgradeLevel("contam_resist"), 1f - 0.45f * Mathf.Pow(Contamination, 1.6f));
+    // 澄んだ心(contam_resist)の承認式：下限 +0.05/Lv に加え全体を ×(1+0.06Lv)（上限1.1）＝
+    // 無汚染でも Lv1 で×1.06・Lv2 で上限×1.10。Lv3 は高汚染域の底上げ専用（C=1.0 で 0.73→0.83）。
+    public float KindnessGainMul => KindnessGainMulAt(GetUpgradeLevel("contam_resist"));
+    // Lv を引数化した実効値（ショップの「いま→買うと」プレビューが実式で正直に出すために公開）。
+    public float KindnessGainMulAt(int lv) =>
+        Mathf.Min(1.1f, Mathf.Max(0.55f + 0.05f * lv, 1f - 0.45f * Mathf.Pow(Contamination, 1.6f)) * (1f + 0.06f * lv));
 
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
@@ -820,8 +852,9 @@ public partial class GameManager : Node
     // ───────────────────────────────────────────────────────────
     // ゲームオーバー時の「ステージから抜ける（ハブへ戻る）」共通処理。
     // 各 *Root.cs が _Process で残機0を検知したら毎フレーム呼ぶ。
-    //   ・抜けプロンプトを HUD に出し続ける（リトライ＝R/Start は従来どおり別経路で有効）。
-    //   ・Q / パッドBack(Select) で「抜ける」を選んだら、ランで貯めたインプレを AutoSave で
+    //   ・抜けプロンプトを HUD に出し続ける（リトライ＝R は各 *Root.cs の別経路で有効。通常は長押し・
+    //     ゲームオーバー中は即発。パッドはポーズメニューの「さいしょからやりなおす」経由）。
+    //   ・Q / パッドB(×) で「抜ける」を選んだら、ランで貯めたインプレを AutoSave で
     //     確定保存（恒久値なので破棄しない・§0-3）してから Hub へ遷移する。
     // 戻り値 true ＝抜けを実行（呼び元はそれ以降の処理を打ち切ってよい）。
     public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld)
@@ -838,9 +871,13 @@ public partial class GameManager : Node
             return false;
         }
 
-        hud?.ShowGameOverPrompt("R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）");
+        // プロンプトは直近デバイス（Pad.ShowKeyboard）に追従。パッドのリトライはポーズメニュー経由
+        //（Start はメニュー開閉に使うため）、抜けは B（×）＝Back(SELECT/VIEW) は会話ログの開キーと衝突する。
+        hud?.ShowGameOverPrompt(Pad.ShowKeyboard
+            ? "R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）"
+            : $"{Pad.Face(JoyButton.Start)}：メニュー→さいしょからやりなおす　／　{Pad.Face(JoyButton.B)}：ステージから抜ける（ハブへ戻る）");
 
-        bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.Back);
+        bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.B);
         bool fired = exit && !exitHeld;
         exitHeld = exit;
         if (!fired) return false;

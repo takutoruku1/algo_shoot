@@ -26,6 +26,9 @@ public partial class BossRei : Enemy
 
     // 予測攻撃キャスター（通常テレグラフ＋安置リレー「最終選考」の発火に使う）。
     private AreaSpellCaster _caster = null!;
+    // 安置リレー/全画面AOEの宣告〜最終着弾中か。StageRei が投稿弾（言葉弾）の湧きを止めるゲートに参照する
+    //（安置円の中に言葉弾が刺さって「安置なのに被弾」になる理不尽を断つ）。
+    public bool AoeGateActive => _caster != null && _caster.AoeActive;
     // ── 安置リレー「最終選考」（HP26%ワンショット）──
     //   全画面AOEの安置を2〜4回連結し、緑リングを頼りに走り継がせる終盤の山場。
     //   完走判定＝開始/終了時の Player.Lives 比較（被弾してもリレー自体は止まらない）。

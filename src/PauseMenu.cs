@@ -1,7 +1,7 @@
 using Godot;
 
 // PauseMenu : 全画面共通のポーズメニュー（オートロード /root/PauseMenu）。
-//   Esc で開き、ツリーをポーズして「スロット1..3にセーブ / つづける / タイトルへ」を表示する。
+//   Esc で開き、ツリーをポーズして「スロット1..3にセーブ / つづける / さいしょからやりなおす / タイトルへ」等を表示する。
 //   セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない。
 //   ゲームプレイ画面でだけ開く（タイトル/設定/カットシーンは除外＝Esc衝突を避ける）。
 //   ゲームプレイ画面では右下に「Esc メニュー」ヒントを常時表示する。
@@ -18,7 +18,7 @@ public partial class PauseMenu : CanvasLayer
     private bool _autoplay;
 
     // ───────── 行モデル ─────────
-    // 先頭に音量スライダー3行（←→で調整）、続いてアクション5行（Zで決定）。
+    // 先頭に音量スライダー3行（←→で調整）、続いてアクション行（Zで決定）。
     // 設定シーンへ遷移するとステージが消えるため、ポーズ中の音量はここでインライン調整する。
     public static readonly (string Key, string Label)[] VolRows =
     {
@@ -26,8 +26,13 @@ public partial class PauseMenu : CanvasLayer
         ("bgm",    "BGM"),
         ("se",     "効果音 (SE)"),
     };
-    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = 会話ログ / 5 = あそびかた / 6 = タイトルへ
-    public static readonly string[] ItemsJp = { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "会話ログ", "あそびかた", "タイトルへ" };
+    // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = さいしょからやりなおす /
+    //             5 = 会話ログ / 6 = あそびかた / 7 = タイトルへ
+    // 「さいしょからやりなおす」は R 即発リトライの置き換え先（誤爆防止）＝パッドの正式なリトライ導線。
+    public static readonly string[] ItemsJp =
+        { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "さいしょからやりなおす", "会話ログ", "あそびかた", "タイトルへ" };
+    // 描画用：リトライ行のアクション index（ステージ外ではグレーアウトする）。
+    public const int RetryAction = GameManager.SlotCount + 1;
 
     // 行構成：音量3行 → 操作表示1行（←→/Zで切替）→ アクション6行。
     private static int RowCount => VolRows.Length + 1 + ItemsJp.Length;
@@ -83,11 +88,26 @@ public partial class PauseMenu : CanvasLayer
 
     public override void _Process(double delta)
     {
+        // 直近デバイスの追跡（ボタン表記の動的 KB/パッド切替）。ゲーム中は Player も呼ぶが、
+        // メニュー/ハブ/ショップ/カットシーン等の非戦闘画面は常駐のここが担う。
+        Pad.PollDevice();
+
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;
-        // 操作説明・会話ログのオーバーレイが上に開いている間は、ポーズメニュー側の入力を止める（Esc/Z の二重処理を防ぐ）。
-        if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }) { _canvas.QueueRedraw(); return; }
-        if (GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true }) { _canvas.QueueRedraw(); return; }
+        // 操作説明・会話ログのオーバーレイが上に開いている間／閉じた直後フレーム(UiBlocked)は、
+        // ポーズメニュー側の入力を止める（Esc/Z の二重処理でメニューまで連鎖して閉じるのを防ぐ）。
+        // held は「既押し」扱いにして、同じ押下がエッジとして立たないよう食っておく。
+        bool overlayOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
+                        || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true };
+        if (overlayOpen || Pad.UiBlocked(this))
+        {
+            _escHeld = _zHeld = _navHeld = _lrHeld = true;
+            _canvas.QueueRedraw();
+            return;
+        }
+        // 開いている間は下の画面（ショップ/ハブ/ステージ等）への入力を食う
+        // ＝「閉じる Esc/Start/Z」の同じ押下が、下の画面の もどる/決定 として二重処理されない。
+        if (_open) Pad.ConsumeUi(this);
 
         // Esc（キーボード）／Start（パッド）どちらでも開閉できる。
         bool esc = Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.Start);
@@ -133,7 +153,12 @@ public partial class PauseMenu : CanvasLayer
             Audio.Instance?.PlayUiConfirm();
         }
         else if (zEdge && IsDisplayRow(_sel)) CycleDisplay(1); // Z でも前へ循環
-        else if (zEdge) { Audio.Instance?.PlayUiConfirm(); Choose(ActionIndex(_sel)); }
+        else if (zEdge)
+        {
+            // 選べない行（ステージ外の「さいしょからやりなおす」）は拒否音で応える。
+            if (Choose(ActionIndex(_sel))) Audio.Instance?.PlayUiConfirm();
+            else Audio.Instance?.PlayUiDeny();
+        }
         else if (escEdge) { Audio.Instance?.PlayUiCancel(); Close(); } // Esc でも閉じる（＝つづける）
 
         _canvas.QueueRedraw();
@@ -146,6 +171,7 @@ public partial class PauseMenu : CanvasLayer
         _navHeld = false; _lrHeld = false; _zHeld = false;
         for (int i = 0; i < VolRows.Length; i++) _vol[i] = AudioConfig.Get(VolRows[i].Key); // 保存値を読む
         GetTree().Paused = true;
+        Pad.ConsumeUi(this); // 開いたフレームから下の画面への入力を食う
         _canvas.QueueRedraw();
     }
 
@@ -156,7 +182,8 @@ public partial class PauseMenu : CanvasLayer
         _canvas.QueueRedraw();
     }
 
-    private void Choose(int action)
+    // 戻り値：実行できたか（false＝選べない行を押した→呼び元が拒否音を鳴らす）。
+    private bool Choose(int action)
     {
         if (action < GameManager.SlotCount)
         {
@@ -164,18 +191,47 @@ public partial class PauseMenu : CanvasLayer
             _savedSlot = action + 1; _savedToast = 1.8;
         }
         else if (action == GameManager.SlotCount) Close();           // つづける
-        else if (action == GameManager.SlotCount + 1)
+        else if (action == RetryAction)
+        {
+            // さいしょからやりなおす：ステージ中のみ。R 即発リトライの置き換え先（誤爆防止）で、
+            // パッド（Start=このメニュー）からの正式なリトライ導線でもある。
+            if (!RetryEnabled) return false;
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Close();
+            GetTree().ReloadCurrentScene();
+        }
+        else if (action == GameManager.SlotCount + 2)
         {
             // 会話ログ：ポーズを保ったままバックログ・オーバーレイを重ねる（閉じたらポーズへ戻る）。
             GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
         }
-        else if (action == GameManager.SlotCount + 2)
+        else if (action == GameManager.SlotCount + 3)
         {
             // あそびかた：ポーズを保ったまま操作説明オーバーレイを重ねる（閉じたらポーズへ戻る）。
             GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
         }
         else { _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); } // タイトルへ（離脱時オートセーブ）
+        return true;
     }
+
+    // 「さいしょからやりなおす」が意味を持つ画面か＝ステージ系のみ。
+    // Hub/ショップ/難易度選択/記録ではシーン再読込に意味がないためグレーアウトする。
+    public bool RetryEnabled
+    {
+        get
+        {
+            string path = GetTree().CurrentScene?.SceneFilePath ?? "";
+            if (string.IsNullOrEmpty(path) || !CanOpenHere()) return false;
+            return !(path.Contains("Hub") || path.Contains("Shop")
+                  || path.Contains("DiffSelect") || path.Contains("Records"));
+        }
+    }
+
+    // 上に重なるオーバーレイ（会話ログ/操作説明）が Esc で閉じた直後、その同じ押下を
+    // こちらの開閉エッジとして拾わないための通知。押しっぱなし扱いにして1回ぶん吸収する
+    //（オーバーレイ表示中は上の早期 return で _escHeld が更新されないため、放置すると
+    //   閉じた次のフレームに Esc エッジが立ち、ポーズが勝手に開く/閉じる）。
+    public void NoteOverlayClosed() => _escHeld = true;
 
     public bool IsOpen => _open;
     public int Sel => _sel;
@@ -206,7 +262,7 @@ public partial class PauseCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
         int nVol = PauseMenu.VolRows.Length;
-        float w = 460, h = 648, x = (W - w) / 2f, y = (H - h) / 2f;
+        float w = 460, h = 688, x = (W - w) / 2f, y = (H - h) / 2f; // h はアクション8行（やりなおす追加）ぶん
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", 13, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
@@ -265,14 +321,21 @@ public partial class PauseCanvas : Node2D
                 UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 36), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", 16, UiKit.Purify);
             }
+            // 「さいしょからやりなおす」はステージ外では選べない＝グレーアウト＋理由を右に出す。
+            bool retryDim = i == PauseMenu.RetryAction && !Menu.RetryEnabled;
             UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.ItemsJp[i], 17,
-                on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
+                retryDim ? UiKit.Text4 : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)));
             // セーブスロット行は状態（空き/保存済み）を右に出す
             if (i < GameManager.SlotCount)
             {
                 bool filled = Menu.SlotFilled(i + 1);
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 11), filled ? "保存済み" : "空き", 11,
                     filled ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 108);
+            }
+            else if (retryDim)
+            {
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, ry + 11), "ステージ中のみ", 11,
+                    UiKit.Text4, HorizontalAlignment.Right, 136);
             }
         }
 

@@ -41,6 +41,10 @@ public partial class Hud : CanvasLayer
     // *Root.cs が残機0を検知して ShowGameOverPrompt で立て、抜けキー受付中だけ表示する。
     private string _gameOverPrompt = "";
 
+    // R 長押しリトライの充填率（0=非表示）。各 *Root.cs が毎フレーム SetRetryHold で渡す
+    //（即発リトライは誤爆しやすい週次PT指摘→長押し化。押した瞬間からチップで進捗を見せる）。
+    private float _retryHold;
+
     // スペル宣言（Xツイート風オーバーレイ：Refrain Danmaku v3 spellOverlay）
     private string _spellName = "";
     private string _spellWho = "";
@@ -496,6 +500,9 @@ public partial class Hud : CanvasLayer
     // ゲームオーバー中の追加プロンプト（バナー直下）。空文字でクリア。*Root.cs が毎フレーム立てる。
     public void ShowGameOverPrompt(string text) { _gameOverPrompt = text; }
 
+    // R 長押しリトライの充填率（0..1）。*Root.cs が毎フレーム渡す（0 で非表示）。
+    public void SetRetryHold(float frac) { _retryHold = Mathf.Clamp(frac, 0f, 1f); }
+
     // クリアリザルト用バナー：見出し＋ TIME 行（＋自己ベスト更新なら NEW BEST! / でなければ旧ベスト併記）。
     //   seconds=今回タイム、isBest=自己ベスト更新か、prevBest=更新前のベスト（初回 null）。
     public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest)
@@ -644,6 +651,7 @@ public partial class Hud : CanvasLayer
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
+        if (_retryHold > 0f) DrawRetryHoldChip(ci, _retryHold, "R 長押しでリトライ");
         // 被弾エッジ
         if (_hurtEdge > 0)
             UiKit.Box(ci, new Rect2(8, 8, 1280 - 16, 720 - 16), null, 18f, new Color(0.9f, 0.16f, 0.16f, 0.5f * (float)(_hurtEdge / 0.9)), 14f);
@@ -1431,6 +1439,22 @@ public partial class Hud : CanvasLayer
         const string t = "▶▶";
         float tw = UiKit.TextW(UiKit.ZenBold, t, 14);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(rightTop.X - tw, rightTop.Y), t, 14, new Color(UiKit.Info, 0.75f));
+    }
+
+    // R 長押しリトライの進捗チップ（下部中央・設計座標）。長押し中だけ出て、離すと消える
+    // ＝「押した瞬間に何が起きるか」を見せつつキャンセルの余地を残す（誤爆防止の長押し化とセット）。
+    // カットシーン（Prologue/Final/Epilogue）の独自レンダラからも呼べるよう static。
+    public static void DrawRetryHoldChip(CanvasItem ci, float frac, string label)
+    {
+        float tw = UiKit.TextW(UiKit.ZenBold, label, 14);
+        const float barW = 90f, gap = 12f, h = 34f;
+        float w = 18f + tw + gap + barW + 18f;
+        float x = (UiKit.DesignW - w) / 2f, y = 600f;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.92f), 10f, new Color(UiKit.Info, 0.55f), 1.2f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18f, y + 8f), label, 14, UiKit.Text2);
+        float bx = x + 18f + tw + gap, by = y + h / 2f - 3f;
+        ci.DrawRect(new Rect2(bx, by, barW, 6f), new Color(1, 1, 1, 0.14f));
+        ci.DrawRect(new Rect2(bx, by, barW * Mathf.Clamp(frac, 0f, 1f), 6f), UiKit.Info);
     }
 
     // 会話本文の行間（leading・px）。フォント既定より少し開けて読みやすく。

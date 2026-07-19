@@ -54,8 +54,8 @@ public partial class BossMina : Enemy
     private static readonly (int who, string text, string face)[] Lines =
     {
         (0, "ミナ! ……ぼくだ。迎えに来た。", "res://char/shonen_gentle.png"),
-        (1, "……ご主人、様? だめ……来ないで……わたくしに、近づいては……穢れて、しまいます……", ""),
-        (0, "ぼくはずっと、自分が行くのが怖かった。お前に光を握らせて、後ろにいた。", "res://char/shonen_gentle.png"), // ミナの「来ないで」には答えない＝自分の告白を続ける（既定応答感）
+        (1, "……ご主人、様? だめ……来ないで……わたくしに、近づいては……穢れて、しまいます……", "res://char/mina_worried.png"), // 動揺・拒絶＝worried（表情マトリクス指定行）
+        (0, "ぼくはずっと、自分が行くのが怖かった。お前に光を握らせて、後ろにいた。", "res://char/shonen_afraid.png"), // 臆病の告白＝afraid（優しさ顔での代用をやめる。表情と物語の一致）。ミナの「来ないで」には答えない＝自分の告白を続ける（既定応答感）
         (0, "……でも、お前を一人にする方が、もっと怖い。——今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"), // StageMina Intro:39 と同語＝録音の反復（兆候）
     };
 
@@ -74,7 +74,9 @@ public partial class BossMina : Enemy
         BarCount = DiffBars(finalBoss: true);
 
         PreTexPath = "res://char/enemy_mina_pre.png";
-        CryTexPath = "res://char/enemy_mina_post.png";
+        // 改心の三段：穢れ(pre)→泣き(cry＝穢れ半剥がれ・決壊の涙)→清浄(post)。
+        // cry は邂逅の会話尺いっぱい保持し、EndCryNow で post（本来の姿）へ着地（他ボスと同作法）。
+        CryTexPath = "res://char/enemy_mina_cry.png";
         PostTexPath = "res://char/enemy_mina_post.png";
         BodyDisplayH = 60f;
         CryHoldDur = 9999.0;
@@ -284,7 +286,8 @@ public partial class BossMina : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        string portrait = kind == Hud.LineKind.Boy ? face : "res://char/mina_face.png";
+        string portrait = kind == Hud.LineKind.Boy ? face
+            : string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face; // ミナも行ごと差し替え可（他ステージと同方式）
         hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }
 

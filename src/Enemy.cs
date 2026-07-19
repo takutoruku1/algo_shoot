@@ -81,6 +81,12 @@ public partial class Enemy : Area2D
     private bool _becameFollower; // この本人がフォロワーに化けた＝退場（左流れ）をスキップして二重表示を防ぐ
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
+    // 浄化後の退場：旧仕様（-30px/s で画面外まで歩く）は最大10秒超も“撃っても当たらない敵”が見え続けて
+    // 誤認源だった（QA発見）。速めに歩かせ、余韻の後にフェードアウトで「もう敵ではない」を視覚的に明示する。
+    private const float PurifiedExitSpeed = 90f;   // 退場の歩き速度（旧30）
+    private const double PurifiedExitHold = 0.6;   // 改心の余韻＝不透明のまま歩く秒数（笑顔を見せる間）
+    private const double PurifiedExitFade = 0.9;   // その後この秒数で透明化して消える
+    private double _purifiedExitT;
     private bool _flashing;
     private double _flashT;
     private const double FlashDur = 0.5;
@@ -418,7 +424,9 @@ public partial class Enemy : Area2D
         if (_phase != BossPhase.Exposed || _purified) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
-            GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+            // 貫く光（shot_pierce）：残貫通数のある弾は消えずに突き抜ける（ダメージ処理はそのまま通す）。
+            if (b.Pierce > 0) b.Pierce--;
+            else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             OnPlayerDealtDamage(); // 「攻めている」の通知（キャップ/CD で削れないヒットも攻めは攻め）
 
             // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
@@ -841,9 +849,13 @@ public partial class Enemy : Area2D
             // フォロワー化した本人は、その場に湧いた Follower が見た目を引き継ぐので本体は即退場
             //（救った娘が去りつつ別の娘がくっつく“二重表示”を防ぐ＝救った本人がそのまま付くように見える）。
             if (_becameFollower) { QueueFree(); return; }
-            // それ以外：笑顔の味方コメントとしてゆっくり左へ流れて退場。
-            GlobalPosition += new Vector2(-30f * (float)delta, 0f);
-            if (GlobalPosition.X < -24f) QueueFree();
+            // それ以外：笑顔の味方コメントとして左へ歩いて退場。余韻（Hold）で笑顔を見せてからフェードアウト＝
+            // 衝突無効の“亡霊”が撃てる敵に見え続けないよう、透明化で「もう敵ではない」を示す。
+            _purifiedExitT += delta;
+            GlobalPosition += new Vector2(-PurifiedExitSpeed * (float)delta, 0f);
+            float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - PurifiedExitHold) / PurifiedExitFade), 0f, 1f);
+            Modulate = new Color(Modulate.R, Modulate.G, Modulate.B, exitA);
+            if (exitA <= 0f || GlobalPosition.X < -24f) QueueFree();
             return;
         }
 

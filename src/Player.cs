@@ -47,6 +47,11 @@ public partial class Player : Area2D
         new Vector2(-26, -5), new Vector2(-26, 5),
     };
 
+    // 拡散サブ（option_sub）＝追従オプション。上下の定位置に光球として浮かび、メイン射撃に同期して撃つ。
+    // フォロワー（被弾で離れる）と違い恒久強化＝ラン中ずっと付く。スロットはフォロワー位置と重ならない上下寄り。
+    private int _optionCount = 0;               // _Ready で GameManager.OptionSubCount を確定（ラン中不変）
+    private static readonly Vector2[] OptionSlots = { new Vector2(-4, -14), new Vector2(-4, 14) };
+
     // ヒカゲを仲間に。フォロワーが満員(4)なら1体をヒカゲに強化、空きがあれば強化フォロワーとして追加。
     public void AddHikageFollower(Vector2 globalFromPos)
     {
@@ -142,6 +147,20 @@ public partial class Player : Area2D
     private const float BobSpeed = 3.2f; // 角速度(rad/s) 約2秒周期
     private const float BobAmp = 2.0f;   // 揺れ幅(px)
 
+    // ───────── 体のリアクション（被弾のけぞり／発射反動／ボム解放）─────────
+    // すべて _sprite の Transform のみ＝当たり判定・操作・テンポには一切影響しない（yoshida §7「自機が痛がる」）。
+    // 被弾のけぞり：撃たれた瞬間に左（射撃と逆）へ倒れて潰れ、スッと復帰する（点滅と併走して「痛がった」を返す）。
+    private float _hitReact = 0f;
+    private const float HitReactDur = 0.42f;  // のけぞり→復帰の全長(s)。無敵点滅(1.2s)より短く尾を引かせない
+    // 発射反動：Fire のたび 1 になり高速減衰。連射のリズムが体に出る小さなキックバック。
+    private float _recoil = 0f;
+    private const float RecoilPx = 1.6f;      // 最大後退量(px)。表示高36pxに対し約4%＝視認性を侵さない控えめ
+    private const float RecoilDecay = 14f;    // 減衰(1/s)。FireInterval(0.13s)で約0.16まで抜ける＝脈打つ程度
+    // ボム解放：発動と同フレームで伸び上がる（stretch＋浮き）。魔法陣・フラッシュと同拍＝「放った」を体で示す。
+    // 予備動作は置かない（入力への即応を遅らせない＝sakurai）。余韻だけ残して静かに着地する。
+    private float _bombCast = 0f;
+    private const float BombCastDur = 0.5f;
+
     // 移動バンク（進行方向へ体を傾け＋わずかに先行。見た目=_spriteのみ／当たり判定は不動）。
     // _lean を入力方向へ指数補間して慣性を持たせる＝予備動作（タメ）と余韻（揺り戻し）が自動で出る。
     // ★#4 左右の向き差分の結論：FlipH（左右反転）は不採用。ミナ機は非対称デザイン
@@ -161,8 +180,8 @@ public partial class Player : Area2D
     // 値は控えめ＝乱用させず、ここぞの一回が気持ちいい範囲に置く（tunable）。
     private const float DodgeIFrame   = 0.45f;  // 無敵時間（この主旨どおり回避中は被弾しない）
     private const float DodgeDuration = 0.55f;  // 回避モーション全体の長さ（変位＋余韻）。ゆっくり見せる
-    private const float DodgeDistance = 64f;    // ダッシュ総変位(px)
-    private const float DodgeCooldown = 0.8f;   // 再回避までのクールダウン
+    private const float DodgeDistance = 64f;    // ダッシュ総変位(px)の基準値。実値は身のこなし強化で伸びる（GameManager.DodgeDistance）
+    private const float DodgeCooldown = 0.8f;   // 再回避までのクールダウン基準値。実値は身のこなし強化で縮む（GameManager.DodgeCooldown）
     private const float DodgeAntic    = 0.05f;  // アンティシペーション（一瞬の逆タメ）秒
     private const int   DodgeSpins    = 3;      // 回避中に回す回転数（縦軸ピルエット＝トリプルアクセル感の3）。tunable。
     private const float DodgeLift     = 8f;     // ジャンプスピンの軽い浮き(px・上方向)。やり過ぎない。
@@ -177,6 +196,7 @@ public partial class Player : Area2D
     private Vector2 _dodgeDir = Vector2.Zero;   // 回避の進行方向（正規化）。その場回避では Zero＝変位なし。
     private bool _dodgeInPlace = false;         // 方向入力なしの回避＝その場でスピンのみ（ダッシュ変位ゼロ）。
     private Vector2 _dodgeFrom = Vector2.Zero;  // 回避開始位置
+    private float _dodgeDist = DodgeDistance;   // 今回の回避のダッシュ総変位（身のこなし強化込み。TryDodge で確定）
     private float _dodgeTrailAccum = 0f;        // 残像スポーン用タイマ
     private bool _dodgeFlip = false;            // 回避中のスプライト左右反転（スピンの8ステップで真横以降のフレームを FlipH 流用するために使う）
 
@@ -188,6 +208,9 @@ public partial class Player : Area2D
     private float _baseScaleX = 1f;             // 素の横スケール（高さ正規化値）。フレーム差し替えのたびにこの基準で再計算する。
     private int _dodgeGrazeCount = 0;           // 今回の回避でよけた弾数（farming防止のCap判定用）。TryDodge でリセット。
     private const int DodgeGrazeCap = 12;       // 1回の回避で報酬対象にする弾数の上限（壁に突っ込んで無限に稼げないように）
+    // 返し光（counter_light）：回避よけした敵弾を追尾光弾へ変換する。Lv1=2発に1発（上限6/回避）、Lv2=全弾（上限12=DodgeGrazeCap）。
+    private int _counterParity = 0;             // Lv1 の間引き用（奇数番目だけ変換）。TryDodge でリセット。
+    private int _counterCount = 0;              // 今回の回避で変換した弾数（上限判定用）。TryDodge でリセット。
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
     private Texture2D _idleTex = null!;
 
@@ -228,6 +251,9 @@ public partial class Player : Area2D
 
         // 回避域強化で当たり判定を縮小。
         _hitR = HitRadius * (_game?.HitRadiusMul ?? 1f);
+
+        // 拡散サブ（追従オプション）の基数を確定（恒久強化＝ラン中は不変）。
+        _optionCount = Mathf.Clamp(_game?.OptionSubCount ?? 0, 0, OptionSlots.Length);
 
         // 衝突レイヤー: layer=1, mask=12（敵=4, 敵弾=8）
         CollisionLayer = 1;
@@ -349,8 +375,9 @@ public partial class Player : Area2D
         // 低速＝Shift / 肩ボタン(L1・R1)
         bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
         _focus = focus;
-        // 機動力強化で移動速度UP。
-        float speed = (focus ? FocusSpeed : NormalSpeed) * (_game?.MoveSpeedMul ?? 1f);
+        // 機動力強化で移動速度UP。低速（Focus）には乗せない：精密回避の速度は“調整済みの手触り”で、
+        // 強化が乗ると細かい避けがかえって難しくなる（強化の逆効果）ため、通常速度だけを伸ばす。
+        float speed = focus ? FocusSpeed : NormalSpeed * (_game?.MoveSpeedMul ?? 1f);
 
         // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
@@ -371,11 +398,11 @@ public partial class Player : Area2D
             float anticK = DodgeAntic / DodgeDuration;
             float disp;
             if (t < anticK)
-                disp = -DodgeDistance * 0.12f * (t / anticK);            // 逆タメ
+                disp = -_dodgeDist * 0.12f * (t / anticK);               // 逆タメ
             else
             {
                 float u = (t - anticK) / (1f - anticK);                  // 0→1
-                disp = DodgeDistance * (1f - (1f - u) * (1f - u));       // ease-out quad（フォロースルー）
+                disp = _dodgeDist * (1f - (1f - u) * (1f - u));          // ease-out quad（フォロースルー）
             }
             pos = _dodgeFrom + _dodgeDir * disp;
             // 残像トレイル（一定間隔で薄い分身を置く。テクスチャはキャッシュ済み＝Load しない）。
@@ -437,7 +464,14 @@ public partial class Player : Area2D
         {
             Fire();
             // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。ホーミングは強すぎるので間隔を広げる（×1.7）。
-            float modeMul = (_game?.SelectedShotMode == GameManager.ShotMode.Homing) ? 1.7f : 1f;
+            // 拡散は威力×0.65が下限1の丸め（基礎威力1×0.65→round=1）で実質無効＝面制圧タダ乗りだったため、
+            // 発射間隔税×1.35で対価を取る（ショップのスペック表記と同期）。
+            float modeMul = _game?.SelectedShotMode switch
+            {
+                GameManager.ShotMode.Homing => 1.7f,
+                GameManager.ShotMode.Spread => 1.35f,
+                _ => 1f,
+            };
             _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 
@@ -493,6 +527,11 @@ public partial class Player : Area2D
         if (_grazeFlash > 0f)
             _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
 
+        // 体のリアクション各種の減衰（被弾のけぞり／発射反動／ボム解放）。
+        if (_hitReact > 0f) _hitReact = Mathf.Max(0f, _hitReact - dt);
+        if (_recoil > 0f) _recoil = Mathf.Max(0f, _recoil - RecoilDecay * dt);
+        if (_bombCast > 0f) _bombCast = Mathf.Max(0f, _bombCast - dt);
+
         // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
 
@@ -541,6 +580,30 @@ public partial class Player : Area2D
                 _sprite.Rotation += Mathf.DegToRad(5f) * k;          // 右前へわずかに傾く
                 _sprite.Position += new Vector2(LeadPx * 1.2f * k, 0f); // 右へ先行
             }
+            // ── 体のリアクション（被弾のけぞり／発射反動／ボム解放）。回避中はスピンが姿勢を握るので触らない ──
+            // スケールはここで毎フレーム確定する（リアクション無し＝素値）＝復帰の状態管理を持たない。
+            if (_dodgeTimer <= 0f)
+            {
+                // 発射反動：銃口(右)と逆へ小さくキックバック。連射のリズムが体に乗る。
+                _sprite.Position += new Vector2(-RecoilPx * _recoil, 0f);
+                Vector2 scl = new Vector2(_baseScaleX, _baseScaleX);
+                if (_hitReact > 0f)
+                {
+                    // のけぞり：残量^2＝直後に最大→スッと復帰（余韻）。左へ倒れ・沈み・潰れる squash。
+                    float e = _hitReact / HitReactDur; e *= e;
+                    _sprite.Position += new Vector2(-5f * e, 1.5f * e);
+                    _sprite.Rotation += -0.32f * e; // 後ろ（反時計回り）へのけぞる
+                    scl = new Vector2(_baseScaleX * (1f + 0.10f * e), _baseScaleX * (1f - 0.16f * e));
+                }
+                else if (_bombCast > 0f)
+                {
+                    // ボム解放：発動フレームで最大の伸び上がり（stretch＋浮き）→ 減衰で静かに降りる（余韻）。
+                    float e = _bombCast / BombCastDur; e *= e;
+                    _sprite.Position += new Vector2(0f, -5f * e);
+                    scl = new Vector2(_baseScaleX * (1f - 0.08f * e), _baseScaleX * (1f + 0.14f * e));
+                }
+                _sprite.Scale = scl;
+            }
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
             // 全開中は汚染を上書きして金色に発光＝「やさしさ全開」を体で示す（脈動）。
             if (_overload)
@@ -562,8 +625,18 @@ public partial class Player : Area2D
                 float spinEase = k < anticK ? 0f : 1f - (1f - (k - anticK) / (1f - anticK)) * (1f - (k - anticK) / (1f - anticK));
                 // 位相 θ：0→2π*DodgeSpins。終端で spinEase=1 → 周回数ちょうど → 正面(00)に着地する。
                 float theta = Mathf.Tau * DodgeSpins * spinEase;
-                if (_spinReady) ApplySpinFrame(theta);
-                _sprite.Rotation = 0f; // 直立を保つ＝側転(Z回転)はしない。通常バンクも回避中は無効化。
+                if (_spinReady)
+                {
+                    ApplySpinFrame(theta);
+                    _sprite.Rotation = 0f; // 直立を保つ＝側転(Z回転)はしない。通常バンクも回避中は無効化。
+                }
+                else
+                {
+                    // スピン差分の無いスキン（少年＝FINAL自機など）：一回転の側転ロールで「回避した」を体で示す。
+                    // フレームアニメ組(ミナ)は上の全周スピンが受け持つ＝二重には回さない。変位と同カーブ＝
+                    // 回り出し速く・終端で減速し、spinEase=1 でちょうど一周＝直立に着地（EndDodge の 0 リセットと整合）。
+                    _sprite.Rotation = _dodgeSpinSign * Mathf.Tau * spinEase;
+                }
                 // ジャンプスピンの軽い浮き＋進行方向への先行（やり過ぎない）。
                 _sprite.Position += _dodgeDir * (3f * Mathf.Sin(k * Mathf.Pi)) - new Vector2(0f, DodgeLift * Mathf.Sin(k * Mathf.Pi));
                 // 回避無敵を発光＋点滅で可視化（i-frame 終了で通常へ）。
@@ -603,24 +676,36 @@ public partial class Player : Area2D
             foreach (var f in _followers)
                 f.Fire();
 
-        // マズルフラッシュ＋発射音（画と同フレーム）
+        // 拡散サブ（option_sub・拡散幹の奥義）：上下の追従オプションがメインと毎ショット同期で
+        // 威力×0.5（下限1）の光弾を撃つ。全モード共通＝面の継続火力を底上げする。
+        for (int i = 0; i < _optionCount && i < OptionSlots.Length; i++)
+        {
+            Vector2 op = GlobalPosition + OptionSlots[i];
+            _pool.Spawn(op + new Vector2(8f, 0f), new Vector2(340f, 0f), isEnemy: false, 2.6f,
+                Mathf.Max(1, Mathf.RoundToInt(dmg * 0.5f)));
+        }
+
+        // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
         FxLayer.Instance?.Muzzle(muzzle);
         Audio.Instance?.PlayShot(_overload);
+        _recoil = 1f;
     }
 
     // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
+    // 貫く光（shot_pierce・連射幹の奥義）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 vel = new Vector2(360f, 0f);
+        int pierce = _game?.ShotPierceCount ?? 0;
         int lines = Mathf.Clamp(2 + (_game?.ShotDamageBonus ?? 0) / 2, 2, 4);
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
                                   : new[] { -10f, -4f, 4f, 10f };
         foreach (float dy in offs)
-            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, dmg);
+            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, dmg).Pierce = pierce;
     }
 
-    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×0.65（下限1）＝面制圧（弱体化：DPSを下げ角を広げる）。
+    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×0.65（下限1）＋発射間隔×1.35（_PhysicsProcess 側）＝面制圧の対価。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
@@ -662,9 +747,13 @@ public partial class Player : Area2D
         _dodgeFrom = GlobalPosition;
         _dodgeTimer = DodgeDuration;
         _dodgeInv = DodgeIFrame;
-        _dodgeCd = DodgeCooldown;
+        // 身のこなし強化で CD 短縮・距離延長（i-frame は手触り固定）。GameManager 不在時は基準値。
+        _dodgeCd = _game?.DodgeCooldown ?? DodgeCooldown;
+        _dodgeDist = _game?.DodgeDistance ?? DodgeDistance;
         DodgeCount++;         // 実行回数を加算（チュートリアルの回避検出用。報酬や挙動には無関係）
         _dodgeGrazeCount = 0; // 回避ごとに報酬カウンタをリセット（Cap=DodgeGrazeCap までが高報酬対象）
+        _counterParity = 0;   // 返し光（counter_light）の間引き・上限も回避ごとにリセット
+        _counterCount = 0;
         _dodgeTrailAccum = 0f;
         _dodgeFlip = false; // 開始は正面フレーム（00・FlipHなし）。ApplySpinFrame が毎フレーム更新する。
         // スピンの回り始めの向き：右/下回避=正、左/上回避=負。横成分があればそちらを優先。
@@ -839,6 +928,25 @@ public partial class Player : Area2D
                 long imp = game.AddDodgeGraze();
                 // 回避よけのフィードバックは通常グレイズと差別化＝自機位置に金色「+N」（N=稼いだインプレ）。
                 FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -16), "+" + imp, FxLayer.Gold, 12);
+
+                // 返し光（counter_light・ホーミング幹の奥義）：回避よけした弾そのものを追尾光弾へ変換して撃ち返す。
+                // Lv1=2発に1発・上限6/回避、Lv2=全弾・上限12(=DodgeGrazeCap)。報酬(AddDodgeGraze)はそのまま＝攻めの上乗せ。
+                int clv = game.CounterLightLevel;
+                if (clv > 0)
+                {
+                    _counterParity++;
+                    int cap = clv >= 2 ? DodgeGrazeCap : DodgeGrazeCap / 2;
+                    if (_counterCount < cap && (clv >= 2 || (_counterParity & 1) == 1))
+                    {
+                        _counterCount++;
+                        Vector2 at = b.GlobalPosition;
+                        // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
+                        int cdmg = Mathf.Max(1, Mathf.RoundToInt((1 + (game.ShotDamageBonus)) * game.FollowerPowerMul * 0.7f));
+                        _pool?.Despawn(b);
+                        _pool?.Spawn(at, new Vector2(200f, 0f), isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
+                        FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
+                    }
+                }
             }
             else
             {
@@ -860,11 +968,12 @@ public partial class Player : Area2D
 
         BombCount++; // 発動成功＝累計を加算（練習モードの発動検出用。残数では見れないため）
 
-        // ボム演出（魔法陣＋光の波）＋画面効果
+        // ボム演出（魔法陣＋光の波）＋画面効果＋体の解放モーション（伸び上がり＝同フレーム）
         FxLayer.Instance?.Bomb(GlobalPosition);
         Audio.Instance?.PlayBomb(); // ③溜め→開放の二段。破壊でなく「鎮める／光が満ちる」
         GameCamera.Instance?.Shake(4.5f, 0.15f);
         GameCamera.Instance?.Hitstop(0.05);
+        _bombCast = BombCastDur;
 
         // 画面内の敵弾を「花びらに変換」して消去（加点）
         foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
@@ -946,6 +1055,7 @@ public partial class Player : Area2D
         GameCamera.Instance?.Shake(5.5f, 0.28f);
         GameCamera.Instance?.Hitstop(0.09);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HitFlash();
+        _hitReact = HitReactDur; // 体ののけぞり＋squash（練習モード含む＝「痛がった」は常に返す）
 
         // チュートリアル練習モード：被弾演出は出すが、残機を減らさず・ゲームオーバーにせず・フォロワーも離さない（詰み防止）。
         // 短時間無敵だけ付けて先へ進める（同じ弾で連続被弾しない）。
@@ -992,7 +1102,9 @@ public partial class Player : Area2D
         _gameOver = true;
         _invincible = true;
         _invincibleTimer = 9999f; // 以降は無敵で待機
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("くじけちゃった… Rでもう一度");
+        // バナーは直近デバイスの表記に合わせる（パッドはメニューの「さいしょからやりなおす」へ誘導）。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner(
+            Pad.ShowKeyboard ? "くじけちゃった… Rでもう一度" : "くじけちゃった… " + Pad.Face(JoyButton.Start) + " でもう一度");
         // 自動リロードはしない。各ステージルート(*Root.cs)の _Process が R＝リトライ／Q＝抜ける を
         // 受け付けるので、プレイヤーが選ぶまでこのまま無敵で待機する。
     }
@@ -1029,6 +1141,15 @@ public partial class Player : Area2D
             var purple = new Color(0.6f, 0.2f, 0.8f);
             DrawLine(new Vector2(-4f, 0f), new Vector2(4f, 0f), purple, 1.5f);
             DrawLine(new Vector2(0f, -4f), new Vector2(0f, 4f), purple, 1.5f);
+        }
+
+        // ── 拡散サブ（追従オプション）の光球。ローカル定位置＋ふわふわ（当たり判定なし・見た目のみ）──
+        for (int i = 0; i < _optionCount && i < OptionSlots.Length; i++)
+        {
+            Vector2 p = OptionSlots[i] + new Vector2(0f, Mathf.Sin(_bobTime * 3.4f + i * Mathf.Pi) * 1.5f);
+            DrawCircle(p, 4.2f, new Color(0.42f, 0.74f, 0.85f, 0.35f));            // 外周グロー
+            DrawCircle(p, 2.6f, new Color(0.65f, 0.9f, 1f, 0.95f));                // 本体（浄化の水色）
+            DrawCircle(p + new Vector2(-0.8f, -0.8f), 1f, new Color(1f, 1f, 1f, 0.95f)); // ハイライト
         }
 
         // ── グレイズ境界（外側リング）＝「ぎりぎり回避＝ご褒美」になる範囲 ──

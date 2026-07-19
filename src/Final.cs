@@ -4,7 +4,7 @@ using System.Collections.Generic;
 // Final : FINAL「汚染」（v2 [P-FINAL]）。戦闘で解決しない本作ルールの総決算。
 // ミナの内側で汚染が頂点に達し暴走（自機が黒く溶け、世界中の悲鳴が流れ込む）→
 // 闇の向こうから少年の光がまっすぐ歩いてくる→少年の対話で帰還（指先が触れ世界が白くなる）。
-// 全編エンジン描画のカットシーン。Zで送り、Rで最初から。終了で EPILOGUE へ。
+// 全編エンジン描画のカットシーン。Zで送り、R/Start 長押しで最初から。終了で EPILOGUE へ。
 public partial class Final : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -13,6 +13,7 @@ public partial class Final : Node2D
     private double _t;
     private int _phase;   // 0:暴走 1:対話 2:帰還(白)
     private bool _zHeld;
+    private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
@@ -108,7 +109,9 @@ public partial class Final : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start))
+        // R / Start 長押し(0.7s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
+        // カットシーンはポーズメニュー対象外なので Start をここで使える。
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
             GetTree().ReloadCurrentScene();
             return;
@@ -224,6 +227,15 @@ public partial class Final : Node2D
             DrawCircle(new Vector2(W / 2f - 14f, H / 2f), 5f, new Color(Cool.R, Cool.G, Cool.B, 1f - a * 0.3f));
             DrawCircle(new Vector2(W / 2f + 14f, H / 2f), 4f, new Color(Warm.R, Warm.G, Warm.B, (1f - a) * 0.5f)); // 薄い
         }
+
+        // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
+        if (_retry.Progress > 0f)
+        {
+            UiKit.BeginDesign(this);
+            Hud.DrawRetryHoldChip(this, _retry.Progress,
+                (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start)) + " 長押しでさいしょから");
+            UiKit.EndDesign(this);
+        }
     }
 
     private void DrawScreams()
@@ -273,22 +285,23 @@ public partial class Final : Node2D
         bool narr = d.Who == "地";       // ミナの語り＝話者名なし・中央寄せでセリフと区別
         bool mina = d.Who == "ミナ";
         Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (mina ? Cool : Warm);
-        DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.85f));
-        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, 0.8f));
+        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
+        var lines = UiKit.WrapLines(_font, d.Text, 11, W - 52);
+        float lineH = _font.GetHeight(11);
+        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
+        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
+        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, 0.8f));
         if (!narr)
-            DrawString(_font, new Vector2(20, H - 44), d.Who, HorizontalAlignment.Left, -1, 9, edge);
+            DrawString(_font, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, 9, edge);
         // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。
         //   タイプライター自体は残す（左→右の素直な送り。三人の名を一人ずつ沈ませる句点ホールドも保つ）。
-        var align = HorizontalAlignment.Left;
-        // タイプライターで表示済みの分だけ描画。
+        // タイプライターで表示済みの分だけ、確定済みの行に沿って描画。
         int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-        string body = d.Text.Substring(0, shown);
-        DrawMultilineString(_font, new Vector2(20, H - 30), body, align,
-            W - 52, 11, -1, new Color(0.95f, 0.95f, 0.98f),
-            TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        UiKit.TypewriterLines(this, _font, lines, new Vector2(20, boxTop + 26f), W - 52, 11,
+            new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
                 new Color(Cool, 0.8f));
         // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
         if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)

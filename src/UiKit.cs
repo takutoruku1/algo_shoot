@@ -61,12 +61,9 @@ public static class UiKit
         ci.DrawString(f, new Vector2(topLeft.X, topLeft.Y + asc), s, al, width, size, c);
     }
 
+    // 複数行描画（禁則つき折り返し）。行間は font 既定＝MultiLeading の extraLeading=0 と同じ。
     public static void Multi(CanvasItem ci, Font f, Vector2 topLeft, string s, int size, Color c, float width, int maxLines = -1)
-    {
-        float asc = f.GetAscent(size);
-        ci.DrawMultilineString(f, new Vector2(topLeft.X, topLeft.Y + asc), s, HorizontalAlignment.Left, width, size, maxLines, c,
-            TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
-    }
+        => MultiLeading(ci, f, topLeft, s, size, c, width, 0f, maxLines);
 
     public static float TextW(Font f, string s, int size) => f.GetStringSize(s, HorizontalAlignment.Left, -1, size).X;
 
@@ -78,6 +75,13 @@ public static class UiKit
         float width, float extraLeading, int maxLines = -1)
     {
         var lines = WrapLines(f, s, size, width);
+        // 禁則の追い出しで行数が増え、上限(maxLines)からあふれるときだけ素の文字折りへ戻す
+        //（上限打ち切りで末尾の文字が消えるより、多少不格好でも全文が読める方を優先）。
+        if (maxLines > 0 && lines.Count > maxLines)
+        {
+            var plain = WrapLines(f, s, size, width, kinsoku: false);
+            if (plain.Count <= maxLines) lines = plain;
+        }
         float lineH = f.GetHeight(size) + extraLeading;
         float asc = f.GetAscent(size);
         int n = maxLines > 0 ? Mathf.Min(maxLines, lines.Count) : lines.Count;
@@ -87,27 +91,71 @@ public static class UiKit
         return n * lineH;
     }
 
-    // 語境界（日本語は文字境界）で width に収まるよう折り返す。明示改行 '\n' は尊重。
-    private static System.Collections.Generic.List<string> WrapLines(Font f, string s, int size, float width)
+    // ── 日本語折り返し（禁則処理つき）──
+    //   行頭禁則：句読点・閉じ括弧・小書き仮名・長音などは行頭に置かない（手前の文字ごと次行へ追い出す）。
+    //   行末禁則：開き括弧は行末に置かない（次行へ送る）。
+    //   英単語：途中で折らない（単語頭まで戻す。行頭からの1語が幅を超えるときだけ文字折り）。
+    private const string KinsokuNoHead =
+        "、。，．・：；！？…‥ーっゃゅょぁぃぅぇぉゎッャュョァィゥェォヮ々ゝゞヽヾ）」』】〕｝〉》’”!?.,:;)]}";
+    private const string KinsokuNoTail = "（「『【〔｛〈《‘“([{";
+    private static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || c == '\'');
+
+    // width に収まるよう折り返した行リストを返す。明示改行 '\n' は尊重。
+    //   エンディング等の独自レンダラも同じ折り返し結果（＝同じ禁則・同じ行数）を共有できるよう public。
+    public static System.Collections.Generic.List<string> WrapLines(Font f, string s, int size, float width,
+        bool kinsoku = true)
     {
         var outLines = new System.Collections.Generic.List<string>();
         foreach (var para in s.Split('\n'))
         {
             if (para.Length == 0) { outLines.Add(""); continue; }
-            var cur = new System.Text.StringBuilder();
-            foreach (var ch in para)
+            int start = 0;
+            while (start < para.Length)
             {
-                string trial = cur.ToString() + ch;
-                if (TextW(f, trial, size) > width && cur.Length > 0)
+                // 幅に収まる最大文字数を貪欲に確定（最低1文字は必ず進める＝無限ループ防止）。
+                int fit = 1;
+                while (start + fit < para.Length && TextW(f, para.Substring(start, fit + 1), size) <= width)
+                    fit++;
+                int brk = start + fit;                       // para[brk] が次行の先頭
+                if (brk < para.Length && kinsoku)
                 {
-                    outLines.Add(cur.ToString());
-                    cur.Clear();
+                    // 英単語の途中では折らない：単語頭まで戻す。
+                    if (IsWordChar(para[brk]) && IsWordChar(para[brk - 1]))
+                    {
+                        int head = brk;
+                        while (head > start && IsWordChar(para[head - 1])) head--;
+                        if (head > start) brk = head;
+                    }
+                    // 行頭禁則：句読点等が行頭に来るなら、手前の文字ごと次行へ追い出す。
+                    while (brk > start + 1 && KinsokuNoHead.IndexOf(para[brk]) >= 0) brk--;
+                    // 行末禁則：開き括弧で行が終わるなら、それも次行へ送る。
+                    while (brk > start + 1 && KinsokuNoTail.IndexOf(para[brk - 1]) >= 0) brk--;
                 }
-                cur.Append(ch);
+                outLines.Add(para.Substring(start, brk - start));
+                start = brk;
             }
-            if (cur.Length > 0) outLines.Add(cur.ToString());
         }
         return outLines;
+    }
+
+    // 折り返し済みの行リストを、タイプライターの表示済み文字数 reveal 分だけ描く（カットシーンの独自レンダラ用）。
+    //   行構成は全文の WrapLines で確定済み＝表示途中で折り返し位置が動かない。座標はベースライン基準（DrawString と同じ）。
+    //   align=Center はナレ用（全文を一括フェードインで出す前提。部分表示だと毎フレーム再センタリングされるため）。
+    public static void TypewriterLines(CanvasItem ci, Font f, System.Collections.Generic.List<string> lines,
+        Vector2 firstBaseline, float width, int size, Color c, int reveal,
+        HorizontalAlignment align = HorizontalAlignment.Left)
+    {
+        float lineH = f.GetHeight(size);
+        float y = firstBaseline.Y;
+        foreach (var ln in lines)
+        {
+            if (reveal <= 0) break;
+            string part = reveal >= ln.Length ? ln : ln.Substring(0, reveal);
+            ci.DrawString(f, new Vector2(firstBaseline.X, y), part, align,
+                align == HorizontalAlignment.Left ? -1 : width, size, c);
+            reveal -= ln.Length;
+            y += lineH;
+        }
     }
 
     // ── 角丸ボックス（border/塗り）──

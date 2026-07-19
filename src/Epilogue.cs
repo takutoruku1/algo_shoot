@@ -4,7 +4,7 @@ using System.Collections.Generic;
 // Epilogue : EPILOGUE「名前」（v2 [P-EP]）。少年はもうログインして来ない（＝死の表現）。
 // 鍵アカウント解錠 → 救った三人が全員知人だったと判明（伏線②③④）→
 // 最古の投稿の4行英文の頭文字 M/I/N/A を縦読み（伏線①回収）→ こはるへのDMで遺志を継承。
-// 全編エンジン描画。Zで送り、PW選択は←→＋Z。Rで最初から。
+// 全編エンジン描画。Zで送り、PW選択は←→＋Z。R/Start 長押しで最初から（スタッフロール中はタイトルへ）。
 public partial class Epilogue : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -15,6 +15,7 @@ public partial class Epilogue : Node2D
     private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END
     private bool _zHeld;
     private bool _lrHeld;
+    private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
@@ -131,10 +132,10 @@ public partial class Epilogue : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start))
+        // R / Start 長押し(0.7s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
+        // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ここはポーズ対象外なので Start 可）。
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
-            // クリア演出(スタッフロール=phase5)では R/Start も「タイトルへ」。
-            // それ以前は従来どおり最初から(Prologue)＝演出のやり直し。
             GetTree().ChangeSceneToFile(_phase >= 5 ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
             return;
         }
@@ -224,6 +225,16 @@ public partial class Epilogue : Node2D
             case 3: DrawAcrostic(); break;
             case 4: DrawOutro(); break;
             case 5: DrawStaffroll(); break;
+        }
+
+        // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
+        if (_retry.Progress > 0f)
+        {
+            UiKit.BeginDesign(this);
+            Hud.DrawRetryHoldChip(this, _retry.Progress,
+                (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start))
+                + (_phase >= 5 ? " 長押しでタイトルへ" : " 長押しでさいしょから"));
+            UiKit.EndDesign(this);
         }
     }
 
@@ -338,34 +349,35 @@ public partial class Epilogue : Node2D
         bool boot = ui && d.Text.StartsWith(">");
         var font = boot ? UiKit.Mono : _font;
         Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? (boot ? Code : new Color(0.7f, 0.9f, 0.8f)) : Cool);
-        DrawRect(new Rect2(14, H - 56, W - 28, 46), new Color(0.05f, 0.05f, 0.09f, 0.85f));
-        DrawRect(new Rect2(14, H - 56, W - 28, 1), new Color(edge, boot ? 0.6f : 0.8f));
+        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
+        var lines = UiKit.WrapLines(font, d.Text, 11, W - 52);
+        float lineH = font.GetHeight(11);
+        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
+        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
+        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, boot ? 0.6f : 0.8f));
         string label = narr || boot ? "" : d.Who;
         if (label != "")
-            DrawString(_font, new Vector2(20, H - 44), label, HorizontalAlignment.Left, -1, 9, edge);
+            DrawString(_font, new Vector2(20, boxTop + 12), label, HorizontalAlignment.Left, -1, 9, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、全文をその場でフェードイン表示。
         //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
         // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
         Color ink = boot ? Code : Ink;   // bootログ行はコード緑（Prologue と同値）
-        string body;
+        int shown;
         if (narr)
         {
-            body = d.Text;                                   // 全文をその場で（広がる演出なし）
+            shown = d.Text.Length;                           // 全文をその場で（広がる演出なし）
             float a = Mathf.Clamp((float)_lineT / 0.35f, 0f, 1f); // 短いフェードイン
             ink = new Color(Ink.R, Ink.G, Ink.B, a);
         }
         else
         {
-            int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-            body = d.Text.Substring(0, shown);               // bootログもタイプライター＝端末に流れる感を保つ
+            shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length); // bootログもタイプライター＝端末に流れる感を保つ
         }
-        DrawMultilineString(font, new Vector2(20, H - 30), body, align,
-            W - 52, 11, -1, ink,
-            TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.GraphemeBound);
+        UiKit.TypewriterLines(this, font, lines, new Vector2(20, boxTop + 26f), W - 52, 11, ink, shown, align);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, H - 44), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
                 new Color(Cool, 0.8f));
         // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
         // ナレは全文を即表示するので、フェード完了で点滅（タイプライター完了を待たない）。

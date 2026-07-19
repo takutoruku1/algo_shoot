@@ -241,6 +241,13 @@ public partial class Hub : Node2D
         // 右端スクロールバーのつまみは選択を滑らかに追う（フィードのスクロール感）
         _scroll = Mathf.Lerp(_scroll, _sel, Mathf.Min(1f, (float)delta * 10f));
         if (_dived) { QueueRedraw(); return; }
+        // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
+        if (Pad.UiBlocked(this))
+        {
+            _navHeld = _zHeld = _xHeld = _cHeld = _tHeld = true;
+            QueueRedraw();
+            return;
+        }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         ProcessCards();
         QueueRedraw();
@@ -337,7 +344,8 @@ public partial class Hub : Node2D
     {
         if (_autoplay) { if (_t - _cardsEnteredT >= AutoDiveDelay) DiveAuto(); return; }
 
-        if (Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)) { GetTree().ReloadCurrentScene(); return; }
+        // R＝タイムラインの再読込。パッドの Start はポーズメニュー（開閉）と衝突するため外した。
+        if (Input.IsKeyPressed(Key.R)) { GetTree().ReloadCurrentScene(); return; }
 
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld && _entries.Length > 0)

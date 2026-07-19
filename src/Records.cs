@@ -42,6 +42,8 @@ public partial class Records : Node2D
         _t += delta;
         if (!_autoplay)
         {
+            // ポーズメニューを閉じた Esc の同じ押下が漏れて「もどる」が誤発火しないよう食う（Pad.UiBlocked）。
+            if (Pad.UiBlocked(this)) { _backHeld = true; QueueRedraw(); return; }
             bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape)
                         || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
             bool backEdge = back && !_backHeld; _backHeld = back;

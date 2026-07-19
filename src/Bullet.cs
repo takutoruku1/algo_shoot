@@ -26,6 +26,8 @@ public partial class Bullet : Area2D
     public int Damage;
     public bool Active;
     public bool Grazed;  // グレイズ済みか（重複加点防止）
+    // 残貫通数（自機の連射弾のみ・貫く光 shot_pierce）。>0 の弾はヒットで消えず、消費側が1減らして素通しする。
+    public int Pierce;
     public string Word = "";  // 非空なら「言葉弾」＝文字そのものが弾（道中の敵。設計書 4）
 
     // 弾形とスペル色（敵弾のみ反映）。色未指定時は既定の穢れ色。
@@ -116,6 +118,7 @@ public partial class Bullet : Area2D
         Radius = radius;
         Active = true;
         Grazed = false;
+        Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は FireRapid 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
         SoftenOnGraze = false;

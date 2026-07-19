@@ -32,15 +32,17 @@ public partial class StageAkari : Node
     private const string SGentle = "res://char/shonen_gentle.png";
 
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。あかりは型崩し（S2）で“カメオ先出し”：
-    //   チラ見せ（先出し）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
+    //   肩慣らし0（圧ゼロ）→ チラ見せ（6体目の浄化で割り込み）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
     // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
-    private const int MidWaveA = 15;  // 導入（チラ見せ＝先出しの後）。緩く立ち上がる。旧21（-6）
-    private const int MidWaveB = 14;  // 考察の後。やや詰めて始める。旧18（-4）
-    private const int MidWaveC = 16;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧21（-5）
+    // M3：Intro直後にいきなり中ボスの唐突さを解消するため、カメオ前に“肩慣らし”0波を挿入。総数45は維持（6+12+13+14）。
+    private const int MidWave0 = 6;   // 肩慣らし（Intro直後・StartIntensity 0）。6体目の浄化でカメオが割り込む。
+    private const int MidWaveA = 12;  // 導入（チラ見せ＝先出しの後）。緩く立ち上がる。旧15（-3）
+    private const int MidWaveB = 13;  // 考察の後。やや詰めて始める。旧14（-1）
+    private const int MidWaveC = 14;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧16（-2）
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -161,18 +163,18 @@ public partial class StageAkari : Node
     {
         _rng.Randomize();
         _step = 1;
-        // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
+        // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
+        game?.SetStageTarget(MidWave0 + MidWaveA + MidWaveB + MidWaveC + 1);
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
-        // 型崩し（S2）対応：中ボス（カメオ先出し）＝Step_BossCameo(2)／ボスから＝Step_BossSpawn(10)。
+        // 型崩し（S2）対応：中ボス（カメオ先出し）＝Step_BossCameo(3)／ボスから＝Step_BossSpawn(11)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
             _step = game.SelectedEntry switch
             {
-                GameManager.StageEntry.Boss => 10,
-                GameManager.StageEntry.AfterMidBoss => 3, // 中ボスの直後（小話→道中A）から＝再戦しない（初回ショップ後の続き）
-                _ => 2,
+                GameManager.StageEntry.Boss => 11,
+                GameManager.StageEntry.AfterMidBoss => 4, // 中ボスの直後（小話→道中A）から＝再戦しない（初回ショップ後の続き）
+                _ => 3,
             };
     }
 
@@ -188,24 +190,26 @@ public partial class StageAkari : Node
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        // 型崩し（S2）：あかりは“カメオ先出し”。着地した瞬間、待ち構えていたあかりが飛び出してくる
-        //（「既読3秒」の性格＝向こうから会いに来る）。3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
+        // 型崩し（S2）：あかりは“カメオ先出し”。着地後の肩慣らし波（6体・圧ゼロ）を捌いていると、
+        // 6体目を浄化した瞬間にあかりが割り込んで飛び出してくる（「既読3秒」の性格＝向こうから会いに来る）。
+        // 3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから来る）
-            case 3: Step_Lines(delta, Mid); break;        // 道中突入の小話
-            case 4: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 5: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察（会った後＝少年の詳しさが際立つ）
-            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 7: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
-            case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 9: Step_Lines(delta, MidEnd); break;     // 道中後の小話
-            case 10: Step_BossSpawn(); break;
-            case 11: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
-            case 12: Step_BossWait(); break;
-            case 13: Step_Clear(delta); break;
-            case 14: Step_Transition(); break;
+            case 2: Step_MidWave0(delta); break;          // 肩慣らし波（6体・圧ゼロ）＝カメオへの布石
+            case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
+            case 4: Step_Lines(delta, Mid); break;        // 道中突入の小話
+            case 5: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
+            case 6: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察（会った後＝少年の詳しさが際立つ）
+            case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
+            case 8: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
+            case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
+            case 10: Step_Lines(delta, MidEnd); break;    // 道中後の小話
+            case 11: Step_BossSpawn(); break;
+            case 12: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
+            case 13: Step_BossWait(); break;
+            case 14: Step_Clear(delta); break;
+            case 15: Step_Transition(); break;
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）に統一。
         // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
@@ -268,6 +272,28 @@ public partial class StageAkari : Node
             _ => "res://char/mina_face.png",                // 中継ほか
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
+    }
+
+    // ---- 肩慣らし波（Intro直後・圧ゼロ）：MidWave0体の浄化で、待ち構えていたあかりが“割り込んで”カメオ出現 ----
+    // いきなり中ボスの唐突さを消しつつ、「向こうから来る」性格は保つ（会話は挟まず即カメオ＝割り込み感）。
+    private void Step_MidWave0(double delta)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _waveBase = game?.PurifiedCount ?? 0;
+            _waveSpawnDone = false;
+            StartMidwaveSpawner();
+        }
+        // 規定数浄化（or 目標到達）で残ザコ・残弾を片付け、間を置かずカメオへ＝“6体目の瞬間に割り込む”。
+        if (game != null && (game.PurifiedCount - _waveBase >= MidWave0 || game.StageCleared))
+        {
+            _spawner?.Stop(); _spawner = null!;
+            ClearStageEnemies();
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Advance();
+        }
     }
 
     // ---- 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化で考察（BossTalk）へ（型崩し後：カメオは既に済み） ----

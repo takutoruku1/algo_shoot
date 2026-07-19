@@ -129,6 +129,14 @@ public partial class DiffSelect : Node2D
         if (_xfade < 1.0) _xfade = System.Math.Min(1.0, _xfade + delta / XfadeDur);
         if (_autoplay) { Dive(); QueueRedraw(); return; }
 
+        // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて「もどる/決定」が誤発火しないよう食う（Pad.UiBlocked）。
+        if (Pad.UiBlocked(this))
+        {
+            _navHeld = _hNavHeld = _zHeld = _backHeld = true;
+            QueueRedraw();
+            return;
+        }
+
         // 入口ダイアログ表示中は、そちらの操作だけ受ける。
         if (_entryDialog) { ProcessEntryDialog(); QueueRedraw(); return; }
 

@@ -220,8 +220,14 @@ public partial class TitleMenu : Node2D
         _lightLayer?.QueueRedraw(); // 流れる光を毎フレーム描き直す（顔/KVは静止のまま）
         if (_dived) { QueueRedraw(); return; }
         if (_autoplay) { if (_t > 0.3) Go("res://Hub.tscn"); QueueRedraw(); return; }
-        // 操作説明オーバーレイが開いている間はタイトル側の入力を止める（Z/Xの二重処理を防ぐ）。
-        if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }) { QueueRedraw(); return; }
+        // 操作説明オーバーレイが開いている間／閉じた直後フレーム(UiBlocked)はタイトル側の入力を止める
+        //（閉じた Z/X/Esc の同じ押下が決定/戻るとして二重処理されないよう、既押し扱いで食う）。
+        if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true } || Pad.UiBlocked(this))
+        {
+            _zHeld = _backHeld = _navHeld = true;
+            QueueRedraw();
+            return;
+        }
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
@@ -410,7 +416,8 @@ public partial class TitleMenu : Node2D
     }
 
     // 「はじめから」後の操作表示モード3択ダイアログ（キーボード / コントローラPS / コントローラXbox）。
-    // ここで選んだ表記でゲーム中のヒントを統一する（入力自体はどのデバイスも常に有効）。
+    // ここで選ぶのはヒント表記の初期値とパッド表記スタイル（PS/Xbox）。以降のKB⇔パッドの出し分けは
+    // 直近に使ったデバイスへ自動追従する（Pad.PollDevice。入力自体はどのデバイスも常に有効）。
     private void DrawDisplayPicker()
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;
@@ -419,7 +426,7 @@ public partial class TitleMenu : Node2D
         float w = 600, rowH = 60, h = 132 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 24), "操作表示を選ぶ", 19, UiKit.White, HorizontalAlignment.Center, w);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 50), "ヒントの表記を統一します（入力はどれでも使えます）", 12,
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 50), "ヒントの表記を選びます（持ち替えたデバイスに自動で切り替わります）", 12,
             UiKit.Text3, HorizontalAlignment.Center, w);
         float top = y + 80;
         for (int i = 0; i < n; i++)

@@ -19,6 +19,11 @@ public partial class AreaSpellCaster : Node2D
     private double _warnMin = 1.0, _warnMax = 1.4, _interval = 6.0;
     private AreaStrike.Shape[] _shapes = { AreaStrike.Shape.Circle };
     private (string name, AreaStrike.Shape? shape)[] _spells = { ("range", null) };
+    // 各ボレーの1枚目を自機の現在地にアンカーするか（rei/koharu で有効）。
+    // ＝「AOEが自機と無関係な場所で光っているだけ＝脅威として死んでいる」を断ち、
+    //   左端に張り付いていても定期的に一歩動かされる。アンカー枚の予兆は固定 1.2s×WarnMul
+    //  （ランダム下限より長め）＝頭上に出ても必ず逃げ切れる（死は要求しない設計）。
+    private bool _anchorPlayer;
 
     private readonly RandomNumberGenerator _rng = new();
     private Node _world = null!;
@@ -44,6 +49,10 @@ public partial class AreaSpellCaster : Node2D
     // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。安置リレー中はホップ間の
     // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
     public bool AoeActive => _aoePending || _chainRemain > 0 || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
+
+    // ボス側の専用ギミック（こはる「お残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
+    // 外部ゲート。予約済み(_pending)の発火・タイマーも保留し、解除後にそのまま再開する（破棄はしない）。
+    public bool Suppressed;
 
     // ── 安置リレー（レイ「最終選考」／ミナ強化枠で共用）──
     //   全画面AOEを hops 回連結する。各ホップ：予兆(1.6s×WarnMul)→着弾0.2s→生存確認の間(0.35s)→次ホップ。
@@ -112,7 +121,7 @@ public partial class AreaSpellCaster : Node2D
         SpawnFullscreenStrike(safe, r);
     }
 
-    // 安置候補を12点引き、「自機から70px以上」のうち最も自機に近い点を採用する。
+    // 安置候補を12点引き、「自機から70px以上・ボス本体から60px以上」のうち最も自機に近い点を採用する。
     // 70pxの下限＝自機の真上に安置が湧いて棒立ちで済む事故の防止。上限を設けない代わりに
     // 最近傍を選ぶことで、難易度によらず「予兆内に到達できる」ことを担保する：
     //   予兆尺 = AoeWarn(1.6s) × WarnMul（易1.3 / 普1.0 / 難0.85 / ルナ0.72）＝最短1.15s(ルナ)。
@@ -120,20 +129,31 @@ public partial class AreaSpellCaster : Node2D
     //   ＝ 安置中心まで約158pxなら間に合う。盤面(384×216)で一様12候補の「70px以上の最近傍」は
     //   ほぼ確実に70〜130px帯に収まるため、ルナティックでも到達可能。
     //   （旧実装は「70px以上を見つけ次第採用」で上限がなく、最悪381px先＝到達不能な安置が出得た）
+    //   ボス60pxの除外＝安置がボス徘徊圏（例: レイ X∈[110,290]・Y∈[42,98]）内に湧き、
+    //   「安置円の中なのにボス本体接触で被弾」する理不尽の防止（QA 2026-07 週次）。
+    private const float BossClear = 60f; // 安置候補とボス現在位置の最低距離（ボスは徘徊42px/s＝予兆中の踏み込みは限定的）
     private Vector2 PickSafeNearPlayer(float margin)
     {
-        Vector2 player = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
-                         ?? new Vector2(W / 2f, H / 2f);
-        Vector2 safe = new Vector2(W / 2f, H / 2f); // 全候補が70px未満（自機がほぼ中央）の時のフォールバック＝中央
+        Vector2 player = PlayerPos();
+        Vector2? boss = BossPos();
+        Vector2 safe = new Vector2(W / 2f, H / 2f); // 全候補が条件を満たさない時のフォールバック＝中央（12候補全棄却はほぼ起きない）
         float bestD = float.MaxValue;
         for (int i = 0; i < 12; i++)
         {
             var cand = new Vector2(_rng.RandfRange(margin, W - margin), _rng.RandfRange(margin, H - margin));
+            if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの居場所＝安置にしない
             float d = cand.DistanceTo(player);
             if (d >= 70f && d < bestD) { bestD = d; safe = cand; }
         }
         return safe;
     }
+
+    // 自機の現在地（いなければ画面中央＝旧フォールバックを踏襲）。
+    private Vector2 PlayerPos() =>
+        (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition ?? new Vector2(W / 2f, H / 2f);
+    // このキャスターを抱えるボスの現在地（未キャッシュ/消滅時は null）。
+    private Vector2? BossPos() =>
+        _owner != null && IsInstanceValid(_owner) ? _owner.GlobalPosition : null;
 
     // リレーのホップを1つ出す。初回＝既存の最近傍安置。2ホップ目以降＝前の安置中心を起点に
     // 距離帯からランダム方向へ。前ホップ方向と内積<0.5になるまで採り直し（ジグザグ保証）、
@@ -152,6 +172,7 @@ public partial class AreaSpellCaster : Node2D
         else
         {
             safe = _chainPrevSafe;
+            Vector2? boss = BossPos();
             for (int i = 0; i < 24; i++)
             {
                 float a = _rng.RandfRange(0f, Mathf.Tau);
@@ -161,10 +182,12 @@ public partial class AreaSpellCaster : Node2D
                 cand.X = Mathf.Clamp(cand.X, margin, W - margin);
                 cand.Y = Mathf.Clamp(cand.Y, margin, H - margin);
                 if (cand.DistanceTo(_chainPrevSafe) < _chainHopMin * 0.9f) continue; // 端クランプで潰れた＝採り直し（0.9: 縦216pxで垂直系候補が潰れやすく、棄却→再抽選で横方向が創発的に優先される。sakurai査定 2026-07-05）
+                if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの上に安置＝採り直し（安置内接触の理不尽防止）
                 safe = cand;
                 break;
             }
-            // 全採り直し失敗（角に追い詰められた等）の保険：中央方向へ hopMin ぶん逃がす。
+            // 全採り直し失敗（角に追い詰められた等）の保険：中央方向へ hopMin ぶん逃がす
+            //（この保険だけはボス距離より画面内保証を優先＝24回の抽選が全滅する極端な状況の脱出弁）。
             if (safe == _chainPrevSafe)
             {
                 var dir = (new Vector2(W / 2f, H / 2f) - _chainPrevSafe).Normalized();
@@ -208,14 +231,16 @@ public partial class AreaSpellCaster : Node2D
         _rng.Randomize();
         var H_ = AreaStrike.Shape.BeamH; var V = AreaStrike.Shape.BeamV;
         var C = AreaStrike.Shape.Circle; var R = AreaStrike.Shape.Rect;
+        var B = AreaStrike.Shape.BeamSeg;
         switch (key)
         {
             case "rei": // 順位掲示板・整然と裁く（予兆長め・金/菫）
                 _disp = "レイ"; _handle = "@rei_compe";
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
-                _warnMin = 1.1; _warnMax = 1.6; _interval = 11.0;
+                _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
                 _shapes = new[] { H_, R };
                 _spells = new (string, AreaStrike.Shape?)[] { ("ランキングレーザー", H_), ("表彰台圏", R), ("序列の楔", H_) };
+                _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
             case "akari": // 雨の教室・降る前に予報（蒼）
                 _disp = "あかり"; _handle = "@akari_rain";
@@ -224,12 +249,16 @@ public partial class AreaSpellCaster : Node2D
                 _shapes = new[] { V, C };
                 _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
                 break;
-            case "koharu": // 台所・熱してから一気に（予兆短め・琥珀/深紅）
+            case "koharu": // 台所・熱してから一気に（予兆やや短め・琥珀/深紅）
                 _disp = "こはる"; _handle = "@koharu_kitchen";
                 _tint = new Color("e8945a"); _hot = new Color("ffc06a");
-                _warnMin = 0.7; _warnMax = 1.0; _interval = 7.0;
-                _shapes = new[] { C, R, H_ };
-                _spells = new (string, AreaStrike.Shape?)[] { ("熱したフライパン", C), ("沸騰鍋", R) };
+                // warn 下限 0.7→1.0s：全ボス最短の予兆が5秒の宣言カードと乖離し「宣言だけ出て
+                // 何も起きない」感の主因だった（QA 2026-07 週次）。短予兆の性格は上限1.3sで残す。
+                _warnMin = 1.0; _warnMax = 1.3; _interval = 7.0;
+                _shapes = new[] { C, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能だった H_ は削除）
+                // 第3スペル『包丁の軌跡』（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
+                _spells = new (string, AreaStrike.Shape?)[] { ("熱したフライパン", C), ("沸騰鍋", R), ("包丁の軌跡", B) };
+                _anchorPlayer = true; // 1枚目は自機の現在地（円/矩形は頭上・包丁は自機を通る線）
                 break;
             default: // mina（暴走）：全テレグラフ同時・濁った全色
                 _disp = "ミナ"; _handle = "@mina_ai_";
@@ -256,6 +285,7 @@ public partial class AreaSpellCaster : Node2D
         }
 
         if (Hud.BubblePaused) return; // 会話中は出さない
+        if (Suppressed) return;       // ボス側ギミック中（お残し禁止 等）は宣告も発火も保留
 
         // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
         TickFullscreen(delta);
@@ -275,7 +305,9 @@ public partial class AreaSpellCaster : Node2D
     private void Cast()
     {
         var sp = _spells[_rng.RandiRange(0, _spells.Length - 1)];
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, _tint);
+        // 宣告カードの色：『包丁の軌跡』だけ深紅＝ビーム本体と同色（宣告と予兆が色で結びつく）。
+        Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? KnifeTint : _tint;
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, tint);
         _pendShape = sp.shape;
         _pending = true; _fireT = _fireDelay;
     }
@@ -309,24 +341,86 @@ public partial class AreaSpellCaster : Node2D
         {
             // 技の形状が決まっていなければ（ミナ）プロファイルの全形状から拾う＝“全テレグラフ同時”。
             var shape = _pendShape ?? _shapes[_rng.RandiRange(0, _shapes.Length - 1)];
-            double warn = _rng.RandfRange((float)_warnMin, (float)_warnMax) * wm;
+            // 1枚目は自機の現在地にアンカー（rei/koharu）。予兆は固定 1.2s×WarnMul＝必ず逃げ切れる尺。
+            bool anchor = _anchorPlayer && i == 0;
+            double warn = anchor ? 1.2 * wm
+                                 : _rng.RandfRange((float)_warnMin, (float)_warnMax) * wm;
+
+            // 『包丁の軌跡』（こはる第3スペル）：±26°の深紅の一閃（catalog準拠）。1本目は自機の現在地を
+            // “通る線”として引き、2本目以降は中央帯のランダム点を逆角度で交差させる。予兆を +0.35s ずつ
+            // ずらして順に斬る（catalog の delay 相当）。交差が意図なので重なり回避は掛けない。
+            if (shape == AreaStrike.Shape.BeamSeg)
+            {
+                Vector2 through = anchor ? PlayerPos()
+                    : new Vector2(_rng.RandfRange(W * 0.30f, W * 0.85f), _rng.RandfRange(H * 0.25f, H * 0.75f));
+                SpawnKnifeBeam(through, (i % 2 == 0 ? -1f : 1f) * KnifeDeg, warn + 0.35 * i);
+                continue;
+            }
+
+            // アンカー枚は重なり回避なしで必ず置く（自機の頭上が最優先。以降のランダム枚が避ける側）。
+            if (anchor)
+            {
+                var g = AnchorGeo(shape, PlayerPos());
+                AddStrike(shape, g.c, g.hw, g.hh, warn);
+                continue;
+            }
 
             // 重ならない配置を最大16回トライ。置けなければスキップ＝過密を自然に防ぐ。
-            bool placed = false;
-            for (int tryI = 0; tryI < 16 && !placed; tryI++)
+            for (int tryI = 0; tryI < 16; tryI++)
             {
                 var g = RandGeo(shape);
                 if (OverlapsAny(shape, g.c, g.hw, g.hh)) continue;
-                var z = new AreaStrike();
-                z.Configure(shape, g.hw, g.hh, warn, _tint, _hot);
-                // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
-                if (_owner != null) z.SetOwner(_owner);
-                _world.AddChild(z);
-                z.GlobalPosition = g.c;
-                _placed.Add((shape, g.c, g.hw, g.hh));
-                placed = true;
+                AddStrike(shape, g.c, g.hw, g.hh, warn);
+                break;
             }
         }
+    }
+
+    // 軸形状の AreaStrike を1枚生成して World へ置く（重なり判定用の _placed にも記録）。
+    private void AddStrike(AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
+    {
+        var z = new AreaStrike();
+        z.Configure(shape, hw, hh, warn, _tint, _hot);
+        // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
+        if (_owner != null) z.SetOwner(_owner);
+        _world.AddChild(z);
+        z.GlobalPosition = c;
+        _placed.Add((shape, c, hw, hh));
+    }
+
+    // 自機アンカー配置：自機の現在地を必ず覆う形で置く（＝一歩動けば外れる。死は要求しない）。
+    //   円＝r20固定（小さめ＝要求は「一歩」だけ）／矩形＝中心を自機に／ビームは自機の行・列。
+    private (Vector2 c, float hw, float hh) AnchorGeo(AreaStrike.Shape shape, Vector2 p)
+    {
+        switch (shape)
+        {
+            case AreaStrike.Shape.BeamH: return (new Vector2(W / 2f, p.Y), W / 2f, _rng.RandfRange(5f, 8f));
+            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, H / 2f), _rng.RandfRange(5f, 8f), H / 2f);
+            case AreaStrike.Shape.Circle: return (p, 20f, 20f);
+            default: // Rect
+            {
+                float w = _rng.RandfRange(32f, 56f), h = _rng.RandfRange(28f, 50f);
+                return (p, w / 2f, h / 2f);
+            }
+        }
+    }
+
+    // 『包丁の軌跡』の1本：through を通る角度 deg の一閃。長さ460px＝対角441pxを覆う
+    //（通過点が画面のどこでも全画面を横断する）。色は深紅固定（catalog #d6443f）。
+    private const float KnifeDeg = 26f;
+    private const float KnifeLen = 460f;
+    private const float KnifeHalfThick = 6f;
+    private static readonly Color KnifeTint = new("d6443f");
+    private static readonly Color KnifeHot = new("ff8a7a");
+    private void SpawnKnifeBeam(Vector2 through, float deg, double warn)
+    {
+        float a = Mathf.DegToRad(deg);
+        var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+        var z = new AreaStrike();
+        z.ConfigureBeam(dir, KnifeLen, KnifeHalfThick, warn, KnifeTint, KnifeHot);
+        if (_owner != null) z.SetOwner(_owner);
+        _world.AddChild(z);
+        z.GlobalPosition = through - dir * (KnifeLen * 0.5f);
     }
 
     // 形状ごとの候補配置（自機の起点＝左側はやや空け、中央〜右に寄せる＝フェアな逃げ場）。

@@ -37,7 +37,7 @@ public partial class StageMina : Node
         // ② 正典 v3（S2）：この声は生前に遺した archive replay の最後の一回——だが**明言しない**。
         //    種明かしは Epilogue に一元化。ここでは“兆候”だけ置く：針飛びのような同語反復（4行目）。
         //    Final の「返事は、ありませんでした。」が兆候の答え合わせになる。
-        (1, "……ご主人、様……ごめん、なさい……", ""),
+        (1, "……ご主人、様……ごめん、なさい……", "res://char/mina_worried.png"), // 壊れた謝罪＝動揺(worried)。平常顔で言わせない（表情と物語の一致）
         (0, "……ぼくは、ずっと見てるだけだった。光を、お前に握らせて。", SGentle),
         (0, "今度は、ぼくが行く番だ。待ってろ、ミナ。", SProud),
         (0, "きみは、ひとりじゃ、ない。ぼくが——……ぼくが、ここに、いる。", SGentle), // 針飛び＝反復・途切れ（replay兆候）。Stay の意味の反復でもある
@@ -48,6 +48,11 @@ public partial class StageMina : Node
         _rng.Randomize();
         _step = 1;
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1);
+        // 導入は「バナー＋暴走ビジュアル＋無音に委ねる」（Intro コメント①）。
+        //   Audio はシーンをまたいで常駐するため、ここで止めないとハブ等の BgmMenu が
+        //   壊れたミナの声（導入1行目）の上で鳴り続けてしまう。BossMina 出現時に
+        //   BgmBossMina が立ち上がるまでの区間を意図どおり沈黙にする（mitsuda style §7 無音）。
+        Audio.Instance?.StopMusic(fade: 1.2f);
     }
 
     public override void _Process(double delta)
@@ -110,7 +115,7 @@ public partial class StageMina : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            _ => "res://char/mina_face.png",
+            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと差し替え可（他ステージと同方式）
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }

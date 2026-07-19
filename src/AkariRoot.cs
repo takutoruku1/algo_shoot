@@ -16,7 +16,7 @@ public partial class AkariRoot : Node2D
     private static readonly Color Cold = new Color(0.60f, 0.68f, 0.92f); // 雨の寒色
     private static readonly Color Warm = new Color(1.05f, 0.99f, 0.92f); // 晴れた暖色
     private float _warmth;
-    private bool _rHeld;
+    private readonly RetryHold _retry = new();
     private bool _exitHeld;
 
     public override void _Ready()
@@ -70,16 +70,22 @@ public partial class AkariRoot : Node2D
 
     public override void _Process(double delta)
     {
-        bool r = Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start);
-        if (r && !_rHeld)
+        // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
+        if (Pad.UiBlocked(this)) { _exitHeld = true; return; }
+
+        // R 長押し(0.7s)でリトライ（即発は誤爆しやすい週次PT指摘→長押し化。ゲームオーバー中は即発）。
+        // パッドの Start はポーズメニューと衝突するため廃止＝メニュー内「さいしょからやりなおす」を使う。
+        bool gameOver = (Player?.Lives ?? 1) <= 0;
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
+            return;
         }
-        _rHeld = r;
+        Hud?.SetRetryHold(_retry.Progress);
 
         // ゲームオーバー（残機0）中は「抜ける（ハブへ戻る）」を受付。お金は保存して持ち帰る。
-        if ((Player?.Lives ?? 1) <= 0)
+        if (gameOver)
         {
             if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
         }

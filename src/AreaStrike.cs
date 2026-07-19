@@ -29,7 +29,12 @@ public partial class AreaStrike : Node2D, IAoeHazard
 {
     public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg, Fullscreen }
 
-    private const float PlayerHit = 2.5f;     // 自機の被弾半径ぶんの寄せ
+    // 危険形状（円/矩形/ビーム）の判定マージン：負値＝描画縁より 1.5px 内側までしか当たらない
+    //（＝縁ギリギリは安全。旧 +2.5f は縁より外まで当たり「見た目を信じて避けたのに被弾」の理不尽。
+    //   sakurai 2026-07 週次：床マーカーの見た目＝真実、を徹底する）。
+    private const float PlayerHit = -1.5f;
+    // 全画面AOEの安置(セーフゾーン)判定は現状据え置き（縁+2.5pxまで安全＝自機半径ぶんの許し）。
+    private const float SafeHit = 2.5f;
     private const double StrikeFlash = 0.20;  // 着弾フラッシュの尺
     private const float W = 384f, H = 216f;   // 全画面AOEの画面寸法
 
@@ -132,7 +137,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         if (_shape == Shape.Fullscreen)
         {
             if (_safeR <= 0f) return true; // 安置なし＝全面
-            return p.DistanceTo(_safeCenter) > _safeR + PlayerHit; // 安置外なら被弾
+            return p.DistanceTo(_safeCenter) > _safeR + SafeHit; // 安置外なら被弾
         }
         Vector2 d = p - GlobalPosition;
         if (_shape == Shape.Circle) return d.Length() <= Radius + PlayerHit;
@@ -171,7 +176,10 @@ public partial class AreaStrike : Node2D, IAoeHazard
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 9f);
         float phase = (float)_t * 46f;                          // 破線のマーチング
         Color fill = new Color(_tint.R, _tint.G, _tint.B, 0.12f + 0.26f * k); // 面のベタ塗り＝範囲を面で示す
-        Color edge = new Color(_tint.R, _tint.G, _tint.B, 0.6f + 0.4f * pulse);
+        // 縁の明滅の下限を引き上げ（0.6→0.75）＋暗色の下縁取り：台所（こはる面）の暖色ランプ等、
+        // 明るい背景でも輪郭が沈まない。危険色そのものは変えず“影”で読ませる（視認性の底上げ）。
+        Color edge = new Color(_tint.R, _tint.G, _tint.B, 0.75f + 0.25f * pulse);
+        Color under = new Color(0.10f, 0.04f, 0.03f, 0.55f + 0.25f * k);
         Color core = new Color(_hot.R, _hot.G, _hot.B, 0.08f + 0.14f * k);
 
         if (_shape == Shape.Fullscreen) { DrawFullscreenTelegraph(k, pulse); return; }
@@ -180,6 +188,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         {
             DrawCircle(Vector2.Zero, Radius, fill);
             DrawCircle(Vector2.Zero, Radius * Mathf.Lerp(0.12f, 1f, k), core); // 中心から満ちる白熱核
+            DashedRing(Radius, 28, under, 3.8f, phase * 0.012f);               // 暗色の下縁取り
             DashedRing(Radius, 28, edge, 2f, phase * 0.012f);
             DrawWarn(Vector2.Zero, k);
             return;
@@ -189,6 +198,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         {
             Vector2 tip = _segDir * _segLen;
             DrawLine(Vector2.Zero, tip, fill, _hh * 2f);                        // 帯（面）
+            DashedLine(Vector2.Zero, tip, under, 3.2f + 1.2f * k, 7f, 5f, phase); // 暗色の下縁取り
             DashedLine(Vector2.Zero, tip, edge, 1.6f + 1.2f * k, 7f, 5f, phase); // 破線の中心ガイド
             DrawCircle(Vector2.Zero, 3.2f, new Color(_tint.R, _tint.G, _tint.B, 0.85f * pulse)); // 発射源
             DrawWarn(_segDir * (_segLen * 0.5f), k);
@@ -201,12 +211,14 @@ public partial class AreaStrike : Node2D, IAoeHazard
             // 矩形は角丸（他UIと同じ Clean Glass 調＝角ばらせない）。
             float rad = Mathf.Min(7f, Mathf.Min(_hw, _hh) * 0.8f);
             RoundFill(r, rad, fill);
+            RoundOutline(r, rad, under, 3.8f); // 暗色の下縁取り
             RoundOutline(r, rad, edge, 2f);
             DrawWarn(Vector2.Zero, k);
             return;
         }
         // ビーム：細い帯＋両端の予測線（破線）。線に沿って警告バッジ。
         DrawRect(r, fill);
+        DashedBoxBorder(under, 3.8f, phase); // 暗色の下縁取り
         DashedBoxBorder(edge, 2f, phase);
         if (_shape == Shape.BeamH)
         { DrawWarn(new Vector2(-_hw * 0.5f, 0), k); DrawWarn(new Vector2(_hw * 0.5f, 0), k); }

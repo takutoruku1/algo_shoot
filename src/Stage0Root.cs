@@ -14,7 +14,7 @@ public partial class Stage0Root : Node2D
     public StageZero Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
 
-    private bool _rHeld;
+    private readonly RetryHold _retry = new();
     private bool _exitHeld;
 
     public override void _Ready()
@@ -77,17 +77,22 @@ public partial class Stage0Root : Node2D
 
     public override void _Process(double delta)
     {
-        // R＝最初から（練習をやり直す）。
-        bool r = Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start);
-        if (r && !_rHeld)
+        // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
+        if (Pad.UiBlocked(this)) { _exitHeld = true; return; }
+
+        // R 長押し(0.7s)＝最初から（練習をやり直す）。即発は誤爆しやすい週次PT指摘→長押し化
+        //（ゲームオーバー中は即発）。Start はポーズメニューと衝突するため廃止＝メニュー内リトライを使う。
+        bool gameOver = (Player?.Lives ?? 1) <= 0;
+        if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
+            return;
         }
-        _rHeld = r;
+        Hud?.SetRetryHold(_retry.Progress);
 
         // 練習モードなので通常は残機0に到達しないが、安全網としてゲームオーバー抜けを受け付ける。
-        if ((Player?.Lives ?? 1) <= 0)
+        if (gameOver)
         {
             if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
         }

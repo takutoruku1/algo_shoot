@@ -46,6 +46,8 @@ public partial class HowToPlay : CanvasLayer
     {
         _open = false;
         Audio.Instance?.PlayUiCancel();
+        // Esc で閉じたとき、同じ押下を PauseMenu が開閉エッジとして拾わないよう通知（Backlog と同作法）。
+        GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.NoteOverlayClosed();
         _canvas.QueueRedraw();
         var cb = _onClose; _onClose = null;
         cb?.Invoke();
@@ -54,6 +56,10 @@ public partial class HowToPlay : CanvasLayer
     public override void _Process(double delta)
     {
         if (!_open) return;
+
+        // 開いている間＝下の画面（タイトル/ポーズ/ステージ）への入力を食う
+        //（閉じた Esc/X の同じ押下が下で二重処理されないための門・Pad.UiBlocked）。
+        Pad.ConsumeUi(this);
 
         // ←→ / LB・RB でページ送り。
         bool left  = Input.IsActionPressed("ui_left")  || Pad.Pressed(JoyButton.LeftShoulder);
@@ -94,7 +100,7 @@ public partial class HowToCanvas : Node2D
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";       // やさしさ全開：Player.cs RightStick
-    private static string TokMenu  => Pad.UsingPad ? "Start"                          : "Esc";
+    private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
 
     public override void _Draw()
     {
