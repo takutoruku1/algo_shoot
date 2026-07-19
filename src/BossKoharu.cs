@@ -32,6 +32,11 @@ public partial class BossKoharu : Enemy
     // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
 
+    // ── INI 外出しのバランス値（config/boss_stats.ini [koharu]。読めなければ現行既定値）──
+    private double _ringInterval = 1.0, _fanInterval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
+    private int _ringCount = 16, _fanCount = 9, _aimedWing = 1; // wing=way数の片翼（3way→1）
+    private float _ringSpeed = 70f, _aimedSpeed = 96f, _spiralSpeed = 88f;
+
     // ── 「お残し禁止」（HP52%ワンショットスペル）──
     //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“料理弾”3列×8＝24発を配膳
     //  （消せる祈り弾 MakeErasable・降下12px/s）。8秒以内に撃って消した分は祈り弾の既存経路で
@@ -47,11 +52,14 @@ public partial class BossKoharu : Enemy
     private int _mealStartLives, _mealStartBombs;  // 完食報酬の判定スナップショット（被弾なし・ボムなし）
     private readonly System.Collections.Generic.List<Bullet> _meal = new();     // 配膳した料理弾
     private readonly System.Collections.Generic.List<Bullet> _mealLeft = new(); // 時間切れ時のお残し（変換待ち行列）
-    private const double MealServeDelay = 0.9;  // 宣告→配膳の溜め
-    private const double MealWindow = 8.0;      // 食事時間
-    private const double MealConvStep = 0.06;   // お残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
-    private const float MealFallSpeed = 12f;    // 料理弾の降下速度（ゆっくり＝狙って食べられる）
-    private const float MealNeedleSpeed = 130f; // お残しニードルの速度
+    // 主要パラメータは INI（config/boss_stats.ini [koharu] meal_*）で上書き可。初期値＝現行値。
+    private float _mealHp = 0.52f;         // 発動HP割合
+    private int _mealRows = 3, _mealCols = 8; // 配膳の行×列（3×8=24発）
+    private double _mealServeDelay = 0.9;  // 宣告→配膳の溜め
+    private double _mealWindow = 8.0;      // 食事時間
+    private double _mealConvStep = 0.06;   // お残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
+    private float _mealFallSpeed = 12f;    // 料理弾の降下速度（ゆっくり＝狙って食べられる）
+    private float _mealNeedleSpeed = 130f; // お残しニードルの速度
     private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「のこしちゃだめ」の色）
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
@@ -101,17 +109,39 @@ public partial class BossKoharu : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = 1800;
-        BodyRadius = 9f;
-        PanelCount = 5;          // 「むだだよ」等の言葉（黒い吹き出し）
-        PanelInk = 2;
-        OrbitRadius = 26f;
-        SpinSpeed = 0.85f;
+        // 主要バランス値は INI（config/boss_stats.ini [koharu]）で上書き可。第3引数＝現行既定値。
+        Points = BossTuning.I("koharu", "points", 1800);
+        BodyRadius = BossTuning.F("koharu", "body_radius", 9f);
+        PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだよ」等の言葉（黒い吹き出し）
+        PanelInk = BossTuning.I("koharu", "panel_ink", 2);
+        OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
+        SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
         PanelsFire = false;
-        EnemyBulletSpeed = 80f;
+        EnemyBulletSpeed = BossTuning.F("koharu", "bullet_speed", 80f);
 
-        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
-        BarCount = DiffBars(finalBoss: false);
+        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。INI hp_bars > 0 で固定上書き。
+        int bars = BossTuning.I("koharu", "hp_bars", 0);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+
+        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
+        _ringInterval = BossTuning.F("koharu", "ring_interval", 1.0f);
+        _ringCount = BossTuning.I("koharu", "ring_count", 16);
+        _ringSpeed = BossTuning.F("koharu", "ring_speed", 70f);
+        _fanInterval = BossTuning.F("koharu", "fan_interval", 1.1f);
+        _fanCount = BossTuning.I("koharu", "fan_count", 9);
+        _aimedInterval = BossTuning.F("koharu", "aimed_interval", 0.7f);
+        _aimedSpeed = BossTuning.F("koharu", "aimed_speed", 96f);
+        _aimedWing = Mathf.Max(0, BossTuning.I("koharu", "aimed_ways", 3) / 2); // 奇数way→片翼数
+        _spiralInterval = BossTuning.F("koharu", "spiral_interval", 0.085f);
+        _spiralSpeed = BossTuning.F("koharu", "spiral_speed", 88f);
+        _mealHp = BossTuning.F("koharu", "meal_hp", 0.52f);
+        _mealRows = Mathf.Max(1, BossTuning.I("koharu", "meal_rows", 3));
+        _mealCols = Mathf.Max(1, BossTuning.I("koharu", "meal_cols", 8));
+        _mealWindow = BossTuning.F("koharu", "meal_window", 8.0f);
+        _mealServeDelay = BossTuning.F("koharu", "meal_serve_delay", 0.9f);
+        _mealFallSpeed = BossTuning.F("koharu", "meal_fall_speed", 12f);
+        _mealNeedleSpeed = BossTuning.F("koharu", "meal_needle_speed", 130f);
+        _mealConvStep = Mathf.Max(0.01f, BossTuning.F("koharu", "meal_convert_step", 0.06f));
 
         PreTexPath = "res://char/enemy_koharu_pre.png";   // 穢れ・病んだ核
         // 改心の三段：穢れ(pre)→泣き(cry＝黒い炎が熾火へ鎮まり大粒の涙)→笑顔(post)。
@@ -127,8 +157,8 @@ public partial class BossKoharu : Enemy
         base._Ready();
         // ボス登場＝道中BGMからこはる固有テーマへクロスフェード（温かい旋律が冷えて減衰＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossKoharu);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
+        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("koharu", "roam_speed", RoamSpeed));
         GetHud()?.ShowBossBar("とまれないわたし", "@koharu");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -157,10 +187,10 @@ public partial class BossKoharu : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; Ring(pool, Dn(16), 70f); } break;
-            case 1: if (_fireT >= Di(1.1)) { _fireT = 0; FanDown(pool); } break;
-            case 2: if (_fireT >= Di(0.7)) { _fireT = 0; Aimed(pool); } break;
-            default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; FanDown(pool); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;
         }
     }
 
@@ -187,7 +217,7 @@ public partial class BossKoharu : Enemy
     // FanDown はスペル「のこしちゃだめ」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
     private void FanDown(BulletPool pool)
     {
-        int k = Dn(9);
+        int k = Dn(_fanCount);
         for (int i = 0; i < k; i++)
         {
             float t = (float)i / (k - 1) - 0.5f;
@@ -205,13 +235,13 @@ public partial class BossKoharu : Enemy
         switch (_mealPhase)
         {
             case 1: // 宣告 → 配膳
-                if (_mealT < MealServeDelay) return;
+                if (_mealT < _mealServeDelay) return;
                 if (!ServeMeal()) { FinishMeal(fullEat: false); return; } // Pool不在（起こらない保険）＝中断
                 _mealPhase = 2; _mealT = 0;
                 return;
             case 2: // 食事時間：完食は即判定。時間切れでお残しを回収して変換へ。
                 if (CountMealAlive() == 0) { FinishMeal(fullEat: true); return; }
-                if (_mealT < MealWindow) return;
+                if (_mealT < _mealWindow) return;
                 _mealLeft.Clear();
                 foreach (var b in _meal)
                     if (IsInstanceValid(b) && b.Active && b.Erasable) _mealLeft.Add(b);
@@ -222,9 +252,9 @@ public partial class BossKoharu : Enemy
             default: // 3: お残し→自機狙いニードル（0.06s間隔で順に）。変換待ちの間も撃って食べれば減らせる。
                 var pool = GetNodeOrNull<BulletPool>("/root/Pool");
                 var pl = GetTree().GetFirstNodeInGroup("player") as Node2D;
-                while (_mealT >= MealConvStep && _mealLeft.Count > 0)
+                while (_mealT >= _mealConvStep && _mealLeft.Count > 0)
                 {
-                    _mealT -= MealConvStep;
+                    _mealT -= _mealConvStep;
                     var b = _mealLeft[0];
                     _mealLeft.RemoveAt(0);
                     if (pool == null || !IsInstanceValid(b) || !b.Active || !b.Erasable) continue; // 変換待ち中に食べた/消えた分
@@ -232,7 +262,7 @@ public partial class BossKoharu : Enemy
                     pool.Despawn(b);
                     Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
                     d = d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
-                    pool.Spawn(at, d * MealNeedleSpeed, true, 3.0f, 1, BulletShape.Needle, MealNeedleTint);
+                    pool.Spawn(at, d * _mealNeedleSpeed, true, 3.0f, 1, BulletShape.Needle, MealNeedleTint);
                 }
                 if (_mealLeft.Count == 0) FinishMeal(fullEat: false);
                 return;
@@ -242,18 +272,21 @@ public partial class BossKoharu : Enemy
     // 配膳：画面右半分（ボス側＝前へ出るほど早く食べ進められる）に 3列×8＝24発の“料理弾”を並べる。
     // 祈り弾（MakeErasable）＝自機弾で消す→AddPrayerCleared の既存経路がそのまま「食べた」報酬になる。
     // Y=44/64/84 開始＋降下12px/s：8秒（＋難易度の弾速倍率）でも下端216pxに届かず画面外に落ちない
-    // ＝「勝手に消えて完食扱い」の事故を構造で防ぐ。
+    // ＝「勝手に消えて完食扱い」の事故を構造で防ぐ。INIで行列数を増やしても、格子の間隔を画面内に
+    // 収まるようクランプして同じ保証を維持する（右端356px・開始Y上限94px）。
     private bool ServeMeal()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return false;
         _meal.Clear();
         SetSpellVisual(Spells[0].shape, Spells[0].tint); // 料理弾＝琥珀の円弾（「ぜんぶ食べて」の色）
-        for (int row = 0; row < 3; row++)
-            for (int col = 0; col < 8; col++)
+        float colStep = _mealCols > 1 ? Mathf.Min(20f, (356f - 214f) / (_mealCols - 1)) : 0f;
+        float rowStep = _mealRows > 1 ? Mathf.Min(20f, (94f - 44f) / (_mealRows - 1)) : 0f;
+        for (int row = 0; row < _mealRows; row++)
+            for (int col = 0; col < _mealCols; col++)
             {
-                var pos = new Vector2(214f + col * 20f, 44f + row * 20f);
-                var b = FireBullet(pool, pos, new Vector2(0f, MealFallSpeed), 3.6f);
+                var pos = new Vector2(214f + col * colStep, 44f + row * rowStep);
+                var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f);
                 b.MakeErasable();
                 _meal.Add(b);
             }
@@ -306,10 +339,10 @@ public partial class BossKoharu : Enemy
     {
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        for (int i = -1; i <= 1; i++)
+        for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
         }
     }
 
@@ -319,7 +352,7 @@ public partial class BossKoharu : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 88f, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
         }
     }
 
@@ -343,8 +376,8 @@ public partial class BossKoharu : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        // 「お残し禁止」：HP52%を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
-        if (!_mealFired && HpRatio <= 0.52f)
+        // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
+        if (!_mealFired && HpRatio <= _mealHp)
         {
             _mealFired = true;
             _mealPhase = 1; _mealT = 0;

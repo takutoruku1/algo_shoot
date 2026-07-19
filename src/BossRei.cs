@@ -46,11 +46,17 @@ public partial class BossRei : Enemy
     //   タイマーは SHIELDED（殴れる時間）だけ進める＝BREAK/RECLOSE や会話中の理不尽な加圧を防ぐ。
     private double _noDmgT;
     private int _pressure;
-    private const int PressureMax = 2;
-    private const double PressureDelay = 6.0; // 最初の加圧まで（与ダメゼロ許容時間）
-    private const double PressureStep = 4.0;  // 2段階目までの追加時間
-    private double _tauntCd;                  // 挑発字幕の連発防止
+    private int _pressureMax = 2;        // INI: pressure_max
+    private double _pressureDelay = 6.0; // INI: pressure_delay（最初の加圧までの与ダメゼロ許容時間）
+    private double _pressureStep = 4.0;  // INI: pressure_step（2段階目までの追加時間）
+    private double _tauntCd;             // 挑発字幕の連発防止
     private int _tauntIdx;
+
+    // ── INI 外出しのバランス値（config/boss_stats.ini [rei]。読めなければ現行既定値）──
+    private double _ringInterval = 1.0, _ring2Interval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
+    private int _ringCount = 14, _ring2Count = 18;
+    private float _ringSpeed = 70f, _ring2Speed = 76f, _aimedSpeed = 98f, _spiralSpeed = 90f;
+    private float _relayHp = 0.26f;
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
     private static readonly string[] TauntLines =
     {
@@ -96,17 +102,36 @@ public partial class BossRei : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = 1500;
-        BodyRadius = 9f;
-        PanelCount = 5;          // 「二番」の言葉（黒い吹き出し）
-        PanelInk = 2;
-        OrbitRadius = 26f;
-        SpinSpeed = 0.9f;
+        // 主要バランス値は INI（config/boss_stats.ini [rei]）で上書き可。第3引数＝現行既定値。
+        Points = BossTuning.I("rei", "points", 1500);
+        BodyRadius = BossTuning.F("rei", "body_radius", 9f);
+        PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
+        PanelInk = BossTuning.I("rei", "panel_ink", 2);
+        OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
+        SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
         PanelsFire = false;
-        EnemyBulletSpeed = 82f;
+        EnemyBulletSpeed = BossTuning.F("rei", "bullet_speed", 82f);
 
         // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
-        BarCount = DiffBars(finalBoss: false);
+        // INI hp_bars > 0 で全難易度を固定本数に上書きできる。
+        int bars = BossTuning.I("rei", "hp_bars", 0);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+
+        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
+        _ringInterval = BossTuning.F("rei", "ring_interval", 1.0f);
+        _ringCount = BossTuning.I("rei", "ring_count", 14);
+        _ringSpeed = BossTuning.F("rei", "ring_speed", 70f);
+        _ring2Interval = BossTuning.F("rei", "ring2_interval", 1.1f);
+        _ring2Count = BossTuning.I("rei", "ring2_count", 18);
+        _ring2Speed = BossTuning.F("rei", "ring2_speed", 76f);
+        _aimedInterval = BossTuning.F("rei", "aimed_interval", 0.7f);
+        _aimedSpeed = BossTuning.F("rei", "aimed_speed", 98f);
+        _spiralInterval = BossTuning.F("rei", "spiral_interval", 0.085f);
+        _spiralSpeed = BossTuning.F("rei", "spiral_speed", 90f);
+        _pressureMax = BossTuning.I("rei", "pressure_max", 2);
+        _pressureDelay = BossTuning.F("rei", "pressure_delay", 6.0f);
+        _pressureStep = BossTuning.F("rei", "pressure_step", 4.0f);
+        _relayHp = BossTuning.F("rei", "relay_hp", 0.26f);
 
         PreTexPath = "res://char/enemy_rei_pre.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ剥がれかけ・涙)→笑顔(post)。
@@ -122,8 +147,8 @@ public partial class BossRei : Enemy
         base._Ready();
         // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
+        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
         GetHud()?.ShowBossBar("孤高のわたし", "@rei_____");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -175,8 +200,8 @@ public partial class BossRei : Enemy
         if (_caster != null && _caster.AoeActive) return; // 安置リレー中＝走るのが正解の時間。逃げ腰を咎めない
         if (!IsShieldPhase) return; // 殴れない時間（合図/窓/セリフ）は与ダメゼロを咎めない
         _noDmgT += delta;
-        int want = _noDmgT < PressureDelay ? 0
-                 : Mathf.Min(PressureMax, 1 + (int)((_noDmgT - PressureDelay) / PressureStep));
+        int want = _noDmgT < _pressureDelay ? 0
+                 : Mathf.Min(_pressureMax, 1 + (int)((_noDmgT - _pressureDelay) / _pressureStep));
         if (want > _pressure)
         {
             _pressure = want;
@@ -208,10 +233,10 @@ public partial class BossRei : Enemy
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; Ring(pool, Dn(14) + _pressure, 70f); } break;
-            case 1: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(18) + _pressure, 76f); } break;
-            case 2: if (_fireT >= Di(0.7)) { _fireT = 0; Aimed(pool); } break;
-            default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;
         }
     }
 
@@ -241,7 +266,7 @@ public partial class BossRei : Enemy
         for (int i = -wing; i <= wing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 98f, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
         }
     }
 
@@ -251,7 +276,7 @@ public partial class BossRei : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
         }
     }
 
@@ -283,10 +308,10 @@ public partial class BossRei : Enemy
             _accelerated = true;
             Audio.Instance?.SetMusicSpeed(1.15f);
         }
-        // 安置リレー「最終選考」：HP26%を割った瞬間に一度だけ（パターン最終切替と同じ節目＝終盤の山）。
+        // 安置リレー「最終選考」：HP26%（INI: relay_hp）を割った瞬間に一度だけ（パターン最終切替と同じ節目＝終盤の山）。
         // ホップ数と距離帯は難易度別。距離上限は到達限界（(予兆1.6s×WarnMul−反応0.3s)×150px/s＋安置r30）内：
         //   Easy 297px / Normal 225px / Hard 189px / Lunatic 158px ≧ 各帯の上限。
-        if (!_relayFired && HpRatio <= 0.26f)
+        if (!_relayFired && HpRatio <= _relayHp)
         {
             _relayFired = true;
             var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;

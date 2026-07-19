@@ -27,6 +27,12 @@ public partial class BossMina : Enemy
     private AreaSpellCaster _caster = null!;
     private bool _aoe62Done, _aoe42Done, _aoeFinaleDone; // 各閾値ワンショット
 
+    // ── INI 外出しのバランス値（config/boss_stats.ini [mina]。読めなければ現行既定値）──
+    private double _ringInterval = 0.95, _aimedInterval = 0.8, _flowerInterval = 1.0, _spiralInterval = 0.075;
+    private int _ringCount = 16, _flowerPetals = 10, _aimedWing = 2; // wing=way数の片翼（5way→2）
+    private float _ringSpeed = 72f, _aimedSpeed = 104f, _spiralSpeed = 92f;
+    private float _aoeSingleHp = 0.62f, _aoeChainHp = 0.42f; // 全画面AOEの発動HP割合（単発/リレー2連）
+
     // HPがこの割合を割るたびに弾幕パターンを変える。
     private static readonly float[] PatternThresholds = { 0.82f, 0.62f, 0.42f, 0.22f };
 
@@ -61,17 +67,33 @@ public partial class BossMina : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = 3000;
-        BodyRadius = 10f;
-        PanelCount = 6;          // 渦巻く悲鳴の言葉（黒い吹き出し）
-        PanelInk = 2;
-        OrbitRadius = 32f;
-        SpinSpeed = 1.0f;
+        // 主要バランス値は INI（config/boss_stats.ini [mina]）で上書き可。第3引数＝現行既定値。
+        Points = BossTuning.I("mina", "points", 3000);
+        BodyRadius = BossTuning.F("mina", "body_radius", 10f);
+        PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
+        PanelInk = BossTuning.I("mina", "panel_ink", 2);
+        OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
+        SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
         PanelsFire = false;
-        EnemyBulletSpeed = 86f;
+        EnemyBulletSpeed = BossTuning.F("mina", "bullet_speed", 86f);
 
-        // HPバー本数は難易度別（ラスボス格は +1本：Easy4/Normal5/Hard6/Lunatic7）。総HP=BarHp×本数。
-        BarCount = DiffBars(finalBoss: true);
+        // HPバー本数は難易度別（ラスボス格は +1本：Easy3/Normal5/Hard6/Lunatic7）。INI hp_bars > 0 で固定上書き。
+        int bars = BossTuning.I("mina", "hp_bars", 0);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: true);
+
+        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
+        _ringInterval = BossTuning.F("mina", "ring_interval", 0.95f);
+        _ringCount = BossTuning.I("mina", "ring_count", 16);
+        _ringSpeed = BossTuning.F("mina", "ring_speed", 72f);
+        _aimedInterval = BossTuning.F("mina", "aimed_interval", 0.8f);
+        _aimedSpeed = BossTuning.F("mina", "aimed_speed", 104f);
+        _aimedWing = Mathf.Max(0, BossTuning.I("mina", "aimed_ways", 5) / 2); // 奇数way→片翼数
+        _flowerInterval = BossTuning.F("mina", "flower_interval", 1.0f);
+        _flowerPetals = Mathf.Max(1, BossTuning.I("mina", "flower_petals", 10));
+        _spiralInterval = BossTuning.F("mina", "spiral_interval", 0.075f);
+        _spiralSpeed = BossTuning.F("mina", "spiral_speed", 92f);
+        _aoeSingleHp = BossTuning.F("mina", "aoe_single_hp", 0.62f);
+        _aoeChainHp = BossTuning.F("mina", "aoe_chain_hp", 0.42f);
 
         PreTexPath = "res://char/enemy_mina_pre.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ半剥がれ・決壊の涙)→清浄(post)。
@@ -88,8 +110,8 @@ public partial class BossMina : Enemy
         // ボス登場＝道中BGMからボスBGMへクロスフェード。ミナ戦本体は専用の実音源 BgmBossMina
         //   （Final/ヒカゲの汎用 BgmBoss は据え置き）。実音源は MusicTargetDb で粒を揃えて鳴る。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossMina);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
-        _mover.Configure(new Vector2(200f, 68f), 90f, 28f, RoamSpeed);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
+        _mover.Configure(new Vector2(200f, 68f), 90f, 28f, BossTuning.F("mina", "roam_speed", RoamSpeed));
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -125,10 +147,10 @@ public partial class BossMina : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(0.95)) { _fireT = 0; Ring(pool, Dn(16), 72f); } break;
-            case 1: if (_fireT >= Di(0.8))  { _fireT = 0; Aimed(pool); } break;
-            case 2: if (_fireT >= Di(1.0))  { _fireT = 0; Flower(pool, Dn(10)); } break;
-            case 3: if (_fireT >= Di(0.075)){ _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; Aimed(pool); } break;
+            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; Flower(pool, Dn(_flowerPetals)); } break;
+            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;
             default: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(22), 66f); Ring(pool, Dn(22), 92f); } break;
         }
     }
@@ -155,10 +177,10 @@ public partial class BossMina : Enemy
     {
         Vector2 d = AimAtPlayer();
         float baseA = Mathf.Atan2(d.Y, d.X);
-        for (int i = -2; i <= 2; i++)
+        for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(11f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 104f, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
         }
     }
 
@@ -179,7 +201,7 @@ public partial class BossMina : Enemy
         for (int s = 0; s < 3; s++)
         {
             float a = _ringOff + Mathf.Tau * s / 3f;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 92f, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
         }
     }
 
@@ -203,11 +225,11 @@ public partial class BossMina : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        // 全画面AOE（ラスボス専用）：HP 0.62 で安置型の単発（学習）→ 0.42 で安置リレー2連（強化）。
-        // フィナーレ突入時に安置なしの全面型を1回（計3回）。各ワンショット。
+        // 全画面AOE（ラスボス専用）：HP 0.62（INI: aoe_single_hp）で安置型の単発（学習）→
+        // 0.42（INI: aoe_chain_hp）で安置リレー2連（強化）。フィナーレ突入時に安置なしの全面型を1回（計3回）。
         // リレーの距離帯 140-190px は到達限界（(1.6s×WarnMul−0.3s)×150px/s＋r30。Normal 225px）内。
-        if (!_aoe62Done && HpRatio <= 0.62f) { _aoe62Done = true; _caster?.CastFullscreen(withSafeZone: true); }
-        if (!_aoe42Done && HpRatio <= 0.42f) { _aoe42Done = true; _caster?.CastFullscreenChain(2, 140f, 190f); }
+        if (!_aoe62Done && HpRatio <= _aoeSingleHp) { _aoe62Done = true; _caster?.CastFullscreen(withSafeZone: true); }
+        if (!_aoe42Done && HpRatio <= _aoeChainHp) { _aoe42Done = true; _caster?.CastFullscreenChain(2, 140f, 190f); }
 
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
         if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))

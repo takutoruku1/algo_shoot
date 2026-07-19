@@ -81,15 +81,17 @@ public partial class CameoBoss : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = CameoPoints;
-        BodyRadius = CameoBodyR;
-        PanelCount = CameoPanels;
-        PanelInk = CameoPanelInk;
-        OrbitRadius = CameoOrbitR;
-        SpinSpeed = CameoSpin;
+        // 主要バランス値は INI（config/boss_stats.ini [cameo]＝3ステージの中ボス共通）で上書き可。
+        // 第3引数＝現行既定値（上の Tunables 定数）。
+        Points = BossTuning.I("cameo", "points", CameoPoints);
+        BodyRadius = BossTuning.F("cameo", "body_radius", CameoBodyR);
+        PanelCount = BossTuning.I("cameo", "panel_count", CameoPanels);
+        PanelInk = BossTuning.I("cameo", "panel_ink", CameoPanelInk);
+        OrbitRadius = BossTuning.F("cameo", "orbit_radius", CameoOrbitR);
+        SpinSpeed = BossTuning.F("cameo", "spin_speed", CameoSpin);
         PanelsFire = false;            // 弾は本体の弾幕に集約（パネルは撃たない＝本戦ボスと同様）
-        EnemyBulletSpeed = CameoBulletSpd;
-        BarCount = CameoBars;          // HPバー方式ON（総HP=BarHp×CameoBars）
+        EnemyBulletSpeed = BossTuning.F("cameo", "bullet_speed", CameoBulletSpd);
+        BarCount = Mathf.Max(1, BossTuning.I("cameo", "hp_bars", CameoBars)); // HPバー方式ON（総HP=BarHp×本数）
 
         PreTexPath = Theme.PreTex;
         CryTexPath = Theme.CryTex;
@@ -108,7 +110,7 @@ public partial class CameoBoss : Enemy
         _rng.Randomize();
         base._Ready();
         if (Audio.Instance != null && Theme.Bgm != null) Audio.Instance.Music(Theme.Bgm);
-        _mover.Configure(ZoneCenter, ZoneHalfW, ZoneHalfH, RoamSpeed);
+        _mover.Configure(ZoneCenter, ZoneHalfW, ZoneHalfH, BossTuning.F("cameo", "roam_speed", RoamSpeed));
         SetSpellVisual(Theme.SpellShape, Theme.SpellTint);
 
         // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）。本ボス前なので時系列は重ならない。

@@ -268,6 +268,11 @@ public partial class AreaSpellCaster : Node2D
                 _spells = new (string, AreaStrike.Shape?)[] { ("全テレグラフ同時", null), ("濁渦と雨", null) };
                 break;
         }
+        // INI上書き（config/boss_stats.ini の [key] セクション）。キーが無ければ上のハードコード既定のまま。
+        _interval = BossTuning.F(key, "aoe_interval", (float)_interval);
+        _warnMin = BossTuning.F(key, "aoe_warn_min", (float)_warnMin);
+        _warnMax = BossTuning.F(key, "aoe_warn_max", (float)_warnMax);
+        _anchorPlayer = BossTuning.B(key, "aoe_anchor_player", _anchorPlayer);
     }
 
     public override void _Process(double delta)

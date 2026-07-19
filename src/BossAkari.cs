@@ -34,6 +34,12 @@ public partial class BossAkari : Enemy
     private const float AwayX = 434f;   // 退場先X（弾消滅境界400 ＋ パネル軌道29 ＋ 余白）
     private const float DashSpeed = 320f; // 退場/帰還の移動速度（通路の尺を演出で食わない）
 
+    // ── INI 外出しのバランス値（config/boss_stats.ini [akari]。読めなければ現行既定値）──
+    private double _fanInterval = 1.0, _ringInterval = 1.2, _aimedInterval = 0.7, _spiralInterval = 0.085;
+    private int _fanCount = 9, _ringCount = 16, _aimedWing = 1; // wing=way数の片翼（3way→1）
+    private float _ringSpeed = 72f, _aimedSpeed = 96f, _spiralSpeed = 90f, _roamSpeed = RoamSpeed;
+    private float _corridorHp = 0.52f;
+
     // スペルカード（RefrainHTML Danmaku v3 STAGE2 あかり＝雨の教室・青と白の寒色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
@@ -82,17 +88,33 @@ public partial class BossAkari : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = 1500;
-        BodyRadius = 9f;
-        PanelCount = 5;          // 自責の言葉（黒い吹き出し）
-        PanelInk = 2;
-        OrbitRadius = 26f;
-        SpinSpeed = 0.9f;
+        // 主要バランス値は INI（config/boss_stats.ini [akari]）で上書き可。第3引数＝現行既定値。
+        Points = BossTuning.I("akari", "points", 1500);
+        BodyRadius = BossTuning.F("akari", "body_radius", 9f);
+        PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
+        PanelInk = BossTuning.I("akari", "panel_ink", 2);
+        OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
+        SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
-        EnemyBulletSpeed = 80f;
+        EnemyBulletSpeed = BossTuning.F("akari", "bullet_speed", 80f);
 
-        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
-        BarCount = DiffBars(finalBoss: false);
+        // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。INI hp_bars > 0 で固定上書き。
+        int bars = BossTuning.I("akari", "hp_bars", 0);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+
+        // 弾幕・ギミックの外出し値（INIに無ければフィールド初期値＝現行値のまま）。
+        _fanInterval = BossTuning.F("akari", "fan_interval", 1.0f);
+        _fanCount = BossTuning.I("akari", "fan_count", 9);
+        _ringInterval = BossTuning.F("akari", "ring_interval", 1.2f);
+        _ringCount = BossTuning.I("akari", "ring_count", 16);
+        _ringSpeed = BossTuning.F("akari", "ring_speed", 72f);
+        _aimedInterval = BossTuning.F("akari", "aimed_interval", 0.7f);
+        _aimedSpeed = BossTuning.F("akari", "aimed_speed", 96f);
+        _aimedWing = Mathf.Max(0, BossTuning.I("akari", "aimed_ways", 3) / 2); // 奇数way→片翼数
+        _spiralInterval = BossTuning.F("akari", "spiral_interval", 0.085f);
+        _spiralSpeed = BossTuning.F("akari", "spiral_speed", 90f);
+        _roamSpeed = BossTuning.F("akari", "roam_speed", RoamSpeed);
+        _corridorHp = BossTuning.F("akari", "corridor_hp", 0.52f);
 
         PreTexPath = "res://char/enemy_akari_pre.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝触手がほどけ涙があふれる中間)→笑顔(post)。
@@ -109,8 +131,8 @@ public partial class BossAkari : Enemy
         base._Ready();
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（旧 RoamSpeed を踏襲）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
+        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
         GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -145,7 +167,7 @@ public partial class BossAkari : Enemy
         {
             // 帰還完了：徘徊を通常速度へ戻し、宣告を再開。
             _corridorPhase = 0;
-            _mover.Configure(new Vector2(200f, 70f), 90f, 28f, RoamSpeed);
+            _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
             _caster.SetProcess(true);
             SetPanelsInvulnerable(false);
             // 出口報酬：パネル全砕き→BREAK窓誘発（SHIELDED中の Purify＝ボム時 Enemy.Purify と同じ経路）。
@@ -176,10 +198,10 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(1.0)) { _fireT = 0; FanDown(pool); } break;       // 下向きの雨の扇
-            case 1: if (_fireT >= Di(1.2)) { _fireT = 0; Ring(pool); } break;          // 回転する放射リング
-            case 2: if (_fireT >= Di(0.7)) { _fireT = 0; AimedSpread(pool); } break;   // 自機狙いの3way連射
-            default: if (_fireT >= Di(0.085)) { _fireT = 0; Spiral(pool); } break;     // 二重スパイラル
+            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; FanDown(pool); } break;       // 下向きの雨の扇
+            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool); } break;         // 回転する放射リング
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; AimedSpread(pool); } break; // 自機狙いの3way連射
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;    // 二重スパイラル
         }
     }
 
@@ -193,7 +215,7 @@ public partial class BossAkari : Enemy
 
     private void FanDown(BulletPool pool)
     {
-        int k = Dn(9);
+        int k = Dn(_fanCount);
         for (int i = 0; i < k; i++)
         {
             float t = (float)i / (k - 1) - 0.5f;
@@ -204,12 +226,12 @@ public partial class BossAkari : Enemy
 
     private void Ring(BulletPool pool)
     {
-        int k = Dn(16);
+        int k = Dn(_ringCount);
         _ringOff += Mathf.DegToRad(11f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 72f, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _ringSpeed, 3.4f);
         }
     }
 
@@ -219,10 +241,10 @@ public partial class BossAkari : Enemy
     private void AimedSpread(BulletPool pool)
     {
         float baseA = Mathf.Atan2(AimAtPlayer().Y, AimAtPlayer().X);
-        for (int i = -1; i <= 1; i++)
+        for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(14f);
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 96f, 3.4f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
             b.SoftenOnGraze = true; // AimedSpread は「ずっと一緒」(pattern2)専用＝スペル限定が自然に成立
         }
     }
@@ -233,7 +255,7 @@ public partial class BossAkari : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, 3.2f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
             if (_pattern == 3 && !_finale) b.SoftenOnGraze = true; // 「離さない」中のみ（フィナーレ流用時は付けない）
         }
     }
@@ -259,9 +281,9 @@ public partial class BossAkari : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        // イライラ棒「雨の帰り道」：HP52%を割った瞬間に一度だけ（パターン第2切替と同じ節目＝中盤の山）。
+        // イライラ棒「雨の帰り道」：HP52%（INI: corridor_hp）を割った瞬間に一度だけ（パターン第2切替と同じ節目＝中盤の山）。
         // 上の ApplySpell と同フレームで重なり得るが、宣告は後勝ち＝「雨の帰り道」が表示される。
-        if (!_corridorFired && HpRatio <= 0.52f)
+        if (!_corridorFired && HpRatio <= _corridorHp)
         {
             _corridorFired = true;
             StartCorridor();

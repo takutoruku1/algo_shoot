@@ -17,6 +17,11 @@ public partial class BossHikage : Enemy
     private int _volley;
     private const float BulletR = 3.4f;
 
+    // ── INI 外出しのバランス値（config/boss_stats.ini [hikage]。読めなければ現行既定値）──
+    private double _p1Interval = 1.1, _p2Interval = 0.085, _p3Interval = 0.72;
+    private int _p1Count = 18, _p3Count = 12;
+    private float _p1Speed = 70f, _p2Speed = 90f;
+
     // 大泣き中のかけあい（話者: false=ヒカゲ / true=algo）
     private bool _seq;
     private int _line;
@@ -31,17 +36,28 @@ public partial class BossHikage : Enemy
 
     protected override void OnEnemyReady()
     {
-        Points = 1200;
-        BodyRadius = 9f;
-        PanelCount = 6;          // 黒い炎のリング（盾＝剥がしてHPを削る。攻撃は本体の弾幕）
-        PanelInk = 2;
-        OrbitRadius = 28f;
-        SpinSpeed = 1.2f;
+        // 主要バランス値は INI（config/boss_stats.ini [hikage]）で上書き可。第3引数＝現行既定値。
+        Points = BossTuning.I("hikage", "points", 1200);
+        BodyRadius = BossTuning.F("hikage", "body_radius", 9f);
+        PanelCount = BossTuning.I("hikage", "panel_count", 6); // 黒い炎のリング（盾＝剥がしてHPを削る。攻撃は本体の弾幕）
+        PanelInk = BossTuning.I("hikage", "panel_ink", 2);
+        OrbitRadius = BossTuning.F("hikage", "orbit_radius", 28f);
+        SpinSpeed = BossTuning.F("hikage", "spin_speed", 1.2f);
         PanelsFire = false;      // 弾はパネルでなく本体の幾何学弾幕で撃つ
-        EnemyBulletSpeed = 95f;
+        EnemyBulletSpeed = BossTuning.F("hikage", "bullet_speed", 95f);
 
-        // HPバー方式（言葉のシールド＋無防備窓サイクル）。本数は難易度別（通常ボス）。
-        BarCount = DiffBars(finalBoss: false);
+        // HPバー方式（言葉のシールド＋無防備窓サイクル）。本数は難易度別（通常ボス）。INI hp_bars > 0 で固定上書き。
+        int bars = BossTuning.I("hikage", "hp_bars", 0);
+        BarCount = bars > 0 ? bars : DiffBars(finalBoss: false);
+
+        // 弾幕の外出し値（INIに無ければフィールド初期値＝現行値のまま）。
+        _p1Interval = BossTuning.F("hikage", "phase1_interval", 1.1f);
+        _p1Count = BossTuning.I("hikage", "phase1_count", 18);
+        _p1Speed = BossTuning.F("hikage", "phase1_speed", 70f);
+        _p2Interval = BossTuning.F("hikage", "phase2_interval", 0.085f);
+        _p2Speed = BossTuning.F("hikage", "phase2_speed", 90f);
+        _p3Interval = BossTuning.F("hikage", "phase3_interval", 0.72f);
+        _p3Count = BossTuning.I("hikage", "phase3_count", 12);
 
         PreTexPath = "res://char/enemy_hikage_pre.png";
         CryTexPath = "res://char/enemy_hikage_cry.png";
@@ -56,8 +72,8 @@ public partial class BossHikage : Enemy
         base._Ready();
         // ボス登場＝道中BGMからヒカゲ専用テーマ（The_Frozen_Threshold）へクロスフェード。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossHikage);
-        // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに。旧 RoamSpeed を踏襲。
-        _mover.Configure(new Vector2(192f, 74f), 110f, 34f, RoamSpeed, accelTime: 0.4f);
+        // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに（速度はINI: roam_speed）。
+        _mover.Configure(new Vector2(192f, 74f), 110f, 34f, BossTuning.F("hikage", "roam_speed", RoamSpeed), accelTime: 0.4f);
         GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }
@@ -82,15 +98,15 @@ public partial class BossHikage : Enemy
         if (hp > 0.66f)
         {
             // フェーズ1：放射リング（毎回少しずつ回転）。ゆっくりで避けやすい。
-            if (_fireT >= Di(1.1))
+            if (_fireT >= Di(_p1Interval))
             {
                 _fireT = 0;
-                int k = Dn(18);
+                int k = Dn(_p1Count);
                 float off = _volley * Mathf.DegToRad(9f);
                 for (int i = 0; i < k; i++)
                 {
                     float a = off + Mathf.Tau * i / k;
-                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 70f, isEnemy: true, BulletR, 1);
+                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p1Speed, isEnemy: true, BulletR, 1);
                 }
                 _volley++;
             }
@@ -98,24 +114,24 @@ public partial class BossHikage : Enemy
         else if (hp > 0.33f)
         {
             // フェーズ2：二重スパイラル（連続回転）。
-            if (_fireT >= Di(0.085))
+            if (_fireT >= Di(_p2Interval))
             {
                 _fireT = 0;
                 _spiralAngle += Mathf.DegToRad(13f);
                 for (int s = 0; s < 2; s++)
                 {
                     float a = _spiralAngle + Mathf.Pi * s;
-                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 90f, isEnemy: true, BulletR, 1);
+                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p2Speed, isEnemy: true, BulletR, 1);
                 }
             }
         }
         else
         {
             // フェーズ3：花型（複数リングを角度・速度オフセットで重ねる）。やや密。
-            if (_fireT >= Di(0.72))
+            if (_fireT >= Di(_p3Interval))
             {
                 _fireT = 0;
-                int k = Dn(12);
+                int k = Dn(_p3Count);
                 const int rings = 3;
                 for (int r = 0; r < rings; r++)
                 {
