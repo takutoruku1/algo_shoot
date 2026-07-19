@@ -200,6 +200,17 @@ public partial class Player : Area2D
     private float _dodgeTrailAccum = 0f;        // 残像スポーン用タイマ
     private bool _dodgeFlip = false;            // 回避中のスプライト左右反転（スピンの8ステップで真横以降のフレームを FlipH 流用するために使う）
 
+    // 集中の光：敵/パネルの消費点から「この敵本体に1発当たった」を受け取る。
+    // Lv0 は完全 no-op。対象が変わったら数え直し（ボーナスは Fire() 側で FocusFireBonus として乗る）。
+    public void NotifyShotHit(Node2D target)
+    {
+        if ((_game?.FocusFireMaxStack ?? 0) <= 0 || target == null) return;
+        if (!ReferenceEquals(target, _focusTarget)) { _focusTarget = target; _focusHits = 0; }
+        _focusHits++;
+    }
+    // 現在の集中ボーナス（+0〜+Lv）。FocusFireHitsPerStack 発ごとに1段上がる。
+    private int FocusFireBonus => Mathf.Min(_game?.FocusFireMaxStack ?? 0, _focusHits / FocusFireHitsPerStack);
+
     // HUD・チュートリアル向けの公開アクセサ（挙動には一切影響しない読み取り専用情報）。
     public bool DodgeReady => _dodgeCd <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
@@ -211,6 +222,16 @@ public partial class Player : Area2D
     // 返し光（counter_light）：回避よけした敵弾を追尾光弾へ変換する。Lv1=2発に1発（上限6/回避）、Lv2=全弾（上限12=DodgeGrazeCap）。
     private int _counterParity = 0;             // Lv1 の間引き用（奇数番目だけ変換）。TryDodge でリセット。
     private int _counterCount = 0;              // 今回の回避で変換した弾数（上限判定用）。TryDodge でリセット。
+
+    // ── 集中の光（focus_fire）：同一敵への連続ヒットで威力段階上昇 ──
+    // 敵/パネル側の消費点が NotifyShotHit(本体) を呼び、連続数を自機で数える。対象変更・被弾でリセット。
+    private Node2D? _focusTarget;               // いま撃ち込み続けている敵本体
+    private int _focusHits;                     // その敵への連続ヒット数
+    private const int FocusFireHitsPerStack = 8; // このヒット数ごとに威力+1（Lv1=+1まで / Lv2=+2まで）
+
+    // ── 祈りの帳（veil_light）：回避の終わり際にまとう弾消しの光輪 ──
+    private float _veilT;                       // 残り時間（>0で光輪が生きている）
+    private float _veilR;                       // 今回の光輪半径（Lv1=20 / Lv2=28px）
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
     private Texture2D _idleTex = null!;
 
@@ -527,6 +548,22 @@ public partial class Player : Area2D
         if (_grazeFlash > 0f)
             _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
 
+        // 祈りの帳の光輪：残り時間の間、半径内の敵弾を花びらに変えて消す（ボムの範囲消去の縮小版）。
+        // 消した弾はやさしさ微加算（AddVeilCleared）＝“祈りが受け止めた”がゲージにも薄く報われる。
+        if (_veilT > 0f)
+        {
+            _veilT -= dt;
+            foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
+            {
+                if (node is Bullet vb && vb.Active && vb.GlobalPosition.DistanceTo(GlobalPosition) <= _veilR)
+                {
+                    _game?.AddVeilCleared();
+                    FxLayer.Instance?.BulletToPetal(vb.GlobalPosition);
+                    _pool?.Despawn(vb);
+                }
+            }
+        }
+
         // 体のリアクション各種の減衰（被弾のけぞり／発射反動／ボム解放）。
         if (_hitReact > 0f) _hitReact = Mathf.Max(0f, _hitReact - dt);
         if (_recoil > 0f) _recoil = Mathf.Max(0f, _recoil - RecoilDecay * dt);
@@ -660,7 +697,8 @@ public partial class Player : Area2D
         // 銃口（中心からやや右）。光の出力強化でダメージ増。
         // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + new Vector2(20f, 0f);
-        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f)));
+        // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
+        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f))) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -706,16 +744,18 @@ public partial class Player : Area2D
     }
 
     // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×0.65（下限1）＋発射間隔×1.35（_PhysicsProcess 側）＝面制圧の対価。
+    // 連鎖の光（chain_light・拡散側の奥義）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.65f));
+        int chain = _game?.ChainLightBounces ?? 0;
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
             float ang = t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg);
+            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg).Chain = chain;
         }
     }
 
@@ -812,6 +852,13 @@ public partial class Player : Area2D
     {
         _dodgeTimer = 0f;
         _dodgeFlip = false;
+
+        // 祈りの帳（veil_light・支え側の奥義）：回避の終わり際、自機の周りに弾消しの光輪をまとう。
+        if ((_game?.VeilLightRadius ?? 0f) > 0f)
+        {
+            _veilR = _game!.VeilLightRadius;
+            _veilT = _game.VeilLightDuration;
+        }
         if (_hasTexture && _sprite != null)
         {
             _sprite.FlipH = false;
@@ -1057,6 +1104,10 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HitFlash();
         _hitReact = HitReactDur; // 体ののけぞり＋squash（練習モード含む＝「痛がった」は常に返す）
 
+        // 集中の光（focus_fire）は被弾で霧散＝積み上げた連続ヒットをリセット（練習モードでも同様）。
+        _focusTarget = null;
+        _focusHits = 0;
+
         // チュートリアル練習モード：被弾演出は出すが、残機を減らさず・ゲームオーバーにせず・フォロワーも離さない（詰み防止）。
         // 短時間無敵だけ付けて先へ進める（同じ弾で連続被弾しない）。
         if (_game?.TutorialNoConsume ?? false)
@@ -1150,6 +1201,14 @@ public partial class Player : Area2D
             DrawCircle(p, 4.2f, new Color(0.42f, 0.74f, 0.85f, 0.35f));            // 外周グロー
             DrawCircle(p, 2.6f, new Color(0.65f, 0.9f, 1f, 0.95f));                // 本体（浄化の水色）
             DrawCircle(p + new Vector2(-0.8f, -0.8f), 1f, new Color(1f, 1f, 1f, 0.95f)); // ハイライト
+        }
+
+        // ── 祈りの帳（veil_light）の光輪：残り時間に応じてフェードする暖白のリング ──
+        if (_veilT > 0f && _game != null && _game.VeilLightDuration > 0f)
+        {
+            float va = Mathf.Clamp(_veilT / _game.VeilLightDuration, 0f, 1f);
+            DrawArc(Vector2.Zero, _veilR, 0f, Mathf.Tau, 44, new Color(1f, 0.95f, 0.78f, 0.55f * va), 1.6f);
+            DrawArc(Vector2.Zero, _veilR - 3f, 0f, Mathf.Tau, 44, new Color(1f, 0.9f, 0.6f, 0.25f * va), 1f);
         }
 
         // ── グレイズ境界（外側リング）＝「ぎりぎり回避＝ご褒美」になる範囲 ──

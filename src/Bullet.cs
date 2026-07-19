@@ -28,6 +28,8 @@ public partial class Bullet : Area2D
     public bool Grazed;  // グレイズ済みか（重複加点防止）
     // 残貫通数（自機の連射弾のみ・貫く光 shot_pierce）。>0 の弾はヒットで消えず、消費側が1減らして素通しする。
     public int Pierce;
+    // 残跳弾数（自機の拡散弾のみ・連鎖の光 chain_light）。>0 の弾が消費された瞬間、最寄りの別の敵へ跳弾する。
+    public int Chain;
     public string Word = "";  // 非空なら「言葉弾」＝文字そのものが弾（道中の敵。設計書 4）
 
     // 弾形とスペル色（敵弾のみ反映）。色未指定時は既定の穢れ色。
@@ -119,6 +121,7 @@ public partial class Bullet : Area2D
         Active = true;
         Grazed = false;
         Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は FireRapid 側）
+        Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
         SoftenOnGraze = false;
@@ -207,6 +210,30 @@ public partial class Bullet : Area2D
             GetNodeOrNull<GameManager>("/root/Game")?.AddPrayerCleared();
             if (pool != null) pool.Despawn(this); else Deactivate();
         }
+    }
+
+    // 連鎖の光（chain_light）：この拡散弾が敵/パネルに消費された瞬間、最寄りの「別の敵」へ跳弾する。
+    // 消費側（Enemy 本体ヒット／Panel インク削り）が Despawn の直前に呼ぶ。威力×0.4（下限1）で残数を引き継ぐ。
+    public void TryChain(Node2D? exclude)
+    {
+        if (Chain <= 0 || IsEnemy || !Active) return;
+        Node2D? best = null;
+        float bestD = float.MaxValue;
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (n is Enemy e && !e.IsPurified && !ReferenceEquals(e, exclude))
+            {
+                float d2 = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
+                if (d2 < bestD) { bestD = d2; best = e; }
+            }
+        }
+        if (best == null) return; // 跳ね先がいなければ何も起きない
+        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        if (pool == null) return;
+        Vector2 dir = (best.GlobalPosition - GlobalPosition).Normalized();
+        var nb = pool.Spawn(GlobalPosition, dir * 320f, isEnemy: false, 2.6f,
+            Mathf.Max(1, Mathf.RoundToInt(Damage * 0.4f)));
+        nb.Chain = Chain - 1; // Lv2 は2回まで連鎖（威力は跳ねるたび×0.4）
     }
 
     // 「キミ弾」のグレイズ軟化（あかり）：一度だけ減速×GrazeSoftenMul＋淡色化。

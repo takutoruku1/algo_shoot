@@ -266,7 +266,10 @@ public partial class GameManager : Node
     private readonly Dictionary<string, int> _upgrades = new();
 
     // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
-    // スキルツリー化：3幹（連射/拡散/ホーミング）×3段＋共通帯。前提（Prereq）は各幹の段3カプストーンのみ。
+    // 二分木ディシジョンツリー：単一ルート「ミナの核」から 1→2→4→7→6 と二個ずつ広がる（Shop が描画）。
+    //   ・親条件（ParentId）＝ノードに入る（Lv0→1）ときだけ親Lv≥1 を要求。続きLvは親不要。
+    //   ・排他フォーク（ExclusiveWith）＝対の片方をLv1にするともう片方は封印（振り直しで解除可）。
+    //   ・前提（Prereq）は奥義の解放条件（従来どおり次のLv購入時のみ判定＝グランドファーザー規則）。
     public sealed class UpgradeDef
     {
         public string Id = "";
@@ -275,37 +278,45 @@ public partial class GameManager : Node
         public int MaxLevel;
         public long BaseCost;
         public float CostMul; // 次レベルの価格は BaseCost * CostMul^(現Lv-1)（Lv0→1 は一律100）
-        // ツリー前提（カプストーンのみ設定）。PrereqId 非空なら「PrereqId が PrereqLv 以上」で購入可。
+        // ツリー前提（奥義のみ設定）。PrereqId 非空なら「PrereqId が PrereqLv 以上」で購入可。
         // 判定は“次の Lv を買う瞬間”のみ＝前提未達でも所持済み Lv は没収・無効化しない（グランドファーザー規則）。
         public string PrereqId = "";
         public int PrereqLv;
-        public bool Capstone; // 段3奥義。Lv0→1 の一律100を適用しない（Lv1=BaseCost・以降 ×CostMul）
+        public bool Capstone; // 奥義。Lv0→1 の一律100を適用しない（Lv1=BaseCost・以降 ×CostMul）
+        // 二分木の親（""＝ルート直結）。Lv0→1 の購入時のみ「親Lv≥1」を要求する。
+        public string ParentId = "";
+        // 排他フォークの相方（""＝排他なし）。相方Lv≥1 かつ自分Lv0 なら封印（IsSealed）。
+        public string ExclusiveWith = "";
     }
 
     public static readonly UpgradeDef[] Upgrades =
     {
         // shot_power: MaxLevel 5→4（無防備窓の弾ダメージは Clamp(_,1,4) ＝ Lv5 は効果の無い死にレベルだった）。
-        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 4, BaseCost = 400,  CostMul = 1.35f },
+        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 4, BaseCost = 400,  CostMul = 1.35f, ParentId = "fire_rate" },
         new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.32f },
-        new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.38f },
-        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 550, CostMul = 1.5f },
+        new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.38f, ParentId = "fire_rate" },
+        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 550, CostMul = 1.5f, ParentId = "move_speed" },
         // move_speed: 「機動力」→「身のこなし」リワーク（IDは不変＝セーブ互換）。移動UPに加え回避のキレ（CD/距離）も伸びる。
         new() { Id = "move_speed",    Name = "身のこなし", Desc = "移動速度UP＋回避のキレ（CD短縮・距離延長）", MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
-        new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f },
-        new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f },
-        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボム直撃が穢れを深く祓う（無防備の本体ダメージUP）", MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f },
-        new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 550,  CostMul = 1.45f },
-        new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f },
-        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP（フォロワーは火力と収入を底上げ）", MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f },
-        new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f },
+        new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f, ParentId = "shot_homing" },
+        new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f, ParentId = "max_life", ExclusiveWith = "bomb_power" },
+        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボム直撃が穢れを深く祓う（無防備の本体ダメージUP）", MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f, ParentId = "max_life", ExclusiveWith = "bomb_count" },
+        new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 550,  CostMul = 1.45f, ParentId = "contam_resist" },
+        new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f, ParentId = "contam_resist" },
+        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP（フォロワーは火力と収入を底上げ）", MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f, ParentId = "shot_spread" },
+        new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f, ParentId = "shot_spread" },
         // contam_resist: 「汚染耐性」→「澄んだ心」リワーク（IDは不変＝セーブ互換）。上昇抑制は現行維持＋
         // やさしさ効率を承認式（×(1+0.06Lv)・上限1.1）で底上げ＝無汚染でも Lv1-2 が確かに効く。
-        new() { Id = "contam_resist", Name = "澄んだ心",   Desc = "汚染の上昇を抑え、やさしさの効率を底上げ", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f },
-        // ── 段3カプストーン（各幹の奥義。前提＝各1条件のみ・一律100の適用除外）──
-        // option_sub: 幽霊商品の実体化＝拡散幹の奥義（追従オプション。威力×0.5でメイン同期射撃）。価格改定 1000/1.7→900/1.6。
-        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプション+1（威力×0.5でメイン同期射撃）", MaxLevel = 2, BaseCost = 900, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true },
-        new() { Id = "shot_pierce",   Name = "貫く光",     Desc = "連射弾が敵をLv体まで貫通する", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true },
-        new() { Id = "counter_light", Name = "返し光",     Desc = "回避よけした弾を追尾光弾に変えて撃ち返す", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true },
+        new() { Id = "contam_resist", Name = "澄んだ心",   Desc = "汚染の上昇を抑え、やさしさの効率を底上げ", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f, ParentId = "move_speed" },
+        // ── 奥義（前提つき・一律100の適用除外）。⊗＝排他フォークの対 ──
+        // option_sub: 幽霊商品の実体化（追従オプション。威力×0.5でメイン同期射撃）。価格改定 1000/1.7→900/1.6。⊗連鎖の光。
+        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプション+1（威力×0.5でメイン同期射撃）", MaxLevel = 2, BaseCost = 900, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true, ParentId = "fol_gain", ExclusiveWith = "chain_light" },
+        new() { Id = "shot_pierce",   Name = "貫く光",     Desc = "連射弾が敵をLv体まで貫通する", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true, ParentId = "shot_power", ExclusiveWith = "focus_fire" },
+        new() { Id = "counter_light", Name = "返し光",     Desc = "回避よけした弾を追尾光弾に変えて撃ち返す", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true, ParentId = "hitbox", ExclusiveWith = "veil_light" },
+        // ── 二分木化で追加の新奥義3種（各排他フォークのもう片翼）──
+        new() { Id = "focus_fire",    Name = "集中の光",   Desc = "同じ敵に当て続けると威力が上がる（対象変更・被弾でリセット）", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true, ParentId = "shot_power", ExclusiveWith = "shot_pierce" },
+        new() { Id = "chain_light",   Name = "連鎖の光",   Desc = "拡散弾が当たった敵から最寄りの敵へ跳弾する（威力×0.4）", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true, ParentId = "fol_gain", ExclusiveWith = "option_sub" },
+        new() { Id = "veil_light",    Name = "祈りの帳",   Desc = "回避のあと自機の周りに弾を消す光輪をまとう", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true, ParentId = "hitbox", ExclusiveWith = "counter_light" },
     };
 
     public static UpgradeDef? GetUpgradeDef(string id)
@@ -317,6 +328,17 @@ public partial class GameManager : Node
 
     public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
 
+    // Lv→Lv+1 の価格（決定的・状態非依存）。振り直しの返金再計算（TotalPaid）と GetUpgradeCost が共用する。
+    public static long CostAt(UpgradeDef d, int lv)
+    {
+        if (lv >= d.MaxLevel) return 0;
+        // 奥義（Capstone）は一律100の適用除外：Lv1=BaseCost・以降 ×CostMul（例 800/1280）。
+        if (d.Capstone) return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
+        if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
+        // Lv1→2 は BaseCost そのもの（CostMul^0）。旧式 CostMul^lv だと 100→BaseCost×CostMul の急ジャンプになっていた。
+        return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv - 1));
+    }
+
     // 次レベルの価格。最大Lv到達 or 不正idなら -1。
     public long GetUpgradeCost(string id)
     {
@@ -324,14 +346,10 @@ public partial class GameManager : Node
         if (d == null) return -1;
         int lv = GetUpgradeLevel(id);
         if (lv >= d.MaxLevel) return -1;
-        // カプストーン（段3奥義）は一律100の適用除外：Lv1=BaseCost・以降 ×CostMul（例 800/1280）。
-        if (d.Capstone) return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
-        if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
-        // Lv1→2 は BaseCost そのもの（CostMul^0）。旧式 CostMul^lv だと 100→BaseCost×CostMul の急ジャンプになっていた。
-        return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv - 1));
+        return CostAt(d, lv);
     }
 
-    // ツリー前提を満たしているか。前提を持たないノードは常に true。
+    // ツリー前提（奥義条件）を満たしているか。前提を持たないノードは常に true。
     // 判定は購入時（次のLv）のみ＝前提未達でも所持済みLvは有効のまま（グランドファーザー規則）。
     public bool IsPrereqMet(string id)
     {
@@ -340,10 +358,67 @@ public partial class GameManager : Node
         return GetUpgradeLevel(d.PrereqId) >= d.PrereqLv;
     }
 
+    // 二分木の親条件。ノードに入る（Lv0→1）ときだけ親Lv≥1 を要求し、続きLvは親不要。
+    // 旧セーブが親なしで子を所持していても続きLvは買える（自分Lv≥1なら常に true＝移行処理ゼロ）。
+    public bool IsParentMet(string id)
+    {
+        if (GetUpgradeLevel(id) >= 1) return true;
+        var d = GetUpgradeDef(id);
+        if (d == null || string.IsNullOrEmpty(d.ParentId)) return true; // ""=ルート直結（ミナの核は常に在る）
+        return GetUpgradeLevel(d.ParentId) >= 1;
+    }
+
+    // 排他フォークの封印判定。相方をLv1以上にしていて自分が未購入なら封印（買えない）。
+    // 両側所持の旧セーブは双方Lv≥1＝どちらも封印されず両方強化継続可（没収なしの共存特例）。
+    public bool IsSealed(string id)
+    {
+        var d = GetUpgradeDef(id);
+        if (d == null || string.IsNullOrEmpty(d.ExclusiveWith)) return false;
+        return GetUpgradeLevel(d.ExclusiveWith) >= 1 && GetUpgradeLevel(id) == 0;
+    }
+
     public bool CanPurchase(string id)
     {
         long c = GetUpgradeCost(id);
-        return c >= 0 && Impression >= c && IsPrereqMet(id);
+        return c >= 0 && Impression >= c && IsPrereqMet(id) && IsParentMet(id) && !IsSealed(id);
+    }
+
+    // ───── 振り直し（排他フォーク単点のみ・ショップ内限定） ─────
+    // 対に投じた額を100%返金し、手数料20%（10単位切り上げ・最低100）を差し引く。全リセットは作らない。
+
+    // このノードに投じた総額（Lv0..現Lv-1 の CostAt 総和で決定的に再計算）。
+    public long TotalPaid(string id)
+    {
+        var d = GetUpgradeDef(id);
+        if (d == null) return 0;
+        long sum = 0;
+        for (int k = 0; k < GetUpgradeLevel(id); k++) sum += CostAt(d, k);
+        return sum;
+    }
+
+    // フォーク（idA⊗idB）の返金額＝双方に投じた総額。
+    public long RespecRefund(string idA, string idB) => TotalPaid(idA) + TotalPaid(idB);
+
+    // 手数料＝返金対象額の20%を10単位に切り上げ・最低100。未投資（返金0）なら 0。
+    public long RespecFee(string idA, string idB)
+    {
+        long refund = RespecRefund(idA, idB);
+        if (refund <= 0) return 0;
+        long fee = (refund * 20 + 999) / 1000 * 10; // ceil(refund*0.2/10)*10 の整数演算
+        return System.Math.Max(100, fee);
+    }
+
+    // 振り直し実行：対の両ノードを Lv0 に戻し、返金−手数料をウォレットへ。
+    // RunImpression（今ランの稼ぎ表示）には加算しない。成功で true。
+    public bool TryRespec(string idA, string idB)
+    {
+        long refund = RespecRefund(idA, idB);
+        if (refund <= 0) return false;
+        long fee = RespecFee(idA, idB);
+        _upgrades.Remove(idA);
+        _upgrades.Remove(idB);
+        Impression += refund - fee;
+        return true;
     }
 
     // 強化を1段購入。成功で true。保存はポーズメニューの手動セーブで行う。
@@ -381,6 +456,13 @@ public partial class GameManager : Node
     public int OptionSubCount => GetUpgradeLevel("option_sub");
     public int ShotPierceCount => GetUpgradeLevel("shot_pierce");     // 連射弾の貫通数（貫く光。0=貫通なし）
     public int CounterLightLevel => GetUpgradeLevel("counter_light"); // 返し光（回避よけ弾の追尾光弾化）
+    // 集中の光：同一敵への連続ヒットで威力ボーナス（上限=+Lv。積み上げは Player 側が管理）。
+    public int FocusFireMaxStack => GetUpgradeLevel("focus_fire");
+    // 連鎖の光：拡散弾の跳弾回数（Lv1=1回・Lv2=2回。威力×0.4は Bullet.TryChain 側）。
+    public int ChainLightBounces => GetUpgradeLevel("chain_light");
+    // 祈りの帳：回避後の弾消し光輪（半径 r20/28px・持続 0.5/0.7s）。Lv0 は 0＝無効。
+    public float VeilLightRadius => new[] { 0f, 20f, 28f }[Mathf.Clamp(GetUpgradeLevel("veil_light"), 0, 2)];
+    public float VeilLightDuration => new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(GetUpgradeLevel("veil_light"), 0, 2)];
     public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * GetUpgradeLevel("contam_resist")); // 上昇を緩めるのみ
     // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.7/0.6/0.5s・距離 64→68/72/76px。
     // Player.TryDodge が回避開始時に参照する（低速 Focus と同様、i-frame 秒は手触り固定＝触らない）。
@@ -807,6 +889,14 @@ public partial class GameManager : Node
         AddKindness(PrayerGain);
     }
     private const float PrayerGain = 0.02f; // 微加算（グレイズ0.07より小さく＝受け止めは薬味）
+
+    // 祈りの帳（veil_light）の光輪が弾を受け止めた時の加点。ボム消し（Score+5）と同格＋やさしさ微加算。
+    public void AddVeilCleared()
+    {
+        Score += 5;
+        AddKindness(VeilGain);
+    }
+    private const float VeilGain = 0.01f; // 祈り弾(0.02)よりさらに小さく＝回避のおまけであって主動力にしない
 
     // ボムを使う。残があれば消費して true。
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。

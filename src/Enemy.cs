@@ -424,9 +424,13 @@ public partial class Enemy : Area2D
         if (_phase != BossPhase.Exposed || _purified) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
+            // 連鎖の光（chain_light）：消費位置から最寄りの別の敵へ跳弾（Despawn 前＝位置と威力が生きているうちに）。
+            b.TryChain(this);
             // 貫く光（shot_pierce）：残貫通数のある弾は消えずに突き抜ける（ダメージ処理はそのまま通す）。
             if (b.Pierce > 0) b.Pierce--;
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+            // 集中の光（focus_fire）：同一敵への連続ヒットを自機側で計上（対象が変わるとリセット）。
+            (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(this);
             OnPlayerDealtDamage(); // 「攻めている」の通知（キャップ/CD で削れないヒットも攻めは攻め）
 
             // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。

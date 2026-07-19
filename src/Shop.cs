@@ -1,16 +1,15 @@
 using Godot;
+using System.Collections.Generic;
 
-// Shop : ミナ強化ショップ。スキルツリー型レイアウト（モードカード型から改装）。
-//   上：ヘッダ＋ウォレット ／ ショットモード切替ストリップ（R0・フォーカス可能な装備チップ＋過熱トグル）
-//   中：スキルツリー＝3幹（連射／拡散／ホーミング）×3段。段1-2 は前提なし（配置＝関連表示のみ）、
-//       段3 はカプストーン（奥義）で各1条件の前提ロック。前提未達セルには理由を常時表示。
-//       前提未達でも所持済み Lv は没収しない（次の Lv 購入時のみ判定＝グランドファーザー規則）。
-//   下：共通強化帯（前提なし・全モードに乗算）＝生存・経済系 7 ノードの 2 行。
-//   右：詳細パネル「つぎの一手」＝射撃プレビュー（旧モードカード3枚ぶんを1面に集約）＋
-//       現在値→購入後値・コスト・購入後の残り・買えない理由/前提（押す前に全部見せる＝桜井流）。
-//   演出：購入バースト・ウォレットpop・モードスウィープ・過熱フラッシュ・フロンティア金パルス
-//        （おすすめ∩いま買える）・カプストーン解放パルス。
-//   操作：↑↓←→ えらぶ／Z 購入(解放/強化)／C 装備(その幹のモード)／V 過熱プレビュー／X もどる。
+// Shop : ミナ強化ショップ。二分木ディシジョンツリー型レイアウト（3幹並列スキルツリーから改装）。
+//   上：ヘッダ＋ウォレット ／ ショットモード切替ストリップ（R0・装備チップ＋過熱トグル）
+//   中：単一ルート「ミナの核」から 1→2→4→7→6 と二個ずつ広がる二分木。
+//       攻めの系譜（連射速度→…）と支えの系譜（身のこなし→…）。親Lv≥1 でノードに入れる（続きLvは親不要）。
+//       枝の末端は排他フォーク4対（⊗）＝どちらか一方だけ。片側を選ぶと相方は封印（振り直しで解除可）。
+//       通常の二叉＝白灰の独立エッジ2本／排他フォーク＝金のY字束ね＋⊗メダル＋共通ブラケットで二重符号化。
+//   右：詳細パネル「つぎの一手」＝射撃プレビュー・いま→買うと・コスト・前提/親/封印・振り直し差引き。
+//   振り直し：封印側ノードで Z →「選び直す？」2段確認。返金100%−手数料20%（10単位切上げ・最低100）。
+//   操作：↑↓←→ えらぶ（方向最近傍・エッジ接続先優先）／Z 購入/選び直し／C 装備／V 過熱／X もどる。
 public partial class Shop : Node2D
 {
     private GameManager _game = null!;
@@ -18,7 +17,6 @@ public partial class Shop : Node2D
 
     private static readonly GameManager.ShotMode[] Modes =
         { GameManager.ShotMode.Rapid, GameManager.ShotMode.Spread, GameManager.ShotMode.Homing };
-    private static readonly string[] ModeUpId = { "", "shot_spread", "shot_homing" };
     private static readonly string[] ModeEn = { "RAPID", "SPREAD", "HOMING" };
     private static readonly string[] ModeDesc =
     {
@@ -27,35 +25,52 @@ public partial class Shop : Node2D
         "右側のマゼンタの穢れへ吸い寄せられて曲射。避けながら削る。",
     };
 
-    // ───── ツリー構成（行×列 → 強化ID）─────
-    // R1-R3＝幹（列0=連射/1=拡散/2=ホーミング）。縦に 段1→段2→段3(奥義)。
-    // R4-R5＝共通帯（前提なし・全モード）。
-    private static readonly string[][] TreeIds =
+    // ───── 二分木ノード配置（設計座標・セル左上）。W146×H44、深さ列 x: d1=168/d2=344/d3=520/d4=696 ─────
+    private static readonly (string id, float x, float y)[] NodePos =
     {
-        new[] { "fire_rate",   "shot_spread", "shot_homing" },   // R1 段1
-        new[] { "shot_power",  "fol_gain",    "hitbox" },        // R2 段2
-        new[] { "shot_pierce", "option_sub",  "counter_light" }, // R3 段3（カプストーン）
+        ("fire_rate",     168, 238), // 攻めの系譜（d1）
+        ("shot_power",    344, 172),
+        ("shot_pierce",   520, 146), // ⊗集中の光
+        ("focus_fire",    520, 198), // ⊗貫く光
+        ("shot_spread",   344, 305),
+        ("fol_gain",      520, 268),
+        ("option_sub",    696, 242), // ⊗連鎖の光
+        ("chain_light",   696, 294), // ⊗拡散サブ
+        ("combo_hold",    520, 342),
+        ("move_speed",    168, 495), // 支えの系譜（d1）
+        ("shot_homing",   344, 440),
+        ("hitbox",        520, 440),
+        ("counter_light", 696, 414), // ⊗祈りの帳
+        ("veil_light",    696, 466), // ⊗返し光
+        ("contam_resist", 344, 550),
+        ("imp_mult",      520, 518),
+        ("max_life",      520, 582),
+        ("bomb_count",    696, 556), // ⊗ボム威力
+        ("bomb_power",    696, 608), // ⊗ボム所持
     };
-    private static readonly string[] Row4Ids = { "max_life", "bomb_count", "bomb_power", "move_speed" };
-    private static readonly string[] Row5Ids = { "contam_resist", "imp_mult", "combo_hold" };
-    private static readonly string[] CapstoneIds = { "shot_pierce", "option_sub", "counter_light" };
+    private const float NodeW = 146f, NodeH = 44f;
+    private static readonly Vector2 RootC = new(72f, 389f); // ルート「ミナの核」＝円形メダリオン
+    private const float RootR = 34f;
+    // 解放パルスの対象（前提つき奥義＝排他フォークの両翼すべて）。
+    private static readonly string[] CapstoneIds =
+        { "shot_pierce", "focus_fire", "option_sub", "chain_light", "counter_light", "veil_light" };
 
-    // おすすめ（迷ったらこれ）：進行（ステージクリア）に連動して“次の一手”を段階的に指す道しるべ。
-    //   初期＝体感しやすい基礎3種 → STAGE1後＝新モード解放＋ボム → STAGE2後＝生存の質 → STAGE3後＝経済。
-    //   表示は「フロンティア強調」＝おすすめ ∩ いま買えるノードの枠を金でパルス。
+    // おすすめ（迷ったらこれ）：進行連動の道しるべ。表示はフロンティア強調＝おすすめ∩いま買えるを金パルス。
+    // 親未接続で買えないおすすめは、親チェーンを遡って最初に買える祖先を代わりに光らせる（RebuildFrontier）。
     private string[] RecommendedNow() =>
         _game == null ? new[] { "shot_power", "fire_rate", "max_life" }
         : _game.IsStageCleared("koharu") ? new[] { "imp_mult", "fol_gain" }
         : _game.IsStageCleared("akari") ? new[] { "hitbox", "bomb_power" }
         : _game.IsStageCleared("rei") ? new[] { "shot_spread", "shot_homing", "bomb_count" }
         : new[] { "shot_power", "fire_rate", "max_life" };
-    private string[] _recommended = System.Array.Empty<string>(); // _Draw 冒頭で毎フレーム更新（描画中は不変）
+    private string[] _recommended = System.Array.Empty<string>();
+    private readonly HashSet<string> _frontier = new(); // _Draw 冒頭で毎フレーム更新
 
-    // カテゴリ色（詳細パネル・共通帯の左タグ）。0=攻撃 / 1=生存 / 2=応援。
+    // カテゴリ色（詳細パネルの色タグ）。0=攻撃 / 1=生存 / 2=応援。
     private static readonly Color[] CatCol = { new("9be0f5"), new("7ec880"), new("f0d98a") };
     private static int CatFor(string id) => id switch
     {
-        "max_life" or "bomb_count" or "bomb_power" or "move_speed" or "hitbox" or "contam_resist" => 1,
+        "max_life" or "bomb_count" or "bomb_power" or "move_speed" or "hitbox" or "contam_resist" or "veil_light" => 1,
         "imp_mult" or "fol_gain" or "combo_hold" => 2,
         _ => 0,
     };
@@ -63,14 +78,14 @@ public partial class Shop : Node2D
     private static readonly Color Light = new("9be0f5");   // 光のハイライト
     private static readonly Color Orange = new("ff8a5a");  // 過熱
     private static readonly Color Deny = new("ef9a9a");    // 買えない理由（赤）
+    private static readonly Color EdgeDim = new(1, 1, 1, 0.22f);       // 通常エッジ（白灰）
+    private static readonly Color ForkGold = new(0.91f, 0.77f, 0.35f); // 排他フォーク（金）
 
     // 射撃プレビューのミナ立ち絵（右へ撃つポーズ）。毎フレームLoadしないよう_Readyで一度だけキャッシュ。
     private Texture2D? _minaShot;
 
-    // フォーカス（仮想6行グリッド）：R0=モードストリップ3 / R1-R3=幹3列 / R4=共通4列 / R5=共通3列。
-    // ←→は行内wrap、↑↓は列記憶（_colMem）つき行移動・上下端で循環。
-    private int _row, _col, _colMem;
-    private static int ColsOf(int row) => row == 4 ? 4 : 3;
+    // フォーカス：0..2=R0チップ / 3=root（ミナの核） / 4..=NodePos 順のノード。
+    private int _sel;
 
     // 入力エッジ
     private bool _navHeld, _zHeld, _equipHeld, _olHeld, _backHeld;
@@ -90,19 +105,21 @@ public partial class Shop : Node2D
     private double _olFlashT;     // 過熱発動フラッシュ
 
     // カプストーン解放パルス（前提が成立した瞬間に一度だけ「解放!」）。
-    private readonly System.Collections.Generic.HashSet<string> _capSeen = new();
+    private readonly HashSet<string> _capSeen = new();
     private string _capPulseId = "";
     private double _capPulseT;
+
+    // 振り直し（排他フォーク単点）の2段確認。封印側ノードで Z → 確認表示 → Z 確定 / X・カーソル移動で取消。
+    private bool _respecArmed;
+    private string _respecId = ""; // 封印側（＝選び直したい側）のノードID
 
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         // 起動時、装備中モードのチップ（R0）にカーソルを合わせる。
-        _row = 0;
-        _col = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
-        if (_col < 0) _col = 0;
-        _colMem = _col;
+        _sel = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
+        if (_sel < 0) _sel = 0;
         _minaShot = ResourceLoader.Load<Texture2D>("res://char/mina_shoot.png");
         // 既に前提成立済みのカプストーンは「解放!」パルスの対象外（入店時点の状態を既知とする）。
         foreach (var id in CapstoneIds)
@@ -136,7 +153,7 @@ public partial class Shop : Node2D
             return;
         }
 
-        // カーソル移動：十字で移動（6行グリッド）。
+        // カーソル移動：十字で方向最近傍へ（エッジ接続先を第一候補）。移動で振り直し確認は取り消す。
         bool up = Input.IsActionPressed("ui_up");
         bool down = Input.IsActionPressed("ui_down");
         bool left = Input.IsActionPressed("ui_left");
@@ -152,19 +169,15 @@ public partial class Shop : Node2D
         }
         _navHeld = any;
 
-        // Z：購入（ノードの解放/強化）。R0（装備チップ）では装備に回す。
+        // Z：購入（解放/強化）。R0チップ＝装備、root＝説明、封印ノード＝選び直しフロー。
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) OnConfirm();
 
-        // C：装備（フォーカス列の幹のモードを選択）。共通帯では対象がないので案内トースト。
+        // C：装備。チップ＝そのモード、ノード＝その枝のモード（全モード系は案内トースト）。
         bool c = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
         bool cEdge = c && !_equipHeld; _equipHeld = c;
-        if (cEdge && _t > 0.2)
-        {
-            if (_row <= 3) EquipMode(_col);
-            else { Audio.Instance?.PlayUiDeny(); Toast("共通強化は全モードで有効です（装備は幹の列で）", UiKit.Text4); }
-        }
+        if (cEdge && _t > 0.2) OnEquipKey();
 
         // V：過熱オーバーロードのプレビュー切替（演出確認用）。
         bool v = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.X);
@@ -175,38 +188,87 @@ public partial class Shop : Node2D
             if (_overloadPreview) _olFlashT = 0.9;
         }
 
+        // X：振り直し確認中はその取消、通常はショップ退出。
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
+        if (backEdge && _t > 0.2)
+        {
+            if (_respecArmed) { CancelRespec(); Audio.Instance?.PlayUiCancel(); }
+            else { Audio.Instance?.PlayUiCancel(); ExitShop(); }
+        }
 
         QueueRedraw();
     }
 
-    // 十字ナビ：←→は行内wrap、↑↓は列記憶つきで行移動（上下端は循環）。
-    // 列数が違う行へ移るときは記憶列（_colMem）を行の列数にクランプ＝「同じ縦筋」の感覚を保つ。
-    private void Nav(int dx, int dy)
+    // ───────────────────────── フォーカスとナビ ─────────────────────────
+    private static Rect2 NodeRect(int i) => new(NodePos[i].x, NodePos[i].y, NodeW, NodeH);
+    private static int SelOf(string id)
     {
-        if (dx != 0)
+        for (int i = 0; i < NodePos.Length; i++)
+            if (NodePos[i].id == id) return i + 4;
+        return -1;
+    }
+    private string? FocusNodeId => _sel >= 4 ? NodePos[_sel - 4].id : null;
+
+    private Vector2 FocusCenter(int sel) => sel switch
+    {
+        <= 2 => ChipRect(sel).GetCenter(),
+        3 => RootC,
+        _ => NodeRect(sel - 4).GetCenter(),
+    };
+
+    // グラフ隣接（エッジ接続先）＝ナビの第一候補。チップは隣チップ、root は系譜の入り口2つ。
+    private List<int> LinkedSels(int sel)
+    {
+        var l = new List<int>();
+        if (sel <= 2)
         {
-            int n = ColsOf(_row);
-            _col = (_col + dx + n) % n;
-            _colMem = _col;
+            if (sel > 0) l.Add(sel - 1);
+            if (sel < 2) l.Add(sel + 1);
         }
-        if (dy != 0)
+        else if (sel == 3)
         {
-            _row = (_row + dy + 6) % 6;
-            _col = Mathf.Min(_colMem, ColsOf(_row) - 1);
+            l.Add(SelOf("fire_rate"));
+            l.Add(SelOf("move_speed"));
         }
+        else
+        {
+            string id = NodePos[sel - 4].id;
+            var d = GameManager.GetUpgradeDef(id);
+            if (d != null)
+            {
+                l.Add(string.IsNullOrEmpty(d.ParentId) ? 3 : SelOf(d.ParentId));
+                if (!string.IsNullOrEmpty(d.ExclusiveWith)) l.Add(SelOf(d.ExclusiveWith));
+            }
+            foreach (var nd in GameManager.Upgrades)
+                if (nd.ParentId == id) l.Add(SelOf(nd.Id));
+        }
+        l.RemoveAll(v => v < 0);
+        return l;
     }
 
-    // フォーカス中のノードID（R0 は装備チップ＝shot_spread/shot_homing の定義を流用。連射は ""）。
-    private string FocusId() => _row switch
+    // 方向最近傍探索：押した方向の半平面から「前進距離＋直交ずれ×1.8」が最小の対象へ。
+    // エッジ接続先（親/子/相方/チップ隣）はスコア×0.45 で優先＝木に沿って歩ける。
+    private void Nav(int dx, int dy)
     {
-        0 => ModeUpId[_col],
-        >= 1 and <= 3 => TreeIds[_row - 1][_col],
-        4 => Row4Ids[_col],
-        _ => Row5Ids[_col],
-    };
+        Vector2 from = FocusCenter(_sel);
+        var linked = LinkedSels(_sel);
+        int best = -1;
+        float bestScore = float.MaxValue;
+        int count = 4 + NodePos.Length;
+        for (int s = 0; s < count; s++)
+        {
+            if (s == _sel) continue;
+            Vector2 d = FocusCenter(s) - from;
+            float forward = d.X * dx + d.Y * dy;
+            if (forward < 4f) continue;
+            float perp = Mathf.Abs(d.X * dy) + Mathf.Abs(d.Y * dx);
+            float score = forward + perp * 1.8f;
+            if (linked.Contains(s)) score *= 0.45f;
+            if (score < bestScore) { bestScore = score; best = s; }
+        }
+        if (best >= 0) { _sel = best; CancelRespec(); }
+    }
 
     // ショップ退出先：初回ショップ導線で復帰先(PendingResumeScene)が立っていれば、ハブでなくそのステージへ戻り
     // “中ボスの続き”から再開する（消費して以降は通常どおりハブへ）。それ以外は従来どおりハブ。
@@ -224,9 +286,39 @@ public partial class Shop : Node2D
 
     private void OnConfirm()
     {
-        if (_row == 0) { EquipMode(_col); return; } // R0 チップ＝装備（解放はツリーの段1で）
-        Buy(FocusId(), CellRect(_row, _col).GetCenter());
+        if (_sel <= 2) { EquipMode(_sel); return; } // R0 チップ＝装備
+        if (_sel == 3) { Toast("ここからすべてが伸びます。線でつながった隣から買えますわ", UiKit.Info); return; }
+        string id = NodePos[_sel - 4].id;
+        // 封印中は購入の代わりに「選び直す？」フロー（2段確認）。
+        if (_game?.IsSealed(id) ?? false) { RespecStep(id); return; }
+        Buy(id, NodeRect(_sel - 4).GetCenter());
     }
+
+    // 振り直しの2段確認。1回目のZ＝確認表示（詳細パネルに差引きプレビュー）、2回目のZ＝確定。
+    private void RespecStep(string id)
+    {
+        var d = GameManager.GetUpgradeDef(id);
+        if (d == null || _game == null || string.IsNullOrEmpty(d.ExclusiveWith)) return;
+        if (!_respecArmed || _respecId != id)
+        {
+            _respecArmed = true;
+            _respecId = id;
+            Audio.Instance?.PlayUiMove();
+            return;
+        }
+        // 確定：対の両ノードを Lv0 に戻し、返金−手数料をウォレットへ（RunImpression には足さない）。
+        long refund = _game.RespecRefund(id, d.ExclusiveWith);
+        long fee = _game.RespecFee(id, d.ExclusiveWith);
+        if (_game.TryRespec(id, d.ExclusiveWith))
+        {
+            Audio.Instance?.PlayUiBuy();
+            Toast($"選び直しました　＋♥{refund - fee:N0}（返金 ♥{refund:N0} − 手数料 ♥{fee:N0}）", UiKit.Info);
+            _walletPopT = 0.5;
+        }
+        CancelRespec();
+    }
+
+    private void CancelRespec() { _respecArmed = false; _respecId = ""; }
 
     private void Buy(string id, Vector2 at)
     {
@@ -234,7 +326,13 @@ public partial class Shop : Node2D
         if (d == null || _game == null) return;
         int lv = _game.GetUpgradeLevel(id);
         if (lv >= d.MaxLevel) { Audio.Instance?.PlayUiDeny(); Toast("すでに最大です", UiKit.Text4); return; }
-        // 前提未達（カプストーンのみ）：理由を明示して拒否。所持済み Lv には触れない（グランドファーザー規則）。
+        // 親未接続（ノードに入るときだけ）：どこから伸ばすかを明示して拒否。
+        if (!_game.IsParentMet(id))
+        {
+            string pn = GameManager.GetUpgradeDef(d.ParentId)?.Name ?? "ミナの核";
+            Audio.Instance?.PlayUiDeny(); Toast($"まず {pn} を Lv1 に（線でつながった親から）", Deny); return;
+        }
+        // 前提未達（奥義のみ）：理由を明示して拒否。所持済み Lv には触れない（グランドファーザー規則）。
         if (!_game.IsPrereqMet(id))
         {
             string pn = GameManager.GetUpgradeDef(d.PrereqId)?.Name ?? d.PrereqId;
@@ -253,10 +351,19 @@ public partial class Shop : Node2D
         }
     }
 
+    private void OnEquipKey()
+    {
+        if (_sel <= 2) { EquipMode(_sel); return; }
+        // ノード上の C＝その枝のモードを装備。枝がモード固有でない（全モード系）なら案内。
+        int m = PreviewModeFor(FocusNodeId);
+        if (m < 0) { Audio.Instance?.PlayUiDeny(); Toast("この枝は全モードに効きます（装備は上のチップで）", UiKit.Text4); return; }
+        EquipMode(m);
+    }
+
     private void EquipMode(int idx, bool silent = false)
     {
         var m = Modes[idx];
-        if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("まだ解放されていません（幹の段1で解放）", UiKit.Text4); } return; }
+        if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("まだ解放されていません（枝の入り口で解放）", UiKit.Text4); } return; }
         if (_game!.SelectedShotMode == m && !silent) { return; }
         if (!silent) Audio.Instance?.PlayUiConfirm(); // 装備＝決定音
         _game.SelectedShotMode = m;
@@ -266,26 +373,20 @@ public partial class Shop : Node2D
 
     private void Toast(string msg, Color col) { _toast = msg; _toastCol = col; _toastT = 1.8; }
 
+    // ノード → その枝のショットモード（詳細プレビューと C 装備用。-1＝モード固有でない＝装備中を映す）。
+    private static int PreviewModeFor(string? id) => id switch
+    {
+        "fire_rate" or "shot_power" or "shot_pierce" or "focus_fire" => 0,
+        "shot_spread" or "fol_gain" or "option_sub" or "chain_light" or "combo_hold" => 1,
+        "shot_homing" or "hitbox" or "counter_light" or "veil_light" => 2,
+        _ => -1,
+    };
+
     // ───────────────────────── レイアウト座標 ─────────────────────────
     private const float PadX = 40f;
-    private const float StripY = 96f, StripH = 42f;                 // R0 モードストリップ
-    private const float TrunkY = 150f, TrunkHeadH = 48f;            // 幹ヘッダ y150-198
-    private const float TrunkW = 278f, TrunkGap = 18f;              // 幹列 x=40/336/632
-    private static float TrunkX(int c) => PadX + c * (TrunkW + TrunkGap);
-    private static readonly float[] TierY = { 206f, 290f, 374f };   // R1-R3（段1/段2/段3）
-    private const float TierH = 56f;
-    private const float CommonLabelY = 442f;                        // 共通帯の見出し
-    private const float CommonY0 = 474f, CommonY1 = 512f, CommonH = 34f; // R4 / R5
-    private const float CommonW = 204f, CommonPitch = 218f;         // x=40/258/476/694
-    private const float DetailX = 930f, DetailW = 310f;             // 詳細パネル x930-1240 / y150-556
-
-    // 行×列 → セル矩形（R0 はストリップのチップ矩形を使う）。
-    private static Rect2 CellRect(int row, int col) => row switch
-    {
-        >= 1 and <= 3 => new Rect2(TrunkX(col), TierY[row - 1], TrunkW, TierH),
-        4 => new Rect2(PadX + col * CommonPitch, CommonY0, CommonW, CommonH),
-        _ => new Rect2(PadX + col * CommonPitch, CommonY1, CommonW, CommonH),
-    };
+    private const float StripY = 96f, StripH = 42f;     // R0 モードストリップ
+    private const float DetailX = 870f, DetailW = 370f; // 詳細パネル x870-1240
+    private const float TreeTop = 146f, TreeBot = 652f; // ツリー領域 y146-652
 
     // R0 装備チップの矩形（幅は名前の実幅から。ストリップ描画とフォーカス枠が共有する）。
     private float ChipW(int i) => 34f + UiKit.TextW(UiKit.ZenBold, _game?.ShotModeName(Modes[i]) ?? "", 14);
@@ -300,7 +401,8 @@ public partial class Shop : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        _recommended = RecommendedNow(); // 進行連動おすすめ（フロンティア金パルスの対象）
+        _recommended = RecommendedNow();
+        RebuildFrontier(); // フロンティア強調（祖先フォールバック込み）を毎フレーム確定
 
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
             new[] { new Color("0d0b1c"), new Color("0a0916"), new Color("070611") }, new[] { 0f, 0.55f, 1f });
@@ -310,13 +412,12 @@ public partial class Shop : Node2D
         DrawHeader();
         DrawModeStrip();
         DrawTree();
-        DrawCommonBand();
         DrawDetailPanel();
 
         // フッタ操作ヒント（ボタン表記は Pad に集約＝KB/PS/Xbox 切替に追従）。
         float fy = H - 34f, fx = PadX;
         fx = Hint(fx, fy, Pad.MoveToken, "えらぶ", false);
-        fx = Hint(fx, fy, Pad.ConfirmToken, "購入", true);
+        fx = Hint(fx, fy, Pad.ConfirmToken, "購入/選び直し", true);
         fx = Hint(fx, fy, Pad.EquipToken, "装備", false);
         fx = Hint(fx, fy, Pad.ModeToken, "過熱", false);
         // 初回ショップ導線で復帰先がある間は、退出＝ステージの続きへ＝「つづける」表記にする。
@@ -334,7 +435,7 @@ public partial class Shop : Node2D
     {
         UiKit.Text(this, UiKit.Mono, new Vector2(PadX, 22), "SHOT UPGRADE SYSTEM", 11, UiKit.Text3);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(PadX, 36), "弾・ショット強化システム", 28, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "幹を伸ばして型を強く。段3の奥義は前提つき。共通強化は全モードに乗算。", 13, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "ミナの核から枝を伸ばす。⊗の枝はどちらか一方——心を払えば選び直せる。", 13, UiKit.Text2);
 
         // 長期目標（LUNATIC解放）＝「何のために稼ぐか」の遠い灯り。条件は GameManager.IsLunaticUnlocked
         //（フォロワー200 or 光の出力Lv4＝ツリー側にも王冠マークで重ねる）。解放済みなら出さない。
@@ -351,7 +452,6 @@ public partial class Shop : Node2D
         int impSize = 24 + Mathf.RoundToInt(3f * popA);
         float numW = UiKit.TextW(UiKit.Mono, impS, impSize);
         // ラベル実幅から pill 幅を算出＝「浄化した心」と数値が桁伸びでも衝突しないよう動的化。
-        // 構成: [左余白16 + 円16 + 余白6] ラベル [ギャップ16] 数値 [右余白18]
         float lblW = UiKit.TextW(UiKit.Zen, "浄化した心", 12);
         float pillW = 16f + 16f + 6f + lblW + 16f + numW + 18f;
         float pillX = W - PadX - pillW, pillY = 30f;
@@ -375,7 +475,7 @@ public partial class Shop : Node2D
             var m = Modes[i];
             bool unlocked = _game?.IsModeUnlocked(m) ?? false;
             bool equipped = _game?.SelectedShotMode == m;
-            bool focus = _row == 0 && _col == i;
+            bool focus = _sel == i;
             string name = _game?.ShotModeName(m) ?? "";
             var r = ChipRect(i);
             if (equipped) UiKit.Box(this, r, new Color(UiKit.Info, 0.22f), 999f, UiKit.Info, 1.2f);
@@ -422,157 +522,223 @@ public partial class Shop : Node2D
         }
     }
 
-    // ───────────────────────── スキルツリー（幹ヘッダ＋段1-3＋エッジ） ─────────────────────────
+    // ───────────────────────── 二分木ツリー描画 ─────────────────────────
     private void DrawTree()
     {
-        for (int c = 0; c < 3; c++)
+        // 1) エッジ（通常＝白灰の独立エッジ／排他＝金のY字束ね＋⊗メダル）。フォーク対は片側だけが描く（重複回避）。
+        var forkDrawn = new HashSet<string>();
+        foreach (var nd in GameManager.Upgrades)
         {
-            DrawTrunkHeader(c);
+            int childSel = SelOf(nd.Id);
+            if (childSel < 0) continue;
+            Vector2 to = LeftCenter(NodeRect(childSel - 4));
+            Vector2 from = string.IsNullOrEmpty(nd.ParentId)
+                ? RootC + new Vector2(RootR, 0)
+                : RightCenter(NodeRect(SelOf(nd.ParentId) - 4));
 
-            float cx = TrunkX(c) + TrunkW / 2f;
-            // エッジ：段1→段2 は点線（関連表示のみ・ロックなし）。
-            DrawDottedV(cx, TierY[0] + TierH, TierY[1], new Color(1, 1, 1, 0.22f));
-            // エッジ：段2→段3 は実線＋錠（前提未達）。前提成立で金の実線に変わる。
-            string capId = TreeIds[2][c];
-            bool capOpen = _game?.IsPrereqMet(capId) ?? false;
-            Color edgeCol = capOpen ? new Color(UiKit.Gold, 0.6f) : new Color(1, 1, 1, 0.28f);
-            DrawLine(new Vector2(cx, TierY[1] + TierH), new Vector2(cx, TierY[2]), edgeCol, 2f);
-            if (!capOpen) DrawLockIcon(new Vector2(cx, (TierY[1] + TierH + TierY[2]) / 2f), 7f, new Color(1, 1, 1, 0.6f));
-
-            for (int r = 0; r < 3; r++)
-                DrawTreeCell(TreeIds[r][c], CellRect(r + 1, c), _row == r + 1 && _col == c);
+            if (!string.IsNullOrEmpty(nd.ExclusiveWith))
+            {
+                // 排他フォーク：対でまとめて1回だけ描く（Y字＋メダル＋ブラケット）。
+                string key = string.CompareOrdinal(nd.Id, nd.ExclusiveWith) < 0 ? nd.Id : nd.ExclusiveWith;
+                if (!forkDrawn.Add(key)) continue;
+                DrawForkEdges(nd.Id, nd.ExclusiveWith, from);
+            }
+            else
+            {
+                // 通常エッジ：所持済みの枝はうっすら灯す（進んだ道が読める）。
+                bool lit = (_game?.GetUpgradeLevel(nd.Id) ?? 0) >= 1;
+                DrawElbow(from, to, lit ? new Color(UiKit.Info, 0.45f) : EdgeDim, 1.6f);
+            }
         }
+
+        // 2) root メダリオン「ミナの核」
+        DrawRootMedallion();
+
+        // 3) ノードセル
+        for (int i = 0; i < NodePos.Length; i++)
+            DrawNodeCell(NodePos[i].id, NodeRect(i), _sel == i + 4);
     }
 
-    private void DrawTrunkHeader(int c)
+    private static Vector2 LeftCenter(Rect2 r) => new(r.Position.X, r.Position.Y + r.Size.Y / 2f);
+    private static Vector2 RightCenter(Rect2 r) => new(r.End.X, r.Position.Y + r.Size.Y / 2f);
+
+    // L字エッジ（水平→垂直→水平）。二分木の枝分かれを配線図の語彙で読ませる。
+    private void DrawElbow(Vector2 from, Vector2 to, Color col, float width)
     {
-        float x = TrunkX(c), y = TrunkY;
-        var m = Modes[c];
-        bool unlocked = _game?.IsModeUnlocked(m) ?? (c == 0);
-        bool equipped = _game?.SelectedShotMode == m;
-        UiKit.Box(this, new Rect2(x, y, TrunkW, TrunkHeadH), new Color(20 / 255f, 16 / 255f, 30 / 255f, 0.6f), 12f,
-            equipped ? new Color(UiKit.Info, 0.7f) : new Color(1, 1, 1, 0.10f), equipped ? 1.6f : 1f);
-        DrawModeIcon(new Vector2(x + 22, y + TrunkHeadH / 2f), c, unlocked ? UiKit.Info : UiKit.Text4);
-        string name = _game?.ShotModeName(m) ?? "";
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 38, y + 10), name, 19, unlocked ? UiKit.White : UiKit.Text3);
-        float nmW = UiKit.TextW(UiKit.ZenBlack, name, 19);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 44 + nmW, y + 17), ModeEn[c], 10, UiKit.Text3);
-
-        if (equipped)
-        {
-            string b = "装備中";
-            float bw = UiKit.TextW(UiKit.Mono, b, 10) + 18;
-            UiKit.Box(this, new Rect2(x + TrunkW - 14 - bw, y + 15, bw, 18f), new Color(UiKit.Info, 0.18f), 6f, new Color(UiKit.Info, 0.6f), 1f);
-            DrawCircle(new Vector2(x + TrunkW - 14 - bw + 9, y + 24), 3f, UiKit.Info);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + TrunkW - 14 - bw + 16, y + 19), b, 10, UiKit.PurifyHi);
-        }
-        else
-        {
-            string tail = unlocked ? Pad.EquipToken + " 装備" : "未解放";
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + TrunkW - 14 - UiKit.TextW(UiKit.Zen, tail, 11), y + 17), tail, 11, UiKit.Text4);
-        }
+        float midX = (from.X + to.X) / 2f;
+        DrawLine(from, new Vector2(midX, from.Y), col, width);
+        DrawLine(new Vector2(midX, from.Y), new Vector2(midX, to.Y), col, width);
+        DrawLine(new Vector2(midX, to.Y), to, col, width);
     }
 
-    // 幹ノードセル（278×56）：1行目=名前＋Lvピップ、2行目=コスト or 前提。前提未達は理由を常時表示。
-    private void DrawTreeCell(string id, Rect2 r, bool focus)
+    // 排他フォーク：親からの1本をY字の根元で束ね、⊗メダル＋対セルの共通ブラケット＋「どちらか一方」。
+    // エッジ色（金）と束ね形状の二重符号化＝色弱でも判別できる。
+    private void DrawForkEdges(string idA, string idB, Vector2 from)
+    {
+        int sa = SelOf(idA), sb = SelOf(idB);
+        var ra = NodeRect(sa - 4);
+        var rb = NodeRect(sb - 4);
+        Vector2 ta = LeftCenter(ra), tb = LeftCenter(rb);
+        float forkX = Mathf.Min(ta.X, tb.X) - 26f;
+        Vector2 fork = new(forkX, (ta.Y + tb.Y) / 2f);
+
+        bool chosen = (_game?.GetUpgradeLevel(idA) ?? 0) >= 1 || (_game?.GetUpgradeLevel(idB) ?? 0) >= 1;
+        Color gold = new(ForkGold, chosen ? 0.85f : 0.55f);
+
+        // 親→根元は1本に束ねる（通常の独立エッジとの見分けの本体）。
+        DrawLine(from, new Vector2(forkX, from.Y), gold, 2f);
+        DrawLine(new Vector2(forkX, from.Y), fork, gold, 2f);
+        // 根元→両翼
+        DrawLine(fork, ta, gold, 2f);
+        DrawLine(fork, tb, gold, 2f);
+
+        // ⊗メダル（金の円＋クロス）
+        DrawCircle(fork, 9f, new Color(0.12f, 0.10f, 0.05f, 0.95f));
+        DrawArc(fork, 9f, 0, Mathf.Tau, 24, gold, 1.6f, true);
+        DrawLine(fork + new Vector2(-4, -4), fork + new Vector2(4, 4), gold, 1.6f);
+        DrawLine(fork + new Vector2(-4, 4), fork + new Vector2(4, -4), gold, 1.6f);
+
+        // 対の2セルを囲う薄金ブラケット＋ラベル「どちらか一方」。
+        float top = Mathf.Min(ra.Position.Y, rb.Position.Y) - 5f;
+        float bot = Mathf.Max(ra.End.Y, rb.End.Y) + 5f;
+        var br = new Rect2(ra.Position.X - 5f, top, NodeW + 10f, bot - top);
+        UiKit.Box(this, br, null, 12f, new Color(ForkGold, 0.35f), 1f);
+        UiKit.Text(this, UiKit.Zen, new Vector2(br.Position.X + 8f, top - 13f), "どちらか一方", 9, new Color(ForkGold, 0.8f));
+    }
+
+    // ルート「ミナの核」：無償付与・購入不可。ツリーの説明アンカー（フォーカス可能）。
+    private void DrawRootMedallion()
+    {
+        bool focus = _sel == 3;
+        UiKit.RadialGlow(this, RootC, RootR * 2.2f, UiKit.Mina, focus ? 0.30f : 0.18f);
+        DrawCircle(RootC, RootR, new Color(0.10f, 0.08f, 0.16f, 0.95f));
+        DrawArc(RootC, RootR, 0, Mathf.Tau, 40, focus ? UiKit.Info : new Color(UiKit.Mina, 0.8f), focus ? 2.2f : 1.5f, true);
+        DrawArc(RootC, RootR - 4f, 0, Mathf.Tau, 40, new Color(UiKit.Mina, 0.35f), 1f, true);
+        // 核＝ハート（ミナの心）。
+        UiKit.Heart(this, RootC + new Vector2(0, -6f), 10f, new Color(UiKit.Mina, 0.95f));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(RootC.X - RootR, RootC.Y + 8f), "ミナの核", 11, UiKit.White, HorizontalAlignment.Center, RootR * 2f);
+    }
+
+    // ノードセル（146×44）：1行目=名前＋Lvピップ、2行目=コスト or 前提。封印は暗転＋斜線＋「封印」タグ。
+    private void DrawNodeCell(string id, Rect2 r, bool focus)
     {
         var d = GameManager.GetUpgradeDef(id);
         if (d == null) return;
         int lv = _game?.GetUpgradeLevel(id) ?? 0;
         bool maxed = lv >= d.MaxLevel;
         long cost = maxed ? -1 : (_game?.GetUpgradeCost(id) ?? 0);
+        bool sealed_ = _game?.IsSealed(id) ?? false;
+        bool parentOk = _game?.IsParentMet(id) ?? true;
         bool prereqOk = _game?.IsPrereqMet(id) ?? true;
         long imp = _game?.Impression ?? 0;
-        bool can = !maxed && prereqOk && cost >= 0 && imp >= cost;
+        bool can = !maxed && !sealed_ && parentOk && prereqOk && cost >= 0 && imp >= cost;
 
-        UiKit.Box(this, r, new Color(22 / 255f, 18 / 255f, 34 / 255f, focus ? 0.8f : 0.55f), 10f,
+        // 封印・親未接続は背景から沈めて「まだ触れない」を先に読ませる。
+        float bgA = sealed_ ? 0.35f : (!parentOk && lv == 0) ? 0.38f : focus ? 0.8f : 0.55f;
+        UiKit.Box(this, r, new Color(22 / 255f, 18 / 255f, 34 / 255f, bgA), 8f,
             focus ? UiKit.Info : new Color(1, 1, 1, 0.08f), focus ? 1.8f : 1f);
 
         float x = r.Position.X, y = r.Position.Y;
 
-        // 名前（買えるものは白＝“いま買える”が一覧で拾える。買えない/MAXは沈める）
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 14, y + 7), d.Name, 15,
-            maxed ? UiKit.Text4 : (can ? UiKit.White : UiKit.Text3));
-        float nw = UiKit.TextW(UiKit.ZenBold, d.Name, 15);
+        // 名前（買えるものは白＝“いま買える”が一覧で拾える。買えない/MAX/封印は沈める）
+        Color nameCol = sealed_ ? UiKit.Text4 : maxed ? UiKit.Text4 : can ? UiKit.White : (!parentOk && lv == 0) ? UiKit.Text4 : UiKit.Text3;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 12, y + 5), d.Name, 12, nameCol);
+        float nw = UiKit.TextW(UiKit.ZenBold, d.Name, 12);
 
         // 王冠（shot_power：Lv4＝LUNATIC解放条件のひとつ）。
         if (id == "shot_power")
-            DrawCrown(new Vector2(x + 14 + nw + 16, y + 17), 7f, lv >= 4 ? UiKit.Gold : new Color(UiKit.Gold, 0.5f));
-
-        // 「全モード」チップ（fol_gain/hitbox＝幹に置くが効果は全モード共通）。
-        if (id is "fol_gain" or "hitbox")
-        {
-            const string am = "全モード";
-            float aw = UiKit.TextW(UiKit.Zen, am, 10) + 12f;
-            var ar = new Rect2(x + 14 + nw + 10, y + 8f, aw, 16f);
-            UiKit.Box(this, ar, new Color(1, 1, 1, 0.06f), 999f, new Color(1, 1, 1, 0.18f), 1f);
-            UiKit.Text(this, UiKit.Zen, new Vector2(ar.Position.X, y + 9f), am, 10, UiKit.Text3, HorizontalAlignment.Center, aw);
-        }
+            DrawCrown(new Vector2(x + 12 + nw + 12, y + 13f), 6f, lv >= 4 ? UiKit.Gold : new Color(UiKit.Gold, 0.5f));
 
         // Lvピップ（右上：MaxLevel 個、lv ぶん充填）
-        float px = r.End.X - 14 - d.MaxLevel * 11f, py = y + 16f;
+        float px = r.End.X - 10 - d.MaxLevel * 9f, py = y + 12f;
         for (int p = 0; p < d.MaxLevel; p++)
-            DrawCircle(new Vector2(px + p * 11f + 4f, py), 3.4f,
+            DrawCircle(new Vector2(px + p * 9f + 3f, py), 2.6f,
                 p < lv ? new Color(UiKit.Info, 0.95f) : new Color(1, 1, 1, 0.14f));
 
-        // 2行目：前提未達なら理由を常時表示、それ以外はコスト or MAX。
-        float ly = y + 32f;
-        if (!prereqOk)
+        // 2行目：封印はタグで示しコストは出さない。前提未達は理由を常時表示。
+        float ly = y + 24f;
+        if (sealed_)
+        {
+            // 斜線＋封印タグ（暗転はセル背景のアルファで済ませ、名前は読めるまま残す）。
+            for (float sx = x + 8f; sx < r.End.X - 4f; sx += 22f)
+                DrawLine(new Vector2(sx, r.End.Y - 4f), new Vector2(sx + 12f, y + 4f), new Color(ForkGold, 0.22f), 1f);
+            const string tag = "封印";
+            float tw = UiKit.TextW(UiKit.ZenBold, tag, 10) + 14f;
+            var tr = new Rect2(r.End.X - tw - 8f, ly + 2f, tw, 16f);
+            UiKit.Box(this, tr, new Color(0.12f, 0.10f, 0.05f, 0.9f), 4f, new Color(ForkGold, 0.6f), 1f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tr.Position.X, ly + 3f), tag, 10, new Color(ForkGold, 0.9f), HorizontalAlignment.Center, tw);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 12, ly + 3f), Pad.ConfirmToken + " 選び直し", 9, UiKit.Text4);
+        }
+        else if (!prereqOk)
         {
             string pn = GameManager.GetUpgradeDef(d.PrereqId)?.Name ?? d.PrereqId;
-            DrawLockIcon(new Vector2(x + 20, ly + 9f), 6f, new Color(Deny, 0.9f));
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 32, ly), $"前提: {pn} Lv{d.PrereqLv}（いま Lv{_game?.GetUpgradeLevel(d.PrereqId) ?? 0}）", 11, Deny);
+            DrawLockIcon(new Vector2(x + 17, ly + 8f), 5f, new Color(Deny, 0.9f));
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 27, ly + 2f), $"前提: {pn} Lv{d.PrereqLv}", 9, Deny);
         }
         else if (maxed)
         {
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 14, ly), "MAX", 12, new Color("c9b6ef"));
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + 12, ly + 1f), "MAX", 11, new Color("c9b6ef"));
         }
         else
         {
             string costS = "♥" + cost.ToString("N0");
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 14, ly), costS, 13, can ? UiKit.Gold : UiKit.Text4);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + 12, ly + 1f), costS, 11, can ? UiKit.Gold : UiKit.Text4);
             if (lv > 0)
-                UiKit.Text(this, UiKit.Zen, new Vector2(x + 22 + UiKit.TextW(UiKit.Mono, costS, 13), ly + 1), $"→ Lv{lv + 1}", 10, UiKit.Text4);
+                UiKit.Text(this, UiKit.Zen, new Vector2(x + 18 + UiKit.TextW(UiKit.Mono, costS, 11), ly + 3f), $"→Lv{lv + 1}", 9, UiKit.Text4);
         }
 
-        DrawCellFx(id, r, lv, can);
+        DrawCellFx(id, r);
     }
 
-    // フロンティア金パルス（おすすめ∩いま買える）／購入直後グロー／カプストーン解放パルス。
-    private void DrawCellFx(string id, Rect2 r, int lv, bool can)
+    // フロンティア金パルス／購入直後グロー／カプストーン解放パルス。
+    private void DrawCellFx(string id, Rect2 r)
     {
-        if (lv == 0 && can && System.Array.IndexOf(_recommended, id) >= 0)
+        if (_frontier.Contains(id))
         {
             float pulse = 0.35f + 0.35f * Mathf.Sin((float)_t * 4f);
-            UiKit.Box(this, r, null, 10f, new Color(UiKit.Gold, pulse), 1.6f);
+            UiKit.Box(this, r, null, 8f, new Color(UiKit.Gold, pulse), 1.6f);
             const string rec = "おすすめ";
-            float rw = UiKit.TextW(UiKit.Zen, rec, 10) + 12f;
-            var rr = new Rect2(r.End.X - rw - 8f, r.Position.Y - 8f, rw, 16f);
+            float rw = UiKit.TextW(UiKit.Zen, rec, 9) + 10f;
+            var rr = new Rect2(r.End.X - rw - 6f, r.Position.Y - 7f, rw, 14f);
             UiKit.Box(this, rr, new Color(UiKit.Gold, 0.2f), 999f, new Color(UiKit.Gold, 0.7f), 1f);
-            UiKit.Text(this, UiKit.Zen, new Vector2(rr.Position.X, rr.Position.Y + 1f), rec, 10, new Color("f0d98a"), HorizontalAlignment.Center, rw);
+            UiKit.Text(this, UiKit.Zen, new Vector2(rr.Position.X, rr.Position.Y), rec, 9, new Color("f0d98a"), HorizontalAlignment.Center, rw);
         }
         if (_buyFxT > 0 && _buyFxId == id)
         {
             float a = (float)(_buyFxT / 0.7);
-            UiKit.Box(this, r, null, 10f, new Color(UiKit.Info, 0.8f * a), 2f);
+            UiKit.Box(this, r, null, 8f, new Color(UiKit.Info, 0.8f * a), 2f);
         }
         if (_capPulseT > 0 && _capPulseId == id)
         {
             float k = 1f - (float)(_capPulseT / 1.4);
             float a = 1f - k;
-            UiKit.Box(this, r.Grow(2f + 8f * k), null, 12f, new Color(UiKit.Gold, 0.8f * a), 2f);
-            UiKit.Text(this, UiKit.ZenBlack, new Vector2(r.Position.X, r.Position.Y - 26f), "解放!", 16, new Color(UiKit.Gold, a), HorizontalAlignment.Center, r.Size.X);
+            UiKit.Box(this, r.Grow(2f + 8f * k), null, 10f, new Color(UiKit.Gold, 0.8f * a), 2f);
+            UiKit.Text(this, UiKit.ZenBlack, new Vector2(r.Position.X, r.Position.Y - 22f), "解放!", 14, new Color(UiKit.Gold, a), HorizontalAlignment.Center, r.Size.X);
         }
     }
 
-    // 縦の点線（段1→段2 の関連エッジ）。
-    private void DrawDottedV(float x, float y0, float y1, Color col)
+    // フロンティア（金パルス対象）を確定：おすすめが未購入かつ買えるならそれを、
+    // 親未接続で買えないなら親チェーンを遡って最初に買える祖先を代わりに光らせる。
+    private void RebuildFrontier()
     {
-        for (float yy = y0 + 2f; yy < y1 - 2f; yy += 8f)
-            DrawLine(new Vector2(x, yy), new Vector2(x, Mathf.Min(yy + 4f, y1 - 2f)), col, 1.6f);
+        _frontier.Clear();
+        if (_game == null) return;
+        foreach (var start in _recommended)
+        {
+            string cur = start;
+            for (int guard = 0; guard < 8 && !string.IsNullOrEmpty(cur); guard++)
+            {
+                var d = GameManager.GetUpgradeDef(cur);
+                if (d == null) break;
+                if (_game.GetUpgradeLevel(cur) > 0) break;           // 既に着手済み＝道しるべ不要
+                if (_game.CanPurchase(cur)) { _frontier.Add(cur); break; }
+                if (!_game.IsParentMet(cur)) { cur = d.ParentId; continue; } // 親未接続→祖先へ
+                break;                                               // 資金/前提/封印が理由なら光らせない
+            }
+        }
     }
 
-    // 小さな錠前（段3 の前提ロック合図）。
+    // 小さな錠前（前提ロックの合図）。
     private void DrawLockIcon(Vector2 c, float s, Color col)
     {
         DrawArc(new Vector2(c.X, c.Y - s * 0.25f), s * 0.45f, Mathf.Pi, Mathf.Tau, 10, col, 1.4f, true);
@@ -588,98 +754,78 @@ public partial class Shop : Node2D
         DrawColoredPolygon(new[] { new Vector2(c.X + s * 0.34f, c.Y), new Vector2(c.X + s, c.Y - s * 0.8f), new Vector2(c.X + s, c.Y) }, col);
     }
 
-    // ───────────────────────── 共通強化帯（前提なし・全モード） ─────────────────────────
-    private void DrawCommonBand()
-    {
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(PadX, CommonLabelY), "共通強化", 16, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(PadX + 88, CommonLabelY + 4), "全モードに乗算・前提なし", 12, UiKit.Text3);
-
-        for (int i = 0; i < Row4Ids.Length; i++)
-            DrawCommonCell(Row4Ids[i], CellRect(4, i), _row == 4 && _col == i);
-        for (int i = 0; i < Row5Ids.Length; i++)
-            DrawCommonCell(Row5Ids[i], CellRect(5, i), _row == 5 && _col == i);
-    }
-
-    // 共通ノードセル（204×34・1行）：名前＋Lvピップ＋コスト。
-    private void DrawCommonCell(string id, Rect2 r, bool focus)
-    {
-        var d = GameManager.GetUpgradeDef(id);
-        if (d == null) return;
-        int lv = _game?.GetUpgradeLevel(id) ?? 0;
-        bool maxed = lv >= d.MaxLevel;
-        long cost = maxed ? -1 : (_game?.GetUpgradeCost(id) ?? 0);
-        long imp = _game?.Impression ?? 0;
-        bool can = !maxed && cost >= 0 && imp >= cost;
-        int cat = CatFor(id);
-
-        UiKit.Box(this, r, new Color(22 / 255f, 18 / 255f, 34 / 255f, focus ? 0.8f : 0.5f), 9f,
-            focus ? UiKit.Info : new Color(1, 1, 1, 0.07f), focus ? 1.8f : 1f);
-        DrawRect(new Rect2(r.Position.X + 3, r.Position.Y + 5, 3f, r.Size.Y - 10), new Color(CatCol[cat], 0.9f));
-
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 12, r.Position.Y + 8), d.Name, 13,
-            maxed ? UiKit.Text4 : (can ? UiKit.White : UiKit.Text3));
-
-        // Lvピップ
-        float px = r.Position.X + 118, py = r.Position.Y + r.Size.Y / 2f;
-        for (int p = 0; p < d.MaxLevel; p++)
-            DrawCircle(new Vector2(px + p * 10f, py), 3f,
-                p < lv ? new Color(CatCol[cat], 0.95f) : new Color(1, 1, 1, 0.14f));
-
-        // 右端：コスト or MAX
-        string tag = maxed ? "MAX" : "♥" + cost.ToString("N0");
-        Color tagCol = maxed ? new Color("c9b6ef") : (can ? UiKit.Gold : UiKit.Text4);
-        UiKit.Text(this, UiKit.Mono, new Vector2(r.End.X - 10 - UiKit.TextW(UiKit.Mono, tag, 11), r.Position.Y + 9), tag, 11, tagCol);
-
-        DrawCellFx(id, r, lv, can);
-    }
-
     // ───────────────────────── 詳細パネル「つぎの一手」（フォーカス連動） ─────────────────────────
-    // 射撃プレビュー（旧モードカード3枚を1面に集約）＋「いま何を選んでいて、買うと何がどう変わり、
-    // いくら残るか／なぜ買えないか」を1箇所に集約。前提・LUNATIC条件もここで種明かしする。
+    // 射撃プレビュー＋「いま何を選んでいて、買うと何がどう変わり、いくら残るか／なぜ買えないか」を集約。
+    // 封印ノードでは振り直しの差引きを常時表示し、Z の2段確認もこのパネルで完結する。
     private void DrawDetailPanel()
     {
         float x = DetailX, w = DetailW;
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, TrunkY), "つぎの一手", 18, UiKit.White);
-        float by = TrunkY + 30f, bh = CommonY1 + CommonH + 10f - by; // ツリー〜共通帯の下端に揃える
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, TreeTop), "つぎの一手", 18, UiKit.White);
+        float by = TreeTop + 30f, bh = TreeBot - by;
         UiKit.Box(this, new Rect2(x, by, w, bh), new Color(20 / 255f, 16 / 255f, 30 / 255f, 0.5f), 12f, new Color(UiKit.Info, 0.25f), 1f);
 
-        // 射撃プレビュー（フォーカス列の幹。共通帯では装備中モード）。
-        int pv = _row <= 3 ? _col : System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
+        // 射撃プレビュー（フォーカスノードの枝のモード。全モード系・root は装備中を映す）。
+        int pv = _sel <= 2 ? _sel : PreviewModeFor(FocusNodeId);
+        if (pv < 0) pv = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
         if (pv < 0) pv = 0;
         bool pvLocked = !(_game?.IsModeUnlocked(Modes[pv]) ?? (pv == 0));
         DrawModeField(x + 10, by + 10, w - 20, 90, pv, pvLocked);
-        string pvLabel = (_row <= 3 ? "" : "装備中: ") + (_game?.ShotModeName(Modes[pv]) ?? "");
+        string pvLabel = _game?.ShotModeName(Modes[pv]) ?? "";
         // ラベルは右上（左はミナ立ち絵が立つので隠れる）。
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, pvLabel, 10), by + 14), pvLabel, 10, new Color(1, 1, 1, 0.55f));
 
-        // フォーカス対象の情報を集める（R0 モードチップ or 強化ノード）。
-        string id = FocusId();
         float ix = x + 16f, iw = w - 32f, iy = by + 112f;
-        if (_row == 0 && string.IsNullOrEmpty(id))
+
+        // root（ミナの核）：説明アンカー。
+        if (_sel == 3)
         {
-            // 連射チップ：買うものが無い＝装備の案内のみ。
-            DrawDetailTitle(ix, iw, iy, "連射", 0, 1, 1);
-            UiKit.Multi(this, UiKit.Zen, new Vector2(ix, iy + 28), ModeDesc[0], 12, UiKit.Text2, iw, 2);
-            UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), "初期解放・常時使用可（" + Pad.EquipToken + " で装備）", 12, new Color("7ec880"));
+            DrawRect(new Rect2(ix, iy + 4, 4f, 18f), new Color(UiKit.Mina, 0.9f));
+            UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 12, iy), "ミナの核", 19, UiKit.White);
+            UiKit.Multi(this, UiKit.Zen, new Vector2(ix, iy + 28),
+                "ここからすべてが伸びる。線でつながった隣のノードから買える。上＝攻めの系譜、下＝支えの系譜。", 12, UiKit.Text2, iw, 3);
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 84), "⊗ の枝は「どちらか一方」。心を払えば選び直せる。", 11, new Color(ForkGold, 0.9f));
             return;
         }
 
+        // R0 チップ：モードの案内。
+        if (_sel <= 2)
+        {
+            bool unlocked = _game?.IsModeUnlocked(Modes[_sel]) ?? (_sel == 0);
+            DrawRect(new Rect2(ix, iy + 4, 4f, 18f), new Color(CatCol[0], 0.9f));
+            UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 12, iy), _game?.ShotModeName(Modes[_sel]) ?? "", 19, UiKit.White);
+            UiKit.Multi(this, UiKit.Zen, new Vector2(ix, iy + 28), ModeDesc[_sel], 12, UiKit.Text2, iw, 2);
+            if (_sel == 0)
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), "初期解放・常時使用可（" + Pad.EquipToken + " で装備）", 12, new Color("7ec880"));
+            else if (unlocked)
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), Pad.EquipToken + " で装備", 12, new Color("7ec880"));
+            else
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74),
+                    _sel == 1 ? "解放: 連射速度 → 拡散展開（枝の入り口）" : "解放: 身のこなし → 誘導の祈り（枝の入り口）", 12, UiKit.Text3);
+            return;
+        }
+
+        // ノード詳細
+        string id = FocusNodeId!;
         var d = GameManager.GetUpgradeDef(id)!;
         int lv = _game?.GetUpgradeLevel(id) ?? 0;
         bool maxed = lv >= d.MaxLevel;
         long cost = maxed ? -1 : (_game?.GetUpgradeCost(id) ?? 0);
+        bool sealed_ = _game?.IsSealed(id) ?? false;
+        bool parentOk = _game?.IsParentMet(id) ?? true;
         bool prereqOk = _game?.IsPrereqMet(id) ?? true;
         long imp = _game?.Impression ?? 0;
 
-        DrawDetailTitle(ix, iw, iy, d.Name, CatFor(id), lv, d.MaxLevel);
+        DrawRect(new Rect2(ix, iy + 4, 4f, 18f), new Color(CatCol[CatFor(id)], 0.9f));
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 12, iy), d.Name, 19, UiKit.White);
+        string lvS = $"Lv {lv}/{d.MaxLevel}";
+        UiKit.Text(this, UiKit.Mono, new Vector2(ix + iw - UiKit.TextW(UiKit.Mono, lvS, 12), iy + 6), lvS, 12, UiKit.Text3);
         UiKit.Multi(this, UiKit.Zen, new Vector2(ix, iy + 26), d.Desc, 12, UiKit.Text2, iw, 2);
 
-        // 現在 → 購入後（差分＝意思決定の中心）。長い効果文が入るので上下2段で見せる。
+        // 現在 → 購入後（差分＝意思決定の中心）。長い効果文が入るので上下2段。
         float ey = iy + 66f;
         UiKit.Box(this, new Rect2(ix, ey, iw, 56f), new Color(0, 0, 0, 0.24f), 9f);
-        string cur = Eff(id, lv);
         UiKit.Text(this, UiKit.Mono, new Vector2(ix + 12, ey + 8), "いま", 10, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 6), cur, 13, UiKit.Text2);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 6), Eff(id, lv), 13, UiKit.Text2);
         if (!maxed)
         {
             UiKit.Text(this, UiKit.Mono, new Vector2(ix + 12, ey + 32), "買うと", 10, new Color(CatCol[CatFor(id)], 0.8f));
@@ -690,16 +836,24 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Zen, new Vector2(ix + 12, ey + 32), "最大強化済み", 12, new Color("c9b6ef"));
         }
 
+        // 封印中：振り直しの差引きプレビュー（常時）＋2段確認。
+        if (sealed_)
+        {
+            DrawRespecPanel(ix, iw, ey + 68f, id, d);
+            return;
+        }
+
         // コスト行：値段・購入後の残り・買えない理由（押す前に全部わかる）。
         float cy = ey + 68f;
         if (cost >= 0)
         {
             string costS = "♥" + cost.ToString("N0");
             bool afford = imp >= cost;
-            UiKit.Text(this, UiKit.Mono, new Vector2(ix, cy), costS, 16, afford && prereqOk ? UiKit.Gold : Deny);
+            bool blocked = !parentOk || !prereqOk;
+            UiKit.Text(this, UiKit.Mono, new Vector2(ix, cy), costS, 16, afford && !blocked ? UiKit.Gold : Deny);
             float cw2 = UiKit.TextW(UiKit.Mono, costS, 16);
-            if (!prereqOk)
-                UiKit.Text(this, UiKit.Zen, new Vector2(ix + cw2 + 14, cy + 2), "前提が必要です（下記）", 12, Deny);
+            if (blocked)
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix + cw2 + 14, cy + 2), "条件が必要です（下記）", 12, Deny);
             else if (afford)
                 UiKit.Text(this, UiKit.Zen, new Vector2(ix + cw2 + 14, cy + 2), $"買うと のこり ♥{(imp - cost):N0}", 12, UiKit.Text3);
             else
@@ -710,39 +864,76 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Zen, new Vector2(ix, cy + 2), "これ以上は強化できません", 12, UiKit.Text3);
         }
 
-        // 前提行（カプストーン）／LUNATIC 条件（shot_power）。
+        // 条件行：親（未接続時）→前提（奥義）→排他の注意→LUNATIC 条件（shot_power）。
         float ny = cy + 26f;
+        if (!parentOk)
+        {
+            string pn = GameManager.GetUpgradeDef(d.ParentId)?.Name ?? "ミナの核";
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), $"親: {pn} を先に Lv1 へ（線でつながった隣）", 12, Deny);
+            ny += 20f;
+        }
         if (!string.IsNullOrEmpty(d.PrereqId))
         {
             string pn = GameManager.GetUpgradeDef(d.PrereqId)?.Name ?? d.PrereqId;
             int plv = _game?.GetUpgradeLevel(d.PrereqId) ?? 0;
-            string pre = $"前提: {pn} Lv{d.PrereqLv}（いま Lv{plv}）";
-            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), pre, 12, prereqOk ? new Color("7ec880") : Deny);
-            // グランドファーザー規則の注記：前提未達でも所持済み Lv は有効のまま。
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), $"前提: {pn} Lv{d.PrereqLv}（いま Lv{plv}）", 12, prereqOk ? new Color("7ec880") : Deny);
+            ny += 20f;
             if (!prereqOk && lv > 0)
-                UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny + 20), $"所持済みの Lv{lv} は有効のままです", 11, UiKit.Text3);
+            {
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), $"所持済みの Lv{lv} は有効のままです", 11, UiKit.Text3);
+                ny += 20f;
+            }
         }
-        else if (id == "shot_power")
+        if (!string.IsNullOrEmpty(d.ExclusiveWith))
+        {
+            string en = GameManager.GetUpgradeDef(d.ExclusiveWith)?.Name ?? d.ExclusiveWith;
+            int elv = _game?.GetUpgradeLevel(d.ExclusiveWith) ?? 0;
+            // 両側所持（旧セーブの共存特例）はその旨を明示。未選択なら「⊗＝選ぶと相方は封印」を予告。
+            string exText = elv >= 1 && lv >= 1 ? $"⊗ {en} と両立中（引き継ぎ特例）"
+                          : lv >= 1 ? $"⊗ 相方 {en} は封印中（そちらで {Pad.ConfirmToken}＝選び直し）"
+                          : $"⊗ どちらか一方: 買うと {en} は封印されます";
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), exText, 11, new Color(ForkGold, 0.9f));
+            ny += 20f;
+        }
+        if (id == "shot_power")
         {
             DrawCrown(new Vector2(ix + 7, ny + 10), 6f, UiKit.Gold);
             UiKit.Text(this, UiKit.Zen, new Vector2(ix + 18, ny), "Lv4 で LUNATIC 解放条件のひとつを満たします", 11, new Color("c9b6ef"));
         }
-        else if (_row == 0)
+    }
+
+    // 封印ノードの振り直しパネル：差引きの内訳（返金−手数料）を常時見せ、Z の2段確認をここで完結する。
+    private void DrawRespecPanel(float ix, float iw, float ry, string id, GameManager.UpgradeDef d)
+    {
+        string partner = d.ExclusiveWith;
+        var pd = GameManager.GetUpgradeDef(partner);
+        int plv = _game?.GetUpgradeLevel(partner) ?? 0;
+        long refund = _game?.RespecRefund(id, partner) ?? 0;
+        long fee = _game?.RespecFee(id, partner) ?? 0;
+
+        UiKit.Text(this, UiKit.Zen, new Vector2(ix, ry), $"封印中: ⊗ {pd?.Name ?? partner} を選んだ枝", 12, new Color(ForkGold, 0.9f));
+
+        bool armed = _respecArmed && _respecId == id;
+        var box = new Rect2(ix, ry + 22f, iw, armed ? 112f : 70f);
+        UiKit.Box(this, box, new Color(0.12f, 0.10f, 0.05f, 0.5f), 9f, new Color(ForkGold, armed ? 0.9f : 0.45f), armed ? 1.6f : 1f);
+        float yy = ry + 30f;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 12, yy), $"手放す: {pd?.Name} Lv{plv} → 選べる: {d.Name}", 12, UiKit.Text2);
+        yy += 22f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(ix + 12, yy), $"返金 ♥{refund:N0} − 手数料 ♥{fee:N0} = ♥{refund - fee:N0}", 12, UiKit.Gold);
+        yy += 24f;
+        if (armed)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), "解放・強化は下のツリー（段1）で", 11, UiKit.Text3);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 12, yy), "本当に選び直しますか？", 13, UiKit.White);
+            yy += 22f;
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix + 12, yy), Pad.ConfirmToken + " 確定　／　" + Pad.CancelToken + " 取消", 12, new Color(ForkGold, 0.9f));
+        }
+        else
+        {
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix + 12, yy), Pad.ConfirmToken + " で選び直し（2段確認）", 11, UiKit.Text3);
         }
     }
 
-    // 詳細パネルの見出し行（カテゴリ色タグ＋名前＋Lv）。
-    private void DrawDetailTitle(float ix, float iw, float iy, string name, int cat, int lv, int maxLv)
-    {
-        DrawRect(new Rect2(ix, iy + 4, 4f, 18f), new Color(CatCol[cat], 0.9f));
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 12, iy), name, 19, UiKit.White);
-        string lvS = $"Lv {lv}/{maxLv}";
-        UiKit.Text(this, UiKit.Mono, new Vector2(ix + iw - UiKit.TextW(UiKit.Mono, lvS, 12), iy + 6), lvS, 12, UiKit.Text3);
-    }
-
-    // 強化のレベル別効果表示。ゲーム側の実計算式（GameManager/Player/Enemy）と必ず一致させる。
+    // 強化のレベル別効果表示。ゲーム側の実計算式（GameManager/Player/Enemy/Bullet）と必ず一致させる。
     // 澄んだ心は現在の汚染度での実効値を正直に出す（無汚染では Lv3 が伸びないことも見えるように）。
     private string Eff(string id, int lv) => id switch
     {
@@ -751,8 +942,11 @@ public partial class Shop : Node2D
         "shot_spread" => lv == 0 ? "未解放" : $"{new[] { 0, 5, 7, 9 }[Mathf.Clamp(lv, 0, 3)]}way",
         "shot_homing" => lv == 0 ? "未解放" : $"{new[] { 0, 2, 2, 3 }[Mathf.Clamp(lv, 0, 3)]}体追尾",
         "shot_pierce" => lv == 0 ? "貫通なし" : $"連射弾が敵 {lv} 体を貫通",
+        "focus_fire" => lv == 0 ? "集中なし" : $"同じ敵に当て続けて威力 最大+{lv}",
         "counter_light" => lv == 0 ? "変換なし" : lv == 1 ? "2発に1発を光弾化（上限6/回避）" : "全弾を光弾化（上限12/回避）",
+        "veil_light" => lv == 0 ? "光輪なし" : $"回避後の光輪 r{(lv == 1 ? 20 : 28)}px・{(lv == 1 ? 0.5f : 0.7f):0.0}s",
         "option_sub" => lv == 0 ? "オプションなし" : $"追従オプション {lv} 基（威力×0.5）",
+        "chain_light" => lv == 0 ? "跳弾なし" : $"拡散弾が {lv} 回跳弾（威力×0.4）",
         "max_life" => $"ライフ上限 +{lv}",
         "bomb_count" => $"初期ボム +{lv}",
         "bomb_power" => $"ボム直撃 {Mathf.RoundToInt(Enemy.BombStrikeBase * (1f + 0.25f * lv))}ダメージ",
@@ -775,7 +969,6 @@ public partial class Shop : Node2D
         float t = (float)_t;
 
         // 射撃リズム（モード別）に同期した微リコイル＋アンティシペーション。
-        // 各発射サイクルで「タメ（前傾・わずか前進）→発射の反動（後方へキック）→余韻（戻し）」。
         float cycle = i == 0 ? 0.7f : i == 1 ? 1.0f : 1.3f;       // DrawLightBullet の位相と同周期
         float fp = (t / cycle) % 1f;                               // 0..1 発射位相
         float recoil;                                             // +で後方(左)へ引く

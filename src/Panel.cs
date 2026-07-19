@@ -93,9 +93,13 @@ public partial class Panel : Area2D
         if (_dead || Invulnerable) return; // 不可侵中は弾も受けない（消しもしない＝素通し）
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
+            // 連鎖の光（chain_light）：消費位置から最寄りの別の敵へ跳弾（Despawn 前。跳ね先から持ち主は除外）。
+            b.TryChain(_owner);
             // 貫く光（shot_pierce）：残貫通数のある弾はパネルを削りつつ突き抜ける（並んだ盾をまとめて撃てる）。
             if (b.Pierce > 0) b.Pierce--;
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
+            // 集中の光（focus_fire）：パネル越しの撃ち込みも「同じ敵に当て続けている」に数える。
+            (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(_owner);
             Ink--;
             if (Ink <= 0) Shatter();
             else QueueRedraw();
