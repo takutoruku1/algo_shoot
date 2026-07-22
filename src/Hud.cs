@@ -98,13 +98,24 @@ public partial class Hud : CanvasLayer
     private const double ShotModeToastDur = 2.0;
 
     // 会話／メッセージ
-    private string _dlgText = "";
+    private string _dlgText = "";       // 現在行の全文（ログ／既読判定用・ページ分割前）
     private string _dlgSpeaker = "";
     private Color _dlgSpeakerCol = Colors.White;
     private bool _dlgIsDialog;          // true=シネマバー / false=ナレーション（中央）
     private Texture2D? _dlgPortrait;
     private double _messageTimer;
-    private float _dlgRevealed;         // タイプライター表示済み文字数
+    private float _dlgRevealed;         // タイプライター表示済み文字数（＝現在ページ内の文字数）
+
+    // ページ送り（テキストボックスは全般2行固定。2行を超える行は2行ずつのページに割り、送りで続きを読ませる）。
+    //   セリフ本文は削らず、WrapLines（禁則つき）で確定した行を DlgMaxLines 行ずつ束ねて1ページにする。
+    //   DialogRevealed（この行を送ってよいか）＝「現在ページを出し切った かつ 最終ページ」。
+    //   RevealDialogNow（Zの1段目）＝現在ページ未完なら全文表示／完了かつ非最終なら次ページへ。
+    //   ＝各シーンの Step_Lines は無改造のまま、2段目送りが自然に「次ページ送り」に回る（既存契約を保つ）。
+    public const int DlgMaxLines = 2;   // 1ページに収める最大行数（全ボックス共通）
+    private readonly System.Collections.Generic.List<string> _dlgPages = new();
+    private int _dlgPage;               // 現在表示中のページ index
+    private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
+    private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private const float CharsPerSec = 48f;
     // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
     private LineKind _dlgKind = LineKind.Narration;
@@ -236,20 +247,24 @@ public partial class Hud : CanvasLayer
         if (_hurtEdge > 0) _hurtEdge -= delta;
         if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
 
-        // 既読高速送り中は全文を即時表示（行送り自体は各シーンの Step_Lines が FastForwarding を見て進める）。
-        if (FastForwarding) _dlgRevealed = _dlgText.Length;
-
-        // タイプライター送り
-        if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < _dlgText.Length)
+        // 既読高速送り中は現在ページを即時全表示し、後続ページも自動で進める（行送り自体は Step_Lines が FastForwarding を見て進める）。
+        if (FastForwarding)
         {
-            _dlgRevealed = Mathf.Min(_dlgText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec));
+            _dlgRevealed = CurPageText.Length;
+            if (!OnLastPage) AdvanceDialogPage();   // 既読は全ページを一気に抜けて最終ページ完了状態へ
+        }
+
+        // タイプライター送り（現在ページ内の文字数を進める）
+        if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < CurPageText.Length)
+        {
+            _dlgRevealed = Mathf.Min(CurPageText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec));
             // 文字が新たに出た瞬間だけ、TypeStride 文字に1回、話者の音色で送り音（Voiceバス）。
             // ナレ（Narration）は PlayType 側で無音。即時全文表示（RevealDialogNow）は差分が一気に増えるが
             // 「1ストライド境界を跨いだか」だけで判定するので、増分の数だけ連打しない＝大量再生を防ぐ。
             int rev = Mathf.FloorToInt(_dlgRevealed);
             if (rev > _typePrevRevealed)
             {
-                if (rev < _dlgText.Length && rev / TypeStride != _typePrevRevealed / TypeStride)
+                if (rev < CurPageText.Length && rev / TypeStride != _typePrevRevealed / TypeStride)
                     Audio.Instance?.PlayType(_dlgKind);
                 _typePrevRevealed = rev;
             }
@@ -260,7 +275,7 @@ public partial class Hud : CanvasLayer
         if (_nodT > 0) _nodT -= delta;                          // うなずきの残り
         // うなずき：その行のタイプ送りが「いま完了した瞬間」だけ1回トリガ。
         bool revealDone = _messageTimer > 0 && _dlgIsDialog && _dlgPortrait != null
-                          && _dlgText.Length > 0 && _dlgRevealed >= _dlgText.Length;
+                          && _dlgText.Length > 0 && _dlgRevealed >= CurPageText.Length;
         if (revealDone && !_revealWasDone) _nodT = NodTime;
         _revealWasDone = revealDone;
 
@@ -355,6 +370,7 @@ public partial class Hud : CanvasLayer
     {
         _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgRevealed = 0;
         _dlgPortraitPrev = null; _portraitFadeT = 0; _nodT = 0; _revealWasDone = false;
+        _dlgPages.Clear(); _dlgPage = 0;
     }
 
     // ───────── テキストボックスの行の種類 ─────────
@@ -462,6 +478,9 @@ public partial class Hud : CanvasLayer
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
         _typePrevRevealed = 0; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
+        // ページ分割：本文が入る幅を確定し、2行ずつのページへ割る（送り機構は DialogRevealed/RevealDialogNow で駆動）。
+        //   幅は DrawDialog のレイアウトと一致させる（ナレ＝中央920 ／ セリフ＝バー幅から話者列・立ち絵を引いた実効幅）。
+        BuildDialogPages(dialog, next);
         // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
         // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
         if (next != null && _dlgPortrait != null && next != _dlgPortrait)
@@ -481,9 +500,55 @@ public partial class Hud : CanvasLayer
 
     public void HideBubble() { _messageTimer = 0; ClearDialog(); }
 
-    // 会話送り（ステージの Step_Lines から使う）：全文表示済みか／即時全文表示／オート送りON。
-    public bool DialogRevealed => _dlgText.Length == 0 || _dlgRevealed >= _dlgText.Length;
-    public void RevealDialogNow() { if (_dlgText.Length > 0) _dlgRevealed = _dlgText.Length; }
+    // 本文を DlgMaxLines(=2) 行ずつのページへ分割する。折り返しは DrawDialog の実効幅と一致させる
+    //（＝画面に出る行構成と分割位置がズレない）。禁則は WrapLines が担保。ページは元の行を \n で束ねた文字列。
+    private void BuildDialogPages(bool dialog, Texture2D? portrait)
+    {
+        _dlgPages.Clear();
+        _dlgPage = 0;
+        // DrawDialog と同じジオメトリで本文の折り返し幅を求める。
+        float wrapW;
+        if (!dialog)
+        {
+            wrapW = 920f;                                   // ナレ（中央テロップ）
+        }
+        else
+        {
+            const float x = 40f, w = 1200f, h = 170f;
+            float textX = x + 36f;
+            if (portrait != null)
+            {
+                float ph = h - 8f;
+                float pw = ph * portrait.GetWidth() / Mathf.Max(1, portrait.GetHeight());
+                textX = x + 10f + pw + 20f;
+            }
+            wrapW = x + w - textX - 30f;                    // DrawDialog の MultiLeading 幅と一致
+        }
+        _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlgText, UiKit.FontHeading, wrapW, DlgMaxLines));
+    }
+
+    // 会話送り（ステージの Step_Lines から使う）：現在ページを出し切った かつ 最終ページなら「この行は読了＝次の行へ」。
+    //   後続ページが残る間は false を返す＝Step_Lines の2段目送りが RevealDialogNow に回り、次ページへ進む。
+    public bool DialogRevealed =>
+        _dlgText.Length == 0 || (OnLastPage && _dlgRevealed >= CurPageText.Length);
+
+    // Zの1段目：現在ページが未完なら全文表示。完了していて後続ページがあるなら次ページへ送る。
+    public void RevealDialogNow()
+    {
+        if (_dlgText.Length == 0) return;
+        if (_dlgRevealed < CurPageText.Length) { _dlgRevealed = CurPageText.Length; return; }
+        if (!OnLastPage) AdvanceDialogPage();
+    }
+
+    // 次ページへ（タイプライターを頭から。送り音の差分検出もリセット）。
+    private void AdvanceDialogPage()
+    {
+        _dlgPage++;
+        _dlgRevealed = 0;
+        _typePrevRevealed = 0;
+        _revealWasDone = false;
+    }
+
     public bool AutoAdvance => _game?.AutoAdvanceDialog ?? false;
 
     // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
@@ -712,8 +777,17 @@ public partial class Hud : CanvasLayer
         float prog = _game?.StageProgress ?? 0f;
         bool full = prog >= 0.999f;
         float capW = 420, x = 640 - capW / 2f, y = 20, h = 30;
+        // 前のめり可視化（数字なし・控えめ）：自機が右へ寄る（＝ゲージが速く伸びる）ほど縁の光を速く/強く脈動させる。
+        //   posFactor 0.55(左端)→1.60(右端) を 0..1 に均し、脈動Hz(2.4→7.0)と縁の明るさに薄く乗せる。full 時は従来演出優先。
+        float posF = _game?.CurrentPosFactor ?? 1.075f;
+        float lean = Mathf.Clamp((posF - 0.55f) / 1.05f, 0f, 1f); // 左端0 → 右端1
+        float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
+        Color edge = full
+            ? new Color(UiKit.PurifyHi, 0.9f)
+            : new Color(UiKit.Purify, Mathf.Lerp(0.12f, 0.12f + 0.30f * lean, pulse)); // 右ほど明滅の振れ幅が大きい
         UiKit.Box(ci, new Rect2(x, y, capW, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 15f,
-            full ? new Color(UiKit.PurifyHi, 0.9f) : new Color(1, 1, 1, 0.12f), full ? 1.5f : 1f);
+            edge, full ? 1.5f : 1f);
         ci.DrawCircle(new Vector2(x + 22, y + h / 2f), 7f, UiKit.Purify);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 38, y + 7), "浄化", 13, UiKit.Info);
         float barX = x + 80, barW = capW - 80 - 56, barY = y + h / 2f - 5;
@@ -978,8 +1052,8 @@ public partial class Hud : CanvasLayer
             float sy = 348f;
             // 左に色アクセントの縦バー（この技の色）＋影＋本体（大きめ ZenBold）。
             ci.DrawRect(new Rect2(sx - 14f, sy - 4f, 4f, 40f), new Color(_cutinCol.R, _cutinCol.G, _cutinCol.B, 0.85f * sa));
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx + 2f, sy + 2f), _cutinLine, 28, new Color(0f, 0f, 0f, 0.5f * sa));
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx, sy), _cutinLine, 28, new Color(0.97f, 0.96f, 1f, sa));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx + 2f, sy + 2f), _cutinLine, UiKit.FontTitle, new Color(0f, 0f, 0f, 0.5f * sa));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(sx, sy), _cutinLine, UiKit.FontTitle, new Color(0.97f, 0.96f, 1f, sa));
         }
     }
     private bool _cutinLandedFlashed;
@@ -1028,11 +1102,11 @@ public partial class Hud : CanvasLayer
         float a = Mathf.Clamp((float)(_shotModeToast / 0.45), 0f, 1f); // 終わり際にフェード
         string name = _game?.ShotModeName(_shotMode) ?? "連射";
         string t = "MODE ▸ " + name;
-        float w = UiKit.TextW(UiKit.ZenBlack, t, 30) + 90;
+        float w = UiKit.TextW(UiKit.ZenBlack, t, UiKit.FontTitle) + 90;
         float x = 640 - w / 2f, y = 150;
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.06f, 0.10f, 0.14f, 0.9f * a), 15f, new Color(UiKit.Info, 0.6f * a), 1.4f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 22, y + 9), "MODE", 12, new Color(UiKit.Info, a));
-        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, 30, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 22, y + 9), "MODE", UiKit.FontSmall, new Color(UiKit.Info, a));
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, UiKit.FontTitle, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
     }
 
     // やさしさゲージ（ショットチップの直下）。蓄積＝紫、全開＝金で残時間が減る。満タン手前でふち明滅。
@@ -1089,10 +1163,10 @@ public partial class Hud : CanvasLayer
     {
         float a = Mathf.Clamp((float)(_overloadToast / 0.4), 0f, 1f);
         const string t = "やさしさ全開";
-        float w = UiKit.TextW(UiKit.ZenBlack, t, 30) + 90;
+        float w = UiKit.TextW(UiKit.ZenBlack, t, UiKit.FontTitle) + 90;
         float x = 640 - w / 2f, y = 150;
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.10f, 0.08f, 0.04f, 0.9f * a), 15f, new Color(UiKit.Gold, 0.6f * a), 1.4f);
-        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, 30, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, UiKit.FontTitle, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
     }
 
     // 操作ガイド（常駐）：プレイ中ずっと画面「右下」に「ボタン→動作」を横一列で出す。
@@ -1381,15 +1455,21 @@ public partial class Hud : CanvasLayer
 
     private void DrawDialog(HudCanvas ci)
     {
-        int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, _dlgText.Length);
-        string shown = _dlgText.Substring(0, n);
+        // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
+        string page = CurPageText;
+        int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, page.Length);
+        string shown = page.Substring(0, n);
+        // ページ継続サイン：現在ページを出し切っていて、まだ後続ページがあるとき「▼」を点滅（Zで続きへ）。
+        bool morePages = !OnLastPage && _dlgRevealed >= page.Length;
 
         if (!_dlgIsDialog)
         {
-            // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。
+            // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。
             UiKit.Box(ci, new Rect2(140, 590, 1000, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
-            UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, 20, new Color(0.9f, 0.9f, 0.95f), 920, NarrLeading, 3);
+            UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, UiKit.FontHeading, new Color(0.9f, 0.9f, 0.95f), 920, NarrLeading, DlgMaxLines);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(140 + 1000 - 20, 598));
+            if (morePages && ((int)(_t * 2f) % 2) == 0)
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(140 + 1000 - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
             return;
         }
 
@@ -1425,12 +1505,15 @@ public partial class Hud : CanvasLayer
             textX = x + 10 + pw + 20;
         }
         if (_dlgSpeaker.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 16), _dlgSpeaker, 18, _dlgSpeakerCol);
-        // 本文：行間(DlgLeading)を足して詰まりを解消。背の高いバーに合わせ最大3行まで（はみ出し防止）。
-        UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(textX, y + 48), shown, 22, new Color(0.95f, 0.95f, 0.98f),
-            x + w - textX - 30, DlgLeading, 3);
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 16), _dlgSpeaker, UiKit.FontSpeaker, _dlgSpeakerCol);
+        // 本文：行間(DlgLeading)を足して詰まりを解消。全ボックス 2行固定（DlgMaxLines）＝はみ出し防止＋箇所ごとの行数差を解消。
+        UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(textX, y + 48), shown, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f),
+            x + w - textX - 30, DlgLeading, DlgMaxLines);
         // 既読高速送り中の控えめな表示（バー右上・#22）。
         if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
+        // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。
+        if (morePages && ((int)(_t * 2f) % 2) == 0)
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + w - 34, y + h - 30), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
     }
 
     // 既読スキップ中インジケータ「▶▶」（右上アンカー基準・控えめ）。他シーンの独自レンダラからも呼べるよう static。
@@ -1466,31 +1549,31 @@ public partial class Hud : CanvasLayer
     {
         float a = Mathf.Clamp((float)_bossLineTimer * 2f, 0f, 1f);
         string sp = _bossLineSpeaker.Length > 0 ? _bossLineSpeaker + "  " : "";
-        float spW = UiKit.TextW(UiKit.ZenBold, sp, 18);
-        float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, 20);
+        float spW = UiKit.TextW(UiKit.ZenBold, sp, UiKit.FontSpeaker);
+        float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, UiKit.FontHeading);
         float w = spW + tw + 36, x = 640 - w / 2f, y = 540, h = 38;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.74f * a), 12f,
             new Color(_bossLineCol, 0.55f * a), 1.2f);
         if (sp.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18, y + 10), sp, 18, new Color(_bossLineCol, a));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, 20, new Color(UiKit.White, a));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18, y + 10), sp, UiKit.FontSpeaker, new Color(_bossLineCol, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, UiKit.FontHeading, new Color(UiKit.White, a));
     }
 
     private void DrawBanner(HudCanvas ci)
     {
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
-        float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, 52);
-        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, 52, new Color(UiKit.Light, a),
+        float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, UiKit.FontDisplay, new Color(UiKit.Light, a),
             HorizontalAlignment.Left, -1);
         // クリアリザルトのタイム行（見出しの下）。
         if (_bannerTime.Length > 0)
         {
-            UiKit.Text(ci, UiKit.Mono, new Vector2(0, 366), _bannerTime, 26, new Color(UiKit.PurifyHi, a),
+            UiKit.Text(ci, UiKit.Mono, new Vector2(0, 366), _bannerTime, UiKit.FontTitle, new Color(UiKit.PurifyHi, a),
                 HorizontalAlignment.Center, 1280);
             if (_bannerBest.Length > 0)
             {
                 Color bc = _bannerNewBest ? UiKit.Gold : UiKit.Text2;
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 402), _bannerBest, 20, new Color(bc, a),
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 402), _bannerBest, UiKit.FontHeading, new Color(bc, a),
                     HorizontalAlignment.Center, 1280);
             }
         }
@@ -1499,7 +1582,7 @@ public partial class Hud : CanvasLayer
     // ゲームオーバー時の選択肢プロンプト（バナー直下）。バナーのフェードに依らず常時表示。
     private void DrawGameOverPrompt(HudCanvas ci)
     {
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 372), _gameOverPrompt, 24, new Color(UiKit.Text2, 1f),
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 372), _gameOverPrompt, UiKit.FontHeading, new Color(UiKit.Text2, 1f),
             HorizontalAlignment.Center, 1280);
     }
 }

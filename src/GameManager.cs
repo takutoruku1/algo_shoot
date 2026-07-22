@@ -49,9 +49,10 @@ public partial class GameManager : Node
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
     // 通常ボス: Easy2/Normal4/Hard5/Lunatic6（#25: Easyは据え置き＝入口を守り、Normal以上を+1本）。
-    // ラスボス格(Mina)は +1本（finalBoss=true）。
+    // ラスボス格(Mina)は +2本（finalBoss=true。Easy4/Normal6/Hard7/Luna8。B-5: 強化が伸びた終盤でも
+    // シールド段の攻防が痩せないよう +1→+2）。無防備窓のキャップは据え置き。
     public int DiffBarBonus(bool finalBoss) =>
-        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 1 : 0);
+        (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 200;
@@ -98,8 +99,48 @@ public partial class GameManager : Node
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
     public int StageTarget { get; private set; } = 24;
     public void SetStageTarget(int t) => StageTarget = Mathf.Max(1, t);
+
+    // ───── 前のめり進行（リスクリターン：時間＋撃破＋自機の左右位置）─────
+    //   進行度＝「撃破率」を下限に、時間アキュムレータを右へ寄るほど速く積む。
+    //   ・killFrac  ＝撃破率（従来の式。下限保証＝ここが痩せることはない）。
+    //   ・progAccum ＝時間アキュムレータ。posFactor(playerX) で毎フレーム積む（右ほど速い）。
+    //   進行不能防止の不変条件（絶対に壊さない）：
+    //     ・道中ウェーブの撃破ゲート／StageCleared は PurifiedCount だけで判定＝ここは一切触らない。
+    //       progAccum/timeFrac は「見た目のゲージ＝StageProgress／Warmth／背景切替」を先行させるだけ。
+    //     ・時間だけではクリアさせない（ボスは必ず撃破required）。
+    //   progAccum は ResetRun（ステージ開始）でリセット。
+    private float _progAccum;
+    private const float ProgBaseRate = 1f / 95f; // 中央基準の進行速度（posFactor=1 で 95 秒フル）
+    private const float ProgTimeCap = 0.35f;     // 時間だけで伸ばせる上限
+    // 自機Xの正規化（0=左端 / 0.5=中央 / 1=右端）。プレイフィールドは 384 幅（Player.MinX..MaxX）。
+    public float PlayerNormX { get; private set; } = 0.5f;
+    // 現在の前のめり係数（posFactor）。左端0.55 / 中央1.075 / 右端1.60。artist の背景/HUD が読む。
+    public float CurrentPosFactor => PosFactor(PlayerNormX);
+    // 前のめり係数：右へ寄る（攻める）ほど進行が速い。式は設計確定値。
+    public static float PosFactor(float nx) => 0.55f + 1.05f * Mathf.Clamp(nx, 0f, 1f);
+    // スポーン密度倍率：右へ寄るほど敵が多い（＝リスク）。左端0.60 / 中央1.05 / 右端1.50。
+    public static float SpawnRateMul(float nx) => 0.60f + 0.90f * Mathf.Clamp(nx, 0f, 1f);
+
+    // 毎フレーム、自機Xと dt を受けて時間アキュムレータを進める（各ステージ Root の _Process から1本呼ぶ）。
+    // 撃破カウンタ(PurifiedCount)には一切触れない＝撃破ゲート/StageCleared は不変。
+    public void TickProgress(float playerX, float dt)
+    {
+        PlayerNormX = Mathf.Clamp(playerX / 384f, 0f, 1f);
+        _progAccum += ProgBaseRate * PosFactor(PlayerNormX) * (float)dt;
+        _progAccum = Mathf.Clamp(_progAccum, 0f, ProgTimeCap);
+    }
+
     // 浄化ゲージ(0..1)＝目標までの達成度。世界の暖かさもこれに連動する。
-    public float StageProgress => Mathf.Clamp((float)PurifiedCount / StageTarget, 0f, 1f);
+    //   撃破率(killFrac)を下限に、時間ぶん(timeFrac)を混ぜて“前のめり”に先行させる（合成は設計確定式）。
+    public float StageProgress
+    {
+        get
+        {
+            float killFrac = Mathf.Clamp((float)PurifiedCount / StageTarget, 0f, 1f);
+            float timeFrac = _progAccum; // TickProgress で 0..ProgTimeCap に clamp 済み
+            return Mathf.Clamp(Mathf.Max(killFrac, killFrac * 0.55f + timeFrac), 0f, 1f);
+        }
+    }
     public bool StageCleared => PurifiedCount >= StageTarget;
 
     // 「世界の暖かさ(0=冷たい荒れた世界 → 1=暖かい浄化された世界)」＝浄化の進捗。
@@ -926,6 +967,8 @@ public partial class GameManager : Node
         _comboTimer = 0;
         Bombs = StartBombs;
         PurifiedCount = 0;
+        _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
+        PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
         RunImpression = 0;
         _kindFill = 0f;
         IsOverload = false;

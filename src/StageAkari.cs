@@ -30,6 +30,7 @@ public partial class StageAkari : Node
 
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
+    private const string SAfraid = "res://char/shonen_afraid.png"; // 怯え・崩れ（承第2段：少年の動揺を表情で見せる）
 
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。あかりは型崩し（S2）で“カメオ先出し”：
     //   肩慣らし0（圧ゼロ）→ チラ見せ（6体目の浄化で割り込み）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
@@ -47,7 +48,9 @@ public partial class StageAkari : Node
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
 
-    // ダイブ前の会話（v2 [P-02a]）。少年の様子が普段と違う＝核心の予兆。
+    // ダイブ前の会話（v2 [P-02a]）。承の上り坂・第2段（優先度1・3）＝【疑いが言葉になりかけ／少年が動揺して崩れる】。
+    //   レイ面では訝らなかったミナが、この面で初めて“いつもと違う”に口をつける。少年は Stay を言い忘れ、動揺して逸らす。
+    //   異変は説明せず、少年の afraid（怯え・崩れ）表情＋ミナの doubt（怪訝）で見せる（show don't tell）。
     // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継。
     private static readonly (int who, string text, string face)[] Intro =
     {
@@ -56,11 +59,12 @@ public partial class StageAkari : Node
         (1, "ご主人様。次の“成敗”は? 今日はずいぶん静かですね。", ""),
         (0, "……ああ、悪い。ちょっと考えごとだ。", SGentle),
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""),     // 投稿
-        (0, "…………この人の、ところへ行こう。", SGentle),
+        (0, "…………この人の、ところへ行こう。", SAfraid),                    // 声の色が違う＝崩れの初出（afraid）
         (1, "おや。決めゼリフはどうしたんですか。……それに、いつもの「Stay」も。", ""),
-        (0, "……いいから。行くぞ。", SCocky),
-        // 合言葉の“不在”＝違和感（転の予兆）。少年は動揺して、いつもの「Stay」を言い忘れる。
-        // ※事実（Stayを言わなかった）は :57 で既出。ここは説明せず、言いさした呼びかけ＋怪訝顔（doubt）で“いつもと違う”を訝らせる。
+        (0, "……いいから。行くぞ。", SGentle),
+        // 承第2段：ミナの疑いが初めて“言葉”になる。ただし核心には届かない（そこはこはる面まで温存）。
+        (1, "ご主人様。……あなた、今日はどこか、へん、ですよ。", "res://char/mina_doubt.png"), // 疑いが言語化（レイでは無かった一歩）
+        (0, "……っ、へんじゃない。ぼくはいつも通りだ。行くぞ。", SAfraid),      // 動揺して否定＝崩れ（afraid）。読者だけが“図星”と分かる
         (1, "……ご主人様。", "res://char/mina_doubt.png"),
         (1, "ご主人様、雨が、降りやみません。机も、椅子も……天井へ、落ちていく。おかしな教室ですね。", "res://char/mina_face.png"),
     };
@@ -79,19 +83,22 @@ public partial class StageAkari : Node
         (1, "ご主人様、ごらんになって。雨の中を……白い吹き出しが、いくつも漂っています。", "res://char/mina_face.png"),
         (1, "ここの声は……どれも、「ねえ見て」「すき」と、すがりついてきます。", ""),
         (0, "ああ。たった一人に渡せなかったぶん、誰彼かまわず掴もうとしてる。", SGentle),
-        (1, "……やけに、詳しいんですね。", "res://char/mina_doubt.png"), // “なぜそんなに知っている?”と探る＝怪訝顔（doubt）。心配ではなく訝り
-        (0, "————行くぞ。", SCocky),
+        (1, "……ご主人様は、その“たった一人”を、知っているみたいに言うんですね。", "res://char/mina_doubt.png"), // 疑いを一歩具体化（第2段）
+        (0, "————行くぞ。", SAfraid),                          // 答えず逸らす＝崩れ（afraid）で一貫
     };
 
-    // 道中“前半”の後：ボスのツイートが流れてくる→考察（少年が思わず情を見せる＝転の核）。
+    // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第2段（優先度1・3）＝【思わず情がこぼれ、動揺で蓋をする】。
+    //   少年が“見てきたような”細部（笑い方）を口走り、直後にハッと蓋をする（afraid）。ミナは「?」で追うが、核心＝“知人だ”とは
+    //   まだ言い切らせない（そこはこはる面へ温存）。優先度3：説明的な「知っている人みたい」を弱め、崩れ＝表情で見せる。
     private const string AFace = "res://char/akari_face.png";
     private static readonly (int who, string text, string face)[] BossTalk =
     {
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""), // ボスのツイート
         (1, "……また、あの投稿が流れてきました。奥の“本人”は、ずいぶん思いつめていますね。", ""),
-        (0, "……あかり、っていうんだ。やさしくて、笑うと、目が三日月になる。", SGentle),
-        (1, "……また、知っている人みたいな言い方。……ご主人様?", "res://char/mina_doubt.png"), // 内心は書かない＝言いさし＋怪訝顔（doubt）で訝りを見せる
-        (0, "……なんでもない。行くぞ。", SCocky),
+        (0, "……あかり、っていうんだ。やさしくて、笑うと、目が三日月になって——", SGentle), // 細部が思わずこぼれる（言いさし）
+        (0, "————。……いや。", SAfraid),                                    // ハッと蓋をする＝崩れ（afraid）。言い切らない
+        (1, "……ご主人様?", "res://char/mina_doubt.png"),                    // 追うが、まだ言葉にはしない（核心はこはる面へ）
+        (0, "……なんでもない。行くぞ。", SGentle),
     };
 
     // チラ見せ：登場（あかり＝怯え・拒絶）。who=2=あかり。
@@ -105,8 +112,8 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] CameoTalk2 =
     {
         (2, "見ないで……っ。こんな、みっともないところ。", AFace),
-        (1, "……ご主人様。あなた、さっきから、この子を見る目が——", "res://char/mina_worried.png"),
-        (0, "……黙っててくれ、ミナ。頼むから。", SGentle),
+        (1, "……ご主人様。あなた、さっきから、この子を見る目が——", "res://char/mina_doubt.png"), // 疑いの目（worried→doubt で第2段に統一）
+        (0, "……黙っててくれ、ミナ。頼むから。", SAfraid),           // 懇願＝崩れ（afraid）。“頼むから”に情が漏れる
     };
     // 山：あかりが少年の声に気づきかけ、自分で否定する。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
@@ -144,18 +151,20 @@ public partial class StageAkari : Node
         (0, "……ぼくが、やらなきゃいけないんだ。", SGentle),
     };
 
-    // 帰還（v2 [P-02c]）。投稿の変化＋あかりの残響＋ミナの核心の問い（伏線③）。
+    // 帰還（v2 [P-02c]）。承第2段の締め（優先度1・3）＝【疑いを口にするが、断定はさせない】。
+    //   ミナは初めて「知ってるんですか?」と問う（レイでは無かった直接の問い）。少年は動揺しつつ嘘でかわす（afraid→取り繕い）。
+    //   “知人だ”の確信はここでは持たせない＝こはる面で核心に触れる余地を残す。あかり残響＝伏線③（声が似ている）は温存。
     private static readonly (int who, string text, string face)[] Clear =
     {
         (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
-        (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響
+        (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響（伏線③）
         (2, "……でも、もう、ごめんねは言わない。あたしの好きは、まちがってなかった。", ""), // 自分の意思で前を向く（P4・尊厳）
         (1, "……字が、変わっていく。——『ありがとう』。……♥も、ひとつ。", ""), // S3反転の目撃（読み上げ型）：思わず読むだけ。解釈しない
-        (1, "あなた、この人を——知ってるんですか?", "res://char/mina_worried.png"),
-        (0, "…………まさか。赤の他人さ。", SCocky),
-        (1, "……即答までに、二秒かかりましたね。", ""),
-        (0, "ミナ。シェイクスピアは言った。\"Parting is such sweet sorrow.\"", SCocky),
-        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", "res://char/mina_smile.png"),
+        (1, "ご主人様。あなた——この人を、知ってるんですか?", "res://char/mina_doubt.png"), // 初めての直接の問い（worried→doubt）
+        (0, "————っ。……まさか。赤の他人さ。", SAfraid),               // ひるんでから嘘（afraid）。“っ”に動揺が出る
+        (1, "……即答までに、二秒かかりましたね。", "res://char/mina_doubt.png"),
+        (0, "ミナ。シェイクスピアは言った。\"Parting is such sweet sorrow.\"", SCocky), // 話を逸らす（取り繕い）
+        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", "res://char/mina_smile.png"), // 追及を軽口で受ける＝まだ断定しない
         (0, "————一般論だよ。", SGentle),
     };
 
@@ -267,7 +276,7 @@ public partial class StageAkari : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => "res://char/akari_face.png", // あかり
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",                // 中継ほか
         };

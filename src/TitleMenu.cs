@@ -7,7 +7,7 @@ public partial class TitleMenu : Node2D
 {
     private GameManager _game = null!;
 
-    private enum Item { NewGame, Continue, HowToPlay, Tutorial, Settings, Quit }
+    private enum Item { NewGame, Continue, HowToPlay, Tutorial, Settings, Credits, Quit }
     private static readonly (Item item, string jp, string en)[] Items =
     {
         (Item.NewGame,   "はじめから",       "NEW GAME"),
@@ -15,6 +15,7 @@ public partial class TitleMenu : Node2D
         (Item.HowToPlay, "あそびかた",       "HOW TO PLAY"),
         (Item.Tutorial,  "チュートリアル",   "TUTORIAL"),
         (Item.Settings,  "設定",             "SETTINGS"),
+        (Item.Credits,   "クレジット",       "CREDITS"),
         (Item.Quit,      "おわる",           "QUIT"),
     };
 
@@ -319,6 +320,8 @@ public partial class TitleMenu : Node2D
                 Go("res://Stage0.tscn");
                 break;
             case Item.Settings: Go("res://Settings.tscn"); break;
+            // 「クレジット」＝BGM等フリー素材の表記義務を満たす画面（内容は config/credits.ini）。
+            case Item.Credits:  Go("res://Credits.tscn"); break;
             case Item.Quit:     GetTree().Quit(); break;
         }
     }
@@ -352,7 +355,7 @@ public partial class TitleMenu : Node2D
 
         // ── 可読性スクリム（KVの上・UIの下）──
         // 左を暗くする横グラデ（左=半透明ダーク→右=透明）。タイトル文字とメニューのコントラストを保証。
-        HGradient(new Rect2(0, 0, W * 0.62f, H),
+        UiKit.HGradient(this, new Rect2(0, 0, W * 0.62f, H),
             new Color(6 / 255f, 9 / 255f, 20 / 255f, 0.74f), new Color(6 / 255f, 9 / 255f, 20 / 255f, 0f));
         // 下端の薄いスクリム（プロンプト・バージョン表記の足元を沈める）。
         UiKit.VGradient(this, new Rect2(0, H - 150f, W, 150f),
@@ -376,8 +379,8 @@ public partial class TitleMenu : Node2D
         DrawPrompt();
 
         // ── バージョン（右下）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 48), "ver 0.3.0 — 体験版", 11, UiKit.Text4, HorizontalAlignment.Right, 204);
-        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 30), "© 2026 algo project", 11, UiKit.Text4, HorizontalAlignment.Right, 204);
+        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 48), "ver 0.3.0 — 体験版", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
+        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 30), "© 2026 algo project", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
 
         DrawTicker();
         DrawToast();
@@ -394,7 +397,7 @@ public partial class TitleMenu : Node2D
         int n = GameManager.SlotCount + 1;
         float w = 560, rowH = 56, h = 100 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "つづきから — スロットを選ぶ", 18, UiKit.White, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "つづきから — スロットを選ぶ", UiKit.FontHeading, UiKit.White, HorizontalAlignment.Center, w);
         float top = y + 64;
         for (int i = 0; i < n; i++)
         {
@@ -404,15 +407,15 @@ public partial class TitleMenu : Node2D
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 46), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 14), "▸", 16, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 14), "▸", UiKit.FontBody, UiKit.Purify);
             }
             Color nameCol = exists ? (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)) : UiKit.Text4;
             string name = i == 0 ? "オートセーブ" : $"スロット {i}";
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 12), name, 19, nameCol);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 220, ry + 15), exists ? "セーブあり" : "—— 空き ——", 12,
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 12), name, UiKit.FontSpeaker, nameCol);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 220, ry + 15), exists ? "セーブあり" : "—— 空き ——", UiKit.FontLabel,
                 exists ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 192);
         }
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 28), "Z 決定    X 戻る", 11, UiKit.Text3, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 28), "Z 決定    X 戻る", UiKit.FontSmall, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     // 「はじめから」後の操作表示モード3択ダイアログ（キーボード / コントローラPS / コントローラXbox）。
@@ -425,8 +428,8 @@ public partial class TitleMenu : Node2D
         int n = DisplayChoices.Length;
         float w = 600, rowH = 60, h = 132 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 24), "操作表示を選ぶ", 19, UiKit.White, HorizontalAlignment.Center, w);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 50), "ヒントの表記を選びます（持ち替えたデバイスに自動で切り替わります）", 12,
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 24), "操作表示を選ぶ", UiKit.FontHeading, UiKit.White, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 50), "ヒントの表記を選びます（持ち替えたデバイスに自動で切り替わります）", UiKit.FontLabel,
             UiKit.Text3, HorizontalAlignment.Center, w);
         float top = y + 80;
         for (int i = 0; i < n; i++)
@@ -436,28 +439,15 @@ public partial class TitleMenu : Node2D
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 50), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", 16, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", UiKit.FontBody, UiKit.Purify);
             }
             Color nameCol = on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), DisplayChoices[i].jp, 20, nameCol);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 230, ry + 18), DisplayChoices[i].en, 12,
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), DisplayChoices[i].jp, UiKit.FontSpeaker, nameCol);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 230, ry + 18), DisplayChoices[i].en, UiKit.FontLabel,
                 on ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 200);
         }
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ / ←→ えらぶ    Z はじめる    X もどる", 11,
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ / ←→ えらぶ    Z はじめる    X もどる", UiKit.FontSmall,
             UiKit.Text3, HorizontalAlignment.Center, w);
-    }
-
-    // 横リニアグラデ矩形（左→右に色を補間）。立ち絵の硬い矩形エッジを夜へ溶かすのに使う。
-    private void HGradient(Rect2 r, Color left, Color right)
-    {
-        var g = new Gradient { Offsets = new[] { 0f, 1f }, Colors = new[] { left, right } };
-        var tex = new GradientTexture2D
-        {
-            Gradient = g, Width = 256, Height = 8,
-            Fill = GradientTexture2D.FillEnum.Linear,
-            FillFrom = new Vector2(0, 0), FillTo = new Vector2(1, 0),
-        };
-        DrawTextureRect(tex, r, false);
     }
 
     private void DrawDanmaku(Vector2 c, float r, Color col)
@@ -508,21 +498,24 @@ public partial class TitleMenu : Node2D
     private void DrawTitleBlock()
     {
         float x = 88f;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, 92), "A L G O :", 15, UiKit.Info);
-        // 大見出し（白→シアン→紫のグラデを2行の色分けで近似）＋落ち影
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 2, 122), "Refrain", 62, new Color(0.08f, 0.06f, 0.16f, 0.6f));
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, 120), "Refrain", 62, UiKit.PurifyHi);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 2, 190), "of Light", 62, new Color(0.08f, 0.06f, 0.16f, 0.6f));
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, 188), "of Light", 62, new Color(155 / 255f, 183 / 255f, 232 / 255f));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, 92), "A L G O :", UiKit.FontBody, UiKit.Info);
+        // 大見出し（白→シアン→紫のグラデを2行の色分けで近似）＋落ち影。
+        //   タイトルロゴは全画面で唯一の最大表示＝FontDisplay(52) より大きい別格サイズを意図して残す（機械的に潰さない）。
+        const int logo = 62;
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 2, 122), "Refrain", logo, new Color(0.08f, 0.06f, 0.16f, 0.6f));
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, 120), "Refrain", logo, UiKit.PurifyHi);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 2, 190), "of Light", logo, new Color(0.08f, 0.06f, 0.16f, 0.6f));
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, 188), "of Light", logo, new Color(155 / 255f, 183 / 255f, 232 / 255f));
         // 区切り＋サブ
         DrawRect(new Rect2(x, 270, 34f, 2f), UiKit.Purify);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 46, 262), "心象シューティング", 16, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, 286), "— その痛みに、光を届けに。", 14, UiKit.Text3);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 46, 262), "心象シューティング", UiKit.FontBody, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, 286), "— その痛みに、光を届けに。", UiKit.FontBody, UiKit.Text3);
     }
 
     private void DrawMenu()
     {
-        float x = 88f, top = 330f, rowH = 44f, gap = 4f, w = 360f;
+        // 7項目（クレジット追加）でもプロンプト（y=656）に食い込まない行高に詰める。
+        float x = 88f, top = 324f, rowH = 41f, gap = 3f, w = 360f;
         for (int i = 0; i < Items.Length; i++)
         {
             float ry = top + i * (rowH + gap);
@@ -535,13 +528,13 @@ public partial class TitleMenu : Node2D
                     new Color(UiKit.Purify, 0.45f), 1f);
             }
             // ▸ カーソル
-            if (on) UiKit.Text(this, UiKit.Mono, new Vector2(x + 18, ry + 11), "▸", 18, UiKit.Purify);
+            if (on) UiKit.Text(this, UiKit.Mono, new Vector2(x + 18, ry + 9), "▸", UiKit.FontSpeaker, UiKit.Purify);
             // 名前
             var nameFont = on ? UiKit.ZenBlack : UiKit.ZenBold;
             Color nameCol = disabled ? UiKit.Text4 : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
-            UiKit.Text(this, nameFont, new Vector2(x + 42, ry + 7), Items[i].jp, 23, nameCol);
+            UiKit.Text(this, nameFont, new Vector2(x + 42, ry + 7), Items[i].jp, UiKit.FontHeading, nameCol);
             // EN ラベル（右）
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 14), Items[i].en, 11,
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 12), Items[i].en, UiKit.FontSmall,
                 on ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 120);
         }
     }
@@ -551,9 +544,9 @@ public partial class TitleMenu : Node2D
         float x = 88f, y = 656f;
         float blink = 0.55f + 0.45f * Mathf.Sin((float)_t * Mathf.Pi * 2f / 1.6f);
         UiKit.Key(this, new Vector2(x, y), "Z", new Color(UiKit.Purify, 0.14f * blink + 0.06f), new Color(UiKit.Info, 0.5f), UiKit.PurifyHi);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 36, y + 4), "けってい", 13, UiKit.Info);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 36, y + 4), "けってい", UiKit.FontLabel, UiKit.Info);
         UiKit.Key(this, new Vector2(x + 130, y), "↑↓", new Color(1, 1, 1, 0.06f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 178, y + 4), "えらぶ", 13, UiKit.Text3);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 178, y + 4), "えらぶ", UiKit.FontLabel, UiKit.Text3);
     }
 
     private void DrawTicker()
@@ -564,13 +557,13 @@ public partial class TitleMenu : Node2D
             new[] { 0f, 1f });
         // DIVING ラベル
         DrawCircle(new Vector2(20, barH / 2f), 5f, UiKit.Purify);
-        UiKit.Text(this, UiKit.Mono, new Vector2(34, barH / 2f - 6), "DIVING", 10, UiKit.Text3);
+        UiKit.Text(this, UiKit.Mono, new Vector2(34, barH / 2f - 6), "DIVING", UiKit.FontSmall, UiKit.Text3);
 
         // スクロールするツイート
         float startX = 120f, gap = 60f;
         // 1ブロックの幅を概算して周期スクロール
         float block = 0f;
-        foreach (var (h, tx) in Ticker) block += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, tx, 12) + gap;
+        foreach (var (h, tx) in Ticker) block += UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6 + UiKit.TextW(UiKit.Zen, tx, UiKit.FontSmall) + gap;
         float scroll = ((float)_t * 60f) % block;
         float cx = startX - scroll;
         for (int rep = 0; rep < 3; rep++)
@@ -579,11 +572,11 @@ public partial class TitleMenu : Node2D
             {
                 if (cx > 80 && cx < W)
                 {
-                    UiKit.Text(this, UiKit.Mono, new Vector2(cx, barH / 2f - 6), h, 12, UiKit.Text4);
-                    float hw = UiKit.TextW(UiKit.Mono, h, 12) + 6;
-                    UiKit.Text(this, UiKit.Zen, new Vector2(cx + hw, barH / 2f - 7), txt, 12, new Color(UiKit.Text2, 0.5f));
+                    UiKit.Text(this, UiKit.Mono, new Vector2(cx, barH / 2f - 6), h, UiKit.FontSmall, UiKit.Text4);
+                    float hw = UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6;
+                    UiKit.Text(this, UiKit.Zen, new Vector2(cx + hw, barH / 2f - 7), txt, UiKit.FontSmall, new Color(UiKit.Text2, 0.5f));
                 }
-                cx += UiKit.TextW(UiKit.Mono, h, 12) + 6 + UiKit.TextW(UiKit.Zen, txt, 12) + gap;
+                cx += UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6 + UiKit.TextW(UiKit.Zen, txt, UiKit.FontSmall) + gap;
             }
         }
     }
@@ -592,9 +585,9 @@ public partial class TitleMenu : Node2D
     {
         if (_toastT <= 0) return;
         float W = UiKit.DesignW;
-        float w = UiKit.TextW(UiKit.ZenBold, _toast, 16) + 48;
+        float w = UiKit.TextW(UiKit.ZenBold, _toast, UiKit.FontBody) + 48;
         float x = (W - w) / 2f;
         UiKit.Box(this, new Rect2(x, 600, w, 44), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(UiKit.Purify, 0.7f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, 612), _toast, 16, UiKit.Text2, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, 612), _toast, UiKit.FontBody, UiKit.Text2, HorizontalAlignment.Center, w);
     }
 }

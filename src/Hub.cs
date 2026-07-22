@@ -43,8 +43,24 @@ public partial class Hub : Node2D
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
-    private double _dlgReveal;     // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private double _dlgReveal;     // タイプライター表示済み文字数（＝現在ページ内）
     private string? _dlgReplyId;
+
+    // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
+    private readonly System.Collections.Generic.List<string> _dlgPages = new();
+    private int _dlgPage;
+    private int _dlgPagedIdx = -1;                 // _dlgPages を構築済みの行 index
+    private const float DlgBodyWrapW = W - 80f - 72f;   // DrawDialog 本文幅（box幅 W-80 の内側パディング 36×2）と一致
+    private string DlgCurPage => _dlgPages.Count > 0 ? _dlgPages[Mathf.Min(_dlgPage, _dlgPages.Count - 1)] : "";
+    private bool DlgLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
+    private void DlgEnsurePages()
+    {
+        if (_dlgPagedIdx == _dlgIdx || _dlg.Length == 0 || _dlgIdx >= _dlg.Length) return;
+        _dlgPagedIdx = _dlgIdx; _dlgPage = 0;
+        _dlgPages.Clear();
+        _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlg[_dlgIdx].tx, UiKit.FontHeading, DlgBodyWrapW, Hud.DlgMaxLines));
+    }
+    private void DlgNextPage() { _dlgPage++; _dlgReveal = 0; _dlgLineT = 0; }
     private bool _pendingBurn;
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・ハブ小話用）。
@@ -259,16 +275,19 @@ public partial class Hub : Node2D
         _mode = Mode.Dialogue;
         _dlg = lines; _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
         _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false;
+        _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
     }
 
     private void ProcessDialogue(double delta)
     {
-        int len = _dlg.Length > 0 ? _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)].tx.Length : 0;
+        DlgEnsurePages();
+        int len = DlgCurPage.Length;
         if (_autoplay)
         {
             _dlgReveal = len; // デモ/オートは即時全文（送りペースを変えない）
             _dlgLineT += delta;
-            if (_dlgLineT >= AutoAdvance) { _dlgLineT = 0; AdvanceDialogue(); }
+            // オート：現在ページを見せたら次ページ、最終ページなら次行へ（詰まらせない）。
+            if (_dlgLineT >= AutoAdvance) { _dlgLineT = 0; if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue(); }
             return;
         }
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
@@ -280,21 +299,22 @@ public partial class Hub : Node2D
         }
         _ffNow = Hud.SkipHeld && _dlgReadBefore; // 未読行では効かない
         _dlgLineT += delta;
-        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。
+        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。現在ページ内を進める。
         if (_dlgReveal < len)
             _dlgReveal = Mathf.Min(len, (float)(_dlgReveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
-        // 高速送り：全文即時表示 → 行ゲート0.15秒で次へ（Ctrl/RB を離した瞬間に止まる）。
+        // 高速送り：現在ページ即時表示 → 後続ページは飛ばし、最終ページ完了で次行へ（Ctrl/RB を離した瞬間に止まる）。
         if (_ffNow)
         {
             _dlgReveal = len;
-            if (_dlgLineT >= 0.15) { _dlgLineT = 0; AdvanceDialogue(); return; }
+            if (_dlgLineT >= 0.15) { _dlgLineT = 0; if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue(); return; }
         }
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.15)
         {
             if (_dlgReveal < len) _dlgReveal = len; // 1回目で全文（早送り）
-            else AdvanceDialogue();
+            else if (!DlgLastPage) DlgNextPage();   // 後続ページがあれば続きへ
+            else AdvanceDialogue();                 // 最終ページ読了＝次の行へ
         }
     }
 
@@ -303,6 +323,7 @@ public partial class Hub : Node2D
         _dlgIdx++;
         _dlgReveal = 0;
         _dlgLineT = 0; // 既読スキップの行ゲート用（オート送りは呼び出し側で別途リセット済み）
+        _dlgPage = 0; _dlgPagedIdx = -1;
         if (_dlgIdx >= _dlg.Length) EndDialogue();
     }
 
@@ -428,28 +449,28 @@ public partial class Hub : Node2D
         float padX = 40f, hy = 24f;
         UiKit.FaceAvatar(this, new Vector2(padX + 28, hy + 28), 28f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), 1f, _t);
         // 名前＋認証バッジ
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", 22, UiKit.White);
-        float nameW = UiKit.TextW(UiKit.ZenBold, "ミナ", 22);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", UiKit.FontHeading, UiKit.White);
+        float nameW = UiKit.TextW(UiKit.ZenBold, "ミナ", UiKit.FontHeading);
         UiKit.VerifiedBadge(this, new Vector2(padX + 70 + nameW + 13, hy + 18), 8f, UiKit.Purify);
         // ハンドル · 時刻（X風メタ行）
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", 14, UiKit.Text3);
-        float hW = UiKit.TextW(UiKit.Mono, "@mina_ai_", 14);
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70 + hW + 8, hy + 36), "· now", 14, UiKit.Text4);
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", UiKit.FontLabel, UiKit.Text3);
+        float hW = UiKit.TextW(UiKit.Mono, "@mina_ai_", UiKit.FontLabel);
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70 + hW + 8, hy + 36), "· now", UiKit.FontLabel, UiKit.Text4);
 
         long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
         string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
         // インプレ（金）
-        float impW = 40f + UiKit.TextW(UiKit.Mono, impS, 18);
+        float impW = 40f + UiKit.TextW(UiKit.Mono, impS, UiKit.FontSpeaker);
         float impX = W - padX - impW, chipY = hy + 12f;
         UiKit.Box(this, new Rect2(impX, chipY, impW, 34f), new Color(UiKit.Gold, 0.1f), 17f, new Color(UiKit.Gold, 0.4f), 1f);
         DrawCircle(new Vector2(impX + 17, chipY + 17), 7f, UiKit.Gold);
-        UiKit.Text(this, UiKit.Mono, new Vector2(impX + 30, chipY + 8), impS, 18, new Color("f0d98a"));
+        UiKit.Text(this, UiKit.Mono, new Vector2(impX + 30, chipY + 8), impS, UiKit.FontSpeaker, new Color("f0d98a"));
         // フォロワー（桃ハート）
-        float folW = 40f + UiKit.TextW(UiKit.Mono, folS, 18);
+        float folW = 40f + UiKit.TextW(UiKit.Mono, folS, UiKit.FontSpeaker);
         float folX = impX - 12 - folW;
         UiKit.Box(this, new Rect2(folX, chipY, folW, 34f), new Color(UiKit.Hp, 0.1f), 17f, new Color(UiKit.Hp, 0.4f), 1f);
         DrawHeart(new Vector2(folX + 18, chipY + 17), 6f, UiKit.Hp);
-        UiKit.Text(this, UiKit.Mono, new Vector2(folX + 30, chipY + 8), folS, 18, new Color("f3aec6"));
+        UiKit.Text(this, UiKit.Mono, new Vector2(folX + 30, chipY + 8), folS, UiKit.FontSpeaker, new Color("f3aec6"));
 
         DrawRect(new Rect2(0, hy + 64, W, 1f), new Color(1, 1, 1, 0.08f));
         // 汚染バー
@@ -466,8 +487,8 @@ public partial class Hub : Node2D
             bool act = i == 0;
             float cx = W * (0.5f + (i == 0 ? -0.09f : 0.09f));
             var font = act ? UiKit.ZenBold : UiKit.Zen;
-            float tw = UiKit.TextW(font, tabs[i], 13);
-            UiKit.Text(this, font, new Vector2(cx - tw / 2f, tabY), tabs[i], 13,
+            float tw = UiKit.TextW(font, tabs[i], UiKit.FontLabel);
+            UiKit.Text(this, font, new Vector2(cx - tw / 2f, tabY), tabs[i], UiKit.FontLabel,
                 act ? UiKit.White : UiKit.Text4);
             if (act) UiKit.Box(this, new Rect2(cx - 26f, tabY + 21f, 52f, 3f), UiKit.Purify, 1.5f);
         }
@@ -547,8 +568,8 @@ public partial class Hub : Node2D
 
         float tx = x + 74, w2 = w - 110;
         Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.45f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 16), e.Name, 19, main);
-        float nameW = UiKit.TextW(UiKit.ZenBold, e.Name, 19);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 16), e.Name, UiKit.FontSpeaker, main);
+        float nameW = UiKit.TextW(UiKit.ZenBold, e.Name, UiKit.FontSpeaker);
         // (C) 認証バッジ（解放済のみ）→ ハンドル · 時刻
         float metaX = tx + nameW + 12;
         if (e.Unlocked)
@@ -556,11 +577,11 @@ public partial class Hub : Node2D
             UiKit.VerifiedBadge(this, new Vector2(metaX + 7, cy + 26), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
             metaX += 22;
         }
-        UiKit.Text(this, UiKit.Mono, new Vector2(metaX, cy + 22), e.Handle, 13, new Color(UiKit.Text3, e.Unlocked ? alpha : alpha * 0.5f));
+        UiKit.Text(this, UiKit.Mono, new Vector2(metaX, cy + 22), e.Handle, UiKit.FontLabel, new Color(UiKit.Text3, e.Unlocked ? alpha : alpha * 0.5f));
         if (e.Unlocked && !e.IsFinal)
         {
-            float hW = UiKit.TextW(UiKit.Mono, e.Handle, 13);
-            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), 13, new Color(UiKit.Text4, alpha));
+            float hW = UiKit.TextW(UiKit.Mono, e.Handle, UiKit.FontLabel);
+            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), UiKit.FontLabel, new Color(UiKit.Text4, alpha));
         }
 
         // バッジ（右上）— X風のピル。NEW（＝次のダイブ推奨）と FINAL は塗り＋淡い明滅で目を引き、
@@ -571,14 +592,14 @@ public partial class Hub : Node2D
         // 本文（(A) ロックは伏字バーで内容を隠す）
         if (e.Unlocked)
         {
-            UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, 16,
+            UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
                 new Color(232 / 255f, 224 / 255f, 240 / 255f, alpha), w2, 2);
         }
         else
         {
             RedactedBars(tx, cy + 50, w2, alpha);
             UiKit.Text(this, UiKit.Zen, new Vector2(tx, cy + 44 + (h > 110f ? 34f : 18f)),
-                "ロック中 — まだダイブできません", 13, new Color(UiKit.Text4, alpha * 0.85f));
+                "ロック中 — まだダイブできません", UiKit.FontLabel, new Color(UiKit.Text4, alpha * 0.85f));
         }
 
         // ミナの自動投稿（クリア済カードにスレッド返信風でぶら下げる＝ミナの投稿が同じタイムラインに混ざる）
@@ -614,15 +635,15 @@ public partial class Hub : Node2D
         string timeStr = best != null ? UiKit.FormatTime(best.Value.sec) : "--";
         string diffStr = best != null ? DiffShort(best.Value.diff) : "";
         // 「BEST 1:23.45  NORMAL」を右揃えで一行。
-        float tw = UiKit.TextW(UiKit.Mono, timeStr, 14);
-        float dw = diffStr.Length > 0 ? UiKit.TextW(UiKit.Mono, diffStr, 10) + 8 : 0;
-        float lw = UiKit.TextW(UiKit.Mono, "BEST", 10) + 6;
+        float tw = UiKit.TextW(UiKit.Mono, timeStr, UiKit.FontLabel);
+        float dw = diffStr.Length > 0 ? UiKit.TextW(UiKit.Mono, diffStr, UiKit.FontSmall) + 8 : 0;
+        float lw = UiKit.TextW(UiKit.Mono, "BEST", UiKit.FontSmall) + 6;
         float x0 = right - (lw + tw + dw);
         Color tc = best != null ? UiKit.Gold : UiKit.Text4;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x0, y + 3), "BEST", 10, new Color(UiKit.Text3, alpha));
-        UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, 14, new Color(tc, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x0, y + 3), "BEST", UiKit.FontSmall, new Color(UiKit.Text3, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, UiKit.FontLabel, new Color(tc, alpha));
         if (diffStr.Length > 0)
-            UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw + tw + 8, y + 3), diffStr, 10, new Color(UiKit.Info, alpha));
+            UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw + tw + 8, y + 3), diffStr, UiKit.FontSmall, new Color(UiKit.Info, alpha));
     }
 
     private static string DiffShort(GameManager.Diff d) => d switch
@@ -636,30 +657,30 @@ public partial class Hub : Node2D
     // カード右上のステータスピル。NEW/FINAL は塗り（明滅）、CLEAR は枠、LOCKED は沈み。
     private void DrawBadgePill(Entry e, string badge, float right, float y, float alpha)
     {
-        float bw = UiKit.TextW(UiKit.Mono, badge, 11) + 20f;
+        float bw = UiKit.TextW(UiKit.Mono, badge, UiKit.FontSmall) + 20f;
         var r = new Rect2(right - bw, y, bw, 20f);
         if (e.IsFinal)
         {
             float pulse = 0.72f + 0.20f * Mathf.Sin((float)_t * 2.6f);
             UiKit.Box(this, r, new Color(UiKit.Kegare, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
         else if (e.Cleared)
         {
             UiKit.Box(this, r, new Color(UiKit.Ok, 0.10f * alpha), 10f, new Color(UiKit.Ok, 0.55f * alpha), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
         }
         else if (e.Unlocked)
         {
             // NEW＝次のダイブ推奨。塗りピルの淡い明滅で「ここへ」を誘導（常時アニメはこれと選択グロウのみ）。
             float pulse = 0.74f + 0.18f * Mathf.Sin((float)_t * 3.0f);
             UiKit.Box(this, r, new Color(UiKit.Purify, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
         else
         {
             UiKit.Box(this, r, new Color(1, 1, 1, 0.04f * alpha), 10f, new Color(1, 1, 1, 0.10f * alpha), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, 11, new Color(UiKit.Text4, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.Text4, alpha), HorizontalAlignment.Center, bw);
         }
     }
 
@@ -673,12 +694,12 @@ public partial class Hub : Node2D
         DrawLine(new Vector2(ax, cy + 62f), new Vector2(ax, sy - 3f), new Color(1, 1, 1, 0.12f * alpha), 1.5f);
         UiKit.FaceAvatar(this, new Vector2(ax, sy + 8f), 11f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
         float px = tx;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(px, sy), "ミナ", 12, new Color(UiKit.White, 0.92f * alpha));
-        px += UiKit.TextW(UiKit.ZenBold, "ミナ", 12) + 8f;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(px, sy), "ミナ", UiKit.FontLabel, new Color(UiKit.White, 0.92f * alpha));
+        px += UiKit.TextW(UiKit.ZenBold, "ミナ", UiKit.FontLabel) + 8f;
         const string meta = "@mina_ai_ · 返信";
-        UiKit.Text(this, UiKit.Mono, new Vector2(px, sy + 1f), meta, 11, new Color(UiKit.Text4, alpha));
-        px += UiKit.TextW(UiKit.Mono, meta, 11) + 10f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(px, sy), MinaPostShort(id, x + w - 30f - px), 12, new Color(UiKit.Text2, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(px, sy + 1f), meta, UiKit.FontSmall, new Color(UiKit.Text4, alpha));
+        px += UiKit.TextW(UiKit.Mono, meta, UiKit.FontSmall) + 10f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(px, sy), MinaPostShort(id, x + w - 30f - px), UiKit.FontLabel, new Color(UiKit.Text2, alpha));
     }
 
     // ミナの自動投稿の 1 行短縮（幅に収まるよう末尾を「…」で省略。レイアウト幅は固定なので id キャッシュで足りる）。
@@ -687,9 +708,9 @@ public partial class Hub : Node2D
         if (_minaPosts.TryGetValue(id, out var cached)) return cached;
         var d = ReturnDialog(id);
         string s = d.Length > 0 ? d[0].Item2 : "";
-        if (UiKit.TextW(UiKit.Zen, s, 12) > maxW)
+        if (UiKit.TextW(UiKit.Zen, s, UiKit.FontLabel) > maxW)
         {
-            while (s.Length > 1 && UiKit.TextW(UiKit.Zen, s + "…", 12) > maxW) s = s.Substring(0, s.Length - 1);
+            while (s.Length > 1 && UiKit.TextW(UiKit.Zen, s + "…", UiKit.FontLabel) > maxW) s = s.Substring(0, s.Length - 1);
             s += "…";
         }
         _minaPosts[id] = s;
@@ -732,8 +753,8 @@ public partial class Hub : Node2D
             default: DrawHeart(c, 6f, col); break;
         }
         string s = UiKit.Abbrev(count);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 20, y), s, 13, col);
-        return x + 20 + UiKit.TextW(UiKit.Mono, s, 13) + 26;
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 20, y), s, UiKit.FontLabel, col);
+        return x + 20 + UiKit.TextW(UiKit.Mono, s, UiKit.FontLabel) + 26;
     }
 
     private void DrawHeart(Vector2 c, float r, Color col)
@@ -760,17 +781,17 @@ public partial class Hub : Node2D
         Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
         UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
         float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 14, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 14) + 24f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        float w = UiKit.TextW(UiKit.ZenBold, _toast, 15) + 48;
+        float w = UiKit.TextW(UiKit.ZenBold, _toast, UiKit.FontBody) + 48;
         float x = (W - w) / 2f;
         UiKit.Box(this, new Rect2(x, H - 120, w, 40f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 110), _toast, 15, _toastCol, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 110), _toast, UiKit.FontBody, _toastCol, HorizontalAlignment.Center, w);
     }
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
@@ -793,19 +814,21 @@ public partial class Hub : Node2D
         UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
         // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
         UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, 18, spc);
-        // タイプライターで表示済みの分だけ描画。
-        int shown = Mathf.Clamp((int)_dlgReveal, 0, tx.Length);
-        string body = tx.Substring(0, shown);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), body, 21, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
+        // 現在ページ（2行固定）を表示済みの分だけ描画。
+        string page = DlgCurPage;
+        int shown = Mathf.Clamp((int)_dlgReveal, 0, page.Length);
+        string body = page.Substring(0, shown);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), body, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, Hud.DlgMaxLines);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow) Hud.DrawSkipChip(this, new Vector2(box.Position.X + box.Size.X - 20, box.Position.Y + 14));
-        // 送り表示は全文表示後だけ点滅（本編と同じ作法）。
-        if (!_autoplay && _dlgReveal >= tx.Length)
+        // 送り表示は現在ページの全文表示後だけ点滅。後続ページなら「▼ つづき」、最終ページなら「Z すすむ ▸」。
+        if (!_autoplay && _dlgReveal >= page.Length)
         {
             float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
+            string hint = DlgLastPage ? "Z すすむ ▸" : "▼ つづき";
             UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),
-                "Z すすむ ▸", 14, new Color(UiKit.Info, blink));
+                hint, UiKit.FontLabel, new Color(UiKit.Info, blink));
         }
     }
 

@@ -22,6 +22,26 @@ public partial class Spawner : Node
     private const float IntervalEnd = 0.8f;
     private const int MaxAlive = 10;      // 同時出現の上限
 
+    // ── 第4種：回り込みザコ「引用リプ」（FlankAim）の調整値（C-1・左端張り付き対策）──
+    // 右から出現→上下端を走行→自機の後方(x≈FlankCampX)に着座→右向き低速単発。
+    // 進入経路が丸見え＋弾は低速なので理不尽ではない（走行中は撃たない＝MidEnemy の進入仕様）。
+    private const float FlankRate = 0.15f;       // テーマ湧きのうちこの割合で出現
+    private const float FlankRampGate = 0.5f;    // ランプ後半（進行度>=50%）のみ出現＝序盤は出さない
+    private const float FlankCampX = 40f;        // 着座X＝自機後方（左端近傍）
+    private const float FlankRunTopY = 16f;      // 上端走行レーンY
+    private const float FlankRunBottomY = 200f;  // 下端走行レーンY
+    private const float FlankCampTopY = 64f;     // 上から回った個体の着座Y
+    private const float FlankCampBottomY = 152f; // 下から回った個体の着座Y
+
+    // ── 盾もち種「バズ壁」（BuzzWall）の調整値（全テーマ・波B/C限定）──
+    // 撃たない・遅い・硬い（パネル5枚×インク3）＝剥がし切るDPSチェックで優先順位判断を生む
+    //（拡散/ホーミング/貫通の使い所）。序盤A波には出さない＝覚えることを増やしすぎない。
+    private const float BuzzWallRate = 0.10f;         // テーマ湧きのうちこの割合で出現
+    private const float BuzzWallMinIntensity = 0.3f;  // StartIntensity がこれ以上＝波B(0.35)/C(0.7)のみ
+    // ── 祈り運び種（KoharuPrayerCarry・こはる面専用）の調整値 ──
+    // 消せる祈り弾を3発ぶら下げて横断するボーナス種＝ボス戦「お残し禁止」の練習台。
+    private const float PrayerCarrierRate = 0.10f;    // こはるテーマ湧きのうちこの割合で出現
+
     private double _t;   // Begin からの経過（StartIntensity ぶん前倒しした実効時間）
     private double _cd;  // 次の出現までの残り
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
@@ -58,7 +78,10 @@ public partial class Spawner : Node
 
         float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
         float interval = Mathf.Lerp(IntervalStart, IntervalEnd, ramp);
-        _cd = interval * _rng.RandfRange(0.8f, 1.2f);
+        // 前のめり密度：自機が右へ寄る（攻める）ほど倍率が高い＝間隔を縮めて多く湧かす（除算）。
+        // 上限 MaxAlive は据え置き（圧殺防止）。GameManager.PlayerNormX は各 Root の TickProgress が毎フレーム更新。
+        float spawnMul = game != null ? GameManager.SpawnRateMul(game.PlayerNormX) : 1f;
+        _cd = interval * _rng.RandfRange(0.8f, 1.2f) / spawnMul;
     }
 
     private void SpawnOne()
@@ -76,28 +99,58 @@ public partial class Spawner : Node
         }
         else
         {
-            var (shooter, drift) = EnemyTable.For(Theme);
             var me = new MidEnemy();
-            me.Configure(drifter ? drift : shooter);
-            // 出現エッジを散らす：右60% / 右上20% / 右下20%。各エッジから場内の居座り点へ進入する。
-            int edge = _rng.Randf() < 0.6f ? 0 : (_rng.Randf() < 0.5f ? 1 : 2);
-            Vector2 camp;
-            switch (edge)
+            float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
+            // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
+            // 左端に張り付く自機の背後から“読める形”で圧をかける＝左端の安置化を構造的に崩す。
+            if (ramp >= FlankRampGate && _rng.Randf() < FlankRate)
             {
-                case 1: // 画面上部・右上から下りてくる
-                    pos = new Vector2(_rng.RandfRange(230f, 360f), -12f);
-                    camp = new Vector2(_rng.RandfRange(180f, 300f), _rng.RandfRange(55f, 110f));
-                    break;
-                case 2: // 画面下部・右下から上ってくる
-                    pos = new Vector2(_rng.RandfRange(324f, 374f), 228f);
-                    camp = new Vector2(_rng.RandfRange(120f, 240f), _rng.RandfRange(110f, 165f));
-                    break;
-                default: // 右から（従来）
-                    pos = new Vector2(SpawnX, y);
-                    camp = new Vector2(_rng.RandfRange(150f, 280f), y);
-                    break;
+                me.Configure(EnemyTable.Flanker(Theme));
+                bool top = _rng.Randf() < 0.5f;
+                float runY = top ? FlankRunTopY : FlankRunBottomY;
+                pos = new Vector2(SpawnX, runY);
+                // 経由点＝走行レーン終端（端を走り切る）→ 着座点＝自機後方。2区間の直進で経路が読める。
+                me.SetFlankEntry(new Vector2(FlankCampX, runY),
+                    new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
             }
-            me.SetEntry(camp);
+            // 盾もち「バズ壁」：波B/C（StartIntensity>=0.3）のみ。右から出て場の中ほどに陣取る壁。
+            else if (StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
+            {
+                me.Configure(EnemyTable.BuzzWall(Theme));
+                pos = new Vector2(SpawnX, y);
+                me.SetEntry(new Vector2(_rng.RandfRange(160f, 260f), y)); // 中列に居座って射線を塞ぐ
+            }
+            // 祈り運び：こはる面の道中のみ。ぶら下げた祈り弾ごと左へ横断（居座らない＝SetEntry不要）。
+            else if (Theme == StageTheme.Koharu && _rng.Randf() < PrayerCarrierRate)
+            {
+                me.Configure(EnemyTable.PrayerCarrier());
+                // ぶら下げ弾（最大+37px＋振れ）が画面下端216pxを割らないYで横断させる。
+                pos = new Vector2(SpawnX, _rng.RandfRange(60f, 150f));
+            }
+            else
+            {
+                var (shooter, drift) = EnemyTable.For(Theme);
+                me.Configure(drifter ? drift : shooter);
+                // 出現エッジを散らす：右60% / 右上20% / 右下20%。各エッジから場内の居座り点へ進入する。
+                int edge = _rng.Randf() < 0.6f ? 0 : (_rng.Randf() < 0.5f ? 1 : 2);
+                Vector2 camp;
+                switch (edge)
+                {
+                    case 1: // 画面上部・右上から下りてくる
+                        pos = new Vector2(_rng.RandfRange(230f, 360f), -12f);
+                        camp = new Vector2(_rng.RandfRange(180f, 300f), _rng.RandfRange(55f, 110f));
+                        break;
+                    case 2: // 画面下部・右下から上ってくる
+                        pos = new Vector2(_rng.RandfRange(324f, 374f), 228f);
+                        camp = new Vector2(_rng.RandfRange(120f, 240f), _rng.RandfRange(110f, 165f));
+                        break;
+                    default: // 右から（従来）
+                        pos = new Vector2(SpawnX, y);
+                        camp = new Vector2(_rng.RandfRange(150f, 280f), y);
+                        break;
+                }
+                me.SetEntry(camp);
+            }
             e = me;
         }
         World.AddChild(e);

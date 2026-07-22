@@ -223,10 +223,10 @@ public partial class DiffSelect : Node2D
 
         float padX = 56f, top = 40f;
         // ── ヘッダ ──
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, 13, UiKit.Info);
-        float tagW = UiKit.TextW(UiKit.Mono, _stageTag, 13);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へダイブ", 28, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（浄化した心の報酬も変動）", 14, UiKit.Text3,
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, UiKit.FontLabel, UiKit.Info);
+        float tagW = UiKit.TextW(UiKit.Mono, _stageTag, UiKit.FontLabel);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へダイブ", UiKit.FontTitle, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（浄化した心の報酬も変動）", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -272,23 +272,23 @@ public partial class DiffSelect : Node2D
         float tx = x + 24f;
         if (locked)
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), "★ " + tr.Name, 22, UiKit.Text4);
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), "解禁：フォロワー 300 または 威力 Lv4", 14, UiKit.Mina);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 100, y + h / 2f - 7), "LOCKED", 12, UiKit.Text4);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), "★ " + tr.Name, UiKit.FontHeading, UiKit.Text4);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), "解禁：フォロワー 300 または 威力 Lv4", UiKit.FontBody, UiKit.Mina);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 100, y + h / 2f - 7), "LOCKED", UiKit.FontSmall, UiKit.Text4);
             return;
         }
 
         // 名前（選択時 ▸ カーソル）
         if (sel)
         {
-            UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 24), "▸", 15, UiKit.Purify);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + 22, y + 20), tr.Name, 22, UiKit.White);
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx + 22, y + 54), tr.Desc, 14, new Color(166 / 255f, 196 / 255f, 212 / 255f));
+            UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 24), "▸", UiKit.FontBody, UiKit.Purify);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx + 22, y + 20), tr.Name, UiKit.FontHeading, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx + 22, y + 54), tr.Desc, UiKit.FontBody, new Color(166 / 255f, 196 / 255f, 212 / 255f));
         }
         else
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 20), tr.Name, 22, UiKit.White);
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), tr.Desc, 14, UiKit.Text3);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 20), tr.Name, UiKit.FontHeading, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), tr.Desc, UiKit.FontBody, UiKit.Text3);
         }
 
         // 右：弾密度メーター＋報酬倍率
@@ -301,7 +301,7 @@ public partial class DiffSelect : Node2D
 
         float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
         string reward = $"報酬 ×{mul:0.0}";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, 13), y + 50), reward, 13, new Color("7ec880"));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, UiKit.FontLabel), y + 50), reward, UiKit.FontLabel, new Color("7ec880"));
     }
 
     // ── 入口ダイアログ（難易度確定後に開くモーダル）：最初から / 中ボスから / ボスから を選ぶ ──
@@ -313,8 +313,8 @@ public partial class DiffSelect : Node2D
         float cw = 780f, ch = 320f, cx = (W - cw) / 2f, cy = (H - ch) / 2f;
         UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 16 / 255f, 28 / 255f, 0.98f), 18f, new Color(UiKit.Purify, 0.5f), 1.5f);
 
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(cx + 34, cy + 26), "どこから始めますか?", 24, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 34, cy + 64), $"{_diveName}  ／  {Tiers[_sel].Name}", 14, UiKit.Info);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(cx + 34, cy + 26), "どこから始めますか?", UiKit.FontHeading, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 34, cy + 64), $"{_diveName}  ／  {Tiers[_sel].Name}", UiKit.FontBody, UiKit.Info);
 
         // 3つの入口セル（横並び）
         float pad = 34f, rowY = cy + 98f, rowH = 132f, gap = 14f, rowW = cw - pad * 2f;
@@ -344,18 +344,18 @@ public partial class DiffSelect : Node2D
         UiKit.Box(this, new Rect2(cx, y, w, h), bg, 12f, border, bw);
 
         float tx = cx + 16f;
-        if (sel && unlocked) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 18), "▸", 16, UiKit.Purify); tx += 20f; }
+        if (sel && unlocked) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 18), "▸", UiKit.FontBody, UiKit.Purify); tx += 20f; }
         Color nameCol = unlocked ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 14), EntryNames[i], 19, nameCol);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 14), EntryNames[i], UiKit.FontSpeaker, nameCol);
 
         string sub = unlocked
             ? i switch { 1 => "中ボス戦から開始", 2 => "ボス戦から開始", _ => "道中の最初から" }
             : i switch { 1 => "解放：中ボスを倒す", _ => "解放：ステージクリア" };
-        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 16f, y + 48), sub, 12, unlocked ? UiKit.Text3 : UiKit.Mina,
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 16f, y + 48), sub, UiKit.FontLabel, unlocked ? UiKit.Text3 : UiKit.Mina,
             HorizontalAlignment.Left, w - 28f);
 
         if (!unlocked)
-            UiKit.Text(this, UiKit.Mono, new Vector2(cx + w - UiKit.TextW(UiKit.Mono, "LOCKED", 10) - 12, y + 14), "LOCKED", 10, UiKit.Text4);
+            UiKit.Text(this, UiKit.Mono, new Vector2(cx + w - UiKit.TextW(UiKit.Mono, "LOCKED", UiKit.FontSmall) - 12, y + 14), "LOCKED", UiKit.FontSmall, UiKit.Text4);
     }
 
     // ── 右カラム：MINA 立ち絵 ＋ 一言（選択難易度の表情をクロスフェードで反映）──
@@ -430,8 +430,8 @@ public partial class DiffSelect : Node2D
         UiKit.Box(this, new Rect2(x + 16, qy, w - 32, qh), new Color(10 / 255f, 14 / 255f, 26 / 255f, 0.66f), 12f, new Color(accent, locked ? 0.18f : 0.32f), 1f);
         // 話者ドット＋名前
         DrawCircle(new Vector2(x + 16 + 18, qy + qh / 2f), 4f, UiKit.Mina);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 16 + 30, qy + 7), "ミナ", 12, UiKit.Mina);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 16 + 30, qy + 22), quip, 13, locked ? UiKit.Text3 : UiKit.Text2,
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 16 + 30, qy + 7), "ミナ", UiKit.FontLabel, UiKit.Mina);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 16 + 30, qy + 22), quip, UiKit.FontLabel, locked ? UiKit.Text3 : UiKit.Text2,
             HorizontalAlignment.Left, w - 32 - 30 - 14);
     }
 
@@ -441,7 +441,7 @@ public partial class DiffSelect : Node2D
         Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
         UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
         float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 14, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 14) + 24f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 }

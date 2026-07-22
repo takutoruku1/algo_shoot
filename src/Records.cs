@@ -63,10 +63,10 @@ public partial class Records : Node2D
 
         float padX = 56f, top = 40f;
         // ── ヘッダ ──
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), "RECORDS", 13, UiKit.Info);
-        float tagW = UiKit.TextW(UiKit.Mono, "RECORDS", 13);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), "クリアタイム", 28, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム", 14, UiKit.Text3,
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), "RECORDS", UiKit.FontLabel, UiKit.Info);
+        float tagW = UiKit.TextW(UiKit.Mono, "RECORDS", UiKit.FontLabel);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), "クリアタイム", UiKit.FontTitle, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -84,7 +84,7 @@ public partial class Records : Node2D
         {
             float cx = padX + labelW + c * colW;
             Color cc = DiffColor(Cols[c].diff);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, tableTop + 12), Cols[c].label, 16, cc,
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, tableTop + 12), Cols[c].label, UiKit.FontBody, cc,
                 HorizontalAlignment.Center, colW);
         }
         DrawRect(new Rect2(padX, tableTop + headH, tableW, 1f), new Color(1, 1, 1, 0.08f));
@@ -115,8 +115,8 @@ public partial class Records : Node2D
         // ステージ名（2段：STAGE n / 名前）
         string head = label.Contains("—") ? label.Split('—')[0].Trim() : label;
         string name = label.Contains("—") ? label.Split('—')[^1].Trim() : label;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 22, y + 16), head, 12, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 22, y + 36), name, 20, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 22, y + 16), head, UiKit.FontSmall, UiKit.Text3);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 22, y + 36), name, UiKit.FontHeading, UiKit.White);
 
         // この行で最速の難易度（ハイライト用）。
         var best = _game?.BestAcrossDiffs(id);
@@ -131,7 +131,7 @@ public partial class Records : Node2D
             // セル枠（行内ベストは淡く強調）
             if (isRowBest)
                 UiKit.Box(this, new Rect2(cx + 8, y + h / 2f - 17, colW - 16, 34f), new Color(UiKit.Gold, 0.08f), 8f, new Color(UiKit.Gold, 0.4f), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f - 10), s, 18, tc,
+            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f - 10), s, UiKit.FontHeading, tc,
                 HorizontalAlignment.Center, colW);
         }
     }
@@ -159,7 +159,7 @@ public partial class Records : Node2D
         Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
         UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
         float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 14, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 14) + 24f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 }

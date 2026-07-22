@@ -251,8 +251,8 @@ public partial class Settings : Node2D
         float hy = 36f;
         UiKit.Box(this, new Rect2(padX, hy, 40, 40), new Color(UiKit.Purify, 0.12f), 11f, new Color(UiKit.Info, 0.35f), 1f);
         DrawArc(new Vector2(padX + 20, hy + 20), 9f, Mathf.Pi * 0.2f, Mathf.Pi * 1.5f, 24, UiKit.Info, 3f);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + 54, hy + 6), "設定", 25, UiKit.White);
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 110, hy + 20), "SETTINGS", 11, UiKit.Text4);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + 54, hy + 6), "設定", UiKit.FontTitle, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 110, hy + 20), "SETTINGS", UiKit.FontSmall, UiKit.Text4);
         DrawRect(new Rect2(padX, hy + 50, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 本体：左ナビ＋右パネル ──
@@ -287,17 +287,17 @@ public partial class Settings : Node2D
             if (on) UiKit.Box(this, new Rect2(x, ry, w, rowH), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.6f), 11f, new Color(UiKit.Info, 0.4f), 1f);
             // 左バー
             DrawRect(new Rect2(x + 15, ry + 15, 4f, 24f), on ? UiKit.Purify : new Color(0, 0, 0, 0));
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 30, ry + 10), _cats[i].Name, 16, on ? UiKit.White : UiKit.Text2);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 30, ry + 32), _cats[i].Sub.ToUpper(), 9, on ? UiKit.Info : UiKit.Text4);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 30, ry + 10), _cats[i].Name, UiKit.FontBody, on ? UiKit.White : UiKit.Text2);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + 30, ry + 32), _cats[i].Sub.ToUpper(), UiKit.FontTiny, on ? UiKit.Info : UiKit.Text4);
         }
     }
 
     private void DrawPanel(float x, float y, float w)
     {
         var cat = _cats[_cat];
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, y - 4), cat.Name, 20, UiKit.White);
-        float titleW = UiKit.TextW(UiKit.ZenBlack, cat.Name, 20);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + titleW + 12, y + 6), cat.Sub.ToUpper(), 10, UiKit.Text4);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, y - 4), cat.Name, UiKit.FontHeading, UiKit.White);
+        float titleW = UiKit.TextW(UiKit.ZenBlack, cat.Name, UiKit.FontHeading);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + titleW + 12, y + 6), cat.Sub.ToUpper(), UiKit.FontSmall, UiKit.Text4);
 
         float top = y + 34f, cardH = 54f, gap = 9f;
         for (int i = 0; i < Cur.Count; i++)
@@ -312,12 +312,12 @@ public partial class Settings : Node2D
         // 左：ラベル＋サブ
         if (d.Sub.Length > 0)
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 18, y + 9), d.Label, 16, UiKit.White);
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 18, y + 31), d.Sub, 12, UiKit.Text3);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 18, y + 9), d.Label, UiKit.FontBody, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 18, y + 31), d.Sub, UiKit.FontLabel, UiKit.Text3);
         }
         else
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 18, y + (h - 16) / 2f - 2), d.Label, 16, UiKit.White);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 18, y + (h - 16) / 2f - 2), d.Label, UiKit.FontBody, UiKit.White);
         }
 
         float right = x + w - 18f, cy = y + h / 2f;
@@ -335,7 +335,7 @@ public partial class Settings : Node2D
     {
         float valW = 34f, gap = 14f, trackW = 238f;
         float vx = right - valW;
-        UiKit.Text(this, UiKit.Mono, new Vector2(vx, cy - 9), Mathf.RoundToInt(d.F).ToString(), 15, UiKit.PurifyHi, HorizontalAlignment.Right, valW);
+        UiKit.Text(this, UiKit.Mono, new Vector2(vx, cy - 9), Mathf.RoundToInt(d.F).ToString(), UiKit.FontBody, UiKit.PurifyHi, HorizontalAlignment.Right, valW);
         float tx = vx - gap - trackW, ty = cy - 4f;
         UiKit.Box(this, new Rect2(tx, ty, trackW, 8f), new Color(1, 1, 1, 0.1f), 4f);
         float fillW = trackW * (d.F / 100f);
@@ -358,7 +358,7 @@ public partial class Settings : Node2D
         float padIn = 4f, optPadX = 15f, h = 30f;
         float[] ws = new float[d.Options.Length];
         float total = padIn * 2f;
-        for (int i = 0; i < d.Options.Length; i++) { ws[i] = UiKit.TextW(UiKit.ZenBold, d.Options[i], 14) + optPadX * 2f; total += ws[i] + (i > 0 ? 4f : 0f); }
+        for (int i = 0; i < d.Options.Length; i++) { ws[i] = UiKit.TextW(UiKit.ZenBold, d.Options[i], UiKit.FontLabel) + optPadX * 2f; total += ws[i] + (i > 0 ? 4f : 0f); }
         float gx = right - total, gy = cy - h / 2f - padIn;
         UiKit.Box(this, new Rect2(gx, gy, total, h + padIn * 2f), new Color(0, 0, 0, 0.28f), 10f);
         float ox = gx + padIn;
@@ -366,19 +366,19 @@ public partial class Settings : Node2D
         {
             bool on = i == d.I;
             if (on) UiKit.Box(this, new Rect2(ox, gy + padIn, ws[i], h), UiKit.Purify, 7f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, cy - 8), d.Options[i], 14, on ? UiKit.White : new Color(138 / 255f, 131 / 255f, 152 / 255f), HorizontalAlignment.Center, ws[i]);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, cy - 8), d.Options[i], UiKit.FontLabel, on ? UiKit.White : new Color(138 / 255f, 131 / 255f, 152 / 255f), HorizontalAlignment.Center, ws[i]);
             ox += ws[i] + 4f;
         }
     }
 
     private void DrawSelect(Def d, float right, float cy)
     {
-        float tw = UiKit.TextW(UiKit.Mono, d.S, 14);
+        float tw = UiKit.TextW(UiKit.Mono, d.S, UiKit.FontLabel);
         float boxW = tw + 44f, h = 34f;
         float bx = right - boxW;
         UiKit.Box(this, new Rect2(bx, cy - h / 2f, boxW, h), new Color(0, 0, 0, 0.28f), 9f, new Color(1, 1, 1, 0.1f), 1f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(bx + 16, cy - 9), d.S, 14, UiKit.PurifyHi);
-        UiKit.Text(this, UiKit.Zen, new Vector2(bx + boxW - 18, cy - 9), "▾", 12, new Color(138 / 255f, 131 / 255f, 152 / 255f));
+        UiKit.Text(this, UiKit.Mono, new Vector2(bx + 16, cy - 9), d.S, UiKit.FontLabel, UiKit.PurifyHi);
+        UiKit.Text(this, UiKit.Zen, new Vector2(bx + boxW - 18, cy - 9), "▾", UiKit.FontSmall, new Color(138 / 255f, 131 / 255f, 152 / 255f));
     }
 
     private void DrawKeys(Def d, float right, float cy)
@@ -391,10 +391,10 @@ public partial class Settings : Node2D
         float x = right;
         for (int i = toks.Length - 1; i >= 0; i--)
         {
-            float kw = Mathf.Max(32f, UiKit.TextW(UiKit.Mono, toks[i], 14) + 18f);
+            float kw = Mathf.Max(32f, UiKit.TextW(UiKit.Mono, toks[i], UiKit.FontLabel) + 18f);
             x -= kw;
             UiKit.Box(this, new Rect2(x, cy - h / 2f, kw, h), new Color(1, 1, 1, 0.07f), 7f, new Color(1, 1, 1, 0.18f), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x, cy - 9), toks[i], 14, new Color("e8e2f0"), HorizontalAlignment.Center, kw);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x, cy - 9), toks[i], UiKit.FontLabel, new Color("e8e2f0"), HorizontalAlignment.Center, kw);
             x -= gap;
         }
     }
@@ -432,7 +432,7 @@ public partial class Settings : Node2D
     {
         UiKit.Key(this, new Vector2(x, y - 12), key, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
         float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, 13, UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, 13) + 24f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, UiKit.Text3);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 }

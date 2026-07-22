@@ -23,6 +23,9 @@ public enum AttackPattern
     KoharuSharp3,    // こはる包丁・まな板：高速鋭3WAY（短予告→自機方向3本）
     KoharuSimmer,    // こはる鍋・お玉：とろ火ゆらぎ弾（自機狙い超低速単発）
     DefaultAim,      // アンチくん：自機狙い単発（現状踏襲）
+    FlankAim,        // 回り込み「引用リプ」：右から出現→上下端を走行→自機後方(x≈40)に着座→右向き低速単発（全テーマ共通）
+    BuzzWall,        // 盾もち「バズ壁」：撃たない・遅い・硬い（パネル5×インク3）＝DPSチェックの壁（全テーマ・波B/C限定）
+    KoharuPrayerCarry, // 祈り運び：消せる祈り弾を3発ぶら下げて横断するボーナス種（こはる面専用・お残し禁止の練習台）
 }
 
 // 1種のザコの見た目（pre/post テクスチャ）と挙動パラメータ。
@@ -105,4 +108,42 @@ public static class EnemyTable
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
                 80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f, bulletSpeed: 0f)),
     };
+
+    // 第4種：回り込み「引用リプ」（FlankAim）。スキンは各テーマの“撃つ種”を流用（新規アート不要）し、
+    // 挙動だけ差し替える：右から出現→上下端を走行→自機後方(x≈40)に着座→右向き低速単発。
+    // 走行が速めなのは回り込み経路を“見せて”からすぐ圧に移るためのテンポ確保（遅いと間延びする）。
+    private const float FlankMoveSpeed = 110f; // 走行速度(px/s)。MidEnemy.ApproachFloor(78) より速い
+    public static EnemySpec Flanker(StageTheme theme)
+    {
+        var (shooter, _) = For(theme);
+        return new EnemySpec(shooter.PreTexPath, shooter.PostTexPath, shooter.Points, shooter.BodyRadius,
+            moveSpeed: FlankMoveSpeed, spinSpeed: shooter.SpinSpeed, fires: true,
+            fireInterval: shooter.FireInterval, bulletSpeed: shooter.BulletSpeed,
+            pattern: AttackPattern.FlankAim);
+    }
+
+    // 盾もち種「バズ壁」（BuzzWall）。スキンは各テーマの“撃たない種”を流用（新規アート無し）し、
+    // 撃たない・遅い・硬い（パネル数/インクは MidEnemy が Pattern で上書き）に差し替える。
+    // 高ポイント＝剥がし切るDPSチェックへの対価（リスクとリターン：無視もできるが報酬は大きい）。
+    private const float BuzzWallMoveSpeed = 18f; // のそのそ進む壁（設計目安値）
+    public static EnemySpec BuzzWall(StageTheme theme)
+    {
+        var (_, drifter) = For(theme);
+        return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 150,
+            bodyRadius: drifter.BodyRadius + 2f, moveSpeed: BuzzWallMoveSpeed, spinSpeed: drifter.SpinSpeed * 0.6f,
+            fires: false, fireInterval: 0f, bulletSpeed: 0f,
+            pattern: AttackPattern.BuzzWall);
+    }
+
+    // 祈り運び種（KoharuPrayerCarry・こはる面専用）。スキンはこはるの“撃たない種”（鍋・お玉＝運ぶ絵柄）を流用。
+    // 消せる祈り弾3発をぶら下げて横断するボーナス種＝脅威ではないので低ポイント・すぐ剥がせる（MidEnemy 側で調整）。
+    private const float PrayerCarrySpeed = 34f; // 横断速度(px/s)。約11秒で画面を渡り切る
+    public static EnemySpec PrayerCarrier()
+    {
+        var (_, drifter) = For(StageTheme.Koharu);
+        return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 60,
+            bodyRadius: drifter.BodyRadius, moveSpeed: PrayerCarrySpeed, spinSpeed: drifter.SpinSpeed,
+            fires: false, fireInterval: 0f, bulletSpeed: 0f,
+            pattern: AttackPattern.KoharuPrayerCarry);
+    }
 }

@@ -18,8 +18,30 @@ public partial class Epilogue : Node2D
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
     private int _line;
     private double _lineT;
-    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
+
+    // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
+    //   会話フェーズ（phase 0/1 intro・phase 4 outro）だけが対象。折り返しは DrawLineBox と一致させる。
+    private const float BoxWrapW = W - 52f;    // DrawLineBox の本文折り返し幅と一致
+    private readonly System.Collections.Generic.List<string> _pages = new();
+    private int _page;
+    private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
+    private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
+    private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
+    // 現在行のページを（未構築なら）作る。boot ログ行は Mono・それ以外は Zen で折り返す（描画と一致）。
+    private void EnsurePages()
+    {
+        string? t = CurLineText();
+        if (t == null) { _pages.Clear(); _page = 0; _pagedKey = -1; return; }
+        int key = _phase * 1000 + _line;
+        if (_pagedKey == key) return;
+        _pagedKey = key; _page = 0;
+        bool boot = t.StartsWith(">");
+        _pages.Clear();
+        _pages.AddRange(UiKit.Paginate(boot ? UiKit.Mono : _font, t, UiKit.CutBody, BoxWrapW, Hud.DlgMaxLines));
+    }
+    private void NextPage() { _page++; _reveal = 0; _lineT = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     // PW選択(2)・縦読み(3)・スタッフロール(5)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
@@ -141,10 +163,12 @@ public partial class Epilogue : Node2D
         }
         if (_pwRejectT > 0) _pwRejectT -= delta;
 
-        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。語り/会話の行フェーズだけ）。
+        // 現在行を2行ページに割り、タイプライターは現在ページ内を進める（語り/会話の行フェーズだけ）。
         string? curT = CurLineText();
-        if (curT != null && _reveal < curT.Length)
-            _reveal = Mathf.Min(curT.Length, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+        EnsurePages();
+        int pageLen = curT != null ? CurPage.Length : 0;
+        if (curT != null && _reveal < pageLen)
+            _reveal = Mathf.Min(pageLen, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
 
         // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
         int readKey = _phase * 1000 + _line;
@@ -162,10 +186,11 @@ public partial class Epilogue : Node2D
             case 1:
                 if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
-                    if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
+                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
+                    else if (!LastPage) { NextPage(); }                          // 後続ページがあれば続きへ
                     else
                     {
-                        _lineT = 0; _reveal = 0; _line++;
+                        _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
                         if (_line >= _intro.Count) { _phase = 2; _t = 0; }
                     }
                 }
@@ -192,10 +217,11 @@ public partial class Epilogue : Node2D
             case 4: // 独白→DM→END
                 if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
-                    if (curT != null && _reveal < curT.Length) { _reveal = curT.Length; } // 1回目で全文（早送り）
+                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
+                    else if (!LastPage) { NextPage(); }                          // 後続ページがあれば続きへ
                     else
                     {
-                        _lineT = 0; _reveal = 0;
+                        _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1;
                         if (_line < _outro.Count - 1) _line++;
                         else { _phase = 5; _t = 0; }   // ENDの先：スタッフロールへ
                     }
@@ -252,11 +278,11 @@ public partial class Epilogue : Node2D
             Color c = head ? new Color(Cool.R, Cool.G, Cool.B, 0.9f)
                     : post ? new Color(0.85f, 0.9f, 1f, 0.95f)
                     : Ink;
-            int sz = line == "stay." ? 16 : 11;
+            int sz = line == "stay." ? UiKit.CutClimax : UiKit.CutBody;
             DrawString(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
         }
         if (((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, 8,
+            DrawString(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.5f));
     }
 
@@ -277,22 +303,22 @@ public partial class Epilogue : Node2D
     private void DrawPassword()
     {
         if (_font == null) return;
-        DrawString(_font, new Vector2(0, 46f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, 11,
+        DrawString(_font, new Vector2(0, 46f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(Cool.R, Cool.G, Cool.B, 0.9f));
-        DrawString(_font, new Vector2(0, 72f), "パスワードを入力してください", HorizontalAlignment.Center, W, 11, Ink);
+        DrawString(_font, new Vector2(0, 72f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
 
-        // 選択中の候補
+        // 選択中の候補（打ち込む単語＝クライマックス級に少し大きく残す）
         string cur = "＞ " + PwChoices[_pwSel];
-        DrawString(_font, new Vector2(0, 104f), cur, HorizontalAlignment.Center, W, 14, new Color(1f, 0.93f, 0.7f));
-        DrawString(_font, new Vector2(0, 124f), "◀                ▶", HorizontalAlignment.Center, W, 11,
+        DrawString(_font, new Vector2(0, 104f), cur, HorizontalAlignment.Center, W, UiKit.CutClimax, new Color(1f, 0.93f, 0.7f));
+        DrawString(_font, new Vector2(0, 124f), "◀                ▶", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(1f, 1f, 1f, 0.5f));
 
         if (_pwRejectT > 0f)
-            DrawString(_font, new Vector2(0, 150f), _pwReject, HorizontalAlignment.Center, W, 11,
+            DrawString(_font, new Vector2(0, 150f), _pwReject, HorizontalAlignment.Center, W, UiKit.CutBody,
                 new Color(0.9f, 0.5f, 0.6f));
 
         if (((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, 176f), "← → 選択   Z：決定", HorizontalAlignment.Center, W, 9,
+            DrawString(_font, new Vector2(0, 176f), "← → 選択   Z：決定", HorizontalAlignment.Center, W, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
 
@@ -300,9 +326,9 @@ public partial class Epilogue : Node2D
     {
         if (_font == null) return;
         // 最古の投稿：ミナ誕生前の日付
-        DrawString(_font, new Vector2(0, 26f), "最古の投稿 — ミナ誕生の、ずっと前の日付", HorizontalAlignment.Center, W, 9,
+        DrawString(_font, new Vector2(0, 26f), "最古の投稿 — ミナ誕生の、ずっと前の日付", HorizontalAlignment.Center, W, UiKit.CutNote,
             new Color(0.6f, 0.7f, 0.9f, 0.8f));
-        DrawString(_font, new Vector2(0, 44f), "「ミナへ。こはるを頼む。」", HorizontalAlignment.Center, W, 11,
+        DrawString(_font, new Vector2(0, 44f), "「ミナへ。こはるを頼む。」", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(1f, 0.9f, 0.7f));
 
         float baseY = 78f;
@@ -311,13 +337,13 @@ public partial class Epilogue : Node2D
         {
             if (appear < 0.6f + k * 0.7f) break; // 一行ずつ浮かぶ
             float y = baseY + k * 22f;
-            // 頭文字を強調
-            DrawString(_font, new Vector2(64f, y), Acrostic[k].Substring(0, 1), HorizontalAlignment.Left, -1, 16,
+            // 頭文字を強調（M/I/N/A の縦読み＝伏線回収の核。本文より一段大きいクライマックス級で残す）
+            DrawString(_font, new Vector2(64f, y), Acrostic[k].Substring(0, 1), HorizontalAlignment.Left, -1, UiKit.CutClimax,
                 new Color(1f, 0.95f, 0.8f));
-            DrawString(_font, new Vector2(80f, y), Acrostic[k].Substring(1), HorizontalAlignment.Left, -1, 12, Ink);
+            DrawString(_font, new Vector2(80f, y), Acrostic[k].Substring(1), HorizontalAlignment.Left, -1, UiKit.CutBody, Ink);
         }
         if (_t >= 4.0 && ((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, 9,
+            DrawString(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
 
@@ -334,7 +360,7 @@ public partial class Epilogue : Node2D
         }
         DrawLineBox(_outro[_line]);
         if (_line >= _outro.Count - 1)
-            DrawString(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, 16,
+            DrawString(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
                 new Color(1f, 1f, 1f, 0.85f));
     }
 
@@ -349,41 +375,41 @@ public partial class Epilogue : Node2D
         bool boot = ui && d.Text.StartsWith(">");
         var font = boot ? UiKit.Mono : _font;
         Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? (boot ? Code : new Color(0.7f, 0.9f, 0.8f)) : Cool);
-        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
-        var lines = UiKit.WrapLines(font, d.Text, 11, W - 52);
-        float lineH = font.GetHeight(11);
-        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
+        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
+        string page = CurPage;
+        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 52);
+        float boxTop = H - 56f;   // 2行固定
         DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
         DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, boot ? 0.6f : 0.8f));
         string label = narr || boot ? "" : d.Who;
         if (label != "")
-            DrawString(_font, new Vector2(20, boxTop + 12), label, HorizontalAlignment.Left, -1, 9, edge);
+            DrawString(_font, new Vector2(20, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-        // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、全文をその場でフェードイン表示。
+        // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、現在ページ全文をその場でフェードイン表示。
         //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
         // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
         Color ink = boot ? Code : Ink;   // bootログ行はコード緑（Prologue と同値）
         int shown;
         if (narr)
         {
-            shown = d.Text.Length;                           // 全文をその場で（広がる演出なし）
+            shown = page.Length;                             // 現在ページ全文をその場で（広がる演出なし）
             float a = Mathf.Clamp((float)_lineT / 0.35f, 0f, 1f); // 短いフェードイン
             ink = new Color(Ink.R, Ink.G, Ink.B, a);
         }
         else
         {
-            shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length); // bootログもタイプライター＝端末に流れる感を保つ
+            shown = Mathf.Clamp((int)_reveal, 0, page.Length); // bootログもタイプライター＝端末に流れる感を保つ
         }
-        UiKit.TypewriterLines(this, font, lines, new Vector2(20, boxTop + 26f), W - 52, 11, ink, shown, align);
+        UiKit.TypewriterLines(this, font, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody, ink, shown, align);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
                 new Color(Cool, 0.8f));
-        // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
-        // ナレは全文を即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
-        bool ready = narr ? _lineT >= 0.35 : _reveal >= d.Text.Length;
+        // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
+        // ナレは現在ページを即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
+        bool ready = narr ? _lineT >= 0.35 : _reveal >= page.Length;
         if (ready && ((int)(_t * 2f) % 2) == 0)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
+            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
 }

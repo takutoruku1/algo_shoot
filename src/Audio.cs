@@ -78,30 +78,33 @@ public partial class Audio : Node
     // BGM。BgmStage/BgmBoss はコード合成のループ（実音源が来たら差し替える）。
     //   全曲で M.I.N.A. モチーフ（ド ミ レ ソ＝523/659/587/784Hz）を共有し「一つの主題の変奏」に。
     //   BgmMenu=タイトル/ハブ等の温かい曲 / BgmStage=道中 / BgmBoss=短調寄り・密度高め・緊張（汎用＝Mina/Hikage 用）。
-    //   BgmMenu はユーザー制作の実音源（res://audio/bgm_menu_mina.ogg）を読む。型は実ファイル/合成の
+    //   BgmMenu はライセンス実音源（res://audio/bgm_menu_mina.ogg）を読む。型は実ファイル/合成の
     //   どちらでも受けられるよう AudioStream に広げる（参照側は Music(BgmMenu) で渡すだけなので不変）。
+    //   実音源の出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
     //   ロード失敗時は従来のコード合成 BuildBgmMenu() にフォールバックする（事故防止）。
     public AudioStream BgmMenu = null!;
     public AudioStreamWav BgmStage = null!, BgmBoss = null!;
 
-    // ステージ1（レイ）の道中＝ユーザー制作の実音源（res://audio/bgm_stage_rei.ogg、
-    //   原曲 BGM/The_Watcher_in_the_Hall.mp3 を -3dB・極小フェードで整えた加工済みループ）。
+    // ステージ1（レイ）の道中＝ライセンス実音源（res://audio/bgm_stage_rei.ogg）。
     //   BgmMenu と同じ作法：実ファイルを読み、失敗時は従来の合成 BgmStage にフォールバック（型を
     //   AudioStream に広げる）。汚染連動の高域カットに乗せるため _Process の inStage 判定にも含める。
     //   ogg は import 設定 loop=true で焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する
-    //   （Music() は曲尾で止めず鳴らしっぱなしにするため）。
+    //   （Music() は曲尾で止めず鳴らしっぱなしにするため）。出所・加工は LoadBgmStageRei() 参照。
     public AudioStream BgmStageRei = null!;
 
-    // ステージ2（あかり）／ステージ3（こはる）の道中＝ユーザー制作の実音源。
-    //   akari ＝res://audio/bgm_stage_akari.ogg（原曲 Empty_Desks_at_Four 65秒の末尾フェードを
-    //           トリムした 0..61.0秒・-3dB・頭40ms/尻120ms フェードでループ継ぎ目をなじませた ogg）。
-    //   koharu＝res://audio/bgm_stage_koharu.ogg（原曲 The_Kettle_Stays_Warm 61秒の末尾フェードを
-    //           トリムした 0..57.5秒・-3dB・同様の極小フェード）。いずれも import 設定 loop=true。
+    // ステージ2（あかり）／ステージ3（こはる）の道中＝ライセンス実音源。
+    //   akari ＝res://audio/bgm_stage_akari.ogg / koharu＝res://audio/bgm_stage_koharu.ogg。
+    //   いずれも import 設定 loop=true。出所・加工内容は各 Load*() のコメント参照。
     //   BgmStageRei と同じ作法：ogg は loop を焼いてあるが念のため AudioStreamOggVorbis.Loop も明示し、
     //   ロード失敗時は従来の合成 BgmStage にフォールバック（事故防止）。StageBgm() のマップに足す。
     //   汚染連動の高域カット（_Process の inStage 判定）にも含める＝レイ道中と同じ「ステージ中」扱い。
     public AudioStream BgmStageAkari = null!;
     public AudioStream BgmStageKoharu = null!;
+
+    // W0（チュートリアル "tutorial"）道中＝ライセンス実音源（res://audio/bgm_stage_w0.ogg）。
+    //   最後まで合成 BgmStage だけだった枠。加工・出所は LoadBgmStageW0() のコメント参照。
+    //   ロード失敗時は従来の合成 BgmStage にフォールバック（他の道中と同じ作法）。
+    public AudioStream BgmStageW0 = null!;
 
     // Final の「音楽的解決」＝挿入歌枠（設計 §1-3「感情の節目で帰ってくる」/ §7「無音→挿入歌の一点投入」）。
     //   ミナの反転号令の直前で BgmBoss を切って完全無音にし、「返事は、ありませんでした。」の
@@ -119,30 +122,26 @@ public partial class Audio : Node
     //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
     //   Akari＝フレーズが途中で切れる（"す——"／言いかけて言えない好き）。
     //   Koharu＝温かい旋律が冷えて減衰する（台所の灯が消えていく／祈りが冷える）。
-    //   Rei は戦闘BGMをユーザー制作の実音源（res://audio/bgm_boss_rei.ogg）に差し替え（型を
-    //   AudioStream に広げる。BgmMenu/BgmStageRei と同じ作法でロード失敗時は合成へフォールバック）。
-    //   Akari もユーザー制作の実音源（res://audio/bgm_boss_akari.ogg, loop=true）に差し替え。
-    //   Koharu もユーザー制作の実音源（res://audio/bgm_boss_koharu.ogg, loop=true）に差し替え。
-    //   ※3曲とも原曲 mp3（BGM/）直読みから、-3dB・末尾フェードトリム済みの加工 ogg（audio/）へ統一済み。
+    //   Rei/Akari/Koharu とも実音源（res://audio/bgm_boss_rei.ogg / bgm_boss_akari.ogg /
+    //   bgm_boss_koharu.ogg, いずれも loop=true）を読む。型は AudioStream に広げ、
+    //   BgmMenu/BgmStageRei と同じ作法でロード失敗時は各 Build*() 合成へフォールバック。
+    //   ※「未完の仕方」のモチーフ設計は合成フォールバック（Build*）と Redeem* に生きている。
+    //   実音源の出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
     public AudioStream BgmBossRei = null!;
     public AudioStream BgmBossAkari = null!;
     public AudioStream BgmBossKoharu = null!;
 
-    // ラスボス（ミナ本体）の戦闘BGM＝ユーザー制作の実音源（res://audio/bgm_boss_mina.ogg）。
-    //   原曲 The_Weight_Of_Absolution（149秒）は頭フェードイン・尻フェードアウトの劇伴構造で、
-    //   そのままだとループで無音の谷ができる。フル強度で鳴り続ける本体区間 51.0..84.5秒（33.5秒）を
-    //   切り出し、尻 0.6秒を頭 0.6秒へクロスフェード（acrossfade tri/tri）で折り込んでシームレス
-    //   ループ化した（-3dB で他BGMと粒を揃え、import 設定 loop=true）。
-    //   ※汎用 BgmBoss（Final/ヒカゲ）は変えず、BossMina.cs のミナ戦本体だけこの専用曲に差し替える。
+    // ラスボス（ミナ本体）の戦闘BGM＝ライセンス実音源（res://audio/bgm_boss_mina.ogg, loop=true）。
+    //   ※汎用 BgmBoss（Final冒頭）は変えず、BossMina.cs のミナ戦本体だけこの専用曲。
     //   BgmBossRei と同じ作法：ロード失敗時は汎用合成 BgmBoss にフォールバック。
     //   _Process の inStage 判定にも含める＝「ステージ戦闘曲」として汚染LowPassの対象。
+    //   出所・加工内容は LoadBgmBossMina() のコメント参照。
     public AudioStream BgmBossMina = null!;
 
-    // W0 炎上中ボス「ヒカゲ」の専用テーマ＝ユーザー制作の実音源（res://audio/bgm_boss_hikage.ogg）。
-    //   原曲 The_Frozen_Threshold（30.8秒・末尾フェード無しの平坦な持久曲）を -3dB・頭40ms/尻120ms の
-    //   極小フェードでループ継ぎ目をなじませた ogg（loop=true）。
+    // W0 炎上中ボス「ヒカゲ」の専用テーマ＝ライセンス実音源（res://audio/bgm_boss_hikage.ogg, loop=true）。
     //   「凍った敷居」＝友達の輪に踏み込めず、敷居の前で立ち尽くして凍えていた子（笑うのが、へた）。
     //   ロード失敗時は合成 BuildBgmBossHikage()（モチーフが影に沈む変奏）にフォールバック。
+    //   出所・加工内容は LoadBgmBossHikage() のコメント参照。
     public AudioStream BgmBossHikage = null!;
 
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
@@ -196,6 +195,7 @@ public partial class Audio : Node
         BgmStageRei    = LoadBgmStageRei();
         BgmStageAkari  = LoadBgmStageAkari();
         BgmStageKoharu = LoadBgmStageKoharu();
+        BgmStageW0     = LoadBgmStageW0();
         BgmBoss   = BuildBgmBoss();
         BgmFinalResolve = LoadBgmFinalResolve();
         BgmBossRei    = LoadBgmBossRei();
@@ -244,6 +244,7 @@ public partial class Audio : Node
         // ボス別テーマ（Rei/Akari/Koharu）も「ステージ戦闘曲」＝汚染LowPassの対象に含める。
         bool inStage = !Muted && (_currentMusic == BgmStage || _currentMusic == BgmStageRei
                                   || _currentMusic == BgmStageAkari || _currentMusic == BgmStageKoharu
+                                  || _currentMusic == BgmStageW0
                                   || _currentMusic == BgmBoss
                                   || _currentMusic == BgmBossRei || _currentMusic == BgmBossAkari
                                   || _currentMusic == BgmBossKoharu || _currentMusic == BgmBossMina
@@ -983,10 +984,12 @@ public partial class Audio : Node
         return w;
     }
 
-    // ───────── BgmMenu のロード（ユーザー制作の実音源 → 失敗時は合成へフォールバック）─────────
+    // ───────── BgmMenu のロード（ライセンス実音源 → 失敗時は合成へフォールバック）─────────
     //   タイトル/ハブ/ショップ/設定/難易度選択/Prologue/Epilogue/Records で Music(BgmMenu) が鳴らす曲。
-    //   res://audio/bgm_menu_mina.ogg（28.6秒の原曲から末尾フェードをトリムした26秒・-3dB・ループ点を
-    //   なじませた ogg）を読む。ogg は import 設定 loop=true でループを焼いてあるが、念のため
+    //   res://audio/bgm_menu_mina.ogg＝「巡る思い出」（蒲鉾さちこ／DOVA-SYNDROME・クレジット任意）。
+    //   原曲 94.0秒の末尾減衰をトリムした 0..92.0秒・+1.5dB（ピーク-3dB化）・頭40ms/尻120ms 極小フェード。
+    //   静かな尾章→静かな冒頭で自然にループする。出所と規約記録は BGM/acquisition_list.md §6。
+    //   ogg は import 設定 loop=true でループを焼いてあるが、念のため
     //   AudioStreamOggVorbis.Loop も明示する（Music() は曲尾で止めず鳴らしっぱなしにするため）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来のコード合成 BuildBgmMenu() に戻す。
     private AudioStream LoadBgmMenu()
@@ -998,11 +1001,11 @@ public partial class Audio : Node
         return BuildBgmMenu();
     }
 
-    // ───────── BgmStageRei のロード（レイ道中の実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_rei.ogg（原曲 The_Watcher_in_the_Hall 30.8秒＝末尾フェード無しの平坦な持久曲を
-    //   -3dB・頭40ms/尻120ms の極小フェードで他BGMと粒を揃えた ogg。import 設定 loop=true）を読む。
-    //   旧実装は原曲 mp3（res://BGM/）直読みだったが、ピーク0dB＝他曲より約3dB突出していたため
-    //   加工済み ogg（audio/bgm_<役割>.ogg）へ統一した。原曲 mp3 は BGM/ にマスターとして残る（export除外）。
+    // ───────── BgmStageRei のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
+    //   res://audio/bgm_stage_rei.ogg＝「SO-001」（watson／MusMus・クレジット必須「BGM:MusMus」→ config/credits.ini）。
+    //   機械的・無機質・冷たいエレクトロニカ＝レイ道中「監視される廊下」のスペック一致枠。
+    //   原曲 138.75秒の末尾減衰をトリムした 0..136.0秒・-5.1dB（強リミッター原盤＋vorbis超過分込みで
+    //   ピーク-3dB帯へ）・頭40ms/尻120ms 極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BgmStage に戻す（事故防止）。
     private AudioStream LoadBgmStageRei()
     {
@@ -1013,8 +1016,11 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmStageAkari のロード（あかり道中の実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_akari.ogg（末尾フェードをトリムした 0..61.0秒・-3dB・loop=true）を読む。
+    // ───────── BgmStageAkari のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
+    //   res://audio/bgm_stage_akari.ogg＝「6月の雨傘」（甘茶の音楽工房・クレジット任意）。
+    //   梅雨の儚げなピアノ＝あかり道中「雨の教室」の生楽器スペック一致枠。
+    //   原曲 102.35秒の末尾リタルダンド減衰をトリムした 0..97.5秒・-1.3dB（ピーク-3dB化）・
+    //   頭40ms/尻120ms 極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
     //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     private AudioStream LoadBgmStageAkari()
@@ -1026,8 +1032,11 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmStageKoharu のロード（こはる道中の実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
-    //   res://audio/bgm_stage_koharu.ogg（末尾フェードをトリムした 0..57.5秒・-3dB・loop=true）を読む。
+    // ───────── BgmStageKoharu のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
+    //   res://audio/bgm_stage_koharu.ogg＝「小さな足あと」（甘茶の音楽工房・クレジット任意）。
+    //   「家庭的で繊細」なストリングス＝こはる道中「台所の温もり」のスペック一致枠。
+    //   原曲 130.38秒の末尾減衰をトリムした 0..126.0秒・-1.9dB（ピーク-3dB化）・頭40ms/尻120ms 極小フェード。
+    //   出所と規約記録は BGM/acquisition_list.md §6。
     private AudioStream LoadBgmStageKoharu()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_koharu.ogg");
@@ -1037,9 +1046,27 @@ public partial class Audio : Node
         return BgmStage;
     }
 
-    // ───────── BgmBossRei のロード（レイ戦闘の実音源 → 失敗時は合成 BuildBgmBossRei へフォールバック）─────────
-    //   res://audio/bgm_boss_rei.ogg（原曲30.8秒・ピーク-0.6dBを -3dB で他BGMと粒を揃え、頭40ms/尻120ms に
-    //   極小フェードを掛けてループ継ぎ目をなじませた ogg。import 設定 loop=true）を読む。
+    // ───────── BgmStageW0 のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
+    //   res://audio/bgm_stage_w0.ogg＝「Roll Roll Roll」（もっぴーさうんど／DOVA-SYNDROME・クレジット任意）。
+    //   賑やかさ控えめのチップチューン＝チュートリアル「最初の一歩」のスペック一致枠。
+    //   配布トラック自体が公式ループ版のため**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
+    //   -4.8dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
+    //   出所と規約記録は BGM/acquisition_list.md §6。
+    private AudioStream LoadBgmStageW0()
+    {
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_stage_w0.ogg");
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning("BgmStageW0: res://audio/bgm_stage_w0.ogg をロードできず、合成BgmStageにフォールバック");
+        return BgmStage;
+    }
+
+    // ───────── BgmBossRei のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossRei へフォールバック）─────────
+    //   res://audio/bgm_boss_rei.ogg＝「Falling with You」（のる／DOVA-SYNDROME・クレジット任意。
+    //   個別条件「音楽主体動画への使用禁止」はゲーム組込に非該当）。疾走ピアノ×電子ビート。
+    //   原曲 178.84秒の末尾フェードをトリムした 0..169.0秒・-1.5dB（ピーク-3dB化）・頭40ms/尻120ms
+    //   極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
+    //   ※HP20%の SetMusicSpeed(1.15) 加速はテンポ一定曲なので破綻しない（選定条件に含めた）。
     //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossRei() に戻す（事故防止）。
     private AudioStream LoadBgmBossRei()
@@ -1051,12 +1078,12 @@ public partial class Audio : Node
         return BuildBgmBossRei();
     }
 
-    // ───────── BgmBossAkari のロード（あかり戦闘の実音源 → 失敗時は合成 BuildBgmBossAkari へフォールバック）─────────
-    //   res://audio/bgm_boss_akari.ogg（原曲 Akari_s_Last_Corridor 106.1秒の末尾フェードをトリムした
-    //   0..104.5秒・-3dB・頭40ms/尻120ms の極小フェード・loop=true）を読む。BgmStageRei と同じ作法。
-    //   旧実装は原曲 mp3 直読みで、①ピーク0dB＝他曲より約3dB突出 ②末尾約1.6秒のフェードアウトを
-    //   そのままループ＝毎周「無音の谷」が出ていた。トリムで谷を除去（静かな尾章 100..104.5秒は
-    //   静かな導入 0..2秒へ橋渡しする「ループの呼吸」として残す）。原曲 mp3 は BGM/ にマスターとして残る。
+    // ───────── BgmBossAkari のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossAkari へフォールバック）─────────
+    //   res://audio/bgm_boss_akari.ogg＝「EpicBattle」（PeriTune・CC BY 4.0＝クレジット必須 → config/credits.ini）。
+    //   「切ない×熱い」弦+ピアノ BPM138＝あかり戦のスペック一致枠。
+    //   配布の公式ループ版 ogg（97.39秒）を使用＝**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
+    //   -4.1dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
+    //   出所と規約記録は BGM/acquisition_list.md §6。
     //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossAkari() に戻す（事故防止）。
@@ -1069,13 +1096,12 @@ public partial class Audio : Node
         return BuildBgmBossAkari();
     }
 
-    // ───────── BgmBossKoharu のロード（こはる戦闘の実音源 → 失敗時は合成 BuildBgmBossKoharu へフォールバック）─────────
-    //   res://audio/bgm_boss_koharu.ogg（原曲 The_Leaking_Tap 145.9秒の末尾フェードをトリムした
-    //   0..140.5秒・-3dB・頭40ms/尻120ms の極小フェード・loop=true）を読む。BgmBossAkari と同じ作法。
-    //   旧実装は原曲 mp3 直読みで、①ピーク0dB＝他曲より約3dB突出 ②末尾約5.5秒のフェードアウトを
-    //   そのままループ＝毎周長い「無音の谷」が出ていた。トリム位置 140.5秒はフェード開始直後＝
-    //   減衰の入りを 120ms フェードで受け、静かな導入（水滴の 0..3秒）へ自然に橋渡しする。
-    //   原曲 mp3 は BGM/ にマスターとして残る（export除外）。
+    // ───────── BgmBossKoharu のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossKoharu へフォールバック）─────────
+    //   res://audio/bgm_boss_koharu.ogg＝「切ない戦いが始まりそう」（シンシンワダ／DOVA-SYNDROME・クレジット任意）。
+    //   ピアノ三連符+ストリングス+シンセパッドの「シリアス・寂しい・冷たい」＝こはる戦「冷えた祈り」のスペック一致枠。
+    //   DOVA配布トラック自体が公式ループ版（132.08秒）のため**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
+    //   -5.0dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
+    //   出所と規約記録は BGM/acquisition_list.md §6。BgmBossAkari と同じ作法。
     //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来の合成 BuildBgmBossKoharu() に戻す（事故防止）。
@@ -1088,9 +1114,12 @@ public partial class Audio : Node
         return BuildBgmBossKoharu();
     }
 
-    // ───────── BgmBossMina のロード（ミナ戦本体の実音源 → 失敗時は汎用合成 BuildBgmBoss へフォールバック）─────────
-    //   res://audio/bgm_boss_mina.ogg（原曲 The_Weight_Of_Absolution の本体 51.0..84.5秒を切り出し、
-    //   尻0.6秒を頭へクロスフェードしてシームレスループ化した 33.5秒・-3dB・loop=true）を読む。
+    // ───────── BgmBossMina のロード（ライセンス実音源 → 失敗時は汎用合成 BuildBgmBoss へフォールバック）─────────
+    //   res://audio/bgm_boss_mina.ogg＝「Dramatic5」（PeriTune・CC BY 4.0＝クレジット必須 → config/credits.ini）。
+    //   オルガン+金管+弦+ティンパニ+コーラスの疾走型荘厳＝ラスボス戦のスペック一致枠。
+    //   配布の公式ループ版 ogg（82.29秒）を使用＝**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
+    //   -4.2dB のゲインのみ（強リミッター原盤＋vorbis超過分込みでピーク-3dB帯へ）。
+    //   出所と規約記録は BGM/acquisition_list.md §6。
     //   ロード失敗時は汎用ボス曲 BuildBgmBoss() に戻す（ミナ戦が無音にならない事故防止）。
     private AudioStream LoadBgmBossMina()
     {
@@ -1101,9 +1130,11 @@ public partial class Audio : Node
         return BgmBoss;
     }
 
-    // ───────── BgmBossHikage のロード（ヒカゲ戦の実音源 → 失敗時は合成 BuildBgmBossHikage へフォールバック）─────────
-    //   res://audio/bgm_boss_hikage.ogg（原曲 The_Frozen_Threshold 30.8秒を -3dB・頭40ms/尻120ms の
-    //   極小フェードでループ継ぎ目をなじませた ogg。import 設定 loop=true）を読む。BgmBossRei と同じ作法。
+    // ───────── BgmBossHikage のロード（ライセンス実音源 → 失敗時は合成 BuildBgmBossHikage へフォールバック）─────────
+    //   res://audio/bgm_boss_hikage.ogg＝「Frozen Forest」（PeriTune・CC BY 4.0＝クレジット必須 → config/credits.ini）。
+    //   氷系シンセ BPM100＝ヒカゲ「凍った敷居」のスペック一致枠。
+    //   配布の公式ループ版 ogg（86.40秒）を使用＝**トリム・端フェードは掛けない**（継ぎ目を壊さない）。
+    //   -3.0dB のゲインのみ。出所と規約記録は BGM/acquisition_list.md §6。
     //   実音源なので再生時に MusicTargetDb() の StageBgmRealDb(-10dB) が自動で乗る（突出しない）。
     private AudioStream LoadBgmBossHikage()
     {
@@ -1136,6 +1167,7 @@ public partial class Audio : Node
         "rei" => BgmStageRei,
         "akari" => BgmStageAkari,
         "koharu" => BgmStageKoharu,
+        "tutorial" => BgmStageW0,
         _ => BgmStage,
     };
 

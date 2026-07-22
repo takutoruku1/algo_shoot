@@ -23,8 +23,24 @@ public partial class Prologue : Node2D
     // 会話送り
     private int _line;
     private double _lineT;
-    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
+
+    // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
+    private const float TalkWrapW = W - 52f;   // DrawTalk の本文折り返し幅と一致
+    private readonly System.Collections.Generic.List<string> _pages = new();
+    private int _page;
+    private int _pagedLine = -1;               // _pages を構築済みの行 index
+    private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
+    private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
+    private void EnsurePages()
+    {
+        if (_pagedLine == _line || _line >= _talk.Count) return;
+        _pagedLine = _line; _page = 0;
+        _pages.Clear();
+        _pages.AddRange(UiKit.Paginate(UiKit.Zen, _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
+    }
+    private void NextPage() { _page++; _reveal = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     private int _readIdx = -1;     // 既読チェック済みの行 index（行が変わった瞬間に一度だけ判定）
@@ -130,6 +146,12 @@ public partial class Prologue : Node2D
         T("少年", "そして、届けるんだ。——その人が、ずっと聞きたかった一言を。", FGentle);
         T("ミナ", "……それが、わたくしの役目。", FMina);
         T("少年", "ああ。きみにしか、できない仕事さ。", FProud);
+        // 鉤（優先度4）：ミナが素朴に問い、少年が答えず逸らす。プレイヤーだけが引っかかる小さな謎（“なぜ自分では潜らない”）。
+        // 内心は説明しない＝ミナは軽く流し、少年の“間”＋逸らしだけを見せる（show don't tell）。伏線：Final/Epilogue の replay=遺された声。
+        T("ミナ", "……ひとつ、よろしいですか。そんなに大切な役目なら——ご主人様ご自身が、潜ればいいのでは?", FMina);
+        T("少年", "…………。", FGentle);                                   // 答えない一拍（隠している証。Prologue に鉤を一本）
+        T("少年", "ぼくは、指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", FCocky); // はぐらかし（StageRei Clear の同型台詞を前倒し＝照応）
+        T("ミナ", "はあ。……ずいぶん、都合のいい指揮官もいたものです。", FMinaSmile);
 
         // ④ 合言葉「Stay.」初出（伏線／EPILOGUE鍵アカPW=stay・Never leave と一本化）。
         //   軽口の余韻からふっと真面目に。さらに「待て?→いろ→いなくなるな」と意味を繋ぎ直す（飛躍を“彼の言葉”に）。
@@ -169,8 +191,9 @@ public partial class Prologue : Node2D
             case 2: if (_t >= 1.6 || zEdge) NextPhase(); break;          // Ignite
             case 3:                                                       // Talk（手動送り：Zで進む。自動送りはしない）
                 _lineT += delta;
-                // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。
-                int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
+                EnsurePages();
+                // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。現在ページ内を進める。
+                int len = _line < _talk.Count ? CurPage.Length : 0;
                 if (_reveal < len)
                     _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
                 // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
@@ -188,13 +211,18 @@ public partial class Prologue : Node2D
                 {
                     if (_reveal < len)
                     {
-                        _reveal = len; // まず全文を即時表示（本編と同じ：1回目で早送り）
+                        _reveal = len; // まず現在ページの全文を即時表示（本編と同じ：1回目で早送り）
+                    }
+                    else if (!LastPage)
+                    {
+                        NextPage(); _lineT = 0;      // 後続ページがあれば続きへ（既読FFも同じ経路で全ページ抜ける）
                     }
                     else
                     {
                         _lineT = 0;
                         _reveal = 0;
                         _line++;
+                        _page = 0; _pagedLine = -1;
                         // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
                         if (_line >= _talk.Count) { StartGame(); return; }
                     }
@@ -306,8 +334,8 @@ public partial class Prologue : Node2D
         int n = choices.Length;
         float w = 640, rowH = 60, h = 150 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 16f, new Color(UiKit.Purify, 0.7f), 1.4f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "チュートリアルを受けますか?", 20, UiKit.White, HorizontalAlignment.Center, w);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 54), "操作の手ほどきです（受けなくても、すぐ始められます）", 12,
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 26), "チュートリアルを受けますか?", UiKit.FontHeading, UiKit.White, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 54), "操作の手ほどきです（受けなくても、すぐ始められます）", UiKit.FontLabel,
             UiKit.Text3, HorizontalAlignment.Center, w);
         float top = y + 86;
         for (int i = 0; i < n; i++)
@@ -317,12 +345,12 @@ public partial class Prologue : Node2D
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 28, ry, w - 56, 50), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", 16, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 44, ry + 16), "▸", UiKit.FontBody, UiKit.Purify);
             }
             Color nameCol = on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), choices[i], 19, nameCol);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 70, ry + 13), choices[i], UiKit.FontSpeaker, nameCol);
         }
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ えらぶ    Z けってい    X 受けない", 11,
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), "↑↓ えらぶ    Z けってい    X 受けない", UiKit.FontSmall,
             UiKit.Text3, HorizontalAlignment.Center, w);
         UiKit.EndDesign(this);
     }
@@ -490,29 +518,30 @@ public partial class Prologue : Node2D
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
         bool mina = d.Who == "ミナ";
-        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
-        var lines = UiKit.WrapLines(UiKit.Zen, d.Text, 11, W - 52);
-        float lineH = UiKit.Zen.GetHeight(11);
-        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
+        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
+        string page = CurPage;
+        var lines = UiKit.WrapLines(UiKit.Zen, page, UiKit.CutBody, W - 52);
+        float boxTop = H - 56f;   // 2行固定
         // ボックス
         DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.82f));
         DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
         // 話者名（滑らかゴシック）
-        DrawString(UiKit.ZenBold, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, 9,
+        DrawString(UiKit.ZenBold, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
             mina ? Cool : Warm);
         // 本文（タイプライターで表示済みの分だけ、確定済みの行に沿って描画）
-        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(20, boxTop + 26f), W - 52, 11,
+        int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
+        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody,
             new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
                 new Color(Cool, 0.8f));
-        // 送り三角は「全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
-        bool revealed = _reveal >= d.Text.Length;
+        // 送り三角は「現在ページの全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
+        //   後続ページがあることは同じ▼で示す（Zで続きへ／最終ページなら次の行へ）。
+        bool revealed = _reveal >= page.Length;
         bool inPause = _line == 15 && _lineT < 1.2; // “間”ホールド行（_Process の minHold=index 15）と同期。会話追加時は両方直す
         if (revealed && ((int)(_t * 2f) % 2) == 0 && !inPause)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
+            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
 
@@ -521,17 +550,17 @@ public partial class Prologue : Node2D
     {
         if (_font == null) return;
         float a = Mathf.Clamp((float)_t / 1.0f, 0f, 1f);
-        DrawString(_font, new Vector2(0, 78f), "Y — タイムライン", HorizontalAlignment.Center, W, 16,
+        DrawString(_font, new Vector2(0, 78f), "Y — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
             new Color(0.9f, 0.92f, 1f, a));
-        DrawString(_font, new Vector2(0, 104f), "STAGE 1 : レイ", HorizontalAlignment.Center, W, 11,
+        DrawString(_font, new Vector2(0, 104f), "STAGE 1 : レイ", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(Cool.R, Cool.G, Cool.B, a * 0.9f));
 
         // 難易度選択（◀ ▶ で変更）
         DrawString(_font, new Vector2(0, 132f), "難易度  ◀ " + DiffNames[_diffSel] + " ▶",
-            HorizontalAlignment.Center, W, 11, new Color(1f, 0.92f, 0.6f, a));
+            HorizontalAlignment.Center, W, UiKit.CutBody, new Color(1f, 0.92f, 0.6f, a));
 
         if (_t > 1.0 && ((int)(_t * 1.5f) % 2) == 0)
             DrawString(_font, new Vector2(0, 158f), "← → 難易度   Z：ダイブ   R：最初から",
-                HorizontalAlignment.Center, W, 9, new Color(1f, 1f, 1f, 0.7f));
+                HorizontalAlignment.Center, W, UiKit.CutNote, new Color(1f, 1f, 1f, 0.7f));
     }
 }

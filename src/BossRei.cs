@@ -82,7 +82,9 @@ public partial class BossRei : Enemy
     }
 
     // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
-    // 設計書 v2 [P-01b] のボス節を順序通りに：レイの悔しさ → 中継 → 好敵手だったと認める。
+    // 【届け方＝基準型：ミナ中継の“具体の記録”】（優先度2）。3戦で決定打の届け方を変える。この面が原型：
+    //   少年が割れる→中継で二人だけの記録（地区予選の秒数）を明かす→レイが崩れる→未来を託して余白で抜く。
+    //   あかり＝“名前を一点で呼ぶ”／こはる＝“少年の直接台詞（劇的アイロニー）”で抜く、と型を散らす（この面は温存）。
     // 躁的暴走＝全能感の誇示。傷＝唯一の好敵手が手を抜いた“頂点の孤独”。
     // 決定打は説明でなく“具体の記録”で示す（行動で証明）。最後は言わせず余白で抜く。
     private const string SGentle = "res://char/shonen_gentle.png";
@@ -95,9 +97,9 @@ public partial class BossRei : Enemy
         (0, "……ぼくのせいだ。ぼくが、本気で挑むのを、やめたから。", SGentle),     // 少年が割れる一拍
         (5, "——三年前の、地区予選。最終問題。きみは、二十二分で解いた。", ""),
         (5, "ぼくは、二十三分かかった。ぼくが本気で負けた相手は、後にも先にも、きみひとりだ。", ""),
-        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", ""),
+        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", "res://char/rei_face_cry.png"), // 気丈さの決壊＝cry（こらえ顔での代用をやめる）
         (5, "強くなってくれ。ぼくが、もう一度挑みたくなるくらい。——挑めなく、なっても。", ""),
-        (2, "…………。", ""),                                                       // 言わせない・余白
+        (2, "…………。", "res://char/rei_face_cry.png"),                             // 言わせない・余白（涙は流れたまま＝cry 保持）
     };
 
     protected override void OnEnemyReady()
@@ -406,7 +408,7 @@ public partial class BossRei : Enemy
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => "res://char/rei_face.png",
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
             _ => "res://char/mina_face.png", // ミナ・中継
         };
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");

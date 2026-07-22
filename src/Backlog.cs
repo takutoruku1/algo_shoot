@@ -168,11 +168,11 @@ public partial class BacklogCanvas : Node2D
         if (log.Count == 0)
         {
             Menu.SetMaxScroll(0f);
-            UiKit.Text(this, UiKit.Zen, new Vector2(listX, listTop + 8), "まだ会話の記録はありません。", 15, UiKit.Text3);
+            UiKit.Text(this, UiKit.Zen, new Vector2(listX, listTop + 8), "まだ会話の記録はありません。", UiKit.FontBody, UiKit.Text3);
         }
         else
         {
-            const int speakerSize = 13, bodySize = 16;
+            const int speakerSize = UiKit.FontLabel, bodySize = UiKit.FontBody;
             float lineGap = 14f;            // 行ブロック間の余白
             float contentH = 0f;
             float[] blockH = new float[log.Count];
@@ -213,14 +213,14 @@ public partial class BacklogCanvas : Node2D
         }
 
         // ── ヘッダ（マスクの上に描いてはみ出し行を隠す）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "BACKLOG", 12, UiKit.Info);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "会話ログ", 26, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "BACKLOG", UiKit.FontSmall, UiKit.Info);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "会話ログ", UiKit.FontTitle, UiKit.White);
         DrawRect(new Rect2(x + 32, y + 74, w - 64, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── フッタ ──
         string scrollTok = Pad.ShowKeyboard ? "↑↓" : "L";
         UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 32),
-            scrollTok + " スクロール    " + Pad.CancelToken + " とじる", 12,
+            scrollTok + " スクロール    " + Pad.CancelToken + " とじる", UiKit.FontSmall,
             UiKit.Text3, HorizontalAlignment.Center, w);
     }
 

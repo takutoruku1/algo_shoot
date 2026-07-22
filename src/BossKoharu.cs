@@ -62,6 +62,31 @@ public partial class BossKoharu : Enemy
     private float _mealNeedleSpeed = 130f; // お残しニードルの速度
     private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「のこしちゃだめ」の色）
 
+    // ── 「五徳の十字火」（HP28%ワンショットスペル・B-4②）──
+    //   宣告 → 自機の現在地に十字（BeamH＋BeamV・予兆1.2s×WarnMul）→ 0.8s後に同じ中心へ45°回転した
+    //   第二十字（BeamSeg±45°・深紅のX）。第二十字を“同心”にするのは回避の読みやすさのため：
+    //   第一十字の安全地帯（対角）へ逃げた自機を、同じ中心のX字が正確に追う＝「次は軸方向へ戻る」と
+    //   いう読み筋が幾何で明示される。自機の最新位置に置き直す案は、回避移動中の頭上に湧いて
+    //   残り猶予が読めない理不尽が出るため不採用。進行中は通常弾とテレグラフを止める（お残し禁止と同じ流儀）。
+    private bool _gotoFired;      // 発火ワンショット
+    private int _gotoPhase;       // 0=なし / 1=宣告→第一十字待ち / 2=第二十字待ち / 3=着弾待ち（ゲート解除待ち）
+    private double _gotoT;
+    private Vector2 _gotoCenter;  // 第一十字の中心（宣告時でなく“出現時”の自機位置＝予兆と実位置のズレを作らない）
+    private float _gotoHp = 0.28f;              // INI: goto_hp（第4スペル切替26%の直前＝終盤入りの合図）
+    private const double GotoFirstDelay = 0.7;  // 宣告→第一十字の溜め（通常テレグラフの _fireDelay と同格）
+    private const double GotoSecondDelay = 0.8; // 第一十字→第二十字（45°回転）の遅延
+    private const float GotoBeamHalf = 7f;      // 十字ビームの半太さ(px)（通常テレグラフのビーム帯 5-8px と同格）
+    private const float GotoDiagLen = 460f;     // 斜め一閃の長さ＝対角441pxを覆う（包丁の軌跡と同じ）
+    private static readonly Color GotoTint = new("e8945a");  // 琥珀（こはるAOEの危険色＝第一十字）
+    private static readonly Color GotoHot = new("ffc06a");
+    private static readonly Color GotoXTint = new("d6443f"); // 深紅（包丁の軌跡と同色＝斜め斬りの色＝第二十字）
+    private static readonly Color GotoXHot = new("ff8a7a");
+
+    // フィナーレ発動HPの上限（INI: finale_cap）。既定式 0.5/バー本数 が Easy(2本)だと25%となり、
+    // 第4スペル（26%〜）の発動域が実質1%しか無かった（QA指摘）。0.18で頭を抑えて Easy でも
+    // 26%→18% の第4スペル帯を確保する（Normal以上は式の方が小さく影響なし）。
+    private float _finaleCap = 0.18f;
+
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
@@ -81,26 +106,31 @@ public partial class BossKoharu : Enemy
         GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", s.name, s.tint);
     }
 
-    // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。少年はミナの声で“中継”して届ける。
-    // 設計書 v2 [P-03] のボス節を順序通りに（ミナの気遣い・少年の取り繕いも含む）。
+    // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。
+    // 【届け方＝“少年の直接台詞（劇的アイロニー）”で抜く型】（優先度2）。レイ＝中継の記録／あかり＝名前一点、に対し、
+    //   この面は決定打をミナ中継ではなく“少年が兄として妹に直接かける言葉”に置く。観客だけが意味を知り、ミナは半分気づく。
+    //   中継(5)は最小限（一度だけ）に絞り、少年の生の声を前へ出す＝3戦で届け役・声の主を散らす（同型4拍の反復を断つ核）。
+    // 設計書 v2 [P-03] のボス節（ミナの気遣い・少年の取り繕いも含む）。
     // 躁的暴走＝支配的な世話焼き。傷＝兄の死を認めない唯一の力＝完璧にすれば失わない、という呪術（死の否認）。
-    // 決定打＝劇的アイロニー。兄＝すでに逝った少年の遺した声が、妹に。言い切らせず観客に繋がせ、ミナが半分気づく。
+    private const string SAfraid = "res://char/shonen_afraid.png"; // 承第3段で立てた“消えかけ”を改心でも滲ませる
     private static readonly (int who, string text, string face)[] Lines =
     {
         (2, "ごはん、できたよ! ぜんぶ食べてね。残したら……許さないんだから。", ""),
         (2, "あ、そこ汚れてる。掃除するから、じっとしてて。動かないで。ね?", ""),
         (2, "だいじょうぶ。あたしがちゃんとするから。お兄ちゃんは、なにもしなくていいの。", ""),
         (1, "……ご主人様? お顔の色が。", ""),
-        (0, "……なんでもない。続けるぞ。", SCocky),
+        (0, "……なんでもない。続けるぞ。", SAfraid),                             // 承第3段の弱りが改心にも尾を引く（cocky→afraid）
         (2, "ちゃんと作って、ちゃんと食べさせて、ちゃんと、ちゃんとしてれば——", ""),
         (2, "……ちゃんとしてれば、お兄ちゃん、いなくならないでしょ? ねえ、いなくならないよね……?", KPale), // 絶望＝蒼白
-        (5, "——怒りの下の悲しみを、ちゃんと、悲しんでいい。", ""),
+        (5, "——怒りの下の悲しみを、ちゃんと、悲しんでいい。", ""),                // 中継はここ一度だけ（最小限）
         (2, "あたしのごはんじゃ、お兄ちゃんは帰ってこない……! じゃあ、なんの、意味が……!", KPale),     // 絶望＝蒼白（否認が一瞬だけ割れる）
-        (5, "お兄さんが最後の日まで、あったかいままでいられたのは——きみの食卓が、あったからだ。祈りは、届いてたよ。", ""),
+        // ↓ 決定打＝少年“本人”の直接の声（中継でなく who=0）。兄が妹に、を観客だけが知る＝劇的アイロニーで抜く。
+        (0, "……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。", SGentle),
+        (0, "祈りは、ちゃんと——届いてた。", SGentle),                            // 中継を挟まず少年の生声で言い切る（届け方の核）
         (2, "……ほんとに? ……ちゃんと、食べて、くれるかな。今日は。", ""),       // 日常語＝小さな願い
         (0, "……ああ。残さず、食べるよ。", SGentle),                              // 兄が、妹に（観客だけが意味を知る）
-        (0, "明日のぶんは——……いや。たくさん、作ってやってくれ。きみは、えらいよ。", SGentle), // “明日のぶんはいい”を呑み込む
-        (1, "ご主人様。いまの……どなたに、おっしゃったんですか。", ""),         // ミナが半分気づく（Final/伏線へ）
+        (0, "明日のぶんは——……いや。たくさん、作ってやってくれ。きみは、えらいよ。", SAfraid), // “明日のぶんはいい”を呑み込む＝消えかけ（afraid）
+        (1, "ご主人様。いまの……どなたに、おっしゃったんですか。", ""),         // ミナが半分気づく（Final/伏線へ・StageKoharu Clear が参照）
         // ② こはるの否認「ちゃんとすれば、いなくならない」と、ミナ自身の否認が同型。
         //    説明せず、ミナが半秒だけ自分の否認に触れる“間”の一行（Final受容への助走）。
         (1, "……ちゃんとしてれば、いなくならない。……ええ。わたくしも、そう思っていたいです。", "res://char/mina_worried.png"),
@@ -113,7 +143,7 @@ public partial class BossKoharu : Enemy
         Points = BossTuning.I("koharu", "points", 1800);
         BodyRadius = BossTuning.F("koharu", "body_radius", 9f);
         PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだよ」等の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("koharu", "panel_ink", 2);
+        PanelInk = BossTuning.I("koharu", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
         PanelsFire = false;
@@ -142,6 +172,8 @@ public partial class BossKoharu : Enemy
         _mealFallSpeed = BossTuning.F("koharu", "meal_fall_speed", 12f);
         _mealNeedleSpeed = BossTuning.F("koharu", "meal_needle_speed", 130f);
         _mealConvStep = Mathf.Max(0.01f, BossTuning.F("koharu", "meal_convert_step", 0.06f));
+        _gotoHp = BossTuning.F("koharu", "goto_hp", 0.28f);
+        _finaleCap = BossTuning.F("koharu", "finale_cap", 0.18f);
 
         PreTexPath = "res://char/enemy_koharu_pre.png";   // 穢れ・病んだ核
         // 改心の三段：穢れ(pre)→泣き(cry＝黒い炎が熾火へ鎮まり大粒の涙)→笑顔(post)。
@@ -174,6 +206,7 @@ public partial class BossKoharu : Enemy
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
+        TickGoto(delta);
         FirePattern(delta);
     }
 
@@ -181,8 +214,8 @@ public partial class BossKoharu : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
-        // 「お残し禁止」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
-        if (_mealPhase != 0) return;
+        // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
+        if (_mealPhase != 0 || _gotoPhase != 0) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
@@ -310,7 +343,7 @@ public partial class BossKoharu : Enemy
         _mealPhase = 0;
         _meal.Clear();
         _mealLeft.Clear();
-        if (_caster != null) _caster.Suppressed = false;
+        if (_caster != null && _gotoPhase == 0) _caster.Suppressed = false; // 十字火が進行中なら解除しない（保険）
         var cur = Spells[_pattern % Spells.Length];
         SetSpellVisual(cur.shape, cur.tint); // 弾形・色を通常スペルへ戻す（宣告カードは再掲しない）
         if (!fullEat) return;
@@ -332,6 +365,67 @@ public partial class BossKoharu : Enemy
             var game = GetNodeOrNull<GameManager>("/root/Game");
             if (game != null) for (int i = 0; i < 200; i++) game.AddBulletCleared();
             FxLayer.Instance?.DamageNumber(at, "+1000", FxLayer.Gold, 13);
+        }
+    }
+
+    // 「五徳の十字火」の進行。UpdateMovement 経由＝会話中(BubblePaused)は予兆(AreaStrike)側と一緒に凍る。
+    private void TickGoto(double delta)
+    {
+        if (_gotoPhase == 0) return;
+        _gotoT += delta;
+        float wm = _caster?.WarnMul() ?? 1f;
+        switch (_gotoPhase)
+        {
+            case 1: // 宣告 → 第一十字（“出現時”の自機の現在地に置く）
+                if (_gotoT < GotoFirstDelay) return;
+                _gotoCenter = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
+                              ?? new Vector2(120f, 130f); // 自機不在（起こらない保険）＝自機定位置側
+                SpawnGotoAxisCross(1.2 * wm);
+                _gotoPhase = 2; _gotoT = 0;
+                return;
+            case 2: // 0.8s後 → 第二十字（同心・45°回転＝深紅のX）
+                if (_gotoT < GotoSecondDelay) return;
+                SpawnGotoDiagCross(1.2 * wm);
+                _gotoPhase = 3; _gotoT = 0;
+                return;
+            default: // 3: 第二十字の着弾（予兆＋フラッシュ0.2s）を待ってゲート解除
+                if (_gotoT < 1.2 * wm + 0.3) return;
+                _gotoPhase = 0;
+                if (_caster != null && _mealPhase == 0) _caster.Suppressed = false;
+                return;
+        }
+    }
+
+    // 第一十字：自機の行（BeamH・全幅）＋列（BeamV・全高）。画面 384×216 の中心軸に置く。
+    private void SpawnGotoAxisCross(double warn)
+    {
+        var world = GetParent();
+        AddCrossStrike(world, AreaStrike.Shape.BeamH, new Vector2(192f, _gotoCenter.Y), 192f, GotoBeamHalf, warn);
+        AddCrossStrike(world, AreaStrike.Shape.BeamV, new Vector2(_gotoCenter.X, 108f), GotoBeamHalf, 108f, warn);
+    }
+
+    private void AddCrossStrike(Node world, AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
+    {
+        var z = new AreaStrike();
+        z.Configure(shape, hw, hh, warn, GotoTint, GotoHot);
+        z.SetOwner(this); // 着弾前に浄化されたら予兆ごと消える（残留着弾を断つ）
+        world.AddChild(z);
+        z.GlobalPosition = c;
+    }
+
+    // 第二十字：第一十字と同じ中心を通る±45°の一閃×2（BeamSeg。中心から両側へ伸ばす）。
+    private void SpawnGotoDiagCross(double warn)
+    {
+        var world = GetParent();
+        foreach (float deg in new[] { 45f, -45f })
+        {
+            float a = Mathf.DegToRad(deg);
+            var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            var z = new AreaStrike();
+            z.ConfigureBeam(dir, GotoDiagLen, GotoBeamHalf - 1f, warn, GotoXTint, GotoXHot);
+            z.SetOwner(this);
+            world.AddChild(z);
+            z.GlobalPosition = _gotoCenter - dir * (GotoDiagLen * 0.5f);
         }
     }
 
@@ -387,8 +481,19 @@ public partial class BossKoharu : Enemy
             GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", "お残し禁止", Spells[0].tint);
             GetHud()?.ShowBossLine("こはる", "ごはんできたよ! ぜんぶ食べてね。のこしちゃ、だめ。", UiKit.Kegare, 2.2);
         }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
-        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
+        // 「五徳の十字火」：HP28%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替26%の直前＝終盤入りの合図）。
+        // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
+        if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
+        {
+            _gotoFired = true;
+            _gotoPhase = 1; _gotoT = 0;
+            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
+            GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", "五徳の十字火", GotoTint);
+            GetHud()?.ShowBossLine("こはる", "うごかないでね。……火、つけるから。", UiKit.Kegare, 2.0);
+        }
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。ただし finale_cap（既定0.18）で
+        // 頭を抑える＝Easy(2本)の25%発火で第4スペル(26%〜)の発動域が1%しか無くなる問題の是正（QA指摘）。
+        if (!_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）

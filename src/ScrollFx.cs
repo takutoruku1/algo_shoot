@@ -109,7 +109,9 @@ public partial class ScrollFx : Node2D
         {
             float warm = Mathf.Clamp(Warmth, 0f, 1f);
             // 浄化が進むほど少し落ち着くが、止めない（最低でも55%は流れ続ける＝常に動いて見える）。
-            float speed = _scrollBaseSpeed * (1f - 0.45f * warm);
+            // 位置係数 scrollMul を乗算で共存：右にいるほど手前の景色も速く流れて一体感（StageBackground と同じ 0.65..1.45）。
+            float scrollMul = 0.65f + 0.80f * BgScroll.PlayerNx(this);
+            float speed = _scrollBaseSpeed * (1f - 0.45f * warm) * scrollMul;
             _scrollX += speed * (float)delta;
             float off = _scrollX % _scrollTexW; // 0.._scrollTexW の連続オフセット
             for (int i = 0; i < _scrollTiles.Length; i++)

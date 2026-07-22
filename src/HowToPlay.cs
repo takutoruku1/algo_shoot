@@ -121,9 +121,9 @@ public partial class HowToCanvas : Node2D
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.05f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
 
         // ── ヘッダ（タイトル＋ページインジケータ）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "HOW TO PLAY", 12, UiKit.Info);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.FontSmall, UiKit.Info);
         string[] titles = { "操作", "画面の見かた", "コア機能" };
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], 26, UiKit.White);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], UiKit.FontTitle, UiKit.White);
         // ページドット（右上）
         for (int i = 0; i < HowToPlay.PageCount; i++)
         {
@@ -142,7 +142,7 @@ public partial class HowToCanvas : Node2D
 
         // ── フッタ（操作ヒント）──
         UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 32),
-            (Pad.UsingPad ? "LB / RB" : "←→") + " ページ    " + TokMenu + " とじる", 12,
+            (Pad.UsingPad ? "LB / RB" : "←→") + " ページ    " + TokMenu + " とじる", UiKit.FontSmall,
             UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
@@ -177,7 +177,7 @@ public partial class HowToCanvas : Node2D
         {
             float ny = y + half * rowH + 6f;
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
-                "※ Space は「撃つ」。やさしさ全開は Ctrl です（混同しないでね）", 13, UiKit.Gold);
+                "※ Space は「撃つ」。やさしさ全開は Ctrl です（混同しないでね）", UiKit.FontLabel, UiKit.Gold);
         }
     }
 
@@ -188,21 +188,21 @@ public partial class HowToCanvas : Node2D
         // キーバッジ（可変幅）
         float badgeW = KeyBadge(new Vector2(x + 8, y + 6), tok, accent);
         float tx = x + 8 + badgeW + 14f;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 6), name, 17, hot ? new Color(accent, 1f) : UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 28), desc, 12, UiKit.Text2, HorizontalAlignment.Left, w - (tx - x) - 8);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 6), name, UiKit.FontBody, hot ? new Color(accent, 1f) : UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 28), desc, UiKit.FontLabel, UiKit.Text2, HorizontalAlignment.Left, w - (tx - x) - 8);
         if (hot)
         {
-            float sw = UiKit.TextW(UiKit.Mono, "★", 12);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - sw - 8, y + 6), "★", 12, accent);
+            float sw = UiKit.TextW(UiKit.Mono, "★", UiKit.FontSmall);
+            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - sw - 8, y + 6), "★", UiKit.FontSmall, accent);
         }
     }
 
     // 可変幅キーバッジ（やや大きめ／HowTo 用。高さ22）。Hud.KeyBadge と同じ意匠。
     private float KeyBadge(Vector2 p, string token, Color accent)
     {
-        float w = UiKit.TextW(UiKit.Mono, token, 13) + 16, h = 28;
+        float w = UiKit.TextW(UiKit.Mono, token, UiKit.FontLabel) + 16, h = 28;
         UiKit.Box(this, new Rect2(p.X, p.Y, w, h), new Color(0.10f, 0.09f, 0.16f, 0.95f), 6f, new Color(accent, 0.8f), 1.2f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(p.X, p.Y + 6), token, 13, new Color(accent, 1f), HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Mono, new Vector2(p.X, p.Y + 6), token, UiKit.FontLabel, new Color(accent, 1f), HorizontalAlignment.Center, w);
         return w;
     }
 
@@ -228,8 +228,8 @@ public partial class HowToCanvas : Node2D
         {
             float ry = y + i * rowH;
             DrawIcon(new Vector2(x + 14, ry + 12), rows[i].icon, rows[i].col);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 40, ry + 4), rows[i].name, 15, UiKit.White);
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 240, ry + 5), rows[i].desc, 13, UiKit.Text2);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 40, ry + 4), rows[i].name, UiKit.FontBody, UiKit.White);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 240, ry + 5), rows[i].desc, UiKit.FontLabel, UiKit.Text2);
         }
     }
 
@@ -270,8 +270,8 @@ public partial class HowToCanvas : Node2D
             UiKit.Box(this, new Rect2(x, ry, w, cardH), new Color(cards[i].accent, 0.08f), 12f, new Color(cards[i].accent, 0.5f), 1.2f);
             // 左の色帯
             UiKit.Box(this, new Rect2(x, ry, 5f, cardH), cards[i].accent, 3f);
-            UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 22, ry + 14), "[" + cards[i].title + "]", 18, new Color(cards[i].accent, 1f));
-            UiKit.Multi(this, UiKit.Zen, new Vector2(x + 22, ry + 44), cards[i].body, 13, UiKit.Text2, w - 44);
+            UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 22, ry + 14), "[" + cards[i].title + "]", UiKit.FontSpeaker, new Color(cards[i].accent, 1f));
+            UiKit.Multi(this, UiKit.Zen, new Vector2(x + 22, ry + 44), cards[i].body, UiKit.FontLabel, UiKit.Text2, w - 44);
         }
     }
 }

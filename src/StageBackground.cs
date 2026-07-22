@@ -149,7 +149,9 @@ public partial class StageBackground : Node2D
             // 道中：左へシームレスループ。span を法に取り、各タイルを並べ直す（蓄積誤差なし）。
             if (_midTiles.Length > 0 && _midTileW > 0f)
             {
-                _midX += MidScrollSpeed * dt;
+                // 位置係数 scrollMul：自機が右にいるほど背景が速く流れて前進感UP、左でゆっくり。
+                //   scrollMul = 0.65 + 0.80*nx（左端0.65 / 中央1.05 / 右端1.45）。
+                _midX += MidScrollSpeed * ScrollMul() * dt;
                 float off = _midX % _midTileW;     // 0.._midTileW
                 for (int i = 0; i < _midTiles.Length; i++)
                 {
@@ -186,5 +188,26 @@ public partial class StageBackground : Node2D
             float pulse = 1f + BossPulseAmp * Mathf.Sin((float)(_t * Mathf.Tau * BossPulseHz));
             Modulate = new Color(pulse, pulse, pulse, 1f);
         }
+    }
+
+    // 位置係数：自機の正規化X(nx)から scrollMul = 0.65 + 0.80*nx を返す（左端0.65/中央1.05/右端1.45）。
+    private float ScrollMul() => 0.65f + 0.80f * BgScroll.PlayerNx(this);
+}
+
+// BgScroll : 背景スクロールの位置係数まわりの共有ヘルパ（StageBackground / ScrollFx / WorldGrade から使う）。
+//   nx（自機の正規化X, 0=左端/1=右端）の取得を1箇所に集約。engineer が公開した GameManager.PlayerNormX
+//   （TickProgress で毎フレーム更新）を第一参照にし、GameManager が無い場面では Player を group から引いて
+//   x/384 で算出するフォールバックを残す。参照名が変わってもここだけ直せばよい。
+public static class BgScroll
+{
+    private const float ScreenW = 384f;
+
+    public static float PlayerNx(Node self)
+    {
+        var g = self.GetNodeOrNull<GameManager>("/root/Game");
+        if (g != null) return g.PlayerNormX;
+        var p = self.GetTree().GetFirstNodeInGroup("player") as Node2D;
+        if (p != null) return Mathf.Clamp(p.GlobalPosition.X / ScreenW, 0f, 1f);
+        return 0.5f;
     }
 }

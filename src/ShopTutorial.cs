@@ -44,6 +44,23 @@ public partial class ShopTutorial : Node2D
     private bool _autoplay;
     private bool _done;
 
+    // テキストボックスは2行固定。2行を超える行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
+    private readonly System.Collections.Generic.List<string> _pages = new();
+    private int _page;
+    private int _pagedIdx = -1;               // _pages を構築済みの行 index（行が変わったら作り直す）
+    private const float BodyWrapW = W - 80f - 72f;  // DrawDialog の本文折り返し幅（box幅 W-80 の内側パディング 36×2）
+    private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
+    private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
+
+    // 現在行(_idx)のページを（未構築なら）作る。以降 _reveal は「現在ページ内の文字数」を指す。
+    private void EnsurePages()
+    {
+        if (_pagedIdx == _idx || _idx >= ShopTutorialLines.Length) return;
+        _pagedIdx = _idx; _page = 0;
+        _pages.Clear();
+        _pages.AddRange(UiKit.Paginate(UiKit.Zen, ShopTutorialLines[_idx].text, UiKit.FontHeading, BodyWrapW, Hud.DlgMaxLines));
+    }
+
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
@@ -57,11 +74,13 @@ public partial class ShopTutorial : Node2D
         _t += delta; _lineT += delta;
         if (_done) { QueueRedraw(); return; }
 
-        int len = _idx < ShopTutorialLines.Length ? ShopTutorialLines[_idx].text.Length : 0;
+        EnsurePages();
+        int len = CurPage.Length;
         if (_autoplay)
         {
             _reveal = len;
-            if (_lineT >= 1.2) { _lineT = 0; Advance(); }
+            // オート：現在ページを見せたら次ページ、最終ページなら次行へ（詰まらせない）。
+            if (_lineT >= 1.2) { _lineT = 0; if (!LastPage) NextPage(); else Advance(); }
             QueueRedraw();
             return;
         }
@@ -69,7 +88,7 @@ public partial class ShopTutorial : Node2D
         // ポーズメニューを閉じた Z の同じ押下が漏れて会話が1行進まないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this)) { _zHeld = true; QueueRedraw(); return; }
 
-        // タイプライター（本編HUDと同じ速度。未設定なら48）。
+        // タイプライター（本編HUDと同じ速度。未設定なら48）。現在ページ内の文字を進める。
         if (_reveal < len)
             _reveal = Mathf.Min(len, _reveal + delta * (_game?.MsgCharsPerSec ?? 48f));
 
@@ -77,16 +96,19 @@ public partial class ShopTutorial : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.15)
         {
-            if (_reveal < len) _reveal = len;  // 1回目で全文（早送り）
-            else Advance();
+            if (_reveal < len) _reveal = len;   // 1回目で全文（早送り）
+            else if (!LastPage) NextPage();     // 後続ページがあれば続きへ
+            else Advance();                     // 最終ページを読了＝次の行へ
         }
         QueueRedraw();
     }
 
+    private void NextPage() { _page++; _reveal = 0; _lineT = 0; }
+
     private void Advance()
     {
         _idx++;
-        _reveal = 0; _lineT = 0;
+        _reveal = 0; _lineT = 0; _page = 0; _pagedIdx = -1;
         if (_idx >= ShopTutorialLines.Length)
         {
             _done = true;
@@ -105,8 +127,8 @@ public partial class ShopTutorial : Node2D
         for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
 
         // 見出し
-        UiKit.Text(this, UiKit.Mono, new Vector2(40, 28), "SHOP TUTORIAL", 11, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(40, 42), "強化ショップ", 28, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(40, 28), "SHOP TUTORIAL", UiKit.FontSmall, UiKit.Text3);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(40, 42), "強化ショップ", UiKit.FontTitle, UiKit.White);
 
         DrawDialog();
         UiKit.EndDesign(this);
@@ -127,20 +149,24 @@ public partial class ShopTutorial : Node2D
             var ftex = FaceTex(face);
             if (ftex != null) UiKit.FaceAvatar(this, center, 26f, ftex, spc, false, 0.06f, 1f, _t);
             else UiKit.Avatar(this, center, 26f, spc, sp.Substring(0, 1));
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, 18, spc);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
         }
 
-        int shown = Mathf.Clamp((int)_reveal, 0, text.Length);
-        float bodyX = box.Position.X + (sp.Length > 0 ? 36 : 36);
+        // 現在ページ（2行固定）を表示済み文字数ぶんだけ描く。
+        string page = CurPage;
+        int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
+        float bodyX = box.Position.X + 36;
         float bodyY = box.Position.Y + (sp.Length > 0 ? 76 : 40);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(bodyX, bodyY), text.Substring(0, shown), 21,
-            new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, 3);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(bodyX, bodyY), page.Substring(0, shown), UiKit.FontHeading,
+            new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, Hud.DlgMaxLines);
 
-        if (!_autoplay && _reveal >= text.Length)
+        if (!_autoplay && _reveal >= page.Length)
         {
             float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
+            // 後続ページがあれば「▼ つづき」、最終ページなら「Z すすむ ▸」。
+            string hint = LastPage ? "Z すすむ ▸" : "▼ つづき";
             UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),
-                "Z すすむ ▸", 14, new Color(UiKit.Info, blink));
+                hint, UiKit.FontLabel, new Color(UiKit.Info, blink));
         }
     }
 }

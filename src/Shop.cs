@@ -75,6 +75,12 @@ public partial class Shop : Node2D
         _ => 0,
     };
 
+    // 系統アイデンティティ色：所持済みエッジ／育てた道の発光をこの色で塗る＝
+    // 「自分が伸ばしてきた道」が系統ごとに違う光で読める（既存の CatCol と同一系統・色弱でも枝形状と二重符号化）。
+    //   攻め＝連射/威力系はシアン、拡散/応援系はゴールド寄り、支え＝生存系はグリーン。
+    private static readonly Color[] StreamCol = { new("9be0f5"), new("7ec880"), new("f0d98a") };
+    private static Color StreamColor(string id) => StreamCol[CatFor(id)];
+
     private static readonly Color Light = new("9be0f5");   // 光のハイライト
     private static readonly Color Orange = new("ff8a5a");  // 過熱
     private static readonly Color Deny = new("ef9a9a");    // 買えない理由（赤）
@@ -406,7 +412,10 @@ public partial class Shop : Node2D
 
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
             new[] { new Color("0d0b1c"), new Color("0a0916"), new Color("070611") }, new[] { 0f, 0.55f, 1f });
-        UiKit.RadialGlow(this, new Vector2(W * 0.12f, H * 0.42f), 460f, UiKit.Info, 0.10f);
+        // 大きな放射光をゆっくり呼吸させる＝静止画に見えない下地の脈動（地味さ対策の核）。
+        float bgBreath = 0.10f + 0.03f * Mathf.Sin((float)_t * 0.6f);
+        UiKit.RadialGlow(this, new Vector2(W * 0.12f, H * 0.42f), 460f, UiKit.Info, bgBreath);
+        DrawBgMotes();
         for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
 
         DrawHeader();
@@ -545,9 +554,10 @@ public partial class Shop : Node2D
             }
             else
             {
-                // 通常エッジ：所持済みの枝はうっすら灯す（進んだ道が読める）。
+                // 通常エッジ：所持済みの枝は系統色で灯し、光が流れて「育てた道」が生きて見える。
                 bool lit = (_game?.GetUpgradeLevel(nd.Id) ?? 0) >= 1;
-                DrawElbow(from, to, lit ? new Color(UiKit.Info, 0.45f) : EdgeDim, 1.6f);
+                if (lit) DrawLitEdge(from, to, StreamColor(nd.Id), nd.Id);
+                else DrawElbow(from, to, EdgeDim, 1.6f);
             }
         }
 
@@ -569,6 +579,38 @@ public partial class Shop : Node2D
         DrawLine(from, new Vector2(midX, from.Y), col, width);
         DrawLine(new Vector2(midX, from.Y), new Vector2(midX, to.Y), col, width);
         DrawLine(new Vector2(midX, to.Y), to, col, width);
+    }
+
+    // 所持済みエッジ：系統色でL字を描き、その上を光の粒が流れる（根元→ノードへ「育てた道」が生きる）。
+    //   ・下地に太く薄い同色グロウを重ねてコントラストを底上げ（地味さの主因＝発光不足への対処）。
+    //   ・光の粒は id をシード化した位相で流し、全エッジが同時明滅しない（画面が呼吸して見える）。
+    //   ・購入直後（_buyFxId==id）はその区間だけ強く伝播点灯＝解放が「線を伝って」広がる手触り。
+    private void DrawLitEdge(Vector2 from, Vector2 to, Color col, string id)
+    {
+        float midX = (from.X + to.X) / 2f;
+        Vector2 a = from, b = new(midX, from.Y), c = new(midX, to.Y), d = to;
+        bool justBought = _buyFxT > 0 && _buyFxId == id;
+        float boost = justBought ? (float)(_buyFxT / 0.7) : 0f;   // 1→0
+        // 下地グロウ（太い半透明）＋本線。
+        DrawLine(a, b, new Color(col, 0.10f + 0.30f * boost), 5f);
+        DrawLine(b, c, new Color(col, 0.10f + 0.30f * boost), 5f);
+        DrawLine(c, d, new Color(col, 0.10f + 0.30f * boost), 5f);
+        float baseA = 0.5f + 0.4f * boost;
+        DrawLine(a, b, new Color(col, baseA), 1.8f);
+        DrawLine(b, c, new Color(col, baseA), 1.8f);
+        DrawLine(c, d, new Color(col, baseA), 1.8f);
+        // 流れる光の粒（区間長で正規化した位相を1つ流す）。位相は id ハッシュで散らす。
+        float lenAB = Mathf.Abs(b.X - a.X), lenBC = Mathf.Abs(c.Y - b.Y), lenCD = Mathf.Abs(d.X - c.X);
+        float total = lenAB + lenBC + lenCD;
+        if (total < 1f) return;
+        float seed = (Mathf.Abs(id.GetHashCode()) % 1000) / 1000f;
+        float ph = Mathf.PosMod((float)_t * 0.35f + seed, 1f) * total;   // 進んだ距離
+        Vector2 p = ph < lenAB ? a.Lerp(b, ph / Mathf.Max(1f, lenAB))
+            : ph < lenAB + lenBC ? b.Lerp(c, (ph - lenAB) / Mathf.Max(1f, lenBC))
+            : c.Lerp(d, (ph - lenAB - lenBC) / Mathf.Max(1f, lenCD));
+        float dotA = 0.7f + 0.3f * boost;
+        UiKit.RadialGlow(this, p, 9f, col, 0.45f * dotA);
+        DrawCircle(p, 2.2f, new Color(1, 1, 1, dotA));
     }
 
     // 排他フォーク：親からの1本をY字の根元で束ね、⊗メダル＋対セルの共通ブラケット＋「どちらか一方」。
@@ -687,12 +729,19 @@ public partial class Shop : Node2D
                 UiKit.Text(this, UiKit.Zen, new Vector2(x + 18 + UiKit.TextW(UiKit.Mono, costS, 11), ly + 3f), $"→Lv{lv + 1}", 9, UiKit.Text4);
         }
 
-        DrawCellFx(id, r);
+        DrawCellFx(id, r, can);
     }
 
-    // フロンティア金パルス／購入直後グロー／カプストーン解放パルス。
-    private void DrawCellFx(string id, Rect2 r)
+    // フロンティア金パルス／購入可能ノードの呼吸／購入直後グロー／カプストーン解放パルス。
+    private void DrawCellFx(string id, Rect2 r, bool can)
     {
+        // 購入可能ノードの呼吸：フロンティア（金＝おすすめ）でない「いま買える」全ノードを
+        // 系統色でそっと明滅させ、「触れるところ」が一覧で息づく（金の道しるべと衝突しないよう控えめに）。
+        if (can && !_frontier.Contains(id))
+        {
+            float breath = 0.18f + 0.16f * Mathf.Sin((float)_t * 2.6f + r.Position.X * 0.03f);
+            UiKit.Box(this, r, null, 8f, new Color(StreamColor(id), breath), 1.4f);
+        }
         if (_frontier.Contains(id))
         {
             float pulse = 0.35f + 0.35f * Mathf.Sin((float)_t * 4f);
@@ -1063,6 +1112,25 @@ public partial class Shop : Node2D
         UiKit.RadialGlow(this, p, r * 2.4f, Light, 0.55f * a);
         DrawCircle(p, r, new Color(Light, a));
         DrawCircle(p - new Vector2(r * 0.3f, r * 0.3f), r * 0.4f, new Color(1, 1, 1, a));
+    }
+
+    // 背景の浮遊粒：ツリー領域をゆっくり昇る淡い光の粒。座標は index からの決定的擬似乱数
+    //   （new/割り当てなし・時間で位相を進めるだけ）。動きの無さ＝地味さへの最小コストの回答。
+    private void DrawBgMotes()
+    {
+        const int n = 22;
+        float top = TreeTop, bot = TreeBot, span = bot - top;
+        for (int i = 0; i < n; i++)
+        {
+            float sx = (i * 131 % 97) / 97f;                 // 0..1 横位置の散らし
+            float speed = 0.06f + (i % 5) * 0.015f;          // 粒ごとに違う速度
+            float phase = Mathf.PosMod((float)_t * speed + i * 0.137f, 1f);
+            float x = 60f + sx * (DetailX - 120f);
+            float y = bot - phase * span;                    // 下→上へ
+            float tw = 0.5f + 0.5f * Mathf.Sin((float)_t * 1.3f + i);   // またたき
+            float fade = Mathf.Sin(phase * Mathf.Pi);        // 端で消える
+            DrawCircle(new Vector2(x, y), 1.3f, new Color(UiKit.PurifyHi, 0.16f * tw * fade));
+        }
     }
 
     // 購入バースト：光のフラッシュ＋スパーク環。

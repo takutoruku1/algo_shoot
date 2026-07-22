@@ -82,7 +82,7 @@ public partial class PauseMenu : CanvasLayer
     {
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
-        return !(path.Contains("TitleMenu") || path.Contains("Settings")
+        return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits")
               || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
     }
 
@@ -264,11 +264,11 @@ public partial class PauseCanvas : Node2D
         int nVol = PauseMenu.VolRows.Length;
         float w = 460, h = 688, x = (W - w) / 2f, y = (H - h) / 2f; // h はアクション8行（やりなおす追加）ぶん
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", 13, UiKit.Info);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", UiKit.FontLabel, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 音量セクション（←→ で調整／Z でミュート切替）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 62), "音量  VOLUME", 10, UiKit.Text4);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 62), "音量  VOLUME", UiKit.FontSmall, UiKit.Text4);
         float volTop = y + 80, rowH = 38;
         for (int i = 0; i < nVol; i++)
         {
@@ -277,33 +277,33 @@ public partial class PauseCanvas : Node2D
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 34), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 9f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", 15, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", UiKit.FontBody, UiKit.Purify);
             }
-            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.VolRows[i].Label, 15,
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.VolRows[i].Label, UiKit.FontBody,
                 on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
             // バー（トラック＋塗り）＋数値
             float v = Menu.VolValue(i);
             float barW = 132f, barX = x + w - barW - 64f, barY = ry + 14f, barH = 6f;
             DrawRect(new Rect2(barX, barY, barW, barH), new Color(1, 1, 1, 0.12f));
             DrawRect(new Rect2(barX, barY, barW * v / 100f, barH), new Color(UiKit.Info, on ? 0.95f : 0.7f));
-            UiKit.Text(this, UiKit.Mono, new Vector2(barX + barW + 8f, ry + 9), Mathf.RoundToInt(v).ToString(), 12,
+            UiKit.Text(this, UiKit.Mono, new Vector2(barX + barW + 8f, ry + 9), Mathf.RoundToInt(v).ToString(), UiKit.FontLabel,
                 on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 40);
         }
 
         // ── 操作表示モード（←→/Z で キーボード / PlayStation / Xbox）──
         float dispLabelY = volTop + nVol * rowH + 8f;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, dispLabelY), "操作表示  BUTTONS", 10, UiKit.Text4);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, dispLabelY), "操作表示  BUTTONS", UiKit.FontSmall, UiKit.Text4);
         float dispRowY = dispLabelY + 18f;
         {
             bool on = Menu.Sel == PauseMenu.DisplayRowGlobalIndex;
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 22, dispRowY, w - 44, 34), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 9f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, dispRowY + 9), "▸", 15, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, dispRowY + 9), "▸", UiKit.FontBody, UiKit.Purify);
             }
-            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, dispRowY + 7), "ボタン表記", 15,
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, dispRowY + 7), "ボタン表記", UiKit.FontBody,
                 on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - 64 - 200, dispRowY + 7), "◂ " + Menu.DisplayValue + " ▸", 14,
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - 64 - 200, dispRowY + 7), "◂ " + Menu.DisplayValue + " ▸", UiKit.FontLabel,
                 on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 200);
         }
 
@@ -319,30 +319,30 @@ public partial class PauseCanvas : Node2D
             if (on)
             {
                 UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 36), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", 16, UiKit.Purify);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", UiKit.FontBody, UiKit.Purify);
             }
             // 「さいしょからやりなおす」はステージ外では選べない＝グレーアウト＋理由を右に出す。
             bool retryDim = i == PauseMenu.RetryAction && !Menu.RetryEnabled;
-            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.ItemsJp[i], 17,
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.ItemsJp[i], UiKit.FontBody,
                 retryDim ? UiKit.Text4 : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)));
             // セーブスロット行は状態（空き/保存済み）を右に出す
             if (i < GameManager.SlotCount)
             {
                 bool filled = Menu.SlotFilled(i + 1);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 11), filled ? "保存済み" : "空き", 11,
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 11), filled ? "保存済み" : "空き", UiKit.FontSmall,
                     filled ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 108);
             }
             else if (retryDim)
             {
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, ry + 11), "ステージ中のみ", 11,
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, ry + 11), "ステージ中のみ", UiKit.FontSmall,
                     UiKit.Text4, HorizontalAlignment.Right, 136);
             }
         }
 
         if (Menu.SavedText.Length > 0)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 54), Menu.SavedText, 14, UiKit.PurifyHi, HorizontalAlignment.Center, w);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 54), Menu.SavedText, UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Center, w);
         string footer = $"←→ 音量・表示    {Pad.ConfirmToken} 決定    {Pad.PauseToken} 閉じる";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), footer, 11, UiKit.Text3, HorizontalAlignment.Center, w);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), footer, UiKit.FontSmall, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
     // 「Esc メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
@@ -353,9 +353,9 @@ public partial class PauseCanvas : Node2D
         const string label = "メニュー";
         string keyTok = Pad.PauseToken; // 表示モードに追従（Esc / MENU / OPTIONS）
         float keyW = Mathf.Max(28f, UiKit.TextW(UiKit.Mono, keyTok, 12) + 14f);
-        float labelW = UiKit.TextW(UiKit.ZenBold, label, 13);
+        float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontLabel);
         float x = W - 24f - (keyW + 8f + labelW);
         UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, 0.06f), new Color(UiKit.Info, 0.4f), UiKit.Info);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 8f, y + 4f), label, 13, UiKit.Text2);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 8f, y + 4f), label, UiKit.FontLabel, UiKit.Text2);
     }
 }

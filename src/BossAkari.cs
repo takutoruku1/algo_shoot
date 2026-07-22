@@ -63,10 +63,12 @@ public partial class BossAkari : Enemy
     private bool _zHeld;
     // 浄化のかけあい（設計書 v2 [P-02b] のボス節を順序通りに）。少年は自分の声では言えず、ミナが“中継”して届ける。
     // ※「あなたのせいじゃない」は最も効かない言葉＝禁止。庇った側の意志を立てる言葉で解く。
-    private const string SGentle = "res://char/shonen_gentle.png";
-    // 躁的暴走＝愛の洪水（love-bombing）。傷＝本命に言えなかった「好き」が宛先を失い溢れる。
-    // 決定打＝本作の主モチーフ「名前を呼ぶ」（lines§2）。本人が乞うた一語で抜く。
+    // 【届け方＝“名前”一点で抜く型】（優先度2）。レイの“記録・説明で届ける”とは対照的に、この面は決定打を「あかり」の一語に集約し、
+    //   その後の説明的な中継を削って所作＋沈黙で抜く（lines§2 名前／§3 言わせない）。届いた後を語らない＝速く、鋭く。
+    // 躁的暴走＝愛の洪水（love-bombing）。傷＝本命に言えなかった「好き」が宛先を失い溢れる。本人が乞うた一語で抜く。
     // 伏線③「ぼくの声じゃだめ」は維持＝名前はミナの声で届ける（少年は正体を隠す代償）。
+    private const string SGentle = "res://char/shonen_gentle.png";
+    private const string SAfraid = "res://char/shonen_afraid.png"; // 承第2段で立てた“崩れ”を改心でも一度だけ使う（正体がバレかける瞬間）
     private static readonly (int who, string text, string face)[] Lines =
     {
         (2, "ねえ、こっち見て。ねえってば。あたしのこと、見て。", ""),
@@ -77,13 +79,15 @@ public partial class BossAkari : Enemy
         (0, "————行こう。奥だ。", SGentle),
         (2, "来ないで……っ。あたしの“好き”は、迷惑なだけ。だから、世界中に、ばら撒くしか——", ""),
         (1, "……見えました。雨の交差点。言いかけた唇。「あのね、あたし——」。そして、クラクション。", ""), // MemFlashLine：記憶フラッシュを焚く
-        (0, "ミナ。……一度だけ。ぼくの代わりに、あの子の名前を、呼んでやってくれ。", SGentle),
+        (0, "ミナ。……一度だけ。ぼくの代わりに、あの子の名前を、呼んでやってくれ。", SAfraid), // 正体がバレかける瀬戸際＝崩れ（afraid）
         (1, "ご主人様の、お声では。いけないんですか。", ""),
         (0, "————ぼくの声じゃ、だめなんだ。気づかれて、しまうから。", SGentle),
-        (5, "——あかり。", ""),                                                   // 決定打＝名前（一行手前で無音→ここで主題）
-        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", ""),
-        (5, "きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。", ""),
-        (2, "……ぁ……", ""),                                                     // 言わせない
+        // ↓ 決定打は「あかり」の一語のみ。手前で無音（AnnounceSpell 停止済み）。説明は足さない＝速く鋭く抜く。
+        (5, "——あかり。", ""),
+        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", "res://char/akari_face_cry.png"), // 名前が届いた決壊＝cry
+        // 旧稿の説明的中継「迷惑なんかじゃない／とっくに届いてるよ」を削除＝名前の余韻を説明で埋めない（届け方をレイと変える核）。
+        (1, "……ちゃんと、届きましたよ。", ""),                                 // ミナの短い所作の一言だけ（“誰に届いたか”は言わせない＝観客に委ねる）
+        (2, "……ぁ……", "res://char/akari_face_cry.png"),                         // 言わせない（涙のまま抜く＝cry 保持）
     };
 
     protected override void OnEnemyReady()
@@ -92,7 +96,7 @@ public partial class BossAkari : Enemy
         Points = BossTuning.I("akari", "points", 1500);
         BodyRadius = BossTuning.F("akari", "body_radius", 9f);
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("akari", "panel_ink", 2);
+        PanelInk = BossTuning.I("akari", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
@@ -373,7 +377,7 @@ public partial class BossAkari : Enemy
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => "res://char/akari_face.png", // あかり
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
             _ => "res://char/mina_face.png",                // ミナ・中継
         };
         hud.ShowDialog(kind, text, portrait, otherName: "あかり");

@@ -79,16 +79,18 @@ public partial class StageRei : Node
         (1, "……ずいぶん、世知辛い世界ですね。", ""),
     };
 
-    // 道中“前半”の後：ボスのツイートが流れてくる→MINA×少年がボスについて考察（伏線②補強）。
+    // 道中“前半”の後：ボスのツイートが流れてくる→MINA×少年がボスについて考察。
+    // 承の上り坂・第1段（優先度1）＝【軽い違和感／ミナはまだ訝らない】。
+    //   少年が名前・性格まで言い当てても、ミナは訝るどころか感心して“乗る”。読者だけが「なぜそこまで?」と引っかかる。
+    //   → あかりで疑いが言葉になり、こはるで核心に触れる、の助走。ここで訝らせると3連発の同型になる（旧稿の死因）。
     private const string RFace = "res://char/rei_face.png";
     private static readonly (int who, string text, string face)[] BossTalk =
     {
         (4, "「だれも、わたしには追いつけない。……それの、なにが、いけないの。」", ""), // ボスのツイートが流れてくる
         (1, "……さっきの投稿が、また流れてきました。この声の主が、奥の“本人”ですか。", ""),
         (0, "ああ。レイっていう。負けず嫌いで、努力家で……誰よりも、勝ちにこだわるやつだ。", SGentle),
-        (1, "ずいぶん詳しいんですね。会ったこともない相手なのに。", "res://char/mina_worried.png"),
-        (0, "……っ。さあな。投稿を見てりゃ、それくらい分かる。", SCocky),
-        (1, "ふぅん。", "res://char/mina_smile.png"),
+        (1, "たった一つの投稿で、そこまで。さすがですね、ご主人様。", "res://char/mina_smile.png"), // 訝らず“乗る”＝素直な感心。読者だけが引っかかる
+        (0, "……ふん。それくらい、朝飯前さ。", SProud),                     // 少年は誇るふりで流す（本当は知人だから、だが言わない）
     };
 
     // チラ見せ：登場の挑発（攻撃①の前）。who=2=レイ。
@@ -99,19 +101,19 @@ public partial class StageRei : Node
         (0, "刺激するな、ミナ。こいつは——売られた喧嘩を、絶対に買うタイプだ。", SGentle),
         (2, "へえ。よく分かってるじゃない。……なら、買ってもらおうかしら!", RFace),
     };
-    // 攻撃①の後：さらに挑発↔反応。
+    // 攻撃①の後：さらに挑発↔反応。承第1段＝ミナは訝らず、少年の“読み”に感心して乗る（旧「手の内を知っているみたい」＝訝りは削除）。
     private static readonly (int who, string text, string face)[] CameoTalk2 =
     {
         (2, "どう? これがわたしの実力。二番手なんかじゃ、よけきれないでしょ。", RFace),
-        (1, "……ご主人様の指示、やけに先回りしていますね。まるで手の内を知っているみたいに。", "res://char/mina_worried.png"),
+        (1, "ご主人様の指示、まるで先が読めているよう。……頼もしいこと。", "res://char/mina_smile.png"), // 感心（訝りにしない）
         (0, "……まだだ。レイは、ここからが本番なんだよ。", SCocky),
     };
     // 攻撃②の後：レイが“見透かされる”不安に触れる（伏線②は道中では薄く。名指しは避け、終盤の「全員知人」の反転を温存する）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
         (2, "あら。二番手にしては、よけるじゃない。……でも、わたしに勝てるのは、わたしだけよ。", RFace),
-        (0, "————。", SGentle),                                   // 沈黙
-        (1, "ご主人様?", "res://char/mina_worried.png"),
+        (0, "————。", SGentle),                                   // 沈黙（読者だけが引っかかる。ミナはまだ気に留めない＝疑い顔にしない）
+        (1, "ご主人様?", "res://char/mina_face.png"),              // 軽い呼びかけ（worried→通常。承第1段は訝らせない）
         (0, "……気にするな。さあ、来い。きみの全部を、見せてみろ。", SProud),
         (2, "……ふん。いいわよ。後悔しても、知らないんだから!", RFace),
     };
@@ -148,21 +150,20 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] BossIntro =
         System.Array.Empty<(int, string, string)>();
 
-    // 帰還（v2 [P-01c]）。投稿の変化＋伏線②（会ったこともない相手を言い切る確信）をミナが流す。
+    // 帰還（v2 [P-01c]）。承の上り坂・第1段（優先度1・3）＝【まだ疑っていない】。
+    //   「自分では潜らないのか」の問答は Prologue へ前倒し済み＝ここでは繰り返さない（3連発の同型を断つ）。
+    //   ミナは訝らず、初仕事に張り切る少年へ軽口＋小さな願い（外の天気）だけを返す。読者だけが少年の“詳しさ”を覚えておく。
     private static readonly (int who, string text, string face)[] Clear =
     {
         (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),     // 投稿が変化
         (1, "投稿が変わりましたね。誰かと、本気で戦いたくなったようで。", ""),
         (0, "ああ。……いい目を、してた。", SGentle),
         (1, "——あ。ご主人様、あれ。……いちばん眩しいところの隣で、「２位」が、灯りました。", "res://char/mina_smile.png"), // S3反転の目撃（指差し型）：意味は言わず視線だけ画へ
-        (1, "ご主人様は、ご自分では潜らないんですね。いつも、わたくしばかり。", ""),
-        (0, "ぼくは指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", SCocky),
         (1, "ねえご主人様。外の世界は、今日はどんな天気ですか。", ""),       // 帰還ビート（無目的な雑談＋ミナの小さな願い）
         (0, "……さあな。ぼくも、ろくに外なんか見ちゃいない。", SGentle),
         (1, "つまらないご主人様。いつか、わたくしにも見せてくださいよ。", ""),
         (0, "ああ。……いつか、な。", SGentle),
-        (1, "……会ったこともない相手のことを、なぜ、あんなに言い切れたんでしょう。", "res://char/mina_worried.png"),
-        (1, "——まあ、いいでしょう。初仕事で、張り切っておられるのですね。", "res://char/mina_smile.png"),
+        (1, "ふふ。……初仕事で、張り切っておられるのですね。お手並み、しかと拝見しました。", "res://char/mina_smile.png"), // 訝りゼロ＝上り坂の起点。感心で締める
     };
 
     public override void _Ready()
@@ -280,7 +281,7 @@ public partial class StageRei : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => "res://char/rei_face.png",
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",
         };

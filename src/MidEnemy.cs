@@ -19,6 +19,12 @@ public partial class MidEnemy : Enemy
     private bool _entryConfigured;
     // Spawner から AddChild 前に呼ぶ：場内のどこへ進入して居座るか。
     public void SetEntry(Vector2 campTarget) { _campTarget = campTarget; _entryConfigured = true; }
+    // 回り込み（FlankAim）用の経由点：上下端の走行レーン終端。ここを通ってから着座点へ折れる
+    //（＝右から出現→端を走って自機の後方へ回り込む、が2区間の直進で読める形になる）。
+    private Vector2 _viaTarget;
+    private bool _viaConfigured;
+    // Spawner から AddChild 前に呼ぶ：経由点（走行レーン終端）→着座点の順で進入する。
+    public void SetFlankEntry(Vector2 via, Vector2 campTarget) { _viaTarget = via; _viaConfigured = true; SetEntry(campTarget); }
 
     // 発射タイマー（居座り後に駆動）。バースト等のサブ状態もここで管理する。
     private double _fireT;
@@ -42,6 +48,8 @@ public partial class MidEnemy : Enemy
         AttackPattern.KoharuSharp3 => 1.6,
         AttackPattern.KoharuSimmer => 3.0,
         AttackPattern.DefaultAim   => 1.9,
+        AttackPattern.FlankAim     => 2.4,  // 既存の撃つ種（1.6〜2.2）よりやや遅め＝背後からの圧は緩く
+        // BuzzWall / KoharuPrayerCarry は撃たない（盾専念/運び専念）＝既定 999 に落とす。
         _ => 999.0,
     };
 
@@ -82,6 +90,24 @@ public partial class MidEnemy : Enemy
         PostTexPath = _spec.PostTexPath;
         PanelTexPath = "res://char/panel_anti.png"; // 吹き出しは既存流用
         BodyDisplayH = 23f;             // 一回り小さく
+
+        // 盾もち「バズ壁」：撃たない代わりにパネル5枚×インク3＝“剥がし切る”DPSチェック
+        //（拡散/ホーミング/貫通の使い所を作る優先順位の壁）。体も大きく見せて「硬そう」を絵で予告
+        //（新規アート無し＝サイズで語る）。
+        if (_spec.Pattern == AttackPattern.BuzzWall)
+        {
+            PanelCount = 5;
+            PanelInk = 3;
+            OrbitRadius = 14.5f;        // 5枚が重ならない周回半径
+            BodyDisplayH = 30f;         // 通常23より大きく＝壁の圧
+        }
+        // 祈り運び：脅威でなくボーナス寄り＝パネルは薄く（2枚×インク1）してすぐ本体を撃ち落とせるように。
+        // 横断で去る前に間に合う手応えを守る（撃ち漏らしの学び＝「のこしちゃだめ」は残しつつ）。
+        else if (_spec.Pattern == AttackPattern.KoharuPrayerCarry)
+        {
+            PanelCount = 2;
+            PanelInk = 1;
+        }
 
         // GlyphMote/PageShard と同じく、進入後は画面内に居座る（倒すまで去らない）。
         // これが無いと、道中ザコがパネルを剥がし切る前に左へ抜けてしまい「攻撃が通らない／無敵」に見える。
@@ -135,6 +161,10 @@ public partial class MidEnemy : Enemy
                 SetSpellVisual(BulletShape.Orb, new Color(0.88f, 0.55f, 0.45f)); break;
             case AttackPattern.DefaultAim:
                 SetSpellVisual(BulletShape.Orb, EnemyKegare); break;
+            case AttackPattern.FlankAim:
+                SetSpellVisual(BulletShape.Orb, EnemyKegare); break; // 既定穢れ色（スキン流用種＝弾も見慣れた形で読める）
+            case AttackPattern.KoharuPrayerCarry:
+                SetSpellVisual(BulletShape.Orb, new Color(0.98f, 0.82f, 0.55f)); break; // ぶら下げる祈り弾＝暖色（消せる合図のハロと同系）
         }
     }
     // 既定の穢れ色（Bullet.EnemyMid #e072ac 相当）。Orb 種はこれで撒く。
@@ -151,13 +181,24 @@ public partial class MidEnemy : Enemy
         TickLivingMotion(delta);
 
         float dt = (float)delta;
+
+        // 祈り運び（こはる面専用）：居座らず左へ横断するボーナス種。祈り弾をぶら下げて運ぶだけで撃たない。
+        // 左端へ抜けると基底(_PhysicsProcess)の X<-24 で退場＝撃ち漏らし（祈り弾は _ExitTree が置き去りにしない）。
+        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry)
+        {
+            TickPrayerCarry(delta, dt);
+            return;
+        }
+
         // 居座る目標点。未指定なら従来どおり「右→_campX へ左進」（=同Yへ水平移動）。
         Vector2 camp = _entryConfigured ? _campTarget : new Vector2(_campX, _baseY);
 
         // 進入：目標点へ直進。着くまでは撃たない（_camped=false のまま）＝画面外からの理不尽撃ちを防ぐ。
+        // 回り込み（FlankAim）はまず経由点（走行レーン終端）へ、通過後に着座点へ折れる＝走行中も撃たない。
         if (!_camped)
         {
-            Vector2 to = camp - GlobalPosition;
+            Vector2 goal = _viaConfigured ? _viaTarget : camp;
+            Vector2 to = goal - GlobalPosition;
             if (to.Length() > 3f)
             {
                 // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる。
@@ -165,6 +206,7 @@ public partial class MidEnemy : Enemy
                 GlobalPosition += to.Normalized() * approach * dt;
                 return;
             }
+            if (_viaConfigured) { _viaConfigured = false; return; } // 経由点通過→次フレームから着座点へ
             _camped = true;   // 居座り開始＝以降は発射ロジックが動く
             _baseY = camp.Y;  // 以降の上下往復の中心
             // 居座った瞬間に初弾を素早く（FirstShotDelay 秒後）。出現→即浄化でも一矢報いるように。
@@ -226,6 +268,7 @@ public partial class MidEnemy : Enemy
             case AttackPattern.KoharuSharp3:  BeginSharp3();     break;
             case AttackPattern.KoharuSimmer:  FireSimmer();      break;
             case AttackPattern.DefaultAim:    FireDefaultAim();  break;
+            case AttackPattern.FlankAim:      FireFlank();       break;
         }
     }
 
@@ -360,6 +403,90 @@ public partial class MidEnemy : Enemy
         }
     }
 
+    // ─── 祈り運び（こはる面専用・KoharuPrayerCarry）───
+    // 消せる「祈り弾」(MakeErasable)を3発ぶら下げて画面を横断する。祈り弾を自機弾で撃つと既存経路
+    //（Bullet.OnAreaEntered → GameManager.AddPrayerCleared）でそのまま報われる。本体を撃ち落とすと
+    // 残りの祈り弾もまとめて受け止め扱い（AddPrayerCleared＋花びら）。撃ち漏らして左へ抜けられたら
+    // 祈り弾ごと消える（報酬なし）＝ボス戦「お残し禁止」を道中で遊びながら教える練習台。
+    private static readonly Vector2[] PrayerOffsets =  // ぶら下げ位置（本体からの相対・下へ短い鎖）
+        { new(0f, 15f), new(3f, 26f), new(6f, 37f) };
+    // 祈り弾をぶら下げ始めるX。出現直後（x=398＝画面右外）に生むと、Bullet の画面外カリング
+    //（余白16px＝x>400 で Despawn）が右寄りのオフセット弾を即回収してしまうため、画面内に入ってから生む。
+    private const float PrayerSpawnGateX = 370f;
+    private readonly System.Collections.Generic.List<Bullet> _carried = new();
+    private bool _carriedSpawned;
+    private double _carryT;
+
+    private void TickPrayerCarry(double delta, float dt)
+    {
+        _carryT += delta;
+        if (!_carriedSpawned && GlobalPosition.X <= PrayerSpawnGateX) SpawnCarriedPrayers();
+        GlobalPosition += new Vector2(-_spec.MoveSpeed * dt, 0f);
+        // ぶら下げた祈り弾を毎フレーム追従（ゆるい振り子＝“運んでいる”の画）。
+        // プール再利用対策：Active かつ Erasable の弾だけを本物として扱う（BossKoharu と同じ作法）。
+        for (int i = 0; i < _carried.Count; i++)
+        {
+            var b = _carried[i];
+            if (!IsInstanceValid(b) || !b.Active || !b.Erasable) continue;
+            float sway = Mathf.Sin((float)_carryT * 2.2f + i * 0.9f) * 3f;
+            b.GlobalPosition = GlobalPosition + PrayerOffsets[i] + new Vector2(sway, 0f);
+        }
+    }
+
+    private void SpawnCarriedPrayers()
+    {
+        _carriedSpawned = true;
+        var pool = Pool; if (pool == null) return;
+        foreach (var off in PrayerOffsets)
+        {
+            var b = FireBullet(pool, GlobalPosition + off, Vector2.Zero, 3.4f, 1);
+            if (b == null) continue;
+            b.MakeErasable(); // 自機弾で消せる＝消すと AddPrayerCleared（既存経路）
+            _carried.Add(b);
+        }
+    }
+
+    // ぶら下げ中の祈り弾を解放する。award=true（本体撃ち落とし）は AddPrayerCleared＋花びらで報い、
+    // false（撃ち漏らし退場/ステージ掃除）は静かに消すだけ＝「のこした」。
+    private void ReleaseCarriedPrayers(bool award)
+    {
+        if (_carried.Count == 0) return;
+        var pool = Pool;
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        foreach (var b in _carried)
+        {
+            if (!IsInstanceValid(b) || !b.Active || !b.Erasable) continue;
+            if (award)
+            {
+                FxLayer.Instance?.BulletToPetal(b.GlobalPosition); // “祈りを受け止めた”の花びら
+                game?.AddPrayerCleared();
+            }
+            pool?.Despawn(b);
+        }
+        _carried.Clear();
+    }
+
+    // 退場時（撃ち漏らしの左抜け/ステージ掃除/シーン遷移）に祈り弾を置き去りにしない。
+    // 撃ち落とし時は GrantFollower が先に award 付きで解放済み＝ここに残りは無い。
+    public override void _ExitTree()
+    {
+        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers(award: false);
+    }
+
+    // ── 回り込み「引用リプ」：着座後、右向き固定の低速単発 ──
+    // 左端に張り付く自機の背後（x≈40）から前方向へ流す。固定右向き＋低速＝見てから避けられる“読める圧”。
+    private const float FlankBulletSpeed = 70f; // 弾速(px/s)。調整しやすいよう定数化
+    private void FireFlank()
+    {
+        var pool = Pool; if (pool == null) return;
+        int n = Mathf.Max(1, Dn(1));
+        for (int i = 0; i < n; i++)
+        {
+            float jitter = n == 1 ? 0f : (float)GD.RandRange(-8.0, 8.0); // 難易度で2発以上になった時だけ散らす
+            FireBullet(pool, GlobalPosition, Rotate(new Vector2(1, 0), jitter) * FlankBulletSpeed, 3.0f, 1);
+        }
+    }
+
     // ── Default(アンチくん)：自機狙い単発（現状踏襲を本体一括へ移しただけ）──
     private void FireDefaultAim()
     {
@@ -375,6 +502,8 @@ public partial class MidEnemy : Enemy
     // GrantFollower は浄化直後に必ず通る（cry を使わない道中ザコは PostTexPath 差替後すぐここへ）。
     protected override void GrantFollower()
     {
+        // 祈り運び：本体の撃ち落とし＝残っていた祈り弾もまとめて受け止め扱い（award 付きで解放）。
+        if (_spec.Pattern == AttackPattern.KoharuPrayerCarry) ReleaseCarriedPrayers(award: true);
         _motion = LivingMotion.None;
         _spin = 0f; _kick = 0f;
         if (_body != null) _body.Rotation = 0f; // Scale/Position は SwapBody/TickSwapAnim が素へ戻す

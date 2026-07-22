@@ -16,8 +16,24 @@ public partial class Final : Node2D
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
     private int _line;
     private double _lineT;
-    private double _reveal;        // タイプライター表示済み文字数（本編HUDと表示・速度を揃える）
+    private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
+
+    // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
+    private const float TalkWrapW = W - 52f;   // DrawTalk の本文折り返し幅と一致
+    private readonly System.Collections.Generic.List<string> _pages = new();
+    private int _page;
+    private int _pagedLine = -1;               // _pages を構築済みの行 index
+    private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
+    private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
+    private void EnsurePages()
+    {
+        if (_pagedLine == _line || _line >= _talk.Count) return;
+        _pagedLine = _line; _page = 0;
+        _pages.Clear();
+        _pages.AddRange(UiKit.Paginate(_font, _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
+    }
+    private void NextPage() { _page++; _reveal = 0; _holdT = 0; _holdAt = -1; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     private int _readIdx = -1;     // 既読チェック済みの行 index
@@ -97,8 +113,11 @@ public partial class Final : Node2D
         T("ミナ", "……なら、わたくしが言います。");
         T("ミナ", "Stay. ——ご主人様。あなたこそ、いなくならないで。");
         T("地", "　　　返事は、ありませんでした。");
-        T("地", "それでも、その声へ。わたくしは、泳ぎました。");
-        T("ミナ", "……ご主人様は、アホですね。");
+        // 優先度5：ミナの能動を前に出す。“泳がされた（受け身の結果）”ではなく、返事が無いと分かった上で自分で選ぶ。
+        //   「待つ」のがStayなら、ミナは待たずに自分から声へ向かう＝Stayの意味を、彼女自身の意志で書き換える一拍。
+        T("ミナ", "……いいでしょう。あなたが待てと言うなら——今度は、わたくしが、迎えに行きます。");
+        T("地", "だから、わたくしは、自分の足で。まだ声のするほうへ、泳ぎ出しました。");
+        T("ミナ", "……ご主人様は、ほんとうに、アホですね。");
         T("地", "——それが、ご主人様と交わした、最後の軽口になりました。");
     }
 
@@ -132,9 +151,12 @@ public partial class Final : Node2D
             case 1:                                                       // 対話（手動送り）
                 _lineT += delta;
                 MusicCue();   // 表示中の行に応じて BgmBoss停止／無音／解決音を1回ずつ発火
-                // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。
-                int len = _line < _talk.Count ? _talk[_line].Text.Length : 0;
-                bool dropLine = _line < _talk.Count && _talk[_line].Text == DropLine; // 三人の名を一人ずつ沈ませる行
+                EnsurePages();
+                // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。現在ページ内を進める。
+                string page = CurPage;
+                int len = _line < _talk.Count ? page.Length : 0;
+                // 三人の名を一人ずつ沈ませる行（句点ホールドは本文一致で判定。DropLine は1ページに収まる想定＝現在ページで動く）。
+                bool dropLine = _line < _talk.Count && _talk[_line].Text == DropLine;
                 if (_holdT > 0) _holdT -= delta; // 句点ホールド消化中は reveal を進めない
                 if (_reveal < len && _holdT <= 0)
                 {
@@ -143,7 +165,7 @@ public partial class Final : Node2D
                     if (dropLine)
                     {
                         int shown = Mathf.Min(len, (int)_reveal);
-                        if (shown > _holdAt && shown > 0 && _talk[_line].Text[shown - 1] == '。')
+                        if (shown > _holdAt && shown > 0 && page[shown - 1] == '。')
                         {
                             _holdAt = shown;
                             _holdT = DropHold;
@@ -160,10 +182,11 @@ public partial class Final : Node2D
                 _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
                 if ((zEdge || _ffNow) && _lineT >= 0.25)
                 {
-                    if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で全文（早送り）＝句点ホールドも飛ばす
+                    if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
+                    else if (!LastPage) { NextPage(); _lineT = 0; }   // 後続ページがあれば続きへ（既読FFも同経路で全ページ抜ける）
                     else
                     {
-                        _lineT = 0; _reveal = 0; _line++; _holdT = 0; _holdAt = -1;
+                        _lineT = 0; _reveal = 0; _line++; _holdT = 0; _holdAt = -1; _page = 0; _pagedLine = -1;
                         if (_line >= _talk.Count) NextPhase();
                     }
                 }
@@ -285,27 +308,27 @@ public partial class Final : Node2D
         bool narr = d.Who == "地";       // ミナの語り＝話者名なし・中央寄せでセリフと区別
         bool mina = d.Who == "ミナ";
         Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (mina ? Cool : Warm);
-        // 折り返しは全文で確定（禁則つき・表示途中で行構成が動かない）。3行以上は箱を上へ伸ばして画面内に収める。
-        var lines = UiKit.WrapLines(_font, d.Text, 11, W - 52);
-        float lineH = _font.GetHeight(11);
-        float boxTop = H - 56f - Mathf.Max(0, lines.Count - 2) * lineH;   // 2行までは従来と同じ高さ
+        // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
+        string page = CurPage;
+        var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 52);
+        float boxTop = H - 56f;   // 2行固定
         DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
         DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, 0.8f));
         if (!narr)
-            DrawString(_font, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, 9, edge);
+            DrawString(_font, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。
         //   タイプライター自体は残す（左→右の素直な送り。三人の名を一人ずつ沈ませる句点ホールドも保つ）。
         // タイプライターで表示済みの分だけ、確定済みの行に沿って描画。
-        int shown = Mathf.Clamp((int)_reveal, 0, d.Text.Length);
-        UiKit.TypewriterLines(this, _font, lines, new Vector2(20, boxTop + 26f), W - 52, 11,
+        int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
+        UiKit.TypewriterLines(this, _font, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody,
             new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, 9,
+            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
                 new Color(Cool, 0.8f));
-        // 送り三角は全文表示後だけ点滅（本編と同じ作法）。
-        if (_reveal >= d.Text.Length && ((int)(_t * 2f) % 2) == 0)
-            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, 9,
+        // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
+        if (_reveal >= page.Length && ((int)(_t * 2f) % 2) == 0)
+            DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
 }

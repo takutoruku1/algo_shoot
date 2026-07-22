@@ -29,6 +29,30 @@ public static class UiKit
     public static readonly Color Ok      = new("2ec78c"); // リポスト緑/成功
     public static readonly Color Burn    = new("f2353d"); // 炎上赤
 
+    // ── 文字サイズ階層（用途別の一貫サイズ）──
+    //   画面ごとにハードコードされていた寸法を用途で束ねる。同じ役割のテキストは全画面で同値・同フォントにする。
+    //   ※ここでの単位は「設計座標（1280×720）」。BeginDesign 下で UiKit.Text/Multi 等に渡す前提。
+    //     内部解像度384系（Prologue/Final/Epilogue の生 DrawString）は別スケールなので、この定数はそのままは使わない
+    //     （換算目安 ×0.3。カットシーンは座標系ごと揃っているので下の Cutscene* を使う）。
+    public const int FontDisplay = 52; // ロゴ／リザルトバナー級（超特大・演出の要）
+    public const int FontTitle   = 28; // 画面見出し（各画面のページタイトル・カットイン・大ダイアログ見出し）
+    public const int FontHeading = 20; // サブ見出し・カード名・大きめ数値（SCORE 等）
+    public const int FontSpeaker = 18; // 会話の話者名
+    public const int FontBody    = 15; // 本文・セリフ・説明文（画面をまたぐ標準本文）
+    public const int FontLabel   = 13; // ボタン／行ラベル・カード説明・小見出し
+    public const int FontSmall   = 11; // 注釈・キーヒント・メタ情報・英字サブラベル
+    public const int FontTiny    = 9;  // 極小補助（強調しない添字）
+
+    // ── カットシーン（内部解像度384系・生 DrawString）用の文字サイズ ──
+    //   Prologue/Final/Epilogue は BeginDesign を使わず 384×216 の生座標で描くため別スケール。
+    //   従来はセリフ11/名前9/注記8/クライマックス16で3画面互いに揃っていたが、設計座標系の本文(FontBody=15→384換算約4.5)
+    //   と比べ相対的に大きく（＝エンディングだけ文字が大きく見えた）。本文を本編セリフの見え方へ寄せて縮小する。
+    //   3画面まとめて同値にするため定数化（座標系ごとの改修は避け、サイズだけ揃える）。
+    public const int CutBody    = 8;  // カットシーンのセリフ／ナレ本文（旧11。設計座標の本文に見た目を寄せる。384系では8が可読下限）
+    public const int CutSpeaker = 7;  // 話者名（旧9）
+    public const int CutNote    = 6;  // 送りヒント・小注記（旧8）
+    public const int CutClimax  = 11; // クライマックスの一行強調（END/stay./PW候補/頭文字 等・旧16。本文比を保ちつつ縮小）
+
     // ── フォント（遅延ロード・AA付き）──
     private static FontFile? _zenR, _zenB, _zenBlack, _mono;
     private static FontFile Load(ref FontFile? slot, string path)
@@ -138,6 +162,23 @@ public static class UiKit
         return outLines;
     }
 
+    // ── テキストボックスのページ分割（全ボックス共通の「2行固定＋ページ送り」用）──
+    //   本文を WrapLines（禁則つき）で折り返し、maxLines 行ずつ束ねて1ページにする。返り値は各ページ本文
+    //  （ページ内の行は '\n' 区切り＝そのまま WrapLines/TypewriterLines に渡せば同じ行構成で描ける）。
+    //   セリフは削らない：長い行は複数ページに分かれ、送りで続きを読ませる。空文字は空1ページを返す。
+    public static System.Collections.Generic.List<string> Paginate(Font f, string s, int size, float width, int maxLines)
+    {
+        var pages = new System.Collections.Generic.List<string>();
+        var lines = WrapLines(f, s, size, width);
+        if (lines.Count == 0) { pages.Add(s); return pages; }
+        for (int i = 0; i < lines.Count; i += maxLines)
+        {
+            int n = System.Math.Min(maxLines, lines.Count - i);
+            pages.Add(string.Join("\n", lines.GetRange(i, n)));
+        }
+        return pages;
+    }
+
     // 折り返し済みの行リストを、タイプライターの表示済み文字数 reveal 分だけ描く（カットシーンの独自レンダラ用）。
     //   行構成は全文の WrapLines で確定済み＝表示途中で折り返し位置が動かない。座標はベースライン基準（DrawString と同じ）。
     //   align=Center はナレ用（全文を一括フェードインで出す前提。部分表示だと毎フレーム再センタリングされるため）。
@@ -174,33 +215,58 @@ public static class UiKit
 
     // ── 縦リニアグラデ矩形（上→下に色を補間）──
     public static void VGradient(CanvasItem ci, Rect2 r, Color[] colors, float[] offsets)
-    {
-        var g = new Gradient { Offsets = offsets, Colors = colors };
-        var tex = new GradientTexture2D
-        {
-            Gradient = g, Width = 8, Height = 256,
-            Fill = GradientTexture2D.FillEnum.Linear,
-            FillFrom = new Vector2(0, 0), FillTo = new Vector2(0, 1),
-        };
-        ci.DrawTextureRect(tex, r, false);
-    }
+        => ci.DrawTextureRect(GradTex(colors, offsets, vertical: true), r, false);
+
+    // ── 横リニアグラデ矩形（左→右に色を補間）──
+    public static void HGradient(CanvasItem ci, Rect2 r, Color left, Color right)
+        => ci.DrawTextureRect(GradTex(new[] { left, right }, new[] { 0f, 1f }, vertical: false), r, false);
 
     // ── 放射グロウ（中心色→透明）。rect 全体に円形グラデを敷く ──
+    //   テクスチャは「白→透明」の1枚を全呼び出しで使い回し、色は modulate で乗せる
+    //   （白×modulate＝従来の色焼き込みと同値）。＝アルファが毎フレーム動く呼び出しでも
+    //   テクスチャを新規生成しない（下の _gradCache コメント参照）。
     public static void RadialGlow(CanvasItem ci, Vector2 center, float radius, Color inner, float innerAlpha = -1f)
     {
         if (innerAlpha >= 0f) inner = new Color(inner.R, inner.G, inner.B, innerAlpha);
-        var g = new Gradient
+        _radialWhite ??= new GradientTexture2D
         {
-            Offsets = new[] { 0f, 1f },
-            Colors = new[] { inner, new Color(inner.R, inner.G, inner.B, 0f) },
-        };
-        var tex = new GradientTexture2D
-        {
-            Gradient = g, Width = 128, Height = 128,
+            Gradient = new Gradient
+            {
+                Offsets = new[] { 0f, 1f },
+                Colors = new[] { new Color(1, 1, 1, 1), new Color(1, 1, 1, 0) },
+            },
+            Width = 128, Height = 128,
             Fill = GradientTexture2D.FillEnum.Radial,
             FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(1f, 0.5f),
         };
-        ci.DrawTextureRect(tex, new Rect2(center.X - radius, center.Y - radius, radius * 2, radius * 2), false);
+        ci.DrawTextureRect(_radialWhite, new Rect2(center.X - radius, center.Y - radius, radius * 2, radius * 2), false, inner);
+    }
+    private static GradientTexture2D? _radialWhite;
+
+    // ── グラデテクスチャの静的キャッシュ ──
+    //   ★_Draw 内で GradientTexture2D を毎フレーム new してはいけない：
+    //     .NET GC が管理ラッパーを回収するとファイナライザスレッドから RID が解放され、
+    //     GradientTexture2D の遅延更新（内部の texture_replace / texture_set_path）と競合して
+    //     レンダラが "Parameter \"tex\" is null" を実行時に吐く（タイトル起動で実際に発生）。
+    //   → 同一パラメータのテクスチャは1枚だけ作って静的に持ち続ける（強参照＝GC に回収させない）。
+    //     色/offsets は全呼び出し箇所でリテラル定数（毎フレーム可変の色は RadialGlow の modulate 側に逃がした）
+    //     なので、キャッシュは高々十数枚で頭打ちになる。
+    private static readonly System.Collections.Generic.Dictionary<string, GradientTexture2D> _gradCache = new();
+    private static GradientTexture2D GradTex(Color[] colors, float[] offsets, bool vertical)
+    {
+        var kb = new System.Text.StringBuilder(vertical ? "v" : "h");
+        for (int i = 0; i < colors.Length; i++) kb.Append('|').Append(colors[i].ToRgba32()).Append('@').Append(offsets[i]);
+        string key = kb.ToString();
+        if (_gradCache.TryGetValue(key, out var hit)) return hit;
+        var tex = new GradientTexture2D
+        {
+            Gradient = new Gradient { Offsets = offsets, Colors = colors },
+            Width = vertical ? 8 : 256, Height = vertical ? 256 : 8,
+            Fill = GradientTexture2D.FillEnum.Linear,
+            FillFrom = Vector2.Zero, FillTo = vertical ? new Vector2(0, 1) : new Vector2(1, 0),
+        };
+        _gradCache[key] = tex;
+        return tex;
     }
 
     // ── アバター（丸＋頭文字）──
