@@ -111,29 +111,30 @@
 | **レイ（順位・孤高）** | 主音の直前で**半音落ちる**＝あと一歩で一番になれない | 硬質ピアノ/プルックの単音（合成=グリッサンド正弦） | `RedeemRei`（澄んだ高め・C6 へ届く） | `BuildBgmBossRei` / `BuildRedeem(0)` |
 | **あかり（言えない好き）** | フレーズが**途中で切れる**（"す——"／言いかけて沈黙） | 息のあるリード/木管（合成=中庸正弦を ~0.5s で断つ） | `RedeemAkari`（息のある中庸） | `BuildBgmBossAkari` / `BuildRedeem(1)` |
 | **こはる（冷える祈り）** | 温かい旋律が**冷えて減衰**（台所の灯が消える） | 温かい弦/木質パッド（合成=倍音付き正弦＋速い減衰＋微ピッチ降下） | `RedeemKoharu`（温かい厚み） | `BuildBgmBossKoharu` / `BuildRedeem(2)` |
-| **ヒカゲ（凍った敷居）** | モチーフが**影に沈む**（立ち上がりかけてオクターブ下へ引っ込む＝人前で笑えない） | 実音源 `audio/bgm_boss_hikage.ogg`（The_Frozen_Threshold, -3dB, loop）／合成= `BuildBgmBossHikage` | `RedeemHikage`（はにかんだ温もり warm=0.42） | `BossHikage.cs:58` Music / `:148` PlayRedeem(3) / `:161` OnCryEnd→ResumeStageMusic |
+| **ヒカゲ（凍った敷居）** | モチーフが**影に沈む**（立ち上がりかけてオクターブ下へ引っ込む＝人前で笑えない） | 実音源 `audio/bgm_boss_hikage.ogg`（PeriTune「Frozen Forest」公式ループ版, CC BY 4.0）／合成= `BuildBgmBossHikage` | `RedeemHikage`（はにかんだ温もり warm=0.42） | `BossHikage.cs:58` Music / `:148` PlayRedeem(3) / `:161` OnCryEnd→ResumeStageMusic |
 
 **話者別タイプライター音（既実装）**: 少年=温かい木質(TypBoy 320Hz) / ミナ=澄んだガラス(TypMina 920Hz) / ボス=低くくぐもり(TypBoss 165Hz) / ナレ=無音。`Audio.PlayType(Hud.LineKind)`。
 
-## 8. 未/要対応（残課題）— 2026-07-19 更新（BGM棚卸し・配置統一済み）
-**配置規約（2026-07-19 統一）**: 使用する実音源はすべて `audio/bgm_<役割>.ogg`（-3dB・末尾フェードトリム・
-頭40ms/尻120ms 極小フェード・import loop=true）。`BGM/*.mp3` は**原曲マスター置き場**（コードから直読みしない。
-export_presets.cfg の exclude_filter `BGM/*` で配布から一括除外）。
-実音源化の現況：
-- ✅ メニュー=bgm_menu_mina.ogg / レイ道中=**bgm_stage_rei.ogg**（原曲 The_Watcher_in_the_Hall） / レイ戦=bgm_boss_rei.ogg /
-  あかり道中=bgm_stage_akari.ogg / あかり戦=**bgm_boss_akari.ogg**（原曲 Akari_s_Last_Corridor 0..104.5s トリム） /
-  こはる道中=bgm_stage_koharu.ogg / こはる戦=**bgm_boss_koharu.ogg**（原曲 The_Leaking_Tap 0..140.5s トリム） /
-  ミナ戦=bgm_boss_mina.ogg / ヒカゲ戦=bgm_boss_hikage.ogg（The_Frozen_Threshold） /
-  Final挿入歌=bgm_final_resolve.ogg（Morning_Light_on_Glass, インスト＝主旋律が声。0dB＝BgmMenuと同土俵）
-  ※旧: レイ道中/あかり戦/こはる戦は BGM/*.mp3 直読みだった＝ピーク0dB で他曲より約3dB 突出＋
-  あかり戦/こはる戦は末尾フェードごとループして毎周「無音の谷」。2026-07-19 に加工 ogg へ統一して解消。
-- ✅ FINAL 導入の無音：`StageMina._Ready` に `StopMusic(fade:1.2)` を配線（設計コメント「無音に委ねる」の実装。
-  ハブの BgmMenu 持ち越しを止め、BossMina 出現の BgmBossMina 立ち上げまで沈黙）。
-- **合成のまま（実音源スロットに素材が無い）**：①`BgmStage`（汎用道中＝W0チュートリアル "tutorial" のみが使用）
-  ②`BgmBoss`（汎用ボス＝Final 冒頭の濁り曲のみが使用。意図的な「濁り切った未完」なので据え置きでも成立）
-  ③`Redeem*` 4種（改心ジングル＝合成ベルの設計意図どおり。差し替え不要）
-- **未使用の実音源**：`BGM/Mina_s_Window.mp3`（30.8s。bgm_menu_mina の別テイク＝予備）、`BGM/Mina_s_Window (1).mp3`（原曲）
+## 8. 未/要対応（残課題）— 2026-07-20 更新（商用フリーBGM導入済み）
+**配置規約（2026-07-19 統一）**: 使用する実音源はすべて `audio/bgm_<役割>.ogg`（ピーク-3dB帯・import loop=true。
+非ループ原曲は末尾トリム＋頭40ms/尻120ms 極小フェード／**公式ループ版はゲインのみ**）。`BGM/` は
+**マスター置き場**（コードから直読みしない。export_presets.cfg の exclude_filter `BGM/*` で配布から一括除外）。
+**2026-07-20: 商用ライセンス実音源へ全面差し替え**（ユーザー決定＝旧 Gemini 生成曲は品質理由で引退。
+出所・規約記録は `BGM/acquisition_list.md` §6、クレジットは `config/credits.ini` [音楽]）：
+- ✅ メニュー=「巡る思い出」(DOVA/蒲鉾さちこ) / **W0道中=「Roll Roll Roll」(DOVA/もっぴーさうんど)＝新規スロット
+  `bgm_stage_w0.ogg`・`LoadBgmStageW0`・StageBgm("tutorial") 配線済み＝合成 BgmStage の実音源ゼロ枠が解消** /
+  レイ道中=「SO-001」(MusMus/watson・表記必須) / レイ戦=「Falling with You」(DOVA/のる) /
+  あかり道中=「6月の雨傘」(甘茶) / あかり戦=「EpicBattle」(PeriTune・CC BY 4.0) /
+  こはる道中=「小さな足あと」(甘茶) / **こはる戦=「切ない戦いが始まりそう」(DOVA/シンシンワダ・2026-07-21 導入
+  ＝公式ループ版・ゲインのみ。初候補 Red Sapphire は曲削除で断念)** / ミナ戦=「Dramatic5」(PeriTune・CC BY 4.0) /
+  ヒカゲ戦=「Frozen Forest」(PeriTune・CC BY 4.0) / Final挿入歌=bgm_final_resolve.ogg（自前インスト続投＝据え置き）
+  →**全10スロットの商用ライセンス化が完了**（挿入歌の自前インストのみ据え置き）。
+- ✅ FINAL 導入の無音：`StageMina._Ready` に `StopMusic(fade:1.2)` を配線（設計コメント「無音に委ねる」の実装）。
+- **合成のまま（意図的）**：`BgmBoss`（Final 冒頭の濁り曲＝「濁り切った未完」）/ `Redeem*` 4種（改心ジングル）/
+  `BgmStage`（汎用道中＝現在は全ステージ実音源化により**フォールバック専用**）。
 - **ボーカル入り挿入歌**は依然未調達。来たら `audio/bgm_final_resolve.ogg` を差し替えるだけ（結線・キュー・音量は完成済み）。
 - ✅ 記憶フラッシュ専用音：`SynthMemoryFlash`（雨＋遠いクラクション二度鳴き＋E5が"す——"と切れる 2.4s）を
   `Audio.PlayMemoryFlash()`（-8dB, SEバス）で `StageImagery.TriggerMemoryFlash()` に同フレーム結線。
 - Prologue/Epilogue の独自レンダラは `BgmMenu` 流用中（フェーズ別変奏は未着手・低優先）。
+- ⚠️ ライトモチーフ設計（M.I.N.A. C-E-D-G）は**ライセンス曲の音源内容には及ばない**。設計は合成フォール
+  バック（Build*）と Redeem* ジングル・タイプライター音に残存。実音源側は「調性・温度・楽器」の一致で選定。

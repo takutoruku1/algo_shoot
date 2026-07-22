@@ -19,16 +19,16 @@
 
 | # | スロット（audio/） | 使用シーン | 再生フック（file:line） | ローダー（Audio.cs） | 現状 | 差し替え要否 |
 |---|---|---|---|---|---|---|
-| 1 | bgm_menu_mina.ogg | タイトル/ハブ/ショップ/設定/難易度/記録/ShopTutorial/Prologue/Epilogue | TitleMenu.cs:88, Hub.cs:74, Shop.cs:78, Settings.cs:35, DiffSelect.cs:55, Records.cs:35, ShopTutorial.cs:48, Prologue.cs:67, Epilogue.cs:87 | :992 | 既存曲あり（ユーザー制作 Mina_s_Window 系） | ライセンス要確認（§5） |
+| 1 | bgm_menu_mina.ogg | タイトル/ハブ/ショップ/設定/難易度/記録/ShopTutorial/Prologue/Epilogue | TitleMenu.cs:88, Hub.cs:74, Shop.cs:78, Settings.cs:35, DiffSelect.cs:55, Records.cs:35, ShopTutorial.cs:48, Prologue.cs:67, Epilogue.cs:87 | :992 | 既存曲あり（ユーザー制作 Mina_s_Window 系） | **不要**（§5判定済み: 商用OK） |
 | 2 | **（新規）bgm_stage_w0.ogg** | W0チュートリアル道中 "tutorial" | Stage0Root.cs:24 → GameManager.cs:248 → StageBgm() :1134 | ローダー未作成（現在は合成 BgmStage が鳴る） | **合成のみ＝実音源ゼロ** | **取得必要（P1）** |
-| 3 | bgm_stage_rei.ogg | STAGE1 レイ道中 | ReiRoot.cs:26 → SetStageMusic("rei") :1144 | :1007 | 既存曲あり（The_Watcher_in_the_Hall） | ライセンス要確認 |
-| 4 | bgm_boss_rei.ogg | レイ戦（HP20%で加速演出あり） | BossRei.cs:121 | :1045 | 既存曲あり | ライセンス要確認 |
-| 5 | bgm_stage_akari.ogg | STAGE2 あかり道中 | AkariRoot.cs:26 | :1020 | 既存曲あり（Empty_Desks_at_Four） | ライセンス要確認 |
-| 6 | bgm_boss_akari.ogg | あかり戦 | BossAkari.cs:111 | :1063 | 既存曲あり（Akari_s_Last_Corridor） | ライセンス要確認 |
-| 7 | bgm_stage_koharu.ogg | STAGE3 こはる道中 | KoharuRoot.cs:27 | :1031 | 既存曲あり（The_Kettle_Stays_Warm） | ライセンス要確認 |
-| 8 | bgm_boss_koharu.ogg | こはる戦 | BossKoharu.cs:104 | :1082 | 既存曲あり（The_Leaking_Tap） | ライセンス要確認 |
-| 9 | bgm_boss_hikage.ogg | W0中ボス ヒカゲ戦 | BossHikage.cs:58 | :1108 | 既存曲あり（The_Frozen_Threshold） | ライセンス要確認 |
-| 10 | bgm_boss_mina.ogg | FINAL ミナ戦 | BossMina.cs:88 | :1095 | 既存曲あり（The_Weight_Of_Absolution） | ライセンス要確認 |
+| 3 | bgm_stage_rei.ogg | STAGE1 レイ道中 | ReiRoot.cs:26 → SetStageMusic("rei") :1144 | :1007 | 既存曲あり（The_Watcher_in_the_Hall） | **不要**（§5判定済み: 商用OK） |
+| 4 | bgm_boss_rei.ogg | レイ戦（HP20%で加速演出あり） | BossRei.cs:121 | :1045 | 既存曲あり | **不要**（§5判定済み: 商用OK） |
+| 5 | bgm_stage_akari.ogg | STAGE2 あかり道中 | AkariRoot.cs:26 | :1020 | 既存曲あり（Empty_Desks_at_Four） | **不要**（§5判定済み: 商用OK） |
+| 6 | bgm_boss_akari.ogg | あかり戦 | BossAkari.cs:111 | :1063 | 既存曲あり（Akari_s_Last_Corridor） | **不要**（§5判定済み: 商用OK） |
+| 7 | bgm_stage_koharu.ogg | STAGE3 こはる道中 | KoharuRoot.cs:27 | :1031 | 既存曲あり（The_Kettle_Stays_Warm） | **不要**（§5判定済み: 商用OK） |
+| 8 | bgm_boss_koharu.ogg | こはる戦 | BossKoharu.cs:104 | :1082 | 既存曲あり（The_Leaking_Tap） | **不要**（§5判定済み: 商用OK） |
+| 9 | bgm_boss_hikage.ogg | W0中ボス ヒカゲ戦 | BossHikage.cs:58 | :1108 | 既存曲あり（The_Frozen_Threshold） | **不要**（§5判定済み: 商用OK） |
+| 10 | bgm_boss_mina.ogg | FINAL ミナ戦 | BossMina.cs:88 | :1095 | 既存曲あり（The_Weight_Of_Absolution） | **不要**（§5判定済み: 商用OK） |
 | 11 | bgm_final_resolve.ogg | Final 挿入歌枠（無音→一点投入） | Final.cs:198 → PlayFinalResolve() :406 | :1122 | インストplaceholder（Morning_Light_on_Glass） | **ボーカル入りが理想（P2・特別枠）** |
 | 12 | （合成のまま維持） | Final冒頭の濁り曲=BgmBoss / 改心ジングルRedeem×4 / 濁りパッドMurkPad | Final.cs:69 ほか | — | コード合成 | **差し替え不要（設計意図）** |
 | 13 | （新規・任意）Prologue/Epilogue 専用変奏 | 現在は BgmMenu 流用 | Prologue.cs:67 / Epilogue.cs:87 | ローダー未作成 | 流用で成立している | 任意（P4・後回し可） |
@@ -172,11 +172,19 @@ menu → stage_rei/boss_rei → stage_akari/boss_akari → stage_koharu/boss_koh
   （現状ゲーム内にクレジット画面が無い。表記義務を負ったら実装必須）。
 - 複数サイト混在は可。ただし**曲ごとの出所と規約URL・DL日を §6 に必ず記録**する。
 
-## 5. 既存 BGM/ マスター（mp3群）の扱い — 要ライセンス確認
+## 5. 既存 BGM/ マスター（mp3群）の扱い — **判定済み（2026-07-20）: 全10曲 差し替え不要**
 
-現行10曲の原曲はすべて `BGM/*.mp3`。コードコメント上は全曲「**ユーザー制作の実音源**」（src/Audio.cs 各ローダー参照）。
-**制作手段が自作曲なら問題なし**だが、**AI生成サービス（Suno 等）製の場合はプラン/規約により商用利用・
-ゲーム組込の可否が変わる**。→ ユーザーに以下を確認するタスクを起票のこと:
+**制作経路（ユーザー確認済み）**: 全曲 **Gemini アプリ（gemini.google.com チャットUI）で生成**（Lyria 3、2026-02-18 以降）。
+
+**判定（Google 公式規約の一次調査 2026-07-20）**:
+- 生成物の所有権はユーザー（Google ToS: "Google won't claim ownership over that content"）、商用禁止条項なし
+  → **商用ゲームへの同梱・販売は規約上問題なし。P3 差し替えは不発動**
+- 留意1: 「商用可」の積極的許諾文言は無く、Google の IP 補償も無し。明文許諾が欲しくなったら
+  Gemini API 有料枠 / Vertex AI（Lyria 3 Pro・$0.08/曲）で再生成すれば "commercial purposes に使用可" の明文経路に載せ替え可能
+- 留意2: 全曲に SynthID 透かし入り（配布の法的障害ではない。ストアの AI 利用開示は元々必要）
+- 留意3: **Google ToS が 2026-07-30 に改定予定 → 改定後に文言を再確認すること**
+
+下表はマスター→スロット対応の参照用（ライセンス確認は完了済み）:
 
 | マスター | 使用スロット | 確認事項 |
 |---|---|---|
@@ -191,11 +199,33 @@ menu → stage_rei/boss_rei → stage_akari/boss_akari → stage_koharu/boss_koh
 | Morning_Light_on_Glass.mp3 | bgm_final_resolve | 同上（placeholder。P2で差し替え予定でもある） |
 | （該当なし＝コード合成） | bgm_stage_w0 相当（BgmStage）/ BgmBoss / Redeem×4 | 合成は自前生成＝権利問題なし |
 
-- **確認の結果「商用不可」だったスロットのみ** §3 P3 のスペックで差し替えを発動する。
-- 確認が取れたスロットは差し替え不要（現行曲は音量・ループとも整備済み）。
+- ライセンス上は P3 不発動だが、**ユーザー判断（2026-07-20）: Gemini生成曲は品質・ループ長の面で不満のため全曲差し替える**。
+  → **P3 を品質理由で発動**。取得対象は P1（W0）＋ P3 全スロット（§3 の優先順: menu → rei → akari → koharu → mina → hikage）＋ P2（挿入歌・任意）。
+- 差し替え完了までは既存 Gemini 曲が placeholder として鳴り続ける（権利上は配布可能なので中間ビルドに支障なし）。
 
 ## 6. 取得記録（DL時にここへ追記する）
 
+導入実施 2026-07-20（composer）。加工は全て既存レシピ（ピーク-3dB帯へゲイン・ogg q6・import loop=true。
+非ループ原曲のみ末尾トリム＋頭40ms/尻120msフェード。**公式ループ版はゲインのみ＝トリム/端フェード無し**）。
+マスターは `BGM/` に保存（export除外）。曲別の加工値は `src/Audio.cs` 各 `Load*()` コメントが正。
+
 | 日付 | スロット | 曲名 | サイト/作者 | 規約URL | 商用/改変/組込 | クレジット義務 | 備考 |
 |---|---|---|---|---|---|---|---|
-| — | — | — | — | — | — | — | — |
+| 2026-07-20 | bgm_menu_mina | 巡る思い出 | DOVA／蒲鉾さちこ | https://dova-s.jp/bgm/detail/18472 | ○/○/○ | 任意（記載済） | 個別条件: 大幅改変・AI学習禁止→音量+トリムのみで抵触せず。94.0→92.0s・+1.5dB |
+| 2026-07-20 | bgm_stage_w0 | Roll Roll Roll | DOVA／もっぴーさうんど | https://dova-s.jp/bgm/play10827.html | ○/○/○ | 任意（記載済） | 公式ループトラック（トラック1）→ゲイン-4.8dBのみ・136.4s |
+| 2026-07-20 | bgm_stage_rei | SO-001 | MusMus／watson | https://musmus.main.jp/（音源利用ライセンス） | ○/○/○ | **必須「BGM:MusMus」（記載済）** | 138.75→136.0s・-5.1dB |
+| 2026-07-20 | bgm_boss_rei | Falling with You | DOVA／のる | https://dova-s.jp/bgm/play21919.html | ○/○/○ | 任意（記載済） | 個別条件: 音楽主体動画禁止→ゲームは非該当。178.8→169.0s・-1.5dB |
+| 2026-07-20 | bgm_stage_akari | 6月の雨傘 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_rokugatsunoamagasa.html | ○/○/○ | 任意（記載済） | 102.3→97.5s・-1.3dB |
+| 2026-07-20 | bgm_boss_akari | EpicBattle | PeriTune | https://peritune.com/blog/2020/08/28/epicbattle/ | ○/○/○ | **必須 CC BY 4.0（記載済）** | 2020-08-28公開＝旧規約CC-BY側を確認。公式ループ版ogg→-4.1dBのみ・97.4s |
+| 2026-07-20 | bgm_stage_koharu | 小さな足あと | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_chiisanaashiato.html | ○/○/○ | 任意（記載済） | 130.4→126.0s・-1.9dB |
+| 2026-07-21 | bgm_boss_koharu | 切ない戦いが始まりそう | DOVA／シンシンワダ | https://dova-s.jp/bgm/play2254.html | ○/○/○ | 任意（記載済） | 初候補 Red Sapphire は曲削除確定（404）で断念→再探索候補を採用。2014-10-08公開・作曲者（creator/detail/91）個別条件なし確認。**配布トラック自体が公式ループ版**（132.1s）→ゲイン-5.0dBのみ・トリム/端フェード無し |
+| 2026-07-20 | bgm_boss_hikage | Frozen Forest | PeriTune | https://peritune.com/frozen_forest/ | ○/○/○ | **必須 CC BY 4.0（記載済）** | 2021-11-24公開＝旧規約CC-BY側を確認。公式ループ版ogg→-3.0dBのみ・86.4s |
+| 2026-07-20 | bgm_boss_mina | Dramatic5 | PeriTune | https://peritune.com/blog/2020/06/10/dramatic5/ | ○/○/○ | **必須 CC BY 4.0（記載済）** | 2020-06-10公開＝旧規約CC-BY側を確認。公式ループ版ogg→-4.2dBのみ・82.3s |
+| — | bgm_final_resolve | （据え置き） | — | — | — | — | ユーザー決定: 現行インスト続投＝触らない |
+
+- PeriTune の規約一本化告知（2026-03-01 https://peritune.com/blog/2026/03/01/terms-update/ ）の原文で
+  「2026年2月以前の既存曲: 引き続き CC BY 4.0」を確認済み。3曲とも該当。
+- クレジット表記は `config/credits.ini` [音楽] に記載済み（ゲーム内 Credits 画面に表示される）。
+- 旧 Gemini 生成マスター（Mina_s_Window 他9本）は §5 のとおり権利上は配布可。品質理由の差し替えにより
+  **全て未使用化**（2026-07-21 のこはる戦導入をもって全10スロットの商用ライセンス化が完了。
+  旧マスターはフォールバック用途も無いため、ユーザー判断で削除可）。
