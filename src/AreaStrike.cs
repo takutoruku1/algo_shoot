@@ -29,6 +29,11 @@ public partial class AreaStrike : Node2D, IAoeHazard
 {
     public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg, Fullscreen }
 
+    // テレグラフ・モチーフ層：ボスの心象を予兆で語る（レイ=順位罫線/あかり=雨/こはる=気泡/ミナ=グリッチ位相）。
+    //   新色は混ぜず _tint/_hot の範囲内。面塗り(fill)にはモチーフ分を先取り減算して合計0.38以下を死守する。
+    public enum Motif { None, Rank, Rain, Kitchen, Data }
+    private Motif _motif = Motif.None;
+
     // 危険形状（円/矩形/ビーム）の判定マージン：負値＝描画縁より 1.5px 内側までしか当たらない
     //（＝縁ギリギリは安全。旧 +2.5f は縁より外まで当たり「見た目を信じて避けたのに被弾」の理不尽。
     //   sakurai 2026-07 週次：床マーカーの見た目＝真実、を徹底する）。
@@ -74,24 +79,26 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 全形状共通で "aoe" グループに入れる（QaPilot が走査する）。ゲーム本編では誰も参照しない。
     public override void _Ready() => AddToGroup("aoe");
 
-    public void Configure(Shape shape, float halfW, float halfH, double warn, Color tint, Color hot)
+    public void Configure(Shape shape, float halfW, float halfH, double warn, Color tint, Color hot, Motif motif = Motif.None)
     {
         _shape = shape; _hw = halfW; _hh = halfH;
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
+        _motif = motif;
         ZIndex = -10; ZAsRelative = false;
     }
 
     // 全画面AOE。画面全体が被弾域で、安置(セーフゾーン)円(safeCenter/safeR)だけが安全。
     // safeR<=0 で安置なしの全面型。位置は画面基準で固定するので GlobalPosition=Zero で AddChild する。
     // 弾の下・背景の上に描く他形状と違い、全面tintは弾より上にも欲しいので ZIndex を少し上げる。
-    public void ConfigureFullscreen(Vector2 safeCenter, float safeR, double warn, Color tint, Color hot)
+    public void ConfigureFullscreen(Vector2 safeCenter, float safeR, double warn, Color tint, Color hot, Motif motif = Motif.None)
     {
         _shape = Shape.Fullscreen;
         _safeCenter = safeCenter;
         _safeR = Mathf.Max(0f, safeR);
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
+        _motif = motif;
         ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下で画面を満たす
     }
 
@@ -172,10 +179,17 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 予兆＋充填（HTML準拠）：破線のマーチング輪郭＋面のベタ塗り（着弾へ濃く）＋警告マーカーで“範囲”を明示。
     private void DrawTelegraph()
     {
-        float k = Mathf.Clamp((float)(_t / _warn), 0f, 1f);    // 0→1（着弾へのカウントダウン）
+        float raw = Mathf.Clamp((float)(_t / _warn), 0f, 1f);
+        float k = raw * raw * (3f - 2f * raw);                  // smoothstep：序盤ゆっくり→終盤で一気に満ちる「タメ→着弾」。端点(0→1)不変＝α上限/Z/描画数は不変
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 9f);
         float phase = (float)_t * 46f;                          // 破線のマーチング
-        Color fill = new Color(_tint.R, _tint.G, _tint.B, 0.12f + 0.26f * k); // 面のベタ塗り＝範囲を面で示す
+        // ミナ（Data）：破線位相を揺らして「制御を失ったAI」のグリッチ感を出す。新規描画ゼロ＝高密度のミナ面でも描画コール増ゼロ。
+        if (_motif == Motif.Data) phase += Mathf.Sin((float)_t * 30f) * 3f;
+        // 面のベタ塗り＝範囲を面で示す。Rank（レイ）は横罫線を面に重ねるので、その分を fill から先取りで引き、
+        //   罫線+面の実効輝度が §6 の面塗り上限0.38を超えないようにする（視認性死守）。
+        float motifFill = (_motif == Motif.Rank) ? (0.10f + 0.12f * k) : 0f;
+        float fillA = Mathf.Min(0.38f, 0.12f + 0.26f * k);
+        Color fill = new Color(_tint.R, _tint.G, _tint.B, Mathf.Max(0f, fillA - motifFill));
         // 縁の明滅の下限を引き上げ（0.6→0.75）＋暗色の下縁取り：台所（こはる面）の暖色ランプ等、
         // 明るい背景でも輪郭が沈まない。危険色そのものは変えず“影”で読ませる（視認性の底上げ）。
         Color edge = new Color(_tint.R, _tint.G, _tint.B, 0.75f + 0.25f * pulse);
@@ -188,6 +202,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         {
             DrawCircle(Vector2.Zero, Radius, fill);
             DrawCircle(Vector2.Zero, Radius * Mathf.Lerp(0.12f, 1f, k), core); // 中心から満ちる白熱核
+            DrawMotif(k, pulse);
             DashedRing(Radius, 28, under, 3.8f, phase * 0.012f);               // 暗色の下縁取り
             DashedRing(Radius, 28, edge, 2f, phase * 0.012f);
             DrawWarn(Vector2.Zero, k);
@@ -211,6 +226,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
             // 矩形は角丸（他UIと同じ Clean Glass 調＝角ばらせない）。
             float rad = Mathf.Min(7f, Mathf.Min(_hw, _hh) * 0.8f);
             RoundFill(r, rad, fill);
+            DrawMotif(k, pulse);
             RoundOutline(r, rad, under, 3.8f); // 暗色の下縁取り
             RoundOutline(r, rad, edge, 2f);
             DrawWarn(Vector2.Zero, k);
@@ -218,12 +234,67 @@ public partial class AreaStrike : Node2D, IAoeHazard
         }
         // ビーム：細い帯＋両端の予測線（破線）。線に沿って警告バッジ。
         DrawRect(r, fill);
+        DrawMotif(k, pulse);
         DashedBoxBorder(under, 3.8f, phase); // 暗色の下縁取り
         DashedBoxBorder(edge, 2f, phase);
         if (_shape == Shape.BeamH)
         { DrawWarn(new Vector2(-_hw * 0.5f, 0), k); DrawWarn(new Vector2(_hw * 0.5f, 0), k); }
         else
         { DrawWarn(new Vector2(0, -_hh * 0.5f), k); DrawWarn(new Vector2(0, _hh * 0.5f), k); }
+    }
+
+    // テレグラフ・モチーフ層：ボスの心象を予兆で語る。fill 描画後・DrawWarn 前に各軸形状から1回呼ぶ。
+    //   GCフリー（配列を new せず DrawLine/DrawCircle 直描き）。Data（ミナ）は phase 揺らしで別処理＝ここでは描かない。
+    //   BeamSeg（こはる『包丁の軌跡』）は Motif.None＝ここへ来ない（鋭い深紅のまま）。
+    private void DrawMotif(float k, float pulse)
+    {
+        // 形状のローカル境界（Circle は半径 Radius の正方枠、Rect/Beam は _hw×_hh の枠）。
+        float halfW = (_shape == Shape.Circle) ? Radius : _hw;
+        float halfH = (_shape == Shape.Circle) ? Radius : _hh;
+        float top = -halfH, bottom = halfH, left = -halfW, right = halfW;
+
+        switch (_motif)
+        {
+            case Motif.Rank: // レイ：順位が確定する＝下から満ちる横罫線3本。fill は先取り減算済み。
+            {
+                var line = new Color(_hot.R, _hot.G, _hot.B, 0.10f + 0.12f * k);
+                for (int n = 1; n <= 3; n++)
+                {
+                    float y = bottom - (bottom - top) * k * (n / 3f);
+                    DrawLine(new Vector2(left, y), new Vector2(right, y), line, 1f);
+                }
+                if (k > 0.85f) // 順位が確定する瞬間、中央縦線が白熱する。
+                {
+                    float f = (k - 0.85f) / 0.15f;
+                    DrawLine(new Vector2(0f, top), new Vector2(0f, bottom),
+                        new Color(_hot.R, _hot.G, _hot.B, Mathf.Lerp(0.3f, 1f, f)), 1.4f);
+                }
+                break;
+            }
+            case Motif.Rain: // あかり：上縁から下へ短い雨ストリーク。α は上限を侵さぬよう 0.35*pulse に抑制。
+            {
+                var col = new Color(_tint.R, _tint.G, _tint.B, 0.35f * pulse);
+                float span = right - left;
+                for (int i = 0; i < 3; i++)
+                {
+                    float x = left + span * (0.25f + 0.25f * i);
+                    var head = new Vector2(x, top + 2f);
+                    DrawLine(head, head + new Vector2(0f, 6f * k), col, 1f);
+                }
+                break;
+            }
+            case Motif.Kitchen: // こはる：中心白熱核の周りに気泡ドットが k で浮上する＝「沸く」。
+            {
+                var col = new Color(_hot.R, _hot.G, _hot.B, 0.5f * pulse);
+                for (int i = 0; i < 3; i++)
+                {
+                    float bx = (i - 1) * halfW * 0.35f;
+                    float by = bottom * 0.4f - (bottom - top) * 0.5f * k * (0.6f + 0.2f * i);
+                    DrawCircle(new Vector2(bx, by), 1.2f, col);
+                }
+                break;
+            }
+        }
     }
 
     // 着弾：白熱フラッシュ（短く強く）＋輪郭バースト。
@@ -242,10 +313,18 @@ public partial class AreaStrike : Node2D, IAoeHazard
         }
         if (_shape == Shape.Circle)
         {
+            // 着弾3段：A 白閃（st<0.35＝rimを鋭く立ち上げ）→ B 色残光（0.35<st<0.7＝誰の攻撃か0.2s残す）→ C 消散（バーストのease-out）。
             DrawCircle(Vector2.Zero, Radius, core);
-            DrawArc(Vector2.Zero, Radius, 0f, Mathf.Tau, 56, rim, 2.6f);
+            float rimA = st < 0.35f ? Mathf.Clamp(st / 0.35f, 0f, 1f) : f / 0.65f; // 白閃を鋭く、以降フェード
+            DrawArc(Vector2.Zero, Radius, 0f, Mathf.Tau, 56, new Color(1f, 1f, 1f, rimA), 2.6f);
+            if (st > 0.35f && st < 0.7f) // B 色残光：_hot→_tint の残り火リング1本（新色なし＝「誰の攻撃か」を色で残す）。
+            {
+                Color glow = _hot.Lerp(_tint, st);
+                DrawArc(Vector2.Zero, Radius * 1.1f, 0f, Mathf.Tau, 48,
+                    new Color(glow.R, glow.G, glow.B, 0.4f * f), 2f);
+            }
             DrawArc(Vector2.Zero, Radius * (1f + 0.55f * st), 0f, Mathf.Tau, 48,
-                new Color(_hot.R, _hot.G, _hot.B, 0.5f * f), 2f); // 広がるバースト
+                new Color(_hot.R, _hot.G, _hot.B, 0.5f * f), 2f); // C 広がるバースト（消散）
             return;
         }
         if (_shape == Shape.BeamSeg)
@@ -281,11 +360,12 @@ public partial class AreaStrike : Node2D, IAoeHazard
 
         if (_safeR > 0f)
         {
-            // 安置：淡い緑のフィル＋脈動する緑リング（ここが安全だと一目で分かる色）。
+            // 安置：淡い緑のフィル＋脈動する緑リング（ここが安全だと一目で分かる色）。緑はボム安置と完全一致（語彙統一）。
+            // 「聖域」へ締める：内リング＝細く高α（淵が光る）／外リング＝太く低α（にじむ余韻）。彩度・色相は不変。
             var green = new Color(0.4f, 0.95f, 0.6f);
             DrawCircle(_safeCenter, _safeR, new Color(green.R, green.G, green.B, 0.10f + 0.06f * pulse));
-            DrawArc(_safeCenter, _safeR, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.55f + 0.45f * pulse), 2f);
-            DrawArc(_safeCenter, _safeR + 3f, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.20f * pulse), 1f);
+            DrawArc(_safeCenter, _safeR + 3f, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.20f * pulse), 3.0f);       // 外：太く低α
+            DrawArc(_safeCenter, _safeR, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.65f + 0.35f * pulse), 1.6f);   // 内：細く高α（淵が光る）
         }
 
         // 着弾予告：終了直前に画面外周から白フレームが収束（“来る”の合図）。

@@ -213,10 +213,25 @@ public partial class AreaSpellCaster : Node2D
         _restT = ChainRestDur; // 次ホップまでの生存確認の間（着弾フラッシュが消えてから計時される）
     }
 
+    // ボス別のテレグラフ・モチーフ（心象を予兆で語る）。BeamSeg（こはる『包丁の軌跡』）だけは None＝鋭い深紅のまま。
+    private AreaStrike.Motif MotifFor(AreaStrike.Shape shape)
+    {
+        if (shape == AreaStrike.Shape.BeamSeg) return AreaStrike.Motif.None;
+        return _key switch
+        {
+            "rei"    => AreaStrike.Motif.Rank,
+            "akari"  => AreaStrike.Motif.Rain,
+            "koharu" => AreaStrike.Motif.Kitchen,
+            "mina"   => AreaStrike.Motif.Data,
+            _        => AreaStrike.Motif.Data, // 既定（mina 相当）
+        };
+    }
+
     // 全画面予兆を1枚出す（単発／リレー共用）。
     private void SpawnFullscreenStrike(Vector2 safe, float r)
     {
         var z = new AreaStrike();
+        // Fullscreen は自前の予兆演出（濁桃tint＋緑リング＋白フレーム収束）を持つ＝モチーフ層は対象外（§1-b）。
         z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul(), _tint, _hot);
         if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
         _world.AddChild(z);
@@ -326,7 +341,8 @@ public partial class AreaSpellCaster : Node2D
         _ => 2,
     };
     // 予兆時間の難易度補正（易しいほど長く＝避ける猶予が増える）。
-    private float WarnMul() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
+    // public: ボス側の自前テレグラフギミック（こはる「五徳の十字火」等）も同じ補正で予兆尺を組む。
+    public float WarnMul() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
     {
         GameManager.Diff.Easy => 1.3f,
         GameManager.Diff.Hard => 0.85f,
@@ -385,7 +401,7 @@ public partial class AreaSpellCaster : Node2D
     private void AddStrike(AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
     {
         var z = new AreaStrike();
-        z.Configure(shape, hw, hh, warn, _tint, _hot);
+        z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);

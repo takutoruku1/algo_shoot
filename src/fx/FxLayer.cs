@@ -104,6 +104,61 @@ public partial class FxLayer : Node2D
         }
     }
 
+    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング）と全開を描き分ける。
+    //   色は水色ロック（§2）の範囲、金は全開の一瞬だけ（浄化色を「フルパワーの手元」で使う）。
+    //   全て加算プール（Add=true→ZIndex21）＝弾レイヤー(Z0)には何も足さない＝ヒエラルキー維持。
+    public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays, bool overload)
+    {
+        // 共通の芯グロー（連射ベース）。
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 5, Ttl = 0.10f, Col = White, Add = true, Grow = 0.4f });
+
+        switch (mode)
+        {
+            case GameManager.ShotMode.Spread:
+            {
+                // 拡散：リングを一回り大きく開き、各way角へ粒を散らして「広がる」を予感させる。
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 9, Ttl = 0.10f, Col = Cyan, W = 1.4f, A0 = 0.95f, Add = true });
+                int n = Mathf.Clamp(spreadWays, 3, 9);
+                for (int i = 0; i < n; i++)
+                {
+                    float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
+                    float a = t * Mathf.DegToRad(70f), sp = R(90, 150);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.16f), Col = Cyan, Drag = 6, Add = true });
+                }
+                break;
+            }
+            case GameManager.ShotMode.Homing:
+            {
+                // ホーミング：中心グローを淡ピンク（Sig2）に＝「追って届ける」優しさ。接線方向の粒で「曲がる弾」を予告。
+                Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 6, Ttl = 0.11f, Col = Sig2, Add = true, Grow = 0.6f });
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 7, Ttl = 0.10f, Col = Sig2, W = 1.3f, A0 = 0.9f, Add = true });
+                for (int i = 0; i < 3; i++)
+                {
+                    float a = R(0f, Mathf.Tau), sp = R(50, 100);
+                    // 接線方向（周回感）＝直進でなく“曲がって届く”気配。
+                    var tan = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * sp;
+                    Add0(new P { Type = T.Spark, X = pos.X + Mathf.Cos(a) * 3f, Y = pos.Y + Mathf.Sin(a) * 3f, Vx = tan.X, Vy = tan.Y, Size = 3.5f, W = 1, Ttl = R(0.10f, 0.18f), Col = Sig2, Drag = 5, Add = true });
+                }
+                break;
+            }
+            default: // Rapid（連射）
+            {
+                // 連射：リングを ease-out で開き、前方Sparkを銃口方向±0.25radに絞って「射線」を出す。
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 6, Ttl = 0.08f, Col = Cyan, W = 1.6f, A0 = 0.95f, Add = true });
+                for (int i = 0; i < 2; i++)
+                {
+                    float a = R(-0.25f, 0.25f), sp = R(90, 150);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.14f), Col = Cyan, Drag = 6, Add = true });
+                }
+                break;
+            }
+        }
+
+        // 全開：やさしさ全開＝攻撃も浄化色（金）に染まる。既存の全開オーラ（金二重リング）と語彙統一。
+        if (overload)
+            Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.12f, Col = Gold, W = 1.8f, A0 = 0.9f, Add = true });
+    }
+
     public void Shatter(Vector2 pos)
     {
         int n = Ri(5, 8);

@@ -93,6 +93,25 @@ public partial class Bullet : Area2D
     private static readonly Color PlayerGlow = new Color(0.424f, 0.737f, 0.847f); // rgba(108,188,216)
     private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
 
+    // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────
+    // 弾は飛行中に回転しない＝頂点角度は定数。単位方向テンプレを一度だけ計算し、
+    // 描画時は半径 r を掛けて共有バッファへ書き込むだけ（new 割当ゼロ／再テッセレーション無し）。
+    private static readonly Vector2[] _starTemplate = BuildStarTemplate(); // 10頂点の単位方向×半径比
+    private static readonly Vector2[] _starBuf = new Vector2[10];          // DrawStar 用の共有出力
+    private static readonly Vector2[] _diaBuf = new Vector2[4];            // DrawDiamond 本体（±s）
+    private static readonly Vector2[] _diaCoreBuf = new Vector2[4];        // DrawDiamond 芯の光（×0.5）
+    private static Vector2[] BuildStarTemplate()
+    {
+        var t = new Vector2[10];
+        for (int i = 0; i < 10; i++)
+        {
+            float ang = Mathf.DegToRad(-90f + i * 36f);
+            float ratio = (i % 2 == 0) ? 1.15f : 0.48f;
+            t[i] = new Vector2(Mathf.Cos(ang) * ratio, Mathf.Sin(ang) * ratio);
+        }
+        return t;
+    }
+
     private CollisionShape2D _shape = null!;
     private CircleShape2D _circle = null!;
 
@@ -454,28 +473,24 @@ public partial class Bullet : Area2D
         DrawCircle(Vector2.Zero, r * 0.40f, core, true, -1f, true); // 芯色
     }
 
-    // 菱形：45度回転の四角＋グロー（shapeInner diamond）。
+    // 菱形：45度回転の四角＋グロー（shapeInner diamond）。頂点は static バッファへ書き込み（new 割当なし）。
     private void DrawDiamond(float r, Color c)
     {
         DrawGlow(r, c, 1.1f);
         float s = r * 1.15f;
-        var pts = new[] { new Vector2(0, -s), new Vector2(s, 0), new Vector2(0, s), new Vector2(-s, 0) };
-        DrawColoredPolygon(pts, c);
-        DrawColoredPolygon(ScalePts(pts, 0.5f), new Color(1f, 1f, 1f, 0.85f)); // 芯の光
+        _diaBuf[0] = new Vector2(0, -s); _diaBuf[1] = new Vector2(s, 0);
+        _diaBuf[2] = new Vector2(0, s);  _diaBuf[3] = new Vector2(-s, 0);
+        DrawColoredPolygon(_diaBuf, c);
+        for (int i = 0; i < 4; i++) _diaCoreBuf[i] = _diaBuf[i] * 0.5f;
+        DrawColoredPolygon(_diaCoreBuf, new Color(1f, 1f, 1f, 0.85f)); // 芯の光
     }
 
-    // 星：5芒星（shapeInner star の clip-path 相当）。
+    // 星：5芒星（shapeInner star の clip-path 相当）。単位方向テンプレ×r を static バッファへ（trig も new も無し）。
     private void DrawStar(float r, Color c)
     {
         DrawGlow(r, c, 1.1f);
-        var pts = new Vector2[10];
-        for (int i = 0; i < 10; i++)
-        {
-            float ang = Mathf.DegToRad(-90f + i * 36f);
-            float rad = (i % 2 == 0) ? r * 1.15f : r * 0.48f;
-            pts[i] = new Vector2(Mathf.Cos(ang) * rad, Mathf.Sin(ang) * rad);
-        }
-        DrawColoredPolygon(pts, c);
+        for (int i = 0; i < 10; i++) _starBuf[i] = _starTemplate[i] * r;
+        DrawColoredPolygon(_starBuf, c);
     }
 
     // リング：中空の輪（shapeInner ring）。
@@ -509,12 +524,5 @@ public partial class Bullet : Area2D
         DrawCircle(Vector2.Zero, r, c, true, -1f, true);
         DrawCircle(new Vector2(-r * 0.25f, -r * 0.25f), r * 0.4f, new Color(1f, 1f, 1f, 0.7f), true, -1f, true);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
-    }
-
-    private static Vector2[] ScalePts(Vector2[] pts, float s)
-    {
-        var o = new Vector2[pts.Length];
-        for (int i = 0; i < pts.Length; i++) o[i] = pts[i] * s;
-        return o;
     }
 }
