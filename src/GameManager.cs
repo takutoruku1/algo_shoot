@@ -20,11 +20,12 @@ public partial class GameManager : Node
     // ───── ショットモード（設計書 §3）。連射は初期解放、拡散/ホーミングはショップ購入で解放 ─────
     public enum ShotMode { Rapid, Spread, Homing }
     public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
-    public bool HasSpread => GetUpgradeLevel("shot_spread") >= 1;
-    public bool HasHoming => GetUpgradeLevel("shot_homing") >= 1;
-    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（Lv に対応・上振れを抑え強すぎを是正）。
-    public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(GetUpgradeLevel("shot_spread"), 0, 3)];
-    public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(GetUpgradeLevel("shot_homing"), 0, 3)];
+    // 拡散/ホーミング解放判定は各系統の入り口ノード（spread_1 / homing_1）の所持で決まる（単Lvノード方式）。
+    public bool HasSpread => GetUpgradeLevel("spread_1") >= 1;
+    public bool HasHoming => GetUpgradeLevel("homing_1") >= 1;
+    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（連続所持段数 ChainLevel に対応）。
+    public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
+    public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
     public bool IsModeUnlocked(ShotMode m) => m switch { ShotMode.Spread => HasSpread, ShotMode.Homing => HasHoming, _ => true };
     // 解放済みモードを循環（連射→拡散→ホーミング→連射…・未解放はスキップ）。
     public ShotMode NextUnlockedMode(ShotMode cur)
@@ -56,7 +57,7 @@ public partial class GameManager : Node
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 200;
-    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || GetUpgradeLevel("shot_power") >= 4;
+    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || ChainLevel("shot_power", 4) >= 4;
 
     // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
     public string PendingStageScene = "res://Rei.tscn";
@@ -303,8 +304,9 @@ public partial class GameManager : Node
     public int LastClearImpression { get; private set; }
     public int LastClearFollowers { get; private set; }
 
-    // 恒久強化レベル（id → 現在Lv）。未所持は 0。
-    private readonly Dictionary<string, int> _upgrades = new();
+    // 恒久強化レベル（id → 現在Lv）。未所持は 0。単Lvノード方式では値は常に 0/1。
+    // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
+    private Dictionary<string, int> _upgrades = new();
 
     // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
     // 二分木ディシジョンツリー：単一ルート「ミナの核」から 1→2→4→7→6 と二個ずつ広がる（Shop が描画）。
@@ -330,34 +332,84 @@ public partial class GameManager : Node
         public string ExclusiveWith = "";
     }
 
+    // ───── 単Lvノード方式（ショップ大改修フェーズ1）─────
+    //   MaxLv方式を廃止し、各レベルを独立した買い切りノード（MaxLevel=1・固定BaseCost）に外出しした。
+    //   ・排他は全撤廃（ExclusiveWith 全空）＝どのノードも買い切りで没収なし。
+    //   ・Prereq は「順序の道しるべ」としてのみ残す（グランドファーザー規則：所持済み Lv は前提未達でも有効）。
+    //   ・効果値は ChainLevel(prefix, n)（連続所持段数）で従来式に読み替える（式は不変・Lv取得元だけ差替え）。
+    //   ・価格は旧 CostAt の各段から移送（総額据え置き）。圧縮系(3→2)は末尾段効果を旧最終Lv相当に補償。
+    //   座標(x,y)は Shop 側の NodePos（フェーズ2でカメラ表示）と対応。ParentId は木の骨格・道しるべ。
     public static readonly UpgradeDef[] Upgrades =
     {
-        // shot_power: MaxLevel 5→4（無防備窓の弾ダメージは Clamp(_,1,4) ＝ Lv5 は効果の無い死にレベルだった）。
-        new() { Id = "shot_power",    Name = "光の出力",   Desc = "届ける光の威力UP",        MaxLevel = 4, BaseCost = 400,  CostMul = 1.35f, ParentId = "fire_rate" },
-        new() { Id = "fire_rate",     Name = "連射速度",   Desc = "発射間隔を短縮",          MaxLevel = 4, BaseCost = 350,  CostMul = 1.32f },
-        new() { Id = "shot_spread",   Name = "拡散展開",   Desc = "拡散モード解放→本数増(5→7→9)", MaxLevel = 3, BaseCost = 500, CostMul = 1.38f, ParentId = "fire_rate" },
-        new() { Id = "shot_homing",   Name = "誘導の祈り", Desc = "ホーミングモード解放→追尾数増(2→2→3)", MaxLevel = 3, BaseCost = 550, CostMul = 1.5f, ParentId = "move_speed" },
-        // move_speed: 「機動力」→「身のこなし」リワーク（IDは不変＝セーブ互換）。移動UPに加え回避のキレ（CD/距離）も伸びる。
-        new() { Id = "move_speed",    Name = "身のこなし", Desc = "移動速度UP＋回避のキレ（CD短縮・距離延長）", MaxLevel = 3, BaseCost = 250,  CostMul = 1.4f },
-        new() { Id = "hitbox",        Name = "回避域",     Desc = "当たり判定を縮小",        MaxLevel = 3, BaseCost = 600,  CostMul = 1.55f, ParentId = "shot_homing" },
-        new() { Id = "bomb_count",    Name = "ボム所持",   Desc = "初期ボム数+1",            MaxLevel = 3, BaseCost = 450,  CostMul = 1.45f, ParentId = "max_life", ExclusiveWith = "bomb_power" },
-        new() { Id = "bomb_power",    Name = "ボム威力",   Desc = "ボム直撃が穢れを深く祓う（無防備の本体ダメージUP）", MaxLevel = 3, BaseCost = 350,  CostMul = 1.4f, ParentId = "max_life", ExclusiveWith = "bomb_count" },
-        new() { Id = "max_life",      Name = "最大♥",      Desc = "ライフ上限+1",            MaxLevel = 3, BaseCost = 550,  CostMul = 1.45f, ParentId = "contam_resist" },
-        new() { Id = "imp_mult",      Name = "浄化倍率",   Desc = "獲得する浄化した心UP",    MaxLevel = 4, BaseCost = 300,  CostMul = 1.45f, ParentId = "contam_resist" },
-        new() { Id = "fol_gain",      Name = "拡散力",     Desc = "フォロワー獲得効率UP（フォロワーは火力と収入を底上げ）", MaxLevel = 3, BaseCost = 300,  CostMul = 1.45f, ParentId = "shot_spread" },
-        new() { Id = "combo_hold",    Name = "コンボ持続", Desc = "コンボ猶予を延長",        MaxLevel = 3, BaseCost = 200,  CostMul = 1.4f, ParentId = "shot_spread" },
-        // contam_resist: 「汚染耐性」→「澄んだ心」リワーク（IDは不変＝セーブ互換）。上昇抑制は現行維持＋
-        // やさしさ効率を承認式（×(1+0.06Lv)・上限1.1）で底上げ＝無汚染でも Lv1-2 が確かに効く。
-        new() { Id = "contam_resist", Name = "澄んだ心",   Desc = "汚染の上昇を抑え、やさしさの効率を底上げ", MaxLevel = 3, BaseCost = 300,  CostMul = 1.4f, ParentId = "move_speed" },
-        // ── 奥義（前提つき・一律100の適用除外）。⊗＝排他フォークの対 ──
-        // option_sub: 幽霊商品の実体化（追従オプション。威力×0.5でメイン同期射撃）。価格改定 1000/1.7→900/1.6。⊗連鎖の光。
-        new() { Id = "option_sub",    Name = "拡散サブ",   Desc = "追従オプション+1（威力×0.5でメイン同期射撃）", MaxLevel = 2, BaseCost = 900, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true, ParentId = "fol_gain", ExclusiveWith = "chain_light" },
-        new() { Id = "shot_pierce",   Name = "貫く光",     Desc = "連射弾が敵をLv体まで貫通する", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true, ParentId = "shot_power", ExclusiveWith = "focus_fire" },
-        new() { Id = "counter_light", Name = "返し光",     Desc = "回避よけした弾を追尾光弾に変えて撃ち返す", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true, ParentId = "hitbox", ExclusiveWith = "veil_light" },
-        // ── 二分木化で追加の新奥義3種（各排他フォークのもう片翼）──
-        new() { Id = "focus_fire",    Name = "集中の光",   Desc = "同じ敵に当て続けると威力が上がる（対象変更・被弾でリセット）", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_power", PrereqLv = 2, Capstone = true, ParentId = "shot_power", ExclusiveWith = "shot_pierce" },
-        new() { Id = "chain_light",   Name = "連鎖の光",   Desc = "拡散弾が当たった敵から最寄りの敵へ跳弾する（威力×0.4）", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_spread", PrereqLv = 2, Capstone = true, ParentId = "fol_gain", ExclusiveWith = "option_sub" },
-        new() { Id = "veil_light",    Name = "祈りの帳",   Desc = "回避のあと自機の周りに弾を消す光輪をまとう", MaxLevel = 2, BaseCost = 800, CostMul = 1.6f, PrereqId = "shot_homing", PrereqLv = 2, Capstone = true, ParentId = "hitbox", ExclusiveWith = "counter_light" },
+        // ── 連射系 ──
+        new() { Id = "fire_rate_1",   Name = "連射速度I",   Desc = "発射間隔 ×0.92",           MaxLevel = 1, BaseCost = 100,  ParentId = "" },
+        new() { Id = "fire_rate_2",   Name = "連射速度II",  Desc = "発射間隔 ×0.84",           MaxLevel = 1, BaseCost = 350,  ParentId = "fire_rate_1" },
+        new() { Id = "fire_rate_3",   Name = "連射速度III", Desc = "発射間隔 ×0.76",           MaxLevel = 1, BaseCost = 462,  ParentId = "fire_rate_2" },
+        new() { Id = "fire_rate_4",   Name = "連射速度IV",  Desc = "発射間隔 ×0.68",           MaxLevel = 1, BaseCost = 610,  ParentId = "fire_rate_3" },
+        new() { Id = "shot_power_1",  Name = "光の出力I",   Desc = "届ける光の威力 +1",        MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
+        new() { Id = "shot_power_2",  Name = "光の出力II",  Desc = "届ける光の威力 +2",        MaxLevel = 1, BaseCost = 400,  ParentId = "shot_power_1" },
+        new() { Id = "shot_power_3",  Name = "光の出力III", Desc = "届ける光の威力 +3",        MaxLevel = 1, BaseCost = 540,  ParentId = "shot_power_2" },
+        new() { Id = "shot_power_4",  Name = "光の出力IV",  Desc = "届ける光の威力 +4（LUNATIC解放条件のひとつ）", MaxLevel = 1, BaseCost = 729,  ParentId = "shot_power_3" },
+        new() { Id = "rapid_power_1", Name = "連射威力I",   Desc = "連射モードの弾威力 +1",    MaxLevel = 1, BaseCost = 100,  ParentId = "shot_power_2" },
+        new() { Id = "rapid_power_2", Name = "連射威力II",  Desc = "連射モードの弾威力 +2",    MaxLevel = 1, BaseCost = 450,  ParentId = "rapid_power_1" },
+        new() { Id = "rapid_rate_1",  Name = "速射I",       Desc = "連射モードの間隔 ×0.94",   MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_3" },
+        new() { Id = "rapid_rate_2",  Name = "速射II",      Desc = "連射モードの間隔 ×0.88",   MaxLevel = 1, BaseCost = 400,  ParentId = "rapid_rate_1" },
+        new() { Id = "pierce_1",      Name = "貫く光I",     Desc = "連射弾が敵1体を貫通する",  MaxLevel = 1, BaseCost = 800,  ParentId = "rapid_power_1", PrereqId = "shot_power_2", PrereqLv = 1 },
+        new() { Id = "pierce_2",      Name = "貫く光II",    Desc = "連射弾が敵2体を貫通する",  MaxLevel = 1, BaseCost = 1280, ParentId = "pierce_1" },
+        new() { Id = "focus_1",       Name = "集中の光I",   Desc = "同じ敵に当て続けて威力 最大+1", MaxLevel = 1, BaseCost = 800,  ParentId = "rapid_power_1" },
+        new() { Id = "focus_2",       Name = "集中の光II",  Desc = "同じ敵に当て続けて威力 最大+2", MaxLevel = 1, BaseCost = 1280, ParentId = "focus_1" },
+        // ── 拡散系 ──
+        new() { Id = "spread_1",      Name = "拡散展開I",   Desc = "拡散モード解放・5way",     MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
+        new() { Id = "spread_2",      Name = "拡散展開II",  Desc = "拡散 7way",                MaxLevel = 1, BaseCost = 500,  ParentId = "spread_1" },
+        new() { Id = "spread_3",      Name = "拡散展開III", Desc = "拡散 9way",                MaxLevel = 1, BaseCost = 690,  ParentId = "spread_2" },
+        new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.72",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
+        new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.80",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
+        new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.25", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
+        new() { Id = "fol_gain_1",    Name = "拡散力I",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
+        new() { Id = "fol_gain_2",    Name = "拡散力II",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
+        new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "fol_gain_1" },
+        new() { Id = "combo_hold_2",  Name = "コンボ持続II",Desc = "コンボ猶予 2.8秒",         MaxLevel = 1, BaseCost = 200,  ParentId = "combo_hold_1" },
+        new() { Id = "option_1",      Name = "拡散サブI",   Desc = "追従オプション +1（威力×0.5でメイン同期射撃）", MaxLevel = 1, BaseCost = 900,  ParentId = "spread_power_1", PrereqId = "spread_2", PrereqLv = 1 },
+        new() { Id = "option_2",      Name = "拡散サブII",  Desc = "追従オプション 2基",       MaxLevel = 1, BaseCost = 1440, ParentId = "option_1" },
+        new() { Id = "chain_1",       Name = "連鎖の光I",   Desc = "拡散弾が1回跳弾（威力×0.4）", MaxLevel = 1, BaseCost = 800,  ParentId = "fol_gain_2", PrereqId = "spread_2", PrereqLv = 1 },
+        new() { Id = "chain_2",       Name = "連鎖の光II",  Desc = "拡散弾が2回跳弾",          MaxLevel = 1, BaseCost = 1280, ParentId = "chain_1" },
+        // ── ホーミング系 ──
+        new() { Id = "homing_1",      Name = "誘導の祈りI", Desc = "ホーミングモード解放・2体追尾", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "2体追尾（旋回強化）",      MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
+        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "3体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
+        new() { Id = "homing_power_1",Name = "誘導威力I",   Desc = "ホーミング弾の威力 ×0.78", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_1" },
+        new() { Id = "homing_power_2",Name = "誘導威力II",  Desc = "ホーミング弾の威力 ×0.86", MaxLevel = 1, BaseCost = 480,  ParentId = "homing_power_1" },
+        new() { Id = "homing_rate_1", Name = "誘導速射I",   Desc = "ホーミングの間隔税 ×1.55・旋回110", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_2" },
+        new() { Id = "counter_1",     Name = "返し光I",     Desc = "回避よけした弾を追尾光弾へ（2発に1発）", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_power_1", PrereqId = "homing_2", PrereqLv = 1 },
+        new() { Id = "counter_2",     Name = "返し光II",    Desc = "回避よけした弾を全弾光弾化", MaxLevel = 1, BaseCost = 1280, ParentId = "counter_1" },
+        new() { Id = "veil_1",        Name = "祈りの帳I",   Desc = "回避後の弾消し光輪 r20px", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_rate_1", PrereqId = "homing_2", PrereqLv = 1 },
+        new() { Id = "veil_2",        Name = "祈りの帳II",  Desc = "弾消し光輪 r28px",         MaxLevel = 1, BaseCost = 1280, ParentId = "veil_1" },
+        // ── バックファイア系（後方弾は bf_* 未所持でも初期から弱く発射される）──
+        new() { Id = "bf_power_1",    Name = "後方威力I",   Desc = "後方弾の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "bf_power_2",    Name = "後方威力II",  Desc = "後方弾の威力 +2",          MaxLevel = 1, BaseCost = 380,  ParentId = "bf_power_1" },
+        new() { Id = "bf_power_3",    Name = "後方威力III", Desc = "後方弾の威力 +3",          MaxLevel = 1, BaseCost = 532,  ParentId = "bf_power_2" },
+        new() { Id = "bf_rate_1",     Name = "後方速射I",   Desc = "後方弾の間隔 0.7秒",        MaxLevel = 1, BaseCost = 100,  ParentId = "bf_power_1" },
+        new() { Id = "bf_rate_2",     Name = "後方速射II",  Desc = "後方弾の間隔 0.55秒",       MaxLevel = 1, BaseCost = 420,  ParentId = "bf_rate_1" },
+        new() { Id = "bf_track_1",    Name = "後方追尾I",   Desc = "後方弾の旋回90・同時2発",  MaxLevel = 1, BaseCost = 460,  ParentId = "bf_power_1" },
+        // ── 生存・経済系 ──
+        new() { Id = "move_speed_1",  Name = "身のこなしI", Desc = "移動速度UP＋回避のキレ",   MaxLevel = 1, BaseCost = 100,  ParentId = "" },
+        new() { Id = "move_speed_2",  Name = "身のこなしII",Desc = "移動・回避 段2",           MaxLevel = 1, BaseCost = 250,  ParentId = "move_speed_1" },
+        new() { Id = "move_speed_3",  Name = "身のこなしIII",Desc = "移動・回避 段3",          MaxLevel = 1, BaseCost = 350,  ParentId = "move_speed_2" },
+        new() { Id = "contam_1",      Name = "澄んだ心I",   Desc = "汚染の上昇を抑え、心の効率を底上げ", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "contam_2",      Name = "澄んだ心II",  Desc = "汚染耐性 段2（旧Lv3効果に補償）", MaxLevel = 1, BaseCost = 300,  ParentId = "contam_1" },
+        new() { Id = "hitbox_1",      Name = "回避域I",     Desc = "被弾判定 ×0.88",           MaxLevel = 1, BaseCost = 100,  ParentId = "contam_1" },
+        new() { Id = "hitbox_2",      Name = "回避域II",    Desc = "被弾判定 ×0.76",           MaxLevel = 1, BaseCost = 600,  ParentId = "hitbox_1" },
+        new() { Id = "hitbox_3",      Name = "回避域III",   Desc = "被弾判定 ×0.64",           MaxLevel = 1, BaseCost = 930,  ParentId = "hitbox_2" },
+        new() { Id = "imp_mult_1",    Name = "浄化倍率I",   Desc = "獲得心 ×1.12",             MaxLevel = 1, BaseCost = 100,  ParentId = "contam_1" },
+        new() { Id = "imp_mult_2",    Name = "浄化倍率II",  Desc = "獲得心 ×1.24",             MaxLevel = 1, BaseCost = 300,  ParentId = "imp_mult_1" },
+        new() { Id = "imp_mult_3",    Name = "浄化倍率III", Desc = "獲得心 ×1.36",             MaxLevel = 1, BaseCost = 435,  ParentId = "imp_mult_2" },
+        new() { Id = "imp_mult_4",    Name = "浄化倍率IV",  Desc = "獲得心 ×1.48",             MaxLevel = 1, BaseCost = 631,  ParentId = "imp_mult_3" },
+        new() { Id = "max_life_1",    Name = "最大♥I",      Desc = "ライフ上限 +1",            MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_2" },
+        new() { Id = "max_life_2",    Name = "最大♥II",     Desc = "ライフ上限 +2",            MaxLevel = 1, BaseCost = 550,  ParentId = "max_life_1" },
+        new() { Id = "bomb_count_1",  Name = "ボム所持I",   Desc = "初期ボム +1",              MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
+        new() { Id = "bomb_count_2",  Name = "ボム所持II",  Desc = "初期ボム +2",              MaxLevel = 1, BaseCost = 450,  ParentId = "bomb_count_1" },
+        new() { Id = "bomb_power_1",  Name = "ボム威力I",   Desc = "ボム直撃が穢れを深く祓う 段1", MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
+        new() { Id = "bomb_power_2",  Name = "ボム威力II",  Desc = "ボム直撃 段2",             MaxLevel = 1, BaseCost = 350,  ParentId = "bomb_power_1" },
     };
 
     public static UpgradeDef? GetUpgradeDef(string id)
@@ -369,15 +421,73 @@ public partial class GameManager : Node
 
     public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
 
-    // Lv→Lv+1 の価格（決定的・状態非依存）。振り直しの返金再計算（TotalPaid）と GetUpgradeCost が共用する。
+    // 単Lvノード鎖の連続所持段数を返す（効果アクセサの Lv 取得元）。
+    //   prefix="fire_rate", maxSteps=4 なら fire_rate_1.._4 を頭から数え、最初の未所持で止める。
+    //   途中欠け（_1 未所持だが _2 所持など）でも連続段数だけ数える＝旧 GetUpgradeLevel と同じ「段」を返す。
+    //   効果式は不変・Lv の取得元だけをこのヘルパへ差し替える。
+    public int ChainLevel(string prefix, int maxSteps)
+    {
+        int lv = 0;
+        for (int i = 1; i <= maxSteps; i++)
+            if (GetUpgradeLevel($"{prefix}_{i}") >= 1) lv++;
+            else break;
+        return lv;
+    }
+
+    // ───── セーブ移行（旧MaxLv方式 → 単Lvノード鎖）─────
+    //   旧セーブは "fire_rate":3 のように「Lv値」を持つ。これを新ノード群（fire_rate_1/_2/_3 所持=1）へ読み替える。
+    //   圧縮系(3→2)は min(n, chain長)＝最大段まで所持＝没収なし（末尾段効果は旧最終Lv相当に補償済み）。
+    //   ワンショット：保存時は新IDで書かれ、次回以降は legacy 判定に引っかからない。
+    private static readonly Dictionary<string, string[]> MigrationMap = new()
+    {
+        ["fire_rate"]     = new[] { "fire_rate_1", "fire_rate_2", "fire_rate_3", "fire_rate_4" },
+        ["shot_power"]    = new[] { "shot_power_1", "shot_power_2", "shot_power_3", "shot_power_4" },
+        ["shot_spread"]   = new[] { "spread_1", "spread_2", "spread_3" },
+        ["shot_homing"]   = new[] { "homing_1", "homing_2", "homing_3" },
+        ["move_speed"]    = new[] { "move_speed_1", "move_speed_2", "move_speed_3" },
+        ["hitbox"]        = new[] { "hitbox_1", "hitbox_2", "hitbox_3" },
+        ["contam_resist"] = new[] { "contam_1", "contam_2" },               // 3→2: min(n,2)
+        ["imp_mult"]      = new[] { "imp_mult_1", "imp_mult_2", "imp_mult_3", "imp_mult_4" },
+        ["fol_gain"]      = new[] { "fol_gain_1", "fol_gain_2" },           // 3→2
+        ["combo_hold"]    = new[] { "combo_hold_1", "combo_hold_2" },       // 3→2
+        ["max_life"]      = new[] { "max_life_1", "max_life_2" },           // 3→2
+        ["bomb_count"]    = new[] { "bomb_count_1", "bomb_count_2" },       // 3→2
+        ["bomb_power"]    = new[] { "bomb_power_1", "bomb_power_2" },       // 3→2
+        ["shot_pierce"]   = new[] { "pierce_1", "pierce_2" },
+        ["focus_fire"]    = new[] { "focus_1", "focus_2" },
+        ["option_sub"]    = new[] { "option_1", "option_2" },
+        ["chain_light"]   = new[] { "chain_1", "chain_2" },
+        ["counter_light"] = new[] { "counter_1", "counter_2" },
+        ["veil_light"]    = new[] { "veil_1", "veil_2" },
+    };
+
+    // 旧IDが _upgrades にあれば新ノード群へ読み替える（LoadFromSlot の _upgrades 復元直後・shotmode復元より前に呼ぶ）。
+    // 没収ゼロ：旧Lv n を chain 先頭から min(n, chain長) 個だけ所持=1 にする（圧縮系も最大段まで＝没収なし）。
+    private void MigrateUpgradesIfLegacy()
+    {
+        bool legacy = false;
+        foreach (var k in _upgrades.Keys)
+            if (MigrationMap.ContainsKey(k)) { legacy = true; break; }
+        if (!legacy) return;
+        var migrated = new Dictionary<string, int>();
+        foreach (var kv in _upgrades)
+        {
+            if (MigrationMap.TryGetValue(kv.Key, out var chain))
+            {
+                int n = Mathf.Clamp(kv.Value, 0, chain.Length);
+                for (int i = 0; i < n; i++) migrated[chain[i]] = 1;
+            }
+            else migrated[kv.Key] = kv.Value; // 既に新ID or 未知キーはそのまま
+        }
+        _upgrades = migrated;
+    }
+
+    // Lv→Lv+1 の価格。単Lvノード方式では各ノード MaxLevel=1・固定 BaseCost なので、
+    // Lv0（未所持）なら BaseCost をそのまま返し、Lv1（所持済＝最大）は 0。CostMul/Capstone は使わない。
     public static long CostAt(UpgradeDef d, int lv)
     {
         if (lv >= d.MaxLevel) return 0;
-        // 奥義（Capstone）は一律100の適用除外：Lv1=BaseCost・以降 ×CostMul（例 800/1280）。
-        if (d.Capstone) return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv));
-        if (lv == 0) return 100; // 最初の強化は全項目共通で100に固定（中ボス後すぐ1つ買えるように）
-        // Lv1→2 は BaseCost そのもの（CostMul^0）。旧式 CostMul^lv だと 100→BaseCost×CostMul の急ジャンプになっていた。
-        return (long)Mathf.Round(d.BaseCost * Mathf.Pow(d.CostMul, lv - 1));
+        return d.BaseCost;
     }
 
     // 次レベルの価格。最大Lv到達 or 不正idなら -1。
@@ -479,42 +589,64 @@ public partial class GameManager : Node
     // ── 難易度・強化由来のインプレ倍率 ──
     public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, Diff.Lunatic => 2.2f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
-    public float UpgradeImpressionMul => 1f + 0.12f * GetUpgradeLevel("imp_mult");
+    public float UpgradeImpressionMul => 1f + 0.12f * ChainLevel("imp_mult", 4);
     // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
     public const float MoneyGainMul = 2f;
     public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
     // ── 強化効果アクセサ（Player/Hud が STEP3 で参照する）──
-    public int ShotDamageBonus => GetUpgradeLevel("shot_power");                            // 弾ダメージ +Lv
+    //   単Lvノード方式：Lv 取得元を GetUpgradeLevel("x")→ChainLevel("x", n) に差替え。式は不変。
+    public int ShotDamageBonus => ChainLevel("shot_power", 4);                            // 弾ダメージ +Lv
     // 発射間隔×（連射強化で短縮、炎上中は +30% 延長＝弱体）。
-    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * GetUpgradeLevel("fire_rate")) * (BurningThisRun ? 1.3f : 1f);
+    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * ChainLevel("fire_rate", 4)) * (BurningThisRun ? 1.3f : 1f);
     // 移動速度×（機動強化で増、炎上中は -10%）。
-    public float MoveSpeedMul => (1f + 0.12f * GetUpgradeLevel("move_speed")) * (BurningThisRun ? 0.9f : 1f);
-    public float HitRadiusMul => Mathf.Max(0.4f, 1f - 0.12f * GetUpgradeLevel("hitbox"));
-    public int MaxLifeBonus => GetUpgradeLevel("max_life");
-    public int BombCountBonus => GetUpgradeLevel("bomb_count");
-    public float BombPowerMul => 1f + 0.25f * GetUpgradeLevel("bomb_power");
-    public int OptionSubCount => GetUpgradeLevel("option_sub");
-    public int ShotPierceCount => GetUpgradeLevel("shot_pierce");     // 連射弾の貫通数（貫く光。0=貫通なし）
-    public int CounterLightLevel => GetUpgradeLevel("counter_light"); // 返し光（回避よけ弾の追尾光弾化）
+    public float MoveSpeedMul => (1f + 0.12f * ChainLevel("move_speed", 3)) * (BurningThisRun ? 0.9f : 1f);
+    public float HitRadiusMul => Mathf.Max(0.4f, 1f - 0.12f * ChainLevel("hitbox", 3));
+    // 3→2圧縮系（max_life/bomb_count/bomb_power/fol_gain/combo_hold）は効果表どおり段2=+2/×1.30 等。
+    // 式は不変で ChainLevel 直結（没収は移行側の min(n,2) で担保。効果は末尾段が旧最終より一段控えめになる）。
+    public int MaxLifeBonus => ChainLevel("max_life", 2);
+    public int BombCountBonus => ChainLevel("bomb_count", 2);
+    public float BombPowerMul => 1f + 0.25f * ChainLevel("bomb_power", 2);
+    public int OptionSubCount => ChainLevel("option", 2);
+    public int ShotPierceCount => ChainLevel("pierce", 2);     // 連射弾の貫通数（貫く光。0=貫通なし）
+    public int CounterLightLevel => ChainLevel("counter", 2);  // 返し光（回避よけ弾の追尾光弾化）
     // 集中の光：同一敵への連続ヒットで威力ボーナス（上限=+Lv。積み上げは Player 側が管理）。
-    public int FocusFireMaxStack => GetUpgradeLevel("focus_fire");
+    public int FocusFireMaxStack => ChainLevel("focus", 2);
     // 連鎖の光：拡散弾の跳弾回数（Lv1=1回・Lv2=2回。威力×0.4は Bullet.TryChain 側）。
-    public int ChainLightBounces => GetUpgradeLevel("chain_light");
+    public int ChainLightBounces => ChainLevel("chain", 2);
     // 祈りの帳：回避後の弾消し光輪（半径 r20/28px・持続 0.5/0.7s）。Lv0 は 0＝無効。
-    public float VeilLightRadius => new[] { 0f, 20f, 28f }[Mathf.Clamp(GetUpgradeLevel("veil_light"), 0, 2)];
-    public float VeilLightDuration => new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(GetUpgradeLevel("veil_light"), 0, 2)];
-    public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * GetUpgradeLevel("contam_resist")); // 上昇を緩めるのみ
+    public float VeilLightRadius => new[] { 0f, 20f, 28f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
+    public float VeilLightDuration => new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
+
+    // ── モード別強化（rapid/spread/homing の威力・間隔）──
+    //   Player の各 Fire・modeMul が ChainLevel 経由で参照する。式はショップの効果表記と同期。
+    public int RapidPowerBonus => ChainLevel("rapid_power", 2);          // 連射弾の追加威力 +Lv
+    public float RapidRateMul => Mathf.Max(0.7f, 1f - 0.06f * ChainLevel("rapid_rate", 2)); // 連射間隔 ×0.94/0.88
+    public float SpreadPowerMul => new[] { 0.65f, 0.72f, 0.80f }[Mathf.Clamp(ChainLevel("spread_power", 2), 0, 2)]; // 拡散弾威力補正
+    public float SpreadRateMul => Mathf.Max(1f, 1.35f - 0.10f * ChainLevel("spread_rate", 1)); // 拡散間隔税 1.35→1.25
+    public float HomingPowerMul => new[] { 0.70f, 0.78f, 0.86f }[Mathf.Clamp(ChainLevel("homing_power", 2), 0, 2)]; // ホーミング弾威力補正
+    public float HomingRateMul => Mathf.Max(1.55f, 1.7f - 0.15f * ChainLevel("homing_rate", 1)); // ホーミング間隔税 1.7→1.55
+    public int HomingTurnRateOverride => ChainLevel("homing_rate", 1) >= 1 ? 110 : 0; // 誘導速射で旋回110（0=既定95）
+
+    // ── バックファイア（後方弾）の数値。bf_* 未所持でも初期から弱く撃つ ──
+    public int BackfireDamage => 1 + ChainLevel("bf_power", 3);             // ダメージ 1(初期)→bf_power で 2/3/4
+    public float BackfireInterval => new[] { 0.9f, 0.7f, 0.55f }[Mathf.Clamp(ChainLevel("bf_rate", 2), 0, 2)]; // 間隔 0.9→0.7→0.55s
+    public int BackfireShots => GetUpgradeLevel("bf_track_1") >= 1 ? 2 : 1; // 後方追尾で同時2発
+    public float BackfireTurnRate => GetUpgradeLevel("bf_track_1") >= 1 ? 90f : 60f; // 旋回 60→bf_track で 90
+
     // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.7/0.6/0.5s・距離 64→68/72/76px。
     // Player.TryDodge が回避開始時に参照する（低速 Focus と同様、i-frame 秒は手触り固定＝触らない）。
-    public float DodgeCooldown => 0.8f - 0.1f * GetUpgradeLevel("move_speed");
-    public float DodgeDistance => 64f + 4f * GetUpgradeLevel("move_speed");
+    public float DodgeCooldown => 0.8f - 0.1f * ChainLevel("move_speed", 3);
+    public float DodgeDistance => 64f + 4f * ChainLevel("move_speed", 3);
 
     // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
     // 汚染0.00→1.00 / 0.16→0.98 / 0.42→0.89 / 0.72→0.73 / 1.00→0.55。
-    // 澄んだ心(contam_resist)の承認式：下限 +0.05/Lv に加え全体を ×(1+0.06Lv)（上限1.1）＝
-    // 無汚染でも Lv1 で×1.06・Lv2 で上限×1.10。Lv3 は高汚染域の底上げ専用（C=1.0 で 0.73→0.83）。
-    public float KindnessGainMul => KindnessGainMulAt(GetUpgradeLevel("contam_resist"));
+    // 澄んだ心(contam)の承認式：下限 +0.05/Lv に加え全体を ×(1+0.06Lv)（上限1.1）。
+    // 3→2圧縮の補償：段2で旧Lv3相当の効果 Lv を渡す（無汚染でも段2で上限×1.10・高汚染域も旧Lv3の底上げ）。
+    private int ContamSteps => ChainLevel("contam", 2);
+    public int ContamEffLevel => ContamSteps >= 2 ? 3 : ContamSteps; // 段2＝旧Lv3相当の実効Lv
+    public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * ContamEffLevel); // 上昇を緩めるのみ
+    public float KindnessGainMul => KindnessGainMulAt(ContamEffLevel);
     // Lv を引数化した実効値（ショップの「いま→買うと」プレビューが実式で正直に出すために公開）。
     public float KindnessGainMulAt(int lv) =>
         Mathf.Min(1.1f, Mathf.Max(0.55f + 0.05f * lv, 1f - 0.45f * Mathf.Pow(Contamination, 1.6f)) * (1f + 0.06f * lv));
@@ -540,7 +672,7 @@ public partial class GameManager : Node
     {
         LastClearImpression = (int)GainImpression(120);
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
-        int fol = Mathf.RoundToInt(40 * (1f + 0.15f * GetUpgradeLevel("fol_gain")) * ReplayMul);
+        int fol = Mathf.RoundToInt(40 * (1f + 0.15f * ChainLevel("fol_gain", 2)) * ReplayMul);
         AddFollowers(fol);
         LastClearFollowers = fol;
         AutoSave(); // クリアでオートセーブ（slot 0）
@@ -612,6 +744,9 @@ public partial class GameManager : Node
             foreach (var k in up.Keys)
                 _upgrades[k.AsString()] = up[k].AsInt32();
         }
+        // セーブ移行：旧MaxLv方式のID群を単Lvノード鎖へ読み替える。
+        // shotmode 復元（HasSpread/HasHoming＝spread_1/homing_1 所持判定）より前に呼ぶ＝没収ゼロで解放判定が正しく効く。
+        MigrateUpgradesIfLegacy();
         // クリアタイム復元（キー無し＝旧セーブは空のまま＝後方互換）。
         ClearTimes.Clear();
         if (data.ContainsKey("clearTimes"))
@@ -777,7 +912,7 @@ public partial class GameManager : Node
 
     private double _comboTimer;
     // コンボ猶予はコンボ持続強化で延長される。
-    private double ComboWindow => 2.0 + 0.4 * GetUpgradeLevel("combo_hold");
+    private double ComboWindow => 2.0 + 0.4 * ChainLevel("combo_hold", 2);
     private const int MaxCombo = 16;
 
     public override void _Ready()

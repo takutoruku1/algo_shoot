@@ -25,44 +25,97 @@ public partial class Shop : Node2D
         "右側のマゼンタの穢れへ吸い寄せられて曲射。避けながら削る。",
     };
 
-    // ───── 二分木ノード配置（設計座標・セル左上）。W146×H44、深さ列 x: d1=168/d2=344/d3=520/d4=696 ─────
+    // ───── 単Lvノード配置（設計座標・セル左上）。W146×H44、深さ列 x: d1=168/d2=344/d3=520/d4=696/d5=872/d6=1048/d7=1224 ─────
+    //   系統ごとに縦の「帯（レーン）」を割り当て、行ピッチ66px（セル44＋余白22）で重なりゼロに再配置（フェーズ3）。
+    //   縦に長い＝スクロールで見える。MaxCam（TreeVirt*）はこの表の実端から算出＝座標を変えれば自動追従する。
+    //   帯順：連射→拡散→ホーミング→バックファイア→生存/経済。x列は親→子が左→右に流れるよう深さで決める。
     private static readonly (string id, float x, float y)[] NodePos =
     {
-        ("fire_rate",     168, 238), // 攻めの系譜（d1）
-        ("shot_power",    344, 172),
-        ("shot_pierce",   520, 146), // ⊗集中の光
-        ("focus_fire",    520, 198), // ⊗貫く光
-        ("shot_spread",   344, 305),
-        ("fol_gain",      520, 268),
-        ("option_sub",    696, 242), // ⊗連鎖の光
-        ("chain_light",   696, 294), // ⊗拡散サブ
-        ("combo_hold",    520, 342),
-        ("move_speed",    168, 495), // 支えの系譜（d1）
-        ("shot_homing",   344, 440),
-        ("hitbox",        520, 440),
-        ("counter_light", 696, 414), // ⊗祈りの帳
-        ("veil_light",    696, 466), // ⊗返し光
-        ("contam_resist", 344, 550),
-        ("imp_mult",      520, 518),
-        ("max_life",      520, 582),
-        ("bomb_count",    696, 556), // ⊗ボム威力
-        ("bomb_power",    696, 608), // ⊗ボム所持
+        // ── 連射系（ATTACK） y120-352 ──
+        ("shot_power_1",  344, 120),
+        ("shot_power_2",  520, 120),
+        ("shot_power_3",  696, 120),
+        ("shot_power_4",  872, 120),
+        ("fire_rate_1",   168, 186),
+        ("fire_rate_2",   344, 186),
+        ("fire_rate_3",   520, 186),
+        ("fire_rate_4",   696, 186),
+        ("rapid_power_1", 696, 252),
+        ("rapid_power_2", 872, 252),
+        ("pierce_1",      1048, 220),
+        ("pierce_2",      1224, 220),
+        ("focus_1",       1048, 286),
+        ("focus_2",       1224, 286),
+        ("rapid_rate_1",  696, 352),
+        ("rapid_rate_2",  872, 352),
+        // ── 拡散系（SPREAD） y452-782 ──
+        ("spread_1",      344, 452),
+        ("spread_2",      520, 452),
+        ("spread_3",      696, 452),
+        ("spread_power_1",520, 518),
+        ("spread_power_2",696, 518),
+        ("option_1",      696, 584),
+        ("option_2",      872, 584),
+        ("fol_gain_1",    520, 650),
+        ("fol_gain_2",    696, 650),
+        ("chain_1",       872, 650),
+        ("chain_2",       1048, 650),
+        ("combo_hold_1",  696, 716),
+        ("combo_hold_2",  872, 716),
+        ("spread_rate_1", 696, 782),
+        // ── ホーミング系（HOMING） y882-1080 ──
+        ("homing_1",      344, 882),
+        ("homing_2",      520, 882),
+        ("homing_3",      696, 882),
+        ("homing_power_1",520, 948),
+        ("homing_power_2",696, 948),
+        ("counter_1",     696, 1014),
+        ("counter_2",     872, 1014),
+        ("homing_rate_1", 696, 1080),
+        ("veil_1",        872, 1080),
+        ("veil_2",        1048, 1080),
+        // ── バックファイア系（BACKFIRE） y1180-1312 ──
+        ("bf_power_1",    344, 1180),
+        ("bf_power_2",    520, 1180),
+        ("bf_power_3",    696, 1180),
+        ("bf_rate_1",     520, 1246),
+        ("bf_rate_2",     696, 1246),
+        ("bf_track_1",    520, 1312),
+        // ── 生存・経済系（SURVIVAL/ECON） y1412-1808 ──
+        ("move_speed_1",  168, 1412),
+        ("move_speed_2",  344, 1412),
+        ("move_speed_3",  520, 1412),
+        ("contam_1",      344, 1478),
+        ("contam_2",      520, 1478),
+        ("hitbox_1",      520, 1544),
+        ("hitbox_2",      696, 1544),
+        ("hitbox_3",      872, 1544),
+        ("imp_mult_1",    520, 1610),
+        ("imp_mult_2",    696, 1610),
+        ("imp_mult_3",    872, 1610),
+        ("imp_mult_4",    1048, 1610),
+        ("max_life_1",    520, 1676),
+        ("max_life_2",    696, 1676),
+        ("bomb_count_1",  696, 1742),
+        ("bomb_count_2",  872, 1742),
+        ("bomb_power_1",  696, 1808),
+        ("bomb_power_2",  872, 1808),
     };
     private const float NodeW = 146f, NodeH = 44f;
     private static readonly Vector2 RootC = new(72f, 389f); // ルート「ミナの核」＝円形メダリオン
     private const float RootR = 34f;
-    // 解放パルスの対象（前提つき奥義＝排他フォークの両翼すべて）。
+    // 解放パルスの対象（前提つきノード＝各系統の奥義の入り口）。前提が成立した瞬間に「解放!」を一度だけ。
     private static readonly string[] CapstoneIds =
-        { "shot_pierce", "focus_fire", "option_sub", "chain_light", "counter_light", "veil_light" };
+        { "pierce_1", "option_1", "chain_1", "counter_1", "veil_1" };
 
     // おすすめ（迷ったらこれ）：進行連動の道しるべ。表示はフロンティア強調＝おすすめ∩いま買えるを金パルス。
     // 親未接続で買えないおすすめは、親チェーンを遡って最初に買える祖先を代わりに光らせる（RebuildFrontier）。
     private string[] RecommendedNow() =>
-        _game == null ? new[] { "shot_power", "fire_rate", "max_life" }
-        : _game.IsStageCleared("koharu") ? new[] { "imp_mult", "fol_gain" }
-        : _game.IsStageCleared("akari") ? new[] { "hitbox", "bomb_power" }
-        : _game.IsStageCleared("rei") ? new[] { "shot_spread", "shot_homing", "bomb_count" }
-        : new[] { "shot_power", "fire_rate", "max_life" };
+        _game == null ? new[] { "shot_power_1", "fire_rate_1", "max_life_1" }
+        : _game.IsStageCleared("koharu") ? new[] { "imp_mult_1", "fol_gain_1" }
+        : _game.IsStageCleared("akari") ? new[] { "hitbox_1", "bomb_power_1" }
+        : _game.IsStageCleared("rei") ? new[] { "spread_1", "homing_1", "bomb_count_1" }
+        : new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
     private string[] _recommended = System.Array.Empty<string>();
     private readonly HashSet<string> _frontier = new(); // _Draw 冒頭で毎フレーム更新
 
@@ -70,19 +123,54 @@ public partial class Shop : Node2D
     private static readonly Color[] CatCol = { new("9be0f5"), new("7ec880"), new("f0d98a") };
     private static int CatFor(string id) => id switch
     {
-        "max_life" or "bomb_count" or "bomb_power" or "move_speed" or "hitbox" or "contam_resist" or "veil_light" => 1,
-        "imp_mult" or "fol_gain" or "combo_hold" => 2,
-        _ => 0,
+        // 1=生存（青緑→緑）：生存・回避・ボム・帳。バックファイアも守勢の系譜として生存色に寄せる。
+        _ when id.StartsWith("max_life") || id.StartsWith("bomb_count") || id.StartsWith("bomb_power")
+            || id.StartsWith("move_speed") || id.StartsWith("hitbox") || id.StartsWith("contam")
+            || id.StartsWith("veil") || id.StartsWith("bf_") => 1,
+        // 2=応援（口コミ・獲得心・コンボ）。
+        _ when id.StartsWith("imp_mult") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold") => 2,
+        _ => 0, // 0=攻撃（連射・威力・拡散・ホーミング・貫通・集中・オプション・連鎖・返し・誘導）
     };
 
-    // 系統アイデンティティ色：所持済みエッジ／育てた道の発光をこの色で塗る＝
-    // 「自分が伸ばしてきた道」が系統ごとに違う光で読める（既存の CatCol と同一系統・色弱でも枝形状と二重符号化）。
-    //   攻め＝連射/威力系はシアン、拡散/応援系はゴールド寄り、支え＝生存系はグリーン。
-    private static readonly Color[] StreamCol = { new("9be0f5"), new("7ec880"), new("f0d98a") };
-    private static Color StreamColor(string id) => StreamCol[CatFor(id)];
+    // ───── 5系統アイデンティティ ─────
+    //   連射／拡散／ホーミング／バックファイア／生存経済を一目で色分けする（帯・エッジ・ノード縁・ラベル）。
+    //   所持済みエッジと「育てた道」の発光をこの色で塗る＝どの枝を伸ばしてきたかが色で読める。
+    //   色相を広く散らして隣接系統でも判別可（シアン/アンバー/グリーン/バイオレット/ローズ）。色弱でも帯位置＋形状で二重符号化。
+    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4 }
+    private static readonly Color[] StreamCol =
+    {
+        new("7ad7f0"), // 連射＝シアン（既存 Info 系）
+        new("f2b866"), // 拡散＝アンバー
+        new("86dca0"), // ホーミング＝グリーン
+        new("c39cf0"), // バックファイア＝バイオレット（ミナ紫の親戚）
+        new("f0a0a8"), // 生存・経済＝ローズ
+    };
+    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済" };
+    private static Stream StreamOf(string id) =>
+        id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
+            || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
+        : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
+        : id.StartsWith("bf_") ? Stream.Backfire
+        : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
+            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
+        : Stream.Rapid; // 連射・威力・貫通・集中・速射
+    private static Color StreamColor(string id) => StreamCol[(int)StreamOf(id)];
+
+    // 系統に属する全ノードが所持済みか（ご褒美演出のトリガ判定）。
+    private bool IsStreamComplete(Stream s)
+    {
+        if (_game == null) return false;
+        bool any = false;
+        foreach (var (id, _, _) in NodePos)
+        {
+            if (StreamOf(id) != s) continue;
+            any = true;
+            if (_game.GetUpgradeLevel(id) < 1) return false;
+        }
+        return any;
+    }
 
     private static readonly Color Light = new("9be0f5");   // 光のハイライト
-    private static readonly Color Orange = new("ff8a5a");  // 過熱
     private static readonly Color Deny = new("ef9a9a");    // 買えない理由（赤）
     private static readonly Color EdgeDim = new(1, 1, 1, 0.22f);       // 通常エッジ（白灰）
     private static readonly Color ForkGold = new(0.91f, 0.77f, 0.35f); // 排他フォーク（金）
@@ -93,8 +181,18 @@ public partial class Shop : Node2D
     // フォーカス：0..2=R0チップ / 3=root（ミナの核） / 4..=NodePos 順のノード。
     private int _sel;
 
+    // ───── 縦横スクロールカメラ（フェーズ2）─────
+    //   ツリー領域だけをカメラオフセット _cam（設計座標）でスクロールする。ヘッダ/ストリップ/詳細/フッタは固定。
+    //   ツリー描画は専用の子CanvasItem(_treeLayer)へ寄せ、RID クリップで表示窓に収める（固定UIへ漏れない）。
+    //   FX（DrawLitEdge/DrawCellFx 等の系統色発光・呼吸・背景モーション）もツリー座標系なので同オフセットで動く。
+    private Vector2 _cam;        // 現在のカメラオフセット（設計座標・Lerp で追従）
+    private Vector2 _camTarget;  // 追従目標（フォーカスノード中心を表示窓中央へ）
+    private Node2D _bgLayer = null!;    // 背景（グラデ/放射光/走査線）専用の子（ZIndex -2＝最背面・固定）。
+    private Control _treeLayer = null!; // ツリー描画専用の子（Control.ClipContents で表示窓にクリップ・カメラ適用）。
+    private CanvasItem _ci = null!;      // ツリー系ヘルパの描画先（通常は _treeLayer。それ以外は this）。
+
     // 入力エッジ
-    private bool _navHeld, _zHeld, _equipHeld, _olHeld, _backHeld;
+    private bool _navHeld, _zHeld, _equipHeld, _backHeld;
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
@@ -107,13 +205,17 @@ public partial class Shop : Node2D
     private Vector2 _buyFxAt;     // バースト発生源
     private double _sweepT;       // モードスウィープ
     private string _sweepName = "";
-    private bool _overloadPreview;
-    private double _olFlashT;     // 過熱発動フラッシュ
 
     // カプストーン解放パルス（前提が成立した瞬間に一度だけ「解放!」）。
     private readonly HashSet<string> _capSeen = new();
     private string _capPulseId = "";
     private double _capPulseT;
+
+    // 系統コンプリート演出：ある系統の全ノードを買い切った瞬間に一度だけ「◯◯ 完成!」バナー＋
+    //   その系統のエッジ束を一斉点灯。入店時に既に完成済みの系統は演出対象外（_streamDone に既知登録）。
+    private readonly HashSet<Stream> _streamDone = new();
+    private Stream _streamBannerId;
+    private double _streamBannerT; // >0 の間バナー＋束点灯
 
     // 振り直し（排他フォーク単点）の2段確認。封印側ノードで Z → 確認表示 → Z 確定 / X・カーソル移動で取消。
     private bool _respecArmed;
@@ -126,10 +228,39 @@ public partial class Shop : Node2D
         // 起動時、装備中モードのチップ（R0）にカーソルを合わせる。
         _sel = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
         if (_sel < 0) _sel = 0;
+
+        // 背景専用の子（最背面 ZIndex -2・固定）。Shop 本体(ZIndex 0)は固定UIを描くので、
+        // 背景をここに分離しないと ZIndex -1 のツリーが背景に覆われて見えなくなる（レイヤ順の要）。
+        _bgLayer = new Node2D { Name = "BgLayer", ZIndex = -2 };
+        _bgLayer.Draw += DrawBgLayer;
+        AddChild(_bgLayer);
+
+        // ツリー描画専用の子（背景の上 ZIndex -1・固定UIの下）。Control.ClipContents で表示窓に確実にクリップする
+        //   （RID クリップは _Draw 描画に効かないため Control の矩形クリップを使う）。位置・サイズは実ピクセル。
+        //   ・_Draw を Shop 側の DrawTreeLayer へ委譲（Draw シグナル直結）。カメラオフセット＋design スケールは _Draw 内で。
+        float sc = UiKit.Scale;
+        _treeLayer = new Control
+        {
+            Name = "TreeLayer",
+            ZIndex = -1,
+            ClipContents = true,
+            Position = new Vector2(WinL * sc, TreeTop * sc),
+            Size = new Vector2((WinR - WinL) * sc, (TreeBot - TreeTop) * sc),
+        };
+        _treeLayer.Draw += DrawTreeLayer;
+        AddChild(_treeLayer);
+        // 起動時のカメラは現フォーカス（起動時はチップ＝入口）に合わせて即座に収める＝最上段が見える左上端(0,0)。
+        //   Lerp の立ち上がりで枠外から滑り込まないよう、UpdateCamera と同じ目標を初期値にする。
+        _camTarget = _cam = _sel >= 4
+            ? ClampCam(NodeRect(_sel - 4).GetCenter() - new Vector2((WinR - WinL) / 2f, WinH / 2f) - new Vector2(TreeVirtL, TreeVirtT))
+            : Vector2.Zero;
         _minaShot = ResourceLoader.Load<Texture2D>("res://char/mina_shoot.png");
         // 既に前提成立済みのカプストーンは「解放!」パルスの対象外（入店時点の状態を既知とする）。
         foreach (var id in CapstoneIds)
             if (_game?.IsPrereqMet(id) ?? false) _capSeen.Add(id);
+        // 入店時点で既に完成している系統は「完成!」バナーの対象外（既知として登録）。
+        foreach (Stream s in System.Enum.GetValues<Stream>())
+            if (IsStreamComplete(s)) _streamDone.Add(s);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
     }
@@ -141,9 +272,20 @@ public partial class Shop : Node2D
         if (_buyFxT > 0) _buyFxT -= delta;
         if (_walletPopT > 0) _walletPopT -= delta;
         if (_sweepT > 0) _sweepT -= delta;
-        if (_olFlashT > 0) _olFlashT -= delta;
         if (_capPulseT > 0) _capPulseT -= delta;
+        if (_streamBannerT > 0) _streamBannerT -= delta;
         if (_autoplay) { ExitShop(); return; }
+
+        // 系統コンプリート：この画面内で系統の全ノードが揃った瞬間に一度だけ祝う。
+        foreach (Stream s in System.Enum.GetValues<Stream>())
+            if (IsStreamComplete(s) && _streamDone.Add(s))
+            {
+                _streamBannerId = s; _streamBannerT = 2.4;
+                Audio.Instance?.PlayUiBuy();
+            }
+
+        // カメラ追従：フォーカスノード中心を表示窓中央（≈(430,250)オフセット）へ寄せ、Lerp で滑らかに。
+        UpdateCamera((float)delta);
 
         // カプストーンの前提がこの画面内で成立した瞬間（例：光の出力 Lv2 を購入）に一度だけ解放パルス。
         foreach (var id in CapstoneIds)
@@ -154,7 +296,7 @@ public partial class Shop : Node2D
         // 「もどる＝ショップごと閉じる」「購入」が誤発火しないよう、ゲート中は全キーを既押し扱いで食う。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _equipHeld = _olHeld = _backHeld = true;
+            _navHeld = _zHeld = _equipHeld = _backHeld = true;
             QueueRedraw();
             return;
         }
@@ -184,15 +326,6 @@ public partial class Shop : Node2D
         bool c = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
         bool cEdge = c && !_equipHeld; _equipHeld = c;
         if (cEdge && _t > 0.2) OnEquipKey();
-
-        // V：過熱オーバーロードのプレビュー切替（演出確認用）。
-        bool v = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.X);
-        bool vEdge = v && !_olHeld; _olHeld = v;
-        if (vEdge && _t > 0.2)
-        {
-            _overloadPreview = !_overloadPreview;
-            if (_overloadPreview) _olFlashT = 0.9;
-        }
 
         // X：振り直し確認中はその取消、通常はショップ退出。
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
@@ -234,8 +367,8 @@ public partial class Shop : Node2D
         }
         else if (sel == 3)
         {
-            l.Add(SelOf("fire_rate"));
-            l.Add(SelOf("move_speed"));
+            l.Add(SelOf("fire_rate_1"));
+            l.Add(SelOf("move_speed_1"));
         }
         else
         {
@@ -348,29 +481,48 @@ public partial class Shop : Node2D
         if (_game.TryPurchase(id))
         {
             Audio.Instance?.PlayUiBuy(); // 購入成功＝達成音
-            string label = lv == 0 && (id == "shot_spread" || id == "shot_homing") ? "解放" : "強化";
-            Toast($"{d.Name} を{label}！  Lv {_game.GetUpgradeLevel(id)}", UiKit.Info);
+            // 各系統の入り口ノード（spread_1/homing_1）は「解放」、それ以外は「強化」。
+            bool isUnlock = id == "spread_1" || id == "homing_1";
+            Toast($"{d.Name} を{(isUnlock ? "解放" : "強化")}！", UiKit.Info);
             _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = id; _buyFxAt = at;
             // 拡散/ホーミングを解放したら自動で装備に切り替える（従来挙動を踏襲）。
-            if (lv == 0 && id == "shot_spread") EquipMode(1, silent: true);
-            if (lv == 0 && id == "shot_homing") EquipMode(2, silent: true);
+            if (id == "spread_1") EquipMode(1, silent: true);
+            if (id == "homing_1") EquipMode(2, silent: true);
         }
     }
 
+    // C装備（作り直し）：R0チップ＝そのモード。ノードは「モードの起点ノード」だけが装備入口。
+    //   起点ノード（fire_rate_1=連射 / spread_1=拡散 / homing_1=ホーミング）以外では、
+    //   どこで装備するかを具体案内する（従来の PreviewModeFor 逆引きの無反応バグを解消）。
     private void OnEquipKey()
     {
         if (_sel <= 2) { EquipMode(_sel); return; }
-        // ノード上の C＝その枝のモードを装備。枝がモード固有でない（全モード系）なら案内。
-        int m = PreviewModeFor(FocusNodeId);
-        if (m < 0) { Audio.Instance?.PlayUiDeny(); Toast("この枝は全モードに効きます（装備は上のチップで）", UiKit.Text4); return; }
-        EquipMode(m);
+        int m = IsModeEquipNode(FocusNodeId);
+        if (m >= 0) { EquipMode(m); return; }
+        // 起点ノードでない：装備の入口（起点ノード or 上のチップ）へ誘導。
+        Audio.Instance?.PlayUiDeny();
+        Toast("装備はモードの起点ノード（連射速度I／拡散展開I／誘導の祈りI）か上のチップで", UiKit.Text4);
     }
+
+    // モードの起点ノードか（そのノード上で C＝そのモード装備）。起点でなければ -1。
+    private static int IsModeEquipNode(string? id) => id switch
+    {
+        "fire_rate_1" => 0, // 連射
+        "spread_1" => 1,    // 拡散
+        "homing_1" => 2,    // ホーミング
+        _ => -1,
+    };
 
     private void EquipMode(int idx, bool silent = false)
     {
         var m = Modes[idx];
         if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("まだ解放されていません（枝の入り口で解放）", UiKit.Text4); } return; }
-        if (_game!.SelectedShotMode == m && !silent) { return; }
+        // 既に装備中のモードで C＝「装備中」を明示（従来の無音 return ＝“反応しない”の解消）。
+        if (_game!.SelectedShotMode == m)
+        {
+            if (!silent) { Audio.Instance?.PlayUiMove(); Toast($"{_game.ShotModeName(m)} は装備中です", UiKit.Info); }
+            return;
+        }
         if (!silent) Audio.Instance?.PlayUiConfirm(); // 装備＝決定音
         _game.SelectedShotMode = m;
         _sweepName = _game.ShotModeName(m);
@@ -382,17 +534,78 @@ public partial class Shop : Node2D
     // ノード → その枝のショットモード（詳細プレビューと C 装備用。-1＝モード固有でない＝装備中を映す）。
     private static int PreviewModeFor(string? id) => id switch
     {
-        "fire_rate" or "shot_power" or "shot_pierce" or "focus_fire" => 0,
-        "shot_spread" or "fol_gain" or "option_sub" or "chain_light" or "combo_hold" => 1,
-        "shot_homing" or "hitbox" or "counter_light" or "veil_light" => 2,
-        _ => -1,
+        _ when id == null => -1,
+        // 0=連射：連射速度・光の出力・連射威力/速射・貫通・集中。
+        _ when id.StartsWith("fire_rate") || id.StartsWith("shot_power") || id.StartsWith("rapid_")
+            || id.StartsWith("pierce") || id.StartsWith("focus") => 0,
+        // 1=拡散：拡散展開/威力/速射・拡散力・オプション・連鎖。
+        _ when id.StartsWith("spread") || id.StartsWith("fol_gain")
+            || id.StartsWith("option") || id.StartsWith("chain") => 1,
+        // 2=ホーミング：誘導・誘導威力/速射・返し光・帳。
+        _ when id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") => 2,
+        _ => -1, // 全モード共通（生存・経済・コンボ・バックファイア）は装備中を映す
     };
 
     // ───────────────────────── レイアウト座標 ─────────────────────────
     private const float PadX = 40f;
     private const float StripY = 96f, StripH = 42f;     // R0 モードストリップ
     private const float DetailX = 870f, DetailW = 370f; // 詳細パネル x870-1240
-    private const float TreeTop = 146f, TreeBot = 652f; // ツリー領域 y146-652
+    private const float TreeTop = 146f, TreeBot = 652f; // ツリー領域（表示窓）y146-652
+
+    // ───── スクロール表示窓・仮想ツリー範囲・カメラ上限（設計座標）─────
+    //   表示窓：x[WinL,WinR]・y[TreeTop,TreeBot]（幅826×高506）。詳細パネル(x870)より左で切る＝固定UIへ漏れない。
+    //   仮想ツリーの左上端(TreeVirtL,TreeVirtT)〜右下端(TreeVirtR,TreeVirtB)を NodePos＋ルートの実端＋余白から算出。
+    //   カメラの原点(cam=0)は仮想ツリー左上端＝ノード最上段が表示窓の中に完全に収まる位置（ストリップ下に潜らない）。
+    //   MaxCam：仮想ツリーの右下端が表示窓の右下に来る量＝(仮想右-WinR - 仮想左, 仮想下-窓高 - 仮想上)を（0以上に）クランプ。
+    private const float WinL = 24f, WinR = 850f;                    // 表示窓の左右（設計座標）
+    private const float WinH = TreeBot - TreeTop;                   // 表示窓の高さ（設計座標）
+    // 仮想ツリー範囲＝NodePos の実端＋余白から算出（座標を変えればカメラ上限も自動追従する）。
+    //   ルート「ミナの核」も左上端候補に含める。ハードコードだと座標変更でスクロール外に取り残されるので必ず実端依存に。
+    private static readonly Vector4 TreeVirt = ComputeTreeVirt();   // (左, 上, 右, 下)
+    private static float TreeVirtL => TreeVirt.X;
+    private static float TreeVirtT => TreeVirt.Y;                   // 仮想ツリー上端（＝cam.Y=0 の基準）
+    private static float TreeVirtR => TreeVirt.Z;                   // 仮想ツリー右端
+    private static float TreeVirtB => TreeVirt.W;                   // 仮想ツリー下端
+    private const float TreeMargin = 18f;                           // 仮想端に付ける余白（最上段のヘッドルーム含む）
+    private static Vector4 ComputeTreeVirt()
+    {
+        float l = RootC.X - RootR, t = RootC.Y - RootR, r = RootC.X + RootR, b = RootC.Y + RootR;
+        foreach (var (_, x, y) in NodePos)
+        {
+            l = Mathf.Min(l, x);
+            t = Mathf.Min(t, y);
+            r = Mathf.Max(r, x + NodeW);
+            b = Mathf.Max(b, y + NodeH);
+        }
+        return new Vector4(l - TreeMargin, t - TreeMargin, r + TreeMargin, b + TreeMargin);
+    }
+    // カメラ可動幅：仮想ツリーが表示窓（WinR-WinL 幅 / WinH 高）に対してはみ出す量。0未満は0（スクロール不要）。
+    private static readonly Vector2 MaxCam = new(
+        Mathf.Max(0f, (TreeVirtR - TreeVirtL) - (WinR - WinL)),
+        Mathf.Max(0f, (TreeVirtB - TreeVirtT) - WinH));
+
+    // カメラを [0, MaxCam] に収める（負や仮想範囲超えのオフセットを禁止＝端で止まる）。
+    private static Vector2 ClampCam(Vector2 c) =>
+        new(Mathf.Clamp(c.X, 0f, MaxCam.X), Mathf.Clamp(c.Y, 0f, MaxCam.Y));
+
+    // カメラ追従：フォーカスがチップ/root/ノードのどれでも、その中心を表示窓中央へ寄せる目標を作り Lerp。
+    //   チップ(R0)や root は上部固定域なので、カメラは左上端(0,0)へ戻す＝ツリーの入口(d1)が見える。
+    private void UpdateCamera(float delta)
+    {
+        if (_sel >= 4)
+        {
+            Vector2 center = NodeRect(_sel - 4).GetCenter();
+            // フォーカスノード中心を表示窓中央へ。cam = ノード中心 − 窓中央（design） − 仮想左上端。
+            //   （transform が design→ローカルで cam＋仮想左上端を引くので、その分をここで足し戻す）。
+            Vector2 winCenter = new((WinR - WinL) / 2f, WinH / 2f);
+            _camTarget = ClampCam(center - winCenter - new Vector2(TreeVirtL, TreeVirtT));
+        }
+        else
+        {
+            _camTarget = Vector2.Zero; // チップ/root にいる間は入口（左上）を映す＝最上段が余白ぶん下がって全部見える
+        }
+        _cam = _cam.Lerp(_camTarget, Mathf.Clamp(12f * delta, 0f, 1f));
+    }
 
     // R0 装備チップの矩形（幅は名前の実幅から。ストリップ描画とフォーカス枠が共有する）。
     private float ChipW(int i) => 34f + UiKit.TextW(UiKit.ZenBold, _game?.ShotModeName(Modes[i]) ?? "", 14);
@@ -406,51 +619,154 @@ public partial class Shop : Node2D
     // ───────────────────────── 描画 ─────────────────────────
     public override void _Draw()
     {
+        _ci = this; // 固定UI（ヘッダ/ストリップ/詳細/フッタ）は Shop 本体へ描く（カメラ非適用）。
         UiKit.BeginDesign(this);
         _recommended = RecommendedNow();
         RebuildFrontier(); // フロンティア強調（祖先フォールバック込み）を毎フレーム確定
 
-        UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0d0b1c"), new Color("0a0916"), new Color("070611") }, new[] { 0f, 0.55f, 1f });
-        // 大きな放射光をゆっくり呼吸させる＝静止画に見えない下地の脈動（地味さ対策の核）。
-        float bgBreath = 0.10f + 0.03f * Mathf.Sin((float)_t * 0.6f);
-        UiKit.RadialGlow(this, new Vector2(W * 0.12f, H * 0.42f), 460f, UiKit.Info, bgBreath);
-        DrawBgMotes();
-        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
+        // 背景（最背面 -2）とツリー本体（-1・クリップ）は専用の子が描く＝毎フレーム再描画を要求。
+        //   レイヤ順：背景(-2) → ツリー(-1) → 固定UI(このShop本体・0)。
+        _bgLayer.QueueRedraw();
+        _treeLayer.QueueRedraw();
 
         DrawHeader();
         DrawModeStrip();
-        DrawTree();
         DrawDetailPanel();
+        DrawScrollBars(); // 横位置バー＋縦の「まだ下にある」矢印（固定UI）
 
-        // フッタ操作ヒント（ボタン表記は Pad に集約＝KB/PS/Xbox 切替に追従）。
+        // フッタ操作ヒント（ボタン表記は Pad に集約＝KB/PS/Xbox 切替に追従）。過熱削除で4項目に整理。
         float fy = H - 34f, fx = PadX;
         fx = Hint(fx, fy, Pad.MoveToken, "えらぶ", false);
-        fx = Hint(fx, fy, Pad.ConfirmToken, "購入/選び直し", true);
+        fx = Hint(fx, fy, Pad.ConfirmToken, "購入", true);
         fx = Hint(fx, fy, Pad.EquipToken, "装備", false);
-        fx = Hint(fx, fy, Pad.ModeToken, "過熱", false);
         // 初回ショップ導線で復帰先がある間は、退出＝ステージの続きへ＝「つづける」表記にする。
         bool resuming = !string.IsNullOrEmpty(GetNodeOrNull<GameManager>("/root/Game")?.PendingResumeScene);
         Hint(fx, fy, Pad.CancelToken, resuming ? "つづける" : "もどる", false);
 
-        DrawBuyFx();
         DrawModeSweep();
+        DrawStreamBanner();
         DrawToast();
-        DrawOverloadOverlay();
         UiKit.EndDesign(this);
+    }
+
+    // 系統コンプリート・バナー（固定UI・中央上寄り）。系統色のリボン＋「◯◯系 コンプリート!」＋星の輪。
+    //   立ち上がり→保持→抜けの3段でフェード。エッジ束の総点灯（DrawLitEdge 側）と同時に出す＝達成の総まとめ。
+    private void DrawStreamBanner()
+    {
+        if (_streamBannerT <= 0) return;
+        float k = 1f - (float)(_streamBannerT / 2.4);           // 0→1
+        float a = k < 0.14f ? k / 0.14f : (k > 0.82f ? (1f - k) / 0.18f : 1f);
+        Color sc = StreamCol[(int)_streamBannerId];
+        string name = StreamName[(int)_streamBannerId];
+        string t = name + "系 コンプリート！";
+        float tw = UiKit.TextW(UiKit.ZenBlack, t, 30) + 96;
+        float bx = W / 2f - tw / 2f, by = 250f - 8f * (1f - Mathf.Min(1f, k * 3f)); // わずかに落ちてくる
+        UiKit.RadialGlow(this, new Vector2(W / 2f, by + 30f), tw * 0.7f, sc, 0.28f * a);
+        UiKit.Box(this, new Rect2(bx, by, tw, 62f), new Color(0.06f, 0.05f, 0.10f, 0.94f * a), 18f, new Color(sc, 0.85f * a), 1.6f);
+        UiKit.Text(this, UiKit.Mono, new Vector2(bx, by + 8f), "STREAM COMPLETE", 10, new Color(sc, 0.7f * a), HorizontalAlignment.Center, tw);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(bx, by + 24f), t, 30, new Color(sc.Lerp(UiKit.White, 0.35f), a), HorizontalAlignment.Center, tw);
+        // 星の輪（回転しながら広がる）
+        int n = 12;
+        float rr = 44f + 34f * k;
+        for (int i = 0; i < n; i++)
+        {
+            float ang = Mathf.Tau * i / n + (float)_t * 1.4f;
+            Vector2 p = new(W / 2f + Mathf.Cos(ang) * (tw * 0.5f + rr), by + 30f + Mathf.Sin(ang) * (36f + rr * 0.4f));
+            DrawStar(p, 3.4f * (1f - k * 0.4f), new Color(sc.Lerp(UiKit.White, 0.5f), a * (0.4f + 0.6f * (1f - k))));
+        }
+    }
+
+    // 小さな4方向きらめき星（ダイヤ十字）。固定UI（this）に描く。凹多角形を避け菱形2枚で描く。
+    private void DrawStar(Vector2 c, float s, Color col)
+    {
+        DrawColoredPolygon(new[] { c + new Vector2(0, -s), c + new Vector2(s * 0.32f, 0), c + new Vector2(0, s), c + new Vector2(-s * 0.32f, 0) }, col);
+        DrawColoredPolygon(new[] { c + new Vector2(-s, 0), c + new Vector2(0, -s * 0.32f), c + new Vector2(s, 0), c + new Vector2(0, s * 0.32f) }, col);
+    }
+
+    // 背景専用の子（_bgLayer・最背面）の _Draw 委譲先。グラデ＋放射光＋走査線（固定・カメラ非適用）。
+    private void DrawBgLayer()
+    {
+        _bgLayer.DrawSetTransform(Vector2.Zero, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
+        UiKit.VGradient(_bgLayer, new Rect2(0, 0, W, H),
+            new[] { new Color("0d0b1c"), new Color("0a0916"), new Color("070611") }, new[] { 0f, 0.55f, 1f });
+        float bgBreath = 0.10f + 0.03f * Mathf.Sin((float)_t * 0.6f);
+        UiKit.RadialGlow(_bgLayer, new Vector2(W * 0.12f, H * 0.42f), 460f, UiKit.Info, bgBreath);
+        for (float y = 0; y < H; y += 6f) _bgLayer.DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
+        _bgLayer.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // ツリー描画専用の子（_treeLayer）の _Draw 委譲先。design スケール＋カメラオフセットで座標系を作り、
+    //   背景モーション（BgMotes）→ エッジ → ルート → ノードセルの順に描く。FX もこの座標系＝カメラで動く。
+    //   クリップ矩形（_Ready で設定）が表示窓外への漏れを止める。窓外ノード/エッジは描画スキップで負荷も抑える。
+    private void DrawTreeLayer()
+    {
+        _ci = _treeLayer;
+        // Control ローカル原点＝表示窓の左上（画面 (WinL,TreeTop)*Scale）。design 点(dx,dy)を
+        //   ローカル (dx - cam - 仮想左上)*Scale へ写す＝cam=0 で仮想ツリー左上端が窓左上に来る
+        //   （＝最上段ノードが余白ぶん下がって表示窓に完全に収まり、ストリップ下に潜らない）。
+        Vector2 off = -(_cam + new Vector2(TreeVirtL, TreeVirtT)) * UiKit.Scale;
+        _treeLayer.DrawSetTransform(off, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
+        DrawBgMotes();
+        DrawTree();
+        DrawBuyFx(); // 購入バーストはノード位置＝ツリー座標で光る
+        _treeLayer.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // ノードが表示窓（＋余白）に触れているか。ローカル座標（design 換算・窓左上=0）で判定＝窓外は描画スキップ。
+    //   local = design − cam − 仮想左上端。窓は [0, WinW]×[0, WinH]（±40px 余白）。
+    private bool NodeVisible(Rect2 r)
+    {
+        float lx = r.Position.X - _cam.X - TreeVirtL, ly = r.Position.Y - _cam.Y - TreeVirtT;
+        float winW = WinR - WinL;
+        return lx + r.Size.X >= -40f && lx <= winW + 40f
+            && ly + r.Size.Y >= -40f && ly <= WinH + 40f;
+    }
+
+    // ───── スクロール位置インジケータ（固定UI・カメラ非適用）─────
+    //   横：表示窓の下端に細いトラック＋サム（_cam.X/MaxCam.X）＝「まだ右にある」を可視化。
+    //   縦：表示窓の右端内側に縦トラック＋サム（_cam.Y/MaxCam.Y）＝「まだ下にある」を可視化。横バーと視覚を揃える。
+    //   サムの見た目（太さ6・角丸3・Info半透明）とトラック（幅4・8%白）は縦横で共通。
+    private const float BarThick = 4f, ThumbThick = 6f; // トラック太さ / サム太さ（縦横共通）
+    private void DrawScrollBars()
+    {
+        float winW = WinR - WinL, winH = WinH;
+
+        // 横位置バー（表示窓下端）。トラック＋サム。見えている横割合でサム長を決める。
+        float hTrackY = TreeBot + 6f;
+        UiKit.Box(this, new Rect2(WinL, hTrackY, winW, BarThick), new Color(1, 1, 1, 0.08f), 2f);
+        if (MaxCam.X > 1f)
+        {
+            float viewFrac = Mathf.Clamp(winW / (TreeVirtR - TreeVirtL), 0.12f, 1f); // 見えている横割合＝サム長比
+            float thumbW = winW * viewFrac;
+            float t = Mathf.Clamp(_cam.X / MaxCam.X, 0f, 1f);
+            float thumbX = WinL + t * (winW - thumbW);
+            UiKit.Box(this, new Rect2(thumbX, hTrackY - 1f, thumbW, ThumbThick), new Color(UiKit.Info, 0.55f), 3f);
+        }
+
+        // 縦位置バー（表示窓の右端内側 x≈844）。詳細パネル(x870)と被らない位置。トラック＋サム。
+        float vTrackX = WinR - 6f;
+        UiKit.Box(this, new Rect2(vTrackX, TreeTop, BarThick, winH), new Color(1, 1, 1, 0.08f), 2f);
+        if (MaxCam.Y > 1f)
+        {
+            float viewFrac = Mathf.Clamp(winH / (TreeVirtB - TreeVirtT), 0.12f, 1f); // 見えている縦割合＝サム長比
+            float thumbH = winH * viewFrac;
+            float t = Mathf.Clamp(_cam.Y / MaxCam.Y, 0f, 1f);
+            float thumbY = TreeTop + t * (winH - thumbH);
+            UiKit.Box(this, new Rect2(vTrackX - 1f, thumbY, ThumbThick, thumbH), new Color(UiKit.Info, 0.55f), 3f);
+        }
     }
 
     private void DrawHeader()
     {
         UiKit.Text(this, UiKit.Mono, new Vector2(PadX, 22), "SHOT UPGRADE SYSTEM", 11, UiKit.Text3);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(PadX, 36), "弾・ショット強化システム", 28, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "ミナの核から枝を伸ばす。⊗の枝はどちらか一方——心を払えば選び直せる。", 13, UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "ミナの核から枝を伸ばして育てる。連射・拡散・誘導、後方の光——好きな順で、いつかすべて。", 13, UiKit.Text2);
 
         // 長期目標（LUNATIC解放）＝「何のために稼ぐか」の遠い灯り。条件は GameManager.IsLunaticUnlocked
         //（フォロワー200 or 光の出力Lv4＝ツリー側にも王冠マークで重ねる）。解放済みなら出さない。
         if (_game != null && !_game.IsLunaticUnlocked)
         {
-            string goal = $"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.GetUpgradeLevel("shot_power")}/4";
+            string goal = $"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel("shot_power", 4)}/4";
             UiKit.Text(this, UiKit.Zen, new Vector2(W - PadX - UiKit.TextW(UiKit.Zen, goal, 11), 80), goal, 11, new Color("c9b6ef"));
         }
 
@@ -472,7 +788,7 @@ public partial class Shop : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(pillX + pillW - 18 - numW, pillY + 22 - impSize / 2f - popA * 1.5f), impS, impSize, impCol);
     }
 
-    // R0：装備チップ（フォーカス可能）＋過熱トグル。装備は Z/C の1押し。
+    // R0：装備チップ（フォーカス可能）。装備は Z/C の1押し。過熱トグルは撤去し、右側に「装備中モード」を表示。
     private void DrawModeStrip()
     {
         float x = PadX, y = StripY, w = W - PadX * 2, h = StripH;
@@ -494,19 +810,13 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 26, y + h / 2f - 8), name, 14, unlocked ? (equipped ? UiKit.White : UiKit.Text2) : UiKit.Text4);
         }
 
-        // 過熱トグル
-        float cx = ChipRect(2).End.X + 8f;
-        bool ol = _overloadPreview;
-        float olW = 92f;
-        var olr = new Rect2(cx + 6, y + 7, olW, h - 14);
-        UiKit.Box(this, olr, ol ? new Color(Orange, 0.85f) : new Color(Orange, 0.10f), 999f, new Color(Orange, ol ? 0.9f : 0.4f), 1f);
-        DrawCircle(new Vector2(cx + 20, y + h / 2f), 4.5f, ol ? UiKit.White : Orange);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 30, y + h / 2f - 8), "過熱 " + (ol ? "ON" : "OFF"), 12, ol ? UiKit.White : new Color("ff9a78"));
-
-        // 右：過熱の循環/プレビュー操作子（Pad 経由＝表示モードに追従）。
-        string olTok = Pad.ModeToken;
-        UiKit.Key(this, new Vector2(x + w - 168, y + h / 2f - 13), olTok, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 140, y + h / 2f - 8), "過熱プレビュー", 12, UiKit.Text3);
+        // 右：装備中モードの明示＋装備操作子（過熱チップ跡地の整理）。
+        string cur = "装備中: " + (_game?.ShotModeName(_game.SelectedShotMode) ?? "連射");
+        float curW = UiKit.TextW(UiKit.ZenBold, cur, 12);
+        float keyX = x + w - 148f;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(keyX - curW - 16f, y + h / 2f - 8), cur, 12, new Color(UiKit.PurifyHi, 0.9f));
+        UiKit.Key(this, new Vector2(keyX, y + h / 2f - 13), Pad.EquipToken, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(keyX + 28f, y + h / 2f - 8), "で装備", 12, UiKit.Text3);
     }
 
     private void DrawModeIcon(Vector2 c, int idx, Color col)
@@ -531,23 +841,31 @@ public partial class Shop : Node2D
         }
     }
 
-    // ───────────────────────── 二分木ツリー描画 ─────────────────────────
+    // ───────────────────────── 二分木ツリー描画（_treeLayer へ・カメラ座標系）─────────────────────────
     private void DrawTree()
     {
+        // 0) 系統レーン帯（最背面）＝縦に長いツリーでも「いまどの系統を見ているか」が色と見出しで分かる。
+        DrawStreamLanes();
+
         // 1) エッジ（通常＝白灰の独立エッジ／排他＝金のY字束ね＋⊗メダル）。フォーク対は片側だけが描く（重複回避）。
+        //    親か子のどちらかが表示窓に触れているエッジだけ描く（両端窓外は完全にスキップ）。
         var forkDrawn = new HashSet<string>();
         foreach (var nd in GameManager.Upgrades)
         {
             int childSel = SelOf(nd.Id);
             if (childSel < 0) continue;
-            Vector2 to = LeftCenter(NodeRect(childSel - 4));
+            Rect2 childR = NodeRect(childSel - 4);
+            int parentSel = string.IsNullOrEmpty(nd.ParentId) ? -1 : SelOf(nd.ParentId);
+            Rect2 parentR = parentSel >= 4 ? NodeRect(parentSel - 4) : new Rect2(RootC, Vector2.Zero);
+            if (!NodeVisible(childR) && !NodeVisible(parentR)) continue; // 両端とも窓外＝描かない
+            Vector2 to = LeftCenter(childR);
             Vector2 from = string.IsNullOrEmpty(nd.ParentId)
                 ? RootC + new Vector2(RootR, 0)
-                : RightCenter(NodeRect(SelOf(nd.ParentId) - 4));
+                : RightCenter(parentR);
 
             if (!string.IsNullOrEmpty(nd.ExclusiveWith))
             {
-                // 排他フォーク：対でまとめて1回だけ描く（Y字＋メダル＋ブラケット）。
+                // 排他フォーク：対でまとめて1回だけ描く（Y字＋メダル＋ブラケット）。※現状は撤廃で未使用。
                 string key = string.CompareOrdinal(nd.Id, nd.ExclusiveWith) < 0 ? nd.Id : nd.ExclusiveWith;
                 if (!forkDrawn.Add(key)) continue;
                 DrawForkEdges(nd.Id, nd.ExclusiveWith, from);
@@ -555,18 +873,55 @@ public partial class Shop : Node2D
             else
             {
                 // 通常エッジ：所持済みの枝は系統色で灯し、光が流れて「育てた道」が生きて見える。
+                //   未所持エッジも系統色をごく淡く乗せて「これから伸ばす道」の色を予告する（一目の系統識別）。
                 bool lit = (_game?.GetUpgradeLevel(nd.Id) ?? 0) >= 1;
                 if (lit) DrawLitEdge(from, to, StreamColor(nd.Id), nd.Id);
-                else DrawElbow(from, to, EdgeDim, 1.6f);
+                else DrawElbow(from, to, new Color(StreamColor(nd.Id), 0.18f), 1.6f);
             }
         }
 
-        // 2) root メダリオン「ミナの核」
-        DrawRootMedallion();
+        // 2) root メダリオン「ミナの核」（左上・常に窓内寄り）
+        if (NodeVisible(new Rect2(RootC - new Vector2(RootR, RootR), new Vector2(RootR * 2, RootR * 2))))
+            DrawRootMedallion();
 
-        // 3) ノードセル
+        // 3) ノードセル（窓外はスキップ）
         for (int i = 0; i < NodePos.Length; i++)
-            DrawNodeCell(NodePos[i].id, NodeRect(i), _sel == i + 4);
+        {
+            Rect2 r = NodeRect(i);
+            if (!NodeVisible(r)) continue;
+            DrawNodeCell(NodePos[i].id, r, _sel == i + 4);
+        }
+    }
+
+    // 系統レーン帯：各系統の y 範囲を NodePos から実測し、淡い系統色の帯＋左レール＋見出し（◯◯・n/N）を描く。
+    //   縦スクロールの長いツリーで現在地の手掛かりになる。窓外の帯は描画スキップ。所持数で見出しの明るさが増す。
+    private void DrawStreamLanes()
+    {
+        foreach (Stream s in System.Enum.GetValues<Stream>())
+        {
+            float top = float.MaxValue, bot = float.MinValue;
+            int owned = 0, tot = 0;
+            foreach (var (id, _, y) in NodePos)
+            {
+                if (StreamOf(id) != s) continue;
+                top = Mathf.Min(top, y); bot = Mathf.Max(bot, y + NodeH); tot++;
+                if ((_game?.GetUpgradeLevel(id) ?? 0) >= 1) owned++;
+            }
+            if (tot == 0) continue;
+            top -= 16f; bot += 12f;
+            if (top - _cam.Y > TreeBot || bot - _cam.Y < TreeTop) continue; // 帯が縦スクロール外なら描かない
+            Color sc = StreamCol[(int)s];
+            bool done = owned >= tot;
+            // 帯の地（ごく淡い系統色）＝仮想幅いっぱい。
+            UiKit.Box(_ci, new Rect2(WinL, top, TreeVirtR - WinL, bot - top), new Color(sc, 0.045f), 0f);
+            // 見出し（系統名＋所持数）は左端に貼り付く＝横スクロールしても常に読める（cam.X を足して窓左に固定）。
+            float hx = _cam.X + WinL + 6f;
+            _ci.DrawRect(new Rect2(hx - 2f, top, 2.5f, bot - top), new Color(sc, done ? 0.75f : 0.3f)); // 左レール
+            Color hc = done ? UiKit.Gold.Lerp(sc, 0.3f) : new Color(sc, owned > 0 ? 0.9f : 0.5f);
+            UiKit.Box(_ci, new Rect2(hx + 4f, top + 2f, 96f, 38f), new Color(0.05f, 0.04f, 0.09f, 0.62f), 6f); // 見出し下地（帯や線と被っても読める）
+            UiKit.Text(_ci, UiKit.ZenBlack, new Vector2(hx + 10f, top + 2f), StreamName[(int)s], 14, hc);
+            UiKit.Text(_ci, UiKit.Mono, new Vector2(hx + 10f, top + 22f), $"{owned}/{tot}" + (done ? "  ✦" : ""), 11, new Color(hc, 0.9f));
+        }
     }
 
     private static Vector2 LeftCenter(Rect2 r) => new(r.Position.X, r.Position.Y + r.Size.Y / 2f);
@@ -576,9 +931,9 @@ public partial class Shop : Node2D
     private void DrawElbow(Vector2 from, Vector2 to, Color col, float width)
     {
         float midX = (from.X + to.X) / 2f;
-        DrawLine(from, new Vector2(midX, from.Y), col, width);
-        DrawLine(new Vector2(midX, from.Y), new Vector2(midX, to.Y), col, width);
-        DrawLine(new Vector2(midX, to.Y), to, col, width);
+        _ci.DrawLine(from, new Vector2(midX, from.Y), col, width);
+        _ci.DrawLine(new Vector2(midX, from.Y), new Vector2(midX, to.Y), col, width);
+        _ci.DrawLine(new Vector2(midX, to.Y), to, col, width);
     }
 
     // 所持済みエッジ：系統色でL字を描き、その上を光の粒が流れる（根元→ノードへ「育てた道」が生きる）。
@@ -591,14 +946,17 @@ public partial class Shop : Node2D
         Vector2 a = from, b = new(midX, from.Y), c = new(midX, to.Y), d = to;
         bool justBought = _buyFxT > 0 && _buyFxId == id;
         float boost = justBought ? (float)(_buyFxT / 0.7) : 0f;   // 1→0
+        // 系統コンプリート中は、その系統のエッジ束を一斉に強く脈打たせる（ご褒美＝道が総点灯）。
+        if (_streamBannerT > 0 && StreamOf(id) == _streamBannerId)
+            boost = Mathf.Max(boost, 0.5f + 0.5f * Mathf.Sin((float)_t * 8f));
         // 下地グロウ（太い半透明）＋本線。
-        DrawLine(a, b, new Color(col, 0.10f + 0.30f * boost), 5f);
-        DrawLine(b, c, new Color(col, 0.10f + 0.30f * boost), 5f);
-        DrawLine(c, d, new Color(col, 0.10f + 0.30f * boost), 5f);
+        _ci.DrawLine(a, b, new Color(col, 0.10f + 0.30f * boost), 5f);
+        _ci.DrawLine(b, c, new Color(col, 0.10f + 0.30f * boost), 5f);
+        _ci.DrawLine(c, d, new Color(col, 0.10f + 0.30f * boost), 5f);
         float baseA = 0.5f + 0.4f * boost;
-        DrawLine(a, b, new Color(col, baseA), 1.8f);
-        DrawLine(b, c, new Color(col, baseA), 1.8f);
-        DrawLine(c, d, new Color(col, baseA), 1.8f);
+        _ci.DrawLine(a, b, new Color(col, baseA), 1.8f);
+        _ci.DrawLine(b, c, new Color(col, baseA), 1.8f);
+        _ci.DrawLine(c, d, new Color(col, baseA), 1.8f);
         // 流れる光の粒（区間長で正規化した位相を1つ流す）。位相は id ハッシュで散らす。
         float lenAB = Mathf.Abs(b.X - a.X), lenBC = Mathf.Abs(c.Y - b.Y), lenCD = Mathf.Abs(d.X - c.X);
         float total = lenAB + lenBC + lenCD;
@@ -609,8 +967,8 @@ public partial class Shop : Node2D
             : ph < lenAB + lenBC ? b.Lerp(c, (ph - lenAB) / Mathf.Max(1f, lenBC))
             : c.Lerp(d, (ph - lenAB - lenBC) / Mathf.Max(1f, lenCD));
         float dotA = 0.7f + 0.3f * boost;
-        UiKit.RadialGlow(this, p, 9f, col, 0.45f * dotA);
-        DrawCircle(p, 2.2f, new Color(1, 1, 1, dotA));
+        UiKit.RadialGlow(_ci, p, 9f, col, 0.45f * dotA);
+        _ci.DrawCircle(p, 2.2f, new Color(1, 1, 1, dotA));
     }
 
     // 排他フォーク：親からの1本をY字の根元で束ね、⊗メダル＋対セルの共通ブラケット＋「どちらか一方」。
@@ -628,37 +986,37 @@ public partial class Shop : Node2D
         Color gold = new(ForkGold, chosen ? 0.85f : 0.55f);
 
         // 親→根元は1本に束ねる（通常の独立エッジとの見分けの本体）。
-        DrawLine(from, new Vector2(forkX, from.Y), gold, 2f);
-        DrawLine(new Vector2(forkX, from.Y), fork, gold, 2f);
+        _ci.DrawLine(from, new Vector2(forkX, from.Y), gold, 2f);
+        _ci.DrawLine(new Vector2(forkX, from.Y), fork, gold, 2f);
         // 根元→両翼
-        DrawLine(fork, ta, gold, 2f);
-        DrawLine(fork, tb, gold, 2f);
+        _ci.DrawLine(fork, ta, gold, 2f);
+        _ci.DrawLine(fork, tb, gold, 2f);
 
         // ⊗メダル（金の円＋クロス）
-        DrawCircle(fork, 9f, new Color(0.12f, 0.10f, 0.05f, 0.95f));
-        DrawArc(fork, 9f, 0, Mathf.Tau, 24, gold, 1.6f, true);
-        DrawLine(fork + new Vector2(-4, -4), fork + new Vector2(4, 4), gold, 1.6f);
-        DrawLine(fork + new Vector2(-4, 4), fork + new Vector2(4, -4), gold, 1.6f);
+        _ci.DrawCircle(fork, 9f, new Color(0.12f, 0.10f, 0.05f, 0.95f));
+        _ci.DrawArc(fork, 9f, 0, Mathf.Tau, 24, gold, 1.6f, true);
+        _ci.DrawLine(fork + new Vector2(-4, -4), fork + new Vector2(4, 4), gold, 1.6f);
+        _ci.DrawLine(fork + new Vector2(-4, 4), fork + new Vector2(4, -4), gold, 1.6f);
 
         // 対の2セルを囲う薄金ブラケット＋ラベル「どちらか一方」。
         float top = Mathf.Min(ra.Position.Y, rb.Position.Y) - 5f;
         float bot = Mathf.Max(ra.End.Y, rb.End.Y) + 5f;
         var br = new Rect2(ra.Position.X - 5f, top, NodeW + 10f, bot - top);
-        UiKit.Box(this, br, null, 12f, new Color(ForkGold, 0.35f), 1f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(br.Position.X + 8f, top - 13f), "どちらか一方", 9, new Color(ForkGold, 0.8f));
+        UiKit.Box(_ci, br, null, 12f, new Color(ForkGold, 0.35f), 1f);
+        UiKit.Text(_ci, UiKit.Zen, new Vector2(br.Position.X + 8f, top - 13f), "どちらか一方", 9, new Color(ForkGold, 0.8f));
     }
 
     // ルート「ミナの核」：無償付与・購入不可。ツリーの説明アンカー（フォーカス可能）。
     private void DrawRootMedallion()
     {
         bool focus = _sel == 3;
-        UiKit.RadialGlow(this, RootC, RootR * 2.2f, UiKit.Mina, focus ? 0.30f : 0.18f);
-        DrawCircle(RootC, RootR, new Color(0.10f, 0.08f, 0.16f, 0.95f));
-        DrawArc(RootC, RootR, 0, Mathf.Tau, 40, focus ? UiKit.Info : new Color(UiKit.Mina, 0.8f), focus ? 2.2f : 1.5f, true);
-        DrawArc(RootC, RootR - 4f, 0, Mathf.Tau, 40, new Color(UiKit.Mina, 0.35f), 1f, true);
+        UiKit.RadialGlow(_ci, RootC, RootR * 2.2f, UiKit.Mina, focus ? 0.30f : 0.18f);
+        _ci.DrawCircle(RootC, RootR, new Color(0.10f, 0.08f, 0.16f, 0.95f));
+        _ci.DrawArc(RootC, RootR, 0, Mathf.Tau, 40, focus ? UiKit.Info : new Color(UiKit.Mina, 0.8f), focus ? 2.2f : 1.5f, true);
+        _ci.DrawArc(RootC, RootR - 4f, 0, Mathf.Tau, 40, new Color(UiKit.Mina, 0.35f), 1f, true);
         // 核＝ハート（ミナの心）。
-        UiKit.Heart(this, RootC + new Vector2(0, -6f), 10f, new Color(UiKit.Mina, 0.95f));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(RootC.X - RootR, RootC.Y + 8f), "ミナの核", 11, UiKit.White, HorizontalAlignment.Center, RootR * 2f);
+        UiKit.Heart(_ci, RootC + new Vector2(0, -6f), 10f, new Color(UiKit.Mina, 0.95f));
+        UiKit.Text(_ci, UiKit.ZenBold, new Vector2(RootC.X - RootR, RootC.Y + 8f), "ミナの核", 11, UiKit.White, HorizontalAlignment.Center, RootR * 2f);
     }
 
     // ノードセル（146×44）：1行目=名前＋Lvピップ、2行目=コスト or 前提。封印は暗転＋斜線＋「封印」タグ。
@@ -675,58 +1033,64 @@ public partial class Shop : Node2D
         long imp = _game?.Impression ?? 0;
         bool can = !maxed && !sealed_ && parentOk && prereqOk && cost >= 0 && imp >= cost;
 
+        Color sCol = StreamColor(id); // 系統アイデンティティ色
+
         // 封印・親未接続は背景から沈めて「まだ触れない」を先に読ませる。
         float bgA = sealed_ ? 0.35f : (!parentOk && lv == 0) ? 0.38f : focus ? 0.8f : 0.55f;
-        UiKit.Box(this, r, new Color(22 / 255f, 18 / 255f, 34 / 255f, bgA), 8f,
-            focus ? UiKit.Info : new Color(1, 1, 1, 0.08f), focus ? 1.8f : 1f);
+        // ノード縁を系統色でうっすら着色（買えない状態は控えめ）＝どの系統のノードかを一目で。フォーカスは Info で最優先。
+        Color border = focus ? UiKit.Info
+            : lv >= 1 ? new Color(sCol, 0.55f)
+            : can ? new Color(sCol, 0.42f)
+            : new Color(sCol, 0.16f);
+        UiKit.Box(_ci, r, new Color(22 / 255f, 18 / 255f, 34 / 255f, bgA), 8f, border, focus ? 1.8f : 1f);
 
         float x = r.Position.X, y = r.Position.Y;
+        // 左端の系統カラーバー（帯＝系統アイデンティティの地の色）。所持で濃く、未所持は淡く。
+        UiKit.Box(_ci, new Rect2(x, y + 4f, 3.5f, r.Size.Y - 8f), new Color(sCol, lv >= 1 ? 0.9f : can ? 0.5f : 0.25f), 2f);
 
         // 名前（買えるものは白＝“いま買える”が一覧で拾える。買えない/MAX/封印は沈める）
         Color nameCol = sealed_ ? UiKit.Text4 : maxed ? UiKit.Text4 : can ? UiKit.White : (!parentOk && lv == 0) ? UiKit.Text4 : UiKit.Text3;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 12, y + 5), d.Name, 12, nameCol);
+        UiKit.Text(_ci, UiKit.ZenBold, new Vector2(x + 12, y + 5), d.Name, 12, nameCol);
         float nw = UiKit.TextW(UiKit.ZenBold, d.Name, 12);
 
-        // 王冠（shot_power：Lv4＝LUNATIC解放条件のひとつ）。
-        if (id == "shot_power")
-            DrawCrown(new Vector2(x + 12 + nw + 12, y + 13f), 6f, lv >= 4 ? UiKit.Gold : new Color(UiKit.Gold, 0.5f));
+        // 王冠（shot_power_4＝光の出力IV＝LUNATIC解放条件のひとつ）。所持で点灯。
+        if (id == "shot_power_4")
+            DrawCrown(new Vector2(x + 12 + nw + 12, y + 13f), 6f, lv >= 1 ? UiKit.Gold : new Color(UiKit.Gold, 0.5f));
 
-        // Lvピップ（右上：MaxLevel 個、lv ぶん充填）
+        // Lvピップ（右上：MaxLevel 個、lv ぶん充填）。所持ピップは系統色。
         float px = r.End.X - 10 - d.MaxLevel * 9f, py = y + 12f;
         for (int p = 0; p < d.MaxLevel; p++)
-            DrawCircle(new Vector2(px + p * 9f + 3f, py), 2.6f,
-                p < lv ? new Color(UiKit.Info, 0.95f) : new Color(1, 1, 1, 0.14f));
+            _ci.DrawCircle(new Vector2(px + p * 9f + 3f, py), 2.6f,
+                p < lv ? new Color(sCol, 0.95f) : new Color(1, 1, 1, 0.14f));
 
         // 2行目：封印はタグで示しコストは出さない。前提未達は理由を常時表示。
         float ly = y + 24f;
         if (sealed_)
         {
-            // 斜線＋封印タグ（暗転はセル背景のアルファで済ませ、名前は読めるまま残す）。
+            // 斜線＋封印タグ（暗転はセル背景のアルファで済ませ、名前は読めるまま残す）。※排他撤廃で現状は未到達。
             for (float sx = x + 8f; sx < r.End.X - 4f; sx += 22f)
-                DrawLine(new Vector2(sx, r.End.Y - 4f), new Vector2(sx + 12f, y + 4f), new Color(ForkGold, 0.22f), 1f);
+                _ci.DrawLine(new Vector2(sx, r.End.Y - 4f), new Vector2(sx + 12f, y + 4f), new Color(ForkGold, 0.22f), 1f);
             const string tag = "封印";
             float tw = UiKit.TextW(UiKit.ZenBold, tag, 10) + 14f;
             var tr = new Rect2(r.End.X - tw - 8f, ly + 2f, tw, 16f);
-            UiKit.Box(this, tr, new Color(0.12f, 0.10f, 0.05f, 0.9f), 4f, new Color(ForkGold, 0.6f), 1f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tr.Position.X, ly + 3f), tag, 10, new Color(ForkGold, 0.9f), HorizontalAlignment.Center, tw);
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 12, ly + 3f), Pad.ConfirmToken + " 選び直し", 9, UiKit.Text4);
+            UiKit.Box(_ci, tr, new Color(0.12f, 0.10f, 0.05f, 0.9f), 4f, new Color(ForkGold, 0.6f), 1f);
+            UiKit.Text(_ci, UiKit.ZenBold, new Vector2(tr.Position.X, ly + 3f), tag, 10, new Color(ForkGold, 0.9f), HorizontalAlignment.Center, tw);
+            UiKit.Text(_ci, UiKit.Zen, new Vector2(x + 12, ly + 3f), Pad.ConfirmToken + " 選び直し", 9, UiKit.Text4);
         }
         else if (!prereqOk)
         {
             string pn = GameManager.GetUpgradeDef(d.PrereqId)?.Name ?? d.PrereqId;
             DrawLockIcon(new Vector2(x + 17, ly + 8f), 5f, new Color(Deny, 0.9f));
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 27, ly + 2f), $"前提: {pn} Lv{d.PrereqLv}", 9, Deny);
+            UiKit.Text(_ci, UiKit.Zen, new Vector2(x + 27, ly + 2f), $"前提: {pn}", 9, Deny);
         }
         else if (maxed)
         {
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 12, ly + 1f), "MAX", 11, new Color("c9b6ef"));
+            UiKit.Text(_ci, UiKit.Mono, new Vector2(x + 12, ly + 1f), "所持済み", 11, new Color("c9b6ef"));
         }
         else
         {
             string costS = "♥" + cost.ToString("N0");
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 12, ly + 1f), costS, 11, can ? UiKit.Gold : UiKit.Text4);
-            if (lv > 0)
-                UiKit.Text(this, UiKit.Zen, new Vector2(x + 18 + UiKit.TextW(UiKit.Mono, costS, 11), ly + 3f), $"→Lv{lv + 1}", 9, UiKit.Text4);
+            UiKit.Text(_ci, UiKit.Mono, new Vector2(x + 12, ly + 1f), costS, 11, can ? UiKit.Gold : UiKit.Text4);
         }
 
         DrawCellFx(id, r, can);
@@ -740,29 +1104,29 @@ public partial class Shop : Node2D
         if (can && !_frontier.Contains(id))
         {
             float breath = 0.18f + 0.16f * Mathf.Sin((float)_t * 2.6f + r.Position.X * 0.03f);
-            UiKit.Box(this, r, null, 8f, new Color(StreamColor(id), breath), 1.4f);
+            UiKit.Box(_ci, r, null, 8f, new Color(StreamColor(id), breath), 1.4f);
         }
         if (_frontier.Contains(id))
         {
             float pulse = 0.35f + 0.35f * Mathf.Sin((float)_t * 4f);
-            UiKit.Box(this, r, null, 8f, new Color(UiKit.Gold, pulse), 1.6f);
+            UiKit.Box(_ci, r, null, 8f, new Color(UiKit.Gold, pulse), 1.6f);
             const string rec = "おすすめ";
             float rw = UiKit.TextW(UiKit.Zen, rec, 9) + 10f;
             var rr = new Rect2(r.End.X - rw - 6f, r.Position.Y - 7f, rw, 14f);
-            UiKit.Box(this, rr, new Color(UiKit.Gold, 0.2f), 999f, new Color(UiKit.Gold, 0.7f), 1f);
-            UiKit.Text(this, UiKit.Zen, new Vector2(rr.Position.X, rr.Position.Y), rec, 9, new Color("f0d98a"), HorizontalAlignment.Center, rw);
+            UiKit.Box(_ci, rr, new Color(UiKit.Gold, 0.2f), 999f, new Color(UiKit.Gold, 0.7f), 1f);
+            UiKit.Text(_ci, UiKit.Zen, new Vector2(rr.Position.X, rr.Position.Y), rec, 9, new Color("f0d98a"), HorizontalAlignment.Center, rw);
         }
         if (_buyFxT > 0 && _buyFxId == id)
         {
             float a = (float)(_buyFxT / 0.7);
-            UiKit.Box(this, r, null, 8f, new Color(UiKit.Info, 0.8f * a), 2f);
+            UiKit.Box(_ci, r, null, 8f, new Color(UiKit.Info, 0.8f * a), 2f);
         }
         if (_capPulseT > 0 && _capPulseId == id)
         {
             float k = 1f - (float)(_capPulseT / 1.4);
             float a = 1f - k;
-            UiKit.Box(this, r.Grow(2f + 8f * k), null, 10f, new Color(UiKit.Gold, 0.8f * a), 2f);
-            UiKit.Text(this, UiKit.ZenBlack, new Vector2(r.Position.X, r.Position.Y - 22f), "解放!", 14, new Color(UiKit.Gold, a), HorizontalAlignment.Center, r.Size.X);
+            UiKit.Box(_ci, r.Grow(2f + 8f * k), null, 10f, new Color(UiKit.Gold, 0.8f * a), 2f);
+            UiKit.Text(_ci, UiKit.ZenBlack, new Vector2(r.Position.X, r.Position.Y - 22f), "解放!", 14, new Color(UiKit.Gold, a), HorizontalAlignment.Center, r.Size.X);
         }
     }
 
@@ -788,19 +1152,21 @@ public partial class Shop : Node2D
     }
 
     // 小さな錠前（前提ロックの合図）。
+    // 小さな錠前（前提ロックの合図）。呼び先の _ci（ツリー or 詳細パネル）へ描く。
     private void DrawLockIcon(Vector2 c, float s, Color col)
     {
-        DrawArc(new Vector2(c.X, c.Y - s * 0.25f), s * 0.45f, Mathf.Pi, Mathf.Tau, 10, col, 1.4f, true);
-        UiKit.Box(this, new Rect2(c.X - s * 0.6f, c.Y - s * 0.2f, s * 1.2f, s * 0.95f), col, 2f);
+        _ci.DrawArc(new Vector2(c.X, c.Y - s * 0.25f), s * 0.45f, Mathf.Pi, Mathf.Tau, 10, col, 1.4f, true);
+        UiKit.Box(_ci, new Rect2(c.X - s * 0.6f, c.Y - s * 0.2f, s * 1.2f, s * 0.95f), col, 2f);
     }
 
-    // 小さな王冠（shot_power＝Lv4 で LUNATIC 解放条件、の印）。凹多角形は使わず矩形＋三角3枚で描く。
+    // 小さな王冠（shot_power_4 ＝ LUNATIC 解放条件、の印）。凹多角形は使わず矩形＋三角3枚で描く。
+    // 呼び先の _ci（ツリーセル or 詳細パネル）へ描く＝どちらの座標系でも正しく乗る。
     private void DrawCrown(Vector2 c, float s, Color col)
     {
-        DrawRect(new Rect2(c.X - s, c.Y, s * 2f, s * 0.55f), col);
-        DrawColoredPolygon(new[] { new Vector2(c.X - s, c.Y), new Vector2(c.X - s, c.Y - s * 0.8f), new Vector2(c.X - s * 0.34f, c.Y) }, col);
-        DrawColoredPolygon(new[] { new Vector2(c.X - s * 0.33f, c.Y), new Vector2(c.X, c.Y - s * 0.95f), new Vector2(c.X + s * 0.33f, c.Y) }, col);
-        DrawColoredPolygon(new[] { new Vector2(c.X + s * 0.34f, c.Y), new Vector2(c.X + s, c.Y - s * 0.8f), new Vector2(c.X + s, c.Y) }, col);
+        _ci.DrawRect(new Rect2(c.X - s, c.Y, s * 2f, s * 0.55f), col);
+        _ci.DrawColoredPolygon(new[] { new Vector2(c.X - s, c.Y), new Vector2(c.X - s, c.Y - s * 0.8f), new Vector2(c.X - s * 0.34f, c.Y) }, col);
+        _ci.DrawColoredPolygon(new[] { new Vector2(c.X - s * 0.33f, c.Y), new Vector2(c.X, c.Y - s * 0.95f), new Vector2(c.X + s * 0.33f, c.Y) }, col);
+        _ci.DrawColoredPolygon(new[] { new Vector2(c.X + s * 0.34f, c.Y), new Vector2(c.X + s, c.Y - s * 0.8f), new Vector2(c.X + s, c.Y) }, col);
     }
 
     // ───────────────────────── 詳細パネル「つぎの一手」（フォーカス連動） ─────────────────────────
@@ -874,11 +1240,11 @@ public partial class Shop : Node2D
         float ey = iy + 66f;
         UiKit.Box(this, new Rect2(ix, ey, iw, 56f), new Color(0, 0, 0, 0.24f), 9f);
         UiKit.Text(this, UiKit.Mono, new Vector2(ix + 12, ey + 8), "いま", 10, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 6), Eff(id, lv), 13, UiKit.Text2);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 6), Eff(id, withThisNode: lv >= 1), 13, UiKit.Text2);
         if (!maxed)
         {
             UiKit.Text(this, UiKit.Mono, new Vector2(ix + 12, ey + 32), "買うと", 10, new Color(CatCol[CatFor(id)], 0.8f));
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 30), Eff(id, lv + 1), 13, UiKit.White);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(ix + 58, ey + 30), Eff(id, withThisNode: true), 13, UiKit.White);
         }
         else
         {
@@ -944,10 +1310,10 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), exText, 11, new Color(ForkGold, 0.9f));
             ny += 20f;
         }
-        if (id == "shot_power")
+        if (id == "shot_power_4")
         {
             DrawCrown(new Vector2(ix + 7, ny + 10), 6f, UiKit.Gold);
-            UiKit.Text(this, UiKit.Zen, new Vector2(ix + 18, ny), "Lv4 で LUNATIC 解放条件のひとつを満たします", 11, new Color("c9b6ef"));
+            UiKit.Text(this, UiKit.Zen, new Vector2(ix + 18, ny), "所持で LUNATIC 解放条件のひとつを満たします", 11, new Color("c9b6ef"));
         }
     }
 
@@ -982,31 +1348,78 @@ public partial class Shop : Node2D
         }
     }
 
-    // 強化のレベル別効果表示。ゲーム側の実計算式（GameManager/Player/Enemy/Bullet）と必ず一致させる。
-    // 澄んだ心は現在の汚染度での実効値を正直に出す（無汚染では Lv3 が伸びないことも見えるように）。
-    private string Eff(string id, int lv) => id switch
+    // 単Lvノードの効果表示（チェーン実効値）。ゲーム側の実計算式（GameManager/Player/Enemy/Bullet）と必ず一致させる。
+    //   withThisNode＝このノードを所持済みとみなすか（"いま"＝現状 / "買うと"＝このノードを足した後）。
+    //   系統プレフィクスの連続所持段数に、focus 中ノードの分だけ +1 を反映した実効 Lv で従来式を評価する。
+    private string Eff(string id, bool withThisNode)
     {
-        "shot_power" => $"威力 +{lv}",
-        "fire_rate" => $"発射間隔 ×{Mathf.Max(0.4f, 1f - 0.08f * lv):0.00}",
-        "shot_spread" => lv == 0 ? "未解放" : $"{new[] { 0, 5, 7, 9 }[Mathf.Clamp(lv, 0, 3)]}way",
-        "shot_homing" => lv == 0 ? "未解放" : $"{new[] { 0, 2, 2, 3 }[Mathf.Clamp(lv, 0, 3)]}体追尾",
-        "shot_pierce" => lv == 0 ? "貫通なし" : $"連射弾が敵 {lv} 体を貫通",
-        "focus_fire" => lv == 0 ? "集中なし" : $"同じ敵に当て続けて威力 最大+{lv}",
-        "counter_light" => lv == 0 ? "変換なし" : lv == 1 ? "2発に1発を光弾化（上限6/回避）" : "全弾を光弾化（上限12/回避）",
-        "veil_light" => lv == 0 ? "光輪なし" : $"回避後の光輪 r{(lv == 1 ? 20 : 28)}px・{(lv == 1 ? 0.5f : 0.7f):0.0}s",
-        "option_sub" => lv == 0 ? "オプションなし" : $"追従オプション {lv} 基（威力×0.5）",
-        "chain_light" => lv == 0 ? "跳弾なし" : $"拡散弾が {lv} 回跳弾（威力×0.4）",
-        "max_life" => $"ライフ上限 +{lv}",
-        "bomb_count" => $"初期ボム +{lv}",
-        "bomb_power" => $"ボム直撃 {Mathf.RoundToInt(Enemy.BombStrikeBase * (1f + 0.25f * lv))}ダメージ",
-        "move_speed" => $"移動×{1f + 0.12f * lv:0.00}・回避CD{0.8f - 0.1f * lv:0.0}s・{64 + 4 * lv}px",
-        "hitbox" => $"被弾判定 ×{Mathf.Max(0.4f, 1f - 0.12f * lv):0.00}",
-        "contam_resist" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * lv):0.00}・心の効率 ×{_game?.KindnessGainMulAt(lv) ?? 1f:0.00}",
-        "imp_mult" => $"獲得心 ×{1f + 0.12f * lv:0.00}",
-        "fol_gain" => $"口コミ ×{1f + 0.15f * lv:0.00}", // “拡散 ×N”はショットモード「拡散」と紛らわしいため別名（実体＝フォロワー獲得倍率）
-        "combo_hold" => $"コンボ猶予 {2.0 + 0.4 * lv:0.0}秒",
-        _ => $"Lv{lv}",
-    };
+        (string prefix, int max) = ChainInfo(id);
+        int lv = EffLevel(prefix, max, id, withThisNode);
+        return prefix switch
+        {
+            "shot_power" => $"威力 +{lv}",
+            "fire_rate" => $"発射間隔 ×{Mathf.Max(0.4f, 1f - 0.08f * lv):0.00}",
+            "rapid_power" => $"連射弾の威力 +{lv}",
+            "rapid_rate" => $"連射間隔 ×{Mathf.Max(0.7f, 1f - 0.06f * lv):0.00}",
+            "spread" => lv == 0 ? "未解放" : $"{new[] { 0, 5, 7, 9 }[Mathf.Clamp(lv, 0, 3)]}way",
+            "spread_power" => $"拡散弾威力 ×{new[] { 0.65f, 0.72f, 0.80f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
+            "spread_rate" => $"拡散間隔税 ×{Mathf.Max(1f, 1.35f - 0.10f * lv):0.00}",
+            "homing" => lv == 0 ? "未解放" : $"{new[] { 0, 2, 2, 3 }[Mathf.Clamp(lv, 0, 3)]}体追尾",
+            "homing_power" => $"ホーミング威力 ×{new[] { 0.70f, 0.78f, 0.86f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
+            "homing_rate" => lv == 0 ? "間隔税 ×1.70・旋回95" : "間隔税 ×1.55・旋回110",
+            "pierce" => lv == 0 ? "貫通なし" : $"連射弾が敵 {lv} 体を貫通",
+            "focus" => lv == 0 ? "集中なし" : $"同じ敵に当て続けて威力 最大+{lv}",
+            "counter" => lv == 0 ? "変換なし" : lv == 1 ? "2発に1発を光弾化（上限6/回避）" : "全弾を光弾化（上限12/回避）",
+            "veil" => lv == 0 ? "光輪なし" : $"回避後の光輪 r{(lv == 1 ? 20 : 28)}px・{(lv == 1 ? 0.5f : 0.7f):0.0}s",
+            "option" => lv == 0 ? "オプションなし" : $"追従オプション {lv} 基（威力×0.5）",
+            "chain" => lv == 0 ? "跳弾なし" : $"拡散弾が {lv} 回跳弾（威力×0.4）",
+            "max_life" => $"ライフ上限 +{lv}",
+            "bomb_count" => $"初期ボム +{lv}",
+            "bomb_power" => $"ボム直撃 {Mathf.RoundToInt(Enemy.BombStrikeBase * (1f + 0.25f * lv))}ダメージ",
+            "move_speed" => $"移動×{1f + 0.12f * lv:0.00}・回避CD{0.8f - 0.1f * lv:0.0}s・{64 + 4 * lv}px",
+            "hitbox" => $"被弾判定 ×{Mathf.Max(0.4f, 1f - 0.12f * lv):0.00}",
+            // 澄んだ心（contam）：3→2圧縮＝段2で旧Lv3相当の実効Lvで評価。現在の汚染度で正直に出す。
+            "contam" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * (lv >= 2 ? 3 : lv)):0.00}・心の効率 ×{_game?.KindnessGainMulAt(lv >= 2 ? 3 : lv) ?? 1f:0.00}",
+            "imp_mult" => $"獲得心 ×{1f + 0.12f * lv:0.00}",
+            "fol_gain" => $"口コミ ×{1f + 0.15f * lv:0.00}", // “拡散 ×N”はショットモード「拡散」と紛らわしいため別名（実体＝フォロワー獲得倍率）
+            "combo_hold" => $"コンボ猶予 {2.0 + 0.4 * lv:0.0}秒",
+            // バックファイア：段数で威力/間隔/追尾。lv は bf_power の段数を使う（rate/track は別ノード）。
+            "bf_power" => $"後方弾 威力 {1 + lv}",
+            "bf_rate" => $"後方弾 間隔 {new[] { 0.9f, 0.7f, 0.55f }[Mathf.Clamp(lv, 0, 2)]:0.00}秒",
+            "bf_track" => lv == 0 ? "旋回60・単発" : "旋回90・同時2発",
+            _ => $"Lv{lv}",
+        };
+    }
+
+    // ノードID → (系統プレフィクス, 段数上限)。末尾の "_N" を落として系統名を得る。
+    //   例 "fire_rate_2"→("fire_rate",4)、"spread_power_1"→("spread_power",2)、"spread_1"→("spread",3)。
+    private static (string prefix, int max) ChainInfo(string id)
+    {
+        int u = id.LastIndexOf('_');
+        string prefix = (u > 0 && int.TryParse(id[(u + 1)..], out _)) ? id[..u] : id;
+        int max = prefix switch
+        {
+            "fire_rate" or "shot_power" or "imp_mult" => 4,
+            "spread" or "homing" or "move_speed" or "hitbox" => 3,
+            "spread_rate" or "homing_rate" or "bf_track" => 1,
+            "bf_power" => 3,
+            _ => 2,
+        };
+        return (prefix, max);
+    }
+
+    // 系統の実効 Lv（連続所持段数）を、focus 中ノードの所持見立て（withThisNode）込みで算出。
+    //   現状の所持段数 base を数え、focus ノードのステップ番号が base+1（＝次に買う段）なら withThisNode で +1 する。
+    //   focus ノードが既に所持段以下なら base をそのまま（"いま"＝現状）／withThisNode でも既所持は変わらない。
+    private int EffLevel(string prefix, int max, string focusId, bool withThisNode)
+    {
+        int baseLv = _game?.ChainLevel(prefix, max) ?? 0;
+        // focus ノードのステップ番号を取り出す（"prefix_N"）。取れなければ base のまま。
+        int u = focusId.LastIndexOf('_');
+        if (u <= 0 || !int.TryParse(focusId[(u + 1)..], out int step)) return baseLv;
+        if (withThisNode && step == baseLv + 1) return Mathf.Min(max, baseLv + 1);
+        return baseLv;
+    }
 
     // モード別の射撃プレビュー（ミナ＋流れる光弾。連射=直線/拡散=扇/ホーミング=曲射）。
     private void DrawModeField(float x, float y, float w, float h, int i, bool locked)
@@ -1035,7 +1448,7 @@ public partial class Shop : Node2D
             switch (i)
             {
                 case 0: // 連射：直線レーン
-                    int lines = Mathf.Clamp(2 + (_game?.GetUpgradeLevel("shot_power") ?? 0) / 2, 2, 4);
+                    int lines = Mathf.Clamp(2 + (_game?.ChainLevel("shot_power", 4) ?? 0) / 2, 2, 4);
                     float[] offs = lines <= 2 ? new[] { -5f, 5f } : lines == 3 ? new[] { -8f, 0f, 8f } : new[] { -10f, -4f, 4f, 10f };
                     foreach (float dy in offs)
                         for (int k = 0; k < 4; k++)
@@ -1116,36 +1529,38 @@ public partial class Shop : Node2D
 
     // 背景の浮遊粒：ツリー領域をゆっくり昇る淡い光の粒。座標は index からの決定的擬似乱数
     //   （new/割り当てなし・時間で位相を進めるだけ）。動きの無さ＝地味さへの最小コストの回答。
+    // 背景モーションはツリー（カメラ）座標系＝_ci へ描く。仮想ツリー全域に散らし、スクロールしても粒が続く。
     private void DrawBgMotes()
     {
-        const int n = 22;
-        float top = TreeTop, bot = TreeBot, span = bot - top;
+        const int n = 30;
+        float top = TreeTop, bot = TreeVirtB, span = bot - top;
         for (int i = 0; i < n; i++)
         {
             float sx = (i * 131 % 97) / 97f;                 // 0..1 横位置の散らし
             float speed = 0.06f + (i % 5) * 0.015f;          // 粒ごとに違う速度
             float phase = Mathf.PosMod((float)_t * speed + i * 0.137f, 1f);
-            float x = 60f + sx * (DetailX - 120f);
+            float x = 60f + sx * (TreeVirtR - 120f);         // 仮想ツリー横幅いっぱいに散らす
             float y = bot - phase * span;                    // 下→上へ
             float tw = 0.5f + 0.5f * Mathf.Sin((float)_t * 1.3f + i);   // またたき
             float fade = Mathf.Sin(phase * Mathf.Pi);        // 端で消える
-            DrawCircle(new Vector2(x, y), 1.3f, new Color(UiKit.PurifyHi, 0.16f * tw * fade));
+            _ci.DrawCircle(new Vector2(x, y), 1.3f, new Color(UiKit.PurifyHi, 0.16f * tw * fade));
         }
     }
 
-    // 購入バースト：光のフラッシュ＋スパーク環。
+    // 購入バースト：光のフラッシュ＋スパーク環。ノード位置（ツリー座標）で光るので _ci＝ツリー層へ描く
+    // （DrawTreeLayer から呼ばれる＝カメラでスクロールしても発生ノードに貼り付いたまま）。
     private void DrawBuyFx()
     {
         if (_buyFxT <= 0) return;
         float p = 1f - (float)(_buyFxT / 0.7);
         float a = 1f - p;
-        UiKit.RadialGlow(this, _buyFxAt, 80f * (0.5f + p), Light, 0.5f * a);
+        UiKit.RadialGlow(_ci, _buyFxAt, 80f * (0.5f + p), Light, 0.5f * a);
         const int n = 10;
         for (int i = 0; i < n; i++)
         {
             float ang = Mathf.Tau * i / n;
             float rr = 14f + p * 84f;
-            DrawCircle(_buyFxAt + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * rr, 2.8f * (1f - p), new Color(1, 1, 1, a));
+            _ci.DrawCircle(_buyFxAt + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * rr, 2.8f * (1f - p), new Color(1, 1, 1, a));
         }
     }
 
@@ -1161,30 +1576,6 @@ public partial class Shop : Node2D
         float x = W / 2f - tw / 2f + slide, y = 330f;
         UiKit.Box(this, new Rect2(x, y, tw, 60f), new Color(0.06f, 0.11f, 0.16f, 0.92f * a), 16f, new Color(UiKit.Info, 0.6f * a), 1.4f);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, y + 14), t, 32, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, tw);
-    }
-
-    // 過熱オーバーロード全画面オーバーレイ（プレビュー）。
-    private void DrawOverloadOverlay()
-    {
-        if (!_overloadPreview) return;
-        float pulse = 0.18f + 0.10f * Mathf.Sin((float)_t * 6f);
-        // 左から差し込む橙のヴェール
-        UiKit.RadialGlow(this, new Vector2(W * 0.12f, H * 0.5f), W * 0.6f, Orange, pulse);
-        DrawRect(new Rect2(0, 0, W, H), new Color(0.0f, 0, 0, 0)); // no-op keep order
-        // 縁の発光
-        UiKit.Box(this, new Rect2(6, 6, W - 12, H - 12), null, 8f, new Color(Orange, 0.4f), 6f);
-        // 発動フラッシュ
-        if (_olFlashT > 0)
-        {
-            float a = (float)(_olFlashT / 0.9);
-            UiKit.RadialGlow(this, new Vector2(W * 0.16f, H * 0.5f), W * 0.8f, new Color("ffd2b4"), 0.85f * a);
-        }
-        // バッジ
-        float bw = 280f, bx = W / 2f - bw / 2f, by = 92f;
-        UiKit.Box(this, new Rect2(bx, by, bw, 38f), new Color(40 / 255f, 12 / 255f, 8 / 255f, 0.86f), 999f, new Color(Orange, 0.8f), 1.2f);
-        DrawCircle(new Vector2(bx + 24, by + 19), 5f, UiKit.White);
-        UiKit.Text(this, UiKit.Mono, new Vector2(bx + 38, by + 12), "OVERLOAD", 15, new Color("ffd9c4"));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(bx + bw - 150, by + 12), "発射間隔 0.07s", 13, new Color("ff9a78"));
     }
 
     private float Hint(float x, float y, string key, string label, bool accent)

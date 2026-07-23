@@ -16,6 +16,10 @@ public partial class Player : Area2D
     private const float FireInterval = 0.13f;
     private float _fireCooldown = 0f;
 
+    // バックファイア（後方弾）：後方(-X)に敵がいると自動で軽ホーミング弾を撃つ。前方メインとは独立CD。
+    // bf_* ノード未所持でも初期から弱く撃てる（ダメージ1・間隔0.9s）。bf_power/rate/track で強化する。
+    private float _backfireCd = 0f;
+
     // 当たり半径（極小）
     private const float HitRadius = 2f;
     // グレイズ半径（かすり判定の広さ）
@@ -484,16 +488,25 @@ public partial class Player : Area2D
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            // 連射速度強化で発射間隔を短縮（全開中は従来どおり最速）。ホーミングは強すぎるので間隔を広げる（×1.7）。
-            // 拡散は威力×0.65が下限1の丸め（基礎威力1×0.65→round=1）で実質無効＝面制圧タダ乗りだったため、
-            // 発射間隔税×1.35で対価を取る（ショップのスペック表記と同期）。
+            // モード別の間隔税（全開中は従来どおり最速）。各モードの速射ノード（rapid/spread/homing_rate）で
+            // 税が軽くなる＝ChainLevel 経由で GameManager が算出（ショップのスペック表記と同期）。
+            //   連射＝rapid_rate で ×0.94/0.88（基礎1.0）。拡散＝spread_rate で 1.35→1.25。ホーミング＝homing_rate で 1.7→1.55。
             float modeMul = _game?.SelectedShotMode switch
             {
-                GameManager.ShotMode.Homing => 1.7f,
-                GameManager.ShotMode.Spread => 1.35f,
-                _ => 1f,
+                GameManager.ShotMode.Homing => _game?.HomingRateMul ?? 1.7f,
+                GameManager.ShotMode.Spread => _game?.SpreadRateMul ?? 1.35f,
+                _ => _game?.RapidRateMul ?? 1f,
             };
             _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
+        }
+
+        // バックファイア（後方弾）：前方射撃とは独立に、後方(-X)へ敵がいるときだけ自動発射。
+        // 会話中・回避中は撃たない（前方射撃と同じゲート）。CD は BackfireInterval（bf_rate で短縮）。
+        if (_backfireCd > 0f) _backfireCd -= dt;
+        if (!Hud.BubblePaused && _dodgeTimer <= 0f && _backfireCd <= 0f)
+        {
+            if (FireBackfire())
+                _backfireCd = _overload ? (_game?.BackfireInterval ?? 0.9f) * 0.6f : (_game?.BackfireInterval ?? 0.9f);
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -732,25 +745,27 @@ public partial class Player : Area2D
     }
 
     // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
-    // 貫く光（shot_pierce・連射幹の奥義）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
+    // 連射威力（rapid_power）で弾ダメージ +Lv（連射モード専用の火力ノード）。
+    // 貫く光（pierce）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 vel = new Vector2(360f, 0f);
         int pierce = _game?.ShotPierceCount ?? 0;
+        int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
         int lines = Mathf.Clamp(2 + (_game?.ShotDamageBonus ?? 0) / 2, 2, 4);
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
                                   : new[] { -10f, -4f, 4f, 10f };
         foreach (float dy in offs)
-            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, dmg).Pierce = pierce;
+            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg).Pierce = pierce;
     }
 
-    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×0.65（下限1）＋発射間隔×1.35（_PhysicsProcess 側）＝面制圧の対価。
-    // 連鎖の光（chain_light・拡散側の奥義）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
+    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.65→0.72→0.80・拡散威力ノードで是正）。
+    // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
-        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.65f));
+        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.65f)));
         int chain = _game?.ChainLightBounces ?? 0;
         for (int i = 0; i < n; i++)
         {
@@ -762,18 +777,58 @@ public partial class Player : Area2D
     }
 
     // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速200。追尾数 2→2→3（誘導Lv）。
-    // 自動追尾が価値＝その対価としてDPSを rapid/spread 未満に抑える（弾速↓・威力×0.7の追尾税）。
+    // 1発威力 ×HomingPowerMul（0.70→0.78→0.86・誘導威力ノードで是正）。誘導速射なら旋回を上書き（110）。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
-        int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * 0.7f)); // 追尾税（拡散の×0.8より重い＝当て易さの対価）
+        int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.7f)));
+        int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（95）を使う
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
             float ang = t * Mathf.DegToRad(40f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Orb, null, homing: true); // 弾速 260→200
+            var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Orb, null, homing: true); // 弾速 260→200
+            if (turn > 0) hb.TurnRateOverride = turn;
         }
+    }
+
+    // バックファイア：後方(-X)に敵がいるとき、その方向へ軽ホーミング弾を撃つ。撃ったら true。
+    //   ・後方最寄りの未浄化の敵（e.GlobalPosition.X < GlobalPosition.X）を探し、いなければ撃たない（false）。
+    //   ・数値は GameManager（bf_* ノードの ChainLevel）から：ダメージ 1→2/3/4・同時発数・旋回。弾速180。
+    //   ・弾は後方追尾フラグ（backwardHoming）付きで Spawn＝Bullet.AcquireTarget が X<self を探す（前方弾と別探索）。
+    //   ・見た目は Diamond 形＋穢れ寄りの tint で前方弾（水色円）と区別し、後方マズルフラッシュを出す。
+    private bool FireBackfire()
+    {
+        if (_pool == null || _game == null) return false;
+
+        // 後方最寄りの敵を探す（自機より左＝X小）。
+        Node2D? nearest = null;
+        float bestD = float.MaxValue;
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (node is Enemy e && !e.IsPurified && e.GlobalPosition.X < GlobalPosition.X - 4f)
+            {
+                float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
+                if (d < bestD) { bestD = d; nearest = e; }
+            }
+        }
+        if (nearest == null) return false; // 後方に敵がいなければ撃たない
+
+        Vector2 muzzle = GlobalPosition + new Vector2(-16f, 0f); // 後方（左）の銃口
+        Vector2 baseDir = (nearest.GlobalPosition - muzzle).Normalized();
+        int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
+        int shots = _game.BackfireShots;
+        var tint = new Color(0.86f, 0.42f, 0.66f); // Kegare系（前方の浄化水色と区別）
+        for (int i = 0; i < shots; i++)
+        {
+            // 2発目はわずかに角度を散らす（同時2発の見栄え）。
+            float ang = baseDir.Angle() + (shots == 1 ? 0f : (i - (shots - 1) * 0.5f) * Mathf.DegToRad(24f));
+            Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+            _pool.Spawn(muzzle, dir * 180f, isEnemy: false, 2.8f, dmg, BulletShape.Diamond, tint, homing: true, backwardHoming: true);
+        }
+        FxLayer.Instance?.Muzzle(muzzle); // 後方マズルフラッシュ（シンプル版）
+        return true;
     }
 
     // ───────── 回避（ドッジ）アクション ─────────

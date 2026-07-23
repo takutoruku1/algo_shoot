@@ -49,6 +49,10 @@ public partial class Bullet : Area2D
 
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
+    // バックファイア（後方弾）フラグ：true なら AcquireTarget は「自分より左(X<self)」の敵を探す（前方弾は右）。
+    public bool BackwardHoming;
+    // 旋回角の上書き（0=既定 HomingTurnRate を使う）。誘導速射・後方追尾で個別に旋回を上げる。
+    public int TurnRateOverride;
     private Node2D? _homeTarget;
     private const float HomingTurnRate = 95f; // deg/s（精度控えめ＝外した弾は旋回しきれず画面外へ抜ける＝常駐しない）
 
@@ -131,7 +135,7 @@ public partial class Bullet : Area2D
 
     // layer/mask/見た目/位置を設定し、可視化・monitoring 有効化。
     public void Activate(Vector2 pos, Vector2 vel, bool isEnemy, float radius, int damage,
-        BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false)
+        BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false, bool backwardHoming = false)
     {
         Velocity = vel;
         IsEnemy = isEnemy;
@@ -149,6 +153,8 @@ public partial class Bullet : Area2D
         TintSet = tint.HasValue;
         if (tint.HasValue) Tint = tint.Value;
         Homing = homing;
+        BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
+        TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _homeTarget = null;
 
         GlobalPosition = pos;
@@ -305,20 +311,25 @@ public partial class Bullet : Area2D
         if (spd < 0.01f) return;
         float cur = Velocity.Angle();
         float want = (tgt.GlobalPosition - GlobalPosition).Angle();
-        float maxStep = Mathf.DegToRad(HomingTurnRate) * delta;
+        float turn = TurnRateOverride > 0 ? TurnRateOverride : HomingTurnRate; // 誘導速射・後方追尾で旋回を上げる
+        float maxStep = Mathf.DegToRad(turn) * delta;
         float na = cur + Mathf.Clamp(Mathf.AngleDifference(cur, want), -maxStep, maxStep);
         Velocity = new Vector2(Mathf.Cos(na), Mathf.Sin(na)) * spd;
     }
 
-    // 右側（X が自分より大きい）の未浄化の敵本体から最寄りを選ぶ。
+    // 未浄化の敵本体から最寄りを選ぶ。前方弾＝右側(X>self)／後方弾（BackwardHoming）＝左側(X<self)。
     private Node2D? AcquireTarget()
     {
         Node2D? best = null;
         float bestD = float.MaxValue;
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
         {
-            if (n is Enemy e && !e.IsPurified && e.GlobalPosition.X > GlobalPosition.X - 4f)
+            if (n is Enemy e && !e.IsPurified)
             {
+                bool inRange = BackwardHoming
+                    ? e.GlobalPosition.X < GlobalPosition.X + 4f   // 後方弾：自分より左の敵
+                    : e.GlobalPosition.X > GlobalPosition.X - 4f;  // 前方弾：自分より右の敵
+                if (!inRange) continue;
                 float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
                 if (d < bestD) { bestD = d; best = e; }
             }
