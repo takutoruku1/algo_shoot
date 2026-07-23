@@ -107,6 +107,26 @@ public partial class Credits : Node2D
 
     // ───────── 入力 ─────────
 
+    // マウスホイール1ノッチあたりのスクロール量（設計px）。行高（Line=27）の約4行ぶん。
+    private const float WheelStep = 110f;
+
+    // 「もどる」フッタヒントのクリック矩形。フッタは可変（スクロールヒントの有無で x が動く）ため、
+    // 常に存在する「もどる」ヒント帯を右クリック相当でも押せるよう、フッタ全域を戻る領域にせず帯だけ登録する。
+    private Rect2 BackHintRect()
+    {
+        float fy = H - 56f, fx = PadX;
+        // スクロール可能時はフッタ先頭に「↑↓ スクロール」ヒントが入る＝その分だけ「もどる」を右へずらす。
+        if (_contentH > ClipBottom - ClipTop)
+        {
+            float k1 = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, "↑↓", 12) + 12f);
+            fx += k1 + 8f + UiKit.TextW(UiKit.Zen, "スクロール", UiKit.FontLabel) + 24f;
+        }
+        string key = Pad.CancelToken;
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
+        return new Rect2(fx, fy - 16f, kw + 8f + lw + 8f, 32f);
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
@@ -114,15 +134,21 @@ public partial class Credits : Node2D
         // 上のオーバーレイを閉じた Esc 等の同じ押下が「もどる」として漏れないよう食う（Records と同じ防御）。
         if (Pad.UiBlocked(this)) { _backHeld = true; QueueRedraw(); return; }
 
-        // スクロール（↑↓押しっぱなしで連続。端でクランプ。_contentH は _Draw が更新する）
+        // マウス：フッタの「もどる」クリック／右クリックでも戻る。ホイールでスクロール（上+/下-）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(BackHintRect(), 0);
+        bool clickBack = UiKit.ClickedId(Pad.MouseClick()) == 0 || Pad.MouseRightClick();
+
+        // スクロール（↑↓押しっぱなしで連続＋マウスホイール。端でクランプ。_contentH は _Draw が更新する）
         float max = Mathf.Max(0f, _contentH - (ClipBottom - ClipTop));
         if (Input.IsActionPressed("ui_down")) _scroll += ScrollSpeed * (float)delta;
         if (Input.IsActionPressed("ui_up")) _scroll -= ScrollSpeed * (float)delta;
+        _scroll -= Pad.WheelDelta() * WheelStep; // 上ホイール(+)で上へ戻る＝_scroll 減少
         _scroll = Mathf.Clamp(_scroll, 0f, max);
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
 
         QueueRedraw();
     }

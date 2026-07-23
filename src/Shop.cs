@@ -198,6 +198,42 @@ public partial class Shop : Node2D
     private Color _toastCol = UiKit.Info;
     private bool _autoplay;
 
+    // ───── マウス操作（フェーズ3・キーボード/パッドへ純粋に追加）─────
+    //   ノード/チップ/フッタのクリック領域は _Draw で UiKit.Hotspot に登録し、_Process 冒頭で
+    //   ホバー/クリックを突合する。ツリーはカメラでスクロールするので、ツリー内ノードは設計座標(1280系)の
+    //   マウス位置を「ツリー設計座標」へ逆変換してから NodeRect と突合する（MouseToTree）。
+    //   ホットスポット id の割り当て（_sel と同じ番号体系を使い、負の予約帯で固定UIを表す）：
+    //     0..2       = R0 チップ（=_sel の 0..2）
+    //     3          = root「ミナの核」（=_sel の 3）
+    //     4..        = ノード（=_sel の 4.. と同じ＝NodePos 順 +4）
+    //     HsBack     = フッタ「もどる/つづける」ボタン
+    //     HsBuy      = 詳細パネルの購入/選び直しボタン
+    //   後勝ち仕様：ツリーノード（背面寄り）を先に登録し、固定UIボタン（前面）を後に登録する。
+    private const int HsBack = -100; // フッタ もどる/つづける
+    private const int HsBuy  = -101; // 詳細パネル 購入/選び直し ボタン
+    private int _hovId = -1;         // このフレームのホバー id（_Draw で確定 → 次フレーム頭で読む）
+    private Rect2 _backBtnRect;      // フッタ もどる ボタン矩形（設計座標・_Draw で更新）
+    private Rect2 _buyBtnRect;       // 詳細パネル 購入ボタン矩形（設計座標・_Draw で更新・無効時は空）
+    private bool _buyBtnActive;      // 購入ボタンが押せる状態か（表示＆当たり判定の有効フラグ）
+    // ホイール手動スクロール中はカメラのフォーカス追従を一時停止する調停（追従がホイールを毎フレーム打ち消すため）。
+    //   ホイール入力があったら _wheelHoldT 秒だけ追従を止め、その間は _cam を直接動かす。カーソル移動(Nav)で即再開。
+    private double _wheelHoldT;
+    private const double WheelHoldSecs = 0.9;   // ホイール後この秒数は追従を抑止
+    private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
+
+    // ───── スクロールバーのマウスドラッグ（横スクロールをマウスだけで全域到達させる主手段）─────
+    //   横バー(下端)・縦バー(右端)のサムをドラッグ、またはトラックをクリックで _cam を動かす。
+    //   細い見た目のバーは掴みづらいので、当たり判定は太い帯(HitPad)に広げる（見た目は細いまま）。
+    //   ドラッグ中はカメラのフォーカス追従を抑止（_wheelHoldT を立て続ける）＝手で持った位置が追従に戻されない。
+    //   MouseToTree のノードクリック逆変換は _cam に依存＝バーで _cam.X を動かしても正しく追従する（横ズレしない）。
+    private enum DragTarget { None, Horiz, Vert }
+    private DragTarget _drag;         // いまドラッグ中のバー
+    private bool _dragTookClick;      // このフレームのクリックをバードラッグ開始で消費したか（クリック処理の抑止）
+    private float _dragGrab;          // サム内のつかみ位置オフセット（サム左端/上端からマウスまでの距離・設計座標）
+    private Rect2 _hBarHit, _vBarHit; // バーの当たり帯（_Draw で更新・トラッククリック/サムドラッグ判定に使う）
+    private Rect2 _hThumb, _vThumb;   // サム矩形（見た目＝細い。ドラッグ開始のヒット元）
+    private const float BarHitPad = 12f; // 当たり判定を細い見た目の外へ広げる量（掴みやすさ）
+
     // 演出タイマー
     private double _buyFxT;       // 購入バースト
     private double _walletPopT;   // ウォレットpop
@@ -274,6 +310,7 @@ public partial class Shop : Node2D
         if (_sweepT > 0) _sweepT -= delta;
         if (_capPulseT > 0) _capPulseT -= delta;
         if (_streamBannerT > 0) _streamBannerT -= delta;
+        if (_wheelHoldT > 0) _wheelHoldT -= delta;
         if (_autoplay) { ExitShop(); return; }
 
         // 系統コンプリート：この画面内で系統の全ノードが揃った瞬間に一度だけ祝う。
@@ -284,8 +321,28 @@ public partial class Shop : Node2D
                 Audio.Instance?.PlayUiBuy();
             }
 
+        // マウスホイールで手動スクロール（縦優先。Shift 併用で横）。ホイールがある間はフォーカス追従を抑止し、
+        //   _cam を直接動かす（追従が毎フレーム _cam を目標へ引き戻して手動スクロールを打ち消すのを防ぐ）。
+        //   MaxCam でクランプ＝端で止まる。UiBlocked（オーバーレイ直後）中はスクロールしない。
+        float wheel = Pad.WheelDelta();
+        if (wheel != 0f && !Pad.UiBlocked(this) && (MaxCam.X > 1f || MaxCam.Y > 1f))
+        {
+            bool horiz = Input.IsKeyPressed(Key.Shift) || MaxCam.Y <= 1f; // 縦スクロール不能なら横に振る
+            // ホイール上(+)＝上/左へ（cam 減）、下(−)＝下/右へ（cam 増）。手触りは一般的なドキュメントスクロールに合わせる。
+            Vector2 d = horiz ? new Vector2(-wheel * WheelStep, 0f) : new Vector2(0f, -wheel * WheelStep);
+            _cam = ClampCam(_cam + d);
+            _camTarget = _cam;         // 追従の目標も現在地に固定（次フレームの Lerp で戻らない）
+            _wheelHoldT = WheelHoldSecs; // この間はフォーカス追従を止める
+        }
+
+        // スクロールバーのマウスドラッグ（横スクロールをマウスだけで全域到達させる主手段）。UiBlocked 中は不可。
+        //   _cam / _wheelHoldT をここで更新するので UpdateCamera より前に呼ぶ。返り値＝このフレームのクリックを
+        //   ドラッグ開始として消費したか＝後段の HandleMouseClicks を抑止するフラグ（ノード誤選択を防ぐ）。
+        _dragTookClick = !Pad.UiBlocked(this) && HandleScrollbarDrag();
+
         // カメラ追従：フォーカスノード中心を表示窓中央（≈(430,250)オフセット）へ寄せ、Lerp で滑らかに。
-        UpdateCamera((float)delta);
+        //   ホイール手動スクロール中・バードラッグ中（_wheelHoldT>0）は追従をスキップ＝手で動かした位置を保つ。
+        if (_wheelHoldT <= 0) UpdateCamera((float)delta);
 
         // カプストーンの前提がこの画面内で成立した瞬間（例：光の出力 Lv2 を購入）に一度だけ解放パルス。
         foreach (var id in CapstoneIds)
@@ -300,6 +357,12 @@ public partial class Shop : Node2D
             QueueRedraw();
             return;
         }
+
+        // ── マウス クリック（キーボード/パッドへ純粋に追加）──
+        //   ライブに当たり判定（HitTest）してからクリック処理する＝描画レジストリの1フレーム遅延に依らず、
+        //   マウスが今いる要素に確実に当てる。ツリーノードはカメラ逆変換込みで突合する（HitTest 内）。
+        //   スクロールバーのドラッグ開始/継続でクリックを消費したフレームは、ノード/チップの誤選択を避けて抑止する。
+        if (!_dragTookClick && _drag == DragTarget.None) HandleMouseClicks();
 
         // カーソル移動：十字で方向最近傍へ（エッジ接続先を第一候補）。移動で振り直し確認は取り消す。
         bool up = Input.IsActionPressed("ui_up");
@@ -407,6 +470,145 @@ public partial class Shop : Node2D
             if (score < bestScore) { bestScore = score; best = s; }
         }
         if (best >= 0) { _sel = best; CancelRespec(); }
+    }
+
+    // ───────────────────────── マウス操作（フェーズ3）─────────────────────────
+    // 設計座標(1280系)のマウス位置 → ツリー設計座標へ逆変換。
+    //   DrawTreeLayer は design 点(dx,dy)を Control ローカル (dx − cam − TreeVirtL/T)*Scale へ写し、
+    //   Control 自体は画面 (WinL,TreeTop)*Scale に置かれる。よって設計座標のマウス mx は
+    //     mx = WinL + (dx − cam.X − TreeVirtL)  ⇔  dx = mx − WinL + cam.X + TreeVirtL
+    //   （y も同様に TreeTop / TreeVirtT で）。これがカメラ逆変換の肝＝スクロールしても正しいノードに当たる。
+    private Vector2 MouseToTree(Vector2 mouseDesign) => new(
+        mouseDesign.X - WinL + _cam.X + TreeVirtL,
+        mouseDesign.Y - TreeTop + _cam.Y + TreeVirtT);
+
+    // マウス設計座標が表示窓(ツリークリップ矩形)の中にあるか＝窓外(詳細パネル/フッタ側)のノードには当てない。
+    private static bool InTreeWindow(Vector2 mouseDesign) =>
+        mouseDesign.X >= WinL && mouseDesign.X <= WinR
+        && mouseDesign.Y >= TreeTop && mouseDesign.Y <= TreeBot;
+
+    // ライブ当たり判定：マウス設計座標が指す要素の id を返す（無ければ -1）。
+    //   優先順は前面→背面：フッタ もどる → 詳細パネル 購入ボタン → チップ/root（固定UI・設計座標そのまま）
+    //   → ツリーノード（カメラ逆変換して表示窓内のみ）。id 体系は _sel と同じ＋HsBack/HsBuy の予約帯。
+    private int HitTest(Vector2 m)
+    {
+        // 固定UI（設計座標そのまま）
+        if (_backBtnRect.HasPoint(m)) return HsBack;
+        if (_buyBtnActive && _buyBtnRect.HasPoint(m)) return HsBuy;
+        for (int i = 0; i < 3; i++)
+            if (ChipRect(i).HasPoint(m)) return i;                 // R0 チップ
+        // ツリー（カメラ逆変換）。表示窓の外に出たマウスは当てない（クリップ整合）。
+        if (InTreeWindow(m))
+        {
+            Vector2 tp = MouseToTree(m);
+            var rootR = new Rect2(RootC - new Vector2(RootR, RootR), new Vector2(RootR * 2, RootR * 2));
+            if (rootR.HasPoint(tp)) return 3;                       // root「ミナの核」
+            for (int i = 0; i < NodePos.Length; i++)
+                if (NodeRect(i).HasPoint(tp)) return i + 4;         // ノード
+        }
+        return -1;
+    }
+
+    // マウスクリック処理（キーボード/パッドへ純粋に追加）。ライブ HitTest で今指している要素へ確実に当てる。
+    //   方式（手触り優先で決定）：
+    //     ・チップ（0..2）  … 左クリックでフォーカス移動＋そのモードを装備（EquipMode）。
+    //     ・root（3）        … 左クリックでフォーカス移動（説明を詳細パネルに出す）。
+    //     ・ノード（4..）    … 1回目クリック＝フォーカス移動（詳細パネル更新）。同じノードをもう一度クリック＝購入。
+    //                          既にフォーカス中のノードをクリックした場合は即購入（＝実質ダブルクリック不要の“2度押し購入”）。
+    //     ・購入ボタン(HsBuy)… 詳細パネルの明示ボタン。フォーカス中ノードを1クリックで購入（迷いなく買える導線）。
+    //     ・もどる(HsBack)  … フッタのボタン。振り直し確認中は取消、通常は退出。
+    //   ホバーだけ（クリックなし）でも _hovId を持つのは _Draw 側。ここはクリックエッジ時のみ動く。
+    private void HandleMouseClicks()
+    {
+        if (!Pad.MouseClick()) return;
+        if (_t <= 0.2) return; // 入店直後の誤爆防止（キーボードと同じガード）
+        int hit = HitTest(Pad.MousePos());
+        if (hit == -1) return;
+
+        if (hit == HsBack)
+        {
+            if (_respecArmed) { CancelRespec(); Audio.Instance?.PlayUiCancel(); }
+            else { Audio.Instance?.PlayUiCancel(); ExitShop(); }
+            return;
+        }
+        if (hit == HsBuy)
+        {
+            // 詳細パネルの購入ボタン＝フォーカス中ノードを確定（購入 or 選び直し）。
+            if (_sel >= 4) OnConfirm();
+            return;
+        }
+        if (hit <= 2) // R0 チップ＝フォーカス＋装備
+        {
+            _sel = hit; CancelRespec();
+            EquipMode(hit);
+            return;
+        }
+        if (hit == 3) // root＝フォーカスのみ（説明）
+        {
+            if (_sel != 3) { _sel = 3; CancelRespec(); Audio.Instance?.PlayUiMove(); }
+            else OnConfirm(); // 2度押しで説明トースト（キーボード Z 相当）
+            return;
+        }
+        // ノード：未フォーカスなら選択、既フォーカスなら購入（＝同じノードの2度押しで買う）。
+        if (_sel == hit) { OnConfirm(); }
+        else { _sel = hit; CancelRespec(); Audio.Instance?.PlayUiMove(); }
+    }
+
+    // スクロールバーのマウスドラッグ処理（毎フレーム）。横スクロールをマウスだけで全域到達させる主手段。
+    //   ・押下エッジ：サムの上なら「つかむ」（グラブ位置を保存）、トラック内サム外なら「そこへジャンプ」して即つかむ。
+    //   ・押下中：マウス位置をトラックの割合へ写して _cam を更新（横=_cam.X／縦=_cam.Y）。
+    //   ・離した：ドラッグ終了。ドラッグ中は _wheelHoldT を立て続けてカメラ追従を抑止（手で持った位置を保つ）。
+    //   バー矩形(_hBarHit/_vBarHit/_hThumb/_vThumb)は直前フレームの DrawScrollBars が更新済み＝それと突合する。
+    //   返り値：このフレームのクリックエッジをドラッグ開始として消費したか（true なら HandleMouseClicks を抑止）。
+    private bool HandleScrollbarDrag()
+    {
+        Vector2 m = Pad.MousePos();
+        bool consumedClick = false;
+
+        // 押下エッジ：どちらのバーを掴むか決める（横バーを縦バーより優先＝重なり領域は下端の横を拾う）。
+        if (Pad.MouseClick() && _t > 0.2 && _drag == DragTarget.None)
+        {
+            if (MaxCam.X > 1f && _hBarHit.HasPoint(m))
+            {
+                _drag = DragTarget.Horiz;
+                // サム上でつかんだらその相対位置を保持。サム外(トラック)なら中央でつかんだ扱いにしてジャンプ。
+                _dragGrab = _hThumb.HasPoint(m) ? m.X - _hThumb.Position.X : HThumbW() / 2f;
+                consumedClick = true;
+            }
+            else if (MaxCam.Y > 1f && _vBarHit.HasPoint(m))
+            {
+                _drag = DragTarget.Vert;
+                _dragGrab = _vThumb.HasPoint(m) ? m.Y - _vThumb.Position.Y : VThumbH() / 2f;
+                consumedClick = true;
+            }
+        }
+
+        if (_drag == DragTarget.None) return consumedClick;
+
+        // 離したら終了。
+        if (!Pad.MouseDown()) { _drag = DragTarget.None; return consumedClick; }
+
+        // 押下中：マウス位置 → トラック割合 → _cam。サム長を差し引いた可動域で正規化する（両端で端に張り付く）。
+        if (_drag == DragTarget.Horiz)
+        {
+            float winW = WinR - WinL, thumbW = HThumbW();
+            float travel = winW - thumbW;                        // サムが動ける幅
+            float thumbX = m.X - _dragGrab;                      // つかみ位置を保ったサム左端
+            float t = travel > 0.5f ? Mathf.Clamp((thumbX - WinL) / travel, 0f, 1f) : 0f;
+            _cam.X = t * MaxCam.X;
+        }
+        else // Vert
+        {
+            float winH = WinH, thumbH = VThumbH();
+            float travel = winH - thumbH;
+            float thumbY = m.Y - _dragGrab;
+            float t = travel > 0.5f ? Mathf.Clamp((thumbY - TreeTop) / travel, 0f, 1f) : 0f;
+            _cam.Y = t * MaxCam.Y;
+        }
+        _cam = ClampCam(_cam);
+        _camTarget = _cam;             // 追従目標も現在地へ固定
+        _wheelHoldT = WheelHoldSecs;   // ドラッグ中は追従抑止を延長し続ける（離してもしばらく戻さない）
+        return consumedClick;
     }
 
     // ショップ退出先：初回ショップ導線で復帰先(PendingResumeScene)が立っていれば、ハブでなくそのステージへ戻り
@@ -624,6 +826,13 @@ public partial class Shop : Node2D
         _recommended = RecommendedNow();
         RebuildFrontier(); // フロンティア強調（祖先フォールバック込み）を毎フレーム確定
 
+        // ── マウス ホバー判定（フェーズ3）──
+        //   ライブ HitTest（カメラ逆変換込み）で今マウスが指す要素の id をこのフレーム分だけ確定する。
+        //   固定UI（チップ/root/購入/もどる）は UiKit のホットスポットレジストリにも登録し、突合を二重化しておく
+        //   （ツリーノードはスクロールで座標が動く＝レジストリの平坦な設計座標に乗らないため HitTest 一本で判定する）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        _hovId = HitTest(Pad.MousePos());
+
         // 背景（最背面 -2）とツリー本体（-1・クリップ）は専用の子が描く＝毎フレーム再描画を要求。
         //   レイヤ順：背景(-2) → ツリー(-1) → 固定UI(このShop本体・0)。
         _bgLayer.QueueRedraw();
@@ -635,13 +844,20 @@ public partial class Shop : Node2D
         DrawScrollBars(); // 横位置バー＋縦の「まだ下にある」矢印（固定UI）
 
         // フッタ操作ヒント（ボタン表記は Pad に集約＝KB/PS/Xbox 切替に追従）。過熱削除で4項目に整理。
+        //   「もどる/つづける」はマウスでもクリック可＝そのヒント矩形を _backBtnRect に保存してホットスポット化する。
         float fy = H - 34f, fx = PadX;
         fx = Hint(fx, fy, Pad.MoveToken, "えらぶ", false);
         fx = Hint(fx, fy, Pad.ConfirmToken, "購入", true);
         fx = Hint(fx, fy, Pad.EquipToken, "装備", false);
         // 初回ショップ導線で復帰先がある間は、退出＝ステージの続きへ＝「つづける」表記にする。
         bool resuming = !string.IsNullOrEmpty(GetNodeOrNull<GameManager>("/root/Game")?.PendingResumeScene);
-        Hint(fx, fy, Pad.CancelToken, resuming ? "つづける" : "もどる", false);
+        string backLbl = resuming ? "つづける" : "もどる";
+        float backEndX = Hint(fx, fy, Pad.CancelToken, backLbl, false);
+        // もどるヒントの当たり矩形（キーキャップ左端〜ラベル右端、上下に余裕）。_backBtnRect＝クリック領域。
+        _backBtnRect = new Rect2(fx - 6f, fy - 20f, (backEndX - 22f) - fx + 12f, 30f);
+        bool backHov = _hovId == HsBack;
+        if (backHov) UiKit.Box(this, _backBtnRect, new Color(UiKit.Info, 0.10f), 6f, new Color(UiKit.Info, 0.5f), 1f);
+        UiKit.Hotspot(_backBtnRect, HsBack);
 
         DrawModeSweep();
         DrawStreamBanner();
@@ -727,34 +943,49 @@ public partial class Shop : Node2D
     //   縦：表示窓の右端内側に縦トラック＋サム（_cam.Y/MaxCam.Y）＝「まだ下にある」を可視化。横バーと視覚を揃える。
     //   サムの見た目（太さ6・角丸3・Info半透明）とトラック（幅4・8%白）は縦横で共通。
     private const float BarThick = 4f, ThumbThick = 6f; // トラック太さ / サム太さ（縦横共通）
+    // トラック(見た目の細い帯)の基準座標＝ドラッグ計算と描画で同じ式を使うため定数化。
+    private const float HTrackY = TreeBot + 6f;   // 横バー トラックの y（見た目）
+    private const float VTrackX = WinR - 6f;      // 縦バー トラックの x（見た目）
     private void DrawScrollBars()
     {
         float winW = WinR - WinL, winH = WinH;
 
-        // 横位置バー（表示窓下端）。トラック＋サム。見えている横割合でサム長を決める。
-        float hTrackY = TreeBot + 6f;
-        UiKit.Box(this, new Rect2(WinL, hTrackY, winW, BarThick), new Color(1, 1, 1, 0.08f), 2f);
+        // 横位置バー（表示窓下端）。トラック＋サム。見えている横割合でサム長を決める。ドラッグ可（当たり帯を上下に拡張）。
+        UiKit.Box(this, new Rect2(WinL, HTrackY, winW, BarThick), new Color(1, 1, 1, 0.08f), 2f);
+        _hBarHit = _hThumb = new Rect2(); // 既定は空（スクロール不能なら掴めない）
         if (MaxCam.X > 1f)
         {
-            float viewFrac = Mathf.Clamp(winW / (TreeVirtR - TreeVirtL), 0.12f, 1f); // 見えている横割合＝サム長比
-            float thumbW = winW * viewFrac;
+            float thumbW = HThumbW();
             float t = Mathf.Clamp(_cam.X / MaxCam.X, 0f, 1f);
             float thumbX = WinL + t * (winW - thumbW);
-            UiKit.Box(this, new Rect2(thumbX, hTrackY - 1f, thumbW, ThumbThick), new Color(UiKit.Info, 0.55f), 3f);
+            _hThumb = new Rect2(thumbX, HTrackY - 1f, thumbW, ThumbThick);
+            _hBarHit = new Rect2(WinL, HTrackY - BarHitPad, winW, ThumbThick + BarHitPad * 2f); // 当たり帯（トラック全長×太め）
+            bool active = _drag == DragTarget.Horiz;
+            bool hov = active || (_drag == DragTarget.None && _hBarHit.HasPoint(Pad.MousePos()));
+            UiKit.Box(this, _hThumb, new Color(UiKit.Info, hov ? 0.85f : 0.55f), 3f);
+            if (hov) UiKit.Box(this, _hThumb.Grow(1.5f), null, 4f, new Color(UiKit.PurifyHi, 0.6f), 1f);
         }
 
-        // 縦位置バー（表示窓の右端内側 x≈844）。詳細パネル(x870)と被らない位置。トラック＋サム。
-        float vTrackX = WinR - 6f;
-        UiKit.Box(this, new Rect2(vTrackX, TreeTop, BarThick, winH), new Color(1, 1, 1, 0.08f), 2f);
+        // 縦位置バー（表示窓の右端内側 x≈844）。詳細パネル(x870)と被らない位置。トラック＋サム。ドラッグ可。
+        UiKit.Box(this, new Rect2(VTrackX, TreeTop, BarThick, winH), new Color(1, 1, 1, 0.08f), 2f);
+        _vBarHit = _vThumb = new Rect2();
         if (MaxCam.Y > 1f)
         {
-            float viewFrac = Mathf.Clamp(winH / (TreeVirtB - TreeVirtT), 0.12f, 1f); // 見えている縦割合＝サム長比
-            float thumbH = winH * viewFrac;
+            float thumbH = VThumbH();
             float t = Mathf.Clamp(_cam.Y / MaxCam.Y, 0f, 1f);
             float thumbY = TreeTop + t * (winH - thumbH);
-            UiKit.Box(this, new Rect2(vTrackX - 1f, thumbY, ThumbThick, thumbH), new Color(UiKit.Info, 0.55f), 3f);
+            _vThumb = new Rect2(VTrackX - 1f, thumbY, ThumbThick, thumbH);
+            _vBarHit = new Rect2(VTrackX - BarHitPad, TreeTop, ThumbThick + BarHitPad * 2f, winH);
+            bool active = _drag == DragTarget.Vert;
+            bool hov = active || (_drag == DragTarget.None && _vBarHit.HasPoint(Pad.MousePos()));
+            UiKit.Box(this, _vThumb, new Color(UiKit.Info, hov ? 0.85f : 0.55f), 3f);
+            if (hov) UiKit.Box(this, _vThumb.Grow(1.5f), null, 4f, new Color(UiKit.PurifyHi, 0.6f), 1f);
         }
     }
+
+    // サム長（横/縦）＝見えている割合×トラック長。ドラッグ計算(位置→cam)と描画で同じ値を共有する。
+    private static float HThumbW() => (WinR - WinL) * Mathf.Clamp((WinR - WinL) / (TreeVirtR - TreeVirtL), 0.12f, 1f);
+    private static float VThumbH() => WinH * Mathf.Clamp(WinH / (TreeVirtB - TreeVirtT), 0.12f, 1f);
 
     private void DrawHeader()
     {
@@ -805,6 +1036,9 @@ public partial class Shop : Node2D
             var r = ChipRect(i);
             if (equipped) UiKit.Box(this, r, new Color(UiKit.Info, 0.22f), 999f, UiKit.Info, 1.2f);
             else UiKit.Box(this, r, new Color(1, 1, 1, 0.05f), 999f, new Color(1, 1, 1, unlocked ? 0.12f : 0.06f), 1f);
+            // マウスホバー：フォーカスでない被ホバーのチップを淡く縁取り＝クリック先が分かる（フォーカスは下で強く描く）。
+            if (!focus && _hovId == i) UiKit.Box(this, r.Grow(2f), null, 999f, new Color(UiKit.PurifyHi, 0.6f), 1.4f);
+            UiKit.Hotspot(r, i);
             if (focus) UiKit.Box(this, r.Grow(3f), null, 999f, new Color(UiKit.Info, 0.85f), 1.6f);
             DrawModeIcon(new Vector2(r.Position.X + 15, y + h / 2f), i, unlocked ? (equipped ? UiKit.PurifyHi : UiKit.Info) : UiKit.Text4);
             UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 26, y + h / 2f - 8), name, 14, unlocked ? (equipped ? UiKit.White : UiKit.Text2) : UiKit.Text4);
@@ -889,7 +1123,12 @@ public partial class Shop : Node2D
         {
             Rect2 r = NodeRect(i);
             if (!NodeVisible(r)) continue;
-            DrawNodeCell(NodePos[i].id, r, _sel == i + 4);
+            bool focus = _sel == i + 4;
+            DrawNodeCell(NodePos[i].id, r, focus);
+            // マウスホバー：フォーカスでない被ホバーのノードを淡く縁取り＝クリック先が分かる（フォーカス枠と衝突しない）。
+            //   _hovId はカメラ逆変換込みの HitTest 結果＝スクロールしても実際にマウス直下のノードだけが光る。
+            if (!focus && _hovId == i + 4)
+                UiKit.Box(_ci, r.Grow(2f), null, 8f, new Color(UiKit.PurifyHi, 0.55f), 1.4f);
         }
     }
 
@@ -1010,9 +1249,10 @@ public partial class Shop : Node2D
     private void DrawRootMedallion()
     {
         bool focus = _sel == 3;
-        UiKit.RadialGlow(_ci, RootC, RootR * 2.2f, UiKit.Mina, focus ? 0.30f : 0.18f);
+        bool hov = !focus && _hovId == 3; // マウスホバー（フォーカス時は下の Info リングが優先）
+        UiKit.RadialGlow(_ci, RootC, RootR * 2.2f, UiKit.Mina, focus ? 0.30f : hov ? 0.24f : 0.18f);
         _ci.DrawCircle(RootC, RootR, new Color(0.10f, 0.08f, 0.16f, 0.95f));
-        _ci.DrawArc(RootC, RootR, 0, Mathf.Tau, 40, focus ? UiKit.Info : new Color(UiKit.Mina, 0.8f), focus ? 2.2f : 1.5f, true);
+        _ci.DrawArc(RootC, RootR, 0, Mathf.Tau, 40, focus ? UiKit.Info : hov ? new Color(UiKit.PurifyHi, 0.9f) : new Color(UiKit.Mina, 0.8f), focus ? 2.2f : hov ? 1.8f : 1.5f, true);
         _ci.DrawArc(RootC, RootR - 4f, 0, Mathf.Tau, 40, new Color(UiKit.Mina, 0.35f), 1f, true);
         // 核＝ハート（ミナの心）。
         UiKit.Heart(_ci, RootC + new Vector2(0, -6f), 10f, new Color(UiKit.Mina, 0.95f));
@@ -1174,6 +1414,7 @@ public partial class Shop : Node2D
     // 封印ノードでは振り直しの差引きを常時表示し、Z の2段確認もこのパネルで完結する。
     private void DrawDetailPanel()
     {
+        _buyBtnActive = false; // 既定は無効。ノード詳細のときだけ下部にクリック購入ボタンを立てる。
         float x = DetailX, w = DetailW;
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, TreeTop), "つぎの一手", 18, UiKit.White);
         float by = TreeTop + 30f, bh = TreeBot - by;
@@ -1315,6 +1556,30 @@ public partial class Shop : Node2D
             DrawCrown(new Vector2(ix + 7, ny + 10), 6f, UiKit.Gold);
             UiKit.Text(this, UiKit.Zen, new Vector2(ix + 18, ny), "所持で LUNATIC 解放条件のひとつを満たします", 11, new Color("c9b6ef"));
         }
+
+        // ── 詳細パネル下部の「購入」ボタン（マウスでクリック購入する明示導線）──
+        //   キーボード/パッドの Z 購入はそのまま。マウス派はノードを1度クリックで選択→このボタンで確定できる
+        //   （ツリー上で同じノードを2度クリックしても購入＝どちらの手触りでも買える）。買える状態(can)のみ有効化。
+        bool can = !maxed && parentOk && prereqOk && cost >= 0 && imp >= cost;
+        DrawBuyButton(x, w, "♥ 購入", can);
+    }
+
+    // 詳細パネル下部の購入/確定ボタンを描き、当たり矩形を _buyBtnRect / 有効フラグ _buyBtnActive に保存する。
+    //   有効時：金の縁取り＋ホバーで発光。無効時：沈めて当たり判定も無効化（誤クリックで買えない旨のトーストを出さない）。
+    private void DrawBuyButton(float panelX, float panelW, string label, bool enabled)
+    {
+        float bw = 132f, bh = 34f;
+        var r = new Rect2(panelX + (panelW - bw) / 2f, TreeBot - bh - 12f, bw, bh);
+        _buyBtnRect = r;
+        _buyBtnActive = enabled;
+        bool hov = enabled && _hovId == HsBuy;
+        Color edge = enabled ? UiKit.Gold : new Color(1, 1, 1, 0.14f);
+        Color bg = enabled ? new Color(UiKit.Gold, hov ? 0.24f : 0.14f) : new Color(1, 1, 1, 0.04f);
+        if (hov) UiKit.RadialGlow(this, r.GetCenter(), bw * 0.7f, UiKit.Gold, 0.22f);
+        UiKit.Box(this, r, bg, 10f, new Color(edge, enabled ? (hov ? 1f : 0.75f) : 0.3f), enabled && hov ? 1.8f : 1.2f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, r.Position.Y + 8f), label,
+            15, enabled ? (hov ? UiKit.White : new Color("f0d98a")) : UiKit.Text4, HorizontalAlignment.Center, bw);
+        if (enabled) UiKit.Hotspot(r, HsBuy);
     }
 
     // 封印ノードの振り直しパネル：差引きの内訳（返金−手数料）を常時見せ、Z の2段確認をここで完結する。

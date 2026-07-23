@@ -37,6 +37,17 @@ public partial class Records : Node2D
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
     }
 
+    // 「もどる」フッタヒントのクリック矩形（_Draw のフッタ Hint と同じ x=padX, y=H-56）。
+    //   キー分の幅＋ラベル幅を含む帯を丸ごとクリック可能にする（Records は戻る操作のみ）。
+    private static Rect2 BackHintRect()
+    {
+        float padX = 56f, fy = H - 56f;
+        string key = Pad.CancelToken;
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
+        return new Rect2(padX, fy - 16f, kw + 8f + lw + 8f, 32f);
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
@@ -44,10 +55,16 @@ public partial class Records : Node2D
         {
             // ポーズメニューを閉じた Esc の同じ押下が漏れて「もどる」が誤発火しないよう食う（Pad.UiBlocked）。
             if (Pad.UiBlocked(this)) { _backHeld = true; QueueRedraw(); return; }
+
+            // マウス：フッタの「もどる」クリック／右クリックでも戻れる（Records は他に選択要素なし）。
+            UiKit.BeginHotspots(Pad.MousePos());
+            UiKit.Hotspot(BackHintRect(), 0);
+            bool clickBack = UiKit.ClickedId(Pad.MouseClick()) == 0 || Pad.MouseRightClick();
+
             bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape)
                         || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
             bool backEdge = back && !_backHeld; _backHeld = back;
-            if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
+            if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
         }
         QueueRedraw();
     }

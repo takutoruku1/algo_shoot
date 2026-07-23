@@ -308,7 +308,9 @@ public partial class Hub : Node2D
             _dlgReveal = len;
             if (_dlgLineT >= 0.15) { _dlgLineT = 0; if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue(); return; }
         }
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
+        // 会話中はカードのホットスポットを登録しない＝画面全体が「送り」になり、クリック誤爆は起きない。
+        bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.15)
         {
@@ -361,12 +363,39 @@ public partial class Hub : Node2D
     private bool CanReplySel() => !_autoplay && _sel >= 0 && _sel < _entries.Length
         && _entries[_sel].Cleared && !(_game?.HasReplied(_entries[_sel].Id) ?? true);
 
+    // カードの矩形（DrawCards / CardMetrics と同一：x=40, w=W-80, top+i*(h+gap)）。
+    //   流入アニメの滑り込み(1-ep)*26 は無視して確定位置で判定＝アニメ中でもクリック位置が安定する。
+    private Rect2 CardHitRect(int i)
+    {
+        var (top, h, gap) = CardMetrics();
+        return new Rect2(40f, top + i * (h + gap), W - 80f, h);
+    }
+
     private void ProcessCards()
     {
         if (_autoplay) { if (_t - _cardsEnteredT >= AutoDiveDelay) DiveAuto(); return; }
 
         // R＝タイムラインの再読込。パッドの Start はポーズメニュー（開閉）と衝突するため外した。
         if (Input.IsKeyPressed(Key.R)) { GetTree().ReloadCurrentScene(); return; }
+
+        // マウス：フレーム頭でホットスポットをクリア＋カード矩形とフッタ操作を登録（カードモードのみ＝会話中は登録しない）。
+        //   カード id = 0..entries-1／フッタ id = FooterIdBase+i（空間を分けて種別を判別する）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < _entries.Length; i++) UiKit.Hotspot(CardHitRect(i), i);
+        var footItems = FooterItems();
+        for (int i = 0; i < footItems.Count; i++)
+            if (footItems[i].act != FootAct.None) UiKit.Hotspot(FooterItemRect(i), FooterIdBase + i);
+        int hov = UiKit.HoveredId();
+        // ホバー追従はカード側のみ（フッタはボタン＝ホバーで選択を動かさない。下敷きは DrawFooter が hov で描く）。
+        if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+        // フッタボタンのクリック → 対応アクション（強化=ショップ入口が主目的。返信/記録も同じ導線）。
+        if (clk >= FooterIdBase)
+        {
+            int fi = clk - FooterIdBase;
+            if (fi >= 0 && fi < footItems.Count) FooterClick(footItems[fi].act);
+            return; // フッタを押したフレームはカード確定へ流さない
+        }
 
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld && _entries.Length > 0)
@@ -379,7 +408,10 @@ public partial class Hub : Node2D
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.3 && _sel >= 0 && _sel < _entries.Length)
+        // マウス：カードクリックで選択＋ダイブ（KB の Z と同じ確定経路）。clk はカード id のみ（フッタは上で処理済み）。
+        bool dive = zEdge && _t > 0.3;
+        if (clk >= 0 && clk < _entries.Length && _t > 0.3) { _sel = clk; dive = true; }
+        if (dive && _sel >= 0 && _sel < _entries.Length)
         {
             var e = _entries[_sel];
             if (e.Unlocked)
@@ -407,6 +439,28 @@ public partial class Hub : Node2D
         bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
         bool tEdge = tk && !_tHeld; _tHeld = tk;
         if (tEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
+    }
+
+    // フッタボタン（マウス）押下のアクション。キー導線（X=強化 / T=記録 / C=返信）と同じ処理へ合流する。
+    private void FooterClick(FootAct act)
+    {
+        if (_t <= 0.3 || _dived) return;
+        switch (act)
+        {
+            case FootAct.Shop:
+                Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn");
+                break;
+            case FootAct.Records:
+                Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn");
+                break;
+            case FootAct.Reply:
+                if (CanReplySel())
+                {
+                    var lines = ReplyDialog(_entries[_sel].Id);
+                    if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
+                }
+                break;
+        }
     }
 
     private void DiveAuto()
@@ -764,25 +818,77 @@ public partial class Hub : Node2D
         DrawColoredPolygon(new[] { new Vector2(c.X - r * 0.9f, c.Y), new Vector2(c.X + r * 0.9f, c.Y), new Vector2(c.X, c.Y + r) }, col);
     }
 
-    private void DrawFooter()
+    // ── フッタ操作（クリック可能なショップ入口ほか）──
+    //   フェーズ2のカードクリックに続き、フッタの操作ヒントもマウスで押せるようにする。
+    //   最優先は「強化」＝ショップ入口ボタン。「返信/記録」も揃えて（余力）クリック可に。
+    //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
+    //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
+    //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
+    private enum FootAct { None, Reply, Shop, Records }
+    private const int FooterIdBase = 10000;
+
+    // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
+    private System.Collections.Generic.List<(string key, string label, bool accent, FootAct act)> FooterItems()
     {
-        float y = H - 40f, x = 40f;
-        // ボタン表記は Pad に集約＝操作表示モード(KB/PS/Xbox)に追従。T(記録)はパッドでは LB(L1)。
-        x = Hint(x, y, "↑↓", "えらぶ", false);
-        x = Hint(x, y, Pad.ConfirmToken, "ダイブ", true);
-        if (CanReplySel()) x = Hint(x, y, Pad.EquipToken, "返信", false);
-        x = Hint(x, y, Pad.BombToken, "強化", false); // ProcessCards は Key.X / JoyButton.X(□) に対応
-        Hint(x, y, Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder), "記録", false);
+        var list = new System.Collections.Generic.List<(string, string, bool, FootAct)>
+        {
+            ("↑↓", "えらぶ", false, FootAct.None),
+            (Pad.ConfirmToken, "ダイブ", true, FootAct.None),
+        };
+        if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
+        list.Add((Pad.BombToken, "強化", false, FootAct.Shop));                                    // ← ショップ入口ボタン
+        list.Add((Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder), "記録", false, FootAct.Records));
+        return list;
     }
 
-    private float Hint(float x, float y, string key, string label, bool accent)
+    // フッタ1項目の占有幅（キーチップ＋余白＋ラベル＋末尾ギャップ）。Hint の x 送り量と一致させる。
+    private static float FootItemSpan(string key, string label)
     {
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        return kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
+    }
+
+    // フッタ i 項目のクリック矩形（末尾ギャップ24pxは含めず、チップ＋ラベル帯だけを当たり判定にする）。
+    private Rect2 FooterItemRect(int i)
+    {
+        var items = FooterItems();
+        float y = H - 40f, x = 40f;
+        for (int k = 0; k < i; k++) x += FootItemSpan(items[k].key, items[k].label);
+        var (key, label, _, _) = items[i];
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float span = kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel); // 末尾24は除く
+        // クリック帯は縦方向にヒントの高さ相当（キーチップ24px）＋わずかな余白を確保。
+        return new Rect2(x - 4f, y - 16f, span + 8f, 30f);
+    }
+
+    private void DrawFooter()
+    {
+        var items = FooterItems();
+        int hov = UiKit.HoveredId();
+        float y = H - 40f, x = 40f;
+        for (int i = 0; i < items.Count; i++)
+        {
+            var (key, label, accent, act) = items[i];
+            // クリック可能な項目はホバー中に淡い下敷きを敷いて「押せる」ことを示す（カードと同じ強調トーン）。
+            bool clickable = act != FootAct.None;
+            bool hovered = clickable && hov == FooterIdBase + i;
+            x = Hint(x, y, key, label, accent, hovered);
+        }
+    }
+
+    private float Hint(float x, float y, string key, string label, bool accent, bool hovered = false)
+    {
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float labelW = UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel);
+        // ホバー時の下敷き（チップ＋ラベル帯）。既存の選択ハイライトと同系のシアン淡塗り。
+        if (hovered)
+            UiKit.Box(this, new Rect2(x - 4f, y - 16f, kw + 8 + labelW + 8f, 30f),
+                new Color(UiKit.Purify, 0.10f), 8f, new Color(UiKit.Info, 0.35f), 1f);
         Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
         Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
         UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
         UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
+        return x + kw + 8 + labelW + 24f;
     }
 
     private void DrawToast()

@@ -124,7 +124,8 @@ public partial class Final : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
+        bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 

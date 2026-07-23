@@ -77,6 +77,50 @@ public static class UiKit
     public static void BeginDesign(CanvasItem ci) => ci.DrawSetTransform(Vector2.Zero, 0f, new Vector2(Scale, Scale));
     public static void EndDesign(CanvasItem ci) => ci.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
 
+    // ══════════════════════ クリック領域レジストリ（マウスのホバー/ヒット判定）══════════════════════
+    //   各画面が「クリック可能な矩形」を描画時に登録し、マウス位置と突合してホバー中/クリックされた
+    //   領域の id を返す小機構。座標系は全画面が BeginDesign で統一している設計座標(1280×720)なので、
+    //   登録する Rect2 も Pad.MousePos() もそのまま設計座標で扱えばよい（換算不要）。
+    //
+    //   使い方（各画面の _Draw か _Process 内）:
+    //     UiKit.BeginHotspots(Pad.MousePos());           // フレーム頭でクリア＋マウス位置を渡す
+    //     UiKit.Hotspot(rectA, 0);                        // 描画しながら領域を登録（id は _sel 等に対応させる）
+    //     UiKit.Hotspot(rectB, 1);
+    //     int hov = UiKit.HoveredId();                    // ホバー中の id（無ければ -1）。ハイライト描画に使う
+    //     int clicked = UiKit.ClickedId(Pad.MouseClick());// クリックされた領域の id（左クリックエッジ時のみ）
+    //
+    //   ・ヒット結果 → 各画面の _sel やアクションへの結線は各画面側（フェーズ2/3）が行う。ここは突合だけ。
+    //   ・後勝ち：重なる領域は「後に登録した方」がホバー扱い（前面に描いた要素が拾われる想定）。
+    //     Hotspot 呼び出し順を前面→背面の逆（＝背面から前面へ）にすれば直感どおりになる。
+    private static Vector2 _hotMouse;
+    private static bool _hotActive;
+    private static int _hotHovered = -1;
+
+    // フレーム頭で1回。マウス設計座標を渡してホバー判定をリセットする。
+    public static void BeginHotspots(Vector2 mouseDesign)
+    {
+        _hotMouse = mouseDesign;
+        _hotActive = true;
+        _hotHovered = -1;
+    }
+
+    // クリック可能領域を登録。マウスが rect 内なら _hotHovered を id で上書き（後勝ち）。
+    //   返り値：この領域がホバー中か（呼び出し側が即ハイライトしたいとき用）。
+    public static bool Hotspot(Rect2 rect, int id)
+    {
+        if (!_hotActive) return false;
+        bool inside = rect.HasPoint(_hotMouse);
+        if (inside) _hotHovered = id; // 後勝ち
+        return inside;
+    }
+
+    // 現在ホバー中の id（登録済み領域のうちマウスが乗っているもの）。無ければ -1。
+    public static int HoveredId() => _hotHovered;
+
+    // クリックされた領域の id を返す。clicked（＝Pad.MouseClick() 等の左クリックエッジ）が true の
+    // フレームでのみ、ホバー中の id を返す。それ以外は -1。呼び出し側はこれを _sel 決定/確定に使う。
+    public static int ClickedId(bool clicked) => clicked ? _hotHovered : -1;
+
     // ── テキスト（設計座標・上端基準）──
     public static void Text(CanvasItem ci, Font f, Vector2 topLeft, string s, int size, Color c,
         HorizontalAlignment al = HorizontalAlignment.Left, float width = -1f)

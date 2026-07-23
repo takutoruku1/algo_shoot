@@ -45,7 +45,8 @@ public static class Pad
 
     // 表記がキーボードか＝直近に使ったデバイスがキーボードか。常に自動追従する
     // （固定はしない＝ゲームパッドで開始→途中でKBに持ち替えても表記が付いてくる）。
-    public static bool ShowKeyboard => !_autoUsingPad;
+    // マウス使用時(_usingMouse)はマウス専用アイコンを作らない方針＝キーボード表記へフォールバックする。
+    public static bool ShowKeyboard => _usingMouse || !_autoUsingPad;
 
     // 表記がパッドか（＝!ShowKeyboard）。HUD トークンが使う。
     public static bool UsingPad => !ShowKeyboard;
@@ -199,11 +200,80 @@ public static class Pad
         foreach (var dev in Input.GetConnectedJoypads())
         {
             foreach (var b in HintButtons)
-                if (Input.IsJoyButtonPressed(dev, b)) { _autoUsingPad = true; return; }
+                if (Input.IsJoyButtonPressed(dev, b)) { _autoUsingPad = true; _usingMouse = false; return; }
             var ax = new Vector2(Input.GetJoyAxis(dev, JoyAxis.LeftX), Input.GetJoyAxis(dev, JoyAxis.LeftY));
-            if (ax.Length() > 0.5f) { _autoUsingPad = true; return; }
+            if (ax.Length() > 0.5f) { _autoUsingPad = true; _usingMouse = false; return; }
         }
         foreach (var k in HintKeys)
-            if (Input.IsKeyPressed(k)) { _autoUsingPad = false; return; }
+            if (Input.IsKeyPressed(k)) { _autoUsingPad = false; _usingMouse = false; return; }
     }
+
+    // ═════════════════════════════ マウス入力（キーボード/パッドへ純粋に追加）═════════════════════════════
+    //   Pad は static ヘルパでノードではない＝_Input を持てないため、ホイールイベントの蓄積は常駐 PauseMenu
+    //   （全画面で毎フレーム動く）が _UnhandledInput で拾って FeedWheel/FeedMouseButton へ流し込む方式にする。
+    //   ボタンの押下/エッジは Input.IsMouseButtonPressed をこの PollMouse で前フレーム比較して立てる。
+    //   座標系は UI 全体と同じ「設計座標(1280×720)」に統一する（実ビューポート384系 ÷ UiKit.Scale）。
+
+    // 直近デバイスにマウスを第3の値として追加。KB/パッドの2値(_autoUsingPad)は壊さず、マウス時は
+    // 別フラグで上書き表示を判断する。表記トークン(ConfirmToken 等)は KB/パッド2値前提なので、
+    // マウス時は ShowKeyboard=true（キーボード表記）へフォールバックさせる（マウス専用アイコンは作らない）。
+    private static bool _usingMouse;
+    public static bool UsingMouse => _usingMouse;
+
+    // マウス左/右ボタンの状態と前フレーム値（エッジ検出用）。PollMouse が毎フレーム更新する。
+    private static bool _mL, _mLPrev, _mR, _mRPrev;
+    // ホイールの当該フレーム蓄積量（上=+ / 下=-）。_UnhandledInput で貯め、フレーム末に消費してリセット。
+    private static float _wheelAccum;
+    private static float _wheelFrame;   // このフレームで確定したホイール量（PollMouse で accum→frame へ移す）
+    // 最後に検知したマウス設計座標。移動しきい値でデバイス追従に使う。
+    private static Vector2 _mousePos, _mousePosPrev;
+    private const float MouseMoveThresh = 3f; // 設計座標(1280系)で3px以上動いたら「マウスを使った」
+
+    // 常駐 PauseMenu の _UnhandledInput から呼ぶ：ホイールを当該フレームぶん蓄積する
+    //（1フレームに複数の WheelUp/Down が来ても取りこぼさない）。
+    public static void FeedWheel(float delta) => _wheelAccum += delta;
+
+    // 毎フレーム呼ぶ（PauseMenu / Player）：マウス座標・ボタンエッジを更新し、ホイール蓄積をフレーム値へ確定する。
+    // viewport 経由でビューポート実座標(384系)を取り、UiKit.Scale で割って設計座標(1280系)へ変換する。
+    public static void PollMouse(Viewport vp)
+    {
+        _mLPrev = _mL; _mRPrev = _mR;
+        _mL = Input.IsMouseButtonPressed(MouseButton.Left);
+        _mR = Input.IsMouseButtonPressed(MouseButton.Right);
+
+        _mousePosPrev = _mousePos;
+        if (vp != null) _mousePos = vp.GetMousePosition() / UiKit.Scale; // 384系 → 設計1280系
+
+        // ホイール蓄積を当該フレームの値へ確定してからクリア（読み手は WheelDelta で受け取る）。
+        _wheelFrame = _wheelAccum; _wheelAccum = 0f;
+
+        // ── デバイス追従：マウス移動(しきい値超)/クリック/ホイールがあれば直近デバイス=マウス ──
+        bool moved = (_mousePos - _mousePosPrev).Length() > MouseMoveThresh;
+        if (moved || _mL || _mR || _wheelFrame != 0f) _usingMouse = true;
+        // KB/パッド操作は PollDevice 側で _usingMouse=false に落ちる（同フレームで PollDevice が後勝ち/先勝ちに
+        // ならないよう、呼び順は「PollDevice → PollMouse」を推奨。マウス無操作なら _usingMouse は据え置き）。
+    }
+
+    // ── 読み取りヘルパ（各画面が使う公開API）──
+    public static bool MouseDown() => _mL;                        // 左ボタン押下中
+    public static bool MouseClick() => _mL && !_mLPrev;           // 左ボタン押下エッジ（このフレームで押された）
+    public static bool MouseReleased() => !_mL && _mLPrev;        // 左ボタン離しエッジ
+    public static bool MouseRightDown() => _mR;                   // 右ボタン押下中
+    public static bool MouseRightClick() => _mR && !_mRPrev;      // 右ボタン押下エッジ
+    public static float WheelDelta() => _wheelFrame;             // このフレームのホイール量（上=+ / 下=-、無=0）
+    public static Vector2 MousePos() => _mousePos;                // 設計座標(1280×720)でのマウス位置
+
+    // ═════════════════════════════ 会話送りの共通ヘルパ ═════════════════════════════
+    //   従来 5ステージ＋Hud＋ShopTutorial＋3カットシーンで重複していた
+    //     z = Key.Z (|| Key.Enter) || ui_accept || Pad.A
+    //   の「送り」判定を一本化し、マウス左クリックを OR で追加する。各画面はこれを毎フレーム呼んで
+    //   前フレーム比でエッジを取る（従来の _zEdge = z && !_zHeld と同じ使い方）。
+    //   Enter を含めるかは画面差があったが、送りとしては Enter も許すのが自然なので全画面で含める。
+    //   ※マウス左クリックはボタンUI(ホットスポット)を持つ画面では誤爆しうるが、会話専用画面(ステージ会話/
+    //     カットシーン/Hud会話)では画面全体が「送り」なので問題ない。ホットスポットを持つ画面(Shop/メニュー)は
+    //     この AdvanceHeld ではなく個別のクリック結線(フェーズ2/3)を使う。
+    public static bool AdvanceHeld() =>
+        Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter)
+        || Input.IsActionPressed("ui_accept") || Pressed(JoyButton.A)
+        || MouseDown();
 }

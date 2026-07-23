@@ -99,10 +99,26 @@ public partial class Settings : Node2D
 
     private List<Def> Cur => _cats[_cat].Items;
 
+    // ── マウス用のジオメトリ定数（_Draw のレイアウトと同一。ホットスポット計算に共用）──
+    //   ヘッダ hy=36 → bodyTop=hy+70=106。ナビ navX=40, navW=236, rowH=54, gap=5。
+    //   パネル panX=40+236+26=302, panW=W-302-40。カード top=bodyTop+34=140, cardH=54, gap=9。
+    private const float NavX = 40f, NavW = 236f, NavRowH = 54f, NavGap = 5f, NavTop = 106f;
+    private const float PanX = 302f, CardTop = 140f, CardH = 54f, CardGap = 9f;
+    private static float PanW => W - PanX - 40f;
+    private static Rect2 NavRowRect(int i) => new Rect2(NavX, NavTop + i * (NavRowH + NavGap), NavW, NavRowH);
+    private static Rect2 CardRect(int i) => new Rect2(PanX, CardTop + i * (CardH + CardGap), PanW, CardH);
+    // ホットスポット id 空間（単一の HoveredId/ClickedId を種別で解釈するため範囲で分ける）。
+    private const int IdNavBase = 1000;   // ナビ・カテゴリ
+    private const int IdSegBase = 3000;   // セグメントの各オプション（IdSegBase + row*100 + opt）
+
     public override void _Process(double delta)
     {
         _t += delta;
         if (_autoplay) { GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); return; }
+
+        // マウス：フレーム頭でホットスポットをクリア。設定はポーズ対象外（CanOpenHere=false）＝唯一の登録者。
+        UiKit.BeginHotspots(Pad.MousePos());
+        bool click = Pad.MouseClick();
 
         bool cprev = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.LeftShoulder);
         bool cnext = Input.IsKeyPressed(Key.E) || Pad.Pressed(JoyButton.RightShoulder);
@@ -132,11 +148,128 @@ public partial class Settings : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) { Adjust(1, viaZ: true); Audio.Instance?.PlayUiConfirm(); }
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // ── マウス：カテゴリ／カード／セグメント各オプションのホットスポット登録と処理 ──
+        MouseSettings(click);
+
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
+                    || Pad.MouseRightClick(); // 右クリック＝もどる
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
 
         QueueRedraw();
+    }
+
+    // マウス操作：左ナビでカテゴリ選択／右カードで項目選択＋値変更。
+    //   ・ナビ行クリック → カテゴリ切替（_row リセット）。
+    //   ・カード：未選択ならまず選択。選択済みカードの操作領域クリックで値を変える
+    //     （スライダー＝トラック上のクリック位置で値を直接設定／トグル＝反転／セグメント＝各オプション直接選択）。
+    private void MouseSettings(bool click)
+    {
+        Vector2 m = Pad.MousePos();
+        // ナビ（カテゴリ）: id = IdNavBase + i。
+        for (int i = 0; i < _cats.Count; i++) UiKit.Hotspot(NavRowRect(i), IdNavBase + i);
+        // カード（項目）: id = i。セグメントは各オプション矩形も別 id で登録（後勝ち＝オプションが優先）。
+        for (int i = 0; i < Cur.Count; i++)
+        {
+            UiKit.Hotspot(CardRect(i), i);
+            var d = Cur[i];
+            if (d.Type == SType.Segment)
+                for (int o = 0; o < d.Options.Length; o++)
+                    UiKit.Hotspot(SegmentOptRect(d, i, o), IdSegBase + i * 100 + o);
+        }
+
+        // ホバー追従：マウス使用中はカーソル（カテゴリ/行）をホバー先へ寄せる（KBカーソルと同じ強調）。
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0)
+        {
+            if (hov >= IdNavBase && hov < IdNavBase + _cats.Count)
+            {
+                int ci = hov - IdNavBase;
+                if (ci != _cat) { /* カテゴリはクリックで確定＝ホバーだけでは切替えない（誤爆防止） */ }
+            }
+            else if (hov >= 0 && hov < Cur.Count && hov != _row) { _row = hov; Audio.Instance?.PlayUiMove(); }
+            else if (hov >= IdSegBase)
+            {
+                int ri = (hov - IdSegBase) / 100;
+                if (ri != _row) { _row = ri; Audio.Instance?.PlayUiMove(); }
+            }
+        }
+
+        if (!click) return;
+        int clk = UiKit.HoveredId(); // クリックした瞬間のホバー先
+        if (clk < 0) return;
+
+        // カテゴリをクリック
+        if (clk >= IdNavBase && clk < IdNavBase + _cats.Count)
+        {
+            int ci = clk - IdNavBase;
+            if (ci != _cat) { _cat = ci; _row = 0; Audio.Instance?.PlayUiMove(); }
+            return;
+        }
+        // セグメントのオプションを直接クリック
+        if (clk >= IdSegBase)
+        {
+            int ri = (clk - IdSegBase) / 100, oi = (clk - IdSegBase) % 100;
+            _row = ri;
+            var d = Cur[ri];
+            if (d.Type == SType.Segment && oi >= 0 && oi < d.Options.Length && oi != d.I)
+            { d.I = oi; Apply(d); Save(); Audio.Instance?.PlayUiConfirm(); }
+            return;
+        }
+        // カード本体クリック：未選択なら選択、選択済みなら操作領域のクリック位置で値変更。
+        if (clk >= 0 && clk < Cur.Count)
+        {
+            if (clk != _row) { _row = clk; Audio.Instance?.PlayUiMove(); return; }
+            AdjustByClick(Cur[clk], m);
+        }
+    }
+
+    // 選択済みカードの操作領域を、クリック位置で操作する（スライダー＝比率設定／トグル＝反転）。
+    private void AdjustByClick(Def d, Vector2 m)
+    {
+        switch (d.Type)
+        {
+            case SType.Slider:
+            {
+                // トラック矩形（DrawSlider と同一寸法）にクリックした X 比率で値を設定。
+                var (tx, trackW) = SliderTrack(_row);
+                float ratio = Mathf.Clamp((m.X - tx) / trackW, 0f, 1f);
+                d.F = Mathf.RoundToInt(ratio * 20f) * 5f; // 5刻みにスナップ（KB操作と粒度を揃える）
+                Apply(d); Save(); Audio.Instance?.PlayUiMove();
+                break;
+            }
+            case SType.Toggle:
+                d.B = !d.B; Apply(d); Save(); Audio.Instance?.PlayUiConfirm();
+                break;
+            default: break; // Select/KeyBind は値変更なし（選択のみ）
+        }
+    }
+
+    // スライダーのトラック左端 x とトラック幅（DrawSlider と同一算出）。
+    private static (float tx, float trackW) SliderTrack(int row)
+    {
+        var r = CardRect(row);
+        float right = r.Position.X + r.Size.X - 18f;
+        float valW = 34f, gap = 14f, trackW = 238f;
+        float vx = right - valW;
+        float tx = vx - gap - trackW;
+        return (tx, trackW);
+    }
+
+    // セグメントの各オプション矩形（DrawSegment と同一算出）。row/opt で位置を再現する。
+    private static Rect2 SegmentOptRect(Def d, int row, int opt)
+    {
+        var r = CardRect(row);
+        float right = r.Position.X + r.Size.X - 18f, cy = r.Position.Y + r.Size.Y / 2f;
+        float padIn = 4f, optPadX = 15f, h = 30f;
+        int n = d.Options.Length;
+        float[] ws = new float[n];
+        float total = padIn * 2f;
+        for (int i = 0; i < n; i++) { ws[i] = UiKit.TextW(UiKit.ZenBold, d.Options[i], UiKit.FontLabel) + optPadX * 2f; total += ws[i] + (i > 0 ? 4f : 0f); }
+        float gx = right - total, gy = cy - h / 2f - padIn;
+        float ox = gx + padIn;
+        for (int i = 0; i < opt; i++) ox += ws[i] + 4f;
+        return new Rect2(ox, gy + padIn, ws[opt], h);
     }
 
     private void Adjust(int dir, bool viaZ = false)

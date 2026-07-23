@@ -230,9 +230,15 @@ public partial class TitleMenu : Node2D
             return;
         }
 
+        // マウス：フレーム頭でホットスポットをクリア（このシーンがアクティブな時だけ登録＝競合しない）。
+        // ポーズは全画面で開くがタイトルでは CanOpenHere=false で開かないため、ここが常に唯一の登録者。
+        UiKit.BeginHotspots(Pad.MousePos());
+        bool click = Pad.MouseClick();
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
+                    || Pad.MouseRightClick(); // 右クリック＝もどる/キャンセル
         bool backEdge = back && !_backHeld;
 
         // 「はじめから」後の操作表示モード3択中：←→/↑↓で選び Z=決定（＝ゲーム開始）/ X=やめる。
@@ -248,8 +254,14 @@ public partial class TitleMenu : Node2D
                 Audio.Instance?.PlayUiMove();
             }
             _navHeld = nu || nd;
-            if (zEdge)
+            // マウス：各選択肢の行矩形にホバー＝カーソル移動、クリック＝決定（＝ゲーム開始）。
+            for (int i = 0; i < n; i++) UiKit.Hotspot(DisplayPickerRowRect(i), i);
+            int hov = UiKit.HoveredId();
+            if (Pad.UsingMouse && hov >= 0 && hov != _dispSel) { _dispSel = hov; Audio.Instance?.PlayUiMove(); }
+            int clk = UiKit.ClickedId(click);
+            if (zEdge || clk >= 0)
             {
+                if (clk >= 0) _dispSel = clk;
                 Audio.Instance?.PlayUiConfirm();
                 Pad.SetDisplayAndSave(DisplayChoices[_dispSel].mode); // 反映＋永続化
                 _game.ResetPersistent();                              // はじめから＝まっさらスタート
@@ -273,7 +285,15 @@ public partial class TitleMenu : Node2D
                 Audio.Instance?.PlayUiMove();
             }
             _navHeld = pu || pd;
-            if (zEdge && _game.SlotExists(_pick)) { Audio.Instance?.PlayUiConfirm(); _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
+            // マウス：スロット行にホバー＝カーソル移動、クリック＝ロード（存在するスロットのみ）。
+            for (int i = 0; i < n; i++) UiKit.Hotspot(SlotPickerRowRect(i, n), i);
+            int hov = UiKit.HoveredId();
+            if (Pad.UsingMouse && hov >= 0 && hov != _pick) { _pick = hov; Audio.Instance?.PlayUiMove(); }
+            int clk = UiKit.ClickedId(click);
+            if (clk >= 0) _pick = clk;
+            bool loadNow = (zEdge || clk >= 0) && _game.SlotExists(_pick);
+            if (loadNow) { Audio.Instance?.PlayUiConfirm(); _game.LoadFromSlot(_pick); Go("res://Hub.tscn"); }
+            else if (clk >= 0) Audio.Instance?.PlayUiDeny(); // 空きスロットをクリック
             else if (backEdge) { Audio.Instance?.PlayUiCancel(); _picking = false; }
             _zHeld = z; _backHeld = back;
             QueueRedraw();
@@ -289,10 +309,43 @@ public partial class TitleMenu : Node2D
         }
         _navHeld = up || down;
 
-        if (zEdge && _t > 0.2) { Audio.Instance?.PlayUiConfirm(); Confirm(); }
+        // マウス：メニュー行にホバー＝カーソル移動（KBカーソルと同じハイライト）、クリック＝決定。
+        for (int i = 0; i < Items.Length; i++) UiKit.Hotspot(MenuRowRect(i), i);
+        int mhov = UiKit.HoveredId();
+        if (Pad.UsingMouse && mhov >= 0 && mhov != _sel) { _sel = mhov; Audio.Instance?.PlayUiMove(); }
+        int mclk = UiKit.ClickedId(click);
+        if (mclk >= 0 && _t > 0.2) { _sel = mclk; Audio.Instance?.PlayUiConfirm(); Confirm(); }
+        else if (zEdge && _t > 0.2) { Audio.Instance?.PlayUiConfirm(); Confirm(); }
         _zHeld = z; _backHeld = back;
 
         QueueRedraw();
+    }
+
+    // ── クリック領域（描画レイアウトと同じ式で矩形を作る。ホットスポット登録に使う）──
+    // メインメニュー行（DrawMenu と同じ x=88, top=324, rowH=41, gap=3, w=360）。
+    private static Rect2 MenuRowRect(int i)
+    {
+        float x = 88f, top = 324f, rowH = 41f, gap = 3f, w = 360f;
+        return new Rect2(x, top + i * (rowH + gap), w, rowH);
+    }
+
+    // スロット選択ダイアログの行（DrawSlotPicker と同じジオメトリ：内側パディング分を差し引いた行帯）。
+    private static Rect2 SlotPickerRowRect(int i, int n)
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        float w = 560, rowH = 56, h = 100 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
+        float top = y + 64;
+        return new Rect2(x + 28, top + i * rowH, w - 56, 46);
+    }
+
+    // 操作表示3択ダイアログの行（DrawDisplayPicker と同じジオメトリ）。
+    private static Rect2 DisplayPickerRowRect(int i)
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        int n = DisplayChoices.Length;
+        float w = 600, rowH = 60, h = 132 + n * rowH, x = (W - w) / 2f, y = (H - h) / 2f;
+        float top = y + 80;
+        return new Rect2(x + 28, top + i * rowH, w - 56, 50);
     }
 
     private void Confirm()

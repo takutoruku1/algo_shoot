@@ -196,7 +196,8 @@ public partial class StageAkari : Node
         // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
         if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 2 START"); }
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
+        bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
         // 型崩し（S2）：あかりは“カメオ先出し”。着地後の肩慣らし波（6体・圧ゼロ）を捌いていると、

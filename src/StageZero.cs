@@ -147,7 +147,8 @@ public partial class StageZero : Node
     {
         _phaseTime += delta;
         _lineHold += delta;
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P1）。
+        bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
         if (!_bannerShown) { _bannerShown = true; Hud.ShowBanner("れんしゅう"); }

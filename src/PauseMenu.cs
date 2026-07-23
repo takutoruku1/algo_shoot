@@ -86,11 +86,25 @@ public partial class PauseMenu : CanvasLayer
               || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
     }
 
+    // マウスホイールは押下状態を持たない＝イベントでしか来ない。Pad は static ヘルパでノードではなく
+    // _Input を持てないため、全画面で常駐するここ（PauseMenu）が拾って Pad の当該フレーム蓄積へ流し込む。
+    // 蓄積は次フレームの Pad.PollMouse でフレーム値へ確定され、各画面が Pad.WheelDelta() で読む。
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton mb && mb.Pressed)
+        {
+            if (mb.ButtonIndex == MouseButton.WheelUp)   Pad.FeedWheel(+1f);
+            else if (mb.ButtonIndex == MouseButton.WheelDown) Pad.FeedWheel(-1f);
+        }
+    }
+
     public override void _Process(double delta)
     {
         // 直近デバイスの追跡（ボタン表記の動的 KB/パッド切替）。ゲーム中は Player も呼ぶが、
         // メニュー/ハブ/ショップ/カットシーン等の非戦闘画面は常駐のここが担う。
         Pad.PollDevice();
+        // マウス座標・ボタンエッジの更新＋ホイール蓄積のフレーム確定（全画面で毎フレーム）。
+        Pad.PollMouse(GetViewport());
 
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;
@@ -120,6 +134,15 @@ public partial class PauseMenu : CanvasLayer
             return;
         }
 
+        // マウス：ポーズが開いている間だけホットスポットを登録する（＝下の画面はツリーポーズで停止中＝
+        // 唯一の登録者。閉じている時は BeginHotspots を呼ばない＝下の画面のクリック判定に混線しない）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < RowCount; i++) UiKit.Hotspot(RowRect(i), i);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
+        bool click = Pad.MouseClick();
+        int clk = UiKit.ClickedId(click);
+
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
         {
@@ -145,8 +168,29 @@ public partial class PauseMenu : CanvasLayer
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
+
+        // マウスクリック：クリック先の行種別で処理する（音量＝バー位置で値設定／操作表示＝循環／アクション＝決定）。
+        if (clk >= 0)
+        {
+            _sel = clk;
+            if (IsVolRow(clk))
+            {
+                // バーのクリック位置(X)で音量を直接設定（5刻みスナップ＝KB操作と粒度を揃える）。
+                var (barX, barW) = VolBarMetrics(clk);
+                float ratio = Mathf.Clamp((Pad.MousePos().X - barX) / barW, 0f, 1f);
+                _vol[clk] = Mathf.RoundToInt(ratio * 20f) * 5f;
+                AudioConfig.Set(VolRows[clk].Key, _vol[clk]);
+                Audio.Instance?.PlayUiMove();
+            }
+            else if (IsDisplayRow(clk)) CycleDisplay(1);
+            else
+            {
+                if (Choose(ActionIndex(clk))) Audio.Instance?.PlayUiConfirm();
+                else Audio.Instance?.PlayUiDeny();
+            }
+        }
         // 音量行で Z＝ミュート/復帰のトグル（0 ⇄ 既定相当）。アクション行は従来どおり決定。
-        if (zEdge && IsVolRow(_sel))
+        else if (zEdge && IsVolRow(_sel))
         {
             _vol[_sel] = _vol[_sel] > 0.5f ? 0f : 80f;
             AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
@@ -160,8 +204,42 @@ public partial class PauseMenu : CanvasLayer
             else Audio.Instance?.PlayUiDeny();
         }
         else if (escEdge) { Audio.Instance?.PlayUiCancel(); Close(); } // Esc でも閉じる（＝つづける）
+        else if (Pad.MouseRightClick()) { Audio.Instance?.PlayUiCancel(); Close(); } // 右クリック＝閉じる（つづける）
 
         _canvas.QueueRedraw();
+    }
+
+    // ── マウス用ジオメトリ（PauseCanvas.DrawPauseMenu と同一式。ホットスポット計算に共用）──
+    //   ダイアログ box: w=460, h=688, x=(W-w)/2, y=(H-h)/2。
+    private static (float x, float y, float w) BoxMetrics()
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        float w = 460, h = 688, x = (W - w) / 2f, y = (H - h) / 2f;
+        return (x, y, w);
+    }
+
+    // グローバル行 index i の当たり矩形（音量3行 → 操作表示1行 → アクション8行）。
+    public static Rect2 RowRect(int i)
+    {
+        var (x, y, w) = BoxMetrics();
+        int nVol = VolRows.Length;
+        float volTop = y + 80, volRowH = 38;
+        if (i < nVol) return new Rect2(x + 22, volTop + i * volRowH, w - 44, 34);
+        float dispLabelY = volTop + nVol * volRowH + 8f;
+        float dispRowY = dispLabelY + 18f;
+        if (i == nVol) return new Rect2(x + 22, dispRowY, w - 44, 34); // 操作表示行
+        float divY = dispRowY + 34f + 8f;
+        float top = divY + 16f, actRowH = 40f;
+        int ai = i - nVol - 1;
+        return new Rect2(x + 22, top + ai * actRowH, w - 44, 36);
+    }
+
+    // 音量行のバー（トラック）矩形の X 起点と幅（DrawPauseMenu と同一算出）。
+    private static (float barX, float barW) VolBarMetrics(int volIdx)
+    {
+        var (x, y, w) = BoxMetrics();
+        float barW = 132f, barX = x + w - barW - 64f;
+        return (barX, barW);
     }
 
     private void Open()

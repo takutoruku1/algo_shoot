@@ -123,6 +123,17 @@ public partial class DiffSelect : Node2D
         };
     }
 
+    // ── マウス用ジオメトリ（_Draw と同一式）──
+    //   ティア行：padX=56, rowTop=top+66=106, rowH=84, gap=12, rowW=colX-padX-28（colX=W-56-360）。
+    private static Rect2 TierRect(int i)
+    {
+        float padX = 56f, top = 40f, colW = 360f;
+        float colX = W - padX - colW;
+        float rowTop = top + 66f, rowH = 84f, gap = 12f;
+        float rowW = colX - padX - 28f;
+        return new Rect2(padX, rowTop + i * (rowH + gap), rowW, rowH);
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
@@ -137,8 +148,12 @@ public partial class DiffSelect : Node2D
             return;
         }
 
+        // マウス：フレーム頭でホットスポットをクリア（DiffSelect はポーズ対象外＝唯一の登録者）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        bool click = Pad.MouseClick();
+
         // 入口ダイアログ表示中は、そちらの操作だけ受ける。
-        if (_entryDialog) { ProcessEntryDialog(); QueueRedraw(); return; }
+        if (_entryDialog) { ProcessEntryDialog(click); QueueRedraw(); return; }
 
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
@@ -151,9 +166,22 @@ public partial class DiffSelect : Node2D
         }
         _navHeld = up || down;
 
+        // マウス：ティア行にホバー＝カーソル移動（選択可の行のみ・表情もクロスフェード）、クリック＝決定。
+        for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierRect(i), i);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov != _sel && Selectable(hov))
+        { _sel = hov; StartFaceSwap(_sel); Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(click);
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.2 && Selectable(_sel))
+        bool confirm = zEdge && _t > 0.2 && Selectable(_sel);
+        if (clk >= 0 && _t > 0.2)
+        {
+            if (Selectable(clk)) { _sel = clk; confirm = true; }
+            else Audio.Instance?.PlayUiDeny(); // ロック中ティアをクリック
+        }
+        if (confirm)
         {
             Audio.Instance?.PlayUiConfirm();
             if (_game != null) _game.Difficulty = Tiers[_sel].Diff; // 難易度はここで確定
@@ -166,7 +194,8 @@ public partial class DiffSelect : Node2D
             else { _entrySel = 0; Dive(); }
         }
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
+                    || Pad.MouseRightClick(); // 右クリック＝もどる
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
 
@@ -174,7 +203,8 @@ public partial class DiffSelect : Node2D
     }
 
     // 入口ダイアログの操作：←→（↑↓）で解放済みの入口を選ぶ／Z 決定でダイブ／X で難易度選択へ戻る。
-    private void ProcessEntryDialog()
+    //   マウス：入口セルにホバー＝カーソル移動（解放済みのみ）、クリック＝決定。
+    private void ProcessEntryDialog(bool click)
     {
         bool left = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up");
         bool right = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
@@ -190,13 +220,36 @@ public partial class DiffSelect : Node2D
         }
         _hNavHeld = left || right;
 
+        // マウス：3つの入口セルを登録（DrawEntryDialog と同一ジオメトリ）。
+        for (int i = 0; i < EntryNames.Length; i++) UiKit.Hotspot(EntryCellRect(i), i);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov != _entrySel && EntryUnlocked(hov)) { _entrySel = hov; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(click);
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > _dlgOpenT + 0.15 && EntryUnlocked(_entrySel)) { Audio.Instance?.PlayUiConfirm(); Dive(); }
+        bool go = zEdge && _t > _dlgOpenT + 0.15 && EntryUnlocked(_entrySel);
+        if (clk >= 0 && _t > _dlgOpenT + 0.15)
+        {
+            if (EntryUnlocked(clk)) { _entrySel = clk; go = true; }
+            else Audio.Instance?.PlayUiDeny();
+        }
+        if (go) { Audio.Instance?.PlayUiConfirm(); Dive(); }
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
+                    || Pad.MouseRightClick();
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > _dlgOpenT + 0.15) { Audio.Instance?.PlayUiCancel(); _entryDialog = false; }
+    }
+
+    // 入口セルの矩形（DrawEntryDialog / DrawEntryCell と同一算出）。
+    private static Rect2 EntryCellRect(int i)
+    {
+        float cw = 780f, ch = 320f, cx = (W - cw) / 2f, cy = (H - ch) / 2f;
+        float pad = 34f, rowY = cy + 98f, rowH = 132f, gap = 14f, rowW = cw - pad * 2f;
+        int n = EntryNames.Length;
+        float cellW = (rowW - gap * (n - 1)) / n;
+        return new Rect2(cx + pad + i * (cellW + gap), rowY, cellW, rowH);
     }
 
     private void Dive()

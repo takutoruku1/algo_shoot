@@ -204,7 +204,8 @@ public partial class StageRei : Node
         _lineHold += delta;
         // ステージ経過タイム：クリア確定までは積算し続け、HUDへ常時反映（クリア後は確定値で固定）。
         if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
+        bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 1 START"); }
