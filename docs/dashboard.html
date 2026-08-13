@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">86<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 36 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">88<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 37 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 86パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 88パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">36</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">37</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -125,14 +125,6 @@
           
         </div>
         <p class="accept"><code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は<strong>雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく</strong>、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。<strong>要ユーザー判断</strong>：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -171,6 +163,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
+          <span class="worker">qa</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) このセッション用にGodot 4.6.3 mono Linuxバイナリを新規セットアップ（従来このコンテナにGodotが無くQA実行不能だった）しヘッドレスQAを初実施。進行テスト（Prologue→Stage0、200s予算内でHub以降未到達）＋当たり判定テスト（Rei/Akari/Koharu×Easy・Normal、Rei×Hard）計8走行で<strong>実害のある不具合ゼロ</strong>（例外/当たり判定異常/弾リーク/FPS低下すべてクリーン）。Stage0内の<code>stuck</code>警告2件はQAオートパイロットがShift長押し/回避を意図的に行わないための誤検知と判定（実プレイでは60s SafetyTimeoutで自然に進行、実害なし）。Lunatic・Akari/Koharu Hard・Stage0以降の全シーンは未走査（時間配分で優先度落ち、別走査を推奨）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">10ecc41</span><span>2026-08-13</span><span class="s">auto: WIP M5 全ステージ×全難易度QA一巡</span></li>
+      <li><span class="h">4e156c5</span><span>2026-08-13</span><span class="s">auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）</span></li>
       <li><span class="h">117eb36</span><span>2026-08-13</span><span class="s">auto: WIP 新奥義バランス査定</span></li>
       <li><span class="h">5cd4adc</span><span>2026-08-13</span><span class="s">auto: 小話5『タイトル画面のひとこと』を実装</span></li>
       <li><span class="h">1934c72</span><span>2026-08-13</span><span class="s">auto: WIP 小話5: タイトル画面のひとこと</span></li>
       <li><span class="h">a5af645</span><span>2026-08-13</span><span class="s">auto: 小話4『トレーニング場の独り言』を実装</span></li>
       <li><span class="h">3a448ca</span><span>2026-08-13</span><span class="s">auto: WIP 小話4: トレーニング場の独り言</span></li>
       <li><span class="h">5257724</span><span>2026-08-13</span><span class="s">auto: 小話3『ショップの一言』を実装</span></li>
-      <li><span class="h">ef78ca3</span><span>2026-08-13</span><span class="s">auto: WIP 小話3: ショップの一言</span></li>
-      <li><span class="h">c88443e</span><span>2026-08-13</span><span class="s">auto: 小話2『ハブの複数パターン化』を実装（既読管理つき）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 20:15 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 20:25 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

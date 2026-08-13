@@ -1,24 +1,18 @@
 {
-  "generated": "2026-08-13 20:15 UTC",
+  "generated": "2026-08-13 20:25 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 11,
-    "done": 36
+    "done": 37
   },
-  "percent": 86,
+  "percent": 88,
   "todo": [
     {
       "priority": "P1",
       "title": "パネル持ち敵にダメージ強化が一切効いていない",
       "worker": null,
       "accept": "`Panel.cs:103` のインク削り（`Ink--`）が `Bullet.Damage` を一切参照しない。結果、`shot_power`/`rapid_power`/`spread_power`/`homing_power`/`focus_fire` 系の威力強化は**雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく**、実効範囲は「ボス無防備窓」（`Enemy.cs:468` で `Mathf.Clamp(b.Damage,1,4)` に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。**要ユーザー判断**：(a)パネルもダメージ量に応じてインクを削るよう`Panel.cs`を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること"
-    },
-    {
-      "priority": "P1",
-      "title": "M5 全ステージ×全難易度QA一巡",
-      "worker": "qa",
-      "accept": "当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）"
     },
     {
       "priority": "P2",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "M5 全ステージ×全難易度QA一巡",
+      "worker": "qa",
+      "accept": "(完了 2026-08-13) このセッション用にGodot 4.6.3 mono Linuxバイナリを新規セットアップ（従来このコンテナにGodotが無くQA実行不能だった）しヘッドレスQAを初実施。進行テスト（Prologue→Stage0、200s予算内でHub以降未到達）＋当たり判定テスト（Rei/Akari/Koharu×Easy・Normal、Rei×Hard）計8走行で**実害のある不具合ゼロ**（例外/当たり判定異常/弾リーク/FPS低下すべてクリーン）。Stage0内の`stuck`警告2件はQAオートパイロットがShift長押し/回避を意図的に行わないための誤検知と判定（実プレイでは60s SafetyTimeoutで自然に進行、実害なし）。Lunatic・Akari/Koharu Hard・Stage0以降の全シーンは未走査（時間配分で優先度落ち、別走査を推奨）"
+    },
     {
       "priority": "P1",
       "title": "新奥義バランス査定",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "10ecc41",
+      "date": "2026-08-13",
+      "subject": "auto: WIP M5 全ステージ×全難易度QA一巡"
+    },
+    {
+      "hash": "4e156c5",
+      "date": "2026-08-13",
+      "subject": "auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）"
+    },
+    {
       "hash": "117eb36",
       "date": "2026-08-13",
       "subject": "auto: WIP 新奥義バランス査定"
@@ -362,16 +372,6 @@
       "hash": "5257724",
       "date": "2026-08-13",
       "subject": "auto: 小話3『ショップの一言』を実装"
-    },
-    {
-      "hash": "ef78ca3",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 小話3: ショップの一言"
-    },
-    {
-      "hash": "c88443e",
-      "date": "2026-08-13",
-      "subject": "auto: 小話2『ハブの複数パターン化』を実装（既読管理つき）"
     }
   ]
 }
