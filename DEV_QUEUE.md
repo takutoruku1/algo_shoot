@@ -29,7 +29,6 @@
 
 <!-- ▼ 2026-08-13 4観点監査（game-designer/engineer/scenario/qa 並列）で洗い出した修正候補。上から実害順 -->
 
-- [ ] (P2) あそびかた・バックログがマウス非対応 | engineer | 他8画面は `UiKit.BeginHotspots` でマウス対応済みだが、`HowToPlay.cs:65-77` と `Backlog.cs:114-124` だけ**右クリックで閉じられずホイールも効かない**。`Pad.MouseRightClick()`／`Pad.WheelDelta()` を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ
 - [ ] (P2) シェイクスピア引用の三段仕掛けが二段しか無い | scenario | 正典（`docs/【最新】…まとめ.md:80-86`）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（`StageAkari.cs:166`）と `Cowards die...`（`Final.cs:107`）の二つだけで、**①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない**。正典が泣き所と名指しする `"to thine own self be true"` は全編未使用。`StageRei.cs:165-166` の間に①（無害な衒学 `All the world's a stage.`）、`Epilogue.cs:140` あたりに③を追加。文面案は監査報告のP1-2にあり
 - [ ] (P2) 排他フォーク/振り直し一式が到達不能な死にコード | engineer | 単Lvノード方式への移行で**カタログ全60+ノードの `ExclusiveWith` が全て空**（`GameManager.cs:350` のコメント自身が「排他は全撤廃」と明言）。よって `IsSealed` は常に false で、`RespecRefund`/`RespecFee`/`TryRespec`/`TotalPaid` と `Shop.RespecStep`(679-700)/`DrawRespecPanel`(1662-1765・約100行)/`_respecArmed` 状態機械/`sealed_` 分岐が**全て到達不能**。過去の `_unlocked`・`BackfireTurnRate` と同種でずっと大規模（Shop 1955行のうち100行超）。復活予定が無いなら削除、あるなら宣言部に「現在全ノード未使用＝respec経路は到達不能」と明記して次の読者を守る。**要ユーザー判断**
 - [ ] (P2) FINAL導入が4行でクライマックスの助走が無い | scenario | STAGE1〜3は各面60〜80行なのに FINAL は導入4行（`StageMina.cs:33-45`）＋ボス邂逅4行（`BossMina.cs:60-66`）のみ。3面かけて上ってきた頂点が**全編で最も台詞が薄く**、「なぜ暴走したか」を体感せずボス戦に入る。Intro を「無音バナー→ミナの壊れた声→少年の決意」の9〜11行へ拡張し、三人ぶんの穢れが返ってくる実感（レイ/あかり/こはるの声の断片）を挿む＝`Final.cs` の「レイの。あかりの。こはるの。」が回収になる。**who=2 は `otherName` 固定と衝突するので who=4（投稿）で流すのが実装上安全**。文面案は監査報告のP1-1にあり
@@ -61,7 +60,7 @@
 
 ## WIP
 
-（なし）
+- [ ] (P2) あそびかた・バックログがマウス非対応 | engineer | 他8画面は `UiKit.BeginHotspots` でマウス対応済みだが、`HowToPlay.cs:65-77` と `Backlog.cs:114-124` だけ**右クリックで閉じられずホイールも効かない**。`Pad.MouseRightClick()`／`Pad.WheelDelta()` を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ
 
 ## BLOCKED
 
