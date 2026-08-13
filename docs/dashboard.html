@@ -97,17 +97,17 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">88<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 37 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">90<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 37 / 対象 41 タスク<br>保留 12 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 88パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 90パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">37</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">12</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
-          
-        </div>
-        <p class="accept"><code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は<strong>雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく</strong>、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。<strong>要ユーザー判断</strong>：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -467,6 +459,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
+          
+        </div>
+        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">排他フォーク/振り直し一式が到達不能な死にコード</span>
           <span class="worker">engineer</span>
         </div>
@@ -557,6 +557,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">87929bb</span><span>2026-08-13</span><span class="s">auto: M5 QA一巡（Godotヘッドレス環境を新規セットアップ、実害ゼロを確認）</span></li>
       <li><span class="h">10ecc41</span><span>2026-08-13</span><span class="s">auto: WIP M5 全ステージ×全難易度QA一巡</span></li>
       <li><span class="h">4e156c5</span><span>2026-08-13</span><span class="s">auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）</span></li>
       <li><span class="h">117eb36</span><span>2026-08-13</span><span class="s">auto: WIP 新奥義バランス査定</span></li>
@@ -564,9 +565,8 @@
       <li><span class="h">1934c72</span><span>2026-08-13</span><span class="s">auto: WIP 小話5: タイトル画面のひとこと</span></li>
       <li><span class="h">a5af645</span><span>2026-08-13</span><span class="s">auto: 小話4『トレーニング場の独り言』を実装</span></li>
       <li><span class="h">3a448ca</span><span>2026-08-13</span><span class="s">auto: WIP 小話4: トレーニング場の独り言</span></li>
-      <li><span class="h">5257724</span><span>2026-08-13</span><span class="s">auto: 小話3『ショップの一言』を実装</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 20:25 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 20:26 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
