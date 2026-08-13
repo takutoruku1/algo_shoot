@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">52<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 22 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">55<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 23 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 52パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 55パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">22</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">23</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">20</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">19</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">トレーニングのスキルタブが画面右端で見切れる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">閉状態は <code>_slide=0</code> → <code>PanelX = W(1280)</code> なので <code>tabX = PanelX - 96 = 1184</code>、タブ矩形が x=1184〜1280 と<strong>画面右端ぴったり</strong>で内側マージンが無く13pxラベルが切れて見える（<code>TrainingRoot.cs:319-325</code>）。クリックは可能なので見た目のみ</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -283,6 +275,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">トレーニングのスキルタブが画面右端で見切れる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>TrainingRoot.cs:319</code>の<code>tabX</code>計算を<code>Mathf.Min(PanelX-96f, W-96f-6f)</code>へ変更し、閉状態で画面右端から6pxの内側マージンを確保。開状態のパネル内位置には影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1024337</span><span>2026-08-13</span><span class="s">auto: WIP トレーニングのスキルタブが画面右端で見切れる</span></li>
+      <li><span class="h">5b8c58e</span><span>2026-08-13</span><span class="s">auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）</span></li>
       <li><span class="h">fa513c0</span><span>2026-08-13</span><span class="s">auto: WIP ミナの「小さな願い」が1回きりで伏線にならない</span></li>
       <li><span class="h">3de9be7</span><span>2026-08-13</span><span class="s">auto: Hub帰還会話の疑いを感心に修正、段階設計の逆転を解消</span></li>
       <li><span class="h">f3852f7</span><span>2026-08-13</span><span class="s">auto: WIP Hub帰還会話がステージ側の段階設計を逆転させている</span></li>
       <li><span class="h">274ebb5</span><span>2026-08-13</span><span class="s">auto: こはるCameoに他責の怒りの裏返りを追加</span></li>
       <li><span class="h">c95270e</span><span>2026-08-13</span><span class="s">auto: WIP こはるの「怒り＝他責」が一度も描かれない</span></li>
       <li><span class="h">a56fc22</span><span>2026-08-13</span><span class="s">auto: 難易度Hard/Lunaticのインプレ報酬倍率を引き上げ</span></li>
-      <li><span class="h">0ee1847</span><span>2026-08-13</span><span class="s">auto: WIP 難易度の賭け金と見返りが釣り合っていない</span></li>
-      <li><span class="h">00756a4</span><span>2026-08-13</span><span class="s">auto: FINAL導入を4行から10行へ拡張</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:14 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:16 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

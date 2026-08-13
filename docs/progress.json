@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:14 UTC",
+  "generated": "2026-08-13 19:16 UTC",
   "counts": {
-    "todo": 20,
+    "todo": 19,
     "wip": 0,
     "blocked": 11,
-    "done": 22
+    "done": 23
   },
-  "percent": 52,
+  "percent": 55,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "トレーニングのスキルタブが画面右端で見切れる",
-      "worker": "engineer",
-      "accept": "閉状態は `_slide=0` → `PanelX = W(1280)` なので `tabX = PanelX - 96 = 1184`、タブ矩形が x=1184〜1280 と**画面右端ぴったり**で内側マージンが無く13pxラベルが切れて見える（`TrainingRoot.cs:319-325`）。クリックは可能なので見た目のみ"
-    },
     {
       "priority": "P3",
       "title": "少年の二人称がFINALだけ揺れる",
@@ -201,6 +195,12 @@
   "done": [
     {
       "priority": "P3",
+      "title": "トレーニングのスキルタブが画面右端で見切れる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `TrainingRoot.cs:319`の`tabX`計算を`Mathf.Min(PanelX-96f, W-96f-6f)`へ変更し、閉状態で画面右端から6pxの内側マージンを確保。開状態のパネル内位置には影響なし"
+    },
+    {
+      "priority": "P3",
       "title": "ミナの「小さな願い」が1回きりで伏線にならない",
       "worker": "scenario",
       "accept": "(完了 2026-08-13) (a)(b)両方実装。`StageKoharu.cs:164-165`に軽い再来（まだ願っている、少年もまた流す）、`Epilogue.cs:164`に叶わないままの代償（「どなたかの、空の写真で」＝他人の投稿越しにしか空を知らない）を追加。願いが叶ったとは書いていない"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "1024337",
+      "date": "2026-08-13",
+      "subject": "auto: WIP トレーニングのスキルタブが画面右端で見切れる"
+    },
+    {
+      "hash": "5b8c58e",
+      "date": "2026-08-13",
+      "subject": "auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）"
+    },
+    {
       "hash": "fa513c0",
       "date": "2026-08-13",
       "subject": "auto: WIP ミナの「小さな願い」が1回きりで伏線にならない"
@@ -362,16 +372,6 @@
       "hash": "a56fc22",
       "date": "2026-08-13",
       "subject": "auto: 難易度Hard/Lunaticのインプレ報酬倍率を引き上げ"
-    },
-    {
-      "hash": "0ee1847",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 難易度の賭け金と見返りが釣り合っていない"
-    },
-    {
-      "hash": "00756a4",
-      "date": "2026-08-13",
-      "subject": "auto: FINAL導入を4行から10行へ拡張"
     }
   ]
 }

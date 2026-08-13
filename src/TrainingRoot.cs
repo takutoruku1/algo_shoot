@@ -316,7 +316,9 @@ public partial class TrainingRoot : Node2D
     private void DrawTabAndBack(Vector2 mouse)
     {
         // スキルタブ（右上・パネル左肩に付く“つまみ”）。開くと ▶、閉じると ◀ でスライド方向を示す。
-        float tabX = PanelX - 96f;
+        // 閉状態（PanelX=W）だとタブ右端がちょうど画面右端に張り付き枠線/ラベルが見切れるため、
+        // 右端に6pxの内側マージンを持たせてクランプ（開状態はPanelXが十分内側なのでこのクランプは効かない）。
+        float tabX = Mathf.Min(PanelX - 96f, W - 96f - 6f);
         _tabRect = new Rect2(tabX, PanelY, 96, 40);
         bool th = _tabRect.HasPoint(mouse);
         UiKit.Box(_uiLayer, _tabRect, new Color(UiKit.Info, th ? 0.28f : 0.14f), 8f, new Color(UiKit.Info, 0.7f), 1.4f);
