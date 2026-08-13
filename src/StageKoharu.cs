@@ -172,12 +172,18 @@ public partial class StageKoharu : Node
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 型崩し（S2）対応：中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(9)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
+        {
             _step = game.SelectedEntry switch
             {
                 GameManager.StageEntry.Boss => 9,
                 GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
                 _ => 5,
             };
+            // 読んだら消す（PendingResumeScene と同じ流儀）。残したままだと R でのリトライが
+            //   「さいしょからやりなおす」なのに前回の入口から再開してしまう（ショップ経由後に踏む）。
+            //   ただし --boss デバッグ中は「毎回ボスから」を保つため貼り直す。
+            game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
+        }
     }
 
     public override void _Process(double delta)

@@ -179,12 +179,18 @@ public partial class StageAkari : Node
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 型崩し（S2）対応：中ボス（カメオ先出し）＝Step_BossCameo(3)／ボスから＝Step_BossSpawn(11)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
+        {
             _step = game.SelectedEntry switch
             {
                 GameManager.StageEntry.Boss => 11,
                 GameManager.StageEntry.AfterMidBoss => 4, // 中ボスの直後（小話→道中A）から＝再戦しない（初回ショップ後の続き）
                 _ => 3,
             };
+            // 読んだら消す（PendingResumeScene と同じ流儀）。残したままだと R でのリトライが
+            //   「さいしょからやりなおす」なのに前回の入口から再開してしまう（ショップ経由後に踏む）。
+            //   ただし --boss デバッグ中は「毎回ボスから」を保つため貼り直す。
+            game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
+        }
     }
 
     private bool _startBannerShown;

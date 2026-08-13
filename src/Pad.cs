@@ -227,6 +227,11 @@ public static class Pad
     private static float _wheelFrame;   // このフレームで確定したホイール量（PollMouse で accum→frame へ移す）
     // 最後に検知したマウス設計座標。移動しきい値でデバイス追従に使う。
     private static Vector2 _mousePos, _mousePosPrev;
+    // 初回 PollMouse かどうか。既定の _mousePos は (0,0) なので、初回はカーソル実座標へ「跳ぶ」ぶんが
+    //   そのまま移動量になり、プレイヤーがマウスに触れていなくても _usingMouse が true にラッチしてしまう
+    //   （＝起動直後にカーソルが偶然乗っている項目へ選択が飛び、Hub ではロック中カードが選ばれて
+    //     「Zが効かない」ように見えた）。初回は基準を埋めるだけにして移動判定を行わない。
+    private static bool _mouseSeeded;
     private const float MouseMoveThresh = 3f; // 設計座標(1280系)で3px以上動いたら「マウスを使った」
 
     // 常駐 PauseMenu の _UnhandledInput から呼ぶ：ホイールを当該フレームぶん蓄積する
@@ -243,6 +248,9 @@ public static class Pad
 
         _mousePosPrev = _mousePos;
         if (vp != null) _mousePos = vp.GetMousePosition() / UiKit.Scale; // 384系 → 設計1280系
+
+        // 初回は基準を埋めるだけ（前フレーム値を実座標に揃える）。ここで moved を出すと必ず誤検知になる。
+        if (!_mouseSeeded) { _mouseSeeded = true; _mousePosPrev = _mousePos; }
 
         // ホイール蓄積を当該フレームの値へ確定してからクリア（読み手は WheelDelta で受け取る）。
         _wheelFrame = _wheelAccum; _wheelAccum = 0f;

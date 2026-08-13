@@ -195,6 +195,10 @@ public partial class StageRei : Node
                 GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
                 _ => 5,
             };
+            // 読んだら消す（PendingResumeScene と同じ流儀）。残したままだと R でのリトライが
+            //   「さいしょからやりなおす」なのに前回の入口から再開してしまう（ショップ経由後に踏む）。
+            //   ただし --boss デバッグ中は「毎回ボスから」を保つため貼り直す。
+            game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
     }
 

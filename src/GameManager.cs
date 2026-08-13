@@ -879,6 +879,12 @@ public partial class GameManager : Node
         SelectedEntry = StageEntry.Start;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         _burnHappened = false; Burning = false; BurningThisRun = false;
+        // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
+        //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
+        Contamination = 0f;
+        // クリアタイムを消さないと、まっさらなはずの新規データに前データのベストが残り、
+        //   記録画面とハブカードの BEST に出続けたうえ、最初のオートセーブで新スロットへ焼き付く。
+        ClearTimes.Clear();
     }
 
     // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。
@@ -1010,9 +1016,14 @@ public partial class GameManager : Node
             if (a == "--seed-records") { SeedDebugRecords(); break; }
 
         // [一時/デバッグ] --boss : チェックポイント入口を「ボスから」にして各ステージをボス戦開始にする。
+        // Stage は入口を読んだら消費する（リトライが前回の入口を引きずらないため）ので、恒久フラグを別に持ち、
+        //   毎ステージの _Ready で入口を貼り直す＝「毎回ボスから」というデバッグ用途を保つ。
         foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--boss") { SelectedEntry = StageEntry.Boss; break; }
+            if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; break; }
     }
+
+    // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
+    public bool DebugAlwaysBoss { get; private set; }
 
     // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。
     private void SeedDebugRecords()

@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">9<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 4 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
+      <span class="pct">16<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 7 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 9パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 16パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">4</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">7</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">40</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">37</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">9</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,30 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">マウス未操作なのに選択が勝手に飛ぶ</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>Pad.cs:229</code> の <code>_mousePos</code>/<code>_mousePosPrev</code> が既定 <code>Vector2.Zero</code> のため、初回 <code>PollMouse</code> で実カーソル座標へ跳んで差分が閾値3pxを超え、<strong>未操作のまま <code>_usingMouse</code> が true にラッチ</strong>する（<code>Pad.cs:244-252</code>）。結果 Hub でロック中カードが選択され「Zが効かない」と誤解される（実測: 0.2秒時点はレイ選択→1.5秒でこはるへ移動）。初回ポーリングは <code>_mousePosPrev = _mousePos</code> を入れるだけにして moved 判定をスキップする初期化フラグを持たせる。影響先は Hub/TitleMenu/PauseMenu/Shop/DiffSelect の同型コード</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">「はじめから」の初期化漏れ2件</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>ResetPersistent()</code>（<code>GameManager.cs:871-882</code>）が <strong><code>Contamination</code> と <code>ClearTimes</code> を消していない</strong>。(a) 汚染1.0のままハブ/プロローグに入り <code>KindnessGainMul</code>・<code>MurkVignette</code>・自機の濁りが誤表示（ステージ内は各Rootの <code>SetContamination</code> で上書きされ実害が消える）。(b) 前データのベストタイムが新規データに残り、<code>Records.cs:139,144</code> と <code>Hub.cs:691</code> の BEST 表示に出続け、オートセーブで新スロットに焼き付く。<code>Contamination = 0f;</code> と <code>ClearTimes.Clear();</code> を1行ずつ追加</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">SelectedEntry が消費後リセットされずリトライが壊れる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>SelectedEntry</code> は「ラン単位・非セーブ」宣言（<code>GameManager.cs:80-84</code>）だが読んだ後に誰も <code>Start</code> へ戻さない。初回ショップ導線で <code>AfterMidBoss</code> がセットされ（<code>CheckpointFlow.cs:33</code>）→ ショップ退出で <code>PendingResumeScene</code> のステージへ直行（<code>Shop.cs:653-656</code>）→ <strong>その状態でRリトライすると「さいしょからやりなおす」なのに道中Bから始まる</strong>。各 <code>Stage*.cs</code> の <code>_Ready</code> で読んだ直後に <code>game.SelectedEntry = StageEntry.Start;</code> を入れて消費する（<code>PendingResumeScene</code> と同じ「読んだら消す」流儀に揃える）</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -446,6 +422,30 @@
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
+          <span class="task-title">マウス未操作なのに選択が勝手に飛ぶ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Pad.cs</code> に <code>_mouseSeeded</code> を追加し、初回 <code>PollMouse</code> は <code>_mousePosPrev</code> を実座標に揃えるだけにして移動判定をスキップ。初期値(0,0)から跳ぶぶんでの誤ラッチが消えた。QAスクショで Hub の初期選択が t=0.3/t=3.0 とも解放済みの「レイ」で固定を実測（修正前はカーソル位置次第でロック中カードへ移動）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">「はじめから」の初期化漏れ2件</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>ResetPersistent()</code> に <code>Contamination = 0f;</code> と <code>ClearTimes.Clear();</code> を追加。新規データが前ランの汚染1.0とベストタイムを継承しなくなった</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">SelectedEntry が消費後リセットされずリトライが壊れる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) Rei/Akari/Koharu の <code>_Ready</code> で入口を読んだ<strong>直後</strong>に消費（switch で <code>_step</code> を決めた後なので入口選択は無視されない）。副作用として <code>--boss</code> が2面目以降効かなくなるため <code>GameManager.DebugAlwaysBoss</code> を新設して貼り直す。QA実測で <code>--boss</code> 起動時に Rei/Akari/Koharu すべて <code>boss=1.00</code> 開始を確認（走破 708s→346s が道中スキップの裏付け）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
           <span class="task-title">#22 既読スキップ</span>
           <span class="worker">engineer</span>
         </div>
@@ -557,6 +557,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3ad5cbe</span><span>2026-08-14</span><span class="s">Let one nightly run work through several queue items</span></li>
       <li><span class="h">231a25f</span><span>2026-08-13</span><span class="s">Audit the game from four angles and queue what needs fixing</span></li>
       <li><span class="h">58700ca</span><span>2026-08-13</span><span class="s">Queue the small-talk work and park the pending story decisions</span></li>
       <li><span class="h">f506c6e</span><span>2026-08-13</span><span class="s">Reconcile the dev queue with what is already built</span></li>
@@ -564,9 +565,8 @@
       <li><span class="h">bc2c32b</span><span>2026-08-13</span><span class="s">Add progress dashboard and fix queue worker parsing</span></li>
       <li><span class="h">3df5d8d</span><span>2026-08-13</span><span class="s">Add autonomous nightly dev pipeline</span></li>
       <li><span class="h">deb7844</span><span>2026-08-13</span><span class="s">Fix playtest findings: softlock, unavoidable AOE, and shot balance</span></li>
-      <li><span class="h">134c71e</span><span>2026-08-13</span><span class="s">Style bullets per shot mode and add an accel skill area</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 15:01 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 15:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

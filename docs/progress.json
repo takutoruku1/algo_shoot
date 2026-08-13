@@ -1,31 +1,13 @@
 {
-  "generated": "2026-08-13 15:01 UTC",
+  "generated": "2026-08-13 15:38 UTC",
   "counts": {
-    "todo": 40,
+    "todo": 37,
     "wip": 0,
     "blocked": 9,
-    "done": 4
+    "done": 7
   },
-  "percent": 9,
+  "percent": 16,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "マウス未操作なのに選択が勝手に飛ぶ",
-      "worker": "engineer",
-      "accept": "`Pad.cs:229` の `_mousePos`/`_mousePosPrev` が既定 `Vector2.Zero` のため、初回 `PollMouse` で実カーソル座標へ跳んで差分が閾値3pxを超え、**未操作のまま `_usingMouse` が true にラッチ**する（`Pad.cs:244-252`）。結果 Hub でロック中カードが選択され「Zが効かない」と誤解される（実測: 0.2秒時点はレイ選択→1.5秒でこはるへ移動）。初回ポーリングは `_mousePosPrev = _mousePos` を入れるだけにして moved 判定をスキップする初期化フラグを持たせる。影響先は Hub/TitleMenu/PauseMenu/Shop/DiffSelect の同型コード"
-    },
-    {
-      "priority": "P1",
-      "title": "「はじめから」の初期化漏れ2件",
-      "worker": "engineer",
-      "accept": "`ResetPersistent()`（`GameManager.cs:871-882`）が **`Contamination` と `ClearTimes` を消していない**。(a) 汚染1.0のままハブ/プロローグに入り `KindnessGainMul`・`MurkVignette`・自機の濁りが誤表示（ステージ内は各Rootの `SetContamination` で上書きされ実害が消える）。(b) 前データのベストタイムが新規データに残り、`Records.cs:139,144` と `Hub.cs:691` の BEST 表示に出続け、オートセーブで新スロットに焼き付く。`Contamination = 0f;` と `ClearTimes.Clear();` を1行ずつ追加"
-    },
-    {
-      "priority": "P1",
-      "title": "SelectedEntry が消費後リセットされずリトライが壊れる",
-      "worker": "engineer",
-      "accept": "`SelectedEntry` は「ラン単位・非セーブ」宣言（`GameManager.cs:80-84`）だが読んだ後に誰も `Start` へ戻さない。初回ショップ導線で `AfterMidBoss` がセットされ（`CheckpointFlow.cs:33`）→ ショップ退出で `PendingResumeScene` のステージへ直行（`Shop.cs:653-656`）→ **その状態でRリトライすると「さいしょからやりなおす」なのに道中Bから始まる**。各 `Stage*.cs` の `_Ready` で読んだ直後に `game.SelectedEntry = StageEntry.Start;` を入れて消費する（`PendingResumeScene` と同じ「読んだら消す」流儀に揃える）"
-    },
     {
       "priority": "P1",
       "title": "ボス戦が火力投資に反応しない",
@@ -309,6 +291,24 @@
   "done": [
     {
       "priority": "P1",
+      "title": "マウス未操作なのに選択が勝手に飛ぶ",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `Pad.cs` に `_mouseSeeded` を追加し、初回 `PollMouse` は `_mousePosPrev` を実座標に揃えるだけにして移動判定をスキップ。初期値(0,0)から跳ぶぶんでの誤ラッチが消えた。QAスクショで Hub の初期選択が t=0.3/t=3.0 とも解放済みの「レイ」で固定を実測（修正前はカーソル位置次第でロック中カードへ移動）"
+    },
+    {
+      "priority": "P1",
+      "title": "「はじめから」の初期化漏れ2件",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `ResetPersistent()` に `Contamination = 0f;` と `ClearTimes.Clear();` を追加。新規データが前ランの汚染1.0とベストタイムを継承しなくなった"
+    },
+    {
+      "priority": "P1",
+      "title": "SelectedEntry が消費後リセットされずリトライが壊れる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) Rei/Akari/Koharu の `_Ready` で入口を読んだ**直後**に消費（switch で `_step` を決めた後なので入口選択は無視されない）。副作用として `--boss` が2面目以降効かなくなるため `GameManager.DebugAlwaysBoss` を新設して貼り直す。QA実測で `--boss` 起動時に Rei/Akari/Koharu すべて `boss=1.00` 開始を確認（走破 708s→346s が道中スキップの裏付け）"
+    },
+    {
+      "priority": "P1",
       "title": "#22 既読スキップ",
       "worker": "engineer",
       "accept": "(完了 2026-07-05) 実装済みだったものを誤ってキューに積んでいた。`GameManager` の `IsLineRead`/`MarkLineRead`＋`user://read.json`、Ctrl/RB で既読行のみ高速送り"
@@ -333,6 +333,11 @@
     }
   ],
   "commits": [
+    {
+      "hash": "3ad5cbe",
+      "date": "2026-08-14",
+      "subject": "Let one nightly run work through several queue items"
+    },
     {
       "hash": "231a25f",
       "date": "2026-08-13",
@@ -367,11 +372,6 @@
       "hash": "deb7844",
       "date": "2026-08-13",
       "subject": "Fix playtest findings: softlock, unavoidable AOE, and shot balance"
-    },
-    {
-      "hash": "134c71e",
-      "date": "2026-08-13",
-      "subject": "Style bullets per shot mode and add an accel skill area"
     }
   ]
 }
