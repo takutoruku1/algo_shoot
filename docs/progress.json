@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:23 UTC",
+  "generated": "2026-08-13 19:26 UTC",
   "counts": {
-    "todo": 15,
+    "todo": 14,
     "wip": 0,
     "blocked": 11,
-    "done": 27
+    "done": 28
   },
-  "percent": 64,
+  "percent": 67,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "CS8602警告4件を解消してゼロ警告にする",
-      "worker": "engineer",
-      "accept": "`StageRei.cs:211`/`StageAkari.cs:198`/`StageKoharu.cs:192`/`StageMina.cs:76` の同一パターン。同じ `_Process` 内で `Hud?.SetElapsed(...)` と `Hud.ShowBanner(...)` が混在し、`?.` がフロー解析にnull可能と判断させている。`Hud` は `public Hud Hud = null!;` で各Rootが `AddChild` 前に必ず代入するので**実行時nullにはならない**。`?.` を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある"
-    },
     {
       "priority": "P3",
       "title": "`TrainingDummy.HpRatio` が基底を隠している",
@@ -169,6 +163,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "CS8602警告4件を解消してゼロ警告にする",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ"
+    },
     {
       "priority": "P3",
       "title": "未使用カウンタとコメントの嘘",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "f466311",
+      "date": "2026-08-13",
+      "subject": "auto: WIP CS8602警告4件を解消してゼロ警告にする"
+    },
+    {
+      "hash": "88233f0",
+      "date": "2026-08-13",
+      "subject": "auto: GrazeCountの嘘コメントを実態に合わせて修正"
+    },
+    {
       "hash": "e42a1af",
       "date": "2026-08-13",
       "subject": "auto: WIP 未使用カウンタとコメントの嘘"
@@ -362,16 +372,6 @@
       "hash": "f43585c",
       "date": "2026-08-13",
       "subject": "auto: BossMinaの二人称を「きみ」に統一（64行目）"
-    },
-    {
-      "hash": "2dcc807",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 少年の二人称がFINALだけ揺れる"
-    },
-    {
-      "hash": "21ee0ad",
-      "date": "2026-08-13",
-      "subject": "auto: トレーニングのスキルタブに右端マージンを追加"
     }
   ]
 }

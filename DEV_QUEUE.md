@@ -47,7 +47,7 @@
 
 ## WIP
 
-- [ ] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | `StageRei.cs:211`/`StageAkari.cs:198`/`StageKoharu.cs:192`/`StageMina.cs:76` の同一パターン。同じ `_Process` 内で `Hud?.SetElapsed(...)` と `Hud.ShowBanner(...)` が混在し、`?.` がフロー解析にnull可能と判断させている。`Hud` は `public Hud Hud = null!;` で各Rootが `AddChild` 前に必ず代入するので**実行時nullにはならない**。`?.` を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある
+（なし）
 
 ## BLOCKED
 
@@ -67,6 +67,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | (完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ
 - [x] (P3) 未使用カウンタとコメントの嘘 | engineer | (完了 2026-08-13) `GameManager.cs:110` の `GrazeCount` コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。`DodgeGrazeCount`等は受入条件通りスコープ外のため未変更
 - [x] (P3) リトライ長押し0.7sが反復プレイで重い | game-designer | (完了 2026-08-13) `RetryHold.cs:10` `HoldTime` を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持
 - [x] (P3) ショップの「おすすめ」が所持状況を見ていない | game-designer | (完了 2026-08-13) `Shop.cs:126-175` `RecommendedNow()` を書き換え。所持済みid除外、`SelectedShotMode`対応系統の未所持入り口ノードを先頭差し込み、`CanPurchase()`で買える物優先の安定ソート、全所持済み時は前段階へフォールバック

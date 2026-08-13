@@ -199,7 +199,7 @@ public partial class StageKoharu : Node
     {
         _stepTime += delta;
         _lineHold += delta;
-        if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
+        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;

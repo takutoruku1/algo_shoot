@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">64<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 27 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">67<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 28 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 64パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 67パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">27</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">28</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">15</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">14</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">CS8602警告4件を解消してゼロ警告にする</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>StageRei.cs:211</code>/<code>StageAkari.cs:198</code>/<code>StageKoharu.cs:192</code>/<code>StageMina.cs:76</code> の同一パターン。同じ <code>_Process</code> 内で <code>Hud?.SetElapsed(...)</code> と <code>Hud.ShowBanner(...)</code> が混在し、<code>?.</code> がフロー解析にnull可能と判断させている。<code>Hud</code> は <code>public Hud Hud = null!;</code> で各Rootが <code>AddChild</code> 前に必ず代入するので<strong>実行時nullにはならない</strong>。<code>?.</code> を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -243,6 +235,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">CS8602警告4件を解消してゼロ警告にする</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageRei/Akari/Koharu/Mina.cs</code> の <code>Hud?.SetElapsed(...)</code> を <code>Hud.SetElapsed(...)</code> へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f466311</span><span>2026-08-13</span><span class="s">auto: WIP CS8602警告4件を解消してゼロ警告にする</span></li>
+      <li><span class="h">88233f0</span><span>2026-08-13</span><span class="s">auto: GrazeCountの嘘コメントを実態に合わせて修正</span></li>
       <li><span class="h">e42a1af</span><span>2026-08-13</span><span class="s">auto: WIP 未使用カウンタとコメントの嘘</span></li>
       <li><span class="h">cf44fb4</span><span>2026-08-13</span><span class="s">auto: リトライ長押し時間を0.7s→0.45sへ短縮</span></li>
       <li><span class="h">ea56c8d</span><span>2026-08-13</span><span class="s">auto: WIP リトライ長押し0.7sが反復プレイで重い</span></li>
       <li><span class="h">fccf675</span><span>2026-08-13</span><span class="s">auto: ショップのおすすめが所持状況・所持金・装備モードを考慮するよう改善</span></li>
       <li><span class="h">11436b9</span><span>2026-08-13</span><span class="s">auto: WIP ショップの「おすすめ」が所持状況を見ていない</span></li>
       <li><span class="h">f43585c</span><span>2026-08-13</span><span class="s">auto: BossMinaの二人称を「きみ」に統一（64行目）</span></li>
-      <li><span class="h">2dcc807</span><span>2026-08-13</span><span class="s">auto: WIP 少年の二人称がFINALだけ揺れる</span></li>
-      <li><span class="h">21ee0ad</span><span>2026-08-13</span><span class="s">auto: トレーニングのスキルタブに右端マージンを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:23 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:26 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
