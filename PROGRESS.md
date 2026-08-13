@@ -1,20 +1,20 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-13 14:35 UTC
+> 生成: 2026-08-13 14:53 UTC
 
 ## 消化率
 
 ```
-█████░░░░░░░░░░░░░░░  27%   (完了 4 / 対象 15)
+██░░░░░░░░░░░░░░░░░░  9%   (完了 4 / 対象 44)
 ```
 
 | 状態 | 件数 |
 |---|---:|
 | ✅ 完了 | 4 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 11 |
-| ⛔ 保留（人間の判断待ち） | 6 |
+| 📋 残り | 40 |
+| ⛔ 保留（人間の判断待ち） | 9 |
 
 ## 🔨 いま作業中
 
@@ -22,16 +22,19 @@ _なし_
 
 ## 📋 次にやること
 
-- `P1` 小話1: 道中の掛け合い
-- `P1` 小話2: ハブの複数パターン化
-- `P2` 小話3: ショップの一言
-- `P2` 小話4: トレーニング場の独り言
-- `P2` 小話5: タイトル画面のひとこと
+- `P1` マウス未操作なのに選択が勝手に飛ぶ
+- `P1` 「はじめから」の初期化漏れ2件
+- `P1` SelectedEntry が消費後リセットされずリトライが壊れる
+- `P1` ボス戦が火力投資に反応しない
+- `P1` 通常グレイズが通貨を生まない
 
-…ほか 6 件
+…ほか 35 件
 
 ## ⛔ 保留（自動では進められない）
 
+- ショップ画面の毎フレーム再描画を実測してから判断
+- ウィンドウリサイズ/フルスクリーン切替の表示確認
+- 死亡系フロー（残機0・コンティニュー・チェックポイント再開）のQA
 - 世界観の肉付け（SNSの雑音で語る）
 - マルチエンディング化
 - 挿入歌の調達
@@ -48,6 +51,7 @@ _なし_
 
 ## 直近のコミット
 
+- `58700ca` 2026-08-13 Queue the small-talk work and park the pending story decisions
 - `f506c6e` 2026-08-13 Reconcile the dev queue with what is already built
 - `aa7cbc6` 2026-08-13 Give the epilogue a background per phase
 - `bc2c32b` 2026-08-13 Add progress dashboard and fix queue worker parsing
@@ -55,4 +59,3 @@ _なし_
 - `deb7844` 2026-08-13 Fix playtest findings: softlock, unavoidable AOE, and shot balance
 - `134c71e` 2026-08-13 Style bullets per shot mode and add an accel skill area
 - `e4e61ff` 2026-08-13 Unlock 加速球 shot mode via shop purchase
-- `2f53607` 2026-08-13 Add shop training mode and accelerating-bullet shot
