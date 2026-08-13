@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 15:43 UTC",
+  "generated": "2026-08-13 18:27 UTC",
   "counts": {
-    "todo": 37,
+    "todo": 36,
     "wip": 0,
     "blocked": 9,
-    "done": 7
+    "done": 8
   },
-  "percent": 16,
+  "percent": 18,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "ボス戦が火力投資に反応しない",
-      "worker": "game-designer",
-      "accept": "`ExposedDamageCap = 100`（`Enemy.cs:64`）＝無防備窓1回でHPバー1本ぶんが上限。**どれだけ強化してもNormalは最低4サイクル・Lunatic6・ミナはEasyでも4／Luna8**が固定で、火力に投資しても短縮されない。奥義を買うほど窓で \"MAX\" が出て弾が吸われるだけになる（§2-1 リスクとリターンの比例が切れている）。(b)案が安い＝**キャップ到達で窓を早期終了して次サイクルへ即移行**（窓4.0sの残りを待たせない）。(a)案＝「1本＋超過分の50%を次バーへ持ち越し」は中規模。まず(b)でテンポだけでも返す"
-    },
     {
       "priority": "P1",
       "title": "通常グレイズが通貨を生まない",
@@ -291,6 +285,12 @@
   "done": [
     {
       "priority": "P1",
+      "title": "ボス戦が火力投資に反応しない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) (b)案採用。`Enemy.cs` の `TickBossPhase`（`BossPhase.Exposed` 分岐）で `_windowDamage >= ExposedDamageCap` を検知したら `_phaseT >= VulnDur` を待たず即 `EnterReclose()` へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り"
+    },
+    {
+      "priority": "P1",
       "title": "マウス未操作なのに選択が勝手に飛ぶ",
       "worker": "engineer",
       "accept": "(完了 2026-08-14) `Pad.cs` に `_mouseSeeded` を追加し、初回 `PollMouse` は `_mousePosPrev` を実座標に揃えるだけにして移動判定をスキップ。初期値(0,0)から跳ぶぶんでの誤ラッチが消えた。QAスクショで Hub の初期選択が t=0.3/t=3.0 とも解放済みの「レイ」で固定を実測（修正前はカーソル位置次第でロック中カードへ移動）"
@@ -334,6 +334,31 @@
   ],
   "commits": [
     {
+      "hash": "defa32f",
+      "date": "2026-08-13",
+      "subject": "auto: WIP ボス戦が火力投資に反応しない"
+    },
+    {
+      "hash": "9360c42",
+      "date": "2026-08-14",
+      "subject": "Unify cutscene text boxes and color tokens"
+    },
+    {
+      "hash": "d123e2b",
+      "date": "2026-08-14",
+      "subject": "Let the player flip facing and shoot backwards"
+    },
+    {
+      "hash": "bf9ab6a",
+      "date": "2026-08-14",
+      "subject": "Make enemy AOE telegraphs and impacts read as one strike"
+    },
+    {
+      "hash": "26e6569",
+      "date": "2026-08-14",
+      "subject": "Refresh the progress snapshot"
+    },
+    {
       "hash": "8eff3aa",
       "date": "2026-08-14",
       "subject": "Fix three defects that broke input, fresh saves, and retry"
@@ -347,31 +372,6 @@
       "hash": "231a25f",
       "date": "2026-08-13",
       "subject": "Audit the game from four angles and queue what needs fixing"
-    },
-    {
-      "hash": "58700ca",
-      "date": "2026-08-13",
-      "subject": "Queue the small-talk work and park the pending story decisions"
-    },
-    {
-      "hash": "f506c6e",
-      "date": "2026-08-13",
-      "subject": "Reconcile the dev queue with what is already built"
-    },
-    {
-      "hash": "aa7cbc6",
-      "date": "2026-08-13",
-      "subject": "Give the epilogue a background per phase"
-    },
-    {
-      "hash": "bc2c32b",
-      "date": "2026-08-13",
-      "subject": "Add progress dashboard and fix queue worker parsing"
-    },
-    {
-      "hash": "3df5d8d",
-      "date": "2026-08-13",
-      "subject": "Add autonomous nightly dev pipeline"
     }
   ]
 }
