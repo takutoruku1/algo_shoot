@@ -29,7 +29,6 @@
 
 <!-- ▼ 2026-08-13 4観点監査（game-designer/engineer/scenario/qa 並列）で洗い出した修正候補。上から実害順 -->
 
-- [ ] (P3) 未使用カウンタとコメントの嘘 | engineer | `GrazeCount`(`GameManager.cs:111`) は「チュートリアルのグレイズ検出に使う」とコメントするが**読み手が存在しない**（インクリメントのみ）。同様に `DodgeGrazeCount`(`:1134`)・`LastClearFollowers`(`:318`)・`StagePlays`(`:275`) が代入/集計のみ、`AddBomb(int)`(`:1174`) は**参照ゼロ**。最低限 `GrazeCount` の嘘コメントを直す（※上の「グレイズチュートリアル」タスクを実装するなら `GrazeCount` は読み手ができるので、そちらを先にやってからこのタスクを見直すこと）
 - [ ] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | `StageRei.cs:211`/`StageAkari.cs:198`/`StageKoharu.cs:192`/`StageMina.cs:76` の同一パターン。同じ `_Process` 内で `Hud?.SetElapsed(...)` と `Hud.ShowBanner(...)` が混在し、`?.` がフロー解析にnull可能と判断させている。`Hud` は `public Hud Hud = null!;` で各Rootが `AddChild` 前に必ず代入するので**実行時nullにはならない**。`?.` を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある
 - [ ] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | `TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）
 - [ ] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | `Epilogue.cs:149` が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて**「反復→気づき」の間が送りボタンに食われる**。2行に割って体言止めの余韻を1画面で完結させる
@@ -49,7 +48,7 @@
 
 ## WIP
 
-（なし）
+- [ ] (P3) 未使用カウンタとコメントの嘘 | engineer | `GrazeCount`(`GameManager.cs:111`) は「チュートリアルのグレイズ検出に使う」とコメントするが**読み手が存在しない**（インクリメントのみ）。同様に `DodgeGrazeCount`(`:1134`)・`LastClearFollowers`(`:318`)・`StagePlays`(`:275`) が代入/集計のみ、`AddBomb(int)`(`:1174`) は**参照ゼロ**。最低限 `GrazeCount` の嘘コメントを直す（※上の「グレイズチュートリアル」タスクを実装するなら `GrazeCount` は読み手ができるので、そちらを先にやってからこのタスクを見直すこと）
 
 ## BLOCKED
 
