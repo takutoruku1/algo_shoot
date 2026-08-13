@@ -57,7 +57,7 @@
 
 ## WIP
 
-- [ ] (P2) FINAL導入が4行でクライマックスの助走が無い | scenario | STAGE1〜3は各面60〜80行なのに FINAL は導入4行（`StageMina.cs:33-45`）＋ボス邂逅4行（`BossMina.cs:60-66`）のみ。3面かけて上ってきた頂点が**全編で最も台詞が薄く**、「なぜ暴走したか」を体感せずボス戦に入る。Intro を「無音バナー→ミナの壊れた声→少年の決意」の9〜11行へ拡張し、三人ぶんの穢れが返ってくる実感（レイ/あかり/こはるの声の断片）を挿む＝`Final.cs` の「レイの。あかりの。こはるの。」が回収になる。**who=2 は `otherName` 固定と衝突するので who=4（投稿）で流すのが実装上安全**。文面案は監査報告のP1-1にあり
+（なし）
 
 ## BLOCKED
 
@@ -77,6 +77,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) FINAL導入が4行でクライマックスの助走が無い | scenario | (完了 2026-08-13) `StageMina.cs` Introを4行→10行へ拡張。who=4（投稿）でレイ/あかり/こはるの声の残響を挿み、`Final.cs`の「レイの。あかりの。こはるの。」の予感を作った（文字列は意図的に非一致＝DropLine検出に無影響）。骨格（無音バナー→壊れた声→決意）と既存4行は不変
 - [x] (P2) シェイクスピア引用の三段仕掛けが二段しか無い | scenario | (完了 2026-08-13) `StageRei.cs:166-167`に1回目「"All the world's a stage."」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。`Epilogue.cs:159-162`に3回目「"To thine own self be true."」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（`StageAkari.cs:166`）と`Final.cs`の既存引用は無変更
 - [x] (P2) あそびかた・バックログがマウス非対応 | engineer | (完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた
 - [x] (P2) 後方弾の形と色の指定が無視されている | engineer | (完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた
