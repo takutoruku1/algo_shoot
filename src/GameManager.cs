@@ -17,17 +17,17 @@ public partial class GameManager : Node
     public enum Diff { Easy, Normal, Hard, Lunatic }
     public Diff Difficulty = Diff.Normal;
 
-    // ───── ショットモード（設計書 §3）。連射は初期解放、拡散/ホーミングはショップ購入で解放 ─────
-    //   Accel（加速球）はトレーニング場専用の試し撃ちモード＝通常プレイ/ショップには出さない（TrainingMode の間だけ解放）。
+    // ───── ショットモード（設計書 §3）。連射は初期解放、拡散/ホーミング/加速球はショップ購入で解放 ─────
     //   ★enum は末尾に追加＝Rapid/Spread/Homing の保存値(0/1/2)は不変＝既存セーブと互換。Accel(=3)は
-    //     トレーニングでしか選べず、かつトレーニングはセーブしない＝保存値3が永続化されることはない。
+    //     加速球解放ノード(accel_1)購入 or トレーニング中のみ選べる（拡散/ホーミングと同じ「入り口ノード購入で解放」流儀）。
     public enum ShotMode { Rapid, Spread, Homing, Accel }
     public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
-    // トレーニング場（TrainingRoot）が立てる：この間だけ加速球モードを解放し、V の切替ローテに入れる。
+    // トレーニング場（TrainingRoot）が立てる：この間だけ全モードを解放し、V の切替ローテに入れる。
     public bool TrainingMode;
-    // 拡散/ホーミング解放判定は各系統の入り口ノード（spread_1 / homing_1）の所持で決まる（単Lvノード方式）。
+    // 拡散/ホーミング/加速球の解放判定は各系統の入り口ノード（spread_1 / homing_1 / accel_1）の所持で決まる（単Lvノード方式）。
     public bool HasSpread => GetUpgradeLevel("spread_1") >= 1;
     public bool HasHoming => GetUpgradeLevel("homing_1") >= 1;
+    public bool HasAccel => GetUpgradeLevel("accel_1") >= 1;
     // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（連続所持段数 ChainLevel に対応）。
     public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
     public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
@@ -35,11 +35,11 @@ public partial class GameManager : Node
     {
         ShotMode.Spread => HasSpread,
         ShotMode.Homing => HasHoming,
-        ShotMode.Accel => TrainingMode, // 加速球はトレーニング中のみ解放（通常プレイ/ショップには出ない）
+        // 加速球：加速球解放ノードを購入済みなら通常プレイでも解放（拡散/ホーミングと同流儀）。トレーニング中は全解放。
+        ShotMode.Accel => TrainingMode || HasAccel,
         _ => true,
     };
     // 解放済みモードを循環（連射→拡散→ホーミング→加速球→連射…・未解放はスキップ）。
-    // 加速球はトレーニング中だけ解放される＝そのローテに自然に入る（通常プレイでは常にスキップ）。
     private const int ModeCount = 4;
     public ShotMode NextUnlockedMode(ShotMode cur)
     {
@@ -397,6 +397,8 @@ public partial class GameManager : Node
         new() { Id = "counter_2",     Name = "返し光II",    Desc = "回避よけした弾を全弾光弾化", MaxLevel = 1, BaseCost = 1280, ParentId = "counter_1" },
         new() { Id = "veil_1",        Name = "祈りの帳I",   Desc = "回避後の弾消し光輪 r20px", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_rate_1", PrereqId = "homing_2", PrereqLv = 1 },
         new() { Id = "veil_2",        Name = "祈りの帳II",  Desc = "弾消し光輪 r28px",         MaxLevel = 1, BaseCost = 1280, ParentId = "veil_1" },
+        // ── 加速球（自機モード解放。タメて撃つ→0.8秒後にロケット発進する弾。拡散/ホーミングと同じ入り口ノード方式）──
+        new() { Id = "accel_1",       Name = "加速球",      Desc = "加速球モード解放・タメて撃つ→0.8秒後にロケット発進", MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
         // ── バックファイア系（後方弾は bf_* 未所持でも初期から弱く発射される）──
         new() { Id = "bf_power_1",    Name = "後方威力I",   Desc = "後方弾の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
         new() { Id = "bf_power_2",    Name = "後方威力II",  Desc = "後方弾の威力 +2",          MaxLevel = 1, BaseCost = 380,  ParentId = "bf_power_1" },
@@ -843,9 +845,10 @@ public partial class GameManager : Node
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
+        //   クランプ上限は 3（Accel＝加速球を正当な保存値として許容）。未解放なら下の IsModeUnlocked で Rapid へ落ちる。
         if (data.ContainsKey("shotmode"))
         {
-            var m = (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 2);
+            var m = (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 3);
             SelectedShotMode = IsModeUnlocked(m) ? m : ShotMode.Rapid;
         }
         return true;

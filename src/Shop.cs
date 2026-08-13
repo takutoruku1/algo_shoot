@@ -15,14 +15,20 @@ public partial class Shop : Node2D
     private GameManager _game = null!;
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
 
+    // ★上部の装備チップに並ぶのは 0..2（連射/拡散/ホーミング）のみ（DrawModeStrip は for i<3）。
+    //   加速球(index 3)はチップを増やすと _sel 体系（3=root）が破綻するためチップにはしない。
+    //   代わりに加速球は「起点ノード accel_1」で装備（C）＋購入時に自動装備＋通常プレイの V ローテで選べる
+    //   （拡散/ホーミングと同じ流儀）。Modes/ModeEn/ModeDesc は index 3 まで持たせて EquipMode(3)・
+    //   詳細プレビューの索引整合を取る（配列外参照を防ぐ）。
     private static readonly GameManager.ShotMode[] Modes =
-        { GameManager.ShotMode.Rapid, GameManager.ShotMode.Spread, GameManager.ShotMode.Homing };
-    private static readonly string[] ModeEn = { "RAPID", "SPREAD", "HOMING" };
+        { GameManager.ShotMode.Rapid, GameManager.ShotMode.Spread, GameManager.ShotMode.Homing, GameManager.ShotMode.Accel };
+    private static readonly string[] ModeEn = { "RAPID", "SPREAD", "HOMING", "ACCEL" };
     private static readonly string[] ModeDesc =
     {
         "右へ直線の高速ストリーム。正面の硬い敵に火力集中。",
         "右方向へ扇状に展開。雑魚処理・面制圧・道中向き。",
         "右側のマゼンタの穢れへ吸い寄せられて曲射。避けながら削る。",
+        "その場でタメて撃つ→0.8秒後にロケット発進。硬い敵に一気に叩き込む。",
     };
 
     // ───── 単Lvノード配置（設計座標・セル左上）。W146×H44、深さ列 x: d1=168/d2=344/d3=520/d4=696/d5=872/d6=1048/d7=1224 ─────
@@ -48,6 +54,7 @@ public partial class Shop : Node2D
         ("focus_2",       1224, 286),
         ("rapid_rate_1",  696, 352),
         ("rapid_rate_2",  872, 352),
+        ("accel_1",       168, 252), // 加速球モード解放（fire_rate_1 の子・連射帯の空きスロット）
         // ── 拡散系（SPREAD） y452-782 ──
         ("spread_1",      344, 452),
         ("spread_2",      520, 452),
@@ -268,8 +275,9 @@ public partial class Shop : Node2D
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         // 起動時、装備中モードのチップ（R0）にカーソルを合わせる。
+        //   加速球(index 3)はチップが無い＝チップ範囲(0..2)外なので、その時は連射チップ(0)に置く（root=3 との衝突回避）。
         _sel = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
-        if (_sel < 0) _sel = 0;
+        if (_sel < 0 || _sel > 2) _sel = 0;
 
         // 背景専用の子（最背面 ZIndex -2・固定）。Shop 本体(ZIndex 0)は固定UIを描くので、
         // 背景をここに分離しないと ZIndex -1 のツリーが背景に覆われて見えなくなる（レイヤ順の要）。
@@ -707,13 +715,14 @@ public partial class Shop : Node2D
         if (_game.TryPurchase(id))
         {
             Audio.Instance?.PlayUiBuy(); // 購入成功＝達成音
-            // 各系統の入り口ノード（spread_1/homing_1）は「解放」、それ以外は「強化」。
-            bool isUnlock = id == "spread_1" || id == "homing_1";
+            // 各系統の入り口ノード（spread_1/homing_1/accel_1）は「解放」、それ以外は「強化」。
+            bool isUnlock = id == "spread_1" || id == "homing_1" || id == "accel_1";
             Toast($"{d.Name} を{(isUnlock ? "解放" : "強化")}！", UiKit.Info);
             _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = id; _buyFxAt = at;
-            // 拡散/ホーミングを解放したら自動で装備に切り替える（従来挙動を踏襲）。
+            // 拡散/ホーミング/加速球を解放したら自動で装備に切り替える（従来挙動を踏襲）。
             if (id == "spread_1") EquipMode(1, silent: true);
             if (id == "homing_1") EquipMode(2, silent: true);
+            if (id == "accel_1") EquipMode(3, silent: true);
         }
     }
 
@@ -736,6 +745,7 @@ public partial class Shop : Node2D
         "fire_rate_1" => 0, // 連射
         "spread_1" => 1,    // 拡散
         "homing_1" => 2,    // ホーミング
+        "accel_1" => 3,     // 加速球
         _ => -1,
     };
 
@@ -769,6 +779,8 @@ public partial class Shop : Node2D
             || id.StartsWith("option") || id.StartsWith("chain") => 1,
         // 2=ホーミング：誘導・誘導威力/速射・返し光・帳。
         _ when id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") => 2,
+        // 3=加速球：加速球解放ノード。
+        _ when id.StartsWith("accel") => 3,
         _ => -1, // 全モード共通（生存・経済・コンボ・バックファイア）は装備中を映す
     };
 
@@ -1776,7 +1788,22 @@ public partial class Shop : Node2D
                         DrawLightBullet(muzzle + dir * (ph * (w * 0.72f)), 3.5f, ph);
                     }
                     break;
-                default: // ホーミング：標的へ曲射
+                case 3: // 加速球：muzzle 付近でタメ→後半で一気に右へ発進（琥珀）。
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float ph = (t / 1.3f + k / 3f) % 1f;
+                        // 前半0.55はタメ（muzzle付近でほぼ静止＝わずかに前進）、後半で一気に x1 へ発進。
+                        const float chargeK = 0.55f;
+                        float px = ph < chargeK
+                            ? Mathf.Lerp(x0, x0 + 12f, ph / chargeK)                 // タメ：ほぼ静止
+                            : Mathf.Lerp(x0 + 12f, x1, (ph - chargeK) / (1f - chargeK)); // 発進：一気に
+                        var ac = new Color(0.96f, 0.78f, 0.36f); // 琥珀（加速球色）
+                        if (ph >= chargeK) // 発進中は尾を引く
+                            DrawLine(new Vector2(px, mina.Y), new Vector2(px - 10f, mina.Y), new Color(ac.R, ac.G, ac.B, 0.5f), 3f, true);
+                        DrawCircle(new Vector2(px, mina.Y), 4f, ac);
+                    }
+                    break;
+                default: // ホーミング（i=2）：標的へ曲射
                     Vector2[] tg = { new(x + w - 26, y + 20), new(x + w - 20, y + h - 18) };
                     int shots = Mathf.Max(2, _game?.HomingShots ?? 2);
                     foreach (var tp in tg)
