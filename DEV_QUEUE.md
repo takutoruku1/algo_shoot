@@ -29,7 +29,6 @@
 
 <!-- ▼ 2026-08-13 4観点監査（game-designer/engineer/scenario/qa 並列）で洗い出した修正候補。上から実害順 -->
 
-- [ ] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | `TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）
 - [ ] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | `Epilogue.cs:149` が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて**「反復→気づき」の間が送りボタンに食われる**。2行に割って体言止めの余韻を1画面で完結させる
 - [ ] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | `StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く
 
@@ -47,7 +46,7 @@
 
 ## WIP
 
-（なし）
+- [ ] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | `TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）
 
 ## BLOCKED
 
