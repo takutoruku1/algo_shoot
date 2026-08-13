@@ -1,0 +1,136 @@
+{
+  "generated": "2026-08-13 13:42 UTC",
+  "counts": {
+    "todo": 9,
+    "wip": 0,
+    "blocked": 4,
+    "done": 0
+  },
+  "percent": 0,
+  "todo": [
+    {
+      "priority": "P1",
+      "title": "#22 既読スキップ",
+      "worker": null,
+      "accept": "engineer | 会話の既読フラグをセーブに永続化し、既読シーンは高速送り（またはスキップキー）で飛ばせる。周回2周目で実測して送りが速くなっていること"
+    },
+    {
+      "priority": "P1",
+      "title": "BGM試聴チェック",
+      "worker": null,
+      "accept": "qa | 全10スロットをゲーム内で鳴らし、シーンと合っていないスロットを列挙。合わないものは `BGM/candidates.md` の次点と交換を提案（差し替え実作業は別タスク）"
+    },
+    {
+      "priority": "P2",
+      "title": "#27 ステージ選択のSNSタイムライン化",
+      "worker": null,
+      "accept": "engineer | `Hub.cs` を「Xの川」の世界観へ。ステージ選択がタイムラインの投稿として並ぶ見た目に"
+    },
+    {
+      "priority": "P2",
+      "title": "#11 背景の文字をツイート風に",
+      "worker": null,
+      "accept": "engineer | `Background.cs` / `GlyphMote` の流れる文字を投稿風の短文に。文面は scenario ワーカーに書かせる"
+    },
+    {
+      "priority": "P2",
+      "title": "新奥義バランス査定",
+      "worker": null,
+      "accept": "game-designer | 集中の光（8ヒット/段）・連鎖の光（×0.4）・バズ壁の硬さを実装値で査定し、数値を具体調整"
+    },
+    {
+      "priority": "P3",
+      "title": "#15 ボスラッシュ制約",
+      "worker": null,
+      "accept": "engineer | ボスラッシュを回復なし・ボム復活なしに。低優先、他が詰まっていなければ"
+    },
+    {
+      "priority": "P3",
+      "title": "未発注イラスト",
+      "worker": null,
+      "accept": "artist | レイ/あかりの cry ポートレート、ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線"
+    },
+    {
+      "priority": "P3",
+      "title": "M5 全ステージ×全難易度QA一巡",
+      "worker": null,
+      "accept": "qa | 当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む"
+    },
+    {
+      "priority": "P3",
+      "title": "M5 設計書との乖離最終チェック",
+      "worker": null,
+      "accept": "qa | design-gap で乖離レポートを更新し、意図的な差分かを仕分け"
+    }
+  ],
+  "wip": [],
+  "blocked": [
+    {
+      "priority": null,
+      "title": "挿入歌の調達",
+      "worker": null,
+      "accept": "— | 完全一致するフリー素材なし。インスト続投 or 委託の**ユーザー判断待ち**"
+    },
+    {
+      "priority": null,
+      "title": "BGM権利文言の再確認",
+      "worker": null,
+      "accept": "— | 2026-07-30 の Google ToS 改定後に `BGM/acquisition_list.md` §5 の文言を見直す（現行10曲はフリー素材差し替え済みのため影響は小）"
+    },
+    {
+      "priority": null,
+      "title": "旧Geminiマスター9本の削除",
+      "worker": null,
+      "accept": "— | `BGM/` に残置中。削除するかは**ユーザー判断待ち**"
+    },
+    {
+      "priority": null,
+      "title": "人力確認: R長押しリトライ / ESC の操作感",
+      "worker": null,
+      "accept": "— | 自動では判定不能。**ユーザーの実プレイ待ち**"
+    }
+  ],
+  "done": [],
+  "commits": [
+    {
+      "hash": "deb7844",
+      "date": "2026-08-13",
+      "subject": "Fix playtest findings: softlock, unavoidable AOE, and shot balance"
+    },
+    {
+      "hash": "134c71e",
+      "date": "2026-08-13",
+      "subject": "Style bullets per shot mode and add an accel skill area"
+    },
+    {
+      "hash": "e4e61ff",
+      "date": "2026-08-13",
+      "subject": "Unlock 加速球 shot mode via shop purchase"
+    },
+    {
+      "hash": "2f53607",
+      "date": "2026-08-13",
+      "subject": "Add shop training mode and accelerating-bullet shot"
+    },
+    {
+      "hash": "1e1b4aa",
+      "date": "2026-08-13",
+      "subject": "Fix skill tree scroll snapping back to top"
+    },
+    {
+      "hash": "026dc9f",
+      "date": "2026-07-23",
+      "subject": "Add mouse support across shop and menus"
+    },
+    {
+      "hash": "7aecfdf",
+      "date": "2026-07-23",
+      "subject": "Overhaul shop into scrollable all-purchasable skill tree with backfire"
+    },
+    {
+      "hash": "268d681",
+      "date": "2026-07-23",
+      "subject": "Wire adopted BGM tracks, cry-face variants, and update sound docs"
+    }
+  ]
+}
