@@ -22,14 +22,14 @@ function section(name) {
 function parseTask(line) {
   const prio = (line.match(/^\((P\d)\)\s*/) || [])[1] || null;
   const body = line.replace(/^\(P\d\)\s*/, '');
-  const [head, ...rest] = body.split('|');
-  const parts = head.trim().split(/\s+/);
-  const worker = parts.length > 1 ? parts.pop() : null;
+  // 記法: <タイトル> | <担当> | <受入条件>
+  const [title, worker, ...rest] = body.split('|').map((s) => s.trim());
+  const known = /^(engineer|qa|artist|scenario|composer|game-designer)$/;
   return {
     priority: prio,
-    title: head.trim(),
-    worker: /^(engineer|qa|artist|scenario|composer|game-designer|—)$/.test(worker) ? worker : null,
-    accept: rest.join('|').trim() || null,
+    title,
+    worker: known.test(worker || '') ? worker : null,
+    accept: rest.join(' | ').trim() || null,
   };
 }
 

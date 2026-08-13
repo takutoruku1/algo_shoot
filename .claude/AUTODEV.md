@@ -46,7 +46,10 @@ QA系タスクなら `qa-autoplay` skill も回す。
 ### 5. キューと進捗を更新する
 
 - 完了タスクを `## WIP` から `## DONE` の先頭へ、`(完了 YYYY-MM-DD)` を付けて移動。
-- `node tools/progress.mjs` を実行して `PROGRESS.md` と `docs/progress.json` を再生成。
+```bash
+node tools/progress.mjs    # PROGRESS.md と docs/progress.json を再生成
+node tools/dashboard.mjs   # docs/dashboard.html を再生成
+```
 
 ### 6. コミットしてPRにする
 
