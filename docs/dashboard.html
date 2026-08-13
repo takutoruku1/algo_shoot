@@ -34,6 +34,26 @@
     margin: 0 0 8px;
   }
 
+  /* ── 実行状況バンド: auto/dev を直接ポーリングするので main マージ前でも動きが出る ── */
+  .live {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    margin: 0 0 24px; padding: 10px 14px; border-radius: 6px;
+    background: var(--surface); border: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mute); flex: none; align-self: center; }
+  .live-label { font-weight: 600; }
+  .live-detail { color: var(--ink-dim); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+  .live-running { border-color: var(--warn); background: rgba(242,177,60,0.07); }
+  .live-running .live-dot { background: var(--warn); animation: pulse 1.6s ease-in-out infinite; }
+  .live-running .live-label { color: var(--warn); }
+  .live-pending { border-color: var(--accent); background: rgba(95,211,196,0.06); }
+  .live-pending .live-dot { background: var(--accent); }
+  .live-pending .live-label { color: var(--accent); }
+  .live-idle .live-label { color: var(--ink-dim); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .live-running .live-dot { animation: none; } }
+
   /* ── ヘッドライン: 消化率を一番大きく ── */
   header { border-bottom: 1px solid var(--line); padding-bottom: 32px; margin-bottom: 32px; }
   h1 { font-size: clamp(20px, 3vw, 26px); font-weight: 600; margin: 0 0 28px; letter-spacing: -0.01em; }
@@ -96,6 +116,14 @@
   <header>
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
+
+    <!-- 実行状況: auto/dev ブランチを直接見にいくので、main へマージされる前でも動きが見える -->
+    <div id="live" class="live live-idle">
+      <span class="live-dot"></span>
+      <span class="live-label">実行状況を確認しています…</span>
+      <span class="live-detail"></span>
+    </div>
+
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
       <span class="figure-note">完了 39 / 対象 39 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
@@ -112,7 +140,7 @@
 
   <section>
     <h2>いま作業中</h2>
-    <p class="empty">アイドル — 次の実行を待っています</p>
+    <div id="live-wip"><p class="empty">アイドル — 次の実行を待っています</p></div>
   </section>
 
   <section>
@@ -570,3 +598,87 @@
 
   <footer>生成 2026-08-13 23:19 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
+
+<script>
+// このページは main の DEV_QUEUE.md から生成される静的スナップショット。
+// 夜間 routine は auto/dev で作業し朝までマージされないので、そのままだと
+// 「動いている最中」が見えない。GitHub の公開APIで auto/dev を直接見て、
+// 実行中かどうかと最後に何をしたかを出す（public repo なので認証は不要）。
+(function () {
+  var REPO = 'takutoruku1/algo_shoot';
+  var RUNNING_WINDOW_MS = 15 * 60 * 1000; // 直近コミットがこれ以内なら「実行中」とみなす
+  var el = document.getElementById('live');
+  if (!el) return;
+  var dot = el.querySelector('.live-dot');
+  var label = el.querySelector('.live-label');
+  var detail = el.querySelector('.live-detail');
+
+  function setState(cls, text, sub) {
+    el.className = 'live ' + cls;
+    label.textContent = text;
+    detail.textContent = sub || '';
+  }
+
+  // コミットメッセージの1行目。改行は正規表現で取る（生成側のテンプレートで
+  // エスケープが食われないよう、文字列リテラルの \n を避けている）
+  function firstLine(msg) {
+    return String(msg).split(/[\r\n]/)[0];
+  }
+
+  function ago(ms) {
+    var m = Math.round(ms / 60000);
+    if (m < 1) return 'たった今';
+    if (m < 60) return m + '分前';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + '時間' + (m % 60) + '分前';
+    return Math.floor(h / 24) + '日前';
+  }
+
+  function refresh() {
+    fetch('https://api.github.com/repos/' + REPO + '/commits?sha=auto/dev&per_page=100', {
+      cache: 'no-store',
+    })
+      .then(function (r) {
+        // ブランチが無い = 夜間の成果は全てマージ済み（404）
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (commits) {
+        if (!commits || !commits.length) {
+          setState('live-idle', 'アイドル', '未マージの作業はありません（次の実行は JST 3:00）');
+          return;
+        }
+        var latest = commits[0];
+        var when = new Date(latest.commit.committer.date);
+        var age = Date.now() - when.getTime();
+        // WIP コミットは着手の印。auto: で始まる完了コミットだけ数える
+        var doneCount = commits.filter(function (c) {
+          var s = firstLine(c.commit.message);
+          return s.indexOf('auto:') === 0 && s.indexOf('auto: WIP') !== 0;
+        }).length;
+        var subject = firstLine(latest.commit.message).replace(/^auto:\s*/, '');
+
+        if (age < RUNNING_WINDOW_MS) {
+          setState(
+            'live-running',
+            '実行中',
+            doneCount + '件コミット済み · ' + ago(age) + ': ' + subject
+          );
+        } else {
+          setState(
+            'live-pending',
+            'マージ待ち',
+            doneCount + '件が auto/dev に未マージ · 最終 ' + ago(age) + ' · 朝 7:00 に自動マージ'
+          );
+        }
+      })
+      .catch(function () {
+        setState('live-idle', '実行状況を取得できません', 'GitHub API に接続できませんでした');
+      });
+  }
+
+  refresh();
+  setInterval(refresh, 60000); // 1分ごとに更新
+})();
+</script>
