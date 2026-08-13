@@ -44,7 +44,7 @@
 
 ## WIP
 
-- [ ] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | `StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く
+（なし）
 
 ## BLOCKED
 
@@ -64,6 +64,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | (完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成
 - [x] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | (完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O("地",...)`呼び出しに分割。テキスト内容・語順は無変更
 - [x] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | (完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）
 - [x] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | (完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ

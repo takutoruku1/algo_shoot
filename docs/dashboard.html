@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">71<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 30 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">74<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 31 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 71パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 74パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">30</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">31</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">12</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">11</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">FINALの投稿弾がミナ自身の言葉になっていない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>StageMina.cs:193-197</code> の PostWords が <code>StageKoharu.cs:507</code> とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに<strong>ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない</strong>。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -219,6 +211,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">FINALの投稿弾がミナ自身の言葉になっていない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageMina.cs:201-209</code> PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3921004</span><span>2026-08-13</span><span class="s">auto: WIP FINALの投稿弾がミナ自身の言葉になっていない</span></li>
+      <li><span class="h">5af7634</span><span>2026-08-13</span><span class="s">auto: Epilogueの死因回収を2行に分割</span></li>
       <li><span class="h">1280633</span><span>2026-08-13</span><span class="s">auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている</span></li>
       <li><span class="h">a0fce46</span><span>2026-08-13</span><span class="s">auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに</span></li>
       <li><span class="h">a4c57cb</span><span>2026-08-13</span><span class="s">auto: WIP TrainingDummy.HpRatioが基底を隠している</span></li>
       <li><span class="h">c8781c4</span><span>2026-08-13</span><span class="s">auto: CS8602警告4件を解消（Hud?.をHud.へ統一）</span></li>
       <li><span class="h">f466311</span><span>2026-08-13</span><span class="s">auto: WIP CS8602警告4件を解消してゼロ警告にする</span></li>
       <li><span class="h">88233f0</span><span>2026-08-13</span><span class="s">auto: GrazeCountの嘘コメントを実態に合わせて修正</span></li>
-      <li><span class="h">e42a1af</span><span>2026-08-13</span><span class="s">auto: WIP 未使用カウンタとコメントの嘘</span></li>
-      <li><span class="h">cf44fb4</span><span>2026-08-13</span><span class="s">auto: リトライ長押し時間を0.7s→0.45sへ短縮</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:29 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

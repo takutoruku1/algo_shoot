@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:29 UTC",
+  "generated": "2026-08-13 19:31 UTC",
   "counts": {
-    "todo": 12,
+    "todo": 11,
     "wip": 0,
     "blocked": 11,
-    "done": 30
+    "done": 31
   },
-  "percent": 71,
+  "percent": 74,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "FINALの投稿弾がミナ自身の言葉になっていない",
-      "worker": "scenario",
-      "accept": "`StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く"
-    },
     {
       "priority": "P1",
       "title": "小話1: 道中の掛け合い",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "FINALの投稿弾がミナ自身の言葉になっていない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成"
+    },
     {
       "priority": "P3",
       "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "3921004",
+      "date": "2026-08-13",
+      "subject": "auto: WIP FINALの投稿弾がミナ自身の言葉になっていない"
+    },
+    {
+      "hash": "5af7634",
+      "date": "2026-08-13",
+      "subject": "auto: Epilogueの死因回収を2行に分割"
+    },
+    {
       "hash": "1280633",
       "date": "2026-08-13",
       "subject": "auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている"
@@ -362,16 +372,6 @@
       "hash": "88233f0",
       "date": "2026-08-13",
       "subject": "auto: GrazeCountの嘘コメントを実態に合わせて修正"
-    },
-    {
-      "hash": "e42a1af",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 未使用カウンタとコメントの嘘"
-    },
-    {
-      "hash": "cf44fb4",
-      "date": "2026-08-13",
-      "subject": "auto: リトライ長押し時間を0.7s→0.45sへ短縮"
     }
   ]
 }
