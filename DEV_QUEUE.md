@@ -45,7 +45,7 @@
 
 ## WIP
 
-- [ ] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | `Epilogue.cs:149` が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて**「反復→気づき」の間が送りボタンに食われる**。2行に割って体言止めの余韻を1画面で完結させる
+（なし）
 
 ## BLOCKED
 
@@ -65,6 +65,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | (完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O("地",...)`呼び出しに分割。テキスト内容・語順は無変更
 - [x] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | (完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）
 - [x] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | (完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ
 - [x] (P3) 未使用カウンタとコメントの嘘 | engineer | (完了 2026-08-13) `GameManager.cs:110` の `GrazeCount` コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。`DodgeGrazeCount`等は受入条件通りスコープ外のため未変更

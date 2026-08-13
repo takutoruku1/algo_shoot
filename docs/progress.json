@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:27 UTC",
+  "generated": "2026-08-13 19:29 UTC",
   "counts": {
-    "todo": 13,
+    "todo": 12,
     "wip": 0,
     "blocked": 11,
-    "done": 29
+    "done": 30
   },
-  "percent": 69,
+  "percent": 71,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
-      "worker": "scenario",
-      "accept": "`Epilogue.cs:149` が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて**「反復→気づき」の間が送りボタンに食われる**。2行に割って体言止めの余韻を1画面で完結させる"
-    },
     {
       "priority": "P3",
       "title": "FINALの投稿弾がミナ自身の言葉になっていない",
@@ -157,6 +151,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O(\"地\",...)`呼び出しに分割。テキスト内容・語順は無変更"
+    },
     {
       "priority": "P3",
       "title": "`TrainingDummy.HpRatio` が基底を隠している",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "1280633",
+      "date": "2026-08-13",
+      "subject": "auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている"
+    },
+    {
+      "hash": "a0fce46",
+      "date": "2026-08-13",
+      "subject": "auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに"
+    },
+    {
       "hash": "a4c57cb",
       "date": "2026-08-13",
       "subject": "auto: WIP TrainingDummy.HpRatioが基底を隠している"
@@ -362,16 +372,6 @@
       "hash": "cf44fb4",
       "date": "2026-08-13",
       "subject": "auto: リトライ長押し時間を0.7s→0.45sへ短縮"
-    },
-    {
-      "hash": "ea56c8d",
-      "date": "2026-08-13",
-      "subject": "auto: WIP リトライ長押し0.7sが反復プレイで重い"
-    },
-    {
-      "hash": "fccf675",
-      "date": "2026-08-13",
-      "subject": "auto: ショップのおすすめが所持状況・所持金・装備モードを考慮するよう改善"
     }
   ]
 }

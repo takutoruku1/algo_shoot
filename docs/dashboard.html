@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">69<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 29 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">71<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 30 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 69パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 71パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">29</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">30</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">13</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">12</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Epilogueの死因回収が1行で長く二段落としが潰れている</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>Epilogue.cs:149</code> が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて<strong>「反復→気づき」の間が送りボタンに食われる</strong>。2行に割って体言止めの余韻を1画面で完結させる</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -227,6 +219,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Epilogueの死因回収が1行で長く二段落としが潰れている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Epilogue.cs:149</code> の1行を「——」の前で2つの<code>O(&quot;地&quot;,...)</code>呼び出しに分割。テキスト内容・語順は無変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1280633</span><span>2026-08-13</span><span class="s">auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている</span></li>
+      <li><span class="h">a0fce46</span><span>2026-08-13</span><span class="s">auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに</span></li>
       <li><span class="h">a4c57cb</span><span>2026-08-13</span><span class="s">auto: WIP TrainingDummy.HpRatioが基底を隠している</span></li>
       <li><span class="h">c8781c4</span><span>2026-08-13</span><span class="s">auto: CS8602警告4件を解消（Hud?.をHud.へ統一）</span></li>
       <li><span class="h">f466311</span><span>2026-08-13</span><span class="s">auto: WIP CS8602警告4件を解消してゼロ警告にする</span></li>
       <li><span class="h">88233f0</span><span>2026-08-13</span><span class="s">auto: GrazeCountの嘘コメントを実態に合わせて修正</span></li>
       <li><span class="h">e42a1af</span><span>2026-08-13</span><span class="s">auto: WIP 未使用カウンタとコメントの嘘</span></li>
       <li><span class="h">cf44fb4</span><span>2026-08-13</span><span class="s">auto: リトライ長押し時間を0.7s→0.45sへ短縮</span></li>
-      <li><span class="h">ea56c8d</span><span>2026-08-13</span><span class="s">auto: WIP リトライ長押し0.7sが反復プレイで重い</span></li>
-      <li><span class="h">fccf675</span><span>2026-08-13</span><span class="s">auto: ショップのおすすめが所持状況・所持金・装備モードを考慮するよう改善</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:27 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
