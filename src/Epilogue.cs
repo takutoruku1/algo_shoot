@@ -8,11 +8,17 @@ using System.Collections.Generic;
 public partial class Epilogue : Node2D
 {
     private const float W = 384f, H = 216f;
+    private const float BgAlpha = 0.75f;
+    private const double BgFadeSec = 0.6;
 
     private FontFile _font = null!;
     private Texture2D? _tears;   // クライマックスのミナ落涙立ち絵
+    private readonly Texture2D?[] _bg = new Texture2D?[6]; // phaseごとの背景。0/1は同じタイムライン背景を共有
+    private int _bgPhase;
+    private int _bgPrevPhase;
+    private double _bgFadeT = BgFadeSec; // _tとは独立した背景クロスフェード用タイマー
     private double _t;
-    private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END
+    private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END 5:スタッフロール
     private bool _zHeld;
     private bool _lrHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
@@ -109,8 +115,17 @@ public partial class Epilogue : Node2D
         // 静かな主題（温かいメニューBGM）。終わりの余韻に主題が戻る。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         _tears = ResourceLoader.Load<Texture2D>("res://char/mina_tears.png");
+        var timelineBg = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_timeline.png");
+        _bg[0] = timelineBg;
+        _bg[1] = timelineBg;
+        _bg[2] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_lock.png");
+        _bg[3] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_acrostic.png");
+        _bg[4] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_dm.png");
+        _bg[5] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_roll.png");
+        _bgPhase = _phase;
+        _bgPrevPhase = _phase;
+        _bgFadeT = BgFadeSec;
         _game = GetNodeOrNull<GameManager>("/root/Game");
-
         void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
         I("地", "次の日、ご主人様は来ませんでした。");
         I("地", "その次の日も。その次の日も。");
@@ -237,12 +252,51 @@ public partial class Epilogue : Node2D
                 }
                 break;
         }
+        UpdateBackgroundFade(delta);
         QueueRedraw();
+    }
+
+    private void UpdateBackgroundFade(double delta)
+    {
+        if (_bgPhase != _phase)
+        {
+            Texture2D? oldBg = BackgroundForPhase(_bgPhase);
+            Texture2D? newBg = BackgroundForPhase(_phase);
+            _bgPrevPhase = _bgPhase;
+            _bgPhase = _phase;
+            _bgFadeT = oldBg == newBg ? BgFadeSec : 0.0;
+        }
+
+        if (_bgFadeT < BgFadeSec)
+        {
+            _bgFadeT += delta;
+            if (_bgFadeT > BgFadeSec) _bgFadeT = BgFadeSec;
+        }
+    }
+
+    private Texture2D? BackgroundForPhase(int phase)
+    {
+        return phase >= 0 && phase < _bg.Length ? _bg[phase] : null;
+    }
+
+    private void DrawEpilogueBackground()
+    {
+        Rect2 rect = new Rect2(0, 0, W, H);
+        float fade = Mathf.Clamp((float)(_bgFadeT / BgFadeSec), 0f, 1f);
+        Texture2D? prev = BackgroundForPhase(_bgPrevPhase);
+        Texture2D? current = BackgroundForPhase(_bgPhase);
+
+        if (prev == current) prev = null;
+        if (fade < 1f && prev != null)
+            DrawTextureRect(prev, rect, false, new Color(1f, 1f, 1f, BgAlpha * (1f - fade)));
+        if (current != null)
+            DrawTextureRect(current, rect, false, new Color(1f, 1f, 1f, BgAlpha * fade));
     }
 
     public override void _Draw()
     {
         DrawRect(new Rect2(0, 0, W, H), new Color(0.03f, 0.04f, 0.07f));
+        DrawEpilogueBackground();
 
         switch (_phase)
         {
