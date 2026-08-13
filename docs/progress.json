@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:31 UTC",
+  "generated": "2026-08-13 18:33 UTC",
   "counts": {
-    "todo": 34,
+    "todo": 33,
     "wip": 0,
     "blocked": 9,
-    "done": 10
+    "done": 11
   },
-  "percent": 23,
+  "percent": 25,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "Hubリプライがエピローグの二段落としを先に割る",
-      "worker": "scenario",
-      "accept": "`Hub.cs:1003` の @akari が「あたしを庇って、それきり来なくなった人に」と**中盤で少年の死を明示**する。正典の最重要ルール「少年の死は説明ではなく“もうログインして来ないこと”で描く」（`docs/【最新】…まとめ.md:34,42`）と、`Epilogue.cs:149` で初めて交差点を再構成する設計が、ここで先に割れる。ミナが読める画面なのに無反応なのも不自然。「庇って」「来なくなった」を消し、声の類似（伏線③）だけ残す：`(\"@akari\", \"……なんでだろ。あなたの言い方、誰かに似てる。……ずっと、あったかい人だったな。\")`"
-    },
     {
       "priority": "P2",
       "title": "汚染ゲージの説明が実装と食い違う",
@@ -273,6 +267,12 @@
   "done": [
     {
       "priority": "P1",
+      "title": "Hubリプライがエピローグの二段落としを先に割る",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `Hub.cs:1003` の @akari 台詞から「庇って」「来なくなった」を削除し声の類似（伏線③）のみ残す形に改稿。`Epilogue.cs:145,148-149` で初めて死因を再構成する二段落とし演出が先に割れなくなった"
+    },
+    {
+      "priority": "P1",
       "title": "ミナが汚染を引き受ける選択の一行が無い",
       "worker": "scenario",
       "accept": "(完了 2026-08-13) `StageKoharu.cs:162-164` の `Clear` 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(`mina_doubt`/`mina_worried`/`mina_smile`)は既存アセットのみ使用、`Final.cs` 側との接続確認は別タスク送り"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "215a312",
+      "date": "2026-08-13",
+      "subject": "auto: WIP Hubリプライがエピローグの二段落としを先に割る"
+    },
+    {
+      "hash": "668b274",
+      "date": "2026-08-13",
+      "subject": "auto: ミナに汚染受容の一行を追加（StageKoharu Clear）"
+    },
+    {
       "hash": "93f31de",
       "date": "2026-08-13",
       "subject": "auto: WIP ミナが汚染を引き受ける選択の一行が無い"
@@ -362,16 +372,6 @@
       "hash": "9360c42",
       "date": "2026-08-14",
       "subject": "Unify cutscene text boxes and color tokens"
-    },
-    {
-      "hash": "d123e2b",
-      "date": "2026-08-14",
-      "subject": "Let the player flip facing and shoot backwards"
-    },
-    {
-      "hash": "bf9ab6a",
-      "date": "2026-08-14",
-      "subject": "Make enemy AOE telegraphs and impacts read as one strike"
     }
   ]
 }
