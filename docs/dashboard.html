@@ -97,17 +97,17 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">40<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 4 / 対象 10 タスク<br>保留 4 件は人間の判断待ちのため対象外</span>
+      <span class="pct">27<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 4 / 対象 15 タスク<br>保留 6 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 40パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 27パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">4</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">4</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">11</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">6</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -118,6 +118,46 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">小話1: 道中の掛け合い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md</code> §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 <code>Mid</code> と同型の配列を足し、道中ウェーブの合間に <code>Step_Lines</code> で挟む。<strong>器は既存＝新規実装不要</strong>。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">小話2: ハブの複数パターン化</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md</code> §1 を実装。現行 <code>ReturnDialog</code>（<code>Hub.cs:945</code>・クリア直後1回のみ）は温存し、再訪時に <code>IdleDialogs(id)</code>＋<code>SmallTalks</code> から抽選する経路を追加。<code>GameManager</code> に既読インデックス（HashSet&lt;int&gt;）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話3: ショップの一言</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md</code> §3 を実装。<strong>表示の器が無いので新設</strong>（<code>Hub.cs:900-903</code> のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話4: トレーニング場の独り言</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md</code> §4 を実装。<code>TrainingRoot.cs</code> は会話系が皆無なので<strong>器を新設</strong>（<code>DrawUi</code> の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話5: タイトル画面のひとこと</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md</code> §5 を実装。既存 <code>Ticker</code>（<code>TitleMenu.cs:22-27</code>・投稿形式）はそのまま残し、ミナのひとことを別配列で画面下に薄く表示。起動時に1つ、無操作N秒ごとに1つ。メニュー操作の邪魔をしない</p>
+      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -211,6 +251,22 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">世界観の肉付け（SNSの雑音で語る）</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">設定書は <code>docs/世界観設定_v1.md</code>（未作成・要執筆）に集約予定。言葉弾の語彙を面ごとに分ける／流れるツイート増量／Hub帰還小話に設定の断片／雑魚の名前を呼ばせる。<strong>言葉弾の文面をユーザーが調整したいとのことで判断待ち</strong>（レイ=数字と序列 / あかり=未送信と時間 / こはる=停止の促し、の方向は合意済み）</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">マルチエンディング化</span>
+          
+        </div>
+        <p class="accept">提案済み・<strong>ユーザーの方式判断待ち</strong>。本命は「Epilogue の PW ゲート（<code>_unlocked</code> が実装済みで未使用のデッドコード）を本物の分岐にして 真相ルート/沈黙ルート の2種」。必須の付帯条件＝<strong>エンディングだけ見直す導線</strong>（タイトルに「回想」を足して Epilogue へ直行）が無いなら着手しない。腕前（ノーミス/難易度）での分岐は両ワーカーが明確に否定（Easy勢が永久に真相へ届かないため）</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">挿入歌の調達</span>
           
         </div>
@@ -245,6 +301,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f506c6e</span><span>2026-08-13</span><span class="s">Reconcile the dev queue with what is already built</span></li>
       <li><span class="h">aa7cbc6</span><span>2026-08-13</span><span class="s">Give the epilogue a background per phase</span></li>
       <li><span class="h">bc2c32b</span><span>2026-08-13</span><span class="s">Add progress dashboard and fix queue worker parsing</span></li>
       <li><span class="h">3df5d8d</span><span>2026-08-13</span><span class="s">Add autonomous nightly dev pipeline</span></li>
@@ -252,9 +309,8 @@
       <li><span class="h">134c71e</span><span>2026-08-13</span><span class="s">Style bullets per shot mode and add an accel skill area</span></li>
       <li><span class="h">e4e61ff</span><span>2026-08-13</span><span class="s">Unlock 加速球 shot mode via shop purchase</span></li>
       <li><span class="h">2f53607</span><span>2026-08-13</span><span class="s">Add shop training mode and accelerating-bullet shot</span></li>
-      <li><span class="h">1e1b4aa</span><span>2026-08-13</span><span class="s">Fix skill tree scroll snapping back to top</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 14:18 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 14:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

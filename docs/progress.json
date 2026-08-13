@@ -1,13 +1,43 @@
 {
-  "generated": "2026-08-13 14:18 UTC",
+  "generated": "2026-08-13 14:35 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 11,
     "wip": 0,
-    "blocked": 4,
+    "blocked": 6,
     "done": 4
   },
-  "percent": 40,
+  "percent": 27,
   "todo": [
+    {
+      "priority": "P1",
+      "title": "小話1: 道中の掛け合い",
+      "worker": "scenario",
+      "accept": "`docs/小話集_v1.md` §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 `Mid` と同型の配列を足し、道中ウェーブの合間に `Step_Lines` で挟む。**器は既存＝新規実装不要**。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守"
+    },
+    {
+      "priority": "P1",
+      "title": "小話2: ハブの複数パターン化",
+      "worker": "engineer",
+      "accept": "`docs/小話集_v1.md` §1 を実装。現行 `ReturnDialog`（`Hub.cs:945`・クリア直後1回のみ）は温存し、再訪時に `IdleDialogs(id)`＋`SmallTalks` から抽選する経路を追加。`GameManager` に既読インデックス（HashSet<int>）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度"
+    },
+    {
+      "priority": "P2",
+      "title": "小話3: ショップの一言",
+      "worker": "engineer",
+      "accept": "`docs/小話集_v1.md` §3 を実装。**表示の器が無いので新設**（`Hub.cs:900-903` のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示"
+    },
+    {
+      "priority": "P2",
+      "title": "小話4: トレーニング場の独り言",
+      "worker": "engineer",
+      "accept": "`docs/小話集_v1.md` §4 を実装。`TrainingRoot.cs` は会話系が皆無なので**器を新設**（`DrawUi` の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと"
+    },
+    {
+      "priority": "P2",
+      "title": "小話5: タイトル画面のひとこと",
+      "worker": "engineer",
+      "accept": "`docs/小話集_v1.md` §5 を実装。既存 `Ticker`（`TitleMenu.cs:22-27`・投稿形式）はそのまま残し、ミナのひとことを別配列で画面下に薄く表示。起動時に1つ、無操作N秒ごとに1つ。メニュー操作の邪魔をしない"
+    },
     {
       "priority": "P1",
       "title": "新奥義バランス査定",
@@ -47,6 +77,18 @@
   ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "世界観の肉付け（SNSの雑音で語る）",
+      "worker": "scenario",
+      "accept": "設定書は `docs/世界観設定_v1.md`（未作成・要執筆）に集約予定。言葉弾の語彙を面ごとに分ける／流れるツイート増量／Hub帰還小話に設定の断片／雑魚の名前を呼ばせる。**言葉弾の文面をユーザーが調整したいとのことで判断待ち**（レイ=数字と序列 / あかり=未送信と時間 / こはる=停止の促し、の方向は合意済み）"
+    },
+    {
+      "priority": null,
+      "title": "マルチエンディング化",
+      "worker": null,
+      "accept": "提案済み・**ユーザーの方式判断待ち**。本命は「Epilogue の PW ゲート（`_unlocked` が実装済みで未使用のデッドコード）を本物の分岐にして 真相ルート/沈黙ルート の2種」。必須の付帯条件＝**エンディングだけ見直す導線**（タイトルに「回想」を足して Epilogue へ直行）が無いなら着手しない。腕前（ノーミス/難易度）での分岐は両ワーカーが明確に否定（Easy勢が永久に真相へ届かないため）"
+    },
     {
       "priority": null,
       "title": "挿入歌の調達",
@@ -100,6 +142,11 @@
   ],
   "commits": [
     {
+      "hash": "f506c6e",
+      "date": "2026-08-13",
+      "subject": "Reconcile the dev queue with what is already built"
+    },
+    {
       "hash": "aa7cbc6",
       "date": "2026-08-13",
       "subject": "Give the epilogue a background per phase"
@@ -133,11 +180,6 @@
       "hash": "2f53607",
       "date": "2026-08-13",
       "subject": "Add shop training mode and accelerating-bullet shot"
-    },
-    {
-      "hash": "1e1b4aa",
-      "date": "2026-08-13",
-      "subject": "Fix skill tree scroll snapping back to top"
     }
   ]
 }
