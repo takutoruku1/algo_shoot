@@ -29,6 +29,17 @@ public static class UiKit
     public static readonly Color Ok      = new("2ec78c"); // リポスト緑/成功
     public static readonly Color Burn    = new("f2353d"); // 炎上赤
 
+    // ── カットシーン（Prologue/Final/Epilogue）配色トークン ──
+    //   3画面それぞれに同値の Cool/Warm/Ink/Code が独立コピーされていたのを一本化。
+    //   既存トークンに寄せられるものは寄せる（アクセント＝Light、bootログ緑＝Ok）。
+    public static readonly Color CutInk    = new("eef0fa"); // 本文
+    public static readonly Color CutInk2   = new("a8b0c8"); // 注記・ヒント
+    public static readonly Color CutMina   = Info;          // ミナ（見出しシアン）
+    public static readonly Color CutWarm   = new("ffd98c"); // 少年（暖色）
+    public static readonly Color CutAccent = Light;         // #ffd98a アクセント
+    public static readonly Color CutCode   = Ok;            // bootログ緑
+    public static readonly Color CutNarr   = new("9ea3b8"); // 語り（話者名なし）の縁色
+
     // ── 文字サイズ階層（用途別の一貫サイズ）──
     //   画面ごとにハードコードされていた寸法を用途で束ねる。同じ役割のテキストは全画面で同値・同フォントにする。
     //   ※ここでの単位は「設計座標（1280×720）」。BeginDesign 下で UiKit.Text/Multi 等に渡す前提。
@@ -247,7 +258,7 @@ public static class UiKit
     //   align=Center はナレ用（全文を一括フェードインで出す前提。部分表示だと毎フレーム再センタリングされるため）。
     public static void TypewriterLines(CanvasItem ci, Font f, System.Collections.Generic.List<string> lines,
         Vector2 firstBaseline, float width, int size, Color c, int reveal,
-        HorizontalAlignment align = HorizontalAlignment.Left)
+        HorizontalAlignment align = HorizontalAlignment.Left, bool shadow = false)
     {
         float lineH = f.GetHeight(size);
         float y = firstBaseline.Y;
@@ -255,8 +266,12 @@ public static class UiKit
         {
             if (reveal <= 0) break;
             string part = reveal >= ln.Length ? ln : ln.Substring(0, reveal);
-            ci.DrawString(f, new Vector2(firstBaseline.X, y), part, align,
-                align == HorizontalAlignment.Left ? -1 : width, size, c);
+            float w = align == HorizontalAlignment.Left ? -1 : width;
+            // ドロップシャドウ：背景直乗せ（箱なし）の画面で本文を背景から浮かせる。本体より先に描く。
+            if (shadow)
+                ci.DrawString(f, new Vector2(firstBaseline.X + 0.5f, y + 0.5f), part, align, w, size,
+                    new Color(0f, 0f, 0f, 0.55f * c.A));
+            ci.DrawString(f, new Vector2(firstBaseline.X, y), part, align, w, size, c);
             reveal -= ln.Length;
             y += lineH;
         }
@@ -274,6 +289,27 @@ public static class UiKit
         };
         if (border is Color bc && borderW > 0f) { sb.BorderColor = bc; sb.SetBorderWidthAll((int)Mathf.Max(1, borderW)); }
         ci.DrawStyleBox(sb, r);
+    }
+
+    // ── カットシーンのテキストボックス（Prologue/Final/Epilogue 共通の額縁）──
+    //   従来は直角の黒ベタ＋上辺1px直線で、Hub/Shop の角丸カードと見た目が揃っていなかった。
+    //   下から順に：背景との断層を消すフェード帯 → 角丸ボックス（話者色の全周ボーダー）→
+    //   内側の「ガラス」グラデ → 上辺アクセント（左右へ消える横グラデ）。
+    //   座標は 384×216 の生座標（カットシーンは BeginDesign を使わない）。radius=5 は Hud の 16×0.3 相当。
+    public static void CutBox(CanvasItem ci, Rect2 r, Color accent, float borderAlpha = 0.5f)
+    {
+        // 背景との断層消し（ボックス上端の8px上・透明→暗）
+        VGradient(ci, new Rect2(r.Position.X, r.Position.Y - 8f, r.Size.X, 8f),
+            new[] { new Color(0.02f, 0.02f, 0.035f, 0f), new Color(0.02f, 0.02f, 0.035f, 0.55f) },
+            new[] { 0f, 1f });
+        Box(ci, r, new Color(0.05f, 0.04f, 0.09f, 0.95f), 5f, accent with { A = borderAlpha }, 1f);
+        // 内側グラデ（上の白がうっすら乗る＝ガラス感）
+        VGradient(ci, new Rect2(r.Position.X + 1f, r.Position.Y + 1f, r.Size.X - 2f, r.Size.Y * 0.5f),
+            new[] { new Color(1f, 1f, 1f, 0.045f), new Color(1f, 1f, 1f, 0f) }, new[] { 0f, 1f });
+        // 上辺アクセント：均一な1px直線をやめ、中央が濃く左右へ消える横グラデ2本にする
+        float half = r.Size.X * 0.5f;
+        HGradient(ci, new Rect2(r.Position.X, r.Position.Y, half, 1f), accent with { A = 0f }, accent with { A = 0.75f });
+        HGradient(ci, new Rect2(r.Position.X + half, r.Position.Y, half, 1f), accent with { A = 0.75f }, accent with { A = 0f });
     }
 
     // ── 縦リニアグラデ矩形（上→下に色を補間）──

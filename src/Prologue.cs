@@ -27,7 +27,7 @@ public partial class Prologue : Node2D
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    private const float TalkWrapW = W - 52f;   // DrawTalk の本文折り返し幅と一致
+    private const float TalkWrapW = W - 56f;   // DrawTalk の本文折り返し幅と一致
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
@@ -52,9 +52,10 @@ public partial class Prologue : Node2D
     private bool _lrHeld;
     private static readonly string[] DiffNames = { "EASY", "NORMAL", "HARD" };
 
-    private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
-    private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
-    private static readonly Color Code = new Color(0.46f, 1f, 0.6f);   // コード緑
+    // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
+    private static readonly Color Cool = UiKit.CutMina;   // ミナ
+    private static readonly Color Warm = UiKit.CutWarm;   // 少年
+    private static readonly Color Code = UiKit.CutCode;   // コード緑
 
     private readonly List<string> _stream = new List<string>();
 
@@ -413,7 +414,7 @@ public partial class Prologue : Node2D
     private const float BgGridA   = 0.045f; // デジタルグリッド
     private const float BgDotMax  = 0.11f; // 漂うドット粒子
     private const float BgWashMax = 0.05f; // 上方の青い奥行きウォッシュ（Cool）
-    private const float BoxTopY   = H - 56f; // 会話ボックス上端。これ以下は背景を消していく
+    private const float BoxTopY   = H - 58f; // 会話ボックス上端。これ以下は背景を消していく
     private const float FadeReach = 44f;     // ボックス上端の何px手前から背景を絞り始めるか
 
     // y 位置の背景許容率（下＝ボックス帯ほど 0 に。上は 1）。文字可読性を守る最重要ガード。
@@ -509,7 +510,7 @@ public partial class Prologue : Node2D
             float th = 132f;
             float tw = th * tex.GetWidth() / tex.GetHeight();
             float px = (W - tw) / 2f; // 中央寄せ
-            DrawTextureRect(tex, new Rect2(px, H - 56f - th + 8f, tw, th), false);
+            DrawTextureRect(tex, new Rect2(px, H - 58f - th + 8f, tw, th), false);
         }
     }
 
@@ -521,18 +522,17 @@ public partial class Prologue : Node2D
         bool mina = d.Who == "ミナ";
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
-        var lines = UiKit.WrapLines(UiKit.Zen, page, UiKit.CutBody, W - 52);
-        float boxTop = H - 56f;   // 2行固定
-        // ボックス
-        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.82f));
-        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(mina ? Cool : Warm, 0.8f));
+        var lines = UiKit.WrapLines(UiKit.Zen, page, UiKit.CutBody, W - 56);
+        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
+        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), mina ? Cool : Warm);
         // 話者名（滑らかゴシック）
-        DrawString(UiKit.ZenBold, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
+        DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
             mina ? Cool : Warm);
         // 本文（タイプライターで表示済みの分だけ、確定済みの行に沿って描画）
         int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody,
-            new Color(0.95f, 0.95f, 0.98f), shown);
+        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
+            UiKit.CutInk, shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
             DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,

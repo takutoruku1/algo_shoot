@@ -20,7 +20,7 @@ public partial class Final : Node2D
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    private const float TalkWrapW = W - 52f;   // DrawTalk の本文折り返し幅と一致
+    private const float TalkWrapW = W - 56f;   // DrawTalk の本文折り返し幅と一致
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedLine = -1;               // _pages を構築済みの行 index
@@ -63,8 +63,9 @@ public partial class Final : Node2D
     private double _holdT;                     // 句点ホールドの残り時間
     private int    _holdAt = -1;               // 既にホールド済みの reveal 位置（同じ句点で二重に止めない）
 
-    private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
-    private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
+    // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
+    private static readonly Color Cool = UiKit.CutMina;   // ミナ
+    private static readonly Color Warm = UiKit.CutWarm;   // 少年
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
     // 流れ込む悲鳴（背景に薄く流れる断片）
@@ -267,7 +268,7 @@ public partial class Final : Node2D
         if (_font == null) return;
         // 悲鳴ワードは対話ボックスの裏からは出さず、上端で緩く湧き画面上端で緩く消す。
         // （半透明ボックスの上端で急に不透明化して「裏からぐわんと出る」のを防ぎ、他画面のクリーンな見せ方に統一）
-        const float boxTop = H - 56f;   // 対話ボックス上端
+        const float boxTop = H - 58f;   // 対話ボックス上端（DrawTalk と一致）
         const float fade = 24f;         // 出現/消失の緩衝距離
         foreach (var d in _drift)
         {
@@ -308,21 +309,21 @@ public partial class Final : Node2D
         var d = _talk[_line];
         bool narr = d.Who == "地";       // ミナの語り＝話者名なし・中央寄せでセリフと区別
         bool mina = d.Who == "ミナ";
-        Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (mina ? Cool : Warm);
+        Color edge = narr ? UiKit.CutNarr : (mina ? Cool : Warm);
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
-        var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 52);
-        float boxTop = H - 56f;   // 2行固定
-        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
-        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, 0.8f));
+        var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 56);
+        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
+        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge);
         if (!narr)
-            DrawString(_font, new Vector2(20, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
+            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。
         //   タイプライター自体は残す（左→右の素直な送り。三人の名を一人ずつ沈ませる句点ホールドも保つ）。
         // タイプライターで表示済みの分だけ、確定済みの行に沿って描画。
         int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        UiKit.TypewriterLines(this, _font, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody,
-            new Color(0.95f, 0.95f, 0.98f), shown);
+        UiKit.TypewriterLines(this, _font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
+            UiKit.CutInk, shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
             DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,

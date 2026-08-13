@@ -29,7 +29,7 @@ public partial class Epilogue : Node2D
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
     //   会話フェーズ（phase 0/1 intro・phase 4 outro）だけが対象。折り返しは DrawLineBox と一致させる。
-    private const float BoxWrapW = W - 52f;    // DrawLineBox の本文折り返し幅と一致
+    private const float BoxWrapW = W - 56f;    // DrawLineBox の本文折り返し幅と一致
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
@@ -55,10 +55,10 @@ public partial class Epilogue : Node2D
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
     private bool _ffNow;           // いま高速送り中か（▶▶表示用）
 
-    private static readonly Color Cool = new Color(0.72f, 0.86f, 1f);  // ミナ
-    private static readonly Color Warm = new Color(1f, 0.85f, 0.55f);  // 少年
-    private static readonly Color Ink = new Color(0.92f, 0.94f, 1f);
-    private static readonly Color Code = new Color(0.46f, 1f, 0.6f);   // コード緑（Prologue bootログと同値＝視覚照応）
+    // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
+    private static readonly Color Cool = UiKit.CutMina;   // ミナ
+    private static readonly Color Ink  = UiKit.CutInk;
+    private static readonly Color Code = UiKit.CutCode;   // コード緑（Prologue bootログと同値＝視覚照応）
 
     // PW候補＝鍵アカに打ち込む単語。少年が毎回ダイブ前に言った合言葉 "stay" が正解。
     // 消失日(0414＝あの事故の日。正典v3。Prologue bootログ "[signal lost 0414]" と同一)・MINA・天才(genius) は弾かれる。
@@ -319,6 +319,14 @@ public partial class Epilogue : Node2D
         }
     }
 
+    // 背景に直乗せする文字（PW／縦読み／スタッフロール）用のドロップシャドウ付き DrawString。
+    //   ボックスの下敷きが無い画面では背景の明部に本文が溶けるため、(0.5,0.5) の黒を先に敷いて浮かせる。
+    private void Shadowed(Font f, Vector2 pos, string s, HorizontalAlignment al, float w, int size, Color c)
+    {
+        DrawString(f, pos + new Vector2(0.5f, 0.5f), s, al, w, size, new Color(0f, 0f, 0f, 0.55f * c.A));
+        DrawString(f, pos, s, al, w, size, c);
+    }
+
     private void DrawStaffroll()
     {
         if (_font == null) return;
@@ -330,15 +338,15 @@ public partial class Epilogue : Node2D
             if (line.Length == 0) continue;
             bool head = line.StartsWith("──");
             bool post = line.Contains("：「");
-            Color c = head ? new Color(Cool.R, Cool.G, Cool.B, 0.9f)
-                    : post ? new Color(0.85f, 0.9f, 1f, 0.95f)
+            Color c = head ? Cool with { A = 0.9f }
+                    : post ? UiKit.CutInk with { A = 0.95f }
                     : Ink;
             int sz = line == "stay." ? UiKit.CutClimax : UiKit.CutBody;
-            DrawString(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
+            Shadowed(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
         }
         if (((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.5f));
+            Shadowed(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, UiKit.CutNote,
+                UiKit.CutInk2 with { A = 0.7f });
     }
 
     // タイプライターで送る現在行のテキスト（語り phase0/1 と アウトロ phase4 のみ）。
@@ -358,48 +366,57 @@ public partial class Epilogue : Node2D
     private void DrawPassword()
     {
         if (_font == null) return;
-        DrawString(_font, new Vector2(0, 46f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
-            new Color(Cool.R, Cool.G, Cool.B, 0.9f));
-        DrawString(_font, new Vector2(0, 72f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
+        Shadowed(_font, new Vector2(0, 46f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
+            Cool with { A = 0.9f });
+        Shadowed(_font, new Vector2(0, 72f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
 
-        // 選択中の候補（打ち込む単語＝クライマックス級に少し大きく残す）
+        // 入力フィールドの箱（候補＝実際に打ち込む文字列であることを一目で示す）。
+        var field = new Rect2(W / 2f - 70f, 96f, 140f, 26f);
+        UiKit.Box(this, field, new Color(0.05f, 0.04f, 0.09f, 0.9f), 5f, UiKit.CutAccent with { A = 0.45f }, 1f);
+        // 選択中の候補（打ち込む単語＝端末に打つ文字なので等幅・クライマックス級に少し大きく残す）
         string cur = "＞ " + PwChoices[_pwSel];
-        DrawString(_font, new Vector2(0, 104f), cur, HorizontalAlignment.Center, W, UiKit.CutClimax, new Color(1f, 0.93f, 0.7f));
-        DrawString(_font, new Vector2(0, 124f), "◀                ▶", HorizontalAlignment.Center, W, UiKit.CutBody,
-            new Color(1f, 1f, 1f, 0.5f));
+        Shadowed(UiKit.Mono, new Vector2(field.Position.X, 114f), cur, HorizontalAlignment.Center, field.Size.X,
+            UiKit.CutClimax, UiKit.CutAccent);
+        // 左右送りの矢印は箱の外側へ（スペース詰めの疑似矢印をやめる）
+        Shadowed(_font, new Vector2(field.Position.X - 16f, 114f), "◀", HorizontalAlignment.Left, -1, UiKit.CutBody,
+            UiKit.CutInk2 with { A = 0.8f });
+        Shadowed(_font, new Vector2(field.End.X + 6f, 114f), "▶", HorizontalAlignment.Left, -1, UiKit.CutBody,
+            UiKit.CutInk2 with { A = 0.8f });
 
         if (_pwRejectT > 0f)
-            DrawString(_font, new Vector2(0, 150f), _pwReject, HorizontalAlignment.Center, W, UiKit.CutBody,
+            Shadowed(_font, new Vector2(0, 150f), _pwReject, HorizontalAlignment.Center, W, UiKit.CutBody,
                 new Color(0.9f, 0.5f, 0.6f));
 
         if (((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, 176f), "← → 選択   Z：決定", HorizontalAlignment.Center, W, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.7f));
+            Shadowed(_font, new Vector2(0, 176f), "← → 選択   Z：決定", HorizontalAlignment.Center, W, UiKit.CutNote,
+                UiKit.CutInk2 with { A = 0.85f });
     }
 
     private void DrawAcrostic()
     {
         if (_font == null) return;
         // 最古の投稿：ミナ誕生前の日付
-        DrawString(_font, new Vector2(0, 26f), "最古の投稿 — ミナ誕生の、ずっと前の日付", HorizontalAlignment.Center, W, UiKit.CutNote,
-            new Color(0.6f, 0.7f, 0.9f, 0.8f));
-        DrawString(_font, new Vector2(0, 44f), "「ミナへ。こはるを頼む。」", HorizontalAlignment.Center, W, UiKit.CutBody,
-            new Color(1f, 0.9f, 0.7f));
+        Shadowed(_font, new Vector2(0, 26f), "最古の投稿 — ミナ誕生の、ずっと前の日付", HorizontalAlignment.Center, W, UiKit.CutNote,
+            UiKit.CutInk2 with { A = 0.85f });
+        Shadowed(_font, new Vector2(0, 44f), "「ミナへ。こはるを頼む。」", HorizontalAlignment.Center, W, UiKit.CutBody,
+            UiKit.CutAccent);
 
-        float baseY = 78f;
+        float baseY = 60f;   // 全4行（y=60〜148）を画面縦中央に寄せる
         float appear = (float)_t;
         for (int k = 0; k < Acrostic.Length; k++)
         {
             if (appear < 0.6f + k * 0.7f) break; // 一行ずつ浮かぶ
             float y = baseY + k * 22f;
             // 頭文字を強調（M/I/N/A の縦読み＝伏線回収の核。本文より一段大きいクライマックス級で残す）
-            DrawString(_font, new Vector2(64f, y), Acrostic[k].Substring(0, 1), HorizontalAlignment.Left, -1, UiKit.CutClimax,
-                new Color(1f, 0.95f, 0.8f));
-            DrawString(_font, new Vector2(80f, y), Acrostic[k].Substring(1), HorizontalAlignment.Left, -1, UiKit.CutBody, Ink);
+            Shadowed(_font, new Vector2(64f, y), Acrostic[k].Substring(0, 1), HorizontalAlignment.Left, -1, UiKit.CutClimax,
+                UiKit.CutAccent);
+            // 本文は x=84（頭文字から20px空ける＝"M / aybe" が単語の途中で切れて見えないように）
+            // TrimStart：原文が "I made..." のように2文字目が空白の行でも本文の頭を他行と揃える（原文は変えない）
+            Shadowed(_font, new Vector2(84f, y), Acrostic[k].Substring(1).TrimStart(), HorizontalAlignment.Left, -1, UiKit.CutBody, Ink);
         }
         if (_t >= 4.0 && ((int)(_t * 1.5f) % 2) == 0)
-            DrawString(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
-                new Color(1f, 1f, 1f, 0.7f));
+            Shadowed(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
+                UiKit.CutInk2 with { A = 0.85f });
     }
 
     private void DrawOutro()
@@ -410,13 +427,13 @@ public partial class Epilogue : Node2D
         {
             float a = Mathf.Clamp((float)_lineT / 0.5f, 0f, 1f);
             float ph = 116f, pw = ph * _tears.GetWidth() / Mathf.Max(1, _tears.GetHeight());
-            DrawTextureRect(_tears, new Rect2(W / 2f - pw / 2f, H - 56f - ph + 6f, pw, ph), false,
+            DrawTextureRect(_tears, new Rect2(W / 2f - pw / 2f, H - 58f - ph + 6f, pw, ph), false,
                 new Color(1f, 1f, 1f, a));
         }
         DrawLineBox(_outro[_line]);
         if (_line >= _outro.Count - 1)
-            DrawString(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
-                new Color(1f, 1f, 1f, 0.85f));
+            Shadowed(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
+                UiKit.CutInk with { A = 0.9f });
     }
 
     // 下部の語り／会話ボックス。Who: "地"=ミナ語り / "ミナ"=ミナ / "UI"=画面テキスト。
@@ -429,16 +446,17 @@ public partial class Epilogue : Node2D
         //   話者ラベルも出さない（コンソール行に話者はいない）。
         bool boot = ui && d.Text.StartsWith(">");
         var font = boot ? UiKit.Mono : _font;
-        Color edge = narr ? new Color(0.62f, 0.64f, 0.72f) : (ui ? (boot ? Code : new Color(0.7f, 0.9f, 0.8f)) : Cool);
+        // 画面テキスト（DM等）は浄化シアン、bootログはコード緑、語りはニュートラル、セリフはミナ色。
+        Color edge = narr ? UiKit.CutNarr : (ui ? (boot ? Code : UiKit.Purify) : Cool);
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
-        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 52);
-        float boxTop = H - 56f;   // 2行固定
-        DrawRect(new Rect2(14, boxTop, W - 28, H - 10f - boxTop), new Color(0.05f, 0.05f, 0.09f, 0.85f));
-        DrawRect(new Rect2(14, boxTop, W - 28, 1), new Color(edge, boot ? 0.6f : 0.8f));
+        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
+        float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
+        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, boot ? 0.4f : 0.5f);
         string label = narr || boot ? "" : d.Who;
         if (label != "")
-            DrawString(_font, new Vector2(20, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
+            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、現在ページ全文をその場でフェードイン表示。
         //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
@@ -455,7 +473,7 @@ public partial class Epilogue : Node2D
         {
             shown = Mathf.Clamp((int)_reveal, 0, page.Length); // bootログもタイプライター＝端末に流れる感を保つ
         }
-        UiKit.TypewriterLines(this, font, lines, new Vector2(20, boxTop + 26f), W - 52, UiKit.CutBody, ink, shown, align);
+        UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody, ink, shown, align);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
             DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
