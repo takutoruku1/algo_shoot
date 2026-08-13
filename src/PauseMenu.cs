@@ -16,6 +16,9 @@ public partial class PauseMenu : CanvasLayer
     private double _savedToast;
     private int _savedSlot;
     private bool _autoplay;
+    // 「ハブへもどる」の2段階確認。1回目のZ/クリックで true になり、同じ行をもう一度
+    // 選ぶまで実行しない（誤爆防止）。選択行を離れる／メニューを閉じるとリセットする。
+    private bool _hubConfirm;
 
     // ───────── 行モデル ─────────
     // 先頭に音量スライダー3行（←→で調整）、続いてアクション行（Zで決定）。
@@ -27,12 +30,16 @@ public partial class PauseMenu : CanvasLayer
         ("se",     "効果音 (SE)"),
     };
     // アクション：0..2 = スロット1..3 にセーブ / 3 = つづける / 4 = さいしょからやりなおす /
-    //             5 = 会話ログ / 6 = あそびかた / 7 = タイトルへ
+    //             5 = 会話ログ / 6 = あそびかた / 7 = ハブへもどる / 8 = タイトルへ
     // 「さいしょからやりなおす」は R 即発リトライの置き換え先（誤爆防止）＝パッドの正式なリトライ導線。
+    // 「ハブへもどる」も同じくステージ中のみ有効＝難易度を変えたいだけの離脱に、タイトル経由の
+    //   数画面戻りを強いない導線（誤爆防止に2段階Z確認、Choose() 参照）。
     public static readonly string[] ItemsJp =
-        { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "さいしょからやりなおす", "会話ログ", "あそびかた", "タイトルへ" };
+        { "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "つづける", "さいしょからやりなおす", "会話ログ", "あそびかた", "ハブへもどる", "タイトルへ" };
     // 描画用：リトライ行のアクション index（ステージ外ではグレーアウトする）。
     public const int RetryAction = GameManager.SlotCount + 1;
+    // 描画用：ハブへもどる行のアクション index（ステージ外ではグレーアウトする。2段階確認あり）。
+    public const int HubReturnAction = GameManager.SlotCount + 4;
 
     // 行構成：音量3行 → 操作表示1行（←→/Zで切替）→ アクション6行。
     private static int RowCount => VolRows.Length + 1 + ItemsJp.Length;
@@ -135,6 +142,9 @@ public partial class PauseMenu : CanvasLayer
             return;
         }
 
+        // 「ハブへもどる」の2段階確認：選択行を離れたら（矢印/マウス移動/クリック）リセットする。
+        int selBefore = _sel;
+
         // マウス：ポーズが開いている間だけホットスポットを登録する（＝下の画面はツリーポーズで停止中＝
         // 唯一の登録者。閉じている時は BeginHotspots を呼ばない＝下の画面のクリック判定に混線しない）。
         UiKit.BeginHotspots(Pad.MousePos());
@@ -186,7 +196,15 @@ public partial class PauseMenu : CanvasLayer
             else if (IsDisplayRow(clk)) CycleDisplay(1);
             else
             {
-                if (Choose(ActionIndex(clk))) Audio.Instance?.PlayUiConfirm();
+                int act = ActionIndex(clk);
+                bool wasArmed = _hubConfirm;
+                if (Choose(act))
+                {
+                    // 「ハブへもどる」1段階目（確認状態へ入っただけ）は Shop.cs の振り直しフローに
+                    // 揃え、確定音ではなく移動音を鳴らす＝2段階目（実行）とはっきり区別する。
+                    if (act == HubReturnAction && !wasArmed) Audio.Instance?.PlayUiMove();
+                    else Audio.Instance?.PlayUiConfirm();
+                }
                 else Audio.Instance?.PlayUiDeny();
             }
         }
@@ -200,22 +218,30 @@ public partial class PauseMenu : CanvasLayer
         else if (zEdge && IsDisplayRow(_sel)) CycleDisplay(1); // Z でも前へ循環
         else if (zEdge)
         {
-            // 選べない行（ステージ外の「さいしょからやりなおす」）は拒否音で応える。
-            if (Choose(ActionIndex(_sel))) Audio.Instance?.PlayUiConfirm();
+            // 選べない行（ステージ外の「さいしょからやりなおす」／「ハブへもどる」）は拒否音で応える。
+            int act = ActionIndex(_sel);
+            bool wasArmed = _hubConfirm;
+            if (Choose(act))
+            {
+                if (act == HubReturnAction && !wasArmed) Audio.Instance?.PlayUiMove(); // 1段階目＝移動音
+                else Audio.Instance?.PlayUiConfirm();
+            }
             else Audio.Instance?.PlayUiDeny();
         }
         else if (escEdge) { Audio.Instance?.PlayUiCancel(); Close(); } // Esc でも閉じる（＝つづける）
         else if (Pad.MouseRightClick()) { Audio.Instance?.PlayUiCancel(); Close(); } // 右クリック＝閉じる（つづける）
 
+        if (_sel != selBefore) _hubConfirm = false; // 別の行へ移ったら確認状態を解除（誤爆防止）
+
         _canvas.QueueRedraw();
     }
 
     // ── マウス用ジオメトリ（PauseCanvas.DrawPauseMenu と同一式。ホットスポット計算に共用）──
-    //   ダイアログ box: w=460, h=688, x=(W-w)/2, y=(H-h)/2。
+    //   ダイアログ box: w=460, h=728, x=(W-w)/2, y=(H-h)/2。
     private static (float x, float y, float w) BoxMetrics()
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;
-        float w = 460, h = 688, x = (W - w) / 2f, y = (H - h) / 2f;
+        float w = 460, h = 728, x = (W - w) / 2f, y = (H - h) / 2f;
         return (x, y, w);
     }
 
@@ -246,7 +272,7 @@ public partial class PauseMenu : CanvasLayer
     private void Open()
     {
         Audio.Instance?.PlayUiCancel(); // ポーズ＝開く合図（柔らかい下降）
-        _open = true; _sel = 0;
+        _open = true; _sel = 0; _hubConfirm = false;
         _navHeld = false; _lrHeld = false; _zHeld = false;
         for (int i = 0; i < VolRows.Length; i++) _vol[i] = AudioConfig.Get(VolRows[i].Key); // 保存値を読む
         GetTree().Paused = true;
@@ -257,6 +283,7 @@ public partial class PauseMenu : CanvasLayer
     private void Close()
     {
         _open = false;
+        _hubConfirm = false;
         GetTree().Paused = false;
         _canvas.QueueRedraw();
     }
@@ -289,6 +316,18 @@ public partial class PauseMenu : CanvasLayer
             // あそびかた：ポーズを保ったまま操作説明オーバーレイを重ねる（閉じたらポーズへ戻る）。
             GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
         }
+        else if (action == HubReturnAction)
+        {
+            // ハブへもどる：ステージ中のみ。誤爆防止に2段階Z確認（1回目で確認状態へ、2回目で実行）。
+            // 実処理は HandleGameOverExit 後半（AutoSave→DespawnAll→Hub.tscn）と同型＝稼いだ心も保存される。
+            if (!RetryEnabled) return false;
+            if (!_hubConfirm) { _hubConfirm = true; return true; } // 1段階目：確認状態へ（まだ戻らない）
+            _hubConfirm = false;
+            _game?.AutoSave();
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Close();
+            GetTree().ChangeSceneToFile("res://Hub.tscn");
+        }
         else { _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); } // タイトルへ（離脱時オートセーブ）
         return true;
     }
@@ -314,6 +353,7 @@ public partial class PauseMenu : CanvasLayer
 
     public bool IsOpen => _open;
     public int Sel => _sel;
+    public bool HubConfirmPending => _hubConfirm;
     public bool ShowHint => !_open && !_autoplay && CanOpenHere();
     public bool SlotFilled(int slot) => _game?.SlotExists(slot) ?? false;
     public string SavedText => _savedToast > 0 ? $"スロット{_savedSlot}にセーブしました" : "";
@@ -341,7 +381,7 @@ public partial class PauseCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
         int nVol = PauseMenu.VolRows.Length;
-        float w = 460, h = 688, x = (W - w) / 2f, y = (H - h) / 2f; // h はアクション8行（やりなおす追加）ぶん
+        float w = 460, h = 728, x = (W - w) / 2f, y = (H - h) / 2f; // h はアクション9行（ハブへもどる追加）ぶん
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", UiKit.FontLabel, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
@@ -400,10 +440,15 @@ public partial class PauseCanvas : Node2D
                 UiKit.Box(this, new Rect2(x + 22, ry, w - 44, 36), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + 36, ry + 9), "▸", UiKit.FontBody, UiKit.Purify);
             }
-            // 「さいしょからやりなおす」はステージ外では選べない＝グレーアウト＋理由を右に出す。
+            // 「さいしょからやりなおす」「ハブへもどる」はステージ外では選べない＝グレーアウト＋理由を右に出す。
             bool retryDim = i == PauseMenu.RetryAction && !Menu.RetryEnabled;
-            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), PauseMenu.ItemsJp[i], UiKit.FontBody,
-                retryDim ? UiKit.Text4 : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)));
+            bool hubDim = i == PauseMenu.HubReturnAction && !Menu.RetryEnabled;
+            bool hubConfirming = i == PauseMenu.HubReturnAction && !hubDim && Menu.HubConfirmPending;
+            string label = hubConfirming ? "ほんとうに もどる？" : PauseMenu.ItemsJp[i];
+            Color labelCol = hubConfirming ? UiKit.Burn
+                : (retryDim || hubDim) ? UiKit.Text4
+                : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
+            UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(x + 58, ry + 7), label, UiKit.FontBody, labelCol);
             // セーブスロット行は状態（空き/保存済み）を右に出す
             if (i < GameManager.SlotCount)
             {
@@ -411,10 +456,15 @@ public partial class PauseCanvas : Node2D
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, ry + 11), filled ? "保存済み" : "空き", UiKit.FontSmall,
                     filled ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 108);
             }
-            else if (retryDim)
+            else if (retryDim || hubDim)
             {
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, ry + 11), "ステージ中のみ", UiKit.FontSmall,
                     UiKit.Text4, HorizontalAlignment.Right, 136);
+            }
+            else if (hubConfirming)
+            {
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, ry + 11), "もう一度で確定", UiKit.FontSmall,
+                    UiKit.Burn, HorizontalAlignment.Right, 136);
             }
         }
 

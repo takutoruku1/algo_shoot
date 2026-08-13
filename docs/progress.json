@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:35 UTC",
+  "generated": "2026-08-13 18:43 UTC",
   "counts": {
-    "todo": 32,
+    "todo": 31,
     "wip": 0,
     "blocked": 9,
-    "done": 12
+    "done": 13
   },
-  "percent": 27,
+  "percent": 30,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ステージ途中でハブへ戻れない",
-      "worker": "game-designer",
-      "accept": "ポーズメニュー（`PauseMenu.cs:32-33`）に**ハブへ戻る選択肢が無く**、脱出は残機0か「タイトルへ」だけ。難易度を変えたいだけでもタイトル→つづきから→ハブと数画面戻らされる。ItemsJp の「タイトルへ」の直前に「ハブへもどる」を追加。処理は `HandleGameOverExit` 後半（`AutoSave()`→`Pool.DespawnAll()`→`Hub.tscn`）を再利用でき、稼いだ心も保存される。誤爆防止に2段確認"
-    },
     {
       "priority": "P2",
       "title": "死亡時にチェックポイントから再開できない",
@@ -261,6 +255,12 @@
   "done": [
     {
       "priority": "P2",
+      "title": "ステージ途中でハブへ戻れない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `PauseMenu.cs` の `ItemsJp` に「ハブへもどる」を「タイトルへ」の直前へ追加（`HubReturnAction = SlotCount+4`）。`RetryEnabled` と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て `AutoSave()→Pool.DespawnAll()→Hub.tscn` を実行"
+    },
+    {
+      "priority": "P2",
       "title": "汚染ゲージの説明が実装と食い違う",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) (a)案。`HowToPlay.cs:222,264` の説明文を実態（ステージ進行連動の固定演出、選択で変わらない）に合わせて書き換え。「救うほど濁る」「表裏一体」というトレードオフ誤解表現を削除、「澄んだ心I/II」は上昇を緩める効果だけ明記。ロジックは無変更"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "912effd",
+      "date": "2026-08-13",
+      "subject": "auto: WIP ステージ途中でハブへ戻れない"
+    },
+    {
+      "hash": "598df0a",
+      "date": "2026-08-13",
+      "subject": "auto: あそびかた画面の汚染ゲージ説明文を実装に合わせる"
+    },
+    {
       "hash": "5e2d328",
       "date": "2026-08-13",
       "subject": "auto: WIP 汚染ゲージの説明が実装と食い違う"
@@ -362,16 +372,6 @@
       "hash": "1f5d6d4",
       "date": "2026-08-13",
       "subject": "auto: 通常グレイズにインプレ加算を追加"
-    },
-    {
-      "hash": "e744c6f",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 通常グレイズが通貨を生まない"
-    },
-    {
-      "hash": "cceb4d2",
-      "date": "2026-08-13",
-      "subject": "auto: ボス戦の無防備窓、火力投資でサイクル短縮するよう修正"
     }
   ]
 }
