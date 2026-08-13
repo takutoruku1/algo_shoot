@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:20 UTC",
+  "generated": "2026-08-13 19:22 UTC",
   "counts": {
-    "todo": 17,
+    "todo": 16,
     "wip": 0,
     "blocked": 11,
-    "done": 25
+    "done": 26
   },
-  "percent": 60,
+  "percent": 62,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "リトライ長押し0.7sが反復プレイで重い",
-      "worker": "game-designer",
-      "accept": "`RetryHold.HoldTime = 0.7f`。誤爆防止は正しいがゲームオーバー以外（ノーミス狙い・タイムアタックでのやり直し）が最も反復数が多く、そこが一番重い。充填チップ（`Hud.DrawRetryHoldChip`）が出るので視覚的に取り消せる＝**0.45s へ短縮しても安全**"
-    },
     {
       "priority": "P3",
       "title": "未使用カウンタとコメントの嘘",
@@ -183,6 +177,12 @@
   "done": [
     {
       "priority": "P3",
+      "title": "リトライ長押し0.7sが反復プレイで重い",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `RetryHold.cs:10` `HoldTime` を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持"
+    },
+    {
+      "priority": "P3",
       "title": "ショップの「おすすめ」が所持状況を見ていない",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) `Shop.cs:126-175` `RecommendedNow()` を書き換え。所持済みid除外、`SelectedShotMode`対応系統の未所持入り口ノードを先頭差し込み、`CanPurchase()`で買える物優先の安定ソート、全所持済み時は前段階へフォールバック"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "ea56c8d",
+      "date": "2026-08-13",
+      "subject": "auto: WIP リトライ長押し0.7sが反復プレイで重い"
+    },
+    {
+      "hash": "fccf675",
+      "date": "2026-08-13",
+      "subject": "auto: ショップのおすすめが所持状況・所持金・装備モードを考慮するよう改善"
+    },
+    {
       "hash": "11436b9",
       "date": "2026-08-13",
       "subject": "auto: WIP ショップの「おすすめ」が所持状況を見ていない"
@@ -362,16 +372,6 @@
       "hash": "5b8c58e",
       "date": "2026-08-13",
       "subject": "auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）"
-    },
-    {
-      "hash": "fa513c0",
-      "date": "2026-08-13",
-      "subject": "auto: WIP ミナの「小さな願い」が1回きりで伏線にならない"
-    },
-    {
-      "hash": "3de9be7",
-      "date": "2026-08-13",
-      "subject": "auto: Hub帰還会話の疑いを感心に修正、段階設計の逆転を解消"
     }
   ]
 }
