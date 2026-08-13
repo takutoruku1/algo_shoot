@@ -59,7 +59,7 @@
 
 ## WIP
 
-- [ ] (P2) シェイクスピア引用の三段仕掛けが二段しか無い | scenario | 正典（`docs/【最新】…まとめ.md:80-86`）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（`StageAkari.cs:166`）と `Cowards die...`（`Final.cs:107`）の二つだけで、**①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない**。正典が泣き所と名指しする `"to thine own self be true"` は全編未使用。`StageRei.cs:165-166` の間に①（無害な衒学 `All the world's a stage.`）、`Epilogue.cs:140` あたりに③を追加。文面案は監査報告のP1-2にあり
+（なし）
 
 ## BLOCKED
 
@@ -78,6 +78,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) シェイクスピア引用の三段仕掛けが二段しか無い | scenario | (完了 2026-08-13) `StageRei.cs:166-167`に1回目「"All the world's a stage."」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。`Epilogue.cs:159-162`に3回目「"To thine own self be true."」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（`StageAkari.cs:166`）と`Final.cs`の既存引用は無変更
 - [x] (P2) あそびかた・バックログがマウス非対応 | engineer | (完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた
 - [x] (P2) 後方弾の形と色の指定が無視されている | engineer | (完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた
 - [x] (P2) 死亡時にチェックポイントから再開できない | game-designer | (完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）

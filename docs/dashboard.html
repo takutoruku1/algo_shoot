@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">37<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 16 / 対象 43 タスク<br>保留 10 件は人間の判断待ちのため対象外</span>
+      <span class="pct">40<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 17 / 対象 43 タスク<br>保留 10 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 37パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 40パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">16</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">17</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">27</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">26</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">10</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">シェイクスピア引用の三段仕掛けが二段しか無い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典（<code>docs/【最新】…まとめ.md:80-86</code>）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（<code>StageAkari.cs:166</code>）と <code>Cowards die...</code>（<code>Final.cs:107</code>）の二つだけで、<strong>①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない</strong>。正典が泣き所と名指しする <code>&quot;to thine own self be true&quot;</code> は全編未使用。<code>StageRei.cs:165-166</code> の間に①（無害な衒学 <code>All the world's a stage.</code>）、<code>Epilogue.cs:140</code> あたりに③を追加。文面案は監査報告のP1-2にあり</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -339,6 +331,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">シェイクスピア引用の三段仕掛けが二段しか無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageRei.cs:166-167</code>に1回目「&quot;All the world's a stage.&quot;」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。<code>Epilogue.cs:159-162</code>に3回目「&quot;To thine own self be true.&quot;」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（<code>StageAkari.cs:166</code>）と<code>Final.cs</code>の既存引用は無変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b883bdb</span><span>2026-08-13</span><span class="s">auto: WIP シェイクスピア引用の三段仕掛けが二段しか無い</span></li>
+      <li><span class="h">0f8878c</span><span>2026-08-13</span><span class="s">auto: あそびかた・バックログをマウス対応（右クリック/ホイール）</span></li>
       <li><span class="h">49141eb</span><span>2026-08-13</span><span class="s">auto: WIP あそびかた・バックログがマウス非対応</span></li>
       <li><span class="h">73d57ac</span><span>2026-08-13</span><span class="s">auto: BLOCKED グレイズを教えるチュートリアルが無い（phase番号振り直しの範囲判断待ち）</span></li>
       <li><span class="h">bf49ac9</span><span>2026-08-13</span><span class="s">auto: 後方弾にDiamond形状・淡い金の描画を実装</span></li>
       <li><span class="h">3b35296</span><span>2026-08-13</span><span class="s">auto: WIP 後方弾の形と色の指定が無視されている</span></li>
       <li><span class="h">06efec8</span><span>2026-08-13</span><span class="s">auto: 死亡時にボスからのチェックポイント再開を追加</span></li>
       <li><span class="h">17e0e34</span><span>2026-08-13</span><span class="s">auto: WIP 死亡時にチェックポイントから再開できない</span></li>
-      <li><span class="h">0e98316</span><span>2026-08-13</span><span class="s">auto: ポーズメニューに『ハブへもどる』を追加（2段階確認）</span></li>
-      <li><span class="h">912effd</span><span>2026-08-13</span><span class="s">auto: WIP ステージ途中でハブへ戻れない</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 18:55 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 18:59 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

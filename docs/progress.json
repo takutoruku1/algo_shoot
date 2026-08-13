@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:55 UTC",
+  "generated": "2026-08-13 18:59 UTC",
   "counts": {
-    "todo": 27,
+    "todo": 26,
     "wip": 0,
     "blocked": 10,
-    "done": 16
+    "done": 17
   },
-  "percent": 37,
+  "percent": 40,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "シェイクスピア引用の三段仕掛けが二段しか無い",
-      "worker": "scenario",
-      "accept": "正典（`docs/【最新】…まとめ.md:80-86`）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（`StageAkari.cs:166`）と `Cowards die...`（`Final.cs:107`）の二つだけで、**①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない**。正典が泣き所と名指しする `\"to thine own self be true\"` は全編未使用。`StageRei.cs:165-166` の間に①（無害な衒学 `All the world's a stage.`）、`Epilogue.cs:140` あたりに③を追加。文面案は監査報告のP1-2にあり"
-    },
     {
       "priority": "P2",
       "title": "排他フォーク/振り直し一式が到達不能な死にコード",
@@ -237,6 +231,12 @@
   "done": [
     {
       "priority": "P2",
+      "title": "シェイクスピア引用の三段仕掛けが二段しか無い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageRei.cs:166-167`に1回目「\"All the world's a stage.\"」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。`Epilogue.cs:159-162`に3回目「\"To thine own self be true.\"」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（`StageAkari.cs:166`）と`Final.cs`の既存引用は無変更"
+    },
+    {
+      "priority": "P2",
       "title": "あそびかた・バックログがマウス非対応",
       "worker": "engineer",
       "accept": "(完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "b883bdb",
+      "date": "2026-08-13",
+      "subject": "auto: WIP シェイクスピア引用の三段仕掛けが二段しか無い"
+    },
+    {
+      "hash": "0f8878c",
+      "date": "2026-08-13",
+      "subject": "auto: あそびかた・バックログをマウス対応（右クリック/ホイール）"
+    },
+    {
       "hash": "49141eb",
       "date": "2026-08-13",
       "subject": "auto: WIP あそびかた・バックログがマウス非対応"
@@ -362,16 +372,6 @@
       "hash": "17e0e34",
       "date": "2026-08-13",
       "subject": "auto: WIP 死亡時にチェックポイントから再開できない"
-    },
-    {
-      "hash": "0e98316",
-      "date": "2026-08-13",
-      "subject": "auto: ポーズメニューに『ハブへもどる』を追加（2段階確認）"
-    },
-    {
-      "hash": "912effd",
-      "date": "2026-08-13",
-      "subject": "auto: WIP ステージ途中でハブへ戻れない"
     }
   ]
 }
