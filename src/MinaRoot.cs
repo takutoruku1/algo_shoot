@@ -126,6 +126,9 @@ public partial class MinaRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
+            // FINAL はチェックポイント対象外：StageMina._Ready() は SelectedEntry を一切参照せず、
+            // 道中は無い（導入4行→BossMina出現→ボス戦のみ、SetStageTarget(1)）。ReloadCurrentScene() が
+            // 既にボス直行と同義なので、R：ボスから／Shift+R：最初から の分岐は不要（意味が同じになる）。
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
             return;

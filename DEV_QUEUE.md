@@ -63,7 +63,7 @@
 
 ## WIP
 
-- [ ] (P2) 死亡時にチェックポイントから再開できない | game-designer | リトライは `ReloadCurrentScene()` 一択で、ボスに負けると道中3波と全会話をやり直し（レイ20体・こはるMidWaveAだけで15体）。チェックポイント機構 `StageEntry` は既にあり中ボス撃破も永続記録されるのに**死亡時に使う処理が無い**＝「一度ハブへ帰る方が速い」という歪んだ最適解が生まれている。game-over時のみ `R：ボスからやり直す ／ Shift+R：最初から` を出し、前者は `SelectedEntry = Boss` をセットしてreload（既存の `_step = 10` 分岐に乗る）。※P1のSelectedEntry消費タスクと整合を取ること
+（なし）
 
 ## BLOCKED
 
@@ -80,6 +80,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) 死亡時にチェックポイントから再開できない | game-designer | (完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）
 - [x] (P2) ステージ途中でハブへ戻れない | game-designer | (完了 2026-08-13) `PauseMenu.cs` の `ItemsJp` に「ハブへもどる」を「タイトルへ」の直前へ追加（`HubReturnAction = SlotCount+4`）。`RetryEnabled` と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て `AutoSave()→Pool.DespawnAll()→Hub.tscn` を実行
 - [x] (P2) 汚染ゲージの説明が実装と食い違う | game-designer | (完了 2026-08-13) (a)案。`HowToPlay.cs:222,264` の説明文を実態（ステージ進行連動の固定演出、選択で変わらない）に合わせて書き換え。「救うほど濁る」「表裏一体」というトレードオフ誤解表現を削除、「澄んだ心I/II」は上昇を緩める効果だけ明記。ロジックは無変更
 - [x] (P1) Hubリプライがエピローグの二段落としを先に割る | scenario | (完了 2026-08-13) `Hub.cs:1003` の @akari 台詞から「庇って」「来なくなった」を削除し声の類似（伏線③）のみ残す形に改稿。`Epilogue.cs:145,148-149` で初めて死因を再構成する二段落とし演出が先に割れなくなった

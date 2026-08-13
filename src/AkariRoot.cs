@@ -79,6 +79,15 @@ public partial class AkariRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
+            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageAkari._step=11 に乗る）／
+            // Shift+R＝最初から（従来どおり）。Shift時は SelectedEntry に触らない
+            // （--boss デバッグ起動中の DebugAlwaysBoss 持ち回りを壊さないため。通常プレイでは
+            //  前回の _Ready() 時点で既に Start へ消費済みなので実質「最初から」になる）。
+            if (gameOver && !Input.IsKeyPressed(Key.Shift))
+            {
+                var g = GetNodeOrNull<GameManager>("/root/Game");
+                if (g != null) g.SelectedEntry = GameManager.StageEntry.Boss;
+            }
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
             return;

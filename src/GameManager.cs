@@ -1239,7 +1239,7 @@ public partial class GameManager : Node
         // プロンプトは直近デバイス（Pad.ShowKeyboard）に追従。パッドのリトライはポーズメニュー経由
         //（Start はメニュー開閉に使うため）、抜けは B（×）＝Back(SELECT/VIEW) は会話ログの開キーと衝突する。
         hud?.ShowGameOverPrompt(Pad.ShowKeyboard
-            ? "R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）"
+            ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：ステージから抜ける（ハブへ戻る）"
             : $"{Pad.Face(JoyButton.Start)}：メニュー→さいしょからやりなおす　／　{Pad.Face(JoyButton.B)}：ステージから抜ける（ハブへ戻る）");
 
         bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.B);

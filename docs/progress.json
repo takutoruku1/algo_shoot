@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:43 UTC",
+  "generated": "2026-08-13 18:48 UTC",
   "counts": {
-    "todo": 31,
+    "todo": 30,
     "wip": 0,
     "blocked": 9,
-    "done": 13
+    "done": 14
   },
-  "percent": 30,
+  "percent": 32,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "死亡時にチェックポイントから再開できない",
-      "worker": "game-designer",
-      "accept": "リトライは `ReloadCurrentScene()` 一択で、ボスに負けると道中3波と全会話をやり直し（レイ20体・こはるMidWaveAだけで15体）。チェックポイント機構 `StageEntry` は既にあり中ボス撃破も永続記録されるのに**死亡時に使う処理が無い**＝「一度ハブへ帰る方が速い」という歪んだ最適解が生まれている。game-over時のみ `R：ボスからやり直す ／ Shift+R：最初から` を出し、前者は `SelectedEntry = Boss` をセットしてreload（既存の `_step = 10` 分岐に乗る）。※P1のSelectedEntry消費タスクと整合を取ること"
-    },
     {
       "priority": "P2",
       "title": "後方弾の形と色の指定が無視されている",
@@ -255,6 +249,12 @@
   "done": [
     {
       "priority": "P2",
+      "title": "死亡時にチェックポイントから再開できない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）"
+    },
+    {
+      "priority": "P2",
       "title": "ステージ途中でハブへ戻れない",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) `PauseMenu.cs` の `ItemsJp` に「ハブへもどる」を「タイトルへ」の直前へ追加（`HubReturnAction = SlotCount+4`）。`RetryEnabled` と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て `AutoSave()→Pool.DespawnAll()→Hub.tscn` を実行"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "17e0e34",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 死亡時にチェックポイントから再開できない"
+    },
+    {
+      "hash": "0e98316",
+      "date": "2026-08-13",
+      "subject": "auto: ポーズメニューに『ハブへもどる』を追加（2段階確認）"
+    },
+    {
       "hash": "912effd",
       "date": "2026-08-13",
       "subject": "auto: WIP ステージ途中でハブへ戻れない"
@@ -362,16 +372,6 @@
       "hash": "668b274",
       "date": "2026-08-13",
       "subject": "auto: ミナに汚染受容の一行を追加（StageKoharu Clear）"
-    },
-    {
-      "hash": "93f31de",
-      "date": "2026-08-13",
-      "subject": "auto: WIP ミナが汚染を引き受ける選択の一行が無い"
-    },
-    {
-      "hash": "1f5d6d4",
-      "date": "2026-08-13",
-      "subject": "auto: 通常グレイズにインプレ加算を追加"
     }
   ]
 }
