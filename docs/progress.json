@@ -1,22 +1,21 @@
 {
   "generated": "2026-08-13 20:33 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
-    "blocked": 13,
+    "blocked": 14,
     "done": 39
   },
-  "percent": 98,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "未発注イラスト",
-      "worker": "artist",
-      "accept": "ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "未発注イラスト",
+      "worker": "artist",
+      "accept": "ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）。`gen-asset` skillはOpenAI gpt-image-2で生成するため `.openai_key.txt`（gitignore済のローカル認証情報）が必須だが、この夜間クラウド実行環境には存在しない（ユーザーのローカル環境にのみ想定される秘匿ファイル）。dotnet SDK/Godotバイナリと異なり公開ダウンロードでは代替できない＝環境側にAPIキーを用意してもらうか、ローカル環境での実行が必要"
+    },
     {
       "priority": null,
       "title": "#15 ボスラッシュ制約",
@@ -334,6 +333,11 @@
   ],
   "commits": [
     {
+      "hash": "67ced8f",
+      "date": "2026-08-13",
+      "subject": "auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）"
+    },
+    {
       "hash": "8e65cd3",
       "date": "2026-08-13",
       "subject": "auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）"
@@ -367,11 +371,6 @@
       "hash": "4e156c5",
       "date": "2026-08-13",
       "subject": "auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）"
-    },
-    {
-      "hash": "117eb36",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 新奥義バランス査定"
     }
   ]
 }
