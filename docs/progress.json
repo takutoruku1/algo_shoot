@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-13 20:33 UTC",
+  "generated": "2026-08-13 23:19 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -333,6 +333,16 @@
   ],
   "commits": [
     {
+      "hash": "e389402",
+      "date": "2026-08-14",
+      "subject": "Merge pull request #3 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "9076fd2",
+      "date": "2026-08-13",
+      "subject": "auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）"
+    },
+    {
       "hash": "67ced8f",
       "date": "2026-08-13",
       "subject": "auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）"
@@ -361,16 +371,6 @@
       "hash": "87929bb",
       "date": "2026-08-13",
       "subject": "auto: M5 QA一巡（Godotヘッドレス環境を新規セットアップ、実害ゼロを確認）"
-    },
-    {
-      "hash": "10ecc41",
-      "date": "2026-08-13",
-      "subject": "auto: WIP M5 全ステージ×全難易度QA一巡"
-    },
-    {
-      "hash": "4e156c5",
-      "date": "2026-08-13",
-      "subject": "auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）"
     }
   ]
 }
