@@ -75,7 +75,7 @@ public partial class TrainingDummy : Enemy
     }
 
     public int Hp => _hpDummy;
-    public float HpRatio => (float)_hpDummy / DummyMaxHp;
+    public override float HpRatio => (float)_hpDummy / DummyMaxHp;
 
     // 基底の移動は使わず、ゆらゆら（見た目のみ・当たり判定は不動）。
     protected override void UpdateMovement(double delta)

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:26 UTC",
+  "generated": "2026-08-13 19:27 UTC",
   "counts": {
-    "todo": 14,
+    "todo": 13,
     "wip": 0,
     "blocked": 11,
-    "done": 28
+    "done": 29
   },
-  "percent": 67,
+  "percent": 69,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "`TrainingDummy.HpRatio` が基底を隠している",
-      "worker": "engineer",
-      "accept": "`TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）"
-    },
     {
       "priority": "P3",
       "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
@@ -163,6 +157,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`TrainingDummy.HpRatio` が基底を隠している",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）"
+    },
     {
       "priority": "P3",
       "title": "CS8602警告4件を解消してゼロ警告にする",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "a4c57cb",
+      "date": "2026-08-13",
+      "subject": "auto: WIP TrainingDummy.HpRatioが基底を隠している"
+    },
+    {
+      "hash": "c8781c4",
+      "date": "2026-08-13",
+      "subject": "auto: CS8602警告4件を解消（Hud?.をHud.へ統一）"
+    },
+    {
       "hash": "f466311",
       "date": "2026-08-13",
       "subject": "auto: WIP CS8602警告4件を解消してゼロ警告にする"
@@ -362,16 +372,6 @@
       "hash": "fccf675",
       "date": "2026-08-13",
       "subject": "auto: ショップのおすすめが所持状況・所持金・装備モードを考慮するよう改善"
-    },
-    {
-      "hash": "11436b9",
-      "date": "2026-08-13",
-      "subject": "auto: WIP ショップの「おすすめ」が所持状況を見ていない"
-    },
-    {
-      "hash": "f43585c",
-      "date": "2026-08-13",
-      "subject": "auto: BossMinaの二人称を「きみ」に統一（64行目）"
     }
   ]
 }

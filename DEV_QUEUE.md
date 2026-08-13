@@ -46,7 +46,7 @@
 
 ## WIP
 
-- [ ] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | `TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）
+（なし）
 
 ## BLOCKED
 
@@ -66,6 +66,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | (完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）
 - [x] (P3) CS8602警告4件を解消してゼロ警告にする | engineer | (完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ
 - [x] (P3) 未使用カウンタとコメントの嘘 | engineer | (完了 2026-08-13) `GameManager.cs:110` の `GrazeCount` コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。`DodgeGrazeCount`等は受入条件通りスコープ外のため未変更
 - [x] (P3) リトライ長押し0.7sが反復プレイで重い | game-designer | (完了 2026-08-13) `RetryHold.cs:10` `HoldTime` を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持

@@ -72,7 +72,7 @@ public partial class Enemy : Area2D
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
-    public float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
+    public virtual float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
     // HUD「1本リフィル方式」用。現在の1本ぶんを 0〜1 で、残バー数を index/total で示す。
     public int TotalBars => BarCount;
     public int CurrentBarIndex => _maxHp <= 0 ? 0 : Mathf.Clamp((_hp - 1) / BarHp, 0, BarCount - 1); // 残バーの先頭(0始まり)
