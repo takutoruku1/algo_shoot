@@ -72,8 +72,14 @@ public partial class HowToPlay : CanvasLayer
         }
         _lrHeld = left || right;
 
-        // X / B / Esc で閉じる。
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // マウスホイールでもページ送り（他画面と同じ WheelDelta 規約：上(+)＝前ページ／下(−)＝次ページ）。
+        float wheel = Pad.WheelDelta();
+        if (wheel > 0f) { _page = (_page + PageCount - 1) % PageCount; Audio.Instance?.PlayUiMove(); }
+        else if (wheel < 0f) { _page = (_page + 1) % PageCount; Audio.Instance?.PlayUiMove(); }
+
+        // X / B / Esc / 右クリックで閉じる。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
+                    || Pad.MouseRightClick();
         if (back && !_backHeld) Close();
         _backHeld = back;
 

@@ -60,7 +60,7 @@
 
 ## WIP
 
-- [ ] (P2) あそびかた・バックログがマウス非対応 | engineer | 他8画面は `UiKit.BeginHotspots` でマウス対応済みだが、`HowToPlay.cs:65-77` と `Backlog.cs:114-124` だけ**右クリックで閉じられずホイールも効かない**。`Pad.MouseRightClick()`／`Pad.WheelDelta()` を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ
+（なし）
 
 ## BLOCKED
 
@@ -79,6 +79,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) あそびかた・バックログがマウス非対応 | engineer | (完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた
 - [x] (P2) 後方弾の形と色の指定が無視されている | engineer | (完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた
 - [x] (P2) 死亡時にチェックポイントから再開できない | game-designer | (完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）
 - [x] (P2) ステージ途中でハブへ戻れない | game-designer | (完了 2026-08-13) `PauseMenu.cs` の `ItemsJp` に「ハブへもどる」を「タイトルへ」の直前へ追加（`HubReturnAction = SlotCount+4`）。`RetryEnabled` と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て `AutoSave()→Pool.DespawnAll()→Hub.tscn` を実行

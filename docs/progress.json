@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:53 UTC",
+  "generated": "2026-08-13 18:55 UTC",
   "counts": {
-    "todo": 28,
+    "todo": 27,
     "wip": 0,
     "blocked": 10,
-    "done": 15
+    "done": 16
   },
-  "percent": 35,
+  "percent": 37,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "あそびかた・バックログがマウス非対応",
-      "worker": "engineer",
-      "accept": "他8画面は `UiKit.BeginHotspots` でマウス対応済みだが、`HowToPlay.cs:65-77` と `Backlog.cs:114-124` だけ**右クリックで閉じられずホイールも効かない**。`Pad.MouseRightClick()`／`Pad.WheelDelta()` を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ"
-    },
     {
       "priority": "P2",
       "title": "シェイクスピア引用の三段仕掛けが二段しか無い",
@@ -243,6 +237,12 @@
   "done": [
     {
       "priority": "P2",
+      "title": "あそびかた・バックログがマウス非対応",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた"
+    },
+    {
+      "priority": "P2",
       "title": "後方弾の形と色の指定が無視されている",
       "worker": "engineer",
       "accept": "(完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "49141eb",
+      "date": "2026-08-13",
+      "subject": "auto: WIP あそびかた・バックログがマウス非対応"
+    },
+    {
+      "hash": "73d57ac",
+      "date": "2026-08-13",
+      "subject": "auto: BLOCKED グレイズを教えるチュートリアルが無い（phase番号振り直しの範囲判断待ち）"
+    },
+    {
       "hash": "bf49ac9",
       "date": "2026-08-13",
       "subject": "auto: 後方弾にDiamond形状・淡い金の描画を実装"
@@ -362,16 +372,6 @@
       "hash": "912effd",
       "date": "2026-08-13",
       "subject": "auto: WIP ステージ途中でハブへ戻れない"
-    },
-    {
-      "hash": "598df0a",
-      "date": "2026-08-13",
-      "subject": "auto: あそびかた画面の汚染ゲージ説明文を実装に合わせる"
-    },
-    {
-      "hash": "5e2d328",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 汚染ゲージの説明が実装と食い違う"
     }
   ]
 }
