@@ -218,6 +218,10 @@ public partial class Shop : Node2D
     // ホイール手動スクロール中はカメラのフォーカス追従を一時停止する調停（追従がホイールを毎フレーム打ち消すため）。
     //   ホイール入力があったら _wheelHoldT 秒だけ追従を止め、その間は _cam を直接動かす。カーソル移動(Nav)で即再開。
     private double _wheelHoldT;
+    // フォーカス追従は「フォーカスが変わった瞬間」だけ ON にし、目標到達で自動的に OFF になる（毎フレーム追従しない）。
+    //   これが false の間は _cam を一切動かさない＝手動スクロール（ホイール/バー）や放置でも位置が保持される。
+    //   （以前は毎フレーム _sel 目標へ Lerp していたため、_wheelHoldT 失効後に一定時間で先頭へ戻るバグがあった）
+    private bool _camFollow;
     private const double WheelHoldSecs = 0.9;   // ホイール後この秒数は追従を抑止
     private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
 
@@ -332,7 +336,8 @@ public partial class Shop : Node2D
             Vector2 d = horiz ? new Vector2(-wheel * WheelStep, 0f) : new Vector2(0f, -wheel * WheelStep);
             _cam = ClampCam(_cam + d);
             _camTarget = _cam;         // 追従の目標も現在地に固定（次フレームの Lerp で戻らない）
-            _wheelHoldT = WheelHoldSecs; // この間はフォーカス追従を止める
+            _camFollow = false;        // 手動スクロール＝以後フォーカス追従は次のフォーカス変更まで再開しない
+            _wheelHoldT = WheelHoldSecs; // この間はフォーカス追従を止める（保険）
         }
 
         // スクロールバーのマウスドラッグ（横スクロールをマウスだけで全域到達させる主手段）。UiBlocked 中は不可。
@@ -469,7 +474,7 @@ public partial class Shop : Node2D
             if (linked.Contains(s)) score *= 0.45f;
             if (score < bestScore) { bestScore = score; best = s; }
         }
-        if (best >= 0) { _sel = best; CancelRespec(); }
+        if (best >= 0) { _sel = best; CancelRespec(); _camFollow = true; } // フォーカス移動＝この時だけ追従を再開
     }
 
     // ───────────────────────── マウス操作（フェーズ3）─────────────────────────
@@ -539,19 +544,19 @@ public partial class Shop : Node2D
         }
         if (hit <= 2) // R0 チップ＝フォーカス＋装備
         {
-            _sel = hit; CancelRespec();
+            _sel = hit; CancelRespec(); _camFollow = true;
             EquipMode(hit);
             return;
         }
         if (hit == 3) // root＝フォーカスのみ（説明）
         {
-            if (_sel != 3) { _sel = 3; CancelRespec(); Audio.Instance?.PlayUiMove(); }
+            if (_sel != 3) { _sel = 3; CancelRespec(); _camFollow = true; Audio.Instance?.PlayUiMove(); }
             else OnConfirm(); // 2度押しで説明トースト（キーボード Z 相当）
             return;
         }
         // ノード：未フォーカスなら選択、既フォーカスなら購入（＝同じノードの2度押しで買う）。
         if (_sel == hit) { OnConfirm(); }
-        else { _sel = hit; CancelRespec(); Audio.Instance?.PlayUiMove(); }
+        else { _sel = hit; CancelRespec(); _camFollow = true; Audio.Instance?.PlayUiMove(); }
     }
 
     // スクロールバーのマウスドラッグ処理（毎フレーム）。横スクロールをマウスだけで全域到達させる主手段。
@@ -607,7 +612,8 @@ public partial class Shop : Node2D
         }
         _cam = ClampCam(_cam);
         _camTarget = _cam;             // 追従目標も現在地へ固定
-        _wheelHoldT = WheelHoldSecs;   // ドラッグ中は追従抑止を延長し続ける（離してもしばらく戻さない）
+        _camFollow = false;            // バードラッグ＝以後フォーカス追従は次のフォーカス変更まで再開しない
+        _wheelHoldT = WheelHoldSecs;   // ドラッグ中は追従抑止を延長し続ける（離してもしばらく戻さない・保険）
         return consumedClick;
     }
 
@@ -792,8 +798,11 @@ public partial class Shop : Node2D
 
     // カメラ追従：フォーカスがチップ/root/ノードのどれでも、その中心を表示窓中央へ寄せる目標を作り Lerp。
     //   チップ(R0)や root は上部固定域なので、カメラは左上端(0,0)へ戻す＝ツリーの入口(d1)が見える。
+    //   ★追従は _camFollow が true の間だけ（フォーカス変更で ON）。目標へ十分寄ったら自動 OFF＝以後は _cam を触らない。
+    //     これにより、手動スクロール後や放置中に「一定時間で先頭へ戻る」不具合を根絶（追従が現在地を打ち消さない）。
     private void UpdateCamera(float delta)
     {
+        if (!_camFollow) return; // フォーカス未変更なら位置を保持（毎フレーム目標へ引き戻さない）
         if (_sel >= 4)
         {
             Vector2 center = NodeRect(_sel - 4).GetCenter();
@@ -807,6 +816,7 @@ public partial class Shop : Node2D
             _camTarget = Vector2.Zero; // チップ/root にいる間は入口（左上）を映す＝最上段が余白ぶん下がって全部見える
         }
         _cam = _cam.Lerp(_camTarget, Mathf.Clamp(12f * delta, 0f, 1f));
+        if (_cam.DistanceTo(_camTarget) < 0.5f) { _cam = _camTarget; _camFollow = false; } // 到達したら追従終了
     }
 
     // R0 装備チップの矩形（幅は名前の実幅から。ストリップ描画とフォーカス枠が共有する）。
