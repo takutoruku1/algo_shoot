@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-13 13:46 UTC
+> 生成: 2026-08-13 14:16 UTC
 
 ## 消化率
 
 ```
-░░░░░░░░░░░░░░░░░░░░  0%   (完了 0 / 対象 9)
+░░░░░░░░░░░░░░░░░░░░  0%   (完了 0 / 対象 8)
 ```
 
 | 状態 | 件数 |
 |---|---:|
 | ✅ 完了 | 0 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 9 |
+| 📋 残り | 8 |
 | ⛔ 保留（人間の判断待ち） | 4 |
 
 ## 🔨 いま作業中
@@ -22,13 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-- `P1` #22 既読スキップ
 - `P1` BGM試聴チェック
 - `P2` #27 ステージ選択のSNSタイムライン化
 - `P2` #11 背景の文字をツイート風に
 - `P2` 新奥義バランス査定
+- `P3` #15 ボスラッシュ制約
 
-…ほか 4 件
+…ほか 3 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -43,11 +43,11 @@ _まだありません_
 
 ## 直近のコミット
 
+- `ad587d5` 2026-08-13 auto: WIP開始 #22 既読スキップ
+- `aa7cbc6` 2026-08-13 Give the epilogue a background per phase
+- `bc2c32b` 2026-08-13 Add progress dashboard and fix queue worker parsing
 - `3df5d8d` 2026-08-13 Add autonomous nightly dev pipeline
 - `deb7844` 2026-08-13 Fix playtest findings: softlock, unavoidable AOE, and shot balance
 - `134c71e` 2026-08-13 Style bullets per shot mode and add an accel skill area
 - `e4e61ff` 2026-08-13 Unlock 加速球 shot mode via shop purchase
 - `2f53607` 2026-08-13 Add shop training mode and accelerating-bullet shot
-- `1e1b4aa` 2026-08-13 Fix skill tree scroll snapping back to top
-- `026dc9f` 2026-07-23 Add mouse support across shop and menus
-- `7aecfdf` 2026-07-23 Overhaul shop into scrollable all-purchasable skill tree with backfire

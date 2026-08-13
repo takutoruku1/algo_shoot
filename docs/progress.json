@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 13:46 UTC",
+  "generated": "2026-08-13 14:16 UTC",
   "counts": {
-    "todo": 9,
+    "todo": 8,
     "wip": 0,
     "blocked": 4,
     "done": 0
   },
   "percent": 0,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "#22 既読スキップ",
-      "worker": "engineer",
-      "accept": "会話の既読フラグをセーブに永続化し、既読シーンは高速送り（またはスキップキー）で飛ばせる。周回2周目で実測して送りが速くなっていること"
-    },
     {
       "priority": "P1",
       "title": "BGM試聴チェック",
@@ -93,6 +87,21 @@
   "done": [],
   "commits": [
     {
+      "hash": "ad587d5",
+      "date": "2026-08-13",
+      "subject": "auto: WIP開始 #22 既読スキップ"
+    },
+    {
+      "hash": "aa7cbc6",
+      "date": "2026-08-13",
+      "subject": "Give the epilogue a background per phase"
+    },
+    {
+      "hash": "bc2c32b",
+      "date": "2026-08-13",
+      "subject": "Add progress dashboard and fix queue worker parsing"
+    },
+    {
       "hash": "3df5d8d",
       "date": "2026-08-13",
       "subject": "Add autonomous nightly dev pipeline"
@@ -116,21 +125,6 @@
       "hash": "2f53607",
       "date": "2026-08-13",
       "subject": "Add shop training mode and accelerating-bullet shot"
-    },
-    {
-      "hash": "1e1b4aa",
-      "date": "2026-08-13",
-      "subject": "Fix skill tree scroll snapping back to top"
-    },
-    {
-      "hash": "026dc9f",
-      "date": "2026-07-23",
-      "subject": "Add mouse support across shop and menus"
-    },
-    {
-      "hash": "7aecfdf",
-      "date": "2026-07-23",
-      "subject": "Overhaul shop into scrollable all-purchasable skill tree with backfire"
     }
   ]
 }
