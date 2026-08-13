@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:05 UTC",
+  "generated": "2026-08-13 19:09 UTC",
   "counts": {
-    "todo": 23,
+    "todo": 22,
     "wip": 0,
     "blocked": 11,
-    "done": 19
+    "done": 20
   },
-  "percent": 45,
+  "percent": 48,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "こはるの「怒り＝他責」が一度も描かれない",
-      "worker": "scenario",
-      "accept": "正典はこはるの穢れを「無力感が『あかりのせい』という**怒り**（他責）になって病む」と定義（`docs/【最新】…まとめ.md:94,103`）。だが実装で他責が出るのは `BossKoharu.cs:125` の中継1行だけで、**怒りそのものが一度も描かれない**＝中継が「無かった感情」を指して決定打が空振りする。Cameo（`StageKoharu.cs:105-109`）は全編無邪気で `KPale`（蒼白・定義済み）も未使用。CameoTalk3 に無邪気が一瞬だけ裏返る1往復を追加（**あかりの名は出さない**＝Epilogueの交差点回収を先食いしないため「あの人」止まり）"
-    },
     {
       "priority": "P3",
       "title": "Hub帰還会話がステージ側の段階設計を逆転させている",
@@ -218,6 +212,12 @@
   ],
   "done": [
     {
+      "priority": "P3",
+      "title": "こはるの「怒り＝他責」が一度も描かれない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageKoharu.cs:104-113` の `CameoTalk3` に無邪気→他責の怒り（KPale・「あの人のせいだ」名は伏せる）→また無邪気（KFace）の裏返り一往復を追加。`BossKoharu.cs`の中継行に先立つ伏線として機能"
+    },
+    {
       "priority": "P2",
       "title": "難易度の賭け金と見返りが釣り合っていない",
       "worker": "game-designer",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "c95270e",
+      "date": "2026-08-13",
+      "subject": "auto: WIP こはるの「怒り＝他責」が一度も描かれない"
+    },
+    {
+      "hash": "a56fc22",
+      "date": "2026-08-13",
+      "subject": "auto: 難易度Hard/Lunaticのインプレ報酬倍率を引き上げ"
+    },
+    {
       "hash": "0ee1847",
       "date": "2026-08-13",
       "subject": "auto: WIP 難易度の賭け金と見返りが釣り合っていない"
@@ -362,16 +372,6 @@
       "hash": "b883bdb",
       "date": "2026-08-13",
       "subject": "auto: WIP シェイクスピア引用の三段仕掛けが二段しか無い"
-    },
-    {
-      "hash": "0f8878c",
-      "date": "2026-08-13",
-      "subject": "auto: あそびかた・バックログをマウス対応（右クリック/ホイール）"
-    },
-    {
-      "hash": "49141eb",
-      "date": "2026-08-13",
-      "subject": "auto: WIP あそびかた・バックログがマウス非対応"
     }
   ]
 }

@@ -101,11 +101,15 @@ public partial class StageKoharu : Node
         (1, "……ご主人様?", "res://char/mina_worried.png"),
         (0, "————。", SGentle),                                    // 言葉が出ない
     };
-    // 山：無力感が他責へ。蒼白(KPale)。
+    // 山：無力感が他責へ。無邪気→怒り（KPale・2行）→また無邪気（KFace）の裏返り一往復。
+    // 「あかり」の名前は出さない（Epilogueの交差点回収を先食いしないため、「あの人」止まり）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
         (2, "あ、こら! じっとしてないと、よそえないでしょ。もう、せっかちさんなんだから。", KFace),
         (2, "お味噌汁の具、108種類あるんだけど。ぜんぶ入れていい? いいよね? 入れちゃうね。", KFace),
+        (2, "……ちゃんと、作ってるのに。ちゃんと、してるのに……どうして——", KPale),               // 無力感（届かない現実への苛立ち）
+        (2, "……あの人のせいだ。あの人さえ、いなければ……お兄ちゃん、いなくならなかった。", KPale),   // 無力感→他責（名は伏せる／裏返りの頂点）
+        (2, "……ふふ、なんでもない。はい、あーん。冷めないうちに、ね?", KFace),                    // 一瞬で無邪気に戻る（普段は隠れている感情）
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
