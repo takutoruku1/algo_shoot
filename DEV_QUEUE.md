@@ -68,7 +68,7 @@
 
 ## WIP
 
-- [ ] (P1) 通常グレイズが通貨を生まない | game-designer | `AddGraze()`（`GameManager.cs:1107-1114`）はスコア+10とやさしさ+0.07のみで**インプレ加算ゼロ**。回避グレイズだけ `GainImpression(2)`（`:1123-1133`）。結果「弾に寄る」意味が経済的に無く、稼ぎが撃破コンボ一本化。グレイズ半径11pxという中核レバーが金銭リターンに繋がっていない（§2-4 攻めたほうが得）。`AddGraze()` に `GainImpression(1)` を追加（回避の優位は保つ）。被弾無敵中は `_hitInvincible` で既に止まるのでfarming対策は既存で足りる
+（なし）
 
 ## BLOCKED
 
@@ -85,6 +85,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) 通常グレイズが通貨を生まない | game-designer | (完了 2026-08-13) `AddGraze()`（`GameManager.cs:1118`）に `GainImpression(1)` を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は `Player.OnGrazeAreaEntered` の `_hitInvincible` スキップと1弾1回課金（`Grazed`フラグ）で既存担保
 - [x] (P1) ボス戦が火力投資に反応しない | game-designer | (完了 2026-08-13) (b)案採用。`Enemy.cs` の `TickBossPhase`（`BossPhase.Exposed` 分岐）で `_windowDamage >= ExposedDamageCap` を検知したら `_phaseT >= VulnDur` を待たず即 `EnterReclose()` へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り
 - [x] (P1) マウス未操作なのに選択が勝手に飛ぶ | engineer | (完了 2026-08-14) `Pad.cs` に `_mouseSeeded` を追加し、初回 `PollMouse` は `_mousePosPrev` を実座標に揃えるだけにして移動判定をスキップ。初期値(0,0)から跳ぶぶんでの誤ラッチが消えた。QAスクショで Hub の初期選択が t=0.3/t=3.0 とも解放済みの「レイ」で固定を実測（修正前はカーソル位置次第でロック中カードへ移動）
 - [x] (P1) 「はじめから」の初期化漏れ2件 | engineer | (完了 2026-08-14) `ResetPersistent()` に `Contamination = 0f;` と `ClearTimes.Clear();` を追加。新規データが前ランの汚染1.0とベストタイムを継承しなくなった

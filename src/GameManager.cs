@@ -1115,11 +1115,15 @@ public partial class GameManager : Node
 
     // 敵弾をかすった（グレイズ）時の加点。
     // かすりでコンボ猶予をリフレッシュ＝「敵に寄ってかすり続ける」と攻めが途切れない（§2-4 攻めたほうが得）。
+    // インプレ（通貨）も少額付与＝「弾に寄る」こと自体に経済的リターンを持たせる。
+    //   回避よけ(AddDodgeGraze＝GainImpression(DodgeGrazeImpBase)=2)より少なく＝回避の優位は維持。
+    //   farming対策：被弾直後の無敵中(_hitInvincible)は呼び出し元(Player.OnGrazeAreaEntered)で既にスキップ済み。
     public void AddGraze()
     {
         Score += 10;
         GrazeCount++;
         AddKindness(GrazeGain);
+        GainImpression(1);
         if (Combo > 0)
             _comboTimer = ComboWindow;
     }

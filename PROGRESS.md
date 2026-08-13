@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-13 18:27 UTC
+> 生成: 2026-08-13 18:29 UTC
 
 ## 消化率
 
 ```
-████░░░░░░░░░░░░░░░░  18%   (完了 8 / 対象 44)
+████░░░░░░░░░░░░░░░░  20%   (完了 9 / 対象 44)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 8 |
+| ✅ 完了 | 9 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 36 |
+| 📋 残り | 35 |
 | ⛔ 保留（人間の判断待ち） | 9 |
 
 ## 🔨 いま作業中
@@ -22,13 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-- `P1` 通常グレイズが通貨を生まない
 - `P1` ミナが汚染を引き受ける選択の一行が無い
 - `P1` Hubリプライがエピローグの二段落としを先に割る
 - `P2` 汚染ゲージの説明が実装と食い違う
 - `P2` ステージ途中でハブへ戻れない
+- `P2` 死亡時にチェックポイントから再開できない
 
-…ほか 31 件
+…ほか 30 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -44,6 +44,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P1` 通常グレイズが通貨を生まない
 - `P1` ボス戦が火力投資に反応しない
 - `P1` マウス未操作なのに選択が勝手に飛ぶ
 - `P1` 「はじめから」の初期化漏れ2件
@@ -55,11 +56,11 @@ _なし_
 
 ## 直近のコミット
 
+- `e744c6f` 2026-08-13 auto: WIP 通常グレイズが通貨を生まない
+- `cceb4d2` 2026-08-13 auto: ボス戦の無防備窓、火力投資でサイクル短縮するよう修正
 - `defa32f` 2026-08-13 auto: WIP ボス戦が火力投資に反応しない
 - `9360c42` 2026-08-14 Unify cutscene text boxes and color tokens
 - `d123e2b` 2026-08-14 Let the player flip facing and shoot backwards
 - `bf9ab6a` 2026-08-14 Make enemy AOE telegraphs and impacts read as one strike
 - `26e6569` 2026-08-14 Refresh the progress snapshot
 - `8eff3aa` 2026-08-14 Fix three defects that broke input, fresh saves, and retry
-- `3ad5cbe` 2026-08-14 Let one nightly run work through several queue items
-- `231a25f` 2026-08-13 Audit the game from four angles and queue what needs fixing

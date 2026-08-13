@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:27 UTC",
+  "generated": "2026-08-13 18:29 UTC",
   "counts": {
-    "todo": 36,
+    "todo": 35,
     "wip": 0,
     "blocked": 9,
-    "done": 8
+    "done": 9
   },
-  "percent": 18,
+  "percent": 20,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "通常グレイズが通貨を生まない",
-      "worker": "game-designer",
-      "accept": "`AddGraze()`（`GameManager.cs:1107-1114`）はスコア+10とやさしさ+0.07のみで**インプレ加算ゼロ**。回避グレイズだけ `GainImpression(2)`（`:1123-1133`）。結果「弾に寄る」意味が経済的に無く、稼ぎが撃破コンボ一本化。グレイズ半径11pxという中核レバーが金銭リターンに繋がっていない（§2-4 攻めたほうが得）。`AddGraze()` に `GainImpression(1)` を追加（回避の優位は保つ）。被弾無敵中は `_hitInvincible` で既に止まるのでfarming対策は既存で足りる"
-    },
     {
       "priority": "P1",
       "title": "ミナが汚染を引き受ける選択の一行が無い",
@@ -285,6 +279,12 @@
   "done": [
     {
       "priority": "P1",
+      "title": "通常グレイズが通貨を生まない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `AddGraze()`（`GameManager.cs:1118`）に `GainImpression(1)` を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は `Player.OnGrazeAreaEntered` の `_hitInvincible` スキップと1弾1回課金（`Grazed`フラグ）で既存担保"
+    },
+    {
+      "priority": "P1",
       "title": "ボス戦が火力投資に反応しない",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) (b)案採用。`Enemy.cs` の `TickBossPhase`（`BossPhase.Exposed` 分岐）で `_windowDamage >= ExposedDamageCap` を検知したら `_phaseT >= VulnDur` を待たず即 `EnterReclose()` へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "e744c6f",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 通常グレイズが通貨を生まない"
+    },
+    {
+      "hash": "cceb4d2",
+      "date": "2026-08-13",
+      "subject": "auto: ボス戦の無防備窓、火力投資でサイクル短縮するよう修正"
+    },
+    {
       "hash": "defa32f",
       "date": "2026-08-13",
       "subject": "auto: WIP ボス戦が火力投資に反応しない"
@@ -362,16 +372,6 @@
       "hash": "8eff3aa",
       "date": "2026-08-14",
       "subject": "Fix three defects that broke input, fresh saves, and retry"
-    },
-    {
-      "hash": "3ad5cbe",
-      "date": "2026-08-14",
-      "subject": "Let one nightly run work through several queue items"
-    },
-    {
-      "hash": "231a25f",
-      "date": "2026-08-13",
-      "subject": "Audit the game from four angles and queue what needs fixing"
     }
   ]
 }

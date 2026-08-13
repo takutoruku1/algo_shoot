@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">18<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 8 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
+      <span class="pct">20<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 9 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 18パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 20パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">8</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">9</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">36</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">35</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">9</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">通常グレイズが通貨を生まない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>AddGraze()</code>（<code>GameManager.cs:1107-1114</code>）はスコア+10とやさしさ+0.07のみで<strong>インプレ加算ゼロ</strong>。回避グレイズだけ <code>GainImpression(2)</code>（<code>:1123-1133</code>）。結果「弾に寄る」意味が経済的に無く、稼ぎが撃破コンボ一本化。グレイズ半径11pxという中核レバーが金銭リターンに繋がっていない（§2-4 攻めたほうが得）。<code>AddGraze()</code> に <code>GainImpression(1)</code> を追加（回避の優位は保つ）。被弾無敵中は <code>_hitInvincible</code> で既に止まるのでfarming対策は既存で足りる</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -414,6 +406,14 @@
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
+          <span class="task-title">通常グレイズが通貨を生まない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>AddGraze()</code>（<code>GameManager.cs:1118</code>）に <code>GainImpression(1)</code> を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は <code>Player.OnGrazeAreaEntered</code> の <code>_hitInvincible</code> スキップと1弾1回課金（<code>Grazed</code>フラグ）で既存担保</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
           <span class="task-title">ボス戦が火力投資に反応しない</span>
           <span class="worker">game-designer</span>
         </div>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e744c6f</span><span>2026-08-13</span><span class="s">auto: WIP 通常グレイズが通貨を生まない</span></li>
+      <li><span class="h">cceb4d2</span><span>2026-08-13</span><span class="s">auto: ボス戦の無防備窓、火力投資でサイクル短縮するよう修正</span></li>
       <li><span class="h">defa32f</span><span>2026-08-13</span><span class="s">auto: WIP ボス戦が火力投資に反応しない</span></li>
       <li><span class="h">9360c42</span><span>2026-08-14</span><span class="s">Unify cutscene text boxes and color tokens</span></li>
       <li><span class="h">d123e2b</span><span>2026-08-14</span><span class="s">Let the player flip facing and shoot backwards</span></li>
       <li><span class="h">bf9ab6a</span><span>2026-08-14</span><span class="s">Make enemy AOE telegraphs and impacts read as one strike</span></li>
       <li><span class="h">26e6569</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot</span></li>
       <li><span class="h">8eff3aa</span><span>2026-08-14</span><span class="s">Fix three defects that broke input, fresh saves, and retry</span></li>
-      <li><span class="h">3ad5cbe</span><span>2026-08-14</span><span class="s">Let one nightly run work through several queue items</span></li>
-      <li><span class="h">231a25f</span><span>2026-08-13</span><span class="s">Audit the game from four angles and queue what needs fixing</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
