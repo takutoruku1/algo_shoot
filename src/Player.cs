@@ -879,7 +879,7 @@ public partial class Player : Area2D
         int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
         int shots = _game.BackfireShots;
         int turn = Mathf.RoundToInt(_game.BackfireTurnRate); // bf_track で 60→90（未適用だと既定95に化けていた）
-        var tint = new Color(0.86f, 0.42f, 0.66f); // Kegare系（前方の浄化水色と区別）
+        var tint = new Color(0.98f, 0.86f, 0.55f); // 淡い金（Bullet.DrawPlayerDiamond の BackMid と揃える。敵弾の穢れ桃と混同しない色）
         for (int i = 0; i < shots; i++)
         {
             // 2発目はわずかに角度を散らす（同時2発の見栄え）。

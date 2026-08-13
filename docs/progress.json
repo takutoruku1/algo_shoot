@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:48 UTC",
+  "generated": "2026-08-13 18:51 UTC",
   "counts": {
-    "todo": 30,
+    "todo": 29,
     "wip": 0,
     "blocked": 9,
-    "done": 14
+    "done": 15
   },
-  "percent": 32,
+  "percent": 34,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "後方弾の形と色の指定が無視されている",
-      "worker": "engineer",
-      "accept": "`Player.FireBackfire`（`Player.cs:850-855`）は「前方弾と区別」と称して `BulletShape.Diamond` と穢れ寄り tint を渡すが、`Bullet._Draw` の自機弾分岐（`Bullet.cs:520-556`）は **Dart/Petal/Seeker しか switch せず `Tint` も敵弾分岐でしか読まない**。結果ただの水色円で描かれ**引数2つが完全に死んでいる**。加えて渡している色 `(0.86,0.42,0.66)` は敵弾色 `(0.882,0.447,0.675)` とほぼ同一で、活かすと今度は敵弾と紛らわしい。(a)`!IsEnemy` に `case BulletShape.Diamond` を足す＋**色は淡い金 `(0.98,0.86,0.55)` へ変更**（味方弾と分かることを優先）、または(b)引数を落としてコメントを実態に合わせる。(a)推奨"
-    },
     {
       "priority": "P2",
       "title": "グレイズを教えるチュートリアルが無い",
@@ -249,6 +243,12 @@
   "done": [
     {
       "priority": "P2",
+      "title": "後方弾の形と色の指定が無視されている",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた"
+    },
+    {
+      "priority": "P2",
       "title": "死亡時にチェックポイントから再開できない",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "3b35296",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 後方弾の形と色の指定が無視されている"
+    },
+    {
+      "hash": "06efec8",
+      "date": "2026-08-13",
+      "subject": "auto: 死亡時にボスからのチェックポイント再開を追加"
+    },
+    {
       "hash": "17e0e34",
       "date": "2026-08-13",
       "subject": "auto: WIP 死亡時にチェックポイントから再開できない"
@@ -362,16 +372,6 @@
       "hash": "ae76ce6",
       "date": "2026-08-13",
       "subject": "auto: Hubリプライの少年死明示を削除、伏線のみ残す"
-    },
-    {
-      "hash": "215a312",
-      "date": "2026-08-13",
-      "subject": "auto: WIP Hubリプライがエピローグの二段落としを先に割る"
-    },
-    {
-      "hash": "668b274",
-      "date": "2026-08-13",
-      "subject": "auto: ミナに汚染受容の一行を追加（StageKoharu Clear）"
     }
   ]
 }
