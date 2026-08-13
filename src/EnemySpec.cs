@@ -125,11 +125,18 @@ public static class EnemyTable
     // 盾もち種「バズ壁」（BuzzWall）。スキンは各テーマの“撃たない種”を流用（新規アート無し）し、
     // 撃たない・遅い・硬い（パネル数/インクは MidEnemy が Pattern で上書き）に差し替える。
     // 高ポイント＝剥がし切るDPSチェックへの対価（リスクとリターン：無視もできるが報酬は大きい）。
+    //
+    // バランス査定メモ（新奥義バランス査定）：通常ザコはパネル3×インク2＝6ヒットで撃破（MidEnemy.cs:80-81）。
+    // バズ壁はパネル5×インク3＝15ヒット＝通常の2.5倍の手間。旧 points=150 は通常ザコ（平均約90）の
+    // 約1.67倍にしかならず、「無視もできるが報酬は大きい」という上の設計コメントに対して手間と報酬が
+    // 比例していなかった（§2-1）。ヒット数倍率(2.5x)に揃えて 150→220（≒平均90×2.45）に引き上げ、
+    // 剥がし切った時の点数リターンを手間に見合わせる。Score は経済(Impression)や進行(PurifiedCount)には
+    // 影響しない純粋なスコアボーナスなので、この増分はゲームバランス（難易度・経済）には波及しない。
     private const float BuzzWallMoveSpeed = 18f; // のそのそ進む壁（設計目安値）
     public static EnemySpec BuzzWall(StageTheme theme)
     {
         var (_, drifter) = For(theme);
-        return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 150,
+        return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 220,
             bodyRadius: drifter.BodyRadius + 2f, moveSpeed: BuzzWallMoveSpeed, spinSpeed: drifter.SpinSpeed * 0.6f,
             fires: false, fireInterval: 0f, bulletSpeed: 0f,
             pattern: AttackPattern.BuzzWall);

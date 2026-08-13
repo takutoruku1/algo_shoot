@@ -97,17 +97,17 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">16<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 7 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 39 / 対象 39 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 16パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">7</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">39</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">37</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">9</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">14</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -117,308 +117,268 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">ボス戦が火力投資に反応しない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>ExposedDamageCap = 100</code>（<code>Enemy.cs:64</code>）＝無防備窓1回でHPバー1本ぶんが上限。<strong>どれだけ強化してもNormalは最低4サイクル・Lunatic6・ミナはEasyでも4／Luna8</strong>が固定で、火力に投資しても短縮されない。奥義を買うほど窓で &quot;MAX&quot; が出て弾が吸われるだけになる（§2-1 リスクとリターンの比例が切れている）。(b)案が安い＝<strong>キャップ到達で窓を早期終了して次サイクルへ即移行</strong>（窓4.0sの残りを待たせない）。(a)案＝「1本＋超過分の50%を次バーへ持ち越し」は中規模。まず(b)でテンポだけでも返す</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">通常グレイズが通貨を生まない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>AddGraze()</code>（<code>GameManager.cs:1107-1114</code>）はスコア+10とやさしさ+0.07のみで<strong>インプレ加算ゼロ</strong>。回避グレイズだけ <code>GainImpression(2)</code>（<code>:1123-1133</code>）。結果「弾に寄る」意味が経済的に無く、稼ぎが撃破コンボ一本化。グレイズ半径11pxという中核レバーが金銭リターンに繋がっていない（§2-4 攻めたほうが得）。<code>AddGraze()</code> に <code>GainImpression(1)</code> を追加（回避の優位は保つ）。被弾無敵中は <code>_hitInvincible</code> で既に止まるのでfarming対策は既存で足りる</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">ミナが汚染を引き受ける選択の一行が無い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典 <code>docs/20260619/EpicB_物語設計案.md:59-61</code> が「pitfall P2回避＝『汚染を引き受けてでも3人を救う』選択を<strong>ミナ自身の意志として一行描く</strong>」と要求しているが、全実装を走査しても該当台詞が存在しない。ミナは最後まで受動的に濁らされるだけで、FINALの暴走が「彼女の選択の結果」にならない。<code>StageKoharu.cs:162</code> の Clear 末尾に3行追加（汚染を説明せず「重い」の身体感覚だけで置く＝show don't tell 遵守）。文面案は監査報告のP2-4にあり</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">Hubリプライがエピローグの二段落としを先に割る</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>Hub.cs:1003</code> の @akari が「あたしを庇って、それきり来なくなった人に」と<strong>中盤で少年の死を明示</strong>する。正典の最重要ルール「少年の死は説明ではなく“もうログインして来ないこと”で描く」（<code>docs/【最新】…まとめ.md:34,42</code>）と、<code>Epilogue.cs:149</code> で初めて交差点を再構成する設計が、ここで先に割れる。ミナが読める画面なのに無反応なのも不自然。「庇って」「来なくなった」を消し、声の類似（伏線③）だけ残す：<code>(&quot;@akari&quot;, &quot;……なんでだろ。あなたの言い方、誰かに似てる。……ずっと、あったかい人だったな。&quot;)</code></p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">汚染ゲージの説明が実装と食い違う</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">あそびかた画面が「<strong>救うほど濁る</strong>」「浄化と汚染は表裏一体」と説明する（<code>HowToPlay.cs:220,262-264</code>）が、実装はステージ固定値の線形補間を毎フレーム上書きするだけ（<code>ReiRoot.cs:104-108</code> 他）で<strong>プレイヤーの選択は何も変えない</strong>。レイを再プレイすれば汚染は0に戻る。「澄んだ心 I/II」も効果が読めないノードになっている。まず(a)<strong>説明文を実態に合わせる</strong>（「物語が進むほど濁る」に書き換えジレンマを謳わない）。本来の設計を活かす(b)可変化は別タスク</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ステージ途中でハブへ戻れない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">ポーズメニュー（<code>PauseMenu.cs:32-33</code>）に<strong>ハブへ戻る選択肢が無く</strong>、脱出は残機0か「タイトルへ」だけ。難易度を変えたいだけでもタイトル→つづきから→ハブと数画面戻らされる。ItemsJp の「タイトルへ」の直前に「ハブへもどる」を追加。処理は <code>HandleGameOverExit</code> 後半（<code>AutoSave()</code>→<code>Pool.DespawnAll()</code>→<code>Hub.tscn</code>）を再利用でき、稼いだ心も保存される。誤爆防止に2段確認</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">死亡時にチェックポイントから再開できない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">リトライは <code>ReloadCurrentScene()</code> 一択で、ボスに負けると道中3波と全会話をやり直し（レイ20体・こはるMidWaveAだけで15体）。チェックポイント機構 <code>StageEntry</code> は既にあり中ボス撃破も永続記録されるのに<strong>死亡時に使う処理が無い</strong>＝「一度ハブへ帰る方が速い」という歪んだ最適解が生まれている。game-over時のみ <code>R：ボスからやり直す ／ Shift+R：最初から</code> を出し、前者は <code>SelectedEntry = Boss</code> をセットしてreload（既存の <code>_step = 10</code> 分岐に乗る）。※P1のSelectedEntry消費タスクと整合を取ること</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">後方弾の形と色の指定が無視されている</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>Player.FireBackfire</code>（<code>Player.cs:850-855</code>）は「前方弾と区別」と称して <code>BulletShape.Diamond</code> と穢れ寄り tint を渡すが、<code>Bullet._Draw</code> の自機弾分岐（<code>Bullet.cs:520-556</code>）は <strong>Dart/Petal/Seeker しか switch せず <code>Tint</code> も敵弾分岐でしか読まない</strong>。結果ただの水色円で描かれ<strong>引数2つが完全に死んでいる</strong>。加えて渡している色 <code>(0.86,0.42,0.66)</code> は敵弾色 <code>(0.882,0.447,0.675)</code> とほぼ同一で、活かすと今度は敵弾と紛らわしい。(a)<code>!IsEnemy</code> に <code>case BulletShape.Diamond</code> を足す＋<strong>色は淡い金 <code>(0.98,0.86,0.55)</code> へ変更</strong>（味方弾と分かることを優先）、または(b)引数を落としてコメントを実態に合わせる。(a)推奨</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">グレイズを教えるチュートリアルが無い</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">StageZero は移動/撃つ/低速/回避/ボム/浄化/やさしさ全開の7項目を達成条件つきで教えるのに、<strong>グレイズだけ独立ステップが無い</strong>（<code>StageZero.cs:123</code> で一言触れるのみ）。半径11px・やさしさ+0.07・コンボ猶予リフレッシュを持つ中核レバーで「弾に近づくほど得」という攻めの動機そのものなのに、言葉で1回聞くだけでは身に付かない（§9 説明より体験）。低速(phase5-6)と回避(7-8)の間に枠を1つ挿入、達成条件は <code>GameManager.GrazeCount</code>（公開済み）の増分で5回</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">あそびかた・バックログがマウス非対応</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">他8画面は <code>UiKit.BeginHotspots</code> でマウス対応済みだが、<code>HowToPlay.cs:65-77</code> と <code>Backlog.cs:114-124</code> だけ<strong>右クリックで閉じられずホイールも効かない</strong>。<code>Pad.MouseRightClick()</code>／<code>Pad.WheelDelta()</code> を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">シェイクスピア引用の三段仕掛けが二段しか無い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典（<code>docs/【最新】…まとめ.md:80-86</code>）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（<code>StageAkari.cs:166</code>）と <code>Cowards die...</code>（<code>Final.cs:107</code>）の二つだけで、<strong>①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない</strong>。正典が泣き所と名指しする <code>&quot;to thine own self be true&quot;</code> は全編未使用。<code>StageRei.cs:165-166</code> の間に①（無害な衒学 <code>All the world's a stage.</code>）、<code>Epilogue.cs:140</code> あたりに③を追加。文面案は監査報告のP1-2にあり</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">排他フォーク/振り直し一式が到達不能な死にコード</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">単Lvノード方式への移行で<strong>カタログ全60+ノードの <code>ExclusiveWith</code> が全て空</strong>（<code>GameManager.cs:350</code> のコメント自身が「排他は全撤廃」と明言）。よって <code>IsSealed</code> は常に false で、<code>RespecRefund</code>/<code>RespecFee</code>/<code>TryRespec</code>/<code>TotalPaid</code> と <code>Shop.RespecStep</code>(679-700)/<code>DrawRespecPanel</code>(1662-1765・約100行)/<code>_respecArmed</code> 状態機械/<code>sealed_</code> 分岐が<strong>全て到達不能</strong>。過去の <code>_unlocked</code>・<code>BackfireTurnRate</code> と同種でずっと大規模（Shop 1955行のうち100行超）。復活予定が無いなら削除、あるなら宣言部に「現在全ノード未使用＝respec経路は到達不能」と明記して次の読者を守る。<strong>要ユーザー判断</strong></p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">FINAL導入が4行でクライマックスの助走が無い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">STAGE1〜3は各面60〜80行なのに FINAL は導入4行（<code>StageMina.cs:33-45</code>）＋ボス邂逅4行（<code>BossMina.cs:60-66</code>）のみ。3面かけて上ってきた頂点が<strong>全編で最も台詞が薄く</strong>、「なぜ暴走したか」を体感せずボス戦に入る。Intro を「無音バナー→ミナの壊れた声→少年の決意」の9〜11行へ拡張し、三人ぶんの穢れが返ってくる実感（レイ/あかり/こはるの声の断片）を挿む＝<code>Final.cs</code> の「レイの。あかりの。こはるの。」が回収になる。<strong>who=2 は <code>otherName</code> 固定と衝突するので who=4（投稿）で流すのが実装上安全</strong>。文面案は監査報告のP1-1にあり</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">難易度の賭け金と見返りが釣り合っていない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">報酬は Easy0.7/Normal1.0/Hard1.4/Lunatic2.2（<code>GameManager.cs:665</code>）だが、負荷は弾数 0.38→0.7→1.1→<strong>1.9</strong>、弾速0.62→1.18、HPバー2→6（<code>:55-60,68-69</code>）。<strong>Lunaticは弾数がNormalの2.7倍・HPバー1.5倍なのに報酬2.2倍</strong>で残機はHardと同じ3。選ぶ理由が実質「解禁記録のため」だけになっている。<code>DifficultyImpressionMulFor</code> の Lunatic 2.2→<strong>3.0</strong>、Hard 1.4→<strong>1.6</strong>（ボスHP・弾数は既存方針どおり触らない）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">こはるの「怒り＝他責」が一度も描かれない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典はこはるの穢れを「無力感が『あかりのせい』という<strong>怒り</strong>（他責）になって病む」と定義（<code>docs/【最新】…まとめ.md:94,103</code>）。だが実装で他責が出るのは <code>BossKoharu.cs:125</code> の中継1行だけで、<strong>怒りそのものが一度も描かれない</strong>＝中継が「無かった感情」を指して決定打が空振りする。Cameo（<code>StageKoharu.cs:105-109</code>）は全編無邪気で <code>KPale</code>（蒼白・定義済み）も未使用。CameoTalk3 に無邪気が一瞬だけ裏返る1往復を追加（<strong>あかりの名は出さない</strong>＝Epilogueの交差点回収を先食いしないため「あの人」止まり）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Hub帰還会話がステージ側の段階設計を逆転させている</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">STAGE1〜3の Clear はミナの疑いが段階的に上がる設計（訝らない→問う→問うのをやめる）で <code>StageRei.cs:166</code> は「訝りゼロ＝上り坂の起点」と明記されているのに、直後の <code>Hub.cs:955</code> で「エスパーか何かで?」と<strong>本編より踏み込んだ疑い</strong>を出す。順序が逆転して段階設計が壊れている。Hub側を疑いでなく感心に落とす（「……お見事です。」）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ミナの「小さな願い」が1回きりで伏線にならない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典 EpicB:59-60 は「ミナ固有の小さな願いを一つ置く（例:いつか現実の空を見てみたい）。これは叶わない＝静かな代償」と設計。実装は <code>StageRei.cs:162-165</code> の1回だけで<strong>以降STAGE2・3・FINAL・Epilogueで一度も再来せず</strong>、回収もされないので代償が機能していない。(a)<code>StageKoharu.cs:157</code> 前に短い再来、(b)<code>Epilogue.cs:159</code> 前後に叶わないままの一言を置く。文面案は監査報告のP3-11にあり</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">トレーニングのスキルタブが画面右端で見切れる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">閉状態は <code>_slide=0</code> → <code>PanelX = W(1280)</code> なので <code>tabX = PanelX - 96 = 1184</code>、タブ矩形が x=1184〜1280 と<strong>画面右端ぴったり</strong>で内側マージンが無く13pxラベルが切れて見える（<code>TrainingRoot.cs:319-325</code>）。クリックは可能なので見た目のみ</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">少年の二人称がFINALだけ揺れる</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典で少年のミナへの二人称は<strong>「きみ」固定</strong>（<code>docs/【最新】…まとめ.md:70,218</code>）で全編そうなっているのに、<code>BossMina.cs:64-65</code> だけ「<strong>お前</strong>に光を握らせて」「<strong>お前</strong>を一人にする方が」の2箇所。一点収束のクライマックス独白で人称が揺れると読者が引っかかる。<code>:64</code> を「きみに」へ（<code>:65</code> は感情の高ぶりとして残す判断もあり）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ショップの「おすすめ」が所持状況を見ていない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>RecommendedNow()</code>（<code>Shop.cs:126-131</code>）はクリア状況の4分岐のみで、<strong>所持強化・所持金・使用中ショットモードを一切参照しない</strong>。ホーミング一本の人に拡散を勧め、既に買っていても同じ推薦が出続ける。推薦から所持済みidを除外（1行）＋<code>SelectedShotMode</code> に対応する系統の未所持ノードを先頭に差し込む＋買える物を優先ソート</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">リトライ長押し0.7sが反復プレイで重い</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>RetryHold.HoldTime = 0.7f</code>。誤爆防止は正しいがゲームオーバー以外（ノーミス狙い・タイムアタックでのやり直し）が最も反復数が多く、そこが一番重い。充填チップ（<code>Hud.DrawRetryHoldChip</code>）が出るので視覚的に取り消せる＝<strong>0.45s へ短縮しても安全</strong></p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">未使用カウンタとコメントの嘘</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>GrazeCount</code>(<code>GameManager.cs:111</code>) は「チュートリアルのグレイズ検出に使う」とコメントするが<strong>読み手が存在しない</strong>（インクリメントのみ）。同様に <code>DodgeGrazeCount</code>(<code>:1134</code>)・<code>LastClearFollowers</code>(<code>:318</code>)・<code>StagePlays</code>(<code>:275</code>) が代入/集計のみ、<code>AddBomb(int)</code>(<code>:1174</code>) は<strong>参照ゼロ</strong>。最低限 <code>GrazeCount</code> の嘘コメントを直す（※上の「グレイズチュートリアル」タスクを実装するなら <code>GrazeCount</code> は読み手ができるので、そちらを先にやってからこのタスクを見直すこと）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">CS8602警告4件を解消してゼロ警告にする</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>StageRei.cs:211</code>/<code>StageAkari.cs:198</code>/<code>StageKoharu.cs:192</code>/<code>StageMina.cs:76</code> の同一パターン。同じ <code>_Process</code> 内で <code>Hud?.SetElapsed(...)</code> と <code>Hud.ShowBanner(...)</code> が混在し、<code>?.</code> がフロー解析にnull可能と判断させている。<code>Hud</code> は <code>public Hud Hud = null!;</code> で各Rootが <code>AddChild</code> 前に必ず代入するので<strong>実行時nullにはならない</strong>。<code>?.</code> を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title"><code>TrainingDummy.HpRatio</code> が基底を隠している</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>TrainingDummy.cs:78</code> の <code>HpRatio</code> が <code>Enemy.HpRatio</code> を暗黙に隠す（CS0108）。<code>Enemy</code> 型変数越しに扱うコード（<code>enemies</code> グループ走査・HUDのボスHPバー等）があると<strong>基底側の値が読まれて表示が食い違う</strong>。今は実害ゼロだが隠蔽は事故の温床。<code>Enemy</code> 側を <code>virtual</code> 化して <code>override</code> に（見た目だけ消す <code>new</code> は避ける）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Epilogueの死因回収が1行で長く二段落としが潰れている</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>Epilogue.cs:149</code> が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて<strong>「反復→気づき」の間が送りボタンに食われる</strong>。2行に割って体言止めの余韻を1画面で完結させる</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">FINALの投稿弾がミナ自身の言葉になっていない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>StageMina.cs:193-197</code> の PostWords が <code>StageKoharu.cs:507</code> とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに<strong>ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない</strong>。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">小話1: 道中の掛け合い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 <code>Mid</code> と同型の配列を足し、道中ウェーブの合間に <code>Step_Lines</code> で挟む。<strong>器は既存＝新規実装不要</strong>。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">小話2: ハブの複数パターン化</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §1 を実装。現行 <code>ReturnDialog</code>（<code>Hub.cs:945</code>・クリア直後1回のみ）は温存し、再訪時に <code>IdleDialogs(id)</code>＋<code>SmallTalks</code> から抽選する経路を追加。<code>GameManager</code> に既読インデックス（HashSet&lt;int&gt;）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">小話3: ショップの一言</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §3 を実装。<strong>表示の器が無いので新設</strong>（<code>Hub.cs:900-903</code> のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">小話4: トレーニング場の独り言</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §4 を実装。<code>TrainingRoot.cs</code> は会話系が皆無なので<strong>器を新設</strong>（<code>DrawUi</code> の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">小話5: タイトル画面のひとこと</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §5 を実装。既存 <code>Ticker</code>（<code>TitleMenu.cs:22-27</code>・投稿形式）はそのまま残し、ミナのひとことを別配列で画面下に薄く表示。起動時に1つ、無操作N秒ごとに1つ。メニュー操作の邪魔をしない</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">新奥義バランス査定</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">集中の光（<code>Player.cs</code> FocusFireHitsPerStack=8）・連鎖の光（<code>Bullet.cs</code> 跳弾×0.4）・バズ壁の硬さ（<code>EnemySpec.cs</code> パネル5×インク3）を実装値で査定し、強すぎ/弱すぎを具体的な数値変更として反映</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">M5 設計書との乖離最終チェック</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">design-gap で乖離レポートを更新し、意図的な差分かを仕分け。要対応分は TODO に積む</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">タスク管理.md の状態を実装に合わせる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">#22/#27/#11 は実装済みなのに管理表が ☐/◐ のまま。実コードを正として状態欄と補足を更新（このズレが自動開発の空振りを生む）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">#15 ボスラッシュ制約</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">ボスラッシュを回復なし・ボム復活なしに。<strong>モード本体が未実装</strong>（<code>src/</code> に BossRush の実装なし）なので、まずモードの有無を確認し、無ければ実装規模を見て BLOCKED 判断してよい</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">未発注イラスト</span>
-          <span class="worker">artist</span>
-        </div>
-        <p class="accept">ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">タスク管理.md の状態を実装に合わせる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/タスク管理.md</code> の Epic G（#27/#11）を実コード確認済みの ☑ へ更新（<code>Hub.cs</code>のSNSタイムライン化、<code>StageImagery.cs</code>のツイート風カード実装を確認）。サマリ行・Epic見出しも合わせて更新</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">M5 設計書との乖離最終チェック</span>
+          <span class="worker">qa</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/20260613/乖離レポート_20260813.md</code>を新規作成。今日変更した8ファイルを優先照合、重大乖離0件・軽微0件・要確認2件（演出解釈のみ、破綻なし）。FINAL手前のStageMina/BossMina役割反転バトルが過去2レポートに未記載だった漏れを今回初めて棚卸し（正典と矛盾なし＝設計書側が古いだけ）。TODOへの追加なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
+          <span class="worker">qa</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) このセッション用にGodot 4.6.3 mono Linuxバイナリを新規セットアップ（従来このコンテナにGodotが無くQA実行不能だった）しヘッドレスQAを初実施。進行テスト（Prologue→Stage0、200s予算内でHub以降未到達）＋当たり判定テスト（Rei/Akari/Koharu×Easy・Normal、Rei×Hard）計8走行で<strong>実害のある不具合ゼロ</strong>（例外/当たり判定異常/弾リーク/FPS低下すべてクリーン）。Stage0内の<code>stuck</code>警告2件はQAオートパイロットがShift長押し/回避を意図的に行わないための誤検知と判定（実プレイでは60s SafetyTimeoutで自然に進行、実害なし）。Lunatic・Akari/Koharu Hard・Stage0以降の全シーンは未走査（時間配分で優先度落ち、別走査を推奨）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">新奥義バランス査定</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) 集中の光＝据え置き（原因は対象外の<code>Enemy.cs</code>/<code>Panel.cs</code>側、根拠コメント追記）。連鎖の光＝射程無制限が強すぎたため<code>ChainRange=170px</code>を追加。バズ壁＝耐久は妥当だが報酬(points)が手間に見合っていなかったため150→220。副産物として「パネル持ち敵にダメージ強化が無効」という大きめの発見をTODO先頭に起票。※Player.cs編集で既存フィールド<code>_focusTarget</code>/<code>_focusHits</code>が誤って消えビルド不能になっていたため指揮官側で復元・ビルド確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話5: タイトル画面のひとこと</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/小話集_v1.md</code> §5を<code>TitleMenu.cs</code>へ実装。既存<code>Ticker</code>は無変更。起動時1回＋無操作10秒ごとに1回、画面下中央帯（x≈290-990）にミナ色40%不透明度で薄く表示。Hotspot登録なし＝メニュー操作に無関係</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話4: トレーニング場の独り言</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/小話集_v1.md</code> §4を<code>TrainingRoot.cs</code>へ実装。DPS計器直下(x430-774,y224-320)にトースト器を新設。入場時1回、命中ごとに10%抽選（表示中は再抽選しない）、無入力7秒で放置トーク（入力復帰まで連呼しない）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話3: ショップの一言</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/小話集_v1.md</code> §3を<code>Shop.cs</code>へ実装。既存の<code>Toast()</code>機構を流用（新規UI不要と判明）。入店時1回、購入時25%で確認メッセージの代わりに一言、退店は「一言→0.8秒遅延→実遷移」の<code>_exitPending</code>ガード付き。オートプレイ(<code>--qa</code>)でのデッドロックを避けるよう判定順を配慮</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">小話2: ハブの複数パターン化</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/小話集_v1.md</code> §1のIdleDialogs/SmallTalksを<code>Hub.cs</code>へ実装。クリア直後は既存<code>ReturnDialog</code>のまま、それ以外の入場は50%抽選で<code>TryStartIdleSmallTalk()</code>が未読優先で1本再生（全既読ならリセット）。既読は<code>GameManager</code>に<code>HashSet&lt;string&gt;</code>で永続化（Save/Load/ResetPersistent対応、後方互換ガード済み） | scenario | (完了 2026-08-13) <code>docs/小話集_v1.md</code> §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の<code>Mid</code>/<code>BossTalk</code>/<code>MidEnd</code>配列に<code>.Concat().ToArray()</code>で追記する形で組み込み、既存台詞は無変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">FINALの投稿弾がミナ自身の言葉になっていない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageMina.cs:201-209</code> PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Epilogueの死因回収が1行で長く二段落としが潰れている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Epilogue.cs:149</code> の1行を「——」の前で2つの<code>O(&quot;地&quot;,...)</code>呼び出しに分割。テキスト内容・語順は無変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>TrainingDummy.HpRatio</code> が基底を隠している</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Enemy.cs:75</code> の <code>HpRatio</code> を <code>virtual</code>化、<code>TrainingDummy.cs:78</code> を <code>override</code>化。フルリビルドで <strong>0 Warning / 0 Error</strong> を確認（ソリューション全体の警告が今回でゼロに）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">CS8602警告4件を解消してゼロ警告にする</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageRei/Akari/Koharu/Mina.cs</code> の <code>Hud?.SetElapsed(...)</code> を <code>Hud.SetElapsed(...)</code> へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">未使用カウンタとコメントの嘘</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>GameManager.cs:110</code> の <code>GrazeCount</code> コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。<code>DodgeGrazeCount</code>等は受入条件通りスコープ外のため未変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">リトライ長押し0.7sが反復プレイで重い</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>RetryHold.cs:10</code> <code>HoldTime</code> を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ショップの「おすすめ」が所持状況を見ていない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Shop.cs:126-175</code> <code>RecommendedNow()</code> を書き換え。所持済みid除外、<code>SelectedShotMode</code>対応系統の未所持入り口ノードを先頭差し込み、<code>CanPurchase()</code>で買える物優先の安定ソート、全所持済み時は前段階へフォールバック</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">少年の二人称がFINALだけ揺れる</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>BossMina.cs:64</code>「お前に」→「きみに」。<code>:65</code>は感情の高ぶりとして現状維持（受入条件通り）。<code>StageMina.cs</code>の類似文言は対象外のため未変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">トレーニングのスキルタブが画面右端で見切れる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>TrainingRoot.cs:319</code>の<code>tabX</code>計算を<code>Mathf.Min(PanelX-96f, W-96f-6f)</code>へ変更し、閉状態で画面右端から6pxの内側マージンを確保。開状態のパネル内位置には影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ミナの「小さな願い」が1回きりで伏線にならない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) (a)(b)両方実装。<code>StageKoharu.cs:164-165</code>に軽い再来（まだ願っている、少年もまた流す）、<code>Epilogue.cs:164</code>に叶わないままの代償（「どなたかの、空の写真で」＝他人の投稿越しにしか空を知らない）を追加。願いが叶ったとは書いていない</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hub帰還会話がステージ側の段階設計を逆転させている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Hub.cs:955</code> の「……エスパーか何かで?」を「……お見事です。」へ変更。STAGE1 Clear（<code>StageRei.cs</code>）の「訝りゼロ＝上り坂の起点」より踏み込んだ疑いをHub側が出す逆転を解消</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">こはるの「怒り＝他責」が一度も描かれない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageKoharu.cs:104-113</code> の <code>CameoTalk3</code> に無邪気→他責の怒り（KPale・「あの人のせいだ」名は伏せる）→また無邪気（KFace）の裏返り一往復を追加。<code>BossKoharu.cs</code>の中継行に先立つ伏線として機能</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">難易度の賭け金と見返りが釣り合っていない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>GameManager.cs:665</code> <code>DifficultyImpressionMulFor</code> の Hard 1.4→1.6、Lunatic 2.2→3.0。Easy/Normal・負荷パラメータ（弾数/弾速/HPバー/残機）は無変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">FINAL導入が4行でクライマックスの助走が無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageMina.cs</code> Introを4行→10行へ拡張。who=4（投稿）でレイ/あかり/こはるの声の残響を挿み、<code>Final.cs</code>の「レイの。あかりの。こはるの。」の予感を作った（文字列は意図的に非一致＝DropLine検出に無影響）。骨格（無音バナー→壊れた声→決意）と既存4行は不変</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">シェイクスピア引用の三段仕掛けが二段しか無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageRei.cs:166-167</code>に1回目「&quot;All the world's a stage.&quot;」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。<code>Epilogue.cs:159-162</code>に3回目「&quot;To thine own self be true.&quot;」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（<code>StageAkari.cs:166</code>）と<code>Final.cs</code>の既存引用は無変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あそびかた・バックログがマウス非対応</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>HowToPlay.cs</code>/<code>Backlog.cs</code> に <code>Pad.MouseRightClick()</code>（閉じる）と <code>Pad.WheelDelta()</code>（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">後方弾の形と色の指定が無視されている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) (a)案。<code>Bullet.cs</code> に <code>DrawPlayerDiamond</code> を追加し <code>!IsEnemy</code> switch に <code>case Diamond</code> を接続。淡い金 <code>BackMid(0.98,0.86,0.55)</code> の進行方向尖り菱形で敵弾/他3モードと明確に区別。<code>Player.cs</code> の <code>FireBackfire</code> tint も同色へ揃えた</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">死亡時にチェックポイントから再開できない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>ReiRoot.cs</code>/<code>AkariRoot.cs</code>/<code>KoharuRoot.cs</code> の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝<code>SelectedEntry=Boss</code>をセットしてreload（各<code>_step</code>＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。<code>--boss</code>デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。<code>GameManager.cs</code>のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ステージ途中でハブへ戻れない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>PauseMenu.cs</code> の <code>ItemsJp</code> に「ハブへもどる」を「タイトルへ」の直前へ追加（<code>HubReturnAction = SlotCount+4</code>）。<code>RetryEnabled</code> と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て <code>AutoSave()→Pool.DespawnAll()→Hub.tscn</code> を実行</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">汚染ゲージの説明が実装と食い違う</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) (a)案。<code>HowToPlay.cs:222,264</code> の説明文を実態（ステージ進行連動の固定演出、選択で変わらない）に合わせて書き換え。「救うほど濁る」「表裏一体」というトレードオフ誤解表現を削除、「澄んだ心I/II」は上昇を緩める効果だけ明記。ロジックは無変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">Hubリプライがエピローグの二段落としを先に割る</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Hub.cs:1003</code> の @akari 台詞から「庇って」「来なくなった」を削除し声の類似（伏線③）のみ残す形に改稿。<code>Epilogue.cs:145,148-149</code> で初めて死因を再構成する二段落とし演出が先に割れなくなった</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ミナが汚染を引き受ける選択の一行が無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageKoharu.cs:162-164</code> の <code>Clear</code> 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(<code>mina_doubt</code>/<code>mina_worried</code>/<code>mina_smile</code>)は既存アセットのみ使用、<code>Final.cs</code> 側との接続確認は別タスク送り</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">通常グレイズが通貨を生まない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>AddGraze()</code>（<code>GameManager.cs:1118</code>）に <code>GainImpression(1)</code> を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は <code>Player.OnGrazeAreaEntered</code> の <code>_hitInvincible</code> スキップと1弾1回課金（<code>Grazed</code>フラグ）で既存担保</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ボス戦が火力投資に反応しない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) (b)案採用。<code>Enemy.cs</code> の <code>TickBossPhase</code>（<code>BossPhase.Exposed</code> 分岐）で <code>_windowDamage &gt;= ExposedDamageCap</code> を検知したら <code>_phaseT &gt;= VulnDur</code> を待たず即 <code>EnterReclose()</code> へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -480,6 +440,46 @@
   <section>
     <h2>保留 — 自動では進められない</h2>
     <ol class="tasks">
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">未発注イラスト</span>
+          <span class="worker">artist</span>
+        </div>
+        <p class="accept">ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）。<code>gen-asset</code> skillはOpenAI gpt-image-2で生成するため <code>.openai_key.txt</code>（gitignore済のローカル認証情報）が必須だが、この夜間クラウド実行環境には存在しない（ユーザーのローカル環境にのみ想定される秘匿ファイル）。dotnet SDK/Godotバイナリと異なり公開ダウンロードでは代替できない＝環境側にAPIキーを用意してもらうか、ローカル環境での実行が必要</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">#15 ボスラッシュ制約</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">ボスラッシュを回復なし・ボム復活なしに、という制約タスクだが、grep で確認したところ<code>src/</code>・シーン内に BossRush/ボスラッシュ関連の実装が一切存在しない＝モード本体が未実装。<code>docs/タスク管理.md</code> Epic H の既存メモ（2026-07-05調査）とも一致：「先に『モード本体を作るか』の意思決定が必要」。制約だけを実装しても対象が無いので着手不能。要ユーザー判断</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
+          
+        </div>
+        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">排他フォーク/振り直し一式が到達不能な死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">単Lvノード方式への移行で全60+ノードの <code>ExclusiveWith</code> が全て空になり、<code>RespecRefund</code>/<code>RespecFee</code>/<code>TryRespec</code>/<code>TotalPaid</code> と <code>Shop.RespecStep</code>/<code>DrawRespecPanel</code>（約100行）/<code>_respecArmed</code> 状態機械/<code>sealed_</code> 分岐が全て到達不能。タスク文面自体が「削除するか、あるなら注記するか」を<strong>要ユーザー判断</strong>と明記しており、復活予定の有無は実コード調査だけでは分からない仕様判断のため実装せず据え置き</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">グレイズを教えるチュートリアルが無い</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">StageZero は移動/撃つ/低速/回避/ボム/浄化/やさしさ全開の7項目を達成条件つきで教えるのに、グレイズだけ独立ステップが無い（<code>StageZero.cs:123</code> で一言触れるのみ）。低速(phase5-6)と回避(7-8)の間に枠を1つ挿入、達成条件は <code>GameManager.GrazeCount</code> の増分で5回――という指定だが、<code>StageZero.cs</code> の <code>_phase</code> は0始まりの生の<code>int</code>で <code>switch(_phase)</code>（本体）と <code>OpForPhase(phase)</code>（HUD操作ヒント）の<strong>2箇所に同じ番号がハードコードされて一対一対応</strong>しており（<code>case 7</code>〜<code>case 15</code> が9ブロック）、中間に挿入するには両方のswitchでcase 7以降を全て+2で振り直す必要がある。約480行のステートマシンで達成条件のフラグ（<code>_t7ActivatedT</code>等）も番号に紐付いており、番号ズレは実行時のみ症状が出て<strong>ビルドでは検出できない</strong>（このコンテナはインタラクティブなプレイテストができない）。加えて「厳密にphase 6と7の間へ挿入」と「末尾へ追加（教える順序が変わるが安全）」のどちらを取るかは設計判断で、勝手に決めていいものではないと判断。人間の判断待ち：(a)番号振り直しでの中間挿入を許可する（要動作確認）、(b)安全側で末尾に追加する、(c)phase識別をenum化してから着手する別タスクに分割する、のいずれか指定してほしい</p>
+      </li>
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">8eff3aa</span><span>2026-08-14</span><span class="s">Fix three defects that broke input, fresh saves, and retry</span></li>
-      <li><span class="h">3ad5cbe</span><span>2026-08-14</span><span class="s">Let one nightly run work through several queue items</span></li>
-      <li><span class="h">231a25f</span><span>2026-08-13</span><span class="s">Audit the game from four angles and queue what needs fixing</span></li>
-      <li><span class="h">58700ca</span><span>2026-08-13</span><span class="s">Queue the small-talk work and park the pending story decisions</span></li>
-      <li><span class="h">f506c6e</span><span>2026-08-13</span><span class="s">Reconcile the dev queue with what is already built</span></li>
-      <li><span class="h">aa7cbc6</span><span>2026-08-13</span><span class="s">Give the epilogue a background per phase</span></li>
-      <li><span class="h">bc2c32b</span><span>2026-08-13</span><span class="s">Add progress dashboard and fix queue worker parsing</span></li>
-      <li><span class="h">3df5d8d</span><span>2026-08-13</span><span class="s">Add autonomous nightly dev pipeline</span></li>
+      <li><span class="h">67ced8f</span><span>2026-08-13</span><span class="s">auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）</span></li>
+      <li><span class="h">8e65cd3</span><span>2026-08-13</span><span class="s">auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）</span></li>
+      <li><span class="h">4b10b3d</span><span>2026-08-13</span><span class="s">auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）</span></li>
+      <li><span class="h">8a1bcc4</span><span>2026-08-13</span><span class="s">auto: WIP M5 設計書との乖離最終チェック</span></li>
+      <li><span class="h">5df1843</span><span>2026-08-13</span><span class="s">auto: BLOCKED パネル持ち敵にダメージ強化が一切効いていない（要ユーザー判断）</span></li>
+      <li><span class="h">87929bb</span><span>2026-08-13</span><span class="s">auto: M5 QA一巡（Godotヘッドレス環境を新規セットアップ、実害ゼロを確認）</span></li>
+      <li><span class="h">10ecc41</span><span>2026-08-13</span><span class="s">auto: WIP M5 全ステージ×全難易度QA一巡</span></li>
+      <li><span class="h">4e156c5</span><span>2026-08-13</span><span class="s">auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 15:43 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 20:33 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

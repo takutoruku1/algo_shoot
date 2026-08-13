@@ -21,6 +21,8 @@ public partial class Backlog : CanvasLayer
 
     private System.Action? _onClose;  // 閉じたとき1度だけ呼ぶ（ポーズから開いた場合の復帰など）
 
+    private const float WheelStep = 90f; // ホイール1ノッチあたりのスクロール量（Shop と同じ設計座標）
+
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always; // ポーズ中も動く
@@ -118,9 +120,13 @@ public partial class Backlog : CanvasLayer
         if (up) _scroll = Mathf.Min(_maxScroll, _scroll + step);
         if (down) _scroll = Mathf.Max(0f, _scroll - step);
 
-        // X / B / Esc、または開キー(L/Tab/Back)でも閉じる（トグル感覚）。
+        // マウスホイールでも縦スクロール（↑↓と同じ向き：上(+)＝過去へ／下(−)＝最新へ）。
+        _scroll = Mathf.Clamp(_scroll + Pad.WheelDelta() * WheelStep, 0f, _maxScroll);
+
+        // X / B / Esc、または開キー(L/Tab/Back)でも閉じる（トグル感覚）。右クリックでも閉じる。
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
-                    || Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Back);
+                    || Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Back)
+                    || Pad.MouseRightClick();
         if (back && !_backHeld) Close();
         _backHeld = back;
 

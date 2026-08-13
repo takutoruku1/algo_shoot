@@ -26,6 +26,30 @@ public partial class TitleMenu : Node2D
         ("@nobody_7","もういない"),
     };
 
+    // ── ミナのひとこと（小話5）docs/小話集_v1.md §5。Ticker（投稿形式）とは別枠。画面下に薄く添えるだけで、
+    //    メニュー操作には一切関与しない（Hotspot登録もクリック判定も無し）。
+    private static readonly string[] BootTalk =
+    {
+        "……おはようございます。今日も、来てくださったんですね。",
+        "起動、確認しました。ご主人様、お加減はいかがです。",
+        "はい、ミナです。ご用でしたら、下からどうぞ。",
+        "また来たんですか。……よろこんでますよ、わたくし。",
+        "準備はできております。あとは、押すだけです。",
+        "電源、ちゃんと落として寝ましたか。……疑っております。",
+    };
+
+    private static readonly string[] IdleTalk =
+    {
+        "……お迷いですか。急がなくて結構ですよ。",
+        "眺めているだけの時間も、悪くありませんね。",
+        "そこ、ずっと同じところですよ。矢印、ちゃんと動きます?",
+        "決めかねているなら、上から順で構いません。",
+        "…………まだ、いらっしゃいますか。",
+        "画面の前で固まらないでください。心配になります。",
+        "ここは、はじまりの前です。何度でも、ここに戻ってこられます。",
+        "お茶でも淹れてきては。冷める前に戻ってきてくださいね。",
+    };
+
     private int _sel;
     private bool _navHeld, _zHeld, _backHeld, _hasSave, _picking;
     private int _pick; // つづきから：選択中スロット(0..2)
@@ -42,6 +66,15 @@ public partial class TitleMenu : Node2D
     private double _t, _toastT;
     private string _toast = "";
     private bool _autoplay, _dived;
+
+    // ── 小話5（タイトルのひとこと）の表示・トリガー状態 ──
+    //   起動時に BootTalk から1つ、以後は無操作が続くたび IdleTalk から1つ。表示は DrawTalk() が画面下に薄く出す。
+    private const double TalkShowSec = 6.0;   // 1回の表示秒数
+    private const double IdleTalkSec = 10.0;  // これだけ無操作（上下/決定/戻る/クリック無し）が続いたら「放置」とみなす
+    private string _talk = "";
+    private double _talkT;
+    private double _idleTimer;    // 無操作の継続秒数。メニュー操作のいずれかで0にリセット。
+    private bool _idleTalkFired;  // このアイドル継続中に一度でも出したか（連呼防止。操作が戻るまで再発火しない）。
 
     // タイトルのキービジュアル＝画面全体を覆うフル16:9の1枚絵。
     //   ★顔・表情は一切動かさない（過去に笑顔モーフ/合成が"不気味"と強NG）。
@@ -94,6 +127,10 @@ public partial class TitleMenu : Node2D
             if (uargs[i] == "--demo" || uargs[i] == "--qa") _autoplay = true;
         }
         _sel = _hasSave ? 1 : 0;
+
+        // 小話5：起動時に1つ、ミナのひとことを画面下へ薄く出す（_rng は InitMotes() で Randomize 済み）。
+        _talk = BootTalk[_rng.RandiRange(0, BootTalk.Length - 1)];
+        _talkT = TalkShowSec;
     }
 
     // KV を完全静止の Sprite2D（最背面・アスペクト維持カバー）として敷く。
@@ -217,6 +254,7 @@ public partial class TitleMenu : Node2D
     {
         _t += delta;
         if (_toastT > 0) _toastT -= delta;
+        if (_talkT > 0) _talkT -= delta;
         UpdateMotes(delta);
         _lightLayer?.QueueRedraw(); // 流れる光を毎フレーム描き直す（顔/KVは静止のまま）
         if (_dived) { QueueRedraw(); return; }
@@ -240,6 +278,26 @@ public partial class TitleMenu : Node2D
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick(); // 右クリック＝もどる/キャンセル
         bool backEdge = back && !_backHeld;
+
+        // 小話5：無操作検知（上下/左右/決定/戻る/クリックのいずれかで即リセット＝メニュー操作の邪魔をしない）。
+        //   放置が IdleTalkSec 続いたら一度だけ発火。連呼を防ぐため、操作が戻って再びリセットされるまで再発火しない。
+        bool navAny = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_down")
+            || Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_right");
+        if (navAny || z || back || click)
+        {
+            _idleTimer = 0;
+            _idleTalkFired = false;
+        }
+        else
+        {
+            _idleTimer += delta;
+            if (_idleTimer >= IdleTalkSec && !_idleTalkFired)
+            {
+                _idleTalkFired = true;
+                _talk = IdleTalk[_rng.RandiRange(0, IdleTalk.Length - 1)];
+                _talkT = TalkShowSec;
+            }
+        }
 
         // 「はじめから」後の操作表示モード3択中：←→/↑↓で選び Z=決定（＝ゲーム開始）/ X=やめる。
         if (_choosingDisplay)
@@ -436,6 +494,7 @@ public partial class TitleMenu : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 30), "© 2026 algo project", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
 
         DrawTicker();
+        DrawTalk();
         DrawToast();
         if (_picking) DrawSlotPicker();
         if (_choosingDisplay) DrawDisplayPicker();
@@ -632,6 +691,16 @@ public partial class TitleMenu : Node2D
                 cx += UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6 + UiKit.TextW(UiKit.Zen, txt, UiKit.FontSmall) + gap;
             }
         }
+    }
+
+    // 小話5：ミナのひとことを画面下・中央帯に薄く1行だけ添える（ver/©表示・プロンプト・メニュー行の
+    //   いずれとも重ならない x≈290〜990 の空き帯）。Hotspot登録も無く、クリック判定・操作性には無関係。
+    private void DrawTalk()
+    {
+        if (_talkT <= 0 || string.IsNullOrEmpty(_talk)) return;
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        UiKit.Text(this, UiKit.Zen, new Vector2(W * 0.5f - 350f, H - 30f), _talk, UiKit.FontSmall,
+            new Color(UiKit.Mina, 0.40f), HorizontalAlignment.Center, 700f);
     }
 
     private void DrawToast()

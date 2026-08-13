@@ -1,238 +1,45 @@
 {
-  "generated": "2026-08-13 15:43 UTC",
+  "generated": "2026-08-13 20:33 UTC",
   "counts": {
-    "todo": 37,
+    "todo": 0,
     "wip": 0,
-    "blocked": 9,
-    "done": 7
+    "blocked": 14,
+    "done": 39
   },
-  "percent": 16,
-  "todo": [
-    {
-      "priority": "P1",
-      "title": "ボス戦が火力投資に反応しない",
-      "worker": "game-designer",
-      "accept": "`ExposedDamageCap = 100`（`Enemy.cs:64`）＝無防備窓1回でHPバー1本ぶんが上限。**どれだけ強化してもNormalは最低4サイクル・Lunatic6・ミナはEasyでも4／Luna8**が固定で、火力に投資しても短縮されない。奥義を買うほど窓で \"MAX\" が出て弾が吸われるだけになる（§2-1 リスクとリターンの比例が切れている）。(b)案が安い＝**キャップ到達で窓を早期終了して次サイクルへ即移行**（窓4.0sの残りを待たせない）。(a)案＝「1本＋超過分の50%を次バーへ持ち越し」は中規模。まず(b)でテンポだけでも返す"
-    },
-    {
-      "priority": "P1",
-      "title": "通常グレイズが通貨を生まない",
-      "worker": "game-designer",
-      "accept": "`AddGraze()`（`GameManager.cs:1107-1114`）はスコア+10とやさしさ+0.07のみで**インプレ加算ゼロ**。回避グレイズだけ `GainImpression(2)`（`:1123-1133`）。結果「弾に寄る」意味が経済的に無く、稼ぎが撃破コンボ一本化。グレイズ半径11pxという中核レバーが金銭リターンに繋がっていない（§2-4 攻めたほうが得）。`AddGraze()` に `GainImpression(1)` を追加（回避の優位は保つ）。被弾無敵中は `_hitInvincible` で既に止まるのでfarming対策は既存で足りる"
-    },
-    {
-      "priority": "P1",
-      "title": "ミナが汚染を引き受ける選択の一行が無い",
-      "worker": "scenario",
-      "accept": "正典 `docs/20260619/EpicB_物語設計案.md:59-61` が「pitfall P2回避＝『汚染を引き受けてでも3人を救う』選択を**ミナ自身の意志として一行描く**」と要求しているが、全実装を走査しても該当台詞が存在しない。ミナは最後まで受動的に濁らされるだけで、FINALの暴走が「彼女の選択の結果」にならない。`StageKoharu.cs:162` の Clear 末尾に3行追加（汚染を説明せず「重い」の身体感覚だけで置く＝show don't tell 遵守）。文面案は監査報告のP2-4にあり"
-    },
-    {
-      "priority": "P1",
-      "title": "Hubリプライがエピローグの二段落としを先に割る",
-      "worker": "scenario",
-      "accept": "`Hub.cs:1003` の @akari が「あたしを庇って、それきり来なくなった人に」と**中盤で少年の死を明示**する。正典の最重要ルール「少年の死は説明ではなく“もうログインして来ないこと”で描く」（`docs/【最新】…まとめ.md:34,42`）と、`Epilogue.cs:149` で初めて交差点を再構成する設計が、ここで先に割れる。ミナが読める画面なのに無反応なのも不自然。「庇って」「来なくなった」を消し、声の類似（伏線③）だけ残す：`(\"@akari\", \"……なんでだろ。あなたの言い方、誰かに似てる。……ずっと、あったかい人だったな。\")`"
-    },
-    {
-      "priority": "P2",
-      "title": "汚染ゲージの説明が実装と食い違う",
-      "worker": "game-designer",
-      "accept": "あそびかた画面が「**救うほど濁る**」「浄化と汚染は表裏一体」と説明する（`HowToPlay.cs:220,262-264`）が、実装はステージ固定値の線形補間を毎フレーム上書きするだけ（`ReiRoot.cs:104-108` 他）で**プレイヤーの選択は何も変えない**。レイを再プレイすれば汚染は0に戻る。「澄んだ心 I/II」も効果が読めないノードになっている。まず(a)**説明文を実態に合わせる**（「物語が進むほど濁る」に書き換えジレンマを謳わない）。本来の設計を活かす(b)可変化は別タスク"
-    },
-    {
-      "priority": "P2",
-      "title": "ステージ途中でハブへ戻れない",
-      "worker": "game-designer",
-      "accept": "ポーズメニュー（`PauseMenu.cs:32-33`）に**ハブへ戻る選択肢が無く**、脱出は残機0か「タイトルへ」だけ。難易度を変えたいだけでもタイトル→つづきから→ハブと数画面戻らされる。ItemsJp の「タイトルへ」の直前に「ハブへもどる」を追加。処理は `HandleGameOverExit` 後半（`AutoSave()`→`Pool.DespawnAll()`→`Hub.tscn`）を再利用でき、稼いだ心も保存される。誤爆防止に2段確認"
-    },
-    {
-      "priority": "P2",
-      "title": "死亡時にチェックポイントから再開できない",
-      "worker": "game-designer",
-      "accept": "リトライは `ReloadCurrentScene()` 一択で、ボスに負けると道中3波と全会話をやり直し（レイ20体・こはるMidWaveAだけで15体）。チェックポイント機構 `StageEntry` は既にあり中ボス撃破も永続記録されるのに**死亡時に使う処理が無い**＝「一度ハブへ帰る方が速い」という歪んだ最適解が生まれている。game-over時のみ `R：ボスからやり直す ／ Shift+R：最初から` を出し、前者は `SelectedEntry = Boss` をセットしてreload（既存の `_step = 10` 分岐に乗る）。※P1のSelectedEntry消費タスクと整合を取ること"
-    },
-    {
-      "priority": "P2",
-      "title": "後方弾の形と色の指定が無視されている",
-      "worker": "engineer",
-      "accept": "`Player.FireBackfire`（`Player.cs:850-855`）は「前方弾と区別」と称して `BulletShape.Diamond` と穢れ寄り tint を渡すが、`Bullet._Draw` の自機弾分岐（`Bullet.cs:520-556`）は **Dart/Petal/Seeker しか switch せず `Tint` も敵弾分岐でしか読まない**。結果ただの水色円で描かれ**引数2つが完全に死んでいる**。加えて渡している色 `(0.86,0.42,0.66)` は敵弾色 `(0.882,0.447,0.675)` とほぼ同一で、活かすと今度は敵弾と紛らわしい。(a)`!IsEnemy` に `case BulletShape.Diamond` を足す＋**色は淡い金 `(0.98,0.86,0.55)` へ変更**（味方弾と分かることを優先）、または(b)引数を落としてコメントを実態に合わせる。(a)推奨"
-    },
-    {
-      "priority": "P2",
-      "title": "グレイズを教えるチュートリアルが無い",
-      "worker": "game-designer",
-      "accept": "StageZero は移動/撃つ/低速/回避/ボム/浄化/やさしさ全開の7項目を達成条件つきで教えるのに、**グレイズだけ独立ステップが無い**（`StageZero.cs:123` で一言触れるのみ）。半径11px・やさしさ+0.07・コンボ猶予リフレッシュを持つ中核レバーで「弾に近づくほど得」という攻めの動機そのものなのに、言葉で1回聞くだけでは身に付かない（§9 説明より体験）。低速(phase5-6)と回避(7-8)の間に枠を1つ挿入、達成条件は `GameManager.GrazeCount`（公開済み）の増分で5回"
-    },
-    {
-      "priority": "P2",
-      "title": "あそびかた・バックログがマウス非対応",
-      "worker": "engineer",
-      "accept": "他8画面は `UiKit.BeginHotspots` でマウス対応済みだが、`HowToPlay.cs:65-77` と `Backlog.cs:114-124` だけ**右クリックで閉じられずホイールも効かない**。`Pad.MouseRightClick()`／`Pad.WheelDelta()` を一切参照していない。最近マウス対応を入れた文脈では一貫性の欠落が目立つ"
-    },
-    {
-      "priority": "P2",
-      "title": "シェイクスピア引用の三段仕掛けが二段しか無い",
-      "worker": "scenario",
-      "accept": "正典（`docs/【最新】…まとめ.md:80-86`）は「①序盤=ただの衒学 ②中盤=死・別れに寄っていると気づく ③ラスト=英語でしか言えなかった本音」の三段設計。実装は②（`StageAkari.cs:166`）と `Cowards die...`（`Final.cs:107`）の二つだけで、**①が無いので②が最初の引用になり「やけに別れに寄っている」という気づきが機能しない**。正典が泣き所と名指しする `\"to thine own self be true\"` は全編未使用。`StageRei.cs:165-166` の間に①（無害な衒学 `All the world's a stage.`）、`Epilogue.cs:140` あたりに③を追加。文面案は監査報告のP1-2にあり"
-    },
-    {
-      "priority": "P2",
-      "title": "排他フォーク/振り直し一式が到達不能な死にコード",
-      "worker": "engineer",
-      "accept": "単Lvノード方式への移行で**カタログ全60+ノードの `ExclusiveWith` が全て空**（`GameManager.cs:350` のコメント自身が「排他は全撤廃」と明言）。よって `IsSealed` は常に false で、`RespecRefund`/`RespecFee`/`TryRespec`/`TotalPaid` と `Shop.RespecStep`(679-700)/`DrawRespecPanel`(1662-1765・約100行)/`_respecArmed` 状態機械/`sealed_` 分岐が**全て到達不能**。過去の `_unlocked`・`BackfireTurnRate` と同種でずっと大規模（Shop 1955行のうち100行超）。復活予定が無いなら削除、あるなら宣言部に「現在全ノード未使用＝respec経路は到達不能」と明記して次の読者を守る。**要ユーザー判断**"
-    },
-    {
-      "priority": "P2",
-      "title": "FINAL導入が4行でクライマックスの助走が無い",
-      "worker": "scenario",
-      "accept": "STAGE1〜3は各面60〜80行なのに FINAL は導入4行（`StageMina.cs:33-45`）＋ボス邂逅4行（`BossMina.cs:60-66`）のみ。3面かけて上ってきた頂点が**全編で最も台詞が薄く**、「なぜ暴走したか」を体感せずボス戦に入る。Intro を「無音バナー→ミナの壊れた声→少年の決意」の9〜11行へ拡張し、三人ぶんの穢れが返ってくる実感（レイ/あかり/こはるの声の断片）を挿む＝`Final.cs` の「レイの。あかりの。こはるの。」が回収になる。**who=2 は `otherName` 固定と衝突するので who=4（投稿）で流すのが実装上安全**。文面案は監査報告のP1-1にあり"
-    },
-    {
-      "priority": "P2",
-      "title": "難易度の賭け金と見返りが釣り合っていない",
-      "worker": "game-designer",
-      "accept": "報酬は Easy0.7/Normal1.0/Hard1.4/Lunatic2.2（`GameManager.cs:665`）だが、負荷は弾数 0.38→0.7→1.1→**1.9**、弾速0.62→1.18、HPバー2→6（`:55-60,68-69`）。**Lunaticは弾数がNormalの2.7倍・HPバー1.5倍なのに報酬2.2倍**で残機はHardと同じ3。選ぶ理由が実質「解禁記録のため」だけになっている。`DifficultyImpressionMulFor` の Lunatic 2.2→**3.0**、Hard 1.4→**1.6**（ボスHP・弾数は既存方針どおり触らない）"
-    },
-    {
-      "priority": "P3",
-      "title": "こはるの「怒り＝他責」が一度も描かれない",
-      "worker": "scenario",
-      "accept": "正典はこはるの穢れを「無力感が『あかりのせい』という**怒り**（他責）になって病む」と定義（`docs/【最新】…まとめ.md:94,103`）。だが実装で他責が出るのは `BossKoharu.cs:125` の中継1行だけで、**怒りそのものが一度も描かれない**＝中継が「無かった感情」を指して決定打が空振りする。Cameo（`StageKoharu.cs:105-109`）は全編無邪気で `KPale`（蒼白・定義済み）も未使用。CameoTalk3 に無邪気が一瞬だけ裏返る1往復を追加（**あかりの名は出さない**＝Epilogueの交差点回収を先食いしないため「あの人」止まり）"
-    },
-    {
-      "priority": "P3",
-      "title": "Hub帰還会話がステージ側の段階設計を逆転させている",
-      "worker": "scenario",
-      "accept": "STAGE1〜3の Clear はミナの疑いが段階的に上がる設計（訝らない→問う→問うのをやめる）で `StageRei.cs:166` は「訝りゼロ＝上り坂の起点」と明記されているのに、直後の `Hub.cs:955` で「エスパーか何かで?」と**本編より踏み込んだ疑い**を出す。順序が逆転して段階設計が壊れている。Hub側を疑いでなく感心に落とす（「……お見事です。」）"
-    },
-    {
-      "priority": "P3",
-      "title": "ミナの「小さな願い」が1回きりで伏線にならない",
-      "worker": "scenario",
-      "accept": "正典 EpicB:59-60 は「ミナ固有の小さな願いを一つ置く（例:いつか現実の空を見てみたい）。これは叶わない＝静かな代償」と設計。実装は `StageRei.cs:162-165` の1回だけで**以降STAGE2・3・FINAL・Epilogueで一度も再来せず**、回収もされないので代償が機能していない。(a)`StageKoharu.cs:157` 前に短い再来、(b)`Epilogue.cs:159` 前後に叶わないままの一言を置く。文面案は監査報告のP3-11にあり"
-    },
-    {
-      "priority": "P3",
-      "title": "トレーニングのスキルタブが画面右端で見切れる",
-      "worker": "engineer",
-      "accept": "閉状態は `_slide=0` → `PanelX = W(1280)` なので `tabX = PanelX - 96 = 1184`、タブ矩形が x=1184〜1280 と**画面右端ぴったり**で内側マージンが無く13pxラベルが切れて見える（`TrainingRoot.cs:319-325`）。クリックは可能なので見た目のみ"
-    },
-    {
-      "priority": "P3",
-      "title": "少年の二人称がFINALだけ揺れる",
-      "worker": "scenario",
-      "accept": "正典で少年のミナへの二人称は**「きみ」固定**（`docs/【最新】…まとめ.md:70,218`）で全編そうなっているのに、`BossMina.cs:64-65` だけ「**お前**に光を握らせて」「**お前**を一人にする方が」の2箇所。一点収束のクライマックス独白で人称が揺れると読者が引っかかる。`:64` を「きみに」へ（`:65` は感情の高ぶりとして残す判断もあり）"
-    },
-    {
-      "priority": "P3",
-      "title": "ショップの「おすすめ」が所持状況を見ていない",
-      "worker": "game-designer",
-      "accept": "`RecommendedNow()`（`Shop.cs:126-131`）はクリア状況の4分岐のみで、**所持強化・所持金・使用中ショットモードを一切参照しない**。ホーミング一本の人に拡散を勧め、既に買っていても同じ推薦が出続ける。推薦から所持済みidを除外（1行）＋`SelectedShotMode` に対応する系統の未所持ノードを先頭に差し込む＋買える物を優先ソート"
-    },
-    {
-      "priority": "P3",
-      "title": "リトライ長押し0.7sが反復プレイで重い",
-      "worker": "game-designer",
-      "accept": "`RetryHold.HoldTime = 0.7f`。誤爆防止は正しいがゲームオーバー以外（ノーミス狙い・タイムアタックでのやり直し）が最も反復数が多く、そこが一番重い。充填チップ（`Hud.DrawRetryHoldChip`）が出るので視覚的に取り消せる＝**0.45s へ短縮しても安全**"
-    },
-    {
-      "priority": "P3",
-      "title": "未使用カウンタとコメントの嘘",
-      "worker": "engineer",
-      "accept": "`GrazeCount`(`GameManager.cs:111`) は「チュートリアルのグレイズ検出に使う」とコメントするが**読み手が存在しない**（インクリメントのみ）。同様に `DodgeGrazeCount`(`:1134`)・`LastClearFollowers`(`:318`)・`StagePlays`(`:275`) が代入/集計のみ、`AddBomb(int)`(`:1174`) は**参照ゼロ**。最低限 `GrazeCount` の嘘コメントを直す（※上の「グレイズチュートリアル」タスクを実装するなら `GrazeCount` は読み手ができるので、そちらを先にやってからこのタスクを見直すこと）"
-    },
-    {
-      "priority": "P3",
-      "title": "CS8602警告4件を解消してゼロ警告にする",
-      "worker": "engineer",
-      "accept": "`StageRei.cs:211`/`StageAkari.cs:198`/`StageKoharu.cs:192`/`StageMina.cs:76` の同一パターン。同じ `_Process` 内で `Hud?.SetElapsed(...)` と `Hud.ShowBanner(...)` が混在し、`?.` がフロー解析にnull可能と判断させている。`Hud` は `public Hud Hud = null!;` で各Rootが `AddChild` 前に必ず代入するので**実行時nullにはならない**。`?.` を落として統一すれば4件とも消える。本物の警告が埋もれないようゼロ警告にしておく価値がある"
-    },
-    {
-      "priority": "P3",
-      "title": "`TrainingDummy.HpRatio` が基底を隠している",
-      "worker": "engineer",
-      "accept": "`TrainingDummy.cs:78` の `HpRatio` が `Enemy.HpRatio` を暗黙に隠す（CS0108）。`Enemy` 型変数越しに扱うコード（`enemies` グループ走査・HUDのボスHPバー等）があると**基底側の値が読まれて表示が食い違う**。今は実害ゼロだが隠蔽は事故の温床。`Enemy` 側を `virtual` 化して `override` に（見た目だけ消す `new` は避ける）"
-    },
-    {
-      "priority": "P3",
-      "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
-      "worker": "scenario",
-      "accept": "`Epilogue.cs:149` が体言止め3連＋結論を1行に詰めており、ページ送りで2ページに割れて**「反復→気づき」の間が送りボタンに食われる**。2行に割って体言止めの余韻を1画面で完結させる"
-    },
-    {
-      "priority": "P3",
-      "title": "FINALの投稿弾がミナ自身の言葉になっていない",
-      "worker": "scenario",
-      "accept": "`StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く"
-    },
-    {
-      "priority": "P1",
-      "title": "小話1: 道中の掛け合い",
-      "worker": "scenario",
-      "accept": "`docs/小話集_v1.md` §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 `Mid` と同型の配列を足し、道中ウェーブの合間に `Step_Lines` で挟む。**器は既存＝新規実装不要**。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守"
-    },
-    {
-      "priority": "P1",
-      "title": "小話2: ハブの複数パターン化",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §1 を実装。現行 `ReturnDialog`（`Hub.cs:945`・クリア直後1回のみ）は温存し、再訪時に `IdleDialogs(id)`＋`SmallTalks` から抽選する経路を追加。`GameManager` に既読インデックス（HashSet<int>）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度"
-    },
-    {
-      "priority": "P2",
-      "title": "小話3: ショップの一言",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §3 を実装。**表示の器が無いので新設**（`Hub.cs:900-903` のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示"
-    },
-    {
-      "priority": "P2",
-      "title": "小話4: トレーニング場の独り言",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §4 を実装。`TrainingRoot.cs` は会話系が皆無なので**器を新設**（`DrawUi` の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと"
-    },
-    {
-      "priority": "P2",
-      "title": "小話5: タイトル画面のひとこと",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §5 を実装。既存 `Ticker`（`TitleMenu.cs:22-27`・投稿形式）はそのまま残し、ミナのひとことを別配列で画面下に薄く表示。起動時に1つ、無操作N秒ごとに1つ。メニュー操作の邪魔をしない"
-    },
-    {
-      "priority": "P1",
-      "title": "新奥義バランス査定",
-      "worker": "game-designer",
-      "accept": "集中の光（`Player.cs` FocusFireHitsPerStack=8）・連鎖の光（`Bullet.cs` 跳弾×0.4）・バズ壁の硬さ（`EnemySpec.cs` パネル5×インク3）を実装値で査定し、強すぎ/弱すぎを具体的な数値変更として反映"
-    },
-    {
-      "priority": "P1",
-      "title": "M5 全ステージ×全難易度QA一巡",
-      "worker": "qa",
-      "accept": "当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）"
-    },
-    {
-      "priority": "P2",
-      "title": "M5 設計書との乖離最終チェック",
-      "worker": "qa",
-      "accept": "design-gap で乖離レポートを更新し、意図的な差分かを仕分け。要対応分は TODO に積む"
-    },
-    {
-      "priority": "P2",
-      "title": "タスク管理.md の状態を実装に合わせる",
-      "worker": "engineer",
-      "accept": "#22/#27/#11 は実装済みなのに管理表が ☐/◐ のまま。実コードを正として状態欄と補足を更新（このズレが自動開発の空振りを生む）"
-    },
-    {
-      "priority": "P3",
-      "title": "#15 ボスラッシュ制約",
-      "worker": "engineer",
-      "accept": "ボスラッシュを回復なし・ボム復活なしに。**モード本体が未実装**（`src/` に BossRush の実装なし）なので、まずモードの有無を確認し、無ければ実装規模を見て BLOCKED 判断してよい"
-    },
-    {
-      "priority": "P3",
-      "title": "未発注イラスト",
-      "worker": "artist",
-      "accept": "ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "未発注イラスト",
+      "worker": "artist",
+      "accept": "ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）。`gen-asset` skillはOpenAI gpt-image-2で生成するため `.openai_key.txt`（gitignore済のローカル認証情報）が必須だが、この夜間クラウド実行環境には存在しない（ユーザーのローカル環境にのみ想定される秘匿ファイル）。dotnet SDK/Godotバイナリと異なり公開ダウンロードでは代替できない＝環境側にAPIキーを用意してもらうか、ローカル環境での実行が必要"
+    },
+    {
+      "priority": null,
+      "title": "#15 ボスラッシュ制約",
+      "worker": "engineer",
+      "accept": "ボスラッシュを回復なし・ボム復活なしに、という制約タスクだが、grep で確認したところ`src/`・シーン内に BossRush/ボスラッシュ関連の実装が一切存在しない＝モード本体が未実装。`docs/タスク管理.md` Epic H の既存メモ（2026-07-05調査）とも一致：「先に『モード本体を作るか』の意思決定が必要」。制約だけを実装しても対象が無いので着手不能。要ユーザー判断"
+    },
+    {
+      "priority": null,
+      "title": "パネル持ち敵にダメージ強化が一切効いていない",
+      "worker": null,
+      "accept": "（2026-08-13「新奥義バランス査定」の副産物）`Panel.cs:103` のインク削り（`Ink--`）が `Bullet.Damage` を一切参照しない。結果、`shot_power`/`rapid_power`/`spread_power`/`homing_power`/`focus_fire` 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（`Enemy.cs:468` で `Mathf.Clamp(b.Damage,1,4)` に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう`Panel.cs`を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること"
+    },
+    {
+      "priority": null,
+      "title": "排他フォーク/振り直し一式が到達不能な死にコード",
+      "worker": "engineer",
+      "accept": "単Lvノード方式への移行で全60+ノードの `ExclusiveWith` が全て空になり、`RespecRefund`/`RespecFee`/`TryRespec`/`TotalPaid` と `Shop.RespecStep`/`DrawRespecPanel`（約100行）/`_respecArmed` 状態機械/`sealed_` 分岐が全て到達不能。タスク文面自体が「削除するか、あるなら注記するか」を**要ユーザー判断**と明記しており、復活予定の有無は実コード調査だけでは分からない仕様判断のため実装せず据え置き"
+    },
+    {
+      "priority": null,
+      "title": "グレイズを教えるチュートリアルが無い",
+      "worker": "game-designer",
+      "accept": "StageZero は移動/撃つ/低速/回避/ボム/浄化/やさしさ全開の7項目を達成条件つきで教えるのに、グレイズだけ独立ステップが無い（`StageZero.cs:123` で一言触れるのみ）。低速(phase5-6)と回避(7-8)の間に枠を1つ挿入、達成条件は `GameManager.GrazeCount` の増分で5回――という指定だが、`StageZero.cs` の `_phase` は0始まりの生の`int`で `switch(_phase)`（本体）と `OpForPhase(phase)`（HUD操作ヒント）の**2箇所に同じ番号がハードコードされて一対一対応**しており（`case 7`〜`case 15` が9ブロック）、中間に挿入するには両方のswitchでcase 7以降を全て+2で振り直す必要がある。約480行のステートマシンで達成条件のフラグ（`_t7ActivatedT`等）も番号に紐付いており、番号ズレは実行時のみ症状が出て**ビルドでは検出できない**（このコンテナはインタラクティブなプレイテストができない）。加えて「厳密にphase 6と7の間へ挿入」と「末尾へ追加（教える順序が変わるが安全）」のどちらを取るかは設計判断で、勝手に決めていいものではないと判断。人間の判断待ち：(a)番号振り直しでの中間挿入を許可する（要動作確認）、(b)安全側で末尾に追加する、(c)phase識別をenum化してから着手する別タスクに分割する、のいずれか指定してほしい"
+    },
     {
       "priority": null,
       "title": "ショップ画面の毎フレーム再描画を実測してから判断",
@@ -290,6 +97,198 @@
   ],
   "done": [
     {
+      "priority": "P2",
+      "title": "タスク管理.md の状態を実装に合わせる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/タスク管理.md` の Epic G（#27/#11）を実コード確認済みの ☑ へ更新（`Hub.cs`のSNSタイムライン化、`StageImagery.cs`のツイート風カード実装を確認）。サマリ行・Epic見出しも合わせて更新"
+    },
+    {
+      "priority": "P2",
+      "title": "M5 設計書との乖離最終チェック",
+      "worker": "qa",
+      "accept": "(完了 2026-08-13) `docs/20260613/乖離レポート_20260813.md`を新規作成。今日変更した8ファイルを優先照合、重大乖離0件・軽微0件・要確認2件（演出解釈のみ、破綻なし）。FINAL手前のStageMina/BossMina役割反転バトルが過去2レポートに未記載だった漏れを今回初めて棚卸し（正典と矛盾なし＝設計書側が古いだけ）。TODOへの追加なし"
+    },
+    {
+      "priority": "P1",
+      "title": "M5 全ステージ×全難易度QA一巡",
+      "worker": "qa",
+      "accept": "(完了 2026-08-13) このセッション用にGodot 4.6.3 mono Linuxバイナリを新規セットアップ（従来このコンテナにGodotが無くQA実行不能だった）しヘッドレスQAを初実施。進行テスト（Prologue→Stage0、200s予算内でHub以降未到達）＋当たり判定テスト（Rei/Akari/Koharu×Easy・Normal、Rei×Hard）計8走行で**実害のある不具合ゼロ**（例外/当たり判定異常/弾リーク/FPS低下すべてクリーン）。Stage0内の`stuck`警告2件はQAオートパイロットがShift長押し/回避を意図的に行わないための誤検知と判定（実プレイでは60s SafetyTimeoutで自然に進行、実害なし）。Lunatic・Akari/Koharu Hard・Stage0以降の全シーンは未走査（時間配分で優先度落ち、別走査を推奨）"
+    },
+    {
+      "priority": "P1",
+      "title": "新奥義バランス査定",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) 集中の光＝据え置き（原因は対象外の`Enemy.cs`/`Panel.cs`側、根拠コメント追記）。連鎖の光＝射程無制限が強すぎたため`ChainRange=170px`を追加。バズ壁＝耐久は妥当だが報酬(points)が手間に見合っていなかったため150→220。副産物として「パネル持ち敵にダメージ強化が無効」という大きめの発見をTODO先頭に起票。※Player.cs編集で既存フィールド`_focusTarget`/`_focusHits`が誤って消えビルド不能になっていたため指揮官側で復元・ビルド確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "小話5: タイトル画面のひとこと",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §5を`TitleMenu.cs`へ実装。既存`Ticker`は無変更。起動時1回＋無操作10秒ごとに1回、画面下中央帯（x≈290-990）にミナ色40%不透明度で薄く表示。Hotspot登録なし＝メニュー操作に無関係"
+    },
+    {
+      "priority": "P2",
+      "title": "小話4: トレーニング場の独り言",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §4を`TrainingRoot.cs`へ実装。DPS計器直下(x430-774,y224-320)にトースト器を新設。入場時1回、命中ごとに10%抽選（表示中は再抽選しない）、無入力7秒で放置トーク（入力復帰まで連呼しない）"
+    },
+    {
+      "priority": "P2",
+      "title": "小話3: ショップの一言",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §3を`Shop.cs`へ実装。既存の`Toast()`機構を流用（新規UI不要と判明）。入店時1回、購入時25%で確認メッセージの代わりに一言、退店は「一言→0.8秒遅延→実遷移」の`_exitPending`ガード付き。オートプレイ(`--qa`)でのデッドロックを避けるよう判定順を配慮"
+    },
+    {
+      "priority": "P1",
+      "title": "小話2: ハブの複数パターン化",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §1のIdleDialogs/SmallTalksを`Hub.cs`へ実装。クリア直後は既存`ReturnDialog`のまま、それ以外の入場は50%抽選で`TryStartIdleSmallTalk()`が未読優先で1本再生（全既読ならリセット）。既読は`GameManager`に`HashSet<string>`で永続化（Save/Load/ResetPersistent対応、後方互換ガード済み） | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更"
+    },
+    {
+      "priority": "P3",
+      "title": "FINALの投稿弾がミナ自身の言葉になっていない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成"
+    },
+    {
+      "priority": "P3",
+      "title": "Epilogueの死因回収が1行で長く二段落としが潰れている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O(\"地\",...)`呼び出しに分割。テキスト内容・語順は無変更"
+    },
+    {
+      "priority": "P3",
+      "title": "`TrainingDummy.HpRatio` が基底を隠している",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）"
+    },
+    {
+      "priority": "P3",
+      "title": "CS8602警告4件を解消してゼロ警告にする",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `StageRei/Akari/Koharu/Mina.cs` の `Hud?.SetElapsed(...)` を `Hud.SetElapsed(...)` へ統一（4ファイル）。フルリビルドでCS8602ゼロ件を確認、残る警告はCS0108（別タスク）のみ"
+    },
+    {
+      "priority": "P3",
+      "title": "未使用カウンタとコメントの嘘",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `GameManager.cs:110` の `GrazeCount` コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。`DodgeGrazeCount`等は受入条件通りスコープ外のため未変更"
+    },
+    {
+      "priority": "P3",
+      "title": "リトライ長押し0.7sが反復プレイで重い",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `RetryHold.cs:10` `HoldTime` を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持"
+    },
+    {
+      "priority": "P3",
+      "title": "ショップの「おすすめ」が所持状況を見ていない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `Shop.cs:126-175` `RecommendedNow()` を書き換え。所持済みid除外、`SelectedShotMode`対応系統の未所持入り口ノードを先頭差し込み、`CanPurchase()`で買える物優先の安定ソート、全所持済み時は前段階へフォールバック"
+    },
+    {
+      "priority": "P3",
+      "title": "少年の二人称がFINALだけ揺れる",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `BossMina.cs:64`「お前に」→「きみに」。`:65`は感情の高ぶりとして現状維持（受入条件通り）。`StageMina.cs`の類似文言は対象外のため未変更"
+    },
+    {
+      "priority": "P3",
+      "title": "トレーニングのスキルタブが画面右端で見切れる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `TrainingRoot.cs:319`の`tabX`計算を`Mathf.Min(PanelX-96f, W-96f-6f)`へ変更し、閉状態で画面右端から6pxの内側マージンを確保。開状態のパネル内位置には影響なし"
+    },
+    {
+      "priority": "P3",
+      "title": "ミナの「小さな願い」が1回きりで伏線にならない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) (a)(b)両方実装。`StageKoharu.cs:164-165`に軽い再来（まだ願っている、少年もまた流す）、`Epilogue.cs:164`に叶わないままの代償（「どなたかの、空の写真で」＝他人の投稿越しにしか空を知らない）を追加。願いが叶ったとは書いていない"
+    },
+    {
+      "priority": "P3",
+      "title": "Hub帰還会話がステージ側の段階設計を逆転させている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `Hub.cs:955` の「……エスパーか何かで?」を「……お見事です。」へ変更。STAGE1 Clear（`StageRei.cs`）の「訝りゼロ＝上り坂の起点」より踏み込んだ疑いをHub側が出す逆転を解消"
+    },
+    {
+      "priority": "P3",
+      "title": "こはるの「怒り＝他責」が一度も描かれない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageKoharu.cs:104-113` の `CameoTalk3` に無邪気→他責の怒り（KPale・「あの人のせいだ」名は伏せる）→また無邪気（KFace）の裏返り一往復を追加。`BossKoharu.cs`の中継行に先立つ伏線として機能"
+    },
+    {
+      "priority": "P2",
+      "title": "難易度の賭け金と見返りが釣り合っていない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `GameManager.cs:665` `DifficultyImpressionMulFor` の Hard 1.4→1.6、Lunatic 2.2→3.0。Easy/Normal・負荷パラメータ（弾数/弾速/HPバー/残機）は無変更"
+    },
+    {
+      "priority": "P2",
+      "title": "FINAL導入が4行でクライマックスの助走が無い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageMina.cs` Introを4行→10行へ拡張。who=4（投稿）でレイ/あかり/こはるの声の残響を挿み、`Final.cs`の「レイの。あかりの。こはるの。」の予感を作った（文字列は意図的に非一致＝DropLine検出に無影響）。骨格（無音バナー→壊れた声→決意）と既存4行は不変"
+    },
+    {
+      "priority": "P2",
+      "title": "シェイクスピア引用の三段仕掛けが二段しか無い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageRei.cs:166-167`に1回目「\"All the world's a stage.\"」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。`Epilogue.cs:159-162`に3回目「\"To thine own self be true.\"」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（`StageAkari.cs:166`）と`Final.cs`の既存引用は無変更"
+    },
+    {
+      "priority": "P2",
+      "title": "あそびかた・バックログがマウス非対応",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた"
+    },
+    {
+      "priority": "P2",
+      "title": "後方弾の形と色の指定が無視されている",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) (a)案。`Bullet.cs` に `DrawPlayerDiamond` を追加し `!IsEnemy` switch に `case Diamond` を接続。淡い金 `BackMid(0.98,0.86,0.55)` の進行方向尖り菱形で敵弾/他3モードと明確に区別。`Player.cs` の `FireBackfire` tint も同色へ揃えた"
+    },
+    {
+      "priority": "P2",
+      "title": "死亡時にチェックポイントから再開できない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `ReiRoot.cs`/`AkariRoot.cs`/`KoharuRoot.cs` の game-over 中 R 即発リトライに Shift 分岐を追加。R単体＝`SelectedEntry=Boss`をセットしてreload（各`_step`＝Rei:10/Akari:11/Koharu:9）、Shift+R＝従来通り最初から。`--boss`デバッグ時のDebugAlwaysBoss持ち回りを壊さないようShift時はSelectedEntryへ触れない設計。MinaRoot(FINAL)は道中構造が無く意味が同じになるため対象外（理由をコメントで明記）。`GameManager.cs`のgame-overプロンプト文言も更新。QA未実施（推奨: qa-autoplayで3面のR/Shift+R挙動確認）"
+    },
+    {
+      "priority": "P2",
+      "title": "ステージ途中でハブへ戻れない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `PauseMenu.cs` の `ItemsJp` に「ハブへもどる」を「タイトルへ」の直前へ追加（`HubReturnAction = SlotCount+4`）。`RetryEnabled` と同条件でステージ外はグレーアウト、Z/クリック2段階確認（1段目は移動音のみで確定させない、ラベルが「ほんとうに もどる？」に変化）を経て `AutoSave()→Pool.DespawnAll()→Hub.tscn` を実行"
+    },
+    {
+      "priority": "P2",
+      "title": "汚染ゲージの説明が実装と食い違う",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) (a)案。`HowToPlay.cs:222,264` の説明文を実態（ステージ進行連動の固定演出、選択で変わらない）に合わせて書き換え。「救うほど濁る」「表裏一体」というトレードオフ誤解表現を削除、「澄んだ心I/II」は上昇を緩める効果だけ明記。ロジックは無変更"
+    },
+    {
+      "priority": "P1",
+      "title": "Hubリプライがエピローグの二段落としを先に割る",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `Hub.cs:1003` の @akari 台詞から「庇って」「来なくなった」を削除し声の類似（伏線③）のみ残す形に改稿。`Epilogue.cs:145,148-149` で初めて死因を再構成する二段落とし演出が先に割れなくなった"
+    },
+    {
+      "priority": "P1",
+      "title": "ミナが汚染を引き受ける選択の一行が無い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageKoharu.cs:162-164` の `Clear` 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(`mina_doubt`/`mina_worried`/`mina_smile`)は既存アセットのみ使用、`Final.cs` 側との接続確認は別タスク送り"
+    },
+    {
+      "priority": "P1",
+      "title": "通常グレイズが通貨を生まない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) `AddGraze()`（`GameManager.cs:1118`）に `GainImpression(1)` を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は `Player.OnGrazeAreaEntered` の `_hitInvincible` スキップと1弾1回課金（`Grazed`フラグ）で既存担保"
+    },
+    {
+      "priority": "P1",
+      "title": "ボス戦が火力投資に反応しない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-13) (b)案採用。`Enemy.cs` の `TickBossPhase`（`BossPhase.Exposed` 分岐）で `_windowDamage >= ExposedDamageCap` を検知したら `_phaseT >= VulnDur` を待たず即 `EnterReclose()` へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り"
+    },
+    {
       "priority": "P1",
       "title": "マウス未操作なのに選択が勝手に飛ぶ",
       "worker": "engineer",
@@ -334,44 +333,44 @@
   ],
   "commits": [
     {
-      "hash": "8eff3aa",
-      "date": "2026-08-14",
-      "subject": "Fix three defects that broke input, fresh saves, and retry"
-    },
-    {
-      "hash": "3ad5cbe",
-      "date": "2026-08-14",
-      "subject": "Let one nightly run work through several queue items"
-    },
-    {
-      "hash": "231a25f",
+      "hash": "67ced8f",
       "date": "2026-08-13",
-      "subject": "Audit the game from four angles and queue what needs fixing"
+      "subject": "auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）"
     },
     {
-      "hash": "58700ca",
+      "hash": "8e65cd3",
       "date": "2026-08-13",
-      "subject": "Queue the small-talk work and park the pending story decisions"
+      "subject": "auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）"
     },
     {
-      "hash": "f506c6e",
+      "hash": "4b10b3d",
       "date": "2026-08-13",
-      "subject": "Reconcile the dev queue with what is already built"
+      "subject": "auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）"
     },
     {
-      "hash": "aa7cbc6",
+      "hash": "8a1bcc4",
       "date": "2026-08-13",
-      "subject": "Give the epilogue a background per phase"
+      "subject": "auto: WIP M5 設計書との乖離最終チェック"
     },
     {
-      "hash": "bc2c32b",
+      "hash": "5df1843",
       "date": "2026-08-13",
-      "subject": "Add progress dashboard and fix queue worker parsing"
+      "subject": "auto: BLOCKED パネル持ち敵にダメージ強化が一切効いていない（要ユーザー判断）"
     },
     {
-      "hash": "3df5d8d",
+      "hash": "87929bb",
       "date": "2026-08-13",
-      "subject": "Add autonomous nightly dev pipeline"
+      "subject": "auto: M5 QA一巡（Godotヘッドレス環境を新規セットアップ、実害ゼロを確認）"
+    },
+    {
+      "hash": "10ecc41",
+      "date": "2026-08-13",
+      "subject": "auto: WIP M5 全ステージ×全難易度QA一巡"
+    },
+    {
+      "hash": "4e156c5",
+      "date": "2026-08-13",
+      "subject": "auto: 新奥義バランス査定（連鎖の光/バズ壁を調整、パネル無効化バグを発見しTODOへ）"
     }
   ]
 }

@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 // StageKoharu : STAGE3「こはる（永遠に夕食を作り続ける台所）」進行（v2 [P-03]）。
 //   1: ダイブ前〜着地の会話
@@ -63,7 +64,38 @@ public partial class StageKoharu : Node
     // 道中突入の小話（世界観：空席の食卓と「むだ」の声）。承第3段（優先度3）＝【予兆は説明せず“手がかり”だけ置く】。
     //   旧「声が掠れていますよ」の言語化をやめ、ミナが一度だけ振り返って言い差す＝“何か気配を感じたが飲み込む”を doubt で見せる。
     //   読者には少年の不在感（Final「返事がない」）の布石が、ミナには明確な疑いにならないまま渡る。
-    private static readonly (int who, string text, string face)[] Mid =
+    // 道中の短い掛け合い（小話集_v1.md §2 StageKoharu）。1〜3行厳守・テンポ優先。
+    private static readonly (int who, string text, string face)[] Chat1 = // [日常]
+    {
+        (1, "いい匂いがします。……出汁ですね、これは。", ""),
+        (0, "腹減ってきた。", SCocky),
+        (1, "祓いながら仰らないでください。締まりません。", ""),
+    };
+    private static readonly (int who, string text, string face)[] Chat2 = // [軽口]
+    {
+        (1, "ご主人様。卵は、半熟と固ゆで、どちらがお好きで。", ""),
+        (0, "……生。", SCocky),
+        (1, "選択肢にございません。", ""),
+    };
+    private static readonly (int who, string text, string face)[] Chat3 = // [日常]
+    {
+        (1, "お茶碗が、伏せてあります。ずっと。", "res://char/mina_worried.png"),
+        (0, "……使う日を、待ってるんだろ。", SGentle),
+    };
+    private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
+    {
+        (1, "ねえご主人様。今夜は、ちゃんと湯気の立つものを召し上がってください。", ""),
+        (0, "……善処する。", SGentle),
+        (1, "その返事、聞き飽きました。", "res://char/mina_smile.png"),
+    };
+    private static readonly (int who, string text, string face)[] Chat5 = // [軽口]
+    {
+        (0, "ミナ、いま何時だ。", SCocky),
+        (1, "ご主人様が三度目に同じことをお尋ねになった時刻です。", ""),
+        (0, "時計として終わってるぞ、お前。", SCocky),
+    };
+
+    private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]
     {
         (1, "ご主人様、見てください。湯気の向こうに、たくさんの食卓。……どれも、空席です。一つも、埋まっていない。", "res://char/mina_worried.png"),
         (1, "この声たちは……「むだだ」と、繰り返しています。", ""),
@@ -71,21 +103,21 @@ public partial class StageKoharu : Node
         (1, "……ご主人様?", "res://char/mina_doubt.png"),                     // 何か気配に振り向く（声を“掠れ”と説明しない＝予兆だけ）
         (0, "……なんだ。行くぞ。", SGentle),
         (1, "……いえ。なんでも。", "res://char/mina_doubt.png"),               // 言い差して飲み込む（手がかりは残すが言語化しない）
-    };
+    }.Concat(Chat1).ToArray();
 
     // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第3段（優先度1・3）＝【ミナが核心に一歩近づく／少年が弱る】。
     //   少年はもう隠す気力もなく細部（中学生・料理上手）を口にする。ミナは「掠れ」を説明せず、
     //   “ご主人様のほうが、あの子より、消え入りそう”と初めて少年自身を案じる（対象が敵→少年へ移る＝上り坂の頂点手前）。
     private const string KFace = "res://char/koharu_face.png";
     private const string KPale = "res://char/koharu_face_pale.png"; // 絶望で蒼白（死蔵を活用）
-    private static readonly (int who, string text, string face)[] BossTalk =
+    private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?」", ""), // ボスのツイート
         (1, "……今度の声は、まるで小さな子のようですね。", ""),
         (0, "……こはる。まだ、中学生だ。健気で、料理が、得意で。", SAfraid),   // 弱り（gentle→afraid）。隠す気力が落ちている
         (1, "……ご主人様。奥の子より——あなたのほうが、いまにも消え入りそうな声を、していますよ。", "res://char/mina_doubt.png"), // 案じる対象が少年へ移る（説明せず“消え入りそう”だけ）
         (0, "……気のせいさ。行こう。", SGentle),
-    };
+    }.Concat(Chat2).Concat(Chat3).ToArray();
 
     // チラ見せ：登場（こはる＝無邪気な健気さ）。who=2=こはる。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
@@ -101,11 +133,15 @@ public partial class StageKoharu : Node
         (1, "……ご主人様?", "res://char/mina_worried.png"),
         (0, "————。", SGentle),                                    // 言葉が出ない
     };
-    // 山：無力感が他責へ。蒼白(KPale)。
+    // 山：無力感が他責へ。無邪気→怒り（KPale・2行）→また無邪気（KFace）の裏返り一往復。
+    // 「あかり」の名前は出さない（Epilogueの交差点回収を先食いしないため、「あの人」止まり）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
         (2, "あ、こら! じっとしてないと、よそえないでしょ。もう、せっかちさんなんだから。", KFace),
         (2, "お味噌汁の具、108種類あるんだけど。ぜんぶ入れていい? いいよね? 入れちゃうね。", KFace),
+        (2, "……ちゃんと、作ってるのに。ちゃんと、してるのに……どうして——", KPale),               // 無力感（届かない現実への苛立ち）
+        (2, "……あの人のせいだ。あの人さえ、いなければ……お兄ちゃん、いなくならなかった。", KPale),   // 無力感→他責（名は伏せる／裏返りの頂点）
+        (2, "……ふふ、なんでもない。はい、あーん。冷めないうちに、ね?", KFace),                    // 一瞬で無邪気に戻る（普段は隠れている感情）
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
@@ -137,11 +173,11 @@ public partial class StageKoharu : Node
     };
 
     // 道中後の小話（ボスへの引き）。
-    private static readonly (int who, string text, string face)[] MidEnd =
+    private static readonly (int who, string text, string face)[] MidEnd = new (int, string, string)[]
     {
         (1, "いちばん奥の食卓に、あの子が。", ""),
         (0, "ああ。……こはるだ。", SGentle),
-    };
+    }.Concat(Chat4).Concat(Chat5).ToArray();
 
     // ボス登場時の説明（設計書 [P-03] に該当なし＝空。こはるの独白と中継はボス側に集約）
     private static readonly (int who, string text, string face)[] BossIntro =
@@ -157,8 +193,13 @@ public partial class StageKoharu : Node
         (0, "もしぼくが寝坊して来られない日があったらさ。妹の様子でも、見ててくれよ。", SGentle),
         (1, "妹が、いらしたんですか。", ""),
         (0, "……さあ。どうだったかな。", SGentle),                              // はぐらかす（伏線④を未回収のまま引きずる）
+        (1, "……そういえば。今日の空は、晴れていましたか。あなたが教えてくださらないと、わたくし、いつまでも知らないままです。", ""), // 小さな願い（外の世界）の再来：まだ願っている、だけを軽く示す。代償は示さない
+        (0, "……悪い。今度、ちゃんと見ておくよ。", SGentle),                    // 少年もまた流す＝約束は積まれるが果たされない（伏線①と対の構造）
         (1, "……もう、聞きません。あなたが、聞くなと言ったので。", "res://char/mina_doubt.png"), // MidStoryの拒絶を受ける＝追及をやめる
         (1, "……ですが。“妹を頼む”くらいは——覚えておいて、さしあげます。", "res://char/mina_smile.png"), // 願い（伏線④）だけ受け取る。咎めず飲み込む優しさへ反転
+        (1, "……なんでもありません。ただ、少し——息が、詰まるだけです。", "res://char/mina_doubt.png"),   // pitfall P2回避：汚染を語らず身体感覚だけで示す（show don't tell）
+        (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", "res://char/mina_worried.png"), // ミナ自身の意志（受動ではなく能動の選択として描く）
+        (1, "苦しいのは——嫌いでは、ありません。ご主人様を、ちゃんと支えられているという、証ですから。", "res://char/mina_smile.png"), // ツンデレのまま受容。FINAL暴走を彼女の選択の結果にする布石
     };
 
     public override void _Ready()
@@ -190,7 +231,7 @@ public partial class StageKoharu : Node
     {
         _stepTime += delta;
         _lineHold += delta;
-        if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
+        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;

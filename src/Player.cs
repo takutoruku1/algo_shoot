@@ -244,6 +244,16 @@ public partial class Player : Area2D
     // 敵/パネル側の消費点が NotifyShotHit(本体) を呼び、連続数を自機で数える。対象変更・被弾でリセット。
     private Node2D? _focusTarget;               // いま撃ち込み続けている敵本体
     private int _focusHits;                     // その敵への連続ヒット数
+    //
+    // バランス査定メモ（新奥義バランス査定・据え置き判断）：
+    //   8ヒット自体は基礎連射(0.13s間隔×2〜4ライン)だけでも1秒未満で到達し、この定数がボトルネックではない。
+    //   本当の問題は下流にある2点: ①Enemy.cs:468 `Mathf.Clamp(b.Damage, 1, 4)` がボス無防備窓の1ヒット
+    //   ダメージを一律4で頭打ちにし、focus_1の前提(rapid_power_1→shot_power_2, 素の威力3)を満たした時点で
+    //   ほぼ食い尽くされている。②Panel.cs:103 のインク削りは b.Damage を一切参照しない（Ink--のみ）ため、
+    //   雑魚・バズ壁など「パネル持ち」への効果はゼロ。つまり2080コスト（focus_1+focus_2）に対して
+    //   実効リターンがほぼ無い＝弱すぎるが、原因はこの定数（発火の速さ）ではなく上記2箇所（このタスクの
+    //   対象外システム）にあるため、この値自体は変更しない。根本修正は Enemy.cs / Panel.cs 側の
+    //   ダメージ経路の見直しとして別途フォローアップ推奨。
     private const int FocusFireHitsPerStack = 8; // このヒット数ごとに威力+1（Lv1=+1まで / Lv2=+2まで）
 
     // ── 祈りの帳（veil_light）：回避の終わり際にまとう弾消しの光輪 ──
@@ -879,7 +889,7 @@ public partial class Player : Area2D
         int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
         int shots = _game.BackfireShots;
         int turn = Mathf.RoundToInt(_game.BackfireTurnRate); // bf_track で 60→90（未適用だと既定95に化けていた）
-        var tint = new Color(0.86f, 0.42f, 0.66f); // Kegare系（前方の浄化水色と区別）
+        var tint = new Color(0.98f, 0.86f, 0.55f); // 淡い金（Bullet.DrawPlayerDiamond の BackMid と揃える。敵弾の穢れ桃と混同しない色）
         for (int i = 0; i < shots; i++)
         {
             // 2発目はわずかに角度を散らす（同時2発の見栄え）。

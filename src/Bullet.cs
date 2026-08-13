@@ -136,6 +136,11 @@ public partial class Bullet : Area2D
     // 誘導シーカーのフィン：HomingEdge→Mid の中間（頭のガラス玉より一段沈めて、頭の読みを邪魔しない）。
     private static readonly Color PlayerFin = new Color(0.44f, 0.47f, 0.75f);
     private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
+    // 後方弾（FireBackfire）＝淡い金（≈45°）。敵弾の穢れ桃 #e072ac(≈337°) とも、他3モードの浄化色域とも
+    //   離れた唯一の暖色＝「前方の連射/拡散/誘導とは別枠の弾」を色だけで即断できる。
+    private static readonly Color BackMid  = new Color(0.98f, 0.86f, 0.55f);
+    private static readonly Color BackEdge = new Color(0.62f, 0.50f, 0.26f); // 暗めの金縁
+    private static readonly Color BackGlow = new Color(1.0f, 0.90f, 0.62f);
 
     // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────
     // 弾は飛行中に回転しない＝頂点角度は定数。単位方向テンプレを一度だけ計算し、
@@ -151,6 +156,8 @@ public partial class Bullet : Area2D
     private static readonly Vector2[] _petalBuf = new Vector2[4];     // 拡散花弁本体（短い凧形）
     private static readonly Vector2[] _petalCoreBuf = new Vector2[4]; // 拡散花弁芯の光
     private static readonly Vector2[] _finBuf = new Vector2[3];       // 誘導シーカーの後退フィン（上下で書き換えて2回描く）
+    private static readonly Vector2[] _backBuf = new Vector2[4];      // 後方弾の菱形本体（進行方向へ尖る）
+    private static readonly Vector2[] _backCoreBuf = new Vector2[4];  // 後方弾の芯の光
     private static Vector2[] BuildStarTemplate()
     {
         var t = new Vector2[10];
@@ -310,6 +317,15 @@ public partial class Bullet : Area2D
 
     // 連鎖の光（chain_light）：この拡散弾が敵/パネルに消費された瞬間、最寄りの「別の敵」へ跳弾する。
     // 消費側（Enemy 本体ヒット／Panel インク削り）が Despawn の直前に呼ぶ。威力×0.4（下限1）で残数を引き継ぐ。
+    //
+    // バランス査定メモ（新奥義バランス査定）：
+    //   Panel.OnAreaEntered はインク−1を Damage 参照なしで行う（Panel.cs:103）ため、この×0.4は
+    //   パネル持ちの雑魚/バズ壁が主対象のときは実質無意味（Mathf.Max(1,…)の下限で常に1相当のインク欠損を
+    //   起こす）。実際に効いているのは「射程無制限で必ず1体拾える追加ヒット」のほうで、拡散(5〜9way)×
+    //   跳弾2（chain_2）を重ねると密集waveでの掃討速度が跳ね上がりすぎる。0.4自体は（ボス本体の
+    //   露出窓ヒットでは効いており、そこは１〜4クランプ済みで無害）据え置きつつ、跳弾の探索を
+    //   ChainRange 以内の「近い敵」に限定＝密集狙いのリスクリターン（寄せて撃つほど得）に寄せる。
+    private const float ChainRange = 170f; // 跳弾の最大到達距離(px)。画面幅384の約44%＝近くの群れだけ拾う
     public void TryChain(Node2D? exclude)
     {
         if (Chain <= 0 || IsEnemy || !Active) return;
@@ -323,7 +339,7 @@ public partial class Bullet : Area2D
                 if (d2 < bestD) { bestD = d2; best = e; }
             }
         }
-        if (best == null) return; // 跳ね先がいなければ何も起きない
+        if (best == null || bestD > ChainRange * ChainRange) return; // 跳ね先がいない／遠すぎるなら何も起きない
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         Vector2 dir = (best.GlobalPosition - GlobalPosition).Normalized();
@@ -548,13 +564,14 @@ public partial class Bullet : Area2D
                 return;
             }
             // モード別シルエット×カラー（色＋形の二重符号化＝撃った瞬間に「今どのモードか」が完全に読める）。
-            //   連射＝水色ダート／拡散＝翠の花弁／誘導＝青藤シーカー／加速球＝琥珀（上の Accel 分岐）。
+            //   連射＝水色ダート／拡散＝翠の花弁／誘導＝青藤シーカー／加速球＝琥珀（上の Accel 分岐）／後方弾＝淡い金の菱形。
             //   1モードにつき edge/mid/白の3色に絞り、明度を水色と同格に揃える＝敵弾（警告色）より控えめを保つ。
             switch (Shape)
             {
-                case BulletShape.Dart:   DrawPlayerDart(r);   return;
-                case BulletShape.Petal:  DrawPlayerPetal(r);  return;
-                case BulletShape.Seeker: DrawPlayerSeeker(r); return;
+                case BulletShape.Dart:    DrawPlayerDart(r);    return;
+                case BulletShape.Petal:   DrawPlayerPetal(r);   return;
+                case BulletShape.Seeker:  DrawPlayerSeeker(r);  return;
+                case BulletShape.Diamond: DrawPlayerDiamond(r); return; // 後方弾（FireBackfire）＝淡い金
             }
             // 形未指定の自機弾（オプション/フォロワー/後方弾/救済弾など）は従来のガラス円弾（浄化の水色）。
             DrawGlassBullet(r, PlayerMid, PlayerEdge, PlayerGlow);
@@ -694,6 +711,25 @@ public partial class Bullet : Area2D
         DrawCircle(Vector2.Zero, r, HomingEdge, true, -1f, true);
         DrawCircle(Vector2.Zero, r * 0.72f, HomingMid, true, -1f, true);
         DrawCircle(new Vector2(-0.26f * r, -0.32f * r), r * 0.3f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
+    }
+
+    // 後方弾（FireBackfire）＝淡い金の菱形：進行方向へ尖らせた菱形で「前方3モードとは別枠」を形でも語る。
+    // ダート/シーカーと同じ作法（DrawSetTransform で進行方向へ回転・控えめな2段グロー・白ハイライト）。
+    // 敵弾の菱形（DrawDiamond）は無回転の45度菱形だが、こちらは進行方向に長い菱形にして向きが読めるようにする。
+    private void DrawPlayerDiamond(float r)
+    {
+        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : 0f;
+        DrawSetTransform(Vector2.Zero, ang, Vector2.One);
+        DrawPlayerGlow(r * 0.85f, BackGlow);
+        float s = r * 1.15f;
+        _backBuf[0] = new Vector2(1.5f * s, 0f);   // 前へ尖る
+        _backBuf[1] = new Vector2(0f, -0.85f * s);
+        _backBuf[2] = new Vector2(-1.1f * s, 0f);  // 後端も短く尖る＝敵弾の菱形との違いを保つ
+        _backBuf[3] = new Vector2(0f, 0.85f * s);
+        DrawColoredPolygon(_backBuf, BackMid);
+        for (int i = 0; i < 4; i++) _backCoreBuf[i] = _backBuf[i] * 0.5f;
+        DrawColoredPolygon(_backCoreBuf, new Color(1f, 1f, 1f, 0.88f));
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 
     // 円弾：作品準拠の「白リング＋暗芯」。芯色のみスペル色で可変（Danmaku v3 shapeInner orb）。

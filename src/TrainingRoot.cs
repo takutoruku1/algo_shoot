@@ -41,6 +41,49 @@ public partial class TrainingRoot : Node2D
     private double _elapsed;
     private long _totalDamage;   // このセッションの累計与ダメ（参考表示）。
 
+    // ───── 小話4（トレーニング場の独り言）─────
+    //   docs/小話集_v1.md §4。会話系が皆無だったトレーニング場に、Shop.cs の Toast() と同じ軽量トースト形式で
+    //   器を新設。入場時・撃っている最中・放置時の3トリガーで出し分ける（who: 0=少年/1=ミナ、Hud.LineKind と同じ色分け）。
+    private const double TalkShowSec = 2.6;  // Hub.Toast() と同じ表示秒数に合わせる。
+    private const double IdleTalkSec = 7.0;  // これだけ無入力が続いたら「放置」と見なす。
+    private string _talk = "";
+    private int _talkWho;
+    private double _talkT;
+    private double _idleTimer;   // 無入力の継続秒数（移動/ショット/ボム/モード切替のいずれかで0にリセット）。
+    private bool _idleFired;     // このアイドル継続中に一度でも独り言を出したか（連呼防止。入力が戻るまで再発火しない）。
+
+    private static readonly (int who, string text)[] TrainEnter =
+    {
+        (1, "試し打ちですね。……ええ、思う存分どうぞ。ここでは誰も痛みません。"),
+        (1, "的が一つきり。ずいぶん寂しい射撃場ですこと。"),
+        (0, "遠慮するな。壊しても弁償はぼくの財布じゃない。"),
+        (1, "整備の時間です。……こういう時間、嫌いではありません。"),
+    };
+
+    private static readonly (int who, string text)[] TrainShoot =
+    {
+        (1, "……いい音です。今のは、手応えがありました。"),
+        (0, "おお、伸びたな。ぼくの設計が優秀だからだ。"),
+        (1, "設計者が言うと、ただの自慢ですよ。"),
+        (1, "数字が増えるのは、少し気持ちがいいですね。単純です、わたくし。"),
+        (0, "撃ちすぎだ。的が気の毒になってきた。"),
+        (1, "この的、文句ひとつ言いませんね。……えらいです。"),
+        (1, "肩慣らしのつもりが、つい本気に。……いけませんね。"),
+        (0, "そこ! もっと近づけ! ……いや近すぎる!"),
+        (1, "ご主人様は黙っていてくださいまし。集中できません。"),
+    };
+
+    private static readonly (int who, string text)[] TrainIdle =
+    {
+        (1, "……ご主人様? 手が、止まっておりますよ。"),
+        (1, "お休みですか。どうぞ、ゆっくり。逃げませんので、わたくしも、的も。"),
+        (0, "…………zzz"),
+        (1, "寝ましたね。……起きるまで、ここにおります。"),
+        (1, "静かですね。……たまには、こういう日もいいものです。"),
+        (1, "この時間、記録には残らないんですよ。もったいない話です。"),
+        (1, "暇なので、的の数を数えていました。……一つでした。"),
+    };
+
     // ───── スキルパネル（トグル開閉方式）─────
     //   普段は隠して画面全体を試し打ちに使い、Tab か右上のタブをクリックしたときだけスライド表示する。
     //   閉じているとき自機・ダミー・DPS計器が三者とも重ならず見える（ユーザー方針）。
@@ -108,12 +151,30 @@ public partial class TrainingRoot : Node2D
         _uiLayer.ZIndex = 50;
         _uiLayer.Draw += DrawUi;
         AddChild(_uiLayer);
+
+        // 入場時の独り言（小話4）。他のトリガーより先に一度だけ。
+        var enter = TrainEnter[GD.RandRange(0, TrainEnter.Length - 1)];
+        ShowTalk(enter.who, enter.text);
+    }
+
+    private void ShowTalk(int who, string text)
+    {
+        _talkWho = who;
+        _talk = text;
+        _talkT = TalkShowSec;
     }
 
     private void OnDummyDamaged(int dmg)
     {
         _dmgLog.Enqueue((_elapsed, dmg));
         _totalDamage += dmg;
+
+        // 撃っている最中の独り言（小話4）。頻発を避けるため低確率＋非表示中のみ抽選。
+        if (_talkT <= 0 && GD.Randf() < 0.10f)
+        {
+            var line = TrainShoot[GD.RandRange(0, TrainShoot.Length - 1)];
+            ShowTalk(line.who, line.text);
+        }
     }
 
     public override void _Process(double delta)
@@ -123,6 +184,30 @@ public partial class TrainingRoot : Node2D
         // 直近 DpsWindow 秒より古い与ダメ記録を捨てる。
         while (_dmgLog.Count > 0 && _dmgLog.Peek().t < _elapsed - DpsWindow)
             _dmgLog.Dequeue();
+
+        if (_talkT > 0) _talkT -= delta;
+
+        // 放置検知（小話4）：移動/ショット/ボム/モード切替のいずれも無ければ無入力とみなす。
+        //   入力が戻ったらタイマーをリセットし _idleFired も倒す＝次に無入力が続いたときだけ再発火（連呼防止）。
+        bool moving = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down") != Vector2.Zero
+            || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.D);
+        bool acting = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept")
+            || Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.V);
+        if (moving || acting)
+        {
+            _idleTimer = 0;
+            _idleFired = false;
+        }
+        else
+        {
+            _idleTimer += delta;
+            if (_idleTimer >= IdleTalkSec && !_idleFired)
+            {
+                _idleFired = true;
+                var line = TrainIdle[GD.RandRange(0, TrainIdle.Length - 1)];
+                ShowTalk(line.who, line.text);
+            }
+        }
 
         // パネルのスライド（トグル）。開＝1へ、閉＝0へ滑らかに寄せる。
         _slide = Mathf.Lerp(_slide, _panelOpen ? 1f : 0f, Mathf.Clamp(14f * (float)delta, 0f, 1f));
@@ -280,6 +365,7 @@ public partial class TrainingRoot : Node2D
         Vector2 mouse = Pad.MousePos();
 
         DrawHeaderAndDps(mouse);
+        DrawTalk();
         DrawSkillPanel(mouse);
         DrawTabAndBack(mouse); // タブ/もどる はパネルの上（前面）に常時描く
 
@@ -312,11 +398,26 @@ public partial class TrainingRoot : Node2D
             $"装備モード: {modeName}（V で切替）", 13, UiKit.Text2);
     }
 
+    // 独り言トースト（小話4）。DPS計器（x430-774,y88-210）の真下・スキルパネル（開時 x850〜）より
+    //   十分左の空き帯に置く＝三者とも重ならない。Shop.cs の Toast() と同じ箱＋名前ラベルの軽量トースト。
+    private void DrawTalk()
+    {
+        if (_talkT <= 0 || string.IsNullOrEmpty(_talk)) return;
+        var box = new Rect2(430, 224, 344, 96);
+        bool mina = _talkWho != 0;
+        Color accent = mina ? UiKit.Mina : UiKit.Info; // Hud.LineKind と同じ色分け（少年=Info／ミナ=Mina）。
+        UiKit.Box(_uiLayer, box, new Color(0.06f, 0.07f, 0.12f, 0.88f), 12f, new Color(accent, 0.5f), 1f);
+        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(box.Position.X + 16, box.Position.Y + 10), mina ? "ミナ" : "少年", 12, accent);
+        UiKit.Multi(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 16, box.Position.Y + 32), _talk, 13, UiKit.Text2, box.Size.X - 32, 3);
+    }
+
     // 常時表示：右上のスキルタブ（開閉トグル）と左下のもどるボタン。パネルの開閉に関係なく押せる。
     private void DrawTabAndBack(Vector2 mouse)
     {
         // スキルタブ（右上・パネル左肩に付く“つまみ”）。開くと ▶、閉じると ◀ でスライド方向を示す。
-        float tabX = PanelX - 96f;
+        // 閉状態（PanelX=W）だとタブ右端がちょうど画面右端に張り付き枠線/ラベルが見切れるため、
+        // 右端に6pxの内側マージンを持たせてクランプ（開状態はPanelXが十分内側なのでこのクランプは効かない）。
+        float tabX = Mathf.Min(PanelX - 96f, W - 96f - 6f);
         _tabRect = new Rect2(tabX, PanelY, 96, 40);
         bool th = _tabRect.HasPoint(mouse);
         UiKit.Box(_uiLayer, _tabRect, new Color(UiKit.Info, th ? 0.28f : 0.14f), 8f, new Color(UiKit.Info, 0.7f), 1.4f);

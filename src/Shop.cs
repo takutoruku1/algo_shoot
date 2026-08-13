@@ -123,12 +123,56 @@ public partial class Shop : Node2D
 
     // おすすめ（迷ったらこれ）：進行連動の道しるべ。表示はフロンティア強調＝おすすめ∩いま買えるを金パルス。
     // 親未接続で買えないおすすめは、親チェーンを遡って最初に買える祖先を代わりに光らせる（RebuildFrontier）。
-    private string[] RecommendedNow() =>
-        _game == null ? new[] { "shot_power_1", "fire_rate_1", "max_life_1" }
-        : _game.IsStageCleared("koharu") ? new[] { "imp_mult_1", "fol_gain_1" }
-        : _game.IsStageCleared("akari") ? new[] { "hitbox_1", "bomb_power_1" }
-        : _game.IsStageCleared("rei") ? new[] { "spread_1", "homing_1", "bomb_count_1" }
-        : new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+    //   クリア状況の4分岐（下記 Base）を土台に、①所持済みidを除外 ②使用中ショットモードの未所持入り口ノードを
+    //   先頭に差し込み ③残りは「買える物」優先で安定ソート ④全所持済みなら前段の分岐へフォールバック、
+    //   それでも空ならクラッシュしないよう固定デフォルトを返す（所持状況・所持金・装備モードを無視しない）。
+    private string[] RecommendedNow()
+    {
+        if (_game == null) return new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+
+        // 既存の4分岐（クリア進行の段階別ベース推薦）はそのまま土台として使う。
+        string[] Base(int stage) => stage switch
+        {
+            3 => new[] { "imp_mult_1", "fol_gain_1" },
+            2 => new[] { "hitbox_1", "bomb_power_1" },
+            1 => new[] { "spread_1", "homing_1", "bomb_count_1" },
+            _ => new[] { "shot_power_1", "fire_rate_1", "max_life_1" },
+        };
+        int stage = _game.IsStageCleared("koharu") ? 3
+            : _game.IsStageCleared("akari") ? 2
+            : _game.IsStageCleared("rei") ? 1
+            : 0;
+
+        // ①所持済みidを除外。段階のベースが全部所持済みなら前段（易しい方）へ遡ってフォールバック。
+        var rest = new List<string>();
+        for (int s = stage; s >= 0 && rest.Count == 0; s--)
+            foreach (var id in Base(s))
+                if (_game.GetUpgradeLevel(id) < 1 && !rest.Contains(id)) rest.Add(id);
+
+        // ③残った候補は「買える物」を先に（List.Sort は安定ソート非保証のため、2パスの明示的な安定分割を使う）。
+        var affordable = new List<string>();
+        var notAffordable = new List<string>();
+        foreach (var id in rest) (_game.CanPurchase(id) ? affordable : notAffordable).Add(id);
+        rest = affordable;
+        rest.AddRange(notAffordable);
+
+        // ②使用中ショットモードに対応する系統の未所持入り口ノードを先頭に差し込む（所持済みなら差し込まない）。
+        string modeEntry = _game.SelectedShotMode switch
+        {
+            GameManager.ShotMode.Spread => "spread_1",
+            GameManager.ShotMode.Homing => "homing_1",
+            GameManager.ShotMode.Accel => "accel_1",
+            _ => "fire_rate_1", // Rapid＝連射系の入り口
+        };
+        if (_game.GetUpgradeLevel(modeEntry) < 1)
+        {
+            rest.Remove(modeEntry);
+            rest.Insert(0, modeEntry);
+        }
+
+        // ④全て所持済みで rest が空になっても、呼び出し元（RebuildFrontier）が落ちないよう固定デフォルトで補う。
+        return rest.Count > 0 ? rest.ToArray() : new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+    }
     private string[] _recommended = System.Array.Empty<string>();
     private readonly HashSet<string> _frontier = new(); // _Draw 冒頭で毎フレーム更新
 
@@ -190,6 +234,44 @@ public partial class Shop : Node2D
     private static readonly Color EdgeDim = new(1, 1, 1, 0.22f);       // 通常エッジ（白灰）
     private static readonly Color ForkGold = new(0.91f, 0.77f, 0.35f); // 排他フォーク（金）
 
+    // 小話3（ショップの一言）：入店・購入時・退店でミナがぽつりと零す台詞。既存の Toast() で表示するだけ＝
+    //   買い物のテンポを邪魔しない短時間表示（1.8秒）。docs/小話集_v1.md §3 の文面をそのまま採用。
+    private static readonly string[] ShopEnterTalk =
+    {
+        "いらっしゃいませ。……冗談です、ご主人様しかいらっしゃいませんもの。",
+        "さあ、わたくしを研いでくださいまし。",
+        "お財布の中身、ちゃんと確認なさいました?",
+        "本日の心の残高、しかとご報告いたします。",
+        "急がなくて結構ですよ。ここは、時間が減りませんので。",
+        "眺めているだけでも構いません。……買い物は、選んでいる時間がいちばん楽しいので。",
+        "ご主人様の趣味が出ますね、この枝の伸ばし方。",
+        "ああ、これ。前もそこで迷っておられました。",
+    };
+
+    private static readonly string[] ShopBuyTalk =
+    {
+        "はい、たしかに。……染みますね、これは。",
+        "またひとつ、ご主人様の色になりました。",
+        "お買い上げ、ありがとうございます。領収書はご入用で?",
+        "重くなった気がします。……気のせいですね。",
+        "ご主人様、いい買い物です。わたくしが言うのですから間違いありません。",
+        "これで、また一歩、遠くまで行けます。",
+        "……ふふ。育てられるのは、悪くありませんね。",
+        "無駄遣いだったら、あとで責任を取っていただきます。",
+        "ありがとうございます。ちゃんと使いますので。",
+    };
+
+    private static readonly string[] ShopExitTalk =
+    {
+        "では、まいりましょう。……お忘れ物はありませんか。",
+        "行ってまいります。Stay——でしたね。",
+        "支度は済みました。ご主人様の号令をどうぞ。",
+        "戻ってきたら、また買い物に付き合ってくださいね。",
+        "閉店です。……なんて、看板もないのですけれど。",
+        "ご主人様、背筋。",
+        "次に来るときは、もう少し稼いでおきます。",
+    };
+
     // 射撃プレビューのミナ立ち絵（右へ撃つポーズ）。毎フレームLoadしないよう_Readyで一度だけキャッシュ。
     private Texture2D? _minaShot;
 
@@ -212,6 +294,12 @@ public partial class Shop : Node2D
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
     private bool _autoplay;
+
+    // 小話3・退店演出：ExitShop() は即遷移せず「一言トースト→短い遅延」を挟む。二重発火は _exitPending が防ぐ
+    //   （ExitShop() が何度呼ばれても最初の1回だけ有効）。
+    private bool _exitPending;
+    private double _exitDelayT;
+    private string _pendingExitDest = "";
 
     // ───── マウス操作（フェーズ3・キーボード/パッドへ純粋に追加）─────
     //   ノード/チップ/フッタのクリック領域は _Draw で UiKit.Hotspot に登録し、_Process 冒頭で
@@ -321,6 +409,8 @@ public partial class Shop : Node2D
             if (IsStreamComplete(s)) _streamDone.Add(s);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
+        // 小話3：入店時、ミナがぽつりと一言（既存トーストで表示するだけ＝新規UIなし）。
+        Toast(ShopEnterTalk[GD.RandRange(0, ShopEnterTalk.Length - 1)], UiKit.Mina);
     }
 
     public override void _Process(double delta)
@@ -333,6 +423,17 @@ public partial class Shop : Node2D
         if (_capPulseT > 0) _capPulseT -= delta;
         if (_streamBannerT > 0) _streamBannerT -= delta;
         if (_wheelHoldT > 0) _wheelHoldT -= delta;
+
+        // 小話3・退店演出：ExitShop() が退店トーストを立てたら、実際のシーン遷移までここで待つ。
+        //   _autoplay 分岐より前に置くことで、オートプレイでも ExitShop() の毎フレーム再呼び出しが
+        //   _exitPending ガードで無害化されつつ、遅延タイマーはちゃんと進む（進行不能にしない）。
+        if (_exitPending)
+        {
+            _exitDelayT -= delta;
+            QueueRedraw(); // トーストのフェードだけは動かす
+            if (_exitDelayT <= 0) GetTree().ChangeSceneToFile(_pendingExitDest);
+            return;
+        }
         if (_autoplay) { ExitShop(); return; }
 
         // 系統コンプリート：この画面内で系統の全ノードが揃った瞬間に一度だけ祝う。
@@ -646,6 +747,7 @@ public partial class Shop : Node2D
     // “中ボスの続き”から再開する（消費して以降は通常どおりハブへ）。それ以外は従来どおりハブ。
     private void ExitShop()
     {
+        if (_exitPending) return; // 二重発火ガード（連打・オートプレイの毎フレーム呼び出し対策）
         var game = GetNodeOrNull<GameManager>("/root/Game");
         string dest = "res://Hub.tscn";
         if (game != null && !string.IsNullOrEmpty(game.PendingResumeScene))
@@ -653,7 +755,11 @@ public partial class Shop : Node2D
             dest = game.PendingResumeScene!;
             game.PendingResumeScene = null; // 消費
         }
-        GetTree().ChangeSceneToFile(dest);
+        // 小話3：退店の一言を見せてから、短い遅延の後に実際のシーン遷移（_Process 側で処理）。
+        Toast(ShopExitTalk[GD.RandRange(0, ShopExitTalk.Length - 1)], UiKit.Mina);
+        _pendingExitDest = dest;
+        _exitDelayT = 0.8;
+        _exitPending = true;
     }
 
     // トレーニング（試し打ち場）へ。スキルを無料で付け外しして撃ち味を数値で比べる。
@@ -725,7 +831,10 @@ public partial class Shop : Node2D
             Audio.Instance?.PlayUiBuy(); // 購入成功＝達成音
             // 各系統の入り口ノード（spread_1/homing_1/accel_1）は「解放」、それ以外は「強化」。
             bool isUnlock = id == "spread_1" || id == "homing_1" || id == "accel_1";
-            Toast($"{d.Name} を{(isUnlock ? "解放" : "強化")}！", UiKit.Info);
+            // 小話3：低頻度（約25%）で強化確認トーストの代わりにミナの一言を出す。買い物のテンポを崩さないよう
+            //   毎回は出さない（頻発すると邪魔）。強化確認自体は毎回のフィードバックとして残す＝置き換えのみ。
+            if (GD.Randf() < 0.25f) Toast(ShopBuyTalk[GD.RandRange(0, ShopBuyTalk.Length - 1)], UiKit.Mina);
+            else Toast($"{d.Name} を{(isUnlock ? "解放" : "強化")}！", UiKit.Info);
             _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = id; _buyFxAt = at;
             // 拡散/ホーミング/加速球を解放したら自動で装備に切り替える（従来挙動を踏襲）。
             if (id == "spread_1") EquipMode(1, silent: true);

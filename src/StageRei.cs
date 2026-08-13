@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 // StageRei : STAGE1「レイ（順位掲示板の海）」進行＋操作チュートリアル（移動/ショット/かすり）。
 //   1: 導線・着地＋チュートリアル会話
@@ -69,29 +70,58 @@ public partial class StageRei : Node
 
     // ※操作チュートリアルの会話・進行は独立ステージ0（StageZero）へ移設した（A案）。
 
+    // 道中の短い掛け合い（小話集_v1.md §2 StageRei）。1〜3行厳守・テンポ優先。
+    private static readonly (int who, string text, string face)[] Chat1 = // [軽口]
+    {
+        (1, "ご主人様。この“声”、ひとつ祓うたびに、少し肩が軽くなります。", ""),
+        (0, "肩なんてあったのか、お前。", SCocky),
+        (1, "比喩です。無粋なご主人様。", "res://char/mina_smile.png"),
+    };
+    private static readonly (int who, string text, string face)[] Chat2 = // [日常]
+    {
+        (1, "掲示板の隅に、落書きがありますよ。「今日のカレーうまかった」と。", ""),
+        (0, "……こんなとこにも、生活はあるんだな。", SGentle),
+    };
+    private static readonly (int who, string text, string face)[] Chat3 = // [軽口]
+    {
+        (0, "そこ、右に避けろ! ……いや左だ!", SCocky),
+        (1, "どちらですか。", ""),
+        (0, "……勘でいけ。", SCocky),
+    };
+    private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
+    {
+        (1, "一位の隣は、空席なんですね。ずっと。", "res://char/mina_worried.png"),
+        (0, "……座りに行くやつがいれば、変わるさ。", SGentle),
+    };
+    private static readonly (int who, string text, string face)[] Chat5 = // [日常]
+    {
+        (1, "ご主人様、こちらの空、いつも同じ色ですね。夕方で止まっています。", ""),
+        (0, "誰も、片付けてないんだろ。", SGentle),
+    };
+
     // 道中突入の小話（世界観：レイを苦しめるのは“世界中の声”）。道中ザコ戦の前に出す。
-    private static readonly (int who, string text, string face)[] Mid =
+    private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]
     {
         (1, "ご主人様。会場の空気が、ひりついていますよ。肌を刺すような。", ""),
         (1, "道中、見たことのない“声”が群れています。これも、祓っていいんですね?", ""),
         (0, "ああ。レイを苦しめてるのは、彼女ひとりの声じゃない。", SGentle),
         (0, "「比べろ」「負けるな」「二位に価値はない」——そういう、世界中の声だ。", SCocky),
         (1, "……ずいぶん、世知辛い世界ですね。", ""),
-    };
+    }.Concat(Chat1).ToArray();
 
     // 道中“前半”の後：ボスのツイートが流れてくる→MINA×少年がボスについて考察。
     // 承の上り坂・第1段（優先度1）＝【軽い違和感／ミナはまだ訝らない】。
     //   少年が名前・性格まで言い当てても、ミナは訝るどころか感心して“乗る”。読者だけが「なぜそこまで?」と引っかかる。
     //   → あかりで疑いが言葉になり、こはるで核心に触れる、の助走。ここで訝らせると3連発の同型になる（旧稿の死因）。
     private const string RFace = "res://char/rei_face.png";
-    private static readonly (int who, string text, string face)[] BossTalk =
+    private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「だれも、わたしには追いつけない。……それの、なにが、いけないの。」", ""), // ボスのツイートが流れてくる
         (1, "……さっきの投稿が、また流れてきました。この声の主が、奥の“本人”ですか。", ""),
         (0, "ああ。レイっていう。負けず嫌いで、努力家で……誰よりも、勝ちにこだわるやつだ。", SGentle),
         (1, "たった一つの投稿で、そこまで。さすがですね、ご主人様。", "res://char/mina_smile.png"), // 訝らず“乗る”＝素直な感心。読者だけが引っかかる
         (0, "……ふん。それくらい、朝飯前さ。", SProud),                     // 少年は誇るふりで流す（本当は知人だから、だが言わない）
-    };
+    }.Concat(Chat2).Concat(Chat3).ToArray();
 
     // チラ見せ：登場の挑発（攻撃①の前）。who=2=レイ。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
@@ -140,11 +170,11 @@ public partial class StageRei : Node
     };
 
     // 道中後の小話（ボスへの引き）。
-    private static readonly (int who, string text, string face)[] MidEnd =
+    private static readonly (int who, string text, string face)[] MidEnd = new (int, string, string)[]
     {
         (1, "片付きました。……奥に、ひときわ濁った光が。", ""),
         (0, "ああ。さっきの子だ。今度こそ、奥まで届かせる。行くぞ。", SCocky),
-    };
+    }.Concat(Chat4).Concat(Chat5).ToArray();
 
     // ボス登場時の説明（設計書 [P-01b] に該当なし＝空。説明セリフは挟まない）
     private static readonly (int who, string text, string face)[] BossIntro =
@@ -163,6 +193,8 @@ public partial class StageRei : Node
         (0, "……さあな。ぼくも、ろくに外なんか見ちゃいない。", SGentle),
         (1, "つまらないご主人様。いつか、わたくしにも見せてくださいよ。", ""),
         (0, "ああ。……いつか、な。", SGentle),
+        (0, "そうそう、ミナ。シェイクスピアは言った。\"All the world's a stage.\"", SCocky), // シェイクスピア引用1回目：無害な衒学（軽い知識自慢。この時点では深い意味を持たせない）
+        (1, "はいはい。世界は舞台、ですか。……あいにく、ぼくたちのステージはまだ1つ目ですけど?", ""), // 軽く茶化して流す＝まだ何も気づいていない
         (1, "ふふ。……初仕事で、張り切っておられるのですね。お手並み、しかと拝見しました。", "res://char/mina_smile.png"), // 訝りゼロ＝上り坂の起点。感心で締める
     };
 
@@ -207,7 +239,7 @@ public partial class StageRei : Node
         _stepTime += delta;
         _lineHold += delta;
         // ステージ経過タイム：クリア確定までは積算し続け、HUDへ常時反映（クリア後は確定値で固定）。
-        if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
+        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;

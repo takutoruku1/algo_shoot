@@ -61,6 +61,8 @@ public partial class Enemy : Area2D
     //   到達後はその窓では本体HPが減らない（弾の Despawn は継続＝撃ち心地は残す）。EnterExposed で 0 にリセット。
     //   密着クリティカルは上限を超えず「到達を早める」だけ＝近づく価値は残しつつ過剰削りを抑える。
     //   #25 のHP増（Normal以上+1本）に合わせ 90→100＝ちょうど1本ぶん。未強化でも窓数が伸びすぎない。
+    //   #b案：到達した瞬間に窓（VulnDur=4.0s）の残り時間を待たず TickBossPhase が即 EnterReclose へ進める
+    //   （火力に投資するほど窓が早く閉じ、次のBREAKへ速く進む＝テンポでリターンを返す。詳細は TickBossPhase 参照）。
     private const int   ExposedDamageCap = 100;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
@@ -70,7 +72,7 @@ public partial class Enemy : Area2D
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
-    public float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
+    public virtual float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
     // HUD「1本リフィル方式」用。現在の1本ぶんを 0〜1 で、残バー数を index/total で示す。
     public int TotalBars => BarCount;
     public int CurrentBarIndex => _maxHp <= 0 ? 0 : Mathf.Clamp((_hp - 1) / BarHp, 0, BarCount - 1); // 残バーの先頭(0始まり)
@@ -929,7 +931,9 @@ public partial class Enemy : Area2D
                 if (_hitFlashT > 0) _hitFlashT -= delta; // 被弾発光の減衰
                 if (_bodyHitCd > 0) _bodyHitCd -= delta; // 本体ヒットCDの消化
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
-                if (_phaseT >= VulnDur) EnterReclose();
+                // 窓キャップ到達済みなら残り時間（最大4.0s）を待たせず次サイクルへ即移行。
+                // 火力に投資するほど「窓を早く閉じて次のBREAKへ進める」形でリターンを返す（#b案）。
+                if (_windowDamage >= ExposedDamageCap || _phaseT >= VulnDur) EnterReclose();
                 break;
             case BossPhase.Reclose:
                 // 弱気セリフ(RecloseLineDur)を見せ、RespawnGap 置いてパネルを一括再生成＝SHIELDED へ。

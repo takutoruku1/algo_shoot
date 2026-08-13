@@ -7,7 +7,7 @@ using Godot;
 //   ゲームオーバー中など「すぐやり直したい」局面は instant=true で従来どおり押した瞬間に発動する。
 public class RetryHold
 {
-    public const float HoldTime = 0.7f; // 発動までの長押し秒数（誤爆と待たされ感のバランス）
+    public const float HoldTime = 0.45f; // 発動までの長押し秒数（誤爆と待たされ感のバランス）
 
     private double _t;      // 押しっぱなしの経過秒
     private bool _held;     // instant 用のエッジ検出

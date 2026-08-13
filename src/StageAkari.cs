@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 // StageAkari : STAGE2「あかり（雨の教室）」進行。
 //   1: 導入会話（少年＝声/テロップ、ミナ＝立ち絵で毒舌）
@@ -77,21 +78,52 @@ public partial class StageAkari : Node
         (0, "————渡せなかった想いってのは、ああやって、あふれるんだ。この世界ではね。", SGentle),
     };
 
+    // 道中の短い掛け合い（小話集_v1.md §2 StageAkari）。1〜3行厳守・テンポ優先。
+    private static readonly (int who, string text, string face)[] Chat1 = // [日常]
+    {
+        (1, "雨、やみませんね。……傘、お持ちですか、ご主人様。", ""),
+        (0, "持ってる。折れてるけどな。", SCocky),
+        (1, "折れた傘をお持ちの方は、それを持っていないと申します。", ""),
+    };
+    private static readonly (int who, string text, string face)[] Chat2 = // [軽口]
+    {
+        (0, "ミナ。ぼく、雨の音は好きだ。", SGentle),
+        (1, "存じております。うるさいと言いながら、いつも消さないので。", "res://char/mina_smile.png"),
+    };
+    private static readonly (int who, string text, string face)[] Chat3 = // [日常]
+    {
+        (1, "水たまりを踏むと、なぜ少し楽しいんでしょうね。", ""),
+        (0, "……大人はそれをやると怒られるからだ。", SCocky),
+        (1, "では、わたくしは踏み放題ですね。", "res://char/mina_smile.png"),
+    };
+    private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
+    {
+        (1, "この吹き出し、ぜんぶ「またね」と書いてあります。", "res://char/mina_worried.png"),
+        (0, "————", SAfraid),
+        (1, "……祓います。ご主人様は、見なくていいです。", ""),
+    };
+    private static readonly (int who, string text, string face)[] Chat5 = // [軽口]
+    {
+        (1, "ご主人様、髪。跳ねていませんか、今日。", ""),
+        (0, "見えてないだろ、お前からは。", SCocky),
+        (1, "声で分かります。跳ねている人の声です。", "res://char/mina_smile.png"),
+    };
+
     // 道中突入の小話（世界観：自責の声の雨）。道中ザコ戦の前に出す。
-    private static readonly (int who, string text, string face)[] Mid =
+    private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]
     {
         (1, "ご主人様、ごらんになって。雨の中を……白い吹き出しが、いくつも漂っています。", "res://char/mina_face.png"),
         (1, "ここの声は……どれも、「ねえ見て」「すき」と、すがりついてきます。", ""),
         (0, "ああ。たった一人に渡せなかったぶん、誰彼かまわず掴もうとしてる。", SGentle),
         (1, "……ご主人様は、その“たった一人”を、知っているみたいに言うんですね。", "res://char/mina_doubt.png"), // 疑いを一歩具体化（第2段）
         (0, "————行くぞ。", SAfraid),                          // 答えず逸らす＝崩れ（afraid）で一貫
-    };
+    }.Concat(Chat1).ToArray();
 
     // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第2段（優先度1・3）＝【思わず情がこぼれ、動揺で蓋をする】。
     //   少年が“見てきたような”細部（笑い方）を口走り、直後にハッと蓋をする（afraid）。ミナは「?」で追うが、核心＝“知人だ”とは
     //   まだ言い切らせない（そこはこはる面へ温存）。優先度3：説明的な「知っている人みたい」を弱め、崩れ＝表情で見せる。
     private const string AFace = "res://char/akari_face.png";
-    private static readonly (int who, string text, string face)[] BossTalk =
+    private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""), // ボスのツイート
         (1, "……また、あの投稿が流れてきました。奥の“本人”は、ずいぶん思いつめていますね。", ""),
@@ -99,7 +131,7 @@ public partial class StageAkari : Node
         (0, "————。……いや。", SAfraid),                                    // ハッと蓋をする＝崩れ（afraid）。言い切らない
         (1, "……ご主人様?", "res://char/mina_doubt.png"),                    // 追うが、まだ言葉にはしない（核心はこはる面へ）
         (0, "……なんでもない。行くぞ。", SGentle),
-    };
+    }.Concat(Chat2).Concat(Chat3).ToArray();
 
     // チラ見せ：登場（あかり＝怯え・拒絶）。who=2=あかり。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
@@ -145,11 +177,11 @@ public partial class StageAkari : Node
     };
 
     // 道中後の小話（ボスへの引き）。
-    private static readonly (int who, string text, string face)[] MidEnd =
+    private static readonly (int who, string text, string face)[] MidEnd = new (int, string, string)[]
     {
         (1, "黒板の奥に、あの子が。……ご主人様、ほんとうに、いいんですね?", ""),
         (0, "……ぼくが、やらなきゃいけないんだ。", SGentle),
-    };
+    }.Concat(Chat4).Concat(Chat5).ToArray();
 
     // 帰還（v2 [P-02c]）。承第2段の締め（優先度1・3）＝【疑いを口にするが、断定はさせない】。
     //   ミナは初めて「知ってるんですか?」と問う（レイでは無かった直接の問い）。少年は動揺しつつ嘘でかわす（afraid→取り繕い）。
@@ -200,7 +232,7 @@ public partial class StageAkari : Node
         _stepTime += delta;
         _lineHold += delta;
         // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
-        if (!_clearing) { _stageElapsed += delta; Hud?.SetElapsed((float)_stageElapsed); }
+        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 2 START"); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();

@@ -107,7 +107,7 @@ public partial class GameManager : Node
 
     // 累計浄化数。
     public int PurifiedCount { get; private set; }
-    // 累計グレイズ（かすり）数。チュートリアルの「グレイズ1回」検出に使う。
+    // 累計グレイズ（かすり）数。加算のみで現状は読み手なし（将来グレイズチュートリアルが実装されれば読み手になり得る）。
     public int GrazeCount { get; private set; }
 
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
@@ -240,6 +240,13 @@ public partial class GameManager : Node
     private readonly HashSet<string> _replied = new();
     public bool HasReplied(string id) => _replied.Contains(id);
     public void MarkReplied(string id) => _replied.Add(id);
+
+    // ハブ再訪小話（小話集 v1 §1）の既読管理。キーは "idle_{stageId}_{index}" / "common_{index}"。
+    // 未読を優先して抽選し、全部見たらリセットして回す（Hub._Ready が消費）。永続（セーブに含む）。
+    private readonly HashSet<string> _idleDialogSeen = new();
+    public bool IsIdleDialogSeen(string key) => _idleDialogSeen.Contains(key);
+    public void MarkIdleDialogSeen(string key) => _idleDialogSeen.Add(key);
+    public void ResetIdleDialogSeen() => _idleDialogSeen.Clear();
     public bool IsStageCleared(string id) => _cleared.Contains(id);
     // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
     public int HeartGoal => Stages.Length;
@@ -662,7 +669,7 @@ public partial class GameManager : Node
     public float FollowerImpressionMul => 1f + Mathf.Min(0.50f, Followers * 0.00008f);
 
     // ── 難易度・強化由来のインプレ倍率 ──
-    public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, Diff.Lunatic => 2.2f, _ => 1f };
+    public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.6f, Diff.Lunatic => 3.0f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
     public float UpgradeImpressionMul => 1f + 0.12f * ChainLevel("imp_mult", 4);
     // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
@@ -799,6 +806,11 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
+        // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
+        var ids = new Godot.Collections.Array();
+        foreach (var key in _idleDialogSeen)
+            ids.Add(key);
+        data["idleDialogSeen"] = ids;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -857,6 +869,14 @@ public partial class GameManager : Node
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
+        // ハブ再訪小話の既読キー復元（キー無し＝旧セーブは空＝後方互換）。
+        _idleDialogSeen.Clear();
+        if (data.ContainsKey("idleDialogSeen"))
+        {
+            var ids = data["idleDialogSeen"].AsGodotArray();
+            foreach (var v in ids)
+                _idleDialogSeen.Add(v.AsString());
+        }
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
         //   クランプ上限は 3（Accel＝加速球を正当な保存値として許容）。未解放なら下の IsModeUnlocked で Rapid へ落ちる。
         if (data.ContainsKey("shotmode"))
@@ -879,6 +899,7 @@ public partial class GameManager : Node
         SelectedEntry = StageEntry.Start;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         _burnHappened = false; Burning = false; BurningThisRun = false;
+        _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
         Contamination = 0f;
@@ -1115,11 +1136,15 @@ public partial class GameManager : Node
 
     // 敵弾をかすった（グレイズ）時の加点。
     // かすりでコンボ猶予をリフレッシュ＝「敵に寄ってかすり続ける」と攻めが途切れない（§2-4 攻めたほうが得）。
+    // インプレ（通貨）も少額付与＝「弾に寄る」こと自体に経済的リターンを持たせる。
+    //   回避よけ(AddDodgeGraze＝GainImpression(DodgeGrazeImpBase)=2)より少なく＝回避の優位は維持。
+    //   farming対策：被弾直後の無敵中(_hitInvincible)は呼び出し元(Player.OnGrazeAreaEntered)で既にスキップ済み。
     public void AddGraze()
     {
         Score += 10;
         GrazeCount++;
         AddKindness(GrazeGain);
+        GainImpression(1);
         if (Combo > 0)
             _comboTimer = ComboWindow;
     }
@@ -1235,7 +1260,7 @@ public partial class GameManager : Node
         // プロンプトは直近デバイス（Pad.ShowKeyboard）に追従。パッドのリトライはポーズメニュー経由
         //（Start はメニュー開閉に使うため）、抜けは B（×）＝Back(SELECT/VIEW) は会話ログの開キーと衝突する。
         hud?.ShowGameOverPrompt(Pad.ShowKeyboard
-            ? "R：リトライ　／　Q：ステージから抜ける（ハブへ戻る）"
+            ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：ステージから抜ける（ハブへ戻る）"
             : $"{Pad.Face(JoyButton.Start)}：メニュー→さいしょからやりなおす　／　{Pad.Face(JoyButton.B)}：ステージから抜ける（ハブへ戻る）");
 
         bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.B);
