@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-13 15:38 UTC
+> 生成: 2026-08-13 15:43 UTC
 
 ## 消化率
 
@@ -54,6 +54,7 @@ _なし_
 
 ## 直近のコミット
 
+- `8eff3aa` 2026-08-14 Fix three defects that broke input, fresh saves, and retry
 - `3ad5cbe` 2026-08-14 Let one nightly run work through several queue items
 - `231a25f` 2026-08-13 Audit the game from four angles and queue what needs fixing
 - `58700ca` 2026-08-13 Queue the small-talk work and park the pending story decisions
@@ -61,4 +62,3 @@ _なし_
 - `aa7cbc6` 2026-08-13 Give the epilogue a background per phase
 - `bc2c32b` 2026-08-13 Add progress dashboard and fix queue worker parsing
 - `3df5d8d` 2026-08-13 Add autonomous nightly dev pipeline
-- `deb7844` 2026-08-13 Fix playtest findings: softlock, unavoidable AOE, and shot balance

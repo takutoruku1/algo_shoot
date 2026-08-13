@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-13 15:38 UTC",
+  "generated": "2026-08-13 15:43 UTC",
   "counts": {
     "todo": 37,
     "wip": 0,
@@ -334,6 +334,11 @@
   ],
   "commits": [
     {
+      "hash": "8eff3aa",
+      "date": "2026-08-14",
+      "subject": "Fix three defects that broke input, fresh saves, and retry"
+    },
+    {
       "hash": "3ad5cbe",
       "date": "2026-08-14",
       "subject": "Let one nightly run work through several queue items"
@@ -367,11 +372,6 @@
       "hash": "3df5d8d",
       "date": "2026-08-13",
       "subject": "Add autonomous nightly dev pipeline"
-    },
-    {
-      "hash": "deb7844",
-      "date": "2026-08-13",
-      "subject": "Fix playtest findings: softlock, unavoidable AOE, and shot balance"
     }
   ]
 }
