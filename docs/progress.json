@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 20:31 UTC",
+  "generated": "2026-08-13 20:32 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 12,
-    "done": 38
+    "done": 39
   },
-  "percent": 93,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "タスク管理.md の状態を実装に合わせる",
-      "worker": "engineer",
-      "accept": "#22/#27/#11 は実装済みなのに管理表が ☐/◐ のまま。実コードを正として状態欄と補足を更新（このズレが自動開発の空振りを生む）"
-    },
     {
       "priority": "P3",
       "title": "#15 ボスラッシュ制約",
@@ -103,6 +97,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "タスク管理.md の状態を実装に合わせる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/タスク管理.md` の Epic G（#27/#11）を実コード確認済みの ☑ へ更新（`Hub.cs`のSNSタイムライン化、`StageImagery.cs`のツイート風カード実装を確認）。サマリ行・Epic見出しも合わせて更新"
+    },
     {
       "priority": "P2",
       "title": "M5 設計書との乖離最終チェック",
@@ -334,6 +334,11 @@
   ],
   "commits": [
     {
+      "hash": "4b10b3d",
+      "date": "2026-08-13",
+      "subject": "auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）"
+    },
+    {
       "hash": "8a1bcc4",
       "date": "2026-08-13",
       "subject": "auto: WIP M5 設計書との乖離最終チェック"
@@ -367,11 +372,6 @@
       "hash": "5cd4adc",
       "date": "2026-08-13",
       "subject": "auto: 小話5『タイトル画面のひとこと』を実装"
-    },
-    {
-      "hash": "1934c72",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 小話5: タイトル画面のひとこと"
     }
   ]
 }
