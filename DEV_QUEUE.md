@@ -67,7 +67,7 @@
 
 ## WIP
 
-- [ ] (P1) ミナが汚染を引き受ける選択の一行が無い | scenario | 正典 `docs/20260619/EpicB_物語設計案.md:59-61` が「pitfall P2回避＝『汚染を引き受けてでも3人を救う』選択を**ミナ自身の意志として一行描く**」と要求しているが、全実装を走査しても該当台詞が存在しない。ミナは最後まで受動的に濁らされるだけで、FINALの暴走が「彼女の選択の結果」にならない。`StageKoharu.cs:162` の Clear 末尾に3行追加（汚染を説明せず「重い」の身体感覚だけで置く＝show don't tell 遵守）。文面案は監査報告のP2-4にあり
+（なし）
 
 ## BLOCKED
 
@@ -84,6 +84,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) ミナが汚染を引き受ける選択の一行が無い | scenario | (完了 2026-08-13) `StageKoharu.cs:162-164` の `Clear` 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(`mina_doubt`/`mina_worried`/`mina_smile`)は既存アセットのみ使用、`Final.cs` 側との接続確認は別タスク送り
 - [x] (P1) 通常グレイズが通貨を生まない | game-designer | (完了 2026-08-13) `AddGraze()`（`GameManager.cs:1118`）に `GainImpression(1)` を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は `Player.OnGrazeAreaEntered` の `_hitInvincible` スキップと1弾1回課金（`Grazed`フラグ）で既存担保
 - [x] (P1) ボス戦が火力投資に反応しない | game-designer | (完了 2026-08-13) (b)案採用。`Enemy.cs` の `TickBossPhase`（`BossPhase.Exposed` 分岐）で `_windowDamage >= ExposedDamageCap` を検知したら `_phaseT >= VulnDur` を待たず即 `EnterReclose()` へ遷移するよう変更。火力に投資するほど窓4.0sをフルに使わず早くキャップに到達し、次のBREAKサイクルへ速く進む。弱火力時は従来通り4.0秒フルに残るので体験は不変。(a)案「1本＋超過分50%持ち越し」は別タスク送り
 - [x] (P1) マウス未操作なのに選択が勝手に飛ぶ | engineer | (完了 2026-08-14) `Pad.cs` に `_mouseSeeded` を追加し、初回 `PollMouse` は `_mousePosPrev` を実座標に揃えるだけにして移動判定をスキップ。初期値(0,0)から跳ぶぶんでの誤ラッチが消えた。QAスクショで Hub の初期選択が t=0.3/t=3.0 とも解放済みの「レイ」で固定を実測（修正前はカーソル位置次第でロック中カードへ移動）

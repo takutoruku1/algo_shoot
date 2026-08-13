@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 18:29 UTC",
+  "generated": "2026-08-13 18:31 UTC",
   "counts": {
-    "todo": 35,
+    "todo": 34,
     "wip": 0,
     "blocked": 9,
-    "done": 9
+    "done": 10
   },
-  "percent": 20,
+  "percent": 23,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "ミナが汚染を引き受ける選択の一行が無い",
-      "worker": "scenario",
-      "accept": "正典 `docs/20260619/EpicB_物語設計案.md:59-61` が「pitfall P2回避＝『汚染を引き受けてでも3人を救う』選択を**ミナ自身の意志として一行描く**」と要求しているが、全実装を走査しても該当台詞が存在しない。ミナは最後まで受動的に濁らされるだけで、FINALの暴走が「彼女の選択の結果」にならない。`StageKoharu.cs:162` の Clear 末尾に3行追加（汚染を説明せず「重い」の身体感覚だけで置く＝show don't tell 遵守）。文面案は監査報告のP2-4にあり"
-    },
     {
       "priority": "P1",
       "title": "Hubリプライがエピローグの二段落としを先に割る",
@@ -279,6 +273,12 @@
   "done": [
     {
       "priority": "P1",
+      "title": "ミナが汚染を引き受ける選択の一行が無い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `StageKoharu.cs:162-164` の `Clear` 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(`mina_doubt`/`mina_worried`/`mina_smile`)は既存アセットのみ使用、`Final.cs` 側との接続確認は別タスク送り"
+    },
+    {
+      "priority": "P1",
       "title": "通常グレイズが通貨を生まない",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) `AddGraze()`（`GameManager.cs:1118`）に `GainImpression(1)` を追加。回避グレイズ(+2)より少額に留め優位性は保持。farming対策は `Player.OnGrazeAreaEntered` の `_hitInvincible` スキップと1弾1回課金（`Grazed`フラグ）で既存担保"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "93f31de",
+      "date": "2026-08-13",
+      "subject": "auto: WIP ミナが汚染を引き受ける選択の一行が無い"
+    },
+    {
+      "hash": "1f5d6d4",
+      "date": "2026-08-13",
+      "subject": "auto: 通常グレイズにインプレ加算を追加"
+    },
+    {
       "hash": "e744c6f",
       "date": "2026-08-13",
       "subject": "auto: WIP 通常グレイズが通貨を生まない"
@@ -362,16 +372,6 @@
       "hash": "bf9ab6a",
       "date": "2026-08-14",
       "subject": "Make enemy AOE telegraphs and impacts read as one strike"
-    },
-    {
-      "hash": "26e6569",
-      "date": "2026-08-14",
-      "subject": "Refresh the progress snapshot"
-    },
-    {
-      "hash": "8eff3aa",
-      "date": "2026-08-14",
-      "subject": "Fix three defects that broke input, fresh saves, and retry"
     }
   ]
 }

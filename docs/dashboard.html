@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">20<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 9 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
+      <span class="pct">23<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 10 / 対象 44 タスク<br>保留 9 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 20パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 23パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">9</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">10</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">35</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">34</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">9</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">ミナが汚染を引き受ける選択の一行が無い</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典 <code>docs/20260619/EpicB_物語設計案.md:59-61</code> が「pitfall P2回避＝『汚染を引き受けてでも3人を救う』選択を<strong>ミナ自身の意志として一行描く</strong>」と要求しているが、全実装を走査しても該当台詞が存在しない。ミナは最後まで受動的に濁らされるだけで、FINALの暴走が「彼女の選択の結果」にならない。<code>StageKoharu.cs:162</code> の Clear 末尾に3行追加（汚染を説明せず「重い」の身体感覚だけで置く＝show don't tell 遵守）。文面案は監査報告のP2-4にあり</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -406,6 +398,14 @@
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
+          <span class="task-title">ミナが汚染を引き受ける選択の一行が無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>StageKoharu.cs:162-164</code> の <code>Clear</code> 末尾に3行追加。「息が詰まる」「重さ」の身体感覚のみで示し（汚染/ゲージ等の語は不使用）、「わたくしが、持ちます」でミナ自身の能動の意志として描いた。監査報告P2-4の文面案は実体が見当たらず、maeda skillで新規に書き起こし。face(<code>mina_doubt</code>/<code>mina_worried</code>/<code>mina_smile</code>)は既存アセットのみ使用、<code>Final.cs</code> 側との接続確認は別タスク送り</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
           <span class="task-title">通常グレイズが通貨を生まない</span>
           <span class="worker">game-designer</span>
         </div>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">93f31de</span><span>2026-08-13</span><span class="s">auto: WIP ミナが汚染を引き受ける選択の一行が無い</span></li>
+      <li><span class="h">1f5d6d4</span><span>2026-08-13</span><span class="s">auto: 通常グレイズにインプレ加算を追加</span></li>
       <li><span class="h">e744c6f</span><span>2026-08-13</span><span class="s">auto: WIP 通常グレイズが通貨を生まない</span></li>
       <li><span class="h">cceb4d2</span><span>2026-08-13</span><span class="s">auto: ボス戦の無防備窓、火力投資でサイクル短縮するよう修正</span></li>
       <li><span class="h">defa32f</span><span>2026-08-13</span><span class="s">auto: WIP ボス戦が火力投資に反応しない</span></li>
       <li><span class="h">9360c42</span><span>2026-08-14</span><span class="s">Unify cutscene text boxes and color tokens</span></li>
       <li><span class="h">d123e2b</span><span>2026-08-14</span><span class="s">Let the player flip facing and shoot backwards</span></li>
       <li><span class="h">bf9ab6a</span><span>2026-08-14</span><span class="s">Make enemy AOE telegraphs and impacts read as one strike</span></li>
-      <li><span class="h">26e6569</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot</span></li>
-      <li><span class="h">8eff3aa</span><span>2026-08-14</span><span class="s">Fix three defects that broke input, fresh saves, and retry</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

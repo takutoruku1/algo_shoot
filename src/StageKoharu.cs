@@ -159,6 +159,9 @@ public partial class StageKoharu : Node
         (0, "……さあ。どうだったかな。", SGentle),                              // はぐらかす（伏線④を未回収のまま引きずる）
         (1, "……もう、聞きません。あなたが、聞くなと言ったので。", "res://char/mina_doubt.png"), // MidStoryの拒絶を受ける＝追及をやめる
         (1, "……ですが。“妹を頼む”くらいは——覚えておいて、さしあげます。", "res://char/mina_smile.png"), // 願い（伏線④）だけ受け取る。咎めず飲み込む優しさへ反転
+        (1, "……なんでもありません。ただ、少し——息が、詰まるだけです。", "res://char/mina_doubt.png"),   // pitfall P2回避：汚染を語らず身体感覚だけで示す（show don't tell）
+        (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", "res://char/mina_worried.png"), // ミナ自身の意志（受動ではなく能動の選択として描く）
+        (1, "苦しいのは——嫌いでは、ありません。ご主人様を、ちゃんと支えられているという、証ですから。", "res://char/mina_smile.png"), // ツンデレのまま受容。FINAL暴走を彼女の選択の結果にする布石
     };
 
     public override void _Ready()
