@@ -40,7 +40,7 @@
 
 ## WIP
 
-- [ ] (P2) 小話4: トレーニング場の独り言 | engineer | `docs/小話集_v1.md` §4 を実装。`TrainingRoot.cs` は会話系が皆無なので**器を新設**（`DrawUi` の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと
+（なし）
 
 ## BLOCKED
 
@@ -60,6 +60,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) 小話4: トレーニング場の独り言 | engineer | (完了 2026-08-13) `docs/小話集_v1.md` §4を`TrainingRoot.cs`へ実装。DPS計器直下(x430-774,y224-320)にトースト器を新設。入場時1回、命中ごとに10%抽選（表示中は再抽選しない）、無入力7秒で放置トーク（入力復帰まで連呼しない）
 - [x] (P2) 小話3: ショップの一言 | engineer | (完了 2026-08-13) `docs/小話集_v1.md` §3を`Shop.cs`へ実装。既存の`Toast()`機構を流用（新規UI不要と判明）。入店時1回、購入時25%で確認メッセージの代わりに一言、退店は「一言→0.8秒遅延→実遷移」の`_exitPending`ガード付き。オートプレイ(`--qa`)でのデッドロックを避けるよう判定順を配慮
 - [x] (P1) 小話2: ハブの複数パターン化 | engineer | (完了 2026-08-13) `docs/小話集_v1.md` §1のIdleDialogs/SmallTalksを`Hub.cs`へ実装。クリア直後は既存`ReturnDialog`のまま、それ以外の入場は50%抽選で`TryStartIdleSmallTalk()`が未読優先で1本再生（全既読ならリセット）。既読は`GameManager`に`HashSet<string>`で永続化（Save/Load/ResetPersistent対応、後方互換ガード済み） | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更
 - [x] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | (完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成

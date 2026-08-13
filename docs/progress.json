@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:48 UTC",
+  "generated": "2026-08-13 19:54 UTC",
   "counts": {
-    "todo": 8,
+    "todo": 7,
     "wip": 0,
     "blocked": 11,
-    "done": 33
+    "done": 34
   },
-  "percent": 80,
+  "percent": 83,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "小話4: トレーニング場の独り言",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §4 を実装。`TrainingRoot.cs` は会話系が皆無なので**器を新設**（`DrawUi` の空き帯に描く）。入場時・撃っている最中・放置時で出し分け。DPS計器やスキルパネルと重ならない位置に置くこと"
-    },
     {
       "priority": "P2",
       "title": "小話5: タイトル画面のひとこと",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "小話4: トレーニング場の独り言",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §4を`TrainingRoot.cs`へ実装。DPS計器直下(x430-774,y224-320)にトースト器を新設。入場時1回、命中ごとに10%抽選（表示中は再抽選しない）、無入力7秒で放置トーク（入力復帰まで連呼しない）"
+    },
     {
       "priority": "P2",
       "title": "小話3: ショップの一言",
@@ -328,6 +328,16 @@
   ],
   "commits": [
     {
+      "hash": "3a448ca",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 小話4: トレーニング場の独り言"
+    },
+    {
+      "hash": "5257724",
+      "date": "2026-08-13",
+      "subject": "auto: 小話3『ショップの一言』を実装"
+    },
+    {
       "hash": "ef78ca3",
       "date": "2026-08-13",
       "subject": "auto: WIP 小話3: ショップの一言"
@@ -356,16 +366,6 @@
       "hash": "629a627",
       "date": "2026-08-13",
       "subject": "auto: FINALの投稿弾を三人の語＋ミナ自身の語に混成"
-    },
-    {
-      "hash": "3921004",
-      "date": "2026-08-13",
-      "subject": "auto: WIP FINALの投稿弾がミナ自身の言葉になっていない"
-    },
-    {
-      "hash": "5af7634",
-      "date": "2026-08-13",
-      "subject": "auto: Epilogueの死因回収を2行に分割"
     }
   ]
 }
