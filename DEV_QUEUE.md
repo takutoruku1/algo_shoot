@@ -42,7 +42,7 @@
 
 ## WIP
 
-- [ ] (P1) 小話2: ハブの複数パターン化 | engineer | `docs/小話集_v1.md` §1 を実装。現行 `ReturnDialog`（`Hub.cs:945`・クリア直後1回のみ）は温存し、再訪時に `IdleDialogs(id)`＋`SmallTalks` から抽選する経路を追加。`GameManager` に既読インデックス（HashSet<int>）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度
+（なし）
 
 ## BLOCKED
 
@@ -62,7 +62,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
-- [x] (P1) 小話1: 道中の掛け合い | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更
+- [x] (P1) 小話2: ハブの複数パターン化 | engineer | (完了 2026-08-13) `docs/小話集_v1.md` §1のIdleDialogs/SmallTalksを`Hub.cs`へ実装。クリア直後は既存`ReturnDialog`のまま、それ以外の入場は50%抽選で`TryStartIdleSmallTalk()`が未読優先で1本再生（全既読ならリセット）。既読は`GameManager`に`HashSet<string>`で永続化（Save/Load/ResetPersistent対応、後方互換ガード済み） | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更
 - [x] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | (完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成
 - [x] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | (完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O("地",...)`呼び出しに分割。テキスト内容・語順は無変更
 - [x] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | (完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）

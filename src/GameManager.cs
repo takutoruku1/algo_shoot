@@ -240,6 +240,13 @@ public partial class GameManager : Node
     private readonly HashSet<string> _replied = new();
     public bool HasReplied(string id) => _replied.Contains(id);
     public void MarkReplied(string id) => _replied.Add(id);
+
+    // ハブ再訪小話（小話集 v1 §1）の既読管理。キーは "idle_{stageId}_{index}" / "common_{index}"。
+    // 未読を優先して抽選し、全部見たらリセットして回す（Hub._Ready が消費）。永続（セーブに含む）。
+    private readonly HashSet<string> _idleDialogSeen = new();
+    public bool IsIdleDialogSeen(string key) => _idleDialogSeen.Contains(key);
+    public void MarkIdleDialogSeen(string key) => _idleDialogSeen.Add(key);
+    public void ResetIdleDialogSeen() => _idleDialogSeen.Clear();
     public bool IsStageCleared(string id) => _cleared.Contains(id);
     // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
     public int HeartGoal => Stages.Length;
@@ -799,6 +806,11 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
+        // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
+        var ids = new Godot.Collections.Array();
+        foreach (var key in _idleDialogSeen)
+            ids.Add(key);
+        data["idleDialogSeen"] = ids;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -857,6 +869,14 @@ public partial class GameManager : Node
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
+        // ハブ再訪小話の既読キー復元（キー無し＝旧セーブは空＝後方互換）。
+        _idleDialogSeen.Clear();
+        if (data.ContainsKey("idleDialogSeen"))
+        {
+            var ids = data["idleDialogSeen"].AsGodotArray();
+            foreach (var v in ids)
+                _idleDialogSeen.Add(v.AsString());
+        }
         // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
         //   クランプ上限は 3（Accel＝加速球を正当な保存値として許容）。未解放なら下の IsModeUnlocked で Rapid へ落ちる。
         if (data.ContainsKey("shotmode"))
@@ -879,6 +899,7 @@ public partial class GameManager : Node
         SelectedEntry = StageEntry.Start;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         _burnHappened = false; Burning = false; BurningThisRun = false;
+        _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
         Contamination = 0f;

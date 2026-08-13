@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:36 UTC",
+  "generated": "2026-08-13 19:42 UTC",
   "counts": {
-    "todo": 10,
+    "todo": 9,
     "wip": 0,
     "blocked": 11,
     "done": 32
   },
-  "percent": 76,
+  "percent": 78,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "小話2: ハブの複数パターン化",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §1 を実装。現行 `ReturnDialog`（`Hub.cs:945`・クリア直後1回のみ）は温存し、再訪時に `IdleDialogs(id)`＋`SmallTalks` から抽選する経路を追加。`GameManager` に既読インデックス（HashSet<int>）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度"
-    },
     {
       "priority": "P2",
       "title": "小話3: ショップの一言",
@@ -141,9 +135,9 @@
   "done": [
     {
       "priority": "P1",
-      "title": "小話1: 道中の掛け合い",
-      "worker": "scenario",
-      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更"
+      "title": "小話2: ハブの複数パターン化",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §1のIdleDialogs/SmallTalksを`Hub.cs`へ実装。クリア直後は既存`ReturnDialog`のまま、それ以外の入場は50%抽選で`TryStartIdleSmallTalk()`が未読優先で1本再生（全既読ならリセット）。既読は`GameManager`に`HashSet<string>`で永続化（Save/Load/ResetPersistent対応、後方互換ガード済み） | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更"
     },
     {
       "priority": "P3",
@@ -334,6 +328,16 @@
   ],
   "commits": [
     {
+      "hash": "1acbd5e",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 小話2: ハブの複数パターン化"
+    },
+    {
+      "hash": "4c43e06",
+      "date": "2026-08-13",
+      "subject": "auto: 小話1『道中の掛け合い』をStageRei/Akari/Koharuに実装"
+    },
+    {
       "hash": "6f22a8d",
       "date": "2026-08-13",
       "subject": "auto: WIP 小話1: 道中の掛け合い"
@@ -362,16 +366,6 @@
       "hash": "a0fce46",
       "date": "2026-08-13",
       "subject": "auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに"
-    },
-    {
-      "hash": "a4c57cb",
-      "date": "2026-08-13",
-      "subject": "auto: WIP TrainingDummy.HpRatioが基底を隠している"
-    },
-    {
-      "hash": "c8781c4",
-      "date": "2026-08-13",
-      "subject": "auto: CS8602警告4件を解消（Hud?.をHud.へ統一）"
     }
   ]
 }
