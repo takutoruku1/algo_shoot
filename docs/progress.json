@@ -1,19 +1,13 @@
 {
   "generated": "2026-08-13 18:59 UTC",
   "counts": {
-    "todo": 26,
+    "todo": 25,
     "wip": 0,
-    "blocked": 10,
+    "blocked": 11,
     "done": 17
   },
   "percent": 40,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "排他フォーク/振り直し一式が到達不能な死にコード",
-      "worker": "engineer",
-      "accept": "単Lvノード方式への移行で**カタログ全60+ノードの `ExclusiveWith` が全て空**（`GameManager.cs:350` のコメント自身が「排他は全撤廃」と明言）。よって `IsSealed` は常に false で、`RespecRefund`/`RespecFee`/`TryRespec`/`TotalPaid` と `Shop.RespecStep`(679-700)/`DrawRespecPanel`(1662-1765・約100行)/`_respecArmed` 状態機械/`sealed_` 分岐が**全て到達不能**。過去の `_unlocked`・`BackfireTurnRate` と同種でずっと大規模（Shop 1955行のうち100行超）。復活予定が無いなら削除、あるなら宣言部に「現在全ノード未使用＝respec経路は到達不能」と明記して次の読者を守る。**要ユーザー判断**"
-    },
     {
       "priority": "P2",
       "title": "FINAL導入が4行でクライマックスの助走が無い",
@@ -167,6 +161,12 @@
   ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "排他フォーク/振り直し一式が到達不能な死にコード",
+      "worker": "engineer",
+      "accept": "単Lvノード方式への移行で全60+ノードの `ExclusiveWith` が全て空になり、`RespecRefund`/`RespecFee`/`TryRespec`/`TotalPaid` と `Shop.RespecStep`/`DrawRespecPanel`（約100行）/`_respecArmed` 状態機械/`sealed_` 分岐が全て到達不能。タスク文面自体が「削除するか、あるなら注記するか」を**要ユーザー判断**と明記しており、復活予定の有無は実コード調査だけでは分からない仕様判断のため実装せず据え置き"
+    },
     {
       "priority": null,
       "title": "グレイズを教えるチュートリアルが無い",
@@ -334,6 +334,11 @@
   ],
   "commits": [
     {
+      "hash": "d496022",
+      "date": "2026-08-13",
+      "subject": "auto: シェイクスピア引用の三段仕掛けに1回目/3回目を追加"
+    },
+    {
       "hash": "b883bdb",
       "date": "2026-08-13",
       "subject": "auto: WIP シェイクスピア引用の三段仕掛けが二段しか無い"
@@ -367,11 +372,6 @@
       "hash": "06efec8",
       "date": "2026-08-13",
       "subject": "auto: 死亡時にボスからのチェックポイント再開を追加"
-    },
-    {
-      "hash": "17e0e34",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 死亡時にチェックポイントから再開できない"
     }
   ]
 }
