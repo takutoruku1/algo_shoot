@@ -107,7 +107,7 @@ public partial class GameManager : Node
 
     // 累計浄化数。
     public int PurifiedCount { get; private set; }
-    // 累計グレイズ（かすり）数。チュートリアルの「グレイズ1回」検出に使う。
+    // 累計グレイズ（かすり）数。加算のみで現状は読み手なし（将来グレイズチュートリアルが実装されれば読み手になり得る）。
     public int GrazeCount { get; private set; }
 
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。

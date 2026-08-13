@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:22 UTC",
+  "generated": "2026-08-13 19:23 UTC",
   "counts": {
-    "todo": 16,
+    "todo": 15,
     "wip": 0,
     "blocked": 11,
-    "done": 26
+    "done": 27
   },
-  "percent": 62,
+  "percent": 64,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "未使用カウンタとコメントの嘘",
-      "worker": "engineer",
-      "accept": "`GrazeCount`(`GameManager.cs:111`) は「チュートリアルのグレイズ検出に使う」とコメントするが**読み手が存在しない**（インクリメントのみ）。同様に `DodgeGrazeCount`(`:1134`)・`LastClearFollowers`(`:318`)・`StagePlays`(`:275`) が代入/集計のみ、`AddBomb(int)`(`:1174`) は**参照ゼロ**。最低限 `GrazeCount` の嘘コメントを直す（※上の「グレイズチュートリアル」タスクを実装するなら `GrazeCount` は読み手ができるので、そちらを先にやってからこのタスクを見直すこと）"
-    },
     {
       "priority": "P3",
       "title": "CS8602警告4件を解消してゼロ警告にする",
@@ -177,6 +171,12 @@
   "done": [
     {
       "priority": "P3",
+      "title": "未使用カウンタとコメントの嘘",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `GameManager.cs:110` の `GrazeCount` コメントから実在しない「チュートリアル検出に使う」を削除し、現状読み手なしの実態に即した記述へ修正。`DodgeGrazeCount`等は受入条件通りスコープ外のため未変更"
+    },
+    {
+      "priority": "P3",
       "title": "リトライ長押し0.7sが反復プレイで重い",
       "worker": "game-designer",
       "accept": "(完了 2026-08-13) `RetryHold.cs:10` `HoldTime` を0.7f→0.45fへ短縮。充填チップは離せば即キャンセルされる構造のため誤爆防止は維持"
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "e42a1af",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 未使用カウンタとコメントの嘘"
+    },
+    {
+      "hash": "cf44fb4",
+      "date": "2026-08-13",
+      "subject": "auto: リトライ長押し時間を0.7s→0.45sへ短縮"
+    },
+    {
       "hash": "ea56c8d",
       "date": "2026-08-13",
       "subject": "auto: WIP リトライ長押し0.7sが反復プレイで重い"
@@ -362,16 +372,6 @@
       "hash": "21ee0ad",
       "date": "2026-08-13",
       "subject": "auto: トレーニングのスキルタブに右端マージンを追加"
-    },
-    {
-      "hash": "1024337",
-      "date": "2026-08-13",
-      "subject": "auto: WIP トレーニングのスキルタブが画面右端で見切れる"
-    },
-    {
-      "hash": "5b8c58e",
-      "date": "2026-08-13",
-      "subject": "auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）"
     }
   ]
 }
