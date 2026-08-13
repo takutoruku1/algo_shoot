@@ -43,7 +43,7 @@
 
 ## WIP
 
-- [ ] (P1) 小話1: 道中の掛け合い | scenario | `docs/小話集_v1.md` §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 `Mid` と同型の配列を足し、道中ウェーブの合間に `Step_Lines` で挟む。**器は既存＝新規実装不要**。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守
+（なし）
 
 ## BLOCKED
 
@@ -63,6 +63,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) 小話1: 道中の掛け合い | scenario | (完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更
 - [x] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | (完了 2026-08-13) `StageMina.cs:201-209` PostWordsを三人の語の断片（レイ「追いつけない」/あかり「すき、すき」/こはる「もう帰ってこない」）＋ミナ自身の語（「わたくしの、せいです」「ご主人様」「……アホですね」）へ混成
 - [x] (P3) Epilogueの死因回収が1行で長く二段落としが潰れている | scenario | (完了 2026-08-13) `Epilogue.cs:149` の1行を「——」の前で2つの`O("地",...)`呼び出しに分割。テキスト内容・語順は無変更
 - [x] (P3) `TrainingDummy.HpRatio` が基底を隠している | engineer | (完了 2026-08-13) `Enemy.cs:75` の `HpRatio` を `virtual`化、`TrainingDummy.cs:78` を `override`化。フルリビルドで **0 Warning / 0 Error** を確認（ソリューション全体の警告が今回でゼロに）

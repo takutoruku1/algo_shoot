@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:31 UTC",
+  "generated": "2026-08-13 19:36 UTC",
   "counts": {
-    "todo": 11,
+    "todo": 10,
     "wip": 0,
     "blocked": 11,
-    "done": 31
+    "done": 32
   },
-  "percent": 74,
+  "percent": 76,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "小話1: 道中の掛け合い",
-      "worker": "scenario",
-      "accept": "`docs/小話集_v1.md` §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 `Mid` と同型の配列を足し、道中ウェーブの合間に `Step_Lines` で挟む。**器は既存＝新規実装不要**。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守"
-    },
     {
       "priority": "P1",
       "title": "小話2: ハブの複数パターン化",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "小話1: 道中の掛け合い",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §2 のChat1〜5をStageRei/Akari/Koharuに実装。ステップ番号は無変更、既存の`Mid`/`BossTalk`/`MidEnd`配列に`.Concat().ToArray()`で追記する形で組み込み、既存台詞は無変更"
+    },
     {
       "priority": "P3",
       "title": "FINALの投稿弾がミナ自身の言葉になっていない",
@@ -334,6 +334,16 @@
   ],
   "commits": [
     {
+      "hash": "6f22a8d",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 小話1: 道中の掛け合い"
+    },
+    {
+      "hash": "629a627",
+      "date": "2026-08-13",
+      "subject": "auto: FINALの投稿弾を三人の語＋ミナ自身の語に混成"
+    },
+    {
       "hash": "3921004",
       "date": "2026-08-13",
       "subject": "auto: WIP FINALの投稿弾がミナ自身の言葉になっていない"
@@ -362,16 +372,6 @@
       "hash": "c8781c4",
       "date": "2026-08-13",
       "subject": "auto: CS8602警告4件を解消（Hud?.をHud.へ統一）"
-    },
-    {
-      "hash": "f466311",
-      "date": "2026-08-13",
-      "subject": "auto: WIP CS8602警告4件を解消してゼロ警告にする"
-    },
-    {
-      "hash": "88233f0",
-      "date": "2026-08-13",
-      "subject": "auto: GrazeCountの嘘コメントを実態に合わせて修正"
     }
   ]
 }
