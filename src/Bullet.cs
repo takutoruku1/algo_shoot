@@ -1,7 +1,9 @@
 using Godot;
 
-// 弾形（RefrainHTML/Refrain Danmaku v3 の弾形7種）。言葉弾は Bullet.Word で別扱い。
-public enum BulletShape { Orb, Diamond, Star, Ring, Needle, Rice }
+// 弾形。前6種は敵弾用（RefrainHTML/Refrain Danmaku v3 の弾形）。言葉弾は Bullet.Word で別扱い。
+// Dart/Petal/Seeker は自機弾のモード別シルエット（連射＝ダート／拡散＝花弁／誘導＝シーカー）。
+// 敵弾の描画 switch はこの3種を default（Orb 描画）へ落とすので、万一敵側へ渡っても安全（渡す箇所は無い）。
+public enum BulletShape { Orb, Diamond, Star, Ring, Needle, Rice, Dart, Petal, Seeker }
 
 // Bullet : Area2D。Pool により生成・使い回しされる弾。
 // 当たり判定（被弾処理）は敵側/自機側で行うため、Bullet 自身は Area 重なり処理を持たない。
@@ -66,7 +68,13 @@ public partial class Bullet : Area2D
     // 旋回角の上書き（0=既定 HomingTurnRate を使う）。誘導速射・後方追尾で個別に旋回を上げる。
     public int TurnRateOverride;
     private Node2D? _homeTarget;
-    private const float HomingTurnRate = 95f; // deg/s（精度控えめ＝外した弾は旋回しきれず画面外へ抜ける＝常駐しない）
+    private const float HomingTurnRate = 150f; // deg/s（“曲がって当たる”手応え側へ。漂う弾は HomingLife で始末する）
+    private float _retargetT;                  // 標的の再探索クールダウン（RetargetInterval ごとに乗り換え判定）
+    private const float RetargetInterval = 0.25f; // 全探索は 0.25s に1回だけ＝毎フレーム探索より軽い
+    private const float RetargetGain = 0.6f;      // 現標的より距離が 0.6 倍以下に近い敵がいたら乗り換える
+    // 自機ホーミング弾の寿命（秒）。旋回強化で敵周囲に自機弾の雲ができ、敵弾（言葉弾）が読めなくなるのを防ぐ。
+    // 2.5s＝画面幅1.3回分＝当てる弾は必ず決着する長さ。画面外 Despawn と同じ経路で消す。
+    private const float HomingLife = 2.5f;
 
     // 言葉弾の文字フォント（全弾で共有。初回だけロード）。
     private static FontFile? _wordFont;
@@ -111,6 +119,21 @@ public partial class Bullet : Area2D
     private static readonly Color AccelMid  = new Color(0.96f, 0.78f, 0.36f); // 琥珀
     private static readonly Color AccelEdge = new Color(0.62f, 0.44f, 0.16f); // 暗めの琥珀縁
     private static readonly Color AccelGlow = new Color(1.0f, 0.82f, 0.40f);
+    // ── 自機弾のモード別カラー（色＋形の二重符号化）──
+    // 色相環で離れた4色：連射＝水色(≈197°・現行主力の顔)／拡散＝翠(≈150°)／誘導＝青藤(≈233°)／加速球＝琥珀(≈42°)。
+    // いずれも冷色〜中性の「浄化の光」域で、敵弾の警告色（穢れ桃 #e072ac・深紅・橙）と混ざらない。
+    // 拡散＝翠（エメラルド）：敵弾Tint（レイ銀/菫/金/ティール・あかり雨青/藍/白・こはる琥珀/深紅/橙・ミナ濁紫/濁桃/濁金・道中桃紫系）
+    //   の全リストに緑は皆無＝全ステージで唯一色。花弁＝若葉の世界観にも合う。明度は水色PlayerMidと同格に揃える。
+    private static readonly Color SpreadMid  = new Color(0.40f, 0.85f, 0.63f); // #66d9a1
+    private static readonly Color SpreadEdge = new Color(0.18f, 0.48f, 0.35f); // 暗めの翠縁
+    private static readonly Color SpreadGlow = new Color(0.42f, 0.88f, 0.66f);
+    // 誘導＝青藤（ペリウィンクル）：レイの菫 #9a72d9(≈263°) より約30°青へ・あかりの藍 #4a6aa0(≈217°・暗鈍色) より
+    //   明るく高彩度＝色相と明度の両方で敵Tintから離す。ミナの濁紫（低彩度）とも彩度差で分離。
+    private static readonly Color HomingMid  = new Color(0.59f, 0.63f, 0.94f); // #96a0f0
+    private static readonly Color HomingEdge = new Color(0.29f, 0.31f, 0.56f); // 暗めの青藤縁
+    private static readonly Color HomingGlow = new Color(0.63f, 0.67f, 0.96f);
+    // 誘導シーカーのフィン：HomingEdge→Mid の中間（頭のガラス玉より一段沈めて、頭の読みを邪魔しない）。
+    private static readonly Color PlayerFin = new Color(0.44f, 0.47f, 0.75f);
     private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
 
     // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────
@@ -120,6 +143,13 @@ public partial class Bullet : Area2D
     private static readonly Vector2[] _starBuf = new Vector2[10];          // DrawStar 用の共有出力
     private static readonly Vector2[] _diaBuf = new Vector2[4];            // DrawDiamond 本体（±s）
     private static readonly Vector2[] _diaCoreBuf = new Vector2[4];        // DrawDiamond 芯の光（×0.5）
+    // 自機弾のモード別シルエットも同じ作法（static 使い回し・per-frame の new 割当ゼロ）。
+    // DrawColoredPolygon は呼び出し時に頂点列をコピーするので、同フレーム内で書き換えて使い回して安全。
+    private static readonly Vector2[] _dartBuf = new Vector2[4];      // 連射ダート本体（進行方向へ尖る凧形）
+    private static readonly Vector2[] _dartCoreBuf = new Vector2[4];  // 連射ダート芯の光（先端寄り）
+    private static readonly Vector2[] _petalBuf = new Vector2[4];     // 拡散花弁本体（短い凧形）
+    private static readonly Vector2[] _petalCoreBuf = new Vector2[4]; // 拡散花弁芯の光
+    private static readonly Vector2[] _finBuf = new Vector2[3];       // 誘導シーカーの後退フィン（上下で書き換えて2回描く）
     private static Vector2[] BuildStarTemplate()
     {
         var t = new Vector2[10];
@@ -172,8 +202,15 @@ public partial class Bullet : Area2D
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _homeTarget = null;
+        _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
+
+        // ノード回転のリセット（最重要：プール再利用で回転を持ち越すと別形状の弾が傾いて描かれる事故になる）。
+        // Seeker（誘導の自機弾）だけがノード回転で向きを表現する：描画コマンドはこの Activate 直後の1回だけ
+        // 記録し、以後の旋回追従は _PhysicsProcess の Rotation 代入（変換行列更新のみ＝再描画ゼロ）で行う。
+        // 他の全弾形は常に 0（Dart/Petal は直進なので描画時の DrawSetTransform 1回で足りる）。
+        Rotation = shape == BulletShape.Seeker && vel.LengthSquared() > 0.01f ? vel.Angle() : 0f;
 
         GlobalPosition = pos;
 
@@ -290,7 +327,7 @@ public partial class Bullet : Area2D
         if (pool == null) return;
         Vector2 dir = (best.GlobalPosition - GlobalPosition).Normalized();
         var nb = pool.Spawn(GlobalPosition, dir * 320f, isEnemy: false, 2.6f,
-            Mathf.Max(1, Mathf.RoundToInt(Damage * 0.4f)));
+            Mathf.Max(1, Mathf.RoundToInt(Damage * 0.4f)), Shape); // 弾形を引き継ぐ＝跳弾しても花弁のまま（弾の素性が読める）
         nb.Chain = Chain - 1; // Lv2 は2回まで連鎖（威力は跳ねるたび×0.4）
     }
 
@@ -330,9 +367,24 @@ public partial class Bullet : Area2D
 
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
         if (Homing && !IsEnemy)
+        {
             SteerToTarget((float)delta);
+            // シーカー形の旋回追従は「ノード回転」で行う。毎フレーム QueueRedraw で描き直す方式は
+            // 80発前後の滞留で CanvasItem 描画コマンドの再記録が積み重なり FPS が 85→9 まで崩落した（QA実測）。
+            // Rotation 代入は RenderingServer の変換行列更新のみ＝描画コマンドは Activate 時の1回のまま。
+            if (Shape == BulletShape.Seeker && Velocity.LengthSquared() > 0.01f)
+                Rotation = Velocity.Angle();
+        }
 
         GlobalPosition += Velocity * (float)delta;
+
+        // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
+        if (Homing && !IsEnemy && _age >= HomingLife)
+        {
+            var hp = GetNodeOrNull<BulletPool>("/root/Pool");
+            if (hp != null) hp.Despawn(this); else Deactivate();
+            return;
+        }
 
         // 画面外(余白16px)に出たら Despawn
         var p = GlobalPosition;
@@ -347,12 +399,29 @@ public partial class Bullet : Area2D
         }
     }
 
-    // 標的を一度ロックし、消滅/浄化時のみ再探索（毎フレーム全探索は重いので）。
+    // 標的をロックしつつ、0.25 秒ごとに再探索して「明らかに近い別の敵」へ乗り換える。
+    // 旧実装は消滅/浄化時しか探し直さず、遠ざかる敵をロックしたまま無駄弾になっていた。
+    // 全探索は RetargetInterval に1回だけ＝毎フレーム探索ではないので負荷は旧実装以下。
     private void SteerToTarget(float delta)
     {
         var tgt = _homeTarget;
-        if (tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified))
+        bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified);
+        _retargetT -= delta;
+        if (lost)
+        {
             tgt = _homeTarget = AcquireTarget();
+            _retargetT = RetargetInterval;
+        }
+        else if (_retargetT <= 0f)
+        {
+            _retargetT = RetargetInterval;
+            var cand = AcquireTarget();
+            // 現標的より十分（距離比 0.6 以下＝二乗で 0.36 以下）近ければ乗り換える。
+            if (cand != null && !ReferenceEquals(cand, tgt) && tgt != null &&
+                cand.GlobalPosition.DistanceSquaredTo(GlobalPosition)
+                    <= tgt.GlobalPosition.DistanceSquaredTo(GlobalPosition) * (RetargetGain * RetargetGain))
+                tgt = _homeTarget = cand;
+        }
         if (tgt == null) return; // 標的が無ければ直進
 
         float spd = Velocity.Length();
@@ -473,7 +542,16 @@ public partial class Bullet : Area2D
                 DrawGlassBullet(r, AccelMid, AccelEdge, AccelGlow);
                 return;
             }
-            // 通常の自機弾は常にガラス円弾（浄化の水色）。
+            // モード別シルエット×カラー（色＋形の二重符号化＝撃った瞬間に「今どのモードか」が完全に読める）。
+            //   連射＝水色ダート／拡散＝翠の花弁／誘導＝青藤シーカー／加速球＝琥珀（上の Accel 分岐）。
+            //   1モードにつき edge/mid/白の3色に絞り、明度を水色と同格に揃える＝敵弾（警告色）より控えめを保つ。
+            switch (Shape)
+            {
+                case BulletShape.Dart:   DrawPlayerDart(r);   return;
+                case BulletShape.Petal:  DrawPlayerPetal(r);  return;
+                case BulletShape.Seeker: DrawPlayerSeeker(r); return;
+            }
+            // 形未指定の自機弾（オプション/フォロワー/後方弾/救済弾など）は従来のガラス円弾（浄化の水色）。
             DrawGlassBullet(r, PlayerMid, PlayerEdge, PlayerGlow);
             return;
         }
@@ -544,6 +622,73 @@ public partial class Bullet : Area2D
         DrawCircle(Vector2.Zero, r * 0.60f, mid, true, -1f, true);
         var hl = new Vector2(-0.28f * r, -0.36f * r);
         DrawCircle(hl, r * 0.34f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
+    }
+
+    // ───── 自機弾のモード別シルエット（吉田 §1：形で読む・1モード3色＝edge/mid/白に絞る）─────
+    // 自機弾は「敵弾より控えめ」が掟（弾幕で読む主役は敵弾）：グローは敵弾 DrawGlow(5段) より薄い2段だけ。
+    private void DrawPlayerGlow(float baseR, Color glow)
+    {
+        DrawCircle(Vector2.Zero, baseR * 1.9f, new Color(glow.R, glow.G, glow.B, 0.09f), true, -1f, true);
+        DrawCircle(Vector2.Zero, baseR * 1.35f, new Color(glow.R, glow.G, glow.B, 0.16f), true, -1f, true);
+    }
+
+    // 連射＝光のダート（水色＝現行主力の顔）：進行方向へ長く尖る凧形。「まっすぐ速い主力弾」を形そのもので語る。
+    // 芯の白い光を先端寄りに通し、速度の向きがシルエットだけで読めるようにする（花弁との違いは縦横比）。
+    private void DrawPlayerDart(float r)
+    {
+        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : 0f;
+        DrawSetTransform(Vector2.Zero, ang, Vector2.One);
+        DrawPlayerGlow(r * 0.85f, PlayerGlow);
+        _dartBuf[0] = new Vector2(2.4f * r, 0f);          // 前へ長く尖る＝速さ
+        _dartBuf[1] = new Vector2(-0.3f * r, -0.62f * r);
+        _dartBuf[2] = new Vector2(-1.4f * r, 0f);         // 後端は短い矢羽根
+        _dartBuf[3] = new Vector2(-0.3f * r, 0.62f * r);
+        DrawColoredPolygon(_dartBuf, PlayerMid);
+        for (int i = 0; i < 4; i++) _dartCoreBuf[i] = _dartBuf[i] * 0.5f + new Vector2(0.45f * r, 0f); // 光は先端へ寄せる
+        DrawColoredPolygon(_dartCoreBuf, new Color(1f, 1f, 1f, 0.92f));
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // 拡散＝花弁（翠＝敵弾に無い唯一色）：短く幅広の凧形。1枚は小さく、扇に開いた瞬間に翠の花になる。
+    // 数が出るモードなのでグローは1段だけ＝面で光り過ぎて敵弾を埋もれさせない。跳弾（TryChain）も同色で一貫。
+    private void DrawPlayerPetal(float r)
+    {
+        float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : 0f;
+        DrawSetTransform(Vector2.Zero, ang, Vector2.One);
+        DrawCircle(Vector2.Zero, r * 1.5f, new Color(SpreadGlow.R, SpreadGlow.G, SpreadGlow.B, 0.13f), true, -1f, true);
+        _petalBuf[0] = new Vector2(1.5f * r, 0f);
+        _petalBuf[1] = new Vector2(-0.1f * r, -0.85f * r);
+        _petalBuf[2] = new Vector2(-0.95f * r, 0f);
+        _petalBuf[3] = new Vector2(-0.1f * r, 0.85f * r);
+        DrawColoredPolygon(_petalBuf, SpreadMid);
+        for (int i = 0; i < 4; i++) _petalCoreBuf[i] = _petalBuf[i] * 0.5f + new Vector2(0.18f * r, 0f);
+        DrawColoredPolygon(_petalCoreBuf, new Color(1f, 1f, 1f, 0.85f));
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // 誘導＝彗星シーカー（青藤＝菫より青く・藍より明るく）：ガラス玉の頭＋後退フィン＋短い尾。曲がる軌跡が尾で映える。
+    // 描画はローカル +X 向きでこの1回だけ記録し、旋回への追従はノード回転（Activate の初期角＋
+    // _PhysicsProcess の Rotation 代入）で表現する＝毎フレームの再描画ゼロ（大量滞留時の FPS 崩落対策）。
+    // 頭のハイライトは回転に連れて回る（左上固定の光源統一より性能を優先。小径なので読みは崩れない）。
+    private void DrawPlayerSeeker(float r)
+    {
+        // 短い尾（加速球ストリークの前例。より短く淡く＝敵弾より控えめ）。
+        DrawLine(new Vector2(-0.8f * r, 0f), new Vector2(-3.0f * r, 0f),
+            new Color(HomingGlow.R, HomingGlow.G, HomingGlow.B, 0.30f), r * 0.45f, true);
+        // 後退フィン×2（上下）。頭より一段沈んだ色＝シルエットは立つが頭の読みを邪魔しない。
+        _finBuf[0] = new Vector2(0.1f * r, -0.5f * r);
+        _finBuf[1] = new Vector2(-1.6f * r, -1.25f * r);
+        _finBuf[2] = new Vector2(-1.1f * r, -0.2f * r);
+        DrawColoredPolygon(_finBuf, PlayerFin);
+        _finBuf[0] = new Vector2(0.1f * r, 0.5f * r);
+        _finBuf[1] = new Vector2(-1.6f * r, 1.25f * r);
+        _finBuf[2] = new Vector2(-1.1f * r, 0.2f * r);
+        DrawColoredPolygon(_finBuf, PlayerFin);
+        // 頭（小さなガラス玉）＋グロー。
+        DrawPlayerGlow(r * 0.85f, HomingGlow);
+        DrawCircle(Vector2.Zero, r, HomingEdge, true, -1f, true);
+        DrawCircle(Vector2.Zero, r * 0.72f, HomingMid, true, -1f, true);
+        DrawCircle(new Vector2(-0.26f * r, -0.32f * r), r * 0.3f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
     }
 
     // 円弾：作品準拠の「白リング＋暗芯」。芯色のみスペル色で可変（Danmaku v3 shapeInner orb）。

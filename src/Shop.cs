@@ -54,7 +54,6 @@ public partial class Shop : Node2D
         ("focus_2",       1224, 286),
         ("rapid_rate_1",  696, 352),
         ("rapid_rate_2",  872, 352),
-        ("accel_1",       168, 252), // 加速球モード解放（fire_rate_1 の子・連射帯の空きスロット）
         // ── 拡散系（SPREAD） y452-782 ──
         ("spread_1",      344, 452),
         ("spread_2",      520, 452),
@@ -107,6 +106,13 @@ public partial class Shop : Node2D
         ("bomb_count_2",  872, 1742),
         ("bomb_power_1",  696, 1808),
         ("bomb_power_2",  872, 1808),
+        // ── 加速球系（ACCEL） y1908-2040 ──（拡散/ホーミングと同格の独立帯。入り口 accel_1 でモード解放）
+        ("accel_1",       344, 1908),
+        ("accel_power_1", 520, 1908),
+        ("accel_power_2", 696, 1908),
+        ("accel_charge_1",520, 1974),
+        ("accel_charge_2",696, 1974),
+        ("accel_speed_1", 696, 2040),
     };
     private const float NodeW = 146f, NodeH = 44f;
     private static readonly Vector2 RootC = new(72f, 389f); // ルート「ミナの核」＝円形メダリオン
@@ -143,7 +149,7 @@ public partial class Shop : Node2D
     //   連射／拡散／ホーミング／バックファイア／生存経済を一目で色分けする（帯・エッジ・ノード縁・ラベル）。
     //   所持済みエッジと「育てた道」の発光をこの色で塗る＝どの枝を伸ばしてきたかが色で読める。
     //   色相を広く散らして隣接系統でも判別可（シアン/アンバー/グリーン/バイオレット/ローズ）。色弱でも帯位置＋形状で二重符号化。
-    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4 }
+    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4, Accel = 5 }
     private static readonly Color[] StreamCol =
     {
         new("7ad7f0"), // 連射＝シアン（既存 Info 系）
@@ -151,13 +157,15 @@ public partial class Shop : Node2D
         new("86dca0"), // ホーミング＝グリーン
         new("c39cf0"), // バックファイア＝バイオレット（ミナ紫の親戚）
         new("f0a0a8"), // 生存・経済＝ローズ
+        new("f0925c"), // 加速球＝オレンジ（弾の琥珀色の親戚・拡散アンバーより赤寄りで判別可）
     };
-    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済" };
+    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済", "加速球" };
     private static Stream StreamOf(string id) =>
         id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
             || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
         : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
         : id.StartsWith("bf_") ? Stream.Backfire
+        : id.StartsWith("accel") ? Stream.Accel
         : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
             || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
         : Stream.Rapid; // 連射・威力・貫通・集中・速射
@@ -978,6 +986,16 @@ public partial class Shop : Node2D
             && ly + r.Size.Y >= -40f && ly <= WinH + 40f;
     }
 
+    // エッジ（L字経路）が表示窓に触れているか。経路は from→to のバウンディングボックス内に収まる
+    //（DrawElbow/DrawLitEdge は水平→垂直→水平の配線＝箱の外に出ない）ので、箱と窓の交差で判定する。
+    //   帯をまたぐ長いエッジ（ミナの核→身のこなし等）は両端が窓外でも中間が窓を横切る＝この判定で正しく描かれる。
+    private bool EdgeVisible(Vector2 from, Vector2 to)
+    {
+        var box = new Rect2(new Vector2(Mathf.Min(from.X, to.X), Mathf.Min(from.Y, to.Y)),
+                            new Vector2(Mathf.Abs(to.X - from.X), Mathf.Abs(to.Y - from.Y)));
+        return NodeVisible(box); // 同じローカル変換＋±40px余白の窓交差テストを流用
+    }
+
     // ───── スクロール位置インジケータ（固定UI・カメラ非適用）─────
     //   横：表示窓の下端に細いトラック＋サム（_cam.X/MaxCam.X）＝「まだ右にある」を可視化。
     //   縦：表示窓の右端内側に縦トラック＋サム（_cam.Y/MaxCam.Y）＝「まだ下にある」を可視化。横バーと視覚を揃える。
@@ -1137,7 +1155,10 @@ public partial class Shop : Node2D
         DrawStreamLanes();
 
         // 1) エッジ（通常＝白灰の独立エッジ／排他＝金のY字束ね＋⊗メダル）。フォーク対は片側だけが描く（重複回避）。
-        //    親か子のどちらかが表示窓に触れているエッジだけ描く（両端窓外は完全にスキップ）。
+        //    カリングは「エッジの経路（from→to のバウンディングボックス）が表示窓に触れるか」で判定する。
+        //    ★旧判定（親か子のどちらかのノードが窓内）だと、帯をまたぐ長いエッジ（ミナの核→身のこなし／
+        //      身のこなし→誘導・加速球など）が“中間だけ表示中”のとき両端とも窓外＝スキップされ、
+        //      線が途切れて見えるバグがあった（L字経路は from→to の箱内に収まる＝箱交差で正しく拾える）。
         var forkDrawn = new HashSet<string>();
         foreach (var nd in GameManager.Upgrades)
         {
@@ -1146,11 +1167,11 @@ public partial class Shop : Node2D
             Rect2 childR = NodeRect(childSel - 4);
             int parentSel = string.IsNullOrEmpty(nd.ParentId) ? -1 : SelOf(nd.ParentId);
             Rect2 parentR = parentSel >= 4 ? NodeRect(parentSel - 4) : new Rect2(RootC, Vector2.Zero);
-            if (!NodeVisible(childR) && !NodeVisible(parentR)) continue; // 両端とも窓外＝描かない
             Vector2 to = LeftCenter(childR);
             Vector2 from = string.IsNullOrEmpty(nd.ParentId)
                 ? RootC + new Vector2(RootR, 0)
                 : RightCenter(parentR);
+            if (!EdgeVisible(from, to)) continue; // エッジ経路が窓外＝描かない（両端窓外でも中間が見えるなら描く）
 
             if (!string.IsNullOrEmpty(nd.ExclusiveWith))
             {
@@ -1682,11 +1703,11 @@ public partial class Shop : Node2D
             "rapid_power" => $"連射弾の威力 +{lv}",
             "rapid_rate" => $"連射間隔 ×{Mathf.Max(0.7f, 1f - 0.06f * lv):0.00}",
             "spread" => lv == 0 ? "未解放" : $"{new[] { 0, 5, 7, 9 }[Mathf.Clamp(lv, 0, 3)]}way",
-            "spread_power" => $"拡散弾威力 ×{new[] { 0.65f, 0.72f, 0.80f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
-            "spread_rate" => $"拡散間隔税 ×{Mathf.Max(1f, 1.35f - 0.10f * lv):0.00}",
-            "homing" => lv == 0 ? "未解放" : $"{new[] { 0, 2, 2, 3 }[Mathf.Clamp(lv, 0, 3)]}体追尾",
-            "homing_power" => $"ホーミング威力 ×{new[] { 0.70f, 0.78f, 0.86f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
-            "homing_rate" => lv == 0 ? "間隔税 ×1.70・旋回95" : "間隔税 ×1.55・旋回110",
+            "spread_power" => $"拡散弾威力 ×{new[] { 0.50f, 0.56f, 0.62f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
+            "spread_rate" => $"拡散間隔税 ×{Mathf.Max(1f, 1.45f - 0.10f * lv):0.00}",
+            "homing" => lv == 0 ? "未解放" : $"{new[] { 0, 2, 3, 4 }[Mathf.Clamp(lv, 0, 3)]}体追尾",
+            "homing_power" => $"ホーミング威力 ×{new[] { 0.85f, 0.95f, 1.05f }[Mathf.Clamp(lv, 0, 2)]:0.00}",
+            "homing_rate" => lv == 0 ? "間隔税 ×1.55・旋回150" : "間隔税 ×1.40・旋回200",
             "pierce" => lv == 0 ? "貫通なし" : $"連射弾が敵 {lv} 体を貫通",
             "focus" => lv == 0 ? "集中なし" : $"同じ敵に当て続けて威力 最大+{lv}",
             "counter" => lv == 0 ? "変換なし" : lv == 1 ? "2発に1発を光弾化（上限6/回避）" : "全弾を光弾化（上限12/回避）",

@@ -28,9 +28,9 @@ public partial class GameManager : Node
     public bool HasSpread => GetUpgradeLevel("spread_1") >= 1;
     public bool HasHoming => GetUpgradeLevel("homing_1") >= 1;
     public bool HasAccel => GetUpgradeLevel("accel_1") >= 1;
-    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（連続所持段数 ChainLevel に対応）。
+    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→3→4（連続所持段数 ChainLevel に対応）。
     public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
-    public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
+    public int HomingShots => new[] { 0, 2, 3, 4 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
     public bool IsModeUnlocked(ShotMode m) => m switch
     {
         ShotMode.Spread => HasSpread,
@@ -375,9 +375,9 @@ public partial class GameManager : Node
         new() { Id = "spread_1",      Name = "拡散展開I",   Desc = "拡散モード解放・5way",     MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
         new() { Id = "spread_2",      Name = "拡散展開II",  Desc = "拡散 7way",                MaxLevel = 1, BaseCost = 500,  ParentId = "spread_1" },
         new() { Id = "spread_3",      Name = "拡散展開III", Desc = "拡散 9way",                MaxLevel = 1, BaseCost = 690,  ParentId = "spread_2" },
-        new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.72",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
-        new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.80",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
-        new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.25", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
+        new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.56",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
+        new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.62",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
+        new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.35", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
         new() { Id = "fol_gain_1",    Name = "拡散力I",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
         new() { Id = "fol_gain_2",    Name = "拡散力II",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
         new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "fol_gain_1" },
@@ -388,17 +388,24 @@ public partial class GameManager : Node
         new() { Id = "chain_2",       Name = "連鎖の光II",  Desc = "拡散弾が2回跳弾",          MaxLevel = 1, BaseCost = 1280, ParentId = "chain_1" },
         // ── ホーミング系 ──
         new() { Id = "homing_1",      Name = "誘導の祈りI", Desc = "ホーミングモード解放・2体追尾", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "2体追尾（旋回強化）",      MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
-        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "3体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
-        new() { Id = "homing_power_1",Name = "誘導威力I",   Desc = "ホーミング弾の威力 ×0.78", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_1" },
-        new() { Id = "homing_power_2",Name = "誘導威力II",  Desc = "ホーミング弾の威力 ×0.86", MaxLevel = 1, BaseCost = 480,  ParentId = "homing_power_1" },
-        new() { Id = "homing_rate_1", Name = "誘導速射I",   Desc = "ホーミングの間隔税 ×1.55・旋回110", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_2" },
+        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "3体追尾",                 MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
+        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "4体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
+        new() { Id = "homing_power_1",Name = "誘導威力I",   Desc = "ホーミング弾の威力 ×0.95", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_1" },
+        new() { Id = "homing_power_2",Name = "誘導威力II",  Desc = "ホーミング弾の威力 ×1.05", MaxLevel = 1, BaseCost = 480,  ParentId = "homing_power_1" },
+        new() { Id = "homing_rate_1", Name = "誘導速射I",   Desc = "ホーミングの間隔税 ×1.40・旋回200", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_2" },
         new() { Id = "counter_1",     Name = "返し光I",     Desc = "回避よけした弾を追尾光弾へ（2発に1発）", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_power_1", PrereqId = "homing_2", PrereqLv = 1 },
         new() { Id = "counter_2",     Name = "返し光II",    Desc = "回避よけした弾を全弾光弾化", MaxLevel = 1, BaseCost = 1280, ParentId = "counter_1" },
         new() { Id = "veil_1",        Name = "祈りの帳I",   Desc = "回避後の弾消し光輪 r20px", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_rate_1", PrereqId = "homing_2", PrereqLv = 1 },
         new() { Id = "veil_2",        Name = "祈りの帳II",  Desc = "弾消し光輪 r28px",         MaxLevel = 1, BaseCost = 1280, ParentId = "veil_1" },
-        // ── 加速球（自機モード解放。タメて撃つ→0.8秒後にロケット発進する弾。拡散/ホーミングと同じ入り口ノード方式）──
-        new() { Id = "accel_1",       Name = "加速球",      Desc = "加速球モード解放・タメて撃つ→0.8秒後にロケット発進", MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
+        // ── 加速球系（ACCEL・独立ストリーム）。入り口 accel_1 でモード解放（拡散/ホーミングと同格の帯）。
+        //    強化軸は加速球固有のメカニクス：威力／タメ短縮（0.8→0.65→0.5s）／発進速度（640→760）。
+        //    親は move_speed_1（homing_1 と同じ流儀）。効果アクセサは AccelPowerBonus/AccelChargeDelay/AccelLaunchSpeed。
+        new() { Id = "accel_1",       Name = "加速球",      Desc = "加速球モード解放・タメて撃つ→ロケット発進", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "accel_power_1", Name = "加速威力I",   Desc = "加速球の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
+        new() { Id = "accel_power_2", Name = "加速威力II",  Desc = "加速球の威力 +2",          MaxLevel = 1, BaseCost = 450,  ParentId = "accel_power_1" },
+        new() { Id = "accel_charge_1",Name = "速填I",       Desc = "タメ時間 0.65秒",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
+        new() { Id = "accel_charge_2",Name = "速填II",      Desc = "タメ時間 0.5秒",           MaxLevel = 1, BaseCost = 420,  ParentId = "accel_charge_1" },
+        new() { Id = "accel_speed_1", Name = "推進強化I",   Desc = "発進速度 640→760（ロケット強化）", MaxLevel = 1, BaseCost = 400,  ParentId = "accel_charge_1" },
         // ── バックファイア系（後方弾は bf_* 未所持でも初期から弱く発射される）──
         new() { Id = "bf_power_1",    Name = "後方威力I",   Desc = "後方弾の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
         new() { Id = "bf_power_2",    Name = "後方威力II",  Desc = "後方弾の威力 +2",          MaxLevel = 1, BaseCost = 380,  ParentId = "bf_power_1" },
@@ -690,11 +697,17 @@ public partial class GameManager : Node
     //   Player の各 Fire・modeMul が ChainLevel 経由で参照する。式はショップの効果表記と同期。
     public int RapidPowerBonus => ChainLevel("rapid_power", 2);          // 連射弾の追加威力 +Lv
     public float RapidRateMul => Mathf.Max(0.7f, 1f - 0.06f * ChainLevel("rapid_rate", 2)); // 連射間隔 ×0.94/0.88
-    public float SpreadPowerMul => new[] { 0.65f, 0.72f, 0.80f }[Mathf.Clamp(ChainLevel("spread_power", 2), 0, 2)]; // 拡散弾威力補正
-    public float SpreadRateMul => Mathf.Max(1f, 1.35f - 0.10f * ChainLevel("spread_rate", 1)); // 拡散間隔税 1.35→1.25
-    public float HomingPowerMul => new[] { 0.70f, 0.78f, 0.86f }[Mathf.Clamp(ChainLevel("homing_power", 2), 0, 2)]; // ホーミング弾威力補正
-    public float HomingRateMul => Mathf.Max(1.55f, 1.7f - 0.15f * ChainLevel("homing_rate", 1)); // ホーミング間隔税 1.7→1.55
-    public int HomingTurnRateOverride => ChainLevel("homing_rate", 1) >= 1 ? 110 : 0; // 誘導速射で旋回110（0=既定95）
+    // 拡散ナーフ（プレイテスト）：面の楽しさ（弾数5way・±35°・320px/s）は据え置きで単体DPSだけ削る。
+    public float SpreadPowerMul => new[] { 0.50f, 0.56f, 0.62f }[Mathf.Clamp(ChainLevel("spread_power", 2), 0, 2)]; // 拡散弾威力補正
+    public float SpreadRateMul => Mathf.Max(1f, 1.45f - 0.10f * ChainLevel("spread_rate", 1)); // 拡散間隔税 1.45→1.35
+    // ホーミング強化（同）：威力・間隔・旋回を底上げして「曲がって当たる」を成立させる。
+    public float HomingPowerMul => new[] { 0.85f, 0.95f, 1.05f }[Mathf.Clamp(ChainLevel("homing_power", 2), 0, 2)]; // ホーミング弾威力補正
+    public float HomingRateMul => Mathf.Max(1.40f, 1.55f - 0.15f * ChainLevel("homing_rate", 1)); // ホーミング間隔税 1.55→1.40
+    public int HomingTurnRateOverride => ChainLevel("homing_rate", 1) >= 1 ? 200 : 0; // 誘導速射で旋回200（0=既定150）
+    // ── 加速球系（accel_* ノード）。Player.FireAccel が毎発射時に読む＝購入/付け外しで即反映 ──
+    public int AccelPowerBonus => ChainLevel("accel_power", 2);                                   // 加速球の追加威力 +Lv
+    public float AccelChargeDelay => new[] { 0.8f, 0.65f, 0.5f }[Mathf.Clamp(ChainLevel("accel_charge", 2), 0, 2)]; // タメ時間（速填で短縮）
+    public float AccelLaunchSpeed => GetUpgradeLevel("accel_speed_1") >= 1 ? 760f : 640f;         // 発進速度（推進強化で760）
 
     // ── バックファイア（後方弾）の数値。bf_* 未所持でも初期から弱く撃つ ──
     public int BackfireDamage => 1 + ChainLevel("bf_power", 3);             // ダメージ 1(初期)→bf_power で 2/3/4

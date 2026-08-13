@@ -419,17 +419,18 @@ public partial class TrainingRoot : Node2D
     }
 
     // ───── 系統分類（Shop の StreamOf を最小移植。見出し色分けに使う）─────
-    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4 }
+    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4, Accel = 5 }
     private static readonly Color[] StreamCol =
     {
-        new("7ad7f0"), new("f2b866"), new("86dca0"), new("c39cf0"), new("f0a0a8"),
+        new("7ad7f0"), new("f2b866"), new("86dca0"), new("c39cf0"), new("f0a0a8"), new("f0925c"),
     };
-    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済" };
+    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済", "加速球" };
     private static Stream StreamOf(string id) =>
         id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
             || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
         : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
         : id.StartsWith("bf_") ? Stream.Backfire
+        : id.StartsWith("accel") ? Stream.Accel
         : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
             || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
         : Stream.Rapid;

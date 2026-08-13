@@ -490,11 +490,11 @@ public partial class Player : Area2D
             Fire();
             // モード別の間隔税（全開中は従来どおり最速）。各モードの速射ノード（rapid/spread/homing_rate）で
             // 税が軽くなる＝ChainLevel 経由で GameManager が算出（ショップのスペック表記と同期）。
-            //   連射＝rapid_rate で ×0.94/0.88（基礎1.0）。拡散＝spread_rate で 1.35→1.25。ホーミング＝homing_rate で 1.7→1.55。
+            //   連射＝rapid_rate で ×0.94/0.88（基礎1.0）。拡散＝spread_rate で 1.45→1.35。ホーミング＝homing_rate で 1.55→1.40。
             float modeMul = _game?.SelectedShotMode switch
             {
-                GameManager.ShotMode.Homing => _game?.HomingRateMul ?? 1.7f,
-                GameManager.ShotMode.Spread => _game?.SpreadRateMul ?? 1.35f,
+                GameManager.ShotMode.Homing => _game?.HomingRateMul ?? 1.55f,
+                GameManager.ShotMode.Spread => _game?.SpreadRateMul ?? 1.45f,
                 _ => _game?.RapidRateMul ?? 1f,
             };
             _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
@@ -748,6 +748,7 @@ public partial class Player : Area2D
     // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
     // 連射威力（rapid_power）で弾ダメージ +Lv（連射モード専用の火力ノード）。
     // 貫く光（pierce）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
+    // 見た目＝光のダート（BulletShape.Dart・進行方向へ尖る細身）＝「まっすぐ速い主力弾」が形で読める。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 vel = new Vector2(360f, 0f);
@@ -758,61 +759,68 @@ public partial class Player : Area2D
                      : lines == 3 ? new[] { -6f, 0f, 6f }
                                   : new[] { -10f, -4f, 4f, 10f };
         foreach (float dy in offs)
-            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg).Pierce = pierce;
+            _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg, BulletShape.Dart).Pierce = pierce;
     }
 
-    // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、0.8秒後にロケットのように急加速して発進する。
-    //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）／発進速度=640px/s（静止からの立ち上がりで
-    //   ブースト感が強い）／タメ0.8秒。方向は右（+X）で不変。ダメージ・貫通は連射系の恩恵を踏襲。
+    // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、タメ後にロケットのように急加速して発進する。
+    //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）。タメ時間/発進速度/威力は加速球系ノードで可変：
+    //   タメ 0.8→0.65→0.5s（速填）／発進 640→760px/s（推進強化）／威力 +1/+2（加速威力）。
+    //   数値は GameManager のアクセサを毎発射時に読む＝ショップ購入・トレーニングの付け外しで即反映。
     private void FireAccel(Vector2 muzzle, int dmg)
     {
-        const float charge = 12f, fast = 640f, delay = 0.8f;
+        const float charge = 12f;
+        float fast = _game?.AccelLaunchSpeed ?? 640f;
+        float delay = _game?.AccelChargeDelay ?? 0.8f;
         int pierce = _game?.ShotPierceCount ?? 0;
-        int admg = dmg + (_game?.RapidPowerBonus ?? 0);
+        int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
         // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（右）で確定し、MakeAccel が初速をタメへ落とす。
         foreach (float dy in new[] { -4f, 4f })
         {
             var b = _pool.Spawn(muzzle + new Vector2(0f, dy), new Vector2(fast, 0f), isEnemy: false, 3.4f, admg);
             b.Pierce = pierce;
-            b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→0.8秒後に発進
+            b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
         }
     }
 
-    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.65→0.72→0.80・拡散威力ノードで是正）。
-    // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
+    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
+    // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる。跳弾も花弁形を引き継ぐ）。
+    // 見た目＝花弁（BulletShape.Petal・短く幅広）＝扇に開いた瞬間、水色の花になる（数の圧を面で見せる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
-        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.65f)));
+        int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
             float ang = t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg).Chain = chain;
+            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg, BulletShape.Petal).Chain = chain;
         }
     }
 
-    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速200。追尾数 2→2→3（誘導Lv）。
-    // 1発威力 ×HomingPowerMul（0.70→0.78→0.86・誘導威力ノードで是正）。誘導速射なら旋回を上書き（110）。
+    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速200。追尾数 2→3→4（誘導Lv）。
+    // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
+    // 見た目＝彗星シーカー（BulletShape.Seeker・フィン＋短い尾）＝曲がって追う軌跡が尾で映える。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
-        int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.7f)));
-        int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（95）を使う
+        int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
+        int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
             float ang = t * Mathf.DegToRad(40f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Orb, null, homing: true); // 弾速 260→200
+            var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Seeker, null, homing: true); // 弾速 260→200
             if (turn > 0) hb.TurnRateOverride = turn;
         }
     }
 
-    // バックファイア：後方(-X)に敵がいるとき、その方向へ軽ホーミング弾を撃つ。撃ったら true。
-    //   ・後方最寄りの未浄化の敵（e.GlobalPosition.X < GlobalPosition.X）を探し、いなければ撃たない（false）。
+    // バックファイア：後方(-X)へ軽ホーミング弾を撃つ。撃ったら true。
+    //   ・後方最寄りの未浄化の敵がいればそちらへ狙いを付け、いなくても真後ろ（-X）へ撃つ
+    //     （旧仕様は「後方に敵が居なければ撃たない」＝道中は敵が右から来るので後方弾がほぼ一度も出ず、
+    //       「後方の光を買ったのに後ろに弾が出ない」とプレイヤーに読まれていた。撃つ＝機能が見える）。
     //   ・数値は GameManager（bf_* ノードの ChainLevel）から：ダメージ 1→2/3/4・同時発数・旋回。弾速180。
     //   ・弾は後方追尾フラグ（backwardHoming）付きで Spawn＝Bullet.AcquireTarget が X<self を探す（前方弾と別探索）。
     //   ・見た目は Diamond 形＋穢れ寄りの tint で前方弾（水色円）と区別し、後方マズルフラッシュを出す。
@@ -820,7 +828,7 @@ public partial class Player : Area2D
     {
         if (_pool == null || _game == null) return false;
 
-        // 後方最寄りの敵を探す（自機より左＝X小）。
+        // 後方最寄りの敵を探す（自機より左＝X小）。居なければ真後ろへ撃つ。
         Node2D? nearest = null;
         float bestD = float.MaxValue;
         foreach (Node node in GetTree().GetNodesInGroup("enemies"))
@@ -831,19 +839,20 @@ public partial class Player : Area2D
                 if (d < bestD) { bestD = d; nearest = e; }
             }
         }
-        if (nearest == null) return false; // 後方に敵がいなければ撃たない
 
         Vector2 muzzle = GlobalPosition + new Vector2(-16f, 0f); // 後方（左）の銃口
-        Vector2 baseDir = (nearest.GlobalPosition - muzzle).Normalized();
+        Vector2 baseDir = nearest != null ? (nearest.GlobalPosition - muzzle).Normalized() : Vector2.Left;
         int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
         int shots = _game.BackfireShots;
+        int turn = Mathf.RoundToInt(_game.BackfireTurnRate); // bf_track で 60→90（未適用だと既定95に化けていた）
         var tint = new Color(0.86f, 0.42f, 0.66f); // Kegare系（前方の浄化水色と区別）
         for (int i = 0; i < shots; i++)
         {
             // 2発目はわずかに角度を散らす（同時2発の見栄え）。
             float ang = baseDir.Angle() + (shots == 1 ? 0f : (i - (shots - 1) * 0.5f) * Mathf.DegToRad(24f));
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 180f, isEnemy: false, 2.8f, dmg, BulletShape.Diamond, tint, homing: true, backwardHoming: true);
+            var bb = _pool.Spawn(muzzle, dir * 180f, isEnemy: false, 2.8f, dmg, BulletShape.Diamond, tint, homing: true, backwardHoming: true);
+            bb.TurnRateOverride = turn;
         }
         FxLayer.Instance?.Muzzle(muzzle); // 後方マズルフラッシュ（シンプル版）
         return true;
