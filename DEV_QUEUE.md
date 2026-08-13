@@ -56,7 +56,7 @@
 
 ## WIP
 
-- [ ] (P2) 難易度の賭け金と見返りが釣り合っていない | game-designer | 報酬は Easy0.7/Normal1.0/Hard1.4/Lunatic2.2（`GameManager.cs:665`）だが、負荷は弾数 0.38→0.7→1.1→**1.9**、弾速0.62→1.18、HPバー2→6（`:55-60,68-69`）。**Lunaticは弾数がNormalの2.7倍・HPバー1.5倍なのに報酬2.2倍**で残機はHardと同じ3。選ぶ理由が実質「解禁記録のため」だけになっている。`DifficultyImpressionMulFor` の Lunatic 2.2→**3.0**、Hard 1.4→**1.6**（ボスHP・弾数は既存方針どおり触らない）
+（なし）
 
 ## BLOCKED
 
@@ -76,6 +76,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) 難易度の賭け金と見返りが釣り合っていない | game-designer | (完了 2026-08-13) `GameManager.cs:665` `DifficultyImpressionMulFor` の Hard 1.4→1.6、Lunatic 2.2→3.0。Easy/Normal・負荷パラメータ（弾数/弾速/HPバー/残機）は無変更
 - [x] (P2) FINAL導入が4行でクライマックスの助走が無い | scenario | (完了 2026-08-13) `StageMina.cs` Introを4行→10行へ拡張。who=4（投稿）でレイ/あかり/こはるの声の残響を挿み、`Final.cs`の「レイの。あかりの。こはるの。」の予感を作った（文字列は意図的に非一致＝DropLine検出に無影響）。骨格（無音バナー→壊れた声→決意）と既存4行は不変
 - [x] (P2) シェイクスピア引用の三段仕掛けが二段しか無い | scenario | (完了 2026-08-13) `StageRei.cs:166-167`に1回目「"All the world's a stage."」（無害な衒学、少年の軽口＋ミナの茶化しで意味を持たせない）を追加。`Epilogue.cs:159-162`に3回目「"To thine own self be true."」（死因・時期の回収直後、日本語訳を付けずミナの一言だけで皮肉を示す）を追加。2回目（`StageAkari.cs:166`）と`Final.cs`の既存引用は無変更
 - [x] (P2) あそびかた・バックログがマウス非対応 | engineer | (完了 2026-08-13) `HowToPlay.cs`/`Backlog.cs` に `Pad.MouseRightClick()`（閉じる）と `Pad.WheelDelta()`（HowToPlayはページ送り、Backlogは縦スクロール）を追加。DiffSelect/Records/Credits/Shopと同じ規約に合わせた

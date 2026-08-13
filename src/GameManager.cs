@@ -662,7 +662,7 @@ public partial class GameManager : Node
     public float FollowerImpressionMul => 1f + Mathf.Min(0.50f, Followers * 0.00008f);
 
     // ── 難易度・強化由来のインプレ倍率 ──
-    public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.4f, Diff.Lunatic => 2.2f, _ => 1f };
+    public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.6f, Diff.Lunatic => 3.0f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
     public float UpgradeImpressionMul => 1f + 0.12f * ChainLevel("imp_mult", 4);
     // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
