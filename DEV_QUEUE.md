@@ -29,7 +29,6 @@
 
 <!-- ▼ 2026-08-13 4観点監査（game-designer/engineer/scenario/qa 並列）で洗い出した修正候補。上から実害順 -->
 
-- [ ] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | `StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く
 
 - [ ] (P1) 小話1: 道中の掛け合い | scenario | `docs/小話集_v1.md` §2 の Chat1〜5 を StageRei/Akari/Koharu に実装。既存 `Mid` と同型の配列を足し、道中ウェーブの合間に `Step_Lines` で挟む。**器は既存＝新規実装不要**。face 定数（SGentle/SCocky/SAfraid）は各ファイルで存在を確認してから使う。テンポを殺さないよう1〜3行厳守
 - [ ] (P1) 小話2: ハブの複数パターン化 | engineer | `docs/小話集_v1.md` §1 を実装。現行 `ReturnDialog`（`Hub.cs:945`・クリア直後1回のみ）は温存し、再訪時に `IdleDialogs(id)`＋`SmallTalks` から抽選する経路を追加。`GameManager` に既読インデックス（HashSet<int>）を持たせ未再生を優先、全部見たらリセット。セーブに含める（キー追加は ContainsKey ガードで後方互換）。ハブ入場2回に1回程度の頻度
@@ -45,7 +44,7 @@
 
 ## WIP
 
-（なし）
+- [ ] (P3) FINALの投稿弾がミナ自身の言葉になっていない | scenario | `StageMina.cs:193-197` の PostWords が `StageKoharu.cs:507` とほぼ同一で、「三人ぶんの穢れが満ちた」設定なのに**ミナ固有の語（敬語・わたくし・ご主人様）が混ざらず彼女の内側に見えない**。三人の語＋ミナ自身の語を混成する。特に口癖「アホですね」が悲鳴として降ってくるのが効く
 
 ## BLOCKED
 
