@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">55<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 23 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">57<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 24 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 55パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 57パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">23</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">24</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">19</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">18</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">少年の二人称がFINALだけ揺れる</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典で少年のミナへの二人称は<strong>「きみ」固定</strong>（<code>docs/【最新】…まとめ.md:70,218</code>）で全編そうなっているのに、<code>BossMina.cs:64-65</code> だけ「<strong>お前</strong>に光を握らせて」「<strong>お前</strong>を一人にする方が」の2箇所。一点収束のクライマックス独白で人称が揺れると読者が引っかかる。<code>:64</code> を「きみに」へ（<code>:65</code> は感情の高ぶりとして残す判断もあり）</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -275,6 +267,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">少年の二人称がFINALだけ揺れる</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>BossMina.cs:64</code>「お前に」→「きみに」。<code>:65</code>は感情の高ぶりとして現状維持（受入条件通り）。<code>StageMina.cs</code>の類似文言は対象外のため未変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2dcc807</span><span>2026-08-13</span><span class="s">auto: WIP 少年の二人称がFINALだけ揺れる</span></li>
+      <li><span class="h">21ee0ad</span><span>2026-08-13</span><span class="s">auto: トレーニングのスキルタブに右端マージンを追加</span></li>
       <li><span class="h">1024337</span><span>2026-08-13</span><span class="s">auto: WIP トレーニングのスキルタブが画面右端で見切れる</span></li>
       <li><span class="h">5b8c58e</span><span>2026-08-13</span><span class="s">auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）</span></li>
       <li><span class="h">fa513c0</span><span>2026-08-13</span><span class="s">auto: WIP ミナの「小さな願い」が1回きりで伏線にならない</span></li>
       <li><span class="h">3de9be7</span><span>2026-08-13</span><span class="s">auto: Hub帰還会話の疑いを感心に修正、段階設計の逆転を解消</span></li>
       <li><span class="h">f3852f7</span><span>2026-08-13</span><span class="s">auto: WIP Hub帰還会話がステージ側の段階設計を逆転させている</span></li>
       <li><span class="h">274ebb5</span><span>2026-08-13</span><span class="s">auto: こはるCameoに他責の怒りの裏返りを追加</span></li>
-      <li><span class="h">c95270e</span><span>2026-08-13</span><span class="s">auto: WIP こはるの「怒り＝他責」が一度も描かれない</span></li>
-      <li><span class="h">a56fc22</span><span>2026-08-13</span><span class="s">auto: 難易度Hard/Lunaticのインプレ報酬倍率を引き上げ</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:16 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:17 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
