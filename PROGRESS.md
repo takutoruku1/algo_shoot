@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-13 14:53 UTC
+> 生成: 2026-08-13 15:01 UTC
 
 ## 消化率
 
@@ -51,6 +51,7 @@ _なし_
 
 ## 直近のコミット
 
+- `231a25f` 2026-08-13 Audit the game from four angles and queue what needs fixing
 - `58700ca` 2026-08-13 Queue the small-talk work and park the pending story decisions
 - `f506c6e` 2026-08-13 Reconcile the dev queue with what is already built
 - `aa7cbc6` 2026-08-13 Give the epilogue a background per phase
@@ -58,4 +59,3 @@ _なし_
 - `3df5d8d` 2026-08-13 Add autonomous nightly dev pipeline
 - `deb7844` 2026-08-13 Fix playtest findings: softlock, unavoidable AOE, and shot balance
 - `134c71e` 2026-08-13 Style bullets per shot mode and add an accel skill area
-- `e4e61ff` 2026-08-13 Unlock 加速球 shot mode via shop purchase

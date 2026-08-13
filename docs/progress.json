@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-13 14:53 UTC",
+  "generated": "2026-08-13 15:01 UTC",
   "counts": {
     "todo": 40,
     "wip": 0,
@@ -334,6 +334,11 @@
   ],
   "commits": [
     {
+      "hash": "231a25f",
+      "date": "2026-08-13",
+      "subject": "Audit the game from four angles and queue what needs fixing"
+    },
+    {
       "hash": "58700ca",
       "date": "2026-08-13",
       "subject": "Queue the small-talk work and park the pending story decisions"
@@ -367,11 +372,6 @@
       "hash": "134c71e",
       "date": "2026-08-13",
       "subject": "Style bullets per shot mode and add an accel skill area"
-    },
-    {
-      "hash": "e4e61ff",
-      "date": "2026-08-13",
-      "subject": "Unlock 加速球 shot mode via shop purchase"
     }
   ]
 }
