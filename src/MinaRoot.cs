@@ -70,10 +70,54 @@ public partial class MinaRoot : Node2D
             BossPulseAmp = 0.05f,
         };
         AddChild(bg);
+        _bg = bg;
+        _minaTex = tex;
+    }
+
+    // ───── 追体験：歴代ボス背景の巡り（レイ→あかり→こはる→ミナ）─────
+    // ミナのHPを削るほど、少年が通ってきた道が背中側から手繰り寄せられる。BossMina 側の HP 閾値
+    // （PatternThresholds 0.82/0.62/0.42/0.22）に相乗りせず、背景側だけで完結させる＝並行編集中の
+    // BossMina.cs/StageMina.cs に触らずに済ませる（競合回避）。閾値は 0.80/0.58/0.36/0.16。
+    //
+    // 視認性：歴代背景は道中用で明るいので、Dim で暗め・低コントラストに沈めて敷く（α=1、RGB を
+    // 0.30 前後に落とす）。深い紫寄りの敷き色で、ミナの心象世界の色から浮かせない。
+    // 最後の 0.16 でミナ自身の背景（開幕と同じ暗いグラデ）へ戻る＝旅が終点＝彼女に着地する。
+    private StageBackground _bg = null!;
+    private Texture2D _minaTex = null!;
+    private int _journey;    // 0:ミナ(開幕) 1:レイ 2:あかり 3:こはる 4:ミナ(着地)
+    private static readonly (float hp, string path, Color dim)[] Journey =
+    {
+        (0.80f, "res://char/bg/rei/boss.png",         new Color(0.30f, 0.33f, 0.44f, 1f)), // 盤面＝青灰。冷たく
+        (0.58f, "res://char/bg/akari/classroom.png",  new Color(0.36f, 0.30f, 0.34f, 1f)), // 教室＝くすんだ桃
+        (0.36f, "res://char/bg/koharu/kitchen.png",   new Color(0.34f, 0.31f, 0.26f, 1f)), // 台所＝沈んだ琥珀
+    };
+    private const float JourneyHomeHp = 0.16f; // ここでミナ自身の背景へ着地
+
+    private void TickJourney()
+    {
+        if (_bg == null) return;
+        // BossMina は StageMina が private に握るので、"enemies" group から拾う（StageMina に触らない＝競合回避）。
+        BossMina? m = null;
+        foreach (var n in GetTree().GetNodesInGroup("enemies")) if (n is BossMina bm) { m = bm; break; }
+        if (m == null || !IsInstanceValid(m)) return;
+        float hp = m.HpRatio;
+        if (_journey < Journey.Length && hp <= Journey[_journey].hp)
+        {
+            var (_, path, dim) = Journey[_journey];
+            _journey++;
+            _bg.CrossfadeBossTo(path, dim, 2.6f);
+        }
+        else if (_journey == Journey.Length && hp <= JourneyHomeHp)
+        {
+            _journey++;
+            // 着地はゆっくり（3.4s）＝旅の終わりに時間を掛ける。
+            _bg.CrossfadeBossTo(_minaTex, Colors.White, 3.4f);
+        }
     }
 
     public override void _Process(double delta)
     {
+        TickJourney(); // 歴代ボス背景の追体験（ミナのHP段階でクロスフェード）。ポーズ中も止めない＝フェードが凍らない。
         // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
         if (Pad.UiBlocked(this)) { _exitHeld = true; return; }
 

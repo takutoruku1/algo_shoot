@@ -223,7 +223,7 @@ public partial class StageRei : Node
             case 9: Step_Lines(delta, MidEnd); break;     // 道中後の小話
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, BossIntro); break;
-            case 12: Step_BossWait(); break;
+            case 12: Step_BossWait(delta); break;
             case 13: Step_Clear(delta); break;
             case 14: Step_Transition(); break;
         }
@@ -437,13 +437,24 @@ public partial class StageRei : Node
         }
     }
 
-    private void Step_BossWait()
+    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
+    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
             Advance();
+            return;
         }
+        if (!_boss.IsPurified) return;
+        _postDefeatT += delta;
+        if (_postDefeatT < BossFinishGrace) return;
+        GD.PushWarning("[StageRei] ボス撃破後に Finished が立たないため保険で進行");
+        _bossActive = false;
+        Advance();
     }
 
     private bool _clearBannerShown;

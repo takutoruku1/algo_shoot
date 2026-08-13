@@ -205,7 +205,7 @@ public partial class StageKoharu : Node
             case 8: Step_Lines(delta, MidEnd); break;     // 道中後の小話
             case 9: Step_BossSpawn(); break;
             case 10: Step_Lines(delta, BossIntro); break;
-            case 11: Step_BossWait(); break;              // ボス戦（HP半分で 15 へ割込み）
+            case 11: Step_BossWait(delta); break;         // ボス戦（HP半分で 15 へ割込み）
             case 12: Step_Clear(delta); break;
             case 13: Step_Transition(); break;
             case 15: Step_Lines(delta, MidStory); break;  // ★ボス戦中割込み（完了で Advance→16）
@@ -409,13 +409,28 @@ public partial class StageKoharu : Node
     //   ・Hud.BubblePaused 中（ボス自身の改心かけあい等）は発火しない＝会話の二重表示を防ぐ。
     //   ・完了後は case 16 経由で BossWait(11) へ復帰。会話中はエンジン側で弾停止＋敵弾クリア。
     private bool _midStoryShown;
-    private void Step_BossWait()
+    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
+    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
             Advance();
             return;
+        }
+        if (_boss.IsPurified)
+        {
+            _postDefeatT += delta;
+            if (_postDefeatT >= BossFinishGrace)
+            {
+                GD.PushWarning("[StageKoharu] ボス撃破後に Finished が立たないため保険で進行");
+                _bossActive = false;
+                Advance();
+            }
+            return; // 撃破後は MidStory 割込みの判定に入らない
         }
         if (!_midStoryShown && !Hud.BubblePaused)
         {

@@ -226,9 +226,9 @@ public partial class BossMina : Enemy
             ApplySpell();
         }
         // 全画面AOE（ラスボス専用）：HP 0.62（INI: aoe_single_hp）で安置型の単発（学習）→
-        // 0.42（INI: aoe_chain_hp）で安置リレー2連（強化）。フィナーレ突入時に安置なしの全面型を1回（計3回）。
+        // 0.42（INI: aoe_chain_hp）で安置リレー2連（強化）。フィナーレ突入時に狭安置の「絶域」を1回（計3回）。
         // リレーの距離帯 140-190px は到達限界（(1.6s×WarnMul−0.3s)×150px/s＋r30。Normal 225px）内。
-        if (!_aoe62Done && HpRatio <= _aoeSingleHp) { _aoe62Done = true; _caster?.CastFullscreen(withSafeZone: true); }
+        if (!_aoe62Done && HpRatio <= _aoeSingleHp) { _aoe62Done = true; _caster?.CastFullscreen(wide: true); }
         if (!_aoe42Done && HpRatio <= _aoeChainHp) { _aoe42Done = true; _caster?.CastFullscreenChain(2, 140f, 190f); }
 
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
@@ -237,7 +237,10 @@ public partial class BossMina : Enemy
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[4].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", Spells[3].name + "＋" + Spells[4].name, Spells[4].tint);
-            if (!_aoeFinaleDone) { _aoeFinaleDone = true; _caster?.CastFullscreen(withSafeZone: false); }
+            // フィナーレの「絶域」：安置は狭い（Easy30/Normal24/Hard20/Luna17px）が必ず在り、
+            // そのぶん予兆を 1.45 倍に伸ばす（Normal 2.32s）＝狭い的でも走って入れる。
+            // 旧実装は安置なし＝ボム以外に回避手段が無く、ボム0個なら確定被弾だった。
+            if (!_aoeFinaleDone) { _aoeFinaleDone = true; _caster?.CastFullscreen(wide: false); }
         }
     }
 
@@ -271,12 +274,18 @@ public partial class BossMina : Enemy
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
-        if (hud != null) hud.HoldBubble = true;
+        // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
+        //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
+        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
     }
 
     protected override void OnCryEnd() => Finished = true;
+
+    // 保険タイムアウトで cry が強制終了されたとき、会話ドライバも畳む（_seq が残ると台詞が出続ける）。
+    protected override void AbortCrySequence() => _seq = false;
 
     public override void _Process(double delta)
     {
@@ -291,6 +300,7 @@ public partial class BossMina : Enemy
             if (zEdge && _lineT >= 0.25)
             {
                 _lineT = 0; _line++;
+                NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
                 if (_line >= Lines.Length)
                 {
                     _seq = false;

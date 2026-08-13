@@ -325,7 +325,10 @@ public partial class BossAkari : Enemy
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝途切れていたフレーズが最後まで歌われる。
         Audio.Instance?.PlayRedeem(1);
-        if (hud != null) hud.HoldBubble = true;
+        // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
+        //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
+        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
     }
@@ -337,6 +340,9 @@ public partial class BossAkari : Enemy
         (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
         Finished = true;
     }
+
+    // 保険タイムアウトで cry が強制終了されたとき、会話ドライバも畳む（_seq が残ると台詞が出続ける）。
+    protected override void AbortCrySequence() => _seq = false;
 
     // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
@@ -352,6 +358,7 @@ public partial class BossAkari : Enemy
             if (zEdge && _lineT >= 0.25)
             {
                 _lineT = 0; _line++;
+                NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
                 if (_line >= Lines.Length)
                 {
                     _seq = false;

@@ -258,6 +258,9 @@ public partial class CameoBoss : Enemy
         if (Audio.Instance != null) Audio.Instance.ResumeStageMusic();
     }
 
+    // 保険タイムアウトで cry が強制終了されたとき、捨て台詞ドライバも畳む。
+    protected override void AbortCrySequence() => _defeatSeq = false;
+
     public override void _Process(double delta)
     {
         if (!_defeatSeq) return;
@@ -265,6 +268,7 @@ public partial class CameoBoss : Enemy
         if (_defeatT < DefeatLineDur) return;
         _defeatT = 0;
         _defeatIdx++;
+        NotifyCryProgress(); // 自動送りだが、進んでいる間は保険タイムアウトを起こさない
         string? line = NextBossLine(Theme.DefeatLines, ref _defeatIdx);
         if (line == null)
         {

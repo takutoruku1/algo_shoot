@@ -44,7 +44,8 @@ public partial class AreaStrike : Node2D, IAoeHazard
     private const float W = 384f, H = 216f;   // 全画面AOEの画面寸法
 
     // Fullscreen（全画面AOE）専用：画面全体を被弾域にし、安置(セーフゾーン)円だけをくり抜く。
-    // _safeR<=0 なら安置なし＝全面（避けられない＝予告で必ず逃げ切れる短い警告と併用）。
+    // _safeR<=0 は「安置なし＝回避不能」になるため本編では使わない（描画/判定の経路だけ保険で残す）。
+    // 実際の発行元 AreaSpellCaster は常に _safeR>0 を渡す（§7 理不尽回避）。
     private Vector2 _safeCenter;
     private float _safeR;
 

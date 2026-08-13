@@ -56,13 +56,17 @@ public partial class DiffSelect : Node2D
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
-        foreach (var s in GameManager.Stages)
-            if (s.Scene == _game?.PendingStageScene)
-            {
-                if (s.Title.Contains("—")) { var p = s.Title.Split('—'); _stageTag = p[0].Trim(); _diveName = p[^1].Trim(); }
-                else _diveName = s.Title;
-                break;
-            }
+        // FINAL は GameManager.Stages に持たない（AllStoryCleared/NextUnclearedStageId が本編3ステージを
+        // 数えるため）。ここだけ明示に見出しを与える。未登録シーンでも既定の "STAGE 1 — レイ" を出さない。
+        if (_game?.PendingStageScene == "res://MinaBattle.tscn") { _stageTag = "FINAL"; _diveName = "ミナ"; }
+        else
+            foreach (var s in GameManager.Stages)
+                if (s.Scene == _game?.PendingStageScene)
+                {
+                    if (s.Title.Contains("—")) { var p = s.Title.Split('—'); _stageTag = p[0].Trim(); _diveName = p[^1].Trim(); }
+                    else _diveName = s.Title;
+                    break;
+                }
 
         // 選択中ステージのIDと、入口選択を出す対象（中ボス持ち）かを判定。入口の既定は「最初から」。
         _stageId = GameManager.StageIdForScene(_game?.PendingStageScene ?? "");

@@ -81,6 +81,22 @@ public partial class Enemy : Area2D
     private bool _becameFollower; // この本人がフォロワーに化けた＝退場（左流れ）をスキップして二重表示を防ぐ
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
+    // ── 改心（cry）の保険タイムアウト（softlock 防止）──
+    //   ボスは CryHoldDur=9999 で「自動終了させない＝会話を手動送りし切って EndCryNow」を作法にしている。
+    //   そのため EndCryNow へ届かない事故（Hud が取れず会話が出ない／送り入力が別状態に食われる／
+    //   会話開始前に演出が中断された等）が起きると、Finished が永久に立たず Step_BossWait が回り続ける。
+    //   ここでは cry 開始からの実時間を別途計り、CryHoldDur とは無関係に上限を超えたら必ず
+    //   通常の終了経路（_crying=false→SwapBody(Post)→OnCryEnd→GrantFollower）へ落とす。
+    //   ＝保険発動時も post 着地・Finished・フォロワー付与といった後処理は一切スキップしない。
+    //   会話を普通に送る通常プレイでは EndCryNow が先に走るため、この保険は発動しない（見え方も尺も不変）。
+    private double _cryWatchdogT;
+    // 会話が「進んでいる」限りは待つ（長台詞・じっくり読むプレイを切らない）。
+    //   ・NotifyCryProgress() が呼ばれるたびに 0 へ戻る＝1行送るごとにタイマーはリセットされる。
+    //   ・無操作のまま CryStallLimit 秒（=会話1行あたりの猶予）過ぎたら強制終了。
+    //   ・どれだけ送っていても CryHardLimit 秒で必ず終了（送り自体が壊れている場合の最後の砦）。
+    private const double CryStallLimit = 90.0;
+    private const double CryHardLimit = 600.0;
+    private double _cryTotalT;
     // 浄化後の退場：旧仕様（-30px/s で画面外まで歩く）は最大10秒超も“撃っても当たらない敵”が見え続けて
     // 誤認源だった（QA発見）。速めに歩かせ、余韻の後にフェードアウトで「もう敵ではない」を視覚的に明示する。
     private const float PurifiedExitSpeed = 90f;   // 退場の歩き速度（旧30）
@@ -698,6 +714,7 @@ public partial class Enemy : Area2D
             SwapBody(CryTexPath);
             _crying = true;
             _cryT = 0;
+            _cryWatchdogT = 0; _cryTotalT = 0; // 保険タイマーはここが起点
             OnCryStart();
         }
         else
@@ -808,9 +825,16 @@ public partial class Enemy : Area2D
     // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。
     protected virtual void OnCryStart() { }
     protected virtual void OnCryEnd() { }
+    // 保険タイムアウトで cry を強制終了するとき、派生側の会話ドライバも畳ませるためのフック。
+    // これを実装しないと _seq が立ったままで、終了後も ShowLine が走り会話が出続けてしまう。
+    protected virtual void AbortCrySequence() { }
 
     // 手動送りで会話を終えたとき、Cry（その場停止）を即終了して笑顔へ着地。
-    protected void EndCryNow()
+    protected void EndCryNow() => FinishCry();
+
+    // cry の終了はこの1経路に集約する（手動送り／CryHoldDur 経過／保険タイムアウトのどれでも同じ後処理）。
+    // post スプライトへの着地 → OnCryEnd（各ボスが Finished を立てる）→ フォロワー付与、の順は不変。
+    private void FinishCry()
     {
         if (!_crying) return;
         _crying = false;
@@ -819,10 +843,32 @@ public partial class Enemy : Area2D
         GrantFollower();
     }
 
+    // 改心の会話が1行進んだことを派生から知らせる（保険タイムアウトの猶予をリセットする）。
+    // これがある限り「じっくり読む」プレイは切られない＝発動するのは本当に進まなくなったときだけ。
+    protected void NotifyCryProgress() => _cryWatchdogT = 0;
+
+    // 保険：cry が終わらないまま無操作／進行不能になったら、通常の終了経路へ強制的に落とす。
+    private void TickCryWatchdog(double delta)
+    {
+        _cryWatchdogT += delta;
+        _cryTotalT += delta;
+        if (_cryWatchdogT < CryStallLimit && _cryTotalT < CryHardLimit) return;
+        GD.PushWarning($"[Enemy] cry watchdog fired on {GetType().Name} "
+                     + $"(stall={_cryWatchdogT:F1}s total={_cryTotalT:F1}s) — 改心を強制終了して進行不能を回避");
+        AbortCrySequence(); // 派生の会話ドライバを畳む（_seq を落とす）
+        // 会話バブルが掴んだままだと以降の会話が出せなくなるので必ず解放する。
+        if (GetTree()?.GetFirstNodeInGroup("hud") is Hud hud) { hud.HoldBubble = false; hud.HideBubble(); }
+        FinishCry();
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         // 差し替えアニメ（クロスフェード＋squash→pop）は状態に関わらず常に進める。
         if (_swapAnim) { TickSwapAnim(delta); QueueRedraw(); }
+
+        // cry の保険タイムアウトも状態に関わらず常に進める
+        //（登場演出中に撃破された等で下の early-return に阻まれても必ず計られるように）。
+        if (_crying) TickCryWatchdog(delta);
 
         if (_flashing)
         {
@@ -839,13 +885,7 @@ public partial class Enemy : Area2D
         if (_crying)
         {
             _cryT += delta;
-            if (_cryT >= CryHoldDur)
-            {
-                _crying = false;
-                SwapBody(PostTexPath);
-                OnCryEnd();
-                GrantFollower();
-            }
+            if (_cryT >= CryHoldDur) FinishCry();
             return;
         }
 

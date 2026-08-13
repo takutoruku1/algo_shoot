@@ -417,8 +417,11 @@ public partial class Hub : Node2D
             if (e.Unlocked)
             {
                 Audio.Instance?.PlayUiConfirm();
-                if (e.IsFinal) Dive(e.Scene);
-                else { if (_game != null) _game.PendingStageScene = e.Scene; Dive("res://DiffSelect.tscn"); }
+                // FINAL も通常ステージと同じく難易度選択を経由する（旧実装は直ダイブ＝FINAL だけ
+                // 難易度を選べず、前回ランの Difficulty が居座っていた）。final は中ボスを持たない＝
+                // DiffSelect は入口ダイアログを出さずそのままダイブする。
+                if (_game != null) _game.PendingStageScene = e.Scene;
+                Dive("res://DiffSelect.tscn");
             }
             else Audio.Instance?.PlayUiDeny(); // 未解放ステージ
         }

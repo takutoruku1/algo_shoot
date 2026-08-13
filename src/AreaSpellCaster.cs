@@ -41,10 +41,22 @@ public partial class AreaSpellCaster : Node2D
     //   AoeActive は宣告〜予兆着弾まで true＝ボス側が通常弾(FirePattern)をこの間だけ止める(gate)のに使う。
     private bool _aoePending;            // 宣告済み・予兆出現待ち
     private double _aoeFireT;            // 予兆出現までの残り
-    private bool _aoeWithSafe;           // 安置あり(true)／全面(false)
+    private bool _aoeWithSafe;           // 安置あり（現在は常に true＝安置なしの全面型は廃止）
+    private bool _aoeTight;              // 「絶域」＝安置が狭い版（そのぶん予兆を TightWarnBoost 倍に伸ばす）
+    private const float TightWarnBoost = 1.45f; // 狭い安置ぶんの猶予（1.6s→2.32s @Normal）
     private const float AoeWarn = 1.6f;  // 全画面AOEの予兆尺（WarnMul で難易度補正）
     private const float AoeFireDelay = 0.7f; // 宣告→予兆出現の溜め
     private const float AoeSafeR = 30f;  // 安置(セーフゾーン)半径（28-32px帯）
+    // フィナーレ級の「絶域」用の狭い安置半径。全面（安置なし＝回避不能）は廃し、
+    // 「狭いが必ず在る安置」に置き換える（§7 理不尽回避：全ての攻撃に回避手段を実在させる）。
+    // 難易度で広さを変える＝Easy は明確に広い安置、ルナは針の穴。
+    private float AoeTightSafeR() => (GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal) switch
+    {
+        GameManager.Diff.Easy => 30f,
+        GameManager.Diff.Hard => 20f,
+        GameManager.Diff.Lunatic => 17f,
+        _ => 24f,
+    };
     private AreaStrike? _aoeStrike;      // 出現中の全画面予兆（生存＝AOE進行中の判定に使う）
     // 宣告〜着弾までの間 true（ボスが通常弾を止めるゲート）。安置リレー中はホップ間の
     // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
@@ -68,14 +80,19 @@ public partial class AreaSpellCaster : Node2D
     // 直近ホップの安置中心（リレー完走報酬の出現位置。BossRei が参照）。
     public Vector2 LastChainSafe { get; private set; }
 
-    // ボス側（BossMina.OnHpChanged）から全画面AOEを1回予約する。withSafeZone=false で安置なしの全面型。
-    public void CastFullscreen(bool withSafeZone)
+    // ボス側（BossMina.OnHpChanged）から全画面AOEを1回予約する。
+    // wide=true  … 学習用の広い安置（r=30・予兆 1.6s×WarnMul）
+    // wide=false … フィナーレの「絶域」。安置は狭い（AoeTightSafeR）が必ず在り、予兆も長め（TightWarnMul倍）。
+    //   旧実装は安置なし（_safeR=0）＝画面全域が被弾域で、ボム以外に回避手段が存在しなかった
+    //   （ボム0個なら確定被弾）。§7「必ず予告＋回避手段」に反するため安置ありへ改める。
+    public void CastFullscreen(bool wide)
     {
         if (AoeActive) return; // 多重予約しない（HP閾値の同フレーム多重発火対策）
-        _aoeWithSafe = withSafeZone;
+        _aoeWithSafe = true;   // 全面型（安置なし）は廃止＝常に安置を持つ
+        _aoeTight = !wide;
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
-        string name = withSafeZone ? "全画面浄化・安置" : "全画面浄化・絶域";
+        string name = wide ? "全画面浄化・安置" : "全画面浄化・絶域";
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
 
@@ -88,6 +105,7 @@ public partial class AreaSpellCaster : Node2D
         _chainHopMin = hopMin; _chainHopMax = hopMax;
         _chainPrevDir = Vector2.Zero;
         _aoeWithSafe = true;
+        _aoeTight = false; // リレーは r=30 固定（直前の「絶域」設定を引きずらない）
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
         // 技名：レイは「最終選考・N連」。他ボス（ミナ）はレイの技を濁して写した体＝汎用名にする。
@@ -116,9 +134,10 @@ public partial class AreaSpellCaster : Node2D
         if (_chainRemain > 0) { SpawnChainHop(); return; } // リレーの初回ホップ
 
         // 単発：安置位置は自機の現在地を避けて配置（即死事故防止）。画面端に寄せすぎない。
-        float r = _aoeWithSafe ? AoeSafeR : 0f;
-        Vector2 safe = _aoeWithSafe ? PickSafeNearPlayer(r + 14f) : Vector2.Zero;
-        SpawnFullscreenStrike(safe, r);
+        // 「絶域」は安置を狭くする代わりに予兆を伸ばす＝狭い的でも必ず到達できる。
+        float r = _aoeTight ? AoeTightSafeR() : AoeSafeR;
+        Vector2 safe = PickSafeNearPlayer(r + 14f);
+        SpawnFullscreenStrike(safe, r, _aoeTight ? TightWarnBoost : 1f);
     }
 
     // 安置候補を12点引き、「自機から70px以上・ボス本体から60px以上」のうち最も自機に近い点を採用する。
@@ -227,12 +246,12 @@ public partial class AreaSpellCaster : Node2D
         };
     }
 
-    // 全画面予兆を1枚出す（単発／リレー共用）。
-    private void SpawnFullscreenStrike(Vector2 safe, float r)
+    // 全画面予兆を1枚出す（単発／リレー共用）。warnBoost>1 で予兆尺を伸ばす（狭い安置の「絶域」用）。
+    private void SpawnFullscreenStrike(Vector2 safe, float r, float warnBoost = 1f)
     {
         var z = new AreaStrike();
         // Fullscreen は自前の予兆演出（濁桃tint＋緑リング＋白フレーム収束）を持つ＝モチーフ層は対象外（§1-b）。
-        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul(), _tint, _hot);
+        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul() * warnBoost, _tint, _hot);
         if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
         _world.AddChild(z);
         z.GlobalPosition = Vector2.Zero; // 画面座標基準（Fullscreen は内部で安置座標を画面系で扱う）

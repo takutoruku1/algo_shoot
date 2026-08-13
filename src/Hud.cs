@@ -560,7 +560,25 @@ public partial class Hud : CanvasLayer
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
     public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _epic = false; }
+
+    // FINAL 専用の「格上」タイトルカード。通常バナー（出て消えるだけの一行）とは別の描画経路に入る。
+    //   ダサさの正体＝①全ステージ共通のベタ一行で FINAL に重みが無い ②字間0で小さく詰まって見える
+    //   ③原色寄りの金1色でベタ塗り＝安い ④間(ため)が無く出た瞬間が頂点 ⑤画面が反応しない。
+    // 対処＝黒レターボックス＋横罫で「額装」し、タグと副題を分離。字間を開けた一文字ずつの滲み出し、
+    //   色収差(R/Cのズレ)＋走査線＋弱いグロー、そして最後に“ため”てから静かに引く。
+    public void ShowEpicBanner(string tag, string sub, Color accent)
+    {
+        _epic = true; _epicTag = tag; _epicSub = sub; _epicAccent = accent;
+        _bannerText = tag + " — " + sub; // バックログ/互換用に文字列は保持
+        _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = "";
+    }
+
+    private bool _epic;
+    private string _epicTag = "", _epicSub = "";
+    private Color _epicAccent = UiKit.Kegare;
+    private const double EpicDur = 5.2;   // 0.0 暗転寄せ → 1.0 タグ合わせ → 2.4 副題滲み → 3.4 ため → 5.2 引き
+
 
     // ゲームオーバー中の追加プロンプト（バナー直下）。空文字でクリア。*Root.cs が毎フレーム立てる。
     public void ShowGameOverPrompt(string text) { _gameOverPrompt = text; }
@@ -1559,8 +1577,127 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, UiKit.FontHeading, new Color(UiKit.White, a));
     }
 
+    // ── FINAL タイトルカード（格上の見せ方）──────────────────────────────
+    // 時間軸（t = 経過秒 / EpicDur=6.4）：
+    //   0.00-0.55 暗転が上下から寄る（レターボックスが閉じる）＝間をつくる
+    //   0.35-1.30 タグ("FINAL")が「裂けて」出る：上下2枚に割れた同じ文字が中央でぶつかって合わさる
+    //   1.10-2.40 副題が一文字ずつ滲み出る（字ごとに遅延＋にじみ＝ブラー代わりの多重描画）
+    //   2.40-4.60 ため：静止。色収差と走査線だけが微かに息をする
+    //   4.60-6.40 罫線が閉じ、レターボックスが開き、文字は上へ抜けながら消える
+    private void DrawEpicBanner(HudCanvas ci)
+    {
+        float t = (float)(EpicDur - _bannerTimer);          // 経過秒
+        float cx = 640f;
+
+        // ① レターボックス（引き算：飾らずに“画面の格”を上げる）。開閉は ease で。
+        float close = Mathf.Clamp(t / 0.55f, 0f, 1f);
+        float open = Mathf.Clamp((t - 3.4f) / 1.6f, 0f, 1f);
+        float lb = Mathf.Max(0f, Ease(close) - Ease(open));
+        // 上帯は HUD 行(LIFE/BOMB/浄化)を完全には飲まない高さに留める＝カード中も自機の状態は読める。
+        float barH = 104f * lb;
+        if (barH > 0.5f)
+        {
+            ci.DrawRect(new Rect2(0, 0, 1280, barH), new Color(0.02f, 0.015f, 0.04f, 0.96f));
+            ci.DrawRect(new Rect2(0, 720 - barH, 1280, barH), new Color(0.02f, 0.015f, 0.04f, 0.96f));
+        }
+        // 中央帯もわずかに沈める（弾の視認は残す＝α0.42まで）。
+        // 中央帯の沈み：弾の視認を守るため上限0.34、かつ帯の開きより一足早く抜く（戦闘が始まる前に消える）。
+        float mid = lb * (1f - Ease(Mathf.Clamp((t - 3.0f) / 1.0f, 0f, 1f)));
+        if (mid > 0.01f) ci.DrawRect(new Rect2(0, barH, 1280, 720 - barH * 2f), new Color(0.02f, 0.015f, 0.04f, 0.34f * mid));
+        if (lb <= 0.01f) return;
+
+        // ② 横罫（額装）。中央から左右に伸び、最後に閉じる。原色を避けアクセントを淡く。
+        float rule = Mathf.Clamp((t - 0.3f) / 0.9f, 0f, 1f) * (1f - Ease(open));
+        float rw = 470f * Ease(rule);
+        var ruleCol = new Color(_epicAccent, 0.55f * rule);
+        ci.DrawRect(new Rect2(cx - rw, 268f, rw * 2f, 1.4f), ruleCol);
+        ci.DrawRect(new Rect2(cx - rw * 0.72f, 424f, rw * 1.44f, 1.4f), ruleCol);
+
+        float rise = -26f * Ease(open); // 最後に上へ抜ける
+        float fade = 1f - Ease(open);
+
+        // ③ タグ（"FINAL"）＝裂けて合わさる。字間を大きく開けて“銘板”にする（詰まって見える対策）。
+        float split = 1f - Mathf.Clamp((t - 0.35f) / 0.95f, 0f, 1f);
+        float sp = Ease(split);
+        float tagA = Mathf.Clamp((t - 0.35f) / 0.5f, 0f, 1f) * fade;
+        float tagY = 288f + rise;
+        if (sp > 0.01f)
+        {
+            // 割れた2枚（上下）が中央へ寄って合わさる。合わさるほど濃く。
+            var ghost = new Color(_epicAccent, tagA * 0.55f * sp);
+            DrawTracked(ci, UiKit.ZenBlack, _epicTag, UiKit.FontTitle, cx, tagY - 26f * sp, 16f, ghost);
+            DrawTracked(ci, UiKit.ZenBlack, _epicTag, UiKit.FontTitle, cx, tagY + 26f * sp, 16f, ghost);
+        }
+        DrawTracked(ci, UiKit.ZenBlack, _epicTag, UiKit.FontTitle, cx, tagY, 16f,
+            new Color(_epicAccent, tagA * (1f - 0.55f * sp)));
+
+        // ④ 副題＝一文字ずつ滲み出る。字ごとに 0.055s ずつ遅延、出かけは大きく淡いコピーを重ねて“滲み”に。
+        //    色は白寄り（原色の金ベタをやめる）＋アクセントの色収差で厚みを出す。
+        float baseY = 330f + rise;
+        int size = UiKit.FontDisplay;
+        float track = 7f;
+        float total = TrackedW(UiKit.ZenBlack, _epicSub, size, track);
+        float x = cx - total / 2f;
+        var f = UiKit.ZenBlack;
+        for (int i = 0; i < _epicSub.Length; i++)
+        {
+            string ch = _epicSub[i].ToString();
+            float cw = UiKit.TextW(f, ch, size);
+            float lt = Mathf.Clamp((t - 1.10f - i * 0.055f) / 0.55f, 0f, 1f);
+            if (lt > 0f)
+            {
+                float e = Ease(lt);
+                float a = e * fade;
+                // 滲み：出かけほど大きく淡いコピー（3枚）を後ろに敷く
+                float bl = (1f - e) * 9f;
+                if (bl > 0.2f)
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float ang = Mathf.Tau * k / 3f + t;
+                        UiKit.Text(ci, f, new Vector2(x + Mathf.Cos(ang) * bl, baseY + Mathf.Sin(ang) * bl), ch, size,
+                            new Color(_epicAccent, 0.16f * a));
+                    }
+                // 色収差：アクセントを左、シアンを右に 1.5px ずらす（微かに息をする）
+                float ab = 1.5f + 0.5f * Mathf.Sin(t * 2.1f + i);
+                UiKit.Text(ci, f, new Vector2(x - ab, baseY), ch, size, new Color(_epicAccent, 0.42f * a));
+                UiKit.Text(ci, f, new Vector2(x + ab, baseY), ch, size, new Color(UiKit.Purify, 0.34f * a));
+                UiKit.Text(ci, f, new Vector2(x, baseY + 2f), ch, size, new Color(0f, 0f, 0f, 0.55f * a));
+                UiKit.Text(ci, f, new Vector2(x, baseY), ch, size, new Color(0.98f, 0.96f, 1f, a));
+            }
+            x += cw + track;
+        }
+
+        // ⑤ 走査線（安いグローの代わりに“質感”で持たせる）。タイトル帯のみに薄く。
+        float scanA = 0.10f * fade * Mathf.Clamp(t / 0.8f, 0f, 1f);
+        for (float y = 268f; y < 424f; y += 3f)
+            ci.DrawRect(new Rect2(cx - rw, y, rw * 2f, 1f), new Color(0f, 0f, 0f, scanA));
+    }
+
+    private static float Ease(float x) => 1f - Mathf.Pow(1f - Mathf.Clamp(x, 0f, 1f), 3f); // out-cubic
+
+    private static float TrackedW(Font f, string s, int size, float track)
+    {
+        float w = 0f;
+        for (int i = 0; i < s.Length; i++) w += UiKit.TextW(f, s[i].ToString(), size) + track;
+        return w - (s.Length > 0 ? track : 0f);
+    }
+
+    // 字間つき中央寄せ描画（銘板用。字間を開けて“詰まって見える”のを断つ）。
+    private static void DrawTracked(HudCanvas ci, Font f, string s, int size, float cx, float y, float track, Color col)
+    {
+        if (col.A <= 0.01f) return;
+        float x = cx - TrackedW(f, s, size, track) / 2f;
+        for (int i = 0; i < s.Length; i++)
+        {
+            string ch = s[i].ToString();
+            UiKit.Text(ci, f, new Vector2(x, y), ch, size, col);
+            x += UiKit.TextW(f, ch, size) + track;
+        }
+    }
+
     private void DrawBanner(HudCanvas ci)
     {
+        if (_epic) { DrawEpicBanner(ci); return; }
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, UiKit.FontDisplay, new Color(UiKit.Light, a),

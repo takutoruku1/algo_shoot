@@ -217,7 +217,7 @@ public partial class StageAkari : Node
             case 10: Step_Lines(delta, MidEnd); break;    // 道中後の小話
             case 11: Step_BossSpawn(); break;
             case 12: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
-            case 13: Step_BossWait(); break;
+            case 13: Step_BossWait(delta); break;
             case 14: Step_Clear(delta); break;
             case 15: Step_Transition(); break;
         }
@@ -441,13 +441,24 @@ public partial class StageAkari : Node
     }
 
     // ---- 3: ボス戦（浄化＆会話完了まで） ----
-    private void Step_BossWait()
+    // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
+    // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
             Advance();
+            return;
         }
+        if (!_boss.IsPurified) return;
+        _postDefeatT += delta;
+        if (_postDefeatT < BossFinishGrace) return;
+        GD.PushWarning("[StageAkari] ボス撃破後に Finished が立たないため保険で進行");
+        _bossActive = false;
+        Advance();
     }
 
     // ---- 5: クリア（帰還の会話を手動送り） ----

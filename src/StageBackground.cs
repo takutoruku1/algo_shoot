@@ -51,6 +51,71 @@ public partial class StageBackground : Node2D
     private Texture2D _bossTex = null!;     // 遅延ロード（EnterBoss で初めて読む）
     private bool _bossReady;
 
+    // ───── ボス背景クロスフェード（FINAL：歴代ボス背景の追体験）─────
+    // 既存のボスタイル群(_bossTiles)を「現行層」とし、切替のたびに別の Sprite2D 群を「新層」として
+    // 生成→α0→1 でフェードイン、旧層はα1→0 で捨てる。WorldGrade と同じ作法＝唐突に切り替えない。
+    // Dim は「歴代背景は道中用で明るい」ため必須：ボス弾幕の下では暗め・低コントラストに落として敷く。
+    private Sprite2D[] _fadeTiles = System.Array.Empty<Sprite2D>();
+    private float _fadeX, _fadeTileW;
+    private float _fadeT, _fadeDur = 2.4f;
+    private bool _fading;
+    private Color _curDim = Colors.White, _newDim = Colors.White;
+
+    // 指定した背景テクスチャへクロスフェードする（ボスモード限定）。
+    //   path : res:// テクスチャ。読めなければ何もしない（現行背景を残す＝事故らない）。
+    //   dim  : 敷き色。歴代の道中背景はここで暗く沈める（例 0.34,0.30,0.42）。
+    //   dur  : フェード秒。
+    public void CrossfadeBossTo(string path, Color dim, float dur = 2.4f)
+    {
+        if (string.IsNullOrEmpty(path) || !ResourceLoader.Exists(path)) return;
+        var tex = ResourceLoader.Load<Texture2D>(path);
+        if (tex == null) return;
+        CrossfadeBossTo(tex, dim, dur);
+    }
+
+    public void CrossfadeBossTo(Texture2D tex, Color dim, float dur = 2.4f)
+    {
+        if (tex == null) return;
+        if (_fading) FinishFade();       // 連続要求：進行中のフェードを即着地させてから次へ（層が増えない）
+        if (!_bossReady) SetupBoss();
+        _mode = Mode.Boss;
+        foreach (var s in _midTiles) s.Visible = false;
+
+        float scale = ScreenHeight / tex.GetHeight();
+        _fadeTileW = tex.GetWidth() * scale;
+        int count = Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / _fadeTileW) + 2);
+        var tiles = new Sprite2D[count];
+        for (int i = 0; i < count; i++)
+        {
+            var spr = new Sprite2D
+            {
+                Name = $"Fade{i}",
+                Texture = tex, Centered = false,
+                Scale = new Vector2(scale, scale),
+                Position = new Vector2(i * _fadeTileW, 0f),
+                ZIndex = -89, ZAsRelative = false,   // 現行層(-90)のすぐ手前に重ねる
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+                Modulate = new Color(dim.R, dim.G, dim.B, 0f),
+            };
+            AddChild(spr);
+            tiles[i] = spr;
+        }
+        _fadeTiles = tiles; _fadeX = _bossX; _newDim = dim;
+        _fadeT = 0f; _fadeDur = Mathf.Max(0.05f, dur); _fading = true;
+    }
+
+    // 新層を現行層に昇格させ、旧層を破棄する。
+    private void FinishFade()
+    {
+        if (!_fading) return;
+        foreach (var s in _bossTiles) s.QueueFree();
+        foreach (var s in _fadeTiles) { s.ZIndex = -90; s.Modulate = _newDim; }
+        _bossTiles = _fadeTiles; _bossTileW = _fadeTileW; _bossX = _fadeX;
+        _curDim = _newDim;
+        _fadeTiles = System.Array.Empty<Sprite2D>();
+        _fading = false;
+    }
+
     public override void _Ready()
     {
         ZIndex = -90;
@@ -176,6 +241,29 @@ public partial class StageBackground : Node2D
                     if (p.X <= -_bossTileW) p.X += _bossTiles.Length * _bossTileW;
                     _bossTiles[i].Position = p;
                 }
+            }
+
+            // クロスフェード進行：新層をα0→1、旧層をα1→0。位置は現行層と同じ速度でドリフト。
+            if (_fading)
+            {
+                _fadeT += dt;
+                float k = Mathf.Clamp(_fadeT / _fadeDur, 0f, 1f);
+                float s = k * k * (3f - 2f * k); // smoothstep＝立ち上がり/収束が柔らかい
+                if (_fadeTiles.Length > 0 && _fadeTileW > 0f)
+                {
+                    _fadeX += BossDriftSpeed * dt;
+                    float foff = _fadeX % _fadeTileW;
+                    for (int i = 0; i < _fadeTiles.Length; i++)
+                    {
+                        var p = _fadeTiles[i].Position;
+                        p.X = i * _fadeTileW - foff;
+                        if (p.X <= -_fadeTileW) p.X += _fadeTiles.Length * _fadeTileW;
+                        _fadeTiles[i].Position = p;
+                        _fadeTiles[i].Modulate = new Color(_newDim.R, _newDim.G, _newDim.B, _newDim.A * s);
+                    }
+                }
+                foreach (var b in _bossTiles) b.Modulate = new Color(_curDim.R, _curDim.G, _curDim.B, _curDim.A * (1f - s));
+                if (k >= 1f) FinishFade();
             }
 
             // ② 呼吸スケール（ごく弱く、中心基準で拡大のみ）＋ ③ 光の明滅（modulate）。

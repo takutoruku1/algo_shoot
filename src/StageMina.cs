@@ -22,6 +22,7 @@ public partial class StageMina : Node
     private double _rainT;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
     private bool _zHeld, _zEdge, _startBannerShown;
+    private bool _titleThump; private double _titleThumpT; // タイトルカードの拍（タグが合わさる瞬間の一突き）
 
     private const float SpawnX = 300f;
     private const string SCocky = "res://char/shonen_face.png";
@@ -32,7 +33,7 @@ public partial class StageMina : Node
     private static readonly (int who, string text, string face)[] Intro =
     {
         // ① 暴走の状況実況（銀の光が黒く溶ける／悲鳴が流れ込む）は地で説明せず、
-        //    "FINAL — 暴走" バナー＋黒く渦巻く暴走ビジュアル＋無音に委ねる。
+        //    "FINAL — いなくならないで" バナー＋黒く渦巻く暴走ビジュアル＋無音に委ねる。
         //    ミナの声は壊れた断片1行だけ＝言葉が壊れる＝暴走、を見せる（show-don't-tell）。
         // ② 正典 v3（S2）：この声は生前に遺した archive replay の最後の一回——だが**明言しない**。
         //    種明かしは Epilogue に一元化。ここでは“兆候”だけ置く：針飛びのような同語反復（4行目）。
@@ -64,12 +65,27 @@ public partial class StageMina : Node
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("FINAL — 暴走"); }
+        // バナー副題は「暴走」（機械の故障＝外から見た説明）を避ける。ミナは壊れたのではなく“満ちた”＝
+        // 三人ぶんの穢れを抱えきれなくなった。副題「いなくならないで」は1周目＝暴走するミナの悲鳴に読め、
+        // 2周目＝Epilogue「いなくならないって、書いたくせに」(Epilogue.cs:129) の回収先として意味が反転する。
+        if (!_startBannerShown)
+        {
+            _startBannerShown = true;
+            // FINAL だけは共通バナー（出て消える一行）ではなく専用タイトルカードで“格”を上げる。
+            // 文言は据え置き（tag/sub に分解しただけ）。見せ方＝Hud.ShowEpicBanner を参照。
+            Hud.ShowEpicBanner("FINAL", "いなくならないで", UiKit.Kegare);
+        }
+        // タイトルカードの拍：タグが合わさる瞬間(1.25s)に低く一度だけ画面を突く。
+        if (_startBannerShown && !_titleThump)
+        {
+            _titleThumpT += delta;
+            if (_titleThumpT >= 1.25) { _titleThump = true; GameCamera.Instance?.Shake(2.6f, 0.34f); }
+        }
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;
             case 2: Step_BossSpawn(); break;
-            case 3: Step_BossWait(); break;
+            case 3: Step_BossWait(delta); break;
             case 4: Step_Transition(); break;
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
@@ -134,13 +150,27 @@ public partial class StageMina : Node
         }
     }
 
-    private void Step_BossWait()
+    // 撃破後に Finished が立たないまま固まる進行不能への保険。
+    //   通常は改心の会話を送り切った時点で Finished が立ち、この計時は使われない（尺・演出は不変）。
+    //   ボス側の保険（Enemy の cry ウォッチドッグ）が何らかの理由で効かなかった場合の最後の砦として、
+    //   撃破（IsPurified）から BossFinishGrace 秒経っても立たなければ次へ進める。
+    //   ※撃破前（戦闘中）は一切計らない＝長期戦を勝手に打ち切ることはない。
+    private const double BossFinishGrace = 150.0;
+    private double _postDefeatT;
+    private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
             Advance();
+            return;
         }
+        if (!_boss.IsPurified) return;
+        _postDefeatT += delta;
+        if (_postDefeatT < BossFinishGrace) return;
+        GD.PushWarning("[StageMina] ボス撃破後に Finished が立たないため保険で進行");
+        _bossActive = false;
+        Advance();
     }
 
     private bool _clearing;

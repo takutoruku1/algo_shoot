@@ -220,6 +220,25 @@ public static class UiKit
             int n = System.Math.Min(maxLines, lines.Count - i);
             pages.Add(string.Join("\n", lines.GetRange(i, n)));
         }
+        // 孤児行（オーファン）対策：最終ページが「ごく短い端数1行」だけになると、送った先に
+        //   「も」のような数文字だけが1ページ丸ごと表示されて事故に見える（禁則で助詞が行頭送りされた場合など）。
+        //   最終ページが1行かつ短いときは、直前ページの末尾行を1行分けてもらって2行にし、単独表示を避ける。
+        //   （直前ページが1行しか無い場合は分けられないのでそのまま＝元の挙動を維持）
+        const int OrphanMaxChars = 6;   // これ以下の長さの1行だけなら孤児とみなす
+        if (pages.Count >= 2)
+        {
+            var last = pages[pages.Count - 1];
+            if (last.IndexOf('\n') < 0 && last.Length <= OrphanMaxChars)
+            {
+                var prev = pages[pages.Count - 2].Split('\n');
+                if (prev.Length >= 2)
+                {
+                    string moved = prev[prev.Length - 1];
+                    pages[pages.Count - 2] = string.Join("\n", prev, 0, prev.Length - 1);
+                    pages[pages.Count - 1] = moved + "\n" + last;
+                }
+            }
+        }
         return pages;
     }
 
