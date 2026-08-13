@@ -41,19 +41,22 @@ public partial class Follower : Node2D
     }
 
     // algoのショットに同期して前方へハート弾を撃つ。
+    // 方向は親（Player）の向き反転（ShotDir）に追従する＝自機だけ左を向いて子分は右へ撃つ、が起きない。
+    // 親が取れない（テスト等でぶら下がっていない）場合だけ従来どおり右へ撃つ。
     public void Fire()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
+        Vector2 dir = (GetParent() as Player)?.ShotDir ?? Vector2.Right;
         if (IsHikage)
         {
             // 強化：太く速い弾を上下2way（火力アップ）
-            pool.Spawn(GlobalPosition + new Vector2(0f, -3f), new Vector2(380f, 0f), isEnemy: false, 3.6f, 2);
-            pool.Spawn(GlobalPosition + new Vector2(0f, 3f), new Vector2(380f, 0f), isEnemy: false, 3.6f, 2);
+            pool.Spawn(GlobalPosition + new Vector2(0f, -3f), dir * 380f, isEnemy: false, 3.6f, 2);
+            pool.Spawn(GlobalPosition + new Vector2(0f, 3f), dir * 380f, isEnemy: false, 3.6f, 2);
         }
         else
         {
-            pool.Spawn(GlobalPosition, new Vector2(300f, 0f), isEnemy: false, 2.5f, 1);
+            pool.Spawn(GlobalPosition, dir * 300f, isEnemy: false, 2.5f, 1);
         }
     }
 

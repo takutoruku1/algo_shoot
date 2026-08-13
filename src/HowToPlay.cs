@@ -95,7 +95,8 @@ public partial class HowToCanvas : Node2D
     // Hud.Tok* は private なのでここで同等に持つ（割り当ては Player.cs と一致）。
     private static string TokMove  => Pad.UsingPad ? "L スティック"                   : "矢印 / WASD";
     private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z / Space / Enter";
-    private static string TokFocus => Pad.UsingPad ? $"{Pad.Face(JoyButton.LeftShoulder)} / {Pad.Face(JoyButton.RightShoulder)}" : "Shift";
+    private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)  : "Shift";       // RB は向き反転へ移した
+    private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F";           // 向き反転：Player.cs RightShoulder
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
@@ -156,6 +157,7 @@ public partial class HowToCanvas : Node2D
             (TokShot,  "撃つ",        "光を放って心を浄化する",                       UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
+            (TokFlip,  "向き反転",    "押すたび撃つ方向が 右⇔左 に切り替わる",           UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング（解放後）",                UiKit.Gold,   true),
             (TokKind,  "やさしさ全開","満タンで発動、5秒ひかりが溢れる",               UiKit.PurifyHi,false),

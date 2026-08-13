@@ -61,9 +61,10 @@ public partial class Bullet : Area2D
     private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
     private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
 
-    // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
+    // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。進行方向側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
-    // バックファイア（後方弾）フラグ：true なら AcquireTarget は「自分より左(X<self)」の敵を探す（前方弾は右）。
+    // バックファイア（後方弾）フラグ：標的探索は基本 Velocity の向きで決めるため、これは
+    // 「弾速がほぼ 0 で向きが読めないとき」のフォールバック既定（true=左を探す）としてのみ働く。
     public bool BackwardHoming;
     // 旋回角の上書き（0=既定 HomingTurnRate を使う）。誘導速射・後方追尾で個別に旋回を上げる。
     public int TurnRateOverride;
@@ -434,18 +435,22 @@ public partial class Bullet : Area2D
         Velocity = new Vector2(Mathf.Cos(na), Mathf.Sin(na)) * spd;
     }
 
-    // 未浄化の敵本体から最寄りを選ぶ。前方弾＝右側(X>self)／後方弾（BackwardHoming）＝左側(X<self)。
+    // 未浄化の敵本体から最寄りを選ぶ。探索範囲は「弾自身の進行方向の側」＝X 座標をハードコードで
+    // 右/左に決め打ちしない（自機の向き反転で前方が左になっても、後方弾が右を向いても正しく働く）。
+    // 進行方向の符号 sx（+1=右へ飛んでいる / -1=左へ飛んでいる）で前方判定を組み立てる。
+    // Velocity がほぼ 0（加速球のタメ中など）の場合だけ、フラグから従来の既定（前方=右/後方=左）へ落とす。
     private Node2D? AcquireTarget()
     {
+        float vx = Velocity.X;
+        float sx = Mathf.Abs(vx) > 0.01f ? Mathf.Sign(vx) : (BackwardHoming ? -1f : 1f);
         Node2D? best = null;
         float bestD = float.MaxValue;
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
         {
             if (n is Enemy e && !e.IsPurified)
             {
-                bool inRange = BackwardHoming
-                    ? e.GlobalPosition.X < GlobalPosition.X + 4f   // 後方弾：自分より左の敵
-                    : e.GlobalPosition.X > GlobalPosition.X - 4f;  // 前方弾：自分より右の敵
+                // 進行方向の側にいる敵だけを狙う（4px の緩衝は自機に重なった敵を取りこぼさないため）。
+                bool inRange = (e.GlobalPosition.X - GlobalPosition.X) * sx > -4f;
                 if (!inRange) continue;
                 float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
                 if (d < bestD) { bestD = d; best = e; }

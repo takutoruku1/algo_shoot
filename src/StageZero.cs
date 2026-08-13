@@ -251,7 +251,7 @@ public partial class StageZero : Node
                 _refill += delta;
                 if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); } // 隙間を絶やさない
                 {
-                    bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
+                    bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder); // RB は向き反転へ移した（Player.cs と一致）
                     // 低速を保ったまま動いている間だけ加算（離す/止まると進捗は溜まらない＝低速の意味を体験）。
                     if (focus && MovePressed()) { _t3FocusHeld += delta; _t3Moved = true; }
                     int pct = Mathf.Clamp((int)(_t3FocusHeld / SlowHoldNeed * 100), 0, 100);

@@ -167,17 +167,30 @@ public partial class Player : Area2D
 
     // 移動バンク（進行方向へ体を傾け＋わずかに先行。見た目=_spriteのみ／当たり判定は不動）。
     // _lean を入力方向へ指数補間して慣性を持たせる＝予備動作（タメ）と余韻（揺り戻し）が自動で出る。
-    // ★#4 左右の向き差分の結論：FlipH（左右反転）は不採用。ミナ機は非対称デザイン
-    //  （髪の流れ・エプロン・視線が右向き＝射撃方向）で、反転すると顔が射撃方向と逆を向いて破綻する。
-    //  専用絵も作らない：横シューの自機は常に敵(右)を見据えたまま、傾き（バンク）だけで進行方向を語る。
-    //  そのうえで前進(右=攻め)は深く・後退(左=引き)は浅く傾ける非対称バンクにし、攻守を姿勢で描き分ける。
+    // ★#4 左右の向き差分の結論（改訂）：向き反転ボタン（F / パッド RB）の導入に伴い FlipH を採用する。
+    //  自機は _facing(+1=右 / -1=左) を持ち、スプライトを FlipH で反転する＝顔と銃口が常に射撃方向を向く。
+    //  バンク（傾き）は「向きから見た前後」で判定する＝左向き時は左移動が前進＝深い前傾になる（下の bankX）。
+    //  そのうえで前進(射撃方向＝攻め)は深く・後退(引き)は浅く傾ける非対称バンクにし、攻守を姿勢で描き分ける。
     private Vector2 _lean = Vector2.Zero;
-    private static readonly float BankXFwd = Mathf.DegToRad(9f);   // 前進（右＝射撃方向へ攻める）はしっかり前傾
-    private static readonly float BankXBack = Mathf.DegToRad(5.5f); // 後退（左）は控えめ＝顔は敵へ向けたまま引く
+    private static readonly float BankXFwd = Mathf.DegToRad(9f);   // 前進（射撃方向へ攻める）はしっかり前傾
+    private static readonly float BankXBack = Mathf.DegToRad(5.5f); // 後退は控えめ＝顔は敵へ向けたまま引く
     private static readonly float BankY = Mathf.DegToRad(13f); // 上下（縦移動）のバンク
     private const float LeadPx = 2.5f;        // 進行方向への体の先行量(px)
     private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
     private const float FocusLeanMul = 0.45f; // 低速(Shift)時はバンクを抑える＝丁寧さを画で見せる
+
+    // ───────── 向き（射撃方向）─────────
+    // 入力＝F / パッド RB。押すたびに右(+X)⇔左(-X) をトグルする（押しっぱなし不要）。
+    // 射撃方向は必ずここを単一の真実として参照する（各射撃経路に符号を散らさない）。
+    //   ShotDir   … 射撃の基準ベクトル（(±1,0)）
+    //   ShotAngle … 扇（拡散/ホーミング/大波）の基準角。0=右 / π=左。基準角に足せば左右どちらでも自然に開く
+    //   Facing    … +1/-1。銃口オフセットや前後判定の符号に使う
+    // 同時に両方向へは撃たない＝火力は不変（向きが変わるだけ）。
+    private int _facing = 1;
+    private bool _flipHeld = false;             // トグル入力のエッジ検出
+    public int Facing => _facing;
+    public Vector2 ShotDir => new Vector2(_facing, 0f);
+    public float ShotAngle => _facing >= 0 ? 0f : Mathf.Pi;
 
     // ───────── 回避（ドッジ）─────────
     // 入力＝ALT / パッド L3(LeftStick)。短い無敵で弾を「すり抜ける」攻めの回避。
@@ -397,8 +410,9 @@ public partial class Player : Area2D
             if (wasd != Vector2.Zero) dir = wasd;
             dir = dir.LimitLength(1f);
         }
-        // 低速＝Shift / 肩ボタン(L1・R1)
-        bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder) || Pad.Pressed(JoyButton.RightShoulder);
+        // 低速＝Shift / 肩ボタン(L1)。※RB(R1) は向き反転へ割り当てたため低速からは外した
+        // （パッドの空きボタンが他に無く、RB は LB と同機能の重複割り当てだったため）。
+        bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder);
         _focus = focus;
         // 機動力強化で移動速度UP。低速（Focus）には乗せない：精密回避の速度は“調整済みの手触り”で、
         // 強化が乗ると細かい避けがかえって難しくなる（強化の逆効果）ため、通常速度だけを伸ばす。
@@ -481,6 +495,16 @@ public partial class Player : Area2D
             }
         }
         _modeHeld = modeKey;
+
+        // 向き反転＝F / パッド RB。押した瞬間だけ反転するトグル（押しっぱなし不要）。会話中は不可。
+        // 反転は _facing のみを書き換える＝射撃方向も見た目(FlipH)も下流がここを読んで追従する。
+        bool flipKey = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
+        if (flipKey && !_flipHeld && !Hud.BubblePaused)
+        {
+            _facing = -_facing;
+            FxLayer.Instance?.Muzzle(GlobalPosition + ShotDir * 20f); // 「向きが変わった」を銃口側の一閃で示す
+        }
+        _flipHeld = flipKey;
 
         // 緊急回避中（_dodgeTimer 稼働＝DodgeDuration の間）はショット入力を無効化する＝回避は「避け」に専念。
         bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A))
@@ -618,11 +642,17 @@ public partial class Player : Area2D
         {
             float leanMul = _focus ? FocusLeanMul : 1f;
             float bobY = Mathf.Sin(_bobTime * BobSpeed) * BobAmp;
+            // 向き反転（★#4 改訂）：左向き(_facing<0)ならスプライトを左右反転して顔と銃口を射撃方向へ向ける。
+            // 回避スピン中は ApplySpinFrame が FlipH を「回転フレームの流用」として握るので、ここでは触らず、
+            // スピン側が _facing と XOR して合成する（EndDodge も _facing 基準へ戻す）。
+            if (_dodgeTimer <= 0f) _sprite.FlipH = _facing < 0;
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
-            // 前傾＋バンク：右移動で前へ、上下移動で機首を振る（前進は深く・後退は浅い非対称バンク）。
-            float bankX = _lean.X >= 0f ? BankXFwd : BankXBack;
-            _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * leanMul;
+            // 前傾＋バンク：射撃方向への移動で前へ、上下移動で機首を振る（前進は深く・後退は浅い非対称バンク）。
+            // 左向き時はスプライトが FlipH で反転する＝Rotation の見た目も左右反転するので、
+            // 傾き角そのものに _facing を掛けて打ち消し、「進行方向へ倒れる」画を両向きで保つ。
+            float bankX = _lean.X * _facing >= 0f ? BankXFwd : BankXBack; // 前後は「向きから見て」判定する
+            _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * leanMul * _facing;
             // 指さし中＋戻りの余韻：ミナの方（右）へほんの少し前傾＋先行して「見据える」勢いを足す。
             if (_pointActive || _pointSettle > 0f)
             {
@@ -634,15 +664,16 @@ public partial class Player : Area2D
             // スケールはここで毎フレーム確定する（リアクション無し＝素値）＝復帰の状態管理を持たない。
             if (_dodgeTimer <= 0f)
             {
-                // 発射反動：銃口(右)と逆へ小さくキックバック。連射のリズムが体に乗る。
-                _sprite.Position += new Vector2(-RecoilPx * _recoil, 0f);
+                // 発射反動：銃口（射撃方向）と逆へ小さくキックバック。連射のリズムが体に乗る。
+                _sprite.Position += new Vector2(-RecoilPx * _recoil * _facing, 0f);
                 Vector2 scl = new Vector2(_baseScaleX, _baseScaleX);
                 if (_hitReact > 0f)
                 {
-                    // のけぞり：残量^2＝直後に最大→スッと復帰（余韻）。左へ倒れ・沈み・潰れる squash。
+                    // のけぞり：残量^2＝直後に最大→スッと復帰（余韻）。後方へ倒れ・沈み・潰れる squash。
+                    // 変位は世界座標なので -_facing 側へ、Rotation は FlipH で見た目が反転するぶん _facing を掛ける。
                     float e = _hitReact / HitReactDur; e *= e;
-                    _sprite.Position += new Vector2(-5f * e, 1.5f * e);
-                    _sprite.Rotation += -0.32f * e; // 後ろ（反時計回り）へのけぞる
+                    _sprite.Position += new Vector2(-5f * e * _facing, 1.5f * e);
+                    _sprite.Rotation += -0.32f * e * _facing; // 後ろ（射撃方向と逆）へのけぞる
                     scl = new Vector2(_baseScaleX * (1f + 0.10f * e), _baseScaleX * (1f - 0.16f * e));
                 }
                 else if (_bombCast > 0f)
@@ -707,9 +738,9 @@ public partial class Player : Area2D
         if (_pool == null)
             return;
 
-        // 銃口（中心からやや右）。光の出力強化でダメージ増。
+        // 銃口（中心からやや前方＝_facing 側）。光の出力強化でダメージ増。
         // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
-        Vector2 muzzle = GlobalPosition + new Vector2(20f, 0f);
+        Vector2 muzzle = GlobalPosition + ShotDir * 20f;
         // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
         int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f))) + FocusFireBonus;
 
@@ -733,7 +764,7 @@ public partial class Player : Area2D
         for (int i = 0; i < _optionCount && i < OptionSlots.Length; i++)
         {
             Vector2 op = GlobalPosition + OptionSlots[i];
-            _pool.Spawn(op + new Vector2(8f, 0f), new Vector2(340f, 0f), isEnemy: false, 2.6f,
+            _pool.Spawn(op + ShotDir * 8f, ShotDir * 340f, isEnemy: false, 2.6f,
                 Mathf.Max(1, Mathf.RoundToInt(dmg * 0.5f)));
         }
 
@@ -745,13 +776,13 @@ public partial class Player : Area2D
         _recoil = 1f;
     }
 
-    // 連射：右へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
+    // 連射：射撃方向（_facing）へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
     // 連射威力（rapid_power）で弾ダメージ +Lv（連射モード専用の火力ノード）。
     // 貫く光（pierce）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
     // 見た目＝光のダート（BulletShape.Dart・進行方向へ尖る細身）＝「まっすぐ速い主力弾」が形で読める。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
-        Vector2 vel = new Vector2(360f, 0f);
+        Vector2 vel = ShotDir * 360f;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
         int lines = Mathf.Clamp(2 + (_game?.ShotDamageBonus ?? 0) / 2, 2, 4);
@@ -773,16 +804,16 @@ public partial class Player : Area2D
         float delay = _game?.AccelChargeDelay ?? 0.8f;
         int pierce = _game?.ShotPierceCount ?? 0;
         int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
-        // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（右）で確定し、MakeAccel が初速をタメへ落とす。
+        // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
         foreach (float dy in new[] { -4f, 4f })
         {
-            var b = _pool.Spawn(muzzle + new Vector2(0f, dy), new Vector2(fast, 0f), isEnemy: false, 3.4f, admg);
+            var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
             b.Pierce = pierce;
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
         }
     }
 
-    // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
+    // 拡散：射撃方向（ShotAngle）を基準に扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
     // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる。跳弾も花弁形を引き継ぐ）。
     // 見た目＝花弁（BulletShape.Petal・短く幅広）＝扇に開いた瞬間、水色の花になる（数の圧を面で見せる）。
     private void FireSpread(Vector2 muzzle, int dmg)
@@ -793,13 +824,13 @@ public partial class Player : Area2D
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
-            float ang = t * Mathf.DegToRad(70f);
+            float ang = ShotAngle + t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg, BulletShape.Petal).Chain = chain;
         }
     }
 
-    // ホーミング：追尾弾を扇状に放ち、右側の穢れへ曲射。弾速200。追尾数 2→3→4（誘導Lv）。
+    // ホーミング：追尾弾を扇状に放ち、射撃方向（ShotAngle）側の穢れへ曲射。弾速200。追尾数 2→3→4（誘導Lv）。
     // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
     // 見た目＝彗星シーカー（BulletShape.Seeker・フィン＋短い尾）＝曲がって追う軌跡が尾で映える。
     private void FireHoming(Vector2 muzzle, int dmg)
@@ -810,15 +841,17 @@ public partial class Player : Area2D
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
-            float ang = t * Mathf.DegToRad(40f);
+            float ang = ShotAngle + t * Mathf.DegToRad(40f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Seeker, null, homing: true); // 弾速 260→200
             if (turn > 0) hb.TurnRateOverride = turn;
         }
     }
 
-    // バックファイア：後方(-X)へ軽ホーミング弾を撃つ。撃ったら true。
-    //   ・後方最寄りの未浄化の敵がいればそちらへ狙いを付け、いなくても真後ろ（-X）へ撃つ
+    // バックファイア：後方＝射撃方向の反対側（-ShotDir）へ軽ホーミング弾を撃つ。撃ったら true。
+    //   ★向き反転（_facing）に追従する：左向きにすると「後方」は右になる＝メインと同じ方向へ二重に
+    //     撃つことはない（常にメインの真逆＝火力バランスは向きに依らず不変）。
+    //   ・後方最寄りの未浄化の敵がいればそちらへ狙いを付け、いなくても真後ろへ撃つ
     //     （旧仕様は「後方に敵が居なければ撃たない」＝道中は敵が右から来るので後方弾がほぼ一度も出ず、
     //       「後方の光を買ったのに後ろに弾が出ない」とプレイヤーに読まれていた。撃つ＝機能が見える）。
     //   ・数値は GameManager（bf_* ノードの ChainLevel）から：ダメージ 1→2/3/4・同時発数・旋回。弾速180。
@@ -828,20 +861,21 @@ public partial class Player : Area2D
     {
         if (_pool == null || _game == null) return false;
 
-        // 後方最寄りの敵を探す（自機より左＝X小）。居なければ真後ろへ撃つ。
+        // 後方最寄りの敵を探す（射撃方向の反対側）。居なければ真後ろへ撃つ。
+        Vector2 back = -ShotDir;
         Node2D? nearest = null;
         float bestD = float.MaxValue;
         foreach (Node node in GetTree().GetNodesInGroup("enemies"))
         {
-            if (node is Enemy e && !e.IsPurified && e.GlobalPosition.X < GlobalPosition.X - 4f)
+            if (node is Enemy e && !e.IsPurified && (e.GlobalPosition.X - GlobalPosition.X) * back.X > 4f)
             {
                 float d = e.GlobalPosition.DistanceSquaredTo(GlobalPosition);
                 if (d < bestD) { bestD = d; nearest = e; }
             }
         }
 
-        Vector2 muzzle = GlobalPosition + new Vector2(-16f, 0f); // 後方（左）の銃口
-        Vector2 baseDir = nearest != null ? (nearest.GlobalPosition - muzzle).Normalized() : Vector2.Left;
+        Vector2 muzzle = GlobalPosition + back * 16f; // 後方の銃口（射撃方向の反対）
+        Vector2 baseDir = nearest != null ? (nearest.GlobalPosition - muzzle).Normalized() : back;
         int dmg = Mathf.Max(1, Mathf.RoundToInt(_game.BackfireDamage * _game.FollowerPowerMul));
         int shots = _game.BackfireShots;
         int turn = Mathf.RoundToInt(_game.BackfireTurnRate); // bf_track で 60→90（未適用だと既定95に化けていた）
@@ -920,7 +954,9 @@ public partial class Player : Area2D
         if (tex == null) return;                   // 念のため null 安全（_spinReady 前提だが）
         _sprite.Texture = tex;
         _dodgeFlip = SpinFrameFlip[k];
-        _sprite.FlipH = _dodgeFlip;
+        // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
+        // 着地フレーム(00)がちゃんと左向きに戻る（向きが回避で壊れない）。
+        _sprite.FlipH = _dodgeFlip ^ (_facing < 0);
         // フレーム差し替えごとに高さ正規化スケールを再計算（高さ360で統一＝実質どれも同一値）。
         float h = tex.GetHeight();
         if (h > 0)
@@ -931,7 +967,7 @@ public partial class Player : Area2D
         }
     }
 
-    // 回避終了：必ず正面フレーム(00)・FlipH=false・Rotation=0・idle テクスチャへ戻す。中途半端なフレームで固定しない。
+    // 回避終了：必ず正面フレーム(00)・FlipH=現在の向き・Rotation=0・idle テクスチャへ戻す。中途半端なフレームで固定しない。
     private void EndDodge()
     {
         _dodgeTimer = 0f;
@@ -945,7 +981,7 @@ public partial class Player : Area2D
         }
         if (_hasTexture && _sprite != null)
         {
-            _sprite.FlipH = false;
+            _sprite.FlipH = _facing < 0; // 回避前後で向きを保つ（false 決め打ちだと左向きが右向きに戻ってしまう）
             _sprite.Rotation = 0f; // 直立・正位置へ（次フレームから通常バンク／idle が滑らかに引き継ぐ）
             if (_idleTex != null)
             {
@@ -1074,7 +1110,7 @@ public partial class Player : Area2D
                         // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
                         int cdmg = Mathf.Max(1, Mathf.RoundToInt((1 + (game.ShotDamageBonus)) * game.FollowerPowerMul * 0.7f));
                         _pool?.Despawn(b);
-                        _pool?.Spawn(at, new Vector2(200f, 0f), isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
+                        _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
                         FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
                     }
                 }
@@ -1149,16 +1185,17 @@ public partial class Player : Area2D
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f; // -0.5..0.5
-            float ang = t * Mathf.DegToRad(64f);               // 上下±32°の扇
+            float ang = ShotAngle + t * Mathf.DegToRad(64f);   // 射撃方向を基準に上下±32°の扇
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool?.Spawn(GlobalPosition + new Vector2(14f, 0f), dir * 400f, isEnemy: false, 4.5f, 3);
+            _pool?.Spawn(GlobalPosition + ShotDir * 14f, dir * 400f, isEnemy: false, 4.5f, 3);
         }
 
         // 前方の敵弾を花びらに変えて消す（防御も兼ねる）
         var game = GetNodeOrNull<GameManager>("/root/Game");
         foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
         {
-            if (node is Bullet b && b.Active && b.GlobalPosition.X > GlobalPosition.X - 8f)
+            // 「前方」＝射撃方向側。向き反転（_facing）に追従させる（右決め打ちにしない）。
+            if (node is Bullet b && b.Active && (b.GlobalPosition.X - GlobalPosition.X) * _facing > -8f)
             {
                 game?.AddBulletCleared();
                 FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
@@ -1167,7 +1204,7 @@ public partial class Player : Area2D
         }
 
         // 演出
-        FxLayer.Instance?.PurifyBurst(GlobalPosition + new Vector2(20f, 0f));
+        FxLayer.Instance?.PurifyBurst(GlobalPosition + ShotDir * 20f);
         GameCamera.Instance?.Shake(3.5f, 0.12f);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
     }

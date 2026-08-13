@@ -107,6 +107,8 @@ public static class Pad
     public static string EquipToken  => ShowKeyboard ? "C" : Face(JoyButton.Y);
     public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);
     public static string ModeToken   => ShowKeyboard ? "V" : Face(JoyButton.B);
+    // Flip … F(KB) / RB(パッド＝R1)。射撃方向を右⇔左にトグルする向き反転ボタン。
+    public static string FlipToken   => ShowKeyboard ? "F" : Face(JoyButton.RightShoulder);
     // 移動（方向）。キーボードは矢印、パッドは左スティック表記。
     public static string MoveToken   => ShowKeyboard ? "↑↓←→" : "L";
 
@@ -189,7 +191,7 @@ public static class Pad
     private static readonly Key[] HintKeys =
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
-        Key.Z, Key.X, Key.C, Key.V, Key.Shift, Key.Ctrl, Key.Alt,
+        Key.Z, Key.X, Key.C, Key.V, Key.F, Key.Shift, Key.Ctrl, Key.Alt,
         Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.Tab,
     };
 

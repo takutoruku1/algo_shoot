@@ -207,12 +207,16 @@ public partial class Hud : CanvasLayer
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     private static string TokDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
+    private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
     private static string AllShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z / Space / Enter";
     private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
-    private static string AllFocus => Pad.UsingPad ? $"{Pad.Face(JoyButton.LeftShoulder)} / {Pad.Face(JoyButton.RightShoulder)}" : "Shift";
+    // 低速はパッドでは LB のみ（RB は向き反転へ割り当てたため。Player.cs の判定と一致させる）。
+    private static string AllFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
+    // 向き反転（射撃方向を右⇔左にトグル）。KB=F / パッド=RB(R1)。
+    private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F";
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
@@ -1208,6 +1212,7 @@ public partial class Hud : CanvasLayer
             (AllShot,  "撃つ",  true),
             (AllFocus, "低速",  true),
             (TokDodge, "回避",  _dodgeReady), // 低速の隣（共に回避手段）。CD中は淡色＝使える時だけ点灯
+            (AllFlip,  "向き",  true),      // 射撃方向を右⇔左にトグル（押すたび反転）
             (AllBomb,  "ボム",  true),
             (AllMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
         };
