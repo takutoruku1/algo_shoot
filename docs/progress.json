@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:42 UTC",
+  "generated": "2026-08-13 19:48 UTC",
   "counts": {
-    "todo": 9,
+    "todo": 8,
     "wip": 0,
     "blocked": 11,
-    "done": 32
+    "done": 33
   },
-  "percent": 78,
+  "percent": 80,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "小話3: ショップの一言",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §3 を実装。**表示の器が無いので新設**（`Hub.cs:900-903` のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示"
-    },
     {
       "priority": "P2",
       "title": "小話4: トレーニング場の独り言",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "小話3: ショップの一言",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §3を`Shop.cs`へ実装。既存の`Toast()`機構を流用（新規UI不要と判明）。入店時1回、購入時25%で確認メッセージの代わりに一言、退店は「一言→0.8秒遅延→実遷移」の`_exitPending`ガード付き。オートプレイ(`--qa`)でのデッドロックを避けるよう判定順を配慮"
+    },
     {
       "priority": "P1",
       "title": "小話2: ハブの複数パターン化",
@@ -328,6 +328,16 @@
   ],
   "commits": [
     {
+      "hash": "ef78ca3",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 小話3: ショップの一言"
+    },
+    {
+      "hash": "c88443e",
+      "date": "2026-08-13",
+      "subject": "auto: 小話2『ハブの複数パターン化』を実装（既読管理つき）"
+    },
+    {
       "hash": "1acbd5e",
       "date": "2026-08-13",
       "subject": "auto: WIP 小話2: ハブの複数パターン化"
@@ -356,16 +366,6 @@
       "hash": "5af7634",
       "date": "2026-08-13",
       "subject": "auto: Epilogueの死因回収を2行に分割"
-    },
-    {
-      "hash": "1280633",
-      "date": "2026-08-13",
-      "subject": "auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている"
-    },
-    {
-      "hash": "a0fce46",
-      "date": "2026-08-13",
-      "subject": "auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに"
     }
   ]
 }

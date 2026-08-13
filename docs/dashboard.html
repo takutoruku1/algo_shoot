@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">78<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 32 / 対象 41 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">80<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 33 / 対象 41 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 78パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 80パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">32</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">33</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">小話3: ショップの一言</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md</code> §3 を実装。<strong>表示の器が無いので新設</strong>（<code>Hub.cs:900-903</code> のトースト描画が同型の参考）。入店・購入時・退店でランダムに1つ表示。購入時は既存の購入処理にフックする。買い物のテンポを邪魔しない短時間表示</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -195,6 +187,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">小話3: ショップの一言</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>docs/小話集_v1.md</code> §3を<code>Shop.cs</code>へ実装。既存の<code>Toast()</code>機構を流用（新規UI不要と判明）。入店時1回、購入時25%で確認メッセージの代わりに一言、退店は「一言→0.8秒遅延→実遷移」の<code>_exitPending</code>ガード付き。オートプレイ(<code>--qa</code>)でのデッドロックを避けるよう判定順を配慮</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -549,16 +549,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ef78ca3</span><span>2026-08-13</span><span class="s">auto: WIP 小話3: ショップの一言</span></li>
+      <li><span class="h">c88443e</span><span>2026-08-13</span><span class="s">auto: 小話2『ハブの複数パターン化』を実装（既読管理つき）</span></li>
       <li><span class="h">1acbd5e</span><span>2026-08-13</span><span class="s">auto: WIP 小話2: ハブの複数パターン化</span></li>
       <li><span class="h">4c43e06</span><span>2026-08-13</span><span class="s">auto: 小話1『道中の掛け合い』をStageRei/Akari/Koharuに実装</span></li>
       <li><span class="h">6f22a8d</span><span>2026-08-13</span><span class="s">auto: WIP 小話1: 道中の掛け合い</span></li>
       <li><span class="h">629a627</span><span>2026-08-13</span><span class="s">auto: FINALの投稿弾を三人の語＋ミナ自身の語に混成</span></li>
       <li><span class="h">3921004</span><span>2026-08-13</span><span class="s">auto: WIP FINALの投稿弾がミナ自身の言葉になっていない</span></li>
       <li><span class="h">5af7634</span><span>2026-08-13</span><span class="s">auto: Epilogueの死因回収を2行に分割</span></li>
-      <li><span class="h">1280633</span><span>2026-08-13</span><span class="s">auto: WIP Epilogueの死因回収が1行で長く二段落としが潰れている</span></li>
-      <li><span class="h">a0fce46</span><span>2026-08-13</span><span class="s">auto: TrainingDummy.HpRatioをvirtual/override化、ソリューション警告ゼロに</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:42 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:48 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
