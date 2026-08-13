@@ -317,6 +317,15 @@ public partial class Bullet : Area2D
 
     // 連鎖の光（chain_light）：この拡散弾が敵/パネルに消費された瞬間、最寄りの「別の敵」へ跳弾する。
     // 消費側（Enemy 本体ヒット／Panel インク削り）が Despawn の直前に呼ぶ。威力×0.4（下限1）で残数を引き継ぐ。
+    //
+    // バランス査定メモ（新奥義バランス査定）：
+    //   Panel.OnAreaEntered はインク−1を Damage 参照なしで行う（Panel.cs:103）ため、この×0.4は
+    //   パネル持ちの雑魚/バズ壁が主対象のときは実質無意味（Mathf.Max(1,…)の下限で常に1相当のインク欠損を
+    //   起こす）。実際に効いているのは「射程無制限で必ず1体拾える追加ヒット」のほうで、拡散(5〜9way)×
+    //   跳弾2（chain_2）を重ねると密集waveでの掃討速度が跳ね上がりすぎる。0.4自体は（ボス本体の
+    //   露出窓ヒットでは効いており、そこは１〜4クランプ済みで無害）据え置きつつ、跳弾の探索を
+    //   ChainRange 以内の「近い敵」に限定＝密集狙いのリスクリターン（寄せて撃つほど得）に寄せる。
+    private const float ChainRange = 170f; // 跳弾の最大到達距離(px)。画面幅384の約44%＝近くの群れだけ拾う
     public void TryChain(Node2D? exclude)
     {
         if (Chain <= 0 || IsEnemy || !Active) return;
@@ -330,7 +339,7 @@ public partial class Bullet : Area2D
                 if (d2 < bestD) { bestD = d2; best = e; }
             }
         }
-        if (best == null) return; // 跳ね先がいなければ何も起きない
+        if (best == null || bestD > ChainRange * ChainRange) return; // 跳ね先がいない／遠すぎるなら何も起きない
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         Vector2 dir = (best.GlobalPosition - GlobalPosition).Normalized();

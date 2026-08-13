@@ -97,14 +97,14 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">85<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 35 / 対象 41 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">86<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 36 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 85パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 86パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">35</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">36</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
@@ -121,10 +121,10 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
-          <span class="task-title">新奥義バランス査定</span>
-          <span class="worker">game-designer</span>
+          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
+          
         </div>
-        <p class="accept">集中の光（<code>Player.cs</code> FocusFireHitsPerStack=8）・連鎖の光（<code>Bullet.cs</code> 跳弾×0.4）・バズ壁の硬さ（<code>EnemySpec.cs</code> パネル5×インク3）を実装値で査定し、強すぎ/弱すぎを具体的な数値変更として反映</p>
+        <p class="accept"><code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は<strong>雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく</strong>、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。<strong>要ユーザー判断</strong>：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -171,6 +171,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">新奥義バランス査定</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) 集中の光＝据え置き（原因は対象外の<code>Enemy.cs</code>/<code>Panel.cs</code>側、根拠コメント追記）。連鎖の光＝射程無制限が強すぎたため<code>ChainRange=170px</code>を追加。バズ壁＝耐久は妥当だが報酬(points)が手間に見合っていなかったため150→220。副産物として「パネル持ち敵にダメージ強化が無効」という大きめの発見をTODO先頭に起票。※Player.cs編集で既存フィールド<code>_focusTarget</code>/<code>_focusHits</code>が誤って消えビルド不能になっていたため指揮官側で復元・ビルド確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -549,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">117eb36</span><span>2026-08-13</span><span class="s">auto: WIP 新奥義バランス査定</span></li>
+      <li><span class="h">5cd4adc</span><span>2026-08-13</span><span class="s">auto: 小話5『タイトル画面のひとこと』を実装</span></li>
       <li><span class="h">1934c72</span><span>2026-08-13</span><span class="s">auto: WIP 小話5: タイトル画面のひとこと</span></li>
       <li><span class="h">a5af645</span><span>2026-08-13</span><span class="s">auto: 小話4『トレーニング場の独り言』を実装</span></li>
       <li><span class="h">3a448ca</span><span>2026-08-13</span><span class="s">auto: WIP 小話4: トレーニング場の独り言</span></li>
       <li><span class="h">5257724</span><span>2026-08-13</span><span class="s">auto: 小話3『ショップの一言』を実装</span></li>
       <li><span class="h">ef78ca3</span><span>2026-08-13</span><span class="s">auto: WIP 小話3: ショップの一言</span></li>
       <li><span class="h">c88443e</span><span>2026-08-13</span><span class="s">auto: 小話2『ハブの複数パターン化』を実装（既読管理つき）</span></li>
-      <li><span class="h">1acbd5e</span><span>2026-08-13</span><span class="s">auto: WIP 小話2: ハブの複数パターン化</span></li>
-      <li><span class="h">4c43e06</span><span>2026-08-13</span><span class="s">auto: 小話1『道中の掛け合い』をStageRei/Akari/Koharuに実装</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 20:00 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 20:15 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
