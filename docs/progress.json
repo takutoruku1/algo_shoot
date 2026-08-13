@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-13 19:54 UTC",
+  "generated": "2026-08-13 20:00 UTC",
   "counts": {
-    "todo": 7,
+    "todo": 6,
     "wip": 0,
     "blocked": 11,
-    "done": 34
+    "done": 35
   },
-  "percent": 83,
+  "percent": 85,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "小話5: タイトル画面のひとこと",
-      "worker": "engineer",
-      "accept": "`docs/小話集_v1.md` §5 を実装。既存 `Ticker`（`TitleMenu.cs:22-27`・投稿形式）はそのまま残し、ミナのひとことを別配列で画面下に薄く表示。起動時に1つ、無操作N秒ごとに1つ。メニュー操作の邪魔をしない"
-    },
     {
       "priority": "P1",
       "title": "新奥義バランス査定",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "小話5: タイトル画面のひとこと",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-13) `docs/小話集_v1.md` §5を`TitleMenu.cs`へ実装。既存`Ticker`は無変更。起動時1回＋無操作10秒ごとに1回、画面下中央帯（x≈290-990）にミナ色40%不透明度で薄く表示。Hotspot登録なし＝メニュー操作に無関係"
+    },
     {
       "priority": "P2",
       "title": "小話4: トレーニング場の独り言",
@@ -328,6 +328,16 @@
   ],
   "commits": [
     {
+      "hash": "1934c72",
+      "date": "2026-08-13",
+      "subject": "auto: WIP 小話5: タイトル画面のひとこと"
+    },
+    {
+      "hash": "a5af645",
+      "date": "2026-08-13",
+      "subject": "auto: 小話4『トレーニング場の独り言』を実装"
+    },
+    {
       "hash": "3a448ca",
       "date": "2026-08-13",
       "subject": "auto: WIP 小話4: トレーニング場の独り言"
@@ -356,16 +366,6 @@
       "hash": "4c43e06",
       "date": "2026-08-13",
       "subject": "auto: 小話1『道中の掛け合い』をStageRei/Akari/Koharuに実装"
-    },
-    {
-      "hash": "6f22a8d",
-      "date": "2026-08-13",
-      "subject": "auto: WIP 小話1: 道中の掛け合い"
-    },
-    {
-      "hash": "629a627",
-      "date": "2026-08-13",
-      "subject": "auto: FINALの投稿弾を三人の語＋ミナ自身の語に混成"
     }
   ]
 }
