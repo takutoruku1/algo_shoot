@@ -718,6 +718,7 @@ public partial class Player : Area2D
         {
             case GameManager.ShotMode.Spread: FireSpread(muzzle, dmg); break;
             case GameManager.ShotMode.Homing: FireHoming(muzzle, dmg); break;
+            case GameManager.ShotMode.Accel:  FireAccel(muzzle, dmg);  break;
             default:                          FireRapid(muzzle, dmg);  break;
         }
 
@@ -758,6 +759,23 @@ public partial class Player : Area2D
                                   : new[] { -10f, -4f, 4f, 10f };
         foreach (float dy in offs)
             _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg).Pierce = pierce;
+    }
+
+    // 加速球：発射したら自機のすぐ前でほぼ静止して“タメ”を作り、0.8秒後にロケットのように急加速して発進する。
+    //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）／発進速度=640px/s（静止からの立ち上がりで
+    //   ブースト感が強い）／タメ0.8秒。方向は右（+X）で不変。ダメージ・貫通は連射系の恩恵を踏襲。
+    private void FireAccel(Vector2 muzzle, int dmg)
+    {
+        const float charge = 12f, fast = 640f, delay = 0.8f;
+        int pierce = _game?.ShotPierceCount ?? 0;
+        int admg = dmg + (_game?.RapidPowerBonus ?? 0);
+        // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（右）で確定し、MakeAccel が初速をタメへ落とす。
+        foreach (float dy in new[] { -4f, 4f })
+        {
+            var b = _pool.Spawn(muzzle + new Vector2(0f, dy), new Vector2(fast, 0f), isEnemy: false, 3.4f, admg);
+            b.Pierce = pierce;
+            b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→0.8秒後に発進
+        }
     }
 
     // 拡散：右方向へ扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.65→0.72→0.80・拡散威力ノードで是正）。

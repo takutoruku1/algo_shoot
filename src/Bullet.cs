@@ -47,6 +47,18 @@ public partial class Bullet : Area2D
     // “読める”手応えは残しつつ、グレイズ＝安全化ではなくす。
     public const float GrazeSoftenMul = 0.85f;
 
+    // 加速球（自機ショットの“タメ→ロケット発進”モード）。発射直後は自機のすぐ近くでほぼ静止して「タメ」を作り、
+    //   _accelDelay 秒経過した瞬間にロケットのように急加速して発進する（徐々にではなく瞬間的・方向は不変）。
+    //   経過時間は _age で計る（会話停止中は進めない＝弾停止と整合）。付与は MakeAccel（Spawn 直後）。
+    //   ★発進方向は _accelDir に保持する：タメ中の速度はほぼ 0 なので、Velocity から向きを復元すると
+    //     正規化が破綻する（len≈0）。MakeAccel で確定した向きを別に持ち、発進時に _accelDir×_fastSpeed で撃つ。
+    public bool Accel;
+    private float _accelDelay;   // タメ時間＝加速までの遅延秒（既定0.8秒）
+    private float _fastSpeed;    // 加速後（発進）の速さ（px/s）
+    private Vector2 _accelDir;   // 発進方向（単位ベクトル・MakeAccel で確定）。タメ中の微速もこの向き。
+    private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
+    private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
+
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。右側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
     // バックファイア（後方弾）フラグ：true なら AcquireTarget は「自分より左(X<self)」の敵を探す（前方弾は右）。
@@ -95,6 +107,10 @@ public partial class Bullet : Area2D
     private static readonly Color PlayerMid  = new Color(0.424f, 0.737f, 0.847f); // #6cbcd8 浄化
     private static readonly Color PlayerEdge = new Color(0.247f, 0.490f, 0.604f); // 暗めの水色縁
     private static readonly Color PlayerGlow = new Color(0.424f, 0.737f, 0.847f); // rgba(108,188,216)
+    // 加速球（自機弾の加速モード）：通常自機弾の水色と区別する琥珀色。
+    private static readonly Color AccelMid  = new Color(0.96f, 0.78f, 0.36f); // 琥珀
+    private static readonly Color AccelEdge = new Color(0.62f, 0.44f, 0.16f); // 暗めの琥珀縁
+    private static readonly Color AccelGlow = new Color(1.0f, 0.82f, 0.40f);
     private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
 
     // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────
@@ -156,6 +172,8 @@ public partial class Bullet : Area2D
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _homeTarget = null;
+        // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
+        Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
 
         GlobalPosition = pos;
 
@@ -221,6 +239,21 @@ public partial class Bullet : Area2D
         QueueRedraw();
     }
 
+    // 加速球にする（Spawn 直後に呼ぶ）。発射直後は自機のすぐ近くで chargeSpeed のほぼ静止でタメ、
+    //   delaySec 秒後に fastSpeed へロケット発進する。発進方向は Spawn 時の vel の向きで確定して保持する
+    //   （chargeSpeed を極小にしても向きが失われない＝タメ中の Velocity から向きを復元しない）。
+    public void MakeAccel(float chargeSpeed, float fastSpeed, float delaySec)
+    {
+        Accel = true;
+        _accelDone = false;
+        _accelDelay = delaySec;
+        _fastSpeed = fastSpeed;
+        float len = Velocity.Length();
+        _accelDir = len > 0.01f ? Velocity / len : Vector2.Right; // 発進方向を確定（vel が空なら右へ）
+        Velocity = _accelDir * chargeSpeed;                        // タメ中はこの向きへごく僅かに進む（ほぼ静止）
+        QueueRedraw();
+    }
+
     // 祈り弾×自機弾の重なり：双方消して「受け止めた」の手応え＋やさしさ微加算。
     // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
     private void OnAreaEntered(Area2D area)
@@ -279,6 +312,21 @@ public partial class Bullet : Area2D
         // 会話中（吹き出し表示中）は飛んでいる弾も止める＝攻撃を停止
         if (Hud.BubblePaused)
             return;
+
+        // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
+        _age += (float)delta;
+
+        // 加速球：_accelDelay 秒（タメ）経過した瞬間に、確定済みの発進方向へロケット発進（1回だけ・瞬間切替）。
+        //   タメ中の Velocity はほぼ 0 なので向き復元は使わず、MakeAccel で保持した _accelDir を使う（len≈0破綻回避）。
+        if (Accel && !_accelDone)
+        {
+            if (_age >= _accelDelay)
+            {
+                _accelDone = true;
+                Velocity = _accelDir * _fastSpeed;
+            }
+            QueueRedraw(); // タメ中は充填リングを毎フレーム脈動（発進の瞬間は尾へ切替）
+        }
 
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
         if (Homing && !IsEnemy)
@@ -402,7 +450,30 @@ public partial class Bullet : Area2D
 
         if (!IsEnemy)
         {
-            // 自機弾は常にガラス円弾（浄化の水色）。
+            // 加速球：通常自機弾（水色）と区別できる琥珀色のガラス弾。
+            //   タメ中（発進前）は脈動する充填リングで「いまタメている」を、発進後は進行方向へ尾を引く
+            //   ストリークで「ロケット発進した」を視覚化（余力の見た目・当たり判定は不変）。
+            if (Accel)
+            {
+                if (!_accelDone)
+                {
+                    // タメ中：発進が近いほど速く脈動する収縮リング（チャージ感）。
+                    float prog = _accelDelay > 0.01f ? Mathf.Clamp(_age / _accelDelay, 0f, 1f) : 1f; // 0→1
+                    float pulse = 0.5f + 0.5f * Mathf.Sin((float)_age * (10f + 18f * prog));
+                    float ring = r * (2.4f - 1.2f * prog) + r * 0.4f * pulse; // 発進が近いほど締まる
+                    DrawArc(Vector2.Zero, ring, 0, Mathf.Tau, 24,
+                        new Color(AccelGlow.R, AccelGlow.G, AccelGlow.B, 0.35f + 0.45f * prog), 1.4f, true);
+                }
+                else if (Velocity.LengthSquared() > 0.01f)
+                {
+                    // 発進後：進行方向と逆へ細い光の尾（速さの表現）。
+                    Vector2 back = -Velocity.Normalized();
+                    DrawLine(Vector2.Zero, back * (r * 3.2f), new Color(AccelGlow.R, AccelGlow.G, AccelGlow.B, 0.55f), r * 0.8f, true);
+                }
+                DrawGlassBullet(r, AccelMid, AccelEdge, AccelGlow);
+                return;
+            }
+            // 通常の自機弾は常にガラス円弾（浄化の水色）。
             DrawGlassBullet(r, PlayerMid, PlayerEdge, PlayerGlow);
             return;
         }

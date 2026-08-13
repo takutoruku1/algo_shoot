@@ -18,26 +18,39 @@ public partial class GameManager : Node
     public Diff Difficulty = Diff.Normal;
 
     // ───── ショットモード（設計書 §3）。連射は初期解放、拡散/ホーミングはショップ購入で解放 ─────
-    public enum ShotMode { Rapid, Spread, Homing }
+    //   Accel（加速球）はトレーニング場専用の試し撃ちモード＝通常プレイ/ショップには出さない（TrainingMode の間だけ解放）。
+    //   ★enum は末尾に追加＝Rapid/Spread/Homing の保存値(0/1/2)は不変＝既存セーブと互換。Accel(=3)は
+    //     トレーニングでしか選べず、かつトレーニングはセーブしない＝保存値3が永続化されることはない。
+    public enum ShotMode { Rapid, Spread, Homing, Accel }
     public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
+    // トレーニング場（TrainingRoot）が立てる：この間だけ加速球モードを解放し、V の切替ローテに入れる。
+    public bool TrainingMode;
     // 拡散/ホーミング解放判定は各系統の入り口ノード（spread_1 / homing_1）の所持で決まる（単Lvノード方式）。
     public bool HasSpread => GetUpgradeLevel("spread_1") >= 1;
     public bool HasHoming => GetUpgradeLevel("homing_1") >= 1;
     // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→2→3（連続所持段数 ChainLevel に対応）。
     public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
     public int HomingShots => new[] { 0, 2, 2, 3 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
-    public bool IsModeUnlocked(ShotMode m) => m switch { ShotMode.Spread => HasSpread, ShotMode.Homing => HasHoming, _ => true };
-    // 解放済みモードを循環（連射→拡散→ホーミング→連射…・未解放はスキップ）。
+    public bool IsModeUnlocked(ShotMode m) => m switch
+    {
+        ShotMode.Spread => HasSpread,
+        ShotMode.Homing => HasHoming,
+        ShotMode.Accel => TrainingMode, // 加速球はトレーニング中のみ解放（通常プレイ/ショップには出ない）
+        _ => true,
+    };
+    // 解放済みモードを循環（連射→拡散→ホーミング→加速球→連射…・未解放はスキップ）。
+    // 加速球はトレーニング中だけ解放される＝そのローテに自然に入る（通常プレイでは常にスキップ）。
+    private const int ModeCount = 4;
     public ShotMode NextUnlockedMode(ShotMode cur)
     {
-        for (int i = 1; i <= 3; i++)
+        for (int i = 1; i <= ModeCount; i++)
         {
-            var m = (ShotMode)(((int)cur + i) % 3);
+            var m = (ShotMode)(((int)cur + i) % ModeCount);
             if (IsModeUnlocked(m)) return m;
         }
         return ShotMode.Rapid;
     }
-    public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", _ => "連射" };
+    public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
     public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + MaxLifeBonus;
     public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + BombCountBonus;
@@ -580,6 +593,59 @@ public partial class GameManager : Node
         _upgrades[id] = GetUpgradeLevel(id) + 1;
         return true;
     }
+
+    // ───── トレーニングモード（試し打ち場）用：メタ状態の退避／復元と、ゲート無視の直書き ─────
+    //   トレーニングは「完全無料・試用のみ」＝本番の購入済み・所持ポイント・装備を一切変えずに
+    //   スキルを自由に付け外しして撃ち味を比べる場。入場時に SnapshotMeta で退避し、退場時に RestoreMeta で
+    //   丸ごと戻す（＝本番状態を壊さない）。この機構は _upgrades を差し替えるだけで、セーブは一切呼ばない。
+    //   ※ディスクへの漏れ防止は呼び出し側が AutoSaveEnabled=false で担保する（Hub帰還等の自動セーブを止める）。
+    public sealed class MetaSnapshot
+    {
+        public long Impression;
+        public int Followers;
+        public ShotMode SelectedShotMode;
+        public Dictionary<string, int> Upgrades = new();
+    }
+
+    // 現在のメタ状態（通貨・フォロワー・装備モード・所持強化）をディープコピーして退避する。
+    public MetaSnapshot SnapshotMeta()
+    {
+        var s = new MetaSnapshot
+        {
+            Impression = Impression,
+            Followers = Followers,
+            SelectedShotMode = SelectedShotMode,
+            Upgrades = new Dictionary<string, int>(_upgrades), // 値コピー（各Lvは 0/1 の int）
+        };
+        return s;
+    }
+
+    // 退避したメタ状態へ完全復元する（トレーニング退場時に必ず呼ぶ）。_upgrades は丸ごと差し替える。
+    public void RestoreMeta(MetaSnapshot s)
+    {
+        if (s == null) return;
+        Impression = s.Impression;
+        Followers = s.Followers;
+        SelectedShotMode = s.SelectedShotMode;
+        _upgrades = new Dictionary<string, int>(s.Upgrades);
+    }
+
+    // トレーニング用：親/前提/封印・価格を無視して1ノードを直接 付ける/外す（購入パスを通さない）。
+    public void TrainingSetUpgrade(string id, bool owned)
+    {
+        if (GetUpgradeDef(id) == null) return;
+        if (owned) _upgrades[id] = 1;
+        else _upgrades.Remove(id);
+    }
+
+    // トレーニング用：カタログ全ノードを一括で 付ける/外す（撃ち味の全開↔素の比較に使う）。
+    public void TrainingSetAllUpgrades(bool owned)
+    {
+        foreach (var d in Upgrades) TrainingSetUpgrade(d.Id, owned);
+    }
+
+    // トレーニング用：通貨を直接セットする（試用中は実質無限。表示専用＝購入では減らさない運用）。
+    public void TrainingSetImpression(long v) => Impression = v;
 
     // ── フォロワー由来の常時バフ（天井付き・§①-5）──
     // PowerMul は Player.Fire の弾ダメージに実配線（fol_gain＝“火力の遠回り投資”の受け皿）。係数 0.00010→0.00025＝2,000人で上限+50%。

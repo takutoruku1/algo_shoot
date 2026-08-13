@@ -518,7 +518,8 @@ public partial class Enemy : Area2D
     // ボス(HPバー方式)はボムで即浄化しない：SHIELDED 中は今あるパネルを全砕き→ BREAK を誘発するだけ。
     // EXPOSED（無防備窓）中は「ボム直撃」＝ BombStrikeBase×BombPowerMul を窓キャップ内で本体HPへ通す
     //（ボム威力強化の作用先。合図/RECLOSE 中は従来どおり何も起きない）。
-    public void Purify()
+    //   virtual：トレーニングのダミー(TrainingDummy)がボム直撃を自前HPへ通すために上書きする（本編挙動は不変）。
+    public virtual void Purify()
     {
         if (_purified) return;
         if (_maxHp > 0)

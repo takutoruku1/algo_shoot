@@ -192,7 +192,7 @@ public partial class Shop : Node2D
     private CanvasItem _ci = null!;      // ツリー系ヘルパの描画先（通常は _treeLayer。それ以外は this）。
 
     // 入力エッジ
-    private bool _navHeld, _zHeld, _equipHeld, _backHeld;
+    private bool _navHeld, _zHeld, _equipHeld, _backHeld, _trainHeld;
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
@@ -211,6 +211,8 @@ public partial class Shop : Node2D
     //   後勝ち仕様：ツリーノード（背面寄り）を先に登録し、固定UIボタン（前面）を後に登録する。
     private const int HsBack = -100; // フッタ もどる/つづける
     private const int HsBuy  = -101; // 詳細パネル 購入/選び直し ボタン
+    private const int HsTrain = -102; // ヘッダ トレーニング（試し打ち）ボタン
+    private Rect2 _trainBtnRect;      // トレーニングボタン矩形（設計座標・_Draw で更新）
     private int _hovId = -1;         // このフレームのホバー id（_Draw で確定 → 次フレーム頭で読む）
     private Rect2 _backBtnRect;      // フッタ もどる ボタン矩形（設計座標・_Draw で更新）
     private Rect2 _buyBtnRect;       // 詳細パネル 購入ボタン矩形（設計座標・_Draw で更新・無効時は空）
@@ -404,6 +406,11 @@ public partial class Shop : Node2D
             else { Audio.Instance?.PlayUiCancel(); ExitShop(); }
         }
 
+        // T：トレーニング（試し打ち場）へ。ツリー操作のカーソル移動とは別キー＝住み分け。
+        bool train = Input.IsKeyPressed(Key.T);
+        bool trainEdge = train && !_trainHeld; _trainHeld = train;
+        if (trainEdge && _t > 0.2) EnterTraining();
+
         QueueRedraw();
     }
 
@@ -500,6 +507,7 @@ public partial class Shop : Node2D
         // 固定UI（設計座標そのまま）
         if (_backBtnRect.HasPoint(m)) return HsBack;
         if (_buyBtnActive && _buyBtnRect.HasPoint(m)) return HsBuy;
+        if (_trainBtnRect.HasPoint(m)) return HsTrain;
         for (int i = 0; i < 3; i++)
             if (ChipRect(i).HasPoint(m)) return i;                 // R0 チップ
         // ツリー（カメラ逆変換）。表示窓の外に出たマウスは当てない（クリップ整合）。
@@ -542,6 +550,7 @@ public partial class Shop : Node2D
             if (_sel >= 4) OnConfirm();
             return;
         }
+        if (hit == HsTrain) { EnterTraining(); return; } // ヘッダのトレーニングボタン
         if (hit <= 2) // R0 チップ＝フォーカス＋装備
         {
             _sel = hit; CancelRespec(); _camFollow = true;
@@ -629,6 +638,15 @@ public partial class Shop : Node2D
             game.PendingResumeScene = null; // 消費
         }
         GetTree().ChangeSceneToFile(dest);
+    }
+
+    // トレーニング（試し打ち場）へ。スキルを無料で付け外しして撃ち味を数値で比べる。
+    //   本番状態（通貨/所持強化/装備モード/フォロワー）は TrainingRoot が退避→復元＝ここでは何も汚さない。
+    //   戻りは TrainingRoot が res://Shop.tscn へ直接戻す（PendingResumeScene は使わない＝もどるのループ回避）。
+    private void EnterTraining()
+    {
+        Audio.Instance?.PlayUiConfirm();
+        GetTree().ChangeSceneToFile("res://Training.tscn");
     }
 
     private void OnConfirm()
@@ -1027,6 +1045,21 @@ public partial class Shop : Node2D
         if (popA > 0) UiKit.RadialGlow(this, new Vector2(pillX + pillW - 24 - numW / 2f, pillY + 22), 50f, UiKit.Gold, 0.45f * popA);
         Color impCol = new Color("f0d98a").Lerp(UiKit.White, popA);
         UiKit.Text(this, UiKit.Mono, new Vector2(pillX + pillW - 18 - numW, pillY + 22 - impSize / 2f - popA * 1.5f), impS, impSize, impCol);
+
+        // ── トレーニング（試し打ち）ボタン：ウォレットの左。装備チップとは意味が違う（強化ではなく“試す場”）ので
+        //    色・位置・アイコンで明確に別物として置く（シアン枠＋的アイコン）。クリック or T キーで入る。
+        const float tbW = 156f, tbH = 34f;
+        float tbX = pillX - 14f - tbW, tbY = 35f;
+        _trainBtnRect = new Rect2(tbX, tbY, tbW, tbH);
+        bool trainHov = _hovId == HsTrain;
+        UiKit.Box(this, _trainBtnRect, new Color(UiKit.Info, trainHov ? 0.22f : 0.10f), 10f, new Color(UiKit.Info, trainHov ? 0.85f : 0.5f), 1.4f);
+        // 的アイコン（同心円）＝“試し打ち”の記号。
+        Vector2 tic = new(tbX + 20f, tbY + tbH / 2f);
+        DrawArc(tic, 8f, 0, Mathf.Tau, 20, new Color(UiKit.Info, 0.9f), 1.4f);
+        DrawCircle(tic, 2.6f, new Color(1f, 0.3f, 0.4f));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tbX + 36f, tbY + tbH / 2f - 9), "トレーニング", 14, UiKit.White);
+        UiKit.Text(this, UiKit.Mono, new Vector2(tbX + 36f, tbY + tbH / 2f + 4), "T / CLICK", 8, new Color(UiKit.Info, 0.7f));
+        UiKit.Hotspot(_trainBtnRect, HsTrain);
     }
 
     // R0：装備チップ（フォーカス可能）。装備は Z/C の1押し。過熱トグルは撤去し、右側に「装備中モード」を表示。

@@ -83,7 +83,8 @@ public partial class PauseMenu : CanvasLayer
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
         return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits")
-              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
+              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue")
+              || path.Contains("Training")); // トレーニングは試用のみ＝スロットセーブ導線を出さない（本番状態を汚さない）
     }
 
     // マウスホイールは押下状態を持たない＝イベントでしか来ない。Pad は static ヘルパでノードではなく
