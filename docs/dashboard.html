@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">57<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 24 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
+      <span class="pct">60<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 25 / 対象 42 タスク<br>保留 11 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 57パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 60パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">24</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">25</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">18</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">17</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">11</div><div class="state-l">保留</div></div>
   </div>
 
@@ -118,14 +118,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ショップの「おすすめ」が所持状況を見ていない</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>RecommendedNow()</code>（<code>Shop.cs:126-131</code>）はクリア状況の4分岐のみで、<strong>所持強化・所持金・使用中ショットモードを一切参照しない</strong>。ホーミング一本の人に拡散を勧め、既に買っていても同じ推薦が出続ける。推薦から所持済みidを除外（1行）＋<code>SelectedShotMode</code> に対応する系統の未所持ノードを先頭に差し込む＋買える物を優先ソート</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -267,6 +259,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ショップの「おすすめ」が所持状況を見ていない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-13) <code>Shop.cs:126-175</code> <code>RecommendedNow()</code> を書き換え。所持済みid除外、<code>SelectedShotMode</code>対応系統の未所持入り口ノードを先頭差し込み、<code>CanPurchase()</code>で買える物優先の安定ソート、全所持済み時は前段階へフォールバック</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -557,16 +557,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">11436b9</span><span>2026-08-13</span><span class="s">auto: WIP ショップの「おすすめ」が所持状況を見ていない</span></li>
+      <li><span class="h">f43585c</span><span>2026-08-13</span><span class="s">auto: BossMinaの二人称を「きみ」に統一（64行目）</span></li>
       <li><span class="h">2dcc807</span><span>2026-08-13</span><span class="s">auto: WIP 少年の二人称がFINALだけ揺れる</span></li>
       <li><span class="h">21ee0ad</span><span>2026-08-13</span><span class="s">auto: トレーニングのスキルタブに右端マージンを追加</span></li>
       <li><span class="h">1024337</span><span>2026-08-13</span><span class="s">auto: WIP トレーニングのスキルタブが画面右端で見切れる</span></li>
       <li><span class="h">5b8c58e</span><span>2026-08-13</span><span class="s">auto: ミナの小さな願いを伏線として再来・回収（叶わない代償）</span></li>
       <li><span class="h">fa513c0</span><span>2026-08-13</span><span class="s">auto: WIP ミナの「小さな願い」が1回きりで伏線にならない</span></li>
       <li><span class="h">3de9be7</span><span>2026-08-13</span><span class="s">auto: Hub帰還会話の疑いを感心に修正、段階設計の逆転を解消</span></li>
-      <li><span class="h">f3852f7</span><span>2026-08-13</span><span class="s">auto: WIP Hub帰還会話がステージ側の段階設計を逆転させている</span></li>
-      <li><span class="h">274ebb5</span><span>2026-08-13</span><span class="s">auto: こはるCameoに他責の怒りの裏返りを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 19:17 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 19:20 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

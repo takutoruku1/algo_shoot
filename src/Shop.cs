@@ -123,12 +123,56 @@ public partial class Shop : Node2D
 
     // おすすめ（迷ったらこれ）：進行連動の道しるべ。表示はフロンティア強調＝おすすめ∩いま買えるを金パルス。
     // 親未接続で買えないおすすめは、親チェーンを遡って最初に買える祖先を代わりに光らせる（RebuildFrontier）。
-    private string[] RecommendedNow() =>
-        _game == null ? new[] { "shot_power_1", "fire_rate_1", "max_life_1" }
-        : _game.IsStageCleared("koharu") ? new[] { "imp_mult_1", "fol_gain_1" }
-        : _game.IsStageCleared("akari") ? new[] { "hitbox_1", "bomb_power_1" }
-        : _game.IsStageCleared("rei") ? new[] { "spread_1", "homing_1", "bomb_count_1" }
-        : new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+    //   クリア状況の4分岐（下記 Base）を土台に、①所持済みidを除外 ②使用中ショットモードの未所持入り口ノードを
+    //   先頭に差し込み ③残りは「買える物」優先で安定ソート ④全所持済みなら前段の分岐へフォールバック、
+    //   それでも空ならクラッシュしないよう固定デフォルトを返す（所持状況・所持金・装備モードを無視しない）。
+    private string[] RecommendedNow()
+    {
+        if (_game == null) return new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+
+        // 既存の4分岐（クリア進行の段階別ベース推薦）はそのまま土台として使う。
+        string[] Base(int stage) => stage switch
+        {
+            3 => new[] { "imp_mult_1", "fol_gain_1" },
+            2 => new[] { "hitbox_1", "bomb_power_1" },
+            1 => new[] { "spread_1", "homing_1", "bomb_count_1" },
+            _ => new[] { "shot_power_1", "fire_rate_1", "max_life_1" },
+        };
+        int stage = _game.IsStageCleared("koharu") ? 3
+            : _game.IsStageCleared("akari") ? 2
+            : _game.IsStageCleared("rei") ? 1
+            : 0;
+
+        // ①所持済みidを除外。段階のベースが全部所持済みなら前段（易しい方）へ遡ってフォールバック。
+        var rest = new List<string>();
+        for (int s = stage; s >= 0 && rest.Count == 0; s--)
+            foreach (var id in Base(s))
+                if (_game.GetUpgradeLevel(id) < 1 && !rest.Contains(id)) rest.Add(id);
+
+        // ③残った候補は「買える物」を先に（List.Sort は安定ソート非保証のため、2パスの明示的な安定分割を使う）。
+        var affordable = new List<string>();
+        var notAffordable = new List<string>();
+        foreach (var id in rest) (_game.CanPurchase(id) ? affordable : notAffordable).Add(id);
+        rest = affordable;
+        rest.AddRange(notAffordable);
+
+        // ②使用中ショットモードに対応する系統の未所持入り口ノードを先頭に差し込む（所持済みなら差し込まない）。
+        string modeEntry = _game.SelectedShotMode switch
+        {
+            GameManager.ShotMode.Spread => "spread_1",
+            GameManager.ShotMode.Homing => "homing_1",
+            GameManager.ShotMode.Accel => "accel_1",
+            _ => "fire_rate_1", // Rapid＝連射系の入り口
+        };
+        if (_game.GetUpgradeLevel(modeEntry) < 1)
+        {
+            rest.Remove(modeEntry);
+            rest.Insert(0, modeEntry);
+        }
+
+        // ④全て所持済みで rest が空になっても、呼び出し元（RebuildFrontier）が落ちないよう固定デフォルトで補う。
+        return rest.Count > 0 ? rest.ToArray() : new[] { "shot_power_1", "fire_rate_1", "max_life_1" };
+    }
     private string[] _recommended = System.Array.Empty<string>();
     private readonly HashSet<string> _frontier = new(); // _Draw 冒頭で毎フレーム更新
 
