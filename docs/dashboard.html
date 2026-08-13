@@ -97,16 +97,16 @@
     <p class="eyebrow">algo_shoot / 夜間自動開発</p>
     <h1>MINA Nightly Build</h1>
     <div class="figure">
-      <span class="pct">0<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 0 / 対象 9 タスク<br>保留 4 件は人間の判断待ちのため対象外</span>
+      <span class="pct">40<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 4 / 対象 10 タスク<br>保留 4 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 0パーセント"><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 40パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">0</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">4</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">4</div><div class="state-l">保留</div></div>
   </div>
 
@@ -121,42 +121,34 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
-          <span class="task-title">#22 既読スキップ</span>
-          <span class="worker">engineer</span>
+          <span class="task-title">新奥義バランス査定</span>
+          <span class="worker">game-designer</span>
         </div>
-        <p class="accept">会話の既読フラグをセーブに永続化し、既読シーンは高速送り（またはスキップキー）で飛ばせる。周回2周目で実測して送りが速くなっていること</p>
+        <p class="accept">集中の光（<code>Player.cs</code> FocusFireHitsPerStack=8）・連鎖の光（<code>Bullet.cs</code> 跳弾×0.4）・バズ壁の硬さ（<code>EnemySpec.cs</code> パネル5×インク3）を実装値で査定し、強すぎ/弱すぎを具体的な数値変更として反映</p>
       </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
-          <span class="task-title">BGM試聴チェック</span>
+          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
           <span class="worker">qa</span>
         </div>
-        <p class="accept">全10スロットをゲーム内で鳴らし、シーンと合っていないスロットを列挙。合わないものは <code>BGM/candidates.md</code> の次点と交換を提案（差し替え実作業は別タスク）</p>
+        <p class="accept">当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）</p>
       </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
-          <span class="task-title">#27 ステージ選択のSNSタイムライン化</span>
+          <span class="task-title">M5 設計書との乖離最終チェック</span>
+          <span class="worker">qa</span>
+        </div>
+        <p class="accept">design-gap で乖離レポートを更新し、意図的な差分かを仕分け。要対応分は TODO に積む</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">タスク管理.md の状態を実装に合わせる</span>
           <span class="worker">engineer</span>
         </div>
-        <p class="accept"><code>Hub.cs</code> を「Xの川」の世界観へ。ステージ選択がタイムラインの投稿として並ぶ見た目に</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">#11 背景の文字をツイート風に</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>Background.cs</code> / <code>GlyphMote</code> の流れる文字を投稿風の短文に。文面は scenario ワーカーに書かせる</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">新奥義バランス査定</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">集中の光（8ヒット/段）・連鎖の光（×0.4）・バズ壁の硬さを実装値で査定し、数値を具体調整</p>
+        <p class="accept">#22/#27/#11 は実装済みなのに管理表が ☐/◐ のまま。実コードを正として状態欄と補足を更新（このズレが自動開発の空振りを生む）</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -164,7 +156,7 @@
           <span class="task-title">#15 ボスラッシュ制約</span>
           <span class="worker">engineer</span>
         </div>
-        <p class="accept">ボスラッシュを回復なし・ボム復活なしに。低優先、他が詰まっていなければ</p>
+        <p class="accept">ボスラッシュを回復なし・ボム復活なしに。<strong>モード本体が未実装</strong>（<code>src/</code> に BossRush の実装なし）なので、まずモードの有無を確認し、無ければ実装規模を見て BLOCKED 判断してよい</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -172,29 +164,45 @@
           <span class="task-title">未発注イラスト</span>
           <span class="worker">artist</span>
         </div>
-        <p class="accept">レイ/あかりの cry ポートレート、ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">M5 全ステージ×全難易度QA一巡</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">M5 設計書との乖離最終チェック</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">design-gap で乖離レポートを更新し、意図的な差分かを仕分け</p>
+        <p class="accept">ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）</p>
       </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
-    <p class="empty">まだありません</p>
+    <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">#22 既読スキップ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-07-05) 実装済みだったものを誤ってキューに積んでいた。<code>GameManager</code> の <code>IsLineRead</code>/<code>MarkLineRead</code>＋<code>user://read.json</code>、Ctrl/RB で既読行のみ高速送り</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">#27 ステージ選択のSNSタイムライン化</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 済) <code>Hub.cs</code> は投稿カード・X風タブ・縦フィードで実装済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">#11 背景の文字をツイート風に</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 済) <code>StageImagery.cs</code> がツイート風カードの流れるレイヤーとして実装済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイ/あかりの cry ポートレート</span>
+          <span class="worker">artist</span>
+        </div>
+        <p class="accept">(完了 済) 画像・配線とも完了（<code>BossRei.cs</code> / <code>BossAkari.cs</code>）</p>
+      </li></ol>
   </section>
 
   <section>
@@ -237,16 +245,16 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">aa7cbc6</span><span>2026-08-13</span><span class="s">Give the epilogue a background per phase</span></li>
+      <li><span class="h">bc2c32b</span><span>2026-08-13</span><span class="s">Add progress dashboard and fix queue worker parsing</span></li>
       <li><span class="h">3df5d8d</span><span>2026-08-13</span><span class="s">Add autonomous nightly dev pipeline</span></li>
       <li><span class="h">deb7844</span><span>2026-08-13</span><span class="s">Fix playtest findings: softlock, unavoidable AOE, and shot balance</span></li>
       <li><span class="h">134c71e</span><span>2026-08-13</span><span class="s">Style bullets per shot mode and add an accel skill area</span></li>
       <li><span class="h">e4e61ff</span><span>2026-08-13</span><span class="s">Unlock 加速球 shot mode via shop purchase</span></li>
       <li><span class="h">2f53607</span><span>2026-08-13</span><span class="s">Add shop training mode and accelerating-bullet shot</span></li>
       <li><span class="h">1e1b4aa</span><span>2026-08-13</span><span class="s">Fix skill tree scroll snapping back to top</span></li>
-      <li><span class="h">026dc9f</span><span>2026-07-23</span><span class="s">Add mouse support across shop and menus</span></li>
-      <li><span class="h">7aecfdf</span><span>2026-07-23</span><span class="s">Overhaul shop into scrollable all-purchasable skill tree with backfire</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-13 13:46 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-13 14:18 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>

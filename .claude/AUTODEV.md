@@ -26,14 +26,23 @@ git checkout -B auto/dev origin/main   # main の最新から作り直す（PR �
 
 取ったタスクを `## WIP` へ移し、この時点で一度コミットする（多重着手防止）。
 
-### 3. 実装する
+### 3. 「もう実装済みでないか」を先に確かめる
+
+**キューは古びる。** 実装する前に、そのタスクが既に done でないか必ず確認すること（過去に #22/#27/#11 が実装済みのまま積まれていた実績あり）。
+
+- `src/` を grep して該当機能の実体があるか見る（`docs/タスク管理.md` の状態欄は**信用しない**。実コードが正）
+- `git log --oneline -S"<キーワード>"` で導入コミットを探す
+
+実装済みだった場合は、**実装せず** `## DONE` へ「(完了 済) 根拠=ファイル:行 か コミットハッシュ」付きで移し、次のタスクへ進む。これは空振りではなく正しい仕事。
+
+### 4. 実装する
 
 タスク行の担当ワーカー（`engineer` / `qa` / `artist` / `scenario` / `composer` / `game-designer`）を Agent ツールの `subagent_type` に指定して振る。受入条件（`|` 以降）をそのままワーカーへの指示に含める。
 
 - 仕様が曖昧で判断が割れる → 実装せず `## BLOCKED` へ理由付きで移し、次のタスクへ。
 - 15分相当を超えそうな規模 → 同じく BLOCKED へ（人間に分割してもらう）。
 
-### 4. 検証する
+### 5. 検証する
 
 ```bash
 dotnet build algo_shoot.sln
@@ -43,7 +52,7 @@ dotnet build algo_shoot.sln
 
 QA系タスクなら `qa-autoplay` skill も回す。
 
-### 5. キューと進捗を更新する
+### 6. キューと進捗を更新する
 
 - 完了タスクを `## WIP` から `## DONE` の先頭へ、`(完了 YYYY-MM-DD)` を付けて移動。
 ```bash
@@ -51,7 +60,7 @@ node tools/progress.mjs    # PROGRESS.md と docs/progress.json を再生成
 node tools/dashboard.mjs   # docs/dashboard.html を再生成
 ```
 
-### 6. コミットしてPRにする
+### 7. コミットしてPRにする
 
 ```bash
 git add -A
@@ -70,6 +79,6 @@ gh pr create --base main --head auto/dev \
 
 PR が既にあるなら本文を更新: `gh pr edit --body "$(cat PROGRESS.md)"`
 
-### 7. 報告
+### 8. 報告
 
 最後に3行で報告する: **何をやったか / ビルド結果 / 残りタスク数**。

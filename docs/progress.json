@@ -1,66 +1,48 @@
 {
-  "generated": "2026-08-13 13:46 UTC",
+  "generated": "2026-08-13 14:18 UTC",
   "counts": {
-    "todo": 9,
+    "todo": 6,
     "wip": 0,
     "blocked": 4,
-    "done": 0
+    "done": 4
   },
-  "percent": 0,
+  "percent": 40,
   "todo": [
     {
       "priority": "P1",
-      "title": "#22 既読スキップ",
-      "worker": "engineer",
-      "accept": "会話の既読フラグをセーブに永続化し、既読シーンは高速送り（またはスキップキー）で飛ばせる。周回2周目で実測して送りが速くなっていること"
+      "title": "新奥義バランス査定",
+      "worker": "game-designer",
+      "accept": "集中の光（`Player.cs` FocusFireHitsPerStack=8）・連鎖の光（`Bullet.cs` 跳弾×0.4）・バズ壁の硬さ（`EnemySpec.cs` パネル5×インク3）を実装値で査定し、強すぎ/弱すぎを具体的な数値変更として反映"
     },
     {
       "priority": "P1",
-      "title": "BGM試聴チェック",
+      "title": "M5 全ステージ×全難易度QA一巡",
       "worker": "qa",
-      "accept": "全10スロットをゲーム内で鳴らし、シーンと合っていないスロットを列挙。合わないものは `BGM/candidates.md` の次点と交換を提案（差し替え実作業は別タスク）"
+      "accept": "当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む（修正は別タスク）"
     },
     {
       "priority": "P2",
-      "title": "#27 ステージ選択のSNSタイムライン化",
+      "title": "M5 設計書との乖離最終チェック",
+      "worker": "qa",
+      "accept": "design-gap で乖離レポートを更新し、意図的な差分かを仕分け。要対応分は TODO に積む"
+    },
+    {
+      "priority": "P2",
+      "title": "タスク管理.md の状態を実装に合わせる",
       "worker": "engineer",
-      "accept": "`Hub.cs` を「Xの川」の世界観へ。ステージ選択がタイムラインの投稿として並ぶ見た目に"
-    },
-    {
-      "priority": "P2",
-      "title": "#11 背景の文字をツイート風に",
-      "worker": "engineer",
-      "accept": "`Background.cs` / `GlyphMote` の流れる文字を投稿風の短文に。文面は scenario ワーカーに書かせる"
-    },
-    {
-      "priority": "P2",
-      "title": "新奥義バランス査定",
-      "worker": "game-designer",
-      "accept": "集中の光（8ヒット/段）・連鎖の光（×0.4）・バズ壁の硬さを実装値で査定し、数値を具体調整"
+      "accept": "#22/#27/#11 は実装済みなのに管理表が ☐/◐ のまま。実コードを正として状態欄と補足を更新（このズレが自動開発の空振りを生む）"
     },
     {
       "priority": "P3",
       "title": "#15 ボスラッシュ制約",
       "worker": "engineer",
-      "accept": "ボスラッシュを回復なし・ボム復活なしに。低優先、他が詰まっていなければ"
+      "accept": "ボスラッシュを回復なし・ボム復活なしに。**モード本体が未実装**（`src/` に BossRush の実装なし）なので、まずモードの有無を確認し、無ければ実装規模を見て BLOCKED 判断してよい"
     },
     {
       "priority": "P3",
       "title": "未発注イラスト",
       "worker": "artist",
-      "accept": "レイ/あかりの cry ポートレート、ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線"
-    },
-    {
-      "priority": "P3",
-      "title": "M5 全ステージ×全難易度QA一巡",
-      "worker": "qa",
-      "accept": "当たり判定・進行不能・例外・弾リーク・FPS を全ステージ横断で。発見した不具合は本キューの TODO 先頭に積む"
-    },
-    {
-      "priority": "P3",
-      "title": "M5 設計書との乖離最終チェック",
-      "worker": "qa",
-      "accept": "design-gap で乖離レポートを更新し、意図的な差分かを仕分け"
+      "accept": "ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）"
     }
   ],
   "wip": [],
@@ -90,8 +72,43 @@
       "accept": "自動では判定不能。**ユーザーの実プレイ待ち**"
     }
   ],
-  "done": [],
+  "done": [
+    {
+      "priority": "P1",
+      "title": "#22 既読スキップ",
+      "worker": "engineer",
+      "accept": "(完了 2026-07-05) 実装済みだったものを誤ってキューに積んでいた。`GameManager` の `IsLineRead`/`MarkLineRead`＋`user://read.json`、Ctrl/RB で既読行のみ高速送り"
+    },
+    {
+      "priority": "P2",
+      "title": "#27 ステージ選択のSNSタイムライン化",
+      "worker": "engineer",
+      "accept": "(完了 済) `Hub.cs` は投稿カード・X風タブ・縦フィードで実装済み"
+    },
+    {
+      "priority": "P2",
+      "title": "#11 背景の文字をツイート風に",
+      "worker": "engineer",
+      "accept": "(完了 済) `StageImagery.cs` がツイート風カードの流れるレイヤーとして実装済み"
+    },
+    {
+      "priority": "P3",
+      "title": "レイ/あかりの cry ポートレート",
+      "worker": "artist",
+      "accept": "(完了 済) 画像・配線とも完了（`BossRei.cs` / `BossAkari.cs`）"
+    }
+  ],
   "commits": [
+    {
+      "hash": "aa7cbc6",
+      "date": "2026-08-13",
+      "subject": "Give the epilogue a background per phase"
+    },
+    {
+      "hash": "bc2c32b",
+      "date": "2026-08-13",
+      "subject": "Add progress dashboard and fix queue worker parsing"
+    },
     {
       "hash": "3df5d8d",
       "date": "2026-08-13",
@@ -121,16 +138,6 @@
       "hash": "1e1b4aa",
       "date": "2026-08-13",
       "subject": "Fix skill tree scroll snapping back to top"
-    },
-    {
-      "hash": "026dc9f",
-      "date": "2026-07-23",
-      "subject": "Add mouse support across shop and menus"
-    },
-    {
-      "hash": "7aecfdf",
-      "date": "2026-07-23",
-      "subject": "Overhaul shop into scrollable all-purchasable skill tree with backfire"
     }
   ]
 }

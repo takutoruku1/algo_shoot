@@ -11,7 +11,8 @@ const queue = readFileSync(p('DEV_QUEUE.md'), 'utf8');
 
 // "## SECTION" ごとに "- [ ] ..." 行を集める
 function section(name) {
-  const m = queue.match(new RegExp(`^## ${name}\\s*$([\\s\\S]*?)(?=^## |\\Z)`, 'm'));
+  // 末尾セクション(DONE)も拾えるように、次の "## " か文字列末尾で止める
+  const m = queue.match(new RegExp(`^## ${name}\\s*$([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, 'm'));
   if (!m) return [];
   return m[1]
     .split('\n')
