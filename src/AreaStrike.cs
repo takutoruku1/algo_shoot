@@ -63,6 +63,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
 
     private double _t;
     private bool _struck;
+    private bool _sparked;      // 着弾スパーク（FxLayer）を撒いたか＝1回だけ
 
     // 発生源（任意）。設定すると、着弾前に発生源が消滅/浄化された時点で予測線ごとキャンセルする。
     //   ＝「予兆中に倒せば攻撃も消える」。道中ザコのロックオンビーム＋ボスの範囲技(AreaSpellCaster)で使う。
@@ -169,6 +170,74 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
         if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);
         else GameCamera.Instance?.Shake(3.4f, 0.16f);
+        EmitImpactSparks();
+    }
+
+    // 着弾スパーク（加算・短命）。形状ごとに「どこで・どちらへ」弾けるかを変える＝形状の個性。
+    //   FxLayer 未初期化（QA/ヘッドレスの一部経路）でも落ちないよう null 安全。
+    private void EmitImpactSparks()
+    {
+        if (_sparked) return;
+        _sparked = true;
+        var fx = FxLayer.Instance;
+        if (fx == null || !IsInstanceValid(fx)) return;
+
+        switch (_shape)
+        {
+            case Shape.Fullscreen:
+                // 全画面：安置の縁に沿って弾けさせる＝「安全だったのはここ」を余韻で刻む。撒きすぎない。
+                if (_safeR > 0f) fx.AoeImpact(_safeCenter, _tint, _hot, Vector2.Zero, _safeR, 10);
+                else fx.AoeImpact(new Vector2(W * 0.5f, H * 0.5f), _tint, _hot, Vector2.Zero, 60f, 12);
+                break;
+            case Shape.Circle:
+                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Zero, Radius, 12);
+                break;
+            case Shape.BeamSeg:
+            {
+                // 線分：源・中間・先端の3点で軸方向へ散らす（走った軌跡が残る）。
+                Vector2 tip = GlobalPosition + _segDir * _segLen;
+                fx.AoeImpact(GlobalPosition, _tint, _hot, _segDir, _hh * 4f, 5);
+                fx.AoeImpact(GlobalPosition + _segDir * (_segLen * 0.5f), _tint, _hot, _segDir, _hh * 4f, 5);
+                fx.AoeImpact(tip, _tint, _hot, _segDir, _hh * 5f, 6);
+                break;
+            }
+            case Shape.BeamH:
+                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Right, _hh * 3f, 6);
+                fx.AoeImpact(GlobalPosition + new Vector2(-_hw * 0.55f, 0f), _tint, _hot, Vector2.Right, _hh * 3f, 5);
+                fx.AoeImpact(GlobalPosition + new Vector2(_hw * 0.55f, 0f), _tint, _hot, Vector2.Right, _hh * 3f, 5);
+                break;
+            case Shape.BeamV:
+                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Down, _hw * 3f, 6);
+                fx.AoeImpact(GlobalPosition + new Vector2(0f, -_hh * 0.55f), _tint, _hot, Vector2.Down, _hw * 3f, 5);
+                fx.AoeImpact(GlobalPosition + new Vector2(0f, _hh * 0.55f), _tint, _hot, Vector2.Down, _hw * 3f, 5);
+                break;
+            default: // Rect
+                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Zero, Mathf.Max(_hw, _hh), 10);
+                break;
+        }
+    }
+
+    // 角ブラケット（矩形の個性＝ターゲティング）。外から角へ寄り、スナップで白く張る。
+    private void DrawBrackets(Rect2 r, float k, float snap)
+    {
+        float off = Mathf.Lerp(7f, 1f, k * k);                       // 外→角へ収束
+        float armX = Mathf.Min(r.Size.X * 0.3f, 7f), armY = Mathf.Min(r.Size.Y * 0.3f, 7f);
+        var bc = _tint.Lerp(_hot, 0.5f + 0.5f * snap);
+        var col = new Color(bc.R, bc.G, bc.B, 0.45f + 0.45f * k);
+        float w = 1.3f + 0.9f * snap;
+        float l = r.Position.X - off, t = r.Position.Y - off, rt = r.End.X + off, b = r.End.Y + off;
+        // 左上
+        DrawLine(new Vector2(l, t), new Vector2(l + armX, t), col, w);
+        DrawLine(new Vector2(l, t), new Vector2(l, t + armY), col, w);
+        // 右上
+        DrawLine(new Vector2(rt, t), new Vector2(rt - armX, t), col, w);
+        DrawLine(new Vector2(rt, t), new Vector2(rt, t + armY), col, w);
+        // 右下
+        DrawLine(new Vector2(rt, b), new Vector2(rt - armX, b), col, w);
+        DrawLine(new Vector2(rt, b), new Vector2(rt, b - armY), col, w);
+        // 左下
+        DrawLine(new Vector2(l, b), new Vector2(l + armX, b), col, w);
+        DrawLine(new Vector2(l, b), new Vector2(l, b - armY), col, w);
     }
 
     public override void _Draw()
@@ -184,6 +253,9 @@ public partial class AreaStrike : Node2D, IAoeHazard
         float k = raw * raw * (3f - 2f * raw);                  // smoothstep：序盤ゆっくり→終盤で一気に満ちる「タメ→着弾」。端点(0→1)不変＝α上限/Z/描画数は不変
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 9f);
         float phase = (float)_t * 46f;                          // 破線のマーチング
+        // スナップ（アンティシペーション）：着弾直前の 0.14 区間だけ輪郭が張り、白く硬くなる。
+        //   面（fill）は一切増やさず線の輝度だけで「来る」を告げる＝視認性を侵さず読みやすさは向上。
+        float snap = k > 0.86f ? (k - 0.86f) / 0.14f : 0f;
         // ミナ（Data）：破線位相を揺らして「制御を失ったAI」のグリッチ感を出す。新規描画ゼロ＝高密度のミナ面でも描画コール増ゼロ。
         if (_motif == Motif.Data) phase += Mathf.Sin((float)_t * 30f) * 3f;
         // 面のベタ塗り＝範囲を面で示す。Rank（レイ）は横罫線を面に重ねるので、その分を fill から先取りで引き、
@@ -193,9 +265,13 @@ public partial class AreaStrike : Node2D, IAoeHazard
         Color fill = new Color(_tint.R, _tint.G, _tint.B, Mathf.Max(0f, fillA - motifFill));
         // 縁の明滅の下限を引き上げ（0.6→0.75）＋暗色の下縁取り：台所（こはる面）の暖色ランプ等、
         // 明るい背景でも輪郭が沈まない。危険色そのものは変えず“影”で読ませる（視認性の底上げ）。
-        Color edge = new Color(_tint.R, _tint.G, _tint.B, 0.75f + 0.25f * pulse);
+        // 縁：スナップ中は _hot 側へ寄せて白く張る（色相は tint→hot の範囲内＝新色なし）。
+        Color edgeBase = _tint.Lerp(_hot, 0.75f * snap);
+        Color edge = new Color(edgeBase.R, edgeBase.G, edgeBase.B, Mathf.Min(1f, 0.75f + 0.25f * pulse + 0.25f * snap));
         Color under = new Color(0.10f, 0.04f, 0.03f, 0.55f + 0.25f * k);
         Color core = new Color(_hot.R, _hot.G, _hot.B, 0.08f + 0.14f * k);
+        // 縁幅もスナップで太る（予備動作＝張り）。
+        float ew = 2f + 1.4f * snap;
 
         if (_shape == Shape.Fullscreen) { DrawFullscreenTelegraph(k, pulse); return; }
 
@@ -204,8 +280,15 @@ public partial class AreaStrike : Node2D, IAoeHazard
             DrawCircle(Vector2.Zero, Radius, fill);
             DrawCircle(Vector2.Zero, Radius * Mathf.Lerp(0.12f, 1f, k), core); // 中心から満ちる白熱核
             DrawMotif(k, pulse);
+            // 集束リング：外から縁へ寄る細線。円は「集まって落ちる」の形（線のみ＝面は増やさない）。
+            float cr = Radius * Mathf.Lerp(1.75f, 1.0f, k * k);
+            DrawArc(Vector2.Zero, cr, 0f, Mathf.Tau, 40,
+                new Color(_hot.R, _hot.G, _hot.B, 0.28f + 0.35f * k), 1.2f + 1.0f * snap);
             DashedRing(Radius, 28, under, 3.8f, phase * 0.012f);               // 暗色の下縁取り
-            DashedRing(Radius, 28, edge, 2f, phase * 0.012f);
+            DashedRing(Radius, 28, edge, ew, phase * 0.012f);
+            // 逆回転の内側二重リング：静止した円に「回っている」情報量を足す（細線・低α）。
+            DashedRing(Radius * 0.72f, 18, new Color(_tint.R, _tint.G, _tint.B, 0.30f + 0.25f * k),
+                1.0f, -phase * 0.017f);
             DrawWarn(Vector2.Zero, k);
             return;
         }
@@ -215,8 +298,15 @@ public partial class AreaStrike : Node2D, IAoeHazard
             Vector2 tip = _segDir * _segLen;
             DrawLine(Vector2.Zero, tip, fill, _hh * 2f);                        // 帯（面）
             DashedLine(Vector2.Zero, tip, under, 3.2f + 1.2f * k, 7f, 5f, phase); // 暗色の下縁取り
-            DashedLine(Vector2.Zero, tip, edge, 1.6f + 1.2f * k, 7f, 5f, phase); // 破線の中心ガイド
-            DrawCircle(Vector2.Zero, 3.2f, new Color(_tint.R, _tint.G, _tint.B, 0.85f * pulse)); // 発射源
+            DashedLine(Vector2.Zero, tip, edge, 1.6f + 1.2f * k + 1.0f * snap, 7f, 5f, phase); // 破線の中心ガイド
+            // 走る光条：源→先端を 0.55s 周期で駆ける短い白熱セグメント（＝ビームの「向き」が一目で読める）。
+            {
+                float run = Mathf.PosMod((float)_t / 0.55f, 1f);
+                float s0 = _segLen * run, s1 = Mathf.Min(_segLen, s0 + _segLen * 0.22f);
+                DrawLine(_segDir * s0, _segDir * s1,
+                    new Color(_hot.R, _hot.G, _hot.B, 0.35f + 0.4f * k), _hh * 0.9f);
+            }
+            DrawCircle(Vector2.Zero, 3.2f + 2.2f * snap, new Color(_tint.R, _tint.G, _tint.B, 0.85f * pulse)); // 発射源（着弾直前に膨らむ＝チャージ）
             DrawWarn(_segDir * (_segLen * 0.5f), k);
             return;
         }
@@ -229,7 +319,16 @@ public partial class AreaStrike : Node2D, IAoeHazard
             RoundFill(r, rad, fill);
             DrawMotif(k, pulse);
             RoundOutline(r, rad, under, 3.8f); // 暗色の下縁取り
-            RoundOutline(r, rad, edge, 2f);
+            RoundOutline(r, rad, edge, ew);
+            // 角ブラケット：外から角へ寄って「範囲が確定する」（矩形の個性＝ターゲティング）。
+            DrawBrackets(r, k, snap);
+            // 掃引スキャンライン：上から下へ1本走る細線（面は増やさない）。
+            {
+                float sw = Mathf.PosMod((float)_t / 0.7f, 1f);
+                float y = -_hh + _hh * 2f * sw;
+                DrawLine(new Vector2(-_hw, y), new Vector2(_hw, y),
+                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.30f * k), 1f);
+            }
             DrawWarn(Vector2.Zero, k);
             return;
         }
@@ -237,7 +336,23 @@ public partial class AreaStrike : Node2D, IAoeHazard
         DrawRect(r, fill);
         DrawMotif(k, pulse);
         DashedBoxBorder(under, 3.8f, phase); // 暗色の下縁取り
-        DashedBoxBorder(edge, 2f, phase);
+        DashedBoxBorder(edge, ew, phase);
+        // 走る光条（軸ビーム版）：帯の長手方向を短い白熱セグメントが駆ける＝「どっちへ走るか」が読める。
+        {
+            float run = Mathf.PosMod((float)_t / 0.6f, 1f);
+            if (_shape == Shape.BeamH)
+            {
+                float x0 = -_hw + _hw * 2f * run, x1 = Mathf.Min(_hw, x0 + _hw * 0.5f);
+                DrawLine(new Vector2(x0, 0f), new Vector2(x1, 0f),
+                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.35f * k), _hh * 0.85f);
+            }
+            else
+            {
+                float y0 = -_hh + _hh * 2f * run, y1 = Mathf.Min(_hh, y0 + _hh * 0.5f);
+                DrawLine(new Vector2(0f, y0), new Vector2(0f, y1),
+                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.35f * k), _hw * 0.85f);
+            }
+        }
         if (_shape == Shape.BeamH)
         { DrawWarn(new Vector2(-_hw * 0.5f, 0), k); DrawWarn(new Vector2(_hw * 0.5f, 0), k); }
         else
@@ -309,7 +424,13 @@ public partial class AreaStrike : Node2D, IAoeHazard
         {
             // 全画面着弾：画面全体を白フラッシュ。安置だけは抜く（そこにいた自機は無傷の余韻）。
             DrawRect(new Rect2(0, 0, W, H), new Color(1f, 1f, 1f, 0.85f * f));
-            if (_safeR > 0f) DrawCircle(_safeCenter, _safeR, new Color(0.4f, 0.95f, 0.6f, 0.25f * f));
+            if (_safeR > 0f)
+            {
+                DrawCircle(_safeCenter, _safeR, new Color(0.4f, 0.95f, 0.6f, 0.25f * f));
+                // 安置の縁を守った緑の衝撃波（＝「ここに居たから助かった」の余韻。緑はボム安置と同語彙）。
+                DrawArc(_safeCenter, _safeR * (1f + 0.45f * st), 0f, Mathf.Tau, 48,
+                    new Color(0.4f, 0.95f, 0.6f, 0.75f * f), 2.0f);
+            }
             return;
         }
         if (_shape == Shape.Circle)
@@ -331,20 +452,32 @@ public partial class AreaStrike : Node2D, IAoeHazard
         if (_shape == Shape.BeamSeg)
         {
             Vector2 tip = _segDir * _segLen;
-            DrawLine(Vector2.Zero, tip, core, _hh * 2f);
-            DrawLine(Vector2.Zero, tip, rim, 2.6f);
+            // A 白閃：帯が一瞬太る（本動作）→ B 芯だけ残る（余韻）。
+            DrawLine(Vector2.Zero, tip, core, _hh * 2f * (1f + 0.5f * f));
+            DrawLine(Vector2.Zero, tip, rim, 2.6f + 2.0f * f);
+            // C 直交する衝撃波：帯から左右へ広がる2本（線分なので「横に抜ける」で表現）。
+            {
+                Vector2 n = new Vector2(-_segDir.Y, _segDir.X) * (_hh + 14f * st);
+                var sw = new Color(_hot.R, _hot.G, _hot.B, 0.45f * f);
+                DrawLine(n, tip + n, sw, 1.2f);
+                DrawLine(-n, tip - n, sw, 1.2f);
+            }
             return;
         }
         var rr = new Rect2(-_hw, -_hh, _hw * 2f, _hh * 2f);
+        // 衝撃波枠：矩形/軸ビーム共通。範囲の外へ ease-out で広がる細枠（余韻・面は増やさない）。
+        float ex = 18f * st * (1f - st * 0.35f);
+        DrawRect(new Rect2(rr.Position - new Vector2(ex, ex), rr.Size + new Vector2(ex, ex) * 2f),
+            new Color(_hot.R, _hot.G, _hot.B, 0.5f * f), false, 1.6f);
         if (_shape == Shape.Rect)
         {
             float rad = Mathf.Min(7f, Mathf.Min(_hw, _hh) * 0.8f);
             RoundFill(rr, rad, core);
-            RoundOutline(rr, rad, rim, 2.6f);
+            RoundOutline(rr, rad, rim, 2.6f + 1.6f * f);
             return;
         }
         DrawRect(rr, core);
-        DrawBoxBorder(rim, 2.6f);
+        DrawBoxBorder(rim, 2.6f + 1.6f * f);
     }
 
     // 全画面AOEの予兆：画面全体を濁桃tintで満たし、安置(セーフゾーン)だけα0でくり抜く＋緑の脈動リング。
@@ -376,6 +509,14 @@ public partial class AreaStrike : Node2D, IAoeHazard
             float inset = Mathf.Lerp(0f, 10f, c);
             var white = new Color(1f, 1f, 1f, 0.5f * c);
             DrawRect(new Rect2(inset, inset, W - inset * 2f, H - inset * 2f), white, false, 2.5f);
+            // 2枚目の枠を半拍遅らせて追わせる＝「二重の収束」で来る速度が読める（線のみ）。
+            float c2 = Mathf.Max(0f, c - 0.35f) / 0.65f;
+            if (c2 > 0f)
+            {
+                float in2 = Mathf.Lerp(0f, 22f, c2);
+                DrawRect(new Rect2(in2, in2, W - in2 * 2f, H - in2 * 2f),
+                    new Color(_hot.R, _hot.G, _hot.B, 0.4f * c2), false, 1.4f);
+            }
         }
     }
 

@@ -237,6 +237,33 @@ public partial class FxLayer : Node2D
         Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.4f, Col = col, W = 1.2f, A0 = 0.9f, Add = true });
     }
 
+    // AOE着弾スパーク（AreaStrike の DrawStrike から1回だけ呼ぶ）。
+    //   加算プール（ZIndex21）＝弾レイヤーには何も足さない。全部 0.28s 未満の短命＝視認性を長く侵さない。
+    //   dirBias: ビーム系は軸方向へ飛ばす（Vector2.Zero で全方位）。scale: 形状の大きさに応じた飛距離。
+    //   色は AreaStrike の tint/hot（ボス色）をそのまま受け取る＝新色を作らない（§9 色語彙の統一）。
+    public void AoeImpact(Vector2 pos, Color tint, Color hot, Vector2 dirBias, float scale, int count = 9)
+    {
+        float s = Mathf.Clamp(scale, 8f, 90f);
+        // 芯の一瞬の白熱（本動作の「止め」）。
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 4f + s * 0.10f, Ttl = 0.12f, Col = White, Add = true, Grow = 0.5f });
+        // 衝撃波リング2本（速い白＝一撃、遅いボス色＝誰の攻撃かの余韻）。
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = s * 0.25f, R1 = s * 1.05f, Ttl = 0.18f, Col = White, W = 1.5f, A0 = 0.85f, Add = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = s * 0.15f, R1 = s * 1.45f, Ttl = 0.30f, Col = tint,  W = 1.1f, A0 = 0.55f, Add = true });
+        bool biased = dirBias.LengthSquared() > 0.0001f;
+        float baseA = biased ? Mathf.Atan2(dirBias.Y, dirBias.X) : 0f;
+        for (int i = 0; i < count; i++)
+        {
+            // ビーム系は軸±0.5rad の扇（＝走った方向へ散る）、円/矩形は全方位。
+            float a = biased ? baseA + R(-0.55f, 0.55f) + (_rng.Randf() < 0.5f ? 0f : Mathf.Pi)
+                             : R(0f, Mathf.Tau);
+            float sp = R(70f, 70f + s * 2.4f);
+            Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y,
+                Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp,
+                Size = R(4f, 8f), W = 1.1f, Ttl = R(0.14f, 0.28f), Drag = 5.5f,
+                Col = _rng.Randf() < 0.55f ? hot : White, Add = true });
+        }
+    }
+
     public void DamageNumber(Vector2 pos, string text, Color col)
     {
         DamageNumber(pos, text, col, 9);
