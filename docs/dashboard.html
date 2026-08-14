@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">93<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 43 / 対象 46 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 44 / 対象 46 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">43</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">44</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title"><code>Enemy.SetSpriteFlip</code> が定義されたきり一度も呼ばれない死にコード</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>Enemy.cs:642-646</code>で定義されているが<code>grep -rn &quot;SetSpriteFlip&quot; src/</code>は定義行のみでヒットし呼び出しゼロ。実際の反転制御は<code>ApplyBossMotion</code>内<code>Enemy.cs:661</code>の<code>_bodySprite.FlipH = faceLeft;</code>直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Enemy.SetSpriteFlip</code> が定義されたきり一度も呼ばれない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Enemy.cs:641-646</code>の未使用メソッド一式を削除。実反転制御（<code>ApplyBossMotion</code>内<code>_bodySprite.FlipH = faceLeft;</code>）は不変。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -649,18 +649,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f206f89</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - Enemy.SetSpriteFlip死にコード削除</span></li>
+      <li><span class="h">2b0edc7</span><span>2026-08-14</span><span class="s">auto: _waveSpawnDoneの嘘コメント/死にフィールドを解消</span></li>
       <li><span class="h">5538739</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - _waveSpawnDoneの嘘コメント修正</span></li>
       <li><span class="h">708ecd2</span><span>2026-08-14</span><span class="s">auto: 少年のミナへの二人称を正典どおり「きみ」へ統一</span></li>
       <li><span class="h">4f6bb03</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 少年のミナへの二人称乖離</span></li>
       <li><span class="h">fc6bf3e</span><span>2026-08-14</span><span class="s">auto: 監査で5件をキューに追加、1件を既存BLOCKED決定事項へ統合</span></li>
       <li><span class="h">0f610b6</span><span>2026-08-14</span><span class="s">auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ</span></li>
       <li><span class="h">e8479b4</span><span>2026-08-14</span><span class="s">auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ</span></li>
-      <li><span class="h">8ec4c23</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 出現する敵の種類を増やす</span></li>
-      <li><span class="h">9b9e3a5</span><span>2026-08-14</span><span class="s">auto: 敵弾をキャラごとの形・サイズに描き分ける</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 18:58 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-14 18:59 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

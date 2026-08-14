@@ -35,7 +35,7 @@
 
 ## WIP
 
-- [ ] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | `Enemy.cs:642-646`で定義されているが`grep -rn "SetSpriteFlip" src/`は定義行のみでヒットし呼び出しゼロ。実際の反転制御は`ApplyBossMotion`内`Enemy.cs:661`の`_bodySprite.FlipH = faceLeft;`直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）
+（なし）
 
 ## BLOCKED
 
@@ -59,6 +59,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | (完了 2026-08-14) `Enemy.cs:641-646`の未使用メソッド一式を削除。実反転制御（`ApplyBossMotion`内`_bodySprite.FlipH = faceLeft;`）は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | (完了 2026-08-14) `StageAkari.cs`/`StageKoharu.cs`から未使用フィールド`_waveSpawnDone`と代入7箇所を削除。`StageRei.cs`の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。`dotnet build`で0 Warning/0 Error確認
 - [x] (P2) 少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している | scenario | (完了 2026-08-14) `Hub.cs`小話12箇所（当初想定の10箇所に加え`:1194,1196`を追加発見）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。`BossMina.cs:65`（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。`dotnet build`で0 Warning/0 Error確認
 - [x] (P1) 出現する敵の種類を増やす | game-designer | (完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで**FlankAim「引用リプ」**（`Spawner.cs:25-27,112-115`/`EnemyTable.Flanker` `EnemySpec.cs:112-123`/`MidEnemy.cs:476-488`、shooterスキン流用、背後から回り込む逆走行動線）、**BuzzWall「バズ壁」**（`Spawner.cs:36-41,117-119`/`EnemyTable.BuzzWall` `EnemySpec.cs:125-143`/`MidEnemy.cs:97-103`、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、**KoharuPrayerCarry「祈り運び」**（こはる面限定、`Spawner.cs:41-43,124-126`/`EnemyTable.PrayerCarrier` `EnemySpec.cs:145-155`/`MidEnemy.cs:185-191,406-474`）が全テーマ（Rei/Akari/Koharu、`Spawner.cs:100-155`の`Theme != Default`分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし

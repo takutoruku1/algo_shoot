@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 18:58 UTC",
+  "generated": "2026-08-14 18:59 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 43
+    "done": 44
   },
-  "percent": 93,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "`Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード",
-      "worker": "engineer",
-      "accept": "`Enemy.cs:642-646`で定義されているが`grep -rn \"SetSpriteFlip\" src/`は定義行のみでヒットし呼び出しゼロ。実際の反転制御は`ApplyBossMotion`内`Enemy.cs:661`の`_bodySprite.FlipH = faceLeft;`直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）"
-    },
     {
       "priority": "P3",
       "title": "`Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `Enemy.cs:641-646`の未使用メソッド一式を削除。実反転制御（`ApplyBossMotion`内`_bodySprite.FlipH = faceLeft;`）は不変。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "`_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント",
@@ -382,6 +382,16 @@
   ],
   "commits": [
     {
+      "hash": "f206f89",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - Enemy.SetSpriteFlip死にコード削除"
+    },
+    {
+      "hash": "2b0edc7",
+      "date": "2026-08-14",
+      "subject": "auto: _waveSpawnDoneの嘘コメント/死にフィールドを解消"
+    },
+    {
       "hash": "5538739",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - _waveSpawnDoneの嘘コメント修正"
@@ -410,16 +420,6 @@
       "hash": "e8479b4",
       "date": "2026-08-14",
       "subject": "auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ"
-    },
-    {
-      "hash": "8ec4c23",
-      "date": "2026-08-14",
-      "subject": "auto: WIPへ移動 - 出現する敵の種類を増やす"
-    },
-    {
-      "hash": "9b9e3a5",
-      "date": "2026-08-14",
-      "subject": "auto: 敵弾をキャラごとの形・サイズに描き分ける"
     }
   ]
 }
