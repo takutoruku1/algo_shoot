@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 18:56 UTC",
+  "generated": "2026-08-14 18:58 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 42
+    "done": 43
   },
-  "percent": 91,
+  "percent": 93,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "`_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント",
-      "worker": "engineer",
-      "accept": "`StageAkari.cs:41`／`StageKoharu.cs:42`のコメントは2段階待機（全滅待ち）を示唆するが、`bool`は代入のみで参照ゼロ（`grep -rn \"_waveSpawnDone\"`で読み取り0件）。実際は`Step_MidwaveA`等（例:`StageAkari.cs:355-360`）で`_spawner?.Stop(); ClearStageEnemies();`により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の`bool`は削除する"
-    },
     {
       "priority": "P3",
       "title": "`Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `StageAkari.cs`/`StageKoharu.cs`から未使用フィールド`_waveSpawnDone`と代入7箇所を削除。`StageRei.cs`の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P2",
       "title": "少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している",
@@ -382,6 +382,16 @@
   ],
   "commits": [
     {
+      "hash": "5538739",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - _waveSpawnDoneの嘘コメント修正"
+    },
+    {
+      "hash": "708ecd2",
+      "date": "2026-08-14",
+      "subject": "auto: 少年のミナへの二人称を正典どおり「きみ」へ統一"
+    },
+    {
       "hash": "4f6bb03",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - 少年のミナへの二人称乖離"
@@ -410,16 +420,6 @@
       "hash": "9b9e3a5",
       "date": "2026-08-14",
       "subject": "auto: 敵弾をキャラごとの形・サイズに描き分ける"
-    },
-    {
-      "hash": "086eaaf",
-      "date": "2026-08-14",
-      "subject": "auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける"
-    },
-    {
-      "hash": "2789351",
-      "date": "2026-08-14",
-      "subject": "Queue up enemy variety and per-character bullet styling"
     }
   ]
 }

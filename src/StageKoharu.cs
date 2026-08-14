@@ -39,7 +39,6 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
     // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
     private const int MidWaveB = 14;  // チラ見せ後。やや詰めて始める。旧18（-4）
@@ -326,7 +325,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
@@ -348,7 +346,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.35f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
@@ -369,7 +366,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.7f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。

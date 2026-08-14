@@ -38,7 +38,6 @@ public partial class StageAkari : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
     // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     // M3：Intro直後にいきなり中ボスの唐突さを解消するため、カメオ前に“肩慣らし”0波を挿入。総数45は維持（6+12+13+14）。
     private const int MidWave0 = 6;   // 肩慣らし（Intro直後・StartIntensity 0）。6体目の浄化でカメオが割り込む。
@@ -331,7 +330,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で残ザコ・残弾を片付け、間を置かずカメオへ＝“6体目の瞬間に割り込む”。
@@ -352,7 +350,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
@@ -374,7 +371,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.35f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋ミッドシナリオへ（全滅ハント不要＝進行不能を防ぐ）。
@@ -395,7 +391,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.7f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。

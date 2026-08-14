@@ -36,7 +36,7 @@
 
 ## WIP
 
-- [ ] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | `StageAkari.cs:41`／`StageKoharu.cs:42`のコメントは2段階待機（全滅待ち）を示唆するが、`bool`は代入のみで参照ゼロ（`grep -rn "_waveSpawnDone"`で読み取り0件）。実際は`Step_MidwaveA`等（例:`StageAkari.cs:355-360`）で`_spawner?.Stop(); ClearStageEnemies();`により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の`bool`は削除する
+（なし）
 
 ## BLOCKED
 
@@ -60,6 +60,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | (完了 2026-08-14) `StageAkari.cs`/`StageKoharu.cs`から未使用フィールド`_waveSpawnDone`と代入7箇所を削除。`StageRei.cs`の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。`dotnet build`で0 Warning/0 Error確認
 - [x] (P2) 少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している | scenario | (完了 2026-08-14) `Hub.cs`小話12箇所（当初想定の10箇所に加え`:1194,1196`を追加発見）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。`BossMina.cs:65`（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。`dotnet build`で0 Warning/0 Error確認
 - [x] (P1) 出現する敵の種類を増やす | game-designer | (完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで**FlankAim「引用リプ」**（`Spawner.cs:25-27,112-115`/`EnemyTable.Flanker` `EnemySpec.cs:112-123`/`MidEnemy.cs:476-488`、shooterスキン流用、背後から回り込む逆走行動線）、**BuzzWall「バズ壁」**（`Spawner.cs:36-41,117-119`/`EnemyTable.BuzzWall` `EnemySpec.cs:125-143`/`MidEnemy.cs:97-103`、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、**KoharuPrayerCarry「祈り運び」**（こはる面限定、`Spawner.cs:41-43,124-126`/`EnemyTable.PrayerCarrier` `EnemySpec.cs:145-155`/`MidEnemy.cs:185-191,406-474`）が全テーマ（Rei/Akari/Koharu、`Spawner.cs:100-155`の`Theme != Default`分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし
 - [x] (P1) 敵弾をキャラごとの形・サイズに描き分ける | game-designer | (完了 2026-08-14) モチーフ割り当て（`BossRei.cs:69-75`レイ=Orb/Diamond/Star/Ring、`BossAkari.cs:44-50`あかり=Needle/Diamond/Orb/Needle、`BossKoharu.cs:94-100`こはる=Orb/Diamond/Needle/Rice、`BossMina.cs:40-46`ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。**サイズ差は事実上ゼロ**（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（`BossRei.cs:253-283`/`BossAkari.cs:220-265`/`BossKoharu.cs:238-262,298,432-451`/`BossMina.cs:166-206`）。当たり芯ドット（`Bullet.cs:597`）は全形状共通描画のため視認性は維持。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認。半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）
