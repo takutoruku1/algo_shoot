@@ -363,7 +363,7 @@ public partial class Enemy : Area2D
     private void SpawnOnePanel(float baseAngle)
     {
         var p = new Panel();
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath, PanelDisplayScale);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 18:59 UTC",
+  "generated": "2026-08-14 19:02 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 44
+    "done": 45
   },
-  "percent": 96,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "`Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている",
-      "worker": "engineer",
-      "accept": "`Panel.cs:15,17`で宣言、`:39`で代入のみ、`grep -rn \"_bulletSpeed\\ | _fireTimer\" src/Panel.cs`に読み取りゼロ。`:34-35`のコメントは「発射は本体へ移管、`_fires`は後方互換で残置」と`_fires`のみ自己申告しているが同じ理由で死んでいる`_bulletSpeed`/`_fireTimer`には触れていない。コメントを実態に合わせて拡張するか、未使用フィールドを削除する"
-    },
     {
       "priority": "P3",
       "title": "`_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `Panel.cs`から未使用`_bulletSpeed`/`_fireTimer`フィールドと`Setup`の`bulletSpeed`引数・関連代入を削除、`Enemy.cs:366`の呼び出しを整合。副作用で書き込み専用になった`_fireInterval`は`_fires`同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "`Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード",
@@ -382,6 +382,16 @@
   ],
   "commits": [
     {
+      "hash": "aa2eb67",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - Panel.csの死にフィールド/嘘コメント修正"
+    },
+    {
+      "hash": "3b2e6a7",
+      "date": "2026-08-14",
+      "subject": "auto: Enemy.SetSpriteFlipの死にコードを削除"
+    },
+    {
       "hash": "f206f89",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - Enemy.SetSpriteFlip死にコード削除"
@@ -410,16 +420,6 @@
       "hash": "fc6bf3e",
       "date": "2026-08-14",
       "subject": "auto: 監査で5件をキューに追加、1件を既存BLOCKED決定事項へ統合"
-    },
-    {
-      "hash": "0f610b6",
-      "date": "2026-08-14",
-      "subject": "auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ"
-    },
-    {
-      "hash": "e8479b4",
-      "date": "2026-08-14",
-      "subject": "auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ"
     }
   ]
 }

@@ -34,7 +34,7 @@
 
 ## WIP
 
-- [ ] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | `Panel.cs:15,17`で宣言、`:39`で代入のみ、`grep -rn "_bulletSpeed\|_fireTimer" src/Panel.cs`に読み取りゼロ。`:34-35`のコメントは「発射は本体へ移管、`_fires`は後方互換で残置」と`_fires`のみ自己申告しているが同じ理由で死んでいる`_bulletSpeed`/`_fireTimer`には触れていない。コメントを実態に合わせて拡張するか、未使用フィールドを削除する
+（なし）
 
 ## BLOCKED
 
@@ -58,6 +58,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | (完了 2026-08-14) `Panel.cs`から未使用`_bulletSpeed`/`_fireTimer`フィールドと`Setup`の`bulletSpeed`引数・関連代入を削除、`Enemy.cs:366`の呼び出しを整合。副作用で書き込み専用になった`_fireInterval`は`_fires`同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | (完了 2026-08-14) `Enemy.cs:641-646`の未使用メソッド一式を削除。実反転制御（`ApplyBossMotion`内`_bodySprite.FlipH = faceLeft;`）は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | (完了 2026-08-14) `StageAkari.cs`/`StageKoharu.cs`から未使用フィールド`_waveSpawnDone`と代入7箇所を削除。`StageRei.cs`の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。`dotnet build`で0 Warning/0 Error確認
 - [x] (P2) 少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している | scenario | (完了 2026-08-14) `Hub.cs`小話12箇所（当初想定の10箇所に加え`:1194,1196`を追加発見）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。`BossMina.cs:65`（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。`dotnet build`で0 Warning/0 Error確認
