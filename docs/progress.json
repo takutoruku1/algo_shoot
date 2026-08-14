@@ -1,22 +1,21 @@
 {
   "generated": "2026-08-14 18:18 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
-    "blocked": 14,
+    "blocked": 15,
     "done": 41
   },
-  "percent": 98,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "追加する敵イラストの仕様を詰める",
-      "worker": "artist",
-      "accept": "上の「敵の種類を増やす」で追加した敵に対し、**どんな絵が要るかの発注書を書く**（`docs/` に md で出力）。1体につき: 何のモチーフか・pre（穢れ）/post（浄化）の差・シルエットで既存敵と区別が付くか・色。**画像生成そのものはこの環境では実行できない**（`gen-asset` は OpenAI APIキー `.openai_key.txt` を要求し、クラウド実行環境には存在しない）。**生成はユーザーのローカル環境で行うので、ここでは仕様書の作成までで完了とすること**"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "追加する敵イラストの仕様を詰める",
+      "worker": "artist",
+      "accept": "前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること"
+    },
     {
       "priority": null,
       "title": "未発注イラスト",
@@ -352,6 +351,11 @@
   ],
   "commits": [
     {
+      "hash": "e8479b4",
+      "date": "2026-08-14",
+      "subject": "auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ"
+    },
+    {
       "hash": "8ec4c23",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - 出現する敵の種類を増やす"
@@ -385,11 +389,6 @@
       "hash": "0eb51e5",
       "date": "2026-08-14",
       "subject": "Refresh the progress snapshot after merging the nightly run"
-    },
-    {
-      "hash": "e389402",
-      "date": "2026-08-14",
-      "subject": "Merge pull request #3 from takutoruku1/auto/dev"
     }
   ]
 }

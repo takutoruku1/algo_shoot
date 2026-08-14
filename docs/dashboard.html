@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 41 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 41 / 対象 41 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">41</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">14</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,15 +145,7 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">追加する敵イラストの仕様を詰める</span>
-          <span class="worker">artist</span>
-        </div>
-        <p class="accept">上の「敵の種類を増やす」で追加した敵に対し、<strong>どんな絵が要るかの発注書を書く</strong>（<code>docs/</code> に md で出力）。1体につき: 何のモチーフか・pre（穢れ）/post（浄化）の差・シルエットで既存敵と区別が付くか・色。<strong>画像生成そのものはこの環境では実行できない</strong>（<code>gen-asset</code> は OpenAI APIキー <code>.openai_key.txt</code> を要求し、クラウド実行環境には存在しない）。<strong>生成はユーザーのローカル環境で行うので、ここでは仕様書の作成までで完了とすること</strong></p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
@@ -495,6 +487,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">追加する敵イラストの仕様を詰める</span>
+          <span class="worker">artist</span>
+        </div>
+        <p class="accept">前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に<strong>別タスク由来で実装済み</strong>と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、<code>Spawner.cs:25-43,100-155</code>/<code>EnemySpec.cs:112-155</code>/<code>MidEnemy.cs</code>各所）。ただしいずれも**既存の <code>char/enemy_*</code> スキンをそのまま流用<strong>する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を</strong>視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">未発注イラスト</span>
           <span class="worker">artist</span>
         </div>
@@ -609,6 +609,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e8479b4</span><span>2026-08-14</span><span class="s">auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ</span></li>
       <li><span class="h">8ec4c23</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 出現する敵の種類を増やす</span></li>
       <li><span class="h">9b9e3a5</span><span>2026-08-14</span><span class="s">auto: 敵弾をキャラごとの形・サイズに描き分ける</span></li>
       <li><span class="h">086eaaf</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける</span></li>
@@ -616,7 +617,6 @@
       <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
       <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
       <li><span class="h">0eb51e5</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot after merging the nightly run</span></li>
-      <li><span class="h">e389402</span><span>2026-08-14</span><span class="s">Merge pull request #3 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
