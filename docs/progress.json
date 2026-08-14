@@ -1,13 +1,32 @@
 {
-  "generated": "2026-08-13 23:19 UTC",
+  "generated": "2026-08-14 01:03 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 3,
     "wip": 0,
     "blocked": 14,
     "done": 39
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 93,
+  "todo": [
+    {
+      "priority": "P1",
+      "title": "敵弾をキャラごとの形・サイズに描き分ける",
+      "worker": "game-designer",
+      "accept": "**方針＝キャラ表現（らしさ）最優先**。既存 `BulletShape`（`Bullet.cs:6` に Orb/Diamond/Star/Ring/Needle/Rice/Dart/Petal/Seeker の9種）は定義済みだが、実際にボス別で撃ち分けられているかを `BossRei/BossAkari/BossKoharu/BossMina.cs` で確認し、モチーフに沿って割り当てる。モチーフは正典どおり **レイ=数字と序列 / あかり=文字・未送信 / こはる=雨・祈り / ミナ=穢れ**。さらに**攻撃の種類ごとにサイズを変える**（例: 通常弾は小、スペル弾は大、設置・撃ち返し弾は中）。`Bullet._Draw` の敵弾分岐（`Bullet.cs:520` 付近）に不足する形状があれば描画を追加する。**視認性は落とさないこと**＝当たり芯ドット（既存）は全形状で必ず見えるようにし、被弾点が形の装飾に埋もれないこと"
+    },
+    {
+      "priority": "P1",
+      "title": "出現する敵の種類を増やす",
+      "worker": "game-designer",
+      "accept": "現在ステージあたり雑魚2種のみ（`EnemySpec.cs:79-108` で rei_drone/rei_eye、akari_desk/akari_note、koharu_knife/koharu_pot、anti×2）。道中が単調なので**各ステージ+1〜2種**を追加する。**新規画像は作らず、既存の `char/enemy_*` を使い回してよい**（別タスクでイラストを差し替える）。挙動で差を付けること＝移動パターン（`Spawner.cs` の FlankAim など既存の型を参照）・耐久・弾の撃ち方を変え、既存2種と**手触りが被らない**ものにする。`EnemySpec` の作り方は同ファイル内の既存定義に倣う"
+    },
+    {
+      "priority": "P2",
+      "title": "追加する敵イラストの仕様を詰める",
+      "worker": "artist",
+      "accept": "上の「敵の種類を増やす」で追加した敵に対し、**どんな絵が要るかの発注書を書く**（`docs/` に md で出力）。1体につき: 何のモチーフか・pre（穢れ）/post（浄化）の差・シルエットで既存敵と区別が付くか・色。**画像生成そのものはこの環境では実行できない**（`gen-asset` は OpenAI APIキー `.openai_key.txt` を要求し、クラウド実行環境には存在しない）。**生成はユーザーのローカル環境で行うので、ここでは仕様書の作成までで完了とすること**"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -333,6 +352,21 @@
   ],
   "commits": [
     {
+      "hash": "35355f6",
+      "date": "2026-08-14",
+      "subject": "Show the nightly run's status on the dashboard while it works"
+    },
+    {
+      "hash": "8318ee0",
+      "date": "2026-08-14",
+      "subject": "Let the nightly run refill its own queue when it empties"
+    },
+    {
+      "hash": "0eb51e5",
+      "date": "2026-08-14",
+      "subject": "Refresh the progress snapshot after merging the nightly run"
+    },
+    {
       "hash": "e389402",
       "date": "2026-08-14",
       "subject": "Merge pull request #3 from takutoruku1/auto/dev"
@@ -356,21 +390,6 @@
       "hash": "4b10b3d",
       "date": "2026-08-13",
       "subject": "auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）"
-    },
-    {
-      "hash": "8a1bcc4",
-      "date": "2026-08-13",
-      "subject": "auto: WIP M5 設計書との乖離最終チェック"
-    },
-    {
-      "hash": "5df1843",
-      "date": "2026-08-13",
-      "subject": "auto: BLOCKED パネル持ち敵にダメージ強化が一切効いていない（要ユーザー判断）"
-    },
-    {
-      "hash": "87929bb",
-      "date": "2026-08-13",
-      "subject": "auto: M5 QA一巡（Godotヘッドレス環境を新規セットアップ、実害ゼロを確認）"
     }
   ]
 }
