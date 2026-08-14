@@ -1,13 +1,44 @@
 {
-  "generated": "2026-08-14 18:18 UTC",
+  "generated": "2026-08-14 18:51 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
     "done": 41
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 89,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している",
+      "worker": "scenario",
+      "accept": "正典（`docs/20260613/MINA_シナリオ設計書_v2.md:50`「二人称『きみ』」／`docs/【最新】世界観・ストーリー・キャラクター設定まとめ.md:218`「ミナへは『きみ』固定」）に対し、実装は逆に「お前」が圧倒的多数（`grep -c`で`src/`全17件中14件が少年→ミナ宛）。内訳: `Hub.cs:990,992,1019,1077,1113,1147,1156,1162,1219,1222`（小話バンク10箇所）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`（同シーン`:52`は「きみ」で1シーン内反転）／`BossMina.cs:65`（`:64`は既存DONEで「きみ」化済み、`:65`は感情の高ぶりとして意図残置）。FINALでの「お前→きみ」反転演出（`BossMina.cs:65`のコメント参照）は道中で既に「きみ」が定着していれば効果が薄まる。**全置換ではなくシーンごとのニュアンス確認が必要**（Hub.csの軽口は「お前」の乱暴さがコメディとして機能している行もあるため）。方針は正典優先＝「きみ」へ寄せる方向で、コメディとして機能している箇所のみ個別に残すかどうか判断すること"
+    },
+    {
+      "priority": "P3",
+      "title": "`_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント",
+      "worker": "engineer",
+      "accept": "`StageAkari.cs:41`／`StageKoharu.cs:42`のコメントは2段階待機（全滅待ち）を示唆するが、`bool`は代入のみで参照ゼロ（`grep -rn \"_waveSpawnDone\"`で読み取り0件）。実際は`Step_MidwaveA`等（例:`StageAkari.cs:355-360`）で`_spawner?.Stop(); ClearStageEnemies();`により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の`bool`は削除する"
+    },
+    {
+      "priority": "P3",
+      "title": "`Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード",
+      "worker": "engineer",
+      "accept": "`Enemy.cs:642-646`で定義されているが`grep -rn \"SetSpriteFlip\" src/`は定義行のみでヒットし呼び出しゼロ。実際の反転制御は`ApplyBossMotion`内`Enemy.cs:661`の`_bodySprite.FlipH = faceLeft;`直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）"
+    },
+    {
+      "priority": "P3",
+      "title": "`Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている",
+      "worker": "engineer",
+      "accept": "`Panel.cs:15,17`で宣言、`:39`で代入のみ、`grep -rn \"_bulletSpeed\\ | _fireTimer\" src/Panel.cs`に読み取りゼロ。`:34-35`のコメントは「発射は本体へ移管、`_fires`は後方互換で残置」と`_fires`のみ自己申告しているが同じ理由で死んでいる`_bulletSpeed`/`_fireTimer`には触れていない。コメントを実態に合わせて拡張するか、未使用フィールドを削除する"
+    },
+    {
+      "priority": "P3",
+      "title": "`_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用",
+      "worker": "engineer",
+      "accept": "`StageRei.cs:18`／`StageAkari.cs:18`／`StageKoharu.cs:19`／`StageMina.cs:16`で宣言し`+= delta`と`=0`のみ（例:`StageRei.cs:239,279`）、`grep -rn \"_stepTime\" src/Stage*.cs`に条件式での読み取りが1件もない。各ステップの終了判定は全て`PurifiedCount`等の別指標で行われており存在意義が読めない。4ファイルとも未使用フィールドとして削除する"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -30,9 +61,9 @@
     },
     {
       "priority": null,
-      "title": "パネル持ち敵にダメージ強化が一切効いていない",
+      "title": "パネル持ち敵にダメージ強化が一切効いていない／ボス無防備窓のダメージ上限も実質固定",
       "worker": null,
-      "accept": "（2026-08-13「新奥義バランス査定」の副産物）`Panel.cs:103` のインク削り（`Ink--`）が `Bullet.Damage` を一切参照しない。結果、`shot_power`/`rapid_power`/`spread_power`/`homing_power`/`focus_fire` 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（`Enemy.cs:468` で `Mathf.Clamp(b.Damage,1,4)` に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう`Panel.cs`を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること"
+      "accept": "（2026-08-13「新奥義バランス査定」の副産物、2026-08-14監査で追加検証）`Panel.cs:103` のインク削り（`Ink--`）が `Bullet.Damage` を一切参照しない。`shot_power`/`rapid_power`/`spread_power`/`homing_power`/`focus_fire` 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もない。**当初は「実効範囲はボス無防備窓に限定される」としていたが、2026-08-14監査でその窓自体も既に頭打ちと判明**：`Enemy.cs:468` `Mathf.Clamp(b.Damage, 1, 4)` により1ヒットあたり最大4で固定、密着クリティカル`Enemy.cs:480`（`PointBlankCap`＝`Enemy.cs:58`で6）も`min(6, 4*1.6)=6`に潰れる。`shot_power_4`（729G）は`shot_power_3`到達時点で既に上限到達済みのため戦闘的な意味ゼロ、`rapid_power_1/2`（550G）・`focus_1/2`（2080G）も上限に飲まれる＝**推定3,359〜4,600G分の投資がボス戦でも無価値化**（ショップ全体約31,000Gの9〜11%）。`Player.cs:249-256`のコメントで開発側も既にこの限界を認識・言語化している。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう`Panel.cs`を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓の1ヒット上限クランプ（`Enemy.cs:468`の`4`、密着`Enemy.cs:58`の`PointBlankCap=6`）を撤廃/緩和し安全弁を窓合計`ExposedDamageCap=100`（`Enemy.cs:66`、既存）に一本化する（ボス撃破が投資通り速くなる＝周回時間・難易度カーブに影響するため要確認）、のいずれか（または両方）を選んでから着手すること"
     },
     {
       "priority": null,
@@ -351,6 +382,11 @@
   ],
   "commits": [
     {
+      "hash": "0f610b6",
+      "date": "2026-08-14",
+      "subject": "auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ"
+    },
+    {
       "hash": "e8479b4",
       "date": "2026-08-14",
       "subject": "auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ"
@@ -384,11 +420,6 @@
       "hash": "8318ee0",
       "date": "2026-08-14",
       "subject": "Let the nightly run refill its own queue when it empties"
-    },
-    {
-      "hash": "0eb51e5",
-      "date": "2026-08-14",
-      "subject": "Refresh the progress snapshot after merging the nightly run"
     }
   ]
 }

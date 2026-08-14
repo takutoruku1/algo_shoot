@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 41 / 対象 41 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">89<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 41 / 対象 46 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 89パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">41</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,47 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">正典（<code>docs/20260613/MINA_シナリオ設計書_v2.md:50</code>「二人称『きみ』」／<code>docs/【最新】世界観・ストーリー・キャラクター設定まとめ.md:218</code>「ミナへは『きみ』固定」）に対し、実装は逆に「お前」が圧倒的多数（<code>grep -c</code>で<code>src/</code>全17件中14件が少年→ミナ宛）。内訳: <code>Hub.cs:990,992,1019,1077,1113,1147,1156,1162,1219,1222</code>（小話バンク10箇所）／<code>StageRei.cs:77</code>／<code>StageAkari.cs:108</code>／<code>StageKoharu.cs:95</code>／<code>StageMina.cs:50</code>（同シーン<code>:52</code>は「きみ」で1シーン内反転）／<code>BossMina.cs:65</code>（<code>:64</code>は既存DONEで「きみ」化済み、<code>:65</code>は感情の高ぶりとして意図残置）。FINALでの「お前→きみ」反転演出（<code>BossMina.cs:65</code>のコメント参照）は道中で既に「きみ」が定着していれば効果が薄まる。<strong>全置換ではなくシーンごとのニュアンス確認が必要</strong>（Hub.csの軽口は「お前」の乱暴さがコメディとして機能している行もあるため）。方針は正典優先＝「きみ」へ寄せる方向で、コメディとして機能している箇所のみ個別に残すかどうか判断すること</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>_waveSpawnDone</code> が「残ザコ全滅待ち」を実装していない嘘コメント</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>StageAkari.cs:41</code>／<code>StageKoharu.cs:42</code>のコメントは2段階待機（全滅待ち）を示唆するが、<code>bool</code>は代入のみで参照ゼロ（<code>grep -rn &quot;_waveSpawnDone&quot;</code>で読み取り0件）。実際は<code>Step_MidwaveA</code>等（例:<code>StageAkari.cs:355-360</code>）で<code>_spawner?.Stop(); ClearStageEnemies();</code>により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の<code>bool</code>は削除する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Enemy.SetSpriteFlip</code> が定義されたきり一度も呼ばれない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>Enemy.cs:642-646</code>で定義されているが<code>grep -rn &quot;SetSpriteFlip&quot; src/</code>は定義行のみでヒットし呼び出しゼロ。実際の反転制御は<code>ApplyBossMotion</code>内<code>Enemy.cs:661</code>の<code>_bodySprite.FlipH = faceLeft;</code>直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Panel.cs</code>の<code>_bulletSpeed</code>/<code>_fireTimer</code>が書き込み専用でコメントの網羅範囲とズレている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>Panel.cs:15,17</code>で宣言、<code>:39</code>で代入のみ、<code>grep -rn &quot;_bulletSpeed\ | _fireTimer&quot; src/Panel.cs</code>に読み取りゼロ。<code>:34-35</code>のコメントは「発射は本体へ移管、<code>_fires</code>は後方互換で残置」と<code>_fires</code>のみ自己申告しているが同じ理由で死んでいる<code>_bulletSpeed</code>/<code>_fireTimer</code>には触れていない。コメントを実態に合わせて拡張するか、未使用フィールドを削除する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>_stepTime</code>がRei/Akari/Koharu/Mina全4ステージで書き込み専用</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>StageRei.cs:18</code>／<code>StageAkari.cs:18</code>／<code>StageKoharu.cs:19</code>／<code>StageMina.cs:16</code>で宣言し<code>+= delta</code>と<code>=0</code>のみ（例:<code>StageRei.cs:239,279</code>）、<code>grep -rn &quot;_stepTime&quot; src/Stage*.cs</code>に条件式での読み取りが1件もない。各ステップの終了判定は全て<code>PurifiedCount</code>等の別指標で行われており存在意義が読めない。4ファイルとも未使用フィールドとして削除する</p>
+      </li></ol>
   </section>
 
   <section>
@@ -511,10 +551,10 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
-          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
+          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない／ボス無防備窓のダメージ上限も実質固定</span>
           
         </div>
-        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
+        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物、2026-08-14監査で追加検証）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もない。<strong>当初は「実効範囲はボス無防備窓に限定される」としていたが、2026-08-14監査でその窓自体も既に頭打ちと判明</strong>：<code>Enemy.cs:468</code> <code>Mathf.Clamp(b.Damage, 1, 4)</code> により1ヒットあたり最大4で固定、密着クリティカル<code>Enemy.cs:480</code>（<code>PointBlankCap</code>＝<code>Enemy.cs:58</code>で6）も<code>min(6, 4*1.6)=6</code>に潰れる。<code>shot_power_4</code>（729G）は<code>shot_power_3</code>到達時点で既に上限到達済みのため戦闘的な意味ゼロ、<code>rapid_power_1/2</code>（550G）・<code>focus_1/2</code>（2080G）も上限に飲まれる＝<strong>推定3,359〜4,600G分の投資がボス戦でも無価値化</strong>（ショップ全体約31,000Gの9〜11%）。<code>Player.cs:249-256</code>のコメントで開発側も既にこの限界を認識・言語化している。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓の1ヒット上限クランプ（<code>Enemy.cs:468</code>の<code>4</code>、密着<code>Enemy.cs:58</code>の<code>PointBlankCap=6</code>）を撤廃/緩和し安全弁を窓合計<code>ExposedDamageCap=100</code>（<code>Enemy.cs:66</code>、既存）に一本化する（ボス撃破が投資通り速くなる＝周回時間・難易度カーブに影響するため要確認）、のいずれか（または両方）を選んでから着手すること</p>
       </li>
       <li class="task is-blocked">
         <div class="task-head">
@@ -609,6 +649,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0f610b6</span><span>2026-08-14</span><span class="s">auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ</span></li>
       <li><span class="h">e8479b4</span><span>2026-08-14</span><span class="s">auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ</span></li>
       <li><span class="h">8ec4c23</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 出現する敵の種類を増やす</span></li>
       <li><span class="h">9b9e3a5</span><span>2026-08-14</span><span class="s">auto: 敵弾をキャラごとの形・サイズに描き分ける</span></li>
@@ -616,11 +657,10 @@
       <li><span class="h">2789351</span><span>2026-08-14</span><span class="s">Queue up enemy variety and per-character bullet styling</span></li>
       <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
       <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
-      <li><span class="h">0eb51e5</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot after merging the nightly run</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 18:18 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-14 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
