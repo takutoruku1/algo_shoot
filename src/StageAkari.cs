@@ -105,7 +105,7 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] Chat5 = // [軽口]
     {
         (1, "ご主人様、髪。跳ねていませんか、今日。", ""),
-        (0, "見えてないだろ、お前からは。", SCocky),
+        (0, "見えてないだろ、きみからは。", SCocky),
         (1, "声で分かります。跳ねている人の声です。", "res://char/mina_smile.png"),
     };
 

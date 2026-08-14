@@ -92,7 +92,7 @@ public partial class StageKoharu : Node
     {
         (0, "ミナ、いま何時だ。", SCocky),
         (1, "ご主人様が三度目に同じことをお尋ねになった時刻です。", ""),
-        (0, "時計として終わってるぞ、お前。", SCocky),
+        (0, "時計として終わってるぞ、きみ。", SCocky),
     };
 
     private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 18:51 UTC",
+  "generated": "2026-08-14 18:56 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 15,
-    "done": 41
+    "done": 42
   },
-  "percent": 89,
+  "percent": 91,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している",
-      "worker": "scenario",
-      "accept": "正典（`docs/20260613/MINA_シナリオ設計書_v2.md:50`「二人称『きみ』」／`docs/【最新】世界観・ストーリー・キャラクター設定まとめ.md:218`「ミナへは『きみ』固定」）に対し、実装は逆に「お前」が圧倒的多数（`grep -c`で`src/`全17件中14件が少年→ミナ宛）。内訳: `Hub.cs:990,992,1019,1077,1113,1147,1156,1162,1219,1222`（小話バンク10箇所）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`（同シーン`:52`は「きみ」で1シーン内反転）／`BossMina.cs:65`（`:64`は既存DONEで「きみ」化済み、`:65`は感情の高ぶりとして意図残置）。FINALでの「お前→きみ」反転演出（`BossMina.cs:65`のコメント参照）は道中で既に「きみ」が定着していれば効果が薄まる。**全置換ではなくシーンごとのニュアンス確認が必要**（Hub.csの軽口は「お前」の乱暴さがコメディとして機能している行もあるため）。方針は正典優先＝「きみ」へ寄せる方向で、コメディとして機能している箇所のみ個別に残すかどうか判断すること"
-    },
     {
       "priority": "P3",
       "title": "`_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-14) `Hub.cs`小話12箇所（当初想定の10箇所に加え`:1194,1196`を追加発見）／`StageRei.cs:77`／`StageAkari.cs:108`／`StageKoharu.cs:95`／`StageMina.cs:50`を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。`BossMina.cs:65`（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P1",
       "title": "出現する敵の種類を増やす",
@@ -382,6 +382,16 @@
   ],
   "commits": [
     {
+      "hash": "4f6bb03",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - 少年のミナへの二人称乖離"
+    },
+    {
+      "hash": "fc6bf3e",
+      "date": "2026-08-14",
+      "subject": "auto: 監査で5件をキューに追加、1件を既存BLOCKED決定事項へ統合"
+    },
+    {
       "hash": "0f610b6",
       "date": "2026-08-14",
       "subject": "auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ"
@@ -410,16 +420,6 @@
       "hash": "2789351",
       "date": "2026-08-14",
       "subject": "Queue up enemy variety and per-character bullet styling"
-    },
-    {
-      "hash": "35355f6",
-      "date": "2026-08-14",
-      "subject": "Show the nightly run's status on the dashboard while it works"
-    },
-    {
-      "hash": "8318ee0",
-      "date": "2026-08-14",
-      "subject": "Let the nightly run refill its own queue when it empties"
     }
   ]
 }

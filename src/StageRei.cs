@@ -74,7 +74,7 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] Chat1 = // [軽口]
     {
         (1, "ご主人様。この“声”、ひとつ祓うたびに、少し肩が軽くなります。", ""),
-        (0, "肩なんてあったのか、お前。", SCocky),
+        (0, "肩なんてあったのか、きみ。", SCocky),
         (1, "比喩です。無粋なご主人様。", "res://char/mina_smile.png"),
     };
     private static readonly (int who, string text, string face)[] Chat2 = // [日常]

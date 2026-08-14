@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">89<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 41 / 対象 46 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">91<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 42 / 対象 46 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 89パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 91パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">41</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">42</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典（<code>docs/20260613/MINA_シナリオ設計書_v2.md:50</code>「二人称『きみ』」／<code>docs/【最新】世界観・ストーリー・キャラクター設定まとめ.md:218</code>「ミナへは『きみ』固定」）に対し、実装は逆に「お前」が圧倒的多数（<code>grep -c</code>で<code>src/</code>全17件中14件が少年→ミナ宛）。内訳: <code>Hub.cs:990,992,1019,1077,1113,1147,1156,1162,1219,1222</code>（小話バンク10箇所）／<code>StageRei.cs:77</code>／<code>StageAkari.cs:108</code>／<code>StageKoharu.cs:95</code>／<code>StageMina.cs:50</code>（同シーン<code>:52</code>は「きみ」で1シーン内反転）／<code>BossMina.cs:65</code>（<code>:64</code>は既存DONEで「きみ」化済み、<code>:65</code>は感情の高ぶりとして意図残置）。FINALでの「お前→きみ」反転演出（<code>BossMina.cs:65</code>のコメント参照）は道中で既に「きみ」が定着していれば効果が薄まる。<strong>全置換ではなくシーンごとのニュアンス確認が必要</strong>（Hub.csの軽口は「お前」の乱暴さがコメディとして機能している行もあるため）。方針は正典優先＝「きみ」へ寄せる方向で、コメディとして機能している箇所のみ個別に残すかどうか判断すること</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Hub.cs</code>小話12箇所（当初想定の10箇所に加え<code>:1194,1196</code>を追加発見）／<code>StageRei.cs:77</code>／<code>StageAkari.cs:108</code>／<code>StageKoharu.cs:95</code>／<code>StageMina.cs:50</code>を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。<code>BossMina.cs:65</code>（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -649,18 +649,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">4f6bb03</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 少年のミナへの二人称乖離</span></li>
+      <li><span class="h">fc6bf3e</span><span>2026-08-14</span><span class="s">auto: 監査で5件をキューに追加、1件を既存BLOCKED決定事項へ統合</span></li>
       <li><span class="h">0f610b6</span><span>2026-08-14</span><span class="s">auto: 追加する敵イラストの仕様を詰める - 前提が崩れたためBLOCKEDへ</span></li>
       <li><span class="h">e8479b4</span><span>2026-08-14</span><span class="s">auto: 出現する敵の種類を増やす - 実装済みと確認しDONEへ</span></li>
       <li><span class="h">8ec4c23</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 出現する敵の種類を増やす</span></li>
       <li><span class="h">9b9e3a5</span><span>2026-08-14</span><span class="s">auto: 敵弾をキャラごとの形・サイズに描き分ける</span></li>
       <li><span class="h">086eaaf</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける</span></li>
       <li><span class="h">2789351</span><span>2026-08-14</span><span class="s">Queue up enemy variety and per-character bullet styling</span></li>
-      <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
-      <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-14 18:56 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
