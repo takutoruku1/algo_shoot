@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">95<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 40 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 41 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">40</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">41</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">14</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">出現する敵の種類を増やす</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">現在ステージあたり雑魚2種のみ（<code>EnemySpec.cs:79-108</code> で rei_drone/rei_eye、akari_desk/akari_note、koharu_knife/koharu_pot、anti×2）。道中が単調なので<strong>各ステージ+1〜2種</strong>を追加する。**新規画像は作らず、既存の <code>char/enemy_*</code> を使い回してよい<strong>（別タスクでイラストを差し替える）。挙動で差を付けること＝移動パターン（<code>Spawner.cs</code> の FlankAim など既存の型を参照）・耐久・弾の撃ち方を変え、既存2種と</strong>手触りが被らない**ものにする。<code>EnemySpec</code> の作り方は同ファイル内の既存定義に倣う</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p2">P2</span>
           <span class="task-title">追加する敵イラストの仕様を詰める</span>
           <span class="worker">artist</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">出現する敵の種類を増やす</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで<strong>FlankAim「引用リプ」</strong>（<code>Spawner.cs:25-27,112-115</code>/<code>EnemyTable.Flanker</code> <code>EnemySpec.cs:112-123</code>/<code>MidEnemy.cs:476-488</code>、shooterスキン流用、背後から回り込む逆走行動線）、<strong>BuzzWall「バズ壁」</strong>（<code>Spawner.cs:36-41,117-119</code>/<code>EnemyTable.BuzzWall</code> <code>EnemySpec.cs:125-143</code>/<code>MidEnemy.cs:97-103</code>、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、<strong>KoharuPrayerCarry「祈り運び」</strong>（こはる面限定、<code>Spawner.cs:41-43,124-126</code>/<code>EnemyTable.PrayerCarrier</code> <code>EnemySpec.cs:145-155</code>/<code>MidEnemy.cs:185-191,406-474</code>）が全テーマ（Rei/Akari/Koharu、<code>Spawner.cs:100-155</code>の<code>Theme != Default</code>分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -609,18 +609,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8ec4c23</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 出現する敵の種類を増やす</span></li>
+      <li><span class="h">9b9e3a5</span><span>2026-08-14</span><span class="s">auto: 敵弾をキャラごとの形・サイズに描き分ける</span></li>
       <li><span class="h">086eaaf</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける</span></li>
       <li><span class="h">2789351</span><span>2026-08-14</span><span class="s">Queue up enemy variety and per-character bullet styling</span></li>
       <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
       <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
       <li><span class="h">0eb51e5</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot after merging the nightly run</span></li>
       <li><span class="h">e389402</span><span>2026-08-14</span><span class="s">Merge pull request #3 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">9076fd2</span><span>2026-08-13</span><span class="s">auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）</span></li>
-      <li><span class="h">67ced8f</span><span>2026-08-13</span><span class="s">auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 18:13 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-14 18:18 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

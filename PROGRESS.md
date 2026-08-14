@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-14 18:13 UTC
+> 生成: 2026-08-14 18:18 UTC
 
 ## 消化率
 
 ```
-███████████████████░  95%   (完了 40 / 対象 42)
+████████████████████  98%   (完了 41 / 対象 42)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 40 |
+| ✅ 完了 | 41 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 2 |
+| 📋 残り | 1 |
 | ⛔ 保留（人間の判断待ち） | 14 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,6 @@ _なし_
 
 ## 📋 次にやること
 
-- `P1` 出現する敵の種類を増やす
 - `P2` 追加する敵イラストの仕様を詰める
 
 ## ⛔ 保留（自動では進められない）
@@ -44,6 +43,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P1` 出現する敵の種類を増やす
 - `P1` 敵弾をキャラごとの形・サイズに描き分ける
 - `P2` タスク管理.md の状態を実装に合わせる
 - `P2` M5 設計書との乖離最終チェック
@@ -87,11 +87,11 @@ _なし_
 
 ## 直近のコミット
 
+- `8ec4c23` 2026-08-14 auto: WIPへ移動 - 出現する敵の種類を増やす
+- `9b9e3a5` 2026-08-14 auto: 敵弾をキャラごとの形・サイズに描き分ける
 - `086eaaf` 2026-08-14 auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける
 - `2789351` 2026-08-14 Queue up enemy variety and per-character bullet styling
 - `35355f6` 2026-08-14 Show the nightly run's status on the dashboard while it works
 - `8318ee0` 2026-08-14 Let the nightly run refill its own queue when it empties
 - `0eb51e5` 2026-08-14 Refresh the progress snapshot after merging the nightly run
 - `e389402` 2026-08-14 Merge pull request #3 from takutoruku1/auto/dev
-- `9076fd2` 2026-08-13 auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）
-- `67ced8f` 2026-08-13 auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）

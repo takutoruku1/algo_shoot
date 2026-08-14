@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 18:13 UTC",
+  "generated": "2026-08-14 18:18 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 14,
-    "done": 40
+    "done": 41
   },
-  "percent": 95,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "出現する敵の種類を増やす",
-      "worker": "game-designer",
-      "accept": "現在ステージあたり雑魚2種のみ（`EnemySpec.cs:79-108` で rei_drone/rei_eye、akari_desk/akari_note、koharu_knife/koharu_pot、anti×2）。道中が単調なので**各ステージ+1〜2種**を追加する。**新規画像は作らず、既存の `char/enemy_*` を使い回してよい**（別タスクでイラストを差し替える）。挙動で差を付けること＝移動パターン（`Spawner.cs` の FlankAim など既存の型を参照）・耐久・弾の撃ち方を変え、既存2種と**手触りが被らない**ものにする。`EnemySpec` の作り方は同ファイル内の既存定義に倣う"
-    },
     {
       "priority": "P2",
       "title": "追加する敵イラストの仕様を詰める",
@@ -109,6 +103,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "出現する敵の種類を増やす",
+      "worker": "game-designer",
+      "accept": "(完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで**FlankAim「引用リプ」**（`Spawner.cs:25-27,112-115`/`EnemyTable.Flanker` `EnemySpec.cs:112-123`/`MidEnemy.cs:476-488`、shooterスキン流用、背後から回り込む逆走行動線）、**BuzzWall「バズ壁」**（`Spawner.cs:36-41,117-119`/`EnemyTable.BuzzWall` `EnemySpec.cs:125-143`/`MidEnemy.cs:97-103`、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、**KoharuPrayerCarry「祈り運び」**（こはる面限定、`Spawner.cs:41-43,124-126`/`EnemyTable.PrayerCarrier` `EnemySpec.cs:145-155`/`MidEnemy.cs:185-191,406-474`）が全テーマ（Rei/Akari/Koharu、`Spawner.cs:100-155`の`Theme != Default`分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし"
+    },
     {
       "priority": "P1",
       "title": "敵弾をキャラごとの形・サイズに描き分ける",
@@ -352,6 +352,16 @@
   ],
   "commits": [
     {
+      "hash": "8ec4c23",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - 出現する敵の種類を増やす"
+    },
+    {
+      "hash": "9b9e3a5",
+      "date": "2026-08-14",
+      "subject": "auto: 敵弾をキャラごとの形・サイズに描き分ける"
+    },
+    {
       "hash": "086eaaf",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける"
@@ -380,16 +390,6 @@
       "hash": "e389402",
       "date": "2026-08-14",
       "subject": "Merge pull request #3 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "9076fd2",
-      "date": "2026-08-13",
-      "subject": "auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）"
-    },
-    {
-      "hash": "67ced8f",
-      "date": "2026-08-13",
-      "subject": "auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）"
     }
   ]
 }

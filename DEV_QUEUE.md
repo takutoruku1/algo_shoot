@@ -34,7 +34,7 @@
 
 ## WIP
 
-- [ ] (P1) 出現する敵の種類を増やす | game-designer | 現在ステージあたり雑魚2種のみ（`EnemySpec.cs:79-108` で rei_drone/rei_eye、akari_desk/akari_note、koharu_knife/koharu_pot、anti×2）。道中が単調なので**各ステージ+1〜2種**を追加する。**新規画像は作らず、既存の `char/enemy_*` を使い回してよい**（別タスクでイラストを差し替える）。挙動で差を付けること＝移動パターン（`Spawner.cs` の FlankAim など既存の型を参照）・耐久・弾の撃ち方を変え、既存2種と**手触りが被らない**ものにする。`EnemySpec` の作り方は同ファイル内の既存定義に倣う
+（なし）
 
 ## BLOCKED
 
@@ -57,6 +57,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) 出現する敵の種類を増やす | game-designer | (完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで**FlankAim「引用リプ」**（`Spawner.cs:25-27,112-115`/`EnemyTable.Flanker` `EnemySpec.cs:112-123`/`MidEnemy.cs:476-488`、shooterスキン流用、背後から回り込む逆走行動線）、**BuzzWall「バズ壁」**（`Spawner.cs:36-41,117-119`/`EnemyTable.BuzzWall` `EnemySpec.cs:125-143`/`MidEnemy.cs:97-103`、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、**KoharuPrayerCarry「祈り運び」**（こはる面限定、`Spawner.cs:41-43,124-126`/`EnemyTable.PrayerCarrier` `EnemySpec.cs:145-155`/`MidEnemy.cs:185-191,406-474`）が全テーマ（Rei/Akari/Koharu、`Spawner.cs:100-155`の`Theme != Default`分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし
 - [x] (P1) 敵弾をキャラごとの形・サイズに描き分ける | game-designer | (完了 2026-08-14) モチーフ割り当て（`BossRei.cs:69-75`レイ=Orb/Diamond/Star/Ring、`BossAkari.cs:44-50`あかり=Needle/Diamond/Orb/Needle、`BossKoharu.cs:94-100`こはる=Orb/Diamond/Needle/Rice、`BossMina.cs:40-46`ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。**サイズ差は事実上ゼロ**（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（`BossRei.cs:253-283`/`BossAkari.cs:220-265`/`BossKoharu.cs:238-262,298,432-451`/`BossMina.cs:166-206`）。当たり芯ドット（`Bullet.cs:597`）は全形状共通描画のため視認性は維持。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認。半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）
 - [x] (P2) タスク管理.md の状態を実装に合わせる | engineer | (完了 2026-08-13) `docs/タスク管理.md` の Epic G（#27/#11）を実コード確認済みの ☑ へ更新（`Hub.cs`のSNSタイムライン化、`StageImagery.cs`のツイート風カード実装を確認）。サマリ行・Epic見出しも合わせて更新
 - [x] (P2) M5 設計書との乖離最終チェック | qa | (完了 2026-08-13) `docs/20260613/乖離レポート_20260813.md`を新規作成。今日変更した8ファイルを優先照合、重大乖離0件・軽微0件・要確認2件（演出解釈のみ、破綻なし）。FINAL手前のStageMina/BossMina役割反転バトルが過去2レポートに未記載だった漏れを今回初めて棚卸し（正典と矛盾なし＝設計書側が古いだけ）。TODOへの追加なし
