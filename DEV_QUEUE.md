@@ -30,14 +30,13 @@
 
 <!-- ▼ 2026-08-14 監査モードで補充（5件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
 
-- [ ] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | `StageAkari.cs:41`／`StageKoharu.cs:42`のコメントは2段階待機（全滅待ち）を示唆するが、`bool`は代入のみで参照ゼロ（`grep -rn "_waveSpawnDone"`で読み取り0件）。実際は`Step_MidwaveA`等（例:`StageAkari.cs:355-360`）で`_spawner?.Stop(); ClearStageEnemies();`により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の`bool`は削除する
 - [ ] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | `Enemy.cs:642-646`で定義されているが`grep -rn "SetSpriteFlip" src/`は定義行のみでヒットし呼び出しゼロ。実際の反転制御は`ApplyBossMotion`内`Enemy.cs:661`の`_bodySprite.FlipH = faceLeft;`直代入が担っている。未使用メソッドを削除する（既存動作に影響なし）
 - [ ] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | `Panel.cs:15,17`で宣言、`:39`で代入のみ、`grep -rn "_bulletSpeed\|_fireTimer" src/Panel.cs`に読み取りゼロ。`:34-35`のコメントは「発射は本体へ移管、`_fires`は後方互換で残置」と`_fires`のみ自己申告しているが同じ理由で死んでいる`_bulletSpeed`/`_fireTimer`には触れていない。コメントを実態に合わせて拡張するか、未使用フィールドを削除する
 - [ ] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | `StageRei.cs:18`／`StageAkari.cs:18`／`StageKoharu.cs:19`／`StageMina.cs:16`で宣言し`+= delta`と`=0`のみ（例:`StageRei.cs:239,279`）、`grep -rn "_stepTime" src/Stage*.cs`に条件式での読み取りが1件もない。各ステップの終了判定は全て`PurifiedCount`等の別指標で行われており存在意義が読めない。4ファイルとも未使用フィールドとして削除する
 
 ## WIP
 
-（なし）
+- [ ] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | `StageAkari.cs:41`／`StageKoharu.cs:42`のコメントは2段階待機（全滅待ち）を示唆するが、`bool`は代入のみで参照ゼロ（`grep -rn "_waveSpawnDone"`で読み取り0件）。実際は`Step_MidwaveA`等（例:`StageAkari.cs:355-360`）で`_spawner?.Stop(); ClearStageEnemies();`により残存ザコを即時強制消去する1段階処理。コメントを実態に合わせて修正し、未使用の`bool`は削除する
 
 ## BLOCKED
 
