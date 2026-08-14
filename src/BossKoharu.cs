@@ -235,19 +235,23 @@ public partial class BossKoharu : Enemy
         if (_fireT2 >= Di(0.85)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); FanDown(pool); }
     }
 
+    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
+    //   自機狙いの精密弾(Aimed)=大／受け止め・撃ち返しの対象弾(FanDown祈り弾／配膳／お残しニードル)=中。
+    //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
         _ringOff += Mathf.DegToRad(8f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
         }
     }
 
     // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝食卓に落ちる祈りは、自機弾で“受け止め”られる。
     // 消すと双方消滅＋やさしさ微加算（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
     // FanDown はスペル「のこしちゃだめ」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
+    // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
     private void FanDown(BulletPool pool)
     {
         int k = Dn(_fanCount);
@@ -255,7 +259,7 @@ public partial class BossKoharu : Enemy
         {
             float t = (float)i / (k - 1) - 0.5f;
             float a = Mathf.Pi / 2f + t * Mathf.DegToRad(78f);
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.4f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
             b.MakeErasable();
         }
     }
@@ -295,7 +299,8 @@ public partial class BossKoharu : Enemy
                     pool.Despawn(b);
                     Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
                     d = d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
-                    pool.Spawn(at, d * _mealNeedleSpeed, true, 3.0f, 1, BulletShape.Needle, MealNeedleTint);
+                    // お残し→撃ち返しニードルは中サイズ（3.0→3.8）＝「食べ残すと反撃が来る」の脅威を弾の大きさでも語る。
+                    pool.Spawn(at, d * _mealNeedleSpeed, true, 3.8f, 1, BulletShape.Needle, MealNeedleTint);
                 }
                 if (_mealLeft.Count == 0) FinishMeal(fullEat: false);
                 return;
@@ -436,7 +441,7 @@ public partial class BossKoharu : Enemy
         for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
@@ -446,7 +451,7 @@ public partial class BossKoharu : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
 

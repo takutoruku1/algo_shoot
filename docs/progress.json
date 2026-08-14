@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-14 01:03 UTC",
+  "generated": "2026-08-14 18:13 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 14,
-    "done": 39
+    "done": 40
   },
-  "percent": 93,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "敵弾をキャラごとの形・サイズに描き分ける",
-      "worker": "game-designer",
-      "accept": "**方針＝キャラ表現（らしさ）最優先**。既存 `BulletShape`（`Bullet.cs:6` に Orb/Diamond/Star/Ring/Needle/Rice/Dart/Petal/Seeker の9種）は定義済みだが、実際にボス別で撃ち分けられているかを `BossRei/BossAkari/BossKoharu/BossMina.cs` で確認し、モチーフに沿って割り当てる。モチーフは正典どおり **レイ=数字と序列 / あかり=文字・未送信 / こはる=雨・祈り / ミナ=穢れ**。さらに**攻撃の種類ごとにサイズを変える**（例: 通常弾は小、スペル弾は大、設置・撃ち返し弾は中）。`Bullet._Draw` の敵弾分岐（`Bullet.cs:520` 付近）に不足する形状があれば描画を追加する。**視認性は落とさないこと**＝当たり芯ドット（既存）は全形状で必ず見えるようにし、被弾点が形の装飾に埋もれないこと"
-    },
     {
       "priority": "P1",
       "title": "出現する敵の種類を増やす",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "敵弾をキャラごとの形・サイズに描き分ける",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-14) モチーフ割り当て（`BossRei.cs:69-75`レイ=Orb/Diamond/Star/Ring、`BossAkari.cs:44-50`あかり=Needle/Diamond/Orb/Needle、`BossKoharu.cs:94-100`こはる=Orb/Diamond/Needle/Rice、`BossMina.cs:40-46`ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。**サイズ差は事実上ゼロ**（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（`BossRei.cs:253-283`/`BossAkari.cs:220-265`/`BossKoharu.cs:238-262,298,432-451`/`BossMina.cs:166-206`）。当たり芯ドット（`Bullet.cs:597`）は全形状共通描画のため視認性は維持。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認。半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）"
+    },
     {
       "priority": "P2",
       "title": "タスク管理.md の状態を実装に合わせる",
@@ -352,6 +352,16 @@
   ],
   "commits": [
     {
+      "hash": "086eaaf",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける"
+    },
+    {
+      "hash": "2789351",
+      "date": "2026-08-14",
+      "subject": "Queue up enemy variety and per-character bullet styling"
+    },
+    {
       "hash": "35355f6",
       "date": "2026-08-14",
       "subject": "Show the nightly run's status on the dashboard while it works"
@@ -380,16 +390,6 @@
       "hash": "67ced8f",
       "date": "2026-08-13",
       "subject": "auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）"
-    },
-    {
-      "hash": "8e65cd3",
-      "date": "2026-08-13",
-      "subject": "auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）"
-    },
-    {
-      "hash": "4b10b3d",
-      "date": "2026-08-13",
-      "subject": "auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）"
     }
   ]
 }

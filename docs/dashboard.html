@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">93<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 39 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 40 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">39</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">40</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">14</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">敵弾をキャラごとの形・サイズに描き分ける</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><strong>方針＝キャラ表現（らしさ）最優先</strong>。既存 <code>BulletShape</code>（<code>Bullet.cs:6</code> に Orb/Diamond/Star/Ring/Needle/Rice/Dart/Petal/Seeker の9種）は定義済みだが、実際にボス別で撃ち分けられているかを <code>BossRei/BossAkari/BossKoharu/BossMina.cs</code> で確認し、モチーフに沿って割り当てる。モチーフは正典どおり <strong>レイ=数字と序列 / あかり=文字・未送信 / こはる=雨・祈り / ミナ=穢れ</strong>。さらに<strong>攻撃の種類ごとにサイズを変える</strong>（例: 通常弾は小、スペル弾は大、設置・撃ち返し弾は中）。<code>Bullet._Draw</code> の敵弾分岐（<code>Bullet.cs:520</code> 付近）に不足する形状があれば描画を追加する。<strong>視認性は落とさないこと</strong>＝当たり芯ドット（既存）は全形状で必ず見えるようにし、被弾点が形の装飾に埋もれないこと</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">敵弾をキャラごとの形・サイズに描き分ける</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) モチーフ割り当て（<code>BossRei.cs:69-75</code>レイ=Orb/Diamond/Star/Ring、<code>BossAkari.cs:44-50</code>あかり=Needle/Diamond/Orb/Needle、<code>BossKoharu.cs:94-100</code>こはる=Orb/Diamond/Needle/Rice、<code>BossMina.cs:40-46</code>ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。<strong>サイズ差は事実上ゼロ</strong>（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（<code>BossRei.cs:253-283</code>/<code>BossAkari.cs:220-265</code>/<code>BossKoharu.cs:238-262,298,432-451</code>/<code>BossMina.cs:166-206</code>）。当たり芯ドット（<code>Bullet.cs:597</code>）は全形状共通描画のため視認性は維持。<code>dotnet build algo_shoot.sln</code> で0 Warning/0 Error確認。半径変更は<code>CollisionShape2D.Radius</code>に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -609,18 +609,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">086eaaf</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - 敵弾をキャラごとの形・サイズに描き分ける</span></li>
+      <li><span class="h">2789351</span><span>2026-08-14</span><span class="s">Queue up enemy variety and per-character bullet styling</span></li>
       <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
       <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
       <li><span class="h">0eb51e5</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot after merging the nightly run</span></li>
       <li><span class="h">e389402</span><span>2026-08-14</span><span class="s">Merge pull request #3 from takutoruku1/auto/dev</span></li>
       <li><span class="h">9076fd2</span><span>2026-08-13</span><span class="s">auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）</span></li>
       <li><span class="h">67ced8f</span><span>2026-08-13</span><span class="s">auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）</span></li>
-      <li><span class="h">8e65cd3</span><span>2026-08-13</span><span class="s">auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）</span></li>
-      <li><span class="h">4b10b3d</span><span>2026-08-13</span><span class="s">auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 01:03 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-14 18:13 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

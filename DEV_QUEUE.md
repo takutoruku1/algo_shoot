@@ -35,7 +35,7 @@
 
 ## WIP
 
-- [ ] (P1) 敵弾をキャラごとの形・サイズに描き分ける | game-designer | **方針＝キャラ表現（らしさ）最優先**。既存 `BulletShape`（`Bullet.cs:6` に Orb/Diamond/Star/Ring/Needle/Rice/Dart/Petal/Seeker の9種）は定義済みだが、実際にボス別で撃ち分けられているかを `BossRei/BossAkari/BossKoharu/BossMina.cs` で確認し、モチーフに沿って割り当てる。モチーフは正典どおり **レイ=数字と序列 / あかり=文字・未送信 / こはる=雨・祈り / ミナ=穢れ**。さらに**攻撃の種類ごとにサイズを変える**（例: 通常弾は小、スペル弾は大、設置・撃ち返し弾は中）。`Bullet._Draw` の敵弾分岐（`Bullet.cs:520` 付近）に不足する形状があれば描画を追加する。**視認性は落とさないこと**＝当たり芯ドット（既存）は全形状で必ず見えるようにし、被弾点が形の装飾に埋もれないこと
+（なし）
 
 ## BLOCKED
 
@@ -58,6 +58,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) 敵弾をキャラごとの形・サイズに描き分ける | game-designer | (完了 2026-08-14) モチーフ割り当て（`BossRei.cs:69-75`レイ=Orb/Diamond/Star/Ring、`BossAkari.cs:44-50`あかり=Needle/Diamond/Orb/Needle、`BossKoharu.cs:94-100`こはる=Orb/Diamond/Needle/Rice、`BossMina.cs:40-46`ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。**サイズ差は事実上ゼロ**（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（`BossRei.cs:253-283`/`BossAkari.cs:220-265`/`BossKoharu.cs:238-262,298,432-451`/`BossMina.cs:166-206`）。当たり芯ドット（`Bullet.cs:597`）は全形状共通描画のため視認性は維持。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認。半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）
 - [x] (P2) タスク管理.md の状態を実装に合わせる | engineer | (完了 2026-08-13) `docs/タスク管理.md` の Epic G（#27/#11）を実コード確認済みの ☑ へ更新（`Hub.cs`のSNSタイムライン化、`StageImagery.cs`のツイート風カード実装を確認）。サマリ行・Epic見出しも合わせて更新
 - [x] (P2) M5 設計書との乖離最終チェック | qa | (完了 2026-08-13) `docs/20260613/乖離レポート_20260813.md`を新規作成。今日変更した8ファイルを優先照合、重大乖離0件・軽微0件・要確認2件（演出解釈のみ、破綻なし）。FINAL手前のStageMina/BossMina役割反転バトルが過去2レポートに未記載だった漏れを今回初めて棚卸し（正典と矛盾なし＝設計書側が古いだけ）。TODOへの追加なし
 - [x] (P1) M5 全ステージ×全難易度QA一巡 | qa | (完了 2026-08-13) このセッション用にGodot 4.6.3 mono Linuxバイナリを新規セットアップ（従来このコンテナにGodotが無くQA実行不能だった）しヘッドレスQAを初実施。進行テスト（Prologue→Stage0、200s予算内でHub以降未到達）＋当たり判定テスト（Rei/Akari/Koharu×Easy・Normal、Rei×Hard）計8走行で**実害のある不具合ゼロ**（例外/当たり判定異常/弾リーク/FPS低下すべてクリーン）。Stage0内の`stuck`警告2件はQAオートパイロットがShift長押し/回避を意図的に行わないための誤検知と判定（実プレイでは60s SafetyTimeoutで自然に進行、実害なし）。Lunatic・Akari/Koharu Hard・Stage0以降の全シーンは未走査（時間配分で優先度落ち、別走査を推奨）
