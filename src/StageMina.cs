@@ -13,7 +13,6 @@ public partial class StageMina : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private double _lineHold;
     private int _introLine;
@@ -66,7 +65,6 @@ public partial class StageMina : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -102,7 +100,7 @@ public partial class StageMina : Node
         if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 56f);
     }
 
-    private void Advance() { _step++; _stepStarted = false; _stepTime = 0; }
+    private void Advance() { _step++; _stepStarted = false; }
 
     private void Step_Lines(double delta, (int who, string text, string face)[] lines)
     {

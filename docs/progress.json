@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-14 19:02 UTC",
+  "generated": "2026-08-14 19:03 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 45
+    "done": 46
   },
-  "percent": 98,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "`_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用",
-      "worker": "engineer",
-      "accept": "`StageRei.cs:18`／`StageAkari.cs:18`／`StageKoharu.cs:19`／`StageMina.cs:16`で宣言し`+= delta`と`=0`のみ（例:`StageRei.cs:239,279`）、`grep -rn \"_stepTime\" src/Stage*.cs`に条件式での読み取りが1件もない。各ステップの終了判定は全て`PurifiedCount`等の別指標で行われており存在意義が読めない。4ファイルとも未使用フィールドとして削除する"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-14) `StageRei/Akari/Koharu/Mina.cs`から未使用`_stepTime`フィールドと加算・リセット代入（計13箇所）を削除。`StageW0.cs`の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "`Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている",
@@ -382,6 +381,16 @@
   ],
   "commits": [
     {
+      "hash": "2849f55",
+      "date": "2026-08-14",
+      "subject": "auto: WIPへ移動 - _stepTime死にフィールド削除"
+    },
+    {
+      "hash": "dd5521e",
+      "date": "2026-08-14",
+      "subject": "auto: Panel.csの死にフィールドを整理"
+    },
+    {
       "hash": "aa2eb67",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - Panel.csの死にフィールド/嘘コメント修正"
@@ -410,16 +419,6 @@
       "hash": "708ecd2",
       "date": "2026-08-14",
       "subject": "auto: 少年のミナへの二人称を正典どおり「きみ」へ統一"
-    },
-    {
-      "hash": "4f6bb03",
-      "date": "2026-08-14",
-      "subject": "auto: WIPへ移動 - 少年のミナへの二人称乖離"
-    },
-    {
-      "hash": "fc6bf3e",
-      "date": "2026-08-14",
-      "subject": "auto: 監査で5件をキューに追加、1件を既存BLOCKED決定事項へ統合"
     }
   ]
 }

@@ -16,7 +16,6 @@ public partial class StageKoharu : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private float _clearTime;       // クリア確定時の経過秒。
     private double _lineHold;
@@ -228,7 +227,6 @@ public partial class StageKoharu : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -268,7 +266,6 @@ public partial class StageKoharu : Node
     {
         _step++;
         _stepStarted = false;
-        _stepTime = 0;
     }
 
     private void Step_Lines(double delta, (int who, string text, string face)[] lines)
@@ -483,7 +480,6 @@ public partial class StageKoharu : Node
                 _midStoryShown = true;
                 _step = 15;            // → case 15: Step_Lines(MidStory) → Advance()で16 → 11へ復帰
                 _stepStarted = false;
-                _stepTime = 0;
                 SetQuietVeil(true);    // S3: 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
             }
         }

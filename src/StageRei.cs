@@ -15,7 +15,6 @@ public partial class StageRei : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（_Ready〜クリア確定まで。ポーズ中は止まる）。
     private float _clearTime;       // クリア確定時に確定した経過秒。
     private double _lineHold;
@@ -236,7 +235,6 @@ public partial class StageRei : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         // ステージ経過タイム：クリア確定までは積算し続け、HUDへ常時反映（クリア後は確定値で固定）。
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
@@ -276,7 +274,6 @@ public partial class StageRei : Node
     {
         _step++;
         _stepStarted = false;
-        _stepTime = 0;
     }
 
     private void Step_Lines(double delta, (int who, string text, string face)[] lines)

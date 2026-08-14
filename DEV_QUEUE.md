@@ -33,7 +33,7 @@
 
 ## WIP
 
-- [ ] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | `StageRei.cs:18`／`StageAkari.cs:18`／`StageKoharu.cs:19`／`StageMina.cs:16`で宣言し`+= delta`と`=0`のみ（例:`StageRei.cs:239,279`）、`grep -rn "_stepTime" src/Stage*.cs`に条件式での読み取りが1件もない。各ステップの終了判定は全て`PurifiedCount`等の別指標で行われており存在意義が読めない。4ファイルとも未使用フィールドとして削除する
+（なし）
 
 ## BLOCKED
 
@@ -57,6 +57,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | (完了 2026-08-14) `StageRei/Akari/Koharu/Mina.cs`から未使用`_stepTime`フィールドと加算・リセット代入（計13箇所）を削除。`StageW0.cs`の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | (完了 2026-08-14) `Panel.cs`から未使用`_bulletSpeed`/`_fireTimer`フィールドと`Setup`の`bulletSpeed`引数・関連代入を削除、`Enemy.cs:366`の呼び出しを整合。副作用で書き込み専用になった`_fireInterval`は`_fires`同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | (完了 2026-08-14) `Enemy.cs:641-646`の未使用メソッド一式を削除。実反転制御（`ApplyBossMotion`内`_bodySprite.FlipH = faceLeft;`）は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_waveSpawnDone` が「残ザコ全滅待ち」を実装していない嘘コメント | engineer | (完了 2026-08-14) `StageAkari.cs`/`StageKoharu.cs`から未使用フィールド`_waveSpawnDone`と代入7箇所を削除。`StageRei.cs`の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。`dotnet build`で0 Warning/0 Error確認

@@ -15,7 +15,6 @@ public partial class StageAkari : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private float _clearTime;       // クリア確定時の経過秒。
     private double _lineHold;   // 行表示からの経過（誤連打防止の最小表示時間用）
@@ -228,7 +227,6 @@ public partial class StageAkari : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
@@ -271,7 +269,6 @@ public partial class StageAkari : Node
     {
         _step++;
         _stepStarted = false;
-        _stepTime = 0;
     }
 
     // ---- 会話ステップ（配列を順に流す。Zで手動送り。会話中は弾が止まる） ----
