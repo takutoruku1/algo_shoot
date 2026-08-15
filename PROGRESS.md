@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-15 18:37 UTC
+> 生成: 2026-08-15 22:05 UTC
 
 ## 消化率
 
@@ -95,11 +95,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `0fa5292` 2026-08-16 Merge pull request #4 from takutoruku1/auto/dev
+- `e7f83f5` 2026-08-15 auto: AreaSpellCaster._aoeWithSafe死にフィールドを削除
 - `e95e078` 2026-08-15 auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除
 - `c901975` 2026-08-15 auto: 炎上デバフの可視化
 - `d9ddc49` 2026-08-15 auto: WIPへ移動 - 炎上デバフの可視化
 - `1f82c26` 2026-08-15 auto: 監査で2件をキューに追加
 - `e35a4f7` 2026-08-14 auto: _stepTimeの死にフィールドを4ステージから削除
 - `2849f55` 2026-08-14 auto: WIPへ移動 - _stepTime死にフィールド削除
-- `dd5521e` 2026-08-14 auto: Panel.csの死にフィールドを整理
-- `aa2eb67` 2026-08-14 auto: WIPへ移動 - Panel.csの死にフィールド/嘘コメント修正
