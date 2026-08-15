@@ -29,10 +29,11 @@
 ## TODO
 
 <!-- ▼ 2026-08-15 監査モードで補充（2件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
-- [ ] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | `GameManager.cs:683-685` の `FireIntervalMul`(発射間隔×1.3)/`MoveSpeedMul`(移動速度×0.9)/`TotalImpressionMul`(獲得インプレ×0.6) が `BurningThisRun` 中ずっと適用されるが、`Hud.cs` に "Burning" のヒットが0件＝プレイ中に常時弱体化していることを示す常設インジケータが一切無い。やさしさ全開(`Hud.cs:1134-1157`)やショットモード(`Hud.cs:723,1106`)と同様に、`Hud.cs` の常設描画（`DrawGoal`付近 `Hud.cs:1161-1181`周辺）へ `_game?.BurningThisRun ?? false` のとき「炎上中」ラベルを追加する。色は既存の `UiKit.Burn`（`UiKit.cs:30`、f2353d）を流用し新規アセット不要
 - [ ] (P3) `AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド | engineer | `AreaSpellCaster.cs:44` で宣言、`:91`と`:107`で `true` を代入するのみで読み取り箇所が無い（全面型安置なしは廃止済みの名残）。フィールド宣言(`:44`)と代入2箇所(`:91`,`:107`)を削除し、「常に安置あり」の要点は近傍の既存コメントに残す。ビルドで新規警告が出ないことを確認する
 
 ## WIP
+
+- [ ] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | `GameManager.cs:683-685` の `FireIntervalMul`(発射間隔×1.3)/`MoveSpeedMul`(移動速度×0.9)/`TotalImpressionMul`(獲得インプレ×0.6) が `BurningThisRun` 中ずっと適用されるが、`Hud.cs` に "Burning" のヒットが0件＝プレイ中に常時弱体化していることを示す常設インジケータが一切無い。やさしさ全開(`Hud.cs:1134-1157`)やショットモード(`Hud.cs:723,1106`)と同様に、`Hud.cs` の常設描画（`DrawGoal`付近 `Hud.cs:1161-1181`周辺）へ `_game?.BurningThisRun ?? false` のとき「炎上中」ラベルを追加する。色は既存の `UiKit.Burn`（`UiKit.cs:30`、f2353d）を流用し新規アセット不要
 
 （なし）
 
