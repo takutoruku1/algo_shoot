@@ -723,6 +723,7 @@ public partial class Hud : CanvasLayer
         DrawShotMode(ci);
         DrawKindness(ci);
         DrawGoal(ci);
+        DrawBurning(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
@@ -1178,6 +1179,22 @@ public partial class Hud : CanvasLayer
         float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), Fa(new Color(1, 1, 1, 0.08f)), 3f);
         if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), Fa(UiKit.Kegare), 3f);
+    }
+
+    // 炎上デバフの常設インジケータ（マクロ目標の直下）。炎上run中は発射間隔×1.3/移動速度×0.9/獲得インプレ×0.6が
+    // ステージ全体に常時掛かる（GameManager.FireIntervalMul/MoveSpeedMul/TotalImpressionMul）が、これまで可視化が
+    // 一切無く弱体化に気づけなかった。やさしさゲージ／ショットモードチップと同じ常設バッジ様式で出す。
+    private void DrawBurning(HudCanvas ci)
+    {
+        if (!(_game?.BurningThisRun ?? false)) return;
+        const string label = "炎上中";
+        const float padL = 16f, h = 24f;
+        float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
+        float x = 22, y = 214;
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 6f);
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Burn, 0.35f + 0.25f * pulse)), 1f);
+        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Burn));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.Burn));
     }
 
     // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。

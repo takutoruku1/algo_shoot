@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">93<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 39 / 対象 42 タスク<br>保留 14 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 48 / 対象 48 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">39</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">48</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">14</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,36 +145,84 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">敵弾をキャラごとの形・サイズに描き分ける</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><strong>方針＝キャラ表現（らしさ）最優先</strong>。既存 <code>BulletShape</code>（<code>Bullet.cs:6</code> に Orb/Diamond/Star/Ring/Needle/Rice/Dart/Petal/Seeker の9種）は定義済みだが、実際にボス別で撃ち分けられているかを <code>BossRei/BossAkari/BossKoharu/BossMina.cs</code> で確認し、モチーフに沿って割り当てる。モチーフは正典どおり <strong>レイ=数字と序列 / あかり=文字・未送信 / こはる=雨・祈り / ミナ=穢れ</strong>。さらに<strong>攻撃の種類ごとにサイズを変える</strong>（例: 通常弾は小、スペル弾は大、設置・撃ち返し弾は中）。<code>Bullet._Draw</code> の敵弾分岐（<code>Bullet.cs:520</code> 付近）に不足する形状があれば描画を追加する。<strong>視認性は落とさないこと</strong>＝当たり芯ドット（既存）は全形状で必ず見えるようにし、被弾点が形の装飾に埋もれないこと</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">出現する敵の種類を増やす</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">現在ステージあたり雑魚2種のみ（<code>EnemySpec.cs:79-108</code> で rei_drone/rei_eye、akari_desk/akari_note、koharu_knife/koharu_pot、anti×2）。道中が単調なので<strong>各ステージ+1〜2種</strong>を追加する。**新規画像は作らず、既存の <code>char/enemy_*</code> を使い回してよい<strong>（別タスクでイラストを差し替える）。挙動で差を付けること＝移動パターン（<code>Spawner.cs</code> の FlankAim など既存の型を参照）・耐久・弾の撃ち方を変え、既存2種と</strong>手触りが被らない**ものにする。<code>EnemySpec</code> の作り方は同ファイル内の既存定義に倣う</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">追加する敵イラストの仕様を詰める</span>
-          <span class="worker">artist</span>
-        </div>
-        <p class="accept">上の「敵の種類を増やす」で追加した敵に対し、<strong>どんな絵が要るかの発注書を書く</strong>（<code>docs/</code> に md で出力）。1体につき: 何のモチーフか・pre（穢れ）/post（浄化）の差・シルエットで既存敵と区別が付くか・色。<strong>画像生成そのものはこの環境では実行できない</strong>（<code>gen-asset</code> は OpenAI APIキー <code>.openai_key.txt</code> を要求し、クラウド実行環境には存在しない）。<strong>生成はユーザーのローカル環境で行うので、ここでは仕様書の作成までで完了とすること</strong></p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>AreaSpellCaster._aoeWithSafe</code> が書き込み専用の死にフィールド</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-15) <code>AreaSpellCaster.cs:44</code>のフィールド宣言と<code>:91</code>,<code>:107</code>の代入2箇所を削除。「安置は常に在る（安置なしの全面型は廃止）」の要点は近傍コメントへ統合し情報欠落なし。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「炎上」デバフが本編プレイ中まったく可視化されない</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-15) <code>Hud.cs</code>にDrawBurningを新規追加し<code>DrawAll</code>（<code>Hud.cs:723-726</code>付近）へ組み込み。<code>_game?.BurningThisRun ?? false</code>のとき左カラム最下段（<code>DrawGoal</code>直下、x=22,y=214）に「炎上中」チップを常設表示。既存の<code>DrawShotMode</code>/<code>DrawKindness</code>と同じBox+丸ドット+Textの様式、色は<code>UiKit.Burn</code>(f2353d)を流用、枠線をわずかに明滅させて周辺視で気づけるようにした。数値・ロジック（<code>GameManager.cs:683-685,677</code>の倍率）は無変更。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>_stepTime</code>がRei/Akari/Koharu/Mina全4ステージで書き込み専用</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>StageRei/Akari/Koharu/Mina.cs</code>から未使用<code>_stepTime</code>フィールドと加算・リセット代入（計13箇所）を削除。<code>StageW0.cs</code>の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Panel.cs</code>の<code>_bulletSpeed</code>/<code>_fireTimer</code>が書き込み専用でコメントの網羅範囲とズレている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Panel.cs</code>から未使用<code>_bulletSpeed</code>/<code>_fireTimer</code>フィールドと<code>Setup</code>の<code>bulletSpeed</code>引数・関連代入を削除、<code>Enemy.cs:366</code>の呼び出しを整合。副作用で書き込み専用になった<code>_fireInterval</code>は<code>_fires</code>同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Enemy.SetSpriteFlip</code> が定義されたきり一度も呼ばれない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Enemy.cs:641-646</code>の未使用メソッド一式を削除。実反転制御（<code>ApplyBossMotion</code>内<code>_bodySprite.FlipH = faceLeft;</code>）は不変。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>_waveSpawnDone</code> が「残ザコ全滅待ち」を実装していない嘘コメント</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>StageAkari.cs</code>/<code>StageKoharu.cs</code>から未使用フィールド<code>_waveSpawnDone</code>と代入7箇所を削除。<code>StageRei.cs</code>の同名フィールドは実際に読み取って2段階待機を実装しているため対象外・不変を確認。周辺の強制片付けコメントは既に実態と一致していたため追加修正不要と判断。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">少年のミナへの二人称が正典「きみ」と実装「お前」で逆転している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) <code>Hub.cs</code>小話12箇所（当初想定の10箇所に加え<code>:1194,1196</code>を追加発見）／<code>StageRei.cs:77</code>／<code>StageAkari.cs:108</code>／<code>StageKoharu.cs:95</code>／<code>StageMina.cs:50</code>を「お前」→「きみ」へ1行ずつ文脈確認の上で置換。<code>BossMina.cs:65</code>（意図的な感情の高ぶり演出）は既存方針通り不変。読み直した結果「お前のままの方が良い」と判断した行はなし＝機械置換ではなく全行レビュー済み。<code>dotnet build</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">出現する敵の種類を増やす</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 済 2026-08-14確認) EnemySpec.cs:79-108のテーマ別2種とは別に、共通レイヤーで<strong>FlankAim「引用リプ」</strong>（<code>Spawner.cs:25-27,112-115</code>/<code>EnemyTable.Flanker</code> <code>EnemySpec.cs:112-123</code>/<code>MidEnemy.cs:476-488</code>、shooterスキン流用、背後から回り込む逆走行動線）、<strong>BuzzWall「バズ壁」</strong>（<code>Spawner.cs:36-41,117-119</code>/<code>EnemyTable.BuzzWall</code> <code>EnemySpec.cs:125-143</code>/<code>MidEnemy.cs:97-103</code>、drifterスキン流用、耐久2.5倍・撃たない盾役・報酬220）、<strong>KoharuPrayerCarry「祈り運び」</strong>（こはる面限定、<code>Spawner.cs:41-43,124-126</code>/<code>EnemyTable.PrayerCarrier</code> <code>EnemySpec.cs:145-155</code>/<code>MidEnemy.cs:185-191,406-474</code>）が全テーマ（Rei/Akari/Koharu、<code>Spawner.cs:100-155</code>の<code>Theme != Default</code>分岐）で既に稼働済みと確認。2026-08-13「新奥義バランス査定」でBuzzWallの報酬調整（150→220）記録もあり、このタスクより前から実装済みだった。コード変更なし・ビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">敵弾をキャラごとの形・サイズに描き分ける</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-14) モチーフ割り当て（<code>BossRei.cs:69-75</code>レイ=Orb/Diamond/Star/Ring、<code>BossAkari.cs:44-50</code>あかり=Needle/Diamond/Orb/Needle、<code>BossKoharu.cs:94-100</code>こはる=Orb/Diamond/Needle/Rice、<code>BossMina.cs:40-46</code>ミナ=Diamond/Star/Rice/Ring/Orbで他3人の弾形を濁して融合）は既存で妥当。<strong>サイズ差は事実上ゼロ</strong>（全ボス共通で半径3.0〜3.6fの狭いレンジ）だった実装ギャップを確認し、攻撃役割ごとに4段階（密集バラマキ=小/連続糸=極小/狙い撃ち=大/設置・撃ち返し=中）へ調整（<code>BossRei.cs:253-283</code>/<code>BossAkari.cs:220-265</code>/<code>BossKoharu.cs:238-262,298,432-451</code>/<code>BossMina.cs:166-206</code>）。当たり芯ドット（<code>Bullet.cs:597</code>）は全形状共通描画のため視認性は維持。<code>dotnet build algo_shoot.sln</code> で0 Warning/0 Error確認。半径変更は<code>CollisionShape2D.Radius</code>に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -495,6 +543,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">追加する敵イラストの仕様を詰める</span>
+          <span class="worker">artist</span>
+        </div>
+        <p class="accept">前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に<strong>別タスク由来で実装済み</strong>と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、<code>Spawner.cs:25-43,100-155</code>/<code>EnemySpec.cs:112-155</code>/<code>MidEnemy.cs</code>各所）。ただしいずれも**既存の <code>char/enemy_*</code> スキンをそのまま流用<strong>する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を</strong>視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">未発注イラスト</span>
           <span class="worker">artist</span>
         </div>
@@ -511,10 +567,10 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
-          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない</span>
+          <span class="task-title">パネル持ち敵にダメージ強化が一切効いていない／ボス無防備窓のダメージ上限も実質固定</span>
           
         </div>
-        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。結果、<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もなく、実効範囲は「ボス無防備窓」（<code>Enemy.cs:468</code> で <code>Mathf.Clamp(b.Damage,1,4)</code> に頭打ち）だけに限定されている。ショップの武器強化ツリーの大部分が体感と乖離した無駄買いになっている可能性大。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓のダメージクランプ(1〜4)を緩めて強化の実感先をボス戦に一本化する方針を明文化、のいずれかを選んでから着手すること</p>
+        <p class="accept">（2026-08-13「新奥義バランス査定」の副産物、2026-08-14監査で追加検証）<code>Panel.cs:103</code> のインク削り（<code>Ink--</code>）が <code>Bullet.Damage</code> を一切参照しない。<code>shot_power</code>/<code>rapid_power</code>/<code>spread_power</code>/<code>homing_power</code>/<code>focus_fire</code> 系の威力強化は雑魚・バズ壁・ボスSHIELDEDフェーズのパネルには何の効果もない。<strong>当初は「実効範囲はボス無防備窓に限定される」としていたが、2026-08-14監査でその窓自体も既に頭打ちと判明</strong>：<code>Enemy.cs:468</code> <code>Mathf.Clamp(b.Damage, 1, 4)</code> により1ヒットあたり最大4で固定、密着クリティカル<code>Enemy.cs:480</code>（<code>PointBlankCap</code>＝<code>Enemy.cs:58</code>で6）も<code>min(6, 4*1.6)=6</code>に潰れる。<code>shot_power_4</code>（729G）は<code>shot_power_3</code>到達時点で既に上限到達済みのため戦闘的な意味ゼロ、<code>rapid_power_1/2</code>（550G）・<code>focus_1/2</code>（2080G）も上限に飲まれる＝<strong>推定3,359〜4,600G分の投資がボス戦でも無価値化</strong>（ショップ全体約31,000Gの9〜11%）。<code>Player.cs:249-256</code>のコメントで開発側も既にこの限界を認識・言語化している。要ユーザー判断：(a)パネルもダメージ量に応じてインクを削るよう<code>Panel.cs</code>を修正（雑魚の耐久が実質下がる＝難易度再調整が要る）、(b)露出窓の1ヒット上限クランプ（<code>Enemy.cs:468</code>の<code>4</code>、密着<code>Enemy.cs:58</code>の<code>PointBlankCap=6</code>）を撤廃/緩和し安全弁を窓合計<code>ExposedDamageCap=100</code>（<code>Enemy.cs:66</code>、既存）に一本化する（ボス撃破が投資通り速くなる＝周回時間・難易度カーブに影響するため要確認）、のいずれか（または両方）を選んでから着手すること</p>
       </li>
       <li class="task is-blocked">
         <div class="task-head">
@@ -609,18 +665,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">35355f6</span><span>2026-08-14</span><span class="s">Show the nightly run's status on the dashboard while it works</span></li>
-      <li><span class="h">8318ee0</span><span>2026-08-14</span><span class="s">Let the nightly run refill its own queue when it empties</span></li>
-      <li><span class="h">0eb51e5</span><span>2026-08-14</span><span class="s">Refresh the progress snapshot after merging the nightly run</span></li>
-      <li><span class="h">e389402</span><span>2026-08-14</span><span class="s">Merge pull request #3 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">9076fd2</span><span>2026-08-13</span><span class="s">auto: BLOCKED 未発注イラスト（OpenAI APIキーがこの実行環境に無い）</span></li>
-      <li><span class="h">67ced8f</span><span>2026-08-13</span><span class="s">auto: BLOCKED #15 ボスラッシュ制約（モード本体が未実装、要ユーザー判断）</span></li>
-      <li><span class="h">8e65cd3</span><span>2026-08-13</span><span class="s">auto: タスク管理.mdの状態を実コードに合わせて更新（#27/#11）</span></li>
-      <li><span class="h">4b10b3d</span><span>2026-08-13</span><span class="s">auto: M5 設計書との乖離最終チェック（新レポート作成、要対応分なし）</span></li>
+      <li><span class="h">e95e078</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除</span></li>
+      <li><span class="h">c901975</span><span>2026-08-15</span><span class="s">auto: 炎上デバフの可視化</span></li>
+      <li><span class="h">d9ddc49</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - 炎上デバフの可視化</span></li>
+      <li><span class="h">1f82c26</span><span>2026-08-15</span><span class="s">auto: 監査で2件をキューに追加</span></li>
+      <li><span class="h">e35a4f7</span><span>2026-08-14</span><span class="s">auto: _stepTimeの死にフィールドを4ステージから削除</span></li>
+      <li><span class="h">2849f55</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - _stepTime死にフィールド削除</span></li>
+      <li><span class="h">dd5521e</span><span>2026-08-14</span><span class="s">auto: Panel.csの死にフィールドを整理</span></li>
+      <li><span class="h">aa2eb67</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - Panel.csの死にフィールド/嘘コメント修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-14 01:03 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-15 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

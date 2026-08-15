@@ -13,7 +13,6 @@ public partial class StageMina : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private double _lineHold;
     private int _introLine;
@@ -47,7 +46,7 @@ public partial class StageMina : Node
         (4, "「のこしちゃ、だめ……なのに。もう、だれも、たべに、こない」", ""), // こはる：空席の食卓が確定してしまう
         (1, "……レイ、の。あかり、の。こはる、の……ぜんぶ、わたくし、の……", "res://char/mina_worried.png"), // Final の同型行の“予感”。ここでは言い切れず途切れる（回収は静かな受容として反転）
         (0, "……ミナ。", SGentle), // 説明の前に、まず名前だけ。少年の決意はここから能動的に始まる
-        (0, "……ぼくは、ずっと見てるだけだった。光を、お前に握らせて。", SGentle),
+        (0, "……ぼくは、ずっと見てるだけだった。光を、きみに握らせて。", SGentle),
         (0, "今度は、ぼくが行く番だ。待ってろ、ミナ。", SProud),
         (0, "きみは、ひとりじゃ、ない。ぼくが——……ぼくが、ここに、いる。", SGentle), // 針飛び＝反復・途切れ（replay兆候）。Stay の意味の反復でもある
     };
@@ -66,7 +65,6 @@ public partial class StageMina : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -102,7 +100,7 @@ public partial class StageMina : Node
         if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 56f);
     }
 
-    private void Advance() { _step++; _stepStarted = false; _stepTime = 0; }
+    private void Advance() { _step++; _stepStarted = false; }
 
     private void Step_Lines(double delta, (int who, string text, string face)[] lines)
     {

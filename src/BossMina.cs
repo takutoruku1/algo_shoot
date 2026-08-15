@@ -163,13 +163,16 @@ public partial class BossMina : Enemy
         if (_fireT2 >= Di(0.08)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); Spiral(pool); }
     }
 
+    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
+    //   自機狙いの精密弾(Aimed)=大／花弁(Flower)=遅い外周を大きく・速い内周を極小で「開花」を強調。
+    //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
         _ringOff += Mathf.DegToRad(8f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
         }
     }
 
@@ -180,7 +183,7 @@ public partial class BossMina : Enemy
         for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(11f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
@@ -190,8 +193,8 @@ public partial class BossMina : Enemy
         for (int i = 0; i < petals; i++)
         {
             float a = _ringOff + Mathf.Tau * i / petals;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 3.6f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 100f, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 4.0f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 100f, 2.6f);
         }
     }
 
@@ -201,7 +204,7 @@ public partial class BossMina : Enemy
         for (int s = 0; s < 3; s++)
         {
             float a = _ringOff + Mathf.Tau * s / 3f;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
 

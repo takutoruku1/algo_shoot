@@ -15,7 +15,6 @@ public partial class StageAkari : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private float _clearTime;       // クリア確定時の経過秒。
     private double _lineHold;   // 行表示からの経過（誤連打防止の最小表示時間用）
@@ -38,7 +37,6 @@ public partial class StageAkari : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
     // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     // M3：Intro直後にいきなり中ボスの唐突さを解消するため、カメオ前に“肩慣らし”0波を挿入。総数45は維持（6+12+13+14）。
     private const int MidWave0 = 6;   // 肩慣らし（Intro直後・StartIntensity 0）。6体目の浄化でカメオが割り込む。
@@ -105,7 +103,7 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] Chat5 = // [軽口]
     {
         (1, "ご主人様、髪。跳ねていませんか、今日。", ""),
-        (0, "見えてないだろ、お前からは。", SCocky),
+        (0, "見えてないだろ、きみからは。", SCocky),
         (1, "声で分かります。跳ねている人の声です。", "res://char/mina_smile.png"),
     };
 
@@ -229,7 +227,6 @@ public partial class StageAkari : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
@@ -272,7 +269,6 @@ public partial class StageAkari : Node
     {
         _step++;
         _stepStarted = false;
-        _stepTime = 0;
     }
 
     // ---- 会話ステップ（配列を順に流す。Zで手動送り。会話中は弾が止まる） ----
@@ -331,7 +327,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で残ザコ・残弾を片付け、間を置かずカメオへ＝“6体目の瞬間に割り込む”。
@@ -352,7 +347,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
@@ -374,7 +368,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.35f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋ミッドシナリオへ（全滅ハント不要＝進行不能を防ぐ）。
@@ -395,7 +388,6 @@ public partial class StageAkari : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.7f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。

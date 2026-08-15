@@ -250,13 +250,16 @@ public partial class BossRei : Enemy
         if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
     }
 
+    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring/扇)=小(隙間を編む読み)／
+    //   連続糸(Spiral)=極小／自機狙いの精密弾(Aimed)=大（数が少ないぶん一発の重さで語る）。
+    //   当たり芯ドットは Bullet._Draw が全形状共通で描くので、大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
         _ringOff += Mathf.DegToRad(9f);
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
         }
     }
 
@@ -268,7 +271,7 @@ public partial class BossRei : Enemy
         for (int i = -wing; i <= wing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(13f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
@@ -278,7 +281,7 @@ public partial class BossRei : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
 

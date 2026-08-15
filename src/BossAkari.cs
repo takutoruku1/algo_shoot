@@ -217,6 +217,8 @@ public partial class BossAkari : Enemy
         if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); Spiral(pool); }
     }
 
+    // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(FanDown/Ring)=小／連続糸(Spiral)=極小／
+    //   自機狙いの精密弾(AimedSpread)=大。当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void FanDown(BulletPool pool)
     {
         int k = Dn(_fanCount);
@@ -224,7 +226,7 @@ public partial class BossAkari : Enemy
         {
             float t = (float)i / (k - 1) - 0.5f;
             float a = Mathf.Pi / 2f + t * Mathf.DegToRad(80f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.0f);
         }
     }
 
@@ -235,7 +237,7 @@ public partial class BossAkari : Enemy
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _ringSpeed, 3.4f);
+            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _ringSpeed, 3.0f);
         }
     }
 
@@ -248,7 +250,7 @@ public partial class BossAkari : Enemy
         for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(14f);
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 3.4f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
             b.SoftenOnGraze = true; // AimedSpread は「ずっと一緒」(pattern2)専用＝スペル限定が自然に成立
         }
     }
@@ -259,7 +261,7 @@ public partial class BossAkari : Enemy
         for (int s = 0; s < 2; s++)
         {
             float a = _ringOff + Mathf.Pi * s;
-            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 3.2f);
+            var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
             if (_pattern == 3 && !_finale) b.SoftenOnGraze = true; // 「離さない」中のみ（フィナーレ流用時は付けない）
         }
     }

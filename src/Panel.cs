@@ -12,9 +12,8 @@ public partial class Panel : Area2D
     public bool Invulnerable;
 
     private Enemy _owner = null!;
-    private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _bulletSpeed, _fireInterval;
+    private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _fireInterval;
     private bool _fires;
-    private double _fireTimer;
     private bool _dead;
     private CollisionShape2D _shape = null!;
     private string _texPath = "";
@@ -24,7 +23,7 @@ public partial class Panel : Area2D
     private const float DisplayH = 14f;
 
     public void Setup(Enemy owner, float baseAngle, float orbitRadius, float spinSpeed,
-                      bool fires, float fireInterval, int ink, float bulletSpeed, string texPath = "", float displayScale = 1f)
+                      bool fires, float fireInterval, int ink, string texPath = "", float displayScale = 1f)
     {
         _displayScale = displayScale;
         _owner = owner;
@@ -32,11 +31,10 @@ public partial class Panel : Area2D
         _orbitRadius = orbitRadius;
         _spinSpeed = spinSpeed;
         // 発射は本体(Enemy/MidEnemy)へ一括移管したため、パネル自前の発射は常に無効。
-        // パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する（引数 fires は後方互換のため残置）。
+        // パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する（引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用）。
         _fires = false;
         _fireInterval = fireInterval;
         Ink = ink;
-        _bulletSpeed = bulletSpeed;
         _texPath = texPath;
     }
 
@@ -69,7 +67,6 @@ public partial class Panel : Area2D
             }
         }
 
-        _fireTimer = GD.Randf() * _fireInterval; // 発射タイミングをばらす
         UpdateOrbit(0);
     }
 

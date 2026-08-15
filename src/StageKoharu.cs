@@ -16,7 +16,6 @@ public partial class StageKoharu : Node
 
     private int _step;
     private bool _stepStarted;
-    private double _stepTime;
     private double _stageElapsed;   // ステージ全体の経過秒（クリア確定まで・ポーズ中は止まる）。
     private float _clearTime;       // クリア確定時の経過秒。
     private double _lineHold;
@@ -39,7 +38,6 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    private bool _waveSpawnDone;       // 道中ステップ内：規定数浄化でスポーン停止済み（残ザコ全滅待ち）。各ステップ開始でリセット。
     // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
     private const int MidWaveB = 14;  // チラ見せ後。やや詰めて始める。旧18（-4）
@@ -92,7 +90,7 @@ public partial class StageKoharu : Node
     {
         (0, "ミナ、いま何時だ。", SCocky),
         (1, "ご主人様が三度目に同じことをお尋ねになった時刻です。", ""),
-        (0, "時計として終わってるぞ、お前。", SCocky),
+        (0, "時計として終わってるぞ、きみ。", SCocky),
     };
 
     private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]
@@ -229,7 +227,6 @@ public partial class StageKoharu : Node
 
     public override void _Process(double delta)
     {
-        _stepTime += delta;
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -269,7 +266,6 @@ public partial class StageKoharu : Node
     {
         _step++;
         _stepStarted = false;
-        _stepTime = 0;
     }
 
     private void Step_Lines(double delta, (int who, string text, string face)[] lines)
@@ -326,7 +322,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner();
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋倒し残しの居座りザコを片付けて進む。
@@ -348,7 +343,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.35f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
@@ -369,7 +363,6 @@ public partial class StageKoharu : Node
         {
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
-            _waveSpawnDone = false;
             StartMidwaveSpawner(0.7f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
@@ -487,7 +480,6 @@ public partial class StageKoharu : Node
                 _midStoryShown = true;
                 _step = 15;            // → case 15: Step_Lines(MidStory) → Advance()で16 → 11へ復帰
                 _stepStarted = false;
-                _stepTime = 0;
                 SetQuietVeil(true);    // S3: 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
             }
         }

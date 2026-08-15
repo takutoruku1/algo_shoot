@@ -363,7 +363,7 @@ public partial class Enemy : Area2D
     private void SpawnOnePanel(float baseAngle)
     {
         var p = new Panel();
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, EnemyBulletSpeed, PanelTexPath, PanelDisplayScale);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }
@@ -636,13 +636,6 @@ public partial class Enemy : Area2D
     {
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?
             .ShowBossLine(speaker, text, UiKit.Kegare, RecloseLineDur);
-    }
-
-    // 進行方向に体を向ける（素材は右向き。flipH=true で左向き）。
-    protected void SetSpriteFlip(bool flipH)
-    {
-        if (_hasBodyTex && _bodySprite != null)
-            _bodySprite.FlipH = flipH;
     }
 
     // ボス徘徊の“見た目だけ”の演出を立ち絵(_bodySprite)へ適用する（BossMover 経由）。

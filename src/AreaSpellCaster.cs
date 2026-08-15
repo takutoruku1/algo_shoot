@@ -41,7 +41,7 @@ public partial class AreaSpellCaster : Node2D
     //   AoeActive は宣告〜予兆着弾まで true＝ボス側が通常弾(FirePattern)をこの間だけ止める(gate)のに使う。
     private bool _aoePending;            // 宣告済み・予兆出現待ち
     private double _aoeFireT;            // 予兆出現までの残り
-    private bool _aoeWithSafe;           // 安置あり（現在は常に true＝安置なしの全面型は廃止）
+    // 安置は常に在る（安置なしの全面型は廃止＝§7「必ず予告＋回避手段」）。
     private bool _aoeTight;              // 「絶域」＝安置が狭い版（そのぶん予兆を TightWarnBoost 倍に伸ばす）
     private const float TightWarnBoost = 1.45f; // 狭い安置ぶんの猶予（1.6s→2.32s @Normal）
     private const float AoeWarn = 1.6f;  // 全画面AOEの予兆尺（WarnMul で難易度補正）
@@ -88,7 +88,6 @@ public partial class AreaSpellCaster : Node2D
     public void CastFullscreen(bool wide)
     {
         if (AoeActive) return; // 多重予約しない（HP閾値の同フレーム多重発火対策）
-        _aoeWithSafe = true;   // 全面型（安置なし）は廃止＝常に安置を持つ
         _aoeTight = !wide;
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
@@ -104,7 +103,6 @@ public partial class AreaSpellCaster : Node2D
         _chainTotal = _chainRemain = Mathf.Max(1, hops);
         _chainHopMin = hopMin; _chainHopMax = hopMax;
         _chainPrevDir = Vector2.Zero;
-        _aoeWithSafe = true;
         _aoeTight = false; // リレーは r=30 固定（直前の「絶域」設定を引きずらない）
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
