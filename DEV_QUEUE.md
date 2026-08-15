@@ -33,8 +33,6 @@
 
 ## WIP
 
-- [ ] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | `GameManager.cs:683-685` の `FireIntervalMul`(発射間隔×1.3)/`MoveSpeedMul`(移動速度×0.9)/`TotalImpressionMul`(獲得インプレ×0.6) が `BurningThisRun` 中ずっと適用されるが、`Hud.cs` に "Burning" のヒットが0件＝プレイ中に常時弱体化していることを示す常設インジケータが一切無い。やさしさ全開(`Hud.cs:1134-1157`)やショットモード(`Hud.cs:723,1106`)と同様に、`Hud.cs` の常設描画（`DrawGoal`付近 `Hud.cs:1161-1181`周辺）へ `_game?.BurningThisRun ?? false` のとき「炎上中」ラベルを追加する。色は既存の `UiKit.Burn`（`UiKit.cs:30`、f2353d）を流用し新規アセット不要
-
 （なし）
 
 ## BLOCKED
@@ -59,6 +57,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | (完了 2026-08-15) `Hud.cs`にDrawBurningを新規追加し`DrawAll`（`Hud.cs:723-726`付近）へ組み込み。`_game?.BurningThisRun ?? false`のとき左カラム最下段（`DrawGoal`直下、x=22,y=214）に「炎上中」チップを常設表示。既存の`DrawShotMode`/`DrawKindness`と同じBox+丸ドット+Textの様式、色は`UiKit.Burn`(f2353d)を流用、枠線をわずかに明滅させて周辺視で気づけるようにした。数値・ロジック（`GameManager.cs:683-685,677`の倍率）は無変更。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | (完了 2026-08-14) `StageRei/Akari/Koharu/Mina.cs`から未使用`_stepTime`フィールドと加算・リセット代入（計13箇所）を削除。`StageW0.cs`の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | (完了 2026-08-14) `Panel.cs`から未使用`_bulletSpeed`/`_fireTimer`フィールドと`Setup`の`bulletSpeed`引数・関連代入を削除、`Enemy.cs:366`の呼び出しを整合。副作用で書き込み専用になった`_fireInterval`は`_fires`同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Enemy.SetSpriteFlip` が定義されたきり一度も呼ばれない死にコード | engineer | (完了 2026-08-14) `Enemy.cs:641-646`の未使用メソッド一式を削除。実反転制御（`ApplyBossMotion`内`_bodySprite.FlipH = faceLeft;`）は不変。`dotnet build`で0 Warning/0 Error確認

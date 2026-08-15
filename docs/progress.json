@@ -1,13 +1,20 @@
 {
-  "generated": "2026-08-14 19:03 UTC",
+  "generated": "2026-08-15 18:35 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 46
+    "done": 47
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 98,
+  "todo": [
+    {
+      "priority": "P3",
+      "title": "`AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド",
+      "worker": "engineer",
+      "accept": "`AreaSpellCaster.cs:44` で宣言、`:91`と`:107`で `true` を代入するのみで読み取り箇所が無い（全面型安置なしは廃止済みの名残）。フィールド宣言(`:44`)と代入2箇所(`:91`,`:107`)を削除し、「常に安置あり」の要点は近傍の既存コメントに残す。ビルドで新規警告が出ないことを確認する"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -102,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "「炎上」デバフが本編プレイ中まったく可視化されない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-15) `Hud.cs`にDrawBurningを新規追加し`DrawAll`（`Hud.cs:723-726`付近）へ組み込み。`_game?.BurningThisRun ?? false`のとき左カラム最下段（`DrawGoal`直下、x=22,y=214）に「炎上中」チップを常設表示。既存の`DrawShotMode`/`DrawKindness`と同じBox+丸ドット+Textの様式、色は`UiKit.Burn`(f2353d)を流用、枠線をわずかに明滅させて周辺視で気づけるようにした。数値・ロジック（`GameManager.cs:683-685,677`の倍率）は無変更。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "`_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用",
@@ -381,6 +394,21 @@
   ],
   "commits": [
     {
+      "hash": "d9ddc49",
+      "date": "2026-08-15",
+      "subject": "auto: WIPへ移動 - 炎上デバフの可視化"
+    },
+    {
+      "hash": "1f82c26",
+      "date": "2026-08-15",
+      "subject": "auto: 監査で2件をキューに追加"
+    },
+    {
+      "hash": "e35a4f7",
+      "date": "2026-08-14",
+      "subject": "auto: _stepTimeの死にフィールドを4ステージから削除"
+    },
+    {
       "hash": "2849f55",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - _stepTime死にフィールド削除"
@@ -404,21 +432,6 @@
       "hash": "f206f89",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - Enemy.SetSpriteFlip死にコード削除"
-    },
-    {
-      "hash": "2b0edc7",
-      "date": "2026-08-14",
-      "subject": "auto: _waveSpawnDoneの嘘コメント/死にフィールドを解消"
-    },
-    {
-      "hash": "5538739",
-      "date": "2026-08-14",
-      "subject": "auto: WIPへ移動 - _waveSpawnDoneの嘘コメント修正"
-    },
-    {
-      "hash": "708ecd2",
-      "date": "2026-08-14",
-      "subject": "auto: 少年のミナへの二人称を正典どおり「きみ」へ統一"
     }
   ]
 }
