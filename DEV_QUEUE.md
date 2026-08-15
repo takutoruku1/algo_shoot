@@ -31,7 +31,7 @@
 <!-- ▼ 2026-08-15 監査モードで補充（2件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
 ## WIP
 
-- [ ] (P3) `AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド | engineer | `AreaSpellCaster.cs:44` で宣言、`:91`と`:107`で `true` を代入するのみで読み取り箇所が無い（全面型安置なしは廃止済みの名残）。フィールド宣言(`:44`)と代入2箇所(`:91`,`:107`)を削除し、「常に安置あり」の要点は近傍の既存コメントに残す。ビルドで新規警告が出ないことを確認する
+（なし）
 
 ## BLOCKED
 
@@ -55,6 +55,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) `AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド | engineer | (完了 2026-08-15) `AreaSpellCaster.cs:44`のフィールド宣言と`:91`,`:107`の代入2箇所を削除。「安置は常に在る（安置なしの全面型は廃止）」の要点は近傍コメントへ統合し情報欠落なし。`dotnet build`で0 Warning/0 Error確認
 - [x] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | (完了 2026-08-15) `Hud.cs`にDrawBurningを新規追加し`DrawAll`（`Hud.cs:723-726`付近）へ組み込み。`_game?.BurningThisRun ?? false`のとき左カラム最下段（`DrawGoal`直下、x=22,y=214）に「炎上中」チップを常設表示。既存の`DrawShotMode`/`DrawKindness`と同じBox+丸ドット+Textの様式、色は`UiKit.Burn`(f2353d)を流用、枠線をわずかに明滅させて周辺視で気づけるようにした。数値・ロジック（`GameManager.cs:683-685,677`の倍率）は無変更。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | (完了 2026-08-14) `StageRei/Akari/Koharu/Mina.cs`から未使用`_stepTime`フィールドと加算・リセット代入（計13箇所）を削除。`StageW0.cs`の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `Panel.cs`の`_bulletSpeed`/`_fireTimer`が書き込み専用でコメントの網羅範囲とズレている | engineer | (完了 2026-08-14) `Panel.cs`から未使用`_bulletSpeed`/`_fireTimer`フィールドと`Setup`の`bulletSpeed`引数・関連代入を削除、`Enemy.cs:366`の呼び出しを整合。副作用で書き込み専用になった`_fireInterval`は`_fires`同様「後方互換で残置・未使用」とコメント明記に留め、挙動は不変。`dotnet build`で0 Warning/0 Error確認

@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-15 18:35 UTC",
+  "generated": "2026-08-15 18:37 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 47
+    "done": 48
   },
-  "percent": 98,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "`AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド",
-      "worker": "engineer",
-      "accept": "`AreaSpellCaster.cs:44` で宣言、`:91`と`:107`で `true` を代入するのみで読み取り箇所が無い（全面型安置なしは廃止済みの名残）。フィールド宣言(`:44`)と代入2箇所(`:91`,`:107`)を削除し、「常に安置あり」の要点は近傍の既存コメントに残す。ビルドで新規警告が出ないことを確認する"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-15) `AreaSpellCaster.cs:44`のフィールド宣言と`:91`,`:107`の代入2箇所を削除。「安置は常に在る（安置なしの全面型は廃止）」の要点は近傍コメントへ統合し情報欠落なし。`dotnet build`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P2",
       "title": "「炎上」デバフが本編プレイ中まったく可視化されない",
@@ -394,6 +393,16 @@
   ],
   "commits": [
     {
+      "hash": "e95e078",
+      "date": "2026-08-15",
+      "subject": "auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除"
+    },
+    {
+      "hash": "c901975",
+      "date": "2026-08-15",
+      "subject": "auto: 炎上デバフの可視化"
+    },
+    {
       "hash": "d9ddc49",
       "date": "2026-08-15",
       "subject": "auto: WIPへ移動 - 炎上デバフの可視化"
@@ -422,16 +431,6 @@
       "hash": "aa2eb67",
       "date": "2026-08-14",
       "subject": "auto: WIPへ移動 - Panel.csの死にフィールド/嘘コメント修正"
-    },
-    {
-      "hash": "3b2e6a7",
-      "date": "2026-08-14",
-      "subject": "auto: Enemy.SetSpriteFlipの死にコードを削除"
-    },
-    {
-      "hash": "f206f89",
-      "date": "2026-08-14",
-      "subject": "auto: WIPへ移動 - Enemy.SetSpriteFlip死にコード削除"
     }
   ]
 }
