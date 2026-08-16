@@ -176,7 +176,7 @@ public partial class Epilogue : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        // R / Start 長押し(0.7s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
+        // R / Start 長押し(0.45s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
         // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ここはポーズ対象外なので Start 可）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {

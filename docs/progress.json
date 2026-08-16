@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-16 18:42 UTC",
+  "generated": "2026-08-16 18:44 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 15,
-    "done": 51
+    "done": 52
   },
-  "percent": 91,
+  "percent": 93,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）",
-      "worker": "engineer",
-      "accept": "`RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）だが呼び出し元コメントが「R長押し(0.7s)」のまま：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。全箇所を「(0.45s)」に統一するだけの機械的修正"
-    },
     {
       "priority": "P3",
       "title": "ステージクリア報酬の増分フィールドが配線されず死んでいる",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-16) `RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）に対し呼び出し元コメントが「R長押し(0.7s)」のまま残っていた9箇所を「(0.45s)」へ統一：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。`GameManager.cs:699`にも「0.7s」がヒットしたが文脈確認の結果`VeilLightDuration`（祈りの帳の光輪持続、`:701`で実装値0.7f）を指す無関係の記述だったため対象外・不変。コメント文字列の置換のみでロジック・実装値には無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P2",
       "title": "被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている",
@@ -442,6 +442,16 @@
   ],
   "commits": [
     {
+      "hash": "35ca2f8",
+      "date": "2026-08-16",
+      "subject": "auto: WIPへ移動 - R長押しリトライのコメント乖離"
+    },
+    {
+      "hash": "a96b6db",
+      "date": "2026-08-16",
+      "subject": "auto: 被弾時のフォロワー全滅ペナルティを緩和"
+    },
+    {
       "hash": "3dc84c3",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅"
@@ -470,16 +480,6 @@
       "hash": "753fa23",
       "date": "2026-08-16",
       "subject": "auto: 監査で8件をキューに追加"
-    },
-    {
-      "hash": "87fb613",
-      "date": "2026-08-15",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "0fa5292",
-      "date": "2026-08-16",
-      "subject": "Merge pull request #4 from takutoruku1/auto/dev"
     }
   ]
 }

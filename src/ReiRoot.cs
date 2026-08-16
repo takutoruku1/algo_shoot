@@ -74,7 +74,7 @@ public partial class ReiRoot : Node2D
         // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
         if (Pad.UiBlocked(this)) { _exitHeld = true; return; }
 
-        // R 長押し(0.7s)でリトライ（即発は誤爆しやすい週次PT指摘→長押し化。ゲームオーバー中は即発）。
+        // R 長押し(0.45s)でリトライ（即発は誤爆しやすい週次PT指摘→長押し化。ゲームオーバー中は即発）。
         // パッドの Start はポーズメニューと衝突するため廃止＝メニュー内「さいしょからやりなおす」を使う。
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))

@@ -130,7 +130,7 @@ public partial class Final : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        // R / Start 長押し(0.7s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
+        // R / Start 長押し(0.45s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
         // カットシーンはポーズメニュー対象外なので Start をここで使える。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {

@@ -83,7 +83,7 @@ public partial class Main : Node2D
         // ポーズメニュー等を閉じた押下の漏れがこのフレームに誤発火しないよう食う。
         if (Pad.UiBlocked(this)) return;
 
-        // R 長押し(0.7s)で最初からリスタート（即発は誤爆しやすい週次PT指摘→長押し化。残機0中は即発）。
+        // R 長押し(0.45s)で最初からリスタート（即発は誤爆しやすい週次PT指摘→長押し化。残機0中は即発）。
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
