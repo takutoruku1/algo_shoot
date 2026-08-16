@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-16 18:46 UTC",
+  "generated": "2026-08-16 18:51 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 53
+    "done": 54
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "フォロワー加入までの進捗が画面上どこにも見えない",
-      "worker": null,
-      "accept": "次の1体まであと何人救えばよいか(`_savedCount % SavedPerFollower`、`Player.cs:45`)がprivateで外部公開されておらず、HUD唯一のフォロワー表示(`Hud.cs:835`)は現在の所持数のみ。しかもコンボが2以上になると同じ枠がコンボ表示に置き換わり消える(`Hud.cs:833-835 showCombo = combo >= 2`)。`Player`に`SavedProgress`(0..2の残り必要数)を公開し、フォロワーチップの横に進捗ドット(●●○)を常時表示、コンボ表示と排他にしない"
-    },
     {
       "priority": "P3",
       "title": "Player.cs冒頭コメントの数値が実装と食い違っている",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "フォロワー加入までの進捗が画面上どこにも見えない",
+      "worker": null,
+      "accept": "(完了 2026-08-16) `Player`に3つの公開プロパティを追加：`Player.cs:80-88` `FollowerCount`(現在の所持数)・`FollowersFull`(`MaxFollowers`到達済みか)・`SavedProgress`(`_savedCount % SavedPerFollower`、満員時は0)。`SavedPerFollower`/`MaxFollowers`もHUDから参照できるよう`private`→`public const`に変更(`Player.cs:43-44`)。状態変化時（`AddFollower`成功/失敗どちらも`Player.cs:99-104`、被弾でのフォロワー離脱`Player.cs:1264`、ヒカゲ加入`Player.cs:88`）に`SetLives`と同じpushパターンで`Hud.SetFollowerProgress(progress, total, full)`を通知(`Player.cs:96-97`)。HUD側は`Hud.cs:17-21`に`_followerProgress`/`_followerProgressTotal`/`_followerFull`フィールドを追加、`Hud.cs:707-714`に`SetFollowerProgress`を追加。描画は`Hud.cs:843-878` `DrawScore`内、既存の♥(通貨)チップのさらに左に専用ピップ枠を新設し●●○を常時描画（`_followerFull`時は非表示）。既存の`showCombo`分岐（コンボ⇔フォロワー人数表示の排他切替）には触れておらず、コンボ表示とピップは独立して同時に見える。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認。実機起動でのスクショ確認は未実施（ビルド確認のみ）"
+    },
     {
       "priority": "P3",
       "title": "ステージクリア報酬の増分フィールドが配線されず死んでいる",
@@ -442,6 +442,16 @@
   ],
   "commits": [
     {
+      "hash": "59d6a99",
+      "date": "2026-08-16",
+      "subject": "auto: WIPへ移動 - フォロワー加入進捗表示"
+    },
+    {
+      "hash": "c991d94",
+      "date": "2026-08-16",
+      "subject": "auto: 未使用フィールド(LastClearImpression/LastClearFollowers/DodgeGrazeCount)を削除"
+    },
+    {
       "hash": "01f83d7",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード"
@@ -470,16 +480,6 @@
       "hash": "1e10167",
       "date": "2026-08-16",
       "subject": "auto: 正典v3バナー欠落を修正"
-    },
-    {
-      "hash": "eb66958",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - 正典v3バナー欠落"
-    },
-    {
-      "hash": "7c66de0",
-      "date": "2026-08-16",
-      "subject": "auto: ゲームオーバー後の処理継続バグを修正"
     }
   ]
 }

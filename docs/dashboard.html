@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">95<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 53 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 54 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">53</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">54</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">フォロワー加入までの進捗が画面上どこにも見えない</span>
-          
-        </div>
-        <p class="accept">次の1体まであと何人救えばよいか(<code>_savedCount % SavedPerFollower</code>、<code>Player.cs:45</code>)がprivateで外部公開されておらず、HUD唯一のフォロワー表示(<code>Hud.cs:835</code>)は現在の所持数のみ。しかもコンボが2以上になると同じ枠がコンボ表示に置き換わり消える(<code>Hud.cs:833-835 showCombo = combo &gt;= 2</code>)。<code>Player</code>に<code>SavedProgress</code>(0..2の残り必要数)を公開し、フォロワーチップの横に進捗ドット(●●○)を常時表示、コンボ表示と排他にしない</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">フォロワー加入までの進捗が画面上どこにも見えない</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player</code>に3つの公開プロパティを追加：<code>Player.cs:80-88</code> <code>FollowerCount</code>(現在の所持数)・<code>FollowersFull</code>(<code>MaxFollowers</code>到達済みか)・<code>SavedProgress</code>(<code>_savedCount % SavedPerFollower</code>、満員時は0)。<code>SavedPerFollower</code>/<code>MaxFollowers</code>もHUDから参照できるよう<code>private</code>→<code>public const</code>に変更(<code>Player.cs:43-44</code>)。状態変化時（<code>AddFollower</code>成功/失敗どちらも<code>Player.cs:99-104</code>、被弾でのフォロワー離脱<code>Player.cs:1264</code>、ヒカゲ加入<code>Player.cs:88</code>）に<code>SetLives</code>と同じpushパターンで<code>Hud.SetFollowerProgress(progress, total, full)</code>を通知(<code>Player.cs:96-97</code>)。HUD側は<code>Hud.cs:17-21</code>に<code>_followerProgress</code>/<code>_followerProgressTotal</code>/<code>_followerFull</code>フィールドを追加、<code>Hud.cs:707-714</code>に<code>SetFollowerProgress</code>を追加。描画は<code>Hud.cs:843-878</code> <code>DrawScore</code>内、既存の♥(通貨)チップのさらに左に専用ピップ枠を新設し●●○を常時描画（<code>_followerFull</code>時は非表示）。既存の<code>showCombo</code>分岐（コンボ⇔フォロワー人数表示の排他切替）には触れておらず、コンボ表示とピップは独立して同時に見える。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認。実機起動でのスクショ確認は未実施（ビルド確認のみ）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -729,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">59d6a99</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - フォロワー加入進捗表示</span></li>
+      <li><span class="h">c991d94</span><span>2026-08-16</span><span class="s">auto: 未使用フィールド(LastClearImpression/LastClearFollowers/DodgeGrazeCount)を削除</span></li>
       <li><span class="h">01f83d7</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード</span></li>
       <li><span class="h">9777826</span><span>2026-08-16</span><span class="s">auto: R長押しリトライのコメント表記を0.45sに統一</span></li>
       <li><span class="h">35ca2f8</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - R長押しリトライのコメント乖離</span></li>
       <li><span class="h">a96b6db</span><span>2026-08-16</span><span class="s">auto: 被弾時のフォロワー全滅ペナルティを緩和</span></li>
       <li><span class="h">3dc84c3</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅</span></li>
       <li><span class="h">1e10167</span><span>2026-08-16</span><span class="s">auto: 正典v3バナー欠落を修正</span></li>
-      <li><span class="h">eb66958</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 正典v3バナー欠落</span></li>
-      <li><span class="h">7c66de0</span><span>2026-08-16</span><span class="s">auto: ゲームオーバー後の処理継続バグを修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-16 18:46 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

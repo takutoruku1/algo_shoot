@@ -40,8 +40,8 @@ public partial class Player : Area2D
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
-    private const int MaxFollowers = 4;
-    private const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）
+    public const int MaxFollowers = 4;
+    public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
     private int _savedCount = 0;
     private int _shotParity = 0;            // フォロワーの発射間引き用
     private bool _overload = false;         // やさしさ全開中か（GameManager）
@@ -85,19 +85,35 @@ public partial class Player : Area2D
         nf.PromoteToHikage();
         FxLayer.Instance?.PurifyBurst(nf.GlobalPosition);
         _followers.Add(nf);
+        NotifyFollowerProgress(); // 満員化し得るので通知
     }
+
+    // 現在のフォロワー所持数（0..MaxFollowers）。HUDの進捗ドット表示用に公開。
+    public int FollowerCount => _followers.Count;
+
+    // フォロワーが満員（MaxFollowers到達済み）か。満員なら次の1体までの進捗表示は不要。
+    public bool FollowersFull => _followers.Count >= MaxFollowers;
+
+    // 次のフォロワー加入まであと何人分進んだか（0..SavedPerFollower-1）。HUDの進捗ドット（●●○）に使う。
+    // 満員時は 0 を返す＝呼び出し側は FollowersFull と合わせて「ドット非表示」を判断する。
+    public int SavedProgress => FollowersFull ? 0 : _savedCount % SavedPerFollower;
+
+    // Player の状態変化（フォロワー増減・進捗）を HUD へ通知する。SetLives と同じ push パターン。
+    private void NotifyFollowerProgress() =>
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFollowerProgress(SavedProgress, SavedPerFollower, FollowersFull);
 
     // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
     public bool AddFollower(Vector2 globalFromPos)
     {
         _savedCount++;
-        if (_followers.Count >= MaxFollowers) return false;
-        if (_savedCount % SavedPerFollower != 0) return false; // 3人救うごとに1体
+        if (_followers.Count >= MaxFollowers) { NotifyFollowerProgress(); return false; }
+        if (_savedCount % SavedPerFollower != 0) { NotifyFollowerProgress(); return false; } // 3人救うごとに1体
         var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
         AddChild(f);
         f.Position = ToLocal(globalFromPos); // 浄化した位置（＝救った本人の場所）から飛んでくる
         _followers.Add(f);
+        NotifyFollowerProgress();
         return true;
     }
 
@@ -1260,6 +1276,7 @@ public partial class Player : Area2D
             FxLayer.Instance?.KindnessMote(f.GlobalPosition);
             f.QueueFree();
             _followers.RemoveAt(_followers.Count - 1);
+            NotifyFollowerProgress(); // 満員が解けた／進捗ドットが再表示され得るので通知
         }
 
         // フラッシュ＋短時間無敵（被弾由来＝この無敵中はグレイズ報酬が入らない）
