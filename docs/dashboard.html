@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 55 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 56 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">55</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">56</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">「あかりちゃん」呼びの回収演出が未実装のまま放置</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/キャラ設定_03_あかり.md:27,122</code>で「鍵アカでは『あかりちゃん』と書かれている等で落差を効かせる」「少年の『あかりちゃん』呼びを回収する場面」が正典v3確定後も未着手のまま残っているが、<code>Epilogue.cs</code>の鍵アカ画面(<code>DrawPassword</code>、<code>:372-399</code>)・4行英文開示(<code>DrawAcrostic</code>、<code>:401-426</code>)いずれにも「あかりちゃん」の文字列が一度も登場しない。鍵アカ関連テキスト(PW正解時の一言、または<code>Acrostic</code>直前の一文)に旧呼称を一度だけ挿し込む</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">「あかりちゃん」呼びの回収演出が未実装のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>docs/キャラ設定_03_あかり.md:21-28,64-72,122</code>（呼び方の変化＝人前は「キミ」、私的には昔のまま「あかりちゃん」）を根拠に、<code>Epilogue.cs</code>の鍵アカ画面(<code>DrawPassword</code>)へ旧呼称を一度だけ挿入。<code>Epilogue.cs:375-380</code>：タイトル行を<code>y=34</code>へ上げ、直後に固定投稿風の一行<code>Shadowed(_font, new Vector2(0, 54f), &quot;固定：「あかりちゃん、傘。貸したままだぞ。」&quot;, ..., UiKit.CutWarm with { A = 0.85f })</code>を追加、既存の「パスワードを入力してください」を<code>y=72→76</code>へ1行分ずらして共存させた（他の行のy座標・<code>DrawAcrostic</code>・<code>_pages</code>ロジックは無変更）。狙い：この鍵アカは少年の私的アカウント（PW=&quot;stay&quot;）＝誰にも見せていない場所なので、そこでだけ昔の愛称のままだったという落差を一目で示す。色は少年の声を示す<code>CutWarm</code>（暖色）を使い、見出しの<code>Cool</code>（ミナ色）と視覚的に区別。既存の「傘」モチーフ（<code>StageImagery.cs:308</code>「傘、二本あるのに」／<code>StageAkari.cs:82,84</code>／<code>Hub.cs:1025,1030</code>）と地続きの小道具（貸したまま返っていない傘）にし、感情語を使わず示すのみに留めた（麻枝准風・show-don't-tell）。<strong>注意：このワーカーにはBash/Gitツールが与えられておらず、<code>dotnet build algo_shoot.sln</code>によるビルド確認・コミットは実行できていない。指揮官側でビルド確認とコミットを引き継ぐ必要あり</strong>（<code>git add -A &amp;&amp; git commit -m &quot;auto: あかりちゃん呼びの回収演出を実装&quot;</code>は未実行）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -729,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">aa2598d</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - あかりちゃん呼びの回収演出</span></li>
+      <li><span class="h">52a48c5</span><span>2026-08-16</span><span class="s">auto: Player.csコメントの数値乖離を修正</span></li>
       <li><span class="h">ece5b51</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - Player.csコメントの数値乖離</span></li>
       <li><span class="h">8a48217</span><span>2026-08-16</span><span class="s">auto: フォロワー加入進捗ドット表示を追加</span></li>
       <li><span class="h">59d6a99</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - フォロワー加入進捗表示</span></li>
       <li><span class="h">c991d94</span><span>2026-08-16</span><span class="s">auto: 未使用フィールド(LastClearImpression/LastClearFollowers/DodgeGrazeCount)を削除</span></li>
       <li><span class="h">01f83d7</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード</span></li>
       <li><span class="h">9777826</span><span>2026-08-16</span><span class="s">auto: R長押しリトライのコメント表記を0.45sに統一</span></li>
-      <li><span class="h">35ca2f8</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - R長押しリトライのコメント乖離</span></li>
-      <li><span class="h">a96b6db</span><span>2026-08-16</span><span class="s">auto: 被弾時のフォロワー全滅ペナルティを緩和</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-16 18:52 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:56 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
