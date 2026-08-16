@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 54 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 55 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">54</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">55</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">Player.cs冒頭コメントの数値が実装と食い違っている</span>
-          
-        </div>
-        <p class="accept"><code>Player.cs:5</code>のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は<code>Player.cs:12-13</code> <code>NormalSpeed=150f</code>/<code>FocusSpeed=65f</code>、連射初速は<code>Player.cs:795</code> <code>ShotDir * 360f</code>。コメントを実値(150/65、+360)に更新するだけ</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">「あかりちゃん」呼びの回収演出が未実装のまま放置</span>
           <span class="worker">scenario</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.cs冒頭コメントの数値が実装と食い違っている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:5</code>のクラス概要コメント「移動(通常110/低速50 px/s)、連射(...+260...)」を実値へ更新：「移動(通常150/低速65 px/s)、連射(...+360...)」。<code>NormalSpeed=150f</code>/<code>FocusSpeed=65f</code>は<code>Player.cs:12-13</code>、連射(<code>FireRapid</code>)の初速<code>ShotDir * 360f</code>は<code>Player.cs:812</code>（監査時点の行番号<code>:795</code>から後続タスクの追記でズレていたため実位置を再確認）。コメント文字列のみの変更でロジック無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -729,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ece5b51</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - Player.csコメントの数値乖離</span></li>
+      <li><span class="h">8a48217</span><span>2026-08-16</span><span class="s">auto: フォロワー加入進捗ドット表示を追加</span></li>
       <li><span class="h">59d6a99</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - フォロワー加入進捗表示</span></li>
       <li><span class="h">c991d94</span><span>2026-08-16</span><span class="s">auto: 未使用フィールド(LastClearImpression/LastClearFollowers/DodgeGrazeCount)を削除</span></li>
       <li><span class="h">01f83d7</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード</span></li>
       <li><span class="h">9777826</span><span>2026-08-16</span><span class="s">auto: R長押しリトライのコメント表記を0.45sに統一</span></li>
       <li><span class="h">35ca2f8</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - R長押しリトライのコメント乖離</span></li>
       <li><span class="h">a96b6db</span><span>2026-08-16</span><span class="s">auto: 被弾時のフォロワー全滅ペナルティを緩和</span></li>
-      <li><span class="h">3dc84c3</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅</span></li>
-      <li><span class="h">1e10167</span><span>2026-08-16</span><span class="s">auto: 正典v3バナー欠落を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-16 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:52 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

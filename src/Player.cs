@@ -2,7 +2,7 @@ using Godot;
 using System.Collections.Generic;
 
 // Player : Area2D。グループ "player" に追加。
-// 移動(通常110 / 低速50 px/s)、連射(Pool経由・右方向+260・上下2way)、被弾無敵点滅、TakeHit、Lives。
+// 移動(通常150 / 低速65 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
 // W0 では残機を減らさず「練習中」扱い（ゲームオーバーにしない）。
 // 衝突: layer=1, mask=12（敵=4 と 敵弾=8 を検出）。
 // 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点を _Draw で小さく描く。

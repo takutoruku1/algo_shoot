@@ -33,8 +33,6 @@
 
 ## WIP
 
-- [ ] (P3) Player.cs冒頭コメントの数値が実装と食い違っている | game-designer→engineer | `Player.cs:5`のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は`Player.cs:12-13` `NormalSpeed=150f`/`FocusSpeed=65f`、連射初速は`Player.cs:795` `ShotDir * 360f`。コメントを実値(150/65、+360)に更新するだけ
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -57,6 +55,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) Player.cs冒頭コメントの数値が実装と食い違っている | game-designer→engineer | (完了 2026-08-16) `Player.cs:5`のクラス概要コメント「移動(通常110/低速50 px/s)、連射(...+260...)」を実値へ更新：「移動(通常150/低速65 px/s)、連射(...+360...)」。`NormalSpeed=150f`/`FocusSpeed=65f`は`Player.cs:12-13`、連射(`FireRapid`)の初速`ShotDir * 360f`は`Player.cs:812`（監査時点の行番号`:795`から後続タスクの追記でズレていたため実位置を再確認）。コメント文字列のみの変更でロジック無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P3) フォロワー加入までの進捗が画面上どこにも見えない | game-designer→engineer | (完了 2026-08-16) `Player`に3つの公開プロパティを追加：`Player.cs:80-88` `FollowerCount`(現在の所持数)・`FollowersFull`(`MaxFollowers`到達済みか)・`SavedProgress`(`_savedCount % SavedPerFollower`、満員時は0)。`SavedPerFollower`/`MaxFollowers`もHUDから参照できるよう`private`→`public const`に変更(`Player.cs:43-44`)。状態変化時（`AddFollower`成功/失敗どちらも`Player.cs:99-104`、被弾でのフォロワー離脱`Player.cs:1264`、ヒカゲ加入`Player.cs:88`）に`SetLives`と同じpushパターンで`Hud.SetFollowerProgress(progress, total, full)`を通知(`Player.cs:96-97`)。HUD側は`Hud.cs:17-21`に`_followerProgress`/`_followerProgressTotal`/`_followerFull`フィールドを追加、`Hud.cs:707-714`に`SetFollowerProgress`を追加。描画は`Hud.cs:843-878` `DrawScore`内、既存の♥(通貨)チップのさらに左に専用ピップ枠を新設し●●○を常時描画（`_followerFull`時は非表示）。既存の`showCombo`分岐（コンボ⇔フォロワー人数表示の排他切替）には触れておらず、コンボ表示とピップは独立して同時に見える。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認。実機起動でのスクショ確認は未実施（ビルド確認のみ）
 - [x] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | (完了 2026-08-16) `src/`全体を再grepし読み手ゼロを確認した上で3フィールドを削除。宣言：`GameManager.cs:324`(`LastClearImpression`)・`:325`(`LastClearFollowers`)・`:1170`(`DodgeGrazeCount`)。代入：`RegisterStageClear()`内`GameManager.cs:761`(`LastClearImpression = (int)GainImpression(120);` → `GainImpression(120);`のみに簡略化)・`:765`(`LastClearFollowers = fol;`を削除、`fol`は`AddFollowers(fol)`で引き続き使用のため変数自体は残置)。インクリメント：`GameManager.cs:1162`(`DodgeGraze()`内`DodgeGrazeCount++;`)。`Followers`/`Impression`累計更新ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P3) R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存） | engineer | (完了 2026-08-16) `RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）に対し呼び出し元コメントが「R長押し(0.7s)」のまま残っていた9箇所を「(0.45s)」へ統一：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。`GameManager.cs:699`にも「0.7s」がヒットしたが文脈確認の結果`VeilLightDuration`（祈りの帳の光輪持続、`:701`で実装値0.7f）を指す無関係の記述だったため対象外・不変。コメント文字列の置換のみでロジック・実装値には無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認

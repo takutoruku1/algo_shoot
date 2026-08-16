@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-16 18:51 UTC",
+  "generated": "2026-08-16 18:52 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 54
+    "done": 55
   },
-  "percent": 96,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Player.cs冒頭コメントの数値が実装と食い違っている",
-      "worker": null,
-      "accept": "`Player.cs:5`のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は`Player.cs:12-13` `NormalSpeed=150f`/`FocusSpeed=65f`、連射初速は`Player.cs:795` `ShotDir * 360f`。コメントを実値(150/65、+360)に更新するだけ"
-    },
     {
       "priority": "P3",
       "title": "「あかりちゃん」呼びの回収演出が未実装のまま放置",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Player.cs冒頭コメントの数値が実装と食い違っている",
+      "worker": null,
+      "accept": "(完了 2026-08-16) `Player.cs:5`のクラス概要コメント「移動(通常110/低速50 px/s)、連射(...+260...)」を実値へ更新：「移動(通常150/低速65 px/s)、連射(...+360...)」。`NormalSpeed=150f`/`FocusSpeed=65f`は`Player.cs:12-13`、連射(`FireRapid`)の初速`ShotDir * 360f`は`Player.cs:812`（監査時点の行番号`:795`から後続タスクの追記でズレていたため実位置を再確認）。コメント文字列のみの変更でロジック無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "フォロワー加入までの進捗が画面上どこにも見えない",
@@ -442,6 +442,16 @@
   ],
   "commits": [
     {
+      "hash": "ece5b51",
+      "date": "2026-08-16",
+      "subject": "auto: WIPへ移動 - Player.csコメントの数値乖離"
+    },
+    {
+      "hash": "8a48217",
+      "date": "2026-08-16",
+      "subject": "auto: フォロワー加入進捗ドット表示を追加"
+    },
+    {
       "hash": "59d6a99",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - フォロワー加入進捗表示"
@@ -470,16 +480,6 @@
       "hash": "a96b6db",
       "date": "2026-08-16",
       "subject": "auto: 被弾時のフォロワー全滅ペナルティを緩和"
-    },
-    {
-      "hash": "3dc84c3",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅"
-    },
-    {
-      "hash": "1e10167",
-      "date": "2026-08-16",
-      "subject": "auto: 正典v3バナー欠落を修正"
     }
   ]
 }
