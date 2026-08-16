@@ -28,7 +28,16 @@
 
 ## TODO
 
-<!-- ▼ 2026-08-15 監査モードで補充（2件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
+<!-- ▼ 2026-08-16 監査モードで補充（8件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
+- [ ] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする
+- [ ] (P1) 正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正 | scenario | `docs/20260619/EpicB_物語設計案.md:131`の正典v3確定（少年の死因＝交差点の事故死、余命宣告設定は非正典）を受け、`docs/キャラ設定_03_あかり.md:3`他4ファイルには「⚠正典v3反映済み、余命前提は非正典」の注記があるが、`docs/キャラ設定_01_少年_改訂版.md:5,16`と`docs/キャラ設定_02_ミナ_改訂版.md:78`だけ注記が漏れている（実装(src)は正典v3準拠済み、ドキュメントのみの漏れ）。両ファイル冒頭に他5ファイルと同型の注記を追加するだけでよい
+- [ ] (P2) 被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている | game-designer→engineer | `Player.cs:1254-1260`は被弾のたび残機-1に加えて`_followers`を残機の残数に関係なく無条件で全員離脱させる（`_followers.Clear()`）。フォロワーは最大4体(`Player.cs:43`)・1体につき3体救出(`Player.cs:44`)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(`Player.cs:1190 !HasHikage()`)も同時に失う二重罰。代案: `_followers[^1]`を1体だけ離脱、または`Mathf.CeilToInt(_followers.Count/2f)`体に留める
+- [ ] (P3) R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存） | engineer | `RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）だが呼び出し元コメントが「R長押し(0.7s)」のまま：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。全箇所を「(0.45s)」に統一するだけの機械的修正
+- [ ] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | `GameManager.cs:759-766` `RegisterStageClear()`が`LastClearImpression`(`:324`)/`LastClearFollowers`(`:325`)へクリア時増分をセットするが読み手がsrc/に一件も無い（`Hub.cs:552,714-715`は累計値のみ表示）。同種`DodgeGrazeCount`(`GameManager.cs:1170`宣言・`:1162`加算のみ)も読み手ゼロ。未使用フィールドとして削除する（`GrazeCount`のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）
+- [ ] (P3) フォロワー加入までの進捗が画面上どこにも見えない | game-designer→engineer | 次の1体まであと何人救えばよいか(`_savedCount % SavedPerFollower`、`Player.cs:45`)がprivateで外部公開されておらず、HUD唯一のフォロワー表示(`Hud.cs:835`)は現在の所持数のみ。しかもコンボが2以上になると同じ枠がコンボ表示に置き換わり消える(`Hud.cs:833-835 showCombo = combo >= 2`)。`Player`に`SavedProgress`(0..2の残り必要数)を公開し、フォロワーチップの横に進捗ドット(●●○)を常時表示、コンボ表示と排他にしない
+- [ ] (P3) Player.cs冒頭コメントの数値が実装と食い違っている | game-designer→engineer | `Player.cs:5`のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は`Player.cs:12-13` `NormalSpeed=150f`/`FocusSpeed=65f`、連射初速は`Player.cs:795` `ShotDir * 360f`。コメントを実値(150/65、+360)に更新するだけ
+- [ ] (P3) 「あかりちゃん」呼びの回収演出が未実装のまま放置 | scenario | `docs/キャラ設定_03_あかり.md:27,122`で「鍵アカでは『あかりちゃん』と書かれている等で落差を効かせる」「少年の『あかりちゃん』呼びを回収する場面」が正典v3確定後も未着手のまま残っているが、`Epilogue.cs`の鍵アカ画面(`DrawPassword`、`:372-399`)・4行英文開示(`DrawAcrostic`、`:401-426`)いずれにも「あかりちゃん」の文字列が一度も登場しない。鍵アカ関連テキスト(PW正解時の一言、または`Acrostic`直前の一文)に旧呼称を一度だけ挿し込む
+
 ## WIP
 
 （なし）
