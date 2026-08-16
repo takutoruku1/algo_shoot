@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 48 / 対象 48 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">88<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 49 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 88パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">48</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">49</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">7</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,76 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/20260619/EpicB_物語設計案.md:131</code>の正典v3確定（少年の死因＝交差点の事故死、余命宣告設定は非正典）を受け、<code>docs/キャラ設定_03_あかり.md:3</code>他4ファイルには「⚠正典v3反映済み、余命前提は非正典」の注記があるが、<code>docs/キャラ設定_01_少年_改訂版.md:5,16</code>と<code>docs/キャラ設定_02_ミナ_改訂版.md:78</code>だけ注記が漏れている（実装(src)は正典v3準拠済み、ドキュメントのみの漏れ）。両ファイル冒頭に他5ファイルと同型の注記を追加するだけでよい</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている</span>
+          
+        </div>
+        <p class="accept"><code>Player.cs:1254-1260</code>は被弾のたび残機-1に加えて<code>_followers</code>を残機の残数に関係なく無条件で全員離脱させる（<code>_followers.Clear()</code>）。フォロワーは最大4体(<code>Player.cs:43</code>)・1体につき3体救出(<code>Player.cs:44</code>)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(<code>Player.cs:1190 !HasHikage()</code>)も同時に失う二重罰。代案: <code>_followers[^1]</code>を1体だけ離脱、または<code>Mathf.CeilToInt(_followers.Count/2f)</code>体に留める</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>RetryHold.cs:10</code> <code>HoldTime = 0.45f</code>（2026-08-13に0.7f→0.45fへ短縮済み）だが呼び出し元コメントが「R長押し(0.7s)」のまま：<code>ReiRoot.cs:77</code>／<code>AkariRoot.cs:77</code>／<code>KoharuRoot.cs:79</code>／<code>MinaRoot.cs:124</code>／<code>Main.cs:86</code>／<code>Stage0Root.cs:83</code>／<code>Prologue.cs:181</code>／<code>Final.cs:133</code>／<code>Epilogue.cs:179</code>。全箇所を「(0.45s)」に統一するだけの機械的修正</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ステージクリア報酬の増分フィールドが配線されず死んでいる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>GameManager.cs:759-766</code> <code>RegisterStageClear()</code>が<code>LastClearImpression</code>(<code>:324</code>)/<code>LastClearFollowers</code>(<code>:325</code>)へクリア時増分をセットするが読み手がsrc/に一件も無い（<code>Hub.cs:552,714-715</code>は累計値のみ表示）。同種<code>DodgeGrazeCount</code>(<code>GameManager.cs:1170</code>宣言・<code>:1162</code>加算のみ)も読み手ゼロ。未使用フィールドとして削除する（<code>GrazeCount</code>のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">フォロワー加入までの進捗が画面上どこにも見えない</span>
+          
+        </div>
+        <p class="accept">次の1体まであと何人救えばよいか(<code>_savedCount % SavedPerFollower</code>、<code>Player.cs:45</code>)がprivateで外部公開されておらず、HUD唯一のフォロワー表示(<code>Hud.cs:835</code>)は現在の所持数のみ。しかもコンボが2以上になると同じ枠がコンボ表示に置き換わり消える(<code>Hud.cs:833-835 showCombo = combo &gt;= 2</code>)。<code>Player</code>に<code>SavedProgress</code>(0..2の残り必要数)を公開し、フォロワーチップの横に進捗ドット(●●○)を常時表示、コンボ表示と排他にしない</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.cs冒頭コメントの数値が実装と食い違っている</span>
+          
+        </div>
+        <p class="accept"><code>Player.cs:5</code>のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は<code>Player.cs:12-13</code> <code>NormalSpeed=150f</code>/<code>FocusSpeed=65f</code>、連射初速は<code>Player.cs:795</code> <code>ShotDir * 360f</code>。コメントを実値(150/65、+360)に更新するだけ</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">「あかりちゃん」呼びの回収演出が未実装のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/キャラ設定_03_あかり.md:27,122</code>で「鍵アカでは『あかりちゃん』と書かれている等で落差を効かせる」「少年の『あかりちゃん』呼びを回収する場面」が正典v3確定後も未着手のまま残っているが、<code>Epilogue.cs</code>の鍵アカ画面(<code>DrawPassword</code>、<code>:372-399</code>)・4行英文開示(<code>DrawAcrostic</code>、<code>:401-426</code>)いずれにも「あかりちゃん」の文字列が一度も登場しない。鍵アカ関連テキスト(PW正解時の一言、または<code>Acrostic</code>直前の一文)に旧呼称を一度だけ挿し込む</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:1282-1292</code> <code>GameOver()</code>は<code>_gameOver=true</code>＋無敵化＋バナー表示のみで、移動処理(<code>Player.cs:403-422</code>)・ショット入力(<code>Player.cs:520</code>)・<code>TryBomb()</code>(<code>Player.cs:1140-1146</code>)のいずれも<code>_gameOver</code>を参照せず素通り（参照しているのはDodge<code>:910</code>とSpecial<code>:1190</code>のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（<code>/home/user/algo_shoot/build/qa/death_Rei_hard.log</code>）。<code>_gameOver</code>後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする。実装：<code>Player.cs:412</code>移動入力ゲート（<code>!Hud.BubblePaused &amp;&amp; !_gameOver</code>）で<code>dir</code>をゼロ固定、<code>Player.cs:521</code>ショット発火条件に<code>&amp;&amp; !_gameOver</code>追加、<code>Player.cs:540</code>バックファイア条件に<code>&amp;&amp; !_gameOver</code>追加、<code>Player.cs:550</code>ボムキー呼び出し条件に<code>&amp;&amp; !_gameOver</code>追加＋<code>TryBomb()</code>本体先頭(<code>Player.cs:1142</code>)にもDodge/Specialと同じ早期return方式のガードを追加（二重防御）。浄化(<code>Enemy.Purify</code>)・ボスHP減少はいずれもプレイヤーの弾ヒット判定経由のため、ショット停止により連動して停止する設計（Purify自体は直接ガードせず、根本のショット入力側で止める方式）。無敵化・バナー表示・R/Qのリトライ導線（<code>Player.cs:1284-1292</code>）は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認。qa-autoplay(Rei/Hard, god無し, 40秒)で実地確認：t=34.1でlives=0到達（purified=5/46, pbul=2）→t=34.2以降pbulが0のまま5秒以上変化なし、purifiedも5/46で固定、自機座標(0,146)も固定、bomb残数も2で固定（<code>/home/user/algo_shoot/build/qa/death_Rei_hard_fix.log</code>）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -665,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8948996</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ゲームオーバー後の処理継続バグ</span></li>
+      <li><span class="h">753fa23</span><span>2026-08-16</span><span class="s">auto: 監査で8件をキューに追加</span></li>
+      <li><span class="h">87fb613</span><span>2026-08-15</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">0fa5292</span><span>2026-08-16</span><span class="s">Merge pull request #4 from takutoruku1/auto/dev</span></li>
       <li><span class="h">e7f83f5</span><span>2026-08-15</span><span class="s">auto: AreaSpellCaster._aoeWithSafe死にフィールドを削除</span></li>
       <li><span class="h">e95e078</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除</span></li>
       <li><span class="h">c901975</span><span>2026-08-15</span><span class="s">auto: 炎上デバフの可視化</span></li>
       <li><span class="h">d9ddc49</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - 炎上デバフの可視化</span></li>
-      <li><span class="h">1f82c26</span><span>2026-08-15</span><span class="s">auto: 監査で2件をキューに追加</span></li>
-      <li><span class="h">e35a4f7</span><span>2026-08-14</span><span class="s">auto: _stepTimeの死にフィールドを4ステージから削除</span></li>
-      <li><span class="h">2849f55</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - _stepTime死にフィールド削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-15 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

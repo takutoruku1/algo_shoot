@@ -39,8 +39,6 @@
 
 ## WIP
 
-- [ ] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -63,6 +61,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | (完了 2026-08-16) `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする。実装：`Player.cs:412`移動入力ゲート（`!Hud.BubblePaused && !_gameOver`）で`dir`をゼロ固定、`Player.cs:521`ショット発火条件に`&& !_gameOver`追加、`Player.cs:540`バックファイア条件に`&& !_gameOver`追加、`Player.cs:550`ボムキー呼び出し条件に`&& !_gameOver`追加＋`TryBomb()`本体先頭(`Player.cs:1142`)にもDodge/Specialと同じ早期return方式のガードを追加（二重防御）。浄化(`Enemy.Purify`)・ボスHP減少はいずれもプレイヤーの弾ヒット判定経由のため、ショット停止により連動して停止する設計（Purify自体は直接ガードせず、根本のショット入力側で止める方式）。無敵化・バナー表示・R/Qのリトライ導線（`Player.cs:1284-1292`）は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認。qa-autoplay(Rei/Hard, god無し, 40秒)で実地確認：t=34.1でlives=0到達（purified=5/46, pbul=2）→t=34.2以降pbulが0のまま5秒以上変化なし、purifiedも5/46で固定、自機座標(0,146)も固定、bomb残数も2で固定（`/home/user/algo_shoot/build/qa/death_Rei_hard_fix.log`）
 - [x] (P3) `AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド | engineer | (完了 2026-08-15) `AreaSpellCaster.cs:44`のフィールド宣言と`:91`,`:107`の代入2箇所を削除。「安置は常に在る（安置なしの全面型は廃止）」の要点は近傍コメントへ統合し情報欠落なし。`dotnet build`で0 Warning/0 Error確認
 - [x] (P2) 「炎上」デバフが本編プレイ中まったく可視化されない | game-designer | (完了 2026-08-15) `Hud.cs`にDrawBurningを新規追加し`DrawAll`（`Hud.cs:723-726`付近）へ組み込み。`_game?.BurningThisRun ?? false`のとき左カラム最下段（`DrawGoal`直下、x=22,y=214）に「炎上中」チップを常設表示。既存の`DrawShotMode`/`DrawKindness`と同じBox+丸ドット+Textの様式、色は`UiKit.Burn`(f2353d)を流用、枠線をわずかに明滅させて周辺視で気づけるようにした。数値・ロジック（`GameManager.cs:683-685,677`の倍率）は無変更。`dotnet build`で0 Warning/0 Error確認
 - [x] (P3) `_stepTime`がRei/Akari/Koharu/Mina全4ステージで書き込み専用 | engineer | (完了 2026-08-14) `StageRei/Akari/Koharu/Mina.cs`から未使用`_stepTime`フィールドと加算・リセット代入（計13箇所）を削除。`StageW0.cs`の同名フィールドは実際に条件判定へ使用しているため対象外・不変を確認。`dotnet build`で0 Warning/0 Error確認
