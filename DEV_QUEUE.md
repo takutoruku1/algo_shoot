@@ -29,7 +29,6 @@
 ## TODO
 
 <!-- ▼ 2026-08-16 監査モードで補充（8件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
-- [ ] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする
 - [ ] (P1) 正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正 | scenario | `docs/20260619/EpicB_物語設計案.md:131`の正典v3確定（少年の死因＝交差点の事故死、余命宣告設定は非正典）を受け、`docs/キャラ設定_03_あかり.md:3`他4ファイルには「⚠正典v3反映済み、余命前提は非正典」の注記があるが、`docs/キャラ設定_01_少年_改訂版.md:5,16`と`docs/キャラ設定_02_ミナ_改訂版.md:78`だけ注記が漏れている（実装(src)は正典v3準拠済み、ドキュメントのみの漏れ）。両ファイル冒頭に他5ファイルと同型の注記を追加するだけでよい
 - [ ] (P2) 被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている | game-designer→engineer | `Player.cs:1254-1260`は被弾のたび残機-1に加えて`_followers`を残機の残数に関係なく無条件で全員離脱させる（`_followers.Clear()`）。フォロワーは最大4体(`Player.cs:43`)・1体につき3体救出(`Player.cs:44`)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(`Player.cs:1190 !HasHikage()`)も同時に失う二重罰。代案: `_followers[^1]`を1体だけ離脱、または`Mathf.CeilToInt(_followers.Count/2f)`体に留める
 - [ ] (P3) R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存） | engineer | `RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）だが呼び出し元コメントが「R長押し(0.7s)」のまま：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。全箇所を「(0.45s)」に統一するだけの機械的修正
@@ -40,7 +39,7 @@
 
 ## WIP
 
-（なし）
+- [ ] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする
 
 ## BLOCKED
 
