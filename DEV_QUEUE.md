@@ -29,12 +29,13 @@
 ## TODO
 
 <!-- ▼ 2026-08-16 監査モードで補充（8件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
-- [ ] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | `GameManager.cs:759-766` `RegisterStageClear()`が`LastClearImpression`(`:324`)/`LastClearFollowers`(`:325`)へクリア時増分をセットするが読み手がsrc/に一件も無い（`Hub.cs:552,714-715`は累計値のみ表示）。同種`DodgeGrazeCount`(`GameManager.cs:1170`宣言・`:1162`加算のみ)も読み手ゼロ。未使用フィールドとして削除する（`GrazeCount`のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）
 - [ ] (P3) フォロワー加入までの進捗が画面上どこにも見えない | game-designer→engineer | 次の1体まであと何人救えばよいか(`_savedCount % SavedPerFollower`、`Player.cs:45`)がprivateで外部公開されておらず、HUD唯一のフォロワー表示(`Hud.cs:835`)は現在の所持数のみ。しかもコンボが2以上になると同じ枠がコンボ表示に置き換わり消える(`Hud.cs:833-835 showCombo = combo >= 2`)。`Player`に`SavedProgress`(0..2の残り必要数)を公開し、フォロワーチップの横に進捗ドット(●●○)を常時表示、コンボ表示と排他にしない
 - [ ] (P3) Player.cs冒頭コメントの数値が実装と食い違っている | game-designer→engineer | `Player.cs:5`のクラス概要コメントが「移動(通常110/低速50 px/s)」「連射(...+260)」と記載しているが、実際の定数は`Player.cs:12-13` `NormalSpeed=150f`/`FocusSpeed=65f`、連射初速は`Player.cs:795` `ShotDir * 360f`。コメントを実値(150/65、+360)に更新するだけ
 - [ ] (P3) 「あかりちゃん」呼びの回収演出が未実装のまま放置 | scenario | `docs/キャラ設定_03_あかり.md:27,122`で「鍵アカでは『あかりちゃん』と書かれている等で落差を効かせる」「少年の『あかりちゃん』呼びを回収する場面」が正典v3確定後も未着手のまま残っているが、`Epilogue.cs`の鍵アカ画面(`DrawPassword`、`:372-399`)・4行英文開示(`DrawAcrostic`、`:401-426`)いずれにも「あかりちゃん」の文字列が一度も登場しない。鍵アカ関連テキスト(PW正解時の一言、または`Acrostic`直前の一文)に旧呼称を一度だけ挿し込む
 
 ## WIP
+
+- [ ] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | `GameManager.cs:759-766` `RegisterStageClear()`が`LastClearImpression`(`:324`)/`LastClearFollowers`(`:325`)へクリア時増分をセットするが読み手がsrc/に一件も無い（`Hub.cs:552,714-715`は累計値のみ表示）。同種`DodgeGrazeCount`(`GameManager.cs:1170`宣言・`:1162`加算のみ)も読み手ゼロ。未使用フィールドとして削除する（`GrazeCount`のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）
 
 ## BLOCKED
 
