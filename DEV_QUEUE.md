@@ -37,8 +37,6 @@
 
 ## WIP
 
-- [ ] (P2) 被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている | game-designer→engineer | `Player.cs:1254-1260`は被弾のたび残機-1に加えて`_followers`を残機の残数に関係なく無条件で全員離脱させる（`_followers.Clear()`）。フォロワーは最大4体(`Player.cs:43`)・1体につき3体救出(`Player.cs:44`)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(`Player.cs:1190 !HasHikage()`)も同時に失う二重罰。代案: `_followers[^1]`を1体だけ離脱、または`Mathf.CeilToInt(_followers.Count/2f)`体に留める
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -61,6 +59,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) 被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている | game-designer→engineer | (完了 2026-08-16) `Player.cs:1256-1262`の被弾処理内フォロワー全滅ループ（`_followers.Clear()`で無条件全員離脱）を、末尾の1体（`_followers[^1]`）のみ離脱させる方式に変更。既存の離脱演出（`FxLayer.Instance?.KindnessMote`）はその1体に対して実行、`_followers`が空なら何もしない（`if (_followers.Count > 0)`ガード）。残機減少・無敵化・フラッシュ演出等の他の被弾処理は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P1) 正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正 | scenario | (完了 2026-08-16) `docs/キャラ設定_03_あかり.md:3`の書式（既存冒頭blockquoteに`⚠ **正典 v3（2026-07-02）**:`段落を追記、`---`区切りの直前に置く）を踏襲し、`docs/キャラ設定_01_少年_改訂版.md:6-9`と`docs/キャラ設定_02_ミナ_改訂版.md:8-11`に正典v3注記を追加。本文（旧「余命宣告」「後遺症」「病・余命」記述）は経緯情報保持のため無変更、冒頭注記のみの追加。ドキュメントのみの変更のためビルド対象外
 - [x] (P1) ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける | qa→engineer | (完了 2026-08-16) `Player.cs:1282-1292` `GameOver()`は`_gameOver=true`＋無敵化＋バナー表示のみで、移動処理(`Player.cs:403-422`)・ショット入力(`Player.cs:520`)・`TryBomb()`(`Player.cs:1140-1146`)のいずれも`_gameOver`を参照せず素通り（参照しているのはDodge`:910`とSpecial`:1190`のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（`/home/user/algo_shoot/build/qa/death_Rei_hard.log`）。`_gameOver`後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする。実装：`Player.cs:412`移動入力ゲート（`!Hud.BubblePaused && !_gameOver`）で`dir`をゼロ固定、`Player.cs:521`ショット発火条件に`&& !_gameOver`追加、`Player.cs:540`バックファイア条件に`&& !_gameOver`追加、`Player.cs:550`ボムキー呼び出し条件に`&& !_gameOver`追加＋`TryBomb()`本体先頭(`Player.cs:1142`)にもDodge/Specialと同じ早期return方式のガードを追加（二重防御）。浄化(`Enemy.Purify`)・ボスHP減少はいずれもプレイヤーの弾ヒット判定経由のため、ショット停止により連動して停止する設計（Purify自体は直接ガードせず、根本のショット入力側で止める方式）。無敵化・バナー表示・R/Qのリトライ導線（`Player.cs:1284-1292`）は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認。qa-autoplay(Rei/Hard, god無し, 40秒)で実地確認：t=34.1でlives=0到達（purified=5/46, pbul=2）→t=34.2以降pbulが0のまま5秒以上変化なし、purifiedも5/46で固定、自機座標(0,146)も固定、bomb残数も2で固定（`/home/user/algo_shoot/build/qa/death_Rei_hard_fix.log`）
 - [x] (P3) `AreaSpellCaster._aoeWithSafe` が書き込み専用の死にフィールド | engineer | (完了 2026-08-15) `AreaSpellCaster.cs:44`のフィールド宣言と`:91`,`:107`の代入2箇所を削除。「安置は常に在る（安置なしの全面型は廃止）」の要点は近傍コメントへ統合し情報欠落なし。`dotnet build`で0 Warning/0 Error確認

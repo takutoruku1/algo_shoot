@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">89<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 50 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">91<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 51 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 89パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 91パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">50</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">51</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている</span>
-          
-        </div>
-        <p class="accept"><code>Player.cs:1254-1260</code>は被弾のたび残機-1に加えて<code>_followers</code>を残機の残数に関係なく無条件で全員離脱させる（<code>_followers.Clear()</code>）。フォロワーは最大4体(<code>Player.cs:43</code>)・1体につき3体救出(<code>Player.cs:44</code>)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(<code>Player.cs:1190 !HasHikage()</code>)も同時に失う二重罰。代案: <code>_followers[^1]</code>を1体だけ離脱、または<code>Mathf.CeilToInt(_followers.Count/2f)</code>体に留める</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -199,6 +191,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:1256-1262</code>の被弾処理内フォロワー全滅ループ（<code>_followers.Clear()</code>で無条件全員離脱）を、末尾の1体（<code>_followers[^1]</code>）のみ離脱させる方式に変更。既存の離脱演出（<code>FxLayer.Instance?.KindnessMote</code>）はその1体に対して実行、<code>_followers</code>が空なら何もしない（<code>if (_followers.Count &gt; 0)</code>ガード）。残機減少・無敵化・フラッシュ演出等の他の被弾処理は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -729,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3dc84c3</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅</span></li>
+      <li><span class="h">1e10167</span><span>2026-08-16</span><span class="s">auto: 正典v3バナー欠落を修正</span></li>
       <li><span class="h">eb66958</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 正典v3バナー欠落</span></li>
       <li><span class="h">7c66de0</span><span>2026-08-16</span><span class="s">auto: ゲームオーバー後の処理継続バグを修正</span></li>
       <li><span class="h">8948996</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ゲームオーバー後の処理継続バグ</span></li>
       <li><span class="h">753fa23</span><span>2026-08-16</span><span class="s">auto: 監査で8件をキューに追加</span></li>
       <li><span class="h">87fb613</span><span>2026-08-15</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">0fa5292</span><span>2026-08-16</span><span class="s">Merge pull request #4 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">e7f83f5</span><span>2026-08-15</span><span class="s">auto: AreaSpellCaster._aoeWithSafe死にフィールドを削除</span></li>
-      <li><span class="h">e95e078</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-16 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

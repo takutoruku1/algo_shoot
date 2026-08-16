@@ -1253,13 +1253,14 @@ public partial class Player : Area2D
         Lives = Mathf.Max(0, Lives - 1);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
 
-        // 被弾でフォロワーも全員離れてしまう（やさしさの輪がほどける）
-        foreach (var f in _followers)
+        // 被弾でフォロワーが1体だけ離れてしまう（やさしさの輪が少しほどける＝全滅させない）
+        if (_followers.Count > 0)
         {
+            var f = _followers[^1];
             FxLayer.Instance?.KindnessMote(f.GlobalPosition);
             f.QueueFree();
+            _followers.RemoveAt(_followers.Count - 1);
         }
-        _followers.Clear();
 
         // フラッシュ＋短時間無敵（被弾由来＝この無敵中はグレイズ報酬が入らない）
         StartInvincible(fromHit: true);

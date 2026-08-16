@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-16 18:41 UTC",
+  "generated": "2026-08-16 18:42 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
-    "done": 50
+    "done": 51
   },
-  "percent": 89,
+  "percent": 91,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている",
-      "worker": null,
-      "accept": "`Player.cs:1254-1260`は被弾のたび残機-1に加えて`_followers`を残機の残数に関係なく無条件で全員離脱させる（`_followers.Clear()`）。フォロワーは最大4体(`Player.cs:43`)・1体につき3体救出(`Player.cs:44`)＝最大12体分の投資が1発で瞬時にゼロになる。ヒカゲが含まれる場合は専用スキル(`Player.cs:1190 !HasHikage()`)も同時に失う二重罰。代案: `_followers[^1]`を1体だけ離脱、または`Mathf.CeilToInt(_followers.Count/2f)`体に留める"
-    },
     {
       "priority": "P3",
       "title": "R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている",
+      "worker": null,
+      "accept": "(完了 2026-08-16) `Player.cs:1256-1262`の被弾処理内フォロワー全滅ループ（`_followers.Clear()`で無条件全員離脱）を、末尾の1体（`_followers[^1]`）のみ離脱させる方式に変更。既存の離脱演出（`FxLayer.Instance?.KindnessMote`）はその1体に対して実行、`_followers`が空なら何もしない（`if (_followers.Count > 0)`ガード）。残機減少・無敵化・フラッシュ演出等の他の被弾処理は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P1",
       "title": "正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正",
@@ -442,6 +442,16 @@
   ],
   "commits": [
     {
+      "hash": "3dc84c3",
+      "date": "2026-08-16",
+      "subject": "auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅"
+    },
+    {
+      "hash": "1e10167",
+      "date": "2026-08-16",
+      "subject": "auto: 正典v3バナー欠落を修正"
+    },
+    {
       "hash": "eb66958",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - 正典v3バナー欠落"
@@ -470,16 +480,6 @@
       "hash": "0fa5292",
       "date": "2026-08-16",
       "subject": "Merge pull request #4 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "e7f83f5",
-      "date": "2026-08-15",
-      "subject": "auto: AreaSpellCaster._aoeWithSafe死にフィールドを削除"
-    },
-    {
-      "hash": "e95e078",
-      "date": "2026-08-15",
-      "subject": "auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除"
     }
   ]
 }
