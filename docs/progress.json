@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-16 18:44 UTC",
+  "generated": "2026-08-16 18:46 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 52
+    "done": 53
   },
-  "percent": 93,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "ステージクリア報酬の増分フィールドが配線されず死んでいる",
-      "worker": "engineer",
-      "accept": "`GameManager.cs:759-766` `RegisterStageClear()`が`LastClearImpression`(`:324`)/`LastClearFollowers`(`:325`)へクリア時増分をセットするが読み手がsrc/に一件も無い（`Hub.cs:552,714-715`は累計値のみ表示）。同種`DodgeGrazeCount`(`GameManager.cs:1170`宣言・`:1162`加算のみ)も読み手ゼロ。未使用フィールドとして削除する（`GrazeCount`のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）"
-    },
     {
       "priority": "P3",
       "title": "フォロワー加入までの進捗が画面上どこにも見えない",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "ステージクリア報酬の増分フィールドが配線されず死んでいる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-16) `src/`全体を再grepし読み手ゼロを確認した上で3フィールドを削除。宣言：`GameManager.cs:324`(`LastClearImpression`)・`:325`(`LastClearFollowers`)・`:1170`(`DodgeGrazeCount`)。代入：`RegisterStageClear()`内`GameManager.cs:761`(`LastClearImpression = (int)GainImpression(120);` → `GainImpression(120);`のみに簡略化)・`:765`(`LastClearFollowers = fol;`を削除、`fol`は`AddFollowers(fol)`で引き続き使用のため変数自体は残置)。インクリメント：`GameManager.cs:1162`(`DodgeGraze()`内`DodgeGrazeCount++;`)。`Followers`/`Impression`累計更新ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
     {
       "priority": "P3",
       "title": "R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）",
@@ -442,6 +442,16 @@
   ],
   "commits": [
     {
+      "hash": "01f83d7",
+      "date": "2026-08-16",
+      "subject": "auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード"
+    },
+    {
+      "hash": "9777826",
+      "date": "2026-08-16",
+      "subject": "auto: R長押しリトライのコメント表記を0.45sに統一"
+    },
+    {
       "hash": "35ca2f8",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - R長押しリトライのコメント乖離"
@@ -470,16 +480,6 @@
       "hash": "7c66de0",
       "date": "2026-08-16",
       "subject": "auto: ゲームオーバー後の処理継続バグを修正"
-    },
-    {
-      "hash": "8948996",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - ゲームオーバー後の処理継続バグ"
-    },
-    {
-      "hash": "753fa23",
-      "date": "2026-08-16",
-      "subject": "auto: 監査で8件をキューに追加"
     }
   ]
 }

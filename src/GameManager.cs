@@ -320,9 +320,6 @@ public partial class GameManager : Node
     public int Followers { get; private set; }
     // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
     public long RunImpression { get; private set; }
-    // 直近ステージクリアの報酬（帰還演出のカウントアップ表示用）。
-    public int LastClearImpression { get; private set; }
-    public int LastClearFollowers { get; private set; }
 
     // 恒久強化レベル（id → 現在Lv）。未所持は 0。単Lvノード方式では値は常に 0/1。
     // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
@@ -758,11 +755,10 @@ public partial class GameManager : Node
     // ステージクリア（浄化100%）時の大口報酬。帰還演出から呼ぶ（STEP2/5で配線）。
     public void RegisterStageClear()
     {
-        LastClearImpression = (int)GainImpression(120);
+        GainImpression(120);
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
         int fol = Mathf.RoundToInt(40 * (1f + 0.15f * ChainLevel("fol_gain", 2)) * ReplayMul);
         AddFollowers(fol);
-        LastClearFollowers = fol;
         AutoSave(); // クリアでオートセーブ（slot 0）
     }
 
@@ -1159,7 +1155,6 @@ public partial class GameManager : Node
     public long AddDodgeGraze()
     {
         Score += DodgeGrazeScore;
-        DodgeGrazeCount++;
         AddKindness(GrazeGain);
         if (Combo > 0)
             _comboTimer = ComboWindow;
@@ -1167,7 +1162,6 @@ public partial class GameManager : Node
     }
     private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア（通常グレイズ10の5倍）
     private const int DodgeGrazeImpBase = 2;  // 回避よけ1発の基礎インプレ（倍率は GainImpression 内で適用。稼ぎすぎ是正で 4→2）
-    public int DodgeGrazeCount { get; private set; }
 
     // ボムで敵弾を消した時の小加点。
     public void AddBulletCleared()

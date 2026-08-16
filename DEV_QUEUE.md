@@ -35,8 +35,6 @@
 
 ## WIP
 
-- [ ] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | `GameManager.cs:759-766` `RegisterStageClear()`が`LastClearImpression`(`:324`)/`LastClearFollowers`(`:325`)へクリア時増分をセットするが読み手がsrc/に一件も無い（`Hub.cs:552,714-715`は累計値のみ表示）。同種`DodgeGrazeCount`(`GameManager.cs:1170`宣言・`:1162`加算のみ)も読み手ゼロ。未使用フィールドとして削除する（`GrazeCount`のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -59,6 +57,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P3) ステージクリア報酬の増分フィールドが配線されず死んでいる | engineer | (完了 2026-08-16) `src/`全体を再grepし読み手ゼロを確認した上で3フィールドを削除。宣言：`GameManager.cs:324`(`LastClearImpression`)・`:325`(`LastClearFollowers`)・`:1170`(`DodgeGrazeCount`)。代入：`RegisterStageClear()`内`GameManager.cs:761`(`LastClearImpression = (int)GainImpression(120);` → `GainImpression(120);`のみに簡略化)・`:765`(`LastClearFollowers = fol;`を削除、`fol`は`AddFollowers(fol)`で引き続き使用のため変数自体は残置)。インクリメント：`GameManager.cs:1162`(`DodgeGraze()`内`DodgeGrazeCount++;`)。`Followers`/`Impression`累計更新ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P3) R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存） | engineer | (完了 2026-08-16) `RetryHold.cs:10` `HoldTime = 0.45f`（2026-08-13に0.7f→0.45fへ短縮済み）に対し呼び出し元コメントが「R長押し(0.7s)」のまま残っていた9箇所を「(0.45s)」へ統一：`ReiRoot.cs:77`／`AkariRoot.cs:77`／`KoharuRoot.cs:79`／`MinaRoot.cs:124`／`Main.cs:86`／`Stage0Root.cs:83`／`Prologue.cs:181`／`Final.cs:133`／`Epilogue.cs:179`。`GameManager.cs:699`にも「0.7s」がヒットしたが文脈確認の結果`VeilLightDuration`（祈りの帳の光輪持続、`:701`で実装値0.7f）を指す無関係の記述だったため対象外・不変。コメント文字列の置換のみでロジック・実装値には無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P2) 被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている | game-designer→engineer | (完了 2026-08-16) `Player.cs:1256-1262`の被弾処理内フォロワー全滅ループ（`_followers.Clear()`で無条件全員離脱）を、末尾の1体（`_followers[^1]`）のみ離脱させる方式に変更。既存の離脱演出（`FxLayer.Instance?.KindnessMote`）はその1体に対して実行、`_followers`が空なら何もしない（`if (_followers.Count > 0)`ガード）。残機減少・無敵化・フラッシュ演出等の他の被弾処理は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [x] (P1) 正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正 | scenario | (完了 2026-08-16) `docs/キャラ設定_03_あかり.md:3`の書式（既存冒頭blockquoteに`⚠ **正典 v3（2026-07-02）**:`段落を追記、`---`区切りの直前に置く）を踏襲し、`docs/キャラ設定_01_少年_改訂版.md:6-9`と`docs/キャラ設定_02_ミナ_改訂版.md:8-11`に正典v3注記を追加。本文（旧「余命宣告」「後遺症」「病・余命」記述）は経緯情報保持のため無変更、冒頭注記のみの追加。ドキュメントのみの変更のためビルド対象外

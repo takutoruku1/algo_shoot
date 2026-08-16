@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">93<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 52 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 53 / 対象 56 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">52</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">53</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ステージクリア報酬の増分フィールドが配線されず死んでいる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>GameManager.cs:759-766</code> <code>RegisterStageClear()</code>が<code>LastClearImpression</code>(<code>:324</code>)/<code>LastClearFollowers</code>(<code>:325</code>)へクリア時増分をセットするが読み手がsrc/に一件も無い（<code>Hub.cs:552,714-715</code>は累計値のみ表示）。同種<code>DodgeGrazeCount</code>(<code>GameManager.cs:1170</code>宣言・<code>:1162</code>加算のみ)も読み手ゼロ。未使用フィールドとして削除する（<code>GrazeCount</code>のような「将来のため意図的に残置」コメントも無いため、既存の死にコード削除タスクと同じ方針でよい）</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ステージクリア報酬の増分フィールドが配線されず死んでいる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>src/</code>全体を再grepし読み手ゼロを確認した上で3フィールドを削除。宣言：<code>GameManager.cs:324</code>(<code>LastClearImpression</code>)・<code>:325</code>(<code>LastClearFollowers</code>)・<code>:1170</code>(<code>DodgeGrazeCount</code>)。代入：<code>RegisterStageClear()</code>内<code>GameManager.cs:761</code>(<code>LastClearImpression = (int)GainImpression(120);</code> → <code>GainImpression(120);</code>のみに簡略化)・<code>:765</code>(<code>LastClearFollowers = fol;</code>を削除、<code>fol</code>は<code>AddFollowers(fol)</code>で引き続き使用のため変数自体は残置)。インクリメント：<code>GameManager.cs:1162</code>(<code>DodgeGraze()</code>内<code>DodgeGrazeCount++;</code>)。<code>Followers</code>/<code>Impression</code>累計更新ロジックは無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -729,18 +729,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">01f83d7</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード</span></li>
+      <li><span class="h">9777826</span><span>2026-08-16</span><span class="s">auto: R長押しリトライのコメント表記を0.45sに統一</span></li>
       <li><span class="h">35ca2f8</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - R長押しリトライのコメント乖離</span></li>
       <li><span class="h">a96b6db</span><span>2026-08-16</span><span class="s">auto: 被弾時のフォロワー全滅ペナルティを緩和</span></li>
       <li><span class="h">3dc84c3</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 被弾ペナルティのフォロワー全滅</span></li>
       <li><span class="h">1e10167</span><span>2026-08-16</span><span class="s">auto: 正典v3バナー欠落を修正</span></li>
       <li><span class="h">eb66958</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - 正典v3バナー欠落</span></li>
       <li><span class="h">7c66de0</span><span>2026-08-16</span><span class="s">auto: ゲームオーバー後の処理継続バグを修正</span></li>
-      <li><span class="h">8948996</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - ゲームオーバー後の処理継続バグ</span></li>
-      <li><span class="h">753fa23</span><span>2026-08-16</span><span class="s">auto: 監査で8件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-16 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-16 18:46 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
