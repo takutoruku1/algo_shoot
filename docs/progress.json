@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-17 18:39 UTC",
+  "generated": "2026-08-17 22:05 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -489,6 +489,16 @@
   ],
   "commits": [
     {
+      "hash": "a2c2ba7",
+      "date": "2026-08-18",
+      "subject": "Merge pull request #5 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "c788150",
+      "date": "2026-08-17",
+      "subject": "auto: 設定書の伏線③未解決メモを実装済みに更新"
+    },
+    {
       "hash": "132de51",
       "date": "2026-08-17",
       "subject": "auto: 設定書のレイ口癖セルを実装台詞に合わせて更新"
@@ -517,16 +527,6 @@
       "hash": "18baae0",
       "date": "2026-08-17",
       "subject": "auto: レイ/あかりの範囲技@ハンドル表記を統一"
-    },
-    {
-      "hash": "7beefab",
-      "date": "2026-08-17",
-      "subject": "auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ"
-    },
-    {
-      "hash": "268ed8c",
-      "date": "2026-08-17",
-      "subject": "auto: あそびかた説明に加速球モードの記載を追加"
     }
   ]
 }
