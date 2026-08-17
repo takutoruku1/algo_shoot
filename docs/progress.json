@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-17 18:32 UTC",
+  "generated": "2026-08-17 18:35 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 16,
-    "done": 59
+    "done": 60
   },
-  "percent": 94,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる",
-      "worker": "game-designer",
-      "accept": "`GameManager.cs:55-60`の`StartLives`/`StartBombs`でLunaticをHardの3から2段階分下げる（例: Hard=3→Lunatic=2）。根拠: `BulletCountMul`等の弾密度指標はEasy→Normal→Hardでは残機減少と連動するのにHard→Lunatic（+73%で最大の伸び幅）だけ残機・ボムが3→3のまま据え置きになっている"
-    },
     {
       "priority": "P2",
       "title": "あかりの「バカ」口癖、3段変化のうち中間（病んだ後の自傷反転）だけ未実装",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-17) `GameManager.cs:59-60`の`StartLives`/`StartBombs`のLunatic値をHard同値の3から2へ変更（Easy 6→Normal 4→Hard 3→Lunatic 2 の連続カーブに統一）。恒久強化`max_life`/`bomb_count`で最大+2まで積める設計は不変のため、やり込み投資で補う釣り合いは維持。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う",
@@ -490,6 +490,16 @@
   ],
   "commits": [
     {
+      "hash": "6379573",
+      "date": "2026-08-17",
+      "subject": "auto: WIPへ移動 - ルナティックの残機・ボムバランス"
+    },
+    {
+      "hash": "18baae0",
+      "date": "2026-08-17",
+      "subject": "auto: レイ/あかりの範囲技@ハンドル表記を統一"
+    },
+    {
       "hash": "7beefab",
       "date": "2026-08-17",
       "subject": "auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ"
@@ -518,16 +528,6 @@
       "hash": "469dd58",
       "date": "2026-08-17",
       "subject": "auto: 監査で7件をキューに追加、1件をBLOCKEDに追加"
-    },
-    {
-      "hash": "417b3f5",
-      "date": "2026-08-16",
-      "subject": "auto: あかりちゃん呼びの回収演出を実装"
-    },
-    {
-      "hash": "aa2598d",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - あかりちゃん呼びの回収演出"
     }
   ]
 }

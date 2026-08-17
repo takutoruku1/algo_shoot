@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">94<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 59 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 60 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 94パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">59</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">60</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>GameManager.cs:55-60</code>の<code>StartLives</code>/<code>StartBombs</code>でLunaticをHardの3から2段階分下げる（例: Hard=3→Lunatic=2）。根拠: <code>BulletCountMul</code>等の弾密度指標はEasy→Normal→Hardでは残機減少と連動するのにHard→Lunatic（+73%で最大の伸び幅）だけ残機・ボムが3→3のまま据え置きになっている</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>GameManager.cs:59-60</code>の<code>StartLives</code>/<code>StartBombs</code>のLunatic値をHard同値の3から2へ変更（Easy 6→Normal 4→Hard 3→Lunatic 2 の連続カーブに統一）。恒久強化<code>max_life</code>/<code>bomb_count</code>で最大+2まで積める設計は不変のため、やり込み投資で補う釣り合いは維持。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -793,18 +793,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6379573</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ルナティックの残機・ボムバランス</span></li>
+      <li><span class="h">18baae0</span><span>2026-08-17</span><span class="s">auto: レイ/あかりの範囲技@ハンドル表記を統一</span></li>
       <li><span class="h">7beefab</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ</span></li>
       <li><span class="h">268ed8c</span><span>2026-08-17</span><span class="s">auto: あそびかた説明に加速球モードの記載を追加</span></li>
       <li><span class="h">a4a541b</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あそびかた説明の加速球記載漏れ</span></li>
       <li><span class="h">ab7bcc0</span><span>2026-08-17</span><span class="s">auto: ヒカゲ加入直後の被弾でスキルが失われる不具合を修正</span></li>
       <li><span class="h">e116103</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ヒカゲ加入直後の被弾でスキルが失われる不具合</span></li>
       <li><span class="h">469dd58</span><span>2026-08-17</span><span class="s">auto: 監査で7件をキューに追加、1件をBLOCKEDに追加</span></li>
-      <li><span class="h">417b3f5</span><span>2026-08-16</span><span class="s">auto: あかりちゃん呼びの回収演出を実装</span></li>
-      <li><span class="h">aa2598d</span><span>2026-08-16</span><span class="s">auto: WIPへ移動 - あかりちゃん呼びの回収演出</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-17 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-17 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

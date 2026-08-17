@@ -52,8 +52,12 @@ public partial class GameManager : Node
     }
     public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
-    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + MaxLifeBonus;
-    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + BombCountBonus;
+    // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
+    // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
+    // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
+    // 恒久強化(max_life/bomb_count、ChainLevel上限+2)を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
+    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + MaxLifeBonus;
+    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + BombCountBonus;
     public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
     public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };

@@ -34,8 +34,6 @@
 - [ ] (P3) 世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている | scenario | `【最新】世界観・ストーリー・キャラ設定まとめ.md:230`の「未確定・要確認項目」5番（伏線③のEPILOGUE回収）を、`Epilogue.cs:145,151`で既に台詞として明示回収済みであることを踏まえ削除するか「実装済み」に更新する
 ## WIP
 
-- [ ] (P2) ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる | game-designer | `GameManager.cs:55-60`の`StartLives`/`StartBombs`でLunaticをHardの3から2段階分下げる（例: Hard=3→Lunatic=2）。根拠: `BulletCountMul`等の弾密度指標はEasy→Normal→Hardでは残機減少と連動するのにHard→Lunatic（+73%で最大の伸び幅）だけ残機・ボムが3→3のまま据え置きになっている
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -59,6 +57,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる | game-designer | (完了 2026-08-17) `GameManager.cs:59-60`の`StartLives`/`StartBombs`のLunatic値をHard同値の3から2へ変更（Easy 6→Normal 4→Hard 3→Lunatic 2 の連続カーブに統一）。恒久強化`max_life`/`bomb_count`で最大+2まで積める設計は不変のため、やり込み投資で補う釣り合いは維持。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う | engineer | (完了 2026-08-17) `AreaSpellCaster.cs:270`の`"@rei_compe"`を`"@rei_compete"`に、`AreaSpellCaster.cs:278`の`"@akari_rain"`を`"@akari_ame"`に統一し、`BossRei.cs:81,339`/`BossAkari.cs:56,186,302`の宣言と一致させた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) あそびかた説明に4番目のショットモード「加速球」が登場しない | engineer | (完了 2026-08-17) `HowToPlay.cs:168`のショット切替説明を「連射↔拡散↔ホーミング（解放後）」→「連射↔拡散↔ホーミング↔加速球（解放後）」に、`HowToPlay.cs:268`のショップ解放先一覧を「連射 / 拡散 / ホーミング」→「連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾）」に修正。`Shop.cs:31`のAccel説明のニュアンスを反映。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) ヒカゲ加入直後の被弾で専用スキルが即座に失われる | engineer | (完了 2026-08-17) `Player.cs:1272-1289` の被弾時フォロワー離脱ロジックを、末尾固定から「リストを末尾から走査して最初に見つかった `!IsHikage`（通常フォロワー）」を離脱させる方式に変更。通常フォロワーが0（ヒカゲのみ）の場合はフォールバックとしてヒカゲを離脱させる。`_followers.RemoveAt(idx)` でリスト順序は維持。既存演出（`KindnessMote`/`QueueFree`/`NotifyFollowerProgress`）は不変。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認済み
