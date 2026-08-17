@@ -1,13 +1,56 @@
 {
-  "generated": "2026-08-16 18:56 UTC",
+  "generated": "2026-08-17 18:28 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 7,
     "wip": 0,
-    "blocked": 15,
+    "blocked": 16,
     "done": 56
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 89,
+  "todo": [
+    {
+      "priority": "P1",
+      "title": "ヒカゲ加入直後の被弾で専用スキルが即座に失われる",
+      "worker": "engineer",
+      "accept": "被弾時の離脱対象からヒカゲ(`f.IsHikage`)を除外する。通常フォロワーが残っていればそちらを優先して離脱させ、通常フォロワーが0でヒカゲのみの場合はヒカゲも離脱可とする優先順位を`Player.cs:1273-1279`に実装する。根拠: `Player.cs:1273-1279`（離脱対象は常に`_followers[^1]`＝末尾）、`Player.cs:60-89` `AddHikageFollower`（ヒカゲは必ず末尾に追加される）、`BossHikage.cs:188`（再付与経路が無くラン中一度きりの加入）"
+    },
+    {
+      "priority": "P2",
+      "title": "あそびかた説明に4番目のショットモード「加速球」が登場しない",
+      "worker": "engineer",
+      "accept": "`HowToPlay.cs:168`のショット切替一覧と`HowToPlay.cs:268`の解放先一覧に「加速球」を追加する。根拠: `Shop.cs:23-32`で定義された4モード（Rapid/Spread/Homing/Accel）のうちAccelだけが`HowToPlay.cs`の説明文から漏れている"
+    },
+    {
+      "priority": "P2",
+      "title": "レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う",
+      "worker": "engineer",
+      "accept": "`AreaSpellCaster.cs:270`の`\"@rei_compe\"`を`BossRei.cs:81,339`の`\"@rei_compete\"`に、`AreaSpellCaster.cs:278`の`\"@akari_rain\"`を`BossAkari.cs:56,186,302`の`\"@akari_ame\"`に統一する（こはるは既に`AreaSpellCaster.cs:285`/`BossKoharu.cs`各所で`\"@koharu_kitchen\"`に一致している）"
+    },
+    {
+      "priority": "P2",
+      "title": "ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる",
+      "worker": "game-designer",
+      "accept": "`GameManager.cs:55-60`の`StartLives`/`StartBombs`でLunaticをHardの3から2段階分下げる（例: Hard=3→Lunatic=2）。根拠: `BulletCountMul`等の弾密度指標はEasy→Normal→Hardでは残機減少と連動するのにHard→Lunatic（+73%で最大の伸び幅）だけ残機・ボムが3→3のまま据え置きになっている"
+    },
+    {
+      "priority": "P2",
+      "title": "あかりの「バカ」口癖、3段変化のうち中間（病んだ後の自傷反転）だけ未実装",
+      "worker": "scenario",
+      "accept": "`キャラ設定_03_あかり.md:38-41`が明記する「本来→病み（『あたしが、バカだった』に反転）→浄化後」の3段のうち中間のみ`BossAkari.cs`に見当たらない。暴走（病み）パートのLinesに自傷反転の一行を追加する"
+    },
+    {
+      "priority": "P3",
+      "title": "レイの口癖欄（設定書）と実装の決定台詞が一致していない",
+      "worker": "scenario",
+      "accept": "`【最新】世界観・ストーリー・キャラ設定まとめ.md:97`のレイ口癖セルを実装文言（`StageRei.cs:187`/`Epilogue.cs:90`「次は、本気のあなたと。——逃げたら、承知しないから。」）に合わせて更新する（あかり/こはるは既に設定書と実装が一致）"
+    },
+    {
+      "priority": "P3",
+      "title": "世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている",
+      "worker": "scenario",
+      "accept": "`【最新】世界観・ストーリー・キャラ設定まとめ.md:230`の「未確定・要確認項目」5番（伏線③のEPILOGUE回収）を、`Epilogue.cs:145,151`で既に台詞として明示回収済みであることを踏まえ削除するか「実装済み」に更新する"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -45,6 +88,12 @@
       "title": "グレイズを教えるチュートリアルが無い",
       "worker": "game-designer",
       "accept": "StageZero は移動/撃つ/低速/回避/ボム/浄化/やさしさ全開の7項目を達成条件つきで教えるのに、グレイズだけ独立ステップが無い（`StageZero.cs:123` で一言触れるのみ）。低速(phase5-6)と回避(7-8)の間に枠を1つ挿入、達成条件は `GameManager.GrazeCount` の増分で5回――という指定だが、`StageZero.cs` の `_phase` は0始まりの生の`int`で `switch(_phase)`（本体）と `OpForPhase(phase)`（HUD操作ヒント）の**2箇所に同じ番号がハードコードされて一対一対応**しており（`case 7`〜`case 15` が9ブロック）、中間に挿入するには両方のswitchでcase 7以降を全て+2で振り直す必要がある。約480行のステートマシンで達成条件のフラグ（`_t7ActivatedT`等）も番号に紐付いており、番号ズレは実行時のみ症状が出て**ビルドでは検出できない**（このコンテナはインタラクティブなプレイテストができない）。加えて「厳密にphase 6と7の間へ挿入」と「末尾へ追加（教える順序が変わるが安全）」のどちらを取るかは設計判断で、勝手に決めていいものではないと判断。人間の判断待ち：(a)番号振り直しでの中間挿入を許可する（要動作確認）、(b)安全側で末尾に追加する、(c)phase識別をenum化してから着手する別タスクに分割する、のいずれか指定してほしい"
+    },
+    {
+      "priority": null,
+      "title": "高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ（Rei/Lunatic）",
+      "worker": null,
+      "accept": "（2026-08-17監査で発見）`build/qa/collide_Rei_lunatic_long.log:196-202` で1回のみ観測。4本のGodotヘッドレスプロセスをCPU競合させた高負荷テスト環境下で `propagate_notification()` 関連の警告直後にsignal 11でクラッシュ。同一シナリオを単独実行（負荷なし）では再現せず（`build/qa/collide_Rei_lunatic_retry.log`）。`src/` 全体をgrepしてもカスタムスレッド使用は無くゲームコード側原因とは特定できていない＝Godotエンジン内部のシャットダウン競合の疑い。要ユーザー判断：通常のプレイ環境（単独起動・CPU競合なし）で同条件が再現するか確認してから対応要否を判断してほしい。現状は具体的な修正箇所を特定できていないため着手不能"
     },
     {
       "priority": null,
@@ -441,6 +490,11 @@
   ],
   "commits": [
     {
+      "hash": "417b3f5",
+      "date": "2026-08-16",
+      "subject": "auto: あかりちゃん呼びの回収演出を実装"
+    },
+    {
       "hash": "aa2598d",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - あかりちゃん呼びの回収演出"
@@ -474,11 +528,6 @@
       "hash": "01f83d7",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード"
-    },
-    {
-      "hash": "9777826",
-      "date": "2026-08-16",
-      "subject": "auto: R長押しリトライのコメント表記を0.45sに統一"
     }
   ]
 }
