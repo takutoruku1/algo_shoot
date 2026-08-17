@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-17 18:30 UTC",
+  "generated": "2026-08-17 18:31 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 16,
-    "done": 57
+    "done": 58
   },
-  "percent": 90,
+  "percent": 92,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "あそびかた説明に4番目のショットモード「加速球」が登場しない",
-      "worker": "engineer",
-      "accept": "`HowToPlay.cs:168`のショット切替一覧と`HowToPlay.cs:268`の解放先一覧に「加速球」を追加する。根拠: `Shop.cs:23-32`で定義された4モード（Rapid/Spread/Homing/Accel）のうちAccelだけが`HowToPlay.cs`の説明文から漏れている"
-    },
     {
       "priority": "P2",
       "title": "レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "あそびかた説明に4番目のショットモード「加速球」が登場しない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-17) `HowToPlay.cs:168`のショット切替説明を「連射↔拡散↔ホーミング（解放後）」→「連射↔拡散↔ホーミング↔加速球（解放後）」に、`HowToPlay.cs:268`のショップ解放先一覧を「連射 / 拡散 / ホーミング」→「連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾）」に修正。`Shop.cs:31`のAccel説明のニュアンスを反映。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "ヒカゲ加入直後の被弾で専用スキルが即座に失われる",
@@ -490,6 +490,16 @@
   ],
   "commits": [
     {
+      "hash": "a4a541b",
+      "date": "2026-08-17",
+      "subject": "auto: WIPへ移動 - あそびかた説明の加速球記載漏れ"
+    },
+    {
+      "hash": "ab7bcc0",
+      "date": "2026-08-17",
+      "subject": "auto: ヒカゲ加入直後の被弾でスキルが失われる不具合を修正"
+    },
+    {
       "hash": "e116103",
       "date": "2026-08-17",
       "subject": "auto: WIPへ移動 - ヒカゲ加入直後の被弾でスキルが失われる不具合"
@@ -518,16 +528,6 @@
       "hash": "ece5b51",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - Player.csコメントの数値乖離"
-    },
-    {
-      "hash": "8a48217",
-      "date": "2026-08-16",
-      "subject": "auto: フォロワー加入進捗ドット表示を追加"
-    },
-    {
-      "hash": "59d6a99",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - フォロワー加入進捗表示"
     }
   ]
 }

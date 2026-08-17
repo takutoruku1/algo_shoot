@@ -165,7 +165,7 @@ public partial class HowToCanvas : Node2D
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
             (TokFlip,  "向き反転",    "押すたび撃つ方向が 右⇔左 に切り替わる",           UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
-            (TokMode,  "ショット切替","連射↔拡散↔ホーミング（解放後）",                UiKit.Gold,   true),
+            (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
             (TokKind,  "やさしさ全開","満タンで発動、5秒ひかりが溢れる",               UiKit.PurifyHi,false),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
@@ -265,7 +265,7 @@ public partial class HowToCanvas : Node2D
              "ピンチの保険。" + TokBomb + " で画面の弾を消し無敵に。残数は限られる。",
              UiKit.Mina),
             ("弾強化",
-             "ハブで " + TokBomb + " →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング を解放・強化。",
+             "ハブで " + TokBomb + " →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾） を解放・強化。",
              UiKit.Gold),
             ("浄化と汚染",
              "敵を浄化＝救うこと。汚染は物語が進むほど自然に上がる演出で、高いとやさしさが鈍る。澄んだ心I/IIで上昇をゆるやかにできる。",
