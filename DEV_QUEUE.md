@@ -29,7 +29,6 @@
 ## TODO
 
 <!-- ▼ 2026-08-17 監査モードで補充（7件）。根拠はファイル:行、既存TODO/BLOCKED/DONEとの重複は確認済み -->
-- [ ] (P1) ヒカゲ加入直後の被弾で専用スキルが即座に失われる | engineer | 被弾時の離脱対象からヒカゲ(`f.IsHikage`)を除外する。通常フォロワーが残っていればそちらを優先して離脱させ、通常フォロワーが0でヒカゲのみの場合はヒカゲも離脱可とする優先順位を`Player.cs:1273-1279`に実装する。根拠: `Player.cs:1273-1279`（離脱対象は常に`_followers[^1]`＝末尾）、`Player.cs:60-89` `AddHikageFollower`（ヒカゲは必ず末尾に追加される）、`BossHikage.cs:188`（再付与経路が無くラン中一度きりの加入）
 - [ ] (P2) あそびかた説明に4番目のショットモード「加速球」が登場しない | engineer | `HowToPlay.cs:168`のショット切替一覧と`HowToPlay.cs:268`の解放先一覧に「加速球」を追加する。根拠: `Shop.cs:23-32`で定義された4モード（Rapid/Spread/Homing/Accel）のうちAccelだけが`HowToPlay.cs`の説明文から漏れている
 - [ ] (P2) レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う | engineer | `AreaSpellCaster.cs:270`の`"@rei_compe"`を`BossRei.cs:81,339`の`"@rei_compete"`に、`AreaSpellCaster.cs:278`の`"@akari_rain"`を`BossAkari.cs:56,186,302`の`"@akari_ame"`に統一する（こはるは既に`AreaSpellCaster.cs:285`/`BossKoharu.cs`各所で`"@koharu_kitchen"`に一致している）
 - [ ] (P2) ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる | game-designer | `GameManager.cs:55-60`の`StartLives`/`StartBombs`でLunaticをHardの3から2段階分下げる（例: Hard=3→Lunatic=2）。根拠: `BulletCountMul`等の弾密度指標はEasy→Normal→Hardでは残機減少と連動するのにHard→Lunatic（+73%で最大の伸び幅）だけ残機・ボムが3→3のまま据え置きになっている
@@ -37,6 +36,8 @@
 - [ ] (P3) レイの口癖欄（設定書）と実装の決定台詞が一致していない | scenario | `【最新】世界観・ストーリー・キャラ設定まとめ.md:97`のレイ口癖セルを実装文言（`StageRei.cs:187`/`Epilogue.cs:90`「次は、本気のあなたと。——逃げたら、承知しないから。」）に合わせて更新する（あかり/こはるは既に設定書と実装が一致）
 - [ ] (P3) 世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている | scenario | `【最新】世界観・ストーリー・キャラ設定まとめ.md:230`の「未確定・要確認項目」5番（伏線③のEPILOGUE回収）を、`Epilogue.cs:145,151`で既に台詞として明示回収済みであることを踏まえ削除するか「実装済み」に更新する
 ## WIP
+
+- [ ] (P1) ヒカゲ加入直後の被弾で専用スキルが即座に失われる | engineer | 被弾時の離脱対象からヒカゲ(`f.IsHikage`)を除外する。通常フォロワーが残っていればそちらを優先して離脱させ、通常フォロワーが0でヒカゲのみの場合はヒカゲも離脱可とする優先順位を`Player.cs:1273-1279`に実装する。根拠: `Player.cs:1273-1279`（離脱対象は常に`_followers[^1]`＝末尾）、`Player.cs:60-89` `AddHikageFollower`（ヒカゲは必ず末尾に追加される）、`BossHikage.cs:188`（再付与経路が無くラン中一度きりの加入）
 
 ## BLOCKED
 
