@@ -267,7 +267,7 @@ public partial class AreaSpellCaster : Node2D
         switch (key)
         {
             case "rei": // 順位掲示板・整然と裁く（予兆長め・金/菫）
-                _disp = "レイ"; _handle = "@rei_compe";
+                _disp = "レイ"; _handle = "@rei_compete";
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
                 _shapes = new[] { H_, R };
@@ -275,7 +275,7 @@ public partial class AreaSpellCaster : Node2D
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
             case "akari": // 雨の教室・降る前に予報（蒼）
-                _disp = "あかり"; _handle = "@akari_rain";
+                _disp = "あかり"; _handle = "@akari_ame";
                 _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
                 _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;
                 _shapes = new[] { V, C };

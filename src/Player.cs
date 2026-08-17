@@ -2,7 +2,7 @@ using Godot;
 using System.Collections.Generic;
 
 // Player : Area2D。グループ "player" に追加。
-// 移動(通常110 / 低速50 px/s)、連射(Pool経由・右方向+260・上下2way)、被弾無敵点滅、TakeHit、Lives。
+// 移動(通常150 / 低速65 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
 // W0 では残機を減らさず「練習中」扱い（ゲームオーバーにしない）。
 // 衝突: layer=1, mask=12（敵=4 と 敵弾=8 を検出）。
 // 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点を _Draw で小さく描く。
@@ -40,8 +40,8 @@ public partial class Player : Area2D
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
-    private const int MaxFollowers = 4;
-    private const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）
+    public const int MaxFollowers = 4;
+    public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
     private int _savedCount = 0;
     private int _shotParity = 0;            // フォロワーの発射間引き用
     private bool _overload = false;         // やさしさ全開中か（GameManager）
@@ -85,19 +85,35 @@ public partial class Player : Area2D
         nf.PromoteToHikage();
         FxLayer.Instance?.PurifyBurst(nf.GlobalPosition);
         _followers.Add(nf);
+        NotifyFollowerProgress(); // 満員化し得るので通知
     }
+
+    // 現在のフォロワー所持数（0..MaxFollowers）。HUDの進捗ドット表示用に公開。
+    public int FollowerCount => _followers.Count;
+
+    // フォロワーが満員（MaxFollowers到達済み）か。満員なら次の1体までの進捗表示は不要。
+    public bool FollowersFull => _followers.Count >= MaxFollowers;
+
+    // 次のフォロワー加入まであと何人分進んだか（0..SavedPerFollower-1）。HUDの進捗ドット（●●○）に使う。
+    // 満員時は 0 を返す＝呼び出し側は FollowersFull と合わせて「ドット非表示」を判断する。
+    public int SavedProgress => FollowersFull ? 0 : _savedCount % SavedPerFollower;
+
+    // Player の状態変化（フォロワー増減・進捗）を HUD へ通知する。SetLives と同じ push パターン。
+    private void NotifyFollowerProgress() =>
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFollowerProgress(SavedProgress, SavedPerFollower, FollowersFull);
 
     // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
     public bool AddFollower(Vector2 globalFromPos)
     {
         _savedCount++;
-        if (_followers.Count >= MaxFollowers) return false;
-        if (_savedCount % SavedPerFollower != 0) return false; // 3人救うごとに1体
+        if (_followers.Count >= MaxFollowers) { NotifyFollowerProgress(); return false; }
+        if (_savedCount % SavedPerFollower != 0) { NotifyFollowerProgress(); return false; } // 3人救うごとに1体
         var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
         AddChild(f);
         f.Position = ToLocal(globalFromPos); // 浄化した位置（＝救った本人の場所）から飛んでくる
         _followers.Add(f);
+        NotifyFollowerProgress();
         return true;
     }
 
@@ -407,9 +423,9 @@ public partial class Player : Area2D
         // 操作ガイドの KB/パッド出し分け用に、直近デバイスを毎フレーム判定。
         Pad.PollDevice();
 
-        // 移動入力。会話中（吹き出し表示中）は動けない。
+        // 移動入力。会話中（吹き出し表示中）・ゲームオーバー後は動けない。
         Vector2 dir = Vector2.Zero;
-        if (!Hud.BubblePaused)
+        if (!Hud.BubblePaused && !_gameOver)
         {
             dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
             // WASD でも動けるように。矢印キーは「↑+←+Z」など3キー同時押しが
@@ -517,8 +533,9 @@ public partial class Player : Area2D
         _flipHeld = flipKey;
 
         // 緊急回避中（_dodgeTimer 稼働＝DodgeDuration の間）はショット入力を無効化する＝回避は「避け」に専念。
+        // ゲームオーバー後は R/Q の選択待ちに専念させるためショットも止める。
         bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A))
-                     && !Hud.BubblePaused && _dodgeTimer <= 0f;
+                     && !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -535,9 +552,9 @@ public partial class Player : Area2D
         }
 
         // バックファイア（後方弾）：前方射撃とは独立に、後方(-X)へ敵がいるときだけ自動発射。
-        // 会話中・回避中は撃たない（前方射撃と同じゲート）。CD は BackfireInterval（bf_rate で短縮）。
+        // 会話中・回避中・ゲームオーバー後は撃たない（前方射撃と同じゲート）。CD は BackfireInterval（bf_rate で短縮）。
         if (_backfireCd > 0f) _backfireCd -= dt;
-        if (!Hud.BubblePaused && _dodgeTimer <= 0f && _backfireCd <= 0f)
+        if (!Hud.BubblePaused && _dodgeTimer <= 0f && _backfireCd <= 0f && !_gameOver)
         {
             if (FireBackfire())
                 _backfireCd = _overload ? (_game?.BackfireInterval ?? 0.9f) * 0.6f : (_game?.BackfireInterval ?? 0.9f);
@@ -546,7 +563,7 @@ public partial class Player : Area2D
         // ボム（X）: 押した瞬間だけ発動
         // ボム＝X / Xボタン（□）
         bool bombKey = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
-        if (bombKey && !_bombHeld && !Hud.BubblePaused)
+        if (bombKey && !_bombHeld && !Hud.BubblePaused && !_gameOver)
             TryBomb();
         _bombHeld = bombKey;
 
@@ -1139,6 +1156,7 @@ public partial class Player : Area2D
     // ボム「魔法陣・解放」: 画面の敵弾を消去＋画面内の敵を浄化＋短時間無敵＋画面フラッシュ。
     private void TryBomb()
     {
+        if (_gameOver) return;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (game == null || !game.UseBomb())
             return;
@@ -1251,13 +1269,24 @@ public partial class Player : Area2D
         Lives = Mathf.Max(0, Lives - 1);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
 
-        // 被弾でフォロワーも全員離れてしまう（やさしさの輪がほどける）
-        foreach (var f in _followers)
+        // 被弾でフォロワーが1体だけ離れてしまう（やさしさの輪が少しほどける＝全滅させない）
+        // ヒカゲ（専用スキル持ち）は通常フォロワーが残っている限り離脱対象から除外する
+        // （加入直後にリスト末尾へ入り、次の被弾で即離脱＝スキルを丸ごと失うのを防ぐ）。
+        if (_followers.Count > 0)
         {
+            int idx = -1;
+            for (int i = _followers.Count - 1; i >= 0; i--)
+            {
+                if (!_followers[i].IsHikage) { idx = i; break; }
+            }
+            if (idx < 0) idx = _followers.Count - 1; // 通常フォロワーが0＝ヒカゲのみなら、ヒカゲも例外なく離脱させる
+
+            var f = _followers[idx];
             FxLayer.Instance?.KindnessMote(f.GlobalPosition);
             f.QueueFree();
+            _followers.RemoveAt(idx);
+            NotifyFollowerProgress(); // 満員が解けた／進捗ドットが再表示され得るので通知
         }
-        _followers.Clear();
 
         // フラッシュ＋短時間無敵（被弾由来＝この無敵中はグレイズ報酬が入らない）
         StartInvincible(fromHit: true);

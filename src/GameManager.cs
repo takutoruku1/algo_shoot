@@ -52,8 +52,12 @@ public partial class GameManager : Node
     }
     public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
-    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + MaxLifeBonus;
-    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 3, _ => 4 }) + BombCountBonus;
+    // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
+    // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
+    // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
+    // 恒久強化(max_life/bomb_count、ChainLevel上限+2)を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
+    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + MaxLifeBonus;
+    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + BombCountBonus;
     public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
     public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };
@@ -320,9 +324,6 @@ public partial class GameManager : Node
     public int Followers { get; private set; }
     // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
     public long RunImpression { get; private set; }
-    // 直近ステージクリアの報酬（帰還演出のカウントアップ表示用）。
-    public int LastClearImpression { get; private set; }
-    public int LastClearFollowers { get; private set; }
 
     // 恒久強化レベル（id → 現在Lv）。未所持は 0。単Lvノード方式では値は常に 0/1。
     // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
@@ -758,11 +759,10 @@ public partial class GameManager : Node
     // ステージクリア（浄化100%）時の大口報酬。帰還演出から呼ぶ（STEP2/5で配線）。
     public void RegisterStageClear()
     {
-        LastClearImpression = (int)GainImpression(120);
+        GainImpression(120);
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
         int fol = Mathf.RoundToInt(40 * (1f + 0.15f * ChainLevel("fol_gain", 2)) * ReplayMul);
         AddFollowers(fol);
-        LastClearFollowers = fol;
         AutoSave(); // クリアでオートセーブ（slot 0）
     }
 
@@ -1159,7 +1159,6 @@ public partial class GameManager : Node
     public long AddDodgeGraze()
     {
         Score += DodgeGrazeScore;
-        DodgeGrazeCount++;
         AddKindness(GrazeGain);
         if (Combo > 0)
             _comboTimer = ComboWindow;
@@ -1167,7 +1166,6 @@ public partial class GameManager : Node
     }
     private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア（通常グレイズ10の5倍）
     private const int DodgeGrazeImpBase = 2;  // 回避よけ1発の基礎インプレ（倍率は GainImpression 内で適用。稼ぎすぎ是正で 4→2）
-    public int DodgeGrazeCount { get; private set; }
 
     // ボムで敵弾を消した時の小加点。
     public void AddBulletCleared()

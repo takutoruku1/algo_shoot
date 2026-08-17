@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 48 / 対象 48 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 63 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">48</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">63</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,126 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>【最新】世界観・ストーリー・キャラ設定まとめ.md:230</code>の「未確定・要確認項目」5番を取り消し線で明示し、<code>Epilogue.cs:145,151</code>で既に台詞として明示回収済みであることを注記。docsのみの修正でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイの口癖欄（設定書）と実装の決定台詞が一致していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>【最新】世界観・ストーリー・キャラ設定まとめ.md:97</code>のレイ口癖セルを「次は、私が勝つから」→実装文言「次は、本気のあなたと。——逃げたら、承知しないから。」（<code>StageRei.cs:187</code>/<code>Epilogue.cs:90</code>）に更新。docsのみの修正でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あかりの「バカ」口癖、3段変化のうち中間（病んだ後の自傷反転）だけ未実装</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>BossAkari.cs:80</code>に<code>(2, &quot;……あたしが、バカだった。&quot;, &quot;&quot;)</code>を追加。「————行こう。奥だ。」の直後、「来ないで……っ」の直前に挿入し、名前で呼ばれない傷から自責への感情の段差を作った。<code>キャラ設定_03_あかり.md</code>の3段（本来→病み→浄化後）が実装で揃った。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>GameManager.cs:59-60</code>の<code>StartLives</code>/<code>StartBombs</code>のLunatic値をHard同値の3から2へ変更（Easy 6→Normal 4→Hard 3→Lunatic 2 の連続カーブに統一）。恒久強化<code>max_life</code>/<code>bomb_count</code>で最大+2まで積める設計は不変のため、やり込み投資で補う釣り合いは維持。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>AreaSpellCaster.cs:270</code>の<code>&quot;@rei_compe&quot;</code>を<code>&quot;@rei_compete&quot;</code>に、<code>AreaSpellCaster.cs:278</code>の<code>&quot;@akari_rain&quot;</code>を<code>&quot;@akari_ame&quot;</code>に統一し、<code>BossRei.cs:81,339</code>/<code>BossAkari.cs:56,186,302</code>の宣言と一致させた。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あそびかた説明に4番目のショットモード「加速球」が登場しない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>HowToPlay.cs:168</code>のショット切替説明を「連射↔拡散↔ホーミング（解放後）」→「連射↔拡散↔ホーミング↔加速球（解放後）」に、<code>HowToPlay.cs:268</code>のショップ解放先一覧を「連射 / 拡散 / ホーミング」→「連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾）」に修正。<code>Shop.cs:31</code>のAccel説明のニュアンスを反映。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ヒカゲ加入直後の被弾で専用スキルが即座に失われる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>Player.cs:1272-1289</code> の被弾時フォロワー離脱ロジックを、末尾固定から「リストを末尾から走査して最初に見つかった <code>!IsHikage</code>（通常フォロワー）」を離脱させる方式に変更。通常フォロワーが0（ヒカゲのみ）の場合はフォールバックとしてヒカゲを離脱させる。<code>_followers.RemoveAt(idx)</code> でリスト順序は維持。既存演出（<code>KindnessMote</code>/<code>QueueFree</code>/<code>NotifyFollowerProgress</code>）は不変。<code>dotnet build algo_shoot.sln</code> で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">「あかりちゃん」呼びの回収演出が未実装のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>docs/キャラ設定_03_あかり.md:21-28,64-72,122</code>（呼び方の変化＝人前は「キミ」、私的には昔のまま「あかりちゃん」）を根拠に、<code>Epilogue.cs</code>の鍵アカ画面(<code>DrawPassword</code>)へ旧呼称を一度だけ挿入。<code>Epilogue.cs:375-380</code>：タイトル行を<code>y=34</code>へ上げ、直後に固定投稿風の一行<code>Shadowed(_font, new Vector2(0, 54f), &quot;固定：「あかりちゃん、傘。貸したままだぞ。」&quot;, ..., UiKit.CutWarm with { A = 0.85f })</code>を追加、既存の「パスワードを入力してください」を<code>y=72→76</code>へ1行分ずらして共存させた（他の行のy座標・<code>DrawAcrostic</code>・<code>_pages</code>ロジックは無変更）。狙い：この鍵アカは少年の私的アカウント（PW=&quot;stay&quot;）＝誰にも見せていない場所なので、そこでだけ昔の愛称のままだったという落差を一目で示す。色は少年の声を示す<code>CutWarm</code>（暖色）を使い、見出しの<code>Cool</code>（ミナ色）と視覚的に区別。既存の「傘」モチーフ（<code>StageImagery.cs:308</code>「傘、二本あるのに」／<code>StageAkari.cs:82,84</code>／<code>Hub.cs:1025,1030</code>）と地続きの小道具（貸したまま返っていない傘）にし、感情語を使わず示すのみに留めた（麻枝准風・show-don't-tell）。<strong>注意：このワーカーにはBash/Gitツールが与えられておらず、<code>dotnet build algo_shoot.sln</code>によるビルド確認・コミットは実行できていない。指揮官側でビルド確認とコミットを引き継ぐ必要あり</strong>（<code>git add -A &amp;&amp; git commit -m &quot;auto: あかりちゃん呼びの回収演出を実装&quot;</code>は未実行）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.cs冒頭コメントの数値が実装と食い違っている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:5</code>のクラス概要コメント「移動(通常110/低速50 px/s)、連射(...+260...)」を実値へ更新：「移動(通常150/低速65 px/s)、連射(...+360...)」。<code>NormalSpeed=150f</code>/<code>FocusSpeed=65f</code>は<code>Player.cs:12-13</code>、連射(<code>FireRapid</code>)の初速<code>ShotDir * 360f</code>は<code>Player.cs:812</code>（監査時点の行番号<code>:795</code>から後続タスクの追記でズレていたため実位置を再確認）。コメント文字列のみの変更でロジック無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">フォロワー加入までの進捗が画面上どこにも見えない</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player</code>に3つの公開プロパティを追加：<code>Player.cs:80-88</code> <code>FollowerCount</code>(現在の所持数)・<code>FollowersFull</code>(<code>MaxFollowers</code>到達済みか)・<code>SavedProgress</code>(<code>_savedCount % SavedPerFollower</code>、満員時は0)。<code>SavedPerFollower</code>/<code>MaxFollowers</code>もHUDから参照できるよう<code>private</code>→<code>public const</code>に変更(<code>Player.cs:43-44</code>)。状態変化時（<code>AddFollower</code>成功/失敗どちらも<code>Player.cs:99-104</code>、被弾でのフォロワー離脱<code>Player.cs:1264</code>、ヒカゲ加入<code>Player.cs:88</code>）に<code>SetLives</code>と同じpushパターンで<code>Hud.SetFollowerProgress(progress, total, full)</code>を通知(<code>Player.cs:96-97</code>)。HUD側は<code>Hud.cs:17-21</code>に<code>_followerProgress</code>/<code>_followerProgressTotal</code>/<code>_followerFull</code>フィールドを追加、<code>Hud.cs:707-714</code>に<code>SetFollowerProgress</code>を追加。描画は<code>Hud.cs:843-878</code> <code>DrawScore</code>内、既存の♥(通貨)チップのさらに左に専用ピップ枠を新設し●●○を常時描画（<code>_followerFull</code>時は非表示）。既存の<code>showCombo</code>分岐（コンボ⇔フォロワー人数表示の排他切替）には触れておらず、コンボ表示とピップは独立して同時に見える。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認。実機起動でのスクショ確認は未実施（ビルド確認のみ）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ステージクリア報酬の増分フィールドが配線されず死んでいる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>src/</code>全体を再grepし読み手ゼロを確認した上で3フィールドを削除。宣言：<code>GameManager.cs:324</code>(<code>LastClearImpression</code>)・<code>:325</code>(<code>LastClearFollowers</code>)・<code>:1170</code>(<code>DodgeGrazeCount</code>)。代入：<code>RegisterStageClear()</code>内<code>GameManager.cs:761</code>(<code>LastClearImpression = (int)GainImpression(120);</code> → <code>GainImpression(120);</code>のみに簡略化)・<code>:765</code>(<code>LastClearFollowers = fol;</code>を削除、<code>fol</code>は<code>AddFollowers(fol)</code>で引き続き使用のため変数自体は残置)。インクリメント：<code>GameManager.cs:1162</code>(<code>DodgeGraze()</code>内<code>DodgeGrazeCount++;</code>)。<code>Followers</code>/<code>Impression</code>累計更新ロジックは無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">R長押しリトライのコメントが実装値と乖離（0.7s表記が9箇所残存）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>RetryHold.cs:10</code> <code>HoldTime = 0.45f</code>（2026-08-13に0.7f→0.45fへ短縮済み）に対し呼び出し元コメントが「R長押し(0.7s)」のまま残っていた9箇所を「(0.45s)」へ統一：<code>ReiRoot.cs:77</code>／<code>AkariRoot.cs:77</code>／<code>KoharuRoot.cs:79</code>／<code>MinaRoot.cs:124</code>／<code>Main.cs:86</code>／<code>Stage0Root.cs:83</code>／<code>Prologue.cs:181</code>／<code>Final.cs:133</code>／<code>Epilogue.cs:179</code>。<code>GameManager.cs:699</code>にも「0.7s」がヒットしたが文脈確認の結果<code>VeilLightDuration</code>（祈りの帳の光輪持続、<code>:701</code>で実装値0.7f）を指す無関係の記述だったため対象外・不変。コメント文字列の置換のみでロジック・実装値には無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">被弾ペナルティにフォロワー全滅が上乗せされ、リスクとリターンの釣り合いが崩れている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:1256-1262</code>の被弾処理内フォロワー全滅ループ（<code>_followers.Clear()</code>で無条件全員離脱）を、末尾の1体（<code>_followers[^1]</code>）のみ離脱させる方式に変更。既存の離脱演出（<code>FxLayer.Instance?.KindnessMote</code>）はその1体に対して実行、<code>_followers</code>が空なら何もしない（<code>if (_followers.Count &gt; 0)</code>ガード）。残機減少・無敵化・フラッシュ演出等の他の被弾処理は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">正典v3バナー欠落: キャラ設定書①②が旧「余命宣告」設定のまま未修正</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>docs/キャラ設定_03_あかり.md:3</code>の書式（既存冒頭blockquoteに<code>⚠ <strong>正典 v3（2026-07-02）</strong>:</code>段落を追記、<code>---</code>区切りの直前に置く）を踏襲し、<code>docs/キャラ設定_01_少年_改訂版.md:6-9</code>と<code>docs/キャラ設定_02_ミナ_改訂版.md:8-11</code>に正典v3注記を追加。本文（旧「余命宣告」「後遺症」「病・余命」記述）は経緯情報保持のため無変更、冒頭注記のみの追加。ドキュメントのみの変更のためビルド対象外</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ゲームオーバー後も移動・ショット・ボムが止まらず、無敵のまま浄化・ボス撃破が進行し続ける</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-16) <code>Player.cs:1282-1292</code> <code>GameOver()</code>は<code>_gameOver=true</code>＋無敵化＋バナー表示のみで、移動処理(<code>Player.cs:403-422</code>)・ショット入力(<code>Player.cs:520</code>)・<code>TryBomb()</code>(<code>Player.cs:1140-1146</code>)のいずれも<code>_gameOver</code>を参照せず素通り（参照しているのはDodge<code>:910</code>とSpecial<code>:1190</code>のみ）。実測(Rei/Hard, god無し)でlives=0到達後もpurifiedが2→18/46に増加、ボスHPが1.00→0.93まで削れ続けた（<code>/home/user/algo_shoot/build/qa/death_Rei_hard.log</code>）。<code>_gameOver</code>後は移動/ショット/ボム/浄化判定を停止し、R/Qの選択待ちに専念する状態にする。実装：<code>Player.cs:412</code>移動入力ゲート（<code>!Hud.BubblePaused &amp;&amp; !_gameOver</code>）で<code>dir</code>をゼロ固定、<code>Player.cs:521</code>ショット発火条件に<code>&amp;&amp; !_gameOver</code>追加、<code>Player.cs:540</code>バックファイア条件に<code>&amp;&amp; !_gameOver</code>追加、<code>Player.cs:550</code>ボムキー呼び出し条件に<code>&amp;&amp; !_gameOver</code>追加＋<code>TryBomb()</code>本体先頭(<code>Player.cs:1142</code>)にもDodge/Specialと同じ早期return方式のガードを追加（二重防御）。浄化(<code>Enemy.Purify</code>)・ボスHP減少はいずれもプレイヤーの弾ヒット判定経由のため、ショット停止により連動して停止する設計（Purify自体は直接ガードせず、根本のショット入力側で止める方式）。無敵化・バナー表示・R/Qのリトライ導線（<code>Player.cs:1284-1292</code>）は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認。qa-autoplay(Rei/Hard, god無し, 40秒)で実地確認：t=34.1でlives=0到達（purified=5/46, pbul=2）→t=34.2以降pbulが0のまま5秒以上変化なし、purifiedも5/46で固定、自機座標(0,146)も固定、bomb残数も2で固定（<code>/home/user/algo_shoot/build/qa/death_Rei_hard_fix.log</code>）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -591,6 +711,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ（Rei/Lunatic）</span>
+          
+        </div>
+        <p class="accept">（2026-08-17監査で発見）<code>build/qa/collide_Rei_lunatic_long.log:196-202</code> で1回のみ観測。4本のGodotヘッドレスプロセスをCPU競合させた高負荷テスト環境下で <code>propagate_notification()</code> 関連の警告直後にsignal 11でクラッシュ。同一シナリオを単独実行（負荷なし）では再現せず（<code>build/qa/collide_Rei_lunatic_retry.log</code>）。<code>src/</code> 全体をgrepしてもカスタムスレッド使用は無くゲームコード側原因とは特定できていない＝Godotエンジン内部のシャットダウン競合の疑い。要ユーザー判断：通常のプレイ環境（単独起動・CPU競合なし）で同条件が再現するか確認してから対応要否を判断してほしい。現状は具体的な修正箇所を特定できていないため着手不能</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">ショップ画面の毎フレーム再描画を実測してから判断</span>
           
         </div>
@@ -665,18 +793,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">0fa5292</span><span>2026-08-16</span><span class="s">Merge pull request #4 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">e7f83f5</span><span>2026-08-15</span><span class="s">auto: AreaSpellCaster._aoeWithSafe死にフィールドを削除</span></li>
-      <li><span class="h">e95e078</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - AreaSpellCaster._aoeWithSafe死にフィールド削除</span></li>
-      <li><span class="h">c901975</span><span>2026-08-15</span><span class="s">auto: 炎上デバフの可視化</span></li>
-      <li><span class="h">d9ddc49</span><span>2026-08-15</span><span class="s">auto: WIPへ移動 - 炎上デバフの可視化</span></li>
-      <li><span class="h">1f82c26</span><span>2026-08-15</span><span class="s">auto: 監査で2件をキューに追加</span></li>
-      <li><span class="h">e35a4f7</span><span>2026-08-14</span><span class="s">auto: _stepTimeの死にフィールドを4ステージから削除</span></li>
-      <li><span class="h">2849f55</span><span>2026-08-14</span><span class="s">auto: WIPへ移動 - _stepTime死にフィールド削除</span></li>
+      <li><span class="h">132de51</span><span>2026-08-17</span><span class="s">auto: 設定書のレイ口癖セルを実装台詞に合わせて更新</span></li>
+      <li><span class="h">6525b1f</span><span>2026-08-17</span><span class="s">auto: あかりの口癖『バカ』の中間反転セリフを追加</span></li>
+      <li><span class="h">6d6e10d</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あかりのバカ口癖中間段階欠如</span></li>
+      <li><span class="h">98f380a</span><span>2026-08-17</span><span class="s">auto: ルナティックの残機・ボムをHard同値から2に調整</span></li>
+      <li><span class="h">6379573</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ルナティックの残機・ボムバランス</span></li>
+      <li><span class="h">18baae0</span><span>2026-08-17</span><span class="s">auto: レイ/あかりの範囲技@ハンドル表記を統一</span></li>
+      <li><span class="h">7beefab</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ</span></li>
+      <li><span class="h">268ed8c</span><span>2026-08-17</span><span class="s">auto: あそびかた説明に加速球モードの記載を追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-15 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-17 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

@@ -80,7 +80,7 @@ public partial class Stage0Root : Node2D
         // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
         if (Pad.UiBlocked(this)) { _exitHeld = true; return; }
 
-        // R 長押し(0.7s)＝最初から（練習をやり直す）。即発は誤爆しやすい週次PT指摘→長押し化
+        // R 長押し(0.45s)＝最初から（練習をやり直す）。即発は誤爆しやすい週次PT指摘→長押し化
         //（ゲームオーバー中は即発）。Start はポーズメニューと衝突するため廃止＝メニュー内リトライを使う。
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))

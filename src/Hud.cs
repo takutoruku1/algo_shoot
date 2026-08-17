@@ -15,6 +15,11 @@ public partial class Hud : CanvasLayer
     public bool HoldBubble = false;
 
     private int _lives = 3;
+    // フォロワー加入までの進捗（●●○のピップ表示用）。Player から push で更新される（SetLives と同じパターン）。
+    // 満員(_followerFull)なら DrawScore 側でピップ列を隠す。
+    private int _followerProgress = 0;
+    private int _followerProgressTotal = Player.SavedPerFollower;
+    private bool _followerFull = false;
 
     // ステージ経過タイム（秒）。各ステージシーンが毎フレーム SetElapsed で渡す。
     // delta基準でステージ側が積算するため、ポーズ中（ツリーpause）は自然に止まる。
@@ -706,6 +711,14 @@ public partial class Hud : CanvasLayer
 
     public void SetLives(int n) { _lives = Mathf.Max(0, n); }
 
+    // 次のフォロワー加入までの進捗を通知（Player.NotifyFollowerProgress から push）。
+    public void SetFollowerProgress(int progress, int total, bool full)
+    {
+        _followerProgress = Mathf.Clamp(progress, 0, Mathf.Max(1, total));
+        _followerProgressTotal = Mathf.Max(1, total);
+        _followerFull = full;
+    }
+
     public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
     public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
 
@@ -849,6 +862,25 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(c1x, cy, c1w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.4f), 1f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(c1x + 12, cy + 5), c1, 11, UiKit.Info);
         UiKit.Text(ci, UiKit.Zen, new Vector2(c1x + 12 + UiKit.TextW(UiKit.Mono, c1, 11) + 2, cy + 7), c1suffix, 9, new Color(UiKit.Info, 0.8f));
+
+        // フォロワー進捗ピップ（●●○）：次の1体まであと何人救えばよいかを常時提示する。
+        // コンボ表示（c2）はコンボ2以上で切り替わって消えるため、切り替わらない別枠として左隣に常設し両立させる。
+        // 全員(MaxFollowers)揃っている間は次が無い＝ピップごと隠す。
+        if (!_followerFull)
+        {
+            int total = _followerProgressTotal;
+            const float dotR = 3.2f, dotGap = 10f;
+            float pipW = 16 + (total - 1) * dotGap;
+            float pipX = c1x - 7 - pipW;
+            UiKit.Box(ci, new Rect2(pipX, cy, pipW, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.35f), 1f);
+            float dotY = cy + 11f;
+            for (int i = 0; i < total; i++)
+            {
+                float dx = pipX + 8 + i * dotGap;
+                bool lit = i < _followerProgress;
+                ci.DrawCircle(new Vector2(dx, dotY), dotR, lit ? UiKit.Mina : new Color(UiKit.Mina, 0.22f));
+            }
+        }
     }
 
     // ステージ経過タイム（右上・SCORE/テレメトリの直下）。タイムアタック感を出す等幅・発光ふち。

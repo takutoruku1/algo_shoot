@@ -176,7 +176,7 @@ public partial class Epilogue : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        // R / Start 長押し(0.7s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
+        // R / Start 長押し(0.45s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
         // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ここはポーズ対象外なので Start 可）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
@@ -372,9 +372,13 @@ public partial class Epilogue : Node2D
     private void DrawPassword()
     {
         if (_font == null) return;
-        Shadowed(_font, new Vector2(0, 46f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
+        Shadowed(_font, new Vector2(0, 34f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
             Cool with { A = 0.9f });
-        Shadowed(_font, new Vector2(0, 72f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
+        // 誰にも見せていないこのアカウントだけ、少年はまだ昔の呼び方のままだった（設計書§『呼び方の変化』回収）。
+        // 「キミ」で距離を置いていたのは人前だけ。固定投稿は暖色（少年の声）＝彼自身の言葉であることを一目で示す。
+        Shadowed(_font, new Vector2(0, 54f), "固定：「あかりちゃん、傘。貸したままだぞ。」", HorizontalAlignment.Center, W, UiKit.CutBody,
+            UiKit.CutWarm with { A = 0.85f });
+        Shadowed(_font, new Vector2(0, 76f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
 
         // 入力フィールドの箱（候補＝実際に打ち込む文字列であることを一目で示す）。
         var field = new Rect2(W / 2f - 70f, 96f, 140f, 26f);
