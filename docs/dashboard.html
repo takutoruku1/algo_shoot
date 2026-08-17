@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 61 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 62 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">61</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">62</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">レイの口癖欄（設定書）と実装の決定台詞が一致していない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>【最新】世界観・ストーリー・キャラ設定まとめ.md:97</code>のレイ口癖セルを実装文言（<code>StageRei.cs:187</code>/<code>Epilogue.cs:90</code>「次は、本気のあなたと。——逃げたら、承知しないから。」）に合わせて更新する（あかり/こはるは既に設定書と実装が一致）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている</span>
           <span class="worker">scenario</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイの口癖欄（設定書）と実装の決定台詞が一致していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-17) <code>【最新】世界観・ストーリー・キャラ設定まとめ.md:97</code>のレイ口癖セルを「次は、私が勝つから」→実装文言「次は、本気のあなたと。——逃げたら、承知しないから。」（<code>StageRei.cs:187</code>/<code>Epilogue.cs:90</code>）に更新。docsのみの修正でビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -793,6 +793,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6525b1f</span><span>2026-08-17</span><span class="s">auto: あかりの口癖『バカ』の中間反転セリフを追加</span></li>
       <li><span class="h">6d6e10d</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あかりのバカ口癖中間段階欠如</span></li>
       <li><span class="h">98f380a</span><span>2026-08-17</span><span class="s">auto: ルナティックの残機・ボムをHard同値から2に調整</span></li>
       <li><span class="h">6379573</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ルナティックの残機・ボムバランス</span></li>
@@ -800,11 +801,10 @@
       <li><span class="h">7beefab</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ</span></li>
       <li><span class="h">268ed8c</span><span>2026-08-17</span><span class="s">auto: あそびかた説明に加速球モードの記載を追加</span></li>
       <li><span class="h">a4a541b</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あそびかた説明の加速球記載漏れ</span></li>
-      <li><span class="h">ab7bcc0</span><span>2026-08-17</span><span class="s">auto: ヒカゲ加入直後の被弾でスキルが失われる不具合を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-17 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-17 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
