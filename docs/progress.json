@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-17 18:31 UTC",
+  "generated": "2026-08-17 18:32 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 16,
-    "done": 58
+    "done": 59
   },
-  "percent": 92,
+  "percent": 94,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う",
-      "worker": "engineer",
-      "accept": "`AreaSpellCaster.cs:270`の`\"@rei_compe\"`を`BossRei.cs:81,339`の`\"@rei_compete\"`に、`AreaSpellCaster.cs:278`の`\"@akari_rain\"`を`BossAkari.cs:56,186,302`の`\"@akari_ame\"`に統一する（こはるは既に`AreaSpellCaster.cs:285`/`BossKoharu.cs`各所で`\"@koharu_kitchen\"`に一致している）"
-    },
     {
       "priority": "P2",
       "title": "ルナティックの残機・ボムがハードと同値のまま弾幕難度だけ跳ね上がる",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-17) `AreaSpellCaster.cs:270`の`\"@rei_compe\"`を`\"@rei_compete\"`に、`AreaSpellCaster.cs:278`の`\"@akari_rain\"`を`\"@akari_ame\"`に統一し、`BossRei.cs:81,339`/`BossAkari.cs:56,186,302`の宣言と一致させた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "あそびかた説明に4番目のショットモード「加速球」が登場しない",
@@ -490,6 +490,16 @@
   ],
   "commits": [
     {
+      "hash": "7beefab",
+      "date": "2026-08-17",
+      "subject": "auto: WIPへ移動 - レイ/あかりの@ハンドル表記ゆれ"
+    },
+    {
+      "hash": "268ed8c",
+      "date": "2026-08-17",
+      "subject": "auto: あそびかた説明に加速球モードの記載を追加"
+    },
+    {
       "hash": "a4a541b",
       "date": "2026-08-17",
       "subject": "auto: WIPへ移動 - あそびかた説明の加速球記載漏れ"
@@ -518,16 +528,6 @@
       "hash": "aa2598d",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - あかりちゃん呼びの回収演出"
-    },
-    {
-      "hash": "52a48c5",
-      "date": "2026-08-16",
-      "subject": "auto: Player.csコメントの数値乖離を修正"
-    },
-    {
-      "hash": "ece5b51",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - Player.csコメントの数値乖離"
     }
   ]
 }

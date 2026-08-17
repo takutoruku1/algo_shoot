@@ -35,8 +35,6 @@
 - [ ] (P3) 世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている | scenario | `【最新】世界観・ストーリー・キャラ設定まとめ.md:230`の「未確定・要確認項目」5番（伏線③のEPILOGUE回収）を、`Epilogue.cs:145,151`で既に台詞として明示回収済みであることを踏まえ削除するか「実装済み」に更新する
 ## WIP
 
-- [ ] (P2) レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う | engineer | `AreaSpellCaster.cs:270`の`"@rei_compe"`を`BossRei.cs:81,339`の`"@rei_compete"`に、`AreaSpellCaster.cs:278`の`"@akari_rain"`を`BossAkari.cs:56,186,302`の`"@akari_ame"`に統一する（こはるは既に`AreaSpellCaster.cs:285`/`BossKoharu.cs`各所で`"@koharu_kitchen"`に一致している）
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -60,6 +58,7 @@
 ## DONE
 
 <!-- routine がここに追記する。新しいものが上 -->
+- [x] (P2) レイ/あかりの範囲技@ハンドル表記がボス本体の宣言と食い違う | engineer | (完了 2026-08-17) `AreaSpellCaster.cs:270`の`"@rei_compe"`を`"@rei_compete"`に、`AreaSpellCaster.cs:278`の`"@akari_rain"`を`"@akari_ame"`に統一し、`BossRei.cs:81,339`/`BossAkari.cs:56,186,302`の宣言と一致させた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) あそびかた説明に4番目のショットモード「加速球」が登場しない | engineer | (完了 2026-08-17) `HowToPlay.cs:168`のショット切替説明を「連射↔拡散↔ホーミング（解放後）」→「連射↔拡散↔ホーミング↔加速球（解放後）」に、`HowToPlay.cs:268`のショップ解放先一覧を「連射 / 拡散 / ホーミング」→「連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾）」に修正。`Shop.cs:31`のAccel説明のニュアンスを反映。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) ヒカゲ加入直後の被弾で専用スキルが即座に失われる | engineer | (完了 2026-08-17) `Player.cs:1272-1289` の被弾時フォロワー離脱ロジックを、末尾固定から「リストを末尾から走査して最初に見つかった `!IsHikage`（通常フォロワー）」を離脱させる方式に変更。通常フォロワーが0（ヒカゲのみ）の場合はフォールバックとしてヒカゲを離脱させる。`_followers.RemoveAt(idx)` でリスト順序は維持。既存演出（`KindnessMote`/`QueueFree`/`NotifyFollowerProgress`）は不変。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認済み
 - [x] (P3) 「あかりちゃん」呼びの回収演出が未実装のまま放置 | scenario | (完了 2026-08-16) `docs/キャラ設定_03_あかり.md:21-28,64-72,122`（呼び方の変化＝人前は「キミ」、私的には昔のまま「あかりちゃん」）を根拠に、`Epilogue.cs`の鍵アカ画面(`DrawPassword`)へ旧呼称を一度だけ挿入。`Epilogue.cs:375-380`：タイトル行を`y=34`へ上げ、直後に固定投稿風の一行`Shadowed(_font, new Vector2(0, 54f), "固定：「あかりちゃん、傘。貸したままだぞ。」", ..., UiKit.CutWarm with { A = 0.85f })`を追加、既存の「パスワードを入力してください」を`y=72→76`へ1行分ずらして共存させた（他の行のy座標・`DrawAcrostic`・`_pages`ロジックは無変更）。狙い：この鍵アカは少年の私的アカウント（PW="stay"）＝誰にも見せていない場所なので、そこでだけ昔の愛称のままだったという落差を一目で示す。色は少年の声を示す`CutWarm`（暖色）を使い、見出しの`Cool`（ミナ色）と視覚的に区別。既存の「傘」モチーフ（`StageImagery.cs:308`「傘、二本あるのに」／`StageAkari.cs:82,84`／`Hub.cs:1025,1030`）と地続きの小道具（貸したまま返っていない傘）にし、感情語を使わず示すのみに留めた（麻枝准風・show-don't-tell）。**注意：このワーカーにはBash/Gitツールが与えられておらず、`dotnet build algo_shoot.sln`によるビルド確認・コミットは実行できていない。指揮官側でビルド確認とコミットを引き継ぐ必要あり**（`git add -A && git commit -m "auto: あかりちゃん呼びの回収演出を実装"`は未実行）
