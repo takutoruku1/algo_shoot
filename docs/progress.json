@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-17 18:28 UTC",
+  "generated": "2026-08-17 18:30 UTC",
   "counts": {
-    "todo": 7,
+    "todo": 6,
     "wip": 0,
     "blocked": 16,
-    "done": 56
+    "done": 57
   },
-  "percent": 89,
+  "percent": 90,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "ヒカゲ加入直後の被弾で専用スキルが即座に失われる",
-      "worker": "engineer",
-      "accept": "被弾時の離脱対象からヒカゲ(`f.IsHikage`)を除外する。通常フォロワーが残っていればそちらを優先して離脱させ、通常フォロワーが0でヒカゲのみの場合はヒカゲも離脱可とする優先順位を`Player.cs:1273-1279`に実装する。根拠: `Player.cs:1273-1279`（離脱対象は常に`_followers[^1]`＝末尾）、`Player.cs:60-89` `AddHikageFollower`（ヒカゲは必ず末尾に追加される）、`BossHikage.cs:188`（再付与経路が無くラン中一度きりの加入）"
-    },
     {
       "priority": "P2",
       "title": "あそびかた説明に4番目のショットモード「加速球」が登場しない",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "ヒカゲ加入直後の被弾で専用スキルが即座に失われる",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-17) `Player.cs:1272-1289` の被弾時フォロワー離脱ロジックを、末尾固定から「リストを末尾から走査して最初に見つかった `!IsHikage`（通常フォロワー）」を離脱させる方式に変更。通常フォロワーが0（ヒカゲのみ）の場合はフォールバックとしてヒカゲを離脱させる。`_followers.RemoveAt(idx)` でリスト順序は維持。既存演出（`KindnessMote`/`QueueFree`/`NotifyFollowerProgress`）は不変。`dotnet build algo_shoot.sln` で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "「あかりちゃん」呼びの回収演出が未実装のまま放置",
@@ -490,6 +490,16 @@
   ],
   "commits": [
     {
+      "hash": "e116103",
+      "date": "2026-08-17",
+      "subject": "auto: WIPへ移動 - ヒカゲ加入直後の被弾でスキルが失われる不具合"
+    },
+    {
+      "hash": "469dd58",
+      "date": "2026-08-17",
+      "subject": "auto: 監査で7件をキューに追加、1件をBLOCKEDに追加"
+    },
+    {
       "hash": "417b3f5",
       "date": "2026-08-16",
       "subject": "auto: あかりちゃん呼びの回収演出を実装"
@@ -518,16 +528,6 @@
       "hash": "59d6a99",
       "date": "2026-08-16",
       "subject": "auto: WIPへ移動 - フォロワー加入進捗表示"
-    },
-    {
-      "hash": "c991d94",
-      "date": "2026-08-16",
-      "subject": "auto: 未使用フィールド(LastClearImpression/LastClearFollowers/DodgeGrazeCount)を削除"
-    },
-    {
-      "hash": "01f83d7",
-      "date": "2026-08-16",
-      "subject": "auto: WIPへ移動 - ステージクリア報酬増分フィールドの死にコード"
     }
   ]
 }

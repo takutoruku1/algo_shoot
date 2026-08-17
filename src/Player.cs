@@ -1270,12 +1270,21 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
 
         // 被弾でフォロワーが1体だけ離れてしまう（やさしさの輪が少しほどける＝全滅させない）
+        // ヒカゲ（専用スキル持ち）は通常フォロワーが残っている限り離脱対象から除外する
+        // （加入直後にリスト末尾へ入り、次の被弾で即離脱＝スキルを丸ごと失うのを防ぐ）。
         if (_followers.Count > 0)
         {
-            var f = _followers[^1];
+            int idx = -1;
+            for (int i = _followers.Count - 1; i >= 0; i--)
+            {
+                if (!_followers[i].IsHikage) { idx = i; break; }
+            }
+            if (idx < 0) idx = _followers.Count - 1; // 通常フォロワーが0＝ヒカゲのみなら、ヒカゲも例外なく離脱させる
+
+            var f = _followers[idx];
             FxLayer.Instance?.KindnessMote(f.GlobalPosition);
             f.QueueFree();
-            _followers.RemoveAt(_followers.Count - 1);
+            _followers.RemoveAt(idx);
             NotifyFollowerProgress(); // 満員が解けた／進捗ドットが再表示され得るので通知
         }
 
