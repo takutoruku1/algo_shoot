@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-18 19:18 UTC",
+  "generated": "2026-08-18 19:48 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 72
+    "done": 73
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "死亡系フロー（残機0・チェックポイント再開／最初から）のQA",
-      "worker": "qa",
-      "accept": "直近のQA走行は主に`--assist`（無敵）だったため死亡経路が薄くしか通っていなかったが、`QaPilot.cs`の`DriveDeathRetry`（2026-08-18実装、god無しでのゲームオーバー検知→R/Shift+R自動送出）により自動検証が可能になった。**受入条件**: god無し・Lunatic等の高難度でRei/Akari/Koharuそれぞれ意図的に死亡させ、R（チェックポイント/ボスから再開）とShift+R（最初から）両方の復帰が壊れていないか（例外・進行不能・状態不整合が無いか）を一巡確認する。「コンティニュー」の概念は既存コードに見当たらないため対象外（`QaPilot.cs`実装時の調査で`HandleGameOverExit`はR/Shift+R/Q＝抜けの3択のみと確認済み）"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "死亡系フロー（残機0・チェックポイント再開／最初から）のQA",
+      "worker": "qa",
+      "accept": "(完了 2026-08-18) `DriveDeathRetry`を使いgod無し・Lunatic固定でRei(2回、死14/17回)/Akari(死14回)/Koharu(死16回)を検証。R(チェックポイント/ボス再開)/Shift+R(最初から)ともに残機・ボム数の正しいリセット、二重復帰・無限リロードループなし、復帰直後の敵/自機弾湧きも正常、当たり判定異常・進行不能誤検知・例外いずれも0件で`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/death_{Rei,Rei_rerun,Akari,Koharu}.log`）。「コンティニュー」概念は既存コードに無く対象外(`HandleGameOverExit`はR/Shift+R/Qの3択のみと確認済み)。参考情報（新規TODO化せず）：Rei初回実行のみ300秒到達後のheadlessエンジン終了処理中（QA-SUMMARY出力後・ゲームプレイ外）に`Leaked unsafe reference`大量出力→SIGABRTで異常終了(4戦中1回、`build/qa/death_Rei.log`)。同条件の再実行・他2キャラでは0件・正常終了で低頻度、`ReloadCurrentScene()`多用時のGodot mono側GC/リファレンス解放レースが疑われるがゲームプレイ自体には影響せず実プレイヤー体験への影響も未確認のため、既存BLOCKEDの「高負荷並列実行時のみ観測されたSIGSEGV」とは別事象の可能性がある点だけ記録し、ブロッカー扱いはしない"
+    },
     {
       "priority": "P3",
       "title": "QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない",
@@ -544,6 +543,16 @@
   ],
   "commits": [
     {
+      "hash": "7904500",
+      "date": "2026-08-18",
+      "subject": "auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA"
+    },
+    {
+      "hash": "1660d50",
+      "date": "2026-08-18",
+      "subject": "auto: QaPilotに死亡系リトライ検証機構を実装、対応BLOCKED項目をTODOへ昇格"
+    },
+    {
       "hash": "74fa025",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い"
@@ -572,16 +581,6 @@
       "hash": "6d106df",
       "date": "2026-08-18",
       "subject": "auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める"
-    },
-    {
-      "hash": "4960a80",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - Hub小話「あかり」プールの一言が演出原則ギリギリ"
-    },
-    {
-      "hash": "1181746",
-      "date": "2026-08-18",
-      "subject": "auto: シナリオ設計書のステージ構成表にSTAGE MINA行を追加"
     }
   ]
 }

@@ -32,7 +32,6 @@
 
 
 ## WIP
-- [ ] (P2) 死亡系フロー（残機0・チェックポイント再開／最初から）のQA | qa | 直近のQA走行は主に`--assist`（無敵）だったため死亡経路が薄くしか通っていなかったが、`QaPilot.cs`の`DriveDeathRetry`（2026-08-18実装、god無しでのゲームオーバー検知→R/Shift+R自動送出）により自動検証が可能になった。**受入条件**: god無し・Lunatic等の高難度でRei/Akari/Koharuそれぞれ意図的に死亡させ、R（チェックポイント/ボスから再開）とShift+R（最初から）両方の復帰が壊れていないか（例外・進行不能・状態不整合が無いか）を一巡確認する。「コンティニュー」の概念は既存コードに見当たらないため対象外（`QaPilot.cs`実装時の調査で`HandleGameOverExit`はR/Shift+R/Q＝抜けの3択のみと確認済み）
 
 ## BLOCKED
 
@@ -54,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 死亡系フロー（残機0・チェックポイント再開／最初から）のQA | qa | (完了 2026-08-18) `DriveDeathRetry`を使いgod無し・Lunatic固定でRei(2回、死14/17回)/Akari(死14回)/Koharu(死16回)を検証。R(チェックポイント/ボス再開)/Shift+R(最初から)ともに残機・ボム数の正しいリセット、二重復帰・無限リロードループなし、復帰直後の敵/自機弾湧きも正常、当たり判定異常・進行不能誤検知・例外いずれも0件で`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/death_{Rei,Rei_rerun,Akari,Koharu}.log`）。「コンティニュー」概念は既存コードに無く対象外(`HandleGameOverExit`はR/Shift+R/Qの3択のみと確認済み)。参考情報（新規TODO化せず）：Rei初回実行のみ300秒到達後のheadlessエンジン終了処理中（QA-SUMMARY出力後・ゲームプレイ外）に`Leaked unsafe reference`大量出力→SIGABRTで異常終了(4戦中1回、`build/qa/death_Rei.log`)。同条件の再実行・他2キャラでは0件・正常終了で低頻度、`ReloadCurrentScene()`多用時のGodot mono側GC/リファレンス解放レースが疑われるがゲームプレイ自体には影響せず実プレイヤー体験への影響も未確認のため、既存BLOCKEDの「高負荷並列実行時のみ観測されたSIGSEGV」とは別事象の可能性がある点だけ記録し、ブロッカー扱いはしない
 - [x] (P3) QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない | engineer | (完了 2026-08-18) `QaPilot.cs`に`DriveDeathRetry`を追加（定数`DeathRetryDelay=0.6`、フィールド`_prevGameOver`/`_gameOverRetrySent`/`_gameOverT`/`_deathCount`/`_retryKeyHeld`/`_retryShiftHeld`、`_Process`から`DriveMovement`等より先に呼び出し）。`player.Lives<=0`でゲームオーバーを検知後0.6秒待ち、死1回目はR単体（チェックポイント再開）、2回目以降はShift+R（最初から）を交互に合成キー送出し、押した次フレームで必ず離す（離し忘れによる無限リロードループを回避）。死なない限り発火しないため既存の`--assist`走行には影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機検証（ヘッドレス`--qa --lunatic --seconds 120`、god無し）で実際に4回死亡させ、death#1(R)→boss=1.00でチェックポイント復帰、death#2(Shift+R)→enemies=0で最初から復帰、をログで確認、無限ループ等の異常なし・`[QA-SUMMARY] no anomalies flagged`
 - [x] (P3) `Settings.cs:6`の音量即時反映範囲コメントが実装と矛盾 | engineer | (完了 2026-08-18) 「マスター音量と画面モードのみエンジンへ即時反映」という記述を実態（全スライダー/トグル/セグメントが`Apply()`経由で即時反映、画面モードのみ`_initializing`ガードで初回表示時はスキップし明示操作時だけ反映）に合わせて`Settings.cs:6-8`を書き直し。コード変更なし、コメントのみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) 死にコード `Hud.GlassPanel` が定義されたきり一度も呼ばれていない | engineer | (完了 2026-08-18) `Hud.cs:777-778`の`GlassPanel`を削除。`DrawLifeBomb`（旧`Hud.cs:803-804`）の類似配色は`GlassPanel`が適用する`Fa()`（左上クラスタの弾接近フェード）を意図的にかけない設計（LIFE/BOMBは常時不透明、`Hud.cs:801-802`のコメントに明記）のため、呼び出しへ置き換えるのは誤りと判断し削除を選択。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
