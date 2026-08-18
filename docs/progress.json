@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-18 19:10 UTC",
+  "generated": "2026-08-18 19:11 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 16,
-    "done": 70
+    "done": 71
   },
-  "percent": 97,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "`Settings.cs:6`の音量即時反映範囲コメントが実装と矛盾",
-      "worker": "engineer",
-      "accept": "「値はuser://settings.jsonに永続。マスター音量と画面モードのみエンジンへ即時反映」と書いてあるが、実際は`Apply(Def d)`（`Settings.cs:309-349`）で`bgm`/`se`/`voice`/`amb`の各バス、`msg`/`auto`/`autosave`/`inputdisplay`も即座に反映される（後発の音楽実装で仕様が広がりコメント未更新と推測）。**受入条件**: コメントを実態（全スライダー/トグルが即時反映、`mode`のみ`_initializing`ガードで初回スキップ）に合わせて書き直す。コード変更なし"
-    },
     {
       "priority": "P3",
       "title": "QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "`Settings.cs:6`の音量即時反映範囲コメントが実装と矛盾",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-18) 「マスター音量と画面モードのみエンジンへ即時反映」という記述を実態（全スライダー/トグル/セグメントが`Apply()`経由で即時反映、画面モードのみ`_initializing`ガードで初回表示時はスキップし明示操作時だけ反映）に合わせて`Settings.cs:6-8`を書き直し。コード変更なし、コメントのみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "死にコード `Hud.GlassPanel` が定義されたきり一度も呼ばれていない",
@@ -544,6 +544,16 @@
   ],
   "commits": [
     {
+      "hash": "e837d5a",
+      "date": "2026-08-18",
+      "subject": "auto: WIP着手 - Settings.cs:6の音量即時反映範囲コメントが実装と矛盾"
+    },
+    {
+      "hash": "59a658c",
+      "date": "2026-08-18",
+      "subject": "auto: 未使用のHud.GlassPanel死にコードを削除"
+    },
+    {
       "hash": "00d022e",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - 死にコード Hud.GlassPanel が未使用"
@@ -572,16 +582,6 @@
       "hash": "3c6293f",
       "date": "2026-08-18",
       "subject": "auto: 世界観まとめの未確定・要確認項目1・3・4番を実装済みへ更新"
-    },
-    {
-      "hash": "9d9b3a4",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - 世界観まとめの未確定・要確認項目1・3・4番が実装済みなのに未更新"
-    },
-    {
-      "hash": "c302a8f",
-      "date": "2026-08-18",
-      "subject": "auto: スコアの永続記録・ハイスコア表示を実装"
     }
   ]
 }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 
 // Settings : 設定画面。RefrainHTML/Refrain Settings.dc.html を忠実移植（非ピクセル・滑らかUI）。
 //   左カテゴリ（6）→右コントロール。←→ で値変更・↑↓ 項目・Q/E カテゴリ・X/Esc でタイトルへ。
-//   値は user://settings.json に永続。マスター音量と画面モードのみエンジンへ即時反映。
+//   値は user://settings.json に永続。スライダー/トグル/セグメントは変更のたびApply()経由でエンジンへ即時反映
+//   （音量バス各種・会話速度・オート送り・自動セーブ・操作表示モード等）。画面モードのみ_initializingガードで
+//   初回表示時（_ReadyのApplyAll）は反映をスキップし、ユーザーが明示的に操作したときだけ実ウィンドウへ反映する。
 public partial class Settings : Node2D
 {
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
