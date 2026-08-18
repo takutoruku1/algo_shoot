@@ -774,9 +774,6 @@ public partial class Hud : CanvasLayer
         UiKit.EndDesign(ci);
     }
 
-    private void GlassPanel(HudCanvas ci, Rect2 r, Color? border = null)
-        => UiKit.Box(ci, r, Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f)), 16f, Fa(border ?? new Color(1, 1, 1, 0.12f)), 1f);
-
     // 左上クラスタの自動退避用：色のαに _topLeftFade を乗じる（弾接近時だけ薄くなる）。
     // 左上の5要素（LIFE/BOMB・ショット・やさしさ・目標・スキル）の描画色はこれを通す。
     private Color Fa(Color c) => new Color(c.R, c.G, c.B, c.A * _topLeftFade);

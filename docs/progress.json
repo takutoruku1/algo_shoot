@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-18 19:09 UTC",
+  "generated": "2026-08-18 19:10 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 16,
-    "done": 69
+    "done": 70
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "死にコード `Hud.GlassPanel` が定義されたきり一度も呼ばれていない",
-      "worker": "engineer",
-      "accept": "`Hud.cs:765-766`の`GlassPanel`は`src/`全体で呼び出し0件。同じ配色が`DrawLifeBomb`（`Hud.cs:791-792`）に直接インライン記述されておりコピペで置き換わった痕跡。**受入条件**: `GlassPanel`を削除するか、`DrawLifeBomb`等の直書き配色を`GlassPanel`呼び出しへ置き換えて共通化（見た目は不変）"
-    },
     {
       "priority": "P3",
       "title": "`Settings.cs:6`の音量即時反映範囲コメントが実装と矛盾",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "死にコード `Hud.GlassPanel` が定義されたきり一度も呼ばれていない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-18) `Hud.cs:777-778`の`GlassPanel`を削除。`DrawLifeBomb`（旧`Hud.cs:803-804`）の類似配色は`GlassPanel`が適用する`Fa()`（左上クラスタの弾接近フェード）を意図的にかけない設計（LIFE/BOMBは常時不透明、`Hud.cs:801-802`のコメントに明記）のため、呼び出しへ置き換えるのは誤りと判断し削除を選択。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Hub小話「あかり」プールの一言が演出原則ギリギリのまま未確認放置",
@@ -544,6 +544,16 @@
   ],
   "commits": [
     {
+      "hash": "00d022e",
+      "date": "2026-08-18",
+      "subject": "auto: WIP着手 - 死にコード Hud.GlassPanel が未使用"
+    },
+    {
+      "hash": "6d106df",
+      "date": "2026-08-18",
+      "subject": "auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める"
+    },
+    {
       "hash": "4960a80",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - Hub小話「あかり」プールの一言が演出原則ギリギリ"
@@ -572,16 +582,6 @@
       "hash": "c302a8f",
       "date": "2026-08-18",
       "subject": "auto: スコアの永続記録・ハイスコア表示を実装"
-    },
-    {
-      "hash": "b6e90c8",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - スコアの永続記録・ハイスコア表示が無い"
-    },
-    {
-      "hash": "6e57b20",
-      "date": "2026-08-18",
-      "subject": "auto: 監査で7件をキューに追加"
     }
   ]
 }
