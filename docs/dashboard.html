@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 63 / 対象 65 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 73 / 対象 73 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">63</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">73</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,28 +145,92 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p0">P0</span>
-          <span class="task-title">タイトルの「設定」を開くと画面サイズが縮小する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><strong>再現</strong>: タイトル画面 → 「設定」を押す → ウィンドウが縮む。<strong>調査の手掛かり</strong>: <code>Settings.cs:325</code> で <code>DisplayServer.WindowSetMode(d.I == 1 ? Fullscreen : Windowed)</code> を呼んでおり、<code>_Ready</code> の <code>ApplyAll()</code>（<code>Settings.cs:38</code>）が画面表示時に既定値を実ウィンドウへ適用している。「画面モード」の既定は <code>Seg(&quot;mode&quot;, …, 1)</code>＝フルスクリーン（<code>Settings.cs:51</code>）だが、<code>user://settings.json</code> 未保存時や実際の起動状態がウィンドウの場合、開いた瞬間に実状態と食い違うモードが適用されて縮むと推測。<strong>受入条件</strong>: 設定画面を開いただけでウィンドウサイズ／モードが勝手に変わらないこと。ユーザーが明示的に「画面モード」を操作したときだけ変わること。開いた時点で実際のウィンドウ状態がUIに正しく反映されていること（現在フルスクリーンなら「フルスクリーン」が選択表示される）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p0">P0</span>
-          <span class="task-title">設定画面がマウスで操作できない</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><strong>再現</strong>: 設定画面でマウスクリック・ホバーが効かない。<strong>調査の手掛かり</strong>: マウス処理自体は実装済み（<code>Settings.cs:120</code> <code>UiKit.BeginHotspots(Pad.MousePos())</code> / <code>:121 Pad.MouseClick()</code> / <code>:170-178</code> の <code>UiKit.Hotspot</code> 登録 / <code>:182,199</code> の <code>HoveredId</code>）。未実装ではなく<strong>動いていない</strong>バグ。<strong>座標系の不整合を疑う</strong>＝<code>Pad.MousePos()</code> は設計1280系を返す（<code>Pad.cs:252</code> で <code>/ UiKit.Scale</code>）が、<code>NavRowRect</code>/<code>CardRect</code>（<code>Settings.cs:108-109</code>）の矩形がどの系で計算されているか、<code>UiKit.BeginDesign</code> の適用範囲とホットスポット登録のタイミングが噛み合っているかを確認すること。上の「画面サイズが縮小する」バグでウィンドウ実サイズが変わると <code>UiKit.Scale</code> がずれるため、<strong>2件は同一原因の可能性がある</strong>（先に画面サイズ側を直してから再確認するのが早い）。<strong>受入条件</strong>: 設定画面の各項目をマウスでホバー・クリックして操作できること。他のマウス対応画面（Hub/Shop/TitleMenu）と同じ手触りになること</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">死亡系フロー（残機0・チェックポイント再開／最初から）のQA</span>
+          <span class="worker">qa</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>DriveDeathRetry</code>を使いgod無し・Lunatic固定でRei(2回、死14/17回)/Akari(死14回)/Koharu(死16回)を検証。R(チェックポイント/ボス再開)/Shift+R(最初から)ともに残機・ボム数の正しいリセット、二重復帰・無限リロードループなし、復帰直後の敵/自機弾湧きも正常、当たり判定異常・進行不能誤検知・例外いずれも0件で<code>[QA-SUMMARY] no anomalies flagged. clean run.</code>（<code>build/qa/death_{Rei,Rei_rerun,Akari,Koharu}.log</code>）。「コンティニュー」概念は既存コードに無く対象外(<code>HandleGameOverExit</code>はR/Shift+R/Qの3択のみと確認済み)。参考情報（新規TODO化せず）：Rei初回実行のみ300秒到達後のheadlessエンジン終了処理中（QA-SUMMARY出力後・ゲームプレイ外）に<code>Leaked unsafe reference</code>大量出力→SIGABRTで異常終了(4戦中1回、<code>build/qa/death_Rei.log</code>)。同条件の再実行・他2キャラでは0件・正常終了で低頻度、<code>ReloadCurrentScene()</code>多用時のGodot mono側GC/リファレンス解放レースが疑われるがゲームプレイ自体には影響せず実プレイヤー体験への影響も未確認のため、既存BLOCKEDの「高負荷並列実行時のみ観測されたSIGSEGV」とは別事象の可能性がある点だけ記録し、ブロッカー扱いはしない</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>QaPilot.cs</code>に<code>DriveDeathRetry</code>を追加（定数<code>DeathRetryDelay=0.6</code>、フィールド<code>_prevGameOver</code>/<code>_gameOverRetrySent</code>/<code>_gameOverT</code>/<code>_deathCount</code>/<code>_retryKeyHeld</code>/<code>_retryShiftHeld</code>、<code>_Process</code>から<code>DriveMovement</code>等より先に呼び出し）。<code>player.Lives&lt;=0</code>でゲームオーバーを検知後0.6秒待ち、死1回目はR単体（チェックポイント再開）、2回目以降はShift+R（最初から）を交互に合成キー送出し、押した次フレームで必ず離す（離し忘れによる無限リロードループを回避）。死なない限り発火しないため既存の<code>--assist</code>走行には影響なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機検証（ヘッドレス<code>--qa --lunatic --seconds 120</code>、god無し）で実際に4回死亡させ、death#1(R)→boss=1.00でチェックポイント復帰、death#2(Shift+R)→enemies=0で最初から復帰、をログで確認、無限ループ等の異常なし・<code>[QA-SUMMARY] no anomalies flagged</code></p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title"><code>Settings.cs:6</code>の音量即時反映範囲コメントが実装と矛盾</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) 「マスター音量と画面モードのみエンジンへ即時反映」という記述を実態（全スライダー/トグル/セグメントが<code>Apply()</code>経由で即時反映、画面モードのみ<code>_initializing</code>ガードで初回表示時はスキップし明示操作時だけ反映）に合わせて<code>Settings.cs:6-8</code>を書き直し。コード変更なし、コメントのみ。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">死にコード <code>Hud.GlassPanel</code> が定義されたきり一度も呼ばれていない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>Hud.cs:777-778</code>の<code>GlassPanel</code>を削除。<code>DrawLifeBomb</code>（旧<code>Hud.cs:803-804</code>）の類似配色は<code>GlassPanel</code>が適用する<code>Fa()</code>（左上クラスタの弾接近フェード）を意図的にかけない設計（LIFE/BOMBは常時不透明、<code>Hud.cs:801-802</code>のコメントに明記）のため、呼び出しへ置き換えるのは誤りと判断し削除を選択。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hub小話「あかり」プールの一言が演出原則ギリギリのまま未確認放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>Hub.cs:1040-1041</code>のミナ台詞「怖いのはこちらです。起きてこない日があるかもしれないと思うと。」は設計書が正典化した死の比喩（ログイン）を経由せず現実の死の慣用句（起きてこない＝死）に直接寄りすぎていたため踏み込みすぎと判断し、「ログが、来ない朝があるかもしれないと思うと。」（続く少年の返しも「……来るよ。ちゃんと。」）へ修正。不安の余韻・抑制的な文体は維持しつつ<code>docs/20260613/MINA_シナリオ設計書_v2.md:37</code>の演出原則の内側へ収めた。<code>docs/20260613/乖離レポート_20260813.md</code>の該当項目に判断理由・差分を追記してクローズ。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">シナリオ設計書のステージ構成表にSTAGE MINA（役割反転バトル）行が欠落</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>docs/20260613/MINA_シナリオ設計書_v2.md</code>§4表のSTAGE3行とFINAL行の間に「STAGE MINA」行を追加（既存行と同じ6列構成・文体）。<code>src/StageMina.cs:1-52</code>（三人分の穢れの断片が投稿弾として混成される描写）、<code>src/BossMina.cs:3-5,39-47,60-66,71-104</code>（役割反転バトルの旨、HPバー+2本・パネル最厚のラスボス格チューニング、撃破後cryでFINALへ橋渡し）を根拠に記述。§4-b状態変化トラッカーは「状態」一覧でありSTAGE MINA欠落があっても矛盾しないため不変。副次的に§5物語フローマップの「ミナ暴走→少年の対話で帰還（戦闘で解決しない）」という一文が実装（戦闘して撃破してから対話に入る）と字面上ズレていることに気付いたが、乖離レポート_20260813.mdもこの一文自体は問題視しておらずタスク範囲外のため今回は変更せず（将来の別タスク候補として記録）。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">世界観まとめの「未確定・要確認項目」1・3・4番が実装済みなのに未更新のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md</code>§6の1・3・4番を5番と同じ取り消し線＋実装済み注記形式で更新。1番=パスワード「stay」確定済み(<code>Epilogue.cs:65-69</code>、<code>docs/20260619/EpicB_物語設計案.md:48-52</code>に2026-06-19付で確定と明記、調査で指示文中の日付「2026-07-02」の誤りを原典に合わせて訂正)。4番=レイ/あかり/こはるの改心後投稿(<code>Hub.cs:1230-1241</code>)は確定文として実装済み。3番は精査の結果、単純な一括実装済み扱いにはせず正確に書き分け：アカウント名・こはるの一人称は実装済み(<code>AreaSpellCaster.cs:270,278,285</code>/<code>StageKoharu.cs:404</code>/<code>Hub.cs:1230-1241</code>/<code>BossKoharu.cs:120,126</code>)である一方、レイの漢字表記は依然未確定(常にカタカナ表記)、レイのハンドル表記(<code>@rei_compete</code>/<code>@rei_____</code>/<code>@rei</code>)にゆれが残ることを明記して据え置き。2番(本名)は指示通り未編集のまま据え置き。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">スコアの永続記録・ハイスコア表示が無い</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>GameManager.cs:248-263</code>に<code>ClearTimes</code>と同型の<code>BestScores</code>(Dictionary&lt;string,long&gt;)+<code>GetBestScore</code>/<code>RecordScore</code>を追加、<code>SaveToSlot</code>/<code>LoadFromSlot</code>(<code>GameManager.cs:794-798,817,850-857,878-884</code>)・<code>ResetPersistent</code>(<code>:908-909,944-945</code>)に組み込み。<code>StageRei/Akari/Koharu.cs</code>のクリア地点(各<code>:501-528</code>付近)で<code>RecordScore</code>を呼び<code>ShowClearBanner</code>へ結果を渡し、<code>Hud.cs:606-621,1764-1778</code>にSCORE行+NEW BEST表示を追加。<code>Records.cs</code>(<code>:86,97,141-158</code>)にベストスコア表示を追加(<code>UiKit.cs:494-495</code>の<code>FormatScore</code>使用)。既存のスコア加算ロジック・コンボ倍率は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実プレイ(Xvfb+実クリア)でクリアバナーのSCORE/NEW BEST表示、Records画面のタイム+スコア2段表示をスクリーンショットで目視確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p0">P0</span>
+          <span class="task-title">設定画面がマウスで操作できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) 現行コードでは再現せず。ヘッドレスでは<code>Viewport.GetMousePosition()</code>に疑似マウス入力が反映されないため、Xvfb仮想ディスプレイ+xdotoolで実カーソル操作による実機検証を実施：<code>TitleMenu.tscn</code>起動→マウスで「設定」クリック→Settings画面遷移→ナビ行クリックで<code>_cat</code>切替、トグルカードクリックで値反転・<code>user://settings.json</code>永続化まで、実際のユーザー導線を丸ごと再現して正常動作を確認（クリック位置(158,251)→<code>Pad.MousePos()</code>実測値(158.00002,250.99997)で座標系のズレも無し）。直前修正済みの「設定を開くとウィンドウが縮む」バグ（コミット42345df、<code>Settings.cs</code>の<code>_Ready</code>が初回<code>ApplyAll()</code>で無条件<code>DisplayServer.WindowSetMode</code>を呼んでいた問題）が実は本バグの真因で、その修正により解消していた可能性が高いと判断（本検証環境はWindow Manager非搭載のため、あちらの修正の副作用は完全には切り分けられていない）。デバッグ用に追加した一時コード（<code>MouseDbg.cs</code>等）は全て削除・復元済み、<code>git status</code>クリーン、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p0">P0</span>
+          <span class="task-title">タイトルの「設定」を開くと画面サイズが縮小する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>Settings.cs</code>に<code>_initializing</code>フラグ（L30）を追加し、<code>_Ready()</code>（L34-44）で<code>LoadSettings()</code>後・<code>ApplyAll()</code>前に新設の<code>SyncModeFromWindow()</code>（L46-54、<code>DisplayServer.WindowGetMode()</code>の実状態を<code>mode</code>セグメントの<code>d.I</code>へ同期）を呼ぶよう変更。<code>Apply()</code>内<code>case &quot;mode&quot;</code>（L339-343）に<code>if (!_initializing)</code>ガードを追加し、初回<code>ApplyAll()</code>中はウィンドウへの<code>DisplayServer.WindowSetMode</code>反映をスキップ、ユーザーが明示操作した時のみ反映されるようにした。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -751,14 +815,6 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
-          <span class="task-title">死亡系フロー（残機0・コンティニュー・チェックポイント再開）のQA</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">直近のQA走行は <code>--assist</code>（無敵）だったため死亡経路を通っていない。god無しで実際に死ぬパスを作って、ポーズ→リトライ／ステージ途中離脱／コンティニューの状態復帰を確認する必要がある。上の「死亡時チェックポイント再開」タスクを実装する場合はその検証も兼ねる</p>
-      </li>
-      <li class="task is-blocked">
-        <div class="task-head">
-          <span class="chip chip-none">—</span>
           <span class="task-title">世界観の肉付け（SNSの雑音で語る）</span>
           <span class="worker">scenario</span>
         </div>
@@ -809,18 +865,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">8a3034e</span><span>2026-08-17</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">a2c2ba7</span><span>2026-08-18</span><span class="s">Merge pull request #5 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">c788150</span><span>2026-08-17</span><span class="s">auto: 設定書の伏線③未解決メモを実装済みに更新</span></li>
-      <li><span class="h">132de51</span><span>2026-08-17</span><span class="s">auto: 設定書のレイ口癖セルを実装台詞に合わせて更新</span></li>
-      <li><span class="h">6525b1f</span><span>2026-08-17</span><span class="s">auto: あかりの口癖『バカ』の中間反転セリフを追加</span></li>
-      <li><span class="h">6d6e10d</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あかりのバカ口癖中間段階欠如</span></li>
-      <li><span class="h">98f380a</span><span>2026-08-17</span><span class="s">auto: ルナティックの残機・ボムをHard同値から2に調整</span></li>
-      <li><span class="h">6379573</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ルナティックの残機・ボムバランス</span></li>
+      <li><span class="h">7904500</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA</span></li>
+      <li><span class="h">1660d50</span><span>2026-08-18</span><span class="s">auto: QaPilotに死亡系リトライ検証機構を実装、対応BLOCKED項目をTODOへ昇格</span></li>
+      <li><span class="h">74fa025</span><span>2026-08-18</span><span class="s">auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い</span></li>
+      <li><span class="h">292af84</span><span>2026-08-18</span><span class="s">auto: Settings.csの音量即時反映コメントを実態に合わせて修正</span></li>
+      <li><span class="h">e837d5a</span><span>2026-08-18</span><span class="s">auto: WIP着手 - Settings.cs:6の音量即時反映範囲コメントが実装と矛盾</span></li>
+      <li><span class="h">59a658c</span><span>2026-08-18</span><span class="s">auto: 未使用のHud.GlassPanel死にコードを削除</span></li>
+      <li><span class="h">00d022e</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 死にコード Hud.GlassPanel が未使用</span></li>
+      <li><span class="h">6d106df</span><span>2026-08-18</span><span class="s">auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-18 12:00 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-18 19:48 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

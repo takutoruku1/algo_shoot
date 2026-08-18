@@ -42,6 +42,10 @@ public partial class Hud : CanvasLayer
     private string _bannerTime = "";     // 例 "TIME 1:23.45"
     private string _bannerBest = "";     // 例 "NEW BEST!" or "BEST 1:20.00"
     private bool _bannerNewBest;
+    // クリアリザルトのスコア行（タイム行と同じ様式）。空なら描かない。
+    private string _bannerScore = "";     // 例 "SCORE 12,345"
+    private string _bannerScoreBest = ""; // 例 "NEW BEST!" or "BEST 12,000"
+    private bool _bannerScoreNewBest;
     // ゲームオーバー時の追加プロンプト（バナー直下）。「リトライ／ハブへ抜ける」の選択肢を出す。
     // *Root.cs が残機0を検知して ShowGameOverPrompt で立て、抜けキー受付中だけ表示する。
     private string _gameOverPrompt = "";
@@ -569,7 +573,7 @@ public partial class Hud : CanvasLayer
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
     public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _epic = false; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; }
 
     // FINAL 専用の「格上」タイトルカード。通常バナー（出て消えるだけの一行）とは別の描画経路に入る。
     //   ダサさの正体＝①全ステージ共通のベタ一行で FINAL に重みが無い ②字間0で小さく詰まって見える
@@ -580,7 +584,7 @@ public partial class Hud : CanvasLayer
     {
         _epic = true; _epicTag = tag; _epicSub = sub; _epicAccent = accent;
         _bannerText = tag + " — " + sub; // バックログ/互換用に文字列は保持
-        _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = "";
+        _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = "";
     }
 
     private bool _epic;
@@ -595,9 +599,12 @@ public partial class Hud : CanvasLayer
     // R 長押しリトライの充填率（0..1）。*Root.cs が毎フレーム渡す（0 で非表示）。
     public void SetRetryHold(float frac) { _retryHold = Mathf.Clamp(frac, 0f, 1f); }
 
-    // クリアリザルト用バナー：見出し＋ TIME 行（＋自己ベスト更新なら NEW BEST! / でなければ旧ベスト併記）。
+    // クリアリザルト用バナー：見出し＋ TIME 行（＋自己ベスト更新なら NEW BEST! / でなければ旧ベスト併記）
+    //   ＋ SCORE 行（タイムと同じ様式）。
     //   seconds=今回タイム、isBest=自己ベスト更新か、prevBest=更新前のベスト（初回 null）。
-    public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest)
+    //   score=今回スコア、scoreIsBest=自己ベスト更新か、prevScore=更新前のベスト（初回 null）。
+    public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest,
+        long score, bool scoreIsBest, long? prevScore)
     {
         _bannerText = text; _bannerTimer = 5.0;
         _bannerTime = "TIME " + UiKit.FormatTime(seconds);
@@ -605,6 +612,11 @@ public partial class Hud : CanvasLayer
         if (isBest) _bannerBest = "NEW BEST!";
         else if (prevBest != null) _bannerBest = "BEST " + UiKit.FormatTime(prevBest.Value);
         else _bannerBest = "";
+        _bannerScore = "SCORE " + UiKit.FormatScore(score);
+        _bannerScoreNewBest = scoreIsBest;
+        if (scoreIsBest) _bannerScoreBest = "NEW BEST!";
+        else if (prevScore != null) _bannerScoreBest = "BEST " + UiKit.FormatScore(prevScore.Value);
+        else _bannerScoreBest = "";
     }
 
     // 無防備窓サイクル用の短い字幕（弾を止めない＝テンポ維持）。BREAK の合図・RECLOSE の弱気セリフに使う。
@@ -761,9 +773,6 @@ public partial class Hud : CanvasLayer
             ci.DrawRect(new Rect2(0, 0, 1280, 720), new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha));
         UiKit.EndDesign(ci);
     }
-
-    private void GlassPanel(HudCanvas ci, Rect2 r, Color? border = null)
-        => UiKit.Box(ci, r, Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f)), 16f, Fa(border ?? new Color(1, 1, 1, 0.12f)), 1f);
 
     // 左上クラスタの自動退避用：色のαに _topLeftFade を乗じる（弾接近時だけ薄くなる）。
     // 左上の5要素（LIFE/BOMB・ショット・やさしさ・目標・スキル）の描画色はこれを通す。
@@ -1765,6 +1774,18 @@ public partial class Hud : CanvasLayer
             {
                 Color bc = _bannerNewBest ? UiKit.Gold : UiKit.Text2;
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 402), _bannerBest, UiKit.FontHeading, new Color(bc, a),
+                    HorizontalAlignment.Center, 1280);
+            }
+        }
+        // クリアリザルトのスコア行（タイム行と同じ様式で1段下に）。
+        if (_bannerScore.Length > 0)
+        {
+            UiKit.Text(ci, UiKit.Mono, new Vector2(0, 438), _bannerScore, UiKit.FontTitle, new Color(UiKit.Gold, a),
+                HorizontalAlignment.Center, 1280);
+            if (_bannerScoreBest.Length > 0)
+            {
+                Color sc = _bannerScoreNewBest ? UiKit.Gold : UiKit.Text2;
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 474), _bannerScoreBest, UiKit.FontHeading, new Color(sc, a),
                     HorizontalAlignment.Center, 1280);
             }
         }

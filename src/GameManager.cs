@@ -240,6 +240,27 @@ public partial class GameManager : Node
         }
         return best;
     }
+
+    // ───── ベストスコア記録（ステージ×難易度のベスト・永続） ─────
+    //   キーはクリアタイムと同じ "{stageId}_{Diff}"（ClearTimeKey を共有）。ステージ入場ごとに
+    //   Score は 0 から数える（ResetRun）ため、1ステージ=1連続クリアのスコアがそのまま記録対象。
+    //   Save/Load(save_N.json) の "bestScores" に永続（ClearTimes と同じパターン）。
+    public Dictionary<string, long> BestScores { get; } = new();
+    // ベスト取得（未記録は null）。
+    public long? GetBestScore(string stageId, Diff diff)
+        => BestScores.TryGetValue(ClearTimeKey(stageId, diff), out var v) ? v : (long?)null;
+    // スコアを記録：既存ベストより高ければ更新。戻り値 isBest=自己ベスト更新か / prev=更新前のベスト（初回は null）。
+    public (bool isBest, long? prev) RecordScore(string stageId, Diff diff, long score)
+    {
+        string key = ClearTimeKey(stageId, diff);
+        bool had = BestScores.TryGetValue(key, out var prev);
+        if (!had || score > prev)
+        {
+            BestScores[key] = score;
+            return (true, had ? prev : (long?)null);
+        }
+        return (false, prev);
+    }
     // コメント返信済みのステージ（セッション内・1回だけ報酬）。
     private readonly HashSet<string> _replied = new();
     public bool HasReplied(string id) => _replied.Contains(id);
@@ -791,6 +812,11 @@ public partial class GameManager : Node
         foreach (var kv in ClearTimes)
             ct[kv.Key] = kv.Value;
         data["clearTimes"] = ct;
+        // ベストスコア（"{stageId}_{Diff}" → スコア）。後方互換：読み手はキー無しを空扱い。
+        var bs = new Godot.Collections.Dictionary();
+        foreach (var kv in BestScores)
+            bs[kv.Key] = kv.Value;
+        data["bestScores"] = bs;
         // 中ボス撃破フラグ（ステージID配列）。後方互換：キー無し＝空扱い。
         var mb = new Godot.Collections.Array();
         foreach (var id in _midBossCleared)
@@ -847,6 +873,14 @@ public partial class GameManager : Node
             var ct = data["clearTimes"].AsGodotDictionary();
             foreach (var k in ct.Keys)
                 ClearTimes[k.AsString()] = (float)ct[k].AsDouble();
+        }
+        // ベストスコア復元（キー無し＝旧セーブは空のまま＝後方互換）。
+        BestScores.Clear();
+        if (data.ContainsKey("bestScores"))
+        {
+            var bs = data["bestScores"].AsGodotDictionary();
+            foreach (var k in bs.Keys)
+                BestScores[k.AsString()] = bs[k].AsInt64();
         }
         // 中ボス撃破フラグ復元（キー無し＝旧セーブは空のまま＝後方互換）。
         _midBossCleared.Clear();
@@ -906,6 +940,8 @@ public partial class GameManager : Node
         // クリアタイムを消さないと、まっさらなはずの新規データに前データのベストが残り、
         //   記録画面とハブカードの BEST に出続けたうえ、最初のオートセーブで新スロットへ焼き付く。
         ClearTimes.Clear();
+        // ベストスコアも同様に消す（クリアタイムと同じ理由・同じ扱い）。
+        BestScores.Clear();
     }
 
     // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。
@@ -1054,6 +1090,11 @@ public partial class GameManager : Node
         Put("akari", Diff.Normal, 102.30f); Put("akari", Diff.Hard, 99.80f);
         Put("koharu", Diff.Easy, 121.00f);  Put("koharu", Diff.Lunatic, 140.67f);
         Put("final", Diff.Normal, 156.25f);
+        void PutScore(string id, Diff d, long s) => BestScores[ClearTimeKey(id, d)] = s;
+        PutScore("rei", Diff.Easy, 42800);   PutScore("rei", Diff.Normal, 61250);  PutScore("rei", Diff.Hard, 73900);
+        PutScore("akari", Diff.Normal, 88400); PutScore("akari", Diff.Hard, 95120);
+        PutScore("koharu", Diff.Easy, 51000);  PutScore("koharu", Diff.Lunatic, 132600);
+        PutScore("final", Diff.Normal, 210500);
     }
 
     public override void _Process(double delta)

@@ -492,6 +492,9 @@ public static class UiKit
         return $"{minutes}:{seconds:00}.{centi:00}";
     }
 
+    // スコア表記（3桁区切り、例 12,345）。
+    public static string FormatScore(long score) => score.ToString("N0");
+
     // ── キーキャップ（Z や ↑↓ の角丸チップ）。中央寄せのモノ文字 ──
     public static void Key(CanvasItem ci, Vector2 pos, string label, Color bg, Color border, Color textCol, float h = 24f, float minW = 24f)
     {
