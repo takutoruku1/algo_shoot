@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">92<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 66 / 対象 72 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">93<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 67 / 対象 72 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 92パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">66</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">67</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">世界観まとめの「未確定・要確認項目」1・3・4番が実装済みなのに未更新のまま放置</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:226</code>の1番（PWは仮文言と記載）は<code>src/Epilogue.cs:65-69</code>で<code>PwAnswer=3</code>(&quot;stay&quot;)として確定・実装済み（<code>docs/20260619/EpicB_物語設計案.md:48-52</code>で2026-07-02確定と明記）。4番（レイ/こはるの改心後投稿は仮文と記載）は<code>Hub.cs:1230-1241</code>で完成文として実装済み。3番（レイ/こはるのアカウント名・一人称は未確定と記載）は<code>AreaSpellCaster.cs:270,278</code>/<code>StageKoharu.cs:404</code>のハンドル、<code>BossKoharu.cs:120,126</code>の一人称「あたし」で確定・一貫実装済み。5番（伏線③）は既に取り消し線＋実装済み注記で更新済みなのに1・3・4番だけ古い仮案のまま。<strong>受入条件</strong>: §6の1・3・4番を5番と同じ形式（取り消し線＋「→実装済み」注記）で更新。2番（本名は現状も未実装で伏せる運用）は据え置き</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -199,6 +191,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">世界観まとめの「未確定・要確認項目」1・3・4番が実装済みなのに未更新のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md</code>§6の1・3・4番を5番と同じ取り消し線＋実装済み注記形式で更新。1番=パスワード「stay」確定済み(<code>Epilogue.cs:65-69</code>、<code>docs/20260619/EpicB_物語設計案.md:48-52</code>に2026-06-19付で確定と明記、調査で指示文中の日付「2026-07-02」の誤りを原典に合わせて訂正)。4番=レイ/あかり/こはるの改心後投稿(<code>Hub.cs:1230-1241</code>)は確定文として実装済み。3番は精査の結果、単純な一括実装済み扱いにはせず正確に書き分け：アカウント名・こはるの一人称は実装済み(<code>AreaSpellCaster.cs:270,278,285</code>/<code>StageKoharu.cs:404</code>/<code>Hub.cs:1230-1241</code>/<code>BossKoharu.cs:120,126</code>)である一方、レイの漢字表記は依然未確定(常にカタカナ表記)、レイのハンドル表記(<code>@rei_compete</code>/<code>@rei_____</code>/<code>@rei</code>)にゆれが残ることを明記して据え置き。2番(本名)は指示通り未編集のまま据え置き。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -865,18 +865,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">9d9b3a4</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 世界観まとめの未確定・要確認項目1・3・4番が実装済みなのに未更新</span></li>
+      <li><span class="h">c302a8f</span><span>2026-08-18</span><span class="s">auto: スコアの永続記録・ハイスコア表示を実装</span></li>
       <li><span class="h">b6e90c8</span><span>2026-08-18</span><span class="s">auto: WIP着手 - スコアの永続記録・ハイスコア表示が無い</span></li>
       <li><span class="h">6e57b20</span><span>2026-08-18</span><span class="s">auto: 監査で7件をキューに追加</span></li>
       <li><span class="h">eda717e</span><span>2026-08-18</span><span class="s">auto: 設定画面のマウス操作不能バグを検証、再現せず解決済みと確認</span></li>
       <li><span class="h">42589c3</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 設定画面がマウスで操作できない</span></li>
       <li><span class="h">42345df</span><span>2026-08-18</span><span class="s">auto: 設定画面を開くとウィンドウが縮むバグを修正</span></li>
       <li><span class="h">88c3147</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 設定画面を開くとウィンドウが縮む</span></li>
-      <li><span class="h">3dc9be8</span><span>2026-08-18</span><span class="s">Requeue the two settings-screen defects</span></li>
-      <li><span class="h">57c136b</span><span>2026-08-18</span><span class="s">Let the player fly the ship with the mouse</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-18 19:02 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-18 19:05 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
