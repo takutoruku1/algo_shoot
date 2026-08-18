@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-18 19:48 UTC
+> 生成: 2026-08-18 22:05 UTC
 
 ## 消化率
 
@@ -120,11 +120,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `2316159` 2026-08-19 Merge pull request #6 from takutoruku1/auto/dev
+- `00cb16a` 2026-08-18 auto: 死亡系フロー(R/Shift+Rリトライ)のQA一巡完了
 - `7904500` 2026-08-18 auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA
 - `1660d50` 2026-08-18 auto: QaPilotに死亡系リトライ検証機構を実装、対応BLOCKED項目をTODOへ昇格
 - `74fa025` 2026-08-18 auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い
 - `292af84` 2026-08-18 auto: Settings.csの音量即時反映コメントを実態に合わせて修正
 - `e837d5a` 2026-08-18 auto: WIP着手 - Settings.cs:6の音量即時反映範囲コメントが実装と矛盾
 - `59a658c` 2026-08-18 auto: 未使用のHud.GlassPanel死にコードを削除
-- `00d022e` 2026-08-18 auto: WIP着手 - 死にコード Hud.GlassPanel が未使用
-- `6d106df` 2026-08-18 auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-18 19:48 UTC",
+  "generated": "2026-08-18 22:05 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -543,6 +543,16 @@
   ],
   "commits": [
     {
+      "hash": "2316159",
+      "date": "2026-08-19",
+      "subject": "Merge pull request #6 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "00cb16a",
+      "date": "2026-08-18",
+      "subject": "auto: 死亡系フロー(R/Shift+Rリトライ)のQA一巡完了"
+    },
+    {
       "hash": "7904500",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA"
@@ -571,16 +581,6 @@
       "hash": "59a658c",
       "date": "2026-08-18",
       "subject": "auto: 未使用のHud.GlassPanel死にコードを削除"
-    },
-    {
-      "hash": "00d022e",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - 死にコード Hud.GlassPanel が未使用"
-    },
-    {
-      "hash": "6d106df",
-      "date": "2026-08-18",
-      "subject": "auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める"
     }
   ]
 }
