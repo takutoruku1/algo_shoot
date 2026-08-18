@@ -14,7 +14,7 @@ using System.Collections.Generic;
 //     ・トレーニング中はセーブを一切呼ばない（PauseMenu もこのシーンでは開かない＝スロットセーブ導線を出さない）。
 //
 //   住み分け（試し打ちと割り振りを両立）：
-//     ・自機＝矢印/WASD 移動・Z ショット・X ボム・V モード切替（本編と同じ手触り）。
+//     ・自機＝矢印/WASD 移動・ショットは常時オート・X ボム・V モード切替（本編と同じ手触り）。
 //     ・スキル割り振り＝右のスキルパネルをマウスで（行クリックで付け外し／ホイールでスクロール）。
 //       キーボードは PageUp/PageDown でスクロール、[ / ] で全オフ/全解放（自機キーと衝突しない住み分け）。
 //     ・もどる＝Esc または左下ボタンのクリック。
@@ -381,7 +381,7 @@ public partial class TrainingRoot : Node2D
 
         // 操作ヒント（左下）。
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: Z　ボム: X　モード切替: V", 12, UiKit.Text3);
+            "移動: 矢印/WASD　ショット: オート　ボム: X　モード切替: V", 12, UiKit.Text3);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
             "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
 

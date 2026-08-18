@@ -76,7 +76,7 @@ public partial class Settings : Node2D
         // KB⇔パッドの出し分けは直近デバイスへ自動追従し、ここはパッド時の表記スタイル（PS/Xbox）と初期値を決める。
         ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "PlayStation", "Xbox" }, 0, "パッド時の表記（KB⇔パッドは自動切替）"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
-        ctrl.Items.Add(Keys("shot", "ショット", new[] { "Z" }));
+        ctrl.Items.Add(Keys("shot", "ショット", new[] { "オート" }, "自動で撃ちます（操作不要）"));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
         ctrl.Items.Add(Keys("slow", "低速移動", new[] { "Shift" }, "判定を見ながら避ける"));
         ctrl.Items.Add(Keys("dodge", "回避", new[] { "Alt" }, "一瞬無敵で弾を抜ける"));
@@ -541,7 +541,7 @@ public partial class Settings : Node2D
             return rowKey switch
             {
                 "move"  => new[] { "↑", "↓", "←", "→" },
-                "shot"  => new[] { "Z" },
+                "shot"  => new[] { "オート" },   // 射撃ボタンは廃止（常時オート発射）
                 "bomb"  => new[] { "X" },
                 "slow"  => new[] { "Shift" },
                 "dodge" => new[] { "Alt" },
@@ -552,7 +552,7 @@ public partial class Settings : Node2D
         return rowKey switch
         {
             "move"  => new[] { "L" },                                    // 左スティック
-            "shot"  => new[] { Pad.Face(JoyButton.A) },
+            "shot"  => new[] { "オート" },                               // 射撃ボタンは廃止（常時オート発射）
             "bomb"  => new[] { Pad.Face(JoyButton.X) },
             "slow"  => new[] { Pad.Face(JoyButton.LeftShoulder), Pad.Face(JoyButton.RightShoulder) },
             "dodge" => new[] { Pad.Face(JoyButton.LeftStick) },

@@ -100,9 +100,9 @@ public partial class HowToCanvas : Node2D
     // ── 操作子トークン（KB / パッド出し分け。Hud と同じ規則）──
     // Hud.Tok* は private なのでここで同等に持つ（割り当ては Player.cs と一致）。
     private static string TokMove  => Pad.UsingPad ? "L スティック"                   : "矢印 / WASD";
-    private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z / Space / Enter";
+    private static string TokShot  => "オート";                                                       // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)  : "Shift";       // RB は向き反転へ移した
-    private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F";           // 向き反転：Player.cs RightShoulder
+    private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック"; // 向き反転：Player.cs RightShoulder / 左クリック
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
@@ -160,7 +160,7 @@ public partial class HowToCanvas : Node2D
         var rows = new (string tok, string name, string desc, Color accent, bool hot)[]
         {
             (TokMove,  "移動",        "上下左右に動く",                              UiKit.Info,   false),
-            (TokShot,  "撃つ",        "光を放って心を浄化する",                       UiKit.Purify, false),
+            (TokShot,  "撃つ",        "自動で撃ちます。光を放って心を浄化する",          UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
             (TokFlip,  "向き反転",    "押すたび撃つ方向が 右⇔左 に切り替わる",           UiKit.Gold,   true),
@@ -181,11 +181,15 @@ public partial class HowToCanvas : Node2D
         }
 
         // 念押し：やさしさ全開は Space ではなく TokKind（KB のとき Ctrl）。
+        // あわせて弾幕パートのマウス操作も1行で（マウスは専用トークンを持たないので地の文で示す）。
         if (!Pad.UsingPad)
         {
             float ny = y + half * rowH + 6f;
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
-                "※ Space は「撃つ」。やさしさ全開は Ctrl です（混同しないでね）", UiKit.FontLabel, UiKit.Gold);
+                "※ 光は自動で出ます。撃つボタンはありません（やさしさ全開だけ Ctrl）", UiKit.FontLabel, UiKit.Gold);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
+                "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）",
+                UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
         }
     }
 

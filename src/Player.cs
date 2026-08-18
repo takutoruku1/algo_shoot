@@ -144,6 +144,16 @@ public partial class Player : Area2D
 
     private bool _focus = false; // 低速（Shift）中か。ヒットボックス強調表示に使う。
 
+    // ───────── マウス操作（キーボード/パッドへ純粋に追加）─────────
+    // 弾幕STG標準のカーソル追従。直近デバイスがマウスのとき（Pad.UsingMouse）だけ有効＝
+    // キーボード/パッドを触った瞬間に Pad 側で false へ落ちるので、カーソルが画面内にあっても引っ張られない。
+    // 追従は瞬間移動だとワープして見えるので指数補間。ただし「張り付く」速さに置き、
+    // 低速(Shift)中は係数を落として精密よけを許す。到達速度は既存の移動速度上限で頭打ちにする。
+    private const float MouseFollowResponse = 26f;      // 通常の追従の速さ(1/s)。実質カーソルに張り付く
+    private const float MouseFollowResponseFocus = 12f; // 低速時：ゆっくり寄る＝精密よけ用
+    private const float MouseSnapDist = 0.6f;           // この距離まで詰めたら吸着（微振動を止める）
+    private ulong _mouseWheelFrame;                     // ホイールを消費した描画フレーム（1フレーム2回消費の二重切替を防ぐ）
+
     // 「今かすった」を自機側のリングで一瞬光らせる残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
     private float _grazeFlash = 0f;
     private const float GrazeFlashDecay = 6f; // 約0.17秒で消える（即・短く＝テンポを殺さない）
@@ -204,6 +214,7 @@ public partial class Player : Area2D
     // 同時に両方向へは撃たない＝火力は不変（向きが変わるだけ）。
     private int _facing = 1;
     private bool _flipHeld = false;             // トグル入力のエッジ検出
+    private bool _mouseFlipLocked = false;      // 会話送りのクリックが会話明けに向き反転へ流れ込むのを止めるゲート（離すまで反転しない）
     public int Facing => _facing;
     public Vector2 ShotDir => new Vector2(_facing, 0f);
     public float ShotAngle => _facing >= 0 ? 0f : Mathf.Pi;
@@ -422,6 +433,9 @@ public partial class Player : Area2D
 
         // 操作ガイドの KB/パッド出し分け用に、直近デバイスを毎フレーム判定。
         Pad.PollDevice();
+        // マウス操作中か（Pad が座標・ボタン・ホイールから毎フレーム判定。KB/パッドを触れば false に落ちる）。
+        // ポーズ中は _PhysicsProcess 自体が止まり、会話中は下の BubblePaused ゲートで無効化される。
+        bool mouse = Pad.UsingMouse;
 
         // 移動入力。会話中（吹き出し表示中）・ゲームオーバー後は動けない。
         Vector2 dir = Vector2.Zero;
@@ -446,9 +460,21 @@ public partial class Player : Area2D
 
         // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
-        bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick);
+        // マウス時は右クリックが回避（低速は Shift のまま＝マウス側には割り当てない）。
+        bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick)
+                        || (mouse && Pad.MouseRightDown());
         if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
-            TryDodge(dir);
+        {
+            // マウス時は方向キーが無いので「カーソルの方向」を回避方向として使う（十分離れている時だけ）。
+            // カーソルにほぼ張り付いている＝行き先が無いときは従来どおりその場回避（変位ゼロ）になる。
+            Vector2 ddir = dir;
+            if (mouse && ddir == Vector2.Zero)
+            {
+                Vector2 toCur = GetGlobalMousePosition() - GlobalPosition;
+                if (toCur.LengthSquared() > 64f) ddir = toCur.Normalized(); // 8px 超で方向あり
+            }
+            TryDodge(ddir);
+        }
         _dodgeHeld = dodgeKey;
         if (_dodgeCd > 0f) _dodgeCd -= dt;
         if (_dodgeInv > 0f) _dodgeInv -= dt;
@@ -479,6 +505,23 @@ public partial class Player : Area2D
             }
             if (_dodgeTimer <= 0f) EndDodge();
         }
+        else if (mouse && !Hud.BubblePaused)
+        {
+            // マウス追従：カーソル（ワールド座標）へ指数補間で寄る。GetGlobalMousePosition は
+            // キャンバス変換（GameCamera のシェイク込み）を通した値＝プレイ領域 384×216 と同じ系。
+            // 1フレームの移動量は既存の速度上限(speed)でクランプ＝KB/パッドより速く動けることはない。
+            Vector2 target = GetGlobalMousePosition();
+            target.X = Mathf.Clamp(target.X, MinX, MaxX);
+            target.Y = Mathf.Clamp(target.Y, MinY, MaxY);
+            Vector2 to = target - GlobalPosition;
+            float resp = focus ? MouseFollowResponseFocus : MouseFollowResponse;
+            Vector2 step = to * (1f - Mathf.Exp(-resp * dt));
+            step = step.LimitLength(speed * dt);
+            pos = to.Length() <= MouseSnapDist ? target : GlobalPosition + step;
+            // バンク（体の傾き）は KB/パッドと同じく「進行方向の強さ」で駆動する＝マウスでも姿勢が付いてくる。
+            // 実移動量を「その1フレームで出せる最大量(speed*dt)」で割って、KB の dir(長さ0〜1) と同じ尺度に揃える。
+            dir = ((pos - GlobalPosition) / Mathf.Max(0.0001f, speed * dt)).LimitLength(1f);
+        }
         else
         {
             pos = GlobalPosition + dir * speed * dt;
@@ -500,8 +543,8 @@ public partial class Player : Area2D
         if (nowOverload && !_overload) OnOverloadStart();
         _overload = nowOverload;
 
-        // ショット＝Z / Aボタン。会話中（吹き出し表示中）は不可
-        // 初回に HUD へ現在モードを通知（HUD の _Ready 順に依存しないよう最初の物理フレームで）。
+        // ショットはオート発射（下の shoot 判定）。ここでは初回に HUD へ現在モードを通知
+        // （HUD の _Ready 順に依存しないよう最初の物理フレームで）。
         if (!_modeInit && _game != null)
         {
             if (!_game.IsModeUnlocked(_game.SelectedShotMode)) _game.SelectedShotMode = GameManager.ShotMode.Rapid;
@@ -511,7 +554,15 @@ public partial class Player : Area2D
 
         // ショットモード切替＝V / Pad B。解放済みモードを循環。会話中は不可。
         bool modeKey = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.B);
-        if (modeKey && !_modeHeld && !Hud.BubblePaused && _game != null)
+        // マウスホイールでも切替。Pad.WheelDelta はフレーム値なので、1描画フレームに物理が2回
+        // 回っても二重に切り替えないよう、消費した描画フレームを覚えて1回だけ通す。
+        bool wheelMode = false;
+        if (mouse && Pad.WheelDelta() != 0f && _mouseWheelFrame != Engine.GetProcessFrames())
+        {
+            _mouseWheelFrame = Engine.GetProcessFrames();
+            wheelMode = true;
+        }
+        if ((wheelMode || (modeKey && !_modeHeld)) && !Hud.BubblePaused && _game != null)
         {
             var nm = _game.NextUnlockedMode(_game.SelectedShotMode);
             if (nm != _game.SelectedShotMode)
@@ -522,9 +573,15 @@ public partial class Player : Area2D
         }
         _modeHeld = modeKey;
 
-        // 向き反転＝F / パッド RB。押した瞬間だけ反転するトグル（押しっぱなし不要）。会話中は不可。
+        // 向き反転＝F / パッド RB / 左クリック。押した瞬間だけ反転するトグル（押しっぱなし不要）。会話中は不可。
         // 反転は _facing のみを書き換える＝射撃方向も見た目(FlipH)も下流がここを読んで追従する。
-        bool flipKey = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
+        // 左クリックは会話送りと兼用なので、会話中に押されていたクリックは離すまで反転に使わない
+        //（会話明けの1クリックが向き反転へ流れ込む誤爆を止める）。
+        bool mouseL = Pad.MouseDown();
+        if (Hud.BubblePaused && mouseL) _mouseFlipLocked = true;
+        else if (!mouseL) _mouseFlipLocked = false;
+        bool flipKey = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
+                    || (mouseL && !_mouseFlipLocked);
         if (flipKey && !_flipHeld && !Hud.BubblePaused)
         {
             _facing = -_facing;
@@ -532,10 +589,11 @@ public partial class Player : Area2D
         }
         _flipHeld = flipKey;
 
-        // 緊急回避中（_dodgeTimer 稼働＝DodgeDuration の間）はショット入力を無効化する＝回避は「避け」に専念。
-        // ゲームオーバー後は R/Q の選択待ちに専念させるためショットも止める。
-        bool shoot = (Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A))
-                     && !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver;
+        // ショットはオート＝射撃ボタンは無い。「押しっぱなしと同じ状態」が常に続く。
+        // Z / Space / Enter / A / 左クリックは会話送り（Pad.AdvanceHeld）専用に戻した。
+        // 撃てない条件：会話中（吹き出し表示中）／緊急回避中（回避は「避け」に専念）／
+        // ゲームオーバー後（R/Q の選択待ちに専念させる）。
+        bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -562,7 +620,8 @@ public partial class Player : Area2D
 
         // ボム（X）: 押した瞬間だけ発動
         // ボム＝X / Xボタン（□）
-        bool bombKey = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
+        bool bombKey = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X)
+                       || (mouse && Pad.MouseMiddleDown()); // マウス時は中クリック
         if (bombKey && !_bombHeld && !Hud.BubblePaused && !_gameOver)
             TryBomb();
         _bombHeld = bombKey;

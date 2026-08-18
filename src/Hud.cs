@@ -204,7 +204,7 @@ public partial class Hud : CanvasLayer
 
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
-    private static string TokShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z";
+    private static string TokShot  => "オート";                                        // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
@@ -216,12 +216,12 @@ public partial class Hud : CanvasLayer
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
-    private static string AllShot  => Pad.UsingPad ? Pad.Face(JoyButton.A)            : "Z / Space / Enter";
+    private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
     // 低速はパッドでは LB のみ（RB は向き反転へ割り当てたため。Player.cs の判定と一致させる）。
     private static string AllFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
-    // 向き反転（射撃方向を右⇔左にトグル）。KB=F / パッド=RB(R1)。
-    private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F";
+    // 向き反転（射撃方向を右⇔左にトグル）。KB=F / 左クリック / パッド=RB(R1)。
+    private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F / 左クリック";
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";

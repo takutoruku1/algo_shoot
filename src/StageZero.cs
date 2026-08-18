@@ -81,10 +81,10 @@ public partial class StageZero : Node
     };
     private static readonly (int who, string text, string face)[] Tut2Shot =
     {
-        (0, "次は、撃つ。下のボタンを押しっぱなしで、光が出る。", "res://char/shonen_face.png"),
-        (0, "飛んでくる“言葉”や“板”——あれを、その光で祓うんだ。", "res://char/shonen_gentle.png"),
-        (1, "撃つ、というより……払いのける感じですね。", "res://char/mina_face.png"),
-        (0, "そう。倒すんじゃない。やさしく、どかすだけ。さあ、撃ってみて。", "res://char/shonen_proud.png"),
+        (0, "次は、光。……といっても、きみは何も押さなくていい。", "res://char/shonen_face.png"),
+        (0, "光は勝手に出続ける。飛んでくる“言葉”や“板”は、それが祓ってくれる。", "res://char/shonen_gentle.png"),
+        (1, "……わたくしは、撃たなくていいのですか。", "res://char/mina_face.png"),
+        (0, "ああ。きみは、よけることだけ考えてればいい。さあ、ダミーに光を当ててごらん。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut3Slow =
     {
@@ -122,14 +122,14 @@ public partial class StageZero : Node
         (0, "最後に、いちばん大事なこと。左の“やさしさゲージ”だ。", "res://char/shonen_face.png"),
         (0, "弾をかすめたり、浄化したりすると、これが少しずつ満ちていく。", "res://char/shonen_gentle.png"),
         (1, "満ちたら、なにか起きるんですか?", "res://char/mina_face.png"),
-        (0, "満タンになったら——Ctrl。Space じゃない、Ctrl だ。“やさしさ全開”。", "res://char/shonen_gentle.png"),
-        (0, "数秒だけ、きみから光が溢れる。連射は最速、撃つ弾は花びらになる。", "res://char/shonen_proud.png"),
-        (1, "花びら……。わたくしの撃つものが、そんなにきれいになるんですね。", "res://char/mina_smile.png"),
-        (0, "ああ。満タンになったら、Ctrl。ダミーに、思いきり撃ち込んでみて。", "res://char/shonen_proud.png"),
+        (0, "満タンになったら——Ctrl。それだけ覚えておけばいい。“やさしさ全開”。", "res://char/shonen_gentle.png"),
+        (0, "数秒だけ、きみから光が溢れる。連射は最速、こぼれる光は花びらになる。", "res://char/shonen_proud.png"),
+        (1, "花びら……。わたくしから出るものが、そんなにきれいになるんですね。", "res://char/mina_smile.png"),
+        (0, "ああ。満タンになったら、Ctrl。ダミーに、思いきりぶつけてごらん。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut8End =
     {
-        (0, "——これで、全部だ。動いて、撃って、避けて、抜けて、囲まれたら祓う。", "res://char/shonen_gentle.png"),
+        (0, "——これで、全部だ。動いて、避けて、抜けて、囲まれたら祓う。光は勝手に付いてくる。", "res://char/shonen_gentle.png"),
         (1, "ぜんぶ、覚えました。……ご主人様が、そばで教えてくれましたから。", "res://char/mina_smile.png"),
         (0, "ぼくは、ずっとここにいる。きみが迷っても、ちゃんと声が届く所に。", "res://char/shonen_gentle.png"),
         (1, "……あ。ご主人様、見てください。暗闇に、ひとつだけ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
@@ -225,7 +225,7 @@ public partial class StageZero : Node
                     int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
                     // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
                     if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
-                    Hud.SetTutorialHint($"Z で ダミーを たおそう（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
+                    Hud.SetTutorialHint($"ダミーに 光を あてて たおそう（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
                     if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
