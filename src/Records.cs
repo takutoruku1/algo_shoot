@@ -83,7 +83,7 @@ public partial class Records : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), "RECORDS", UiKit.FontLabel, UiKit.Info);
         float tagW = UiKit.TextW(UiKit.Mono, "RECORDS", UiKit.FontLabel);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), "クリアタイム", UiKit.FontTitle, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム", UiKit.FontBody, UiKit.Text3,
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム／スコア", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -94,7 +94,7 @@ public partial class Records : Node2D
         float colsW = tableW - labelW;
         float colW = colsW / Cols.Length;
         float headH = 40f;
-        float rowH = 74f, rowGap = 12f;
+        float rowH = 92f, rowGap = 12f; // タイム＋スコアの2段表示ぶん、タイムのみ(74)より高さを取る
 
         // ── 列見出し（難易度）──
         for (int c = 0; c < Cols.Length; c++)
@@ -142,13 +142,20 @@ public partial class Records : Node2D
         {
             float cx = x + labelW + c * colW;
             var t = _game?.GetBestTime(id, Cols[c].diff);
+            var sc = _game?.GetBestScore(id, Cols[c].diff);
             bool isRowBest = best != null && t != null && Mathf.IsEqualApprox(t.Value, best.Value.sec) && Cols[c].diff == best.Value.diff;
             string s = t != null ? UiKit.FormatTime(t.Value) : "--";
+            string scS = sc != null ? UiKit.FormatScore(sc.Value) : "--";
             Color tc = t == null ? UiKit.Text4 : (isRowBest ? UiKit.Gold : UiKit.PurifyHi);
-            // セル枠（行内ベストは淡く強調）
+            Color scc = sc == null ? UiKit.Text4 : UiKit.Gold;
+            // セル枠（行内ベストは淡く強調・タイム＋スコアの2段ぶん広げる）
             if (isRowBest)
-                UiKit.Box(this, new Rect2(cx + 8, y + h / 2f - 17, colW - 16, 34f), new Color(UiKit.Gold, 0.08f), 8f, new Color(UiKit.Gold, 0.4f), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f - 10), s, UiKit.FontHeading, tc,
+                UiKit.Box(this, new Rect2(cx + 8, y + h / 2f - 26, colW - 16, 52f), new Color(UiKit.Gold, 0.08f), 8f, new Color(UiKit.Gold, 0.4f), 1f);
+            // タイム行（上段）
+            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f - 20), s, UiKit.FontHeading, tc,
+                HorizontalAlignment.Center, colW);
+            // ベストスコア行（下段・タイムより小さく）
+            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f + 8), scS, UiKit.FontSmall, scc,
                 HorizontalAlignment.Center, colW);
         }
     }

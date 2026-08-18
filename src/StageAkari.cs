@@ -501,7 +501,9 @@ public partial class StageAkari : Node
             _clearTime = (float)_stageElapsed;
             var game = GetNodeOrNull<GameManager>("/root/Game");
             var rec = game?.RecordClearTime("akari", game.Difficulty, _clearTime) ?? (true, (float?)null);
-            Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev);
+            long score = game?.Score ?? 0;
+            var recScore = game?.RecordScore("akari", game.Difficulty, score) ?? (true, (long?)null);
+            Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
         Step_Lines(delta, Clear);

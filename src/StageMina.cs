@@ -187,6 +187,7 @@ public partial class StageMina : Node
         // FINAL クリア確定＝この瞬間に経過秒を確定しベスト記録（記録画面/カードで参照）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.RecordClearTime("final", game.Difficulty, (float)_stageElapsed);
+        if (game != null) game.RecordScore("final", game.Difficulty, game.Score);
         game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。

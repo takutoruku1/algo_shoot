@@ -38,7 +38,6 @@
 - [ ] (P3) QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない | engineer | `src/QaPilot.cs`全体をgrepしても`Key.R`関連コードが0件で、`ReiRoot.cs:80,86`/`AkariRoot.cs:80,86`/`KoharuRoot.cs:82,88`が読む`Input.IsKeyPressed(Key.R)`/`Key.Shift`を一度も送信しない。既存BLOCKED「死亡系フローのQA」が繰り返し未実施のまま放置される根本原因（2026-08-18監査で特定）。**受入条件**: QaPilotにR/Shift+R相当の合成入力を追加し、死亡後リトライ導線（チェックポイント再開/最初から）を自動検証できるようにする。規模が大きい場合は無理に実装せず、既存BLOCKED項目に「なぜ自動化できないか」を明記する形に更新するだけでもよい
 
 ## WIP
-- [ ] (P1) スコアの永続記録・ハイスコア表示が無い | engineer | `GameManager.cs:1213-1219` の `ResetRun()` が各ステージ入場のたび（`ReiRoot.cs:25`/`AkariRoot.cs:25`/`KoharuRoot.cs:26`/`MinaRoot.cs:21`/`Stage0Root.cs:23`）`Score = 0` を実行し、スコアはステージ間・ラン間で一切引き継がれない。加算経路（`AddPurify`/`AddGraze`/`AddDodgeGraze`等、`GameManager.cs:1024-1168`）は作り込まれているのに、永続記録があるのはクリアタイムのみ（`ClearTimes`、`GameManager.cs:211-230`、`Records.cs`）。クリア画面(`Hud.cs:1752-1771`)・ゲームオーバー画面(`Hud.cs:1774-1778`)にも最終スコア表示が無く、`Hub.cs`はScoreを一切参照しない。にもかかわらず`HowToPlay.cs:233`は「SCORE…遊びの得点。ハイスコアを狙える」と明記しており実装が約束を満たしていない。**受入条件**: `GameManager`にクリアタイムと同型の`BestScores`永続化を追加し、`ResetRun()`前にセーブへ確定。ステージクリア地点で`RecordScore`相当を呼び、`ShowClearBanner`にスコア行＋NEW BEST判定を追加、`Records.cs`にスコア表示を追加
 
 ## BLOCKED
 
@@ -61,6 +60,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P1) スコアの永続記録・ハイスコア表示が無い | engineer | (完了 2026-08-18) `GameManager.cs:248-263`に`ClearTimes`と同型の`BestScores`(Dictionary<string,long>)+`GetBestScore`/`RecordScore`を追加、`SaveToSlot`/`LoadFromSlot`(`GameManager.cs:794-798,817,850-857,878-884`)・`ResetPersistent`(`:908-909,944-945`)に組み込み。`StageRei/Akari/Koharu.cs`のクリア地点(各`:501-528`付近)で`RecordScore`を呼び`ShowClearBanner`へ結果を渡し、`Hud.cs:606-621,1764-1778`にSCORE行+NEW BEST表示を追加。`Records.cs`(`:86,97,141-158`)にベストスコア表示を追加(`UiKit.cs:494-495`の`FormatScore`使用)。既存のスコア加算ロジック・コンボ倍率は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実プレイ(Xvfb+実クリア)でクリアバナーのSCORE/NEW BEST表示、Records画面のタイム+スコア2段表示をスクリーンショットで目視確認済み
 
 <!-- routine がここに追記する。新しいものが上 -->
 - [x] (P0) 設定画面がマウスで操作できない | engineer | (完了 2026-08-18) 現行コードでは再現せず。ヘッドレスでは`Viewport.GetMousePosition()`に疑似マウス入力が反映されないため、Xvfb仮想ディスプレイ+xdotoolで実カーソル操作による実機検証を実施：`TitleMenu.tscn`起動→マウスで「設定」クリック→Settings画面遷移→ナビ行クリックで`_cat`切替、トグルカードクリックで値反転・`user://settings.json`永続化まで、実際のユーザー導線を丸ごと再現して正常動作を確認（クリック位置(158,251)→`Pad.MousePos()`実測値(158.00002,250.99997)で座標系のズレも無し）。直前修正済みの「設定を開くとウィンドウが縮む」バグ（コミット42345df、`Settings.cs`の`_Ready`が初回`ApplyAll()`で無条件`DisplayServer.WindowSetMode`を呼んでいた問題）が実は本バグの真因で、その修正により解消していた可能性が高いと判断（本検証環境はWindow Manager非搭載のため、あちらの修正の副作用は完全には切り分けられていない）。デバッグ用に追加した一時コード（`MouseDbg.cs`等）は全て削除・復元済み、`git status`クリーン、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
