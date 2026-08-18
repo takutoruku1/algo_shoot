@@ -30,9 +30,9 @@
 
 <!-- ▼ 2026-08-18 監査モードで補充（game-designer/engineer/scenario/qa 4観点並列）。7件。 -->
 
-- [ ] (P3) QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない | engineer | `src/QaPilot.cs`全体をgrepしても`Key.R`関連コードが0件で、`ReiRoot.cs:80,86`/`AkariRoot.cs:80,86`/`KoharuRoot.cs:82,88`が読む`Input.IsKeyPressed(Key.R)`/`Key.Shift`を一度も送信しない。既存BLOCKED「死亡系フローのQA」が繰り返し未実施のまま放置される根本原因（2026-08-18監査で特定）。**受入条件**: QaPilotにR/Shift+R相当の合成入力を追加し、死亡後リトライ導線（チェックポイント再開/最初から）を自動検証できるようにする。規模が大きい場合は無理に実装せず、既存BLOCKED項目に「なぜ自動化できないか」を明記する形に更新するだけでもよい
 
 ## WIP
+- [ ] (P3) QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない | engineer | `src/QaPilot.cs`全体をgrepしても`Key.R`関連コードが0件で、`ReiRoot.cs:80,86`/`AkariRoot.cs:80,86`/`KoharuRoot.cs:82,88`が読む`Input.IsKeyPressed(Key.R)`/`Key.Shift`を一度も送信しない。既存BLOCKED「死亡系フローのQA」が繰り返し未実施のまま放置される根本原因（2026-08-18監査で特定）。**受入条件**: QaPilotにR/Shift+R相当の合成入力を追加し、死亡後リトライ導線（チェックポイント再開/最初から）を自動検証できるようにする。規模が大きい場合は無理に実装せず、既存BLOCKED項目に「なぜ自動化できないか」を明記する形に更新するだけでもよい
 
 ## BLOCKED
 
