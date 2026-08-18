@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 64 / 対象 65 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 65 / 対象 65 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">64</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">65</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p0">P0</span>
-          <span class="task-title">設定画面がマウスで操作できない</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><strong>再現</strong>: 設定画面でマウスクリック・ホバーが効かない。<strong>調査の手掛かり</strong>: マウス処理自体は実装済み（<code>Settings.cs:120</code> <code>UiKit.BeginHotspots(Pad.MousePos())</code> / <code>:121 Pad.MouseClick()</code> / <code>:170-178</code> の <code>UiKit.Hotspot</code> 登録 / <code>:182,199</code> の <code>HoveredId</code>）。未実装ではなく<strong>動いていない</strong>バグ。<strong>座標系の不整合を疑う</strong>＝<code>Pad.MousePos()</code> は設計1280系を返す（<code>Pad.cs:252</code> で <code>/ UiKit.Scale</code>）が、<code>NavRowRect</code>/<code>CardRect</code>（<code>Settings.cs:108-109</code>）の矩形がどの系で計算されているか、<code>UiKit.BeginDesign</code> の適用範囲とホットスポット登録のタイミングが噛み合っているかを確認すること。上の「画面サイズが縮小する」バグでウィンドウ実サイズが変わると <code>UiKit.Scale</code> がずれるため、<strong>2件は同一原因の可能性がある</strong>（先に画面サイズ側を直してから再確認するのが早い）。<strong>受入条件</strong>: 設定画面の各項目をマウスでホバー・クリックして操作できること。他のマウス対応画面（Hub/Shop/TitleMenu）と同じ手触りになること</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p0">P0</span>
+          <span class="task-title">設定画面がマウスで操作できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) 現行コードでは再現せず。ヘッドレスでは<code>Viewport.GetMousePosition()</code>に疑似マウス入力が反映されないため、Xvfb仮想ディスプレイ+xdotoolで実カーソル操作による実機検証を実施：<code>TitleMenu.tscn</code>起動→マウスで「設定」クリック→Settings画面遷移→ナビ行クリックで<code>_cat</code>切替、トグルカードクリックで値反転・<code>user://settings.json</code>永続化まで、実際のユーザー導線を丸ごと再現して正常動作を確認（クリック位置(158,251)→<code>Pad.MousePos()</code>実測値(158.00002,250.99997)で座標系のズレも無し）。直前修正済みの「設定を開くとウィンドウが縮む」バグ（コミット42345df、<code>Settings.cs</code>の<code>_Ready</code>が初回<code>ApplyAll()</code>で無条件<code>DisplayServer.WindowSetMode</code>を呼んでいた問題）が実は本バグの真因で、その修正により解消していた可能性が高いと判断（本検証環境はWindow Manager非搭載のため、あちらの修正の副作用は完全には切り分けられていない）。デバッグ用に追加した一時コード（<code>MouseDbg.cs</code>等）は全て削除・復元済み、<code>git status</code>クリーン、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p0">P0</span>
@@ -809,18 +809,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">42589c3</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 設定画面がマウスで操作できない</span></li>
+      <li><span class="h">42345df</span><span>2026-08-18</span><span class="s">auto: 設定画面を開くとウィンドウが縮むバグを修正</span></li>
       <li><span class="h">88c3147</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 設定画面を開くとウィンドウが縮む</span></li>
       <li><span class="h">3dc9be8</span><span>2026-08-18</span><span class="s">Requeue the two settings-screen defects</span></li>
       <li><span class="h">57c136b</span><span>2026-08-18</span><span class="s">Let the player fly the ship with the mouse</span></li>
       <li><span class="h">8a3034e</span><span>2026-08-17</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">a2c2ba7</span><span>2026-08-18</span><span class="s">Merge pull request #5 from takutoruku1/auto/dev</span></li>
       <li><span class="h">c788150</span><span>2026-08-17</span><span class="s">auto: 設定書の伏線③未解決メモを実装済みに更新</span></li>
-      <li><span class="h">132de51</span><span>2026-08-17</span><span class="s">auto: 設定書のレイ口癖セルを実装台詞に合わせて更新</span></li>
-      <li><span class="h">6525b1f</span><span>2026-08-17</span><span class="s">auto: あかりの口癖『バカ』の中間反転セリフを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-18 18:07 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-18 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

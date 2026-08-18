@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-18 18:07 UTC",
+  "generated": "2026-08-18 18:27 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 64
+    "done": 65
   },
-  "percent": 98,
-  "todo": [
-    {
-      "priority": "P0",
-      "title": "設定画面がマウスで操作できない",
-      "worker": "engineer",
-      "accept": "**再現**: 設定画面でマウスクリック・ホバーが効かない。**調査の手掛かり**: マウス処理自体は実装済み（`Settings.cs:120` `UiKit.BeginHotspots(Pad.MousePos())` / `:121 Pad.MouseClick()` / `:170-178` の `UiKit.Hotspot` 登録 / `:182,199` の `HoveredId`）。未実装ではなく**動いていない**バグ。**座標系の不整合を疑う**＝`Pad.MousePos()` は設計1280系を返す（`Pad.cs:252` で `/ UiKit.Scale`）が、`NavRowRect`/`CardRect`（`Settings.cs:108-109`）の矩形がどの系で計算されているか、`UiKit.BeginDesign` の適用範囲とホットスポット登録のタイミングが噛み合っているかを確認すること。上の「画面サイズが縮小する」バグでウィンドウ実サイズが変わると `UiKit.Scale` がずれるため、**2件は同一原因の可能性がある**（先に画面サイズ側を直してから再確認するのが早い）。**受入条件**: 設定画面の各項目をマウスでホバー・クリックして操作できること。他のマウス対応画面（Hub/Shop/TitleMenu）と同じ手触りになること"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -115,6 +108,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P0",
+      "title": "設定画面がマウスで操作できない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-18) 現行コードでは再現せず。ヘッドレスでは`Viewport.GetMousePosition()`に疑似マウス入力が反映されないため、Xvfb仮想ディスプレイ+xdotoolで実カーソル操作による実機検証を実施：`TitleMenu.tscn`起動→マウスで「設定」クリック→Settings画面遷移→ナビ行クリックで`_cat`切替、トグルカードクリックで値反転・`user://settings.json`永続化まで、実際のユーザー導線を丸ごと再現して正常動作を確認（クリック位置(158,251)→`Pad.MousePos()`実測値(158.00002,250.99997)で座標系のズレも無し）。直前修正済みの「設定を開くとウィンドウが縮む」バグ（コミット42345df、`Settings.cs`の`_Ready`が初回`ApplyAll()`で無条件`DisplayServer.WindowSetMode`を呼んでいた問題）が実は本バグの真因で、その修正により解消していた可能性が高いと判断（本検証環境はWindow Manager非搭載のため、あちらの修正の副作用は完全には切り分けられていない）。デバッグ用に追加した一時コード（`MouseDbg.cs`等）は全て削除・復元済み、`git status`クリーン、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P0",
       "title": "タイトルの「設定」を開くと画面サイズが縮小する",
@@ -502,6 +501,16 @@
   ],
   "commits": [
     {
+      "hash": "42589c3",
+      "date": "2026-08-18",
+      "subject": "auto: WIP着手 - 設定画面がマウスで操作できない"
+    },
+    {
+      "hash": "42345df",
+      "date": "2026-08-18",
+      "subject": "auto: 設定画面を開くとウィンドウが縮むバグを修正"
+    },
+    {
       "hash": "88c3147",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - 設定画面を開くとウィンドウが縮む"
@@ -530,16 +539,6 @@
       "hash": "c788150",
       "date": "2026-08-17",
       "subject": "auto: 設定書の伏線③未解決メモを実装済みに更新"
-    },
-    {
-      "hash": "132de51",
-      "date": "2026-08-17",
-      "subject": "auto: 設定書のレイ口癖セルを実装台詞に合わせて更新"
-    },
-    {
-      "hash": "6525b1f",
-      "date": "2026-08-17",
-      "subject": "auto: あかりの口癖『バカ』の中間反転セリフを追加"
     }
   ]
 }
