@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 63 / 対象 63 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 63 / 対象 65 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">63</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,23 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p0">P0</span>
+          <span class="task-title">タイトルの「設定」を開くと画面サイズが縮小する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><strong>再現</strong>: タイトル画面 → 「設定」を押す → ウィンドウが縮む。<strong>調査の手掛かり</strong>: <code>Settings.cs:325</code> で <code>DisplayServer.WindowSetMode(d.I == 1 ? Fullscreen : Windowed)</code> を呼んでおり、<code>_Ready</code> の <code>ApplyAll()</code>（<code>Settings.cs:38</code>）が画面表示時に既定値を実ウィンドウへ適用している。「画面モード」の既定は <code>Seg(&quot;mode&quot;, …, 1)</code>＝フルスクリーン（<code>Settings.cs:51</code>）だが、<code>user://settings.json</code> 未保存時や実際の起動状態がウィンドウの場合、開いた瞬間に実状態と食い違うモードが適用されて縮むと推測。<strong>受入条件</strong>: 設定画面を開いただけでウィンドウサイズ／モードが勝手に変わらないこと。ユーザーが明示的に「画面モード」を操作したときだけ変わること。開いた時点で実際のウィンドウ状態がUIに正しく反映されていること（現在フルスクリーンなら「フルスクリーン」が選択表示される）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p0">P0</span>
+          <span class="task-title">設定画面がマウスで操作できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><strong>再現</strong>: 設定画面でマウスクリック・ホバーが効かない。<strong>調査の手掛かり</strong>: マウス処理自体は実装済み（<code>Settings.cs:120</code> <code>UiKit.BeginHotspots(Pad.MousePos())</code> / <code>:121 Pad.MouseClick()</code> / <code>:170-178</code> の <code>UiKit.Hotspot</code> 登録 / <code>:182,199</code> の <code>HoveredId</code>）。未実装ではなく<strong>動いていない</strong>バグ。<strong>座標系の不整合を疑う</strong>＝<code>Pad.MousePos()</code> は設計1280系を返す（<code>Pad.cs:252</code> で <code>/ UiKit.Scale</code>）が、<code>NavRowRect</code>/<code>CardRect</code>（<code>Settings.cs:108-109</code>）の矩形がどの系で計算されているか、<code>UiKit.BeginDesign</code> の適用範囲とホットスポット登録のタイミングが噛み合っているかを確認すること。上の「画面サイズが縮小する」バグでウィンドウ実サイズが変わると <code>UiKit.Scale</code> がずれるため、<strong>2件は同一原因の可能性がある</strong>（先に画面サイズ側を直してから再確認するのが早い）。<strong>受入条件</strong>: 設定画面の各項目をマウスでホバー・クリックして操作できること。他のマウス対応画面（Hub/Shop/TitleMenu）と同じ手触りになること</p>
+      </li></ol>
   </section>
 
   <section>
@@ -793,6 +809,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8a3034e</span><span>2026-08-17</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">a2c2ba7</span><span>2026-08-18</span><span class="s">Merge pull request #5 from takutoruku1/auto/dev</span></li>
       <li><span class="h">c788150</span><span>2026-08-17</span><span class="s">auto: 設定書の伏線③未解決メモを実装済みに更新</span></li>
       <li><span class="h">132de51</span><span>2026-08-17</span><span class="s">auto: 設定書のレイ口癖セルを実装台詞に合わせて更新</span></li>
@@ -800,11 +817,10 @@
       <li><span class="h">6d6e10d</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - あかりのバカ口癖中間段階欠如</span></li>
       <li><span class="h">98f380a</span><span>2026-08-17</span><span class="s">auto: ルナティックの残機・ボムをHard同値から2に調整</span></li>
       <li><span class="h">6379573</span><span>2026-08-17</span><span class="s">auto: WIPへ移動 - ルナティックの残機・ボムバランス</span></li>
-      <li><span class="h">18baae0</span><span>2026-08-17</span><span class="s">auto: レイ/あかりの範囲技@ハンドル表記を統一</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-17 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-18 12:00 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
