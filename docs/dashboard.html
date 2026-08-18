@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 71 / 対象 72 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 72 / 対象 73 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">71</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">72</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -148,17 +148,25 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない</span>
-          <span class="worker">engineer</span>
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">死亡系フロー（残機0・チェックポイント再開／最初から）のQA</span>
+          <span class="worker">qa</span>
         </div>
-        <p class="accept"><code>src/QaPilot.cs</code>全体をgrepしても<code>Key.R</code>関連コードが0件で、<code>ReiRoot.cs:80,86</code>/<code>AkariRoot.cs:80,86</code>/<code>KoharuRoot.cs:82,88</code>が読む<code>Input.IsKeyPressed(Key.R)</code>/<code>Key.Shift</code>を一度も送信しない。既存BLOCKED「死亡系フローのQA」が繰り返し未実施のまま放置される根本原因（2026-08-18監査で特定）。<strong>受入条件</strong>: QaPilotにR/Shift+R相当の合成入力を追加し、死亡後リトライ導線（チェックポイント再開/最初から）を自動検証できるようにする。規模が大きい場合は無理に実装せず、既存BLOCKED項目に「なぜ自動化できないか」を明記する形に更新するだけでもよい</p>
+        <p class="accept">直近のQA走行は主に<code>--assist</code>（無敵）だったため死亡経路が薄くしか通っていなかったが、<code>QaPilot.cs</code>の<code>DriveDeathRetry</code>（2026-08-18実装、god無しでのゲームオーバー検知→R/Shift+R自動送出）により自動検証が可能になった。<strong>受入条件</strong>: god無し・Lunatic等の高難度でRei/Akari/Koharuそれぞれ意図的に死亡させ、R（チェックポイント/ボスから再開）とShift+R（最初から）両方の復帰が壊れていないか（例外・進行不能・状態不整合が無いか）を一巡確認する。「コンティニュー」の概念は既存コードに見当たらないため対象外（<code>QaPilot.cs</code>実装時の調査で<code>HandleGameOverExit</code>はR/Shift+R/Q＝抜けの3択のみと確認済み）</p>
       </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-18) <code>QaPilot.cs</code>に<code>DriveDeathRetry</code>を追加（定数<code>DeathRetryDelay=0.6</code>、フィールド<code>_prevGameOver</code>/<code>_gameOverRetrySent</code>/<code>_gameOverT</code>/<code>_deathCount</code>/<code>_retryKeyHeld</code>/<code>_retryShiftHeld</code>、<code>_Process</code>から<code>DriveMovement</code>等より先に呼び出し）。<code>player.Lives&lt;=0</code>でゲームオーバーを検知後0.6秒待ち、死1回目はR単体（チェックポイント再開）、2回目以降はShift+R（最初から）を交互に合成キー送出し、押した次フレームで必ず離す（離し忘れによる無限リロードループを回避）。死なない限り発火しないため既存の<code>--assist</code>走行には影響なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機検証（ヘッドレス<code>--qa --lunatic --seconds 120</code>、god無し）で実際に4回死亡させ、death#1(R)→boss=1.00でチェックポイント復帰、death#2(Shift+R)→enemies=0で最初から復帰、をログで確認、無限ループ等の異常なし・<code>[QA-SUMMARY] no anomalies flagged</code></p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -807,14 +815,6 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
-          <span class="task-title">死亡系フロー（残機0・コンティニュー・チェックポイント再開）のQA</span>
-          <span class="worker">qa</span>
-        </div>
-        <p class="accept">直近のQA走行は <code>--assist</code>（無敵）だったため死亡経路を通っていない。god無しで実際に死ぬパスを作って、ポーズ→リトライ／ステージ途中離脱／コンティニューの状態復帰を確認する必要がある。上の「死亡時チェックポイント再開」タスクを実装する場合はその検証も兼ねる</p>
-      </li>
-      <li class="task is-blocked">
-        <div class="task-head">
-          <span class="chip chip-none">—</span>
           <span class="task-title">世界観の肉付け（SNSの雑音で語る）</span>
           <span class="worker">scenario</span>
         </div>
@@ -865,18 +865,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">74fa025</span><span>2026-08-18</span><span class="s">auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い</span></li>
+      <li><span class="h">292af84</span><span>2026-08-18</span><span class="s">auto: Settings.csの音量即時反映コメントを実態に合わせて修正</span></li>
       <li><span class="h">e837d5a</span><span>2026-08-18</span><span class="s">auto: WIP着手 - Settings.cs:6の音量即時反映範囲コメントが実装と矛盾</span></li>
       <li><span class="h">59a658c</span><span>2026-08-18</span><span class="s">auto: 未使用のHud.GlassPanel死にコードを削除</span></li>
       <li><span class="h">00d022e</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 死にコード Hud.GlassPanel が未使用</span></li>
       <li><span class="h">6d106df</span><span>2026-08-18</span><span class="s">auto: Hub台詞をログイン比喩へ統一し演出原則の禁則ラインへ収める</span></li>
       <li><span class="h">4960a80</span><span>2026-08-18</span><span class="s">auto: WIP着手 - Hub小話「あかり」プールの一言が演出原則ギリギリ</span></li>
       <li><span class="h">1181746</span><span>2026-08-18</span><span class="s">auto: シナリオ設計書のステージ構成表にSTAGE MINA行を追加</span></li>
-      <li><span class="h">0611beb</span><span>2026-08-18</span><span class="s">auto: WIP着手 - シナリオ設計書のステージ構成表にSTAGE MINA行が欠落</span></li>
-      <li><span class="h">3c6293f</span><span>2026-08-18</span><span class="s">auto: 世界観まとめの未確定・要確認項目1・3・4番を実装済みへ更新</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-18 19:11 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-18 19:18 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

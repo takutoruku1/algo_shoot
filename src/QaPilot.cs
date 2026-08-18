@@ -23,6 +23,10 @@ using System.Collections.Generic;
 //   ・low-fps        … FPS が継続的に低い
 // 1秒ごとに [QA] ハートビート（scene/lives/purified/boss/弾数/fps/pos）も出すので、
 // ログを時系列で追える。最後に [QA-SUMMARY] で件数を出す。
+//
+// 死亡系フロー（残機0のQA）: god無し（弾がすり抜けた/--assist未指定）で実際に死ぬと、
+// ゲームオーバー中は合成R（1回目＝チェックポイントから再開）／Shift+R（2回目以降＝最初から）を
+// 自動で叩いて復帰を検証する（DriveDeathRetry）。死なない限り発火しないので通常の --assist 走行には影響しない。
 public partial class QaPilot : Node
 {
     // ---- 設定 ----
@@ -37,6 +41,7 @@ public partial class QaPilot : Node
     private const int FloodThreshold = 1200;      // 敵弾がこれを超えたら増殖を疑う
     private const double LowFpsWindow = 3.0;      // この秒数連続で低FPSなら警告
     private const double LowFpsThreshold = 25.0;
+    private const double DeathRetryDelay = 0.6;   // ゲームオーバー検知〜合成R押下までの待ち（HUDの抜けプロンプトが出揃うのを待つ）
 
     // プレイ領域（Player.cs と一致）
     private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
@@ -67,6 +72,14 @@ public partial class QaPilot : Node
     private double _zPhase;
     private double _bombPhase;
     private bool _xDown;
+
+    // ---- 死亡系フロー（R/Shift+R リトライ）----
+    private bool _prevGameOver;
+    private bool _gameOverRetrySent;   // 今回のゲームオーバーで既にR(/Shift+R)を送出済みか
+    private double _gameOverT;
+    private int _deathCount;
+    private bool _retryKeyHeld;        // 前フレームでR(/Shift)を押した→今フレームで離す必要あり
+    private bool _retryShiftHeld;
 
     // ---- 観測状態 ----
     private string _scene = "";
@@ -142,6 +155,7 @@ public partial class QaPilot : Node
             GD.Print("[QA] skiptest: holding Ctrl (read-line fast-forward)");
         }
 
+        DriveDeathRetry(delta);
         DriveMovement();
         DriveShootAndAdvance(delta);
         DriveBomb(delta);
@@ -275,6 +289,49 @@ public partial class QaPilot : Node
             _bombPhase = 0.0;
             Send(new InputEventKey { Keycode = Key.X, Pressed = false });
         }
+    }
+
+    // 死亡系フロー（残機0・チェックポイント再開／最初から）のQA：
+    // *Root.cs (ReiRoot/AkariRoot/KoharuRoot) はゲームオーバー中、R長押し不要の即発で
+    // 「R＝ボスから再開」「Shift+R＝最初から」を受け付ける（RetryHold.Update(instant: gameOver)）。
+    // これは god 無しの走行（--assist を外した回、あるいは被弾が god のクリア半径をすり抜けた場合）
+    // でのみ発火する経路なので、通常の --assist 走行には影響しない。
+    private void DriveDeathRetry(double delta)
+    {
+        // 前フレームで押したR(/Shift)は必ず1フレームで離す。離し忘れると、チェックポイント復帰後の
+        // 新シーン側 RetryHold が押しっぱなし状態を「エッジ」と誤検出し、即リロードを繰り返す
+        // 無限ループになる（ReloadCurrentScene は idle time まで遅延するため、次フレーム最速で離す）。
+        if (_retryKeyHeld)
+        {
+            Send(new InputEventKey { Keycode = Key.R, Pressed = false });
+            if (_retryShiftHeld) { Send(new InputEventKey { Keycode = Key.Shift, Pressed = false }); _retryShiftHeld = false; }
+            _retryKeyHeld = false;
+        }
+
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        bool gameOver = player != null && player.Lives <= 0;
+
+        if (gameOver && !_prevGameOver)
+        {
+            _deathCount++;
+            _gameOverT = 0;
+            _gameOverRetrySent = false;
+            GD.Print($"[QA] game over detected (death #{_deathCount}) scene={_scene} t={_t:0.0}");
+        }
+        _prevGameOver = gameOver;
+        if (!gameOver) return;
+
+        _gameOverT += delta;
+        if (_gameOverRetrySent || _gameOverT < DeathRetryDelay) return;
+
+        // 死1回目＝R単体（チェックポイント/ボスから再開）、死2回目以降＝Shift+R（最初から）を
+        // 交互に送り、両方のリトライ導線を自動QAでカバーする。
+        bool useShift = _deathCount % 2 == 0;
+        if (useShift) { Send(new InputEventKey { Keycode = Key.Shift, Pressed = true }); _retryShiftHeld = true; }
+        Send(new InputEventKey { Keycode = Key.R, Pressed = true });
+        _retryKeyHeld = true;
+        _gameOverRetrySent = true;
+        GD.Print($"[QA] death-retry #{_deathCount}: sending {(useShift ? "Shift+R (restart from beginning)" : "R (resume from checkpoint)")} scene={_scene} t={_t:0.0}");
     }
 
     // god：自機周囲の敵弾を消して死なせない（進行テスト用。当たり判定テストでは使わない）。
