@@ -25,6 +25,9 @@ public partial class Settings : Node2D
     private bool _navHeld, _lrHeld, _catHeld, _zHeld, _backHeld;
     private double _t;
     private bool _autoplay;
+    // true の間は Apply() 内の "mode" が DisplayServer へ反映しない（_Ready の初回 ApplyAll 用）。
+    // ユーザーが実際に操作するまで、開いただけではウィンドウを変えないため。
+    private bool _initializing = true;
 
     private const string SettingsPath = "user://settings.json";
 
@@ -35,7 +38,19 @@ public partial class Settings : Node2D
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         BuildDefaults();
         LoadSettings();
+        SyncModeFromWindow();
         ApplyAll();
+        _initializing = false;
+    }
+
+    // 「画面モード」セグメントを実際のウィンドウ状態へ同期する（設定ファイルの保存値より実状態を優先）。
+    // これにより、開いた瞬間の UI 表示が実状態と食い違わない。
+    private void SyncModeFromWindow()
+    {
+        var mode = DisplayServer.WindowGetMode();
+        bool fullscreen = mode == DisplayServer.WindowMode.Fullscreen || mode == DisplayServer.WindowMode.ExclusiveFullscreen;
+        foreach (var c in _cats) foreach (var d in c.Items)
+            if (d.Key == "mode") d.I = fullscreen ? 1 : 0;
     }
 
     private void BuildDefaults()
@@ -322,7 +337,9 @@ public partial class Settings : Node2D
                 break;
             }
             case "mode":
-                DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
+                // 初回表示（_Ready の ApplyAll）ではスキップ。ユーザーが明示的に値を変えたときだけ実ウィンドウへ反映する。
+                if (!_initializing)
+                    DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;
             // 操作表示モード（0=キーボード / 1=PlayStation / 2=Xbox）。HUD の操作ガイドへ即反映。
             // 旧 padstyle(0=Xbox/1=PS) は Pad 側で後方互換に読むだけ（このセグメントが上書きする）。

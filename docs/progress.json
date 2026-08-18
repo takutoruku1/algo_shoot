@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-18 12:00 UTC",
+  "generated": "2026-08-18 18:07 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 16,
-    "done": 63
+    "done": 64
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P0",
-      "title": "タイトルの「設定」を開くと画面サイズが縮小する",
-      "worker": "engineer",
-      "accept": "**再現**: タイトル画面 → 「設定」を押す → ウィンドウが縮む。**調査の手掛かり**: `Settings.cs:325` で `DisplayServer.WindowSetMode(d.I == 1 ? Fullscreen : Windowed)` を呼んでおり、`_Ready` の `ApplyAll()`（`Settings.cs:38`）が画面表示時に既定値を実ウィンドウへ適用している。「画面モード」の既定は `Seg(\"mode\", …, 1)`＝フルスクリーン（`Settings.cs:51`）だが、`user://settings.json` 未保存時や実際の起動状態がウィンドウの場合、開いた瞬間に実状態と食い違うモードが適用されて縮むと推測。**受入条件**: 設定画面を開いただけでウィンドウサイズ／モードが勝手に変わらないこと。ユーザーが明示的に「画面モード」を操作したときだけ変わること。開いた時点で実際のウィンドウ状態がUIに正しく反映されていること（現在フルスクリーンなら「フルスクリーン」が選択表示される）"
-    },
     {
       "priority": "P0",
       "title": "設定画面がマウスで操作できない",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P0",
+      "title": "タイトルの「設定」を開くと画面サイズが縮小する",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-18) `Settings.cs`に`_initializing`フラグ（L30）を追加し、`_Ready()`（L34-44）で`LoadSettings()`後・`ApplyAll()`前に新設の`SyncModeFromWindow()`（L46-54、`DisplayServer.WindowGetMode()`の実状態を`mode`セグメントの`d.I`へ同期）を呼ぶよう変更。`Apply()`内`case \"mode\"`（L339-343）に`if (!_initializing)`ガードを追加し、初回`ApplyAll()`中はウィンドウへの`DisplayServer.WindowSetMode`反映をスキップ、ユーザーが明示操作した時のみ反映されるようにした。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "世界観設定書の伏線③回収が実装済みのまま未解決扱いで残っている",
@@ -502,6 +502,21 @@
   ],
   "commits": [
     {
+      "hash": "88c3147",
+      "date": "2026-08-18",
+      "subject": "auto: WIP着手 - 設定画面を開くとウィンドウが縮む"
+    },
+    {
+      "hash": "3dc9be8",
+      "date": "2026-08-18",
+      "subject": "Requeue the two settings-screen defects"
+    },
+    {
+      "hash": "57c136b",
+      "date": "2026-08-18",
+      "subject": "Let the player fly the ship with the mouse"
+    },
+    {
       "hash": "8a3034e",
       "date": "2026-08-17",
       "subject": "Refresh the progress snapshot after the nightly merge"
@@ -525,21 +540,6 @@
       "hash": "6525b1f",
       "date": "2026-08-17",
       "subject": "auto: あかりの口癖『バカ』の中間反転セリフを追加"
-    },
-    {
-      "hash": "6d6e10d",
-      "date": "2026-08-17",
-      "subject": "auto: WIPへ移動 - あかりのバカ口癖中間段階欠如"
-    },
-    {
-      "hash": "98f380a",
-      "date": "2026-08-17",
-      "subject": "auto: ルナティックの残機・ボムをHard同値から2に調整"
-    },
-    {
-      "hash": "6379573",
-      "date": "2026-08-17",
-      "subject": "auto: WIPへ移動 - ルナティックの残機・ボムバランス"
     }
   ]
 }
