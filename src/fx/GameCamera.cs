@@ -39,12 +39,26 @@ public partial class GameCamera : Camera2D
         _shakeDur = dur;
     }
 
+    private double _hitstopEndSec;
+    private bool _hitstopRunning;
+
     // ヒットストップ：実時間タイマーで復帰（タイムスケールを一瞬下げる）。
+    // 多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する。
     public async void Hitstop(double dur)
     {
+        double now = Time.GetTicksMsec() / 1000.0;
+        _hitstopEndSec = Mathf.Max(_hitstopEndSec, now + dur);
+        if (_hitstopRunning) return; // 既存の待機ループが延長された締切まで面倒を見る
+        _hitstopRunning = true;
+
         Engine.TimeScale = 0.06;
-        var t = GetTree().CreateTimer(dur, processAlways: true, processInPhysics: false, ignoreTimeScale: true);
-        await ToSignal(t, SceneTreeTimer.SignalName.Timeout);
+        double remain;
+        while ((remain = _hitstopEndSec - Time.GetTicksMsec() / 1000.0) > 0.0)
+        {
+            var t = GetTree().CreateTimer(remain, processAlways: true, processInPhysics: false, ignoreTimeScale: true);
+            await ToSignal(t, SceneTreeTimer.SignalName.Timeout);
+        }
         Engine.TimeScale = 1.0;
+        _hitstopRunning = false;
     }
 }

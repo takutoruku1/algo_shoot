@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-19 18:31 UTC",
+  "generated": "2026-08-19 18:33 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 77
+    "done": 78
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "GameCamera.Hitstopの多重呼び出しでタイムスケール復帰がレースする",
-      "worker": "engineer",
-      "accept": "`src/fx/GameCamera.cs:43-49`の`Hitstop`が重複呼び出し時に「一番遅く終わる要求」までTimeScale=1.0への復帰を保持するよう修正する（同ファイル`:35-39`の`Shake`が`Mathf.Max`で合流させているのと同じ方針に揃える）。呼び出し元（`src/Enemy.cs:683`、`src/Player.cs:1311,1229,1464`、`src/Hud.cs:641`）の引数・呼び出し箇所は変更不要。可能ならqa-autoplayか手動プレイで近接発火シナリオ（ボムで複数体同時浄化直後に被弾等）を確認"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GameCamera.Hitstopの多重呼び出しでタイムスケール復帰がレースする",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-19) `src/fx/GameCamera.cs:42-61`の`Hitstop`を`Shake`(同ファイル`:35-39`)と同じ`Mathf.Max`合流方針に変更。フィールド`_hitstopEndSec`(実時間の締切)・`_hitstopRunning`(多重ループ防止フラグ)を追加、呼び出しのたびに`_hitstopEndSec = Max(_hitstopEndSec, now+dur)`で締切を延長し、既に待機ループが走っていれば新規ループを起こさず既存ループが延長分の面倒を見る。TimeScaleが1.0へ戻るのは締切に達した1本のループのみ。呼び出し元(`Enemy.cs:683`/`Player.cs:1311,1229,1464`/`Hud.cs:641`)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う",
@@ -574,6 +573,16 @@
   ],
   "commits": [
     {
+      "hash": "8c06aca",
+      "date": "2026-08-19",
+      "subject": "auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正"
+    },
+    {
+      "hash": "cd2b700",
+      "date": "2026-08-19",
+      "subject": "auto: タイトル/クレジットのalgo project表記をtakutoruku1に統一"
+    },
+    {
       "hash": "324909f",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - タイトル/クレジットのalgo project表記を修正"
@@ -602,16 +611,6 @@
       "hash": "b9b447f",
       "date": "2026-08-19",
       "subject": "auto: コンボ倍率システムの説明をHowToPlayに追加"
-    },
-    {
-      "hash": "43298c9",
-      "date": "2026-08-19",
-      "subject": "auto: WIP着手 - コンボ倍率システムの説明をHowToPlayに追加"
-    },
-    {
-      "hash": "1231168",
-      "date": "2026-08-19",
-      "subject": "auto: 監査で5件をキューに追加"
     }
   ]
 }
