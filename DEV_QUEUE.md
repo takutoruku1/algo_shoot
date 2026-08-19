@@ -34,8 +34,6 @@
 
 ## WIP
 
-- [ ] (P2) タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う | engineer | `src/TitleMenu.cs:494`と`config/credits.ini:50-51`の「algo project」を、`src/Epilogue.cs:96-98`（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）と整合する実クレジット表記に差し替える。根拠=`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:216`・`docs/【MASTER】設定資料統合版.md:16`（旧称「アルゴ」使用禁止）に「algo project」表記が抵触。「algo」は内部プロジェクト名（`project.godot:13,45`）としては残してよいが、プレイヤーに見える文言からは除去する
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -56,6 +54,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う | engineer | (完了 2026-08-19) `src/TitleMenu.cs:494`の`"© 2026 algo project"`を`"© 2026 takutoruku1"`へ変更。`config/credits.ini:50-51`の「企画・シナリオ・開発 — algo project」/「© 2026 algo project」を`Epilogue.cs:96-98`のスタッフロールと一致する3行＋著作権表記へ置換。副次的に発見した同種の残存（`src/Credits.cs:60`のcredits.ini読み込み全失敗時フォールバック文字列「企画・開発 — algo project」）も「企画・開発 — takutoruku1」へ修正。「algo」は内部プロジェクト名（`project.godot:13,45`）として無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) EPILOGUE鍵アカPWが正典設計書で「仮のまま」かつ同一ドキュメント内でも自己矛盾 | scenario | (完了 2026-08-19) `docs/20260613/MINA_シナリオ設計書_v2.md:304`の【仮・PW（未確定）】表記を「stay」確定版へ更新（根拠注記付き）、`:345`の未確定項目リストも取消線＋実装済み注記に変更。`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`（§3-3）を`:226`（§6-1）と整合する取消線＋実装済み注記形式に統一。台詞・実装コード(`src/Epilogue.cs`)は無変更、ドキュメントのみの修正でビルド影響なし
 - [x] (P2) バックファイア機能とその強化ノードの説明がHowToPlayに無い | engineer | (完了 2026-08-19) `src/HowToPlay.cs:275-277` のページ3コア機能カード`cards`配列に「後方弾」カードを追加：「後方(-X)に敵がいると自動で弱いホーミング弾を撃つ、無操作の保険。ショップの 後方威力/後方速射/後方追尾 で強化できる。」既存「弾強化」カードの直後に挿入、色は`UiKit.Info`。ショップ表記は`GameManager.cs:439-444`の実Name（後方威力I/II/III・後方速射I/II・後方追尾I）に合わせ内部ID(bf_*)ではなく日本語表記で記載。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) コンボ倍率システムの説明がHowToPlayに無い | engineer | (完了 2026-08-19) `src/HowToPlay.cs:233` のページ2 HUD凡例`rows`配列に「コンボ」行を追加：「連続で浄化するとSCOREと浄化した心が倍増。猶予内に次を倒せないと途切れる」。icon種別`1`（色チップ円）、色は実際のHUDコンボチップ枠色`UiKit.Mina`（`Hud.cs:863`）に合わせた。根拠に挙がった`GameManager.cs:1169-1171`(スコア最大16倍)・`:1175`(通貨加算)・`:1060`(猶予2.0〜2.8秒で途切れる)の3点を1行に集約。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

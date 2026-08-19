@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-19 18:28 UTC",
+  "generated": "2026-08-19 18:31 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 76
+    "done": 77
   },
-  "percent": 97,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う",
-      "worker": "engineer",
-      "accept": "`src/TitleMenu.cs:494`と`config/credits.ini:50-51`の「algo project」を、`src/Epilogue.cs:96-98`（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）と整合する実クレジット表記に差し替える。根拠=`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:216`・`docs/【MASTER】設定資料統合版.md:16`（旧称「アルゴ」使用禁止）に「algo project」表記が抵触。「algo」は内部プロジェクト名（`project.godot:13,45`）としては残してよいが、プレイヤーに見える文言からは除去する"
-    },
     {
       "priority": "P3",
       "title": "GameCamera.Hitstopの多重呼び出しでタイムスケール復帰がレースする",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-19) `src/TitleMenu.cs:494`の`\"© 2026 algo project\"`を`\"© 2026 takutoruku1\"`へ変更。`config/credits.ini:50-51`の「企画・シナリオ・開発 — algo project」/「© 2026 algo project」を`Epilogue.cs:96-98`のスタッフロールと一致する3行＋著作権表記へ置換。副次的に発見した同種の残存（`src/Credits.cs:60`のcredits.ini読み込み全失敗時フォールバック文字列「企画・開発 — algo project」）も「企画・開発 — takutoruku1」へ修正。「algo」は内部プロジェクト名（`project.godot:13,45`）として無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "EPILOGUE鍵アカPWが正典設計書で「仮のまま」かつ同一ドキュメント内でも自己矛盾",
@@ -574,6 +574,16 @@
   ],
   "commits": [
     {
+      "hash": "324909f",
+      "date": "2026-08-19",
+      "subject": "auto: WIP着手 - タイトル/クレジットのalgo project表記を修正"
+    },
+    {
+      "hash": "167e499",
+      "date": "2026-08-19",
+      "subject": "auto: EPILOGUE鍵アカPW表記の矛盾を修正"
+    },
+    {
       "hash": "d4da83b",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正"
@@ -602,16 +612,6 @@
       "hash": "1231168",
       "date": "2026-08-19",
       "subject": "auto: 監査で5件をキューに追加"
-    },
-    {
-      "hash": "4c506b1",
-      "date": "2026-08-18",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "2316159",
-      "date": "2026-08-19",
-      "subject": "Merge pull request #6 from takutoruku1/auto/dev"
     }
   ]
 }
