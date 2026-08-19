@@ -37,8 +37,6 @@
 
 ## WIP
 
-- [ ] (P1) コンボ倍率システムの説明がHowToPlayに無い | engineer | `HowToPlay.cs`のページ2（HUD凡例、`:224-237`の`rows`）に「コンボ」行を追加し、猶予時間内の連続撃破でスコア・通貨が倍化する旨を1行で明記する。根拠=`GameManager.cs:1169-1171,1175,1060`（コンボがスコア最大16倍・通貨にも加算、猶予2.0〜2.8秒）、`Hud.cs:854-857`（「×N」チップ表示のみでラベル無し）、`HowToPlay.cs`全体で「コンボ」言及0件（grep確認済み）
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -59,6 +57,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P1) コンボ倍率システムの説明がHowToPlayに無い | engineer | (完了 2026-08-19) `src/HowToPlay.cs:233` のページ2 HUD凡例`rows`配列に「コンボ」行を追加：「連続で浄化するとSCOREと浄化した心が倍増。猶予内に次を倒せないと途切れる」。icon種別`1`（色チップ円）、色は実際のHUDコンボチップ枠色`UiKit.Mina`（`Hud.cs:863`）に合わせた。根拠に挙がった`GameManager.cs:1169-1171`(スコア最大16倍)・`:1175`(通貨加算)・`:1060`(猶予2.0〜2.8秒で途切れる)の3点を1行に集約。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 死亡系フロー（残機0・チェックポイント再開／最初から）のQA | qa | (完了 2026-08-18) `DriveDeathRetry`を使いgod無し・Lunatic固定でRei(2回、死14/17回)/Akari(死14回)/Koharu(死16回)を検証。R(チェックポイント/ボス再開)/Shift+R(最初から)ともに残機・ボム数の正しいリセット、二重復帰・無限リロードループなし、復帰直後の敵/自機弾湧きも正常、当たり判定異常・進行不能誤検知・例外いずれも0件で`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/death_{Rei,Rei_rerun,Akari,Koharu}.log`）。「コンティニュー」概念は既存コードに無く対象外(`HandleGameOverExit`はR/Shift+R/Qの3択のみと確認済み)。参考情報（新規TODO化せず）：Rei初回実行のみ300秒到達後のheadlessエンジン終了処理中（QA-SUMMARY出力後・ゲームプレイ外）に`Leaked unsafe reference`大量出力→SIGABRTで異常終了(4戦中1回、`build/qa/death_Rei.log`)。同条件の再実行・他2キャラでは0件・正常終了で低頻度、`ReloadCurrentScene()`多用時のGodot mono側GC/リファレンス解放レースが疑われるがゲームプレイ自体には影響せず実プレイヤー体験への影響も未確認のため、既存BLOCKEDの「高負荷並列実行時のみ観測されたSIGSEGV」とは別事象の可能性がある点だけ記録し、ブロッカー扱いはしない
 - [x] (P3) QaPilotに死亡後リトライキー(R/Shift+R)のシミュレーションが無く死亡系フローQAが自動化できない | engineer | (完了 2026-08-18) `QaPilot.cs`に`DriveDeathRetry`を追加（定数`DeathRetryDelay=0.6`、フィールド`_prevGameOver`/`_gameOverRetrySent`/`_gameOverT`/`_deathCount`/`_retryKeyHeld`/`_retryShiftHeld`、`_Process`から`DriveMovement`等より先に呼び出し）。`player.Lives<=0`でゲームオーバーを検知後0.6秒待ち、死1回目はR単体（チェックポイント再開）、2回目以降はShift+R（最初から）を交互に合成キー送出し、押した次フレームで必ず離す（離し忘れによる無限リロードループを回避）。死なない限り発火しないため既存の`--assist`走行には影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機検証（ヘッドレス`--qa --lunatic --seconds 120`、god無し）で実際に4回死亡させ、death#1(R)→boss=1.00でチェックポイント復帰、death#2(Shift+R)→enemies=0で最初から復帰、をログで確認、無限ループ等の異常なし・`[QA-SUMMARY] no anomalies flagged`
 - [x] (P3) `Settings.cs:6`の音量即時反映範囲コメントが実装と矛盾 | engineer | (完了 2026-08-18) 「マスター音量と画面モードのみエンジンへ即時反映」という記述を実態（全スライダー/トグル/セグメントが`Apply()`経由で即時反映、画面モードのみ`_initializing`ガードで初回表示時はスキップし明示操作時だけ反映）に合わせて`Settings.cs:6-8`を書き直し。コード変更なし、コメントのみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
