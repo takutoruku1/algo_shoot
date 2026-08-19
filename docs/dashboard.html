@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">95<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 74 / 対象 78 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 75 / 対象 78 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">74</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">75</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">バックファイア機能とその強化ノードの説明がHowToPlayに無い</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>HowToPlay.cs</code>のページ3（コア機能カード、<code>:263-277</code>の<code>cards</code>）に「後方弾」カードを追加し、「後方(-X)に敵がいると自動で弱い誘導弾を撃つ。bf_*系ノードで強化できる」旨を明記する。根拠=<code>Player.cs:19-21</code>（自動発火の後方誘導弾）、<code>GameManager.cs:439-444</code>（bf_power/bf_rate/bf_track、計約1,992G投資先）、<code>HowToPlay.cs</code>全体で「バックファイア」「後方」言及0件</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">バックファイア機能とその強化ノードの説明がHowToPlayに無い</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-19) <code>src/HowToPlay.cs:275-277</code> のページ3コア機能カード<code>cards</code>配列に「後方弾」カードを追加：「後方(-X)に敵がいると自動で弱いホーミング弾を撃つ、無操作の保険。ショップの 後方威力/後方速射/後方追尾 で強化できる。」既存「弾強化」カードの直後に挿入、色は<code>UiKit.Info</code>。ショップ表記は<code>GameManager.cs:439-444</code>の実Name（後方威力I/II/III・後方速射I/II・後方追尾I）に合わせ内部ID(bf_*)ではなく日本語表記で記載。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -905,18 +905,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2ad9d0f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - バックファイア機能の説明をHowToPlayに追加</span></li>
+      <li><span class="h">b9b447f</span><span>2026-08-19</span><span class="s">auto: コンボ倍率システムの説明をHowToPlayに追加</span></li>
       <li><span class="h">43298c9</span><span>2026-08-19</span><span class="s">auto: WIP着手 - コンボ倍率システムの説明をHowToPlayに追加</span></li>
       <li><span class="h">1231168</span><span>2026-08-19</span><span class="s">auto: 監査で5件をキューに追加</span></li>
       <li><span class="h">4c506b1</span><span>2026-08-18</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">2316159</span><span>2026-08-19</span><span class="s">Merge pull request #6 from takutoruku1/auto/dev</span></li>
       <li><span class="h">00cb16a</span><span>2026-08-18</span><span class="s">auto: 死亡系フロー(R/Shift+Rリトライ)のQA一巡完了</span></li>
       <li><span class="h">7904500</span><span>2026-08-18</span><span class="s">auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA</span></li>
-      <li><span class="h">1660d50</span><span>2026-08-18</span><span class="s">auto: QaPilotに死亡系リトライ検証機構を実装、対応BLOCKED項目をTODOへ昇格</span></li>
-      <li><span class="h">74fa025</span><span>2026-08-18</span><span class="s">auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-19 18:24 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-19 18:26 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

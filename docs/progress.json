@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-19 18:24 UTC",
+  "generated": "2026-08-19 18:26 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 74
+    "done": 75
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "バックファイア機能とその強化ノードの説明がHowToPlayに無い",
-      "worker": "engineer",
-      "accept": "`HowToPlay.cs`のページ3（コア機能カード、`:263-277`の`cards`）に「後方弾」カードを追加し、「後方(-X)に敵がいると自動で弱い誘導弾を撃つ。bf_*系ノードで強化できる」旨を明記する。根拠=`Player.cs:19-21`（自動発火の後方誘導弾）、`GameManager.cs:439-444`（bf_power/bf_rate/bf_track、計約1,992G投資先）、`HowToPlay.cs`全体で「バックファイア」「後方」言及0件"
-    },
     {
       "priority": "P2",
       "title": "EPILOGUE鍵アカPWが正典設計書で「仮のまま」かつ同一ドキュメント内でも自己矛盾",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "バックファイア機能とその強化ノードの説明がHowToPlayに無い",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-19) `src/HowToPlay.cs:275-277` のページ3コア機能カード`cards`配列に「後方弾」カードを追加：「後方(-X)に敵がいると自動で弱いホーミング弾を撃つ、無操作の保険。ショップの 後方威力/後方速射/後方追尾 で強化できる。」既存「弾強化」カードの直後に挿入、色は`UiKit.Info`。ショップ表記は`GameManager.cs:439-444`の実Name（後方威力I/II/III・後方速射I/II・後方追尾I）に合わせ内部ID(bf_*)ではなく日本語表記で記載。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "コンボ倍率システムの説明がHowToPlayに無い",
@@ -574,6 +574,16 @@
   ],
   "commits": [
     {
+      "hash": "2ad9d0f",
+      "date": "2026-08-19",
+      "subject": "auto: WIP着手 - バックファイア機能の説明をHowToPlayに追加"
+    },
+    {
+      "hash": "b9b447f",
+      "date": "2026-08-19",
+      "subject": "auto: コンボ倍率システムの説明をHowToPlayに追加"
+    },
+    {
       "hash": "43298c9",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - コンボ倍率システムの説明をHowToPlayに追加"
@@ -602,16 +612,6 @@
       "hash": "7904500",
       "date": "2026-08-18",
       "subject": "auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA"
-    },
-    {
-      "hash": "1660d50",
-      "date": "2026-08-18",
-      "subject": "auto: QaPilotに死亡系リトライ検証機構を実装、対応BLOCKED項目をTODOへ昇格"
-    },
-    {
-      "hash": "74fa025",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - QaPilotに死亡後リトライキーのシミュレーションが無い"
     }
   ]
 }
