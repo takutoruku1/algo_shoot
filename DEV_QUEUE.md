@@ -28,11 +28,9 @@
 
 ## TODO
 
-<!-- ▼ 2026-08-19 監査モードで補充（game-designer/engineer/scenario/qa 4観点並列）。5件（qaは新規不具合なし）。 -->
-- [ ] (P3) GameCamera.Hitstopの多重呼び出しでタイムスケール復帰がレースする | engineer | `src/fx/GameCamera.cs:43-49`の`Hitstop`が重複呼び出し時に「一番遅く終わる要求」までTimeScale=1.0への復帰を保持するよう修正する（同ファイル`:35-39`の`Shake`が`Mathf.Max`で合流させているのと同じ方針に揃える）。呼び出し元（`src/Enemy.cs:683`、`src/Player.cs:1311,1229,1464`、`src/Hud.cs:641`）の引数・呼び出し箇所は変更不要。可能ならqa-autoplayか手動プレイで近接発火シナリオ（ボムで複数体同時浄化直後に被弾等）を確認
-
-
 ## WIP
+
+- [ ] (P3) GameCamera.Hitstopの多重呼び出しでタイムスケール復帰がレースする | engineer | `src/fx/GameCamera.cs:43-49`の`Hitstop`が重複呼び出し時に「一番遅く終わる要求」までTimeScale=1.0への復帰を保持するよう修正する（同ファイル`:35-39`の`Shake`が`Mathf.Max`で合流させているのと同じ方針に揃える）。呼び出し元（`src/Enemy.cs:683`、`src/Player.cs:1311,1229,1464`、`src/Hud.cs:641`）の引数・呼び出し箇所は変更不要。可能ならqa-autoplayか手動プレイで近接発火シナリオ（ボムで複数体同時浄化直後に被弾等）を確認
 
 ## BLOCKED
 
