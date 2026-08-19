@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-19 18:26 UTC",
+  "generated": "2026-08-19 18:28 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 75
+    "done": 76
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "EPILOGUE鍵アカPWが正典設計書で「仮のまま」かつ同一ドキュメント内でも自己矛盾",
-      "worker": "scenario",
-      "accept": "`docs/20260613/MINA_シナリオ設計書_v2.md:304,345`の【仮・未確定】表記を「stay」確定版へ更新（根拠=`docs/20260619/EpicB_物語設計案.md:48-52`で2026-06-19付確定、実装`src/Epilogue.cs:65-69`も既に「stay」で実装済み）。`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`（未確定のまま）を同ファイル`:226`の§6-1（実装済み・確定と記載）と整合する記述に修正。台詞・実装コードは変更不要"
-    },
     {
       "priority": "P2",
       "title": "タイトル/クレジット画面の開発者表記が「algo project」のまま旧称禁止ルールと矛盾し、Epilogueスタッフロールとも食い違う",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "EPILOGUE鍵アカPWが正典設計書で「仮のまま」かつ同一ドキュメント内でも自己矛盾",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-19) `docs/20260613/MINA_シナリオ設計書_v2.md:304`の【仮・PW（未確定）】表記を「stay」確定版へ更新（根拠注記付き）、`:345`の未確定項目リストも取消線＋実装済み注記に変更。`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`（§3-3）を`:226`（§6-1）と整合する取消線＋実装済み注記形式に統一。台詞・実装コード(`src/Epilogue.cs`)は無変更、ドキュメントのみの修正でビルド影響なし"
+    },
     {
       "priority": "P2",
       "title": "バックファイア機能とその強化ノードの説明がHowToPlayに無い",
@@ -574,6 +574,16 @@
   ],
   "commits": [
     {
+      "hash": "d4da83b",
+      "date": "2026-08-19",
+      "subject": "auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正"
+    },
+    {
+      "hash": "9788f4d",
+      "date": "2026-08-19",
+      "subject": "auto: バックファイア機能の説明をHowToPlayに追加"
+    },
+    {
       "hash": "2ad9d0f",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - バックファイア機能の説明をHowToPlayに追加"
@@ -602,16 +612,6 @@
       "hash": "2316159",
       "date": "2026-08-19",
       "subject": "Merge pull request #6 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "00cb16a",
-      "date": "2026-08-18",
-      "subject": "auto: 死亡系フロー(R/Shift+Rリトライ)のQA一巡完了"
-    },
-    {
-      "hash": "7904500",
-      "date": "2026-08-18",
-      "subject": "auto: WIP着手 - 死亡系フロー（残機0・チェックポイント再開／最初から）のQA"
     }
   ]
 }
