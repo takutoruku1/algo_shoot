@@ -28,9 +28,7 @@
 
 ## TODO
 
-
 ## WIP
-
 
 ## BLOCKED
 
@@ -52,6 +50,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾 | engineer | (完了 2026-08-20) コメントを実装に合わせるのではなく、`src/fx/GameCamera.cs:39-43`の`Shake`を実際にコメント通りの「一番遅く終わる要求まで保留する」方式へ揃えた。`_shakeT = dur`の無条件上書きを`Mathf.Max(_shakeT, dur)`に変更し、減衰の分母`_shakeDur`は延長後の残り時間へ追随させてfが必ず1から落ちるようにした（`_shakeDur`をMaxで積み上げると短い揺れのfが頭打ちになり見えなくなるため）。あわせて調査中に発見した同一関数の別バグも修正：`_shakeMag`は`Mathf.Max`で積むだけでどこでもリセットされず、一度大きな揺れ（`Player.cs:1310` `Shake(5.5f,0.28f)`）が起きるとシーンが切り替わるまで以降の小さな揺れ（`Enemy.cs:510` `Shake(1.6f,0.10f)`）まで全て5.5の強さで鳴り続けていた。`GameCamera.cs:27-29`で`_shakeT`が0以下になったフレームに`_shakeMag = 0f`を入れて解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ | game-designer | (完了 2026-08-20) `Panel.cs:24-25`に`_hitFlashT`/`HitFlashDur=0.09`を追加（`Enemy.cs:115-116`の同方式だが、パネルは連射で毎秒何度も当たるため0.16より短くして点滅を回避）。`Panel.cs:85-95`の`_PhysicsProcess`先頭で減衰し`_sprite.Modulate = new Color(m,m,m)`（`m = 1 + 1.6h`）で一瞬白飛びさせる。`Hud.BubblePaused`の早期returnより手前に置き、吹き出し表示中に白いまま固まるのを防止。`_hitFlashT<=0`のフレームで必ず素の色へ書き戻す。`_hasTex=false`の従来経路は`_sprite`がnullのため見た目完全不変（`_Draw`の同心円縮小が引き続き担当）。`Panel.cs:115-122`の`Ink>0`分岐に`_hitFlashT`セットと`Audio.Instance?.PlayStrip(light: true)`を追加。SEは新音源を足さず既存`SfxStrip`を`Audio.cs:440-447`で`PlayStrip(bool light=false)`のオプション引数化して流用（既存呼び出し`Bullet.cs:312`/`Panel.cs:143`はデフォルト引数で挙動不変）。light版は-27dB・ピッチ0.86-0.94の鈍い「コッ」で、剥離成立(-22dB・素ピッチ)への一段上がりを作る。ピッチを下へ寄せたのは、上へ寄せると`SynthGraze`(2100Hz、`Audio.cs:539`)と帯域が被り「かすった」情報を潰すため（理由は`Audio.cs`にコメントで残置）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**未確認**: Modulateの1.0超えによる白飛びはこのリポジトリに前例がなく、14pxスケールのパネルで一瞬が知覚できるかは実機未検証（弱ければ`Panel.cs:92`の係数1.6f→2.2f、または`Panel.cs:25`の0.09→0.12が調整点）
 - [x] (P2) ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている | game-designer | (完了 2026-08-20) ボス側`ExposedDamageCap`（`Enemy.cs:59-66`）と同じ思想を雑魚経路へ移植。`Enemy.cs:83`に`_bombPurify`フラグを追加、`Enemy.cs:553-558`のPurify()（ボム専用入口、通常ショット撃破とは別経路）でShatterループ前に立てる（大半の雑魚が抜けるSharedループ内先行Redeemを取りこぼさないため）、`Enemy.cs:683`で`AddPurify(Points, _bombPurify)`。`GameManager.cs:1166-1192`に`BombPurifyRewardCap=3`（緊急回避で巻き込む標準体数、通常ボムは満額のまま）と`_bombPurifyCount`を追加、`AddPurify(basePoints, fromBomb=false)`で超過分はScore/Combo/インプレを付けず、進行に必須の`PurifiedCount`/`AddKindness`は従来通り通す（道中ゲートを詰まらせない）。`GameManager.cs:1252-1263`の`UseBomb()`発動確定時と`GameManager.cs:1277`の`ResetRun()`で台帳リセット。通常ショット経路の呼び出し・演出・消滅処理は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) [P-FINAL]設計書テキストが正典v3の「返事なし」回収シーンを反映していない | scenario | (完了 2026-08-20) `docs/20260613/MINA_シナリオ設計書_v2.md:280-297` の [P-FINAL] テキストボックスを `src/Final.cs:103-122` の全18行（話者・文言とも）に一致させて書き換え。旧稿（少年の教養アピール台詞→即「アホですね」で終わる短い版）から、冒頭の地の文2行「祓うほど、軽くなると思っていました。」「レイの。あかりの。こはるの。……ぜんぶ、ここに。」、archive replayが尽きる「ばか。これが最後だから、言わせろ。」「……Stay.」「って、いつも言ってたのにな。今日は——……ぼく、は、」、ミナが自ら言い直す「Stay. ——ご主人様。あなたこそ、いなくならないで。」、核心の地の文「　　　返事は、ありませんでした。」、ミナの能動「今度は、わたくしが、迎えに行きます。」「だから、わたくしは、自分の足で。」、締めの「……ご主人様は、ほんとうに、アホですね。」までを反映。見出し行に `src/Final.cs:102-122` が正典である旨と、CueFadeLine/CueSilenceLine/CueResolveLine/DropLineが本文一致で音楽同期している（`Final.cs:101`）ため文言変更時は実装側の同時修正が必須である旨の注記を追加。コードは無変更、ドキュメントのみのためビルド影響なし

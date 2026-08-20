@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 81 / 対象 81 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 82 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">81</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">82</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-20) コメントを実装に合わせるのではなく、<code>src/fx/GameCamera.cs:39-43</code>の<code>Shake</code>を実際にコメント通りの「一番遅く終わる要求まで保留する」方式へ揃えた。<code>_shakeT = dur</code>の無条件上書きを<code>Mathf.Max(_shakeT, dur)</code>に変更し、減衰の分母<code>_shakeDur</code>は延長後の残り時間へ追随させてfが必ず1から落ちるようにした（<code>_shakeDur</code>をMaxで積み上げると短い揺れのfが頭打ちになり見えなくなるため）。あわせて調査中に発見した同一関数の別バグも修正：<code>_shakeMag</code>は<code>Mathf.Max</code>で積むだけでどこでもリセットされず、一度大きな揺れ（<code>Player.cs:1310</code> <code>Shake(5.5f,0.28f)</code>）が起きるとシーンが切り替わるまで以降の小さな揺れ（<code>Enemy.cs:510</code> <code>Shake(1.6f,0.10f)</code>）まで全て5.5の強さで鳴り続けていた。<code>GameCamera.cs:27-29</code>で<code>_shakeT</code>が0以下になったフレームに<code>_shakeMag = 0f</code>を入れて解消。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -929,6 +937,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3cb0be2</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正</span></li>
       <li><span class="h">3dddee6</span><span>2026-08-20</span><span class="s">auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消</span></li>
       <li><span class="h">a4e5d6c</span><span>2026-08-20</span><span class="s">auto: パネル剥がしの1発ごとに発光と軽いSEを追加</span></li>
       <li><span class="h">2fde2c3</span><span>2026-08-20</span><span class="s">auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加</span></li>
@@ -936,11 +945,10 @@
       <li><span class="h">b8eef79</span><span>2026-08-20</span><span class="s">auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける</span></li>
       <li><span class="h">a7aff18</span><span>2026-08-20</span><span class="s">auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
       <li><span class="h">accaa74</span><span>2026-08-20</span><span class="s">auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
-      <li><span class="h">818bb79</span><span>2026-08-20</span><span class="s">auto: 監査で4件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

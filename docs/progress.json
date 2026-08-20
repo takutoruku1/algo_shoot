@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-20 18:41 UTC",
+  "generated": "2026-08-20 18:42 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 81
+    "done": 82
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-20) コメントを実装に合わせるのではなく、`src/fx/GameCamera.cs:39-43`の`Shake`を実際にコメント通りの「一番遅く終わる要求まで保留する」方式へ揃えた。`_shakeT = dur`の無条件上書きを`Mathf.Max(_shakeT, dur)`に変更し、減衰の分母`_shakeDur`は延長後の残り時間へ追随させてfが必ず1から落ちるようにした（`_shakeDur`をMaxで積み上げると短い揺れのfが頭打ちになり見えなくなるため）。あわせて調査中に発見した同一関数の別バグも修正：`_shakeMag`は`Mathf.Max`で積むだけでどこでもリセットされず、一度大きな揺れ（`Player.cs:1310` `Shake(5.5f,0.28f)`）が起きるとシーンが切り替わるまで以降の小さな揺れ（`Enemy.cs:510` `Shake(1.6f,0.10f)`）まで全て5.5の強さで鳴り続けていた。`GameCamera.cs:27-29`で`_shakeT`が0以下になったフレームに`_shakeMag = 0f`を入れて解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ",
@@ -591,6 +597,11 @@
   ],
   "commits": [
     {
+      "hash": "3cb0be2",
+      "date": "2026-08-20",
+      "subject": "auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正"
+    },
+    {
       "hash": "3dddee6",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消"
@@ -624,11 +635,6 @@
       "hash": "accaa74",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新"
-    },
-    {
-      "hash": "818bb79",
-      "date": "2026-08-20",
-      "subject": "auto: 監査で4件をキューに追加"
     }
   ]
 }
