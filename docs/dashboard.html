@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 78 / 対象 78 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 78 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">78</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,39 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">[P-FINAL]設計書テキストが正典v3の「返事なし」回収シーンを反映していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">設計書 <code>docs/20260613/MINA_シナリオ設計書_v2.md:280-290</code> の [P-FINAL] は「少年：『臆病者は、死ぬ前に何度も死ぬ。——なあ、ミナ。ぼくは臆病者だから、もう何回も死んでるんだ』」で終わり、直後「ミナ：『……ご主人様は、アホですね』」で締める旧稿のまま。一方 <code>src/Final.cs:102-122</code> の実装は正典v3（archive replayの最後の一回・応答アーカイブが尽きる演出、<code>Final.cs:97-101</code>のコメントで明記）の核心である「返事が来ない」回収シーン（「ばか。これが最後だから、言わせろ。」「……Stay.」→無音→地の文「返事は、ありませんでした。」→ミナが自ら「Stay.」を言い直す→「……ご主人様は、ほんとうに、アホですね。」）へ拡張済みで、設計書に一切反映されていない。受入条件：設計書 [P-FINAL] テキストボックスを <code>src/Final.cs:102-122</code>（および冒頭「祓うほど、軽くなると思っていました。」「レイの。あかりの。こはるの。……ぜんぶ、ここに。」の追加行）に合わせて更新する。ドキュメントのみの修正でコード変更・ビルド影響なし</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept"><code>Player.cs:1244-1248</code> の<code>TryBomb()</code>は画面内 enemies グループ全体へ無条件で<code>e.Purify()</code>を発行し、雑魚は<code>Enemy.cs:540-553</code>→即<code>Redeem()</code>→<code>GameManager.cs:1167-1176</code>の<code>AddPurify()</code>がコンボ倍率込みで無制限に加点・課金する（ボス用の<code>BombStrikeBase</code>/<code>ExposedDamageCap</code>のような1回あたり上限が雑魚には無い）。加えて<code>GameManager.cs:1260</code>の<code>ResetRun()</code>は毎ステージ突入時に<code>Bombs=StartBombs</code>へ全回復するため、被弾も回避も不要のまま「入場→雑魚を<code>Spawner.cs:23</code>の<code>MaxAlive=10</code>まで湧かせる→ボムで一掃→即リトライ」を無限反復できる。ボス側は同種のノーリスク一掃を警戒し窓キャップを実装済み（<code>Enemy.cs:60-65</code>）なのに雑魚側だけ素通しという非対称が根拠。受入条件：ボムでの雑魚浄化にも1回あたりの加点/インプレ上限（または逓減）を設け、窓キャップと同じ思想を雑魚経路にも適用する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept"><code>Panel.cs:88-104</code>の<code>OnAreaEntered</code>はInk減少ごとに<code>QueueRedraw()</code>のみを呼び音もフラッシュも発生しない。唯一の視覚反応（<code>_Draw</code>内<code>r=3.2+Ink*0.8</code>の同心円サイズ変化、<code>Panel.cs:138</code>）は<code>Panel.cs:137</code>の<code>if (_dead |  | _hasTex) return;</code>により、実プレイで使われる全敵のスプライト付きパネル（<code>_hasTex=true</code>）では丸ごとスキップされる。SEも<code>Panel.cs:121-123</code>の<code>Shatter()</code>（最後の1発のみ）でしか鳴らず途中のヒットは無音・無変化。一方ボス本体の無防備窓ヒットには<code>Enemy.cs:507,509,582,584</code>で<code>_hitFlashT</code>の発光＋<code>Audio.PlayBossHit</code>の即時反応があり、同じ「弾が当たった」行為への feedback が敵の部位によって非対称。パネルは全敵が最低1〜3枚持つ最頻出の被弾対象で、2〜3発中1〜2発が事実上「当たったか分からない」まま処理されている。受入条件：<code>OnAreaEntered</code>のInk減少時に軽量な打撃反応（<code>_sprite.Modulate</code>の一瞬白フラッシュ＋<code>Shatter</code>より控えめな短いSE）を追加し、剥がし工程の1発ごとに手応えを返す</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/fx/GameCamera.cs:46</code>のHitstopに付いたコメント「多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する」が、実際のShake実装（<code>GameCamera.cs:35-40</code>）と食い違う。Shakeは<code>_shakeMag = Mathf.Max(_shakeMag, mag)</code>（マグニチュードのみmax合流）だが<code>_shakeT = dur; _shakeDur = dur;</code>は無条件上書きで、Hitstopのように残り時間のmaxを取る処理になっていない。進行中の大きい・長いシェイク（例:<code>Player.cs:1310</code> <code>Shake(5.5f, 0.28f)</code>）の最中に短時間の小さいシェイク（例:<code>Enemy.cs:510</code> <code>Shake(1.6f, 0.10f)</code>）が割り込むと、マグニチュードは高いまま残り時間だけ0.10sへ短縮される＝「一番遅く終わる要求まで保留」になっていない。2026-08-19のコミット(313dcbc)でHitstop側だけレース修正した際に付けられたコメントで未記載。受入条件：Shakeを実際に「残り時間のmax」方式へ揃えるか、コメントを実装（無条件上書き）に合わせて訂正するかのいずれかで、コメントと実装を一致させる</p>
+      </li></ol>
   </section>
 
   <section>
@@ -905,6 +937,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">313dcbc</span><span>2026-08-19</span><span class="s">auto: GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">8c06aca</span><span>2026-08-19</span><span class="s">auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">cd2b700</span><span>2026-08-19</span><span class="s">auto: タイトル/クレジットのalgo project表記をtakutoruku1に統一</span></li>
       <li><span class="h">324909f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - タイトル/クレジットのalgo project表記を修正</span></li>
@@ -912,11 +945,10 @@
       <li><span class="h">d4da83b</span><span>2026-08-19</span><span class="s">auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正</span></li>
       <li><span class="h">9788f4d</span><span>2026-08-19</span><span class="s">auto: バックファイア機能の説明をHowToPlayに追加</span></li>
       <li><span class="h">2ad9d0f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - バックファイア機能の説明をHowToPlayに追加</span></li>
-      <li><span class="h">b9b447f</span><span>2026-08-19</span><span class="s">auto: コンボ倍率システムの説明をHowToPlayに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-19 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
