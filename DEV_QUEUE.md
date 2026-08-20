@@ -28,6 +28,8 @@
 
 ## TODO
 
+- [ ] (P3) 夜間QAのたびにGodotの手動セットアップが要りブートストラップが再現できない | engineer | 2026-08-20の監査でqaワーカーが報告：このコンテナにはGodotが入っておらず（`.godot/`はgitignore）、毎回「Godot 4.6.3 mono を GitHub releases から取得→`--import`を1回流す」を手作業で再現する必要がある。実際この夜も指揮官側が同じ手順を踏み直しており、さらに`.claude/skills/qa-autoplay/SKILL.md:56-63`の起動例はWindowsパス前提で、Linuxコンテナでは「シーンパス＋`--`区切り＋`--quit`」の正しい形が読み取りにくく、指揮官が3回起動に失敗した（`--`区切り無し・シーン名誤りで無出力/ハング）。補足：`builds.dotnet.microsoft.com`とtuxfamilyはプロキシポリシーで403、GitHub releasesは通る。受入条件：`tools/qa-bootstrap.sh`（仮）を追加し、Godotが無ければGitHub releasesから取得→`--import`まで済ませ、Linuxでの正しい起動形（シーンパス＋`--`＋`--qa ...`＋`--quit`）を1コマンドで叩けるようにする。既にGodotがある場合は再ダウンロードしないこと。ゲーム本体のコードには触れない
+
 ## WIP
 
 ## BLOCKED
