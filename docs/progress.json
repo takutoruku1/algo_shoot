@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-20 18:55 UTC",
+  "generated": "2026-08-20 22:07 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -603,6 +603,16 @@
   ],
   "commits": [
     {
+      "hash": "ec58650",
+      "date": "2026-08-21",
+      "subject": "Merge pull request #7 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "cc3f08d",
+      "date": "2026-08-20",
+      "subject": "auto: QA環境ブートストラップスクリプトを追加"
+    },
+    {
       "hash": "42cee5b",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - QA環境ブートストラップスクリプトの追加"
@@ -631,16 +641,6 @@
       "hash": "a4e5d6c",
       "date": "2026-08-20",
       "subject": "auto: パネル剥がしの1発ごとに発光と軽いSEを追加"
-    },
-    {
-      "hash": "2fde2c3",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加"
-    },
-    {
-      "hash": "569b6bd",
-      "date": "2026-08-20",
-      "subject": "auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止"
     }
   ]
 }

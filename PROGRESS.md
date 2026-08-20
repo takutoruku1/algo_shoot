@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-20 18:55 UTC
+> 生成: 2026-08-20 22:07 UTC
 
 ## 消化率
 
@@ -130,11 +130,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `ec58650` 2026-08-21 Merge pull request #7 from takutoruku1/auto/dev
+- `cc3f08d` 2026-08-20 auto: QA環境ブートストラップスクリプトを追加
 - `42cee5b` 2026-08-20 auto: WIP着手 - QA環境ブートストラップスクリプトの追加
 - `6042cd7` 2026-08-20 auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加
 - `06e56d3` 2026-08-20 auto: GameCamera.Shake修正のDONE記録を補完
 - `3cb0be2` 2026-08-20 auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正
 - `3dddee6` 2026-08-20 auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消
 - `a4e5d6c` 2026-08-20 auto: パネル剥がしの1発ごとに発光と軽いSEを追加
-- `2fde2c3` 2026-08-20 auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加
-- `569b6bd` 2026-08-20 auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止
