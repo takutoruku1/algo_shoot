@@ -80,6 +80,7 @@ public partial class Enemy : Area2D
 
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
+    private bool _bombPurify; // この浄化がボム由来か。報酬側のボムキャップ判定にだけ使う（演出・消滅処理は一切不変）
     private bool _becameFollower; // この本人がフォロワーに化けた＝退場（左流れ）をスキップして二重表示を防ぐ
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
@@ -547,6 +548,9 @@ public partial class Enemy : Area2D
                 p.Shatter();
             return;
         }
+        // 雑魚：ボム由来の印を先に立ててから剥がす。最後の1枚の Shatter が
+        // OnPanelShattered 経由で即 Redeem を呼ぶ経路（=大半の個体）も確実に「ボム由来」として拾うため。
+        _bombPurify = true;
         foreach (var p in new List<Panel>(_panels))
             p.Shatter();
         if (!_purified) Redeem();
@@ -676,7 +680,7 @@ public partial class Enemy : Area2D
         _flashT = 0;
 
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
-        GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points);
+        GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify);
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。

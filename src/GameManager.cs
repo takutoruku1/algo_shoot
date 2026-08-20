@@ -1163,16 +1163,32 @@ public partial class GameManager : Node
     private const float CameoKindnessReward = 0.6f;
     private const int CameoScoreReward = 900;
 
+    // ── ボム1発で報酬が付く雑魚浄化の上限（ボムキャップ）──
+    //   ボス側の窓キャップ(Enemy.ExposedDamageCap)と同じ思想を雑魚経路にも当てる。
+    //   ボム由来の浄化は「避けも当てもせず画面を一掃する」＝リスクを賭けていない（§2）ので、
+    //   1発あたりこの体数までしか スコア/コンボ/インプレ を返さない。超過分は浄化そのものは成立し、
+    //   進行(PurifiedCount)とやさしさ(AddKindness)は従来どおり通す＝道中ゲートを詰まらせない（親切設計）。
+    //   3体＝緊急回避で巻き込む標準的な体数。通常プレイのボムは割に合ったまま、
+    //   湧き上限(Spawner.MaxAlive=10)まで溜めて一掃する無限ファームだけが頭打ちになる。
+    private const int BombPurifyRewardCap = 3;
+    private int _bombPurifyCount; // 現在のボム1発で報酬を付けた体数（UseBomb でリセット）
+
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
-    public void AddPurify(int basePoints)
+    // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。
+    public void AddPurify(int basePoints, bool fromBomb = false)
     {
-        Combo = Mathf.Min(Combo + 1, MaxCombo);
-        _comboTimer = ComboWindow;
-        Score += basePoints * Mathf.Max(1, Combo);
+        bool rewarded = !fromBomb || ++_bombPurifyCount <= BombPurifyRewardCap;
+        if (rewarded)
+        {
+            Combo = Mathf.Min(Combo + 1, MaxCombo);
+            _comboTimer = ComboWindow;
+            Score += basePoints * Mathf.Max(1, Combo);
+        }
         PurifiedCount++;
         AddKindness(PurifyGain);
         // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
-        GainImpression(2 + Combo);
+        if (rewarded)
+            GainImpression(2 + Combo);
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
@@ -1235,10 +1251,14 @@ public partial class GameManager : Node
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。
     public bool UseBomb()
     {
-        if (TutorialNoConsume) return true;
-        if (Bombs <= 0)
-            return false;
-        Bombs--;
+        if (!TutorialNoConsume)
+        {
+            if (Bombs <= 0)
+                return false;
+            Bombs--;
+        }
+        // 発動が確定した時点でボム1発ぶんの報酬台帳をリセット（窓キャップを EnterExposed で 0 に戻すのと同じ作法）。
+        _bombPurifyCount = 0;
         return true;
     }
 
@@ -1258,6 +1278,7 @@ public partial class GameManager : Node
         Combo = 0;
         _comboTimer = 0;
         Bombs = StartBombs;
+        _bombPurifyCount = 0;
         PurifiedCount = 0;
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-20 18:30 UTC",
+  "generated": "2026-08-20 18:36 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 79
+    "done": 80
   },
-  "percent": 96,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている",
-      "worker": "game-designer",
-      "accept": "`Player.cs:1244-1248` の`TryBomb()`は画面内 enemies グループ全体へ無条件で`e.Purify()`を発行し、雑魚は`Enemy.cs:540-553`→即`Redeem()`→`GameManager.cs:1167-1176`の`AddPurify()`がコンボ倍率込みで無制限に加点・課金する（ボス用の`BombStrikeBase`/`ExposedDamageCap`のような1回あたり上限が雑魚には無い）。加えて`GameManager.cs:1260`の`ResetRun()`は毎ステージ突入時に`Bombs=StartBombs`へ全回復するため、被弾も回避も不要のまま「入場→雑魚を`Spawner.cs:23`の`MaxAlive=10`まで湧かせる→ボムで一掃→即リトライ」を無限反復できる。ボス側は同種のノーリスク一掃を警戒し窓キャップを実装済み（`Enemy.cs:60-65`）なのに雑魚側だけ素通しという非対称が根拠。受入条件：ボムでの雑魚浄化にも1回あたりの加点/インプレ上限（または逓減）を設け、窓キャップと同じ思想を雑魚経路にも適用する"
-    },
     {
       "priority": "P2",
       "title": "パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-20) ボス側`ExposedDamageCap`（`Enemy.cs:59-66`）と同じ思想を雑魚経路へ移植。`Enemy.cs:83`に`_bombPurify`フラグを追加、`Enemy.cs:553-558`のPurify()（ボム専用入口、通常ショット撃破とは別経路）でShatterループ前に立てる（大半の雑魚が抜けるSharedループ内先行Redeemを取りこぼさないため）、`Enemy.cs:683`で`AddPurify(Points, _bombPurify)`。`GameManager.cs:1166-1192`に`BombPurifyRewardCap=3`（緊急回避で巻き込む標準体数、通常ボムは満額のまま）と`_bombPurifyCount`を追加、`AddPurify(basePoints, fromBomb=false)`で超過分はScore/Combo/インプレを付けず、進行に必須の`PurifiedCount`/`AddKindness`は従来通り通す（道中ゲートを詰まらせない）。`GameManager.cs:1252-1263`の`UseBomb()`発動確定時と`GameManager.cs:1277`の`ResetRun()`で台帳リセット。通常ショット経路の呼び出し・演出・消滅処理は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "[P-FINAL]設計書テキストが正典v3の「返事なし」回収シーンを反映していない",
@@ -598,6 +598,16 @@
   ],
   "commits": [
     {
+      "hash": "b8eef79",
+      "date": "2026-08-20",
+      "subject": "auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける"
+    },
+    {
+      "hash": "a7aff18",
+      "date": "2026-08-20",
+      "subject": "auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新"
+    },
+    {
       "hash": "accaa74",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新"
@@ -626,16 +636,6 @@
       "hash": "324909f",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - タイトル/クレジットのalgo project表記を修正"
-    },
-    {
-      "hash": "167e499",
-      "date": "2026-08-19",
-      "subject": "auto: EPILOGUE鍵アカPW表記の矛盾を修正"
-    },
-    {
-      "hash": "d4da83b",
-      "date": "2026-08-19",
-      "subject": "auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正"
     }
   ]
 }

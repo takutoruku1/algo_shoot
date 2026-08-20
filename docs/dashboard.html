@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 79 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 80 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">79</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">80</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept"><code>Player.cs:1244-1248</code> の<code>TryBomb()</code>は画面内 enemies グループ全体へ無条件で<code>e.Purify()</code>を発行し、雑魚は<code>Enemy.cs:540-553</code>→即<code>Redeem()</code>→<code>GameManager.cs:1167-1176</code>の<code>AddPurify()</code>がコンボ倍率込みで無制限に加点・課金する（ボス用の<code>BombStrikeBase</code>/<code>ExposedDamageCap</code>のような1回あたり上限が雑魚には無い）。加えて<code>GameManager.cs:1260</code>の<code>ResetRun()</code>は毎ステージ突入時に<code>Bombs=StartBombs</code>へ全回復するため、被弾も回避も不要のまま「入場→雑魚を<code>Spawner.cs:23</code>の<code>MaxAlive=10</code>まで湧かせる→ボムで一掃→即リトライ」を無限反復できる。ボス側は同種のノーリスク一掃を警戒し窓キャップを実装済み（<code>Enemy.cs:60-65</code>）なのに雑魚側だけ素通しという非対称が根拠。受入条件：ボムでの雑魚浄化にも1回あたりの加点/インプレ上限（または逓減）を設け、窓キャップと同じ思想を雑魚経路にも適用する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-20) ボス側<code>ExposedDamageCap</code>（<code>Enemy.cs:59-66</code>）と同じ思想を雑魚経路へ移植。<code>Enemy.cs:83</code>に<code>_bombPurify</code>フラグを追加、<code>Enemy.cs:553-558</code>のPurify()（ボム専用入口、通常ショット撃破とは別経路）でShatterループ前に立てる（大半の雑魚が抜けるSharedループ内先行Redeemを取りこぼさないため）、<code>Enemy.cs:683</code>で<code>AddPurify(Points, _bombPurify)</code>。<code>GameManager.cs:1166-1192</code>に<code>BombPurifyRewardCap=3</code>（緊急回避で巻き込む標準体数、通常ボムは満額のまま）と<code>_bombPurifyCount</code>を追加、<code>AddPurify(basePoints, fromBomb=false)</code>で超過分はScore/Combo/インプレを付けず、進行に必須の<code>PurifiedCount</code>/<code>AddKindness</code>は従来通り通す（道中ゲートを詰まらせない）。<code>GameManager.cs:1252-1263</code>の<code>UseBomb()</code>発動確定時と<code>GameManager.cs:1277</code>の<code>ResetRun()</code>で台帳リセット。通常ショット経路の呼び出し・演出・消滅処理は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -937,18 +937,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b8eef79</span><span>2026-08-20</span><span class="s">auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける</span></li>
+      <li><span class="h">a7aff18</span><span>2026-08-20</span><span class="s">auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
       <li><span class="h">accaa74</span><span>2026-08-20</span><span class="s">auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
       <li><span class="h">818bb79</span><span>2026-08-20</span><span class="s">auto: 監査で4件をキューに追加</span></li>
       <li><span class="h">313dcbc</span><span>2026-08-19</span><span class="s">auto: GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">8c06aca</span><span>2026-08-19</span><span class="s">auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">cd2b700</span><span>2026-08-19</span><span class="s">auto: タイトル/クレジットのalgo project表記をtakutoruku1に統一</span></li>
       <li><span class="h">324909f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - タイトル/クレジットのalgo project表記を修正</span></li>
-      <li><span class="h">167e499</span><span>2026-08-19</span><span class="s">auto: EPILOGUE鍵アカPW表記の矛盾を修正</span></li>
-      <li><span class="h">d4da83b</span><span>2026-08-19</span><span class="s">auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:36 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
