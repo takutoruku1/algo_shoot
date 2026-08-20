@@ -41,6 +41,15 @@ description: Auto-play this Godot/.NET game headlessly and scan for bugs — wei
 
 ## 手順
 
+> **Linux コンテナ（夜間クラウド実行など）では `tools/qa-bootstrap.sh` を使う。** 下の手順は Windows のローカル環境前提。
+> コンテナには Godot が無く `.godot/` も gitignore なので、素で起動すると**インポートが走り切らず無出力のまま固まる**。
+> ```bash
+> tools/qa-bootstrap.sh                        # Godot 取得＋初回 import まで（既にあれば再取得しない）
+> tools/qa-bootstrap.sh Rei --hard --seconds 45   # res://Rei.tscn を QA 起動 → build/qa/Rei.log
+> ```
+> シーン名は拡張子なし（`Rei` / `Prologue` / `Stage0` …）。`--qa` と `--quit` は自動で付く。
+> 手で叩く場合は**シーンパス → `--` 区切り → QaPilot 引数**の順を守ること（`--` を抜くと Godot 側が引数を食って無出力になる）。
+
 1. **ビルド**（壊れたコードだと即落ちる）:
    ```bash
    cd /d/dev/algo_shoot && dotnet build -clp:ErrorsOnly   # 0 Error(s)

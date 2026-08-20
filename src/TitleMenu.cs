@@ -491,7 +491,7 @@ public partial class TitleMenu : Node2D
 
         // ── バージョン（右下）──
         UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 48), "ver 0.3.0 — 体験版", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
-        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 30), "© 2026 algo project", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
+        UiKit.Text(this, UiKit.Mono, new Vector2(W - 230, H - 30), "© 2026 takutoruku1", UiKit.FontSmall, UiKit.Text4, HorizontalAlignment.Right, 204);
 
         DrawTicker();
         DrawTalk();

@@ -21,6 +21,8 @@ public partial class Panel : Area2D
     private bool _hasTex;
     private float _displayScale = 1f; // ザコ縮小用。絵＆当たりに掛ける（ボスは1）
     private const float DisplayH = 14f;
+    private double _hitFlashT;                // 剥がし途中の一撃発光の残り（Enemy._hitFlashT と同方式）
+    private const double HitFlashDur = 0.09;  // 一瞬。連射で点滅し続けないよう Enemy(0.16)よりさらに短く
 
     public void Setup(Enemy owner, float baseAngle, float orbitRadius, float spinSpeed,
                       bool fires, float fireInterval, int ink, string texPath = "", float displayScale = 1f)
@@ -80,6 +82,17 @@ public partial class Panel : Area2D
     public override void _PhysicsProcess(double delta)
     {
         if (_dead) return;
+        // 発光の減衰は旋回停止中も進める（吹き出しが出た瞬間に白いまま固まるのを防ぐ）。
+        if (_hitFlashT > 0)
+        {
+            _hitFlashT -= delta;
+            if (_sprite != null)
+            {
+                float h = _hitFlashT > 0 ? (float)(_hitFlashT / HitFlashDur) : 0f; // 1→0（0で必ず素の色へ戻す）
+                float m = 1f + 1.6f * h;
+                _sprite.Modulate = new Color(m, m, m);
+            }
+        }
         if (Hud.BubblePaused) return; // 吹き出し表示中は旋回を止める
         UpdateOrbit(delta);
         // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
@@ -99,7 +112,14 @@ public partial class Panel : Area2D
             (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(_owner);
             Ink--;
             if (Ink <= 0) Shatter();
-            else QueueRedraw();
+            else
+            {
+                // 剥がしの途中経過にも手応えを返す（本体ヒットと同じ「当てた→返る」の非対称を解消）。
+                // 発光はテクスチャ付きのみ（図形描画側は _Draw の同心円縮小がその役目）。
+                QueueRedraw();
+                _hitFlashT = HitFlashDur;
+                Audio.Instance?.PlayStrip(light: true);
+            }
         }
     }
 
