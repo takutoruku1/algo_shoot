@@ -28,11 +28,12 @@
 
 ## TODO
 
-- [ ] (P2) ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている | game-designer | `Player.cs:1244-1248` の`TryBomb()`は画面内 enemies グループ全体へ無条件で`e.Purify()`を発行し、雑魚は`Enemy.cs:540-553`→即`Redeem()`→`GameManager.cs:1167-1176`の`AddPurify()`がコンボ倍率込みで無制限に加点・課金する（ボス用の`BombStrikeBase`/`ExposedDamageCap`のような1回あたり上限が雑魚には無い）。加えて`GameManager.cs:1260`の`ResetRun()`は毎ステージ突入時に`Bombs=StartBombs`へ全回復するため、被弾も回避も不要のまま「入場→雑魚を`Spawner.cs:23`の`MaxAlive=10`まで湧かせる→ボムで一掃→即リトライ」を無限反復できる。ボス側は同種のノーリスク一掃を警戒し窓キャップを実装済み（`Enemy.cs:60-65`）なのに雑魚側だけ素通しという非対称が根拠。受入条件：ボムでの雑魚浄化にも1回あたりの加点/インプレ上限（または逓減）を設け、窓キャップと同じ思想を雑魚経路にも適用する
 - [ ] (P2) パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ | game-designer | `Panel.cs:88-104`の`OnAreaEntered`はInk減少ごとに`QueueRedraw()`のみを呼び音もフラッシュも発生しない。唯一の視覚反応（`_Draw`内`r=3.2+Ink*0.8`の同心円サイズ変化、`Panel.cs:138`）は`Panel.cs:137`の`if (_dead || _hasTex) return;`により、実プレイで使われる全敵のスプライト付きパネル（`_hasTex=true`）では丸ごとスキップされる。SEも`Panel.cs:121-123`の`Shatter()`（最後の1発のみ）でしか鳴らず途中のヒットは無音・無変化。一方ボス本体の無防備窓ヒットには`Enemy.cs:507,509,582,584`で`_hitFlashT`の発光＋`Audio.PlayBossHit`の即時反応があり、同じ「弾が当たった」行為への feedback が敵の部位によって非対称。パネルは全敵が最低1〜3枚持つ最頻出の被弾対象で、2〜3発中1〜2発が事実上「当たったか分からない」まま処理されている。受入条件：`OnAreaEntered`のInk減少時に軽量な打撃反応（`_sprite.Modulate`の一瞬白フラッシュ＋`Shatter`より控えめな短いSE）を追加し、剥がし工程の1発ごとに手応えを返す
 - [ ] (P2) GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾 | engineer | `src/fx/GameCamera.cs:46`のHitstopに付いたコメント「多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する」が、実際のShake実装（`GameCamera.cs:35-40`）と食い違う。Shakeは`_shakeMag = Mathf.Max(_shakeMag, mag)`（マグニチュードのみmax合流）だが`_shakeT = dur; _shakeDur = dur;`は無条件上書きで、Hitstopのように残り時間のmaxを取る処理になっていない。進行中の大きい・長いシェイク（例:`Player.cs:1310` `Shake(5.5f, 0.28f)`）の最中に短時間の小さいシェイク（例:`Enemy.cs:510` `Shake(1.6f, 0.10f)`）が割り込むと、マグニチュードは高いまま残り時間だけ0.10sへ短縮される＝「一番遅く終わる要求まで保留」になっていない。2026-08-19のコミット(313dcbc)でHitstop側だけレース修正した際に付けられたコメントで未記載。受入条件：Shakeを実際に「残り時間のmax」方式へ揃えるか、コメントを実装（無条件上書き）に合わせて訂正するかのいずれかで、コメントと実装を一致させる
 
 ## WIP
+
+- [ ] (P2) ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている | game-designer | `Player.cs:1244-1248` の`TryBomb()`は画面内 enemies グループ全体へ無条件で`e.Purify()`を発行し、雑魚は`Enemy.cs:540-553`→即`Redeem()`→`GameManager.cs:1167-1176`の`AddPurify()`がコンボ倍率込みで無制限に加点・課金する（ボス用の`BombStrikeBase`/`ExposedDamageCap`のような1回あたり上限が雑魚には無い）。加えて`GameManager.cs:1260`の`ResetRun()`は毎ステージ突入時に`Bombs=StartBombs`へ全回復するため、被弾も回避も不要のまま「入場→雑魚を`Spawner.cs:23`の`MaxAlive=10`まで湧かせる→ボムで一掃→即リトライ」を無限反復できる。ボス側は同種のノーリスク一掃を警戒し窓キャップを実装済み（`Enemy.cs:60-65`）なのに雑魚側だけ素通しという非対称が根拠。受入条件：ボムでの雑魚浄化にも1回あたりの加点/インプレ上限（または逓減）を設け、窓キャップと同じ思想を雑魚経路にも適用する
 
 ## BLOCKED
 
