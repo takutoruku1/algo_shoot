@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 82 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 83 / 対象 83 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">82</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">83</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">夜間QAのたびにGodotの手動セットアップが要りブートストラップが再現できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-20) <code>tools/qa-bootstrap.sh</code>を新規追加。引数なしでGodot 4.6.3 monoの用意（<code>${TMPDIR}/godot_setup</code>に無ければGitHub releasesから取得。tuxfamily/builds.dotnet.microsoft.comはプロキシ403のためGitHub固定。既にあれば再取得しない）と初回<code>--import</code>（<code>.godot/imported</code>が無いときだけ）を行い、シーン名を渡すとQA起動までやる（<code>tools/qa-bootstrap.sh Rei --hard --seconds 45</code> → <code>build/qa/Rei.log</code>）。<code>--qa</code>/<code>--quit</code>は無ければ自動付与。Linuxで詰まりやすい「シーンパス → <code>--</code>区切り → QaPilot引数」の順序をスクリプト側に封じ込めた（<code>--</code>を抜くとGodotが引数を食って無出力のままハングする。実際この夜に3回起動に失敗した）。あわせて<code>.claude/skills/qa-autoplay/SKILL.md:44-51</code>冒頭に、既存手順がWindows前提である旨とLinuxではこのスクリプトを使う旨のブロックを追加。実地検証：既存Godotありの経路で<code>Rei --hard --seconds 30</code>が<code>[QA-SUMMARY] no anomalies flagged. clean run.</code>で完走、引数なし経路も正常終了、<code>bash -n</code>構文チェック通過。ゲーム本体のコードは無変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -937,18 +945,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">42cee5b</span><span>2026-08-20</span><span class="s">auto: WIP着手 - QA環境ブートストラップスクリプトの追加</span></li>
+      <li><span class="h">6042cd7</span><span>2026-08-20</span><span class="s">auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加</span></li>
+      <li><span class="h">06e56d3</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shake修正のDONE記録を補完</span></li>
       <li><span class="h">3cb0be2</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正</span></li>
       <li><span class="h">3dddee6</span><span>2026-08-20</span><span class="s">auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消</span></li>
       <li><span class="h">a4e5d6c</span><span>2026-08-20</span><span class="s">auto: パネル剥がしの1発ごとに発光と軽いSEを追加</span></li>
       <li><span class="h">2fde2c3</span><span>2026-08-20</span><span class="s">auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加</span></li>
       <li><span class="h">569b6bd</span><span>2026-08-20</span><span class="s">auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止</span></li>
-      <li><span class="h">b8eef79</span><span>2026-08-20</span><span class="s">auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける</span></li>
-      <li><span class="h">a7aff18</span><span>2026-08-20</span><span class="s">auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
-      <li><span class="h">accaa74</span><span>2026-08-20</span><span class="s">auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:55 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

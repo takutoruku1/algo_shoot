@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-20 18:42 UTC",
+  "generated": "2026-08-20 18:55 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 82
+    "done": 83
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "夜間QAのたびにGodotの手動セットアップが要りブートストラップが再現できない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-20) `tools/qa-bootstrap.sh`を新規追加。引数なしでGodot 4.6.3 monoの用意（`${TMPDIR}/godot_setup`に無ければGitHub releasesから取得。tuxfamily/builds.dotnet.microsoft.comはプロキシ403のためGitHub固定。既にあれば再取得しない）と初回`--import`（`.godot/imported`が無いときだけ）を行い、シーン名を渡すとQA起動までやる（`tools/qa-bootstrap.sh Rei --hard --seconds 45` → `build/qa/Rei.log`）。`--qa`/`--quit`は無ければ自動付与。Linuxで詰まりやすい「シーンパス → `--`区切り → QaPilot引数」の順序をスクリプト側に封じ込めた（`--`を抜くとGodotが引数を食って無出力のままハングする。実際この夜に3回起動に失敗した）。あわせて`.claude/skills/qa-autoplay/SKILL.md:44-51`冒頭に、既存手順がWindows前提である旨とLinuxではこのスクリプトを使う旨のブロックを追加。実地検証：既存Godotありの経路で`Rei --hard --seconds 30`が`[QA-SUMMARY] no anomalies flagged. clean run.`で完走、引数なし経路も正常終了、`bash -n`構文チェック通過。ゲーム本体のコードは無変更"
+    },
     {
       "priority": "P2",
       "title": "GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾",
@@ -597,6 +603,21 @@
   ],
   "commits": [
     {
+      "hash": "42cee5b",
+      "date": "2026-08-20",
+      "subject": "auto: WIP着手 - QA環境ブートストラップスクリプトの追加"
+    },
+    {
+      "hash": "6042cd7",
+      "date": "2026-08-20",
+      "subject": "auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加"
+    },
+    {
+      "hash": "06e56d3",
+      "date": "2026-08-20",
+      "subject": "auto: GameCamera.Shake修正のDONE記録を補完"
+    },
+    {
       "hash": "3cb0be2",
       "date": "2026-08-20",
       "subject": "auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正"
@@ -620,21 +641,6 @@
       "hash": "569b6bd",
       "date": "2026-08-20",
       "subject": "auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止"
-    },
-    {
-      "hash": "b8eef79",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける"
-    },
-    {
-      "hash": "a7aff18",
-      "date": "2026-08-20",
-      "subject": "auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新"
-    },
-    {
-      "hash": "accaa74",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新"
     }
   ]
 }
