@@ -25,6 +25,9 @@ public partial class GameCamera : Camera2D
             _shakeT -= (float)delta;
             float f = Mathf.Max(0f, _shakeT / _shakeDur);
             Offset = new Vector2(_rng.RandfRange(-1f, 1f), _rng.RandfRange(-1f, 1f)) * _shakeMag * f;
+            // 揺れ切ったら強さを捨てる。残さないと以降の小さな Shake が
+            // 直前の大きな mag を Max で引き継いだままになる。
+            if (_shakeT <= 0f) _shakeMag = 0f;
         }
         else
         {
@@ -32,11 +35,13 @@ public partial class GameCamera : Camera2D
         }
     }
 
+    // 多重呼び出し時は強さ・締切ともに「大きい方／遅い方」へ合流する（Hitstop と同方針）。
+    // 残り時間を上書きすると、長い揺れの最中に短い揺れが割り込んだとき強さだけ残って早く終わる。
     public void Shake(float mag, float dur)
     {
         _shakeMag = Mathf.Max(_shakeMag, mag);
-        _shakeT = dur;
-        _shakeDur = dur;
+        _shakeT = Mathf.Max(_shakeT, dur);
+        _shakeDur = _shakeT; // 減衰の分母は延長後の残り時間＝f は必ず 1 から落ちる
     }
 
     private double _hitstopEndSec;

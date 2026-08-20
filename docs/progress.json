@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-20 18:40 UTC",
+  "generated": "2026-08-20 18:41 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
     "done": 81
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾",
-      "worker": "engineer",
-      "accept": "`src/fx/GameCamera.cs:46`のHitstopに付いたコメント「多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する」が、実際のShake実装（`GameCamera.cs:35-40`）と食い違う。Shakeは`_shakeMag = Mathf.Max(_shakeMag, mag)`（マグニチュードのみmax合流）だが`_shakeT = dur; _shakeDur = dur;`は無条件上書きで、Hitstopのように残り時間のmaxを取る処理になっていない。進行中の大きい・長いシェイク（例:`Player.cs:1310` `Shake(5.5f, 0.28f)`）の最中に短時間の小さいシェイク（例:`Enemy.cs:510` `Shake(1.6f, 0.10f)`）が割り込むと、マグニチュードは高いまま残り時間だけ0.10sへ短縮される＝「一番遅く終わる要求まで保留」になっていない。2026-08-19のコミット(313dcbc)でHitstop側だけレース修正した際に付けられたコメントで未記載。受入条件：Shakeを実際に「残り時間のmax」方式へ揃えるか、コメントを実装（無条件上書き）に合わせて訂正するかのいずれかで、コメントと実装を一致させる"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -598,6 +591,16 @@
   ],
   "commits": [
     {
+      "hash": "3dddee6",
+      "date": "2026-08-20",
+      "subject": "auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消"
+    },
+    {
+      "hash": "a4e5d6c",
+      "date": "2026-08-20",
+      "subject": "auto: パネル剥がしの1発ごとに発光と軽いSEを追加"
+    },
+    {
       "hash": "2fde2c3",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加"
@@ -626,16 +629,6 @@
       "hash": "818bb79",
       "date": "2026-08-20",
       "subject": "auto: 監査で4件をキューに追加"
-    },
-    {
-      "hash": "313dcbc",
-      "date": "2026-08-19",
-      "subject": "auto: GameCamera.Hitstopの多重呼び出しレースを修正"
-    },
-    {
-      "hash": "8c06aca",
-      "date": "2026-08-19",
-      "subject": "auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正"
     }
   ]
 }

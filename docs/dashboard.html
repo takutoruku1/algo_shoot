@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 81 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 81 / 対象 81 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">81</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,15 +145,7 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/fx/GameCamera.cs:46</code>のHitstopに付いたコメント「多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する」が、実際のShake実装（<code>GameCamera.cs:35-40</code>）と食い違う。Shakeは<code>_shakeMag = Mathf.Max(_shakeMag, mag)</code>（マグニチュードのみmax合流）だが<code>_shakeT = dur; _shakeDur = dur;</code>は無条件上書きで、Hitstopのように残り時間のmaxを取る処理になっていない。進行中の大きい・長いシェイク（例:<code>Player.cs:1310</code> <code>Shake(5.5f, 0.28f)</code>）の最中に短時間の小さいシェイク（例:<code>Enemy.cs:510</code> <code>Shake(1.6f, 0.10f)</code>）が割り込むと、マグニチュードは高いまま残り時間だけ0.10sへ短縮される＝「一番遅く終わる要求まで保留」になっていない。2026-08-19のコミット(313dcbc)でHitstop側だけレース修正した際に付けられたコメントで未記載。受入条件：Shakeを実際に「残り時間のmax」方式へ揃えるか、コメントを実装（無条件上書き）に合わせて訂正するかのいずれかで、コメントと実装を一致させる</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
@@ -937,18 +929,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3dddee6</span><span>2026-08-20</span><span class="s">auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消</span></li>
+      <li><span class="h">a4e5d6c</span><span>2026-08-20</span><span class="s">auto: パネル剥がしの1発ごとに発光と軽いSEを追加</span></li>
       <li><span class="h">2fde2c3</span><span>2026-08-20</span><span class="s">auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加</span></li>
       <li><span class="h">569b6bd</span><span>2026-08-20</span><span class="s">auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止</span></li>
       <li><span class="h">b8eef79</span><span>2026-08-20</span><span class="s">auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける</span></li>
       <li><span class="h">a7aff18</span><span>2026-08-20</span><span class="s">auto: [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
       <li><span class="h">accaa74</span><span>2026-08-20</span><span class="s">auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
       <li><span class="h">818bb79</span><span>2026-08-20</span><span class="s">auto: 監査で4件をキューに追加</span></li>
-      <li><span class="h">313dcbc</span><span>2026-08-19</span><span class="s">auto: GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
-      <li><span class="h">8c06aca</span><span>2026-08-19</span><span class="s">auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
