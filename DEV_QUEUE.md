@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P2) GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾 | engineer | `src/fx/GameCamera.cs:46`のHitstopに付いたコメント「多重呼び出し時は Shake と同じ方針で、一番遅く終わる要求まで復帰を保留する」が、実際のShake実装（`GameCamera.cs:35-40`）と食い違う。Shakeは`_shakeMag = Mathf.Max(_shakeMag, mag)`（マグニチュードのみmax合流）だが`_shakeT = dur; _shakeDur = dur;`は無条件上書きで、Hitstopのように残り時間のmaxを取る処理になっていない。進行中の大きい・長いシェイク（例:`Player.cs:1310` `Shake(5.5f, 0.28f)`）の最中に短時間の小さいシェイク（例:`Enemy.cs:510` `Shake(1.6f, 0.10f)`）が割り込むと、マグニチュードは高いまま残り時間だけ0.10sへ短縮される＝「一番遅く終わる要求まで保留」になっていない。2026-08-19のコミット(313dcbc)でHitstop側だけレース修正した際に付けられたコメントで未記載。受入条件：Shakeを実際に「残り時間のmax」方式へ揃えるか、コメントを実装（無条件上書き）に合わせて訂正するかのいずれかで、コメントと実装を一致させる
 
 ## WIP
 
