@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">95<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 78 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 79 / 対象 82 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">78</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">79</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">[P-FINAL]設計書テキストが正典v3の「返事なし」回収シーンを反映していない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">設計書 <code>docs/20260613/MINA_シナリオ設計書_v2.md:280-290</code> の [P-FINAL] は「少年：『臆病者は、死ぬ前に何度も死ぬ。——なあ、ミナ。ぼくは臆病者だから、もう何回も死んでるんだ』」で終わり、直後「ミナ：『……ご主人様は、アホですね』」で締める旧稿のまま。一方 <code>src/Final.cs:102-122</code> の実装は正典v3（archive replayの最後の一回・応答アーカイブが尽きる演出、<code>Final.cs:97-101</code>のコメントで明記）の核心である「返事が来ない」回収シーン（「ばか。これが最後だから、言わせろ。」「……Stay.」→無音→地の文「返事は、ありませんでした。」→ミナが自ら「Stay.」を言い直す→「……ご主人様は、ほんとうに、アホですね。」）へ拡張済みで、設計書に一切反映されていない。受入条件：設計書 [P-FINAL] テキストボックスを <code>src/Final.cs:102-122</code>（および冒頭「祓うほど、軽くなると思っていました。」「レイの。あかりの。こはるの。……ぜんぶ、ここに。」の追加行）に合わせて更新する。ドキュメントのみの修正でコード変更・ビルド影響なし</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">[P-FINAL]設計書テキストが正典v3の「返事なし」回収シーンを反映していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-20) <code>docs/20260613/MINA_シナリオ設計書_v2.md:280-297</code> の [P-FINAL] テキストボックスを <code>src/Final.cs:103-122</code> の全18行（話者・文言とも）に一致させて書き換え。旧稿（少年の教養アピール台詞→即「アホですね」で終わる短い版）から、冒頭の地の文2行「祓うほど、軽くなると思っていました。」「レイの。あかりの。こはるの。……ぜんぶ、ここに。」、archive replayが尽きる「ばか。これが最後だから、言わせろ。」「……Stay.」「って、いつも言ってたのにな。今日は——……ぼく、は、」、ミナが自ら言い直す「Stay. ——ご主人様。あなたこそ、いなくならないで。」、核心の地の文「　　　返事は、ありませんでした。」、ミナの能動「今度は、わたくしが、迎えに行きます。」「だから、わたくしは、自分の足で。」、締めの「……ご主人様は、ほんとうに、アホですね。」までを反映。見出し行に <code>src/Final.cs:102-122</code> が正典である旨と、CueFadeLine/CueSilenceLine/CueResolveLine/DropLineが本文一致で音楽同期している（<code>Final.cs:101</code>）ため文言変更時は実装側の同時修正が必須である旨の注記を追加。コードは無変更、ドキュメントのみのためビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -937,18 +937,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">accaa74</span><span>2026-08-20</span><span class="s">auto: WIP着手 - [P-FINAL]設計書テキストを正典v3の返事なし回収シーンへ更新</span></li>
+      <li><span class="h">818bb79</span><span>2026-08-20</span><span class="s">auto: 監査で4件をキューに追加</span></li>
       <li><span class="h">313dcbc</span><span>2026-08-19</span><span class="s">auto: GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">8c06aca</span><span>2026-08-19</span><span class="s">auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正</span></li>
       <li><span class="h">cd2b700</span><span>2026-08-19</span><span class="s">auto: タイトル/クレジットのalgo project表記をtakutoruku1に統一</span></li>
       <li><span class="h">324909f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - タイトル/クレジットのalgo project表記を修正</span></li>
       <li><span class="h">167e499</span><span>2026-08-19</span><span class="s">auto: EPILOGUE鍵アカPW表記の矛盾を修正</span></li>
       <li><span class="h">d4da83b</span><span>2026-08-19</span><span class="s">auto: WIP着手 - EPILOGUE鍵アカPW表記の矛盾を修正</span></li>
-      <li><span class="h">9788f4d</span><span>2026-08-19</span><span class="s">auto: バックファイア機能の説明をHowToPlayに追加</span></li>
-      <li><span class="h">2ad9d0f</span><span>2026-08-19</span><span class="s">auto: WIP着手 - バックファイア機能の説明をHowToPlayに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-20 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
