@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-20 18:36 UTC",
+  "generated": "2026-08-20 18:40 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 80
+    "done": 81
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ",
-      "worker": "game-designer",
-      "accept": "`Panel.cs:88-104`の`OnAreaEntered`はInk減少ごとに`QueueRedraw()`のみを呼び音もフラッシュも発生しない。唯一の視覚反応（`_Draw`内`r=3.2+Ink*0.8`の同心円サイズ変化、`Panel.cs:138`）は`Panel.cs:137`の`if (_dead |  | _hasTex) return;`により、実プレイで使われる全敵のスプライト付きパネル（`_hasTex=true`）では丸ごとスキップされる。SEも`Panel.cs:121-123`の`Shatter()`（最後の1発のみ）でしか鳴らず途中のヒットは無音・無変化。一方ボス本体の無防備窓ヒットには`Enemy.cs:507,509,582,584`で`_hitFlashT`の発光＋`Audio.PlayBossHit`の即時反応があり、同じ「弾が当たった」行為への feedback が敵の部位によって非対称。パネルは全敵が最低1〜3枚持つ最頻出の被弾対象で、2〜3発中1〜2発が事実上「当たったか分からない」まま処理されている。受入条件：`OnAreaEntered`のInk減少時に軽量な打撃反応（`_sprite.Modulate`の一瞬白フラッシュ＋`Shatter`より控えめな短いSE）を追加し、剥がし工程の1発ごとに手応えを返す"
-    },
     {
       "priority": "P2",
       "title": "GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "パネル剥がしの1発ごとの手応え（音・光）がテクスチャ付き敵では実質ゼロ",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-20) `Panel.cs:24-25`に`_hitFlashT`/`HitFlashDur=0.09`を追加（`Enemy.cs:115-116`の同方式だが、パネルは連射で毎秒何度も当たるため0.16より短くして点滅を回避）。`Panel.cs:85-95`の`_PhysicsProcess`先頭で減衰し`_sprite.Modulate = new Color(m,m,m)`（`m = 1 + 1.6h`）で一瞬白飛びさせる。`Hud.BubblePaused`の早期returnより手前に置き、吹き出し表示中に白いまま固まるのを防止。`_hitFlashT<=0`のフレームで必ず素の色へ書き戻す。`_hasTex=false`の従来経路は`_sprite`がnullのため見た目完全不変（`_Draw`の同心円縮小が引き続き担当）。`Panel.cs:115-122`の`Ink>0`分岐に`_hitFlashT`セットと`Audio.Instance?.PlayStrip(light: true)`を追加。SEは新音源を足さず既存`SfxStrip`を`Audio.cs:440-447`で`PlayStrip(bool light=false)`のオプション引数化して流用（既存呼び出し`Bullet.cs:312`/`Panel.cs:143`はデフォルト引数で挙動不変）。light版は-27dB・ピッチ0.86-0.94の鈍い「コッ」で、剥離成立(-22dB・素ピッチ)への一段上がりを作る。ピッチを下へ寄せたのは、上へ寄せると`SynthGraze`(2100Hz、`Audio.cs:539`)と帯域が被り「かすった」情報を潰すため（理由は`Audio.cs`にコメントで残置）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**未確認**: Modulateの1.0超えによる白飛びはこのリポジトリに前例がなく、14pxスケールのパネルで一瞬が知覚できるかは実機未検証（弱ければ`Panel.cs:92`の係数1.6f→2.2f、または`Panel.cs:25`の0.09→0.12が調整点）"
+    },
     {
       "priority": "P2",
       "title": "ボムの雑魚一掃がノーリスクで通貨を稼げる無限ファームループになっている",
@@ -598,6 +598,16 @@
   ],
   "commits": [
     {
+      "hash": "2fde2c3",
+      "date": "2026-08-20",
+      "subject": "auto: WIP着手 - パネル剥がしの1発ごとの手応えを追加"
+    },
+    {
+      "hash": "569b6bd",
+      "date": "2026-08-20",
+      "subject": "auto: ボムの雑魚一掃報酬に上限を設けて無限ファームを抑止"
+    },
+    {
       "hash": "b8eef79",
       "date": "2026-08-20",
       "subject": "auto: WIP着手 - ボムの雑魚一掃ファームループに上限を設ける"
@@ -626,16 +636,6 @@
       "hash": "8c06aca",
       "date": "2026-08-19",
       "subject": "auto: WIP着手 - GameCamera.Hitstopの多重呼び出しレースを修正"
-    },
-    {
-      "hash": "cd2b700",
-      "date": "2026-08-19",
-      "subject": "auto: タイトル/クレジットのalgo project表記をtakutoruku1に統一"
-    },
-    {
-      "hash": "324909f",
-      "date": "2026-08-19",
-      "subject": "auto: WIP着手 - タイトル/クレジットのalgo project表記を修正"
     }
   ]
 }

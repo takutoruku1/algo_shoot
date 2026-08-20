@@ -438,8 +438,12 @@ public partial class Audio : Node
     public void PlaySpell()
         => AlertSe(SfxSpell, volDb: -14f);
     // ④パネル剥がし：軽い「コツッ」。浄化成立（PlayPurify）より一段軽い剥離音。
-    public void PlayStrip()
-        => Se(SfxStrip, volDb: -22f, pitch: _rng.RandfRange(0.97f, 1.04f));
+    //   light=true は「剥がれる前の1発」用。同じ音源を小音量・やや低ピッチにした鈍い「コッ」で、
+    //   削り→剥離成立が“低く小さい→高く大きい”の一段上がりに聞こえる。上へ寄せるとグレイズ
+    //   （2100Hz の鋭い「チッ」）と混ざるので、必ず下へ寄せること。
+    public void PlayStrip(bool light = false)
+        => Se(SfxStrip, volDb: light ? -27f : -22f,
+              pitch: light ? _rng.RandfRange(0.86f, 0.94f) : _rng.RandfRange(0.97f, 1.04f));
     // ⑪本体ヒット（無防備窓の撃ち込み）：中低域の「刺さる／ドスッ」。
     //   dmg>=3 は低音を重ねた重い版＝GameCamera.Shake と同期して決定打を映す。
     //   連射で毎フレーム鳴りうるので小音量・ピッチ微ゆらぎ。SEバス（剥離・被弾と音域を分ける）。
