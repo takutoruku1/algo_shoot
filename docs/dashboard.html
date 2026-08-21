@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 85 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 86 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">85</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">86</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる</span>
-          
-        </div>
-        <p class="accept"><code>tools/qa-bootstrap.sh:33-36</code>の初回import処理はGodotバイナリの有無のみチェックし<code>dotnet</code>コマンドの有無を確認していない。dotnet SDK不在のコンテナで実行すると<code>--import</code>が<code>dotnet: not found</code>→<code>Unable to load .NET runtime</code>→signal 11でクラッシュし、以後<code>.godot/imported</code>が作られずQAが完全に無出力のまま止まる（2026-08-21監査で実際に発生・<code>apt-get install -y dotnet-sdk-8.0</code>で解決確認済み、136MB取得で正常完了）。受入条件：<code>tools/qa-bootstrap.sh</code>冒頭に<code>command -v dotnet</code>チェックを追加し、無ければ<code>apt-get install -y dotnet-sdk-8.0</code>を試みるフォールバックを追加。<code>.claude/skills/qa-autoplay/SKILL.md</code>のLinux向け注記にも一言追記する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>tools/qa-bootstrap.sh:21-38</code>の冒頭（Godotバイナリチェックより前）に<code>command -v dotnet</code>チェックを追加。無ければ<code>sudo</code>があれば<code>sudo apt-get update -y &amp;&amp; sudo apt-get install -y dotnet-sdk-8.0</code>、無ければ直接<code>apt-get</code>で同じコマンドを試みる（各コマンドは<code> |  | true</code>で<code>set -e</code>を回避）。導入後も<code>dotnet</code>が見つからなければ理由メッセージを<code>stderr</code>に出して<code>exit 1</code>し、意味不明に落ちないようにした。<code>.claude/skills/qa-autoplay/SKILL.md:46</code>のLinux向け注記にdotnet自動導入フォールバックの一言を追記。<code>bash -n</code>構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存<code>.godot/imported</code>検出→正常終了を確認、<code>dotnet</code> をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み（src/配下は無変更）</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -993,18 +993,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">a356417</span><span>2026-08-21</span><span class="s">auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策</span></li>
+      <li><span class="h">c3aeee0</span><span>2026-08-21</span><span class="s">auto: 加速球モードの速射/貫通ノード横取りを修正</span></li>
       <li><span class="h">94e1c3a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正</span></li>
       <li><span class="h">2ab3d29</span><span>2026-08-21</span><span class="s">auto: GameCamera.Shake揺れ強度巻き戻りバグを修正</span></li>
       <li><span class="h">9bd437a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - GameCamera.Shake揺れ強度巻き戻りバグ修正</span></li>
       <li><span class="h">d925c69</span><span>2026-08-21</span><span class="s">auto: 監査で6件をキューに追加</span></li>
       <li><span class="h">17bfcbe</span><span>2026-08-20</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">ec58650</span><span>2026-08-21</span><span class="s">Merge pull request #7 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">cc3f08d</span><span>2026-08-20</span><span class="s">auto: QA環境ブートストラップスクリプトを追加</span></li>
-      <li><span class="h">42cee5b</span><span>2026-08-20</span><span class="s">auto: WIP着手 - QA環境ブートストラップスクリプトの追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-21 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

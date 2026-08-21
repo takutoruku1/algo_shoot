@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-21 18:27 UTC",
+  "generated": "2026-08-21 18:31 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 85
+    "done": 86
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる",
-      "worker": null,
-      "accept": "`tools/qa-bootstrap.sh:33-36`の初回import処理はGodotバイナリの有無のみチェックし`dotnet`コマンドの有無を確認していない。dotnet SDK不在のコンテナで実行すると`--import`が`dotnet: not found`→`Unable to load .NET runtime`→signal 11でクラッシュし、以後`.godot/imported`が作られずQAが完全に無出力のまま止まる（2026-08-21監査で実際に発生・`apt-get install -y dotnet-sdk-8.0`で解決確認済み、136MB取得で正常完了）。受入条件：`tools/qa-bootstrap.sh`冒頭に`command -v dotnet`チェックを追加し、無ければ`apt-get install -y dotnet-sdk-8.0`を試みるフォールバックを追加。`.claude/skills/qa-autoplay/SKILL.md`のLinux向け注記にも一言追記する"
-    },
     {
       "priority": "P2",
       "title": "プラットフォーム名「X」が実装2箇所のみ「Y」に化けている",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる",
+      "worker": null,
+      "accept": "(完了 2026-08-21) `tools/qa-bootstrap.sh:21-38`の冒頭（Godotバイナリチェックより前）に`command -v dotnet`チェックを追加。無ければ`sudo`があれば`sudo apt-get update -y && sudo apt-get install -y dotnet-sdk-8.0`、無ければ直接`apt-get`で同じコマンドを試みる（各コマンドは` |  | true`で`set -e`を回避）。導入後も`dotnet`が見つからなければ理由メッセージを`stderr`に出して`exit 1`し、意味不明に落ちないようにした。`.claude/skills/qa-autoplay/SKILL.md:46`のLinux向け注記にdotnet自動導入フォールバックの一言を追記。`bash -n`構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存`.godot/imported`検出→正常終了を確認、`dotnet` をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み（src/配下は無変更）"
+    },
     {
       "priority": "P2",
       "title": "加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている",
@@ -640,6 +640,16 @@
   ],
   "commits": [
     {
+      "hash": "a356417",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策"
+    },
+    {
+      "hash": "c3aeee0",
+      "date": "2026-08-21",
+      "subject": "auto: 加速球モードの速射/貫通ノード横取りを修正"
+    },
+    {
       "hash": "94e1c3a",
       "date": "2026-08-21",
       "subject": "auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正"
@@ -668,16 +678,6 @@
       "hash": "ec58650",
       "date": "2026-08-21",
       "subject": "Merge pull request #7 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "cc3f08d",
-      "date": "2026-08-20",
-      "subject": "auto: QA環境ブートストラップスクリプトを追加"
-    },
-    {
-      "hash": "42cee5b",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - QA環境ブートストラップスクリプトの追加"
     }
   ]
 }
