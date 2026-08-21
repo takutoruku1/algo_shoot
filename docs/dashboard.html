@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 87 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 88 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">87</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">88</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置</span>
-          
-        </div>
-        <p class="accept">DONEの「敵弾をキャラごとの形・サイズに描き分ける」（2026-08-14）で<code>BossRei.cs:253-283</code>ほかの<code>Aimed</code>系弾を半径3.0〜3.6から最大4.0まで拡大した際、当該DONE項目自身が「半径変更は<code>CollisionShape2D.Radius</code>に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）」と明記したまま未確認で放置されている。受入条件：<code>qa-autoplay</code>でRei/Akari/Koharu/Mina各ボスの<code>Aimed</code>系パターンを難易度別（特にLunatic）に実測し、被弾率・かすり率のログから「理不尽な密集」が生じていないか確認。異常なければDONE化、悪化していれば該当半径を3.6前後へ戻す調整をgame-designerへ差し戻す</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない</span>
           <span class="worker">scenario</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>qa-autoplay</code>でRei/Akari/Koharu/MinaBattleの<code>Aimed</code>系半径4.0拡大箇所（<code>BossRei.cs:274</code>/<code>BossAkari.cs:254</code>/<code>BossKoharu.cs:444</code>/<code>BossMina.cs:186</code>）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し<code>suspicious-hit</code>は0件、<code>low-fps</code>/<code>bullet-flood</code>/<code>stuck</code>/<code>player-oob</code>もいずれも0件、全ログ<code>[QA-SUMMARY] no anomalies flagged. clean run.</code>（<code>build/qa/{Rei,Akari,Koharu,MinaBattle}.log</code>、<code>build/qa/collide_{Rei,Akari,Koharu}_lunatic.log</code>等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -993,18 +993,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">68abacb</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証</span></li>
+      <li><span class="h">d57ca50</span><span>2026-08-21</span><span class="s">auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)</span></li>
       <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
       <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
       <li><span class="h">a356417</span><span>2026-08-21</span><span class="s">auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策</span></li>
       <li><span class="h">c3aeee0</span><span>2026-08-21</span><span class="s">auto: 加速球モードの速射/貫通ノード横取りを修正</span></li>
       <li><span class="h">94e1c3a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正</span></li>
       <li><span class="h">2ab3d29</span><span>2026-08-21</span><span class="s">auto: GameCamera.Shake揺れ強度巻き戻りバグを修正</span></li>
-      <li><span class="h">9bd437a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - GameCamera.Shake揺れ強度巻き戻りバグ修正</span></li>
-      <li><span class="h">d925c69</span><span>2026-08-21</span><span class="s">auto: 監査で6件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-21 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

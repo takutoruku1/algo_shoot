@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-21 18:33 UTC",
+  "generated": "2026-08-21 18:41 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 87
+    "done": 88
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置",
-      "worker": null,
-      "accept": "DONEの「敵弾をキャラごとの形・サイズに描き分ける」（2026-08-14）で`BossRei.cs:253-283`ほかの`Aimed`系弾を半径3.0〜3.6から最大4.0まで拡大した際、当該DONE項目自身が「半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）」と明記したまま未確認で放置されている。受入条件：`qa-autoplay`でRei/Akari/Koharu/Mina各ボスの`Aimed`系パターンを難易度別（特にLunatic）に実測し、被弾率・かすり率のログから「理不尽な密集」が生じていないか確認。異常なければDONE化、悪化していれば該当半径を3.6前後へ戻す調整をgame-designerへ差し戻す"
-    },
     {
       "priority": "P3",
       "title": "ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置",
+      "worker": null,
+      "accept": "(完了 2026-08-21) `qa-autoplay`でRei/Akari/Koharu/MinaBattleの`Aimed`系半径4.0拡大箇所（`BossRei.cs:274`/`BossAkari.cs:254`/`BossKoharu.cs:444`/`BossMina.cs:186`）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し`suspicious-hit`は0件、`low-fps`/`bullet-flood`/`stuck`/`player-oob`もいずれも0件、全ログ`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/{Rei,Akari,Koharu,MinaBattle}.log`、`build/qa/collide_{Rei,Akari,Koharu}_lunatic.log`等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要"
+    },
     {
       "priority": "P2",
       "title": "プラットフォーム名「X」が実装2箇所のみ「Y」に化けている",
@@ -640,6 +640,16 @@
   ],
   "commits": [
     {
+      "hash": "68abacb",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証"
+    },
+    {
+      "hash": "d57ca50",
+      "date": "2026-08-21",
+      "subject": "auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)"
+    },
+    {
       "hash": "9fa47ec",
       "date": "2026-08-21",
       "subject": "auto: WIP着手 - プラットフォーム名X/Y表記統一"
@@ -668,16 +678,6 @@
       "hash": "2ab3d29",
       "date": "2026-08-21",
       "subject": "auto: GameCamera.Shake揺れ強度巻き戻りバグを修正"
-    },
-    {
-      "hash": "9bd437a",
-      "date": "2026-08-21",
-      "subject": "auto: WIP着手 - GameCamera.Shake揺れ強度巻き戻りバグ修正"
-    },
-    {
-      "hash": "d925c69",
-      "date": "2026-08-21",
-      "subject": "auto: 監査で6件をキューに追加"
     }
   ]
 }

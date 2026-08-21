@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) 弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置 | game-designer→qa | DONEの「敵弾をキャラごとの形・サイズに描き分ける」（2026-08-14）で`BossRei.cs:253-283`ほかの`Aimed`系弾を半径3.0〜3.6から最大4.0まで拡大した際、当該DONE項目自身が「半径変更は`CollisionShape2D.Radius`に直結し当たり判定サイズが最大±20%変わるため、qa-autoplayでの体感難易度確認を推奨（QA未実施）」と明記したまま未確認で放置されている。受入条件：`qa-autoplay`でRei/Akari/Koharu/Mina各ボスの`Aimed`系パターンを難易度別（特にLunatic）に実測し、被弾率・かすり率のログから「理不尽な密集」が生じていないか確認。異常なければDONE化、悪化していれば該当半径を3.6前後へ戻す調整をgame-designerへ差し戻す
-
 
 
 
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) 弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置 | game-designer→qa | (完了 2026-08-21) `qa-autoplay`でRei/Akari/Koharu/MinaBattleの`Aimed`系半径4.0拡大箇所（`BossRei.cs:274`/`BossAkari.cs:254`/`BossKoharu.cs:444`/`BossMina.cs:186`）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し`suspicious-hit`は0件、`low-fps`/`bullet-flood`/`stuck`/`player-oob`もいずれも0件、全ログ`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/{Rei,Akari,Koharu,MinaBattle}.log`、`build/qa/collide_{Rei,Akari,Koharu}_lunatic.log`等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要
 - [x] (P2) プラットフォーム名「X」が実装2箇所のみ「Y」に化けている | scenario | (完了 2026-08-21) `src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の`:556`とは行番号がズレていた`Prologue.cs:554`の`DrawTitle`内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。`Key.X`等の物理キー入力判定は無関係のため対象外）。設計書側（`docs/20260613/MINA_シナリオ設計書_v2.md`§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる | qa→engineer | (完了 2026-08-21) `tools/qa-bootstrap.sh:21-38`の冒頭（Godotバイナリチェックより前）に`command -v dotnet`チェックを追加。無ければ`sudo`があれば`sudo apt-get update -y && sudo apt-get install -y dotnet-sdk-8.0`、無ければ直接`apt-get`で同じコマンドを試みる（各コマンドは`|| true`で`set -e`を回避）。導入後も`dotnet`が見つからなければ理由メッセージを`stderr`に出して`exit 1`し、意味不明に落ちないようにした。`.claude/skills/qa-autoplay/SKILL.md:46`のLinux向け注記にdotnet自動導入フォールバックの一言を追記。`bash -n`構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存`.godot/imported`検出→正常終了を確認、`dotnet` をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み（src/配下は無変更）
 - [x] (P2) 加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている | game-designer→engineer | (完了 2026-08-21) `Player.cs:603-609`の発射間隔算出`modeMul` switchに`GameManager.ShotMode.Accel => 1f`を明示追加し、default節経由で`RapidRateMul`（速射I/II、`rapid_rate_1/2`）が加速球へ横流れしないよう修正。`FireAccel`内の`ShotPierceCount`（`pierce_1`）の読み取り・`b.Pierce`代入を削除し、貫通を連射専用に戻した。`FireRapid`・Homing/Spread/Backfire・加速球専用ノード（`accel_power_1/2`/`accel_charge_1/2`/`accel_speed_1`）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施
