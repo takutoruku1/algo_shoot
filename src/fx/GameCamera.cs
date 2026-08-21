@@ -37,11 +37,18 @@ public partial class GameCamera : Camera2D
 
     // 多重呼び出し時は強さ・締切ともに「大きい方／遅い方」へ合流する（Hitstop と同方針）。
     // 残り時間を上書きすると、長い揺れの最中に短い揺れが割り込んだとき強さだけ残って早く終わる。
+    // ただし _shakeDur（減衰の分母）を更新してよいのは実際に締切が延長された場合だけ。
+    // dur <= _shakeT の割り込み（例: 大きな被弾シェイクの減衰中に小さなダメージシェイクが来る）で
+    // _shakeDur まで縮めると、次フレームの f=_shakeT/_shakeDur が 1.0 に跳ね上がり
+    // 振幅が満額へ巻き戻ってしまう。延長が起きないときは _shakeDur を据え置き f の連続性を保つ。
     public void Shake(float mag, float dur)
     {
         _shakeMag = Mathf.Max(_shakeMag, mag);
-        _shakeT = Mathf.Max(_shakeT, dur);
-        _shakeDur = _shakeT; // 減衰の分母は延長後の残り時間＝f は必ず 1 から落ちる
+        if (dur > _shakeT)
+        {
+            _shakeT = dur;
+            _shakeDur = dur; // 減衰の分母は延長後の残り時間＝f は必ず 1 から落ちる
+        }
     }
 
     private double _hitstopEndSec;
