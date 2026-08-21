@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-21 18:41 UTC
+> 生成: 2026-08-21 22:06 UTC
 
 ## 消化率
 
@@ -136,11 +136,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `d16d675` 2026-08-22 Merge pull request #8 from takutoruku1/auto/dev
+- `3960a60` 2026-08-21 auto: ストーリーロードマップS3の実装済み反映を追記
 - `6ad025a` 2026-08-21 auto: WIP着手 - ストーリーロードマップS3の実装済み反映
 - `0232f75` 2026-08-21 auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)
 - `68abacb` 2026-08-21 auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証
 - `d57ca50` 2026-08-21 auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)
 - `9fa47ec` 2026-08-21 auto: WIP着手 - プラットフォーム名X/Y表記統一
 - `2668f1e` 2026-08-21 auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加
-- `a356417` 2026-08-21 auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策
-- `c3aeee0` 2026-08-21 auto: 加速球モードの速射/貫通ノード横取りを修正

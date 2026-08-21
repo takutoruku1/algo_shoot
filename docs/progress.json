@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-21 18:41 UTC",
+  "generated": "2026-08-21 22:06 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -639,6 +639,16 @@
   ],
   "commits": [
     {
+      "hash": "d16d675",
+      "date": "2026-08-22",
+      "subject": "Merge pull request #8 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "3960a60",
+      "date": "2026-08-21",
+      "subject": "auto: ストーリーロードマップS3の実装済み反映を追記"
+    },
+    {
       "hash": "6ad025a",
       "date": "2026-08-21",
       "subject": "auto: WIP着手 - ストーリーロードマップS3の実装済み反映"
@@ -667,16 +677,6 @@
       "hash": "2668f1e",
       "date": "2026-08-21",
       "subject": "auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加"
-    },
-    {
-      "hash": "a356417",
-      "date": "2026-08-21",
-      "subject": "auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策"
-    },
-    {
-      "hash": "c3aeee0",
-      "date": "2026-08-21",
-      "subject": "auto: 加速球モードの速射/貫通ノード横取りを修正"
     }
   ]
 }
