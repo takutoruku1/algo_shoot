@@ -33,7 +33,6 @@
 
 ## WIP
 
-- [ ] (P2) プラットフォーム名「X」が実装2箇所のみ「Y」に化けている | scenario | 正典`docs/20260613/MINA_シナリオ設計書_v2.md:31`「『Xに蔓延る闇を成敗する』と嘯いて」および`:310`【地】「Xの闇を成敗するなどと言いながら」（世界観まとめ・`Hub.cs:4,547,573,679,820`のコメント「X風タブ」等も一貫して「X」）に対し、実装は`src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」および`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」の2行だけ「Y」表記になっている。孤立した誤字/誤変換の疑い。受入条件：`Epilogue.cs:134`と`Prologue.cs:143`（および`:556`の`DrawTitle`表示があれば同様に）の「Y」を「X」に統一する（意図的な改名だった場合はその根拠を明記の上で逆に設計書側を揃える）。ドキュメント/コード双方の表記を一致させること
 
 
 
@@ -57,6 +56,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) プラットフォーム名「X」が実装2箇所のみ「Y」に化けている | scenario | (完了 2026-08-21) `src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の`:556`とは行番号がズレていた`Prologue.cs:554`の`DrawTitle`内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。`Key.X`等の物理キー入力判定は無関係のため対象外）。設計書側（`docs/20260613/MINA_シナリオ設計書_v2.md`§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる | qa→engineer | (完了 2026-08-21) `tools/qa-bootstrap.sh:21-38`の冒頭（Godotバイナリチェックより前）に`command -v dotnet`チェックを追加。無ければ`sudo`があれば`sudo apt-get update -y && sudo apt-get install -y dotnet-sdk-8.0`、無ければ直接`apt-get`で同じコマンドを試みる（各コマンドは`|| true`で`set -e`を回避）。導入後も`dotnet`が見つからなければ理由メッセージを`stderr`に出して`exit 1`し、意味不明に落ちないようにした。`.claude/skills/qa-autoplay/SKILL.md:46`のLinux向け注記にdotnet自動導入フォールバックの一言を追記。`bash -n`構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存`.godot/imported`検出→正常終了を確認、`dotnet` をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み（src/配下は無変更）
 - [x] (P2) 加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている | game-designer→engineer | (完了 2026-08-21) `Player.cs:603-609`の発射間隔算出`modeMul` switchに`GameManager.ShotMode.Accel => 1f`を明示追加し、default節経由で`RapidRateMul`（速射I/II、`rapid_rate_1/2`）が加速球へ横流れしないよう修正。`FireAccel`内の`ShotPierceCount`（`pierce_1`）の読み取り・`b.Pierce`代入を削除し、貫通を連射専用に戻した。`FireRapid`・Homing/Spread/Backfire・加速球専用ノード（`accel_power_1/2`/`accel_charge_1/2`/`accel_speed_1`）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施
 - [x] (P2) GameCamera.Shakeが2026-08-20の「合流方式」修正で、多重呼び出し時に毎回`_shakeDur`を上書きするため小さい揺れが直前の大きな揺れの強さへ何度でも巻き戻る | engineer | (完了 2026-08-21) `src/fx/GameCamera.cs:40-48`の`Shake(mag,dur)`を修正。従来は`_shakeMag`をMax合流した後、呼び出しのたびに無条件で`_shakeDur = _shakeT`を実行していたため、大きな揺れの減衰途中に短い`dur`の小さな揺れが割り込むと`_shakeDur`が現在の残り時間まで縮み、次フレームで`f=_shakeT/_shakeDur`が1.0へ跳ね上がり`_shakeMag`（Maxで維持された大きい方）が満額で再生されてしまっていた。`dur > _shakeT`（＝実際に締切が延長される場合）のときだけ`_shakeT`と`_shakeDur`を更新するよう変更し、それ以外（短い揺れの割り込み）では`_shakeDur`を据え置くことで`f`が連続的に減衰し続けるようにした。`Enemy.cs:511`/`Player.cs:1310`等の呼び出し元・`Hitstop`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（qa-autoplay）での目視確認は未実施

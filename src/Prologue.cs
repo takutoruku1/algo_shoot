@@ -140,7 +140,7 @@ public partial class Prologue : Node2D
 
         // ③ 使命（“成敗”でなく具体の引きで体感させる）
         T("少年", "じゃあ MINA。さっそく、仕事の話をしよう。", FCocky);
-        T("少年", "……ここを見てくれ。Yの——タイムラインだ。", FGentle);
+        T("少年", "……ここを見てくれ。Xの——タイムラインだ。", FGentle);
         T("少年", "毎日、何万って言葉が流れてる。『楽しい』『つらい』『消えたい』。……その奥に、ぜんぶ、本物の心がある。", FGentle);
         T("ミナ", "……声にならない、叫び。", FMina);
         T("少年", "そう。きみは、そこへ潜っていける。声の奥の、いちばん深いところへ。", FProud);
@@ -551,7 +551,7 @@ public partial class Prologue : Node2D
     {
         if (_font == null) return;
         float a = Mathf.Clamp((float)_t / 1.0f, 0f, 1f);
-        DrawString(_font, new Vector2(0, 78f), "Y — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
+        DrawString(_font, new Vector2(0, 78f), "X — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
             new Color(0.9f, 0.92f, 1f, a));
         DrawString(_font, new Vector2(0, 104f), "STAGE 1 : レイ", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(Cool.R, Cool.G, Cool.B, a * 0.9f));

@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 86 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 87 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">86</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">87</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">プラットフォーム名「X」が実装2箇所のみ「Y」に化けている</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">正典<code>docs/20260613/MINA_シナリオ設計書_v2.md:31</code>「『Xに蔓延る闇を成敗する』と嘯いて」および<code>:310</code>【地】「Xの闇を成敗するなどと言いながら」（世界観まとめ・<code>Hub.cs:4,547,573,679,820</code>のコメント「X風タブ」等も一貫して「X」）に対し、実装は<code>src/Epilogue.cs:134</code>「Yの闇を成敗するなどと言いながら」および<code>src/Prologue.cs:143</code>「……ここを見てくれ。Yの——タイムラインだ。」の2行だけ「Y」表記になっている。孤立した誤字/誤変換の疑い。受入条件：<code>Epilogue.cs:134</code>と<code>Prologue.cs:143</code>（および<code>:556</code>の<code>DrawTitle</code>表示があれば同様に）の「Y」を「X」に統一する（意図的な改名だった場合はその根拠を明記の上で逆に設計書側を揃える）。ドキュメント/コード双方の表記を一致させること</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">プラットフォーム名「X」が実装2箇所のみ「Y」に化けている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>src/Epilogue.cs:134</code>「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、<code>src/Prologue.cs:143</code>「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の<code>:556</code>とは行番号がズレていた<code>Prologue.cs:554</code>の<code>DrawTitle</code>内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。<code>Key.X</code>等の物理キー入力判定は無関係のため対象外）。設計書側（<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -993,18 +993,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
+      <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
       <li><span class="h">a356417</span><span>2026-08-21</span><span class="s">auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策</span></li>
       <li><span class="h">c3aeee0</span><span>2026-08-21</span><span class="s">auto: 加速球モードの速射/貫通ノード横取りを修正</span></li>
       <li><span class="h">94e1c3a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正</span></li>
       <li><span class="h">2ab3d29</span><span>2026-08-21</span><span class="s">auto: GameCamera.Shake揺れ強度巻き戻りバグを修正</span></li>
       <li><span class="h">9bd437a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - GameCamera.Shake揺れ強度巻き戻りバグ修正</span></li>
       <li><span class="h">d925c69</span><span>2026-08-21</span><span class="s">auto: 監査で6件をキューに追加</span></li>
-      <li><span class="h">17bfcbe</span><span>2026-08-20</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">ec58650</span><span>2026-08-21</span><span class="s">Merge pull request #7 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-21 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

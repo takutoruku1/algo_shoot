@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-21 18:31 UTC",
+  "generated": "2026-08-21 18:33 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 86
+    "done": 87
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "プラットフォーム名「X」が実装2箇所のみ「Y」に化けている",
-      "worker": "scenario",
-      "accept": "正典`docs/20260613/MINA_シナリオ設計書_v2.md:31`「『Xに蔓延る闇を成敗する』と嘯いて」および`:310`【地】「Xの闇を成敗するなどと言いながら」（世界観まとめ・`Hub.cs:4,547,573,679,820`のコメント「X風タブ」等も一貫して「X」）に対し、実装は`src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」および`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」の2行だけ「Y」表記になっている。孤立した誤字/誤変換の疑い。受入条件：`Epilogue.cs:134`と`Prologue.cs:143`（および`:556`の`DrawTitle`表示があれば同様に）の「Y」を「X」に統一する（意図的な改名だった場合はその根拠を明記の上で逆に設計書側を揃える）。ドキュメント/コード双方の表記を一致させること"
-    },
     {
       "priority": "P3",
       "title": "弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "プラットフォーム名「X」が実装2箇所のみ「Y」に化けている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-21) `src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の`:556`とは行番号がズレていた`Prologue.cs:554`の`DrawTitle`内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。`Key.X`等の物理キー入力判定は無関係のため対象外）。設計書側（`docs/20260613/MINA_シナリオ設計書_v2.md`§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる",
@@ -640,6 +640,16 @@
   ],
   "commits": [
     {
+      "hash": "9fa47ec",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - プラットフォーム名X/Y表記統一"
+    },
+    {
+      "hash": "2668f1e",
+      "date": "2026-08-21",
+      "subject": "auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加"
+    },
+    {
       "hash": "a356417",
       "date": "2026-08-21",
       "subject": "auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策"
@@ -668,16 +678,6 @@
       "hash": "d925c69",
       "date": "2026-08-21",
       "subject": "auto: 監査で6件をキューに追加"
-    },
-    {
-      "hash": "17bfcbe",
-      "date": "2026-08-20",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "ec58650",
-      "date": "2026-08-21",
-      "subject": "Merge pull request #7 from takutoruku1/auto/dev"
     }
   ]
 }
