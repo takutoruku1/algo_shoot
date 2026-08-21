@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-20 22:07 UTC",
+  "generated": "2026-08-21 18:41 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 83
+    "done": 89
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,42 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-21) `docs/ストーリー見直しロードマップ.md`のS3見出しに「（反転演出は実装済み・2026-08-21確認）」を追記し、該当チェック項目`- [ ]`を`- [x]`へ変更、根拠（`StageImagery.cs:453,484,529`の`DrawReiReversal/DrawAkariReversal/DrawKoharuReversal`、`BossRei.cs:379`/`BossAkari.cs:343`/`BossKoharu.cs:545`からの`TriggerReversal()`呼び出し）を注記として追加。他のS3チェック項目（ミナの一言・弾幕モチーフ文言集）は未検証のため対象外・据え置き。ドキュメントのみの変更でビルド影響なし"
+    },
+    {
+      "priority": "P3",
+      "title": "弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置",
+      "worker": null,
+      "accept": "(完了 2026-08-21) `qa-autoplay`でRei/Akari/Koharu/MinaBattleの`Aimed`系半径4.0拡大箇所（`BossRei.cs:274`/`BossAkari.cs:254`/`BossKoharu.cs:444`/`BossMina.cs:186`）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し`suspicious-hit`は0件、`low-fps`/`bullet-flood`/`stuck`/`player-oob`もいずれも0件、全ログ`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/{Rei,Akari,Koharu,MinaBattle}.log`、`build/qa/collide_{Rei,Akari,Koharu}_lunatic.log`等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要"
+    },
+    {
+      "priority": "P2",
+      "title": "プラットフォーム名「X」が実装2箇所のみ「Y」に化けている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-21) `src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の`:556`とは行番号がズレていた`Prologue.cs:554`の`DrawTitle`内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。`Key.X`等の物理キー入力判定は無関係のため対象外）。設計書側（`docs/20260613/MINA_シナリオ設計書_v2.md`§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる",
+      "worker": null,
+      "accept": "(完了 2026-08-21) `tools/qa-bootstrap.sh:21-38`の冒頭（Godotバイナリチェックより前）に`command -v dotnet`チェックを追加。無ければ`sudo`があれば`sudo apt-get update -y && sudo apt-get install -y dotnet-sdk-8.0`、無ければ直接`apt-get`で同じコマンドを試みる（各コマンドは` |  | true`で`set -e`を回避）。導入後も`dotnet`が見つからなければ理由メッセージを`stderr`に出して`exit 1`し、意味不明に落ちないようにした。`.claude/skills/qa-autoplay/SKILL.md:46`のLinux向け注記にdotnet自動導入フォールバックの一言を追記。`bash -n`構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存`.godot/imported`検出→正常終了を確認、`dotnet` をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み（src/配下は無変更）"
+    },
+    {
+      "priority": "P2",
+      "title": "加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている",
+      "worker": null,
+      "accept": "(完了 2026-08-21) `Player.cs:603-609`の発射間隔算出`modeMul` switchに`GameManager.ShotMode.Accel => 1f`を明示追加し、default節経由で`RapidRateMul`（速射I/II、`rapid_rate_1/2`）が加速球へ横流れしないよう修正。`FireAccel`内の`ShotPierceCount`（`pierce_1`）の読み取り・`b.Pierce`代入を削除し、貫通を連射専用に戻した。`FireRapid`・Homing/Spread/Backfire・加速球専用ノード（`accel_power_1/2`/`accel_charge_1/2`/`accel_speed_1`）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施"
+    },
+    {
+      "priority": "P2",
+      "title": "GameCamera.Shakeが2026-08-20の「合流方式」修正で、多重呼び出し時に毎回`_shakeDur`を上書きするため小さい揺れが直前の大きな揺れの強さへ何度でも巻き戻る",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-21) `src/fx/GameCamera.cs:40-48`の`Shake(mag,dur)`を修正。従来は`_shakeMag`をMax合流した後、呼び出しのたびに無条件で`_shakeDur = _shakeT`を実行していたため、大きな揺れの減衰途中に短い`dur`の小さな揺れが割り込むと`_shakeDur`が現在の残り時間まで縮み、次フレームで`f=_shakeT/_shakeDur`が1.0へ跳ね上がり`_shakeMag`（Maxで維持された大きい方）が満額で再生されてしまっていた。`dur > _shakeT`（＝実際に締切が延長される場合）のときだけ`_shakeT`と`_shakeDur`を更新するよう変更し、それ以外（短い揺れの割り込み）では`_shakeDur`を据え置くことで`f`が連続的に減衰し続けるようにした。`Enemy.cs:511`/`Player.cs:1310`等の呼び出し元・`Hitstop`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（qa-autoplay）での目視確認は未実施"
+    },
     {
       "priority": "P3",
       "title": "夜間QAのたびにGodotの手動セットアップが要りブートストラップが再現できない",
@@ -603,44 +639,44 @@
   ],
   "commits": [
     {
-      "hash": "ec58650",
+      "hash": "6ad025a",
       "date": "2026-08-21",
-      "subject": "Merge pull request #7 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 - ストーリーロードマップS3の実装済み反映"
     },
     {
-      "hash": "cc3f08d",
-      "date": "2026-08-20",
-      "subject": "auto: QA環境ブートストラップスクリプトを追加"
+      "hash": "0232f75",
+      "date": "2026-08-21",
+      "subject": "auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)"
     },
     {
-      "hash": "42cee5b",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - QA環境ブートストラップスクリプトの追加"
+      "hash": "68abacb",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証"
     },
     {
-      "hash": "6042cd7",
-      "date": "2026-08-20",
-      "subject": "auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加"
+      "hash": "d57ca50",
+      "date": "2026-08-21",
+      "subject": "auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)"
     },
     {
-      "hash": "06e56d3",
-      "date": "2026-08-20",
-      "subject": "auto: GameCamera.Shake修正のDONE記録を補完"
+      "hash": "9fa47ec",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - プラットフォーム名X/Y表記統一"
     },
     {
-      "hash": "3cb0be2",
-      "date": "2026-08-20",
-      "subject": "auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正"
+      "hash": "2668f1e",
+      "date": "2026-08-21",
+      "subject": "auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加"
     },
     {
-      "hash": "3dddee6",
-      "date": "2026-08-20",
-      "subject": "auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消"
+      "hash": "a356417",
+      "date": "2026-08-21",
+      "subject": "auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策"
     },
     {
-      "hash": "a4e5d6c",
-      "date": "2026-08-20",
-      "subject": "auto: パネル剥がしの1発ごとに発光と軽いSEを追加"
+      "hash": "c3aeee0",
+      "date": "2026-08-21",
+      "subject": "auto: 加速球モードの速射/貫通ノード横取りを修正"
     }
   ]
 }

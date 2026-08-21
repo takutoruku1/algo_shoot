@@ -43,6 +43,7 @@ description: Auto-play this Godot/.NET game headlessly and scan for bugs — wei
 
 > **Linux コンテナ（夜間クラウド実行など）では `tools/qa-bootstrap.sh` を使う。** 下の手順は Windows のローカル環境前提。
 > コンテナには Godot が無く `.godot/` も gitignore なので、素で起動すると**インポートが走り切らず無出力のまま固まる**。
+> `dotnet` SDK が無い環境だと `--import` が signal 11 で即死して同じ無出力停止になるので、`qa-bootstrap.sh` は冒頭で `command -v dotnet` を確認し、無ければ `apt-get install -y dotnet-sdk-8.0` を自動で試みる（失敗時は理由を出して exit するので、その場合は手動導入が必要）。
 > ```bash
 > tools/qa-bootstrap.sh                        # Godot 取得＋初回 import まで（既にあれば再取得しない）
 > tools/qa-bootstrap.sh Rei --hard --seconds 45   # res://Rei.tscn を QA 起動 → build/qa/Rei.log

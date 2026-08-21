@@ -18,6 +18,25 @@ GODOT="$CACHE/$DIRNAME/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64"
 # tuxfamily と builds.dotnet.microsoft.com はプロキシポリシーで 403。GitHub releases は通る。
 URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${DIRNAME}.zip"
 
+# dotnet SDK が無いと後段の `--import`（C# ビルドを内部で走らせる）が
+# `dotnet: not found` → `Unable to load .NET runtime` → signal 11 で即クラッシュし、
+# .godot/imported が作られないまま QA が完全に無出力で止まる（2026-08-21 監査で実際に発生）。
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "[qa-bootstrap] dotnet が見つからない（このまま --import すると signal 11 で無出力停止する）。導入を試みる: apt-get install -y dotnet-sdk-8.0"
+  if command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update -y || true
+    sudo apt-get install -y dotnet-sdk-8.0 || true
+  else
+    apt-get update -y || true
+    apt-get install -y dotnet-sdk-8.0 || true
+  fi
+  if ! command -v dotnet >/dev/null 2>&1; then
+    echo "[qa-bootstrap] dotnet の自動導入に失敗した（権限不足かネットワーク不通の可能性）。手動で dotnet SDK 8 系を導入してから再実行すること。" >&2
+    exit 1
+  fi
+  echo "[qa-bootstrap] dotnet 導入完了: $(command -v dotnet)"
+fi
+
 if [[ ! -x "$GODOT" ]]; then
   echo "[qa-bootstrap] Godot ${GODOT_VERSION} が無いので取得する: $URL"
   mkdir -p "$CACHE"

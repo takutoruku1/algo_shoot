@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 83 / 対象 83 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 89 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">83</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">89</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,54 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>docs/ストーリー見直しロードマップ.md</code>のS3見出しに「（反転演出は実装済み・2026-08-21確認）」を追記し、該当チェック項目<code>- [ ]</code>を<code>- [x]</code>へ変更、根拠（<code>StageImagery.cs:453,484,529</code>の<code>DrawReiReversal/DrawAkariReversal/DrawKoharuReversal</code>、<code>BossRei.cs:379</code>/<code>BossAkari.cs:343</code>/<code>BossKoharu.cs:545</code>からの<code>TriggerReversal()</code>呼び出し）を注記として追加。他のS3チェック項目（ミナの一言・弾幕モチーフ文言集）は未検証のため対象外・据え置き。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>qa-autoplay</code>でRei/Akari/Koharu/MinaBattleの<code>Aimed</code>系半径4.0拡大箇所（<code>BossRei.cs:274</code>/<code>BossAkari.cs:254</code>/<code>BossKoharu.cs:444</code>/<code>BossMina.cs:186</code>）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し<code>suspicious-hit</code>は0件、<code>low-fps</code>/<code>bullet-flood</code>/<code>stuck</code>/<code>player-oob</code>もいずれも0件、全ログ<code>[QA-SUMMARY] no anomalies flagged. clean run.</code>（<code>build/qa/{Rei,Akari,Koharu,MinaBattle}.log</code>、<code>build/qa/collide_{Rei,Akari,Koharu}_lunatic.log</code>等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">プラットフォーム名「X」が実装2箇所のみ「Y」に化けている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>src/Epilogue.cs:134</code>「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、<code>src/Prologue.cs:143</code>「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の<code>:556</code>とは行番号がズレていた<code>Prologue.cs:554</code>の<code>DrawTitle</code>内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。<code>Key.X</code>等の物理キー入力判定は無関係のため対象外）。設計書側（<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">qa-bootstrap.shがdotnet SDK未導入環境でGodot importをSIGSEGVさせ、QAが一切実行できなくなる</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>tools/qa-bootstrap.sh:21-38</code>の冒頭（Godotバイナリチェックより前）に<code>command -v dotnet</code>チェックを追加。無ければ<code>sudo</code>があれば<code>sudo apt-get update -y &amp;&amp; sudo apt-get install -y dotnet-sdk-8.0</code>、無ければ直接<code>apt-get</code>で同じコマンドを試みる（各コマンドは<code> |  | true</code>で<code>set -e</code>を回避）。導入後も<code>dotnet</code>が見つからなければ理由メッセージを<code>stderr</code>に出して<code>exit 1</code>し、意味不明に落ちないようにした。<code>.claude/skills/qa-autoplay/SKILL.md:46</code>のLinux向け注記にdotnet自動導入フォールバックの一言を追記。<code>bash -n</code>構文チェック通過、この環境（dotnet導入済み）で実行し無言で素通り→既存<code>.godot/imported</code>検出→正常終了を確認、<code>dotnet</code> をPATHから隠したモック環境でのフォールバック分岐（導入失敗時exit 1／導入成功時継続）も単体検証済み。実際にdotnet SDKが皆無の環境でのend-to-end再現は未確認。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み（src/配下は無変更）</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>Player.cs:603-609</code>の発射間隔算出<code>modeMul</code> switchに<code>GameManager.ShotMode.Accel =&gt; 1f</code>を明示追加し、default節経由で<code>RapidRateMul</code>（速射I/II、<code>rapid_rate_1/2</code>）が加速球へ横流れしないよう修正。<code>FireAccel</code>内の<code>ShotPierceCount</code>（<code>pierce_1</code>）の読み取り・<code>b.Pierce</code>代入を削除し、貫通を連射専用に戻した。<code>FireRapid</code>・Homing/Spread/Backfire・加速球専用ノード（<code>accel_power_1/2</code>/<code>accel_charge_1/2</code>/<code>accel_speed_1</code>）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">GameCamera.Shakeが2026-08-20の「合流方式」修正で、多重呼び出し時に毎回<code>_shakeDur</code>を上書きするため小さい揺れが直前の大きな揺れの強さへ何度でも巻き戻る</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>src/fx/GameCamera.cs:40-48</code>の<code>Shake(mag,dur)</code>を修正。従来は<code>_shakeMag</code>をMax合流した後、呼び出しのたびに無条件で<code>_shakeDur = _shakeT</code>を実行していたため、大きな揺れの減衰途中に短い<code>dur</code>の小さな揺れが割り込むと<code>_shakeDur</code>が現在の残り時間まで縮み、次フレームで<code>f=_shakeT/_shakeDur</code>が1.0へ跳ね上がり<code>_shakeMag</code>（Maxで維持された大きい方）が満額で再生されてしまっていた。<code>dur &gt; _shakeT</code>（＝実際に締切が延長される場合）のときだけ<code>_shakeT</code>と<code>_shakeDur</code>を更新するよう変更し、それ以外（短い揺れの割り込み）では<code>_shakeDur</code>を据え置くことで<code>f</code>が連続的に減衰し続けるようにした。<code>Enemy.cs:511</code>/<code>Player.cs:1310</code>等の呼び出し元・<code>Hitstop</code>ロジックは無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機（qa-autoplay）での目視確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -945,18 +993,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">ec58650</span><span>2026-08-21</span><span class="s">Merge pull request #7 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">cc3f08d</span><span>2026-08-20</span><span class="s">auto: QA環境ブートストラップスクリプトを追加</span></li>
-      <li><span class="h">42cee5b</span><span>2026-08-20</span><span class="s">auto: WIP着手 - QA環境ブートストラップスクリプトの追加</span></li>
-      <li><span class="h">6042cd7</span><span>2026-08-20</span><span class="s">auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加</span></li>
-      <li><span class="h">06e56d3</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shake修正のDONE記録を補完</span></li>
-      <li><span class="h">3cb0be2</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shakeを締切max合流へ揃え、mag残留バグも修正</span></li>
-      <li><span class="h">3dddee6</span><span>2026-08-20</span><span class="s">auto: WIP着手 - GameCamera.Shake/Hitstopのコメント矛盾を解消</span></li>
-      <li><span class="h">a4e5d6c</span><span>2026-08-20</span><span class="s">auto: パネル剥がしの1発ごとに発光と軽いSEを追加</span></li>
+      <li><span class="h">6ad025a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - ストーリーロードマップS3の実装済み反映</span></li>
+      <li><span class="h">0232f75</span><span>2026-08-21</span><span class="s">auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)</span></li>
+      <li><span class="h">68abacb</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証</span></li>
+      <li><span class="h">d57ca50</span><span>2026-08-21</span><span class="s">auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)</span></li>
+      <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
+      <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
+      <li><span class="h">a356417</span><span>2026-08-21</span><span class="s">auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策</span></li>
+      <li><span class="h">c3aeee0</span><span>2026-08-21</span><span class="s">auto: 加速球モードの速射/貫通ノード横取りを修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-20 22:07 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-21 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
