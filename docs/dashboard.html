@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 88 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 89 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">88</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">89</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/ストーリー見直しロードマップ.md:53</code>の見出し「## S3 — 改心の「画の反転」ビート追加」および<code>:57</code>のチェック項目が未了(<code>- [ ]</code>)のままだが、実装は既に完了・配線済み：<code>src/StageImagery.cs:453</code> <code>DrawReiReversal()</code>、<code>:484</code> <code>DrawAkariReversal()</code>、<code>:529</code> <code>DrawKoharuReversal()</code>が実装され、<code>BossRei.cs:379</code>/<code>BossAkari.cs:343</code>/<code>BossKoharu.cs:545</code>の撃破処理から<code>TriggerReversal()</code>が呼ばれている。受入条件：ロードマップのS3セクション（<code>docs/ストーリー見直しロードマップ.md:53-60</code>）の該当チェック項目に「実装済み」の注記（根拠のsrc:行付き）を追加し、見出しの進行状態表記を実態に合わせて更新する。ドキュメントのみの修正でビルド影響なし</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>docs/ストーリー見直しロードマップ.md</code>のS3見出しに「（反転演出は実装済み・2026-08-21確認）」を追記し、該当チェック項目<code>- [ ]</code>を<code>- [x]</code>へ変更、根拠（<code>StageImagery.cs:453,484,529</code>の<code>DrawReiReversal/DrawAkariReversal/DrawKoharuReversal</code>、<code>BossRei.cs:379</code>/<code>BossAkari.cs:343</code>/<code>BossKoharu.cs:545</code>からの<code>TriggerReversal()</code>呼び出し）を注記として追加。他のS3チェック項目（ミナの一言・弾幕モチーフ文言集）は未検証のため対象外・据え置き。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -993,14 +993,14 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6ad025a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - ストーリーロードマップS3の実装済み反映</span></li>
+      <li><span class="h">0232f75</span><span>2026-08-21</span><span class="s">auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)</span></li>
       <li><span class="h">68abacb</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証</span></li>
       <li><span class="h">d57ca50</span><span>2026-08-21</span><span class="s">auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)</span></li>
       <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
       <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
       <li><span class="h">a356417</span><span>2026-08-21</span><span class="s">auto: WIP着手 - qa-bootstrap.shのdotnet未導入時SIGSEGV対策</span></li>
       <li><span class="h">c3aeee0</span><span>2026-08-21</span><span class="s">auto: 加速球モードの速射/貫通ノード横取りを修正</span></li>
-      <li><span class="h">94e1c3a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正</span></li>
-      <li><span class="h">2ab3d29</span><span>2026-08-21</span><span class="s">auto: GameCamera.Shake揺れ強度巻き戻りバグを修正</span></li>
     </ul>
   </section>
 
