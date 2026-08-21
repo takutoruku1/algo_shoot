@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">94<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 84 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 85 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 94パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">84</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">85</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている</span>
-          
-        </div>
-        <p class="accept"><code>Player.cs:603-609</code>の発射間隔算出<code>modeMul</code> switchは<code>Homing</code>/<code>Spread</code>は専用ケースを持つが<code>Accel</code>にはケースが無くdefault（<code>_game?.RapidRateMul</code>）に落ち、ショップ説明文「<strong>連射モード</strong>の間隔×0.94/0.88」（<code>GameManager.cs:397-398</code>、ノード<code>rapid_rate_1/2</code>）が加速球にも掛かる。加えて<code>Player.cs:891,897</code>の<code>FireAccel</code>が<code>_game?.ShotPierceCount</code>（説明文「<strong>連射弾</strong>が敵1体を貫通」<code>GameManager.cs:399</code>、ノード<code>pierce_1</code>）を読んで加速球弾にも貫通を付与している。ショップ説明文と実挙動が食い違う（親切設計違反）。受入条件：(A案・推奨=最小修正) <code>FireAccel</code>から<code>ShotPierceCount</code>の適用を外し貫通を連射専用に戻す／<code>Player.cs:603-609</code>のswitchに<code>GameManager.ShotMode.Accel =&gt; 1f</code>を明示追加し<code>RapidRateMul</code>の横流れを止める。修正後、ショップ説明文と実挙動が一致することを確認。<code>dotnet build algo_shoot.sln</code>通過必須</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-21) <code>Player.cs:603-609</code>の発射間隔算出<code>modeMul</code> switchに<code>GameManager.ShotMode.Accel =&gt; 1f</code>を明示追加し、default節経由で<code>RapidRateMul</code>（速射I/II、<code>rapid_rate_1/2</code>）が加速球へ横流れしないよう修正。<code>FireAccel</code>内の<code>ShotPierceCount</code>（<code>pierce_1</code>）の読み取り・<code>b.Pierce</code>代入を削除し、貫通を連射専用に戻した。<code>FireRapid</code>・Homing/Spread/Backfire・加速球専用ノード（<code>accel_power_1/2</code>/<code>accel_charge_1/2</code>/<code>accel_speed_1</code>）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -993,18 +993,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">94e1c3a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 加速球モードの速射/貫通ノード横取り修正</span></li>
+      <li><span class="h">2ab3d29</span><span>2026-08-21</span><span class="s">auto: GameCamera.Shake揺れ強度巻き戻りバグを修正</span></li>
       <li><span class="h">9bd437a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - GameCamera.Shake揺れ強度巻き戻りバグ修正</span></li>
       <li><span class="h">d925c69</span><span>2026-08-21</span><span class="s">auto: 監査で6件をキューに追加</span></li>
       <li><span class="h">17bfcbe</span><span>2026-08-20</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">ec58650</span><span>2026-08-21</span><span class="s">Merge pull request #7 from takutoruku1/auto/dev</span></li>
       <li><span class="h">cc3f08d</span><span>2026-08-20</span><span class="s">auto: QA環境ブートストラップスクリプトを追加</span></li>
       <li><span class="h">42cee5b</span><span>2026-08-20</span><span class="s">auto: WIP着手 - QA環境ブートストラップスクリプトの追加</span></li>
-      <li><span class="h">6042cd7</span><span>2026-08-20</span><span class="s">auto: 監査の追加報告(QA環境ブートストラップ)をキューに追加</span></li>
-      <li><span class="h">06e56d3</span><span>2026-08-20</span><span class="s">auto: GameCamera.Shake修正のDONE記録を補完</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 18:25 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-21 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

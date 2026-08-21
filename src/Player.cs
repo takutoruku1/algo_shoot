@@ -604,6 +604,7 @@ public partial class Player : Area2D
             {
                 GameManager.ShotMode.Homing => _game?.HomingRateMul ?? 1.55f,
                 GameManager.ShotMode.Spread => _game?.SpreadRateMul ?? 1.45f,
+                GameManager.ShotMode.Accel => 1f, // 加速球は速射（rapid_rate）の対象外＝ショップ説明文どおり連射専用
                 _ => _game?.RapidRateMul ?? 1f,
             };
             _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
@@ -888,13 +889,12 @@ public partial class Player : Area2D
         const float charge = 12f;
         float fast = _game?.AccelLaunchSpeed ?? 640f;
         float delay = _game?.AccelChargeDelay ?? 0.8f;
-        int pierce = _game?.ShotPierceCount ?? 0;
         int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
         // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
+        // 貫く光（pierce）は連射弾専用のショップ表記＝加速球弾には付与しない。
         foreach (float dy in new[] { -4f, 4f })
         {
             var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
-            b.Pierce = pierce;
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
         }
     }

@@ -35,8 +35,6 @@
 
 ## WIP
 
-- [ ] (P2) 加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている | game-designer→engineer | `Player.cs:603-609`の発射間隔算出`modeMul` switchは`Homing`/`Spread`は専用ケースを持つが`Accel`にはケースが無くdefault（`_game?.RapidRateMul`）に落ち、ショップ説明文「**連射モード**の間隔×0.94/0.88」（`GameManager.cs:397-398`、ノード`rapid_rate_1/2`）が加速球にも掛かる。加えて`Player.cs:891,897`の`FireAccel`が`_game?.ShotPierceCount`（説明文「**連射弾**が敵1体を貫通」`GameManager.cs:399`、ノード`pierce_1`）を読んで加速球弾にも貫通を付与している。ショップ説明文と実挙動が食い違う（親切設計違反）。受入条件：(A案・推奨=最小修正) `FireAccel`から`ShotPierceCount`の適用を外し貫通を連射専用に戻す／`Player.cs:603-609`のswitchに`GameManager.ShotMode.Accel => 1f`を明示追加し`RapidRateMul`の横流れを止める。修正後、ショップ説明文と実挙動が一致することを確認。`dotnet build algo_shoot.sln`通過必須
-
 
 ## BLOCKED
 
@@ -58,6 +56,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 加速球モードが「連射専用」と説明されている強化2種（速射・貫通）を無自覚に横取りしている | game-designer→engineer | (完了 2026-08-21) `Player.cs:603-609`の発射間隔算出`modeMul` switchに`GameManager.ShotMode.Accel => 1f`を明示追加し、default節経由で`RapidRateMul`（速射I/II、`rapid_rate_1/2`）が加速球へ横流れしないよう修正。`FireAccel`内の`ShotPierceCount`（`pierce_1`）の読み取り・`b.Pierce`代入を削除し、貫通を連射専用に戻した。`FireRapid`・Homing/Spread/Backfire・加速球専用ノード（`accel_power_1/2`/`accel_charge_1/2`/`accel_speed_1`）は無変更。ショップ説明文（「連射モード」「連射弾」と明記）と実挙動が一致する構造に修正済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（play-game/qa-autoplay）での挙動確認は未実施
 - [x] (P2) GameCamera.Shakeが2026-08-20の「合流方式」修正で、多重呼び出し時に毎回`_shakeDur`を上書きするため小さい揺れが直前の大きな揺れの強さへ何度でも巻き戻る | engineer | (完了 2026-08-21) `src/fx/GameCamera.cs:40-48`の`Shake(mag,dur)`を修正。従来は`_shakeMag`をMax合流した後、呼び出しのたびに無条件で`_shakeDur = _shakeT`を実行していたため、大きな揺れの減衰途中に短い`dur`の小さな揺れが割り込むと`_shakeDur`が現在の残り時間まで縮み、次フレームで`f=_shakeT/_shakeDur`が1.0へ跳ね上がり`_shakeMag`（Maxで維持された大きい方）が満額で再生されてしまっていた。`dur > _shakeT`（＝実際に締切が延長される場合）のときだけ`_shakeT`と`_shakeDur`を更新するよう変更し、それ以外（短い揺れの割り込み）では`_shakeDur`を据え置くことで`f`が連続的に減衰し続けるようにした。`Enemy.cs:511`/`Player.cs:1310`等の呼び出し元・`Hitstop`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機（qa-autoplay）での目視確認は未実施
 - [x] (P3) 夜間QAのたびにGodotの手動セットアップが要りブートストラップが再現できない | engineer | (完了 2026-08-20) `tools/qa-bootstrap.sh`を新規追加。引数なしでGodot 4.6.3 monoの用意（`${TMPDIR}/godot_setup`に無ければGitHub releasesから取得。tuxfamily/builds.dotnet.microsoft.comはプロキシ403のためGitHub固定。既にあれば再取得しない）と初回`--import`（`.godot/imported`が無いときだけ）を行い、シーン名を渡すとQA起動までやる（`tools/qa-bootstrap.sh Rei --hard --seconds 45` → `build/qa/Rei.log`）。`--qa`/`--quit`は無ければ自動付与。Linuxで詰まりやすい「シーンパス → `--`区切り → QaPilot引数」の順序をスクリプト側に封じ込めた（`--`を抜くとGodotが引数を食って無出力のままハングする。実際この夜に3回起動に失敗した）。あわせて`.claude/skills/qa-autoplay/SKILL.md:44-51`冒頭に、既存手順がWindows前提である旨とLinuxではこのスクリプトを使う旨のブロックを追加。実地検証：既存Godotありの経路で`Rei --hard --seconds 30`が`[QA-SUMMARY] no anomalies flagged. clean run.`で完走、引数なし経路も正常終了、`bash -n`構文チェック通過。ゲーム本体のコードは無変更
 - [x] (P2) GameCamera.Shake/Hitstopの「同じ方針」コメントが実装と矛盾 | engineer | (完了 2026-08-20) コメントを実装に合わせるのではなく、`src/fx/GameCamera.cs:39-43`の`Shake`を実際にコメント通りの「一番遅く終わる要求まで保留する」方式へ揃えた。`_shakeT = dur`の無条件上書きを`Mathf.Max(_shakeT, dur)`に変更し、減衰の分母`_shakeDur`は延長後の残り時間へ追随させてfが必ず1から落ちるようにした（`_shakeDur`をMaxで積み上げると短い揺れのfが頭打ちになり見えなくなるため）。あわせて調査中に発見した同一関数の別バグも修正：`_shakeMag`は`Mathf.Max`で積むだけでどこでもリセットされず、一度大きな揺れ（`Player.cs:1310` `Shake(5.5f,0.28f)`）が起きるとシーンが切り替わるまで以降の小さな揺れ（`Enemy.cs:510` `Shake(1.6f,0.10f)`）まで全て5.5の強さで鳴り続けていた。`GameCamera.cs:27-29`で`_shakeT`が0以下になったフレームに`_shakeMag = 0f`を入れて解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
