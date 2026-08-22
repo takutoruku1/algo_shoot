@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 89 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 93 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">89</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">93</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,38 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) 案B（意図的な使い分けとして明文化）を選択、コード無変更。全キャラのハンドル実装を再走査した結果、レイだけでなくあかり・こはるにも同一の3層構造（①技宣言時の&quot;二つ名&quot;的ハンドル／②ボスバー・カメオ・投稿カードで一貫使用のメインアカウント／③改心後リプライの最短形）が並行実装されていると判明（レイ<code>_compete</code>→<code>_____</code>→<code>@rei</code>、あかり<code>_ame</code>→<code>.</code>→<code>@akari</code>、こはる<code>_kitchen</code>→<code>@koharu</code>(②③同一、素の彼女がSNSで人格を演じ分けない設定と整合)）。各層はレイの「勝負への執着」「止まった順位掲示板」等、キャラの穢れの核と対応する意味のある設計と判断し、単一表記への統一は既存の意匠を破壊するため見送り。<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:228</code>の「統一表記としての最終確定はしていない」を、3層構造の file:line 対応と意味づけを明記した確定記述へ書き換え。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/ストーリー見直しロードマップ.md のS0/S1/S2見出しが「☑完了」なのに直下のチェック項目が全て未チェック<code>[ ]</code>のまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) S0の2項目は<code>docs/20260619/EpicB_物語設計案.md:128-190</code>「正典 v3（死のタイムライン確定）」に死因・時期・0414の意味・タイムライン9段階が確定済み、<code>:130</code>に「更新: 2026-07-02 / 決定: ユーザー」の承認記録もあり、<code>docs/キャラ設定_03_あかり.md</code>等にも波及済みと確認できたため<code>[x]</code>化。S1は5項目中4項目（StageAkari.cs括弧内心・StageZero.cs Stay注釈・Prologue.cs _line索引・BossKoharu.cs時制）を実コードで確認済みとして<code>[x]</code>化、残り1項目（コメント修正群）は<code>StageRei.cs:204</code>のコメントが依然「20体＋ボス1」のまま（実態45体）で未修正と判明したため<code>[ ]</code>のまま据え置き（無理にチェックしなかった）。S2の4項目はStageMina兆候化・Epilogue死因回収再構成・型崩し（あかりカメオ先出し／こはるボス戦中割込み）・ルール3点セルフチェック（who=3使用0件）を全て実コードで確認し<code>[x]</code>化。各項目末尾にS3と同様の根拠注記（ファイル:行）を追加。ドキュメントのみの変更（コードは無変更）でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">docs/小話集_v1.md が二人称・比喩表現の実装修正(2026-08-14/2026-08-18)を未反映のまま旧文言を残している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) <code>docs/小話集_v1.md</code>の「お前」11箇所を、対応する<code>src/Hub.cs</code>/<code>src/StageRei.cs</code>/<code>src/StageAkari.cs</code>/<code>src/StageKoharu.cs</code>の各行と突き合わせて「きみ」へ同期（うち2箇所はタスク未列挙だったが確認したところ実装側は既に「きみ」だったためdoc側をそれに合わせた）。<code>docs/小話集_v1.md:94-95</code>(旧90-91)の「起きてこない日があるかもしれない」/「……起きるよ。ちゃんと。」も<code>src/Hub.cs:1040-1041</code>の2026-08-18修正後の文言（「ログが、来ない朝があるかもしれないと思うと。」/「……来るよ。ちゃんと。」）に更新。冒頭に同期メモを追加し「本文と実装が食い違ったらsrc側が正典」と明記。全対象行が実装と1:1対応しており「お前のまま据え置き」の例外はゼロ。src/配下は無変更のためビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) <code>src/DiffSelect.cs:16-30</code>のTiers配列のDensity値を、実際のリスクである<code>BulletCountMul</code>(<code>GameManager.cs:63</code>)に比例するよう再計算（<code>5 * mul/1.9</code>四捨五入）：Easy 2→1、Normal 3→2、Hard 4→3、Lunatic 5→5(据え置き)。これによりHard→Lunaticのpip差が+2となり、他区間の+1より視覚的に大きく見える形になった（実際の絶対増分+0.8 vs +0.32/+0.4の大小関係と一致）。算出根拠と「BulletCountMulを変えたらここも見直す」旨のコメントをTiers配列直前に追加。<code>BulletCountMul</code>自体・ボスHP・難易度カーブ・Diff列挙・DiffSelect.csの他ロジックは無変更（pip描画ループ<code>DiffSelect.cs:364</code>も無変更、整数比較のみで動作）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -993,18 +1025,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">d16d675</span><span>2026-08-22</span><span class="s">Merge pull request #8 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">3960a60</span><span>2026-08-21</span><span class="s">auto: ストーリーロードマップS3の実装済み反映を追記</span></li>
-      <li><span class="h">6ad025a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - ストーリーロードマップS3の実装済み反映</span></li>
-      <li><span class="h">0232f75</span><span>2026-08-21</span><span class="s">auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)</span></li>
-      <li><span class="h">68abacb</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証</span></li>
-      <li><span class="h">d57ca50</span><span>2026-08-21</span><span class="s">auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)</span></li>
-      <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
-      <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
+      <li><span class="h">6074c62</span><span>2026-08-22</span><span class="s">auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一</span></li>
+      <li><span class="h">3969e04</span><span>2026-08-22</span><span class="s">auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
+      <li><span class="h">f7c73d0</span><span>2026-08-22</span><span class="s">auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
+      <li><span class="h">be93e60</span><span>2026-08-22</span><span class="s">auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
+      <li><span class="h">8f23a2a</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
+      <li><span class="h">0cd94db</span><span>2026-08-22</span><span class="s">auto: 難易度弾密度メーターの実弾数倍率乖離を修正</span></li>
+      <li><span class="h">69de6b6</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離</span></li>
+      <li><span class="h">dfb74b0</span><span>2026-08-22</span><span class="s">auto: 監査で4件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 22:06 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-22 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
