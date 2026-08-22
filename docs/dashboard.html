@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 92 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 93 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">92</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">93</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>src/AreaSpellCaster.cs:270</code>(技宣言時「@rei_compete」)、<code>src/BossRei.cs:154</code>/<code>src/StageRei.cs:415</code>(ボスバー・カメオ「@rei_____」)、<code>src/Hub.cs:1230-1241</code>(改心後リプライ「@rei」)の3系統。<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:228</code>で「統一表記としての最終確定はしていない」と2026-08-18時点で明記されたまま据え置き。3つの用途を意図的な使い分け（技宣言用の派生アカウント/メインアカウント等）として設定書に明文化するか、単なる表記ゆれとして1つに統一しコードを揃えるかを判断して決着させる</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) 案B（意図的な使い分けとして明文化）を選択、コード無変更。全キャラのハンドル実装を再走査した結果、レイだけでなくあかり・こはるにも同一の3層構造（①技宣言時の&quot;二つ名&quot;的ハンドル／②ボスバー・カメオ・投稿カードで一貫使用のメインアカウント／③改心後リプライの最短形）が並行実装されていると判明（レイ<code>_compete</code>→<code>_____</code>→<code>@rei</code>、あかり<code>_ame</code>→<code>.</code>→<code>@akari</code>、こはる<code>_kitchen</code>→<code>@koharu</code>(②③同一、素の彼女がSNSで人格を演じ分けない設定と整合)）。各層はレイの「勝負への執着」「止まった順位掲示板」等、キャラの穢れの核と対応する意味のある設計と判断し、単一表記への統一は既存の意匠を破壊するため見送り。<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:228</code>の「統一表記としての最終確定はしていない」を、3層構造の file:line 対応と意味づけを明記した確定記述へ書き換え。ドキュメントのみの変更でビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1025,18 +1025,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6074c62</span><span>2026-08-22</span><span class="s">auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一</span></li>
+      <li><span class="h">3969e04</span><span>2026-08-22</span><span class="s">auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
       <li><span class="h">f7c73d0</span><span>2026-08-22</span><span class="s">auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
       <li><span class="h">be93e60</span><span>2026-08-22</span><span class="s">auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
       <li><span class="h">8f23a2a</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
       <li><span class="h">0cd94db</span><span>2026-08-22</span><span class="s">auto: 難易度弾密度メーターの実弾数倍率乖離を修正</span></li>
       <li><span class="h">69de6b6</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離</span></li>
       <li><span class="h">dfb74b0</span><span>2026-08-22</span><span class="s">auto: 監査で4件をキューに追加</span></li>
-      <li><span class="h">f6f4b7e</span><span>2026-08-21</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">d16d675</span><span>2026-08-22</span><span class="s">Merge pull request #8 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-22 18:26 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-22 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
