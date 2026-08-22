@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-22 18:29 UTC",
+  "generated": "2026-08-22 22:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -663,6 +663,16 @@
   ],
   "commits": [
     {
+      "hash": "868ec96",
+      "date": "2026-08-23",
+      "subject": "Merge pull request #9 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "021c860",
+      "date": "2026-08-22",
+      "subject": "auto: レイのアカウントハンドル表記ゆれを意図的な使い分けとして明文化"
+    },
+    {
       "hash": "6074c62",
       "date": "2026-08-22",
       "subject": "auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一"
@@ -691,16 +701,6 @@
       "hash": "0cd94db",
       "date": "2026-08-22",
       "subject": "auto: 難易度弾密度メーターの実弾数倍率乖離を修正"
-    },
-    {
-      "hash": "69de6b6",
-      "date": "2026-08-22",
-      "subject": "auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離"
-    },
-    {
-      "hash": "dfb74b0",
-      "date": "2026-08-22",
-      "subject": "auto: 監査で4件をキューに追加"
     }
   ]
 }
