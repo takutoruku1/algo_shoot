@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 91 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 92 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">91</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">92</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">docs/ストーリー見直しロードマップ.md のS0/S1/S2見出しが「☑完了」なのに直下のチェック項目が全て未チェック<code>[ ]</code>のまま</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/ストーリー見直しロードマップ.md:24</code>(S0「☑完了 2026-07-02」)配下<code>:28-32</code>、<code>:34</code>(S1「☑完了 2026-07-04」)配下<code>:38-42</code>、<code>:44</code>(S2「☑完了 2026-07-04」)配下<code>:48-51</code>が全て未チェック。同ファイルS3は2026-08-21に同種の不整合を是正済み(<code>:57</code>の<code>- [x]</code>+根拠注記)。S1の3項目は実コード確認で既に解消済み(StageAkari.csに括弧内心なし、Prologue.cs:211,543とも<code>_line==15</code>で統一済み)。S3同様に各項目を<code>[x]</code>+根拠注記へ更新する（S0/S2も実コードと突き合わせてから更新）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定</span>
           <span class="worker">scenario</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/ストーリー見直しロードマップ.md のS0/S1/S2見出しが「☑完了」なのに直下のチェック項目が全て未チェック<code>[ ]</code>のまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) S0の2項目は<code>docs/20260619/EpicB_物語設計案.md:128-190</code>「正典 v3（死のタイムライン確定）」に死因・時期・0414の意味・タイムライン9段階が確定済み、<code>:130</code>に「更新: 2026-07-02 / 決定: ユーザー」の承認記録もあり、<code>docs/キャラ設定_03_あかり.md</code>等にも波及済みと確認できたため<code>[x]</code>化。S1は5項目中4項目（StageAkari.cs括弧内心・StageZero.cs Stay注釈・Prologue.cs _line索引・BossKoharu.cs時制）を実コードで確認済みとして<code>[x]</code>化、残り1項目（コメント修正群）は<code>StageRei.cs:204</code>のコメントが依然「20体＋ボス1」のまま（実態45体）で未修正と判明したため<code>[ ]</code>のまま据え置き（無理にチェックしなかった）。S2の4項目はStageMina兆候化・Epilogue死因回収再構成・型崩し（あかりカメオ先出し／こはるボス戦中割込み）・ルール3点セルフチェック（who=3使用0件）を全て実コードで確認し<code>[x]</code>化。各項目末尾にS3と同様の根拠注記（ファイル:行）を追加。ドキュメントのみの変更（コードは無変更）でビルド影響なし</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1025,18 +1025,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f7c73d0</span><span>2026-08-22</span><span class="s">auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
+      <li><span class="h">be93e60</span><span>2026-08-22</span><span class="s">auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
       <li><span class="h">8f23a2a</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
       <li><span class="h">0cd94db</span><span>2026-08-22</span><span class="s">auto: 難易度弾密度メーターの実弾数倍率乖離を修正</span></li>
       <li><span class="h">69de6b6</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離</span></li>
       <li><span class="h">dfb74b0</span><span>2026-08-22</span><span class="s">auto: 監査で4件をキューに追加</span></li>
       <li><span class="h">f6f4b7e</span><span>2026-08-21</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">d16d675</span><span>2026-08-22</span><span class="s">Merge pull request #8 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">3960a60</span><span>2026-08-21</span><span class="s">auto: ストーリーロードマップS3の実装済み反映を追記</span></li>
-      <li><span class="h">6ad025a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - ストーリーロードマップS3の実装済み反映</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-22 18:21 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-22 18:26 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
