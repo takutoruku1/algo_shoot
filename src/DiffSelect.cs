@@ -13,13 +13,18 @@ public partial class DiffSelect : Node2D
         public string Face;   // MINA 立ち絵（難易度に応じた表情）
         public string Quip;   // 立ち絵脇のミナの一言
     }
+    // Density（弾密度メーター、5マス満点）は実際のリスクである GameManager.BulletCountMul
+    // （GameManager.cs:63 — Easy0.38/Normal0.7/Hard1.1/Lunatic1.9、Lunaticが最大値）に比例させて算出。
+    // 5 * mul/1.9 を四捨五入：Easy1/Normal2/Hard3/Lunatic5。旧実装は毎段+1の線形(2/3/4/5)で、
+    // 実値では最大の跳ね幅であるHard→Lunatic(+0.8, 全区間最大)が他の段(+0.32/+0.4)と同じ+1マスにしか
+    // 見えず、Lunaticへの賭け金を過小に見せていた。以後 BulletCountMul を変えたらここも合わせて見直すこと。
     private static readonly Tier[] Tiers =
     {
-        new() { Name = "やさしい",     Desc = "弾は少なく、ゆっくり。物語を追いたい人へ。", Diff = GameManager.Diff.Easy,    Density = 2,
+        new() { Name = "やさしい",     Desc = "弾は少なく、ゆっくり。物語を追いたい人へ。", Diff = GameManager.Diff.Easy,    Density = 1,
                 Face = "res://char/mina_smile.png",   Quip = "ゆっくりで、いいんですよ。" },
-        new() { Name = "ふつう",       Desc = "標準的な弾幕。",                             Diff = GameManager.Diff.Normal,  Density = 3,
+        new() { Name = "ふつう",       Desc = "標準的な弾幕。",                             Diff = GameManager.Diff.Normal,  Density = 2,
                 Face = "res://char/mina_face.png",    Quip = "では、いつも通りに。" },
-        new() { Name = "むずかしい",   Desc = "弾が増え、密度が上がる。",                   Diff = GameManager.Diff.Hard,    Density = 4,
+        new() { Name = "むずかしい",   Desc = "弾が増え、密度が上がる。",                   Diff = GameManager.Diff.Hard,    Density = 3,
                 Face = "res://char/mina_worried.png", Quip = "……無理は、しないでくださいね。" },
         new() { Name = "ルナティック", Desc = "極限の弾幕。最大強化前提の挑戦。",           Diff = GameManager.Diff.Lunatic, Density = 5,
                 Face = "res://char/mina_tears.png",   Quip = "……覚悟は、できていますか。" },

@@ -34,8 +34,6 @@
 
 ## WIP
 
-- [ ] (P2) 難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる | game-designer | `src/DiffSelect.cs:18-25`のDensity(Easy2/Normal3/Hard4/Lunatic5)は毎段+1pipの線形表示だが、実際のリスクである`src/GameManager.cs:63`の`BulletCountMul`(Easy0.38/Normal0.7/Hard1.1/Lunatic1.9)はHard→Lunaticで+73%と全区間で最大の跳ね幅（同ファイル`:55`のコメントでも自認）。一方`DiffSelect.cs:361-363`の報酬倍率表記は`DifficultyImpressionMulFor`(`GameManager.cs:694`)を小数点まで正確に見せており、リスク表示だけが粗いため初見プレイヤーがLunaticをHardの延長と誤認しやすい。pipのDensity値を`BulletCountMul`比例で再計算する（例:最大1.9を5マス満点に正規化）か、報酬表記と対にして正確な倍率テキストを添えるかで是正する。UI表示のみの修正でボスHP・難易度カーブ自体は変更しない
-
 
 
 ## BLOCKED
@@ -58,6 +56,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる | game-designer | (完了 2026-08-22) `src/DiffSelect.cs:16-30`のTiers配列のDensity値を、実際のリスクである`BulletCountMul`(`GameManager.cs:63`)に比例するよう再計算（`5 * mul/1.9`四捨五入）：Easy 2→1、Normal 3→2、Hard 4→3、Lunatic 5→5(据え置き)。これによりHard→Lunaticのpip差が+2となり、他区間の+1より視覚的に大きく見える形になった（実際の絶対増分+0.8 vs +0.32/+0.4の大小関係と一致）。算出根拠と「BulletCountMulを変えたらここも見直す」旨のコメントをTiers配列直前に追加。`BulletCountMul`自体・ボスHP・難易度カーブ・Diff列挙・DiffSelect.csの他ロジックは無変更（pip描画ループ`DiffSelect.cs:364`も無変更、整数比較のみで動作）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない | scenario | (完了 2026-08-21) `docs/ストーリー見直しロードマップ.md`のS3見出しに「（反転演出は実装済み・2026-08-21確認）」を追記し、該当チェック項目`- [ ]`を`- [x]`へ変更、根拠（`StageImagery.cs:453,484,529`の`DrawReiReversal/DrawAkariReversal/DrawKoharuReversal`、`BossRei.cs:379`/`BossAkari.cs:343`/`BossKoharu.cs:545`からの`TriggerReversal()`呼び出し）を注記として追加。他のS3チェック項目（ミナの一言・弾幕モチーフ文言集）は未検証のため対象外・据え置き。ドキュメントのみの変更でビルド影響なし
 - [x] (P3) 弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置 | game-designer→qa | (完了 2026-08-21) `qa-autoplay`でRei/Akari/Koharu/MinaBattleの`Aimed`系半径4.0拡大箇所（`BossRei.cs:274`/`BossAkari.cs:254`/`BossKoharu.cs:444`/`BossMina.cs:186`）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し`suspicious-hit`は0件、`low-fps`/`bullet-flood`/`stuck`/`player-oob`もいずれも0件、全ログ`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/{Rei,Akari,Koharu,MinaBattle}.log`、`build/qa/collide_{Rei,Akari,Koharu}_lunatic.log`等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要
 - [x] (P2) プラットフォーム名「X」が実装2箇所のみ「Y」に化けている | scenario | (完了 2026-08-21) `src/Epilogue.cs:134`「Yの闇を成敗するなどと言いながら」→「Xの闇を成敗するなどと言いながら」、`src/Prologue.cs:143`「……ここを見てくれ。Yの——タイムラインだ。」→「……ここを見てくれ。Xの——タイムラインだ。」に修正。加えて指示の`:556`とは行番号がズレていた`Prologue.cs:554`の`DrawTitle`内タイトル文字列「Y — タイムライン」も同様に「X — タイムライン」へ修正（再grepで他の残存箇所が無いことを確認済み。`Key.X`等の物理キー入力判定は無関係のため対象外）。設計書側（`docs/20260613/MINA_シナリオ設計書_v2.md`§冒頭・§EPILOGUE）は一貫して「X」表記だったため、コード側の孤立した誤字と判断しコード側を揃えた。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

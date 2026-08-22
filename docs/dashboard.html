@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 89 / 対象 89 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 90 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">89</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">90</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,44 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">docs/小話集_v1.md が二人称・比喩表現の実装修正(2026-08-14/2026-08-18)を未反映のまま旧文言を残している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/小話集_v1.md:40,42,69,127,163,197,206,212,246,300,334</code>が「お前」のままだが実装(<code>src/Hub.cs:990,1019,1077,1113,1147,1156,1162</code>/<code>src/StageRei.cs:76</code>)は全て「きみ」に統一済み(2026-08-14)。さらに<code>docs/小話集_v1.md:90-91</code>(「起きてこない日があるかもしれない」)も<code>src/Hub.cs:1040-1041</code>の2026-08-18修正（「ログが、来ない朝があるかもしれない」）に未反映。docs側のセリフを現行実装の文言へ同期する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/ストーリー見直しロードマップ.md のS0/S1/S2見出しが「☑完了」なのに直下のチェック項目が全て未チェック<code>[ ]</code>のまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/ストーリー見直しロードマップ.md:24</code>(S0「☑完了 2026-07-02」)配下<code>:28-32</code>、<code>:34</code>(S1「☑完了 2026-07-04」)配下<code>:38-42</code>、<code>:44</code>(S2「☑完了 2026-07-04」)配下<code>:48-51</code>が全て未チェック。同ファイルS3は2026-08-21に同種の不整合を是正済み(<code>:57</code>の<code>- [x]</code>+根拠注記)。S1の3項目は実コード確認で既に解消済み(StageAkari.csに括弧内心なし、Prologue.cs:211,543とも<code>_line==15</code>で統一済み)。S3同様に各項目を<code>[x]</code>+根拠注記へ更新する（S0/S2も実コードと突き合わせてから更新）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>src/AreaSpellCaster.cs:270</code>(技宣言時「@rei_compete」)、<code>src/BossRei.cs:154</code>/<code>src/StageRei.cs:415</code>(ボスバー・カメオ「@rei_____」)、<code>src/Hub.cs:1230-1241</code>(改心後リプライ「@rei」)の3系統。<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:228</code>で「統一表記としての最終確定はしていない」と2026-08-18時点で明記されたまま据え置き。3つの用途を意図的な使い分け（技宣言用の派生アカウント/メインアカウント等）として設定書に明文化するか、単なる表記ゆれとして1つに統一しコードを揃えるかを判断して決着させる</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-22) <code>src/DiffSelect.cs:16-30</code>のTiers配列のDensity値を、実際のリスクである<code>BulletCountMul</code>(<code>GameManager.cs:63</code>)に比例するよう再計算（<code>5 * mul/1.9</code>四捨五入）：Easy 2→1、Normal 3→2、Hard 4→3、Lunatic 5→5(据え置き)。これによりHard→Lunaticのpip差が+2となり、他区間の+1より視覚的に大きく見える形になった（実際の絶対増分+0.8 vs +0.32/+0.4の大小関係と一致）。算出根拠と「BulletCountMulを変えたらここも見直す」旨のコメントをTiers配列直前に追加。<code>BulletCountMul</code>自体・ボスHP・難易度カーブ・Diff列挙・DiffSelect.csの他ロジックは無変更（pip描画ループ<code>DiffSelect.cs:364</code>も無変更、整数比較のみで動作）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -993,18 +1025,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">69de6b6</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離</span></li>
+      <li><span class="h">dfb74b0</span><span>2026-08-22</span><span class="s">auto: 監査で4件をキューに追加</span></li>
+      <li><span class="h">f6f4b7e</span><span>2026-08-21</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">d16d675</span><span>2026-08-22</span><span class="s">Merge pull request #8 from takutoruku1/auto/dev</span></li>
       <li><span class="h">3960a60</span><span>2026-08-21</span><span class="s">auto: ストーリーロードマップS3の実装済み反映を追記</span></li>
       <li><span class="h">6ad025a</span><span>2026-08-21</span><span class="s">auto: WIP着手 - ストーリーロードマップS3の実装済み反映</span></li>
       <li><span class="h">0232f75</span><span>2026-08-21</span><span class="s">auto: 弾サイズ攻撃種別差別化の当たり判定公平性QAを完了(異常なし)</span></li>
       <li><span class="h">68abacb</span><span>2026-08-21</span><span class="s">auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証</span></li>
-      <li><span class="h">d57ca50</span><span>2026-08-21</span><span class="s">auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)</span></li>
-      <li><span class="h">9fa47ec</span><span>2026-08-21</span><span class="s">auto: WIP着手 - プラットフォーム名X/Y表記統一</span></li>
-      <li><span class="h">2668f1e</span><span>2026-08-21</span><span class="s">auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-21 22:06 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-22 18:19 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

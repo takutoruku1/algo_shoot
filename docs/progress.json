@@ -1,13 +1,32 @@
 {
-  "generated": "2026-08-21 22:06 UTC",
+  "generated": "2026-08-22 18:19 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 89
+    "done": 90
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 97,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "docs/小話集_v1.md が二人称・比喩表現の実装修正(2026-08-14/2026-08-18)を未反映のまま旧文言を残している",
+      "worker": "scenario",
+      "accept": "`docs/小話集_v1.md:40,42,69,127,163,197,206,212,246,300,334`が「お前」のままだが実装(`src/Hub.cs:990,1019,1077,1113,1147,1156,1162`/`src/StageRei.cs:76`)は全て「きみ」に統一済み(2026-08-14)。さらに`docs/小話集_v1.md:90-91`(「起きてこない日があるかもしれない」)も`src/Hub.cs:1040-1041`の2026-08-18修正（「ログが、来ない朝があるかもしれない」）に未反映。docs側のセリフを現行実装の文言へ同期する"
+    },
+    {
+      "priority": "P3",
+      "title": "docs/ストーリー見直しロードマップ.md のS0/S1/S2見出しが「☑完了」なのに直下のチェック項目が全て未チェック`[ ]`のまま",
+      "worker": "scenario",
+      "accept": "`docs/ストーリー見直しロードマップ.md:24`(S0「☑完了 2026-07-02」)配下`:28-32`、`:34`(S1「☑完了 2026-07-04」)配下`:38-42`、`:44`(S2「☑完了 2026-07-04」)配下`:48-51`が全て未チェック。同ファイルS3は2026-08-21に同種の不整合を是正済み(`:57`の`- [x]`+根拠注記)。S1の3項目は実コード確認で既に解消済み(StageAkari.csに括弧内心なし、Prologue.cs:211,543とも`_line==15`で統一済み)。S3同様に各項目を`[x]`+根拠注記へ更新する（S0/S2も実コードと突き合わせてから更新）"
+    },
+    {
+      "priority": "P3",
+      "title": "レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定",
+      "worker": "scenario",
+      "accept": "`src/AreaSpellCaster.cs:270`(技宣言時「@rei_compete」)、`src/BossRei.cs:154`/`src/StageRei.cs:415`(ボスバー・カメオ「@rei_____」)、`src/Hub.cs:1230-1241`(改心後リプライ「@rei」)の3系統。`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:228`で「統一表記としての最終確定はしていない」と2026-08-18時点で明記されたまま据え置き。3つの用途を意図的な使い分け（技宣言用の派生アカウント/メインアカウント等）として設定書に明文化するか、単なる表記ゆれとして1つに統一しコードを揃えるかを判断して決着させる"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -102,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-22) `src/DiffSelect.cs:16-30`のTiers配列のDensity値を、実際のリスクである`BulletCountMul`(`GameManager.cs:63`)に比例するよう再計算（`5 * mul/1.9`四捨五入）：Easy 2→1、Normal 3→2、Hard 4→3、Lunatic 5→5(据え置き)。これによりHard→Lunaticのpip差が+2となり、他区間の+1より視覚的に大きく見える形になった（実際の絶対増分+0.8 vs +0.32/+0.4の大小関係と一致）。算出根拠と「BulletCountMulを変えたらここも見直す」旨のコメントをTiers配列直前に追加。`BulletCountMul`自体・ボスHP・難易度カーブ・Diff列挙・DiffSelect.csの他ロジックは無変更（pip描画ループ`DiffSelect.cs:364`も無変更、整数比較のみで動作）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない",
@@ -639,6 +664,21 @@
   ],
   "commits": [
     {
+      "hash": "69de6b6",
+      "date": "2026-08-22",
+      "subject": "auto: WIP着手 - 難易度弾密度メーターの実弾数倍率乖離"
+    },
+    {
+      "hash": "dfb74b0",
+      "date": "2026-08-22",
+      "subject": "auto: 監査で4件をキューに追加"
+    },
+    {
+      "hash": "f6f4b7e",
+      "date": "2026-08-21",
+      "subject": "Refresh the progress snapshot after the nightly merge"
+    },
+    {
       "hash": "d16d675",
       "date": "2026-08-22",
       "subject": "Merge pull request #8 from takutoruku1/auto/dev"
@@ -662,21 +702,6 @@
       "hash": "68abacb",
       "date": "2026-08-21",
       "subject": "auto: WIP着手 - 弾サイズ差別化の当たり判定公平性QA検証"
-    },
-    {
-      "hash": "d57ca50",
-      "date": "2026-08-21",
-      "subject": "auto: プラットフォーム名表記をXに統一(Epilogue.cs/Prologue.cs)"
-    },
-    {
-      "hash": "9fa47ec",
-      "date": "2026-08-21",
-      "subject": "auto: WIP着手 - プラットフォーム名X/Y表記統一"
-    },
-    {
-      "hash": "2668f1e",
-      "date": "2026-08-21",
-      "subject": "auto: qa-bootstrap.shにdotnet未導入時の自動導入フォールバックを追加"
     }
   ]
 }
