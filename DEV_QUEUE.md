@@ -33,8 +33,6 @@
 
 ## WIP
 
-- [ ] (P2) docs/小話集_v1.md が二人称・比喩表現の実装修正(2026-08-14/2026-08-18)を未反映のまま旧文言を残している | scenario | `docs/小話集_v1.md:40,42,69,127,163,197,206,212,246,300,334`が「お前」のままだが実装(`src/Hub.cs:990,1019,1077,1113,1147,1156,1162`/`src/StageRei.cs:76`)は全て「きみ」に統一済み(2026-08-14)。さらに`docs/小話集_v1.md:90-91`(「起きてこない日があるかもしれない」)も`src/Hub.cs:1040-1041`の2026-08-18修正（「ログが、来ない朝があるかもしれない」）に未反映。docs側のセリフを現行実装の文言へ同期する
-
 
 
 ## BLOCKED
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) docs/小話集_v1.md が二人称・比喩表現の実装修正(2026-08-14/2026-08-18)を未反映のまま旧文言を残している | scenario | (完了 2026-08-22) `docs/小話集_v1.md`の「お前」11箇所を、対応する`src/Hub.cs`/`src/StageRei.cs`/`src/StageAkari.cs`/`src/StageKoharu.cs`の各行と突き合わせて「きみ」へ同期（うち2箇所はタスク未列挙だったが確認したところ実装側は既に「きみ」だったためdoc側をそれに合わせた）。`docs/小話集_v1.md:94-95`(旧90-91)の「起きてこない日があるかもしれない」/「……起きるよ。ちゃんと。」も`src/Hub.cs:1040-1041`の2026-08-18修正後の文言（「ログが、来ない朝があるかもしれないと思うと。」/「……来るよ。ちゃんと。」）に更新。冒頭に同期メモを追加し「本文と実装が食い違ったらsrc側が正典」と明記。全対象行が実装と1:1対応しており「お前のまま据え置き」の例外はゼロ。src/配下は無変更のためビルド影響なし
 - [x] (P2) 難易度選択の弾密度メーターが実際の弾数倍率と乖離しLunaticへの賭け金を過小に見せる | game-designer | (完了 2026-08-22) `src/DiffSelect.cs:16-30`のTiers配列のDensity値を、実際のリスクである`BulletCountMul`(`GameManager.cs:63`)に比例するよう再計算（`5 * mul/1.9`四捨五入）：Easy 2→1、Normal 3→2、Hard 4→3、Lunatic 5→5(据え置き)。これによりHard→Lunaticのpip差が+2となり、他区間の+1より視覚的に大きく見える形になった（実際の絶対増分+0.8 vs +0.32/+0.4の大小関係と一致）。算出根拠と「BulletCountMulを変えたらここも見直す」旨のコメントをTiers配列直前に追加。`BulletCountMul`自体・ボスHP・難易度カーブ・Diff列挙・DiffSelect.csの他ロジックは無変更（pip描画ループ`DiffSelect.cs:364`も無変更、整数比較のみで動作）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ストーリー見直しロードマップのS3（画の反転ビート）が「未着手」のまま実装済みを反映していない | scenario | (完了 2026-08-21) `docs/ストーリー見直しロードマップ.md`のS3見出しに「（反転演出は実装済み・2026-08-21確認）」を追記し、該当チェック項目`- [ ]`を`- [x]`へ変更、根拠（`StageImagery.cs:453,484,529`の`DrawReiReversal/DrawAkariReversal/DrawKoharuReversal`、`BossRei.cs:379`/`BossAkari.cs:343`/`BossKoharu.cs:545`からの`TriggerReversal()`呼び出し）を注記として追加。他のS3チェック項目（ミナの一言・弾幕モチーフ文言集）は未検証のため対象外・据え置き。ドキュメントのみの変更でビルド影響なし
 - [x] (P3) 弾サイズの攻撃種別差別化（2026-08-14実装）が当たり判定公平性未検証のまま放置 | game-designer→qa | (完了 2026-08-21) `qa-autoplay`でRei/Akari/Koharu/MinaBattleの`Aimed`系半径4.0拡大箇所（`BossRei.cs:274`/`BossAkari.cs:254`/`BossKoharu.cs:444`/`BossMina.cs:186`）をLunatic中心（一部Hardも）で実測。god/assistなしの実被弾検出モードで約79件の被弾イベントに対し`suspicious-hit`は0件、`low-fps`/`bullet-flood`/`stuck`/`player-oob`もいずれも0件、全ログ`[QA-SUMMARY] no anomalies flagged. clean run.`（`build/qa/{Rei,Akari,Koharu,MinaBattle}.log`、`build/qa/collide_{Rei,Akari,Koharu}_lunatic.log`等）。半径拡大による「理不尽な密集」の兆候は確認できず、当たり判定公平性は問題なしと判断。既存DONE項目（2026-08-14）の「QA未実施」注記を今回のQAで解消。半径の変更は不要
