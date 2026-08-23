@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-23 18:25 UTC",
+  "generated": "2026-08-23 18:28 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
-    "done": 94
+    "done": 95
   },
-  "percent": 94,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "フォロワー数由来のダメージバフが完全に不可視",
-      "worker": "game-designer",
-      "accept": "`GameManager.cs:690`のFollowerPowerMul（2,000人で+50%上限）が`Player.cs:832,965,1197`の3箇所でダメージ計算に配線されているが、HUD/Shop/HowToPlayのどこにも説明が無い。Shop「拡散力」ノード説明(`GameManager.cs:410`)またはHowToPlayに「フォロワーが増えるほど全弾ダメージが微増（上限+50%）」を明記する"
-    },
     {
       "priority": "P2",
       "title": "MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "フォロワー数由来のダメージバフが完全に不可視",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-23) `src/HowToPlay.cs:236`のフォロワー行の説明文を「届けた証。火力やインプレに少し上乗せ」→「届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ」に更新。`GameManager.cs:690`のFollowerPowerMul（累計フォロワー2,000人で上限+50%）は`Player.cs:832,965,1197`で既に配線済みで意図的な設計（`Player.cs:829`のコメントに明記）と確認、Shop側`GameManager.cs:410`のfol_gainノード説明は可読性を優先し変更せず据え置き（HowToPlay側の一文で因果を明示すれば十分と判断）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "コンボ倍率の残り猶予が視認できない",
@@ -706,6 +706,16 @@
   ],
   "commits": [
     {
+      "hash": "b73b386",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - フォロワー由来ダメージバフの説明追加"
+    },
+    {
+      "hash": "848ae46",
+      "date": "2026-08-23",
+      "subject": "auto: コンボ倍率の残り猶予を視覚化"
+    },
+    {
       "hash": "39b7460",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - コンボ倍率の残り猶予の視認性"
@@ -734,16 +744,6 @@
       "hash": "6074c62",
       "date": "2026-08-22",
       "subject": "auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一"
-    },
-    {
-      "hash": "3969e04",
-      "date": "2026-08-22",
-      "subject": "auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合"
-    },
-    {
-      "hash": "f7c73d0",
-      "date": "2026-08-22",
-      "subject": "auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合"
     }
   ]
 }
