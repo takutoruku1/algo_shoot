@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 99 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 100 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">99</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">100</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">身のこなしIIIの回避クールダウン短縮が実質死んでいる</span>
-          
-        </div>
-        <p class="accept"><code>GameManager.cs:749</code>のDodgeCooldown短縮(Lv3で0.5s)が<code>Player.cs:226</code>のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて<code>Player.cs:259</code>のDodgeReadyが<code>_dodgeTimer</code>を見ないため、<code>Hud.cs</code>の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に<code>_dodgeTimer&lt;=0f</code>を含めるか、効果説明をDodgeDuration床に整合させる</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/Player.cs:259</code>の<code>DodgeReady</code>判定を<code>_dodgeCd &lt;= 0f</code>のみから<code>_dodgeCd &lt;= 0f &amp;&amp; _dodgeTimer &lt;= 0f</code>に修正。<code>Player.cs:986</code>の<code>TryDodge</code>実行可否ガード（<code>_dodgeCd &gt; 0f |  | _dodgeTimer &gt; 0f</code>なら不可）と同条件に揃え、回避モーション中(_dodgeTimer&gt;0)にHUDの回避ヒントが先行点灯する不整合を解消。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。<strong>身のこなしIIIの実効果がDodgeDuration床(0.55s)に潰され-0.1s謳って実質-0.05sしか効かない点（GameManager.cs:749/Player.cs:226）は今回未対応・据え置き。バランス調整が必要なため要ユーザー判断。</strong></p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1081,18 +1081,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8c0fece</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 回避DodgeReady判定の不整合修正</span></li>
+      <li><span class="h">04841b7</span><span>2026-08-23</span><span class="s">auto: HUD切替ヒントの加速球単体解放見落としを修正</span></li>
       <li><span class="h">0cdb755</span><span>2026-08-23</span><span class="s">auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正</span></li>
       <li><span class="h">2a5d14c</span><span>2026-08-23</span><span class="s">auto: 加速球モードのマズルFXを専用演出に</span></li>
       <li><span class="h">888e127</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 加速球マズルFXのcase漏れ修正</span></li>
       <li><span class="h">408c260</span><span>2026-08-23</span><span class="s">auto: StageRei.cs道中体数コメントを実値に修正</span></li>
       <li><span class="h">2178d4e</span><span>2026-08-23</span><span class="s">auto: WIP着手 - StageRei.cs道中体数コメントの修正</span></li>
       <li><span class="h">e855ba9</span><span>2026-08-23</span><span class="s">auto: 設計書のリプライ文言を実装に同期</span></li>
-      <li><span class="h">f807e62</span><span>2026-08-23</span><span class="s">auto: WIP着手 - MINA_システム拡張設計書リプライ文言の同期</span></li>
-      <li><span class="h">38616f9</span><span>2026-08-23</span><span class="s">auto: フォロワー由来ダメージバフの説明を追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-23 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-23 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

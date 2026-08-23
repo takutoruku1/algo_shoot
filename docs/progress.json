@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-23 18:33 UTC",
+  "generated": "2026-08-23 18:35 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 99
+    "done": 100
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "身のこなしIIIの回避クールダウン短縮が実質死んでいる",
-      "worker": null,
-      "accept": "`GameManager.cs:749`のDodgeCooldown短縮(Lv3で0.5s)が`Player.cs:226`のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて`Player.cs:259`のDodgeReadyが`_dodgeTimer`を見ないため、`Hud.cs`の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に`_dodgeTimer<=0f`を含めるか、効果説明をDodgeDuration床に整合させる"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/Player.cs:259`の`DodgeReady`判定を`_dodgeCd <= 0f`のみから`_dodgeCd <= 0f && _dodgeTimer <= 0f`に修正。`Player.cs:986`の`TryDodge`実行可否ガード（`_dodgeCd > 0f |  | _dodgeTimer > 0f`なら不可）と同条件に揃え、回避モーション中(_dodgeTimer>0)にHUDの回避ヒントが先行点灯する不整合を解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**身のこなしIIIの実効果がDodgeDuration床(0.55s)に潰され-0.1s謳って実質-0.05sしか効かない点（GameManager.cs:749/Player.cs:226）は今回未対応・据え置き。バランス調整が必要なため要ユーザー判断。**"
+    },
     {
       "priority": "P3",
       "title": "HUD「切替」操作ヒントが加速球単体解放を見落とす",
@@ -706,6 +705,16 @@
   ],
   "commits": [
     {
+      "hash": "8c0fece",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
+    },
+    {
+      "hash": "04841b7",
+      "date": "2026-08-23",
+      "subject": "auto: HUD切替ヒントの加速球単体解放見落としを修正"
+    },
+    {
       "hash": "0cdb755",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正"
@@ -734,16 +743,6 @@
       "hash": "e855ba9",
       "date": "2026-08-23",
       "subject": "auto: 設計書のリプライ文言を実装に同期"
-    },
-    {
-      "hash": "f807e62",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - MINA_システム拡張設計書リプライ文言の同期"
-    },
-    {
-      "hash": "38616f9",
-      "date": "2026-08-23",
-      "subject": "auto: フォロワー由来ダメージバフの説明を追加"
     }
   ]
 }

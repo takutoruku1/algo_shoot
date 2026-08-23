@@ -30,8 +30,6 @@
 
 ## WIP
 
-- [ ] (P3) 身のこなしIIIの回避クールダウン短縮が実質死んでいる | game-designer→engineer | `GameManager.cs:749`のDodgeCooldown短縮(Lv3で0.5s)が`Player.cs:226`のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて`Player.cs:259`のDodgeReadyが`_dodgeTimer`を見ないため、`Hud.cs`の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に`_dodgeTimer<=0f`を含めるか、効果説明をDodgeDuration床に整合させる
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -52,6 +50,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) 身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正） | engineer | (完了 2026-08-23) `src/Player.cs:259`の`DodgeReady`判定を`_dodgeCd <= 0f`のみから`_dodgeCd <= 0f && _dodgeTimer <= 0f`に修正。`Player.cs:986`の`TryDodge`実行可否ガード（`_dodgeCd > 0f || _dodgeTimer > 0f`なら不可）と同条件に揃え、回避モーション中(_dodgeTimer>0)にHUDの回避ヒントが先行点灯する不整合を解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**身のこなしIIIの実効果がDodgeDuration床(0.55s)に潰され-0.1s謳って実質-0.05sしか効かない点（GameManager.cs:749/Player.cs:226）は今回未対応・据え置き。バランス調整が必要なため要ユーザー判断。**
 - [x] (P3) HUD「切替」操作ヒントが加速球単体解放を見落とす | engineer | (完了 2026-08-23) `src/Hud.cs:1275-1277`のhasModes判定にAccelを追加：`_game?.IsModeUnlocked(GameManager.ShotMode.Accel)`をSpread/Homing判定とOR条件で連結。根拠：`src/GameManager.cs:432`の`accel_1`はParentIdが`move_speed_1`でSpread/Homingの解放ツリーと独立しており、Accel単体を解放した進行ではAccelのみIsModeUnlocked=trueになるため、修正前のhasModesがfalseのまま＝「切替」ヒントが未解放表示に固定される乖離があった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) 加速球モードのマズルFXがcase分岐から漏れている | engineer | (完了 2026-08-23) `src/fx/FxLayer.cs:144-155`のMuzzle switchに`case GameManager.ShotMode.Accel`を追加：連射(Rapid)より一回り大きく・厚く・長めのリング(R1=10/W=2.0/Ttl=0.14)と、少なく・大きく・遅い(Drag=3)Sparkで「タメて撃つロケット弾」の重さを演出。色は水色ロック（既存Cyan）のまま踏襲し新色は追加せず。`src/fx/FxLayer.cs:107`のコメントにも「加速球」を追記。`src/Player.cs:859`の「モード4状態（連射/拡散/ホーミング/全開）」という誤記（全開はモードでなくオーバーレイ）を「モード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる」に修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) StageRei.csの道中体数コメントが実値(45体)と乖離 | engineer | (完了 2026-08-23) `src/StageRei.cs:204`のコメント「20体＋ボス1」を「45体＋ボス1」に修正。実値は`MidWaveA=15/B=14/C=16`（`src/StageRei.cs:38-40`、合計45体）で乖離を確認済み。コメント文字列のみの修正でロジック・数値定数は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
