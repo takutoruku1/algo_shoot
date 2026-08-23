@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-23 18:35 UTC",
+  "generated": "2026-08-23 22:05 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -705,6 +705,16 @@
   ],
   "commits": [
     {
+      "hash": "e8a0c38",
+      "date": "2026-08-24",
+      "subject": "Merge pull request #10 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "a4875eb",
+      "date": "2026-08-23",
+      "subject": "auto: DodgeReady判定の表示不整合を修正"
+    },
+    {
       "hash": "8c0fece",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
@@ -733,16 +743,6 @@
       "hash": "408c260",
       "date": "2026-08-23",
       "subject": "auto: StageRei.cs道中体数コメントを実値に修正"
-    },
-    {
-      "hash": "2178d4e",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - StageRei.cs道中体数コメントの修正"
-    },
-    {
-      "hash": "e855ba9",
-      "date": "2026-08-23",
-      "subject": "auto: 設計書のリプライ文言を実装に同期"
     }
   ]
 }

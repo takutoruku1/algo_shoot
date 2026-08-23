@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-23 18:35 UTC
+> 生成: 2026-08-23 22:05 UTC
 
 ## 消化率
 
@@ -147,11 +147,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `e8a0c38` 2026-08-24 Merge pull request #10 from takutoruku1/auto/dev
+- `a4875eb` 2026-08-23 auto: DodgeReady判定の表示不整合を修正
 - `8c0fece` 2026-08-23 auto: WIP着手 - 回避DodgeReady判定の不整合修正
 - `04841b7` 2026-08-23 auto: HUD切替ヒントの加速球単体解放見落としを修正
 - `0cdb755` 2026-08-23 auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正
 - `2a5d14c` 2026-08-23 auto: 加速球モードのマズルFXを専用演出に
 - `888e127` 2026-08-23 auto: WIP着手 - 加速球マズルFXのcase漏れ修正
 - `408c260` 2026-08-23 auto: StageRei.cs道中体数コメントを実値に修正
-- `2178d4e` 2026-08-23 auto: WIP着手 - StageRei.cs道中体数コメントの修正
-- `e855ba9` 2026-08-23 auto: 設計書のリプライ文言を実装に同期
