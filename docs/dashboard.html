@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 93 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">94<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 94 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 94パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">93</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">94</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,68 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">フォロワー数由来のダメージバフが完全に不可視</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept"><code>GameManager.cs:690</code>のFollowerPowerMul（2,000人で+50%上限）が<code>Player.cs:832,965,1197</code>の3箇所でダメージ計算に配線されているが、HUD/Shop/HowToPlayのどこにも説明が無い。Shop「拡散力」ノード説明(<code>GameManager.cs:410</code>)またはHowToPlayに「フォロワーが増えるほど全弾ダメージが微増（上限+50%）」を明記する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/20260613/MINA_システム拡張設計書_v1.md:397</code>のレイ元投稿と<code>:404</code>のあかりリプライが、それぞれ<code>src/StageRei.cs:187</code>/<code>src/Hub.cs:1236</code>の実装文言と食い違う（同節の他4行は実装と一致済み）。この2箇所を実装文言に合わせて更新する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageRei.csの道中体数コメントが実値(45体)と乖離</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>StageRei.cs:204</code>のコメント「20体＋ボス1」が実値<code>MidWaveA=15/B=14/C=16</code>(<code>:38-40</code>、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">加速球モードのマズルFXがcase分岐から漏れている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/fx/FxLayer.cs:110-155</code>のMuzzle switchに<code>ShotMode.Accel</code>のcaseが無く連射用演出にフォールバックする。<code>Player.cs:859</code>のコメント「4状態」表記も実態と不一致。case追加とコメント修正を行う</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">HUD「切替」操作ヒントが加速球単体解放を見落とす</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Hud.cs:1264-1265</code>のhasModes判定がSpread/Homingのみを見ており、Accelのみ解放した進行（<code>GameManager.cs:432</code>のParentIdでAccel単体解放が可能）でもヒントが未解放表示のままになる。<code>IsModeUnlocked(GameManager.ShotMode.Accel)</code>を判定に追加する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">身のこなしIIIの回避クールダウン短縮が実質死んでいる</span>
+          
+        </div>
+        <p class="accept"><code>GameManager.cs:749</code>のDodgeCooldown短縮(Lv3で0.5s)が<code>Player.cs:226</code>のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて<code>Player.cs:259</code>のDodgeReadyが<code>_dodgeTimer</code>を見ないため、<code>Hud.cs</code>の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に<code>_dodgeTimer&lt;=0f</code>を含めるか、効果説明をDodgeDuration床に整合させる</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">コンボ倍率の残り猶予が視認できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>GameManager.cs:1062</code>に<code>ComboTimeRatio</code>(public float, 0..1)を追加：<code>Combo&gt;0 &amp;&amp; _comboTimer&gt;0</code>のとき<code>_comboTimer/ComboWindow</code>を返し、それ以外は0。<code>Hud.cs:868-876</code>（<code>DrawScore</code>内、コンボチップ<code>c2</code>の直下）に幅<code>c2w</code>・高さ2.5pxの減衰バーを追加：<code>showCombo</code>のときのみ描画し、背景トラック＋<code>UiKit.Burn.Lerp(UiKit.Mina, comboRatio)</code>で満タン紫→枯渇間際赤へ線形補間した前景バーを<code>comboRatio</code>分の幅で描く。コンボ0（非表示中）はバーごと非表示。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1025,18 +1081,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">39b7460</span><span>2026-08-23</span><span class="s">auto: WIP着手 - コンボ倍率の残り猶予の視認性</span></li>
+      <li><span class="h">959cb28</span><span>2026-08-23</span><span class="s">auto: 監査で7件をキューに追加</span></li>
+      <li><span class="h">4428b5e</span><span>2026-08-22</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">868ec96</span><span>2026-08-23</span><span class="s">Merge pull request #9 from takutoruku1/auto/dev</span></li>
       <li><span class="h">021c860</span><span>2026-08-22</span><span class="s">auto: レイのアカウントハンドル表記ゆれを意図的な使い分けとして明文化</span></li>
       <li><span class="h">6074c62</span><span>2026-08-22</span><span class="s">auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一</span></li>
       <li><span class="h">3969e04</span><span>2026-08-22</span><span class="s">auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
       <li><span class="h">f7c73d0</span><span>2026-08-22</span><span class="s">auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
-      <li><span class="h">be93e60</span><span>2026-08-22</span><span class="s">auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
-      <li><span class="h">8f23a2a</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
-      <li><span class="h">0cd94db</span><span>2026-08-22</span><span class="s">auto: 難易度弾密度メーターの実弾数倍率乖離を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-22 22:04 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-23 18:25 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
