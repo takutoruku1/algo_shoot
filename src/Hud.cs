@@ -864,6 +864,17 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(c2x + 12, cy + 5), c2, 11, new Color("c8b0ec"));
         if (c2suffix.Length > 0)
             UiKit.Text(ci, UiKit.Zen, new Vector2(c2x + 12 + UiKit.TextW(UiKit.Mono, c2, 11) + 2, cy + 7), c2suffix, 9, new Color("c8b0ec", 0.75f));
+        // コンボ猶予バー：チップ直下に細いバーを添え、_comboTimer/ComboWindow の比率で減衰させる。
+        // 猶予が切れるとコンボが0にリセットされる（最大16倍）ため、残り時間を視認できるようにする。
+        // 色は満タンのMina（紫）→枯渇間際のBurn（赤）へ線形補間し、切迫感を出す。
+        if (showCombo)
+        {
+            float comboRatio = Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f);
+            float cbY = cy + 22f + 3f, cbH = 2.5f;
+            UiKit.Box(ci, new Rect2(c2x, cbY, c2w, cbH), new Color(1, 1, 1, 0.1f), 1.2f);
+            if (comboRatio > 0)
+                UiKit.Box(ci, new Rect2(c2x, cbY, c2w * comboRatio, cbH), UiKit.Burn.Lerp(UiKit.Mina, comboRatio), 1.2f);
+        }
         // 左チップ：♥＝通貨（浄化した心）。無ラベルだと通貨と分からないので極小「心」を1字添える。
         const string c1suffix = "心";
         float c1w = 30 + UiKit.TextW(UiKit.Mono, c1, 11) + UiKit.TextW(UiKit.Zen, c1suffix, 9) + 2;
@@ -1262,7 +1273,8 @@ public partial class Hud : CanvasLayer
 
         // 行データ：トークン・動作名・有効か（無効は淡色＝まだ使えない/未解放を自然に示す）。
         bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
-                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
+                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false)
+                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Accel) ?? false);
         var items = new System.Collections.Generic.List<(string tok, string label, bool on)>
         {
             // 同じ動作に複数の割り当てがあるものは All*（全部列挙）。単一割り当ては Tok* のまま。

@@ -201,7 +201,7 @@ public partial class StageRei : Node
     {
         _rng.Randomize();
         _step = 1;
-        // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（20体＋ボス1）。
+        // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（45体＋ボス1）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。STAGE1 は初回でも本編からテンポよく始まる。

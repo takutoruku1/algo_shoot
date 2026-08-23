@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-22 22:04 UTC",
+  "generated": "2026-08-23 18:35 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 93
+    "done": 100
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,48 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/Player.cs:259`の`DodgeReady`判定を`_dodgeCd <= 0f`のみから`_dodgeCd <= 0f && _dodgeTimer <= 0f`に修正。`Player.cs:986`の`TryDodge`実行可否ガード（`_dodgeCd > 0f |  | _dodgeTimer > 0f`なら不可）と同条件に揃え、回避モーション中(_dodgeTimer>0)にHUDの回避ヒントが先行点灯する不整合を解消。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**身のこなしIIIの実効果がDodgeDuration床(0.55s)に潰され-0.1s謳って実質-0.05sしか効かない点（GameManager.cs:749/Player.cs:226）は今回未対応・据え置き。バランス調整が必要なため要ユーザー判断。**"
+    },
+    {
+      "priority": "P3",
+      "title": "HUD「切替」操作ヒントが加速球単体解放を見落とす",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/Hud.cs:1275-1277`のhasModes判定にAccelを追加：`_game?.IsModeUnlocked(GameManager.ShotMode.Accel)`をSpread/Homing判定とOR条件で連結。根拠：`src/GameManager.cs:432`の`accel_1`はParentIdが`move_speed_1`でSpread/Homingの解放ツリーと独立しており、Accel単体を解放した進行ではAccelのみIsModeUnlocked=trueになるため、修正前のhasModesがfalseのまま＝「切替」ヒントが未解放表示に固定される乖離があった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "加速球モードのマズルFXがcase分岐から漏れている",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/fx/FxLayer.cs:144-155`のMuzzle switchに`case GameManager.ShotMode.Accel`を追加：連射(Rapid)より一回り大きく・厚く・長めのリング(R1=10/W=2.0/Ttl=0.14)と、少なく・大きく・遅い(Drag=3)Sparkで「タメて撃つロケット弾」の重さを演出。色は水色ロック（既存Cyan）のまま踏襲し新色は追加せず。`src/fx/FxLayer.cs:107`のコメントにも「加速球」を追記。`src/Player.cs:859`の「モード4状態（連射/拡散/ホーミング/全開）」という誤記（全開はモードでなくオーバーレイ）を「モード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる」に修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "StageRei.csの道中体数コメントが実値(45体)と乖離",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/StageRei.cs:204`のコメント「20体＋ボス1」を「45体＋ボス1」に修正。実値は`MidWaveA=15/B=14/C=16`（`src/StageRei.cs:38-40`、合計45体）で乖離を確認済み。コメント文字列のみの修正でロジック・数値定数は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-23) `docs/20260613/MINA_システム拡張設計書_v1.md:397`のレイ元投稿「次こそ、勝つ。覚悟しなさいよね。」→`src/StageRei.cs:187`の実装文言「次は、本気のあなたと。——逃げたら、承知しないから。」に更新、`:404`のあかりリプライ「……なんでだろ。あなたの言い方、誰かに似てる。あったかい人だったな、その人。」→`src/Hub.cs:1236`の実装文言「……なんでだろ。あなたの言い方、誰かに似てる。……ずっと、あったかい人だったな。」に更新。同節の他4行（レイのリプライ`:399`↔`Hub.cs:1231`、あかり元投稿`:402`↔`StageAkari.cs:189`、こはる元投稿`:407`↔`StageKoharu.cs:189`、こはるリプライ`:409`↔`Hub.cs:1241`）は再確認の上、一致済みのため無変更。src/配下は無変更、ドキュメントのみの修正でビルド影響なし"
+    },
+    {
+      "priority": "P2",
+      "title": "フォロワー数由来のダメージバフが完全に不可視",
+      "worker": "game-designer",
+      "accept": "(完了 2026-08-23) `src/HowToPlay.cs:236`のフォロワー行の説明文を「届けた証。火力やインプレに少し上乗せ」→「届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ」に更新。`GameManager.cs:690`のFollowerPowerMul（累計フォロワー2,000人で上限+50%）は`Player.cs:832,965,1197`で既に配線済みで意図的な設計（`Player.cs:829`のコメントに明記）と確認、Shop側`GameManager.cs:410`のfol_gainノード説明は可読性を優先し変更せず据え置き（HowToPlay側の一文で因果を明示すれば十分と判断）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "コンボ倍率の残り猶予が視認できない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `GameManager.cs:1062`に`ComboTimeRatio`(public float, 0..1)を追加：`Combo>0 && _comboTimer>0`のとき`_comboTimer/ComboWindow`を返し、それ以外は0。`Hud.cs:868-876`（`DrawScore`内、コンボチップ`c2`の直下）に幅`c2w`・高さ2.5pxの減衰バーを追加：`showCombo`のときのみ描画し、背景トラック＋`UiKit.Burn.Lerp(UiKit.Mina, comboRatio)`で満タン紫→枯渇間際赤へ線形補間した前景バーを`comboRatio`分の幅で描く。コンボ0（非表示中）はバーごと非表示。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "レイのアカウントハンドル表記が3系統(@rei_compete/@rei_____/@rei)に割れたまま統一方針が未決定",
@@ -663,44 +705,44 @@
   ],
   "commits": [
     {
-      "hash": "868ec96",
+      "hash": "8c0fece",
       "date": "2026-08-23",
-      "subject": "Merge pull request #9 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
     },
     {
-      "hash": "021c860",
-      "date": "2026-08-22",
-      "subject": "auto: レイのアカウントハンドル表記ゆれを意図的な使い分けとして明文化"
+      "hash": "04841b7",
+      "date": "2026-08-23",
+      "subject": "auto: HUD切替ヒントの加速球単体解放見落としを修正"
     },
     {
-      "hash": "6074c62",
-      "date": "2026-08-22",
-      "subject": "auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一"
+      "hash": "0cdb755",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正"
     },
     {
-      "hash": "3969e04",
-      "date": "2026-08-22",
-      "subject": "auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合"
+      "hash": "2a5d14c",
+      "date": "2026-08-23",
+      "subject": "auto: 加速球モードのマズルFXを専用演出に"
     },
     {
-      "hash": "f7c73d0",
-      "date": "2026-08-22",
-      "subject": "auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合"
+      "hash": "888e127",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - 加速球マズルFXのcase漏れ修正"
     },
     {
-      "hash": "be93e60",
-      "date": "2026-08-22",
-      "subject": "auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期"
+      "hash": "408c260",
+      "date": "2026-08-23",
+      "subject": "auto: StageRei.cs道中体数コメントを実値に修正"
     },
     {
-      "hash": "8f23a2a",
-      "date": "2026-08-22",
-      "subject": "auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期"
+      "hash": "2178d4e",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - StageRei.cs道中体数コメントの修正"
     },
     {
-      "hash": "0cd94db",
-      "date": "2026-08-22",
-      "subject": "auto: 難易度弾密度メーターの実弾数倍率乖離を修正"
+      "hash": "e855ba9",
+      "date": "2026-08-23",
+      "subject": "auto: 設計書のリプライ文言を実装に同期"
     }
   ]
 }

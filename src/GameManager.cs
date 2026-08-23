@@ -1059,6 +1059,8 @@ public partial class GameManager : Node
     // コンボ猶予はコンボ持続強化で延長される。
     private double ComboWindow => 2.0 + 0.4 * ChainLevel("combo_hold", 2);
     private const int MaxCombo = 16;
+    // コンボ猶予の残り比率（0..1）。HUDのコンボ減衰バー用。コンボが立っていなければ0。
+    public float ComboTimeRatio => Combo > 0 && _comboTimer > 0 ? (float)(_comboTimer / ComboWindow) : 0f;
 
     public override void _Ready()
     {

@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 93 / 対象 93 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 100 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">93</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">100</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,62 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/Player.cs:259</code>の<code>DodgeReady</code>判定を<code>_dodgeCd &lt;= 0f</code>のみから<code>_dodgeCd &lt;= 0f &amp;&amp; _dodgeTimer &lt;= 0f</code>に修正。<code>Player.cs:986</code>の<code>TryDodge</code>実行可否ガード（<code>_dodgeCd &gt; 0f |  | _dodgeTimer &gt; 0f</code>なら不可）と同条件に揃え、回避モーション中(_dodgeTimer&gt;0)にHUDの回避ヒントが先行点灯する不整合を解消。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。<strong>身のこなしIIIの実効果がDodgeDuration床(0.55s)に潰され-0.1s謳って実質-0.05sしか効かない点（GameManager.cs:749/Player.cs:226）は今回未対応・据え置き。バランス調整が必要なため要ユーザー判断。</strong></p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">HUD「切替」操作ヒントが加速球単体解放を見落とす</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/Hud.cs:1275-1277</code>のhasModes判定にAccelを追加：<code>_game?.IsModeUnlocked(GameManager.ShotMode.Accel)</code>をSpread/Homing判定とOR条件で連結。根拠：<code>src/GameManager.cs:432</code>の<code>accel_1</code>はParentIdが<code>move_speed_1</code>でSpread/Homingの解放ツリーと独立しており、Accel単体を解放した進行ではAccelのみIsModeUnlocked=trueになるため、修正前のhasModesがfalseのまま＝「切替」ヒントが未解放表示に固定される乖離があった。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">加速球モードのマズルFXがcase分岐から漏れている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/fx/FxLayer.cs:144-155</code>のMuzzle switchに<code>case GameManager.ShotMode.Accel</code>を追加：連射(Rapid)より一回り大きく・厚く・長めのリング(R1=10/W=2.0/Ttl=0.14)と、少なく・大きく・遅い(Drag=3)Sparkで「タメて撃つロケット弾」の重さを演出。色は水色ロック（既存Cyan）のまま踏襲し新色は追加せず。<code>src/fx/FxLayer.cs:107</code>のコメントにも「加速球」を追記。<code>src/Player.cs:859</code>の「モード4状態（連射/拡散/ホーミング/全開）」という誤記（全開はモードでなくオーバーレイ）を「モード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる」に修正。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageRei.csの道中体数コメントが実値(45体)と乖離</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/StageRei.cs:204</code>のコメント「20体＋ボス1」を「45体＋ボス1」に修正。実値は<code>MidWaveA=15/B=14/C=16</code>（<code>src/StageRei.cs:38-40</code>、合計45体）で乖離を確認済み。コメント文字列のみの修正でロジック・数値定数は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>docs/20260613/MINA_システム拡張設計書_v1.md:397</code>のレイ元投稿「次こそ、勝つ。覚悟しなさいよね。」→<code>src/StageRei.cs:187</code>の実装文言「次は、本気のあなたと。——逃げたら、承知しないから。」に更新、<code>:404</code>のあかりリプライ「……なんでだろ。あなたの言い方、誰かに似てる。あったかい人だったな、その人。」→<code>src/Hub.cs:1236</code>の実装文言「……なんでだろ。あなたの言い方、誰かに似てる。……ずっと、あったかい人だったな。」に更新。同節の他4行（レイのリプライ<code>:399</code>↔<code>Hub.cs:1231</code>、あかり元投稿<code>:402</code>↔<code>StageAkari.cs:189</code>、こはる元投稿<code>:407</code>↔<code>StageKoharu.cs:189</code>、こはるリプライ<code>:409</code>↔<code>Hub.cs:1241</code>）は再確認の上、一致済みのため無変更。src/配下は無変更、ドキュメントのみの修正でビルド影響なし</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">フォロワー数由来のダメージバフが完全に不可視</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/HowToPlay.cs:236</code>のフォロワー行の説明文を「届けた証。火力やインプレに少し上乗せ」→「届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ」に更新。<code>GameManager.cs:690</code>のFollowerPowerMul（累計フォロワー2,000人で上限+50%）は<code>Player.cs:832,965,1197</code>で既に配線済みで意図的な設計（<code>Player.cs:829</code>のコメントに明記）と確認、Shop側<code>GameManager.cs:410</code>のfol_gainノード説明は可読性を優先し変更せず据え置き（HowToPlay側の一文で因果を明示すれば十分と判断）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">コンボ倍率の残り猶予が視認できない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>GameManager.cs:1062</code>に<code>ComboTimeRatio</code>(public float, 0..1)を追加：<code>Combo&gt;0 &amp;&amp; _comboTimer&gt;0</code>のとき<code>_comboTimer/ComboWindow</code>を返し、それ以外は0。<code>Hud.cs:868-876</code>（<code>DrawScore</code>内、コンボチップ<code>c2</code>の直下）に幅<code>c2w</code>・高さ2.5pxの減衰バーを追加：<code>showCombo</code>のときのみ描画し、背景トラック＋<code>UiKit.Burn.Lerp(UiKit.Mina, comboRatio)</code>で満タン紫→枯渇間際赤へ線形補間した前景バーを<code>comboRatio</code>分の幅で描く。コンボ0（非表示中）はバーごと非表示。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1025,18 +1081,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">868ec96</span><span>2026-08-23</span><span class="s">Merge pull request #9 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">021c860</span><span>2026-08-22</span><span class="s">auto: レイのアカウントハンドル表記ゆれを意図的な使い分けとして明文化</span></li>
-      <li><span class="h">6074c62</span><span>2026-08-22</span><span class="s">auto: WIP着手 - レイのアカウントハンドル表記ゆれの統一</span></li>
-      <li><span class="h">3969e04</span><span>2026-08-22</span><span class="s">auto: ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
-      <li><span class="h">f7c73d0</span><span>2026-08-22</span><span class="s">auto: WIP着手 - ストーリー見直しロードマップS0/S1/S2のチェック項目整合</span></li>
-      <li><span class="h">be93e60</span><span>2026-08-22</span><span class="s">auto: 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
-      <li><span class="h">8f23a2a</span><span>2026-08-22</span><span class="s">auto: WIP着手 - 小話集_v1.mdの二人称・比喩表現を実装文言へ同期</span></li>
-      <li><span class="h">0cd94db</span><span>2026-08-22</span><span class="s">auto: 難易度弾密度メーターの実弾数倍率乖離を修正</span></li>
+      <li><span class="h">8c0fece</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 回避DodgeReady判定の不整合修正</span></li>
+      <li><span class="h">04841b7</span><span>2026-08-23</span><span class="s">auto: HUD切替ヒントの加速球単体解放見落としを修正</span></li>
+      <li><span class="h">0cdb755</span><span>2026-08-23</span><span class="s">auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正</span></li>
+      <li><span class="h">2a5d14c</span><span>2026-08-23</span><span class="s">auto: 加速球モードのマズルFXを専用演出に</span></li>
+      <li><span class="h">888e127</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 加速球マズルFXのcase漏れ修正</span></li>
+      <li><span class="h">408c260</span><span>2026-08-23</span><span class="s">auto: StageRei.cs道中体数コメントを実値に修正</span></li>
+      <li><span class="h">2178d4e</span><span>2026-08-23</span><span class="s">auto: WIP着手 - StageRei.cs道中体数コメントの修正</span></li>
+      <li><span class="h">e855ba9</span><span>2026-08-23</span><span class="s">auto: 設計書のリプライ文言を実装に同期</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-22 22:04 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-23 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

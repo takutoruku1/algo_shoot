@@ -233,7 +233,7 @@ public partial class HowToCanvas : Node2D
             (1, "コンボ",      "連続で浄化するとSCOREと浄化した心が倍増。猶予内に次を倒せないと途切れる", UiKit.Mina),
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
             (0, "浄化した心",  "通貨。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
-            (1, "フォロワー",  "届けた証。火力やインプレに少し上乗せ",                  UiKit.Info),
+            (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
         };
         float rowH = 40f;
