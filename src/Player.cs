@@ -856,7 +856,7 @@ public partial class Player : Area2D
         }
 
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
-        // モード別マズル：弾本体は不変のまま、発砲の手元でモード4状態（連射/拡散/ホーミング/全開）を描き分ける。
+        // モード別マズル：弾本体は不変のまま、発砲の手元でモード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる。
         FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
                                  _game?.SpreadWays ?? 5, _overload);
         Audio.Instance?.PlayShot(_overload);

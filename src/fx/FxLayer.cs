@@ -104,7 +104,7 @@ public partial class FxLayer : Node2D
         }
     }
 
-    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング）と全開を描き分ける。
+    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング/加速球）と全開を描き分ける。
     //   色は水色ロック（§2）の範囲、金は全開の一瞬だけ（浄化色を「フルパワーの手元」で使う）。
     //   全て加算プール（Add=true→ZIndex21）＝弾レイヤー(Z0)には何も足さない＝ヒエラルキー維持。
     public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays, bool overload)
@@ -138,6 +138,18 @@ public partial class FxLayer : Node2D
                     // 接線方向（周回感）＝直進でなく“曲がって届く”気配。
                     var tan = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * sp;
                     Add0(new P { Type = T.Spark, X = pos.X + Mathf.Cos(a) * 3f, Y = pos.Y + Mathf.Sin(a) * 3f, Vx = tan.X, Vy = tan.Y, Size = 3.5f, W = 1, Ttl = R(0.10f, 0.18f), Col = Sig2, Drag = 5, Add = true });
+                }
+                break;
+            }
+            case GameManager.ShotMode.Accel:
+            {
+                // 加速球：タメて撃つロケット弾。連射よりリングを一回り大きく・厚く・長めに開いて「力を溜めて放つ」重さを出す。
+                // 粒は連射より少なく・大きく・遅く（Drag弱め）で、飛び出すというより押し出されるような尾を引かせる。
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 10, Ttl = 0.14f, Col = Cyan, W = 2.0f, A0 = 0.95f, Add = true });
+                for (int i = 0; i < 3; i++)
+                {
+                    float a = R(-0.15f, 0.15f), sp = R(40, 90);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 5.5f, W = 1.4f, Ttl = R(0.14f, 0.22f), Col = Cyan, Drag = 3, Add = true });
                 }
                 break;
             }

@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 97 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 98 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">97</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">98</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">加速球モードのマズルFXがcase分岐から漏れている</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/fx/FxLayer.cs:110-155</code>のMuzzle switchに<code>ShotMode.Accel</code>のcaseが無く連射用演出にフォールバックする。<code>Player.cs:859</code>のコメント「4状態」表記も実態と不一致。case追加とコメント修正を行う</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">加速球モードのマズルFXがcase分岐から漏れている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/fx/FxLayer.cs:144-155</code>のMuzzle switchに<code>case GameManager.ShotMode.Accel</code>を追加：連射(Rapid)より一回り大きく・厚く・長めのリング(R1=10/W=2.0/Ttl=0.14)と、少なく・大きく・遅い(Drag=3)Sparkで「タメて撃つロケット弾」の重さを演出。色は水色ロック（既存Cyan）のまま踏襲し新色は追加せず。<code>src/fx/FxLayer.cs:107</code>のコメントにも「加速球」を追記。<code>src/Player.cs:859</code>の「モード4状態（連射/拡散/ホーミング/全開）」という誤記（全開はモードでなくオーバーレイ）を「モード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる」に修正。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1081,18 +1081,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">888e127</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 加速球マズルFXのcase漏れ修正</span></li>
+      <li><span class="h">408c260</span><span>2026-08-23</span><span class="s">auto: StageRei.cs道中体数コメントを実値に修正</span></li>
       <li><span class="h">2178d4e</span><span>2026-08-23</span><span class="s">auto: WIP着手 - StageRei.cs道中体数コメントの修正</span></li>
       <li><span class="h">e855ba9</span><span>2026-08-23</span><span class="s">auto: 設計書のリプライ文言を実装に同期</span></li>
       <li><span class="h">f807e62</span><span>2026-08-23</span><span class="s">auto: WIP着手 - MINA_システム拡張設計書リプライ文言の同期</span></li>
       <li><span class="h">38616f9</span><span>2026-08-23</span><span class="s">auto: フォロワー由来ダメージバフの説明を追加</span></li>
       <li><span class="h">b73b386</span><span>2026-08-23</span><span class="s">auto: WIP着手 - フォロワー由来ダメージバフの説明追加</span></li>
       <li><span class="h">848ae46</span><span>2026-08-23</span><span class="s">auto: コンボ倍率の残り猶予を視覚化</span></li>
-      <li><span class="h">39b7460</span><span>2026-08-23</span><span class="s">auto: WIP着手 - コンボ倍率の残り猶予の視認性</span></li>
-      <li><span class="h">959cb28</span><span>2026-08-23</span><span class="s">auto: 監査で7件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-23 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-23 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
