@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P2) フォロワー数由来のダメージバフが完全に不可視 | game-designer | `GameManager.cs:690`のFollowerPowerMul（2,000人で+50%上限）が`Player.cs:832,965,1197`の3箇所でダメージ計算に配線されているが、HUD/Shop/HowToPlayのどこにも説明が無い。Shop「拡散力」ノード説明(`GameManager.cs:410`)またはHowToPlayに「フォロワーが増えるほど全弾ダメージが微増（上限+50%）」を明記する
 - [ ] (P2) MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:397`のレイ元投稿と`:404`のあかりリプライが、それぞれ`src/StageRei.cs:187`/`src/Hub.cs:1236`の実装文言と食い違う（同節の他4行は実装と一致済み）。この2箇所を実装文言に合わせて更新する
 - [ ] (P3) StageRei.csの道中体数コメントが実値(45体)と乖離 | engineer | `StageRei.cs:204`のコメント「20体＋ボス1」が実値`MidWaveA=15/B=14/C=16`(`:38-40`、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）
 - [ ] (P3) 加速球モードのマズルFXがcase分岐から漏れている | engineer | `src/fx/FxLayer.cs:110-155`のMuzzle switchに`ShotMode.Accel`のcaseが無く連射用演出にフォールバックする。`Player.cs:859`のコメント「4状態」表記も実態と不一致。case追加とコメント修正を行う
@@ -36,6 +35,8 @@
 - [ ] (P3) 身のこなしIIIの回避クールダウン短縮が実質死んでいる | game-designer→engineer | `GameManager.cs:749`のDodgeCooldown短縮(Lv3で0.5s)が`Player.cs:226`のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて`Player.cs:259`のDodgeReadyが`_dodgeTimer`を見ないため、`Hud.cs`の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に`_dodgeTimer<=0f`を含めるか、効果説明をDodgeDuration床に整合させる
 
 ## WIP
+
+- [ ] (P2) フォロワー数由来のダメージバフが完全に不可視 | game-designer | `GameManager.cs:690`のFollowerPowerMul（2,000人で+50%上限）が`Player.cs:832,965,1197`の3箇所でダメージ計算に配線されているが、HUD/Shop/HowToPlayのどこにも説明が無い。Shop「拡散力」ノード説明(`GameManager.cs:410`)またはHowToPlayに「フォロワーが増えるほど全弾ダメージが微増（上限+50%）」を明記する
 
 ## BLOCKED
 
