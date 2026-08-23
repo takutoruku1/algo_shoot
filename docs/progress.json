@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-23 18:32 UTC",
+  "generated": "2026-08-23 18:33 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 98
+    "done": 99
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "HUD「切替」操作ヒントが加速球単体解放を見落とす",
-      "worker": "engineer",
-      "accept": "`src/Hud.cs:1264-1265`のhasModes判定がSpread/Homingのみを見ており、Accelのみ解放した進行（`GameManager.cs:432`のParentIdでAccel単体解放が可能）でもヒントが未解放表示のままになる。`IsModeUnlocked(GameManager.ShotMode.Accel)`を判定に追加する"
-    },
     {
       "priority": "P3",
       "title": "身のこなしIIIの回避クールダウン短縮が実質死んでいる",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "HUD「切替」操作ヒントが加速球単体解放を見落とす",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/Hud.cs:1275-1277`のhasModes判定にAccelを追加：`_game?.IsModeUnlocked(GameManager.ShotMode.Accel)`をSpread/Homing判定とOR条件で連結。根拠：`src/GameManager.cs:432`の`accel_1`はParentIdが`move_speed_1`でSpread/Homingの解放ツリーと独立しており、Accel単体を解放した進行ではAccelのみIsModeUnlocked=trueになるため、修正前のhasModesがfalseのまま＝「切替」ヒントが未解放表示に固定される乖離があった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "加速球モードのマズルFXがcase分岐から漏れている",
@@ -706,6 +706,16 @@
   ],
   "commits": [
     {
+      "hash": "0cdb755",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正"
+    },
+    {
+      "hash": "2a5d14c",
+      "date": "2026-08-23",
+      "subject": "auto: 加速球モードのマズルFXを専用演出に"
+    },
+    {
       "hash": "888e127",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - 加速球マズルFXのcase漏れ修正"
@@ -734,16 +744,6 @@
       "hash": "38616f9",
       "date": "2026-08-23",
       "subject": "auto: フォロワー由来ダメージバフの説明を追加"
-    },
-    {
-      "hash": "b73b386",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - フォロワー由来ダメージバフの説明追加"
-    },
-    {
-      "hash": "848ae46",
-      "date": "2026-08-23",
-      "subject": "auto: コンボ倍率の残り猶予を視覚化"
     }
   ]
 }

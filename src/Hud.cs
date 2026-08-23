@@ -1273,7 +1273,8 @@ public partial class Hud : CanvasLayer
 
         // 行データ：トークン・動作名・有効か（無効は淡色＝まだ使えない/未解放を自然に示す）。
         bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
-                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false);
+                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false)
+                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Accel) ?? false);
         var items = new System.Collections.Generic.List<(string tok, string label, bool on)>
         {
             // 同じ動作に複数の割り当てがあるものは All*（全部列挙）。単一割り当ては Tok* のまま。
