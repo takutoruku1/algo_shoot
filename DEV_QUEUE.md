@@ -28,12 +28,13 @@
 
 ## TODO
 
-- [ ] (P3) StageRei.csの道中体数コメントが実値(45体)と乖離 | engineer | `StageRei.cs:204`のコメント「20体＋ボス1」が実値`MidWaveA=15/B=14/C=16`(`:38-40`、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）
 - [ ] (P3) 加速球モードのマズルFXがcase分岐から漏れている | engineer | `src/fx/FxLayer.cs:110-155`のMuzzle switchに`ShotMode.Accel`のcaseが無く連射用演出にフォールバックする。`Player.cs:859`のコメント「4状態」表記も実態と不一致。case追加とコメント修正を行う
 - [ ] (P3) HUD「切替」操作ヒントが加速球単体解放を見落とす | engineer | `src/Hud.cs:1264-1265`のhasModes判定がSpread/Homingのみを見ており、Accelのみ解放した進行（`GameManager.cs:432`のParentIdでAccel単体解放が可能）でもヒントが未解放表示のままになる。`IsModeUnlocked(GameManager.ShotMode.Accel)`を判定に追加する
 - [ ] (P3) 身のこなしIIIの回避クールダウン短縮が実質死んでいる | game-designer→engineer | `GameManager.cs:749`のDodgeCooldown短縮(Lv3で0.5s)が`Player.cs:226`のDodgeDuration=0.55sの床に潰され実質-0.05sしか効かない。加えて`Player.cs:259`のDodgeReadyが`_dodgeTimer`を見ないため、`Hud.cs`の回避ヒントが実際に再回避可能になる前に点灯する。DodgeReady判定に`_dodgeTimer<=0f`を含めるか、効果説明をDodgeDuration床に整合させる
 
 ## WIP
+
+- [ ] (P3) StageRei.csの道中体数コメントが実値(45体)と乖離 | engineer | `StageRei.cs:204`のコメント「20体＋ボス1」が実値`MidWaveA=15/B=14/C=16`(`:38-40`、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）
 
 ## BLOCKED
 
