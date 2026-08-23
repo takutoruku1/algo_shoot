@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-23 18:29 UTC",
+  "generated": "2026-08-23 18:30 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 96
+    "done": 97
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "StageRei.csの道中体数コメントが実値(45体)と乖離",
-      "worker": "engineer",
-      "accept": "`StageRei.cs:204`のコメント「20体＋ボス1」が実値`MidWaveA=15/B=14/C=16`(`:38-40`、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）"
-    },
     {
       "priority": "P3",
       "title": "加速球モードのマズルFXがcase分岐から漏れている",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "StageRei.csの道中体数コメントが実値(45体)と乖離",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-23) `src/StageRei.cs:204`のコメント「20体＋ボス1」を「45体＋ボス1」に修正。実値は`MidWaveA=15/B=14/C=16`（`src/StageRei.cs:38-40`、合計45体）で乖離を確認済み。コメント文字列のみの修正でロジック・数値定数は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "MINA_システム拡張設計書_v1.md③-3節のリプライモックアップが実装と不一致",
@@ -706,6 +706,16 @@
   ],
   "commits": [
     {
+      "hash": "2178d4e",
+      "date": "2026-08-23",
+      "subject": "auto: WIP着手 - StageRei.cs道中体数コメントの修正"
+    },
+    {
+      "hash": "e855ba9",
+      "date": "2026-08-23",
+      "subject": "auto: 設計書のリプライ文言を実装に同期"
+    },
+    {
       "hash": "f807e62",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - MINA_システム拡張設計書リプライ文言の同期"
@@ -734,16 +744,6 @@
       "hash": "959cb28",
       "date": "2026-08-23",
       "subject": "auto: 監査で7件をキューに追加"
-    },
-    {
-      "hash": "4428b5e",
-      "date": "2026-08-22",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "868ec96",
-      "date": "2026-08-23",
-      "subject": "Merge pull request #9 from takutoruku1/auto/dev"
     }
   ]
 }

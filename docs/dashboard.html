@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 96 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 97 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">96</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">97</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">StageRei.csの道中体数コメントが実値(45体)と乖離</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>StageRei.cs:204</code>のコメント「20体＋ボス1」が実値<code>MidWaveA=15/B=14/C=16</code>(<code>:38-40</code>、コメントにも合計45体と明記済み)と食い違う。コメントを実値に合わせて修正する（ロジック無変更）</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageRei.csの道中体数コメントが実値(45体)と乖離</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-23) <code>src/StageRei.cs:204</code>のコメント「20体＋ボス1」を「45体＋ボス1」に修正。実値は<code>MidWaveA=15/B=14/C=16</code>（<code>src/StageRei.cs:38-40</code>、合計45体）で乖離を確認済み。コメント文字列のみの修正でロジック・数値定数は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1081,18 +1081,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2178d4e</span><span>2026-08-23</span><span class="s">auto: WIP着手 - StageRei.cs道中体数コメントの修正</span></li>
+      <li><span class="h">e855ba9</span><span>2026-08-23</span><span class="s">auto: 設計書のリプライ文言を実装に同期</span></li>
       <li><span class="h">f807e62</span><span>2026-08-23</span><span class="s">auto: WIP着手 - MINA_システム拡張設計書リプライ文言の同期</span></li>
       <li><span class="h">38616f9</span><span>2026-08-23</span><span class="s">auto: フォロワー由来ダメージバフの説明を追加</span></li>
       <li><span class="h">b73b386</span><span>2026-08-23</span><span class="s">auto: WIP着手 - フォロワー由来ダメージバフの説明追加</span></li>
       <li><span class="h">848ae46</span><span>2026-08-23</span><span class="s">auto: コンボ倍率の残り猶予を視覚化</span></li>
       <li><span class="h">39b7460</span><span>2026-08-23</span><span class="s">auto: WIP着手 - コンボ倍率の残り猶予の視認性</span></li>
       <li><span class="h">959cb28</span><span>2026-08-23</span><span class="s">auto: 監査で7件をキューに追加</span></li>
-      <li><span class="h">4428b5e</span><span>2026-08-22</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">868ec96</span><span>2026-08-23</span><span class="s">Merge pull request #9 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-23 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-23 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
