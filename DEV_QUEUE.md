@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
-
 ## WIP
+
+- [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
 
 ## BLOCKED
 
