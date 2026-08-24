@@ -28,12 +28,13 @@
 
 ## TODO
 
-- [ ] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | `src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。
 - [ ] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | `src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。
 - [ ] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | `src/Pad.cs:271,275`の`MouseReleased()`(左ボタン離しエッジ)/`MouseMiddleClick()`(中ボタン押下エッジ)は、同ブロックの兄弟メソッド`MouseDown()`/`MouseMiddleDown()`(`Player.cs:580,625`で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。
 - [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
 
 ## WIP
+
+- [ ] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | `src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。
 
 ## BLOCKED
 
