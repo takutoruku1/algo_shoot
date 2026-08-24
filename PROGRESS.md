@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-24 18:40 UTC
+> 生成: 2026-08-24 18:45 UTC
 
 ## 消化率
 
 ```
-████████████████████  98%   (完了 108 / 対象 110)
+████████████████████  99%   (完了 109 / 対象 110)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 108 |
+| ✅ 完了 | 109 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 2 |
+| 📋 残り | 1 |
 | ⛔ 保留（人間の判断待ち） | 15 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,6 @@ _なし_
 
 ## 📋 次にやること
 
-- `P3` Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード
 - `P3` Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現
 
 ## ⛔ 保留（自動では進められない）
@@ -45,6 +44,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P3` Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード
 - `P3` GameManager.AddBombが呼び出し元ゼロの死にコード
 - `P3` Player.FollowerCountがコメントの用途通りに使われていない死にコード
 - `P3` Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装
@@ -156,11 +156,11 @@ _なし_
 
 ## 直近のコミット
 
+- `418ff8d` 2026-08-24 auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理
+- `a2f70cb` 2026-08-24 auto: GameManager.AddBomb死にコード削除
 - `488919a` 2026-08-24 auto: WIP着手 - GameManager.AddBomb死にコード整理
 - `37725ef` 2026-08-24 auto: Player.FollowerCount死にコード削除
 - `0fecebb` 2026-08-24 auto: WIP着手 - Player.FollowerCount死にコード整理
 - `99aec04` 2026-08-24 auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化
 - `807c69e` 2026-08-24 auto: WIP着手 - Pad.ModeToken死にコード整理
 - `bf96455` 2026-08-24 auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期
-- `200a96b` 2026-08-24 auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期
-- `6fd2114` 2026-08-24 auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期

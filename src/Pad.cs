@@ -223,7 +223,7 @@ public static class Pad
     public static bool UsingMouse => _usingMouse;
 
     // マウス左/右/中ボタンの状態と前フレーム値（エッジ検出用）。PollMouse が毎フレーム更新する。
-    private static bool _mL, _mLPrev, _mR, _mRPrev, _mM, _mMPrev;
+    private static bool _mL, _mLPrev, _mR, _mRPrev, _mM;
     // ホイールの当該フレーム蓄積量（上=+ / 下=-）。_UnhandledInput で貯め、フレーム末に消費してリセット。
     private static float _wheelAccum;
     private static float _wheelFrame;   // このフレームで確定したホイール量（PollMouse で accum→frame へ移す）
@@ -244,7 +244,7 @@ public static class Pad
     // viewport 経由でビューポート実座標(384系)を取り、UiKit.Scale で割って設計座標(1280系)へ変換する。
     public static void PollMouse(Viewport vp)
     {
-        _mLPrev = _mL; _mRPrev = _mR; _mMPrev = _mM;
+        _mLPrev = _mL; _mRPrev = _mR;
         _mL = Input.IsMouseButtonPressed(MouseButton.Left);
         _mR = Input.IsMouseButtonPressed(MouseButton.Right);
         _mM = Input.IsMouseButtonPressed(MouseButton.Middle);
@@ -268,11 +268,9 @@ public static class Pad
     // ── 読み取りヘルパ（各画面が使う公開API）──
     public static bool MouseDown() => _mL;                        // 左ボタン押下中
     public static bool MouseClick() => _mL && !_mLPrev;           // 左ボタン押下エッジ（このフレームで押された）
-    public static bool MouseReleased() => !_mL && _mLPrev;        // 左ボタン離しエッジ
     public static bool MouseRightDown() => _mR;                   // 右ボタン押下中
     public static bool MouseRightClick() => _mR && !_mRPrev;      // 右ボタン押下エッジ
     public static bool MouseMiddleDown() => _mM;                  // 中ボタン押下中（弾幕パートのボム）
-    public static bool MouseMiddleClick() => _mM && !_mMPrev;     // 中ボタン押下エッジ
     public static float WheelDelta() => _wheelFrame;             // このフレームのホイール量（上=+ / 下=-、無=0）
     public static Vector2 MousePos() => _mousePos;                // 設計座標(1280×720)でのマウス位置
 

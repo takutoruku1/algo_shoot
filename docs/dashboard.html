@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 108 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 109 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">108</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">109</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Pad.cs:271,275</code>の<code>MouseReleased()</code>(左ボタン離しエッジ)/<code>MouseMiddleClick()</code>(中ボタン押下エッジ)は、同ブロックの兄弟メソッド<code>MouseDown()</code>/<code>MouseMiddleDown()</code>(<code>Player.cs:580,625</code>で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現</span>
           <span class="worker">engineer</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Pad.cs</code>の<code>MouseReleased()</code>/<code>MouseMiddleClick()</code>を削除。削除前にsrc/全体(<code>.tscn</code>/<code>.tres</code>含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド<code>MouseClick()</code>/<code>MouseRightClick()</code>が使う<code>_mLPrev</code>/<code>_mRPrev</code>は維持しつつ、<code>MouseMiddleClick()</code>削除で書き込み専用の死にコードと化した<code>_mMPrev</code>(状態フィールド宣言・<code>PollMouse()</code>内の代入)も合わせて削除。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1161,18 +1161,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">418ff8d</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理</span></li>
+      <li><span class="h">a2f70cb</span><span>2026-08-24</span><span class="s">auto: GameManager.AddBomb死にコード削除</span></li>
       <li><span class="h">488919a</span><span>2026-08-24</span><span class="s">auto: WIP着手 - GameManager.AddBomb死にコード整理</span></li>
       <li><span class="h">37725ef</span><span>2026-08-24</span><span class="s">auto: Player.FollowerCount死にコード削除</span></li>
       <li><span class="h">0fecebb</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Player.FollowerCount死にコード整理</span></li>
       <li><span class="h">99aec04</span><span>2026-08-24</span><span class="s">auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化</span></li>
       <li><span class="h">807c69e</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Pad.ModeToken死にコード整理</span></li>
       <li><span class="h">bf96455</span><span>2026-08-24</span><span class="s">auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期</span></li>
-      <li><span class="h">200a96b</span><span>2026-08-24</span><span class="s">auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期</span></li>
-      <li><span class="h">6fd2114</span><span>2026-08-24</span><span class="s">auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-24 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-24 18:45 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

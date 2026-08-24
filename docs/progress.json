@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:40 UTC",
+  "generated": "2026-08-24 18:45 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 108
+    "done": 109
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード",
-      "worker": "engineer",
-      "accept": "`src/Pad.cs:271,275`の`MouseReleased()`(左ボタン離しエッジ)/`MouseMiddleClick()`(中ボタン押下エッジ)は、同ブロックの兄弟メソッド`MouseDown()`/`MouseMiddleDown()`(`Player.cs:580,625`で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。"
-    },
     {
       "priority": "P3",
       "title": "Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Pad.cs`の`MouseReleased()`/`MouseMiddleClick()`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド`MouseClick()`/`MouseRightClick()`が使う`_mLPrev`/`_mRPrev`は維持しつつ、`MouseMiddleClick()`削除で書き込み専用の死にコードと化した`_mMPrev`(状態フィールド宣言・`PollMouse()`内の代入)も合わせて削除。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "GameManager.AddBombが呼び出し元ゼロの死にコード",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "418ff8d",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理"
+    },
+    {
+      "hash": "a2f70cb",
+      "date": "2026-08-24",
+      "subject": "auto: GameManager.AddBomb死にコード削除"
+    },
+    {
       "hash": "488919a",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - GameManager.AddBomb死にコード整理"
@@ -794,16 +804,6 @@
       "hash": "bf96455",
       "date": "2026-08-24",
       "subject": "auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期"
-    },
-    {
-      "hash": "200a96b",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期"
-    },
-    {
-      "hash": "6fd2114",
-      "date": "2026-08-24",
-      "subject": "auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期"
     }
   ]
 }

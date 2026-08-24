@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | `src/Pad.cs:271,275`の`MouseReleased()`(左ボタン離しエッジ)/`MouseMiddleClick()`(中ボタン押下エッジ)は、同ブロックの兄弟メソッド`MouseDown()`/`MouseMiddleDown()`(`Player.cs:580,625`で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -54,6 +52,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | (完了 2026-08-24) `src/Pad.cs`の`MouseReleased()`/`MouseMiddleClick()`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド`MouseClick()`/`MouseRightClick()`が使う`_mLPrev`/`_mRPrev`は維持しつつ、`MouseMiddleClick()`削除で書き込み専用の死にコードと化した`_mMPrev`(状態フィールド宣言・`PollMouse()`内の代入)も合わせて削除。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | (完了 2026-08-24) `src/GameManager.cs:1272-1275`の`AddBomb(int n=1){ Bombs += n; }`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし呼び出し箇所が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | (完了 2026-08-24) `src/Player.cs:90-92`の`FollowerCount`プロパティとそのコメントを削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(`Hud.cs`)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみ使用のため影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装 | engineer | (完了 2026-08-24) `src/Hud.cs:214,230`の`TokMode`/`AllMode`（旧`Pad.UsingPad ? Pad.Face(JoyButton.B) : "V"`独自実装）を`Pad.ModeToken`呼び出しに置換して一本化。`Pad.UsingPad`(`Pad.cs:52`)が`!ShowKeyboard`と定義されているため`Pad.ModeToken`(`ShowKeyboard ? "V" : Face(B)`)と真理値表が完全一致することを確認済み、表示は不変。`Pad.cs:105`のコメント「ショップの『過熱』プレビュー」への言及（Shop側は既に過熱トグル撤去済みで実体なし）を「HUDのモード切替（TokMode/AllMode）に使用」へ修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
