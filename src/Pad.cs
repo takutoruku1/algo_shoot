@@ -102,7 +102,7 @@ public static class Pad
     //   Cancel  … X(KB) / B(パッド＝×・もどる/キャンセル)
     //   Equip   … C(KB) / Y(パッド＝△・装備/サブ操作)
     //   Bomb    … X(KB) / X(パッド＝□)
-    //   ModeSw  … V(KB) / B(パッド) … ショップの「過熱」プレビューや HUD のモード切替に流用
+    //   ModeSw  … V(KB) / B(パッド) … HUD のモード切替（TokMode/AllMode）に使用
     public static string CancelToken => ShowKeyboard ? "X" : Face(JoyButton.B);
     public static string EquipToken  => ShowKeyboard ? "C" : Face(JoyButton.Y);
     public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);

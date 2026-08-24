@@ -211,7 +211,7 @@ public partial class Hud : CanvasLayer
     private static string TokShot  => "オート";                                        // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string TokMode  => Pad.ModeToken;
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
@@ -227,7 +227,7 @@ public partial class Hud : CanvasLayer
     // 向き反転（射撃方向を右⇔左にトグル）。KB=F / 左クリック / パッド=RB(R1)。
     private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F / 左クリック";
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string AllMode  => Pad.ModeToken;
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。

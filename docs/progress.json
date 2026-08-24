@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:28 UTC",
+  "generated": "2026-08-24 18:34 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 15,
-    "done": 105
+    "done": 106
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装",
-      "worker": "engineer",
-      "accept": "`src/Pad.cs:100-101,105,109`のコメントは「HUD/Shopの過熱プレビューで使われる」と書くが、`ModeToken`は宣言行以外どこからも呼ばれておらず、`src/Hud.cs:214,230`の`TokMode`/`AllMode`が同一の真理値表(`Pad.UsingPad ? Pad.Face(JoyButton.B) : \"V\"`)を独自に再実装している。Hud.csの2箇所を`Pad.ModeToken`呼び出しに置き換えて一本化する(真理値表が同一のため表示は不変)か、不要なら`Pad.ModeToken`ごと削除しコメントの誤記述も除去する。"
-    },
     {
       "priority": "P3",
       "title": "Player.FollowerCountがコメントの用途通りに使われていない死にコード",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Hud.cs:214,230`の`TokMode`/`AllMode`（旧`Pad.UsingPad ? Pad.Face(JoyButton.B) : \"V\"`独自実装）を`Pad.ModeToken`呼び出しに置換して一本化。`Pad.UsingPad`(`Pad.cs:52`)が`!ShowKeyboard`と定義されているため`Pad.ModeToken`(`ShowKeyboard ? \"V\" : Face(B)`)と真理値表が完全一致することを確認済み、表示は不変。`Pad.cs:105`のコメント「ショップの『過熱』プレビュー」への言及（Shop側は既に過熱トグル撤去済みで実体なし）を「HUDのモード切替（TokMode/AllMode）に使用」へ修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "807c69e",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Pad.ModeToken死にコード整理"
+    },
+    {
+      "hash": "bf96455",
+      "date": "2026-08-24",
+      "subject": "auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期"
+    },
+    {
       "hash": "200a96b",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期"
@@ -794,16 +804,6 @@
       "hash": "12d498a",
       "date": "2026-08-24",
       "subject": "auto: ショップ「拡散力I/II」を「口コミI/II」へ名称修正"
-    },
-    {
-      "hash": "8607f4e",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - ショップ「拡散力I/II」見出しの名称修正"
-    },
-    {
-      "hash": "3358988",
-      "date": "2026-08-24",
-      "subject": "auto: 周回逓減(ReplayMul)の可視化"
     }
   ]
 }
