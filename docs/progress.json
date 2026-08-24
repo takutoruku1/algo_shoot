@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:25 UTC",
+  "generated": "2026-08-24 18:28 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
-    "done": 104
+    "done": 105
   },
   "percent": 95,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離",
-      "worker": "scenario",
-      "accept": "`docs/20260613/MINA_システム拡張設計書_v1.md:366,382-390`のSTAGE2/3後投稿文・掛け合いが`src/Hub.cs:1193-1211`の実装と細部で不一致(STAGE2は中間句欠落と掛け合い後半差し替え、STAGE3は末尾2行差し替え)。上記の§3-2 STAGE1後タスクと合わせてdoc§3-2全体を実装済みテキストへ一括同期する。"
-    },
     {
       "priority": "P3",
       "title": "Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:364-390`のSTAGE2後・STAGE3後を`src/Hub.cs:1211-1232`(`ReturnDialog(\"akari\")`/`ReturnDialog(\"koharu\")`)の実装文言へ完全同期。STAGE2は投稿文の中間句削除・人称「お前」→「きみ」統一・掛け合い後半を実装の「電波が遠い」ボケに差し替え。STAGE3は未実装の少年台詞を削除し終盤2行を実装の「長生きしてください」の下りに差し替え。演出注記も参照先セリフの変更に合わせて書き直し。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "200a96b",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期"
+    },
+    {
+      "hash": "6fd2114",
+      "date": "2026-08-24",
+      "subject": "auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期"
+    },
+    {
       "hash": "214b7eb",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE1後の実装同期"
@@ -794,16 +804,6 @@
       "hash": "3358988",
       "date": "2026-08-24",
       "subject": "auto: 周回逓減(ReplayMul)の可視化"
-    },
-    {
-      "hash": "0742b09",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - 周回逓減(ReplayMul)の可視化"
-    },
-    {
-      "hash": "3389e51",
-      "date": "2026-08-24",
-      "subject": "auto: 監査で10件をキューに追加"
     }
   ]
 }
