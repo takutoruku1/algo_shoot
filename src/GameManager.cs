@@ -1269,11 +1269,6 @@ public partial class GameManager : Node
     // 全開中は触らない（タイマー表示と競合させない）。
     public void FillKindnessForTutorial() { if (!IsOverload) _kindFill = 1f; }
 
-    public void AddBomb(int n = 1)
-    {
-        Bombs += n;
-    }
-
     // ラン開始時のリセット。※インプレ/フォロワー/強化は恒久なので消さない（§0-3）。
     public void ResetRun()
     {

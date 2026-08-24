@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:38 UTC",
+  "generated": "2026-08-24 18:40 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 107
+    "done": 108
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "GameManager.AddBombが呼び出し元ゼロの死にコード",
-      "worker": "engineer",
-      "accept": "`src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。"
-    },
     {
       "priority": "P3",
       "title": "Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GameManager.AddBombが呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/GameManager.cs:1272-1275`の`AddBomb(int n=1){ Bombs += n; }`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし呼び出し箇所が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Player.FollowerCountがコメントの用途通りに使われていない死にコード",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "488919a",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - GameManager.AddBomb死にコード整理"
+    },
+    {
+      "hash": "37725ef",
+      "date": "2026-08-24",
+      "subject": "auto: Player.FollowerCount死にコード削除"
+    },
+    {
       "hash": "0fecebb",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Player.FollowerCount死にコード整理"
@@ -794,16 +804,6 @@
       "hash": "6fd2114",
       "date": "2026-08-24",
       "subject": "auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期"
-    },
-    {
-      "hash": "214b7eb",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE1後の実装同期"
-    },
-    {
-      "hash": "22f4609",
-      "date": "2026-08-24",
-      "subject": "auto: Hub画面に汚染連動フィルタ演出を追加"
     }
   ]
 }
