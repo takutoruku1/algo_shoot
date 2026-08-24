@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P1) 周回逓減(ReplayMul)の可視化 | engineer | `GameManager.cs:299-326,768,785`の`ReplayMul`(同一ステージを同難度以下で連続周回するとImpression/フォロワー報酬が`Mathf.Pow(0.8f,streak)`で最大-60%まで逓減する仕組み)が`Hud.cs`/`DiffSelect.cs`/`Shop.cs`/`HowToPlay.cs`のどこにも表示されていない(grep該当0件)。難易度倍率(`DiffSelect.cs:366-367`)や炎上デバフ(既存のHUDチップ)は明示されているのにReplayMulだけ無表示で、プレイヤーには理由不明の報酬減少に見える。`Hud.ShowClearBanner`かHUD通貨表示付近に`ReplayMul<1f`のとき「周回逓減 ×0.8(連続N回目)」等を表示するか、`HowToPlay.cs`に一文追記して可視化する。
 - [ ] (P2) ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい | engineer | `GameManager.cs:410-411`のノード名`拡散力I/II`は実体がフォロワー獲得倍率(口コミ×1.15/1.30)で、ショットモードの「拡散」攻撃力とは無関係。効果文言側(`Shop.cs:1834`)は既に「口コミ」表記へ修正済み(同箇所のコメントで開発側が混同を自認)だが、見出し`d.Name`だけ未修正のため大見出し(`Shop.cs:1660`)・小見出し(`Shop.cs:1478`)・購入トースト(`Shop.cs:837`)で「拡散力」表示が残り誤読を招く。`GameManager.cs:410-411`の`Name`を「口コミI/II」等、ショットモード名と字面が被らない語に変更する(`Eff()`側は無変更でよい)。
 - [ ] (P2) Hub画面に設計書指定の「汚染フィルタ」演出が未実装 | engineer | `docs/20260613/MINA_システム拡張設計書_v1.md:65,489,653-659`(§0-5鉄則/§④-1/§④-7の4段階表)が汚染進行(清浄/兆候/進行/危険)に連動したハブ全体の灰〜紫フィルタを明記しているが、`src/Hub.cs`には汚染連動の全画面Modulate/CanvasModulate/彩度操作が一切なく(該当0件)、実装は`Hub.cs:567-571`の汚染バー1本のみ。STG側の濁り演出(Player.MurkTint等)は実装済みなのにHub側だけ設計書の核心テーマが視覚的に欠落している。Hub.cs描画ルートに`Contamination`値に応じた全画面オーバーレイ(灰→紫、α漸増)を追加し§④-7の4段階に合わせる。
 - [ ] (P2) システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:352-361`の投稿文・掛け合いが`src/Hub.cs:1180-1190`の実装済みセリフと全面的に異なる(§3-3は既にDONE(2026-08-23)で実装文言へ同期済みだが§3-2は未着手のまま放置)。実装側を事後改稿された正典とみなし、doc側§3-2のSTAGE1後投稿文・掛け合いをHub.csの実装文言に合わせて書き換える(コード変更不要、scenario対応)。
@@ -40,6 +39,8 @@
 - [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
 
 ## WIP
+
+- [ ] (P1) 周回逓減(ReplayMul)の可視化 | engineer | `GameManager.cs:299-326,768,785`の`ReplayMul`(同一ステージを同難度以下で連続周回するとImpression/フォロワー報酬が`Mathf.Pow(0.8f,streak)`で最大-60%まで逓減する仕組み)が`Hud.cs`/`DiffSelect.cs`/`Shop.cs`/`HowToPlay.cs`のどこにも表示されていない(grep該当0件)。難易度倍率(`DiffSelect.cs:366-367`)や炎上デバフ(既存のHUDチップ)は明示されているのにReplayMulだけ無表示で、プレイヤーには理由不明の報酬減少に見える。`Hud.ShowClearBanner`かHUD通貨表示付近に`ReplayMul<1f`のとき「周回逓減 ×0.8(連続N回目)」等を表示するか、`HowToPlay.cs`に一文追記して可視化する。
 
 ## BLOCKED
 
