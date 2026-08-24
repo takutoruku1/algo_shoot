@@ -28,11 +28,12 @@
 
 ## TODO
 
-- [ ] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | `src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。
 - [ ] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | `src/Pad.cs:271,275`の`MouseReleased()`(左ボタン離しエッジ)/`MouseMiddleClick()`(中ボタン押下エッジ)は、同ブロックの兄弟メソッド`MouseDown()`/`MouseMiddleDown()`(`Player.cs:580,625`で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。
 - [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
 
 ## WIP
+
+- [ ] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | `src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。
 
 ## BLOCKED
 
