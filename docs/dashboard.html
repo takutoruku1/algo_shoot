@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">93<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 102 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">94<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 103 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 94パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">102</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">103</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">7</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">Hub画面に設計書指定の「汚染フィルタ」演出が未実装</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>docs/20260613/MINA_システム拡張設計書_v1.md:65,489,653-659</code>(§0-5鉄則/§④-1/§④-7の4段階表)が汚染進行(清浄/兆候/進行/危険)に連動したハブ全体の灰〜紫フィルタを明記しているが、<code>src/Hub.cs</code>には汚染連動の全画面Modulate/CanvasModulate/彩度操作が一切なく(該当0件)、実装は<code>Hub.cs:567-571</code>の汚染バー1本のみ。STG側の濁り演出(Player.MurkTint等)は実装済みなのにHub側だけ設計書の核心テーマが視覚的に欠落している。Hub.cs描画ルートに<code>Contamination</code>値に応じた全画面オーバーレイ(灰→紫、α漸増)を追加し§④-7の4段階に合わせる。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -215,6 +207,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Hub画面に設計書指定の「汚染フィルタ」演出が未実装</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Hub.cs:532-556</code>に<code>DrawContaminationOverlay()</code>を追加し、<code>_Draw()</code>の通常分岐・<code>Mode.Dialogue</code>分岐の両方で既存描画の最後（<code>UiKit.EndDesign</code>直前）に呼び出す。<code>Contamination</code>(0〜1)を清浄(0-24%:オーバーレイ無)/兆候(25-49%:α0.03→0.07)/進行(50-74%:α0.07→0.14)/危険(75-100%:α0.14→0.22)の3バンドで<code>Mathf.Lerp</code>により段階内も滑らかに補間、色も灰(<code>8c889c</code>)→紫(<code>5a3a78</code>)へ<code>Color.Lerp</code>。<code>DrawRect</code>のみの純描画で入力・ヒット判定には影響なし、既存の汚染バー(<code>Hub.cs:568-570</code>付近)は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。<strong>実機/QAでの目視確認は未実施（静的実装＋ビルド確認のみ）</strong></p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1161,18 +1161,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">280c54d</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Hub画面の汚染フィルタ演出を実装</span></li>
+      <li><span class="h">12d498a</span><span>2026-08-24</span><span class="s">auto: ショップ「拡散力I/II」を「口コミI/II」へ名称修正</span></li>
       <li><span class="h">8607f4e</span><span>2026-08-24</span><span class="s">auto: WIP着手 - ショップ「拡散力I/II」見出しの名称修正</span></li>
       <li><span class="h">3358988</span><span>2026-08-24</span><span class="s">auto: 周回逓減(ReplayMul)の可視化</span></li>
       <li><span class="h">0742b09</span><span>2026-08-24</span><span class="s">auto: WIP着手 - 周回逓減(ReplayMul)の可視化</span></li>
       <li><span class="h">3389e51</span><span>2026-08-24</span><span class="s">auto: 監査で10件をキューに追加</span></li>
       <li><span class="h">3dfd02a</span><span>2026-08-23</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">e8a0c38</span><span>2026-08-24</span><span class="s">Merge pull request #10 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">a4875eb</span><span>2026-08-23</span><span class="s">auto: DodgeReady判定の表示不整合を修正</span></li>
-      <li><span class="h">8c0fece</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 回避DodgeReady判定の不整合修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-24 18:20 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-24 18:23 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

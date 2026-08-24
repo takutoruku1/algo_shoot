@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:20 UTC",
+  "generated": "2026-08-24 18:23 UTC",
   "counts": {
-    "todo": 8,
+    "todo": 7,
     "wip": 0,
     "blocked": 15,
-    "done": 102
+    "done": 103
   },
-  "percent": 93,
+  "percent": 94,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "Hub画面に設計書指定の「汚染フィルタ」演出が未実装",
-      "worker": "engineer",
-      "accept": "`docs/20260613/MINA_システム拡張設計書_v1.md:65,489,653-659`(§0-5鉄則/§④-1/§④-7の4段階表)が汚染進行(清浄/兆候/進行/危険)に連動したハブ全体の灰〜紫フィルタを明記しているが、`src/Hub.cs`には汚染連動の全画面Modulate/CanvasModulate/彩度操作が一切なく(該当0件)、実装は`Hub.cs:567-571`の汚染バー1本のみ。STG側の濁り演出(Player.MurkTint等)は実装済みなのにHub側だけ設計書の核心テーマが視覚的に欠落している。Hub.cs描画ルートに`Contamination`値に応じた全画面オーバーレイ(灰→紫、α漸増)を追加し§④-7の4段階に合わせる。"
-    },
     {
       "priority": "P2",
       "title": "システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "Hub画面に設計書指定の「汚染フィルタ」演出が未実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Hub.cs:532-556`に`DrawContaminationOverlay()`を追加し、`_Draw()`の通常分岐・`Mode.Dialogue`分岐の両方で既存描画の最後（`UiKit.EndDesign`直前）に呼び出す。`Contamination`(0〜1)を清浄(0-24%:オーバーレイ無)/兆候(25-49%:α0.03→0.07)/進行(50-74%:α0.07→0.14)/危険(75-100%:α0.14→0.22)の3バンドで`Mathf.Lerp`により段階内も滑らかに補間、色も灰(`8c889c`)→紫(`5a3a78`)へ`Color.Lerp`。`DrawRect`のみの純描画で入力・ヒット判定には影響なし、既存の汚染バー(`Hub.cs:568-570`付近)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**実機/QAでの目視確認は未実施（静的実装＋ビルド確認のみ）**"
+    },
     {
       "priority": "P2",
       "title": "ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "280c54d",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Hub画面の汚染フィルタ演出を実装"
+    },
+    {
+      "hash": "12d498a",
+      "date": "2026-08-24",
+      "subject": "auto: ショップ「拡散力I/II」を「口コミI/II」へ名称修正"
+    },
+    {
       "hash": "8607f4e",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - ショップ「拡散力I/II」見出しの名称修正"
@@ -794,16 +804,6 @@
       "hash": "e8a0c38",
       "date": "2026-08-24",
       "subject": "Merge pull request #10 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "a4875eb",
-      "date": "2026-08-23",
-      "subject": "auto: DodgeReady判定の表示不整合を修正"
-    },
-    {
-      "hash": "8c0fece",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
     }
   ]
 }
