@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 100 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 110 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">100</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">110</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,86 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Enemy.cs:171-172</code>の<code>PanelsRemaining</code>/<code>IsExposed</code>(コメント込み)を削除。削除前にsrc/全体(ボス派生クラス・fx/・<code>.tscn</code>/<code>.tres</code>含む)を再grepし宣言行以外の参照が無いことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Pad.cs</code>の<code>MouseReleased()</code>/<code>MouseMiddleClick()</code>を削除。削除前にsrc/全体(<code>.tscn</code>/<code>.tres</code>含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド<code>MouseClick()</code>/<code>MouseRightClick()</code>が使う<code>_mLPrev</code>/<code>_mRPrev</code>は維持しつつ、<code>MouseMiddleClick()</code>削除で書き込み専用の死にコードと化した<code>_mMPrev</code>(状態フィールド宣言・<code>PollMouse()</code>内の代入)も合わせて削除。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.AddBombが呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/GameManager.cs:1272-1275</code>の<code>AddBomb(int n=1){ Bombs += n; }</code>を削除。削除前にsrc/全体(<code>.tscn</code>/<code>.tres</code>含む)を再grepし呼び出し箇所が無いことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.FollowerCountがコメントの用途通りに使われていない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Player.cs:90-92</code>の<code>FollowerCount</code>プロパティとそのコメントを削除。削除前にsrc/全体(<code>.tscn</code>/<code>.tres</code>含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(<code>Hud.cs</code>)は<code>SavedProgress</code>/<code>SavedPerFollower</code>/<code>FollowersFull</code>のみ使用のため影響なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Hud.cs:214,230</code>の<code>TokMode</code>/<code>AllMode</code>（旧<code>Pad.UsingPad ? Pad.Face(JoyButton.B) : &quot;V&quot;</code>独自実装）を<code>Pad.ModeToken</code>呼び出しに置換して一本化。<code>Pad.UsingPad</code>(<code>Pad.cs:52</code>)が<code>!ShowKeyboard</code>と定義されているため<code>Pad.ModeToken</code>(<code>ShowKeyboard ? &quot;V&quot; : Face(B)</code>)と真理値表が完全一致することを確認済み、表示は不変。<code>Pad.cs:105</code>のコメント「ショップの『過熱』プレビュー」への言及（Shop側は既に過熱トグル撤去済みで実体なし）を「HUDのモード切替（TokMode/AllMode）に使用」へ修正。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>docs/20260613/MINA_システム拡張設計書_v1.md:364-390</code>のSTAGE2後・STAGE3後を<code>src/Hub.cs:1211-1232</code>(<code>ReturnDialog(&quot;akari&quot;)</code>/<code>ReturnDialog(&quot;koharu&quot;)</code>)の実装文言へ完全同期。STAGE2は投稿文の中間句削除・人称「お前」→「きみ」統一・掛け合い後半を実装の「電波が遠い」ボケに差し替え。STAGE3は未実装の少年台詞を削除し終盤2行を実装の「長生きしてください」の下りに差し替え。演出注記も参照先セリフの変更に合わせて書き直し。コード変更なし、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>docs/20260613/MINA_システム拡張設計書_v1.md:353-363</code>のSTAGE1後投稿文・掛け合いを<code>src/Hub.cs:1200-1210</code>(<code>ReturnDialog(&quot;rei&quot;)</code>)の実装文言へ完全同期。投稿本文を実装の「「敵などいない」と気を吐いておられた天才を…」に差し替え、掛け合いも実装の7行(旧doc独自の3行「第一そういうのは作者であるぼくが——」等は削除)に一致させた。演出注記も削除された台詞への言及を外し実装内容に合わせて改稿。コード変更なし、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Hub画面に設計書指定の「汚染フィルタ」演出が未実装</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Hub.cs:532-556</code>に<code>DrawContaminationOverlay()</code>を追加し、<code>_Draw()</code>の通常分岐・<code>Mode.Dialogue</code>分岐の両方で既存描画の最後（<code>UiKit.EndDesign</code>直前）に呼び出す。<code>Contamination</code>(0〜1)を清浄(0-24%:オーバーレイ無)/兆候(25-49%:α0.03→0.07)/進行(50-74%:α0.07→0.14)/危険(75-100%:α0.14→0.22)の3バンドで<code>Mathf.Lerp</code>により段階内も滑らかに補間、色も灰(<code>8c889c</code>)→紫(<code>5a3a78</code>)へ<code>Color.Lerp</code>。<code>DrawRect</code>のみの純描画で入力・ヒット判定には影響なし、既存の汚染バー(<code>Hub.cs:568-570</code>付近)は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。<strong>実機/QAでの目視確認は未実施（静的実装＋ビルド確認のみ）</strong></p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/GameManager.cs:411-412</code>のノード<code>fol_gain_1</code>/<code>fol_gain_2</code>の<code>Name</code>を「拡散力I/II」→「口コミI/II」に変更（<code>Desc</code>/<code>Id</code>/<code>ParentId</code>/<code>BaseCost</code>/<code>MaxLevel</code>は無変更）。<code>src/</code>全体をgrepし<code>Name</code>文字列の直接参照はコード側に無いこと（全て<code>Id</code>経由参照）を確認済み。<code>src/ShopTutorial.cs:22</code>の地の文中の「拡散力」は一般名詞的な言い回しでノード名参照ではないため対象外（<code>Player.cs:829</code>/<code>Shop.cs:894</code>もコメントのみで対象外）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">周回逓減(ReplayMul)の可視化</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/GameManager.cs:306</code>に<code>RepeatStreak</code>公開プロパティ(「連続N回目」表示用)を追加。<code>src/Hud.cs:1803-1810</code>の<code>ShowClearBanner</code>(SCORE/BEST行の下、y=506)に<code>_game.ReplayMul&lt;1f</code>のときだけ「周回逓減 ×0.8（連続N回目・別ステージ/難度アップでリセット）」を<code>FontSmall</code>/<code>UiKit.Text3</code>で表示する分岐を追加。<code>ShowClearBanner</code>のシグネチャ変更やステージ側呼び出しの変更は不要。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1081,18 +1161,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">e8a0c38</span><span>2026-08-24</span><span class="s">Merge pull request #10 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">a4875eb</span><span>2026-08-23</span><span class="s">auto: DodgeReady判定の表示不整合を修正</span></li>
-      <li><span class="h">8c0fece</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 回避DodgeReady判定の不整合修正</span></li>
-      <li><span class="h">04841b7</span><span>2026-08-23</span><span class="s">auto: HUD切替ヒントの加速球単体解放見落としを修正</span></li>
-      <li><span class="h">0cdb755</span><span>2026-08-23</span><span class="s">auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正</span></li>
-      <li><span class="h">2a5d14c</span><span>2026-08-23</span><span class="s">auto: 加速球モードのマズルFXを専用演出に</span></li>
-      <li><span class="h">888e127</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 加速球マズルFXのcase漏れ修正</span></li>
-      <li><span class="h">408c260</span><span>2026-08-23</span><span class="s">auto: StageRei.cs道中体数コメントを実値に修正</span></li>
+      <li><span class="h">e233d83</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理</span></li>
+      <li><span class="h">5668d65</span><span>2026-08-24</span><span class="s">auto: Pad.MouseReleased/MouseMiddleClick死にコード削除</span></li>
+      <li><span class="h">418ff8d</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理</span></li>
+      <li><span class="h">a2f70cb</span><span>2026-08-24</span><span class="s">auto: GameManager.AddBomb死にコード削除</span></li>
+      <li><span class="h">488919a</span><span>2026-08-24</span><span class="s">auto: WIP着手 - GameManager.AddBomb死にコード整理</span></li>
+      <li><span class="h">37725ef</span><span>2026-08-24</span><span class="s">auto: Player.FollowerCount死にコード削除</span></li>
+      <li><span class="h">0fecebb</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Player.FollowerCount死にコード整理</span></li>
+      <li><span class="h">99aec04</span><span>2026-08-24</span><span class="s">auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-23 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-24 18:47 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

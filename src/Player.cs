@@ -88,9 +88,6 @@ public partial class Player : Area2D
         NotifyFollowerProgress(); // 満員化し得るので通知
     }
 
-    // 現在のフォロワー所持数（0..MaxFollowers）。HUDの進捗ドット表示用に公開。
-    public int FollowerCount => _followers.Count;
-
     // フォロワーが満員（MaxFollowers到達済み）か。満員なら次の1体までの進捗表示は不要。
     public bool FollowersFull => _followers.Count >= MaxFollowers;
 

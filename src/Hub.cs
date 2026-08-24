@@ -529,11 +529,31 @@ public partial class Hub : Node2D
 
         DrawHeader();
 
-        if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); UiKit.EndDesign(this); return; }
+        if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
         DrawCards(1f);
         DrawFooter();
         DrawToast();
+        DrawContaminationOverlay();
         UiKit.EndDesign(this);
+    }
+
+    // 汚染ゲージ連動のハブ全体オーバーレイ。清浄(0-24%)は無し、兆候(25-49%)はごく薄い灰、
+    //   進行(50-74%)は灰〜紫でやや強め、危険(75-99%/100%)は濁り最も強い……と段階ごとに滑らかに補間する。
+    //   入力は奪わない（DrawRect の純粋な描画のみ）。既存の汚染バー描画（ヘッダー内）とは独立。
+    private void DrawContaminationOverlay()
+    {
+        float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
+        if (contam < 0.25f) return; // 清浄：オーバーレイなし
+
+        float alpha;
+        if (contam < 0.50f) alpha = Mathf.Lerp(0.03f, 0.07f, (contam - 0.25f) / 0.25f);       // 兆候：ごく薄い
+        else if (contam < 0.75f) alpha = Mathf.Lerp(0.07f, 0.14f, (contam - 0.50f) / 0.25f);  // 進行：やや強め
+        else alpha = Mathf.Lerp(0.14f, 0.22f, Mathf.Min(1f, (contam - 0.75f) / 0.25f));       // 危険〜限界：最も強い
+
+        var gray = new Color("8c889c");
+        var purple = new Color("5a3a78");
+        float colorT = Mathf.Clamp((contam - 0.25f) / 0.75f, 0f, 1f);
+        DrawRect(new Rect2(0, 0, W, H), new Color(gray.Lerp(purple, colorT), alpha));
     }
 
     private void DrawHeader()

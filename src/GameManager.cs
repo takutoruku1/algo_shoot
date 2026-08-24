@@ -303,6 +303,7 @@ public partial class GameManager : Node
     private int _lastRunDiff = -1;
     private int _repeatStreak;
     public float ReplayMul { get; private set; } = 1f;
+    public int RepeatStreak => _repeatStreak; // HUDの逓減表示用（「連続N回目」＝この値+1）
     private readonly Dictionary<string, int> _stagePlays = new();
     public int StagePlays(string id) => _stagePlays.TryGetValue(id, out var v) ? v : 0;
 
@@ -407,8 +408,8 @@ public partial class GameManager : Node
         new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.56",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
         new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.62",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
         new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.35", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
-        new() { Id = "fol_gain_1",    Name = "拡散力I",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
-        new() { Id = "fol_gain_2",    Name = "拡散力II",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
+        new() { Id = "fol_gain_1",    Name = "口コミI",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
+        new() { Id = "fol_gain_2",    Name = "口コミII",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
         new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "fol_gain_1" },
         new() { Id = "combo_hold_2",  Name = "コンボ持続II",Desc = "コンボ猶予 2.8秒",         MaxLevel = 1, BaseCost = 200,  ParentId = "combo_hold_1" },
         new() { Id = "option_1",      Name = "拡散サブI",   Desc = "追従オプション +1（威力×0.5でメイン同期射撃）", MaxLevel = 1, BaseCost = 900,  ParentId = "spread_power_1", PrereqId = "spread_2", PrereqLv = 1 },
@@ -1267,11 +1268,6 @@ public partial class GameManager : Node
     // チュートリアル（ステージ0）ステップ7用：やさしさゲージを一度だけ満タンにする。
     // 全開中は触らない（タイマー表示と競合させない）。
     public void FillKindnessForTutorial() { if (!IsOverload) _kindFill = 1f; }
-
-    public void AddBomb(int n = 1)
-    {
-        Bombs += n;
-    }
 
     // ラン開始時のリセット。※インプレ/フォロワー/強化は恒久なので消さない（§0-3）。
     public void ResetRun()

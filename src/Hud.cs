@@ -211,7 +211,7 @@ public partial class Hud : CanvasLayer
     private static string TokShot  => "オート";                                        // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string TokMode  => Pad.ModeToken;
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
@@ -227,7 +227,7 @@ public partial class Hud : CanvasLayer
     // 向き反転（射撃方向を右⇔左にトグル）。KB=F / 左クリック / パッド=RB(R1)。
     private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F / 左クリック";
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string AllMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";
+    private static string AllMode  => Pad.ModeToken;
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
@@ -1798,6 +1798,14 @@ public partial class Hud : CanvasLayer
             {
                 Color sc = _bannerScoreNewBest ? UiKit.Gold : UiKit.Text2;
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 474), _bannerScoreBest, UiKit.FontHeading, new Color(sc, a),
+                    HorizontalAlignment.Center, 1280);
+            }
+            // 周回逓減の可視化（①-7）：同ステージを同難度以下で連続周回すると Imp/Fol が ReplayMul で減っているが、
+            // これまでどこにも表示が無く「理由もなく報酬が減った」ように見えていた。逓減が効いている時だけ小さく注記する。
+            if ((_game?.ReplayMul ?? 1f) < 1f)
+            {
+                string note = $"周回逓減 ×{_game!.ReplayMul:0.0}（連続{_game.RepeatStreak + 1}回目・別ステージ/難度アップでリセット）";
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 506), note, UiKit.FontSmall, new Color(UiKit.Text3, a),
                     HorizontalAlignment.Center, 1280);
             }
         }

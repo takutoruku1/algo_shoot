@@ -1,17 +1,17 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-23 22:05 UTC
+> 生成: 2026-08-24 18:47 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 100 / 対象 100)
+████████████████████  100%   (完了 110 / 対象 110)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 100 |
+| ✅ 完了 | 110 |
 | 🔨 作業中 | 0 |
 | 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 15 |
@@ -44,6 +44,16 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P3` Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現
+- `P3` Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード
+- `P3` GameManager.AddBombが呼び出し元ゼロの死にコード
+- `P3` Player.FollowerCountがコメントの用途通りに使われていない死にコード
+- `P3` Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装
+- `P3` システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離
+- `P2` システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致
+- `P2` Hub画面に設計書指定の「汚染フィルタ」演出が未実装
+- `P2` ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい
+- `P1` 周回逓減(ReplayMul)の可視化
 - `P3` 身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）
 - `P3` HUD「切替」操作ヒントが加速球単体解放を見落とす
 - `P3` 加速球モードのマズルFXがcase分岐から漏れている
@@ -147,11 +157,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `e8a0c38` 2026-08-24 Merge pull request #10 from takutoruku1/auto/dev
-- `a4875eb` 2026-08-23 auto: DodgeReady判定の表示不整合を修正
-- `8c0fece` 2026-08-23 auto: WIP着手 - 回避DodgeReady判定の不整合修正
-- `04841b7` 2026-08-23 auto: HUD切替ヒントの加速球単体解放見落としを修正
-- `0cdb755` 2026-08-23 auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正
-- `2a5d14c` 2026-08-23 auto: 加速球モードのマズルFXを専用演出に
-- `888e127` 2026-08-23 auto: WIP着手 - 加速球マズルFXのcase漏れ修正
-- `408c260` 2026-08-23 auto: StageRei.cs道中体数コメントを実値に修正
+- `e233d83` 2026-08-24 auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理
+- `5668d65` 2026-08-24 auto: Pad.MouseReleased/MouseMiddleClick死にコード削除
+- `418ff8d` 2026-08-24 auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理
+- `a2f70cb` 2026-08-24 auto: GameManager.AddBomb死にコード削除
+- `488919a` 2026-08-24 auto: WIP着手 - GameManager.AddBomb死にコード整理
+- `37725ef` 2026-08-24 auto: Player.FollowerCount死にコード削除
+- `0fecebb` 2026-08-24 auto: WIP着手 - Player.FollowerCount死にコード整理
+- `99aec04` 2026-08-24 auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化

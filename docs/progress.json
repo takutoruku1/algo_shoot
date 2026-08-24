@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-23 22:05 UTC",
+  "generated": "2026-08-24 18:47 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 100
+    "done": 110
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,66 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Enemy.cs:171-172`の`PanelsRemaining`/`IsExposed`(コメント込み)を削除。削除前にsrc/全体(ボス派生クラス・fx/・`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Pad.cs`の`MouseReleased()`/`MouseMiddleClick()`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド`MouseClick()`/`MouseRightClick()`が使う`_mLPrev`/`_mRPrev`は維持しつつ、`MouseMiddleClick()`削除で書き込み専用の死にコードと化した`_mMPrev`(状態フィールド宣言・`PollMouse()`内の代入)も合わせて削除。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "GameManager.AddBombが呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/GameManager.cs:1272-1275`の`AddBomb(int n=1){ Bombs += n; }`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし呼び出し箇所が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "Player.FollowerCountがコメントの用途通りに使われていない死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Player.cs:90-92`の`FollowerCount`プロパティとそのコメントを削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(`Hud.cs`)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみ使用のため影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Hud.cs:214,230`の`TokMode`/`AllMode`（旧`Pad.UsingPad ? Pad.Face(JoyButton.B) : \"V\"`独自実装）を`Pad.ModeToken`呼び出しに置換して一本化。`Pad.UsingPad`(`Pad.cs:52`)が`!ShowKeyboard`と定義されているため`Pad.ModeToken`(`ShowKeyboard ? \"V\" : Face(B)`)と真理値表が完全一致することを確認済み、表示は不変。`Pad.cs:105`のコメント「ショップの『過熱』プレビュー」への言及（Shop側は既に過熱トグル撤去済みで実体なし）を「HUDのモード切替（TokMode/AllMode）に使用」へ修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:364-390`のSTAGE2後・STAGE3後を`src/Hub.cs:1211-1232`(`ReturnDialog(\"akari\")`/`ReturnDialog(\"koharu\")`)の実装文言へ完全同期。STAGE2は投稿文の中間句削除・人称「お前」→「きみ」統一・掛け合い後半を実装の「電波が遠い」ボケに差し替え。STAGE3は未実装の少年台詞を削除し終盤2行を実装の「長生きしてください」の下りに差し替え。演出注記も参照先セリフの変更に合わせて書き直し。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:353-363`のSTAGE1後投稿文・掛け合いを`src/Hub.cs:1200-1210`(`ReturnDialog(\"rei\")`)の実装文言へ完全同期。投稿本文を実装の「「敵などいない」と気を吐いておられた天才を…」に差し替え、掛け合いも実装の7行(旧doc独自の3行「第一そういうのは作者であるぼくが——」等は削除)に一致させた。演出注記も削除された台詞への言及を外し実装内容に合わせて改稿。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "Hub画面に設計書指定の「汚染フィルタ」演出が未実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Hub.cs:532-556`に`DrawContaminationOverlay()`を追加し、`_Draw()`の通常分岐・`Mode.Dialogue`分岐の両方で既存描画の最後（`UiKit.EndDesign`直前）に呼び出す。`Contamination`(0〜1)を清浄(0-24%:オーバーレイ無)/兆候(25-49%:α0.03→0.07)/進行(50-74%:α0.07→0.14)/危険(75-100%:α0.14→0.22)の3バンドで`Mathf.Lerp`により段階内も滑らかに補間、色も灰(`8c889c`)→紫(`5a3a78`)へ`Color.Lerp`。`DrawRect`のみの純描画で入力・ヒット判定には影響なし、既存の汚染バー(`Hub.cs:568-570`付近)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**実機/QAでの目視確認は未実施（静的実装＋ビルド確認のみ）**"
+    },
+    {
+      "priority": "P2",
+      "title": "ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/GameManager.cs:411-412`のノード`fol_gain_1`/`fol_gain_2`の`Name`を「拡散力I/II」→「口コミI/II」に変更（`Desc`/`Id`/`ParentId`/`BaseCost`/`MaxLevel`は無変更）。`src/`全体をgrepし`Name`文字列の直接参照はコード側に無いこと（全て`Id`経由参照）を確認済み。`src/ShopTutorial.cs:22`の地の文中の「拡散力」は一般名詞的な言い回しでノード名参照ではないため対象外（`Player.cs:829`/`Shop.cs:894`もコメントのみで対象外）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "周回逓減(ReplayMul)の可視化",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/GameManager.cs:306`に`RepeatStreak`公開プロパティ(「連続N回目」表示用)を追加。`src/Hud.cs:1803-1810`の`ShowClearBanner`(SCORE/BEST行の下、y=506)に`_game.ReplayMul<1f`のときだけ「周回逓減 ×0.8（連続N回目・別ステージ/難度アップでリセット）」を`FontSmall`/`UiKit.Text3`で表示する分岐を追加。`ShowClearBanner`のシグネチャ変更やステージ側呼び出しの変更は不要。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "身のこなしIIIの回避クールダウン短縮が実質死んでいる（DodgeReady表示不整合のみ修正）",
@@ -705,44 +765,44 @@
   ],
   "commits": [
     {
-      "hash": "e8a0c38",
+      "hash": "e233d83",
       "date": "2026-08-24",
-      "subject": "Merge pull request #10 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理"
     },
     {
-      "hash": "a4875eb",
-      "date": "2026-08-23",
-      "subject": "auto: DodgeReady判定の表示不整合を修正"
+      "hash": "5668d65",
+      "date": "2026-08-24",
+      "subject": "auto: Pad.MouseReleased/MouseMiddleClick死にコード削除"
     },
     {
-      "hash": "8c0fece",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
+      "hash": "418ff8d",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理"
     },
     {
-      "hash": "04841b7",
-      "date": "2026-08-23",
-      "subject": "auto: HUD切替ヒントの加速球単体解放見落としを修正"
+      "hash": "a2f70cb",
+      "date": "2026-08-24",
+      "subject": "auto: GameManager.AddBomb死にコード削除"
     },
     {
-      "hash": "0cdb755",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正"
+      "hash": "488919a",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - GameManager.AddBomb死にコード整理"
     },
     {
-      "hash": "2a5d14c",
-      "date": "2026-08-23",
-      "subject": "auto: 加速球モードのマズルFXを専用演出に"
+      "hash": "37725ef",
+      "date": "2026-08-24",
+      "subject": "auto: Player.FollowerCount死にコード削除"
     },
     {
-      "hash": "888e127",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - 加速球マズルFXのcase漏れ修正"
+      "hash": "0fecebb",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Player.FollowerCount死にコード整理"
     },
     {
-      "hash": "408c260",
-      "date": "2026-08-23",
-      "subject": "auto: StageRei.cs道中体数コメントを実値に修正"
+      "hash": "99aec04",
+      "date": "2026-08-24",
+      "subject": "auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化"
     }
   ]
 }
