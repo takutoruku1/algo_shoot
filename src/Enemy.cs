@@ -168,8 +168,6 @@ public partial class Enemy : Area2D
     private CollisionShape2D _bodyShape = null!;
 
     public bool IsPurified => _purified;
-    public int PanelsRemaining => _panels.Count;
-    public bool IsExposed => _phase == BossPhase.Exposed; // 派生／演出が「今は殴れる」を参照
     protected bool IsShieldPhase => _phase == BossPhase.Shielded; // 派生ギミックが「今は殴れる時間か」を参照
 
     // 自機がこのボスへ有効打を入れた瞬間のフック（パネルのインク削り＝Panel 側／無防備窓の本体ヒット）。

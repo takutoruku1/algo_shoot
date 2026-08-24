@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-24 18:45 UTC",
+  "generated": "2026-08-24 18:47 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 109
+    "done": 110
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現",
-      "worker": "engineer",
-      "accept": "`src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Enemy.cs:171-172`の`PanelsRemaining`/`IsExposed`(コメント込み)を削除。削除前にsrc/全体(ボス派生クラス・fx/・`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード",
@@ -766,6 +765,16 @@
   ],
   "commits": [
     {
+      "hash": "e233d83",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理"
+    },
+    {
+      "hash": "5668d65",
+      "date": "2026-08-24",
+      "subject": "auto: Pad.MouseReleased/MouseMiddleClick死にコード削除"
+    },
+    {
       "hash": "418ff8d",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理"
@@ -794,16 +803,6 @@
       "hash": "99aec04",
       "date": "2026-08-24",
       "subject": "auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化"
-    },
-    {
-      "hash": "807c69e",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - Pad.ModeToken死にコード整理"
-    },
-    {
-      "hash": "bf96455",
-      "date": "2026-08-24",
-      "subject": "auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期"
     }
   ]
 }
