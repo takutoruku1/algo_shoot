@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:19 UTC",
+  "generated": "2026-08-24 18:20 UTC",
   "counts": {
-    "todo": 9,
+    "todo": 8,
     "wip": 0,
     "blocked": 15,
-    "done": 101
+    "done": 102
   },
-  "percent": 92,
+  "percent": 93,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい",
-      "worker": "engineer",
-      "accept": "`GameManager.cs:410-411`のノード名`拡散力I/II`は実体がフォロワー獲得倍率(口コミ×1.15/1.30)で、ショットモードの「拡散」攻撃力とは無関係。効果文言側(`Shop.cs:1834`)は既に「口コミ」表記へ修正済み(同箇所のコメントで開発側が混同を自認)だが、見出し`d.Name`だけ未修正のため大見出し(`Shop.cs:1660`)・小見出し(`Shop.cs:1478`)・購入トースト(`Shop.cs:837`)で「拡散力」表示が残り誤読を招く。`GameManager.cs:410-411`の`Name`を「口コミI/II」等、ショットモード名と字面が被らない語に変更する(`Eff()`側は無変更でよい)。"
-    },
     {
       "priority": "P2",
       "title": "Hub画面に設計書指定の「汚染フィルタ」演出が未実装",
@@ -157,6 +151,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/GameManager.cs:411-412`のノード`fol_gain_1`/`fol_gain_2`の`Name`を「拡散力I/II」→「口コミI/II」に変更（`Desc`/`Id`/`ParentId`/`BaseCost`/`MaxLevel`は無変更）。`src/`全体をgrepし`Name`文字列の直接参照はコード側に無いこと（全て`Id`経由参照）を確認済み。`src/ShopTutorial.cs:22`の地の文中の「拡散力」は一般名詞的な言い回しでノード名参照ではないため対象外（`Player.cs:829`/`Shop.cs:894`もコメントのみで対象外）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "周回逓減(ReplayMul)の可視化",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "8607f4e",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - ショップ「拡散力I/II」見出しの名称修正"
+    },
+    {
+      "hash": "3358988",
+      "date": "2026-08-24",
+      "subject": "auto: 周回逓減(ReplayMul)の可視化"
+    },
+    {
       "hash": "0742b09",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - 周回逓減(ReplayMul)の可視化"
@@ -794,16 +804,6 @@
       "hash": "8c0fece",
       "date": "2026-08-23",
       "subject": "auto: WIP着手 - 回避DodgeReady判定の不整合修正"
-    },
-    {
-      "hash": "04841b7",
-      "date": "2026-08-23",
-      "subject": "auto: HUD切替ヒントの加速球単体解放見落としを修正"
-    },
-    {
-      "hash": "0cdb755",
-      "date": "2026-08-23",
-      "subject": "auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正"
     }
   ]
 }
