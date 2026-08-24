@@ -34,8 +34,6 @@
 
 ## WIP
 
-- [ ] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | `src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -56,6 +54,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | (完了 2026-08-24) `src/Player.cs:90-92`の`FollowerCount`プロパティとそのコメントを削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(`Hud.cs`)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみ使用のため影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装 | engineer | (完了 2026-08-24) `src/Hud.cs:214,230`の`TokMode`/`AllMode`（旧`Pad.UsingPad ? Pad.Face(JoyButton.B) : "V"`独自実装）を`Pad.ModeToken`呼び出しに置換して一本化。`Pad.UsingPad`(`Pad.cs:52`)が`!ShowKeyboard`と定義されているため`Pad.ModeToken`(`ShowKeyboard ? "V" : Face(B)`)と真理値表が完全一致することを確認済み、表示は不変。`Pad.cs:105`のコメント「ショップの『過熱』プレビュー」への言及（Shop側は既に過熱トグル撤去済みで実体なし）を「HUDのモード切替（TokMode/AllMode）に使用」へ修正。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離 | scenario | (完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:364-390`のSTAGE2後・STAGE3後を`src/Hub.cs:1211-1232`(`ReturnDialog("akari")`/`ReturnDialog("koharu")`)の実装文言へ完全同期。STAGE2は投稿文の中間句削除・人称「お前」→「きみ」統一・掛け合い後半を実装の「電波が遠い」ボケに差し替え。STAGE3は未実装の少年台詞を削除し終盤2行を実装の「長生きしてください」の下りに差し替え。演出注記も参照先セリフの変更に合わせて書き直し。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致 | scenario | (完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:353-363`のSTAGE1後投稿文・掛け合いを`src/Hub.cs:1200-1210`(`ReturnDialog("rei")`)の実装文言へ完全同期。投稿本文を実装の「「敵などいない」と気を吐いておられた天才を…」に差し替え、掛け合いも実装の7行(旧doc独自の3行「第一そういうのは作者であるぼくが——」等は削除)に一致させた。演出注記も削除された台詞への言及を外し実装内容に合わせて改稿。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

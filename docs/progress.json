@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:34 UTC",
+  "generated": "2026-08-24 18:38 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 106
+    "done": 107
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Player.FollowerCountがコメントの用途通りに使われていない死にコード",
-      "worker": "engineer",
-      "accept": "`src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。"
-    },
     {
       "priority": "P3",
       "title": "GameManager.AddBombが呼び出し元ゼロの死にコード",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Player.FollowerCountがコメントの用途通りに使われていない死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-24) `src/Player.cs:90-92`の`FollowerCount`プロパティとそのコメントを削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(`Hud.cs`)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみ使用のため影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "0fecebb",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - Player.FollowerCount死にコード整理"
+    },
+    {
+      "hash": "99aec04",
+      "date": "2026-08-24",
+      "subject": "auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化"
+    },
+    {
       "hash": "807c69e",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Pad.ModeToken死にコード整理"
@@ -794,16 +804,6 @@
       "hash": "22f4609",
       "date": "2026-08-24",
       "subject": "auto: Hub画面に汚染連動フィルタ演出を追加"
-    },
-    {
-      "hash": "280c54d",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - Hub画面の汚染フィルタ演出を実装"
-    },
-    {
-      "hash": "12d498a",
-      "date": "2026-08-24",
-      "subject": "auto: ショップ「拡散力I/II」を「口コミI/II」へ名称修正"
     }
   ]
 }

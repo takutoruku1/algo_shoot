@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 106 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 107 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">106</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">107</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Player.FollowerCountがコメントの用途通りに使われていない死にコード</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Player.cs:90-92</code>のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(<code>Hud.cs:843-888</code>付近)は<code>SavedProgress</code>/<code>SavedPerFollower</code>/<code>FollowersFull</code>のみを使用し<code>FollowerCount</code>は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.FollowerCountがコメントの用途通りに使われていない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/Player.cs:90-92</code>の<code>FollowerCount</code>プロパティとそのコメントを削除。削除前にsrc/全体(<code>.tscn</code>/<code>.tres</code>含む)を再grepし宣言行以外の参照が無いことを確認済み。HUD進捗ドット描画(<code>Hud.cs</code>)は<code>SavedProgress</code>/<code>SavedPerFollower</code>/<code>FollowersFull</code>のみ使用のため影響なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1161,18 +1161,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0fecebb</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Player.FollowerCount死にコード整理</span></li>
+      <li><span class="h">99aec04</span><span>2026-08-24</span><span class="s">auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化</span></li>
       <li><span class="h">807c69e</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Pad.ModeToken死にコード整理</span></li>
       <li><span class="h">bf96455</span><span>2026-08-24</span><span class="s">auto: システム拡張設計書§3-2 STAGE2/3後をHub実装に同期</span></li>
       <li><span class="h">200a96b</span><span>2026-08-24</span><span class="s">auto: WIP着手 - システム拡張設計書§3-2 STAGE2/3後の実装同期</span></li>
       <li><span class="h">6fd2114</span><span>2026-08-24</span><span class="s">auto: システム拡張設計書§3-2 STAGE1後をHub実装に同期</span></li>
       <li><span class="h">214b7eb</span><span>2026-08-24</span><span class="s">auto: WIP着手 - システム拡張設計書§3-2 STAGE1後の実装同期</span></li>
       <li><span class="h">22f4609</span><span>2026-08-24</span><span class="s">auto: Hub画面に汚染連動フィルタ演出を追加</span></li>
-      <li><span class="h">280c54d</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Hub画面の汚染フィルタ演出を実装</span></li>
-      <li><span class="h">12d498a</span><span>2026-08-24</span><span class="s">auto: ショップ「拡散力I/II」を「口コミI/II」へ名称修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-24 18:34 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-24 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
