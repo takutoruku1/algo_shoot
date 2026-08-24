@@ -37,8 +37,6 @@
 
 ## WIP
 
-- [ ] (P2) システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:352-361`の投稿文・掛け合いが`src/Hub.cs:1180-1190`の実装済みセリフと全面的に異なる(§3-3は既にDONE(2026-08-23)で実装文言へ同期済みだが§3-2は未着手のまま放置)。実装側を事後改稿された正典とみなし、doc側§3-2のSTAGE1後投稿文・掛け合いをHub.csの実装文言に合わせて書き換える(コード変更不要、scenario対応)。
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -59,6 +57,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致 | scenario | (完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:353-363`のSTAGE1後投稿文・掛け合いを`src/Hub.cs:1200-1210`(`ReturnDialog("rei")`)の実装文言へ完全同期。投稿本文を実装の「「敵などいない」と気を吐いておられた天才を…」に差し替え、掛け合いも実装の7行(旧doc独自の3行「第一そういうのは作者であるぼくが——」等は削除)に一致させた。演出注記も削除された台詞への言及を外し実装内容に合わせて改稿。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) Hub画面に設計書指定の「汚染フィルタ」演出が未実装 | engineer | (完了 2026-08-24) `src/Hub.cs:532-556`に`DrawContaminationOverlay()`を追加し、`_Draw()`の通常分岐・`Mode.Dialogue`分岐の両方で既存描画の最後（`UiKit.EndDesign`直前）に呼び出す。`Contamination`(0〜1)を清浄(0-24%:オーバーレイ無)/兆候(25-49%:α0.03→0.07)/進行(50-74%:α0.07→0.14)/危険(75-100%:α0.14→0.22)の3バンドで`Mathf.Lerp`により段階内も滑らかに補間、色も灰(`8c889c`)→紫(`5a3a78`)へ`Color.Lerp`。`DrawRect`のみの純描画で入力・ヒット判定には影響なし、既存の汚染バー(`Hub.cs:568-570`付近)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。**実機/QAでの目視確認は未実施（静的実装＋ビルド確認のみ）**
 - [x] (P2) ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい | engineer | (完了 2026-08-24) `src/GameManager.cs:411-412`のノード`fol_gain_1`/`fol_gain_2`の`Name`を「拡散力I/II」→「口コミI/II」に変更（`Desc`/`Id`/`ParentId`/`BaseCost`/`MaxLevel`は無変更）。`src/`全体をgrepし`Name`文字列の直接参照はコード側に無いこと（全て`Id`経由参照）を確認済み。`src/ShopTutorial.cs:22`の地の文中の「拡散力」は一般名詞的な言い回しでノード名参照ではないため対象外（`Player.cs:829`/`Shop.cs:894`もコメントのみで対象外）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) 周回逓減(ReplayMul)の可視化 | engineer | (完了 2026-08-24) `src/GameManager.cs:306`に`RepeatStreak`公開プロパティ(「連続N回目」表示用)を追加。`src/Hud.cs:1803-1810`の`ShowClearBanner`(SCORE/BEST行の下、y=506)に`_game.ReplayMul<1f`のときだけ「周回逓減 ×0.8（連続N回目・別ステージ/難度アップでリセット）」を`FontSmall`/`UiKit.Text3`で表示する分岐を追加。`ShowClearBanner`のシグネチャ変更やステージ側呼び出しの変更は不要。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

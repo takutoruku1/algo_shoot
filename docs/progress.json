@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-24 18:23 UTC",
+  "generated": "2026-08-24 18:25 UTC",
   "counts": {
-    "todo": 7,
+    "todo": 6,
     "wip": 0,
     "blocked": 15,
-    "done": 103
+    "done": 104
   },
-  "percent": 94,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致",
-      "worker": "scenario",
-      "accept": "`docs/20260613/MINA_システム拡張設計書_v1.md:352-361`の投稿文・掛け合いが`src/Hub.cs:1180-1190`の実装済みセリフと全面的に異なる(§3-3は既にDONE(2026-08-23)で実装文言へ同期済みだが§3-2は未着手のまま放置)。実装側を事後改稿された正典とみなし、doc側§3-2のSTAGE1後投稿文・掛け合いをHub.csの実装文言に合わせて書き換える(コード変更不要、scenario対応)。"
-    },
     {
       "priority": "P3",
       "title": "システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-24) `docs/20260613/MINA_システム拡張設計書_v1.md:353-363`のSTAGE1後投稿文・掛け合いを`src/Hub.cs:1200-1210`(`ReturnDialog(\"rei\")`)の実装文言へ完全同期。投稿本文を実装の「「敵などいない」と気を吐いておられた天才を…」に差し替え、掛け合いも実装の7行(旧doc独自の3行「第一そういうのは作者であるぼくが——」等は削除)に一致させた。演出注記も削除された台詞への言及を外し実装内容に合わせて改稿。コード変更なし、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "Hub画面に設計書指定の「汚染フィルタ」演出が未実装",
@@ -766,6 +766,16 @@
   ],
   "commits": [
     {
+      "hash": "214b7eb",
+      "date": "2026-08-24",
+      "subject": "auto: WIP着手 - システム拡張設計書§3-2 STAGE1後の実装同期"
+    },
+    {
+      "hash": "22f4609",
+      "date": "2026-08-24",
+      "subject": "auto: Hub画面に汚染連動フィルタ演出を追加"
+    },
+    {
       "hash": "280c54d",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Hub画面の汚染フィルタ演出を実装"
@@ -794,16 +804,6 @@
       "hash": "3389e51",
       "date": "2026-08-24",
       "subject": "auto: 監査で10件をキューに追加"
-    },
-    {
-      "hash": "3dfd02a",
-      "date": "2026-08-23",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "e8a0c38",
-      "date": "2026-08-24",
-      "subject": "Merge pull request #10 from takutoruku1/auto/dev"
     }
   ]
 }
