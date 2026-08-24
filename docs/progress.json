@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-24 18:47 UTC",
+  "generated": "2026-08-24 22:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -765,6 +765,16 @@
   ],
   "commits": [
     {
+      "hash": "9b6e785",
+      "date": "2026-08-25",
+      "subject": "Merge pull request #11 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "16f4447",
+      "date": "2026-08-24",
+      "subject": "auto: Enemy.PanelsRemaining/IsExposed死にコード削除"
+    },
+    {
       "hash": "e233d83",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理"
@@ -793,16 +803,6 @@
       "hash": "37725ef",
       "date": "2026-08-24",
       "subject": "auto: Player.FollowerCount死にコード削除"
-    },
-    {
-      "hash": "0fecebb",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - Player.FollowerCount死にコード整理"
-    },
-    {
-      "hash": "99aec04",
-      "date": "2026-08-24",
-      "subject": "auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化"
     }
   ]
 }

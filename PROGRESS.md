@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-24 18:47 UTC
+> 生成: 2026-08-24 22:04 UTC
 
 ## 消化率
 
@@ -157,11 +157,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `9b6e785` 2026-08-25 Merge pull request #11 from takutoruku1/auto/dev
+- `16f4447` 2026-08-24 auto: Enemy.PanelsRemaining/IsExposed死にコード削除
 - `e233d83` 2026-08-24 auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理
 - `5668d65` 2026-08-24 auto: Pad.MouseReleased/MouseMiddleClick死にコード削除
 - `418ff8d` 2026-08-24 auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理
 - `a2f70cb` 2026-08-24 auto: GameManager.AddBomb死にコード削除
 - `488919a` 2026-08-24 auto: WIP着手 - GameManager.AddBomb死にコード整理
 - `37725ef` 2026-08-24 auto: Player.FollowerCount死にコード削除
-- `0fecebb` 2026-08-24 auto: WIP着手 - Player.FollowerCount死にコード整理
-- `99aec04` 2026-08-24 auto: Pad.ModeToken死にコード整理・Hudの重複実装を一本化
