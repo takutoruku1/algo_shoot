@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 100 / 対象 100 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">92<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 101 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 92パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">100</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">101</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,92 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>GameManager.cs:410-411</code>のノード名<code>拡散力I/II</code>は実体がフォロワー獲得倍率(口コミ×1.15/1.30)で、ショットモードの「拡散」攻撃力とは無関係。効果文言側(<code>Shop.cs:1834</code>)は既に「口コミ」表記へ修正済み(同箇所のコメントで開発側が混同を自認)だが、見出し<code>d.Name</code>だけ未修正のため大見出し(<code>Shop.cs:1660</code>)・小見出し(<code>Shop.cs:1478</code>)・購入トースト(<code>Shop.cs:837</code>)で「拡散力」表示が残り誤読を招く。<code>GameManager.cs:410-411</code>の<code>Name</code>を「口コミI/II」等、ショットモード名と字面が被らない語に変更する(<code>Eff()</code>側は無変更でよい)。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Hub画面に設計書指定の「汚染フィルタ」演出が未実装</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>docs/20260613/MINA_システム拡張設計書_v1.md:65,489,653-659</code>(§0-5鉄則/§④-1/§④-7の4段階表)が汚染進行(清浄/兆候/進行/危険)に連動したハブ全体の灰〜紫フィルタを明記しているが、<code>src/Hub.cs</code>には汚染連動の全画面Modulate/CanvasModulate/彩度操作が一切なく(該当0件)、実装は<code>Hub.cs:567-571</code>の汚染バー1本のみ。STG側の濁り演出(Player.MurkTint等)は実装済みなのにHub側だけ設計書の核心テーマが視覚的に欠落している。Hub.cs描画ルートに<code>Contamination</code>値に応じた全画面オーバーレイ(灰→紫、α漸増)を追加し§④-7の4段階に合わせる。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/20260613/MINA_システム拡張設計書_v1.md:352-361</code>の投稿文・掛け合いが<code>src/Hub.cs:1180-1190</code>の実装済みセリフと全面的に異なる(§3-3は既にDONE(2026-08-23)で実装文言へ同期済みだが§3-2は未着手のまま放置)。実装側を事後改稿された正典とみなし、doc側§3-2のSTAGE1後投稿文・掛け合いをHub.csの実装文言に合わせて書き換える(コード変更不要、scenario対応)。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/20260613/MINA_システム拡張設計書_v1.md:366,382-390</code>のSTAGE2/3後投稿文・掛け合いが<code>src/Hub.cs:1193-1211</code>の実装と細部で不一致(STAGE2は中間句欠落と掛け合い後半差し替え、STAGE3は末尾2行差し替え)。上記の§3-2 STAGE1後タスクと合わせてdoc§3-2全体を実装済みテキストへ一括同期する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Pad.cs:100-101,105,109</code>のコメントは「HUD/Shopの過熱プレビューで使われる」と書くが、<code>ModeToken</code>は宣言行以外どこからも呼ばれておらず、<code>src/Hud.cs:214,230</code>の<code>TokMode</code>/<code>AllMode</code>が同一の真理値表(<code>Pad.UsingPad ? Pad.Face(JoyButton.B) : &quot;V&quot;</code>)を独自に再実装している。Hud.csの2箇所を<code>Pad.ModeToken</code>呼び出しに置き換えて一本化する(真理値表が同一のため表示は不変)か、不要なら<code>Pad.ModeToken</code>ごと削除しコメントの誤記述も除去する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.FollowerCountがコメントの用途通りに使われていない死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Player.cs:90-92</code>のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(<code>Hud.cs:843-888</code>付近)は<code>SavedProgress</code>/<code>SavedPerFollower</code>/<code>FollowersFull</code>のみを使用し<code>FollowerCount</code>は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.AddBombが呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/GameManager.cs:1271-1274</code>の<code>AddBomb(int n=1){ Bombs += n; }</code>はsrc/全体・<code>.tscn</code>/<code>.tres</code>を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Pad.cs:271,275</code>の<code>MouseReleased()</code>(左ボタン離しエッジ)/<code>MouseMiddleClick()</code>(中ボタン押下エッジ)は、同ブロックの兄弟メソッド<code>MouseDown()</code>/<code>MouseMiddleDown()</code>(<code>Player.cs:580,625</code>で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Enemy.cs:171-172</code>の<code>PanelsRemaining</code>(パネル残数)/<code>IsExposed</code>(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">周回逓減(ReplayMul)の可視化</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-24) <code>src/GameManager.cs:306</code>に<code>RepeatStreak</code>公開プロパティ(「連続N回目」表示用)を追加。<code>src/Hud.cs:1803-1810</code>の<code>ShowClearBanner</code>(SCORE/BEST行の下、y=506)に<code>_game.ReplayMul&lt;1f</code>のときだけ「周回逓減 ×0.8（連続N回目・別ステージ/難度アップでリセット）」を<code>FontSmall</code>/<code>UiKit.Text3</code>で表示する分岐を追加。<code>ShowClearBanner</code>のシグネチャ変更やステージ側呼び出しの変更は不要。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1081,18 +1161,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0742b09</span><span>2026-08-24</span><span class="s">auto: WIP着手 - 周回逓減(ReplayMul)の可視化</span></li>
+      <li><span class="h">3389e51</span><span>2026-08-24</span><span class="s">auto: 監査で10件をキューに追加</span></li>
+      <li><span class="h">3dfd02a</span><span>2026-08-23</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">e8a0c38</span><span>2026-08-24</span><span class="s">Merge pull request #10 from takutoruku1/auto/dev</span></li>
       <li><span class="h">a4875eb</span><span>2026-08-23</span><span class="s">auto: DodgeReady判定の表示不整合を修正</span></li>
       <li><span class="h">8c0fece</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 回避DodgeReady判定の不整合修正</span></li>
       <li><span class="h">04841b7</span><span>2026-08-23</span><span class="s">auto: HUD切替ヒントの加速球単体解放見落としを修正</span></li>
       <li><span class="h">0cdb755</span><span>2026-08-23</span><span class="s">auto: WIP着手 - HUD切替ヒントの加速球単体解放見落とし修正</span></li>
-      <li><span class="h">2a5d14c</span><span>2026-08-23</span><span class="s">auto: 加速球モードのマズルFXを専用演出に</span></li>
-      <li><span class="h">888e127</span><span>2026-08-23</span><span class="s">auto: WIP着手 - 加速球マズルFXのcase漏れ修正</span></li>
-      <li><span class="h">408c260</span><span>2026-08-23</span><span class="s">auto: StageRei.cs道中体数コメントを実値に修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-23 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-24 18:19 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

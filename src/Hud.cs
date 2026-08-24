@@ -1800,6 +1800,14 @@ public partial class Hud : CanvasLayer
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 474), _bannerScoreBest, UiKit.FontHeading, new Color(sc, a),
                     HorizontalAlignment.Center, 1280);
             }
+            // 周回逓減の可視化（①-7）：同ステージを同難度以下で連続周回すると Imp/Fol が ReplayMul で減っているが、
+            // これまでどこにも表示が無く「理由もなく報酬が減った」ように見えていた。逓減が効いている時だけ小さく注記する。
+            if ((_game?.ReplayMul ?? 1f) < 1f)
+            {
+                string note = $"周回逓減 ×{_game!.ReplayMul:0.0}（連続{_game.RepeatStreak + 1}回目・別ステージ/難度アップでリセット）";
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(0, 506), note, UiKit.FontSmall, new Color(UiKit.Text3, a),
+                    HorizontalAlignment.Center, 1280);
+            }
         }
     }
 

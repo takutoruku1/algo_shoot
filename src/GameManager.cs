@@ -303,6 +303,7 @@ public partial class GameManager : Node
     private int _lastRunDiff = -1;
     private int _repeatStreak;
     public float ReplayMul { get; private set; } = 1f;
+    public int RepeatStreak => _repeatStreak; // HUDの逓減表示用（「連続N回目」＝この値+1）
     private readonly Dictionary<string, int> _stagePlays = new();
     public int StagePlays(string id) => _stagePlays.TryGetValue(id, out var v) ? v : 0;
 
