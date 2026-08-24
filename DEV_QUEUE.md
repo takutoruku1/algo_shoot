@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P3) システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:366,382-390`のSTAGE2/3後投稿文・掛け合いが`src/Hub.cs:1193-1211`の実装と細部で不一致(STAGE2は中間句欠落と掛け合い後半差し替え、STAGE3は末尾2行差し替え)。上記の§3-2 STAGE1後タスクと合わせてdoc§3-2全体を実装済みテキストへ一括同期する。
 - [ ] (P3) Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装 | engineer | `src/Pad.cs:100-101,105,109`のコメントは「HUD/Shopの過熱プレビューで使われる」と書くが、`ModeToken`は宣言行以外どこからも呼ばれておらず、`src/Hud.cs:214,230`の`TokMode`/`AllMode`が同一の真理値表(`Pad.UsingPad ? Pad.Face(JoyButton.B) : "V"`)を独自に再実装している。Hud.csの2箇所を`Pad.ModeToken`呼び出しに置き換えて一本化する(真理値表が同一のため表示は不変)か、不要なら`Pad.ModeToken`ごと削除しコメントの誤記述も除去する。
 - [ ] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | `src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。
 - [ ] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | `src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。
@@ -36,6 +35,8 @@
 - [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
 
 ## WIP
+
+- [ ] (P3) システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:366,382-390`のSTAGE2/3後投稿文・掛け合いが`src/Hub.cs:1193-1211`の実装と細部で不一致(STAGE2は中間句欠落と掛け合い後半差し替え、STAGE3は末尾2行差し替え)。上記の§3-2 STAGE1後タスクと合わせてdoc§3-2全体を実装済みテキストへ一括同期する。
 
 ## BLOCKED
 
