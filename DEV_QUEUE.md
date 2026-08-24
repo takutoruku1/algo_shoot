@@ -28,6 +28,17 @@
 
 ## TODO
 
+- [ ] (P1) 周回逓減(ReplayMul)の可視化 | engineer | `GameManager.cs:299-326,768,785`の`ReplayMul`(同一ステージを同難度以下で連続周回するとImpression/フォロワー報酬が`Mathf.Pow(0.8f,streak)`で最大-60%まで逓減する仕組み)が`Hud.cs`/`DiffSelect.cs`/`Shop.cs`/`HowToPlay.cs`のどこにも表示されていない(grep該当0件)。難易度倍率(`DiffSelect.cs:366-367`)や炎上デバフ(既存のHUDチップ)は明示されているのにReplayMulだけ無表示で、プレイヤーには理由不明の報酬減少に見える。`Hud.ShowClearBanner`かHUD通貨表示付近に`ReplayMul<1f`のとき「周回逓減 ×0.8(連続N回目)」等を表示するか、`HowToPlay.cs`に一文追記して可視化する。
+- [ ] (P2) ショップ「拡散力I/II」ノードの見出しがショットモード「拡散」と紛らわしい | engineer | `GameManager.cs:410-411`のノード名`拡散力I/II`は実体がフォロワー獲得倍率(口コミ×1.15/1.30)で、ショットモードの「拡散」攻撃力とは無関係。効果文言側(`Shop.cs:1834`)は既に「口コミ」表記へ修正済み(同箇所のコメントで開発側が混同を自認)だが、見出し`d.Name`だけ未修正のため大見出し(`Shop.cs:1660`)・小見出し(`Shop.cs:1478`)・購入トースト(`Shop.cs:837`)で「拡散力」表示が残り誤読を招く。`GameManager.cs:410-411`の`Name`を「口コミI/II」等、ショットモード名と字面が被らない語に変更する(`Eff()`側は無変更でよい)。
+- [ ] (P2) Hub画面に設計書指定の「汚染フィルタ」演出が未実装 | engineer | `docs/20260613/MINA_システム拡張設計書_v1.md:65,489,653-659`(§0-5鉄則/§④-1/§④-7の4段階表)が汚染進行(清浄/兆候/進行/危険)に連動したハブ全体の灰〜紫フィルタを明記しているが、`src/Hub.cs`には汚染連動の全画面Modulate/CanvasModulate/彩度操作が一切なく(該当0件)、実装は`Hub.cs:567-571`の汚染バー1本のみ。STG側の濁り演出(Player.MurkTint等)は実装済みなのにHub側だけ設計書の核心テーマが視覚的に欠落している。Hub.cs描画ルートに`Contamination`値に応じた全画面オーバーレイ(灰→紫、α漸増)を追加し§④-7の4段階に合わせる。
+- [ ] (P2) システム拡張設計書§3-2(ミナ自動投稿STAGE1後)がHub実装のセリフと不一致 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:352-361`の投稿文・掛け合いが`src/Hub.cs:1180-1190`の実装済みセリフと全面的に異なる(§3-3は既にDONE(2026-08-23)で実装文言へ同期済みだが§3-2は未着手のまま放置)。実装側を事後改稿された正典とみなし、doc側§3-2のSTAGE1後投稿文・掛け合いをHub.csの実装文言に合わせて書き換える(コード変更不要、scenario対応)。
+- [ ] (P3) システム拡張設計書§3-2のSTAGE2/3後も実装と細部乖離 | scenario | `docs/20260613/MINA_システム拡張設計書_v1.md:366,382-390`のSTAGE2/3後投稿文・掛け合いが`src/Hub.cs:1193-1211`の実装と細部で不一致(STAGE2は中間句欠落と掛け合い後半差し替え、STAGE3は末尾2行差し替え)。上記の§3-2 STAGE1後タスクと合わせてdoc§3-2全体を実装済みテキストへ一括同期する。
+- [ ] (P3) Pad.ModeTokenが嘘コメント付きの死にコード、Hudが同ロジックを重複実装 | engineer | `src/Pad.cs:100-101,105,109`のコメントは「HUD/Shopの過熱プレビューで使われる」と書くが、`ModeToken`は宣言行以外どこからも呼ばれておらず、`src/Hud.cs:214,230`の`TokMode`/`AllMode`が同一の真理値表(`Pad.UsingPad ? Pad.Face(JoyButton.B) : "V"`)を独自に再実装している。Hud.csの2箇所を`Pad.ModeToken`呼び出しに置き換えて一本化する(真理値表が同一のため表示は不変)か、不要なら`Pad.ModeToken`ごと削除しコメントの誤記述も除去する。
+- [ ] (P3) Player.FollowerCountがコメントの用途通りに使われていない死にコード | engineer | `src/Player.cs:90-92`のコメントは「HUDの進捗ドット表示用に公開」と書くが、実際のドット描画(`Hud.cs:843-888`付近)は`SavedProgress`/`SavedPerFollower`/`FollowersFull`のみを使用し`FollowerCount`は宣言行以外で未参照(fx/含め再確認)。未使用と確認の上で削除する(コメント通りに使う設計に変える場合は要ユーザー判断のため、まずは削除で対応)。
+- [ ] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | `src/GameManager.cs:1271-1274`の`AddBomb(int n=1){ Bombs += n; }`はsrc/全体・`.tscn`/`.tres`を再grepしても呼び出し箇所が一件も無く、該当するボム拾得アイテム等のゲームメカニクスも存在しない。未使用と確認の上で削除する。
+- [ ] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | `src/Pad.cs:271,275`の`MouseReleased()`(左ボタン離しエッジ)/`MouseMiddleClick()`(中ボタン押下エッジ)は、同ブロックの兄弟メソッド`MouseDown()`/`MouseMiddleDown()`(`Player.cs:580,625`で使用中)と異なり呼び出し元が一切ない。未使用と確認の上で削除する。
+- [ ] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | `src/Enemy.cs:171-172`の`PanelsRemaining`(パネル残数)/`IsExposed`(コメント「派生／演出が『今は殴れる』を参照」)は、ボス派生クラス・FxLayer含め宣言行以外で一切参照されていない。未使用と確認の上で削除するか、コメントが約束する演出側の参照を実際に配線する(削除で対応するのが安全)。
+
 ## WIP
 
 ## BLOCKED
