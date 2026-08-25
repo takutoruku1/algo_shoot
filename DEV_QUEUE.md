@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P3) Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード | engineer | `src/Pad.cs:111`の`FlipToken`は宣言行以外`src/`全体で参照ゼロ。`Hud.cs:219`の`TokFlip`が全く同じ`JoyButton.RightShoulder`三項演算子(真理値完全一致)を個別実装。`Hud.cs:219`を`Pad.FlipToken`呼び出しに置換して一本化(2026-08-24の`ModeToken`統一と同じ手順)。表示文言が変わらないことを確認し`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [ ] (P3) Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大 | engineer | `src/Bullet.cs:113`(`EnemyEdge`)/`114`(`EnemyGlow`)/`129`(`SpreadEdge`)/`142`(`BackEdge`)の4フィールドは宣言行以外`src/`全体で参照ゼロ(実際の敵弾/拡散弾/後方弾描画は`Bullet.cs:582-593,676-689,719-733`でMid/Glowのみ使用)。4フィールドを削除し、削除前後で`src/`(`.tscn`/`.tres`含む)を再grepして他参照が無いことを確認、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [ ] (P3) GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない | engineer | `src/GameManager.cs:960-962`のコメント「タイトルの『あそびかた』からの任意再生フラグ」に対し`ForceTutorialReplay`は宣言行以外`src/`全体で参照ゼロ(HowToPlay.csにも代入なし)。実際のチュートリアル再受講導線は`Prologue.cs:282-302`の独立フローで完結。フィールドとコメントを削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 - [ ] (P3) Shop.EdgeDimが宣言のみで通常エッジ描画には未使用 | engineer | `src/Shop.cs:234`の`EdgeDim`は宣言行以外`src/`全体で参照ゼロ。実際の通常エッジは`Shop.cs:1298`で系統色ベースの色を使用しており`EdgeDim`(白灰固定色)は使われていない(`Light`/`Deny`/`ForkGold`は使用中のため対象外)。`EdgeDim`を削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
@@ -37,6 +36,8 @@
 - [ ] (P3) src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存 | scenario→engineer | `src/StageW0.cs:41-46`に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。`project.godot:14`の起動シーン・`Prologue.cs:295`の遷移先(`Stage0.tscn`→`Stage0Root.cs`→`StageZero`)経由では`StageW0`を生成する`Main.cs`/`Main.tscn`はどこからも参照されず通常プレイでは到達不能と確認済みだが、`docs/DEV_W0.md:24`が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか`docs/DEV_W0.md`に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応
 
 ## WIP
+
+- [ ] (P3) Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード | engineer | `src/Pad.cs:111`の`FlipToken`は宣言行以外`src/`全体で参照ゼロ。`Hud.cs:219`の`TokFlip`が全く同じ`JoyButton.RightShoulder`三項演算子(真理値完全一致)を個別実装。`Hud.cs:219`を`Pad.FlipToken`呼び出しに置換して一本化(2026-08-24の`ModeToken`統一と同じ手順)。表示文言が変わらないことを確認し`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
 
 ## BLOCKED
 
