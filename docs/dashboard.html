@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 110 / 対象 110 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">93<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 111 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">110</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">111</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,84 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">正典<code>docs/20260613/MINA_シナリオ設計書_v2.md:155</code>と<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:33,139</code>は「Xの闇を成敗する」という少年の宣言を物語の建前・後段反転の前提としているが、実装<code>src/Prologue.cs:141-149</code>はこの決め台詞を意図的にカット(<code>:141</code>コメントに明記)。にもかかわらず<code>src/StageAkari.cs:58</code>(ミナ「次の“成敗”は?」)と<code>src/Epilogue.cs:134</code>(地の文「Xの闇を成敗するなどと言いながら」)が作中未発話の台詞を既出扱いで回収参照している。Prologueの使命宣言部(<code>Prologue.cs:142-149</code>付近)に「成敗」を軽く一行仕込み、既存の参照に実体を持たせる</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Pad.cs:111</code>の<code>FlipToken</code>は宣言行以外<code>src/</code>全体で参照ゼロ。<code>Hud.cs:219</code>の<code>TokFlip</code>が全く同じ<code>JoyButton.RightShoulder</code>三項演算子(真理値完全一致)を個別実装。<code>Hud.cs:219</code>を<code>Pad.FlipToken</code>呼び出しに置換して一本化(2026-08-24の<code>ModeToken</code>統一と同じ手順)。表示文言が変わらないことを確認し<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Bullet.cs:113</code>(<code>EnemyEdge</code>)/<code>114</code>(<code>EnemyGlow</code>)/<code>129</code>(<code>SpreadEdge</code>)/<code>142</code>(<code>BackEdge</code>)の4フィールドは宣言行以外<code>src/</code>全体で参照ゼロ(実際の敵弾/拡散弾/後方弾描画は<code>Bullet.cs:582-593,676-689,719-733</code>でMid/Glowのみ使用)。4フィールドを削除し、削除前後で<code>src/</code>(<code>.tscn</code>/<code>.tres</code>含む)を再grepして他参照が無いことを確認、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/GameManager.cs:960-962</code>のコメント「タイトルの『あそびかた』からの任意再生フラグ」に対し<code>ForceTutorialReplay</code>は宣言行以外<code>src/</code>全体で参照ゼロ(HowToPlay.csにも代入なし)。実際のチュートリアル再受講導線は<code>Prologue.cs:282-302</code>の独立フローで完結。フィールドとコメントを削除、削除前後で再grepし<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Shop.EdgeDimが宣言のみで通常エッジ描画には未使用</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Shop.cs:234</code>の<code>EdgeDim</code>は宣言行以外<code>src/</code>全体で参照ゼロ。実際の通常エッジは<code>Shop.cs:1298</code>で系統色ベースの色を使用しており<code>EdgeDim</code>(白灰固定色)は使われていない(<code>Light</code>/<code>Deny</code>/<code>ForkGold</code>は使用中のため対象外)。<code>EdgeDim</code>を削除、削除前後で再grepし<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/キャラ設定_02_ミナ_改訂版.md:80</code>のPW未確定表記(実装は<code>src/Epilogue.cs:63-67</code>で&quot;stay&quot;に確定済み)と、<code>:118-121</code>「次に決める項目」1〜4(一人称/PW/シナリオ01改稿/3人目C確定)が全項目実装済みなのに未消化リストとして残存。2026-08-19に同種修正済みの他2ファイル(<code>docs/20260613/MINA_シナリオ設計書_v2.md:304,345</code>/<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142</code>)と同じ形式(取消線+実装済み注記)に更新</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/STORY.mdが実装と全く異なる旧コンセプト(algo/ハル/ザ・システム)のまま正典v3の非正典化バナーも無い</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>docs/STORY.md</code>全148行に現行実装キャラ(少年/ミナ/レイ/あかり/こはる)への言及が0件、旧設定の主人公「algo」・「ハル」・ラスボス「ザ・システム」が正典然と記載されたまま。2026-08-16に<code>docs/キャラ設定_01_少年_改訂版.md:6-9</code>/<code>docs/キャラ設定_02_ミナ_改訂版.md:8-11</code>に付与済みの「⚠正典v3」非正典化バナーと同種の注記をSTORY.md冒頭に追加する(全面改稿ではなく注記付与のみ)</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存</span>
+          
+        </div>
+        <p class="accept"><code>src/StageW0.cs:41-46</code>に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。<code>project.godot:14</code>の起動シーン・<code>Prologue.cs:295</code>の遷移先(<code>Stage0.tscn</code>→<code>Stage0Root.cs</code>→<code>StageZero</code>)経由では<code>StageW0</code>を生成する<code>Main.cs</code>/<code>Main.tscn</code>はどこからも参照されず通常プレイでは到達不能と確認済みだが、<code>docs/DEV_W0.md:24</code>が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか<code>docs/DEV_W0.md</code>に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-25) 当初案(<code>fol_gain_1</code>のParentId変更)は<code>chain_1</code>(<code>GameManager.cs:417</code>、<code>PrereqId=&quot;spread_2&quot;</code>の拡散専用ノード)への新たな長距離エッジ副作用を生むため、レビューで方針転換。根本原因は<code>combo_hold_1</code>側にあると判断し、<code>GameManager.cs:413</code>の<code>combo_hold_1</code>の<code>ParentId</code>を<code>&quot;fol_gain_1&quot;</code>→<code>&quot;move_speed_1&quot;</code>(中立根)に変更(<code>fol_gain_1/2</code>・<code>chain_1/2</code>は無変更)。<code>Shop.cs</code>の<code>NodePos</code>で<code>combo_hold_1/2</code>を拡散帯(旧696,716/872,716)から<code>move_speed_1</code>直下の空きスペース(168,1478/168,1544)へ移設、<code>StreamOf()</code>(<code>Shop.cs:207-216</code>)で<code>combo_hold</code>の系統分類を<code>Stream.Spread</code>から<code>Stream.Survive</code>へ変更し色帯(<code>DrawStreamLanes</code>)の破綻も防止。Rapid/Homing専門プレイヤーも拡散ツリーを経由せず<code>combo_hold</code>に到達可能になった。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機でのショップ画面目視確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1161,18 +1233,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">13a1b01</span><span>2026-08-25</span><span class="s">auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税</span></li>
+      <li><span class="h">783ec1e</span><span>2026-08-25</span><span class="s">auto: 監査で9件をキューに追加</span></li>
+      <li><span class="h">614f1e8</span><span>2026-08-24</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">9b6e785</span><span>2026-08-25</span><span class="s">Merge pull request #11 from takutoruku1/auto/dev</span></li>
       <li><span class="h">16f4447</span><span>2026-08-24</span><span class="s">auto: Enemy.PanelsRemaining/IsExposed死にコード削除</span></li>
       <li><span class="h">e233d83</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理</span></li>
       <li><span class="h">5668d65</span><span>2026-08-24</span><span class="s">auto: Pad.MouseReleased/MouseMiddleClick死にコード削除</span></li>
       <li><span class="h">418ff8d</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理</span></li>
-      <li><span class="h">a2f70cb</span><span>2026-08-24</span><span class="s">auto: GameManager.AddBomb死にコード削除</span></li>
-      <li><span class="h">488919a</span><span>2026-08-24</span><span class="s">auto: WIP着手 - GameManager.AddBomb死にコード整理</span></li>
-      <li><span class="h">37725ef</span><span>2026-08-24</span><span class="s">auto: Player.FollowerCount死にコード削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-24 22:04 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-25 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

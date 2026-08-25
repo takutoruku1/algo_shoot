@@ -1,13 +1,62 @@
 {
-  "generated": "2026-08-24 22:04 UTC",
+  "generated": "2026-08-25 18:31 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 8,
     "wip": 0,
     "blocked": 15,
-    "done": 110
+    "done": 111
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 93,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている",
+      "worker": "scenario",
+      "accept": "正典`docs/20260613/MINA_シナリオ設計書_v2.md:155`と`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:33,139`は「Xの闇を成敗する」という少年の宣言を物語の建前・後段反転の前提としているが、実装`src/Prologue.cs:141-149`はこの決め台詞を意図的にカット(`:141`コメントに明記)。にもかかわらず`src/StageAkari.cs:58`(ミナ「次の“成敗”は?」)と`src/Epilogue.cs:134`(地の文「Xの闇を成敗するなどと言いながら」)が作中未発話の台詞を既出扱いで回収参照している。Prologueの使命宣言部(`Prologue.cs:142-149`付近)に「成敗」を軽く一行仕込み、既存の参照に実体を持たせる"
+    },
+    {
+      "priority": "P3",
+      "title": "Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード",
+      "worker": "engineer",
+      "accept": "`src/Pad.cs:111`の`FlipToken`は宣言行以外`src/`全体で参照ゼロ。`Hud.cs:219`の`TokFlip`が全く同じ`JoyButton.RightShoulder`三項演算子(真理値完全一致)を個別実装。`Hud.cs:219`を`Pad.FlipToken`呼び出しに置換して一本化(2026-08-24の`ModeToken`統一と同じ手順)。表示文言が変わらないことを確認し`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
+    {
+      "priority": "P3",
+      "title": "Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大",
+      "worker": "engineer",
+      "accept": "`src/Bullet.cs:113`(`EnemyEdge`)/`114`(`EnemyGlow`)/`129`(`SpreadEdge`)/`142`(`BackEdge`)の4フィールドは宣言行以外`src/`全体で参照ゼロ(実際の敵弾/拡散弾/後方弾描画は`Bullet.cs:582-593,676-689,719-733`でMid/Glowのみ使用)。4フィールドを削除し、削除前後で`src/`(`.tscn`/`.tres`含む)を再grepして他参照が無いことを確認、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
+    {
+      "priority": "P3",
+      "title": "GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない",
+      "worker": "engineer",
+      "accept": "`src/GameManager.cs:960-962`のコメント「タイトルの『あそびかた』からの任意再生フラグ」に対し`ForceTutorialReplay`は宣言行以外`src/`全体で参照ゼロ(HowToPlay.csにも代入なし)。実際のチュートリアル再受講導線は`Prologue.cs:282-302`の独立フローで完結。フィールドとコメントを削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
+    {
+      "priority": "P3",
+      "title": "Shop.EdgeDimが宣言のみで通常エッジ描画には未使用",
+      "worker": "engineer",
+      "accept": "`src/Shop.cs:234`の`EdgeDim`は宣言行以外`src/`全体で参照ゼロ。実際の通常エッジは`Shop.cs:1298`で系統色ベースの色を使用しており`EdgeDim`(白灰固定色)は使われていない(`Light`/`Deny`/`ForkGold`は使用中のため対象外)。`EdgeDim`を削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
+    },
+    {
+      "priority": "P3",
+      "title": "docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置",
+      "worker": "scenario",
+      "accept": "`docs/キャラ設定_02_ミナ_改訂版.md:80`のPW未確定表記(実装は`src/Epilogue.cs:63-67`で\"stay\"に確定済み)と、`:118-121`「次に決める項目」1〜4(一人称/PW/シナリオ01改稿/3人目C確定)が全項目実装済みなのに未消化リストとして残存。2026-08-19に同種修正済みの他2ファイル(`docs/20260613/MINA_シナリオ設計書_v2.md:304,345`/`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`)と同じ形式(取消線+実装済み注記)に更新"
+    },
+    {
+      "priority": "P3",
+      "title": "docs/STORY.mdが実装と全く異なる旧コンセプト(algo/ハル/ザ・システム)のまま正典v3の非正典化バナーも無い",
+      "worker": "scenario",
+      "accept": "`docs/STORY.md`全148行に現行実装キャラ(少年/ミナ/レイ/あかり/こはる)への言及が0件、旧設定の主人公「algo」・「ハル」・ラスボス「ザ・システム」が正典然と記載されたまま。2026-08-16に`docs/キャラ設定_01_少年_改訂版.md:6-9`/`docs/キャラ設定_02_ミナ_改訂版.md:8-11`に付与済みの「⚠正典v3」非正典化バナーと同種の注記をSTORY.md冒頭に追加する(全面改稿ではなく注記付与のみ)"
+    },
+    {
+      "priority": "P3",
+      "title": "src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存",
+      "worker": null,
+      "accept": "`src/StageW0.cs:41-46`に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。`project.godot:14`の起動シーン・`Prologue.cs:295`の遷移先(`Stage0.tscn`→`Stage0Root.cs`→`StageZero`)経由では`StageW0`を生成する`Main.cs`/`Main.tscn`はどこからも参照されず通常プレイでは到達不能と確認済みだが、`docs/DEV_W0.md:24`が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか`docs/DEV_W0.md`に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -102,6 +151,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている",
+      "worker": null,
+      "accept": "(完了 2026-08-25) 当初案(`fol_gain_1`のParentId変更)は`chain_1`(`GameManager.cs:417`、`PrereqId=\"spread_2\"`の拡散専用ノード)への新たな長距離エッジ副作用を生むため、レビューで方針転換。根本原因は`combo_hold_1`側にあると判断し、`GameManager.cs:413`の`combo_hold_1`の`ParentId`を`\"fol_gain_1\"`→`\"move_speed_1\"`(中立根)に変更(`fol_gain_1/2`・`chain_1/2`は無変更)。`Shop.cs`の`NodePos`で`combo_hold_1/2`を拡散帯(旧696,716/872,716)から`move_speed_1`直下の空きスペース(168,1478/168,1544)へ移設、`StreamOf()`(`Shop.cs:207-216`)で`combo_hold`の系統分類を`Stream.Spread`から`Stream.Survive`へ変更し色帯(`DrawStreamLanes`)の破綻も防止。Rapid/Homing専門プレイヤーも拡散ツリーを経由せず`combo_hold`に到達可能になった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのショップ画面目視確認は未実施"
+    },
     {
       "priority": "P3",
       "title": "Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現",
@@ -765,6 +820,21 @@
   ],
   "commits": [
     {
+      "hash": "13a1b01",
+      "date": "2026-08-25",
+      "subject": "auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税"
+    },
+    {
+      "hash": "783ec1e",
+      "date": "2026-08-25",
+      "subject": "auto: 監査で9件をキューに追加"
+    },
+    {
+      "hash": "614f1e8",
+      "date": "2026-08-24",
+      "subject": "Refresh the progress snapshot after the nightly merge"
+    },
+    {
       "hash": "9b6e785",
       "date": "2026-08-25",
       "subject": "Merge pull request #11 from takutoruku1/auto/dev"
@@ -788,21 +858,6 @@
       "hash": "418ff8d",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理"
-    },
-    {
-      "hash": "a2f70cb",
-      "date": "2026-08-24",
-      "subject": "auto: GameManager.AddBomb死にコード削除"
-    },
-    {
-      "hash": "488919a",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - GameManager.AddBomb死にコード整理"
-    },
-    {
-      "hash": "37725ef",
-      "date": "2026-08-24",
-      "subject": "auto: Player.FollowerCount死にコード削除"
     }
   ]
 }

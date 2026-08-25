@@ -39,8 +39,6 @@
 
 ## WIP
 
-- [ ] (P2) コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている | game-designer→engineer | `GameManager.cs:411-414`：`fol_gain_1`(口コミI)のParentIdが`spread_1`、`combo_hold_1`(コンボ持続I)のParentIdが`fol_gain_1`のため、全モード共通のコンボ猶予強化(`combo_hold_1/2`、`GameManager.cs:1061`)を1段でも買うには`spread_1`(拡散モード解放)を先に通過する必要があり、Rapid/Homing専門プレイヤーにも無関係な拡散ツリーへ実質300G分の投資を強制している。同じ経済・生存系の`imp_mult`/`hitbox`/`contam`は中立の`move_speed_1`配下(`GameManager.cs:450-458`)なのと非対称。`fol_gain_1`のParentIdを中立根(`move_speed_1`等)に変更し、`combo_hold_1`はそのまま`fol_gain_1`配下で連鎖させる(価格・効果式・NodePosは無変更)
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -61,6 +59,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている | game-designer→engineer | (完了 2026-08-25) 当初案(`fol_gain_1`のParentId変更)は`chain_1`(`GameManager.cs:417`、`PrereqId="spread_2"`の拡散専用ノード)への新たな長距離エッジ副作用を生むため、レビューで方針転換。根本原因は`combo_hold_1`側にあると判断し、`GameManager.cs:413`の`combo_hold_1`の`ParentId`を`"fol_gain_1"`→`"move_speed_1"`(中立根)に変更(`fol_gain_1/2`・`chain_1/2`は無変更)。`Shop.cs`の`NodePos`で`combo_hold_1/2`を拡散帯(旧696,716/872,716)から`move_speed_1`直下の空きスペース(168,1478/168,1544)へ移設、`StreamOf()`(`Shop.cs:207-216`)で`combo_hold`の系統分類を`Stream.Spread`から`Stream.Survive`へ変更し色帯(`DrawStreamLanes`)の破綻も防止。Rapid/Homing専門プレイヤーも拡散ツリーを経由せず`combo_hold`に到達可能になった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのショップ画面目視確認は未実施
 - [x] (P3) Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現 | engineer | (完了 2026-08-24) `src/Enemy.cs:171-172`の`PanelsRemaining`/`IsExposed`(コメント込み)を削除。削除前にsrc/全体(ボス派生クラス・fx/・`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード | engineer | (完了 2026-08-24) `src/Pad.cs`の`MouseReleased()`/`MouseMiddleClick()`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。兄弟メソッド`MouseClick()`/`MouseRightClick()`が使う`_mLPrev`/`_mRPrev`は維持しつつ、`MouseMiddleClick()`削除で書き込み専用の死にコードと化した`_mMPrev`(状態フィールド宣言・`PollMouse()`内の代入)も合わせて削除。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GameManager.AddBombが呼び出し元ゼロの死にコード | engineer | (完了 2026-08-24) `src/GameManager.cs:1272-1275`の`AddBomb(int n=1){ Bombs += n; }`を削除。削除前にsrc/全体(`.tscn`/`.tres`含む)を再grepし呼び出し箇所が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
