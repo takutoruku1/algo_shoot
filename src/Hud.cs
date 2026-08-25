@@ -216,7 +216,7 @@ public partial class Hud : CanvasLayer
     private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
     private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     private static string TokDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
-    private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F";
+    private static string TokFlip  => Pad.FlipToken;
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。

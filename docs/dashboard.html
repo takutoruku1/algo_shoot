@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">94<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 112 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 113 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 94パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">112</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">113</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">7</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Pad.cs:111</code>の<code>FlipToken</code>は宣言行以外<code>src/</code>全体で参照ゼロ。<code>Hud.cs:219</code>の<code>TokFlip</code>が全く同じ<code>JoyButton.RightShoulder</code>三項演算子(真理値完全一致)を個別実装。<code>Hud.cs:219</code>を<code>Pad.FlipToken</code>呼び出しに置換して一本化(2026-08-24の<code>ModeToken</code>統一と同じ手順)。表示文言が変わらないことを確認し<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -207,6 +199,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-25) <code>src/Hud.cs:219</code>の<code>TokFlip</code>独自三項演算子実装を<code>Pad.FlipToken</code>(<code>src/Pad.cs:111</code>)呼び出しに置換して一本化(2026-08-24の<code>Pad.ModeToken</code>統一と同じ手順)。<code>Pad.UsingPad</code>が<code>!ShowKeyboard</code>と定義されているため真理値表が完全一致することを確認済み、表示は不変。同ファイルの<code>AllFlip</code>(<code>Hud.cs:228</code>、表示文言が異なる別用途トークン)は対象外として無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1233,18 +1233,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e776fd2</span><span>2026-08-25</span><span class="s">auto: WIP着手 - Pad.FlipToken死にコード整理</span></li>
+      <li><span class="h">895b74a</span><span>2026-08-25</span><span class="s">auto: 少年の「成敗」宣言セリフをPrologueに一行挿入</span></li>
       <li><span class="h">af4df90</span><span>2026-08-25</span><span class="s">auto: WIP着手 - 「成敗」宣言セリフの伏線回収</span></li>
       <li><span class="h">2b611af</span><span>2026-08-25</span><span class="s">auto: コンボ持続ノードの拡散モード強制購入を解消</span></li>
       <li><span class="h">13a1b01</span><span>2026-08-25</span><span class="s">auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税</span></li>
       <li><span class="h">783ec1e</span><span>2026-08-25</span><span class="s">auto: 監査で9件をキューに追加</span></li>
       <li><span class="h">614f1e8</span><span>2026-08-24</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">9b6e785</span><span>2026-08-25</span><span class="s">Merge pull request #11 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">16f4447</span><span>2026-08-24</span><span class="s">auto: Enemy.PanelsRemaining/IsExposed死にコード削除</span></li>
-      <li><span class="h">e233d83</span><span>2026-08-24</span><span class="s">auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-25 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-25 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
