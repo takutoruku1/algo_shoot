@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 118 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 119 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">118</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">119</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存</span>
-          
-        </div>
-        <p class="accept"><code>src/StageW0.cs:41-46</code>に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。<code>project.godot:14</code>の起動シーン・<code>Prologue.cs:295</code>の遷移先(<code>Stage0.tscn</code>→<code>Stage0Root.cs</code>→<code>StageZero</code>)経由では<code>StageW0</code>を生成する<code>Main.cs</code>/<code>Main.tscn</code>はどこからも参照されず通常プレイでは到達不能と確認済みだが、<code>docs/DEV_W0.md:24</code>が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか<code>docs/DEV_W0.md</code>に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-25) <code>src/StageW0.cs</code>(旧デバッグ用プロトタイプ「W0やすらぎの庭」、<code>Main.tscn</code>経由のみで通常プレイでは到達不能)のcase4/5(旧41-46行)を旧一人称「ボク」→「」・旧キャラ「ハル」への言及を削って当たり障りのない表現へ置換、加えて調査で追加発見した<code>Step_StageClear</code>内(旧196行)の「ハル」言及も同様に短縮。switch文のcase番号・<code>Advance()</code>構造は無変更。<code>docs/DEV_W0.md:5</code>に「⚠非正典（旧デバッグ用プロトタイプ）」注記を追加し、正典の起動導線(<code>TitleMenu.tscn</code>→<code>Prologue.cs</code>→<code>Stage0.tscn</code>)と「F5でMain.tscn起動」が正典プレイの起動方法ではない旨を明記。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1233,18 +1233,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">66eee06</span><span>2026-08-25</span><span class="s">auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応</span></li>
+      <li><span class="h">d9ba0f4</span><span>2026-08-25</span><span class="s">auto: STORY.mdに正典v3の非正典化バナーを追加</span></li>
       <li><span class="h">86f3970</span><span>2026-08-25</span><span class="s">auto: WIP着手 - STORY.mdへの正典v3バナー追加</span></li>
       <li><span class="h">429c7bb</span><span>2026-08-25</span><span class="s">auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新</span></li>
       <li><span class="h">76355b8</span><span>2026-08-25</span><span class="s">auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新</span></li>
       <li><span class="h">31e4bfc</span><span>2026-08-25</span><span class="s">auto: Shop.EdgeDim死にコードを削除</span></li>
       <li><span class="h">dbea554</span><span>2026-08-25</span><span class="s">auto: WIP着手 - Shop.EdgeDim死にコード整理</span></li>
       <li><span class="h">b516856</span><span>2026-08-25</span><span class="s">auto: ForceTutorialReplay死にフィールドを削除</span></li>
-      <li><span class="h">f786448</span><span>2026-08-25</span><span class="s">auto: WIP着手 - ForceTutorialReplay死にフィールド整理</span></li>
-      <li><span class="h">b275019</span><span>2026-08-25</span><span class="s">auto: Bullet.cs未使用エッジ/グロー色フィールドを削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-25 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-25 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
