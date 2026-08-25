@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存 | scenario→engineer | `src/StageW0.cs:41-46`に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。`project.godot:14`の起動シーン・`Prologue.cs:295`の遷移先(`Stage0.tscn`→`Stage0Root.cs`→`StageZero`)経由では`StageW0`を生成する`Main.cs`/`Main.tscn`はどこからも参照されず通常プレイでは到達不能と確認済みだが、`docs/DEV_W0.md:24`が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか`docs/DEV_W0.md`に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応
-
 ## WIP
+
+- [ ] (P3) src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存 | scenario→engineer | `src/StageW0.cs:41-46`に現行ストーリーに存在しない「ハル」への言及・旧一人称「ボク」の台詞が残る。`project.godot:14`の起動シーン・`Prologue.cs:295`の遷移先(`Stage0.tscn`→`Stage0Root.cs`→`StageZero`)経由では`StageW0`を生成する`Main.cs`/`Main.tscn`はどこからも参照されず通常プレイでは到達不能と確認済みだが、`docs/DEV_W0.md:24`が今も「F5でMain.tscn起動」と案内しており誤って生かされるリスクが残る。scenarioが内容(旧設定への言及)を確認した上で、engineerが該当セリフを削除するか`docs/DEV_W0.md`に「旧デバッグ用・非正典」注記を追加するかのいずれかで対応
 
 ## BLOCKED
 
