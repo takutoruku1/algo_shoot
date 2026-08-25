@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-25 18:38 UTC",
+  "generated": "2026-08-25 18:40 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 116
+    "done": 117
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置",
-      "worker": "scenario",
-      "accept": "`docs/キャラ設定_02_ミナ_改訂版.md:80`のPW未確定表記(実装は`src/Epilogue.cs:63-67`で\"stay\"に確定済み)と、`:118-121`「次に決める項目」1〜4(一人称/PW/シナリオ01改稿/3人目C確定)が全項目実装済みなのに未消化リストとして残存。2026-08-19に同種修正済みの他2ファイル(`docs/20260613/MINA_シナリオ設計書_v2.md:304,345`/`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`)と同じ形式(取消線+実装済み注記)に更新"
-    },
     {
       "priority": "P3",
       "title": "docs/STORY.mdが実装と全く異なる旧コンセプト(algo/ハル/ザ・システム)のまま正典v3の非正典化バナーも無い",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-25) `docs/キャラ設定_02_ミナ_改訂版.md:80`のPW未確定表記と`:117-121`「次に決める項目」1〜4を、他2ファイル(`docs/20260613/MINA_シナリオ設計書_v2.md`/`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md`)で既に使われている取消線＋実装済み注記形式に統一。PW=\"stay\"(`src/Epilogue.cs:63-69`)、一人称=\"わたくし\"、シナリオ01改稿は`src/Prologue.cs`済み、3人目=\"こはる\"の4点をそれぞれ実装済みと明記。本文の他記述は無変更。ドキュメントのみの修正でビルド影響なし"
+    },
     {
       "priority": "P3",
       "title": "Shop.EdgeDimが宣言のみで通常エッジ描画には未使用",
@@ -820,6 +820,16 @@
   ],
   "commits": [
     {
+      "hash": "76355b8",
+      "date": "2026-08-25",
+      "subject": "auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新"
+    },
+    {
+      "hash": "31e4bfc",
+      "date": "2026-08-25",
+      "subject": "auto: Shop.EdgeDim死にコードを削除"
+    },
+    {
       "hash": "dbea554",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - Shop.EdgeDim死にコード整理"
@@ -848,16 +858,6 @@
       "hash": "d904e19",
       "date": "2026-08-25",
       "subject": "auto: Pad.FlipToken死にコードをHud.TokFlipと統一"
-    },
-    {
-      "hash": "e776fd2",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - Pad.FlipToken死にコード整理"
-    },
-    {
-      "hash": "895b74a",
-      "date": "2026-08-25",
-      "subject": "auto: 少年の「成敗」宣言セリフをPrologueに一行挿入"
     }
   ]
 }

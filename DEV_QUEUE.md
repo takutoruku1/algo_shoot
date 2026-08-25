@@ -33,8 +33,6 @@
 
 ## WIP
 
-- [ ] (P3) docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置 | scenario | `docs/キャラ設定_02_ミナ_改訂版.md:80`のPW未確定表記(実装は`src/Epilogue.cs:63-67`で"stay"に確定済み)と、`:118-121`「次に決める項目」1〜4(一人称/PW/シナリオ01改稿/3人目C確定)が全項目実装済みなのに未消化リストとして残存。2026-08-19に同種修正済みの他2ファイル(`docs/20260613/MINA_シナリオ設計書_v2.md:304,345`/`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:142`)と同じ形式(取消線+実装済み注記)に更新
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -55,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置 | scenario | (完了 2026-08-25) `docs/キャラ設定_02_ミナ_改訂版.md:80`のPW未確定表記と`:117-121`「次に決める項目」1〜4を、他2ファイル(`docs/20260613/MINA_シナリオ設計書_v2.md`/`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md`)で既に使われている取消線＋実装済み注記形式に統一。PW="stay"(`src/Epilogue.cs:63-69`)、一人称="わたくし"、シナリオ01改稿は`src/Prologue.cs`済み、3人目="こはる"の4点をそれぞれ実装済みと明記。本文の他記述は無変更。ドキュメントのみの修正でビルド影響なし
 - [x] (P3) Shop.EdgeDimが宣言のみで通常エッジ描画には未使用 | engineer | (完了 2026-08-25) `src/Shop.cs:235`の`EdgeDim`(白灰固定色)を削除。削除前後でsrc/全体を再grepし宣言行以外の参照が無いことを確認済み。実際の通常エッジは系統色ベースの色を使用しており影響なし。隣接する`Light`/`Deny`/`ForkGold`は使用中のため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない | engineer | (完了 2026-08-25) `src/GameManager.cs:960-962`の`ForceTutorialReplay`フィールドと、実在しない機能を説明していたコメント2行を削除。削除前後でsrc/全体を再grepし宣言行以外の参照が無いことを確認済み。実際のチュートリアル再受講導線`Prologue.cs:282-302`は無変更。`TutorialSeen`/`TutorialNoConsume`は生きているフィールドのため残置。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大 | engineer | (完了 2026-08-25) `src/Bullet.cs`の`EnemyEdge`(旧113)/`EnemyGlow`(旧114)/`SpreadEdge`(旧129)/`BackEdge`(旧142)の4フィールドを削除。削除前後でsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。対応するMid/Glow系フィールド(`EnemyMid`/`SpreadMid`/`SpreadGlow`/`BackMid`/`BackGlow`)は残置、実際の敵弾/拡散弾/後方弾描画(`Bullet.cs:582-593,676-689,719-733`付近)に影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
