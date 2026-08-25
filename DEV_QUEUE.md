@@ -35,8 +35,6 @@
 
 ## WIP
 
-- [ ] (P3) GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない | engineer | `src/GameManager.cs:960-962`のコメント「タイトルの『あそびかた』からの任意再生フラグ」に対し`ForceTutorialReplay`は宣言行以外`src/`全体で参照ゼロ(HowToPlay.csにも代入なし)。実際のチュートリアル再受講導線は`Prologue.cs:282-302`の独立フローで完結。フィールドとコメントを削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない | engineer | (完了 2026-08-25) `src/GameManager.cs:960-962`の`ForceTutorialReplay`フィールドと、実在しない機能を説明していたコメント2行を削除。削除前後でsrc/全体を再grepし宣言行以外の参照が無いことを確認済み。実際のチュートリアル再受講導線`Prologue.cs:282-302`は無変更。`TutorialSeen`/`TutorialNoConsume`は生きているフィールドのため残置。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大 | engineer | (完了 2026-08-25) `src/Bullet.cs`の`EnemyEdge`(旧113)/`EnemyGlow`(旧114)/`SpreadEdge`(旧129)/`BackEdge`(旧142)の4フィールドを削除。削除前後でsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。対応するMid/Glow系フィールド(`EnemyMid`/`SpreadMid`/`SpreadGlow`/`BackMid`/`BackGlow`)は残置、実際の敵弾/拡散弾/後方弾描画(`Bullet.cs:582-593,676-689,719-733`付近)に影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード | engineer | (完了 2026-08-25) `src/Hud.cs:219`の`TokFlip`独自三項演算子実装を`Pad.FlipToken`(`src/Pad.cs:111`)呼び出しに置換して一本化(2026-08-24の`Pad.ModeToken`統一と同じ手順)。`Pad.UsingPad`が`!ShowKeyboard`と定義されているため真理値表が完全一致することを確認済み、表示は不変。同ファイルの`AllFlip`(`Hud.cs:228`、表示文言が異なる別用途トークン)は対象外として無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている | scenario | (完了 2026-08-25) `src/Prologue.cs:146`の直後に「つまり——Xに蔓延る闇ってやつを、成敗しようじゃないか。……って、柄でもないセリフだけどな。」(`FFluster`)を挿入。設計書v2:155の正典フレーズをそのまま流用しつつ、直後に照れ隠しの軽口を足して③使命パートの主旋律(具体の引きで体感させる)は崩さずワンフレーズのオマケとして挟む形にした。`:141`のコメントも実態(「成敗」を軽く一度だけ挟む)に合わせて更新。これにより`src/StageAkari.cs:58`(ミナ「次の“成敗”は?」)と`src/Epilogue.cs:134`(「成敗するなどと言いながら」)が既出セリフとして実体を持つようになった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

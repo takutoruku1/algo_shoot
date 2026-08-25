@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-25 18:36 UTC",
+  "generated": "2026-08-25 18:37 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 15,
-    "done": 114
+    "done": 115
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない",
-      "worker": "engineer",
-      "accept": "`src/GameManager.cs:960-962`のコメント「タイトルの『あそびかた』からの任意再生フラグ」に対し`ForceTutorialReplay`は宣言行以外`src/`全体で参照ゼロ(HowToPlay.csにも代入なし)。実際のチュートリアル再受講導線は`Prologue.cs:282-302`の独立フローで完結。フィールドとコメントを削除、削除前後で再grepし`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
-    },
     {
       "priority": "P3",
       "title": "Shop.EdgeDimが宣言のみで通常エッジ描画には未使用",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-25) `src/GameManager.cs:960-962`の`ForceTutorialReplay`フィールドと、実在しない機能を説明していたコメント2行を削除。削除前後でsrc/全体を再grepし宣言行以外の参照が無いことを確認済み。実際のチュートリアル再受講導線`Prologue.cs:282-302`は無変更。`TutorialSeen`/`TutorialNoConsume`は生きているフィールドのため残置。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大",
@@ -820,6 +820,16 @@
   ],
   "commits": [
     {
+      "hash": "f786448",
+      "date": "2026-08-25",
+      "subject": "auto: WIP着手 - ForceTutorialReplay死にフィールド整理"
+    },
+    {
+      "hash": "b275019",
+      "date": "2026-08-25",
+      "subject": "auto: Bullet.cs未使用エッジ/グロー色フィールドを削除"
+    },
+    {
       "hash": "2cc8c38",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - Bullet.cs死にコードフィールド整理"
@@ -848,16 +858,6 @@
       "hash": "2b611af",
       "date": "2026-08-25",
       "subject": "auto: コンボ持続ノードの拡散モード強制購入を解消"
-    },
-    {
-      "hash": "13a1b01",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税"
-    },
-    {
-      "hash": "783ec1e",
-      "date": "2026-08-25",
-      "subject": "auto: 監査で9件をキューに追加"
     }
   ]
 }

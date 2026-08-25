@@ -957,9 +957,6 @@ public partial class GameManager : Node
     private const string PrefsPath = "user://prefs.json";
     // チュートリアル既読（端末ローカル）。初回プレイ判定に使う。
     public bool TutorialSeen { get; private set; }
-    // タイトルの「あそびかた」からの任意再生フラグ（次のステージ開始で消費）。
-    // 任意再生では TutorialSeen を書き換えない。
-    public bool ForceTutorialReplay;
 
     // チュートリアル（ステージ0）の練習モード：ON の間はボム・残機を消費しない（詰み防止）。
     // 非セーブ＝ラン単位。Stage0Root の _Ready で立て、Hub 遷移時に倒す。
