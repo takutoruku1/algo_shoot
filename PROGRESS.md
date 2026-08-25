@@ -1,17 +1,17 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-24 22:04 UTC
+> 生成: 2026-08-25 18:43 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 110 / 対象 110)
+████████████████████  100%   (完了 119 / 対象 119)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 110 |
+| ✅ 完了 | 119 |
 | 🔨 作業中 | 0 |
 | 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 15 |
@@ -44,6 +44,15 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P3` src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存
+- `P3` docs/STORY.mdが実装と全く異なる旧コンセプト(algo/ハル/ザ・システム)のまま正典v3の非正典化バナーも無い
+- `P3` docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置
+- `P3` Shop.EdgeDimが宣言のみで通常エッジ描画には未使用
+- `P3` GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない
+- `P3` Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大
+- `P3` Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード
+- `P2` 少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている
+- `P2` コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている
 - `P3` Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現
 - `P3` Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード
 - `P3` GameManager.AddBombが呼び出し元ゼロの死にコード
@@ -157,11 +166,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `9b6e785` 2026-08-25 Merge pull request #11 from takutoruku1/auto/dev
-- `16f4447` 2026-08-24 auto: Enemy.PanelsRemaining/IsExposed死にコード削除
-- `e233d83` 2026-08-24 auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理
-- `5668d65` 2026-08-24 auto: Pad.MouseReleased/MouseMiddleClick死にコード削除
-- `418ff8d` 2026-08-24 auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理
-- `a2f70cb` 2026-08-24 auto: GameManager.AddBomb死にコード削除
-- `488919a` 2026-08-24 auto: WIP着手 - GameManager.AddBomb死にコード整理
-- `37725ef` 2026-08-24 auto: Player.FollowerCount死にコード削除
+- `66eee06` 2026-08-25 auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応
+- `d9ba0f4` 2026-08-25 auto: STORY.mdに正典v3の非正典化バナーを追加
+- `86f3970` 2026-08-25 auto: WIP着手 - STORY.mdへの正典v3バナー追加
+- `429c7bb` 2026-08-25 auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新
+- `76355b8` 2026-08-25 auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新
+- `31e4bfc` 2026-08-25 auto: Shop.EdgeDim死にコードを削除
+- `dbea554` 2026-08-25 auto: WIP着手 - Shop.EdgeDim死にコード整理
+- `b516856` 2026-08-25 auto: ForceTutorialReplay死にフィールドを削除

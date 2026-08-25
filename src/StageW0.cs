@@ -38,12 +38,15 @@ public partial class StageW0 : Node
         _stepTime += delta;
         switch (_step)
         {
-            // 冒頭：algo が話すシーン（立ち絵＋吹き出し）
+            // 冒頭：主人公が話すシーン（立ち絵＋吹き出し）
+            // 注意：このステージ(W0)は旧デバッグ用プロトタイプで非正典。
+            // 現行正典（Prologue.cs 等）の一人称・キャラ名とは一致しない旧設定の名残が
+            // あったため当たり障りのない表現に置換済み（旧: 一人称「ボク」/固有名「ハル」への言及）。
             case 1: Talk("…ん。めが、さめた。", 3.0); break;
             case 2: Talk("ここは、声が流れる世界 ― タイムライン。", 3.4); break;
             case 3: Talk("黒い言葉が、みんなの心を歪めてる…。", 3.4); break;
-            case 4: Talk("だいじょうぶ。ボクが“やさしさ”を取り戻すよ。", 3.6); break;
-            case 5: Talk("ハル……あなたを、もう一度さがしに行くね。", 3.6); break;
+            case 4: Talk("だいじょうぶ。きっと、“やさしさ”を取り戻せる。", 3.6); break;
+            case 5: Talk("……もう一度、さがしに行こう。", 3.6); break;
             // チュートリアル＆本番
             case 6: Step_Move(); break;
             case 7: Step_Shoot(); break;
@@ -193,7 +196,7 @@ public partial class StageW0 : Node
         {
             _stepStarted = true;
             Hud.ShowBanner("空が、晴れた。");
-            Hud.ShowDialog("ヒカゲ、もう ひとりじゃないよ。やさしさが、世界を温め直してる…。ハル、もうすこし、まっててね。");
+            Hud.ShowDialog("ヒカゲ、もう ひとりじゃないよ。やさしさが、世界を温め直してる…。");
             Advance();
         }
     }

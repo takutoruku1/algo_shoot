@@ -410,7 +410,7 @@ public partial class GameManager : Node
         new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.35", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
         new() { Id = "fol_gain_1",    Name = "口コミI",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
         new() { Id = "fol_gain_2",    Name = "口コミII",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
-        new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "fol_gain_1" },
+        new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
         new() { Id = "combo_hold_2",  Name = "コンボ持続II",Desc = "コンボ猶予 2.8秒",         MaxLevel = 1, BaseCost = 200,  ParentId = "combo_hold_1" },
         new() { Id = "option_1",      Name = "拡散サブI",   Desc = "追従オプション +1（威力×0.5でメイン同期射撃）", MaxLevel = 1, BaseCost = 900,  ParentId = "spread_power_1", PrereqId = "spread_2", PrereqLv = 1 },
         new() { Id = "option_2",      Name = "拡散サブII",  Desc = "追従オプション 2基",       MaxLevel = 1, BaseCost = 1440, ParentId = "option_1" },
@@ -957,9 +957,6 @@ public partial class GameManager : Node
     private const string PrefsPath = "user://prefs.json";
     // チュートリアル既読（端末ローカル）。初回プレイ判定に使う。
     public bool TutorialSeen { get; private set; }
-    // タイトルの「あそびかた」からの任意再生フラグ（次のステージ開始で消費）。
-    // 任意再生では TutorialSeen を書き換えない。
-    public bool ForceTutorialReplay;
 
     // チュートリアル（ステージ0）の練習モード：ON の間はボム・残機を消費しない（詰み防止）。
     // 非セーブ＝ラン単位。Stage0Root の _Ready で立て、Hub 遷移時に倒す。

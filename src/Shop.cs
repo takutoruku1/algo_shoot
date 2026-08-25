@@ -66,8 +66,6 @@ public partial class Shop : Node2D
         ("fol_gain_2",    696, 650),
         ("chain_1",       872, 650),
         ("chain_2",       1048, 650),
-        ("combo_hold_1",  696, 716),
-        ("combo_hold_2",  872, 716),
         ("spread_rate_1", 696, 782),
         // ── ホーミング系（HOMING） y882-1080 ──
         ("homing_1",      344, 882),
@@ -91,6 +89,8 @@ public partial class Shop : Node2D
         ("move_speed_1",  168, 1412),
         ("move_speed_2",  344, 1412),
         ("move_speed_3",  520, 1412),
+        ("combo_hold_1",  168, 1478), // move_speed_1直下へ移設（旧: 拡散帯fol_gain_1直下から中立幹の傍へ）
+        ("combo_hold_2",  168, 1544),
         ("contam_1",      344, 1478),
         ("contam_2",      520, 1478),
         ("hitbox_1",      520, 1544),
@@ -205,13 +205,14 @@ public partial class Shop : Node2D
     };
     private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済", "加速球" };
     private static Stream StreamOf(string id) =>
-        id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
+        id.StartsWith("spread") || id.StartsWith("fol_gain")
             || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
         : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
         : id.StartsWith("bf_") ? Stream.Backfire
         : id.StartsWith("accel") ? Stream.Accel
         : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
-            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
+            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb")
+            || id.StartsWith("combo_hold") ? Stream.Survive // combo_holdはmove_speed_1直下(経済帯)へ移設済み
         : Stream.Rapid; // 連射・威力・貫通・集中・速射
     private static Color StreamColor(string id) => StreamCol[(int)StreamOf(id)];
 
@@ -231,7 +232,6 @@ public partial class Shop : Node2D
 
     private static readonly Color Light = new("9be0f5");   // 光のハイライト
     private static readonly Color Deny = new("ef9a9a");    // 買えない理由（赤）
-    private static readonly Color EdgeDim = new(1, 1, 1, 0.22f);       // 通常エッジ（白灰）
     private static readonly Color ForkGold = new(0.91f, 0.77f, 0.35f); // 排他フォーク（金）
 
     // 小話3（ショップの一言）：入店・購入時・退店でミナがぽつりと零す台詞。既存の Toast() で表示するだけ＝
