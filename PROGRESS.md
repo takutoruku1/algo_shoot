@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-25 18:31 UTC
+> 生成: 2026-08-25 18:33 UTC
 
 ## 消化率
 
 ```
-███████████████████░  93%   (完了 111 / 対象 119)
+███████████████████░  94%   (完了 112 / 対象 119)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 111 |
+| ✅ 完了 | 112 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 8 |
+| 📋 残り | 7 |
 | ⛔ 保留（人間の判断待ち） | 15 |
 
 ## 🔨 いま作業中
@@ -22,13 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-- `P2` 少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている
 - `P3` Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード
 - `P3` Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大
 - `P3` GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない
 - `P3` Shop.EdgeDimが宣言のみで通常エッジ描画には未使用
+- `P3` docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置
 
-…ほか 3 件
+…ほか 2 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -50,6 +50,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P2` 少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている
 - `P2` コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている
 - `P3` Enemy.PanelsRemaining/IsExposedが宣言のみの死にコード、コメントも過大表現
 - `P3` Pad.MouseReleased/MouseMiddleClickが呼び出し元ゼロの死にコード
@@ -164,11 +165,11 @@ _なし_
 
 ## 直近のコミット
 
+- `af4df90` 2026-08-25 auto: WIP着手 - 「成敗」宣言セリフの伏線回収
+- `2b611af` 2026-08-25 auto: コンボ持続ノードの拡散モード強制購入を解消
 - `13a1b01` 2026-08-25 auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税
 - `783ec1e` 2026-08-25 auto: 監査で9件をキューに追加
 - `614f1e8` 2026-08-24 Refresh the progress snapshot after the nightly merge
 - `9b6e785` 2026-08-25 Merge pull request #11 from takutoruku1/auto/dev
 - `16f4447` 2026-08-24 auto: Enemy.PanelsRemaining/IsExposed死にコード削除
 - `e233d83` 2026-08-24 auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理
-- `5668d65` 2026-08-24 auto: Pad.MouseReleased/MouseMiddleClick死にコード削除
-- `418ff8d` 2026-08-24 auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理

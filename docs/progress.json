@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-25 18:31 UTC",
+  "generated": "2026-08-25 18:33 UTC",
   "counts": {
-    "todo": 8,
+    "todo": 7,
     "wip": 0,
     "blocked": 15,
-    "done": 111
+    "done": 112
   },
-  "percent": 93,
+  "percent": 94,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている",
-      "worker": "scenario",
-      "accept": "正典`docs/20260613/MINA_シナリオ設計書_v2.md:155`と`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:33,139`は「Xの闇を成敗する」という少年の宣言を物語の建前・後段反転の前提としているが、実装`src/Prologue.cs:141-149`はこの決め台詞を意図的にカット(`:141`コメントに明記)。にもかかわらず`src/StageAkari.cs:58`(ミナ「次の“成敗”は?」)と`src/Epilogue.cs:134`(地の文「Xの闇を成敗するなどと言いながら」)が作中未発話の台詞を既出扱いで回収参照している。Prologueの使命宣言部(`Prologue.cs:142-149`付近)に「成敗」を軽く一行仕込み、既存の参照に実体を持たせる"
-    },
     {
       "priority": "P3",
       "title": "Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "少年の「成敗」宣言セリフがPrologueで意図的にカットされ、後続シーンの既出ネタ参照が空振りしている",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-25) `src/Prologue.cs:146`の直後に「つまり——Xに蔓延る闇ってやつを、成敗しようじゃないか。……って、柄でもないセリフだけどな。」(`FFluster`)を挿入。設計書v2:155の正典フレーズをそのまま流用しつつ、直後に照れ隠しの軽口を足して③使命パートの主旋律(具体の引きで体感させる)は崩さずワンフレーズのオマケとして挟む形にした。`:141`のコメントも実態(「成敗」を軽く一度だけ挟む)に合わせて更新。これにより`src/StageAkari.cs:58`(ミナ「次の“成敗”は?」)と`src/Epilogue.cs:134`(「成敗するなどと言いながら」)が既出セリフとして実体を持つようになった。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "コンボ持続ノードが無関係な拡散モード解放を強制する購入税になっている",
@@ -820,6 +820,16 @@
   ],
   "commits": [
     {
+      "hash": "af4df90",
+      "date": "2026-08-25",
+      "subject": "auto: WIP着手 - 「成敗」宣言セリフの伏線回収"
+    },
+    {
+      "hash": "2b611af",
+      "date": "2026-08-25",
+      "subject": "auto: コンボ持続ノードの拡散モード強制購入を解消"
+    },
+    {
       "hash": "13a1b01",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - コンボ持続ノードの拡散モード強制購入税"
@@ -848,16 +858,6 @@
       "hash": "e233d83",
       "date": "2026-08-24",
       "subject": "auto: WIP着手 - Enemy.PanelsRemaining/IsExposed死にコード整理"
-    },
-    {
-      "hash": "5668d65",
-      "date": "2026-08-24",
-      "subject": "auto: Pad.MouseReleased/MouseMiddleClick死にコード削除"
-    },
-    {
-      "hash": "418ff8d",
-      "date": "2026-08-24",
-      "subject": "auto: WIP着手 - Pad.MouseReleased/MouseMiddleClick死にコード整理"
     }
   ]
 }
