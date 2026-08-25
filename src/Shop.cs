@@ -232,7 +232,6 @@ public partial class Shop : Node2D
 
     private static readonly Color Light = new("9be0f5");   // 光のハイライト
     private static readonly Color Deny = new("ef9a9a");    // 買えない理由（赤）
-    private static readonly Color EdgeDim = new(1, 1, 1, 0.22f);       // 通常エッジ（白灰）
     private static readonly Color ForkGold = new(0.91f, 0.77f, 0.35f); // 排他フォーク（金）
 
     // 小話3（ショップの一言）：入店・購入時・退店でミナがぽつりと零す台詞。既存の Toast() で表示するだけ＝

@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 115 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 116 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">115</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">116</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Shop.EdgeDimが宣言のみで通常エッジ描画には未使用</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Shop.cs:234</code>の<code>EdgeDim</code>は宣言行以外<code>src/</code>全体で参照ゼロ。実際の通常エッジは<code>Shop.cs:1298</code>で系統色ベースの色を使用しており<code>EdgeDim</code>(白灰固定色)は使われていない(<code>Light</code>/<code>Deny</code>/<code>ForkGold</code>は使用中のため対象外)。<code>EdgeDim</code>を削除、削除前後で再grepし<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Shop.EdgeDimが宣言のみで通常エッジ描画には未使用</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-25) <code>src/Shop.cs:235</code>の<code>EdgeDim</code>(白灰固定色)を削除。削除前後でsrc/全体を再grepし宣言行以外の参照が無いことを確認済み。実際の通常エッジは系統色ベースの色を使用しており影響なし。隣接する<code>Light</code>/<code>Deny</code>/<code>ForkGold</code>は使用中のため無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1233,18 +1233,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">dbea554</span><span>2026-08-25</span><span class="s">auto: WIP着手 - Shop.EdgeDim死にコード整理</span></li>
+      <li><span class="h">b516856</span><span>2026-08-25</span><span class="s">auto: ForceTutorialReplay死にフィールドを削除</span></li>
       <li><span class="h">f786448</span><span>2026-08-25</span><span class="s">auto: WIP着手 - ForceTutorialReplay死にフィールド整理</span></li>
       <li><span class="h">b275019</span><span>2026-08-25</span><span class="s">auto: Bullet.cs未使用エッジ/グロー色フィールドを削除</span></li>
       <li><span class="h">2cc8c38</span><span>2026-08-25</span><span class="s">auto: WIP着手 - Bullet.cs死にコードフィールド整理</span></li>
       <li><span class="h">d904e19</span><span>2026-08-25</span><span class="s">auto: Pad.FlipToken死にコードをHud.TokFlipと統一</span></li>
       <li><span class="h">e776fd2</span><span>2026-08-25</span><span class="s">auto: WIP着手 - Pad.FlipToken死にコード整理</span></li>
       <li><span class="h">895b74a</span><span>2026-08-25</span><span class="s">auto: 少年の「成敗」宣言セリフをPrologueに一行挿入</span></li>
-      <li><span class="h">af4df90</span><span>2026-08-25</span><span class="s">auto: WIP着手 - 「成敗」宣言セリフの伏線回収</span></li>
-      <li><span class="h">2b611af</span><span>2026-08-25</span><span class="s">auto: コンボ持続ノードの拡散モード強制購入を解消</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-25 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-25 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
