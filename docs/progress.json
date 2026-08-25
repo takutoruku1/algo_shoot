@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-25 18:43 UTC",
+  "generated": "2026-08-25 22:06 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -819,6 +819,16 @@
   ],
   "commits": [
     {
+      "hash": "14932bd",
+      "date": "2026-08-26",
+      "subject": "Merge pull request #12 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "eb4d9b6",
+      "date": "2026-08-25",
+      "subject": "auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記"
+    },
+    {
       "hash": "66eee06",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応"
@@ -847,16 +857,6 @@
       "hash": "31e4bfc",
       "date": "2026-08-25",
       "subject": "auto: Shop.EdgeDim死にコードを削除"
-    },
-    {
-      "hash": "dbea554",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - Shop.EdgeDim死にコード整理"
-    },
-    {
-      "hash": "b516856",
-      "date": "2026-08-25",
-      "subject": "auto: ForceTutorialReplay死にフィールドを削除"
     }
   ]
 }

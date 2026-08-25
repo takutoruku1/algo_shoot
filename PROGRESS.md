@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-25 18:43 UTC
+> 生成: 2026-08-25 22:06 UTC
 
 ## 消化率
 
@@ -166,11 +166,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `14932bd` 2026-08-26 Merge pull request #12 from takutoruku1/auto/dev
+- `eb4d9b6` 2026-08-25 auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記
 - `66eee06` 2026-08-25 auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応
 - `d9ba0f4` 2026-08-25 auto: STORY.mdに正典v3の非正典化バナーを追加
 - `86f3970` 2026-08-25 auto: WIP着手 - STORY.mdへの正典v3バナー追加
 - `429c7bb` 2026-08-25 auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新
 - `76355b8` 2026-08-25 auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新
 - `31e4bfc` 2026-08-25 auto: Shop.EdgeDim死にコードを削除
-- `dbea554` 2026-08-25 auto: WIP着手 - Shop.EdgeDim死にコード整理
-- `b516856` 2026-08-25 auto: ForceTutorialReplay死にフィールドを削除
