@@ -110,8 +110,6 @@ public partial class Bullet : Area2D
     // ドット絵ではなく「白ハイライト→中間色→暗エッジのグラデ＋外周グロー」の滑らかな弾。
     // 敵弾: radial-gradient(circle at 35% 30%, #fff, #e072ac 60%, #7a2f5a) + glow rgba(224,114,172,.75)
     private static readonly Color EnemyMid  = new Color(0.882f, 0.447f, 0.675f); // #e072ac ボス穢れ
-    private static readonly Color EnemyEdge = new Color(0.478f, 0.184f, 0.353f); // #7a2f5a 暗マゼンタ縁
-    private static readonly Color EnemyGlow = new Color(0.878f, 0.447f, 0.675f); // rgba(224,114,172)
     // 自機弾: radial-gradient(circle at 40% 35%, #fff, #6cbcd8 65%) + glow rgba(108,188,216,.8)
     private static readonly Color PlayerMid  = new Color(0.424f, 0.737f, 0.847f); // #6cbcd8 浄化
     private static readonly Color PlayerEdge = new Color(0.247f, 0.490f, 0.604f); // 暗めの水色縁
@@ -126,7 +124,6 @@ public partial class Bullet : Area2D
     // 拡散＝翠（エメラルド）：敵弾Tint（レイ銀/菫/金/ティール・あかり雨青/藍/白・こはる琥珀/深紅/橙・ミナ濁紫/濁桃/濁金・道中桃紫系）
     //   の全リストに緑は皆無＝全ステージで唯一色。花弁＝若葉の世界観にも合う。明度は水色PlayerMidと同格に揃える。
     private static readonly Color SpreadMid  = new Color(0.40f, 0.85f, 0.63f); // #66d9a1
-    private static readonly Color SpreadEdge = new Color(0.18f, 0.48f, 0.35f); // 暗めの翠縁
     private static readonly Color SpreadGlow = new Color(0.42f, 0.88f, 0.66f);
     // 誘導＝青藤（ペリウィンクル）：レイの菫 #9a72d9(≈263°) より約30°青へ・あかりの藍 #4a6aa0(≈217°・暗鈍色) より
     //   明るく高彩度＝色相と明度の両方で敵Tintから離す。ミナの濁紫（低彩度）とも彩度差で分離。
@@ -139,7 +136,6 @@ public partial class Bullet : Area2D
     // 後方弾（FireBackfire）＝淡い金（≈45°）。敵弾の穢れ桃 #e072ac(≈337°) とも、他3モードの浄化色域とも
     //   離れた唯一の暖色＝「前方の連射/拡散/誘導とは別枠の弾」を色だけで即断できる。
     private static readonly Color BackMid  = new Color(0.98f, 0.86f, 0.55f);
-    private static readonly Color BackEdge = new Color(0.62f, 0.50f, 0.26f); // 暗めの金縁
     private static readonly Color BackGlow = new Color(1.0f, 0.90f, 0.62f);
 
     // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────

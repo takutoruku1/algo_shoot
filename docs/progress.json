@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-25 18:35 UTC",
+  "generated": "2026-08-25 18:36 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
-    "done": 113
+    "done": 114
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大",
-      "worker": "engineer",
-      "accept": "`src/Bullet.cs:113`(`EnemyEdge`)/`114`(`EnemyGlow`)/`129`(`SpreadEdge`)/`142`(`BackEdge`)の4フィールドは宣言行以外`src/`全体で参照ゼロ(実際の敵弾/拡散弾/後方弾描画は`Bullet.cs:582-593,676-689,719-733`でMid/Glowのみ使用)。4フィールドを削除し、削除前後で`src/`(`.tscn`/`.tres`含む)を再grepして他参照が無いことを確認、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認"
-    },
     {
       "priority": "P3",
       "title": "GameManager.ForceTutorialReplayが読み書きゼロの死にフィールドで、コメントの機能が実在しない",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Bullet.csの敵弾/拡散弾/後方弾エッジ・グロー色フィールドが宣言のみで未使用、コメントが実装より過大",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-25) `src/Bullet.cs`の`EnemyEdge`(旧113)/`EnemyGlow`(旧114)/`SpreadEdge`(旧129)/`BackEdge`(旧142)の4フィールドを削除。削除前後でsrc/全体(`.tscn`/`.tres`含む)を再grepし宣言行以外の参照が無いことを確認済み。対応するMid/Glow系フィールド(`EnemyMid`/`SpreadMid`/`SpreadGlow`/`BackMid`/`BackGlow`)は残置、実際の敵弾/拡散弾/後方弾描画(`Bullet.cs:582-593,676-689,719-733`付近)に影響なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Pad.FlipTokenが参照ゼロの死にコードで、Hudが同ロジックを個別ハードコード",
@@ -820,6 +820,16 @@
   ],
   "commits": [
     {
+      "hash": "2cc8c38",
+      "date": "2026-08-25",
+      "subject": "auto: WIP着手 - Bullet.cs死にコードフィールド整理"
+    },
+    {
+      "hash": "d904e19",
+      "date": "2026-08-25",
+      "subject": "auto: Pad.FlipToken死にコードをHud.TokFlipと統一"
+    },
+    {
       "hash": "e776fd2",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - Pad.FlipToken死にコード整理"
@@ -848,16 +858,6 @@
       "hash": "783ec1e",
       "date": "2026-08-25",
       "subject": "auto: 監査で9件をキューに追加"
-    },
-    {
-      "hash": "614f1e8",
-      "date": "2026-08-24",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "9b6e785",
-      "date": "2026-08-25",
-      "subject": "Merge pull request #11 from takutoruku1/auto/dev"
     }
   ]
 }
