@@ -1,13 +1,80 @@
 {
-  "generated": "2026-08-25 22:06 UTC",
+  "generated": "2026-08-26 18:36 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 11,
     "wip": 0,
     "blocked": 15,
     "done": 119
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 92,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている",
+      "worker": null,
+      "accept": "`Player.cs:223` の `DodgeDuration=0.55f`（回避モーションの固定長）が再回避可能タイミングの実質下限として機能するが、`GameManager.cs:750` の `DodgeCooldown => 0.8f - 0.1f*ChainLevel(\"move_speed\",3)` はLv3で0.5sまで下がり床(0.55s)を下回る。次回避までの実効待ち時間は `max(_dodgeCd, _dodgeTimer)` で決まる（`Player.cs:983` のガード条件）ため、Lv2→Lv3（`GameManager.cs:449` `move_speed_3`, 350G）は「0.6→0.5s」と謳いながら実際は「0.6→0.55s」しか縮まらず、謳い文句の半分(0.05s分＝350Gの半分弱)が無意味化している。受入条件: `DodgeDuration`（i-frame含む手触り）には触れず、`GameManager.cs:750` のクールダウン数列だけを床(0.55s)を跨がないよう再配分する（例: 0.8→0.65(Lv1)→0.58(Lv2)→0.55(Lv3)）。全レベルが「押した分だけ確実に速くなる」よう、各段の実効削減量がゼロにならないことを確認する"
+    },
+    {
+      "priority": "P2",
+      "title": "正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾",
+      "worker": "scenario",
+      "accept": "`docs/20260613/MINA_シナリオ設計書_v2.md:121-124` の物語フローマップは「STAGE 3 こはる → FINAL 汚染……ミナ暴走 → 少年の対話で帰還（戦闘で解決しない）」のまま。しかし実装は `src/StageMina.cs`+`src/BossMina.cs`（`MinaBattle.tscn`）で実際にボスBossMinaを撃破する戦闘を挟んでからFinal.tscnの対話に入る（`src/Hub.cs:183`、2026-06-20導入）。§4のステージ構成表は既に2026-08-18にSTAGE MINA行が追加済みだが§5フローマップだけ未反映。`docs/20260613/乖離レポート_20260813.md:52` 自身が「正式に設計書を更新するなら…今後の宿題として残る」と明記した箇所。受入条件: §5をSTAGE MINA行を挟む形に書き直し、「戦闘で解決しない」の一文をFINAL（Final.cs）にのみ限定する表現へ修正する"
+    },
+    {
+      "priority": "P2",
+      "title": "「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存",
+      "worker": "scenario",
+      "accept": "2026-08-14に実装側は少年→ミナの二人称を「きみ」へ統一済み（`src/Prologue.cs:133` 「——きみの名前は、MINA だ。」／`src/Hub.cs:1239,1242` 「大丈夫か、きみ。」「……きみさ。」）だが、以下3ファイルは旧「お前」のまま同期漏れ：`docs/シナリオ_プロローグ_起動.md:59` 「お前の名前は——MINA（ミナ）だ。」／`docs/【MASTER】設定資料統合版.md:762` 同一文言／`docs/20260613/MINA_システム拡張設計書_v1.md:441,445` 「大丈夫か、お前」「……お前さ」。受入条件: 3箇所とも実装文言に合わせて「きみ」へ修正する"
+    },
+    {
+      "priority": "P3",
+      "title": "ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない",
+      "worker": null,
+      "accept": "`Player.cs:39` の `SpecialCdMax=7f`（7秒クールダウン）に対し、HUD側 `Hud.cs:1145-1156` の `DrawSkill` は `_skillReady` の真偽だけを見て `\"OK!\"` か `\"充填中…\"` の文字を切り替えるのみ（`Hud.cs:1147-1148`）で、残り0.5秒でも残り6秒でも同じ表示になる。コンボゲージで同じ問題が2026-08-23に `ComboTimeRatio`（`GameManager.cs:1061`）＋減衰バー（`Hud.cs:868-876`）で解消された前例あり。受入条件: `Player.cs` に `SpecialCdRatio`（0..1、`_specialCd/SpecialCdMax`）相当の読み取り専用プロパティを追加し `Hud.SetHikageSkill` へ渡す、`DrawSkill`（`Hud.cs:1145`）のバッジ下に幅数px・高さ2〜3pxの充填バーを追加する（コンボバーと同じ配色ロジックの流用で可）"
+    },
+    {
+      "priority": "P3",
+      "title": "ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま",
+      "worker": "scenario",
+      "accept": "`docs/ストーリー見直しロードマップ.md:42` は「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」と記載し`- [ ]`のまま残っているが、実際は既にDEV_QUEUE DONE(2026-08-23)で修正済みで現在の`src/StageRei.cs:204`は「45体＋ボス1」に修正済み。受入条件: 該当チェック項目を`[x]`化し根拠注記を追加する"
+    },
+    {
+      "priority": "P3",
+      "title": "同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま",
+      "worker": "scenario",
+      "accept": "`docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」は未着手`[ ]`表記だが、実際は既に `src/StageRei.cs:190`／`src/StageAkari.cs:192`／`src/StageKoharu.cs:190`の各ボス撃破直後の会話に実装済み。同`:60`「弾幕モチーフ用の短文フレーズ集」も未着手`[ ]`表記だが「キミ弾」（`src/BossAkari.cs:245-246`）・「また逃げる」（`src/BossRei.cs:43,198,235,270`）として実装済み。受入条件: 両チェック項目を`[x]`化し実装箇所を根拠注記として追加する"
+    },
+    {
+      "priority": "P3",
+      "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
+      "worker": "engineer",
+      "accept": "`src/Hud.cs:211,212,216,217,219`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`はファイル内で宣言行以外に一切参照されない。同じ役割は全て`AllMove`/`AllShot`/`AllFocus`/`AllKind`/`AllFlip`(`Hud.cs:224,223,226,232,228`)に置き換わっており、`DrawControls`(`Hud.cs:1278-1287`)も`OpForPhase`相当の`case`マッピング(`Hud.cs:1353-1358`)も全てAll*系のみ使用（例外は`TokDodge`(`:218`)のみで`DrawControls`(`:1284`)で現役使用中のため対象外）。受入条件: 5プロパティと不要になった宣言直上コメント(`:209-210`)を削除し、削除前後で`src/`全体を再grepし他ファイルからの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
+    },
+    {
+      "priority": "P3",
+      "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "`src/StageRei.cs:452`の`private void ClearStageEnemies()`はファイル内で宣言行のみで呼び出し箇所が存在しない。同名・同機能のヘルパーは`src/StageAkari.cs:411`で4回、`src/StageKoharu.cs:386`で3回呼ばれ実際に使われているが、StageRei側は道中ウェーブの二段階ゲート設計（`StageRei.cs:337-339`）が意図的にAkari/Koharuと異なり自然全滅待ちのため、このメソッドだけ丸ごと未使用のまま取り残されている。受入条件: メソッド本体（`:451-456`、コメント込み）を削除し、削除前後で`src/`全体を再grepし他箇所からの参照が無いことを確認する（`_waveSpawnDone`の二段階ゲート自体は無変更）。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
+    },
+    {
+      "priority": "P3",
+      "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
+      "worker": "engineer",
+      "accept": "`src/StageMina.cs:27`の`private const string SCocky = \"res://char/shonen_face.png\";`はファイル内で宣言行以外に一切参照されない。同ファイルの`SGentle`(`:28`)/`SProud`(`:29`)は`Intro`配列内(`:48-51`)で実際に使われているのに対し`SCocky`だけ使われていない。受入条件: 宣言行を削除し、削除前に`src/`全体を再grepし他箇所からの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
+    },
+    {
+      "priority": "P3",
+      "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
+      "worker": "engineer",
+      "accept": "`src/fx/FxLayer.cs:25`の`public static readonly Color Magenta = new Color(\"e072ac\");`はプロジェクト全体で宣言行以外に一切参照されない。同じ配色ブロック内の`White`/`Cyan`/`PlayerEdge`/`EnemyInk`/`Edge1`/`Edge2`/`PetalA`/`PetalB`/`Heart`/`Mote`/`Sig`/`Sig2`/`Gold`(`:13-24,26`)は他ファイルの`FxLayer.Xxx`呼び出しで実際に使われているのに対し`Magenta`だけ使用箇所ゼロ。受入条件: 宣言行を削除し、削除前に`src/`全体（`.tscn`/`.tres`含む）を再grepし参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
+    },
+    {
+      "priority": "P3",
+      "title": "GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している",
+      "worker": "engineer",
+      "accept": "`src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -819,6 +886,11 @@
   ],
   "commits": [
     {
+      "hash": "88f0dd0",
+      "date": "2026-08-25",
+      "subject": "Refresh the progress snapshot after the nightly merge"
+    },
+    {
       "hash": "14932bd",
       "date": "2026-08-26",
       "subject": "Merge pull request #12 from takutoruku1/auto/dev"
@@ -852,11 +924,6 @@
       "hash": "76355b8",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新"
-    },
-    {
-      "hash": "31e4bfc",
-      "date": "2026-08-25",
-      "subject": "auto: Shop.EdgeDim死にコードを削除"
     }
   ]
 }
