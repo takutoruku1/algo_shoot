@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:46 UTC",
+  "generated": "2026-08-26 18:48 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 15,
-    "done": 124
+    "done": 125
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま",
-      "worker": "scenario",
-      "accept": "`docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」は未着手`[ ]`表記だが、実際は既に `src/StageRei.cs:190`／`src/StageAkari.cs:192`／`src/StageKoharu.cs:190`の各ボス撃破直後の会話に実装済み。同`:60`「弾幕モチーフ用の短文フレーズ集」も未着手`[ ]`表記だが「キミ弾」（`src/BossAkari.cs:245-246`）・「また逃げる」（`src/BossRei.cs:43,198,235,270`）として実装済み。受入条件: 両チェック項目を`[x]`化し実装箇所を根拠注記として追加する"
-    },
     {
       "priority": "P3",
       "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」を`[x]`化、`StageRei.cs:190`／`StageAkari.cs:192`／`StageKoharu.cs:190`の各ボス撃破直後Clear配列の実装セリフを根拠注記として追加。`:60`「弾幕モチーフ用の短文フレーズ集」も`[x]`化、「キミ弾」（`BossAkari.cs:245-246`）・「また逃げる」動的挑発（`BossRei.cs:43,198,235,270`）を根拠注記として追加。`:89`の関連未完了項目（弾幕モチーフ文言資産の先行執筆）も取り消し線＋完了注記で整合させ矛盾を解消。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "0d998c3",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - ロードマップS3チェック項目2件の実装反映"
+    },
+    {
+      "hash": "e9f10cf",
+      "date": "2026-08-26",
+      "subject": "auto: ロードマップS1チェック項目を実装反映へ更新"
+    },
+    {
       "hash": "4d41e98",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - ロードマップS1チェック項目の実装反映"
@@ -914,16 +924,6 @@
       "hash": "f86883b",
       "date": "2026-08-26",
       "subject": "auto: シナリオ設計書v2 §5フローマップにSTAGE MINAを反映"
-    },
-    {
-      "hash": "3f644ce",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - 正典シナリオ設計書v2 §5フローマップにSTAGE MINA反映"
-    },
-    {
-      "hash": "4573b84",
-      "date": "2026-08-26",
-      "subject": "auto: 身のこなしIII回避クールダウンの床潰れを段階配列で修正"
     }
   ]
 }
