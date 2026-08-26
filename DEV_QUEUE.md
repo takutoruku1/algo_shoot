@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P2) 身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている | game-designer→engineer | `Player.cs:223` の `DodgeDuration=0.55f`（回避モーションの固定長）が再回避可能タイミングの実質下限として機能するが、`GameManager.cs:750` の `DodgeCooldown => 0.8f - 0.1f*ChainLevel("move_speed",3)` はLv3で0.5sまで下がり床(0.55s)を下回る。次回避までの実効待ち時間は `max(_dodgeCd, _dodgeTimer)` で決まる（`Player.cs:983` のガード条件）ため、Lv2→Lv3（`GameManager.cs:449` `move_speed_3`, 350G）は「0.6→0.5s」と謳いながら実際は「0.6→0.55s」しか縮まらず、謳い文句の半分(0.05s分＝350Gの半分弱)が無意味化している。受入条件: `DodgeDuration`（i-frame含む手触り）には触れず、`GameManager.cs:750` のクールダウン数列だけを床(0.55s)を跨がないよう再配分する（例: 0.8→0.65(Lv1)→0.58(Lv2)→0.55(Lv3)）。全レベルが「押した分だけ確実に速くなる」よう、各段の実効削減量がゼロにならないことを確認する
 - [ ] (P2) 正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾 | scenario | `docs/20260613/MINA_シナリオ設計書_v2.md:121-124` の物語フローマップは「STAGE 3 こはる → FINAL 汚染……ミナ暴走 → 少年の対話で帰還（戦闘で解決しない）」のまま。しかし実装は `src/StageMina.cs`+`src/BossMina.cs`（`MinaBattle.tscn`）で実際にボスBossMinaを撃破する戦闘を挟んでからFinal.tscnの対話に入る（`src/Hub.cs:183`、2026-06-20導入）。§4のステージ構成表は既に2026-08-18にSTAGE MINA行が追加済みだが§5フローマップだけ未反映。`docs/20260613/乖離レポート_20260813.md:52` 自身が「正式に設計書を更新するなら…今後の宿題として残る」と明記した箇所。受入条件: §5をSTAGE MINA行を挟む形に書き直し、「戦闘で解決しない」の一文をFINAL（Final.cs）にのみ限定する表現へ修正する
 - [ ] (P2) 「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存 | scenario | 2026-08-14に実装側は少年→ミナの二人称を「きみ」へ統一済み（`src/Prologue.cs:133` 「——きみの名前は、MINA だ。」／`src/Hub.cs:1239,1242` 「大丈夫か、きみ。」「……きみさ。」）だが、以下3ファイルは旧「お前」のまま同期漏れ：`docs/シナリオ_プロローグ_起動.md:59` 「お前の名前は——MINA（ミナ）だ。」／`docs/【MASTER】設定資料統合版.md:762` 同一文言／`docs/20260613/MINA_システム拡張設計書_v1.md:441,445` 「大丈夫か、お前」「……お前さ」。受入条件: 3箇所とも実装文言に合わせて「きみ」へ修正する
 - [ ] (P3) ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない | game-designer→engineer | `Player.cs:39` の `SpecialCdMax=7f`（7秒クールダウン）に対し、HUD側 `Hud.cs:1145-1156` の `DrawSkill` は `_skillReady` の真偽だけを見て `"OK!"` か `"充填中…"` の文字を切り替えるのみ（`Hud.cs:1147-1148`）で、残り0.5秒でも残り6秒でも同じ表示になる。コンボゲージで同じ問題が2026-08-23に `ComboTimeRatio`（`GameManager.cs:1061`）＋減衰バー（`Hud.cs:868-876`）で解消された前例あり。受入条件: `Player.cs` に `SpecialCdRatio`（0..1、`_specialCd/SpecialCdMax`）相当の読み取り専用プロパティを追加し `Hud.SetHikageSkill` へ渡す、`DrawSkill`（`Hud.cs:1145`）のバッジ下に幅数px・高さ2〜3pxの充填バーを追加する（コンボバーと同じ配色ロジックの流用で可）
@@ -41,6 +40,8 @@
 - [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## WIP
+
+- [ ] (P2) 身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている | game-designer→engineer | `Player.cs:223` の `DodgeDuration=0.55f`（回避モーションの固定長）が再回避可能タイミングの実質下限として機能するが、`GameManager.cs:750` の `DodgeCooldown => 0.8f - 0.1f*ChainLevel("move_speed",3)` はLv3で0.5sまで下がり床(0.55s)を下回る。次回避までの実効待ち時間は `max(_dodgeCd, _dodgeTimer)` で決まる（`Player.cs:983` のガード条件）ため、Lv2→Lv3（`GameManager.cs:449` `move_speed_3`, 350G）は「0.6→0.5s」と謳いながら実際は「0.6→0.55s」しか縮まらず、謳い文句の半分(0.05s分＝350Gの半分弱)が無意味化している。受入条件: `DodgeDuration`（i-frame含む手触り）には触れず、`GameManager.cs:750` のクールダウン数列だけを床(0.55s)を跨がないよう再配分する（例: 0.8→0.65(Lv1)→0.58(Lv2)→0.55(Lv3)）。全レベルが「押した分だけ確実に速くなる」よう、各段の実効削減量がゼロにならないことを確認する
 
 ## BLOCKED
 
