@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:48 UTC",
+  "generated": "2026-08-26 18:49 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 15,
-    "done": 125
+    "done": 126
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
-      "worker": "engineer",
-      "accept": "`src/Hud.cs:211,212,216,217,219`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`はファイル内で宣言行以外に一切参照されない。同じ役割は全て`AllMove`/`AllShot`/`AllFocus`/`AllKind`/`AllFlip`(`Hud.cs:224,223,226,232,228`)に置き換わっており、`DrawControls`(`Hud.cs:1278-1287`)も`OpForPhase`相当の`case`マッピング(`Hud.cs:1353-1358`)も全てAll*系のみ使用（例外は`TokDodge`(`:218`)のみで`DrawControls`(`:1284`)で現役使用中のため対象外）。受入条件: 5プロパティと不要になった宣言直上コメント(`:209-210`)を削除し、削除前後で`src/`全体を再grepし他ファイルからの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
-    },
     {
       "priority": "P3",
       "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/Hud.cs`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`の5プロパティ宣言を削除。`TokBomb`/`TokMode`/`TokSkill`/`TokDodge`（`TokDodge`は`DrawControls`で現役使用中）は無変更で残置。削除前後で`src/`全体を再grepし、5つの名前が`Hud.cs`から完全に消え`src/HowToPlay.cs`（別クラスの別実装、対象外）にのみ残っていることを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "cd0d04b",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除"
+    },
+    {
+      "hash": "9ae9cb6",
+      "date": "2026-08-26",
+      "subject": "auto: ロードマップS3チェック項目2件を実装反映へ更新"
+    },
+    {
       "hash": "0d998c3",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - ロードマップS3チェック項目2件の実装反映"
@@ -914,16 +924,6 @@
       "hash": "2b35be4",
       "date": "2026-08-26",
       "subject": "auto: 「お前→きみ」統一漏れ3箇所を正典docへ反映"
-    },
-    {
-      "hash": "fc7ce7e",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - 「お前→きみ」統一漏れ3箇所の修正"
-    },
-    {
-      "hash": "f86883b",
-      "date": "2026-08-26",
-      "subject": "auto: シナリオ設計書v2 §5フローマップにSTAGE MINAを反映"
     }
   ]
 }

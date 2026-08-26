@@ -35,8 +35,6 @@
 
 ## WIP
 
-- [ ] (P3) Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード | engineer | `src/Hud.cs:211,212,216,217,219`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`はファイル内で宣言行以外に一切参照されない。同じ役割は全て`AllMove`/`AllShot`/`AllFocus`/`AllKind`/`AllFlip`(`Hud.cs:224,223,226,232,228`)に置き換わっており、`DrawControls`(`Hud.cs:1278-1287`)も`OpForPhase`相当の`case`マッピング(`Hud.cs:1353-1358`)も全てAll*系のみ使用（例外は`TokDodge`(`:218`)のみで`DrawControls`(`:1284`)で現役使用中のため対象外）。受入条件: 5プロパティと不要になった宣言直上コメント(`:209-210`)を削除し、削除前後で`src/`全体を再grepし他ファイルからの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード | engineer | (完了 2026-08-26) `src/Hud.cs`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`の5プロパティ宣言を削除。`TokBomb`/`TokMode`/`TokSkill`/`TokDodge`（`TokDodge`は`DrawControls`で現役使用中）は無変更で残置。削除前後で`src/`全体を再grepし、5つの名前が`Hud.cs`から完全に消え`src/HowToPlay.cs`（別クラスの別実装、対象外）にのみ残っていることを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) 同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま | scenario | (完了 2026-08-26) `docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」を`[x]`化、`StageRei.cs:190`／`StageAkari.cs:192`／`StageKoharu.cs:190`の各ボス撃破直後Clear配列の実装セリフを根拠注記として追加。`:60`「弾幕モチーフ用の短文フレーズ集」も`[x]`化、「キミ弾」（`BossAkari.cs:245-246`）・「また逃げる」動的挑発（`BossRei.cs:43,198,235,270`）を根拠注記として追加。`:89`の関連未完了項目（弾幕モチーフ文言資産の先行執筆）も取り消し線＋完了注記で整合させ矛盾を解消。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま | scenario | (完了 2026-08-26) `docs/ストーリー見直しロードマップ.md:42`「コメント修正群」の`- [ ]`を`- [x]`化。説明文の「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」を「既に『45体＋ボス1』へ修正済み（2026-08-23対応、DEV_QUEUE DONE）」に書き換え、`src/StageRei.cs:204`（`MidWaveA(15)+MidWaveB(14)+MidWaveC(16)=45体`と整合）を根拠注記として追加。STAGE1誤記・MidStoryプレースホルダの解消済み記述はそのまま残し3要素すべて解消済みである旨を明記。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない | game-designer→engineer | (完了 2026-08-26) `Player.cs:41`に読み取り専用プロパティ`SpecialCdRatio`（`_specialCd/SpecialCdMax`を0..1にクランプ。0=フル充填/OK、1=たった今使用直後）を追加、`Player.cs:637`の`SetHikageSkill`呼び出しに第3引数として渡すよう拡張。`Hud.cs:679`の`SetHikageSkill(bool has, bool ready, float cdRatio)`にシグネチャ拡張し`_skillCdRatio`フィールド（`Hud.cs:102`）へ保持。`DrawSkill`（`Hud.cs:1145`付近）のバッジ直下に幅=バッジ幅・高さ2.5pxの充填バーを追加、`fillRatio=1-_skillCdRatio`をコンボ猶予バー（`Hud.cs:876`の`Burn.Lerp(Mina,ratio)`）と同じ`UiKit.Text3.Lerp(UiKit.Hp, fillRatio)`色補間で描画。`SetHikageSkill`呼び出し箇所は`Player.cs`の1箇所のみでほかへの影響なしを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での見た目確認（play-game/スクショ）は未実施

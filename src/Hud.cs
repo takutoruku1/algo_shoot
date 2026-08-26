@@ -209,15 +209,10 @@ public partial class Hud : CanvasLayer
 
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
-    private static string TokShot  => "オート";                                        // ショットはボタン不要（常時自動発射）
-    private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.ModeToken;
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
-    private static string TokMove  => Pad.UsingPad ? "L"                              : "WASD";
-    private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     private static string TokDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
-    private static string TokFlip  => Pad.FlipToken;
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
