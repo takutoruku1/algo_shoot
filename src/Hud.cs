@@ -99,6 +99,7 @@ public partial class Hud : CanvasLayer
 
     // ヒカゲスキル
     private bool _skillHas, _skillReady;
+    private float _skillCdRatio; // 0=フル充填済み(OK) / 1=たった今使った直後。DrawSkillの充填バーに使う。
     private bool _dodgeReady = true; // 回避がCD明けで使えるか（操作ガイドの点灯/淡色に使う。既定は使える）
 
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
@@ -675,7 +676,7 @@ public partial class Hud : CanvasLayer
         return false;
     }
 
-    public void SetHikageSkill(bool has, bool ready) { _skillHas = has; _skillReady = ready; }
+    public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
     public void SetDodgeReady(bool ready) => _dodgeReady = ready;
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
@@ -1141,7 +1142,7 @@ public partial class Hud : CanvasLayer
         return p * p * ((s + 1f) * p + s) + 1f;
     }
 
-    // ヒカゲ専用スキルのチップ（目標パネルの直下）。発動キーのバッジ＋名前＋状態。
+    // ヒカゲ専用スキルのチップ（目標パネルの直下）。発動キーのバッジ＋名前＋状態＋充填バー。
     private void DrawSkill(HudCanvas ci)
     {
         Color accent = _skillReady ? UiKit.Hp : UiKit.Text3;
@@ -1153,6 +1154,12 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(accent, 0.5f)), 1f);
         float bw = KeyBadge(ci, new Vector2(x + 12, y + 3), TokSkill, accent, _topLeftFade);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 5), label, 13, Fa(accent));
+        // 充填バー（バッジ直下）：空(充填中)→満(OK)。コンボ猶予バーと同じBurn/Mina式の色補間ロジックを流用。
+        float fillRatio = 1f - _skillCdRatio;
+        float barY = y + h + 3f, barH = 2.5f;
+        UiKit.Box(ci, new Rect2(x + 12, barY, badgeW, barH), Fa(new Color(1, 1, 1, 0.1f)), 1.2f);
+        if (fillRatio > 0)
+            UiKit.Box(ci, new Rect2(x + 12, barY, badgeW * fillRatio, barH), Fa(UiKit.Text3.Lerp(UiKit.Hp, fillRatio)), 1.2f);
     }
 
     // 現在のショットモードチップ（LIFE/BOMB の直下・常時表示）。光=シアン基調。

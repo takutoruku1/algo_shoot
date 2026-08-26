@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:42 UTC",
+  "generated": "2026-08-26 18:45 UTC",
   "counts": {
-    "todo": 8,
+    "todo": 7,
     "wip": 0,
     "blocked": 15,
-    "done": 122
+    "done": 123
   },
-  "percent": 94,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない",
-      "worker": null,
-      "accept": "`Player.cs:39` の `SpecialCdMax=7f`（7秒クールダウン）に対し、HUD側 `Hud.cs:1145-1156` の `DrawSkill` は `_skillReady` の真偽だけを見て `\"OK!\"` か `\"充填中…\"` の文字を切り替えるのみ（`Hud.cs:1147-1148`）で、残り0.5秒でも残り6秒でも同じ表示になる。コンボゲージで同じ問題が2026-08-23に `ComboTimeRatio`（`GameManager.cs:1061`）＋減衰バー（`Hud.cs:868-876`）で解消された前例あり。受入条件: `Player.cs` に `SpecialCdRatio`（0..1、`_specialCd/SpecialCdMax`）相当の読み取り専用プロパティを追加し `Hud.SetHikageSkill` へ渡す、`DrawSkill`（`Hud.cs:1145`）のバッジ下に幅数px・高さ2〜3pxの充填バーを追加する（コンボバーと同じ配色ロジックの流用で可）"
-    },
     {
       "priority": "P3",
       "title": "ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない",
+      "worker": null,
+      "accept": "(完了 2026-08-26) `Player.cs:41`に読み取り専用プロパティ`SpecialCdRatio`（`_specialCd/SpecialCdMax`を0..1にクランプ。0=フル充填/OK、1=たった今使用直後）を追加、`Player.cs:637`の`SetHikageSkill`呼び出しに第3引数として渡すよう拡張。`Hud.cs:679`の`SetHikageSkill(bool has, bool ready, float cdRatio)`にシグネチャ拡張し`_skillCdRatio`フィールド（`Hud.cs:102`）へ保持。`DrawSkill`（`Hud.cs:1145`付近）のバッジ直下に幅=バッジ幅・高さ2.5pxの充填バーを追加、`fillRatio=1-_skillCdRatio`をコンボ猶予バー（`Hud.cs:876`の`Burn.Lerp(Mina,ratio)`）と同じ`UiKit.Text3.Lerp(UiKit.Hp, fillRatio)`色補間で描画。`SetHikageSkill`呼び出し箇所は`Player.cs`の1箇所のみでほかへの影響なしを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での見た目確認（play-game/スクショ）は未実施"
+    },
     {
       "priority": "P2",
       "title": "「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "62aa734",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - ヒカゲ大波スキルのCD充填バー追加"
+    },
+    {
+      "hash": "2b35be4",
+      "date": "2026-08-26",
+      "subject": "auto: 「お前→きみ」統一漏れ3箇所を正典docへ反映"
+    },
+    {
       "hash": "fc7ce7e",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - 「お前→きみ」統一漏れ3箇所の修正"
@@ -914,16 +924,6 @@
       "hash": "0f39370",
       "date": "2026-08-26",
       "subject": "auto: 監査で11件をキューに追加（game-designer 2件 / scenario 4件 / engineer 5件、qa監査は異常なしで追加なし）"
-    },
-    {
-      "hash": "88f0dd0",
-      "date": "2026-08-25",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "14932bd",
-      "date": "2026-08-26",
-      "subject": "Merge pull request #12 from takutoruku1/auto/dev"
     }
   ]
 }

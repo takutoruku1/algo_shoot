@@ -37,6 +37,8 @@ public partial class Player : Area2D
     private bool _kindHeld = false; // やさしさ全開の手動発動エッジ検出
     private float _specialCd = 0f;
     private const float SpecialCdMax = 7f;
+    // 0=フル充填済み(OK) / 1=たった今使った直後（HUDの充填バー用。コンボゲージのComboTimeRatioと同じ発想）。
+    public float SpecialCdRatio => Mathf.Clamp(_specialCd / SpecialCdMax, 0f, 1f);
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
@@ -632,7 +634,7 @@ public partial class Player : Area2D
             TryHikageSpecial();
         _specialHeld = specialKey;
         // HUDにスキル状態を反映
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f, SpecialCdRatio);
         // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
 
