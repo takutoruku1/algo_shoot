@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P3) ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま | scenario | `docs/ストーリー見直しロードマップ.md:42` は「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」と記載し`- [ ]`のまま残っているが、実際は既にDEV_QUEUE DONE(2026-08-23)で修正済みで現在の`src/StageRei.cs:204`は「45体＋ボス1」に修正済み。受入条件: 該当チェック項目を`[x]`化し根拠注記を追加する
 - [ ] (P3) 同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま | scenario | `docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」は未着手`[ ]`表記だが、実際は既に `src/StageRei.cs:190`／`src/StageAkari.cs:192`／`src/StageKoharu.cs:190`の各ボス撃破直後の会話に実装済み。同`:60`「弾幕モチーフ用の短文フレーズ集」も未着手`[ ]`表記だが「キミ弾」（`src/BossAkari.cs:245-246`）・「また逃げる」（`src/BossRei.cs:43,198,235,270`）として実装済み。受入条件: 両チェック項目を`[x]`化し実装箇所を根拠注記として追加する
 - [ ] (P3) Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード | engineer | `src/Hud.cs:211,212,216,217,219`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`はファイル内で宣言行以外に一切参照されない。同じ役割は全て`AllMove`/`AllShot`/`AllFocus`/`AllKind`/`AllFlip`(`Hud.cs:224,223,226,232,228`)に置き換わっており、`DrawControls`(`Hud.cs:1278-1287`)も`OpForPhase`相当の`case`マッピング(`Hud.cs:1353-1358`)も全てAll*系のみ使用（例外は`TokDodge`(`:218`)のみで`DrawControls`(`:1284`)で現役使用中のため対象外）。受入条件: 5プロパティと不要になった宣言直上コメント(`:209-210`)を削除し、削除前後で`src/`全体を再grepし他ファイルからの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード | engineer | `src/StageRei.cs:452`の`private void ClearStageEnemies()`はファイル内で宣言行のみで呼び出し箇所が存在しない。同名・同機能のヘルパーは`src/StageAkari.cs:411`で4回、`src/StageKoharu.cs:386`で3回呼ばれ実際に使われているが、StageRei側は道中ウェーブの二段階ゲート設計（`StageRei.cs:337-339`）が意図的にAkari/Koharuと異なり自然全滅待ちのため、このメソッドだけ丸ごと未使用のまま取り残されている。受入条件: メソッド本体（`:451-456`、コメント込み）を削除し、削除前後で`src/`全体を再grepし他箇所からの参照が無いことを確認する（`_waveSpawnDone`の二段階ゲート自体は無変更）。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
@@ -37,6 +36,8 @@
 - [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## WIP
+
+- [ ] (P3) ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま | scenario | `docs/ストーリー見直しロードマップ.md:42` は「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」と記載し`- [ ]`のまま残っているが、実際は既にDEV_QUEUE DONE(2026-08-23)で修正済みで現在の`src/StageRei.cs:204`は「45体＋ボス1」に修正済み。受入条件: 該当チェック項目を`[x]`化し根拠注記を追加する
 
 ## BLOCKED
 
