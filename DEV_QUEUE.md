@@ -28,11 +28,12 @@
 
 ## TODO
 
-- [ ] (P3) StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸） | engineer | `src/StageMina.cs:27`の`private const string SCocky = "res://char/shonen_face.png";`はファイル内で宣言行以外に一切参照されない。同ファイルの`SGentle`(`:28`)/`SProud`(`:29`)は`Intro`配列内(`:48-51`)で実際に使われているのに対し`SCocky`だけ使われていない。受入条件: 宣言行を削除し、削除前に`src/`全体を再grepし他箇所からの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | `src/fx/FxLayer.cs:25`の`public static readonly Color Magenta = new Color("e072ac");`はプロジェクト全体で宣言行以外に一切参照されない。同じ配色ブロック内の`White`/`Cyan`/`PlayerEdge`/`EnemyInk`/`Edge1`/`Edge2`/`PetalA`/`PetalB`/`Heart`/`Mote`/`Sig`/`Sig2`/`Gold`(`:13-24,26`)は他ファイルの`FxLayer.Xxx`呼び出しで実際に使われているのに対し`Magenta`だけ使用箇所ゼロ。受入条件: 宣言行を削除し、削除前に`src/`全体（`.tscn`/`.tres`含む）を再grepし参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## WIP
+
+- [ ] (P3) StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸） | engineer | `src/StageMina.cs:27`の`private const string SCocky = "res://char/shonen_face.png";`はファイル内で宣言行以外に一切参照されない。同ファイルの`SGentle`(`:28`)/`SProud`(`:29`)は`Intro`配列内(`:48-51`)で実際に使われているのに対し`SCocky`だけ使われていない。受入条件: 宣言行を削除し、削除前に`src/`全体を再grepし他箇所からの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## BLOCKED
 
