@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
-
 ## WIP
+
+- [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## BLOCKED
 
