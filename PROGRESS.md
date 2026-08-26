@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-26 18:53 UTC
+> 生成: 2026-08-26 18:54 UTC
 
 ## 消化率
 
 ```
-████████████████████  99%   (完了 129 / 対象 130)
+████████████████████  100%   (完了 130 / 対象 130)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 129 |
+| ✅ 完了 | 130 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 1 |
+| 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 15 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,7 @@ _なし_
 
 ## 📋 次にやること
 
-- `P3` GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している
+_キューが空です_
 
 ## ⛔ 保留（自動では進められない）
 
@@ -44,6 +44,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P3` GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している
 - `P3` fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない
 - `P3` StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）
 - `P3` StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード
@@ -176,11 +177,11 @@ _なし_
 
 ## 直近のコミット
 
+- `1aa206e` 2026-08-26 auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消
+- `c633677` 2026-08-26 auto: FxLayer.cs Magenta未使用色を削除
 - `3f6e720` 2026-08-26 auto: WIP着手 - FxLayer.cs Magenta未使用色削除
 - `e09d84f` 2026-08-26 auto: StageMina.cs SCocky未使用定数を削除
 - `0b9cc2e` 2026-08-26 auto: WIP着手 - StageMina.cs SCocky未使用定数削除
 - `bd7e8f4` 2026-08-26 auto: StageRei.cs ClearStageEnemies()の死にコードを削除
 - `2c4cea4` 2026-08-26 auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除
 - `9c7faaa` 2026-08-26 auto: Hud.cs単体トークン5個の死にコードを削除
-- `cd0d04b` 2026-08-26 auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除
-- `9ae9cb6` 2026-08-26 auto: ロードマップS3チェック項目2件を実装反映へ更新

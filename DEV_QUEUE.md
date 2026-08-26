@@ -30,8 +30,6 @@
 
 ## WIP
 
-- [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -52,6 +50,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | (完了 2026-08-26) `src/GlyphMote.cs`の`OnEnemyReady()`内で重複していた2つ目の`OrbitRadius = 11.5f;`（`PanelDisplayScale`代入直後）を削除、1つ目（初期代入）のみ残した。`Points`/`BodyRadius`/`PanelCount`/`PanelDisplayScale`等の他フィールド代入は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | (完了 2026-08-26) `src/fx/FxLayer.cs`の`public static readonly Color Magenta = new Color("e072ac");`宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で`src/`全体（`.tscn`/`.tres`含む）を再grepし`Magenta`がプロジェクトから完全に消えたことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸） | engineer | (完了 2026-08-26) `src/StageMina.cs`の`private const string SCocky = "res://char/shonen_face.png";`宣言行を削除。`SGentle`/`SProud`・`Intro`配列は無変更。削除前後で`src/`全体を再grepし`StageMina.cs`から`SCocky`が消え、`StageRei.cs`/`StageAkari.cs`/`StageKoharu.cs`/`BossKoharu.cs`側の同名定数（別クラスで実使用中）には影響していないことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード | engineer | (完了 2026-08-26) `src/StageRei.cs`旧451-456行目の`private void ClearStageEnemies()`（直上の説明コメント込み）を削除。`_waveSpawnDone`を使った道中ウェーブの二段階ゲートロジック自体は無変更。削除前後で`src/`全体を再grepし`StageRei.cs`から`ClearStageEnemies`が完全に消え、`StageAkari.cs`/`StageKoharu.cs`側の宣言・呼び出し（実際に使われている）には影響が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

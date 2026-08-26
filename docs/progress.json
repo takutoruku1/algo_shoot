@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-26 18:53 UTC",
+  "generated": "2026-08-26 18:54 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 129
+    "done": 130
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している",
-      "worker": "engineer",
-      "accept": "`src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -109,6 +102,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/GlyphMote.cs`の`OnEnemyReady()`内で重複していた2つ目の`OrbitRadius = 11.5f;`（`PanelDisplayScale`代入直後）を削除、1つ目（初期代入）のみ残した。`Points`/`BodyRadius`/`PanelCount`/`PanelDisplayScale`等の他フィールド代入は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
@@ -886,6 +885,16 @@
   ],
   "commits": [
     {
+      "hash": "1aa206e",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消"
+    },
+    {
+      "hash": "c633677",
+      "date": "2026-08-26",
+      "subject": "auto: FxLayer.cs Magenta未使用色を削除"
+    },
+    {
       "hash": "3f6e720",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - FxLayer.cs Magenta未使用色削除"
@@ -914,16 +923,6 @@
       "hash": "9c7faaa",
       "date": "2026-08-26",
       "subject": "auto: Hud.cs単体トークン5個の死にコードを削除"
-    },
-    {
-      "hash": "cd0d04b",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除"
-    },
-    {
-      "hash": "9ae9cb6",
-      "date": "2026-08-26",
-      "subject": "auto: ロードマップS3チェック項目2件を実装反映へ更新"
     }
   ]
 }
