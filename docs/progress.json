@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:49 UTC",
+  "generated": "2026-08-26 18:51 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 15,
-    "done": 126
+    "done": 127
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
-      "worker": "engineer",
-      "accept": "`src/StageRei.cs:452`の`private void ClearStageEnemies()`はファイル内で宣言行のみで呼び出し箇所が存在しない。同名・同機能のヘルパーは`src/StageAkari.cs:411`で4回、`src/StageKoharu.cs:386`で3回呼ばれ実際に使われているが、StageRei側は道中ウェーブの二段階ゲート設計（`StageRei.cs:337-339`）が意図的にAkari/Koharuと異なり自然全滅待ちのため、このメソッドだけ丸ごと未使用のまま取り残されている。受入条件: メソッド本体（`:451-456`、コメント込み）を削除し、削除前後で`src/`全体を再grepし他箇所からの参照が無いことを確認する（`_waveSpawnDone`の二段階ゲート自体は無変更）。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
-    },
     {
       "priority": "P3",
       "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/StageRei.cs`旧451-456行目の`private void ClearStageEnemies()`（直上の説明コメント込み）を削除。`_waveSpawnDone`を使った道中ウェーブの二段階ゲートロジック自体は無変更。削除前後で`src/`全体を再grepし`StageRei.cs`から`ClearStageEnemies`が完全に消え、`StageAkari.cs`/`StageKoharu.cs`側の宣言・呼び出し（実際に使われている）には影響が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "2c4cea4",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除"
+    },
+    {
+      "hash": "9c7faaa",
+      "date": "2026-08-26",
+      "subject": "auto: Hud.cs単体トークン5個の死にコードを削除"
+    },
+    {
       "hash": "cd0d04b",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除"
@@ -914,16 +924,6 @@
       "hash": "17e4479",
       "date": "2026-08-26",
       "subject": "auto: ヒカゲ大波スキルのCD充填バーを追加"
-    },
-    {
-      "hash": "62aa734",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - ヒカゲ大波スキルのCD充填バー追加"
-    },
-    {
-      "hash": "2b35be4",
-      "date": "2026-08-26",
-      "subject": "auto: 「お前→きみ」統一漏れ3箇所を正典docへ反映"
     }
   ]
 }

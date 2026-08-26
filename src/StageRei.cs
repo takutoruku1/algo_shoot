@@ -448,13 +448,6 @@ public partial class StageRei : Node
         _spawner.Begin();
     }
 
-    // 倒し残した“居座りザコ”を片付ける（道中の節目＝チラ見せ前／本ボス前の転換で呼ぶ）。
-    private void ClearStageEnemies()
-    {
-        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
-            if (n is Enemy e) e.QueueFree();
-    }
-
     private void Step_BossSpawn()
     {
         if (!_stepStarted)
