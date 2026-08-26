@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-26 18:54 UTC
+> 生成: 2026-08-26 22:06 UTC
 
 ## 消化率
 
@@ -177,11 +177,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `0524525` 2026-08-27 Merge pull request #13 from takutoruku1/auto/dev
+- `c5ebf9b` 2026-08-26 auto: GlyphMote.cs OrbitRadius二重代入を解消
 - `1aa206e` 2026-08-26 auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消
 - `c633677` 2026-08-26 auto: FxLayer.cs Magenta未使用色を削除
 - `3f6e720` 2026-08-26 auto: WIP着手 - FxLayer.cs Magenta未使用色削除
 - `e09d84f` 2026-08-26 auto: StageMina.cs SCocky未使用定数を削除
 - `0b9cc2e` 2026-08-26 auto: WIP着手 - StageMina.cs SCocky未使用定数削除
 - `bd7e8f4` 2026-08-26 auto: StageRei.cs ClearStageEnemies()の死にコードを削除
-- `2c4cea4` 2026-08-26 auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除
-- `9c7faaa` 2026-08-26 auto: Hud.cs単体トークン5個の死にコードを削除

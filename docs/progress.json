@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-26 18:54 UTC",
+  "generated": "2026-08-26 22:06 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -885,6 +885,16 @@
   ],
   "commits": [
     {
+      "hash": "0524525",
+      "date": "2026-08-27",
+      "subject": "Merge pull request #13 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "c5ebf9b",
+      "date": "2026-08-26",
+      "subject": "auto: GlyphMote.cs OrbitRadius二重代入を解消"
+    },
+    {
       "hash": "1aa206e",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消"
@@ -913,16 +923,6 @@
       "hash": "bd7e8f4",
       "date": "2026-08-26",
       "subject": "auto: StageRei.cs ClearStageEnemies()の死にコードを削除"
-    },
-    {
-      "hash": "2c4cea4",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除"
-    },
-    {
-      "hash": "9c7faaa",
-      "date": "2026-08-26",
-      "subject": "auto: Hud.cs単体トークン5個の死にコードを削除"
     }
   ]
 }
