@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:38 UTC",
+  "generated": "2026-08-26 18:41 UTC",
   "counts": {
-    "todo": 10,
+    "todo": 9,
     "wip": 0,
     "blocked": 15,
-    "done": 120
+    "done": 121
   },
-  "percent": 92,
+  "percent": 93,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾",
-      "worker": "scenario",
-      "accept": "`docs/20260613/MINA_シナリオ設計書_v2.md:121-124` の物語フローマップは「STAGE 3 こはる → FINAL 汚染……ミナ暴走 → 少年の対話で帰還（戦闘で解決しない）」のまま。しかし実装は `src/StageMina.cs`+`src/BossMina.cs`（`MinaBattle.tscn`）で実際にボスBossMinaを撃破する戦闘を挟んでからFinal.tscnの対話に入る（`src/Hub.cs:183`、2026-06-20導入）。§4のステージ構成表は既に2026-08-18にSTAGE MINA行が追加済みだが§5フローマップだけ未反映。`docs/20260613/乖離レポート_20260813.md:52` 自身が「正式に設計書を更新するなら…今後の宿題として残る」と明記した箇所。受入条件: §5をSTAGE MINA行を挟む形に書き直し、「戦闘で解決しない」の一文をFINAL（Final.cs）にのみ限定する表現へ修正する"
-    },
     {
       "priority": "P2",
       "title": "「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存",
@@ -163,6 +157,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/20260613/MINA_シナリオ設計書_v2.md:118-129`の§5物語フローマップに「STAGE 3 こはる」と「FINAL」の間へ新規行「STAGE MINA ミナ ……役割反転バトルで穢れを撃ち祓う（戦闘で決着するラスボス格）」を挿入（仕込み：少年が自分の手で光を握る決意／撃破後cryでFINALへ橋渡し。ミナ状態：三人ぶんの穢れが満ちて黒く溶ける）。FINAL行の見出しから「ミナ暴走 →」を削除し「少年の対話で帰還（戦闘なし。撃って解決しない本作ルールの総決算）」に修正して「戦闘で解決しない」をFINAL単独に限定、ミナ状態も「黒く溶ける→取り戻す」から「黒く溶けたまま→取り戻す」に微調整しSTAGE MINA側との重複記述を回避。`src/StageMina.cs:3-7,193-194`（撃破後Final.tscnへ遷移）・`src/Final.cs:4`（「戦闘で解決しない本作ルールの総決算」と自己記述）・`src/Hub.cs:183`（\"final\"カードがMinaBattle.tscn経由）と整合確認済み。§4-b状態変化トラッカー表とSTAGE MINA詳細場面(§6)の未反映は今回のタスク範囲外として据え置き。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "3f644ce",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - 正典シナリオ設計書v2 §5フローマップにSTAGE MINA反映"
+    },
+    {
+      "hash": "4573b84",
+      "date": "2026-08-26",
+      "subject": "auto: 身のこなしIII回避クールダウンの床潰れを段階配列で修正"
+    },
+    {
       "hash": "fc0c86b",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - 身のこなしIII回避クールダウンの床潰れ修正"
@@ -914,16 +924,6 @@
       "hash": "66eee06",
       "date": "2026-08-25",
       "subject": "auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応"
-    },
-    {
-      "hash": "d9ba0f4",
-      "date": "2026-08-25",
-      "subject": "auto: STORY.mdに正典v3の非正典化バナーを追加"
-    },
-    {
-      "hash": "86f3970",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - STORY.mdへの正典v3バナー追加"
     }
   ]
 }

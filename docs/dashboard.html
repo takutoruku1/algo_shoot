@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">92<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 120 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="pct">93<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 121 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 92パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 93パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">120</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">121</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">10</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/20260613/MINA_シナリオ設計書_v2.md:121-124</code> の物語フローマップは「STAGE 3 こはる → FINAL 汚染……ミナ暴走 → 少年の対話で帰還（戦闘で解決しない）」のまま。しかし実装は <code>src/StageMina.cs</code>+<code>src/BossMina.cs</code>（<code>MinaBattle.tscn</code>）で実際にボスBossMinaを撃破する戦闘を挟んでからFinal.tscnの対話に入る（<code>src/Hub.cs:183</code>、2026-06-20導入）。§4のステージ構成表は既に2026-08-18にSTAGE MINA行が追加済みだが§5フローマップだけ未反映。<code>docs/20260613/乖離レポート_20260813.md:52</code> 自身が「正式に設計書を更新するなら…今後の宿題として残る」と明記した箇所。受入条件: §5をSTAGE MINA行を挟む形に書き直し、「戦闘で解決しない」の一文をFINAL（Final.cs）にのみ限定する表現へ修正する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -231,6 +223,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>docs/20260613/MINA_シナリオ設計書_v2.md:118-129</code>の§5物語フローマップに「STAGE 3 こはる」と「FINAL」の間へ新規行「STAGE MINA ミナ ……役割反転バトルで穢れを撃ち祓う（戦闘で決着するラスボス格）」を挿入（仕込み：少年が自分の手で光を握る決意／撃破後cryでFINALへ橋渡し。ミナ状態：三人ぶんの穢れが満ちて黒く溶ける）。FINAL行の見出しから「ミナ暴走 →」を削除し「少年の対話で帰還（戦闘なし。撃って解決しない本作ルールの総決算）」に修正して「戦闘で解決しない」をFINAL単独に限定、ミナ状態も「黒く溶ける→取り戻す」から「黒く溶けたまま→取り戻す」に微調整しSTAGE MINA側との重複記述を回避。<code>src/StageMina.cs:3-7,193-194</code>（撃破後Final.tscnへ遷移）・<code>src/Final.cs:4</code>（「戦闘で解決しない本作ルールの総決算」と自己記述）・<code>src/Hub.cs:183</code>（&quot;final&quot;カードがMinaBattle.tscn経由）と整合確認済み。§4-b状態変化トラッカー表とSTAGE MINA詳細場面(§6)の未反映は今回のタスク範囲外として据え置き。ドキュメントのみの修正、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1321,18 +1321,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3f644ce</span><span>2026-08-26</span><span class="s">auto: WIP着手 - 正典シナリオ設計書v2 §5フローマップにSTAGE MINA反映</span></li>
+      <li><span class="h">4573b84</span><span>2026-08-26</span><span class="s">auto: 身のこなしIII回避クールダウンの床潰れを段階配列で修正</span></li>
       <li><span class="h">fc0c86b</span><span>2026-08-26</span><span class="s">auto: WIP着手 - 身のこなしIII回避クールダウンの床潰れ修正</span></li>
       <li><span class="h">0f39370</span><span>2026-08-26</span><span class="s">auto: 監査で11件をキューに追加（game-designer 2件 / scenario 4件 / engineer 5件、qa監査は異常なしで追加なし）</span></li>
       <li><span class="h">88f0dd0</span><span>2026-08-25</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">14932bd</span><span>2026-08-26</span><span class="s">Merge pull request #12 from takutoruku1/auto/dev</span></li>
       <li><span class="h">eb4d9b6</span><span>2026-08-25</span><span class="s">auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記</span></li>
       <li><span class="h">66eee06</span><span>2026-08-25</span><span class="s">auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応</span></li>
-      <li><span class="h">d9ba0f4</span><span>2026-08-25</span><span class="s">auto: STORY.mdに正典v3の非正典化バナーを追加</span></li>
-      <li><span class="h">86f3970</span><span>2026-08-25</span><span class="s">auto: WIP着手 - STORY.mdへの正典v3バナー追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-26 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-26 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
