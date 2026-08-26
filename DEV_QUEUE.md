@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | `src/fx/FxLayer.cs:25`の`public static readonly Color Magenta = new Color("e072ac");`はプロジェクト全体で宣言行以外に一切参照されない。同じ配色ブロック内の`White`/`Cyan`/`PlayerEdge`/`EnemyInk`/`Edge1`/`Edge2`/`PetalA`/`PetalB`/`Heart`/`Mote`/`Sig`/`Sig2`/`Gold`(`:13-24,26`)は他ファイルの`FxLayer.Xxx`呼び出しで実際に使われているのに対し`Magenta`だけ使用箇所ゼロ。受入条件: 宣言行を削除し、削除前に`src/`全体（`.tscn`/`.tres`含む）を再grepし参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
-
 ## BLOCKED
 
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
@@ -54,6 +52,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | (完了 2026-08-26) `src/fx/FxLayer.cs`の`public static readonly Color Magenta = new Color("e072ac");`宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で`src/`全体（`.tscn`/`.tres`含む）を再grepし`Magenta`がプロジェクトから完全に消えたことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸） | engineer | (完了 2026-08-26) `src/StageMina.cs`の`private const string SCocky = "res://char/shonen_face.png";`宣言行を削除。`SGentle`/`SProud`・`Intro`配列は無変更。削除前後で`src/`全体を再grepし`StageMina.cs`から`SCocky`が消え、`StageRei.cs`/`StageAkari.cs`/`StageKoharu.cs`/`BossKoharu.cs`側の同名定数（別クラスで実使用中）には影響していないことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード | engineer | (完了 2026-08-26) `src/StageRei.cs`旧451-456行目の`private void ClearStageEnemies()`（直上の説明コメント込み）を削除。`_waveSpawnDone`を使った道中ウェーブの二段階ゲートロジック自体は無変更。削除前後で`src/`全体を再grepし`StageRei.cs`から`ClearStageEnemies`が完全に消え、`StageAkari.cs`/`StageKoharu.cs`側の宣言・呼び出し（実際に使われている）には影響が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード | engineer | (完了 2026-08-26) `src/Hud.cs`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`の5プロパティ宣言を削除。`TokBomb`/`TokMode`/`TokSkill`/`TokDodge`（`TokDodge`は`DrawControls`で現役使用中）は無変更で残置。削除前後で`src/`全体を再grepし、5つの名前が`Hud.cs`から完全に消え`src/HowToPlay.cs`（別クラスの別実装、対象外）にのみ残っていることを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

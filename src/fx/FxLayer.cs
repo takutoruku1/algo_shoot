@@ -22,7 +22,6 @@ public partial class FxLayer : Node2D
     public static readonly Color Mote    = new Color("ffd6ee");
     public static readonly Color Sig     = new Color("8a6fd6");
     public static readonly Color Sig2    = new Color("c3a9f0");
-    public static readonly Color Magenta = new Color("e072ac");
     public static readonly Color Gold    = new Color("ffd98a");
 
     public enum T { Spark, Mote, Glow, Shard, Petal, HeartP, Ring, Dmg, Sigil, BombRing, Rain, Steam, Feather, Sym, AimLine }

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:52 UTC",
+  "generated": "2026-08-26 18:53 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 15,
-    "done": 128
+    "done": 129
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
-      "worker": "engineer",
-      "accept": "`src/fx/FxLayer.cs:25`の`public static readonly Color Magenta = new Color(\"e072ac\");`はプロジェクト全体で宣言行以外に一切参照されない。同じ配色ブロック内の`White`/`Cyan`/`PlayerEdge`/`EnemyInk`/`Edge1`/`Edge2`/`PetalA`/`PetalB`/`Heart`/`Mote`/`Sig`/`Sig2`/`Gold`(`:13-24,26`)は他ファイルの`FxLayer.Xxx`呼び出しで実際に使われているのに対し`Magenta`だけ使用箇所ゼロ。受入条件: 宣言行を削除し、削除前に`src/`全体（`.tscn`/`.tres`含む）を再grepし参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
-    },
     {
       "priority": "P3",
       "title": "GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している",
@@ -115,6 +109,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/fx/FxLayer.cs`の`public static readonly Color Magenta = new Color(\"e072ac\");`宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で`src/`全体（`.tscn`/`.tres`含む）を再grepし`Magenta`がプロジェクトから完全に消えたことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "3f6e720",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - FxLayer.cs Magenta未使用色削除"
+    },
+    {
+      "hash": "e09d84f",
+      "date": "2026-08-26",
+      "subject": "auto: StageMina.cs SCocky未使用定数を削除"
+    },
+    {
       "hash": "0b9cc2e",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - StageMina.cs SCocky未使用定数削除"
@@ -914,16 +924,6 @@
       "hash": "9ae9cb6",
       "date": "2026-08-26",
       "subject": "auto: ロードマップS3チェック項目2件を実装反映へ更新"
-    },
-    {
-      "hash": "0d998c3",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - ロードマップS3チェック項目2件の実装反映"
-    },
-    {
-      "hash": "e9f10cf",
-      "date": "2026-08-26",
-      "subject": "auto: ロードマップS1チェック項目を実装反映へ更新"
     }
   ]
 }
