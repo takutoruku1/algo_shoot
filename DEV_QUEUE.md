@@ -28,12 +28,13 @@
 
 ## TODO
 
-- [ ] (P3) StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード | engineer | `src/StageRei.cs:452`の`private void ClearStageEnemies()`はファイル内で宣言行のみで呼び出し箇所が存在しない。同名・同機能のヘルパーは`src/StageAkari.cs:411`で4回、`src/StageKoharu.cs:386`で3回呼ばれ実際に使われているが、StageRei側は道中ウェーブの二段階ゲート設計（`StageRei.cs:337-339`）が意図的にAkari/Koharuと異なり自然全滅待ちのため、このメソッドだけ丸ごと未使用のまま取り残されている。受入条件: メソッド本体（`:451-456`、コメント込み）を削除し、削除前後で`src/`全体を再grepし他箇所からの参照が無いことを確認する（`_waveSpawnDone`の二段階ゲート自体は無変更）。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸） | engineer | `src/StageMina.cs:27`の`private const string SCocky = "res://char/shonen_face.png";`はファイル内で宣言行以外に一切参照されない。同ファイルの`SGentle`(`:28`)/`SProud`(`:29`)は`Intro`配列内(`:48-51`)で実際に使われているのに対し`SCocky`だけ使われていない。受入条件: 宣言行を削除し、削除前に`src/`全体を再grepし他箇所からの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | `src/fx/FxLayer.cs:25`の`public static readonly Color Magenta = new Color("e072ac");`はプロジェクト全体で宣言行以外に一切参照されない。同じ配色ブロック内の`White`/`Cyan`/`PlayerEdge`/`EnemyInk`/`Edge1`/`Edge2`/`PetalA`/`PetalB`/`Heart`/`Mote`/`Sig`/`Sig2`/`Gold`(`:13-24,26`)は他ファイルの`FxLayer.Xxx`呼び出しで実際に使われているのに対し`Magenta`だけ使用箇所ゼロ。受入条件: 宣言行を削除し、削除前に`src/`全体（`.tscn`/`.tres`含む）を再grepし参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 - [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## WIP
+
+- [ ] (P3) StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード | engineer | `src/StageRei.cs:452`の`private void ClearStageEnemies()`はファイル内で宣言行のみで呼び出し箇所が存在しない。同名・同機能のヘルパーは`src/StageAkari.cs:411`で4回、`src/StageKoharu.cs:386`で3回呼ばれ実際に使われているが、StageRei側は道中ウェーブの二段階ゲート設計（`StageRei.cs:337-339`）が意図的にAkari/Koharuと異なり自然全滅待ちのため、このメソッドだけ丸ごと未使用のまま取り残されている。受入条件: メソッド本体（`:451-456`、コメント込み）を削除し、削除前後で`src/`全体を再grepし他箇所からの参照が無いことを確認する（`_waveSpawnDone`の二段階ゲート自体は無変更）。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## BLOCKED
 
