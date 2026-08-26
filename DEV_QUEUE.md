@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P3) ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない | game-designer→engineer | `Player.cs:39` の `SpecialCdMax=7f`（7秒クールダウン）に対し、HUD側 `Hud.cs:1145-1156` の `DrawSkill` は `_skillReady` の真偽だけを見て `"OK!"` か `"充填中…"` の文字を切り替えるのみ（`Hud.cs:1147-1148`）で、残り0.5秒でも残り6秒でも同じ表示になる。コンボゲージで同じ問題が2026-08-23に `ComboTimeRatio`（`GameManager.cs:1061`）＋減衰バー（`Hud.cs:868-876`）で解消された前例あり。受入条件: `Player.cs` に `SpecialCdRatio`（0..1、`_specialCd/SpecialCdMax`）相当の読み取り専用プロパティを追加し `Hud.SetHikageSkill` へ渡す、`DrawSkill`（`Hud.cs:1145`）のバッジ下に幅数px・高さ2〜3pxの充填バーを追加する（コンボバーと同じ配色ロジックの流用で可）
 - [ ] (P3) ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま | scenario | `docs/ストーリー見直しロードマップ.md:42` は「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」と記載し`- [ ]`のまま残っているが、実際は既にDEV_QUEUE DONE(2026-08-23)で修正済みで現在の`src/StageRei.cs:204`は「45体＋ボス1」に修正済み。受入条件: 該当チェック項目を`[x]`化し根拠注記を追加する
 - [ ] (P3) 同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま | scenario | `docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」は未着手`[ ]`表記だが、実際は既に `src/StageRei.cs:190`／`src/StageAkari.cs:192`／`src/StageKoharu.cs:190`の各ボス撃破直後の会話に実装済み。同`:60`「弾幕モチーフ用の短文フレーズ集」も未着手`[ ]`表記だが「キミ弾」（`src/BossAkari.cs:245-246`）・「また逃げる」（`src/BossRei.cs:43,198,235,270`）として実装済み。受入条件: 両チェック項目を`[x]`化し実装箇所を根拠注記として追加する
 - [ ] (P3) Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード | engineer | `src/Hud.cs:211,212,216,217,219`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`はファイル内で宣言行以外に一切参照されない。同じ役割は全て`AllMove`/`AllShot`/`AllFocus`/`AllKind`/`AllFlip`(`Hud.cs:224,223,226,232,228`)に置き換わっており、`DrawControls`(`Hud.cs:1278-1287`)も`OpForPhase`相当の`case`マッピング(`Hud.cs:1353-1358`)も全てAll*系のみ使用（例外は`TokDodge`(`:218`)のみで`DrawControls`(`:1284`)で現役使用中のため対象外）。受入条件: 5プロパティと不要になった宣言直上コメント(`:209-210`)を削除し、削除前後で`src/`全体を再grepし他ファイルからの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
@@ -38,6 +37,8 @@
 - [ ] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | `src/GlyphMote.cs:21`と`:33`の`OnEnemyReady()`内で`OrbitRadius = 11.5f;`が同じ値で2回代入されている（`:22`の`PanelDisplayScale`代入を挟んで直後に重複）。他のフィールド代入（`Points`/`BodyRadius`/`PanelCount`等）は1回ずつのみで、この2行だけ重複しており実害はないが意図不明な残骸。受入条件: `:33`の重複行を削除し、`:21`の初期代入のみ残す。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する
 
 ## WIP
+
+- [ ] (P3) ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない | game-designer→engineer | `Player.cs:39` の `SpecialCdMax=7f`（7秒クールダウン）に対し、HUD側 `Hud.cs:1145-1156` の `DrawSkill` は `_skillReady` の真偽だけを見て `"OK!"` か `"充填中…"` の文字を切り替えるのみ（`Hud.cs:1147-1148`）で、残り0.5秒でも残り6秒でも同じ表示になる。コンボゲージで同じ問題が2026-08-23に `ComboTimeRatio`（`GameManager.cs:1061`）＋減衰バー（`Hud.cs:868-876`）で解消された前例あり。受入条件: `Player.cs` に `SpecialCdRatio`（0..1、`_specialCd/SpecialCdMax`）相当の読み取り専用プロパティを追加し `Hud.SetHikageSkill` へ渡す、`DrawSkill`（`Hud.cs:1145`）のバッジ下に幅数px・高さ2〜3pxの充填バーを追加する（コンボバーと同じ配色ロジックの流用で可）
 
 ## BLOCKED
 
