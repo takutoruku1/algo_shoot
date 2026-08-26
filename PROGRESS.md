@@ -1,17 +1,17 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-25 22:06 UTC
+> 生成: 2026-08-26 18:54 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 119 / 対象 119)
+████████████████████  100%   (完了 130 / 対象 130)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 119 |
+| ✅ 完了 | 130 |
 | 🔨 作業中 | 0 |
 | 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 15 |
@@ -44,6 +44,17 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P3` GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している
+- `P3` fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない
+- `P3` StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）
+- `P3` StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード
+- `P3` Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード
+- `P3` 同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま
+- `P3` ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま
+- `P3` ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない
+- `P2` 「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存
+- `P2` 正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾
+- `P2` 身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている
 - `P3` src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存
 - `P3` docs/STORY.mdが実装と全く異なる旧コンセプト(algo/ハル/ザ・システム)のまま正典v3の非正典化バナーも無い
 - `P3` docs/キャラ設定_02_ミナ_改訂版.mdのPW記述・未決事項リストが実装確定済み内容のまま放置
@@ -166,11 +177,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `14932bd` 2026-08-26 Merge pull request #12 from takutoruku1/auto/dev
-- `eb4d9b6` 2026-08-25 auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記
-- `66eee06` 2026-08-25 auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応
-- `d9ba0f4` 2026-08-25 auto: STORY.mdに正典v3の非正典化バナーを追加
-- `86f3970` 2026-08-25 auto: WIP着手 - STORY.mdへの正典v3バナー追加
-- `429c7bb` 2026-08-25 auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新
-- `76355b8` 2026-08-25 auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新
-- `31e4bfc` 2026-08-25 auto: Shop.EdgeDim死にコードを削除
+- `1aa206e` 2026-08-26 auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消
+- `c633677` 2026-08-26 auto: FxLayer.cs Magenta未使用色を削除
+- `3f6e720` 2026-08-26 auto: WIP着手 - FxLayer.cs Magenta未使用色削除
+- `e09d84f` 2026-08-26 auto: StageMina.cs SCocky未使用定数を削除
+- `0b9cc2e` 2026-08-26 auto: WIP着手 - StageMina.cs SCocky未使用定数削除
+- `bd7e8f4` 2026-08-26 auto: StageRei.cs ClearStageEnemies()の死にコードを削除
+- `2c4cea4` 2026-08-26 auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除
+- `9c7faaa` 2026-08-26 auto: Hud.cs単体トークン5個の死にコードを削除

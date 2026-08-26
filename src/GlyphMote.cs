@@ -30,7 +30,6 @@ public partial class GlyphMote : Enemy
         PostTexPath = "res://char/enemy_anti_post.png";
         PanelTexPath = "res://char/panel_anti.png";
         BodyDisplayH = 23f;             // 一回り小さく
-        OrbitRadius = 11.5f;
 
         if (Harmless) PanelsFire = false; // 無害化：弾を撃たない撃ち込み台（やさしさ全開の練習用）
 

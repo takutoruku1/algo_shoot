@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 119 / 対象 119 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 130 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">119</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">130</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
@@ -151,6 +151,94 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/GlyphMote.cs</code>の<code>OnEnemyReady()</code>内で重複していた2つ目の<code>OrbitRadius = 11.5f;</code>（<code>PanelDisplayScale</code>代入直後）を削除、1つ目（初期代入）のみ残した。<code>Points</code>/<code>BodyRadius</code>/<code>PanelCount</code>/<code>PanelDisplayScale</code>等の他フィールド代入は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/fx/FxLayer.cs</code>の<code>public static readonly Color Magenta = new Color(&quot;e072ac&quot;);</code>宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で<code>src/</code>全体（<code>.tscn</code>/<code>.tres</code>含む）を再grepし<code>Magenta</code>がプロジェクトから完全に消えたことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/StageMina.cs</code>の<code>private const string SCocky = &quot;res://char/shonen_face.png&quot;;</code>宣言行を削除。<code>SGentle</code>/<code>SProud</code>・<code>Intro</code>配列は無変更。削除前後で<code>src/</code>全体を再grepし<code>StageMina.cs</code>から<code>SCocky</code>が消え、<code>StageRei.cs</code>/<code>StageAkari.cs</code>/<code>StageKoharu.cs</code>/<code>BossKoharu.cs</code>側の同名定数（別クラスで実使用中）には影響していないことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/StageRei.cs</code>旧451-456行目の<code>private void ClearStageEnemies()</code>（直上の説明コメント込み）を削除。<code>_waveSpawnDone</code>を使った道中ウェーブの二段階ゲートロジック自体は無変更。削除前後で<code>src/</code>全体を再grepし<code>StageRei.cs</code>から<code>ClearStageEnemies</code>が完全に消え、<code>StageAkari.cs</code>/<code>StageKoharu.cs</code>側の宣言・呼び出し（実際に使われている）には影響が無いことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/Hud.cs</code>の<code>TokShot</code>/<code>TokFocus</code>/<code>TokMove</code>/<code>TokKind</code>/<code>TokFlip</code>の5プロパティ宣言を削除。<code>TokBomb</code>/<code>TokMode</code>/<code>TokSkill</code>/<code>TokDodge</code>（<code>TokDodge</code>は<code>DrawControls</code>で現役使用中）は無変更で残置。削除前後で<code>src/</code>全体を再grepし、5つの名前が<code>Hud.cs</code>から完全に消え<code>src/HowToPlay.cs</code>（別クラスの別実装、対象外）にのみ残っていることを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>docs/ストーリー見直しロードマップ.md:59</code>「反転に添えるミナの一言」を<code>[x]</code>化、<code>StageRei.cs:190</code>／<code>StageAkari.cs:192</code>／<code>StageKoharu.cs:190</code>の各ボス撃破直後Clear配列の実装セリフを根拠注記として追加。<code>:60</code>「弾幕モチーフ用の短文フレーズ集」も<code>[x]</code>化、「キミ弾」（<code>BossAkari.cs:245-246</code>）・「また逃げる」動的挑発（<code>BossRei.cs:43,198,235,270</code>）を根拠注記として追加。<code>:89</code>の関連未完了項目（弾幕モチーフ文言資産の先行執筆）も取り消し線＋完了注記で整合させ矛盾を解消。ドキュメントのみの修正、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>docs/ストーリー見直しロードマップ.md:42</code>「コメント修正群」の<code>- [ ]</code>を<code>- [x]</code>化。説明文の「<code>StageRei.cs:204</code>のコメントが依然『20体＋ボス1』のまま未修正」を「既に『45体＋ボス1』へ修正済み（2026-08-23対応、DEV_QUEUE DONE）」に書き換え、<code>src/StageRei.cs:204</code>（<code>MidWaveA(15)+MidWaveB(14)+MidWaveC(16)=45体</code>と整合）を根拠注記として追加。STAGE1誤記・MidStoryプレースホルダの解消済み記述はそのまま残し3要素すべて解消済みである旨を明記。ドキュメントのみの修正、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>Player.cs:41</code>に読み取り専用プロパティ<code>SpecialCdRatio</code>（<code>_specialCd/SpecialCdMax</code>を0..1にクランプ。0=フル充填/OK、1=たった今使用直後）を追加、<code>Player.cs:637</code>の<code>SetHikageSkill</code>呼び出しに第3引数として渡すよう拡張。<code>Hud.cs:679</code>の<code>SetHikageSkill(bool has, bool ready, float cdRatio)</code>にシグネチャ拡張し<code>_skillCdRatio</code>フィールド（<code>Hud.cs:102</code>）へ保持。<code>DrawSkill</code>（<code>Hud.cs:1145</code>付近）のバッジ直下に幅=バッジ幅・高さ2.5pxの充填バーを追加、<code>fillRatio=1-_skillCdRatio</code>をコンボ猶予バー（<code>Hud.cs:876</code>の<code>Burn.Lerp(Mina,ratio)</code>）と同じ<code>UiKit.Text3.Lerp(UiKit.Hp, fillRatio)</code>色補間で描画。<code>SetHikageSkill</code>呼び出し箇所は<code>Player.cs</code>の1箇所のみでほかへの影響なしを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機での見た目確認（play-game/スクショ）は未実施</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>docs/シナリオ_プロローグ_起動.md:59</code>／<code>docs/【MASTER】設定資料統合版.md:762</code>（同一文言の重複記載箇所）の「お前の名前は——MINA（ミナ）だ。」を「きみの名前は——MINA（ミナ）だ。」に、<code>docs/20260613/MINA_システム拡張設計書_v1.md:441,445</code>の「大丈夫か、お前」「……お前さ」を「大丈夫か、きみ」「……きみさ」に修正。<code>src/Prologue.cs:133</code>「——きみの名前は、MINA だ。」・<code>src/Hub.cs:1239,1242</code>「大丈夫か、きみ。」「……きみさ。」の実装文言と一致。<code>【MASTER】設定資料統合版.md</code>の199/201/203行目「お前のせいじゃない」等（別文脈・過去の親友関係を語るシーン）は対象外として意図的に未変更。修正前後で対象3ファイルを再grepし指定箇所以外の変更が無いことを確認済み。ドキュメントのみの修正、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>docs/20260613/MINA_シナリオ設計書_v2.md:118-129</code>の§5物語フローマップに「STAGE 3 こはる」と「FINAL」の間へ新規行「STAGE MINA ミナ ……役割反転バトルで穢れを撃ち祓う（戦闘で決着するラスボス格）」を挿入（仕込み：少年が自分の手で光を握る決意／撃破後cryでFINALへ橋渡し。ミナ状態：三人ぶんの穢れが満ちて黒く溶ける）。FINAL行の見出しから「ミナ暴走 →」を削除し「少年の対話で帰還（戦闘なし。撃って解決しない本作ルールの総決算）」に修正して「戦闘で解決しない」をFINAL単独に限定、ミナ状態も「黒く溶ける→取り戻す」から「黒く溶けたまま→取り戻す」に微調整しSTAGE MINA側との重複記述を回避。<code>src/StageMina.cs:3-7,193-194</code>（撃破後Final.tscnへ遷移）・<code>src/Final.cs:4</code>（「戦闘で解決しない本作ルールの総決算」と自己記述）・<code>src/Hub.cs:183</code>（&quot;final&quot;カードがMinaBattle.tscn経由）と整合確認済み。§4-b状態変化トラッカー表とSTAGE MINA詳細場面(§6)の未反映は今回のタスク範囲外として据え置き。ドキュメントのみの修正、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>GameManager.cs:750</code>の<code>DodgeCooldown</code>を旧<code>0.8f - 0.1f*ChainLevel(&quot;move_speed&quot;,3)</code>（Lv3で0.5sまで下がり<code>DodgeDuration=0.55f</code>床を下回っていた）から段階配列<code>{0.80,0.65,0.58,0.55}[Lv]</code>へ差し替え。Lv1/Lv2/Lv3のどの段でも実効削減が消えないよう再配分し、床(0.55s)ちょうどに着地。<code>DodgeDuration</code>（<code>Player.cs:223</code>、i-frame含む手触り）・<code>DodgeDistance</code>（<code>GameManager.cs:751</code>）は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実プレイでの体感確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1233,18 +1321,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">14932bd</span><span>2026-08-26</span><span class="s">Merge pull request #12 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">eb4d9b6</span><span>2026-08-25</span><span class="s">auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記</span></li>
-      <li><span class="h">66eee06</span><span>2026-08-25</span><span class="s">auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応</span></li>
-      <li><span class="h">d9ba0f4</span><span>2026-08-25</span><span class="s">auto: STORY.mdに正典v3の非正典化バナーを追加</span></li>
-      <li><span class="h">86f3970</span><span>2026-08-25</span><span class="s">auto: WIP着手 - STORY.mdへの正典v3バナー追加</span></li>
-      <li><span class="h">429c7bb</span><span>2026-08-25</span><span class="s">auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新</span></li>
-      <li><span class="h">76355b8</span><span>2026-08-25</span><span class="s">auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新</span></li>
-      <li><span class="h">31e4bfc</span><span>2026-08-25</span><span class="s">auto: Shop.EdgeDim死にコードを削除</span></li>
+      <li><span class="h">1aa206e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消</span></li>
+      <li><span class="h">c633677</span><span>2026-08-26</span><span class="s">auto: FxLayer.cs Magenta未使用色を削除</span></li>
+      <li><span class="h">3f6e720</span><span>2026-08-26</span><span class="s">auto: WIP着手 - FxLayer.cs Magenta未使用色削除</span></li>
+      <li><span class="h">e09d84f</span><span>2026-08-26</span><span class="s">auto: StageMina.cs SCocky未使用定数を削除</span></li>
+      <li><span class="h">0b9cc2e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - StageMina.cs SCocky未使用定数削除</span></li>
+      <li><span class="h">bd7e8f4</span><span>2026-08-26</span><span class="s">auto: StageRei.cs ClearStageEnemies()の死にコードを削除</span></li>
+      <li><span class="h">2c4cea4</span><span>2026-08-26</span><span class="s">auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除</span></li>
+      <li><span class="h">9c7faaa</span><span>2026-08-26</span><span class="s">auto: Hud.cs単体トークン5個の死にコードを削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-25 22:06 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-26 18:54 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

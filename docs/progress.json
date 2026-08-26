@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-25 22:06 UTC",
+  "generated": "2026-08-26 18:54 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 15,
-    "done": 119
+    "done": 130
   },
   "percent": 100,
   "todo": [],
@@ -102,6 +102,72 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/GlyphMote.cs`の`OnEnemyReady()`内で重複していた2つ目の`OrbitRadius = 11.5f;`（`PanelDisplayScale`代入直後）を削除、1つ目（初期代入）のみ残した。`Points`/`BodyRadius`/`PanelCount`/`PanelDisplayScale`等の他フィールド代入は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/fx/FxLayer.cs`の`public static readonly Color Magenta = new Color(\"e072ac\");`宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で`src/`全体（`.tscn`/`.tres`含む）を再grepし`Magenta`がプロジェクトから完全に消えたことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/StageMina.cs`の`private const string SCocky = \"res://char/shonen_face.png\";`宣言行を削除。`SGentle`/`SProud`・`Intro`配列は無変更。削除前後で`src/`全体を再grepし`StageMina.cs`から`SCocky`が消え、`StageRei.cs`/`StageAkari.cs`/`StageKoharu.cs`/`BossKoharu.cs`側の同名定数（別クラスで実使用中）には影響していないことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/StageRei.cs`旧451-456行目の`private void ClearStageEnemies()`（直上の説明コメント込み）を削除。`_waveSpawnDone`を使った道中ウェーブの二段階ゲートロジック自体は無変更。削除前後で`src/`全体を再grepし`StageRei.cs`から`ClearStageEnemies`が完全に消え、`StageAkari.cs`/`StageKoharu.cs`側の宣言・呼び出し（実際に使われている）には影響が無いことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/Hud.cs`の`TokShot`/`TokFocus`/`TokMove`/`TokKind`/`TokFlip`の5プロパティ宣言を削除。`TokBomb`/`TokMode`/`TokSkill`/`TokDodge`（`TokDodge`は`DrawControls`で現役使用中）は無変更で残置。削除前後で`src/`全体を再grepし、5つの名前が`Hud.cs`から完全に消え`src/HowToPlay.cs`（別クラスの別実装、対象外）にのみ残っていることを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/ストーリー見直しロードマップ.md:59`「反転に添えるミナの一言」を`[x]`化、`StageRei.cs:190`／`StageAkari.cs:192`／`StageKoharu.cs:190`の各ボス撃破直後Clear配列の実装セリフを根拠注記として追加。`:60`「弾幕モチーフ用の短文フレーズ集」も`[x]`化、「キミ弾」（`BossAkari.cs:245-246`）・「また逃げる」動的挑発（`BossRei.cs:43,198,235,270`）を根拠注記として追加。`:89`の関連未完了項目（弾幕モチーフ文言資産の先行執筆）も取り消し線＋完了注記で整合させ矛盾を解消。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "ストーリー見直しロードマップのS1チェック項目が実装済み(2026-08-23)を反映せず未チェックのまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/ストーリー見直しロードマップ.md:42`「コメント修正群」の`- [ ]`を`- [x]`化。説明文の「`StageRei.cs:204`のコメントが依然『20体＋ボス1』のまま未修正」を「既に『45体＋ボス1』へ修正済み（2026-08-23対応、DEV_QUEUE DONE）」に書き換え、`src/StageRei.cs:204`（`MidWaveA(15)+MidWaveB(14)+MidWaveC(16)=45体`と整合）を根拠注記として追加。STAGE1誤記・MidStoryプレースホルダの解消済み記述はそのまま残し3要素すべて解消済みである旨を明記。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "ヒカゲの大波スキルのクールダウンが「充填中…」の二値表示のみで進捗が見えない",
+      "worker": null,
+      "accept": "(完了 2026-08-26) `Player.cs:41`に読み取り専用プロパティ`SpecialCdRatio`（`_specialCd/SpecialCdMax`を0..1にクランプ。0=フル充填/OK、1=たった今使用直後）を追加、`Player.cs:637`の`SetHikageSkill`呼び出しに第3引数として渡すよう拡張。`Hud.cs:679`の`SetHikageSkill(bool has, bool ready, float cdRatio)`にシグネチャ拡張し`_skillCdRatio`フィールド（`Hud.cs:102`）へ保持。`DrawSkill`（`Hud.cs:1145`付近）のバッジ直下に幅=バッジ幅・高さ2.5pxの充填バーを追加、`fillRatio=1-_skillCdRatio`をコンボ猶予バー（`Hud.cs:876`の`Burn.Lerp(Mina,ratio)`）と同じ`UiKit.Text3.Lerp(UiKit.Hp, fillRatio)`色補間で描画。`SetHikageSkill`呼び出し箇所は`Player.cs`の1箇所のみでほかへの影響なしを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での見た目確認（play-game/スクショ）は未実施"
+    },
+    {
+      "priority": "P2",
+      "title": "「お前→きみ」二人称統一の見落としが正典doc 3箇所に残存",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/シナリオ_プロローグ_起動.md:59`／`docs/【MASTER】設定資料統合版.md:762`（同一文言の重複記載箇所）の「お前の名前は——MINA（ミナ）だ。」を「きみの名前は——MINA（ミナ）だ。」に、`docs/20260613/MINA_システム拡張設計書_v1.md:441,445`の「大丈夫か、お前」「……お前さ」を「大丈夫か、きみ」「……きみさ」に修正。`src/Prologue.cs:133`「——きみの名前は、MINA だ。」・`src/Hub.cs:1239,1242`「大丈夫か、きみ。」「……きみさ。」の実装文言と一致。`【MASTER】設定資料統合版.md`の199/201/203行目「お前のせいじゃない」等（別文脈・過去の親友関係を語るシーン）は対象外として意図的に未変更。修正前後で対象3ファイルを再grepし指定箇所以外の変更が無いことを確認済み。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "正典シナリオ設計書v2の§5物語フローマップがSTAGE MINA（役割反転バトル）を無視し実装と矛盾",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-26) `docs/20260613/MINA_シナリオ設計書_v2.md:118-129`の§5物語フローマップに「STAGE 3 こはる」と「FINAL」の間へ新規行「STAGE MINA ミナ ……役割反転バトルで穢れを撃ち祓う（戦闘で決着するラスボス格）」を挿入（仕込み：少年が自分の手で光を握る決意／撃破後cryでFINALへ橋渡し。ミナ状態：三人ぶんの穢れが満ちて黒く溶ける）。FINAL行の見出しから「ミナ暴走 →」を削除し「少年の対話で帰還（戦闘なし。撃って解決しない本作ルールの総決算）」に修正して「戦闘で解決しない」をFINAL単独に限定、ミナ状態も「黒く溶ける→取り戻す」から「黒く溶けたまま→取り戻す」に微調整しSTAGE MINA側との重複記述を回避。`src/StageMina.cs:3-7,193-194`（撃破後Final.tscnへ遷移）・`src/Final.cs:4`（「戦闘で解決しない本作ルールの総決算」と自己記述）・`src/Hub.cs:183`（\"final\"カードがMinaBattle.tscn経由）と整合確認済み。§4-b状態変化トラッカー表とSTAGE MINA詳細場面(§6)の未反映は今回のタスク範囲外として据え置き。ドキュメントのみの修正、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "身のこなしIII（回避クールダウン）がアニメーション床に潰されて投資額の半分が無駄になっている",
+      "worker": null,
+      "accept": "(完了 2026-08-26) `GameManager.cs:750`の`DodgeCooldown`を旧`0.8f - 0.1f*ChainLevel(\"move_speed\",3)`（Lv3で0.5sまで下がり`DodgeDuration=0.55f`床を下回っていた）から段階配列`{0.80,0.65,0.58,0.55}[Lv]`へ差し替え。Lv1/Lv2/Lv3のどの段でも実効削減が消えないよう再配分し、床(0.55s)ちょうどに着地。`DodgeDuration`（`Player.cs:223`、i-frame含む手触り）・`DodgeDistance`（`GameManager.cs:751`）は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実プレイでの体感確認は未実施"
+    },
     {
       "priority": "P3",
       "title": "src/StageW0.csに旧主人公「algo/ハル」の未回収セリフが到達不能コードとして残存",
@@ -819,44 +885,44 @@
   ],
   "commits": [
     {
-      "hash": "14932bd",
+      "hash": "1aa206e",
       "date": "2026-08-26",
-      "subject": "Merge pull request #12 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消"
     },
     {
-      "hash": "eb4d9b6",
-      "date": "2026-08-25",
-      "subject": "auto: StageW0.csの旧設定セリフを整理、DEV_W0.mdに非正典注記"
+      "hash": "c633677",
+      "date": "2026-08-26",
+      "subject": "auto: FxLayer.cs Magenta未使用色を削除"
     },
     {
-      "hash": "66eee06",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - StageW0.cs旧セリフの到達不能コード対応"
+      "hash": "3f6e720",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - FxLayer.cs Magenta未使用色削除"
     },
     {
-      "hash": "d9ba0f4",
-      "date": "2026-08-25",
-      "subject": "auto: STORY.mdに正典v3の非正典化バナーを追加"
+      "hash": "e09d84f",
+      "date": "2026-08-26",
+      "subject": "auto: StageMina.cs SCocky未使用定数を削除"
     },
     {
-      "hash": "86f3970",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - STORY.mdへの正典v3バナー追加"
+      "hash": "0b9cc2e",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - StageMina.cs SCocky未使用定数削除"
     },
     {
-      "hash": "429c7bb",
-      "date": "2026-08-25",
-      "subject": "auto: キャラ設定_02のPW/未決事項リストを実装確定済みへ更新"
+      "hash": "bd7e8f4",
+      "date": "2026-08-26",
+      "subject": "auto: StageRei.cs ClearStageEnemies()の死にコードを削除"
     },
     {
-      "hash": "76355b8",
-      "date": "2026-08-25",
-      "subject": "auto: WIP着手 - キャラ設定_02のPW/未決事項リスト更新"
+      "hash": "2c4cea4",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除"
     },
     {
-      "hash": "31e4bfc",
-      "date": "2026-08-25",
-      "subject": "auto: Shop.EdgeDim死にコードを削除"
+      "hash": "9c7faaa",
+      "date": "2026-08-26",
+      "subject": "auto: Hud.cs単体トークン5個の死にコードを削除"
     }
   ]
 }
