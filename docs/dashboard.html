@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 127 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 128 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">127</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">128</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/StageMina.cs:27</code>の<code>private const string SCocky = &quot;res://char/shonen_face.png&quot;;</code>はファイル内で宣言行以外に一切参照されない。同ファイルの<code>SGentle</code>(<code>:28</code>)/<code>SProud</code>(<code>:29</code>)は<code>Intro</code>配列内(<code>:48-51</code>)で実際に使われているのに対し<code>SCocky</code>だけ使われていない。受入条件: 宣言行を削除し、削除前に<code>src/</code>全体を再grepし他箇所からの参照が無いことを確認する。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Errorを確認する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-26) <code>src/StageMina.cs</code>の<code>private const string SCocky = &quot;res://char/shonen_face.png&quot;;</code>宣言行を削除。<code>SGentle</code>/<code>SProud</code>・<code>Intro</code>配列は無変更。削除前後で<code>src/</code>全体を再grepし<code>StageMina.cs</code>から<code>SCocky</code>が消え、<code>StageRei.cs</code>/<code>StageAkari.cs</code>/<code>StageKoharu.cs</code>/<code>BossKoharu.cs</code>側の同名定数（別クラスで実使用中）には影響していないことを確認済み。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1321,18 +1321,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0b9cc2e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - StageMina.cs SCocky未使用定数削除</span></li>
+      <li><span class="h">bd7e8f4</span><span>2026-08-26</span><span class="s">auto: StageRei.cs ClearStageEnemies()の死にコードを削除</span></li>
       <li><span class="h">2c4cea4</span><span>2026-08-26</span><span class="s">auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除</span></li>
       <li><span class="h">9c7faaa</span><span>2026-08-26</span><span class="s">auto: Hud.cs単体トークン5個の死にコードを削除</span></li>
       <li><span class="h">cd0d04b</span><span>2026-08-26</span><span class="s">auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除</span></li>
       <li><span class="h">9ae9cb6</span><span>2026-08-26</span><span class="s">auto: ロードマップS3チェック項目2件を実装反映へ更新</span></li>
       <li><span class="h">0d998c3</span><span>2026-08-26</span><span class="s">auto: WIP着手 - ロードマップS3チェック項目2件の実装反映</span></li>
       <li><span class="h">e9f10cf</span><span>2026-08-26</span><span class="s">auto: ロードマップS1チェック項目を実装反映へ更新</span></li>
-      <li><span class="h">4d41e98</span><span>2026-08-26</span><span class="s">auto: WIP着手 - ロードマップS1チェック項目の実装反映</span></li>
-      <li><span class="h">17e4479</span><span>2026-08-26</span><span class="s">auto: ヒカゲ大波スキルのCD充填バーを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-26 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-26 18:52 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

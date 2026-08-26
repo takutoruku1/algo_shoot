@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-26 18:51 UTC
+> 生成: 2026-08-26 18:52 UTC
 
 ## 消化率
 
 ```
-████████████████████  98%   (完了 127 / 対象 130)
+████████████████████  98%   (完了 128 / 対象 130)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 127 |
+| ✅ 完了 | 128 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 3 |
+| 📋 残り | 2 |
 | ⛔ 保留（人間の判断待ち） | 15 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,6 @@ _なし_
 
 ## 📋 次にやること
 
-- `P3` StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）
 - `P3` fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない
 - `P3` GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している
 
@@ -46,6 +45,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P3` StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）
 - `P3` StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード
 - `P3` Hud.csの単体トークン5個(TokShot/TokFocus/TokMove/TokKind/TokFlip)が宣言のみの死にコード
 - `P3` 同ロードマップのS3チェック項目2件が実装済みを反映せず未チェックのまま
@@ -176,11 +176,11 @@ _なし_
 
 ## 直近のコミット
 
+- `0b9cc2e` 2026-08-26 auto: WIP着手 - StageMina.cs SCocky未使用定数削除
+- `bd7e8f4` 2026-08-26 auto: StageRei.cs ClearStageEnemies()の死にコードを削除
 - `2c4cea4` 2026-08-26 auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除
 - `9c7faaa` 2026-08-26 auto: Hud.cs単体トークン5個の死にコードを削除
 - `cd0d04b` 2026-08-26 auto: WIP着手 - Hud.cs単体トークン5個の死にコード削除
 - `9ae9cb6` 2026-08-26 auto: ロードマップS3チェック項目2件を実装反映へ更新
 - `0d998c3` 2026-08-26 auto: WIP着手 - ロードマップS3チェック項目2件の実装反映
 - `e9f10cf` 2026-08-26 auto: ロードマップS1チェック項目を実装反映へ更新
-- `4d41e98` 2026-08-26 auto: WIP着手 - ロードマップS1チェック項目の実装反映
-- `17e4479` 2026-08-26 auto: ヒカゲ大波スキルのCD充填バーを追加

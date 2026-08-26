@@ -24,7 +24,6 @@ public partial class StageMina : Node
     private bool _titleThump; private double _titleThumpT; // タイトルカードの拍（タグが合わさる瞬間の一突き）
 
     private const float SpawnX = 300f;
-    private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
     private const string SProud = "res://char/shonen_proud.png";
 

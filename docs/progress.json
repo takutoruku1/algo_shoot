@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-26 18:51 UTC",
+  "generated": "2026-08-26 18:52 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 15,
-    "done": 127
+    "done": 128
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
-      "worker": "engineer",
-      "accept": "`src/StageMina.cs:27`の`private const string SCocky = \"res://char/shonen_face.png\";`はファイル内で宣言行以外に一切参照されない。同ファイルの`SGentle`(`:28`)/`SProud`(`:29`)は`Intro`配列内(`:48-51`)で実際に使われているのに対し`SCocky`だけ使われていない。受入条件: 宣言行を削除し、削除前に`src/`全体を再grepし他箇所からの参照が無いことを確認する。`dotnet build algo_shoot.sln`で0 Warning/0 Errorを確認する"
-    },
     {
       "priority": "P3",
       "title": "fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-26) `src/StageMina.cs`の`private const string SCocky = \"res://char/shonen_face.png\";`宣言行を削除。`SGentle`/`SProud`・`Intro`配列は無変更。削除前後で`src/`全体を再grepし`StageMina.cs`から`SCocky`が消え、`StageRei.cs`/`StageAkari.cs`/`StageKoharu.cs`/`BossKoharu.cs`側の同名定数（別クラスで実使用中）には影響していないことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "StageRei.csのClearStageEnemies()が呼び出し元ゼロの死にコード",
@@ -886,6 +886,16 @@
   ],
   "commits": [
     {
+      "hash": "0b9cc2e",
+      "date": "2026-08-26",
+      "subject": "auto: WIP着手 - StageMina.cs SCocky未使用定数削除"
+    },
+    {
+      "hash": "bd7e8f4",
+      "date": "2026-08-26",
+      "subject": "auto: StageRei.cs ClearStageEnemies()の死にコードを削除"
+    },
+    {
       "hash": "2c4cea4",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - StageRei.cs ClearStageEnemies()死にコード削除"
@@ -914,16 +924,6 @@
       "hash": "e9f10cf",
       "date": "2026-08-26",
       "subject": "auto: ロードマップS1チェック項目を実装反映へ更新"
-    },
-    {
-      "hash": "4d41e98",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - ロードマップS1チェック項目の実装反映"
-    },
-    {
-      "hash": "17e4479",
-      "date": "2026-08-26",
-      "subject": "auto: ヒカゲ大波スキルのCD充填バーを追加"
     }
   ]
 }
