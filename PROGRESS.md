@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-27 18:45 UTC
+> 生成: 2026-08-27 22:06 UTC
 
 ## 消化率
 
@@ -181,11 +181,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `4d451f6` 2026-08-28 Merge pull request #14 from takutoruku1/auto/dev
+- `3651a0a` 2026-08-27 auto: 炎上デバフの告知文に具体数値(発射間隔+30%/移動-10%/稼ぎ-40%)を表示
 - `2748137` 2026-08-27 auto: WIP着手 - 炎上デバフ告知文に具体数値を表示
 - `9158c1f` 2026-08-27 auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期
 - `b200b16` 2026-08-27 auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え
 - `088aac6` 2026-08-27 auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期
 - `f9d30fc` 2026-08-27 auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正
 - `d5571eb` 2026-08-27 auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）
-- `bcd730c` 2026-08-26 Refresh the progress snapshot after the nightly merge
-- `0524525` 2026-08-27 Merge pull request #13 from takutoruku1/auto/dev
