@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 132 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 133 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">132</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">133</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている</span>
-          
-        </div>
-        <p class="accept"><code>src/GameManager.cs:700,706,708</code>でSTAGE2(あかり)クリア後の次ステージに稼ぎ×0.6・発射間隔×1.3・移動×0.9の3軸が同時に乗る（プレイヤーの選択ではなく進行するだけで必ず起きるストーリートリガー、<code>GameManager.cs:310-316</code>）が、告知は<code>src/Hub.cs:388</code>「炎上中… 次のダイブはミナが弱体化します」のみで数値が無く、ステージ中の<code>src/Hud.cs:1243</code>のチップも「炎上中」ラベルのみ。<code>Hub.cs:388</code>を「炎上中…次のダイブは発射-30%・移動-10%・稼ぎ-40%」等の具体数値表示に変更する（デバフの乗数・重ね掛け自体は変更しない。バランス変更ではなく告知テキストの情報開示のみに限定すること）</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-27) <code>src/Hub.cs:388</code>のToast文言を「炎上中… 次のダイブはミナが弱体化します」から「炎上中…次のダイブは発射間隔+30%・移動-10%・稼ぎ-40%になります」に変更。<code>src/Hud.cs:1246</code>付近のインゲーム常設バッジも「炎上中」のみから「炎上中：発射間隔+30%・移動-10%・稼ぎ-40%」へ同じ倍率表記に統一、直上コメント(<code>Hud.cs:1238-1240</code>)も実態に合わせて更新。<code>GameManager.cs:700,706,708</code>の倍率値・<code>GameManager.cs:310-316</code>の発火条件は無変更（テキスト表示のみのスコープ限定を厳守）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機でのToast/バッジ表示崩れ目視は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1353,18 +1353,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2748137</span><span>2026-08-27</span><span class="s">auto: WIP着手 - 炎上デバフ告知文に具体数値を表示</span></li>
+      <li><span class="h">9158c1f</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期</span></li>
       <li><span class="h">b200b16</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え</span></li>
       <li><span class="h">088aac6</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期</span></li>
       <li><span class="h">f9d30fc</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正</span></li>
       <li><span class="h">d5571eb</span><span>2026-08-27</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
       <li><span class="h">bcd730c</span><span>2026-08-26</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">0524525</span><span>2026-08-27</span><span class="s">Merge pull request #13 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">c5ebf9b</span><span>2026-08-26</span><span class="s">auto: GlyphMote.cs OrbitRadius二重代入を解消</span></li>
-      <li><span class="h">1aa206e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-27 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-27 18:45 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

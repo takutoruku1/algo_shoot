@@ -385,7 +385,7 @@ public partial class Hub : Node2D
         {
             _pendingBurn = false;
             _game?.TriggerBurn();
-            Toast("炎上中… 次のダイブはミナが弱体化します", UiKit.Burn);
+            Toast("炎上中…次のダイブは発射間隔+30%・移動-10%・稼ぎ-40%になります", UiKit.Burn);
         }
         _game?.AutoSave(); // Hub帰還でオートセーブ（slot 0）
         _mode = Mode.Cards;
