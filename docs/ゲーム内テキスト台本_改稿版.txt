@@ -450,11 +450,9 @@
 こはる：「ちゃんと食べてね。……あたしも、食べるから。」
 
 ── staff ──
-原案・脚本     MINA Project
-シナリオ       麻枝准 (agent)
-サウンド       光田康典 (agent)
-キャラクター   吉田明彦 (agent)
-実装           algo_shoot
+企画・ディレクション   takutoruku1
+シナリオ・サウンド     Claude (AI)
+キャラクター・実装     Claude (AI)
 
 そして、ミナへ。
 

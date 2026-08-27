@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 131 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 132 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">131</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">132</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/ゲーム内テキスト台本_改稿版.txt:447-451</code>は「原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot」のままだが、<code>src/Epilogue.cs:96-98</code>の実装スタッフロール（2026-08-19に<code>config/credits.ini</code>・<code>TitleMenu.cs:494</code>・<code>Credits.cs:60</code>と揃えて確定済み）は「企画・ディレクション　takutoruku1／シナリオ・サウンド　Claude (AI)／キャラクター・実装　Claude (AI)」の3行。<code>docs/ゲーム内テキスト台本_改稿版.txt:447-451</code>を<code>Epilogue.cs:96-98</code>の3行にそのまま置き換える（架空ペルソナ名は削除）</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p2">P2</span>
           <span class="task-title">「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている</span>
           
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-27) <code>docs/ゲーム内テキスト台本_改稿版.txt</code>の<code>── staff ──</code>見出し直後5行（原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot）を、<code>src/Epilogue.cs:96-98</code>の実装確定版と一字一句同一の3行（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）に置換。docのみの修正でsrc/配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1353,18 +1353,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b200b16</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え</span></li>
+      <li><span class="h">088aac6</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期</span></li>
       <li><span class="h">f9d30fc</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正</span></li>
       <li><span class="h">d5571eb</span><span>2026-08-27</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
       <li><span class="h">bcd730c</span><span>2026-08-26</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">0524525</span><span>2026-08-27</span><span class="s">Merge pull request #13 from takutoruku1/auto/dev</span></li>
       <li><span class="h">c5ebf9b</span><span>2026-08-26</span><span class="s">auto: GlyphMote.cs OrbitRadius二重代入を解消</span></li>
       <li><span class="h">1aa206e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消</span></li>
-      <li><span class="h">c633677</span><span>2026-08-26</span><span class="s">auto: FxLayer.cs Magenta未使用色を削除</span></li>
-      <li><span class="h">3f6e720</span><span>2026-08-26</span><span class="s">auto: WIP着手 - FxLayer.cs Magenta未使用色削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-27 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-27 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま | scenario | `docs/ゲーム内テキスト台本_改稿版.txt:447-451`は「原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot」のままだが、`src/Epilogue.cs:96-98`の実装スタッフロール（2026-08-19に`config/credits.ini`・`TitleMenu.cs:494`・`Credits.cs:60`と揃えて確定済み）は「企画・ディレクション　takutoruku1／シナリオ・サウンド　Claude (AI)／キャラクター・実装　Claude (AI)」の3行。`docs/ゲーム内テキスト台本_改稿版.txt:447-451`を`Epilogue.cs:96-98`の3行にそのまま置き換える（架空ペルソナ名は削除）
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -55,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま | scenario | (完了 2026-08-27) `docs/ゲーム内テキスト台本_改稿版.txt`の`── staff ──`見出し直後5行（原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot）を、`src/Epilogue.cs:96-98`の実装確定版と一字一句同一の3行（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）に置換。docのみの修正でsrc/配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) ゲーム内テキスト台本_改稿版.txtが「コード反映済み」自称のまま3箇所で実装と食い違う | scenario | (完了 2026-08-27) `src/Prologue.cs`・`src/StageMina.cs`・`src/BossMina.cs`・`src/Final.cs`を実読の上、`docs/ゲーム内テキスト台本_改稿版.txt`を3点修正。(1) `:57,61-64`にPROLOGUE③使命パートの欠落セリフ（`Prologue.cs:147`の決め台詞＋`:153-156`のミナ4行ブロック）を追記。(2) `:357`「光を、お前に握らせて。」（`StageMina.cs:48`準拠）・`:374`「お前に光を握らせて、後ろにいた。」（`BossMina.cs:64`準拠）をそれぞれ「きみに」へ修正。(3) `:396-399`のFINAL末尾を`Final.cs:117-121`の実装文言（「返事は、ありませんでした。」→「……いいでしょう。あなたが待てと言うなら——今度は、わたくしが、迎えに行きます。」「だから、わたくしは、自分の足で。まだ声のするほうへ、泳ぎ出しました。」→「……ご主人様は、ほんとうに、アホですね。」）に置換。docのみの修正でsrc/配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している | engineer | (完了 2026-08-26) `src/GlyphMote.cs`の`OnEnemyReady()`内で重複していた2つ目の`OrbitRadius = 11.5f;`（`PanelDisplayScale`代入直後）を削除、1つ目（初期代入）のみ残した。`Points`/`BodyRadius`/`PanelCount`/`PanelDisplayScale`等の他フィールド代入は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない | engineer | (完了 2026-08-26) `src/fx/FxLayer.cs`の`public static readonly Color Magenta = new Color("e072ac");`宣言行を削除。同ブロックの他の色（White/Cyan/PlayerEdge/EnemyInk/Edge1/Edge2/PetalA/PetalB/Heart/Mote/Sig/Sig2/Gold）は無変更。削除前後で`src/`全体（`.tscn`/`.tres`含む）を再grepし`Magenta`がプロジェクトから完全に消えたことを確認済み。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

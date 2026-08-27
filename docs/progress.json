@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-27 18:41 UTC",
+  "generated": "2026-08-27 18:42 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 16,
-    "done": 131
+    "done": 132
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま",
-      "worker": "scenario",
-      "accept": "`docs/ゲーム内テキスト台本_改稿版.txt:447-451`は「原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot」のままだが、`src/Epilogue.cs:96-98`の実装スタッフロール（2026-08-19に`config/credits.ini`・`TitleMenu.cs:494`・`Credits.cs:60`と揃えて確定済み）は「企画・ディレクション　takutoruku1／シナリオ・サウンド　Claude (AI)／キャラクター・実装　Claude (AI)」の3行。`docs/ゲーム内テキスト台本_改稿版.txt:447-451`を`Epilogue.cs:96-98`の3行にそのまま置き換える（架空ペルソナ名は削除）"
-    },
     {
       "priority": "P2",
       "title": "「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-27) `docs/ゲーム内テキスト台本_改稿版.txt`の`── staff ──`見出し直後5行（原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot）を、`src/Epilogue.cs:96-98`の実装確定版と一字一句同一の3行（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）に置換。docのみの修正でsrc/配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtが「コード反映済み」自称のまま3箇所で実装と食い違う",
@@ -910,6 +910,16 @@
   ],
   "commits": [
     {
+      "hash": "b200b16",
+      "date": "2026-08-27",
+      "subject": "auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え"
+    },
+    {
+      "hash": "088aac6",
+      "date": "2026-08-27",
+      "subject": "auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期"
+    },
+    {
       "hash": "f9d30fc",
       "date": "2026-08-27",
       "subject": "auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正"
@@ -938,16 +948,6 @@
       "hash": "1aa206e",
       "date": "2026-08-26",
       "subject": "auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消"
-    },
-    {
-      "hash": "c633677",
-      "date": "2026-08-26",
-      "subject": "auto: FxLayer.cs Magenta未使用色を削除"
-    },
-    {
-      "hash": "3f6e720",
-      "date": "2026-08-26",
-      "subject": "auto: WIP着手 - FxLayer.cs Magenta未使用色削除"
     }
   ]
 }
