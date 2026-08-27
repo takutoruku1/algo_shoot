@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 130 / 対象 130 タスク<br>保留 15 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 133 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">130</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">133</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">15</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,30 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-27) <code>src/Hub.cs:388</code>のToast文言を「炎上中… 次のダイブはミナが弱体化します」から「炎上中…次のダイブは発射間隔+30%・移動-10%・稼ぎ-40%になります」に変更。<code>src/Hud.cs:1246</code>付近のインゲーム常設バッジも「炎上中」のみから「炎上中：発射間隔+30%・移動-10%・稼ぎ-40%」へ同じ倍率表記に統一、直上コメント(<code>Hud.cs:1238-1240</code>)も実態に合わせて更新。<code>GameManager.cs:700,706,708</code>の倍率値・<code>GameManager.cs:310-316</code>の発火条件は無変更（テキスト表示のみのスコープ限定を厳守）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機でのToast/バッジ表示崩れ目視は未実施</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-27) <code>docs/ゲーム内テキスト台本_改稿版.txt</code>の<code>── staff ──</code>見出し直後5行（原案・脚本 MINA Project／シナリオ 麻枝准 (agent)／サウンド 光田康典 (agent)／キャラクター 吉田明彦 (agent)／実装 algo_shoot）を、<code>src/Epilogue.cs:96-98</code>の実装確定版と一字一句同一の3行（企画・ディレクション takutoruku1／シナリオ・サウンド Claude (AI)／キャラクター・実装 Claude (AI)）に置換。docのみの修正でsrc/配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtが「コード反映済み」自称のまま3箇所で実装と食い違う</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-27) <code>src/Prologue.cs</code>・<code>src/StageMina.cs</code>・<code>src/BossMina.cs</code>・<code>src/Final.cs</code>を実読の上、<code>docs/ゲーム内テキスト台本_改稿版.txt</code>を3点修正。(1) <code>:57,61-64</code>にPROLOGUE③使命パートの欠落セリフ（<code>Prologue.cs:147</code>の決め台詞＋<code>:153-156</code>のミナ4行ブロック）を追記。(2) <code>:357</code>「光を、お前に握らせて。」（<code>StageMina.cs:48</code>準拠）・<code>:374</code>「お前に光を握らせて、後ろにいた。」（<code>BossMina.cs:64</code>準拠）をそれぞれ「きみに」へ修正。(3) <code>:396-399</code>のFINAL末尾を<code>Final.cs:117-121</code>の実装文言（「返事は、ありませんでした。」→「……いいでしょう。あなたが待てと言うなら——今度は、わたくしが、迎えに行きます。」「だから、わたくしは、自分の足で。まだ声のするほうへ、泳ぎ出しました。」→「……ご主人様は、ほんとうに、アホですね。」）に置換。docのみの修正でsrc/配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1199,6 +1223,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている</span>
+          
+        </div>
+        <p class="accept">（2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口<code>Player.AddHikageFollower</code>(<code>src/Player.cs:62</code>)を呼ぶのは<code>src/BossHikage.cs:188</code>のみ、<code>BossHikage</code>をインスタンス化するのは<code>src/StageW0.cs:171,178</code>のみで、<code>StageW0</code>/<code>Main.tscn</code>は<code>docs/DEV_W0.md:5</code>が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(<code>build/qa/Prologue.log</code>)でもStageW0/Main.tscnへの遷移は0件。結果<code>Player.HasHikage()</code>(<code>Player.cs:1255</code>)は通常プレイで常にfalseのため、<code>TryHikageSpecial()</code>・<code>Hud.SetHikageSkill</code>呼び出し・本日追加のCD充填バー(<code>Hud.cs:1153-1157</code>)を含む一連の機構が一度も実行されない。一方<code>docs/主人公_弾強化システム設計書_v1.md:48-50</code>は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し<code>AddHikageFollower</code>/<code>PromoteToHikage</code>/<code>TryHikageSpecial</code>/<code>Hud.SetHikageSkill</code>一式と<code>docs/主人公_弾強化システム設計書_v1.md:48-50</code>を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">追加する敵イラストの仕様を詰める</span>
           <span class="worker">artist</span>
         </div>
@@ -1321,18 +1353,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2748137</span><span>2026-08-27</span><span class="s">auto: WIP着手 - 炎上デバフ告知文に具体数値を表示</span></li>
+      <li><span class="h">9158c1f</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期</span></li>
+      <li><span class="h">b200b16</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え</span></li>
+      <li><span class="h">088aac6</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期</span></li>
+      <li><span class="h">f9d30fc</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正</span></li>
+      <li><span class="h">d5571eb</span><span>2026-08-27</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
+      <li><span class="h">bcd730c</span><span>2026-08-26</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">0524525</span><span>2026-08-27</span><span class="s">Merge pull request #13 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">c5ebf9b</span><span>2026-08-26</span><span class="s">auto: GlyphMote.cs OrbitRadius二重代入を解消</span></li>
-      <li><span class="h">1aa206e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消</span></li>
-      <li><span class="h">c633677</span><span>2026-08-26</span><span class="s">auto: FxLayer.cs Magenta未使用色を削除</span></li>
-      <li><span class="h">3f6e720</span><span>2026-08-26</span><span class="s">auto: WIP着手 - FxLayer.cs Magenta未使用色削除</span></li>
-      <li><span class="h">e09d84f</span><span>2026-08-26</span><span class="s">auto: StageMina.cs SCocky未使用定数を削除</span></li>
-      <li><span class="h">0b9cc2e</span><span>2026-08-26</span><span class="s">auto: WIP着手 - StageMina.cs SCocky未使用定数削除</span></li>
-      <li><span class="h">bd7e8f4</span><span>2026-08-26</span><span class="s">auto: StageRei.cs ClearStageEnemies()の死にコードを削除</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-26 22:06 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-27 18:45 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
