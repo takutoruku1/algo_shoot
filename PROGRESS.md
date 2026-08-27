@@ -1,20 +1,20 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-26 22:06 UTC
+> 生成: 2026-08-27 18:41 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 130 / 対象 130)
+████████████████████  98%   (完了 131 / 対象 133)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 130 |
+| ✅ 完了 | 131 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 0 |
-| ⛔ 保留（人間の判断待ち） | 15 |
+| 📋 残り | 2 |
+| ⛔ 保留（人間の判断待ち） | 16 |
 
 ## 🔨 いま作業中
 
@@ -22,10 +22,12 @@ _なし_
 
 ## 📋 次にやること
 
-_キューが空です_
+- `P3` ゲーム内テキスト台本_改稿版.txtのスタッフロールが旧・架空ペルソナ表記のまま
+- `P2` 「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている
 
 ## ⛔ 保留（自動では進められない）
 
+- ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている
 - 追加する敵イラストの仕様を詰める
 - 未発注イラスト
 - #15 ボスラッシュ制約
@@ -44,6 +46,7 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P2` ゲーム内テキスト台本_改稿版.txtが「コード反映済み」自称のまま3箇所で実装と食い違う
 - `P3` GlyphMote.csでOrbitRadiusを同一メソッド内に二重代入している
 - `P3` fx/FxLayer.csのMagentaパレット色が宣言のみで一度も使われていない
 - `P3` StageMina.csのSCocky定数が未使用（Rei/Akari/Koharuからのコピペ残骸）
@@ -177,11 +180,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `f9d30fc` 2026-08-27 auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正
+- `d5571eb` 2026-08-27 auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）
+- `bcd730c` 2026-08-26 Refresh the progress snapshot after the nightly merge
 - `0524525` 2026-08-27 Merge pull request #13 from takutoruku1/auto/dev
 - `c5ebf9b` 2026-08-26 auto: GlyphMote.cs OrbitRadius二重代入を解消
 - `1aa206e` 2026-08-26 auto: WIP着手 - GlyphMote.cs OrbitRadius二重代入解消
 - `c633677` 2026-08-26 auto: FxLayer.cs Magenta未使用色を削除
 - `3f6e720` 2026-08-26 auto: WIP着手 - FxLayer.cs Magenta未使用色削除
-- `e09d84f` 2026-08-26 auto: StageMina.cs SCocky未使用定数を削除
-- `0b9cc2e` 2026-08-26 auto: WIP着手 - StageMina.cs SCocky未使用定数削除
-- `bd7e8f4` 2026-08-26 auto: StageRei.cs ClearStageEnemies()の死にコードを削除
