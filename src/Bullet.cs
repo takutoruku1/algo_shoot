@@ -60,6 +60,8 @@ public partial class Bullet : Area2D
     private Vector2 _accelDir;   // 発進方向（単位ベクトル・MakeAccel で確定）。タメ中の微速もこの向き。
     private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
     private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
+    // タメ中か（Accel かつ未発進）の外部参照用。Player 側の同時タメ弾数カウント（上限化）に使う。
+    public bool AccelCharging => Accel && !_accelDone;
 
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。進行方向側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;

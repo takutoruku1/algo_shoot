@@ -1,7 +1,7 @@
 using Godot;
 
 // GlyphMote : 「アンチくん」— SNSで悪魔化した直進ザコの人。
-// 黒い吹き出しパネル3枚を旋回させ、暴言弾を撒きながら左へ進む。
+// 黒い吹き出しパネル3枚を旋回させながら左へ進む（弾は撃たない＝パネルは盾専念）。
 // 全パネルを剥がすと改心して笑顔の味方になる（Enemy基底）。
 public partial class GlyphMote : Enemy
 {
@@ -9,7 +9,9 @@ public partial class GlyphMote : Enemy
     private float _campX;   // この位置まで来たら居座る（倒さない限り画面外に出ない）
     private float _vy;      // 居座り中の上下往復
 
-    // チュートリアル（ステージ0 ステップ7）用：弾を撃たない無害な“撃ち込み台”にする。
+    // かつては「弾を撃つ本体を無害化する」ためのスイッチだったが、GlyphMote自体は
+    // 発射ロジックを持たず常に非発火（下のPanelsFire=falseの通り）。現状は挙動に差はないが、
+    // 呼び出し側（StageZero のチュートリアル演出意図）を残すためフィールドのみ存置する。
     public bool Harmless;
 
     protected override void OnEnemyReady()
@@ -21,17 +23,13 @@ public partial class GlyphMote : Enemy
         OrbitRadius = 11.5f;
         PanelDisplayScale = 0.82f; // 一回り小さく
         SpinSpeed = 1.4f;
-        PanelsFire = true;
-        PanelFireInterval = 1.9f;
-        EnemyBulletSpeed = 90f;
+        PanelsFire = false; // GlyphMoteは発射ループを持たないため常に非発火（Panel側のfires引数は既に無視される＝盾専念）。
 
         // 生成済みドット絵素材
         PreTexPath = "res://char/enemy_anti_pre.png";
         PostTexPath = "res://char/enemy_anti_post.png";
         PanelTexPath = "res://char/panel_anti.png";
         BodyDisplayH = 23f;             // 一回り小さく
-
-        if (Harmless) PanelsFire = false; // 無害化：弾を撃たない撃ち込み台（やさしさ全開の練習用）
 
         _campX = GD.Randf() * 150f + 120f;                 // 120〜270 のどこかに陣取る
         _vy = (GD.Randf() < 0.5f ? -1f : 1f) * 16f;
