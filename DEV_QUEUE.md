@@ -28,9 +28,10 @@
 
 ## TODO
 
-- [ ] (P3) GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない | engineer | （2026-08-28監査）`src/GlyphMote.cs:4`のクラスコメント・`:24-25`の`PanelsFire=true`設定が「暴言弾を撒く」前提だが、`src/Panel.cs:37`が`fires`引数を無視し`_fires=false`を無条件代入、`_fires`/`_fireInterval`はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の`MidEnemy`系メソッドは`GlyphMote`（プレーンEnemy派生）には無く、`Enemy._PhysicsProcess`にも汎用発射ループなし。正典チュートリアル`StageZero.cs:357,363`（フェーズ12パネル剥がし練習）が`Harmless=false`で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の`Harmless=true`（`StageZero.cs:566-573`）と挙動上の区別が消えている。`Spawner.cs:90`のコメント「75%で撃つ種」とも矛盾。(a)`GlyphMote`に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・`Harmless`分岐・`Spawner.cs:90`コメント・`PanelsFire`/`PanelFireInterval`関連コードを実態に合わせて削除・修正する、のいずれかで解消する
 
 ## WIP
+
+- [ ] (P3) GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない | engineer | （2026-08-28監査）`src/GlyphMote.cs:4`のクラスコメント・`:24-25`の`PanelsFire=true`設定が「暴言弾を撒く」前提だが、`src/Panel.cs:37`が`fires`引数を無視し`_fires=false`を無条件代入、`_fires`/`_fireInterval`はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の`MidEnemy`系メソッドは`GlyphMote`（プレーンEnemy派生）には無く、`Enemy._PhysicsProcess`にも汎用発射ループなし。正典チュートリアル`StageZero.cs:357,363`（フェーズ12パネル剥がし練習）が`Harmless=false`で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の`Harmless=true`（`StageZero.cs:566-573`）と挙動上の区別が消えている。`Spawner.cs:90`のコメント「75%で撃つ種」とも矛盾。(a)`GlyphMote`に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・`Harmless`分岐・`Spawner.cs:90`コメント・`PanelsFire`/`PanelFireInterval`関連コードを実態に合わせて削除・修正する、のいずれかで解消する
 
 ## BLOCKED
 
