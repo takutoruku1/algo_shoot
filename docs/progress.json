@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-28 18:50 UTC",
+  "generated": "2026-08-28 18:54 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 140
+    "done": 141
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない",
-      "worker": "engineer",
-      "accept": "（2026-08-28監査）`src/GlyphMote.cs:4`のクラスコメント・`:24-25`の`PanelsFire=true`設定が「暴言弾を撒く」前提だが、`src/Panel.cs:37`が`fires`引数を無視し`_fires=false`を無条件代入、`_fires`/`_fireInterval`はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の`MidEnemy`系メソッドは`GlyphMote`（プレーンEnemy派生）には無く、`Enemy._PhysicsProcess`にも汎用発射ループなし。正典チュートリアル`StageZero.cs:357,363`（フェーズ12パネル剥がし練習）が`Harmless=false`で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の`Harmless=true`（`StageZero.cs:566-573`）と挙動上の区別が消えている。`Spawner.cs:90`のコメント「75%で撃つ種」とも矛盾。(a)`GlyphMote`に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・`Harmless`分岐・`Spawner.cs:90`コメント・`PanelsFire`/`PanelFireInterval`関連コードを実態に合わせて削除・修正する、のいずれかで解消する"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -115,6 +108,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-28) 選択肢(b)を採用。`src/GlyphMote.cs:4`のクラスコメント「暴言弾を撒きながら」を「弾は撃たない＝パネルは盾専念」へ修正、`OnEnemyReady()`（旧24-26行）の`PanelsFire=true`/`PanelFireInterval=1.9f`/`EnemyBulletSpeed=90f`を削除し`PanelsFire=false`＋実態通りのコメントに置換、到達不能だった`if(Harmless) PanelsFire=false`分岐を削除。`Harmless`フィールドは`StageZero.cs`から参照され続けるため存置しコメントのみ実態に合わせて修正（スコープ最小化）。`src/Spawner.cs:90`の「75%で撃つ種」という誤コメントも実態（PageShard/GlyphMoteとも非発火・パネル盾）に修正。`src/Panel.cs`・`src/StageZero.cs`・他敵クラスは無変更（無関係リファクタ回避、既存の挙動に差は生まれない）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違",
@@ -958,6 +957,16 @@
   ],
   "commits": [
     {
+      "hash": "5ad1201",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - GlyphMote暴言弾の矛盾解消"
+    },
+    {
+      "hash": "ffedfc1",
+      "date": "2026-08-28",
+      "subject": "auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期"
+    },
+    {
       "hash": "3462740",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - HUB帰還会話の二人称・文言同期"
@@ -986,16 +995,6 @@
       "hash": "10db234",
       "date": "2026-08-28",
       "subject": "auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期"
-    },
-    {
-      "hash": "9f7fb22",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - 台本docにSTAGE MINAセクション追加"
-    },
-    {
-      "hash": "41f23d6",
-      "date": "2026-08-28",
-      "subject": "auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記"
     }
   ]
 }

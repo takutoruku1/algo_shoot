@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 140 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 141 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">140</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">141</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">（2026-08-28監査）<code>src/GlyphMote.cs:4</code>のクラスコメント・<code>:24-25</code>の<code>PanelsFire=true</code>設定が「暴言弾を撒く」前提だが、<code>src/Panel.cs:37</code>が<code>fires</code>引数を無視し<code>_fires=false</code>を無条件代入、<code>_fires</code>/<code>_fireInterval</code>はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の<code>MidEnemy</code>系メソッドは<code>GlyphMote</code>（プレーンEnemy派生）には無く、<code>Enemy._PhysicsProcess</code>にも汎用発射ループなし。正典チュートリアル<code>StageZero.cs:357,363</code>（フェーズ12パネル剥がし練習）が<code>Harmless=false</code>で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の<code>Harmless=true</code>（<code>StageZero.cs:566-573</code>）と挙動上の区別が消えている。<code>Spawner.cs:90</code>のコメント「75%で撃つ種」とも矛盾。(a)<code>GlyphMote</code>に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・<code>Harmless</code>分岐・<code>Spawner.cs:90</code>コメント・<code>PanelsFire</code>/<code>PanelFireInterval</code>関連コードを実態に合わせて削除・修正する、のいずれかで解消する</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-28) 選択肢(b)を採用。<code>src/GlyphMote.cs:4</code>のクラスコメント「暴言弾を撒きながら」を「弾は撃たない＝パネルは盾専念」へ修正、<code>OnEnemyReady()</code>（旧24-26行）の<code>PanelsFire=true</code>/<code>PanelFireInterval=1.9f</code>/<code>EnemyBulletSpeed=90f</code>を削除し<code>PanelsFire=false</code>＋実態通りのコメントに置換、到達不能だった<code>if(Harmless) PanelsFire=false</code>分岐を削除。<code>Harmless</code>フィールドは<code>StageZero.cs</code>から参照され続けるため存置しコメントのみ実態に合わせて修正（スコープ最小化）。<code>src/Spawner.cs:90</code>の「75%で撃つ種」という誤コメントも実態（PageShard/GlyphMoteとも非発火・パネル盾）に修正。<code>src/Panel.cs</code>・<code>src/StageZero.cs</code>・他敵クラスは無変更（無関係リファクタ回避、既存の挙動に差は生まれない）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1417,18 +1417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">5ad1201</span><span>2026-08-28</span><span class="s">auto: WIP着手 - GlyphMote暴言弾の矛盾解消</span></li>
+      <li><span class="h">ffedfc1</span><span>2026-08-28</span><span class="s">auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期</span></li>
       <li><span class="h">3462740</span><span>2026-08-28</span><span class="s">auto: WIP着手 - HUB帰還会話の二人称・文言同期</span></li>
       <li><span class="h">3c203fc</span><span>2026-08-28</span><span class="s">auto: 台本docのSTAGE3 Mid旧稿(声の掠れ)を実装文言へ同期</span></li>
       <li><span class="h">2b83746</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期</span></li>
       <li><span class="h">911f82c</span><span>2026-08-28</span><span class="s">auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期</span></li>
       <li><span class="h">9a625f2</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期</span></li>
       <li><span class="h">10db234</span><span>2026-08-28</span><span class="s">auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期</span></li>
-      <li><span class="h">9f7fb22</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docにSTAGE MINAセクション追加</span></li>
-      <li><span class="h">41f23d6</span><span>2026-08-28</span><span class="s">auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:54 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

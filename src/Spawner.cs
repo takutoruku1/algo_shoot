@@ -87,7 +87,7 @@ public partial class Spawner : Node
     private void SpawnOne()
     {
         float y = _rng.RandfRange(46f, 172f);
-        bool drifter = _rng.Randf() < 0.25f; // 25%で撃たない種、75%で撃つ種
+        bool drifter = _rng.Randf() < 0.25f; // 25%でうつむきさん(PageShard)、75%でアンチくん(GlyphMote)。どちらも弾は撃たず、パネルの盾で押し返す点は共通。
 
         Enemy e;
         Vector2 pos;
