@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 139 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 140 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">139</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">140</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:481,483,501,504</code>の「お前にしては」「お前らしくなくて」「大丈夫か、お前。」「お前さ。」が対応する<code>src/Hub.cs:1214,1216,1239,1242</code>の「きみにしては」等へ未追随。加えて<code>:476</code>は<code>Hub.cs:1208</code>「……お見事です。」と、<code>:511</code>は<code>Hub.cs:1256</code>「……ずっと、あったかい人だったな。」とそれぞれ文言が異なる。上記6箇所を<code>src/Hub.cs</code>の現行文言へ同期する</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない</span>
           <span class="worker">engineer</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-28) <code>docs/ゲーム内テキスト台本_改稿版.txt</code>のHUB帰還会話6箇所を<code>src/Hub.cs</code>の現行文言へ同期（doc実行番はスタッフロール節追加で:499,504,506,524,527,534に前進していたが内容照合で正しく特定）。「お前にしては」→「きみにしては」・「お前らしくなくて」→「きみらしくなくて」・「大丈夫か、お前。」→「大丈夫か、きみ。」・「お前さ。」→「きみさ。」の二人称統一4箇所（<code>Hub.cs:1214,1216,1239,1242</code>）、「……エスパーか何かで?」→「……お見事です。」（<code>Hub.cs:1208</code>）、「あたしを庇って、それきり来なくなった人に。……あったかい人だったな。」→「……ずっと、あったかい人だったな。」（実装に存在しない脚色部分を削除、<code>Hub.cs:1256</code>）。<code>src/</code>配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1417,18 +1417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3462740</span><span>2026-08-28</span><span class="s">auto: WIP着手 - HUB帰還会話の二人称・文言同期</span></li>
+      <li><span class="h">3c203fc</span><span>2026-08-28</span><span class="s">auto: 台本docのSTAGE3 Mid旧稿(声の掠れ)を実装文言へ同期</span></li>
       <li><span class="h">2b83746</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期</span></li>
       <li><span class="h">911f82c</span><span>2026-08-28</span><span class="s">auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期</span></li>
       <li><span class="h">9a625f2</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期</span></li>
       <li><span class="h">10db234</span><span>2026-08-28</span><span class="s">auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期</span></li>
       <li><span class="h">9f7fb22</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docにSTAGE MINAセクション追加</span></li>
       <li><span class="h">41f23d6</span><span>2026-08-28</span><span class="s">auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記</span></li>
-      <li><span class="h">211b531</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docのEPILOGUE核心部分転記</span></li>
-      <li><span class="h">d8b8f0e</span><span>2026-08-28</span><span class="s">auto: 加速球タメ弾に同時チャージ上限(6発)を追加し視界圧迫を解消</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:48 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
