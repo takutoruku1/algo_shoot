@@ -28,12 +28,11 @@
 
 ## TODO
 
+- [ ] (P3) ゲーム内テキスト台本_改稿版.txtのSTAGE3 Midセクションに「声が掠れていますよ」の旧稿が残存 | scenario | （2026-08-28、STAGE1/2/3 BossTalk同期タスクの副次調査で発見）`src/StageKoharu.cs:63,107-108`の実装コメントが「旧稿」と呼ぶ「声が……少し、掠れていますよ」が、BossTalk（doc:289、対応済み）とは別に`docs/ゲーム内テキスト台本_改稿版.txt:282`のSTAGE3 **Mid**セクションにも同一文言で残存している。`StageKoharu.cs`のMid配列の現行文言を確認の上、doc:282を実装文言へ同期する
 - [ ] (P2) ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違 | scenario | （2026-08-28監査）`docs/ゲーム内テキスト台本_改稿版.txt:481,483,501,504`の「お前にしては」「お前らしくなくて」「大丈夫か、お前。」「お前さ。」が対応する`src/Hub.cs:1214,1216,1239,1242`の「きみにしては」等へ未追随。加えて`:476`は`Hub.cs:1208`「……お見事です。」と、`:511`は`Hub.cs:1256`「……ずっと、あったかい人だったな。」とそれぞれ文言が異なる。上記6箇所を`src/Hub.cs`の現行文言へ同期する
 - [ ] (P3) GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない | engineer | （2026-08-28監査）`src/GlyphMote.cs:4`のクラスコメント・`:24-25`の`PanelsFire=true`設定が「暴言弾を撒く」前提だが、`src/Panel.cs:37`が`fires`引数を無視し`_fires=false`を無条件代入、`_fires`/`_fireInterval`はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の`MidEnemy`系メソッドは`GlyphMote`（プレーンEnemy派生）には無く、`Enemy._PhysicsProcess`にも汎用発射ループなし。正典チュートリアル`StageZero.cs:357,363`（フェーズ12パネル剥がし練習）が`Harmless=false`で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の`Harmless=true`（`StageZero.cs:566-573`）と挙動上の区別が消えている。`Spawner.cs:90`のコメント「75%で撃つ種」とも矛盾。(a)`GlyphMote`に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・`Harmless`分岐・`Spawner.cs:90`コメント・`PanelsFire`/`PanelFireInterval`関連コードを実態に合わせて削除・修正する、のいずれかで解消する
 
 ## WIP
-
-- [ ] (P2) ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期 | scenario | （2026-08-28監査）`src/StageRei.cs:112-114`・`src/StageAkari.cs:128-130`・`src/StageKoharu.cs:63,107-108`の実装コメントが名指しで「旧稿」「削除済み」と呼ぶ版が`docs/ゲーム内テキスト台本_改稿版.txt:108-111,197-200,289`にまだ残存。`StageRei.cs:183`で前倒し削除済みの問答が`docs/ゲーム内テキスト台本_改稿版.txt:159-160`に残る一方、実装済みの`StageRei.cs:190`（2位灯る反転伏線）・`:195-196`（シェイクスピア1回目引用）はdoc未転記。3ステージのBossTalk＋STAGE1 Clearを各`src/Stage*.cs`の現行配列へ完全同期する
 
 ## BLOCKED
 
@@ -56,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期 | scenario | (完了 2026-08-28) STAGE1 BossTalk（doc:110-111）を`StageRei.cs:121-122`の現行文言（「たった一つの投稿で、そこまで。さすがですね、ご主人様。」/「……ふん。それくらい、朝飯前さ。」）へ置換。STAGE1 Clear（doc:158,163-165）から`StageRei.cs:183`のコメントが前倒し削除済みと明言する問答を削除し、未転記だった`:190`（2位灯る反転伏線）・`:195-196`（シェイクスピア1回目引用）を追加。STAGE2 BossTalk（doc:197-199）を`StageAkari.cs`の言いさし2行＋地の文演出削除版に、STAGE3 BossTalk（doc:289）を`StageKoharu.cs`の「奥の子より——あなたのほうが」版に同期。いずれも`src/Stage*.cs`と実読照合済み、`src/`配下は無変更。範囲はBossTalk＋STAGE1 Clearのみに限定（Intro等は対象外、副次発見のSTAGE3 Mid旧稿残存は別タスクとしてTODOへ追加）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない | scenario | (完了 2026-08-28) 旧`docs/ゲーム内テキスト台本_改稿版.txt:350`付近にあった不正確な「■ FINAL「暴走」」ブロック（`StageMina.cs`のIntro配列10行中4行しか転記されておらず、投稿弾3行が欠落、実装に存在しない創作台詞が混入していた）を、`src/StageMina.cs`のIntro配列・`src/BossMina.cs`のスペル宣言/PostWords/弱気セリフ/邂逅Lines配列から一字一句正確に全文転記した「■ STAGE MINA「暴走したミナ（役割反転・ラスボス戦）」」セクションへ置き換え。末尾の本線サマリ行にも`STAGE MINA`を追加し`Prologue→...→STAGE MINA→FINAL→Epilogue`の流れに整合。直後の「■ FINAL「汚染」」（`Final.cs`由来、別セクション）は無変更。転記内容は`src/StageMina.cs:39-50`・`src/BossMina.cs:63-65`等と実読照合済み。`src/`配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記 | scenario | (完了 2026-08-28) `docs/ゲーム内テキスト台本_改稿版.txt:438`直後（現441行目付近）に、`src/Epilogue.cs:155-165`の実装文言そのまま8行（0414起動ログ再掲2行含む）を挿入。ブートログ部分はdoc既存のProlgoueブートログ表記（`docs/ゲーム内テキスト台本_改稿版.txt:22-24`）と同じインデント付き`>`形式に揃えた。話者表記（（ナレ）/ミナ：）は既存doc慣習に一致。`src/`配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ | game-designer→engineer | (完了 2026-08-28) `src/Bullet.cs:61-62`に読み取り専用プロパティ`AccelCharging => Accel && !_accelDone`を追加。`src/Player.cs:44-49`にタメ中Accel弾を追跡する`List<Bullet> _accelCharging`と上限定数`AccelChargeCap=6`（3ペア）を追加、`FireAccel`（`Player.cs:886-910`）でスポーン前に非Active/発進済みの弾をリストから掃除し、残数が上限に達していれば新規スポーンをスキップするよう変更。Rapid/Spread/Homing/Backfire等の他ショットロジック、`Bullet.cs`のチャージ描画（グロー半径）は無変更でスコープ厳守。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での同時表示数の目視確認は未実施

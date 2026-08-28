@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 137 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 138 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">137</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">138</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
@@ -148,11 +148,11 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期</span>
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのSTAGE3 Midセクションに「声が掠れていますよ」の旧稿が残存</span>
           <span class="worker">scenario</span>
         </div>
-        <p class="accept">（2026-08-28監査）<code>src/StageRei.cs:112-114</code>・<code>src/StageAkari.cs:128-130</code>・<code>src/StageKoharu.cs:63,107-108</code>の実装コメントが名指しで「旧稿」「削除済み」と呼ぶ版が<code>docs/ゲーム内テキスト台本_改稿版.txt:108-111,197-200,289</code>にまだ残存。<code>StageRei.cs:183</code>で前倒し削除済みの問答が<code>docs/ゲーム内テキスト台本_改稿版.txt:159-160</code>に残る一方、実装済みの<code>StageRei.cs:190</code>（2位灯る反転伏線）・<code>:195-196</code>（シェイクスピア1回目引用）はdoc未転記。3ステージのBossTalk＋STAGE1 Clearを各<code>src/Stage*.cs</code>の現行配列へ完全同期する</p>
+        <p class="accept">（2026-08-28、STAGE1/2/3 BossTalk同期タスクの副次調査で発見）<code>src/StageKoharu.cs:63,107-108</code>の実装コメントが「旧稿」と呼ぶ「声が……少し、掠れていますよ」が、BossTalk（doc:289、対応済み）とは別に<code>docs/ゲーム内テキスト台本_改稿版.txt:282</code>のSTAGE3 <strong>Mid</strong>セクションにも同一文言で残存している。<code>StageKoharu.cs</code>のMid配列の現行文言を確認の上、doc:282を実装文言へ同期する</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -175,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-28) STAGE1 BossTalk（doc:110-111）を<code>StageRei.cs:121-122</code>の現行文言（「たった一つの投稿で、そこまで。さすがですね、ご主人様。」/「……ふん。それくらい、朝飯前さ。」）へ置換。STAGE1 Clear（doc:158,163-165）から<code>StageRei.cs:183</code>のコメントが前倒し削除済みと明言する問答を削除し、未転記だった<code>:190</code>（2位灯る反転伏線）・<code>:195-196</code>（シェイクスピア1回目引用）を追加。STAGE2 BossTalk（doc:197-199）を<code>StageAkari.cs</code>の言いさし2行＋地の文演出削除版に、STAGE3 BossTalk（doc:289）を<code>StageKoharu.cs</code>の「奥の子より——あなたのほうが」版に同期。いずれも<code>src/Stage*.cs</code>と実読照合済み、<code>src/</code>配下は無変更。範囲はBossTalk＋STAGE1 Clearのみに限定（Intro等は対象外、副次発見のSTAGE3 Mid旧稿残存は別タスクとしてTODOへ追加）。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1409,18 +1417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">9a625f2</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期</span></li>
+      <li><span class="h">10db234</span><span>2026-08-28</span><span class="s">auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期</span></li>
       <li><span class="h">9f7fb22</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docにSTAGE MINAセクション追加</span></li>
       <li><span class="h">41f23d6</span><span>2026-08-28</span><span class="s">auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記</span></li>
       <li><span class="h">211b531</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docのEPILOGUE核心部分転記</span></li>
       <li><span class="h">d8b8f0e</span><span>2026-08-28</span><span class="s">auto: 加速球タメ弾に同時チャージ上限(6発)を追加し視界圧迫を解消</span></li>
       <li><span class="h">0f4d685</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 加速球タメ弾の視界問題</span></li>
       <li><span class="h">5c02db8</span><span>2026-08-28</span><span class="s">auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）</span></li>
-      <li><span class="h">334cc86</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 回避クールダウン無敵チェーン調整</span></li>
-      <li><span class="h">2dcbbd1</span><span>2026-08-28</span><span class="s">auto: 監査で7件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:47 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

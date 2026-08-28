@@ -1,18 +1,18 @@
 {
-  "generated": "2026-08-28 18:43 UTC",
+  "generated": "2026-08-28 18:47 UTC",
   "counts": {
     "todo": 3,
     "wip": 0,
     "blocked": 16,
-    "done": 137
+    "done": 138
   },
   "percent": 98,
   "todo": [
     {
-      "priority": "P2",
-      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期",
+      "priority": "P3",
+      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE3 Midセクションに「声が掠れていますよ」の旧稿が残存",
       "worker": "scenario",
-      "accept": "（2026-08-28監査）`src/StageRei.cs:112-114`・`src/StageAkari.cs:128-130`・`src/StageKoharu.cs:63,107-108`の実装コメントが名指しで「旧稿」「削除済み」と呼ぶ版が`docs/ゲーム内テキスト台本_改稿版.txt:108-111,197-200,289`にまだ残存。`StageRei.cs:183`で前倒し削除済みの問答が`docs/ゲーム内テキスト台本_改稿版.txt:159-160`に残る一方、実装済みの`StageRei.cs:190`（2位灯る反転伏線）・`:195-196`（シェイクスピア1回目引用）はdoc未転記。3ステージのBossTalk＋STAGE1 Clearを各`src/Stage*.cs`の現行配列へ完全同期する"
+      "accept": "（2026-08-28、STAGE1/2/3 BossTalk同期タスクの副次調査で発見）`src/StageKoharu.cs:63,107-108`の実装コメントが「旧稿」と呼ぶ「声が……少し、掠れていますよ」が、BossTalk（doc:289、対応済み）とは別に`docs/ゲーム内テキスト台本_改稿版.txt:282`のSTAGE3 **Mid**セクションにも同一文言で残存している。`StageKoharu.cs`のMid配列の現行文言を確認の上、doc:282を実装文言へ同期する"
     },
     {
       "priority": "P2",
@@ -127,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-28) STAGE1 BossTalk（doc:110-111）を`StageRei.cs:121-122`の現行文言（「たった一つの投稿で、そこまで。さすがですね、ご主人様。」/「……ふん。それくらい、朝飯前さ。」）へ置換。STAGE1 Clear（doc:158,163-165）から`StageRei.cs:183`のコメントが前倒し削除済みと明言する問答を削除し、未転記だった`:190`（2位灯る反転伏線）・`:195-196`（シェイクスピア1回目引用）を追加。STAGE2 BossTalk（doc:197-199）を`StageAkari.cs`の言いさし2行＋地の文演出削除版に、STAGE3 BossTalk（doc:289）を`StageKoharu.cs`の「奥の子より——あなたのほうが」版に同期。いずれも`src/Stage*.cs`と実読照合済み、`src/`配下は無変更。範囲はBossTalk＋STAGE1 Clearのみに限定（Intro等は対象外、副次発見のSTAGE3 Mid旧稿残存は別タスクとしてTODOへ追加）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない",
@@ -952,6 +958,16 @@
   ],
   "commits": [
     {
+      "hash": "9a625f2",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期"
+    },
+    {
+      "hash": "10db234",
+      "date": "2026-08-28",
+      "subject": "auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期"
+    },
+    {
       "hash": "9f7fb22",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - 台本docにSTAGE MINAセクション追加"
@@ -980,16 +996,6 @@
       "hash": "5c02db8",
       "date": "2026-08-28",
       "subject": "auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）"
-    },
-    {
-      "hash": "334cc86",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - 回避クールダウン無敵チェーン調整"
-    },
-    {
-      "hash": "2dcbbd1",
-      "date": "2026-08-28",
-      "subject": "auto: 監査で7件をキューに追加"
     }
   ]
 }
