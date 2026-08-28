@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-08-28 18:54 UTC
+> 生成: 2026-08-28 22:04 UTC
 
 ## 消化率
 
@@ -189,11 +189,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `c5d73b3` 2026-08-29 Merge pull request #15 from takutoruku1/auto/dev
+- `c4a0485` 2026-08-28 auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理
 - `5ad1201` 2026-08-28 auto: WIP着手 - GlyphMote暴言弾の矛盾解消
 - `ffedfc1` 2026-08-28 auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期
 - `3462740` 2026-08-28 auto: WIP着手 - HUB帰還会話の二人称・文言同期
 - `3c203fc` 2026-08-28 auto: 台本docのSTAGE3 Mid旧稿(声の掠れ)を実装文言へ同期
 - `2b83746` 2026-08-28 auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期
 - `911f82c` 2026-08-28 auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期
-- `9a625f2` 2026-08-28 auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期
-- `10db234` 2026-08-28 auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期

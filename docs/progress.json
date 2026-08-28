@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-28 18:54 UTC",
+  "generated": "2026-08-28 22:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -957,6 +957,16 @@
   ],
   "commits": [
     {
+      "hash": "c5d73b3",
+      "date": "2026-08-29",
+      "subject": "Merge pull request #15 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "c4a0485",
+      "date": "2026-08-28",
+      "subject": "auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理"
+    },
+    {
       "hash": "5ad1201",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - GlyphMote暴言弾の矛盾解消"
@@ -985,16 +995,6 @@
       "hash": "911f82c",
       "date": "2026-08-28",
       "subject": "auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期"
-    },
-    {
-      "hash": "9a625f2",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期"
-    },
-    {
-      "hash": "10db234",
-      "date": "2026-08-28",
-      "subject": "auto: 台本docに誤ったFINAL見出しブロックを正しいSTAGE MINAセクションへ置換・全文同期"
     }
   ]
 }
