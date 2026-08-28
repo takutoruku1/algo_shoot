@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 134 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 135 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">134</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">135</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ</span>
-          
-        </div>
-        <p class="accept">（2026-08-28監査）<code>src/Player.cs:886-898</code> <code>FireAccel</code>が<code>GameManager.cs:739</code> <code>AccelChargeDelay</code>（既定0.8s）の間、基礎間隔0.13s（<code>Player.cs:16</code>）ごとに自機20px前方（<code>Player.cs:829</code> muzzle）へタメ弾を2発スポーンし続け、上限なし。<code>Bullet.cs:547-551</code>のチャージ描画は最大約9.5pxのパルス光輪で、基礎値のままでも同時12発が自機前方±4pxに重なって明滅し敵弾の視認を妨げる。同種の「自機弾の雲」問題はホーミング弾で既に2.5秒寿命切れ対策済み（<code>Bullet.cs:394-395</code>）だがAccelには無い。同時にチャージ中でいられるAccel弾ペア数に上限を設ける（例: 3ペア＝6発まで、超過分は即発進させるか新規スポーンをスキップ）、またはチャージ中弾のグロー半径を縮小する（例: <code>r*2.4</code>→<code>r*1.6</code>）。変更後、連射してもプレイヤー前方の同時表示タメ弾が一定数（例6発）を超えないことを確認する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -199,6 +191,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-28) <code>src/Bullet.cs:61-62</code>に読み取り専用プロパティ<code>AccelCharging =&gt; Accel &amp;&amp; !_accelDone</code>を追加。<code>src/Player.cs:44-49</code>にタメ中Accel弾を追跡する<code>List&lt;Bullet&gt; _accelCharging</code>と上限定数<code>AccelChargeCap=6</code>（3ペア）を追加、<code>FireAccel</code>（<code>Player.cs:886-910</code>）でスポーン前に非Active/発進済みの弾をリストから掃除し、残数が上限に達していれば新規スポーンをスキップするよう変更。Rapid/Spread/Homing/Backfire等の他ショットロジック、<code>Bullet.cs</code>のチャージ描画（グロー半径）は無変更でスコープ厳守。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機での同時表示数の目視確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -1409,18 +1409,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0f4d685</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 加速球タメ弾の視界問題</span></li>
+      <li><span class="h">5c02db8</span><span>2026-08-28</span><span class="s">auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）</span></li>
       <li><span class="h">334cc86</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 回避クールダウン無敵チェーン調整</span></li>
       <li><span class="h">2dcbbd1</span><span>2026-08-28</span><span class="s">auto: 監査で7件をキューに追加</span></li>
       <li><span class="h">0b47c2d</span><span>2026-08-27</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">4d451f6</span><span>2026-08-28</span><span class="s">Merge pull request #14 from takutoruku1/auto/dev</span></li>
       <li><span class="h">3651a0a</span><span>2026-08-27</span><span class="s">auto: 炎上デバフの告知文に具体数値(発射間隔+30%/移動-10%/稼ぎ-40%)を表示</span></li>
       <li><span class="h">2748137</span><span>2026-08-27</span><span class="s">auto: WIP着手 - 炎上デバフ告知文に具体数値を表示</span></li>
-      <li><span class="h">9158c1f</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期</span></li>
-      <li><span class="h">b200b16</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:34 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

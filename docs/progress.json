@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-28 18:34 UTC",
+  "generated": "2026-08-28 18:37 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 16,
-    "done": 134
+    "done": 135
   },
   "percent": 96,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ",
-      "worker": null,
-      "accept": "（2026-08-28監査）`src/Player.cs:886-898` `FireAccel`が`GameManager.cs:739` `AccelChargeDelay`（既定0.8s）の間、基礎間隔0.13s（`Player.cs:16`）ごとに自機20px前方（`Player.cs:829` muzzle）へタメ弾を2発スポーンし続け、上限なし。`Bullet.cs:547-551`のチャージ描画は最大約9.5pxのパルス光輪で、基礎値のままでも同時12発が自機前方±4pxに重なって明滅し敵弾の視認を妨げる。同種の「自機弾の雲」問題はホーミング弾で既に2.5秒寿命切れ対策済み（`Bullet.cs:394-395`）だがAccelには無い。同時にチャージ中でいられるAccel弾ペア数に上限を設ける（例: 3ペア＝6発まで、超過分は即発進させるか新規スポーンをスキップ）、またはチャージ中弾のグロー半径を縮小する（例: `r*2.4`→`r*1.6`）。変更後、連射してもプレイヤー前方の同時表示タメ弾が一定数（例6発）を超えないことを確認する"
-    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ",
+      "worker": null,
+      "accept": "(完了 2026-08-28) `src/Bullet.cs:61-62`に読み取り専用プロパティ`AccelCharging => Accel && !_accelDone`を追加。`src/Player.cs:44-49`にタメ中Accel弾を追跡する`List<Bullet> _accelCharging`と上限定数`AccelChargeCap=6`（3ペア）を追加、`FireAccel`（`Player.cs:886-910`）でスポーン前に非Active/発進済みの弾をリストから掃除し、残数が上限に達していれば新規スポーンをスキップするよう変更。Rapid/Spread/Homing/Backfire等の他ショットロジック、`Bullet.cs`のチャージ描画（グロー半径）は無変更でスコープ厳守。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での同時表示数の目視確認は未実施"
+    },
     {
       "priority": "P1",
       "title": "回避クールダウンが無敵時間と一致し「ほぼ無敵チェーン」が成立する",
@@ -952,6 +952,16 @@
   ],
   "commits": [
     {
+      "hash": "0f4d685",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - 加速球タメ弾の視界問題"
+    },
+    {
+      "hash": "5c02db8",
+      "date": "2026-08-28",
+      "subject": "auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）"
+    },
+    {
       "hash": "334cc86",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - 回避クールダウン無敵チェーン調整"
@@ -980,16 +990,6 @@
       "hash": "2748137",
       "date": "2026-08-27",
       "subject": "auto: WIP着手 - 炎上デバフ告知文に具体数値を表示"
-    },
-    {
-      "hash": "9158c1f",
-      "date": "2026-08-27",
-      "subject": "auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期"
-    },
-    {
-      "hash": "b200b16",
-      "date": "2026-08-27",
-      "subject": "auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え"
     }
   ]
 }

@@ -42,6 +42,12 @@ public partial class Player : Area2D
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
+
+    // 加速球（Accel）のタメ中弾トラッキング。基礎間隔0.13sごとに2発スポーンし、
+    // タメ0.8s分（約12発）が自機前方に無制限に積み上がって自弾グローが敵弾の視認を妨げる問題への対処＝
+    // 同時タメ中の弾数に上限を設ける（AccelChargeCap）。ホーミングの寿命切れ対策と同種の“自機弾の雲”対策。
+    private readonly List<Bullet> _accelCharging = new List<Bullet>();
+    private const int AccelChargeCap = 6; // 3ペア＝6発まで。超過分は新規スポーンをスキップ
     public const int MaxFollowers = 4;
     public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
     private int _savedCount = 0;
@@ -889,12 +895,20 @@ public partial class Player : Area2D
         float fast = _game?.AccelLaunchSpeed ?? 640f;
         float delay = _game?.AccelChargeDelay ?? 0.8f;
         int admg = dmg + (_game?.AccelPowerBonus ?? 0); // 加速球専用の威力軸（加速威力ノード）
+
+        // 同時タメ中の弾数を上限化：無効化(非Active)/発進済み分を掃除してから残数を確認し、
+        // 上限（AccelChargeCap）到達中は新規スポーンをスキップ＝タメ中弾の自弾グローが自機前方に積み上がるのを防ぐ。
+        _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
+        if (_accelCharging.Count >= AccelChargeCap)
+            return;
+
         // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
         // 貫く光（pierce）は連射弾専用のショップ表記＝加速球弾には付与しない。
         foreach (float dy in new[] { -4f, 4f })
         {
             var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
+            _accelCharging.Add(b);
         }
     }
 
