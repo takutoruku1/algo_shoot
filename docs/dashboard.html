@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 136 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 137 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">136</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">137</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:265</code>「■ STAGE 3」の直後、<code>:350</code>「■ FINAL」の直前に「■ STAGE MINA」見出しが無く、<code>src/StageMina.cs</code>・<code>src/BossMina.cs</code>（<code>:64-65</code>等）の実装済みセリフが1行も転記されていない。<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>側は既にSTAGE MINA行反映済み（DONE 2026-08-18/2026-08-26）なのと対照的。<code>src/StageMina.cs</code>・<code>src/BossMina.cs</code>の該当配列から本文を抽出し「■ STAGE MINA」セクションを追加する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-28) 旧<code>docs/ゲーム内テキスト台本_改稿版.txt:350</code>付近にあった不正確な「■ FINAL「暴走」」ブロック（<code>StageMina.cs</code>のIntro配列10行中4行しか転記されておらず、投稿弾3行が欠落、実装に存在しない創作台詞が混入していた）を、<code>src/StageMina.cs</code>のIntro配列・<code>src/BossMina.cs</code>のスペル宣言/PostWords/弱気セリフ/邂逅Lines配列から一字一句正確に全文転記した「■ STAGE MINA「暴走したミナ（役割反転・ラスボス戦）」」セクションへ置き換え。末尾の本線サマリ行にも<code>STAGE MINA</code>を追加し<code>Prologue→...→STAGE MINA→FINAL→Epilogue</code>の流れに整合。直後の「■ FINAL「汚染」」（<code>Final.cs</code>由来、別セクション）は無変更。転記内容は<code>src/StageMina.cs:39-50</code>・<code>src/BossMina.cs:63-65</code>等と実読照合済み。<code>src/</code>配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1409,18 +1409,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">9f7fb22</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docにSTAGE MINAセクション追加</span></li>
+      <li><span class="h">41f23d6</span><span>2026-08-28</span><span class="s">auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記</span></li>
       <li><span class="h">211b531</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docのEPILOGUE核心部分転記</span></li>
       <li><span class="h">d8b8f0e</span><span>2026-08-28</span><span class="s">auto: 加速球タメ弾に同時チャージ上限(6発)を追加し視界圧迫を解消</span></li>
       <li><span class="h">0f4d685</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 加速球タメ弾の視界問題</span></li>
       <li><span class="h">5c02db8</span><span>2026-08-28</span><span class="s">auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）</span></li>
       <li><span class="h">334cc86</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 回避クールダウン無敵チェーン調整</span></li>
       <li><span class="h">2dcbbd1</span><span>2026-08-28</span><span class="s">auto: 監査で7件をキューに追加</span></li>
-      <li><span class="h">0b47c2d</span><span>2026-08-27</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">4d451f6</span><span>2026-08-28</span><span class="s">Merge pull request #14 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

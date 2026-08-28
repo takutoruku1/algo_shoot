@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-28 18:39 UTC",
+  "generated": "2026-08-28 18:43 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 16,
-    "done": 136
+    "done": 137
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない",
-      "worker": "scenario",
-      "accept": "（2026-08-28監査）`docs/ゲーム内テキスト台本_改稿版.txt:265`「■ STAGE 3」の直後、`:350`「■ FINAL」の直前に「■ STAGE MINA」見出しが無く、`src/StageMina.cs`・`src/BossMina.cs`（`:64-65`等）の実装済みセリフが1行も転記されていない。`docs/20260613/MINA_シナリオ設計書_v2.md`側は既にSTAGE MINA行反映済み（DONE 2026-08-18/2026-08-26）なのと対照的。`src/StageMina.cs`・`src/BossMina.cs`の該当配列から本文を抽出し「■ STAGE MINA」セクションを追加する"
-    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-28) 旧`docs/ゲーム内テキスト台本_改稿版.txt:350`付近にあった不正確な「■ FINAL「暴走」」ブロック（`StageMina.cs`のIntro配列10行中4行しか転記されておらず、投稿弾3行が欠落、実装に存在しない創作台詞が混入していた）を、`src/StageMina.cs`のIntro配列・`src/BossMina.cs`のスペル宣言/PostWords/弱気セリフ/邂逅Lines配列から一字一句正確に全文転記した「■ STAGE MINA「暴走したミナ（役割反転・ラスボス戦）」」セクションへ置き換え。末尾の本線サマリ行にも`STAGE MINA`を追加し`Prologue→...→STAGE MINA→FINAL→Epilogue`の流れに整合。直後の「■ FINAL「汚染」」（`Final.cs`由来、別セクション）は無変更。転記内容は`src/StageMina.cs:39-50`・`src/BossMina.cs:63-65`等と実読照合済み。`src/`配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記",
@@ -952,6 +952,16 @@
   ],
   "commits": [
     {
+      "hash": "9f7fb22",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - 台本docにSTAGE MINAセクション追加"
+    },
+    {
+      "hash": "41f23d6",
+      "date": "2026-08-28",
+      "subject": "auto: 台本docにEPILOGUEの起動ログ回収・シェイクスピア3回目回収を転記"
+    },
+    {
       "hash": "211b531",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - 台本docのEPILOGUE核心部分転記"
@@ -980,16 +990,6 @@
       "hash": "2dcbbd1",
       "date": "2026-08-28",
       "subject": "auto: 監査で7件をキューに追加"
-    },
-    {
-      "hash": "0b47c2d",
-      "date": "2026-08-27",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "4d451f6",
-      "date": "2026-08-28",
-      "subject": "Merge pull request #14 from takutoruku1/auto/dev"
     }
   ]
 }
