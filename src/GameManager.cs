@@ -745,13 +745,14 @@ public partial class GameManager : Node
     public int BackfireShots => GetUpgradeLevel("bf_track_1") >= 1 ? 2 : 1; // 後方追尾で同時2発
     public float BackfireTurnRate => GetUpgradeLevel("bf_track_1") >= 1 ? 90f : 60f; // 旋回 60→bf_track で 90
 
-    // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.65/0.58/0.55s・距離 64→68/72/76px。
+    // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.72/0.68/0.65s・距離 64→68/72/76px。
     // Player.TryDodge が回避開始時に参照する（低速 Focus と同様、i-frame 秒は手触り固定＝触らない）。
-    // 旧式(0.8-0.1*Lv)はLv3で0.5sまで下がり、回避モーション長 DodgeDuration=0.55s の実質下限を下回っていた。
-    // 実効待ち時間は max(DodgeCooldown, DodgeDuration) で決まるため、Lv3の"0.5s"は見た目だけで実際は0.55sしか出ず、
-    // Lv2(0.6s)→Lv3の謳い文句の半分が無意味化していた。ここでは0.55s床を跨がない段階式に差し替え、
-    // Lv1/Lv2/Lv3のどの段でも購入額に見合う実効短縮（0.8→0.65→0.58→0.55）が出るようにする。
-    public float DodgeCooldown => new[] { 0.80f, 0.65f, 0.58f, 0.55f }[Mathf.Clamp(ChainLevel("move_speed", 3), 0, 3)];
+    // 実効待ち時間は max(DodgeCooldown, DodgeDuration=0.55s) で決まる。旧配列(0.80/0.65/0.58/0.55)は
+    // Lv3のCD=0.55sがDodgeDurationと完全一致し、無敵0.45sを引いた無防備な隙間が0.10sしか残らず
+    // 「ほぼ無敵チェーン」（連打だけで読み・回避判断なしに弾幕を無力化）が成立してしまっていた。
+    // ここではLv3でもCD>=0.65s（=DodgeDuration床+0.10s）を維持し、無敵0.45sを引いても
+    // 最低0.20s以上の無防備な隙間が必ず残る値に再調整。Lv0比でCDが縮む投資リターン自体は維持する。
+    public float DodgeCooldown => new[] { 0.80f, 0.72f, 0.68f, 0.65f }[Mathf.Clamp(ChainLevel("move_speed", 3), 0, 3)];
     public float DodgeDistance => 64f + 4f * ChainLevel("move_speed", 3);
 
     // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。

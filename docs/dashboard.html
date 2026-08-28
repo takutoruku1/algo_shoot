@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 133 / 対象 133 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 134 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">133</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">134</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,68 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ</span>
+          
+        </div>
+        <p class="accept">（2026-08-28監査）<code>src/Player.cs:886-898</code> <code>FireAccel</code>が<code>GameManager.cs:739</code> <code>AccelChargeDelay</code>（既定0.8s）の間、基礎間隔0.13s（<code>Player.cs:16</code>）ごとに自機20px前方（<code>Player.cs:829</code> muzzle）へタメ弾を2発スポーンし続け、上限なし。<code>Bullet.cs:547-551</code>のチャージ描画は最大約9.5pxのパルス光輪で、基礎値のままでも同時12発が自機前方±4pxに重なって明滅し敵弾の視認を妨げる。同種の「自機弾の雲」問題はホーミング弾で既に2.5秒寿命切れ対策済み（<code>Bullet.cs:394-395</code>）だがAccelには無い。同時にチャージ中でいられるAccel弾ペア数に上限を設ける（例: 3ペア＝6発まで、超過分は即発進させるか新規スポーンをスキップ）、またはチャージ中弾のグロー半径を縮小する（例: <code>r*2.4</code>→<code>r*1.6</code>）。変更後、連射してもプレイヤー前方の同時表示タメ弾が一定数（例6発）を超えないことを確認する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:438</code>直後から<code>:441</code>へ何もなく直結しているが、<code>src/Epilogue.cs:155-159</code>（「最初の記憶を開きました」〜UI「signal lost 0414」「replay operator from archive」〜「最初から、書いてあったのです……」〜ミナ「アホですね」）と<code>:162-163</code>（シェイクスピア3回目引用＋ミナの返し）、<code>:165</code>（「今日は、晴れているそうです」）の計8行が実装済みなのにdoc未転記。上記8行を該当箇所へ転記し「コード反映済み」の自称と一致させる</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:265</code>「■ STAGE 3」の直後、<code>:350</code>「■ FINAL」の直前に「■ STAGE MINA」見出しが無く、<code>src/StageMina.cs</code>・<code>src/BossMina.cs</code>（<code>:64-65</code>等）の実装済みセリフが1行も転記されていない。<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>側は既にSTAGE MINA行反映済み（DONE 2026-08-18/2026-08-26）なのと対照的。<code>src/StageMina.cs</code>・<code>src/BossMina.cs</code>の該当配列から本文を抽出し「■ STAGE MINA」セクションを追加する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">（2026-08-28監査）<code>src/StageRei.cs:112-114</code>・<code>src/StageAkari.cs:128-130</code>・<code>src/StageKoharu.cs:63,107-108</code>の実装コメントが名指しで「旧稿」「削除済み」と呼ぶ版が<code>docs/ゲーム内テキスト台本_改稿版.txt:108-111,197-200,289</code>にまだ残存。<code>StageRei.cs:183</code>で前倒し削除済みの問答が<code>docs/ゲーム内テキスト台本_改稿版.txt:159-160</code>に残る一方、実装済みの<code>StageRei.cs:190</code>（2位灯る反転伏線）・<code>:195-196</code>（シェイクスピア1回目引用）はdoc未転記。3ステージのBossTalk＋STAGE1 Clearを各<code>src/Stage*.cs</code>の現行配列へ完全同期する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:481,483,501,504</code>の「お前にしては」「お前らしくなくて」「大丈夫か、お前。」「お前さ。」が対応する<code>src/Hub.cs:1214,1216,1239,1242</code>の「きみにしては」等へ未追随。加えて<code>:476</code>は<code>Hub.cs:1208</code>「……お見事です。」と、<code>:511</code>は<code>Hub.cs:1256</code>「……ずっと、あったかい人だったな。」とそれぞれ文言が異なる。上記6箇所を<code>src/Hub.cs</code>の現行文言へ同期する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">（2026-08-28監査）<code>src/GlyphMote.cs:4</code>のクラスコメント・<code>:24-25</code>の<code>PanelsFire=true</code>設定が「暴言弾を撒く」前提だが、<code>src/Panel.cs:37</code>が<code>fires</code>引数を無視し<code>_fires=false</code>を無条件代入、<code>_fires</code>/<code>_fireInterval</code>はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の<code>MidEnemy</code>系メソッドは<code>GlyphMote</code>（プレーンEnemy派生）には無く、<code>Enemy._PhysicsProcess</code>にも汎用発射ループなし。正典チュートリアル<code>StageZero.cs:357,363</code>（フェーズ12パネル剥がし練習）が<code>Harmless=false</code>で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の<code>Harmless=true</code>（<code>StageZero.cs:566-573</code>）と挙動上の区別が消えている。<code>Spawner.cs:90</code>のコメント「75%で撃つ種」とも矛盾。(a)<code>GlyphMote</code>に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・<code>Harmless</code>分岐・<code>Spawner.cs:90</code>コメント・<code>PanelsFire</code>/<code>PanelFireInterval</code>関連コードを実態に合わせて削除・修正する、のいずれかで解消する</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">回避クールダウンが無敵時間と一致し「ほぼ無敵チェーン」が成立する</span>
+          
+        </div>
+        <p class="accept">(完了 2026-08-28) <code>src/GameManager.cs:754</code>の<code>DodgeCooldown</code>配列を<code>{0.80,0.65,0.58,0.55}</code>→<code>{0.80,0.72,0.68,0.65}</code>に変更。Lv3でも実効周期<code>max(DodgeCooldown,DodgeDuration=0.55)=0.65s</code>となり、無敵時間<code>DodgeIFrame=0.45s</code>を引いた無防備な隙間が0.20s確保される（旧実装は0.10sのみ）。Lv0(0.80)→Lv3(0.65)で単調減少しCD短縮の投資リターンは維持。<code>Player.cs</code>側（DodgeDuration/DodgeIFrame/DodgeDistance/TryDodge）は無変更でスコープ厳守。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機での体感確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1353,18 +1409,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">334cc86</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 回避クールダウン無敵チェーン調整</span></li>
+      <li><span class="h">2dcbbd1</span><span>2026-08-28</span><span class="s">auto: 監査で7件をキューに追加</span></li>
+      <li><span class="h">0b47c2d</span><span>2026-08-27</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">4d451f6</span><span>2026-08-28</span><span class="s">Merge pull request #14 from takutoruku1/auto/dev</span></li>
       <li><span class="h">3651a0a</span><span>2026-08-27</span><span class="s">auto: 炎上デバフの告知文に具体数値(発射間隔+30%/移動-10%/稼ぎ-40%)を表示</span></li>
       <li><span class="h">2748137</span><span>2026-08-27</span><span class="s">auto: WIP着手 - 炎上デバフ告知文に具体数値を表示</span></li>
       <li><span class="h">9158c1f</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt スタッフロールをEpilogue.cs確定版に同期</span></li>
       <li><span class="h">b200b16</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え</span></li>
-      <li><span class="h">088aac6</span><span>2026-08-27</span><span class="s">auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期</span></li>
-      <li><span class="h">f9d30fc</span><span>2026-08-27</span><span class="s">auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正</span></li>
-      <li><span class="h">d5571eb</span><span>2026-08-27</span><span class="s">auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-27 22:06 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:34 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

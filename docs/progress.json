@@ -1,13 +1,50 @@
 {
-  "generated": "2026-08-27 22:06 UTC",
+  "generated": "2026-08-28 18:34 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 6,
     "wip": 0,
     "blocked": 16,
-    "done": 133
+    "done": 134
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 96,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "加速球のタメ中弾が自機前方に無制限に積み上がり自弾グローで視界を塞ぐ",
+      "worker": null,
+      "accept": "（2026-08-28監査）`src/Player.cs:886-898` `FireAccel`が`GameManager.cs:739` `AccelChargeDelay`（既定0.8s）の間、基礎間隔0.13s（`Player.cs:16`）ごとに自機20px前方（`Player.cs:829` muzzle）へタメ弾を2発スポーンし続け、上限なし。`Bullet.cs:547-551`のチャージ描画は最大約9.5pxのパルス光輪で、基礎値のままでも同時12発が自機前方±4pxに重なって明滅し敵弾の視認を妨げる。同種の「自機弾の雲」問題はホーミング弾で既に2.5秒寿命切れ対策済み（`Bullet.cs:394-395`）だがAccelには無い。同時にチャージ中でいられるAccel弾ペア数に上限を設ける（例: 3ペア＝6発まで、超過分は即発進させるか新規スポーンをスキップ）、またはチャージ中弾のグロー半径を縮小する（例: `r*2.4`→`r*1.6`）。変更後、連射してもプレイヤー前方の同時表示タメ弾が一定数（例6発）を超えないことを確認する"
+    },
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記",
+      "worker": "scenario",
+      "accept": "（2026-08-28監査）`docs/ゲーム内テキスト台本_改稿版.txt:438`直後から`:441`へ何もなく直結しているが、`src/Epilogue.cs:155-159`（「最初の記憶を開きました」〜UI「signal lost 0414」「replay operator from archive」〜「最初から、書いてあったのです……」〜ミナ「アホですね」）と`:162-163`（シェイクスピア3回目引用＋ミナの返し）、`:165`（「今日は、晴れているそうです」）の計8行が実装済みなのにdoc未転記。上記8行を該当箇所へ転記し「コード反映済み」の自称と一致させる"
+    },
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtにSTAGE MINA（役割反転ラスボス戦）の台本セクションが丸ごと存在しない",
+      "worker": "scenario",
+      "accept": "（2026-08-28監査）`docs/ゲーム内テキスト台本_改稿版.txt:265`「■ STAGE 3」の直後、`:350`「■ FINAL」の直前に「■ STAGE MINA」見出しが無く、`src/StageMina.cs`・`src/BossMina.cs`（`:64-65`等）の実装済みセリフが1行も転記されていない。`docs/20260613/MINA_シナリオ設計書_v2.md`側は既にSTAGE MINA行反映済み（DONE 2026-08-18/2026-08-26）なのと対照的。`src/StageMina.cs`・`src/BossMina.cs`の該当配列から本文を抽出し「■ STAGE MINA」セクションを追加する"
+    },
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期",
+      "worker": "scenario",
+      "accept": "（2026-08-28監査）`src/StageRei.cs:112-114`・`src/StageAkari.cs:128-130`・`src/StageKoharu.cs:63,107-108`の実装コメントが名指しで「旧稿」「削除済み」と呼ぶ版が`docs/ゲーム内テキスト台本_改稿版.txt:108-111,197-200,289`にまだ残存。`StageRei.cs:183`で前倒し削除済みの問答が`docs/ゲーム内テキスト台本_改稿版.txt:159-160`に残る一方、実装済みの`StageRei.cs:190`（2位灯る反転伏線）・`:195-196`（シェイクスピア1回目引用）はdoc未転記。3ステージのBossTalk＋STAGE1 Clearを各`src/Stage*.cs`の現行配列へ完全同期する"
+    },
+    {
+      "priority": "P2",
+      "title": "ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違",
+      "worker": "scenario",
+      "accept": "（2026-08-28監査）`docs/ゲーム内テキスト台本_改稿版.txt:481,483,501,504`の「お前にしては」「お前らしくなくて」「大丈夫か、お前。」「お前さ。」が対応する`src/Hub.cs:1214,1216,1239,1242`の「きみにしては」等へ未追随。加えて`:476`は`Hub.cs:1208`「……お見事です。」と、`:511`は`Hub.cs:1256`「……ずっと、あったかい人だったな。」とそれぞれ文言が異なる。上記6箇所を`src/Hub.cs`の現行文言へ同期する"
+    },
+    {
+      "priority": "P3",
+      "title": "GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない",
+      "worker": "engineer",
+      "accept": "（2026-08-28監査）`src/GlyphMote.cs:4`のクラスコメント・`:24-25`の`PanelsFire=true`設定が「暴言弾を撒く」前提だが、`src/Panel.cs:37`が`fires`引数を無視し`_fires=false`を無条件代入、`_fires`/`_fireInterval`はどこからも読まれない（読み取りゼロ確認済み）。発射移管先の`MidEnemy`系メソッドは`GlyphMote`（プレーンEnemy派生）には無く、`Enemy._PhysicsProcess`にも汎用発射ループなし。正典チュートリアル`StageZero.cs:357,363`（フェーズ12パネル剥がし練習）が`Harmless=false`で弾を撃たせる意図のダミーを出しているのに実際は撃たれず、ボム練習用の`Harmless=true`（`StageZero.cs:566-573`）と挙動上の区別が消えている。`Spawner.cs:90`のコメント「75%で撃つ種」とも矛盾。(a)`GlyphMote`に簡単な自前発射ループを実装して暴言弾を実在させる、または(b)撃たない設計を正としクラスコメント・`Harmless`分岐・`Spawner.cs:90`コメント・`PanelsFire`/`PanelFireInterval`関連コードを実態に合わせて削除・修正する、のいずれかで解消する"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -108,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "回避クールダウンが無敵時間と一致し「ほぼ無敵チェーン」が成立する",
+      "worker": null,
+      "accept": "(完了 2026-08-28) `src/GameManager.cs:754`の`DodgeCooldown`配列を`{0.80,0.65,0.58,0.55}`→`{0.80,0.72,0.68,0.65}`に変更。Lv3でも実効周期`max(DodgeCooldown,DodgeDuration=0.55)=0.65s`となり、無敵時間`DodgeIFrame=0.45s`を引いた無防備な隙間が0.20s確保される（旧実装は0.10sのみ）。Lv0(0.80)→Lv3(0.65)で単調減少しCD短縮の投資リターンは維持。`Player.cs`側（DodgeDuration/DodgeIFrame/DodgeDistance/TryDodge）は無変更でスコープ厳守。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での体感確認は未実施"
+    },
     {
       "priority": "P2",
       "title": "「炎上」デバフの告知文が度合い（数値）を一切示さず理不尽な体感になっている",
@@ -909,6 +952,21 @@
   ],
   "commits": [
     {
+      "hash": "334cc86",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - 回避クールダウン無敵チェーン調整"
+    },
+    {
+      "hash": "2dcbbd1",
+      "date": "2026-08-28",
+      "subject": "auto: 監査で7件をキューに追加"
+    },
+    {
+      "hash": "0b47c2d",
+      "date": "2026-08-27",
+      "subject": "Refresh the progress snapshot after the nightly merge"
+    },
+    {
       "hash": "4d451f6",
       "date": "2026-08-28",
       "subject": "Merge pull request #14 from takutoruku1/auto/dev"
@@ -932,21 +990,6 @@
       "hash": "b200b16",
       "date": "2026-08-27",
       "subject": "auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt スタッフロール置き換え"
-    },
-    {
-      "hash": "088aac6",
-      "date": "2026-08-27",
-      "subject": "auto: ゲーム内テキスト台本_改稿版.txt 3箇所を実装文言に同期"
-    },
-    {
-      "hash": "f9d30fc",
-      "date": "2026-08-27",
-      "subject": "auto: WIP着手 - ゲーム内テキスト台本_改稿版.txt 3箇所修正"
-    },
-    {
-      "hash": "d5571eb",
-      "date": "2026-08-27",
-      "subject": "auto: 監査で4件をキューに追加（TODO3件・BLOCKED1件）"
     }
   ]
 }
