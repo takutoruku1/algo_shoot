@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-28 18:47 UTC",
+  "generated": "2026-08-28 18:48 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 16,
-    "done": 138
+    "done": 139
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE3 Midセクションに「声が掠れていますよ」の旧稿が残存",
-      "worker": "scenario",
-      "accept": "（2026-08-28、STAGE1/2/3 BossTalk同期タスクの副次調査で発見）`src/StageKoharu.cs:63,107-108`の実装コメントが「旧稿」と呼ぶ「声が……少し、掠れていますよ」が、BossTalk（doc:289、対応済み）とは別に`docs/ゲーム内テキスト台本_改稿版.txt:282`のSTAGE3 **Mid**セクションにも同一文言で残存している。`StageKoharu.cs`のMid配列の現行文言を確認の上、doc:282を実装文言へ同期する"
-    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE3 Midセクションに「声が掠れていますよ」の旧稿が残存",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-28) `docs/ゲーム内テキスト台本_改稿版.txt:282-283`の旧稿「ミナ：……ご主人様の声、また、すこし掠れていますよ。」「少年：気のせいさ。……行こう。」を、`src/StageKoharu.cs:96-104`のMid配列末尾の現行実装文言3行（「……ご主人様?」「……なんだ。行くぞ。」「……いえ。なんでも。」）へ置換。実装側は既に「掠れ」表現を撤廃しミナが気配に振り向いて言い差す演出に変更済みだった。`src/`配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "ゲーム内テキスト台本_改稿版.txtのSTAGE1/2/3 BossTalk・STAGE1 Clearが実装コメントの言う「旧稿・削除済み」版のまま未同期",
@@ -958,6 +958,16 @@
   ],
   "commits": [
     {
+      "hash": "2b83746",
+      "date": "2026-08-28",
+      "subject": "auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期"
+    },
+    {
+      "hash": "911f82c",
+      "date": "2026-08-28",
+      "subject": "auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期"
+    },
+    {
       "hash": "9a625f2",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - STAGE1/2/3 BossTalk・STAGE1 Clear台本同期"
@@ -986,16 +996,6 @@
       "hash": "d8b8f0e",
       "date": "2026-08-28",
       "subject": "auto: 加速球タメ弾に同時チャージ上限(6発)を追加し視界圧迫を解消"
-    },
-    {
-      "hash": "0f4d685",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - 加速球タメ弾の視界問題"
-    },
-    {
-      "hash": "5c02db8",
-      "date": "2026-08-28",
-      "subject": "auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）"
     }
   ]
 }
