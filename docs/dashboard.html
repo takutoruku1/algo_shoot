@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 135 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 136 / 対象 140 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">135</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">136</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">（2026-08-28監査）<code>docs/ゲーム内テキスト台本_改稿版.txt:438</code>直後から<code>:441</code>へ何もなく直結しているが、<code>src/Epilogue.cs:155-159</code>（「最初の記憶を開きました」〜UI「signal lost 0414」「replay operator from archive」〜「最初から、書いてあったのです……」〜ミナ「アホですね」）と<code>:162-163</code>（シェイクスピア3回目引用＋ミナの返し）、<code>:165</code>（「今日は、晴れているそうです」）の計8行が実装済みなのにdoc未転記。上記8行を該当箇所へ転記し「コード反映済み」の自称と一致させる</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ゲーム内テキスト台本_改稿版.txtのEPILOGUE核心部分（0414起動ログ回収・シェイクスピア3回目回収）が丸ごと未転記</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-28) <code>docs/ゲーム内テキスト台本_改稿版.txt:438</code>直後（現441行目付近）に、<code>src/Epilogue.cs:155-165</code>の実装文言そのまま8行（0414起動ログ再掲2行含む）を挿入。ブートログ部分はdoc既存のProlgoueブートログ表記（<code>docs/ゲーム内テキスト台本_改稿版.txt:22-24</code>）と同じインデント付き<code>&gt;</code>形式に揃えた。話者表記（（ナレ）/ミナ：）は既存doc慣習に一致。<code>src/</code>配下は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1409,18 +1409,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">211b531</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 台本docのEPILOGUE核心部分転記</span></li>
+      <li><span class="h">d8b8f0e</span><span>2026-08-28</span><span class="s">auto: 加速球タメ弾に同時チャージ上限(6発)を追加し視界圧迫を解消</span></li>
       <li><span class="h">0f4d685</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 加速球タメ弾の視界問題</span></li>
       <li><span class="h">5c02db8</span><span>2026-08-28</span><span class="s">auto: 回避クールダウンを無敵時間より長く再調整（無敵チェーン対策）</span></li>
       <li><span class="h">334cc86</span><span>2026-08-28</span><span class="s">auto: WIP着手 - 回避クールダウン無敵チェーン調整</span></li>
       <li><span class="h">2dcbbd1</span><span>2026-08-28</span><span class="s">auto: 監査で7件をキューに追加</span></li>
       <li><span class="h">0b47c2d</span><span>2026-08-27</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">4d451f6</span><span>2026-08-28</span><span class="s">Merge pull request #14 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">3651a0a</span><span>2026-08-27</span><span class="s">auto: 炎上デバフの告知文に具体数値(発射間隔+30%/移動-10%/稼ぎ-40%)を表示</span></li>
-      <li><span class="h">2748137</span><span>2026-08-27</span><span class="s">auto: WIP着手 - 炎上デバフ告知文に具体数値を表示</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-28 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
