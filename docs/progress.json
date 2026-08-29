@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-29 18:30 UTC",
+  "generated": "2026-08-29 18:31 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 16,
-    "done": 145
+    "done": 146
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新",
-      "worker": "scenario",
-      "accept": "`docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目が実装済み(`src/BossAkari.cs:74`一人称確立、`src/StageImagery.cs:304,347`/`src/BossAkari.cs:82`/`src/Epilogue.cs:149`心象演出、`src/Epilogue.cs:379`呼び方回収、`src/BossAkari.cs:72-92`掛け合い本書き)なのに未チェックのまま。`docs/ストーリー見直しロードマップ.md`で採用済みの「`[x]`化+実装ファイル:行根拠注記」形式で4項目とも更新する。本文の他記述は無変更。"
-    },
     {
       "priority": "P3",
       "title": "GameManagerの嘘コメント修正(Escaped経路は存在しない)",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目を`[x]`化し、実装ファイル:行の根拠注記を追記(一人称=`BossAkari.cs:74`、心象演出=`StageImagery.cs:304,347`/`BossAkari.cs:82`/`Epilogue.cs:149`、呼び方回収=`Epilogue.cs:379`、掛け合い本書き=`BossAkari.cs:72-92`)。`docs/ストーリー見直しロードマップ.md`の既存形式を踏襲。本文の他記述は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "バックファイア(自動後方援護弾)をチュートリアルで一言説明する",
@@ -1000,6 +1000,16 @@
   ],
   "commits": [
     {
+      "hash": "e04a8a8",
+      "date": "2026-08-29",
+      "subject": "auto: WIP着手 - キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新"
+    },
+    {
+      "hash": "9a147c1",
+      "date": "2026-08-29",
+      "subject": "auto: バックファイアをチュートリアルで一言説明する"
+    },
+    {
       "hash": "a4b0c39",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - バックファイアをチュートリアルで一言説明する"
@@ -1028,16 +1038,6 @@
       "hash": "ababa8c",
       "date": "2026-08-29",
       "subject": "auto: 向き反転操作をチュートリアルで教える"
-    },
-    {
-      "hash": "f962bc6",
-      "date": "2026-08-29",
-      "subject": "auto: WIP着手 - 向き反転操作をチュートリアルで教える"
-    },
-    {
-      "hash": "3e2f40b",
-      "date": "2026-08-29",
-      "subject": "auto: 監査で7件をキューに追加"
     }
   ]
 }
