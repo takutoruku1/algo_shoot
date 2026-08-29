@@ -28,6 +28,13 @@
 
 ## TODO
 
+- [ ] (P1) 向き反転操作をチュートリアルで教える | engineer | `src/StageZero.cs`の7項目チュートリアル(Tut0〜Tut8)に「向き反転(F/RB)」の説明が一切ない一方(grep 0件)、`src/Spawner.cs:25-34,104-114`の「引用リプ」(FlankAim)は自機後方に出現し反転操作を要求する敵で、`FlankRampGate=0.5`によりステージ1序盤(最短約14秒)から出現しうる。`Tut2Shot`(`StageZero.cs:82-88`)の「きみは何も押さなくていい」という文言が方向操作の存在を暗に否定している。既存ステップ(低速か回避ステップ)の説明文に「F/RBで撃つ方向を反転できる」旨を1行追加し、`Tut2Shot`の断定的な文言を方向操作の存在を否定しない表現に修正する。難易度・弾幕本体(Spawner数値)は変更しないこと。
+- [ ] (P2) 旧版シナリオ台本ファイルに非正典バナーを追加 | scenario | `docs/ゲーム内テキスト台本.txt`は現行実装(`src/Prologue.cs:163-164`, `src/StageRei.cs:113,119-122`, `src/Hub.cs:1208,1239,1242`)と文言・演出が食い違う旧稿(:33-36,68-70,313,329-330,432,434,448,451の「お前」6箇所等)だが非正典警告が無い。`docs/STORY.md`/`docs/DEV_W0.md`で採用済みの既存フォーマットを踏襲し、冒頭に「⚠非正典・旧版(`ゲーム内テキスト台本_改稿版.txt`が現行)」バナーを追加する。本文は無変更。
+- [ ] (P2) 旧コンセプト文書に非正典バナーを追加 | scenario | `docs/GAME_DESIGN.md`(:1,3,92,161,166)と`docs/CONCEPT_V2.md`(:1,4,32,127,136)が現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)と無関係な旧コンセプト(主人公「algo」、W0〜W5、魔力リフレイン)のまま非正典バナー無し。特に`CONCEPT_V2.md:4`は「本書がコンセプトの最新版」と自己主張している。`docs/STORY.md`と同形式で「⚠本書のalgo/W0-W5/魔力リフレイン関連の記述は非正典。現行正典は`docs/20260613/MINA_シナリオ設計書_v2.md`」バナーを両ファイル冒頭に追加する。本文は無変更。
+- [ ] (P3) バックファイア(自動後方援護弾)をチュートリアルで一言説明する | engineer | `src/Player.cs:19-21,618-625`により未購入でもラン開始直後から自動発火する後方弾だが、`src/Hud.cs`・`src/StageZero.cs`いずれも`Backfire|後方弾`でgrep 0件、唯一の説明は任意メニューの`src/HowToPlay.cs:275`のみ。`StageZero.cs`のTut2ShotかTut8Endのまとめセリフに「後ろに敵がいると、光が自動で援護してくれる」程度の1行を追加する。新規UI要素の追加は不要。
+- [ ] (P3) キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新 | scenario | `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目が実装済み(`src/BossAkari.cs:74`一人称確立、`src/StageImagery.cs:304,347`/`src/BossAkari.cs:82`/`src/Epilogue.cs:149`心象演出、`src/Epilogue.cs:379`呼び方回収、`src/BossAkari.cs:72-92`掛け合い本書き)なのに未チェックのまま。`docs/ストーリー見直しロードマップ.md`で採用済みの「`[x]`化+実装ファイル:行根拠注記」形式で4項目とも更新する。本文の他記述は無変更。
+- [ ] (P3) GameManagerの嘘コメント修正(Escaped経路は存在しない) | engineer | `src/GameManager.cs:1144`のコメントが「Escaped経路のみ・1回だけ呼ぶ」と主張するが、`RewardCameoDefeat()`の唯一の呼び出し元は`src/CameoBoss.cs:248`→`src/Enemy.cs:715 OnCryStart()`→`src/Enemy.cs:663 Redeem()`(HP0での正規撃破)経由のみで、Escaped(逃走)経路は実装に存在しない(`grep -rn "Escaped" src/*.cs`は該当行1件のみ)。`src/CameoBoss.cs:16`の記述(撃破時)と整合するようコメントを実態に合わせて書き換える。コード本体は変更しない。
+- [ ] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | `src/QaPilot.cs`は移動/Z(shoot)/X(bomb)のみ送出し、低速(Shift)・回避(Alt)・全開(Ctrl)を一切シミュレートしない(該当キー送出なし、grep確認済み)。結果`src/StageZero.cs:53`の`SafetyTimeout=60.0`で強制通過する経路しか自動QAで通らず、低速保持判定(`StageZero.cs:256`)・回避3回判定(`StageZero.cs:285-287`)・全開判定が一度も実入力で検証されていない(`build/qa/Prologue.log`で`[QA-WARN] stuck`誤検出3回)。`QaPilot.cs`に低速保持・周期的回避・全開キーの合成入力を追加し、`Stage0.tscn`単体QA実行でSafetyTimeoutでの強制通過ではなく実入力でフェーズ完走することを確認する。既存の当たり判定パスの挙動に影響がないことも確認する。
 
 ## WIP
 
