@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 143 / 対象 148 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 144 / 対象 148 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">143</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">144</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">旧コンセプト文書に非正典バナーを追加</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/GAME_DESIGN.md</code>(:1,3,92,161,166)と<code>docs/CONCEPT_V2.md</code>(:1,4,32,127,136)が現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)と無関係な旧コンセプト(主人公「algo」、W0〜W5、魔力リフレイン)のまま非正典バナー無し。特に<code>CONCEPT_V2.md:4</code>は「本書がコンセプトの最新版」と自己主張している。<code>docs/STORY.md</code>と同形式で「⚠本書のalgo/W0-W5/魔力リフレイン関連の記述は非正典。現行正典は<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>」バナーを両ファイル冒頭に追加する。本文は無変更。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">旧コンセプト文書に非正典バナーを追加</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>docs/GAME_DESIGN.md:1-8</code>と<code>docs/CONCEPT_V2.md:1-9</code>冒頭に、<code>docs/STORY.md:1-10</code>と同形式の⚠非正典バナーを追加。現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)との不一致を明記し、現行正典<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>を指し示す。<code>CONCEPT_V2.md:4</code>が自己主張する「本書がコンセプトの最新版」に対しては「現行実装に対する最新版ではない」旨を追記。本文(バナー箇所以外)は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1473,18 +1473,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e270423</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 旧コンセプト文書に非正典バナーを追加</span></li>
+      <li><span class="h">e82b3e0</span><span>2026-08-29</span><span class="s">auto: 旧版シナリオ台本ファイルに非正典バナーを追加</span></li>
       <li><span class="h">658af65</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 旧版シナリオ台本ファイルに非正典バナーを追加</span></li>
       <li><span class="h">ababa8c</span><span>2026-08-29</span><span class="s">auto: 向き反転操作をチュートリアルで教える</span></li>
       <li><span class="h">f962bc6</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 向き反転操作をチュートリアルで教える</span></li>
       <li><span class="h">3e2f40b</span><span>2026-08-29</span><span class="s">auto: 監査で7件をキューに追加</span></li>
       <li><span class="h">4953476</span><span>2026-08-28</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
       <li><span class="h">c5d73b3</span><span>2026-08-29</span><span class="s">Merge pull request #15 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">c4a0485</span><span>2026-08-28</span><span class="s">auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理</span></li>
-      <li><span class="h">5ad1201</span><span>2026-08-28</span><span class="s">auto: WIP着手 - GlyphMote暴言弾の矛盾解消</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-29 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-29 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

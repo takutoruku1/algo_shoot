@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-29 18:27 UTC",
+  "generated": "2026-08-29 18:28 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 16,
-    "done": 143
+    "done": 144
   },
   "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "旧コンセプト文書に非正典バナーを追加",
-      "worker": "scenario",
-      "accept": "`docs/GAME_DESIGN.md`(:1,3,92,161,166)と`docs/CONCEPT_V2.md`(:1,4,32,127,136)が現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)と無関係な旧コンセプト(主人公「algo」、W0〜W5、魔力リフレイン)のまま非正典バナー無し。特に`CONCEPT_V2.md:4`は「本書がコンセプトの最新版」と自己主張している。`docs/STORY.md`と同形式で「⚠本書のalgo/W0-W5/魔力リフレイン関連の記述は非正典。現行正典は`docs/20260613/MINA_シナリオ設計書_v2.md`」バナーを両ファイル冒頭に追加する。本文は無変更。"
-    },
     {
       "priority": "P3",
       "title": "バックファイア(自動後方援護弾)をチュートリアルで一言説明する",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "旧コンセプト文書に非正典バナーを追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/GAME_DESIGN.md:1-8`と`docs/CONCEPT_V2.md:1-9`冒頭に、`docs/STORY.md:1-10`と同形式の⚠非正典バナーを追加。現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)との不一致を明記し、現行正典`docs/20260613/MINA_シナリオ設計書_v2.md`を指し示す。`CONCEPT_V2.md:4`が自己主張する「本書がコンセプトの最新版」に対しては「現行実装に対する最新版ではない」旨を追記。本文(バナー箇所以外)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "旧版シナリオ台本ファイルに非正典バナーを追加",
@@ -1000,6 +1000,16 @@
   ],
   "commits": [
     {
+      "hash": "e270423",
+      "date": "2026-08-29",
+      "subject": "auto: WIP着手 - 旧コンセプト文書に非正典バナーを追加"
+    },
+    {
+      "hash": "e82b3e0",
+      "date": "2026-08-29",
+      "subject": "auto: 旧版シナリオ台本ファイルに非正典バナーを追加"
+    },
+    {
       "hash": "658af65",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - 旧版シナリオ台本ファイルに非正典バナーを追加"
@@ -1028,16 +1038,6 @@
       "hash": "c5d73b3",
       "date": "2026-08-29",
       "subject": "Merge pull request #15 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "c4a0485",
-      "date": "2026-08-28",
-      "subject": "auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理"
-    },
-    {
-      "hash": "5ad1201",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - GlyphMote暴言弾の矛盾解消"
     }
   ]
 }
