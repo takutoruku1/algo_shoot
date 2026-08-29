@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 144 / 対象 148 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 145 / 対象 148 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">144</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">145</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">バックファイア(自動後方援護弾)をチュートリアルで一言説明する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Player.cs:19-21,618-625</code>により未購入でもラン開始直後から自動発火する後方弾だが、<code>src/Hud.cs</code>・<code>src/StageZero.cs</code>いずれも<code>Backfire | 後方弾</code>でgrep 0件、唯一の説明は任意メニューの<code>src/HowToPlay.cs:275</code>のみ。<code>StageZero.cs</code>のTut2ShotかTut8Endのまとめセリフに「後ろに敵がいると、光が自動で援護してくれる」程度の1行を追加する。新規UI要素の追加は不要。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">バックファイア(自動後方援護弾)をチュートリアルで一言説明する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>src/StageZero.cs:86</code>(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。<code>_phase</code>switchのケース番号・構造には影響なし(配列ループのみ)、<code>src/Player.cs</code>は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1473,18 +1473,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">a4b0c39</span><span>2026-08-29</span><span class="s">auto: WIP着手 - バックファイアをチュートリアルで一言説明する</span></li>
+      <li><span class="h">73e8b6d</span><span>2026-08-29</span><span class="s">auto: 旧コンセプト文書に非正典バナーを追加</span></li>
       <li><span class="h">e270423</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 旧コンセプト文書に非正典バナーを追加</span></li>
       <li><span class="h">e82b3e0</span><span>2026-08-29</span><span class="s">auto: 旧版シナリオ台本ファイルに非正典バナーを追加</span></li>
       <li><span class="h">658af65</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 旧版シナリオ台本ファイルに非正典バナーを追加</span></li>
       <li><span class="h">ababa8c</span><span>2026-08-29</span><span class="s">auto: 向き反転操作をチュートリアルで教える</span></li>
       <li><span class="h">f962bc6</span><span>2026-08-29</span><span class="s">auto: WIP着手 - 向き反転操作をチュートリアルで教える</span></li>
       <li><span class="h">3e2f40b</span><span>2026-08-29</span><span class="s">auto: 監査で7件をキューに追加</span></li>
-      <li><span class="h">4953476</span><span>2026-08-28</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
-      <li><span class="h">c5d73b3</span><span>2026-08-29</span><span class="s">Merge pull request #15 from takutoruku1/auto/dev</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-29 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-29 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

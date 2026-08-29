@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-29 18:28 UTC",
+  "generated": "2026-08-29 18:30 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 16,
-    "done": 144
+    "done": 145
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "バックファイア(自動後方援護弾)をチュートリアルで一言説明する",
-      "worker": "engineer",
-      "accept": "`src/Player.cs:19-21,618-625`により未購入でもラン開始直後から自動発火する後方弾だが、`src/Hud.cs`・`src/StageZero.cs`いずれも`Backfire | 後方弾`でgrep 0件、唯一の説明は任意メニューの`src/HowToPlay.cs:275`のみ。`StageZero.cs`のTut2ShotかTut8Endのまとめセリフに「後ろに敵がいると、光が自動で援護してくれる」程度の1行を追加する。新規UI要素の追加は不要。"
-    },
     {
       "priority": "P3",
       "title": "キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "バックファイア(自動後方援護弾)をチュートリアルで一言説明する",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-29) `src/StageZero.cs:86`(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。`_phase`switchのケース番号・構造には影響なし(配列ループのみ)、`src/Player.cs`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "旧コンセプト文書に非正典バナーを追加",
@@ -1000,6 +1000,16 @@
   ],
   "commits": [
     {
+      "hash": "a4b0c39",
+      "date": "2026-08-29",
+      "subject": "auto: WIP着手 - バックファイアをチュートリアルで一言説明する"
+    },
+    {
+      "hash": "73e8b6d",
+      "date": "2026-08-29",
+      "subject": "auto: 旧コンセプト文書に非正典バナーを追加"
+    },
+    {
       "hash": "e270423",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - 旧コンセプト文書に非正典バナーを追加"
@@ -1028,16 +1038,6 @@
       "hash": "3e2f40b",
       "date": "2026-08-29",
       "subject": "auto: 監査で7件をキューに追加"
-    },
-    {
-      "hash": "4953476",
-      "date": "2026-08-28",
-      "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "c5d73b3",
-      "date": "2026-08-29",
-      "subject": "Merge pull request #15 from takutoruku1/auto/dev"
     }
   ]
 }

@@ -83,6 +83,7 @@ public partial class StageZero : Node
     {
         (0, "次は、光。……といっても、撃つボタンを押す必要はないよ。", "res://char/shonen_face.png"),
         (0, "光は勝手に出続ける。飛んでくる“言葉”や“板”は、それが祓ってくれる。", "res://char/shonen_gentle.png"),
+        (0, "後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。", "res://char/shonen_gentle.png"),
         (1, "……わたくしは、撃たなくていいのですか。", "res://char/mina_face.png"),
         (0, "ああ。基本はよけることだけ考えてればいい。さあ、ダミーに光を当ててごらん。", "res://char/shonen_proud.png"),
     };
