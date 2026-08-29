@@ -30,8 +30,6 @@
 
 ## WIP
 
-- [ ] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | `src/QaPilot.cs`は移動/Z(shoot)/X(bomb)のみ送出し、低速(Shift)・回避(Alt)・全開(Ctrl)を一切シミュレートしない(該当キー送出なし、grep確認済み)。結果`src/StageZero.cs:53`の`SafetyTimeout=60.0`で強制通過する経路しか自動QAで通らず、低速保持判定(`StageZero.cs:256`)・回避3回判定(`StageZero.cs:285-287`)・全開判定が一度も実入力で検証されていない(`build/qa/Prologue.log`で`[QA-WARN] stuck`誤検出3回)。`QaPilot.cs`に低速保持・周期的回避・全開キーの合成入力を追加し、`Stage0.tscn`単体QA実行でSafetyTimeoutでの強制通過ではなく実入力でフェーズ完走することを確認する。既存の当たり判定パスの挙動に影響がないことも確認する。
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -53,6 +51,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | (完了 2026-08-29) `src/QaPilot.cs`に`DriveFocusDodgeKindness`を追加(`QaPilot.cs:315-385`)。低速(Shift)を6秒周期で1.6秒保持、回避(Alt)を2.2秒周期でタップ、全開(Ctrl)を5秒周期でタップ。ゲームオーバー中はShift新規送出を止め(`DriveDeathRetry`のShift+Rと非干渉)、`--skiptest`中はKindness用Ctrlを完全スキップ(既存のCtrl押しっぱなしロジックと非干渉)。ヘッドレスQA確認: `Stage0.tscn`180秒走行でStuck警告なし・Stage0→Hub遷移が70.9秒に短縮(旧SafetyTimeout頼みの約235秒から実入力経路に変化)。Rei(--assist/非assistとも)の短時間走行でも異常なし。死亡→ゲームオーバー中のShift+Rリトライとの実地競合は今回の短時間走行では死亡が発生せず未検証(ロジック上はidle判定で排他)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GameManagerの嘘コメント修正(Escaped経路は存在しない) | engineer | (完了 2026-08-29) `src/GameManager.cs:1144`のコメント「Escaped経路のみ・1回だけ呼ぶ」を「CameoBoss.OnCryStart から1回だけ呼ぶ」の実態に合わせて修正(`Escaped`という経路は`grep -rn "Escaped" src/*.cs`でコメント自身のみヒット=実装に存在しないことを確認)。`RewardCameoDefeat()`本体・呼び出し箇所は無変更、コメント1行のみの差分。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新 | scenario | (完了 2026-08-29) `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目を`[x]`化し、実装ファイル:行の根拠注記を追記(一人称=`BossAkari.cs:74`、心象演出=`StageImagery.cs:304,347`/`BossAkari.cs:82`/`Epilogue.cs:149`、呼び方回収=`Epilogue.cs:379`、掛け合い本書き=`BossAkari.cs:72-92`)。`docs/ストーリー見直しロードマップ.md`の既存形式を踏襲。本文の他記述は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) バックファイア(自動後方援護弾)をチュートリアルで一言説明する | engineer | (完了 2026-08-29) `src/StageZero.cs:86`(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。`_phase`switchのケース番号・構造には影響なし(配列ループのみ)、`src/Player.cs`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
