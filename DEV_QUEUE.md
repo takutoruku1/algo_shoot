@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | `src/QaPilot.cs`は移動/Z(shoot)/X(bomb)のみ送出し、低速(Shift)・回避(Alt)・全開(Ctrl)を一切シミュレートしない(該当キー送出なし、grep確認済み)。結果`src/StageZero.cs:53`の`SafetyTimeout=60.0`で強制通過する経路しか自動QAで通らず、低速保持判定(`StageZero.cs:256`)・回避3回判定(`StageZero.cs:285-287`)・全開判定が一度も実入力で検証されていない(`build/qa/Prologue.log`で`[QA-WARN] stuck`誤検出3回)。`QaPilot.cs`に低速保持・周期的回避・全開キーの合成入力を追加し、`Stage0.tscn`単体QA実行でSafetyTimeoutでの強制通過ではなく実入力でフェーズ完走することを確認する。既存の当たり判定パスの挙動に影響がないことも確認する。
-
 ## WIP
+
+- [ ] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | `src/QaPilot.cs`は移動/Z(shoot)/X(bomb)のみ送出し、低速(Shift)・回避(Alt)・全開(Ctrl)を一切シミュレートしない(該当キー送出なし、grep確認済み)。結果`src/StageZero.cs:53`の`SafetyTimeout=60.0`で強制通過する経路しか自動QAで通らず、低速保持判定(`StageZero.cs:256`)・回避3回判定(`StageZero.cs:285-287`)・全開判定が一度も実入力で検証されていない(`build/qa/Prologue.log`で`[QA-WARN] stuck`誤検出3回)。`QaPilot.cs`に低速保持・周期的回避・全開キーの合成入力を追加し、`Stage0.tscn`単体QA実行でSafetyTimeoutでの強制通過ではなく実入力でフェーズ完走することを確認する。既存の当たり判定パスの挙動に影響がないことも確認する。
 
 ## BLOCKED
 
