@@ -36,8 +36,6 @@
 
 ## WIP
 
-- [ ] (P2) 旧版シナリオ台本ファイルに非正典バナーを追加 | scenario | `docs/ゲーム内テキスト台本.txt`は現行実装(`src/Prologue.cs:163-164`, `src/StageRei.cs:113,119-122`, `src/Hub.cs:1208,1239,1242`)と文言・演出が食い違う旧稿(:33-36,68-70,313,329-330,432,434,448,451の「お前」6箇所等)だが非正典警告が無い。`docs/STORY.md`/`docs/DEV_W0.md`で採用済みの既存フォーマットを踏襲し、冒頭に「⚠非正典・旧版(`ゲーム内テキスト台本_改稿版.txt`が現行)」バナーを追加する。本文は無変更。
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -59,6 +57,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 旧版シナリオ台本ファイルに非正典バナーを追加 | scenario | (完了 2026-08-29) `docs/ゲーム内テキスト台本.txt`冒頭のヘッダーブロック(:9-12)に、`docs/STORY.md:7-10`と同形式の⚠非正典バナーを追加。現行実装(`src/Prologue.cs`/`src/StageRei.cs`/`src/Hub.cs`)との不一致(「お前」→「きみ」統一済み等)を明記し、現行の正しい台本`ゲーム内テキスト台本_改稿版.txt`を指し示す。本文(旧稿本体)・`ゲーム内テキスト台本_改稿版.txt`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P1) 向き反転操作をチュートリアルで教える | engineer | (完了 2026-08-29) `src/StageZero.cs`のTut4Dash(回避ステップ)に「F/RBで撃つ向きを反転できる」旨のセリフを1行追加(`StageZero.cs:102`)、Tut2Shotの「きみは何も押さなくていい」「よけることだけ考えてればいい」という断定的文言を、方向操作の存在を否定しない表現に修正(`StageZero.cs:84,87`)。`_phase`switch本体・`OpForPhase`のcase番号・`Spawner.cs`の弾幕数値は無変更(既存セリフ配列への追記のみ)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない | engineer | (完了 2026-08-28) 選択肢(b)を採用。`src/GlyphMote.cs:4`のクラスコメント「暴言弾を撒きながら」を「弾は撃たない＝パネルは盾専念」へ修正、`OnEnemyReady()`（旧24-26行）の`PanelsFire=true`/`PanelFireInterval=1.9f`/`EnemyBulletSpeed=90f`を削除し`PanelsFire=false`＋実態通りのコメントに置換、到達不能だった`if(Harmless) PanelsFire=false`分岐を削除。`Harmless`フィールドは`StageZero.cs`から参照され続けるため存置しコメントのみ実態に合わせて修正（スコープ最小化）。`src/Spawner.cs:90`の「75%で撃つ種」という誤コメントも実態（PageShard/GlyphMoteとも非発火・パネル盾）に修正。`src/Panel.cs`・`src/StageZero.cs`・他敵クラスは無変更（無関係リファクタ回避、既存の挙動に差は生まれない）。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) ゲーム内テキスト台本_改稿版.txtのHUB帰還会話が「お前」のまま実装の「きみ」に未追随、かつ3箇所で文言相違 | scenario | (完了 2026-08-28) `docs/ゲーム内テキスト台本_改稿版.txt`のHUB帰還会話6箇所を`src/Hub.cs`の現行文言へ同期（doc実行番はスタッフロール節追加で:499,504,506,524,527,534に前進していたが内容照合で正しく特定）。「お前にしては」→「きみにしては」・「お前らしくなくて」→「きみらしくなくて」・「大丈夫か、お前。」→「大丈夫か、きみ。」・「お前さ。」→「きみさ。」の二人称統一4箇所（`Hub.cs:1214,1216,1239,1242`）、「……エスパーか何かで?」→「……お見事です。」（`Hub.cs:1208`）、「あたしを庇って、それきり来なくなった人に。……あったかい人だったな。」→「……ずっと、あったかい人だったな。」（実装に存在しない脚色部分を削除、`Hub.cs:1256`）。`src/`配下は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

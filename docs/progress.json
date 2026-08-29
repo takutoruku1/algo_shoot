@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-29 18:25 UTC",
+  "generated": "2026-08-29 18:27 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 16,
-    "done": 142
+    "done": 143
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "旧版シナリオ台本ファイルに非正典バナーを追加",
-      "worker": "scenario",
-      "accept": "`docs/ゲーム内テキスト台本.txt`は現行実装(`src/Prologue.cs:163-164`, `src/StageRei.cs:113,119-122`, `src/Hub.cs:1208,1239,1242`)と文言・演出が食い違う旧稿(:33-36,68-70,313,329-330,432,434,448,451の「お前」6箇所等)だが非正典警告が無い。`docs/STORY.md`/`docs/DEV_W0.md`で採用済みの既存フォーマットを踏襲し、冒頭に「⚠非正典・旧版(`ゲーム内テキスト台本_改稿版.txt`が現行)」バナーを追加する。本文は無変更。"
-    },
     {
       "priority": "P2",
       "title": "旧コンセプト文書に非正典バナーを追加",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "旧版シナリオ台本ファイルに非正典バナーを追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/ゲーム内テキスト台本.txt`冒頭のヘッダーブロック(:9-12)に、`docs/STORY.md:7-10`と同形式の⚠非正典バナーを追加。現行実装(`src/Prologue.cs`/`src/StageRei.cs`/`src/Hub.cs`)との不一致(「お前」→「きみ」統一済み等)を明記し、現行の正しい台本`ゲーム内テキスト台本_改稿版.txt`を指し示す。本文(旧稿本体)・`ゲーム内テキスト台本_改稿版.txt`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "向き反転操作をチュートリアルで教える",
@@ -1000,6 +1000,16 @@
   ],
   "commits": [
     {
+      "hash": "658af65",
+      "date": "2026-08-29",
+      "subject": "auto: WIP着手 - 旧版シナリオ台本ファイルに非正典バナーを追加"
+    },
+    {
+      "hash": "ababa8c",
+      "date": "2026-08-29",
+      "subject": "auto: 向き反転操作をチュートリアルで教える"
+    },
+    {
       "hash": "f962bc6",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - 向き反転操作をチュートリアルで教える"
@@ -1028,16 +1038,6 @@
       "hash": "5ad1201",
       "date": "2026-08-28",
       "subject": "auto: WIP着手 - GlyphMote暴言弾の矛盾解消"
-    },
-    {
-      "hash": "ffedfc1",
-      "date": "2026-08-28",
-      "subject": "auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期"
-    },
-    {
-      "hash": "3462740",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - HUB帰還会話の二人称・文言同期"
     }
   ]
 }
