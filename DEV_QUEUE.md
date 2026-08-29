@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) GameManagerの嘘コメント修正(Escaped経路は存在しない) | engineer | `src/GameManager.cs:1144`のコメントが「Escaped経路のみ・1回だけ呼ぶ」と主張するが、`RewardCameoDefeat()`の唯一の呼び出し元は`src/CameoBoss.cs:248`→`src/Enemy.cs:715 OnCryStart()`→`src/Enemy.cs:663 Redeem()`(HP0での正規撃破)経由のみで、Escaped(逃走)経路は実装に存在しない(`grep -rn "Escaped" src/*.cs`は該当行1件のみ)。`src/CameoBoss.cs:16`の記述(撃破時)と整合するようコメントを実態に合わせて書き換える。コード本体は変更しない。
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -55,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) GameManagerの嘘コメント修正(Escaped経路は存在しない) | engineer | (完了 2026-08-29) `src/GameManager.cs:1144`のコメント「Escaped経路のみ・1回だけ呼ぶ」を「CameoBoss.OnCryStart から1回だけ呼ぶ」の実態に合わせて修正(`Escaped`という経路は`grep -rn "Escaped" src/*.cs`でコメント自身のみヒット=実装に存在しないことを確認)。`RewardCameoDefeat()`本体・呼び出し箇所は無変更、コメント1行のみの差分。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新 | scenario | (完了 2026-08-29) `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目を`[x]`化し、実装ファイル:行の根拠注記を追記(一人称=`BossAkari.cs:74`、心象演出=`StageImagery.cs:304,347`/`BossAkari.cs:82`/`Epilogue.cs:149`、呼び方回収=`Epilogue.cs:379`、掛け合い本書き=`BossAkari.cs:72-92`)。`docs/ストーリー見直しロードマップ.md`の既存形式を踏襲。本文の他記述は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) バックファイア(自動後方援護弾)をチュートリアルで一言説明する | engineer | (完了 2026-08-29) `src/StageZero.cs:86`(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。`_phase`switchのケース番号・構造には影響なし(配列ループのみ)、`src/Player.cs`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 旧コンセプト文書に非正典バナーを追加 | scenario | (完了 2026-08-29) `docs/GAME_DESIGN.md:1-8`と`docs/CONCEPT_V2.md:1-9`冒頭に、`docs/STORY.md:1-10`と同形式の⚠非正典バナーを追加。現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)との不一致を明記し、現行正典`docs/20260613/MINA_シナリオ設計書_v2.md`を指し示す。`CONCEPT_V2.md:4`が自己主張する「本書がコンセプトの最新版」に対しては「現行実装に対する最新版ではない」旨を追記。本文(バナー箇所以外)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
