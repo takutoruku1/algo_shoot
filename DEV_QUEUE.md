@@ -28,11 +28,12 @@
 
 ## TODO
 
-- [ ] (P3) キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新 | scenario | `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目が実装済み(`src/BossAkari.cs:74`一人称確立、`src/StageImagery.cs:304,347`/`src/BossAkari.cs:82`/`src/Epilogue.cs:149`心象演出、`src/Epilogue.cs:379`呼び方回収、`src/BossAkari.cs:72-92`掛け合い本書き)なのに未チェックのまま。`docs/ストーリー見直しロードマップ.md`で採用済みの「`[x]`化+実装ファイル:行根拠注記」形式で4項目とも更新する。本文の他記述は無変更。
 - [ ] (P3) GameManagerの嘘コメント修正(Escaped経路は存在しない) | engineer | `src/GameManager.cs:1144`のコメントが「Escaped経路のみ・1回だけ呼ぶ」と主張するが、`RewardCameoDefeat()`の唯一の呼び出し元は`src/CameoBoss.cs:248`→`src/Enemy.cs:715 OnCryStart()`→`src/Enemy.cs:663 Redeem()`(HP0での正規撃破)経由のみで、Escaped(逃走)経路は実装に存在しない(`grep -rn "Escaped" src/*.cs`は該当行1件のみ)。`src/CameoBoss.cs:16`の記述(撃破時)と整合するようコメントを実態に合わせて書き換える。コード本体は変更しない。
 - [ ] (P3) QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある | engineer | `src/QaPilot.cs`は移動/Z(shoot)/X(bomb)のみ送出し、低速(Shift)・回避(Alt)・全開(Ctrl)を一切シミュレートしない(該当キー送出なし、grep確認済み)。結果`src/StageZero.cs:53`の`SafetyTimeout=60.0`で強制通過する経路しか自動QAで通らず、低速保持判定(`StageZero.cs:256`)・回避3回判定(`StageZero.cs:285-287`)・全開判定が一度も実入力で検証されていない(`build/qa/Prologue.log`で`[QA-WARN] stuck`誤検出3回)。`QaPilot.cs`に低速保持・周期的回避・全開キーの合成入力を追加し、`Stage0.tscn`単体QA実行でSafetyTimeoutでの強制通過ではなく実入力でフェーズ完走することを確認する。既存の当たり判定パスの挙動に影響がないことも確認する。
 
 ## WIP
+
+- [ ] (P3) キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新 | scenario | `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目が実装済み(`src/BossAkari.cs:74`一人称確立、`src/StageImagery.cs:304,347`/`src/BossAkari.cs:82`/`src/Epilogue.cs:149`心象演出、`src/Epilogue.cs:379`呼び方回収、`src/BossAkari.cs:72-92`掛け合い本書き)なのに未チェックのまま。`docs/ストーリー見直しロードマップ.md`で採用済みの「`[x]`化+実装ファイル:行根拠注記」形式で4項目とも更新する。本文の他記述は無変更。
 
 ## BLOCKED
 
