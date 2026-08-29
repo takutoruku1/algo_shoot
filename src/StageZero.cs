@@ -81,10 +81,10 @@ public partial class StageZero : Node
     };
     private static readonly (int who, string text, string face)[] Tut2Shot =
     {
-        (0, "次は、光。……といっても、きみは何も押さなくていい。", "res://char/shonen_face.png"),
+        (0, "次は、光。……といっても、撃つボタンを押す必要はないよ。", "res://char/shonen_face.png"),
         (0, "光は勝手に出続ける。飛んでくる“言葉”や“板”は、それが祓ってくれる。", "res://char/shonen_gentle.png"),
         (1, "……わたくしは、撃たなくていいのですか。", "res://char/mina_face.png"),
-        (0, "ああ。きみは、よけることだけ考えてればいい。さあ、ダミーに光を当ててごらん。", "res://char/shonen_proud.png"),
+        (0, "ああ。基本はよけることだけ考えてればいい。さあ、ダミーに光を当ててごらん。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut3Slow =
     {
@@ -99,6 +99,7 @@ public partial class StageZero : Node
         (0, "向きは自由。上にも、横にも、斜めにも——出したい方向へ、ぱっと。", "res://char/shonen_gentle.png"),
         (1, "弾の中を、すり抜けてしまう……? ずいぶん、思い切った技ですね。", "res://char/mina_worried.png"),
         (0, "怖がらなくていい。当たる前に抜けりゃ、ノーダメージさ。", "res://char/shonen_gentle.png"),
+        (0, "それと——F か、パッドの RB を押せば、撃つ向きを一瞬で反転できる。後ろから来る敵にも、光を返せるよ。", "res://char/shonen_gentle.png"),
         (0, "いろんな方向に、何度でも試してみて。身体で覚えるのが、いちばん早い。", "res://char/shonen_proud.png"),
     };
     private static readonly (int who, string text, string face)[] Tut5Bomb =
