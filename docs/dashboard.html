@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 149 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 150 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">149</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">150</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">(2026-08-31監査、scenario発見) <code>docs/【MASTER】設定資料統合版.md:21</code>「順番はライバル→あかり→妹（ライバルは未確定）」が、同ファイル<code>:727</code>でレイ確定済み・<code>:850</code>のPART6未確定リストも実装済み(<code>src/BossRei.cs</code>,<code>src/BossKoharu.cs</code>,<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:220</code>「救う順番：レイ→あかり→こはる」)と矛盾。「このマスターファイルのみを正とする」(<code>:5</code>)唯一の正典の要約が自己矛盾している。<code>:21</code>を「順番はレイ→あかり→こはる（妹）」に更新し「（ライバルは未確定）」を削除。<code>:850-857</code>のPART6リスト(ライバル確定/妹詳細設計/少年本名/PW/ミナ旧セリフ改稿/各ステージ本書き)を、既に確定・実装済みの項目は取り消し線または削除で整理(少年の本名のみ意図的に未決定のまま残す)。<code>:572</code>の同型記述も同時に確認・整合</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span>
           <span class="worker">scenario</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>:21</code>「順番はライバル→あかり→妹（ライバルは未確定）」を「順番はレイ（ライバル）→あかり→こはる（妹）」に修正。PART6未確定リスト(<code>:849-859</code>)・PART2/PART3各所の「未決定」「再検討中」表記(旧<code>:118-125</code>,<code>:214-217</code>,<code>:274-280</code>,<code>:438</code>,<code>:443-449</code>,<code>:530</code>,<code>:567-572</code>付近)を全て確定・実装済み根拠(<code>src/BossRei.cs</code>/<code>src/BossKoharu.cs</code>/<code>src/Epilogue.cs</code>のPW=&quot;stay&quot;/<code>src/Prologue.cs</code>等)付きで取り消し線整理。少年の本名のみ意図的に未決定のまま維持。「C：3人目（再検討中）」節はレイの確定情報に置換したが、内容は<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:97,99</code>からの引用で新規創作なし(確認済み)。ドキュメントのみの変更、src/未変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1497,18 +1497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">cc9e3c7</span><span>2026-08-31</span><span class="s">auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span></li>
+      <li><span class="h">8d39877</span><span>2026-08-31</span><span class="s">auto: PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開くのを修正</span></li>
       <li><span class="h">dbe97bd</span><span>2026-08-31</span><span class="s">auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span></li>
       <li><span class="h">43eeb60</span><span>2026-08-31</span><span class="s">auto: 監査で3件をキューに追加</span></li>
       <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
       <li><span class="h">badf5a0</span><span>2026-08-29</span><span class="s">auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず</span></li>
       <li><span class="h">1b46607</span><span>2026-08-29</span><span class="s">auto: GameManagerの嘘コメント修正</span></li>
       <li><span class="h">9a75f3a</span><span>2026-08-29</span><span class="s">auto: WIP着手 - GameManagerの嘘コメント修正</span></li>
-      <li><span class="h">fdffb96</span><span>2026-08-29</span><span class="s">auto: キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span></li>
-      <li><span class="h">e04a8a8</span><span>2026-08-29</span><span class="s">auto: WIP着手 - キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-31 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-31 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
