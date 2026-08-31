@@ -1,19 +1,13 @@
 {
-  "generated": "2026-08-31 18:28 UTC",
+  "generated": "2026-08-31 18:31 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 16,
-    "done": 148
+    "done": 149
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く",
-      "worker": "engineer",
-      "accept": "(2026-08-31監査、engineer発見) `src/PauseMenu.cs:6`は「ゲームプレイ画面でだけ開く」と宣言するが、`CanOpenHere()`(`src/PauseMenu.cs:87-95`)の除外対象は`TitleMenu/Settings/Credits/Prologue/Final/Epilogue/Training`のみでHub/Shop/DiffSelect/Records/ShopTutorialが漏れている。同ファイル内`RetryEnabled`(`src/PauseMenu.cs:335-346`)は既にこれらを個別除外しており同一クラス内で矛盾。結果Hub/Shop/DiffSelect/RecordsでEscを押すと各画面固有の「戻る」(`Shop.cs:518`,`DiffSelect.cs:206,248`,`Records.cs:64`)より先にPauseMenuの戦闘用オーバーレイが割り込む。`CanOpenHere()`の除外条件に`Hub`/`Shop`/`DiffSelect`/`Records`/`ShopTutorial`を追加し`RetryEnabled`の除外パターンと揃える。修正後、該当画面でEscが各画面固有の「戻る」のみを発火しPauseMenuのオーバーレイ/Escヒントが出ないこと。`dotnet build algo_shoot.sln`で0 Warning/0 Error維持、ステージ中(Stage0/Rei/Akari/Koharu/MinaBattle)のPauseMenu挙動は無変更"
-    },
     {
       "priority": "P2",
       "title": "【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-31) `src/PauseMenu.cs`に共通ヘルパー`IsNonCombatMenuScreen(path)`を新設(`path.Contains(\"Hub\") |  | Contains(\"Shop\") |  | Contains(\"DiffSelect\") |  | Contains(\"Records\")`、ShopTutorialは\"Shop\"部分一致で自動的に含む)。`CanOpenHere()`と`RetryEnabled`の両方がこのヘルパーを参照するよう統一し、重複していた除外ロジックの矛盾を解消。クラス冒頭コメント(`PauseMenu.cs:6`)も実態に合わせて更新。全`.tscn`のファイル名を確認しStage0/Rei/Akari/Koharu/MinaBattle/Training/Prologue/Final/Epilogueの各シーンが`Hub`/`Shop`/`DiffSelect`/`Records`を含まないことを確認済み＝ステージ中の`CanOpenHere()`/`ShowHint`/Esc挙動は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある",
@@ -1018,6 +1018,16 @@
   ],
   "commits": [
     {
+      "hash": "dbe97bd",
+      "date": "2026-08-31",
+      "subject": "auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く"
+    },
+    {
+      "hash": "43eeb60",
+      "date": "2026-08-31",
+      "subject": "auto: 監査で3件をキューに追加"
+    },
+    {
       "hash": "ab90fa9",
       "date": "2026-08-29",
       "subject": "auto: QaPilotにFocus/Dodge/Kindness合成入力を追加"
@@ -1046,16 +1056,6 @@
       "hash": "e04a8a8",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新"
-    },
-    {
-      "hash": "9a147c1",
-      "date": "2026-08-29",
-      "subject": "auto: バックファイアをチュートリアルで一言説明する"
-    },
-    {
-      "hash": "a4b0c39",
-      "date": "2026-08-29",
-      "subject": "auto: WIP着手 - バックファイアをチュートリアルで一言説明する"
     }
   ]
 }

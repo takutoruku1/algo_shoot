@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 148 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 149 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">148</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">149</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">(2026-08-31監査、engineer発見) <code>src/PauseMenu.cs:6</code>は「ゲームプレイ画面でだけ開く」と宣言するが、<code>CanOpenHere()</code>(<code>src/PauseMenu.cs:87-95</code>)の除外対象は<code>TitleMenu/Settings/Credits/Prologue/Final/Epilogue/Training</code>のみでHub/Shop/DiffSelect/Records/ShopTutorialが漏れている。同ファイル内<code>RetryEnabled</code>(<code>src/PauseMenu.cs:335-346</code>)は既にこれらを個別除外しており同一クラス内で矛盾。結果Hub/Shop/DiffSelect/RecordsでEscを押すと各画面固有の「戻る」(<code>Shop.cs:518</code>,<code>DiffSelect.cs:206,248</code>,<code>Records.cs:64</code>)より先にPauseMenuの戦闘用オーバーレイが割り込む。<code>CanOpenHere()</code>の除外条件に<code>Hub</code>/<code>Shop</code>/<code>DiffSelect</code>/<code>Records</code>/<code>ShopTutorial</code>を追加し<code>RetryEnabled</code>の除外パターンと揃える。修正後、該当画面でEscが各画面固有の「戻る」のみを発火しPauseMenuのオーバーレイ/Escヒントが出ないこと。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error維持、ステージ中(Stage0/Rei/Akari/Koharu/MinaBattle)のPauseMenu挙動は無変更</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>src/PauseMenu.cs</code>に共通ヘルパー<code>IsNonCombatMenuScreen(path)</code>を新設(<code>path.Contains(&quot;Hub&quot;) |  | Contains(&quot;Shop&quot;) |  | Contains(&quot;DiffSelect&quot;) |  | Contains(&quot;Records&quot;)</code>、ShopTutorialは&quot;Shop&quot;部分一致で自動的に含む)。<code>CanOpenHere()</code>と<code>RetryEnabled</code>の両方がこのヘルパーを参照するよう統一し、重複していた除外ロジックの矛盾を解消。クラス冒頭コメント(<code>PauseMenu.cs:6</code>)も実態に合わせて更新。全<code>.tscn</code>のファイル名を確認しStage0/Rei/Akari/Koharu/MinaBattle/Training/Prologue/Final/Epilogueの各シーンが<code>Hub</code>/<code>Shop</code>/<code>DiffSelect</code>/<code>Records</code>を含まないことを確認済み＝ステージ中の<code>CanOpenHere()</code>/<code>ShowHint</code>/Esc挙動は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1497,18 +1497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">dbe97bd</span><span>2026-08-31</span><span class="s">auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span></li>
+      <li><span class="h">43eeb60</span><span>2026-08-31</span><span class="s">auto: 監査で3件をキューに追加</span></li>
       <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
       <li><span class="h">badf5a0</span><span>2026-08-29</span><span class="s">auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず</span></li>
       <li><span class="h">1b46607</span><span>2026-08-29</span><span class="s">auto: GameManagerの嘘コメント修正</span></li>
       <li><span class="h">9a75f3a</span><span>2026-08-29</span><span class="s">auto: WIP着手 - GameManagerの嘘コメント修正</span></li>
       <li><span class="h">fdffb96</span><span>2026-08-29</span><span class="s">auto: キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span></li>
       <li><span class="h">e04a8a8</span><span>2026-08-29</span><span class="s">auto: WIP着手 - キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span></li>
-      <li><span class="h">9a147c1</span><span>2026-08-29</span><span class="s">auto: バックファイアをチュートリアルで一言説明する</span></li>
-      <li><span class="h">a4b0c39</span><span>2026-08-29</span><span class="s">auto: WIP着手 - バックファイアをチュートリアルで一言説明する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-31 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-31 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
