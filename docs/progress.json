@@ -1,20 +1,13 @@
 {
-  "generated": "2026-08-31 18:38 UTC",
+  "generated": "2026-08-31 18:40 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 150
+    "done": 151
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置",
-      "worker": "scenario",
-      "accept": "(2026-08-31監査、scenario発見) `docs/キャラ設定_01_少年_改訂版.md:163-167`の「2.最終盤の本音セリフ」「3.PW」「4.3人目(C)の確定」が未決定扱いだが、PWは`src/Epilogue.cs:63-69`で\"stay\"確定、本音セリフは`src/BossMina.cs:64-65`実装済み、3人目は「こはる」に確定(`src/BossKoharu.cs`)。姉妹ファイル`docs/キャラ設定_02_ミナ_改訂版.md:118-121`は同種項目を取り消し線+実装済み注記で正しく更新済みで`01`側だけ未追随。`01`側の該当3項目を`02`と同じ体裁(取り消し線+実装済み注記+該当ファイル:行参照)で更新。項目1(少年の本名)のみ意図的に未決定のまま維持"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -115,6 +108,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-31) `docs/キャラ設定_01_少年_改訂版.md:163-167`の項目2〜4を`キャラ設定_02_ミナ_改訂版.md`と同じ体裁(取り消し線+実装済み注記+ファイル:行)に更新。本音セリフ=`src/BossMina.cs:64-65`確定、PW=`src/Epilogue.cs:63-69`で\"stay\"確定、3人目=`src/BossKoharu.cs`でこはるに確定。項目1(少年の本名)は指示通り未決定のまま維持。ドキュメントのみの変更、src/未変更"
+    },
     {
       "priority": "P2",
       "title": "【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾",
@@ -1018,6 +1017,16 @@
   ],
   "commits": [
     {
+      "hash": "aa4d426",
+      "date": "2026-08-31",
+      "subject": "auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置"
+    },
+    {
+      "hash": "fe0ada9",
+      "date": "2026-08-31",
+      "subject": "auto: 【MASTER】設定資料統合版.mdの確定事項サマリ自己矛盾を修正"
+    },
+    {
       "hash": "cc9e3c7",
       "date": "2026-08-31",
       "subject": "auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾"
@@ -1046,16 +1055,6 @@
       "hash": "badf5a0",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず"
-    },
-    {
-      "hash": "1b46607",
-      "date": "2026-08-29",
-      "subject": "auto: GameManagerの嘘コメント修正"
-    },
-    {
-      "hash": "9a75f3a",
-      "date": "2026-08-29",
-      "subject": "auto: WIP着手 - GameManagerの嘘コメント修正"
     }
   ]
 }

@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 150 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 151 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">150</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">151</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">(2026-08-31監査、scenario発見) <code>docs/キャラ設定_01_少年_改訂版.md:163-167</code>の「2.最終盤の本音セリフ」「3.PW」「4.3人目(C)の確定」が未決定扱いだが、PWは<code>src/Epilogue.cs:63-69</code>で&quot;stay&quot;確定、本音セリフは<code>src/BossMina.cs:64-65</code>実装済み、3人目は「こはる」に確定(<code>src/BossKoharu.cs</code>)。姉妹ファイル<code>docs/キャラ設定_02_ミナ_改訂版.md:118-121</code>は同種項目を取り消し線+実装済み注記で正しく更新済みで<code>01</code>側だけ未追随。<code>01</code>側の該当3項目を<code>02</code>と同じ体裁(取り消し線+実装済み注記+該当ファイル:行参照)で更新。項目1(少年の本名)のみ意図的に未決定のまま維持</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>docs/キャラ設定_01_少年_改訂版.md:163-167</code>の項目2〜4を<code>キャラ設定_02_ミナ_改訂版.md</code>と同じ体裁(取り消し線+実装済み注記+ファイル:行)に更新。本音セリフ=<code>src/BossMina.cs:64-65</code>確定、PW=<code>src/Epilogue.cs:63-69</code>で&quot;stay&quot;確定、3人目=<code>src/BossKoharu.cs</code>でこはるに確定。項目1(少年の本名)は指示通り未決定のまま維持。ドキュメントのみの変更、src/未変更</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1497,18 +1497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">aa4d426</span><span>2026-08-31</span><span class="s">auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span></li>
+      <li><span class="h">fe0ada9</span><span>2026-08-31</span><span class="s">auto: 【MASTER】設定資料統合版.mdの確定事項サマリ自己矛盾を修正</span></li>
       <li><span class="h">cc9e3c7</span><span>2026-08-31</span><span class="s">auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span></li>
       <li><span class="h">8d39877</span><span>2026-08-31</span><span class="s">auto: PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開くのを修正</span></li>
       <li><span class="h">dbe97bd</span><span>2026-08-31</span><span class="s">auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span></li>
       <li><span class="h">43eeb60</span><span>2026-08-31</span><span class="s">auto: 監査で3件をキューに追加</span></li>
       <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
       <li><span class="h">badf5a0</span><span>2026-08-29</span><span class="s">auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず</span></li>
-      <li><span class="h">1b46607</span><span>2026-08-29</span><span class="s">auto: GameManagerの嘘コメント修正</span></li>
-      <li><span class="h">9a75f3a</span><span>2026-08-29</span><span class="s">auto: WIP着手 - GameManagerの嘘コメント修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-31 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-31 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
