@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 148 / 対象 148 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 148 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">148</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,31 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(2026-08-31監査、engineer発見) <code>src/PauseMenu.cs:6</code>は「ゲームプレイ画面でだけ開く」と宣言するが、<code>CanOpenHere()</code>(<code>src/PauseMenu.cs:87-95</code>)の除外対象は<code>TitleMenu/Settings/Credits/Prologue/Final/Epilogue/Training</code>のみでHub/Shop/DiffSelect/Records/ShopTutorialが漏れている。同ファイル内<code>RetryEnabled</code>(<code>src/PauseMenu.cs:335-346</code>)は既にこれらを個別除外しており同一クラス内で矛盾。結果Hub/Shop/DiffSelect/RecordsでEscを押すと各画面固有の「戻る」(<code>Shop.cs:518</code>,<code>DiffSelect.cs:206,248</code>,<code>Records.cs:64</code>)より先にPauseMenuの戦闘用オーバーレイが割り込む。<code>CanOpenHere()</code>の除外条件に<code>Hub</code>/<code>Shop</code>/<code>DiffSelect</code>/<code>Records</code>/<code>ShopTutorial</code>を追加し<code>RetryEnabled</code>の除外パターンと揃える。修正後、該当画面でEscが各画面固有の「戻る」のみを発火しPauseMenuのオーバーレイ/Escヒントが出ないこと。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error維持、ステージ中(Stage0/Rei/Akari/Koharu/MinaBattle)のPauseMenu挙動は無変更</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(2026-08-31監査、scenario発見) <code>docs/【MASTER】設定資料統合版.md:21</code>「順番はライバル→あかり→妹（ライバルは未確定）」が、同ファイル<code>:727</code>でレイ確定済み・<code>:850</code>のPART6未確定リストも実装済み(<code>src/BossRei.cs</code>,<code>src/BossKoharu.cs</code>,<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:220</code>「救う順番：レイ→あかり→こはる」)と矛盾。「このマスターファイルのみを正とする」(<code>:5</code>)唯一の正典の要約が自己矛盾している。<code>:21</code>を「順番はレイ→あかり→こはる（妹）」に更新し「（ライバルは未確定）」を削除。<code>:850-857</code>のPART6リスト(ライバル確定/妹詳細設計/少年本名/PW/ミナ旧セリフ改稿/各ステージ本書き)を、既に確定・実装済みの項目は取り消し線または削除で整理(少年の本名のみ意図的に未決定のまま残す)。<code>:572</code>の同型記述も同時に確認・整合</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(2026-08-31監査、scenario発見) <code>docs/キャラ設定_01_少年_改訂版.md:163-167</code>の「2.最終盤の本音セリフ」「3.PW」「4.3人目(C)の確定」が未決定扱いだが、PWは<code>src/Epilogue.cs:63-69</code>で&quot;stay&quot;確定、本音セリフは<code>src/BossMina.cs:64-65</code>実装済み、3人目は「こはる」に確定(<code>src/BossKoharu.cs</code>)。姉妹ファイル<code>docs/キャラ設定_02_ミナ_改訂版.md:118-121</code>は同種項目を取り消し線+実装済み注記で正しく更新済みで<code>01</code>側だけ未追随。<code>01</code>側の該当3項目を<code>02</code>と同じ体裁(取り消し線+実装済み注記+該当ファイル:行参照)で更新。項目1(少年の本名)のみ意図的に未決定のまま維持</p>
+      </li></ol>
   </section>
 
   <section>
@@ -1473,6 +1497,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
       <li><span class="h">badf5a0</span><span>2026-08-29</span><span class="s">auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず</span></li>
       <li><span class="h">1b46607</span><span>2026-08-29</span><span class="s">auto: GameManagerの嘘コメント修正</span></li>
       <li><span class="h">9a75f3a</span><span>2026-08-29</span><span class="s">auto: WIP着手 - GameManagerの嘘コメント修正</span></li>
@@ -1480,11 +1505,10 @@
       <li><span class="h">e04a8a8</span><span>2026-08-29</span><span class="s">auto: WIP着手 - キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span></li>
       <li><span class="h">9a147c1</span><span>2026-08-29</span><span class="s">auto: バックファイアをチュートリアルで一言説明する</span></li>
       <li><span class="h">a4b0c39</span><span>2026-08-29</span><span class="s">auto: WIP着手 - バックファイアをチュートリアルで一言説明する</span></li>
-      <li><span class="h">73e8b6d</span><span>2026-08-29</span><span class="s">auto: 旧コンセプト文書に非正典バナーを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-29 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-08-31 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

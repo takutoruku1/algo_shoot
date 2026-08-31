@@ -1,13 +1,32 @@
 {
-  "generated": "2026-08-29 18:42 UTC",
+  "generated": "2026-08-31 18:28 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 3,
     "wip": 0,
     "blocked": 16,
     "done": 148
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 98,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く",
+      "worker": "engineer",
+      "accept": "(2026-08-31監査、engineer発見) `src/PauseMenu.cs:6`は「ゲームプレイ画面でだけ開く」と宣言するが、`CanOpenHere()`(`src/PauseMenu.cs:87-95`)の除外対象は`TitleMenu/Settings/Credits/Prologue/Final/Epilogue/Training`のみでHub/Shop/DiffSelect/Records/ShopTutorialが漏れている。同ファイル内`RetryEnabled`(`src/PauseMenu.cs:335-346`)は既にこれらを個別除外しており同一クラス内で矛盾。結果Hub/Shop/DiffSelect/RecordsでEscを押すと各画面固有の「戻る」(`Shop.cs:518`,`DiffSelect.cs:206,248`,`Records.cs:64`)より先にPauseMenuの戦闘用オーバーレイが割り込む。`CanOpenHere()`の除外条件に`Hub`/`Shop`/`DiffSelect`/`Records`/`ShopTutorial`を追加し`RetryEnabled`の除外パターンと揃える。修正後、該当画面でEscが各画面固有の「戻る」のみを発火しPauseMenuのオーバーレイ/Escヒントが出ないこと。`dotnet build algo_shoot.sln`で0 Warning/0 Error維持、ステージ中(Stage0/Rei/Akari/Koharu/MinaBattle)のPauseMenu挙動は無変更"
+    },
+    {
+      "priority": "P2",
+      "title": "【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾",
+      "worker": "scenario",
+      "accept": "(2026-08-31監査、scenario発見) `docs/【MASTER】設定資料統合版.md:21`「順番はライバル→あかり→妹（ライバルは未確定）」が、同ファイル`:727`でレイ確定済み・`:850`のPART6未確定リストも実装済み(`src/BossRei.cs`,`src/BossKoharu.cs`,`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:220`「救う順番：レイ→あかり→こはる」)と矛盾。「このマスターファイルのみを正とする」(`:5`)唯一の正典の要約が自己矛盾している。`:21`を「順番はレイ→あかり→こはる（妹）」に更新し「（ライバルは未確定）」を削除。`:850-857`のPART6リスト(ライバル確定/妹詳細設計/少年本名/PW/ミナ旧セリフ改稿/各ステージ本書き)を、既に確定・実装済みの項目は取り消し線または削除で整理(少年の本名のみ意図的に未決定のまま残す)。`:572`の同型記述も同時に確認・整合"
+    },
+    {
+      "priority": "P3",
+      "title": "キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置",
+      "worker": "scenario",
+      "accept": "(2026-08-31監査、scenario発見) `docs/キャラ設定_01_少年_改訂版.md:163-167`の「2.最終盤の本音セリフ」「3.PW」「4.3人目(C)の確定」が未決定扱いだが、PWは`src/Epilogue.cs:63-69`で\"stay\"確定、本音セリフは`src/BossMina.cs:64-65`実装済み、3人目は「こはる」に確定(`src/BossKoharu.cs`)。姉妹ファイル`docs/キャラ設定_02_ミナ_改訂版.md:118-121`は同種項目を取り消し線+実装済み注記で正しく更新済みで`01`側だけ未追随。`01`側の該当3項目を`02`と同じ体裁(取り消し線+実装済み注記+該当ファイル:行参照)で更新。項目1(少年の本名)のみ意図的に未決定のまま維持"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -999,6 +1018,11 @@
   ],
   "commits": [
     {
+      "hash": "ab90fa9",
+      "date": "2026-08-29",
+      "subject": "auto: QaPilotにFocus/Dodge/Kindness合成入力を追加"
+    },
+    {
       "hash": "badf5a0",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず"
@@ -1032,11 +1056,6 @@
       "hash": "a4b0c39",
       "date": "2026-08-29",
       "subject": "auto: WIP着手 - バックファイアをチュートリアルで一言説明する"
-    },
-    {
-      "hash": "73e8b6d",
-      "date": "2026-08-29",
-      "subject": "auto: 旧コンセプト文書に非正典バナーを追加"
     }
   ]
 }
