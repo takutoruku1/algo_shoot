@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 151 / 対象 151 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 151 / 対象 154 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">151</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,31 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">やさしさ全開トーストとモード切替トーストの表示重なり</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">全開発動条件とモード切替がほぼ同時に起きると、DrawShotModeToast(<code>src/Hud.cs:1183</code>, x=640-w/2,y=150)とDrawOverloadToast(<code>src/Hud.cs:1261</code>, 同座標)が同一矩形に重描画される（両トーストは独立タイマー_shotModeToast/_overloadTimerで発火ガード無し、両方&gt;0なら<code>src/Hud.cs:753-754</code>で両方描画）。OverloadToast発火時(<code>_game.JustOverloaded</code>, <code>src/Hud.cs:328</code>)に_shotModeToastを即0にする、またはOverloadToastのyを150から別段（例:100）へずらして縦積みにすることで解消する</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">TryDodgeガードのコメント行番号ズレ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/Player.cs:264</code>のコメントが「TryDodgeの実行可否ガード(1行下・986行目相当)」を指すが、実際の同条件ガード(<code>if (_dodgeCd &gt; 0f |  | _dodgeTimer &gt; 0f |  | _gameOver) return;</code>)は現在<code>src/Player.cs:999</code>にずれている（AccelChargeCap関連コード追加で+13行）。ロジックの食い違いは無いが読者が誤誘導されるため、コメントの行番号参照を999行目へ更新する（または脆い行番号参照自体をやめ「TryDodge()のガード条件と同期」とのみ記す）</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">LUNATIC解禁コメントの行番号ズレ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/DiffSelect.cs:339</code>のコメントが「ショップ側はShop.cs:1058で元から定数参照」と言うが、<code>src/Shop.cs:1058</code>は現在無関係な<code>DrawColoredPolygon</code>呼び出しになっている。実際に<code>GameManager.LunaticFollowerReq</code>を参照しているgoal文字列生成部分は<code>src/Shop.cs:1167</code>。値の食い違いは無いが参照先の誤りなので、コメントの行番号を<code>src/Shop.cs:1167</code>へ更新する</p>
+      </li></ol>
   </section>
 
   <section>
@@ -1497,6 +1521,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8fd9cde</span><span>2026-08-31</span><span class="s">auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新</span></li>
       <li><span class="h">aa4d426</span><span>2026-08-31</span><span class="s">auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span></li>
       <li><span class="h">fe0ada9</span><span>2026-08-31</span><span class="s">auto: 【MASTER】設定資料統合版.mdの確定事項サマリ自己矛盾を修正</span></li>
       <li><span class="h">cc9e3c7</span><span>2026-08-31</span><span class="s">auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span></li>
@@ -1504,11 +1529,10 @@
       <li><span class="h">dbe97bd</span><span>2026-08-31</span><span class="s">auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span></li>
       <li><span class="h">43eeb60</span><span>2026-08-31</span><span class="s">auto: 監査で3件をキューに追加</span></li>
       <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
-      <li><span class="h">badf5a0</span><span>2026-08-29</span><span class="s">auto: WIP着手 - QaPilotがFocus/Dodge/Kindnessキーを送出せず</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-31 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-01 18:25 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
