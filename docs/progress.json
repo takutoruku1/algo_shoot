@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-01 18:25 UTC",
+  "generated": "2026-09-01 18:27 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 16,
-    "done": 151
+    "done": 152
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "やさしさ全開トーストとモード切替トーストの表示重なり",
-      "worker": "engineer",
-      "accept": "全開発動条件とモード切替がほぼ同時に起きると、DrawShotModeToast(`src/Hud.cs:1183`, x=640-w/2,y=150)とDrawOverloadToast(`src/Hud.cs:1261`, 同座標)が同一矩形に重描画される（両トーストは独立タイマー_shotModeToast/_overloadTimerで発火ガード無し、両方>0なら`src/Hud.cs:753-754`で両方描画）。OverloadToast発火時(`_game.JustOverloaded`, `src/Hud.cs:328`)に_shotModeToastを即0にする、またはOverloadToastのyを150から別段（例:100）へずらして縦積みにすることで解消する"
-    },
     {
       "priority": "P3",
       "title": "TryDodgeガードのコメント行番号ズレ",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "やさしさ全開トーストとモード切替トーストの表示重なり",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-01) `src/Hud.cs:328`で全開発動検知時(`_game?.JustOverloaded`)に`_overloadToast = 1.4`と同時に`_shotModeToast = 0`をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置",
@@ -1036,6 +1036,16 @@
   ],
   "commits": [
     {
+      "hash": "8c10440",
+      "date": "2026-09-01",
+      "subject": "auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり"
+    },
+    {
+      "hash": "3db29b7",
+      "date": "2026-09-01",
+      "subject": "auto: 監査で3件をキューに追加"
+    },
+    {
       "hash": "8fd9cde",
       "date": "2026-08-31",
       "subject": "auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新"
@@ -1064,16 +1074,6 @@
       "hash": "dbe97bd",
       "date": "2026-08-31",
       "subject": "auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く"
-    },
-    {
-      "hash": "43eeb60",
-      "date": "2026-08-31",
-      "subject": "auto: 監査で3件をキューに追加"
-    },
-    {
-      "hash": "ab90fa9",
-      "date": "2026-08-29",
-      "subject": "auto: QaPilotにFocus/Dodge/Kindness合成入力を追加"
     }
   ]
 }

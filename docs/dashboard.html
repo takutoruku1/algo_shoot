@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 151 / 対象 154 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 152 / 対象 154 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">151</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">152</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">やさしさ全開トーストとモード切替トーストの表示重なり</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">全開発動条件とモード切替がほぼ同時に起きると、DrawShotModeToast(<code>src/Hud.cs:1183</code>, x=640-w/2,y=150)とDrawOverloadToast(<code>src/Hud.cs:1261</code>, 同座標)が同一矩形に重描画される（両トーストは独立タイマー_shotModeToast/_overloadTimerで発火ガード無し、両方&gt;0なら<code>src/Hud.cs:753-754</code>で両方描画）。OverloadToast発火時(<code>_game.JustOverloaded</code>, <code>src/Hud.cs:328</code>)に_shotModeToastを即0にする、またはOverloadToastのyを150から別段（例:100）へずらして縦積みにすることで解消する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">やさしさ全開トーストとモード切替トーストの表示重なり</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-01) <code>src/Hud.cs:328</code>で全開発動検知時(<code>_game?.JustOverloaded</code>)に<code>_overloadToast = 1.4</code>と同時に<code>_shotModeToast = 0</code>をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1521,18 +1521,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8c10440</span><span>2026-09-01</span><span class="s">auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり</span></li>
+      <li><span class="h">3db29b7</span><span>2026-09-01</span><span class="s">auto: 監査で3件をキューに追加</span></li>
       <li><span class="h">8fd9cde</span><span>2026-08-31</span><span class="s">auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新</span></li>
       <li><span class="h">aa4d426</span><span>2026-08-31</span><span class="s">auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span></li>
       <li><span class="h">fe0ada9</span><span>2026-08-31</span><span class="s">auto: 【MASTER】設定資料統合版.mdの確定事項サマリ自己矛盾を修正</span></li>
       <li><span class="h">cc9e3c7</span><span>2026-08-31</span><span class="s">auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span></li>
       <li><span class="h">8d39877</span><span>2026-08-31</span><span class="s">auto: PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開くのを修正</span></li>
       <li><span class="h">dbe97bd</span><span>2026-08-31</span><span class="s">auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span></li>
-      <li><span class="h">43eeb60</span><span>2026-08-31</span><span class="s">auto: 監査で3件をキューに追加</span></li>
-      <li><span class="h">ab90fa9</span><span>2026-08-29</span><span class="s">auto: QaPilotにFocus/Dodge/Kindness合成入力を追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-01 18:25 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-01 18:27 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
