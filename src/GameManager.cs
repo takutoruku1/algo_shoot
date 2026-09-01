@@ -312,6 +312,11 @@ public partial class GameManager : Node
     public bool Burning;          // 炎上発生済みで未消費（次のダイブで適用）
     public bool BurningThisRun;   // 現在のステージrunが炎上下か（Player/Hudが参照）
     private bool _burnHappened;    // 一度きりのストーリーイベント済みか
+
+    // ─── 会話選択（層2プロト）───
+    //   STAGE3 MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
+    //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
+    public bool PressedTheQuestion;
     public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "akari" && !_burnHappened;
     public void TriggerBurn() { if (!_burnHappened) { Burning = true; _burnHappened = true; } }
 
@@ -838,6 +843,8 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
+        // 会話選択（層2プロト）：STAGE3 MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
+        data["pressedQ"] = PressedTheQuestion;
         // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
         var ids = new Godot.Collections.Array();
         foreach (var key in _idleDialogSeen)
@@ -909,6 +916,8 @@ public partial class GameManager : Node
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
+        // 会話選択（層2プロト）の復元（キー無し＝旧セーブは false＝現行台詞＝後方互換）。
+        PressedTheQuestion = data.ContainsKey("pressedQ") && data["pressedQ"].AsBool();
         // ハブ再訪小話の既読キー復元（キー無し＝旧セーブは空＝後方互換）。
         _idleDialogSeen.Clear();
         if (data.ContainsKey("idleDialogSeen"))
@@ -939,6 +948,7 @@ public partial class GameManager : Node
         SelectedEntry = StageEntry.Start;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         _burnHappened = false; Burning = false; BurningThisRun = false;
+        PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
@@ -1081,11 +1091,18 @@ public partial class GameManager : Node
         // Stage は入口を読んだら消費する（リトライが前回の入口を引きずらないため）ので、恒久フラグを別に持ち、
         //   毎ステージの _Ready で入口を貼り直す＝「毎回ボスから」というデバッグ用途を保つ。
         foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; break; }
+        {
+            if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
+            if (a == "--choice") DebugChoiceNow = true;
+        }
     }
 
     // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
     public bool DebugAlwaysBoss { get; private set; }
+
+    // [一時/デバッグ] --choice : こはる面のボス戦中割り込み（会話2択）を HP 条件を待たずに即発火させる。
+    // 選択シーンの確認専用。通常プレイ・配布ビルドでは付けない前提。
+    public bool DebugChoiceNow { get; private set; }
 
     // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。
     private void SeedDebugRecords()

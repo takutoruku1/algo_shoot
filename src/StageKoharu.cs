@@ -156,7 +156,10 @@ public partial class StageKoharu : Node
     // 承の上り坂・頂点（優先度1・3）＝【ミナがほぼ核心に触れ、少年が初めて“明確に”拒絶して蓋をする】。
     //   台所の静けさの中で、ミナは少年自身に問いを向ける。少年はこれまでの逸らし（はぐらかし）ではなく、
     //   はっきり遮る＝隠蔽の意志を見せる。核心語（死・遺された声）は言わせない。手がかり＝ノイズだけ残し、Final の落差へ。
-    private static readonly (int who, string text, string face)[] MidStory =
+    // 会話選択（層2プロト・docs/20260831/会話選択_層2_プロト仕様.md）：
+    //   旧 MidStory を「前半（Pre）→ 2択 → 分岐A/B → 合流（Post）」の収束型に分割。
+    //   旧8行目のミナ「…………。」は削除ではなく MidStoryB 先頭へ移設（＝Bが現行の正典挙動）。
+    private static readonly (int who, string text, string face)[] MidStoryPre =
     {
         (1, "……ご主人様。弾の雨がやんでも——聞こえます。トン、トン、と。あの子、まだ、刻んでいるんです。", "res://char/mina_worried.png"),  // 戦闘の静止＝台所の音だけが残る
         (1, "完璧に作れば、いなくならない。……そう祈りながら、こちらへ撃っているんですね。", "res://char/mina_worried.png"),
@@ -164,8 +167,25 @@ public partial class StageKoharu : Node
         (1, "……ご主人様も、同じ顔をしています。", "res://char/mina_doubt.png"),  // 核心に近づく：少年とこはるが同じ“否認”の顔をしている
         (1, "ねえ。あなたは——いったい、誰を、いなくしたんですか。", "res://char/mina_doubt.png"), // ほぼ核心。ここが上り坂の頂点
         (0, "————やめろ、ミナ。", SAfraid),                                 // 初めての“明確な拒絶”（これまでの逸らしと違う＝隠蔽の意志）
-        (0, "……頼む。それだけは、聞かないでくれ。", SGentle),                 // 懇願で蓋をする（核心語は言わせない）
-        (1, "…………。", "res://char/mina_doubt.png"),                        // 引き下がる。手がかりだけ残す
+        (0, "……頼む。それだけは、聞かないでくれ。", SGentle),                 // 懇願で蓋をする（核心語は言わせない）→ この直後に2択
+    };
+    // MidStoryA（選択A：踏み込む）。真相・核心語は出さない。拒絶＝沈黙＋針飛びのみ。
+    private static readonly (int who, string text, string face)[] MidStoryA =
+    {
+        (1, "……いいえ。もういちど、だけ。——あなたは、誰を、いなくしたんですか。", "res://char/mina_doubt.png"),   // 同じ問いの反復（踏み込み）
+        (0, "————。", SAfraid),                                                                                     // 答えの沈黙（言わせない）
+        (0, "……頼む、から。それを聞かれたら、ぼくは——……頼む、から。それを、聞かれたら——", SAfraid),                 // 針飛び＝同じ言葉が繰り返され、途切れる（ノイズが濃くなる。真相は言わない）
+        (1, "————もう、言いません。……ですから。そんな声で、頼まないで、ください。", "res://char/mina_worried.png"),   // ミナが引く（声の異常を"説明"せず反応だけ）
+    };
+    // MidStoryB（選択B：ひきさがる）。1行目は旧 MidStory 8行目の移設＝正典挙動。
+    private static readonly (int who, string text, string face)[] MidStoryB =
+    {
+        (1, "…………。", "res://char/mina_doubt.png"),                                                                // 言葉を呑む（現行行そのまま）
+        (1, "……ずるい方。そんな声を出せば、わたくしが引くと、ご存じなんですね。", "res://char/mina_worried.png"),      // 抑えた一言。"分かっていて、あえて聞かない"優しさ
+    };
+    // 合流の共通末尾（A/B どちらからもここへ収束して戦闘再開）。
+    private static readonly (int who, string text, string face)[] MidStoryPost =
+    {
         (0, "……その祈りは、ちゃんと届いてたって。それだけ、伝えるんだ。もうすぐ、そこまで来てる。", SGentle), // ボスへ向き直る（話を戻す）
         (1, "……ご主人様。お声に、また、ノイズが。", "res://char/mina_doubt.png"), // 予兆の手がかり（説明しない）。Final「返事がない」の布石
     };
@@ -252,8 +272,14 @@ public partial class StageKoharu : Node
             case 11: Step_BossWait(delta); break;         // ボス戦（HP半分で 15 へ割込み）
             case 12: Step_Clear(delta); break;
             case 13: Step_Transition(); break;
-            case 15: Step_Lines(delta, MidStory); break;  // ★ボス戦中割込み（完了で Advance→16）
-            case 16: SetQuietVeil(false); _step = 11; break; // 戦闘再開（BossWait へ復帰。S3: 静けさの膜をそっと明ける）
+            // ★ボス戦中割込み（会話選択・層2プロト）：前半 → 2択 → 分岐A/B → 合流 → 戦闘再開。
+            //   15/17 は Step_LinesHold（最終行のバブルを閉じない変種）＝Hud.BubblePaused を切らさず
+            //   弾・敵の停止を選択UI表示中〜合流まで途切れさせない。
+            case 15: Step_LinesHold(delta, MidStoryPre); break;   // 前半（完了で Advance→16。バブル保持）
+            case 16: Step_MidChoice(delta); break;                // 2択（決定で Advance→17）
+            case 17: Step_LinesHold(delta, _midChoseA ? MidStoryA : MidStoryB); break; // 分岐（完了で Advance→18。バブル保持）
+            case 18: Step_Lines(delta, MidStoryPost); break;      // 合流の末尾（完了で Advance→19。ここでバブルを閉じる）
+            case 19: SetQuietVeil(false); _step = 11; break;      // 戦闘再開（BossWait へ復帰。S3: 静けさの膜をそっと明ける）
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一。
         // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
@@ -312,6 +338,70 @@ public partial class StageKoharu : Node
             _ => "res://char/mina_face.png",
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "こはる");
+    }
+
+    // Step_Lines の「最終行のバブルを閉じない」変種（会話選択・層2プロト用）。
+    //   完了時に HoldBubble/HideBubble を触らず Advance だけする＝バブルが最終行のまま残り、
+    //   Hud.BubblePaused（弾・敵の停止）が次のステップまで途切れない。後続の Step_Lines / ShowLine が
+    //   バブル内容を差し替えるので閉じ処理は不要。他ステージへ2択を横展開するときもこの組で使う。
+    private void Step_LinesHold(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _introLine = 0;
+            _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
+            Hud.HoldBubble = true;
+            ShowLine(lines);
+        }
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
+        {
+            _lineHold = 0;
+            _introLine++;
+            if (_introLine >= lines.Length)
+            {
+                Advance();           // バブルは保持したまま（HoldBubble true 継続）
+                return;
+            }
+            ShowLine(lines);
+        }
+    }
+
+    // ───── ボス戦中割込みの2択（会話選択・層2プロト。docs/20260831/会話選択_層2_プロト仕様.md §2）─────
+    //   Pre 最終行「……頼む。それだけは、聞かないでくれ。」のバブルを保持したまま（＝BubblePaused 継続で
+    //   弾・敵は停止のまま）ChoiceOverlay を重ねる。デフォルトカーソルは B（正典側）。Xキャンセル無し。
+    //   選択A確定＝疑いフラグ PressedTheQuestion を分岐再生の開始前に記録（仕様§8）。
+    // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は BubblePaused 中 Z をパルスし続ける
+    //   （QaPilot.cs DriveShootAndAdvance / DemoPilot.cs 同名）ため、既定カーソルBのまま1パルスで即決される
+    //   ＝ここで詰まらない（QaPilot のドリフトで ↑↓ が入りAに動いても、A/B とも MidStoryPost へ収束する）。
+    //   R長押しリトライ（KoharuRoot・Key.R ポーリング）は独立に効き、ポーズはツリーポーズで本ステップごと止まる。
+    private ChoiceOverlay? _midChoice;
+    private bool _midChoseA;
+    private void Step_MidChoice(double delta)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _midChoice = ChoiceOverlay.Show(Hud, new[] { "もういちど、聞く", "ひきさがる" }, defaultSel: 1); // 0=A / 1=B（既定=B＝正典側）
+        }
+        if (_midChoice == null || !_midChoice.Decided) return;
+        _midChoseA = _midChoice.Selected == 0;
+        _midChoice.QueueFree();
+        _midChoice = null;
+        if (_midChoseA)
+        {
+            // 選択A「もういちど、聞く」＝もう一度踏み込んだ。下流2場面（Clear の1行／Epilogue の1行）の変種に使う。
+            var game = GetNodeOrNull<GameManager>("/root/Game");
+            if (game != null) game.PressedTheQuestion = true;
+        }
+        Advance(); // → 17: 分岐A/B
     }
 
     // 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化でチラ見せへ。
@@ -475,10 +565,12 @@ public partial class StageKoharu : Node
         if (!_midStoryShown && !Hud.BubblePaused)
         {
             float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
-            if (frac <= 0.5f && frac >= 0.2f)
+            // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりの発火は _midStoryShown が保証）
+            bool debugNow = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceNow == true;
+            if ((frac <= 0.5f && frac >= 0.2f) || debugNow)
             {
                 _midStoryShown = true;
-                _step = 15;            // → case 15: Step_Lines(MidStory) → Advance()で16 → 11へ復帰
+                _step = 15;            // → case 15: MidStoryPre → 16: 2択 → 17: 分岐A/B → 18: 合流 → 19 → 11へ復帰
                 _stepStarted = false;
                 SetQuietVeil(true);    // S3: 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
             }
@@ -515,6 +607,9 @@ public partial class StageKoharu : Node
     }
 
     private bool _clearBannerShown;
+    // クリア会話の実体。static readonly の Clear を土台に、初回だけ選択フラグで1行を差し替えて作る
+    //  （会話選択・層2プロト §6。他ステージへ横展開するときも「複製→該当行だけ差し替え」のこの形を使う）。
+    private (int who, string text, string face)[]? _clearLines;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -527,8 +622,15 @@ public partial class StageKoharu : Node
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            // 下流変種①：MidStory で A「もういちど、聞く」を選んでいたら、引く理由の1行だけ差し替える
+            //  （B・旧セーブ（キー欠落=false）は現行のまま＝後方互換）。行は本文一致で探す＝並び替えに強い。
+            _clearLines = (((int who, string text, string face)[])Clear.Clone());
+            if (game?.PressedTheQuestion == true)
+                for (int i = 0; i < _clearLines.Length; i++)
+                    if (_clearLines[i].text == "……もう、聞きません。あなたが、聞くなと言ったので。")
+                        _clearLines[i] = (1, "……もう、聞きません。二度、聞きましたから。……あの声を、三度は、聞きたくありません。", "res://char/mina_doubt.png");
         }
-        Step_Lines(delta, Clear);
+        Step_Lines(delta, _clearLines!);
     }
 
     private bool _clearing;
