@@ -28,11 +28,12 @@
 
 ## TODO
 
-- [ ] (P3) やさしさ全開トーストとモード切替トーストの表示重なり | engineer | 全開発動条件とモード切替がほぼ同時に起きると、DrawShotModeToast(`src/Hud.cs:1183`, x=640-w/2,y=150)とDrawOverloadToast(`src/Hud.cs:1261`, 同座標)が同一矩形に重描画される（両トーストは独立タイマー_shotModeToast/_overloadTimerで発火ガード無し、両方>0なら`src/Hud.cs:753-754`で両方描画）。OverloadToast発火時(`_game.JustOverloaded`, `src/Hud.cs:328`)に_shotModeToastを即0にする、またはOverloadToastのyを150から別段（例:100）へずらして縦積みにすることで解消する
 - [ ] (P3) TryDodgeガードのコメント行番号ズレ | engineer | `src/Player.cs:264`のコメントが「TryDodgeの実行可否ガード(1行下・986行目相当)」を指すが、実際の同条件ガード(`if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;`)は現在`src/Player.cs:999`にずれている（AccelChargeCap関連コード追加で+13行）。ロジックの食い違いは無いが読者が誤誘導されるため、コメントの行番号参照を999行目へ更新する（または脆い行番号参照自体をやめ「TryDodge()のガード条件と同期」とのみ記す）
 - [ ] (P3) LUNATIC解禁コメントの行番号ズレ | engineer | `src/DiffSelect.cs:339`のコメントが「ショップ側はShop.cs:1058で元から定数参照」と言うが、`src/Shop.cs:1058`は現在無関係な`DrawColoredPolygon`呼び出しになっている。実際に`GameManager.LunaticFollowerReq`を参照しているgoal文字列生成部分は`src/Shop.cs:1167`。値の食い違いは無いが参照先の誤りなので、コメントの行番号を`src/Shop.cs:1167`へ更新する
 
 ## WIP
+
+- [ ] (P3) やさしさ全開トーストとモード切替トーストの表示重なり | engineer | 全開発動条件とモード切替がほぼ同時に起きると、DrawShotModeToast(`src/Hud.cs:1183`, x=640-w/2,y=150)とDrawOverloadToast(`src/Hud.cs:1261`, 同座標)が同一矩形に重描画される（両トーストは独立タイマー_shotModeToast/_overloadTimerで発火ガード無し、両方>0なら`src/Hud.cs:753-754`で両方描画）。OverloadToast発火時(`_game.JustOverloaded`, `src/Hud.cs:328`)に_shotModeToastを即0にする、またはOverloadToastのyを150から別段（例:100）へずらして縦積みにすることで解消する
 
 ## BLOCKED
 
