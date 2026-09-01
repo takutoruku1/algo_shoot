@@ -336,7 +336,7 @@ public partial class DiffSelect : Node2D
         {
             UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), "★ " + tr.Name, UiKit.FontHeading, UiKit.Text4);
             // 解禁条件は GameManager の定数から引く（旧実装は 300 とハードコードされており、実際の解禁値 200 と
-            //   食い違っていた＝プレイヤーが「まだ100足りない」と誤解する。ショップ側 Shop.cs:1058 は元から定数参照）。
+            //   食い違っていた＝プレイヤーが「まだ100足りない」と誤解する。ショップ側 Shop.cs:1167 は元から定数参照）。
             UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4", UiKit.FontBody, UiKit.Mina);
             UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 100, y + h / 2f - 7), "LOCKED", UiKit.FontSmall, UiKit.Text4);
             return;

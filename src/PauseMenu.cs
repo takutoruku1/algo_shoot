@@ -3,7 +3,7 @@ using Godot;
 // PauseMenu : 全画面共通のポーズメニュー（オートロード /root/PauseMenu）。
 //   Esc で開き、ツリーをポーズして「スロット1..3にセーブ / つづける / さいしょからやりなおす / タイトルへ」等を表示する。
 //   セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない。
-//   ゲームプレイ画面でだけ開く（タイトル/設定/カットシーンは除外＝Esc衝突を避ける）。
+//   ゲームプレイ画面でだけ開く（タイトル/設定/カットシーン/Hub/ショップ/難易度選択/記録は除外＝Esc衝突を避ける）。
 //   ゲームプレイ画面では右下に「Esc メニュー」ヒントを常時表示する。
 //   --qa / --demo では無効（自動プレイのポーズ事故を防ぐ）。
 public partial class PauseMenu : CanvasLayer
@@ -84,14 +84,21 @@ public partial class PauseMenu : CanvasLayer
         AddChild(_canvas);
     }
 
-    // ゲームプレイ画面でのみ開く/ヒントを出す。タイトル/設定/カットシーンは除外。
+    // Hub/ショップ/難易度選択/記録＝各画面が独自の「戻る」導線を持つ非戦闘画面。
+    // ここに Esc の戦闘用ポーズが割り込むと各画面固有の戻るより先に発火してしまうため除外する
+    // （ShopTutorial は "Shop" の部分一致で自動的に含まれる）。RetryEnabled と揃えること。
+    private static bool IsNonCombatMenuScreen(string path) =>
+        path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect") || path.Contains("Records");
+
+    // ゲームプレイ画面でのみ開く/ヒントを出す。タイトル/設定/カットシーン/Hub系メニュー画面は除外。
     private bool CanOpenHere()
     {
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
         return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits")
               || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue")
-              || path.Contains("Training")); // トレーニングは試用のみ＝スロットセーブ導線を出さない（本番状態を汚さない）
+              || path.Contains("Training") // トレーニングは試用のみ＝スロットセーブ導線を出さない（本番状態を汚さない）
+              || IsNonCombatMenuScreen(path));
     }
 
     // マウスホイールは押下状態を持たない＝イベントでしか来ない。Pad は static ヘルパでノードではなく
@@ -333,15 +340,16 @@ public partial class PauseMenu : CanvasLayer
     }
 
     // 「さいしょからやりなおす」が意味を持つ画面か＝ステージ系のみ。
-    // Hub/ショップ/難易度選択/記録ではシーン再読込に意味がないためグレーアウトする。
+    // Hub/ショップ/難易度選択/記録ではシーン再読込に意味がないためグレーアウトする
+    // （CanOpenHere() が既にこれらの画面を除外しているため実質ここには来ないが、
+    //   将来 CanOpenHere() 側だけ緩んだ場合の保険として残す＝IsNonCombatMenuScreen で揃える）。
     public bool RetryEnabled
     {
         get
         {
             string path = GetTree().CurrentScene?.SceneFilePath ?? "";
             if (string.IsNullOrEmpty(path) || !CanOpenHere()) return false;
-            return !(path.Contains("Hub") || path.Contains("Shop")
-                  || path.Contains("DiffSelect") || path.Contains("Records"));
+            return !IsNonCombatMenuScreen(path);
         }
     }
 

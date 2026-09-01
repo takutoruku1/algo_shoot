@@ -126,13 +126,13 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 141 / 対象 141 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 154 / 対象 154 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">141</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">154</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
@@ -151,6 +151,110 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">LUNATIC解禁コメントの行番号ズレ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-01) <code>src/DiffSelect.cs:339</code>のコメントが指す参照先を「Shop.cs:1058」から実際に<code>GameManager.LunaticFollowerReq</code>を参照している「Shop.cs:1167」へ修正。ロジック自体の変更なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">TryDodgeガードのコメント行番号ズレ</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-01) <code>src/Player.cs:264</code>のDodgeReadyコメントが指す行番号を「986行目相当」から実際のガード位置「999行目」へ修正。ロジック自体の変更なし。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">やさしさ全開トーストとモード切替トーストの表示重なり</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-01) <code>src/Hud.cs:328</code>で全開発動検知時(<code>_game?.JustOverloaded</code>)に<code>_overloadToast = 1.4</code>と同時に<code>_shotModeToast = 0</code>をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>docs/キャラ設定_01_少年_改訂版.md:163-167</code>の項目2〜4を<code>キャラ設定_02_ミナ_改訂版.md</code>と同じ体裁(取り消し線+実装済み注記+ファイル:行)に更新。本音セリフ=<code>src/BossMina.cs:64-65</code>確定、PW=<code>src/Epilogue.cs:63-69</code>で&quot;stay&quot;確定、3人目=<code>src/BossKoharu.cs</code>でこはるに確定。項目1(少年の本名)は指示通り未決定のまま維持。ドキュメントのみの変更、src/未変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>:21</code>「順番はライバル→あかり→妹（ライバルは未確定）」を「順番はレイ（ライバル）→あかり→こはる（妹）」に修正。PART6未確定リスト(<code>:849-859</code>)・PART2/PART3各所の「未決定」「再検討中」表記(旧<code>:118-125</code>,<code>:214-217</code>,<code>:274-280</code>,<code>:438</code>,<code>:443-449</code>,<code>:530</code>,<code>:567-572</code>付近)を全て確定・実装済み根拠(<code>src/BossRei.cs</code>/<code>src/BossKoharu.cs</code>/<code>src/Epilogue.cs</code>のPW=&quot;stay&quot;/<code>src/Prologue.cs</code>等)付きで取り消し線整理。少年の本名のみ意図的に未決定のまま維持。「C：3人目（再検討中）」節はレイの確定情報に置換したが、内容は<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:97,99</code>からの引用で新規創作なし(確認済み)。ドキュメントのみの変更、src/未変更</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-31) <code>src/PauseMenu.cs</code>に共通ヘルパー<code>IsNonCombatMenuScreen(path)</code>を新設(<code>path.Contains(&quot;Hub&quot;) |  | Contains(&quot;Shop&quot;) |  | Contains(&quot;DiffSelect&quot;) |  | Contains(&quot;Records&quot;)</code>、ShopTutorialは&quot;Shop&quot;部分一致で自動的に含む)。<code>CanOpenHere()</code>と<code>RetryEnabled</code>の両方がこのヘルパーを参照するよう統一し、重複していた除外ロジックの矛盾を解消。クラス冒頭コメント(<code>PauseMenu.cs:6</code>)も実態に合わせて更新。全<code>.tscn</code>のファイル名を確認しStage0/Rei/Akari/Koharu/MinaBattle/Training/Prologue/Final/Epilogueの各シーンが<code>Hub</code>/<code>Shop</code>/<code>DiffSelect</code>/<code>Records</code>を含まないことを確認済み＝ステージ中の<code>CanOpenHere()</code>/<code>ShowHint</code>/Esc挙動は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>src/QaPilot.cs</code>に<code>DriveFocusDodgeKindness</code>を追加(<code>QaPilot.cs:315-385</code>)。低速(Shift)を6秒周期で1.6秒保持、回避(Alt)を2.2秒周期でタップ、全開(Ctrl)を5秒周期でタップ。ゲームオーバー中はShift新規送出を止め(<code>DriveDeathRetry</code>のShift+Rと非干渉)、<code>--skiptest</code>中はKindness用Ctrlを完全スキップ(既存のCtrl押しっぱなしロジックと非干渉)。ヘッドレスQA確認: <code>Stage0.tscn</code>180秒走行でStuck警告なし・Stage0→Hub遷移が70.9秒に短縮(旧SafetyTimeout頼みの約235秒から実入力経路に変化)。Rei(--assist/非assistとも)の短時間走行でも異常なし。死亡→ゲームオーバー中のShift+Rリトライとの実地競合は今回の短時間走行では死亡が発生せず未検証(ロジック上はidle判定で排他)。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManagerの嘘コメント修正(Escaped経路は存在しない)</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>src/GameManager.cs:1144</code>のコメント「Escaped経路のみ・1回だけ呼ぶ」を「CameoBoss.OnCryStart から1回だけ呼ぶ」の実態に合わせて修正(<code>Escaped</code>という経路は<code>grep -rn &quot;Escaped&quot; src/*.cs</code>でコメント自身のみヒット=実装に存在しないことを確認)。<code>RewardCameoDefeat()</code>本体・呼び出し箇所は無変更、コメント1行のみの差分。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>docs/キャラ設定_03_あかり.md:119-123</code>の§8「次に詰める項目」全4項目を<code>[x]</code>化し、実装ファイル:行の根拠注記を追記(一人称=<code>BossAkari.cs:74</code>、心象演出=<code>StageImagery.cs:304,347</code>/<code>BossAkari.cs:82</code>/<code>Epilogue.cs:149</code>、呼び方回収=<code>Epilogue.cs:379</code>、掛け合い本書き=<code>BossAkari.cs:72-92</code>)。<code>docs/ストーリー見直しロードマップ.md</code>の既存形式を踏襲。本文の他記述は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">バックファイア(自動後方援護弾)をチュートリアルで一言説明する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>src/StageZero.cs:86</code>(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。<code>_phase</code>switchのケース番号・構造には影響なし(配列ループのみ)、<code>src/Player.cs</code>は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">旧コンセプト文書に非正典バナーを追加</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>docs/GAME_DESIGN.md:1-8</code>と<code>docs/CONCEPT_V2.md:1-9</code>冒頭に、<code>docs/STORY.md:1-10</code>と同形式の⚠非正典バナーを追加。現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)との不一致を明記し、現行正典<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>を指し示す。<code>CONCEPT_V2.md:4</code>が自己主張する「本書がコンセプトの最新版」に対しては「現行実装に対する最新版ではない」旨を追記。本文(バナー箇所以外)は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">旧版シナリオ台本ファイルに非正典バナーを追加</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>docs/ゲーム内テキスト台本.txt</code>冒頭のヘッダーブロック(:9-12)に、<code>docs/STORY.md:7-10</code>と同形式の⚠非正典バナーを追加。現行実装(<code>src/Prologue.cs</code>/<code>src/StageRei.cs</code>/<code>src/Hub.cs</code>)との不一致(「お前」→「きみ」統一済み等)を明記し、現行の正しい台本<code>ゲーム内テキスト台本_改稿版.txt</code>を指し示す。本文(旧稿本体)・<code>ゲーム内テキスト台本_改稿版.txt</code>は無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">向き反転操作をチュートリアルで教える</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-08-29) <code>src/StageZero.cs</code>のTut4Dash(回避ステップ)に「F/RBで撃つ向きを反転できる」旨のセリフを1行追加(<code>StageZero.cs:102</code>)、Tut2Shotの「きみは何も押さなくていい」「よけることだけ考えてればいい」という断定的文言を、方向操作の存在を否定しない表現に修正(<code>StageZero.cs:84,87</code>)。<code>_phase</code>switch本体・<code>OpForPhase</code>のcase番号・<code>Spawner.cs</code>の弾幕数値は無変更(既存セリフ配列への追記のみ)。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1417,18 +1521,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">c5d73b3</span><span>2026-08-29</span><span class="s">Merge pull request #15 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">c4a0485</span><span>2026-08-28</span><span class="s">auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理</span></li>
-      <li><span class="h">5ad1201</span><span>2026-08-28</span><span class="s">auto: WIP着手 - GlyphMote暴言弾の矛盾解消</span></li>
-      <li><span class="h">ffedfc1</span><span>2026-08-28</span><span class="s">auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期</span></li>
-      <li><span class="h">3462740</span><span>2026-08-28</span><span class="s">auto: WIP着手 - HUB帰還会話の二人称・文言同期</span></li>
-      <li><span class="h">3c203fc</span><span>2026-08-28</span><span class="s">auto: 台本docのSTAGE3 Mid旧稿(声の掠れ)を実装文言へ同期</span></li>
-      <li><span class="h">2b83746</span><span>2026-08-28</span><span class="s">auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期</span></li>
-      <li><span class="h">911f82c</span><span>2026-08-28</span><span class="s">auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期</span></li>
+      <li><span class="h">ba95ed1</span><span>2026-09-01</span><span class="s">auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ</span></li>
+      <li><span class="h">60842a5</span><span>2026-09-01</span><span class="s">auto: TryDodgeガードのコメント行番号ズレを修正</span></li>
+      <li><span class="h">a1b9d2e</span><span>2026-09-01</span><span class="s">auto: WIP着手 - TryDodgeガードのコメント行番号ズレ</span></li>
+      <li><span class="h">5759bde</span><span>2026-09-01</span><span class="s">auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正</span></li>
+      <li><span class="h">8c10440</span><span>2026-09-01</span><span class="s">auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり</span></li>
+      <li><span class="h">3db29b7</span><span>2026-09-01</span><span class="s">auto: 監査で3件をキューに追加</span></li>
+      <li><span class="h">8fd9cde</span><span>2026-08-31</span><span class="s">auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新</span></li>
+      <li><span class="h">aa4d426</span><span>2026-08-31</span><span class="s">auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-08-28 22:04 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-01 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

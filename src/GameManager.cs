@@ -1158,7 +1158,7 @@ public partial class GameManager : Node
         return true;
     }
 
-    // 道中カメオ（ミニボス）をHP削り切りで撃破した時の報酬。Escaped経路のみ・1回だけ呼ぶ。
+    // 道中カメオ（ミニボス）をHP削り切りで撃破した時の報酬。CameoBoss.OnCryStart から1回だけ呼ぶ。
     // やさしさゲージは「半分〜大きめ一気」を狙って 0.6 を加算（グレイズ/浄化と同じ AddKindness 経路＝
     // KindnessGainMul もかかる）。インプレは付けず、スコアのみ少々加点する。
     public void RewardCameoDefeat()

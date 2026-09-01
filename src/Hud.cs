@@ -325,7 +325,7 @@ public partial class Hud : CanvasLayer
         _controlsAlpha = Mathf.MoveToward(_controlsAlpha, targetAlpha, (float)delta * 3.2f);
 
         // やさしさゲージの演出更新（全開トースト＋グレイズで貯まる手応え）
-        if (_game?.JustOverloaded ?? false) { _overloadToast = 1.4; Audio.Instance?.PlayOverload(); } // ⑥ピークの告知
+        if (_game?.JustOverloaded ?? false) { _overloadToast = 1.4; _shotModeToast = 0; Audio.Instance?.PlayOverload(); } // ⑥ピークの告知（モード切替トーストと同座標で重描画しないよう先に消す）
         if (_overloadToast > 0) _overloadToast -= delta;
         float kNow = _game?.Kindness ?? 0f;
         if (!(_game?.IsOverload ?? false) && kNow > _prevKind + 0.001f) _kindPulse = 1f;

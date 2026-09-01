@@ -261,7 +261,7 @@ public partial class Player : Area2D
     private int FocusFireBonus => Mathf.Min(_game?.FocusFireMaxStack ?? 0, _focusHits / FocusFireHitsPerStack);
 
     // HUD・チュートリアル向けの公開アクセサ（挙動には一切影響しない読み取り専用情報）。
-    public bool DodgeReady => _dodgeCd <= 0f && _dodgeTimer <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）。TryDodge の実行可否ガード(1行下 986行目相当)と同条件に揃える＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
+    public bool DodgeReady => _dodgeCd <= 0f && _dodgeTimer <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）。TryDodge の実行可否ガード(999行目)と同条件に揃える＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     public int  BombCount { get; private set; }  // ボムを発動した累計回数（練習モードでは残数が減らないのでチュートリアルはこの増分で発動検出）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。

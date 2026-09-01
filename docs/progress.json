@@ -1,10 +1,10 @@
 {
-  "generated": "2026-08-28 22:04 UTC",
+  "generated": "2026-09-01 18:28 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 141
+    "done": 154
   },
   "percent": 100,
   "todo": [],
@@ -108,6 +108,84 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "LUNATIC解禁コメントの行番号ズレ",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-01) `src/DiffSelect.cs:339`のコメントが指す参照先を「Shop.cs:1058」から実際に`GameManager.LunaticFollowerReq`を参照している「Shop.cs:1167」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "TryDodgeガードのコメント行番号ズレ",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-01) `src/Player.cs:264`のDodgeReadyコメントが指す行番号を「986行目相当」から実際のガード位置「999行目」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "やさしさ全開トーストとモード切替トーストの表示重なり",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-01) `src/Hud.cs:328`で全開発動検知時(`_game?.JustOverloaded`)に`_overloadToast = 1.4`と同時に`_shotModeToast = 0`をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-31) `docs/キャラ設定_01_少年_改訂版.md:163-167`の項目2〜4を`キャラ設定_02_ミナ_改訂版.md`と同じ体裁(取り消し線+実装済み注記+ファイル:行)に更新。本音セリフ=`src/BossMina.cs:64-65`確定、PW=`src/Epilogue.cs:63-69`で\"stay\"確定、3人目=`src/BossKoharu.cs`でこはるに確定。項目1(少年の本名)は指示通り未決定のまま維持。ドキュメントのみの変更、src/未変更"
+    },
+    {
+      "priority": "P2",
+      "title": "【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-31) `:21`「順番はライバル→あかり→妹（ライバルは未確定）」を「順番はレイ（ライバル）→あかり→こはる（妹）」に修正。PART6未確定リスト(`:849-859`)・PART2/PART3各所の「未決定」「再検討中」表記(旧`:118-125`,`:214-217`,`:274-280`,`:438`,`:443-449`,`:530`,`:567-572`付近)を全て確定・実装済み根拠(`src/BossRei.cs`/`src/BossKoharu.cs`/`src/Epilogue.cs`のPW=\"stay\"/`src/Prologue.cs`等)付きで取り消し線整理。少年の本名のみ意図的に未決定のまま維持。「C：3人目（再検討中）」節はレイの確定情報に置換したが、内容は`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:97,99`からの引用で新規創作なし(確認済み)。ドキュメントのみの変更、src/未変更"
+    },
+    {
+      "priority": "P2",
+      "title": "PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-31) `src/PauseMenu.cs`に共通ヘルパー`IsNonCombatMenuScreen(path)`を新設(`path.Contains(\"Hub\") |  | Contains(\"Shop\") |  | Contains(\"DiffSelect\") |  | Contains(\"Records\")`、ShopTutorialは\"Shop\"部分一致で自動的に含む)。`CanOpenHere()`と`RetryEnabled`の両方がこのヘルパーを参照するよう統一し、重複していた除外ロジックの矛盾を解消。クラス冒頭コメント(`PauseMenu.cs:6`)も実態に合わせて更新。全`.tscn`のファイル名を確認しStage0/Rei/Akari/Koharu/MinaBattle/Training/Prologue/Final/Epilogueの各シーンが`Hub`/`Shop`/`DiffSelect`/`Records`を含まないことを確認済み＝ステージ中の`CanOpenHere()`/`ShowHint`/Esc挙動は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "QaPilotがFocus/Dodge/Kindnessキーを送出せずチュートリアル自動検証に穴がある",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-29) `src/QaPilot.cs`に`DriveFocusDodgeKindness`を追加(`QaPilot.cs:315-385`)。低速(Shift)を6秒周期で1.6秒保持、回避(Alt)を2.2秒周期でタップ、全開(Ctrl)を5秒周期でタップ。ゲームオーバー中はShift新規送出を止め(`DriveDeathRetry`のShift+Rと非干渉)、`--skiptest`中はKindness用Ctrlを完全スキップ(既存のCtrl押しっぱなしロジックと非干渉)。ヘッドレスQA確認: `Stage0.tscn`180秒走行でStuck警告なし・Stage0→Hub遷移が70.9秒に短縮(旧SafetyTimeout頼みの約235秒から実入力経路に変化)。Rei(--assist/非assistとも)の短時間走行でも異常なし。死亡→ゲームオーバー中のShift+Rリトライとの実地競合は今回の短時間走行では死亡が発生せず未検証(ロジック上はidle判定で排他)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "GameManagerの嘘コメント修正(Escaped経路は存在しない)",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-29) `src/GameManager.cs:1144`のコメント「Escaped経路のみ・1回だけ呼ぶ」を「CameoBoss.OnCryStart から1回だけ呼ぶ」の実態に合わせて修正(`Escaped`という経路は`grep -rn \"Escaped\" src/*.cs`でコメント自身のみヒット=実装に存在しないことを確認)。`RewardCameoDefeat()`本体・呼び出し箇所は無変更、コメント1行のみの差分。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "キャラ設定書『あかり』の未消化チェック項目を実装済み根拠で更新",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/キャラ設定_03_あかり.md:119-123`の§8「次に詰める項目」全4項目を`[x]`化し、実装ファイル:行の根拠注記を追記(一人称=`BossAkari.cs:74`、心象演出=`StageImagery.cs:304,347`/`BossAkari.cs:82`/`Epilogue.cs:149`、呼び方回収=`Epilogue.cs:379`、掛け合い本書き=`BossAkari.cs:72-92`)。`docs/ストーリー見直しロードマップ.md`の既存形式を踏襲。本文の他記述は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "バックファイア(自動後方援護弾)をチュートリアルで一言説明する",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-29) `src/StageZero.cs:86`(Tut2Shot)に「後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。」を1行追加。`_phase`switchのケース番号・構造には影響なし(配列ループのみ)、`src/Player.cs`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "旧コンセプト文書に非正典バナーを追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/GAME_DESIGN.md:1-8`と`docs/CONCEPT_V2.md:1-9`冒頭に、`docs/STORY.md:1-10`と同形式の⚠非正典バナーを追加。現行実装(無名の「少年」主人公、Prologue→Rei→Akari→Koharu→StageMina→Final→Epilogue構成)との不一致を明記し、現行正典`docs/20260613/MINA_シナリオ設計書_v2.md`を指し示す。`CONCEPT_V2.md:4`が自己主張する「本書がコンセプトの最新版」に対しては「現行実装に対する最新版ではない」旨を追記。本文(バナー箇所以外)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "旧版シナリオ台本ファイルに非正典バナーを追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-08-29) `docs/ゲーム内テキスト台本.txt`冒頭のヘッダーブロック(:9-12)に、`docs/STORY.md:7-10`と同形式の⚠非正典バナーを追加。現行実装(`src/Prologue.cs`/`src/StageRei.cs`/`src/Hub.cs`)との不一致(「お前」→「きみ」統一済み等)を明記し、現行の正しい台本`ゲーム内テキスト台本_改稿版.txt`を指し示す。本文(旧稿本体)・`ゲーム内テキスト台本_改稿版.txt`は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "向き反転操作をチュートリアルで教える",
+      "worker": "engineer",
+      "accept": "(完了 2026-08-29) `src/StageZero.cs`のTut4Dash(回避ステップ)に「F/RBで撃つ向きを反転できる」旨のセリフを1行追加(`StageZero.cs:102`)、Tut2Shotの「きみは何も押さなくていい」「よけることだけ考えてればいい」という断定的文言を、方向操作の存在を否定しない表現に修正(`StageZero.cs:84,87`)。`_phase`switch本体・`OpForPhase`のcase番号・`Spawner.cs`の弾幕数値は無変更(既存セリフ配列への追記のみ)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "GlyphMoteが「暴言弾を撒く」設計コメントのまま実際は永久に1発も撃たない",
@@ -957,44 +1035,44 @@
   ],
   "commits": [
     {
-      "hash": "c5d73b3",
-      "date": "2026-08-29",
-      "subject": "Merge pull request #15 from takutoruku1/auto/dev"
+      "hash": "ba95ed1",
+      "date": "2026-09-01",
+      "subject": "auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ"
     },
     {
-      "hash": "c4a0485",
-      "date": "2026-08-28",
-      "subject": "auto: GlyphMoteの暴言弾コメント/死んだ発射設定を実態(非発火)に整理"
+      "hash": "60842a5",
+      "date": "2026-09-01",
+      "subject": "auto: TryDodgeガードのコメント行番号ズレを修正"
     },
     {
-      "hash": "5ad1201",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - GlyphMote暴言弾の矛盾解消"
+      "hash": "a1b9d2e",
+      "date": "2026-09-01",
+      "subject": "auto: WIP着手 - TryDodgeガードのコメント行番号ズレ"
     },
     {
-      "hash": "ffedfc1",
-      "date": "2026-08-28",
-      "subject": "auto: 台本docのHUB帰還会話を二人称・文言とも実装へ同期"
+      "hash": "5759bde",
+      "date": "2026-09-01",
+      "subject": "auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正"
     },
     {
-      "hash": "3462740",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - HUB帰還会話の二人称・文言同期"
+      "hash": "8c10440",
+      "date": "2026-09-01",
+      "subject": "auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり"
     },
     {
-      "hash": "3c203fc",
-      "date": "2026-08-28",
-      "subject": "auto: 台本docのSTAGE3 Mid旧稿(声の掠れ)を実装文言へ同期"
+      "hash": "3db29b7",
+      "date": "2026-09-01",
+      "subject": "auto: 監査で3件をキューに追加"
     },
     {
-      "hash": "2b83746",
-      "date": "2026-08-28",
-      "subject": "auto: WIP着手 - STAGE3 Mid台本の旧稿残存を同期"
+      "hash": "8fd9cde",
+      "date": "2026-08-31",
+      "subject": "auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新"
     },
     {
-      "hash": "911f82c",
-      "date": "2026-08-28",
-      "subject": "auto: STAGE1/2/3 BossTalk・STAGE1 Clearを実装文言へ完全同期"
+      "hash": "aa4d426",
+      "date": "2026-08-31",
+      "subject": "auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置"
     }
   ]
 }
