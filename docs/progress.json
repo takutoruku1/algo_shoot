@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-01 18:28 UTC",
+  "generated": "2026-09-01 22:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -1035,6 +1035,16 @@
   ],
   "commits": [
     {
+      "hash": "cdcd1c3",
+      "date": "2026-09-02",
+      "subject": "Merge pull request #16 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "88d8eb9",
+      "date": "2026-09-01",
+      "subject": "auto: LUNATIC解禁コメントの行番号ズレを修正"
+    },
+    {
       "hash": "ba95ed1",
       "date": "2026-09-01",
       "subject": "auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ"
@@ -1063,16 +1073,6 @@
       "hash": "3db29b7",
       "date": "2026-09-01",
       "subject": "auto: 監査で3件をキューに追加"
-    },
-    {
-      "hash": "8fd9cde",
-      "date": "2026-08-31",
-      "subject": "auto: キャラ設定_01_少年_改訂版.md §8未決定リストを実装済み根拠で更新"
-    },
-    {
-      "hash": "aa4d426",
-      "date": "2026-08-31",
-      "subject": "auto: WIP着手 - キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置"
     }
   ]
 }
