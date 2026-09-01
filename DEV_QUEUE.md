@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) LUNATIC解禁コメントの行番号ズレ | engineer | `src/DiffSelect.cs:339`のコメントが「ショップ側はShop.cs:1058で元から定数参照」と言うが、`src/Shop.cs:1058`は現在無関係な`DrawColoredPolygon`呼び出しになっている。実際に`GameManager.LunaticFollowerReq`を参照しているgoal文字列生成部分は`src/Shop.cs:1167`。値の食い違いは無いが参照先の誤りなので、コメントの行番号を`src/Shop.cs:1167`へ更新する
-
 ## WIP
+
+- [ ] (P3) LUNATIC解禁コメントの行番号ズレ | engineer | `src/DiffSelect.cs:339`のコメントが「ショップ側はShop.cs:1058で元から定数参照」と言うが、`src/Shop.cs:1058`は現在無関係な`DrawColoredPolygon`呼び出しになっている。実際に`GameManager.LunaticFollowerReq`を参照しているgoal文字列生成部分は`src/Shop.cs:1167`。値の食い違いは無いが参照先の誤りなので、コメントの行番号を`src/Shop.cs:1167`へ更新する
 
 ## BLOCKED
 
