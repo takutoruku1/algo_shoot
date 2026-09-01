@@ -32,8 +32,6 @@
 
 ## WIP
 
-- [ ] (P3) TryDodgeガードのコメント行番号ズレ | engineer | `src/Player.cs:264`のコメントが「TryDodgeの実行可否ガード(1行下・986行目相当)」を指すが、実際の同条件ガード(`if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;`)は現在`src/Player.cs:999`にずれている（AccelChargeCap関連コード追加で+13行）。ロジックの食い違いは無いが読者が誤誘導されるため、コメントの行番号参照を999行目へ更新する（または脆い行番号参照自体をやめ「TryDodge()のガード条件と同期」とのみ記す）
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -55,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) TryDodgeガードのコメント行番号ズレ | engineer | (完了 2026-09-01) `src/Player.cs:264`のDodgeReadyコメントが指す行番号を「986行目相当」から実際のガード位置「999行目」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) やさしさ全開トーストとモード切替トーストの表示重なり | engineer | (完了 2026-09-01) `src/Hud.cs:328`で全開発動検知時(`_game?.JustOverloaded`)に`_overloadToast = 1.4`と同時に`_shotModeToast = 0`をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) キャラ設定_01_少年_改訂版.md §8未決定リストが実装済み事項のまま放置 | scenario | (完了 2026-08-31) `docs/キャラ設定_01_少年_改訂版.md:163-167`の項目2〜4を`キャラ設定_02_ミナ_改訂版.md`と同じ体裁(取り消し線+実装済み注記+ファイル:行)に更新。本音セリフ=`src/BossMina.cs:64-65`確定、PW=`src/Epilogue.cs:63-69`で"stay"確定、3人目=`src/BossKoharu.cs`でこはるに確定。項目1(少年の本名)は指示通り未決定のまま維持。ドキュメントのみの変更、src/未変更
 - [x] (P2) 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾 | scenario | (完了 2026-08-31) `:21`「順番はライバル→あかり→妹（ライバルは未確定）」を「順番はレイ（ライバル）→あかり→こはる（妹）」に修正。PART6未確定リスト(`:849-859`)・PART2/PART3各所の「未決定」「再検討中」表記(旧`:118-125`,`:214-217`,`:274-280`,`:438`,`:443-449`,`:530`,`:567-572`付近)を全て確定・実装済み根拠(`src/BossRei.cs`/`src/BossKoharu.cs`/`src/Epilogue.cs`のPW="stay"/`src/Prologue.cs`等)付きで取り消し線整理。少年の本名のみ意図的に未決定のまま維持。「C：3人目（再検討中）」節はレイの確定情報に置換したが、内容は`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:97,99`からの引用で新規創作なし(確認済み)。ドキュメントのみの変更、src/未変更

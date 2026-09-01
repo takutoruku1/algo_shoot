@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-01 18:27 UTC",
+  "generated": "2026-09-01 18:28 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 16,
-    "done": 152
+    "done": 153
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "TryDodgeガードのコメント行番号ズレ",
-      "worker": "engineer",
-      "accept": "`src/Player.cs:264`のコメントが「TryDodgeの実行可否ガード(1行下・986行目相当)」を指すが、実際の同条件ガード(`if (_dodgeCd > 0f |  | _dodgeTimer > 0f |  | _gameOver) return;`)は現在`src/Player.cs:999`にずれている（AccelChargeCap関連コード追加で+13行）。ロジックの食い違いは無いが読者が誤誘導されるため、コメントの行番号参照を999行目へ更新する（または脆い行番号参照自体をやめ「TryDodge()のガード条件と同期」とのみ記す）"
-    },
     {
       "priority": "P3",
       "title": "LUNATIC解禁コメントの行番号ズレ",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "TryDodgeガードのコメント行番号ズレ",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-01) `src/Player.cs:264`のDodgeReadyコメントが指す行番号を「986行目相当」から実際のガード位置「999行目」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "やさしさ全開トーストとモード切替トーストの表示重なり",
@@ -1036,6 +1036,16 @@
   ],
   "commits": [
     {
+      "hash": "a1b9d2e",
+      "date": "2026-09-01",
+      "subject": "auto: WIP着手 - TryDodgeガードのコメント行番号ズレ"
+    },
+    {
+      "hash": "5759bde",
+      "date": "2026-09-01",
+      "subject": "auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正"
+    },
+    {
       "hash": "8c10440",
       "date": "2026-09-01",
       "subject": "auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり"
@@ -1064,16 +1074,6 @@
       "hash": "cc9e3c7",
       "date": "2026-08-31",
       "subject": "auto: WIP着手 - 【MASTER】設定資料統合版.mdの確定事項サマリが自己矛盾"
-    },
-    {
-      "hash": "8d39877",
-      "date": "2026-08-31",
-      "subject": "auto: PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開くのを修正"
-    },
-    {
-      "hash": "dbe97bd",
-      "date": "2026-08-31",
-      "subject": "auto: WIP着手 - PauseMenuがHub/Shop/DiffSelect/Recordsで的外れなポーズ画面を開く"
     }
   ]
 }
