@@ -103,3 +103,6 @@ description: Auto-play this Godot/.NET game headlessly and scan for bugs — wei
 - 個別シーン直起動（`res://Rei.tscn` 等）は `play-game` と同じ要領。Prologue から通すのはパスAだけでよい。
 - 尺は調整可。広く回したいときはパスA の `--seconds` を伸ばす／難易度 `--easy` を外す。
 - `dotnet`（.NET 8 SDK）必須。mono バイナリは初回 C# を自動ビルドするが、手順1で先に通す。
+
+## セーブ保護（必須）
+自動走行はオートセーブ枠と既読データを実プレイと同じ場所（`%APPDATA%\Godot\app_userdata\algo_shoot\`）に書き込む。**走行の前に `save_0.json` と `read.json` を同ディレクトリに `.bak` として退避し、全走行が終わったら復元すること**（手動スロット save_1〜3 には触れない）。復元まで含めて1タスク。
