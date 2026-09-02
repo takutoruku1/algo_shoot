@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="'Hiragino Sans','Noto Sans JP','Yu Gothic UI',Meiryo,sans-serif">
+  <!-- 感情曲線: 上=明るさ(主従漫才の温度) / 下=重さ(喪失の影)。単系列・注釈は要所のみ -->
+  <rect x="0" y="0" width="960" height="470" rx="10" fill="#FBFCFD"/>
+  <text x="34" y="40" font-size="19" font-weight="700" fill="#2A3242">感情曲線 — 明るさと重さの往復</text>
+  <text x="34" y="62" font-size="12.5" fill="#6B7688">上へ行くほど軽妙（主従漫才の温度）、下へ行くほど重い（喪失の影）。落差の振幅が章を追うごとに深くなり、最深部を過ぎてから温かさへ戻る。</text>
+
+  <!-- 章の帯 (x: 70 + i*44, 帯はシーン境界の中点) -->
+  <g font-size="12" fill="#6B7688" text-anchor="middle">
+    <rect x="48"  y="86" width="110" height="310" fill="#2A3242" opacity="0.035"/>
+    <rect x="158" y="86" width="176" height="310" fill="#2A3242" opacity="0"/>
+    <rect x="334" y="86" width="176" height="310" fill="#2A3242" opacity="0.035"/>
+    <rect x="510" y="86" width="176" height="310" fill="#2A3242" opacity="0"/>
+    <rect x="686" y="86" width="88"  height="310" fill="#2A3242" opacity="0.035"/>
+    <rect x="774" y="86" width="154" height="310" fill="#2A3242" opacity="0"/>
+    <text x="103" y="416">プロローグ・練習</text>
+    <text x="246" y="416">STAGE1 レイ</text>
+    <text x="422" y="416">STAGE2 あかり</text>
+    <text x="598" y="416">STAGE3 こはる</text>
+    <text x="730" y="416">FINAL</text>
+    <text x="851" y="416">エピローグ</text>
+  </g>
+
+  <!-- 基準線(中立) と 縦軸ラベル -->
+  <line x1="48" y1="205" x2="928" y2="205" stroke="#9AA3B2" stroke-width="1" stroke-dasharray="3 4"/>
+  <g font-size="11.5" fill="#6B7688">
+    <text x="36" y="108" text-anchor="end" transform="rotate(-90 36 108)"></text>
+    <text x="30" y="112" writing-mode="tb" letter-spacing="2">明るい</text>
+    <text x="30" y="330" writing-mode="tb" letter-spacing="2">重い</text>
+  </g>
+
+  <!-- 面 + 線 (x=70+i*44, y=205-v*52) v: 1.5,2,1,-1.5,1.5,2,0.5,-2,1,0,-0.5,-2.5,-1,0.5,-2,-3,-2.5,-1.5,1,2 -->
+  <path d="M70,127 L114,101 L158,153 L202,283 L246,127 L290,101 L334,179 L378,309 L422,153 L466,205 L510,231 L554,335 L598,257 L642,179 L686,309 L730,361 L774,335 L818,283 L862,153 L906,101 L906,396 L70,396 Z"
+        fill="#0E9490" opacity="0.08"/>
+  <path d="M70,127 L114,101 L158,153 L202,283 L246,127 L290,101 L334,179 L378,309 L422,153 L466,205 L510,231 L554,335 L598,257 L642,179 L686,309 L730,361 L774,335 L818,283 L862,153 L906,101"
+        fill="none" stroke="#0E9490" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- 注釈点（白リング付きマーカー） -->
+  <g>
+    <circle cx="114" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="202" cy="283" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="290" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="378" cy="309" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="554" cy="335" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="730" cy="361" r="5.5" fill="#2A3242" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="862" cy="153" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="906" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+  </g>
+
+  <!-- 注釈テキスト -->
+  <g font-size="11.5" fill="#2A3242">
+    <text x="114" y="88" text-anchor="middle">合言葉「Stay」初出</text>
+    <text x="202" y="302" text-anchor="middle">レイ改心（二十三分の告白）</text>
+    <text x="290" y="88" text-anchor="middle">初投稿がバズる</text>
+    <text x="378" y="328" text-anchor="middle">交差点の幻視・「キミ」の真相</text>
+    <text x="554" y="354" text-anchor="middle">「誰を、いなくしたんですか」</text>
+    <text x="730" y="383" text-anchor="middle" font-weight="700">Stayの反転・返事なし（最深部）</text>
+    <text x="862" y="140" text-anchor="middle">「どこにも行きませんよ」</text>
+    <text x="906" y="88" text-anchor="middle" >stay.</text>
+  </g>
+
+  <!-- 凡例代わりの一行（単系列のため凡例枠なし） -->
+  <text x="34" y="450" font-size="11.5" fill="#6B7688">各点は場面の順（プロローグ→スタッフロール）。位置は本文の記述から定めた相対的な高さで、数値的な指標ではない。</text>
+</svg>
