@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-02 18:52 UTC",
+  "generated": "2026-09-02 18:54 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 16,
-    "done": 157
+    "done": 158
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない",
-      "worker": null,
-      "accept": "`src/DiffSelect.cs:21-31`のTiers配列はName/Desc/Density/Face/Quipのみで残機・ボム関連の表示が無いが、実際は`src/GameManager.cs:59-60`のStartLives/StartBombsがEasy6/Normal4/Hard3/Lunatic2と3倍の開きがある。各ティア行に実際のStartLives/StartBombs値(例「♥6 ボム6」〜「♥2 ボム2」)を追加表示し、難易度選択が実際の賭け金を見せた上での選択になるようにする"
-    },
     {
       "priority": "P3",
       "title": "ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない",
+      "worker": null,
+      "accept": "(完了 2026-09-02) `src/GameManager.cs:59-64`のStartLives/StartBombsの難易度別基礎値を静的メソッド`BaseLivesFor(Diff)`/`BaseBombsFor(Diff)`に切り出し(実値・恒久強化ボーナス加算ロジックは無変更)。`src/DiffSelect.cs:366-372`(`DrawTier`)に「♥{残機} ボム{ボム数}」を報酬倍率表示の下に追加表示。値はEasy「♥6 ボム6」〜Lunatic「♥2 ボム2」で実際のStartLives/StartBombsと一致。難易度パラメータ自体は無変更、表示追加のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのレイアウト目視確認は未実施"
+    },
     {
       "priority": "P2",
       "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
@@ -1078,6 +1078,16 @@
   ],
   "commits": [
     {
+      "hash": "2aea6b4",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 難易度選択画面に残機・ボム数を表示"
+    },
+    {
+      "hash": "c6e1cd2",
+      "date": "2026-09-02",
+      "subject": "auto: ボスの盾パネルにInk残数の視覚フィードバックを追加"
+    },
+    {
       "hash": "7a264e8",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加"
@@ -1106,16 +1116,6 @@
       "hash": "a670f10",
       "date": "2026-09-02",
       "subject": "auto: 監査で7件をキューに追加"
-    },
-    {
-      "hash": "2194afb",
-      "date": "2026-09-02",
-      "subject": "Add missing Godot import sidecars for wiki gallery SVGs"
-    },
-    {
-      "hash": "f3a7d9f",
-      "date": "2026-09-02",
-      "subject": "Add boss-movement and class-system design proposals"
     }
   ]
 }

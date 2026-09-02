@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 157 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 158 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">157</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">158</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない</span>
-          
-        </div>
-        <p class="accept"><code>src/DiffSelect.cs:21-31</code>のTiers配列はName/Desc/Density/Face/Quipのみで残機・ボム関連の表示が無いが、実際は<code>src/GameManager.cs:59-60</code>のStartLives/StartBombsがEasy6/Normal4/Hard3/Lunatic2と3倍の開きがある。各ティア行に実際のStartLives/StartBombs値(例「♥6 ボム6」〜「♥2 ボム2」)を追加表示し、難易度選択が実際の賭け金を見せた上での選択になるようにする</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-02) <code>src/GameManager.cs:59-64</code>のStartLives/StartBombsの難易度別基礎値を静的メソッド<code>BaseLivesFor(Diff)</code>/<code>BaseBombsFor(Diff)</code>に切り出し(実値・恒久強化ボーナス加算ロジックは無変更)。<code>src/DiffSelect.cs:366-372</code>(<code>DrawTier</code>)に「♥{残機} ボム{ボム数}」を報酬倍率表示の下に追加表示。値はEasy「♥6 ボム6」〜Lunatic「♥2 ボム2」で実際のStartLives/StartBombsと一致。難易度パラメータ自体は無変更、表示追加のみ。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み。実機でのレイアウト目視確認は未実施</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1577,18 +1577,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">2aea6b4</span><span>2026-09-02</span><span class="s">auto: WIP着手 難易度選択画面に残機・ボム数を表示</span></li>
+      <li><span class="h">c6e1cd2</span><span>2026-09-02</span><span class="s">auto: ボスの盾パネルにInk残数の視覚フィードバックを追加</span></li>
       <li><span class="h">7a264e8</span><span>2026-09-02</span><span class="s">auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加</span></li>
       <li><span class="h">61b32b0</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期</span></li>
       <li><span class="h">c012363</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期</span></li>
       <li><span class="h">affb391</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期</span></li>
       <li><span class="h">76f6fe5</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期</span></li>
       <li><span class="h">a670f10</span><span>2026-09-02</span><span class="s">auto: 監査で7件をキューに追加</span></li>
-      <li><span class="h">2194afb</span><span>2026-09-02</span><span class="s">Add missing Godot import sidecars for wiki gallery SVGs</span></li>
-      <li><span class="h">f3a7d9f</span><span>2026-09-02</span><span class="s">Add boss-movement and class-system design proposals</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-02 18:52 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-02 18:54 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

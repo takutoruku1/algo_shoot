@@ -34,8 +34,6 @@
 
 ## WIP
 
-- [ ] (P2) 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない | game-designer→engineer | `src/DiffSelect.cs:21-31`のTiers配列はName/Desc/Density/Face/Quipのみで残機・ボム関連の表示が無いが、実際は`src/GameManager.cs:59-60`のStartLives/StartBombsがEasy6/Normal4/Hard3/Lunatic2と3倍の開きがある。各ティア行に実際のStartLives/StartBombs値(例「♥6 ボム6」〜「♥2 ボム2」)を追加表示し、難易度選択が実際の賭け金を見せた上での選択になるようにする
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない | game-designer→engineer | (完了 2026-09-02) `src/GameManager.cs:59-64`のStartLives/StartBombsの難易度別基礎値を静的メソッド`BaseLivesFor(Diff)`/`BaseBombsFor(Diff)`に切り出し(実値・恒久強化ボーナス加算ロジックは無変更)。`src/DiffSelect.cs:366-372`(`DrawTier`)に「♥{残機} ボム{ボム数}」を報酬倍率表示の下に追加表示。値はEasy「♥6 ボム6」〜Lunatic「♥2 ボム2」で実際のStartLives/StartBombsと一致。難易度パラメータ自体は無変更、表示追加のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのレイアウト目視確認は未実施
 - [x] (P2) ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない | game-designer→engineer | (完了 2026-09-02) `src/Panel.cs:157`の絵付きパネル早期return分岐に`DrawInkNotches()`呼び出しを追加(`:156-159`)。新設`DrawInkNotches()`(`:179-198`)が残Ink数ぶんの小ドットをテクスチャ実表示高さ(`DisplayH*_displayScale`)の上端外側に横並びで重ね描き、既存の設計色(KegareRim縁+BubbleDot本体)を流用。`QueueRedraw()`は既存の毎ヒット呼び出し(`:117-119`、コメントのみ実態に合わせ更新)でドット数が1対1更新される。当たり判定・ダメージ計算・非テクスチャパネルの既存同心円描画・`_hitFlashT`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での目視確認は未実施(ヘッドレス環境のため)
 - [x] (P2) 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違 | scenario | (完了 2026-09-02) (a)`docs/ゲーム内テキスト台本_改稿版.txt`旧329行目「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)旧330行目の中継1行（少年（ミナの声）表記）を、`src/BossKoharu.cs:128-129`の少年本人(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言・行数とも同期。`BossKoharu.cs:118-137`全行と1行ずつ再照合済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | (完了 2026-09-02) `docs/ゲーム内テキスト台本_改稿版.txt:246`の旧稿「少年（ミナの声）：きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、`src/BossAkari.cs:90`の現行実装`(1, "……ちゃんと、届きましたよ。", "")`と一致する「ミナ：……ちゃんと、届きましたよ。」に置換。「迷惑なんかじゃない」の残存は全文検索で0件を確認。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。副次発見：台本244行目の話者表記「少年（ミナの声）」が実装`BossAkari.cs:87`のwho=5(中継)と不一致だが、今回のタスクスコープ外のため別途要調査
