@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-02 18:48 UTC",
+  "generated": "2026-09-02 18:52 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 16,
-    "done": 156
+    "done": 157
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
-      "worker": null,
-      "accept": "`src/Panel.cs:157`で絵付きパネル(`_hasTex`、全ボス・ザコ盾が該当)のとき`_Draw`がInk連動の縮む円描画(`:158`)を出さずreturnし、被弾フィードバックが`_hitFlashT`(`HitFlashDur=0.09秒`、`:25,86-95`)の一瞬の白フラッシュのみになっている。BossMina(Ink=4、`BossMina.cs:74`)・BossKoharu/BossAkari(Ink=3、`BossKoharu.cs:146`/`BossAkari.cs:100`)で影響最大。ボス本体HPバーはシールド中据え置き(`Enemy.cs:377-387`)のためパネル自体の進捗表示が唯一の道中フィードバック。テクスチャ付きパネルにも残Ink数に応じた持続的な視覚差分(残数ぶんのノッチ/ドットのオーバーレイ、または`_hitFlashT`の強度・残光をInk残数に応じて変える等)を追加する"
-    },
     {
       "priority": "P2",
       "title": "難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない",
@@ -139,6 +133,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
+      "worker": null,
+      "accept": "(完了 2026-09-02) `src/Panel.cs:157`の絵付きパネル早期return分岐に`DrawInkNotches()`呼び出しを追加(`:156-159`)。新設`DrawInkNotches()`(`:179-198`)が残Ink数ぶんの小ドットをテクスチャ実表示高さ(`DisplayH*_displayScale`)の上端外側に横並びで重ね描き、既存の設計色(KegareRim縁+BubbleDot本体)を流用。`QueueRedraw()`は既存の毎ヒット呼び出し(`:117-119`、コメントのみ実態に合わせ更新)でドット数が1対1更新される。当たり判定・ダメージ計算・非テクスチャパネルの既存同心円描画・`_hitFlashT`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での目視確認は未実施(ヘッドレス環境のため)"
+    },
     {
       "priority": "P2",
       "title": "台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違",
@@ -1078,6 +1078,16 @@
   ],
   "commits": [
     {
+      "hash": "7a264e8",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加"
+    },
+    {
+      "hash": "61b32b0",
+      "date": "2026-09-02",
+      "subject": "auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期"
+    },
+    {
       "hash": "c012363",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期"
@@ -1106,16 +1116,6 @@
       "hash": "f3a7d9f",
       "date": "2026-09-02",
       "subject": "Add boss-movement and class-system design proposals"
-    },
-    {
-      "hash": "627c949",
-      "date": "2026-09-02",
-      "subject": "Grow the wiki gallery: emotion curve, bestiary, diagrams, simulations"
-    },
-    {
-      "hash": "4fdb4d3",
-      "date": "2026-09-02",
-      "subject": "Stop the dead ship from chasing the cursor"
     }
   ]
 }

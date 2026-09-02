@@ -35,8 +35,6 @@
 
 ## WIP
 
-- [ ] (P2) ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない | game-designer→engineer | `src/Panel.cs:157`で絵付きパネル(`_hasTex`、全ボス・ザコ盾が該当)のとき`_Draw`がInk連動の縮む円描画(`:158`)を出さずreturnし、被弾フィードバックが`_hitFlashT`(`HitFlashDur=0.09秒`、`:25,86-95`)の一瞬の白フラッシュのみになっている。BossMina(Ink=4、`BossMina.cs:74`)・BossKoharu/BossAkari(Ink=3、`BossKoharu.cs:146`/`BossAkari.cs:100`)で影響最大。ボス本体HPバーはシールド中据え置き(`Enemy.cs:377-387`)のためパネル自体の進捗表示が唯一の道中フィードバック。テクスチャ付きパネルにも残Ink数に応じた持続的な視覚差分(残数ぶんのノッチ/ドットのオーバーレイ、または`_hitFlashT`の強度・残光をInk残数に応じて変える等)を追加する
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -58,6 +56,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない | game-designer→engineer | (完了 2026-09-02) `src/Panel.cs:157`の絵付きパネル早期return分岐に`DrawInkNotches()`呼び出しを追加(`:156-159`)。新設`DrawInkNotches()`(`:179-198`)が残Ink数ぶんの小ドットをテクスチャ実表示高さ(`DisplayH*_displayScale`)の上端外側に横並びで重ね描き、既存の設計色(KegareRim縁+BubbleDot本体)を流用。`QueueRedraw()`は既存の毎ヒット呼び出し(`:117-119`、コメントのみ実態に合わせ更新)でドット数が1対1更新される。当たり判定・ダメージ計算・非テクスチャパネルの既存同心円描画・`_hitFlashT`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での目視確認は未実施(ヘッドレス環境のため)
 - [x] (P2) 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違 | scenario | (完了 2026-09-02) (a)`docs/ゲーム内テキスト台本_改稿版.txt`旧329行目「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)旧330行目の中継1行（少年（ミナの声）表記）を、`src/BossKoharu.cs:128-129`の少年本人(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言・行数とも同期。`BossKoharu.cs:118-137`全行と1行ずつ再照合済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | (完了 2026-09-02) `docs/ゲーム内テキスト台本_改稿版.txt:246`の旧稿「少年（ミナの声）：きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、`src/BossAkari.cs:90`の現行実装`(1, "……ちゃんと、届きましたよ。", "")`と一致する「ミナ：……ちゃんと、届きましたよ。」に置換。「迷惑なんかじゃない」の残存は全文検索で0件を確認。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。副次発見：台本244行目の話者表記「少年（ミナの声）」が実装`BossAkari.cs:87`のwho=5(中継)と不一致だが、今回のタスクスコープ外のため別途要調査
 - [x] (P3) LUNATIC解禁コメントの行番号ズレ | engineer | (完了 2026-09-01) `src/DiffSelect.cs:339`のコメントが指す参照先を「Shop.cs:1058」から実際に`GameManager.LunaticFollowerReq`を参照している「Shop.cs:1167」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
