@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-02 18:59 UTC",
+  "generated": "2026-09-02 19:01 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 160
+    "done": 161
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
-      "worker": "scenario",
-      "accept": "`docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -115,6 +108,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) `docs/小話集_v1.md:23-25`の表のショップ/トレーニング/タイトル3行を「なし(新設要)」から実装済みへ更新。根拠=`src/Shop.cs:239-249,251-262,264-273`(小話3)/`src/TrainingRoot.cs:55-61,63-74,76-85`(小話4)/`src/TitleMenu.cs:31-39,41-51`(小話5)。いずれもコード側コメントで「小話3/4/5」明記済み、DEV_QUEUE DONEの2026-08-13記録と整合確認済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ",
@@ -1078,6 +1077,16 @@
   ],
   "commits": [
     {
+      "hash": "1bf41fb",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新"
+    },
+    {
+      "hash": "df61f73",
+      "date": "2026-09-02",
+      "subject": "auto: EnemySpec.BulletSpeedの死んだパラメータを削除"
+    },
+    {
       "hash": "84e1fbb",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理"
@@ -1106,16 +1115,6 @@
       "hash": "c6e1cd2",
       "date": "2026-09-02",
       "subject": "auto: ボスの盾パネルにInk残数の視覚フィードバックを追加"
-    },
-    {
-      "hash": "7a264e8",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加"
-    },
-    {
-      "hash": "61b32b0",
-      "date": "2026-09-02",
-      "subject": "auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期"
     }
   ]
 }

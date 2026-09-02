@@ -30,8 +30,6 @@
 
 ## WIP
 
-- [ ] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | `docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -53,6 +51,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | (完了 2026-09-02) `docs/小話集_v1.md:23-25`の表のショップ/トレーニング/タイトル3行を「なし(新設要)」から実装済みへ更新。根拠=`src/Shop.cs:239-249,251-262,264-273`(小話3)/`src/TrainingRoot.cs:55-61,63-74,76-85`(小話4)/`src/TitleMenu.cs:31-39,41-51`(小話5)。いずれもコード側コメントで「小話3/4/5」明記済み、DEV_QUEUE DONEの2026-08-13記録と整合確認済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ | engineer | (完了 2026-09-02) 方式(a)完全削除。`src/MidEnemy.cs:87`の書き込み専用代入`EnemyBulletSpeed = _spec.BulletSpeed;`を削除。`src/EnemySpec.cs`の`BulletSpeed`フィールド・コンストラクタ引数・`For(theme)`テーブル全8件・`Flanker()`/`BuzzWall()`/`PrayerCarrier()`各ファクトリの`bulletSpeed:`引数を削除。Boss系(BossRei/Akari/Koharu/Mina/Hikage/CameoBoss)は各自`BossTuning`経由で`EnemyBulletSpeed`を独自設定しており本変更と無関係なことを確認済み。MidEnemyの実際の弾速(`FireBullet`各所のハードコードリテラル)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する | game-designer→engineer | (完了 2026-09-02) `src/ShopTutorial.cs:15-19`の`ShopTutorialLines`を10行→5行に半減。拡散/ホーミング解放・系統別奥義予告・排他選択と振り直しの個別細目説明を削除し、(1)一区切りの合図(2)通貨の仕組み+ショップ導線を1行に統合(3)軽口(4)撤退推奨+遷移トリガーの4行構成に整理。少年⇔ミナの掛け合いトーンは維持。`Advance`(`:109-119`)・face読み込み等は無変更。Shop画面への新規ツールチップ/ハイライトUIはスコープ外として未実装(規模抑制のため意図的)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない | game-designer→engineer | (完了 2026-09-02) `src/GameManager.cs:59-64`のStartLives/StartBombsの難易度別基礎値を静的メソッド`BaseLivesFor(Diff)`/`BaseBombsFor(Diff)`に切り出し(実値・恒久強化ボーナス加算ロジックは無変更)。`src/DiffSelect.cs:366-372`(`DrawTier`)に「♥{残機} ボム{ボム数}」を報酬倍率表示の下に追加表示。値はEasy「♥6 ボム6」〜Lunatic「♥2 ボム2」で実際のStartLives/StartBombsと一致。難易度パラメータ自体は無変更、表示追加のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのレイアウト目視確認は未実施

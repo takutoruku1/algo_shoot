@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 160 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 161 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">160</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">161</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>docs/小話集_v1.md:17-25</code>の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも<code>src/Shop.cs</code>(小話3)/<code>src/TrainingRoot.cs</code>(小話4)/<code>src/TitleMenu.cs</code>(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-02) <code>docs/小話集_v1.md:23-25</code>の表のショップ/トレーニング/タイトル3行を「なし(新設要)」から実装済みへ更新。根拠=<code>src/Shop.cs:239-249,251-262,264-273</code>(小話3)/<code>src/TrainingRoot.cs:55-61,63-74,76-85</code>(小話4)/<code>src/TitleMenu.cs:31-39,41-51</code>(小話5)。いずれもコード側コメントで「小話3/4/5」明記済み、DEV_QUEUE DONEの2026-08-13記録と整合確認済み。<code>src/</code>は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1577,18 +1577,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1bf41fb</span><span>2026-09-02</span><span class="s">auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新</span></li>
+      <li><span class="h">df61f73</span><span>2026-09-02</span><span class="s">auto: EnemySpec.BulletSpeedの死んだパラメータを削除</span></li>
       <li><span class="h">84e1fbb</span><span>2026-09-02</span><span class="s">auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理</span></li>
       <li><span class="h">61cd7e1</span><span>2026-09-02</span><span class="s">auto: ShopTutorialの説明会話を10行から5行に短縮</span></li>
       <li><span class="h">b096612</span><span>2026-09-02</span><span class="s">auto: WIP着手 ShopTutorialの説明会話を短縮</span></li>
       <li><span class="h">423f00c</span><span>2026-09-02</span><span class="s">auto: 難易度選択画面に残機・ボム数の初期値を表示</span></li>
       <li><span class="h">2aea6b4</span><span>2026-09-02</span><span class="s">auto: WIP着手 難易度選択画面に残機・ボム数を表示</span></li>
       <li><span class="h">c6e1cd2</span><span>2026-09-02</span><span class="s">auto: ボスの盾パネルにInk残数の視覚フィードバックを追加</span></li>
-      <li><span class="h">7a264e8</span><span>2026-09-02</span><span class="s">auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加</span></li>
-      <li><span class="h">61b32b0</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-02 18:59 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-02 19:01 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
