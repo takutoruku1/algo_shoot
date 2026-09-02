@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-02 19:01 UTC",
+  "generated": "2026-09-02 22:05 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -1077,6 +1077,16 @@
   ],
   "commits": [
     {
+      "hash": "648d48d",
+      "date": "2026-09-03",
+      "subject": "Merge pull request #17 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "d43b341",
+      "date": "2026-09-02",
+      "subject": "auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新"
+    },
+    {
       "hash": "1bf41fb",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新"
@@ -1105,16 +1115,6 @@
       "hash": "423f00c",
       "date": "2026-09-02",
       "subject": "auto: 難易度選択画面に残機・ボム数の初期値を表示"
-    },
-    {
-      "hash": "2aea6b4",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 難易度選択画面に残機・ボム数を表示"
-    },
-    {
-      "hash": "c6e1cd2",
-      "date": "2026-09-02",
-      "subject": "auto: ボスの盾パネルにInk残数の視覚フィードバックを追加"
     }
   ]
 }

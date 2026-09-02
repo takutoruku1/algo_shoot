@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-02 19:01 UTC
+> 生成: 2026-09-02 22:05 UTC
 
 ## 消化率
 
@@ -209,11 +209,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `648d48d` 2026-09-03 Merge pull request #17 from takutoruku1/auto/dev
+- `d43b341` 2026-09-02 auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新
 - `1bf41fb` 2026-09-02 auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新
 - `df61f73` 2026-09-02 auto: EnemySpec.BulletSpeedの死んだパラメータを削除
 - `84e1fbb` 2026-09-02 auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理
 - `61cd7e1` 2026-09-02 auto: ShopTutorialの説明会話を10行から5行に短縮
 - `b096612` 2026-09-02 auto: WIP着手 ShopTutorialの説明会話を短縮
 - `423f00c` 2026-09-02 auto: 難易度選択画面に残機・ボム数の初期値を表示
-- `2aea6b4` 2026-09-02 auto: WIP着手 難易度選択画面に残機・ボム数を表示
-- `c6e1cd2` 2026-09-02 auto: ボスの盾パネルにInk残数の視覚フィードバックを追加
