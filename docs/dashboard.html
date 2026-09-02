@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 158 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 159 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">158</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">159</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する</span>
-          
-        </div>
-        <p class="accept"><code>src/ShopTutorial.cs:15-27</code>の10行(通貨→拡散/ホーミング解放→系統別奥義→排他選択→撤退推奨まで一括説明)を全て読了(<code>:109-119</code>)するまでShop.tscnへ遷移せず実ツリーに触れられない。行数を半減程度に絞り、拡散/ホーミング解放や奥義・振り直しなど個別の細目はShop画面内のその場ツールチップ/初回ハイライト表示に移す</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-02) <code>src/ShopTutorial.cs:15-19</code>の<code>ShopTutorialLines</code>を10行→5行に半減。拡散/ホーミング解放・系統別奥義予告・排他選択と振り直しの個別細目説明を削除し、(1)一区切りの合図(2)通貨の仕組み+ショップ導線を1行に統合(3)軽口(4)撤退推奨+遷移トリガーの4行構成に整理。少年⇔ミナの掛け合いトーンは維持。<code>Advance</code>(<code>:109-119</code>)・face読み込み等は無変更。Shop画面への新規ツールチップ/ハイライトUIはスコープ外として未実装(規模抑制のため意図的)。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1577,18 +1577,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b096612</span><span>2026-09-02</span><span class="s">auto: WIP着手 ShopTutorialの説明会話を短縮</span></li>
+      <li><span class="h">423f00c</span><span>2026-09-02</span><span class="s">auto: 難易度選択画面に残機・ボム数の初期値を表示</span></li>
       <li><span class="h">2aea6b4</span><span>2026-09-02</span><span class="s">auto: WIP着手 難易度選択画面に残機・ボム数を表示</span></li>
       <li><span class="h">c6e1cd2</span><span>2026-09-02</span><span class="s">auto: ボスの盾パネルにInk残数の視覚フィードバックを追加</span></li>
       <li><span class="h">7a264e8</span><span>2026-09-02</span><span class="s">auto: WIP着手 ボスの盾パネルにInk残数の視覚フィードバック追加</span></li>
       <li><span class="h">61b32b0</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期</span></li>
       <li><span class="h">c012363</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期</span></li>
       <li><span class="h">affb391</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期</span></li>
-      <li><span class="h">76f6fe5</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期</span></li>
-      <li><span class="h">a670f10</span><span>2026-09-02</span><span class="s">auto: 監査で7件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-02 18:54 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-02 18:56 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
