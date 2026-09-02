@@ -28,9 +28,9 @@
 
 ## TODO
 
-- [ ] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | `docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ
-
 ## WIP
+
+- [ ] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | `docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ
 
 ## BLOCKED
 
