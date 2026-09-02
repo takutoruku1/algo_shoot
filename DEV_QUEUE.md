@@ -28,10 +28,11 @@
 
 ## TODO
 
-- [ ] (P3) MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ | engineer | `src/MidEnemy.cs:87`の`EnemyBulletSpeed = _spec.BulletSpeed;`はこのクラス内で一度も読み出されず、実際の弾速は`FireBullet`各呼び出し(`MidEnemy.cs:332,343,357,371,388,402,442,486,497`)のハードコードリテラルで決まる。`EnemySpec.cs`のbulletSpeed値・`Flanker()`(`:121`)の引数がレイ/あかり/こはる/デフォルト道中ザコに対して一切効かない。`MidEnemy.cs:87`の書き込み専用代入を削除し、`EnemySpec.BulletSpeed`関連(フィールド・コンストラクタ引数・テーブル各値)を削除するか未使用である旨をコメントで明記して残置する
 - [ ] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | `docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ
 
 ## WIP
+
+- [ ] (P3) MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ | engineer | `src/MidEnemy.cs:87`の`EnemyBulletSpeed = _spec.BulletSpeed;`はこのクラス内で一度も読み出されず、実際の弾速は`FireBullet`各呼び出し(`MidEnemy.cs:332,343,357,371,388,402,442,486,497`)のハードコードリテラルで決まる。`EnemySpec.cs`のbulletSpeed値・`Flanker()`(`:121`)の引数がレイ/あかり/こはる/デフォルト道中ザコに対して一切効かない。`MidEnemy.cs:87`の書き込み専用代入を削除し、`EnemySpec.BulletSpeed`関連(フィールド・コンストラクタ引数・テーブル各値)を削除するか未使用である旨をコメントで明記して残置する
 
 ## BLOCKED
 
