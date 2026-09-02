@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-02 18:47 UTC
+> 生成: 2026-09-02 18:48 UTC
 
 ## 消化率
 
 ```
-███████████████████░  96%   (完了 155 / 対象 161)
+███████████████████░  97%   (完了 156 / 対象 161)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 155 |
+| ✅ 完了 | 156 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 6 |
+| 📋 残り | 5 |
 | ⛔ 保留（人間の判断待ち） | 16 |
 
 ## 🔨 いま作業中
@@ -22,13 +22,11 @@ _なし_
 
 ## 📋 次にやること
 
-- `P2` 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違
 - `P2` ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない
 - `P2` 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない
 - `P3` ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する
 - `P3` MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ
-
-…ほか 1 件
+- `P3` 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載
 
 ## ⛔ 保留（自動では進められない）
 
@@ -51,6 +49,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P2` 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違
 - `P2` 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま
 - `P3` LUNATIC解禁コメントの行番号ズレ
 - `P3` TryDodgeガードのコメント行番号ズレ
@@ -209,11 +208,11 @@ _なし_
 
 ## 直近のコミット
 
+- `c012363` 2026-09-02 auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期
+- `affb391` 2026-09-02 auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期
 - `76f6fe5` 2026-09-02 auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期
 - `a670f10` 2026-09-02 auto: 監査で7件をキューに追加
 - `2194afb` 2026-09-02 Add missing Godot import sidecars for wiki gallery SVGs
 - `f3a7d9f` 2026-09-02 Add boss-movement and class-system design proposals
 - `627c949` 2026-09-02 Grow the wiki gallery: emotion curve, bestiary, diagrams, simulations
 - `4fdb4d3` 2026-09-02 Stop the dead ship from chasing the cursor
-- `d86a68c` 2026-09-02 Restyle word bullets as SNS chips and arm spells with their objects
-- `cb91e83` 2026-09-02 Stage the dialogue choice as words spoken center-screen

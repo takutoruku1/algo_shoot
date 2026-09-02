@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-02 18:47 UTC",
+  "generated": "2026-09-02 18:48 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 16,
-    "done": 155
+    "done": 156
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違",
-      "worker": "scenario",
-      "accept": "(a)`docs/ゲーム内テキスト台本_改稿版.txt:329`「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)`docs/ゲーム内テキスト台本_改稿版.txt:330`の中継(who=5想定)1行を、`src/BossKoharu.cs:128-129`の少年本人の声(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言とも同期する"
-    },
     {
       "priority": "P2",
       "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) (a)`docs/ゲーム内テキスト台本_改稿版.txt`旧329行目「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)旧330行目の中継1行（少年（ミナの声）表記）を、`src/BossKoharu.cs:128-129`の少年本人(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言・行数とも同期。`BossKoharu.cs:118-137`全行と1行ずつ再照合済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま",
@@ -1078,6 +1078,16 @@
   ],
   "commits": [
     {
+      "hash": "c012363",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期"
+    },
+    {
+      "hash": "affb391",
+      "date": "2026-09-02",
+      "subject": "auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期"
+    },
+    {
       "hash": "76f6fe5",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期"
@@ -1106,16 +1116,6 @@
       "hash": "4fdb4d3",
       "date": "2026-09-02",
       "subject": "Stop the dead ship from chasing the cursor"
-    },
-    {
-      "hash": "d86a68c",
-      "date": "2026-09-02",
-      "subject": "Restyle word bullets as SNS chips and arm spells with their objects"
-    },
-    {
-      "hash": "cb91e83",
-      "date": "2026-09-02",
-      "subject": "Stage the dialogue choice as words spoken center-screen"
     }
   ]
 }

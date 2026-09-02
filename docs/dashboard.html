@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 155 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 156 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">155</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">156</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">(a)<code>docs/ゲーム内テキスト台本_改稿版.txt:329</code>「あたしのごはんじゃ、お兄ちゃんは助からない……!」を<code>src/BossKoharu.cs:126</code>の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)<code>docs/ゲーム内テキスト台本_改稿版.txt:330</code>の中継(who=5想定)1行を、<code>src/BossKoharu.cs:128-129</code>の少年本人の声(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言とも同期する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -199,6 +191,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-02) (a)<code>docs/ゲーム内テキスト台本_改稿版.txt</code>旧329行目「あたしのごはんじゃ、お兄ちゃんは助からない……!」を<code>src/BossKoharu.cs:126</code>の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)旧330行目の中継1行（少年（ミナの声）表記）を、<code>src/BossKoharu.cs:128-129</code>の少年本人(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言・行数とも同期。<code>BossKoharu.cs:118-137</code>全行と1行ずつ再照合済み。<code>src/</code>は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1577,18 +1577,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">c012363</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期</span></li>
+      <li><span class="h">affb391</span><span>2026-09-02</span><span class="s">auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期</span></li>
       <li><span class="h">76f6fe5</span><span>2026-09-02</span><span class="s">auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期</span></li>
       <li><span class="h">a670f10</span><span>2026-09-02</span><span class="s">auto: 監査で7件をキューに追加</span></li>
       <li><span class="h">2194afb</span><span>2026-09-02</span><span class="s">Add missing Godot import sidecars for wiki gallery SVGs</span></li>
       <li><span class="h">f3a7d9f</span><span>2026-09-02</span><span class="s">Add boss-movement and class-system design proposals</span></li>
       <li><span class="h">627c949</span><span>2026-09-02</span><span class="s">Grow the wiki gallery: emotion curve, bestiary, diagrams, simulations</span></li>
       <li><span class="h">4fdb4d3</span><span>2026-09-02</span><span class="s">Stop the dead ship from chasing the cursor</span></li>
-      <li><span class="h">d86a68c</span><span>2026-09-02</span><span class="s">Restyle word bullets as SNS chips and arm spells with their objects</span></li>
-      <li><span class="h">cb91e83</span><span>2026-09-02</span><span class="s">Stage the dialogue choice as words spoken center-screen</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-02 18:47 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-02 18:48 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
