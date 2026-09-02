@@ -39,14 +39,13 @@ public readonly struct EnemySpec
     public readonly float SpinSpeed;
     public readonly bool Fires;        // 暴言弾を撒くか（撃つ種/撃たない種）
     public readonly float FireInterval;
-    public readonly float BulletSpeed;
     public readonly float SwayAmp;     // 上下うねりの振幅（0=直進）
     public readonly float SwayFreq;
     public readonly AttackPattern Pattern; // 固有攻撃パターン（既定 None＝撃たない、後方互換）
 
     public EnemySpec(string pre, string post, int points, float bodyRadius,
         float moveSpeed, float spinSpeed, bool fires, float fireInterval,
-        float bulletSpeed, float swayAmp = 0f, float swayFreq = 0f,
+        float swayAmp = 0f, float swayFreq = 0f,
         AttackPattern pattern = AttackPattern.None)
     {
         PreTexPath = pre;
@@ -57,7 +56,6 @@ public readonly struct EnemySpec
         SpinSpeed = spinSpeed;
         Fires = fires;
         FireInterval = fireInterval;
-        BulletSpeed = bulletSpeed;
         SwayAmp = swayAmp;
         SwayFreq = swayFreq;
         Pattern = pattern;
@@ -73,40 +71,40 @@ public static class EnemyTable
     // レイ＝監視カメラ・目 / あかり＝ノート・教科書 / こはる＝鍋・お玉。
     public static (EnemySpec shooter, EnemySpec drifter) For(StageTheme theme) => theme switch
     {
-        // 発射は本体(MidEnemy)が Pattern で行う。fires/fireInterval/bulletSpeed はパネル発射用の旧値で、
+        // 発射は本体(MidEnemy)が Pattern で行う。fires/fireInterval はパネル発射用の旧値で、
         // 本体発射では参照しない（Panel 側の自前発射は無効化済み）。各種の弾速・間隔・弾数は MidEnemy 内で定義。
         StageTheme.Rei => (
             new EnemySpec("res://char/enemy_rei_drone_pre.png", "res://char/enemy_rei_drone_post.png",
-                100, 4f, moveSpeed: 56f, spinSpeed: 1.5f, fires: true, fireInterval: 1.8f, bulletSpeed: 95f,
+                100, 4f, moveSpeed: 56f, spinSpeed: 1.5f, fires: true, fireInterval: 1.8f,
                 pattern: AttackPattern.ReiLockBurst),
             new EnemySpec("res://char/enemy_rei_eye_pre.png", "res://char/enemy_rei_eye_post.png",
-                80, 5f, moveSpeed: 26f, spinSpeed: 0.9f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
+                80, 5f, moveSpeed: 26f, spinSpeed: 0.9f, fires: false, fireInterval: 0f,
                 swayAmp: 12f, swayFreq: 1.6f, pattern: AttackPattern.ReiPulseRing)),
 
         StageTheme.Akari => (
             new EnemySpec("res://char/enemy_akari_desk_pre.png", "res://char/enemy_akari_desk_post.png",
-                100, 5f, moveSpeed: 46f, spinSpeed: 1.2f, fires: true, fireInterval: 2.0f, bulletSpeed: 90f,
+                100, 5f, moveSpeed: 46f, spinSpeed: 1.2f, fires: true, fireInterval: 2.0f,
                 pattern: AttackPattern.AkariScatter),
             new EnemySpec("res://char/enemy_akari_note_pre.png", "res://char/enemy_akari_note_post.png",
-                80, 4f, moveSpeed: 30f, spinSpeed: 1.1f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
+                80, 4f, moveSpeed: 30f, spinSpeed: 1.1f, fires: false, fireInterval: 0f,
                 swayAmp: 16f, swayFreq: 1.3f, pattern: AttackPattern.AkariDrop)),
 
         StageTheme.Koharu => (
             new EnemySpec("res://char/enemy_koharu_knife_pre.png", "res://char/enemy_koharu_knife_post.png",
-                100, 4f, moveSpeed: 60f, spinSpeed: 1.6f, fires: true, fireInterval: 1.7f, bulletSpeed: 100f,
+                100, 4f, moveSpeed: 60f, spinSpeed: 1.6f, fires: true, fireInterval: 1.7f,
                 pattern: AttackPattern.KoharuSharp3),
             new EnemySpec("res://char/enemy_koharu_pot_pre.png", "res://char/enemy_koharu_pot_post.png",
-                80, 6f, moveSpeed: 24f, spinSpeed: 0.8f, fires: false, fireInterval: 0f, bulletSpeed: 0f,
+                80, 6f, moveSpeed: 24f, spinSpeed: 0.8f, fires: false, fireInterval: 0f,
                 swayAmp: 10f, swayFreq: 1.1f, pattern: AttackPattern.KoharuSimmer)),
 
         // Default: 既存アンチくん/うつむきさん素材。Spawner が GlyphMote/PageShard を直接使う想定だが、
         // テーブル経由でも同じ姿が出るよう一応そろえておく。
         _ => (
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
-                100, 4f, moveSpeed: 50f, spinSpeed: 1.4f, fires: true, fireInterval: 1.9f, bulletSpeed: 90f,
+                100, 4f, moveSpeed: 50f, spinSpeed: 1.4f, fires: true, fireInterval: 1.9f,
                 pattern: AttackPattern.DefaultAim),
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
-                80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f, bulletSpeed: 0f)),
+                80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f)),
     };
 
     // 第4種：回り込み「引用リプ」（FlankAim）。スキンは各テーマの“撃つ種”を流用（新規アート不要）し、
@@ -118,7 +116,7 @@ public static class EnemyTable
         var (shooter, _) = For(theme);
         return new EnemySpec(shooter.PreTexPath, shooter.PostTexPath, shooter.Points, shooter.BodyRadius,
             moveSpeed: FlankMoveSpeed, spinSpeed: shooter.SpinSpeed, fires: true,
-            fireInterval: shooter.FireInterval, bulletSpeed: shooter.BulletSpeed,
+            fireInterval: shooter.FireInterval,
             pattern: AttackPattern.FlankAim);
     }
 
@@ -138,7 +136,7 @@ public static class EnemyTable
         var (_, drifter) = For(theme);
         return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 220,
             bodyRadius: drifter.BodyRadius + 2f, moveSpeed: BuzzWallMoveSpeed, spinSpeed: drifter.SpinSpeed * 0.6f,
-            fires: false, fireInterval: 0f, bulletSpeed: 0f,
+            fires: false, fireInterval: 0f,
             pattern: AttackPattern.BuzzWall);
     }
 
@@ -150,7 +148,7 @@ public static class EnemyTable
         var (_, drifter) = For(StageTheme.Koharu);
         return new EnemySpec(drifter.PreTexPath, drifter.PostTexPath, points: 60,
             bodyRadius: drifter.BodyRadius, moveSpeed: PrayerCarrySpeed, spinSpeed: drifter.SpinSpeed,
-            fires: false, fireInterval: 0f, bulletSpeed: 0f,
+            fires: false, fireInterval: 0f,
             pattern: AttackPattern.KoharuPrayerCarry);
     }
 }

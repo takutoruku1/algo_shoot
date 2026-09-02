@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-02 18:56 UTC",
+  "generated": "2026-09-02 18:59 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 16,
-    "done": 159
+    "done": 160
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ",
-      "worker": "engineer",
-      "accept": "`src/MidEnemy.cs:87`の`EnemyBulletSpeed = _spec.BulletSpeed;`はこのクラス内で一度も読み出されず、実際の弾速は`FireBullet`各呼び出し(`MidEnemy.cs:332,343,357,371,388,402,442,486,497`)のハードコードリテラルで決まる。`EnemySpec.cs`のbulletSpeed値・`Flanker()`(`:121`)の引数がレイ/あかり/こはる/デフォルト道中ザコに対して一切効かない。`MidEnemy.cs:87`の書き込み専用代入を削除し、`EnemySpec.BulletSpeed`関連(フィールド・コンストラクタ引数・テーブル各値)を削除するか未使用である旨をコメントで明記して残置する"
-    },
     {
       "priority": "P3",
       "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
@@ -121,6 +115,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-02) 方式(a)完全削除。`src/MidEnemy.cs:87`の書き込み専用代入`EnemyBulletSpeed = _spec.BulletSpeed;`を削除。`src/EnemySpec.cs`の`BulletSpeed`フィールド・コンストラクタ引数・`For(theme)`テーブル全8件・`Flanker()`/`BuzzWall()`/`PrayerCarrier()`各ファクトリの`bulletSpeed:`引数を削除。Boss系(BossRei/Akari/Koharu/Mina/Hikage/CameoBoss)は各自`BossTuning`経由で`EnemyBulletSpeed`を独自設定しており本変更と無関係なことを確認済み。MidEnemyの実際の弾速(`FireBullet`各所のハードコードリテラル)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する",
@@ -1078,6 +1078,16 @@
   ],
   "commits": [
     {
+      "hash": "84e1fbb",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理"
+    },
+    {
+      "hash": "61cd7e1",
+      "date": "2026-09-02",
+      "subject": "auto: ShopTutorialの説明会話を10行から5行に短縮"
+    },
+    {
       "hash": "b096612",
       "date": "2026-09-02",
       "subject": "auto: WIP着手 ShopTutorialの説明会話を短縮"
@@ -1106,16 +1116,6 @@
       "hash": "61b32b0",
       "date": "2026-09-02",
       "subject": "auto: 台本改稿版.txtのSTAGE3こはる改心かけあいを実装に同期"
-    },
-    {
-      "hash": "c012363",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 台本改稿版.txtのSTAGE3こはる改心かけあい同期"
-    },
-    {
-      "hash": "affb391",
-      "date": "2026-09-02",
-      "subject": "auto: 台本改稿版.txtのSTAGE2あかり改心かけあいを実装に同期"
     }
   ]
 }
