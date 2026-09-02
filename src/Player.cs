@@ -510,9 +510,10 @@ public partial class Player : Area2D
             }
             if (_dodgeTimer <= 0f) EndDodge();
         }
-        else if (mouse && !Hud.BubblePaused)
+        else if (mouse && !Hud.BubblePaused && !_gameOver)
         {
-            // マウス追従：カーソル（ワールド座標）へ指数補間で寄る。GetGlobalMousePosition は
+            // マウス追従：カーソル（ワールド座標）へ指数補間で寄る。ゲームオーバー後は
+            // KB/パッド移動と同じく停止（R/Q の選択待ちに専念させる）。GetGlobalMousePosition は
             // キャンバス変換（GameCamera のシェイク込み）を通した値＝プレイ領域 384×216 と同じ系。
             // 1フレームの移動量は既存の速度上限(speed)でクランプ＝KB/パッドより速く動けることはない。
             Vector2 target = GetGlobalMousePosition();
@@ -587,7 +588,7 @@ public partial class Player : Area2D
         else if (!mouseL) _mouseFlipLocked = false;
         bool flipKey = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
                     || (mouseL && !_mouseFlipLocked);
-        if (flipKey && !_flipHeld && !Hud.BubblePaused)
+        if (flipKey && !_flipHeld && !Hud.BubblePaused && !_gameOver)
         {
             _facing = -_facing;
             FxLayer.Instance?.Muzzle(GlobalPosition + ShotDir * 20f); // 「向きが変わった」を銃口側の一閃で示す
