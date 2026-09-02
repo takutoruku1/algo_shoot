@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-01 22:04 UTC
+> 生成: 2026-09-02 18:47 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 154 / 対象 154)
+███████████████████░  96%   (完了 155 / 対象 161)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 154 |
+| ✅ 完了 | 155 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 0 |
+| 📋 残り | 6 |
 | ⛔ 保留（人間の判断待ち） | 16 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-_キューが空です_
+- `P2` 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違
+- `P2` ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない
+- `P2` 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない
+- `P3` ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する
+- `P3` MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ
+
+…ほか 1 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -45,6 +51,7 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P2` 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま
 - `P3` LUNATIC解禁コメントの行番号ズレ
 - `P3` TryDodgeガードのコメント行番号ズレ
 - `P3` やさしさ全開トーストとモード切替トーストの表示重なり
@@ -202,11 +209,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `cdcd1c3` 2026-09-02 Merge pull request #16 from takutoruku1/auto/dev
-- `88d8eb9` 2026-09-01 auto: LUNATIC解禁コメントの行番号ズレを修正
-- `ba95ed1` 2026-09-01 auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ
-- `60842a5` 2026-09-01 auto: TryDodgeガードのコメント行番号ズレを修正
-- `a1b9d2e` 2026-09-01 auto: WIP着手 - TryDodgeガードのコメント行番号ズレ
-- `5759bde` 2026-09-01 auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正
-- `8c10440` 2026-09-01 auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり
-- `3db29b7` 2026-09-01 auto: 監査で3件をキューに追加
+- `76f6fe5` 2026-09-02 auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期
+- `a670f10` 2026-09-02 auto: 監査で7件をキューに追加
+- `2194afb` 2026-09-02 Add missing Godot import sidecars for wiki gallery SVGs
+- `f3a7d9f` 2026-09-02 Add boss-movement and class-system design proposals
+- `627c949` 2026-09-02 Grow the wiki gallery: emotion curve, bestiary, diagrams, simulations
+- `4fdb4d3` 2026-09-02 Stop the dead ship from chasing the cursor
+- `d86a68c` 2026-09-02 Restyle word bullets as SNS chips and arm spells with their objects
+- `cb91e83` 2026-09-02 Stage the dialogue choice as words spoken center-screen

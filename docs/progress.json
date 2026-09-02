@@ -1,13 +1,50 @@
 {
-  "generated": "2026-09-01 22:04 UTC",
+  "generated": "2026-09-02 18:47 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 6,
     "wip": 0,
     "blocked": 16,
-    "done": 154
+    "done": 155
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 96,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違",
+      "worker": "scenario",
+      "accept": "(a)`docs/ゲーム内テキスト台本_改稿版.txt:329`「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)`docs/ゲーム内テキスト台本_改稿版.txt:330`の中継(who=5想定)1行を、`src/BossKoharu.cs:128-129`の少年本人の声(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言とも同期する"
+    },
+    {
+      "priority": "P2",
+      "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
+      "worker": null,
+      "accept": "`src/Panel.cs:157`で絵付きパネル(`_hasTex`、全ボス・ザコ盾が該当)のとき`_Draw`がInk連動の縮む円描画(`:158`)を出さずreturnし、被弾フィードバックが`_hitFlashT`(`HitFlashDur=0.09秒`、`:25,86-95`)の一瞬の白フラッシュのみになっている。BossMina(Ink=4、`BossMina.cs:74`)・BossKoharu/BossAkari(Ink=3、`BossKoharu.cs:146`/`BossAkari.cs:100`)で影響最大。ボス本体HPバーはシールド中据え置き(`Enemy.cs:377-387`)のためパネル自体の進捗表示が唯一の道中フィードバック。テクスチャ付きパネルにも残Ink数に応じた持続的な視覚差分(残数ぶんのノッチ/ドットのオーバーレイ、または`_hitFlashT`の強度・残光をInk残数に応じて変える等)を追加する"
+    },
+    {
+      "priority": "P2",
+      "title": "難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない",
+      "worker": null,
+      "accept": "`src/DiffSelect.cs:21-31`のTiers配列はName/Desc/Density/Face/Quipのみで残機・ボム関連の表示が無いが、実際は`src/GameManager.cs:59-60`のStartLives/StartBombsがEasy6/Normal4/Hard3/Lunatic2と3倍の開きがある。各ティア行に実際のStartLives/StartBombs値(例「♥6 ボム6」〜「♥2 ボム2」)を追加表示し、難易度選択が実際の賭け金を見せた上での選択になるようにする"
+    },
+    {
+      "priority": "P3",
+      "title": "ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する",
+      "worker": null,
+      "accept": "`src/ShopTutorial.cs:15-27`の10行(通貨→拡散/ホーミング解放→系統別奥義→排他選択→撤退推奨まで一括説明)を全て読了(`:109-119`)するまでShop.tscnへ遷移せず実ツリーに触れられない。行数を半減程度に絞り、拡散/ホーミング解放や奥義・振り直しなど個別の細目はShop画面内のその場ツールチップ/初回ハイライト表示に移す"
+    },
+    {
+      "priority": "P3",
+      "title": "MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ",
+      "worker": "engineer",
+      "accept": "`src/MidEnemy.cs:87`の`EnemyBulletSpeed = _spec.BulletSpeed;`はこのクラス内で一度も読み出されず、実際の弾速は`FireBullet`各呼び出し(`MidEnemy.cs:332,343,357,371,388,402,442,486,497`)のハードコードリテラルで決まる。`EnemySpec.cs`のbulletSpeed値・`Flanker()`(`:121`)の引数がレイ/あかり/こはる/デフォルト道中ザコに対して一切効かない。`MidEnemy.cs:87`の書き込み専用代入を削除し、`EnemySpec.BulletSpeed`関連(フィールド・コンストラクタ引数・テーブル各値)を削除するか未使用である旨をコメントで明記して残置する"
+    },
+    {
+      "priority": "P3",
+      "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
+      "worker": "scenario",
+      "accept": "`docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -108,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) `docs/ゲーム内テキスト台本_改稿版.txt:246`の旧稿「少年（ミナの声）：きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、`src/BossAkari.cs:90`の現行実装`(1, \"……ちゃんと、届きましたよ。\", \"\")`と一致する「ミナ：……ちゃんと、届きましたよ。」に置換。「迷惑なんかじゃない」の残存は全文検索で0件を確認。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。副次発見：台本244行目の話者表記「少年（ミナの声）」が実装`BossAkari.cs:87`のwho=5(中継)と不一致だが、今回のタスクスコープ外のため別途要調査"
+    },
     {
       "priority": "P3",
       "title": "LUNATIC解禁コメントの行番号ズレ",
@@ -1035,44 +1078,44 @@
   ],
   "commits": [
     {
-      "hash": "cdcd1c3",
+      "hash": "76f6fe5",
       "date": "2026-09-02",
-      "subject": "Merge pull request #16 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 台本改稿版.txtのSTAGE2あかり改心かけあい同期"
     },
     {
-      "hash": "88d8eb9",
-      "date": "2026-09-01",
-      "subject": "auto: LUNATIC解禁コメントの行番号ズレを修正"
+      "hash": "a670f10",
+      "date": "2026-09-02",
+      "subject": "auto: 監査で7件をキューに追加"
     },
     {
-      "hash": "ba95ed1",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ"
+      "hash": "2194afb",
+      "date": "2026-09-02",
+      "subject": "Add missing Godot import sidecars for wiki gallery SVGs"
     },
     {
-      "hash": "60842a5",
-      "date": "2026-09-01",
-      "subject": "auto: TryDodgeガードのコメント行番号ズレを修正"
+      "hash": "f3a7d9f",
+      "date": "2026-09-02",
+      "subject": "Add boss-movement and class-system design proposals"
     },
     {
-      "hash": "a1b9d2e",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - TryDodgeガードのコメント行番号ズレ"
+      "hash": "627c949",
+      "date": "2026-09-02",
+      "subject": "Grow the wiki gallery: emotion curve, bestiary, diagrams, simulations"
     },
     {
-      "hash": "5759bde",
-      "date": "2026-09-01",
-      "subject": "auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正"
+      "hash": "4fdb4d3",
+      "date": "2026-09-02",
+      "subject": "Stop the dead ship from chasing the cursor"
     },
     {
-      "hash": "8c10440",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり"
+      "hash": "d86a68c",
+      "date": "2026-09-02",
+      "subject": "Restyle word bullets as SNS chips and arm spells with their objects"
     },
     {
-      "hash": "3db29b7",
-      "date": "2026-09-01",
-      "subject": "auto: 監査で3件をキューに追加"
+      "hash": "cb91e83",
+      "date": "2026-09-02",
+      "subject": "Stage the dialogue choice as words spoken center-screen"
     }
   ]
 }

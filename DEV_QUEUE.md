@@ -37,8 +37,6 @@
 
 ## WIP
 
-- [ ] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | `docs/ゲーム内テキスト台本_改稿版.txt:246`の「きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、実装が既に説明台詞を削除した現行版`src/BossAkari.cs:89-90`の「……ちゃんと、届きましたよ。」のみに同期する
-
 ## BLOCKED
 
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
@@ -60,6 +58,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | (完了 2026-09-02) `docs/ゲーム内テキスト台本_改稿版.txt:246`の旧稿「少年（ミナの声）：きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、`src/BossAkari.cs:90`の現行実装`(1, "……ちゃんと、届きましたよ。", "")`と一致する「ミナ：……ちゃんと、届きましたよ。」に置換。「迷惑なんかじゃない」の残存は全文検索で0件を確認。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。副次発見：台本244行目の話者表記「少年（ミナの声）」が実装`BossAkari.cs:87`のwho=5(中継)と不一致だが、今回のタスクスコープ外のため別途要調査
 - [x] (P3) LUNATIC解禁コメントの行番号ズレ | engineer | (完了 2026-09-01) `src/DiffSelect.cs:339`のコメントが指す参照先を「Shop.cs:1058」から実際に`GameManager.LunaticFollowerReq`を参照している「Shop.cs:1167」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) TryDodgeガードのコメント行番号ズレ | engineer | (完了 2026-09-01) `src/Player.cs:264`のDodgeReadyコメントが指す行番号を「986行目相当」から実際のガード位置「999行目」へ修正。ロジック自体の変更なし。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) やさしさ全開トーストとモード切替トーストの表示重なり | engineer | (完了 2026-09-01) `src/Hud.cs:328`で全開発動検知時(`_game?.JustOverloaded`)に`_overloadToast = 1.4`と同時に`_shotModeToast = 0`をセットし、モード切替トーストを即座に消すことでOverloadToastとの同一矩形への重描画を防止。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
