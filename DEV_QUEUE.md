@@ -28,7 +28,6 @@
 
 ## TODO
 
-- [ ] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | `docs/ゲーム内テキスト台本_改稿版.txt:246`の「きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、実装が既に説明台詞を削除した現行版`src/BossAkari.cs:89-90`の「……ちゃんと、届きましたよ。」のみに同期する
 - [ ] (P2) 台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違 | scenario | (a)`docs/ゲーム内テキスト台本_改稿版.txt:329`「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)`docs/ゲーム内テキスト台本_改稿版.txt:330`の中継(who=5想定)1行を、`src/BossKoharu.cs:128-129`の少年本人の声(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言とも同期する
 - [ ] (P2) ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない | game-designer→engineer | `src/Panel.cs:157`で絵付きパネル(`_hasTex`、全ボス・ザコ盾が該当)のとき`_Draw`がInk連動の縮む円描画(`:158`)を出さずreturnし、被弾フィードバックが`_hitFlashT`(`HitFlashDur=0.09秒`、`:25,86-95`)の一瞬の白フラッシュのみになっている。BossMina(Ink=4、`BossMina.cs:74`)・BossKoharu/BossAkari(Ink=3、`BossKoharu.cs:146`/`BossAkari.cs:100`)で影響最大。ボス本体HPバーはシールド中据え置き(`Enemy.cs:377-387`)のためパネル自体の進捗表示が唯一の道中フィードバック。テクスチャ付きパネルにも残Ink数に応じた持続的な視覚差分(残数ぶんのノッチ/ドットのオーバーレイ、または`_hitFlashT`の強度・残光をInk残数に応じて変える等)を追加する
 - [ ] (P2) 難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない | game-designer→engineer | `src/DiffSelect.cs:21-31`のTiers配列はName/Desc/Density/Face/Quipのみで残機・ボム関連の表示が無いが、実際は`src/GameManager.cs:59-60`のStartLives/StartBombsがEasy6/Normal4/Hard3/Lunatic2と3倍の開きがある。各ティア行に実際のStartLives/StartBombs値(例「♥6 ボム6」〜「♥2 ボム2」)を追加表示し、難易度選択が実際の賭け金を見せた上での選択になるようにする
@@ -37,6 +36,8 @@
 - [ ] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | `docs/小話集_v1.md:17-25`の表がショップ/トレーニング/タイトルを「なし(新設要)」と記載しているが、いずれも`src/Shop.cs`(小話3)/`src/TrainingRoot.cs`(小話4)/`src/TitleMenu.cs`(小話5)で実装済み(DEV_QUEUE DONE記載)。表を実装済み状態に更新し、今後の誤認・重複着手を防ぐ
 
 ## WIP
+
+- [ ] (P2) 台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま | scenario | `docs/ゲーム内テキスト台本_改稿版.txt:246`の「きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、実装が既に説明台詞を削除した現行版`src/BossAkari.cs:89-90`の「……ちゃんと、届きましたよ。」のみに同期する
 
 ## BLOCKED
 
