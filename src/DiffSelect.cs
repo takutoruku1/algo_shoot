@@ -366,6 +366,11 @@ public partial class DiffSelect : Node2D
         float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
         string reward = $"報酬 ×{mul:0.0}";
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, UiKit.FontLabel), y + 50), reward, UiKit.FontLabel, new Color("7ec880"));
+
+        // 「賭け金」＝残機・ボム初期数（GameManager.BaseLivesFor/BaseBombsFor）。密度メーターだけでは
+        // 見えない残機3倍差（Easy6→Lunatic2）を選ぶ前に提示する。恒久強化ボーナスは含めない素の値。
+        string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall), y + 66), stake, UiKit.FontSmall, UiKit.Text3);
     }
 
     // ── 入口ダイアログ（難易度確定後に開くモーダル）：最初から / 中ボスから / ボスから を選ぶ ──

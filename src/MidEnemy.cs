@@ -84,7 +84,6 @@ public partial class MidEnemy : Enemy
         SpinSpeed = _spec.SpinSpeed;
         PanelsFire = false; // 発射は本体へ移管。パネルは盾専念。
         PanelFireInterval = _spec.FireInterval;
-        EnemyBulletSpeed = _spec.BulletSpeed;
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;

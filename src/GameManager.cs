@@ -56,8 +56,12 @@ public partial class GameManager : Node
     // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
     // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
     // 恒久強化(max_life/bomb_count、ChainLevel上限+2)を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
-    public int StartLives => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + MaxLifeBonus;
-    public int StartBombs => (Difficulty switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 }) + BombCountBonus;
+    public int StartLives => BaseLivesFor(Difficulty) + MaxLifeBonus;
+    public int StartBombs => BaseBombsFor(Difficulty) + BombCountBonus;
+    // DiffSelect（難易度選択画面）が「今の選択」ではなく各ティア個別の基礎値を並べて見せられるよう、
+    // Difficultyに依存しない静的版を用意（恒久強化ボーナスは含めない＝難易度そのものの賭け金のみ）。
+    public static int BaseLivesFor(Diff d) => d switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 };
+    public static int BaseBombsFor(Diff d) => d switch { Diff.Easy => 6, Diff.Hard => 3, Diff.Lunatic => 2, _ => 4 };
     public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
     public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };

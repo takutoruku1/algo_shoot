@@ -15,15 +15,10 @@ public partial class ShopTutorial : Node2D
     private static readonly (int who, string text, string face)[] ShopTutorialLines =
     {
         (1, "……ご主人様。聞こえますか。最初の“声”が、静かになりました。", "res://char/mina_face.png"),
-        (1, "ひと息つきましょう、ご主人様。せっかく稼いだのです、使い道をご案内しますわ。", "res://char/mina_smile.png"),
-        (0, "稼いだ……？　ぼく、お金なんて拾った覚えないけど。", "res://char/shonen_face.png"),
-        (1, "敵を浄化するたび、Alt で弾を“抜ける”たびに、貯まっておりますのよ。——“浄化した心”、♥の数が、それです。", "res://char/mina_face.png"),
-        (0, "よけてるだけでお金が……ぼく、知らないうちに小金持ち？", "res://char/shonen_face.png"),
-        (1, "その心を、強化ショップで わたくしに注いでくださいまし。拡散やホーミングの解放、光の出力・連射速度・拡散力——買えば心は減りますが、わたくしは確かに強くなります。", "res://char/mina_face.png"),
-        (1, "それと——系統を奥まで伸ばしてくださると、その型だけの“奥義”が開きますのよ。楽しみになさって。", "res://char/mina_smile.png"),
-        (1, "枝の先には“どちらか一方”の選択もございます。選んだ道がわたくしの形——でも、心を払えば選び直せますから、ご安心を。", "res://char/mina_face.png"),
-        (1, "歯が立たない相手なら、無理は禁物。一度ここで強くなって、出直せばよろしいのです。", "res://char/mina_worried.png"),
-        (1, "わたくしを、よく研いでおいてくださいね。——では、まいりましょう。", "res://char/mina_smile.png"),
+        (0, "……ふぅ。少しは、ひと息つけるってことか。", "res://char/shonen_face.png"),
+        (1, "ええ。敵を浄化するたび貯まる“浄化した心”——♥で、わたくしを強化ショップにて鍛え直せますのよ。", "res://char/mina_smile.png"),
+        (0, "へえ……知らないうちに小金持ちってわけか。", "res://char/shonen_face.png"),
+        (1, "歯が立たない相手なら、無理は禁物。わたくしを、よく研いでおいてくださいまし。——では、まいりましょう。", "res://char/mina_worried.png"),
     };
 
     // 立ち絵テクスチャは初出時にロードしてキャッシュ（毎フレームLoad禁止）。

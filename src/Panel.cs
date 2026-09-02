@@ -115,7 +115,8 @@ public partial class Panel : Area2D
             else
             {
                 // 剥がしの途中経過にも手応えを返す（本体ヒットと同じ「当てた→返る」の非対称を解消）。
-                // 発光はテクスチャ付きのみ（図形描画側は _Draw の同心円縮小がその役目）。
+                // 発光(_hitFlashT)はテクスチャ付きのみ。QueueRedraw は残Ink表示の更新用
+                // （テクスチャ無しは _Draw の同心円縮小、テクスチャ付きは DrawInkNotches のドット数）。
                 QueueRedraw();
                 _hitFlashT = HitFlashDur;
                 Audio.Instance?.PlayStrip(light: true);
@@ -154,7 +155,8 @@ public partial class Panel : Area2D
 
     public override void _Draw()
     {
-        if (_dead || _hasTex) return; // スプライトがあれば図形は描かない
+        if (_dead) return;
+        if (_hasTex) { DrawInkNotches(); return; } // 絵付きパネルは残Ink数のドットだけ重ね描き
         float r = 3.2f + Ink * 0.8f;  // インクが多いほど大きい
 
         // 外周グロー（box-shadow 相当）。
@@ -172,5 +174,24 @@ public partial class Panel : Area2D
         DrawCircle(new Vector2(-2f, 0f), 0.7f, BubbleDot, true, -1f, true);
         DrawCircle(new Vector2(0f, 0f), 0.7f, BubbleDot, true, -1f, true);
         DrawCircle(new Vector2(2f, 0f), 0.7f, BubbleDot, true, -1f, true);
+    }
+
+    // 絵付きパネル用：残Ink数ぶんの小ドットをテクスチャ上端の外側に横並びで重ね描きする。
+    // 一撃フラッシュ(_hitFlashT)は一瞬(0.09秒)で消えるため、これが「あと何発耐えるか」を
+    // 剥がれる直前まで示し続ける唯一の持続表示になる（Ink が減るたびドットも1つ減る）。
+    private void DrawInkNotches()
+    {
+        if (Ink <= 0) return;
+        const float dotR = 0.9f;
+        const float spacing = 2.3f;
+        float halfH = DisplayH * _displayScale * 0.5f; // スプライトの実表示高さの半分
+        float y = -(halfH + dotR + 1.5f);              // 絵柄を隠さないよう少し上に浮かせる
+        float startX = -(Ink - 1) * spacing * 0.5f;
+        for (int i = 0; i < Ink; i++)
+        {
+            var p = new Vector2(startX + i * spacing, y);
+            DrawCircle(p, dotR + 0.4f, new Color(KegareRim, 0.9f), true, -1f, true); // 縁（設計色）
+            DrawCircle(p, dotR, BubbleDot, true, -1f, true);                         // 本体
+        }
     }
 }

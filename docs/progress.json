@@ -1,10 +1,10 @@
 {
-  "generated": "2026-09-01 22:04 UTC",
+  "generated": "2026-09-02 19:01 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
     "blocked": 16,
-    "done": 154
+    "done": 161
   },
   "percent": 100,
   "todo": [],
@@ -108,6 +108,48 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) `docs/小話集_v1.md:23-25`の表のショップ/トレーニング/タイトル3行を「なし(新設要)」から実装済みへ更新。根拠=`src/Shop.cs:239-249,251-262,264-273`(小話3)/`src/TrainingRoot.cs:55-61,63-74,76-85`(小話4)/`src/TitleMenu.cs:31-39,41-51`(小話5)。いずれもコード側コメントで「小話3/4/5」明記済み、DEV_QUEUE DONEの2026-08-13記録と整合確認済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-02) 方式(a)完全削除。`src/MidEnemy.cs:87`の書き込み専用代入`EnemyBulletSpeed = _spec.BulletSpeed;`を削除。`src/EnemySpec.cs`の`BulletSpeed`フィールド・コンストラクタ引数・`For(theme)`テーブル全8件・`Flanker()`/`BuzzWall()`/`PrayerCarrier()`各ファクトリの`bulletSpeed:`引数を削除。Boss系(BossRei/Akari/Koharu/Mina/Hikage/CameoBoss)は各自`BossTuning`経由で`EnemyBulletSpeed`を独自設定しており本変更と無関係なことを確認済み。MidEnemyの実際の弾速(`FireBullet`各所のハードコードリテラル)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する",
+      "worker": null,
+      "accept": "(完了 2026-09-02) `src/ShopTutorial.cs:15-19`の`ShopTutorialLines`を10行→5行に半減。拡散/ホーミング解放・系統別奥義予告・排他選択と振り直しの個別細目説明を削除し、(1)一区切りの合図(2)通貨の仕組み+ショップ導線を1行に統合(3)軽口(4)撤退推奨+遷移トリガーの4行構成に整理。少年⇔ミナの掛け合いトーンは維持。`Advance`(`:109-119`)・face読み込み等は無変更。Shop画面への新規ツールチップ/ハイライトUIはスコープ外として未実装(規模抑制のため意図的)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "難易度選択画面が残機・ボム数の3倍の開きを見せず弾密度メーターしか出さない",
+      "worker": null,
+      "accept": "(完了 2026-09-02) `src/GameManager.cs:59-64`のStartLives/StartBombsの難易度別基礎値を静的メソッド`BaseLivesFor(Diff)`/`BaseBombsFor(Diff)`に切り出し(実値・恒久強化ボーナス加算ロジックは無変更)。`src/DiffSelect.cs:366-372`(`DrawTier`)に「♥{残機} ボム{ボム数}」を報酬倍率表示の下に追加表示。値はEasy「♥6 ボム6」〜Lunatic「♥2 ボム2」で実際のStartLives/StartBombsと一致。難易度パラメータ自体は無変更、表示追加のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機でのレイアウト目視確認は未実施"
+    },
+    {
+      "priority": "P2",
+      "title": "ボスの盾パネルが多段Ink(2〜4発)でも被弾ごとの残数が見えない",
+      "worker": null,
+      "accept": "(完了 2026-09-02) `src/Panel.cs:157`の絵付きパネル早期return分岐に`DrawInkNotches()`呼び出しを追加(`:156-159`)。新設`DrawInkNotches()`(`:179-198`)が残Ink数ぶんの小ドットをテクスチャ実表示高さ(`DisplayH*_displayScale`)の上端外側に横並びで重ね描き、既存の設計色(KegareRim縁+BubbleDot本体)を流用。`QueueRedraw()`は既存の毎ヒット呼び出し(`:117-119`、コメントのみ実態に合わせ更新)でドット数が1対1更新される。当たり判定・ダメージ計算・非テクスチャパネルの既存同心円描画・`_hitFlashT`ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。実機での目視確認は未実施(ヘッドレス環境のため)"
+    },
+    {
+      "priority": "P2",
+      "title": "台本改稿版.txtのSTAGE3こはる改心かけあいが2箇所で実装と文言相違",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) (a)`docs/ゲーム内テキスト台本_改稿版.txt`旧329行目「あたしのごはんじゃ、お兄ちゃんは助からない……!」を`src/BossKoharu.cs:126`の現行「……お兄ちゃんは帰ってこない……!」に同期。(b)旧330行目の中継1行（少年（ミナの声）表記）を、`src/BossKoharu.cs:128-129`の少年本人(who=0)2行「……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。」「祈りは、ちゃんと——届いてた。」に話者・文言・行数とも同期。`BossKoharu.cs:118-137`全行と1行ずつ再照合済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "台本改稿版.txtのSTAGE2あかり改心かけあいが旧稿のまま",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-02) `docs/ゲーム内テキスト台本_改稿版.txt:246`の旧稿「少年（ミナの声）：きみの“好き”は、迷惑なんかじゃない。——届けたかった一人には、とっくに、届いてるよ。」を、`src/BossAkari.cs:90`の現行実装`(1, \"……ちゃんと、届きましたよ。\", \"\")`と一致する「ミナ：……ちゃんと、届きましたよ。」に置換。「迷惑なんかじゃない」の残存は全文検索で0件を確認。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み。副次発見：台本244行目の話者表記「少年（ミナの声）」が実装`BossAkari.cs:87`のwho=5(中継)と不一致だが、今回のタスクスコープ外のため別途要調査"
+    },
     {
       "priority": "P3",
       "title": "LUNATIC解禁コメントの行番号ズレ",
@@ -1035,44 +1077,44 @@
   ],
   "commits": [
     {
-      "hash": "cdcd1c3",
+      "hash": "1bf41fb",
       "date": "2026-09-02",
-      "subject": "Merge pull request #16 from takutoruku1/auto/dev"
+      "subject": "auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新"
     },
     {
-      "hash": "88d8eb9",
-      "date": "2026-09-01",
-      "subject": "auto: LUNATIC解禁コメントの行番号ズレを修正"
+      "hash": "df61f73",
+      "date": "2026-09-02",
+      "subject": "auto: EnemySpec.BulletSpeedの死んだパラメータを削除"
     },
     {
-      "hash": "ba95ed1",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - LUNATIC解禁コメントの行番号ズレ"
+      "hash": "84e1fbb",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理"
     },
     {
-      "hash": "60842a5",
-      "date": "2026-09-01",
-      "subject": "auto: TryDodgeガードのコメント行番号ズレを修正"
+      "hash": "61cd7e1",
+      "date": "2026-09-02",
+      "subject": "auto: ShopTutorialの説明会話を10行から5行に短縮"
     },
     {
-      "hash": "a1b9d2e",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - TryDodgeガードのコメント行番号ズレ"
+      "hash": "b096612",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 ShopTutorialの説明会話を短縮"
     },
     {
-      "hash": "5759bde",
-      "date": "2026-09-01",
-      "subject": "auto: やさしさ全開トーストとモード切替トーストの表示重なりを修正"
+      "hash": "423f00c",
+      "date": "2026-09-02",
+      "subject": "auto: 難易度選択画面に残機・ボム数の初期値を表示"
     },
     {
-      "hash": "8c10440",
-      "date": "2026-09-01",
-      "subject": "auto: WIP着手 - やさしさ全開トーストとモード切替トーストの表示重なり"
+      "hash": "2aea6b4",
+      "date": "2026-09-02",
+      "subject": "auto: WIP着手 難易度選択画面に残機・ボム数を表示"
     },
     {
-      "hash": "3db29b7",
-      "date": "2026-09-01",
-      "subject": "auto: 監査で3件をキューに追加"
+      "hash": "c6e1cd2",
+      "date": "2026-09-02",
+      "subject": "auto: ボスの盾パネルにInk残数の視覚フィードバックを追加"
     }
   ]
 }
