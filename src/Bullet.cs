@@ -93,18 +93,64 @@ public partial class Bullet : Area2D
     // 言葉弾にする（Spawn 後に呼ぶ）。再描画して文字を反映。
     // handle を渡すと「下に流れるコメント（ティッカー）」と同じ投稿者ハンドルを弾にも乗せ、
     // “下に流れていたコメントが弾として降ってくる”連動感を出す（Hud.TickerWords が共有ソース）。
-    public void SetWord(string w, string handle = "")
+    //   accent : チップの縁光・文字色に馴染ませるステージテーマ色（null＝既定の穢れ桃）。
+    //   murk   : 穢れ系の文言＝彩度を落とした濁色チップにする（吉田 §9 穢れ＝沈んだ濁色）。
+    //
+    // 視認性の要（#最重要）：投稿チップ本体は ZIndex -12（テレグラフ -10・通常弾 0 より奥）へ沈め、
+    // 「当たり判定のあるもの（通常弾・予測線・当たり芯）は常にコメント文字より上」を z 順で保証する。
+    // 当たり芯だけは子ノード（BulletWordCore・相対 +12 ＝実効 0）で通常弾と同じ層に浮かせる＝
+    // 他のチップ文字に芯が埋もれない。
+    public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false)
     {
         Word = w;
         _wordHandle = handle;
+        _wordAccent = accent ?? KegareWord;
+        _wordMurk = murk;
         // 晒し投稿らしい“いいね数”を語ごとに固定で付与（X感／毎フレーム再計算しない）。
         int h = 0; foreach (char c in w) h = h * 31 + c;
         int likes = 800 + (Mathf.Abs(h) % 47000);
         _wordLikes = likes >= 10000 ? $"{likes / 10000f:0.0}万" : likes.ToString("#,0");
+
+        // チップ本体を弾層より奥へ（絶対 z）。Activate が通常弾用に毎回リセットする。
+        ZIndex = -12;
+        ZAsRelative = false;
+
+        // 当たり芯の子ノード（実効 z0 ＝通常弾と同層）。プール再利用でも1個だけ生やして使い回す。
+        if (_wordCore == null)
+        {
+            _wordCore = new BulletWordCore { ZIndex = 12 }; // 親(-12)＋12＝実効0
+            AddChild(_wordCore);
+        }
+        _wordCore.CoreR = Radius;
+        _wordCore.PunchCol = ChipBg();
+        _wordCore.Visible = true;
+        _wordCore.QueueRedraw();
         QueueRedraw();
     }
     private string _wordLikes = "";
     private string _wordHandle = "";
+    private Color _wordAccent = KegareWord;
+    private bool _wordMurk;
+    private BulletWordCore? _wordCore;
+
+    // チップの下地色（穢れ系は僅かに褐色へ濁す）。当たり芯の“抜き”円（文字を薄くする円）と共有。
+    private Color ChipBg() => _wordMurk
+        ? new Color(0.055f, 0.045f, 0.075f, 0.80f)
+        : new Color(0.040f, 0.050f, 0.100f, 0.80f);
+
+    // 語ごとの文字計測キャッシュ（GetStringSize のシェーピングをスポーン毎に繰り返さない）。
+    // 語彙プールは各面 4〜8 語＝キーは有限。毎フレーム生成は無い（描画コマンド記録は SetWord 時の1回だけ）。
+    private static readonly System.Collections.Generic.Dictionary<string, Vector2> _wordSizeCache = new();
+    private static Vector2 MeasureWord(FontFile f, string s, int fs)
+    {
+        string key = fs + ":" + s;
+        if (!_wordSizeCache.TryGetValue(key, out var v))
+        {
+            v = f.GetStringSize(s, HorizontalAlignment.Left, -1, fs);
+            _wordSizeCache[key] = v;
+        }
+        return v;
+    }
 
     public float Radius { get; private set; } = 3f;
 
@@ -211,6 +257,15 @@ public partial class Bullet : Area2D
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
+
+        // 言葉弾（投稿チップ）の層と当たり芯の子も再利用時にリセット。
+        // SetWord が ZIndex -12（チップは弾より奥）へ沈めるので、通常弾は必ず 0 へ戻す。
+        ZIndex = 0;
+        ZAsRelative = true;
+        _wordMurk = false;
+        _wordHandle = "";
+        _wordAccent = KegareWord;
+        if (_wordCore != null) _wordCore.Visible = false;
 
         // ノード回転のリセット（最重要：プール再利用で回転を持ち越すと別形状の弾が傾いて描かれる事故になる）。
         // Seeker（誘導の自機弾）だけがノード回転で向きを表現する：描画コマンドはこの Activate 直後の1回だけ
@@ -484,55 +539,68 @@ public partial class Bullet : Area2D
         // （アバター丸＋認証バッジ［色丸＋白✓］＋@ハンドル＋本文＋いいね）に寄せる。
         // ただし弾は極小・大量に出る＝可読性最優先（吉田 §1/§10）。読みの優先度は
         //   ①本文（刺さる言葉）＞②“ポストだ”の記号（アバター＋✓）＞③メタ（@ハンドル/いいね）。
+        // 投稿弾＝SNSコメントチップ。ハブの投稿カード（Hub.cs の UiKit.Box 角丸＋アクセント縁 0.4α＋
+        // Zen 本文＋ハート数）と同じ語彙を、1行のピル型チップへ圧縮する。
+        //   ・下地は暗い半透明＋テーマ色の細い縁光（外周にもう1周だけ淡い縁＝控えめなグロー）。
+        //   ・穢れ系の文言（murk）は彩度を落とした濁色＝「沈んだ声」を色で読ませる（吉田 §9）。
+        //   ・チップは背景の“声”＝弾層より奥（SetWord で z-12）。当たり判定は子ノードの赤芯だけが
+        //     弾層（実効 z0）で光る＝「文字は脅し、刺さるのはこの点」（§3 視認性／§7 理不尽回避）。
+        //   ・描画コマンドの記録は SetWord 時の1回だけ（毎フレーム QueueRedraw しない＝Bullet.cs の
+        //     ホーミング FPS 崩落と同じ轍を踏まない）。文字計測も MeasureWord でキャッシュ。
         var wf = WordFont;
         if (!string.IsNullOrEmpty(Word) && wf != null)
         {
             const int fs = 9, hs = 6, ms = 6; // 本文/ハンドル/いいねの文字サイズ
-            var sz = wf.GetStringSize(Word, HorizontalAlignment.Left, -1, fs);
-            const float av = 5.5f, pad = 3f, gap = 3.5f, metaH = 6.5f;
+            var sz = MeasureWord(wf, Word, fs);
+            const float av = 4.2f, pad = 4f, gap = 3.5f;
             bool hasHandle = !string.IsNullOrEmpty(_wordHandle);
-            float handleH = hasHandle ? 6.5f : 0f;
-            float bodyW = sz.X;
-            // ハンドル行ぶんも幅に効かせる（本文より短ければ本文幅で決まる）。
-            if (hasHandle) bodyW = Mathf.Max(bodyW, wf.GetStringSize(_wordHandle, HorizontalAlignment.Left, -1, hs).X);
-            float cw = pad + av * 2f + gap + bodyW + pad;
-            float bodyBlock = handleH + Mathf.Max(av * 2f - handleH, sz.Y);
-            float ch = pad + Mathf.Max(av * 2f, bodyBlock) + metaH + pad;
+            float handleW = hasHandle ? MeasureWord(wf, _wordHandle, hs).X + 3f : 0f;
+            float likesW = 7f + MeasureWord(wf, _wordLikes, ms).X;
+            float cw = pad + av * 2f + gap + handleW + sz.X + gap + likesW + pad;
+            float ch = Mathf.Max(av * 2f, sz.Y) + 5f;
             float x0 = -cw / 2f, y0 = -ch / 2f;
 
-            // 投稿カード（X ダーク・角丸ガラス）＝ハブ/ステージ選択のカードと同じ UiKit.Box で統一。
-            // StyleBox はアンチエイリアスが効くので小サイズでも角丸が潰れない。
-            UiKit.Box(this, new Rect2(x0, y0, cw, ch), new Color(0.05f, 0.06f, 0.10f, 0.9f), 5f,
-                new Color(KegareWord.R, KegareWord.G, KegareWord.B, 0.34f), 1f);
+            // 配色：ステージテーマ色（accent）を基調に、穢れ系（murk）は濁す（灰へ寄せて沈める）。
+            Color acc = _wordMurk ? _wordAccent.Lerp(new Color(0.46f, 0.41f, 0.48f), 0.55f) : _wordAccent;
+            Color bg = ChipBg();
+            Color txt = _wordMurk
+                ? new Color(0.64f, 0.57f, 0.63f, 0.95f)                       // 濁った灰藤＝沈む一言
+                : new Color(acc.Lerp(new Color(1f, 1f, 1f), 0.55f), 0.95f);   // テーマ色を含んだ明色
+            Color meta = new Color(acc, _wordMurk ? 0.42f : 0.60f);
 
-            // アバター（穢れ）＋認証バッジ（右下：小さな桃丸＋白✓）＝ボス/スペルカードと同じ語彙。
-            Vector2 ac = new Vector2(x0 + pad + av, y0 + pad + av);
-            DrawCircle(ac, av, new Color(0.35f, 0.13f, 0.27f));
-            Vector2 bc = ac + new Vector2(av * 0.7f, av * 0.7f);
-            DrawCircle(bc, av * 0.5f, KegareWord);
-            DrawWordCheck(bc, av * 0.34f, new Color(1f, 1f, 1f, 0.95f)); // 認証✓（白・2線分）
+            // ピル型チップ：外周の淡い縁光（1周だけ・派手にしない）→ 本体（暗ガラス＋細縁）。
+            float rad = ch * 0.5f;
+            UiKit.Box(this, new Rect2(x0 - 1.5f, y0 - 1.5f, cw + 3f, ch + 3f), null, rad + 1.5f,
+                new Color(acc, _wordMurk ? 0.10f : 0.14f), 2f);
+            UiKit.Box(this, new Rect2(x0, y0, cw, ch), bg, rad,
+                new Color(acc, _wordMurk ? 0.32f : 0.45f), 1f);
 
-            // 右カラム：①@ハンドル（小・淡）→②本文（晒し言葉・主役）
+            // アバター（沈んだ丸）＋認証✓バッジ＝「投稿だ」の記号（ハブ/ボスカードと同語彙・最小構成）。
+            Vector2 ac2 = new Vector2(x0 + pad + av, 0f);
+            DrawCircle(ac2, av, _wordMurk ? new Color(0.20f, 0.16f, 0.21f) : new Color(0.27f, 0.14f, 0.24f), true, -1f, true);
+            DrawArc(ac2, av, 0, Mathf.Tau, 20, new Color(acc, 0.55f), 0.8f, true);
+            Vector2 bc = ac2 + new Vector2(av * 0.72f, av * 0.72f);
+            DrawCircle(bc, av * 0.52f, acc, true, -1f, true);
+            DrawWordCheck(bc, av * 0.34f, new Color(1f, 1f, 1f, 0.92f)); // 認証✓（白・2線分）
+
+            // 本文（主役）。ハンドルがあれば小さく前置（現行プールは全て無記名）。
             float bx = x0 + pad + av * 2f + gap;
-            float ty = y0 + pad;
+            float baseY = sz.Y / 2f - 2.5f; // 1行チップの縦センター合わせ
             if (hasHandle)
             {
-                DrawString(wf, new Vector2(bx, ty + hs - 1f), _wordHandle, HorizontalAlignment.Left, -1, hs,
-                    new Color(0.74f, 0.60f, 0.72f, 0.85f));
-                ty += handleH;
+                DrawString(wf, new Vector2(bx, baseY), _wordHandle, HorizontalAlignment.Left, -1, hs,
+                    new Color(acc, 0.55f));
+                bx += handleW;
             }
-            DrawString(wf, new Vector2(bx, ty + sz.Y - 2f), Word, HorizontalAlignment.Left, -1, fs, KegareWord);
+            DrawString(wf, new Vector2(bx, baseY), Word, HorizontalAlignment.Left, -1, fs, txt);
 
-            // いいね（小さなハート＋数）＝拡散の重み
-            float ly = y0 + ch - 2.2f;
-            DrawWordHeart(new Vector2(bx + 2f, ly - 2.4f), 2.2f, new Color(KegareWord.R, KegareWord.G, KegareWord.B, 0.9f));
-            DrawString(wf, new Vector2(bx + 8f, ly), _wordLikes, HorizontalAlignment.Left, -1, ms,
-                new Color(0.78f, 0.62f, 0.74f, 0.9f));
+            // いいね（小さなハート＋数）＝拡散の重み。淡く＝メタ情報は主張しない。
+            float lx = bx + sz.X + gap;
+            DrawWordHeart(new Vector2(lx + 2f, -1.2f), 2.0f, meta);
+            DrawString(wf, new Vector2(lx + 6.5f, baseY - 1f), _wordLikes, HorizontalAlignment.Left, -1, ms, meta);
 
-            // 致命点（カード中心＝当たり判定）。自機の被弾点と同じ記号語彙＝赤コア＋白フチ。
-            // 「文字は脅し、刺さるのはこの点」を一目で読ませる（§3 視認性／§7 理不尽回避）。
-            DrawCircle(Vector2.Zero, Radius + 1f, new Color(1f, 1f, 1f, 0.95f));
-            DrawCircle(Vector2.Zero, Radius, new Color(1f, 0.2f, 0.3f, 1f));
+            // 当たり芯（赤コア＋白フチ＋抜き円）は子ノード BulletWordCore（実効 z0）が描く＝
+            // 他チップの文字や自チップ本文に埋もれず、常に弾層で読める。ここでは描かない。
             return;
         }
 
@@ -790,5 +858,29 @@ public partial class Bullet : Area2D
         DrawCircle(Vector2.Zero, r, c, true, -1f, true);
         DrawCircle(new Vector2(-r * 0.25f, -r * 0.25f), r * 0.4f, new Color(1f, 1f, 1f, 0.7f), true, -1f, true);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+}
+
+// BulletWordCore : 投稿チップ弾（言葉弾）の「当たり芯」だけを弾層（実効 z0）で描く子ノード。
+//   チップ本体（親 Bullet）は z-12 の背景の“声”へ沈むが、刺さる点だけは通常弾と同じ層に浮かせて
+//   「当たり判定のあるものは常にコメント文字より上」を保証する（#最重要 視認性）。
+//   芯の周囲は“抜き”円（チップ下地色の円）で文字を薄くし、芯が本文に埋もれないようにする。
+//   描画コマンドの記録は SetWord 時の1回だけ（位置追従は親の Transform 継承＝毎フレーム再描画なし）。
+public partial class BulletWordCore : Node2D
+{
+    public float CoreR = 3f;     // 親 Bullet の当たり半径
+    public Color PunchCol;       // 抜き円の色（チップ下地色と同系）
+
+    public override void _Draw()
+    {
+        float r = CoreR;
+        // 抜き（文字を薄くする円）：芯まわりの本文を沈めて赤芯の読みを確保する。
+        DrawCircle(Vector2.Zero, r + 3.6f, new Color(PunchCol.R, PunchCol.G, PunchCol.B, 0.85f), true, -1f, true);
+        // 芯の発光（控えめ2段）＝弾の当たり芯ドットと同じ「危険はここ」の記号を一段強く。
+        DrawCircle(Vector2.Zero, r + 3.0f, new Color(1f, 0.25f, 0.35f, 0.14f), true, -1f, true);
+        DrawCircle(Vector2.Zero, r + 1.9f, new Color(1f, 0.25f, 0.35f, 0.22f), true, -1f, true);
+        // 赤コア＋白フチ（自機の被弾点と同じ記号語彙）。
+        DrawCircle(Vector2.Zero, r + 1f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
+        DrawCircle(Vector2.Zero, r, new Color(1f, 0.2f, 0.3f, 1f), true, -1f, true);
     }
 }

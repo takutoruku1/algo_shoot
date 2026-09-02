@@ -63,9 +63,13 @@ public static class PostBullets
     //   wordTick : 呼び元の tick カウンタ（ref）。
     //   words    : null なら Hud.TickerWords（共通プール）を使う。固有プールを渡すとそれを使う（ハンドル無し）。
     //   fallSpeed: 落下速度（面ごとの“雨脚”に合わせる）。
+    //   accent   : 投稿チップの縁光・文字色に馴染ませるステージテーマ色（null＝既定の穢れ桃）。
+    //   murkAll  : プール全語を穢れ系＝濁色チップにする（こはる/ミナの悲鳴プール用）。
+    //              false のときも共通プールの沈む一言（MurkWords）は語単位で濁す。
     public static void Tick(Node node, RandomNumberGenerator rng, double delta,
         ref double rainT, ref int wordTick,
-        (string h, string w)[]? words = null, float fallSpeed = 46f)
+        (string h, string w)[]? words = null, float fallSpeed = 46f,
+        Color? accent = null, bool murkAll = false)
     {
         if (Hud.BubblePaused) return; // 会話中（バブル）は投稿弾を止める。
 
@@ -91,8 +95,15 @@ public static class PostBullets
 
         int salvo = Mathf.Min(Salvo(diff), room);
         for (int i = 0; i < salvo; i++)
-            SpawnOne(pool, rng, words, fallSpeed);
+            SpawnOne(pool, rng, words, fallSpeed, accent, murkAll);
     }
+
+    // 共通プール（Hud.TickerWords）のうち「沈む一言」＝穢れ系として濁色チップにする語。
+    // バズ・広告の軽い語（それな/拡散希望/バズる呪文…/【広告】…/はいはい優勝優勝）はテーマ色のまま。
+    private static readonly System.Collections.Generic.HashSet<string> MurkWords = new()
+    {
+        "だれか、みてる?", "どうせ、とどかない", "きえたい",
+    };
 
     // 画面上で生きている投稿弾（Word 付きの敵弾）の数。MaxOnScreen キャップ判定用。
     private static int CountPostBullets(BulletPool pool)
@@ -103,14 +114,14 @@ public static class PostBullets
         return n;
     }
 
-    // 投稿弾を1発スポーン（X風カード弾。中心の小ドットが当たり判定＝Bullet 既存仕様のまま）。
+    // 投稿弾を1発スポーン（SNSコメントチップ弾。中心の小ドットが当たり判定＝Bullet 既存仕様のまま）。
     private static void SpawnOne(BulletPool pool, RandomNumberGenerator rng,
-        (string h, string w)[]? words, float fallSpeed)
+        (string h, string w)[]? words, float fallSpeed, Color? accent, bool murkAll)
     {
         var src = words ?? Hud.TickerWords;
         var (h, w) = src[rng.RandiRange(0, src.Length - 1)];
         // 落下X範囲は左右の縁まで（旧70〜314）。中央帯だけ降ると画面端（特に左端）が安置化するため崩す。
         var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fallSpeed), isEnemy: true, 3f, 1);
-        b?.SetWord(w, h);
+        b?.SetWord(w, h, accent, murkAll || MurkWords.Contains(w));
     }
 }

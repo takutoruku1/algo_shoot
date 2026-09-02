@@ -34,6 +34,35 @@ public partial class AreaStrike : Node2D, IAoeHazard
     public enum Motif { None, Rank, Rain, Kitchen, Data }
     private Motif _motif = Motif.None;
 
+    // 技名アート層：技名と一致するイラストを見た目だけ重ねる（判定・尺・Zは一切不変）。
+    //   Knife＝こはる『包丁の軌跡』（BeamSeg）… 予兆中は走る光条の先頭を包丁が刃を進行方向に向けて飛び、
+    //          着弾フラッシュ中は源→先端へ一気に走り抜ける（＝斬った軌跡が読める）。
+    //   Pan  ＝こはる『熱したフライパン』（Circle）… テレグラフは現行のまま。着弾の瞬間に
+    //          PanSlamFx（0.3sワンショット・別ノード）を湧かせ「上から振り下ろされて叩かれた」を見せる。
+    //   発行元が明示的に SetArt した時だけ有効＝五徳の十字火／ドローンのロックオンビーム等の
+    //   他 BeamSeg 利用は Art.None のまま変わらない。
+    public enum Art { None, Knife, Pan }
+    private Art _art = Art.None;
+    public void SetArt(Art art) => _art = art;
+
+    // 包丁テクスチャ（char/fx_knife.png 57x12・刃が右向き）。static に1回だけロードして全弾で使い回す
+    //（毎フレームどころか毎インスタンスのロードもしない＝Bullet.cs の FPS 事故の轍を踏まない）。
+    private static Texture2D? _knifeTex;
+    private static bool _knifeTried;
+    private static Texture2D? KnifeTex
+    {
+        get
+        {
+            if (!_knifeTried)
+            {
+                _knifeTried = true;
+                const string p = "res://char/fx_knife.png";
+                if (ResourceLoader.Exists(p)) _knifeTex = ResourceLoader.Load<Texture2D>(p);
+            }
+            return _knifeTex;
+        }
+    }
+
     // 危険形状（円/矩形/ビーム）の判定マージン：負値＝描画縁より 1.5px 内側までしか当たらない
     //（＝縁ギリギリは安全。旧 +2.5f は縁より外まで当たり「見た目を信じて避けたのに被弾」の理不尽。
     //   sakurai 2026-07 週次：床マーカーの見た目＝真実、を徹底する）。
@@ -170,6 +199,15 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
         if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);
         else GameCamera.Instance?.Shake(3.4f, 0.16f);
+        // 『熱したフライパン』：着弾の瞬間にフライパンの振り下ろし（0.3sワンショット・見た目のみ）を湧かせる。
+        //   本体（この AreaStrike）は従来どおり 0.2s フラッシュで消える＝判定・IsStriking の尺は不変。
+        if (_art == Art.Pan && _shape == Shape.Circle && GetParent() is { } parent)
+        {
+            var pan = new PanSlamFx();
+            pan.Configure(Radius, _tint, _hot);
+            parent.AddChild(pan);
+            pan.GlobalPosition = GlobalPosition;
+        }
         EmitImpactSparks();
     }
 
@@ -305,6 +343,19 @@ public partial class AreaStrike : Node2D, IAoeHazard
                 float s0 = _segLen * run, s1 = Mathf.Min(_segLen, s0 + _segLen * 0.22f);
                 DrawLine(_segDir * s0, _segDir * s1,
                     new Color(_hot.R, _hot.G, _hot.B, 0.35f + 0.4f * k), _hh * 0.9f);
+                // 『包丁の軌跡』：光条の先頭を包丁が刃を進行方向に向けて飛ぶ（見た目のみ・判定不変）。
+                //   光条が尾＝彗星の読み。芯線（危険色）を刃の上に重ね直し、軌跡の芯は常にイラストより上。
+                if (_art == Art.Knife && KnifeTex is { } kt)
+                {
+                    float half = kt.GetWidth() * 0.5f;
+                    float sK = Mathf.Clamp(s1, half, _segLen - half); // 先頭に載せ、線分内に収める
+                    DrawSetTransform(_segDir * sK, _segDir.Angle(), Vector2.One);
+                    DrawTexture(kt, new Vector2(-half, -kt.GetHeight() * 0.5f),
+                        new Color(1f, 1f, 1f, 0.7f + 0.3f * k));
+                    DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+                    DrawLine(_segDir * (sK - half), _segDir * (sK + half),
+                        new Color(_tint.R, _tint.G, _tint.B, 0.85f), 1.1f); // 当たり芯線（刃より上）
+                }
             }
             DrawCircle(Vector2.Zero, 3.2f + 2.2f * snap, new Color(_tint.R, _tint.G, _tint.B, 0.85f * pulse)); // 発射源（着弾直前に膨らむ＝チャージ）
             DrawWarn(_segDir * (_segLen * 0.5f), k);
@@ -454,6 +505,16 @@ public partial class AreaStrike : Node2D, IAoeHazard
             Vector2 tip = _segDir * _segLen;
             // A 白閃：帯が一瞬太る（本動作）→ B 芯だけ残る（余韻）。
             DrawLine(Vector2.Zero, tip, core, _hh * 2f * (1f + 0.5f * f));
+            // 『包丁の軌跡』：着弾フラッシュの0.2sで包丁が源→先端を一気に走り抜ける（＝斬撃の本動作）。
+            //   直後に描く白の芯線（rim）がイラストの上に載る＝当たり芯は必ず見える。
+            if (_art == Art.Knife && KnifeTex is { } kt)
+            {
+                float sK = _segLen * st;
+                DrawSetTransform(_segDir * sK, _segDir.Angle(), Vector2.One * (1f + 0.35f * f));
+                DrawTexture(kt, new Vector2(-kt.GetWidth() * 0.5f, -kt.GetHeight() * 0.5f),
+                    new Color(1f, 1f, 1f, 0.25f + 0.75f * f));
+                DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+            }
             DrawLine(Vector2.Zero, tip, rim, 2.6f + 2.0f * f);
             // C 直交する衝撃波：帯から左右へ広がる2本（線分なので「横に抜ける」で表現）。
             {

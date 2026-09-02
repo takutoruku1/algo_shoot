@@ -267,7 +267,8 @@ public partial class StageRei : Node
         // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
         // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
         if (_bossActive && !(IsInstanceValid(_boss) && _boss.AoeGateActive))
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f);
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f,
+                accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
     }
 
     private void Advance()

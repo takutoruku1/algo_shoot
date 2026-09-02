@@ -419,6 +419,9 @@ public partial class AreaSpellCaster : Node2D
     {
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
+        // 技名アート：こはるの円＝『熱したフライパン』だけ（スペルは全て shape 固定＝円は必ずこの技）。
+        // 着弾の瞬間にフライパンの振り下ろし（PanSlamFx）が付く。見た目のみ＝判定・尺は不変。
+        if (_key == "koharu" && shape == AreaStrike.Shape.Circle) z.SetArt(AreaStrike.Art.Pan);
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
@@ -456,6 +459,9 @@ public partial class AreaSpellCaster : Node2D
         var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
         var z = new AreaStrike();
         z.ConfigureBeam(dir, KnifeLen, KnifeHalfThick, warn, KnifeTint, KnifeHot);
+        // 技名アート：包丁のイラストが刃を進行方向に向けてビーム上を飛ぶ（見た目のみ・判定不変）。
+        // 五徳の十字火（BossKoharu）やドローンのロックオンビームは SetArt しない＝従来のまま。
+        z.SetArt(AreaStrike.Art.Knife);
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
         z.GlobalPosition = through - dir * (KnifeLen * 0.5f);
