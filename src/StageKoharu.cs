@@ -285,7 +285,8 @@ public partial class StageKoharu : Node
         // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
         // こはる面は固有の悲鳴フレーズ（Words）を源にする＝その面のテーマ語が降る一体感。
         // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 44f);
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 44f,
+            accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝台所の燠色。全語が悲鳴＝濁色チップ
     }
 
     private void Advance()
@@ -585,6 +586,10 @@ public partial class StageKoharu : Node
     private Tween? _quietTw;
     private void SetQuietVeil(bool on)
     {
+        // 割り込み区間はボス字幕・スペルカットインも一緒に鎮める（Hud 側で 0.2s フェード→消去）。
+        //   カットインのセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なるため。区間明けは
+        //   フラグを戻すだけ＝残っていた表示は復活させない（次の台詞・次のスペルからは通常どおり）。
+        Hud.SuppressCallouts = on;
         if (_quiet == null || !IsInstanceValid(_quiet))
         {
             if (!on) return; // 明ける指示だけ来た（膜が無い）＝何もしない

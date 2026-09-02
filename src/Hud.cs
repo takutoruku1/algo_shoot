@@ -76,6 +76,14 @@ public partial class Hud : CanvasLayer
     private bool _cutinDoneThisBoss;          // このボス戦で既にカットインを出したか（初回のみ＝true で抑止）
     private string _cutinLine = "";           // カットインに合わせて出すキャラ別バトルセリフ
     private static Dictionary<string, (string path, string line)>? _cutinData; // who → (カットイン絵, セリフ)
+
+    // ── 割り込み演出中の戦闘テロップ抑制（ボス字幕 DrawBossLine ＋ スペルカットイン DrawSpellCutin）──
+    //   こはる面のボス戦中割り込み（会話2択。StageKoharu.SetQuietVeil の ON/OFF に同期）中、
+    //   カットインのバトルセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なって双方読めなくなるため、
+    //   区間中は 0.2s でフェードアウトして消す（「弾が止まり静けさが残る」演出意図とも一致）。
+    //   消え切った時点で実体も消去＝区間明けに残り時間ぶんが再表示されない（次の台詞・次のスペルからは通常）。
+    public bool SuppressCallouts;
+    private float _calloutA = 1f;
     // 演出尺（すべて定数で調整可能）。anticipation→slide-in(BackOut)→着地flash+shake→hold→袖へ抜ける。
     // 5 段構成：slideIn → impactHold(不透明・大きく＝インパクト) → settle(α/位置を半透明・外寄りへ遷移)
     //          → lingerHold(半透明で端に滞在＝弾が透けて読める余韻) → fade(袖へ抜ける)。
@@ -309,6 +317,14 @@ public partial class Hud : CanvasLayer
         // カットインも会話バブル中は時間を止める（カードと同じく“戦闘の瞬間”に確実に見せる）。
         if (_cutinTimer > 0 && !BubblePaused) { _cutinTimer -= delta; if (_cutinTimer <= 0) _cutinTex = null; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
+
+        // 割り込み演出中の戦闘テロップ抑制（フィールド宣言部のコメント参照）。0.2s フェード→消去。
+        _calloutA = Mathf.MoveToward(_calloutA, SuppressCallouts ? 0f : 1f, (float)delta * 5f);
+        if (SuppressCallouts && _calloutA <= 0.001f)
+        {
+            if (_bossLineTimer > 0) { _bossLineTimer = 0; _bossLine = ""; }
+            if (_cutinTimer > 0) { _cutinTimer = 0; _cutinTex = null; _cutinLine = ""; }
+        }
 
         // 操作ガイド（常駐）：プレイ中ずっと右端に出す。立ち上げは「操作を握った瞬間」から。
         //   ・会話を一度見た後、または会話なしステージでは1.2秒経過後、かつ自機が存在する間。
@@ -1085,6 +1101,8 @@ public partial class Hud : CanvasLayer
             a = CutinLingerA * p;                            // 半透明から α→0
         }
 
+        a *= _calloutA; // 割り込み中は抑制フェード（バトルセリフ sa も a 由来なので一緒に消える）
+
         // 着地の瞬間：白フラッシュ1F＋既存 Shake（演出ビートの“止め／決め”）。描画ループ内なので一度だけ立てる。
         if (justLanded && !_cutinLandedFlashed)
         {
@@ -1106,7 +1124,7 @@ public partial class Hud : CanvasLayer
         // 半透明滞在では glow を消す（余韻は静かに・弾を侵さない）。
         float glow = Mathf.Clamp((float)((tImpactEnd - age) / CutinImpactDur), 0f, 1f);
         if (glow > 0.001f)
-            UiKit.RadialGlow(ci, new Vector2(x + pw * 0.45f, y + ph * 0.4f), 150f, _cutinCol, 0.16f * glow);
+            UiKit.RadialGlow(ci, new Vector2(x + pw * 0.45f, y + ph * 0.4f), 150f, _cutinCol, 0.16f * glow * _calloutA);
 
         // 本体（α込み・キーカラーをほんのり乗算して“この技の色”に染める）。弾の視認を侵さないよう淡く。
         Color tint = new Color(
@@ -1643,7 +1661,7 @@ public partial class Hud : CanvasLayer
     // 無防備窓サイクルの短い字幕（弾を止めない）。下部・話者色つきの一行カード。
     private void DrawBossLine(HudCanvas ci)
     {
-        float a = Mathf.Clamp((float)_bossLineTimer * 2f, 0f, 1f);
+        float a = Mathf.Clamp((float)_bossLineTimer * 2f, 0f, 1f) * _calloutA; // 割り込み中は抑制フェード
         string sp = _bossLineSpeaker.Length > 0 ? _bossLineSpeaker + "  " : "";
         float spW = UiKit.TextW(UiKit.ZenBold, sp, UiKit.FontSpeaker);
         float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, UiKit.FontHeading);
