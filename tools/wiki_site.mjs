@@ -102,6 +102,11 @@ const ORDER = [
   ['07_ギャラリー/01_画面', null],
   ['07_ギャラリー/02_キャラクターアート', null],
   ['07_ギャラリー/03_敵の技', null],
+  ['08_仮台本/01_声の劣化', null],
+  ['08_仮台本/02_共感ポイント', null],
+  ['08_仮台本/03_物語骨子の比較案', null],
+  ['08_仮台本/04_冒頭台本_案C', null],
+  ['08_仮台本/05_場面表_案C', null],
 ];
 
 const GROUPS = [
@@ -111,6 +116,7 @@ const GROUPS = [
   { label: 'ゲーム仕様', prefix: '05_ゲーム仕様/' },
   { label: '', ids: ['06_用語集'] },
   { label: 'ギャラリー', prefix: '07_ギャラリー/' },
+  { label: '仮台本（非正典）', prefix: '08_仮台本/' },
 ];
 
 const escapeHtml = (s) =>
@@ -1030,7 +1036,8 @@ var DATA = ${payload};
 </script>
 `;
 
-writeFileSync(resolve('docs/wiki.html'), html);
+// U+FFFD は仮台本の劣化表記として意図的に使うが、配信側が壊れた文字と誤検知するためエンティティ化
+writeFileSync(resolve('docs/wiki.html'), html.replace(/�/g, '&#xFFFD;'));
 const kb = Math.round(Buffer.byteLength(html, 'utf8') / 1024);
 console.log(`docs/wiki.html generated: ${articles.length} articles, ${kb} KB (画像 ${imgCount} 枚 / 縮小後合計 ${Math.round(imgBytes / 1024)} KB / sim ${simCount} 面)`);
 if (kb > 14 * 1024) console.warn('[warn] 14MB 超え — Artifact 上限 16MB に接近。画像の上限幅か品質を下げること');
