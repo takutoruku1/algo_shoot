@@ -107,6 +107,13 @@ const ORDER = [
   ['08_仮台本/03_物語骨子の比較案', null],
   ['08_仮台本/04_冒頭台本_案C', null],
   ['08_仮台本/05_場面表_案C', null],
+  ['08_仮台本/06_粗い台本_案C_1_冒頭とレイ', null],
+  ['08_仮台本/07_粗い台本_案C_2_あかりとこはる', null],
+  ['08_仮台本/08_粗い台本_案C_3_FINALと結末', null],
+  ['08_仮台本/09_投稿文集_X風', null],
+  ['08_仮台本/10_病みポストを見つける_設計案', null],
+  ['08_仮台本/11_引用ポストの嵐', null],
+  ['08_仮台本/12_キャラ設定シートv2_社会人版', null],
 ];
 
 const GROUPS = [
@@ -127,6 +134,8 @@ function inline(s, curDir) {
   let t = escapeHtml(s);
   // `code`
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // ==mark==
+  t = t.replace(/==([^=]+)==/g, '<mark>$1</mark>');
   // **strong**
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   // [text](href)
@@ -246,6 +255,10 @@ function mdToHtml(md, curDir) {
       continue;
     }
     closeQuote();
+
+    // コンテナ（:::judge 〜 :::）
+    const cm = line.match(/^:::\s*(\w*)\s*$/);
+    if (cm) { flushPara(); closeLists(0); out.push(cm[1] ? `<div class="box ${cm[1]}">` : '</div>'); continue; }
 
     // 見出し
     const hm = line.match(/^(#{1,3})\s+(.*)$/);
@@ -391,8 +404,11 @@ const html = `<title>ALGO: Refrain of Light Wiki</title>
   article { max-width: 780px; margin: 0 auto; padding: 36px 28px 90px; }
   .pagetitle { font-size: 27px; line-height: 1.4; letter-spacing: 0.01em; margin: 0 0 6px;
     padding-bottom: 14px; border-bottom: 2px solid var(--line); }
-  h2 { font-size: 20px; margin: 44px 0 10px; padding-left: 12px; border-left: 4px solid var(--accent); line-height: 1.5; }
-  h3 { font-size: 16px; margin: 30px 0 6px; color: var(--ink); }
+  h2 { font-size: 23px; margin: 48px 0 14px; padding-left: 12px; border-left: 5px solid var(--accent); color: var(--accent); line-height: 1.4; }
+  h3 { font-size: 18px; margin: 30px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line); color: var(--ink); }
+  .box.judge { background: rgba(255, 209, 64, 0.14); border: 1px solid rgba(224, 176, 0, 0.6); border-radius: 8px; padding: 4px 16px 10px; margin: 18px 0; }
+  .box.judge h3 { margin-top: 12px; border-bottom-color: rgba(224, 176, 0, 0.6); }
+  .box.judge h3::before { content: '要判断'; font-size: 12px; font-weight: 700; background: #e0b000; color: #222; padding: 2px 8px; border-radius: 4px; margin-right: 10px; vertical-align: middle; }
   p { margin: 10px 0; }
   a { color: var(--accent); text-decoration: none; }
   article a:hover { text-decoration: underline; }
@@ -401,6 +417,8 @@ const html = `<title>ALGO: Refrain of Light Wiki</title>
     border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; color: var(--ink-dim); font-size: 14px;
   }
   blockquote p { margin: 4px 0; }
+  mark { background: #fff1a8; color: inherit; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { mark { background: #6b5d1a; } }
   ul { margin: 10px 0; padding-left: 24px; }
   li { margin: 4px 0; }
   hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
