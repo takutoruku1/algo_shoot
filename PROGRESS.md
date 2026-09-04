@@ -1,7 +1,7 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-04 18:51 UTC
+> 生成: 2026-09-04 22:04 UTC
 
 ## 消化率
 
@@ -217,11 +217,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `ede484e` 2026-09-05 Merge pull request #18 from takutoruku1/auto/dev
+- `0390188` 2026-09-04 auto: HowToPlayに会話中2択(ChoiceOverlay)の説明を追加
 - `52ff65f` 2026-09-04 auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加
 - `aabe102` 2026-09-04 auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理
 - `85577f7` 2026-09-04 auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除
 - `5a63bd0` 2026-09-04 auto: Hud.csの汚染ゲージコメントを実態に合わせて修正
 - `8969085` 2026-09-04 auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正
 - `eacc23b` 2026-09-04 auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消
-- `84013e3` 2026-09-04 auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消
-- `ae5ac94` 2026-09-04 auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正

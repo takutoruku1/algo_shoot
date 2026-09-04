@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-04 18:51 UTC",
+  "generated": "2026-09-04 22:04 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
@@ -1125,6 +1125,16 @@
   ],
   "commits": [
     {
+      "hash": "ede484e",
+      "date": "2026-09-05",
+      "subject": "Merge pull request #18 from takutoruku1/auto/dev"
+    },
+    {
+      "hash": "0390188",
+      "date": "2026-09-04",
+      "subject": "auto: HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
+    },
+    {
       "hash": "52ff65f",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
@@ -1153,16 +1163,6 @@
       "hash": "eacc23b",
       "date": "2026-09-04",
       "subject": "auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
-    },
-    {
-      "hash": "84013e3",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
-    },
-    {
-      "hash": "ae5ac94",
-      "date": "2026-09-04",
-      "subject": "auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正"
     }
   ]
 }
