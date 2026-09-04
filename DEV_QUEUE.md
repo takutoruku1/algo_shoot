@@ -29,10 +29,19 @@
 
 ## TODO
 
+- [ ] (P1) プロローグ起動docをPrologue.cs実装セリフに同期 | scenario | `docs/シナリオ_プロローグ_起動.md:53-59,70-91,99-118`の毒舌初対面パート全文が`src/Prologue.cs:119-156`の実装セリフと一語一句別物のまま（決定稿を自称するdoc側が誤り）。docの当該セリフを実装側の実際の文面に完全一致するよう書き換える。ゲーム内セリフ・src側は一切変更しないこと（doc更新のみ）
+- [ ] (P2) タッグ見直し提案書の①⑨番に実装済み注記を追加 | scenario | `docs/タッグ見直し_シナリオUI提案.md:26-31`（①やさしさゲージHUD表示）は`src/Hud.cs:1208-1230`の`DrawKindness`で、`:74-77`（⑨弾密度ピップ）は`src/DiffSelect.cs:16-31`のBulletCountMul比例算出で、それぞれ既に実装済み。該当2項目に「実装済み（根拠ファイル:行）」の状態注記を追記する（提案書の中身自体は変更しない）
+- [ ] (P2) Panel.csのInk残数通知ドットの隣接オーバーラップ修正 | engineer | `src/Panel.cs:185-195`の`DrawInkNotches()`でドット間隔`spacing=2.3`が外周直径`dotR+0.4`×2=2.6より小さく、Ink2発以上で隣接ドットが常時重なり「あと何発耐えるか」を数えられない。`spacing`を2.6以上（目安3.0）に広げて重なりを解消する
+- [ ] (P3) HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消 | engineer | `src/Hud.cs:1166`の`DrawSkill()`(y=216)と`:1266`の`DrawBurning()`(y=214)がほぼ同一座標で描画され重なる。`DrawBurning`のyをDrawSkillの表示域の下（例:242）にずらし、両方同時表示されても衝突しないようにする
+- [ ] (P3) Hud.csの汚染ゲージコメントを実態に合わせて修正 | engineer | `src/Hud.cs:1249-1250`のコメント「救うほど濁る」は`src/GameManager.cs:174``SetContamination`の実態（`Stage0Root.cs:66`等でステージ入場時に固定値をセットするだけでプレイヤーの救出行動とは無関係）と矛盾している。コメントを実態（ステージ固定・行動非依存）に更新する
+- [ ] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルのshapeが固定指定済みのため`SpawnTelegraphs()`(`:381`)のフォールバック分岐(`_shapes`読み出し)に到達しない死にコード。`src/AreaSpellCaster.cs:290`のkoharu用と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること
+- [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
+
 ## WIP
 
 ## BLOCKED
 
+- [ ] 特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置 | — | `docs/特殊エンディング設計_v1.md`（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい
 - [ ] ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている | scenario→game-designer→engineer→qa | （2026-08-27監査、scenario/qa両ワーカーが独立発見）ヒカゲ化の唯一の入口`Player.AddHikageFollower`(`src/Player.cs:62`)を呼ぶのは`src/BossHikage.cs:188`のみ、`BossHikage`をインスタンス化するのは`src/StageW0.cs:171,178`のみで、`StageW0`/`Main.tscn`は`docs/DEV_W0.md:5`が明記する非正典（旧デバッグ用プロトタイプ）。正典導線（TitleMenu→Prologue→Hub→Rei/Akari/Koharu/Mina→Final→Epilogue）からは一切参照されず、qa-autoplayでのPrologue→Epilogue全走破ログ(`build/qa/Prologue.log`)でもStageW0/Main.tscnへの遷移は0件。結果`Player.HasHikage()`(`Player.cs:1255`)は通常プレイで常にfalseのため、`TryHikageSpecial()`・`Hud.SetHikageSkill`呼び出し・本日追加のCD充填バー(`Hud.cs:1153-1157`)を含む一連の機構が一度も実行されない。一方`docs/主人公_弾強化システム設計書_v1.md:48-50`は「敵を3体浄化するごとに1体獲得。最大4体（うち1体をヒカゲ化可能）」と通常プレイで到達できる仕様として記述したまま。DEV_QUEUE DONEの2026-08-17・2026-08-26の計2件のengineerタスクが、実プレイヤーには一度も表示されない画面に投じられていたことになる。要ユーザー判断：(a) いずれかの正典ステージ内でヒカゲ化を発生させる新規トリガーを設計してから配線する（新規ゲーム内容の追加に相当するため自動着手不可）、または(b) 意図的なカット機構と判断し`AddHikageFollower`/`PromoteToHikage`/`TryHikageSpecial`/`Hud.SetHikageSkill`一式と`docs/主人公_弾強化システム設計書_v1.md:48-50`を「W0専用・非正典」と明記し以降このHUD/スキル系統への追加投資を止める
 - [ ] 追加する敵イラストの仕様を詰める | artist | 前提の「出現する敵の種類を増やす」を実装しようとしたところ、既に**別タスク由来で実装済み**と判明（FlankAim「引用リプ」/BuzzWall「バズ壁」/KoharuPrayerCarry「祈り運び」、`Spawner.cs:25-43,100-155`/`EnemySpec.cs:112-155`/`MidEnemy.cs`各所）。ただしいずれも**既存の `char/enemy_*` スキンをそのまま流用**する設計（新規画像は作らない前提で実装済み）のため、このタスクが期待する「新規追加した敵への絵の発注」の対象が実質存在しない。要ユーザー判断：(a)このタスクは対象なしとしてクローズしてよい、(b)それでもFlankAim/BuzzWall/PrayerCarrierの3種を**視覚的にも既存2種と区別できるよう**新規絵の発注書を書いてほしい（artistワーカーの調査では鍋から紐が伸びるPrayerCarryなど差別化の余地ありとの所見）。(b)の場合は次回このタスクをTODOへ戻す際に対象を明記すること
 - [ ] 未発注イラスト | artist | ミナ詠唱ポーズ、スマイル差分、少年スピンフレームを生成・配線（レイ/あかりの cry は配線済みなので対象外）。`gen-asset` skillはOpenAI gpt-image-2で生成するため `.openai_key.txt`（gitignore済のローカル認証情報）が必須だが、この夜間クラウド実行環境には存在しない（ユーザーのローカル環境にのみ想定される秘匿ファイル）。dotnet SDK/Godotバイナリと異なり公開ダウンロードでは代替できない＝環境側にAPIキーを用意してもらうか、ローカル環境での実行が必要
