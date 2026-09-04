@@ -31,8 +31,6 @@
 
 ## WIP
 
-- [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
-
 ## BLOCKED
 
 - [ ] 特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置 | — | `docs/特殊エンディング設計_v1.md`（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい
@@ -55,6 +53,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | (完了 2026-09-04) `src/HowToPlay.cs:184-199`の`DrawPageControls`(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。`Pad.ConfirmToken`(`src/Pad.cs:97`)を使い`ChoiceOverlay.cs:447`の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を`Pad.UsingPad ? 6f : 50f`に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | (完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Hud.csの汚染ゲージコメントを実態に合わせて修正 | engineer | (完了 2026-09-04) `src/Hud.cs:1249`付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消 | engineer | (完了 2026-09-04) `src/Hud.cs:1266`の`DrawBurning()`の`y`を`214→249`に変更。`DrawSkill()`(y=216,h=24)本体+直下の充填バー(≈245.5まで)と重ならないよう3px空けてその下に配置。理由をコメントで明記。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

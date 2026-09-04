@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-04 18:48 UTC",
+  "generated": "2026-09-04 18:51 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 17,
-    "done": 167
+    "done": 168
   },
-  "percent": 99,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "HowToPlayに会話中2択(ChoiceOverlay)の説明を追加",
-      "worker": null,
-      "accept": "`src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する"
-    }
-  ],
+  "percent": 100,
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -121,6 +114,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "HowToPlayに会話中2択(ChoiceOverlay)の説明を追加",
+      "worker": null,
+      "accept": "(完了 2026-09-04) `src/HowToPlay.cs:184-199`の`DrawPageControls`(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。`Pad.ConfirmToken`(`src/Pad.cs:97`)を使い`ChoiceOverlay.cs:447`の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を`Pad.UsingPad ? 6f : 50f`に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "AreaSpellCaster.csのrei/akari用_shapes死にコード削除",
@@ -1126,6 +1125,16 @@
   ],
   "commits": [
     {
+      "hash": "52ff65f",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
+    },
+    {
+      "hash": "aabe102",
+      "date": "2026-09-04",
+      "subject": "auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理"
+    },
+    {
       "hash": "85577f7",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除"
@@ -1154,16 +1163,6 @@
       "hash": "ae5ac94",
       "date": "2026-09-04",
       "subject": "auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正"
-    },
-    {
-      "hash": "d83cf38",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 Panel.csのInk残数通知ドットの隣接オーバーラップ修正"
-    },
-    {
-      "hash": "0304123",
-      "date": "2026-09-04",
-      "subject": "auto: タッグ見直し提案書の①⑨番に実装済み注記を追加"
     }
   ]
 }

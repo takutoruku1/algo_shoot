@@ -191,6 +191,13 @@ public partial class HowToCanvas : Node2D
                 "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）",
                 UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
         }
+        // 会話中の2択（ChoiceOverlay）は KB/パッド共通の操作なので出し分けなしで1行案内。
+        {
+            float ny2 = y + half * rowH + (Pad.UsingPad ? 6f : 50f);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x, ny2),
+                "◇ 会話中の2択：↑↓ / マウスで選ぶ、" + Pad.ConfirmToken + " で決定", UiKit.FontLabel, UiKit.PurifyHi,
+                HorizontalAlignment.Left, w);
+        }
     }
 
     private void DrawControlRow(float x, float y, float w, string tok, string name, string desc, Color accent, bool hot)
