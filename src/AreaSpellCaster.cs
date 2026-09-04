@@ -270,7 +270,7 @@ public partial class AreaSpellCaster : Node2D
                 _disp = "レイ"; _handle = "@rei_compete";
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
-                _shapes = new[] { H_, R };
+                _shapes = new[] { H_, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
                 _spells = new (string, AreaStrike.Shape?)[] { ("ランキングレーザー", H_), ("表彰台圏", R), ("序列の楔", H_) };
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
@@ -278,7 +278,7 @@ public partial class AreaSpellCaster : Node2D
                 _disp = "あかり"; _handle = "@akari_ame";
                 _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
                 _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;
-                _shapes = new[] { V, C };
+                _shapes = new[] { V, C }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
                 _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
                 break;
             case "koharu": // 台所・熱してから一気に（予兆やや短め・琥珀/深紅）

@@ -33,8 +33,6 @@
 
 ## WIP
 
-- [ ] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルでshapeが固定指定されておりフォールバック分岐(`:381`)に到達しないため、koharu(`:290`)と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること
-
 ## BLOCKED
 
 - [ ] 特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置 | — | `docs/特殊エンディング設計_v1.md`（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい
@@ -57,6 +55,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | (完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Hud.csの汚染ゲージコメントを実態に合わせて修正 | engineer | (完了 2026-09-04) `src/Hud.cs:1249`付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消 | engineer | (完了 2026-09-04) `src/Hud.cs:1266`の`DrawBurning()`の`y`を`214→249`に変更。`DrawSkill()`(y=216,h=24)本体+直下の充填バー(≈245.5まで)と重ならないよう3px空けてその下に配置。理由をコメントで明記。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P2) Panel.csのInk残数通知ドットの隣接オーバーラップ修正 | engineer | (完了 2026-09-04) `src/Panel.cs:186`の`spacing`を`2.3f→3.0f`に変更（外周直径2.6を上回る値）。Ink上限3（`MidEnemy.cs:99`）でも表示幅は約8.6ユニットでパネル表示域(`DisplayH=14`)に収まる想定。`startX`等の座標計算は`spacing`に自動追従するため他は無変更。実機での目視確認は未実施。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

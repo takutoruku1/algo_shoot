@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-04 18:46 UTC",
+  "generated": "2026-09-04 18:48 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 17,
-    "done": 166
+    "done": 167
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "AreaSpellCaster.csのrei/akari用_shapes死にコード削除",
-      "worker": "engineer",
-      "accept": "`src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルのshapeが固定指定済みのため`SpawnTelegraphs()`(`:381`)のフォールバック分岐(`_shapes`読み出し)に到達しない死にコード。`src/AreaSpellCaster.cs:290`のkoharu用と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること"
-    },
     {
       "priority": "P3",
       "title": "HowToPlayに会話中2択(ChoiceOverlay)の説明を追加",
@@ -127,6 +121,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "AreaSpellCaster.csのrei/akari用_shapes死にコード削除",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "Hud.csの汚染ゲージコメントを実態に合わせて修正",
@@ -1126,6 +1126,16 @@
   ],
   "commits": [
     {
+      "hash": "85577f7",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除"
+    },
+    {
+      "hash": "5a63bd0",
+      "date": "2026-09-04",
+      "subject": "auto: Hud.csの汚染ゲージコメントを実態に合わせて修正"
+    },
+    {
       "hash": "8969085",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正"
@@ -1154,16 +1164,6 @@
       "hash": "0304123",
       "date": "2026-09-04",
       "subject": "auto: タッグ見直し提案書の①⑨番に実装済み注記を追加"
-    },
-    {
-      "hash": "e1b9a08",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加"
-    },
-    {
-      "hash": "887d74c",
-      "date": "2026-09-04",
-      "subject": "auto: プロローグ起動docをPrologue.cs実装セリフに同期"
     }
   ]
 }
