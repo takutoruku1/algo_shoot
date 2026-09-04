@@ -29,9 +29,9 @@
 
 ## TODO
 
-- [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
-
 ## WIP
+
+- [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
 
 ## BLOCKED
 
