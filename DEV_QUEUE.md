@@ -29,10 +29,11 @@
 
 ## TODO
 
-- [ ] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルのshapeが固定指定済みのため`SpawnTelegraphs()`(`:381`)のフォールバック分岐(`_shapes`読み出し)に到達しない死にコード。`src/AreaSpellCaster.cs:290`のkoharu用と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること
 - [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
 
 ## WIP
+
+- [ ] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルでshapeが固定指定されておりフォールバック分岐(`:381`)に到達しないため、koharu(`:290`)と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること
 
 ## BLOCKED
 
