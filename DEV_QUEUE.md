@@ -29,12 +29,13 @@
 
 ## TODO
 
-- [ ] (P3) HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消 | engineer | `src/Hud.cs:1166`の`DrawSkill()`(y=216)と`:1266`の`DrawBurning()`(y=214)がほぼ同一座標で描画され重なる。`DrawBurning`のyをDrawSkillの表示域の下（例:242）にずらし、両方同時表示されても衝突しないようにする
 - [ ] (P3) Hud.csの汚染ゲージコメントを実態に合わせて修正 | engineer | `src/Hud.cs:1249-1250`のコメント「救うほど濁る」は`src/GameManager.cs:174``SetContamination`の実態（`Stage0Root.cs:66`等でステージ入場時に固定値をセットするだけでプレイヤーの救出行動とは無関係）と矛盾している。コメントを実態（ステージ固定・行動非依存）に更新する
 - [ ] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`配列は全スペルのshapeが固定指定済みのため`SpawnTelegraphs()`(`:381`)のフォールバック分岐(`_shapes`読み出し)に到達しない死にコード。`src/AreaSpellCaster.cs:290`のkoharu用と同様の扱い（削除または「実質フォールバック」注記に統一）にする。挙動不変であること
 - [ ] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | `src/HowToPlay.cs`に選択肢・2択に関する説明が0件。`src/ChoiceOverlay.cs:447`の操作方法（↑↓/マウスで選ぶ、Zで決定）を簡潔に追記する
 
 ## WIP
+
+- [ ] (P3) HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消 | engineer | `src/Hud.cs:1166`の`DrawSkill()`(y=216, h=24, さらに直下に充填バーがbarY=y+h+3〜barY+2.5≈245.5まである)と`:1266`の`DrawBurning()`(y=214, h=24)がほぼ同一座標で描画され重なる。`DrawBurning`のyをDrawSkillの充填バーの下（目安249、隙間3px確保）にずらし、両方同時表示されても衝突しないようにする
 
 ## BLOCKED
 
