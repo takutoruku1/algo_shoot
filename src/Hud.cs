@@ -1263,7 +1263,8 @@ public partial class Hud : CanvasLayer
         const string label = "炎上中：発射間隔+30%・移動-10%・稼ぎ-40%";
         const float padL = 16f, h = 24f;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
-        float x = 22, y = 214;
+        // DrawSkill（y=216, h=24, 直下の充填バーが≈245.5まで）と重ならないよう、3px空けてその下に配置。
+        float x = 22, y = 249;
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 6f);
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Burn, 0.35f + 0.25f * pulse)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Burn));
