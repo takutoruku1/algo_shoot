@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-04 18:40 UTC",
+  "generated": "2026-09-04 18:42 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 17,
-    "done": 163
+    "done": 164
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "Panel.csのInk残数通知ドットの隣接オーバーラップ修正",
-      "worker": "engineer",
-      "accept": "`src/Panel.cs:185-195`の`DrawInkNotches()`でドット間隔`spacing=2.3`が外周直径`dotR+0.4`×2=2.6より小さく、Ink2発以上で隣接ドットが常時重なり「あと何発耐えるか」を数えられない。`spacing`を2.6以上（目安3.0）に広げて重なりを解消する"
-    },
     {
       "priority": "P3",
       "title": "HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消",
@@ -145,6 +139,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "Panel.csのInk残数通知ドットの隣接オーバーラップ修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/Panel.cs:186`の`spacing`を`2.3f→3.0f`に変更（外周直径2.6を上回る値）。Ink上限3（`MidEnemy.cs:99`）でも表示幅は約8.6ユニットでパネル表示域(`DisplayH=14`)に収まる想定。`startX`等の座標計算は`spacing`に自動追従するため他は無変更。実機での目視確認は未実施。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P2",
       "title": "タッグ見直し提案書の①⑨番に実装済み注記を追加",
@@ -1126,6 +1126,16 @@
   ],
   "commits": [
     {
+      "hash": "d83cf38",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 Panel.csのInk残数通知ドットの隣接オーバーラップ修正"
+    },
+    {
+      "hash": "0304123",
+      "date": "2026-09-04",
+      "subject": "auto: タッグ見直し提案書の①⑨番に実装済み注記を追加"
+    },
+    {
       "hash": "e1b9a08",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加"
@@ -1154,16 +1164,6 @@
       "hash": "532e625",
       "date": "2026-09-04",
       "subject": "Add plan-C rough scripts, X-style post corpus, and adult-audience character sheet"
-    },
-    {
-      "hash": "9e919e0",
-      "date": "2026-09-03",
-      "subject": "Add plan-C draft scripts to the wiki and gate story changes on approval"
-    },
-    {
-      "hash": "f9cb25f",
-      "date": "2026-09-02",
-      "subject": "Refresh the progress snapshot after the nightly merge"
     }
   ]
 }

@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-04 18:40 UTC
+> 生成: 2026-09-04 18:42 UTC
 
 ## 消化率
 
 ```
-███████████████████░  97%   (完了 163 / 対象 168)
+████████████████████  98%   (完了 164 / 対象 168)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 163 |
+| ✅ 完了 | 164 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 5 |
+| 📋 残り | 4 |
 | ⛔ 保留（人間の判断待ち） | 17 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,6 @@ _なし_
 
 ## 📋 次にやること
 
-- `P2` Panel.csのInk残数通知ドットの隣接オーバーラップ修正
 - `P3` HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消
 - `P3` Hud.csの汚染ゲージコメントを実態に合わせて修正
 - `P3` AreaSpellCaster.csのrei/akari用_shapes死にコード削除
@@ -50,6 +49,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P2` Panel.csのInk残数通知ドットの隣接オーバーラップ修正
 - `P2` タッグ見直し提案書の①⑨番に実装済み注記を追加
 - `P1` プロローグ起動docをPrologue.cs実装セリフに同期
 - `P3` 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載
@@ -216,11 +216,11 @@ _なし_
 
 ## 直近のコミット
 
+- `d83cf38` 2026-09-04 auto: WIP着手 Panel.csのInk残数通知ドットの隣接オーバーラップ修正
+- `0304123` 2026-09-04 auto: タッグ見直し提案書の①⑨番に実装済み注記を追加
 - `e1b9a08` 2026-09-04 auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加
 - `887d74c` 2026-09-04 auto: プロローグ起動docをPrologue.cs実装セリフに同期
 - `2836198` 2026-09-04 auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期
 - `743aec6` 2026-09-04 auto: 監査で7件をTODOに、1件をBLOCKEDに追加
 - `ca67efd` 2026-09-05 Rework drafts to character sheet v3 (Akari office / Koharu fan / Rei VTuber)
 - `532e625` 2026-09-04 Add plan-C rough scripts, X-style post corpus, and adult-audience character sheet
-- `9e919e0` 2026-09-03 Add plan-C draft scripts to the wiki and gate story changes on approval
-- `f9cb25f` 2026-09-02 Refresh the progress snapshot after the nightly merge

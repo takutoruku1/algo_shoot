@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">97<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 163 / 対象 168 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 164 / 対象 168 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">163</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">164</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">17</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Panel.cs:185-195</code>の<code>DrawInkNotches()</code>でドット間隔<code>spacing=2.3</code>が外周直径<code>dotR+0.4</code>×2=2.6より小さく、Ink2発以上で隣接ドットが常時重なり「あと何発耐えるか」を数えられない。<code>spacing</code>を2.6以上（目安3.0）に広げて重なりを解消する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/Panel.cs:186</code>の<code>spacing</code>を<code>2.3f→3.0f</code>に変更（外周直径2.6を上回る値）。Ink上限3（<code>MidEnemy.cs:99</code>）でも表示幅は約8.6ユニットでパネル表示域(<code>DisplayH=14</code>)に収まる想定。<code>startX</code>等の座標計算は<code>spacing</code>に自動追従するため他は無変更。実機での目視確認は未実施。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1641,18 +1641,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">d83cf38</span><span>2026-09-04</span><span class="s">auto: WIP着手 Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span></li>
+      <li><span class="h">0304123</span><span>2026-09-04</span><span class="s">auto: タッグ見直し提案書の①⑨番に実装済み注記を追加</span></li>
       <li><span class="h">e1b9a08</span><span>2026-09-04</span><span class="s">auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加</span></li>
       <li><span class="h">887d74c</span><span>2026-09-04</span><span class="s">auto: プロローグ起動docをPrologue.cs実装セリフに同期</span></li>
       <li><span class="h">2836198</span><span>2026-09-04</span><span class="s">auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期</span></li>
       <li><span class="h">743aec6</span><span>2026-09-04</span><span class="s">auto: 監査で7件をTODOに、1件をBLOCKEDに追加</span></li>
       <li><span class="h">ca67efd</span><span>2026-09-05</span><span class="s">Rework drafts to character sheet v3 (Akari office / Koharu fan / Rei VTuber)</span></li>
       <li><span class="h">532e625</span><span>2026-09-04</span><span class="s">Add plan-C rough scripts, X-style post corpus, and adult-audience character sheet</span></li>
-      <li><span class="h">9e919e0</span><span>2026-09-03</span><span class="s">Add plan-C draft scripts to the wiki and gate story changes on approval</span></li>
-      <li><span class="h">f9cb25f</span><span>2026-09-02</span><span class="s">Refresh the progress snapshot after the nightly merge</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-04 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-04 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
