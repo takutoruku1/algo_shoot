@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-04 18:38 UTC",
+  "generated": "2026-09-04 18:40 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 17,
-    "done": 162
+    "done": 163
   },
-  "percent": 96,
+  "percent": 97,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "タッグ見直し提案書の①⑨番に実装済み注記を追加",
-      "worker": "scenario",
-      "accept": "`docs/タッグ見直し_シナリオUI提案.md:26-31`（①やさしさゲージHUD表示）は`src/Hud.cs:1208-1230`の`DrawKindness`で、`:74-77`（⑨弾密度ピップ）は`src/DiffSelect.cs:16-31`のBulletCountMul比例算出で、それぞれ既に実装済み。該当2項目に「実装済み（根拠ファイル:行）」の状態注記を追記する（提案書の中身自体は変更しない）"
-    },
     {
       "priority": "P2",
       "title": "Panel.csのInk残数通知ドットの隣接オーバーラップ修正",
@@ -151,6 +145,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "タッグ見直し提案書の①⑨番に実装済み注記を追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-04) `docs/タッグ見直し_シナリオUI提案.md`の①（26行目付近）と⑨（74行目付近）の見出し直後に「実装済み: 根拠=src/Hud.cs:1208-1230 DrawKindness」「実装済み: 根拠=src/DiffSelect.cs:16-31（BulletCountMul比例算出済み）」の注記をそれぞれ追加。提案文自体は無変更。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P1",
       "title": "プロローグ起動docをPrologue.cs実装セリフに同期",
@@ -1126,6 +1126,16 @@
   ],
   "commits": [
     {
+      "hash": "e1b9a08",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加"
+    },
+    {
+      "hash": "887d74c",
+      "date": "2026-09-04",
+      "subject": "auto: プロローグ起動docをPrologue.cs実装セリフに同期"
+    },
+    {
       "hash": "2836198",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期"
@@ -1154,16 +1164,6 @@
       "hash": "f9cb25f",
       "date": "2026-09-02",
       "subject": "Refresh the progress snapshot after the nightly merge"
-    },
-    {
-      "hash": "648d48d",
-      "date": "2026-09-03",
-      "subject": "Merge pull request #17 from takutoruku1/auto/dev"
-    },
-    {
-      "hash": "d43b341",
-      "date": "2026-09-02",
-      "subject": "auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新"
     }
   ]
 }
