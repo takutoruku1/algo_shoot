@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-04 18:44 UTC",
+  "generated": "2026-09-04 18:46 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 17,
-    "done": 165
+    "done": 166
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Hud.csの汚染ゲージコメントを実態に合わせて修正",
-      "worker": "engineer",
-      "accept": "`src/Hud.cs:1249-1250`のコメント「救うほど濁る」は`src/GameManager.cs:174``SetContamination`の実態（`Stage0Root.cs:66`等でステージ入場時に固定値をセットするだけでプレイヤーの救出行動とは無関係）と矛盾している。コメントを実態（ステージ固定・行動非依存）に更新する"
-    },
     {
       "priority": "P3",
       "title": "AreaSpellCaster.csのrei/akari用_shapes死にコード削除",
@@ -133,6 +127,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Hud.csの汚染ゲージコメントを実態に合わせて修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/Hud.cs:1249`付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消",
@@ -1126,6 +1126,16 @@
   ],
   "commits": [
     {
+      "hash": "8969085",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正"
+    },
+    {
+      "hash": "eacc23b",
+      "date": "2026-09-04",
+      "subject": "auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
+    },
+    {
       "hash": "84013e3",
       "date": "2026-09-04",
       "subject": "auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
@@ -1154,16 +1164,6 @@
       "hash": "887d74c",
       "date": "2026-09-04",
       "subject": "auto: プロローグ起動docをPrologue.cs実装セリフに同期"
-    },
-    {
-      "hash": "2836198",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期"
-    },
-    {
-      "hash": "743aec6",
-      "date": "2026-09-04",
-      "subject": "auto: 監査で7件をTODOに、1件をBLOCKEDに追加"
     }
   ]
 }

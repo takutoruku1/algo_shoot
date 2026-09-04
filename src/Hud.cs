@@ -1246,7 +1246,11 @@ public partial class Hud : CanvasLayer
             UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, Fa(c));
         }
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, Fa(UiKit.PurifyHi));
-        // 汚染ゲージ（救うほど濁る＝目標の対カウンター）
+        // 汚染ゲージ＝「救った人」(HeartsSaved)とは無関係の物語進行演出。各ステージRoot（例:
+        // Stage0Root.cs / ReiRoot.cs / AkariRoot.cs / KoharuRoot.cs / Final.cs）が入場時に
+        // ステージ固定の値(0 / 0.16 / 0.42 / 1.0 等)をSetContamination（GameManager.cs 単なる
+        // セッター）へセットし、道中はそのステージ内のStageProgressで滑らかに繋ぐだけ。
+        // プレイヤーの救出行動が増えるほど濁る対カウンターではない。
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, Fa(new Color(UiKit.Kegare, 0.95f)));
         float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), Fa(new Color(1, 1, 1, 0.08f)), 3f);

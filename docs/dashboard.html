@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 165 / 対象 168 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 166 / 対象 168 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">165</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">166</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">17</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Hud.csの汚染ゲージコメントを実態に合わせて修正</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/Hud.cs:1249-1250</code>のコメント「救うほど濁る」は<code>src/GameManager.cs:174</code><code>SetContamination</code>の実態（<code>Stage0Root.cs:66</code>等でステージ入場時に固定値をセットするだけでプレイヤーの救出行動とは無関係）と矛盾している。コメントを実態（ステージ固定・行動非依存）に更新する</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hud.csの汚染ゲージコメントを実態に合わせて修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/Hud.cs:1249</code>付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1641,18 +1641,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8969085</span><span>2026-09-04</span><span class="s">auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正</span></li>
+      <li><span class="h">eacc23b</span><span>2026-09-04</span><span class="s">auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消</span></li>
       <li><span class="h">84013e3</span><span>2026-09-04</span><span class="s">auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消</span></li>
       <li><span class="h">ae5ac94</span><span>2026-09-04</span><span class="s">auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span></li>
       <li><span class="h">d83cf38</span><span>2026-09-04</span><span class="s">auto: WIP着手 Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span></li>
       <li><span class="h">0304123</span><span>2026-09-04</span><span class="s">auto: タッグ見直し提案書の①⑨番に実装済み注記を追加</span></li>
       <li><span class="h">e1b9a08</span><span>2026-09-04</span><span class="s">auto: WIP着手 タッグ見直し提案書の①⑨番に実装済み注記を追加</span></li>
       <li><span class="h">887d74c</span><span>2026-09-04</span><span class="s">auto: プロローグ起動docをPrologue.cs実装セリフに同期</span></li>
-      <li><span class="h">2836198</span><span>2026-09-04</span><span class="s">auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期</span></li>
-      <li><span class="h">743aec6</span><span>2026-09-04</span><span class="s">auto: 監査で7件をTODOに、1件をBLOCKEDに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-04 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-04 18:46 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
