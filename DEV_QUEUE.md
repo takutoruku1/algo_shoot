@@ -38,8 +38,6 @@
 
 ## WIP
 
-- [ ] (P1) プロローグ起動docをPrologue.cs実装セリフに同期 | scenario | `docs/シナリオ_プロローグ_起動.md:53-59,70-91,99-118`の毒舌初対面パート全文が`src/Prologue.cs:119-156`の実装セリフと一語一句別物のまま（決定稿を自称するdoc側が誤り）。docの当該セリフを実装側の実際の文面に完全一致するよう書き換える。ゲーム内セリフ・src側は一切変更しないこと（doc更新のみ）
-
 ## BLOCKED
 
 - [ ] 特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置 | — | `docs/特殊エンディング設計_v1.md`（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい
@@ -62,6 +60,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P1) プロローグ起動docをPrologue.cs実装セリフに同期 | scenario | (完了 2026-09-04) `docs/シナリオ_プロローグ_起動.md`の`#0-2`〜`#0-4`（旧47-127行）を全面書き換え、`src/Prologue.cs:119-156`の32行のセリフに一語一句・順序とも完全一致させた。旧docにあった「アホですね」「ジュース吹き出し」「性格はAI適当生成」等のギャグ一式は実装に無いため削除し、実装の実際のやり取り（自己紹介→塩対応→相棒宣言→命名→由来はぐらかし→Xタイムライン→鉤）に置換。制作メモの伏線注記も実際のビートに合わせて修正。`src/Prologue.cs:157-171`（合言葉「Stay.」以降）はタスク範囲外として未反映（別タスク候補）。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載 | scenario | (完了 2026-09-02) `docs/小話集_v1.md:23-25`の表のショップ/トレーニング/タイトル3行を「なし(新設要)」から実装済みへ更新。根拠=`src/Shop.cs:239-249,251-262,264-273`(小話3)/`src/TrainingRoot.cs:55-61,63-74,76-85`(小話4)/`src/TitleMenu.cs:31-39,41-51`(小話5)。いずれもコード側コメントで「小話3/4/5」明記済み、DEV_QUEUE DONEの2026-08-13記録と整合確認済み。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ | engineer | (完了 2026-09-02) 方式(a)完全削除。`src/MidEnemy.cs:87`の書き込み専用代入`EnemyBulletSpeed = _spec.BulletSpeed;`を削除。`src/EnemySpec.cs`の`BulletSpeed`フィールド・コンストラクタ引数・`For(theme)`テーブル全8件・`Flanker()`/`BuzzWall()`/`PrayerCarrier()`各ファクトリの`bulletSpeed:`引数を削除。Boss系(BossRei/Akari/Koharu/Mina/Hikage/CameoBoss)は各自`BossTuning`経由で`EnemyBulletSpeed`を独自設定しており本変更と無関係なことを確認済み。MidEnemyの実際の弾速(`FireBullet`各所のハードコードリテラル)は無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する | game-designer→engineer | (完了 2026-09-02) `src/ShopTutorial.cs:15-19`の`ShopTutorialLines`を10行→5行に半減。拡散/ホーミング解放・系統別奥義予告・排他選択と振り直しの個別細目説明を削除し、(1)一区切りの合図(2)通貨の仕組み+ショップ導線を1行に統合(3)軽口(4)撤退推奨+遷移トリガーの4行構成に整理。少年⇔ミナの掛け合いトーンは維持。`Advance`(`:109-119`)・face読み込み等は無変更。Shop画面への新規ツールチップ/ハイライトUIはスコープ外として未実装(規模抑制のため意図的)。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

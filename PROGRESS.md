@@ -1,20 +1,20 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-02 22:05 UTC
+> 生成: 2026-09-04 18:38 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 161 / 対象 161)
+███████████████████░  96%   (完了 162 / 対象 168)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 161 |
+| ✅ 完了 | 162 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 0 |
-| ⛔ 保留（人間の判断待ち） | 16 |
+| 📋 残り | 6 |
+| ⛔ 保留（人間の判断待ち） | 17 |
 
 ## 🔨 いま作業中
 
@@ -22,10 +22,17 @@ _なし_
 
 ## 📋 次にやること
 
-_キューが空です_
+- `P2` タッグ見直し提案書の①⑨番に実装済み注記を追加
+- `P2` Panel.csのInk残数通知ドットの隣接オーバーラップ修正
+- `P3` HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消
+- `P3` Hud.csの汚染ゲージコメントを実態に合わせて修正
+- `P3` AreaSpellCaster.csのrei/akari用_shapes死にコード削除
+
+…ほか 1 件
 
 ## ⛔ 保留（自動では進められない）
 
+- 特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置
 - ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている
 - 追加する敵イラストの仕様を詰める
 - 未発注イラスト
@@ -45,6 +52,7 @@ _キューが空です_
 
 ## ✅ 完了
 
+- `P1` プロローグ起動docをPrologue.cs実装セリフに同期
 - `P3` 小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載
 - `P3` MidEnemy生成の道中ザコでEnemySpec.BulletSpeedが書き込み専用の死んだパラメータ
 - `P3` ShopTutorialが一切操作させず10行の説明会話だけで初回ショップ体験を占有する
@@ -209,11 +217,11 @@ _キューが空です_
 
 ## 直近のコミット
 
+- `2836198` 2026-09-04 auto: WIP着手 プロローグ起動docをPrologue.cs実装セリフに同期
+- `743aec6` 2026-09-04 auto: 監査で7件をTODOに、1件をBLOCKEDに追加
+- `ca67efd` 2026-09-05 Rework drafts to character sheet v3 (Akari office / Koharu fan / Rei VTuber)
+- `532e625` 2026-09-04 Add plan-C rough scripts, X-style post corpus, and adult-audience character sheet
+- `9e919e0` 2026-09-03 Add plan-C draft scripts to the wiki and gate story changes on approval
+- `f9cb25f` 2026-09-02 Refresh the progress snapshot after the nightly merge
 - `648d48d` 2026-09-03 Merge pull request #17 from takutoruku1/auto/dev
 - `d43b341` 2026-09-02 auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新
-- `1bf41fb` 2026-09-02 auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新
-- `df61f73` 2026-09-02 auto: EnemySpec.BulletSpeedの死んだパラメータを削除
-- `84e1fbb` 2026-09-02 auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理
-- `61cd7e1` 2026-09-02 auto: ShopTutorialの説明会話を10行から5行に短縮
-- `b096612` 2026-09-02 auto: WIP着手 ShopTutorialの説明会話を短縮
-- `423f00c` 2026-09-02 auto: 難易度選択画面に残機・ボム数の初期値を表示
