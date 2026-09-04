@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 161 / 対象 161 タスク<br>保留 16 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 168 / 対象 168 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">161</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">168</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">16</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">17</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,62 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">HowToPlayに会話中2択(ChoiceOverlay)の説明を追加</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/HowToPlay.cs:184-199</code>の<code>DrawPageControls</code>(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。<code>Pad.ConfirmToken</code>(<code>src/Pad.cs:97</code>)を使い<code>ChoiceOverlay.cs:447</code>の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を<code>Pad.UsingPad ? 6f : 50f</code>に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">AreaSpellCaster.csのrei/akari用_shapes死にコード削除</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/AreaSpellCaster.cs:273,281</code>のrei/akari <code>_shapes</code>代入行にkoharu(<code>:290</code>)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(<code>:299-300</code>)は<code>_spells</code>のshapeがnullで<code>_shapes</code>フォールバックが実際に使われるため無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hud.csの汚染ゲージコメントを実態に合わせて修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/Hud.cs:1249</code>付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/Hud.cs:1266</code>の<code>DrawBurning()</code>の<code>y</code>を<code>214→249</code>に変更。<code>DrawSkill()</code>(y=216,h=24)本体+直下の充填バー(≈245.5まで)と重ならないよう3px空けてその下に配置。理由をコメントで明記。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>src/Panel.cs:186</code>の<code>spacing</code>を<code>2.3f→3.0f</code>に変更（外周直径2.6を上回る値）。Ink上限3（<code>MidEnemy.cs:99</code>）でも表示幅は約8.6ユニットでパネル表示域(<code>DisplayH=14</code>)に収まる想定。<code>startX</code>等の座標計算は<code>spacing</code>に自動追従するため他は無変更。実機での目視確認は未実施。<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">タッグ見直し提案書の①⑨番に実装済み注記を追加</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>docs/タッグ見直し_シナリオUI提案.md</code>の①（26行目付近）と⑨（74行目付近）の見出し直後に「実装済み: 根拠=src/Hud.cs:1208-1230 DrawKindness」「実装済み: 根拠=src/DiffSelect.cs:16-31（BulletCountMul比例算出済み）」の注記をそれぞれ追加。提案文自体は無変更。<code>src/</code>は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">プロローグ起動docをPrologue.cs実装セリフに同期</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-04) <code>docs/シナリオ_プロローグ_起動.md</code>の<code>#0-2</code>〜<code>#0-4</code>（旧47-127行）を全面書き換え、<code>src/Prologue.cs:119-156</code>の32行のセリフに一語一句・順序とも完全一致させた。旧docにあった「アホですね」「ジュース吹き出し」「性格はAI適当生成」等のギャグ一式は実装に無いため削除し、実装の実際のやり取り（自己紹介→塩対応→相棒宣言→命名→由来はぐらかし→Xタイムライン→鉤）に置換。制作メモの伏線注記も実際のビートに合わせて修正。<code>src/Prologue.cs:157-171</code>（合言葉「Stay.」以降）はタスク範囲外として未反映（別タスク候補）。<code>src/</code>は無変更、<code>dotnet build algo_shoot.sln</code>で0 Warning/0 Error確認済み</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1447,6 +1503,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置</span>
+          
+        </div>
+        <p class="accept"><code>docs/特殊エンディング設計_v1.md</code>（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている</span>
           
         </div>
@@ -1577,18 +1641,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
-      <li><span class="h">648d48d</span><span>2026-09-03</span><span class="s">Merge pull request #17 from takutoruku1/auto/dev</span></li>
-      <li><span class="h">d43b341</span><span>2026-09-02</span><span class="s">auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新</span></li>
-      <li><span class="h">1bf41fb</span><span>2026-09-02</span><span class="s">auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新</span></li>
-      <li><span class="h">df61f73</span><span>2026-09-02</span><span class="s">auto: EnemySpec.BulletSpeedの死んだパラメータを削除</span></li>
-      <li><span class="h">84e1fbb</span><span>2026-09-02</span><span class="s">auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理</span></li>
-      <li><span class="h">61cd7e1</span><span>2026-09-02</span><span class="s">auto: ShopTutorialの説明会話を10行から5行に短縮</span></li>
-      <li><span class="h">b096612</span><span>2026-09-02</span><span class="s">auto: WIP着手 ShopTutorialの説明会話を短縮</span></li>
-      <li><span class="h">423f00c</span><span>2026-09-02</span><span class="s">auto: 難易度選択画面に残機・ボム数の初期値を表示</span></li>
+      <li><span class="h">52ff65f</span><span>2026-09-04</span><span class="s">auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加</span></li>
+      <li><span class="h">aabe102</span><span>2026-09-04</span><span class="s">auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理</span></li>
+      <li><span class="h">85577f7</span><span>2026-09-04</span><span class="s">auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除</span></li>
+      <li><span class="h">5a63bd0</span><span>2026-09-04</span><span class="s">auto: Hud.csの汚染ゲージコメントを実態に合わせて修正</span></li>
+      <li><span class="h">8969085</span><span>2026-09-04</span><span class="s">auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正</span></li>
+      <li><span class="h">eacc23b</span><span>2026-09-04</span><span class="s">auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消</span></li>
+      <li><span class="h">84013e3</span><span>2026-09-04</span><span class="s">auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消</span></li>
+      <li><span class="h">ae5ac94</span><span>2026-09-04</span><span class="s">auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-02 22:05 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-04 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

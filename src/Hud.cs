@@ -1246,7 +1246,11 @@ public partial class Hud : CanvasLayer
             UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, Fa(c));
         }
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, Fa(UiKit.PurifyHi));
-        // 汚染ゲージ（救うほど濁る＝目標の対カウンター）
+        // 汚染ゲージ＝「救った人」(HeartsSaved)とは無関係の物語進行演出。各ステージRoot（例:
+        // Stage0Root.cs / ReiRoot.cs / AkariRoot.cs / KoharuRoot.cs / Final.cs）が入場時に
+        // ステージ固定の値(0 / 0.16 / 0.42 / 1.0 等)をSetContamination（GameManager.cs 単なる
+        // セッター）へセットし、道中はそのステージ内のStageProgressで滑らかに繋ぐだけ。
+        // プレイヤーの救出行動が増えるほど濁る対カウンターではない。
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, Fa(new Color(UiKit.Kegare, 0.95f)));
         float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), Fa(new Color(1, 1, 1, 0.08f)), 3f);
@@ -1263,7 +1267,8 @@ public partial class Hud : CanvasLayer
         const string label = "炎上中：発射間隔+30%・移動-10%・稼ぎ-40%";
         const float padL = 16f, h = 24f;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
-        float x = 22, y = 214;
+        // DrawSkill（y=216, h=24, 直下の充填バーが≈245.5まで）と重ならないよう、3px空けてその下に配置。
+        float x = 22, y = 249;
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 6f);
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Burn, 0.35f + 0.25f * pulse)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Burn));

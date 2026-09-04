@@ -1,15 +1,21 @@
 {
-  "generated": "2026-09-02 22:05 UTC",
+  "generated": "2026-09-04 18:51 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
-    "blocked": 16,
-    "done": 161
+    "blocked": 17,
+    "done": 168
   },
   "percent": 100,
   "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置",
+      "worker": null,
+      "accept": "`docs/特殊エンディング設計_v1.md`（Bond/裏会話/想い出アイテムによる4本の追加ED案、フルの会話サンプル付き）がDEV_QUEUE.mdのTODO/WIP/BLOCKED/DONEいずれにも一切言及なし。既存BLOCKED「マルチエンディング化」（PWゲート2分岐案）とは別コンセプトで重複ではない。新規の物語内容・新モードの追加提案そのものであり自動着手不可。要ユーザー判断：(a)承認して仮台本化を進める、(b)却下する、(c)保留のまま存置する、のいずれか指定してほしい"
+    },
     {
       "priority": null,
       "title": "ヒカゲ専用フォロワー系統が正典プレイでは永久に入手不能なまま磨き込まれ続けている",
@@ -108,6 +114,48 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "HowToPlayに会話中2択(ChoiceOverlay)の説明を追加",
+      "worker": null,
+      "accept": "(完了 2026-09-04) `src/HowToPlay.cs:184-199`の`DrawPageControls`(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。`Pad.ConfirmToken`(`src/Pad.cs:97`)を使い`ChoiceOverlay.cs:447`の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を`Pad.UsingPad ? 6f : 50f`に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "AreaSpellCaster.csのrei/akari用_shapes死にコード削除",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "Hud.csの汚染ゲージコメントを実態に合わせて修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/Hud.cs:1249`付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P3",
+      "title": "HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/Hud.cs:1266`の`DrawBurning()`の`y`を`214→249`に変更。`DrawSkill()`(y=216,h=24)本体+直下の充填バー(≈245.5まで)と重ならないよう3px空けてその下に配置。理由をコメントで明記。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "Panel.csのInk残数通知ドットの隣接オーバーラップ修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-04) `src/Panel.cs:186`の`spacing`を`2.3f→3.0f`に変更（外周直径2.6を上回る値）。Ink上限3（`MidEnemy.cs:99`）でも表示幅は約8.6ユニットでパネル表示域(`DisplayH=14`)に収まる想定。`startX`等の座標計算は`spacing`に自動追従するため他は無変更。実機での目視確認は未実施。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "タッグ見直し提案書の①⑨番に実装済み注記を追加",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-04) `docs/タッグ見直し_シナリオUI提案.md`の①（26行目付近）と⑨（74行目付近）の見出し直後に「実装済み: 根拠=src/Hud.cs:1208-1230 DrawKindness」「実装済み: 根拠=src/DiffSelect.cs:16-31（BulletCountMul比例算出済み）」の注記をそれぞれ追加。提案文自体は無変更。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "プロローグ起動docをPrologue.cs実装セリフに同期",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-04) `docs/シナリオ_プロローグ_起動.md`の`#0-2`〜`#0-4`（旧47-127行）を全面書き換え、`src/Prologue.cs:119-156`の32行のセリフに一語一句・順序とも完全一致させた。旧docにあった「アホですね」「ジュース吹き出し」「性格はAI適当生成」等のギャグ一式は実装に無いため削除し、実装の実際のやり取り（自己紹介→塩対応→相棒宣言→命名→由来はぐらかし→Xタイムライン→鉤）に置換。制作メモの伏線注記も実際のビートに合わせて修正。`src/Prologue.cs:157-171`（合言葉「Stay.」以降）はタスク範囲外として未反映（別タスク候補）。`src/`は無変更、`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み"
+    },
     {
       "priority": "P3",
       "title": "小話集_v1.mdの実装状況メモ表がShop/Training/Titleを未実装のまま記載",
@@ -1077,44 +1125,44 @@
   ],
   "commits": [
     {
-      "hash": "648d48d",
-      "date": "2026-09-03",
-      "subject": "Merge pull request #17 from takutoruku1/auto/dev"
+      "hash": "52ff65f",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
     },
     {
-      "hash": "d43b341",
-      "date": "2026-09-02",
-      "subject": "auto: 小話集_v1.mdの実装状況メモ表を実装済み状態に更新"
+      "hash": "aabe102",
+      "date": "2026-09-04",
+      "subject": "auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理"
     },
     {
-      "hash": "1bf41fb",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 小話集_v1.mdの実装状況メモ表を更新"
+      "hash": "85577f7",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除"
     },
     {
-      "hash": "df61f73",
-      "date": "2026-09-02",
-      "subject": "auto: EnemySpec.BulletSpeedの死んだパラメータを削除"
+      "hash": "5a63bd0",
+      "date": "2026-09-04",
+      "subject": "auto: Hud.csの汚染ゲージコメントを実態に合わせて修正"
     },
     {
-      "hash": "84e1fbb",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 MidEnemyのEnemySpec.BulletSpeed死にパラメータ整理"
+      "hash": "8969085",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正"
     },
     {
-      "hash": "61cd7e1",
-      "date": "2026-09-02",
-      "subject": "auto: ShopTutorialの説明会話を10行から5行に短縮"
+      "hash": "eacc23b",
+      "date": "2026-09-04",
+      "subject": "auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
     },
     {
-      "hash": "b096612",
-      "date": "2026-09-02",
-      "subject": "auto: WIP着手 ShopTutorialの説明会話を短縮"
+      "hash": "84013e3",
+      "date": "2026-09-04",
+      "subject": "auto: WIP着手 HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
     },
     {
-      "hash": "423f00c",
-      "date": "2026-09-02",
-      "subject": "auto: 難易度選択画面に残機・ボム数の初期値を表示"
+      "hash": "ae5ac94",
+      "date": "2026-09-04",
+      "subject": "auto: Panel.csのInk残数通知ドットの隣接オーバーラップ修正"
     }
   ]
 }

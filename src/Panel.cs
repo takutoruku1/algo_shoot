@@ -183,7 +183,7 @@ public partial class Panel : Area2D
     {
         if (Ink <= 0) return;
         const float dotR = 0.9f;
-        const float spacing = 2.3f;
+        const float spacing = 3.0f;
         float halfH = DisplayH * _displayScale * 0.5f; // スプライトの実表示高さの半分
         float y = -(halfH + dotR + 1.5f);              // 絵柄を隠さないよう少し上に浮かせる
         float startX = -(Ink - 1) * spacing * 0.5f;
