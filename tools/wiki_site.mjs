@@ -46,7 +46,7 @@ function figureHtml(alt, href, curDir) {
     console.warn('  [warn] 画像が見つからない:', href);
     return `<span class="imgmissing">［画像未収録: ${alt}］</span>`;
   }
-  const kind = (href.includes('build/shots') || href.toLowerCase().endsWith('.svg')) ? 'shot' : 'art';
+  const kind = (href.includes('build/shots') || href.includes('図/') || href.toLowerCase().endsWith('.svg')) ? 'shot' : 'art';
   return `<figure class="fig fig-${kind}"><img src="${embedImage(abs, kind)}" alt="${alt}" loading="lazy"><figcaption>${alt}</figcaption></figure>`;
 }
 
@@ -115,6 +115,7 @@ const ORDER = [
   ['08_仮台本/11_引用ポストの嵐', null],
   ['08_仮台本/12_キャラ設定シートv2_社会人版', null],
   ['08_仮台本/13_絵の発注方針', null],
+  ['08_仮台本/14_絵の進捗_v3', null],
 ];
 
 const GROUPS = [
