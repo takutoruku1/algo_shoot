@@ -25,6 +25,11 @@ public partial class ScrollFx : Node2D
     public enum StageKind { Rei, Akari, Koharu }
     public StageKind Kind = StageKind.Rei;
 
+    // 生成スクロール背景(scroll.png, ZIndex -70)を敷かない。BgLayers の四層背景を使う面で立てる：
+    // scroll.png は不透明の全画面板なので、そのままだと -95..-88 に置いた層背景を丸ごと隠してしまう。
+    // 生成の遠/近パララックス層(-60/-55)は透過の粒・筋なので残す＝雨の手触りは失わない。
+    public bool SkipScrollTexture;
+
     private const float W = 384f, H = 216f;
     private double _t;
 
@@ -49,7 +54,7 @@ public partial class ScrollFx : Node2D
         ZAsRelative = false;
         AddToGroup("scrollfx");
 
-        SetupScrollTexture();
+        if (!SkipScrollTexture) SetupScrollTexture();
 
         _far = new Layer { Name = "Far", Owner2 = this, Near = false, ZIndex = -60, ZAsRelative = false };
         _near = new Layer { Name = "Near", Owner2 = this, Near = true, ZIndex = -55, ZAsRelative = false };

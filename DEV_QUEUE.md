@@ -30,7 +30,6 @@
 ## TODO
 
 <!-- 2026-09-05 組み込み計画（wiki/08_仮台本/15_組み込み計画.md）から投入。上から順に消化 -->
-- [ ] (P1) STAGE1 あかりの背景を bg2 の四層に差し替え | engineer | char/bg2/stage1 の L1〜L4 を敷き、L1 に色掛け・L4 を加算。--shot で継ぎ目と弾の視認を確認
 - [ ] (P1) STAGE2 こはるの背景を bg2 の四層に差し替え（部屋・教室の2組） | engineer | 道中Aで部屋、道中Bで教室へ層ごと入れ替わる。切替は CrossfadeBossTo と同じ作法で唐突に切らない
 - [ ] (P1) STAGE3 レイの背景を bg2 の四層に差し替え | engineer | 道中は L2_mid、ボスは L2_frame_full＋L4_light_gold へ。ボス突入で光を増やす（他面と逆）
 - [ ] (P2) ボス突入の暗転を層システムに実装 | engineer | EnterBoss で L4 のαを0.8秒でフェード、L1〜L3 を0.55倍。STAGE3 だけ例外
@@ -91,6 +90,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P1) STAGE1 あかりの背景を bg2 の四層に差し替え | engineer | (完了 2026-09-05) `src/AkariRoot.cs:31-52` を `StageBackground.LayerDefs` の7層へ差し替え。L1_far → F2_rain_window（char/bg2/common・L1 と同じ雨青 (0.54,0.73,1.00)。設計値 (0.69,0.94,1.28) は Modulate が1.0を超えられないので色相のまま正規化）→ L2_mid（scroll 0.45）→ L3_near_left/right（素材座標 (0,407)/(1057,566) を 0.3 倍して配置・loop なし）→ L4_light_monitor/window（加算・scroll 0）の順。ボス突入は `src/StageAkari.cs:469` の既存 `EnterBoss` フックがそのまま暗転になる。**併せて `src/ScrollFx.cs` に `SkipScrollTexture` を新設**：ScrollFx の生成スクロール背景 `char/bg/akari/scroll.png` は ZIndex -70 の不透明な全画面板で、層背景(-95..-88)を丸ごと隠していた（差し替え直後のスクショで発覚）。あかり面だけ true にして板を敷かず、透過の遠/近パララックス層(-60/-55)は残す。非ループ層は「左へ流し続ける」と画面外へ出て戻らないため、自機の左右位置に紐づく有限の視差スウェイ（最大22px）へ変更（`src/BgLayers.cs`）。検証: `--demo --shot --shot-at 3,12,30` で撮影し `build/wiki_work/ingame_bg2_akari_00..02.png` を目視。継ぎ目なし（全画面層は 1280x720→384 幅ちょうどで1枚）、弾（シアン菱形・白ハロ・桃）は背景と分離して読める、ボス突入で床の光条が落ちて部屋が沈むのを確認。セーブ保護（save_0.json/read.json を .bak 退避→復元）実施済み。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み
 - [x] (P1) 背景の層システムの基盤（BgLayers 新設・StageBackground を層リスト対応） | engineer | (完了 2026-09-05) `src/BgLayers.cs` を新設。層定義 `BgLayers.Layer(path, scrollMul, z, tint, additive, loop, offset)` の配列を `StageBackground.LayerDefs` から注入すると BgLayers へ委譲し、1枚絵タイルは作らない。層リストが空（既存3面・FINAL）なら従来の MidBgPath/BossBgPath 経路のままで挙動完全不変。1280x720 素材は 216/720=0.3 の高さフィット、Z は L1 -95 / L2 -92 / L3 -91 / L4 -88（ScrollFx -70..-55 と StageImagery -50 には触れない）。加算層は `CanvasItemMaterial{Add}`、`EnterBoss()` で L4 のα→0・L1〜L3 を0.55倍へ0.8秒 smoothstep、`SetTint(Color)` で全層に色掛け。ループは loop=true の層だけ横に並べて流し、位置係数 `BgScroll.PlayerNx`（0.65..1.45）を全層に乗算。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み
 - [x] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | (完了 2026-09-04) `src/HowToPlay.cs:184-199`の`DrawPageControls`(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。`Pad.ConfirmToken`(`src/Pad.cs:97`)を使い`ChoiceOverlay.cs:447`の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を`Pad.UsingPad ? 6f : 50f`に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | (完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み

@@ -14,9 +14,9 @@ using System.Collections.Generic;
 //   これに BgScroll の位置係数（自機が右にいるほど速い 0.65..1.45）を乗算して共存させる＝
 //   StageBackground / ScrollFx と同じ「左へ流れる＝左→右に前進」の語彙。
 //
-//   loop=true の層だけ横に2枚並べて左へシームレスに流す。loop=false の層は1枚を置いたまま
-//   （scrollMul>0 なら左へ動くが巻き戻さない＝近景の一枚物が通り過ぎる、という使い方は想定しない。
-//    近景の一枚物は scrollMul をそのまま持たせつつ loop=false で置く＝視差だけ効く）。
+//   loop=true の層だけ横に2枚並べて左へシームレスに流す。loop=false の層は1枚を置いたままにし、
+//   scrollMul は「流す速さ」ではなく「自機の左右位置に紐づく視差スウェイの大きさ」として効く
+//   （近景の一枚物＝傘や看板が画面外へ流れ去って二度と戻らないのを防ぐ）。
 //
 //   加算層（additive=true）は CanvasItemMaterial{Add} を各 Sprite2D に載せる（WorldGrade / FxLayer と同じ作法）。
 //   色掛け（tint）は層ごとの Modulate。WorldGrade の CanvasModulate グレーディングとは別系統で二重掛けにしない
@@ -28,7 +28,7 @@ public partial class BgLayers : Node2D
 
     // 層の定義（Root から配列で注入する）。
     //   Path      : res:// のテクスチャ。読めない層は黙って飛ばす（他の層は敷かれる＝事故らない）。
-    //   ScrollMul : 左へ流れる速さの倍率。0 で静止（光の層）。
+    //   ScrollMul : loop=true なら左へ流れる速さの倍率、loop=false なら視差スウェイの大きさ。0 で静止（光の層）。
     //   Z         : 絶対 ZIndex（L1 -95 / L2 -92 / L3 -91 / L4 -88 を想定）。
     //   Tint      : Modulate。無彩色素材への色掛けにも使う。
     //   Additive  : true で加算合成（光の層）。
@@ -58,6 +58,11 @@ public partial class BgLayers : Node2D
 
     // 基準スクロール速度（px/s）。StageBackground.MidScrollSpeed と同じ控えめな値に揃える。
     public float ScrollSpeed = 13f;
+
+    // 非ループ層の視差スウェイ幅（px）と追従速度（px/s）。自機が左端→右端で最大この幅だけ左へ寄る。
+    // 一枚物が画面外へ流れ去らないよう、非ループ層は「流す」のではなく「自機位置に紐づけて揺らす」。
+    private const float ParallaxSway = 22f;
+    private const float ParallaxFollow = 26f;
 
     // 敷けた層が1つでもあるか（Root 側のフォールバック判定用）。
     public bool HasAny => _live.Count > 0;
@@ -136,6 +141,8 @@ public partial class BgLayers : Node2D
             {
                 Tiles = tiles, TileW = tileW, ScrollMul = def.ScrollMul,
                 Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = def.Offset,
+                // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
+                X = def.Loop ? 0f : def.Offset.X,
             });
         }
     }
@@ -173,14 +180,16 @@ public partial class BgLayers : Node2D
         // 位置係数：自機が右にいるほど背景が速く流れる（StageBackground / ScrollFx と同じ 0.65..1.45）。
         float posMul = 0.65f + 0.80f * BgScroll.PlayerNx(this);
 
+        float nx = BgScroll.PlayerNx(this);
+
         foreach (var l in _live)
         {
             if (l.ScrollMul <= 0f) continue;   // 光の層は動かさない
-            l.X += ScrollSpeed * l.ScrollMul * posMul * dt;
 
             if (l.Loop && l.TileW > 0f)
             {
-                // span を法に取って毎フレーム並べ直す（蓄積誤差なし。StageBackground と同じ）。
+                // ループ層：左へ流し続ける。span を法に取って毎フレーム並べ直す（蓄積誤差なし。StageBackground と同じ）。
+                l.X += ScrollSpeed * l.ScrollMul * posMul * dt;
                 float off = l.X % l.TileW;
                 for (int i = 0; i < l.Tiles.Length; i++)
                 {
@@ -192,13 +201,12 @@ public partial class BgLayers : Node2D
             }
             else
             {
-                // 非ループ：視差だけ効かせて左へずらす（巻き戻さない）。
-                foreach (var s in l.Tiles)
-                {
-                    var p = s.Position;
-                    p.X = l.Offset.X - l.X;
-                    s.Position = p;
-                }
+                // 非ループ層：流し続けると画面外へ出て二度と戻らないので、自機の左右位置に紐づけた
+                // 有限の視差スウェイにする（nx 0→1 で右→左へ最大 ParallaxSway*scrollMul だけずれる）。
+                // 置いた一枚物（近景の傘・看板など）が消えず、動きだけが手前らしく大きい。
+                float target = l.Offset.X - ParallaxSway * l.ScrollMul * nx;
+                l.X = Mathf.MoveToward(l.X, target, ParallaxFollow * dt);
+                foreach (var s in l.Tiles) s.Position = new Vector2(l.X, s.Position.Y);
             }
         }
     }
