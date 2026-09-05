@@ -33,6 +33,9 @@ public partial class StageAkari : Node
     private const string MFace = "res://char/mina_face.png";
     private const string MSmile = "res://char/mina_smile.png";
     private const string MWorried = "res://char/mina_worried.png";
+    // あかりの顔。平常＝akari_face／画面の光を浴びた＝akari_face_lit／泣き＝akari_face_cry。
+    private const string AFace = "res://char/v3/akari_face.png";
+    private const string AFaceLit = "res://char/v3/akari_face_lit.png";
 
     // 旧稿（少年あり）の残り。S1-4 以降の場面を案C へ差し替えるまでの暫定で残す。
     private const string SCocky = "res://char/shonen_face.png";
@@ -76,18 +79,7 @@ public partial class StageAkari : Node
         (0, "————渡せなかった想いってのは、ああやって、あふれるんだ。この世界ではね。", SGentle),
     };
 
-    // 旧稿の道中掛け合い（小話集_v1.md §2 StageAkari）。S1-7／S1-8 を案C へ差し替えるまでの暫定で残す。
-    private static readonly (int who, string text, string face)[] Chat2 = // [軽口]
-    {
-        (0, "ミナ。ぼく、雨の音は好きだ。", SGentle),
-        (1, "存じております。うるさいと言いながら、いつも消さないので。", MSmile),
-    };
-    private static readonly (int who, string text, string face)[] Chat3 = // [日常]
-    {
-        (1, "水たまりを踏むと、なぜ少し楽しいんでしょうね。", ""),
-        (0, "……大人はそれをやると怒られるからだ。", SCocky),
-        (1, "では、わたくしは踏み放題ですね。", MSmile),
-    };
+    // 旧稿の道中掛け合い（小話集_v1.md §2 StageAkari）。S1-8 を案C へ差し替えるまでの暫定で残す。
     private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
     {
         (1, "この吹き出し、ぜんぶ「またね」と書いてあります。", MWorried),
@@ -103,8 +95,12 @@ public partial class StageAkari : Node
 
     // S1-2 小話 Mid（仮台本 06）。「返して」「すき」の声。ホワイトボードの字と置き傘を、ミナが自分で見つける。
     //   相方は「あなた」＝返事をしない相手なので、掛け合いではなく観測とひとり漫才で運ぶ。
+    //   先頭2行は S1-5（中ボス）のミナ行。CameoBoss の一行オーバーレイは本人(who=2)しか流さないので、
+    //   中ボスが消えた直後に開くこの step が受け皿になる（step 構成は変えない前提での置き場所）。
     private static readonly (int who, string text, string face)[] Mid =
     {
+        (1, "……スマホの光を、顔に浴びたまま。……画面のほうは、こちらから見えません。", MFace),   // S1-5。観測のみ
+        (1, "……あの人、降りやまない雨の奥へ。逃げるみたいに、消えてしまいました。", MWorried),   // S1-5
         (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", MFace),
         (1, "この“声”、ひとつ祓うたびに、少し肩が軽くなります。……比喩です。肩は、ありません。", MSmile),   // 一人漫才
         (1, "ホワイトボードに、字が。「あたしのせいだ」。……消しても消しても、浮いてくる、そういう字です。", MWorried),
@@ -112,61 +108,76 @@ public partial class StageAkari : Node
         (1, "雨の音は、嫌いではありません。……うるさい、と思いながら、消していないので。", MSmile),
     };
 
-    // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第2段（優先度1・3）＝【思わず情がこぼれ、動揺で蓋をする】。
-    //   少年が“見てきたような”細部（笑い方）を口走り、直後にハッと蓋をする（afraid）。ミナは「?」で追うが、核心＝“知人だ”とは
-    //   まだ言い切らせない（そこはこはる面へ温存）。優先度3：説明的な「知っている人みたい」を弱め、崩れ＝表情で見せる。
-    private const string AFace = "res://char/v3/akari_face.png";
-    private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
+    // S1-7 道中B／MidStory／道中C（仮台本 06）。向かいの席の暗いモニタと読めない付箋。「同じ部署」の声。
+    //   返事の声だけが無い。「ぜんぶ浴びる」をミナ自身の方針として言う＝S1-10 の「証人」の仕込み。
+    private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""), // ボスのツイート
-        (1, "……また、あの投稿が流れてきました。奥の“本人”は、ずいぶん思いつめていますね。", ""),
-        (0, "……あかり、っていうんだ。やさしくて、笑うと、目が三日月になって——", SGentle), // 細部が思わずこぼれる（言いさし）
-        (0, "————。……いや。", SAfraid),                                    // ハッと蓋をする＝崩れ（afraid）。言い切らない
-        (1, "……ご主人様?", "res://char/mina_doubt.png"),                    // 追うが、まだ言葉にはしない（核心はこはる面へ）
-        (0, "……なんでもない。行くぞ。", SGentle),
-    }.Concat(Chat2).Concat(Chat3).ToArray();
+        (1, "……向かいの席。モニタは、暗いまま。キーボードの上に、付箋が一枚。……字は、読めません。", MFace),   // S1-10 の一通に繋ぐ
+        (4, "「向かいの席、空いたまま。……三日目。」", ""),   // A38。層2
+        (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", MFace),   // A28
+        (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", MWorried),
+        (1, "取り消されたぶんの言葉を、ぜんぶ、浴びていきます。ひとつ残らず。——そう、決めました。", MFace),   // 改心の「証人」の仕込み
+    };
 
-    // チラ見せ：登場（あかり＝怯え・拒絶）。who=2=あかり。
+    // S1-5 中ボス あかり（仮台本 06）。先出しの本人。退勤後のカーディガンに社員証、片手のスマホの光が顔に当たっている。
+    //   CameoBoss は who=2（本人）の行だけを一行オーバーレイで流す（IntroLines＝第一声／TauntLines＝RECLOSE／
+    //   DefeatLines＝捨て台詞）。ミナの2行はオーバーレイに乗らないので S1-4 の締めと Mid の頭に置いてある。
+    //   「見て」は第一声の「見たよね」までにとどめ、以後は繰り返さない（12）。
+    //   顔は「画面の光を浴びた」akari_face_lit（片手のスマホの光が顔に当たっている状態）。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た来た! ねえ、あなた、あたしのこと、見てくれるの? 見て? 見てるよね? ね?", AFace),
-        (1, "ずいぶん、怯えていますね。", ""),
-        (0, "……刺激するな、ミナ。この子は、自分を責めることしか、できないんだ。", SGentle),
-        (2, "ごめんなさい……ごめんなさい。あたしなんかが、すきになって……ごめんなさい。", AFace),
+        (2, "あ、来た来た。ねえ、あなた、あたしの、読んだ? 返事、まだ? 見たよね? ね?", AFaceLit),   // 第一声
     };
-    private static readonly (int who, string text, string face)[] CameoTalk2 =
-    {
-        (2, "見ないで……っ。こんな、みっともないところ。", AFace),
-        (1, "……ご主人様。あなた、さっきから、この子を見る目が——", "res://char/mina_doubt.png"), // 疑いの目（worried→doubt で第2段に統一）
-        (0, "……黙っててくれ、ミナ。頼むから。", SAfraid),           // 懇願＝崩れ（afraid）。“頼むから”に情が漏れる
-    };
-    // 山：あかりが少年の声に気づきかけ、自分で否定する。
+    // RECLOSE（サイクルごとに順送り）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "逃げないでよぉ。あたし、追いかけるの得意なの。既読も三秒でつけるし。", AFace),
-        (0, "————。", SGentle),                                    // 沈黙
-        (2, "ねえ、あなたの声……ちょっと好きかも。あ、いま好きって言った。責任、とってね?", AFace),
-        (0, "————っ。……行くぞ、ミナ。今は、まだ。", SGentle),
+        (2, "ひとりにしないで。……ねえ、ひとりに、しないでってば。", AFaceLit),
+        (2, "来ないで……っ。……ちがう、来て。……来ないで。", AFaceLit),
     };
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "えー、もう行っちゃうの? ……ちぇっ。ぜったい、また会いに来てよね。ぜったいだよ?", AFace),
-        (1, "……あの子、降りやまない雨の奥へ。逃げるみたいに、消えてしまいました。", "res://char/mina_worried.png"),
-        (1, "……ご主人様。今の人を、放っておいて、いいんですか。", ""),
-        (0, "……いいわけ、ないだろ。だから——奥で、ちゃんと、届けるんだ。", SGentle),
+        (2, "ぜったい、また会いに来てよね。ぜったいだよ?", AFaceLit),   // 捨て台詞
     };
 
-    // ───────── ミッドシナリオ枠（後半Bと終盤Cの境＝ボス前の“溜め”）─────────
-    // シナリオ担当が本文を差し込むスロット（who=Hud.LineKind 0=少年/1=ミナ/2=あかり/3=ナレ/4=投稿/5=中継）。
-    // 吹き出し会話（Step_Lines）で出す＝弾は止まる。あかり面のテーマ＝教室/告白に馴染む位置に。
-    // 本文執筆済み（差し替えはこの配列ごと）。テンポを殺さないよう2〜数行を維持。
+    // ───────── S1-4 束（ミッドシナリオ枠＝後半Bと終盤Cの境・ボス前の“溜め”）─────────
+    // 仮台本 06 の S1-4。宙に浮いた机に、社内チャットの「メッセージの送信を取り消しました」だけが縦に積み上がった束。
+    // 本文はひとつも残っていない。拾うかどうかを「あなた」に聞く＝この面唯一の下書き選択（ChoiceOverlay）。
+    // 吹き出し会話（Step_Lines）で出す＝弾は止まる。
     private static readonly (int who, string text, string face)[] MidStory =
     {
-        (1, "ご主人様、これ。宙に浮いた机に、開きっぱなしのノートが一冊。……同じ三文字だけが、ずっと、並んでいます。", "res://char/mina_worried.png"),  // ザコ＝宙浮きの机/開いたノート
-        (1, "「すき」「すき」「すき」……書いては、消して。一度も、渡せなかったんですね。", "res://char/mina_worried.png"),
-        (0, "ああ。言えなかった言葉は、消えやしない。こうやって、教室に残り続ける。", SGentle),
-        (1, "……たった一言、伝わっていれば。それだけのことが、いちばん遠い。", ""),
-        (0, "だから——奥で、ちゃんと言わせてやるんだ。最後まで言いそびれた、その続きを。", SCocky),
+        (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),   // A42。層3
+        (1, "ご主人様、これ。宙に浮いた机の上に、束が。……「メッセージの送信を取り消しました」。その一行だけが、縦に、積み上がっています。", MWorried),
+        (1, "本文は、ひとつも残っていません。取り消しの行だけ。……数えました。十二。——いまの投稿と、同じ数です。", MWorried),   // 数えただけ
+        (1, "ご主人様。——拾って、いいですか。", MFace),
+    };
+
+    // S1-4 の下書き選択。（送らない）は言葉ではないので【散】に数えない＝表示候補の2件だけが散る。
+    private static readonly string[] S14Choices = { "ひろって", "そっとしといて", "（送らない）" };
+    // 選択ごとの受け。どのみち「そっと拾う」＝最後の締め（S14Tail）へ合流する。
+    //   台本の `(0, "ひろって", "")` にあたる「送った下書きの復唱」行は置かない。Hud.ShowDialog は
+    //   LineKind.Boy を「少年」名義で描く（他ステージは who=0＝少年のまま）ので、案C の「あなた」を
+    //   そこへ流すと話者名が食い違う。選んだ断片が吹き出しへ昇って光に溶ける ChoiceOverlay の解散演出が
+    //   「送った」の画になっているため、復唱を足さなくても送信の一拍は成立する。
+    private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (1, "……はい。そっと、拾います。……渡すのは、わたくしではありませんので。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (1, "……はい。そっと。——拾うのと、そっとしておくのは、両立します。", MFace),
+        },
+        // （送らない）／沈黙20秒。【濁】微増（仕様未決につき小さく）。
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——では、そっと。……二件、散りましたね。", MFace),
+        },
+    };
+    // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
+    private static readonly (int who, string text, string face)[] S14Tail =
+    {
+        (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),
     };
 
     // 道中後の小話（ボスへの引き）。
@@ -240,9 +251,9 @@ public partial class StageAkari : Node
             case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
             case 4: Step_Lines(delta, Mid); break;        // 道中突入の小話
             case 5: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 6: Step_Lines(delta, BossTalk); break;   // ボスのツイート→考察（会った後＝少年の詳しさが際立つ）
+            case 6: Step_Lines(delta, BossTalk); break;   // S1-7 道中B／向かいの席／「ぜんぶ浴びる」
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 8: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
+            case 8: Step_MidStory(delta); break;          // ★S1-4 束（下書き選択）＝ボス前の溜め
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             case 10: Step_Lines(delta, MidEnd); break;    // 道中後の小話
             case 11: Step_BossSpawn(); break;
@@ -312,6 +323,94 @@ public partial class StageAkari : Node
             _ => "res://char/mina_face.png",                // 中継ほか
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
+    }
+
+    // ---- S1-4 束（ミッドシナリオ枠）：問いかけまで流す → 下書き選択 → 受け＋締め ----
+    // 台本 06 の S1-4。ミナの「拾って、いいですか」で ChoiceOverlay（3択・N択対応版）を重ね、
+    // 決まったら受けの1行と共通の締め（足音）を続けて流してから終盤Cへ。
+    // 会話バブルは提示中も保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
+    // 自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソルのまま即決される＝詰まらない。
+    private ChoiceOverlay? _s14Choice;
+    private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
+    private int _s14Phase;                            // 0=問いかけまで / 1=選択提示中 / 2=受け＋締め
+    private const float S14SkipContam = 0.02f;        // （送らない）で汚染を微増（仕様未決につき小さく）
+    private void Step_MidStory(double delta)
+    {
+        switch (_s14Phase)
+        {
+            case 0:
+                // 束の提示〜「拾って、いいですか」まで。Step_Lines は流し切ると Advance するので、
+                // ここは自前で終端を見て次フェーズへ落とす（step は 8 のまま）。
+                RunLinesInPlace(delta, MidStory, () => { _s14Phase = 1; _stepStarted = false; });
+                break;
+            case 1:
+                if (!_stepStarted)
+                {
+                    _stepStarted = true;
+                    _s14ChoiceT = 0;
+                    // 既定カーソルは末尾＝（送らない）。ChoiceOverlay の沈黙20秒の自動決定もここへ落ちる（台本どおり）。
+                    _s14Choice = ChoiceOverlay.Show(Hud, S14Choices, defaultSel: S14Choices.Length - 1);
+                }
+                _s14ChoiceT += delta;
+                if (_s14Choice == null || !_s14Choice.Decided) return;
+                ApplyS14Choice(_s14Choice.Selected);
+                _s14Choice.QueueFree();
+                _s14Choice = null;
+                _s14Phase = 2;
+                _stepStarted = false;
+                break;
+            default:
+                RunLinesInPlace(delta, _s14After, Advance);
+                break;
+        }
+    }
+
+    private void ApplyS14Choice(int sel)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        // 【散】は表示候補（上2件）のうち選ばれなかったぶんだけを計上する。
+        //   （送らない）自体は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る。
+        bool sent = sel < S14Choices.Length - 1;
+        var others = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < S14Choices.Length - 1; i++) if (i != sel) others.Add(S14Choices[i]);
+        game?.RecordChoice("s1_4", sent ? S14Choices[sel] : "", others, (float)_s14ChoiceT);
+        // （送らない）＝声を掛けずに見送った ぶんだけ、ミナの光がわずかに濁る。
+        if (!sent) game?.SetContamination((game.Contamination) + S14SkipContam);
+        _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
+    }
+
+    // 会話配列を「この step に留まったまま」流すヘルパ（Step_Lines と同じ送り作法。終端で onEnd を呼ぶ）。
+    private void RunLinesInPlace(double delta, (int who, string text, string face)[] lines, System.Action onEnd)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _introLine = 0;
+            _lineHold = 0;
+            if (lines.Length == 0) { Hud.HoldBubble = false; Hud.HideBubble(); onEnd(); return; }
+            Hud.HoldBubble = true;
+            ShowLine(lines);
+        }
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
+        {
+            _lineHold = 0;
+            _introLine++;
+            if (_introLine >= lines.Length)
+            {
+                // 選択の提示中はバブルを保持したまま（BubblePaused 継続＝弾・敵を止めておく）。
+                if (_s14Phase != 0) { Hud.HoldBubble = false; Hud.HideBubble(); }
+                onEnd();
+                return;
+            }
+            ShowLine(lines);
+        }
     }
 
     // ---- 肩慣らし波（Intro直後・圧ゼロ）：MidWave0体の浄化で、待ち構えていたあかりが“割り込んで”カメオ出現 ----
@@ -428,7 +527,7 @@ public partial class StageAkari : Node
                     PreTex = "res://char/v3/akari_mid.png",
                     CryTex = "res://char/v3/akari_mid.png",
                     PostTex = "res://char/v3/akari_mid.png",
-                    Face = AFace,
+                    Face = AFaceLit,   // S1-5：片手のスマホの光が顔に当たっている＝画面の光を浴びた顔
                     SpellTint = new Color("6c9cd8"), SpellShape = BulletShape.Needle,
                     Fire = CameoFireTheme.AkariGrief,
                     Aura = FxLayer.BossAura.Akari,
