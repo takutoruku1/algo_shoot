@@ -390,7 +390,14 @@ public partial class StageKoharu : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _midChoice = ChoiceOverlay.Show(Hud, new[] { "もういちど、聞く", "ひきさがる" }, defaultSel: 1); // 0=A / 1=B（既定=B＝正典側）
+            // [一時/デバッグ] --choice3 のときだけ中央に1本足して3択で出す（ChoiceOverlay の N 択レイアウト確認用）。
+            //   末尾は「ひきさがる」のまま＝沈黙の自動決定の対象と既定カーソルの位置づけを変えない。
+            //   選択の解釈（_midChoseA = Selected == 0）も据え置きで、増えた中央は B と同じ扱いに落ちる。
+            bool three = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceThree == true;
+            string[] opts = three
+                ? new[] { "もういちど、聞く", "しずかに、まつ", "ひきさがる" }
+                : new[] { "もういちど、聞く", "ひきさがる" };
+            _midChoice = ChoiceOverlay.Show(Hud, opts, defaultSel: opts.Length - 1); // 0=A / 末尾=B（既定=B＝正典側）
         }
         if (_midChoice == null || !_midChoice.Decided) return;
         _midChoseA = _midChoice.Selected == 0;

@@ -1098,15 +1098,20 @@ public partial class GameManager : Node
         {
             if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
             if (a == "--choice") DebugChoiceNow = true;
+            if (a == "--choice3") { DebugChoiceNow = true; DebugChoiceThree = true; }
         }
     }
 
     // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
     public bool DebugAlwaysBoss { get; private set; }
 
-    // [一時/デバッグ] --choice : こはる面のボス戦中割り込み（会話2択）を HP 条件を待たずに即発火させる。
+    // [一時/デバッグ] --choice : こはる面のボス戦中割り込み（会話の選択）を HP 条件を待たずに即発火させる。
     // 選択シーンの確認専用。通常プレイ・配布ビルドでは付けない前提。
     public bool DebugChoiceNow { get; private set; }
+
+    // [一時/デバッグ] --choice3 : 上の割り込みを **3択** で出す（ChoiceOverlay の N 択レイアウト確認用）。
+    // --choice を含む。台本上の選択は2択のままで、これは表示検証専用の差し替え。
+    public bool DebugChoiceThree { get; private set; }
 
     // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。
     private void SeedDebugRecords()

@@ -1,7 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 
-// ChoiceOverlay : 会話中の2択選択UI（「言いかけの言葉」演出・中央整列版）。
+// ChoiceOverlay : 会話中のN択（2〜4）選択UI（「言いかけの言葉」演出・中央整列版）。
 //   旧メニュー箱（フラット暗幕＋UiKit.Box）は使わないが、断片を世界に溶かしすぎて選択の記号性を失った
 //   反省（プレイ評: 位置がわかりづらい・文字が小さい）から、断片は**画面中央に大きく縦積み**し、
 //   ▸マーカー＋光の下線で「並んだ選択リスト」に見せる。没入は暗幕でなく**周辺減光（ビネット）**で作り、
@@ -13,7 +13,7 @@ using System.Collections.Generic;
 //
 // 演出タイムライン（予備動作→本動作→余韻。yoshida style §4）:
 //   出現 0〜0.7s … ビネットが0.3sでフェードインし、光の粒が集まりながら1文字ずつ滲んで現れる。完了まで決定不可。
-//   待機         … 中央 y≈240/330 に2本整列。漂いは±2px（読みやすさ優先）。
+//   待機         … 中央（y≈285）を軸に行間 90px で縦整列（2択=240/330・3択=195/285/375）。漂いは±2px。
 //                  選択中＝明るく・わずかに拡大・▸マーカー＋光の下線＋呼吸の明滅。非選択＝輝度40%。
 //   決定 0〜0.5s … 選ばれた断片が吹き出しの方へふわりと昇って光に溶ける（＝彼女の言葉になる連続性）。
 //                  選ばれなかった断片は淡い光の粒に散る（浄化と同じ語彙）。ビネットも一緒に明ける。
@@ -27,7 +27,7 @@ using System.Collections.Generic;
 //   止まるのでタイマーも停止する。
 //
 // 仕様（docs/20260831/会話選択_層2_プロト仕様.md）:
-//   ・X キャンセルは付けない＝必ずどちらかを選ばせる（収束型2択）。
+//   ・X キャンセルは付けない＝必ずどれかを選ばせる（収束型の選択）。
 //   ・パッドは十字↑↓＋A（ui_up/ui_down は十字キーにマップ済み）。
 //   ・マウス（Settings/Hub と同じ流儀）: UiKit.BeginHotspots＋Hotspot＋HoveredId＋Pad.MouseClick。
 //     断片の行矩形ホバーで選択移動（Pad.UsingMouse 中のみ）、その上で左クリック＝決定。
@@ -85,7 +85,13 @@ public partial class ChoiceOverlay : Control
     private const double SilenceAuto = 20.0;  // 自動決定
     private const int FontSize = 38;          // 会話文（FontHeading=20）の約2倍＝選択肢だと一目で分かる大きさ
     private const float CenterX = UiKit.DesignW * 0.5f;
-    private static readonly float[] RowY = { 240f, 330f };  // 2本の縦積み（吹き出し y=520 帯とHUDに被らない）
+    // 縦積みの配置（N択共通）。行間 RowPitch で BlockCenterY を中心に上下対称へ並べる。
+    //   2択は従来と同じ y=240/330 に来る（285±45）＝既存の呼び出しの見え方は不変。
+    //   3択は y=195/285/375、4択は y=150/240/330/420。いずれも吹き出し（y=520〜690）と
+    //   HUD 上端（y≈130 まで）に被らない範囲に収まる。
+    private const float RowPitch = 90f;       // 行間（2択の 330-240 と同じ）
+    private const float BlockCenterY = 285f;  // 縦積み全体の中心（2択の中点 (240+330)/2）
+    private const int MaxChoices = 4;         // 想定する上限（これを超えると下が吹き出しに掛かる）
     private static readonly Vector2 BubbleTarget = new(640f, 535f); // 吹き出し（Hud.DrawDialog: 40,520,1200,170）の上辺中央
 
     // 周辺減光テクスチャ（中心透明→縁が暗い放射グラデ）。毎フレーム new しない（UiKit._gradCache と同じ理由）。
@@ -95,9 +101,18 @@ public partial class ChoiceOverlay : Control
     //   キャッシュが際限なく増える＝ここでは使わない（UiKit._gradCache のコメント参照）。
     private static GradientTexture2D? _lineTex;
 
+    // N択（2〜MaxChoices）を出す。choices の並びがそのまま上から下の並びで、Selected はその添字。
+    // 沈黙の自動決定は常に**末尾**が選ばれる＝呼び出し側は「引き下がる/何もしない」側を最後に置くこと。
     public static ChoiceOverlay Show(Node parent, string[] choices, int defaultSel)
     {
-        var c = new ChoiceOverlay { Name = "ChoiceOverlay", _choices = choices, Selected = defaultSel };
+        if (choices.Length > MaxChoices)
+            GD.PushWarning($"[ChoiceOverlay] {choices.Length} 択は想定外（上限 {MaxChoices}）。下の行が吹き出しに掛かる。");
+        var c = new ChoiceOverlay
+        {
+            Name = "ChoiceOverlay",
+            _choices = choices,
+            Selected = Mathf.Clamp(defaultSel, 0, Mathf.Max(0, choices.Length - 1)),
+        };
         parent.AddChild(c);
         return c;
     }
@@ -118,13 +133,14 @@ public partial class ChoiceOverlay : Control
 
         int n = _choices.Length;
         _disp = new string[n]; _pos = new Vector2[n]; _w = new float[n];
+        // 縦積みの先頭 y：全体を BlockCenterY で上下に振り分ける（N が増えても中心は動かない）。
+        float top = BlockCenterY - RowPitch * (n - 1) * 0.5f;
         for (int i = 0; i < n; i++)
         {
             _disp[i] = "「" + _choices[i] + "」";
             _w[i] = UiKit.TextW(UiKit.ZenBold, _disp[i], FontSize);
-            // 画面中央に中央揃えで縦積み。3本以上は下へ 90px 刻みで続ける（現行は2本）。
-            float y = i < RowY.Length ? RowY[i] : RowY[RowY.Length - 1] + 90f * (i - RowY.Length + 1);
-            _pos[i] = new Vector2(CenterX - _w[i] * 0.5f, y);
+            // 画面中央に中央揃えで縦積み（行間は N によらず RowPitch で一定）。
+            _pos[i] = new Vector2(CenterX - _w[i] * 0.5f, top + RowPitch * i);
         }
     }
 
@@ -150,11 +166,15 @@ public partial class ChoiceOverlay : Control
         // 出現完了までは決定を受け付けない（アンティシペーション）。--shot 検証時のみ撮影窓ぶん延長。
         bool appeared = _t >= (_shotHold ? ShotHoldGate : AppearDur);
 
-        // ↑↓（十字含む）で2択トグル。移動音は小さく柔らかく（SfxUiMove を絞って低く）。
-        bool nav = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_down");
+        // ↑↓（十字含む）でカーソル移動。移動音は小さく柔らかく（SfxUiMove を絞って低く）。
+        //   N択では方向を見て上下に動かす（両端でラップ）。2択ではどちらを押してももう片方＝従来と同じ挙動。
+        bool up = Input.IsActionPressed("ui_up");
+        bool down = Input.IsActionPressed("ui_down");
+        bool nav = up || down;
         if (nav && !_navHeld)
         {
-            Selected = (Selected + 1) % _choices.Length;
+            int n = _choices.Length;
+            Selected = (Selected + (down ? 1 : n - 1)) % n;
             if (Audio.Instance is { } au1) au1.Se(au1.SfxUiMove, volDb: -27f, pitch: 0.8f);
         }
         _navHeld = nav;
