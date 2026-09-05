@@ -435,6 +435,10 @@ public partial class StageKoharu : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(0.35f);
+            // 場所が変わる：配信の部屋 → 立てなかった教室へ、層セットごと 1.0 秒でクロスフェード。
+            // 唐突に切らない（StageBackground.CrossfadeBossTo と同じ作法）。旧経路の面では何も起きない。
+            if (GetTree().GetFirstNodeInGroup("stagebg") is StageBackground bg)
+                bg.CrossfadeLayersTo(KoharuRoot.ClassLayers, 1.0f);
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))

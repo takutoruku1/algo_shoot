@@ -1,8 +1,8 @@
 using Godot;
 
 // KoharuRoot : STAGE3「こはる」のルート（Koharu.tscn にアタッチ）。
-// 台所の心象世界を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
-// 専用背景は未用意のため、暖色の暗いフィルで台所の薄暗さを表現する。
+// こはるの心象世界（bg2 stage2 の四層）を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
+// 場所は2つあり、道中Aは配信の部屋、道中Bで教室へ層セットごとクロスフェードで入れ替わる。
 public partial class KoharuRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -12,6 +12,33 @@ public partial class KoharuRoot : Node2D
     public Hud Hud { get; private set; } = null!;
     public StageKoharu Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
+    public StageBackground Bg { get; private set; } = null!;
+
+    // 道中A＝部屋（配信の部屋）。L1 は菫寄りの藍で色掛け、L4 は配信画面の加算光。
+    private static readonly Color RoomBlue = new Color(0.72f, 0.68f, 1.00f);
+    public static readonly BgLayers.Layer[] RoomLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/stage2/L1_far_room.png",        0.15f, -95, RoomBlue),
+        new BgLayers.Layer("res://char/bg2/stage2/L2_mid_room.png",        0.45f, -92, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage2/L3_near_room_left.png",  1.00f, -91, Colors.White,
+            offset: new Vector2(0f, 509f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage2/L3_near_room_right.png", 1.00f, -91, Colors.White,
+            offset: new Vector2(1032f, 520f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage2/L4_light_room_screen.png", 0f, -88, Colors.White, additive: true),
+    };
+
+    // 道中B＝教室（こはるが立てなかった場所）。L1 は青灰で色掛け、L4 は窓の加算光。
+    private static readonly Color ClassBlue = new Color(0.80f, 0.86f, 1.00f);
+    public static readonly BgLayers.Layer[] ClassLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/stage2/L1_far_class.png",        0.15f, -95, ClassBlue),
+        new BgLayers.Layer("res://char/bg2/stage2/L2_mid_class.png",        0.45f, -92, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage2/L3_near_class_left.png",  1.00f, -91, Colors.White,
+            offset: new Vector2(0f, 380f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage2/L3_near_class_right.png", 1.00f, -91, Colors.White,
+            offset: new Vector2(1051f, 285f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage2/L4_light_class_window.png", 0f, -88, Colors.White, additive: true),
+    };
 
     private CanvasModulate _tint = null!;
     private static readonly Color Cold = new Color(0.64f, 0.68f, 0.84f); // 冷めた台所（背景が元々暗いので濃くしすぎない）
@@ -29,17 +56,19 @@ public partial class KoharuRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        // 台所背景。道中＝横スクロールで前進感／ボス＝専用背景へ切替（StageBackground）。
-        // 新アートが来たら Mid/Boss のパスを差すだけ。今は既存アートを道中背景に流用、
-        // ボス専用背景は未用意のため当面 kitchen.png を流用（突入で軽い動き＝差替え機構の動作確認）。
+        // こはる面の四層背景（char/bg2/stage2）。場所が2つあり、道中Aは部屋、道中Bで教室へ層ごと入れ替わる
+        // （StageKoharu が Step_MidwaveB の頭で Bg.CrossfadeLayersTo(ClassLayers) を呼ぶ）。
+        // L1 は無彩色の素材なので Modulate で色掛けする（部屋＝菫寄りの藍／教室＝青灰）。
+        // L3 の一枚物は素材座標(1280x720基準)の配置を 0.3 倍して画面座標に落とす。
+        // L4（配信画面／窓の光）は加算・非スクロール。ボス突入(EnterBoss)で L4 が消えて L1〜L3 が沈む。
         var bg = new StageBackground
         {
             Name = "StageBackground",
-            MidBgPath = "res://char/bg/koharu/kitchen.png",
-            BossBgPath = "res://char/bg/koharu/kitchen.png",
             MidScrollSpeed = 18f, // 台所は凪いだ空気＝最も控えめな前進感
+            LayerDefs = RoomLayers,
         };
         AddChild(bg);
+        Bg = bg;
         if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.14f, 0.12f, 0.13f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
@@ -51,7 +80,9 @@ public partial class KoharuRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
-        AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Koharu }); // 近景パララックス：湯気/冷気の対流で凪いだ前進感（弾より奥 -60/-55）
+        // 近景パララックス：湯気/冷気の対流で凪いだ前進感（弾より奥 -60/-55）。
+        // 生成スクロール背景(scroll.png, -70)は不透明の全画面板で bg2 の層(-95..-88)を隠すので敷かない。
+        AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Koharu, SkipScrollTexture = true });
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Koharu }); // 空席に箸・冷める食卓
         AddChild(new WorldGrade { Name = "WorldGrade" }); // 進行度で「汚染→浄化」を4段階にくっきり切替（節目の色グレーディング）
         AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）

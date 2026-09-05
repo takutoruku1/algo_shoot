@@ -21,6 +21,10 @@ using System.Collections.Generic;
 //   加算層（additive=true）は CanvasItemMaterial{Add} を各 Sprite2D に載せる（WorldGrade / FxLayer と同じ作法）。
 //   色掛け（tint）は層ごとの Modulate。WorldGrade の CanvasModulate グレーディングとは別系統で二重掛けにしない
 //   （tint は Root が持ち、WorldGrade は従来どおり CanvasModulate 側に残す）。
+//
+//   層セットの入れ替え（CrossfadeTo）: 道中の途中で場所が変わる面（STAGE2 こはる＝部屋→教室）のために、
+//   新しい層セットを α0 で敷いてから 0.8〜1.2 秒で入れ替え、旧セットを解放する。唐突に切らない
+//   （StageBackground.CrossfadeBossTo と同じ作法）。
 public partial class BgLayers : Node2D
 {
     private const float ScreenWidth = 384f;
@@ -56,6 +60,16 @@ public partial class BgLayers : Node2D
     // Root から代入する層リスト（奥→手前の順に並べる。空なら何も敷かない）。
     public Layer[] Layers = System.Array.Empty<Layer>();
 
+    // ボス突入で何が起きるか。面ごとに Root から選ぶ。
+    //   Dim   : 既定。光(L4)のαを 0 へ、L1〜L3 を 0.55 倍へ落として世界を沈める（STAGE1/2）。
+    //   Brighten : 逆に光を増やす（STAGE3 レイ）。L1〜L3 は 0.7 倍に留め、BossLayers の層セットへ
+    //              クロスフェードして金の光を足す＝舞台が煌々と点く。
+    public enum BossBehavior { Dim, Brighten }
+    public BossBehavior OnBoss = BossBehavior.Dim;
+
+    // OnBoss=Brighten のとき、ボス突入でこの層セットへクロスフェードする（空なら層は据え置きで係数だけ）。
+    public Layer[] BossLayers = System.Array.Empty<Layer>();
+
     // 基準スクロール速度（px/s）。StageBackground.MidScrollSpeed と同じ控えめな値に揃える。
     public float ScrollSpeed = 13f;
 
@@ -77,17 +91,28 @@ public partial class BgLayers : Node2D
         public bool Additive;
         public Color BaseTint;    // Root が指定した元の色（暗転はこれに係数を掛ける）
         public Vector2 Offset;
+        public float Fade = 1f;   // 層セットのクロスフェード用のα（旧セットは 1→0、新セットは 0→1）
     }
 
     private readonly List<Live> _live = new List<Live>();
 
-    // ───── ボス突入の暗転 ─────
-    // L4（加算＝光）は α を 0 へ、それ以外は Modulate を 0.55 倍へ、0.8 秒でフェードする。
+    // ───── ボス突入の明暗 ─────
+    // Dim（既定）: L4（加算＝光）は α を 0 へ、それ以外は Modulate を 0.55 倍へ、0.8 秒でフェードする。
+    // Brighten（STAGE3）: L4 はそのまま、L1〜L3 を 0.7 倍まで（暗転より浅く）落として本体を立たせる。
     private const float BossDimDur = 0.8f;
     private const float BossDimMul = 0.55f;
+    private const float BossBrightMul = 0.70f;
     private bool _dimming;
     private float _dimT;
-    private float _dimK;          // 0=通常 1=暗転しきり
+    private float _dimK;          // 0=通常 1=暗転（or 明転）しきり
+
+    // ───── 層セットのクロスフェード（道中で場所が変わる面）─────
+    // 新セットを α0 で敷いて _live に足し、旧セットの Live を _fadingOut に移す。
+    // 進行中にもう一度呼ばれたら、走っている入れ替えを即着地させてから次を始める（層が無限に増えない）。
+    private readonly List<Live> _fadingOut = new List<Live>();
+    private readonly List<Live> _fadingIn = new List<Live>();
+    private float _swapT, _swapDur;
+    private bool _swapping;
 
     // 全層に追加で掛かる色（Root から SetTint で差し替え可能）。既定は白＝素通し。
     private Color _globalTint = Colors.White;
@@ -97,12 +122,13 @@ public partial class BgLayers : Node2D
         ZIndex = -95;
         ZAsRelative = false;
         AddToGroup("bglayers");
-        Build();
+        Build(Layers, _live, 1f);
     }
 
-    private void Build()
+    // 層定義の配列から Sprite2D を生やし、Live として into へ足す。fade は初期α（新セットは 0 で敷く）。
+    private void Build(Layer[] defs, List<Live> into, float fade)
     {
-        foreach (var def in Layers)
+        foreach (var def in defs)
         {
             if (string.IsNullOrEmpty(def.Path) || !ResourceLoader.Exists(def.Path)) continue;
             var tex = ResourceLoader.Load<Texture2D>(def.Path);
@@ -129,7 +155,7 @@ public partial class BgLayers : Node2D
                     ZIndex = def.Z,
                     ZAsRelative = false,
                     TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-                    Modulate = def.Tint,
+                    Modulate = new Color(def.Tint.R, def.Tint.G, def.Tint.B, def.Tint.A * fade),
                 };
                 if (def.Additive)
                     spr.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -137,22 +163,60 @@ public partial class BgLayers : Node2D
                 tiles[i] = spr;
             }
 
-            _live.Add(new Live
+            into.Add(new Live
             {
                 Tiles = tiles, TileW = tileW, ScrollMul = def.ScrollMul,
                 Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = def.Offset,
+                Fade = fade,
                 // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
                 X = def.Loop ? 0f : def.Offset.X,
             });
         }
     }
 
-    // ボス突入：光を落として世界を沈める（0.8秒）。二度呼んでも進行中の暗転を巻き戻さない。
+    // 層セットを丸ごと入れ替える（道中で場所が変わる面。例：こはるの部屋→教室）。
+    // 新セットを α0 で敷いてから dur 秒で入れ替え、旧セットは着地時に解放する。唐突に切らない。
+    // defs が1枚も読めなければ何もしない（現行の層が残る＝事故らない）。
+    public void CrossfadeTo(Layer[] defs, float dur = 1.0f)
+    {
+        if (defs == null || defs.Length == 0) return;
+        if (_swapping) FinishSwap();     // 連続要求：走っている入れ替えを着地させてから次へ
+
+        int before = _live.Count;
+        Build(defs, _live, 0f);
+        if (_live.Count == before) return;   // 1枚も読めなかった＝現行のまま
+
+        // 直前までの層を旧セットとして退避し、いま生やした層を新セットにする。
+        for (int i = 0; i < before; i++) _fadingOut.Add(_live[i]);
+        for (int i = before; i < _live.Count; i++) _fadingIn.Add(_live[i]);
+        _swapT = 0f; _swapDur = Mathf.Max(0.05f, dur); _swapping = true;
+        ApplyTint();
+    }
+
+    // 入れ替えを着地させる：新セットを α1 に、旧セットを破棄して _live から外す。
+    private void FinishSwap()
+    {
+        if (!_swapping) return;
+        foreach (var l in _fadingOut)
+        {
+            foreach (var s in l.Tiles) s.QueueFree();
+            _live.Remove(l);
+        }
+        foreach (var l in _fadingIn) l.Fade = 1f;
+        _fadingOut.Clear(); _fadingIn.Clear();
+        _swapping = false;
+        ApplyTint();
+    }
+
+    // ボス突入：既定は光を落として世界を沈める（0.8秒）。OnBoss=Brighten の面（STAGE3 レイ）は
+    // 逆に BossLayers（枠の全面版＋金の光）へ層セットをクロスフェードし、沈み方も浅くする。
+    // 二度呼んでも進行中のフェードを巻き戻さない。
     public void EnterBoss()
     {
         if (_dimming || _dimK >= 1f) return;
         _dimming = true;
         _dimT = 0f;
+        if (OnBoss == BossBehavior.Brighten && BossLayers.Length > 0) CrossfadeTo(BossLayers, BossDimDur);
     }
 
     // 全層に掛かる色を差し替える（浄化で世界が暖まる等、Root 側の演出から呼ぶ）。
@@ -173,6 +237,17 @@ public partial class BgLayers : Node2D
             _dimK = k * k * (3f - 2f * k);   // smoothstep＝唐突に切らない（CrossfadeBossTo と同じ作法）
             if (k >= 1f) { _dimK = 1f; _dimming = false; }
             ApplyTint();
+        }
+
+        if (_swapping)
+        {
+            _swapT += dt;
+            float k = Mathf.Clamp(_swapT / _swapDur, 0f, 1f);
+            float s = k * k * (3f - 2f * k); // smoothstep
+            foreach (var l in _fadingIn) l.Fade = s;
+            foreach (var l in _fadingOut) l.Fade = 1f - s;
+            ApplyTint();
+            if (k >= 1f) FinishSwap();
         }
 
         if (_live.Count == 0) return;
@@ -211,20 +286,23 @@ public partial class BgLayers : Node2D
         }
     }
 
-    // 暗転係数と全体色を各層の Modulate へ反映する。
+    // 暗転（or 明転）係数・層セットのフェード・全体色を各層の Modulate へ反映する。
     private void ApplyTint()
     {
+        bool brighten = OnBoss == BossBehavior.Brighten;
         foreach (var l in _live)
         {
             var b = l.BaseTint;
-            // 加算層（光）はαを 0 へ、それ以外は明度を 0.55 倍へ。
-            float rgbMul = l.Additive ? 1f : Mathf.Lerp(1f, BossDimMul, _dimK);
-            float aMul = l.Additive ? Mathf.Lerp(1f, 0f, _dimK) : 1f;
+            // Dim: 加算層（光）はαを 0 へ、それ以外は明度を 0.55 倍へ。
+            // Brighten: 光は消さず（レイのボスは煌々と点く）、L1〜L3 は 0.7 倍に留める。
+            float dimTo = brighten ? BossBrightMul : BossDimMul;
+            float rgbMul = l.Additive ? 1f : Mathf.Lerp(1f, dimTo, _dimK);
+            float aMul = (!l.Additive || brighten) ? 1f : Mathf.Lerp(1f, 0f, _dimK);
             var c = new Color(
                 b.R * _globalTint.R * rgbMul,
                 b.G * _globalTint.G * rgbMul,
                 b.B * _globalTint.B * rgbMul,
-                b.A * _globalTint.A * aMul);
+                b.A * _globalTint.A * aMul * l.Fade);
             foreach (var s in l.Tiles) s.Modulate = c;
         }
     }

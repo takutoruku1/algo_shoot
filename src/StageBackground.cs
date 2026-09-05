@@ -9,8 +9,9 @@ using Godot;
 //     軽い動きだけ付ける：ゆっくりした横ドリフト＋ごく弱い呼吸スケール＋光の明滅(modulate)。やり過ぎない。
 //
 //   ・層(layers)背景 ＝ LayerDefs に層定義の配列を入れると BgLayers（L1 -95 / L2 -92 / L3 -91 / L4 -88）へ委譲する。
-//     このとき 1枚絵タイルは作らず、EnterBoss は「背景の差し替え」ではなく「暗転」を意味する。
+//     このとき 1枚絵タイルは作らず、EnterBoss は「背景の差し替え」ではなく「暗転（面によっては明転）」を意味する。
 //     LayerDefs が空なら以下の 1枚絵経路のまま＝既存ステージは何も変わらない。
+//     道中で場所が変わる面（こはるの部屋→教室）は Stage 側から CrossfadeLayersTo で層セットごと入れ替える。
 //
 //   ZIndex は旧額背景と同じ -90（ScrollFx -70..-55 / StageImagery -50 / MurkVignette -45 / 弾0.. の奥）。
 //   背景パスは Root から MidBgPath / BossBgPath で注入する＝新アートが来たらパスを差すだけで反映できる。
@@ -32,7 +33,14 @@ public partial class StageBackground : Node2D
     // 層システム（BgLayers）へ渡す層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
     // 空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
     public BgLayers.Layer[] LayerDefs = System.Array.Empty<BgLayers.Layer>();
+    // ボス突入の挙動（暗転／明転）と、明転のときに差し替える層セット。層モードのときだけ意味を持つ。
+    public BgLayers.BossBehavior LayerBossBehavior = BgLayers.BossBehavior.Dim;
+    public BgLayers.Layer[] BossLayerDefs = System.Array.Empty<BgLayers.Layer>();
     private BgLayers _layers = null!;
+
+    // 層モードで層セットを丸ごと入れ替える（道中で場所が変わる面。こはるの部屋→教室）。
+    // 層モードでないときや層が読めないときは何もしない。
+    public void CrossfadeLayersTo(BgLayers.Layer[] defs, float dur = 1.0f) => _layers?.CrossfadeTo(defs, dur);
 
     // ───── tunable（控えめに） ─────
     public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
@@ -135,7 +143,11 @@ public partial class StageBackground : Node2D
         // 層リストが与えられていれば BgLayers に委譲する（1枚絵タイルは作らない）。
         if (LayerDefs.Length > 0)
         {
-            _layers = new BgLayers { Name = "BgLayers", Layers = LayerDefs, ScrollSpeed = MidScrollSpeed };
+            _layers = new BgLayers
+            {
+                Name = "BgLayers", Layers = LayerDefs, ScrollSpeed = MidScrollSpeed,
+                OnBoss = LayerBossBehavior, BossLayers = BossLayerDefs,
+            };
             AddChild(_layers);
             HasMid = _layers.HasAny;
             if (HasMid)
