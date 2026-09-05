@@ -312,7 +312,7 @@ public partial class GameManager : Node
     public int StagePlays(string id) => _stagePlays.TryGetValue(id, out var v) ? v : 0;
 
     // ─── 炎上（②-5 / ③-6）───
-    //   発生は一度きり（STAGE2クリア後）。次のダイブ1ステージだけ弱体化（発射↓/移動↓/インプレ×0.6）。
+    //   発生は一度きり（STAGE2＝こはるクリア後）。次のダイブ1ステージ＝レイ面だけ弱体化（発射↓/移動↓/インプレ×0.6）。
     public bool Burning;          // 炎上発生済みで未消費（次のダイブで適用）
     public bool BurningThisRun;   // 現在のステージrunが炎上下か（Player/Hudが参照）
     private bool _burnHappened;    // 一度きりのストーリーイベント済みか
@@ -321,7 +321,7 @@ public partial class GameManager : Node
     //   STAGE3 MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
     //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
     public bool PressedTheQuestion;
-    public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "akari" && !_burnHappened;
+    public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "koharu" && !_burnHappened;
     public void TriggerBurn() { if (!_burnHappened) { Burning = true; _burnHappened = true; } }
 
     // ステージ開始時に各ステージルートから呼ぶ：周回逓減の更新＋炎上の消費。
