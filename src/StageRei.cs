@@ -1,12 +1,14 @@
 using Godot;
 using System.Linq;
 
-// StageRei : STAGE3「レイ（順位掲示板の海）」進行＋操作チュートリアル（移動/ショット/かすり）。
-//   1: 導線・着地＋チュートリアル会話
-//   2: ボス出現
-//   3: ボス前の説明
-//   4: ボス戦
-//   5: クリア → ハブへ（本編の最終面）
+// StageRei : STAGE3「星逢レイ（壁一面が配信画面の、狭い部屋）」進行。
+//   1〜4: 配信枠・導入 → 道中A（S3-1〜S3-3）
+//   5〜6: 中ボス＝中の人（S3-4）→ 道中B
+//   7〜9: 引用の嵐の接続（S3-5a/5b）→ 道中C → 呑みこまれる部屋（S3-5c）
+//   10〜12: ボス＝ガワ出現・ボス戦（S3-6）。戦闘中の割り込み（S3-7「つづけて／むりしないで」）は
+//           ボスHP 20〜50% で一度だけ step 15〜17 へ抜けて戻る。改心（S3-8）は BossRei が担う。
+//   13〜14: クリア（S3-9）→ ハブへ（本編の最終面。全クリアで FINAL カード）
+// 台詞の正典: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S3-1〜S3-9。
 public partial class StageRei : Node
 {
     public Player Player = null!;
@@ -46,155 +48,129 @@ public partial class StageRei : Node
     // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面からは撤去済み。
 
     private const float SpawnX = 300f;
-    private const string SCocky = "res://char/shonen_face.png";
-    private const string SGentle = "res://char/shonen_gentle.png";
-    private const string SProud = "res://char/shonen_proud.png";
 
-    // ダイブ前〜着地＋チュートリアル（v2 [P-01a]/[P-01b] 準拠。
-    // who: 0=少年 / 1=ミナ / 2=相手 / 3=地の文 / 4=投稿 / 5=中継）
+    // ミナの表情（案C では語り手はミナ一人＝行ごとに顔を差し替える）。こはる面と同じ流儀。
+    private const string MFace = "res://char/mina_face.png";
+    private const string MSmile = "res://char/mina_smile.png";
+    private const string MWorried = "res://char/mina_worried.png";
+    private const string MDoubt = "res://char/mina_doubt.png";
+
+    // レイの顔（中の人 / 配信用の笑顔 / ガワ＝笑顔で固定 / 中の人の泣き顔）。
+    //   中ボス＝中の人（RFace/RSmile）、ボス＝ガワ（RGawa）と、姿が違うこと自体が仕込み。
+    private const string RFace = "res://char/v3/rei_face.png";
+    private const string RSmile = "res://char/v3/rei_face_smile.png";
+    private const string RGawa = "res://char/v3/rei_gawa.png";
+
+    // S3-1 配信枠・導入（仮台本 07）。HUD バッジ `炎上中`＝H2 の炎上で弱体化した状態から始まる。
+    //   狭い部屋の壁一面が配信画面。右上の同接カウンター「11」。画面の中央にガワの星逢レイが
+    //   等身大より大きく笑顔で立つ。コメント欄の同じ位置に「今日も来ました」＝こはるの結線。
+    //   ミナは説明しない（名前も出さない）。投稿の下の声の中身は S3-8 まで温存。
+    // who: 0=あなた（送信された下書き） / 1=ミナ / 2=レイ / 3=システム表示 / 4=投稿。who=5（中継）は使わない。
     private static readonly (int who, string text, string face)[] Intro =
     {
-        (4, "「だれも、わたしには追いつけない。……それの、なにが、いけないの。」", ""),      // 投稿
-        (1, "ずいぶん、気の大きな投稿ですね。これを?", ""),
-        (0, "ああ。威張ってるけどな。……この声は、濁ってる。放っておけない。", SGentle),
-        (1, "おや。意外と優しいことを言うんですね。", ""),
-        (0, "Stay——だ。ちゃんと戻ってこいよ。", SCocky),                 // 合言葉の反復（ダイブ前／PW=stay）
-        (1, "はいはい、毎度どうも。……いってまいります。", "res://char/mina_smile.png"),
-        (1, "着きましたよ、ご主人様。……終わりのないコンテスト会場、といったところでしょうか。", "res://char/mina_face.png"),
-        (0, "飛んでくるのは、この人を苦しめてる“言葉”だ。本人じゃない。撃って祓っていい。", SCocky),
-        (0, "いや。倒すんじゃない。いちばん奥の“本人”に、光を届けるんだ。", SGentle),
-        (1, "撃って、祓って、奥の本人へ届ける。……これが、わたくしの役目なんですね。", ""), // 起＝MINAの機能の確認
-        (0, "そうだ。きみにしかできない仕事さ。頼んだぞ、ミナ。", SProud),
+        (1, "……ご主人様。少し、光が薄いですが。潜れます。——潜れる、はずです。", MDoubt),   // 弱体化の実感
+        (4, "「今日も20時から! 初見さん大歓迎。コメント、全部読みます。」", ""),   // 層1。配信中の声
+        (1, "……明るい投稿ですね。——この投稿の下から、も。聞こえます。……こちらは、明るくない声が。", MWorried),   // 中身は言わない
+        (1, "狭い部屋です。壁一面が、配信の画面。右上の数字は「11」。……画面の中で、星逢レイが、等身大より大きく、笑っています。", MFace),
+        (1, "コメント欄が、流れています。……ひとつだけ、同じ場所に、同じ一行。「今日も来ました」。", MFace),   // こはるの結線。名前は出さない
+        (1, "行きます。——放っておけないので。", MFace),
     };
 
-    // ※操作チュートリアルの会話・進行は独立ステージ0（StageZero）へ移設した（A案）。
-
-    // 道中の短い掛け合い（小話集_v1.md §2 StageRei）。1〜3行厳守・テンポ優先。
-    private static readonly (int who, string text, string face)[] Chat1 = // [軽口]
+    // S3-2 小話 Mid（仮台本 07）。「気づいて」「見て」の声の合間に、家の声「ふーん」が同じ色で混じる。
+    //   伏せたスマホが一度だけ光り、誰も拾わない。同接が「11」→「8」に減る。
+    //   ミナは自分の数字（十万）を言わない＝「比べません」で流す。
+    private static readonly (int who, string text, string face)[] Mid =
     {
-        (1, "ご主人様。この“声”、ひとつ祓うたびに、少し肩が軽くなります。", ""),
-        (0, "肩なんてあったのか、きみ。", SCocky),
-        (1, "比喩です。無粋なご主人様。", "res://char/mina_smile.png"),
-    };
-    private static readonly (int who, string text, string face)[] Chat2 = // [日常]
-    {
-        (1, "掲示板の隅に、落書きがありますよ。「今日のカレーうまかった」と。", ""),
-        (0, "……こんなとこにも、生活はあるんだな。", SGentle),
-    };
-    private static readonly (int who, string text, string face)[] Chat3 = // [軽口]
-    {
-        (0, "そこ、右に避けろ! ……いや左だ!", SCocky),
-        (1, "どちらですか。", ""),
-        (0, "……勘でいけ。", SCocky),
-    };
-    private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
-    {
-        (1, "一位の隣は、空席なんですね。ずっと。", "res://char/mina_worried.png"),
-        (0, "……座りに行くやつがいれば、変わるさ。", SGentle),
-    };
-    private static readonly (int who, string text, string face)[] Chat5 = // [日常]
-    {
-        (1, "ご主人様、こちらの空、いつも同じ色ですね。夕方で止まっています。", ""),
-        (0, "誰も、片付けてないんだろ。", SGentle),
+        (1, "ここの声は……「気づいて」「見て」と、画面の外へ向かって、言っています。", MFace),
+        (1, "合間に、「ふーん」。……同じ色の声で。", MFace),   // 家の声
+        (4, "「登録者2000人、ありがとう。……去年の今日も、2000人。」", ""),   // 層2
+        (1, "……机の上の、伏せたスマホが。いま、一度だけ、光りました。——誰も、拾いません。", MWorried),
+        (1, "右上の数字。「8」。……減りました。うち一つは、机の上の端末——つけっぱなしの、この部屋のものです。", MFace),
+        (1, "わたくしの光と、あの数字と、どちらが薄いか。……比べません。どちらも、集計はしますが。", MSmile),
     };
 
-    // 道中突入の小話（世界観：レイを苦しめるのは“世界中の声”）。道中ザコ戦の前に出す。
-    private static readonly (int who, string text, string face)[] Mid = new (int, string, string)[]
+    // S3-3 道中A／BossTalk（仮台本 07）。削除済みの一行を投稿の下に聞く（中身は S3-8 まで言わない）。
+    //   「今日も来ました」は同じ場所のまま。ガワは明るくコメントを読み上げ、裏は見せない。
+    //   末尾で中ボス（＝中の人）が画面の外から来る予感を置く＝ボス（ガワ）と別人格に見える仕込み。
+    private static readonly (int who, string text, string face)[] BossTalk =
     {
-        (1, "ご主人様。会場の空気が、ひりついていますよ。肌を刺すような。", ""),
-        (1, "道中、見たことのない“声”が群れています。これも、祓っていいんですね?", ""),
-        (0, "ああ。レイを苦しめてるのは、彼女ひとりの声じゃない。", SGentle),
-        (0, "「比べろ」「負けるな」「二位に価値はない」——そういう、世界中の声だ。", SCocky),
-        (1, "……ずいぶん、世知辛い世界ですね。", ""),
-    }.Concat(Chat1).ToArray();
+        (4, "「企画メモ、下書き十四件。……出せるの、ゼロ件。」", ""),   // 層2
+        (1, "……十四件。集計に、入れておきます。", MFace),   // 評価しない。H3r 小話（1）で拾う
+        (1, "投稿の下に——一行。削除済みの、一行があります。……中身は、本人の前で。", MWorried),
+        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),
+        (1, "……画面の笑顔が、いま、コメントをひとつ、読み上げました。……声は、明るいです。", MFace),
+        (1, "——来ます。画面の外から、足音が。……画面の中の笑顔は、動きません。", MWorried),
+    };
 
-    // 道中“前半”の後：ボスのツイートが流れてくる→MINA×少年がボスについて考察。
-    // 承の上り坂・第1段（優先度1）＝【軽い違和感／ミナはまだ訝らない】。
-    //   少年が名前・性格まで言い当てても、ミナは訝るどころか感心して“乗る”。読者だけが「なぜそこまで?」と引っかかる。
-    //   → あかりで疑いが言葉になり、こはるで核心に触れる、の助走。ここで訝らせると3連発の同型になる（旧稿の死因）。
-    private const string RFace = "res://char/v3/rei_face.png";
-    private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
-    {
-        (4, "「だれも、わたしには追いつけない。……それの、なにが、いけないの。」", ""), // ボスのツイートが流れてくる
-        (1, "……さっきの投稿が、また流れてきました。この声の主が、奥の“本人”ですか。", ""),
-        (0, "ああ。レイっていう。負けず嫌いで、努力家で……誰よりも、勝ちにこだわるやつだ。", SGentle),
-        (1, "たった一つの投稿で、そこまで。さすがですね、ご主人様。", "res://char/mina_smile.png"), // 訝らず“乗る”＝素直な感心。読者だけが引っかかる
-        (0, "……ふん。それくらい、朝飯前さ。", SProud),                     // 少年は誇るふりで流す（本当は知人だから、だが言わない）
-    }.Concat(Chat2).Concat(Chat3).ToArray();
-
-    // チラ見せ：登場の挑発（攻撃①の前）。who=2=レイ。
+    // S3-4 中ボス レイ（仮台本 07）。先出しの本人＝中の人。ヘッドセットを首に掛けたパーカー、
+    //   狭い机、リングライトの光が顔に当たっている。第一声のあと、すぐ配信用の笑顔へ切り替わる。
+    //   捨て台詞も笑顔のまま。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "——だれ? あなたたち。わたしの会場で、勝手なことしないでくれる?", RFace),
-        (1, "ご機嫌斜めですね。……どうします、ご主人様。", ""),
-        (0, "刺激するな、ミナ。こいつは——売られた喧嘩を、絶対に買うタイプだ。", SGentle),
-        (2, "へえ。よく分かってるじゃない。……なら、買ってもらおうかしら!", RFace),
+        (2, "……だれ? あなた。……わたしの配信、見に来た人?", RFace),   // 第一声。中の人。笑っていない
     };
-    // 攻撃①の後：さらに挑発↔反応。承第1段＝ミナは訝らず、少年の“読み”に感心して乗る（旧「手の内を知っているみたい」＝訝りは削除）。
-    private static readonly (int who, string text, string face)[] CameoTalk2 =
-    {
-        (2, "どう? これがわたしの実力。二番手なんかじゃ、よけきれないでしょ。", RFace),
-        (1, "ご主人様の指示、まるで先が読めているよう。……頼もしいこと。", "res://char/mina_smile.png"), // 感心（訝りにしない）
-        (0, "……まだだ。レイは、ここからが本番なんだよ。", SCocky),
-    };
-    // 攻撃②の後：レイが“見透かされる”不安に触れる（伏線②は道中では薄く。名指しは避け、終盤の「全員知人」の反転を温存する）。
+    // RECLOSE（サイクルごとに順送り）。切り替わったあとは笑顔のまま崩れない。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
     {
-        (2, "あら。二番手にしては、よけるじゃない。……でも、わたしに勝てるのは、わたしだけよ。", RFace),
-        (0, "————。", SGentle),                                   // 沈黙（読者だけが引っかかる。ミナはまだ気に留めない＝疑い顔にしない）
-        (1, "ご主人様?", "res://char/mina_face.png"),              // 軽い呼びかけ（worried→通常。承第1段は訝らせない）
-        (0, "……気にするな。さあ、来い。きみの全部を、見せてみろ。", SProud),
-        (2, "……ふん。いいわよ。後悔しても、知らないんだから!", RFace),
+        (2, "——はじめまして! 星逢レイです。今日も来てくれて、ありがとう。", RSmile),   // すぐ配信用の笑顔
+        (2, "逃げないで。……初見さん、まだ、いてくれるでしょう?", RSmile),
     };
-    // 捨て台詞（攻撃③の後）→逃走。
     private static readonly (int who, string text, string face)[] CameoPost =
     {
-        (2, "っ……今日は、ここまでにしといてあげる。", RFace),
-        (2, "次は——奥で待ってる。本気のわたしと、ちゃんと向き合いなさいよ。", RFace),
-        (2, "逃げたら……承知しないんだから。", RFace),
-        (1, "ご主人様、見ましたか。ひときわ大きな弾幕を残して、嵐みたいに奥へ。……ずいぶん、急いでいますね。", "res://char/mina_worried.png"),
+        (2, "逃げたら……承知しないんだから。", RSmile),   // 捨て台詞。笑顔のまま
     };
 
-    // ───────── ミッドシナリオ枠（後半Bと終盤Cの境＝ボス前の“溜め”）─────────
-    // ここはシナリオ担当が本文を差し込むスロット（who=Hud.LineKind 0=少年/1=ミナ/2=レイ/3=ナレ/4=投稿/5=中継）。
-    // しっかり読ませたいので吹き出し会話（Step_Lines）で出す＝弾は止まる。レイ面のテーマ＝競争/監視に馴染む位置に。
-    // 本文執筆済み（差し替えはこの配列ごと）。テンポを殺さないよう2〜数行を維持。
-    private static readonly (int who, string text, string face)[] MidStory =
+    // S3-4 のミナの観測（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
+    //   本人の合間に入るミナの行はオーバーレイに乗らない。中ボスの直前／直後に開く step が受け皿になる
+    //   （step 構成は変えない前提での置き場所。こはる面と同じ流儀）。
+    private static readonly (int who, string text, string face)[] CameoAfter =
     {
-        (1, "気づけば……無数の“目”が、わたくしたちを採点しています。", "res://char/mina_worried.png"),  // ザコ＝偵察ドローン/監視カメラの目
-        (1, "この目……ぜんぶ、奥の彼女を、見ているんですね。", "res://char/mina_worried.png"),
-        (0, "ああ。世界中が見てる。誰も追いつけないところまで来て、それでも、誰も隣にいない。", SGentle),
-        (1, "……てっぺんは、こんなに寒いんですか。", ""),
-        (0, "だから——ぼくらだけは、点数をつけずに行くんだ。", SProud),
+        (1, "……切り替わるまで、一秒九。……画面の中の笑顔より、小さいですね。", MFace),   // 観測のみ。同一人物とは言わない
+        (1, "……あの人、画面の中へ。——画面の笑顔は、いまも、動いていません。", MWorried),
     };
 
-    // 道中後の小話（ボスへの引き）。
-    private static readonly (int who, string text, string face)[] MidEnd = new (int, string, string)[]
+    // ───────── S3-5a 道中B ＋ S3-5b 引用の嵐の接続（ミッドシナリオ枠。仮台本 07）─────────
+    // 投稿「読まなきゃよかった」の直後、ガワの上に顔のない引用が貼られはじめる。
+    // 嵐の本体（十七枚・3段階・約50秒）は別タスク（P3）なので、ここには 07 の「接続3行」だけを置く。
+    // 剥がし切った下に、消した一行がある（中身は S3-8 まで言わない＝改心の一段目で返す）。
+    private static readonly (int who, string text, string face)[] MidStory = CameoAfter.Concat(new (int, string, string)[]
     {
-        (1, "片付きました。……奥に、ひときわ濁った光が。", ""),
-        (0, "ああ。さっきの子だ。今度こそ、奥まで届かせる。行くぞ。", SCocky),
-    }.Concat(Chat4).Concat(Chat5).ToArray();
+        // S3-5a（2行）
+        (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),   // 層3
+        (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", MWorried),   // 嵐へ
+        // S3-5b 接続3行（本文＝十七枚の嵐は 11 の移設待ち）
+        (4, "[星逢レイ @rei_____] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),   // ピン留め
+        (1, "……この投稿の上に、貼られていきます。——剥がします。ご主人様、撃つのは、貼りついたほうを。", MFace),
+        (3, "引用: 0", ""),   // 引用カウンタ（嵐本体が入ると 0→17 を刻む）
+        // TODO: 引用の嵐（11）。段階1〜3・十七枚・本人の返信の縮み・剥がし切りを新 step として実装する（DEV_QUEUE P3）。
+        (1, "……剥がし切りました。下に、薄い字で、一行。……中身は、本人の前で。", MFace),   // 下書き「わたしに、気づいてよ」。S3-8 で返す
+    }).ToArray();
 
-    // ボス登場時の説明（設計書 [P-01b] に該当なし＝空。説明セリフは挟まない）
+    // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
+    //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
+    private static readonly (int who, string text, string face)[] MidEnd =
+    {
+        (1, "右上の数字。「3」。……残った三つの席の、ひとつは、あの一行です。", MFace),
+        (1, "……光が、重い。……気のせいでは、なさそうです。", MDoubt),   // 【濁】広がる
+        (1, "画面が、部屋を、呑みこんでいきます。……奥に、笑顔だけが。", MFace),
+    };
+
+    // S3-6 ボス出現（仮台本 07）。ボス登場の説明台詞は置かない（07 に S3-6 の導入行が無く、
+    //   ボス戦の口上はボス本体 BossRei の改心／RECLOSE／挑発が担う）。
     private static readonly (int who, string text, string face)[] BossIntro =
         System.Array.Empty<(int, string, string)>();
 
-    // 帰還（v2 [P-01c]）。承の上り坂・第1段（優先度1・3）＝【まだ疑っていない】。
-    //   「自分では潜らないのか」の問答は Prologue へ前倒し済み＝ここでは繰り返さない（3連発の同型を断つ）。
-    //   ミナは訝らず、初仕事に張り切る少年へ軽口＋小さな願い（外の天気）だけを返す。読者だけが少年の“詳しさ”を覚えておく。
+    // S3-9 クリア（仮台本 07）。同接が「4」になる（誰が増えたかは言わない）。
+    //   空の問い・三度目＝「もう聞きません」で階段を閉じる（1度目「いらない」→2度目 無言→3度目）。
+    //   【濁】危険域手前。「三人分」はここで初めて言う（S3-7 では「二人ぶん」に留めてある）。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),     // 投稿が変化
-        (1, "投稿が変わりましたね。誰かと、本気で戦いたくなったようで。", ""),
-        (0, "ああ。……いい目を、してた。", SGentle),
-        (1, "——あ。ご主人様、あれ。……いちばん眩しいところの隣で、「２位」が、灯りました。", "res://char/mina_smile.png"), // S3反転の目撃（指差し型）：意味は言わず視線だけ画へ
-        (1, "ねえご主人様。外の世界は、今日はどんな天気ですか。", ""),       // 帰還ビート（無目的な雑談＋ミナの小さな願い）
-        (0, "……さあな。ぼくも、ろくに外なんか見ちゃいない。", SGentle),
-        (1, "つまらないご主人様。いつか、わたくしにも見せてくださいよ。", ""),
-        (0, "ああ。……いつか、な。", SGentle),
-        (0, "そうそう、ミナ。シェイクスピアは言った。\"All the world's a stage.\"", SCocky), // シェイクスピア引用1回目：無害な衒学（軽い知識自慢。この時点では深い意味を持たせない）
-        (1, "はいはい。世界は舞台、ですか。……あいにく、ぼくたちのステージはまだ1つ目ですけど?", ""), // 軽く茶化して流す＝まだ何も気づいていない
-        (1, "ふふ。……初仕事で、張り切っておられるのですね。お手並み、しかと拝見しました。", "res://char/mina_smile.png"), // 訝りゼロ＝上り坂の起点。感心で締める
+        (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),   // 救済後
+        (1, "右上の数字が、「4」に。……ひとつ、増えました。", MSmile),
+        (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),   // 「今日も来ました」。説明しない
+        (1, "……そういえば。今日の空は、晴れていましたか。", MFace),   // 空の問い・三度目
+        (1, "……いえ。もう、聞きません。三度、聞きました。", MDoubt),
+        (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", MWorried),   // 【濁】危険域手前
     };
 
     public override void _Ready()
@@ -244,30 +220,35 @@ public partial class StageRei : Node
         _zHeld = z;
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 3 START"); }
 
+        // 案C の場面の並び（仮台本 07 の S3-1〜S3-9）を、step 構成を変えずにそのまま流し込む。
+        //   配信枠（S3-1・S3-2）→ 道中A（S3-3）→ 中ボス＝中の人（S3-4）→ 引用の嵐の接続（S3-5a/5b）→
+        //   呑みこまれる部屋（S3-5c）→ ボス＝ガワ（S3-6）。改心（S3-8）は BossRei 側。
         switch (_step)
         {
-            case 1: Step_Lines(delta, Intro); break;
-            case 2: Step_Lines(delta, Mid); break;        // 道中突入の小話
+            case 1: Step_Lines(delta, Intro); break;      // S3-1 配信枠・導入
+            case 2: Step_Lines(delta, Mid); break;        // S3-2 小話 Mid（気づいて／見て／ふーん）
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 4: Step_Lines(delta, BossTalk); break;   // ボスのツイート→MINA×少年の考察
-            case 5: Step_BossCameo(delta); break;         // ボスのチラ見せ（登場/挑発/攻撃/逃走）
+            case 4: Step_Lines(delta, BossTalk); break;   // S3-3 道中A／BossTalk（削除済みの一行・足音）
+            case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 7: Step_Lines(delta, MidStory); break;   // ★ミッドシナリオ枠（ボス前の溜め）
+            case 7: Step_Lines(delta, MidStory); break;   // ★S3-4 受け＋S3-5a／S3-5b 接続（嵐本体は P3）
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 9: Step_Lines(delta, MidEnd); break;     // 道中後の小話
+            case 9: Step_Lines(delta, MidEnd); break;     // S3-5c 呑みこまれる部屋（【濁】広がる）
             case 10: Step_BossSpawn(); break;
-            case 11: Step_Lines(delta, BossIntro); break;
-            case 12: Step_BossWait(delta); break;
-            case 13: Step_Clear(delta); break;
+            case 11: Step_Lines(delta, BossIntro); break; // S3-6 ボス出現（07 に導入行は無い＝空）
+            case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
+            case 13: Step_Clear(delta); break;            // S3-9 クリア
             case 14: Step_Transition(); break;
         }
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
-        // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。レイ面は共通 TickerWords。
+        // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
+        // 案C：レイ面の言葉弾は 07 の道中A／道中B の言葉弾（「初見です」「界隈」「ふーん」「低評価」「切り抜き」）
+        // を源にする＝この面のテーマ語だけが降る（こはる面と同じ流儀）。
         // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
         // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
         // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
         if (_bossActive && !(IsInstanceValid(_boss) && _boss.AoeGateActive))
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 46f,
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 46f,
                 accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
     }
 
@@ -313,12 +294,14 @@ public partial class StageRei : Node
     {
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
+        // 案C のこの面に出るのは あなた(0)／ミナ(1)／レイ(2)／システム表示(3)／投稿(4)。
+        //   0 と 4 は Hud 側が立ち絵を捨てる（0＝下書きの吹き出し印）。3 は Narration 扱いで中央テロップ。
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
-            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
-            _ => "res://char/mina_face.png",
+            Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RFace : face,   // 中の人(RFace/RSmile)・ガワ(RGawa)を行ごとに
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? MFace : face,    // ミナも行ごと表情
+            _ => MFace,
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
@@ -518,5 +501,9 @@ public partial class StageRei : Node
     // 投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
     // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
     private int _wordTick;
+    // レイ面固有の“声”プール（投稿弾の源）。ハンドルは無し（""）＝この面のテーマ語だけを降らせる。
+    //   仮台本 07 の S3-3 道中A／S3-5a 道中B の言葉弾。コメント欄と引用の嵐の語彙で統一する。
+    private static readonly (string h, string w)[] PostWords =
+        { ("", "初見です"), ("", "界隈"), ("", "ふーん"), ("", "低評価"), ("", "切り抜き") };
 
 }
