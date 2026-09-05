@@ -17,6 +17,24 @@ public partial class Epilogue : Node2D
     private int _bgPhase;
     private int _bgPrevPhase;
     private double _bgFadeT = BgFadeSec; // _tとは独立した背景クロスフェード用タイマー
+
+    // ── bg2 の層背景（char/bg2/epilogue）──
+    //   ベランダのある部屋を、夜(L1_far_night)から暁(L1_far_dawn)へ phase 進行でクロスフェードする。
+    //   夜＝少年が来なくなった日々（phase0〜3）、暁＝こはるへ遺志を渡す DM 以降（phase4〜5）。
+    //   層は Sprite2D で敷く（Z は本文 _Draw の 0 より奥）。素材は 1280×720 なので内部解像度 384×216 へ
+    //   0.3 倍で落とす＝ステージの BgLayers と同じ高さフィット。L3 の小物だけ素材座標を 0.3 倍して置く。
+    //   画面中央の UI（タイムライン・鍵・四行・DM）が読めることが最優先なので、層全体に暗幕を掛けて沈める。
+    //   暁は素材自体が夜より明るいので、明けるぶんだけ濃い暗幕（DawnDim < NightDim）にして
+    //   本文のコントラストを一定に保つ。
+    private Sprite2D? _lNight, _lDawn, _lDawnLight;
+    private readonly List<Sprite2D> _layers = new();
+    private bool _hasLayers;
+    private float _dawnK;        // 0=夜 1=暁（phase>=DawnPhase で 1 へ smoothstep）
+    private double _dawnT;
+    private const int DawnPhase = 4;        // ここから暁へ（DM＝遺志の継承）
+    private const double DawnFadeSec = 2.0; // 夜→暁は本文の送りより遅く（唐突に明けない）
+    private const float NightDim = 0.62f;   // 夜の層に掛ける明度（本文の可読性用の暗幕）
+    private const float DawnDim = 0.50f;    // 暁の層に掛ける明度（明るいぶん濃く沈める）
     private double _t;
     private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END 5:スタッフロール
     private bool _zHeld;
@@ -122,6 +140,8 @@ public partial class Epilogue : Node2D
         _bg[3] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_acrostic.png");
         _bg[4] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_dm.png");
         _bg[5] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_roll.png");
+        // bg2 の層を敷けたら旧 _bg[] の描画は止める（旧素材は消さずそのまま残す＝層が読めなければ従来通り）。
+        BuildLayers();
         _bgPhase = _phase;
         _bgPrevPhase = _phase;
         _bgFadeT = BgFadeSec;
@@ -264,7 +284,78 @@ public partial class Epilogue : Node2D
                 break;
         }
         UpdateBackgroundFade(delta);
+        UpdateLayers(delta);
         QueueRedraw();
+    }
+
+    // bg2 の層を敷く（奥→手前に 夜/暁の遠景 → 中景 → 近景の小物2つ → 光）。
+    //   夜と暁の遠景は重ねて置き、αのたすき掛けでクロスフェードする（UpdateLayers）。
+    //   暁の光(L4_light_dawn)は加算で、明けるぶんだけ足す。スマホの光(L4_light_phone)は常時。
+    //   遠景が読めなければ何も敷かず _hasLayers=false のまま＝旧 _bg[] の1枚絵経路がそのまま動く。
+    private void BuildLayers()
+    {
+        const string dir = "res://char/bg2/epilogue/";
+        if (!ResourceLoader.Exists(dir + "L1_far_night.png")) return;
+        const float s = H / 720f;   // 216/720 = 0.3（BgLayers と同じ高さフィット）
+
+        // 素材から Sprite2D を1枚作って足す。offset は素材座標(1280×720基準)。読めなければ null を返す。
+        Sprite2D? Add(string file, int z, Vector2 offset, bool additive = false, float alpha = 1f)
+        {
+            string path = dir + file;
+            if (!ResourceLoader.Exists(path)) return null;
+            var tex = ResourceLoader.Load<Texture2D>(path);
+            if (tex == null || tex.GetHeight() <= 0) return null;
+            var spr = new Sprite2D
+            {
+                Name = file.Replace(".png", ""), Texture = tex, Centered = false,
+                Scale = new Vector2(s, s), Position = offset * s,
+                ZIndex = z, ZAsRelative = false,
+                Modulate = new Color(1f, 1f, 1f, alpha),
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+            };
+            if (additive) spr.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+            AddChild(spr);
+            _layers.Add(spr);
+            return spr;
+        }
+
+        _lNight = Add("L1_far_night.png", -95, Vector2.Zero);
+        if (_lNight == null) return;
+        _lDawn = Add("L1_far_dawn.png", -94, Vector2.Zero, alpha: 0f);   // 暁は α0 で重ねて置く
+        Add("L2_mid.png", -92, Vector2.Zero);
+        Add("L3_near_left.png", -91, new Vector2(24f, 518f));
+        Add("L3_near_right.png", -91, new Vector2(1026f, 604f));
+        Add("L4_light_phone.png", -88, Vector2.Zero, additive: true);
+        _lDawnLight = Add("L4_light_dawn.png", -88, Vector2.Zero, additive: true, alpha: 0f);
+        _hasLayers = true;
+        ApplyLayerTint();
+    }
+
+    // 夜→暁の進行を回す。phase が DawnPhase 以上になったら DawnFadeSec かけて明ける。
+    private void UpdateLayers(double delta)
+    {
+        if (!_hasLayers) return;
+        double target = _phase >= DawnPhase ? 1.0 : 0.0;
+        if (Mathf.IsEqualApprox(_dawnT, target)) return;
+        _dawnT = Mathf.Clamp(_dawnT + delta * (target > _dawnT ? 1.0 : -1.0) / DawnFadeSec, 0.0, 1.0);
+        float k = (float)_dawnT;
+        _dawnK = k * k * (3f - 2f * k);   // smoothstep（唐突に明けない）
+        ApplyLayerTint();
+    }
+
+    // 夜/暁のα と、本文の可読性を保つ暗幕（NightDim→DawnDim）を各層へ反映する。
+    private void ApplyLayerTint()
+    {
+        // 暁は素材自体が明るいので、明けるほど濃い暗幕を掛けて中央の文字のコントラストを保つ。
+        float dim = Mathf.Lerp(NightDim, DawnDim, _dawnK);
+        foreach (var l in _layers)
+        {
+            float a = 1f;
+            if (l == _lDawn || l == _lDawnLight) a = _dawnK;
+            else if (l == _lNight) a = 1f - _dawnK;
+            // 加算層は α が合成に効かないので、暗幕は RGB 側で掛けて沈める。
+            l.Modulate = new Color(dim, dim, dim, a);
+        }
     }
 
     private void UpdateBackgroundFade(double delta)
@@ -292,6 +383,7 @@ public partial class Epilogue : Node2D
 
     private void DrawEpilogueBackground()
     {
+        if (_hasLayers) return;   // bg2 の層を敷いている＝旧 _bg[] の1枚絵は描かない（旧素材は残してある）
         Rect2 rect = new Rect2(0, 0, W, H);
         float fade = Mathf.Clamp((float)(_bgFadeT / BgFadeSec), 0f, 1f);
         Texture2D? prev = BackgroundForPhase(_bgPrevPhase);
@@ -306,7 +398,8 @@ public partial class Epilogue : Node2D
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(0, 0, W, H), new Color(0.03f, 0.04f, 0.07f));
+        // 下敷きの黒は層が無いときだけ（層があると全画面の不透明矩形が層を隠す）。
+        if (!_hasLayers) DrawRect(new Rect2(0, 0, W, H), new Color(0.03f, 0.04f, 0.07f));
         DrawEpilogueBackground();
 
         switch (_phase)
