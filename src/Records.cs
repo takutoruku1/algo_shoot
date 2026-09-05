@@ -15,9 +15,9 @@ public partial class Records : Node2D
     // 表の行＝ストーリーステージ＋FINAL。表示名は短く。
     private static readonly (string id, string label)[] Rows =
     {
-        ("rei", "STAGE 1 — レイ"),
-        ("akari", "STAGE 2 — あかり"),
-        ("koharu", "STAGE 3 — こはる"),
+        ("akari", "STAGE 1 — あかり"),
+        ("koharu", "STAGE 2 — こはる"),
+        ("rei", "STAGE 3 — レイ"),
         ("final", "FINAL — ミナ"),
     };
     // 列＝難易度。

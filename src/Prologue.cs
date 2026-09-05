@@ -231,7 +231,7 @@ public partial class Prologue : Node2D
                     }
                 }
                 break;
-            case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 レイ）
+            case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 あかり）
                 bool left = Input.IsActionPressed("ui_left");
                 bool right = Input.IsActionPressed("ui_right");
                 if ((left || right) && !_lrHeld)
@@ -554,7 +554,7 @@ public partial class Prologue : Node2D
         float a = Mathf.Clamp((float)_t / 1.0f, 0f, 1f);
         DrawString(_font, new Vector2(0, 78f), "X — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
             new Color(0.9f, 0.92f, 1f, a));
-        DrawString(_font, new Vector2(0, 104f), "STAGE 1 : レイ", HorizontalAlignment.Center, W, UiKit.CutBody,
+        DrawString(_font, new Vector2(0, 104f), "STAGE 1 : あかり", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(Cool.R, Cool.G, Cool.B, a * 0.9f));
 
         // 難易度選択（◀ ▶ で変更）

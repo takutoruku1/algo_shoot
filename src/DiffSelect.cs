@@ -34,7 +34,7 @@ public partial class DiffSelect : Node2D
     private bool _navHeld, _zHeld, _backHeld, _hNavHeld;
     private double _t;
     private bool _autoplay;
-    private string _stageTag = "STAGE 1", _diveName = "レイ";
+    private string _stageTag = "STAGE 1", _diveName = "あかり";
 
     // ── チェックポイント入口（最初から / 中ボスから / ボスから）──
     //   中ボスを持つ3ステージでのみ表示。←→ で選ぶ。未解放はロック（中ボス=IsMidBossCleared / ボス=IsStageCleared で解放）。
@@ -62,7 +62,7 @@ public partial class DiffSelect : Node2D
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
 
         // FINAL は GameManager.Stages に持たない（AllStoryCleared/NextUnclearedStageId が本編3ステージを
-        // 数えるため）。ここだけ明示に見出しを与える。未登録シーンでも既定の "STAGE 1 — レイ" を出さない。
+        // 数えるため）。ここだけ明示に見出しを与える。未登録シーンでも既定の "STAGE 1 — あかり" を出さない。
         if (_game?.PendingStageScene == "res://MinaBattle.tscn") { _stageTag = "FINAL"; _diveName = "ミナ"; }
         else
             foreach (var s in GameManager.Stages)

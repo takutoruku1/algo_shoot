@@ -253,7 +253,7 @@ public partial class StageKoharu : Node
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 3 START"); }
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 2 START"); }
         // 型崩し（S2）：こはるはミッドシナリオ（MidStory）を“ボス戦中の割込み”に移設。
         // ボスHPが半分を割った瞬間、会話バブルで弾と敵が止まり（Hud.BubblePaused＝敵弾は自動クリア）、
         // 台所の音だけが残る“間”を作ってから戦闘再開する。3ステージ同型の反復を崩す最後の一枚。
@@ -631,7 +631,7 @@ public partial class StageKoharu : Node
             var rec = game?.RecordClearTime("koharu", game.Difficulty, _clearTime) ?? (true, (float?)null);
             long score = game?.Score ?? 0;
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
-            Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
+            Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
             // 下流変種①：MidStory で A「もういちど、聞く」を選んでいたら、引く理由の1行だけ差し替える
             //  （B・旧セーブ（キー欠落=false）は現行のまま＝後方互換）。行は本文一致で探す＝並び替えに強い。
