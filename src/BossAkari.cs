@@ -145,6 +145,10 @@ public partial class BossAkari : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("akari", GetParent());
         AddChild(_caster);
+
+        // 部品の演出層（char/v3/fx/akari/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
+        // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
+        AttachParts("akari", idleTexW: 487f, attackTexW: 639f);
     }
 
     protected override void UpdateMovement(double delta)

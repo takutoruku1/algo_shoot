@@ -34,6 +34,13 @@ public partial class Enemy : Area2D
     private Sprite2D _bodySprite = null!;
     private bool _hasBodyTex;
 
+    // ─── 姿勢ごとの表示オフセット（v3 の本体は姿勢ごとに絵の幅が違う）───
+    //   BossParts.BodyOffsets の表から引く名前（"akari"/"koharu"/"rei"/"cameo"）。空なら従来どおり中央揃え。
+    //   絵は姿勢で幅が変わるので、中央揃えのままだと足元が横に滑る。表の値を Sprite2D.Offset へ入れて
+    //   どの姿勢でも足元が同じ画面位置に来るようにする。★当たり判定（_bodyShape・GlobalPosition）は不変。
+    protected string BodyOffsetName = "";
+    private BossParts.Pose _bodyPose = BossParts.Pose.Idle;
+
     // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
     // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
     //  → 全パネル破壊で BREAK（タメ＋合図演出）
@@ -350,7 +357,24 @@ public partial class Enemy : Area2D
         float s = BodyDisplayH / t.GetHeight();
         _baseScale = s;
         _bodySprite.Scale = new Vector2(s, s);
+        ApplyBodyOffset();
         AddChild(_bodySprite);
+    }
+
+    // 現在の姿勢（_bodyPose）のオフセットを本体スプライトへ入れる。
+    // FlipH は Offset の x も一緒に反転させるので、反転時は符号を戻して見た目の位置を合わせる。
+    private void ApplyBodyOffset()
+    {
+        if (_bodySprite == null || string.IsNullOrEmpty(BodyOffsetName)) return;
+        Vector2 o = BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose);
+        _bodySprite.Offset = _bodySprite.FlipH ? new Vector2(-o.X, o.Y) : o;
+    }
+
+    // 姿勢を切り替える（絵の差し替えとは別＝オフセットだけ。差し替えは SwapBody が担う）。
+    protected void SetBodyPose(BossParts.Pose pose)
+    {
+        _bodyPose = pose;
+        ApplyBodyOffset();
     }
 
     private void SpawnPanels()
@@ -653,7 +677,30 @@ public partial class Enemy : Area2D
         if (!_swapAnim)
             _bodySprite.Position = visualOffset;
         _bodySprite.Rotation = lean;
-        _bodySprite.FlipH = faceLeft;
+        if (_bodySprite.FlipH != faceLeft) { _bodySprite.FlipH = faceLeft; ApplyBodyOffset(); }
+        _parts?.SetFlip(faceLeft);
+    }
+
+    // ─── 部品の演出層（BossParts）───
+    //   v3 の本体絵はエフェクトを持たないので、輪・カード・光は BossParts が実行時に重ねて動かす。
+    //   派生ボスが OnEnemyReady のあとで AttachParts を呼ぶと本体の子として1個ぶら下がる。
+    //   当たり判定は一切持たない＝見た目だけ。素材が無い人物では null のまま（呼び出しは全部素通り）。
+    private BossParts? _parts;
+    protected BossParts? Parts => _parts;
+
+    // 部品層を取り付ける。基準点（足元中央・発射点）は BossParts の実測表から引く。
+    // idleTexW/attackTexW は待機・攻撃の本体画像の幅（720px 基準）＝中心基準への読み替えに要る。
+    protected void AttachParts(string name, float idleTexW, float attackTexW)
+    {
+        if (_parts != null) return;
+        var p = new BossParts { Name = "Parts" };
+        AddChild(p);
+        p.Configure(name,
+                    BossParts.AnchorFoot(name, BodyDisplayH, idleTexW),
+                    BossParts.AnchorMuzzle(name, BodyDisplayH, attackTexW),
+                    BodyDisplayH);
+        p.SetFlip(FaceLeft);
+        _parts = p;
     }
 
     // HPが変化した（HUDバー更新用フック）。
@@ -749,6 +796,7 @@ public partial class Enemy : Area2D
                 Position = _bodySprite.Position,
                 Rotation = _bodySprite.Rotation,
                 Scale = _bodySprite.Scale,
+                Offset = _bodySprite.Offset, // 旧姿勢のオフセットのまま消える＝入れ替わりで絵が跳ねない
             };
             AddChild(_fadeSprite);
         }
@@ -757,6 +805,7 @@ public partial class Enemy : Area2D
         _bodySprite.Texture = t;
         _baseScale = BodyDisplayH / t.GetHeight();
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
+        ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
 
         // squash→pop を起動（_PhysicsProcess で進める）。
