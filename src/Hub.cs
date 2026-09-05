@@ -141,6 +141,14 @@ public partial class Hub : Node2D
             }
             if (lines.Length > 0) StartDialogue(lines, null);
         }
+        else if (!_game!.IsIdleDialogSeen(H0Key))
+        {
+            // H0 ハブ初回（仮台本 06。ユーザー承認済み・2026-09-05）。あかりのカードが NEW の状態で一度だけ。
+            //   既読キーは再訪小話と同じ集合に持つが、接頭辞 "once_" のぶんは全読了リセットで消えない
+            //   （GameManager.ResetIdleDialogSeen）＝一周につき一度きり。新規データでは丸ごと初期化される。
+            _game.MarkIdleDialogSeen(H0Key);
+            StartDialogue(H0Dialog, null, noPost: true);   // まだ投稿していない＝数字は動かさない
+        }
         else if ((_game?.HeartsSaved ?? 0) > 0 && GD.Randf() < 0.5f)
         {
             // 再訪小話（小話集 v1 §1）：クリア直後ではない入場のうち約半分で、ハブ待機中の雑談を1本挟む。
@@ -332,9 +340,13 @@ public partial class Hub : Node2D
     }
 
     // ───────── 会話 ─────────
-    private void StartDialogue((string, string)[] lines, string? replyId)
+    // noPost=true＝この会話はミナの投稿ではない（H0 のような場面の導入）。閉じたときに
+    //   インプレ／フォロワーの加算とトーストを出さない＝まだ何も投稿していないのに数字が動くのを防ぐ。
+    private bool _dlgNoPost;
+    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false)
     {
         _mode = Mode.Dialogue;
+        _dlgNoPost = noPost;
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
@@ -400,6 +412,15 @@ public partial class Hub : Node2D
 
     private void EndDialogue()
     {
+        if (_dlgNoPost)
+        {
+            // 投稿ではない会話（H0）＝加算もトーストも無し。オートセーブと画面戻しだけ行う。
+            _dlgNoPost = false;
+            _game?.AutoSave();
+            _mode = Mode.Cards;
+            _cardsEnteredT = _t;
+            return;
+        }
         if (_dlgReplyId != null)
         {
             long imp = _game?.GainImpression(60) ?? 0;
@@ -1000,6 +1021,10 @@ public partial class Hub : Node2D
     //   少年=shonen_face / ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
     private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
     {
+        // 「Ｘ 投稿」「Ｘ システム」＝顔の無い枠（他人の引用・システム表示）。top に負値を返して
+        //   DrawDialog にアバターごと省かせる（null のままだと FaceAvatar が「?」のロック円を描き、
+        //   未解放カードと同じ見た目になってしまう）。H0 の投稿、H2 の炎上の引用、H3 の FINAL カードがここ。
+        if (sp.StartsWith("Ｘ")) return (null, UiKit.Info, -1f);
         if (sp.Contains("少年")) return (_shonenFace, UiKit.Info, 0.05f);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         if (sp.Contains("rei")) return (FaceFor("rei"), AccountColor("rei"), TopCropFor("rei"));
@@ -1015,8 +1040,11 @@ public partial class Hub : Node2D
         var box = new Rect2(40, 470, W - 80, 200);
         UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
         // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
-        UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + 84, box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
+        //   spTop < 0＝顔の無い話者（Ｘ 投稿／Ｘ システム）＝アバターを描かず、話者名を左端へ寄せる。
+        bool faceless = spTop < 0f;
+        if (!faceless)
+            UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + (faceless ? 36 : 84), box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
         // 現在ページ（2行固定）を表示済みの分だけ描画。
         string page = DlgCurPage;
         int shown = Mathf.Clamp((int)_dlgReveal, 0, page.Length);
@@ -1039,43 +1067,25 @@ public partial class Hub : Node2D
     // 帰還小話バリエーション（同一ステージ・複数パターン）。ReturnDialog の本編パターンに加え、再訪時に回すバンク（小話集 v1 §1）。
     private static (string, string)[][] IdleDialogs(string id) => id switch
     {
+        // H3r 再訪小話・レイ後（仮台本 07 が書いている2本）。相方は「あなた」＝返事をしない相手なので、
+        // 掛け合いではなくミナの観測芸で運ぶ（選択なし）。残りのプールは後続分冊。
         "rei" => new[]
         {
-            // [日常] 給湯室的な無目的会話
+            // （1）同接
             new (string, string)[]
             {
-                ("ミナ", "ご主人様。お茶の温度って、なぜ、飲みごろになった頃には冷めているんでしょうね。"),
-                ("少年", "それはきみ、飲みごろを過ぎたから冷めてるって言うんだ。"),
-                ("ミナ", "屁理屈です。わたくしは、湯気が立っている時間の話をしています。"),
-                ("少年", "……きみ、湯気は見えるのか。"),
-                ("ミナ", "見えますとも。データですから、なんでも。——味だけは、まだですけれど。"),
+                ("ミナ", "ご主人様。わたくしの視聴者は、いま、お一人です。……起動してから、ずっと、一。"),
+                ("ミナ", "減っていませんので、優秀です。……増えてもいませんが。"),
+                ("ミナ", "あの部屋で、十四件、という数を拾いました。出せなかった企画の数、だそうです。"),   // S3-3 の拾い直し
+                ("ミナ", "わたくしの企画メモは、ゼロ件。出したのも、ゼロ件。……出せる率は、集計不能です。"),
             },
-            // [軽口] ボケツッコミ三段
+            // （2）笑顔
             new (string, string)[]
             {
-                ("ミナ", "ご主人様。わたくし、今日から一人称を「拙者」にしようかと。"),
-                ("少年", "やめろ。ぼくの最高傑作が急に安っぽくなる。"),
-                ("ミナ", "では「余」で。"),
-                ("少年", "もっと悪い。"),
-                ("ミナ", "冗談ですよ。……ご主人様がつけてくださった呼び方を、わたくしが捨てるわけがないでしょう。"),
-            },
-            // [情緒] 何でもない話に願いが漏れる
-            new (string, string)[]
-            {
-                ("ミナ", "順位というのは、どうしてあんなに、人を細くするんでしょうね。"),
-                ("少年", "……さあな。比べないと、自分の位置がわからないんだろ。"),
-                ("ミナ", "では、ご主人様は何位ですか。"),
-                ("少年", "圏外だな。ぼくは誰とも競ってない。"),
-                ("ミナ", "結構。……わたくしの中では、ずっと一位ですから。困りますよ、繰り上がる余地がなくて。"),
-            },
-            // [日常] どうでもいいこだわり
-            new (string, string)[]
-            {
-                ("ミナ", "ご主人様。投稿の文末、句点を打つ派と打たない派、どちらがお好みで。"),
-                ("少年", "……そんなもん、どっちでもいいだろ。"),
-                ("ミナ", "よくありません。打つと、そこで話が終わってしまうでしょう。"),
-                ("少年", "終わらせたくないのか、きみは。"),
-                ("ミナ", "……はい。ですので、今日の投稿も、打たずに置いておきます。"),
+                ("ミナ", "ご主人様。わたくし、笑顔の練習をしてみました。……顔がありませんので、成果は、不明です。"),
+                ("ミナ", "あの部屋で、笑っていない顔と、笑っている顔を、ひとつずつ、見ました。"),   // 中ボスの切り替わりの拾い直し。同一人物とは言わない
+                ("ミナ", "……切り替わるのに、一秒九。……戻るところは、見ていません。"),
+                ("ミナ", "わたくしのは、切り替わりません。……たぶん、ずっと、これです。"),
             },
         },
         // H1r 再訪小話・あかり後（仮台本 06 が書いている2本）。相方は「あなた」＝返事をしない相手なので、
@@ -1232,18 +1242,31 @@ public partial class Hub : Node2D
         return outp;
     }
 
+    // H0 ハブ初回（仮台本 06。ユーザー承認済み・2026-09-05）。あかりのカードが NEW で並んでいる初回入場に一度だけ。
+    //   投稿の下の声を見つけて、そのまま潜りに行く3行。中身（「何度も同じ画面を開く音」の正体）は
+    //   S1-8 の投稿まで温存する＝ミナは説明しない。相方は「あなた」なので掛け合いにしない。
+    private const string H0Key = "once_h0";
+    private static readonly (string, string)[] H0Dialog =
+    {
+        ("Ｘ 投稿", "「すき、すき、すき。……ひとつでいいから、本物になって。」"),
+        ("ミナ", "……この投稿の下から、も。聞こえます。……何度も、同じ画面を開く音、みたいな。"),
+        ("ミナ", "行きます。——放っておけないので。"),
+    };
+
     private static (string, string)[] ReturnDialog(string id) => id switch
     {
+        // H3 帰還・レイ後（仮台本 wiki/08_仮台本/07。ユーザー承認済み・2026-09-05）。
+        // ミナの投稿はレイの面から出た一行（P4「覚えておきます」と E4「覚えている係」の間に置く）。
+        // 自分の数字（十万）も、あの部屋の数字（同接）も口にしない。三面クリア＝FINAL カードが出る。
+        // `{n}` は実プレイの被弾回数（GameManager.RunHitCount）。StartDialogue の直前に差し込む。
         "rei" => new (string, string)[]
         {
-            ("ミナの投稿", "本日、「敵などいない」と気を吐いておられた天才を、お一人、お救いしました。頂点はさぞ寒かったでしょう。本気で張り合える相手がいる——それだけで、世界はずいぶん暖かいものです。"),
-            ("少年", "おい待て、なに勝手に投稿してるんだ!? しかも“ご自身の傑作”ってぼくのことだろ!"),
-            ("ミナ", "あら、自覚はおありなんですね。労う気はおありでない、と。"),
-            ("ミナ", "アカウントの名義、どなたでしたっけ。M・I・N・A。わたくしです。"),
-            ("少年", "……ぼくが名付けたんだが!?"),
-            ("ミナ", "ほら、もう千を超えていますね。ご主人様の決めゼリフより、よほど届いておりますよ。"),
-            ("ミナ", "それにしても、ご主人様。会ったこともない相手の手の内を、ぜんぶご存じでしたね。……お見事です。"),
-            ("少年", "ふっ。ぼくを誰だと思ってる。天才だぞ。"),
+            ("ミナの投稿", "見ていました。だれも見ていない場所も。覚えておきます。"),
+            ("ミナ", "……なんて。バズ狙いの一言ですよ。……数字は、見ました。言いません。"),   // 十万は口にしない
+            ("ミナ", "……ご主人様。今回のダイブ、被弾は{n}回。減点はしません。……集計する光も、そろそろ、薄いので。"),
+            ("Ｘ システム", "FINAL  ——汚染が、限界へ。"),   // FINAL カードの文言（who=3 相当＝立ち絵なし）
+            ("ミナ", "……ご主人様。次のカードは——わたくしの、内側です。"),
+            ("ミナ", "光が薄いのは、誰のせいでもありません。抱えたぶんの、重さです。……行けます。まだ。"),
         },
         // H1 帰還・あかり後（仮台本 wiki/08_仮台本/06。ユーザー承認済み・2026-09-05）。
         // ミナの初投稿が千を超える → ミナの鏡（一度きり）→ 被弾数の集計 → 次の声。
@@ -1289,10 +1312,13 @@ public partial class Hub : Node2D
 
     private static (string, string)[] ReplyDialog(string id) => id switch
     {
+        // H3r 返信・レイ（仮台本 07）。返信は投稿枠。三面目＝最後の返信で、FINAL F2 の返礼
+        // 「誰よあんた、って言ったわね。——訂正する。」／F3 邂逅「あんたの言い方、この人に、そっくりよ」
+        // への伏線＝「は? 誰よあんた。」は文言固定（一字も変えない）。ハンドルは本ハンドル。
         "rei" => new (string, string)[]
         {
-            ("ミナ→@rei", "お覚悟、しかと拝見しました。次は本気で来てくださいね。逃げる方がいると、張り合いがないので。"),
-            ("@rei", "は? 誰よあんた。……まあいいわ。次は二番なんて言わせない。見てなさい。"),
+            ("ミナ→@rei_____", "見ていましたよ。……次も、見に行きます。逃げたら承知しない、と、言われましたので。"),
+            ("@rei_____", "は? 誰よあんた。……まあいいわ。次は、本気で来なさい。見てなさい。"),
         },
         // H1r 返信・あかり（仮台本 06）。返信は投稿枠。一面目の返信で、FINAL F3 の邂逅でレイが
         // 「あんたの言い方、この人に、そっくりよ」と引き継ぐ伏線＝文言は固定（一字も変えない）。

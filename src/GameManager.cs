@@ -279,7 +279,12 @@ public partial class GameManager : Node
     private readonly HashSet<string> _idleDialogSeen = new();
     public bool IsIdleDialogSeen(string key) => _idleDialogSeen.Contains(key);
     public void MarkIdleDialogSeen(string key) => _idleDialogSeen.Add(key);
-    public void ResetIdleDialogSeen() => _idleDialogSeen.Clear();
+    // 全部読み切ったときの抽選プールの戻し。一度きりの会話（ハブ初回の H0 など。接頭辞 "once_"）は
+    //   小話ではないので残す＝リセットで再発火させない。新規データ（ResetAll）では丸ごと消える。
+    public void ResetIdleDialogSeen()
+    {
+        _idleDialogSeen.RemoveWhere(k => !k.StartsWith("once_"));
+    }
     public bool IsStageCleared(string id) => _cleared.Contains(id);
     // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
     public int HeartGoal => Stages.Length;
