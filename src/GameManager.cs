@@ -117,6 +117,10 @@ public partial class GameManager : Node
     public int PurifiedCount { get; private set; }
     // 累計グレイズ（かすり）数。加算のみで現状は読み手なし（将来グレイズチュートリアルが実装されれば読み手になり得る）。
     public int GrazeCount { get; private set; }
+    // このランの被弾回数（Player.TakeHit が実際に♥を減らしたときだけ数える）。ハブ帰還の「被弾は{n}回でした」
+    // （仮台本 06 の H1）の差し込み値。補助観測＝表示専用でセーブしない。ResetRun（ラン開始）で 0 に戻る。
+    public int RunHitCount { get; private set; }
+    public void NotifyPlayerHit() => RunHitCount++;
 
     // ステージ目標：このタイムラインを浄化しきる人数。到達でステージクリア。
     public int StageTarget { get; private set; } = 24;
@@ -1371,6 +1375,7 @@ public partial class GameManager : Node
         Bombs = StartBombs;
         _bombPurifyCount = 0;
         PurifiedCount = 0;
+        RunHitCount = 0;      // 被弾回数（ハブ帰還の「被弾は{n}回」）もラン単位
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
         RunImpression = 0;

@@ -37,11 +37,6 @@ public partial class StageAkari : Node
     private const string AFace = "res://char/v3/akari_face.png";
     private const string AFaceLit = "res://char/v3/akari_face_lit.png";
 
-    // 旧稿（少年あり）の残り。S1-4 以降の場面を案C へ差し替えるまでの暫定で残す。
-    private const string SCocky = "res://char/shonen_face.png";
-    private const string SGentle = "res://char/shonen_gentle.png";
-    private const string SAfraid = "res://char/shonen_afraid.png";
-
     // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。あかりは型崩し（S2）で“カメオ先出し”：
     //   肩慣らし0（圧ゼロ）→ チラ見せ（6体目の浄化で割り込み）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
@@ -71,26 +66,13 @@ public partial class StageAkari : Node
         (1, "では、ご主人様。——まいります。", MSmile),
     };
 
-    // ボス登場時の説明（v2 [P-02b]。who: 0=少年 / 1=ミナ）
+    // S1-9 ボス戦「あふれるわたし」の頭（仮台本 06）。ボスは出現済みだが会話中は止まる。
+    //   宣言はカットイン『ねえ、こっち見て』と弾幕名の宣告（BossAkari.Spells / AnnounceSpell）に対応する。
+    //   RECLOSE と最終形の宣言（「……返して。読んだなら、返してよ。」）は BossAkari 側に置いた。
     private static readonly (int who, string text, string face)[] BossIntro =
     {
-        (1, "黒板も、机も、窓も……ぜんぶ「すき」で、埋め尽くされていますね。", ""),
-        (0, "……この人は、好きという気持ちを、持て余してる。誰にも渡せないまま。", SGentle),
-        (0, "————渡せなかった想いってのは、ああやって、あふれるんだ。この世界ではね。", SGentle),
-    };
-
-    // 旧稿の道中掛け合い（小話集_v1.md §2 StageAkari）。S1-8 を案C へ差し替えるまでの暫定で残す。
-    private static readonly (int who, string text, string face)[] Chat4 = // [情緒]
-    {
-        (1, "この吹き出し、ぜんぶ「またね」と書いてあります。", MWorried),
-        (0, "————", SAfraid),
-        (1, "……祓います。ご主人様は、見なくていいです。", ""),
-    };
-    private static readonly (int who, string text, string face)[] Chat5 = // [軽口]
-    {
-        (1, "ご主人様、髪。跳ねていませんか、今日。", ""),
-        (0, "見えてないだろ、きみからは。", SCocky),
-        (1, "声で分かります。跳ねている人の声です。", MSmile),
+        (2, "ねえ、こっち見て。", AFace),   // カットイン『ねえ、こっち見て』
+        (2, "すきって言って。あたしも言う。……ずっと一緒。離さないから。", AFace),   // 『すきって言って』『ずっと一緒』『離さない』の宣言
     };
 
     // S1-2 小話 Mid（仮台本 06）。「返して」「すき」の声。ホワイトボードの字と置き傘を、ミナが自分で見つける。
@@ -180,28 +162,26 @@ public partial class StageAkari : Node
         (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),
     };
 
-    // 道中後の小話（ボスへの引き）。
-    private static readonly (int who, string text, string face)[] MidEnd = new (int, string, string)[]
+    // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
+    //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
+    private static readonly (int who, string text, string face)[] MidEnd =
     {
-        (1, "黒板の奥に、あの子が。……ご主人様、ほんとうに、いいんですね?", ""),
-        (0, "……ぼくが、やらなきゃいけないんだ。", SGentle),
-    }.Concat(Chat4).Concat(Chat5).ToArray();
+        (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),   // A40
+        (1, "……通知の吹き出しが、「1」のまま。同じ形で、四つ、降ってきました。", MWorried),   // 数えただけ。投稿の「四回」とは結び付けて言わない
+        (1, "ホワイトボードも、モニタも、窓も……ぜんぶ「すき」で、埋まっていきます。取り消したぶんが、フロアじゅうに、あふれている。", MFace),
+        (1, "この吹き出し、ぜんぶ「またね」と書いてあります。……祓います。ご主人様は、見なくていいです。", MFace),
+        (1, "奥に、あの人が。……行きます。今度こそ、奥まで。", MFace),
+    };
 
-    // 帰還（v2 [P-02c]）。承第2段の締め（優先度1・3）＝【疑いを口にするが、断定はさせない】。
-    //   ミナは初めて「知ってるんですか?」と問う（レイでは無かった直接の問い）。少年は動揺しつつ嘘でかわす（afraid→取り繕い）。
-    //   “知人だ”の確信はここでは持たせない＝こはる面で核心に触れる余地を残す。あかり残響＝伏線③（声が似ている）は温存。
+    // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
+    //   空の問いは 1度目「いらない」→2度目 無言→3度目「もう聞きません」の階段の初段。
     private static readonly (int who, string text, string face)[] Clear =
     {
-        (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),       // 投稿が変化
-        (2, "……あったかい声が、した。……なんでかな、あの人の声に、似てた。", ""), // あかり残響（伏線③）
-        (2, "……でも、もう、ごめんねは言わない。あたしの好きは、まちがってなかった。", ""), // 自分の意思で前を向く（P4・尊厳）
-        (1, "……字が、変わっていく。——『ありがとう』。……♥も、ひとつ。", ""), // S3反転の目撃（読み上げ型）：思わず読むだけ。解釈しない
-        (1, "ご主人様。あなた——この人を、知ってるんですか?", "res://char/mina_doubt.png"), // 初めての直接の問い（worried→doubt）
-        (0, "————っ。……まさか。赤の他人さ。", SAfraid),               // ひるんでから嘘（afraid）。“っ”に動揺が出る
-        (1, "……即答までに、二秒かかりましたね。", "res://char/mina_doubt.png"),
-        (0, "ミナ。シェイクスピアは言った。\"Parting is such sweet sorrow.\"", SCocky), // 話を逸らす（取り繕い）
-        (1, "はいはい、教養アピールお疲れさまですね。……で、それは誰の話ですか。", "res://char/mina_smile.png"), // 追及を軽口で受ける＝まだ断定しない
-        (0, "————一般論だよ。", SGentle),
+        (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),   // A44。投稿が変化
+        (2, "……あったかい声が、した。……知らない声なのに。変なの。", AFace),
+        (1, "……字が、変わっていく。——『ありがとう』。……♥も、ひとつ。", MFace),   // 読み上げるだけ。解釈しない
+        (1, "ねえ、ご主人様。外の世界は、今日はどんな天気ですか。", MFace),
+        (1, "……いえ。返事は、いりません。いつか、で結構ですので。", MSmile),   // 空の問い・一度目
     };
 
     public override void _Ready()
@@ -315,12 +295,11 @@ public partial class StageAkari : Node
     {
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
+        // 案C のこの面に出るのは ミナ(1)／あかり(2)／投稿(4) だけ（投稿は Hud 側で立ち絵を捨てる）。
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
-            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
-            _ => "res://char/mina_face.png",                // 中継ほか
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? AFace : face,   // あかりは行ごと差し替え可
+            _ => string.IsNullOrEmpty(face) ? MFace : face,                    // ミナも行ごと表情
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }

@@ -1,9 +1,9 @@
 using Godot;
 
-// BossAkari : STAGE1「あかり（雨の教室）」のボス＝穢れの核「ゆるせないわたし」。
+// BossAkari : STAGE1「あかり（雨の降りやまない退勤後のフロア）」のボス＝「あふれるわたし」@akari_ame。
 // 自責の言葉（黒い吹き出し＝パネル）を旋回させ、下向きの自責弾を撒く。
 // パネルを剥がしてHPを削り切る＝奥の“本当のあかり”の光に届く＝浄化（改心）。
-// 浄化後は改心の姿を見せながら、少年（正体を隠したまま）が普遍化した言葉を贈る。フォロワーにはしない。
+// 浄化後は改心の姿を見せながら、ミナ自身が決定打を届ける（案C。S1-10）。フォロワーにはしない。
 public partial class BossAkari : Enemy
 {
     public bool Finished { get; private set; }
@@ -40,7 +40,7 @@ public partial class BossAkari : Enemy
     private float _ringSpeed = 72f, _aimedSpeed = 96f, _spiralSpeed = 90f, _roamSpeed = RoamSpeed;
     private float _corridorHp = 0.52f;
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE1 あかり＝雨の教室・青と白の寒色）。
+    // スペルカード（STAGE1 あかり＝雨のフロア・青と白の寒色）。技名は仮台本 06 の S1-9。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
         ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針
@@ -56,40 +56,31 @@ public partial class BossAkari : Enemy
         GetHud()?.AnnounceSpell("あかり", "@akari_ame", s.name, s.tint);
     }
 
-    // 浄化時のかけあい（who: 0=少年 / 1=ミナ / 2=あかり / 3=地・記憶＝ミナ語り＋記憶フラッシュ）。Zで手動送り。
+    // 浄化時のかけあい（who: 1=ミナ / 2=あかり）。Zで手動送り。
     private bool _seq;
     private int _line;
     private double _lineT;
     private bool _zHeld;
-    // 浄化のかけあい（設計書 v2 [P-02b] のボス節を順序通りに）。少年は自分の声では言えず、ミナが“中継”して届ける。
-    // ※「あなたのせいじゃない」は最も効かない言葉＝禁止。庇った側の意志を立てる言葉で解く。
-    // 【届け方＝“名前”一点で抜く型】（優先度2）。レイの“記録・説明で届ける”とは対照的に、この面は決定打を「あかり」の一語に集約し、
-    //   その後の説明的な中継を削って所作＋沈黙で抜く（lines§2 名前／§3 言わせない）。届いた後を語らない＝速く、鋭く。
-    // 躁的暴走＝愛の洪水（love-bombing）。傷＝本命に言えなかった「好き」が宛先を失い溢れる。本人が乞うた一語で抜く。
-    // 伏線③「ぼくの声じゃだめ」は維持＝名前はミナの声で届ける（少年は正体を隠す代償）。
-    private const string SGentle = "res://char/shonen_gentle.png";
-    private const string SAfraid = "res://char/shonen_afraid.png"; // 承第2段で立てた“崩れ”を改心でも一度だけ使う（正体がバレかける瞬間）
+    // S1-10 改心（仮台本 06。ユーザー承認済み・2026-09-05）。二段で抜く：
+    //   (1) ミナが束の底の一通（取り消されていない本物）を読み上げて返す
+    //   (2) ミナ自身の言葉で決定打（証人型）「十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。」
+    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
+    // 「取り消された十二通は、ぜんぶ、わたくしに当たりました。」の行で BGM を落とし、決定打を無音のまま置く。
+    // 相手の返事は代弁しない＝最後は「……ぁ……」の涙のまま抜く（cry 保持）。
+    private const string ACry = "res://char/v3/akari_face_cry.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "ねえ、こっち見て。ねえってば。あたしのこと、見て。", ""),
-        (2, "好き? 好きって言って。あたしも好き。だいすき。ずっと一緒にいようね。離さないから。", ""),
-        (2, "……ねえ。どうして、名前で、呼んでくれないの。", ""),
-        (2, "いつから、あたしは……“キミ”に、なったの……?", ""),
-        (1, "“キミ”……? ご主人様、これは——", ""),
-        (0, "————行こう。奥だ。", SGentle),
-        (2, "……あたしが、バカだった。", ""), // 口癖の中間変化（設計書「口癖（変化を描く）」節）。「ほんと、バカなんだから」の“バカ”が自分を刺す言葉に反転＝自傷。浄化後に元の口癖が戻る伏線の中間点。
-        (2, "来ないで……っ。あたしの“好き”は、迷惑なだけ。だから、世界中に、ばら撒くしか——", ""),
-        (1, "……見えました。雨の交差点。言いかけた唇。「あのね、あたし——」。そして、クラクション。", ""), // MemFlashLine：記憶フラッシュを焚く
-        (0, "ミナ。……一度だけ。ぼくの代わりに、あの子の名前を、呼んでやってくれ。", SAfraid), // 正体がバレかける瀬戸際＝崩れ（afraid）
-        (1, "ご主人様の、お声では。いけないんですか。", ""),
-        (0, "————ぼくの声じゃ、だめなんだ。気づかれて、しまうから。", SGentle),
-        // ↓ 決定打は「あかり」の一語のみ。手前で無音（AnnounceSpell 停止済み）。説明は足さない＝速く鋭く抜く。
-        (5, "——あかり。", ""),
-        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", "res://char/v3/akari_face_cry.png"), // 名前が届いた決壊＝cry
-        // 旧稿の説明的中継「迷惑なんかじゃない／とっくに届いてるよ」を削除＝名前の余韻を説明で埋めない（届け方をレイと変える核）。
-        (1, "……ちゃんと、届きましたよ。", ""),                                 // ミナの短い所作の一言だけ（“誰に届いたか”は言わせない＝観客に委ねる）
-        (2, "……ぁ……", "res://char/v3/akari_face_cry.png"),                         // 言わせない（涙のまま抜く＝cry 保持）
+        (2, "ねえ、返して。読んだなら、返してよ。……ねえってば。", ""),
+        (2, "……返事なんて、来ない。分かってる。分かってるから、取り消すしか——", ""),
+        (1, "……束の底に。一通だけ、取り消されていないものが、ありました。", ""),   // 背景: 一通がひらく
+        (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", ""),   // (1) 本物の一通。A43
+        (2, "……なんで……それ、送ってない……送れなかった、のに……", ACry),
+        (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", ""),           // ここで BGM 停止
+        (1, "十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。", ""),   // (2) 決定打。無音のまま
+        (2, "……ぁ……", ACry),                                                      // 言わせない（涙のまま抜く＝cry 保持）
     };
+    // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
+    private const string BgmStopLine = "取り消された十二通は、ぜんぶ、わたくしに当たりました。";
 
     protected override void OnEnemyReady()
     {
@@ -254,8 +245,8 @@ public partial class BossAkari : Enemy
         }
     }
 
-    // 「キミ弾」ギミック（#12 機構側）：自機を追う2スペル（「ずっと一緒」「離さない」）の弾だけ、
-    // グレイズ（かすり）すると減速×Bullet.GrazeSoftenMul＋淡色化する＝名前を知らない“キミ”呼びの距離が、触れると和らぐ。
+    // グレイズで和らぐ弾（#12 機構側）：自機を追う2スペル（「ずっと一緒」「離さない」）の弾だけ、
+    // グレイズ（かすり）すると減速×Bullet.GrazeSoftenMul＋淡色化する＝離さないと迫る距離が、触れると和らぐ。
     // 被弾判定は不変（安全化しすぎ防止）。フィナーレでは無効＝最後の圧は緩めない。
     private void AimedSpread(BulletPool pool)
     {
@@ -316,12 +307,12 @@ public partial class BossAkari : Enemy
         }
     }
 
-    // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気）。
+    // S1-9 の RECLOSE（仮台本 06）。虚勢→弱気→最終形の宣言（動詞「返して」）の三段。
     private static readonly string[] RecloseLines =
     {
-        "やだ、まだ見て。離さないってば。",
-        "お願い、嫌わないで……ちゃんと、いい子にするから……",
-        "ひとりにしないで……お願い、まだ……",
+        "既読も三秒でつけるし。返事も、すぐ書くし。……だから、ね?",
+        "バカ。……バカ、バカ。",
+        "……返して。読んだなら、返してよ。",
     };
     private int _recloseIdx;
     protected override void OnRecloseLine()
@@ -393,15 +384,15 @@ public partial class BossAkari : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        // 記憶フラッシュ：ナレ枠は廃したので、回想の核となる行（雨の交差点）の内容でトリガする。
-        // 語り手はミナ(who=1)に統一しても、この一行で記憶フラッシュ演出は焚かれる。
-        if (text.Contains("雨の交差点"))
-            (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerMemoryFlash();
+        // 旧稿の記憶フラッシュ（StageImagery.TriggerMemoryFlash＝雨の交差点に「あのね、あたし——」を焚く）は
+        // 呼ばない。案C の改心は回想ではなく「取り消されていない一通が背景にひらく」ので、
+        // 交差点の画は場面と食い違う。差し替えの背景素材は未発注のため、いまは何も焚かないでおく。
+        // 決定打の手前で音を落とす（台本の「ここでBGM停止」）。以降は無音のまま決定打を置く。
+        if (text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
-            _ => "res://char/mina_face.png",                // ミナ・中継
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりは行ごと差し替え可（こはる方式）
+            _ => "res://char/mina_face.png",                // ミナ
         };
         hud.ShowDialog(kind, text, portrait, otherName: "あかり");
     }

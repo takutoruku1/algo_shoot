@@ -1338,6 +1338,10 @@ public partial class Player : Area2D
             return;
         }
 
+        // 被弾回数を1つ数える（ハブ帰還の「被弾は{n}回でした」＝表示専用の補助観測）。
+        // 練習モードの早期 return より後なので、チュートリアルの被弾は数えない。
+        _game?.NotifyPlayerHit();
+
         // ♥（残機）を1つ減らして HUD 更新
         Lives = Mathf.Max(0, Lives - 1);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
