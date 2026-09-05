@@ -76,14 +76,32 @@ public partial class TitleMenu : Node2D
     private double _idleTimer;    // 無操作の継続秒数。メニュー操作のいずれかで0にリセット。
     private bool _idleTalkFired;  // このアイドル継続中に一度でも出したか（連呼防止。操作が戻るまで再発火しない）。
 
-    // タイトルのキービジュアル＝画面全体を覆うフル16:9の1枚絵。
+    // タイトルの背景＝bg2 の層（夜の街 L1_far ＋ 暖かい光 L4_light_warm ＋ ミナの立ち絵 mina_kv）。
     //   ★顔・表情は一切動かさない（過去に笑顔モーフ/合成が"不気味"と強NG）。
-    //     よって KV は「完全静止の Sprite2D」を最背面に1枚だけ敷く。
+    //     よって各層は「完全静止の Sprite2D」を最背面に敷くだけ。
     //     モーフ・呼吸・髪なびき・パララックスは全廃。顔は1pxも動かない。
-    //   「世界が動く」演出は _Draw 側で KV の上に “流れる光の粒”（データの川）を
+    //   「世界が動く」演出は _Draw 側で層の上に “流れる光の粒”（データの川）を
     //     加算で重ねて作る（顔矩形は除外＝顔に光は被せない）。継ぎ目リスクゼロ。
+    //   層が読めなければ旧 KV（char/title_kv.png）の1枚絵へ落ちる＝画面が真っ黒にならない。
     private Texture2D? _kvTex;
     private Sprite2D? _kvSprite;
+    private bool _hasBgLayers;   // bg2 の層を敷けたか（_Draw のフォールバック夜グラデを出すかの判定）
+
+    // bg2 タイトル層のパスと敷き方。座標は設計座標(1280×720)で書き、置くときに UiKit.Scale(0.3) を掛ける
+    // ＝ロゴ・メニューを描く _Draw（BeginDesign 下）と同じ座標系で位置を考えられる。
+    //   L1_far        : 夜の街。無彩色寄りの素材なので藍 (0.42,0.48,0.80) を Modulate で掛ける。
+    //   L4_light_warm : 上端中央の暖かい光。加算で足す（ロゴの背後がほのかに明るむ）。
+    //   mina_kv       : 282×720 の立ち絵。ロゴとメニューは左半分なので右寄りに置く。
+    //                   高さは画面の 0.94 倍に留めて 44px 下げる＝頭がティッカー帯(上端90px)に切られない。
+    private const string TitleFarPath = "res://char/bg2/title/L1_far.png";
+    private const string TitleWarmPath = "res://char/bg2/title/L4_light_warm.png";
+    private const string TitleMinaPath = "res://char/bg2/title/mina_kv.png";
+    //   Modulate は乗算なので、既に暗い夜景に藍 (0.42,0.48,0.80) をそのまま掛けると街灯まで潰れる。
+    //   色相はそのままに最大チャンネルを 1.0 へ正規化して掛ける（AkariRoot の rainBlue と同じ作法）。
+    private static readonly Color TitleFarTint = new Color(0.525f, 0.60f, 1.00f);
+    // 立ち絵の左上と高さ（設計座標）。幅は高さ比で決まる（282×720 なら 0.94 倍で 265×677）。
+    private static readonly Vector2 TitleMinaPos = new Vector2(880f, 44f);
+    private const float TitleMinaH = UiKit.DesignH * 0.94f;
 
     // ── データの川を流れる光の粒（顔は不動・世界だけ動く）──
     //   KV の青いデータストリームは画面左下→右上奥の消失点へ斜行する。
@@ -104,19 +122,24 @@ public partial class TitleMenu : Node2D
     private const int MoteCount = 22;          // 同時表示（控えめ）
     private static readonly Vector2 RiverDir = new Vector2(0.62f, -0.78f).Normalized(); // 左下→右上奥
     // 顔・キャラ主部の矩形（設計座標）。ここには粒・グロウを一切置かない。
+    //   立ち絵 mina_kv を TitleMinaPos に置いた実寸(282×720)に合わせ、左右に 12px の余白を足して
+    //   髪の輪郭にも粒が乗らないようにする。
     private static readonly Rect2 FaceRect = new Rect2(
-        UiKit.DesignW * 0.26f, UiKit.DesignH * 0.02f,
-        UiKit.DesignW * 0.34f, UiKit.DesignH * 0.62f);
-    // 金オーブのおおよその位置（ミナが手に持つ光）。ここだけグロウを脈動させる。
-    private static readonly Vector2 OrbPos = new Vector2(UiKit.DesignW * 0.455f, UiKit.DesignH * 0.62f);
+        TitleMinaPos.X - 12f, TitleMinaPos.Y, 265f + 24f, TitleMinaH);
+    // 金オーブのおおよその位置（立ち絵の手元あたり）。ここだけグロウを脈動させる。
+    private static readonly Vector2 OrbPos = new Vector2(TitleMinaPos.X + 132f, UiKit.DesignH * 0.60f);
     private readonly RandomNumberGenerator _rng = new();
 
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        _kvTex = ResourceLoader.Exists("res://char/title_kv.png")
-            ? ResourceLoader.Load<Texture2D>("res://char/title_kv.png") : null;
-        BuildKvSprite();
+        // bg2 の層で敷く。1枚も読めなければ旧 KV の1枚絵へ落ちる。
+        if (!BuildBgLayers())
+        {
+            _kvTex = ResourceLoader.Exists("res://char/title_kv.png")
+                ? ResourceLoader.Load<Texture2D>("res://char/title_kv.png") : null;
+            BuildKvSprite();
+        }
         InitMotes();
         BuildLightLayer();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
@@ -131,6 +154,56 @@ public partial class TitleMenu : Node2D
         // 小話5：起動時に1つ、ミナのひとことを画面下へ薄く出す（_rng は InitMotes() で Randomize 済み）。
         _talk = BootTalk[_rng.RandiRange(0, BootTalk.Length - 1)];
         _talkT = TalkShowSec;
+    }
+
+    // bg2 のタイトル層を敷く（奥→手前に 夜の街 → 暖かい光（加算）→ ミナの立ち絵）。
+    //   全層とも完全静止の Sprite2D（顔は1pxも動かない）。設計座標で置いて UiKit.Scale を掛ける。
+    //   夜の街が読めなければ false を返し、呼び出し側が旧 KV の1枚絵へ落ちる。
+    private bool BuildBgLayers()
+    {
+        if (!ResourceLoader.Exists(TitleFarPath)) return false;
+        var far = ResourceLoader.Load<Texture2D>(TitleFarPath);
+        if (far == null || far.GetHeight() <= 0) return false;
+        float s = UiKit.Scale;
+
+        // 夜の街：設計解像度いっぱいに引き伸ばし、藍で色掛けする。
+        AddChild(new Sprite2D
+        {
+            Name = "BgFar", Texture = far, Centered = false,
+            ZIndex = -12, ZAsRelative = false,
+            Scale = new Vector2(UiKit.DesignW / far.GetWidth() * s, UiKit.DesignH / far.GetHeight() * s),
+            Modulate = TitleFarTint,
+            TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+        });
+
+        // 暖かい光：加算で足す（ロゴの背後がほのかに明るむ）。
+        var warm = ResourceLoader.Exists(TitleWarmPath) ? ResourceLoader.Load<Texture2D>(TitleWarmPath) : null;
+        if (warm != null && warm.GetHeight() > 0)
+            AddChild(new Sprite2D
+            {
+                Name = "BgWarm", Texture = warm, Centered = false,
+                ZIndex = -11, ZAsRelative = false,
+                Scale = new Vector2(UiKit.DesignW / warm.GetWidth() * s, UiKit.DesignH / warm.GetHeight() * s),
+                Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+            });
+
+        // ミナの立ち絵：高さフィット(画面の 0.94 倍)で右寄りに置く。
+        var mina = ResourceLoader.Exists(TitleMinaPath) ? ResourceLoader.Load<Texture2D>(TitleMinaPath) : null;
+        if (mina != null && mina.GetHeight() > 0)
+        {
+            float ms = TitleMinaH / mina.GetHeight() * s;
+            AddChild(new Sprite2D
+            {
+                Name = "BgMina", Texture = mina, Centered = false,
+                ZIndex = -10, ZAsRelative = false,
+                Scale = new Vector2(ms, ms),
+                Position = TitleMinaPos * s,
+                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+            });
+        }
+        _hasBgLayers = true;
+        return true;
     }
 
     // KV を完全静止の Sprite2D（最背面・アスペクト維持カバー）として敷く。
@@ -452,9 +525,9 @@ public partial class TitleMenu : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float t = (float)_t;
 
-        // ── キービジュアルは最背面の静止 Sprite2D が描く（_Ready の BuildKvSprite。顔は不動）。
-        //    ここでは KV を直貼りしない。KV が無い時だけ夜グラデで黒画面を回避する。
-        if (_kvSprite == null)
+        // ── 背景は最背面の静止 Sprite2D が描く（_Ready の BuildBgLayers / BuildKvSprite。顔は不動）。
+        //    ここでは直貼りしない。層も KV も無い時だけ夜グラデで黒画面を回避する。
+        if (!_hasBgLayers && _kvSprite == null)
         {
             UiKit.VGradient(this, new Rect2(0, 0, W, H),
                 new[] { new Color("0e1834"), new Color("0a1126"), new Color("070a16") },

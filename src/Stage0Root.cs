@@ -28,27 +28,28 @@ public partial class Stage0Root : Node2D
         // 穏やかな練習場トーン（暖色寄りの一様な明かり）。汚染演出なし。
         AddChild(new CanvasModulate { Name = "Tint", Color = new Color(1.0f, 0.98f, 0.94f) });
 
-        // 背景：board.png があれば流用、無ければ落ち着いた一様塗り。こだわらない。
-        var tex = ResourceLoader.Load<Texture2D>("res://char/bg/rei/board.png");
-        if (tex != null)
+        // 背景：あかり面(char/bg2/stage1)の層を明るく敷く。小物（L3 の傘・看板）は置かない＝無菌の練習場。
+        //   本編のあかり面が雨青 (0.54,0.73,1.00) で沈んでいるのに対し、練習場は「明るい方の同じ部屋」。
+        //   Modulate は 1.0 が上限で明るくはできないので、(a) L1/L2 の色掛けを暖白 (1.00,0.95,0.85) に留めて
+        //   ほぼ素通しにし、(b) 光の層 L4（加算）を強めに二重で足して持ち上げる、の2手で明るさを作る。
+        //   ボス突入はこの面には無い（StageZero は EnterBoss を呼ばない）ので暗転の指定も要らない。
+        var practiceWarm = new Color(1.00f, 0.95f, 0.85f);
+        var bg = new StageBackground
         {
-            float scale = Mathf.Max((float)ScreenWidth / tex.GetWidth(), (float)ScreenHeight / tex.GetHeight());
-            float w = tex.GetWidth() * scale, h = tex.GetHeight() * scale;
-            var bg = new Sprite2D
+            Name = "StageBackground",
+            LayerDefs = new[]
             {
-                Name = "BG",
-                Texture = tex,
-                Centered = false,
-                Scale = new Vector2(scale, scale),
-                Position = new Vector2((ScreenWidth - w) / 2f, (ScreenHeight - h) / 2f),
-                ZIndex = -90,
-                ZAsRelative = false,
-                Modulate = new Color(1f, 1f, 1f, 0.55f), // 練習場なので背景は控えめに沈める
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(bg);
-        }
-        else
+                new BgLayers.Layer("res://char/bg2/stage1/L1_far.png",           0.15f, -95, practiceWarm),
+                new BgLayers.Layer("res://char/bg2/stage1/L2_mid.png",           0.45f, -92, practiceWarm),
+                new BgLayers.Layer("res://char/bg2/stage1/L4_light_window.png",  0f,    -88, Colors.White, additive: true),
+                new BgLayers.Layer("res://char/bg2/stage1/L4_light_monitor.png", 0f,    -88, Colors.White, additive: true),
+                // 窓の光をもう一枚だけ薄く重ねて全体を持ち上げる（加算の二度掛け＝Modulate の 1.0 上限の回避）。
+                new BgLayers.Layer("res://char/bg2/stage1/L4_light_window.png",  0f,    -88,
+                    new Color(1f, 1f, 1f, 0.55f), additive: true),
+            },
+        };
+        AddChild(bg);
+        if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.10f, 0.12f, 0.18f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
             fill.MouseFilter = Control.MouseFilterEnum.Ignore;

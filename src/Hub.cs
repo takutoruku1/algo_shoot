@@ -84,9 +84,36 @@ public partial class Hub : Node2D
         _ => UiKit.Kegare,
     };
 
+    // タイトルと同じ夜の街(bg2/title/L1_far)を、ハブでは一段暗い藍で敷く。
+    //   タイムラインの上に居る＝タイトルと同じ夜を見ている、という地続き感を出す一方、
+    //   ハブは UI（投稿カード・ヘッダ・汚染バー）を読む画面なので、タイトルより暗い藍 (0.30,0.34,0.60) を
+    //   Modulate で掛けて沈める。上に載る _Draw の夜グラデも不透明のままだと夜景が見えないので、
+    //   夜景を敷けたときだけ半透明のスクリムへ落とす（_hasNightBg）。
+    private const string NightBgPath = "res://char/bg2/title/L1_far.png";
+    private static readonly Color NightBgTint = new Color(0.30f, 0.34f, 0.60f);
+    private bool _hasNightBg;
+
+    private void BuildNightBg()
+    {
+        if (!ResourceLoader.Exists(NightBgPath)) return;
+        var tex = ResourceLoader.Load<Texture2D>(NightBgPath);
+        if (tex == null || tex.GetHeight() <= 0) return;
+        float s = UiKit.Scale;
+        AddChild(new Sprite2D
+        {
+            Name = "NightBg", Texture = tex, Centered = false,
+            ZIndex = -12, ZAsRelative = false,
+            Scale = new Vector2(UiKit.DesignW / tex.GetWidth() * s, UiKit.DesignH / tex.GetHeight() * s),
+            Modulate = NightBgTint,
+            TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+        });
+        _hasNightBg = true;
+    }
+
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        BuildNightBg();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         var args = OS.GetCmdlineUserArgs();
         for (int i = 0; i < args.Length; i++)
@@ -522,8 +549,12 @@ public partial class Hub : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
+        // 背景：夜景(NightBg スプライト)を敷けているならその上に半透明のスクリムだけを乗せ（カードが読める暗さ）、
+        //       敷けていないなら従来どおり不透明の夜グラデで塗る＝素材が無くても画面が壊れない。
+        float bgA = _hasNightBg ? 0.62f : 1f;
         UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0e1430"), new Color("0a0e22"), new Color("070a16") }, new[] { 0f, 0.55f, 1f });
+            new[] { new Color("0e1430") with { A = bgA * 0.85f }, new Color("0a0e22") with { A = bgA },
+                    new Color("070a16") with { A = bgA } }, new[] { 0f, 0.55f, 1f });
         UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 500f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.12f);
         for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
 
