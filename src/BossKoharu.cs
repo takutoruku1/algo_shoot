@@ -1,9 +1,10 @@
 using Godot;
 
-// BossKoharu : STAGE2「こはる（永遠に夕食を作り続ける台所）」のボス＝穢れの核「むだなわたし」。
-// もう帰らない兄を、夕食で呼び戻そうとする死の否認。家事＝祈りが砕けた無力感。
-// 怒り（他責）の下にある悲しみへ光を届ける（正典 v3: 兄=少年は物語開始前に事故死。余命設定は非正典）。
-// 禁止語「あなたのせいじゃない」は使わない。祈りが届いていたことを伝えて解く。
+// BossKoharu : STAGE2「こはる」のボス＝『我に返るわたし』（@koharu_light）。
+// 消えた配信画面の前の部屋。止まったら我に返る人。明るさと蒼白を往復する。
+// 浄化後は、ミナが消されたコメントを返し（S2-8 一段目）、来ていた回数を数えた証人として
+// 自分の言葉で決定打を打つ（二段目「八十七回」「一秒も」）。推しの側の話も、親の話もしない。
+// 台詞の正典: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S2-7・S2-8。
 public partial class BossKoharu : Enemy
 {
     public bool Finished { get; private set; }
@@ -24,10 +25,11 @@ public partial class BossKoharu : Enemy
     private double _lineT;
     private bool _zHeld;
 
-    private const string SCocky = "res://char/shonen_face.png";
-    private const string SGentle = "res://char/shonen_gentle.png";
-    // 絶望（兄が消える恐怖に呑まれる）行だけ、こはるの蒼白＝血色を失った立ち絵に差し替える。
+    // こはるの顔。学校の明るい顔＝koharu_face／蒼白＝koharu_face_pale／配信画面の光を浴びた＝koharu_face_lit。
+    // 泣き顔差分は無く、蒼白が絶望を担う（仮台本 07 の但し書き）。
+    private const string KFace = "res://char/v3/koharu_face.png";
     private const string KPale = "res://char/v3/koharu_face_pale.png";
+    private const string MWorried = "res://char/mina_worried.png";
 
     // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
@@ -44,7 +46,7 @@ public partial class BossKoharu : Enemy
     //   残した弾は時間切れで 0.06s 間隔で順に自機狙いニードル（130px/s）に変わって飛んでくる。
     //   完食（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
     //  （報酬の流儀はレイの安置リレー完走報酬 BossRei.TickRelayWatch に合わせる。♥上限時はスコアで返す）。
-    //   テーマ＝「ぜんぶ食べてね。のこしちゃだめ。」：前へ出て食べるほどお残し（＝後の弾）が減って安全
+    //   テーマ＝「アーカイブ、ぜんぶ見て」：前へ出て見るほど見残し（＝後の弾）が減って安全
     //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“食べて”いない＝完食報酬なし。
     private bool _mealFired;         // 発火ワンショット
     private int _mealPhase;          // 0=非活性 / 1=宣告→配膳待ち / 2=食事時間(8s) / 3=お残し→ニードル変換中
@@ -60,7 +62,7 @@ public partial class BossKoharu : Enemy
     private double _mealConvStep = 0.06;   // お残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
     private float _mealFallSpeed = 12f;    // 料理弾の降下速度（ゆっくり＝狙って食べられる）
     private float _mealNeedleSpeed = 130f; // お残しニードルの速度
-    private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「のこしちゃだめ」の色）
+    private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「みんな見てる」の色）
 
     // ── 「五徳の十字火」（HP28%ワンショットスペル・B-4②）──
     //   宣告 → 自機の現在地に十字（BeamH＋BeamV・予兆1.2s×WarnMul）→ 0.8s後に同じ中心へ45°回転した
@@ -90,59 +92,49 @@ public partial class BossKoharu : Enemy
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE2 こはる＝台所・琥珀と深紅の暖色）。
+    // スペルカード（STAGE2 こはる＝配信画面の光の琥珀と、我に返る一拍の深紅）。技名は仮台本 07 の S2-7。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("ぜんぶ食べて",         BulletShape.Orb,     new Color("e8a24a")), // 琥珀・台所の灯
-        ("のこしちゃだめ",       BulletShape.Diamond, new Color("d6443f")), // 深紅・高速ダイヤ雨
-        ("じっとしてて",         BulletShape.Needle,  new Color("e87a3c")), // 橙・十字バースト（動くな）
-        ("あたしがちゃんとするから", BulletShape.Rice, new Color("ffa14a")), // 燃え残り・扇の粒弾
+        ("ちゃんとしなきゃ", BulletShape.Orb,     new Color("e8a24a")), // 琥珀・画面の光
+        ("みんな見てる",     BulletShape.Diamond, new Color("d6443f")), // 深紅・視線の雨
+        ("期待",             BulletShape.Needle,  new Color("e87a3c")), // 橙・黒板の二文字
+        ("我に返る",         BulletShape.Rice,    new Color("ffa14a")), // 燃え残り・扇の粒弾
     };
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", s.name, s.tint);
+        GetHud()?.AnnounceSpell("こはる", "@koharu_light", s.name, s.tint);
     }
 
-    // 浄化のかけあい（who: 0=少年 / 1=ミナ / 2=こはる）。
-    // 【届け方＝“少年の直接台詞（劇的アイロニー）”で抜く型】（優先度2）。レイ＝中継の記録／あかり＝名前一点、に対し、
-    //   この面は決定打をミナ中継ではなく“少年が兄として妹に直接かける言葉”に置く。観客だけが意味を知り、ミナは半分気づく。
-    //   中継(5)は最小限（一度だけ）に絞り、少年の生の声を前へ出す＝3戦で届け役・声の主を散らす（同型4拍の反復を断つ核）。
-    // 設計書 v2 [P-03] のボス節（ミナの気遣い・少年の取り繕いも含む）。
-    // 躁的暴走＝支配的な世話焼き。傷＝兄の死を認めない唯一の力＝完璧にすれば失わない、という呪術（死の否認）。
-    private const string SAfraid = "res://char/shonen_afraid.png"; // 承第3段で立てた“消えかけ”を改心でも滲ませる
+    // S2-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
+    //   (1) ミナが S2-4 で拾った「消されたコメント」を本人へ返す
+    //   (2) 来ていた回数を数えた証人として、ミナ自身の言葉で決定打（「八十七回」「一秒も」）
+    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
+    // 「来ていた回数を、数えました。」の行で BGM を落とし、決定打を無音のまま置く。
+    // 泣き顔差分は無く、蒼白（KPale）が絶望を担う。推しの側の話も、親の話もしない。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "ごはん、できたよ! ぜんぶ食べてね。残したら……許さないんだから。", ""),
-        (2, "あ、そこ汚れてる。掃除するから、じっとしてて。動かないで。ね?", ""),
-        (2, "だいじょうぶ。あたしがちゃんとするから。お兄ちゃんは、なにもしなくていいの。", ""),
-        (1, "……ご主人様? お顔の色が。", ""),
-        (0, "……なんでもない。続けるぞ。", SAfraid),                             // 承第3段の弱りが改心にも尾を引く（cocky→afraid）
-        (2, "ちゃんと作って、ちゃんと食べさせて、ちゃんと、ちゃんとしてれば——", ""),
-        (2, "……ちゃんとしてれば、お兄ちゃん、いなくならないでしょ? ねえ、いなくならないよね……?", KPale), // 絶望＝蒼白
-        (5, "——怒りの下の悲しみを、ちゃんと、悲しんでいい。", ""),                // 中継はここ一度だけ（最小限）
-        (2, "あたしのごはんじゃ、お兄ちゃんは帰ってこない……! じゃあ、なんの、意味が……!", KPale),     // 絶望＝蒼白（否認が一瞬だけ割れる）
-        // ↓ 決定打＝少年“本人”の直接の声（中継でなく who=0）。兄が妹に、を観客だけが知る＝劇的アイロニーで抜く。
-        (0, "……お兄さんが最後の日まで、あったかいままでいられたのは。きみの食卓が、あったからだよ。", SGentle),
-        (0, "祈りは、ちゃんと——届いてた。", SGentle),                            // 中継を挟まず少年の生声で言い切る（届け方の核）
-        (2, "……ほんとに? ……ちゃんと、食べて、くれるかな。今日は。", ""),       // 日常語＝小さな願い
-        (0, "……ああ。残さず、食べるよ。", SGentle),                              // 兄が、妹に（観客だけが意味を知る）
-        (0, "明日のぶんは——……いや。たくさん、作ってやってくれ。きみは、えらいよ。", SAfraid), // “明日のぶんはいい”を呑み込む＝消えかけ（afraid）
-        (1, "ご主人様。いまの……どなたに、おっしゃったんですか。", ""),         // ミナが半分気づく（Final/伏線へ・StageKoharu Clear が参照）
-        // ② こはるの否認「ちゃんとすれば、いなくならない」と、ミナ自身の否認が同型。
-        //    説明せず、ミナが半秒だけ自分の否認に触れる“間”の一行（Final受容への助走）。
-        (1, "……ちゃんとしてれば、いなくならない。……ええ。わたくしも、そう思っていたいです。", "res://char/mina_worried.png"),
-        (0, "…………帰ろう、ミナ。", SCocky),                                      // 再仮面
+        (2, "楽しいの。ほんとに。見てる間だけは、ぜんぶ、忘れてられるの。", KFace),
+        (2, "でも、電気つけたら——机の上に、模試。机の下に、箱。……あたし、なにしてんだろ。", KPale),
+        (2, "……忘れてた時間、ぜんぶ、むだで——", KPale),
+        (1, "消されたコメントを、拾っておりました。「レイちゃんがいたから、今日も学校行けた」。", ""),   // (1) S2-4 の回収
+        (2, "……っ。……それ、消したもん。……重いって、思われそうで、やだったから……", KPale),
+        (1, "“むだだ”という声なら、ここへ来るまでに、ぜんぶ祓いました。", MWorried),
+        (1, "来ていた回数を、数えました。八十七回。一度も、欠けていません。", MWorried),   // ここで BGM 停止
+        (1, "——むだな時間は、一秒も、ありませんでしたよ。", MWorried),                     // (2) 決定打。無音のまま
+        (2, "……ほんとに? ……明日も、見に行って、いいのかな。", KFace),
     };
+    // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
+    private const string BgmStopLine = "来ていた回数を、数えました。八十七回。一度も、欠けていません。";
 
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [koharu]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("koharu", "points", 1800);
         BodyRadius = BossTuning.F("koharu", "body_radius", 9f);
-        PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだよ」等の言葉（黒い吹き出し）
+        PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだ」等の言葉（黒い吹き出し）
         PanelInk = BossTuning.I("koharu", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
@@ -199,7 +191,7 @@ public partial class BossKoharu : Enemy
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossKoharu);
         // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
         _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("koharu", "roam_speed", RoamSpeed));
-        GetHud()?.ShowBossBar("とまれないわたし", "@koharu");
+        GetHud()?.ShowBossBar("我に返るわたし", "@koharu_light");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
@@ -239,7 +231,7 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // フィナーレ（HP2割以下）：「むだだよ」(琥珀の円弾リング)＋「怒り（他責）」(深紅の菱形雨)を同時展開。
+    // フィナーレ（HP2割以下）：「ちゃんとしなきゃ」(琥珀の円弾リング)＋「みんな見てる」(深紅の菱形雨)を同時展開。
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
@@ -260,9 +252,9 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝食卓に落ちる祈りは、自機弾で“受け止め”られる。
+    // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝画面から落ちてくる光は、自機弾で“受け止め”られる。
     // 消すと双方消滅＋やさしさ微加算（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
-    // FanDown はスペル「のこしちゃだめ」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
+    // FanDown はスペル「みんな見てる」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
     // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
     private void FanDown(BulletPool pool)
     {
@@ -296,7 +288,7 @@ public partial class BossKoharu : Enemy
                     if (IsInstanceValid(b) && b.Active && b.Erasable) _mealLeft.Add(b);
                 _meal.Clear();
                 _mealPhase = 3; _mealT = 0;
-                GetHud()?.ShowBossLine("こはる", "……のこしたね。のこしちゃだめって、いったのに。", UiKit.Kegare, 2.0);
+                GetHud()?.ShowBossLine("こはる", "……見なかったところ、あるでしょ。……ぜんぶ、見てほしいのに。", UiKit.Kegare, 2.0);
                 return;
             default: // 3: お残し→自機狙いニードル（0.06s間隔で順に）。変換待ちの間も撃って食べれば減らせる。
                 var pool = GetNodeOrNull<BulletPool>("/root/Pool");
@@ -343,7 +335,7 @@ public partial class BossKoharu : Enemy
         return true;
     }
 
-    // まだ食卓に残っている料理弾の数。プール再利用対策：参照が生きたまま別の弾に転用されても、
+    // まだ画面に残っている配膳弾（＝見ていないアーカイブ）の数。プール再利用対策：参照が生きたまま別の弾に転用されても、
     // Activate が Erasable を必ずリセットするため「Active かつ Erasable」だけが本物の料理弾
     //（ギミック中は FanDown が撃たない＝他に Erasable を立てる者がいない）。
     private int CountMealAlive()
@@ -354,7 +346,7 @@ public partial class BossKoharu : Enemy
         return n;
     }
 
-    // ギミック終了。fullEat=食卓が時間内に空になった（ボム薙ぎ払い等を含むため、報酬判定は中で絞る）。
+    // ギミック終了。fullEat=画面が時間内に空になった（ボム薙ぎ払い等を含むため、報酬判定は中で絞る）。
     private void FinishMeal(bool fullEat)
     {
         _mealPhase = 0;
@@ -370,7 +362,7 @@ public partial class BossKoharu : Enemy
         bool noHit = _mealStartLives >= 0 && pl.Lives >= _mealStartLives;
         bool noBomb = _mealStartBombs >= 0 && (GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? _mealStartBombs) >= _mealStartBombs;
         if (!noHit || !noBomb) return;
-        GetHud()?.ShowBossLine("こはる", "……ぜんぶ、食べてくれた。えらいね。……えらいね。", UiKit.Kegare, 2.4);
+        GetHud()?.ShowBossLine("こはる", "……ぜんぶ、見てくれた。……ありがと。ありがと、ね。", UiKit.Kegare, 2.4);
         Vector2 at = pl.GlobalPosition;
         if (pl.AddLife(1))
         {
@@ -495,8 +487,8 @@ public partial class BossKoharu : Enemy
             _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
             _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
             if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", "お残し禁止", Spells[0].tint);
-            GetHud()?.ShowBossLine("こはる", "ごはんできたよ! ぜんぶ食べてね。のこしちゃ、だめ。", UiKit.Kegare, 2.2);
+            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "全部見なきゃ", Spells[0].tint);
+            GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
         }
         // 「五徳の十字火」：HP28%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替26%の直前＝終盤入りの合図）。
         // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
@@ -505,8 +497,8 @@ public partial class BossKoharu : Enemy
             _gotoFired = true;
             _gotoPhase = 1; _gotoT = 0;
             if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", "五徳の十字火", GotoTint);
-            GetHud()?.ShowBossLine("こはる", "うごかないでね。……火、つけるから。", UiKit.Kegare, 2.0);
+            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
+            GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。ただし finale_cap（既定0.18）で
         // 頭を抑える＝Easy(2本)の25%発火で第4スペル(26%〜)の発動域が1%しか無くなる問題の是正（QA指摘）。
@@ -514,16 +506,17 @@ public partial class BossKoharu : Enemy
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_kitchen", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
+            GetHud()?.AnnounceSpell("こはる", "@koharu_light", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }
 
-    // RECLOSE のキャラ別弱気セリフ（序盤=支配→終盤=絶望）。
+    // S2-7 の RECLOSE（仮台本 07）。宣言 → 「やめないで……止まったら」 → 取り繕い、の三段を順送り。
+    //   「止まったら我に返る」の意味に変わっている（12 流用資産の型はそのまま、文言を組み直し）。
     private static readonly string[] RecloseLines =
     {
-        "まだだよ。ちゃんとしなきゃ、だめなの。",
-        "じっとしてて。手を止めたら、終わっちゃう。",
-        "やめないで……止まったら、お兄ちゃんが……",
+        "みんな見てる。……見てるもん。ちゃんとしなきゃ、だめだもん。",
+        "やめないで……止まったら——",
+        "……なんでもない。楽しいってば。",
     };
     private int _recloseIdx;
     protected override void OnRecloseLine()
@@ -552,8 +545,9 @@ public partial class BossKoharu : Enemy
 
     protected override void OnCryEnd()
     {
-        // S3 画の反転：改心成立（cry→post）で、空席の箸に湯気が戻り始める
-        //（帰還の会話の背景でゆっくり回復。指ししない＝気づく余白）。
+        // 画の反転（S2-9）：改心成立（cry→post）で、消えていた配信画面が灯り、途中で切れていた
+        //   ペンライトの光が画面まで届き切る（帰還の会話の背景でゆっくり。指ししない＝気づく余白）。
+        //   旧演出（空席の箸に湯気が戻る）は StageImagery.DrawKoharuReversal ごと差し替え済み。
         (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
         Finished = true;
     }
@@ -594,13 +588,15 @@ public partial class BossKoharu : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
+        // 旧稿の記憶フラッシュ（StageImagery.TriggerMemoryFlash）は呼ばない。案C の改心は回想ではなく
+        // 「S2-4 で消えた一行を、本人の前で返す」なので、台所の回想の画は場面と食い違う。
+        // 決定打の手前で音を落とす（台本の「ここでBGM停止。無音のまま」）。
+        if (text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,
-            // こはるは通常 koharu_face。絶望行だけ face に蒼白(pale)を指定して差し替える。
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/koharu_face.png" : face,
-            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情（worried 等）
-            _ => "res://char/mina_face.png", // 中継ほか
+            // こはるは通常 koharu_face。絶望行だけ face に蒼白(KPale)を指定して差し替える。
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,
+            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face,   // ミナも行ごと表情
         };
         hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }

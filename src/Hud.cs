@@ -672,7 +672,7 @@ public partial class Hud : CanvasLayer
         {
             ["レイ"]   = ("res://char/v3/cutin_rei.png",    "——追いつけるものなら、どうぞ？"),
             ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
-            ["こはる"] = ("res://char/v3/cutin_koharu.png", "ぜんぶ食べてね。のこしちゃ、だめ。"),
+            ["こはる"] = ("res://char/v3/cutin_koharu.png", "ちゃんとしなきゃ。……みんな、見てるもん。"),
             ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),
         };
         if (!_cutinData.TryGetValue(who, out var d)) return;

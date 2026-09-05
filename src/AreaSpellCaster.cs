@@ -281,15 +281,16 @@ public partial class AreaSpellCaster : Node2D
                 _shapes = new[] { V, C }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
                 _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
                 break;
-            case "koharu": // 台所・熱してから一気に（予兆やや短め・琥珀/深紅）
-                _disp = "こはる"; _handle = "@koharu_kitchen";
+            case "koharu": // 消えた配信画面の前の部屋・溜めてから一気に（予兆やや短め・琥珀/深紅）
+                _disp = "こはる"; _handle = "@koharu_light";
                 _tint = new Color("e8945a"); _hot = new Color("ffc06a");
                 // warn 下限 0.7→1.0s：全ボス最短の予兆が5秒の宣言カードと乖離し「宣言だけ出て
                 // 何も起きない」感の主因だった（QA 2026-07 週次）。短予兆の性格は上限1.3sで残す。
                 _warnMin = 1.0; _warnMax = 1.3; _interval = 7.0;
                 _shapes = new[] { C, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能だった H_ は削除）
-                // 第3スペル『包丁の軌跡』（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
-                _spells = new (string, AreaStrike.Shape?)[] { ("熱したフライパン", C), ("沸騰鍋", R), ("包丁の軌跡", B) };
+                // 技名は仮台本 07 の S2-7 の圏内へ寄せた（旧・台所の技名＝フライパン／鍋／包丁は落とす）。
+                // 第3スペル（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
+                _spells = new (string, AreaStrike.Shape?)[] { ("画面の光", C), ("視線のかたまり", R), ("既読の線", B) };
                 _anchorPlayer = true; // 1枚目は自機の現在地（円/矩形は頭上・包丁は自機を通る線）
                 break;
             default: // mina（暴走）：全テレグラフ同時・濁った全色
@@ -419,9 +420,10 @@ public partial class AreaSpellCaster : Node2D
     {
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
-        // 技名アート：こはるの円＝『熱したフライパン』だけ（スペルは全て shape 固定＝円は必ずこの技）。
-        // 着弾の瞬間にフライパンの振り下ろし（PanSlamFx）が付く。見た目のみ＝判定・尺は不変。
-        if (_key == "koharu" && shape == AreaStrike.Shape.Circle) z.SetArt(AreaStrike.Art.Pan);
+        // 旧・技名アート（こはるの円にフライパンの振り下ろし PanSlamFx を重ねる）は付けない。
+        // 案C のこの面は台所ではなく「電気を消した部屋」で、鍋やフライパンの絵は場面と食い違う。
+        // 差し替えの素材（画面の光が落ちてくる絵）は未発注のため、いまはテレグラフだけを出す
+        // ＝判定・尺は不変（Art.Pan / PanSlamFx のコードは素材が来たとき差し替えられるよう残す）。
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
