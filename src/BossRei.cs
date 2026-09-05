@@ -168,6 +168,10 @@ public partial class BossRei : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("rei", GetParent());
         AddChild(_caster);
+
+        // 部品の演出層（char/v3/fx/rei/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
+        // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
+        AttachParts("rei", idleTexW: 533f, attackTexW: 556f);
     }
 
     protected override void UpdateMovement(double delta)
