@@ -43,7 +43,7 @@ public partial class ChoiceOverlay : Control
     public int Selected { get; private set; }   // 現在カーソル／確定した選択肢の添字
 
     private string[] _choices = System.Array.Empty<string>();
-    private string[] _disp = System.Array.Empty<string>();   // 表示用（鉤括弧付き）。文言そのものは変えない
+    private string[] _disp = System.Array.Empty<string>();   // 表示用（Quoted 済み）。文言そのものは変えない
     private Vector2[] _pos = System.Array.Empty<Vector2>();  // 各断片の基本テキスト左上（設計座標・浮遊前）
     private float[] _w = System.Array.Empty<float>();        // 各断片の基本テキスト幅（FontSize 時）
 
@@ -137,11 +137,20 @@ public partial class ChoiceOverlay : Control
         float top = BlockCenterY - RowPitch * (n - 1) * 0.5f;
         for (int i = 0; i < n; i++)
         {
-            _disp[i] = "「" + _choices[i] + "」";
+            _disp[i] = Quoted(_choices[i]);
             _w[i] = UiKit.TextW(UiKit.ZenBold, _disp[i], FontSize);
             // 画面中央に中央揃えで縦積み（行間は N によらず RowPitch で一定）。
             _pos[i] = new Vector2(CenterX - _w[i] * 0.5f, top + RowPitch * i);
         }
+    }
+
+    // 選択肢の表示文字列。「」は「口に出す／送る言葉」の印なので、送らない側（「（送らない）」など
+    // 括弧で始まる“行為”の選択肢）には付けない＝『「（送らない）」』という二重括弧を作らない。
+    // 全場面（P1 命名・S1-4・S3-7・F4・E6）で同じ扱いになるよう、判定はここ1箇所に閉じる。
+    private static string Quoted(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        return (s[0] == '（' || s[0] == '(') ? s : "「" + s + "」";
     }
 
     public override void _Process(double delta)
