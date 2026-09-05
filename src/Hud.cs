@@ -121,6 +121,7 @@ public partial class Hud : CanvasLayer
     private Color _dlgSpeakerCol = Colors.White;
     private bool _dlgIsDialog;          // true=シネマバー / false=ナレーション（中央）
     private Texture2D? _dlgPortrait;
+    private bool _dlgDraftMark;         // true=立ち絵の代わりに下書きの吹き出し印を出す（LineKind.Boy＝あなた。顔が無い）
     private double _messageTimer;
     private float _dlgRevealed;         // タイプライター表示済み文字数（＝現在ページ内の文字数）
 
@@ -393,7 +394,7 @@ public partial class Hud : CanvasLayer
 
     private void ClearDialog()
     {
-        _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgRevealed = 0;
+        _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgDraftMark = false; _dlgRevealed = 0;
         _dlgPortraitPrev = null; _portraitFadeT = 0; _nodT = 0; _revealWasDone = false;
         _dlgPages.Clear(); _dlgPage = 0;
     }
@@ -441,9 +442,9 @@ public partial class Hud : CanvasLayer
         if (!string.IsNullOrEmpty(speaker)) return speaker;
         return k switch
         {
-            LineKind.Boy   => "少年",
+            LineKind.Boy   => "あなた",
             LineKind.Mina  => "ミナ",
-            LineKind.Relay => "少年（ミナの声）",
+            LineKind.Relay => "あなた（ミナの声）",
             LineKind.Post  => "Ｘ 投稿",
             LineKind.Narration => "ナレーション",
             _              => "",
@@ -472,14 +473,16 @@ public partial class Hud : CanvasLayer
         string speaker; Color color; bool dialog = true; string portraitToUse = portrait;
         switch (kind)
         {
-            case LineKind.Boy:   speaker = "少年"; color = UiKit.Info; break;
+            // Boy＝プレイヤー本人（案C に少年は居ない）。顔が無いので立ち絵は出さず、
+            // 空いた枠には下書きの吹き出し風の小さな印だけを置く（DrawDialog の _dlgDraftMark）。
+            case LineKind.Boy:   speaker = "あなた"; color = UiKit.Info; portraitToUse = ""; break;
             case LineKind.Mina:  speaker = "ミナ"; color = UiKit.Mina; break;
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
-            case LineKind.Relay: speaker = "少年（ミナの声）"; color = UiKit.Info; break;
+            case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        SetDialog(text, speaker, color, dialog, portraitToUse, kind);
+        SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
         _messageTimer = 6.0;
     }
 
@@ -487,7 +490,7 @@ public partial class Hud : CanvasLayer
     // logKind … 会話ログに残すときの種別（既定で kind と同じ。送り音は無音にしたいが
     //            ログ上は発話として残したい旧経路（少年/ヒカゲの ShowDialog(string)）で使い分ける）。
     private void SetDialog(string text, string speaker, Color speakerCol, bool dialog, string portrait,
-        LineKind kind = LineKind.Narration, LineKind? logKind = null)
+        LineKind kind = LineKind.Narration, LineKind? logKind = null, bool draftMark = false)
     {
         // 表示前に会話ログ（バックログ）へ積む。話者色は未指定（default＝ナレ）のとき種別から補う。
         // ※既読スキップ（高速送り）で飛ばした行もここを通る＝バックログには必ず残る。
@@ -503,9 +506,10 @@ public partial class Hud : CanvasLayer
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
         _typePrevRevealed = 0; _dlgKind = kind;
         Texture2D? next = string.IsNullOrEmpty(portrait) ? null : ResourceLoader.Load<Texture2D>(portrait);
+        _dlgDraftMark = draftMark && next == null;
         // ページ分割：本文が入る幅を確定し、2行ずつのページへ割る（送り機構は DialogRevealed/RevealDialogNow で駆動）。
         //   幅は DrawDialog のレイアウトと一致させる（ナレ＝中央920 ／ セリフ＝バー幅から話者列・立ち絵を引いた実効幅）。
-        BuildDialogPages(dialog, next);
+        BuildDialogPages(dialog, next, _dlgDraftMark);
         // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
         // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
         if (next != null && _dlgPortrait != null && next != _dlgPortrait)
@@ -527,7 +531,7 @@ public partial class Hud : CanvasLayer
 
     // 本文を DlgMaxLines(=2) 行ずつのページへ分割する。折り返しは DrawDialog の実効幅と一致させる
     //（＝画面に出る行構成と分割位置がズレない）。禁則は WrapLines が担保。ページは元の行を \n で束ねた文字列。
-    private void BuildDialogPages(bool dialog, Texture2D? portrait)
+    private void BuildDialogPages(bool dialog, Texture2D? portrait, bool draftMark = false)
     {
         _dlgPages.Clear();
         _dlgPage = 0;
@@ -547,6 +551,7 @@ public partial class Hud : CanvasLayer
                 float pw = ph * portrait.GetWidth() / Mathf.Max(1, portrait.GetHeight());
                 textX = x + 10f + pw + 20f;
             }
+            else if (draftMark) textX = x + 10f + DraftMarkW + 20f;
             wrapW = x + w - textX - 30f;                    // DrawDialog の MultiLeading 幅と一致
         }
         _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlgText, UiKit.FontHeading, wrapW, DlgMaxLines));
@@ -1572,6 +1577,25 @@ public partial class Hud : CanvasLayer
     private static float TickerHandleW(string h)
         => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, 12) + 6f;
 
+    // 「あなた」の行に出す下書きの吹き出し印（立ち絵の代わり）。枠の左端に置く小さな角丸＋打ちかけの三点。
+    private const float DraftMarkW = 74f;
+    private static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col)
+    {
+        const float mh = 46f;
+        var r = new Rect2(leftCenter.X, leftCenter.Y - mh / 2f, DraftMarkW, mh);
+        UiKit.Box(ci, r, new Color(col.R, col.G, col.B, 0.10f), 10f, new Color(col, 0.45f), 1.2f);
+        // 吹き出しのしっぽ（左下へ）
+        ci.DrawPolyline(new[]
+        {
+            new Vector2(r.Position.X + 14, r.End.Y),
+            new Vector2(r.Position.X + 8,  r.End.Y + 9),
+            new Vector2(r.Position.X + 26, r.End.Y),
+        }, new Color(col, 0.45f), 1.2f);
+        // 打ちかけの三点（下書き＝まだ言葉になっていない）
+        for (int i = 0; i < 3; i++)
+            ci.DrawCircle(new Vector2(r.Position.X + 22 + i * 15, leftCenter.Y), 3.2f, new Color(col, 0.55f));
+    }
+
     private void DrawDialog(HudCanvas ci)
     {
         // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
@@ -1598,6 +1622,13 @@ public partial class Hud : CanvasLayer
         float textX = x + 36;
         // 立ち絵（あれば左に）。常時の微細な生命感：呼吸（上下揺れ）＋表情クロスフェード＋うなずき。
         // ここで描く立ち絵＝いま発話中の話者なので、揺れは「話者だけ」に自然に閉じる。
+        if (_dlgPortrait == null && _dlgDraftMark)
+        {
+            // 「あなた」には顔が無い。立ち絵の枠は空けたまま、下書きの吹き出し風の小さな印だけ置く
+            //（＝画面に人が増えず、それでも誰が喋ったかの居場所は残る）。
+            DrawDraftMark(ci, new Vector2(x + 10, y + h / 2f), _dlgSpeakerCol);
+            textX = x + 10 + DraftMarkW + 20;
+        }
         if (_dlgPortrait != null)
         {
             float ph = h - 8, pw = ph * _dlgPortrait.GetWidth() / Mathf.Max(1, _dlgPortrait.GetHeight());

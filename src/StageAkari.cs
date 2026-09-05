@@ -136,18 +136,18 @@ public partial class StageAkari : Node
     // S1-4 の下書き選択。（送らない）は言葉ではないので【散】に数えない＝表示候補の2件だけが散る。
     private static readonly string[] S14Choices = { "ひろって", "そっとしといて", "（送らない）" };
     // 選択ごとの受け。どのみち「そっと拾う」＝最後の締め（S14Tail）へ合流する。
-    //   台本の `(0, "ひろって", "")` にあたる「送った下書きの復唱」行は置かない。Hud.ShowDialog は
-    //   LineKind.Boy を「少年」名義で描く（他ステージは who=0＝少年のまま）ので、案C の「あなた」を
-    //   そこへ流すと話者名が食い違う。選んだ断片が吹き出しへ昇って光に溶ける ChoiceOverlay の解散演出が
-    //   「送った」の画になっているため、復唱を足さなくても送信の一拍は成立する。
+    //   先頭の who=0 は台本 06 の「送った下書きの復唱」行（Hud は LineKind.Boy を「あなた」名義・
+    //   立ち絵なしの下書き印で描く）。（送らない）は言葉を送っていないので復唱を置かない。
     private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
+            (0, "ひろって", ""),
             (1, "……はい。そっと、拾います。……渡すのは、わたくしではありませんので。", MFace),
         },
         1 => new (int, string, string)[]
         {
+            (0, "そっとしといて", ""),
             (1, "……はい。そっと。——拾うのと、そっとしておくのは、両立します。", MFace),
         },
         // （送らない）／沈黙20秒。【濁】微増（仕様未決につき小さく）。
@@ -295,9 +295,10 @@ public partial class StageAkari : Node
     {
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
-        // 案C のこの面に出るのは ミナ(1)／あかり(2)／投稿(4) だけ（投稿は Hud 側で立ち絵を捨てる）。
+        // 案C のこの面に出るのは あなた(0)／ミナ(1)／あかり(2)／投稿(4)（あなたと投稿は Hud 側で立ち絵を捨てる）。
         string portrait = kind switch
         {
+            Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? AFace : face,   // あかりは行ごと差し替え可
             _ => string.IsNullOrEmpty(face) ? MFace : face,                    // ミナも行ごと表情
         };
