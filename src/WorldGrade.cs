@@ -93,6 +93,14 @@ public partial class WorldGrade : Node2D
     // 無ければ Player を group から引いて x/W で算出（参照はここ1箇所に集約）。
     private float Nx => BgScroll.PlayerNx(this);
 
+    // ボス突入中に加算の光を弱める係数（1=道中のまま / 0.5=ボスで半減）。
+    //   層背景(BgLayers)の暗転は L1〜L3 を 0.45 倍に落とすが、浄化が進んだ面では段階3の琥珀の加算光が
+    //   その上に乗って暗転を打ち消してしまい「空気が変わった」と見えなかった（あかり面のスクショで確認）。
+    //   ボスの暗転しきり(BgLayers.BossDimK)に合わせて加算αを 1→0.5 へ落とし、暗転を相殺しない。
+    //   Brighten の面（レイ）は BgLayers 側が層セットごと金の光を足すので、半減してもそちらが勝つ。
+    private const float BossAddMul = 0.5f;
+    private float _addMul = 1f;   // 実際に掛ける係数（_Process で BossDimK から更新）
+
     // ヒステリシス付きで進行度→段階を決める。cur は現在段階（境界近くの揺れを cur 側に寄せる）。
     private static int StageFromProgress(float p, int cur)
     {
@@ -120,6 +128,10 @@ public partial class WorldGrade : Node2D
             _blend = 0f;
         }
         if (_blend < 1f) _blend = Mathf.MoveToward(_blend, 1f, dt * FadeSpeed);
+
+        // ボス突入の暗転に合わせて加算の光を弱める（層背景を敷いている面だけ。1枚絵の面は常に 1）。
+        var bgLayers = GetTree().GetFirstNodeInGroup("bglayers") as BgLayers;
+        _addMul = bgLayers == null ? 1f : Mathf.Lerp(1f, BossAddMul, bgLayers.BossDimK);
 
         // プレイヤー位置はなめらかに追従（急な左右移動でヒントがちらつかない）。
         _nx = Mathf.Lerp(_nx, Nx, 1f - Mathf.Exp(-8f * dt));
@@ -241,19 +253,20 @@ public partial class WorldGrade : Node2D
             // Add 層は「この AddLayer 自身」が draw コンテキスト＝target に this を渡す（親に描くと拒否される）。
             int ps = Host._prevStage, cs = Host._stage;
             float b = Host._blend;
+            float m = Host._addMul;   // ボス中は加算の光を弱める（層背景の暗転を相殺しない）
             if (Grades[ps].Add)
             {
                 float w = 1f - b;
-                if (w > 0.001f) DrawRadialOverlay(this, Grades[ps].Col, Grades[ps].EdgeA * w);
+                if (w > 0.001f) DrawRadialOverlay(this, Grades[ps].Col, Grades[ps].EdgeA * w * m);
             }
             if (Grades[cs].Add && cs != ps)
             {
-                if (b > 0.001f) DrawRadialOverlay(this, Grades[cs].Col, Grades[cs].EdgeA * b);
+                if (b > 0.001f) DrawRadialOverlay(this, Grades[cs].Col, Grades[cs].EdgeA * b * m);
             }
             else if (Grades[cs].Add && cs == ps)
             {
                 // フェード完了後（prev==cur）は現段階を全重みで（初期化直後・定常状態）。
-                DrawRadialOverlay(this, Grades[cs].Col, Grades[cs].EdgeA);
+                DrawRadialOverlay(this, Grades[cs].Col, Grades[cs].EdgeA * m);
             }
         }
     }

@@ -97,14 +97,20 @@ public partial class BgLayers : Node2D
     private readonly List<Live> _live = new List<Live>();
 
     // ───── ボス突入の明暗 ─────
-    // Dim（既定）: L4（加算＝光）は α を 0 へ、それ以外は Modulate を 0.55 倍へ、0.8 秒でフェードする。
+    // Dim（既定）: L4（加算＝光）は α を 0 へ、それ以外は Modulate を 0.45 倍へ、0.8 秒でフェードする。
+    // 0.55 では浄化が進んだ面で WorldGrade の加算光（段階3の琥珀）と相殺し「空気が変わった」と分からなかった。
+    // 係数を 0.45 まで下げ、併せて WorldGrade 側の加算光もボス中は半分に落とす（暗転を相殺させない）。
     // Brighten（STAGE3）: L4 はそのまま、L1〜L3 を 0.7 倍まで（暗転より浅く）落として本体を立たせる。
     private const float BossDimDur = 0.8f;
-    private const float BossDimMul = 0.55f;
+    private const float BossDimMul = 0.45f;
     private const float BossBrightMul = 0.70f;
     private bool _dimming;
     private float _dimT;
     private float _dimK;          // 0=通常 1=暗転（or 明転）しきり
+
+    // 暗転のしきり（0=道中 1=ボス）を外へ公開する。WorldGrade がこれを読み、浄化が進んだ面で
+    // 加算の光が暗転を打ち消さないよう自分の加算αを落とす（WorldGrade.BossAddMul）。
+    public float BossDimK => _dimK;
 
     // ───── 層セットのクロスフェード（道中で場所が変わる面）─────
     // 新セットを α0 で敷いて _live に足し、旧セットの Live を _fadingOut に移す。
@@ -293,7 +299,7 @@ public partial class BgLayers : Node2D
         foreach (var l in _live)
         {
             var b = l.BaseTint;
-            // Dim: 加算層（光）はαを 0 へ、それ以外は明度を 0.55 倍へ。
+            // Dim: 加算層（光）はαを 0 へ、それ以外は明度を 0.45 倍へ。
             // Brighten: 光は消さず（レイのボスは煌々と点く）、L1〜L3 は 0.7 倍に留める。
             float dimTo = brighten ? BossBrightMul : BossDimMul;
             float rgbMul = l.Additive ? 1f : Mathf.Lerp(1f, dimTo, _dimK);

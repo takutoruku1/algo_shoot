@@ -49,7 +49,7 @@ public partial class ReiRoot : Node2D
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
             },
             LayerBossBehavior = BgLayers.BossBehavior.Brighten,
-            // ボスの層セット：枠が全面へ広がり、金の光（α0.35 の加算）が足される。近景と遠景は据え置き。
+            // ボスの層セット：枠が全面へ広がり、金の光（α0.50 の加算）が足される。近景と遠景は据え置き。
             BossLayerDefs = new[]
             {
                 new BgLayers.Layer("res://char/bg2/stage3/L1_far.png",          0.15f, -95, deepViolet),
@@ -59,7 +59,7 @@ public partial class ReiRoot : Node2D
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_screen.png", 0f,    -88, Colors.White, additive: true),
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_gold.png",   0f,    -88,
-                    new Color(1f, 1f, 1f, 0.35f), additive: true),
+                    new Color(1f, 1f, 1f, 0.50f), additive: true),
             },
         };
         AddChild(bg);
