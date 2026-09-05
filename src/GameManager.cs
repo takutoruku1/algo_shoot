@@ -1380,6 +1380,21 @@ public partial class GameManager : Node
     }
     private const float PrayerGain = 0.02f; // 微加算（グレイズ0.07より小さく＝受け止めは薬味）
 
+    // 病みポスト（層2 の投稿チップ）を撃って「届けた」。
+    //   正典: wiki/08_仮台本/10_病みポストを見つける_設計案.md（ユーザー承認済み・2026-09-05）の案A・経済の表。
+    //   祈り弾(+0.02)とグレイズ(+0.07)の間＝+0.05。スコア +40／インプレ基礎 3（倍率は GainImpression 内）。
+    //   撃ち漏らしには罰を置かない（ゲージ減算・汚染加算なし＝見逃しを数値で責めない）。
+    public void AddPostDelivered()
+    {
+        Score += 40;
+        AddKindness(PostDeliveredGain);
+        GainImpression(3);              // HUD 左の ♥「心」チップ（RunImpression）に載る＝拾ったことが即返る
+        PostsDelivered++;
+    }
+    private const float PostDeliveredGain = 0.05f;
+    // 今ランで届けた病みポストの数（クリアバナー／帰還会話の集計語彙用。セーブしない）。
+    public int PostsDelivered { get; private set; }
+
     // 祈りの帳（veil_light）の光輪が弾を受け止めた時の加点。ボム消し（Score+5）と同格＋やさしさ微加算。
     public void AddVeilCleared()
     {
@@ -1420,6 +1435,7 @@ public partial class GameManager : Node
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
         RunImpression = 0;
+        PostsDelivered = 0;   // 届けた病みポストの数もラン単位
         _kindFill = 0f;
         IsOverload = false;
         _overloadT = 0;

@@ -96,8 +96,11 @@ public static class PostBullets
 
         var th = theme ?? PostPool.CurrentTheme(node);
         int salvo = Mathf.Min(Salvo(diff), room);
+        // 層2（病みポスト）は画面に 1 枚まで（10 の視認性の表）。すでに 1 枚出ていればこの tick の層2 抽選は
+        // 層1 へ落とす＝「TL の中に一本だけ沈んでいる」を保ち、敵弾の視認性も侵さない。
+        bool achingRoom = !AnyAchingPost(pool);
         for (int i = 0; i < salvo; i++)
-            SpawnOne(pool, rng, th, fallSpeed, accent, murkAll);
+            if (SpawnOne(pool, rng, th, fallSpeed, accent, murkAll, achingRoom)) achingRoom = false;
     }
 
     // 画面上で生きている投稿弾（Word 付きの敵弾）の数。MaxOnScreen キャップ判定用。
@@ -109,16 +112,36 @@ public static class PostBullets
         return n;
     }
 
+    // 層2（病みポスト）が画面に1枚でも出ているか（同時1枚のキャップ判定）。
+    private static bool AnyAchingPost(BulletPool pool)
+    {
+        foreach (Node c in pool.GetChildren())
+            if (c is Bullet b && b.Active && b.IsEnemy && b.WordAching) return true;
+        return false;
+    }
+
+    // 層2 の落下倍率（10 の視認性の表）。読む時間を作るぶんだけゆっくり落ちる。
+    private const float AchingFallMul = 0.8f;
+
     // 投稿弾を1発スポーン（SNSコメントチップ弾。中心の小ドットが当たり判定＝Bullet 既存仕様のまま）。
     // 語は PostPool から「面のテーマ×層」で引く（層の比率は 09 の言葉弾の行＝RollLayer）。
-    private static void SpawnOne(BulletPool pool, RandomNumberGenerator rng,
-        PostPool.Theme theme, float fallSpeed, Color? accent, bool murkAll)
+    // 戻り値＝層2（病みポスト）として出したか（同時1枚キャップの消費判定）。
+    private static bool SpawnOne(BulletPool pool, RandomNumberGenerator rng,
+        PostPool.Theme theme, float fallSpeed, Color? accent, bool murkAll, bool achingRoom)
     {
         var layer = PostPool.RollLayer(theme, rng);
+        // 層2 の枠が埋まっていれば層1 へ落とす（層2 が消えるのではなく「次の1枚まで待つ」）。
+        bool aching = layer == PostPool.Layer.L2 && achingRoom;
+        if (layer == PostPool.Layer.L2 && !achingRoom) layer = PostPool.Layer.L1;
         string w = PostPool.Draw(theme, layer, rng);
-        if (string.IsNullOrEmpty(w)) return;
+        if (string.IsNullOrEmpty(w)) return false;
         // 落下X範囲は左右の縁まで（旧70〜314）。中央帯だけ降ると画面端（特に左端）が安置化するため崩す。
-        var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fallSpeed), isEnemy: true, 3f, 1);
-        b?.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w));
+        float fall = aching ? fallSpeed * AchingFallMul : fallSpeed;
+        var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fall), isEnemy: true, 3f, 1);
+        if (b == null) return false;
+        b.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w), aching);
+        // 撃って「届ける」＝祈り弾と同じ経路（自機弾を拾う mask を開く）。報酬側は Bullet が WordAching で分ける。
+        if (aching) b.MakeErasable();
+        return aching;
     }
 }

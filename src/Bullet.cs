@@ -41,8 +41,11 @@ public partial class Bullet : Area2D
 
     // ─── ボス別弾幕ギミック（#12 機構側）の弾フラグ ───
     // Erasable: 自機弾で消せる「祈り弾」（こはる FanDown）。消すと双方消滅＋やさしさ微加算。
+    // WordAching: 層2（病みサイン）の投稿チップ＝「見つけて届ける」対象（10 の案A）。Erasable と同居し、
+    //   撃つと祈り弾と同じ経路で拾えるが、報酬は AddPostDelivered（+40／やさしさ+0.05／インプレ3）になる。
     // SoftenOnGraze: グレイズすると一度だけ減速×GrazeSoftenMul＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
     public bool Erasable;
+    public bool WordAching;
     public bool SoftenOnGraze;
     public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
     // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
@@ -100,16 +103,30 @@ public partial class Bullet : Area2D
     // 「当たり判定のあるもの（通常弾・予測線・当たり芯）は常にコメント文字より上」を z 順で保証する。
     // 当たり芯だけは子ノード（BulletWordCore・相対 +12 ＝実効 0）で通常弾と同じ層に浮かせる＝
     // 他のチップ文字に芯が埋もれない。
-    public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false)
+    //   aching : 層2（病みサイン）の投稿＝「見つけて届ける」対象（10 の案A）。いいねが 0〜3 に落ち、
+    //            ハートの位置に深夜（2:00〜4:59）の時刻が出て、暖白のハロ（撃てば拾える合図）が点く。
+    public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false, bool aching = false)
     {
         Word = w;
         _wordHandle = handle;
         _wordAccent = accent ?? KegareWord;
         _wordMurk = murk;
+        WordAching = aching;
         // 晒し投稿らしい“いいね数”を語ごとに固定で付与（X感／毎フレーム再計算しない）。
         int h = 0; foreach (char c in w) h = h * 31 + c;
-        int likes = 800 + (Mathf.Abs(h) % 47000);
-        _wordLikes = likes >= 10000 ? $"{likes / 10000f:0.0}万" : likes.ToString("#,0");
+        if (aching)
+        {
+            // 層2 は数字そのものが手がかり＝いいね 0〜3（10 の視認性の表）。数万の層1 と桁で見分けがつく。
+            _wordLikes = (Mathf.Abs(h) % 4).ToString();
+            // ハートの代わりに深夜の時刻（2:00〜4:59）。内容は日常のまま、時刻だけが深い（09 の病みサイン「刻」）。
+            _wordTime = $"{2 + (Mathf.Abs(h / 4) % 3)}:{(Mathf.Abs(h / 16) % 60):00}";
+        }
+        else
+        {
+            int likes = 800 + (Mathf.Abs(h) % 47000);
+            _wordLikes = likes >= 10000 ? $"{likes / 10000f:0.0}万" : likes.ToString("#,0");
+            _wordTime = "";
+        }
 
         // チップ本体を弾層より奥へ（絶対 z）。Activate が通常弾用に毎回リセットする。
         ZIndex = -12;
@@ -128,6 +145,7 @@ public partial class Bullet : Area2D
         QueueRedraw();
     }
     private string _wordLikes = "";
+    private string _wordTime = "";   // 層2 の深夜の時刻（空＝層1・層3＝ハートを描く）
     private string _wordHandle = "";
     private Color _wordAccent = KegareWord;
     private bool _wordMurk;
@@ -265,6 +283,8 @@ public partial class Bullet : Area2D
         _wordMurk = false;
         _wordHandle = "";
         _wordAccent = KegareWord;
+        WordAching = false;   // 層2（病みポスト）フラグも持ち越さない
+        _wordTime = "";
         if (_wordCore != null) _wordCore.Visible = false;
 
         // ノード回転のリセット（最重要：プール再利用で回転を持ち越すと別形状の弾が傾いて描かれる事故になる）。
@@ -363,7 +383,9 @@ public partial class Bullet : Area2D
             pool?.Despawn(pb);
             FxLayer.Instance?.BulletToPetal(GlobalPosition); // 弾が花びらへ＝“祈りを受け止めた”
             Audio.Instance?.PlayStrip();                     // 軽い「コツッ」（剥離と同域＝浄化より一段軽い）
-            GetNodeOrNull<GameManager>("/root/Game")?.AddPrayerCleared();
+            var gm = GetNodeOrNull<GameManager>("/root/Game");
+            // 層2 の病みポストは「拾った」＝届けた扱い（10 の案A）。祈り弾より一段大きい報酬にする。
+            if (WordAching) gm?.AddPostDelivered(); else gm?.AddPrayerCleared();
             if (pool != null) pool.Despawn(this); else Deactivate();
         }
     }
@@ -595,9 +617,26 @@ public partial class Bullet : Area2D
             DrawString(wf, new Vector2(bx, baseY), Word, HorizontalAlignment.Left, -1, fs, txt);
 
             // いいね（小さなハート＋数）＝拡散の重み。淡く＝メタ情報は主張しない。
+            // 層2（病みポスト）はハートの位置に深夜の時刻を置く＝読めない人にも「いいね 0〜3 と深い時刻」の
+            // 二段構えで見分けがつく（10 の視認性の表）。
             float lx = bx + sz.X + gap;
-            DrawWordHeart(new Vector2(lx + 2f, -1.2f), 2.0f, meta);
-            DrawString(wf, new Vector2(lx + 6.5f, baseY - 1f), _wordLikes, HorizontalAlignment.Left, -1, ms, meta);
+            if (_wordTime.Length > 0)
+            {
+                DrawString(wf, new Vector2(lx, baseY - 1f), _wordTime, HorizontalAlignment.Left, -1, ms, meta);
+                DrawString(wf, new Vector2(lx + MeasureWord(wf, _wordTime, ms).X + 3f, baseY - 1f), _wordLikes,
+                    HorizontalAlignment.Left, -1, ms, meta);
+            }
+            else
+            {
+                DrawWordHeart(new Vector2(lx + 2f, -1.2f), 2.0f, meta);
+                DrawString(wf, new Vector2(lx + 6.5f, baseY - 1f), _wordLikes, HorizontalAlignment.Left, -1, ms, meta);
+            }
+
+            // 層2 の合図＝チップの外周に暖白のハロ（祈り弾と同じ語彙＝「撃てば拾える」）。
+            // 縁光は 09/10 のとおり足さず、ハロだけで静かに示す（暗くしない・点滅させない）。
+            if (WordAching)
+                UiKit.Box(this, new Rect2(x0 - 3.2f, y0 - 3.2f, cw + 6.4f, ch + 6.4f), null, rad + 3.2f,
+                    new Color(1f, 0.95f, 0.8f, 0.42f), 1.1f);
 
             // 当たり芯（赤コア＋白フチ＋抜き円）は子ノード BulletWordCore（実効 z0）が描く＝
             // 他チップの文字や自チップ本文に埋もれず、常に弾層で読める。ここでは描かない。
