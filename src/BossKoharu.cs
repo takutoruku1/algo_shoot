@@ -1,6 +1,6 @@
 using Godot;
 
-// BossKoharu : STAGE3「こはる（永遠に夕食を作り続ける台所）」のボス＝穢れの核「むだなわたし」。
+// BossKoharu : STAGE2「こはる（永遠に夕食を作り続ける台所）」のボス＝穢れの核「むだなわたし」。
 // もう帰らない兄を、夕食で呼び戻そうとする死の否認。家事＝祈りが砕けた無力感。
 // 怒り（他責）の下にある悲しみへ光を届ける（正典 v3: 兄=少年は物語開始前に事故死。余命設定は非正典）。
 // 禁止語「あなたのせいじゃない」は使わない。祈りが届いていたことを伝えて解く。
@@ -90,7 +90,7 @@ public partial class BossKoharu : Enemy
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE3 こはる＝台所・琥珀と深紅の暖色）。
+    // スペルカード（RefrainHTML Danmaku v3 STAGE2 こはる＝台所・琥珀と深紅の暖色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
         ("ぜんぶ食べて",         BulletShape.Orb,     new Color("e8a24a")), // 琥珀・台所の灯

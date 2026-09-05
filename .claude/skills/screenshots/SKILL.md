@@ -44,9 +44,9 @@ UI見直し用に主要画面の静止画を一括取得する。手で操作す
   | `res://Hub.tscn` | hub | **なし** | `1.5` | タイムライン（投稿カード・ヘッダ・汚染バー） |
   | `res://DiffSelect.tscn` | diffselect | **なし** | `1.5` | 難易度選択（報酬倍率・ロック表示） |
   | `res://Shop.tscn` | shop | **なし** | `1.5` | ミナ強化（レベルピップ・Imp価格） |
-  | `res://Rei.tscn` | rei | あり | `2,6,12,20` | STAGE1 会話＋戦闘HUD |
-  | `res://Akari.tscn` | akari | あり | `2,6,12,20` | STAGE2 教室背景の弾幕戦 |
-  | `res://Koharu.tscn` | koharu | あり | `2,6,12,20` | STAGE3 台所背景の弾幕戦 |
+  | `res://Rei.tscn` | rei | あり | `2,6,12,20` | STAGE3 会話＋戦闘HUD |
+  | `res://Akari.tscn` | akari | あり | `2,6,12,20` | STAGE1 教室背景の弾幕戦 |
+  | `res://Koharu.tscn` | koharu | あり | `2,6,12,20` | STAGE2 台所背景の弾幕戦 |
   | `res://Epilogue.tscn` | epilogue | あり | `2,5,9,13` | ナレーション（黒画面＋テキストボックス） |
   | `res://Final.tscn` | final | あり | `3,8,15,22` | 内面ダイブ（汚染の言葉が漂う） |
 

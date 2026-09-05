@@ -26,8 +26,8 @@ description: Auto-play this Godot/.NET game headlessly and scan for bugs — wei
   ※無ければ `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "Godot_v*mono*win64.exe"`。
 - プロジェクト: `d:\dev\algo_shoot`
 - ログ出力先: `d:\dev\algo_shoot\build\qa\`（`build/` は gitignore 済み）
-- 戦闘シーン: `res://Rei.tscn`（STAGE1）, `res://Akari.tscn`（STAGE2）, `res://Koharu.tscn`（STAGE3）
-- シーンチェーン: Prologue → Rei → Akari → Koharu → Final → Epilogue
+- 戦闘シーン: `res://Akari.tscn`（STAGE1）, `res://Koharu.tscn`（STAGE2）, `res://Rei.tscn`（STAGE3）
+- シーンチェーン: Prologue → Akari → Koharu → Rei → Final → Epilogue（各面の間にハブを挟む）
 
 ## QaPilot の引数
 - `--qa` … 有効化（必須）。

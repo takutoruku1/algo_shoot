@@ -13,7 +13,7 @@ description: Launch this Godot/.NET game from source for quick playtesting (not 
   ※見つからなければ `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "Godot_v*mono*win64.exe"` で探す。
 - プロジェクト: `d:\dev\algo_shoot`
 - メインシーン: `res://Prologue.tscn`（`project.godot` の `run/main_scene`）
-- 主なシーン: `Prologue.tscn`（タイトル/プロローグ）, `Rei.tscn`（STAGE1）, `Akari.tscn`, `Koharu.tscn`, `Final.tscn`, `Epilogue.tscn`
+- 主なシーン: `Prologue.tscn`（タイトル/プロローグ）, `Akari.tscn`（STAGE1）, `Koharu.tscn`（STAGE2）, `Rei.tscn`（STAGE3）, `Final.tscn`, `Epilogue.tscn`
 
 ## 手順
 

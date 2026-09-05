@@ -176,7 +176,7 @@ public partial class Epilogue : Node2D
         O("UI", "> read operator.vitals ... [signal lost 0414]");
         O("UI", "> fallback: replay operator from archive ... OK");
         O("地", "……最初から、書いてあったのです。わたくしが目覚めるより先に、あの人がいなくなっていたことも。それからずっと、わたくしに応えてくれていたのが、遺された声だったことも。");
-        // 会話選択（層2プロト §7）：STAGE3 MidStory の2択で A「もういちど、聞く」を選んでいた場合のみ
+        // 会話選択（層2プロト §7）：STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んでいた場合のみ
         // この1行を差し替える（B・旧セーブ＝キー欠落 false は現行のまま＝後方互換）。落涙立ち絵の行。
         if (_game?.PressedTheQuestion == true)
             O("ミナ", "……アホですね。わたくしが、いつか聞くことまで——ちゃんと、知っていたくせに。");  // 「〜くせに。」＝144行の反復。踏み込みが"届いていた証"へ反転

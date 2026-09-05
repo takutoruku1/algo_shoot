@@ -318,7 +318,7 @@ public partial class GameManager : Node
     private bool _burnHappened;    // 一度きりのストーリーイベント済みか
 
     // ─── 会話選択（層2プロト）───
-    //   STAGE3 MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
+    //   STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
     //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
     public bool PressedTheQuestion;
     public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "koharu" && !_burnHappened;
@@ -847,7 +847,7 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
-        // 会話選択（層2プロト）：STAGE3 MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
+        // 会話選択（層2プロト）：STAGE2（こはる）MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
         data["pressedQ"] = PressedTheQuestion;
         // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
         var ids = new Godot.Collections.Array();

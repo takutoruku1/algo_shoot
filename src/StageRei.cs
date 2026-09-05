@@ -1,12 +1,12 @@
 using Godot;
 using System.Linq;
 
-// StageRei : STAGE1「レイ（順位掲示板の海）」進行＋操作チュートリアル（移動/ショット/かすり）。
+// StageRei : STAGE3「レイ（順位掲示板の海）」進行＋操作チュートリアル（移動/ショット/かすり）。
 //   1: 導線・着地＋チュートリアル会話
 //   2: ボス出現
 //   3: ボス前の説明
 //   4: ボス戦
-//   5: クリア → STAGE2(あかり)へ
+//   5: クリア → ハブへ（本編の最終面）
 public partial class StageRei : Node
 {
     public Player Player = null!;
@@ -33,7 +33,7 @@ public partial class StageRei : Node
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
-    // STAGE1緩和（難易度高すぎ）：道中ザコ総数を 60→45（約25%減）。過密な導入Aを多めに削り、
+    // レイ面の緩和（難易度高すぎ）：道中ザコ総数を 60→45（約25%減）。過密な導入Aを多めに削り、
     // 終盤Cは最大密度の山として残す（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
     private const int MidWaveB = 14;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。旧18（-4）
@@ -43,7 +43,7 @@ public partial class StageRei : Node
     // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
     private CameoBoss _cameo = null!;
 
-    // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。STAGE1 からは撤去済み。
+    // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面からは撤去済み。
 
     private const float SpawnX = 300f;
     private const string SCocky = "res://char/shonen_face.png";
@@ -204,7 +204,7 @@ public partial class StageRei : Node
         // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（45体＋ボス1）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
-        // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。STAGE1 は初回でも本編からテンポよく始まる。
+        // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         if (Hud != null) Hud.TutorialActive = false;
 

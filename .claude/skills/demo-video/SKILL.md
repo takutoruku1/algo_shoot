@@ -35,7 +35,7 @@ Godot の Movie Maker モードで録画 → ffmpeg で mp4 に圧縮する手�
 - ffmpeg（winget導入。手順1で実体パスを解決する）:
   `Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffmpeg.exe"` の先頭。
 - プロジェクト: `d:\dev\algo_shoot`
-- 録画するシーン（既定 STAGE1）: `res://Rei.tscn`。他に `res://Akari.tscn`（STAGE2）, `res://Koharu.tscn`（STAGE3）。
+- 録画するシーン（既定 STAGE1）: `res://Akari.tscn`。他に `res://Koharu.tscn`（STAGE2）, `res://Rei.tscn`（STAGE3）。
   ※タイトルから流したいなら `res://Prologue.tscn`（既定難易度でダイブする）。
 - 尺（既定 80秒）: `--seconds N` で指定。**会話を最速スキップする**ので、STAGE1 でも戦闘は 5〜10秒で始まり、
   ノーダメで撃ち続ければ 1ステージは 60秒前後で片づく。全編（複数ステージ）を録るなら 120〜180秒推奨。

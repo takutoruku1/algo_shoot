@@ -1,6 +1,6 @@
 using Godot;
 
-// BossRei : STAGE1「レイ（順位掲示板の海）」のボス＝穢れの核「二番のわたし」。
+// BossRei : STAGE3「レイ（順位掲示板の海）」のボス＝穢れの核「二番のわたし」。
 // 順位に縛られた悔しさの弾幕。剥がしてHPを削り切る＝奥の“本当のレイ”の光に届く＝改心。
 // 改心の会話：少年がミナに託し、ミナが届ける（少年は正体を隠す）。禁止語「あなたのせいじゃない」は使わない。
 public partial class BossRei : Enemy
@@ -68,7 +68,7 @@ public partial class BossRei : Enemy
         "戦ってよ。わたしを、ちゃんと見てよ。",
     };
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE1 レイ＝順位掲示板・銀菫金ティール）。
+    // スペルカード（RefrainHTML Danmaku v3 STAGE3 レイ＝順位掲示板・銀菫金ティール）。
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {

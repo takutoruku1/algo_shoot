@@ -1,6 +1,6 @@
 using Godot;
 
-// ReiRoot : STAGE1「レイ」のルート（Rei.tscn にアタッチ）。
+// ReiRoot : STAGE3「レイ」のルート（Rei.tscn にアタッチ）。
 // レイの心象世界（bg2 stage3 の四層）を敷き、Player(=ミナ)/Hud/StageRei を生成。改心が進むと少し晴れる。
 // ボス突入は他の2面と逆に光が増える（枠が全面化して金の光が点く）＝舞台に上がる面。
 public partial class ReiRoot : Node2D

@@ -1,7 +1,7 @@
 using Godot;
 using System.Linq;
 
-// StageKoharu : STAGE3「こはる（永遠に夕食を作り続ける台所）」進行（v2 [P-03]）。
+// StageKoharu : STAGE2「こはる（永遠に夕食を作り続ける台所）」進行（v2 [P-03]）。
 //   1: ダイブ前〜着地の会話
 //   2: ボス出現
 //   3: ボス前の説明
@@ -38,7 +38,7 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
+    // M2バランス：道中ザコ総数を レイ面と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
     private const int MidWaveB = 14;  // チラ見せ後。やや詰めて始める。旧18（-4）
     private const int MidWaveC = 16;  // 終盤。最大密度＝ボス直前の山（合計45体。ミッドシナリオはボス戦中に割込み）。旧21（-5）

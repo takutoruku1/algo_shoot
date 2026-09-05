@@ -1,7 +1,7 @@
 using Godot;
 using System.Linq;
 
-// StageAkari : STAGE2「あかり（雨の教室）」進行。
+// StageAkari : STAGE1「あかり（雨の教室）」進行。
 //   1: 導入会話（少年＝声/テロップ、ミナ＝立ち絵で毒舌）
 //   2: あかりボス出現
 //   3: ボス戦（自責の弾雨＋あかりの自責弾。浄化＝改心で会話完了まで）
@@ -37,7 +37,7 @@ public partial class StageAkari : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    // M2バランス：道中ザコ総数を STAGE1（Rei）と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
+    // M2バランス：道中ザコ総数を レイ面と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
     // M3：Intro直後にいきなり中ボスの唐突さを解消するため、カメオ前に“肩慣らし”0波を挿入。総数45は維持（6+12+13+14）。
     private const int MidWave0 = 6;   // 肩慣らし（Intro直後・StartIntensity 0）。6体目の浄化でカメオが割り込む。
     private const int MidWaveA = 12;  // 導入（チラ見せ＝先出しの後）。緩く立ち上がる。旧15（-3）
@@ -512,7 +512,7 @@ public partial class StageAkari : Node
         Step_Lines(delta, Clear);
     }
 
-    // ---- 6: STAGE3（こはる）へ ----
+    // ---- 6: STAGE2（こはる）へ ----
     private bool _clearing;
     private void Step_Transition()
     {

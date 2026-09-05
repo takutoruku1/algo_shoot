@@ -1,6 +1,6 @@
 using Godot;
 
-// KoharuRoot : STAGE3「こはる」のルート（Koharu.tscn にアタッチ）。
+// KoharuRoot : STAGE2「こはる」のルート（Koharu.tscn にアタッチ）。
 // こはるの心象世界（bg2 stage2 の四層）を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
 // 場所は2つあり、道中Aは配信の部屋、道中Bで教室へ層セットごとクロスフェードで入れ替わる。
 public partial class KoharuRoot : Node2D

@@ -61,7 +61,7 @@ public partial class BgLayers : Node2D
     public Layer[] Layers = System.Array.Empty<Layer>();
 
     // ボス突入で何が起きるか。面ごとに Root から選ぶ。
-    //   Dim   : 既定。光(L4)のαを 0 へ、L1〜L3 を 0.55 倍へ落として世界を沈める（STAGE1/2）。
+    //   Dim   : 既定。光(L4)のαを 0 へ、L1〜L3 を 0.55 倍へ落として世界を沈める（STAGE1 あかり/STAGE2 こはる）。
     //   Brighten : 逆に光を増やす（STAGE3 レイ）。L1〜L3 は 0.7 倍に留め、BossLayers の層セットへ
     //              クロスフェードして金の光を足す＝舞台が煌々と点く。
     public enum BossBehavior { Dim, Brighten }

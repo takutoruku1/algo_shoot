@@ -1,6 +1,6 @@
 using Godot;
 
-// BossAkari : STAGE2「あかり（雨の教室）」のボス＝穢れの核「ゆるせないわたし」。
+// BossAkari : STAGE1「あかり（雨の教室）」のボス＝穢れの核「ゆるせないわたし」。
 // 自責の言葉（黒い吹き出し＝パネル）を旋回させ、下向きの自責弾を撒く。
 // パネルを剥がしてHPを削り切る＝奥の“本当のあかり”の光に届く＝浄化（改心）。
 // 浄化後は改心の姿を見せながら、少年（正体を隠したまま）が普遍化した言葉を贈る。フォロワーにはしない。
@@ -40,7 +40,7 @@ public partial class BossAkari : Enemy
     private float _ringSpeed = 72f, _aimedSpeed = 96f, _spiralSpeed = 90f, _roamSpeed = RoamSpeed;
     private float _corridorHp = 0.52f;
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE2 あかり＝雨の教室・青と白の寒色）。
+    // スペルカード（RefrainHTML Danmaku v3 STAGE1 あかり＝雨の教室・青と白の寒色）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
         ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針

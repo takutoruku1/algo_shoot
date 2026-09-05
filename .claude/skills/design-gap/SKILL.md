@@ -28,9 +28,9 @@ description: Compare a specified design/scenario doc against the actual game imp
 | 設計書セクション | ゲーム実装ファイル | セリフの在り処 |
 |---|---|---|
 | [P-00] PROLOGUE 起動 | `src/Prologue.cs` | `_talk` の `T(...)` 群、ブートログ `boot[]`、`Acrostic[]`（4行英文） |
-| [P-01a/b/c] STAGE1 レイ | `src/StageRei.cs` + `src/BossRei.cs` | ステージ進行は `Intro`/`BossIntro`/`Clear`、**ボスの改心かけあいは `BossRei.cs` の `Lines[]`** |
-| [P-02a/b/c] STAGE2 あかり | `src/StageAkari.cs` + `src/BossAkari.cs` | 同上（改心セリフは `BossAkari.cs` の `Lines[]`） |
-| [P-03] STAGE3 こはる | `src/StageKoharu.cs` + `src/BossKoharu.cs` | 同上（改心セリフは `BossKoharu.cs` の `Lines[]`） |
+| [P-01a/b/c] STAGE3 レイ | `src/StageRei.cs` + `src/BossRei.cs` | ステージ進行は `Intro`/`BossIntro`/`Clear`、**ボスの改心かけあいは `BossRei.cs` の `Lines[]`** |
+| [P-02a/b/c] STAGE1 あかり | `src/StageAkari.cs` + `src/BossAkari.cs` | 同上（改心セリフは `BossAkari.cs` の `Lines[]`） |
+| [P-03] STAGE2 こはる | `src/StageKoharu.cs` + `src/BossKoharu.cs` | 同上（改心セリフは `BossKoharu.cs` の `Lines[]`） |
 | [P-FINAL] FINAL 汚染 | `src/Final.cs` | `_talk` の `T(...)` 群、`Screams[]` |
 | [P-EP] EPILOGUE 名前 | `src/Epilogue.cs` | `I(...)`/`O(...)` 群、`PwChoices[]`、`Acrostic[]` |
 | 4. ステージ構成表（シーン順・舞台・道中の敵・ボス） | `*.tscn` + 上記各 `Stage*.cs` の遷移（`ChangeSceneToFile`）＋ `Background.cs` | シーンの有無・順序、`Rain()` 等の道中弾、ボスの種類 |

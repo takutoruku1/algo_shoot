@@ -269,7 +269,7 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE1 レイ：順位晒しのタイムライン（Cold=青系）----
+    // ---- STAGE3 レイ：順位晒しのタイムライン（Cold=青系）----
     // #11 文面改稿（maeda）：観測者の声＝ミーム的な軽さ7:刺さる一言3。個人特定なし。
     // ※4枚ずつ・周回ごとに +4 して 8 件全部が順に流れる（DrawTimeline）。刺さる枠は前半 index 2／後半に2枚。
     private static readonly string[] ReiBodies =
@@ -299,7 +299,7 @@ public partial class StageImagery : Node2D
         }, panelA: 0.13f);
     }
 
-    // ---- STAGE2 あかり：自責の雨のタイムライン（雨の湿度を残す）----
+    // ---- STAGE1 あかり：自責の雨のタイムライン（雨の湿度を残す）----
     // #11 文面改稿（maeda）：背景は“世界中の声”＝言えなかった側の観測者たち。ボス本人の声（すき/ごめん）は
     // 背景カードから外し、mutter（言いかけて弾ける吹き出し）に集約＝isVoice の桃差し色はあえて発火させない。
     // "> " 始まりは引用リプ線（既存ロジック・index 0 のみ）。4枚ずつ周回で 8 件全部が順に流れる。
@@ -389,7 +389,7 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE3 こはる：孤独の静かな投稿（暗背景・α一段低め）＋台所の余韻 ----
+    // ---- STAGE2 こはる：孤独の静かな投稿（暗背景・α一段低め）＋台所の余韻 ----
     // いいねは 0 か 1（誰も反応しない孤独）。叫ばない。台所の食卓・空席・箸・湯気は残す。
     // #11 文面改稿（maeda）：日常の軽さの中に“空席”が透ける。死の直接言及なし。4枚ずつ周回で 8 件全部が順に流れる。
     private static readonly string[] KoharuBodies =

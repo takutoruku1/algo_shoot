@@ -53,9 +53,9 @@
 |---|---|---|
 | タイトル | `TitleMenu.tscn` / `src/TitleMenu.cs` | 主題を静かに（顔見せ） |
 | Prologue（起動） | `src/Prologue.cs`（独自レンダラ。boot[]/Acrostic[] :32-38） | 電子・グリッチで主題の断片（無害に聞かせる＝伏線） |
-| STAGE1 レイ | `Rei.tscn` / `src/StageRei.cs` `src/BossRei.cs` | 道中＝推進、ボス＝緊張変奏 |
-| STAGE2 あかり | `Akari.tscn` / `src/StageAkari.cs` `src/BossAkari.cs` | 雨・教室の生楽器寄り。記憶フラッシュ（§4）と同期 |
-| STAGE3 こはる | `Koharu.tscn` / `src/StageKoharu.cs` `src/BossKoharu.cs` | 台所の温もり→その後の冷感 |
+| STAGE3 レイ | `Rei.tscn` / `src/StageRei.cs` `src/BossRei.cs` | 道中＝推進、ボス＝緊張変奏 |
+| STAGE1 あかり | `Akari.tscn` / `src/StageAkari.cs` `src/BossAkari.cs` | 雨・教室の生楽器寄り。記憶フラッシュ（§4）と同期 |
+| STAGE2 こはる | `Koharu.tscn` / `src/StageKoharu.cs` `src/BossKoharu.cs` | 台所の温もり→その後の冷感 |
 | ミナ戦 | `src/StageMina.cs` `src/BossMina.cs` | 主題のフル（顔の本体） |
 | ハブ | `Hub.tscn` / `src/Hub.cs` | まったり。短ループで可 |
 | ショップ | `Shop.tscn` / `src/Shop.cs` | 取引のシンセ。短ループ |
