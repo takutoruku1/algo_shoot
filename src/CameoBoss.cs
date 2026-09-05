@@ -107,6 +107,11 @@ public partial class CameoBoss : Enemy
         // 登場演出はカメオ簡易版：短く・揺れ控えめ（道中のテンポを削らない。本戦の見得は本戦だけ豪華に）。
         EntranceDur = 0.85;
         EntranceShake = 1.6f;
+
+        // 撃破直後、Stage側が_cameo.Finishedを検知して即QueueFreeするため（各Stage*.csのStep_BossCameo）、
+        // ガワが割れて出てきた中の人が改心退場アニメ（PurifiedExitHold/Fade）を1コマも見せずに消えていた。
+        // 中ボスだけ猶予を延ばし、中の人の姿が最低3秒はフル不透明で見えるようにする。
+        PurifiedExitHoldOverride = 3.2;
     }
 
     public override void _Ready()
