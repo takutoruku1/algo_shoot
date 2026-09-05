@@ -1,8 +1,10 @@
 using Godot;
 
-// StageZero : ステージ0「完全チュートリアル」の進行。
+// StageZero : ステージ0「れんしゅう」の進行（案C の T1）。
 //   Prologue 直後・Hub 入場前に独立シーンとして 9 ステップで各操作を教える。
-//   各ステップ＝「①暗転＋対象ゲージだけスポット→少年が説明（会話＝ツリー停止）→
+//   案Cでは**教え役を置かない**：説明はボタンの絵と単語（指示帯）だけで、少年の台詞もミナの実況も無い。
+//   ミナが喋るのは概念に関わる2行だけ——浄化の段（phase 11）と締め（phase 15）。
+//   各ステップ＝「①暗転＋対象ゲージだけスポット（会話がある段だけツリー停止）→
 //                ②指示帯を残して実践（停止解除）→③その技を“やり遂げる”まで進まない」の3拍。
 //   実践は押した瞬間/短時間では進まず、撃破数・回避回数・ボム巻き込み数・全開での撃破など
 //   「教えた操作を実際に使った結果」を達成条件にする。標的が尽きたら自動で湧き直し、
@@ -61,81 +63,26 @@ public partial class StageZero : Node
     // 自機の練習場での定位置（穏やかな中央）。
     private const float CenterX = 192f, CenterY = 120f;
 
-    // ════════════════════ セリフ ════════════════════
-    // who: 0=少年 / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。
-    private static readonly (int who, string text, string face)[] Tut0Intro =
-    {
-        (1, "……ここは。どこまでも、暗い。", "res://char/mina_worried.png"),
-        (1, "ご主人様……まっくらで、なにも見えませんよ。", "res://char/mina_worried.png"),
-        (0, "心配ない。ここはぼくが付きっきりで教える。", "res://char/shonen_gentle.png"),
-        (0, "暗い中で“光った所”だけ見てればいい。それ以外は、見なくていいんだ。", "res://char/shonen_gentle.png"),
-        (1, "……光った所だけ。それなら、わたくしにもできそうです。", "res://char/mina_face.png"),
-        (0, "ああ。ひとつずつ、いっしょにやろう。", "res://char/shonen_proud.png"),
-    };
-    private static readonly (int who, string text, string face)[] Tut1Move =
-    {
-        (0, "まずは、動くこと。下のボタンで、上下左右。", "res://char/shonen_face.png"),
-        (0, "斜めも入れて、ぜんぶで8方向。光の中を、好きに泳いでごらん。", "res://char/shonen_gentle.png"),
-        (1, "泳ぐ、ですか。……ふわふわして、なんだか心地いいですね。", "res://char/mina_smile.png"),
-        (0, "その調子だ。身体が、きみのものになってきた証拠だよ。", "res://char/shonen_proud.png"),
-    };
-    private static readonly (int who, string text, string face)[] Tut2Shot =
-    {
-        (0, "次は、光。……といっても、撃つボタンを押す必要はないよ。", "res://char/shonen_face.png"),
-        (0, "光は勝手に出続ける。飛んでくる“言葉”や“板”は、それが祓ってくれる。", "res://char/shonen_gentle.png"),
-        (0, "後ろに敵がいると、その光が自動で援護してくれる。背中は、任せていい。", "res://char/shonen_gentle.png"),
-        (1, "……わたくしは、撃たなくていいのですか。", "res://char/mina_face.png"),
-        (0, "ああ。基本はよけることだけ考えてればいい。さあ、ダミーに光を当ててごらん。", "res://char/shonen_proud.png"),
-    };
-    private static readonly (int who, string text, string face)[] Tut3Slow =
-    {
-        (0, "狭い隙間を抜けたい時は、低速。下のボタンを押すと、ゆっくり動ける。", "res://char/shonen_face.png"),
-        (0, "それと——きみの真ん中に、小さな赤い点が見えるだろ。", "res://char/shonen_gentle.png"),
-        (1, "あ、ほんとうだ。これが……?", "res://char/mina_face.png"),
-        (0, "それが、当たる所。そこさえ弾に触れなきゃ平気だ。低速で、丁寧に避けてごらん。", "res://char/shonen_proud.png"),
-    };
-    private static readonly (int who, string text, string face)[] Tut4Dash =
-    {
-        (0, "もうひとつ、とっておき。回避だ。一瞬だけ無敵になって、弾を“抜ける”。", "res://char/shonen_face.png"),
-        (0, "向きは自由。上にも、横にも、斜めにも——出したい方向へ、ぱっと。", "res://char/shonen_gentle.png"),
-        (1, "弾の中を、すり抜けてしまう……? ずいぶん、思い切った技ですね。", "res://char/mina_worried.png"),
-        (0, "怖がらなくていい。当たる前に抜けりゃ、ノーダメージさ。", "res://char/shonen_gentle.png"),
-        (0, "それと——F か、パッドの RB を押せば、撃つ向きを一瞬で反転できる。後ろから来る敵にも、光を返せるよ。", "res://char/shonen_gentle.png"),
-        (0, "いろんな方向に、何度でも試してみて。身体で覚えるのが、いちばん早い。", "res://char/shonen_proud.png"),
-    };
-    private static readonly (int who, string text, string face)[] Tut5Bomb =
-    {
-        (0, "それでも、囲まれて逃げ場がない時がある。そんな時は——ボムだ。", "res://char/shonen_face.png"),
-        (0, "画面じゅうの弾を、まとめて吹き飛ばす。その間、きみは無敵だ。", "res://char/shonen_gentle.png"),
-        (1, "そんな大技、いくらでも使えるんですか?", "res://char/mina_face.png"),
-        (0, "いや。右の“ボム残り”を、ひとつ食う。ここぞ、って時のための切り札さ。", "res://char/shonen_gentle.png"),
-        (0, "ほら、ダミーの弾だ。怖がらず、下のボタンでボムを。", "res://char/shonen_proud.png"),
-    };
+    // ════════════════════ セリフ（案C T1：2行だけ）════════════════════
+    // who: 0=あなた / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。
+    //   案Cの練習は「操作はボタンの絵と単語だけ」＝教え役の説明もミナの実況も置かない。
+    //   喋るのは概念に関わる2行だけ（浄化＝Tut6Purify／締め＝Tut8End）。他の段は空配列＝会話フェーズが
+    //   即座に通過する（TutTalk が空を受けたら true を返す）。_phase 番号は変えないので、
+    //   OpForPhase の指示帯（移動／ショット／低速／回避／ボム／浄化）と達成条件はそのまま生きる。
+    private static readonly (int who, string text, string face)[] Tut0Intro = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] Tut1Move = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] Tut2Shot = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] Tut3Slow = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] Tut4Dash = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] Tut5Bomb = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut6Purify =
     {
-        (0, "さあ、本番に近いやつだ。あの“声”——周りの板を、全部祓ってみて。", "res://char/shonen_face.png"),
-        (0, "板がぜんぶ無くなると、奥の本体に光が届く。それが、浄化だ。", "res://char/shonen_gentle.png"),
         (1, "倒すのではなく、届ける。……これが、わたくしの役目なんですね。", "res://char/mina_face.png"),
-        (0, "そうだ。浄化するたび、“浄化した心”が少しずつ貯まる。", "res://char/shonen_gentle.png"),
-        (0, "それを持ち帰れば、ハブのショップで、きみを強くできる。やってごらん。", "res://char/shonen_proud.png"),
     };
-    private static readonly (int who, string text, string face)[] Tut7Warmth =
-    {
-        (0, "最後に、いちばん大事なこと。左の“やさしさゲージ”だ。", "res://char/shonen_face.png"),
-        (0, "弾をかすめたり、浄化したりすると、これが少しずつ満ちていく。", "res://char/shonen_gentle.png"),
-        (1, "満ちたら、なにか起きるんですか?", "res://char/mina_face.png"),
-        (0, "満タンになったら——Ctrl。それだけ覚えておけばいい。“やさしさ全開”。", "res://char/shonen_gentle.png"),
-        (0, "数秒だけ、きみから光が溢れる。連射は最速、こぼれる光は花びらになる。", "res://char/shonen_proud.png"),
-        (1, "花びら……。わたくしから出るものが、そんなにきれいになるんですね。", "res://char/mina_smile.png"),
-        (0, "ああ。満タンになったら、Ctrl。ダミーに、思いきりぶつけてごらん。", "res://char/shonen_proud.png"),
-    };
+    private static readonly (int who, string text, string face)[] Tut7Warmth = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut8End =
     {
-        (0, "——これで、全部だ。動いて、避けて、抜けて、囲まれたら祓う。光は勝手に付いてくる。", "res://char/shonen_gentle.png"),
-        (1, "ぜんぶ、覚えました。……ご主人様が、そばで教えてくれましたから。", "res://char/mina_smile.png"),
-        (0, "ぼくは、ずっとここにいる。きみが迷っても、ちゃんと声が届く所に。", "res://char/shonen_gentle.png"),
-        (1, "……あ。ご主人様、見てください。暗闇に、ひとつだけ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
-        (0, "行こう、ミナ。——Stay。きみは、ひとりじゃない。ぼくも、ここにいるから。", "res://char/shonen_proud.png"), // 合言葉を注釈なしで＝意味は本編Prologueで定義済み。「ぼくも」＝Acrostic“And I won't either.”の先触れ
+        (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
     };
 
     public override void _Ready()
@@ -490,6 +437,9 @@ public partial class StageZero : Node
     // ════════════════════ 会話ミニプレイヤ（StageRei.TutTalk を移植） ════════════════════
     private bool TutTalk((int who, string text, string face)[] lines)
     {
+        // 台詞の無い段（案C の練習は指示帯だけで回す）は、吹き出しを出さずその場で通過する。
+        //   ここで弾かないと TutShowLine が lines[0] を掴んで落ちる。
+        if (lines.Length == 0) return true;
         if (!_tTalkStarted)
         {
             _tTalkStarted = true;
