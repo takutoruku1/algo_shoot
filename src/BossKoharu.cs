@@ -175,12 +175,15 @@ public partial class BossKoharu : Enemy
         _gotoHp = BossTuning.F("koharu", "goto_hp", 0.28f);
         _finaleCap = BossTuning.F("koharu", "finale_cap", 0.18f);
 
-        PreTexPath = "res://char/enemy_koharu_pre.png";   // 穢れ・病んだ核
-        // 改心の三段：穢れ(pre)→泣き(cry＝黒い炎が熾火へ鎮まり大粒の涙)→笑顔(post)。
-        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
-        CryTexPath = "res://char/enemy_koharu_cry.png";
+        // v3 の本体（エフェクト無し・720px）。視線の線・後光・ペンライトの光は BossParts が重ねる。
+        PreTexPath = "res://char/v3/boss_koharu_body_idle.png";
+        AttackTexPath = "res://char/v3/boss_koharu_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
+        // 改心の三段：穢れ(pre＝待機)→泣き(cry＝被弾の姿勢)→改心後(post)。
+        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
+        CryTexPath = "res://char/v3/boss_koharu_body_hit.png";
         PostTexPath = "res://char/v3/enemy_koharu_post.png";
-        BodyDisplayH = 52f;
+        // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
+        BodyDisplayH = BossTuning.F("koharu", "body_display_h", 72f);
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 
@@ -220,10 +223,10 @@ public partial class BossKoharu : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; FanDown(pool); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; TriggerAttackPose(); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; TriggerAttackPose(); FanDown(pool); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; TriggerAttackPose(); Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; TriggerAttackPose(); Spiral(pool); } break;
         }
     }
 

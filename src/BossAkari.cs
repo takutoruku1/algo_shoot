@@ -121,13 +121,16 @@ public partial class BossAkari : Enemy
         _roamSpeed = BossTuning.F("akari", "roam_speed", RoamSpeed);
         _corridorHp = BossTuning.F("akari", "corridor_hp", 0.52f);
 
-        PreTexPath = "res://char/enemy_akari_pre.png";
-        // 改心の三段：穢れ(pre)→泣き(cry＝触手がほどけ涙があふれる中間)→笑顔(post)。
-        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
-        CryTexPath = "res://char/enemy_akari_cry.png";
+        // v3 の本体（エフェクト無し・720px）。輪・カード・光は BossParts が実行時に重ねる。
+        PreTexPath = "res://char/v3/boss_akari_body_idle.png";
+        AttackTexPath = "res://char/v3/boss_akari_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
+        // 改心の三段：穢れ(pre＝待機)→泣き(cry＝被弾の姿勢)→改心後(post)。
+        // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
+        CryTexPath = "res://char/v3/boss_akari_body_hit.png";
         PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
-        BodyDisplayH = 52f;
+        // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
+        BodyDisplayH = BossTuning.F("akari", "body_display_h", 72f);
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 
@@ -207,10 +210,10 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; FanDown(pool); } break;       // 下向きの雨の扇
-            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool); } break;         // 回転する放射リング
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; AimedSpread(pool); } break; // 自機狙いの3way連射
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;    // 二重スパイラル
+            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇
+            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
         }
     }
 

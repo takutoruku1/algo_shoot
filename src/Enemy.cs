@@ -41,6 +41,13 @@ public partial class Enemy : Area2D
     protected string BodyOffsetName = "";
     private BossParts.Pose _bodyPose = BossParts.Pose.Idle;
 
+    // 攻撃姿勢の絵（任意。空なら姿勢の差し替えをしない＝従来どおり待機のまま撃つ）。
+    // 撃った瞬間に AttackTexPath へ差し替え、AttackPoseDur 秒たったら待機（PreTexPath）へ戻す。
+    // 差し替えは既存の SwapBody（クロスフェード＋squash→pop）をそのまま使う。
+    protected string AttackTexPath = "";
+    private double _attackPoseT;
+    private const double AttackPoseDur = 0.55;
+
     // ─── ボス用：言葉のシールド＋無防備窓サイクル（HPバー方式リワーク）───
     // SHIELDED（周回パネル・通常弾幕。弾はパネルのInkを削るだけ。本体HPは減らない）
     //  → 全パネル破壊で BREAK（タメ＋合図演出）
@@ -375,6 +382,29 @@ public partial class Enemy : Area2D
     {
         _bodyPose = pose;
         ApplyBodyOffset();
+    }
+
+    // 攻撃の一拍：本体を攻撃絵へ差し替え、AttackPoseDur 秒後に待機へ戻す（TickAttackPose）。
+    // 併せて部品層に「発射」を伝える（予備動作→前方へ流す）。素材が無ければ何もしない。
+    protected void TriggerAttackPose()
+    {
+        _parts?.OnAttackStart();
+        if (string.IsNullOrEmpty(AttackTexPath) || _purified || _crying) return;
+        if (_attackPoseT > 0) { _attackPoseT = AttackPoseDur; return; } // 連射中は延長するだけ（絵がバタつかない）
+        _attackPoseT = AttackPoseDur;
+        SetBodyPose(BossParts.Pose.Attack);
+        SwapBody(AttackTexPath);
+    }
+
+    // 攻撃姿勢の残り時間を消化し、切れたら待機へ戻す。
+    private void TickAttackPose(double delta)
+    {
+        if (_attackPoseT <= 0) return;
+        _attackPoseT -= delta;
+        if (_attackPoseT > 0) return;
+        _attackPoseT = 0;
+        SetBodyPose(BossParts.Pose.Idle);
+        SwapBody(PreTexPath);
     }
 
     private void SpawnPanels()
@@ -915,6 +945,9 @@ public partial class Enemy : Area2D
         // cry の保険タイムアウトも状態に関わらず常に進める
         //（登場演出中に撃破された等で下の early-return に阻まれても必ず計られるように）。
         if (_crying) TickCryWatchdog(delta);
+
+        // 攻撃姿勢の戻し（会話中も進める＝会話に入っても攻撃絵で固まらない）。
+        if (_attackPoseT > 0) TickAttackPose(delta);
 
         if (_flashing)
         {
