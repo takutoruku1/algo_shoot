@@ -319,6 +319,9 @@ public partial class GameManager : Node
     public int RepeatStreak => _repeatStreak; // HUDの逓減表示用（「連続N回目」＝この値+1）
     private readonly Dictionary<string, int> _stagePlays = new();
     public int StagePlays(string id) => _stagePlays.TryGetValue(id, out var v) ? v : 0;
+    // この起動で潜った回数の合計（ハブ再訪小話 H2r の補助観測「この旅で潜った回数、{dives}回」）。
+    // セーブしない＝「この旅で」＝いま続いている一続きのプレイ、という読みに合わせる。
+    public int TotalDives { get { int n = 0; foreach (var v in _stagePlays.Values) n += v; return n; } }
 
     // ─── 炎上（②-5 / ③-6）───
     //   発生は一度きり（STAGE2＝こはるクリア後）。次のダイブ1ステージ＝レイ面だけ弱体化（発射↓/移動↓/インプレ×0.6）。
