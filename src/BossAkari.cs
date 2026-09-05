@@ -125,7 +125,7 @@ public partial class BossAkari : Enemy
         // 改心の三段：穢れ(pre)→泣き(cry＝触手がほどけ涙があふれる中間)→笑顔(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
         CryTexPath = "res://char/enemy_akari_cry.png";
-        PostTexPath = "res://char/enemy_akari_post.png";
+        PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         BodyDisplayH = 52f;
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）

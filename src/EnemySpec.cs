@@ -6,9 +6,9 @@
 public enum StageTheme
 {
     Default, // 既存挙動（アンチくん/うつむきさん）。StageW0 等そのまま。
-    Rei,     // ドローン系（偵察ドローン / 監視カメラ・目）
-    Akari,   // 教室（机・椅子 / ノート・教科書）
-    Koharu,  // 台所（包丁・まな板 / 鍋・お玉）
+    Rei,     // 配信枠（視聴者アイコン / 空の吹き出し）
+    Akari,   // 退勤後のフロア（向かいの席の机 / 送信取消の束）
+    Koharu,  // 推し活の部屋（ペンライト / グッズの箱）
 }
 
 // 道中ザコの固有攻撃パターン。本体(MidEnemy)が _spec.Pattern で発射を分岐する。
@@ -16,12 +16,12 @@ public enum StageTheme
 public enum AttackPattern
 {
     None,            // 撃たない
-    ReiLockBurst,    // レイ偵察ドローン：ロックオン連射（予告→自機方向3連バースト）
-    ReiPulseRing,    // レイ監視カメラの目：視線パルス放射（全方位等間隔リング）
-    AkariScatter,    // あかり机・椅子：ばらまき投擲（固定左方向扇）
-    AkariDrop,       // あかりノート・教科書：落書きドロップ（真下へ低速）
-    KoharuSharp3,    // こはる包丁・まな板：高速鋭3WAY（短予告→自機方向3本）
-    KoharuSimmer,    // こはる鍋・お玉：とろ火ゆらぎ弾（自機狙い超低速単発）
+    ReiLockBurst,    // レイ視聴者アイコン：ロックオン連射（予告→自機方向3連バースト）
+    ReiPulseRing,    // レイ空の吹き出し：視線パルス放射（全方位等間隔リング）
+    AkariScatter,    // あかり向かいの席の机：ばらまき投擲（固定左方向扇）
+    AkariDrop,       // あかり送信取消の束：落書きドロップ（真下へ低速）
+    KoharuSharp3,    // こはるペンライト：高速鋭3WAY（短予告→自機方向3本）
+    KoharuSimmer,    // こはるグッズの箱：とろ火ゆらぎ弾（自機狙い超低速単発）
     DefaultAim,      // アンチくん：自機狙い単発（現状踏襲）
     FlankAim,        // 回り込み「引用リプ」：右から出現→上下端を走行→自機後方(x≈40)に着座→右向き低速単発（全テーマ共通）
     BuzzWall,        // 盾もち「バズ壁」：撃たない・遅い・硬い（パネル5×インク3）＝DPSチェックの壁（全テーマ・波B/C限定）
@@ -66,34 +66,36 @@ public readonly struct EnemySpec
 public static class EnemyTable
 {
     // 各テーマの「撃つ種」（GlyphMote相当：速め・直進・弾を撒く）。
-    // レイ＝偵察ドローン / あかり＝机・椅子 / こはる＝包丁・まな板。
+    // レイ＝視聴者アイコン / あかり＝向かいの席の机 / こはる＝ペンライト。
     // 各テーマの「撃たない種」（PageShard相当：ゆっくり・上下にうねる・無口）。
-    // レイ＝監視カメラ・目 / あかり＝ノート・教科書 / こはる＝鍋・お玉。
+    // レイ＝空の吹き出し / あかり＝送信取消の束 / こはる＝グッズの箱。
+    // v3 素材は面ごとに2種ちょうどなので、旧素材（教室・台所・ドローン）と1対1で置き換わる。
+    // 旧 char/enemy_* は消していない（StageW0 等の非正典が参照する）。
     public static (EnemySpec shooter, EnemySpec drifter) For(StageTheme theme) => theme switch
     {
         // 発射は本体(MidEnemy)が Pattern で行う。fires/fireInterval はパネル発射用の旧値で、
         // 本体発射では参照しない（Panel 側の自前発射は無効化済み）。各種の弾速・間隔・弾数は MidEnemy 内で定義。
         StageTheme.Rei => (
-            new EnemySpec("res://char/enemy_rei_drone_pre.png", "res://char/enemy_rei_drone_post.png",
+            new EnemySpec("res://char/v3/enemy_rei_icon_pre.png", "res://char/v3/enemy_rei_icon_post.png",
                 100, 4f, moveSpeed: 56f, spinSpeed: 1.5f, fires: true, fireInterval: 1.8f,
                 pattern: AttackPattern.ReiLockBurst),
-            new EnemySpec("res://char/enemy_rei_eye_pre.png", "res://char/enemy_rei_eye_post.png",
+            new EnemySpec("res://char/v3/enemy_rei_bubble_pre.png", "res://char/v3/enemy_rei_bubble_post.png",
                 80, 5f, moveSpeed: 26f, spinSpeed: 0.9f, fires: false, fireInterval: 0f,
                 swayAmp: 12f, swayFreq: 1.6f, pattern: AttackPattern.ReiPulseRing)),
 
         StageTheme.Akari => (
-            new EnemySpec("res://char/enemy_akari_desk_pre.png", "res://char/enemy_akari_desk_post.png",
+            new EnemySpec("res://char/v3/enemy_akari_desk_pre.png", "res://char/v3/enemy_akari_desk_post.png",
                 100, 5f, moveSpeed: 46f, spinSpeed: 1.2f, fires: true, fireInterval: 2.0f,
                 pattern: AttackPattern.AkariScatter),
-            new EnemySpec("res://char/enemy_akari_note_pre.png", "res://char/enemy_akari_note_post.png",
+            new EnemySpec("res://char/v3/enemy_akari_undo_pre.png", "res://char/v3/enemy_akari_undo_post.png",
                 80, 4f, moveSpeed: 30f, spinSpeed: 1.1f, fires: false, fireInterval: 0f,
                 swayAmp: 16f, swayFreq: 1.3f, pattern: AttackPattern.AkariDrop)),
 
         StageTheme.Koharu => (
-            new EnemySpec("res://char/enemy_koharu_knife_pre.png", "res://char/enemy_koharu_knife_post.png",
+            new EnemySpec("res://char/v3/enemy_koharu_penlight_pre.png", "res://char/v3/enemy_koharu_penlight_post.png",
                 100, 4f, moveSpeed: 60f, spinSpeed: 1.6f, fires: true, fireInterval: 1.7f,
                 pattern: AttackPattern.KoharuSharp3),
-            new EnemySpec("res://char/enemy_koharu_pot_pre.png", "res://char/enemy_koharu_pot_post.png",
+            new EnemySpec("res://char/v3/enemy_koharu_box_pre.png", "res://char/v3/enemy_koharu_box_post.png",
                 80, 6f, moveSpeed: 24f, spinSpeed: 0.8f, fires: false, fireInterval: 0f,
                 swayAmp: 10f, swayFreq: 1.1f, pattern: AttackPattern.KoharuSimmer)),
 
@@ -140,7 +142,7 @@ public static class EnemyTable
             pattern: AttackPattern.BuzzWall);
     }
 
-    // 祈り運び種（KoharuPrayerCarry・こはる面専用）。スキンはこはるの“撃たない種”（鍋・お玉＝運ぶ絵柄）を流用。
+    // 祈り運び種（KoharuPrayerCarry・こはる面専用）。スキンはこはるの“撃たない種”（グッズの箱＝運ぶ絵柄）を流用。
     // 消せる祈り弾3発をぶら下げて横断するボーナス種＝脅威ではないので低ポイント・すぐ剥がせる（MidEnemy 側で調整）。
     private const float PrayerCarrySpeed = 34f; // 横断速度(px/s)。約11秒で画面を渡り切る
     public static EnemySpec PrayerCarrier()

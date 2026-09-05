@@ -414,9 +414,11 @@ public partial class StageRei : Node
                 Theme = new CameoTheme
                 {
                     DisplayName = "レイ", Handle = "@rei_____",
-                    PreTex = "res://char/enemy_rei_pre.png",
-                    CryTex = "res://char/enemy_rei_cry.png",
-                    PostTex = "res://char/enemy_rei_post.png",
+                    // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
+                    // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。レイだけ中ボスは中の人＝ボスのガワと姿が違うのが仕込み。
+                    PreTex = "res://char/v3/rei_mid.png",
+                    CryTex = "res://char/v3/rei_mid.png",
+                    PostTex = "res://char/v3/rei_mid.png",
                     Face = RFace,
                     SpellTint = new Color("b9c2d0"), SpellShape = BulletShape.Orb,
                     Fire = CameoFireTheme.ReiAggressive,

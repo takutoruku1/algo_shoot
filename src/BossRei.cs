@@ -143,7 +143,7 @@ public partial class BossRei : Enemy
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ剥がれかけ・涙)→笑顔(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
         CryTexPath = "res://char/enemy_rei_cry.png";
-        PostTexPath = "res://char/enemy_rei_post.png";
+        PostTexPath = "res://char/v3/boss_rei_post.png";
         BodyDisplayH = 52f;
         CryHoldDur = 9999.0;     // 自動終了させない＝cry を会話尺いっぱい保持（EndCryNow で post へ）
     }

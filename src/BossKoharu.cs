@@ -179,7 +179,7 @@ public partial class BossKoharu : Enemy
         // 改心の三段：穢れ(pre)→泣き(cry＝黒い炎が熾火へ鎮まり大粒の涙)→笑顔(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post（笑顔）へ着地する。
         CryTexPath = "res://char/enemy_koharu_cry.png";
-        PostTexPath = "res://char/enemy_koharu_post.png";
+        PostTexPath = "res://char/v3/enemy_koharu_post.png";
         BodyDisplayH = 52f;
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }

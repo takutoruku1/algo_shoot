@@ -428,9 +428,11 @@ public partial class StageAkari : Node
                 Theme = new CameoTheme
                 {
                     DisplayName = "あかり", Handle = "@akari.",
-                    PreTex = "res://char/enemy_akari_pre.png",
-                    CryTex = "res://char/enemy_akari_cry.png",
-                    PostTex = "res://char/enemy_akari_post.png",
+                    // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
+                    // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。
+                    PreTex = "res://char/v3/akari_mid.png",
+                    CryTex = "res://char/v3/akari_mid.png",
+                    PostTex = "res://char/v3/akari_mid.png",
                     Face = AFace,
                     SpellTint = new Color("6c9cd8"), SpellShape = BulletShape.Needle,
                     Fire = CameoFireTheme.AkariGrief,

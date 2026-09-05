@@ -497,9 +497,11 @@ public partial class StageKoharu : Node
                 Theme = new CameoTheme
                 {
                     DisplayName = "こはる", Handle = "@koharu",
-                    PreTex = "res://char/enemy_koharu_pre.png",
-                    CryTex = "res://char/enemy_koharu_cry.png",
-                    PostTex = "res://char/enemy_koharu_post.png",
+                    // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
+                    // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。
+                    PreTex = "res://char/v3/koharu_mid.png",
+                    CryTex = "res://char/v3/koharu_mid.png",
+                    PostTex = "res://char/v3/koharu_mid.png",
                     Face = KFace,
                     SpellTint = new Color("e8a24a"), SpellShape = BulletShape.Orb,
                     Fire = CameoFireTheme.KoharuFalling,
