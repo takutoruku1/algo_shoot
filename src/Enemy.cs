@@ -397,12 +397,17 @@ public partial class Enemy : Area2D
     }
 
     // 攻撃姿勢の残り時間を消化し、切れたら待機へ戻す。
+    // ★改心に入った後は待機へ戻さない：攻撃の一拍の最中に撃破されると（＝弾を吐いている所を
+    //   撃ち抜く＝ごく普通の倒し方）_attackPoseT が残ったまま Redeem が cry へ差し替え、その数フレーム後に
+    //   ここが切れて PreTexPath へ上書きしてしまう＝改心の会話中だけ穢れの絵に戻る。
+    //   TriggerAttackPose 側と同じ条件で弾き、絵は cry/post のまま据え置く。
     private void TickAttackPose(double delta)
     {
         if (_attackPoseT <= 0) return;
         _attackPoseT -= delta;
         if (_attackPoseT > 0) return;
         _attackPoseT = 0;
+        if (_purified || _crying) return; // 改心後の絵（cry/post）を攻撃の戻しで壊さない
         SetBodyPose(BossParts.Pose.Idle);
         SwapBody(PreTexPath);
     }
@@ -789,6 +794,10 @@ public partial class Enemy : Area2D
         if (CryHoldDur > 0)
         {
             SwapBody(CryTexPath);
+            // 部品層にも「撃破された」を伝える＝公転をやめて濃さが沈む（穢れが薄れる）。
+            // 本体の cry 絵は待機絵と構図がほぼ同じなので、これが無いと会話中の見た目が戦闘中と変わらない。
+            // 消し切りは FinishCry の OnRedeem が担う（部品が消え切ってから post、の順は不変）。
+            _parts?.OnCry();
             _crying = true;
             _cryT = 0;
             _cryWatchdogT = 0; _cryTotalT = 0; // 保険タイマーはここが起点

@@ -88,6 +88,7 @@ public partial class BossParts : Node2D
         public float Spin;           // 追加の回転(rad)
         public float SpinVel;        // 回転速度(rad/s)
         public bool Gone;            // 消え切った（改心で使う）
+        public float FadeAtRedeem;   // 改心に入った瞬間の Fade（cry で沈んでいればその値）。ここから 0 へ落とす
         public float BlinkT;         // Blink 用の次回までの残り(s)
         public float BlinkOn;        // Blink の点灯残り(s)
         public float Focus;          // 集束（0=待機の薄さ／1=発射点に集まって濃い）。こはるの後光だけ使う
@@ -143,14 +144,16 @@ public partial class BossParts : Node2D
         });
     }
 
-    // 状態。EnterIdle / OnAttackStart / OnHit / OnRedeem が切り替える。
-    private enum St { Idle, Wind, Release, Hit, Redeem }
+    // 状態。EnterIdle / OnAttackStart / OnHit / OnCry / OnRedeem が切り替える。
+    private enum St { Idle, Wind, Release, Hit, Cry, Redeem }
     private St _st = St.Idle;
     private float _stT;
 
     private const float WindDur = 0.15f;    // 攻撃の予備動作（発射点へ吸い寄せる）
     private const float ReleaseDur = 0.9f;  // 解放して前方へ流れる尺（過ぎたら待機へ戻る）
     private const float HitDur = 0.5f;      // 被弾で外へ散って減衰する尺
+    private const float CryDur = 0.9f;      // 撃破直後、部品が公転をやめて力尽きるまでの尺
+    private const float CryFade = 0.45f;    // 改心の会話中に部品が沈む先の濃さ（0で消える＝ここでは消し切らない）
     private const float RedeemDur = 1.2f;   // 改心で全部消えるまでの尺
     private const float AttackRetrigger = 0.7f; // これより早い再攻撃は同じ一拍として無視（連射で震えない）
     private const float HitRetrigger = 0.22f;   // 同じく連続被弾の間引き
@@ -468,6 +471,20 @@ public partial class BossParts : Node2D
         }
     }
 
+    // 撃破の直後（＝改心の会話に入る一拍）。まだ消さない：部品は公転・脈動をやめて力を抜き、
+    // 濃さを CryFade まで落として「穢れが薄れた」状態で会話の間ずっと止まる（13 の「肩を落とし、もやが薄れる」）。
+    //
+    // ★これが無いと会話中の見た目が戦闘中と完全に同じになる：本体の cry 絵（*_body_hit.png）は
+    //   待機絵とほぼ同じ構図で、部品も待機のまま止まるだけ＝プレイヤーには「撃破したのに穢れのまま」に見える。
+    //   消し切らないのは 13 の順（部品が消え切ってから本体が改心後へ）を壊さないため＝消すのは OnRedeem。
+    public void OnCry()
+    {
+        if (_st == St.Redeem || _st == St.Cry) return;
+        _st = St.Cry; _stT = 0f;
+        // 散らさずその場で力を抜く（被弾の散りと違い、外へ飛ばさない＝倒れ込む一拍）。
+        foreach (var p in _parts) { p.Vel = Vector2.Zero; p.SpinVel = 0f; }
+    }
+
     // 改心。ひび（レイ）を先に置いてから部品が順に消え、全部消え切ってから done を呼ぶ。
     // ＝呼び出し側は done の中で本体を post へ差し替える（部品が残ったまま中の人にならない）。
     public void OnRedeem(System.Action? done = null)
@@ -479,11 +496,15 @@ public partial class BossParts : Node2D
         for (int i = 0; i < _parts.Count; i++)
         {
             var p = _parts[i];
+            p.FadeAtRedeem = p.Fade; // cry で沈んでいればその濃さから消す（1へ戻して跳ねさせない）
             Vector2 cur = p.Extra + BasePos(p, p.T);
             Vector2 dir = cur.LengthSquared() > 1f ? cur.Normalized() : Vector2.Up;
             p.Vel = dir * (18f + (i % 4) * 6f); // ゆっくり離れながら消える（散りより穏やか）
         }
     }
+
+    // 減速のイージング（1-(1-x)^2）。cry の「力が抜けていく」動きに使う。
+    private static float EaseOut(float x) => 1f - (1f - x) * (1f - x);
 
     // 部品が全部消えているか（改心の順番を守るための問い合わせ）。
     public bool AllGone
@@ -499,9 +520,11 @@ public partial class BossParts : Node2D
 
     public override void _Process(double delta)
     {
-        // 会話中は他の演出と同じく時間を止める。ただし改心（Redeem）だけは止めない：
-        // 完了コールバックで本体を post へ差し替える＝ここで止めると会話が続く限り中の人が出てこない。
-        if (Hud.BubblePaused && _st != St.Redeem) return;
+        // 会話中は他の演出と同じく時間を止める。ただし改心の二段（Cry / Redeem）だけは止めない：
+        //   Redeem … 完了コールバックで本体を post へ差し替える＝止めると会話が続く限り中の人が出てこない。
+        //   Cry   … 撃破直後の「力尽きる」一拍は改心の会話と同時に始まる＝止めると戦闘中の見た目のまま固まる。
+        //           CryDur で沈み切った後は自分で止まる（下の TickCryFade）ので会話を待たせはしない。
+        if (Hud.BubblePaused && _st != St.Redeem && _st != St.Cry) return;
         float dt = (float)delta;
         _stT += dt;
 
@@ -523,6 +546,9 @@ public partial class BossParts : Node2D
                 // 散った部品だけ消していく。貼り付いているものは残す（床の輪が消えると足元が読めない）。
                 foreach (var p in _parts) if (!IsAnchored(p)) p.Fade = Mathf.Max(0f, 1f - _stT / HitDur);
                 if (_stT >= HitDur) { foreach (var p in _parts) { p.Fade = 1f; p.Extra = Vector2.Zero; p.Vel = Vector2.Zero; p.Spin = 0f; } EnterIdle(); }
+                break;
+            case St.Cry:
+                TickCryFade();
                 break;
             case St.Redeem:
                 TickFree(dt, drag: 1.2f);
@@ -748,7 +774,24 @@ public partial class BossParts : Node2D
         }
     }
 
+    // 撃破直後の一拍：部品はその場で公転・脈動をやめ、濃さを CryFade まで沈めてそこで止まる。
+    // 消し切らない（Gone にしない）＝改心の会話中は「薄れた穢れ」として残り、消すのは Redeem の仕事。
+    private void TickCryFade()
+    {
+        float k = Mathf.Clamp(_stT / CryDur, 0f, 1f);
+        float target = Mathf.Lerp(1f, CryFade, EaseOut(k));
+        foreach (var p in _parts)
+        {
+            p.Fade = target;
+            // 公転の位相（p.T）は _Process 末尾で進み続けるが、漂いの上乗せ（Extra）と回転は
+            // ここで 0 へ引き戻す＝動きが止まって「力尽きた」ように見える。
+            p.Extra = p.Extra.Lerp(Vector2.Zero, EaseOut(k));
+            p.Spin = Mathf.Lerp(p.Spin, 0f, EaseOut(k));
+        }
+    }
+
     // 改心：部品が順に（並び順で時間差をつけて）消え、全部消え切ってから完了コールバック。
+    // 開始時の濃さ（cry で沈んでいれば CryFade、直接来たなら 1）から 0 へ落とす＝濃さが跳ね上がらない。
     private void TickRedeemFade()
     {
         bool all = true;
@@ -757,7 +800,7 @@ public partial class BossParts : Node2D
             var p = _parts[i];
             float start = i * (RedeemDur * 0.5f / Mathf.Max(1, _parts.Count)); // 順に消え始める
             float k = Mathf.Clamp((_stT - start) / (RedeemDur * 0.5f), 0f, 1f);
-            p.Fade = 1f - k;
+            p.Fade = p.FadeAtRedeem * (1f - k);
             p.Gone = p.Fade <= 0f;
             if (!p.Gone) all = false;
         }
