@@ -559,6 +559,9 @@ public partial class Enemy : Area2D
             //   密着クリティカルは dmg が上がるので重い音＋Shake が自然に発火し、リングも気持ち強める。
             _hitFlashT = HitFlashDur;
             _hitFlashMag = crit ? dmg + 2 : dmg;
+            // 部品層にも「刺さった」を伝える＝カード・吹き出し・星が外へ散って戻る（見た目だけ）。
+            // 改心へ入る一撃（_hp<=0）は下の Redeem 側の改心演出に譲る＝散らしてから消すと二度手間になる。
+            if (_hp > 0) _parts?.OnHit();
             Audio.Instance?.PlayBossHit(dmg);
             if (dmg >= 3) GameCamera.Instance?.Shake(1.6f, 0.10f);
 
@@ -910,11 +913,16 @@ public partial class Enemy : Area2D
 
     // cry の終了はこの1経路に集約する（手動送り／CryHoldDur 経過／保険タイムアウトのどれでも同じ後処理）。
     // post スプライトへの着地 → OnCryEnd（各ボスが Finished を立てる）→ フォロワー付与、の順は不変。
+    //
+    // 部品層があるボス（v3）だけは post への着地を「部品が全部消えてから」に遅らせる：
+    // ひび→ガワ（枠・吹き出し・カード）が落ちる→中の人が出る、の順を守る（13 の演出指定）。
+    // OnCryEnd / GrantFollower は待たせない＝進行（Finished）はここまでの作法のまま動く。
     private void FinishCry()
     {
         if (!_crying) return;
         _crying = false;
-        SwapBody(PostTexPath);
+        if (_parts != null) _parts.OnRedeem(() => SwapBody(PostTexPath));
+        else SwapBody(PostTexPath);
         OnCryEnd();
         GrantFollower();
     }
