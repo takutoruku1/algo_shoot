@@ -223,9 +223,10 @@ public partial class StageKoharu : Node
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一。
         // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
-        // こはる面は固有の悲鳴フレーズ（Words）を源にする＝その面のテーマ語が降る一体感。
+        // こはる面は PostPool のこはるのテーマ（09 の K09〜K38 由来の 8 文字弾）を源にする＝
+        // その面のテーマ語が降る一体感。層の比率は 09 のとおり 3:6:1（層2 が最も厚い面）。
         // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 44f,
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
             accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝配信画面の琥珀。全語が悲鳴＝濁色チップ
     }
 
@@ -631,9 +632,7 @@ public partial class StageKoharu : Node
     }
 
     // 投稿弾（言葉弾）の周期/tick 用アキュムレータ。湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約。
+    // 面固有の語プールは PostPool.Theme.Koharu（wiki/08_仮台本/09 の「言葉弾の文言リスト」こはるの行）へ移した。
+    //   案C の S2-3：推し活の声の合間に、家の声と他人の目が同じ色で混じる（仮台本 07）。
     private int _wordTick;
-    // こはる面固有の“声”プール（投稿弾の源）。ハンドルは無し（""）＝この面のテーマ語だけを降らせる。
-    //   案C の S2-3：「むだだ」の声の合間に、学校の声と家の声が同じ色で混じる（仮台本 07）。
-    private static readonly (string h, string w)[] PostWords =
-        { ("", "むだだ"), ("", "今日も明るいね"), ("", "模試、どうだった"), ("", "何してるの"), ("", "ちゃんと"), ("", "期待") };
 }

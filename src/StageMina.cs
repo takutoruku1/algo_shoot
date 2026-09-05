@@ -111,9 +111,9 @@ public partial class StageMina : Node
             case 4: Step_Transition(); break;
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
-        // FINAL は固有の悲鳴フレーズ（PostWords）を源にする＝暴走中に渦巻く声。
+        // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
         // ボス本体(BossMina)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 56f,
+        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Final, fallSpeed: 56f,
             accent: new Color(0.70f, 0.55f, 0.84f), murkAll: true); // FINAL テーマ＝ミナの菫。渦巻く悲鳴＝全語濁色チップ
     }
 
@@ -215,15 +215,10 @@ public partial class StageMina : Node
     }
 
     // 投稿弾（暴走中に渦巻く悲鳴の言葉）の周期/tick 用アキュムレータ。湧き処理は PostBullets.Tick に集約。
+    // FINAL 固有の“声”プールは PostPool.Theme.Final（wiki/08_仮台本/09 の FINAL の行）へ移した。
+    //   三人ぶんの穢れが満ちた、が設定＝層1（炎上のリプライ）／層2（悲鳴）／層3（三人の言葉とミナ語）を
+    //   3:5:2 で混ぜる。ミナ語（わたくしの、せいです／ご主人様／……アホですね）は 09 のとおり X 化せず
+    //   現行維持で層3 に置き、彼女自身の口癖が悲鳴として降ってくることで“これは彼女の内側だ”と示す
+    //   （Intro:48「ぜんぶ、わたくし、の……」の先取り）。
     private int _wordTick;
-    // FINAL 固有の“声”プール（投稿弾の源）。ハンドル無し（""）＝暴走したミナの内側で渦巻く声。
-    //   三人ぶんの穢れが満ちた、が設定＝レイ／あかり／こはる各人の語の断片＋ミナ自身の語（敬語・わたくし・
-    //   ご主人様・口癖「アホですね」）を混成する。ミナの口癖が悲鳴として降ってくることで“これは彼女自身の
-    //   内側だ”と一目でわかるようにする（Intro:48「ぜんぶ、わたくし、の……」の先取り）。
-    private static readonly (string h, string w)[] PostWords =
-    {
-        ("", "むだだよ"), ("", "追いつけない"), ("", "すき、すき"),
-        ("", "もう帰ってこない"), ("", "ごめんなさい"), ("", "わたくしの、せいです"),
-        ("", "ご主人様"), ("", "……アホですね"),
-    };
 }

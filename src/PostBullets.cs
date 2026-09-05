@@ -7,10 +7,11 @@ using Godot;
 // 共通に出すため、重複していた“言葉弾を1発（or 数発）湧かせる”ロジックをここへ切り出した。
 // 各ステージの Rain() がボス戦中だけ Tick() を呼ぶ＝固有のスペル/予測線/パネル弾・道中 Spawner には一切触れない。
 //
-// 投稿の“声”の源：
-//   - Rei/Akari    … 共通の Hud.TickerWords（下を流れるコメントと同一プール＝ハンドル付きで一致）。
-//   - Koharu/Mina  … 各ステージ固有の悲鳴フレーズ（その面のテーマ語）。ハンドル無しでも可。
-//   いずれも Bullet.SetWord(word, handle) で完成済みの X風カード描画（Bullet.cs:236〜）を流用。
+// 投稿の“声”の源：PostPool（wiki/08_仮台本/09_投稿文集_X風.md の層付きプール。ユーザー承認済み・2026-09-05）。
+//   面のテーマ（あかり／こはる／レイ／FINAL）を GameManager.Stages の現在面から引き、層1（日常）／
+//   層2（病みサイン）／層3（本人）を 09 の比率で混ぜる。旧・共通 Hud.TickerWords 8 語の
+//   ハードコードと各面の PostWords は廃止した（HUD 下のティッカーも同じプールを見る）。
+//   描画は Bullet.SetWord(word, handle) の X風カード（Bullet.cs:236〜）を流用。
 //
 // 難易度スケール（やること2）：難しいほど“投稿数（量）”が増える。
 //   ・湧き間隔：DanmakuIntervalMul（Easy ほど長い）に加え、難易度別の頻度係数 FreqMul を掛ける。
@@ -61,14 +62,14 @@ public static class PostBullets
     //   delta    : フレーム時間。
     //   rainT    : 呼び元の周期アキュムレータ（ref）。
     //   wordTick : 呼び元の tick カウンタ（ref）。
-    //   words    : null なら Hud.TickerWords（共通プール）を使う。固有プールを渡すとそれを使う（ハンドル無し）。
+    //   theme    : 引く面のテーマ（null なら実行中のシーンから決める＝GameManager.Stages の現在面）。
     //   fallSpeed: 落下速度（面ごとの“雨脚”に合わせる）。
     //   accent   : 投稿チップの縁光・文字色に馴染ませるステージテーマ色（null＝既定の穢れ桃）。
     //   murkAll  : プール全語を穢れ系＝濁色チップにする（こはる/ミナの悲鳴プール用）。
-    //              false のときも共通プールの沈む一言（MurkWords）は語単位で濁す。
+    //              false のときも層2（病みサイン）の語は語単位で濁す（PostPool.IsMurk）。
     public static void Tick(Node node, RandomNumberGenerator rng, double delta,
         ref double rainT, ref int wordTick,
-        (string h, string w)[]? words = null, float fallSpeed = 46f,
+        PostPool.Theme? theme = null, float fallSpeed = 46f,
         Color? accent = null, bool murkAll = false)
     {
         if (Hud.BubblePaused) return; // 会話中（バブル）は投稿弾を止める。
@@ -93,17 +94,11 @@ public static class PostBullets
         int room = MaxOnScreen(diff) - live;
         if (room <= 0) return;
 
+        var th = theme ?? PostPool.CurrentTheme(node);
         int salvo = Mathf.Min(Salvo(diff), room);
         for (int i = 0; i < salvo; i++)
-            SpawnOne(pool, rng, words, fallSpeed, accent, murkAll);
+            SpawnOne(pool, rng, th, fallSpeed, accent, murkAll);
     }
-
-    // 共通プール（Hud.TickerWords）のうち「沈む一言」＝穢れ系として濁色チップにする語。
-    // バズ・広告の軽い語（それな/拡散希望/バズる呪文…/【広告】…/はいはい優勝優勝）はテーマ色のまま。
-    private static readonly System.Collections.Generic.HashSet<string> MurkWords = new()
-    {
-        "だれか、みてる?", "どうせ、とどかない", "きえたい",
-    };
 
     // 画面上で生きている投稿弾（Word 付きの敵弾）の数。MaxOnScreen キャップ判定用。
     private static int CountPostBullets(BulletPool pool)
@@ -115,13 +110,15 @@ public static class PostBullets
     }
 
     // 投稿弾を1発スポーン（SNSコメントチップ弾。中心の小ドットが当たり判定＝Bullet 既存仕様のまま）。
+    // 語は PostPool から「面のテーマ×層」で引く（層の比率は 09 の言葉弾の行＝RollLayer）。
     private static void SpawnOne(BulletPool pool, RandomNumberGenerator rng,
-        (string h, string w)[]? words, float fallSpeed, Color? accent, bool murkAll)
+        PostPool.Theme theme, float fallSpeed, Color? accent, bool murkAll)
     {
-        var src = words ?? Hud.TickerWords;
-        var (h, w) = src[rng.RandiRange(0, src.Length - 1)];
+        var layer = PostPool.RollLayer(theme, rng);
+        string w = PostPool.Draw(theme, layer, rng);
+        if (string.IsNullOrEmpty(w)) return;
         // 落下X範囲は左右の縁まで（旧70〜314）。中央帯だけ降ると画面端（特に左端）が安置化するため崩す。
         var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fallSpeed), isEnemy: true, 3f, 1);
-        b?.SetWord(w, h, accent, murkAll || MurkWords.Contains(w));
+        b?.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w));
     }
 }

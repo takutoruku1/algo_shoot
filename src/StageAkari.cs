@@ -244,11 +244,12 @@ public partial class StageAkari : Node
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）に統一。
         // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
-        // あかり面も共通 TickerWords を引く（下を流れるコメントがそのまま降る一体感）。
+        // あかり面は PostPool のあかりのテーマ（09 の A01〜A40 由来の 8 文字弾）を引く。
+        // 下を流れるコメント（ティッカー）も同じプールを見る＝そのまま降る一体感は保つ。
         // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
         // イライラ棒「雨の帰り道」（CorridorRun 展開中）は降らせない＝通路避けに弾を重ねる理不尽を断つ。
         if (_bossActive && GetTree().GetFirstNodeInGroup("corridor") == null)
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 48f,
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Akari, fallSpeed: 48f,
                 accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
     }
 

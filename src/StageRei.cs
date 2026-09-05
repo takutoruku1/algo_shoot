@@ -282,13 +282,13 @@ public partial class StageRei : Node
         }
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
-        // 案C：レイ面の言葉弾は 07 の道中A／道中B の言葉弾（「初見です」「界隈」「ふーん」「低評価」「切り抜き」）
-        // を源にする＝この面のテーマ語だけが降る（こはる面と同じ流儀）。
+        // 案C：レイ面の言葉弾は PostPool のレイのテーマ（09 の R01〜R43 由来の 8 文字弾）から引く＝
+        // この面のテーマ語だけが、層1（配信の日常）：層2（病みサイン）：層3（本人）＝5:4:1 で降る。
         // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
         // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
         // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
         if (_bossActive && !(IsInstanceValid(_boss) && _boss.AoeGateActive))
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, words: PostWords, fallSpeed: 46f,
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Rei, fallSpeed: 46f,
                 accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
     }
 
@@ -678,10 +678,6 @@ public partial class StageRei : Node
 
     // 投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
     // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
+    // 面固有の語プールは PostPool.Theme.Rei（wiki/08_仮台本/09 の「言葉弾の文言リスト」レイの行）へ移した。
     private int _wordTick;
-    // レイ面固有の“声”プール（投稿弾の源）。ハンドルは無し（""）＝この面のテーマ語だけを降らせる。
-    //   仮台本 07 の S3-3 道中A／S3-5a 道中B の言葉弾。コメント欄と引用の嵐の語彙で統一する。
-    private static readonly (string h, string w)[] PostWords =
-        { ("", "初見です"), ("", "界隈"), ("", "ふーん"), ("", "低評価"), ("", "切り抜き") };
-
 }

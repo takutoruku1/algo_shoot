@@ -238,21 +238,22 @@ public partial class Hud : CanvasLayer
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
-    // ティッカー（降ってくる言葉）＝「Xの川」の共有ノイズプール。
-    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（PostBullets）。
-    // #11 文面改稿（maeda）：バズ・断片・広告っぽい軽さ7 : 沈む一言3。個人特定・死の直接言及・ボス本人の声は入れない
-    //（旧「あたしのせいだ」「なんで庇ったの」は本人特定に近いため撤去）。ハンドル空欄はティッカー側で幅を詰める（TickerHandleW）。
+    // ティッカー（降ってくる言葉）＝「Xの川」のノイズ。
+    // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、どちらも PostPool から引く。
+    // 正典は wiki/08_仮台本/09_投稿文集_X風.md（ユーザー承認済み・2026-09-05）の「言葉弾の文言リスト」で、
+    // 面のテーマ（あかり／こはる／レイ／FINAL）ごとに層1（日常）：層2（病みサイン）：層3（本人）を
+    // 09 の比率で混ぜる。旧・共通8語のハードコードは廃止した。
+    // 帯は毎フレーム全語の幅を測るので、面ごとに一度だけ組んだ固定の並びをキャッシュして使う
+    //（毎フレーム抽選しない＝帯が踊らない）。ハンドル空欄は帯側で幅を詰める（TickerHandleW）。
     private double _t;
-    public static readonly (string h, string w)[] TickerWords =
-    {
-        ("", "それな"), ("", "拡散希望"), ("", "バズる呪文おしえて"), ("", "【広告】幸せ、届きます"),
-        ("", "はいはい優勝優勝"), ("", "だれか、みてる?"), ("", "どうせ、とどかない"), ("", "きえたい"),
-    };
+    private (string h, string w)[]? _ticker;
+    private (string h, string w)[] TickerWords => _ticker ??= PostPool.Words(PostPool.CurrentTheme(this));
 
     public override void _Ready()
     {
         AddToGroup("hud");
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        PostPool.ResetHistory();   // 面の入り口で語の直近履歴を空ける（前の面の履歴で最初の数枚が偏らない）
         _canvas = new HudCanvas { Name = "HudCanvas", Hud = this };
         AddChild(_canvas);
     }
