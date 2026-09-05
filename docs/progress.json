@@ -1,13 +1,62 @@
 {
-  "generated": "2026-09-04 22:04 UTC",
+  "generated": "2026-09-05 20:26 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 8,
     "wip": 0,
     "blocked": 17,
-    "done": 168
+    "done": 206
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 96,
+  "todo": [
+    {
+      "priority": "P1",
+      "title": "FINAL F1〜F4 を案C に差し替え",
+      "worker": "engineer",
+      "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。F4 で「最初に散らした言葉」が戻り、20秒の沈黙で自動送信"
+    },
+    {
+      "priority": "P1",
+      "title": "エピローグ E1〜E6 を案C に差し替え",
+      "worker": "engineer",
+      "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の \"stay\" ゲートを置換"
+    },
+    {
+      "priority": "P2",
+      "title": "投稿文集の層付きプールを新設",
+      "worker": "engineer",
+      "accept": "PostPool.Draw(theme, layer) で層1/層2/層3 を引く。PostBullets の8語ハードコードと Hud のティッカーを置換"
+    },
+    {
+      "priority": "P2",
+      "title": "病みポストを見つける（案A・撃って届ける）",
+      "worker": "engineer",
+      "accept": "層2 は画面に1枚まで、いいね0〜3、深夜の時刻、暖白のハロ、落下0.8倍。撃つと祈り弾と同じ経路で拾える。--qa で被弾増を確認"
+    },
+    {
+      "priority": "P3",
+      "title": "引用の嵐（S3-5b）を StageRei の新 step として実装",
+      "worker": "engineer",
+      "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/11（2026-09-05）。17枚・3段階・約50秒。剥がし漏らしの罰なし、声が止まった後は必ず剥がし切れる"
+    },
+    {
+      "priority": "P3",
+      "title": "三面と冒頭のスクショを撮り直して wiki の図を更新",
+      "worker": "qa",
+      "accept": "--shot と --demo で各画面。14 の「残り」を消す"
+    },
+    {
+      "priority": "P3",
+      "title": "S2-4 入力欄を配信画面のコメント欄風の専用UIにする",
+      "worker": "engineer",
+      "accept": "今は who=3 の中央テロップで代用"
+    },
+    {
+      "priority": "P3",
+      "title": "MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名",
+      "worker": "engineer",
+      "accept": "内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -114,6 +163,234 @@
     }
   ],
   "done": [
+    {
+      "priority": null,
+      "title": "(バグ修正・夜間自動開発の並行実行監査で発見) 中ボス撃破後の中の人表示が即消える不具合を修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **経緯**: 今夜の夜間自動開発（クラウド routine）が `auto/dev` ブランチで STAGE2/STAGE3 の案C台詞実装を進めていたところ、並行して別セッションが `main` へ同内容（STAGE2/STAGE3・ハブH0/H3/H3r の案C差し替え）を直接コミットしていたことが `git fetch` 後の PR 作成時（`mergeable_state: dirty`、`main` が `f8ed5de`→`264f9a0` へ進んでいた）で判明。両者は同じ承認済み仮台本を独立に実装した重複作業で、`main` 側がより新しく・H0を含みより広い範囲をカバーしていたため、`auto/dev` を `main` 基準へ作り直し（AUTODEV.mdの「未マージPRが無ければmain基準」原則を、今回は既存PRがあったものの内容が完全重複だったため準用）、`auto/dev` 側にしか無かった追加の不具合修正1件のみを `main` の実装に対して再適用した。**不具合の内容**: `src/StageRei.cs`/`src/StageAkari.cs`/`src/StageKoharu.cs` の中ボス撃破検知（`_cameo.Finished`）直後に、Stage側が即座に `_cameo.QueueFree()` していたため、`CameoBoss.OnCryEnd()` が `SwapBody(PostTexPath,...)` で「ガワが割れて出てきた中の人」の絵に切り替わった**まさにそのフレームでノードごと消えており**、`Enemy._Process` の退場歩行＋フェード演出（`_purified`分岐。`main`側は`PurifiedExitHoldOverride`という上書き用フィールドを既に持っていたが未セットだった）が1コマも再生されない状態だった。**修正**: (1) `StageRei.cs`/`StageAkari.cs`/`StageKoharu.cs` の3箇所で撃破検知直後の即時`_cameo.QueueFree()`を削除し、Stageは`Advance()`のみでEnemy側の自然消滅に任せるよう変更。(2) `CameoBoss.cs`の`OnEnemyReady()`で`PurifiedExitHoldOverride = 3.2`をセットし、中ボス撃破後の中の人が3秒以上フル不透明で見えるようにした（`main`側の既存フィールドをそのまま活用。夜間開発側が独自に用意した`protected`化アプローチより`main`の設計に沿う形で再実装）。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。**申し送り**: 今夜の夜間自動開発が`auto/dev`上で実施したSTAGE2/STAGE3の案C台詞実装・こはるBGM停止配線修正・スクショ更新は、`main`側の並行実装（本コミットの前提となった一連のコミット群）と内容が重複するため**意図的に破棄**した（同じ仮台本を別々のコードで二重実装する方がリスクが高いと判断）。無駄になった分の詳細はセッション記録を参照。**今後の運用への示唆**: 夜間自動開発と対話セッションが同じDEV_QUEUEタスクを同時に着手すると今回のような重複が起き得る。着手前に`WIP`へ一度コミット＋pushする運用（AUTODEV.md記載どおり）を徹底し、他セッションも着手前に`git fetch`でWIP状況を確認することを推奨。"
+    },
+    {
+      "priority": "P2",
+      "title": "ハブ H0〜H3 と返信を案C に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 06・07。H1/H2 と炎上（引用二枚・下書き四件）は各面のタスクで前担当が済ませていたので、**残っていた H0・H3・H3r** を入れて完了にした。**H0 ハブ初回**（仮台本 06。未実装だった）＝ハブに初回入場したとき一度だけ、あかりのカードが NEW の状態で3行（A35 の投稿「すき、すき、すき。……ひとつでいいから、本物になって。」／「この投稿の下から、も。聞こえます。……何度も、同じ画面を開く音、みたいな。」／「行きます。——放っておけないので。」）。既読は再訪小話と同じ集合に接頭辞 `once_` 付きで持ち、`GameManager.ResetIdleDialogSeen`（小話を全部読み切ったときの戻し）では消さない＝一周につき一度きり。新規データ（`ResetAll`）では丸ごと初期化される。**まだ投稿していないので数字は動かさない**＝`StartDialogue` に `noPost` を足し、`EndDialogue` でインプレ／フォロワー加算とトーストを飛ばす（H0 だけ）。**H3 帰還・レイ後**＝旧8行（少年の「おい待て、なに勝手に投稿してるんだ!?」・アカウント名義の掛け合い・「会ったこともない相手の手の内を」）を台本の6行に。ミナの投稿は「見ていました。だれも見ていない場所も。覚えておきます。」（P4「覚えておきます」と E4「覚えている係」の間）、自分の数字も同接も言わない、被弾数 `{n}` の実測差し込み、FINAL カードの文言「FINAL  ——汚染が、限界へ。」、「次のカードは——わたくしの、内側です。」。**H3r 返信**＝旧2行を台本どおりに（「見ていましたよ。……次も、見に行きます。逃げたら承知しない、と、言われましたので。」／「は? 誰よあんた。……まあいいわ。次は、本気で来なさい。見てなさい。」＝FINAL F2 の返礼と F3 の邂逅への伏線につき一字も変えず）。ハンドルも @rei→@rei_____ へ。**H3r 再訪小話**＝旧4本（少年との掛け合い。お茶・拙者・順位・句点）を台本にある2本（同接／笑顔）に。「あの部屋で、十四件」は S3-3 の、「切り替わるのに、一秒九」は S3-4 の拾い直し。**顔の無い話者の描画を直した**＝「Ｘ 投稿」「Ｘ システム」は `SpeakerFace` の既定枝に落ちて `UiKit.FaceAvatar` が「?」のロック円を描いており、**未解放カードと同じ見た目**になっていた（H2 の炎上の引用も同様）。`Ｘ` で始まる話者は top に負値を返してアバターごと省き、話者名を左端へ寄せる。**検証**: `Hub.tscn --shot`（save_0/save.json を消した初回状態）で H0 の3行とフォロワー0・インプレ0（＝加算していない）を確認＝`build/wiki_work/ingame_h0_c_00.png`。`Rei.tscn --boss --qa --assist --easy --shot` で H3 を確認＝`build/wiki_work/ingame_h3_c_*.png`（「見ていました。だれも見ていない場所も。覚えておきます。」／「被弾は0回」＝`{n}` の実測差し込みが効いている／「数字は、見ました。言いません。」）。`--headless --qa --assist --easy --seconds 400` の通し走行で `[QA-SUMMARY] no anomalies flagged. clean run.`。`dotnet build` 0 Warning/0 Error。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json`／`settings.json` を .bak 退避して作業し復元済み。**申し送り**: (a) `IdleDialogs` の koharu 4本と全ステージ共通の `SmallTalks` は旧・少年との掛け合いのまま（案C には少年が居ない）。どちらも 06/07 に差し替え台本が無いので手を付けていない＝別タスクで台本から書き起こす必要がある。(b) H3 の FINAL カード行は who=3（システム表示）相当を「Ｘ システム」という話者名で代用している。"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE3 レイのボスと戦闘中の割り込みと改心を実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 07 の S3-6〜S3-9。**S3-6**＝ボスバーを『星逢レイ』@hoshiai_rei_live に（旧『孤高のわたし』@rei_____）、弾幕名4種を「初見さんいらっしゃい／登録者２０００／同接８／切り抜かれない」に（旧 Q.E.D./凡人の定理/敵などいない/孤高の王座）、挑発（`TauntLines`）とRECLOSE（`RecloseLines`）を台本の笑顔のままの三段（「……逃げるの? また。——いいわ。切り抜かれないんだから、わたし。」→「初見さん、まだ、いてくれるでしょう?」→「見てて。……ちゃんと、見ててよ。」）に差し替え。**宣告名の齟齬を潰した**（あかり面の申し送り (b)）＝`AreaSpellCaster` の rei プロファイルを『ランキングレーザー／表彰台圏／序列の楔』→『コメント一斉読み／配信枠／切り抜きの線』、ハンドルも @rei_compete→@hoshiai_rei_live に。スペルカットインの絵も `cutin_rei.png`→`cutin_rei_gawa_a.png`（ボス＝ガワ）、台詞も「初見さん、いらっしゃい!」へ。無被弾リレー報酬の一言は「……初見さん、じゃなかったのね。」（台本どおり。「合格。なんて」は捨てた）。**S3-7 戦闘中の割り込み**＝こはる面で止めてある機構（`Step_LinesHold`／`Step_MidChoice`／`SetQuietVeil`／`ChoiceOverlay`）を `StageRei` へ移植し、step 15〜17 として新設。`Step_BossWait` がボスHP 20〜50% の窓で一度だけ 15 へ飛ばし、17 の受けを流し切ると 12（ボス戦）へ戻る。選択は台本どおり温度で割った3択「つづけて／むりしないで／（送らない）」で、既定カーソルは末尾＝（送らない）＝沈黙20秒の自動決定もそこへ落ちる。`GameManager.RecordChoice(\"s3_7\", …)` で記録し、選ばれなかった表示候補は `ScatteredWords` に積む（S1-4 と同じ流儀）。（送らない）は【濁】+0.02。送った2件は復唱（who=0＝「あなた」）してから受ける。**S3-8 改心**（`BossRei.Lines`）＝旧10行（少年の「ぼくのせいだ」・中継 who=5 の地区予選の秒数・「二十二分」）を台本の7行に全面差し替え。二段構成＝(1) S3-5b で剥がし切った下から拾った消した一行「わたしに、気づいてよ。わたしを、見てよ」を返す → (2) ミナ自身の決定打「見ていました。——だれも見ていない場所に、あなたが書いて、消した一行を。」。決定打の行で `Audio.StopMusic(1.2f)`＝台本の「ここでBGM停止」（あかり・こはる面と同型）。**ガワが割れるタイミングを台本に合わせた**＝`Enemy` に `DeferCryBodySwap` と `BreakCryBodyNow()` を新設し、撃破の瞬間ではなく決定打の次の行（`BreakAtLine`）で初めて cry 絵（中の人）へ差し替える。これが無いと「笑顔のまま声だけが崩れる」三行が中の人の顔で流れてしまう。**S3-9**（`Clear`）＝旧11行（シェイクスピア・「２位」が灯る・少年の掛け合い）を台本の6行（救済後の投稿／同接が「4」に／コメント欄のあの一行／空の問い三度目／「もう、聞きません。三度、聞きました。」／「三人分の祈りを、抱えてしまったので。」）に。**割り込み中の宣告カードの貼りつきを修正**＝`Hud.SuppressCallouts` はボス字幕とカットインしか消しておらず、`_spellTimer` は `BubblePaused` 中に止まる仕様なので、割り込みに入る直前のスペルカードが区間いっぱい画面に残っていた（実測で確認）。抑制時に `_spellTimer`/`_spellGlow` も落とすようにした。**検証**: `--boss --qa --assist --easy --shot` で ボス→割り込み→改心→クリア まで通し。スクショ `build/wiki_work/ingame_s3_c_{boss,redeem,break}_*.png`＝ボスバー「星逢レイ @hoshiai_rei_live」＋宣告『初見さんいらっしゃい』／**S3-7 の選択画面**（鈍色の膜・3択・「二人ぶんと、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。」）／S3-8 の一段目「消された一行を、拾っておりました。「わたしに…」（ガワのまま）／決定打「見ていました。——だれも見ていない場所に」（ガワのまま）／**ガワが割れて中の人が立っている画**（STAGE 3 CLEAR と同居）。`--headless --qa --assist --easy --seconds 400` の通し走行で `[QA-SUMMARY] no anomalies flagged. clean run.`。旧台詞の残留を grep で確認＝`StageRei.cs`/`BossRei.cs`/`AreaSpellCaster.cs` に 少年・Stay・地区予選・二十二分・Q.E.D.・凡人の定理・孤高・二位・@rei_compete の**台詞は0件**（ヒットは案C の経緯を説明したコメント1件のみ）。`dotnet build` 0 Warning/0 Error。**申し送り**: S3-7 は「浴びすぎました」の根拠に S3-5b の引用の嵐を前提にしているが、嵐本体は未実装（P3）＝いまは接続3行だけを浴びた状態で同じ台詞が出る。"
+    },
+    {
+      "priority": "P2",
+      "title": "改心後の中の人（レイ）の表示を長くする",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) `Enemy` の退場定数がクラス固定（`PurifiedExitHold=0.6` / `PurifiedExitFade=0.9` / `PurifiedExitSpeed=90`）で、ガワが割れて出てきた中の人が約1.5秒で消えていた。派生から差せる `PurifiedExitHoldOverride` / `PurifiedExitSpeedOverride`（0以下＝既定値）を足し、`BossRei` で余韻 3.6s・歩き 28px/s に設定。歩きも落としたのは、余韻だけ伸ばしても既定90px/s では `GlobalPosition.X < -24f` の画面外判定に先に着いて消えるため（spawn x=300 から約3.6秒）。フェードの尺（0.9s）は共通のまま＝他ボスの見え方は一切変わらない。**検証**: `--boss --qa --assist --easy --shot` の `build/wiki_work/ingame_s3_c_break_02.png` で、STAGE 3 CLEAR のバナーが出ている時点でも中の人（パーカーの本人）が画面中央に不透明で立っていることを確認。`dotnet build` 0 Warning/0 Error。"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE3 レイの道中と中ボスを実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 07 の S3-1〜S3-5a・S3-5c。**S3-1**（`StageRei.Intro`）＝旧11行（投稿「だれも、わたしには追いつけない」・少年・Stay・チュートリアル残り）を台本の6行（薄い光での「潜れる、はずです」＝H2 の炎上による弱体化の実感／層1の投稿「今日も20時から! 初見さん大歓迎。」／投稿の下の明るくない声／壁一面の配信画面と同接「11」とガワの笑顔／コメント欄の同じ位置の「今日も来ました」＝こはるの結線／「行きます。——放っておけないので。」）に。**S3-2**（`Mid`）＝旧5行（会場の空気・「比べろ」「負けるな」「二位に価値はない」）を台本の6行（「気づいて」「見て」の声／家の声「ふーん」／層2の投稿「登録者2000人、ありがとう。」／伏せたスマホが一度だけ光る／同接「8」／「比べません。どちらも、集計はしますが。」＝十万は口にしない）に。**S3-3**（`BossTalk`）＝旧5行（少年がレイの名前と性格を言い当てる・Chat2/Chat3）を台本の6行（層2「企画メモ、下書き十四件。」／「十四件。集計に、入れておきます。」／削除済みの一行／「今日も来ました」はまだ同じ場所／ガワが明るくコメントを読み上げる／画面の外からの足音）に。**S3-4 中ボス**＝`CameoTalk1/3/CameoPost` を台本の第一声「……だれ? あなた。……わたしの配信、見に来た人?」（`rei_face`＝笑っていない中の人）→RECLOSE（`rei_face_smile` へ切り替わって「——はじめまして! 星逢レイです。」→「逃げないで。……初見さん、まだ、いてくれるでしょう?」）→捨て台詞「逃げたら……承知しないんだから。」（笑顔のまま）に。旧 `CameoTalk2`（「二番手なんかじゃ、よけきれないでしょ」）は落とした。オーバーレイに乗らないミナの観測行2つ（「切り替わるまで、一秒九。……画面の中の笑顔より、小さいですね。」＝ガワとの大きさの差／「あの人、画面の中へ。」）は `CameoAfter` として中ボス後の step 7 の頭へ置いた（こはる面と同じ流儀）。**S3-5a／S3-5b 接続**（`MidStory`）＝旧5行（監視カメラの目・「てっぺんは、こんなに寒いんですか」）を台本の S3-5a 2行（層3「読まなきゃよかった。」／「顔のない、引用です。」）＋ S3-5b の接続3行（ピン留めの投稿 R42／「剥がします。ご主人様、撃つのは、貼りついたほうを。」／who=3 の「引用: 0」）＋剥がし切りの1行に。**嵐の本体（十七枚・3段階）は別タスク（P3）**なので `// TODO: 引用の嵐（11）` を残置。**S3-5c**（`MidEnd`）＝旧2行＋Chat4/Chat5 を台本の3行（同接「3」と残った三つの席のひとつ＝あの一行／「光が、重い。……気のせいでは、なさそうです。」【濁】広がる／画面が部屋を呑みこむ）に。**言葉弾**（`PostWords` を新設）＝旧の共通 TickerWords から台本 S3-3／S3-5a の言葉弾「初見です／界隈／ふーん／低評価／切り抜き」へ。**少年の行はレイ面から全消滅**（`SCocky`/`SGentle`/`SProud` 定数と `Chat1〜5` も削除。`ShowLine` の `LineKind.Boy` は「あなた」＝立ち絵なしに変更）。**検証**: `Rei.tscn --headless --qa --assist --easy --seconds 120` で導入→道中A→中ボス→道中B→接続→道中C→ボス到達まで通し、`[QA-SUMMARY] no anomalies flagged. clean run.`。旧台詞の残留を grep で確認＝`StageRei.cs` に 少年・Stay・追いついて・本気で来て・二番手・順位 の**台詞は0件**。`dotnet build` 0 Warning/0 Error。**申し送り**: S3-5b の嵐本体（十七枚・段階1〜3・本人の返信の縮み）は未実装で、接続3行だけが置かれた状態。"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE2 こはるのボスと改心とクリアを実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 07 の S2-6〜S2-9・H2・H2r。**S2-6**（`StageKoharu.BossIntro`）＝旧の空配列に台本の3行（「消えた画面の前に、あの人が。」／「視線が、部屋じゅうに。……どれも、顔が、ありません。」／「——ぜんぶ、数えます。ひとつ残らず。」）。**S2-7**＝ボスバーを『我に返るわたし』@koharu_light に、弾幕名4種を「ちゃんとしなきゃ／みんな見てる／期待／我に返る」に、RECLOSE（`BossKoharu.RecloseLines`）を台本の三段（「みんな見てる。……見てるもん。」→「やめないで……止まったら——」→「……なんでもない。楽しいってば。」）に差し替え。中盤ワンショット2種のボス字幕とスペル名も台所（ごはん／お残し禁止／五徳の十字火）からアーカイブと鏡（全部見なきゃ／自分なにしてんだろ）へ。**S2-8 改心**（`BossKoharu.Lines`）＝旧17行（兄・食卓・少年の直接台詞 who=0・中継 who=5）を台本の9行に全面差し替え。二段構成＝(1) S2-4 で拾った消されたコメント「レイちゃんがいたから、今日も学校行けた」を返す → (2) 数えた証人としてミナ自身の決定打「来ていた回数を、数えました。八十七回。一度も、欠けていません。」「——むだな時間は、一秒も、ありませんでしたよ。」。数える行で `Audio.StopMusic(1.2f)`＝台本の「ここでBGM停止」で決定打を無音のまま置く（あかり面と同型）。泣き顔差分は無いので蒼白（`koharu_face_pale`）が絶望を担い、明るい顔（`koharu_face`）と往復する。推しの側の話も親の話もしない。**S2-9**（`Clear`）＝旧12行（湯気・妹を頼む・伏線④）を台本の5行（救済後の投稿／画面が灯る／入力欄に一行増えた／空の問い二度目／無言の「…………。」）に。旧の下流変種（`PressedTheQuestion` での1行差し替え）は参照先の行ごと消えたので撤去。**画の反転**＝`StageImagery.DrawKoharuReversal` を旧「空席の箸に湯気が戻る」から台本の「消えていた配信画面が灯り、途中で切れていたペンライトの光が画面まで届き切る」に描き替え、`BossKoharu.OnCryEnd` から呼び直した（記憶フラッシュは呼ばないまま）。**AOE 宣告名**＝`AreaSpellCaster` の こはる3種を『熱したフライパン／沸騰鍋／包丁の軌跡』→『画面の光／視線のかたまり／既読の線』へ、ハンドルも @koharu_kitchen→@koharu_light へ。フライパンの振り下ろし絵（`AreaStrike.Art.Pan`／`PanSlamFx`）は**付けるのをやめた**（部屋に鍋の絵が出るため。コードは差し替え素材が来たとき使えるよう残置）。カットイン台詞（`Hud._cutinData`）も第一スペルに合わせて差し替え。**H2**（`Hub.ReturnDialog \"koharu\"` ＋ `BurnDialog`）＝旧8行＋旧炎上6行を台本の3行＋8行に。数えた者としての投稿→引用二枚（顔なし。「AIが人の時間の使い方を語るな」「> 数えた者 ←数えただけの人が何言ってんの」＝11 の鏡）→「届けるべき相手は、いつもたった一人」→**ミナ自身の（送らない）「返信の下書き、四件。……一件も、送っていません。」**（FINAL の闇の根）→次のダイブが弱くなる報告。顔なし引用は `Hub.SpeakerFace` に「Ｘ」始まりの分岐を足して立ち絵なし・淡色リングで出す。**H2r**＝返信2行を台本どおりに（「八十七回、むだではありませんでしたよ。……八十八回目も、どうぞ。」／「ありがと、知らない人。……明日も、行ってみる。」＝F2 の伏線につき一字も変えず）。**検証**: `--boss --qa --assist --easy --shot` で ボス→改心→クリア→Hub(H2) まで通し（ソフトロックなし）。`--headless --qa --assist --easy --seconds 400` の通し走行で `[QA-SUMMARY] no anomalies flagged. clean run.`（Koharu→Hub→Rei まで到達）。スクショ `build/wiki_work/ingame_s2_c_{cry,redeem}_*.png`＝ボスバー「我に返るわたし @koharu_light」＋宣告『ちゃんとしなきゃ＋みんな見てる』（フライパン無し）／決定打「——むだな時間は、一秒も、ありません」がミナの顔で表示・**「シールドが、剥がれました!」の帯は重なっていない**／S2-9 の救済後投稿と STAGE 2 CLEAR／H2 のミナの投稿と引用「> 数えた者 ←数えただけの人が何言ってんの」。`dotnet build algo_shoot.sln` 0 Warning/0 Error。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json`／`settings.json` を .bak 退避して作業し復元済み。**申し送り**: (a) `MidEnemy` の姿勢 enum 名が `KoharuKnife`/`KoharuPot`（包丁・鍋）のまま＝内部識別子で画面には出ないが、敵スキンは既にペンライト／グッズの箱なので名前だけ古い。(b) 中ボス `CameoBoss` のハンドルは `@koharu`（ハブのカードと揃えて据え置き）でボス本体の `@koharu_light` と別。"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE2 こはるの道中と入力欄を実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 07 の S2-1〜S2-5。**S2-1**（`StageKoharu.Intro`）＝旧7行（腹の音・Stay・台所）を台本の6行（暗い部屋と画面の光／層1の投稿「今日の配信も最高だった。」／投稿の下の小さな声／壁一面の画面と笑っている人／机の下の箱三つ／「行きます。——放っておけないので。」）に。**S2-3**＝部屋パート（`Mid`）にペンライトの光が届かない行と「むだだ」に混じる学校の声・家の声、教室パート（`ClassTalk`・新設）に席は埋まっているのに視線だけがある行／黒板の「期待」／層3の投稿／机の列を数える／画数の軽口。**S2-2 中ボス**＝`CameoTalk1/3/CameoPost` を台本の第一声「あ、来た来た。……あたし、なにしてんだろ、って顔してる?」→RECLOSE三段（明るい→蒼白「何時間、見てるんだろ。塾……」→取り繕い）→捨て台詞「はい、これ。ペンライト。振ってみて。」に。オーバーレイに乗らないミナの観測行は直前の step（`BossTalk`）へ置いた（あかり面と同じ流儀）。**S2-4 入力欄**（`InputField`・新設）＝台本の7行をそのまま。who=3（システム表示）で「レイちゃんが | 」「今日も来ました | 」を中央テロップに出し、消えたほうの一行は S2-8 まで温存する旨をミナが言う。台本どおり選択は置かない。**S2-5**（`MidEnd`）＝層3の投稿／黒い画面に映る顔／「ぜんぶ、数えました」（決定打の仕込み）／光が重い【濁】兆候／「いまの間。{n}秒。」。`{n}` は `Step_MidEndLines` が直前行の滞在実秒を差し込む（Hub の同型と同じ流儀。静的配列は書き換えず写しで回す）。**step 構成は変えず**、空いた枠に場面を流し込んだ：step7=教室の会話／step8=入力欄／step9=道中C（ここで `CrossfadeLayersTo(RoomLayers)` で教室→部屋へ戻す＝S2-6「消えた画面の前の部屋」で戦う）／step10=S2-5。**戦闘中の割り込み（Koharu interrupt・ChoiceOverlay の2択）は無効化**（`KoharuInterruptEnabled = false`）：案C ではレイ面 S3-7「つづけて／むりしないで」へ移るため。到達しなくなった case 15〜19 と旧正典の `MidStoryPre/A/B/Post`（兄・台所）は落とし、機構（`Step_LinesHold`／`Step_MidChoice`／`SetQuietVeil`／`ChoiceOverlay` の呼び出し作法）はレイ面での再利用のため残置。**言葉弾**（`PostWords`）＝旧「むだだよ／なにをつくっても／もう帰ってこない／ひとりになる」を台本の「むだだ／今日も明るいね／模試、どうだった／何してるの／ちゃんと／期待」に。**背景の心象**（`StageImagery`）＝こはるのタイムライン8件を台所（つくりすぎた・お味噌汁）から推し活の部屋と教室（推しの配信／塾の帰り／グッズの箱／親には言ってない／今日も明るいねって言われた ほか）へ、小道具を食卓・空席・箸・茶碗・湯気から机の下の箱三つ＋届かないペンライトの光へ、床の薄文字を「だれも、こない」→「むだだ」へ。**ハブのカード**＝`GameManager.Stages` の koharu の Tweet を層1の投稿に。**少年の行はこはる面から全消滅**（`SCocky`/`SGentle`/`SAfraid` 定数と `Chat1〜5` も削除。`ShowLine` の `LineKind.Boy` 分岐も撤去）。**検証**: `--demo --seconds 320 --shot` で 導入→道中A→中ボス→教室→道中C→部屋→ボスまで通し。スクショ `build/wiki_work/ingame_s2_c_{road,mid,field,field3}_*.png`＝S2-1 の導入／新しい投稿カードと箱・ペンライトの小道具／中ボスの RECLOSE「見てって、これ。推しの配信。」／教室へのクロスフェード／部屋へ戻ってのボス戦。`dotnet build algo_shoot.sln` 0 Warning/0 Error。**セーブ保護**: 上と同じ一式を .bak 退避して復元済み。**申し送り**: (a) S2-4 の入力欄は who=3（ナレ枠の中央テロップ）で出しており、台本の「配信画面の下の入力欄」という画そのものは未実装（専用UIを作るなら別タスク）。"
+    },
+    {
+      "priority": null,
+      "title": "申し送り対応: 改心の決定打に HUD のプロンプトが重ならないように",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 前担当（STAGE1 あかり）の申し送り (c)。決定打の会話中に「シールドが、剥がれました! いまです、撃ち抜いて!」の帯（`Enemy.cs:709` の `ShowBossLine`）が重なる（`build/wiki_work/ingame_s1_c_redeem.png`）問題。`Enemy.Redeem` の cry 開始（`CryHoldDur > 0` の枝）で `Hud.SuppressCallouts` を立て、`Enemy.FinishCry` で戻すようにした＝ボス撃破〜改心の会話の間はボス字幕もスペルカットインも 0.2s でフェードアウトして出ない。戻しは cry 終了の唯一の経路（手動送り／CryHoldDur 経過／保険タイムアウト）に置いたので取り残しが起きない。Hud が取れない状況では何もしない（落とさない）。**検証**: `Akari.tscn --boss --qa --assist --easy --shot` の改心フレーム（`build/wiki_work/redeem_02.png`）で帯が消えていること、`Koharu.tscn` の決定打フレームでも同様であることを確認。`dotnet build` 0 Warning/0 Error。"
+    },
+    {
+      "priority": null,
+      "title": "申し送り対応: 会話の話者名「少年」を「あなた」に",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 案C に少年は居ないので、`Hud.LineKind.Boy`（who=0）の話者名を「少年」→「あなた」に（`ShowDialog` と会話ログの `BacklogSpeaker` の両方。中継 who=5 も「少年（ミナの声）」→「あなた（ミナの声）」）。あなたには顔が無いので**立ち絵は出さず**、空いた枠に下書きの吹き出し風の小さな印（角丸＋しっぽ＋打ちかけの三点＝`Hud.DrawDraftMark`）だけを置く。本文の折り返し幅（`BuildDialogPages`）も同じオフセットに合わせたので改行位置がズレない。あわせて前担当が置かなかった **S1-4 の復唱行**（`StageAkari.S14Reply` の `(0, \"ひろって\", \"\")` ／ `(0, \"そっとしといて\", \"\")`）を台本 06 どおり戻した（（送らない）は言葉を送っていないので復唱なし）。**検証**: `Koharu.tscn --shot` の1行目で話者名「あなた」・立ち絵なし・下書き印の表示を確認（`build/wiki_work/you3_02.png`）。`dotnet build` 0 Warning/0 Error。**注記**: 未実装の面（FINAL・エピローグ・StageMina 等）に残る旧・少年の行も「あなた」名義で出るようになるが、案C の実装が進んでいる面ではそれが正しく、残りは後続タスクで差し替わる。"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE1 あかりのボスと改心とクリアを実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 06 の S1-8〜S1-11・H1・H1r。**S1-8**（`StageAkari.MidEnd`）＝旧2行＋Chat4/Chat5 を台本の5行（A40／「1」のまま四つ／フロアが「すき」で埋まる／「またね」を祓う／「今度こそ、奥まで」）に。**S1-9**＝ボス登場の `BossIntro` を旧の少年3行からあかりの宣言2行（「ねえ、こっち見て。」「すきって言って。あたしも言う。……ずっと一緒。離さないから。」）へ。RECLOSE（`BossAkari.RecloseLines`）を台本の三段（「既読も三秒でつけるし。」→「バカ。……バカ、バカ。」→「……返して。読んだなら、返してよ。」）に差し替え。弾幕名4種と通路名『雨の帰り道』は台本と既に一致（変更なし）。**S1-10 改心**（`BossAkari.Lines`）＝旧16行（“キミ”／雨の交差点の記憶／少年の「ぼくの声じゃだめ」／中継 who=5「——あかり。」）を台本の8行に全面差し替え。二段構成＝(1) 束の底の一通「——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。」を返す → (2) ミナ自身の決定打「十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。」。その手前の「取り消された十二通は、ぜんぶ、わたくしに当たりました。」で `Audio.StopMusic(1.2f)`＝台本の「ここでBGM停止」を既存の改心演出の中に置き、決定打を無音のまま出す。相手の返事は代弁せず「……ぁ……」の涙（cry 保持）で抜く。旧の記憶フラッシュ（`StageImagery.TriggerMemoryFlash`＝雨の交差点に「あのね、あたし——」を焚く）は**呼ぶのをやめた**：案C の改心は回想ではなく「取り消されていない一通が背景にひらく」で、交差点の画が場面と食い違うため。差し替えの背景素材は未発注なので現状この枠は空。`StageImagery` 側には呼び手が居なくなった旨を注記（画ごと消すかは背景演出を決めてから）。**S1-11**（`Clear`）＝旧10行（ミナの「知ってるんですか?」→少年の嘘→シェイクスピア）を台本の5行（A44／「知らない声なのに。変なの。」／『ありがとう』と♥／「外の世界は、今日はどんな天気ですか。」／空の問い一度目「返事は、いりません。」）に。**H1**（`src/Hub.cs` ReturnDialog \"akari\"）＝旧8行を台本の8行に。被弾数 `{n}` の実測差し込みのため `GameManager.RunHitCount`（`Player.TakeHit` が実際に♥を減らしたときだけ加算・練習モードは数えない・`ResetRun` で 0）を新設し、`Hub.FillObservations` が表示直前の写しにだけ差し込む（会話カードの `MinaPostShort` は生データを見るので不変）。**H1r**＝返信2行を台本どおりに（「たとえ既読が、もう付かなくても。」／「……なんでだろ。あなたの言い方、誰かに似てる。」＝FINAL F3 への伏線につき一字も変えず）。再訪小話（IdleDialogs \"akari\"）＝旧の少年との掛け合い4本を台本にある2本（雨粒／言いそびれ）に。雨粒の「いまの間、{n}秒」は `AdvanceDialogue` が直前行の滞在実秒を差し込む（静的配列に焼き付かないよう `StartDialogue` で写しを持つように変更）。**少年の行はあかり関連から全消滅**（`SCocky`/`SGentle`/`SAfraid` 定数と `Chat4`/`Chat5` も削除。`ShowLine` の `LineKind.Boy` 分岐も撤去）。**検証**: `--boss --qa --assist --easy --shot` で ボス→改心→クリア→Hub まで通し（ソフトロックなし）。スクショ `build/wiki_work/ingame_s1_c_{intro,cameo,boss_spell,redeem,clear,h1_hits}.png`＝S1-1 の世界の決まり／中ボス／ボスバー「あふれるわたし @akari.」＋宣告「あかり @akari_ame『ねえ、こっち見て＋すきって言って』」／**決定打「十二通、読みました。——汚れた“好…」がミナの顔で表示・あかりは泣き顔本体**／S1-11 の A44 投稿と STAGE 1 CLEAR／H1 の「被弾は0回でした」（--assist で無被弾＝差し込みが実測で効いている）。旧台詞の残留を grep で確認＝`StageAkari.cs`/`BossAkari.cs`/`ShopTutorial.cs`/Hub の akari 節に 少年・Stay・黒板・キミ・シェイクスピア・赤の他人 の**台詞は0件**（ヒットはコメントと、別タスク担当の koharu/rei 節のみ）。`dotnet build algo_shoot.sln` 0 Warning/0 Error。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json`／`settings.json` を .bak 退避して作業し復元済み。**申し送り**: (a) 改心の背景「取り消されていない一通がひらく」の演出が未実装（旧・雨の交差点を外しただけ）。(b) `AreaSpellCaster` の宣告名（『沈黙の波紋』『豪雨予報』など INI 由来）は台本の弾幕名4種と別系統で未整合。(c) 決定打の表示に HUD の「シールドが、剥がれました!」プロンプトが重なる場面がある"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE1 あかりの束の選択と中ボスを実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 仮台本 06 の S1-4〜S1-7。**S1-4 束＋下書き選択**（`src/StageAkari.cs` の `MidStory`＋新 `Step_MidStory`）＝旧「宙浮きのノート」5行を台本どおりに差し替え、投稿 A42「送信取消。今日で十二回目。」→束の描写→「数えました。十二。」→「拾って、いいですか。」の4行で `ChoiceOverlay.Show(Hud, {ひろって／そっとしといて／（送らない）}, defaultSel=末尾)` を重ねる（step 番号は 8 のまま・内部 `_s14Phase` で 提示前→提示中→受け の3段）。決定で `GameManager.RecordChoice(\"s1_4\", 送った語, 散る語, 迷い秒)`。（送らない）は言葉ではないので送信語に数えず表示候補2件が丸ごと散り、`SetContamination(+0.02)` で汚染を微増（仕様未決につき小さく）。受けは選択別1行＋共通の締め「——来ます。雨の奥から、足音が。」。提示中は `HoldBubble` 継続＝弾・敵は止まったまま。**S1-5 中ボス**（`CameoTalk1`/`CameoTalk3`/`CameoPost`）＝第一声「あ、来た来た。ねえ、あなた、あたしの、読んだ? 返事、まだ? 見たよね? ね?」／RECLOSE 2本「ひとりにしないで。」「来ないで……っ。……ちがう、来て。……来ないで。」／捨て台詞「ぜったい、また会いに来てよね。ぜったいだよ?」。顔を `akari_face_lit`（画面の光を浴びた顔）へ。CameoBoss の一行オーバーレイは who=2 しか流さないので、S1-5 のミナ2行は中ボス直後に開く `Mid` の頭に置いた。**S1-6 ショップ説明**（`src/ShopTutorial.cs`）＝少年との掛け合い5行をミナの独り解説8行に差し替え。**S1-7**（`BossTalk`）＝旧「あかり、っていうんだ」考察6行＋Chat2/Chat3 を台本の5行（向かいの席／A38／A28／返事の声が無い／「ぜんぶ浴びていきます」）に差し替え。旧 Chat1〜Chat3 と少年の行はこの4場面から全て除去。**検証**: `--qa --assist --easy` の通し走行で `RecordChoice` が1回発火し（sel=2＝既定カーソルの（送らない）・迷い1.5s・汚染上昇を一時ログで確認）、Akari→Hub→Koharu まで進行＝選択で詰まらない。`dotnet build algo_shoot.sln` 0 Warning/0 Error"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE1 あかりの導入と小話を実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) ユーザー承認済み仮台本 wiki/08_仮台本/06 の S1-1〜S1-3 を `src/StageAkari.cs` へ。**S1-1**（`Intro`）＝旧12行（少年との掛け合い・Stay・「おかしな教室」）を台本どおりの6行に差し替え。投稿 A35 →「いいねが、ひとつ」→退勤後のフロアの描写→通知の「1」→**この世界の決まり**（飛んでくるのは言葉であって本人ではない／奥の本人へ届ける。一面目なのでここが担う）→「まいります」。**S1-2**（`Mid`）＝旧5行＋Chat1（3行）を台本どおりの5行に差し替え。「返して」「すき」の声／返事の声だけが無い→肩の一人漫才→ホワイトボード「あたしのせいだ」→置き傘二本→雨の音。**S1-3**（道中A・想定0行）は台詞なしのウェーブ step のためコード変更なし。少年（who=0 の旧用途）の行はこの2場面から全て除去し、話者はミナ一人（who=1）と投稿（who=4）のみ。表情は行ごとに `mina_face`／`mina_smile`／`mina_worried` を台本の指定どおり指定（定数 `MFace`/`MSmile`/`MWorried` を新設）。S1-4 以降の場面はまだ旧稿のため、そこが参照する `SCocky`/`SGentle`/`SAfraid` と `Chat2`〜`Chat5` は「差し替えまでの暫定」と注記して残置（後続タスクで除去）。`dotnet build algo_shoot.sln` 0 Warning/0 Error"
+    },
+    {
+      "priority": null,
+      "title": "(QA 指摘の続き) ボスの Cry を新しい泣き顔の本体に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 2026-09-05 の「改心の会話中にボスの泣き顔が出ない」の申し送り（v3 ボスに専用の泣き顔が無い＝`*_body_hit.png` は被弾リアクション用で笑顔のまま）に、描き下ろしの `char/v3/boss_{akari,koharu,rei}_body_cry.png`（720px・エフェクトなし・コミット済み 05b5b8f）を配線した。**差し替え**: `src/BossAkari.cs:129`／`src/BossKoharu.cs:183`／`src/BossRei.cs:147` の `CryTexPath` を `*_body_hit.png` → `*_body_cry.png`。あかり・こはるは待機と同じ倍率・アンカー（`SwapBody` が `BodyDisplayH/テクスチャ高` で正規化し、3枚とも 720px 高なので追加の調整は不要）。**レイだけ縮める**: cry も post も「ガワの中の人」で、ガワ（待機＝アイドルの姿）と同じ表示高で出すと同一人物の等身が破綻する。`CryBodyScale`／`PostBodyScale` を新設（`src/Enemy.cs:44-51`・既定 1＝全ボス従来どおり）し、`BossRei.cs` で両方 `0.75f` に。`SwapBody(path, scaleMul)` が基準スケールに掛け（`Enemy.cs:856`）、`ApplyBodyOffset`（`Enemy.cs:381-393`）が**縮めて浮くぶんを押し下げて足元を合わせる**——素材はどれも不透明域が下端まで詰まっている（実測: idle/cry/post とも opaque bot = 高さ-1）ので、中央基準のまま縮めると足元が `表示高×(1-倍率)/2` 浮く。その差を画像画素に直した `高さ×(1-倍率)/(2×倍率)` を Offset.Y に足す。cry/post の呼び出し4箇所（`Enemy.cs:811,823,949,950`）に倍率を渡した。`CameoBoss`（中ボス）は `Theme.CryTex` の別素材で倍率は既定 1＝不変。`BossParts.OnCry` のコメントも `*_body_hit.png` 前提の記述から実態（専用の泣き顔＋部品を沈める、の対）に直した。**検証**: `--boss --qa --assist --easy --shot`。`build/wiki_work/fix_cry2_akari.png`＝改心の会話中に涙を流して膝を抱えた新しい泣き顔（飾り枠・吹き出しは沈んでいる）、`fix_cry2_koharu.png`＝涙＋口を開けて手を顔へ上げた新しい泣き顔、`fix_cry2_rei.png`＝**ガワが割れて中の人**（パーカー・黒髪）がガワより明らかに小さく、飾り枠の下辺に両足で接地している。cry→post の連続性も別途確認（同じ 75%・同じ足元のまま涙だけ引く）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json` を .bak 退避して作業し復元済み"
+    },
+    {
+      "priority": "P2",
+      "title": "練習 T1 の実況を2行に削る",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-06) 承認済み仮台本 wiki/08_仮台本/06 の T1 のとおり `src/StageZero.cs` の台詞を**2行だけ**に削った。**落としたもの**: 教え役（少年）の全行と、ミナの実況。`Tut0Intro`／`Tut1Move`／`Tut2Shot`／`Tut3Slow`／`Tut4Dash`／`Tut5Bomb`／`Tut7Warmth` の7配列を `System.Array.Empty<...>()` に（配列そのものは残す＝`Drive` の各 case と一対一の対応を崩さない）。旧36行→2行。**残した2行**: 浄化の段 `Tut6Purify` に「倒すのではなく、届ける。……これが、わたくしの役目なんですね。」、締め `Tut8End` に「……あ。暗闇に、ひとつ。行く先の光が、灯りました。」。締めの行は旧版の「ご主人様、見てください。」「ひとつだけ」を 06 の文面（「暗闇に、ひとつ。」）に差し替え＝**台本のとおり**で、勝手な変更ではない。**`_phase` 番号は変えていない**（0〜15 のまま）＝`OpForPhase` の指示帯（移動／ショット／低速／回避／ボム／浄化）も達成条件（`ShotKillNeed` 等）もスポット矩形も一切触っていない。台詞の無い段は会話フェーズがその場で通過する。**1行の実装追加**: `TutTalk` の冒頭に `if (lines.Length == 0) return true;`。これが無いと `TutShowLine` が `lines[0]` を掴んで落ちる。**検証**: `res://Stage0.tscn -- --demo --seconds 380`。(1) **2行だけ・順番も正しい** — 一時ログ（`TutShowLine` に仕込み、確認後に削除。作業ツリーに残していない）が `phase=11 who=1 倒すのではなく、届ける…` と `phase=15 who=1 ……あ。暗闇に、ひとつ。行く先の光が、灯りました。` の**2件だけ**を出力。他の段は1行も表示されない。(2) **少年が出ない** — 全走破のログに who=0 の行は0件。(3) **ハブへ抜ける** — 練習完走後にハブを経てあかり面へダイブするところまで自動で進む（`build/wiki_work/ingame_t1_c_07.png` が雨のフロアでミナが喋っている画）。例外0件。スクショ `build/wiki_work/ingame_t1_c_00〜07.png`：`_00` は移動の段で**吹き出しが一切無く指示帯（移動／矢印・WASD）と進捗だけ**、`_03` はショットの段（撃つ／オート）、`_04`・`_05` はやさしさ全開の段（Ctrl のバッジとスポット）——いずれも会話ボックス無し。**注記**: 残した2行そのものを写した静止画は取れていない。自動操縦の会話送りが 0.30s 周期で、この2行の表示窓が 0.3〜0.6s しかないうえ、練習の達成条件（撃破数・回避数）の消化速度が実行ごとにぶれて到達時刻が 180s〜244s の間で毎回動くため、`--shot-at` を 0.35s 刻みで 41 枚撒いても窓を外した。台詞の内容・話者・段の検証は上記(1)のログで取っている。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json` を .bak 退避して作業し復元済み。`dotnet build algo_shoot.sln` で 0 Warning/0 Error"
+    },
+    {
+      "priority": "P1",
+      "title": "冒頭 P0〜P4 を案C に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 承認済み仮台本 wiki/08_仮台本/06 の P0〜P4 を `src/Prologue.cs` に実装。**少年は全消し**（`shonen_*` の立ち絵4枚と旧43行中の少年行を撤去）。話者は `WhoYou/WhoMina/WhoSys/WhoPost`＝`Hud.LineKind` と同じ番号（0/1/3/4）にし、台本の `(who, text, face)` と一対一で読める形にした。**P1 起動ログ**: `read operator.vitals ... [signal lost 0414]`／`fallback: replay operator from archive` を 04 のとおり `import unsent_drafts ... 414 items ... OK`／`synthesize voice from corpus ... OK` に差し替え、`link operator ... OK`・`uptime(operator) ... 9h 41m` を追加、末尾を `assigning identity ... [ deferred ]` に。四行の英文フラッシュ（t≈1.7〜1.95）は現行演出のまま。**phase1 の描画**も `[ M I N A ]` 点灯をやめ `[ deferred ]` の明滅に（点灯は P3 へ移設）。**3択は Prologue から `ChoiceOverlay.Show(this, ...)`** ＝Hud の無いシーンで動くことを実機で確認（`ChoiceOverlay` は `Control`＋`UiKit.BeginDesign` の描画変換だけで Hud に依存しておらず、依存を外す改修は不要だった）。選択は `_talk` の「差し込み点」方式で、決まったら送った言葉（who=0）＋分岐ぶんの受けをその位置へ挿し込む。**P2**（おはよう／きこえてる／うごいた・（送らない）なし）受けは三候補共通で、`{P2秒}`＝実測の迷い秒数を丸めた算用数字・`{文字数}`＝送った語の長さ・`{hh:mm}`＝実時刻を差し込む。**P3**（ミナ／超絶最強無敵ハイパーAIちゃんMk-Ⅱ／（送らない））は3ルートとも `OK`→`[ M I N A ]`→「気に入りました」に合流し `NameRoute` を記録。**P4**（きこえるんだ／そっか／耳いいね）は「耳いいね」だけ一行目差し替え。**値の記録**: `RecordChoice(\"p2\"/\"p3\"/\"p4\", 送った語, 散った語, 迷い秒数)`。`FirstScattered` は P2 の散った2語のうち上の候補、`（送らない）` は言葉ではないので【散】に数えない（P3 で選ぶと表示候補の上2つが散る）。**台本と変えた点**: なし（誤字修正もなし）。**入れた台詞**: P2 受け8行／P3 受け ミナ3行・ダサい名前5行・（送らない）3行＋共通3行（`OK`／`[ M I N A ]`／着地）／P4 導入7行＋受け4行、システム表示3行、投稿3行。**検証**: `res://Prologue.tscn -- --demo --shot --shot-at 6,14,17.5,22,25,30` → `build/wiki_work/ingame_prologue_c_00〜05.png`。3択が P2/P3/P4 の三箇所で提示され（`_01`＝命名の3択、`_04`＝聞いてしまうの3択）、少年の立ち絵・台詞は一度も出ず（`_00` は「あなた／おはよう」、P2 の受けはミナの立ち絵）、`[ M I N A ]` はコード緑・話者名なしで点灯し（`_02`）、Prologue を抜けて Stage0 へ遷移する（`_05`）。**値の記録は一時ログで確認**（確認後に削除・作業ツリーに残していない）: p2 で `first='きこえてる' last='おはよう' scattered=[きこえてる,うごいた]`、p3 で `route=0` と `超絶最強…Mk-Ⅱ` の追加、p4 で `scattered` が5件・`hesTotal` が3回ぶんの合計（14.00）になることを確認。**セーブ保護**: `save_0〜3.json`／`save.json`／`read.json`／`prefs.json` を .bak 退避して作業し復元済み。`dotnet build algo_shoot.sln` で 0 Warning/0 Error。**申し送り**: `case 4` の Title フェーズは**この改修より前から到達不能**（`StartGame()` は Stage0 か受講確認 phase5 へ行き phase4 を通らない）。挙動を変えないため今回は残置した。"
+    },
+    {
+      "priority": "P1",
+      "title": "仕掛けの値を GameManager に足してセーブに載せる",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/GameManager.cs:323-360` に `ScatteredWords`（`List<string>`・散った言葉を出た順に）、`FirstScattered`、`NameRoute`（0〜2）、`LastSentWord`、`HesitationSec` を追加。`PressedTheQuestion` の直下＝同じ「会話選択」の並びに置いた。**セーブ**（`SaveToSlot`）に `scatteredWords`（配列）／`firstScattered`／`nameRoute`／`lastSentWord`／`hesitationSec` を書き、**ロード**（`LoadFromSlot`）は `pressedQ` と同じ `data.ContainsKey(...)` 判定でキー無し＝既定値（空配列／空文字／0）に落とす。`nameRoute` は 0〜2 にクランプ。`ResetPersistent`（はじめから）でも全て初期化する＝前データの散った言葉が F4/E2 に残らない。**`RecordChoice(id, chosen, others, hesitationSec)`**: 選ばれなかった候補を `ScatteredWords` に積む口。**選択IDごとに上書き**でき、同じ id で呼び直すと前回その id で散らせた語と迷い秒数を取り消してから積み直す（`_scatterById`／`_hesitationById` の台帳）＝選び直し・リトライで二重計上しない。`FirstScattered` は一度決まったら動かさない（F4 で戻る一語が選び直しで揺れないため）。`LastSentWord` は選ばれた語で毎回更新。**呼び出しは繋いでいない**（各場面の記録は台本タスクの範囲）。**検証**（一時コードで確認し、確認後に削除。作業ツリーは追加65行のみで確認コードは残していない）: (1) **往復** — `RecordChoice(\"p2\",\"ミナ\",[アルゴ,なまえはまだ],3.5)` → `RecordChoice(\"s1\",...,1.25)` → 同じ \"s1\" を `(\"そっとしといて\",[ひろって],2.0)` で再記録 → `NameRoute=2` を書いてセーブ→メモリを空に→ロードで `scattered=[アルゴ,なまえはまだ,ひろって] first=アルゴ route=2 last=そっとしといて hes=5.50` が完全復元。**二重計上なし**も同時に確認＝\"s1\" 初回の「そっとしといて」は リスト から消え、迷い秒数も 3.5+1.25+2.0=6.75 ではなく 3.5+2.0=**5.50**。(2) **後方互換** — セーブJSONから5キーを削って読ませると `scattered=[] first='' route=0 last='' hes=0.00` でエラー無し＝旧セーブがそのまま読める。**セーブ保護**: `save_0.json`／`read.json` を .bak 退避して作業し復元済み（検証には未使用のスロット9を使い、確認後に削除）。`dotnet build` 0 Warning/0 Error"
+    },
+    {
+      "priority": "P1",
+      "title": "ChoiceOverlay を3択に対応",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **座標**: 固定表 `RowY={240,330}` をやめ、`BlockCenterY`=285 を軸に `RowPitch`=90 で上下対称に並べる式に置換（`src/ChoiceOverlay.cs:88-94,124-133`）。2択は `285±45`＝**従来と同じ y=240/330** に来るので既存の見え方は不変、3択は 195/285/375、4択は 150/240/330/420。いずれも吹き出し（y=520〜690）と HUD 上端に掛からない。`MaxChoices`=4 を超えたら `GD.PushWarning` で知らせる。**カーソル移動**: 従来は ↑↓ どちらでも `(Selected+1)%n` の一方向送りで、2択なら正しいが3択以上で↑が効かない。方向を見て上下に動かす（両端でラップ）ようにした（`ChoiceOverlay.cs:167-178`）＝2択の挙動は不変。**沈黙タイマー**: `SilenceWarm`=14s の灯りも `SilenceAuto`=20s の自動決定も元から `_choices.Length-1`（末尾）参照で件数非依存だったため変更不要。`Show` の `defaultSel` は範囲クランプを追加。**マウス／▸マーカー／下線のグロー／--shot の4秒ゲート**: すべて `_choices.Length` ループと `RowRect(i)` 経由で件数非依存＝そのまま N 件で動く。**既存呼び出し**: `src/StageKoharu.cs:393` は `defaultSel: opts.Length-1`（2択なら 1＝従来値）にしただけで文言・分岐の解釈（`_midChoseA = Selected==0`）は不変。**デバッグ引数（残置）**: `--choice3` を追加（`src/GameManager.cs:1101,1113` の `DebugChoiceThree`／`StageKoharu.cs:393-400`）。`--choice` を含み、こはるの割り込みを中央に1本足した3択で出す**表示検証専用**。台本上の選択は2択のまま＝末尾は「ひきさがる」を維持し、沈黙の自動決定と既定カーソルの位置づけを変えない。**検証**: `res://Koharu.tscn -- --boss --demo --choice{,3} --shot --shot-at 5.0`（割り込みは stage_t≈4.1s に出る）。3択＝`build/wiki_work/choice3_00.png`（3本が等間隔・中央揃えで並び、▸と下線のグローは末尾、操作ヒントは吹き出しに掛からない）、2択＝`build/wiki_work/choice2_00.png`（従来どおりの位置・既定カーソル末尾）。`dotnet build` 0 Warning/0 Error"
+    },
+    {
+      "priority": null,
+      "title": "(QA 指摘) 自動走行（DemoPilot）が Prologue の会話を送れない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **原因**: `src/DemoPilot.cs` の `DriveShootAndAdvance` が `Hud.BubblePaused` でない間 `SetZ(true)` で **Z を押しっぱなし**にしていた。会話送りは押下エッジ（1回押すごとに1行）なので、押しっぱなしではエッジが最初の1回しか立たない。Prologue は Hud を持たず `BubblePaused` を立てないカットシーンで、自前で `Pad.AdvanceHeld()` のエッジを取る（`src/Prologue.cs:178`）ため、少年の1行目で1回だけ進んで以降永久に止まっていた。TitleMenu / Epilogue など他のカットシーンも同じ構造。QaPilot が送れていたのは `src/QaPilot.cs:284` が**常時パルス**（会話中0.5s／それ以外0.16s周期）だったから＝この差が原因。**修正**: DemoPilot も常時パルスに統一し、周期だけ切り替える（会話中は既存の `StoryPeriod`=0.30s、それ以外は QaPilot と同じ `ShootPeriod`=0.16s）。`src/DemoPilot.cs:291-306`。**射撃への影響なし**: 自機のショットはオート発射で Z を一切見ない（`src/Player.cs:598`「ショットはオート＝射撃ボタンは無い」）ので、押しっぱなしをやめても火力は変わらない。台詞・演出には触っていない。**検証**: `res://Prologue.tscn -- --demo`。修正前は 40秒走らせても少年の1行目のまま（`build/wiki_work/demo_prologue_before.png`、t=40s で「……お。起きたか。」）。修正後は会話が流れ（`demo_prologue_after_mid.png` t=15s でミナのパートまで到達）、t=60s には Prologue → Title を抜けて Stage0 のチュートリアルを自動プレイ中（`demo_prologue_after_stage0.png`）＝要求の「Title へ抜ける」より先まで進む。`dotnet build` 0 Warning/0 Error"
+    },
+    {
+      "priority": null,
+      "title": "(QA 指摘) 改心の会話中にボスの泣き顔（Cry）が出ない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **原因は2つ**。(1) **本体の絵が戻される**: `src/Enemy.cs` の `TickAttackPose` が `_purified`/`_crying` を見ずに `SwapBody(PreTexPath)` していた。攻撃の一拍（`AttackPoseDur`=0.55s）の最中に撃破すると `_attackPoseT` が残ったまま `Redeem` が cry へ差し替え、その数フレーム後にここが切れて穢れの絵へ上書きする。`TriggerAttackPose` 側と同じ条件で弾くようガードを足した（`src/Enemy.cs:406`）。(2) **cry 段が見た目で判別できない（こちらが主症状）**: v3 ボスの `CryTexPath` は `char/v3/boss_*_body_hit.png` を指しているが、この絵は待機絵（`*_body_idle.png`）とほぼ同構図・同じ笑顔で、しかも部品層（飾り枠・星・引用カード・光の帯）は会話中 `St.Idle` のまま満照度で止まる＝プレイヤーには「撃破したのに穢れのまま」に見えていた。`BossParts` に `St.Cry` を新設し、撃破の一拍で部品が公転・回転をやめて濃さを `CryFade`=0.45 まで沈めるようにした（`OnCry()`／`TickCryFade()`）。`Hud.BubblePaused` 中も Redeem と同じく止めない（`BossParts.cs:504`）。消し切りは従来どおり `OnRedeem` の担当で、13_絵の発注方針.md:152,154 の「部品が消え切ってから本体が改心後へ」の順は不変。`TickRedeemFade` は開始時の濃さ（`FadeAtRedeem`）から 0 へ落とすようにして、cry で沈んだ部品が改心の瞬間に満照度へ跳ね返らないようにした。**検証**: `res://Rei.tscn -- --boss --qa --assist --easy --shot` で撮影。修正前 `build/wiki_work/base/brei_05.png`（STAGE 3 CLEAR 表示中なのに枠・星・光の帯が満照度＝戦闘中と同じ絵）→ 修正後 `build/wiki_work/fix_cry_rei_01.png`（改心の会話中に枠・星・引用カードが沈み、光の帯が消えて cry 段と分かる）。`build/wiki_work/fix_cry_{akari,koharu}_*.png` も併せて取得（こはるは倒すのが遅く撮影窓を外した枚あり）。`dotnet build` 0 Warning/0 Error。**申し送り（要 artist）**: v3 ボスには専用の泣き顔が無い。`char/v3/boss_*_body_hit.png` は被弾リアクション用で笑顔のまま＝`13_絵の発注方針.md:67`「肩を落とし、もやが薄れる」を満たしていない。旧世代の `char/enemy_{rei,akari,koharu}_cry.png` は v1 のデザイン（レイは眼鏡＋パーカー）で v3 のガワとは別人に見えるため流用不可。部品を沈める今回の対処は代替であって、本来は v3 の被弾（＝泣き）三枚目の発注が要る。"
+    },
+    {
+      "priority": "P2",
+      "title": "面順の入れ替えで嘘になったコメントを一掃",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 面の番号を位置で書いていたコメントを全て新順（あかり=1／こはる=2／レイ=3）に振り直した。**src/**: `ScrollFx.cs:155,217,273`（StageKind ごとの見出し）、`StageImagery.cs:272,302,392`（同）、`Boss{Akari,Koharu,Rei}.cs` の各ファイル頭とスペルカードの見出し（`BossAkari.cs:3,43`／`BossKoharu.cs:3,93`／`BossRei.cs:3,71`）、`KoharuRoot.cs:3`・`ReiRoot.cs:3` のファイル頭（`AkariRoot.cs:3` は STAGE1 のままで既に正しい）、`Stage{Akari,Koharu,Rei}.cs` のファイル頭、`StageAkari.cs:515` の遷移コメント「STAGE3（こはる）へ」→「STAGE2（こはる）へ」、`GameManager.cs:321`・`GameManager.cs:850`・`Epilogue.cs:179` の「STAGE3 MidStory」→「STAGE2（こはる）MidStory」（この2択はこはる面にある）、`BgLayers.cs:64` の Dim の対象に面の名前を添えた。**番号を消して名前にしたもの**（順番が変わっても嘘にならない書き方に）: `StageAkari.cs:40`／`StageKoharu.cs:41` の「STAGE1（Rei）と同じ 60→45」→「レイ面と同じ」、`StageRei.cs:36,46,207` の「STAGE1緩和」「STAGE1 からは撤去済み」→「レイ面の…」、`StageRei.cs:9` の「5: クリア → STAGE2(あかり)へ」→「5: クリア → ハブへ（本編の最終面）」（実際の遷移先はハブ＝`StageRei.cs:513` の `ChangeSceneToFile(\"res://Hub.tscn\")` なので、旧コメントは面順以前に遷移先も間違っていた）。**config/**: `config/boss_stats.ini:17,54,87` の見出し（`[rei]`/`[akari]`/`[koharu]` のセクションは名前引きなので並びは変えず番号だけ振り直し）。**.claude/skills/**（ワーカーが参照する対応表も旧順のままだった）: `qa-autoplay/SKILL.md:29-30`（戦闘シーンの番号と「シーンチェーン: Prologue → Rei → Akari → Koharu → …」→ 新順＋各面の間にハブを挟む旨）、`screenshots/SKILL.md:47-49`、`play-game/SKILL.md:16`、`demo-video/SKILL.md:38`、`design-gap/SKILL.md:31-33`、`maeda/references/scene-map.md:8-13`、`mitsuda/references/sound-map.md:56-58`。**検証**: `grep -rn \"STAGE[123]\" src/ config/ .claude/` の全ヒットを目視し、面の名前と番号の対応が新順で揃っていることを確認。ハブのカード順を autoplay なしの `--shot` で撮り `build/wiki_work/ingame_hub_order.png`＝上から **あかり（NEW・解放済み）／こはる（LOCKED）／レイ（LOCKED）** の順で、解放ゲートも配列に追随していることを確認。`dotnet build algo_shoot.sln` で 0 Warning/0 Error"
+    },
+    {
+      "priority": "P2",
+      "title": "炎上をこはるクリア後へ移す",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/GameManager.cs:324` の `ShouldBurnAfter` の判定を `\"akari\"` → `\"koharu\"` に変え、直上のコメント（`GameManager.cs:315`）も「STAGE2＝こはるクリア後／次の1ダイブ＝レイ面」に直した。**1行で足りる理由**: 炎上はハブが `ShouldBurnAfter(cleared)` だけを見て会話に炎上パートを継ぎ（`src/Hub.cs:135`）、会話終了時に `TriggerBurn()`＋トーストを出す（`Hub.cs:414`）。効果側は `BurningThisRun`（`GameManager.cs:339` の `BeginStageRun` で1ダイブぶんだけ消費）を `FireIntervalMul`(+30%)／`MoveSpeedMul`(-10%)／`TotalImpressionMul`(×0.6) と HUD の警告（`src/Hud.cs:1264`）が読むだけで、ステージIDには一切依存しない。炎上の会話（`Hub.cs:1267` `BurnDialog`）も面の名前を含まないので台詞は触っていない。**検証**（`--qa --assist --easy` を Prologue から通し、`--shot` を重ねて実機のHUDで確認）: (1) **こはるダイブ中は炎上していない** — `build/wiki_work/noburn_00.png`（t=245・救った人1/3＝あかりクリア後のこはる面）に「炎上中」の警告が出ていない。(2) **レイダイブが弱体化している** — `build/wiki_work/burn_02.png`（t=470・救った人2/3＝こはるクリア後のレイ面）に「**炎上中：発射間隔+30%・移動-10%・稼ぎ-40%**」の警告が出ている。ログは `build/qa/burn.log`（Prologue→Hub→Akari→Hub→Koharu→Hub→Rei を走破、QA-WARN 0件・例外0件）と `build/qa/noburn.log`。`dotnet build algo_shoot.sln` で 0 Warning/0 Error"
+    },
+    {
+      "priority": "P1",
+      "title": "汚染の進行値を新しい面順に振り直す",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 各 Root の開始値（`_Ready` の `SetContamination`／`Player.SetCorruption`）と道中の到達値（`_Process` の `baseFrom`/`baseTo`）を新しい面順へ振り直した: **あかり 0.00→0.18**（`src/AkariRoot.cs:76-77,129`）、**こはる 0.18→0.45**（`src/KoharuRoot.cs:94-95,146`）、**レイ 0.45→0.80**（`src/ReiRoot.cs:88-89,140`）。上げ幅は各面 0.18/0.27/0.35 で、後の面ほど濃くなる（案C の「1面目が最も薄く3面目が最も濃い」）。汚染耐性で緩む式（`(baseTo-baseFrom) * ContaminationGainMul * StageProgress`）は不変。**WorldGrade との対応を確認**: `src/WorldGrade.cs` の4段階は `Contamination` ではなく `StageProgress`（0..1）で切り替わる（`WorldGrade.cs:90`）ので、汚染値の振り直しとは独立＝どの面でも道中の進行に応じて同じ4段階を通る。汚染を読むのは `MurkVignette`（0.30 未満は非表示）、`Hub.DrawContaminationOverlay`（0.25/0.50/0.75 の帯）、`Hud.DrawGoal` の汚染バー、`Audio.cs:262`、`GameManager.KindnessGainMulAt` で、いずれも連続値を読むだけでステージIDに紐づく閾値は持たない。**新順での見え方**: 濁りビネットはあかり面では出ず（最大0.18）、こはる面の終盤で 0.45 に届いて薄く出始め、レイ面で 0.80＝α0.15 まで濃くなる。ハブのオーバーレイは あかりクリア後 0.18＝無し、こはるクリア後 0.45＝「兆候」、レイクリア後 0.80＝「危険」。**併せて実態に合わせたコメント**: 優しさ減衰カーブの例示点（`src/GameManager.cs:768`＝式は不変、サンプルを 0.18/0.45/0.80 の実測値 0.97/0.87/0.69 に差し替え）と `src/MurkVignette.cs:30` の「STAGE3末≈0.13」→「≈0.15」。**検証**: セーブ保護（`save_0.json`/`read.json` ほかを .bak 退避）のうえ3面を `--demo --shot --shot-at 3.0` で撮影（`build/wiki_work/ingame_taint_{akari,koharu,rei}.png`）。HUD 左の汚染バーが あかり＝ほぼ空／こはる＝短く伸びる／レイ＝その倍近く、の順に濃くなることを目視確認（同時にバナーが STAGE 1/2/3 START と出ていることも確認）。**なお `--shot` はヘッドレスでは撮れない**（`--headless` だと `GetViewport().GetTexture()` が null で `ERROR: Parameter \"t\" is null.`＝Shot.cs:72 で例外）ので、ウィンドウありで起動している。`dotnet build algo_shoot.sln` で 0 Warning/0 Error。**申し送り**: S3-7 の割り込み台詞「わたくしの光、二割ほど濁っています」はレイ面の終盤値 0.80 と整合する言い方だが、台詞の実装自体は後続の台本タスクの範囲なので今回は触っていない"
+    },
+    {
+      "priority": "P1",
+      "title": "面の順番を あかり→こはる→レイ に入れ替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/GameManager.cs:196-198` の `Stages` を あかり→こはる→レイ に並べ替え、`Title` を「STAGE 1 — あかり」「STAGE 2 — こはる」「STAGE 3 — レイ」へ振り直した。**追随を確認したもの**（いずれも `Stages` を走査するので配列の並びだけで決まる）: ハブのカード順（`src/Hub.cs:189` の `foreach (var s in GameManager.Stages)`）、次の未クリア面（`GameManager.cs:287` `NextUnclearedStageId`）、解放ゲート（`GameManager.cs:293` `IsStageUnlocked`）、DiffSelect の見出し（`src/DiffSelect.cs:69`）、ハブ帰還小話の「最後にクリアした面」判定（`Hub.cs:154`）。**併せて振り直した位置依存の表記**: 記録表の行順（`src/Records.cs:17-19`）、プロローグのタイトル画面の「STAGE 1 : あかり」（`src/Prologue.cs:557`）と case 4 のコメント、DiffSelect の既定値（`DiffSelect.cs:37`＝Stages 未登録シーン用のフォールバック）、各面の開始／クリアバナー（`src/StageAkari.cs:233,509`＝STAGE 1／`src/StageKoharu.cs:256,634`＝STAGE 2／`src/StageRei.cs:245,501`＝STAGE 3）。**旧セーブは移行しない（周回中として扱う）**＝クリア済みは ID の集合（`_cleared`）なので並べ替えても壊れないが、旧セーブで「レイだけクリア済み」の人は新順では3面目だけクリアの状態になり物語の順序は狂う（組み込み計画 (D)-4 の決定どおり移行処理は入れていない）。**検証**: セーブ保護（`save_0.json`/`read.json` ほかを .bak 退避）のうえ `--qa --assist --easy --quit` を Prologue から通し、シーン遷移が **Prologue → Hub → Akari → Hub → Koharu → Hub → Rei** の順になることをログで確認（`build/qa/order_t1.log`。ツール側の10分上限でレイのボス戦 t=586 で打ち切り＝Final/Epilogue までは別タスクで確認）。QA-WARN 0件・例外0件。`dotnet build algo_shoot.sln` で 0 Warning/0 Error。**申し送り**: `src/Hub.cs:186` のカードの反応数ハードコード（rei=12/3/48・akari=34/9/210・koharu=58/21/402）は旧順で「1面目が最も小さく3面目が最も大きい」よう振られていたので、新順では1枚目（あかり）が中くらい・3枚目（レイ）が最小に見える。数字の意味づけは物語側の判断なので触っていない"
+    },
+    {
+      "priority": "P2",
+      "title": "レイのボス部品を配線（飾り枠・空の吹き出し・星・光の帯・ひび）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/BossRei.cs:172` で `AttachParts(\"rei\", idleTexW: 533f, attackTexW: 556f)`。被弾／改心のフックは共通経路（`src/Enemy.cs:557`／`src/Enemy.cs:927`）に乗る。**飾り枠**: `frame_corner` は 256×256 いっぱいに左上の角1つが描かれた「四分の一枠」なので、`Def` に `MirrorX`/`MirrorY`（描画時に負スケールで反転）と `Framed`（本体の左右反転で位置が入れ替わるとき MirrorX も一緒に反転させて角の向きを保つ）を足し、1枚から四隅を作る（`src/fx/BossParts.cs:56-77,899-901`）。角と角のすき間は `frame_edge`（256×51 の横長）を上下2枚ずつで埋め、上中央に `frame_star`。枠の内寸は半幅 0.55／半高 0.62×本体高＝**本体の約1.24倍で閉じた1枚の枠**に見える。**前担当の「薄くて小さい」指摘への対応は SizeK を上げるのではなく位置を詰める形にした**: 最初に指示どおり SizeK 0.42→0.62・位置 ±0.60→±0.80 まで上げたところ、実機（`build/shots/bossfx_rei_02.png`）で角が画面の1/3に散って枠に見えず上端が切れた（本体スプライトの 72px は透明余白込みで、見えている体は約48px しかないため）。SizeK 0.40／位置 ±(0.35,0.42) に詰め、α を 0.70/0.75→0.85/0.90 へ上げて視認性を確保した。**吹き出し**: 4枚のうち半数を `Layer.Back`（奥）・半数を `Layer.Front`（手前）で公転（既存の表のまま）。**攻撃**: `ray_gold`／`ray_violet` を待機の常設部品から外し、手（`AnchorMuzzle`＝攻撃絵で実測した (555,234)）から4本を角度違い（±0.45rad）で加算放射する一発演出に回した（`src/fx/BossParts.cs:661-673`。GrowK で伸びながら 0.42 秒で減衰）。**被弾**: `crack` を枠と同じ大きさ（本体の1.6倍）で 0.5 秒だけ重ね、吹き出し・星は既存の散りで外へ飛ぶ。**改心**: `OnRedeem` の頭で `crack` を本体の1.7倍・α0.85・RedeemDur×0.7 で走らせ（`EmitRedeemFx`）、部品が順に消え切ってから完了コールバックで `SwapBody(PostTexPath)`＝**ひび → ガワ（枠・吹き出し・星）が落ちる → 中の人（`boss_rei_post.png`）** の順を守っている。**検証**: セーブ保護（`save_0.json`/`read.json` を .bak 退避）のうえ `--boss --demo --shot --shot-at 3,6,9,12,15` で待機と攻撃を撮り（`build/wiki_work/ingame_bossfx_rei_{idle,attack}.png`＝枠が閉じて手から光の帯が出ている）、改心は `--boss --qa --assist --easy` でボスを倒し切って `--shot-at 40.6..42.6` で撮った（`ingame_bossfx_rei_redeem.png`＝ひびが走り枠が落ちながら本体がクロスフェード中／`ingame_bossfx_rei_post.png`＝部品ゼロで中の人だけ）。一時的なデバッグコードは使っていない（`--qa --assist` で到達できた）。FPS は `--qa --assist --seconds 120`（Prologue 通し）で **中央値 85fps・p10 84fps・最小 63fps・QA-WARN 0件・例外0件**（`build/qa/fps_final.log`）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error。**申し送り**: 改心後の post スプライトは既存の `PurifiedExitHold`/`PurifiedExitFade` で数秒後にフェードアウトするので中の人が見える時間は短い（今回の変更前からの挙動で、部品の配線とは無関係）"
+    },
+    {
+      "priority": "P2",
+      "title": "こはるのボス部品を配線（視線の線・光線・ペンライト・箱・粒・もや）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/BossKoharu.cs:209` で `AttachParts(\"koharu\", idleTexW: 626f, attackTexW: 585f)`（幅は本体画像の実寸を `od` で実測）。被弾／改心のフックは前タスクで `Enemy` 側に入れた共通経路（`src/Enemy.cs:557` の `OnHit`／`src/Enemy.cs:927` の `OnRedeem`）にそのまま乗る。**攻撃**: 予備動作の 0.15 秒で後光（`gaze_ray`）を杖の先（`AnchorMuzzle`＝攻撃絵で実測した (573,4)）へ集束させ（`Part.Focus` を 0→1 に上げ、描画側が 0.30 倍まで縮めながらα 0.10/0.12→0.20 へ持ち上げる）、解放で `gaze_line` を5本、扇（±0.32rad）に前方へ 120px/s で飛ばす（`src/fx/BossParts.cs:646-659`）。ペンライトは同じ素材なので全て同じ向きに揃っている。**被弾**: 点いているペンライト（`penlight_lit`）を `penlight_off` へ差し替える＝振る手が止まる。待機へ戻っても戻さない（戦いが進むほど暗くなる）。`Def` の File だけ差し替える `WithFile` を追加（`src/fx/BossParts.cs:400-403`）。**安全地帯との競合**: 後光は待機α 0.12/0.10（受入条件の「0.12 以下」を満たす）。実機で2つ問題が出たので直した — (1) 予備動作が全部品を同じ1点へ寄せるため、加算の小さな粒が重なってこはるの顔の上に白い塊ができた（`build/shots4/kh_01.png` 旧版）。**湧いて流れる粒（Role.Rise）を寄せ／解放の対象から外し**（`IsWindPulled`）、残りは黄金角で発射点まわり半径 0.16×本体高へ散らして狙わせた。(2) 集束のα上限を 0.5→0.20、縮小を 0.55→0.30 倍に。撮り直した `build/wiki_work/ingame_bossfx_koharu_{idle,attack,fan}.png` で、本体の顔と配信画面の光（安全地帯）がどちらも読め、視線の扇が発射点から出ていることを確認。**検証**: セーブ保護（`save_0.json`/`read.json` を .bak 退避）のうえ `--boss --demo --shot --shot-at 3,6,9,12,15`。FPS は `--boss --qa --assist --easy --seconds 90` で **中央値 85fps・QA-WARN 0件・例外0件**（`build/qa/koharu_parts.log`。min 32 はシーン読み込み直後の1フレームのみ）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error"
+    },
+    {
+      "priority": "P2",
+      "title": "あかりのボス部品を配線（カード・スマホ光・断片・床の輪・既読の点・ビーム）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 前担当が口だけ用意していた `OnHit`／`OnRedeem` に呼び出し元を付け、攻撃の固有演出（一発きりの Burst 層）を新設した。**被弾フック**: `src/Enemy.cs:557` — 無防備窓で本体HPを削った直後（`_hitFlashT`/`PlayBossHit` と同じ一拍）に `_parts?.OnHit()`。ただし `_hp>0` のときだけ＝改心へ入る最後の一撃は下の改心演出に譲る（散らしてから消すと二度手間）。**改心フック**: `src/Enemy.cs:927` `FinishCry` — 部品層があるボスは `_parts.OnRedeem(() => SwapBody(PostTexPath))` で post への着地を「部品が全部消えてから」に遅らせる。`OnCryEnd`／`GrantFollower`（＝`Finished` と進行）は待たせないので、既存の進行フローは不変。併せて `BossParts._Process` は Redeem 中だけ `Hud.BubblePaused` を無視する（会話が続く間ずっと止めると post に着地できないため）。**一発きりの演出（Burst）**: `src/fx/BossParts.cs:96-144` に、公転する常設部品とは別の「寿命を使い切ったら消える」薄い層を新設。`AddBurst`／`TickBursts`／`DrawBursts`。α は前半を保って後半で落とす（線形に落とすだけだと明るいボスの上で光条が見えなかった）。**あかりの攻撃**: 発射点（スマホの先端＝`AnchorMuzzle`）から `beam_segment` を横に6枚、根元から 0.025 秒ずつ遅らせて連結し 0.4 秒で減衰。カードは既存の解放でそのまま輪を解いて前方へ射出。`glitch_band` を撃った直後に 0.1 秒だけ本体へかぶせる（`src/fx/BossParts.cs:631-644`）。**併せて直した実機の不具合3件**: (1) `Front`/`Add` の Z が 0 で弾（Z0・World 直下）と同じ層のまま本体の子として弾より後に積まれていたので **-1 へ下げた**（`src/fx/BossParts.cs:305-307`）。(2) 解放の抵抗 0.6 は総移動が v/0.6＝150〜230px（画面幅 384px の半分超）でカードが HUD まで飛んで戻らなかったので **4.0** に（`src/fx/BossParts.cs:513-518`）。(3) 被弾の散りが床の輪・スマホ画面まで飛ばして足元が読めなくなっていたので `IsAnchored` を散り側にも適用し、貼り付き部品はαも落とさない。(4) 連射（スパイラルは 0.085 秒間隔）で毎発 Wind をやり直して部品が発射点で震えていたので、`AttackRetrigger=0.7s`／`HitRetrigger=0.22s` で間引く。**検証**: セーブ保護（`save_0.json`/`read.json` を .bak 退避）のうえ `--boss --demo --shot` で撮影＝`build/wiki_work/ingame_bossfx_akari_{idle,attack}.png`（待機で公転、攻撃で発射点から前方へ流れ、glitch_band が本体にかかる）。FPS は `--qa --assist --seconds 120`（Prologue 通し）で **中央値 85fps・最小 62fps・QA-WARN 0件・例外0件**（`build/qa/fps_full.log`）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error"
+    },
+    {
+      "priority": "P1",
+      "title": "攻撃姿勢の横幅ずれをオフセットで吸収",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 姿勢ごとの `Vector2` オフセット表を `BossParts.BodyOffsets`（`src/fx/BossParts.cs:129-139`）に持たせ、`Enemy` の `BodyOffsetName`/`SetBodyPose`/`ApplyBodyOffset` が本体スプライトの `Sprite2D.Offset` へ入れる。**当たり判定（`_bodyShape`・`GlobalPosition`・`BodyRadius`）は一切触っていない**＝見た目だけ。**計算**: 画像中心を原点にした足元中央 rel ＝ 実測の足元中央 −(幅/2, 360)、Offset ＝ rel(待機) − rel(その姿勢)。実測値から出した表は あかり (0,0)/(88,0)/(57,0)、こはる (0,0)/(60.5,-39)/(109,-4)、レイ (0,0)/(48.5,0)/(-21,0)（単位＝720px 基準の画素、並びは Idle/Attack/Hit）。こはるだけ3姿勢で足元の高さも違う（629/668/633）ので y も補正している。**左右反転**: Godot の `Sprite2D` は `flip_h` のとき テクスチャ内座標 p が nodeX ＝ offset.x + W/2 − p へ来る（実描画で赤ドットを撃って実測確認。offset を足す向きは反転しても変わらない）ので、`ApplyBodyOffset` は反転時に x の符号を反転して入れる。両向きで足元 x が3姿勢とも一致することを数値で確認（未反転 あかり 5.05／こはる 11.40／レイ -1.15 px、反転 -5.05／-11.40／1.15 px。姿勢間の差ゼロ）。**中ボス**: 前タスクの申し送り（v3 のちびは絵の重心が判定中心より約4px上）を同じ仕組みで吸収。表に `\"cameo\"` 行 (0, 28.8) を足し（360px 素材を50px表示なので 4px 相当＝360/50×4）、`src/CameoBoss.cs:103` で `BodyOffsetName = \"cameo\"`。撮り直した `build/wiki_work/ingame_boss_cameo_offset.png` で無防備窓の円に頭〜足がちょうど収まり、脚のはみ出しが解消したことを確認。**併せて BossParts の不具合を1件修正**: 攻撃の吸い寄せ／解放が Fixed 役の部品（スマホの画面・後光・飾り枠）まで発射点へ引き寄せ、加算層が本体の顔の上で重なって白飛びしていた（`build/shots/off_koharu_02.png` で発覚）。`IsAnchored`（Fixed と Ground）を新設して吸い寄せ／解放から除外し、こはるの後光を左右へ振ってα 0.18/0.15→0.12/0.10、粒も外側へ寄せてα を落とした。検証: セーブ保護（`save_0.json`/`read.json`/`save.json` を .bak 退避）のうえ3面を `--boss --demo --shot --shot-at 3,6,9,12` で撮影＝`build/wiki_work/ingame_boss_{akari,koharu,rei}_0*.png`。FPS は `--qa --assist --seconds 120` を3面で走らせ **中央値 85fps・p10 84fps・QA-WARN 0件・例外0件**（`build/qa/parts_{akari,Koharu,Rei}.log`）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "ボスの表示倍率を本体基準に引き上げ（52→72px・ini 化）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 三面のボス本体を v3 の分離素材へ差し替え、表示高を ini 化した。**素材**: Pre＝`char/v3/boss_<name>_body_idle.png`、Cry＝`..._body_hit.png`（改心の中間＝被弾の姿勢）、Post は既に v3（`enemy_akari_post`/`enemy_koharu_post`/`boss_rei_post`）。攻撃絵は `Enemy.AttackTexPath` を新設し、撃った瞬間だけ `..._body_attack.png` へ差し替えて 0.55 秒で待機へ戻す（`Enemy.TriggerAttackPose`/`TickAttackPose`。差し替えは既存の `SwapBody`＝クロスフェード＋squash→pop をそのまま流用し、連射中は尺を延長するだけで絵がバタつかない）。フックは3ボスの `FirePattern` の各ボレー地点（`src/BossAkari.cs:212-217`・`src/BossKoharu.cs:226-229`・`src/BossRei.cs:245-248`）。**表示倍率**: `config/boss_stats.ini` の [rei]/[akari]/[koharu] に `body_display_h = 72.0` を追加し、各ボスが `BossTuning.F(\"<name>\", \"body_display_h\", 72f)` で読む（既定72＝自機36pxのちょうど2倍。`src/Player.cs:375` が 36px 固定）。`BodyRadius` は 9.0 のまま据え置き＝当たり判定は一切変えていない。検証: セーブ保護（`save_0.json`/`read.json`/`save.json` を .bak 退避）のうえ3面を `--boss --demo --shot --shot-at 3,6,9,12` で撮影＝`build/wiki_work/ingame_boss_{akari,koharu,rei}_0*.png`。三面とも v3 の本体（エフェクト無し）が自機の約2倍で表示され、BossParts の部品が周りで回っていることを確認。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "ボス部品の演出基盤 BossParts を新設",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/fx/BossParts.cs` を新設。ボス本体(Enemy)の子として1個ぶら下がり、`char/v3/fx/<name>/*.png` を一括ロードして Back(Z-2)／本体(-1)／Front(0)／Add(0・CanvasItemMaterial{Add}) の4層へ振り分ける。当たり判定は一切持たない（Area2D ですらない Node2D＋_Draw）。作法は PanSlamFx と同じ「テクスチャを読んで自分で動いて自滅する層」で、会話中(`Hud.BubblePaused`)は時間を止める。部品の定義は**人物ごとの表**(`PartsOf`)で、1行＝1部品（層／役割 Orbit・Fixed・Drift・Ground・Rise・Blink／公転半径比／角速度／位相／表示サイズ比／α／脈動振幅・周期／漂い幅／基準位置）。位置とサイズは全部「本体表示高に対する比率」なので body_display_h を変えても配置が崩れない。状態遷移の口は `EnterIdle()`／`OnAttackStart()`（0.15秒の予備動作で発射点へ吸い寄せ→解放で前方へ90〜140px/s）／`OnHit()`（外へ散らし0.5秒で減衰フェード）／`OnRedeem(done)`（順に消えて全部消え切ってから完了コールバック。`AllGone` でも問い合わせ可）。`Enemy` 側に `AttachParts(name, idleTexW, attackTexW)`／`Parts` プロパティを足し、`ApplyBossMotion` の faceLeft を `SetFlip` へ流して左右反転に追随させた。基準点（足元中央・発射点）は各担当の実測値を `BossParts.Anchors` に転記し、`AnchorFoot`/`AnchorMuzzle` が画像中心基準の画面 px へ直す。**あかりのボスに仮配線**（`src/BossAkari.cs:145`）して `--boss --demo --shot --shot-at 3,6,9,12` で待機の公転が回ることを確認（`build/shots/parts_akari_00..03.png`＝カードの輪・床の輪・スマホの光の位相が4時点で動いている）。他2面の配線と攻撃/被弾/改心のフックは次の P2 配線タスク。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "道中の敵と中ボスを char/v3 に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **道中の敵**（`src/EnemySpec.cs:74-100`）: 各テーマの (撃つ種, 撃たない種) は v3 の面ごと2種とちょうど1対1で対応するので割り当て直しは不要だった。あかり＝机 `enemy_akari_desk_{pre,post}`(撃つ)／送信取消の束 `enemy_akari_undo_{pre,post}`(撃たない・旧 note 枠)、こはる＝ペンライト `enemy_koharu_penlight_*`(撃つ・旧 knife 枠)／グッズの箱 `enemy_koharu_box_*`(撃たない・旧 pot 枠)、レイ＝視聴者アイコン `enemy_rei_icon_*`(撃つ・旧 drone 枠)／空の吹き出し `enemy_rei_bubble_*`(撃たない・旧 eye 枠)。**同じ絵を使い回した種は無い**。派生種（`Flanker`/`BuzzWall`/`PrayerCarrier`）はスキンを撃つ種・撃たない種から流用する作りなので自動で v3 に乗る。旧素材の motif を書いたコメントが全部嘘になるので `StageTheme`(`src/EnemySpec.cs:8-11`)・`AttackPattern`(`同19-24`)・`For()` の見出し・`PrayerCarrier` の「鍋・お玉＝運ぶ絵柄」を新しい題材名（退勤後のフロア／推し活の部屋／配信枠）に直した。**中ボス**（`src/StageAkari.cs:431-435`・`src/StageKoharu.cs:500-504`・`src/StageRei.cs:417-421`）: v3 の中ボスは穢れ形態を持たない1枚なので CameoTheme の Pre/Cry/Post に同じ `v3/{akari,koharu,rei}_mid.png` を入れた（50px 表示のちびなので姿が変わらない損失はほぼ無い旨をコメントに明記）。レイの中ボスは中の人＝ボス本体のガワと姿が違うのが仕込み。**ボスの改心後**（Post のみ）: `src/BossAkari.cs:128`→`v3/enemy_akari_post.png`、`src/BossKoharu.cs:182`→`v3/enemy_koharu_post.png`、`src/BossRei.cs:146`→`v3/boss_rei_post.png`（中の人）。**ボス本体の Pre/Cry は指示どおり触っていない**（`enemy_*_pre/cry` は旧のまま＝部品の演出システムのタスクで扱う）。旧 `char/enemy_*` は1枚も消していない。検証: Godot ヘッドレスで新規18パスが全て `load()` できることを確認。セーブ保護（save_0.json/read.json/save.json を .bak 退避→復元済み）のうえ `--demo --shot` で3面を撮影＝`build/wiki_work/ingame_v3_{akari_mid_boss,akari_mid_expose,akari_enemies,koharu_mid,koharu_mid_expose,rei_mid}.png`。**当たり判定の中心のずれ（実測）**: α>0.35 の重心と画像中心（`Enemy` は `Centered=true` の高さフィット＝`src/Enemy.cs:345-352`）の差を測った。道中の敵6種は dx ±0.35px 以内・dy +1.4〜-0.5px で、旧素材（旧 drone dy +1.99 / 旧 desk dy -2.38）より**むしろ小さい**＝BodyRadius 据え置きで問題なし。表示幅も 13.5〜27.9px と旧の 19.2〜28.3px と同程度。**一方で中ボス3種は dy ≈ -4.0px（旧 -0.59px）＝絵の重心が判定中心より約4px上**にある。v3 のちびが足元に余白を持つ全身立ちのため。表示高50px に対し約8%で、実機（`ingame_v3_akari_mid_expose.png`・`ingame_v3_koharu_mid_expose.png`）で見ると**無防備窓の円が胸〜頭に乗り、脚が円の下にはみ出す**。撃つ的としては胴に乗っているので致命的ではないが、絵と判定の見た目の一致は旧より落ちている。指示どおり `BodyRadius` は動かしておらず、`Enemy` に静的な表示オフセットを足す改修は次タスク「攻撃姿勢の横幅ずれをオフセットで吸収（姿勢ごとの offset テーブル）」の守備範囲なので**そこで中ボスぶんも一緒に吸収するのが筋**（要確認事項として申し送り）。判定円を絵に重ねた確認シート＝`build/wiki_work/ingame_v3_hitboxes.png`。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "三人の立ち絵とカットインを char/v3 に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 会話立ち絵とスペルカットインの参照を `char/v3/` へ。**あかり**: `src/StageAkari.cs:123` の `AFace`・`src/StageAkari.cs:315`/`src/BossAkari.cs:391` の Other 既定 → `v3/akari_face.png`、改心の決壊2行（`src/BossAkari.cs:88,91`）→ `v3/akari_face_cry.png`。**こはる**: `src/StageKoharu.cs:109,337`/`src/BossKoharu.cs:589` → `v3/koharu_face.png`、蒼白 `KPale`（`src/StageKoharu.cs:110`/`src/BossKoharu.cs:30`）→ `v3/koharu_face_pale.png`。**レイ（案C: ボスはガワ、割れて中の人）**: 道中・中ボスは中の人なので `src/StageRei.cs:115,319` の `RFace` → `v3/rei_face.png`。一方**ボス戦の既定の顔は新設した `RGawa`＝`v3/rei_gawa_b.png`**（`src/BossRei.cs:60-62,427`）＝戦闘中のレイは笑顔固定のガワを被っており、改心の決壊2行（`src/BossRei.cs:104,106`）だけが face 指定で中の人の `v3/rei_face_cry.png` に割れる。**カットイン**: `src/Hud.cs:668-670` の3件を `v3/cutin_{rei,akari,koharu}.png` へ（ミナは対象外なので旧 `char/cutin_mina.png` のまま）。**旧 `char/*_face.png`・`char/cutin_*.png` は1枚も消していない**（Hub のカード円窓が `char/{id}_face.png` を動的に組み立てて読むので現に生きている＝`src/Hub.cs:284`。ここは今回の対象外）。未使用のまま残した v3 素材: `akari_face_lit`/`koharu_face_lit`/`rei_face_smile`（現行コードに対応する表情の出しどころが無い＝台本差し替え後に配線する）。**表示の大きさ**: 受入条件は「立ち絵が 720px 高（旧 420）なのでスケールを合わせる」だったが、**実測すると旧立ち絵も既に 720px 高だった**（akari 446x720 / koharu 373x720 / rei 457x720）ため合わせ込みは不要。Hud の立ち絵は `src/Hud.cs:1603` で高さフィット（`ph = h-8 = 162`・幅はアスペクト維持）なので v3 でも表示高は不変、幅だけ koharu +8px・rei -6px・ガワ +12px 変わる（1200px 幅のボックス内で問題なし）。カットインも `src/Hud.cs:1116-1117` で `CutinRenderH=460` の高さフィットなので旧 288 高／420 高の差は吸収され、描画幅は akari 308→311 / koharu 297→305 / rei 306→331 とほぼ不変＝位置調整不要。検証: Godot ヘッドレスで v3 の13枚を `load()` して全て読めることと実寸を確認し、さらにゲーム内の描画寸法どおり（立ち絵162px・カットイン460px）に並べた確認シート `build/shots/v3_sheet.png` を生成して目視（7枚の立ち絵と3枚のカットインが縮小後も破綻せず読める）。セーブ保護（save_0.json/read.json/save.json を .bak 退避→復元）のうえ `--demo --shot` で3面を撮影（`build/shots/v3_{akari,koharu,rei}_0*.png`）。ただし**カットインは `IsAutoplay()` で --demo/--qa 中は出さない仕様**（`src/Hud.cs:663`）なので自動走行では絵で確認できず、上記の寸法計算とシートでの確認に留めている。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "エピローグの背景を bg2 の夜／暁に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/Epilogue.cs` に `BuildLayers`/`UpdateLayers`/`ApplyLayerTint` を新設し、phase ごとに1枚絵を差し替える旧 `_bg[]` 経路（`char/bg/epilogue/*.png` の6枚）を層に置換。層は Sprite2D で敷く（Epilogue は BeginDesign を使わない 384×216 の生座標なので、素材 1280×720 を 216/720=0.3 の高さフィットで置く＝BgLayers と同じ作法）。構成は L1_far_night(Z-95) と L1_far_dawn(Z-94・α0 で重ねて置く) → L2_mid(-92) → L3_near_left (24,518)×0.3 と L3_near_right (1026,604)×0.3 (-91) → L4_light_phone(-88・加算) → L4_light_dawn(-88・加算・α0)。**夜→暁は phase 進行で 2.0 秒 smoothstep のクロスフェード**（`DawnPhase = 4`＝こはるへ遺志を渡す DM 以降。phase0〜3 の「来ない日々／鍵／四行」は夜のまま）。夜と暁の遠景・暁の光をαのたすき掛けで入れ替える。**中央 UI の可読性**: 層全体に暗幕（明度）を掛け、暁は素材自体が夜より明るいぶん濃く沈める（NightDim 0.62 → DawnDim 0.50）＝タイムライン・鍵・四行・DM の文字コントラストが夜と暁で揃う。加算層はαが合成に効かないので暗幕は RGB 側で掛ける。旧 `_bg[]` のロードと `DrawEpilogueBackground` はそのまま残し、層を敷けたときだけ描画を止める（`_hasLayers` で分岐）＝**旧の6枚の絵は消していない**し、素材が読めない環境では従来の1枚絵経路がそのまま動く。`_Draw` 冒頭の不透明な下敷き矩形も層があるときは描かない（層を隠すため）。検証: セーブ保護（save_0.json/read.json を .bak 退避→復元）のうえ `--demo --shot` で夜を撮影（`build/wiki_work/ingame_bg2_epilogue_night.png`）。暁は **DemoPilot が phase2 の PW 選択（←→で選ぶ・正解は候補3）を操作できず自動では phase4 に到達しない**ため、`_phase` の初期値を一時的に 4 にして撮影し、撮影後に元へ戻して差分ゼロ（`diff --strip-trailing-cr` で確認）とビルドを取り直した（`build/wiki_work/ingame_bg2_epilogue_dawn.png`）。夜は窓の外が暗い街灯だけ、暁は窓の外が琥珀の空になり床に暖かい光が伸びる。どちらもテキストボックスの本文が同じ読みやすさで出ることを目視確認。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "タイトル・ハブ・練習の背景を bg2 に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) **タイトル**（`src/TitleMenu.cs`）: 1枚絵 KV（`char/title_kv.png`）の経路を `BuildBgLayers()` に置換し、夜の街 `bg2/title/L1_far.png`（Z-12・藍で色掛け）→ 暖かい光 `L4_light_warm.png`（Z-11・加算）→ 立ち絵 `mina_kv.png`（Z-10・282×720 を高さの 0.94 倍で右寄り (880,44)）の3枚を静止 Sprite2D で敷く。**藍の色掛けは (0.42,0.48,0.80) をそのまま掛けると既に暗い夜景の街灯まで潰れた**（1回目のスクショが真っ黒）ので、色相を保ったまま最大チャンネルを 1.0 へ正規化した (0.525,0.60,1.00) を掛ける（AkariRoot の rainBlue と同じ作法）。`_Draw` のフォールバック夜グラデ（不透明）は `_kvSprite == null` で出ていたため、層を敷けたかの `_hasBgLayers` を見るよう条件を変更（そのままだと層が塗り潰されて真っ黒だった）。光の粒が避ける `FaceRect` と金オーブの `OrbPos` を新しい立ち絵の実寸・位置に追随させた。ロゴ・メニュー・ティッカー・ひとことの座標は一切動かしていない。素材が読めなければ従来の1枚絵 KV → 夜グラデの順で落ちる。**ハブ**（`src/Hub.cs`）: 同じ `bg2/title/L1_far.png` を暗い藍 (0.30,0.34,0.60) で Z-12 に敷き（`BuildNightBg`）、`_Draw` 冒頭の不透明な夜グラデを、夜景を敷けたときだけα0.62 の半透明スクリムへ落とす＝UI のカードが読める暗さを保ったまま夜景が透ける。**練習**（`src/Stage0Root.cs`）: `char/bg/rei/board.png` の1枚絵を stage1 の層（L1_far＋L2_mid＋L4_light_window＋L4_light_monitor）に置換。小物（L3 の傘・看板）は敷かない＝無菌の練習場。Modulate は 1.0 が上限で明るくできないので、(a) L1/L2 の色掛けを暖白 (1.00,0.95,0.85) に留めてほぼ素通しにし、(b) L4_light_window をα0.55 でもう一枚加算で重ねて全体を持ち上げる、の2手で「あかり面より明るい同じ部屋」を作る。検証: セーブ保護（save_0.json/read.json を .bak 退避→復元）のうえ、タイトルとハブは autoplay なしの `--shot`、練習は `--demo --shot` で撮影し `build/wiki_work/ingame_bg2_{title,hub,practice}.png` を目視。タイトルは立ち絵の頭がティッカー帯に切られず全身が入りロゴ・メニューの位置は不変、ハブは投稿カード・ヘッダ・フッタのキー表示がすべて読める、練習は本編あかり面（雨・傘あり）と並べて明らかに明るく指示帯と HUD が読めることを確認。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P2",
+      "title": "ボス突入の暗転を層システムに実装",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) 既に `BgLayers.EnterBoss` に暗転は入っていたが、あかり面のスクショで「浄化が進むと WorldGrade の加算光（段階3の琥珀）が暗転の上に乗って相殺し、空気が変わったと分からない」と判明していたので詰めた。(1) `src/BgLayers.cs:103` の `BossDimMul` を 0.55 → **0.45**（L1〜L3 の明度）。(2) `src/BgLayers.cs:110` に `BossDimK`（暗転しきり 0..1）を公開し、`src/WorldGrade.cs:101-102,132-134,265` で加算層の描画αを `Lerp(1, 0.5, BossDimK)` 倍に落とす＝**ボス中は WorldGrade の加算光を半分**にして暗転を相殺させない（層背景を敷いていない面＝group \"bglayers\" が無い面では常に 1 倍＝挙動不変）。(3) レイ面の Brighten は金の光 `L4_light_gold` のαを 0.35 → **0.50** に上げた（`src/ReiRoot.cs:62`）。検証: セーブ保護（save_0.json/read.json を .bak 退避→復元）のうえ `--demo --shot`（道中）と `--boss --demo --shot`（ボス）を撮り比べ。あかり面は道中で見えていた窓の光条・街灯・床の反射がボスでは消えて部屋が沈み、弾（シアン菱形・桃の口・白ハロ）と自機は分離して読めることを確認（`build/wiki_work/ingame_bg2_boss_dim_akari_{mid,boss}.png`）。レイ面は枠が画面四辺まで全面化し金の光の帯が中段に出ることを確認（同 `_rei_{mid,boss}.png`）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE3 レイの背景を bg2 の四層に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/ReiRoot.cs:34-66` を `StageBackground.LayerDefs` の6層へ差し替え。L1_far（菫寄りの深い藍 (0.52,0.46,0.90) で色掛け・scroll 0.15）／L2_mid（0.45・飾り枠と配信卓）／L3_near_left,right／L4_light_screen・L4_light_ring（加算・非スクロール）。stage3 の素材は L3 も L4 も 1280x720 の全面キャンバスに置き場所が焼き込まれている（alpha bbox: L3_near_left (15,482)-(429,710) / L3_near_right (907,518)-(1278,710)）ため、offset は指定せず (0,0) のまま 0.3 倍で敷く＝担当の報告の x 15〜430 / 906〜1279 と床の位置がそのまま合う。**ボス突入は他の2面と逆に光を増やす**：`BgLayers` に `BossBehavior{Dim,Brighten}` と `BossLayers` を新設し（`src/BgLayers.cs:60-68`）、`StageBackground.LayerBossBehavior` / `BossLayerDefs`（`src/StageBackground.cs:36-38`）から面ごとに指定できるようにした。レイ面は Brighten＝(a) L2_mid → L2_frame_full（枠の全面版）へ層セットをクロスフェード、(b) L4_light_gold を加算・α0.35 で追加、(c) L1〜L3 の沈みは 0.55 倍でなく 0.70 倍に留める、(d) 加算層のαは落とさない（他面は 0 へ）。`src/ReiRoot.cs:79` で `ScrollFx.SkipScrollTexture = true`。検証: セーブ保護（save_0.json/read.json を .bak 退避→復元）のうえ `--demo --shot` で道中を、`--demo --boss --shot` でボス戦を撮影し `build/wiki_work/ingame_bg2_rei_intro/mid/boss/boss_enter.png` を目視。ボス突入で枠が画面四辺まで広がり、金の光の帯が中段に出て、床と近景が沈むのを確認（band(300,301) が 25,22,80 → 30,30,71 で暖色寄りへ、below(300,620) が 26,21,68 → 17,18,56 で 0.7 倍に沈む）。継ぎ目なし、弾（シアン菱形・白リング）は背景と分離して読める。**なお通常の `--demo` 走行ではボス戦に到達しない**：`Step_BossCameo` の中ボス撃破で `CheckpointFlow.OnMidBossCleared` が初回強化ショップへ離脱するため（`src/StageRei.cs:441`）。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE2 こはるの背景を bg2 の四層に差し替え（部屋・教室の2組）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/KoharuRoot.cs:20-49` に部屋(`RoomLayers`)と教室(`ClassLayers`)の2組の層定義を持たせ、`StageBackground.LayerDefs` へ部屋を初期セットとして注入。部屋＝L1_far_room（菫寄りの藍 (0.72,0.68,1.00) で色掛け・scroll 0.15）／L2_mid_room（0.45）／L3_near_room_left,right（素材座標 (0,509)/(1032,520) を 0.3 倍して配置・非ループ＝視差スウェイ）／L4_light_room_screen（加算・非スクロール）。教室＝L1_far_class（青灰 (0.80,0.86,1.00)）／L2_mid_class／L3_near_class_left,right（(0,380)/(1051,285)）／L4_light_class_window（加算）。**層セットのクロスフェードを `src/BgLayers.cs` に新設**：`CrossfadeTo(defs, dur)` が新セットを α0 で敷いて `_live` に足し、旧セットを `_fadingOut` へ退避、smoothstep で 1.0 秒かけて入れ替えて旧セットを `QueueFree`（`StageBackground.CrossfadeBossTo` と同じ作法＝唐突に切らない）。`Live.Fade` を足して層ごとのαを乗算。呼び出しは `src/StageKoharu.cs:436-439`（Step_MidwaveB の頭＝道中Bの開始）で `StageBackground.CrossfadeLayersTo`（`src/StageBackground.cs:41` の新設パススルー）経由。`src/KoharuRoot.cs:83` で `ScrollFx.SkipScrollTexture = true`（不透明な scroll.png が層背景を隠すため）。ボス突入は `src/StageKoharu.cs:536` の既存 `EnterBoss` フックがそのまま暗転になることを確認。検証: セーブ保護（save_0.json/read.json を .bak 退避→復元）のうえ `--demo --seconds 300 --shot` で撮影し `build/wiki_work/ingame_bg2_koharu_intro/room/class/mid/boss.png` を目視。継ぎ目なし、弾（シアン菱形・桃の吹き出し）は背景と分離して読める、部屋→教室の切替が滑らか、ボス突入で窓の光が落ちて教室が沈むのを確認。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "STAGE1 あかりの背景を bg2 の四層に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/AkariRoot.cs:31-52` を `StageBackground.LayerDefs` の7層へ差し替え。L1_far → F2_rain_window（char/bg2/common・L1 と同じ雨青 (0.54,0.73,1.00)。設計値 (0.69,0.94,1.28) は Modulate が1.0を超えられないので色相のまま正規化）→ L2_mid（scroll 0.45）→ L3_near_left/right（素材座標 (0,407)/(1057,566) を 0.3 倍して配置・loop なし）→ L4_light_monitor/window（加算・scroll 0）の順。ボス突入は `src/StageAkari.cs:469` の既存 `EnterBoss` フックがそのまま暗転になる。**併せて `src/ScrollFx.cs` に `SkipScrollTexture` を新設**：ScrollFx の生成スクロール背景 `char/bg/akari/scroll.png` は ZIndex -70 の不透明な全画面板で、層背景(-95..-88)を丸ごと隠していた（差し替え直後のスクショで発覚）。あかり面だけ true にして板を敷かず、透過の遠/近パララックス層(-60/-55)は残す。非ループ層は「左へ流し続ける」と画面外へ出て戻らないため、自機の左右位置に紐づく有限の視差スウェイ（最大22px）へ変更（`src/BgLayers.cs`）。検証: `--demo --shot --shot-at 3,12,30` で撮影し `build/wiki_work/ingame_bg2_akari_00..02.png` を目視。継ぎ目なし（全画面層は 1280x720→384 幅ちょうどで1枚）、弾（シアン菱形・白ハロ・桃）は背景と分離して読める、ボス突入で床の光条が落ちて部屋が沈むのを確認。セーブ保護（save_0.json/read.json を .bak 退避→復元）実施済み。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
+    {
+      "priority": "P1",
+      "title": "背景の層システムの基盤（BgLayers 新設・StageBackground を層リスト対応）",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-05) `src/BgLayers.cs` を新設。層定義 `BgLayers.Layer(path, scrollMul, z, tint, additive, loop, offset)` の配列を `StageBackground.LayerDefs` から注入すると BgLayers へ委譲し、1枚絵タイルは作らない。層リストが空（既存3面・FINAL）なら従来の MidBgPath/BossBgPath 経路のままで挙動完全不変。1280x720 素材は 216/720=0.3 の高さフィット、Z は L1 -95 / L2 -92 / L3 -91 / L4 -88（ScrollFx -70..-55 と StageImagery -50 には触れない）。加算層は `CanvasItemMaterial{Add}`、`EnterBoss()` で L4 のα→0・L1〜L3 を0.55倍へ0.8秒 smoothstep、`SetTint(Color)` で全層に色掛け。ループは loop=true の層だけ横に並べて流し、位置係数 `BgScroll.PlayerNx`（0.65..1.45）を全層に乗算。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み"
+    },
     {
       "priority": "P3",
       "title": "HowToPlayに会話中2択(ChoiceOverlay)の説明を追加",
@@ -1125,44 +1402,44 @@
   ],
   "commits": [
     {
-      "hash": "ede484e",
-      "date": "2026-09-05",
-      "subject": "Merge pull request #18 from takutoruku1/auto/dev"
+      "hash": "264f9a0",
+      "date": "2026-09-06",
+      "subject": "Track the Godot uid files for BgLayers and BossParts"
     },
     {
-      "hash": "0390188",
-      "date": "2026-09-04",
-      "subject": "auto: HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
+      "hash": "8ef4fa0",
+      "date": "2026-09-06",
+      "subject": "Wiki: add in-game shots of the STAGE 3 Rei script"
     },
     {
-      "hash": "52ff65f",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加"
+      "hash": "d8bd150",
+      "date": "2026-09-06",
+      "subject": "Convert hub H0, H3, and H3r to the approved plan-C script"
     },
     {
-      "hash": "aabe102",
-      "date": "2026-09-04",
-      "subject": "auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理"
+      "hash": "6c7cc38",
+      "date": "2026-09-06",
+      "subject": "Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption"
     },
     {
-      "hash": "85577f7",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除"
+      "hash": "21a1d30",
+      "date": "2026-09-06",
+      "subject": "Replace STAGE3 Rei's midstage dialogue with approved plan-C script"
     },
     {
-      "hash": "5a63bd0",
-      "date": "2026-09-04",
-      "subject": "auto: Hud.csの汚染ゲージコメントを実態に合わせて修正"
+      "hash": "15bda3b",
+      "date": "2026-09-06",
+      "subject": "Wiki: add in-game shots of the STAGE 2 Koharu script"
     },
     {
-      "hash": "8969085",
-      "date": "2026-09-04",
-      "subject": "auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正"
+      "hash": "bbb278e",
+      "date": "2026-09-06",
+      "subject": "Rewrite the STAGE2 boss, redemption and hub beats for plan C"
     },
     {
-      "hash": "eacc23b",
-      "date": "2026-09-04",
-      "subject": "auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消"
+      "hash": "688cdf2",
+      "date": "2026-09-06",
+      "subject": "Rewrite the STAGE2 midgame for plan C (S2-1 to S2-5)"
     }
   ]
 }

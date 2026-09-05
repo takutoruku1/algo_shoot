@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-04 22:04 UTC
+> 生成: 2026-09-05 20:26 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 168 / 対象 168)
+███████████████████░  96%   (完了 206 / 対象 214)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 168 |
+| ✅ 完了 | 206 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 0 |
+| 📋 残り | 8 |
 | ⛔ 保留（人間の判断待ち） | 17 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-_キューが空です_
+- `P1` FINAL F1〜F4 を案C に差し替え
+- `P1` エピローグ E1〜E6 を案C に差し替え
+- `P2` 投稿文集の層付きプールを新設
+- `P2` 病みポストを見つける（案A・撃って届ける）
+- `P3` 引用の嵐（S3-5b）を StageRei の新 step として実装
+
+…ほか 3 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -46,6 +52,44 @@ _キューが空です_
 
 ## ✅ 完了
 
+- (バグ修正・夜間自動開発の並行実行監査で発見) 中ボス撃破後の中の人表示が即消える不具合を修正
+- `P2` ハブ H0〜H3 と返信を案C に差し替え
+- `P1` STAGE3 レイのボスと戦闘中の割り込みと改心を実装
+- `P2` 改心後の中の人（レイ）の表示を長くする
+- `P1` STAGE3 レイの道中と中ボスを実装
+- `P1` STAGE2 こはるのボスと改心とクリアを実装
+- `P1` STAGE2 こはるの道中と入力欄を実装
+- 申し送り対応: 改心の決定打に HUD のプロンプトが重ならないように
+- 申し送り対応: 会話の話者名「少年」を「あなた」に
+- `P1` STAGE1 あかりのボスと改心とクリアを実装
+- `P1` STAGE1 あかりの束の選択と中ボスを実装
+- `P1` STAGE1 あかりの導入と小話を実装
+- (QA 指摘の続き) ボスの Cry を新しい泣き顔の本体に差し替え
+- `P2` 練習 T1 の実況を2行に削る
+- `P1` 冒頭 P0〜P4 を案C に差し替え
+- `P1` 仕掛けの値を GameManager に足してセーブに載せる
+- `P1` ChoiceOverlay を3択に対応
+- (QA 指摘) 自動走行（DemoPilot）が Prologue の会話を送れない
+- (QA 指摘) 改心の会話中にボスの泣き顔（Cry）が出ない
+- `P2` 面順の入れ替えで嘘になったコメントを一掃
+- `P2` 炎上をこはるクリア後へ移す
+- `P1` 汚染の進行値を新しい面順に振り直す
+- `P1` 面の順番を あかり→こはる→レイ に入れ替え
+- `P2` レイのボス部品を配線（飾り枠・空の吹き出し・星・光の帯・ひび）
+- `P2` こはるのボス部品を配線（視線の線・光線・ペンライト・箱・粒・もや）
+- `P2` あかりのボス部品を配線（カード・スマホ光・断片・床の輪・既読の点・ビーム）
+- `P1` 攻撃姿勢の横幅ずれをオフセットで吸収
+- `P1` ボスの表示倍率を本体基準に引き上げ（52→72px・ini 化）
+- `P1` ボス部品の演出基盤 BossParts を新設
+- `P1` 道中の敵と中ボスを char/v3 に差し替え
+- `P1` 三人の立ち絵とカットインを char/v3 に差し替え
+- `P2` エピローグの背景を bg2 の夜／暁に差し替え
+- `P2` タイトル・ハブ・練習の背景を bg2 に差し替え
+- `P2` ボス突入の暗転を層システムに実装
+- `P1` STAGE3 レイの背景を bg2 の四層に差し替え
+- `P1` STAGE2 こはるの背景を bg2 の四層に差し替え（部屋・教室の2組）
+- `P1` STAGE1 あかりの背景を bg2 の四層に差し替え
+- `P1` 背景の層システムの基盤（BgLayers 新設・StageBackground を層リスト対応）
 - `P3` HowToPlayに会話中2択(ChoiceOverlay)の説明を追加
 - `P3` AreaSpellCaster.csのrei/akari用_shapes死にコード削除
 - `P3` Hud.csの汚染ゲージコメントを実態に合わせて修正
@@ -217,11 +261,11 @@ _キューが空です_
 
 ## 直近のコミット
 
-- `ede484e` 2026-09-05 Merge pull request #18 from takutoruku1/auto/dev
-- `0390188` 2026-09-04 auto: HowToPlayに会話中2択(ChoiceOverlay)の説明を追加
-- `52ff65f` 2026-09-04 auto: WIP着手 HowToPlayに会話中2択(ChoiceOverlay)の説明を追加
-- `aabe102` 2026-09-04 auto: AreaSpellCaster.csのrei/akari用_shapes死にコード整理
-- `85577f7` 2026-09-04 auto: WIP着手 AreaSpellCaster.csのrei/akari用_shapes死にコード削除
-- `5a63bd0` 2026-09-04 auto: Hud.csの汚染ゲージコメントを実態に合わせて修正
-- `8969085` 2026-09-04 auto: WIP着手 Hud.csの汚染ゲージコメントを実態に合わせて修正
-- `eacc23b` 2026-09-04 auto: HUDのヒカゲスキルバッジと炎上中バッジの座標重なり解消
+- `264f9a0` 2026-09-06 Track the Godot uid files for BgLayers and BossParts
+- `8ef4fa0` 2026-09-06 Wiki: add in-game shots of the STAGE 3 Rei script
+- `d8bd150` 2026-09-06 Convert hub H0, H3, and H3r to the approved plan-C script
+- `6c7cc38` 2026-09-06 Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption
+- `21a1d30` 2026-09-06 Replace STAGE3 Rei's midstage dialogue with approved plan-C script
+- `15bda3b` 2026-09-06 Wiki: add in-game shots of the STAGE 2 Koharu script
+- `bbb278e` 2026-09-06 Rewrite the STAGE2 boss, redemption and hub beats for plan C
+- `688cdf2` 2026-09-06 Rewrite the STAGE2 midgame for plan C (S2-1 to S2-5)
