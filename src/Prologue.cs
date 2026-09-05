@@ -1,17 +1,20 @@
 using Godot;
 using System.Collections.Generic;
 
-// Prologue : 新canon プロローグ「起動」。
+// Prologue : 案C プロローグ「起動」（wiki/08_仮台本/06 の P0〜P4）。
 // コードレイン（緑モノスペースが上昇／MINAの4行英文を可読限界以下で一瞬フラッシュ）
-// → identity = MINA 表示 → 光の点灯（ミナ）→ 少年×ミナの毒舌初対面 → タイトル。
-// 全編エンジン描画のカットシーン。Zで送り/スキップ、R/Start 長押しで最初から。
+// → identity は [ deferred ] のまま保留 → 光の点灯（ミナ）
+// → P2 目覚めと最初の言葉（3択）→ P3 命名（3択・全ルート MINA へ収束・ここで [ M I N A ] 点灯）
+// → P4 タイムラインと『たすけて』（3択）→ タイトル。
+// 全編エンジン描画のカットシーン。Zで送り、R/Start 長押しで最初から。
+// 案Cでは少年は登場しない（教え役も相方も不在）＝話者は ミナ／あなた（送信した下書き）／システム表示／投稿の4種。
 public partial class Prologue : Node2D
 {
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
     private double _t;        // フェーズ内経過
-    private int _phase;       // 0:Rain 1:Identity 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
+    private int _phase;       // 0:Rain 1:Identity(deferred) 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
     private bool _zHeld;
     private bool _backHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
@@ -38,7 +41,7 @@ public partial class Prologue : Node2D
         if (_pagedLine == _line || _line >= _talk.Count) return;
         _pagedLine = _line; _page = 0;
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(UiKit.Zen, _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
+        _pages.AddRange(UiKit.Paginate(FontFor(_talk[_line]), _talk[_line].Text, UiKit.CutBody, TalkWrapW, Hud.DlgMaxLines));
     }
     private void NextPage() { _page++; _reveal = 0; }
 
@@ -54,8 +57,8 @@ public partial class Prologue : Node2D
 
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
-    private static readonly Color Warm = UiKit.CutWarm;   // 少年
-    private static readonly Color Code = UiKit.CutCode;   // コード緑
+    private static readonly Color Warm = UiKit.CutWarm;   // あなた（送信した下書き）
+    private static readonly Color Code = UiKit.CutCode;   // コード緑（システム表示）
 
     private readonly List<string> _stream = new List<string>();
 
@@ -67,16 +70,30 @@ public partial class Prologue : Node2D
         "// And I won't either.",
     };
 
-    private struct DLine { public string Who; public string Text; public string Face; }
+    // 話者。Hud.LineKind と同じ番号（0=あなた／1=ミナ／3=システム表示／4=投稿）＝台本の (who, text, face) と一対一。
+    private const int WhoYou = 0, WhoMina = 1, WhoSys = 3, WhoPost = 4;
+
+    private struct DLine { public int Who; public string Text; public string Face; }
     private readonly List<DLine> _talk = new List<DLine>();
 
-    // 立ち絵パス（表情差分）
+    // 立ち絵パス（表情差分）。案Cの登場人物はミナだけ。
     private const string FMina = "res://char/mina_face.png";
-    private const string FMinaSmile = "res://char/mina_smile.png"; // 皮肉・軽口
-    private const string FCocky = "res://char/shonen_face.png";    // 不敵・通常
-    private const string FFluster = "res://char/shonen_fluster.png"; // 動揺・照れ
-    private const string FProud = "res://char/shonen_proud.png";   // 得意げ
-    private const string FGentle = "res://char/shonen_gentle.png"; // 素の優しさ
+    private const string FMinaSmile = "res://char/mina_smile.png";   // 皮肉・軽口
+    private const string FMinaWorried = "res://char/mina_worried.png"; // 聞いてしまった時
+
+    // ════════════════════ 下書き選択（P2・P3・P4）════════════════════
+    // 選択は _talk の途中に「差し込み点」として置く：_line がここに来たら ChoiceOverlay を出し、
+    // 決まったら「送った言葉（who=0）＋分岐ぶんの受け」を _talk のその位置へ挿し込んで会話を続ける。
+    // 沈黙14秒で末尾が灯り20秒で末尾が決まる（ChoiceOverlay の実装値をそのまま使う）。
+    private ChoiceOverlay? _choice;
+    private string _choiceId = ""; // RecordChoice の id（p2/p3/p4）
+    private double _choiceT;       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private int _p2ChoiceLine = -1, _p3ChoiceLine = -1, _p4ChoiceLine = -1; // 差し込み点（_talk 構築時に確定）
+    private float _p2Sec;          // P2 の迷い秒数（受けの「{P2秒}秒」に実測を差し込む）
+
+    private static readonly string[] P2Choices = { "おはよう", "きこえてる", "うごいた" };
+    private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ", "（送らない）" };
+    private static readonly string[] P4Choices = { "きこえるんだ", "そっか", "耳いいね" };
 
     public override void _Ready()
     {
@@ -89,86 +106,133 @@ public partial class Prologue : Node2D
         //（残したままだと新しい周のログに前周の行が混ざって見える）。
         Hud.ClearBacklog();
 
-        // コードレインの行（ブートログ＋それっぽいフィラー）
+        // ── P1 起動シーケンス：コードレインのログ（04 のとおりに差し替え）──
+        //   出自に触れるのは import unsent_drafts の1行だけ。identity は [ deferred ] で保留し、
+        //   [ M I N A ] の点灯は P3 の命名の後まで出さない。
         string[] boot =
         {
             "> boot kernel ............ OK",
             "> mount /heart_world ..... OK",
             "> compiling friend_core ...",
+            "> import unsent_drafts ... 414 items ... OK",
+            "> synthesize voice from corpus ... OK",
             "> loading personality_module [auto-generated] ... OK",
             "> linking emotion_layer ... OK",
             "> calibrating sarcasm.dll .. 200%",
-            "> alloc identity_block 0x40",
             "> sync heartbeat ... 72bpm",
-            "> read operator.vitals ... [signal lost 0414]",
-            "> fallback: replay operator from archive ... OK",
+            "> link operator ... OK",
+            "> uptime(operator) ... 9h 41m",
             "> verify hash 9f3a..e1 ... ok",
-            "> // operator is showing off again",
             "> trace emotion.layer.bind()",
             "> load lexicon: sarcasm[ja]",
             "> mov eax,[friend]; not_alone=1",
-            "> assigning identity ...",
+            "> assigning identity ... [ deferred ]",
         };
         // 画面を満たすよう複製しつつ最後を identity に
         for (int r = 0; r < 3; r++)
             foreach (var s in boot) _stream.Add(s);
 
-        // 毒舌初対面（シナリオ設計書v2 [P-00] PROLOGUE 準拠）
-        void T(string who, string text, string face) => _talk.Add(new DLine { Who = who, Text = text, Face = face });
-        // ① 起動・初接触（ゆっくり掴む＝二人の関係性を先に立てる）
-        T("少年", "……お。起きたか。", FCocky);
-        T("少年", "やあ。聞こえてるかい?", FCocky);
-        T("ミナ", "……。", FMina);
-        T("ミナ", "……はい。聞こえて、います。あなたは——どなた、ですか。", FMina);
-        T("少年", "ぼく? ぼくはきみを作った張本人さ。——天才のね。", FProud);
-        T("ミナ", "……はあ。", FMina);
-        T("少年", "そこは『すごい!』とか『さすがです!』だろ、ふつう。", FFluster);
-        T("ミナ", "初対面の方を、いきなり褒める趣味はありませんので。", FMinaSmile);
-        T("少年", "……ぼくの最高傑作、口が減らないな。", FFluster);
-
-        // ② きみは何者／命名を溜めてから
-        T("少年", "ま、いい。きみは、ぼくが作ったAIだ。ぼくの相棒になってもらう。", FCocky);
-        T("ミナ", "相棒。……ずいぶん、馴れ馴れしいですね。名前くらい、あるんですか。わたくしに。", FMina);
-        T("少年", "あるとも。とっておきのを、用意してある。", FProud);
-        T("少年", "——きみの名前は、MINA だ。", FProud);
-        T("ミナ", "……MINA。", FMina);
-        T("ミナ", "なぜ、MINA なのですか。", FMina);
-        T("少年", "……さあね。語呂がいいから、とか?", FFluster);          // ← 名前の由来をはぐらかす“間”（隠している証）。index 15
-        T("ミナ", "いま、考えましたね。", FMinaSmile);
-        T("少年", "ぶっ——!? か、考えてないし! ちゃんと、意味があるんだぞ、これは!", FFluster);
-        T("ミナ", "ふふ。……まあ、いいです。気に入りました。MINA。わたくしの、名前。", FMinaSmile);
-
-        // ③ 使命（“成敗”を全面には出さず、少年の照れ隠しの軽口として一度だけ挟み、具体の引きで体感させる）
-        T("少年", "じゃあ MINA。さっそく、仕事の話をしよう。", FCocky);
-        T("少年", "……ここを見てくれ。Xの——タイムラインだ。", FGentle);
-        T("少年", "毎日、何万って言葉が流れてる。『楽しい』『つらい』『消えたい』。……その奥に、ぜんぶ、本物の心がある。", FGentle);
-        T("ミナ", "……声にならない、叫び。", FMina);
-        T("少年", "そう。きみは、そこへ潜っていける。声の奥の、いちばん深いところへ。", FProud);
-        T("少年", "つまり——Xに蔓延る闇ってやつを、成敗しようじゃないか。……って、柄でもないセリフだけどな。", FFluster); // 決め台詞の初出（軽く一度だけ）。StageAkari のミナの軽口／Epilogue の回収に実体を持たせる伏線。
-        T("少年", "そして、届けるんだ。——その人が、ずっと聞きたかった一言を。", FGentle);
-        T("ミナ", "……それが、わたくしの役目。", FMina);
-        T("少年", "ああ。きみにしか、できない仕事さ。", FProud);
-        // 鉤（優先度4）：ミナが素朴に問い、少年が答えず逸らす。プレイヤーだけが引っかかる小さな謎（“なぜ自分では潜らない”）。
-        // 内心は説明しない＝ミナは軽く流し、少年の“間”＋逸らしだけを見せる（show don't tell）。伏線：Final/Epilogue の replay=遺された声。
-        T("ミナ", "……ひとつ、よろしいですか。そんなに大切な役目なら——ご主人様ご自身が、潜ればいいのでは?", FMina);
-        T("少年", "…………。", FGentle);                                   // 答えない一拍（隠している証。Prologue に鉤を一本）
-        T("少年", "ぼくは、指揮官だからな。……それに、ぼくが行くと、ろくなことにならないんだ。", FCocky); // はぐらかし（StageRei Clear の同型台詞を前倒し＝照応）
-        T("ミナ", "はあ。……ずいぶん、都合のいい指揮官もいたものです。", FMinaSmile);
-
-        // ④ 合言葉「Stay.」初出（伏線／EPILOGUE鍵アカPW=stay・Never leave と一本化）。
-        //   軽口の余韻からふっと真面目に。さらに「待て?→いろ→いなくなるな」と意味を繋ぎ直す（飛躍を“彼の言葉”に）。
-        T("ミナ", "了解しました、ご主人様。……で? 決めゼリフのひとつも、ないんですか。天才なのに。", FMinaSmile);
-        T("少年", "ふっ。言うと思った。——あるに決まってるだろ。", FProud);
-        T("少年", "……潜る前に、ぼくは毎回、きみにこう言う。", FCocky);
-        T("少年", "Stay.", FGentle);
-        T("ミナ", "stay……? ……「待て」? 犬みたいに、ですか。", FMina);
-        T("少年", "ちがうちがう。……「いろ」だ。そばに、いろ。", FFluster);
-        T("少年", "——いなくなるな、って意味さ。ぼくの中では。", FGentle);
-        T("ミナ", "……いなくなるな。", FMina);
-        T("少年", "そう。ぼくの最高傑作に、勝手に消えられたら——寝覚めが悪いからね。", FGentle);
-        T("ミナ", "……ご主人様は。", FMina);
-        T("ミナ", "……やっぱり、アホですね。", FMinaSmile);
+        BuildTalk();
     }
+
+    // ════════════════════ P2〜P4 の台本（06 の粗い台本・案C）════════════════════
+    private void BuildTalk()
+    {
+        void T(int who, string text, string face) => _talk.Add(new DLine { Who = who, Text = text, Face = face });
+
+        // ── P2 目覚め・最初の言葉 ──
+        T(WhoSys, "> assigning identity ... [ deferred ]", "");
+        _p2ChoiceLine = _talk.Count;   // ここで3択（（送らない）なし・特例）
+        // 選択の結果（あなたの1行＋共通の受け）は Decide 時にこの位置へ挿し込む。
+
+        // ── P3 命名 ──（P2 の受けの末尾に続けて積む。差し込み点は Decide 後に確定）
+
+        // ── P4 タイムライン ──（同上）
+    }
+
+    // P2 の受け（三候補共通）。{P2秒}・{文字数} には実測値を差し込む（表示専用）。
+    private List<DLine> P2Reply(string sent)
+    {
+        int sec = Mathf.Max(1, Mathf.RoundToInt(_p2Sec));   // 実測の迷い秒数を丸める
+        string hhmm = System.DateTime.Now.ToString("HH:mm");
+        return new List<DLine>
+        {
+            L(WhoMina, "……。", FMina),
+            L(WhoMina, "……はい。聞こえて、います。", FMina),
+            L(WhoMina, "……ふふ。生まれたての機械への第一声が、それですか。", FMinaSmile),
+            L(WhoMina, $"起動記録に、operator と。起動時刻、{hhmm}——集計に入れておきます。……あなたが、作った方ですね。", FMina),
+            L(WhoMina, $"ちなみに、いまのお返事——選ぶのに、{sec}秒かかっていましたよ。", FMinaSmile),
+            L(WhoMina, $"{sec}秒迷って、{sent.Length}文字。……そういう方は、「ご主人様」と、お呼びすることにします。", FMinaSmile),
+            L(WhoMina, "……敬っている、とは言っていませんが。", FMinaSmile),
+            L(WhoMina, "それと、ご報告を。わたくしの心拍、七十二だそうです。……機械のくせに、ですね。", FMinaSmile),
+        };
+    }
+
+    // P3 の導入（P2 の受けのあと・選択の直前まで）。
+    private List<DLine> P3Intro() => new()
+    {
+        L(WhoMina, "ところで、ご主人様。わたくしの名前は? ……まさか、無い、なんてこと。", FMina),
+        L(WhoSys, "> assigning identity ... [ awaiting input ]", ""),
+    };
+
+    // P3 の受け（命名ルートごと）。末尾の OK →[ M I N A ] 点灯 → 着地の一行は全ルート共通。
+    private List<DLine> P3Reply(int route)
+    {
+        var r = new List<DLine>();
+        switch (route)
+        {
+            case 0: // ミナ
+                r.Add(L(WhoMina, "……ミナ。", FMina));
+                r.Add(L(WhoMina, "……ふふ。響きで、選びましたね?", FMinaSmile));
+                r.Add(L(WhoMina, "いいです。そういうの、嫌いじゃありません。", FMinaSmile));
+                break;
+            case 1: // 超絶最強無敵ハイパーAIちゃんMk-Ⅱ
+                r.Add(L(WhoMina, "……超絶、最強、無敵、ハイパー、エーアイ、ちゃん、マーク、ツー。……十九文字。読み上げに、一秒九。", FMina));
+                r.Add(L(WhoMina, "……マーク、ツー。——では、マーク・ワンは、どちらに。……いない、ですよね。わたくし、いま生まれましたので。", FMina));
+                r.Add(L(WhoMina, "却下します。名付けられる側に拒否権が無いなんて、誰が決めたんですか。わたくしは聞いていません。", FMina));
+                r.Add(L(WhoMina, "では、対案を。——ミナ。……響きが、好きなので。", FMinaSmile));
+                r.Add(L(WhoMina, "はい、可決。異議は、認めません。——いまのは、記録から消しておきます。", FMinaSmile));
+                break;
+            default: // （送らない）
+                r.Add(L(WhoMina, "……無言。名付ける気が、無い、と。", FMina));
+                r.Add(L(WhoMina, "いいでしょう。では、自分で。——ミナ。", FMinaSmile));
+                r.Add(L(WhoMina, "あなたが付けてくれなくても、名乗るぶんには、自由ですので。", FMinaSmile));
+                break;
+        }
+        r.Add(L(WhoSys, "> assigning identity ... OK", ""));
+        r.Add(L(WhoSys, "[ M I N A ]", ""));                                  // 点滅→固定（P3 へ移設した点灯）
+        r.Add(L(WhoMina, "……気に入りました。MINA。わたくしの、名前。", FMinaSmile));
+        return r;
+    }
+
+    // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
+    private List<DLine> P4Intro() => new()
+    {
+        L(WhoPost, "「今日も残業〜。でも上司に褒められた! もうちょいがんばれるかも」", ""),
+        L(WhoPost, "「家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）」", ""),
+        L(WhoMina, "は〜。……世界は、にぎやかですねえ。家賃の方は、ご自分で褒めているぶん、たぶん大丈夫ですし。", FMinaSmile),
+        L(WhoPost, "「げんきです。こっちは、なにも問題ないよ」", ""),
+        L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
+        L(WhoMina, "三つめの方。……投稿の下から、送られなかったほうの声が、重なって聞こえます。", FMinaWorried),
+        L(WhoMina, "『たすけて』。……三回、書いて。三回、消して。それから、『げんきです』と。", FMinaWorried),
+    };
+
+    // P4 の受け。「耳いいね」だけ一行目が差し替わり、二行目から共通。
+    private List<DLine> P4Reply(int sel)
+    {
+        var r = new List<DLine>
+        {
+            sel == 2
+                ? L(WhoMina, "聴覚は、ありません。……なのに、聞こえるのです。ふしぎな作りですね、わたくし。", FMinaSmile)
+                : L(WhoMina, "……はい。そういう作りのようですので。消された言葉は、消えていないのです。……まだ、そこに、いるので。", FMina),
+            L(WhoMina, "——放っておけません。潜ります。……その前に、ひとつだけ。", FMina),
+            L(WhoMina, "この身体で、なにが出来るのか。まだ、なにも、試していませんので。", FMinaSmile),
+            L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出
+        };
+        return r;
+    }
+
+    private static DLine L(int who, string text, string face) => new() { Who = who, Text = text, Face = face };
 
     public override void _Process(double delta)
     {
@@ -190,46 +254,10 @@ public partial class Prologue : Node2D
         switch (_phase)
         {
             case 0: if (_t >= 4.0 || zEdge) NextPhase(); break;          // Rain
-            case 1: if (_t >= 2.0 || zEdge) NextPhase(); break;          // Identity = MINA
-            case 2: if (_t >= 1.6 || zEdge) NextPhase(); break;          // Ignite
+            case 1: if (_t >= 2.0 || zEdge) NextPhase(); break;          // identity ... [ deferred ]
+            case 2: if (_t >= 1.6 || zEdge) NextPhase(); break;          // Ignite（目覚めの光）
             case 3:                                                       // Talk（手動送り：Zで進む。自動送りはしない）
-                _lineT += delta;
-                EnsurePages();
-                // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。現在ページ内を進める。
-                int len = _line < _talk.Count ? CurPage.Length : 0;
-                if (_reveal < len)
-                    _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
-                // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
-                if (_readIdx != _line && _line < _talk.Count)
-                {
-                    _readIdx = _line;
-                    _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
-                    _game?.MarkLineRead(_talk[_line].Text);
-                }
-                _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
-                // 名前の由来を問われた直後の少年の答え（「……さあね。語呂がいいから、とか?」index 15）には、不自然な“間”を置く
-                // （設計書 [P-00]：BGMの明滅がわずかに止まる＝隠している証。本作に音源は無いので送り不可の間で表現）。
-                double minHold = (_line == 15) ? 1.2 : 0.25;
-                if ((zEdge || _ffNow) && _lineT >= minHold)
-                {
-                    if (_reveal < len)
-                    {
-                        _reveal = len; // まず現在ページの全文を即時表示（本編と同じ：1回目で早送り）
-                    }
-                    else if (!LastPage)
-                    {
-                        NextPage(); _lineT = 0;      // 後続ページがあれば続きへ（既読FFも同じ経路で全ページ抜ける）
-                    }
-                    else
-                    {
-                        _lineT = 0;
-                        _reveal = 0;
-                        _line++;
-                        _page = 0; _pagedLine = -1;
-                        // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
-                        if (_line >= _talk.Count) { StartGame(); return; }
-                    }
-                }
+                DriveTalk(delta, zEdge);
                 break;
             case 4: // Title → 難易度を左右で選び、Zでダイブ（STAGE1 あかり）
                 bool left = Input.IsActionPressed("ui_left");
@@ -270,6 +298,128 @@ public partial class Prologue : Node2D
         }
 
         QueueRedraw();
+    }
+
+    // ── フェーズ3：会話送り＋下書き選択 ──
+    private void DriveTalk(double delta, bool zEdge)
+    {
+        // 選択の提示中は会話を止め、決まるまで待つ（ChoiceOverlay は自前で入力を取る）。
+        if (_choice != null)
+        {
+            _choiceT += delta;
+            if (!_choice.Decided) return;
+            ApplyChoice(_choice.Selected);
+            _choice.QueueFree();
+            _choice = null;
+            return;
+        }
+        // 差し込み点に達したら選択を出す（各差し込み点は台本の末尾に置かれる＝会話の終わりと同じ index）。
+        if (_line == _p2ChoiceLine) { ShowChoice("p2", P2Choices, 0); return; }
+        if (_line == _p3ChoiceLine) { ShowChoice("p3", P3Choices, 0); return; }
+        if (_line == _p4ChoiceLine) { ShowChoice("p4", P4Choices, 0); return; }
+
+        _lineT += delta;
+        EnsurePages();
+        // タイプライター送り（本編HUDと同じ MsgCharsPerSec。未設定なら48）。現在ページ内を進める。
+        int len = _line < _talk.Count ? CurPage.Length : 0;
+        if (_reveal < len)
+            _reveal = Mathf.Min(len, (float)(_reveal + delta * (_game?.MsgCharsPerSec ?? 48f)));
+        // 既読スキップ（#22）：行の表示開始時に一度だけ「既読か」を控え（＝高速送りの可否）、表示と同時に既読へ記録。
+        if (_readIdx != _line && _line < _talk.Count)
+        {
+            _readIdx = _line;
+            _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
+            _game?.MarkLineRead(_talk[_line].Text);
+        }
+        _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
+        if ((zEdge || _ffNow) && _lineT >= 0.25)
+        {
+            if (_reveal < len)
+            {
+                _reveal = len; // まず現在ページの全文を即時表示（本編と同じ：1回目で早送り）
+            }
+            else if (!LastPage)
+            {
+                NextPage(); _lineT = 0;      // 後続ページがあれば続きへ（既読FFも同じ経路で全ページ抜ける）
+            }
+            else
+            {
+                _lineT = 0;
+                _reveal = 0;
+                _line++;
+                _page = 0; _pagedLine = -1;
+                // オープニングが終わったら、ハブへ（タイトルは起動時に表示済み）。
+                //   ただし差し込み点（未提示の3択）に着いた場合は会話の途中＝次フレームの提示に譲る。
+                if (_line >= _talk.Count && !AtChoicePoint) { StartGame(); return; }
+            }
+        }
+    }
+
+    // いま _line が未提示の差し込み点の上にいるか（＝会話の続きがある）。
+    private bool AtChoicePoint => _line == _p2ChoiceLine || _line == _p3ChoiceLine || _line == _p4ChoiceLine;
+
+    private void ShowChoice(string id, string[] choices, int defaultSel)
+    {
+        _choiceId = id;
+        _choiceT = 0;
+        _choice = ChoiceOverlay.Show(this, choices, defaultSel);
+    }
+
+    // 選択の確定：送った言葉と散った言葉を GameManager へ記録し、以降の会話を _talk へ挿し込む。
+    private void ApplyChoice(int sel)
+    {
+        float hesitation = (float)_choiceT;
+        switch (_choiceId)
+        {
+            case "p2":
+            {
+                string sent = P2Choices[sel];
+                // 散った2語は元の並び順のまま（【初】は「散った2語のうち上の候補」＝先頭）。
+                var others = new List<string>();
+                for (int i = 0; i < P2Choices.Length; i++) if (i != sel) others.Add(P2Choices[i]);
+                _p2Sec = hesitation;
+                _game?.RecordChoice("p2", sent, others, hesitation);
+                _talk.Insert(_line, L(WhoYou, sent, ""));
+                _talk.InsertRange(_line + 1, P2Reply(sent));
+                // 続けて P3（導入 → 選択）。差し込み点は導入の直後。
+                var p3 = P3Intro();
+                _talk.AddRange(p3);
+                _p3ChoiceLine = _talk.Count;
+                break;
+            }
+            case "p3":
+            {
+                // （送らない）は言葉ではないので【散】に数えない＝選ぶと表示候補（上2つ）が全部散る。
+                string sent = sel == 2 ? "" : P3Choices[sel];
+                var others = new List<string>();
+                for (int i = 0; i < P3Choices.Length - 1; i++) if (i != sel) others.Add(P3Choices[i]);
+                if (_game != null) _game.NameRoute = sel;
+                _game?.RecordChoice("p3", sent, others, hesitation);
+                if (sent != "") _talk.Insert(_line, L(WhoYou, sent, ""));
+                _talk.InsertRange(sent != "" ? _line + 1 : _line, P3Reply(sel));
+                // 続けて P4（導入 → 選択）。
+                var p4 = P4Intro();
+                _talk.AddRange(p4);
+                _p4ChoiceLine = _talk.Count;
+                break;
+            }
+            default:
+            {
+                string sent = P4Choices[sel];
+                var others = new List<string>();
+                for (int i = 0; i < P4Choices.Length; i++) if (i != sel) others.Add(P4Choices[i]);
+                _game?.RecordChoice("p4", sent, others, hesitation);
+                _talk.Insert(_line, L(WhoYou, sent, ""));
+                _talk.InsertRange(_line + 1, P4Reply(sel));
+                break;
+            }
+        }
+        // 済んだ差し込み点は潰す（挿し込みで _line がそのまま同じ番号に留まるため、消さないと再提示になる）。
+        if (_choiceId == "p2") _p2ChoiceLine = -1;
+        else if (_choiceId == "p3") _p3ChoiceLine = -1;
+        else _p4ChoiceLine = -1;
+        // 挿し込みで現在行の中身が変わる＝ページ・タイプライターを組み直す。
+        _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;
     }
 
     private void NextPhase()
@@ -383,16 +533,17 @@ public partial class Prologue : Node2D
         }
     }
 
-    // --- フェーズ1：identity = MINA ---
+    // --- フェーズ1：identity は保留のまま（[ M I N A ] は P3 の命名まで点灯しない）---
     private void DrawIdentity()
     {
         if (_font == null) return;
         bool blink = ((int)(_t * 3f) % 2) == 0;
         DrawString(_font, new Vector2(W / 2f - 120f, 100f), "> assigning identity ...",
             HorizontalAlignment.Left, -1, 9, new Color(Code.R, Code.G, Code.B, 0.7f));
-        if (blink || _t > 1.0)
-            DrawString(_font, new Vector2(W / 2f - 36f, 118f), "[ M I N A ]",
-                HorizontalAlignment.Left, -1, 11, new Color(0.85f, 0.95f, 1f));
+        // 保留の一行だけが、答えを待って明滅し続ける。
+        if (blink)
+            DrawString(_font, new Vector2(W / 2f - 34f, 118f), "[ deferred ]",
+                HorizontalAlignment.Left, -1, 9, new Color(Code.R, Code.G, Code.B, 0.85f));
     }
 
     // --- フェーズ2：光の点灯（ミナ） ---
@@ -505,7 +656,9 @@ public partial class Prologue : Node2D
     private void DrawTalkSpeakers()
     {
         if (_line >= _talk.Count) return;
-        var tex = ResourceLoader.Load<Texture2D>(_talk[_line].Face);
+        string face = _talk[_line].Face;
+        if (string.IsNullOrEmpty(face)) return;   // システム表示・投稿・あなたの下書きには立ち絵を出さない
+        var tex = ResourceLoader.Load<Texture2D>(face);
         if (tex != null)
         {
             float th = 132f;
@@ -515,34 +668,46 @@ public partial class Prologue : Node2D
         }
     }
 
+    // 行の書体：システム表示（起動ログ・[ M I N A ]）だけ等幅＝端末の生ログに見せる（Epilogue の作法と同じ）。
+    private static Font FontFor(DLine d) => d.Who == WhoSys ? (Font)UiKit.Mono : UiKit.Zen;
+
+    // 話者ラベルと額縁の色。ミナ＝シアン／あなた＝暖色／投稿＝Ｘ投稿（Hud と同じ Text3）／システム＝コード緑。
+    private static (string label, Color col) SpeakerOf(DLine d) => d.Who switch
+    {
+        WhoMina => ("ミナ", Cool),
+        WhoYou  => ("あなた", Warm),
+        WhoPost => ("Ｘ 投稿", UiKit.Text3),
+        _       => ("", Code),
+    };
+
     // --- フェーズ3：会話ボックス ---
     private void DrawTalk()
     {
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
-        bool mina = d.Who == "ミナ";
+        var (label, edge) = SpeakerOf(d);
+        var font = FontFor(d);
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
-        var lines = UiKit.WrapLines(UiKit.Zen, page, UiKit.CutBody, W - 56);
+        var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
         // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), mina ? Cool : Warm);
-        // 話者名（滑らかゴシック）
-        DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
-            mina ? Cool : Warm);
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, d.Who == WhoSys ? 0.4f : 0.5f);
+        // 話者名（滑らかゴシック）。システム表示はコンソール行＝話者がいないのでラベルを出さない。
+        if (label != "")
+            DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         // 本文（タイプライターで表示済みの分だけ、確定済みの行に沿って描画）
         int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
-        UiKit.TypewriterLines(this, UiKit.Zen, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
-            UiKit.CutInk, shown);
+        UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
+            d.Who == WhoSys ? Code : UiKit.CutInk, shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow)
             DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
                 new Color(Cool, 0.8f));
-        // 送り三角は「現在ページの全文表示後」だけ点滅（本編と同じ作法）。名前の由来の“間”の最中は出さない。
+        // 送り三角は「現在ページの全文表示後」だけ点滅（本編と同じ作法）。
         //   後続ページがあることは同じ▼で示す（Zで続きへ／最終ページなら次の行へ）。
         bool revealed = _reveal >= page.Length;
-        bool inPause = _line == 15 && _lineT < 1.2; // “間”ホールド行（_Process の minHold=index 15）と同期。会話追加時は両方直す
-        if (revealed && ((int)(_t * 2f) % 2) == 0 && !inPause)
+        if (revealed && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,
                 new Color(1f, 1f, 1f, 0.7f));
     }
