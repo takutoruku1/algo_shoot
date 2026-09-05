@@ -321,6 +321,43 @@ public partial class GameManager : Node
     //   STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
     //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
     public bool PressedTheQuestion;
+
+    // ─── 仕掛けの値（案C の組み込み計画）───
+    //   選択のたびに「選ばれなかった言葉」が散り、終盤（FINAL F4 / エピローグ E2）でそれが戻ってくる。
+    //   ここは**器だけ**：各場面からの記録は台本タスクで繋ぐので、現時点でこれらを書く呼び出しは無い。
+    //   セーブの作法は pressedQ と同じ＝キー無し＝既定値（旧セーブがそのまま読める）。
+    public readonly List<string> ScatteredWords = new(); // 散った言葉（選ばれなかった候補）。出た順
+    public string FirstScattered = "";                   // 最初に散らした言葉（F4 で戻る一語）
+    public int NameRoute;                                // 命名ルート 0〜2（冒頭 P2 の3択）
+    public string LastSentWord = "";                     // 最後に送った言葉（E2 の合言葉。既存の "stay" ゲートを置換）
+    public float HesitationSec;                          // 迷い秒数の累計（選択に掛けた時間）
+
+    // 1つの選択の結果を記録する。id ごとに上書きできる＝選び直し／リトライで二重計上しない。
+    //   chosen … 選ばれた言葉（散らない）／others … 選ばれなかった候補（＝散る言葉）
+    //   同じ id で呼び直すと、前回その id で散らせた語を取り消してから積み直す。
+    private readonly Dictionary<string, List<string>> _scatterById = new();
+    private readonly Dictionary<string, float> _hesitationById = new();
+    public void RecordChoice(string id, string chosen, IEnumerable<string> others, float hesitationSec)
+    {
+        // 同じ id の前回ぶんを取り消す（散った言葉・迷い秒数とも）。
+        if (_scatterById.TryGetValue(id, out var prev))
+            foreach (var w in prev) ScatteredWords.Remove(w);
+        if (_hesitationById.TryGetValue(id, out var prevSec)) HesitationSec -= prevSec;
+
+        var list = new List<string>();
+        foreach (var w in others)
+            if (!string.IsNullOrEmpty(w)) list.Add(w);
+        _scatterById[id] = list;
+        ScatteredWords.AddRange(list);
+
+        _hesitationById[id] = hesitationSec;
+        HesitationSec += hesitationSec;
+
+        // 最初に散らした言葉は一度決まったら動かさない（＝F4 で戻る一語を選び直しで揺らさない）。
+        if (string.IsNullOrEmpty(FirstScattered) && list.Count > 0) FirstScattered = list[0];
+        if (!string.IsNullOrEmpty(chosen)) LastSentWord = chosen;
+    }
+
     public bool ShouldBurnAfter(string clearedStageId) => clearedStageId == "koharu" && !_burnHappened;
     public void TriggerBurn() { if (!_burnHappened) { Burning = true; _burnHappened = true; } }
 
@@ -849,6 +886,15 @@ public partial class GameManager : Node
         data["burning"] = Burning;
         // 会話選択（層2プロト）：STAGE2（こはる）MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
         data["pressedQ"] = PressedTheQuestion;
+        // 仕掛けの値（散った言葉ほか）。いずれも後方互換：キー無し＝既定値（空配列／空文字／0）。
+        var sw = new Godot.Collections.Array();
+        foreach (var w in ScatteredWords)
+            sw.Add(w);
+        data["scatteredWords"] = sw;
+        data["firstScattered"] = FirstScattered;
+        data["nameRoute"] = NameRoute;
+        data["lastSentWord"] = LastSentWord;
+        data["hesitationSec"] = HesitationSec;
         // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
         var ids = new Godot.Collections.Array();
         foreach (var key in _idleDialogSeen)
@@ -922,6 +968,22 @@ public partial class GameManager : Node
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
         // 会話選択（層2プロト）の復元（キー無し＝旧セーブは false＝現行台詞＝後方互換）。
         PressedTheQuestion = data.ContainsKey("pressedQ") && data["pressedQ"].AsBool();
+        // 仕掛けの値の復元（キー無し＝旧セーブは既定値のまま＝後方互換）。
+        //   id ごとの取り消し台帳（_scatterById/_hesitationById）はランを跨いで持たない＝
+        //   ロード直後の RecordChoice は「その id の初回」として素直に積まれる。
+        ScatteredWords.Clear();
+        _scatterById.Clear();
+        _hesitationById.Clear();
+        if (data.ContainsKey("scatteredWords"))
+        {
+            var sw = data["scatteredWords"].AsGodotArray();
+            foreach (var v in sw)
+                ScatteredWords.Add(v.AsString());
+        }
+        FirstScattered = data.ContainsKey("firstScattered") ? data["firstScattered"].AsString() : "";
+        NameRoute = data.ContainsKey("nameRoute") ? Mathf.Clamp(data["nameRoute"].AsInt32(), 0, 2) : 0;
+        LastSentWord = data.ContainsKey("lastSentWord") ? data["lastSentWord"].AsString() : "";
+        HesitationSec = data.ContainsKey("hesitationSec") ? data["hesitationSec"].AsSingle() : 0f;
         // ハブ再訪小話の既読キー復元（キー無し＝旧セーブは空＝後方互換）。
         _idleDialogSeen.Clear();
         if (data.ContainsKey("idleDialogSeen"))
@@ -953,6 +1015,9 @@ public partial class GameManager : Node
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         _burnHappened = false; Burning = false; BurningThisRun = false;
         PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
+        // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
+        ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear();
+        FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
