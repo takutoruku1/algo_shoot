@@ -8,6 +8,10 @@ using Godot;
 //   ・ボス(boss)背景 ＝ ボス戦突入(EnterBoss)で道中背景を隠し、専用背景へ差し替え。
 //     軽い動きだけ付ける：ゆっくりした横ドリフト＋ごく弱い呼吸スケール＋光の明滅(modulate)。やり過ぎない。
 //
+//   ・層(layers)背景 ＝ LayerDefs に層定義の配列を入れると BgLayers（L1 -95 / L2 -92 / L3 -91 / L4 -88）へ委譲する。
+//     このとき 1枚絵タイルは作らず、EnterBoss は「背景の差し替え」ではなく「暗転」を意味する。
+//     LayerDefs が空なら以下の 1枚絵経路のまま＝既存ステージは何も変わらない。
+//
 //   ZIndex は旧額背景と同じ -90（ScrollFx -70..-55 / StageImagery -50 / MurkVignette -45 / 弾0.. の奥）。
 //   背景パスは Root から MidBgPath / BossBgPath で注入する＝新アートが来たらパスを差すだけで反映できる。
 //   BossBgPath を空にすると（中ボスのみ等）EnterBoss を呼ばない＝道中背景のまま。
@@ -24,6 +28,11 @@ public partial class StageBackground : Node2D
     // BossBgPath より優先。ラスボのように画像アセットを持たないステージで使う。
     public Texture2D BossBgTexture = null!;
     public bool StartInBoss = false; // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
+
+    // 層システム（BgLayers）へ渡す層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
+    // 空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
+    public BgLayers.Layer[] LayerDefs = System.Array.Empty<BgLayers.Layer>();
+    private BgLayers _layers = null!;
 
     // ───── tunable（控えめに） ─────
     public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
@@ -76,6 +85,7 @@ public partial class StageBackground : Node2D
     public void CrossfadeBossTo(Texture2D tex, Color dim, float dur = 2.4f)
     {
         if (tex == null) return;
+        if (_layers != null) return;    // 層モードは1枚絵のクロスフェードを持たない（層ごとの入替は別タスク）
         if (_fading) FinishFade();       // 連続要求：進行中のフェードを即着地させてから次へ（層が増えない）
         if (!_bossReady) SetupBoss();
         _mode = Mode.Boss;
@@ -121,6 +131,24 @@ public partial class StageBackground : Node2D
         ZIndex = -90;
         ZAsRelative = false;
         AddToGroup("stagebg");
+
+        // 層リストが与えられていれば BgLayers に委譲する（1枚絵タイルは作らない）。
+        if (LayerDefs.Length > 0)
+        {
+            _layers = new BgLayers { Name = "BgLayers", Layers = LayerDefs, ScrollSpeed = MidScrollSpeed };
+            AddChild(_layers);
+            HasMid = _layers.HasAny;
+            if (HasMid)
+            {
+                // 呼吸/明滅は 1枚絵ボス背景のための演出。層システムでは親を動かさない（層ごとの視差が壊れる）。
+                if (StartInBoss) EnterBoss();
+                return;
+            }
+            // 層が1枚も読めなかった＝旧経路へ落ちる（下へ抜ける）。
+            _layers.QueueFree();
+            _layers = null!;
+        }
+
         SetupMid();
         // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
         if (StartInBoss) EnterBoss();
@@ -161,6 +189,8 @@ public partial class StageBackground : Node2D
     // ボス戦突入：道中背景を隠し、専用背景へ切替（軽く動かす）。BossBgPath が無ければ何もしない（道中のまま）。
     public void EnterBoss()
     {
+        // 層モード：暗転（L4 のα→0、L1〜L3 を 0.55 倍）だけを行い、背景の差し替えはしない。
+        if (_layers != null) { _mode = Mode.Boss; _layers.EnterBoss(); return; }
         if (_mode == Mode.Boss) return;
         bool hasTex = BossBgTexture != null || (!string.IsNullOrEmpty(BossBgPath) && ResourceLoader.Exists(BossBgPath));
         if (!hasTex) return; // ボス背景未指定（例：中ボスのみ）＝切替しない
@@ -206,6 +236,9 @@ public partial class StageBackground : Node2D
 
     public override void _Process(double delta)
     {
+        // 層モードはスクロールも暗転も BgLayers 側が回す（ここは何もしない）。
+        if (_layers != null) return;
+
         _t += delta;
         float dt = (float)delta;
 

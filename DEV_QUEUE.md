@@ -30,7 +30,6 @@
 ## TODO
 
 <!-- 2026-09-05 組み込み計画（wiki/08_仮台本/15_組み込み計画.md）から投入。上から順に消化 -->
-- [ ] (P1) 背景の層システムの基盤（BgLayers 新設・StageBackground を層リスト対応） | engineer | 層定義 (path,scrollMul,z,tint,blend,loop) の配列を Root から注入でき、層リストが空なら現行の MidBgPath 経路に落ちる。既存3面が見た目不変でビルド通過
 - [ ] (P1) STAGE1 あかりの背景を bg2 の四層に差し替え | engineer | char/bg2/stage1 の L1〜L4 を敷き、L1 に色掛け・L4 を加算。--shot で継ぎ目と弾の視認を確認
 - [ ] (P1) STAGE2 こはるの背景を bg2 の四層に差し替え（部屋・教室の2組） | engineer | 道中Aで部屋、道中Bで教室へ層ごと入れ替わる。切替は CrossfadeBossTo と同じ作法で唐突に切らない
 - [ ] (P1) STAGE3 レイの背景を bg2 の四層に差し替え | engineer | 道中は L2_mid、ボスは L2_frame_full＋L4_light_gold へ。ボス突入で光を増やす（他面と逆）
@@ -92,6 +91,7 @@
 - [ ] 人力確認: R長押しリトライ / ESC の操作感 | — | 自動では判定不能。**ユーザーの実プレイ待ち**
 
 ## DONE
+- [x] (P1) 背景の層システムの基盤（BgLayers 新設・StageBackground を層リスト対応） | engineer | (完了 2026-09-05) `src/BgLayers.cs` を新設。層定義 `BgLayers.Layer(path, scrollMul, z, tint, additive, loop, offset)` の配列を `StageBackground.LayerDefs` から注入すると BgLayers へ委譲し、1枚絵タイルは作らない。層リストが空（既存3面・FINAL）なら従来の MidBgPath/BossBgPath 経路のままで挙動完全不変。1280x720 素材は 216/720=0.3 の高さフィット、Z は L1 -95 / L2 -92 / L3 -91 / L4 -88（ScrollFx -70..-55 と StageImagery -50 には触れない）。加算層は `CanvasItemMaterial{Add}`、`EnterBoss()` で L4 のα→0・L1〜L3 を0.55倍へ0.8秒 smoothstep、`SetTint(Color)` で全層に色掛け。ループは loop=true の層だけ横に並べて流し、位置係数 `BgScroll.PlayerNx`（0.65..1.45）を全層に乗算。`dotnet build algo_shoot.sln` で 0 Warning/0 Error 確認済み
 - [x] (P3) HowToPlayに会話中2択(ChoiceOverlay)の説明を追加 | game-designer→engineer | (完了 2026-09-04) `src/HowToPlay.cs:184-199`の`DrawPageControls`(ページ1「操作」)に「◇ 会話中の2択：↑↓ / マウスで選ぶ、{Pad.ConfirmToken} で決定」の1行を追記。`Pad.ConfirmToken`(`src/Pad.cs:97`)を使い`ChoiceOverlay.cs:447`の実ヒント文言と表記一致。KB専用念押し2行の有無でY座標を`Pad.UsingPad ? 6f : 50f`に出し分けレイアウト崩れなし（パネル下端y=672に対し新規行はy≈446〜490に収まることを座標計算で確認済み）。新規ページは追加せず既存ページへの追記のみ。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) AreaSpellCaster.csのrei/akari用_shapes死にコード削除 | engineer | (完了 2026-09-04) `src/AreaSpellCaster.cs:273,281`のrei/akari `_shapes`代入行にkoharu(`:290`)と同種の「全スペルが shape 固定＝実質フォールバック（到達不能）」コメントを付与。フィールド代入自体は削除せず残し挙動は完全不変。default/mina(`:299-300`)は`_spells`のshapeがnullで`_shapes`フォールバックが実際に使われるため無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
 - [x] (P3) Hud.csの汚染ゲージコメントを実態に合わせて修正 | engineer | (完了 2026-09-04) `src/Hud.cs:1249`付近のコメント「救うほど濁る」を、実態（各ステージRootが入場時にステージ固定値をSetContaminationへセットし道中はStageProgressで補間するだけ。HeartsSavedとは無関係）に合わせて書き換え。描画ロジックは無変更。`dotnet build algo_shoot.sln`で0 Warning/0 Error確認済み
