@@ -5,7 +5,7 @@ using Godot;
 //   流れは ScrollFx / StageBackground と同じ左方向に統一＝左→右の前進感（縦の上昇感は出さない）。
 //   Rei   : 順位晒しのタイムライン。「２位おめでとう（笑）」等の心ない投稿／「１位」は白飛びの固定ポスト。
 //   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す（左流れ・弱め）。
-//   Koharu: 孤独の静かな投稿。「だれも、こない」。いいねは 0（誰も反応しない）。台所の余韻は残す。暗背景なのでα低め。
+//   Koharu: 電気を消した部屋の静かな投稿。いいねは 0/1（誰も反応しない）。暗背景なのでα低め。
 // 背景画像(ZIndex -90)の上、ゲーム要素(0..10)の下(ZIndex -50)に描く。浄化が進む(Warmth↑)と薄れて晴れる。
 //
 // 弾幕の視認性最優先：カードは「画面奥で流れ去る世間の声」で前に出さない。無彩色〜淡い同系色（弾の濃ピンク/
@@ -392,12 +392,12 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE2 こはる：孤独の静かな投稿（暗背景・α一段低め）＋台所の余韻 ----
-    // いいねは 0 か 1（誰も反応しない孤独）。叫ばない。台所の食卓・空席・箸・湯気は残す。
-    // #11 文面改稿（maeda）：日常の軽さの中に“空席”が透ける。死の直接言及なし。4枚ずつ周回で 8 件全部が順に流れる。
+    // ---- STAGE2 こはる：電気を消した部屋の静かな投稿（暗背景・α一段低め）----
+    // いいねは 0 か 1（誰も反応しない）。叫ばない。4枚ずつ周回で 8 件全部が順に流れる。
+    // 本文は仮台本 07（S2-1〜S2-5）の層1〜層3。明るい投稿から、だんだん本人の声が透ける並び。
     private static readonly string[] KoharuBodies =
-        { "今日も、つくりすぎた", "レンチンでいいのに", "お味噌汁、具なんこまで?", "二人ぶんの、くせで",
-          "特売で、買いすぎた", "おかえりって、練習してる", "いただきます", "…" };
+        { "推しの配信、今日も来た", "塾の帰り、配信間に合った", "グッズの箱、3つ目", "親には言ってない",
+          "今日も明るいねって言われた", "何の話してたか、覚えてない", "1:20 まだ振ってる", "…" };
     private void DrawKoharu(float fade)
     {
         // 孤独のタイムライン。暗背景なので一段低い α(0.07)。反応ゼロ＝いいね 0/1。
@@ -414,36 +414,25 @@ public partial class StageImagery : Node2D
             Liked = false,                                                   // 誰もハートを押さない
         }, panelA: 0.07f);
 
-        // 食卓（テーブル天板）
+        // 机の下に、箱が三つ（S2-1「開けられた跡は、ひとつだけ」）。
         float ty = 150f;
-        DrawRect(new Rect2(60f, ty, W - 120f, 10f), new Color(0.42f, 0.30f, 0.22f, 0.40f * fade));
-        DrawRect(new Rect2(70f, ty + 10f, 8f, 36f), new Color(0.38f, 0.27f, 0.20f, 0.36f * fade));   // 脚
-        DrawRect(new Rect2(W - 78f, ty + 10f, 8f, 36f), new Color(0.38f, 0.27f, 0.20f, 0.36f * fade));
-
-        // 空席（椅子の背だけ）＝誰も座っていない
-        var chair = new Color(0.4f, 0.34f, 0.28f, 0.30f * fade);
-        DrawRect(new Rect2(W / 2f - 8f, ty + 14f, 16f, 4f), chair);
-        DrawRect(new Rect2(W / 2f - 8f, ty + 18f, 3f, 24f), chair);
-        DrawRect(new Rect2(W / 2f + 5f, ty + 18f, 3f, 24f), chair);
-
-        // 箸だけが置かれている（空席の手前）
-        var hashi = new Color(0.85f, 0.78f, 0.6f, 0.6f * fade);
-        DrawLine(new Vector2(W / 2f - 18f, ty - 2f), new Vector2(W / 2f - 2f, ty - 5f), hashi, 1.4f);
-        DrawLine(new Vector2(W / 2f - 18f, ty + 1f), new Vector2(W / 2f - 2f, ty - 2f), hashi, 1.4f);
-
-        // 茶碗（湯気が細っていく＝料理が冷める）
-        var bowl = new Color(0.7f, 0.72f, 0.78f, 0.45f * fade);
-        DrawRect(new Rect2(W / 2f - 40f, ty - 6f, 14f, 6f), bowl);
-        var steam = new Color(0.9f, 0.92f, 0.95f, 0.18f * fade * (0.5f + 0.5f * Mathf.Sin((float)_t * 2f)));
+        var box = new Color(0.44f, 0.38f, 0.46f, 0.34f * fade);
         for (int i = 0; i < 3; i++)
-        {
-            float sx = W / 2f - 35f + Mathf.Sin((float)_t * 3f + i) * 2f;
-            DrawLine(new Vector2(sx, ty - 8f), new Vector2(sx, ty - 16f - i * 2f), steam, 1f);
-        }
+            DrawRect(new Rect2(W / 2f - 40f + i * 20f, ty + 20f - i * 2f, 17f, 12f + i * 2f), box);
+        // 一つだけ蓋が開いている（跡はひとつだけ＝説明しない）
+        DrawLine(new Vector2(W / 2f - 40f, ty + 20f), new Vector2(W / 2f - 26f, ty + 15f),
+            new Color(0.58f, 0.52f, 0.62f, 0.34f * fade), 1.2f);
 
-        // 「誰のためでもないごはん」の余韻：薄い文字が床に滲む
+        // 振られたままのペンライト：光は画面へ向かうが、届かない（S2-3。線は途中で切れる）
+        float sway = Mathf.Sin((float)_t * 1.7f) * 6f;
+        var stick = new Color(0.72f, 0.68f, 0.86f, 0.42f * fade);
+        DrawLine(new Vector2(W / 2f + 44f, ty + 30f), new Vector2(W / 2f + 48f + sway, ty + 12f), stick, 1.6f);
+        var beam = new Color(0.86f, 0.84f, 0.98f, 0.13f * fade * (0.6f + 0.4f * Mathf.Sin((float)_t * 2f)));
+        DrawLine(new Vector2(W / 2f + 48f + sway, ty + 10f), new Vector2(W / 2f + 52f + sway * 1.4f, ty - 10f), beam, 1f);
+
+        // 部屋の静けさの余韻：薄い文字が床に滲む（S2-3 の「むだだ」）
         _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 64f, 196f),
-            "だれも、こない", HorizontalAlignment.Left, -1, 10, new Color(0.8f, 0.8f, 0.86f, 0.10f * fade));
+            "むだだ", HorizontalAlignment.Left, -1, 10, new Color(0.8f, 0.8f, 0.86f, 0.10f * fade));
     }
 
     // ═════════ S3 画の反転（改心成立＝cry→post 後、帰還ビートの背景でゆっくり進む） ═════════
@@ -526,43 +515,34 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- こはる：空席の箸の前で、細っていた湯気が戻る ----
-    //   冷めていく食卓（DrawKoharu と同じ場所・同じ形）が戻り、湯気だけが“逆再生”のように
-    //   本数を増やし、高く、あたたかく立ちのぼる。会話バーの上に湯気が届く高さまで伸びる。
+    // ---- こはる：消えていた配信画面が灯り、ペンライトの光が画面に届く（S2-9）----
+    //   道中で見た小道具（机の下の箱／振られたままのペンライト）を、同じ場所・同じ形のまま戻す。
+    //   変わるのは光だけ：消えていた画面に色が差し、途中で切れていた光の線が画面まで伸び切る。
+    //   説明的に明るくしない（α上限は「前」と同水準）。指ししない＝気づく余白。
     private void DrawKoharuReversal()
     {
-        float back = RevPhase(0f, 4f);      // 食卓・箸・茶碗が戻る
-        float steam = RevPhase(2.5f, 11f);  // 湯気の回復（細り→ふくらむ）
+        float back = RevPhase(0f, 4f);    // 箱とペンライトが戻る
+        float lit = RevPhase(2.5f, 11f);  // 画面が灯り、光が届き切るまで
         if (back <= 0f) return;
 
         float ty = 150f;
-        // 食卓（前と同じ形。色温度だけほんの少し暖かく）
-        DrawRect(new Rect2(60f, ty, W - 120f, 10f), new Color(0.46f, 0.33f, 0.23f, 0.40f * back));
-        DrawRect(new Rect2(70f, ty + 10f, 8f, 36f), new Color(0.42f, 0.30f, 0.21f, 0.36f * back));
-        DrawRect(new Rect2(W - 78f, ty + 10f, 8f, 36f), new Color(0.42f, 0.30f, 0.21f, 0.36f * back));
-        // 空席の椅子（席はまだ空いている＝帰る場所は残っている、を同じ形で）
-        var chair = new Color(0.44f, 0.37f, 0.29f, 0.30f * back);
-        DrawRect(new Rect2(W / 2f - 8f, ty + 14f, 16f, 4f), chair);
-        DrawRect(new Rect2(W / 2f - 8f, ty + 18f, 3f, 24f), chair);
-        DrawRect(new Rect2(W / 2f + 5f, ty + 18f, 3f, 24f), chair);
-        // 箸（同じ場所に、少しだけ明るく）
-        var hashi = new Color(0.90f, 0.82f, 0.62f, 0.60f * back);
-        DrawLine(new Vector2(W / 2f - 18f, ty - 2f), new Vector2(W / 2f - 2f, ty - 5f), hashi, 1.4f);
-        DrawLine(new Vector2(W / 2f - 18f, ty + 1f), new Vector2(W / 2f - 2f, ty - 2f), hashi, 1.4f);
-        // 茶碗
-        DrawRect(new Rect2(W / 2f - 40f, ty - 6f, 14f, 6f), new Color(0.74f, 0.74f, 0.78f, 0.45f * back));
+        // 机の下の箱（前と同じ形。色温度だけほんの少し暖かく）
+        var box = new Color(0.48f, 0.42f, 0.48f, 0.34f * back);
+        for (int i = 0; i < 3; i++)
+            DrawRect(new Rect2(W / 2f - 40f + i * 20f, ty + 20f - i * 2f, 17f, 12f + i * 2f), box);
 
-        // 湯気：前は「3本・低く・消え入りそう」。steam に応じて 3→5本、高さ 16→34px、αも回復。
-        //   説明的に白くしない（α上限 0.26）。揺らぎは前と同じサイン＝同じ湯気が“戻った”と読める。
-        int lines = 3 + (int)(steam * 2.99f);                       // 3 → 5 本
-        float rise = 16f + steam * 18f;                             // 16 → 34 px
-        float sa = (0.10f + 0.16f * steam) * back * (0.7f + 0.3f * Mathf.Sin((float)_t * 2f));
-        var sc = new Color(0.95f, 0.93f, 0.90f, sa);
-        for (int i = 0; i < lines; i++)
-        {
-            float sx = W / 2f - 37f + i * 3.5f + Mathf.Sin((float)_t * (2.2f + 0.3f * i) + i * 1.7f) * (2f + steam * 1.5f);
-            float h = rise - Mathf.Abs(i - (lines - 1) / 2f) * 4f;  // 中央の一本がいちばん高い
-            DrawLine(new Vector2(sx, ty - 8f), new Vector2(sx + Mathf.Sin((float)_t * 1.6f + i) * 1.5f, ty - 8f - h), sc, 1f);
-        }
+        // 灯った配信画面（道中は消えていた矩形。lit に応じて色が差す）
+        var scr = new Rect2(W / 2f + 42f, ty - 44f, 44f, 28f);
+        DrawRect(scr, new Color(0.86f, 0.84f, 0.98f, 0.05f + 0.13f * lit * back));
+
+        // ペンライト：前と同じ揺れ。光の線だけが、途中で切れずに画面まで伸び切る。
+        float sway = Mathf.Sin((float)_t * 1.7f) * 6f;
+        DrawLine(new Vector2(W / 2f + 44f, ty + 30f), new Vector2(W / 2f + 48f + sway, ty + 12f),
+            new Color(0.78f, 0.74f, 0.92f, 0.42f * back), 1.6f);
+        var beam = new Color(0.90f, 0.88f, 1.00f, (0.13f + 0.10f * lit) * back * (0.6f + 0.4f * Mathf.Sin((float)_t * 2f)));
+        // 届く先＝画面の下端。lit=0 では前と同じ長さ（20px）、lit=1 で画面まで届き切る。
+        var from = new Vector2(W / 2f + 48f + sway, ty + 10f);
+        var to = from.Lerp(new Vector2(scr.Position.X + scr.Size.X / 2f, scr.End.Y), 0.28f + 0.72f * lit);
+        DrawLine(from, to, beam, 1f);
     }
 }

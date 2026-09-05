@@ -198,7 +198,7 @@ public partial class GameManager : Node
     public static readonly StageDef[] Stages =
     {
         new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = "@akari.",   Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 1 — あかり" },
-        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?", Title = "STAGE 2 — こはる" },
+        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "今日の配信も最高だった。これで、明日も学校、行ける。", Title = "STAGE 2 — こはる" },
         new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = "@rei_____", Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 3 — レイ" },
     };
 

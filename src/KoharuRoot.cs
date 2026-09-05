@@ -2,7 +2,7 @@ using Godot;
 
 // KoharuRoot : STAGE2「こはる」のルート（Koharu.tscn にアタッチ）。
 // こはるの心象世界（bg2 stage2 の四層）を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
-// 場所は2つあり、道中Aは配信の部屋、道中Bで教室へ層セットごとクロスフェードで入れ替わる。
+// 場所は2つあり、道中A/Cは配信の部屋、道中Bで教室へ層セットごとクロスフェードで入れ替わる。
 public partial class KoharuRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -41,8 +41,8 @@ public partial class KoharuRoot : Node2D
     };
 
     private CanvasModulate _tint = null!;
-    private static readonly Color Cold = new Color(0.64f, 0.68f, 0.84f); // 冷めた台所（背景が元々暗いので濃くしすぎない）
-    private static readonly Color Warm = new Color(1.10f, 1.00f, 0.86f); // 灯のともった食卓
+    private static readonly Color Cold = new Color(0.64f, 0.68f, 0.84f); // 電気の消えた部屋（背景が元々暗いので濃くしすぎない）
+    private static readonly Color Warm = new Color(1.10f, 1.00f, 0.86f); // 灯りの戻った配信画面
     private float _warmth;
     private readonly RetryHold _retry = new();
     private bool _exitHeld;
@@ -64,7 +64,7 @@ public partial class KoharuRoot : Node2D
         var bg = new StageBackground
         {
             Name = "StageBackground",
-            MidScrollSpeed = 18f, // 台所は凪いだ空気＝最も控えめな前進感
+            MidScrollSpeed = 18f, // 電気の消えた部屋は凪いだ空気＝最も控えめな前進感
             LayerDefs = RoomLayers,
         };
         AddChild(bg);
@@ -80,7 +80,7 @@ public partial class KoharuRoot : Node2D
         AddChild(World);
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
-        // 近景パララックス：湯気/冷気の対流で凪いだ前進感（弾より奥 -60/-55）。
+        // 近景パララックス：淀んだ空気の対流で凪いだ前進感（弾より奥 -60/-55）。
         // 生成スクロール背景(scroll.png, -70)は不透明の全画面板で bg2 の層(-95..-88)を隠すので敷かない。
         AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Koharu, SkipScrollTexture = true });
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Koharu }); // 空席に箸・冷める食卓
@@ -112,7 +112,7 @@ public partial class KoharuRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
-            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageKoharu._step=9 に乗る）／
+            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageKoharu._step=11 に乗る）／
             // Shift+R＝最初から（従来どおり）。Shift時は SelectedEntry に触らない
             // （--boss デバッグ起動中の DebugAlwaysBoss 持ち回りを壊さないため。通常プレイでは
             //  前回の _Ready() 時点で既に Start へ消費済みなので実質「最初から」になる）。
