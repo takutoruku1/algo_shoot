@@ -148,6 +148,8 @@ public partial class BossRei : Enemy
         PostTexPath = "res://char/v3/boss_rei_post.png";
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("rei", "body_display_h", 72f);
+        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "rei" 行）。
+        BodyOffsetName = "rei";
         CryHoldDur = 9999.0;     // 自動終了させない＝cry を会話尺いっぱい保持（EndCryNow で post へ）
     }
 

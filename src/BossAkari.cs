@@ -131,6 +131,9 @@ public partial class BossAkari : Enemy
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("akari", "body_display_h", 72f);
+        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "akari" 行）。攻撃絵は待機より 152px 幅広で
+        // 腕を右へ伸ばすため、中央揃えのままだと差し替えの瞬間に体が左へ滑る。
+        BodyOffsetName = "akari";
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 

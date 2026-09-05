@@ -184,6 +184,9 @@ public partial class BossKoharu : Enemy
         PostTexPath = "res://char/v3/enemy_koharu_post.png";
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("koharu", "body_display_h", 72f);
+        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "koharu" 行）。こはるは 3 姿勢で足元の高さも
+        // 違う（待機 y=629／攻撃 668／被弾 633）ので x だけでなく y も補正する。
+        BodyOffsetName = "koharu";
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
     }
 

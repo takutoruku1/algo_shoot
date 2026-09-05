@@ -97,6 +97,10 @@ public partial class CameoBoss : Enemy
         CryTexPath = Theme.CryTex;
         PostTexPath = Theme.PostTex;
         BodyDisplayH = CameoBodyH;
+        // v3 のちび（360px の全身立ち）は足元に余白があり、絵の重心が判定中心より約4px上に来る
+        // （前タスクの実測。表示高50pxに対し約8%＝無防備窓の円が胸〜頭に乗り脚がはみ出す）。
+        // 姿勢オフセット表の "cameo" 行で絵を下げ、円の中心へ寄せる。判定（BodyRadius）は不変。
+        BodyOffsetName = "cameo";
         // 撃破の会話尺いっぱい cry を保持し、流し切った EndCryNow で post（笑顔）へ着地。
         CryHoldDur = 9999.0;
 

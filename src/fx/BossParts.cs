@@ -224,10 +224,12 @@ public partial class BossParts : Node2D
                     pulseAmp: 0.04f, pulseSec: 3.4f),
             new Def("gaze_line", Layer.Back, Role.Orbit, 0.95f, 0.50f, radiusK: 0.16f, omega: 0.42f, phase: 4.71f,
                     pulseAmp: 0.04f, pulseSec: 2.9f),
-            new Def("gaze_ray", Layer.Add, Role.Fixed, 0.75f, 0.18f,
-                    pulseAmp: 0.10f, pulseSec: 3.2f, pos: new Vector2(0.000f, -0.139f)),
-            new Def("gaze_ray", Layer.Add, Role.Fixed, 0.60f, 0.15f,
-                    pulseAmp: 0.12f, pulseSec: 2.5f, pos: new Vector2(0.000f, 0.056f)),
+            // 後光の放射は本体の真上に置くと顔に白飛びが乗る（実機で確認）ので、
+            // 左右へ振ってα も 0.12/0.10 まで落とし、輪郭の外に薄く出るだけにする。
+            new Def("gaze_ray", Layer.Add, Role.Fixed, 0.70f, 0.12f,
+                    pulseAmp: 0.10f, pulseSec: 3.2f, pos: new Vector2(-0.320f, -0.180f)),
+            new Def("gaze_ray", Layer.Add, Role.Fixed, 0.58f, 0.10f,
+                    pulseAmp: 0.12f, pulseSec: 2.5f, pos: new Vector2(0.330f, -0.140f)),
             new Def("penlight_lit", Layer.Front, Role.Drift, 0.30f, 0.9f, omega: 0.8f, phase: 0.6f,
                     bobPx: 3f, pos: new Vector2(0.333f, -0.194f)),
             new Def("penlight_off", Layer.Back, Role.Drift, 0.28f, 0.85f, omega: 0.7f, phase: 2.5f,
@@ -240,12 +242,12 @@ public partial class BossParts : Node2D
                     bobPx: 2.5f, pos: new Vector2(-0.222f, 0.306f)),
             new Def("mist_dark", Layer.Back, Role.Ground, 0.85f, 0.45f,
                     pulseAmp: 0.07f, pulseSec: 3.3f, pos: new Vector2(0f, 0.44f)),
-            new Def("particle_violet", Layer.Add, Role.Rise, 0.10f, 0.55f, omega: 0.9f, phase: 0.0f,
-                    pos: new Vector2(-0.139f, 0.000f)),
-            new Def("particle_violet", Layer.Add, Role.Rise, 0.08f, 0.50f, omega: 0.7f, phase: 2.1f,
-                    pos: new Vector2(0.111f, 0.000f)),
-            new Def("particle_violet", Layer.Add, Role.Rise, 0.07f, 0.45f, omega: 0.6f, phase: 4.2f,
-                    pos: new Vector2(0.278f, 0.000f)),
+            new Def("particle_violet", Layer.Add, Role.Rise, 0.09f, 0.40f, omega: 0.9f, phase: 0.0f,
+                    pos: new Vector2(-0.360f, 0.000f)),
+            new Def("particle_violet", Layer.Add, Role.Rise, 0.07f, 0.36f, omega: 0.7f, phase: 2.1f,
+                    pos: new Vector2(0.300f, 0.000f)),
+            new Def("particle_violet", Layer.Add, Role.Rise, 0.06f, 0.32f, omega: 0.6f, phase: 4.2f,
+                    pos: new Vector2(0.430f, 0.000f)),
             new Def("eye_cross", Layer.Front, Role.Fixed, 0.16f, 0.7f,
                     pulseAmp: 0.08f, pulseSec: 2.3f, pos: new Vector2(-0.306f, -0.333f)),
         },
@@ -457,6 +459,10 @@ public partial class BossParts : Node2D
         }
     }
 
+    // 本体に貼り付いている部品か（スマホの画面・後光・飾り枠・床の輪・もや）。
+    // これらは攻撃で飛ばさない＝発射点へ寄せると本体の顔の上で重なって白飛びする（実機で確認）。
+    private static bool IsAnchored(Part p) => p.D.R == Role.Fixed || p.D.R == Role.Ground;
+
     // 予備動作：発射点へ吸い寄せる（WindDur で発射点に集まる）。
     private void TickWind(float dt)
     {
@@ -464,7 +470,7 @@ public partial class BossParts : Node2D
         Vector2 muzzle = MuzzleScreen();
         foreach (var p in _parts)
         {
-            if (p.D.R == Role.Ground) continue; // 床の輪・もやは吸い寄せない（足元に残す）
+            if (IsAnchored(p)) continue;
             Vector2 want = muzzle - BasePos(p, p.T);
             p.Extra = p.Extra.Lerp(want, k);
         }
@@ -474,18 +480,14 @@ public partial class BossParts : Node2D
     private void Release()
     {
         _st = St.Release; _stT = 0f;
-        Vector2 muzzle = MuzzleScreen();
         for (int i = 0; i < _parts.Count; i++)
         {
             var p = _parts[i];
-            if (p.D.R == Role.Ground) { p.Vel = Vector2.Zero; continue; }
+            if (IsAnchored(p)) { p.Vel = Vector2.Zero; continue; }
             float sp = 90f + (i % 6) * 10f;                       // 90〜140px/s
             float spread = (i % 5 - 2) * 0.10f;                    // 少し扇に散らす
             p.Vel = new Vector2(_fireDirX, 0f).Rotated(spread * _fireDirX) * sp;
             p.SpinVel = spread * 2.4f;
-            // あかりのビームは発射点から前方へ連結（この表では beam_segment を持たないので
-            // 段の連結は配線側 = ボスの弾幕演出に任せ、ここでは同じ向きへ流すだけにする）。
-            if (p.D.R == Role.Fixed) p.Extra = muzzle - BasePos(p, p.T);
         }
     }
 
