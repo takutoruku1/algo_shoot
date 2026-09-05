@@ -816,6 +816,10 @@ public partial class Enemy : Area2D
             _crying = true;
             _cryT = 0;
             _cryWatchdogT = 0; _cryTotalT = 0; // 保険タイマーはここが起点
+            // 改心の会話中は戦闘テロップ（ボス字幕「シールドが、剥がれました!…」／スペルカットイン）を
+            // 抑える。撃破直前に出た帯が決定打の行に重なって双方読めなくなるため（0.2s フェード→消去）。
+            // 戻すのは FinishCry＝会話を送り切った時（保険タイムアウト経由でも同じ1経路を通る）。
+            SetHudCalloutSuppressed(true);
             OnCryStart();
         }
         else
@@ -927,6 +931,13 @@ public partial class Enemy : Area2D
     }
 
     // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。
+    // 改心の会話区間だけ戦闘テロップを鎮める（Hud.SuppressCallouts の ON/OFF）。
+    // Hud が取れない状況（テスト起動など）でも落とさない＝取れなければ何もしない。
+    private void SetHudCalloutSuppressed(bool on)
+    {
+        if (GetTree()?.GetFirstNodeInGroup("hud") is Hud hud) hud.SuppressCallouts = on;
+    }
+
     protected virtual void OnCryStart() { }
     protected virtual void OnCryEnd() { }
     // 保険タイムアウトで cry を強制終了するとき、派生側の会話ドライバも畳ませるためのフック。
@@ -946,6 +957,7 @@ public partial class Enemy : Area2D
     {
         if (!_crying) return;
         _crying = false;
+        SetHudCalloutSuppressed(false);   // 改心の会話が終わった＝テロップの抑制を戻す
         if (_parts != null) _parts.OnRedeem(() => SwapBody(PostTexPath, PostBodyScale));
         else SwapBody(PostTexPath, PostBodyScale);
         OnCryEnd();
