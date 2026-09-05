@@ -47,6 +47,11 @@ public partial class Enemy : Area2D
     //   ので、縮めたぶん足元が浮く＝その差を Offset で押し下げて、ガワと同じ床に立たせる。
     protected float CryBodyScale = 1f;
     protected float PostBodyScale = 1f;
+    // true＝改心（cry）の開始で本体を Cry 絵へ差し替えず、Pre の姿のまま会話に入る。
+    //   レイ面（仮台本 07 の S3-8）用：ガワは決定打の行で割れるので、そこまで笑顔のガワで喋らせたい。
+    //   差し替えは会話ドライバが BreakCryBodyNow() を呼んだ瞬間に走る（呼ばれなければ FinishCry の
+    //   Post 差し替えでそのまま着地する＝取り残しにならない）。
+    protected bool DeferCryBodySwap;
     private float _bodyScaleMul = 1f;   // いま表示中の絵に掛かっている倍率（足元補正の計算に使う）
 
     // 攻撃姿勢の絵（任意。空なら姿勢の差し替えをしない＝従来どおり待機のまま撃つ）。
@@ -127,6 +132,12 @@ public partial class Enemy : Area2D
     private const float PurifiedExitSpeed = 90f;   // 退場の歩き速度（旧30）
     private const double PurifiedExitHold = 0.6;   // 改心の余韻＝不透明のまま歩く秒数（笑顔を見せる間）
     private const double PurifiedExitFade = 0.9;   // その後この秒数で透明化して消える
+    // 派生ごとの上書き（0以下＝既定値を使う）。レイ面のように「改心で出てきた姿を見せたい」ボスは
+    //   Hold を伸ばして、割れたガワの下から出た中の人が数秒で消えてしまうのを防ぐ。
+    protected double PurifiedExitHoldOverride;
+    protected double PurifiedExitSpeedOverride;
+    private double ExitHold => PurifiedExitHoldOverride > 0 ? PurifiedExitHoldOverride : PurifiedExitHold;
+    private float ExitSpeed => PurifiedExitSpeedOverride > 0 ? (float)PurifiedExitSpeedOverride : PurifiedExitSpeed;
     private double _purifiedExitT;
     private bool _flashing;
     private double _flashT;
@@ -808,7 +819,7 @@ public partial class Enemy : Area2D
         //（SwapBody は内部で _hasBodyTex を確認するため、立ち絵が無ければ素通りする）。
         if (CryHoldDur > 0)
         {
-            SwapBody(CryTexPath, CryBodyScale);
+            if (!DeferCryBodySwap) SwapBody(CryTexPath, CryBodyScale); // 遅延指定時は決定打まで Pre のまま
             // 部品層にも「撃破された」を伝える＝公転をやめて濃さが沈む（穢れが薄れる）。
             // 本体の cry 絵は待機絵と構図がほぼ同じなので、これが無いと会話中の見た目が戦闘中と変わらない。
             // 消し切りは FinishCry の OnRedeem が担う（部品が消え切ってから post、の順は不変）。
@@ -947,6 +958,15 @@ public partial class Enemy : Area2D
     // 手動送りで会話を終えたとき、Cry（その場停止）を即終了して笑顔へ着地。
     protected void EndCryNow() => FinishCry();
 
+    // 遅延させていた Cry 絵への差し替えを、いま走らせる（DeferCryBodySwap 用）。
+    //   レイ面の「決定打でガワが割れる」瞬間に会話ドライバから呼ぶ。二度呼んでも二重に差し替えない。
+    protected void BreakCryBodyNow()
+    {
+        if (!DeferCryBodySwap) return;
+        DeferCryBodySwap = false;
+        SwapBody(CryTexPath, CryBodyScale);
+    }
+
     // cry の終了はこの1経路に集約する（手動送り／CryHoldDur 経過／保険タイムアウトのどれでも同じ後処理）。
     // post スプライトへの着地 → OnCryEnd（各ボスが Finished を立てる）→ フォロワー付与、の順は不変。
     //
@@ -1021,8 +1041,8 @@ public partial class Enemy : Area2D
             // それ以外：笑顔の味方コメントとして左へ歩いて退場。余韻（Hold）で笑顔を見せてからフェードアウト＝
             // 衝突無効の“亡霊”が撃てる敵に見え続けないよう、透明化で「もう敵ではない」を示す。
             _purifiedExitT += delta;
-            GlobalPosition += new Vector2(-PurifiedExitSpeed * (float)delta, 0f);
-            float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - PurifiedExitHold) / PurifiedExitFade), 0f, 1f);
+            GlobalPosition += new Vector2(-ExitSpeed * (float)delta, 0f);
+            float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - ExitHold) / PurifiedExitFade), 0f, 1f);
             Modulate = new Color(Modulate.R, Modulate.G, Modulate.B, exitA);
             if (exitA <= 0f || GlobalPosition.X < -24f) QueueFree();
             return;

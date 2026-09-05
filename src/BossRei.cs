@@ -1,8 +1,9 @@
 using Godot;
 
-// BossRei : STAGE3「レイ（順位掲示板の海）」のボス＝穢れの核「二番のわたし」。
-// 順位に縛られた悔しさの弾幕。剥がしてHPを削り切る＝奥の“本当のレイ”の光に届く＝改心。
-// 改心の会話：少年がミナに託し、ミナが届ける（少年は正体を隠す）。禁止語「あなたのせいじゃない」は使わない。
+// BossRei : STAGE3「星逢レイ」のボス＝本人が被っている配信のガワ。
+// ガワは笑顔で固定＝被弾でも笑顔は崩さず、姿勢だけ落とす。怖さの源は笑顔のまま撃ってくること。
+// 剥がしてHPを削り切る＝ガワが割れて、笑っていない中の人が出る＝改心。
+// 台詞の正典: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S3-6・S3-8。
 public partial class BossRei : Enemy
 {
     public bool Finished { get; private set; }
@@ -64,47 +65,51 @@ public partial class BossRei : Enemy
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
     private static readonly string[] TauntLines =
     {
-        "……また、逃げるの?",
-        "戦ってよ。わたしを、ちゃんと見てよ。",
+        "初見さん、いらっしゃい!",                  // カットイン『初見さんいらっしゃい』と同じ入り
+        "戦ってよ。わたしを、ちゃんと見てよ。",       // 動詞「見て」の本家。ガワの口から
     };
 
-    // スペルカード（RefrainHTML Danmaku v3 STAGE3 レイ＝順位掲示板・銀菫金ティール）。
+    // スペルカード（仮台本 07 の S3-6。弾形・色は v3 の銀菫金ティールのまま、名前だけ案C へ）。
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
+    // 宣告名（AreaSpellCaster の "rei" プロファイル）もこの圏内へ揃えてある＝台本の弾幕名と齟齬を出さない。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("Q.E.D.",       BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円（証明終わり）
-        ("凡人の定理",   BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル
-        ("敵などいない", BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞
-        ("孤高の王座",   BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング（裏に孤独）
+        ("初見さんいらっしゃい", BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円
+        ("登録者２０００",       BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル（去年も二千）
+        ("同接８",               BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞（減っていく数字）
+        ("切り抜かれない",       BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング（裏に孤独）
     };
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("レイ", "@rei_compete", s.name, s.tint);
+        GetHud()?.AnnounceSpell("レイ", "@hoshiai_rei_live", s.name, s.tint);
     }
 
-    // 改心のかけあい（who: 0=少年 / 1=ミナ / 2=レイ）。少年の言葉をミナの声で“中継”して届ける（伏線③の布石）。
-    // 【届け方＝基準型：ミナ中継の“具体の記録”】（優先度2）。3戦で決定打の届け方を変える。この面が原型：
-    //   少年が割れる→中継で二人だけの記録（地区予選の秒数）を明かす→レイが崩れる→未来を託して余白で抜く。
-    //   あかり＝“名前を一点で呼ぶ”／こはる＝“少年の直接台詞（劇的アイロニー）”で抜く、と型を散らす（この面は温存）。
-    // 躁的暴走＝全能感の誇示。傷＝唯一の好敵手が手を抜いた“頂点の孤独”。
-    // 決定打は説明でなく“具体の記録”で示す（行動で証明）。最後は言わせず余白で抜く。
-    private const string SGentle = "res://char/shonen_gentle.png";
+    // S3-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
+    //   (1) ミナが S3-5b の引用を剥がし切った下から拾った「消した一行」を本人へ返す
+    //   (2) 見ていた証人として、ミナ自身の言葉で決定打（「だれも見ていない場所に、あなたが書いて、消した一行を」）
+    // 案C に少年は居ないので中継（who=5）も使わない＝決定打はミナが自分の声で言う。
+    // 式の語彙も順位の語彙も使わず、叩いた側の話もしない。ガワの姿のまま、笑顔のまま声だけが崩れていく。
+    // 「見ていました。」の行で BGM を落とし、決定打を無音のまま置く（あかり・こはる面と同型）。
+    // 決定打でガワが割れ、笑っていない中の人が出る＝割れるのは「もう隠れなくていい」の意味で、
+    // ガワを壊す言葉は誰も言わない。
+    private const string RCry = "res://char/v3/rei_face_cry.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "完璧。わたしの式に、誤りはひとつもない。", ""),
-        (2, "世界中の誰も、わたしには追いつけない。——当然でしょう?", ""),
-        (2, "二位? 笑わせないで。わたし以外が、ぜんぶ二位なの。", ""),
-        (2, "だから……だからなんで、あなたは、本気で来てくれないのよ!", ""),
-        (0, "……ぼくのせいだ。ぼくが、本気で挑むのを、やめたから。", SGentle),     // 少年が割れる一拍
-        (5, "——三年前の、地区予選。最終問題。きみは、二十二分で解いた。", ""),
-        (5, "ぼくは、二十三分かかった。ぼくが本気で負けた相手は、後にも先にも、きみひとりだ。", ""),
-        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", "res://char/v3/rei_face_cry.png"), // 気丈さの決壊＝cry（こらえ顔での代用をやめる）
-        (5, "強くなってくれ。ぼくが、もう一度挑みたくなるくらい。——挑めなく、なっても。", ""),
-        (2, "…………。", "res://char/v3/rei_face_cry.png"),                             // 言わせない・余白（涙は流れたまま＝cry 保持）
+        (2, "初見さん、大歓迎。コメント、全部読むから。……ぜんぶ、読んだから。", ""),
+        (2, "登録者、二千。去年も、二千。……減ってない。減ってないでしょう?", ""),
+        (2, "だから……だからなんで、だれも、中に、気づいてくれないのよ!", ""),   // ガワの姿のまま、笑顔のまま
+        (1, "消された一行を、拾っておりました。「わたしに、気づいてよ。わたしを、見てよ」。", ""),   // (1) 消した一行を返す。S3-5b の回収
+        (2, "……なんで……消したのに……だれも、見てない、ところで……", ""),   // 笑顔のまま、声だけが崩れる
+        (1, "見ていました。——だれも見ていない場所に、あなたが書いて、消した一行を。", ""),   // (2) 決定打。ここで BGM 停止。ここでガワが割れる
+        (2, "…………。", RCry),   // 中の人。笑っていない
     };
+    // 決定打の直前で BGM を落とす行（0始まり。Lines の「見ていました。」）＝ここから無音のまま置く。
+    private const int SilenceAtLine = 5;
+    // ガワが割れる行（0始まり）。この行の表示で cry テクスチャ（＝中の人）へ差し替える。
+    private const int BreakAtLine = 6;
 
     protected override void OnEnemyReady()
     {
@@ -158,6 +163,15 @@ public partial class BossRei : Enemy
         // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "rei" 行）。
         BodyOffsetName = "rei";
         CryHoldDur = 9999.0;     // 自動終了させない＝cry を会話尺いっぱい保持（EndCryNow で post へ）
+        // S3-8：ガワは改心の会話の途中（決定打の行）で割れる。撃破の瞬間に cry 絵へ差し替えてしまうと
+        // 「笑顔のまま声だけが崩れる」三行が中の人の顔で流れてしまうので、差し替えを遅延させて
+        // ShowLine が BreakAtLine で BreakCryBodyNow() を呼ぶ。
+        DeferCryBodySwap = true;
+        // 改心後の中の人を長く見せる（DEV_QUEUE P2）。既定（余韻 0.6s → 0.9s でフェード）だと
+        // 割れたガワの下から出てきた姿が 1.5 秒ほどで消える。余韻を 3.6s に伸ばし、歩きも 90→28px/s
+        // へ落として、画面外へ抜ける前に「出てきた人」を見せ切る（フェードの尺は共通のまま）。
+        PurifiedExitHoldOverride = 3.6;
+        PurifiedExitSpeedOverride = 28.0;
     }
 
     public override void _Ready()
@@ -167,7 +181,7 @@ public partial class BossRei : Enemy
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
         // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
         _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
-        GetHud()?.ShowBossBar("孤高のわたし", "@rei_____");
+        GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
@@ -200,7 +214,7 @@ public partial class BossRei : Enemy
         _relayWatching = false;
         if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
         if (_relayStartLives < 0 || pl.Lives < _relayStartLives) return; // 被弾あり＝報酬なし（リレー自体は完走済み）
-        GetHud()?.ShowBossLine("レイ", "……っ、合格。……なんて、言ってあげないんだから。", UiKit.Kegare, 2.4); // 本音（合格）が先に漏れ、負け惜しみで引っ込める＝改心の先取りはしない（scenario推敲済み）
+        GetHud()?.ShowBossLine("レイ", "……初見さん、じゃなかったのね。", UiKit.Kegare, 2.4); // 無被弾報酬の一言（仮台本 07 の S3-6。「合格。なんて」は捨てた）
         Vector2 at = _caster.LastChainSafe; // 最終安置＝報酬の出現位置
         if (pl.AddLife(1))
         {
@@ -356,16 +370,17 @@ public partial class BossRei : Enemy
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[2].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("レイ", "@rei_compete", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
+            GetHud()?.AnnounceSpell("レイ", "@hoshiai_rei_live", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
     }
 
     // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気。サイクルごとに index を進め、超えたら最後を使い回す）。
+    // S3-6 の RECLOSE（仮台本 07）。笑顔のまま。ガワは崩れず、言葉だけが逃げ腰になっていく。
     private static readonly string[] RecloseLines =
     {
-        "近づかないで。わたしの式は、まだ完璧よ。",
-        "……二位のくせに。わたしに触れる気?",
-        "や……やめて。崩さないで、わたしを……",
+        "……逃げるの? また。——いいわ。切り抜かれないんだから、わたし。",
+        "初見さん、まだ、いてくれるでしょう?",
+        "見てて。……ちゃんと、見ててよ。",
     };
     private int _recloseIdx;
     protected override void OnRecloseLine()
@@ -436,12 +451,15 @@ public partial class BossRei : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
+        // 決定打の手前で音を落とす（台本の「ここでBGM停止。無音のまま」。あかり・こはる面と同型）。
+        if (_line == SilenceAtLine) Audio.Instance?.StopMusic(1.2f);
+        // 決定打でガワが割れる＝ここで初めて本体を cry（中の人）へ差し替える。それまではガワのまま。
+        if (_line == BreakAtLine) BreakCryBodyNow();
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,
-            // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。改心の決壊行だけ face 指定で中の人の泣き顔へ割れる。
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face, // レイも行ごと差し替え可（こはる方式）
-            _ => "res://char/mina_face.png", // ミナ・中継
+            // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。割れる行だけ face 指定で中の人の泣き顔へ。
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face,
+            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
         };
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }

@@ -325,6 +325,9 @@ public partial class Hud : CanvasLayer
         {
             if (_bossLineTimer > 0) { _bossLineTimer = 0; _bossLine = ""; }
             if (_cutinTimer > 0) { _cutinTimer = 0; _cutinTex = null; _cutinLine = ""; }
+            // 宣告カードも一緒に消す。BubblePaused 中は _spellTimer が止まる仕様なので、
+            // 割り込み（S3-7）に入る直前のカードが区間いっぱい貼りついたままになるため。
+            if (_spellTimer > 0) { _spellTimer = 0; _spellGlow = 0; }
         }
 
         // 操作ガイド（常駐）：プレイ中ずっと右端に出す。立ち上げは「操作を握った瞬間」から。
@@ -670,7 +673,7 @@ public partial class Hud : CanvasLayer
         // who → (専用カットイン絵, カットインに合わせたバトルセリフ)。絵が無い who はカードのみ（自然にスキップ）。
         _cutinData ??= new Dictionary<string, (string, string)>
         {
-            ["レイ"]   = ("res://char/v3/cutin_rei.png",    "——追いつけるものなら、どうぞ？"),
+            ["レイ"]   = ("res://char/v3/cutin_rei_gawa_a.png", "初見さん、いらっしゃい!"),   // ボス＝ガワ（笑顔固定）。仮台本 07 の S3-6
             ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
             ["こはる"] = ("res://char/v3/cutin_koharu.png", "ちゃんとしなきゃ。……みんな、見てるもん。"),
             ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),

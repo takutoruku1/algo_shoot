@@ -173,6 +173,41 @@ public partial class StageRei : Node
         (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", MWorried),   // 【濁】危険域手前
     };
 
+    // ───────── S3-7 戦闘中の割り込み（仮台本 07。ユーザー承認済み・2026-09-05）─────────
+    // ボス HP 20〜50% で一度だけ。弾が止まり、画面が鈍色に沈む（SetQuietVeil）。
+    // 問うのはミナ自身の状態＝あなたの過去は問わない。「三人分」は S3-9 に取ってあるので、
+    // ここは「二人ぶんと、貼られた引用と、いまの声」に留める。
+    // 機構はこはる面（`StageKoharu` の Step_LinesHold／Step_MidChoice／SetQuietVeil）から移植。
+    //   案C ではこの仕掛けの本籍がレイ面なので、こはる面は KoharuInterruptEnabled=false で止めてある。
+    private static readonly (int who, string text, string face)[] MidChoicePre =
+    {
+        (1, "……ご主人様。弾がやんでも——聞こえます。画面の向こうで、まだ、コメントを読み上げている声が。", MWorried),
+        (1, "笑顔のまま、こちらへ撃っているんですね。……笑顔は、一度も、崩れていません。", MWorried),
+        (1, "——ひとつ、ご報告を。わたくしの光、二割ほど、濁っています。", MDoubt),
+        (1, "二人ぶんと、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。", MFace),
+    };
+    // 下書き選択（温度で割った3択。既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる）。
+    private static readonly string[] S37Choices = { "つづけて", "むりしないで", "（送らない）" };
+    // 受け（仮台本 07）。送った2件は復唱（who=0）してから受ける＝S1-4 と同じ流儀。
+    private static (int who, string text, string face)[] S37Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "つづけて", ""),
+            (1, "……はい。“つづけて”と、いただきました。——では、つづけます。", MFace),   // F1 導入でこの語を一度だけ引用する
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "むりしないで", ""),
+            (1, "……無理は、しません。無理でないところまでを、ぜんぶ、やります。", MFace),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——続行、と読みます。", MFace),   // （送らない）＝沈黙20秒でもここ
+        },
+    };
+    private const float S37SkipContam = 0.02f;   // （送らない）で【濁】微増（S1-4 と同値）
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -239,6 +274,11 @@ public partial class StageRei : Node
             case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
             case 13: Step_Clear(delta); break;            // S3-9 クリア
             case 14: Step_Transition(); break;
+            // S3-7 戦闘中の割り込み（ボスHP 20〜50% で一度）。Step_BossWait が 15 へ飛ばし、
+            //   17 の受けを流し切ると 12（ボス戦）へ戻る。バブルは 15→16→17 の間ずっと保持される。
+            case 15: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
+            case 16: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
+            case 17: Step_MidChoiceAfter(delta); break;            // 受け → 膜を明けて戦闘へ戻す
         }
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
@@ -453,20 +493,158 @@ public partial class StageRei : Node
     // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
     private const double BossFinishGrace = 150.0;
     private double _postDefeatT;
+    // S3-7 戦闘中の割り込み：ボスHPが 20〜50% の窓に入った一度だけ step 15 へ抜ける。
+    //   ・ボム等で一気に削られ窓を飛ばしたら、割り込み無しで素直に進む＝進行不能なし。
+    //   ・Hud.BubblePaused 中（ボス自身の改心かけあい等）は発火しない＝会話の二重表示を防ぐ。
+    //   ・撃破後（IsPurified）は判定に入らない＝改心の会話に割り込まない。
+    private bool _midStoryShown;
     private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
-            Advance();
+            _step = 13; _stepStarted = false;   // 割り込みから戻った場合も確実にクリアへ（Advance だと 13 とは限らない）
             return;
         }
-        if (!_boss.IsPurified) return;
-        _postDefeatT += delta;
-        if (_postDefeatT < BossFinishGrace) return;
-        GD.PushWarning("[StageRei] ボス撃破後に Finished が立たないため保険で進行");
-        _bossActive = false;
-        Advance();
+        if (_boss.IsPurified)
+        {
+            _postDefeatT += delta;
+            if (_postDefeatT >= BossFinishGrace)
+            {
+                GD.PushWarning("[StageRei] ボス撃破後に Finished が立たないため保険で進行");
+                _bossActive = false;
+                _step = 13; _stepStarted = false;
+            }
+            return; // 撃破後は割り込みの判定に入らない
+        }
+        if (!_midStoryShown && !Hud.BubblePaused)
+        {
+            float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
+            // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりは _midStoryShown が保証）
+            bool debugNow = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceNow == true;
+            if ((frac <= 0.5f && frac >= 0.2f) || debugNow)
+            {
+                _midStoryShown = true;
+                _step = 15; _stepStarted = false;
+                SetQuietVeil(true);    // 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
+            }
+        }
+    }
+
+    // Step_Lines の「最終行のバブルを閉じない」変種（会話選択用。こはる面から移植）。
+    //   完了時に HoldBubble/HideBubble を触らず Advance だけする＝バブルが最終行のまま残り、
+    //   Hud.BubblePaused（弾・敵の停止）が次のステップまで途切れない。後続の Step_Lines / ShowLine が
+    //   バブル内容を差し替えるので閉じ処理は不要。
+    private void Step_LinesHold(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _introLine = 0;
+            _lineHold = 0;
+            if (lines.Length == 0) { Advance(); return; }
+            Hud.HoldBubble = true;
+            ShowLine(lines);
+        }
+        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && Hud.DialogRevealed
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
+        {
+            _lineHold = 0;
+            _introLine++;
+            if (_introLine >= lines.Length)
+            {
+                Advance();           // バブルは保持したまま（HoldBubble true 継続）
+                return;
+            }
+            ShowLine(lines);
+        }
+    }
+
+    // ───── S3-7 の下書き選択（3択。こはる面の Step_MidChoice を案C の温度3択へ組み直したもの）─────
+    //   Pre 最終行「……つづけて、いいですか。」のバブルを保持したまま（＝BubblePaused 継続で弾・敵は
+    //   停止のまま）ChoiceOverlay を重ねる。既定カーソルは末尾＝（送らない）で、沈黙20秒の自動決定も
+    //   そこへ落ちる（台本どおり）。
+    // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は BubblePaused 中 Z をパルスし続けるため、
+    //   既定カーソルのまま1パルスで即決される＝ここで詰まらない（3択どれでも同じ step 17 へ収束する）。
+    private ChoiceOverlay? _midChoice;
+    private double _s37ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _s37After = System.Array.Empty<(int, string, string)>();
+    private void Step_MidChoice(double delta)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _s37ChoiceT = 0;
+            _midChoice = ChoiceOverlay.Show(Hud, S37Choices, defaultSel: S37Choices.Length - 1);
+        }
+        _s37ChoiceT += delta;
+        if (_midChoice == null || !_midChoice.Decided) return;
+        ApplyS37Choice(_midChoice.Selected);
+        _midChoice.QueueFree();
+        _midChoice = null;
+        Advance(); // → 17: 受け
+    }
+
+    private void ApplyS37Choice(int sel)
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        // 【散】は表示候補（上2件）のうち選ばれなかったぶんだけを計上する（S1-4 と同じ流儀）。
+        //   （送らない）自体は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る。
+        bool sent = sel < S37Choices.Length - 1;
+        var others = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < S37Choices.Length - 1; i++) if (i != sel) others.Add(S37Choices[i]);
+        game?.RecordChoice("s3_7", sent ? S37Choices[sel] : "", others, (float)_s37ChoiceT);
+        // （送らない）＝返事をせずに見送った ぶんだけ、ミナの光がわずかに濁る。
+        if (!sent) game?.SetContamination((game.Contamination) + S37SkipContam);
+        _s37After = S37Reply(sel);
+    }
+
+    // 受けを流し切ったら鈍色の膜を明けて戦闘へ戻す（→ case 12 の Step_BossWait）。
+    //   Step_Lines は流し切ると Advance（_step++）してしまうので、抜けた瞬間を捕まえて
+    //   ボス戦の step へ戻す（割り込みは一度きり＝_midStoryShown が再突入を止める）。
+    private void Step_MidChoiceAfter(double delta)
+    {
+        if (!_stepStarted) SetQuietVeil(false);   // 会話の余韻を残してそっと戻す（1.4s）
+        Step_Lines(delta, _s37After);
+        if (_step > 17) { _step = 12; _stepStarted = true; }   // ボス戦は継続中＝入り直さない
+    }
+
+    // ───── S3-7「静けさの溜め」（こはる面から移植）─────
+    // 突入で画面全体をわずかに鈍色へ沈め（彩度と対比が一段引いた“息を潜める”画）、戦闘再開でそっと明ける。
+    // 弾・敵の停止はエンジン側（Hud.BubblePaused）＝この膜は画の温度だけを担当。
+    // HUD・会話バブルは CanvasLayer 上なので沈まない（文字の読みやすさは侵さない）。
+    private ColorRect? _quiet;
+    private Tween? _quietTw;
+    private void SetQuietVeil(bool on)
+    {
+        // 割り込み区間はボス字幕・スペルカットインも一緒に鎮める（Hud 側で 0.2s フェード→消去）。
+        //   カットインのセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なるため。区間明けは
+        //   フラグを戻すだけ＝残っていた表示は復活させない（次の台詞・次のスペルからは通常どおり）。
+        Hud.SuppressCallouts = on;
+        if (_quiet == null || !IsInstanceValid(_quiet))
+        {
+            if (!on) return; // 明ける指示だけ来た（膜が無い）＝何もしない
+            _quiet = new ColorRect
+            {
+                Name = "QuietVeil",
+                Color = new Color(0.52f, 0.55f, 0.62f, 0f), // 中明度の鈍色＝薄く重ねると彩度・対比が少し引く
+                Size = new Vector2(384f, 216f),
+                ZIndex = 30,                // 弾(0..)・自機(10)・FxLayer(20..21)の上、HUD(CanvasLayer)の下
+                ZAsRelative = false,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+            };
+            World.AddChild(_quiet);
+        }
+        _quietTw?.Kill();
+        _quietTw = CreateTween();
+        // 入り 0.9s（ゆっくり沈む＝溜め）／明け 1.4s（会話の余韻を残してそっと戻す）。Sine/Out で線形にしない。
+        _quietTw.TweenProperty(_quiet, "color:a", on ? 0.16f : 0f, on ? 0.9 : 1.4)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
     }
 
     private bool _clearBannerShown;

@@ -266,12 +266,13 @@ public partial class AreaSpellCaster : Node2D
         var B = AreaStrike.Shape.BeamSeg;
         switch (key)
         {
-            case "rei": // 順位掲示板・整然と裁く（予兆長め・金/菫）
-                _disp = "レイ"; _handle = "@rei_compete";
+            case "rei": // 壁一面の配信画面・整然と裁く（予兆長め・金/菫）
+                _disp = "レイ"; _handle = "@hoshiai_rei_live";
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
                 _shapes = new[] { H_, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
-                _spells = new (string, AreaStrike.Shape?)[] { ("ランキングレーザー", H_), ("表彰台圏", R), ("序列の楔", H_) };
+                // 技名は仮台本 07 の S3-6 の圏内へ寄せた（旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす）。
+                _spells = new (string, AreaStrike.Shape?)[] { ("コメント一斉読み", H_), ("配信枠", R), ("切り抜きの線", H_) };
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
             case "akari": // 雨の教室・降る前に予報（蒼）
