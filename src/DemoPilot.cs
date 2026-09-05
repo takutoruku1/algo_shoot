@@ -286,19 +286,23 @@ public partial class DemoPilot : Node
 
     // =====================  撃つ／会話送り  =====================
 
-    // 戦闘中は Z を押しっぱなしで最大火力。会話中は最速でパルスして1行ずつ飛ばす
-    //（会話送りは Z の押下エッジ＝1回押すごとに1行。各行 0.25s のゲートがあるのでそれ以上は速くならない）。
+    // Z は**常にパルスする**（周期だけ状況で変える）。会話送りは押下エッジ＝1回押すごとに1行なので、
+    // 押しっぱなしではエッジが1回きりしか立たない。
+    //
+    // ★以前は Hud.BubblePaused でない間 SetZ(true) の押しっぱなしにしていた。戦闘中は連射が効くので
+    //   問題にならないが、**Hud を持たないカットシーン**（Prologue / TitleMenu / Epilogue など）は
+    //   BubblePaused を立てず、各シーンが自前で Pad.AdvanceHeld() のエッジを取る（Prologue.cs:178）。
+    //   そのため `--demo` の Prologue は最初のエッジで1行進んだきり Z が下がらず、少年の1行目から
+    //   永久に進まなかった（QaPilot は常時パルスなので同じ場所を送れていた＝この差が原因）。
+    //   戦闘中の周期は QaPilot と同じ 0.16s ＝ 1秒あたり6発ぶんのエッジで、連射の手触りは実質変わらない。
+    private const double ShootPeriod = 0.16;    // 戦闘中／カットシーン中のパルス周期
+
     private void DriveShootAndAdvance(double delta)
     {
-        if (!Hud.BubblePaused)
-        {
-            _zPhase = 0;
-            SetZ(true);
-            return;
-        }
+        double period = Hud.BubblePaused ? StoryPeriod : ShootPeriod;
         _zPhase += delta;
-        if (_zPhase >= StoryPeriod) _zPhase -= StoryPeriod;
-        SetZ(_zPhase < StoryPeriod * 0.4); // 周期の前半だけ押下 → 1周期に1回のエッジ
+        if (_zPhase >= period) _zPhase -= period;
+        SetZ(_zPhase < period * 0.4); // 周期の前半だけ押下 → 1周期に1回のエッジ
     }
 
     private void SetZ(bool down)
