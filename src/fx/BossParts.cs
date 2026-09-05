@@ -560,9 +560,13 @@ public partial class BossParts : Node2D
     // これらは攻撃で飛ばさない＝発射点へ寄せると本体の顔の上で重なって白飛びする（実機で確認）。
     private static bool IsAnchored(Part p) => p.D.R == Role.Fixed || p.D.R == Role.Ground;
 
-    // 攻撃の予備動作で例外的に発射点へ寄せる貼り付き部品。
-    // こはるの後光（gaze_ray）だけは「杖の先へ集束してから撃つ」＝溜めの合図に使う（13 の演出指定）。
-    private static bool IsWindPulled(Part p) => !IsAnchored(p) || p.D.File == "gaze_ray";
+    // 攻撃の予備動作で発射点へ寄せる部品か。
+    //   ・貼り付き（Fixed/Ground）は基本寄せない。ただしこはるの後光（gaze_ray）だけは
+    //     「杖の先へ集束してから撃つ」＝溜めの合図に使う（13 の演出指定）。
+    //   ・湧いて流れる粒（Rise）は寄せない。加算の小さな丸が発射点に何個も重なると
+    //     こはるの顔の上に白い塊ができた（実機で確認）。粒は場の空気であって弾ではない。
+    private static bool IsWindPulled(Part p) =>
+        p.D.File == "gaze_ray" || (!IsAnchored(p) && p.D.R != Role.Rise);
 
     // 予備動作：発射点へ吸い寄せる（WindDur で発射点に集まる）。
     // 集束する後光（gaze_ray）は寄りながら縮み、α 0.12→0.5 まで上げて「溜まっている」を見せる。
@@ -578,7 +582,7 @@ public partial class BossParts : Node2D
             // 全部を同じ1点へ寄せると（こはるは 16 部品ある）加算の光が重なって白い塊になる。
             // 部品ごとに発射点まわりへ少しずらした先を狙わせて、まとまりつつ潰れないようにする。
             float a = i * 2.399f;              // 黄金角。並び順に散らばる
-            Vector2 spot = muzzle + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (_bodyH * 0.09f);
+            Vector2 spot = muzzle + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (_bodyH * 0.16f);
             Vector2 want = spot - BasePos(p, p.T);
             p.Extra = p.Extra.Lerp(want, k);
             if (p.D.File != "gaze_ray") continue;
@@ -595,7 +599,9 @@ public partial class BossParts : Node2D
         for (int i = 0; i < _parts.Count; i++)
         {
             var p = _parts[i];
-            if (IsAnchored(p)) { p.Vel = Vector2.Zero; continue; }
+            // 寄せなかったもの（粒）と、寄せただけの貼り付き（こはるの後光）は飛ばさない。
+            // 後者は TickFree が定位置へ戻す＝溜めて撃ってから元の高さへ帰る。
+            if (IsAnchored(p) || !IsWindPulled(p)) { p.Vel = Vector2.Zero; continue; }
             float sp = 90f + (i % 6) * 10f;                       // 90〜140px/s
             float spread = (i % 5 - 2) * 0.10f;                    // 少し扇に散らす
             p.Vel = new Vector2(_fireDirX, 0f).Rotated(spread * _fireDirX) * sp;
@@ -828,8 +834,8 @@ public partial class BossParts : Node2D
             float alpha = p.D.Alpha;
             if (p.Focus > 0f)
             {
-                pulse *= Mathf.Lerp(1f, 0.35f, p.Focus);
-                alpha = Mathf.Lerp(p.D.Alpha, 0.26f, p.Focus);
+                pulse *= Mathf.Lerp(1f, 0.30f, p.Focus);
+                alpha = Mathf.Lerp(p.D.Alpha, 0.20f, p.Focus);
             }
             float longSide = Mathf.Max(p.Tex.GetWidth(), p.Tex.GetHeight());
             float s = p.D.SizeK * _bodyH / Mathf.Max(1f, longSide) * pulse;
