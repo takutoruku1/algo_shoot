@@ -4,7 +4,8 @@ using System.Linq;
 // StageRei : STAGE3「星逢レイ（壁一面が配信画面の、狭い部屋）」進行。
 //   1〜4: 配信枠・導入 → 道中A（S3-1〜S3-3）
 //   5〜6: 中ボス＝中の人（S3-4）→ 道中B
-//   7〜9: 引用の嵐の接続（S3-5a/5b）→ 道中C → 呑みこまれる部屋（S3-5c）
+//   7・18・19: 引用の嵐の接続（S3-5a/5b）→ 嵐の本体（十七枚・3段階・約50秒）→ 剥がし切りの受け
+//   8〜9: 道中C → 呑みこまれる部屋（S3-5c）
 //   10〜12: ボス＝ガワ出現・ボス戦（S3-6）。戦闘中の割り込み（S3-7「つづけて／むりしないで」）は
 //           ボスHP 20〜50% で一度だけ step 15〜17 へ抜けて戻る。改心（S3-8）は BossRei が担う。
 //   13〜14: クリア（S3-9）→ ハブへ（本編の最終面。全クリアで FINAL カード）
@@ -131,20 +132,30 @@ public partial class StageRei : Node
 
     // ───────── S3-5a 道中B ＋ S3-5b 引用の嵐の接続（ミッドシナリオ枠。仮台本 07）─────────
     // 投稿「読まなきゃよかった」の直後、ガワの上に顔のない引用が貼られはじめる。
-    // 嵐の本体（十七枚・3段階・約50秒）は別タスク（P3）なので、ここには 07 の「接続3行」だけを置く。
+    // 07 の「接続3行」でピン留めまでを立て、そのまま step 18（嵐の本体・仮台本 11）へ落ちる。
     // 剥がし切った下に、消した一行がある（中身は S3-8 まで言わない＝改心の一段目で返す）。
     private static readonly (int who, string text, string face)[] MidStory = CameoAfter.Concat(new (int, string, string)[]
     {
         // S3-5a（2行）
         (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),   // 層3
         (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", MWorried),   // 嵐へ
-        // S3-5b 接続3行（本文＝十七枚の嵐は 11 の移設待ち）
+        // S3-5b 接続3行（この直後が嵐の本体＝step 18 QuoteStorm）
         (4, "[星逢レイ @rei_____] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),   // ピン留め
         (1, "……この投稿の上に、貼られていきます。——剥がします。ご主人様、撃つのは、貼りついたほうを。", MFace),
-        (3, "引用: 0", ""),   // 引用カウンタ（嵐本体が入ると 0→17 を刻む）
-        // TODO: 引用の嵐（11）。段階1〜3・十七枚・本人の返信の縮み・剥がし切りを新 step として実装する（DEV_QUEUE P3）。
-        (1, "……剥がし切りました。下に、薄い字で、一行。……中身は、本人の前で。", MFace),   // 下書き「わたしに、気づいてよ」。S3-8 で返す
+        (3, "引用: 0", ""),   // 引用カウンタ（嵐の本体が 0→17 を刻む）
     }).ToArray();
+
+    // ───────── S3-5b 引用の嵐・剥がし切りの受け（仮台本 11「剥がし切り 40〜50秒」の台詞）─────────
+    // 嵐の本体（十七枚・3段階・約50秒）は step 18（QuoteStorm）が持ち、剥がし切ってからこの4行が流れる。
+    // 拾う下書きは 09 R46「もう、いいかな」で、S3-8 の改心で返す一行（削除済みの「わたしに、気づいてよ。
+    // わたしを、見てよ」＝09 R47）とは別。中身は本人の前まで言わない（11 の境界）。
+    private static readonly (int who, string text, string face)[] StormAfter =
+    {
+        (1, "…………。", MWorried),
+        (1, "……送られなかった下書きが、一件。——拾います。", MFace),
+        (1, "覚えておきます。……返しに行く先は、もう分かっていますので。", MFace),
+        (1, "……剥がし切りました。下に、薄い字で、一行。……中身は、本人の前で。", MFace),
+    };
 
     // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
     //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
@@ -266,7 +277,7 @@ public partial class StageRei : Node
             case 4: Step_Lines(delta, BossTalk); break;   // S3-3 道中A／BossTalk（削除済みの一行・足音）
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 7: Step_Lines(delta, MidStory); break;   // ★S3-4 受け＋S3-5a／S3-5b 接続（嵐本体は P3）
+            case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             case 9: Step_Lines(delta, MidEnd); break;     // S3-5c 呑みこまれる部屋（【濁】広がる）
             case 10: Step_BossSpawn(); break;
@@ -279,6 +290,10 @@ public partial class StageRei : Node
             case 15: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
             case 16: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
             case 17: Step_MidChoiceAfter(delta); break;            // 受け → 膜を明けて戦闘へ戻す
+            // S3-5b 引用の嵐（仮台本 11）。step 7 の接続3行を流し切ると 18 へ落ち、
+            //   剥がし切って下書きが出たら 19（受けの4行）→ 8（道中C）へ戻る。
+            case 18: Step_QuoteStorm(delta); break;                // 十七枚・3段階・約50秒（QuoteStorm が持つ）
+            case 19: Step_StormAfter(delta); break;                // 剥がし切りの受け → 道中C へ
         }
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
@@ -400,6 +415,47 @@ public partial class StageRei : Node
     }
 
     // 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度（StartIntensity 0.7）でボス直前の山を作る。
+    // S3-5a／S3-5b 接続（07 の接続3行まで）。流し切ったら step 8 ではなく 18（嵐の本体）へ落とす。
+    private void Step_MidStory(double delta)
+    {
+        Step_Lines(delta, MidStory);
+        if (_step > 7) { _step = 18; _stepStarted = false; }
+    }
+
+    // ───────── S3-5b 引用の嵐（仮台本 11。ユーザー承認済み・2026-09-05）─────────
+    // 十七枚・3段階・約50秒。QuoteStorm が飛来／貼りつき／剥がし／本人の返信の縮み／下書きまでを持つ。
+    // ここでは「嵐の間だけ道中弾を薄くする」（11 の骨子1＝密度は道中Bの六割）と、終わりの受け渡しだけを見る。
+    // 剥がし漏らしの罰は無く、声が止まった後は必ず剥がし切れる（QuoteStorm 側で保証）＝ここに保険は要らない。
+    private QuoteStorm? _storm;
+    private void Step_QuoteStorm(double delta)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();   // 前の道中弾を引きずらない（貼りつきが読める）
+            _storm = new QuoteStorm { Name = "QuoteStorm" };
+            World.AddChild(_storm);
+            // 通常の道中弾は薄く続ける（11：密度は道中Bの六割）。StartIntensity を下げた Spawner を回す。
+            StartMidwaveSpawner(0.35f);
+        }
+        if (_storm == null || !IsInstanceValid(_storm) || _storm.Finished)
+        {
+            _spawner?.Stop();
+            _spawner = null!;
+            if (_storm != null && IsInstanceValid(_storm)) _storm.Dismiss();
+            _storm = null;
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            _step = 19; _stepStarted = false;
+        }
+    }
+
+    // 剥がし切りの受け（11 の台詞4行）。流し切ったら道中C（step 8）へ。
+    private void Step_StormAfter(double delta)
+    {
+        Step_Lines(delta, StormAfter);
+        if (_step > 19) { _step = 8; _stepStarted = false; }
+    }
+
     private void Step_MidwaveC(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");

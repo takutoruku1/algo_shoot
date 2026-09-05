@@ -181,6 +181,20 @@ public partial class FxLayer : Node2D
         KindnessMote(pos + new Vector2(R(-3, 3), 0));
     }
 
+    // 引用の嵐（S3-5b・仮台本 11）で貼りついた引用を剥がしたときの紙片。
+    // 浄化の花びらでも祈りの光の粒でもなく、灰色の紙がひらひら落ちるだけ＝罰も反撃も演出しない（11 の境界）。
+    // Shard を彩度の無い灰で使い、重力を弱く・寿命を長くして「落ちる紙」に寄せる（加算グローは足さない）。
+    public void PaperScrap(Vector2 pos)
+    {
+        int n = Ri(4, 7);
+        for (int i = 0; i < n; i++)
+        {
+            float a = R(0, Mathf.Tau), sp = R(18, 46);
+            float g = R(0.34f, 0.52f);
+            Add0(new P { Type = T.Shard, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 10, Size = R(1.8f, 3.6f), Rot = R(0, Mathf.Tau), Spin = R(-4, 4), Grav = 95, Drag = 1.6f, Ttl = R(0.7f, 1.1f), Col = new Color(g, g, g * 1.04f), Edge = new Color(0.62f, 0.60f, 0.64f) });
+        }
+    }
+
     public void KindnessMote(Vector2 pos)
     {
         Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = R(-8, 8), Vy = R(-34, -22), Size = R(2.2f, 3.2f), Drag = 0.8f, Ttl = R(0.4f, 0.55f), Col = Mote, Add = true });

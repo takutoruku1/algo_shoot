@@ -357,6 +357,20 @@ public partial class Bullet : Area2D
         QueueRedraw();
     }
 
+    // 貼りついた引用（S3-5b 引用の嵐・仮台本 11）を「当たらない」状態にする。
+    //   11 の規則＝核（当たり判定）は貼りつく前の飛行中だけ持ち、貼りついたあとは当たらない。
+    //   自機の被弾判定は Player 側の AreaEntered（自機 mask に敵弾 layer=8 が入っている）で起きるので、
+    //   こちら側の mask を切るだけでは足りない＝敵弾 layer を降ろして自機の Area から見えなくする。
+    //   自機弾の layer（Erasable が開いた mask）だけは残るので、撃てば剥がれるが刺さらない。
+    //   芯の赤ドットも消す（＝「これはもう危険ではない」を絵でも言う）。
+    public void MakeHarmless()
+    {
+        CollisionLayer &= ~LayerEnemyBullet;   // 自機（および祈りの帳など）から敵弾として見えなくする
+        CollisionMask &= ~MaskEnemyBullet;
+        if (_wordCore != null) _wordCore.Visible = false;
+        QueueRedraw();
+    }
+
     // 加速球にする（Spawn 直後に呼ぶ）。発射直後は自機のすぐ近くで chargeSpeed のほぼ静止でタメ、
     //   delaySec 秒後に fastSpeed へロケット発進する。発進方向は Spawn 時の vel の向きで確定して保持する
     //   （chargeSpeed を極小にしても向きが失われない＝タメ中の Velocity から向きを復元しない）。
