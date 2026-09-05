@@ -41,6 +41,14 @@ public partial class Enemy : Area2D
     protected string BodyOffsetName = "";
     private BossParts.Pose _bodyPose = BossParts.Pose.Idle;
 
+    // ─── 改心の絵だけ縮める倍率（既定 1＝待機と同じ表示高）───
+    //   レイだけ cry/post が「ガワの中の人」で、ガワ（待機）と同じ高さで出すと同一人物の等身が破綻する。
+    //   1 未満にすると SwapBody の基準スケールに掛かる。素材はどれも足元まで詰めてある（不透明域が下端まで）
+    //   ので、縮めたぶん足元が浮く＝その差を Offset で押し下げて、ガワと同じ床に立たせる。
+    protected float CryBodyScale = 1f;
+    protected float PostBodyScale = 1f;
+    private float _bodyScaleMul = 1f;   // いま表示中の絵に掛かっている倍率（足元補正の計算に使う）
+
     // 攻撃姿勢の絵（任意。空なら姿勢の差し替えをしない＝従来どおり待機のまま撃つ）。
     // 撃った瞬間に AttackTexPath へ差し替え、AttackPoseDur 秒たったら待機（PreTexPath）へ戻す。
     // 差し替えは既存の SwapBody（クロスフェード＋squash→pop）をそのまま使う。
@@ -372,8 +380,15 @@ public partial class Enemy : Area2D
     // FlipH は Offset の x も一緒に反転させるので、反転時は符号を戻して見た目の位置を合わせる。
     private void ApplyBodyOffset()
     {
-        if (_bodySprite == null || string.IsNullOrEmpty(BodyOffsetName)) return;
-        Vector2 o = BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose);
+        if (_bodySprite == null) return;
+        Vector2 o = string.IsNullOrEmpty(BodyOffsetName)
+            ? Vector2.Zero
+            : BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose);
+        // 縮めた絵の足元合わせ：素材はどれも足元まで詰めてある（不透明域が下端）ので、
+        // 中央基準のまま倍率を下げると足元が (1-倍率)/2 ぶん浮く。その差を Offset(画像画素) で押し下げる。
+        //   浮き = 表示高×(1-倍率)/2 [画面px] → 画像画素に直すと 高さ×(1-倍率)/(2×倍率)。
+        if (_bodyScaleMul < 1f && _bodySprite.Texture is { } tex)
+            o.Y += tex.GetHeight() * (1f - _bodyScaleMul) / (2f * _bodyScaleMul);
         _bodySprite.Offset = _bodySprite.FlipH ? new Vector2(-o.X, o.Y) : o;
     }
 
@@ -793,7 +808,7 @@ public partial class Enemy : Area2D
         //（SwapBody は内部で _hasBodyTex を確認するため、立ち絵が無ければ素通りする）。
         if (CryHoldDur > 0)
         {
-            SwapBody(CryTexPath);
+            SwapBody(CryTexPath, CryBodyScale);
             // 部品層にも「撃破された」を伝える＝公転をやめて濃さが沈む（穢れが薄れる）。
             // 本体の cry 絵は待機絵と構図がほぼ同じなので、これが無いと会話中の見た目が戦闘中と変わらない。
             // 消し切りは FinishCry の OnRedeem が担う（部品が消え切ってから post、の順は不変）。
@@ -805,7 +820,7 @@ public partial class Enemy : Area2D
         }
         else
         {
-            SwapBody(PostTexPath);
+            SwapBody(PostTexPath, PostBodyScale);
             GrantFollower();
         }
 
@@ -817,11 +832,12 @@ public partial class Enemy : Area2D
     // 同時に squash→pop（Scale を一瞬ふくらませて弾み、見た目を少し持ち上げて戻す）を起動。
     // ★テクスチャ差し替え／再スケールの基準だけ確定し、実アニメは _PhysicsProcess(TickSwapAnim) が進める。
     // ★当たり判定は触らない：動かすのは _bodySprite と _fadeSprite の Transform/Modulate だけ。
-    private void SwapBody(string path)
+    private void SwapBody(string path, float scaleMul = 1f)
     {
         if (!_hasBodyTex || string.IsNullOrEmpty(path)) return;
         var t = ResourceLoader.Load<Texture2D>(path);
         if (t == null) return;
+        _bodyScaleMul = scaleMul <= 0f ? 1f : scaleMul;
 
         // 旧テクスチャをそのままの見た目で退避（同じ Transform/Flip/ZIndex）し、α落とし用に使う。
         var old = _bodySprite.Texture;
@@ -845,7 +861,7 @@ public partial class Enemy : Area2D
 
         // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
         _bodySprite.Texture = t;
-        _baseScale = BodyDisplayH / t.GetHeight();
+        _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul;
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
@@ -930,8 +946,8 @@ public partial class Enemy : Area2D
     {
         if (!_crying) return;
         _crying = false;
-        if (_parts != null) _parts.OnRedeem(() => SwapBody(PostTexPath));
-        else SwapBody(PostTexPath);
+        if (_parts != null) _parts.OnRedeem(() => SwapBody(PostTexPath, PostBodyScale));
+        else SwapBody(PostTexPath, PostBodyScale);
         OnCryEnd();
         GrantFollower();
     }
