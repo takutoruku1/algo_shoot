@@ -106,8 +106,8 @@ public partial class StageKoharu : Node
     // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第3段（優先度1・3）＝【ミナが核心に一歩近づく／少年が弱る】。
     //   少年はもう隠す気力もなく細部（中学生・料理上手）を口にする。ミナは「掠れ」を説明せず、
     //   “ご主人様のほうが、あの子より、消え入りそう”と初めて少年自身を案じる（対象が敵→少年へ移る＝上り坂の頂点手前）。
-    private const string KFace = "res://char/koharu_face.png";
-    private const string KPale = "res://char/koharu_face_pale.png"; // 絶望で蒼白（死蔵を活用）
+    private const string KFace = "res://char/v3/koharu_face.png";
+    private const string KPale = "res://char/v3/koharu_face_pale.png"; // 絶望で蒼白（死蔵を活用）
     private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「ぜんぶ食べてね。のこしちゃだめ。……そしたら、いなくならないでしょ?」", ""), // ボスのツイート
@@ -334,7 +334,7 @@ public partial class StageKoharu : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/koharu_face.png" : face, // 蒼白(KPale)等を行ごとに
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/koharu_face.png" : face, // 蒼白(KPale)等を行ごとに
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",
         };

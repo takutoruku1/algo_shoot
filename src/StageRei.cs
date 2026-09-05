@@ -112,7 +112,7 @@ public partial class StageRei : Node
     // 承の上り坂・第1段（優先度1）＝【軽い違和感／ミナはまだ訝らない】。
     //   少年が名前・性格まで言い当てても、ミナは訝るどころか感心して“乗る”。読者だけが「なぜそこまで?」と引っかかる。
     //   → あかりで疑いが言葉になり、こはるで核心に触れる、の助走。ここで訝らせると3連発の同型になる（旧稿の死因）。
-    private const string RFace = "res://char/rei_face.png";
+    private const string RFace = "res://char/v3/rei_face.png";
     private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「だれも、わたしには追いつけない。……それの、なにが、いけないの。」", ""), // ボスのツイートが流れてくる
@@ -316,7 +316,7 @@ public partial class StageRei : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",
         };

@@ -57,6 +57,10 @@ public partial class BossRei : Enemy
     private int _ringCount = 14, _ring2Count = 18;
     private float _ringSpeed = 70f, _ring2Speed = 76f, _aimedSpeed = 98f, _spiralSpeed = 90f;
     private float _relayHp = 0.26f;
+    // ボス戦のレイが被っている配信のガワ（笑顔固定）。中の人（rei_face 系）とは目と輪郭だけが同じ別の姿で、
+    // 姿が違うこと自体が仕込み＝道中の中ボスは中の人、ボスはガワ。
+    private const string RGawa = "res://char/v3/rei_gawa_b.png";
+
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
     private static readonly string[] TauntLines =
     {
@@ -97,9 +101,9 @@ public partial class BossRei : Enemy
         (0, "……ぼくのせいだ。ぼくが、本気で挑むのを、やめたから。", SGentle),     // 少年が割れる一拍
         (5, "——三年前の、地区予選。最終問題。きみは、二十二分で解いた。", ""),
         (5, "ぼくは、二十三分かかった。ぼくが本気で負けた相手は、後にも先にも、きみひとりだ。", ""),
-        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", "res://char/rei_face_cry.png"), // 気丈さの決壊＝cry（こらえ顔での代用をやめる）
+        (2, "う、嘘……。だってあなた、誰……? なんで、それを……", "res://char/v3/rei_face_cry.png"), // 気丈さの決壊＝cry（こらえ顔での代用をやめる）
         (5, "強くなってくれ。ぼくが、もう一度挑みたくなるくらい。——挑めなく、なっても。", ""),
-        (2, "…………。", "res://char/rei_face_cry.png"),                             // 言わせない・余白（涙は流れたまま＝cry 保持）
+        (2, "…………。", "res://char/v3/rei_face_cry.png"),                             // 言わせない・余白（涙は流れたまま＝cry 保持）
     };
 
     protected override void OnEnemyReady()
@@ -419,7 +423,8 @@ public partial class BossRei : Enemy
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/rei_face.png" : face, // レイも行ごと差し替え可（こはる方式）
+            // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。改心の決壊行だけ face 指定で中の人の泣き顔へ割れる。
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face, // レイも行ごと差し替え可（こはる方式）
             _ => "res://char/mina_face.png", // ミナ・中継
         };
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");

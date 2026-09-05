@@ -85,10 +85,10 @@ public partial class BossAkari : Enemy
         (0, "————ぼくの声じゃ、だめなんだ。気づかれて、しまうから。", SGentle),
         // ↓ 決定打は「あかり」の一語のみ。手前で無音（AnnounceSpell 停止済み）。説明は足さない＝速く鋭く抜く。
         (5, "——あかり。", ""),
-        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", "res://char/akari_face_cry.png"), // 名前が届いた決壊＝cry
+        (2, "……いま、名前。あたしの、名前……。あったかい……なんで、こんなに……", "res://char/v3/akari_face_cry.png"), // 名前が届いた決壊＝cry
         // 旧稿の説明的中継「迷惑なんかじゃない／とっくに届いてるよ」を削除＝名前の余韻を説明で埋めない（届け方をレイと変える核）。
         (1, "……ちゃんと、届きましたよ。", ""),                                 // ミナの短い所作の一言だけ（“誰に届いたか”は言わせない＝観客に委ねる）
-        (2, "……ぁ……", "res://char/akari_face_cry.png"),                         // 言わせない（涙のまま抜く＝cry 保持）
+        (2, "……ぁ……", "res://char/v3/akari_face_cry.png"),                         // 言わせない（涙のまま抜く＝cry 保持）
     };
 
     protected override void OnEnemyReady()
@@ -388,7 +388,7 @@ public partial class BossAkari : Enemy
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
             _ => "res://char/mina_face.png",                // ミナ・中継
         };
         hud.ShowDialog(kind, text, portrait, otherName: "あかり");

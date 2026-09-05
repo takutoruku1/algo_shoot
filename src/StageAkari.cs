@@ -120,7 +120,7 @@ public partial class StageAkari : Node
     // 道中“前半”の後：ボスのツイートが流れてくる→考察。承第2段（優先度1・3）＝【思わず情がこぼれ、動揺で蓋をする】。
     //   少年が“見てきたような”細部（笑い方）を口走り、直後にハッと蓋をする（afraid）。ミナは「?」で追うが、核心＝“知人だ”とは
     //   まだ言い切らせない（そこはこはる面へ温存）。優先度3：説明的な「知っている人みたい」を弱め、崩れ＝表情で見せる。
-    private const string AFace = "res://char/akari_face.png";
+    private const string AFace = "res://char/v3/akari_face.png";
     private static readonly (int who, string text, string face)[] BossTalk = new (int, string, string)[]
     {
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""), // ボスのツイート
@@ -312,7 +312,7 @@ public partial class StageAkari : Node
         string portrait = kind switch
         {
             Hud.LineKind.Boy => face,                       // 少年（行ごとの表情）
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりも行ごと差し替え可（こはる方式）
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
             _ => "res://char/mina_face.png",                // 中継ほか
         };

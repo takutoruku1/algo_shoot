@@ -27,7 +27,7 @@ public partial class BossKoharu : Enemy
     private const string SCocky = "res://char/shonen_face.png";
     private const string SGentle = "res://char/shonen_gentle.png";
     // 絶望（兄が消える恐怖に呑まれる）行だけ、こはるの蒼白＝血色を失った立ち絵に差し替える。
-    private const string KPale = "res://char/koharu_face_pale.png";
+    private const string KPale = "res://char/v3/koharu_face_pale.png";
 
     // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
@@ -586,7 +586,7 @@ public partial class BossKoharu : Enemy
         {
             Hud.LineKind.Boy => face,
             // こはるは通常 koharu_face。絶望行だけ face に蒼白(pale)を指定して差し替える。
-            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/koharu_face.png" : face,
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/koharu_face.png" : face,
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情（worried 等）
             _ => "res://char/mina_face.png", // 中継ほか
         };

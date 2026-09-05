@@ -665,9 +665,9 @@ public partial class Hud : CanvasLayer
         // who → (専用カットイン絵, カットインに合わせたバトルセリフ)。絵が無い who はカードのみ（自然にスキップ）。
         _cutinData ??= new Dictionary<string, (string, string)>
         {
-            ["レイ"]   = ("res://char/cutin_rei.png",    "——追いつけるものなら、どうぞ？"),
-            ["あかり"] = ("res://char/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
-            ["こはる"] = ("res://char/cutin_koharu.png", "ぜんぶ食べてね。のこしちゃ、だめ。"),
+            ["レイ"]   = ("res://char/v3/cutin_rei.png",    "——追いつけるものなら、どうぞ？"),
+            ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
+            ["こはる"] = ("res://char/v3/cutin_koharu.png", "ぜんぶ食べてね。のこしちゃ、だめ。"),
             ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),
         };
         if (!_cutinData.TryGetValue(who, out var d)) return;
