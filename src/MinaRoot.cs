@@ -1,7 +1,7 @@
 using Godot;
 
-// MinaRoot : FINAL「暴走したミナ」のルート（MinaBattle.tscn にアタッチ）。
-// ミナの内側＝穢れに沈んだ暗い心象世界。少年(=自機・役割反転)/Hud/StageMina を生成。
+// MinaRoot : FINAL「穢れたわたし」のルート（MinaBattle.tscn にアタッチ）。
+// ミナの内側＝穢れに沈んだ暗い心象世界。自機（素の光）/Hud/StageMina を生成。
 public partial class MinaRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -30,8 +30,10 @@ public partial class MinaRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new MurkVignette { Name = "MurkVignette" }); // FINAL=汚染頂点：端から寄る濁りビネット（弾より奥・中央は抜け）
 
-        // 自機＝少年（役割反転）。少年は穢れていないので浄化度0。
-        Player = new Player { Name = "Player", Skin = "boy" };
+        // 自機＝「素の光」（F1 の `> control: operator / upgrades: none`）。案C では少年は居ないので
+        //   boy スキン（shonen_idle）は使わない＝既定のミナ自機のまま、強化なしで潜る。
+        //   濁りは掛けない（穢れているのはここ＝彼女の内側であって、潜る光ではない）。
+        Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
         Player.SetCorruption(0f);
@@ -74,8 +76,9 @@ public partial class MinaRoot : Node2D
         _minaTex = tex;
     }
 
-    // ───── 追体験：歴代ボス背景の巡り（レイ→あかり→こはる→ミナ）─────
-    // ミナのHPを削るほど、少年が通ってきた道が背中側から手繰り寄せられる。BossMina 側の HP 閾値
+    // ───── 追体験：歴代ボス背景の巡り（あかり→こはる→レイ→ミナ）─────
+    // 順は面の順＝仮台本 08 F2 の背景巡回と、BREAK ごとの三人の返礼（BossMina.BreakThanks）に合わせる。
+    // ミナのHPを削るほど、あなたが通ってきた道が背中側から手繰り寄せられる。BossMina 側の HP 閾値
     // （PatternThresholds 0.82/0.62/0.42/0.22）に相乗りせず、背景側だけで完結させる＝並行編集中の
     // BossMina.cs/StageMina.cs に触らずに済ませる（競合回避）。閾値は 0.80/0.58/0.36/0.16。
     //
@@ -84,12 +87,12 @@ public partial class MinaRoot : Node2D
     // 最後の 0.16 でミナ自身の背景（開幕と同じ暗いグラデ）へ戻る＝旅が終点＝彼女に着地する。
     private StageBackground _bg = null!;
     private Texture2D _minaTex = null!;
-    private int _journey;    // 0:ミナ(開幕) 1:レイ 2:あかり 3:こはる 4:ミナ(着地)
+    private int _journey;    // 0:ミナ(開幕) 1:あかり 2:こはる 3:レイ 4:ミナ(着地)
     private static readonly (float hp, string path, Color dim)[] Journey =
     {
-        (0.80f, "res://char/bg/rei/boss.png",         new Color(0.30f, 0.33f, 0.44f, 1f)), // 盤面＝青灰。冷たく
-        (0.58f, "res://char/bg/akari/classroom.png",  new Color(0.36f, 0.30f, 0.34f, 1f)), // 教室＝くすんだ桃
-        (0.36f, "res://char/bg/koharu/kitchen.png",   new Color(0.34f, 0.31f, 0.26f, 1f)), // 台所＝沈んだ琥珀
+        (0.80f, "res://char/bg/akari/classroom.png",  new Color(0.36f, 0.30f, 0.34f, 1f)), // フロア＝くすんだ桃
+        (0.58f, "res://char/bg/koharu/kitchen.png",   new Color(0.34f, 0.31f, 0.26f, 1f)), // 台所＝沈んだ琥珀
+        (0.36f, "res://char/bg/rei/boss.png",         new Color(0.30f, 0.33f, 0.44f, 1f)), // 配信部屋＝青灰。冷たく
     };
     private const float JourneyHomeHp = 0.16f; // ここでミナ自身の背景へ着地
 

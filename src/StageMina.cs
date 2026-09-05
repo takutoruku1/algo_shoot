@@ -1,7 +1,8 @@
 using Godot;
 
-// StageMina : FINAL「暴走したミナ」進行。役割反転——少年が操作して、暴走したミナの穢れを撃ち祓う。
-//   1: 導入（少年がミナの内側へ）
+// StageMina : FINAL「穢れたわたし」進行（案C・仮台本 08 F1〜F3）。三人ぶんの穢れが限界に達したミナ自身が
+// 襲ってくる。自機は強化なしの「素の光」で、彼女が抱えた穢れを撃ち祓う。
+//   1: 導入（F1。ミナの声が壊れ、三人の投稿が変質して戻る）
 //   2: ボス出現（BossMina）
 //   3: ボス戦（撃破＝穢れを祓う／中で短い邂逅セリフ）
 //   4: Final（対話で帰還）へ
@@ -24,37 +25,52 @@ public partial class StageMina : Node
     private bool _titleThump; private double _titleThumpT; // タイトルカードの拍（タグが合わさる瞬間の一突き）
 
     private const float SpawnX = 300f;
-    private const string SGentle = "res://char/shonen_gentle.png";
-    private const string SProud = "res://char/shonen_proud.png";
 
-    // 導入（who: 0=少年 / 1=ミナ / 3=地の文）。
-    private static readonly (int who, string text, string face)[] Intro =
+    // F1 導入（仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。who: 1=ミナ / 3=システム表示 / 4=投稿。
+    //   ① 暴走の状況実況は地で説明せず、FINAL タイトルカード＋渦巻くビジュアル＋無音に委ねる。
+    //      ミナの声は壊れた断片2行だけ＝言葉が壊れる、を見せる（show-don't-tell）。
+    //   ② 三人の投稿が「変質して戻る」＝ミナが吸って抱え込んだ穢れの断片。順は面の順（あかり→こはる→レイ）。
+    //      本人の現在の感情ではなく残響。F4「あかりの。こはるの。レイの。」の予感。
+    //   ③ 末尾は自機交代の表示（強化は一切使えない）。ここで自機は「素の光」に変わって無言で潜る。
+    //   ④ S3-7 で送った言葉の引用は1行だけ動的に差し替える（S37Quote）。
+    private static readonly (int who, string text, string face)[] IntroHead =
     {
-        // ① 暴走の状況実況（銀の光が黒く溶ける／悲鳴が流れ込む）は地で説明せず、
-        //    "FINAL — いなくならないで" バナー＋黒く渦巻く暴走ビジュアル＋無音に委ねる。
-        //    ミナの声は壊れた断片1行だけ＝言葉が壊れる＝暴走、を見せる（show-don't-tell）。
-        // ② 正典 v3（S2）：この声は生前に遺した archive replay の最後の一回——だが**明言しない**。
-        //    種明かしは Epilogue に一元化。ここでは“兆候”だけ置く：針飛びのような同語反復（4行目）。
-        //    Final の「返事は、ありませんでした。」が兆候の答え合わせになる。
-        (1, "……ご主人、様……ごめん、なさい……", "res://char/mina_worried.png"), // 壊れた謝罪＝動揺(worried)。平常顔で言わせない（表情と物語の一致）
-        (1, "……とまら、ない……こえ、が……", "res://char/mina_worried.png"), // 声の氾濫の予告。地で説明せず、次の投稿弾で“外から流れ込む”を見せる
-        // 三人ぶんの穢れが返ってくる実感＝レイ／あかり／こはる、各人を祓ったはずの言葉が変質して戻ってくる（who=4＝投稿）。
-        //   本人の現在の感情ではなく“残響”＝ミナが吸って抱え込んだ穢れの断片。Final「レイの。あかりの。こはるの。」の予感。
-        (4, "「追いつけない。……追いつけないのは、わたし。だれも、もう、いない」", ""), // レイ：誇りが反転し孤独だけが残る
-        (4, "「すき、すき……もう、わからない。だれの、かたちだったか」", ""), // あかり：渡せなかった想いが輪郭を失う
-        (4, "「のこしちゃ、だめ……なのに。もう、だれも、たべに、こない」", ""), // こはる：空席の食卓が確定してしまう
-        (1, "……レイ、の。あかり、の。こはる、の……ぜんぶ、わたくし、の……", "res://char/mina_worried.png"), // Final の同型行の“予感”。ここでは言い切れず途切れる（回収は静かな受容として反転）
-        (0, "……ミナ。", SGentle), // 説明の前に、まず名前だけ。少年の決意はここから能動的に始まる
-        (0, "……ぼくは、ずっと見てるだけだった。光を、きみに握らせて。", SGentle),
-        (0, "今度は、ぼくが行く番だ。待ってろ、ミナ。", SProud),
-        (0, "きみは、ひとりじゃ、ない。ぼくが——……ぼくが、ここに、いる。", SGentle), // 針飛び＝反復・途切れ（replay兆候）。Stay の意味の反復でもある
+        (1, "……ご主人、様……ごめん、なさい……", MWorried), // 壊れた謝罪＝動揺(worried)。平常顔で言わせない（表情と物語の一致）
+        (1, "……とまら、ない……こえ、が……", MWorried), // 声の氾濫の予告。地で説明せず、次の投稿弾で“外から流れ込む”を見せる
+        (4, "「既読、ついてる……返事、まだ。……もう、だれに送ったのか、わからない」", ""), // あかり＝「返して」が宛先を失った形
+        (4, "「なにしてんだろ、あたし……ぜんぶ、むだ。……画面、もう、つかない」", ""),   // こはる＝「むだ」が全部に広がった形
+        (4, "「気づいて……見て……。見られてるの、ガワだけ。……中には、もう、だれも」", ""), // レイ＝「気づいて」が自分にも向かなくなった形
+        (1, "……あかり、の。こはる、の。レイ、の……ぜんぶ、わたくし、の……", MWorried), // 面の順。ここでは言い切れず途切れる（回収は F4 の静かな受容）
     };
+    private const string MWorried = "res://char/mina_worried.png";
+    // S3-7 の分岐受け（送った言葉を一度だけ観測で引用。断定はしない）。
+    private static (int who, string text, string face) S37Quote(GameManager? game)
+    {
+        if (game == null || !game.HasChoiceAt("s3_7"))
+            return (1, "……“つづけて”と、いただきましたので。……まだ、つづけて、います。", MWorried);
+        return game.ChosenAt("s3_7") switch
+        {
+            "つづけて"   => (1, "……“つづけて”と、いただきましたので。……まだ、つづけて、います。", MWorried),
+            "むりしないで" => (1, "……“むりしないで”と、いただいたのに。……すみません。", MWorried),
+            _            => (1, "……あのとき、無言、でしたね。……それを、続行と、読みました。", MWorried), // （送らない）＝空文字
+        };
+    }
+    // 自機交代の表示。強化は一切使えない＝素の光でそのまま潜る。
+    private static readonly (int who, string text, string face) IntroTail =
+        (3, "> control: operator   /   upgrades: none", "");
+    private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
 
     public override void _Ready()
     {
         _rng.Randomize();
         _step = 1;
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(1);
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        game?.SetStageTarget(1);
+        // 導入は S3-7 の分岐受け1行だけが可変。頭6行＋引用1行＋自機交代表示の順に組み立てる。
+        var intro = new System.Collections.Generic.List<(int who, string text, string face)>(IntroHead);
+        intro.Add(S37Quote(game));
+        intro.Add(IntroTail);
+        _intro = intro.ToArray();
         // 導入は「バナー＋暴走ビジュアル＋無音に委ねる」（Intro コメント①）。
         //   Audio はシーンをまたいで常駐するため、ここで止めないとハブ等の BgmMenu が
         //   壊れたミナの声（導入1行目）の上で鳴り続けてしまう。BossMina 出現時に
@@ -71,14 +87,15 @@ public partial class StageMina : Node
         _zEdge = z && !_zHeld;
         _zHeld = z;
         // バナー副題は「暴走」（機械の故障＝外から見た説明）を避ける。ミナは壊れたのではなく“満ちた”＝
-        // 三人ぶんの穢れを抱えきれなくなった。副題「いなくならないで」は1周目＝暴走するミナの悲鳴に読め、
-        // 2周目＝Epilogue「いなくならないって、書いたくせに」(Epilogue.cs:129) の回収先として意味が反転する。
+        // 三人ぶんの穢れを抱えきれなくなった。旧副題「いなくならないで」は合言葉 Stay に紐づく語で、
+        // 案C では Stay ごと落としたため不採用（仮台本 08 F1）。副題そのものは未決なので空で出す
+        // （ShowEpicBanner は sub が空なら副題を描かない＝タグ "FINAL" だけが立つ）。決まったら差す。
         if (!_startBannerShown)
         {
             _startBannerShown = true;
             // FINAL だけは共通バナー（出て消える一行）ではなく専用タイトルカードで“格”を上げる。
-            // 文言は据え置き（tag/sub に分解しただけ）。見せ方＝Hud.ShowEpicBanner を参照。
-            Hud.ShowEpicBanner("FINAL", "いなくならないで", UiKit.Kegare);
+            // 見せ方＝Hud.ShowEpicBanner を参照。
+            Hud.ShowEpicBanner("FINAL", "", UiKit.Kegare);
         }
         // タイトルカードの拍：タグが合わさる瞬間(1.25s)に低く一度だけ画面を突く。
         if (_startBannerShown && !_titleThump)
@@ -88,7 +105,7 @@ public partial class StageMina : Node
         }
         switch (_step)
         {
-            case 1: Step_Lines(delta, Intro); break;
+            case 1: Step_Lines(delta, _intro); break;
             case 2: Step_BossSpawn(); break;
             case 3: Step_BossWait(delta); break;
             case 4: Step_Transition(); break;
@@ -135,10 +152,13 @@ public partial class StageMina : Node
     {
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
+        // 案C のこの面に出るのは あなた(0)／ミナ(1)／システム表示(3)／投稿(4)。
+        //   0 と 4 は Hud 側が立ち絵を捨てる（0＝下書きの吹き出し印）。3 は Narration 扱いで中央テロップ。
         string portrait = kind switch
         {
-            Hud.LineKind.Boy => face,
-            _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと差し替え可（他ステージと同方式）
+            Hud.LineKind.Boy => "",                                                             // 「あなた」に顔は無い
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
+            _ => "res://char/mina_face.png",
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
     }

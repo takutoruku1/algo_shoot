@@ -1,8 +1,9 @@
 using Godot;
 
-// BossMina : FINAL「暴走したミナ」。三人ぶんの穢れがミナの中で限界に達し暴走した姿。
-// 役割反転——いつも見ているだけだった少年が、初めて自分で“光”を握り、ミナの穢れを撃ち祓う。
-// HPを削り切る＝穢れを祓い、奥の“本当のミナ”に光が届く。短い邂逅のあと、Final（対話で帰還）へ。
+// BossMina : FINAL「穢れたわたし」（案C・仮台本 08 F2/F3）。三人ぶんの穢れがミナの中で限界に達した姿。
+// 自機は強化なしの「素の光」＝あなたが操作して、ミナ自身が抱えた穢れを撃ち祓う。
+// BREAK ごとに、祓った三人（あかり→こはる→レイ）が浄化波の援護とともに返礼を投げる。
+// HPを削り切る＝穢れを祓い、核が開く。短い邂逅（F3）のあと、Final（F4 の頂点）へ。
 public partial class BossMina : Enemy
 {
     public bool Finished { get; private set; }
@@ -53,16 +54,18 @@ public partial class BossMina : Enemy
         GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", s.name, s.tint);
     }
 
-    // 邂逅のかけあい（who: 0=少年 / 1=ミナ）。本決着は Final（対話）に委ねるので、ここは短い一拍。
-    // 正典 v3（S2 点検済み）：この声は archive replay。ミナの叫びに“正確には応えない”＝自分の告白を
-    // 自分のペースで続ける（3〜4行目）のが replay の既定応答感。末尾の同語反復（StageMina Intro と同じ
-    // 「今度は、ぼくが行く番だ」）は録音の反復＝兆候として意図的に残す。明言はしない（種明かしは Epilogue）。
+    // F3 邂逅（HP0。仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。who: 1=ミナ / 2=レイ。
+    //   核が開く一拍。本決着（F4 の頂点）は Final に委ねるので、ここは4行だけ。
+    //   出自に触れる行は置かない（03 の「あなたが捨てた言葉で、できているのに」は不採用）。
+    //   レイの1行は H1r 返信「あなたの言い方、誰かに似てる」の反転回収＝一面目のあかりの気づきを、
+    //   三面あとにレイが言い切る。ガワではなく中の人の顔（v3 rei_face）で。
+    //   ミナの受けは断定しない＝測れなかったことだけを言って白転へ渡す。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (0, "ミナ! ……ぼくだ。迎えに来た。", "res://char/shonen_gentle.png"),
-        (1, "……ご主人、様? だめ……来ないで……わたくしに、近づいては……穢れて、しまいます……", "res://char/mina_worried.png"), // 動揺・拒絶＝worried（表情マトリクス指定行）
-        (0, "ぼくはずっと、自分が行くのが怖かった。きみに光を握らせて、後ろにいた。", "res://char/shonen_afraid.png"), // 臆病の告白＝afraid（優しさ顔での代用をやめる。表情と物語の一致）。ミナの「来ないで」には答えない＝自分の告白を続ける（既定応答感）
-        (0, "……でも、お前を一人にする方が、もっと怖い。——今度は、ぼくが行く番だ。", "res://char/shonen_proud.png"), // StageMina Intro:39 と同語＝録音の反復（兆候）
+        (1, "……こないで、ください。……ご主人、様……穢れて、しまいます……", "res://char/mina_worried.png"), // 動揺・拒絶＝worried（表情マトリクス指定行）
+        (2, "ねえ、知ってた? あんたの言い方——この人に、そっくりよ。", "res://char/v3/rei_face.png"),
+        (1, "…………。", "res://char/mina_worried.png"),
+        (1, "……いまの、は。……観測、できません。", "res://char/mina_tears.png"), // 断定しない。測れなかったことだけ → 白転 → F4
     };
 
     protected override void OnEnemyReady()
@@ -247,12 +250,58 @@ public partial class BossMina : Enemy
         }
     }
 
-    // BREAK 合図：ミナ本人が敵なので「ミナが煽る」共通実装は使わない。
-    // ナレ全廃方針＝話者なしのシステム声は廃し、役割反転で前に出た少年（＝MINA再生）の号令にする。
+    // BREAK 合図（仮台本 wiki/08_仮台本/08 F2。ユーザー承認済み・2026-09-05）。
+    //   ミナ本人が敵なので「ミナが煽る」共通実装は使わない。案C では少年が居ないので、
+    //   祓った三人がミナへ返礼を投げる＝浄化波の援護になる。順は面の順（あかり→こはる→レイ）で、
+    //   BREAK の回数ではなく **その時点の HP** で誰の番かを決める（BREAK はパネル全壊が条件で
+    //   回数が可変なため。閾値は背景巡回 MinaRoot.Journey と同じ 0.80/0.58/0.36）。
+    //   一人ぶん一度きり＝同じ人が二度返さない。四度目以降の BREAK は字幕を出さない（言い尽くした）。
+    //   字幕は1行しか折り返さないので、返礼は2拍に割って順に出す（BREAK 窓 4.45s の内側）。
+    private static readonly (float hp, string who, Color col, string a, string b)[] BreakThanks =
+    {
+        // あかり＝S1-11「あったかい声が、した。……知らない声なのに」の返礼。取り消さない側へ反転
+        (0.80f, "あかり", UiKit.Purify,
+            "あったかい声、って言ったの、あたし。",
+            "——既読、つけに来た。あなたのぶん。……今度は、取り消さない。"),
+        // こはる＝H2r「ありがと、知らない人。」の返礼。送れなかったコメントとペンライトを回収
+        (0.58f, "こはる", UiKit.Purify,
+            "ありがと、知らない人——って。……知らない人じゃ、なかったよ。",
+            "送れなかったやつ、送ったもん。——ペンライト、振るね。"),
+        // レイ＝H3r「は? 誰よあんた。」の返礼。決定打「見ていました」を見る側へ反転
+        (0.36f, "レイ", UiKit.Purify,
+            "誰よあんた、って言ったわね。——訂正する。",
+            "……見てたの、あんたでしょ。今度は、わたしが見てる番なんだから。"),
+    };
+    private int _thanksIdx;                 // 次に返す人（0=あかり 1=こはる 2=レイ）。一人一度きり
+    private double _thanksT;                // 1拍目からの経過（2拍目の差し替え待ち）
+    private int _thanksPending = -1;        // 2拍目を出す相手（-1＝待ちなし）
+    private const double ThanksBeat = 2.15; // 1拍目→2拍目の間（BREAK 窓 4.45s に2拍が収まる尺）
+
     protected override void OnBreakCue()
     {
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine("少年", "ミナ! いまだ、撃ち抜け!", UiKit.Info, 0.45 + 4.0);
+        if (_thanksIdx >= BreakThanks.Length) return;   // 三人とも返し終えた＝以降は無言
+        // HP が次の人の番に達していなければ、まだその人は出さない（背景巡回と歩を揃える）。
+        if (HpRatio > BreakThanks[_thanksIdx].hp) return;
+        // 高火力で閾値を飛び越えたときは、いま出ている背景の人まで送る＝背景と喋る人がずれない
+        //   （飛ばされた人の返礼は聞けない。三人ぶんを必ず流したいわけではなく、画と声を合わせる方を採る）。
+        while (_thanksIdx + 1 < BreakThanks.Length && HpRatio <= BreakThanks[_thanksIdx + 1].hp)
+            _thanksIdx++;
+        _thanksPending = _thanksIdx;
+        _thanksT = 0;
+        _thanksIdx++;
+        var t = BreakThanks[_thanksPending];
+        GetHud()?.ShowBossLine(t.who, t.a, t.col, ThanksBeat);
+    }
+
+    // 返礼の2拍目を、1拍目の尺が切れるところで差し替える（会話送りは無い＝戦闘は止めない）。
+    private void TickThanks(double delta)
+    {
+        if (_thanksPending < 0) return;
+        _thanksT += delta;
+        if (_thanksT < ThanksBeat) return;
+        var t = BreakThanks[_thanksPending];
+        _thanksPending = -1;
+        GetHud()?.ShowBossLine(t.who, t.b, t.col, ThanksBeat + 0.3);
     }
 
     // RECLOSE のキャラ別弱気セリフ（高貴さの仮面の下で剥がれを拒む）。
@@ -297,6 +346,7 @@ public partial class BossMina : Enemy
         bool zEdge = z && !_zHeld;
         _zHeld = z;
         _lineT += delta;
+        TickThanks(delta);   // BREAK 返礼の2拍目（戦闘は止めない字幕の差し替え）
 
         if (_seq)
         {
@@ -322,9 +372,9 @@ public partial class BossMina : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        string portrait = kind == Hud.LineKind.Boy ? face
-            : string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face; // ミナも行ごと差し替え可（他ステージと同方式）
-        hud.ShowDialog(kind, text, portrait, otherName: "ミナ");
+        // F3 に出るのは ミナ(1) と レイ(2)。who=2 の話者名は otherName で決まるので「レイ」を渡す。
+        string portrait = string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face; // 行ごと差し替え可（他ステージと同方式）
+        hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

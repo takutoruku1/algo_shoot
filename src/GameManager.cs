@@ -346,6 +346,13 @@ public partial class GameManager : Node
     //   同じ id で呼び直すと、前回その id で散らせた語を取り消してから積み直す。
     private readonly Dictionary<string, List<string>> _scatterById = new();
     private readonly Dictionary<string, float> _hesitationById = new();
+    // 選択IDごとの「送った言葉」と「迷い秒数」。下流の場面が **どの選択肢を選んだか** を後から引ける台帳。
+    //   F1 導入（S3-7 の分岐受け）と E6 の対句（P2 の秒数と比較）が参照する。
+    //   （送らない）＝空文字で記録される＝「無言だった」も区別できる。セーブに載せる（後方互換：キー無し＝空）。
+    private readonly Dictionary<string, string> _chosenById = new();
+    public string ChosenAt(string id) => _chosenById.TryGetValue(id, out var v) ? v : "";
+    public bool HasChoiceAt(string id) => _chosenById.ContainsKey(id);
+    public float HesitationAt(string id) => _hesitationById.TryGetValue(id, out var v) ? v : 0f;
     public void RecordChoice(string id, string chosen, IEnumerable<string> others, float hesitationSec)
     {
         // 同じ id の前回ぶんを取り消す（散った言葉・迷い秒数とも）。
@@ -361,6 +368,7 @@ public partial class GameManager : Node
 
         _hesitationById[id] = hesitationSec;
         HesitationSec += hesitationSec;
+        _chosenById[id] = chosen ?? "";
 
         // 最初に散らした言葉は一度決まったら動かさない（＝F4 で戻る一語を選び直しで揺らさない）。
         if (string.IsNullOrEmpty(FirstScattered) && list.Count > 0) FirstScattered = list[0];
@@ -904,6 +912,15 @@ public partial class GameManager : Node
         data["nameRoute"] = NameRoute;
         data["lastSentWord"] = LastSentWord;
         data["hesitationSec"] = HesitationSec;
+        // 選択IDごとの台帳（F1 の S3-7 分岐・E6 の P2 秒数比較が参照）。後方互換：キー無し＝空辞書。
+        var ch = new Godot.Collections.Dictionary();
+        foreach (var kv in _chosenById)
+            ch[kv.Key] = kv.Value;
+        data["chosenById"] = ch;
+        var hz = new Godot.Collections.Dictionary();
+        foreach (var kv in _hesitationById)
+            hz[kv.Key] = kv.Value;
+        data["hesitationById"] = hz;
         // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
         var ids = new Godot.Collections.Array();
         foreach (var key in _idleDialogSeen)
@@ -978,11 +995,27 @@ public partial class GameManager : Node
         // 会話選択（層2プロト）の復元（キー無し＝旧セーブは false＝現行台詞＝後方互換）。
         PressedTheQuestion = data.ContainsKey("pressedQ") && data["pressedQ"].AsBool();
         // 仕掛けの値の復元（キー無し＝旧セーブは既定値のまま＝後方互換）。
-        //   id ごとの取り消し台帳（_scatterById/_hesitationById）はランを跨いで持たない＝
+        //   散った語の取り消し台帳（_scatterById）はランを跨いで持たない＝
         //   ロード直後の RecordChoice は「その id の初回」として素直に積まれる。
+        //   選んだ言葉／迷い秒数の台帳は復元する（F1 の S3-7 分岐・E6 の P2 秒数比較が
+        //   セーブから再開しても効くように）。_hesitationById は HesitationSec の合計と
+        //   対で復元されるので、同じ id を選び直したときの取り消しも正しく効く。
         ScatteredWords.Clear();
         _scatterById.Clear();
         _hesitationById.Clear();
+        _chosenById.Clear();
+        if (data.ContainsKey("chosenById"))
+        {
+            var ch = data["chosenById"].AsGodotDictionary();
+            foreach (var k in ch.Keys)
+                _chosenById[k.AsString()] = ch[k].AsString();
+        }
+        if (data.ContainsKey("hesitationById"))
+        {
+            var hz = data["hesitationById"].AsGodotDictionary();
+            foreach (var k in hz.Keys)
+                _hesitationById[k.AsString()] = hz[k].AsSingle();
+        }
         if (data.ContainsKey("scatteredWords"))
         {
             var sw = data["scatteredWords"].AsGodotArray();
@@ -1025,7 +1058,7 @@ public partial class GameManager : Node
         _burnHappened = false; Burning = false; BurningThisRun = false;
         PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
-        ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear();
+        ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
