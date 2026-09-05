@@ -70,10 +70,23 @@ public partial class MinaRoot : Node2D
             BossDriftSpeed = 5f,    // 暗い心象世界＝最もゆっくり
             BossBreathAmp = 0.010f,
             BossPulseAmp = 0.05f,
+            // 巡回の層(-95..-88)より奥へ沈める＝ミナ自身のグラデが常に最背面に敷かれ、
+            // その上を三人の場所が巡り、最後に層が消えてここへ戻る（＝彼女に着地する）。
+            BaseZ = -96,
         };
         AddChild(bg);
         _bg = bg;
-        _minaTex = tex;
+
+        // 巡回用の層背景（案C の各面と同じ char/bg2 の層セットを敷く器）。開幕は層ゼロ＝
+        // 上のグラデがそのまま見える。TickJourney が HP 段階で層セットを差し替える。
+        var journey = new StageBackground
+        {
+            Name = "JourneyBackground",
+            ForceLayers = true,
+            StartInBoss = true,      // FINAL は常にボス中＝巡る先も各面の「ボス時の見え方」で敷く
+        };
+        AddChild(journey);
+        _journeyBg = journey;
     }
 
     // ───── 追体験：歴代ボス背景の巡り（あかり→こはる→レイ→ミナ）─────
@@ -82,23 +95,58 @@ public partial class MinaRoot : Node2D
     // （PatternThresholds 0.82/0.62/0.42/0.22）に相乗りせず、背景側だけで完結させる＝並行編集中の
     // BossMina.cs/StageMina.cs に触らずに済ませる（競合回避）。閾値は 0.80/0.58/0.36/0.16。
     //
-    // 視認性：歴代背景は道中用で明るいので、Dim で暗め・低コントラストに沈めて敷く（α=1、RGB を
-    // 0.30 前後に落とす）。深い紫寄りの敷き色で、ミナの心象世界の色から浮かせない。
-    // 最後の 0.16 でミナ自身の背景（開幕と同じ暗いグラデ）へ戻る＝旅が終点＝彼女に着地する。
+    // 巡る先は案C の各面と同じ char/bg2 の層背景（旧 char/bg のピクセル調1枚絵は参照しない）。
+    // 各面の「ボス時の見え方」に揃える＝あかり/こはるは Dim（光が消えて沈む）、レイだけ Brighten で
+    // BossLayerDefs 相当（枠の全面版＋金の光）を敷く＝舞台が煌々と点く。FINAL は常にボス中なので
+    // _dimK は 1 のまま＝敷いた層はそのまま各面のボス時の係数で沈む／点く。
+    // 最後の 0.16 で層をすべて落とし、背後のミナ自身の背景（開幕と同じ暗いグラデ）だけが残る
+    // ＝旅の終点＝彼女に着地する。
     private StageBackground _bg = null!;
-    private Texture2D _minaTex = null!;
+    private StageBackground _journeyBg = null!;
     private int _journey;    // 0:ミナ(開幕) 1:あかり 2:こはる 3:レイ 4:ミナ(着地)
-    private static readonly (float hp, string path, Color dim)[] Journey =
+
+    // あかり（STAGE1 オフィス）: AkariRoot と同じ層セット。雨青の色掛けも合わせる。
+    private static readonly Color AkariRainBlue = new Color(0.54f, 0.73f, 1.00f);
+    private static readonly BgLayers.Layer[] AkariLayers =
     {
-        (0.80f, "res://char/bg/akari/classroom.png",  new Color(0.36f, 0.30f, 0.34f, 1f)), // フロア＝くすんだ桃
-        (0.58f, "res://char/bg/koharu/kitchen.png",   new Color(0.34f, 0.31f, 0.26f, 1f)), // 台所＝沈んだ琥珀
-        (0.36f, "res://char/bg/rei/boss.png",         new Color(0.30f, 0.33f, 0.44f, 1f)), // 配信部屋＝青灰。冷たく
+        new BgLayers.Layer("res://char/bg2/stage1/L1_far.png",           0.15f, -95, AkariRainBlue),
+        new BgLayers.Layer("res://char/bg2/common/F2_rain_window.png",   0.15f, -94, AkariRainBlue),
+        new BgLayers.Layer("res://char/bg2/stage1/L2_mid.png",           0.45f, -92, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage1/L3_near_left.png",     1.00f, -91, Colors.White,
+            offset: new Vector2(0f, 407f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage1/L3_near_right.png",    1.00f, -91, Colors.White,
+            offset: new Vector2(1057f, 566f) * 0.3f),
+        new BgLayers.Layer("res://char/bg2/stage1/L4_light_monitor.png", 0f,    -88, Colors.White, additive: true),
+        new BgLayers.Layer("res://char/bg2/stage1/L4_light_window.png",  0f,    -88, Colors.White, additive: true),
+    };
+
+    // レイ（STAGE3 配信）: ReiRoot の BossLayerDefs と同じ＝枠の全面版＋金の光。Brighten で敷く。
+    private static readonly Color ReiDeepViolet = new Color(0.52f, 0.46f, 0.90f);
+    private static readonly BgLayers.Layer[] ReiBossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/stage3/L1_far.png",          0.15f, -95, ReiDeepViolet),
+        new BgLayers.Layer("res://char/bg2/stage3/L2_frame_full.png",   0.45f, -92, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage3/L3_near_left.png",    1.00f, -91, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage3/L3_near_right.png",   1.00f, -91, Colors.White),
+        new BgLayers.Layer("res://char/bg2/stage3/L4_light_screen.png", 0f,    -88, Colors.White, additive: true),
+        new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
+        new BgLayers.Layer("res://char/bg2/stage3/L4_light_gold.png",   0f,    -88,
+            new Color(1f, 1f, 1f, 0.50f), additive: true),
+    };
+
+    // 巡回表：HP 閾値 → その面の層セットとボス時の見え方。こはるは KoharuRoot の道中Aと同じ部屋の層
+    // （ボス戦もこの場所のまま沈む面）を借りる＝定義を二重に持たない。
+    private static readonly (float hp, BgLayers.BossBehavior onBoss, BgLayers.Layer[] defs)[] Journey =
+    {
+        (0.80f, BgLayers.BossBehavior.Dim,      AkariLayers),            // STAGE1 オフィス
+        (0.58f, BgLayers.BossBehavior.Dim,      KoharuRoot.RoomLayers),  // STAGE2 部屋
+        (0.36f, BgLayers.BossBehavior.Brighten, ReiBossLayers),          // STAGE3 配信＝煌々と点く
     };
     private const float JourneyHomeHp = 0.16f; // ここでミナ自身の背景へ着地
 
     private void TickJourney()
     {
-        if (_bg == null) return;
+        if (_journeyBg == null) return;
         // BossMina は StageMina が private に握るので、"enemies" group から拾う（StageMina に触らない＝競合回避）。
         BossMina? m = null;
         foreach (var n in GetTree().GetNodesInGroup("enemies")) if (n is BossMina bm) { m = bm; break; }
@@ -106,15 +154,15 @@ public partial class MinaRoot : Node2D
         float hp = m.HpRatio;
         if (_journey < Journey.Length && hp <= Journey[_journey].hp)
         {
-            var (_, path, dim) = Journey[_journey];
+            var (_, onBoss, defs) = Journey[_journey];
             _journey++;
-            _bg.CrossfadeBossTo(path, dim, 2.6f);
+            _journeyBg.CrossfadeLayersToBoss(onBoss, defs, 2.6f);
         }
         else if (_journey == Journey.Length && hp <= JourneyHomeHp)
         {
             _journey++;
-            // 着地はゆっくり（3.4s）＝旅の終わりに時間を掛ける。
-            _bg.CrossfadeBossTo(_minaTex, Colors.White, 3.4f);
+            // 着地はゆっくり（3.4s）＝旅の終わりに時間を掛ける。層が消え、ミナのグラデだけが残る。
+            _journeyBg.FadeOutLayers(3.4f);
         }
     }
 

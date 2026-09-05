@@ -36,11 +36,26 @@ public partial class StageBackground : Node2D
     // ボス突入の挙動（暗転／明転）と、明転のときに差し替える層セット。層モードのときだけ意味を持つ。
     public BgLayers.BossBehavior LayerBossBehavior = BgLayers.BossBehavior.Dim;
     public BgLayers.Layer[] BossLayerDefs = System.Array.Empty<BgLayers.Layer>();
+    // LayerDefs が空でも層モードに入る（開幕は層ゼロ＝背後が透け、あとから層セットを敷く面。FINAL の巡回）。
+    public bool ForceLayers = false;
+    // 1枚絵経路のタイルを置く ZIndex。既定 -90（従来どおり）。FINAL は層(-95..-88)より奥へ
+    // 沈めたいので -96 を渡す＝ミナ自身のグラデが常に最背面に敷かれ、その上を三人の層が巡る。
+    public int BaseZ = -90;
     private BgLayers _layers = null!;
 
     // 層モードで層セットを丸ごと入れ替える（道中で場所が変わる面。こはるの部屋→教室）。
     // 層モードでないときや層が読めないときは何もしない。
     public void CrossfadeLayersTo(BgLayers.Layer[] defs, float dur = 1.0f) => _layers?.CrossfadeTo(defs, dur);
+
+    // 層セットと「ボス中の見え方」を同時に入れ替える（FINAL の巡回。巡る先の面のボス時の係数に揃える）。
+    public void CrossfadeLayersToBoss(BgLayers.BossBehavior onBoss, BgLayers.Layer[] defs, float dur = 1.0f)
+        => _layers?.CrossfadeToBoss(onBoss, defs, dur);
+
+    // 現行の層をすべて消す（FINAL の巡回の終点。背後のミナ自身の背景だけが残る）。
+    public void FadeOutLayers(float dur = 1.0f) => _layers?.FadeOutAll(dur);
+
+    // 層モードが生きているか（FINAL は層が読めなければ生成グラデの1枚絵経路に落ちる）。
+    public bool HasLayers => _layers != null;
 
     // ───── tunable（控えめに） ─────
     public float MidScrollSpeed = 13f;     // px/s。道中背景が左へ流れる速さ＝前進感。控えめ（弾の視認を妨げない／画面酔い対策で半減）
@@ -111,7 +126,7 @@ public partial class StageBackground : Node2D
                 Texture = tex, Centered = false,
                 Scale = new Vector2(scale, scale),
                 Position = new Vector2(i * _fadeTileW, 0f),
-                ZIndex = -89, ZAsRelative = false,   // 現行層(-90)のすぐ手前に重ねる
+                ZIndex = BaseZ + 1, ZAsRelative = false,   // 現行層(BaseZ)のすぐ手前に重ねる
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
                 Modulate = new Color(dim.R, dim.G, dim.B, 0f),
             };
@@ -127,7 +142,7 @@ public partial class StageBackground : Node2D
     {
         if (!_fading) return;
         foreach (var s in _bossTiles) s.QueueFree();
-        foreach (var s in _fadeTiles) { s.ZIndex = -90; s.Modulate = _newDim; }
+        foreach (var s in _fadeTiles) { s.ZIndex = BaseZ; s.Modulate = _newDim; }
         _bossTiles = _fadeTiles; _bossTileW = _fadeTileW; _bossX = _fadeX;
         _curDim = _newDim;
         _fadeTiles = System.Array.Empty<Sprite2D>();
@@ -136,12 +151,14 @@ public partial class StageBackground : Node2D
 
     public override void _Ready()
     {
-        ZIndex = -90;
+        ZIndex = BaseZ;
         ZAsRelative = false;
         AddToGroup("stagebg");
 
         // 層リストが与えられていれば BgLayers に委譲する（1枚絵タイルは作らない）。
-        if (LayerDefs.Length > 0)
+        // ForceLayers は「開幕は層ゼロで、あとから CrossfadeLayersTo で敷く」面（FINAL の巡回）用。
+        // 層が0枚でも BgLayers を作って層モードに入る＝背後の別背景（ミナの生成グラデ）が透ける。
+        if (LayerDefs.Length > 0 || ForceLayers)
         {
             _layers = new BgLayers
             {
@@ -150,7 +167,7 @@ public partial class StageBackground : Node2D
             };
             AddChild(_layers);
             HasMid = _layers.HasAny;
-            if (HasMid)
+            if (HasMid || ForceLayers)
             {
                 // 呼吸/明滅は 1枚絵ボス背景のための演出。層システムでは親を動かさない（層ごとの視差が壊れる）。
                 if (StartInBoss) EnterBoss();
@@ -187,7 +204,7 @@ public partial class StageBackground : Node2D
                 Centered = false,
                 Scale = new Vector2(scale, scale),
                 Position = new Vector2(i * _midTileW, 0f),
-                ZIndex = -90,
+                ZIndex = BaseZ,
                 ZAsRelative = false,
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
             };
@@ -235,7 +252,7 @@ public partial class StageBackground : Node2D
                 Centered = false,
                 Scale = new Vector2(scale, scale),
                 Position = new Vector2(i * _bossTileW, 0f),
-                ZIndex = -90,
+                ZIndex = BaseZ,
                 ZAsRelative = false,
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
                 Visible = false,

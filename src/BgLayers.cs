@@ -199,6 +199,17 @@ public partial class BgLayers : Node2D
         ApplyTint();
     }
 
+    // 現行の層をすべて消す（新セット無し）。FINAL の巡回の終点＝三人の場所から離れ、
+    // 背後のミナ自身の背景（生成グラデ）だけが残る＝旅が彼女に着地する。
+    public void FadeOutAll(float dur = 1.0f)
+    {
+        if (_swapping) FinishSwap();
+        if (_live.Count == 0) return;
+        _fadingOut.AddRange(_live);
+        _swapT = 0f; _swapDur = Mathf.Max(0.05f, dur); _swapping = true;
+        ApplyTint();
+    }
+
     // 入れ替えを着地させる：新セットを α1 に、旧セットを破棄して _live から外す。
     private void FinishSwap()
     {
@@ -223,6 +234,17 @@ public partial class BgLayers : Node2D
         _dimming = true;
         _dimT = 0f;
         if (OnBoss == BossBehavior.Brighten && BossLayers.Length > 0) CrossfadeTo(BossLayers, BossDimDur);
+    }
+
+    // 層セットと「ボス中の見え方」を同時に差し替える（FINAL の巡回専用）。
+    // FINAL は最初からボス中（_dimK=1）なので、巡る先ごとにその面のボス時の係数（Dim/Brighten）へ
+    // 切り替えないと、レイの面だけ「煌々と点く」見え方が再現できない。層の入れ替えは CrossfadeTo に委ね、
+    // ここは係数の差し替えだけを足す＝道中の面（Akari/Koharu/Rei Root）の挙動には一切触らない。
+    public void CrossfadeToBoss(BossBehavior onBoss, Layer[] defs, float dur = 1.0f)
+    {
+        OnBoss = onBoss;
+        CrossfadeTo(defs, dur);
+        ApplyTint();   // 層が1枚も読めず CrossfadeTo が空振りしても、係数だけは現行層へ効かせる
     }
 
     // 全層に掛かる色を差し替える（浄化で世界が暖まる等、Root 側の演出から呼ぶ）。
