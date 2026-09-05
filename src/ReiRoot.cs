@@ -84,9 +84,9 @@ public partial class ReiRoot : Node2D
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
-        // STAGE1：ミナの光はまだ澄んでいる（汚染なし）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0f);
-        Player.SetCorruption(0f);
+        // STAGE3：縁の濁りがはっきり広がる段階。漫才の裏で深刻化していく。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.45f);
+        Player.SetCorruption(0.45f);
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
@@ -135,9 +135,9 @@ public partial class ReiRoot : Node2D
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
-        // 汚染ゲージ：祓うほど濁る。STAGE1は「澄み(0)→わずか(0.16)」（設計書 4-b）。
+        // 汚染ゲージ：STAGE3は「縁の濁り(0.45)→深刻に翳る(0.80)」（設計書 4-b）。次のFINALで黒く溶ける(1.0)。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
-        const float baseFrom = 0f, baseTo = 0.16f;
+        const float baseFrom = 0.45f, baseTo = 0.80f;
         float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
         float corr = baseFrom + gained;
         game?.SetContamination(corr);

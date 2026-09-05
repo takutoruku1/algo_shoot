@@ -72,9 +72,9 @@ public partial class AkariRoot : Node2D
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
-        // STAGE2：STAGE1を祓った分、ミナの光がわずかに濁り始める（伏線的に気づかない程度）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.16f);
-        Player.SetCorruption(0.16f);
+        // STAGE1：ミナの光はまだ澄んでいる（汚染なし）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0f);
+        Player.SetCorruption(0f);
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
@@ -124,9 +124,9 @@ public partial class AkariRoot : Node2D
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
-        // 汚染ゲージ：STAGE2は「わずか(0.16)→縁の濁り(0.42)」（設計書 4-b）。
+        // 汚染ゲージ：祓うほど濁る。STAGE1は「澄み(0)→わずか(0.18)」（設計書 4-b）。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
-        const float baseFrom = 0.16f, baseTo = 0.42f;
+        const float baseFrom = 0f, baseTo = 0.18f;
         float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
         float corr = baseFrom + gained;
         game?.SetContamination(corr);

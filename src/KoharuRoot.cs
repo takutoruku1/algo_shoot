@@ -90,9 +90,9 @@ public partial class KoharuRoot : Node2D
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(60, 108);
-        // STAGE3：縁の濁りがはっきり広がる段階。漫才の裏で深刻化していく。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.42f);
-        Player.SetCorruption(0.42f);
+        // STAGE2：STAGE1を祓った分、ミナの光がわずかに濁り始める（伏線的に気づかない程度）。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0.18f);
+        Player.SetCorruption(0.18f);
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
@@ -141,9 +141,9 @@ public partial class KoharuRoot : Node2D
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
         if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
 
-        // 汚染ゲージ：STAGE3は「縁の濁り(0.42)→深刻に翳る(0.72)」（設計書 4-b）。次のFINALで黒く溶ける(1.0)。
+        // 汚染ゲージ：STAGE2は「わずか(0.18)→縁の濁り(0.45)」（設計書 4-b）。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。
-        const float baseFrom = 0.42f, baseTo = 0.72f;
+        const float baseFrom = 0.18f, baseTo = 0.45f;
         float gained = (baseTo - baseFrom) * (game?.ContaminationGainMul ?? 1f) * (game?.StageProgress ?? 0f);
         float corr = baseFrom + gained;
         game?.SetContamination(corr);

@@ -27,7 +27,7 @@ public partial class MurkVignette : Node2D
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
         float c = game?.Contamination ?? 0f;
-        // 汚染0.30未満は完全非表示。0.30→1.00 で 0→0.21 に上がる。STAGE3末≈0.13・FINAL=0.21。
+        // 汚染0.30未満は完全非表示。0.30→1.00 で 0→0.21 に上がる。STAGE3末≈0.15・FINAL=0.21。
         float target = 0.21f * Mathf.Clamp((c - 0.30f) / 0.70f, 0f, 1f);
         _alpha = Mathf.MoveToward(_alpha, target, (float)delta * 0.5f);
         QueueRedraw();

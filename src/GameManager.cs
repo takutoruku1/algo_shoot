@@ -765,7 +765,7 @@ public partial class GameManager : Node
     public float DodgeDistance => 64f + 4f * ChainLevel("move_speed", 3);
 
     // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
-    // 汚染0.00→1.00 / 0.16→0.98 / 0.42→0.89 / 0.72→0.73 / 1.00→0.55。
+    // 汚染0.00→1.00 / 0.18→0.97 / 0.45→0.87 / 0.80→0.69 / 1.00→0.55。
     // 澄んだ心(contam)の承認式：下限 +0.05/Lv に加え全体を ×(1+0.06Lv)（上限1.1）。
     // 3→2圧縮の補償：段2で旧Lv3相当の効果 Lv を渡す（無汚染でも段2で上限×1.10・高汚染域も旧Lv3の底上げ）。
     private int ContamSteps => ChainLevel("contam", 2);
