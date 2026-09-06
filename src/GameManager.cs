@@ -1209,6 +1209,7 @@ public partial class GameManager : Node
             if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
             if (a == "--choice") DebugChoiceNow = true;
             if (a == "--choice3") { DebugChoiceNow = true; DebugChoiceThree = true; }
+            if (a == "--input-field") DebugInputField = true;
         }
     }
 
@@ -1222,6 +1223,10 @@ public partial class GameManager : Node
     // [一時/デバッグ] --choice3 : 上の割り込みを **3択** で出す（ChoiceOverlay の N 択レイアウト確認用）。
     // --choice を含む。台本上の選択は2択のままで、これは表示検証専用の差し替え。
     public bool DebugChoiceThree { get; private set; }
+
+    // [一時/デバッグ] --input-field : こはる面を S2-4「入力欄」（StageKoharu の step 8）から始める。
+    // コメント欄UI（CommentInput）の見た目確認・スクショ用。道中も中ボスも踏まない＝数秒で欄に着く。
+    public bool DebugInputField { get; private set; }
 
     // 検証用ダミー記録。リリースには影響しない（--seed-records 起動時のみ呼ばれる）。
     private void SeedDebugRecords()

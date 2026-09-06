@@ -115,7 +115,9 @@ public partial class StageKoharu : Node
     // 配信画面の下のコメント入力欄。「レイちゃんが」まで打たれて、一文字ずつ消える。
     // 「今日も来ました」だけが残って、送られる。ミナは消えたほうの一行を拾い、中身は本人の前まで言わない
     //（S2-8 の決定打の一段目で返す）。台本どおり選択は置かない。
-    // who=3（システム表示）＝入力欄そのもの。カーソル「|」付きで打ちかけを見せる。
+    // who=3（システム表示）＝入力欄そのもの。この2行だけは Hud のナレ用中央テロップに流さず、
+    //   専用オーバーレイ CommentInput（配信画面のコメント欄の姿）へ渡して打つ／消すを見せる
+    //   （Step_InputField 参照）。行末の「|」は表示側がカーソルとして描くので渡す前に落とす。
     private static readonly (int who, string text, string face)[] InputField =
     {
         (1, "ご主人様、これ。配信画面の下に、コメントの入力欄が。……文字が、打たれています。", MFace),
@@ -167,9 +169,13 @@ public partial class StageKoharu : Node
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
+        // [一時/デバッグ] --input-field : S2-4 の入力欄（step 8）から始める。コメント欄UI の確認・スクショ専用。
+        //   開幕バナー（STAGE 2 START）は本来ずっと前に出ているものなので、この入口では出さない。
+        if (game != null && game.DebugInputField) { _step = 8; _startBannerShown = true; }
+
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(11)。
-        if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
+        else if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
         {
             _step = game.SelectedEntry switch
             {
@@ -208,7 +214,7 @@ public partial class StageKoharu : Node
             case 5: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（部屋→教室へクロスフェード）
             case 7: Step_Lines(delta, ClassTalk); break;  // S2-3 BossTalk（教室）＋Chat2／Chat3
-            case 8: Step_Lines(delta, InputField); break; // ★S2-4 入力欄（打って、消す手。選択は置かない）
+            case 8: Step_InputField(delta); break;        // ★S2-4 入力欄（打って、消す手。選択は置かない）
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（教室→部屋へ戻る。最大密度の山）
             case 10: Step_MidEndLines(delta); break;      // S2-5 我に返る一拍（{n} 差し込みあり）
             case 11: Step_BossSpawn(); break;
@@ -291,6 +297,85 @@ public partial class StageKoharu : Node
         }
         else _midEndPrevT += delta;
         Step_Lines(delta, _midEndLines);
+    }
+
+    // ───── S2-4 入力欄（仮台本 07）専用の送り ─────
+    //   InputField の並びはそのまま流すが、who=3（システム表示＝入力欄そのもの）の行だけは
+    //   Hud のナレ用中央テロップに出さず、配信画面のコメント欄の姿をした CommentInput へ渡す。
+    //   ミナの観測行（who=1）は従来どおり会話バーに出し、その間もコメント欄は画面に残る＝
+    //   「打たれている一行を、ミナが横から見ている」という画になる。
+    //
+    //   台本の流れ:
+    //     [0] ミナ「……文字が、打たれています。」  → 欄が現れる
+    //     [1] who=3「レイちゃんが|」               → 文字送りで打たれる
+    //     [2] ミナ「……消えていきます。一文字ずつ。」→ この行の裏で末尾から消える
+    //     [3] who=3「今日も来ました|」             → 打ち直して送信（送信ボタンが一度灯る）
+    //     [4]〜[6] ミナの観測行                     → 最後に欄が消える
+    //
+    //   送り作法は Step_Lines と同じ（Z 1段目＝全文表示／2段目＝次行。既読スキップ・オートも同じ）。
+    //   who=3 の行は文字送り／消しが終わるまで次へ進めない＝打つ手・消す手を必ず見せる。
+    //   バブルは HoldBubble で保持したまま（BubblePaused 継続＝弾も敵も止まったまま）。
+    //   自動プレイ（--qa/--demo）は BubblePaused 中に Z をパルスし続けるので、動作完了後の
+    //   最初のパルスで先へ進む＝ここで詰まらない。
+    private CommentInput? _input;
+    private void Step_InputField(double delta)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _introLine = 0;
+            _lineHold = 0;
+            Hud.HoldBubble = true;
+            _input = CommentInput.Show(Hud);
+            BeginInputLine();
+        }
+        var lines = InputField;
+        bool isField = lines[_introLine].who == 3;
+        // 入力欄の行は、打ち／消しが終わるまで送れない（手を最後まで見せる）。
+        if (isField && !(_input?.Done ?? true)) { _lineHold = 0; return; }
+
+        if (!isField && _zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _lineHold = 0;
+        }
+        else if (_lineHold >= 0.15 && (isField || Hud.DialogRevealed)
+                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
+        {
+            _lineHold = 0;
+            _introLine++;
+            if (_introLine >= lines.Length)
+            {
+                _input?.QueueFree();
+                _input = null;
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                Advance();
+                return;
+            }
+            BeginInputLine();
+        }
+    }
+
+    // 現在行を「入力欄へ」か「会話バーへ」振り分ける。
+    //   who=3 … 入力欄に打つ。本文からカーソル記号「|」は落とす（末尾の明滅は CommentInput が描く）。
+    //           最後の who=3（「今日も来ました」）だけ打ち終わりに送信ボタンが灯る＝送られた合図。
+    //   who=1 … 会話バーへ。ただし「……消えていきます。一文字ずつ。」の行が出る裏で、欄の文字を
+    //           末尾から消し始める＝ミナが言っているそばから一文字ずつ削れていく（06/07 の「消した一行」）。
+    private void BeginInputLine()
+    {
+        var (who, text, _) = InputField[_introLine];
+        if (who != 3)
+        {
+            if (text.Contains("消えていきます")) _input?.Erase();
+            ShowLine(InputField);
+            return;
+        }
+        // この行より後ろに who=3 が無ければ＝これが送られる一行。
+        bool last = true;
+        for (int i = _introLine + 1; i < InputField.Length; i++)
+            if (InputField[i].who == 3) { last = false; break; }
+        _input?.Type(text.TrimEnd('|'), send: last);
     }
 
     private void ShowLine((int who, string text, string face)[] lines)
