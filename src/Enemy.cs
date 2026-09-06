@@ -367,13 +367,24 @@ public partial class Enemy : Area2D
     protected BulletShape CurShape = BulletShape.Orb;
     protected Color CurTint;
     protected bool CurTintSet;
-    protected void SetSpellVisual(BulletShape shape, Color tint)
+    // 現在のスペルの「弾の絵」（こはる＝推し活グッズ／あかり＝仕事の書類）。null＝従来の弾形で描く。
+    // BulletArt.Get のキャッシュ済みテクスチャを持つだけなので、スペル切替のたびにロードは走らない。
+    protected Texture2D? CurSprite;
+    protected float CurSpriteRot = 55f;   // 絵の回転速度（deg/s）。スペルごとに変える
+    // sprite を渡すと、その弾は絵で描かれる（弾形・色は絵の裏のグローと、絵が無い時の保険として残る）。
+    // 当たり半径・弾数・弾速には触れない＝見た目だけの指定（難易度の Dn/Di/spd は不変）。
+    protected void SetSpellVisual(BulletShape shape, Color tint, Texture2D? sprite = null, float spriteRot = 55f)
     {
         CurShape = shape; CurTint = tint; CurTintSet = true;
+        CurSprite = sprite; CurSpriteRot = spriteRot;
     }
-    // 現在のスペルの弾形・色で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
+    // 現在のスペルの弾形・色（と絵）で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
     protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1)
-        => pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
+    {
+        var b = pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
+        if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
+        return b;
+    }
 
     // 難易度別HPバー本数（総HP=BarHp×本数）。派生ボスが OnEnemyReady で BarCount に設定する。
     protected int DiffBars(bool finalBoss) =>

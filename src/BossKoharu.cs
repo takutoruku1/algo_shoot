@@ -95,17 +95,32 @@ public partial class BossKoharu : Enemy
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
 
     // スペルカード（STAGE2 こはる＝配信画面の光の琥珀と、我に返る一拍の深紅）。技名は仮台本 07 の S2-7。
-    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    // 弾は「推し活グッズ」の絵で飛ぶ（art の名前＝char/v3/bullets/<name>.png）。推している間だけ
+    // 忘れていられた物が、そのまま弾になって降ってくる。最後の「我に返る」だけは消灯したペンライト
+    // ＝終わったあとの部屋を指す。弾形・色は絵の裏のグロー（と絵が無い時の保険）として残す
+    // ＝当たり判定・弾数・弾速は不変。
+    //   rot: 絵の回転速度(deg/s)。落ちてくるもの（ペンライト）ほど大きく回す。
+    private static readonly (string name, BulletShape shape, Color tint, string art, float rot)[] Spells =
     {
-        ("ちゃんとしなきゃ", BulletShape.Orb,     new Color("e8a24a")), // 琥珀・画面の光
-        ("みんな見てる",     BulletShape.Diamond, new Color("d6443f")), // 深紅・視線の雨
-        ("期待",             BulletShape.Needle,  new Color("e87a3c")), // 橙・黒板の二文字
-        ("我に返る",         BulletShape.Rice,    new Color("ffa14a")), // 燃え残り・扇の粒弾
+        ("ちゃんとしなきゃ", BulletShape.Orb,     new Color("e8a24a"), "koharu_badge",    46f), // 缶バッジの輪
+        ("みんな見てる",     BulletShape.Diamond, new Color("d6443f"), "koharu_acrylic",  30f), // アクスタ＝視線
+        ("期待",             BulletShape.Needle,  new Color("e87a3c"), "koharu_ticket",   62f), // チケットの半券
+        ("我に返る",         BulletShape.Rice,    new Color("ffa14a"), "koharu_penlight", 96f), // 消えたペンライト
     };
+    // 攻撃パターン→立ち位置の対応（0 リング＝中央に据わる／1 祈り弾の扇＝端で帯を張る／
+    // 2 自機狙い＝自機の x を追う／3 スパイラル＝端）。
+    private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
+    {
+        0 => BossMover.Attack.Ring,
+        2 => BossMover.Attack.Aimed,
+        _ => BossMover.Attack.Wall,
+    };
+
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
-        SetSpellVisual(s.shape, s.tint);
+        _mover.SetNextAttack(StanceOf(_pattern));
+        SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rot);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("こはる", "@koharu_light", s.name, s.tint);
     }
@@ -191,8 +206,10 @@ public partial class BossKoharu : Enemy
         base._Ready();
         // ボス登場＝道中BGMからこはる固有テーマへクロスフェード（温かい旋律が冷えて減衰＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossKoharu);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("koharu", "roam_speed", RoamSpeed));
+        // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[koharu] の
+        // cruise_speed / accel_time / stance_*）。こはるは「軽く小刻み・攻撃前に一瞬止まる」＝
+        // accel_time が小さく（キビキビ）、構え（stance_windup）が長めで本動作が短く鋭い。
+        _mover.Configure("koharu", new Vector2(200f, 70f), 90f, 28f);
         GetHud()?.ShowBossBar("我に返るわたし", "@koharu_light");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -208,6 +225,8 @@ public partial class BossKoharu : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        // 自機の x を渡す＝自機狙いの横滑りと、反転の判定（40px 以上・0.6秒）に使う。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
@@ -226,10 +245,10 @@ public partial class BossKoharu : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; TriggerAttackPose(); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; TriggerAttackPose(); FanDown(pool); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; TriggerAttackPose(); Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; TriggerAttackPose(); Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
         }
     }
 
@@ -237,8 +256,8 @@ public partial class BossKoharu : Enemy
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint); Ring(pool, Dn(16), 70f); }
-        if (_fireT2 >= Di(0.85)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); FanDown(pool); }
+        if (_fireT >= Di(0.95)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.Get(Spells[0].art), Spells[0].rot); Ring(pool, Dn(16), 70f); }
+        if (_fireT2 >= Di(0.85)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint, BulletArt.Get(Spells[1].art), Spells[1].rot); FanDown(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
@@ -306,7 +325,10 @@ public partial class BossKoharu : Enemy
                     Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
                     d = d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
                     // お残し→撃ち返しニードルは中サイズ（3.0→3.8）＝「食べ残すと反撃が来る」の脅威を弾の大きさでも語る。
-                    pool.Spawn(at, d * _mealNeedleSpeed, true, 3.8f, 1, BulletShape.Needle, MealNeedleTint);
+                    // お残し＝見られなかったアーカイブが「視線」になって撃ち返してくる＝アクスタの絵。
+                    // 速度・半径・弾数は不変（見た目だけ）。
+                    var nb = pool.Spawn(at, d * _mealNeedleSpeed, true, 3.8f, 1, BulletShape.Needle, MealNeedleTint);
+                    nb.SetSprite(BulletArt.KoharuAcrylic, 30f);
                 }
                 if (_mealLeft.Count == 0) FinishMeal(fullEat: false);
                 return;
@@ -323,7 +345,9 @@ public partial class BossKoharu : Enemy
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return false;
         _meal.Clear();
-        SetSpellVisual(Spells[0].shape, Spells[0].tint); // 料理弾＝琥珀の円弾（「ぜんぶ食べて」の色）
+        // 「全部見なきゃ」の配膳弾＝箱から溢れたグッズ（うちわ）。祈り弾として並ぶので、
+        // 撃って消す＝「見た／片づけた」になる。琥珀の円弾の色はグローとして絵の裏に残す。
+        SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.KoharuUchiwa, 34f);
         float colStep = _mealCols > 1 ? Mathf.Min(20f, (356f - 214f) / (_mealCols - 1)) : 0f;
         float rowStep = _mealRows > 1 ? Mathf.Min(20f, (94f - 44f) / (_mealRows - 1)) : 0f;
         for (int row = 0; row < _mealRows; row++)
@@ -356,7 +380,7 @@ public partial class BossKoharu : Enemy
         _mealLeft.Clear();
         if (_caster != null && _gotoPhase == 0) _caster.Suppressed = false; // 十字火が進行中なら解除しない（保険）
         var cur = Spells[_pattern % Spells.Length];
-        SetSpellVisual(cur.shape, cur.tint); // 弾形・色を通常スペルへ戻す（宣告カードは再掲しない）
+        SetSpellVisual(cur.shape, cur.tint, BulletArt.Get(cur.art), cur.rot); // 弾形・色・絵を通常スペルへ戻す（宣告カードは再掲しない）
         // 食事の間に保留していたスペル切替（第3「期待」50%）／フィナーレの宣言を、ここで発火させる。
         // 以降は完食報酬の early return が並ぶので、報酬の有無に関わらず通るこの位置で呼ぶ。
         // ApplySpell が SetSpellVisual を上書きするため、通常スペルへ戻した後であることも必要。

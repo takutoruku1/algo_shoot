@@ -48,6 +48,33 @@ public partial class Bullet : Area2D
     public bool WordAching;
     public bool SoftenOnGraze;
     public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
+
+    // ─── テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）───
+    // 「弾を物として読ませる」ための絵つき敵弾。SetSprite で付与し、Activate が毎回リセットする。
+    //   ・当たり判定は円のまま一切変えない（P9）。絵は「最長辺が当たり直径 ×SpriteFit に収まる」倍率で
+    //     描くので、どれだけ回しても絵が判定円から食み出さない＝回転と判定が食い違わない。
+    //   ・回転はゆっくり（既定 40〜70deg/s 程度）＋僅かな横揺れ。読みを妨げない範囲に留める（P2）。
+    //   ・暗背景から浮かせるため、絵の裏に一回り大きい暗色シルエットを敷いてから絵を描く（P1）。
+    //     グレイズ光・当たり芯・祈り弾のハロは既存のまま絵の上に出る＝「刺さるのはこの点」を保つ。
+    private Texture2D? _sprite;
+    private float _spriteRotSpeed;  // rad/s（符号で回転方向）
+    private float _spriteSway;      // 初期角のばらつき（rad）。同時発射で絵が揃って見える硬さを消す
+    // 絵の最長辺を当たり直径の何倍に収めるか。1.0 で「絵が判定円にちょうど内接」。
+    // 1.35＝弾として読める大きさを確保しつつ、絵の角が判定より僅かに出るだけに留める妥協点
+    // （グッズ・書類は中身が余白を含むので、内接だと実効サイズが小さく見えすぎる）。
+    private const float SpriteFit = 1.35f;
+
+    // テクスチャ弾にする（Spawn 後に呼ぶ）。rotSpeed は deg/s（0＝回さない）。
+    // 当たり半径・ダメージ・速度には一切触れない（見た目だけ）。
+    public void SetSprite(Texture2D? tex, float rotSpeedDeg = 55f)
+    {
+        _sprite = tex;
+        _spriteRotSpeed = Mathf.DegToRad(rotSpeedDeg);
+        // 弾ごとに初期角をばらす（同時発射でも「同じ絵が同じ向きで並ぶ」硬さが消える）。
+        _spriteSway = GD.Randf() * Mathf.Tau;
+        Rotation = _spriteSway; // 1フレーム目から傾いた状態で出す（無回転で出て次フレームに飛ぶのを防ぐ）
+        QueueRedraw();
+    }
     // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
     // “読める”手応えは残しつつ、グレイズ＝安全化ではなくす。
     public const float GrazeSoftenMul = 0.85f;
@@ -265,6 +292,8 @@ public partial class Bullet : Area2D
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
         SoftenOnGraze = false;
         Softened = false;
+        // テクスチャ弾も再利用時に必ず落とす（持ち越すと別スペルの弾がグッズ／書類の絵で出る事故になる）。
+        _sprite = null; _spriteRotSpeed = 0f; _spriteSway = 0f;
         Shape = shape;
         TintSet = tint.HasValue;
         if (tint.HasValue) Tint = tint.Value;
@@ -470,6 +499,13 @@ public partial class Bullet : Area2D
             }
             QueueRedraw(); // タメ中は充填リングを毎フレーム脈動（発進の瞬間は尾へ切替）
         }
+
+        // テクスチャ弾（グッズ／書類）の回転と横揺れ。描き直しゼロで動かすため、
+        // 回転はノード Rotation、横揺れは Position のオフセットではなく Rotation と同じ変換で済ませる
+        // （揺れは回転に含めず、ここでは回転のみ＝当たり判定は中心円のままで一切動かない）。
+        // 同心円で描く当たり芯・祈り弾のハロは回しても見た目が変わらないので、絵だけが回って見える。
+        if (_sprite != null && _spriteRotSpeed != 0f)
+            Rotation = _age * _spriteRotSpeed + _spriteSway;
 
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
         if (Homing && !IsEnemy)
@@ -701,6 +737,16 @@ public partial class Bullet : Area2D
         Color c = TintSet ? Tint : EnemyMid;
         // グレイズ軟化済み（キミ弾）：白へ寄せた淡色＝「和らいだ」を色で読ませる（判定は不変）。
         if (Softened) c = c.Lerp(new Color(1f, 1f, 1f), 0.5f);
+
+        // テクスチャ弾（グッズ／書類）：弾形の代わりに絵を回しながら描く。
+        // 描き順は「スペル色のグロー → 暗色シルエット → 絵」。グローが暗背景側に色の座を作り、
+        // シルエットが絵の縁を締めるので、暗い部屋・雨のオフィスのどちらでも輪郭が浮く（P1）。
+        // このあとに続く当たり芯の白ドットと祈り弾のハロは共通処理のまま絵の上へ出る。
+        if (_sprite != null)
+        {
+            DrawSprite(r, c);
+        }
+        else
         switch (Shape)
         {
             case BulletShape.Diamond: DrawDiamond(r, c); break;
@@ -848,6 +894,43 @@ public partial class Bullet : Area2D
         DrawColoredPolygon(_backBuf, BackMid);
         for (int i = 0; i < 4; i++) _backCoreBuf[i] = _backBuf[i] * 0.5f;
         DrawColoredPolygon(_backCoreBuf, new Color(1f, 1f, 1f, 0.88f));
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+
+    // テクスチャ弾（こはる＝推し活グッズ／あかり＝仕事の書類）。
+    //   倍率は「絵の最長辺 ＝ 当たり直径 × SpriteFit」で決める＝縦長（ペンライト・クリップ）でも
+    //   横長（チケット・封筒）でも、回した時に判定円から食み出す量が同じになる（回転と判定が食い違わない）。
+    //   回転は _age 基準の緩やかな等速＋僅かな横揺れ。会話停止中は _age が進まない＝弾停止と整合。
+    private void DrawSprite(float r, Color c)
+    {
+        var tex = _sprite;
+        if (tex == null) return;
+        Vector2 ts = tex.GetSize();
+        float longSide = Mathf.Max(ts.X, ts.Y);
+        if (longSide < 1f) return;
+        float scale = (r * 2f * SpriteFit) / longSide;
+
+        // スペル色のグロー（弾形と同じ語彙・控えめ）。暗背景に色の座を作って絵を浮かせる。
+        DrawGlow(r, c, 1.0f);
+
+        // ★回転・揺れはここでは焼き込まない。描画コマンドの記録は Activate/SetSprite 時の1回だけにして、
+        //   実際の回転はノード Rotation（_PhysicsProcess で代入＝変換行列の更新のみ）で行う。
+        //   毎フレーム QueueRedraw する方式は、シーカー弾で FPS 85→9 の崩落を起こした前例がある（上記コメント）。
+        DrawSetTransform(Vector2.Zero, 0f, new Vector2(scale, scale));
+
+        var half = ts * 0.5f;
+        var dst = new Rect2(-half, ts);
+        // 暗色シルエット：絵の裏に一回り大きい暗い複製を4方向へずらして敷く＝縁取り。
+        // 明るい背景でも暗い背景でも、絵の外周に必ず暗線が回るので輪郭が締まる。
+        var silhouette = new Color(0.05f, 0.03f, 0.06f, 0.85f);
+        float o = 1.6f / scale; // 画面上でおよそ 1.6px 相当のふち（倍率の影響を受けない太さ）
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(-o, 0f), ts), false, silhouette);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(o, 0f), ts), false, silhouette);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, -o), ts), false, silhouette);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, o), ts), false, silhouette);
+
+        // 本体。グレイズ軟化済みは白へ寄せた淡色を薄く乗せる（他の弾と同じ「和らいだ」の合図）。
+        DrawTextureRect(tex, dst, false, Softened ? new Color(1f, 1f, 1f, 0.75f) : Colors.White);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 
