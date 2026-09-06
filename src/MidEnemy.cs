@@ -113,7 +113,7 @@ public partial class MidEnemy : Enemy
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;
-        PanelTexPath = "res://char/panel_anti.png"; // 吹き出しは既存流用
+        // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
         BodyDisplayH = 23f;             // 一回り小さく
 
         // 盾もち「バズ壁」：撃たない代わりにパネル5枚×インク3＝“剥がし切る”DPSチェック

@@ -28,7 +28,7 @@ public partial class GlyphMote : Enemy
         // 生成済みドット絵素材
         PreTexPath = "res://char/enemy_anti_pre.png";
         PostTexPath = "res://char/enemy_anti_post.png";
-        PanelTexPath = "res://char/panel_anti.png";
+        // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
         BodyDisplayH = 23f;             // 一回り小さく
 
         _campX = GD.Randf() * 150f + 120f;                 // 120〜270 のどこかに陣取る

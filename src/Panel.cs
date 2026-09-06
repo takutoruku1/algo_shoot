@@ -40,6 +40,22 @@ public partial class Panel : Area2D
         _texPath = texPath;
     }
 
+    // 面ごとの盾の絵（案C・2026-09-06）。心のないコメントが投稿の穢れを守っている、という意味を面の闇で読ませる。
+    //   あかり: 送信取消（取り消し線の入った紙飛行機）／こはる: 視線（目）／レイ: 低評価（下向きの親指）／FINAL・その他: 非表示の返信（…）。
+    // 器は共通の暗い吹き出し（藍黒＋淡い藤の縁＋白い記号の 3 色）。剥がれ具合は DrawInkNotches のドットで示す。
+    // ボス・中ボス・道中の敵・カメオはすべて同じ面の絵を使う（Enemy 側が PanelTexPath を空で渡すとここで決まる）。
+    public static string ResolveTexPath(string scenePath)
+    {
+        string id = GameManager.StageIdForScene(scenePath) ?? "final";
+        return id switch
+        {
+            "akari"  => "res://char/v3/panel_akari.png",
+            "koharu" => "res://char/v3/panel_koharu.png",
+            "rei"    => "res://char/v3/panel_rei.png",
+            _        => "res://char/v3/panel_final.png",
+        };
+    }
+
     public override void _Ready()
     {
         CollisionLayer = 16; // パネル
@@ -50,7 +66,8 @@ public partial class Panel : Area2D
         AddChild(_shape);
         AreaEntered += OnAreaEntered;
 
-        // 吹き出しスプライト（あれば）。無ければ _Draw のプレースホルダ。
+        // 吹き出しスプライト。未指定なら面ごとの盾（ResolveTexPath）を引く。読めなければ _Draw のプレースホルダ。
+        if (string.IsNullOrEmpty(_texPath)) _texPath = ResolveTexPath(GetTree().CurrentScene?.SceneFilePath ?? "");
         if (!string.IsNullOrEmpty(_texPath))
         {
             var t = ResourceLoader.Load<Texture2D>(_texPath);

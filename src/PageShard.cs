@@ -22,7 +22,7 @@ public partial class PageShard : Enemy
         // MVPでは アンチくん素材を流用（後で専用素材に差し替え可）
         PreTexPath = "res://char/enemy_anti_pre.png";
         PostTexPath = "res://char/enemy_anti_post.png";
-        PanelTexPath = "res://char/panel_anti.png";
+        // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
         BodyDisplayH = 23f;             // 一回り小さく
 
         _campX = GD.Randf() * 150f + 130f;                 // 130〜280
