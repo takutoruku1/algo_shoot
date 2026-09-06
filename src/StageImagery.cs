@@ -5,6 +5,7 @@ using Godot;
 //   流れは ScrollFx / StageBackground と同じ左方向に統一＝左→右の前進感（縦の上昇感は出さない）。
 //   Rei   : 配信のコメント欄。PostPool のレイのテーマ（層1〜2）から引いた心ない投稿／「登録者 2,000」は白飛びの固定ポスト。
 //   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す（左流れ・弱め）。
+//           送信取消の下書き（「あの——」）は板を持たず、文字だけが浮かんで末尾から欠けていく。
 //   Koharu: 電気を消した部屋の静かな投稿。いいねは 0/1（誰も反応しない）。暗背景なのでα低め。
 // 背景画像(ZIndex -90)の上、ゲーム要素(0..10)の下(ZIndex -50)に描く。浄化が進む(Warmth↑)と薄れて晴れる。
 //
@@ -94,15 +95,18 @@ public partial class StageImagery : Node2D
             }
     }
 
-    // ───────── 共通：汚染SNSタイムラインの「X(旧Twitter)投稿」カード ─────────
-    // 全ステージ共通の小カード。右→左へ 12px/s でループ。同時4枚・上下2段レーン（縦中央は弾の主戦場なので空ける）。
-    // 本物の X 投稿の骨格に寄せる：①円アイコン＋表示名(太め)＋@ハンドル(灰)＋「· 2時間」相対時刻(中黒)＋時々青認証
-    //   ②本文 ③アクション行4つ（返信/リポスト/いいね/閲覧数）を X の並び順で極小シルエット＋数字。
-    private const float CardW = 156f, CardH = 52f;   // アクション行を入れる余地（奥行きは速度24px/sで担保）
+    // ───────── 共通：背景を流れる投稿の「薄い板」 ─────────
+    // 全ステージ共通の小さな板。右→左へ 12px/s でループ。同時4枚・上下2段レーン（縦中央は弾の主戦場なので空ける）。
+    // 2026-09-06 作り直し（案 a）。X の投稿を「そのまま写す」のをやめ、この作品の画面（暗い層背景・金と菫・
+    //   淡い水色の浄化）に馴染む暗いガラスの板にした：①角丸の暗い板＋細い縁光（上辺だけ少し明るい）
+    //   ②アバターは輪だけ ③名前・@ハンドル・時刻は一段落として一行 ④本文は 1 行 11px（読めることが第一）
+    //   ⑤エンゲージ行は点 4 つ＋薄い数字（返信/リポスト/いいね/閲覧の順は X のまま。図像は描かない）。
+    //   彩度は弾より低く、加算しない。板の暗さで背景を一段沈め、文字は縁光と同じ淡い色で浮かせる。
+    private const float CardW = 156f, CardH = 46f;   // 本文 12 字が 11px で収まる幅／三段（頭・本文・点）の高さ
     private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
     private const int CardCount = 4;                 // 同時表示（控えめ）
-    // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=52）。
-    private static readonly float[] LaneRows = { 8f, H - CardH - 8f }; // 上段 y=8 / 下段 y=156
+    // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=46）。
+    private static readonly float[] LaneRows = { 8f, H - CardH - 8f }; // 上段 y=8 / 下段 y=162
 
     private static float Frac(float v) => v - Mathf.Floor(v);
 
@@ -134,114 +138,81 @@ public partial class StageImagery : Node2D
     // 認証バッジを付けるか（時々だけ＝決定論）。
     private bool Verified(int i) => Frac(Mathf.Sin(i * 113.3f) * 2671.7f) > 0.72f;
 
-    // 極小アイコン群（すべて点・線・三角の簡易シルエット。彩度は上げない＝text色の濃淡で描く）。
-    // X のアクション行の並び：返信(吹き出し)・リポスト(二本矢印)・いいね(ハート)・閲覧数(棒グラフ)。
-    private void IconReply(float x, float y, Color c)   // 吹き出し（角丸枠＋下のしっぽ）
-    {
-        DrawRect(new Rect2(x, y, 6f, 4f), new Color(c.R, c.G, c.B, c.A), false, 1f);
-        DrawRect(new Rect2(x + 1f, y + 4f, 2f, 1f), c); // しっぽ
-    }
-    private void IconRepost(float x, float y, Color c)  // 二本矢印（リサイクル）＝上下の横線＋両端の縦
-    {
-        DrawLine(new Vector2(x, y + 1f), new Vector2(x + 6f, y + 1f), c, 1f);
-        DrawLine(new Vector2(x, y + 4f), new Vector2(x + 6f, y + 4f), c, 1f);
-        DrawRect(new Rect2(x, y + 1f, 1f, 3f), c);      // 左端の縦
-        DrawRect(new Rect2(x + 5f, y + 1f, 1f, 3f), c); // 右端の縦
-    }
-    private void IconHeart(float x, float y, Color c)   // ハート＝上2点＋下三角の簡易シルエット
+    // 極小のハート（上2点＋下三角の簡易シルエット）。板のエンゲージ行は点で描くので、今はあかりの反転
+    //   （DrawAkariReversal の「いいね 1」＝たった一つの応答が灯る）だけが使う。
+    private void IconHeart(float x, float y, Color c)
     {
         DrawRect(new Rect2(x, y, 2f, 2f), c);
         DrawRect(new Rect2(x + 3f, y, 2f, 2f), c);
         DrawRect(new Rect2(x + 1f, y + 2f, 3f, 1f), c);
         DrawRect(new Rect2(x + 2f, y + 3f, 1f, 1f), c);
     }
-    private void IconViews(float x, float y, Color c)   // 閲覧数＝棒グラフ（高さの違う3本）
-    {
-        DrawRect(new Rect2(x, y + 3f, 1f, 2f), c);
-        DrawRect(new Rect2(x + 2f, y + 1f, 1f, 4f), c);
-        DrawRect(new Rect2(x + 4f, y, 1f, 5f), c);
-    }
 
-    // 1枚の X 投稿カードを描く。本文・名前・メタは i で決定論（周回中は固定＝チラつかない。切替は画面外）。
-    //   panel : パネル基本色, text : 本文/名前色, accent : アイコン色
-    //   replies/reposts/likes/views : アクション行の数字, liked : いいね済み（ハートを淡桃に）, quote : 引用リプ線（あかり）
+    // 1枚の板を描く。本文・名前・メタは i で決定論（周回中は固定＝チラつかない。切替は画面外）。
+    //   panel : 縁光と文字の基調色（面の tint）, text : 本文/名前色, accent : アバターの輪の色
+    //   replies/reposts/likes/views : 点の横の薄い数字, liked : いいね済み（点を淡い薔薇色に）, quote : 引用リプ線（あかり）
+    //   pa は「その面の板の濃さ」（レイ/あかり 0.13・こはる 0.07）。α の配分はこの値を軸に、
+    //   板の暗さ ×1.7 ／縁光 ×1.2 ／本文 ×3.0（上限 0.62）／頭の行 ×1.6 ／点と数字 ×1.4 で組む。
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
                           int i, string body, int replies, int reposts, int likes, int views,
                           bool liked = false, bool quote = false)
     {
         var ci = GetCanvasItem();
         float a = pa * fade;
-        // パネル（半透明・角丸）＋枠線（型を出すが主張させない）。角丸は投稿弾（Bullet.cs）や
-        // ハブのカードと同じ UiKit.Box ＝「SNSの投稿カード」の語彙を画面全体で統一。α は従来のまま。
-        UiKit.Box(this, new Rect2(x, y, CardW, CardH), new Color(panel.R, panel.G, panel.B, a), 5f,
-            new Color(panel.R, panel.G, panel.B, a * 0.7f), 1f);
+        var rect = new Rect2(x, y, CardW, CardH);
 
-        // ① 円アイコン（左上・本物の X に寄せて真円に）＋薄い外周リング（アバターの縁取り）。
-        float cx = x + 11f, cy = y + 11f;
-        DrawCircle(new Vector2(cx, cy), 5f, new Color(accent.R, accent.G, accent.B, a * 1.4f));
-        DrawArc(new Vector2(cx, cy), 5.5f, 0f, Mathf.Tau, 20, new Color(text.R, text.G, text.B, a * 0.9f), 1f);
+        // ① 暗いガラスの板（角丸）＋細い縁光。板は面の tint をわずかに含んだ藍黒で背景を一段沈める。
+        //    縁は 1px の tint。上辺だけ角丸の内側でもう一段明るい線を引き、板に「厚み」を持たせる。
+        var glass = new Color(0.05f + panel.R * 0.06f, 0.05f + panel.G * 0.05f, 0.10f + panel.B * 0.08f, Mathf.Min(a * 1.7f, 0.30f));
+        var rim = new Color(panel.R, panel.G, panel.B, a * 1.2f);
+        UiKit.Box(this, rect, glass, 4f, rim, 1f);
+        DrawLine(new Vector2(x + 5f, y + 1.5f), new Vector2(x + CardW - 5f, y + 1.5f),
+            new Color(panel.R, panel.G, panel.B, a * 1.6f), 1f);
 
-        // 表示名（太め濃いめ＝1pxずらして二度描きで擬似ボールド・α高め）。
-        var nameC = new Color(text.R, text.G, text.B, Mathf.Min(a * 2.6f, 0.6f));
+        // ② アバターは輪だけ（中は塗らない＝誰でもない）。
+        float cx = x + 11f, cy = y + 12f;
+        DrawArc(new Vector2(cx, cy), 4.5f, 0f, Mathf.Tau, 24, new Color(accent.R, accent.G, accent.B, Mathf.Min(a * 2.2f, 0.40f)), 1f);
+
+        // ③ 頭の行：表示名（9px）・@ハンドル・「· 2時間」を一段落とした同じ色で一行に。認証は輪の欠けた小さな点だけ。
+        var head = new Color(text.R, text.G, text.B, Mathf.Min(a * 1.6f, 0.36f));
         string name = DisplayName(i);
-        var headY = new Vector2(x + 20f, y + 11f);
-        _font.DrawString(ci, headY, name, HorizontalAlignment.Left, -1, 9, nameC);
-        _font.DrawString(ci, headY + new Vector2(0.6f, 0f), name, HorizontalAlignment.Left, -1, 9, nameC);
-        float nameW = _font.GetStringSize(name, HorizontalAlignment.Left, -1, 9).X;
-        float hx = x + 20f + nameW + 2f;
-
-        // 認証バッジ（時々）＝小さな青丸＋白チェック。彩度は控えめ・弾の色相と分離した薄青。
+        var headPos = new Vector2(x + 21f, y + 15f);
+        _font.DrawString(ci, headPos, name, HorizontalAlignment.Left, -1, 9, head);
+        float hx = x + 21f + _font.GetStringSize(name, HorizontalAlignment.Left, -1, 9).X + 3f;
         if (Verified(i))
         {
-            DrawCircle(new Vector2(hx + 2.5f, y + 8f), 2.5f, new Color(0.45f, 0.62f, 0.85f, a * 2.0f));
-            DrawLine(new Vector2(hx + 1.3f, y + 8f), new Vector2(hx + 2.2f, y + 9f),
-                new Color(0.95f, 0.97f, 1f, a * 2.2f), 1f);
-            DrawLine(new Vector2(hx + 2.2f, y + 9f), new Vector2(hx + 3.6f, y + 6.8f),
-                new Color(0.95f, 0.97f, 1f, a * 2.2f), 1f);
-            hx += 6f;
+            // 認証バッジ＝薄青の小さな点（彩度は控えめ・弾の色相と分離）。
+            DrawCircle(new Vector2(hx + 1.5f, y + 11.5f), 1.5f, new Color(0.55f, 0.70f, 0.88f, Mathf.Min(a * 2.0f, 0.40f)));
+            hx += 5f;
         }
+        string tail = $"{Handle(i)} {RelTime(i)}";
+        _font.DrawString(ci, new Vector2(hx, y + 15f), tail, HorizontalAlignment.Left, -1, 8, head);
 
-        // @ハンドル（灰色＝低α）＋「· 2時間」相対時刻（中黒区切り）。
-        var grey = new Color(text.R, text.G, text.B, a * 1.25f);
-        string handle = Handle(i);
-        _font.DrawString(ci, new Vector2(hx, y + 11f), handle, HorizontalAlignment.Left, -1, 8, grey);
-        float thx = hx + _font.GetStringSize(handle, HorizontalAlignment.Left, -1, 8).X + 2f;
-        _font.DrawString(ci, new Vector2(thx, y + 11f), RelTime(i), HorizontalAlignment.Left, -1, 8, grey);
-
-        // ② 本文（10px）。引用リプ（quote）なら左にスレッド線＋字下げ。
-        float bx = x + 20f, by = y + 28f;
+        // ④ 本文（11px・1 行）。読めることが第一＝板の中で一番濃い。引用リプ（quote）なら左に極細の線＋字下げ。
+        float bx = x + 21f, by = y + 30f;
         if (quote)
         {
-            DrawLine(new Vector2(x + 18f, y + 18f), new Vector2(x + 18f, y + 32f),
-                new Color(text.R, text.G, text.B, a * 1.2f), 1f);
-            bx = x + 23f;
+            DrawLine(new Vector2(x + 16f, y + 21f), new Vector2(x + 16f, y + 33f),
+                new Color(panel.R, panel.G, panel.B, a * 1.4f), 1f);
+            bx = x + 24f;
         }
         _font.DrawString(ci, new Vector2(bx, by), body,
-            HorizontalAlignment.Left, -1, 10, new Color(text.R, text.G, text.B, Mathf.Min(a * 2.4f, 0.55f)));
+            HorizontalAlignment.Left, -1, 11, new Color(text.R, text.G, text.B, Mathf.Min(a * 3.0f, 0.62f)));
 
-        // ③ アクション行（X の並び順で4つ＝返信・リポスト・いいね・閲覧数）。極小アイコン＋数字を横並び。
-        float ay = y + CardH - 9f;       // アイコンの上端
-        float ty = y + CardH - 3f;       // 数字のベースライン
-        var meta = new Color(text.R, text.G, text.B, a * 1.15f);
-        float ax = x + 20f;
-        float step = (CardW - 26f) / 4f; // 4等分で横並び
-        // 返信
-        IconReply(ax, ay, meta);
-        _font.DrawString(ci, new Vector2(ax + 8f, ty), replies.ToString(), HorizontalAlignment.Left, -1, 8, meta);
-        // リポスト
-        ax += step;
-        IconRepost(ax, ay, meta);
-        _font.DrawString(ci, new Vector2(ax + 8f, ty), reposts.ToString(), HorizontalAlignment.Left, -1, 8, meta);
-        // いいね（押されていれば淡い桃＝Xのワンポイント。弾の濃ピンクと被らない範囲の低彩度桃）。
-        ax += step;
-        var heartC = liked ? new Color(0.78f, 0.55f, 0.62f, a * 1.7f) : meta;
-        IconHeart(ax, ay, heartC);
-        _font.DrawString(ci, new Vector2(ax + 8f, ty), likes.ToString(), HorizontalAlignment.Left, -1, 8,
-            liked ? heartC : meta);
-        // 閲覧数
-        ax += step;
-        IconViews(ax, ay, meta);
-        _font.DrawString(ci, new Vector2(ax + 8f, ty), FmtCount(views), HorizontalAlignment.Left, -1, 8, meta);
+        // ⑤ エンゲージ行：点 4 つ＋薄い数字（返信・リポスト・いいね・閲覧の順）。図像は描かない。
+        float dy = y + CardH - 6.5f;     // 点の中心
+        var dot = new Color(text.R, text.G, text.B, Mathf.Min(a * 1.4f, 0.30f));
+        float ax = x + 22f;
+        float step = (CardW - 30f) / 4f;
+        string[] nums = { replies.ToString(), reposts.ToString(), likes.ToString(), FmtCount(views) };
+        for (int k = 0; k < 4; k++)
+        {
+            // いいね済みは点だけ淡い薔薇色（弾の濃ピンクと被らない低彩度）。
+            var c = (k == 2 && liked) ? new Color(0.80f, 0.60f, 0.66f, Mathf.Min(a * 2.0f, 0.42f)) : dot;
+            DrawCircle(new Vector2(ax, dy), 1.2f, c);
+            _font.DrawString(ci, new Vector2(ax + 4f, dy + 2.5f), nums[k], HorizontalAlignment.Left, -1, 7, c);
+            ax += step;
+        }
     }
 
     // 閲覧数は大きくなりがちなので 1.2万 / 980 のように省略表記（X感）。
@@ -378,33 +349,39 @@ public partial class StageImagery : Node2D
             DrawLine(new Vector2(rx, ry), new Vector2(rx - 9f, ry + 2.5f), rain, 1f);
         }
 
-        // 言いかけて弾ける白い吹き出し（道中の演出）。文字が浮かびかけ、言い切る前に弾けて消える。
-        string[] mutter = { "す——", "あの——", "ね、——", "ごめ——" };
-        for (int i = 0; i < mutter.Length; i++)
+        // 送信取消の下書き（道中の演出・2026-09-06 作り直し＝案 a）。白い板は使わない。
+        //   文字だけが極薄い水色〜灰で背景に直接浮かび、言い切る前に末尾から一文字ずつ欠けていく（取り消し）。
+        //   文字の下には入力欄の名残の極細線。文字が全部欠けたあと、線だけが残って薄れる。
+        //   濃さは「読める」より「消えかけている」が伝わる α 0.35〜0.5。板（DrawCard）と同じ淡水色・同じ極細線＝同じ画面言語。
+        string[] drafts = { "す——", "あの——", "ね、——", "ごめ——" };
+        var draftC = new Color(0.78f, 0.86f, 0.96f);
+        var ci = GetCanvasItem();
+        for (int i = 0; i < drafts.Length; i++)
         {
-            const float life = 4.2f;
-            float p = (float)(((_t + i * 1.05) % life) / life); // 0..1
+            const float life = 5.6f;
+            float p = (float)(((_t + i * 1.4) % life) / life); // 0..1
             float bx = 46f + (i * 83) % (int)(W - 96f);
-            float by = 122f - p * 44f;                          // ゆっくり上昇
-            if (p < 0.72f)
+            float by = 126f - p * 26f;                          // 前より控えめに、ゆっくり上へ
+            string s = drafts[i];
+            // 0..0.18 浮かぶ／0.18..0.52 留まる／0.52..0.84 末尾から一文字ずつ欠ける／0.84..1 線だけ残って消える
+            int keep = s.Length;
+            float aa = 0.46f;
+            if (p < 0.18f) aa = 0.46f * (p / 0.18f);
+            else if (p < 0.52f) { }
+            else if (p < 0.84f) keep = Mathf.Max(0, s.Length - 1 - (int)((p - 0.52f) / 0.32f * s.Length));
+            else { keep = 0; aa = 0.46f * (1f - (p - 0.84f) / 0.16f); }
+            aa *= fade;
+            float fullW = _font.GetStringSize(s, HorizontalAlignment.Left, -1, 10).X;
+            if (keep > 0)
+                _font.DrawString(ci, new Vector2(bx, by), s.Substring(0, keep),
+                    HorizontalAlignment.Left, -1, 10, new Color(draftC, aa));
+            // 極細の下線（入力欄の名残）。文字が欠けても線の長さは変わらない＝「そこに言葉があった」だけが残る。
+            DrawLine(new Vector2(bx, by + 3f), new Vector2(bx + fullW, by + 3f), new Color(draftC, aa * 0.45f), 1f);
+            // 欠けていく間だけ、末尾でカーソルが明滅する（削除中）。
+            if (keep > 0 && p >= 0.52f && p < 0.84f && Frac((float)_t * 2.5f) < 0.5f)
             {
-                float aa = Mathf.Min(p / 0.18f, 1f) * 0.55f * fade;
-                var sz = _font.GetStringSize(mutter[i], HorizontalAlignment.Left, -1, 9);
-                DrawRect(new Rect2(bx - 3f, by - sz.Y - 1f, sz.X + 6f, sz.Y + 4f), new Color(1f, 1f, 1f, aa));
-                _font.DrawString(GetCanvasItem(), new Vector2(bx, by), mutter[i],
-                    HorizontalAlignment.Left, -1, 9, new Color(0.2f, 0.2f, 0.26f, Mathf.Min(aa * 1.8f, 1f)));
-            }
-            else if (p < 0.80f)
-            {
-                // 弾ける瞬間：白い破片が散る
-                float f = 1f - (p - 0.72f) / 0.08f;
-                var frag = new Color(1f, 1f, 1f, 0.5f * f * fade);
-                for (int k = 0; k < 6; k++)
-                {
-                    float ang = Mathf.Tau * k / 6f;
-                    DrawLine(new Vector2(bx + 8f, by - 4f),
-                        new Vector2(bx + 8f + Mathf.Cos(ang) * 6f, by - 4f + Mathf.Sin(ang) * 6f), frag, 1f);
-                }
+                float cw = _font.GetStringSize(s.Substring(0, keep), HorizontalAlignment.Left, -1, 10).X;
+                DrawLine(new Vector2(bx + cw + 1f, by - 8f), new Vector2(bx + cw + 1f, by + 1f), new Color(draftC, aa), 1f);
             }
         }
 
