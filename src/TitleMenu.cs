@@ -8,7 +8,7 @@ public partial class TitleMenu : Node2D
     private GameManager _game = null!;
 
     private enum Item { NewGame, Continue, HowToPlay, Tutorial, Settings, Credits, Quit }
-    private static readonly (Item item, string jp, string en)[] Items =
+    private static readonly (Item item, string jp, string en)[] AllItems =
     {
         (Item.NewGame,   "はじめから",       "NEW GAME"),
         (Item.Continue,  "つづきから",       "CONTINUE"),
@@ -18,6 +18,10 @@ public partial class TitleMenu : Node2D
         (Item.Credits,   "クレジット",       "CREDITS"),
         (Item.Quit,      "おわる",           "QUIT"),
     };
+    // 実際に並べる項目。練習面の非表示中(GameManager.TutorialEnabled==false)は「チュートリアル」を落とす。
+    // 選択・描画・クリック判定はすべてこの配列の index で回るので、落とせば行が詰まって隙間は空かない。
+    private static readonly (Item item, string jp, string en)[] Items =
+        System.Array.FindAll(AllItems, e => GameManager.TutorialEnabled || e.item != Item.Tutorial);
 
     private static readonly (string h, string t)[] Ticker =
     {
@@ -500,6 +504,7 @@ public partial class TitleMenu : Node2D
             case Item.Tutorial:
                 // 「チュートリアル」＝独立ステージ0（完全チュートリアル）を再生（既読フラグは変えない）。
                 // DiffSelect を通らないので難易度は Easy に固定（直前の選択を引き継がせない）。
+                // ※練習面の非表示中(GameManager.TutorialEnabled==false)は Items から落ちるのでここには来ない。
                 _game.Difficulty = GameManager.Diff.Easy;
                 Go("res://Stage0.tscn");
                 break;
@@ -700,6 +705,7 @@ public partial class TitleMenu : Node2D
     private void DrawMenu()
     {
         // 7項目（クレジット追加）でもプロンプト（y=656）に食い込まない行高に詰める。
+        // 練習面の非表示中は「チュートリアル」が抜けて6項目になるぶん、下に余白が増えるだけ。
         float x = 88f, top = 324f, rowH = 41f, gap = 3f, w = 360f;
         for (int i = 0; i < Items.Length; i++)
         {

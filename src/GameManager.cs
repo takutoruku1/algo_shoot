@@ -1084,8 +1084,16 @@ public partial class GameManager : Node
     // チュートリアル既読フラグなど「この端末で一度きり」の状態を保存する。
     // ───────────────────────────────────────────────────────────
     private const string PrefsPath = "user://prefs.json";
+
+    // 練習面（ステージ0「れんしゅう」）を出すか。2026-09-06 ユーザー指示で非表示。true に戻せば復活。
+    //   false の間は：プロローグ後の受講確認を出さずハブへ直行／タイトルの「チュートリアル」項目を隠す。
+    //   Stage0.tscn・StageZero・Stage0Root は残してあるので、true にすれば元の導線がそのまま戻る。
+    public const bool TutorialEnabled = false;
+
     // チュートリアル既読（端末ローカル）。初回プレイ判定に使う。
-    public bool TutorialSeen { get; private set; }
+    //   非表示中（TutorialEnabled==false）は「受講済み」とみなす＝初回判定に引っかかって進行が詰まらない。
+    public bool TutorialSeen { get => !TutorialEnabled || _tutorialSeen; private set => _tutorialSeen = value; }
+    private bool _tutorialSeen;
 
     // チュートリアル（ステージ0）の練習モード：ON の間はボム・残機を消費しない（詰み防止）。
     // 非セーブ＝ラン単位。Stage0Root の _Ready で立て、Hub 遷移時に倒す。
@@ -1105,7 +1113,8 @@ public partial class GameManager : Node
 
     private void SavePrefs()
     {
-        var data = new Godot.Collections.Dictionary { ["tutorialSeen"] = TutorialSeen };
+        // 保存するのは実際に受講したかどうか（_tutorialSeen）＝非表示中の「既読とみなす」で prefs を汚さない。
+        var data = new Godot.Collections.Dictionary { ["tutorialSeen"] = _tutorialSeen };
         using var f = FileAccess.Open(PrefsPath, FileAccess.ModeFlags.Write);
         if (f != null) f.StoreString(Json.Stringify(data));
     }

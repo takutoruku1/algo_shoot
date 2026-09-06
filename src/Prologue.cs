@@ -435,15 +435,18 @@ public partial class Prologue : Node2D
     //   ・受講済み(TutorialSeen==true)            → 受講確認（はい/いいえ）を出す。はい→Stage0 / いいえ→Hub。
     //   ※「はじめから」は ResetPersistent 済みだが TutorialSeen は端末ローカル prefs で別管理（消えない）＝
     //     一度通したプレイヤーには毎回スキップ選択肢を出す、という設計。
+    //   ※練習面の非表示中(GameManager.TutorialEnabled==false)は上記を全部飛ばしてハブへ直行する。
     private bool _started;
     private void StartGame()
     {
         if (_started) return;
         var g = GetNodeOrNull<GameManager>("/root/Game");
-        if (g == null || !g.TutorialSeen)
+        bool tutorial = GameManager.TutorialEnabled;
+        if (!tutorial || g == null || !g.TutorialSeen)
         {
+            // 非表示中はハブへ直行。表示中の未受講は、これまでどおり確認を出さずステージ0へ。
             _started = true;
-            GetTree().ChangeSceneToFile("res://Stage0.tscn");
+            GetTree().ChangeSceneToFile(tutorial ? "res://Stage0.tscn" : "res://Hub.tscn");
             return;
         }
         // 受講済み：確認フェーズへ（シーン遷移はそこで決める）。
