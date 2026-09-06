@@ -159,12 +159,87 @@ public partial class StageRei : Node
 
     // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
     //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
+    //   17（道中の選択肢 案C）: 一行目の直後に S3-5c の下書き選択が入り、受けのあと残り2行（MidEndTail）へ戻る。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
         (1, "右上の数字。「3」。……残った三つの席の、ひとつは、あの一行です。", MFace),
         (1, "……光が、重い。……気のせいでは、なさそうです。", MDoubt),   // 【濁】広がる
         (1, "画面が、部屋を、呑みこんでいきます。……奥に、笑顔だけが。", MFace),
     };
+
+    // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
+    // レイ面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
+    //   s3_2 … Mid（step 2）の末尾。効果＝次のハブの再訪小話が「同接」に固定＋一語混ざる。
+    //   s3_5c … MidEnd（step 9）の一行目の直後。効果＝E4 の開示に一行（送られたか、散ったか）。
+
+    // S3-2 小話・暗い画面。炎上で光の薄いミナが、この面で初めて、自分のことで一度だけ聞く。
+    private static readonly (int who, string text, string face)[] S32Cue =
+    {
+        (1, "……ご主人様。この部屋、そちらから、見えていますか。——わたくしの光が、少し、暗いので。", MDoubt),
+    };
+    private static readonly string[] S32Choices = { "見えてる", "ちゃんと見てる", "同接、9", "（送らない）" };
+    private static (int who, string text, string face)[] S32Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "見えてる", ""),
+            (1, "……見えてる、と。——では、このままで。暗いのは、こちらの都合ですので。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "ちゃんと見てる", ""),
+            (1, "……ちゃんと、と。——一語、多いですね。……多いぶんは、集計に、入れておきます。", MSmile),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "同接、9", ""),
+            (1, "……九。——右上の数字は、動きません。こちらは、向こう側の数に、入りませんので。……こちらで、ひとつ、数えておきます。", MSmile),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——見えているかは、観測できません。……暗いまま、続けます。", MFace),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S32Tail =
+    {
+        (1, "——祓います。「見て」の声を。……見ているのは、こちらですが。", MFace),
+    };
+    // step 2 のきっかけ＝S3-2 の小話をそのまま流し切ってから、暗い画面の一行。毎フレーム組み直さない。
+    private static readonly (int who, string text, string face)[] MidThenS32 = Mid.Concat(S32Cue).ToArray();
+
+    // S3-5c 道中C・三つの席。ふざけ枠の代わりに**ミナ自身の下書き**を三つめに混ぜる（どれかは言わない）。
+    //   表記（です・ます）で気づける。「見ています」は S3-8 の決定打「見ていました。」の現在形。
+    //   きっかけ＝MidEnd の一行目＋この報告。文言は MidEnd から切り出す（二重に持たない）。
+    private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
+    {
+        (1, "……ご主人様。ご報告を。下書きに、ひとつ、わたくしのを、混ぜてあります。——どれかは、言いません。", MFace),
+    }).ToArray();
+    private static readonly string[] S35cChoices = { "見てる", "ここにいる", "見ています", "（送らない）" };
+    private static (int who, string text, string face)[] S35cReply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "見てる", ""),
+            (1, "……見てる、と。——はい。……わたくしのは、散りました。自分のぶんは、自分で、拾っておきます。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "ここにいる", ""),
+            (1, "……ここにいる、と。——席が、ひとつ、こちらに。……わたくしのは、散りました。自分で、拾っておきます。", MFace),
+        },
+        // 三つめがミナの一件。気づくかどうかも、この場面の遊び（ミナはどれが自分のかを言わない）。
+        2 => new (int, string, string)[]
+        {
+            (0, "見ています", ""),
+            (1, "……それ、わたくしのです。——気づいて、いただけましたか。それとも、偶然か。……どちらでも。送られました。", MFace),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……三件、散りました。うち、一件は、わたくしのです。——同じ棚に、置いておきます。", MWorried),
+        },
+    };
+    // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
+    private static readonly (int who, string text, string face)[] S35cTail = MidEnd.Skip(1).ToArray();
 
     // S3-6 ボス出現（仮台本 07）。ボス登場の説明台詞は置かない（07 に S3-6 の導入行が無く、
     //   ボス戦の口上はボス本体 BossRei の改心／RECLOSE／挑発が担う）。
@@ -272,14 +347,16 @@ public partial class StageRei : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, Intro); break;      // S3-1 配信枠・導入
-            case 2: Step_Lines(delta, Mid); break;        // S3-2 小話 Mid（気づいて／見て／ふーん）
+            // ★S3-2 の下書き選択（17）＝小話の末尾に「見えていますか」 → 選択 → 受け＋締め
+            case 2: Step_Choice(delta, "s3_2", MidThenS32, S32Choices, S32Reply, S32Tail); break;
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             case 4: Step_Lines(delta, BossTalk); break;   // S3-3 道中A／BossTalk（削除済みの一行・足音）
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 9: Step_Lines(delta, MidEnd); break;     // S3-5c 呑みこまれる部屋（【濁】広がる）
+            // ★S3-5c の下書き選択（17）＝三つの席の直後にミナの一件が混ざる → 選択 → 07 の残り2行
+            case 9: Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, BossIntro); break; // S3-6 ボス出現（07 に導入行は無い＝空）
             case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
@@ -343,6 +420,103 @@ public partial class StageRei : Node
             }
             ShowLine(lines);
         }
+    }
+
+    // ───── 道中の下書き選択（17）の三フェーズ：きっかけ → 選択 → 受け＋締め → Advance ─────
+    //   型は S3-7（Step_LinesHold ＋ Step_MidChoice ＋ Step_MidChoiceAfter）と同じで、
+    //   id・候補・受け・締めを引数で受け、1つの step の中で完結させただけ。
+    //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
+    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
+    //   （末尾＝（送らない））のまま即決される＝ここで詰まらない。
+    //   行送りの状態は、ホスト側（_stepStarted / _introLine）と混ざらないようここに閉じて持つ。
+    private int _cPhase;       // 0=きっかけ / 1=選択提示中 / 2=受け＋締め
+    private int _cLine;
+    private double _cHold;
+    private bool _cStarted;
+    private ChoiceOverlay? _cOverlay;
+    private double _cChoiceT;  // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _cAfter = System.Array.Empty<(int, string, string)>();
+    private void Step_Choice(double delta, string id,
+        (int who, string text, string face)[] cue, string[] choices,
+        System.Func<int, (int who, string text, string face)[]> reply,
+        (int who, string text, string face)[] tail)
+    {
+        if (!_stepStarted) { _stepStarted = true; _cPhase = 0; _cStarted = false; }
+        switch (_cPhase)
+        {
+            case 0:
+                if (RunChoiceLines(delta, cue)) { _cPhase = 1; _cStarted = false; }
+                break;
+            case 1:
+                if (!_cStarted)
+                {
+                    _cStarted = true;
+                    _cChoiceT = 0;
+                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
+                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                }
+                _cChoiceT += delta;
+                if (_cOverlay == null || !_cOverlay.Decided) return;
+                int sel = _cOverlay.Selected;
+                ChoiceEffects.Record(GetNodeOrNull<GameManager>("/root/Game"), id, choices, sel, (float)_cChoiceT);
+                _cAfter = reply(sel).Concat(tail).ToArray();
+                _cOverlay.QueueFree();
+                _cOverlay = null;
+                _cPhase = 2;
+                _cStarted = false;
+                break;
+            default:
+                if (!RunChoiceLines(delta, _cAfter)) return;
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                Advance();
+                break;
+        }
+    }
+
+    // Step_Choice 専用の行送り（終端で true。バブルは閉じずに保持したまま返す＝そこへ選択が重なる）。
+    //   送り作法は Step_Lines と同じ（Z 1段目＝全文表示／2段目＝次行。既読スキップ・オートも同じ）。
+    private bool RunChoiceLines(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_cStarted)
+        {
+            _cStarted = true;
+            _cLine = 0;
+            _cHold = 0;
+            if (lines.Length == 0) return true;
+            Hud.HoldBubble = true;
+            ShowChoiceLine(lines);
+        }
+        _cHold += delta;
+        if (_zEdge && _cHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _cHold = 0;
+            return false;
+        }
+        if (_cHold >= 0.15 && Hud.DialogRevealed
+            && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _cHold >= 1.4)))
+        {
+            _cHold = 0;
+            _cLine++;
+            if (_cLine >= lines.Length) return true;
+            ShowChoiceLine(lines);
+        }
+        return false;
+    }
+
+    private void ShowChoiceLine((int who, string text, string face)[] lines)
+    {
+        var (who, text, face) = lines[_cLine];
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RFace : face,
+            Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? MFace : face,
+            _ => MFace,
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }
 
     private void ShowLine((int who, string text, string face)[] lines)

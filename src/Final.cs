@@ -75,6 +75,9 @@ public partial class Final : Node2D
         "わたしのせいだ", "ひとりになる", "なんで", "きえたい", "たすけて",
     };
     private readonly List<(string s, float x, float y, float sp)> _drift = new();
+    // 頂点で漂う語の総数の上限（固定の悲鳴 22 ＋ 散った言葉 16）。旧 30（散った語 8）から、
+    //   道中の選択が6か所増えたぶん（17）だけ散った語の枠を広げた。
+    private const int DriftMax = 38;
 
     private struct DLine { public string Who; public string Text; }
     private readonly List<DLine> _talk = new List<DLine>();
@@ -105,8 +108,14 @@ public partial class Final : Node2D
 
         // 悲鳴ワードに【散】の実文字列を混ぜる（説明はしない。08 F2 の「拾う」弾の系譜）。
         //   現行10語はそのまま残し、散った言葉を後ろへ足して漂わせる。
+        //   17（道中の選択肢 案C）: 道中の選択が6か所増えて散った言葉が二十数件になるので、
+        //   散った言葉の枠を 8 → 16 に広げ（固定22＋散った語16＝38）、
+        //   「送れない」の場面（S2-4）で散った語を**先頭**に入れる＝必ず混ざるようにする。
+        var scattered = new List<string>(ChoiceEffects.PriorityScattered(_game));
         foreach (var w in _game?.ScatteredWords ?? new List<string>())
-            if (!string.IsNullOrEmpty(w) && _drift.Count < 30)
+            if (!scattered.Contains(w)) scattered.Add(w);
+        foreach (var w in scattered)
+            if (!string.IsNullOrEmpty(w) && _drift.Count < DriftMax)
                 _drift.Add((w, _rng.RandfRange(0, W), _rng.RandfRange(0, H), _rng.RandfRange(10f, 34f)));
     }
 
