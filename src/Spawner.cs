@@ -20,7 +20,7 @@ public partial class Spawner : Node
     private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
     private const float IntervalStart = 2.0f;
     private const float IntervalEnd = 0.8f;
-    private const int MaxAlive = 10;      // 同時出現の上限
+    private const int MaxAliveFallback = 8; // 同時出現の上限（GameManager が取れないときの既定＝Normal相当）
 
     // ── 第4種：回り込みザコ「引用リプ」（FlankAim）の調整値（C-1・左端張り付き対策）──
     // 右から出現→上下端を走行→自機の後方(x≈FlankCampX)に着座→右向き低速単発。
@@ -71,15 +71,18 @@ public partial class Spawner : Node
         _cd -= delta;
         if (_cd > 0) return;
 
-        // 過密なら少し待つ
-        if (GetTree().GetNodesInGroup("enemies").Count >= MaxAlive) { _cd = 0.3; return; }
+        // 過密なら少し待つ（上限は難易度別＝Easy6 / Normal8 / Hard10 / Lunatic12）
+        int maxAlive = game?.MaxAliveEnemies ?? MaxAliveFallback;
+        if (GetTree().GetNodesInGroup("enemies").Count >= maxAlive) { _cd = 0.3; return; }
 
         SpawnOne();
 
         float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
-        float interval = Mathf.Lerp(IntervalStart, IntervalEnd, ramp);
+        // 難易度別の間隔倍率（Easy1.3 / Normal1.0 / Hard0.78 / Lunatic0.62）。基準の 2.0→0.8 と
+        // 最大密度到達 28 秒は据え置きで、難しいほど同じランプを詰めて湧かす（2026-09-06）。
+        float interval = Mathf.Lerp(IntervalStart, IntervalEnd, ramp) * (game?.SpawnIntervalMul ?? 1f);
         // 前のめり密度：自機が右へ寄る（攻める）ほど倍率が高い＝間隔を縮めて多く湧かす（除算）。
-        // 上限 MaxAlive は据え置き（圧殺防止）。GameManager.PlayerNormX は各 Root の TickProgress が毎フレーム更新。
+        // 同時上限は上の maxAlive で難易度別に頭打ち（圧殺防止）。GameManager.PlayerNormX は各 Root の TickProgress が毎フレーム更新。
         float spawnMul = game != null ? GameManager.SpawnRateMul(game.PlayerNormX) : 1f;
         _cd = interval * _rng.RandfRange(0.8f, 1.2f) / spawnMul;
     }

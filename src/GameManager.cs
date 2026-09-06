@@ -66,6 +66,12 @@ public partial class GameManager : Node
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
     public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };
     public float DanmakuIntervalMul => Difficulty switch { Diff.Easy => 2.1f, Diff.Hard => 1.0f, Diff.Lunatic => 0.85f, _ => 1.35f };
+    // 道中ザコの出現間隔倍率（Spawner が基準間隔に掛ける。小さいほど速く湧く）。
+    // 上の Dn/Di/弾速はどれも「撃った後の弾」にしか効かず、道中の圧＝出現密度は全難易度で同じだった
+    // （Spawner に Difficulty の参照がゼロ）。難しいほど「敵が多い」を成立させる軸をここに足す（2026-09-06）。
+    public float SpawnIntervalMul => Difficulty switch { Diff.Easy => 1.3f, Diff.Hard => 0.78f, Diff.Lunatic => 0.62f, _ => 1.0f };
+    // 同時に画面へ出せるザコの上限（Spawner の過密ガード）。間隔だけ縮めても上限で頭打ちになるので対で動かす。
+    public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 6, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
 
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
@@ -1324,7 +1330,7 @@ public partial class GameManager : Node
     //   1発あたりこの体数までしか スコア/コンボ/インプレ を返さない。超過分は浄化そのものは成立し、
     //   進行(PurifiedCount)とやさしさ(AddKindness)は従来どおり通す＝道中ゲートを詰まらせない（親切設計）。
     //   3体＝緊急回避で巻き込む標準的な体数。通常プレイのボムは割に合ったまま、
-    //   湧き上限(Spawner.MaxAlive=10)まで溜めて一掃する無限ファームだけが頭打ちになる。
+    //   湧き上限(MaxAliveEnemies＝難易度別 6/8/10/12)まで溜めて一掃する無限ファームだけが頭打ちになる。
     private const int BombPurifyRewardCap = 3;
     private int _bombPurifyCount; // 現在のボム1発で報酬を付けた体数（UseBomb でリセット）
 
