@@ -1582,8 +1582,9 @@ public partial class Hud : CanvasLayer
         => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, 12) + 6f;
 
     // 「あなた」の行に出す下書きの吹き出し印（立ち絵の代わり）。枠の左端に置く小さな角丸＋打ちかけの三点。
-    private const float DraftMarkW = 74f;
-    private static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col)
+    // ハブの小話にも「あなた」の行があるので、Hub.DrawDialog から同じ印を使えるよう公開する（見え方を1か所に保つ）。
+    public const float DraftMarkW = 74f;
+    public static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col)
     {
         const float mh = 46f;
         var r = new Rect2(leftCenter.X, leftCenter.Y - mh / 2f, DraftMarkW, mh);
