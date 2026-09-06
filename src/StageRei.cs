@@ -41,6 +41,11 @@ public partial class StageRei : Node
     private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
     private const int MidWaveB = 14;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。旧18（-4）
     private const int MidWaveC = 16;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧21（-5）
+    // 引用の嵐（step 18）で薄く回す道中弾ぶんの見込み体数。この波は「規定数で止める」ゲートを持たず
+    // 嵐が終わるまで湧き続けるので、浄化目標(StageTarget)に含めていないと嵐の途中で目標に達し、
+    // Spawner が StageCleared で自動停止して以降ずっと敵ゼロになる（＝道中Cが空になる進行不能ぎみの間）。
+    // 実測: 嵐の約38秒・StartIntensity 0.35 で 12体前後。取りこぼしを見て余裕を持たせる。
+    private const int StormWave = 16;
 
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
@@ -298,8 +303,9 @@ public partial class StageRei : Node
     {
         _rng.Randomize();
         _step = 1;
-        // 道中ザコ（A+B+C 三波）＋ボスで浄化カプセルが満ちるよう目標を設定（45体＋ボス1）。
-        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
+        // 道中ザコ（A+B+C 三波）＋引用の嵐の薄い波＋ボスで浄化カプセルが満ちるよう目標を設定（61体＋ボス1）。
+        // 嵐ぶん(StormWave)を落とすと嵐の途中で StageCleared が立ち、以降 Spawner が止まって敵が出なくなる。
+        GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + StormWave + 1);
 
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
