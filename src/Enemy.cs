@@ -58,6 +58,10 @@ public partial class Enemy : Area2D
     //   差し替えは会話ドライバが BreakCryBodyNow() を呼んだ瞬間に走る（呼ばれなければ FinishCry の
     //   Post 差し替えでそのまま着地する＝取り残しにならない）。
     protected bool DeferCryBodySwap;
+    // true＝BreakCryBodyNow を「クロスフェードで差し替える」のではなく「ガワが左右にほどけて中の人が現れる」
+    //   演出（ShellPeelFx・案1）で見せる。レイ面だけが使う（docs/20260906/astra_試行_ガワ割れ.md）。
+    //   中の人（Cry 絵）は最初からガワの背後に置かれ、ガワが退くことで見える＝二人の顔のクロスフェードにしない。
+    protected bool PeelCryBodySwap;
     private float _bodyScaleMul = 1f;   // いま表示中の絵に掛かっている倍率（足元補正の計算に使う）
 
     // 攻撃姿勢の絵（任意。空なら姿勢の差し替えをしない＝従来どおり待機のまま撃つ）。
@@ -203,6 +207,16 @@ public partial class Enemy : Area2D
     private bool _swapAnim;
     private double _swapAnimT;
     private const double SwapAnimDur = 0.22; // squash→pop の全長（クロスフェードより少し長く余韻を残す）
+
+    // ガワ割れ（PeelCryBodySwap）の進行。層は本体スプライトの兄弟として立ち、TickShellPeel が時間を送る。
+    // 会話中（Hud.BubblePaused）でも止めない＝止めるとガワが開いたまま固まる。
+    private ShellPeelFx? _peel;
+    private double _peelT;
+    // ガワ割れが始まってから、この秒数は会話を送らせない（決定打の一行を演出の尺ぶん置く）。
+    // ShellPeelFx.SettleAt と同じ＝二枚が消え、部品も消えて全部が静止するまで。
+    public const double ShellPeelHold = 2.20;
+    private bool _peelStarted;
+    public bool ShellPeelBusy => _peelStarted && _peelT < ShellPeelHold;
 
     private CollisionShape2D _bodyShape = null!;
 
@@ -977,11 +991,83 @@ public partial class Enemy : Area2D
 
     // 遅延させていた Cry 絵への差し替えを、いま走らせる（DeferCryBodySwap 用）。
     //   レイ面の「決定打でガワが割れる」瞬間に会話ドライバから呼ぶ。二度呼んでも二重に差し替えない。
+    //   PeelCryBodySwap が立っていれば、クロスフェードではなくガワが左右にほどける演出で見せる。
     protected void BreakCryBodyNow()
     {
         if (!DeferCryBodySwap) return;
         DeferCryBodySwap = false;
+        if (PeelCryBodySwap && StartShellPeel()) return; // 層を立てられた＝差し替えは層が終わってから
         SwapBody(CryTexPath, CryBodyScale);
+    }
+
+    // ガワ割れ（案1）を始める。ここでやるのは3つだけ：
+    //   (1) いま出ているガワ（本体スプライトの絵）と、その奥に置く中の人（Cry 絵）を層へ渡す
+    //   (2) 本体スプライトを隠す＝以降 1.8 秒は層が「ガワ二枚＋中の人」を描く
+    //   (3) 部品（枠・吹き出し・星）へ「公転をやめて外へ数px退きながら消えろ」を伝える
+    // 素材が揃わない（Cry 絵が無い等）ときは false を返す＝呼び出し側が従来の差し替えへ落ちる。
+    private bool StartShellPeel()
+    {
+        if (_peelStarted || !_hasBodyTex || _bodySprite == null) return false;
+        var shell = _bodySprite.Texture;
+        var inner = string.IsNullOrEmpty(CryTexPath) ? null : ResourceLoader.Load<Texture2D>(CryTexPath);
+        if (shell == null || inner == null) return false;
+
+        var parent = _bodySprite.GetParent();
+        if (parent == null) return false;
+
+        // ガワの表示中心（親のローカル座標）。Offset はテクスチャ座標なのでスケールを掛けて px に直す。
+        // FlipH で Offset.x は既に符号が入っている（ApplyBodyOffset がそう入れている）のでそのまま使う。
+        float sc = _baseScale;
+        Vector2 shellOffs = _bodySprite.Position + _bodySprite.Offset * sc;
+        Vector2 shellSize = new Vector2(shell.GetWidth(), shell.GetHeight()) * sc;
+
+        // 中の人は表示高 BodyDisplayH×CryBodyScale（レイなら 72×0.75＝54px）。足元をガワと揃える：
+        // 素材はどれも足元まで詰めてある（不透明域が下端）ので、縮めたぶん浮く (1-倍率)/2 を押し下げる。
+        float innerH = BodyDisplayH * (CryBodyScale <= 0f ? 1f : CryBodyScale);
+        float innerSc = innerH / inner.GetHeight();
+        Vector2 innerSize = new Vector2(inner.GetWidth(), inner.GetHeight()) * innerSc;
+        Vector2 innerOffs = shellOffs + new Vector2(0f, (BodyDisplayH - innerH) * 0.5f);
+
+        _peel = new ShellPeelFx { Name = "ShellPeel", ZIndex = _bodySprite.ZIndex };
+        parent.AddChild(_peel);
+        _peel.Configure(shell, shellSize, shellOffs, _bodySprite.FlipH, inner, innerSize, innerOffs);
+
+        _bodySprite.Visible = false;       // 以降は層が描く（同じ絵が二重に出ない）
+        _fadeSprite?.QueueFree();          // 直前の差し替えの残りがあれば畳む
+        _fadeSprite = null;
+        _swapAnim = false;                 // squash→pop も走らせない（静かに退かせる）
+        _parts?.OnShellPeel();             // 部品も公転をやめ、わずかに外へ退きながら 2.2s までに消える
+        _peelStarted = true;
+        _peelT = 0;
+        return true;
+    }
+
+    // ガワ割れの時間を送る。会話中でも進めたいので _PhysicsProcess の早期 return より前で呼ぶ。
+    // ガワが消え切った時点（1.8s）で、層の中の人を本体スプライトへ引き渡す＝以降は通常の経路に戻る
+    //（FinishCry の post 差し替えも、退場のフェードも、そのまま効く）。
+    private void TickShellPeel(double delta)
+    {
+        if (_peel == null) return;
+        _peelT += delta;
+        _peel.Tick((float)delta);
+        if (!_peel.Finished) return;
+
+        // 本体スプライトを中の人（Cry 絵）へ。層と同じ位置・同じ大きさなので、絵は動かずに入れ替わる。
+        // ここでは SwapBody を使わない：クロスフェードと squash→pop が走ると「変身」に見えるため、
+        // テクスチャとスケールだけ差し替えて、そのまま立たせる。
+        var inner = string.IsNullOrEmpty(CryTexPath) ? null : ResourceLoader.Load<Texture2D>(CryTexPath);
+        if (inner != null && _bodySprite != null)
+        {
+            _bodyScaleMul = CryBodyScale <= 0f ? 1f : CryBodyScale;
+            _bodySprite.Texture = inner;
+            _baseScale = BodyDisplayH / inner.GetHeight() * _bodyScaleMul;
+            _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
+            ApplyBodyOffset();
+            _bodySprite.SelfModulate = Colors.White;
+            _bodySprite.Visible = true;
+        }
+        _peel.Dismiss();
+        _peel = null;
     }
 
     // cry の終了はこの1経路に集約する（手動送り／CryHoldDur 経過／保険タイムアウトのどれでも同じ後処理）。
@@ -1027,6 +1113,11 @@ public partial class Enemy : Area2D
         // cry の保険タイムアウトも状態に関わらず常に進める
         //（登場演出中に撃破された等で下の early-return に阻まれても必ず計られるように）。
         if (_crying) TickCryWatchdog(delta);
+
+        // ガワ割れも状態に関わらず進める。会話中（BubblePaused）でも、cry の early-return より前でも
+        // 送らないと、ガワが開いたまま／閉じたまま固まる。
+        if (_peel != null) TickShellPeel(delta);
+        else if (_peelStarted && _peelT < ShellPeelHold) _peelT += delta; // 静止保持ぶんの時計は続ける
 
         // 攻撃姿勢の戻し（会話中も進める＝会話に入っても攻撃絵で固まらない）。
         if (_attackPoseT > 0) TickAttackPose(delta);

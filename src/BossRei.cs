@@ -167,6 +167,10 @@ public partial class BossRei : Enemy
         // 「笑顔のまま声だけが崩れる」三行が中の人の顔で流れてしまうので、差し替えを遅延させて
         // ShowLine が BreakAtLine で BreakCryBodyNow() を呼ぶ。
         DeferCryBodySwap = true;
+        // その差し替えを「クロスフェード」ではなく「ガワが左右にほどけて、奥にいた人が見える」で見せる
+        //（docs/20260906/astra_試行_ガワ割れ.md 案1・ユーザー決定 2026-09-06）。
+        // 中の人は決定打の時点で既にガワの背後に立っている＝変身ではなく、隠れていた人が現れる。
+        PeelCryBodySwap = true;
         // 改心後の中の人を長く見せる（DEV_QUEUE P2）。既定（余韻 0.6s → 0.9s でフェード）だと
         // 割れたガワの下から出てきた姿が 1.5 秒ほどで消える。余韻を 3.6s に伸ばし、歩きも 90→28px/s
         // へ落として、画面外へ抜ける前に「出てきた人」を見せ切る（フェードの尺は共通のまま）。
@@ -428,7 +432,10 @@ public partial class BossRei : Enemy
 
         if (_seq)
         {
-            if (zEdge && _lineT >= 0.25)
+            // ガワ割れが走っている間（2.2秒）は送らせない。ここを送れてしまうと、二枚が離れていく途中で
+            // 会話が畳まれて post 差し替えが走り、「割れる」より先に「別の絵になった」が来てしまう。
+            // QA の自動送りも同じ経路（Pad.AdvanceHeld）を通るので、同じだけ待つ。
+            if (zEdge && _lineT >= 0.25 && !ShellPeelBusy)
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

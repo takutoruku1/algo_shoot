@@ -91,6 +91,7 @@ public partial class BossParts : Node2D
         public float FadeAtRedeem;   // 改心に入った瞬間の Fade（cry で沈んでいればその値）。ここから 0 へ落とす
         public float BlinkT;         // Blink 用の次回までの残り(s)
         public float BlinkOn;        // Blink の点灯残り(s)
+        public float PeelPhase;      // ガワ割れで凍らせた公転の位相（T の代わりに描画で使う）
         public float Focus;          // 集束（0=待機の薄さ／1=発射点に集まって濃い）。こはるの後光だけ使う
     }
 
@@ -144,8 +145,8 @@ public partial class BossParts : Node2D
         });
     }
 
-    // 状態。EnterIdle / OnAttackStart / OnHit / OnCry / OnRedeem が切り替える。
-    private enum St { Idle, Wind, Release, Hit, Cry, Redeem }
+    // 状態。EnterIdle / OnAttackStart / OnHit / OnCry / OnRedeem / OnShellPeel が切り替える。
+    private enum St { Idle, Wind, Release, Hit, Cry, Redeem, Peel }
     private St _st = St.Idle;
     private float _stT;
 
@@ -155,10 +156,17 @@ public partial class BossParts : Node2D
     private const float CryDur = 0.9f;      // 撃破直後、部品が公転をやめて力尽きるまでの尺
     private const float CryFade = 0.45f;    // 改心の会話中に部品が沈む先の濃さ（0で消える＝ここでは消し切らない）
     private const float RedeemDur = 1.2f;   // 改心で全部消えるまでの尺
+    // ガワ割れ（レイの決定打）。公転を止め、外へ最大 PeelDrift px だけ退きながら PeelDur で消える。
+    // 尺は ShellPeelFx.SettleAt と同じ 2.2s＝ガワ二枚（1.8s）が消えた少し後に部品も消え、そこから静止が始まる。
+    private const float PeelDur = 2.2f;
+    // 退く距離の上限(px)。docs は 6px だが、それは 1280×720 想定の値（ShellPeelFx の注記と同じ理由で
+    // この game の 384×216 では 3 倍以上に見える）。同じ 0.3 倍で詰めて、放射ではなく「力が抜けた」に留める。
+    private const float PeelDrift = 1.8f;
     private const float AttackRetrigger = 0.7f; // これより早い再攻撃は同じ一拍として無視（連射で震えない）
     private const float HitRetrigger = 0.22f;   // 同じく連続被弾の間引き
 
     private readonly List<Part> _parts = new List<Part>();
+    private Vector2[] _peelStart = System.Array.Empty<Vector2>(); // ガワ割れ開始時の Extra（そこから退かせる）
     private Node2D _back = null!, _front = null!, _add = null!;
 
     private string _name = "";
@@ -432,7 +440,7 @@ public partial class BossParts : Node2D
     // 待機へ戻す（公転・脈動・漂い）。
     public void EnterIdle()
     {
-        if (_st == St.Redeem) return; // 改心中は戻さない
+        if (_st == St.Redeem || _st == St.Peel) return; // 改心中・ガワ割れ中は戻さない
         _st = St.Idle; _stT = 0f;
     }
 
@@ -441,7 +449,7 @@ public partial class BossParts : Node2D
     // 一度始めたら Wind→Release が終わるまで（AttackRetrigger 秒）新しい攻撃として扱わない。
     public void OnAttackStart()
     {
-        if (_st == St.Redeem) return;
+        if (_st == St.Redeem || _st == St.Peel) return;
         if ((_st == St.Wind || _st == St.Release) && _stT < AttackRetrigger) return;
         _st = St.Wind; _stT = 0f;
         foreach (var p in _parts) { p.Vel = Vector2.Zero; p.SpinVel = 0f; }
@@ -453,7 +461,7 @@ public partial class BossParts : Node2D
     //（毎フレーム散らし直すと部品が原点で震えるだけになり、当たっている手応えが逆に消える）。
     public void OnHit()
     {
-        if (_st == St.Redeem) return;
+        if (_st == St.Redeem || _st == St.Peel) return;
         if (_st == St.Hit && _stT < HitRetrigger) return;
         _st = St.Hit; _stT = 0f;
         EmitHitFx();
@@ -479,7 +487,7 @@ public partial class BossParts : Node2D
     //   消し切らないのは 13 の順（部品が消え切ってから本体が改心後へ）を壊さないため＝消すのは OnRedeem。
     public void OnCry()
     {
-        if (_st == St.Redeem || _st == St.Cry) return;
+        if (_st == St.Redeem || _st == St.Cry || _st == St.Peel) return;
         _st = St.Cry; _stT = 0f;
         // 散らさずその場で力を抜く（被弾の散りと違い、外へ飛ばさない＝倒れ込む一拍）。
         foreach (var p in _parts) { p.Vel = Vector2.Zero; p.SpinVel = 0f; }
@@ -487,8 +495,20 @@ public partial class BossParts : Node2D
 
     // 改心。ひび（レイ）を先に置いてから部品が順に消え、全部消え切ってから done を呼ぶ。
     // ＝呼び出し側は done の中で本体を post へ差し替える（部品が残ったまま中の人にならない）。
+    //
+    // ガワ割れ（Peel）を通った後にここへ来る場合（レイ）、部品はもう消え切っている。改めて
+    // ひびを走らせて外へ飛ばすと、静かに終わったはずの画面に破壊の一拍が戻る＝そのまま done だけ渡す。
     public void OnRedeem(System.Action? done = null)
     {
+        if (_st == St.Peel)
+        {
+            _onRedeemed = done;
+            _redeemNotified = false;
+            done?.Invoke();          // 部品は既に消えている＝待たせる理由がない
+            _redeemNotified = true;
+            _onRedeemed = null;
+            return;
+        }
         _onRedeemed = done;
         _redeemNotified = false;
         _st = St.Redeem; _stT = 0f;
@@ -500,6 +520,70 @@ public partial class BossParts : Node2D
             Vector2 cur = p.Extra + BasePos(p, p.T);
             Vector2 dir = cur.LengthSquared() > 1f ? cur.Normalized() : Vector2.Up;
             p.Vel = dir * (18f + (i % 4) * 6f); // ゆっくり離れながら消える（散りより穏やか）
+        }
+    }
+
+    // ガワ割れ（レイの決定打・案1）。公転を止め、そのときの位置から外へ最大 6px 退きながら 2.2 秒で消える。
+    //
+    //   OnRedeem との違いは3つ。どれも「破壊の勢いを足さない」ため：
+    //     ・速度を持たせない（TickFree を通さない）＝位置は開始点からの補間だけで決まり、飛び散らない。
+    //     ・公転の位相を止める（_peelFrozen）＝会話の間ずっと吹き出しが回り続けない。
+    //     ・ひびは本体とほぼ同寸・拡大なしで 0.3 秒だけ（OnRedeem の 1.7 倍・0.85 秒を置き換える）。
+    //   消える順は「光の帯・空の吹き出し → 小さな星 → 金の枠」。最後に残すのは枠であって浄化光ではない。
+    public void OnShellPeel()
+    {
+        if (_st == St.Peel) return;
+        _st = St.Peel; _stT = 0f;
+        _peelStart = new Vector2[_parts.Count];
+        for (int i = 0; i < _parts.Count; i++)
+        {
+            var p = _parts[i];
+            p.FadeAtRedeem = p.Fade;      // cry で沈んでいればその濃さから消す（1へ戻して跳ねさせない）
+            p.Vel = Vector2.Zero;         // 速度は持たせない＝この演出では誰も飛ばない
+            p.SpinVel = 0f;
+            p.PeelPhase = p.T;            // 公転の位相をここで凍らせる
+            _peelStart[i] = p.Extra;      // 退きはこの変位からの積み増しで出す
+        }
+        EmitPeelCrack();
+    }
+
+    // ガワ割れのひび：本体とほぼ同寸（1.03 倍）・拡大なし・0.3 秒だけ。
+    // 「割れた」を1度だけ薄く示して即引く＝ガワが退く動きの方へ視線を渡す。
+    private void EmitPeelCrack()
+    {
+        if (_name != "rei") return;
+        AddBurst(_texCrack, Vector2.Zero, 0f, _bodyH * 1.03f, 0.28f, 0.30f, additive: false);
+    }
+
+    // 部品ごとの退場グループ（0=光の帯・空の吹き出し／1=小さな星／2=金の枠）。
+    // 枠を最後に残すのは、ガワが退いた後に「配信の枠だけが残っている」一瞬を作るため。
+    private static int PeelGroup(Part p) => p.D.File switch
+    {
+        "bubble_empty_1" or "bubble_empty_2" or "bubble_empty_3" or "ray_gold" or "ray_violet" => 0,
+        "star_small" or "frame_star" => 1,
+        _ => 2, // frame_corner / frame_edge ほか
+    };
+
+    // ガワ割れの進行：公転を止めたまま、外へ最大 6px 退きながら順に消える。
+    private void TickPeel()
+    {
+        for (int i = 0; i < _parts.Count; i++)
+        {
+            var p = _parts[i];
+            int g = PeelGroup(p);
+            // グループごとに始まりと終わりをずらす。最後（枠）がちょうど PeelDur で消え切る。
+            float from = 0.20f + g * 0.25f;
+            float to = 1.35f + g * (PeelDur - 1.35f) / 2f;
+            float k = Mathf.Clamp((_stT - from) / Mathf.Max(0.01f, to - from), 0f, 1f);
+            k = k * k * (3f - 2f * k);
+
+            // 退く向きは「開始位置＝本体中心からどちらにいるか」。中心にいるものは上へ逃がす。
+            Vector2 basePos = BasePos(p, p.PeelPhase);
+            Vector2 cur = basePos + _peelStart[i];
+            Vector2 dir = cur.LengthSquared() > 1f ? cur.Normalized() : Vector2.Up;
+            p.Extra = _peelStart[i] + dir * (PeelDrift * k);
+            p.Fade = p.FadeAtRedeem * (1f - k);
+            p.Gone = p.Fade <= 0f;
         }
     }
 
@@ -524,7 +608,8 @@ public partial class BossParts : Node2D
         //   Redeem … 完了コールバックで本体を post へ差し替える＝止めると会話が続く限り中の人が出てこない。
         //   Cry   … 撃破直後の「力尽きる」一拍は改心の会話と同時に始まる＝止めると戦闘中の見た目のまま固まる。
         //           CryDur で沈み切った後は自分で止まる（下の TickCryFade）ので会話を待たせはしない。
-        if (Hud.BubblePaused && _st != St.Redeem && _st != St.Cry) return;
+        //   Peel  … ガワ割れ（レイの決定打）は改心の会話の途中で始まる＝止めると部品が消えずに残る。
+        if (Hud.BubblePaused && _st != St.Redeem && _st != St.Cry && _st != St.Peel) return;
         float dt = (float)delta;
         _stT += dt;
 
@@ -554,12 +639,16 @@ public partial class BossParts : Node2D
                 TickFree(dt, drag: 1.2f);
                 TickRedeemFade();
                 break;
+            case St.Peel:
+                TickPeel();
+                break;
             default:
                 TickIdle(dt);
                 break;
         }
 
-        foreach (var p in _parts) p.T += dt;
+        // ガワ割れ中だけは公転の位相を進めない（描画は凍らせた PeelPhase を読む）。
+        if (_st != St.Peel) foreach (var p in _parts) p.T += dt;
         TickBursts(dt);
 
         _back.QueueRedraw(); _front.QueueRedraw(); _add.QueueRedraw();
@@ -851,10 +940,13 @@ public partial class BossParts : Node2D
     private static float Bob(Def d, float t) =>
         d.BobPx <= 0f ? 0f : Mathf.Sin(t * Mathf.Tau / Mathf.Max(0.1f, d.PulseSec)) * d.BobPx;
 
+    // 描画に使う位相。ガワ割れ中は凍らせた値（公転を止める）、それ以外は生存時間。
+    private float PhaseNow(Part p) => _st == St.Peel ? p.PeelPhase : p.T;
+
     // 公転の奥／手前の振り分け（SwapZ）。sin>0＝奥（Back）に置く。
     private bool IsBackNow(Part p) =>
         !p.D.SwapZ ? p.D.L == Layer.Back
-                   : Mathf.Sin(p.T * p.D.Omega + p.D.Phase) > 0f;
+                   : Mathf.Sin(PhaseNow(p) * p.D.Omega + p.D.Phase) > 0f;
 
     // 層ノードからの描画要求。name は "Back"/"Front"/"Add"。
     public void DrawLayer(Node2D canvas, string layerName)
@@ -868,9 +960,10 @@ public partial class BossParts : Node2D
             string want = p.D.L == Layer.Add ? "Add" : (back ? "Back" : "Front");
             if (want != layerName) continue;
 
-            Vector2 pos = BasePos(p, p.T) + p.Extra;
+            float ph = PhaseNow(p);
+            Vector2 pos = BasePos(p, ph) + p.Extra;
             float pulse = p.D.PulseAmp <= 0f ? 1f
-                : 1f + p.D.PulseAmp * Mathf.Sin(p.T * Mathf.Tau / Mathf.Max(0.1f, p.D.PulseSec));
+                : 1f + p.D.PulseAmp * Mathf.Sin(ph * Mathf.Tau / Mathf.Max(0.1f, p.D.PulseSec));
             // 集束（こはるの後光）：発射点へ寄る間に 0.35 倍まで縮み、α を上げて「溜まった」を見せる。
             // 上限は 0.26。後光は2枚あって加算で重なるので、0.5 まで上げると杖の先が白飛びして
             // ボスの上半身が読めなくなった（実機で確認）。縮小を強くして密度で見せる。
