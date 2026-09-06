@@ -357,6 +357,10 @@ public partial class BossKoharu : Enemy
         if (_caster != null && _gotoPhase == 0) _caster.Suppressed = false; // 十字火が進行中なら解除しない（保険）
         var cur = Spells[_pattern % Spells.Length];
         SetSpellVisual(cur.shape, cur.tint); // 弾形・色を通常スペルへ戻す（宣告カードは再掲しない）
+        // 食事の間に保留していたスペル切替（第3「期待」50%）／フィナーレの宣言を、ここで発火させる。
+        // 以降は完食報酬の early return が並ぶので、報酬の有無に関わらず通るこの位置で呼ぶ。
+        // ApplySpell が SetSpellVisual を上書きするため、通常スペルへ戻した後であることも必要。
+        OnHpChanged();
         if (!fullEat) return;
         if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
         // “食べた”証明＝被弾なし・ボムなし（ボムで消しても弾は消えるが「食べて」いない＝褒めない。
@@ -479,7 +483,7 @@ public partial class BossKoharu : Enemy
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 「五徳の十字火」：HP26%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替と同じ被弾＝終盤入りの合図）。
-        // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
+        // お残し禁止の進行中は持ち越し（TickMeal の終了が呼ぶ OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
         // スペル切替より先に判定する＝同じ被弾では十字火の宣言が勝つ（切替の宣言は下の gotoHolds で保留）。
         if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
         {
@@ -489,18 +493,9 @@ public partial class BossKoharu : Enemy
             GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
             GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
-        // 十字火の進行中（または食事で持ち越し中）は、スペル切替とフィナーレの宣言を保留する。
-        // 無防備窓（4秒・上限100HP）の中では goto_hp と切替26%を何%離しても1〜2ヒットで跨ぐため、
-        // 値では「自分なにしてんだろ」のカードを守れない（旧 0.28 は Easy で 4HP＝一瞬で上書きされていた）。
-        // 保留した分は TickGoto のゲート解除（X着弾）で OnHpChanged() を呼んで即発火＝「十字火→我に返る」が一拍になる。
-        bool gotoHolds = _gotoPhase != 0 || (!_gotoFired && HpRatio <= _gotoHp);
-        if (!gotoHolds && _beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
-        {
-            _pattern = (_pattern + 1) % PatternCount;
-            _beatsFired++;
-            ApplySpell();
-        }
         // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
+        // 十字火と同じくスペル切替より先に判定する＝同じ被弾では食事の宣言が勝つ（切替の宣言は下の mealHolds で保留）。
+        // 十字火(26%)は必ず食事(52%)より後なので、十字火側のような進行中ガードは要らない（＝ここで止めると発火しない）。
         if (!_mealFired && HpRatio <= _mealHp)
         {
             _mealFired = true;
@@ -511,11 +506,25 @@ public partial class BossKoharu : Enemy
             GetHud()?.AnnounceSpell("こはる", "@koharu_light", "全部見なきゃ", Spells[0].tint);
             GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
         }
+        // ワンショットギミック（食事・十字火）の進行中と、その発火待ちの間は、スペル切替とフィナーレの宣言を保留する。
+        // 無防備窓（4秒・上限100HP）の中では発動HPと切替を何%離しても1〜2ヒットで跨ぐため、値では宣言カードを守れない
+        //（旧 goto 0.28 は切替26%と 4HP、meal 0.52 も切替50%と 4HP（Easy）しか離れていない）。
+        // 保留した分は TickMeal / TickGoto の終了で OnHpChanged() を呼んで即発火＝
+        //「全部見なきゃ→期待」「十字火→我に返る」がそれぞれ一拍になる。
+        bool gotoHolds = _gotoPhase != 0 || (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp);
+        bool mealHolds = _mealPhase != 0 || (!_mealFired && HpRatio <= _mealHp);
+        bool holds = gotoHolds || mealHolds;
+        if (!holds && _beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
+        {
+            _pattern = (_pattern + 1) % PatternCount;
+            _beatsFired++;
+            ApplySpell();
+        }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。finale_cap（既定0.26）は Min なので
         // 下げる方向にしか効かず、Easy(2本)は式の 25% が採用される＝第4スペル切替(26%)の 2HP 下で発火し、
         // 上の ApplySpell の宣言をほぼ同時に上書きする（Easy は第4スペルを畳んでフィナーレへ直行＝レイ／あかりの Easy と同じ構造）。
-        // 十字火の進行中は保留（gotoHolds）＝X着弾の後にフィナーレのカードが出る。
-        if (!gotoHolds && !_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
+        // ワンショットギミックの進行中は保留（holds）＝食事の終了／X着弾の後にフィナーレのカードが出る。
+        if (!holds && !_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
