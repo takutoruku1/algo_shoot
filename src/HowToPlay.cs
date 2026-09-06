@@ -106,7 +106,6 @@ public partial class HowToCanvas : Node2D
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
-    private static string TokKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";       // やさしさ全開：Player.cs RightStick
     private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
 
     public override void _Draw()
@@ -165,7 +164,6 @@ public partial class HowToCanvas : Node2D
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
-            (TokKind,  "やさしさ全開","満タンで発動、5秒ひかりが溢れる",               UiKit.PurifyHi,false),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
         // 向き反転は機能をオフにしているあいだ説明ごと伏せる（Player.FacingFlipEnabled で復活）。
@@ -187,13 +185,13 @@ public partial class HowToCanvas : Node2D
             DrawControlRow(rx, ry, colW, rows[i].tok, rows[i].name, rows[i].desc, rows[i].accent, rows[i].hot);
         }
 
-        // 念押し：やさしさ全開は Space ではなく TokKind（KB のとき Ctrl）。
+        // 念押し：光はオート発射＝撃つボタンが無いことを明示する。
         // あわせて弾幕パートのマウス操作も1行で（マウスは専用トークンを持たないので地の文で示す）。
         if (!Pad.UsingPad)
         {
             float ny = y + half * rowH + 6f;
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
-                "※ 光は自動で出ます。撃つボタンはありません（やさしさ全開だけ Ctrl）", UiKit.FontLabel, UiKit.Gold);
+                "※ 光は自動で出ます。撃つボタンはありません", UiKit.FontLabel, UiKit.Gold);
             // 左クリックの「向き反転」は機能オフ中は案内から外す（Player.FacingFlipEnabled で復活）。
             string mouseHint = Player.FacingFlipEnabled
                 ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）"
@@ -243,10 +241,7 @@ public partial class HowToCanvas : Node2D
         {
             (0, "LIFE",        "残りの体力。弾に当たると1つ減る",                      UiKit.Hp),
             (1, "BOMB",        "ボムの残り。" + TokBomb + " で画面の弾を消せる",        UiKit.Mina),
-            (2, "やさしさ",    "かすり・浄化で貯まる。満タンで " + TokKind + " → 5秒だけ弾を祓いやすく", UiKit.Gold),
             (2, "浄化 ％",     "ステージの進み具合。100%でボスへ",                     UiKit.Purify),
-            (1, "救った人 ◯/3","物語の到達度。3人すべて救うのが目標",                  UiKit.PurifyHi),
-            (2, "汚染",        "物語が進むほど濁る。高いとやさしさが貯まりにくくなる",     UiKit.Kegare),
             (1, "コンボ",      "連続で浄化するとSCOREと浄化した心が倍増。猶予内に次を倒せないと途切れる", UiKit.Mina),
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
             (0, "浄化した心",  "通貨。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
@@ -280,9 +275,6 @@ public partial class HowToCanvas : Node2D
     {
         var cards = new (string title, string body, Color accent)[]
         {
-            ("やさしさ全開",
-             "かすって・浄化して貯める→満タンで " + TokKind + "。攻めるほど早く貯まり、5秒だけ連射最速＆近くの弾が花びらに。守りには使えない＝攻めの見返り。",
-             UiKit.PurifyHi),
             ("ボム",
              "ピンチの保険。" + TokBomb + " で画面の弾を消し無敵に。残数は限られる。",
              UiKit.Mina),
@@ -293,7 +285,7 @@ public partial class HowToCanvas : Node2D
              "後方(-X)に敵がいると自動で弱いホーミング弾を撃つ、無操作の保険。ショップの 後方威力/後方速射/後方追尾 で強化できる。",
              UiKit.Info),
             ("浄化と汚染",
-             "敵を浄化＝救うこと。汚染は物語が進むほど自然に上がる演出で、高いとやさしさが鈍る。澄んだ心I/IIで上昇をゆるやかにできる。",
+             "敵を浄化＝救うこと。汚染は物語が進むほど自然に上がる演出で、画面の濁りとして表れる。澄んだ心I/IIで上昇をゆるやかにできる。",
              UiKit.Kegare),
         };
         float cardH = 96f, gap = 14f;

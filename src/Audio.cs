@@ -62,7 +62,7 @@ public partial class Audio : Node
     public AudioStreamWav SfxShot = null!, SfxGraze = null!, SfxHit = null!, SfxPurify = null!;
 
     // 拡張SE（設計書 ③④⑥⑦⑧⑩）。同じくプレースホルダ。
-    public AudioStreamWav SfxBomb = null!, SfxOverload = null!, SfxCalm = null!,
+    public AudioStreamWav SfxBomb = null!, SfxCalm = null!,
                           SfxSpell = null!, SfxStrip = null!;
     // ボス無防備窓の本体ヒット専用（通常／大威力）。剥離(SfxStrip)・自機被弾(SfxHit)と音域を分ける。
     public AudioStreamWav SfxBossHit = null!, SfxBossHitHeavy = null!;
@@ -176,7 +176,6 @@ public partial class Audio : Node
         SfxHit    = SynthHit();
         SfxPurify = SynthPurify();
         SfxBomb     = SynthBomb();
-        SfxOverload = SynthOverload();
         SfxCalm     = SynthCalm();
         SfxSpell    = SynthSpell();
         SfxStrip    = SynthStrip();
@@ -411,9 +410,9 @@ public partial class Audio : Node
     }
 
     // ───────── コアSE 再生（呼び出し側はこれだけ叩く）─────────
-    // 発射：短く・減衰速く・ピッチ微ゆらぎ。全開中は高揚（ピッチ上げ）。
-    public void PlayShot(bool overload)
-        => Se(SfxShot, volDb: -24f, pitch: _rng.RandfRange(0.97f, 1.03f) + (overload ? 0.18f : 0f));
+    // 発射：短く・減衰速く・ピッチ微ゆらぎ。
+    public void PlayShot()
+        => Se(SfxShot, volDb: -24f, pitch: _rng.RandfRange(0.97f, 1.03f));
     // グレイズ：鋭く高い「チッ」。被弾と音域を分け、混同させない。
     public void PlayGraze()
         => Se(SfxGraze, volDb: -22f, pitch: _rng.RandfRange(0.98f, 1.05f));
@@ -428,9 +427,6 @@ public partial class Audio : Node
     // ③ボム：一拍の溜め→開放の二段。破壊でなく「鎮める／光が満ちる」。
     public void PlayBomb()
         => Se(SfxBomb, volDb: -10f);
-    // ⑥全開発動：上昇音＋光が満ちるジングル。ピークの告知。
-    public void PlayOverload()
-        => Se(SfxOverload, volDb: -12f);
     // ⑦会話開始の弾消去：「鎮まる音」。沈黙を転換演出に変える。
     public void PlayCalm()
         => Se(SfxCalm, volDb: -16f);
@@ -607,30 +603,6 @@ public partial class Audio : Node
             lp += (white - lp) * 0.05f;
             float air = lp * env * 0.12f;
             s[i] = swell + bloom + air;
-        }
-        FadeEnds(s, (int)(0.004f * Rate));
-        return MakeWav(s);
-    }
-
-    // ⑥全開：C→E→G→C を駆け上がる上昇アルペジオ＋光が満ちるベル残響。~0.5s。
-    private AudioStreamWav SynthOverload()
-    {
-        float dur = 0.5f; int n = (int)(Rate * dur);
-        var s = new float[n];
-        float[] steps = { 523.25f, 659.25f, 783.99f, 1046.5f }; // C5 E5 G5 C6
-        const float step = 0.07f;
-        for (int i = 0; i < n; i++)
-        {
-            float t = (float)i / Rate;
-            int k = Mathf.Min(steps.Length - 1, (int)(t / step));
-            float lt = t - k * step;
-            float env = (lt < 0.004f ? lt / 0.004f : 1f) * Mathf.Exp(-lt / 0.12f);
-            float pluck = Mathf.Sin(Mathf.Tau * steps[k] * lt) * env * 0.22f;
-            // 最後の音に重なる長い残響（光が満ちる）。
-            float tailT = Mathf.Max(0f, t - 3 * step);
-            float tail = Mathf.Sin(Mathf.Tau * 1046.5f * tailT)
-                       * Mathf.Exp(-tailT / 0.2f) * 0.1f;
-            s[i] = pluck + tail;
         }
         FadeEnds(s, (int)(0.004f * Rate));
         return MakeWav(s);

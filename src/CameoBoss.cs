@@ -13,7 +13,7 @@ using Godot;
 // ステージ差分（テクスチャ/セリフ/弾幕テーマ/色/BGM/オーラ）は CameoTheme で外から差し替える。
 // 3サブクラス量産は避け、このクラス1つを各 Stage がパラメータ設定して使う。
 //
-// 撃破（=Redeem）時：RewardCameoDefeat（やさしさ+0.6/スコア+900）＋手応え演出（Enemy.Redeem が PurifyBurst/
+// 撃破（=Redeem）時：RewardCameoDefeat（スコア+2000）＋手応え演出（Enemy.Redeem が PurifyBurst/
 // Hitstop を出す）。その後キャラ別の捨て台詞を一行オーバーレイで流し切ってから Finished=true。
 // Stage は Finished を見て本ボス前の次フェーズへ Advance する。
 
@@ -244,7 +244,7 @@ public partial class CameoBoss : Enemy
 
     // ── 撃破（Redeem=サイクル完了/HP0）後の締め ──
     // Enemy.Redeem が Reward/手応え演出（PurifyBurst/Hitstop）の作法を持つが、カメオ専用の報酬
-    // （RewardCameoDefeat＝やさしさ+0.6/スコア+900）はここで1回だけ付与する。
+    // （RewardCameoDefeat＝スコア+2000）はここで1回だけ付与する。
     // その後、捨て台詞を一行オーバーレイで流し切ってから EndCryNow→OnCryEnd で Finished を立てる。
     protected override void OnCryStart()
     {

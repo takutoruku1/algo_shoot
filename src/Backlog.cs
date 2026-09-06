@@ -98,7 +98,7 @@ public partial class Backlog : CanvasLayer
             bool pauseOpen = GetNodeOrNull<PauseMenu>("/root/PauseMenu") is { IsOpen: true };
             bool howOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true };
             // 開キー：L／Tab（KB）／Back・Select（パッド）。
-            // パッドは L3(LeftStick)=回避・R3(RightStick)=やさしさ全開と衝突するため Back を使う。
+            // パッドは L3(LeftStick)=回避と衝突するため Back を使う。
             bool openKey = Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Back);
             bool openEdge = openKey && !_navHeld; _navHeld = openKey;
             if (openEdge && !pauseOpen && !howOpen && CanOpenHere() && Hud.Backlog.Count > 0) Open();

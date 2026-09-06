@@ -101,7 +101,7 @@ public partial class StageKoharu : Node
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
     // こはる面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
-    //   s2_2 … 中ボスの捨て台詞の直後（step 5 の撃破後・ショップ離脱の前）。効果＝やさしさ +0.02。
+    //   s2_2 … 中ボスの捨て台詞の直後（step 5 の撃破後・ショップ離脱の前）。効果＝スコア +500。
     //   s2_4 … 入力欄の場面の末尾（step 8・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
 
     // S2-2 中ボス・ペンライト。押しつけられたのは、消えたままのほう。受け取りの返事だけをあなたに回す。
@@ -514,7 +514,7 @@ public partial class StageKoharu : Node
                 ChoiceEffects.Record(GetNodeOrNull<GameManager>("/root/Game"), id, choices, sel, (float)_cChoiceT);
                 if (id == "s2_2" && sel < choices.Length - 1)
                     // 消えたペンライトを受け取ったぶん（三つのどれでも同じ値。どの言葉かには付けない）。
-                    GetNodeOrNull<GameManager>("/root/Game")?.AddKindnessFromChoice(ChoiceEffects.KindnessGain);
+                    GetNodeOrNull<GameManager>("/root/Game")?.AddScoreFromChoice(ChoiceEffects.ReceivedScore);
                 _cAfter = reply(sel).Concat(tail).ToArray();
                 _cOverlay.QueueFree();
                 _cOverlay = null;

@@ -28,10 +28,10 @@ using System.Collections.Generic;
 // ゲームオーバー中は合成R（1回目＝チェックポイントから再開）／Shift+R（2回目以降＝最初から）を
 // 自動で叩いて復帰を検証する（DriveDeathRetry）。死なない限り発火しないので通常の --assist 走行には影響しない。
 //
-// 移動/Z(撃つ)/X(ボム)に加え、低速(Shift)・回避(Alt)・やさしさ全開(Ctrl)も周期的に送出する
-// （DriveFocusDodgeKindness）。StageZero（Stage0.tscn）のチュートリアル各フェーズを
-// SafetyTimeout頼みでなく実入力で通すのが主目的。ゲームオーバー中はShift、--skiptest中はCtrlに
-// 触れない（それぞれ既存の合成入力ロジックと排他）。
+// 移動/Z(撃つ)/X(ボム)に加え、低速(Shift)・回避(Alt)も周期的に送出する
+// （DriveFocusDodge）。StageZero（Stage0.tscn）のチュートリアル各フェーズを
+// SafetyTimeout頼みでなく実入力で通すのが主目的。ゲームオーバー中はShiftに
+// 触れない（既存の合成入力ロジックと排他）。
 public partial class QaPilot : Node
 {
     // ---- 設定 ----
@@ -48,11 +48,10 @@ public partial class QaPilot : Node
     private const double LowFpsThreshold = 25.0;
     private const double DeathRetryDelay = 0.6;   // ゲームオーバー検知〜合成R押下までの待ち（HUDの抜けプロンプトが出揃うのを待つ）
 
-    // Focus(低速)/Dodge(回避)/Kindness(やさしさ全開) の合成入力周期（DriveFocusDodgeKindness）。
+    // Focus(低速)/Dodge(回避) の合成入力周期（DriveFocusDodge）。
     private const double FocusPeriod = 6.0;       // 低速(Shift)を試す周期
     private const double FocusHoldDuration = 1.6; // 1回の保持時間（StageZero の SlowHoldNeed=1.0s より長めに）
     private const double DodgePeriod = 2.2;       // 回避(Alt)を叩く周期
-    private const double KindPeriod = 5.0;        // やさしさ全開(Ctrl)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
 
     // プレイ領域（Player.cs と一致）
@@ -85,13 +84,11 @@ public partial class QaPilot : Node
     private double _bombPhase;
     private bool _xDown;
 
-    // ---- Focus/Dodge/Kindness パルス状態（DriveFocusDodgeKindness）----
+    // ---- Focus/Dodge パルス状態（DriveFocusDodge）----
     private bool _focusDown;
     private double _focusPhase;
     private bool _dodgeKeyDown;
     private double _dodgePhase;
-    private bool _kindKeyDown;
-    private double _kindPhase;
 
     // ---- 死亡系フロー（R/Shift+R リトライ）----
     private bool _prevGameOver;
@@ -179,7 +176,7 @@ public partial class QaPilot : Node
         DriveMovement();
         DriveShootAndAdvance(delta);
         DriveBomb(delta);
-        DriveFocusDodgeKindness(delta);
+        DriveFocusDodge(delta);
 
         Heartbeat(delta);
         DetectStuck();
@@ -328,18 +325,14 @@ public partial class QaPilot : Node
         }
     }
 
-    // Focus(低速)・Dodge(回避)・Kindness(やさしさ全開) の合成入力。DriveMovement/Shoot/Bomb に
-    // 加えて周期的に叩くことで、StageZero チュートリアルの低速保持判定(:256)・回避3回判定(:285-287)・
-    // 全開判定(:406〜)を SafetyTimeout(60s)の保険待ちではなく実入力で通す（他ステージでは無害に流す）。
+    // Focus(低速)・Dodge(回避) の合成入力。DriveMovement/Shoot/Bomb に加えて周期的に叩くことで、
+    // StageZero チュートリアルの低速保持判定・回避3回判定を SafetyTimeout(60s)の保険待ちではなく
+    // 実入力で通す（他ステージでは無害に流す）。
     //   低速＝Shift を周期的に一定時間だけ保持（保持中は DriveMovement の移動と重なるので「低速+移動」を満たす）。
     //   回避＝Alt を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
-    //   全開＝Ctrl を周期的に短く叩く（ゲージが満タンの時だけ Player 側の TryActivateKindness が実際に発動。
-    //         空の時に叩いても Player.cs:650 の判定で何も起きず無害）。
     // ゲームオーバー中／会話中は新規に送らない：
     //   Shift は DriveDeathRetry の「Shift+R」（ゲームオーバー2回目以降＝最初からリトライ）と衝突するため。
-    //   Ctrl は --skiptest 専用の押しっぱなしロジック(:151-155)と衝突するため、--skiptest 実行時は
-    //   Kindness 用の Ctrl 送出を完全にスキップする（Focus/Dodge は --skiptest 中も通常どおり動く）。
-    private void DriveFocusDodgeKindness(double delta)
+    private void DriveFocusDodge(double delta)
     {
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         bool gameOver = player != null && player.Lives <= 0;
@@ -381,24 +374,6 @@ public partial class QaPilot : Node
             Send(new InputEventKey { Keycode = Key.Alt, Pressed = true });
         }
 
-        // ---- Kindness（やさしさ全開・Ctrl）：--skiptest 中は一切触れない ----
-        if (_skipTest) return;
-        _kindPhase += delta;
-        if (_kindKeyDown)
-        {
-            if (_kindPhase >= TapHoldDuration)
-            {
-                _kindKeyDown = false;
-                _kindPhase = 0;
-                Send(new InputEventKey { Keycode = Key.Ctrl, Pressed = false });
-            }
-        }
-        else if (!idle && _kindPhase >= KindPeriod)
-        {
-            _kindKeyDown = true;
-            _kindPhase = 0;
-            Send(new InputEventKey { Keycode = Key.Ctrl, Pressed = true });
-        }
     }
 
     // 死亡系フロー（残機0・チェックポイント再開／最初から）のQA：

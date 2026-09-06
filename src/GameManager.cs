@@ -827,17 +827,10 @@ public partial class GameManager : Node
     public float DodgeCooldown => new[] { 0.80f, 0.72f, 0.68f, 0.65f }[Mathf.Clamp(ChainLevel("move_speed", 3), 0, 3)];
     public float DodgeDistance => 64f + 4f * ChainLevel("move_speed", 3);
 
-    // 汚染が高いほど優しさの溜まりが鈍る。序盤無痛・奥で効く非線形。下限0.55。
-    // 汚染0.00→1.00 / 0.18→0.97 / 0.45→0.87 / 0.80→0.69 / 1.00→0.55。
-    // 澄んだ心(contam)の承認式：下限 +0.05/Lv に加え全体を ×(1+0.06Lv)（上限1.1）。
-    // 3→2圧縮の補償：段2で旧Lv3相当の効果 Lv を渡す（無汚染でも段2で上限×1.10・高汚染域も旧Lv3の底上げ）。
+    // 澄んだ心(contam)：汚染の上昇を緩める。3→2圧縮の補償で段2に旧Lv3相当の効果 Lv を渡す。
     private int ContamSteps => ChainLevel("contam", 2);
     public int ContamEffLevel => ContamSteps >= 2 ? 3 : ContamSteps; // 段2＝旧Lv3相当の実効Lv
     public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * ContamEffLevel); // 上昇を緩めるのみ
-    public float KindnessGainMul => KindnessGainMulAt(ContamEffLevel);
-    // Lv を引数化した実効値（ショップの「いま→買うと」プレビューが実式で正直に出すために公開）。
-    public float KindnessGainMulAt(int lv) =>
-        Mathf.Min(1.1f, Mathf.Max(0.55f + 0.05f * lv, 1f - 0.45f * Mathf.Pow(Contamination, 1.6f)) * (1f + 0.06f * lv));
 
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
@@ -1071,7 +1064,7 @@ public partial class GameManager : Node
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
-        //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。
+        //   新規データのハブ／プロローグへ入り、murk・自機の濁りが濁ったまま描かれる。
         Contamination = 0f;
         // クリアタイムを消さないと、まっさらなはずの新規データに前データのベストが残り、
         //   記録画面とハブカードの BEST に出続けたうえ、最初のオートセーブで新スロットへ焼き付く。
@@ -1185,18 +1178,6 @@ public partial class GameManager : Node
         if (f != null) f.StoreString(Json.Stringify(arr));
     }
 
-    // やさしさゲージ（リフレイン）: グレイズ/浄化で貯まり、満タンで一時「やさしさ全開」
-    private float _kindFill;            // 0..1 蓄積
-    public bool IsOverload { get; private set; }
-    private double _overloadT;
-    private const double OverloadDur = 5.0;
-    // 全開の充填は「倒す（浄化）」を主役に、かすりは前に出るほど効くブースターに（§2-4 攻めたほうが得）。
-    private const float GrazeGain = 0.07f;   // 約14回（risky な薬味）
-    private const float PurifyGain = 0.12f;  // 約8体（攻めて倒すのが全開の主動力）
-    public bool JustOverloaded { get; private set; } // 発動した瞬間のフラグ（UI用、1フレーム）
-    // ゲージ表示値: 全開中は残り時間、通常は蓄積量
-    public float Kindness => IsOverload ? (float)(_overloadT / OverloadDur) : _kindFill;
-
     private double _comboTimer;
     // コンボ猶予はコンボ持続強化で延長される。
     private double ComboWindow => 2.0 + 0.4 * ChainLevel("combo_hold", 2);
@@ -1260,50 +1241,20 @@ public partial class GameManager : Node
 
     public override void _Process(double delta)
     {
-        JustOverloaded = false;
         if (_comboTimer > 0)
         {
             _comboTimer -= delta;
             if (_comboTimer <= 0)
                 Combo = 0;
         }
-        if (IsOverload)
-        {
-            _overloadT -= delta;
-            if (_overloadT <= 0) { IsOverload = false; _kindFill = 0f; }
-        }
-    }
-
-    // やさしさゲージを貯める。満タンになっても自動発動はせず、満タン(=Ready)で待機する。
-    // 発動はプレイヤーの手動操作（TryActivateKindness）に委ねる＝“使う”判断が生まれる。
-    private void AddKindness(float amount)
-    {
-        if (IsOverload) return;
-        // 汚染が高いほど“やさしさ”の溜まりが鈍る（#2-A）。グレイズ/浄化の両方がここを通る。
-        _kindFill = Mathf.Min(1f, _kindFill + amount * KindnessGainMul);
-    }
-
-    // やさしさが満タンで、手動発動できる状態か。
-    public bool KindnessReady => !IsOverload && _kindFill >= 1f;
-
-    // 「やさしさ全開」を手動発動。満タンなら消費して発動し true を返す。
-    public bool TryActivateKindness()
-    {
-        if (IsOverload || _kindFill < 1f) return false;
-        IsOverload = true;
-        _overloadT = OverloadDur;
-        JustOverloaded = true;
-        _kindFill = 0f; // 発動と同時に消費（ゲージは全開タイマー表示へ切り替わる）
-        return true;
     }
 
     // 道中カメオ（ミニボス）をHP削り切りで撃破した時の報酬。CameoBoss.OnCryStart から1回だけ呼ぶ。
-    // やさしさゲージは「半分〜大きめ一気」を狙って 0.6 を加算（グレイズ/浄化と同じ AddKindness 経路＝
-    // KindnessGainMul もかかる）。インプレは付けず、スコアのみ少々加点する。
+    // やさしさゲージ撤去（2026-09-06 / docs/20260906/HUD整理_案.md §5）に伴い、旧「やさしさ +0.6」の
+    // ぶんはスコアへ寄せた（CameoScoreReward 900→2000）。インプレは従来どおり付けない。
     public void RewardCameoDefeat()
     {
-        AddKindness(CameoKindnessReward);  // 直後の本ボス戦で全開を撃ちやすくする量
-        Score += CameoScoreReward;         // スコア少々
+        Score += CameoScoreReward;         // 中ボス撃破の主報酬
 
         // 難易度緩和：中ボス撃破で BOMB+1 と ♥+1 を回復する（どちらも上限でキャップ＝超えない）。
         //   ・ボム上限＝初期ボム数(StartBombs＝難易度＋ボム所持強化)。既に上限なら増やさない。
@@ -1321,14 +1272,14 @@ public partial class GameManager : Node
             hud?.ShowBanner(msg);
         }
     }
-    private const float CameoKindnessReward = 0.6f;
-    private const int CameoScoreReward = 900;
+    // 900→2000：やさしさ +0.6（直後のボス戦で全開を撃てる下準備）を失ったぶんの置き換え。
+    private const int CameoScoreReward = 2000;
 
     // ── ボム1発で報酬が付く雑魚浄化の上限（ボムキャップ）──
     //   ボス側の窓キャップ(Enemy.ExposedDamageCap)と同じ思想を雑魚経路にも当てる。
     //   ボム由来の浄化は「避けも当てもせず画面を一掃する」＝リスクを賭けていない（§2）ので、
     //   1発あたりこの体数までしか スコア/コンボ/インプレ を返さない。超過分は浄化そのものは成立し、
-    //   進行(PurifiedCount)とやさしさ(AddKindness)は従来どおり通す＝道中ゲートを詰まらせない（親切設計）。
+    //   進行(PurifiedCount)は従来どおり通す＝道中ゲートを詰まらせない（親切設計）。
     //   3体＝緊急回避で巻き込む標準的な体数。通常プレイのボムは割に合ったまま、
     //   湧き上限(MaxAliveEnemies＝難易度別 6/8/10/12)まで溜めて一掃する無限ファームだけが頭打ちになる。
     private const int BombPurifyRewardCap = 3;
@@ -1346,43 +1297,38 @@ public partial class GameManager : Node
             Score += basePoints * Mathf.Max(1, Combo);
         }
         PurifiedCount++;
-        AddKindness(PurifyGain);
         // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
         if (rewarded)
             GainImpression(2 + Combo);
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
-    // かすりでコンボ猶予をリフレッシュ＝「敵に寄ってかすり続ける」と攻めが途切れない（§2-4 攻めたほうが得）。
-    // インプレ（通貨）も少額付与＝「弾に寄る」こと自体に経済的リターンを持たせる。
-    //   回避よけ(AddDodgeGraze＝GainImpression(DodgeGrazeImpBase)=2)より少なく＝回避の優位は維持。
+    // 2026-09-06（docs/20260906/HUD整理_案.md §7）でスコア加算だけに絞った。やさしさ／インプレ／
+    // コンボ猶予リフレッシュは剥がし、そのぶんスコアを 10→30 に上げている（副次効果を全部抜くと
+    // 旨味が 1/4 になり「引き撃ちが最適解」に戻るため）。GrazeCount は統計用に維持。
     //   farming対策：被弾直後の無敵中(_hitInvincible)は呼び出し元(Player.OnGrazeAreaEntered)で既にスキップ済み。
     public void AddGraze()
     {
-        Score += 10;
+        Score += 30;
         GrazeCount++;
-        AddKindness(GrazeGain);
-        GainImpression(1);
-        if (Combo > 0)
-            _comboTimer = ComboWindow;
     }
 
     // 回避（ドッジ）の無敵中に敵弾をかすめてよけた時の高報酬（§リスクとリターン）。
-    // 通常グレイズ(Score+10・お金なし)より大きめ＝回避クールダウン0.8sを切って敵弾に突っ込むリスク相応。
-    //   ・スコアは DodgeGrazeScore（通常10の5倍）。
+    // 通常グレイズ(Score+30・お金なし)より大きめ＝回避クールダウン0.8sを切って敵弾に突っ込むリスク相応。
+    //   ・スコアは DodgeGrazeScore。
     //   ・お金（インプレ＝ショップ通貨）を GainImpression(DodgeGrazeImpBase) で稼ぐ。倍率は内部で自動適用。
     //     実加算額を返す＝ポップアップ「+N」表示に使う。
-    //   ・コンボ猶予をリフレッシュ（AddGraze と同様、攻めが途切れない）。やさしさも同程度。
+    //   ・コンボ猶予をリフレッシュ＝攻めが途切れない。
+    // やさしさ加算だけは 2026-09-06 のゲージ撤去で外した（指揮官決定＝スコア/インプレ/猶予は残す）。
     // farming上限は呼び出し側(Player)が1回避ごとにカウントして制御する。
     public long AddDodgeGraze()
     {
         Score += DodgeGrazeScore;
-        AddKindness(GrazeGain);
         if (Combo > 0)
             _comboTimer = ComboWindow;
         return GainImpression(DodgeGrazeImpBase);
     }
-    private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア（通常グレイズ10の5倍）
+    private const int DodgeGrazeScore = 50;   // 回避よけ1発のスコア
     private const int DodgeGrazeImpBase = 2;  // 回避よけ1発の基礎インプレ（倍率は GainImpression 内で適用。稼ぎすぎ是正で 4→2）
 
     // ボムで敵弾を消した時の小加点。
@@ -1392,36 +1338,29 @@ public partial class GameManager : Node
     }
 
     // こはる戦の「祈り弾」（消せる下方向弾）を自機弾で受け止めた時の加点（#12 機構側／#20）。
-    // やさしさゲージ微加算＝“祈りを受け止める”が浄化/グレイズと同じ経路（KindnessGainMul込み）で報われる。
     public void AddPrayerCleared()
     {
         Score += 15;
-        AddKindness(PrayerGain);
     }
-    private const float PrayerGain = 0.02f; // 微加算（グレイズ0.07より小さく＝受け止めは薬味）
 
     // 病みポスト（層2 の投稿チップ）を撃って「届けた」。
     //   正典: wiki/08_仮台本/10_病みポストを見つける_設計案.md（ユーザー承認済み・2026-09-05）の案A・経済の表。
-    //   祈り弾(+0.02)とグレイズ(+0.07)の間＝+0.05。スコア +40／インプレ基礎 3（倍率は GainImpression 内）。
-    //   撃ち漏らしには罰を置かない（ゲージ減算・汚染加算なし＝見逃しを数値で責めない）。
+    //   スコア +40／インプレ基礎 3（倍率は GainImpression 内）。
+    //   撃ち漏らしには罰を置かない（汚染加算なし＝見逃しを数値で責めない）。
     public void AddPostDelivered()
     {
         Score += 40;
-        AddKindness(PostDeliveredGain);
-        GainImpression(3);              // HUD 左の ♥「心」チップ（RunImpression）に載る＝拾ったことが即返る
+        GainImpression(3);              // ショップ通貨（RunImpression）に載る
         PostsDelivered++;
     }
-    private const float PostDeliveredGain = 0.05f;
     // 今ランで届けた病みポストの数（クリアバナー／帰還会話の集計語彙用。セーブしない）。
     public int PostsDelivered { get; private set; }
 
-    // 祈りの帳（veil_light）の光輪が弾を受け止めた時の加点。ボム消し（Score+5）と同格＋やさしさ微加算。
+    // 祈りの帳（veil_light）の光輪が弾を受け止めた時の加点。ボム消し（Score+5）と同格。
     public void AddVeilCleared()
     {
         Score += 5;
-        AddKindness(VeilGain);
     }
-    private const float VeilGain = 0.01f; // 祈り弾(0.02)よりさらに小さく＝回避のおまけであって主動力にしない
 
     // ボムを使う。残があれば消費して true。
     // チュートリアル練習モード中は残数を減らさず発動成功を返す（詰み防止＝何度でも練習できる）。
@@ -1438,10 +1377,6 @@ public partial class GameManager : Node
         return true;
     }
 
-    // チュートリアル（ステージ0）ステップ7用：やさしさゲージを一度だけ満タンにする。
-    // 全開中は触らない（タイマー表示と競合させない）。
-    public void FillKindnessForTutorial() { if (!IsOverload) _kindFill = 1f; }
-
     // ラン開始時のリセット。※インプレ/フォロワー/強化は恒久なので消さない（§0-3）。
     public void ResetRun()
     {
@@ -1456,9 +1391,6 @@ public partial class GameManager : Node
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
         RunImpression = 0;
         PostsDelivered = 0;   // 届けた病みポストの数もラン単位
-        _kindFill = 0f;
-        IsOverload = false;
-        _overloadT = 0;
         RedemptionActive = false;
     }
 

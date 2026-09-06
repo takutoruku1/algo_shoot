@@ -103,10 +103,10 @@ public partial class FxLayer : Node2D
         }
     }
 
-    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング/加速球）と全開を描き分ける。
-    //   色は水色ロック（§2）の範囲、金は全開の一瞬だけ（浄化色を「フルパワーの手元」で使う）。
+    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング/加速球）を描き分ける。
+    //   色は水色ロック（§2）の範囲。
     //   全て加算プール（Add=true→ZIndex21）＝弾レイヤー(Z0)には何も足さない＝ヒエラルキー維持。
-    public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays, bool overload)
+    public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays)
     {
         // 共通の芯グロー（連射ベース）。
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 5, Ttl = 0.10f, Col = White, Add = true, Grow = 0.4f });
@@ -165,9 +165,6 @@ public partial class FxLayer : Node2D
             }
         }
 
-        // 全開：やさしさ全開＝攻撃も浄化色（金）に染まる。既存の全開オーラ（金二重リング）と語彙統一。
-        if (overload)
-            Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.12f, Col = Gold, W = 1.8f, A0 = 0.9f, Add = true });
     }
 
     public void Shatter(Vector2 pos)

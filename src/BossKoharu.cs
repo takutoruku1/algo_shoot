@@ -42,7 +42,7 @@ public partial class BossKoharu : Enemy
     // ── 「お残し禁止」（HP52%ワンショットスペル）──
     //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“料理弾”3列×8＝24発を配膳
     //  （消せる祈り弾 MakeErasable・降下12px/s）。8秒以内に撃って消した分は祈り弾の既存経路で
-    //   そのまま報われる（Bullet.OnAreaEntered → GameManager.AddPrayerCleared: +15点・やさしさ+0.02）。
+    //   そのまま報われる（Bullet.OnAreaEntered → GameManager.AddPrayerCleared: +15点）。
     //   残した弾は時間切れで 0.06s 間隔で順に自機狙いニードル（130px/s）に変わって飛んでくる。
     //   完食（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
     //  （報酬の流儀はレイの安置リレー完走報酬 BossRei.TickRelayWatch に合わせる。♥上限時はスコアで返す）。
@@ -274,7 +274,7 @@ public partial class BossKoharu : Enemy
     }
 
     // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝画面から落ちてくる光は、自機弾で“受け止め”られる。
-    // 消すと双方消滅＋やさしさ微加算（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
+    // 消すと双方消滅＋加点（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
     // FanDown はスペル「みんな見てる」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
     // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
     private void FanDown(BulletPool pool)

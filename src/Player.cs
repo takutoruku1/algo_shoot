@@ -34,7 +34,6 @@ public partial class Player : Area2D
 
     // ヒカゲ専用スキル（フォロワーにヒカゲがいる時だけ・Cキー）
     private bool _specialHeld = false;
-    private bool _kindHeld = false; // やさしさ全開の手動発動エッジ検出
     private float _specialCd = 0f;
     private const float SpecialCdMax = 7f;
     // 0=フル充填済み(OK) / 1=たった今使った直後（HUDの充填バー用。コンボゲージのComboTimeRatioと同じ発想）。
@@ -57,7 +56,6 @@ public partial class Player : Area2D
     public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
     private int _savedCount = 0;
     private int _shotParity = 0;            // フォロワーの発射間引き用
-    private bool _overload = false;         // やさしさ全開中か（GameManager）
     private static readonly Vector2[] FollowerSlots =
     {
         new Vector2(-14, -11), new Vector2(-14, 11),
@@ -99,19 +97,10 @@ public partial class Player : Area2D
         nf.PromoteToHikage();
         FxLayer.Instance?.PurifyBurst(nf.GlobalPosition);
         _followers.Add(nf);
-        NotifyFollowerProgress(); // 満員化し得るので通知
     }
 
-    // フォロワーが満員（MaxFollowers到達済み）か。満員なら次の1体までの進捗表示は不要。
+    // フォロワーが満員（MaxFollowers到達済み）か。
     public bool FollowersFull => _followers.Count >= MaxFollowers;
-
-    // 次のフォロワー加入まであと何人分進んだか（0..SavedPerFollower-1）。HUDの進捗ドット（●●○）に使う。
-    // 満員時は 0 を返す＝呼び出し側は FollowersFull と合わせて「ドット非表示」を判断する。
-    public int SavedProgress => FollowersFull ? 0 : _savedCount % SavedPerFollower;
-
-    // Player の状態変化（フォロワー増減・進捗）を HUD へ通知する。SetLives と同じ push パターン。
-    private void NotifyFollowerProgress() =>
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFollowerProgress(SavedProgress, SavedPerFollower, FollowersFull);
 
     // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
@@ -120,13 +109,12 @@ public partial class Player : Area2D
         // 随伴フォロワー無効時は何もしない＝生成も進捗通知もせず、呼び出し元(Enemy)は通常どおり退場する。
         if (!StageFollowersEnabled) return false;
         _savedCount++;
-        if (_followers.Count >= MaxFollowers) { NotifyFollowerProgress(); return false; }
-        if (_savedCount % SavedPerFollower != 0) { NotifyFollowerProgress(); return false; } // 3人救うごとに1体
+        if (_followers.Count >= MaxFollowers) return false;
+        if (_savedCount % SavedPerFollower != 0) return false; // 3人救うごとに1体
         var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
         AddChild(f);
         f.Position = ToLocal(globalFromPos); // 浄化した位置（＝救った本人の場所）から飛んでくる
         _followers.Add(f);
-        NotifyFollowerProgress();
         return true;
     }
 
@@ -176,9 +164,6 @@ public partial class Player : Area2D
     private float _corruption = 0f;
     private static readonly Color CleanTint = new Color(1f, 1f, 1f);
     private static readonly Color MurkTint = new Color(0.42f, 0.40f, 0.52f); // 濁った藍鼠
-    // やさしさ全開のオーラ（金色に発光・脈動）。SelfModulate を 1 超で持ち上げて光らせる。
-    private static readonly Color OverloadTint   = new Color(1.15f, 1.05f, 0.72f);
-    private static readonly Color OverloadTintHi = new Color(1.5f, 1.35f, 0.9f);
     public void SetCorruption(float level) => _corruption = Mathf.Clamp(level, 0f, 1f);
 
     // チュートリアル（ステージ0）の自機系ステップで、自機を“光らせて”目立たせる（既存グレイズ残光を流用）。
@@ -561,11 +546,6 @@ public partial class Player : Area2D
         if (_fireCooldown > 0f)
             _fireCooldown -= dt;
 
-        // やさしさ全開なら連射が速くなる。発動の瞬間（立ち上がり）にカタルシス演出を出す。
-        bool nowOverload = _game?.IsOverload ?? false;
-        if (nowOverload && !_overload) OnOverloadStart();
-        _overload = nowOverload;
-
         // ショットはオート発射（下の shoot 判定）。ここでは初回に HUD へ現在モードを通知
         // （HUD の _Ready 順に依存しないよう最初の物理フレームで）。
         if (!_modeInit && _game != null)
@@ -622,7 +602,7 @@ public partial class Player : Area2D
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
-            // モード別の間隔税（全開中は従来どおり最速）。各モードの速射ノード（rapid/spread/homing_rate）で
+            // モード別の間隔税。各モードの速射ノード（rapid/spread/homing_rate）で
             // 税が軽くなる＝ChainLevel 経由で GameManager が算出（ショップのスペック表記と同期）。
             //   連射＝rapid_rate で ×0.94/0.88（基礎1.0）。拡散＝spread_rate で 1.45→1.35。ホーミング＝homing_rate で 1.55→1.40。
             float modeMul = _game?.SelectedShotMode switch
@@ -632,7 +612,7 @@ public partial class Player : Area2D
                 GameManager.ShotMode.Accel => 1f, // 加速球は速射（rapid_rate）の対象外＝ショップ説明文どおり連射専用
                 _ => _game?.RapidRateMul ?? 1f,
             };
-            _fireCooldown = _overload ? 0.07f : FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
+            _fireCooldown = FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 
         // バックファイア（後方弾）：前方射撃とは独立に、後方(-X)へ敵がいるときだけ自動発射。
@@ -641,7 +621,7 @@ public partial class Player : Area2D
         if (!Hud.BubblePaused && _dodgeTimer <= 0f && _backfireCd <= 0f && !_gameOver)
         {
             if (FireBackfire())
-                _backfireCd = _overload ? (_game?.BackfireInterval ?? 0.9f) * 0.6f : (_game?.BackfireInterval ?? 0.9f);
+                _backfireCd = _game?.BackfireInterval ?? 0.9f;
         }
 
         // ボム（X）: 押した瞬間だけ発動
@@ -663,16 +643,6 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f, SpecialCdRatio);
         // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
-
-        // やさしさ全開＝手動発動（満タン時に Ctrl / R3）。自動発動をやめ“使う”判断を委ねる。
-        // Space は ui_accept（＝ショット）と重複し誤発動するため Ctrl（左右どちらも）に変更。
-        bool kindKey = Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightStick);
-        if (kindKey && !_kindHeld && !Hud.BubblePaused && (_game?.TryActivateKindness() ?? false))
-        {
-            FxLayer.Instance?.PurifyBurst(GlobalPosition);
-            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
-        }
-        _kindHeld = kindKey;
 
         // 無敵・点滅更新
         if (_invincible)
@@ -698,7 +668,7 @@ public partial class Player : Area2D
             _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
 
         // 祈りの帳の光輪：残り時間の間、半径内の敵弾を花びらに変えて消す（ボムの範囲消去の縮小版）。
-        // 消した弾はやさしさ微加算（AddVeilCleared）＝“祈りが受け止めた”がゲージにも薄く報われる。
+        // 消した弾は加点（AddVeilCleared）＝“祈りが受け止めた”が点でも報われる。
         if (_veilT > 0f)
         {
             _veilT -= dt;
@@ -798,14 +768,7 @@ public partial class Player : Area2D
                 _sprite.Scale = scl;
             }
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
-            // 全開中は汚染を上書きして金色に発光＝「やさしさ全開」を体で示す（脈動）。
-            if (_overload)
-            {
-                float pulse = 0.5f + 0.5f * Mathf.Sin(_bobTime * 11f);
-                _sprite.SelfModulate = OverloadTint.Lerp(OverloadTintHi, pulse);
-            }
-            else
-                _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
+            _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
 
             // ── 回避中は「その場ピルエット」＝縦軸まわりの本物のスピン（回転各アングルの差分イラストを送る）──
             // 旧実装の Scale.X=cos によるカードスピン擬似（紙っぽさの原因）は廃止し、5枚のフレーム＋FlipH 流用で
@@ -865,9 +828,9 @@ public partial class Player : Area2D
             default:                          FireRapid(muzzle, dmg);  break;
         }
 
-        // フォロワーは通常2回に1回、全開中は毎ショット同期発射
+        // フォロワーは2回に1回の同期発射
         _shotParity++;
-        if (_overload || (_shotParity & 1) == 0)
+        if ((_shotParity & 1) == 0)
             foreach (var f in _followers)
                 f.Fire();
 
@@ -881,10 +844,10 @@ public partial class Player : Area2D
         }
 
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
-        // モード別マズル：弾本体は不変のまま、発砲の手元でモード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる。
+        // モード別マズル：弾本体は不変のまま、発砲の手元でモード4種（連射/拡散/ホーミング/加速球）を描き分ける。
         FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
-                                 _game?.SpreadWays ?? 5, _overload);
-        Audio.Instance?.PlayShot(_overload);
+                                 _game?.SpreadWays ?? 5);
+        Audio.Instance?.PlayShot();
         _recoil = 1f;
     }
 
@@ -1383,7 +1346,6 @@ public partial class Player : Area2D
             FxLayer.Instance?.KindnessMote(f.GlobalPosition);
             f.QueueFree();
             _followers.RemoveAt(idx);
-            NotifyFollowerProgress(); // 満員が解けた／進捗ドットが再表示され得るので通知
         }
 
         // フラッシュ＋短時間無敵（被弾由来＝この無敵中はグレイズ報酬が入らない）
@@ -1479,41 +1441,8 @@ public partial class Player : Area2D
         DrawArc(Vector2.Zero, GrazeRadius, 0f, Mathf.Tau, 40,
             new Color(0.45f, 0.95f, 1f, grazeA), grazeW); // シアンの細いリング＝グレイズ境界
 
-        // ── やさしさ全開オーラ（金の二重リングが脈動）＝全開中だと一目で分かる ──
-        if (_overload)
-        {
-            float pulse = 0.5f + 0.5f * Mathf.Sin(_bobTime * 11f);
-            float r = GrazeRadius + 5f + pulse * 4f;
-            var gold = new Color(1f, 0.86f, 0.45f, 0.35f + 0.4f * pulse);
-            DrawArc(Vector2.Zero, r, 0f, Mathf.Tau, 44, gold, 1.6f);
-            DrawArc(Vector2.Zero, r + 3f, 0f, Mathf.Tau, 44, new Color(1f, 0.95f, 0.7f, 0.18f * pulse), 1f);
-        }
-
         // ── 被弾点（中心・常時・最も目立つ）＝この赤い点に当たると死ぬ ──
         DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
         DrawCircle(Vector2.Zero, _hitR, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
-    }
-
-    // やさしさ全開・発動の瞬間のカタルシス演出（§4 止め＋光＋揺れ／§8 解放の谷）。
-    // SE とトーストは Hud が JustOverloaded で鳴らす。ここは画の爆ぜと弾の浄化を担う。
-    private void OnOverloadStart()
-    {
-        FxLayer.Instance?.PurifyBurst(GlobalPosition);
-        GameCamera.Instance?.Shake(4f, 0.22f);
-        GameCamera.Instance?.Hitstop(0.06);
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
-
-        // 自機周囲だけの浄化パルス（全消しはボム専任＝全開は“攻め”の見返り／§15 役割分離）。
-        // 近接の弾だけ花びら化＝一拍の局所的な解放（§8）。守りの保険には使えない＝温存退避の遊びを断つ。
-        const float pulseR = 40f;
-        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
-        {
-            if (node is Bullet b && b.Active && b.GlobalPosition.DistanceTo(GlobalPosition) <= pulseR)
-            {
-                _game?.AddBulletCleared();
-                FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
-                _pool?.Despawn(b);
-            }
-        }
     }
 }

@@ -18,8 +18,9 @@ public static class ChoiceEffects
 {
     // （送らない）で【濁】微増。S1-4 の S14SkipContam / S3-7 の S37SkipContam と同値。
     public const float SkipContam = 0.02f;
-    // S2-2 で「受け取った」ぶんのやさしさ。三つのどれでも同じ値（どの言葉を送ったかには付けない）。
-    public const float KindnessGain = 0.02f;
+    // S2-2 で「受け取った」ぶんのスコア。三つのどれでも同じ値（どの言葉を送ったかには付けない）。
+    // 旧・やさしさ +0.02 の置き換え（2026-09-06 / docs/20260906/HUD整理_案.md §5）。
+    public const int ReceivedScore = 500;
 
     // 道中の選択1か所ぶんを記録する。choices の末尾は必ず（送らない）＝表示候補は末尾を除いた3件。
     //   戻り値 true＝送った（＝効果を付ける側）。false＝（送らない）／沈黙20秒。
@@ -61,10 +62,10 @@ public static class ChoiceEffects
 // GameManager の追記ぶん（本体ファイルは別担当が編集中のため partial で分ける）。
 public partial class GameManager
 {
-    // 会話中にやさしさゲージへ足す入口。戦闘の加算（浄化・グレイズ・祈り弾・病みポスト）と同じ
-    //   AddKindness 経路を通す＝汚染による溜まりの鈍り（KindnessGainMul）も同じように効く。
-    //   S2-2「消えたペンライトを受け取った」ぶんの +0.02 がここを通る。スコアは動かさない。
-    public void AddKindnessFromChoice(float amount) => AddKindness(amount);
+    // 会話中の選択にスコアを足す入口。S2-2「消えたペンライトを受け取った」ぶんがここを通る。
+    //   やさしさゲージ撤去（2026-09-06）でゲージ加算からスコア加算へ置き換えた。
+    //   コンボ倍率は掛けない＝戦闘の加点とは別枠の一時金。
+    public void AddScoreFromChoice(int amount) => Score += amount;
 
     // その選択 id で散った言葉（出た順）。F4 の枠の先頭に入れる語をここから引く。
     public IReadOnlyList<string> ScatteredAt(string id)

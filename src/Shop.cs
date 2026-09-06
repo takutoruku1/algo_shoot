@@ -1828,8 +1828,9 @@ public partial class Shop : Node2D
             "bomb_power" => $"ボム直撃 {Mathf.RoundToInt(Enemy.BombStrikeBase * (1f + 0.25f * lv))}ダメージ",
             "move_speed" => $"移動×{1f + 0.12f * lv:0.00}・回避CD{0.8f - 0.1f * lv:0.0}s・{64 + 4 * lv}px",
             "hitbox" => $"被弾判定 ×{Mathf.Max(0.4f, 1f - 0.12f * lv):0.00}",
-            // 澄んだ心（contam）：3→2圧縮＝段2で旧Lv3相当の実効Lvで評価。現在の汚染度で正直に出す。
-            "contam" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * (lv >= 2 ? 3 : lv)):0.00}・心の効率 ×{_game?.KindnessGainMulAt(lv >= 2 ? 3 : lv) ?? 1f:0.00}",
+            // 澄んだ心（contam）：3→2圧縮＝段2で旧Lv3相当の実効Lvで評価。
+            // やさしさゲージ撤去（2026-09-06）で「心の効率」は消え、効果は汚染上昇の緩和のみになった。
+            "contam" => $"汚染上昇 ×{Mathf.Max(0f, 1f - 0.15f * (lv >= 2 ? 3 : lv)):0.00}",
             "imp_mult" => $"獲得心 ×{1f + 0.12f * lv:0.00}",
             "fol_gain" => $"口コミ ×{1f + 0.15f * lv:0.00}", // “拡散 ×N”はショットモード「拡散」と紛らわしいため別名（実体＝フォロワー獲得倍率）
             "combo_hold" => $"コンボ猶予 {2.0 + 0.4 * lv:0.0}秒",
