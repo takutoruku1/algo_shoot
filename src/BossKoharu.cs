@@ -84,10 +84,11 @@ public partial class BossKoharu : Enemy
     private static readonly Color GotoXTint = new("d6443f"); // 深紅（包丁の軌跡と同色＝斜め斬りの色＝第二十字）
     private static readonly Color GotoXHot = new("ff8a7a");
 
-    // フィナーレ発動HPの上限（INI: finale_cap）。既定式 0.5/バー本数 が Easy(2本)だと25%となり、
-    // 第4スペル（26%〜）の発動域が実質1%しか無かった（QA指摘）。0.18で頭を抑えて Easy でも
-    // 26%→18% の第4スペル帯を確保する（Normal以上は式の方が小さく影響なし）。
-    private float _finaleCap = 0.18f;
+    // フィナーレ発動HPの上限（INI: finale_cap）。既定式 0.5/バー本数 が Easy(2本)だと25%＝第4スペル切替26%の直後で、
+    // 第4スペル帯がほぼ無い（QA指摘）。旧0.18で第4帯（26→18%＝16HP）を作っていたが、その帯は読めない長さのまま
+    // フィナーレが 36HP に痩せて（他3ボスの Easy は 50HP）宣言カード5秒の内に撃破される方が問題だった。
+    // 0.26＝第4スペル切替と同じ被弾で発火させ、Easy のフィナーレを 52HP（他ボス相当）に戻す。Normal以上は式の方が小さく影響なし。
+    private float _finaleCap = 0.26f;
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
     private static readonly float[] PatternThresholds = { 0.78f, 0.50f, 0.26f };
@@ -165,7 +166,7 @@ public partial class BossKoharu : Enemy
         _mealNeedleSpeed = BossTuning.F("koharu", "meal_needle_speed", 130f);
         _mealConvStep = Mathf.Max(0.01f, BossTuning.F("koharu", "meal_convert_step", 0.06f));
         _gotoHp = BossTuning.F("koharu", "goto_hp", 0.28f);
-        _finaleCap = BossTuning.F("koharu", "finale_cap", 0.18f);
+        _finaleCap = BossTuning.F("koharu", "finale_cap", 0.26f);
 
         // v3 の本体（エフェクト無し・720px）。視線の線・後光・ペンライトの光は BossParts が重ねる。
         PreTexPath = "res://char/v3/boss_koharu_body_idle.png";
@@ -500,8 +501,9 @@ public partial class BossKoharu : Enemy
             GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
             GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。ただし finale_cap（既定0.18）で
-        // 頭を抑える＝Easy(2本)の25%発火で第4スペル(26%〜)の発動域が1%しか無くなる問題の是正（QA指摘）。
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。ただし finale_cap（既定0.26）で
+        // 頭を抑える＝Easy(2本)では第4スペル切替(26%)と同じ被弾で発火し、上の ApplySpell の宣言をこの宣言が
+        // 同フレームで上書きする（Easy は第4スペルを畳んでフィナーレへ直行＝レイ／あかりの Easy と同じ構造）。
         if (!_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
         {
             _finale = true;
