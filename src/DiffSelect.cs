@@ -1,7 +1,10 @@
 using Godot;
 
-// DiffSelect : 難易度選択。RefrainHTML/Refrain Screens.dc.html(Screen 2) を忠実移植（非ピクセル）。
-//   4ティア＋弾密度メーター。報酬倍率＝緑／選択＝シアン／ルナ解禁＝紫。↑↓ えらぶ・Z ダイブ・X もどる。
+// DiffSelect : 潜り方（難易度）と入口の選択。
+//   2026-09-06（2-b）以降、ハブの投稿詳細（Hub.cs の Mode.Detail）が通常の潜り方の選択を吸収したため、
+//   この画面へ来るのは「中ボスを持つ面で、解放済みの入口がある」ときだけ＝入口を問うのが主目的になった。
+//   潜り方の段の名前・一言はハブ側（Hub.Tiers）と同じ語彙に揃える（数値・実装は不変）。
+//   4ティア＋弾密度メーター。選択＝シアン／底まで解禁＝紫。↑↓ 潜り方・Z 潜る・X もどる。
 public partial class DiffSelect : Node2D
 {
     private GameManager _game = null!;
@@ -20,13 +23,14 @@ public partial class DiffSelect : Node2D
     // 見えず、Lunaticへの賭け金を過小に見せていた。以後 BulletCountMul を変えたらここも合わせて見直すこと。
     private static readonly Tier[] Tiers =
     {
-        new() { Name = "やさしい",     Desc = "弾は少なく、ゆっくり。物語を追いたい人へ。", Diff = GameManager.Diff.Easy,    Density = 1,
+        // 名前はハブの投稿詳細と同じ 浅く／いつも通り／深く／底まで（3-1）。説明はミナの観測の言い方に寄せる。
+        new() { Name = "浅く",       Desc = "光は六つ。弾は少なく、ゆっくり。",   Diff = GameManager.Diff.Easy,    Density = 1,
                 Face = "res://char/mina_smile.png",   Quip = "ゆっくりで、いいんですよ。" },
-        new() { Name = "ふつう",       Desc = "標準的な弾幕。",                             Diff = GameManager.Diff.Normal,  Density = 2,
+        new() { Name = "いつも通り", Desc = "光は四つ。",                         Diff = GameManager.Diff.Normal,  Density = 2,
                 Face = "res://char/mina_face.png",    Quip = "では、いつも通りに。" },
-        new() { Name = "むずかしい",   Desc = "弾が増え、密度が上がる。",                   Diff = GameManager.Diff.Hard,    Density = 3,
+        new() { Name = "深く",       Desc = "光は三つ。弾が増え、密度が上がる。", Diff = GameManager.Diff.Hard,    Density = 3,
                 Face = "res://char/mina_worried.png", Quip = "……無理は、しないでくださいね。" },
-        new() { Name = "ルナティック", Desc = "極限の弾幕。最大強化前提の挑戦。",           Diff = GameManager.Diff.Lunatic, Density = 5,
+        new() { Name = "底まで",     Desc = "光は二つ。最大強化前提の深さ。",     Diff = GameManager.Diff.Lunatic, Density = 5,
                 Face = "res://char/mina_tears.png",   Quip = "……覚悟は、できていますか。" },
     };
 
@@ -287,8 +291,8 @@ public partial class DiffSelect : Node2D
         // ── ヘッダ ──
         UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), _stageTag, UiKit.FontLabel, UiKit.Info);
         float tagW = UiKit.TextW(UiKit.Mono, _stageTag, UiKit.FontLabel);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へダイブ", UiKit.FontTitle, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "難易度で「弾の数」が変わります（浄化した心の報酬も変動）", UiKit.FontBody, UiKit.Text3,
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), $"{_diveName} へ潜る", UiKit.FontTitle, UiKit.White);
+        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "深く潜るほど、弾は増え、光は減ります", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);
         DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -307,8 +311,8 @@ public partial class DiffSelect : Node2D
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
         float fx = padX;
-        fx = Hint(fx, fy, "↑↓", "難易度", false);
-        fx = Hint(fx, fy, "Z", "ダイブ", true);
+        fx = Hint(fx, fy, "↑↓", "潜り方", false);
+        fx = Hint(fx, fy, "Z", "潜る", true);
         Hint(fx, fy, "X", "もどる", false);
 
         // ── 入口ダイアログ（難易度確定後・中ボス持ちステージのみ）──
@@ -334,11 +338,11 @@ public partial class DiffSelect : Node2D
         float tx = x + 24f;
         if (locked)
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), "★ " + tr.Name, UiKit.FontHeading, UiKit.Text4);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 22), tr.Name, UiKit.FontHeading, UiKit.Text4);
             // 解禁条件は GameManager の定数から引く（旧実装は 300 とハードコードされており、実際の解禁値 200 と
             //   食い違っていた＝プレイヤーが「まだ100足りない」と誤解する。ショップ側 Shop.cs:1167 は元から定数参照）。
             UiKit.Text(this, UiKit.Zen, new Vector2(tx, y + 54), $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4", UiKit.FontBody, UiKit.Mina);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 100, y + h / 2f - 7), "LOCKED", UiKit.FontSmall, UiKit.Text4);
+            // ロックの段はピル無し（ハブのカードと同じ作法。「LOCKED」の英語ステータスは画面から消す）。
             return;
         }
 
@@ -363,9 +367,12 @@ public partial class DiffSelect : Node2D
         for (int k = 0; k < 5; k++)
             UiKit.Box(this, new Rect2(mx + k * (pipW + pipGap), my, pipW, pipH), k < tr.Density ? pipCol : new Color(1, 1, 1, 0.12f), 2f);
 
+        // 報酬倍率：「報酬」の文字は消し、♥アイコン＋倍率だけを置く（3-1。ハブの投稿詳細と同じ見せ方）。
         float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
-        string reward = $"報酬 ×{mul:0.0}";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, reward, UiKit.FontLabel), y + 50), reward, UiKit.FontLabel, new Color("7ec880"));
+        string mulS = $"×{mul:0.0}";
+        float mulX = x + w - 24f - UiKit.TextW(UiKit.Mono, mulS, UiKit.FontLabel);
+        UiKit.Text(this, UiKit.Mono, new Vector2(mulX, y + 50), mulS, UiKit.FontLabel, UiKit.Hp);
+        UiKit.Heart(this, new Vector2(mulX - 12f, y + 57f), 6f, UiKit.Hp);
 
         // 「賭け金」＝残機・ボム初期数（GameManager.BaseLivesFor/BaseBombsFor）。密度メーターだけでは
         // 見えない残機3倍差（Easy6→Lunatic2）を選ぶ前に提示する。恒久強化ボーナスは含めない素の値。
