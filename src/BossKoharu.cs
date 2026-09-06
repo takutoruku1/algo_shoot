@@ -74,7 +74,7 @@ public partial class BossKoharu : Enemy
     private int _gotoPhase;       // 0=なし / 1=宣告→第一十字待ち / 2=第二十字待ち / 3=着弾待ち（ゲート解除待ち）
     private double _gotoT;
     private Vector2 _gotoCenter;  // 第一十字の中心（宣告時でなく“出現時”の自機位置＝予兆と実位置のズレを作らない）
-    private float _gotoHp = 0.28f;              // INI: goto_hp（第4スペル切替26%の直前＝終盤入りの合図）
+    private float _gotoHp = 0.26f;              // INI: goto_hp（第4スペル切替26%と同じ被弾＝終盤入りの合図。進行中は切替宣言を保留する）
     private const double GotoFirstDelay = 0.7;  // 宣告→第一十字の溜め（通常テレグラフの _fireDelay と同格）
     private const double GotoSecondDelay = 0.8; // 第一十字→第二十字（45°回転）の遅延
     private const float GotoBeamHalf = 7f;      // 十字ビームの半太さ(px)（通常テレグラフのビーム帯 5-8px と同格）
@@ -88,6 +88,7 @@ public partial class BossKoharu : Enemy
     // 第4スペル帯がほぼ無い（QA指摘）。旧0.18で第4帯（26→18%＝16HP）を作っていたが、その帯は読めない長さのまま
     // フィナーレが 36HP に痩せて（他3ボスの Easy は 50HP）宣言カード5秒の内に撃破される方が問題だった。
     // 0.26＝第4スペル切替と同じ被弾で発火させ、Easy のフィナーレを 52HP（他ボス相当）に戻す。Normal以上は式の方が小さく影響なし。
+    // ※ 実装は Min(式, cap) なので cap は「下げる」方向にしか効かず、Easy は式 0.25 が採用される（実効 50HP・切替26%の 2HP 下）。
     private float _finaleCap = 0.26f;
 
     // HPがこの割合を割るたびに攻撃パターンを変える（独白は浄化のかけあいに集約）。
@@ -402,6 +403,9 @@ public partial class BossKoharu : Enemy
                 if (_gotoT < 1.2 * wm + 0.3) return;
                 _gotoPhase = 0;
                 if (_caster != null && _mealPhase == 0) _caster.Suppressed = false;
+                // 十字火の間に保留していたスペル切替／フィナーレの宣言を、X着弾の瞬間に発火させる
+                // （次の被弾を待つと、シールドが戻っていた場合に数秒「第3スペルのまま」が続く）。
+                OnHpChanged();
                 return;
         }
     }
@@ -474,7 +478,23 @@ public partial class BossKoharu : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
+        // 「五徳の十字火」：HP26%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替と同じ被弾＝終盤入りの合図）。
+        // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
+        // スペル切替より先に判定する＝同じ被弾では十字火の宣言が勝つ（切替の宣言は下の gotoHolds で保留）。
+        if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
+        {
+            _gotoFired = true;
+            _gotoPhase = 1; _gotoT = 0;
+            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
+            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
+            GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
+        }
+        // 十字火の進行中（または食事で持ち越し中）は、スペル切替とフィナーレの宣言を保留する。
+        // 無防備窓（4秒・上限100HP）の中では goto_hp と切替26%を何%離しても1〜2ヒットで跨ぐため、
+        // 値では「自分なにしてんだろ」のカードを守れない（旧 0.28 は Easy で 4HP＝一瞬で上書きされていた）。
+        // 保留した分は TickGoto のゲート解除（X着弾）で OnHpChanged() を呼んで即発火＝「十字火→我に返る」が一拍になる。
+        bool gotoHolds = _gotoPhase != 0 || (!_gotoFired && HpRatio <= _gotoHp);
+        if (!gotoHolds && _beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
@@ -491,20 +511,11 @@ public partial class BossKoharu : Enemy
             GetHud()?.AnnounceSpell("こはる", "@koharu_light", "全部見なきゃ", Spells[0].tint);
             GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
         }
-        // 「五徳の十字火」：HP28%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替26%の直前＝終盤入りの合図）。
-        // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
-        if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
-        {
-            _gotoFired = true;
-            _gotoPhase = 1; _gotoT = 0;
-            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
-            GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
-        }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。ただし finale_cap（既定0.26）で
-        // 頭を抑える＝Easy(2本)では第4スペル切替(26%)と同じ被弾で発火し、上の ApplySpell の宣言をこの宣言が
-        // 同フレームで上書きする（Easy は第4スペルを畳んでフィナーレへ直行＝レイ／あかりの Easy と同じ構造）。
-        if (!_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
+        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。finale_cap（既定0.26）は Min なので
+        // 下げる方向にしか効かず、Easy(2本)は式の 25% が採用される＝第4スペル切替(26%)の 2HP 下で発火し、
+        // 上の ApplySpell の宣言をほぼ同時に上書きする（Easy は第4スペルを畳んでフィナーレへ直行＝レイ／あかりの Easy と同じ構造）。
+        // 十字火の進行中は保留（gotoHolds）＝X着弾の後にフィナーレのカードが出る。
+        if (!gotoHolds && !_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
