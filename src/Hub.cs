@@ -1,8 +1,8 @@
 using Godot;
 
 // Hub : タイムラインハブ（ステージ間の中枢）。RefrainHTML のデザイン言語で非ピクセル化。
-//   - ヘッダ：ミナのアカウント（アバター/名前/フォロワー/インプレ/汚染）＋ X風タブ（おすすめ/フォロー中）。
-//   - 角丸ガラスの投稿カード（NEW/CLEAR/LOCK ピル）を ↑↓ で選び Z でダイブ（通常は難易度選択を挟む）。
+//   - ヘッダ：ミナのアカウント（アバター/名前/フォロワー/インプレ/汚染）。
+//   - 角丸ガラスの投稿カード（声/届いた/限界 のピル）を ↑↓ で選び Z で潜る（通常は難易度選択を挟む）。
 //     カードは下から滑り込む流入アニメ（帰還投稿後は「タイムライン更新」として再流入）。
 //     エンゲージ数はクリア状態・フォロワー数と連動し、クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
 //   - クリア帰還でミナの会話＋自動投稿。クリア済カードで C：コメント返信（1回）。
@@ -68,7 +68,7 @@ public partial class Hub : Node2D
     private bool _ffNow;           // いま高速送り中か（▶▶表示用）
 
     private double _toastT;
-    private string _toast = "";
+    private string _toast = "", _toastSub = "";
     private Color _toastCol = UiKit.Info;
 
     private bool _autoplay;
@@ -91,6 +91,11 @@ public partial class Hub : Node2D
     private const string NightBgPath = "res://char/bg2/title/L1_far.png";
     private static readonly Color NightBgTint = new Color(0.30f, 0.34f, 0.60f);
     private bool _hasNightBg;
+    private Sprite2D? _nightBg;
+    // 夜景の極低速の縦ドリフト（2-a）。振幅 12px・周期 30s の往復＝「タイムラインの上にいる時間が流れている」
+    //   ことだけを言う量。速度は画面酔いにならない範囲（最大でも約 2.5px/s）に抑える。
+    private const float NightDriftAmp = 12f, NightDriftPeriod = 30f;
+    private float _nightBgY;
 
     private void BuildNightBg()
     {
@@ -98,11 +103,15 @@ public partial class Hub : Node2D
         var tex = ResourceLoader.Load<Texture2D>(NightBgPath);
         if (tex == null || tex.GetHeight() <= 0) return;
         float s = UiKit.Scale;
-        AddChild(new Sprite2D
+        // ドリフトで下端が見えないよう、縦だけ 1 + 2*振幅/設計高 ぶん伸ばして敷き、中央を基準位置にする。
+        float sy = UiKit.DesignH * (1f + 2f * NightDriftAmp / UiKit.DesignH) / tex.GetHeight() * s;
+        _nightBgY = -NightDriftAmp * s;
+        AddChild(_nightBg = new Sprite2D
         {
             Name = "NightBg", Texture = tex, Centered = false,
             ZIndex = -12, ZAsRelative = false,
-            Scale = new Vector2(UiKit.DesignW / tex.GetWidth() * s, UiKit.DesignH / tex.GetHeight() * s),
+            Position = new Vector2(0, _nightBgY),
+            Scale = new Vector2(UiKit.DesignW / tex.GetWidth() * s, sy),
             Modulate = NightBgTint,
             TextureFilter = CanvasItem.TextureFilterEnum.Linear,
         });
@@ -340,6 +349,10 @@ public partial class Hub : Node2D
     {
         _t += delta;
         if (_toastT > 0) _toastT -= delta;
+        // 夜景のドリフト（会話中も止めない＝画面の裏で夜が流れ続ける）。
+        if (_nightBg != null)
+            _nightBg.Position = new Vector2(0, _nightBgY
+                + Mathf.Sin((float)_t * Mathf.Tau / NightDriftPeriod) * NightDriftAmp * UiKit.Scale);
         // 選択の寄り（0.12s で 0→1 に近づける lerp。選択が変わったら 0 へリセット）
         if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
         _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
@@ -440,33 +453,36 @@ public partial class Hub : Node2D
             _cardsEnteredT = _t;
             return;
         }
+        // トーストは X の通知文の型で出す（2-a）。数値は残すが、主語は「誰に届いたか」に置き換える。
         if (_dlgReplyId != null)
         {
             long imp = _game?.GainImpression(60) ?? 0;
             _game?.AddFollowers(12);
             _game?.MarkReplied(_dlgReplyId);
             BuildEntries();
-            Toast($"返信が伸びた！  Imp +{imp}  フォロワー +12", UiKit.Ok);
+            Toast($"@mina_ai_ の返信が 12 人に届いた", $"Imp +{imp}  フォロワー +12", UiKit.Ok);
         }
         else
         {
             long imp = _game?.GainImpression(40) ?? 0;
             _game?.AddFollowers(8);
             BuildEntries(); // タイムライン更新（クリア/フォロワー連動のエンゲージ数を反映）
-            Toast($"投稿が届いた  Imp +{imp}  フォロワー +8", UiKit.Ok);
+            Toast($"@mina_ai_ の投稿が 8 人に届いた", $"Imp +{imp}  フォロワー +8", UiKit.Ok);
         }
         if (_pendingBurn)
         {
             _pendingBurn = false;
             _game?.TriggerBurn();
-            Toast("炎上中…次のダイブは発射間隔+30%・移動-10%・稼ぎ-40%になります", UiKit.Burn);
+            // 炎上は1行目を世界の言葉に、数値（実際に掛かるペナルティ）は2行目へ小さく落とす。
+            Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
         }
         _game?.AutoSave(); // Hub帰還でオートセーブ（slot 0）
         _mode = Mode.Cards;
         _cardsEnteredT = _t;
     }
 
-    private void Toast(string msg, Color col) { _toast = msg; _toastCol = col; _toastT = 2.6; }
+    // トースト：1行目＝世界の言葉（通知文）、2行目＝現状の数値（小さく・任意）。
+    private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
 
     // ───────── カード ─────────
     private bool CanReplySel() => !_autoplay && _sel >= 0 && _sel < _entries.Length
@@ -532,7 +548,12 @@ public partial class Hub : Node2D
                 if (_game != null) _game.PendingStageScene = e.Scene;
                 Dive("res://DiffSelect.tscn");
             }
-            else Audio.Instance?.PlayUiDeny(); // 未解放ステージ
+            else
+            {
+                // 未解放＝「ロック中」ではなく「まだ聞こえない」。拒否音の代わりにミナが一言だけ返す（2-a）。
+                Audio.Instance?.PlayUiDeny();
+                StartDialogue(NotYetDialog, null, noPost: true);
+            }
         }
 
         bool c = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
@@ -667,21 +688,7 @@ public partial class Hub : Node2D
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
         DrawRect(new Rect2(0, hy + 65, W, 3f), new Color(UiKit.Kegare, 0.18f));
         if (contam > 0) DrawRect(new Rect2(0, hy + 65, W * contam, 3f), UiKit.Kegare);
-
-        // X風タブ（おすすめ｜フォロー中）。装飾＝「これはタイムラインだ」と一目で言う行。
-        //   アクティブ側だけ白太字＋Purify の下線。カード列（top=122）との間に一拍の余白。
-        float tabY = hy + 70f;
-        string[] tabs = { "おすすめ", "フォロー中" };
-        for (int i = 0; i < tabs.Length; i++)
-        {
-            bool act = i == 0;
-            float cx = W * (0.5f + (i == 0 ? -0.09f : 0.09f));
-            var font = act ? UiKit.ZenBold : UiKit.Zen;
-            float tw = UiKit.TextW(font, tabs[i], UiKit.FontLabel);
-            UiKit.Text(this, font, new Vector2(cx - tw / 2f, tabY), tabs[i], UiKit.FontLabel,
-                act ? UiKit.White : UiKit.Text4);
-            if (act) UiKit.Box(this, new Rect2(cx - 26f, tabY + 21f, 52f, 3f), UiKit.Purify, 1.5f);
-        }
+        // 偽タブ「おすすめ｜フォロー中」は削除（2-a）。切替できないタブはハリボテのダッシュボードに見える。
     }
 
     private (float top, float h, float gap) CardMetrics()
@@ -746,9 +753,16 @@ public partial class Hub : Node2D
                 : new Color(1, 1, 1, (e.Unlocked ? 0.09f : 0.05f) * alpha);
         UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
 
-        // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く
-        Color barCol = sel ? new Color(UiKit.Purify, (0.5f + 0.5f * st) * alpha)
-                           : new Color((e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)), (e.Unlocked ? 0.35f : 0.18f) * alpha);
+        // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く。
+        //   2-a: 選択カードのバーは 60bpm（1秒に一拍）で脈打つ。心拍の速さ＝「この投稿の下に、まだ誰かがいる」。
+        //   拍は鋭く立ち上がって減衰する形（sin の 4 乗）にし、ゆるい呼吸（背面グロウ）と混ざらないようにする。
+        Color barCol;
+        if (sel)
+        {
+            float beat = Mathf.Pow(Mathf.Max(0f, Mathf.Sin((float)_t * Mathf.Pi)), 4f);
+            barCol = new Color(UiKit.Purify, (0.42f + 0.48f * beat) * st * alpha + 0.5f * (1f - st) * alpha);
+        }
+        else barCol = new Color((e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)), (e.Unlocked ? 0.35f : 0.18f) * alpha);
         DrawRect(new Rect2(x + 4, cy + 10, 3, h - 20), barCol);
 
         Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id));
@@ -774,23 +788,17 @@ public partial class Hub : Node2D
             UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), UiKit.FontLabel, new Color(UiKit.Text4, alpha));
         }
 
-        // バッジ（右上）— X風のピル。NEW（＝次のダイブ推奨）と FINAL は塗り＋淡い明滅で目を引き、
-        //   CLEAR は枠のみ、LOCKED は沈める。状態差がひと目で読める階調にする。
-        string badge = e.IsFinal ? "FINAL" : e.Cleared ? "✓ CLEAR" : e.Unlocked ? "NEW" : "LOCKED";
-        DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
+        // バッジ（右上）— 世界の言葉のピル（2-a）。声＝これから潜る投稿／届いた＝浄化済み／限界＝FINAL。
+        //   ロックはピルを出さない（「LOCKED」という管理画面の語彙を画面から消す）。
+        string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : e.Unlocked ? "声" : "";
+        if (badge.Length > 0) DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
 
-        // 本文（(A) ロックは伏字バーで内容を隠す）
-        if (e.Unlocked)
-        {
-            UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
-                new Color(232 / 255f, 224 / 255f, 240 / 255f, alpha), w2, 2);
-        }
-        else
-        {
-            RedactedBars(tx, cy + 50, w2, alpha);
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx, cy + 44 + (h > 110f ? 34f : 18f)),
-                "ロック中 — まだダイブできません", UiKit.FontLabel, new Color(UiKit.Text4, alpha * 0.85f));
-        }
+        // 本文。ロックも本文は薄く出す（隠さない＝「まだ聞こえないだけ」で、投稿そのものは並んでいる）。
+        //   声のあるカード（解放済み・未クリア）は本文の下に伏字バーを明滅させる＝「消された一行」の印（2-a）。
+        UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
+            new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? alpha : alpha * 0.34f), w2, 2);
+        if (e.Unlocked && !e.Cleared && h > 96f)
+            RedactedBars(tx, cy + 44 + (h > 110f ? 40f : 26f), w2, alpha);
 
         // ミナの自動投稿（クリア済カードにスレッド返信風でぶら下げる＝ミナの投稿が同じタイムラインに混ざる）
         if (e.Unlocked && e.Cleared && !e.IsFinal && h >= 118f)
@@ -844,33 +852,29 @@ public partial class Hub : Node2D
         _ => "NORMAL",
     };
 
-    // カード右上のステータスピル。NEW/FINAL は塗り（明滅）、CLEAR は枠、LOCKED は沈み。
+    // カード右上のステータスピル。声／限界 は塗り（明滅）、届いた は枠。ロックはそもそも呼ばない（ピル無し）。
+    //   ラベルは日本語なので Mono ではなく Zen で測って描く（Mono に和文グリフが無く幅がずれる）。
     private void DrawBadgePill(Entry e, string badge, float right, float y, float alpha)
     {
-        float bw = UiKit.TextW(UiKit.Mono, badge, UiKit.FontSmall) + 20f;
+        float bw = UiKit.TextW(UiKit.ZenBold, badge, UiKit.FontSmall) + 22f;
         var r = new Rect2(right - bw, y, bw, 20f);
         if (e.IsFinal)
         {
             float pulse = 0.72f + 0.20f * Mathf.Sin((float)_t * 2.6f);
             UiKit.Box(this, r, new Color(UiKit.Kegare, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
         else if (e.Cleared)
         {
             UiKit.Box(this, r, new Color(UiKit.Ok, 0.10f * alpha), 10f, new Color(UiKit.Ok, 0.55f * alpha), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
-        }
-        else if (e.Unlocked)
-        {
-            // NEW＝次のダイブ推奨。塗りピルの淡い明滅で「ここへ」を誘導（常時アニメはこれと選択グロウのみ）。
-            float pulse = 0.74f + 0.18f * Mathf.Sin((float)_t * 3.0f);
-            UiKit.Box(this, r, new Color(UiKit.Purify, pulse * alpha), 10f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.Ok, alpha), HorizontalAlignment.Center, bw);
         }
         else
         {
-            UiKit.Box(this, r, new Color(1, 1, 1, 0.04f * alpha), 10f, new Color(1, 1, 1, 0.10f * alpha), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X, y + 3f), badge, UiKit.FontSmall, new Color(UiKit.Text4, alpha), HorizontalAlignment.Center, bw);
+            // 「声」＝これから潜る投稿。塗りピルの淡い明滅で「ここへ」を誘導（常時アニメはこれと選択グロウのみ）。
+            float pulse = 0.74f + 0.18f * Mathf.Sin((float)_t * 3.0f);
+            UiKit.Box(this, r, new Color(UiKit.Purify, pulse * alpha), 10f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X, y + 2f), badge, UiKit.FontSmall, new Color(UiKit.BgDeep, alpha), HorizontalAlignment.Center, bw);
         }
     }
 
@@ -907,12 +911,15 @@ public partial class Hub : Node2D
         return s;
     }
 
-    // ロックカードの伏字バー（X の非表示投稿風。寸法は控えめに2本）
+    // 伏字バー（2-a で用途を反転）。声のあるカードの本文の下に薄く明滅させ、
+    //   「この投稿には、消された一行がある」だけを言う。読ませない・説明しない。
+    //   明滅は周期 2.6s のごく浅い呼吸（0.045〜0.085α）。カード全体のノイズにならない量に抑える。
     private void RedactedBars(float x, float y, float w, float alpha)
     {
-        var c = new Color(1, 1, 1, 0.06f * alpha);
-        DrawRect(new Rect2(x, y, w * 0.82f, 9f), c);
-        DrawRect(new Rect2(x, y + 16f, w * 0.54f, 9f), c);
+        float pulse = 0.045f + 0.040f * (0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau / 2.6f));
+        var c = new Color(1, 1, 1, pulse * alpha);
+        DrawRect(new Rect2(x, y, w * 0.52f, 7f), c);
+        DrawRect(new Rect2(x, y + 13f, w * 0.31f, 7f), c);
     }
 
     // クリア順に基づくゆるい相対時刻（X風メタ表示・実害なし）。
@@ -966,10 +973,10 @@ public partial class Hub : Node2D
     // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
     private System.Collections.Generic.List<(string key, string label, bool accent, FootAct act)> FooterItems()
     {
+        // 「えらぶ」は儀式の語なので削除（2-a）。「ダイブ」→「潜る」＝この作品の動詞に寄せる。
         var list = new System.Collections.Generic.List<(string, string, bool, FootAct)>
         {
-            ("↑↓", "えらぶ", false, FootAct.None),
-            (Pad.ConfirmToken, "ダイブ", true, FootAct.None),
+            (Pad.ConfirmToken, "潜る", true, FootAct.None),
         };
         if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
         list.Add((Pad.BombToken, "強化", false, FootAct.Shop));                                    // ← ショップ入口ボタン
@@ -1030,10 +1037,16 @@ public partial class Hub : Node2D
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        float w = UiKit.TextW(UiKit.ZenBold, _toast, UiKit.FontBody) + 48;
-        float x = (W - w) / 2f;
-        UiKit.Box(this, new Rect2(x, H - 120, w, 40f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 110), _toast, UiKit.FontBody, _toastCol, HorizontalAlignment.Center, w);
+        bool sub = _toastSub.Length > 0;
+        float w = Mathf.Max(UiKit.TextW(UiKit.ZenBold, _toast, UiKit.FontBody),
+                            sub ? UiKit.TextW(UiKit.Mono, _toastSub, UiKit.FontSmall) : 0f) + 48;
+        float h = sub ? 58f : 40f;
+        float x = (W - w) / 2f, y = H - 120f - (sub ? 12f : 0f);
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 10f), _toast, UiKit.FontBody, _toastCol, HorizontalAlignment.Center, w);
+        // 2行目＝現状の数値。世界の言葉より一段落として置く（読みたい人だけが読む行）。
+        if (sub)
+            UiKit.Text(this, UiKit.Mono, new Vector2(x, y + 34f), _toastSub, UiKit.FontSmall, new Color(UiKit.Text3, 0.9f), HorizontalAlignment.Center, w);
     }
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
@@ -1301,6 +1314,13 @@ public partial class Hub : Node2D
         ("Ｘ 投稿", "「すき、すき、すき。……ひとつでいいから、本物になって。」"),
         ("ミナ", "……この投稿の下から、も。聞こえます。……何度も、同じ画面を開く音、みたいな。"),
         ("ミナ", "行きます。——放っておけないので。"),
+    };
+
+    // まだ声の聞こえない投稿を選んで Z を押したときの一行（2-a）。管理画面の「ロック中」の代わり。
+    //   ミナの新しい台詞は書かない＝ここは一行だけの既存の言い回しに留め、説明はしない。
+    private static readonly (string, string)[] NotYetDialog =
+    {
+        ("ミナ", "……まだ、聞こえません。"),
     };
 
     private static (string, string)[] ReturnDialog(string id) => id switch
