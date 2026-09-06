@@ -46,9 +46,20 @@ public partial class BossMina : Enemy
         ("心象の核",             BulletShape.Ring,    new Color("f0d98a")), // 濁金
         ("世界中の悲鳴",         BulletShape.Orb,     new Color("e0729c")), // 濁桃・全部同時
     };
+    // 攻撃パターン→立ち位置の対応（0 リング・2 花型＝中央に据わる／1 自機狙い＝鏡写しに追う／
+    // 3 三重スパイラル＝端／4「世界中の悲鳴」＝全部同時＝中央の高めで動かない）。
+    private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
+    {
+        1 => BossMover.Attack.Aimed,
+        3 => BossMover.Attack.Wall,
+        4 => BossMover.Attack.Spell,
+        _ => BossMover.Attack.Ring,
+    };
+
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
+        _mover.SetNextAttack(StanceOf(_pattern));
         SetSpellVisual(s.shape, s.tint);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", s.name, s.tint);
@@ -103,7 +114,7 @@ public partial class BossMina : Enemy
         // cry は邂逅の会話尺いっぱい保持し、EndCryNow で post（本来の姿）へ着地（他ボスと同作法）。
         CryTexPath = "res://char/enemy_mina_cry.png";
         PostTexPath = "res://char/enemy_mina_post.png";
-        BodyDisplayH = 60f;
+        BodyDisplayH = BossTuning.F("mina", "body_display_h", 56f);
         CryHoldDur = 9999.0;
     }
 
@@ -113,8 +124,10 @@ public partial class BossMina : Enemy
         // ボス登場＝道中BGMからボスBGMへクロスフェード。ミナ戦本体は専用の実音源 BgmBossMina
         //   （Final/ヒカゲの汎用 BgmBoss は据え置き）。実音源は MusicTargetDb で粒を揃えて鳴る。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossMina);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(200f, 68f), 90f, 28f, BossTuning.F("mina", "roam_speed", RoamSpeed));
+        // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[mina] の
+        // cruise_speed / accel_time / stance_*）。ミナは「自機の動きを鏡のように追う」＝
+        // stance_track_gain 1.0（自機と同じ x に寄る）。三ボスより速い。
+        _mover.Configure("mina", new Vector2(200f, 68f), 90f, 28f);
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -126,6 +139,8 @@ public partial class BossMina : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        // 自機の x を渡す＝鏡写しの追従（track_gain 1.0）と、反転の判定（40px 以上・0.6秒）に使う。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         // 全画面AOE予告中は詠唱モーション：小刻みに身震いさせ（visualOffset を揺らす）、オーラを強める。
         bool casting = _caster != null && _caster.AoeActive;
@@ -150,10 +165,10 @@ public partial class BossMina : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; Aimed(pool); } break;
-            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; Flower(pool, Dn(_flowerPetals)); } break;
-            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); Aimed(pool); } break;
+            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); Flower(pool, Dn(_flowerPetals)); } break;
+            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); Spiral(pool); } break;
             default: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(22), 66f); Ring(pool, Dn(22), 92f); } break;
         }
     }
