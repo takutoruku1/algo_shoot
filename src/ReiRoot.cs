@@ -77,7 +77,7 @@ public partial class ReiRoot : Node2D
         // 近景パララックス：前進感（弾より奥 -60/-55）。
         // 生成スクロール背景(scroll.png, -70)は不透明の全画面板で bg2 の層(-95..-88)を隠すので敷かない。
         AddChild(new ScrollFx { Name = "ScrollFx", Kind = ScrollFx.StageKind.Rei, SkipScrollTexture = true });
-        AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 順位掲示板の海
+        AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 配信のコメント欄・白飛びの「同接 8」
         AddChild(new WorldGrade { Name = "WorldGrade" }); // 進行度で「汚染→浄化」を4段階にくっきり切替（節目の色グレーディング）
         AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）
 

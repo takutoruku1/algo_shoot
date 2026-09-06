@@ -409,7 +409,7 @@ public partial class BossRei : Enemy
 
     protected override void OnCryEnd()
     {
-        // S3 画の反転：改心成立（cry→post）で、白飛びしていた「１位」に色が差し始める
+        // S3 画の反転：改心成立（cry→post）で、白飛びしていた「同接 8」に色が差し始める
         //（帰還の会話の背景でゆっくり進む。ズーム/フラッシュで指ししない＝気づく余白）。
         (GetTree().GetFirstNodeInGroup("imagery") as StageImagery)?.TriggerReversal();
         Finished = true;

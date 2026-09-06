@@ -3,7 +3,7 @@ using Godot;
 // StageImagery : 各ステージの「心象世界」を、汚染された SNS(X) のタイムラインが右→左へ流れる
 //   ツイート風カードとしてエンジン描画で重ねる軽量レイヤー（設計書 4 / 6 の演出ト書きを SNS で翻訳）。
 //   流れは ScrollFx / StageBackground と同じ左方向に統一＝左→右の前進感（縦の上昇感は出さない）。
-//   Rei   : 順位晒しのタイムライン。「２位おめでとう（笑）」等の心ない投稿／「１位」は白飛びの固定ポスト。
+//   Rei   : 配信のコメント欄。PostPool のレイのテーマ（層1〜2）から引いた心ない投稿／「同接 8」は白飛びの固定ポスト。
 //   Akari : 自責リプのスレッド。引用RTで「あたしのせいだ」が増幅、本人の「すき」「ごめん」が桃の差し色。雨は残す（左流れ・弱め）。
 //   Koharu: 電気を消した部屋の静かな投稿。いいねは 0/1（誰も反応しない）。暗背景なのでα低め。
 // 背景画像(ZIndex -90)の上、ゲーム要素(0..10)の下(ZIndex -50)に描く。浄化が進む(Warmth↑)と薄れて晴れる。
@@ -45,7 +45,7 @@ public partial class StageImagery : Node2D
     }
 
     // S3 画の反転：改心成立（cry→post 遷移）の瞬間に各ボスの OnCryEnd から呼ばれる。
-    //   汚染の象徴イメージ（白飛びの「１位」／自責スレッド／細る湯気）が、改心後の会話〜帰還ビートの
+    //   汚染の象徴イメージ（白飛びの「同接 8」／自責スレッド／細る湯気）が、改心後の会話〜帰還ビートの
     //   背景で“ゆっくり”反転していく。ズームもフラッシュも鳴らさない＝プレイヤーが自分で気づく余白を残す。
     public void TriggerReversal() { if (_revT < 0) _revT = 0; }
 
@@ -272,28 +272,56 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // ---- STAGE3 レイ：順位晒しのタイムライン（Cold=青系）----
-    // #11 文面改稿（maeda）：観測者の声＝ミーム的な軽さ7:刺さる一言3。個人特定なし。
-    // ※4枚ずつ・周回ごとに +4 して 8 件全部が順に流れる（DrawTimeline）。刺さる枠は前半 index 2／後半に2枚。
-    private static readonly string[] ReiBodies =
-        { "また２位ｗ", "点数バグってて草", "１位以外、覚えてないや", "実質優勝でよくない?",
-          "２位おめでとう（笑）", "努力は裏切らない（笑）", "天才って、こわ", "がんばったね、で終わる話" };
+    // ---- STAGE3 レイ：配信のコメント欄（Cold=青系）----
+    // 案C（星逢レイ＝登録者2000で止まった配信者。ガワで笑い、心のないコメントに潰されかける）。
+    // 文面は固定表を持たず PostPool のレイのテーマから引く＝弾・ティッカーと同じ語彙で流れる（層1 日常／層2 病みサイン）。
+    // 層3（本人の声）は道中の背景では出さない＝本人の言葉は改心の場面に取ってある。
+    // ※4枚ずつ・周回ごとに +4 して 8 件全部が順に流れる（DrawTimeline）。
+    private static string[]? _reiBodies;
+    private static string[] ReiBodies
+    {
+        get
+        {
+            if (_reiBodies != null) return _reiBodies;
+            // 決定論（毎回同じ並び＝チラつかない・ティッカー PostPool.Words と同じ作法）。
+            var rng = new RandomNumberGenerator { Seed = 0x5E13 };
+            var list = new System.Collections.Generic.List<string>();
+            var seen = new System.Collections.Generic.HashSet<string>();
+            while (list.Count < 8)
+            {
+                // 層は道中と同じ比率（レイ＝層1:層2 = 5:4）。層3 が出る目は層1 に寄せる。
+                var layer = PostPool.RollLayer(PostPool.Theme.Rei, rng);
+                if (layer == PostPool.Layer.L3) layer = PostPool.Layer.L1;
+                string w = PostPool.Draw(PostPool.Theme.Rei, layer, rng);
+                if (w.Length == 0 || !seen.Add(w)) continue;
+                list.Add(w);
+            }
+            PostPool.ResetHistory();   // 背景の抽選で本編（弾）の履歴を汚さない
+            return _reiBodies = list.ToArray();
+        }
+    }
+    // ピン留めの固定ポスト＝配信の同時接続数。道中は「同接 8」が白飛びで読めない眩しさ、
+    //   改心後の反転で色が差して読めるようになり、その下に「同接 9」が灯る（DrawReiReversal）。
+    private const string Pin8 = "同接 8", Pin9 = "同接 9";
+    private float Pin8W => _font.GetStringSize(Pin8, HorizontalAlignment.Left, -1, 12).X;
+    private float Pin9W => _font.GetStringSize(Pin9, HorizontalAlignment.Left, -1, 10).X;
+
     private void DrawRei(float fade)
     {
-        // 「１位」は白飛びの固定ポスト（ピン留め）。スクロールしない最上部のカード。読めない眩しさ。
+        // 「同接 8」は白飛びの固定ポスト（ピン留め）。スクロールしない最上部のカード。読めない眩しさ。
         var glow = new Color(1f, 1f, 1f, 0.16f * fade);
         DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), glow);
         DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(1f, 1f, 1f, 0.09f * fade), false, 1f);
-        _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - 16f, 22f), "１位",
+        _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - Pin8W / 2f, 22f), Pin8,
             HorizontalAlignment.Left, -1, 12, new Color(1f, 1f, 1f, 0.42f * fade));
 
-        // 順位晒しのタイムライン。冷たい青、メタは不自然に多い（晒しの拡散）。
+        // 配信のコメント欄。冷たい青、メタは不自然に多い（切り抜き・引用の拡散）。
         var panel = new Color(0.80f, 0.86f, 1f);
         var text = new Color(0.82f, 0.88f, 1f);
         var accent = new Color(0.86f, 0.90f, 1f);
         DrawTimeline(fade, panel, text, accent, ReiBodies, i => new CardMeta
         {
-            // 順位晒し＝拡散して数字が不自然に多い。閲覧数は万単位（晒しの伸び）。
+            // 数字は据え置き。切り抜き・引用で伸びるのは他人の投稿の方＝本人の同接 8 とは桁が違う。
             Replies = 12 + (int)(Frac(Mathf.Sin(i * 11.3f) * 4127.1f) * 80f),
             Reposts = 20 + (int)(Frac(Mathf.Sin(i * 29.3f) * 3317.1f) * 90f),
             Likes = 60 + (int)(Frac(Mathf.Sin(i * 17.1f) * 5123.7f) * 180f),  // 60〜240
@@ -439,14 +467,15 @@ public partial class StageImagery : Node2D
     // 共通の作法：①同じ場所・同じ形で戻す（道中で見た象徴だと分かる）②白/寒色 → 暖色は
     //   クロスフェード（瞬間切替しない）③α上限は「前」と同水準（説明的に明るくしない・指ししない）。
 
-    // ---- レイ：白飛びしていた「１位」のピン留めに、色が差す ----
-    //   読めない眩しさ（＝1位の専制）が夜明けの暖色に置き換わり、その下に「２位」が同じ光で灯る。
-    //   順位は変わらない。当たる光だけが等しくなる＝「2位にも価値」を言葉でなく色で言う。
+    // ---- レイ：白飛びしていた「同接 8」のピン留めに、色が差す ----
+    //   読めない眩しさ（＝数字に潰される側の眩しさ）が夜明けの暖色に置き換わって“読める”数字に戻り、
+    //   その下に「同接 9」が同じ光で灯る。ひとり増えた＝あなたとミナが見ている。
+    //   誰が増えたかは言わない。言葉でなく色と数字で言う。
     private void DrawReiReversal()
     {
         float aIn = RevPhase(0f, 4.5f);       // カードが戻ってくる
         float col = RevPhase(2f, 9f);         // 白 → 暖色（色が差す）
-        float second = RevPhase(6.5f, 12f);   // 「２位」が同じ色で灯る
+        float second = RevPhase(6.5f, 12f);   // 「同接 9」が同じ色で灯る
         if (aIn <= 0f) return;
         var ci = GetCanvasItem();
 
@@ -455,17 +484,20 @@ public partial class StageImagery : Node2D
         var pc = new Color(Mathf.Lerp(1f, warm.R, col), Mathf.Lerp(1f, warm.G, col), Mathf.Lerp(1f, warm.B, col));
         DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(pc.R, pc.G, pc.B, 0.14f * aIn));
         DrawRect(new Rect2(W / 2f - 40f, 6f, 80f, 22f), new Color(pc.R, pc.G, pc.B, 0.09f * aIn), false, 1f);
-        // 「１位」：白飛び(0.42)から“読める”暖色へ。眩しさが取れて、ただの一枚の投稿に戻る。
+        // 「同接 8」：白飛び(0.42)から“読める”暖色へ。眩しさが取れて、ただの数字に戻る。
         var t1 = new Color(Mathf.Lerp(1f, 1f, col), Mathf.Lerp(1f, 0.83f, col), Mathf.Lerp(1f, 0.50f, col),
             Mathf.Lerp(0.40f, 0.62f, col) * aIn);
-        _font.DrawString(ci, new Vector2(W / 2f - 16f, 22f), "１位", HorizontalAlignment.Left, -1, 12, t1);
+        _font.DrawString(ci, new Vector2(W / 2f - Pin8W / 2f, 22f), Pin8, HorizontalAlignment.Left, -1, 12, t1);
 
-        // 「２位」：ひとまわり小さく、同じ暖色・同じ光で下に灯る（大きさの序列は残す＝嘘をつかない）。
+        // 「同接 9」：ひとまわり小さく、同じ暖色・同じ光で下に灯る（大きさの序列は残す＝嘘をつかない）。
+        //   枠は文字幅から起こす（8 の枠は 80px 固定だが、9 は一段小さい字なので枠も文字に合わせる）。
         if (second > 0f)
         {
-            DrawRect(new Rect2(W / 2f - 28f, 32f, 56f, 16f), new Color(warm.R, warm.G, warm.B, 0.10f * second));
-            DrawRect(new Rect2(W / 2f - 28f, 32f, 56f, 16f), new Color(warm.R, warm.G, warm.B, 0.07f * second), false, 1f);
-            _font.DrawString(ci, new Vector2(W / 2f - 12f, 44f), "２位",
+            float bw = Pin9W + 14f;
+            var box = new Rect2(W / 2f - bw / 2f, 32f, bw, 16f);
+            DrawRect(box, new Color(warm.R, warm.G, warm.B, 0.10f * second));
+            DrawRect(box, new Color(warm.R, warm.G, warm.B, 0.07f * second), false, 1f);
+            _font.DrawString(ci, new Vector2(W / 2f - Pin9W / 2f, 44f), Pin9,
                 HorizontalAlignment.Left, -1, 10, new Color(1f, 0.83f, 0.50f, 0.55f * second));
         }
     }
