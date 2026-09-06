@@ -908,7 +908,8 @@ public partial class Hud : CanvasLayer
         // フォロワー進捗ピップ（●●○）：次の1体まであと何人救えばよいかを常時提示する。
         // コンボ表示（c2）はコンボ2以上で切り替わって消えるため、切り替わらない別枠として左隣に常設し両立させる。
         // 全員(MaxFollowers)揃っている間は次が無い＝ピップごと隠す。
-        if (!_followerFull)
+        // 随伴フォロワー自体が無効(Player.StageFollowersEnabled=false)なら、増える先が無いので常に隠す。
+        if (Player.StageFollowersEnabled && !_followerFull)
         {
             int total = _followerProgressTotal;
             const float dotR = 3.2f, dotGap = 10f;

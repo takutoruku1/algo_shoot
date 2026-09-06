@@ -48,6 +48,11 @@ public partial class Player : Area2D
     // 同時タメ中の弾数に上限を設ける（AccelChargeCap）。ホーミングの寿命切れ対策と同種の“自機弾の雲”対策。
     private readonly List<Bullet> _accelCharging = new List<Bullet>();
     private const int AccelChargeCap = 6; // 3ペア＝6発まで。超過分は新規スポーンをスキップ
+    // 道中で浄化した人が自機に随伴する「フォロワー」機能のON/OFF。
+    // 2026-09-06 ユーザー指示によりOFF（戦闘中に随伴フォロワーを増やさない）。true にすれば復活する。
+    // ※ SNSのフォロワー数（GameManager.Followers / FollowerPowerMul）とは別物なので、そちらには影響しない。
+    // （const ではなく static readonly ＝ false 固定でも分岐が畳まれず CS0162 が出ない。切替は下の初期値のみ）
+    public static readonly bool StageFollowersEnabled = false;
     public const int MaxFollowers = 4;
     public const int SavedPerFollower = 3; // この人数を救うごとに1体増える（増加を緩やかに）。HUDの進捗ドット表示にも使うため公開。
     private int _savedCount = 0;
@@ -112,6 +117,8 @@ public partial class Player : Area2D
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
     public bool AddFollower(Vector2 globalFromPos)
     {
+        // 随伴フォロワー無効時は何もしない＝生成も進捗通知もせず、呼び出し元(Enemy)は通常どおり退場する。
+        if (!StageFollowersEnabled) return false;
         _savedCount++;
         if (_followers.Count >= MaxFollowers) { NotifyFollowerProgress(); return false; }
         if (_savedCount % SavedPerFollower != 0) { NotifyFollowerProgress(); return false; } // 3人救うごとに1体
