@@ -18,8 +18,33 @@ public partial class Hub : Node2D
         public string Id, Scene, Name, Handle, Tweet, Initial;
         public bool Unlocked, Cleared;
         public long Likes, Reposts, Replies;
+        // 2-b: タイムラインの種別。Voice＝潜れる（三人＋FINAL）／Filler＝埋め草の他人の投稿／Pinned＝ミナの最新投稿。
+        //   Filler と Pinned は潜れない＝カーソルは乗るが Z では開かない。
+        public Kind Sort;
+        public string RelT;       // 相対時刻（Filler は生成規則で散らす。三人は従来の RelTime）
+        public bool Redacted;     // 層2（病みサイン）＝伏字が明滅する埋め草。声のあるカードと同じ印を持つ
     }
+    private enum Kind { Voice, Filler, Pinned }
     private Entry[] _entries = System.Array.Empty<Entry>();
+
+    // カードが「潜れる声」か（＝Z で投稿詳細が開き、そこから難易度を選んで潜れる）。
+    private bool IsVoice(int i) => i >= 0 && i < _entries.Length && _entries[i].Sort == Kind.Voice
+        && _entries[i].Unlocked;
+
+    // ───────── 3-1: 潜り方（難易度）の4段 ─────────
+    // 数値・実装は DiffSelect のまま（GameManager.Diff / BaseLivesFor / BaseBombsFor / DiffBarBonus）。
+    //   変えたのは名前と、添える情報だけ。「報酬 ×1.0」の文字は消し、♥アイコン＋倍率だけを残す。
+    //   一言は DiffSelect.Tiers の Quip をそのまま持ってくる（ミナの新しい台詞は書かない）。
+    private struct Tier { public string Name, Quip; public GameManager.Diff Diff; }
+    private static readonly Tier[] Tiers =
+    {
+        new() { Name = "浅く",       Diff = GameManager.Diff.Easy,    Quip = "ゆっくりで、いいんですよ。" },
+        new() { Name = "いつも通り", Diff = GameManager.Diff.Normal,  Quip = "では、いつも通りに。" },
+        new() { Name = "深く",       Diff = GameManager.Diff.Hard,    Quip = "……無理は、しないでくださいね。" },
+        new() { Name = "底まで",     Diff = GameManager.Diff.Lunatic, Quip = "……覚悟は、できていますか。" },
+    };
+    private bool TierOpen(int i) => i >= 0 && i < Tiers.Length
+        && (Tiers[i].Diff != GameManager.Diff.Lunatic || (_game?.IsLunaticUnlocked ?? false));
 
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
@@ -30,15 +55,22 @@ public partial class Hub : Node2D
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
-    private float _scroll; // 右端スクロールバー用：選択 index を滑らかに追う値
     // クリア済カードにぶら下げる「ミナの自動投稿」の短縮テキスト（1行に収まるよう省略・キャッシュ）
     private readonly System.Collections.Generic.Dictionary<string, string> _minaPosts = new();
 
     // デバッグ限定プレビュー：--hub-preview <all|final|lock> で表示状態だけ上書き（本番セーブ非汚染）。
     private string? _previewState;
+    // デバッグ限定：--hub-detail で投稿詳細（カード展開）を開いた状態から始める（スクショ用）。
+    private bool _openDetail;
+    // デバッグ限定：--hub-toast で炎上トーストを出した状態から始める（スクショ用。セーブは触らない）。
+    private bool _previewToast;
 
-    private enum Mode { Cards, Dialogue }
+    // Detail＝2-b の投稿詳細（カードがその場で開く）。本文／消された行の伏字／ミナの一言／潜り方（難易度）を
+    //   1枚に置き、旧 DiffSelect.tscn への遷移をここへ吸収した（難易度の数値・実装は不変）。
+    private enum Mode { Cards, Dialogue, Detail }
     private Mode _mode = Mode.Cards;
+    private double _detailT;      // 開いてからの経過（展開アニメと入力ゲート）
+    private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
@@ -128,12 +160,18 @@ public partial class Hub : Node2D
         {
             if (args[i] == "--demo" || args[i] == "--qa") _autoplay = true;
             if (args[i] == "--hub-preview" && i + 1 < args.Length) _previewState = args[i + 1];
+            if (args[i] == "--hub-detail") _openDetail = true;
+            if (args[i] == "--hub-toast") _previewToast = true;
         }
 
         BuildEntries();
         ApplyPreview();
         LoadFaces();
         if (_previewState == null) _sel = DefaultSelection();
+        // デバッグ限定：--hub-detail で選択カードの投稿詳細を開いた状態から始める（スクショ用）。
+        if (_openDetail && IsVoice(_sel)) OpenDetail();
+        // デバッグ限定：--hub-toast で炎上トーストの見え方を撮る（GameManager は一切触らない）。
+        if (_previewToast) Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
 
         string? cleared = _game?.JustClearedStageId;
         if (cleared != null)
@@ -149,14 +187,8 @@ public partial class Hub : Node2D
             }
             if (lines.Length > 0) StartDialogue(lines, null);
         }
-        else if (!_game!.IsIdleDialogSeen(H0Key))
-        {
-            // H0 ハブ初回（仮台本 06。ユーザー承認済み・2026-09-05）。あかりのカードが NEW の状態で一度だけ。
-            //   既読キーは再訪小話と同じ集合に持つが、接頭辞 "once_" のぶんは全読了リセットで消えない
-            //   （GameManager.ResetIdleDialogSeen）＝一周につき一度きり。新規データでは丸ごと初期化される。
-            _game.MarkIdleDialogSeen(H0Key);
-            StartDialogue(H0Dialog, null, noPost: true);   // まだ投稿していない＝数字は動かさない
-        }
+        // 2-b: H0 ハブ初回の一度きりの会話は廃止。あかりのカードにカーソルが乗ったときの
+        //   ホバー行（HoverLineFor）へ台詞を移し、「投稿を見つける」行為そのものに台詞を載せた。
         else if ((_game?.HeartsSaved ?? 0) > 0 && GD.Randf() < 0.5f)
         {
             // 再訪小話（小話集 v1 §1）：クリア直後ではない入場のうち約半分で、ハブ待機中の雑談を1本挟む。
@@ -239,6 +271,7 @@ public partial class Hub : Node2D
                 Tweet = s.Tweet, Initial = name.Length > 0 ? name.Substring(0, 1) : "?",
                 Unlocked = unlocked, Cleared = cleared,
                 Replies = rep, Reposts = rt, Likes = lk,
+                Sort = Kind.Voice, RelT = RelTime(s.Id),
             });
         }
         if (_game?.AllStoryCleared ?? false)
@@ -248,9 +281,138 @@ public partial class Hub : Node2D
                 IsFinal = true, Id = "final", Scene = "res://MinaBattle.tscn", Name = "ミナ", Handle = "@mina_ai_",
                 Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                 Unlocked = true, Cleared = false,
+                Sort = Kind.Voice, RelT = "now",
             });
         }
-        _entries = list.ToArray();
+        _entries = Interleave(list).ToArray();
+    }
+
+    // ───────── 2-b: タイムラインを本物の feed にする ─────────
+    // 三人（＋FINAL）の投稿の間に、他人の投稿を混ぜて並べる。遊び手のやることが
+    //   「一枚しかないカードで Z を押す」から「並んだ投稿の中から、声のする一本を見つける」に変わる。
+    //
+    // 埋め草の文面は PostPool の層1（日常）／層2（病みサイン）から引く＝道中の言葉弾・背景カードと同じ語彙
+    //   （正典 wiki/08_仮台本/09_投稿文集_X風.md。ここで新しい文面は書かない）。
+    //   面のテーマは、その投稿が挟まる位置の前後にいるヒロインに合わせる＝TL がその晩の面の色に寄る。
+    // ハンドル・表示名・相対時刻・エンゲージ数は StageImagery の背景カードと同じ決定論生成（Frac(Sin)）で散らす。
+    //   毎入場で並びが変わらない＝カーソルの記憶が効く（種は面の解放状況から起こす）。
+    private const int FillerMin = 6, FillerMax = 10;
+
+    private System.Collections.Generic.List<Entry> Interleave(System.Collections.Generic.List<Entry> voices)
+    {
+        var feed = new System.Collections.Generic.List<Entry>();
+        // 先頭にミナの最新投稿を固定ポストとして置く（potin: これは「自分の TL だ」と言う一行）。
+        var pinned = PinnedPost();
+        if (pinned != null) feed.Add(pinned.Value);
+
+        // 埋め草の本数は解放が進むほど増やす（初回の TL は薄く、三人ぶん出そろうと賑やかになる）。
+        int cleared = 0;
+        foreach (var v in voices) if (v.Cleared) cleared++;
+        int fillers = Mathf.Clamp(FillerMin + cleared * 2, FillerMin, FillerMax);
+
+        // 種＝解放状況（クリア数と声の本数）。同じ状況なら毎回同じ TL が並ぶ。
+        var rng = new RandomNumberGenerator { Seed = (ulong)(0x5F1D + cleared * 977 + voices.Count * 31) };
+        int idx = 0;   // 決定論生成の通し番号（ハンドル/表示名/時刻/数字の種）
+
+        // 声の前後に埋め草を配る。声と声の間に 1〜2 本ずつ、余りは末尾へ。
+        int left = fillers;
+        for (int i = 0; i < voices.Count; i++)
+        {
+            int here = (i < voices.Count - 1) ? Mathf.Min(left, 1 + rng.RandiRange(0, 1)) : left;
+            // 最後の声の後ろは 2 本までにして、声が画面の下に埋もれないようにする。
+            if (i == voices.Count - 1) here = Mathf.Min(here, 2);
+            for (int k = 0; k < here; k++) feed.Add(Filler(ThemeNear(voices, i), rng, idx++));
+            left -= here;
+            feed.Add(voices[i]);
+        }
+        for (int k = 0; k < left && k < 2; k++) feed.Add(Filler(ThemeNear(voices, voices.Count - 1), rng, idx++));
+        return feed;
+    }
+
+    // 埋め草の面テーマ＝その位置の直後に来る声の面（FINAL の前後は Common に落とす＝内側の語を TL に出さない）。
+    private static PostPool.Theme ThemeNear(System.Collections.Generic.List<Entry> voices, int i)
+    {
+        if (i < 0 || i >= voices.Count || voices[i].IsFinal) return PostPool.Theme.Common;
+        return voices[i].Id switch
+        {
+            "akari" => PostPool.Theme.Akari,
+            "koharu" => PostPool.Theme.Koharu,
+            "rei" => PostPool.Theme.Rei,
+            _ => PostPool.Theme.Common,
+        };
+    }
+
+    // 埋め草 1 枚。層は 09 の比率（PostPool.RollLayer）どおりで、層3（本人の声）が出たら層1 に落とす
+    //   ＝他人の投稿に本人の言葉を混ぜない。層2 を引いた枚は伏字が明滅する＝声のあるカードと同じ印を持ち、
+    //   「病みサインはあるが、まだ潜れない」＝見分けの練習になる。
+    private Entry Filler(PostPool.Theme theme, RandomNumberGenerator rng, int i)
+    {
+        var layer = PostPool.RollLayer(theme, rng);
+        if (layer == PostPool.Layer.L3) layer = PostPool.Layer.L1;
+        string body = PostPool.Draw(theme, layer, rng);
+        return new Entry
+        {
+            IsFinal = false, Id = $"filler{i}", Scene = "", Name = FillerName(i), Handle = FillerHandle(i),
+            Tweet = body, Initial = "", Unlocked = true, Cleared = false,
+            Sort = Kind.Filler, RelT = FillerRelTime(i), Redacted = layer == PostPool.Layer.L2,
+            Replies = FillerCount(i, 0), Reposts = FillerCount(i, 1), Likes = FillerCount(i, 2),
+        };
+    }
+
+    // ミナの最新投稿＝直近にクリアした面の帰還投稿の1行目（ReturnDialog(id)[0]）。
+    //   まだ一度もクリアしていない＝投稿していないので、その場合は固定ポストを置かない。
+    private Entry? PinnedPost()
+    {
+        string? last = null;
+        for (int i = GameManager.Stages.Length - 1; i >= 0; i--)
+            if (IsClearedForDisplay(GameManager.Stages[i].Id)) { last = GameManager.Stages[i].Id; break; }
+        if (last == null) return null;
+        var d = ReturnDialog(last);
+        if (d.Length == 0) return null;
+        return new Entry
+        {
+            IsFinal = false, Id = "pinned", Scene = "", Name = "ミナ", Handle = "@mina_ai_",
+            Tweet = d[0].Item2, Initial = "ミ", Unlocked = true, Cleared = false,
+            Sort = Kind.Pinned, RelT = "now",
+            Likes = _game?.Followers ?? 0, Reposts = (_game?.Followers ?? 0) / 4, Replies = (_game?.Followers ?? 0) / 8,
+        };
+    }
+
+    // 固定ポストの「直近にクリアした面」判定。デバッグプレビュー（--hub-preview）のときは
+    //   セーブではなく表示状態のほうを見る＝プレビューでもミナの固定ポストが出る。
+    private bool IsClearedForDisplay(string id) => _previewState switch
+    {
+        "all" or "final" => true,
+        "lock" => false,
+        "first" => id == "akari",
+        _ => _game?.IsStageCleared(id) ?? false,
+    };
+
+    // ── 埋め草のメタ生成（StageImagery.cs の背景カードと同じ決定論式。並びは通し番号 i で固定）──
+    private static float Frac(float v) => v - Mathf.Floor(v);
+    private static readonly string[] FillerHandles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "tori" };
+    private static readonly string[] FillerNames = { "名無し", "通りすがり", "匿名", "ロム専", "外野", "観測者", "低浮上" };
+    private static string FillerHandle(int i)
+    {
+        int s = (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * FillerHandles.Length);
+        int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
+        return $"@{FillerHandles[s % FillerHandles.Length]}_{num}";
+    }
+    private static string FillerName(int i)
+    {
+        int s = (int)(Frac(Mathf.Sin(i * 61.7f) * 8861.1f) * FillerNames.Length);
+        return FillerNames[s % FillerNames.Length];
+    }
+    private static string FillerRelTime(int i)
+    {
+        float r = Frac(Mathf.Sin(i * 73.9f) * 4129.7f);
+        return r < 0.45f ? $"{1 + (int)(r * 130f)}分" : $"{1 + (int)((r - 0.45f) * 40f)}時間";
+    }
+    // 返信/リポスト/いいね。埋め草は伸びていない＝二桁までに収める（三人の投稿の数字と混ざらない）。
+    private static long FillerCount(int i, int kind)
+    {
+        float r = Frac(Mathf.Sin((i * 3 + kind) * 127.1f) * 6571.3f);
+        return kind switch { 0 => (long)(r * 6f), 1 => (long)(r * 9f), _ => (long)(r * 48f) };
     }
 
     // クリア済投稿のエンゲージ伸長（浄化が届いた投稿は伸びる）。BuildEntries と ApplyPreview で共用。
@@ -262,14 +424,15 @@ public partial class Hub : Node2D
 
     // デバッグ限定：表示状態だけを上書き（GameManager のセーブは一切触らない）。
     //   all   = 全ステージ解放＆クリア済（FINAL も表示）
-    //   final = ストーリー全クリア直後（カードは CLEAR、FINAL を強調）
-    //   lock  = 1枚目のみ NEW・以降 LOCKED（初回起動の見え方）
+    //   final = ストーリー全クリア直後（カードは「届いた」、FINAL を強調）
+    //   lock  = 1枚目だけ「声」・以降はまだ聞こえない（初回起動の見え方）
+    //   first = 1面クリア直後（あかり＝届いた／こはる＝声／ミナの固定ポストが載った feed）
     private void ApplyPreview()
     {
         if (_previewState == null) return;
-        var list = new System.Collections.Generic.List<Entry>(_entries);
-        // 既存の final カードを一旦除外（再構成のため）
-        list.RemoveAll(e => e.IsFinal);
+        // 2-b: プレビューは「声」の側だけを組み替え、埋め草と固定ポストは Interleave に組み直させる。
+        var list = new System.Collections.Generic.List<Entry>();
+        foreach (var e in _entries) if (e.Sort == Kind.Voice && !e.IsFinal) list.Add(e);
 
         switch (_previewState)
         {
@@ -292,6 +455,7 @@ public partial class Hub : Node2D
                     Name = "ミナ", Handle = "@mina_ai_",
                     Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                     Unlocked = true, Cleared = false,
+                    Sort = Kind.Voice, RelT = "now",
                 });
                 break;
             case "lock":
@@ -299,13 +463,40 @@ public partial class Hub : Node2D
                 {
                     var e = list[i];
                     e.Cleared = false;
-                    e.Unlocked = (i == 0); // 1枚目だけ NEW
+                    e.Unlocked = (i == 0); // 1枚目だけ「声」
+                    list[i] = e;
+                }
+                break;
+            case "first":
+                // 1面クリア直後：あかり＝届いた／こはる＝次の声／レイ＝まだ聞こえない。
+                //   ミナの固定ポストが feed 最上段に載った状態の見え方（2-b）。
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var e = list[i];
+                    e.Cleared = i == 0;
+                    e.Unlocked = i <= 1;
+                    if (e.Cleared)
+                    {
+                        long rep = e.Replies, rt = e.Reposts, lk = e.Likes;
+                        ApplyClearBoost(ref rep, ref rt, ref lk, _game?.Followers ?? 0, false);
+                        e.Replies = rep; e.Reposts = rt; e.Likes = lk;
+                    }
                     list[i] = e;
                 }
                 break;
         }
-        _entries = list.ToArray();
-        _sel = _previewState == "final" ? _entries.Length - 1 : 0; // final は FINAL カードを選択表示
+        _entries = Interleave(list).ToArray();
+        // カーソルは本番と同じ考え方で置く（埋め草の上には置かない）。
+        //   final = 最後の声（FINAL カード）／それ以外 = 最初の「まだ届いていない声」＝次に潜る投稿。
+        _sel = 0;
+        bool last = _previewState == "final";
+        for (int i = 0; i < _entries.Length; i++)
+        {
+            if (_entries[i].Sort != Kind.Voice) continue;
+            if (last) { _sel = i; continue; }
+            if (_entries[i].Unlocked && !_entries[i].Cleared) { _sel = i; break; }
+            if (_sel == 0) _sel = i;   // 未クリアの声が無ければ最初の声へ落とす
+        }
     }
 
     // 各Entryの顔テクスチャを一度だけロードしてキャッシュ。final はミナ本体なので mina_face。
@@ -316,7 +507,9 @@ public partial class Hub : Node2D
         {
             string id = e.Id;
             if (_faces.ContainsKey(id)) continue;
-            if (e.IsFinal) { _faces[id] = _minaFace; continue; }
+            // 埋め草＝顔のない他人／固定ポスト＝ミナ本人。どちらも char/{id}_face.png を探しに行かせない。
+            if (e.Sort == Kind.Filler) { _faces[id] = null; continue; }
+            if (e.Sort == Kind.Pinned || e.IsFinal) { _faces[id] = _minaFace; continue; }
             string path = $"res://char/{id}_face.png";
             _faces[id] = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
         }
@@ -336,13 +529,17 @@ public partial class Hub : Node2D
         _ => 0.06f,
     };
 
+    // 既定カーソル＝次の声のある投稿（2-b でも維持）。埋め草の上には決して置かない
+    //   ＝入場して Z、で潜れる導線（2 押し）が feed になっても崩れない。
     private int DefaultSelection()
     {
         string? next = _game?.NextUnclearedStageId();
         if (next != null)
             for (int i = 0; i < _entries.Length; i++)
-                if (!_entries[i].IsFinal && _entries[i].Id == next) return i;
-        return _entries.Length - 1;
+                if (_entries[i].Sort == Kind.Voice && !_entries[i].IsFinal && _entries[i].Id == next) return i;
+        for (int i = _entries.Length - 1; i >= 0; i--)
+            if (_entries[i].Sort == Kind.Voice) return i;
+        return 0;
     }
 
     public override void _Process(double delta)
@@ -356,8 +553,9 @@ public partial class Hub : Node2D
         // 選択の寄り（0.12s で 0→1 に近づける lerp。選択が変わったら 0 へリセット）
         if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
         _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
-        // 右端スクロールバーのつまみは選択を滑らかに追う（フィードのスクロール感）
-        _scroll = Mathf.Lerp(_scroll, _sel, Mathf.Min(1f, (float)delta * 10f));
+        // 縦スクロールは選択を追って滑らかに寄る（フィードのスクロール感）。
+        UpdateFeedScrollTarget();
+        _feedScroll = Mathf.Lerp(_feedScroll, _feedScrollTarget, Mathf.Min(1f, (float)delta * 12f));
         if (_dived) { QueueRedraw(); return; }
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this))
@@ -367,6 +565,7 @@ public partial class Hub : Node2D
             return;
         }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
+        if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
         ProcessCards();
         QueueRedraw();
     }
@@ -485,7 +684,8 @@ public partial class Hub : Node2D
     private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
 
     // ───────── カード ─────────
-    private bool CanReplySel() => !_autoplay && _sel >= 0 && _sel < _entries.Length
+    // 返信できるのは「声のあるクリア済みカード」だけ（埋め草・固定ポストには返信しない）。
+    private bool CanReplySel() => !_autoplay && IsVoice(_sel)
         && _entries[_sel].Cleared && !(_game?.HasReplied(_entries[_sel].Id) ?? true);
 
     // カードの矩形（DrawCards / CardMetrics と同一：x=40, w=W-80, top+i*(h+gap)）。
@@ -493,7 +693,7 @@ public partial class Hub : Node2D
     private Rect2 CardHitRect(int i)
     {
         var (top, h, gap) = CardMetrics();
-        return new Rect2(40f, top + i * (h + gap), W - 80f, h);
+        return new Rect2(40f, top + i * (h + gap) - _feedScroll, W - 80f, h);
     }
 
     private void ProcessCards()
@@ -539,15 +739,9 @@ public partial class Hub : Node2D
         if (dive && _sel >= 0 && _sel < _entries.Length)
         {
             var e = _entries[_sel];
-            if (e.Unlocked)
-            {
-                Audio.Instance?.PlayUiConfirm();
-                // FINAL も通常ステージと同じく難易度選択を経由する（旧実装は直ダイブ＝FINAL だけ
-                // 難易度を選べず、前回ランの Difficulty が居座っていた）。final は中ボスを持たない＝
-                // DiffSelect は入口ダイアログを出さずそのままダイブする。
-                if (_game != null) _game.PendingStageScene = e.Scene;
-                Dive("res://DiffSelect.tscn");
-            }
+            // 2-b: Z でカードがその場で開く（投稿詳細）。潜れるのは声のある投稿だけ。
+            if (e.Sort != Kind.Voice) Audio.Instance?.PlayUiDeny();   // 埋め草・固定ポスト＝無言（開かない）
+            else if (e.Unlocked) OpenDetail();
             else
             {
                 // 未解放＝「ロック中」ではなく「まだ聞こえない」。拒否音の代わりにミナが一言だけ返す（2-a）。
@@ -596,6 +790,65 @@ public partial class Hub : Node2D
         }
     }
 
+    // ───────── 2-b: 投稿詳細（カードがその場で開く）─────────
+    // 旧 DiffSelect.tscn への遷移をここへ吸収した。既定の段は前回の難易度＝
+    //   「カードで Z → そのまま Z」の 2 押しで潜れる導線を守る。
+    private void OpenDetail()
+    {
+        Audio.Instance?.PlayUiConfirm();
+        _mode = Mode.Detail;
+        _detailT = 0;
+        _tierSel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
+        if (!TierOpen(_tierSel)) _tierSel = (int)GameManager.Diff.Hard;
+    }
+
+    private void ProcessDetail(double delta)
+    {
+        _detailT += delta;
+        var e = _entries[Mathf.Clamp(_sel, 0, _entries.Length - 1)];
+        // FINAL は潜り方を選ばせない（従来の FINAL の扱いを踏襲＝深さは選ばずそのまま内側へ）。
+        bool tiers = !e.IsFinal;
+
+        if (tiers)
+        {
+            bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
+            if ((up || down) && !_navHeld)
+            {
+                int dir = up ? -1 : 1;
+                // 解放されていない段（底まで）は飛ばす＝カーソルが止まって「押せない」を作らない。
+                for (int k = 0; k < Tiers.Length; k++)
+                {
+                    _tierSel = (_tierSel + dir + Tiers.Length) % Tiers.Length;
+                    if (TierOpen(_tierSel)) break;
+                }
+                Audio.Instance?.PlayUiMove();
+            }
+            _navHeld = up || down;
+        }
+
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        if (zEdge && _detailT > 0.15 && (!tiers || TierOpen(_tierSel)))
+        {
+            Audio.Instance?.PlayUiConfirm();
+            // 難易度はここで確定（DiffSelect と同じ代入。数値・実装は不変）。
+            if (_game != null && tiers && TierOpen(_tierSel)) _game.Difficulty = Tiers[_tierSel].Diff;
+            if (_game != null) _game.PendingStageScene = e.Scene;
+            // 入口（最初から/中ボスから/ボスから）の選択は DiffSelect が持っている。中ボスを持つ面で
+            //   解放済みの入口があるときだけ、そちらへ渡して問わせる＝入口の導線を落とさない。
+            string? id = GameManager.StageIdForScene(e.Scene);
+            bool asksEntry = id != null && GameManager.StageHasMidBoss(id)
+                && ((_game?.IsMidBossCleared(id) ?? false) || (_game?.IsStageCleared(id) ?? false));
+            if (asksEntry) Dive("res://DiffSelect.tscn");
+            else { if (_game != null) _game.SelectedEntry = GameManager.StageEntry.Start; Dive(e.Scene); }
+            return;
+        }
+
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_xHeld; _xHeld = back;
+        if (backEdge && _detailT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
+    }
+
     private void DiveAuto()
     {
         string? next = _game?.NextUnclearedStageId();
@@ -629,6 +882,7 @@ public partial class Hub : Node2D
         DrawHeader();
 
         if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
+        if (_mode == Mode.Detail) { DrawCards(0.20f); DrawDetail(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
         DrawCards(1f);
         DrawFooter();
         DrawToast();
@@ -691,12 +945,38 @@ public partial class Hub : Node2D
         // 偽タブ「おすすめ｜フォロー中」は削除（2-a）。切替できないタブはハリボテのダッシュボードに見える。
     }
 
+    // カード寸法。2-b で feed が 8〜14 枚になったので「全部を等分」はやめ、1 画面 5〜6 枚に固定して
+    //   はみ出した分は縦スクロールで送る（カードが潰れると本文も伏字も読めなくなる）。
+    //   高さは声のカード（ミナの返信・エンゲージ・BEST を持つ）が成立する 96px を下限に取る。
+    private const float FeedTop = 122f, FeedBottom = 656f, CardGap = 12f;
     private (float top, float h, float gap) CardMetrics()
     {
         int n = Mathf.Max(1, _entries.Length);
-        float top = 122f, bottom = 656f, gap = 14f;
-        float h = Mathf.Min(150f, (bottom - top - gap * (n - 1)) / n);
-        return (top, h, gap);
+        float span = FeedBottom - FeedTop;
+        // 4 枚までは従来どおり画面に収め（＝スクロール無し）、それを超えたら 1 画面 5 枚で刻む。
+        //   5 枚＝カード高 98px。名前行・本文2行・ミナのホバー行が重ならずに収まる下限。
+        int fit = Mathf.Clamp(n, 1, 5);
+        float h = Mathf.Min(150f, (span - CardGap * (fit - 1)) / fit);
+        return (FeedTop, h, CardGap);
+    }
+
+    // 縦スクロール量（px）。選択カードが常に画面内に収まるよう追従する。
+    private float _feedScroll, _feedScrollTarget;
+    private float FeedMaxScroll()
+    {
+        var (top, h, gap) = CardMetrics();
+        return Mathf.Max(0f, _entries.Length * (h + gap) - gap - (FeedBottom - top));
+    }
+    // 選択が画面外へ出ないところまでだけスクロールを動かす（上下に 1 枚ぶんの余白を残して先を見せる）。
+    private void UpdateFeedScrollTarget()
+    {
+        var (top, h, gap) = CardMetrics();
+        float viewH = FeedBottom - top;
+        float y0 = _sel * (h + gap), y1 = y0 + h;
+        float margin = Mathf.Min(h + gap, viewH * 0.25f);
+        if (y0 - margin < _feedScrollTarget) _feedScrollTarget = y0 - margin;
+        else if (y1 + margin > _feedScrollTarget + viewH) _feedScrollTarget = y1 + margin - viewH;
+        _feedScrollTarget = Mathf.Clamp(_feedScrollTarget, 0f, FeedMaxScroll());
     }
 
     private void DrawCards(float alpha)
@@ -704,26 +984,34 @@ public partial class Hub : Node2D
         var (top, h, gap) = CardMetrics();
         for (int i = 0; i < _entries.Length; i++)
         {
+            float cy = top + i * (h + gap) - _feedScroll;
+            // 画面外のカードは描かない（feed が伸びても描画量が増えない）。
+            if (cy + h < top - 4f || cy > FeedBottom + 4f) continue;
             bool sel = _mode == Mode.Cards && i == _sel;
             float st = sel ? _selT : 0f; // 寄りの進捗（0→1）
             // 流入アニメ：フィード読み込み風。下から 26px 滑り込みつつフェードイン、1枚ずつ 0.06s ずらす。
             //   帰還小話の後は _cardsEnteredT が更新される＝投稿後の「タイムライン更新」として再流入する。
             float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.06f) / 0.28f, 0f, 1f);
             ep = 1f - Mathf.Pow(1f - ep, 3f); // easeOutCubic（滑り込んで、すっと止まる）
-            DrawCard(_entries[i], top + i * (h + gap) + (1f - ep) * 26f, h, sel, st, alpha * ep);
+            // 上下端で薄れる（スクロールで切れた縁が硬く見えないよう、帯の外へ向けてフェード）。
+            float edge = Mathf.Clamp(Mathf.Min(cy + h - top, FeedBottom - cy) / 40f, 0f, 1f);
+            DrawCard(_entries[i], cy + (1f - ep) * 26f, h, sel, st, alpha * ep * edge);
         }
         DrawScrollHint(top, alpha);
     }
 
-    // 右端のスクロールバー風ヒント（3px）。つまみが選択カードに滑らかに追従＝縦フィードの現在地。
+    // 右端のスクロールバー風ヒント（3px）。2-b では実スクロール量に対する現在地を出す＝
+    //   「TL はこの先も続いている」ことを言う（つまみの短さが feed の長さ）。
     private void DrawScrollHint(float top, float alpha)
     {
         int n = _entries.Length;
         if (n <= 1) return;
-        float x = W - 18f, y0 = top, y1 = 656f;
+        float x = W - 18f, y0 = top, y1 = FeedBottom;
         DrawRect(new Rect2(x, y0, 3f, y1 - y0), new Color(1, 1, 1, 0.05f * alpha));
-        float th = Mathf.Max(28f, (y1 - y0) / n);
-        float ty = y0 + (y1 - y0 - th) * Mathf.Clamp(_scroll / (n - 1), 0f, 1f);
+        float max = FeedMaxScroll();
+        float viewH = y1 - y0;
+        float th = max > 0f ? Mathf.Max(28f, viewH * viewH / (viewH + max)) : viewH;
+        float ty = y0 + (viewH - th) * (max > 0f ? Mathf.Clamp(_feedScroll / max, 0f, 1f) : 0f);
         UiKit.Box(this, new Rect2(x, ty, 3f, th), new Color(UiKit.Purify, 0.45f * alpha), 2f);
     }
 
@@ -735,48 +1023,57 @@ public partial class Hub : Node2D
         float dy = sel ? -3f * st : 0f;
         x += dx; cy += dy;
 
-        // (B) 背面グロウ（0.06→0.09 を呼吸で行き来。選択カードの後ろにアカウント色を淡く敷く）
-        if (sel)
+        bool voice = e.Sort == Kind.Voice;
+        bool filler = e.Sort == Kind.Filler;
+
+        // (B) 背面グロウ（0.06→0.09 を呼吸で行き来。選択カードの後ろにアカウント色を淡く敷く）。
+        //   埋め草は光らない＝グロウそのものが「この投稿には声がある」の合図になる。
+        if (sel && !filler)
         {
-            Color acc0 = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
+            Color acc0 = e.IsFinal ? UiKit.Kegare : e.Sort == Kind.Pinned ? UiKit.Mina : AccountColor(e.Id);
             float glow = (0.06f + 0.03f * (0.5f + 0.5f * Mathf.Sin((float)_t * 2.2f))) * st * alpha;
             UiKit.RadialGlow(this, new Vector2(x + w * 0.5f, cy + h * 0.5f), w * 0.55f, acc0, glow);
         }
 
         Color bg = e.Unlocked
-            ? new Color(22 / 255f, 18 / 255f, 34 / 255f, (0.55f + 0.12f * st) * alpha)
-            : new Color(13 / 255f, 11 / 255f, 19 / 255f, 0.42f * alpha); // (A) ロックはさらに沈める
+            ? new Color(22 / 255f, 18 / 255f, 34 / 255f, ((filler ? 0.42f : 0.55f) + 0.12f * st) * alpha)
+            : new Color(13 / 255f, 11 / 255f, 19 / 255f, 0.42f * alpha); // (A) 声の届かないカードは沈める
         Color border = sel
-            ? new Color(UiKit.Purify, (0.55f + 0.30f * st) * alpha)
+            ? new Color(filler ? UiKit.Text3 : UiKit.Purify, (0.55f + 0.30f * st) * alpha)
             : e.IsFinal
                 ? new Color(UiKit.Kegare, 0.32f * alpha) // FINAL は非選択でも穢れ色の枠＝ただ事でない投稿
-                : new Color(1, 1, 1, (e.Unlocked ? 0.09f : 0.05f) * alpha);
+                : new Color(1, 1, 1, (e.Unlocked ? (filler ? 0.06f : 0.09f) : 0.05f) * alpha);
         UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
 
         // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く。
-        //   2-a: 選択カードのバーは 60bpm（1秒に一拍）で脈打つ。心拍の速さ＝「この投稿の下に、まだ誰かがいる」。
+        //   2-a/2-b: 声のあるカードを選んだときだけ、バーが 60bpm（1秒に一拍）で脈打つ。
         //   拍は鋭く立ち上がって減衰する形（sin の 4 乗）にし、ゆるい呼吸（背面グロウ）と混ざらないようにする。
+        //   埋め草を選んでも脈は打たない＝カーソルを動かして「脈を探す」のが選ぶ行為になる。
         Color barCol;
-        if (sel)
+        if (sel && voice && e.Unlocked)
         {
             float beat = Mathf.Pow(Mathf.Max(0f, Mathf.Sin((float)_t * Mathf.Pi)), 4f);
             barCol = new Color(UiKit.Purify, (0.42f + 0.48f * beat) * st * alpha + 0.5f * (1f - st) * alpha);
         }
-        else barCol = new Color((e.IsFinal ? UiKit.Kegare : AccountColor(e.Id)), (e.Unlocked ? 0.35f : 0.18f) * alpha);
+        else if (sel) barCol = new Color(UiKit.Text3, (0.35f + 0.25f * st) * alpha);
+        else barCol = new Color(BarColorFor(e), (e.Unlocked ? (filler ? 0.20f : 0.35f) : 0.18f) * alpha);
         DrawRect(new Rect2(x + 4, cy + 10, 3, h - 20), barCol);
 
-        Color acc = (e.IsFinal ? UiKit.Kegare : AccountColor(e.Id));
+        Color acc = BarColorFor(e);
         float ax = x + 36, ay = cy + 36;
-        UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel,
-            TopCropFor(e.IsFinal ? "final" : e.Id), alpha, _t);
+        // 埋め草は顔を持たない他人＝アバターはアカウント色の無地円（FaceAvatar の「?」ロック円は出さない）。
+        if (filler) DrawFillerAvatar(ax, ay, alpha);
+        else UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel,
+            TopCropFor(e.IsFinal ? "final" : e.Sort == Kind.Pinned ? "mina" : e.Id), alpha, _t);
 
         float tx = x + 74, w2 = w - 110;
-        Color main = new(UiKit.White, e.Unlocked ? alpha : alpha * 0.45f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 16), e.Name, UiKit.FontSpeaker, main);
-        float nameW = UiKit.TextW(UiKit.ZenBold, e.Name, UiKit.FontSpeaker);
-        // (C) 認証バッジ（解放済のみ）→ ハンドル · 時刻
+        Color main = new(UiKit.White, e.Unlocked ? (filler ? alpha * 0.72f : alpha) : alpha * 0.45f);
+        var nameFont = filler ? UiKit.Zen : UiKit.ZenBold;
+        UiKit.Text(this, nameFont, new Vector2(tx, cy + 16), e.Name, UiKit.FontSpeaker, main);
+        float nameW = UiKit.TextW(nameFont, e.Name, UiKit.FontSpeaker);
+        // (C) 認証バッジ（声のあるカードのみ）→ ハンドル · 時刻。埋め草にはバッジを付けない。
         float metaX = tx + nameW + 12;
-        if (e.Unlocked)
+        if (e.Unlocked && !filler)
         {
             UiKit.VerifiedBadge(this, new Vector2(metaX + 7, cy + 26), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
             metaX += 22;
@@ -785,35 +1082,51 @@ public partial class Hub : Node2D
         if (e.Unlocked && !e.IsFinal)
         {
             float hW = UiKit.TextW(UiKit.Mono, e.Handle, UiKit.FontLabel);
-            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + RelTime(e.Id), UiKit.FontLabel, new Color(UiKit.Text4, alpha));
+            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + e.RelT, UiKit.FontLabel, new Color(UiKit.Text4, alpha));
         }
 
         // バッジ（右上）— 世界の言葉のピル（2-a）。声＝これから潜る投稿／届いた＝浄化済み／限界＝FINAL。
-        //   ロックはピルを出さない（「LOCKED」という管理画面の語彙を画面から消す）。
-        string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : e.Unlocked ? "声" : "";
-        if (badge.Length > 0) DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
+        //   ロックと埋め草はピルを出さない（「LOCKED」という管理画面の語彙を画面から消す）。
+        //   固定ポストだけは「固定」＝X の pinned post の作法で置く。
+        if (e.Sort == Kind.Pinned) DrawPinnedMark(x + w - 24f, cy + 14f, alpha);
+        else if (voice)
+        {
+            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : e.Unlocked ? "声" : "";
+            if (badge.Length > 0) DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
+        }
 
-        // 本文。ロックも本文は薄く出す（隠さない＝「まだ聞こえないだけ」で、投稿そのものは並んでいる）。
-        //   声のあるカード（解放済み・未クリア）は本文の下に伏字バーを明滅させる＝「消された一行」の印（2-a）。
+        // 本文。声の届かないカードも本文は薄く出す（隠さない＝「まだ聞こえないだけ」で、投稿そのものは並んでいる）。
+        //   伏字バーは「消された一行がある」印（2-a）。声のあるカード（未クリア）と、
+        //   層2（病みサイン）の埋め草に出す＝病みサインだけでは潜れない、というのが見分けの中身になる。
+        //   低いカード（feed が伸びて 1 画面 5 枚になった状態）では本文は1行に留める＝
+        //   下段（伏字・ミナの一行・指標）と重ならない。
+        int bodyLines = h >= 120f ? 2 : 1;
         UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
-            new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? alpha : alpha * 0.34f), w2, 2);
-        if (e.Unlocked && !e.Cleared && h > 96f)
-            RedactedBars(tx, cy + 44 + (h > 110f ? 40f : 26f), w2, alpha);
+            new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? (filler ? alpha * 0.78f : alpha) : alpha * 0.34f), w2, bodyLines);
+        // 伏字は本文の直下。ホバー行が出ている選択カードでは、その帯をミナに譲る。
+        bool hoverHere = sel && voice && e.Unlocked && _mode == Mode.Cards && HoverLineFor(e).Length > 0;
+        if (!hoverHere && ((voice && e.Unlocked && !e.Cleared) || e.Redacted))
+            RedactedBars(tx, cy + 44 + bodyLines * 22f, w2, alpha);
 
         // ミナの自動投稿（クリア済カードにスレッド返信風でぶら下げる＝ミナの投稿が同じタイムラインに混ざる）
-        if (e.Unlocked && e.Cleared && !e.IsFinal && h >= 118f)
+        if (voice && e.Unlocked && e.Cleared && !e.IsFinal && h >= 118f)
             DrawMinaReply(e.Id, x, cy, w, h, alpha);
 
+        // 声のあるカードにカーソルが乗ったときだけ、カード下部にミナの一行（2-b）。他は無言。
+        if (hoverHere) DrawHoverLine(e, x, cy, w, h, alpha * st);
+
         // エンゲージメント（ロック以外）。(C) ビュー指標を末尾に追加。
-        if (e.Unlocked && !e.IsFinal && h > 110f)
+        //   2-b でカードが低くなった（1画面5枚）ので、指標行の下限を 110→90 に下げる。
+        //   ホバー行が出ている選択カードでは指標行を出さない（同じ帯を奪い合わない）。
+        if (e.Unlocked && !e.IsFinal && h > 90f && !hoverHere)
         {
             float ey = cy + h - 26f, ex = tx;
             ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
             ex = Metric(ex, ey, 1, e.Reposts, new Color(0f, 0.73f, 0.49f, alpha));
             ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
-            Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
+            if (!filler) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
         }
-        else if (e.IsFinal && h > 96f)
+        else if (e.IsFinal && h > 90f && !hoverHere)
         {
             // FINAL＝ミナ自身の投稿。数字は「いま」のミナ（♥=フォロワー / ビュー=インプレ）に直結させる。
             float ey = cy + h - 26f;
@@ -821,9 +1134,66 @@ public partial class Hub : Node2D
             Metric(ex, ey, 3, _game?.Impression ?? 0, new Color(UiKit.Text4, alpha));
         }
 
-        // ベストタイム（右下・記録のある最速難易度＋その難易度ラベル。記録なしは "--"）。
-        if (e.Unlocked && !e.IsFinal)
+        // ベストタイム（右下・記録のある最速難易度＋その難易度ラベル。記録なしは "--"）。声のあるカードだけ。
+        if (voice && e.Unlocked && !e.IsFinal && !hoverHere)
             DrawCardBest(e.Id, x + w - 24f, cy + h - 26f, alpha);
+    }
+
+    // カードの左バー／アバターのリング色。埋め草は色を持たない他人＝くすんだ灰。
+    private static Color BarColorFor(Entry e) => e.Sort switch
+    {
+        Kind.Filler => UiKit.Text4,
+        Kind.Pinned => UiKit.Mina,
+        _ => e.IsFinal ? UiKit.Kegare : AccountColor(e.Id),
+    };
+
+    // 埋め草のアバター（顔なし）。X の初期アイコン風に、無地の円と肩のシルエットだけ置く。
+    private void DrawFillerAvatar(float cx, float cy, float alpha)
+    {
+        DrawCircle(new Vector2(cx, cy), 24f, new Color(0.16f, 0.15f, 0.21f, 0.9f * alpha));
+        DrawArc(new Vector2(cx, cy), 24f, 0f, Mathf.Tau, 28, new Color(1, 1, 1, 0.08f * alpha), 1f);
+        var s = new Color(UiKit.Text4, 0.5f * alpha);
+        DrawCircle(new Vector2(cx, cy - 5f), 7f, s);                       // 頭
+        DrawColoredPolygon(new[] { new Vector2(cx - 11f, cy + 13f), new Vector2(cx + 11f, cy + 13f),
+                                   new Vector2(cx + 8f, cy + 4f), new Vector2(cx - 8f, cy + 4f) }, s);  // 肩
+    }
+
+    // 固定ポストの印（X の pinned post）。ピルではなく、小さなピンと「固定」の一語だけ置く。
+    private void DrawPinnedMark(float right, float y, float alpha)
+    {
+        const string s = "固定";
+        float tw = UiKit.TextW(UiKit.Zen, s, UiKit.FontSmall);
+        float x = right - tw;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 2f), s, UiKit.FontSmall, new Color(UiKit.Text3, 0.9f * alpha));
+        // ピン＝頭の丸と細い軸（ラベルの左に控えめに）。
+        DrawCircle(new Vector2(x - 12f, y + 6f), 3f, new Color(UiKit.Mina, 0.8f * alpha));
+        DrawLine(new Vector2(x - 12f, y + 8f), new Vector2(x - 12f, y + 15f), new Color(UiKit.Mina, 0.6f * alpha), 1.4f);
+    }
+
+    // 声のあるカードにカーソルが乗ったときの、カード下部のミナの一行（2-b）。
+    //   文言は既存の行の転用のみ（新しい台詞は書かない）。あかりの初回だけ H0Dialog の2行目を使い、
+    //   一度きりの H0 会話（旧 Hub.cs の入場ダイアログ）はここへ吸収した。
+    private void DrawHoverLine(Entry e, float x, float cy, float w, float h, float alpha)
+    {
+        string line = HoverLineFor(e);
+        if (line.Length == 0) return;
+        // カード下端から 26px。本文（1〜2行・cy+44 から）とぶつからない位置に置く。
+        float ly = cy + h - 26f;
+        // ミナの小さなアバター＋一行。カードの中に居る＝この投稿を一緒に見ている、という置き方。
+        UiKit.FaceAvatar(this, new Vector2(x + 44f, ly + 8f), 9f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 60f, ly + 1f), line, UiKit.FontLabel,
+            new Color(UiKit.Mina, 0.95f * alpha), HorizontalAlignment.Left, w - 84f);
+    }
+
+    // ホバー行の文言。既存の台詞からの転用に限る（新規の台詞は書かない）。
+    private string HoverLineFor(Entry e)
+    {
+        if (e.IsFinal) return "……ご主人様。次のカードは——わたくしの、内側です。";   // H3 帰還の行
+        if (e.Cleared) return "";                                                     // 届いた投稿には、もう言うことがない
+        // あかりの初回＝H0（仮台本 06）の2行目をそのまま置く。旧実装の入場ダイアログの代わり。
+        if (e.Id == "akari") return "……この投稿の下から、も。聞こえます。";
+        // こはる・レイは帰還小話の「次の声も、もう、聞こえています。」（H1 帰還の最終行）を引く。
+        return "次の声も、もう、聞こえています。";
     }
 
     // カード右下のベストタイム表示。最速難易度のベスト＋小さな難易度ラベル。
@@ -1068,6 +1438,128 @@ public partial class Hub : Node2D
         return (null, AccountColor("rei"), 0.06f);
     }
 
+    // ───────── 2-b: 投稿詳細（開いたカード）─────────
+    // 本文／消された行の伏字／ミナの一言／潜り方（難易度4段）を1枚に置く。
+    //   FINAL は段を出さず、従来の FINAL の見出し（穢れ色・「限界」）の扱いを踏襲する。
+    private void DrawDetail()
+    {
+        var e = _entries[Mathf.Clamp(_sel, 0, _entries.Length - 1)];
+        bool tiers = !e.IsFinal;
+        // 展開：0.18s で下から起き上がる（カードがその場で開く、の感じ。カード列は _Draw 側で沈めてある）。
+        float k = Mathf.Clamp((float)_detailT / 0.18f, 0f, 1f);
+        k = 1f - Mathf.Pow(1f - k, 3f);
+
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.52f * k));
+
+        // 高さ：見出し〜ミナの一言で 266px、潜り方 4 段で 4*(44+6)=200px、フッタに 46px。
+        float cw = W - 160f, ch = tiers ? 512f : 300f;
+        float cx = (W - cw) / 2f, cy = 108f + (1f - k) * 24f;
+        Color acc = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
+        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 15 / 255f, 27 / 255f, 0.98f * k), 18f,
+            new Color(acc, 0.55f * k), 1.5f);
+
+        float a = k;
+        // ── 投稿のヘッダ（アバター／名前／ハンドル・時刻／ピル）──
+        UiKit.FaceAvatar(this, new Vector2(cx + 60f, cy + 54f), 26f, FaceFor(e.Id), acc, false,
+            TopCropFor(e.IsFinal ? "final" : e.Id), a, _t);
+        float tx = cx + 100f;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 30f), e.Name, UiKit.FontHeading, new Color(UiKit.White, a));
+        float nw = UiKit.TextW(UiKit.ZenBold, e.Name, UiKit.FontHeading);
+        UiKit.VerifiedBadge(this, new Vector2(tx + nw + 18f, cy + 41f), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
+        UiKit.Text(this, UiKit.Mono, new Vector2(tx, cy + 56f), $"{e.Handle} · {e.RelT}", UiKit.FontLabel, new Color(UiKit.Text3, a));
+        {
+            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "声";
+            DrawBadgePill(e, badge, cx + cw - 26f, cy + 28f, a);
+        }
+
+        // ── 本文 ──
+        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 40f, cy + 92f), e.Tweet, UiKit.FontHeading,
+            new Color(238 / 255f, 232 / 255f, 246 / 255f, a), cw - 80f, 3);
+
+        // ── 消された行の伏字（読ませない。「ここに、消された一行がある」だけを言う）──
+        float ry = cy + 156f;
+        RedactedBars(cx + 40f, ry, cw - 80f, a);
+
+        // ── ミナの一言（既存の行の転用。カードのホバー行と同じ文言）──
+        string quip = HoverLineFor(e);
+        if (quip.Length == 0) quip = "……届きました。";   // クリア済＝H1 帰還の「お疲れさまでした。」の場の一言
+        float qy = cy + 196f;
+        UiKit.FaceAvatar(this, new Vector2(cx + 52f, qy + 12f), 12f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), a, _t);
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 74f, qy + 3f), quip, UiKit.FontBody,
+            new Color(UiKit.Mina, 0.95f * a), HorizontalAlignment.Left, cw - 114f);
+
+        // ── 潜り方（難易度4段）──
+        if (tiers)
+        {
+            DrawRect(new Rect2(cx + 40f, cy + 232f, cw - 80f, 1f), new Color(1, 1, 1, 0.09f * a));
+            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 242f), "潜り方", UiKit.FontLabel, new Color(UiKit.Text3, a));
+            float ty = cy + 266f, th = 44f, tg = 6f;
+            for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 40f, ty + i * (th + tg), cw - 80f, th, a);
+        }
+
+        // ── フッタ（この画面の操作）──
+        float fy = cy + ch - 22f, fx = cx + 40f;
+        if (tiers) fx = Hint(fx, fy, "↑↓", "潜り方", false);
+        fx = Hint(fx, fy, Pad.ConfirmToken, "潜る", true);
+        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false);
+    }
+
+    // 潜り方の1段。名前／ミナの一言（DiffSelect の Quip）／♥ボム／板の枚数（ボスHPバー本数）。
+    //   「報酬 ×1.0」の文字は消し、♥アイコン＋倍率だけを右端に置く。
+    private void DrawTier(int i, float x, float y, float w, float h, float alpha)
+    {
+        var tr = Tiers[i];
+        bool sel = i == _tierSel;
+        bool open = TierOpen(i);
+        Color acc = tr.Diff == GameManager.Diff.Lunatic ? UiKit.Kegare
+                  : tr.Diff == GameManager.Diff.Hard ? new Color("e89460") : UiKit.Purify;
+
+        if (!open)
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f * alpha), 12f, new Color(1, 1, 1, 0.05f * alpha), 1f);
+        else if (sel)
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.65f * alpha), 12f, new Color(acc, 0.85f * alpha), 1.5f);
+        else
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f * alpha), 12f, new Color(1, 1, 1, 0.09f * alpha), 1f);
+
+        float tx = x + 18f;
+        if (sel && open) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 14f), "▸", UiKit.FontBody, new Color(acc, alpha)); tx += 20f; }
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), tr.Name, UiKit.FontSpeaker,
+            new Color(open ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4, alpha));
+
+        if (!open)
+        {
+            // 「底まで」の解禁条件は GameManager の定数から引く（DiffSelect と同じ出典）。
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx + 92f, y + 14f),
+                $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4", UiKit.FontLabel, new Color(UiKit.Mina, alpha));
+            return;
+        }
+
+        // ミナの一言（DiffSelect の Quip をそのまま）。名前の右に置いて1行に収める。
+        UiKit.Text(this, UiKit.Zen, new Vector2(tx + 92f, y + 14f), tr.Quip, UiKit.FontLabel,
+            new Color(sel ? UiKit.Text2 : UiKit.Text3, alpha), HorizontalAlignment.Left, w - 330f);
+
+        // 右端：♥（残機）／ボム／板（ボスHPバー本数）／報酬倍率（♥アイコン＋数字だけ）。
+        float rx = x + w - 18f;
+        float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
+        string mulS = $"×{mul:0.0}";
+        float mw = UiKit.TextW(UiKit.Mono, mulS, UiKit.FontLabel);
+        rx -= mw;
+        UiKit.Text(this, UiKit.Mono, new Vector2(rx, y + 15f), mulS, UiKit.FontLabel, new Color(UiKit.Hp, alpha));
+        rx -= 16f;
+        DrawHeart(new Vector2(rx, y + h / 2f), 6f, new Color(UiKit.Hp, alpha));
+
+        // 板（ボスHPバー本数）＝隠れた賭け金。小さな縦板を本数ぶん並べる（数字ではなく枚数で見せる）。
+        int bars = (tr.Diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Hard => 5, GameManager.Diff.Lunatic => 6, _ => 4 });
+        rx -= 12f + bars * 7f;
+        for (int b = 0; b < bars; b++)
+            DrawRect(new Rect2(rx + b * 7f, y + h / 2f - 7f, 4f, 14f), new Color(acc, 0.75f * alpha));
+
+        // ♥（残機）とボムは素の値（恒久強化ボーナスを含まない＝DiffSelect と同じ提示）。
+        string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
+        rx -= 14f + UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall);
+        UiKit.Text(this, UiKit.Mono, new Vector2(rx, y + 16f), stake, UiKit.FontSmall, new Color(UiKit.Text3, alpha));
+    }
+
     private void DrawDialog()
     {
         var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
@@ -1305,16 +1797,9 @@ public partial class Hub : Node2D
         return outp;
     }
 
-    // H0 ハブ初回（仮台本 06。ユーザー承認済み・2026-09-05）。あかりのカードが NEW で並んでいる初回入場に一度だけ。
-    //   投稿の下の声を見つけて、そのまま潜りに行く3行。中身（「何度も同じ画面を開く音」の正体）は
-    //   S1-8 の投稿まで温存する＝ミナは説明しない。相方は「あなた」なので掛け合いにしない。
-    private const string H0Key = "once_h0";
-    private static readonly (string, string)[] H0Dialog =
-    {
-        ("Ｘ 投稿", "「すき、すき、すき。……ひとつでいいから、本物になって。」"),
-        ("ミナ", "……この投稿の下から、も。聞こえます。……何度も、同じ画面を開く音、みたいな。"),
-        ("ミナ", "行きます。——放っておけないので。"),
-    };
+    // H0 ハブ初回（仮台本 06。ユーザー承認済み・2026-09-05）の一度きりの会話は 2-b で廃止した。
+    //   3行のうち1行目（「すき、すき、すき。」）はあかりのカードの本文そのもの、
+    //   2行目はカードのホバー行（HoverLineFor）へ移し、投稿を見つける行為に台詞が乗る形にした。
 
     // まだ声の聞こえない投稿を選んで Z を押したときの一行（2-a）。管理画面の「ロック中」の代わり。
     //   ミナの新しい台詞は書かない＝ここは一行だけの既存の言い回しに留め、説明はしない。
