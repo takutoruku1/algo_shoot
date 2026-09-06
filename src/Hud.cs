@@ -15,11 +15,6 @@ public partial class Hud : CanvasLayer
     public bool HoldBubble = false;
 
     private int _lives = 3;
-    // フォロワー加入までの進捗（●●○のピップ表示用）。Player から push で更新される（SetLives と同じパターン）。
-    // 満員(_followerFull)なら DrawScore 側でピップ列を隠す。
-    private int _followerProgress = 0;
-    private int _followerProgressTotal = Player.SavedPerFollower;
-    private bool _followerFull = false;
 
     // ステージ経過タイム（秒）。各ステージシーンが毎フレーム SetElapsed で渡す。
     // delta基準でステージ側が積算するため、ポーズ中（ツリーpause）は自然に止まる。
@@ -155,11 +150,6 @@ public partial class Hud : CanvasLayer
     private double _nodT;                       // 0..NodTime を減算（>0 の間だけうなずく）
     private bool _revealWasDone;                // 直前フレームでタイプ送りが完了していたか（完了の立ち上がり検出）
 
-    // やさしさゲージ（HUD表示用）
-    private double _overloadToast;
-    private float _kindPulse;
-    private float _prevKind;
-
     // ───────── 左上HUDの自動退避（視認性：弾と自機は常に最前面で見える）─────────
     //   HUD は CanvasLayer なので World の弾(Node2D)より必ず前面に描かれる。左上から降る雨弾は
     //   LIFE/BOMB・各チップの footprint を通過する間だけガラスパネル裏に隠れ「急に被弾」に見える。
@@ -175,7 +165,7 @@ public partial class Hud : CanvasLayer
     // 0 より大きい間は弾が一瞬途切れても薄いまま＝弾の切れ目で濃くならずチカチカしない（フリッカ対策の主役）。
     private double _topLeftHold;
     private const double TopLeftHoldDur = 0.6;  // 弾が完全に途切れてから濃く戻り始めるまでの保持時間（秒）
-    // 左上クラスタの占有域（設計座標1280x720）。LIFE/BOMB・ショット・やさしさ・目標・スキルの
+    // 左上クラスタの占有域（設計座標1280x720）。LIFE/BOMB・ショット・スキル・炎上の
     // 各チップを内包する矩形。弾がこの域に入っている間だけクラスタを薄くして弾を透かす。
     private static readonly Rect2 TopLeftZone = new Rect2(10, 12, 240, 240);
 
@@ -234,7 +224,6 @@ public partial class Hud : CanvasLayer
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string AllMode  => Pad.ModeToken;
     private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
-    private static string AllKind  => Pad.UsingPad ? Pad.Face(JoyButton.RightStick)   : "Ctrl";
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
@@ -345,13 +334,6 @@ public partial class Hud : CanvasLayer
                           : 1f;
         _controlsAlpha = Mathf.MoveToward(_controlsAlpha, targetAlpha, (float)delta * 3.2f);
 
-        // やさしさゲージの演出更新（全開トースト＋グレイズで貯まる手応え）
-        if (_game?.JustOverloaded ?? false) { _overloadToast = 1.4; _shotModeToast = 0; Audio.Instance?.PlayOverload(); } // ⑥ピークの告知（モード切替トーストと同座標で重描画しないよう先に消す）
-        if (_overloadToast > 0) _overloadToast -= delta;
-        float kNow = _game?.Kindness ?? 0f;
-        if (!(_game?.IsOverload ?? false) && kNow > _prevKind + 0.001f) _kindPulse = 1f;
-        _prevKind = kNow;
-        if (_kindPulse > 0) _kindPulse = Mathf.Max(0f, _kindPulse - (float)delta * 4f);
 
         // 左上HUDの自動退避：敵弾が左上クラスタの占有域に入っている間だけ薄くする（弾を透かす）。
         // 弾位置は World 座標(384x216)。設計座標の占有域を World へ畳んで内外判定する。
@@ -588,7 +570,7 @@ public partial class Hud : CanvasLayer
     // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
     //   Ctrl（左右どちらも）/ パッド RB を「押しっぱなし」の間、既読の行だけ高速送りする。
     //   未読行では効かない＝誤スキップで物語を取りこぼさせない（判定は行単位・表示前の既読状態）。
-    //   Ctrl はやさしさ全開と同キーだが、全開はエッジ検出＋会話中(BubblePaused)無効（Player.cs）なので衝突しない。
+    //   Ctrl は既読スキップ専用（やさしさ全開は撤去済み＝衝突する相手がいない）。
     //   DemoPilot/QaPilot は Z/X と移動軸しか送出しない＝自動プレイの会話送りとは干渉しない。
     private bool _dlgReadBefore;   // 現在行が「表示された時点で」既読だったか（SetDialog で確定）
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
@@ -745,14 +727,6 @@ public partial class Hud : CanvasLayer
 
     public void SetLives(int n) { _lives = Mathf.Max(0, n); }
 
-    // 次のフォロワー加入までの進捗を通知（Player.NotifyFollowerProgress から push）。
-    public void SetFollowerProgress(int progress, int total, bool full)
-    {
-        _followerProgress = Mathf.Clamp(progress, 0, Mathf.Max(1, total));
-        _followerProgressTotal = Mathf.Max(1, total);
-        _followerFull = full;
-    }
-
     public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
     public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
 
@@ -768,8 +742,6 @@ public partial class Hud : CanvasLayer
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
-        DrawKindness(ci);
-        DrawGoal(ci);
         DrawBurning(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
@@ -777,7 +749,6 @@ public partial class Hud : CanvasLayer
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_controlsAlpha > 0.01f) DrawControls(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
-        if (_overloadToast > 0) DrawOverloadToast(ci);
         // チュートリアルのスポット暗転は会話/バナーより前(下)に描く＝会話テキスト・立ち絵は
         // 暗幕の上にフル輝度で読める（暗転がセリフ枠を覆って読みづらい問題への対処 #3）。
         // 弾より前だが、α上限0.55で弾は透ける。会話ボックス矩形も穴抜きの対象にして二重に保護する。
@@ -797,7 +768,7 @@ public partial class Hud : CanvasLayer
     }
 
     // 左上クラスタの自動退避用：色のαに _topLeftFade を乗じる（弾接近時だけ薄くなる）。
-    // 左上の5要素（LIFE/BOMB・ショット・やさしさ・目標・スキル）の描画色はこれを通す。
+    // 左上の要素（ショット・スキル・炎上）の描画色はこれを通す。
     private Color Fa(Color c) => new Color(c.R, c.G, c.B, c.A * _topLeftFade);
 
     // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
@@ -818,7 +789,7 @@ public partial class Hud : CanvasLayer
 
         float x = 22, y = 20, w = 70 + maxLives * 25, h = 78;
         // LIFE/BOMB は最重要情報のため弾接近の自動退避(fade)を掛けず常時不透明(α=1)で描く。
-        // 他の左上要素(やさしさ/目標/ショット/スキル)は従来どおり Fa() で透ける。
+        // 他の左上要素(ショット/スキル/炎上)は従来どおり Fa() で透ける。
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f,
             low ? new Color(1f, 0.35f, 0.42f, 0.4f) : new Color(1, 1, 1, 0.12f), 1f);
         // LIFE
@@ -871,58 +842,27 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + 14, y + 12), "SCORE", 11, new Color("f0d98a"));
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, score.ToString("000,000"), 22), y + 6), score.ToString("000,000"), 22, new Color("f0d98a"));
 
-        // テレメトリ・チップ（♥＝浄化した心 / コンボ or フォロワー）
-        long imp = _game?.RunImpression ?? 0;
+        // コンボチップ（SCORE の直下）。コンボ2以上のときだけ出す＝倍率が立っている間の一時表示。
+        //   ♥「心」チップ（RunImpression）と人数チップ（フォロワー）とフォロワー進捗ピップは
+        //   2026-09-06 の HUD 整理で撤去した（docs/20260906/HUD整理_案.md §1）。
+        //   ♥の加算そのもの（ショップ通貨）は GameManager 側で生きている＝表示だけを落としている。
         int combo = _game?.Combo ?? 0;
-        bool showCombo = combo >= 2;
-        string c1 = "♥ " + UiKit.Abbrev(imp);
-        string c2 = showCombo ? $"× {combo}" : UiKit.Abbrev(_game?.Followers ?? 0);
+        if (combo < 2) return;
+        string c2 = $"× {combo}";
         float cy = y + 44;
-        // 右チップ：コンボ未満はフォロワー＝極小「人」を添えて正体を示す（フォロワーはハブで常時見えるので控えめに）。
-        string c2suffix = showCombo ? "" : "人";
-        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11) + (c2suffix.Length > 0 ? UiKit.TextW(UiKit.Zen, c2suffix, 9) + 2 : 0);
+        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11);
         float c2x = 1280 - 22 - c2w;
         UiKit.Box(ci, new Rect2(c2x, cy, c2w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
         UiKit.Text(ci, UiKit.Mono, new Vector2(c2x + 12, cy + 5), c2, 11, new Color("c8b0ec"));
-        if (c2suffix.Length > 0)
-            UiKit.Text(ci, UiKit.Zen, new Vector2(c2x + 12 + UiKit.TextW(UiKit.Mono, c2, 11) + 2, cy + 7), c2suffix, 9, new Color("c8b0ec", 0.75f));
         // コンボ猶予バー：チップ直下に細いバーを添え、_comboTimer/ComboWindow の比率で減衰させる。
         // 猶予が切れるとコンボが0にリセットされる（最大16倍）ため、残り時間を視認できるようにする。
         // 色は満タンのMina（紫）→枯渇間際のBurn（赤）へ線形補間し、切迫感を出す。
-        if (showCombo)
         {
             float comboRatio = Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f);
             float cbY = cy + 22f + 3f, cbH = 2.5f;
             UiKit.Box(ci, new Rect2(c2x, cbY, c2w, cbH), new Color(1, 1, 1, 0.1f), 1.2f);
             if (comboRatio > 0)
                 UiKit.Box(ci, new Rect2(c2x, cbY, c2w * comboRatio, cbH), UiKit.Burn.Lerp(UiKit.Mina, comboRatio), 1.2f);
-        }
-        // 左チップ：♥＝通貨（浄化した心）。無ラベルだと通貨と分からないので極小「心」を1字添える。
-        const string c1suffix = "心";
-        float c1w = 30 + UiKit.TextW(UiKit.Mono, c1, 11) + UiKit.TextW(UiKit.Zen, c1suffix, 9) + 2;
-        float c1x = c2x - 7 - c1w;
-        UiKit.Box(ci, new Rect2(c1x, cy, c1w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Purify, 0.4f), 1f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(c1x + 12, cy + 5), c1, 11, UiKit.Info);
-        UiKit.Text(ci, UiKit.Zen, new Vector2(c1x + 12 + UiKit.TextW(UiKit.Mono, c1, 11) + 2, cy + 7), c1suffix, 9, new Color(UiKit.Info, 0.8f));
-
-        // フォロワー進捗ピップ（●●○）：次の1体まであと何人救えばよいかを常時提示する。
-        // コンボ表示（c2）はコンボ2以上で切り替わって消えるため、切り替わらない別枠として左隣に常設し両立させる。
-        // 全員(MaxFollowers)揃っている間は次が無い＝ピップごと隠す。
-        // 随伴フォロワー自体が無効(Player.StageFollowersEnabled=false)なら、増える先が無いので常に隠す。
-        if (Player.StageFollowersEnabled && !_followerFull)
-        {
-            int total = _followerProgressTotal;
-            const float dotR = 3.2f, dotGap = 10f;
-            float pipW = 16 + (total - 1) * dotGap;
-            float pipX = c1x - 7 - pipW;
-            UiKit.Box(ci, new Rect2(pipX, cy, pipW, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.35f), 1f);
-            float dotY = cy + 11f;
-            for (int i = 0; i < total; i++)
-            {
-                float dx = pipX + 8 + i * dotGap;
-                bool lit = i < _followerProgress;
-                ci.DrawCircle(new Vector2(dx, dotY), dotR, lit ? UiKit.Mina : new Color(UiKit.Mina, 0.22f));
-            }
         }
     }
 
@@ -1216,63 +1156,10 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, UiKit.FontTitle, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
     }
 
-    // やさしさゲージ（ショットチップの直下）。蓄積＝紫、全開＝金で残時間が減る。満タン手前でふち明滅。
-    private void DrawKindness(HudCanvas ci)
-    {
-        float fill = Mathf.Clamp(_game?.Kindness ?? 0f, 0f, 1f);
-        bool over = _game?.IsOverload ?? false;
-        float x = 22, y = 132, w = 168, h = 20;
-        float pulse = (!over && fill >= 0.85f) ? (0.5f + 0.5f * Mathf.Sin((float)_t * 9f)) : 0f;
-        Color border = over ? new Color(UiKit.Gold, 0.9f) : new Color(UiKit.Mina, 0.12f + 0.6f * pulse);
-        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 10f, Fa(border), 1f);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 4), "やさしさ", 12, Fa(over ? UiKit.Gold : UiKit.Mina));
-        float barX = x + 62, barW = w - 62 - 12;
-        UiKit.Box(ci, new Rect2(barX, y + h / 2f - 4, barW, 8f), Fa(new Color(1, 1, 1, 0.08f)), 4f);
-        if (fill > 0)
-        {
-            float bh = 8f + _kindPulse * 4f;
-            UiKit.Box(ci, new Rect2(barX, y + h / 2f - bh / 2f, barW * fill, bh), Fa(over ? UiKit.Gold : UiKit.Mina), 4f);
-        }
-        if (over) UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "全開!", 11, Fa(UiKit.Gold));
-        else if (_game?.KindnessReady ?? false) // 満タン＝手動発動できる（Ctrl/R3）。点滅で誘導。
-        {
-            float ba = 0.55f + 0.45f * Mathf.Sin((float)_t * 7f);
-            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8, y + 5), "満タン！" + AllKind, 11, Fa(new Color(UiKit.Gold, ba)));
-        }
-    }
-
-    // マクロ目標（表ゴール）を控えめに：救うべき3つの心の進捗＋ミナの汚染ゲージ。左端に小さく。
-    // 「気づかせる」原則を守り情緒を削がないよう、淡色・小サイズで常設する。
-    private void DrawGoal(HudCanvas ci)
-    {
-        int total = _game?.HeartGoal ?? 3;
-        int saved = _game?.HeartsSaved ?? 0;
-        float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
-        float x = 22, y = 162, w = 190, h = 48;
-        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f)), 11f, Fa(new Color(UiKit.Purify, 0.26f)), 1f);
-        // 救った人 ◯/3（=HeartsSaved＝到達度マクロ目標）。通貨「浄化した心」と名前で分離する。
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 8), "救った人", 11, Fa(UiKit.Info));
-        for (int i = 0; i < total; i++)
-        {
-            Color c = i < saved ? UiKit.Purify : new Color(UiKit.Purify, 0.20f);
-            UiKit.Heart(ci, new Vector2(x + 104 + i * 16, y + 13), 6f, Fa(c));
-        }
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 34, y + 7), $"{saved}/{total}", 12, Fa(UiKit.PurifyHi));
-        // 汚染ゲージ＝「救った人」(HeartsSaved)とは無関係の物語進行演出。各ステージRoot（例:
-        // Stage0Root.cs / ReiRoot.cs / AkariRoot.cs / KoharuRoot.cs / Final.cs）が入場時に
-        // ステージ固定の値(0 / 0.16 / 0.42 / 1.0 等)をSetContamination（GameManager.cs 単なる
-        // セッター）へセットし、道中はそのステージ内のStageProgressで滑らかに繋ぐだけ。
-        // プレイヤーの救出行動が増えるほど濁る対カウンターではない。
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12, y + 29), "汚染", 10, Fa(new Color(UiKit.Kegare, 0.95f)));
-        float barX = x + 44, barW = w - 44 - 14, barY = y + 31;
-        UiKit.Box(ci, new Rect2(barX, barY, barW, 6f), Fa(new Color(1, 1, 1, 0.08f)), 3f);
-        if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), Fa(UiKit.Kegare), 3f);
-    }
-
-    // 炎上デバフの常設インジケータ（マクロ目標の直下）。炎上run中は発射間隔×1.3/移動速度×0.9/獲得インプレ×0.6が
+    // 炎上デバフの常設インジケータ。炎上run中は発射間隔×1.3/移動速度×0.9/獲得インプレ×0.6が
     // ステージ全体に常時掛かる（GameManager.FireIntervalMul/MoveSpeedMul/TotalImpressionMul）。
     // ラベルにも度合いを明記し、「炎上中」とだけ出て弱体の中身が見えない状態を解消する。
-    // やさしさゲージ／ショットモードチップと同じ常設バッジ様式で出す。
+    // ショットモードチップと同じ常設バッジ様式で出す。
     private void DrawBurning(HudCanvas ci)
     {
         if (!(_game?.BurningThisRun ?? false)) return;
@@ -1285,17 +1172,6 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Burn, 0.35f + 0.25f * pulse)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Burn));
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.Burn));
-    }
-
-    // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。
-    private void DrawOverloadToast(HudCanvas ci)
-    {
-        float a = Mathf.Clamp((float)(_overloadToast / 0.4), 0f, 1f);
-        const string t = "やさしさ全開";
-        float w = UiKit.TextW(UiKit.ZenBlack, t, UiKit.FontTitle) + 90;
-        float x = 640 - w / 2f, y = 150;
-        UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.10f, 0.08f, 0.04f, 0.9f * a), 15f, new Color(UiKit.Gold, 0.6f * a), 1.4f);
-        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), t, UiKit.FontTitle, new Color(UiKit.Gold, a), HorizontalAlignment.Center, w);
     }
 
     // 操作ガイド（常駐）：プレイ中ずっと画面「右下」に「ボタン→動作」を横一列で出す。
@@ -1335,7 +1211,6 @@ public partial class Hud : CanvasLayer
         // 「技」（C/Y＝ヒカゲ大波）はヒカゲが仲間の時だけ出す。本編ではヒカゲは加入しない＝
         // 常時表示すると“使えないボタン”になるため、仲間にいる時だけ列に加える（W0 等）。
         if (_skillHas) items.Add((AllSkill, "技", true));
-        items.Add((AllKind, "全開", true));
 
         // レイアウト（設計1280x720）：右下に横一列。各アイテム＝[キー枠][動作名]、右寄せで並べる。
         const float labelSize = 12f, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = 18f;
@@ -1401,7 +1276,6 @@ public partial class Hud : CanvasLayer
             "focus" => ("低速",       AllFocus, UiKit.Info),
             "dodge" => ("回避",       AllDodge, UiKit.Gold),
             "bomb"  => ("ボム",       AllBomb,  UiKit.Mina),
-            "kind"  => ("やさしさ全開", AllKind,  UiKit.PurifyHi),
             _       => ("",           "",       UiKit.White),
         };
         if (info.label.Length == 0) return;
