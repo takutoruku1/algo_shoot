@@ -41,17 +41,33 @@ public partial class BossAkari : Enemy
     private float _corridorHp = 0.52f;
 
     // スペルカード（STAGE1 あかり＝雨のフロア・青と白の寒色）。技名は仮台本 06 の S1-9。
-    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    // 弾は「仕事の書類」の絵で飛ぶ（art の名前＝char/v3/bullets/<name>.png）。総務三十歳の、
+    // 送別会の夜に三秒で取り消した一通——机の上のものが、そのまま人へ向かって飛んでくる。
+    // 弾形・色は絵の裏のグロー（と、絵が無い時の保険）として残す＝当たり判定・弾数・弾速は不変。
+    //   rot: 絵の回転速度(deg/s)。追う弾ほど遅く回して「じっと向いている」感を出す。
+    private static readonly (string name, BulletShape shape, Color tint, string art, float rot)[] Spells =
     {
-        ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8")), // 雨青・降雨の針
-        ("すきって言って",   BulletShape.Diamond, new Color("4a6aa0")), // 藍・大きく遅い菱形
-        ("ずっと一緒",       BulletShape.Orb,     new Color("a8c8e8")), // 淡青・狙い撃ち（包囲）
-        ("離さない",         BulletShape.Needle,  new Color("e8f0ff")), // 白・追尾で逃がさない
+        ("ねえ、こっち見て", BulletShape.Needle,  new Color("6c9cd8"), "akari_sticky",   70f), // 赤い付箋＝こっち見て
+        ("すきって言って",   BulletShape.Diamond, new Color("4a6aa0"), "akari_envelope", 38f), // 封筒＝未送信の一通
+        ("ずっと一緒",       BulletShape.Orb,     new Color("a8c8e8"), "akari_clip",     52f), // クリップ＝鎖のように
+        ("離さない",         BulletShape.Needle,  new Color("e8f0ff"), "akari_stamp",    26f), // 承認印＝離さない
     };
+    // 攻撃パターン→立ち位置の対応。スペルが変わるたび BossMover に「次に何をするか」を伝え、
+    // 攻撃の合間に「向かう→着く→一拍」でその立ち位置へ移る。
+    //   0 雨の扇＝Wall（端に寄って帯を張る）／1 リング＝Ring（中央に据わる）／
+    //   2 自機狙い＝Aimed（自機の x を追って横に滑る）／3 スパイラル＝Wall。
+    private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
+    {
+        1 => BossMover.Attack.Ring,
+        2 => BossMover.Attack.Aimed,
+        _ => BossMover.Attack.Wall,
+    };
+
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
-        SetSpellVisual(s.shape, s.tint);
+        _mover.SetNextAttack(StanceOf(_pattern));
+        SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rot);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("あかり", "@akari_ame", s.name, s.tint);
     }
@@ -135,8 +151,10 @@ public partial class BossAkari : Enemy
         base._Ready();
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
+        // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
+        // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
+        // 上下に揺れない（hover_amp 0）。
+        _mover.Configure("akari", new Vector2(200f, 70f), 90f, 28f);
         GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -152,6 +170,8 @@ public partial class BossAkari : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        // 自機の x を渡す＝自機狙いの横滑りと、反転の判定（40px 以上・0.6秒）に使う。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
@@ -208,10 +228,10 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇
-            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
+            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇＝帯を張る
+            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
         }
     }
 
@@ -219,8 +239,9 @@ public partial class BossAkari : Enemy
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint); FanDown(pool); }
-        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); Spiral(pool); }
+        // 雨＝赤い付箋の扇／机が落ちる＝書類の束の螺旋。最後は机の上のものが全部こぼれてくる。
+        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.Get(Spells[0].art), Spells[0].rot); FanDown(pool); }
+        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(BulletShape.Diamond, Spells[1].tint, BulletArt.AkariDocs, 44f); Spiral(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(FanDown/Ring)=小／連続糸(Spiral)=極小／
