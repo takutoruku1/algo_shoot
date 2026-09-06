@@ -24,7 +24,6 @@ public partial class Hub : Node2D
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
     private Texture2D? _minaFace;
-    private Texture2D? _shonenFace; // 小話会話の少年アイコン用（カード非依存）
 
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _dived;
@@ -293,8 +292,6 @@ public partial class Hub : Node2D
     private void LoadFaces()
     {
         _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
-        if (ResourceLoader.Exists("res://char/shonen_face.png"))
-            _shonenFace = ResourceLoader.Load<Texture2D>("res://char/shonen_face.png");
         foreach (var e in _entries)
         {
             string id = e.Id;
@@ -1029,7 +1026,7 @@ public partial class Hub : Node2D
     }
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
-    //   少年=shonen_face / ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
+    //   ミナ系(ミナ・ミナの投稿・ミナ→@xxx)=mina_face / 相手キャラ=各 _face。
     //   top の負値は「顔を描かない」印：-1＝アバターごと省略 / DraftTop＝下書きの吹き出し印を置く。
     private const float DraftTop = -2f;
     private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
@@ -1040,7 +1037,6 @@ public partial class Hub : Node2D
         if (sp.StartsWith("Ｘ")) return (null, UiKit.Info, -1f);
         // 「あなた」＝顔を持たない読み手。本編会話（Hud.LineKind.Boy）と同じく、立ち絵の代わりに下書きの吹き出し印。
         if (sp == "あなた") return (null, UiKit.Info, DraftTop);
-        if (sp.Contains("少年")) return (_shonenFace, UiKit.Info, 0.05f);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         if (sp.Contains("rei")) return (FaceFor("rei"), AccountColor("rei"), TopCropFor("rei"));
         if (sp.Contains("akari")) return (FaceFor("akari"), AccountColor("akari"), TopCropFor("akari"));

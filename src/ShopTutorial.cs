@@ -6,7 +6,7 @@ using Godot;
 //     Shop は X でハブへ戻るので、結果として「中ボス撃破→説明→ショップ→ハブ」の流れになる。
 //   ・離脱判定（一度きり/初回のみ）と ShopTutorialSeen の確定は CheckpointFlow 側で済ませてある。
 //
-//   タプルは (int who, string text, string face)。who は Hud.LineKind 準拠（0=少年 / 1=ミナ / 3=ナレ）。
+//   タプルは (int who, string text, string face)。who は Hud.LineKind 準拠（1=ミナ / 3=ナレ）。
 //   face は立ち絵パス（空ならナレ＝顔なし）。
 public partial class ShopTutorial : Node2D
 {
@@ -138,8 +138,8 @@ public partial class ShopTutorial : Node2D
     {
         if (_idx >= ShopTutorialLines.Length) return;
         var (who, text, face) = ShopTutorialLines[_idx];
-        string sp = who switch { 0 => "少年", 1 => "ミナ", 3 => "", _ => "ミナ" };
-        Color spc = who switch { 0 => UiKit.Info, 1 => UiKit.Mina, 3 => UiKit.Text3, _ => UiKit.Mina };
+        string sp = who switch { 3 => "", _ => "ミナ" };
+        Color spc = who switch { 3 => UiKit.Text3, _ => UiKit.Mina };
 
         var box = new Rect2(40, H - 220, W - 80, 180);
         UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);

@@ -43,45 +43,38 @@ public partial class TrainingRoot : Node2D
 
     // ───── 小話4（トレーニング場の独り言）─────
     //   docs/小話集_v1.md §4。会話系が皆無だったトレーニング場に、Shop.cs の Toast() と同じ軽量トースト形式で
-    //   器を新設。入場時・撃っている最中・放置時の3トリガーで出し分ける（who: 0=少年/1=ミナ、Hud.LineKind と同じ色分け）。
+    //   器を新設。入場時・撃っている最中・放置時の3トリガーで出し分ける。
+    //   案C には少年が居ないので話者はミナ（who=1）だけ＝旧・少年(who=0)の行と、その返しでしか
+    //   意味の通らないミナの行は削除済み。操作説明はボタンUIと単語（指示帯）が担う。
     private const double TalkShowSec = 2.6;  // Hub.Toast() と同じ表示秒数に合わせる。
     private const double IdleTalkSec = 7.0;  // これだけ無入力が続いたら「放置」と見なす。
     private string _talk = "";
-    private int _talkWho;
     private double _talkT;
     private double _idleTimer;   // 無入力の継続秒数（移動/ショット/ボム/モード切替のいずれかで0にリセット）。
     private bool _idleFired;     // このアイドル継続中に一度でも独り言を出したか（連呼防止。入力が戻るまで再発火しない）。
 
-    private static readonly (int who, string text)[] TrainEnter =
+    private static readonly string[] TrainEnter =
     {
-        (1, "試し打ちですね。……ええ、思う存分どうぞ。ここでは誰も痛みません。"),
-        (1, "的が一つきり。ずいぶん寂しい射撃場ですこと。"),
-        (0, "遠慮するな。壊しても弁償はぼくの財布じゃない。"),
-        (1, "整備の時間です。……こういう時間、嫌いではありません。"),
+        "試し打ちですね。……ええ、思う存分どうぞ。ここでは誰も痛みません。",
+        "的が一つきり。ずいぶん寂しい射撃場ですこと。",
+        "整備の時間です。……こういう時間、嫌いではありません。",
     };
 
-    private static readonly (int who, string text)[] TrainShoot =
+    private static readonly string[] TrainShoot =
     {
-        (1, "……いい音です。今のは、手応えがありました。"),
-        (0, "おお、伸びたな。ぼくの設計が優秀だからだ。"),
-        (1, "設計者が言うと、ただの自慢ですよ。"),
-        (1, "数字が増えるのは、少し気持ちがいいですね。単純です、わたくし。"),
-        (0, "撃ちすぎだ。的が気の毒になってきた。"),
-        (1, "この的、文句ひとつ言いませんね。……えらいです。"),
-        (1, "肩慣らしのつもりが、つい本気に。……いけませんね。"),
-        (0, "そこ! もっと近づけ! ……いや近すぎる!"),
-        (1, "ご主人様は黙っていてくださいまし。集中できません。"),
+        "……いい音です。今のは、手応えがありました。",
+        "数字が増えるのは、少し気持ちがいいですね。単純です、わたくし。",
+        "この的、文句ひとつ言いませんね。……えらいです。",
+        "肩慣らしのつもりが、つい本気に。……いけませんね。",
     };
 
-    private static readonly (int who, string text)[] TrainIdle =
+    private static readonly string[] TrainIdle =
     {
-        (1, "……ご主人様? 手が、止まっておりますよ。"),
-        (1, "お休みですか。どうぞ、ゆっくり。逃げませんので、わたくしも、的も。"),
-        (0, "…………zzz"),
-        (1, "寝ましたね。……起きるまで、ここにおります。"),
-        (1, "静かですね。……たまには、こういう日もいいものです。"),
-        (1, "この時間、記録には残らないんですよ。もったいない話です。"),
-        (1, "暇なので、的の数を数えていました。……一つでした。"),
+        "……ご主人様? 手が、止まっておりますよ。",
+        "お休みですか。どうぞ、ゆっくり。逃げませんので、わたくしも、的も。",
+        "静かですね。……たまには、こういう日もいいものです。",
+        "この時間、記録には残らないんですよ。もったいない話です。",
+        "暇なので、的の数を数えていました。……一つでした。",
     };
 
     // ───── スキルパネル（トグル開閉方式）─────
@@ -153,13 +146,11 @@ public partial class TrainingRoot : Node2D
         AddChild(_uiLayer);
 
         // 入場時の独り言（小話4）。他のトリガーより先に一度だけ。
-        var enter = TrainEnter[GD.RandRange(0, TrainEnter.Length - 1)];
-        ShowTalk(enter.who, enter.text);
+        ShowTalk(TrainEnter[GD.RandRange(0, TrainEnter.Length - 1)]);
     }
 
-    private void ShowTalk(int who, string text)
+    private void ShowTalk(string text)
     {
-        _talkWho = who;
         _talk = text;
         _talkT = TalkShowSec;
     }
@@ -171,10 +162,7 @@ public partial class TrainingRoot : Node2D
 
         // 撃っている最中の独り言（小話4）。頻発を避けるため低確率＋非表示中のみ抽選。
         if (_talkT <= 0 && GD.Randf() < 0.10f)
-        {
-            var line = TrainShoot[GD.RandRange(0, TrainShoot.Length - 1)];
-            ShowTalk(line.who, line.text);
-        }
+            ShowTalk(TrainShoot[GD.RandRange(0, TrainShoot.Length - 1)]);
     }
 
     public override void _Process(double delta)
@@ -204,8 +192,7 @@ public partial class TrainingRoot : Node2D
             if (_idleTimer >= IdleTalkSec && !_idleFired)
             {
                 _idleFired = true;
-                var line = TrainIdle[GD.RandRange(0, TrainIdle.Length - 1)];
-                ShowTalk(line.who, line.text);
+                ShowTalk(TrainIdle[GD.RandRange(0, TrainIdle.Length - 1)]);
             }
         }
 
@@ -379,9 +366,10 @@ public partial class TrainingRoot : Node2D
         UiKit.Text(_uiLayer, UiKit.ZenBlack, new Vector2(40, 36), "トレーニング（試し打ち）", 26, UiKit.White);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, 72), "スキルは無料で付け外し・試用のみ。もどると本番の状態はそのまま（保存されません）。", 12, UiKit.Text2);
 
-        // 操作ヒント（左下）。
+        // 操作ヒント（左下）。案C は教え役を置かない＝説明は単語＋キーバッジだけで足りる形にする
+        //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／低速／回避／ボム／浄化）。
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: オート　ボム: X　モード切替: V", 12, UiKit.Text3);
+            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　低速: Shift　回避: Alt　ボム: X　モード切替: V", 12, UiKit.Text3);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
             "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
 
@@ -404,10 +392,9 @@ public partial class TrainingRoot : Node2D
     {
         if (_talkT <= 0 || string.IsNullOrEmpty(_talk)) return;
         var box = new Rect2(430, 224, 344, 96);
-        bool mina = _talkWho != 0;
-        Color accent = mina ? UiKit.Mina : UiKit.Info; // Hud.LineKind と同じ色分け（少年=Info／ミナ=Mina）。
+        Color accent = UiKit.Mina; // 話者はミナだけ＝Hud.LineKind のミナ色で固定。
         UiKit.Box(_uiLayer, box, new Color(0.06f, 0.07f, 0.12f, 0.88f), 12f, new Color(accent, 0.5f), 1f);
-        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(box.Position.X + 16, box.Position.Y + 10), mina ? "ミナ" : "少年", 12, accent);
+        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(box.Position.X + 16, box.Position.Y + 10), "ミナ", 12, accent);
         UiKit.Multi(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 16, box.Position.Y + 32), _talk, 13, UiKit.Text2, box.Size.X - 32, 3);
     }
 
