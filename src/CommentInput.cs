@@ -16,6 +16,7 @@ using Godot;
 //   _input.Type("レイちゃんが");   … 打つ（Done が立ったら次へ）
 //   _input.Erase();                … いま入っている文字を末尾から消す（Done が立ったら次へ）
 //   _input.Type("今日も来ました", send: true); … 打って送る
+//   _input.Recede(true);           … 選択肢（ChoiceOverlay）が出ている間だけ欄を退かせる／false で戻す
 //   ... 場面が終わったら QueueFree する（後始末は呼び出し側の責務。ChoiceOverlay と同じ流儀）。
 //
 // 台本の行そのものは StageKoharu.InputField から変えない（who=3 の text をここへ渡すだけ）。
@@ -32,6 +33,8 @@ public partial class CommentInput : Control
     private double _t;               // 出現からの経過（枠のフェードイン・カーソル明滅）
     private double _step;            // 1文字ぶんの溜め
     private double _sendGlow;        // 送信ボタンが灯っている残り秒
+    private bool _recede;            // 選択肢の提示中＝欄を退かせる（下の Recede 参照）
+    private float _recedeK;          // 退きの進み 0=通常の欄 / 1=カーソルだけ
 
     // 欄の位置（設計座標 1280×720）。会話バー（y=520〜690）とナレ用テロップ（y=590〜686）の上に置く＝
     //   ミナの観測行を出したまま欄が読める。配信画面の下端に貼りついて見える高さ。
@@ -40,6 +43,17 @@ public partial class CommentInput : Control
     private const float TypeInterval = 0.075f;   // 1文字打つ間隔（会話のタイプ送りより少し遅い＝手で打っている）
     private const float EraseInterval = 0.11f;   // 1文字消す間隔（打つより遅い＝ためらいながら消す）
     private const float SendGlowDur = 0.9f;      // 送信ボタンが灯る時間
+
+    // 退き（Recede）: S2-4 の選択（RecordChoice("s2_4")）は 4択で、末尾「（送らない）」が y=420 に来る＝
+    //   欄（y=424〜488）と真上から重なる（ChoiceOverlay の縦積みは BlockCenterY=285・RowPitch=90）。
+    //   提示中は欄そのもの（枠・アバター・送信ボタン・本文）を引かせ、台本の「カーソルが、まだ、点いています」
+    //   に要るカーソルの明滅だけを残す＝他の5か所と同じ「選択肢4行＋ミナの会話枠だけが読める」見え方に揃う。
+    //   カーソルは選択肢の下の空き帯（操作ヒントの下端 y≈478 〜 会話バーの上端 y=520）の中央へ下ろす。
+    //   下げ幅を大きく取ると会話バー（y=520〜690・欄より下に描かれる）に潜り込んでミナの枠を汚すので、
+    //   この帯に収まる 43px（欄の中心 456 → 499）に留める。カーソル高は約20px＝帯（幅40px）に収まる。
+    private const float RecedeDy = 43f;      // カーソルを下ろす量（設計座標）
+    private const float RecedeFade = 0.22f;  // 退く／戻るのなめらかさ（秒）
+    private const float RecedeBoxA = 0.0f;   // 退いた先での枠の濃さ（0＝完全に消す）
 
     // 配信画面の琥珀（PostBullets のこはる面アクセントと同じ色）。欄の縁と送信ボタンに使う。
     private static readonly Color Amber = new Color(0.85f, 0.60f, 0.44f);
@@ -80,10 +94,15 @@ public partial class CommentInput : Control
         Done = _shown.Length == 0;
     }
 
+    // 選択肢の提示中だけ欄を退かせる（true）／決まったら元へ戻す（false）。
+    //   打つ・消す（Type/Erase/Done）には触らない＝呼び出し側の送り作法はそのまま。
+    public void Recede(bool on) => _recede = on;
+
     public override void _Process(double delta)
     {
         _t += delta;
         if (_sendGlow > 0) _sendGlow -= delta;
+        _recedeK = Mathf.MoveToward(_recedeK, _recede ? 1f : 0f, (float)delta / RecedeFade);
         QueueRedraw();
         if (Done) return;
 
@@ -118,37 +137,46 @@ public partial class CommentInput : Control
     {
         UiKit.BeginDesign(this);
         float a = Mathf.Clamp((float)(_t / FadeIn), 0f, 1f);
+        // 退き中：欄（枠・アバター・本文・送信ボタン）は薄れて消え、カーソルだけが下の空き帯へ降りる。
+        float fa = a * Mathf.Lerp(1f, RecedeBoxA, _recedeK);   // 欄まわりの濃さ
+        float dy = RecedeDy * _recedeK;                        // カーソルの下げ幅
 
-        // 欄そのもの：配信画面の下端に貼りつく横長の暗い角丸ボックス。縁は配信画面の琥珀を薄く。
-        var box = new Rect2(BoxX, BoxY, BoxW, BoxH);
-        UiKit.Box(this, box, new Color(0.05f, 0.045f, 0.075f, 0.90f * a), 10f, new Color(Amber, 0.42f * a), 1.4f);
-        // 上辺の一本線＝ここから上が配信画面、という区切り（画面の下端に居ることを示す）。
-        DrawRect(new Rect2(BoxX, BoxY - 3f, BoxW, 1f), new Color(Amber, 0.22f * a));
-
-        // 左の丸アバター（顔は無い＝名前を出さない。誰が打っているかは画面が語る）。
         float cy = BoxY + BoxH * 0.5f;
-        UiKit.Avatar(this, new Vector2(BoxX + 30f, cy), 15f, new Color(Amber, 0.55f * a), "");
-
-        // 本文：入力中の一行。文字送り／末尾から削る、のどちらもこの一行の中で起きる。
         float textX = BoxX + 58f;
         int size = UiKit.FontBody;
-        UiKit.Text(this, UiKit.Zen, new Vector2(textX, cy - size * 0.72f), _shown, size,
-            new Color(0.92f, 0.92f, 0.96f, a));
-        // カーソル：末尾で明滅（打ち終えても消し終えても、欄に居るあいだは点いている）。
-        float cx = textX + UiKit.TextW(UiKit.Zen, _shown, size) + 2f;
-        if (((int)(_t * 2.2)) % 2 == 0)
-            DrawRect(new Rect2(cx, cy - size * 0.66f, 1.6f, size * 1.3f), new Color(1f, 1f, 1f, 0.80f * a));
+        if (fa > 0.004f)
+        {
+            // 欄そのもの：配信画面の下端に貼りつく横長の暗い角丸ボックス。縁は配信画面の琥珀を薄く。
+            var box = new Rect2(BoxX, BoxY, BoxW, BoxH);
+            UiKit.Box(this, box, new Color(0.05f, 0.045f, 0.075f, 0.90f * fa), 10f, new Color(Amber, 0.42f * fa), 1.4f);
+            // 上辺の一本線＝ここから上が配信画面、という区切り（画面の下端に居ることを示す）。
+            DrawRect(new Rect2(BoxX, BoxY - 3f, BoxW, 1f), new Color(Amber, 0.22f * fa));
 
-        // 右の送信ボタン。ふだんは沈んでいて、送られた瞬間だけ一度灯る。
-        var btn = new Rect2(BoxX + BoxW - 92f, cy - 15f, 72f, 30f);
-        float glow = _sendGlow > 0 ? (float)(_sendGlow / SendGlowDur) : 0f;
-        UiKit.Box(this, btn, new Color(Amber, (0.14f + 0.46f * glow) * a), 7f, new Color(Amber, (0.35f + 0.45f * glow) * a), 1f);
-        string label = "送信";
-        float lw = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontLabel);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(btn.Position.X + (btn.Size.X - lw) * 0.5f, cy - UiKit.FontLabel * 0.72f),
-            label, UiKit.FontLabel, new Color(1f, 1f, 1f, (0.45f + 0.5f * glow) * a));
-        if (glow > 0f)
-            UiKit.RadialGlow(this, btn.Position + btn.Size * 0.5f, 70f, Amber, 0.22f * glow * a);
+            // 左の丸アバター（顔は無い＝名前を出さない。誰が打っているかは画面が語る）。
+            UiKit.Avatar(this, new Vector2(BoxX + 30f, cy), 15f, new Color(Amber, 0.55f * fa), "");
+
+            // 本文：入力中の一行。文字送り／末尾から削る、のどちらもこの一行の中で起きる。
+            UiKit.Text(this, UiKit.Zen, new Vector2(textX, cy - size * 0.72f), _shown, size,
+                new Color(0.92f, 0.92f, 0.96f, fa));
+
+            // 右の送信ボタン。ふだんは沈んでいて、送られた瞬間だけ一度灯る。
+            var btn = new Rect2(BoxX + BoxW - 92f, cy - 15f, 72f, 30f);
+            float glow = _sendGlow > 0 ? (float)(_sendGlow / SendGlowDur) : 0f;
+            UiKit.Box(this, btn, new Color(Amber, (0.14f + 0.46f * glow) * fa), 7f, new Color(Amber, (0.35f + 0.45f * glow) * fa), 1f);
+            string label = "送信";
+            float lw = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontLabel);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(btn.Position.X + (btn.Size.X - lw) * 0.5f, cy - UiKit.FontLabel * 0.72f),
+                label, UiKit.FontLabel, new Color(1f, 1f, 1f, (0.45f + 0.5f * glow) * fa));
+            if (glow > 0f)
+                UiKit.RadialGlow(this, btn.Position + btn.Size * 0.5f, 70f, Amber, 0.22f * glow * fa);
+        }
+
+        // カーソル：末尾で明滅（打ち終えても消し終えても、欄に居るあいだは点いている）。
+        //   退き中は欄が消えても残す＝台本「カーソルが、まだ、点いています」。本文が薄れるぶん、
+        //   カーソルの位置は退き切ったら欄の左端（本文の先頭）へ寄せる。
+        float cx = Mathf.Lerp(textX + UiKit.TextW(UiKit.Zen, _shown, size) + 2f, textX, _recedeK);
+        if (((int)(_t * 2.2)) % 2 == 0)
+            DrawRect(new Rect2(cx, cy + dy - size * 0.66f, 1.6f, size * 1.3f), new Color(1f, 1f, 1f, 0.80f * a));
 
         UiKit.EndDesign(this);
     }

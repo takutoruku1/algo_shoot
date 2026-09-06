@@ -413,7 +413,12 @@ public partial class StageKoharu : Node
             // 送られた一行を末尾から消し切ってから選択を出す＝欄はカーソルだけが点いた空欄になる。
             if (!_s24Erased) { _s24Erased = true; _input?.Erase(); }
             if (!(_input?.Done ?? true)) { _lineHold = 0; return; }
-            if (!RunChoice(delta, "s2_4", S24Cue, S24Choices, S24Reply, S24Tail)) return;
+            bool ran = RunChoice(delta, "s2_4", S24Cue, S24Choices, S24Reply, S24Tail);
+            // 4択の末尾「（送らない）」は y=420 に来て欄（y=424〜488）と重なる＝提示中だけ欄を退かせ、
+            //   カーソルの明滅だけを下の空き帯に残す（他の5か所と同じ「選択肢＋会話枠だけ」の見え方）。
+            //   選択が決まって _cOverlay が消えたら、受け＋締めの前に元の位置・濃さへ戻る。
+            _input?.Recede(_cOverlay != null);
+            if (!ran) return;
             _input?.QueueFree();
             _input = null;
             Advance();
