@@ -99,6 +99,81 @@ public partial class StageKoharu : Node
         (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", KFace),   // 捨て台詞
     };
 
+    // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
+    // こはる面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
+    //   s2_2 … 中ボスの捨て台詞の直後（step 5 の撃破後・ショップ離脱の前）。効果＝やさしさ +0.02。
+    //   s2_4 … 入力欄の場面の末尾（step 8・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
+
+    // S2-2 中ボス・ペンライト。押しつけられたのは、消えたままのほう。受け取りの返事だけをあなたに回す。
+    private static readonly (int who, string text, string face)[] S22Cue =
+    {
+        (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
+        (1, "ご主人様。……手は、わたくしにありません。受け取りは、そちらで。", MSmile),
+    };
+    private static readonly string[] S22Choices = { "あとで", "振ってみる", "電池、切れてる", "（送らない）" };
+    private static (int who, string text, string face)[] S22Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "あとで", ""),
+            (1, "……あとで、と。——期限は、ありませんね。……持っておきます。消えたままで。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "振ってみる", ""),
+            (1, "……振ってみる、と。——光は、点いていませんが。……振る、と、点く、は、別の動作だそうです。", MSmile),
+        },
+        // 17 の指揮官決定: ミナの受けで推定を言う箇所には「推定です」を添える（「たぶん」を落とす）。
+        2 => new (int, string, string)[]
+        {
+            (0, "電池、切れてる", ""),
+            (1, "……切れています。——本人も、知っています。振っていましたので。——推定です。", MFace),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——ペンライト、こちらに、残りました。消えたままで。", MFace),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S22Tail =
+    {
+        (1, "——先へ。「むだだ」の声を、祓いながら。", MFace),
+    };
+
+    // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
+    //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
+    private static readonly (int who, string text, string face)[] S24Cue =
+    {
+        (1, "……入力欄の、カーソル。——まだ、点いています。", MFace),
+        (1, "ご主人様。下書きが、開いていますね。……打って消しても、わたくしには、聞こえます。そのつもりで、どうぞ。", MSmile),
+    };
+    private static readonly string[] S24Choices = { "打ってた", "消えても、あった", "続き、気になる", "（送らない）" };
+    private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "打ってた", ""),
+            (1, "……打ってた、と。——はい。打って、消して。……両方、見ました。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "消えても、あった", ""),
+            (1, "……消えても、あった。——はい。ありました。……拾った一行の、隣に、置いておきます。", MFace),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "続き、気になる", ""),
+            (1, "……続きは、拾ってあります。——中身は、本人の前で。……ご主人様にも、まだ、ですよ。", MFace),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……三件。——消えても、聞こえます。……あの一行と、同じところに、置いておきます。", MWorried),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S24Tail =
+    {
+        (1, "——カーソルが、消えました。……先へ。", MFace),
+    };
+
     // S2-3 BossTalk（教室）＋ Chat2／Chat3（仮台本 07）。場所が変わる。席は全部埋まっているのに
     //   どの席もこちらを見ていない。視線だけがある。黒板に「期待」。文字はここ一箇所。
     private static readonly (int who, string text, string face)[] ClassTalk =
@@ -318,6 +393,8 @@ public partial class StageKoharu : Node
     //   自動プレイ（--qa/--demo）は BubblePaused 中に Z をパルスし続けるので、動作完了後の
     //   最初のパルスで先へ進む＝ここで詰まらない。
     private CommentInput? _input;
+    private bool _s24Erased;   // 選択の前に欄を空にした（カーソルだけ残す）
+    private bool _inChoice;    // 台本を流し切って S2-4 の選択へ入った
     private void Step_InputField(double delta)
     {
         if (!_stepStarted)
@@ -328,6 +405,19 @@ public partial class StageKoharu : Node
             Hud.HoldBubble = true;
             _input = CommentInput.Show(Hud);
             BeginInputLine();
+        }
+        // 台本を流し切ったあと＝空欄のカーソルを残したまま選択へ。流し切ったら欄を閉じて次へ。
+        //   （_introLine は既に配列の外なので、この分岐より下へは進ませない）
+        if (_inChoice)
+        {
+            // 送られた一行を末尾から消し切ってから選択を出す＝欄はカーソルだけが点いた空欄になる。
+            if (!_s24Erased) { _s24Erased = true; _input?.Erase(); }
+            if (!(_input?.Done ?? true)) { _lineHold = 0; return; }
+            if (!RunChoice(delta, "s2_4", S24Cue, S24Choices, S24Reply, S24Tail)) return;
+            _input?.QueueFree();
+            _input = null;
+            Advance();
+            return;
         }
         var lines = InputField;
         bool isField = lines[_introLine].who == 3;
@@ -346,11 +436,10 @@ public partial class StageKoharu : Node
             _introLine++;
             if (_introLine >= lines.Length)
             {
-                _input?.QueueFree();
-                _input = null;
-                Hud.HoldBubble = false;
-                Hud.HideBubble();
-                Advance();
+                // ★S2-4 直後の下書き選択（17）へ。入力欄は閉じずに空欄＋カーソル明滅で残し
+                //   （「カーソルが、まだ、点いています」）、選択が決まって締めを流し切ってから閉じる
+                //   （「カーソルが、消えました」）。CommentInput は _shown が空でもカーソルを描く。
+                _inChoice = true;
                 return;
             }
             BeginInputLine();
@@ -376,6 +465,107 @@ public partial class StageKoharu : Node
         for (int i = _introLine + 1; i < InputField.Length; i++)
             if (InputField[i].who == 3) { last = false; break; }
         _input?.Type(text.TrimEnd('|'), send: last);
+    }
+
+    // ───── 道中の下書き選択（17）を「いまの step に留まったまま」流す ─────
+    //   きっかけ → ChoiceOverlay → 受け＋締め、を1本にしたヘルパ。流し切ったら true を返す
+    //   （呼び出し側はそれまで自分の step から出ない）。行送りは Step_Lines と同じ作法だが、
+    //   ホスト step が _stepStarted / _introLine を使っているので、状態はここに閉じて持つ。
+    //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
+    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル
+    //   （末尾＝（送らない））のまま即決される＝ここで詰まらない。
+    private string _cId = "";     // いま流している選択の id（切り替わったら頭から）
+    private int _cPhase;          // 0=きっかけ / 1=選択提示中 / 2=受け＋締め / 3=完了
+    private int _cLine;
+    private double _cHold;
+    private bool _cStarted;
+    private ChoiceOverlay? _cOverlay;
+    private double _cChoiceT;     // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _cAfter = System.Array.Empty<(int, string, string)>();
+    private bool RunChoice(double delta, string id,
+        (int who, string text, string face)[] cue, string[] choices,
+        System.Func<int, (int who, string text, string face)[]> reply,
+        (int who, string text, string face)[] tail)
+    {
+        // 同じヘルパを面内の2か所（s2_2 / s2_4）で使い回すので、id が変わったら頭から。
+        if (_cId != id) { _cId = id; _cPhase = 0; _cStarted = false; }
+        if (_cPhase == 3) return true;
+        switch (_cPhase)
+        {
+            case 0:
+                if (RunChoiceLines(delta, cue)) { _cPhase = 1; _cStarted = false; }
+                return false;
+            case 1:
+                if (!_cStarted)
+                {
+                    _cStarted = true;
+                    _cChoiceT = 0;
+                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
+                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                }
+                _cChoiceT += delta;
+                if (_cOverlay == null || !_cOverlay.Decided) return false;
+                int sel = _cOverlay.Selected;
+                ChoiceEffects.Record(GetNodeOrNull<GameManager>("/root/Game"), id, choices, sel, (float)_cChoiceT);
+                if (id == "s2_2" && sel < choices.Length - 1)
+                    // 消えたペンライトを受け取ったぶん（三つのどれでも同じ値。どの言葉かには付けない）。
+                    GetNodeOrNull<GameManager>("/root/Game")?.AddKindnessFromChoice(ChoiceEffects.KindnessGain);
+                _cAfter = reply(sel).Concat(tail).ToArray();
+                _cOverlay.QueueFree();
+                _cOverlay = null;
+                _cPhase = 2;
+                _cStarted = false;
+                return false;
+            default:
+                if (!RunChoiceLines(delta, _cAfter)) return false;
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                _cPhase = 3;
+                return true;
+        }
+    }
+
+    // RunChoice 専用の行送り（終端で true。バブルは閉じずに保持したまま返す）。
+    private bool RunChoiceLines(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_cStarted)
+        {
+            _cStarted = true;
+            _cLine = 0;
+            _cHold = 0;
+            if (lines.Length == 0) return true;
+            Hud.HoldBubble = true;
+            ShowChoiceLine(lines);
+        }
+        _cHold += delta;
+        if (_zEdge && _cHold >= 0.15 && !Hud.DialogRevealed)
+        {
+            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
+            _cHold = 0;
+            return false;
+        }
+        if (_cHold >= 0.15 && Hud.DialogRevealed
+            && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _cHold >= 1.4)))
+        {
+            _cHold = 0;
+            _cLine++;
+            if (_cLine >= lines.Length) return true;
+            ShowChoiceLine(lines);
+        }
+        return false;
+    }
+
+    private void ShowChoiceLine((int who, string text, string face)[] lines)
+    {
+        var (who, text, face) = lines[_cLine];
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,
+            _ => string.IsNullOrEmpty(face) ? MFace : face,
+        };
+        Hud.ShowDialog(kind, text, portrait, otherName: "こはる");
     }
 
     private void ShowLine((int who, string text, string face)[] lines)
@@ -580,14 +770,22 @@ public partial class StageKoharu : Node
         // 撃破→捨て台詞を流し切ったら次フェーズへ（道中後半）。
         if (!IsInstanceValid(_cameo) || _cameo.Finished)
         {
-            Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
-            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            if (!_cameoCleaned)
+            {
+                _cameoCleaned = true;
+                Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
+                GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+            }
+            // ★S2-2 の下書き選択（17）＝押しつけられたペンライト。撃破を確認した直後、ショップ離脱の前に置く
+            //   （離脱の後ろに置くと初回は飛んでしまう＝17 の実装メモ）。流し切るまでここで留まる。
+            if (!RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
             // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
             if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
         }
     }
+    private bool _cameoCleaned;   // 撃破直後の片付けを一度だけ（選択で留まる間に繰り返さない）
 
     private void Step_BossSpawn()
     {
