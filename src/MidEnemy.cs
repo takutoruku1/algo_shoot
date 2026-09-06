@@ -4,7 +4,7 @@ using Godot;
 // ステージごとに「心象世界」の姿・撃ち方を出し分ける（6個のサブクラスを量産しない）。
 // 発射はパネルではなく本体が一括で行い、_spec.Pattern で種ごとの固有弾幕を撃ち分ける。
 // 弾数=Dn(基準値)、間隔=Di(基準値) で必ず難易度スケールし、弾速は素の基準値（BulletSpeedMul が自動で乗る）。
-// 進入中（_campX に着いて居座るまで）は撃たない＝画面外からの理不尽撃ちを防ぐ。
+// 発射は「画面内に一定時間見えたら」開く（CanFire）＝進入中でも撃つ。画面外からの理不尽撃ちは起きない。
 public partial class MidEnemy : Enemy
 {
     private EnemySpec _spec;
@@ -13,7 +13,7 @@ public partial class MidEnemy : Enemy
     private bool _baseYSet;
     private float _campX;   // この位置まで来たら居座る（GlyphMote/PageShard と同じ作法）
     private float _vy;      // 居座り中の上下往復（うねらない種でもゆっくり動かす）
-    private bool _camped;   // 居座り点に到達して居座り開始したか（これ以降のみ発射可）
+    private bool _camped;   // 居座り点に到達して居座り開始したか（発射可否は CanFire が決める）
     // 居座り目標点（Spawner が出現エッジに応じて指定。未指定なら右からの直進フォールバック）。
     private Vector2 _campTarget;
     private bool _entryConfigured;
@@ -35,8 +35,29 @@ public partial class MidEnemy : Enemy
 
     // 進入が遅すぎると居座る前に浄化されて「撃たずに去る」ので、進入だけ最低速度を保証する
     // （居座り後の上下うねり＝種の性格は据え置き）。居座った瞬間に初弾を素早く撃つ＝設置→即攻撃。
-    private const float ApproachFloor = 78f;     // 進入の最低速度(px/s)。遅い種でも約2.5sで居座る。
-    private const double FirstShotDelay = 0.55;  // 居座り後この秒で初弾（撃つ前に倒され続けるのを防ぐ）。
+    private const float ApproachFloor = 90f;     // 進入の最低速度(px/s)。78→90（2026-09-06：射線上を歩く時間を詰める）。
+    private const double FirstShotDelay = 0.25;  // 発射ゲートが開いてこの秒で初弾（0.55→0.25）。
+
+    // ─── 進入撃ちのゲート（2026-09-06）───
+    //   旧仕様は「居座り点に着くまで一切撃たない」＝出現から 1.5〜3.2 秒、射線上を無防備に歩くだけの
+    //   空白があり、その間に自機の DPS でザコ HP(6ヒット) を超える約18ヒットぶん削れて「撃つ前に死ぬ」。
+    //   ゲートを「画面内に入って一定時間見えている」に変え、居座る前でも撃てるようにする。
+    //   画面外・出現直後は従来どおり撃たない（理不尽撃ちは作らない）。
+    private const float FireGateX = 340f;        // このXより左＝画面内に入り切った（右端は398から出現）
+    private const double FireGateVisible = 0.7;  // 画面内でこの秒数を過ぎたら撃ってよい
+    private double _visibleT;                    // 画面内に居た累計秒（進入中のみ積む）
+    private bool _approachFired;                 // 進入中に発射ゲートが開いたか（居座り時の初弾プライムを二重にしない）
+
+    // 画面内か（出現エッジ＝右外/上外/下外から入ってくるので、上下も見る）。
+    private bool OnScreen => GlobalPosition.X < FireGateX && GlobalPosition.X > 0f
+                          && GlobalPosition.Y > 0f && GlobalPosition.Y < 216f;
+
+    // 撃ってよいか。居座っていれば従来どおり無条件、進入中は「画面内に FireGateVisible 秒」で開く。
+    // 回り込み（FlankAim）は走行中に撃たない＝背後へ回る経路を先に読ませる設計を維持する。
+    // 撃たない種（BuzzWall／KoharuPrayerCarry＝BaseInterval 999）は進入撃ちの対象外＝盾/運び専念のまま。
+    private bool CanFire => _camped
+        || (_spec.Pattern != AttackPattern.FlankAim && BaseInterval() < 900.0
+            && _visibleT >= FireGateVisible);
 
     // 接触半径(px)。EnemySpec.BodyRadius（種ごとの絵の大きさ由来）は使わず全種で一定にする：
     //   ザコは「絵が大きい＝当たりも大きい」で読み分けさせる要素ではなく、どの種でも
@@ -197,10 +218,13 @@ public partial class MidEnemy : Enemy
         // 居座る目標点。未指定なら従来どおり「右→_campX へ左進」（=同Yへ水平移動）。
         Vector2 camp = _entryConfigured ? _campTarget : new Vector2(_campX, _baseY);
 
-        // 進入：目標点へ直進。着くまでは撃たない（_camped=false のまま）＝画面外からの理不尽撃ちを防ぐ。
-        // 回り込み（FlankAim）はまず経由点（走行レーン終端）へ、通過後に着座点へ折れる＝走行中も撃たない。
+        // 進入：目標点へ直進。回り込み（FlankAim）はまず経由点（走行レーン終端）へ、通過後に着座点へ折れる。
+        // 撃てるかどうかは _camped ではなく CanFire（下の「進入撃ち」ゲート）が決める。
         if (!_camped)
         {
+            // 画面内に入っている間だけ滞在時間を積む＝画面外からの理不尽撃ちは従来どおり起きない。
+            if (OnScreen) _visibleT += delta;
+
             Vector2 goal = _viaConfigured ? _viaTarget : camp;
             Vector2 to = goal - GlobalPosition;
             if (to.Length() > 3f)
@@ -208,13 +232,27 @@ public partial class MidEnemy : Enemy
                 // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる。
                 float approach = Mathf.Max(_spec.MoveSpeed, ApproachFloor);
                 GlobalPosition += to.Normalized() * approach * dt;
+                // 進入撃ち：ゲートが開いていれば歩きながら撃つ（＝射線上を無防備に歩く空白を潰す）。
+                // 回り込み（FlankAim）だけは走行中に撃たない仕様を維持＝背後へ回る経路を読ませる。
+                if (CanFire)
+                {
+                    // ゲートが開いた最初のフレームだけ、初弾が FirstShotDelay 秒後に来るようプライムする。
+                    if (!_approachFired)
+                    {
+                        _approachFired = true;
+                        _fireT = Mathf.Max(0.0, Di(BaseInterval()) - FirstShotDelay);
+                    }
+                    TickFire(delta);
+                }
                 return;
             }
             if (_viaConfigured) { _viaConfigured = false; return; } // 経由点通過→次フレームから着座点へ
-            _camped = true;   // 居座り開始＝以降は発射ロジックが動く
+            _camped = true;   // 居座り開始
             _baseY = camp.Y;  // 以降の上下往復の中心
             // 居座った瞬間に初弾を素早く（FirstShotDelay 秒後）。出現→即浄化でも一矢報いるように。
-            _fireT = Mathf.Max(0.0, Di(BaseInterval()) - FirstShotDelay);
+            // 進入中に既に撃ち始めていた個体は、そのタイマーを引き継ぐ（居座りで撃ち直しにならない）。
+            if (!_approachFired)
+                _fireT = Mathf.Max(0.0, Di(BaseInterval()) - FirstShotDelay);
         }
 
         // 居座り：camp.X に留まり、上下にゆっくり往復（画面外へ出ない）。
