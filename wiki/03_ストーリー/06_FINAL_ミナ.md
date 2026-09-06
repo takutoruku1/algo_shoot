@@ -20,7 +20,7 @@
 
 ### 起 — 「FINAL」
 
-ダイブすると、音楽が止まり、専用のタイトルカードが出る。副題はない。
+ダイブすると、音楽が止まり、専用のタイトルカード「FINAL」が出る。副題は「まだ、いますか」。F4 の「まだ、いらっしゃいますか」と、エピローグの空の問いに繋がる。
 
 > FINAL
 
@@ -186,4 +186,4 @@
 - [ボス戦](../05_ゲーム仕様/06_ボス戦.md)
 - [音楽と演出](../05_ゲーム仕様/11_音楽と演出.md)
 
-<!-- 出典: src/Hub.cs（FINAL カード・DiffSelect 経由）, src/DiffSelect.cs（FINAL 見出し・入口なし）, src/MinaRoot.cs（素の光・汚染 1.0・Journey の背景巡回）, src/StageMina.cs（ShowEpicBanner "FINAL" 副題なし・IntroHead・S37Quote・IntroTail・投稿弾 Final テーマ）, src/BossMina.cs（Spells・BreakThanks・RecloseLines・Lines）, src/PostPool.cs（FINAL の言葉弾）, src/Final.cs（Screams＋ScatteredWords・語り／ミナ／あなたの三話者・FirstWord の選択・拒否の受け・CueSilenceLine・CueResolveLine・文字数の軽口・白転→Epilogue）, src/GameManager.cs（FirstScattered・ScatteredWords・ChosenAt "s3_7"・RecordChoice "f4"）, wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（F1〜F4） -->
+<!-- 出典: src/Hub.cs（FINAL カード・DiffSelect 経由）, src/DiffSelect.cs（FINAL 見出し・入口なし）, src/MinaRoot.cs（素の光・汚染 1.0・Journey の背景巡回）, src/StageMina.cs（ShowEpicBanner "FINAL" 副題「まだ、いますか」・IntroHead・S37Quote・IntroTail・投稿弾 Final テーマ）, src/BossMina.cs（Spells・BreakThanks・RecloseLines・Lines）, src/PostPool.cs（FINAL の言葉弾）, src/Final.cs（Screams＋ScatteredWords・語り／ミナ／あなたの三話者・FirstWord の選択・拒否の受け・CueSilenceLine・CueResolveLine・文字数の軽口・白転→Epilogue）, src/GameManager.cs（FirstScattered・ScatteredWords・ChosenAt "s3_7"・RecordChoice "f4"）, wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（F1〜F4） -->

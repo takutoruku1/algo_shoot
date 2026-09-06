@@ -89,13 +89,13 @@ public partial class StageMina : Node
         // バナー副題は「暴走」（機械の故障＝外から見た説明）を避ける。ミナは壊れたのではなく“満ちた”＝
         // 三人ぶんの穢れを抱えきれなくなった。旧副題「いなくならないで」は合言葉 Stay に紐づく語で、
         // 案C では Stay ごと落としたため不採用（仮台本 08 F1）。副題そのものは未決なので空で出す
-        // （ShowEpicBanner は sub が空なら副題を描かない＝タグ "FINAL" だけが立つ）。決まったら差す。
+        // 副題「まだ、いますか」＝ユーザー決定（2026-09-06）。F4 の「まだ、いらっしゃいますか」と E3 の空の問いに繋がる。
         if (!_startBannerShown)
         {
             _startBannerShown = true;
             // FINAL だけは共通バナー（出て消える一行）ではなく専用タイトルカードで“格”を上げる。
             // 見せ方＝Hud.ShowEpicBanner を参照。
-            Hud.ShowEpicBanner("FINAL", "", UiKit.Kegare);
+            Hud.ShowEpicBanner("FINAL", "まだ、いますか", UiKit.Kegare);
         }
         // タイトルカードの拍：タグが合わさる瞬間(1.25s)に低く一度だけ画面を突く。
         if (_startBannerShown && !_titleThump)
