@@ -48,11 +48,11 @@ public static class UiKit
     public const int FontDisplay = 52; // ロゴ／リザルトバナー級（超特大・演出の要）
     public const int FontTitle   = 28; // 画面見出し（各画面のページタイトル・カットイン・大ダイアログ見出し）
     public const int FontHeading = 20; // サブ見出し・カード名・大きめ数値（SCORE 等）
-    public const int FontSpeaker = 18; // 会話の話者名
-    public const int FontBody    = 15; // 本文・セリフ・説明文（画面をまたぐ標準本文）
+    public const int FontSpeaker = 19; // 会話の話者名（旧18）
+    public const int FontBody    = 17; // 本文・セリフ・説明文（画面をまたぐ標準本文・旧15）
     public const int FontLabel   = 13; // ボタン／行ラベル・カード説明・小見出し
-    public const int FontSmall   = 11; // 注釈・キーヒント・メタ情報・英字サブラベル
-    public const int FontTiny    = 9;  // 極小補助（強調しない添字）
+    public const int FontSmall   = 13; // 注釈・キーヒント・メタ情報・英字サブラベル（旧11＝実効3.3pxで可読下限割れ）
+    // FontTiny(9) は廃止（実効2.7px＝画面に出してはいけない大きさ）。参照は FontSmall(13) へ寄せた。
 
     // ── カットシーン（内部解像度384系・生 DrawString）用の文字サイズ ──
     //   Prologue/Final/Epilogue は BeginDesign を使わず 384×216 の生座標で描くため別スケール。
@@ -63,6 +63,78 @@ public static class UiKit
     public const int CutSpeaker = 7;  // 話者名（旧9）
     public const int CutNote    = 6;  // 送りヒント・小注記（旧8）
     public const int CutClimax  = 11; // クライマックスの一行強調（END/stay./PW候補/頭文字 等・旧16。本文比を保ちつつ縮小）
+
+    // ══════════════════════ TextStyle（役割 → フォント/サイズ/字間/行間）══════════════════════
+    //   画面ごとに「サイズだけ」直書きしていたのをやめ、役割で引く。フォントの割り当ても型に含める
+    //   ＝「英字ラベルなのに Mono、数値なのに Zen」のような取り違えが起こらない。
+    //   Tracking : 1文字ごとに足す横アキ(px・設計座標)。短い英字ラベルは開けないと詰まって見える。
+    //   Leading  : 行送りの倍率（1.0 = フォント既定の行高）。単行の役割では 1.0 のまま。
+    //   使い方 :  UiKit.Draw(ci, UiKit.PanelLabel, pos, "LIFE", col);            // 字間つき1行
+    //             UiKit.DrawMulti(ci, UiKit.DialogBody, pos, text, col, width);  // 行間つき複数行
+    public readonly record struct TextStyle(FontFile Font, int Size, float Tracking, float Leading)
+    {
+        // このスタイルの行送り(px)。MultiLeading の extraLeading へ渡す差分も添える。
+        public float LineHeight => Font.GetHeight(Size) * Leading;
+        public float ExtraLeading => Font.GetHeight(Size) * (Leading - 1f);
+    }
+
+    // 役割別スタイル（docs/20260906/HUD整理_案.md §9 の表）。
+    public static TextStyle PanelValueLarge => new(Mono, 26, 0.5f, 1f);      // 数値（大）：SCORE / TIME の値
+    public static TextStyle PanelValueMid   => new(Mono, 18, 0.5f, 1f);      // 数値（中）：コンボ / 残バー / 浄化 %
+    public static TextStyle PanelLabel      => new(ZenBold, 15, 1.5f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
+    public static TextStyle DialogBody      => new(Zen, FontBody, 0f, 1.55f);// 本文・セリフ・ナレ
+    public static TextStyle DialogSpeaker   => new(ZenBold, FontSpeaker, 0.5f, 1f); // 話者名
+    public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0.5f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
+    public static TextStyle SmallValue      => new(Mono, FontSmall, 0.5f, 1f);      // 小さい「値」：残バー数・リプ数（数値は Mono に残す）
+
+    // ── 字間つき描画（Hud のローカル実装から公開ヘルパへ格上げ）──
+    //   track を1文字ごとに足しながら1文字ずつ描く。track=0 なら普通の DrawString と同じなので素通しする。
+    //   align は Left（topLeft 基準）/ Center（cx 基準）/ Right（右端基準）を width 無しで扱う。
+    public static float TrackedW(Font f, string s, int size, float track)
+    {
+        if (s.Length == 0) return 0f;
+        float w = 0f;
+        for (int i = 0; i < s.Length; i++) w += TextW(f, s[i].ToString(), size) + track;
+        return w - track; // 末尾の1字ぶんの字間は幅に含めない
+    }
+
+    public static float TrackedW(TextStyle st, string s) => TrackedW(st.Font, s, st.Size, st.Tracking);
+
+    // 字間つき1行描画（上端基準・左寄せ）。返り値は描いた幅。
+    public static float Tracked(CanvasItem ci, Font f, Vector2 topLeft, string s, int size, Color c, float track)
+    {
+        if (c.A <= 0.004f || s.Length == 0) return 0f;
+        if (track == 0f) { Text(ci, f, topLeft, s, size, c); return TextW(f, s, size); }
+        float asc = f.GetAscent(size);
+        float x = topLeft.X;
+        for (int i = 0; i < s.Length; i++)
+        {
+            string ch = s[i].ToString();
+            ci.DrawString(f, new Vector2(x, topLeft.Y + asc), ch, HorizontalAlignment.Left, -1, size, c);
+            x += TextW(f, ch, size) + track;
+        }
+        return x - topLeft.X - track;
+    }
+
+    // 役割スタイルで1行（左寄せ・上端基準）。
+    public static float Draw(CanvasItem ci, TextStyle st, Vector2 topLeft, string s, Color c)
+        => Tracked(ci, st.Font, topLeft, s, st.Size, c, st.Tracking);
+
+    // 役割スタイルで1行（中央寄せ・cx が中心）。
+    public static float DrawCentered(CanvasItem ci, TextStyle st, float cx, float top, string s, Color c)
+        => Tracked(ci, st.Font, new Vector2(cx - TrackedW(st, s) / 2f, top), s, st.Size, c, st.Tracking);
+
+    // 役割スタイルで1行（右寄せ・right が右端）。数値の桁が伸びても右端が動かない。
+    public static float DrawRight(CanvasItem ci, TextStyle st, float right, float top, string s, Color c)
+        => Tracked(ci, st.Font, new Vector2(right - TrackedW(st, s), top), s, st.Size, c, st.Tracking);
+
+    // 役割スタイルで複数行（行間 = Leading 倍。折り返しは width）。返り値は使った総高さ。
+    public static float DrawMulti(CanvasItem ci, TextStyle st, Vector2 topLeft, string s, Color c, float width, int maxLines = -1)
+        => MultiLeading(ci, st.Font, topLeft, s, st.Size, c, width, st.ExtraLeading, maxLines);
+
+    // 役割スタイルでページ分割（DrawMulti と同じ折り返し結果になる）。
+    public static System.Collections.Generic.List<string> Paginate(TextStyle st, string s, float width, int maxLines)
+        => Paginate(st.Font, s, st.Size, width, maxLines);
 
     // ── フォント（遅延ロード・AA付き）──
     private static FontFile? _zenR, _zenB, _zenBlack, _mono;

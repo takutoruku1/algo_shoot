@@ -219,7 +219,7 @@ public partial class BacklogCanvas : Node2D
         }
 
         // ── ヘッダ（マスクの上に描いてはみ出し行を隠す）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "BACKLOG", UiKit.FontSmall, UiKit.Info);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 32, y + 22), "BACKLOG", UiKit.Info);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "会話ログ", UiKit.FontTitle, UiKit.White);
         DrawRect(new Rect2(x + 32, y + 74, w - 64, 1f), new Color(1, 1, 1, 0.1f));
 

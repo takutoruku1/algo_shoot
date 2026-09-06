@@ -1036,7 +1036,7 @@ public partial class Shop : Node2D
         float bx = W / 2f - tw / 2f, by = 250f - 8f * (1f - Mathf.Min(1f, k * 3f)); // わずかに落ちてくる
         UiKit.RadialGlow(this, new Vector2(W / 2f, by + 30f), tw * 0.7f, sc, 0.28f * a);
         UiKit.Box(this, new Rect2(bx, by, tw, 62f), new Color(0.06f, 0.05f, 0.10f, 0.94f * a), 18f, new Color(sc, 0.85f * a), 1.6f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(bx, by + 8f), "STREAM COMPLETE", 10, new Color(sc, 0.7f * a), HorizontalAlignment.Center, tw);
+        UiKit.DrawCentered(this, UiKit.SmallLabel, bx + tw / 2f, by + 6f, "STREAM COMPLETE", new Color(sc, 0.7f * a));
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(bx, by + 24f), t, 30, new Color(sc.Lerp(UiKit.White, 0.35f), a), HorizontalAlignment.Center, tw);
         // 星の輪（回転しながら広がる）
         int n = 12;
@@ -1156,7 +1156,7 @@ public partial class Shop : Node2D
 
     private void DrawHeader()
     {
-        UiKit.Text(this, UiKit.Mono, new Vector2(PadX, 22), "SHOT UPGRADE SYSTEM", 11, UiKit.Text3);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(PadX, 22), "SHOT UPGRADE SYSTEM", UiKit.Text3);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(PadX, 36), "弾・ショット強化システム", 28, UiKit.White);
         UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "ミナの核から枝を伸ばして育てる。連射・拡散・誘導、後方の光——好きな順で、いつかすべて。", 13, UiKit.Text2);
 

@@ -404,7 +404,7 @@ public partial class Settings : Node2D
         UiKit.Box(this, new Rect2(padX, hy, 40, 40), new Color(UiKit.Purify, 0.12f), 11f, new Color(UiKit.Info, 0.35f), 1f);
         DrawArc(new Vector2(padX + 20, hy + 20), 9f, Mathf.Pi * 0.2f, Mathf.Pi * 1.5f, 24, UiKit.Info, 3f);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + 54, hy + 6), "設定", UiKit.FontTitle, UiKit.White);
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 110, hy + 20), "SETTINGS", UiKit.FontSmall, UiKit.Text4);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(padX + 110, hy + 20), "SETTINGS", UiKit.Text4);
         DrawRect(new Rect2(padX, hy + 50, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 本体：左ナビ＋右パネル ──
@@ -440,7 +440,7 @@ public partial class Settings : Node2D
             // 左バー
             DrawRect(new Rect2(x + 15, ry + 15, 4f, 24f), on ? UiKit.Purify : new Color(0, 0, 0, 0));
             UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 30, ry + 10), _cats[i].Name, UiKit.FontBody, on ? UiKit.White : UiKit.Text2);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x + 30, ry + 32), _cats[i].Sub.ToUpper(), UiKit.FontTiny, on ? UiKit.Info : UiKit.Text4);
+            UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 30, ry + 32), _cats[i].Sub.ToUpper(), on ? UiKit.Info : UiKit.Text4);
         }
     }
 

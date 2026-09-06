@@ -80,8 +80,8 @@ public partial class Records : Node2D
 
         float padX = 56f, top = 40f;
         // ── ヘッダ ──
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX, top + 8), "RECORDS", UiKit.FontLabel, UiKit.Info);
-        float tagW = UiKit.TextW(UiKit.Mono, "RECORDS", UiKit.FontLabel);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(padX, top + 8), "RECORDS", UiKit.Info);
+        float tagW = UiKit.TrackedW(UiKit.SmallLabel, "RECORDS");
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), "クリアタイム", UiKit.FontTitle, UiKit.White);
         UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム／スコア", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - padX * 2);

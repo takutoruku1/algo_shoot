@@ -167,8 +167,8 @@ public partial class Credits : Node2D
 
         // ── ヘッダ ──
         float top = 40f;
-        UiKit.Text(this, UiKit.Mono, new Vector2(PadX, top + 8), "CREDITS", UiKit.FontLabel, UiKit.Info);
-        float tagW = UiKit.TextW(UiKit.Mono, "CREDITS", UiKit.FontLabel);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(PadX, top + 8), "CREDITS", UiKit.Info);
+        float tagW = UiKit.TrackedW(UiKit.SmallLabel, "CREDITS");
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(PadX + tagW + 16, top), "クレジット", UiKit.FontTitle, UiKit.White);
         UiKit.Text(this, UiKit.Zen, new Vector2(PadX, top + 4), "音楽・素材・開発スタッフ", UiKit.FontBody, UiKit.Text3,
             HorizontalAlignment.Right, W - PadX * 2);

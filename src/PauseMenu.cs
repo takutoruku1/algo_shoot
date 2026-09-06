@@ -391,7 +391,7 @@ public partial class PauseCanvas : Node2D
         int nVol = PauseMenu.VolRows.Length;
         float w = 460, h = 728, x = (W - w) / 2f, y = (H - h) / 2f; // h はアクション9行（ハブへもどる追加）ぶん
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 22), "MENU", UiKit.FontLabel, UiKit.Info);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 28, y + 22), "MENU", UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 音量セクション（←→ で調整／Z でミュート切替）──

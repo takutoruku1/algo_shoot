@@ -127,7 +127,7 @@ public partial class ShopTutorial : Node2D
         for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
 
         // 見出し
-        UiKit.Text(this, UiKit.Mono, new Vector2(40, 28), "SHOP TUTORIAL", UiKit.FontSmall, UiKit.Text3);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(40, 28), "SHOP TUTORIAL", UiKit.Text3);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(40, 42), "強化ショップ", UiKit.FontTitle, UiKit.White);
 
         DrawDialog();

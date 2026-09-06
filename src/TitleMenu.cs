@@ -748,7 +748,7 @@ public partial class TitleMenu : Node2D
             new[] { 0f, 1f });
         // DIVING ラベル
         DrawCircle(new Vector2(20, barH / 2f), 5f, UiKit.Purify);
-        UiKit.Text(this, UiKit.Mono, new Vector2(34, barH / 2f - 6), "DIVING", UiKit.FontSmall, UiKit.Text3);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(34, barH / 2f - 7), "DIVING", UiKit.Text3);
 
         // スクロールするツイート
         float startX = 120f, gap = 60f;

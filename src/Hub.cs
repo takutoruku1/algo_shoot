@@ -1203,15 +1203,16 @@ public partial class Hub : Node2D
         string timeStr = best != null ? UiKit.FormatTime(best.Value.sec) : "--";
         string diffStr = best != null ? DiffShort(best.Value.diff) : "";
         // 「BEST 1:23.45  NORMAL」を右揃えで一行。
+        // ラベル(BEST/難易度)は英字ラベル＝ZenBold の小ラベル、タイムは「値」＝Mono のまま。
         float tw = UiKit.TextW(UiKit.Mono, timeStr, UiKit.FontLabel);
-        float dw = diffStr.Length > 0 ? UiKit.TextW(UiKit.Mono, diffStr, UiKit.FontSmall) + 8 : 0;
-        float lw = UiKit.TextW(UiKit.Mono, "BEST", UiKit.FontSmall) + 6;
+        float dw = diffStr.Length > 0 ? UiKit.TrackedW(UiKit.SmallLabel, diffStr) + 8 : 0;
+        float lw = UiKit.TrackedW(UiKit.SmallLabel, "BEST") + 6;
         float x0 = right - (lw + tw + dw);
         Color tc = best != null ? UiKit.Gold : UiKit.Text4;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x0, y + 3), "BEST", UiKit.FontSmall, new Color(UiKit.Text3, alpha));
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x0, y + 1), "BEST", new Color(UiKit.Text3, alpha));
         UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw, y), timeStr, UiKit.FontLabel, new Color(tc, alpha));
         if (diffStr.Length > 0)
-            UiKit.Text(this, UiKit.Mono, new Vector2(x0 + lw + tw + 8, y + 3), diffStr, UiKit.FontSmall, new Color(UiKit.Info, alpha));
+            UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x0 + lw + tw + 8, y + 1), diffStr, new Color(UiKit.Info, alpha));
     }
 
     private static string DiffShort(GameManager.Diff d) => d switch

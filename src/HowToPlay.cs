@@ -127,7 +127,7 @@ public partial class HowToCanvas : Node2D
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.05f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
 
         // ── ヘッダ（タイトル＋ページインジケータ）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.FontSmall, UiKit.Info);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.Info);
         string[] titles = { "操作", "画面の見かた", "コア機能" };
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], UiKit.FontTitle, UiKit.White);
         // ページドット（右上）

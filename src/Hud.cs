@@ -525,11 +525,11 @@ public partial class Hud : CanvasLayer
         float wrapW;
         if (!dialog)
         {
-            wrapW = 920f;                                   // ナレ（中央テロップ）
+            wrapW = NarrWrapW;                              // ナレ（中央テロップ）
         }
         else
         {
-            const float x = 40f, w = 1200f, h = 170f;
+            const float x = 40f, h = 170f;
             float textX = x + 36f;
             if (portrait != null)
             {
@@ -538,9 +538,9 @@ public partial class Hud : CanvasLayer
                 textX = x + 10f + pw + 20f;
             }
             else if (draftMark) textX = x + 10f + DraftMarkW + 20f;
-            wrapW = x + w - textX - 30f;                    // DrawDialog の MultiLeading 幅と一致
+            wrapW = DlgWrapW(textX);                        // DrawDialog の本文幅と同じ式
         }
-        _dlgPages.AddRange(UiKit.Paginate(UiKit.Zen, _dlgText, UiKit.FontHeading, wrapW, DlgMaxLines));
+        _dlgPages.AddRange(UiKit.Paginate(UiKit.DialogBody, _dlgText, wrapW, DlgMaxLines));
     }
 
     // 会話送り（ステージの Step_Lines から使う）：現在ページを出し切った かつ 最終ページなら「この行は読了＝次の行へ」。
@@ -771,12 +771,17 @@ public partial class Hud : CanvasLayer
     // 左上の要素（ショット・スキル・炎上）の描画色はこれを通す。
     private Color Fa(Color c) => new Color(c.R, c.G, c.B, c.A * _topLeftFade);
 
+    // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
+    private const float KeyBadgeH = 21f;
+    private static float KeyBadgeW(string token) => UiKit.TrackedW(UiKit.SmallLabel, token) + 14f;
+
     // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
     private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f)
     {
-        float w = UiKit.TextW(UiKit.Mono, token, 11) + 12, h = 18;
+        // キー名は英字ラベル＝小ラベル(ZenBold 13・字間+0.5)。旧 Mono 11 は実効3.3pxで読めなかった。
+        float w = KeyBadgeW(token), h = KeyBadgeH;
         UiKit.Box(ci, new Rect2(p.X, p.Y, w, h), new Color(0.10f, 0.09f, 0.16f, 0.92f * a), 5f, new Color(accent, 0.75f * a), 1f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(p.X + 6, p.Y + 3), token, 11, new Color(accent, 0.98f * a));
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(p.X + 7, p.Y + 3), token, new Color(accent, 0.98f * a));
         return w;
     }
 
@@ -793,7 +798,7 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 16f,
             low ? new Color(1f, 0.35f, 0.42f, 0.4f) : new Color(1, 1, 1, 0.12f), 1f);
         // LIFE
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 14), "LIFE", 12, UiKit.Text2);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 15, y + 11), "LIFE", UiKit.Text2);
         float hx = x + 70;
         for (int i = 0; i < maxLives; i++)
         {
@@ -802,12 +807,12 @@ public partial class Hud : CanvasLayer
         }
         ci.DrawRect(new Rect2(x + 14, y + 42, w - 28, 1f), new Color(1, 1, 1, 0.08f));
         // BOMB（残数＋発動キーのバッジ＝「どのボタンで撃つか」を常時提示）
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 15, y + 52), "BOMB", 11, new Color("c8b0ec"));
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 15, y + 49), "BOMB", new Color("c8b0ec"));
         float bx = x + 70;
         for (int i = 0; i < maxBombs; i++)
             ci.DrawCircle(new Vector2(bx + i * 16 + 6, y + 58), 5f, i < bombs ? UiKit.Mina : new Color(UiKit.Mina, 0.28f));
-        float badgeW = UiKit.TextW(UiKit.Mono, TokBomb, 11) + 12;
-        KeyBadge(ci, new Vector2(x + w - badgeW - 10, y + 50), TokBomb, UiKit.Mina, 1f);
+        float badgeW = KeyBadgeW(TokBomb);
+        KeyBadge(ci, new Vector2(x + w - badgeW - 10, y + 49), TokBomb, UiKit.Mina, 1f);
     }
 
     private void DrawPurify(HudCanvas ci)
@@ -827,20 +832,32 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, capW, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 15f,
             edge, full ? 1.5f : 1f);
         ci.DrawCircle(new Vector2(x + 22, y + h / 2f), 7f, UiKit.Purify);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 38, y + 7), "浄化", 13, UiKit.Info);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 38, y + 6), "浄化", UiKit.Info);
         float barX = x + 80, barW = capW - 80 - 56, barY = y + h / 2f - 5;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.08f), 5f);
         if (prog > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * prog, 10f), full ? UiKit.PurifyHi : UiKit.Purify, 5f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + capW - 50, y + 6), $"{Mathf.RoundToInt(prog * 100f)}%", 15, UiKit.PurifyHi, HorizontalAlignment.Right, 42);
+        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + capW - 14, y + 5, $"{Mathf.RoundToInt(prog * 100f)}%", UiKit.PurifyHi);
     }
+
+    // 右上クラスタの縦の並び（SCORE → TIME → コンボチップ）。文字を大きくするとパネルの背も伸びるので、
+    //   各パネルの下端をここで一本化して次の要素を積む＝サイズを触っても重ならない。
+    private const float ScoreTop = 20f, ScoreH = 44f;       // 数値(大)26px が収まる高さ（旧36は22px前提）
+    private const float ScoreBottom = ScoreTop + ScoreH;
+    private const float TimerH = 32f;                       // ラベル15 / 値18 が収まる高さ（旧28は 11/17 前提）
+    private const float TimerBottom = ScoreBottom + 8f + TimerH;
 
     private void DrawScore(HudCanvas ci)
     {
         long score = _game?.Score ?? 0;
-        float w = 220, x = 1280 - 22 - w, y = 20;
-        UiKit.Box(ci, new Rect2(x, y, w, 36f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 14f, new Color(UiKit.Gold, 0.3f), 1f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 14, y + 12), "SCORE", 11, new Color("f0d98a"));
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - UiKit.TextW(UiKit.Mono, score.ToString("000,000"), 22), y + 6), score.ToString("000,000"), 22, new Color("f0d98a"));
+        // 幅/高さは中身から確定：ラベル(15px+字間) と 値(26px Mono) が並んでも重ならない寸法にする
+        //（旧 220×36 は 11px ラベル + 22px 値の前提だった）。
+        string scoreStr = score.ToString("000,000");
+        float labelW = UiKit.TrackedW(UiKit.PanelLabel, "SCORE");
+        float w = 14 + labelW + 16 + UiKit.TrackedW(UiKit.PanelValueLarge, scoreStr) + 14;
+        float x = 1280 - 22 - w, y = ScoreTop, h = ScoreH;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.62f), 14f, new Color(UiKit.Gold, 0.3f), 1f);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 14, y + 14), "SCORE", new Color("f0d98a"));
+        UiKit.DrawRight(ci, UiKit.PanelValueLarge, x + w - 14, y + 8, scoreStr, new Color("f0d98a"));
 
         // コンボチップ（SCORE の直下）。コンボ2以上のときだけ出す＝倍率が立っている間の一時表示。
         //   ♥「心」チップ（RunImpression）と人数チップ（フォロワー）とフォロワー進捗ピップは
@@ -849,17 +866,18 @@ public partial class Hud : CanvasLayer
         int combo = _game?.Combo ?? 0;
         if (combo < 2) return;
         string c2 = $"× {combo}";
-        float cy = y + 44;
-        float c2w = 30 + UiKit.TextW(UiKit.Mono, c2, 11);
+        float cy = TimerBottom + 8f;   // TIME パネルの直下（右上の縦の並び：SCORE → TIME → コンボ）
+        float c2w = 26 + UiKit.TrackedW(UiKit.PanelValueMid, c2);
         float c2x = 1280 - 22 - c2w;
-        UiKit.Box(ci, new Rect2(c2x, cy, c2w, 22f), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(c2x + 12, cy + 5), c2, 11, new Color("c8b0ec"));
+        const float c2h = 28f;  // 数値(中)=18px が収まる高さ（旧22は11px前提）
+        UiKit.Box(ci, new Rect2(c2x, cy, c2w, c2h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
+        UiKit.Draw(ci, UiKit.PanelValueMid, new Vector2(c2x + 13, cy + 3), c2, new Color("c8b0ec"));
         // コンボ猶予バー：チップ直下に細いバーを添え、_comboTimer/ComboWindow の比率で減衰させる。
         // 猶予が切れるとコンボが0にリセットされる（最大16倍）ため、残り時間を視認できるようにする。
         // 色は満タンのMina（紫）→枯渇間際のBurn（赤）へ線形補間し、切迫感を出す。
         {
             float comboRatio = Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f);
-            float cbY = cy + 22f + 3f, cbH = 2.5f;
+            float cbY = cy + c2h + 3f, cbH = 2.5f;
             UiKit.Box(ci, new Rect2(c2x, cbY, c2w, cbH), new Color(1, 1, 1, 0.1f), 1.2f);
             if (comboRatio > 0)
                 UiKit.Box(ci, new Rect2(c2x, cbY, c2w * comboRatio, cbH), UiKit.Burn.Lerp(UiKit.Mina, comboRatio), 1.2f);
@@ -873,15 +891,15 @@ public partial class Hud : CanvasLayer
         string t = UiKit.FormatTime(_elapsed);
         // 幅は内容から動的に算出：丸(28) + "TIME" + 余白(12) + 値 + 右余白(14)。
         // 分が2桁(例 12:34.56)に伸びても「TIME」と数字が重ならず、右端は従来位置のまま左へ伸びる。
-        float labelW = UiKit.TextW(UiKit.Mono, "TIME", 11);
-        float valW = UiKit.TextW(UiKit.Mono, t, 17);
-        float h = 28;
+        float labelW = UiKit.TrackedW(UiKit.PanelLabel, "TIME");
+        float valW = UiKit.TrackedW(UiKit.PanelValueMid, t);
+        float h = TimerH;
         float w = 28 + labelW + 12 + valW + 14;
-        float x = 1280 - 22 - w, y = 90;
+        float x = 1280 - 22 - w, y = ScoreBottom + 8f;  // SCORE パネルの直下（SCORE が高くなったぶん追随）
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f), 12f, new Color(UiKit.Info, 0.4f), 1f);
         ci.DrawCircle(new Vector2(x + 16, y + h / 2f), 4f, UiKit.Info);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 28, y + 8), "TIME", 11, UiKit.Text2);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 14 - valW, y + 5), t, 17, UiKit.PurifyHi);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 28, y + 7), "TIME", UiKit.Text2);
+        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w - 14, y + 5, t, UiKit.PurifyHi);
     }
 
     private void DrawBossCard(HudCanvas ci)
@@ -896,20 +914,20 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 11, ac.Y + 6), "✓", 11, UiKit.White);
         // 名前＋ハンドル＋リプ
         float tx = x + 70;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 10), _bossName, 16, UiKit.White);
-        float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 16);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 14), _bossHandle, 12, UiKit.Text3);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 8), _bossName, 17, UiKit.White);
+        float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 17);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 11), _bossHandle, 13, UiKit.Text3);
         // 残バー数（=index+1）と総バー数。リプ数は総HP比で減らす（演出）。
         int barsLeft = _bossBarIndex + 1;
         float overall = (_bossBarIndex + _bossFrac) / _bossBarsTotal;
         string rep = UiKit.Abbrev((long)(_bossReplies * overall));
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, rep, 12), y + 12), rep, 12, new Color("f0a8cf"));
+        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 11, rep, new Color("f0a8cf"));
         // 穢れバー（現在の1本ぶん）＋残バー数の● pip。
         // バー/pip の色は現行スペルの色に連動（#26 フェーズ移行の可視化。未設定なら既定の穢れ色）。
         Color barCol = _bossTint ?? UiKit.Kegare;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 36), "穢れ", 10, new Color("f0a8cf"));
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(tx, y + 34), "穢れ", new Color("f0a8cf"));
         float pipsW = _bossBarsTotal * 9f;
-        float barX = tx + 34, barW = w - (barX - x) - 66 - pipsW, barY = y + 37;
+        float barX = tx + UiKit.TrackedW(UiKit.SmallLabel, "穢れ") + 8f, barW = w - (barX - x) - 66 - pipsW, barY = y + 37;
         UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
         if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), barCol, 5f);
         // バー1本割れの白フラッシュ（割れた一拍を「ゲージが光る」で読ませる）。
@@ -924,7 +942,7 @@ public partial class Hud : CanvasLayer
             ci.DrawCircle(new Vector2(pipX + i * 9f + 3f, barY + 5f), 3f,
                 i < barsLeft ? barCol : new Color(barCol, 0.22f));
         // 「残/総」表示。
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{barsLeft}/{_bossBarsTotal}", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
+        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 33, $"{barsLeft}/{_bossBarsTotal}", new Color("f0a8cf"));
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
@@ -958,7 +976,7 @@ public partial class Hud : CanvasLayer
 
         string title = "『" + _spellName + "』";
         float titleW = UiKit.TextW(UiKit.ZenBold, title, 17);
-        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 14) + UiKit.TextW(UiKit.Mono, _spellHandle, 11) + 96f;
+        float headW = UiKit.TextW(UiKit.ZenBold, _spellWho, 15) + UiKit.TextW(UiKit.Mono, _spellHandle, 13) + 96f;
         float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 84f, 380f, 780f);
         float h = 60f;
         float x = 640 - w / 2f, y = 126f + slide;
@@ -987,15 +1005,15 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 6, ac.Y + 4), "✓", 8, new Color(1, 1, 1, a));
         // 名前＋ハンドル
         float tx = left + 56;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 10), _spellWho, 14, new Color(1, 1, 1, a));
-        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 14);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, top + 14), _spellHandle, 11, new Color(UiKit.Text3, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 9), _spellWho, 15, new Color(1, 1, 1, a));
+        float nw = UiKit.TextW(UiKit.ZenBold, _spellWho, 15);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 8, top + 11), _spellHandle, 13, new Color(UiKit.Text3, a));
         // 右肩「● スペル発動」（発動直後は明滅で“今来た”を主張）
         string tag = "スペル発動";
-        float tagW = UiKit.TextW(UiKit.Mono, tag, 10) + 14;
+        float tagW = UiKit.TrackedW(UiKit.SmallLabel, tag) + 14;
         float tagPulse = 0.7f + 0.3f * Mathf.Sin((float)age * 12f);
         ci.DrawCircle(new Vector2(-w / 2f + w - tagW - 8, top + 15), 3.4f, new Color(col, a * tagPulse));
-        UiKit.Text(ci, UiKit.Mono, new Vector2(-w / 2f + w - tagW, top + 9), tag, 10, new Color(col, a * tagPulse));
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(-w / 2f + w - tagW, top + 8), tag, new Color(col, a * tagPulse));
         // スペル名（少し大きく・明るく＝視認のピーク）
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, top + 31), title, 17,
             new Color(0.96f + 0.04f * glow, 0.92f, 0.97f, a));
@@ -1112,13 +1130,13 @@ public partial class Hud : CanvasLayer
     {
         Color accent = _skillReady ? UiKit.Hp : UiKit.Text3;
         string label = "ヒカゲの大波  " + (_skillReady ? "OK!" : "充填中…");
-        const float h = 24f;
-        float badgeW = UiKit.TextW(UiKit.Mono, TokSkill, 11) + 12;
-        float w = 12 + badgeW + 8 + UiKit.TextW(UiKit.ZenBold, label, 13) + 12;
+        const float h = 27f;
+        float badgeW = KeyBadgeW(TokSkill);
+        float w = 12 + badgeW + 8 + UiKit.TextW(UiKit.ZenBold, label, UiKit.FontLabel) + 12;
         float x = 22, y = 216;
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(accent, 0.5f)), 1f);
         float bw = KeyBadge(ci, new Vector2(x + 12, y + 3), TokSkill, accent, _topLeftFade);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 5), label, 13, Fa(accent));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 12 + bw + 8, y + 6), label, UiKit.FontLabel, Fa(accent));
         // 充填バー（バッジ直下）：空(充填中)→満(OK)。コンボ猶予バーと同じBurn/Mina式の色補間ロジックを流用。
         float fillRatio = 1f - _skillCdRatio;
         float barY = y + h + 3f, barH = 2.5f;
@@ -1132,15 +1150,15 @@ public partial class Hud : CanvasLayer
     {
         string name = _game?.ShotModeName(_shotMode) ?? "連射";
         string label = "ショット  " + name;
-        const float padL = 16f, h = 24f;
+        const float padL = 16f, h = 27f;   // 隣に置く KeyBadge(21px高) と背丈を揃える
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
         float x = 22, y = 104;
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Info, 0.45f)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Info));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.PurifyHi));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 6), label, UiKit.FontLabel, Fa(UiKit.PurifyHi));
         // 切替キーのバッジ（KB=V / パッド=B を出し分け）
         float bw = KeyBadge(ci, new Vector2(x + w + 8, y + 3), TokMode, UiKit.Info, _topLeftFade);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", 10, Fa(UiKit.Text3));
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", Fa(UiKit.Text3));
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。
@@ -1152,7 +1170,7 @@ public partial class Hud : CanvasLayer
         float w = UiKit.TextW(UiKit.ZenBlack, t, UiKit.FontTitle) + 90;
         float x = 640 - w / 2f, y = 150;
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.06f, 0.10f, 0.14f, 0.9f * a), 15f, new Color(UiKit.Info, 0.6f * a), 1.4f);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x + 22, y + 9), "MODE", UiKit.FontSmall, new Color(UiKit.Info, a));
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 22, y + 9), "MODE", new Color(UiKit.Info, a));
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, UiKit.FontTitle, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
     }
 
@@ -1213,7 +1231,7 @@ public partial class Hud : CanvasLayer
         if (_skillHas) items.Add((AllSkill, "技", true));
 
         // レイアウト（設計1280x720）：右下に横一列。各アイテム＝[キー枠][動作名]、右寄せで並べる。
-        const float labelSize = 12f, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = 18f;
+        const float labelSize = UiKit.FontLabel, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = KeyBadgeH;
 
         // 右寄せのため、先に各アイテム幅と総幅を測る（KeyBadge と同じ式でバッジ幅を算出）。
         string Label(string label, bool on) => (label == "技" && !on) ? "技(仲間時)" : label;
@@ -1221,7 +1239,7 @@ public partial class Hud : CanvasLayer
         float contentW = 0f;
         for (int i = 0; i < items.Count; i++)
         {
-            float badgeW = UiKit.TextW(UiKit.Mono, items[i].tok, 11) + 12f;
+            float badgeW = KeyBadgeW(items[i].tok);
             float labelW = UiKit.TextW(UiKit.ZenBold, Label(items[i].label, items[i].on), (int)labelSize);
             iw[i] = badgeW + badgeGap + labelW;
             contentW += iw[i];
@@ -1245,7 +1263,7 @@ public partial class Hud : CanvasLayer
             float ra = a * (on ? 1f : 0.4f);
             Color accent = on ? UiKit.PurifyHi : UiKit.Text3;
             float bw = KeyBadge(ci, new Vector2(cx, by), tok, accent, ra);
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + badgeGap, by + 3), Label(label, on), (int)labelSize,
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + badgeGap, by + 4), Label(label, on), (int)labelSize,
                 new Color(0.92f, 0.92f, 0.97f, ra));
             cx += iw[i] + itemGap;
         }
@@ -1280,11 +1298,11 @@ public partial class Hud : CanvasLayer
         };
         if (info.label.Length == 0) return;
 
-        const int labelSize = 14, tokSize = 12;
+        const int labelSize = 15;
         float pulse = 0.6f + 0.4f * Mathf.Sin((float)_t * 4f);
 
         float labelW = UiKit.TextW(UiKit.ZenBold, info.label, labelSize);
-        float badgeW = UiKit.TextW(UiKit.Mono, info.tok, tokSize) + 16f;
+        float badgeW = KeyBadgeW(info.tok);
         const float gap = 12f, padX = 16f, h = 30f;
         float contentW = labelW + gap + badgeW;
         float w = contentW + padX * 2f;
@@ -1293,8 +1311,8 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.88f), 10f,
             new Color(info.accent, 0.4f + 0.4f * pulse), 1.3f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padX, y + 7), info.label, labelSize, new Color(0.94f, 0.92f, 0.99f));
-        // キーバッジ（KeyBadge と同寸・高さ18・縦中央寄せ）。KB なら複数キーがトークン内に並ぶ。
-        KeyBadge(ci, new Vector2(x + padX + labelW + gap, y + (h - 18f) / 2f), info.tok, info.accent);
+        // キーバッジ（KeyBadge と同寸・縦中央寄せ）。KB なら複数キーがトークン内に並ぶ。
+        KeyBadge(ci, new Vector2(x + padX + labelW + gap, y + (h - KeyBadgeH) / 2f), info.tok, info.accent);
     }
 
     // チュートリアルのスポット暗転：全画面を暗幕で覆い、_spotRect だけ避けて帯で描く（MurkVignette の四分割テクの矩形版）。
@@ -1404,7 +1422,7 @@ public partial class Hud : CanvasLayer
         ci.DrawRect(new Rect2(0, y, 1280, 1f), new Color(UiKit.Kegare, 0.18f));
         // ラベル
         ci.DrawRect(new Rect2(0, y, 150, barH), new Color(UiKit.Kegare, 0.14f));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(14, y + barH / 2f - 7), "降ってくる言葉", 12, new Color("f0a8cf"));
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(14, y + barH / 2f - 8), "降ってくる言葉", new Color("f0a8cf"));
         // スクロール
         float startX = 164, gap = 40;
         float block = 0f;
@@ -1440,7 +1458,7 @@ public partial class Hud : CanvasLayer
                     float exitLift = (1f - tOut) * 4f;             // 出＝上へ
                     float dy = rise - exitLift;
                     float th = y + barH / 2f - 7 - dy;
-                    if (hw > 0f) UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, 12, new Color(UiKit.Text3, alpha));
+                    if (hw > 0f) UiKit.Text(ci, UiKit.Mono, new Vector2(cx, th), h, UiKit.FontSmall, new Color(UiKit.Text3, alpha));
                     UiKit.Text(ci, UiKit.Zen, new Vector2(cx + hw, th - 1), wd, 14, new Color(UiKit.Text2, alpha));
                     // 接続ドット：ハンドル頭の左に小点。入場の一拍だけ光って“ログインした”を示す。
                     float dotX = cx - 9f, dotY = midY - dy;
@@ -1464,7 +1482,7 @@ public partial class Hud : CanvasLayer
     // ティッカー1件ぶんのハンドル列幅。空欄（#11 文面改稿＝ハンドル無し投稿）は 0 を返して本文を詰める
     //（旧実装は空欄でも +6px のギャップが残った）。block 計算とセル描画の両方でこれを使い、幅を一致させる。
     private static float TickerHandleW(string h)
-        => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, 12) + 6f;
+        => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6f;
 
     // 「あなた」の行に出す下書きの吹き出し印（立ち絵の代わり）。枠の左端に置く小さな角丸＋打ちかけの三点。
     // ハブの小話にも「あなた」の行があるので、Hub.DrawDialog から同じ印を使えるよう公開する（見え方を1か所に保つ）。
@@ -1499,7 +1517,7 @@ public partial class Hud : CanvasLayer
         {
             // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。
             UiKit.Box(ci, new Rect2(140, 590, 1000, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
-            UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, UiKit.FontHeading, new Color(0.9f, 0.9f, 0.95f), 920, NarrLeading, DlgMaxLines);
+            UiKit.DrawMulti(ci, UiKit.DialogBody, new Vector2(180, 606), shown, new Color(0.9f, 0.9f, 0.95f), NarrWrapW, DlgMaxLines);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(140 + 1000 - 20, 598));
             if (morePages && ((int)(_t * 2f) % 2) == 0)
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(140 + 1000 - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
@@ -1545,10 +1563,11 @@ public partial class Hud : CanvasLayer
             textX = x + 10 + pw + 20;
         }
         if (_dlgSpeaker.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 16), _dlgSpeaker, UiKit.FontSpeaker, _dlgSpeakerCol);
-        // 本文：行間(DlgLeading)を足して詰まりを解消。全ボックス 2行固定（DlgMaxLines）＝はみ出し防止＋箇所ごとの行数差を解消。
-        UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(textX, y + 48), shown, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f),
-            x + w - textX - 30, DlgLeading, DlgMaxLines);
+            UiKit.Draw(ci, UiKit.DialogSpeaker, new Vector2(textX, y + 16), _dlgSpeaker, _dlgSpeakerCol);
+        // 本文：DialogBody（17px・行間1.55倍）。全ボックス 2行固定（DlgMaxLines）＝はみ出し防止＋箇所ごとの行数差を解消。
+        //   折り返し幅は BuildDialogPages と同じ式（DlgWrapW）。式を1か所にしてページ分割とのズレを断つ。
+        UiKit.DrawMulti(ci, UiKit.DialogBody, new Vector2(textX, y + 48), shown, new Color(0.95f, 0.95f, 0.98f),
+            DlgWrapW(textX), DlgMaxLines);
         // 既読高速送り中の控えめな表示（バー右上・#22）。
         if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
         // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。
@@ -1580,9 +1599,11 @@ public partial class Hud : CanvasLayer
         ci.DrawRect(new Rect2(bx, by, barW * Mathf.Clamp(frac, 0f, 1f), 6f), UiKit.Info);
     }
 
-    // 会話本文の行間（leading・px）。フォント既定より少し開けて読みやすく。
-    private const float DlgLeading = 9f;
-    private const float NarrLeading = 8f;
+    // 会話本文の折り返し幅。DrawDialog（描画）と BuildDialogPages（ページ分割）の両方から必ずこれを通す
+    //   ＝幅がズレると「画面に出る行構成」と「ページの切れ目」が食い違い、送りで文字が飛ぶ/重なる。
+    //   行間は UiKit.DialogBody.Leading(1.55) が持つ（旧 DlgLeading/NarrLeading の px 直指定は廃止）。
+    private const float NarrWrapW = 920f;                  // ナレ（中央テロップ・箱 140..1140 の内側）
+    private static float DlgWrapW(float textX) => 40f + 1200f - textX - 30f; // セリフ（バー x=40,w=1200 の内側）
 
     // 無防備窓サイクルの短い字幕（弾を止めない）。下部・話者色つきの一行カード。
     private void DrawBossLine(HudCanvas ci)
