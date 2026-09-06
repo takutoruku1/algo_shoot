@@ -1,63 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="'Hiragino Sans','Noto Sans JP','Yu Gothic UI',Meiryo,sans-serif">
-  <!-- 感情曲線: 上=明るさ(主従漫才の温度) / 下=重さ(喪失の影)。単系列・注釈は要所のみ -->
+  <!-- 感情曲線: 縦軸=ミナの光の汚染(0→0.18→0.45→0.80→1.0→0)。◆=あなたの下書きが戻ってくる点。単系列・注釈は要所のみ -->
   <rect x="0" y="0" width="960" height="470" rx="10" fill="#FBFCFD"/>
-  <text x="34" y="40" font-size="19" font-weight="700" fill="#2A3242">感情曲線 — 明るさと重さの往復</text>
-  <text x="34" y="62" font-size="12.5" fill="#6B7688">上へ行くほど軽妙（主従漫才の温度）、下へ行くほど重い（喪失の影）。落差の振幅が章を追うごとに深くなり、最深部を過ぎてから温かさへ戻る。</text>
+  <text x="34" y="40" font-size="19" font-weight="700" fill="#2A3242">感情曲線 — ミナの汚染と、戻ってくる下書き</text>
+  <text x="34" y="62" font-size="12.5" fill="#6B7688">縦軸はミナの光の汚染（下＝澄んでいる、上＝限界）。面を追うごとに段階的に濁り、FINAL の頂点で限界に達したあと、エピローグで澄んだ状態へ戻る。◆はあなたの下書きが戻ってくる点。</text>
 
-  <!-- 章の帯 (x: 70 + i*44, 帯はシーン境界の中点) -->
+  <!-- 章の帯 -->
   <g font-size="12" fill="#6B7688" text-anchor="middle">
     <rect x="48"  y="86" width="110" height="310" fill="#2A3242" opacity="0.035"/>
     <rect x="158" y="86" width="176" height="310" fill="#2A3242" opacity="0"/>
     <rect x="334" y="86" width="176" height="310" fill="#2A3242" opacity="0.035"/>
     <rect x="510" y="86" width="176" height="310" fill="#2A3242" opacity="0"/>
-    <rect x="686" y="86" width="88"  height="310" fill="#2A3242" opacity="0.035"/>
-    <rect x="774" y="86" width="154" height="310" fill="#2A3242" opacity="0"/>
+    <rect x="686" y="86" width="114" height="310" fill="#2A3242" opacity="0.035"/>
+    <rect x="800" y="86" width="128" height="310" fill="#2A3242" opacity="0"/>
     <text x="103" y="416">プロローグ・練習</text>
-    <text x="246" y="416">STAGE1 レイ</text>
-    <text x="422" y="416">STAGE2 あかり</text>
-    <text x="598" y="416">STAGE3 こはる</text>
-    <text x="730" y="416">FINAL</text>
-    <text x="851" y="416">エピローグ</text>
+    <text x="246" y="416">STAGE1 あかり</text>
+    <text x="422" y="416">STAGE2 こはる</text>
+    <text x="598" y="416">STAGE3 レイ</text>
+    <text x="743" y="416">FINAL</text>
+    <text x="864" y="416">エピローグ</text>
   </g>
 
-  <!-- 基準線(中立) と 縦軸ラベル -->
-  <line x1="48" y1="205" x2="928" y2="205" stroke="#9AA3B2" stroke-width="1" stroke-dasharray="3 4"/>
+  <!-- 汚染の段階線 (y = 380 - v*280) と 縦軸ラベル -->
+  <g stroke="#9AA3B2" stroke-width="1" stroke-dasharray="3 4">
+    <line x1="48" y1="380" x2="928" y2="380"/>
+    <line x1="48" y1="330" x2="928" y2="330"/>
+    <line x1="48" y1="254" x2="928" y2="254"/>
+    <line x1="48" y1="156" x2="928" y2="156"/>
+    <line x1="48" y1="100" x2="928" y2="100"/>
+  </g>
+  <g font-size="11.5" fill="#6B7688" text-anchor="end">
+    <text x="44" y="384">0</text>
+    <text x="44" y="334">0.18</text>
+    <text x="44" y="258">0.45</text>
+    <text x="44" y="160">0.80</text>
+    <text x="44" y="104">1.0</text>
+  </g>
   <g font-size="11.5" fill="#6B7688">
-    <text x="36" y="108" text-anchor="end" transform="rotate(-90 36 108)"></text>
-    <text x="30" y="112" writing-mode="tb" letter-spacing="2">明るい</text>
-    <text x="30" y="330" writing-mode="tb" letter-spacing="2">重い</text>
+    <text x="18" y="100" writing-mode="tb" letter-spacing="2">濁る</text>
+    <text x="18" y="330" writing-mode="tb" letter-spacing="2">澄む</text>
   </g>
 
-  <!-- 面 + 線 (x=70+i*44, y=205-v*52) v: 1.5,2,1,-1.5,1.5,2,0.5,-2,1,0,-0.5,-2.5,-1,0.5,-2,-3,-2.5,-1.5,1,2 -->
-  <path d="M70,127 L114,101 L158,153 L202,283 L246,127 L290,101 L334,179 L378,309 L422,153 L466,205 L510,231 L554,335 L598,257 L642,179 L686,309 L730,361 L774,335 L818,283 L862,153 L906,101 L906,396 L70,396 Z"
+  <!-- 面 + 線 (x=場面の順, y=380-汚染*280)
+       命名0 → 練習0 → 束0.09 → あかり改心0.18 → H1 0.18 → 入力欄0.32 → こはる改心0.45 → H2 0.45
+       → 引用の嵐0.60 → 割り込み0.70 → ガワが割れる0.80 → 返礼1.0 → F4 1.0 → E2 0 → E6 0 -->
+  <path d="M70,380 L114,380 L200,355 L250,330 L300,330 L380,290 L440,254 L490,254 L560,212 L610,184 L660,156 L720,100 L770,100 L850,380 L906,380 Z"
         fill="#0E9490" opacity="0.08"/>
-  <path d="M70,127 L114,101 L158,153 L202,283 L246,127 L290,101 L334,179 L378,309 L422,153 L466,205 L510,231 L554,335 L598,257 L642,179 L686,309 L730,361 L774,335 L818,283 L862,153 L906,101"
+  <path d="M70,380 L114,380 L200,355 L250,330 L300,330 L380,290 L440,254 L490,254 L560,212 L610,184 L660,156 L720,100 L770,100 L850,380 L906,380"
         fill="none" stroke="#0E9490" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 
-  <!-- 注釈点（白リング付きマーカー） -->
+  <!-- 注釈点（白リング付きマーカー）。◆＝あなたの下書きが戻る点 -->
   <g>
-    <circle cx="114" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="202" cy="283" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="290" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="378" cy="309" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="554" cy="335" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="730" cy="361" r="5.5" fill="#2A3242" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="862" cy="153" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
-    <circle cx="906" cy="101" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="70"  cy="380" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="200" cy="355" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="250" cy="330" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="300" cy="330" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="380" cy="290" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="440" cy="254" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="490" cy="254" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="560" cy="212" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="610" cy="184" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="660" cy="156" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="720" cy="100" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
+    <rect x="763.5" y="93.5" width="13" height="13" transform="rotate(45 770 100)" fill="#2A3242" stroke="#FBFCFD" stroke-width="2"/>
+    <rect x="843.5" y="373.5" width="13" height="13" transform="rotate(45 850 380)" fill="#2A3242" stroke="#FBFCFD" stroke-width="2"/>
+    <circle cx="906" cy="380" r="4.5" fill="#0E9490" stroke="#FBFCFD" stroke-width="2"/>
   </g>
 
   <!-- 注釈テキスト -->
   <g font-size="11.5" fill="#2A3242">
-    <text x="114" y="88" text-anchor="middle">合言葉「Stay」初出</text>
-    <text x="202" y="302" text-anchor="middle">レイ改心（二十三分の告白）</text>
-    <text x="290" y="88" text-anchor="middle">初投稿がバズる</text>
-    <text x="378" y="328" text-anchor="middle">交差点の幻視・「キミ」の真相</text>
-    <text x="554" y="354" text-anchor="middle">「誰を、いなくしたんですか」</text>
-    <text x="730" y="383" text-anchor="middle" font-weight="700">Stayの反転・返事なし（最深部）</text>
-    <text x="862" y="140" text-anchor="middle">「どこにも行きませんよ」</text>
-    <text x="906" y="88" text-anchor="middle" >stay.</text>
+    <text x="70"  y="366" text-anchor="middle">命名</text>
+    <text x="200" y="342" text-anchor="middle">束の選択</text>
+    <text x="250" y="316" text-anchor="middle">あかり改心</text>
+    <text x="300" y="348" text-anchor="middle">H1</text>
+    <text x="380" y="277" text-anchor="middle">入力欄</text>
+    <text x="440" y="241" text-anchor="middle">こはる改心</text>
+    <text x="490" y="272" text-anchor="middle">H2 炎上</text>
+    <text x="560" y="199" text-anchor="middle">引用の嵐</text>
+    <text x="610" y="171" text-anchor="middle">割り込み</text>
+    <text x="660" y="143" text-anchor="middle">ガワが割れる</text>
+    <text x="720" y="87"  text-anchor="middle">三人の返礼</text>
+    <text x="780" y="96"  text-anchor="start" font-weight="700">【初】が戻る（F4 頂点）</text>
+    <text x="842" y="400" text-anchor="end" font-weight="700">【終】が鍵になる（E2 合言葉）</text>
+    <text x="906" y="366" text-anchor="middle">END</text>
   </g>
 
   <!-- 凡例代わりの一行（単系列のため凡例枠なし） -->
-  <text x="34" y="450" font-size="11.5" fill="#6B7688">各点は場面の順（プロローグ→スタッフロール）。位置は本文の記述から定めた相対的な高さで、数値的な指標ではない。</text>
+  <text x="34" y="450" font-size="11.5" fill="#6B7688">各点は場面の順（プロローグ→エピローグ）。汚染の値は各面の開始値と終了値に合わせ、面の途中の位置は相対的な目安。◆＝散った下書きが戻ってくる点。</text>
 </svg>
