@@ -64,6 +64,7 @@ public partial class Player : Area2D
     private int _optionCount = 0;               // _Ready で GameManager.OptionSubCount を確定（ラン中不変）
     private static readonly Vector2[] OptionSlots = { new Vector2(-4, -14), new Vector2(-4, 14) };
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // ヒカゲを仲間に。フォロワーが満員(4)なら1体をヒカゲに強化、空きがあれば強化フォロワーとして追加。
     public void AddHikageFollower(Vector2 globalFromPos)
     {
@@ -1266,6 +1267,7 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
     }
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // ヒカゲが仲間にいるか。
     private bool HasHikage()
     {
@@ -1274,6 +1276,7 @@ public partial class Player : Area2D
         return false;
     }
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // ヒカゲ専用スキル「やさしさの大波（鎮火）」。
     // 前方に強い大粒ハート弾を扇状に放ち、前方の敵弾を花びらに変えて消す。クールダウンあり。
     private void TryHikageSpecial()

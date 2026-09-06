@@ -60,6 +60,7 @@ public partial class Follower : Node2D
         }
     }
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // 通常フォロワーをヒカゲに強化（見た目と火力を変える）。
     public void PromoteToHikage()
     {

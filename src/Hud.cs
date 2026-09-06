@@ -696,6 +696,7 @@ public partial class Hud : CanvasLayer
         return false;
     }
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
     public void SetDodgeReady(bool ready) => _dodgeReady = ready;
 
@@ -1164,6 +1165,7 @@ public partial class Hud : CanvasLayer
         return p * p * ((s + 1f) * p + s) + 1f;
     }
 
+    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     // ヒカゲ専用スキルのチップ（目標パネルの直下）。発動キーのバッジ＋名前＋状態＋充填バー。
     private void DrawSkill(HudCanvas ci)
     {
