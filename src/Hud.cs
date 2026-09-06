@@ -1320,10 +1320,18 @@ public partial class Hud : CanvasLayer
             (AllShot,  "撃つ",  true),
             (AllFocus, "低速",  true),
             (TokDodge, "回避",  _dodgeReady), // 低速の隣（共に回避手段）。CD中は淡色＝使える時だけ点灯
-            (AllFlip,  "向き",  true),      // 射撃方向を右⇔左にトグル（押すたび反転）
             (AllBomb,  "ボム",  true),
             (AllMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
         };
+        // 「向き」（射撃方向を右⇔左にトグル）は機能自体をオフにしているあいだは列から外す
+        //（押しても何も起きない案内を出さない）。Player.FacingFlipEnabled を true に戻すと回避の隣へ復帰する。
+        // 挿入位置は「回避の次」を名前で引く＝上の列の増減で位置がずれない（添字を直に書かない）。
+        if (Player.FacingFlipEnabled)
+        {
+            int atFlip = items.FindIndex(it => it.label == "回避");
+            items.Insert(atFlip < 0 ? items.Count : atFlip + 1, (AllFlip, "向き", true));
+        }
+
         // 「技」（C/Y＝ヒカゲ大波）はヒカゲが仲間の時だけ出す。本編ではヒカゲは加入しない＝
         // 常時表示すると“使えないボタン”になるため、仲間にいる時だけ列に加える（W0 等）。
         if (_skillHas) items.Add((AllSkill, "技", true));

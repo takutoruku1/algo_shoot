@@ -225,8 +225,17 @@ public partial class Player : Area2D
     //   ShotAngle … 扇（拡散/ホーミング/大波）の基準角。0=右 / π=左。基準角に足せば左右どちらでも自然に開く
     //   Facing    … +1/-1。銃口オフセットや前後判定の符号に使う
     // 同時に両方向へは撃たない＝火力は不変（向きが変わるだけ）。
+    // 向き反転そのものを殺すスイッチ（2026-09-06 ユーザー指示。true で復活）。
+    // false のあいだは反転入力を受け付けず _facing は +1（右向き）のまま固定される＝下流
+    //（ShotDir / ShotAngle / FlipH / バンクの前後判定）は従来どおり _facing を読むだけで整合が取れる。
+    public static readonly bool FacingFlipEnabled = false;
+
     private int _facing = 1;
-    private bool _flipHeld = false;             // トグル入力のエッジ検出
+    // トグル入力のエッジ検出。初期値は true＝「既に押されている扱い」で始める。
+    // シーン遷移（ハブ→面／ショップ→面／リトライ）の決定クリックや F キーは、次のシーンの初フレームでも
+    // まだ押されたままのことがある。false 始まりだとそれが新品の押下エッジになって、開始直後に自機が
+    // 後ろを向いてしまう。一度離すまで反転しない＝持ち越しの入力を食わせない。
+    private bool _flipHeld = true;
     private bool _mouseFlipLocked = false;      // 会話送りのクリックが会話明けに向き反転へ流れ込むのを止めるゲート（離すまで反転しない）
     public int Facing => _facing;
     public Vector2 ShotDir => new Vector2(_facing, 0f);
@@ -591,11 +600,13 @@ public partial class Player : Area2D
         // 反転は _facing のみを書き換える＝射撃方向も見た目(FlipH)も下流がここを読んで追従する。
         // 左クリックは会話送りと兼用なので、会話中に押されていたクリックは離すまで反転に使わない
         //（会話明けの1クリックが向き反転へ流れ込む誤爆を止める）。
-        bool mouseL = Pad.MouseDown();
+        // FacingFlipEnabled=false のあいだは入力を一切読まない（パッド側の結線はそのまま残す）。
+        bool mouseL = FacingFlipEnabled && Pad.MouseDown();
         if (Hud.BubblePaused && mouseL) _mouseFlipLocked = true;
         else if (!mouseL) _mouseFlipLocked = false;
-        bool flipKey = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
-                    || (mouseL && !_mouseFlipLocked);
+        bool flipKey = FacingFlipEnabled
+                    && (Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
+                     || (mouseL && !_mouseFlipLocked));
         if (flipKey && !_flipHeld && !Hud.BubblePaused && !_gameOver)
         {
             _facing = -_facing;

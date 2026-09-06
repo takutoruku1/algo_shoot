@@ -157,22 +157,29 @@ public partial class HowToCanvas : Node2D
     private void DrawPageControls(float x, float y, float w)
     {
         // (token, 名前, 説明, accent, 強調?)
-        var rows = new (string tok, string name, string desc, Color accent, bool hot)[]
+        var rows = new System.Collections.Generic.List<(string tok, string name, string desc, Color accent, bool hot)>
         {
             (TokMove,  "移動",        "上下左右に動く",                              UiKit.Info,   false),
             (TokShot,  "撃つ",        "自動で撃ちます。光を放って心を浄化する",          UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
-            (TokFlip,  "向き反転",    "押すたび撃つ方向が 右⇔左 に切り替わる",           UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
             (TokKind,  "やさしさ全開","満タンで発動、5秒ひかりが溢れる",               UiKit.PurifyHi,false),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
+        // 向き反転は機能をオフにしているあいだ説明ごと伏せる（Player.FacingFlipEnabled で復活）。
+        // 挿入位置は「回避ダッシュの次」を名前で引く＝行の増減で位置がずれない（添字を直に書かない）。
+        if (Player.FacingFlipEnabled)
+        {
+            int atFlip = rows.FindIndex(r => r.name == "回避ダッシュ");
+            rows.Insert(atFlip < 0 ? rows.Count : atFlip + 1,
+                        (TokFlip, "向き反転", "押すたび撃つ方向が 右⇔左 に切り替わる", UiKit.Gold, true));
+        }
 
         float colW = (w - 24f) / 2f, rowH = 60f;
-        int half = (rows.Length + 1) / 2;
-        for (int i = 0; i < rows.Length; i++)
+        int half = (rows.Count + 1) / 2;
+        for (int i = 0; i < rows.Count; i++)
         {
             int col = i / half, idx = i % half;
             float rx = x + col * (colW + 24f);
@@ -187,9 +194,12 @@ public partial class HowToCanvas : Node2D
             float ny = y + half * rowH + 6f;
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
                 "※ 光は自動で出ます。撃つボタンはありません（やさしさ全開だけ Ctrl）", UiKit.FontLabel, UiKit.Gold);
+            // 左クリックの「向き反転」は機能オフ中は案内から外す（Player.FacingFlipEnabled で復活）。
+            string mouseHint = Player.FacingFlipEnabled
+                ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）"
+                : "◆ マウスでも遊べます — カーソルへ移動／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）";
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
-                "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）",
-                UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
+                mouseHint, UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
         }
         // 会話中の2択（ChoiceOverlay）は KB/パッド共通の操作なので出し分けなしで1行案内。
         {
