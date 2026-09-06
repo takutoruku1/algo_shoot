@@ -102,7 +102,9 @@ public partial class StageImagery : Node2D
     //   ②アバターは輪だけ ③名前・@ハンドル・時刻は一段落として一行 ④本文は 1 行 11px（読めることが第一）
     //   ⑤エンゲージ行は点 4 つ＋薄い数字（返信/リポスト/いいね/閲覧の順は X のまま。図像は描かない）。
     //   彩度は弾より低く、加算しない。板の暗さで背景を一段沈め、文字は縁光と同じ淡い色で浮かせる。
-    private const float CardW = 156f, CardH = 46f;   // 本文 12 字が 11px で収まる幅／三段（頭・本文・点）の高さ
+    // 本文 12 字が 11px＋字間(BodyTrack) で収まる幅／三段（頭・本文・点）の高さ。
+    //   2026-09-07：本文に字間 +1.0 を入れたぶん（12字で約12px）幅を広げ、右端で文字が板からはみ出すのを防ぐ。
+    private const float CardW = 170f, CardH = 46f;
     private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
     private const int CardCount = 4;                 // 同時表示（控えめ）
     // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=46）。
@@ -111,21 +113,41 @@ public partial class StageImagery : Node2D
     private static float Frac(float v) => v - Mathf.Floor(v);
 
     // 匿名アカウントの @ハンドルを決定論生成（@nanashi_3942 風）。
-    private static readonly string[] Handles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "tori398" };
+    // 表示名と @ハンドルは対にする（同じ添字を引く）＝「名前とIDが噛み合った他人」に見せる。
+    // ジャンルを散らす: 社会人/学生/オタク/創作/健康/生活/趣味 …（2026-09-07 ユーザー指示で「ふぉろわ」等の
+    // ひらがな名を廃し、実在感のある架空のニックネーム20種へ）。
+    private static readonly (string Name, string Handle)[] Voices =
+    {
+        ("残業カフェイン", "zangyo_cafe"),      // 社会人
+        ("定時で帰れない", "teiji_muri"),
+        ("有給消化中", "yukyu_now"),
+        ("通勤2時間", "tsukin_2h"),
+        ("課題やってない", "kadai_zero"),        // 学生
+        ("テスト前逃避", "test_toohi"),
+        ("推し不足", "oshi_busoku"),            // オタク・推し活
+        ("同接見守り隊", "dosetsu_mimamori"),
+        ("積みゲー崩し", "tsumige_kuzushi"),
+        ("原稿から逃走", "genko_tobo"),          // 創作
+        ("三日坊主の民", "mikka_bozu"),
+        ("低浮上ぎみ", "teifujo"),
+        ("睡眠負債", "suimin_fusai"),            // 健康・生活
+        ("胃が痛い", "i_ga_itai"),
+        ("自炊してえらい", "jisui_erai"),
+        ("洗濯物と格闘", "sentaku_tatakai"),
+        ("終電ダッシュ", "shuden_dash"),
+        ("散歩が趣味", "sanpo_suki"),            // 趣味
+        ("観葉植物係", "kanyo_gakari"),
+        ("深夜ラジオ派", "shinya_radio"),
+    };
+    private int VoiceIndex(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * Voices.Length) % Voices.Length;
     private string Handle(int i)
     {
-        int s = (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * Handles.Length);
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return $"@{Handles[s % Handles.Length]}_{num}";
+        return $"@{Voices[VoiceIndex(i)].Handle}_{num}";
     }
 
     // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）を決定論生成。
-    private static readonly string[] Names = { "名無し", "通りすがり", "匿名", "ロム専", "外野", "観測者", "ふぉろわ" };
-    private string DisplayName(int i)
-    {
-        int s = (int)(Frac(Mathf.Sin(i * 61.7f) * 8861.1f) * Names.Length);
-        return Names[s % Names.Length];
-    }
+    private string DisplayName(int i) => Voices[VoiceIndex(i)].Name;
 
     // 相対時刻「· 2時間」等。決定論で 分/時間 を散らす（中黒「·」で区切る）。
     private string RelTime(int i)
@@ -148,11 +170,43 @@ public partial class StageImagery : Node2D
         DrawRect(new Rect2(x + 2f, y + 3f, 1f, 1f), c);
     }
 
+    // ── 背景の文字の見え方（2026-09-07・docs/20260906/HUD整理_案.md §9）──
+    //   ここの文字は「読ませない文字」。読めるように濃く詰めて置くと、ただ小汚い塊に見える
+    //   （＝ユーザー指摘「背景の流れているコメントのフォントがださい」の正体）。
+    //   フォントは変えず、字間を +1.0 開けて 1 文字ずつ立たせ、濃さを一段落とす。サイズは据え置き。
+    private const float BodyTrack = 1.0f;      // 本文・下書きの字間（px・384系の生座標）
+    private const float BodyAlphaMax = 0.50f;  // 本文 α の上限（旧 0.62）
+    private const float DraftAlpha = 0.38f;    // 下書きの基準 α（旧 0.46）
+
+    // 字間を含めた文字列幅（DrawTracked が実際に進む横幅と一致させる）。
+    private float TrackedWidth(string s, int size, float track)
+    {
+        if (s.Length == 0) return 0f;
+        float w = 0f;
+        for (int i = 0; i < s.Length; i++)
+            w += _font.GetStringSize(s[i].ToString(), HorizontalAlignment.Left, -1, size).X + track;
+        return w - track;
+    }
+
+    // 字間つきの1行描画（384系の生座標・ベースライン基準＝DrawString と同じ）。
+    //   UiKit.Tracked は設計座標(1280)前提の上端基準ヘルパなので、こちらは生座標用に薄く持つ。
+    private void DrawTracked(Rid ci, Vector2 baseline, string s, int size, Color c, float track)
+    {
+        if (c.A <= 0.004f) return;
+        float x = baseline.X;
+        for (int i = 0; i < s.Length; i++)
+        {
+            string ch = s[i].ToString();
+            _font.DrawString(ci, new Vector2(x, baseline.Y), ch, HorizontalAlignment.Left, -1, size, c);
+            x += _font.GetStringSize(ch, HorizontalAlignment.Left, -1, size).X + track;
+        }
+    }
+
     // 1枚の板を描く。本文・名前・メタは i で決定論（周回中は固定＝チラつかない。切替は画面外）。
     //   panel : 縁光と文字の基調色（面の tint）, text : 本文/名前色, accent : アバターの輪の色
     //   replies/reposts/likes/views : 点の横の薄い数字, liked : いいね済み（点を淡い薔薇色に）, quote : 引用リプ線（あかり）
     //   pa は「その面の板の濃さ」（レイ/あかり 0.13・こはる 0.07）。α の配分はこの値を軸に、
-    //   板の暗さ ×1.7 ／縁光 ×1.2 ／本文 ×3.0（上限 0.62）／頭の行 ×1.6 ／点と数字 ×1.4 で組む。
+    //   板の暗さ ×1.7 ／縁光 ×1.2 ／本文 ×3.0（上限 BodyAlphaMax）／頭の行 ×1.6 ／点と数字 ×1.4 で組む。
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
                           int i, string body, int replies, int reposts, int likes, int views,
                           bool liked = false, bool quote = false)
@@ -188,7 +242,10 @@ public partial class StageImagery : Node2D
         string tail = $"{Handle(i)} {RelTime(i)}";
         _font.DrawString(ci, new Vector2(hx, y + 15f), tail, HorizontalAlignment.Left, -1, 8, head);
 
-        // ④ 本文（11px・1 行）。読めることが第一＝板の中で一番濃い。引用リプ（quote）なら左に極細の線＋字下げ。
+        // ④ 本文（11px・1 行）。板の中では一番濃いが「読ませる文字」ではない＝字間を開けて濃さを落とす
+        //   （2026-09-07 §9：ユーザー指摘「背景の流れているコメントのフォントがださい」への対処。
+        //    サイズは据え置き。詰まった小さい字が“汚い”のであって、大きさではない）。
+        //   引用リプ（quote）なら左に極細の線＋字下げ。
         float bx = x + 21f, by = y + 30f;
         if (quote)
         {
@@ -196,8 +253,8 @@ public partial class StageImagery : Node2D
                 new Color(panel.R, panel.G, panel.B, a * 1.4f), 1f);
             bx = x + 24f;
         }
-        _font.DrawString(ci, new Vector2(bx, by), body,
-            HorizontalAlignment.Left, -1, 11, new Color(text.R, text.G, text.B, Mathf.Min(a * 3.0f, 0.62f)));
+        DrawTracked(ci, new Vector2(bx, by), body, 11,
+            new Color(text.R, text.G, text.B, Mathf.Min(a * 3.0f, BodyAlphaMax)), BodyTrack);
 
         // ⑤ エンゲージ行：点 4 つ＋薄い数字（返信・リポスト・いいね・閲覧の順）。図像は描かない。
         float dy = y + CardH - 6.5f;     // 点の中心
@@ -365,22 +422,22 @@ public partial class StageImagery : Node2D
             string s = drafts[i];
             // 0..0.18 浮かぶ／0.18..0.52 留まる／0.52..0.84 末尾から一文字ずつ欠ける／0.84..1 線だけ残って消える
             int keep = s.Length;
-            float aa = 0.46f;
-            if (p < 0.18f) aa = 0.46f * (p / 0.18f);
+            float aa = DraftAlpha;
+            if (p < 0.18f) aa = DraftAlpha * (p / 0.18f);
             else if (p < 0.52f) { }
             else if (p < 0.84f) keep = Mathf.Max(0, s.Length - 1 - (int)((p - 0.52f) / 0.32f * s.Length));
-            else { keep = 0; aa = 0.46f * (1f - (p - 0.84f) / 0.16f); }
+            else { keep = 0; aa = DraftAlpha * (1f - (p - 0.84f) / 0.16f); }
             aa *= fade;
-            float fullW = _font.GetStringSize(s, HorizontalAlignment.Left, -1, 10).X;
+            // 板（DrawCard）の本文と同じ字間・同じ濃さの方針で揃える＝背景の文字は全部この見え方に統一。
+            float fullW = TrackedWidth(s, 10, BodyTrack);
             if (keep > 0)
-                _font.DrawString(ci, new Vector2(bx, by), s.Substring(0, keep),
-                    HorizontalAlignment.Left, -1, 10, new Color(draftC, aa));
+                DrawTracked(ci, new Vector2(bx, by), s.Substring(0, keep), 10, new Color(draftC, aa), BodyTrack);
             // 極細の下線（入力欄の名残）。文字が欠けても線の長さは変わらない＝「そこに言葉があった」だけが残る。
             DrawLine(new Vector2(bx, by + 3f), new Vector2(bx + fullW, by + 3f), new Color(draftC, aa * 0.45f), 1f);
             // 欠けていく間だけ、末尾でカーソルが明滅する（削除中）。
             if (keep > 0 && p >= 0.52f && p < 0.84f && Frac((float)_t * 2.5f) < 0.5f)
             {
-                float cw = _font.GetStringSize(s.Substring(0, keep), HorizontalAlignment.Left, -1, 10).X;
+                float cw = TrackedWidth(s.Substring(0, keep), 10, BodyTrack);
                 DrawLine(new Vector2(bx + cw + 1f, by - 8f), new Vector2(bx + cw + 1f, by + 1f), new Color(draftC, aa), 1f);
             }
         }
