@@ -38,6 +38,11 @@ public partial class MidEnemy : Enemy
     private const float ApproachFloor = 78f;     // 進入の最低速度(px/s)。遅い種でも約2.5sで居座る。
     private const double FirstShotDelay = 0.55;  // 居座り後この秒で初弾（撃つ前に倒され続けるのを防ぐ）。
 
+    // 接触半径(px)。EnemySpec.BodyRadius（種ごとの絵の大きさ由来）は使わず全種で一定にする：
+    //   ザコは「絵が大きい＝当たりも大きい」で読み分けさせる要素ではなく、どの種でも
+    //   「体に触れたら痛い」が同じ手触りで返るほうが避けの判断が安定する（2026-09-06）。
+    private const float ZakoBodyRadius = 8f;
+
     // パターン別の基準発射間隔（秒・難易度スケール前）。Di() を掛けて使う。初弾プライムと共用。
     private double BaseInterval() => _spec.Pattern switch
     {
@@ -76,7 +81,7 @@ public partial class MidEnemy : Enemy
     protected override void OnEnemyReady()
     {
         Points = _spec.Points;
-        BodyRadius = _spec.BodyRadius * 0.85f; // 一回り小さく
+        BodyRadius = ZakoBodyRadius;    // 全種共通（絵の大小に依らず「体に触れたら痛い」を一定に）
         PanelCount = 3;
         PanelInk = 2;
         OrbitRadius = 11.5f;            // 一回り小さく（周回をやや内側へ）

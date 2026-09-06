@@ -11,6 +11,12 @@ public partial class Enemy : Area2D
     // 浄化(改心)時の基礎得点（派生で上書き）。
     protected int Points = 100;
     protected float BodyRadius = 9f;
+    // 合図リング／露出オーラ／被弾リングの描画基準（見た目だけ。当たり判定は BodyRadius のまま）。
+    //   接触半径をボスで 9→22 に上げた（2026-09-06）ぶん、そのまま基準にすると露出オーラが
+    //   スイートスポットの薄リング（PointBlankRange=48px）と重なって「どこまで詰めれば得か」が読めなくなる。
+    //   描画側だけ上限を設けて、オーラと 48px リングの間隔を残す。
+    private const float AuraRadiusMax = 14f;
+    private float AuraRadius => Mathf.Min(BodyRadius, AuraRadiusMax);
 
     // パネル構成（派生で設定）。
     protected int PanelCount = 3;
@@ -214,12 +220,15 @@ public partial class Enemy : Area2D
         CollisionMask = 0;
         Monitoring = false;
         Monitorable = true;
-        _bodyShape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius } };
-        AddChild(_bodyShape);
         // 無防備窓中だけ本体が自機弾を拾う（EnterExposed/EnterReclose で mask=2 を開閉する）。
         AreaEntered += OnBodyHitByPlayerBullet;
 
         OnEnemyReady();
+        // ★当たり円は OnEnemyReady の後で作る：BodyRadius は派生（MidEnemy / 各ボスの boss_stats.ini）が
+        //   OnEnemyReady で上書きするので、その前に円を作ると全敵が基底の既定値 9px のまま固定されてしまう
+        //   （＝「ボスに触っても当たらない」の原因。2026-09-06 修正）。
+        _bodyShape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius } };
+        AddChild(_bodyShape);
         // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
@@ -711,6 +720,14 @@ public partial class Enemy : Area2D
         foreach (var p in _panels) p.Invulnerable = v;
     }
 
+    // 本体の接触判定を一時的に切る（あかり戦「雨の帰り道」：退場と高速帰還で場を横切る間、
+    // 通路を縫っている自機を「轢く」のを防ぐ。演出で速く動く区間は当たらない＝理不尽を断つ）。
+    // 衝突処理中に呼ばれても安全なよう遅延設定で書く（Redeem/EnterExposed と同じ作法）。
+    public void SetBodyContactEnabled(bool v)
+    {
+        _bodyShape?.SetDeferred(CollisionShape2D.PropertyName.Disabled, !v);
+    }
+
     // 合図・弱気セリフの派生フック。
     // BREAK 合図は全ボス共通でミナが煽る（who=1）。RECLOSE は派生がキャラ別の弱気セリフを出す。
     // どちらも ShowBossLine 経由＝弾を止めない（テンポ維持）。
@@ -1093,7 +1110,7 @@ public partial class Enemy : Area2D
         {
             float t = (float)(_flashT / FlashDur);
             var c = new Color(1f, 0.85f, 0.92f).Lerp(new Color(0.79f, 0.72f, 0.94f), t); // 淡ピンク→淡紫
-            DrawCircle(Vector2.Zero, BodyRadius + 10f * (1f - t), new Color(c.R, c.G, c.B, 0.6f * (1f - t)));
+            DrawCircle(Vector2.Zero, AuraRadius + 10f * (1f - t), new Color(c.R, c.G, c.B, 0.6f * (1f - t)));
         }
 
         // 合図・無防備窓の本体演出（「今は殴れる」の可視化）。
@@ -1103,7 +1120,7 @@ public partial class Enemy : Area2D
             {
                 // タメ：白く膨らむ合図リング。
                 float t = (float)(_phaseT / BreakCueDur);
-                DrawCircle(Vector2.Zero, BodyRadius + 4f + 18f * t, new Color(1f, 1f, 1f, 0.5f * (1f - t)));
+                DrawCircle(Vector2.Zero, AuraRadius + 4f + 18f * t, new Color(1f, 1f, 1f, 0.5f * (1f - t)));
             }
             else if (_phase == BossPhase.Exposed)
             {
@@ -1116,8 +1133,8 @@ public partial class Enemy : Area2D
                 var aura = warn
                     ? new Color(1f, 0.97f, 0.85f, 0.30f + 0.45f * pulse)
                     : new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
-                DrawCircle(Vector2.Zero, BodyRadius + 6f + 3f * pulse, aura);
-                DrawArc(Vector2.Zero, BodyRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
+                DrawCircle(Vector2.Zero, AuraRadius + 6f + 3f * pulse, aura);
+                DrawArc(Vector2.Zero, AuraRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
                 // スイートスポット：PointBlankRange の薄い金リング＝「ここまで近づくと大ダメージ」を学習させる。
                 // 弾を隠さない淡さ＆破線風（点描）で控えめに。当たり判定とは無関係の見せかけ。
                 DrawArc(Vector2.Zero, PointBlankRange, 0, Mathf.Tau, 48,
@@ -1126,14 +1143,14 @@ public partial class Enemy : Area2D
                 if (warn)
                 {
                     float closing = (float)(rem / VulnWarnLead); // 1→0
-                    float rr = BodyRadius + 9f + 16f * closing;
+                    float rr = AuraRadius + 9f + 16f * closing;
                     DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 32, new Color(1f, 1f, 1f, 0.55f * closing), 2f);
                 }
                 // 被弾の手応え：撃ち込んだ瞬間の白い衝撃リング（短く・即・尾を引かない）。
                 if (_hitFlashT > 0)
                 {
                     float h = (float)(_hitFlashT / HitFlashDur);     // 1→0
-                    float rr = BodyRadius + 4f + (10f + 4f * _hitFlashMag) * (1f - h);
+                    float rr = AuraRadius + 4f + (10f + 4f * _hitFlashMag) * (1f - h);
                     DrawCircle(Vector2.Zero, rr, new Color(1f, 1f, 1f, 0.5f * h));
                     DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 28, new Color(1f, 1f, 1f, 0.85f * h), 2f);
                 }

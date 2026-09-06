@@ -178,6 +178,7 @@ public partial class BossAkari : Enemy
             _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
             _caster.SetProcess(true);
             SetPanelsInvulnerable(false);
+            SetBodyContactEnabled(true);   // 戦線に戻って通常速度＝接触判定も戻す
             // 出口報酬：パネル全砕き→BREAK窓誘発（SHIELDED中の Purify＝ボム時 Enemy.Purify と同じ経路）。
             if (!IsPurified) Purify();
         }
@@ -191,6 +192,7 @@ public partial class BossAkari : Enemy
         GetHud()?.ShowBossLine("あかり", "来ないで……っ", UiKit.Kegare, 2.0);
         _mover.Configure(new Vector2(AwayX, 70f), 4f, 6f, DashSpeed); // 画面右外へ退場
         SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
+        SetBodyContactEnabled(false);  // 退場/帰還は DashSpeed=320px/s で場を横切る＝通路中の自機を轢かない
         _caster.SetProcess(false);     // 通常テレグラフの宣告も止める（通路に集中させる）
         _corridor = new CorridorRun { Boss = this };
         GetParent().AddChild(_corridor);
