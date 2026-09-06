@@ -79,10 +79,18 @@ public partial class StageAkari : Node
     //   相方は「あなた」＝返事をしない相手なので、掛け合いではなく観測とひとり漫才で運ぶ。
     //   先頭2行は S1-5（中ボス）のミナ行。CameoBoss の一行オーバーレイは本人(who=2)しか流さないので、
     //   中ボスが消えた直後に開くこの step が受け皿になる（step 構成は変えない前提での置き場所）。
-    private static readonly (int who, string text, string face)[] Mid =
+    //   17（道中の選択肢 案C）: この先頭2行＋「問いだけが残っています」の2行までを MidPre（きっかけ）に切り、
+    //   下書き選択（s1_5）を挟んでから、受け＋この配列（S1-2 の小話）へ戻る。
+    private static readonly (int who, string text, string face)[] MidPre =
     {
         (1, "……スマホの光を、顔に浴びたまま。……画面のほうは、こちらから見えません。", MFace),   // S1-5。観測のみ
         (1, "……あの人、降りやまない雨の奥へ。逃げるみたいに、消えてしまいました。", MWorried),   // S1-5
+        // ここから 17 の S1-5（きっかけ2行）。捨て台詞「ぜったいだよ?」の問いだけが残る。宛先はミナが決めない。
+        (1, "……「ぜったいだよ?」。——問いだけが、残っています。宛先は、こちらでは、ありませんが。", MWorried),
+        (1, "ご主人様。下書きが、開いています。……宛先は、わたくしが、決めません。", MFace),
+    };
+    private static readonly (int who, string text, string face)[] Mid =
+    {
         (1, "ここの声は……どれも、「返して」「すき」と、すがりついてきます。……返事の声だけが、ひとつも、混じっていません。", MFace),
         (1, "この“声”、ひとつ祓うたびに、少し肩が軽くなります。……比喩です。肩は、ありません。", MSmile),   // 一人漫才
         (1, "ホワイトボードに、字が。「あたしのせいだ」。……消しても消しても、浮いてくる、そういう字です。", MWorried),
@@ -162,6 +170,78 @@ public partial class StageAkari : Node
         (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),
     };
 
+    // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
+    // あかり面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
+    //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
+    //   s1_2 … 雨の言いかけ（step 6 の末尾）。効果＝次のハブの再訪小話が「雨粒」に固定＋一語混ざる。
+    // 17 の実装メモ (b) を採る＝S1-2 の選択は step 6（S1-7 向かいの席）へずらし、道中Aを挟んで
+    //   二つの選択が同じ会話に同居しないようにする（05「1会話につき1回」）。台本もこの置き方で成立する。
+
+    // S1-5 中ボス・ね?。既定カーソルは末尾＝（送らない）。
+    private static readonly string[] S15Choices = { "宛先、ちがう", "ぜったい", "傘、忘れてる", "（送らない）" };
+    private static (int who, string text, string face)[] S15Reply(int sel) => sel switch
+    {
+        // 「取り消されずに」は S1-10 の「取り消されていない一通」への遠い仕込み。ここでは一度きり。
+        0 => new (int, string, string)[]
+        {
+            (0, "宛先、ちがう", ""),
+            (1, "……はい。宛先は、ちがいます。——それでも、一通。取り消されずに、雨の奥へ。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "ぜったい", ""),
+            (1, "……ぜったい、と。——同じ言葉が、雨の奥と、こちらに、ひとつずつ。", MFace),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "傘、忘れてる", ""),
+            (1, "……傘立てに、二本とも、残ったままです。——傘なしで、雨の奥へ。……観測だけ、しておきます。", MFace),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——「ね?」は、雨の奥へ。返事の、ないまま。", MFace),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S15Tail =
+    {
+        (1, "……雨の奥へ、一通。——届いたかは、観測できません。", MFace),
+    };
+
+    // S1-2 小話・雨（step 6 の末尾へずらし）。ミナが一度だけ、返事を待つ。問いの形にはしない。
+    private static readonly (int who, string text, string face)[] S12Cue =
+    {
+        (1, "……ご主人様は。——雨。", MFace),
+    };
+    private static readonly string[] S12Choices = { "べつに", "きらいじゃない", "置き傘、三本目", "（送らない）" };
+    private static (int who, string text, string face)[] S12Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "べつに", ""),
+            (1, "……べつに。——二文字。……このフロアで、はじめて拾った、返事の形です。", MFace),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "きらいじゃない", ""),
+            (1, "……きらいじゃない、と。——わたくしと、同じ集計です。……それだけ、記録しておきます。", MSmile),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "置き傘、三本目", ""),
+            (1, "……三本目。——傘立てに、空きは、あります。……色だけ、あとで教えてください。二本とも、違う色ですので。", MSmile),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——雨の音だけ、続いています。", MFace),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S12Tail =
+    {
+        (1, "——では、先へ。声を、祓いながら。", MFace),
+    };
+    // step 6 のきっかけ＝S1-7 道中B をそのまま流し切ってから、雨の言いかけ1行。毎フレーム組み直さない。
+    private static readonly (int who, string text, string face)[] BossTalkThenS12 = BossTalk.Concat(S12Cue).ToArray();
+
     // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
@@ -229,9 +309,11 @@ public partial class StageAkari : Node
             case 1: Step_Lines(delta, Intro); break;
             case 2: Step_MidWave0(delta); break;          // 肩慣らし波（6体・圧ゼロ）＝カメオへの布石
             case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
-            case 4: Step_Lines(delta, Mid); break;        // 道中突入の小話
+            // ★S1-5 の下書き選択（17）＝中ボスの受け2行＋問い → 選択 → 受け＋締め → S1-2 の小話
+            case 4: Step_Choice(delta, "s1_5", MidPre, S15Choices, S15Reply, S15Tail, Mid); break;
             case 5: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 6: Step_Lines(delta, BossTalk); break;   // S1-7 道中B／向かいの席／「ぜんぶ浴びる」
+            // ★S1-2 の下書き選択（17）＝道中Bの末尾に雨の言いかけ → 選択 → 受け＋締め
+            case 6: Step_Choice(delta, "s1_2", BossTalkThenS12, S12Choices, S12Reply, S12Tail); break;
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 8: Step_MidStory(delta); break;          // ★S1-4 束（下書き選択）＝ボス前の溜め
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
@@ -323,6 +405,7 @@ public partial class StageAkari : Node
             case 0:
                 // 束の提示〜「拾って、いいですか」まで。Step_Lines は流し切ると Advance するので、
                 // ここは自前で終端を見て次フェーズへ落とす（step は 8 のまま）。
+                _holdForChoice = true;
                 RunLinesInPlace(delta, MidStory, () => { _s14Phase = 1; _stepStarted = false; });
                 break;
             case 1:
@@ -342,6 +425,7 @@ public partial class StageAkari : Node
                 _stepStarted = false;
                 break;
             default:
+                _holdForChoice = false;
                 RunLinesInPlace(delta, _s14After, Advance);
                 break;
         }
@@ -360,6 +444,57 @@ public partial class StageAkari : Node
         if (!sent) game?.SetContamination((game.Contamination) + S14SkipContam);
         _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
     }
+
+    // ---- 道中の下書き選択（17）の汎用三フェーズ：きっかけ → 選択 → 受け＋締め（＋残りの会話）----
+    // 型は S1-4（Step_MidStory）と同じで、id・候補・受け・締めを引数で受けるようにしただけ。
+    //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
+    //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル（末尾＝（送らない））
+    //   のまま即決される＝詰まらない。tail の後ろに rest を繋げば、選択のあとに元の会話の続きを流せる。
+    private ChoiceOverlay? _choice;
+    private double _choiceT;                          // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
+    private (int who, string text, string face)[] _choiceAfter = System.Array.Empty<(int, string, string)>();
+    private int _choicePhase;                         // 0=きっかけ / 1=選択提示中 / 2=受け＋締め
+    private void Step_Choice(double delta, string id,
+        (int who, string text, string face)[] cue, string[] choices,
+        System.Func<int, (int who, string text, string face)[]> reply,
+        (int who, string text, string face)[] tail,
+        (int who, string text, string face)[]? rest = null)
+    {
+        switch (_choicePhase)
+        {
+            case 0:
+                // Step_Lines は流し切ると Advance するので、ここは自前で終端を見て次フェーズへ落とす。
+                _holdForChoice = true;
+                RunLinesInPlace(delta, cue, () => { _choicePhase = 1; _stepStarted = false; });
+                break;
+            case 1:
+                if (!_stepStarted)
+                {
+                    _stepStarted = true;
+                    _choiceT = 0;
+                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
+                    _choice = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                }
+                _choiceT += delta;
+                if (_choice == null || !_choice.Decided) return;
+                int sel = _choice.Selected;
+                var game = GetNodeOrNull<GameManager>("/root/Game");
+                ChoiceEffects.Record(game, id, choices, sel, (float)_choiceT);
+                _choiceAfter = reply(sel).Concat(tail).Concat(rest ?? System.Array.Empty<(int, string, string)>()).ToArray();
+                _choice.QueueFree();
+                _choice = null;
+                _choicePhase = 2;
+                _stepStarted = false;
+                break;
+            default:
+                _holdForChoice = false;
+                RunLinesInPlace(delta, _choiceAfter, () => { _choicePhase = 0; Advance(); });
+                break;
+        }
+    }
+
+    // 流し切ってもバブルを閉じない（＝直後に選択が重なる）か。RunLinesInPlace の終端処理だけが見る。
+    private bool _holdForChoice;
 
     // 会話配列を「この step に留まったまま」流すヘルパ（Step_Lines と同じ送り作法。終端で onEnd を呼ぶ）。
     private void RunLinesInPlace(double delta, (int who, string text, string face)[] lines, System.Action onEnd)
@@ -385,8 +520,9 @@ public partial class StageAkari : Node
             _introLine++;
             if (_introLine >= lines.Length)
             {
-                // 選択の提示中はバブルを保持したまま（BubblePaused 継続＝弾・敵を止めておく）。
-                if (_s14Phase != 0) { Hud.HoldBubble = false; Hud.HideBubble(); }
+                // この後すぐ選択が重なる場面（きっかけの流し切り）ではバブルを保持したまま渡す
+                //   ＝BubblePaused が途切れず、弾・敵は止まったまま ChoiceOverlay が乗る。
+                if (!_holdForChoice) { Hud.HoldBubble = false; Hud.HideBubble(); }
                 onEnd();
                 return;
             }

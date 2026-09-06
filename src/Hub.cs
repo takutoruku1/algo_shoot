@@ -170,6 +170,17 @@ public partial class Hub : Node2D
         var idle = IdleDialogs(lastCleared);
         for (int i = 0; i < idle.Length; i++)
             pool.Add(($"idle_{lastCleared}_{i}", idle[i]));
+        // 道中の下書き選択（17）で送っていれば、その面の再訪小話を1本に固定して先に出す
+        //   （S1-2 →「雨粒」／S3-2 →「同接」）。送った言葉が本文に一語混ざる。
+        //   既読になれば通常の抽選プールへ戻る＝同じ小話を延々出さない（実質「次のハブで一度」）。
+        int pin = ChoiceEffects.PinnedIdleIndex(_game, lastCleared);
+        if (pin >= 0 && pin < idle.Length && !_game!.IsIdleDialogSeen($"idle_{lastCleared}_{pin}"))
+        {
+            string key = $"idle_{lastCleared}_{pin}";
+            _game.MarkIdleDialogSeen(key);
+            StartDialogue(FillDives(PinnedIdle(_game, lastCleared, idle[pin])), null);
+            return;
+        }
         for (int i = 0; i < SmallTalks.Length; i++)
         {
             // 「何も起きない日」は、この起動でまだ一度も潜っていないときだけ候補にする（潜った直後に出ると嘘になる）。
@@ -1349,7 +1360,44 @@ public partial class Hub : Node2D
         ("ミナ", "ご報告。この騒ぎで、次のダイブは光が少し薄くなります。数字は、重いので。"),
     };
 
-    private static (string, string)[] ReplyDialog(string id) => id switch
+    // ───────── 道中の下書き選択（17）が再訪小話へ効く一行 ─────────
+    //   正典: wiki/08_仮台本/17_道中の選択肢_案C.md（ユーザー承認済み・2026-09-06）の各場面の「効果」。
+    //   固定した小話（あかり＝雨粒／レイ＝同接）に、送った言葉を一語混ぜた行を差し込む。
+    //   差し込み位置は台本どおり（あかり＝末尾の「……いまの間、{n}秒。」の前／レイ＝二行目の直後）。
+    //   小話本体の文言は一字も変えない。
+    private static (string, string)[] PinnedIdle(GameManager? game, string stageId, (string, string)[] lines)
+    {
+        string word = ChoiceEffects.SentWordAt(game, stageId == "akari" ? "s1_2" : "s3_2");
+        if (string.IsNullOrEmpty(word)) return lines;
+        var list = new System.Collections.Generic.List<(string, string)>(lines);
+        if (stageId == "akari")
+        {
+            list.Insert(System.Math.Max(0, list.Count - 1),
+                ("ミナ", $"……あのフロアで、雨は、{word}、と、いただきましたので。——集計に、入れてあります。"));
+        }
+        else
+        {
+            // 「同接、9」だけは、こちらの集計（一）と突き合わせて返す（台本の指定）。
+            list.Insert(System.Math.Min(2, list.Count), word == "同接、9"
+                ? ("ミナ", "……九、と、いただきましたが。——こちらの集計では、一です。")
+                : ("ミナ", $"……あの部屋で、{word}、と、いただきましたので。暗いまま、続けました。"));
+        }
+        return list.ToArray();
+    }
+
+    // 17（道中の選択肢 案C）: S1-5 で送っていれば、ミナ側の一行の直後にもう一行足す。
+    //   あかりの返信「……なんでだろ。あなたの言い方、誰かに似てる。」は一字も変えない。
+    //   送っていなければ返信は現行のまま（本編の文言に手を入れない）。
+    private (string, string)[] WithS15((string, string)[] lines)
+    {
+        string word = ChoiceEffects.SentWordAt(_game, "s1_5");
+        if (string.IsNullOrEmpty(word)) return lines;
+        var list = new System.Collections.Generic.List<(string, string)>(lines);
+        list.Insert(1, ("ミナ→@akari", $"——あのフロアで、{word}、と、一通。送られていましたので。"));
+        return list.ToArray();
+    }
+
+    private (string, string)[] ReplyDialog(string id) => id switch
     {
         // H3r 返信・レイ（仮台本 07）。返信は投稿枠。三面目＝最後の返信で、FINAL F2 の返礼
         // 「誰よあんた、って言ったわね。——訂正する。」／F3 邂逅「あんたの言い方、この人に、そっくりよ」
@@ -1361,11 +1409,12 @@ public partial class Hub : Node2D
         },
         // H1r 返信・あかり（仮台本 06）。返信は投稿枠。一面目の返信で、FINAL F3 の邂逅でレイが
         // 「あんたの言い方、この人に、そっくりよ」と引き継ぐ伏線＝文言は固定（一字も変えない）。
-        "akari" => new (string, string)[]
+        //   17: S1-5 で送っていれば、ミナ側にだけ一行足す（あかりの返信は一字も変えない）。
+        "akari" => WithS15(new (string, string)[]
         {
             ("ミナ→@akari", "想いは、罪ではありませんよ。たとえ既読が、もう付かなくても。"),
             ("@akari", "……なんでだろ。あなたの言い方、誰かに似てる。"),
-        },
+        }),
         // H2r 返信・こはる（仮台本 07）。返信は投稿枠。二面目の返信で、FINAL F2 でこはるが
         // 「知らない人じゃ、なかったよ」を返す伏線＝文言は固定（一字も変えない）。
         "koharu" => new (string, string)[]
