@@ -30,7 +30,6 @@
 ## TODO
 
 <!-- 2026-09-05 組み込み計画（wiki/08_仮台本/15_組み込み計画.md）から投入。上から順に消化 -->
-- [ ] (P1) FINAL F1〜F4 を案C に差し替え | engineer | ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。F4 で「最初に散らした言葉」が戻り、20秒の沈黙で自動送信
 - [ ] (P1) エピローグ E1〜E6 を案C に差し替え | engineer | ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の "stay" ゲートを置換
 - [ ] (P1) 中ボス初回撃破時に退場演出が再生されないまま遷移する | engineer | 2026-09-07監査で発見。`CheckpointFlow.cs:27-38` の `firstEver` 分岐（そのセーブで最初の中ボス撃破、かつ非autoplay）が `ChangeSceneToFile` を即座に呼ぶが、`_cameo.Finished` が立つ瞬間 `Enemy.cs:1028-1049` の `_purifiedExitT` はまだ0（`_crying`中は加算されない）。結果、直近コミット`1b12bac`で意図した3.2秒（`CameoBoss.cs:114` `PurifiedExitHoldOverride`）の退場演出が初回撃破では1コマも再生されずシーンごと消える。`--demo`/`--qa`はこの分岐自体を迂回するため自動検証でも検出されない。受入条件: `CheckpointFlow.OnMidBossCleared` の firstEver分岐で、中ボスの退場演出完了（`_purifiedExitT >= ExitHold+PurifiedExitFade` 相当、またはノードの自然QueueFree）を待ってから `ShopTutorial.tscn` へ遷移するようにする。通常プレイ（`--demo`/`--qa`無し）でセーブ新規作成→最初のステージの中ボス撃破→中の人がフル不透明で見えてから遷移することを確認。2回目以降（`firstEver=false`）の動作は変えない。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [ ] (P2) 投稿文集の層付きプールを新設 | engineer | PostPool.Draw(theme, layer) で層1/層2/層3 を引く。PostBullets の8語ハードコードと Hud のティッカーを置換
@@ -45,6 +44,7 @@
 <!-- 2026-09-07 監査モードで追加。根拠は各行の受入条件を参照 -->
 
 ## WIP
+- [ ] (P1) FINAL F1〜F4 を案C に差し替え | engineer | ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。F4 で「最初に散らした言葉」が戻り、20秒の沈黙で自動送信
 
 ## BLOCKED
 
