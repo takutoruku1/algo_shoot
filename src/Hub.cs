@@ -32,6 +32,30 @@ public partial class Hub : Node2D
     private bool IsVoice(int i) => i >= 0 && i < _entries.Length && _entries[i].Sort == Kind.Voice
         && _entries[i].Unlocked;
 
+    // ───────── 見せない／見せる のゲート（2026-09-07）─────────
+    //   「まだ手に入れていないものは画面に出さない」を1か所に集める。判定は既存のクリア記録
+    //   （GameManager の _cleared＝IsStageCleared）だけを見る＝新しい永続項目は足さない。
+    //
+    //   ・強化（ショップ）… 最初の面＝あかりのボスを倒すまで入れない。フッタの「X 強化」も出さない。
+    //   ・記録　　　　　　… どれか一面をクリアするまで開けない。フッタの「T 記録」も出さない。
+    //   未解禁のあいだは押せる導線ごと消す＝「押せないものを見せない」。
+    //   判定は IsClearedForDisplay 経由＝デバッグプレビュー（--hub-preview）でも解禁状態が表示と揃う
+    //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
+    private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
+    private bool RecordsUnlocked
+    {
+        get
+        {
+            foreach (var s in GameManager.Stages) if (IsClearedForDisplay(s.Id)) return true;
+            return false;
+        }
+    }
+
+    // 出会う前の相手の伏せ名（カードの名前・ハンドル欄）。アバターの「?」・本文の伏字と同じ語彙で、
+    //   「誰かは分からないが、投稿はそこに並んでいる」だけを言う。新しい意匠は作らない。
+    private const string LockedName = "???";
+    private const string LockedHandle = "@???";
+
     // ───────── 3-1: 潜り方（難易度）の4段 ─────────
     // 数値・実装は DiffSelect のまま（GameManager.Diff / BaseLivesFor / BaseBombsFor / DiffBarBonus）。
     //   変えたのは名前と、添える情報だけ。「報酬 ×1.0」の文字は消し、♥アイコン＋倍率だけを残す。
@@ -180,6 +204,19 @@ public partial class Hub : Node2D
         if (cleared != null)
         {
             _game!.JustClearedStageId = null;
+            // 解禁の告知（2026-09-07）。クリアして帰ってきた回に、新しく開いた導線をトーストで一度だけ出す。
+            //   新しい台詞は書いていない：見出しはフッタの語（強化／記録）とキー表記をそのまま並べただけで、
+            //   ミナは何も言わない。強化＝最初の面のクリア、記録＝初クリアで開くので、初回は両方が同時に開く。
+            //   強化の中身の案内は ShopTutorial（同じ瞬間に一度きり出る説明パート）が持つ。
+            //   ※見出しに世界の言葉（例「タイムラインに、新しい操作が増えた」）を添えるかは
+            //     scenario 担当の領分なので、ここでは足していない。
+            if (_game.HeartsSaved == 1)
+            {
+                string keys = ShopUnlocked
+                    ? $"{Pad.BombToken} 強化    {(Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder))} 記録"
+                    : $"{(Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder))} 記録";
+                Toast(keys, "", UiKit.Ok);
+            }
             var lines = FillObservations(ReturnDialog(cleared));
             if (_game.ShouldBurnAfter(cleared))
             {
@@ -268,10 +305,16 @@ public partial class Hub : Node2D
             // クリア＝浄化が届いた投稿は伸びる（ミナのフォロワー数と連動。数字に物語の意味を持たせる）。
             if (cleared)
                 ApplyClearBoost(ref rep, ref rt, ref lk, fol, _game?.HasReplied(s.Id) ?? false);
+            // まだ出会っていない相手は、名前・ハンドル・本文を伏せる（2026-09-07）。
+            //   名前が読めると「次に誰が来るか」が最初に割れる＝出会いの驚きが無くなる。
+            //   伏せ方は既存の語彙のまま：アバターは FaceAvatar の「?」ロック円（Unlocked=false で出る）、
+            //   本文の位置には RedactedBars の伏字が乗る（DrawCard が Tweet 空でも伏字を描く）。
+            //   解放された時点で本物の名前・ハンドル・本文が出る＝あかりは初回から今までどおり。
             list.Add(new Entry
             {
-                IsFinal = false, Id = s.Id, Scene = s.Scene, Name = name, Handle = s.Handle,
-                Tweet = s.Tweet, Initial = name.Length > 0 ? name.Substring(0, 1) : "?",
+                IsFinal = false, Id = s.Id, Scene = s.Scene,
+                Name = unlocked ? name : LockedName, Handle = unlocked ? s.Handle : LockedHandle,
+                Tweet = unlocked ? s.Tweet : "", Initial = unlocked && name.Length > 0 ? name.Substring(0, 1) : "?",
                 Unlocked = unlocked, Cleared = cleared,
                 Replies = rep, Reposts = rt, Likes = lk,
                 Sort = Kind.Voice, RelT = RelTime(s.Id),
@@ -485,6 +528,23 @@ public partial class Hub : Node2D
                     list[i] = e;
                 }
                 break;
+        }
+        // プレビューは Unlocked を後から書き換えるので、伏せ名（BuildEntries で入れた ??? ）を
+        //   最終的な解放状態に合わせて貼り直す＝プレビューでも「解放＝本名／未解放＝???」が一致する。
+        for (int i = 0; i < list.Count; i++)
+        {
+            var e = list[i];
+            foreach (var s in GameManager.Stages)
+            {
+                if (s.Id != e.Id) continue;
+                string real = s.Title.Contains("—") ? s.Title.Split('—')[^1].Trim() : s.Title;
+                e.Name = e.Unlocked ? real : LockedName;
+                e.Handle = e.Unlocked ? s.Handle : LockedHandle;
+                e.Tweet = e.Unlocked ? s.Tweet : "";
+                e.Initial = e.Unlocked && real.Length > 0 ? real.Substring(0, 1) : "?";
+                break;
+            }
+            list[i] = e;
         }
         _entries = Interleave(list).ToArray();
         // カーソルは本番と同じ考え方で置く（埋め草の上には置かない）。
@@ -784,14 +844,15 @@ public partial class Hub : Node2D
             if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
         }
 
+        // X：強化ショップへ。最初の面のボスを倒すまでは開かない（フッタにも出していない＝無反応でよい）。
         bool x = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.X);
         bool xEdge = x && !_xHeld; _xHeld = x;
-        if (xEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn"); }
+        if (xEdge && _t > 0.3 && !_dived && ShopUnlocked) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn"); }
 
-        // T：クリアタイムの記録画面へ（戻ると Hub に復帰）。
+        // T：クリアタイムの記録画面へ（戻ると Hub に復帰）。一面クリアするまでは開かない。
         bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
         bool tEdge = tk && !_tHeld; _tHeld = tk;
-        if (tEdge && _t > 0.3 && !_dived) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
+        if (tEdge && _t > 0.3 && !_dived && RecordsUnlocked) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
     }
 
     // フッタボタン（マウス）押下のアクション。キー導線（X=強化 / T=記録 / C=返信）と同じ処理へ合流する。
@@ -800,10 +861,13 @@ public partial class Hub : Node2D
         if (_t <= 0.3 || _dived) return;
         switch (act)
         {
+            // 解禁前はそもそも項目を出していないが、ゲートはキー導線と同じ条件でここにも掛けておく。
             case FootAct.Shop:
+                if (!ShopUnlocked) break;
                 Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Shop.tscn");
                 break;
             case FootAct.Records:
+                if (!RecordsUnlocked) break;
                 Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn");
                 break;
             case FootAct.Reply:
@@ -1386,8 +1450,10 @@ public partial class Hub : Node2D
             (Pad.ConfirmToken, "潜る", true, FootAct.None),
         };
         if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
-        list.Add((Pad.BombToken, "強化", false, FootAct.Shop));                                    // ← ショップ入口ボタン
-        list.Add((Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder), "記録", false, FootAct.Records));
+        // 強化・記録は解禁されるまでフッタに出さない（押せないものを見せない・2026-09-07）。
+        //   強化＝最初の面のボスを倒すまで／記録＝どれか一面をクリアするまで。判定は ShopUnlocked / RecordsUnlocked。
+        if (ShopUnlocked) list.Add((Pad.BombToken, "強化", false, FootAct.Shop));                  // ← ショップ入口ボタン
+        if (RecordsUnlocked) list.Add((Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder), "記録", false, FootAct.Records));
         return list;
     }
 

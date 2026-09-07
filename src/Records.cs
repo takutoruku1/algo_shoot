@@ -129,11 +129,15 @@ public partial class Records : Node2D
         // 行アクセントバー（ステージ色）
         DrawRect(new Rect2(x + 4, y + 10, 3, h - 20), new Color(StageColor(id), 0.6f));
 
-        // ステージ名（2段：STAGE n / 名前）
+        // ステージ名（2段：STAGE n / 名前）。
+        //   未クリアの行は名前を伏せる（2026-09-07）＝記録画面を開いただけで登場人物が割れないようにする。
+        //   面の番号（STAGE n / FINAL）だけは残す＝「あと何面あるか」は見える。判定は既存のクリア記録のみ。
+        bool known = id == "final" ? (_game?.AllStoryCleared ?? false) : (_game?.IsStageCleared(id) ?? false);
         string head = label.Contains("—") ? label.Split('—')[0].Trim() : label;
         string name = label.Contains("—") ? label.Split('—')[^1].Trim() : label;
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 22, y + 16), head, UiKit.FontSmall, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 22, y + 36), name, UiKit.FontHeading, UiKit.White);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 22, y + 36), known ? name : "???", UiKit.FontHeading,
+            known ? UiKit.White : UiKit.Text4);
 
         // この行で最速の難易度（ハイライト用）。
         var best = _game?.BestAcrossDiffs(id);

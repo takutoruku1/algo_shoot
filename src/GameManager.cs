@@ -208,6 +208,10 @@ public partial class GameManager : Node
         new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = "@rei_____", Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 3 — レイ" },
     };
 
+    // 物語の最初の面のID（＝Stages の先頭。現在は "akari"）。強化ショップの解禁ゲートが引く
+    //   ＝「最初の面のボスを倒したら強化が開く」。面の並びを変えても定義が1か所で追随する。
+    public static string FirstStageId => Stages[0].Id;
+
     // シーンパス → ステージID（DiffSelect が選択中ステージの解放ゲートを引くのに使う）。未登録は null。
     public static string? StageIdForScene(string scene)
     {
@@ -347,6 +351,13 @@ public partial class GameManager : Node
     public readonly List<string> ScatteredWords = new(); // 散った言葉（選ばれなかった候補）。出た順
     public string FirstScattered = "";                   // 最初に散らした言葉（F4 で戻る一語）
     public int NameRoute;                                // 命名ルート 0〜2（冒頭 P2 の3択）
+
+    // 「もう名前が付いたか」＝話者名を「ミナ」と出してよいか（Prologue の P3 命名で立つ）。
+    //   セーブに載せない static（新しい永続項目は足さない）。既定 true＝プロローグ以外の全画面は従来どおり。
+    //   Prologue._Ready() がここを false に倒し、P3 の命名（[ M I N A ] 点灯）で true へ戻す
+    //   ＝周回2周目以降も毎回伏せる（同じ体験）。命名前の話者名は「？」（立ち絵は出したまま）。
+    //   参照は話者ラベルを出す2箇所だけ：src/Hud.cs（ShowDialog / BacklogSpeaker）と src/Prologue.cs（SpeakerOf）。
+    public static bool MinaNamed = true;
     public string LastSentWord = "";                     // 最後に送った言葉（E2 の合言葉。既存の "stay" ゲートを置換）
     public float HesitationSec;                          // 迷い秒数の累計（選択に掛けた時間）
 
@@ -1237,6 +1248,10 @@ public partial class GameManager : Node
         PutScore("akari", Diff.Normal, 88400); PutScore("akari", Diff.Hard, 95120);
         PutScore("koharu", Diff.Easy, 51000);  PutScore("koharu", Diff.Lunatic, 132600);
         PutScore("final", Diff.Normal, 210500);
+        // 記録画面は未クリアの面の名前を伏せる（2026-09-07）。記録だけ入って名前が「???」のままだと
+        //   検証用の状態として噛み合わないので、ダミー記録を入れた面はクリア済みにも印を付ける。
+        //   メモリ上だけ＝セーブには書かない（手動セーブしない限り消える）のは従来どおり。
+        foreach (var s in Stages) _cleared.Add(s.Id);
     }
 
     public override void _Process(double delta)

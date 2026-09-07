@@ -662,7 +662,7 @@ public partial class StageAkari : Node
             Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             if (IsInstanceValid(_cameo)) _cameo.QueueFree();
-            // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
+            // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
             if (CheckpointFlow.OnMidBossCleared(this, "akari", false)) return;
             Advance();
         }
@@ -730,6 +730,9 @@ public partial class StageAkari : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        // 初回だけ、ここで強化ショップの説明パートへ離脱する（クリア記録はその中で確定させる）。
+        //   強化が解禁されるのがこの瞬間なので、案内も同じ瞬間に出す。2回目以降は素通り。
+        if (CheckpointFlow.OnBossCleared(this, "akari")) return;
         GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("akari");
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }

@@ -785,7 +785,7 @@ public partial class StageKoharu : Node
             // ★S2-2 の下書き選択（17）＝押しつけられたペンライト。撃破を確認した直後、ショップ離脱の前に置く
             //   （離脱の後ろに置くと初回は飛んでしまう＝17 の実装メモ）。流し切るまでここで留まる。
             if (!RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
-            // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
+            // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
             if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
         }
