@@ -210,10 +210,11 @@ public partial class Prologue : Node2D
     {
         L(WhoPost, "「今日も残業〜。でも上司に褒められた! もうちょいがんばれるかも」", ""),
         L(WhoPost, "「家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）」", ""),
-        L(WhoMina, "は〜。……世界は、にぎやかですねえ。家賃の方は、ご自分で褒めているぶん、たぶん大丈夫ですし。", FMinaSmile),
+        L(WhoMina, "は〜。……世界は、にぎやかですねえ。", FMinaSmile),
+        L(WhoMina, "家賃の方は、ご自分で褒めているぶん、たぶん大丈夫ですし。", FMinaSmile),
         L(WhoPost, "「げんきです。こっちは、なにも問題ないよ」", ""),
         L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
-        L(WhoMina, "三つめの方。……投稿の下から、送られなかったほうの声が、重なって聞こえます。", FMinaWorried),
+        L(WhoMina, "三つめの方。……投稿の下から、消してしまった声が、重なって聞こえます。", FMinaWorried),
         L(WhoMina, "『たすけて』。……三回、書いて。三回、消して。それから、『げんきです』と。", FMinaWorried),
     };
 
