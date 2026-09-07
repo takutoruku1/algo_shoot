@@ -37,6 +37,7 @@ public partial class FxLayer : Node2D
         public Color Col = White;
         public Color Edge = Edge1;
         public bool Add;
+        public bool Deep;   // true＝弾より奥(ZIndex -6)のプールで描く。詳細は _deep の宣言を参照。
         public string Text = "";
         public bool Update(float dt)
         {
@@ -52,6 +53,12 @@ public partial class FxLayer : Node2D
 
     private readonly List<P> _p = new List<P>();
     private AddDraw _add = null!;
+    // 弾より奥(ZIndex -6)へ沈める粒のプール。Deep=true の粒だけがここに落ちる。
+    //   浄化バーストの飛散物（花びら/ハート/光の粒/リング）用。倒した敵が最後に撃った弾へ
+    //   派手な破片がかぶさると、避けようのない被弾になる（2026-09-08 実機指摘）。
+    //   AreaStrike の床マーカー(-10)より手前・弾(0)より奥＝「弾は必ず演出の上」を層で保証する。
+    private DeepDraw _deep = null!;
+    private DeepAddDraw _deepAdd = null!;
     private Font _font = null!;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
@@ -65,6 +72,13 @@ public partial class FxLayer : Node2D
         _add = new AddDraw { Owner2D = this, ZIndex = 21, ZAsRelative = false };
         _add.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         AddChild(_add);
+
+        // 弾より奥の二層（通常ブレンド / 加算）。ZAsRelative=false で親(20)から切り離して負のZへ置く。
+        _deep = new DeepDraw { Owner2D = this, ZIndex = -6, ZAsRelative = false };
+        AddChild(_deep);
+        _deepAdd = new DeepAddDraw { Owner2D = this, ZIndex = -5, ZAsRelative = false };
+        _deepAdd.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+        AddChild(_deepAdd);
     }
 
     public override void _Process(double delta)
@@ -74,17 +88,26 @@ public partial class FxLayer : Node2D
             if (!_p[i].Update(dt)) _p.RemoveAt(i);
         QueueRedraw();
         _add.QueueRedraw();
+        _deep.QueueRedraw();
+        _deepAdd.QueueRedraw();
     }
 
+    // 粒は Deep(奥/手前) × Add(加算/通常) の4バケツへ排他的に振り分ける。
     public override void _Draw()
     {
-        foreach (var p in _p) if (!p.Add) DrawP(this, p, _font);
+        foreach (var p in _p) if (!p.Add && !p.Deep) DrawP(this, p, _font);
     }
 
     // 加算ブレンド用の子ノードから呼ばれる
     public void DrawAddParticles(Node2D c)
     {
-        foreach (var p in _p) if (p.Add) DrawP(c, p, _font);
+        foreach (var p in _p) if (p.Add && !p.Deep) DrawP(c, p, _font);
+    }
+
+    // 弾より奥（ZIndex -6 / 加算は -5）の子ノードから呼ばれる
+    public void DrawDeepParticles(Node2D c, bool add)
+    {
+        foreach (var p in _p) if (p.Deep && p.Add == add) DrawP(c, p, _font);
     }
 
     private float R(float a, float b) => (float)_rng.RandfRange(a, b);
@@ -216,27 +239,39 @@ public partial class FxLayer : Node2D
         GameCamera.Instance?.Shake(3.2f, 0.18f);
     }
 
+    // 浄化バースト（敵の改心＝倒した瞬間の一拍）。
+    // 視認性の要（2026-09-08 実機指摘）：倒した敵が最後に撃った弾がこの演出に隠れて、
+    // 避けようのない被弾になっていた。原因は層（FxLayer が ZIndex 20/21＝弾 0 の上）。
+    // そこで飛散物（花びら・ハート・光の粒・リング）は Deep=true で弾より奥(-6/-5)へ沈める。
+    //   手応えは殺さない：芯の白熱グローだけは手前(ZIndex21)に残す＝「当たった」は一目で判る。
+    //   散る向きも上→右上寄りへ振る。敵弾は自機のいる左へ飛ぶので、右上に散らすと重なりが減る。
     public void PurifyBurst(Vector2 pos)
     {
-        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 16, Ttl = 0.45f, Col = Sig2, Add = true, Grow = 0.5f });
-        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 30, Ttl = 0.6f, Col = Sig2, W = 1.4f, A0 = 0.9f, Add = true });
+        // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 11, Ttl = 0.28f, Col = White, Add = true, Grow = 0.5f });
+        // 広がるリングは弾の奥へ（30px まで開くので手前だと弾を横切る）。
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 30, Ttl = 0.6f, Col = Sig2, W = 1.4f, A0 = 0.9f, Add = true, Deep = true });
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 16, Ttl = 0.45f, Col = Sig2, Add = true, Grow = 0.5f, Deep = true });
         int n = Ri(10, 16);
         for (int i = 0; i < n; i++)
         {
-            float a = -Mathf.Pi / 2 + R(-1.2f, 1.2f), sp = R(45, 110);
+            // 真上(-π/2)±1.2rad → 右上(-π/4 中心)±1.0rad。左（弾の進む先）へはほぼ散らない。
+            float a = -Mathf.Pi / 4 + R(-1.0f, 1.0f), sp = R(45, 110);
             bool heart = _rng.Randf() < 0.35f;
-            Add0(new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB) });
+            Add0(new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true });
         }
         for (int i = 0; i < 6; i++)
         {
             float a = R(0, Mathf.Tau), sp = R(40, 90);
-            Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 15, Size = R(1.6f, 2.6f), Drag = 1.2f, Ttl = R(0.5f, 0.8f), Col = Mote, Add = true });
+            Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 15, Size = R(1.6f, 2.6f), Drag = 1.2f, Ttl = R(0.5f, 0.8f), Col = Mote, Add = true, Deep = true });
         }
     }
 
+    // 弾→花びら（ボム/受け止め）。消えた弾の位置に残る花びらは、まだ飛んでいる他の弾を隠しうるので
+    // 浄化バーストと同じく弾より奥へ沈める（芯の小グローだけ手前＝「消えた」の合図は残す）。
     public void BulletToPetal(Vector2 pos)
     {
-        Add0(new P { Type = T.Petal, X = pos.X, Y = pos.Y, Vx = R(-20, 20), Vy = R(-50, -15), Size = R(2.4f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-6, 6), Grav = 65, Drag = 0.7f, Ttl = R(0.7f, 1.1f), Col = _rng.Randf() < 0.5f ? PetalA : PetalB });
+        Add0(new P { Type = T.Petal, X = pos.X, Y = pos.Y, Vx = R(-20, 20), Vy = R(-50, -15), Size = R(2.4f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-6, 6), Grav = 65, Drag = 0.7f, Ttl = R(0.7f, 1.1f), Col = _rng.Randf() < 0.5f ? PetalA : PetalB, Deep = true });
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 4, Ttl = 0.2f, Col = Mote, Add = true });
     }
 
@@ -644,5 +679,25 @@ public partial class AddDraw : Node2D
     public override void _Draw()
     {
         Owner2D?.DrawAddParticles(this);
+    }
+}
+
+// 弾より奥（ZIndex -6）で通常ブレンドの粒を描く子ノード。浄化バーストの花びら/ハート用。
+public partial class DeepDraw : Node2D
+{
+    public FxLayer Owner2D = null!;
+    public override void _Draw()
+    {
+        Owner2D?.DrawDeepParticles(this, false);
+    }
+}
+
+// 弾より奥（ZIndex -5）で加算ブレンドの粒を描く子ノード。浄化バーストの光の粒/リング用。
+public partial class DeepAddDraw : Node2D
+{
+    public FxLayer Owner2D = null!;
+    public override void _Draw()
+    {
+        Owner2D?.DrawDeepParticles(this, true);
     }
 }
