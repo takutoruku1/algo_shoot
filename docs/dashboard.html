@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 209 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
+      <span class="pct">97<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 209 / 対象 216 タスク<br>保留 20 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 97パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">209</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">19</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">7</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">20</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">投稿文集の層付きプールを新設</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">PostPool.Draw(theme, layer) で層1/層2/層3 を引く。PostBullets の8語ハードコードと Hud のティッカーを置換</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -1895,6 +1887,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">投稿文集の層付きプールの新設は仮台本09が自ら「未採用の検討用草稿」と宣言しているため着手不能</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-07着手試行。<code>PostPool</code>は未実装(<code>src/PostPool.cs</code>なし、grep/git log -S 該当なし)。「8語ハードコード」の実体は<code>src/Hud.cs:246-250</code> <code>Hud.TickerWords</code>、<code>src/PostBullets.cs:121</code>が既定でこれを引く。層1/2/3の定義自体は<code>wiki/08_仮台本/09_投稿文集_X風.md</code>にあるが、同文書3行目「採用の可否と、どの用途にどの層を何割混ぜるかは、この草稿を読んで決める」・500行目「非正典の検討用草稿につき、実装とは一致しない」と明記され、対象の<code>Hud.TickerWords</code>への具体的な置換対応表(424行目)は文言変更(「バズる呪文おしえて」→「バズる方法教えて」等)を伴い「新しい文面を創作しない」の制約に抵触する。「きえたい」の扱い(473行目)・面別化の実装可否(483行目)も文書内で「判断を仰ぐ」「未着手・未確認」と明記され、<code>wiki/08_仮台本/15_組み込み計画.md</code>にもこの草稿を採用したという指揮官決定の記録なし。要ユーザー判断：(a)仮台本09の置換対応表を承認してから再度TODOへ、(b)<code>theme</code>を単一(&quot;common&quot;)・層3を空とする縮小スコープ(既存<code>PostBullets.cs:103-106</code> <code>MurkWords</code>の5:3分割を<code>PostPool.Draw(&quot;common&quot;,1/2)</code>へリファクタするだけの最小実装。新規文言なし)で良ければその旨指定してほしい</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">特殊エンディング設計_v1.mdが新規提案のまま未記録・未判断放置</span>
           
         </div>
@@ -2049,18 +2049,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">c8d4c62</span><span>2026-09-07</span><span class="s">auto: WIP着手 - 投稿文集の層付きプールを新設</span></li>
+      <li><span class="h">467b1ad</span><span>2026-09-07</span><span class="s">auto: 中ボス初回撃破時の退場演出が飛ぶ回帰を修正</span></li>
       <li><span class="h">1efdfa8</span><span>2026-09-07</span><span class="s">auto: WIP着手 - 中ボス初回撃破時の退場演出バグ修正</span></li>
       <li><span class="h">bb0484a</span><span>2026-09-07</span><span class="s">auto: エピローグE1〜E6を案Cに差し替え(合言葉を最後に送った言葉へ)</span></li>
       <li><span class="h">6d63f52</span><span>2026-09-07</span><span class="s">auto: WIP着手 - エピローグE1〜E6を案Cに差し替え</span></li>
       <li><span class="h">7c6a70d</span><span>2026-09-07</span><span class="s">auto: FINAL F4を案Cに差し替え(頂点の下書き選択・少年退場)</span></li>
       <li><span class="h">fc7bf4e</span><span>2026-09-07</span><span class="s">auto: WIP着手 - FINAL F1〜F4を案Cに差し替え</span></li>
       <li><span class="h">d8c4879</span><span>2026-09-07</span><span class="s">auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)</span></li>
-      <li><span class="h">1b12bac</span><span>2026-09-05</span><span class="s">auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）</span></li>
-      <li><span class="h">264f9a0</span><span>2026-09-06</span><span class="s">Track the Godot uid files for BgLayers and BossParts</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-07 19:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-07 19:37 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
