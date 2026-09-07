@@ -22,18 +22,19 @@ public partial class Spawner : Node
     private const float IntervalEnd = 0.8f;
     private const int MaxAliveFallback = 8; // 同時出現の上限（GameManager が取れないときの既定＝Normal相当）
 
-    // ── 第4種：回り込みザコ「引用リプ」（FlankAim）の調整値（C-1・左端張り付き対策）──
-    // 右から出現→上下端を走行→自機の後方(x≈FlankCampX)に着座→右向き低速単発。
+    // ── 第4種：回り込みザコ「引用リプ」（FlankAim）の調整値（C-1）──
+    // 右から出現→上下端を走行→盤面のやや左(x≈FlankCampX)に着座→右向き低速単発。
     // 進入経路が丸見え＋弾は低速なので理不尽ではない（走行中は撃たない＝MidEnemy の進入仕様）。
     private const float FlankRate = 0.15f;       // テーマ湧きのうちこの割合で出現
     private const float FlankRampGate = 0.5f;    // ランプ後半（進行度>=50%）のみ出現＝序盤は出さない
-    // 着座X＝自機の後方（盤面の左端近傍）。2026-09-07 に 40 → Field.Left+16。
-    //   旧値 40 は盤面が x=0 から始まっていた頃の「左端＋40」で、盤面を Field.Left=120 へ寄せたあとは
-    //   **サイドパネルの裏**を指していた。回り込み種は着座して初めて撃つ仕様（走行中は撃たない）なので、
-    //   届かない点へ歩き続けて左端から場外へ抜け、**1匹も撃たないまま消えていた**
-    //   （実測: 5体湧いて発射 0・うち 4 体が左端で退場）＝ユーザー実機指摘「何もせず通り過ぎるモブ」。
-    //   自機の可動域の左端が Field.Left なので、その少し内側に座らせて「自機の後ろから前へ流す」を保つ。
-    private const float FlankCampX = Field.Left + 16f;
+    // 着座X＝盤面の中央よりすこし左（Field.Left + 幅の40%）。2026-09-08 に Field.Left+16 から変更。
+    //   Field.Left+16(=136) は自機の可動域の左端(Field.Left=120)から 16px しか離れておらず、
+    //   自機の弾は右へしか飛ばないので **この敵より左へ回り込む余地がほぼ無かった**
+    //   ＝ユーザー実機指摘「一番左側を上下に移動して攻撃してくる敵は仕様的に倒せない」。
+    //   0.40 なら着座Xは 225.6 で、自機は左へ 105px ぶん回り込んで正面から撃ち返せる。
+    //   上下の走行・着座Yと攻撃間隔はそのまま＝「背後から圧をかける」役割は変えていない。
+    private const float FlankCampXK = 0.40f;
+    private const float FlankCampX = Field.Left + Field.Width * FlankCampXK;
     private const float FlankRunTopY = 16f;      // 上端走行レーンY
     private const float FlankRunBottomY = 200f;  // 下端走行レーンY
     private const float FlankCampTopY = 64f;     // 上から回った個体の着座Y
@@ -111,14 +112,15 @@ public partial class Spawner : Node
             var me = new MidEnemy();
             float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
             // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
-            // 左端に張り付く自機の背後から“読める形”で圧をかける＝左端の安置化を構造的に崩す。
+            // 盤面のやや左に陣取って“読める形”で圧をかける＝左端の安置化を構造的に崩す。
+            // 自機は着座Xより左へ回り込めるので、撃ち返して倒せる（2026-09-08 の FlankCampXK 変更）。
             if (ramp >= FlankRampGate && _rng.Randf() < FlankRate)
             {
                 me.Configure(EnemyTable.Flanker(Theme));
                 bool top = _rng.Randf() < 0.5f;
                 float runY = top ? FlankRunTopY : FlankRunBottomY;
                 pos = new Vector2(SpawnX, runY);
-                // 経由点＝走行レーン終端（端を走り切る）→ 着座点＝自機後方。2区間の直進で経路が読める。
+                // 経由点＝走行レーン終端（端を走り切る）→ 着座点＝盤面のやや左。2区間の直進で経路が読める。
                 me.SetFlankEntry(new Vector2(FlankCampX, runY),
                     new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
             }
