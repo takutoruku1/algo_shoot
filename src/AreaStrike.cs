@@ -37,11 +37,9 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 技名アート層：技名と一致するイラストを見た目だけ重ねる（判定・尺・Zは一切不変）。
     //   Knife＝こはる『包丁の軌跡』（BeamSeg）… 予兆中は走る光条の先頭を包丁が刃を進行方向に向けて飛び、
     //          着弾フラッシュ中は源→先端へ一気に走り抜ける（＝斬った軌跡が読める）。
-    //   Pan  ＝こはる『熱したフライパン』（Circle）… テレグラフは現行のまま。着弾の瞬間に
-    //          PanSlamFx（0.3sワンショット・別ノード）を湧かせ「上から振り下ろされて叩かれた」を見せる。
-    //   発行元が明示的に SetArt した時だけ有効＝五徳の十字火／ドローンのロックオンビーム等の
+    //   発行元が明示的に SetArt した時だけ有効＝こはるの十字火／ドローンのロックオンビーム等の
     //   他 BeamSeg 利用は Art.None のまま変わらない。
-    public enum Art { None, Knife, Pan }
+    public enum Art { None, Knife }
     private Art _art = Art.None;
     public void SetArt(Art art) => _art = art;
 
@@ -201,15 +199,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
         if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);
         else GameCamera.Instance?.Shake(3.4f, 0.16f);
-        // 『熱したフライパン』：着弾の瞬間にフライパンの振り下ろし（0.3sワンショット・見た目のみ）を湧かせる。
-        //   本体（この AreaStrike）は従来どおり 0.2s フラッシュで消える＝判定・IsStriking の尺は不変。
-        if (_art == Art.Pan && _shape == Shape.Circle && GetParent() is { } parent)
-        {
-            var pan = new PanSlamFx();
-            pan.Configure(Radius, _tint, _hot);
-            parent.AddChild(pan);
-            pan.GlobalPosition = GlobalPosition;
-        }
         EmitImpactSparks();
     }
 

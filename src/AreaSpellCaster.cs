@@ -19,6 +19,8 @@ public partial class AreaSpellCaster : Node2D
     private string _disp = "", _handle = "";
     private Color _tint = new(1f, 0.34f, 0.30f), _hot = new(1f, 0.92f, 0.7f);
     private double _warnMin = 1.0, _warnMax = 1.4, _interval = 6.0;
+    // 技が形状を指定しないとき（_spells の shape が null＝ミナの「全テレグラフ同時」）だけ、ここから引く。
+    // 三ボスのスペルは全て shape 固定なのでこの配列を読まない＝設定するのはミナのプロファイルだけ。
     private AreaStrike.Shape[] _shapes = { AreaStrike.Shape.Circle };
     private (string name, AreaStrike.Shape? shape)[] _spells = { ("range", null) };
     // 各ボレーの1枚目を自機の現在地にアンカーするか（rei/koharu で有効）。
@@ -272,7 +274,6 @@ public partial class AreaSpellCaster : Node2D
                 _disp = "レイ"; _handle = "@hoshiai_rei_live";
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
-                _shapes = new[] { H_, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
                 // 技名は仮台本 07 の S3-6 の圏内へ寄せた（旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす）。
                 _spells = new (string, AreaStrike.Shape?)[] { ("コメント一斉読み", H_), ("配信枠", R), ("切り抜きの線", H_) };
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
@@ -281,7 +282,6 @@ public partial class AreaSpellCaster : Node2D
                 _disp = "あかり"; _handle = "@akari_ame";
                 _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
                 _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;
-                _shapes = new[] { V, C }; // 全スペルが shape 固定＝実質フォールバック（到達不能）
                 _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
                 break;
             case "koharu": // 消えた配信画面の前の部屋・溜めてから一気に（予兆やや短め・琥珀/深紅）
@@ -290,7 +290,6 @@ public partial class AreaSpellCaster : Node2D
                 // warn 下限 0.7→1.0s：全ボス最短の予兆が5秒の宣言カードと乖離し「宣言だけ出て
                 // 何も起きない」感の主因だった（QA 2026-07 週次）。短予兆の性格は上限1.3sで残す。
                 _warnMin = 1.0; _warnMax = 1.3; _interval = 7.0;
-                _shapes = new[] { C, R }; // 全スペルが shape 固定＝実質フォールバック（到達不能だった H_ は削除）
                 // 技名は仮台本 07 の S2-7 の圏内へ寄せた（旧・台所の技名＝フライパン／鍋／包丁は落とす）。
                 // 第3スペル（catalog: Refrain Telegraphs.dc.html 274-277）＝±26°の深紅の斜め一閃×2。
                 _spells = new (string, AreaStrike.Shape?)[] { ("画面の光", C), ("視線のかたまり", R), ("既読の線", B) };
@@ -423,10 +422,8 @@ public partial class AreaSpellCaster : Node2D
     {
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
-        // 旧・技名アート（こはるの円にフライパンの振り下ろし PanSlamFx を重ねる）は付けない。
-        // 案C のこの面は台所ではなく「電気を消した部屋」で、鍋やフライパンの絵は場面と食い違う。
-        // 差し替えの素材（画面の光が落ちてくる絵）は未発注のため、いまはテレグラフだけを出す
-        // ＝判定・尺は不変（Art.Pan / PanSlamFx のコードは素材が来たとき差し替えられるよう残す）。
+        // 軸形状に技名アートは重ねない（案C のこはる面は台所ではなく「電気を消した部屋」で、
+        // 旧案の鍋・フライパンの絵は場面と食い違うため 2026-09-07 に実装ごと撤去した）。
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
