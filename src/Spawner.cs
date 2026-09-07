@@ -27,7 +27,13 @@ public partial class Spawner : Node
     // 進入経路が丸見え＋弾は低速なので理不尽ではない（走行中は撃たない＝MidEnemy の進入仕様）。
     private const float FlankRate = 0.15f;       // テーマ湧きのうちこの割合で出現
     private const float FlankRampGate = 0.5f;    // ランプ後半（進行度>=50%）のみ出現＝序盤は出さない
-    private const float FlankCampX = 40f;        // 着座X＝自機後方（左端近傍）
+    // 着座X＝自機の後方（盤面の左端近傍）。2026-09-07 に 40 → Field.Left+16。
+    //   旧値 40 は盤面が x=0 から始まっていた頃の「左端＋40」で、盤面を Field.Left=120 へ寄せたあとは
+    //   **サイドパネルの裏**を指していた。回り込み種は着座して初めて撃つ仕様（走行中は撃たない）なので、
+    //   届かない点へ歩き続けて左端から場外へ抜け、**1匹も撃たないまま消えていた**
+    //   （実測: 5体湧いて発射 0・うち 4 体が左端で退場）＝ユーザー実機指摘「何もせず通り過ぎるモブ」。
+    //   自機の可動域の左端が Field.Left なので、その少し内側に座らせて「自機の後ろから前へ流す」を保つ。
+    private const float FlankCampX = Field.Left + 16f;
     private const float FlankRunTopY = 16f;      // 上端走行レーンY
     private const float FlankRunBottomY = 200f;  // 下端走行レーンY
     private const float FlankCampTopY = 64f;     // 上から回った個体の着座Y
