@@ -4,11 +4,13 @@ using System.Linq;
 // StageRei : STAGE3「星逢レイ（壁一面が配信画面の、狭い部屋）」進行。
 //   1〜4: 配信枠・導入 → 道中A（S3-1〜S3-3）
 //   5〜6: 中ボス＝中の人（S3-4）→ 道中B
-//   7〜9: 引用の嵐の接続（S3-5a/5b）→ 道中C → 呑みこまれる部屋（S3-5c）
-//   10〜12: ボス＝ガワ出現・ボス戦（S3-6）。戦闘中の割り込み（S3-7「つづけて／むりしないで」）は
-//           ボスHP 20〜50% で一度だけ step 15〜17 へ抜けて戻る。改心（S3-8）は BossRei が担う。
-//   13〜14: クリア（S3-9）→ ハブへ（本編の最終面。全クリアで FINAL カード）
+//   7〜15: 引用の嵐（S3-5a 接続 → S3-5b 本体・3段階＋剥がし切り。仮台本11）
+//   16〜17: 道中C → 呑みこまれる部屋（S3-5c）
+//   18〜20: ボス＝ガワ出現・ボス戦（S3-6）。戦闘中の割り込み（S3-7「つづけて／むりしないで」）は
+//           ボスHP 20〜50% で一度だけ step 23〜25 へ抜けて戻る。改心（S3-8）は BossRei が担う。
+//   21〜22: クリア（S3-9）→ ハブへ（本編の最終面。全クリアで FINAL カード）
 // 台詞の正典: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S3-1〜S3-9。
+//   引用の嵐（S3-5b）本体は wiki/08_仮台本/11_引用ポストの嵐.md（ユーザー承認済み・2026-09-05）。
 public partial class StageRei : Node
 {
     public Player Player = null!;
@@ -131,20 +133,78 @@ public partial class StageRei : Node
 
     // ───────── S3-5a 道中B ＋ S3-5b 引用の嵐の接続（ミッドシナリオ枠。仮台本 07）─────────
     // 投稿「読まなきゃよかった」の直後、ガワの上に顔のない引用が貼られはじめる。
-    // 嵐の本体（十七枚・3段階・約50秒）は別タスク（P3）なので、ここには 07 の「接続3行」だけを置く。
-    // 剥がし切った下に、消した一行がある（中身は S3-8 まで言わない＝改心の一段目で返す）。
-    private static readonly (int who, string text, string face)[] MidStory = CameoAfter.Concat(new (int, string, string)[]
+    private static readonly (int who, string text, string face)[] MidStoryPre = CameoAfter.Concat(new (int, string, string)[]
     {
         // S3-5a（2行）
         (4, "「今日のコメント、全部読んだ。……読まなきゃよかった。」", ""),   // 層3
         (1, "……投稿の上に、引用が。一枚。……二枚。——顔のない、引用です。", MWorried),   // 嵐へ
-        // S3-5b 接続3行（本文＝十七枚の嵐は 11 の移設待ち）
+        // S3-5b 接続3行（ピン留め投稿。本文＝十七枚の嵐は Step_QuoteWave が担う）
         (4, "[星逢レイ @rei_____] 配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分", ""),   // ピン留め
         (1, "……この投稿の上に、貼られていきます。——剥がします。ご主人様、撃つのは、貼りついたほうを。", MFace),
-        (3, "引用: 0", ""),   // 引用カウンタ（嵐本体が入ると 0→17 を刻む）
-        // TODO: 引用の嵐（11）。段階1〜3・十七枚・本人の返信の縮み・剥がし切りを新 step として実装する（DEV_QUEUE P3）。
-        (1, "……剥がし切りました。下に、薄い字で、一行。……中身は、本人の前で。", MFace),   // 下書き「わたしに、気づいてよ」。S3-8 で返す
+        (3, "引用: 0", ""),   // 引用カウンタ（嵐本体で 0→17 を刻む）
     }).ToArray();
+
+    // ───────── S3-5b 引用の嵐 本体（仮台本11・ユーザー承認済み・2026-09-05）─────────
+    // 17枚・3段階・約50秒。右端から飛来した引用チップ（言葉弾の大型版・表示名つき）が
+    // ピン留めされた投稿へ貼りつく。飛行中は普通の敵弾として被弾判定を持ち、貼りつくと
+    // 自機に当たらなくなる代わりに「祈り弾」と同じ経路（Erasable）で撃って剥がせる（1枚3発）。
+    // 剥がし漏らしの罰は無い＝声が止まった後（段階3の終わり）は新規飛来が無いので、いつでも必ず剥がし切れる。
+    // 表示名は 09 投稿文集の様式のまま、原因も動機も書かない（境界。11 の「引用側を裁かない」）。
+    private static readonly (string h, string w)[] QuoteWave1 =
+    {
+        ("@tori398", "これ本気で言ってる?"),
+        ("@gaiya_8", "それ限定公開でやれ"),
+        ("@anon_5502", "> それだけで十分 ←十分じゃない顔してる"),
+        ("@rom_only", "はいはい感謝芸"),
+        ("@kansoku_01", "誰に向けて言ってんのこれ 3人?"),
+    };
+    private static readonly (string h, string w)[] QuoteWave2 =
+    {
+        ("@no_name_77", "切り抜きで見た 本編行く価値なし"),
+        ("@mob_4410", "ガワだけで中身ない"),
+        ("@sotogawa_2", "一年伸びてない配信者のサンプルとして保存した"),
+        ("@nichijo_x", "企画ゼロで何を見ろと"),
+        ("@kansoku_01", "いいね3 自分と身内でしょ"),
+        ("@teifujo__", "痛い 枠ごと消したら?"),
+    };
+    private static readonly (string h, string w)[] QuoteWave3 =
+    {
+        ("@nanashi_3942", "こういう人がいるから界隈が終わる"),
+        ("@gaiya_8", "誰も見てないって何回言えばいい"),
+        ("@tori398", "同接3 まだやってたんだ"),
+        ("@anon_5502", "配信やめても誰も気づかないタイプ"),
+        ("@rom_only", "引退しろまでは言わないけど 察して"),
+        ("@nichijo_x", "はい次の話題"),   // 最後の一枚。ここで飛来が止まる
+    };
+
+    // 段階の切れ目ごとに1行（本人の返信は Hud のピン留めカードで段階ごとに短くする。文字数は仮台本11のまま）。
+    private static readonly (int who, string text, string face)[] Stage1Reply =
+    {
+        (2, "見てくれてありがとう", RGawa),   // 本人の返信1（10文字）。配信中と同じ言葉で返す。ガワの笑顔のまま
+        (1, "……引用が、来ています。ひとつ。ふたつ。——数えるのは、やめます。", MWorried),
+    };
+    private static readonly (int who, string text, string face)[] Stage2Reply =
+    {
+        (2, "ごめんなさい", RGawa),           // 本人の返信2（6文字）。「見てくれて」が消える
+        (1, "本人の返信が、短くなっていきます。十文字。……六文字。", MWorried),
+    };
+    private static readonly (int who, string text, string face)[] Stage3Reply =
+    {
+        (2, "ごめん", RGawa),                 // 本人の返信3（3文字）
+        (2, "", RGawa),                       // 本人の返信4（空欄。返信欄が開いて、閉じる）
+        (3, "引用: 17", ""),                       // 数字が止まる
+        (1, "……三文字。……零。——止まりました。声のほうが、先に。", MWorried),
+    };
+
+    // 剥がし切り（40〜50秒）：引用はもう来ない。ミナは黙っている（帯の実況なし）＝Step_PeelAll には
+    // 台詞を置かない。全部剥がすと投稿カードの下に薄い字で一行（送られなかった下書き）。
+    private static readonly (int who, string text, string face)[] MidStoryPost =
+    {
+        (4, "[星逢レイ] 下書き: もう、いいかな", ""),   // 送られていない。いいね欄・時刻欄が無い（09 R46）
+        (1, "…………。", MWorried),
+        (1, "……送られなかった下書きが、一件。——拾います。", MFace),
+        (1, "覚えておきます。……返しに行く先は、もう分かっていますので。", MFace),   // 中身は言わない。S3-8 の改心とは別
+    };
 
     // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
     //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
@@ -223,17 +283,17 @@ public partial class StageRei : Node
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--boss")
             {
-                _step = 10; // Step_BossSpawn へ直行
+                _step = 18; // Step_BossSpawn へ直行
                 break;
             }
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
-        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
+        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(18)。
         if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
         {
             _step = game.SelectedEntry switch
             {
-                GameManager.StageEntry.Boss => 10,
+                GameManager.StageEntry.Boss => 18,
                 GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
                 _ => 5,
             };
@@ -256,7 +316,7 @@ public partial class StageRei : Node
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 3 START"); }
 
         // 案C の場面の並び（仮台本 07 の S3-1〜S3-9）を、step 構成を変えずにそのまま流し込む。
-        //   配信枠（S3-1・S3-2）→ 道中A（S3-3）→ 中ボス＝中の人（S3-4）→ 引用の嵐の接続（S3-5a/5b）→
+        //   配信枠（S3-1・S3-2）→ 道中A（S3-3）→ 中ボス＝中の人（S3-4）→ 引用の嵐（S3-5a/5b）→
         //   呑みこまれる部屋（S3-5c）→ ボス＝ガワ（S3-6）。改心（S3-8）は BossRei 側。
         switch (_step)
         {
@@ -266,19 +326,28 @@ public partial class StageRei : Node
             case 4: Step_Lines(delta, BossTalk); break;   // S3-3 道中A／BossTalk（削除済みの一行・足音）
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 7: Step_Lines(delta, MidStory); break;   // ★S3-4 受け＋S3-5a／S3-5b 接続（嵐本体は P3）
-            case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 9: Step_Lines(delta, MidEnd); break;     // S3-5c 呑みこまれる部屋（【濁】広がる）
-            case 10: Step_BossSpawn(); break;
-            case 11: Step_Lines(delta, BossIntro); break; // S3-6 ボス出現（07 に導入行は無い＝空）
-            case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
-            case 13: Step_Clear(delta); break;            // S3-9 クリア
-            case 14: Step_Transition(); break;
-            // S3-7 戦闘中の割り込み（ボスHP 20〜50% で一度）。Step_BossWait が 15 へ飛ばし、
-            //   17 の受けを流し切ると 12（ボス戦）へ戻る。バブルは 15→16→17 の間ずっと保持される。
-            case 15: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
-            case 16: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
-            case 17: Step_MidChoiceAfter(delta); break;            // 受け → 膜を明けて戦闘へ戻す
+            case 7: Step_MidStoryPre(delta); break;       // ★S3-4 受け＋S3-5a／S3-5b 接続（ピン留め投稿）
+            // ───── S3-5b 引用の嵐 本体（仮台本11。7ステップ＝段階1〜3＋剥がし切り）─────
+            case 8: Step_QuoteWave(delta, QuoteWave1, 2.4); break;   // 段階1（茶化し。5枚・2.4秒間隔）
+            case 9: Step_QuoteReply(delta, Stage1Reply); break;      // 本人の返信1＋ミナの観測
+            case 10: Step_QuoteWave(delta, QuoteWave2, 2.0); break;  // 段階2（嘲笑。6枚・2.0秒間隔）
+            case 11: Step_QuoteReply(delta, Stage2Reply); break;     // 本人の返信2＋ミナの観測
+            case 12: Step_QuoteWave(delta, QuoteWave3, 1.6); break;  // 段階3（存在の否定。6枚・1.6秒間隔）
+            case 13: Step_QuoteReply(delta, Stage3Reply); break;     // 本人の返信3・4＋「引用: 17」＋ミナの観測
+            case 14: Step_PeelAll(delta); break;                     // 剥がし切り（新規飛来なし。ミナは黙っている）
+            case 15: Step_MidStoryPost(delta); break;                // 下書き「もう、いいかな」を拾う
+            case 16: Step_MidwaveC(delta); break;         // 道中ザコ戦C（終盤＝最大密度の山）
+            case 17: Step_Lines(delta, MidEnd); break;    // S3-5c 呑みこまれる部屋（【濁】広がる）
+            case 18: Step_BossSpawn(); break;
+            case 19: Step_Lines(delta, BossIntro); break; // S3-6 ボス出現（07 に導入行は無い＝空）
+            case 20: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
+            case 21: Step_Clear(delta); break;            // S3-9 クリア
+            case 22: Step_Transition(); break;
+            // S3-7 戦闘中の割り込み（ボスHP 20〜50% で一度）。Step_BossWait が 23 へ飛ばし、
+            //   25 の受けを流し切ると 20（ボス戦）へ戻る。バブルは 23→24→25 の間ずっと保持される。
+            case 23: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
+            case 24: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
+            case 25: Step_MidChoiceAfter(delta); break;            // 受け → 膜を明けて戦闘へ戻す
         }
         // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
@@ -399,6 +468,142 @@ public partial class StageRei : Node
         }
     }
 
+    // ───────── S3-5b 引用の嵐（仮台本11。step 7〜15）─────────
+    // 貼りつき先＝ガワの立ち位置そのもの（SpawnX。中ボス／本ボスと同じ x）。ガワの胸元あたりの帯に散らして貼りつく。
+    private const float QuoteStickX = SpawnX;
+    private const float QuoteStickYMin = 24f, QuoteStickYMax = 58f;
+    private const float QuoteFlySpeed = 44f;    // 右端(≈380)→ガワ(SpawnX=300) を約1.8秒（仮台本11）
+    private const int QuoteHitsToStrip = 3;     // 1枚を剥がすのに要る自機弾のヒット数（仮台本11）
+    private const string QuoteHandle = "@rei_____";
+    private const string QuotePinned = "それだけで十分";   // ピン留め投稿の抜き出し（09 R42）
+    private static readonly Color QuoteAccent = new Color(0.62f, 0.70f, 0.92f);   // レイ面テーマ＝銀青（PostBullets と同色）
+    private readonly System.Collections.Generic.List<Bullet> _flyingQuotes = new();
+    private readonly System.Collections.Generic.List<Bullet> _stuckQuotes = new();
+    private double _quoteSpawnT;
+    private int _quoteSpawnedInWave;
+    private Sprite2D? _stormGawa;
+
+    // S3-5a 受け＋ピン留め（既存3行）。Hud のピン留めカードをここで立ち上げる。
+    private void Step_MidStoryPre(double delta)
+    {
+        if (!_stepStarted) Hud.SetQuoteCard(QuoteHandle, QuotePinned);
+        Step_Lines(delta, MidStoryPre);
+    }
+
+    // 段階1〜3：規定枚数（words.Length）を interval 秒おきに右端から飛来させる。全部が貼りつくまで待って次へ。
+    // 飛行中は普通の敵弾（被弾判定あり）。会話中（Hud.BubblePaused）は他の道中弾と同様に止まる。
+    private void Step_QuoteWave(double delta, (string h, string w)[] words, double interval)
+    {
+        if (!_stepStarted)
+        {
+            _stepStarted = true;
+            _quoteSpawnT = 0;
+            _quoteSpawnedInWave = 0;
+            EnsureStormGawa();
+        }
+        TickFlyingQuotes(delta);
+        if (!Hud.BubblePaused)
+        {
+            _quoteSpawnT += delta;
+            if (_quoteSpawnedInWave < words.Length && _quoteSpawnT >= interval)
+            {
+                _quoteSpawnT = 0;
+                SpawnQuoteChip(words[_quoteSpawnedInWave]);
+                _quoteSpawnedInWave++;
+            }
+        }
+        if (_quoteSpawnedInWave >= words.Length && _flyingQuotes.Count == 0)
+            Advance();
+    }
+
+    // 段階の切れ目：本人の返信＋ミナの観測（Step_Lines と同じ。返信はカードにも反映する）。
+    private void Step_QuoteReply(double delta, (int who, string text, string face)[] lines)
+    {
+        if (!_stepStarted && lines.Length > 0 && lines[0].who == (int)Hud.LineKind.Other)
+            Hud.SetQuoteReply(lines[0].text);   // 「見てくれてありがとう」「ごめんなさい」「ごめん」
+        Step_Lines(delta, lines);
+    }
+
+    // 剥がし切り（40〜50秒）：新規飛来なし。ミナは黙っている＝台詞を出さず、貼りついた分が
+    // 全部剥がれる（自機弾で撃つ）まで待つだけ。タイムアウトは無い＝声が止まった後は必ず剥がし切れる。
+    private void Step_PeelAll(double delta)
+    {
+        _stepStarted = true;
+        PruneStuckQuotes();
+        if (_stuckQuotes.Count == 0) Advance();
+    }
+
+    // 下書きを拾う（仮台本11 剥がし切り後）。流し終えたらピン留めカード・ガワを片付けて道中Cへ。
+    private void Step_MidStoryPost(double delta)
+    {
+        Step_Lines(delta, MidStoryPost);
+        if (_step != 15) { Hud.ClearQuoteCard(); RemoveStormGawa(); }   // カードがほどけて、ガワは道中Cの残りへ
+    }
+
+    // 星逢レイの待機絵（ガワ）を壁の配信画面に先出しする（10 設計案の要求。本ボス BossRei と同じ素材・スケール）。
+    private const string RGawaBody = "res://char/v3/rei_gawa_b.png";
+    private const float StormGawaH = 72f;   // BossRei の body_display_h と同値＝本戦への切替で違和感が出ない
+    private void EnsureStormGawa()
+    {
+        if (_stormGawa != null && IsInstanceValid(_stormGawa)) return;
+        var tex = ResourceLoader.Load<Texture2D>(RGawaBody);
+        if (tex == null) return;
+        float s = StormGawaH / tex.GetHeight();
+        _stormGawa = new Sprite2D { Texture = tex, Centered = true, Scale = new Vector2(s, s), ZIndex = -13 };
+        World.AddChild(_stormGawa);
+        _stormGawa.GlobalPosition = new Vector2(SpawnX, 70f);
+    }
+    private void RemoveStormGawa()
+    {
+        if (_stormGawa != null && IsInstanceValid(_stormGawa)) _stormGawa.QueueFree();
+        _stormGawa = null;
+    }
+
+    // 引用チップを1枚、画面右端から飛来させる（言葉弾の大型版・表示名つき＝仮台本11）。
+    // 飛行中は普通の敵弾（radius 4・damage 1）＝道中弾と同じ扱いで被弾する。
+    private void SpawnQuoteChip((string h, string w) q)
+    {
+        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        if (pool == null) return;
+        float y = _rng.RandfRange(QuoteStickYMin, QuoteStickYMax);
+        var b = pool.Spawn(new Vector2(380f, y), new Vector2(-QuoteFlySpeed, 0f), isEnemy: true, 4f, 1);
+        b?.SetWord(q.w, q.h, QuoteAccent, murk: true);   // 顔のない引用＝穢れ系の濁色チップ
+        if (b != null) _flyingQuotes.Add(b);
+    }
+
+    // 飛行中の引用チップを進め、貼りつき先（QuoteStickX）に達したら「貼りつき」へ切り替える：
+    //   ・停止して自機に当たらなくする（CollisionLayer=0）＝「貼りついたあとは当たらない」（仮台本11）。
+    //   ・祈り弾と同じ経路（MakeErasable）で撃って剥がせるようにする。1枚3発・剥がすと灰色の紙片（ErasablePaper）。
+    // 移動は会話中（BubblePaused）は止める＝他の道中弾と同じ流儀。
+    private void TickFlyingQuotes(double delta)
+    {
+        if (Hud.BubblePaused) return;
+        for (int i = _flyingQuotes.Count - 1; i >= 0; i--)
+        {
+            var b = _flyingQuotes[i];
+            if (!IsInstanceValid(b) || !b.Active) { _flyingQuotes.RemoveAt(i); continue; } // 保険（通常は起きない）
+            if (b.GlobalPosition.X <= QuoteStickX)
+            {
+                b.Velocity = Vector2.Zero;
+                b.GlobalPosition = new Vector2(QuoteStickX, b.GlobalPosition.Y);
+                b.CollisionLayer = 0;          // 貼りついたら自機弾／自機との重なりで当たらない
+                b.MakeErasable();
+                b.ErasableHp = QuoteHitsToStrip;
+                b.ErasablePaper = true;
+                _flyingQuotes.RemoveAt(i);
+                _stuckQuotes.Add(b);
+            }
+        }
+    }
+
+    // 剥がれた（撃ち切って Despawn 済みの）引用をリストから外す。剥がし切り判定（Step_PeelAll）用。
+    private void PruneStuckQuotes()
+    {
+        for (int i = _stuckQuotes.Count - 1; i >= 0; i--)
+            if (!IsInstanceValid(_stuckQuotes[i]) || !_stuckQuotes[i].Active)
+                _stuckQuotes.RemoveAt(i);
+    }
+
     // 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度（StartIntensity 0.7）でボス直前の山を作る。
     private void Step_MidwaveC(double delta)
     {
@@ -494,7 +699,7 @@ public partial class StageRei : Node
     // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
     private const double BossFinishGrace = 150.0;
     private double _postDefeatT;
-    // S3-7 戦闘中の割り込み：ボスHPが 20〜50% の窓に入った一度だけ step 15 へ抜ける。
+    // S3-7 戦闘中の割り込み：ボスHPが 20〜50% の窓に入った一度だけ step 23 へ抜ける。
     //   ・ボム等で一気に削られ窓を飛ばしたら、割り込み無しで素直に進む＝進行不能なし。
     //   ・Hud.BubblePaused 中（ボス自身の改心かけあい等）は発火しない＝会話の二重表示を防ぐ。
     //   ・撃破後（IsPurified）は判定に入らない＝改心の会話に割り込まない。
@@ -504,7 +709,7 @@ public partial class StageRei : Node
         if (!IsInstanceValid(_boss) || _boss.Finished)
         {
             _bossActive = false;
-            _step = 13; _stepStarted = false;   // 割り込みから戻った場合も確実にクリアへ（Advance だと 13 とは限らない）
+            _step = 21; _stepStarted = false;   // 割り込みから戻った場合も確実にクリアへ（Advance だと 21 とは限らない）
             return;
         }
         if (_boss.IsPurified)
@@ -514,7 +719,7 @@ public partial class StageRei : Node
             {
                 GD.PushWarning("[StageRei] ボス撃破後に Finished が立たないため保険で進行");
                 _bossActive = false;
-                _step = 13; _stepStarted = false;
+                _step = 21; _stepStarted = false;
             }
             return; // 撃破後は割り込みの判定に入らない
         }
@@ -526,7 +731,7 @@ public partial class StageRei : Node
             if ((frac <= 0.5f && frac >= 0.2f) || debugNow)
             {
                 _midStoryShown = true;
-                _step = 15; _stepStarted = false;
+                _step = 23; _stepStarted = false;
                 SetQuietVeil(true);    // 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
             }
         }
@@ -605,14 +810,14 @@ public partial class StageRei : Node
         _s37After = S37Reply(sel);
     }
 
-    // 受けを流し切ったら鈍色の膜を明けて戦闘へ戻す（→ case 12 の Step_BossWait）。
+    // 受けを流し切ったら鈍色の膜を明けて戦闘へ戻す（→ case 20 の Step_BossWait）。
     //   Step_Lines は流し切ると Advance（_step++）してしまうので、抜けた瞬間を捕まえて
     //   ボス戦の step へ戻す（割り込みは一度きり＝_midStoryShown が再突入を止める）。
     private void Step_MidChoiceAfter(double delta)
     {
         if (!_stepStarted) SetQuietVeil(false);   // 会話の余韻を残してそっと戻す（1.4s）
         Step_Lines(delta, _s37After);
-        if (_step > 17) { _step = 12; _stepStarted = true; }   // ボス戦は継続中＝入り直さない
+        if (_step > 25) { _step = 20; _stepStarted = true; }   // ボス戦は継続中＝入り直さない
     }
 
     // ───── S3-7「静けさの溜め」（こはる面から移植）─────

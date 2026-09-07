@@ -194,6 +194,16 @@ public partial class Hud : CanvasLayer
     public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
     public void ClearTutorialHint() => _tutorialHint = "";
 
+    // S3-5b 引用の嵐（仮台本11・ユーザー承認済み2026-09-05）：ピン留めされた投稿カード（上部中央）。
+    // _tutorialHint と同じ流儀＝会話（BubblePaused）を立てない常駐表示。弾幕が進んでいる間もずっと見える。
+    // 本人の返信（reply）は段階が進むごとに短くなっていく（呼び出し側 StageRei が更新する）。
+    private string _quoteHandle = "";
+    private string _quotePost = "";
+    private string _quoteReply = "";
+    public void SetQuoteCard(string handle, string post) { _quoteHandle = handle; _quotePost = post; _quoteReply = ""; }
+    public void SetQuoteReply(string reply) => _quoteReply = reply ?? "";
+    public void ClearQuoteCard() { _quoteHandle = ""; _quotePost = ""; _quoteReply = ""; }
+
     // チュートリアル（ステージ0）：今のステップの操作に割り当たった“全ボタン”を指示帯の上にバッジで出す。
     // StageZero が操作名（"move"/"shot"/"focus"/"dodge"/"bomb"/"kind"）をセット → ここで All* トークンに展開して描く。
     // KB/パッドの出し分けは Pad に従い、KB でも複数キー（Z/Space/Enter 等）はバッジ内に並べて全部見せる。
@@ -771,6 +781,7 @@ public partial class Hud : CanvasLayer
         DrawBurning(ci);
         if (_skillHas) DrawSkill(ci);
         DrawTicker(ci);
+        if (_quotePost.Length > 0) DrawQuoteCard(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_controlsAlpha > 0.01f) DrawControls(ci);
@@ -1362,6 +1373,20 @@ public partial class Hud : CanvasLayer
                 new Color(0.92f, 0.92f, 0.97f, ra));
             cx += iw[i] + itemGap;
         }
+    }
+
+    // S3-5b 引用の嵐：ピン留めされた投稿（上部中央）。本文は抜き出しの一句「それだけで十分」に固定し、
+    // その下に本人の返信（段階が進むほど短くなる）を添える＝仮台本11の「本人の返信が縮む」を常駐表示で見せる。
+    private void DrawQuoteCard(HudCanvas ci)
+    {
+        string line1 = _quoteHandle + "  " + _quotePost;
+        bool hasReply = _quoteReply.Length > 0;
+        float w = Mathf.Max(UiKit.TextW(UiKit.Zen, line1, 14), UiKit.TextW(UiKit.Zen, _quoteReply, 13)) + 40;
+        float x = 640 - w / 2f, y = 26, h = hasReply ? 52 : 32;
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.85f), 10f, new Color(UiKit.Kegare, 0.42f), 1.2f);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x + 16, y + 7), line1, 14, new Color(0.92f, 0.90f, 0.95f));
+        if (hasReply)
+            UiKit.Text(ci, UiKit.Zen, new Vector2(x + 16, y + 29), _quoteReply, 13, new Color(UiKit.Kegare.Lerp(Colors.White, 0.5f)));
     }
 
     // チュートリアルの常駐指示帯（操作させる区間・下部中央）。会話バーより上、ティッカーの上に出す。

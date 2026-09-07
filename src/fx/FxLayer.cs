@@ -170,13 +170,16 @@ public partial class FxLayer : Node2D
             Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.12f, Col = Gold, W = 1.8f, A0 = 0.9f, Add = true });
     }
 
-    public void Shatter(Vector2 pos)
+    // col : 破片の色（null＝既定の暴言パネル色 EnemyInk）。引用の嵐（Bullet.ErasablePaper）は
+    //   灰色の紙片色を渡す＝「光の粒でなく、灰色の紙片になって落ちる」（仮台本11）を同じ経路で出し分ける。
+    public void Shatter(Vector2 pos, Color? col = null)
     {
+        Color c = col ?? EnemyInk;
         int n = Ri(5, 8);
         for (int i = 0; i < n; i++)
         {
             float a = R(0, Mathf.Tau), sp = R(40, 130);
-            Add0(new P { Type = T.Shard, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 20, Size = R(1.6f, 3.4f), Rot = R(0, Mathf.Tau), Spin = R(-9, 9), Grav = 240, Drag = 1.2f, Ttl = R(0.35f, 0.55f), Col = EnemyInk, Edge = _rng.Randf() < 0.5f ? Edge1 : Edge2 });
+            Add0(new P { Type = T.Shard, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 20, Size = R(1.6f, 3.4f), Rot = R(0, Mathf.Tau), Spin = R(-9, 9), Grav = 240, Drag = 1.2f, Ttl = R(0.35f, 0.55f), Col = c, Edge = _rng.Randf() < 0.5f ? Edge1 : Edge2 });
         }
         KindnessMote(pos + new Vector2(R(-3, 3), 0));
     }

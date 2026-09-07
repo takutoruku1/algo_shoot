@@ -41,8 +41,14 @@ public partial class Bullet : Area2D
 
     // ─── ボス別弾幕ギミック（#12 機構側）の弾フラグ ───
     // Erasable: 自機弾で消せる「祈り弾」（こはる FanDown）。消すと双方消滅＋やさしさ微加算。
+    // ErasableHp: 剥がすのに要る自機弾の当たり回数（既定1＝従来どおり1発で消える）。1超を渡すと
+    //   多段階の「剥がし」になる（レイ面 引用の嵐＝1枚3発。仮台本11）。0発以下は1発扱いにクランプする。
+    // ErasablePaper: true なら最終消滅の演出を花弁（BulletToPetal）でなく灰色の紙片（FxLayer.Shatter）にする
+    //   （引用の嵐専用＝「剥がれるときは光の粒でなく、灰色の紙片になって落ちる」仮台本11）。
     // SoftenOnGraze: グレイズすると一度だけ減速×GrazeSoftenMul＋淡色化する「キミ弾」（あかり）。被弾判定は不変。
     public bool Erasable;
+    public int ErasableHp = 1;
+    public bool ErasablePaper;
     public bool SoftenOnGraze;
     public bool Softened;   // 減速・淡色化が適用済みか（1発につき1回だけ）
     // M2バランス：×0.75 は自機狙い弾をほぼ無力化していた（かすった時点で回避が確定する）ため ×0.85 に緩和。
@@ -181,6 +187,8 @@ public partial class Bullet : Area2D
     // 誘導シーカーのフィン：HomingEdge→Mid の中間（頭のガラス玉より一段沈めて、頭の読みを邪魔しない）。
     private static readonly Color PlayerFin = new Color(0.44f, 0.47f, 0.75f);
     private static readonly Color KegareWord = new Color(0.96f, 0.56f, 0.78f);    // 言葉弾の文字（穢れ系）
+    // ErasablePaper の最終消滅色＝灰色の紙片（引用の嵐。仮台本11「剥がれるときは光の粒でなく、灰色の紙片」）。
+    private static readonly Color PaperGray = new Color(0.62f, 0.60f, 0.58f);
     // 後方弾（FireBackfire）＝淡い金（≈45°）。敵弾の穢れ桃 #e072ac(≈337°) とも、他3モードの浄化色域とも
     //   離れた唯一の暖色＝「前方の連射/拡散/誘導とは別枠の弾」を色だけで即断できる。
     private static readonly Color BackMid  = new Color(0.98f, 0.86f, 0.55f);
@@ -245,6 +253,8 @@ public partial class Bullet : Area2D
         Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
+        ErasableHp = 1;         // 既定=1発（多段階の剥がしは MakeErasable 後に呼び出し側が上書きする）
+        ErasablePaper = false;
         SoftenOnGraze = false;
         Softened = false;
         Shape = shape;
@@ -354,6 +364,7 @@ public partial class Bullet : Area2D
 
     // 祈り弾×自機弾の重なり：双方消して「受け止めた」の手応え＋やさしさ微加算。
     // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
+    // ErasableHp が1超のときは、消えるのは自機弾側だけ（this は生きたまま）＝規定回数を受けて初めて剥がれる。
     private void OnAreaEntered(Area2D area)
     {
         if (!Active || !IsEnemy || !Erasable) return;
@@ -361,7 +372,13 @@ public partial class Bullet : Area2D
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
             pool?.Despawn(pb);
-            FxLayer.Instance?.BulletToPetal(GlobalPosition); // 弾が花びらへ＝“祈りを受け止めた”
+            if (--ErasableHp > 0)
+            {
+                Audio.Instance?.PlayStrip(light: true); // まだ剥がれない：軽い手応えだけ返す
+                return;
+            }
+            if (ErasablePaper) FxLayer.Instance?.Shatter(GlobalPosition, PaperGray); // 灰色の紙片（引用の嵐）
+            else FxLayer.Instance?.BulletToPetal(GlobalPosition);                    // 弾が花びらへ＝“祈りを受け止めた”
             Audio.Instance?.PlayStrip();                     // 軽い「コツッ」（剥離と同域＝浄化より一段軽い）
             GetNodeOrNull<GameManager>("/root/Game")?.AddPrayerCleared();
             if (pool != null) pool.Despawn(this); else Deactivate();
