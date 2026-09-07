@@ -422,6 +422,12 @@ public partial class Hud : CanvasLayer
         _              => UiKit.Text2, // Narration（ナレ＝ミナの語り）は淡色
     };
 
+    // ミナの話者ラベル。名前が決まる前（Prologue の P3 命名まで）は「？」で伏せる
+    //   ＝命名の3択（ミナ／超絶最強無敵ハイパーAIちゃんMk-Ⅱ／送らない）の意味を先に潰さない。
+    //   立ち絵・話者色（UiKit.Mina）は変えない＝「誰か」は見えていて、名前だけが無い状態。
+    //   ゲートは GameManager.MinaNamed（セーブしない static・既定 true）。プロローグ以外は常に「ミナ」。
+    public static string MinaLabel => GameManager.MinaNamed ? "ミナ" : "？";
+
     // 会話ログに出す話者ラベル。speaker が空（素の ShowDialog 経路）でも種別から補う。
     private static string BacklogSpeaker(LineKind k, string speaker)
     {
@@ -429,7 +435,7 @@ public partial class Hud : CanvasLayer
         return k switch
         {
             LineKind.Boy   => "あなた",
-            LineKind.Mina  => "ミナ",
+            LineKind.Mina  => MinaLabel,
             LineKind.Relay => "あなた（ミナの声）",
             LineKind.Post  => "Ｘ 投稿",
             LineKind.Narration => "ナレーション",
@@ -462,7 +468,7 @@ public partial class Hud : CanvasLayer
             // Boy＝プレイヤー本人（案C に少年は居ない）。顔が無いので立ち絵は出さず、
             // 空いた枠には下書きの吹き出し風の小さな印だけを置く（DrawDialog の _dlgDraftMark）。
             case LineKind.Boy:   speaker = "あなた"; color = UiKit.Info; portraitToUse = ""; break;
-            case LineKind.Mina:  speaker = "ミナ"; color = UiKit.Mina; break;
+            case LineKind.Mina:  speaker = MinaLabel; color = UiKit.Mina; break;
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
             case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
