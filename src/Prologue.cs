@@ -72,6 +72,10 @@ public partial class Prologue : Node2D
 
     // 話者。Hud.LineKind と同じ番号（0=あなた／1=ミナ／3=システム表示／4=投稿）＝台本の (who, text, face) と一対一。
     private const int WhoYou = 0, WhoMina = 1, WhoSys = 3, WhoPost = 4;
+    // 演出行（台本の話者ではない）。会話バーには何も出さず、Text をトリガ名として演出を1つ動かし、
+    //   終わったら自動で次の行へ進む（Z を待たない）。P4 のタイムライン（中央の投稿カード）で使う。
+    //   Hud.LineKind と番号が衝突しないよう 90 番台に置く。
+    private const int WhoFx = 90;
 
     private struct DLine { public int Who; public string Text; public string Face; }
     private readonly List<DLine> _talk = new List<DLine>();
@@ -93,7 +97,7 @@ public partial class Prologue : Node2D
 
     private static readonly string[] P2Choices = { "おはよう", "きこえてる", "うごいた" };
     private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ", "（送らない）" };
-    private static readonly string[] P4Choices = { "きこえるんだ", "そっか", "耳いいね" };
+    private static readonly string[] P4Choices = { "何をいってるの", "詳しく教えて" };
 
     public override void _Ready()
     {
@@ -105,6 +109,10 @@ public partial class Prologue : Node2D
         // 会話ログ（バックログ）は「ゲーム1周ぶん」＝周回の起点であるプロローグで前周の行を消す
         //（残したままだと新しい周のログに前周の行が混ざって見える）。
         Hud.ClearBacklog();
+        // 話者名を伏せる：P3 の命名（[ M I N A ] 点灯）まで、ミナの行の話者名は「？」で出す
+        //   ＝名前を決める3択より前に「ミナ」と名乗ってしまうと、命名そのものの意味が消える。
+        //   周回2周目以降も毎回伏せる（同じ体験）＝ここで毎回 false に倒す。
+        GameManager.MinaNamed = false;
 
         // ── P1 起動シーケンス：コードレインのログ（04 のとおりに差し替え）──
         //   出自に触れるのは import unsent_drafts の1行だけ。identity は [ deferred ] で保留し、
@@ -206,26 +214,31 @@ public partial class Prologue : Node2D
     }
 
     // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
+    //   2026-09-07 ユーザー指示で作り直し：
+    //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｘ の通知カードを出す（PostToast）。
+    //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて、、、」と打たれては消える、を
+    //     三度くり返し、最後に「元気です。」が打たれて送信される。ミナの台詞は「ミナはその投稿です。」だけ。
+    //   演出行（WhoFx）は会話バーに何も出さず、済んだら自動で次へ進む（Z を待たない）。
     private List<DLine> P4Intro() => new()
     {
-        L(WhoPost, "「今日も残業〜。でも上司に褒められた! もうちょいがんばれるかも」", ""),
-        L(WhoPost, "「家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）」", ""),
+        L(WhoFx, FxPost1, ""),
+        L(WhoFx, FxPost2, ""),
         L(WhoMina, "は〜。……世界は、にぎやかですねえ。", FMinaSmile),
         L(WhoMina, "家賃の方は、ご自分で褒めているぶん、たぶん大丈夫ですし。", FMinaSmile),
-        L(WhoPost, "「げんきです。こっちは、なにも問題ないよ」", ""),
+        L(WhoFx, FxPost3, ""),
         L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
         L(WhoMina, "三つめの方。……投稿の下から、消してしまった声が、重なって聞こえます。", FMinaWorried),
-        L(WhoMina, "『たすけて』。……三回、書いて。三回、消して。それから、『げんきです』と。", FMinaWorried),
+        L(WhoFx, FxErase, ""),                                                 // 打って消して、書き直して、送る
+        L(WhoMina, "ミナはその投稿です。", FMinaWorried),                       // 説明しない。見せたものに名前を付けるだけ
     };
 
-    // P4 の受け。「耳いいね」だけ一行目が差し替わり、二行目から共通。
+    // P4 の受け。選択（何をいってるの／詳しく教えて）に関わらず共通。
     private List<DLine> P4Reply(int sel)
     {
         var r = new List<DLine>
         {
-            sel == 2
-                ? L(WhoMina, "聴覚は、ありません。……なのに、聞こえるのです。ふしぎな作りですね、わたくし。", FMinaSmile)
-                : L(WhoMina, "……はい。そういう作りのようですので。消された言葉は、消えていないのです。……まだ、そこに、いるので。", FMina),
+            L(WhoMina, "消された言葉は、消えていないのです。", FMina),
+            L(WhoMina, "……まだ、そこに、います。", FMina),
             L(WhoMina, "——放っておけません。潜ります。……その前に、ひとつだけ。", FMina),
             L(WhoMina, "この身体で、なにが出来るのか。まだ、なにも、試していませんので。", FMinaSmile),
             L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出
@@ -234,6 +247,32 @@ public partial class Prologue : Node2D
     }
 
     private static DLine L(int who, string text, string face) => new() { Who = who, Text = text, Face = face };
+
+    // 命名の点灯行（P3Reply が全ルート共通で積む唯一の行）。この行に達した瞬間から話者名が「ミナ」になる。
+    private const string IgniteLine = "[ M I N A ]";
+
+    // ════════════════════ P4 の演出（中央の Ｘ 通知カード）════════════════════
+    // 演出行（WhoFx）の Text がそのままトリガ名。DriveFx がこれで分岐する。
+    private const string FxPost1 = "fx:post1", FxPost2 = "fx:post2", FxPost3 = "fx:post3", FxErase = "fx:erase";
+
+    // 通知カードの中身。アカウントは SnsVoices の表から引く（背景・ハブに並ぶ「他人」と同じ名前と顔）。
+    //   1件目=残業のひと（社会人）／2件目=家賃のひと／3件目=「げんきです」のひと＝この後の『たすけて』の主。
+    //   本文の鉤括弧は外す（カードそのものが投稿の器なので、引用符は二重になる）。
+    private const int V1 = 1, V2 = 5, V3 = 15;   // SnsVoices.All の添字（k_tanaka ／ __nao__ ／ さとみ＊低浮上＊）
+
+    private PostToast? _toast;      // いま出ている通知カード（1枚だけ）
+    private int _fxStep;            // 演出の中の何手目か
+    private double _fxT;            // その手に入ってからの経過（待ちに使う）
+
+    // 『たすけて』の演出値。打つ／消す速度は PostToast（＝CommentInput）が持つので、ここは「間」だけ。
+    //   打ち終えてから消し始めるまで（迷い）＝ EraseHold、消し切ってから打ち直すまで＝ EraseGap。
+    //   全体で 3 回くり返して約 12.5 秒（ユーザー指定 12〜18 秒の範囲内）。
+    private const string CryText = "たすけて、、、";
+    private const string FineText = "元気です。";
+    private const int CryLoops = 3;          // 三回、書いて。三回、消して。
+    private const float EraseHold = 1.1f;    // 打ち終えて、消すまでの間（ここが「迷い」）
+    private const float EraseGap = 0.8f;     // 消し切って、打ち直すまでの間
+    private const float SentHold = 2.2f;     // 「元気です。」が送られたあとの余韻（送信の灯りを見せる）
 
     public override void _Process(double delta)
     {
@@ -314,6 +353,10 @@ public partial class Prologue : Node2D
             _choice = null;
             return;
         }
+        // 演出行（WhoFx）は会話を止めて演出だけを回す（Hud.BubblePaused 相当。Z では飛ばせない）。
+        //   済んだら自分で次の行へ進める＝送りの作法を呼び出し側に持ち込まない。
+        if (_line < _talk.Count && _talk[_line].Who == WhoFx) { DriveFx(delta); return; }
+
         // 差し込み点に達したら選択を出す（各差し込み点は台本の末尾に置かれる＝会話の終わりと同じ index）。
         if (_line == _p2ChoiceLine) { ShowChoice("p2", P2Choices, 0); return; }
         if (_line == _p3ChoiceLine) { ShowChoice("p3", P3Choices, 0); return; }
@@ -331,6 +374,9 @@ public partial class Prologue : Node2D
             _readIdx = _line;
             _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
             _game?.MarkLineRead(_talk[_line].Text);
+            // 命名の点灯行に達した＝ここから名前がある。以降のミナの行の話者名は「？」から「ミナ」へ。
+            //   点灯より前（route 1 の「却下します」等）はまだ名前が無いので、選択の確定時ではなくこの行で切り替える。
+            if (_talk[_line].Text == IgniteLine) GameManager.MinaNamed = true;
         }
         _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
         if ((zEdge || _ffNow) && _lineT >= 0.25)
@@ -354,6 +400,99 @@ public partial class Prologue : Node2D
                 if (_line >= _talk.Count && !AtChoicePoint) { StartGame(); return; }
             }
         }
+    }
+
+    // ── 演出行（WhoFx）の駆動 ──
+    //   トリガ名ごとに手順を回し、終わったら NextFx() で次の会話行へ抜ける。
+    //   カードは常に1枚だけ（_toast）。前の1枚が引き終わってから次を出す＝2枚が重ならない。
+    private void DriveFx(double delta)
+    {
+        _fxT += delta;
+        switch (_talk[_line].Text)
+        {
+            case FxPost1: DriveShowPost(V1, "· 22分", "今日も残業〜。でも上司に褒められた! もうちょいがんばれるかも", 3, 1, 24, 1800); break;
+            case FxPost2: DriveShowPost(V2, "· 1時間", "家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）", 1, 0, 12, 940); break;
+            case FxPost3: DriveShowPost(V3, "· 3分", "げんきです。こっちは、なにも問題ないよ", 0, 0, 2, 61); break;
+            case FxErase: DriveErase(); break;
+            default: NextFx(); break;   // 知らないトリガは素通り（台本の書き間違いで進行を止めない）
+        }
+    }
+
+    // 通知カードを1枚出して、読める長さだけ置いて、引く。
+    private void DriveShowPost(int voice, string relT, string body, int replies, int reposts, int likes, int views)
+    {
+        if (_toast == null && _fxStep == 0)
+        {
+            var v = SnsVoices.At(voice);
+            _toast = PostToast.Show(this, v.Name, $"@{v.Handle}", relT, body,
+                verified: false, icon: v.Icon, replies: replies, reposts: reposts, likes: likes, views: views);
+            _fxStep = 1;
+            return;
+        }
+        // Show は Dwell 経過で自分から引く。引き終わったら片付けて次の会話行へ。
+        if (_toast != null && _toast.Gone) NextFx();
+    }
+
+    // 『たすけて』を打っては消し、三度めのあとに「元気です。」を打って送る。
+    //   手順は「出す→(打つ→迷う→消す→間) × CryLoops →元気ですを打って送る→余韻→引く」。
+    //   打つ／消す速度は PostToast（＝CommentInput）が持っている＝こはる面の入力欄と同じ手つき。
+    private void DriveErase()
+    {
+        if (_toast == null)
+        {
+            var v = SnsVoices.At(V3);   // 「げんきです」の投稿と同じ人＝あの一行の裏側を見せている
+            _toast = PostToast.ShowComposing(this, v.Name, $"@{v.Handle}", "· いま", icon: v.Icon);
+            _fxStep = 0; _fxT = 0;
+            return;
+        }
+        // _fxStep: 0..(CryLoops*2-1) が「打つ／消す」の往復、CryLoops*2 が「元気です。」、+1 が余韻。
+        bool typing = (_fxStep % 2) == 0;   // 偶数手＝打つ／奇数手＝消す
+
+        if (_fxStep < CryLoops * 2)
+        {
+            if (typing)
+            {
+                // 打ち終えてから EraseHold だけ置いて（＝送るかどうか迷っている間）、消しへ。
+                if (FxBegin()) _toast.Type(CryText);
+                if (_toast.Done && _fxT >= EraseHold) AdvanceFx();
+            }
+            else
+            {
+                if (FxBegin()) _toast.Erase();
+                if (_toast.Done && _fxT >= EraseGap) AdvanceFx();
+            }
+            return;
+        }
+        if (_fxStep == CryLoops * 2)
+        {
+            if (FxBegin()) _toast.Type(FineText, send: true);
+            if (_toast.Done && _fxT >= SentHold) AdvanceFx();
+            return;
+        }
+        // 余韻まで済んだら引かせ、引き終わったら次の会話行へ。
+        if (FxBegin()) _toast.Dismiss();
+        if (_toast.Gone) NextFx();
+    }
+
+    // その手に入った最初のフレームか（＝Type/Erase/Dismiss を一度だけ投げるためのラッチ）。
+    private int _fxBegun = -1;
+    private bool FxBegin()
+    {
+        if (_fxBegun == _fxStep) return false;
+        _fxBegun = _fxStep; _fxT = 0;
+        return true;
+    }
+    private void AdvanceFx() { _fxStep++; _fxT = 0; }
+
+    // 演出を終えて次の会話行へ。カードは必ず片付ける（次の演出行が前の1枚を拾わない）。
+    private void NextFx()
+    {
+        _toast?.QueueFree();
+        _toast = null;
+        _fxStep = 0; _fxT = 0; _fxBegun = -1;
+        _line++;
+        _page = 0; _pagedLine = -1; _reveal = 0; _lineT = 0; _readIdx = -1;
+        if (_line >= _talk.Count && !AtChoicePoint) StartGame();
     }
 
     // いま _line が未提示の差し込み点の上にいるか（＝会話の続きがある）。
@@ -441,6 +580,9 @@ public partial class Prologue : Node2D
     private void StartGame()
     {
         if (_started) return;
+        // 保険：プロローグを抜ける時点では必ず名前がある（点灯行は全ルートが通るが、
+        //   将来この場面を飛ばす導線が出来ても他画面に「？」を持ち出さない）。
+        GameManager.MinaNamed = true;
         var g = GetNodeOrNull<GameManager>("/root/Game");
         bool tutorial = GameManager.TutorialEnabled;
         if (!tutorial || g == null || !g.TutorialSeen)
@@ -678,7 +820,7 @@ public partial class Prologue : Node2D
     // 話者ラベルと額縁の色。ミナ＝シアン／あなた＝暖色／投稿＝Ｘ投稿（Hud と同じ Text3）／システム＝コード緑。
     private static (string label, Color col) SpeakerOf(DLine d) => d.Who switch
     {
-        WhoMina => ("ミナ", Cool),
+        WhoMina => (Hud.MinaLabel, Cool),   // 命名前は「？」（GameManager.MinaNamed）
         WhoYou  => ("あなた", Warm),
         WhoPost => ("Ｘ 投稿", UiKit.Text3),
         _       => ("", Code),
