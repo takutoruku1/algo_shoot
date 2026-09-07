@@ -40,6 +40,12 @@ public partial class Audio : Node
     //   _musicSpeed は「次に Play する音楽プレイヤーへ適用する目標速度」。通常 1.0。
     private Tween? _musicSpeedTween;
     private float _musicSpeed = 1f;
+
+    // 進行中のクロスフェード（Music()）。次の Music() は必ずこれを Kill してから張り直す。
+    //   前のクロスフェードを生かしたままにすると、その「フェードし切ったら Stop する」チェーンが
+    //   あとから鳴らし始めたトラックを止めてしまう（同フレーム帯で Music() が2回来ると起きる：
+    //   ボスからやり直す＝BeginStageRun の道中曲→直後に Boss._Ready のボス曲）。結果は無音。
+    private Tween? _musicFadeTween;
     private readonly RandomNumberGenerator _rng = new();
 
     // ───────── アダプティブ（汚染ゲージ連動。設計 §3-3 / 1-5「連続=フィルタ」）─────────
@@ -355,14 +361,21 @@ public partial class Audio : Node
             nxt.PitchScale = 1f;
             nxt.Play();
         }
+        // 前のクロスフェードは必ず捨てる。残すと、その Stop チェーンが「いま鳴らし始めた曲」を
+        //   あとから止めて無音になる（_musicFadeTween の宣言部を参照）。
+        _musicFadeTween?.Kill();
         var t = CreateTween().SetParallel();
+        _musicFadeTween = t;
         // 実音源は StageBgmRealDb 下げたターゲットへフェードイン（合成は 0dB）。
         // クロスフェード／ResumeStageMusic／PlayRedeem 等もこの Music() 経由なので一律で効く。
         if (stream != null) t.TweenProperty(nxt, "volume_db", MusicTargetDb(stream), fade);
         if (cur.Playing)
         {
             t.TweenProperty(cur, "volume_db", SilentDb, fade);
-            t.Chain().TweenCallback(Callable.From(() => { if (cur.Playing) cur.Stop(); }));
+            // Stop は「この曲を止める」意図なので、対象を捕まえてから判定する（cur は次の呼び出しで
+            //   別プレイヤーを指し得る）。Kill 済みならそもそも呼ばれない。
+            var fading = cur;
+            t.Chain().TweenCallback(Callable.From(() => { if (fading.Playing) fading.Stop(); }));
         }
         _useA = !_useA;
     }
