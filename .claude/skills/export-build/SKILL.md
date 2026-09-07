@@ -13,6 +13,15 @@ description: Build and package this Godot/.NET game as a distributable single Wi
 - `export_presets.cfg` にプリセット **"Windows Desktop"** があること（embed_pck=true / dotnet/embed_build_outputs=true ＝単体exe）。`.gitignore` 済みなので消さない。
 - `build/` は `.gitignore` 済み（巨大な exe をコミットしない）。
 
+## バージョン番号（2026-09-07 ユーザー決定・厳守）
+
+- 形式は **メジャー.マイナー**、マイナーは**小数点以下3桁**（`2.001`）。
+- **exe を出力し直すたびに 1 ずつ増やす**（2.001 → 2.002 → 2.003 …）。
+- 現在値は `build/VERSION.txt` に置く。**書き出す前に読み、書き出したら増やして保存する**。
+- ファイル名は `build/algo_shoot_v<版>.exe` と `build/algo_shoot_v<版>.zip`（例 `algo_shoot_v2.001.exe`）。
+- zip の中の exe も同じ版名にする（`algo_shoot_v2.001.exe`）。
+- メジャーを上げるのはユーザーの指示があったときだけ。勝手に上げない。
+
 ## 変数
 - Godot 実行ファイル（mono・エディタ兼用）:
   `C:\Users\takut\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.6.3-stable_mono_win64\Godot_v4.6.3-stable_mono_win64.exe`
