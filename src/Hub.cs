@@ -999,13 +999,13 @@ public partial class Hub : Node2D
             // 難易度はここで確定（DiffSelect と同じ代入。数値・実装は不変）。
             if (_game != null && tiers && TierOpen(_tierSel)) _game.Difficulty = Tiers[_tierSel].Diff;
             if (_game != null) _game.PendingStageScene = e.Scene;
-            // 入口（最初から/中ボスから/ボスから）の選択は DiffSelect が持っている。中ボスを持つ面で
-            //   解放済みの入口があるときだけ、そちらへ渡して問わせる＝入口の導線を落とさない。
-            string? id = GameManager.StageIdForScene(e.Scene);
-            bool asksEntry = id != null && GameManager.StageHasMidBoss(id)
-                && ((_game?.IsMidBossCleared(id) ?? false) || (_game?.IsStageCleared(id) ?? false));
-            if (asksEntry) Dive("res://DiffSelect.tscn");
-            else { if (_game != null) _game.SelectedEntry = GameManager.StageEntry.Start; Dive(e.Scene); }
+            // 2026-09-07: 入口（最初から/中ボスから/ボスから）を問う画面を廃止した（ユーザー実機指摘
+            //   「どこからやるを非表示にして」「基本的に最初から始める仕様で OK」）。以前はここで
+            //   中ボス持ち＆解放済みの面だけ DiffSelect へ寄り道させていたが、常に「最初から」で
+            //   そのまま戦闘へ入る＝潜るまでの手数が1つ減る（投稿を開く → 潜り方を選ぶ → 潜る）。
+            //   開始位置の仕組み自体は残っており `--boss` とゲームオーバーの R が使う（DiffSelect.cs 参照）。
+            if (_game != null && !_game.DebugAlwaysBoss) _game.SelectedEntry = GameManager.StageEntry.Start;
+            Dive(e.Scene);
             return;
         }
 

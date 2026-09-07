@@ -219,8 +219,9 @@ public partial class GameManager : Node
             if (s.Scene == scene) return s.Id;
         return null;
     }
-    // 中ボス(cameo)を持つ＝チェックポイント入口を出す対象ステージか（レイ/あかり/こはる）。
-    public static bool StageHasMidBoss(string id) => id is "rei" or "akari" or "koharu";
+    // ※ StageHasMidBoss（中ボス持ちか＝チェックポイント入口を出す対象か）は 2026-09-07 に削除した。
+    //   唯一の読み手だった「どこから始めますか?」の入口ダイアログを廃止し、呼び出し元が消えたため
+    //   （DiffSelect.cs / Hub.cs の該当コメント参照）。IsMidBossCleared / SelectedEntry は現役。
 
     private readonly HashSet<string> _cleared = new();
     // 直近にクリアしたステージ（ハブ帰還時の会話＆自動投稿トリガ。ハブが消費して null に戻す）。
