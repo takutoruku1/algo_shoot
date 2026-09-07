@@ -103,6 +103,8 @@ public partial class HowToCanvas : Node2D
     private static string TokShot  => "オート";                                                       // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)  : "Shift";       // RB は向き反転へ移した
     private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック"; // 向き反転：Player.cs RightShoulder / 左クリック
+    // ロックオン照準（ボス戦のみ）：Player.cs の Key.F / パッド RB。向き反転は機能オフなので F は空いている。
+    private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F";
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
@@ -164,6 +166,7 @@ public partial class HowToCanvas : Node2D
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
+            (TokLock,  "ロックオン",  "ボス戦だけ。弾がボスの方向へ飛ぶ。移動は少し遅くなる", UiKit.Purify, true),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
         // 向き反転は機能をオフにしているあいだ説明ごと伏せる（Player.FacingFlipEnabled で復活）。

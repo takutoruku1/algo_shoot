@@ -1304,6 +1304,29 @@ public partial class Enemy : Area2D
 
     public override void _Draw()
     {
+        // ── ロックオンの照準マーカー（2026-09-07）──
+        //   ユーザー指示「ロックオンしている間は照準マーカーがボスにつくようにして」。
+        //   ここ（敵本体の _Draw）に描くので、ボスが動けばマーカーも一緒に動く＝追従は自動。
+        //   意匠は既存の語彙から借りる: 露出オーラ／スイートスポットと同じ「薄いリング」＋四隅の鉤括弧。
+        //   色は**自機側の色**（Purify 系の水色）にする。予兆（AreaStrike）や警告は深紅・琥珀なので、
+        //   同じ形でも色で「これは危険の記号ではない＝こちらの照準」と読み分けられる。
+        if (GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this)
+        {
+            float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
+            float rr = Mathf.Max(BodyHalfH, BodyRadius) + 8f + 2f * pulse;
+            var mc = new Color(UiKit.Purify, 0.45f + 0.25f * pulse);
+            DrawArc(Vector2.Zero, rr, 0f, Mathf.Tau, 40, mc, 1.2f);
+            // 四隅の鉤括弧（照準らしさ）。リングの外側に短い2本ずつ。
+            float k = rr + 3f, arm = 5f;
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sy = -1; sy <= 1; sy += 2)
+                {
+                    var c0 = new Vector2(sx * k, sy * k) * 0.72f;
+                    DrawLine(c0, c0 + new Vector2(-sx * arm, 0f), mc, 1.2f);
+                    DrawLine(c0, c0 + new Vector2(0f, -sy * arm), mc, 1.2f);
+                }
+        }
+
         // 改心フラッシュ（やさしい色：淡ピンク→淡紫に着地）
         if (_flashing)
         {

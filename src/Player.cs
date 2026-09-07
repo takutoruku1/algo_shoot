@@ -223,8 +223,87 @@ public partial class Player : Area2D
     private bool _flipHeld = true;
     private bool _mouseFlipLocked = false;      // 会話送りのクリックが会話明けに向き反転へ流れ込むのを止めるゲート（離すまで反転しない）
     public int Facing => _facing;
-    public Vector2 ShotDir => new Vector2(_facing, 0f);
-    public float ShotAngle => _facing >= 0 ? 0f : Mathf.Pi;
+
+    // ───────── ロックオン照準（ボス戦だけ・2026-09-07）─────────
+    // ユーザー指示「ボスの時だけボスの方向に打てるロックオン照準システムを作りたい、解除可能」。
+    //
+    //   ・ボスが居るあいだだけ使える。道中では入／切そのものを受け付けない（居なくなれば自動で切れる）。
+    //   ・弾そのものは曲げない。**発射方向**をボスへ向けるだけ＝ホーミング（弾が追う）とは別物。
+    //     実装は ShotDir / ShotAngle の差し替え1点に閉じる＝全射撃経路（連射・拡散・ホーミング・
+    //     貫通・子分）が自動で追従し、弾数・威力・間隔には触れない。
+    //   ・入／切は F。押すたびに切り替わる（押しっぱなし不要）。F は向き反転に割り当てられていたが
+    //     FacingFlipEnabled=false で機能ごと止まっており、実質どこにも効いていない空きキーだった。
+    //     V はジョブ、C はヒカゲ技が使う。**向き反転とは別系統**で、こちらは _facing を書き換えない
+    //     （_facing は +1 のまま。ロック中だけ ShotDir が上書きされる）。
+    //   ・ロック中は移動が遅くなる（LockMoveMul）＝照準を任せるあいだは足が重い、という取引。
+    private const float LockMoveMul = 0.8f;   // ロック中の移動速度倍率（ユーザー決定の目安 0.8）
+    private bool _locked;                     // ロックオン中か
+    private bool _lockHeld = true;            // トグルのエッジ検出（_flipHeld と同じ理由で true 始まり）
+    private Node2D? _lockTarget;              // 現在のロック先（ボス本体）
+    public bool LockedOn => _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
+    public Node2D? LockTarget => LockedOn ? _lockTarget : null;
+
+    // ロック中の狙い方向（自機→ボス）。ロックしていなければ従来どおり左右のみ。
+    private Vector2 AimVec
+    {
+        get
+        {
+            if (!LockedOn) return new Vector2(_facing, 0f);
+            var d = _lockTarget!.GlobalPosition - GlobalPosition;
+            return d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(_facing, 0f);
+        }
+    }
+    public Vector2 ShotDir => AimVec;
+    public float ShotAngle => LockedOn ? AimVec.Angle() : (_facing >= 0 ? 0f : Mathf.Pi);
+
+    // ── 照準方向の絵（char/v3/mina_aim/mina_aim_<方向>.png）──
+    //   角度から使う絵を引くのはここ1本だけ＝絵が増えても差し替えはこの表だけで済む。
+    //   素材は右半分ぶんだけ（r / ur / u / dr / d）。自機は右向きが基本で、ロック中もボスは
+    //   右側に居るのが通常なので左半分は用意しない。左を向く角度が来たら一番近い右向きの絵に
+    //   丸める（絵が無い方向で無表示にしない）。
+    //   角度は Godot 準拠（0=右・負=上・正=下）。境界は 22.5° 刻みの八方位の中点。
+    private static string AimSpriteFor(float angleRad)
+    {
+        float deg = Mathf.RadToDeg(angleRad);          // -180..180
+        if (deg > 90f) deg = 90f;                       // 左下 → 真下へ丸める
+        if (deg < -90f) deg = -90f;                     // 左上 → 真上へ丸める
+        if (deg <= -67.5f) return "u";
+        if (deg <= -22.5f) return "ur";
+        if (deg <   22.5f) return "r";
+        if (deg <   67.5f) return "dr";
+        return "d";
+    }
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
+    private string _aimNow = "";
+    private Texture2D? AimTexture(string dir)
+    {
+        if (_aimTex.TryGetValue(dir, out var t)) return t;
+        string path = $"res://char/v3/mina_aim/mina_aim_{dir}.png";
+        var tex = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        if (tex != null) _aimTex[dir] = tex;
+        return tex;
+    }
+
+    // ロックの入／切と対象の維持。ボスが居なければ黙って切る（道中で切り替えを持ち越さない）。
+    private void TickLockOn()
+    {
+        // 対象＝HPバーを持つ敵（＝ボス／中ボス）のうち、まだ浄化されていない最初の1体。
+        Node2D? boss = null;
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+            if (n is Enemy e && e.HasHpBar && !e.IsPurified) { boss = e; break; }
+
+        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
+        bool edge = key && !_lockHeld;
+        _lockHeld = key;
+
+        if (boss == null) { _locked = false; _lockTarget = null; return; }  // ボスが居ない＝ロックは無い
+        _lockTarget = boss;
+        if (edge && !Hud.BubblePaused)
+        {
+            _locked = !_locked;
+            if (Audio.Instance is { } au) au.Se(au.SfxUiMove, volDb: -18f, pitch: _locked ? 1.15f : 0.85f);
+        }
+    }
 
     // ───────── 回避（ドッジ）─────────
     // 入力＝ALT / パッド L3(LeftStick)。短い無敵で弾を「すり抜ける」攻めの回避。
@@ -464,6 +543,9 @@ public partial class Player : Area2D
         // 機動力強化で移動速度UP。低速（Focus）には乗せない：精密回避の速度は“調整済みの手触り”で、
         // 強化が乗ると細かい避けがかえって難しくなる（強化の逆効果）ため、通常速度だけを伸ばす。
         float speed = focus ? FocusSpeed : NormalSpeed * (_game?.MoveSpeedMul ?? 1f);
+        // ロックオン中は足を重くする＝照準を任せるあいだの対価（低速にも同じ率で掛ける）。
+        TickLockOn();
+        if (LockedOn) speed *= LockMoveMul;
 
         // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
@@ -728,6 +810,18 @@ public partial class Player : Area2D
             // 回避スピン中は ApplySpinFrame が FlipH を「回転フレームの流用」として握るので、ここでは触らず、
             // スピン側が _facing と XOR して合成する（EndDodge も _facing 基準へ戻す）。
             if (_dodgeTimer <= 0f) _sprite.FlipH = _facing < 0;
+            // ロック中は狙っている方向の絵に差し替える（弾がボスへ飛ぶのに絵が右向きのまま、を避ける）。
+            // 指さし（_pointActive）と回避スピン中は向こうが姿勢を握るので触らない。
+            if (_dodgeTimer <= 0f && !_pointActive)
+            {
+                string want = LockedOn ? AimSpriteFor(AimVec.Angle()) : "";
+                if (want != _aimNow)
+                {
+                    _aimNow = want;
+                    var tex = want.Length > 0 ? AimTexture(want) : null;
+                    _sprite.Texture = tex ?? _idleTex;   // 絵が無い方向は idle のまま＝欠けても事故らない
+                }
+            }
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
             // 前傾＋バンク：射撃方向への移動で前へ、上下移動で機首を振る（前進は深く・後退は浅い非対称バンク）。
