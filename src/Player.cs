@@ -748,6 +748,25 @@ public partial class Player : Area2D
             }
         }
 
+        // 敵本体との「めり込みっぱなし」被弾（AreaEntered だけでは取りこぼす）。
+        //   Area2D.AreaEntered は重なり始めの1回しか鳴らない。敵に触れて被弾 → 1.2秒の無敵、
+        //   その間も自機が敵の中に居続けると、無敵が明けても新しい侵入イベントが起きないため
+        //   **二度と被弾しない**（実測: カメオの中に32秒居座って残機の減りは1回だけ）。
+        //   スポーン無敵(1.5秒)の最中に敵と重なった場合も同じで、1回目の被弾すら消える。
+        //   ＝ユーザー実機指摘「敵にぶつかってもダメージが出ない」の正体。
+        //   無敵が明けているフレームだけ、今まさに重なっている敵を毎フレーム見て被弾させる。
+        if (!_invincible && _dodgeInv <= 0f && !_gameOver && Monitoring)
+        {
+            foreach (var area in GetOverlappingAreas())
+            {
+                if (area is Enemy oe && !oe.IsPurified)
+                {
+                    if (!QaPilot.GodActive) TakeHit();
+                    break;
+                }
+            }
+        }
+
         // グレイズ残光の減衰
         if (_grazeFlash > 0f)
             _grazeFlash = Mathf.Max(0f, _grazeFlash - GrazeFlashDecay * dt);
