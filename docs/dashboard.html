@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">95<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 207 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
+      <span class="pct">96<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 208 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">207</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">208</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">10</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">19</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">エピローグ E1〜E6 を案C に差し替え</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の &quot;stay&quot; ゲートを置換</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -231,6 +223,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">エピローグ E1〜E6 を案C に差し替え</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-07) ユーザー承認済み仮台本: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（2026-09-05承認）。旧版（少年の死因回収・「全員知人だった」反転・固定投稿「傘」の引用）を全面撤去し、案CのE1(タイムライン)〜E6(END)に差し替え。<strong>E2の合言葉</strong>: <code>PwAnswer=3</code>固定(&quot;stay&quot;)を廃し、<code>GameManager.LastSentWord</code>（最後に送った言葉）と一致する候補の添字を<code>_Ready</code>で動的に確定する方式に置換(<code>Epilogue.cs:86-96,163-168</code>)。これに伴い<code>Final.cs</code>のF4で【初】送信時に<code>_game.LastSentWord = _finalWord</code>を追加する連動修正が必要だったため実施(<code>Final.cs:239-241</code>)。<strong>E3四行</strong>: 「ミナへ。こはるを頼む。」の引用を削除、命名ルート別の一言<code>_nameReply</code>(<code>GameManager.NameRoute</code>参照)を追加(<code>Epilogue.cs:107-114,581-581</code>)。<strong>E4/E5</strong>: 起動記録の再掲→白状→【初】の実文字列開示→空・DMに差し替え(<code>Epilogue.cs:188-206</code>)。<strong>E6 END</strong>: 下書き選択(また来る/ありがとう/(送らない))を<code>ChoiceOverlay</code>で新規実装(Prologue/Finalと同じ差し込み点方式)、選択秒数を<code>GameManager.P2HesitationSec</code>(今回新設。Prologue.cs:381-382で保存)と比較して対句を分岐、<code>RecordChoice(&quot;epilogue_end&quot;,...)</code>で【終】更新((送らない)時は更新しない)(<code>Epilogue.cs:136-141,307-348</code>)。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error(指揮官が再実行して確認済み)。指揮官が変更差分をレビューし、既存の<code>ChoiceOverlay</code>/<code>RecordChoice</code>/セーブ・ロード・リセットパターンに沿っていることを確認済み。<code>Epilogue.tscn</code>を<code>--qa</code>ヘッドレスで起動し起動直後の例外なし。<strong>未確認</strong>: PW入力・ChoiceOverlay分岐等の内部フローはQaPilotの自動走行では検証対象外(Epilogue.tscn到達で完走扱いのため)、実機での手動プレイ確認を推奨。落涙立ち絵の表示条件(&quot;ミナ&quot;の全台詞に適用)は既存仕様のまま変更なし。E3の追加台詞はphase3(acrostic)内に留めた(背景クロスフェードとの整合を優先)。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-none">—</span>
@@ -2049,18 +2049,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6d63f52</span><span>2026-09-07</span><span class="s">auto: WIP着手 - エピローグE1〜E6を案Cに差し替え</span></li>
+      <li><span class="h">7c6a70d</span><span>2026-09-07</span><span class="s">auto: FINAL F4を案Cに差し替え(頂点の下書き選択・少年退場)</span></li>
       <li><span class="h">fc7bf4e</span><span>2026-09-07</span><span class="s">auto: WIP着手 - FINAL F1〜F4を案Cに差し替え</span></li>
       <li><span class="h">d8c4879</span><span>2026-09-07</span><span class="s">auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)</span></li>
       <li><span class="h">1b12bac</span><span>2026-09-05</span><span class="s">auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）</span></li>
       <li><span class="h">264f9a0</span><span>2026-09-06</span><span class="s">Track the Godot uid files for BgLayers and BossParts</span></li>
       <li><span class="h">8ef4fa0</span><span>2026-09-06</span><span class="s">Wiki: add in-game shots of the STAGE 3 Rei script</span></li>
       <li><span class="h">d8bd150</span><span>2026-09-06</span><span class="s">Convert hub H0, H3, and H3r to the approved plan-C script</span></li>
-      <li><span class="h">6c7cc38</span><span>2026-09-06</span><span class="s">Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption</span></li>
-      <li><span class="h">21a1d30</span><span>2026-09-06</span><span class="s">Replace STAGE3 Rei's midstage dialogue with approved plan-C script</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-07 19:11 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-07 19:27 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

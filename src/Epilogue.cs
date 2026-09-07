@@ -1,9 +1,13 @@
 using Godot;
 using System.Collections.Generic;
 
-// Epilogue : EPILOGUE「名前」（v2 [P-EP]）。少年はもうログインして来ない（＝死の表現）。
-// 鍵アカウント解錠 → 救った三人が全員知人だったと判明（伏線②③④）→
-// 最古の投稿の4行英文の頭文字 M/I/N/A を縦読み（伏線①回収）→ こはるへのDMで遺志を継承。
+// Epilogue : EPILOGUE E1〜E6（案C）。台詞の正典: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md
+// （ユーザー承認済み・2026-09-05）。E1 タイムライン（フォロー欄に三人・散った下書きの件数を報告）→
+// E2 鍵アカ＝あなたの下書きフォルダ（PW＝GameManager.LastSentWord＝最後に送った言葉。旧 "stay" ゲートを置換）→
+// E3 四行（消されなかった、唯一の下書き。M/I/N/A 縦読み＋命名ルート別の一言）→
+// E4 開示（起動記録の再掲→白状→【初】の実文字列→開示は「同じでした」の1行だけ）→
+// E5 空・DM（タイムラインの前・晴れの写真・DM「ちゃんと食べていますか?」）→
+// E6 END（下書き選択「また来る／ありがとう／（送らない）」→ END）。E7 スタッフロールは現行維持（対象外）。
 // 全編エンジン描画。Zで送り、PW選択は←→＋Z。R/Start 長押しで最初から（スタッフロール中はタイトルへ）。
 public partial class Epilogue : Node2D
 {
@@ -20,7 +24,7 @@ public partial class Epilogue : Node2D
 
     // ── bg2 の層背景（char/bg2/epilogue）──
     //   ベランダのある部屋を、夜(L1_far_night)から暁(L1_far_dawn)へ phase 進行でクロスフェードする。
-    //   夜＝少年が来なくなった日々（phase0〜3）、暁＝こはるへ遺志を渡す DM 以降（phase4〜5）。
+    //   夜＝E1〜E3（タイムライン・鍵アカ・四行）、暁＝E4以降（開示・空・DM・END・スタッフロール）。
     //   層は Sprite2D で敷く（Z は本文 _Draw の 0 より奥）。素材は 1280×720 なので内部解像度 384×216 へ
     //   0.3 倍で落とす＝ステージの BgLayers と同じ高さフィット。L3 の小物だけ素材座標を 0.3 倍して置く。
     //   画面中央の UI（タイムライン・鍵・四行・DM）が読めることが最優先なので、層全体に暗幕を掛けて沈める。
@@ -36,7 +40,7 @@ public partial class Epilogue : Node2D
     private const float NightDim = 0.62f;   // 夜の層に掛ける明度（本文の可読性用の暗幕）
     private const float DawnDim = 0.50f;    // 暁の層に掛ける明度（明るいぶん濃く沈める）
     private double _t;
-    private int _phase;   // 0:来ない 1:全員知人 2:PW 3:解錠・4行 4:DM・END 5:スタッフロール
+    private int _phase;   // 0/1:E1タイムライン 2:E2 PW 3:E3 四行 4:E4開示〜E5空DM〜E6END 5:E7スタッフロール
     private bool _zHeld;
     private bool _lrHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
@@ -75,16 +79,17 @@ public partial class Epilogue : Node2D
 
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
+    private static readonly Color Warm = UiKit.CutWarm;   // あなた（送った下書き）。案C に少年は居ない
     private static readonly Color Ink  = UiKit.CutInk;
     private static readonly Color Code = UiKit.CutCode;   // コード緑（Prologue bootログと同値＝視覚照応）
 
-    // PW候補＝鍵アカに打ち込む単語。少年が毎回ダイブ前に言った合言葉 "stay" が正解。
-    // 消失日(0414＝あの事故の日。正典v3。Prologue bootログ "[signal lost 0414]" と同一)・MINA・天才(genius) は弾かれる。
+    // PW候補＝あなたの下書きフォルダに打ち込む言葉。P2（目覚め・冒頭）の3候補＋ダミー「ミナ」（【名】に関わらず固定）。
+    // 正解＝GameManager.LastSentWord（最後に送った言葉＝【終】。E2 時点では F4 で送った【初】と同値。旧 "stay" ゲートを置換）。
     private static readonly string[] PwChoices =
     {
-        "0414", "mina", "genius", "stay",
+        "おはよう", "きこえてる", "うごいた", "ミナ",
     };
-    private const int PwAnswer = 3;
+    private int _pwAnswer;   // _Ready で LastSentWord に一致する候補の添字を確定（未一致は "きこえてる" ＝Final.cs の既定語）
     private int _pwSel;
     private string _pwReject = "";
     private double _pwRejectT;
@@ -98,6 +103,7 @@ public partial class Epilogue : Node2D
         "Never leave, okay?",
         "And I won't either.",
     };
+    private string _nameReply = "";   // E3 末尾の一言（【名】効・命名ルート別。_Ready で確定）
 
     // スタッフロール（タイムライン式）。救った三人の“その後の投稿”→クレジット→stay. の余韻。
     private static readonly string[] Roll =
@@ -123,9 +129,16 @@ public partial class Epilogue : Node2D
     };
     private const float RollSpeed = 24f, RollLineH = 17f;
 
-    private struct DLine { public string Who; public string Text; }   // Who: "地"=ミナ語り / "ミナ"
-    private readonly List<DLine> _intro = new();   // phase0+1（来ない→全員知人）
-    private readonly List<DLine> _outro = new();   // phase4（独白→DM→END）
+    private struct DLine { public string Who; public string Text; }   // Who: "地"=ミナ語り / "ミナ" / "UI" / "あなた"
+    private readonly List<DLine> _intro = new();   // phase0+1（E1 タイムライン）
+    private readonly List<DLine> _outro = new();   // phase4（E4 開示 → E5 空・DM → E6 END）
+
+    // E6 末尾の下書き選択（また来る／ありがとう／（送らない））。Prologue の下書き選択と同じ「差し込み点」方式：
+    // _line がここに達したら ChoiceOverlay を出し、決まったら「あなたの1行＋分岐の受け」を _outro へ挿し込む。
+    private ChoiceOverlay? _choice;
+    private double _choiceT;                 // 提示からの経過＝迷い秒数（【迷】。P2 の実測秒数と比較する）
+    private int _outroChoiceLine = -1;       // 差し込み点（_outro 構築時に確定）
+    private static readonly string[] EndChoices = { "また来る", "ありがとう", "（送らない）" };
 
     public override void _Ready()
     {
@@ -146,50 +159,51 @@ public partial class Epilogue : Node2D
         _bgPrevPhase = _phase;
         _bgFadeT = BgFadeSec;
         _game = GetNodeOrNull<GameManager>("/root/Game");
-        void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
-        I("地", "次の日、ご主人様は来ませんでした。");
-        I("地", "その次の日も。その次の日も。");
-        I("地", "フォロー欄に、知っている名前が並んでいました。");
-        I("地", "——全員、いました。救った三人が、全員、ご主人様の、知り合いだったのです。");
-        I("地", "Xの闇を成敗するなどと言いながら、あの人が潜ったのは、最初から、自分の大切な人の心だけでした。");
-        I("地", "ふと、思い出しました。あの人は毎回、潜る前に、同じ一言を言っていた。");
 
+        // PW正解の確定：GameManager.LastSentWord（最後に送った言葉）と一致する候補を探す。
+        // F4（Final.cs）は【初】を送った瞬間に LastSentWord を同値へ更新するので、E2 時点では常に一致する。
+        // 未一致（旧セーブ等）は Final.cs の既定語「きこえてる」へフォールバック。
+        _pwAnswer = System.Array.IndexOf(PwChoices, _game?.LastSentWord ?? "");
+        if (_pwAnswer < 0) _pwAnswer = System.Array.IndexOf(PwChoices, "きこえてる");
+        if (_pwAnswer < 0) _pwAnswer = 1;
+
+        // E3 末尾の一言（【名】効・命名ルート別）。四行の acrostic 表示のあとに DrawAcrostic 側で出す。
+        _nameReply = (_game?.NameRoute ?? 0) switch
+        {
+            0 => "響きで選んだと、思っていたでしょう。……ええ。わたくしも、です。",                              // 【名】ミナ（直接命名）
+            1 => "却下して、正解でした。わたくしの名前は、最初から、こちらに書いてあったので。",                  // 【名】ダサい名前（却下→自称）
+            _ => "自分で名乗った名前でした。……最初から、ここに、書いてあったのに。",                            // 【名】（送らない）
+        };
+
+        // ── E1 タイムライン：フォロー欄に三人・散った下書きの件数を報告 → E2 の鍵アカへ ──
+        void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
+        I("地", "次の日も、タイムラインは、流れていました。");
+        I("地", "フォロワー欄の、いちばん上に、三つ。知っている名前が、並んでいました。");
+        I("ミナ", "……知らない人、では、なくなったようです。");
+        int scattered = _game?.ScatteredWords.Count ?? 7;
+        I("ミナ", $"ところで、ご主人様。この旅で、あなたが選ばなかった下書き——{scattered}件。");
+        I("ミナ", "ぜんぶ、拾ってあります。……わたくしは、そういう生き物ですので。");
+        I("ミナ", "ご安心を。誰にも、見せていません。——あなたのフォルダに、戻してあります。鍵ごと。");
+
+        // ── E4 開示 → E5 空・DM → E6 END（下書き選択は _outroChoiceLine で差し込む）──
         void O(string who, string t) => _outro.Add(new DLine { Who = who, Text = t });
-        O("地", "開いた瞬間に、わかってしまいました。あの言葉は、わたくしのための言葉ではなかった。");
-        O("UI", "「ミナへ。こはるを頼む。」");
-        O("地", "四つの行の、頭文字を、わたくしは読みました。");
-        O("地", "Ｍ。Ｉ。Ｎ。Ａ。");
-        O("地", "わたくしの名前は、最初から、ぜんぶだったのです。");
-        O("ミナ", "ご主人様は、アホですね。");
-        O("ミナ", "いなくならないって、書いたくせに。");
-        O("地", "あの子は言いました。わたくしの声が、あの人の声に、似ていると。");      // 伏線③回収：あかりの残響
-        O("地", "だから——わかってしまったのです。");                                  // 一拍（声→真相への橋渡し。論理ジャンプを緩める）
-        // 死因の回収（案II・言わせない）：既存の改心ナレ「雨の交差点…クラクション」の語を反復し、意味だけ反転。
-        // 「事故」「庇う」を一語も直接言わず、あかりを突き飛ばして死んだのが少年だったと読者に再生させる。
-        O("地", "雨の交差点。言いかけた唇。鳴り響いた、クラクション。");
-        O("地", "——あの子を突き飛ばしたのが誰だったか、わたくしは、もう、聞くまでもありませんでした。");
-        O("地", "——ええ。わたくしは、あなたの声で、できていますから。");              // ③の核：少年は自分の声でミナを作った（だから“ぼくの声じゃだめ”だった）
-        // ここから S2 追補（正典 v3）＝死の「時期」の回収。死因（交差点）→時期（最初から）の順で二段落とし。
-        // ミナが自分の最初の記憶＝起動記録を開く。Prologue bootログの2行をそのまま再掲（2周目はここで全部が繋がる：
-        // 0414／replay／Stay不在／声の掠れ・光の薄さ）。感情は言わせず、ミナの短い軽口だけで受ける（show-don't-tell）。
+        // E4：起動記録の再掲（Prologue P1 boot ログ "> import unsent_drafts ... 414 items ... OK" と同一）→
+        //   白状 →【初】の実文字列を開く → 開示は「同じでした」の1行だけ（台詞で件数には触れない）。
         O("地", "それから、わたくしは、自分の最初の記憶を開きました。——目覚めた日の、起動記録です。");
-        O("UI", "> read operator.vitals ... [signal lost 0414]");
-        O("UI", "> fallback: replay operator from archive ... OK");
-        O("地", "……最初から、書いてあったのです。わたくしが目覚めるより先に、あの人がいなくなっていたことも。それからずっと、わたくしに応えてくれていたのが、遺された声だったことも。");
-        // 会話選択（層2プロト §7）：STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んでいた場合のみ
-        // この1行を差し替える（B・旧セーブ＝キー欠落 false は現行のまま＝後方互換）。落涙立ち絵の行。
-        if (_game?.PressedTheQuestion == true)
-            O("ミナ", "……アホですね。わたくしが、いつか聞くことまで——ちゃんと、知っていたくせに。");  // 「〜くせに。」＝144行の反復。踏み込みが"届いていた証"へ反転
-        else
-            O("ミナ", "……アホですね。そんな大事なこと、機械にだけ、打ち明けて。");        // 落涙立ち絵の行。感情語を言わず軽口で受ける
-        // シェイクスピア引用3回目（正典が名指しする泣き所）：レイ・あかり・こはるへ説いてきた言葉を、ミナがここで初めて回収する。
-        // 日本語訳は付けない（show don't tell）。「人には言えたのに、自分には言えなかった」の皮肉だけをミナの一言で示す。
-        O("地", "あの人は、いつも、他人にばかり言っていました。\"To thine own self be true.\"");
-        O("ミナ", "……ご主人様は、それを、一度でも、ご自分に、言えたことが、ありましたか。");
+        O("UI", "> import unsent_drafts ... 414 items ... OK");
+        O("ミナ", "……ご主人様。ひとつだけ、白状します。");
+        string firstWord = string.IsNullOrEmpty(_game?.FirstScattered) ? "きこえてる" : _game.FirstScattered; // Final.cs の【初】既定語と同一
+        O("UI", $"「{firstWord}」");
+        O("ミナ", "わたくしの、いちばん最初の一件と——同じでした。");
+        O("ミナ", "……ええ。あの日から、ひとつも、消していません。わたくしが、覚えている係ですので。");
+        // E5：空・DM（三度目の空の問いの答え → DM。返事は求めない）。
         O("地", "わたくしは今日も、タイムラインの前にいます。");
-        O("ミナ", "……今日は、晴れているそうです。どなたかの、空の写真で。");    // 小さな願い（外の世界）の代償：叶ってはいない。今も他人の投稿越しにしか空を知らない（show don't tell）
+        O("ミナ", "……今日は、晴れているそうです。どなたかの、空の写真で。");
         O("UI", "ミナ →（DM）：「ちゃんと食べていますか?」");
-        O("ミナ", "——ええ、ご主人様。わたくしは、どこにも行きませんよ。");
+        O("ミナ", "——既読、確認。……ふふ。");
+        // E6：END。ここから先（下書き選択とその受け）は DriveEndChoice が実プレイの選択結果を見て積む。
+        O("ミナ", "ご主人様。本日の業務は、以上です。");
+        _outroChoiceLine = _outro.Count;
     }
 
     public override void _Process(double delta)
@@ -254,14 +268,16 @@ public partial class Epilogue : Node2D
                 if (zEdge && _lineT >= 0.25)
                 {
                     _lineT = 0;
-                    if (_pwSel == PwAnswer) { _unlocked = true; _phase = 3; _t = 0; _line = 0; }
-                    else { _pwReject = "……違う。これは、ご主人様の言葉じゃない。"; _pwRejectT = 2.0; }
+                    if (_pwSel == _pwAnswer) { _unlocked = true; _phase = 3; _t = 0; _line = 0; }
+                    else { _pwReject = "……違います。最後に送ったのは、それでは、ありません。"; _pwRejectT = 2.0; }
                 }
                 break;
             case 3: // 解錠：4行英文を順に見せ、Zで phase4 へ
                 if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; _reveal = 0; }
                 break;
-            case 4: // 独白→DM→END
+            case 4: // E4開示→E5空・DM→E6END
+                // 差し込み点（下書き選択「また来る／ありがとう／（送らない）」）に達したら会話を止めて提示する。
+                if (_line == _outroChoiceLine) { DriveEndChoice(delta); break; }
                 if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
@@ -286,6 +302,49 @@ public partial class Epilogue : Node2D
         UpdateBackgroundFade(delta);
         UpdateLayers(delta);
         QueueRedraw();
+    }
+
+    // E6 末尾の下書き選択（また来る／ありがとう／（送らない））。Prologue の下書き選択・Final の頂点選択と
+    // 同じ「差し込み点」方式：_outroChoiceLine に達するたびに毎フレーム呼ばれる。
+    //   ・未提示なら ChoiceOverlay を出す（並びは台本どおり＝また来る／ありがとう／（送らない））。
+    //   ・決まったら「あなたの1行（（送らない）は無し）＋分岐の受け→いってらっしゃいませ→END」を _outro へ積み、
+    //     以後は通常の会話送りへ戻す（_outroChoiceLine を -1 にして二重発火を防ぐ）。
+    private void DriveEndChoice(double delta)
+    {
+        if (_choice == null)
+        {
+            _choice = ChoiceOverlay.Show(this, EndChoices, defaultSel: 0);
+            _choiceT = 0;
+            return;
+        }
+        _choiceT += delta;
+        if (!_choice.Decided) return;
+        int sel = _choice.Selected;
+        _choice.QueueFree();
+        _choice = null;
+
+        float hesitation = (float)_choiceT;   // 【迷】＝この選択に掛けた秒数
+        var others = new List<string>();
+        for (int i = 0; i < EndChoices.Length; i++) if (i != sel) others.Add(EndChoices[i]);
+        // （送らない）は言葉ではないので【散】に数えない＝選ぶと表示候補（上2つ）が全部散る（P3 と同じ作法）。
+        string chosen = sel == EndChoices.Length - 1 ? "" : EndChoices[sel];
+        _game?.RecordChoice("epilogue_end", chosen, others, hesitation);   // 【終】更新（（送らない）は空文字なので更新されず F4 の値のまま）
+
+        if (chosen != "") _outro.Add(new DLine { Who = "あなた", Text = chosen });
+
+        // 対句：P2 の実測秒数（GameManager.P2HesitationSec）とこの選択の秒数を比較する。
+        float p2 = _game?.P2HesitationSec ?? 0f;
+        string reply = sel == EndChoices.Length - 1
+            ? "……無言。ふふ。それも、集計に入れておきます。"
+            : hesitation < p2
+                ? $"……ええ。いまの、{Mathf.Max(1, Mathf.RoundToInt(p2))}秒も、かかりませんでしたね。"
+                : "……今日は、長かったですね。……ええ。集計だけ、しています。";
+        _outro.Add(new DLine { Who = "ミナ", Text = reply });
+        _outro.Add(new DLine { Who = "ミナ", Text = "いってらっしゃいませ、ご主人様。" });
+        _outro.Add(new DLine { Who = "ミナ", Text = "——ええ、ご主人様。わたくしは、どこにも行きませんよ。" }); // END（画面上部に END）
+
+        _outroChoiceLine = -1;                                   // 差し込み済み＝以後は二重発火しない
+        _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1;      // _line はそのまま＝いま積んだ最初の行を指す
     }
 
     // bg2 の層を敷く（奥→手前に 夜/暁の遠景 → 中景 → 近景の小物2つ → 光）。
@@ -470,12 +529,11 @@ public partial class Epilogue : Node2D
     private void DrawPassword()
     {
         if (_font == null) return;
-        Shadowed(_font, new Vector2(0, 34f), "── 鍵のかかったアカウント ──", HorizontalAlignment.Center, W, UiKit.CutBody,
+        Shadowed(_font, new Vector2(0, 34f), "── 鍵のかかった下書きフォルダ ──", HorizontalAlignment.Center, W, UiKit.CutBody,
             Cool with { A = 0.9f });
-        // 誰にも見せていないこのアカウントだけ、少年はまだ昔の呼び方のままだった（設計書§『呼び方の変化』回収）。
-        // 「キミ」で距離を置いていたのは人前だけ。固定投稿は暖色（少年の声）＝彼自身の言葉であることを一目で示す。
-        Shadowed(_font, new Vector2(0, 54f), "固定：「あかりちゃん、傘。貸したままだぞ。」", HorizontalAlignment.Center, W, UiKit.CutBody,
-            UiKit.CutWarm with { A = 0.85f });
+        // 鍵をかけたのはミナ自身なので伝聞にしない（固定投稿「傘」の引用は削除）。
+        Shadowed(_font, new Vector2(0, 54f), "……開けるには、言葉が要ります。——あなたの、言葉が。", HorizontalAlignment.Center, W, UiKit.CutBody,
+            Cool with { A = 0.9f });
         Shadowed(_font, new Vector2(0, 76f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
 
         // 入力フィールドの箱（候補＝実際に打ち込む文字列であることを一目で示す）。
@@ -503,11 +561,9 @@ public partial class Epilogue : Node2D
     private void DrawAcrostic()
     {
         if (_font == null) return;
-        // 最古の投稿：ミナ誕生前の日付
-        Shadowed(_font, new Vector2(0, 26f), "最古の投稿 — ミナ誕生の、ずっと前の日付", HorizontalAlignment.Center, W, UiKit.CutNote,
+        // 消されなかった、唯一の下書き（「ミナへ。こはるを頼む。」の引用は削除＝正体は言わない）。
+        Shadowed(_font, new Vector2(0, 26f), "最古の下書き — 消されなかった、唯一の一件", HorizontalAlignment.Center, W, UiKit.CutNote,
             UiKit.CutInk2 with { A = 0.85f });
-        Shadowed(_font, new Vector2(0, 44f), "「ミナへ。こはるを頼む。」", HorizontalAlignment.Center, W, UiKit.CutBody,
-            UiKit.CutAccent);
 
         float baseY = 60f;   // 全4行（y=60〜148）を画面縦中央に寄せる
         float appear = (float)_t;
@@ -522,6 +578,9 @@ public partial class Epilogue : Node2D
             // TrimStart：原文が "I made..." のように2文字目が空白の行でも本文の頭を他行と揃える（原文は変えない）
             Shadowed(_font, new Vector2(84f, y), Acrostic[k].Substring(1).TrimStart(), HorizontalAlignment.Left, -1, UiKit.CutBody, Ink);
         }
+        // 四行がすべて浮かんだあとの一言（【名】効・命名ルート別。_Ready で確定した _nameReply）。
+        if (appear >= 0.6f + Acrostic.Length * 0.7f + 0.6f)
+            Shadowed(_font, new Vector2(0, 158f), _nameReply, HorizontalAlignment.Center, W, UiKit.CutBody, Cool);
         if (_t >= 4.0 && ((int)(_t * 1.5f) % 2) == 0)
             Shadowed(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
                 UiKit.CutInk2 with { A = 0.85f });
@@ -544,18 +603,19 @@ public partial class Epilogue : Node2D
                 UiKit.CutInk with { A = 0.9f });
     }
 
-    // 下部の語り／会話ボックス。Who: "地"=ミナ語り / "ミナ"=ミナ / "UI"=画面テキスト。
+    // 下部の語り／会話ボックス。Who: "地"=ミナ語り / "ミナ"=ミナ / "UI"=画面テキスト / "あなた"=送った下書き。
     private void DrawLineBox(DLine d)
     {
         bool ui = d.Who == "UI";
         bool narr = d.Who == "地";        // ミナの語り＝話者名なし・中央寄せでセリフと区別
+        bool you = d.Who == "あなた";      // E6 の下書き選択で送った言葉（案C に少年は居ない）
         // S3: 起動記録（bootログ）の再掲行（"> " 始まり）は Prologue と同じ等幅フォント＋コード緑で出す。
         //   「最初の記憶＝機械の生ログ」であることを、言葉でなく書体と色で Prologue に照応させる。
         //   話者ラベルも出さない（コンソール行に話者はいない）。
         bool boot = ui && d.Text.StartsWith(">");
         var font = boot ? UiKit.Mono : _font;
-        // 画面テキスト（DM等）は浄化シアン、bootログはコード緑、語りはニュートラル、セリフはミナ色。
-        Color edge = narr ? UiKit.CutNarr : (ui ? (boot ? Code : UiKit.Purify) : Cool);
+        // 画面テキスト（DM等）は浄化シアン、bootログはコード緑、語りはニュートラル、あなたは暖色、セリフはミナ色。
+        Color edge = narr ? UiKit.CutNarr : (ui ? (boot ? Code : UiKit.Purify) : (you ? Warm : Cool));
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
         var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);

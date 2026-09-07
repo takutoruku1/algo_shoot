@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-07 19:11 UTC
+> 生成: 2026-09-07 19:27 UTC
 
 ## 消化率
 
 ```
-███████████████████░  95%   (完了 207 / 対象 217)
+███████████████████░  96%   (完了 208 / 対象 217)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 207 |
+| ✅ 完了 | 208 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 10 |
+| 📋 残り | 9 |
 | ⛔ 保留（人間の判断待ち） | 19 |
 
 ## 🔨 いま作業中
@@ -22,13 +22,13 @@ _なし_
 
 ## 📋 次にやること
 
-- `P1` エピローグ E1〜E6 を案C に差し替え
 - `P1` 中ボス初回撃破時に退場演出が再生されないまま遷移する
 - `P2` 投稿文集の層付きプールを新設
 - `P2` 病みポストを見つける（案A・撃って届ける）
 - `P3` 引用の嵐（S3-5b）を StageRei の新 step として実装
+- `P3` 三面と冒頭のスクショを撮り直して wiki の図を更新
 
-…ほか 5 件
+…ほか 4 件
 
 ## ⛔ 保留（自動では進められない）
 
@@ -54,6 +54,7 @@ _なし_
 
 ## ✅ 完了
 
+- エピローグ E1〜E6 を案C に差し替え
 - FINAL F1〜F4 を案C に差し替え
 - (バグ修正・夜間自動開発の並行実行監査で発見) 中ボス撃破後の中の人表示が即消える不具合を修正
 - `P2` ハブ H0〜H3 と返信を案C に差し替え
@@ -264,11 +265,11 @@ _なし_
 
 ## 直近のコミット
 
+- `6d63f52` 2026-09-07 auto: WIP着手 - エピローグE1〜E6を案Cに差し替え
+- `7c6a70d` 2026-09-07 auto: FINAL F4を案Cに差し替え(頂点の下書き選択・少年退場)
 - `fc7bf4e` 2026-09-07 auto: WIP着手 - FINAL F1〜F4を案Cに差し替え
 - `d8c4879` 2026-09-07 auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)
 - `1b12bac` 2026-09-05 auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）
 - `264f9a0` 2026-09-06 Track the Godot uid files for BgLayers and BossParts
 - `8ef4fa0` 2026-09-06 Wiki: add in-game shots of the STAGE 3 Rei script
 - `d8bd150` 2026-09-06 Convert hub H0, H3, and H3r to the approved plan-C script
-- `6c7cc38` 2026-09-06 Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption
-- `21a1d30` 2026-09-06 Replace STAGE3 Rei's midstage dialogue with approved plan-C script

@@ -340,6 +340,7 @@ public partial class GameManager : Node
     public int NameRoute;                                // 命名ルート 0〜2（冒頭 P2 の3択）
     public string LastSentWord = "";                     // 最後に送った言葉（E2 の合言葉。既存の "stay" ゲートを置換）
     public float HesitationSec;                          // 迷い秒数の累計（選択に掛けた時間）
+    public float P2HesitationSec;                        // P2（目覚め）の迷い秒数だけ単独保存（E6 の対句「{P2秒}」比較に使う）
 
     // 1つの選択の結果を記録する。id ごとに上書きできる＝選び直し／リトライで二重計上しない。
     //   chosen … 選ばれた言葉（散らない）／others … 選ばれなかった候補（＝散る言葉）
@@ -904,6 +905,7 @@ public partial class GameManager : Node
         data["nameRoute"] = NameRoute;
         data["lastSentWord"] = LastSentWord;
         data["hesitationSec"] = HesitationSec;
+        data["p2HesitationSec"] = P2HesitationSec;
         // ハブ再訪小話の既読キー集合。後方互換：キー無し＝空扱い。
         var ids = new Godot.Collections.Array();
         foreach (var key in _idleDialogSeen)
@@ -993,6 +995,7 @@ public partial class GameManager : Node
         NameRoute = data.ContainsKey("nameRoute") ? Mathf.Clamp(data["nameRoute"].AsInt32(), 0, 2) : 0;
         LastSentWord = data.ContainsKey("lastSentWord") ? data["lastSentWord"].AsString() : "";
         HesitationSec = data.ContainsKey("hesitationSec") ? data["hesitationSec"].AsSingle() : 0f;
+        P2HesitationSec = data.ContainsKey("p2HesitationSec") ? data["p2HesitationSec"].AsSingle() : 0f;
         // ハブ再訪小話の既読キー復元（キー無し＝旧セーブは空＝後方互換）。
         _idleDialogSeen.Clear();
         if (data.ContainsKey("idleDialogSeen"))
@@ -1026,7 +1029,7 @@ public partial class GameManager : Node
         PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear();
-        FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
+        FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f; P2HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、やさしさ倍率・murk・自機の濁りが濁ったまま描かれる。

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-07 19:11 UTC",
+  "generated": "2026-09-07 19:27 UTC",
   "counts": {
-    "todo": 10,
+    "todo": 9,
     "wip": 0,
     "blocked": 19,
-    "done": 207
+    "done": 208
   },
-  "percent": 95,
+  "percent": 96,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "エピローグ E1〜E6 を案C に差し替え",
-      "worker": "engineer",
-      "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の \"stay\" ゲートを置換"
-    },
     {
       "priority": "P1",
       "title": "中ボス初回撃破時に退場演出が再生されないまま遷移する",
@@ -187,6 +181,12 @@
     }
   ],
   "done": [
+    {
+      "priority": null,
+      "title": "エピローグ E1〜E6 を案C に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-07) ユーザー承認済み仮台本: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（2026-09-05承認）。旧版（少年の死因回収・「全員知人だった」反転・固定投稿「傘」の引用）を全面撤去し、案CのE1(タイムライン)〜E6(END)に差し替え。**E2の合言葉**: `PwAnswer=3`固定(\"stay\")を廃し、`GameManager.LastSentWord`（最後に送った言葉）と一致する候補の添字を`_Ready`で動的に確定する方式に置換(`Epilogue.cs:86-96,163-168`)。これに伴い`Final.cs`のF4で【初】送信時に`_game.LastSentWord = _finalWord`を追加する連動修正が必要だったため実施(`Final.cs:239-241`)。**E3四行**: 「ミナへ。こはるを頼む。」の引用を削除、命名ルート別の一言`_nameReply`(`GameManager.NameRoute`参照)を追加(`Epilogue.cs:107-114,581-581`)。**E4/E5**: 起動記録の再掲→白状→【初】の実文字列開示→空・DMに差し替え(`Epilogue.cs:188-206`)。**E6 END**: 下書き選択(また来る/ありがとう/(送らない))を`ChoiceOverlay`で新規実装(Prologue/Finalと同じ差し込み点方式)、選択秒数を`GameManager.P2HesitationSec`(今回新設。Prologue.cs:381-382で保存)と比較して対句を分岐、`RecordChoice(\"epilogue_end\",...)`で【終】更新((送らない)時は更新しない)(`Epilogue.cs:136-141,307-348`)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。指揮官が変更差分をレビューし、既存の`ChoiceOverlay`/`RecordChoice`/セーブ・ロード・リセットパターンに沿っていることを確認済み。`Epilogue.tscn`を`--qa`ヘッドレスで起動し起動直後の例外なし。**未確認**: PW入力・ChoiceOverlay分岐等の内部フローはQaPilotの自動走行では検証対象外(Epilogue.tscn到達で完走扱いのため)、実機での手動プレイ確認を推奨。落涙立ち絵の表示条件(\"ミナ\"の全台詞に適用)は既存仕様のまま変更なし。E3の追加台詞はphase3(acrostic)内に留めた(背景クロスフェードとの整合を優先)。"
+    },
     {
       "priority": null,
       "title": "FINAL F1〜F4 を案C に差し替え",
@@ -1432,6 +1432,16 @@
   ],
   "commits": [
     {
+      "hash": "6d63f52",
+      "date": "2026-09-07",
+      "subject": "auto: WIP着手 - エピローグE1〜E6を案Cに差し替え"
+    },
+    {
+      "hash": "7c6a70d",
+      "date": "2026-09-07",
+      "subject": "auto: FINAL F4を案Cに差し替え(頂点の下書き選択・少年退場)"
+    },
+    {
       "hash": "fc7bf4e",
       "date": "2026-09-07",
       "subject": "auto: WIP着手 - FINAL F1〜F4を案Cに差し替え"
@@ -1460,16 +1470,6 @@
       "hash": "d8bd150",
       "date": "2026-09-06",
       "subject": "Convert hub H0, H3, and H3r to the approved plan-C script"
-    },
-    {
-      "hash": "6c7cc38",
-      "date": "2026-09-06",
-      "subject": "Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption"
-    },
-    {
-      "hash": "21a1d30",
-      "date": "2026-09-06",
-      "subject": "Replace STAGE3 Rei's midstage dialogue with approved plan-C script"
     }
   ]
 }

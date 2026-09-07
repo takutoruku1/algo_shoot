@@ -378,6 +378,7 @@ public partial class Prologue : Node2D
                 var others = new List<string>();
                 for (int i = 0; i < P2Choices.Length; i++) if (i != sel) others.Add(P2Choices[i]);
                 _p2Sec = hesitation;
+                if (_game != null) _game.P2HesitationSec = hesitation; // E6 の対句「{P2秒}」比較用に単独保存
                 _game?.RecordChoice("p2", sent, others, hesitation);
                 _talk.Insert(_line, L(WhoYou, sent, ""));
                 _talk.InsertRange(_line + 1, P2Reply(sent));

@@ -238,6 +238,9 @@ public partial class Final : Node2D
         }
 
         _choiceResolved = true;
+        // 【初】を送った瞬間に【終】（最後に送った言葉）も更新する（正典 E2 の合言葉はこの値）。
+        // RecordChoice は呼ばない＝【散】には計上しないが、LastSentWord だけは直接反映する。
+        if (_game != null) _game.LastSentWord = _finalWord;
         AppendLine("あなた", _finalWord);                                                         // 【初】拾（＝【終】）
         AppendLine("ミナ", "…………。");                                                            // ここで BGM 停止。無音
         AppendLine("ミナ", "……その言葉。……ええ。届きました。");                                    // 正体は言わない
