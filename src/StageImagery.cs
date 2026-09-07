@@ -112,42 +112,18 @@ public partial class StageImagery : Node2D
 
     private static float Frac(float v) => v - Mathf.Floor(v);
 
-    // 匿名アカウントの @ハンドルを決定論生成（@nanashi_3942 風）。
+    // 背景カードの「他人」のアカウント。表・名前の作りは src/SnsVoices.cs（Hub の埋め草カードと同じ表を引く）
+    //   ＝道中の背景で見た名前が、ハブのタイムラインにも同じ顔（アイコン）で並ぶ。
     // 表示名と @ハンドルは対にする（同じ添字を引く）＝「名前とIDが噛み合った他人」に見せる。
-    // ジャンルを散らす: 社会人/学生/オタク/創作/健康/生活/趣味 …（2026-09-07 ユーザー指示で「ふぉろわ」等の
-    // ひらがな名を廃し、実在感のある架空のニックネーム20種へ）。
-    private static readonly (string Name, string Handle)[] Voices =
-    {
-        ("残業カフェイン", "zangyo_cafe"),      // 社会人
-        ("定時で帰れない", "teiji_muri"),
-        ("有給消化中", "yukyu_now"),
-        ("通勤2時間", "tsukin_2h"),
-        ("課題やってない", "kadai_zero"),        // 学生
-        ("テスト前逃避", "test_toohi"),
-        ("推し不足", "oshi_busoku"),            // オタク・推し活
-        ("同接見守り隊", "dosetsu_mimamori"),
-        ("積みゲー崩し", "tsumige_kuzushi"),
-        ("原稿から逃走", "genko_tobo"),          // 創作
-        ("三日坊主の民", "mikka_bozu"),
-        ("低浮上ぎみ", "teifujo"),
-        ("睡眠負債", "suimin_fusai"),            // 健康・生活
-        ("胃が痛い", "i_ga_itai"),
-        ("自炊してえらい", "jisui_erai"),
-        ("洗濯物と格闘", "sentaku_tatakai"),
-        ("終電ダッシュ", "shuden_dash"),
-        ("散歩が趣味", "sanpo_suki"),            // 趣味
-        ("観葉植物係", "kanyo_gakari"),
-        ("深夜ラジオ派", "shinya_radio"),
-    };
-    private int VoiceIndex(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * Voices.Length) % Voices.Length;
+    private int VoiceIndex(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
     private string Handle(int i)
     {
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return $"@{Voices[VoiceIndex(i)].Handle}_{num}";
+        return $"@{SnsVoices.At(VoiceIndex(i)).Handle}_{num}";
     }
 
-    // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）を決定論生成。
-    private string DisplayName(int i) => Voices[VoiceIndex(i)].Name;
+    // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）。
+    private string DisplayName(int i) => SnsVoices.At(VoiceIndex(i)).Name;
 
     // 相対時刻「· 2時間」等。決定論で 分/時間 を散らす（中黒「·」で区切る）。
     private string RelTime(int i)

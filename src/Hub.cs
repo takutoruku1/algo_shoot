@@ -23,6 +23,7 @@ public partial class Hub : Node2D
         public Kind Sort;
         public string RelT;       // 相対時刻（Filler は生成規則で散らす。三人は従来の RelTime）
         public bool Redacted;     // 層2（病みサイン）＝伏字が明滅する埋め草。声のあるカードと同じ印を持つ
+        public int Icon;          // 埋め草のアイコン番号（1..SnsVoices.IconCount。0＝アイコンを持たない＝三人とミナ）
     }
     private enum Kind { Voice, Filler, Pinned }
     private Entry[] _entries = System.Array.Empty<Entry>();
@@ -49,6 +50,8 @@ public partial class Hub : Node2D
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
     private Texture2D? _minaFace;
+    // 埋め草アカウントのアイコン（添字＝SnsVoices の Icon 番号。1..IconCount。[0] は未使用）。
+    private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
 
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _dived;
@@ -355,6 +358,7 @@ public partial class Hub : Node2D
             IsFinal = false, Id = $"filler{i}", Scene = "", Name = FillerName(i), Handle = FillerHandle(i),
             Tweet = body, Initial = "", Unlocked = true, Cleared = false,
             Sort = Kind.Filler, RelT = FillerRelTime(i), Redacted = layer == PostPool.Layer.L2,
+            Icon = SnsVoices.At(FillerVoice(i)).Icon,
             Replies = FillerCount(i, 0), Reposts = FillerCount(i, 1), Likes = FillerCount(i, 2),
         };
     }
@@ -390,19 +394,16 @@ public partial class Hub : Node2D
 
     // ── 埋め草のメタ生成（StageImagery.cs の背景カードと同じ決定論式。並びは通し番号 i で固定）──
     private static float Frac(float v) => v - Mathf.Floor(v);
-    private static readonly string[] FillerHandles = { "nanashi", "mob", "no_name", "anon", "kuuki", "yajiruba", "tori" };
-    private static readonly string[] FillerNames = { "名無し", "通りすがり", "匿名", "ロム専", "外野", "観測者", "低浮上" };
+    // 埋め草の表示名・@ハンドル・アイコンは src/SnsVoices.cs の1枚の表から引く（道中の背景カード
+    //   ＝StageImagery.cs と同じ表・同じ式）。表示名／ハンドル／アイコンは必ず同じ添字＝同じ人には
+    //   毎回同じ名前と同じ顔が付く。通し番号 i は Interleave() が振る（並びは解放状況で固定）。
+    private static int FillerVoice(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
     private static string FillerHandle(int i)
     {
-        int s = (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * FillerHandles.Length);
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return $"@{FillerHandles[s % FillerHandles.Length]}_{num}";
+        return $"@{SnsVoices.At(FillerVoice(i)).Handle}_{num}";
     }
-    private static string FillerName(int i)
-    {
-        int s = (int)(Frac(Mathf.Sin(i * 61.7f) * 8861.1f) * FillerNames.Length);
-        return FillerNames[s % FillerNames.Length];
-    }
+    private static string FillerName(int i) => SnsVoices.At(FillerVoice(i)).Name;
     private static string FillerRelTime(int i)
     {
         float r = Frac(Mathf.Sin(i * 73.9f) * 4129.7f);
@@ -500,6 +501,9 @@ public partial class Hub : Node2D
     }
 
     // 各Entryの顔テクスチャを一度だけロードしてキャッシュ。final はミナ本体なので mina_face。
+    //   三人の顔は char/v3/（社会人版・アニメ塗り v3）から引く。2026-09-07 まで旧 char/{id}_face.png
+    //   （制服のセーラー服＝v1）を見ていて、道中の立ち絵・ボスの絵と別人になっていたのを直した。
+    //   ミナだけは v3 の描き直しが無く char/mina_face.png が全編の基準なので、そのまま使う。
     private void LoadFaces()
     {
         _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
@@ -507,24 +511,46 @@ public partial class Hub : Node2D
         {
             string id = e.Id;
             if (_faces.ContainsKey(id)) continue;
-            // 埋め草＝顔のない他人／固定ポスト＝ミナ本人。どちらも char/{id}_face.png を探しに行かせない。
+            // 埋め草＝人の顔を持たない他人。アイコンは _mobIcons 側（SnsVoices の番号）から引く。
             if (e.Sort == Kind.Filler) { _faces[id] = null; continue; }
             if (e.Sort == Kind.Pinned || e.IsFinal) { _faces[id] = _minaFace; continue; }
-            string path = $"res://char/{id}_face.png";
+            string path = $"res://char/v3/{id}_face.png";
+            if (!ResourceLoader.Exists(path)) path = $"res://char/{id}_face.png";   // v3 が無い名前への保険
             _faces[id] = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
         }
+        LoadMobIcons();
     }
 
+    // 埋め草アカウントのアイコン（char/v3/icons/mob_01..12.png）。人の顔ではなく、SNS でよくある
+    //   種類（猫・犬・観葉植物・コーヒー・空・海・食べ物・幾何模様・本・カメラ・自転車・月）。
+    //   番号は SnsVoices の表が名前と対で持つ＝同じ名前には毎回同じアイコンが付く。
+    private void LoadMobIcons()
+    {
+        if (_mobIcons.Length > 0) return;
+        var arr = new Texture2D?[SnsVoices.IconCount + 1];   // [0] は未使用（番号は 1 始まり）
+        for (int i = 1; i <= SnsVoices.IconCount; i++)
+        {
+            string p = SnsVoices.IconPath(i);
+            arr[i] = ResourceLoader.Exists(p) ? ResourceLoader.Load<Texture2D>(p) : null;
+        }
+        _mobIcons = arr;
+    }
+
+    // 番号 → アイコン。未生成・範囲外は null（DrawFillerAvatar が無地円に落ちる）。
+    private Texture2D? MobIcon(int n) => n >= 1 && n < _mobIcons.Length ? _mobIcons[n] : null;
     private Texture2D? FaceFor(string id) => _faces.TryGetValue(id, out var t) ? t : null;
 
     // 立ち絵ごとに頭部の高さが違うため、円窓の上端 UV を顔に合わせて個別調整（(C) topCrop キャラ別）。
     //   値が小さいほど画像上部（=頭頂寄り）をサンプル。各立ち絵を実測して顔が円中心に来る値。
     private static float TopCropFor(string id) => id switch
     {
-        "rei" => 0.045f,
-        "akari" => 0.05f,
-        "koharu" => 0.04f,
-        "mina" => 0.05f,
+        // 2026-09-07: 三人を v3 の立ち絵（社会人版）に差し替えたので、円窓の上端を測り直した。
+        //   v3 は v1 より顔が高い位置にあり、旧値のままだと丸の上端に顔が寄って額が切れる。
+        //   窓を上へずらす（値を小さくする）ほど顔は丸の下＝中心寄りに来る。0 が画像の上端。
+        "rei" => 0.02f,      // 419x720・短い黒髪。髪が暗いので顔を少し大きめに入れる
+        "akari" => 0.025f,   // 446x720・琥珀のショート＋ポニー
+        "koharu" => 0.02f,   // 408x720・焦げ茶のボブ（髪の量が多く上に張り出す）
+        "mina" => 0.05f,     // 474x720・据え置き（v3 の描き直しが無く、この値で合っている）
         "final" => 0.05f,
         _ => 0.06f,
     };
@@ -1062,7 +1088,7 @@ public partial class Hub : Node2D
         Color acc = BarColorFor(e);
         float ax = x + 36, ay = cy + 36;
         // 埋め草は顔を持たない他人＝アバターはアカウント色の無地円（FaceAvatar の「?」ロック円は出さない）。
-        if (filler) DrawFillerAvatar(ax, ay, alpha);
+        if (filler) DrawFillerAvatar(ax, ay, e.Icon, alpha);
         else UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel,
             TopCropFor(e.IsFinal ? "final" : e.Sort == Kind.Pinned ? "mina" : e.Id), alpha, _t);
 
@@ -1147,17 +1173,27 @@ public partial class Hub : Node2D
         _ => e.IsFinal ? UiKit.Kegare : AccountColor(e.Id),
     };
 
-    // 埋め草のアバター（顔なし）。X の初期アイコン風に、無地の円と肩のシルエットだけ置く。
-    private void DrawFillerAvatar(float cx, float cy, float alpha)
+    // 埋め草のアバター。2026-09-07 まで X の初期アイコン（無地の円＋灰色の人型シルエット）を全員に
+    //   出していたが、実際の TL でそれが並ぶことはない＝「作りかけ」に見えていた。SnsVoices の表が
+    //   名前と対で持つアイコン番号（猫・犬・観葉植物・コーヒー・空・海・食べ物・幾何模様・本・カメラ・
+    //   自転車・月の12種）を丸窓に出す。人の顔は出さない＝声のあるカードとの見分けは保つ。
+    //   アイコンは正方形なので topCrop=0 で全面をサンプルする（縦長立ち絵の頭部窓とは別扱い）。
+    //   リングは無彩色に近い薄灰のまま＝アカウント色を持つ三人と混ざらない。画像が無い場合だけ旧シルエット。
+    private void DrawFillerAvatar(float cx, float cy, int icon, float alpha)
     {
+        var tex = MobIcon(icon);
+        if (tex != null)
+        {
+            UiKit.FaceAvatar(this, new Vector2(cx, cy), 24f, tex, new Color(UiKit.Text4, 0.55f), false, 0f, alpha * 0.92f, _t);
+            return;
+        }
         DrawCircle(new Vector2(cx, cy), 24f, new Color(0.16f, 0.15f, 0.21f, 0.9f * alpha));
         DrawArc(new Vector2(cx, cy), 24f, 0f, Mathf.Tau, 28, new Color(1, 1, 1, 0.08f * alpha), 1f);
-        var s = new Color(UiKit.Text4, 0.5f * alpha);
-        DrawCircle(new Vector2(cx, cy - 5f), 7f, s);                       // 頭
+        var sil = new Color(UiKit.Text4, 0.5f * alpha);
+        DrawCircle(new Vector2(cx, cy - 5f), 7f, sil);                       // 頭
         DrawColoredPolygon(new[] { new Vector2(cx - 11f, cy + 13f), new Vector2(cx + 11f, cy + 13f),
-                                   new Vector2(cx + 8f, cy + 4f), new Vector2(cx - 8f, cy + 4f) }, s);  // 肩
+                                   new Vector2(cx + 8f, cy + 4f), new Vector2(cx - 8f, cy + 4f) }, sil);  // 肩
     }
-
     // 固定ポストの印（X の pinned post）。ピルではなく、小さなピンと「固定」の一語だけ置く。
     private void DrawPinnedMark(float right, float y, float alpha)
     {
