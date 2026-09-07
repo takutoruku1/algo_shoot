@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 208 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 209 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">208</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">209</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">9</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">19</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">中ボス初回撃破時に退場演出が再生されないまま遷移する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-07監査で発見。<code>CheckpointFlow.cs:27-38</code> の <code>firstEver</code> 分岐（そのセーブで最初の中ボス撃破、かつ非autoplay）が <code>ChangeSceneToFile</code> を即座に呼ぶが、<code>_cameo.Finished</code> が立つ瞬間 <code>Enemy.cs:1028-1049</code> の <code>_purifiedExitT</code> はまだ0（<code>_crying</code>中は加算されない）。結果、直近コミット<code>1b12bac</code>で意図した3.2秒（<code>CameoBoss.cs:114</code> <code>PurifiedExitHoldOverride</code>）の退場演出が初回撃破では1コマも再生されずシーンごと消える。<code>--demo</code>/<code>--qa</code>はこの分岐自体を迂回するため自動検証でも検出されない。受入条件: <code>CheckpointFlow.OnMidBossCleared</code> の firstEver分岐で、中ボスの退場演出完了（<code>_purifiedExitT &gt;= ExitHold+PurifiedExitFade</code> 相当、またはノードの自然QueueFree）を待ってから <code>ShopTutorial.tscn</code> へ遷移するようにする。通常プレイ（<code>--demo</code>/<code>--qa</code>無し）でセーブ新規作成→最初のステージの中ボス撃破→中の人がフル不透明で見えてから遷移することを確認。2回目以降（<code>firstEver=false</code>）の動作は変えない。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -223,6 +215,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">中ボス初回撃破時に退場演出が再生されないまま遷移する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-07) 2026-09-07監査で発見・同日修正。<code>CheckpointFlow.cs</code>の<code>firstEver</code>分岐（初回中ボス撃破・非autoplay）が<code>ChangeSceneToFile</code>を即座に呼び、<code>Enemy.cs</code>の<code>_purifiedExitT</code>が0のまま中ボスの改心退場演出(3.2秒<code>PurifiedExitHoldOverride</code>)が1コマも再生されずシーンごと消える回帰があった。<strong>修正</strong>: <code>CheckpointFlow.OnMidBossCleared</code>に<code>Node? cameo=null</code>引数を追加(<code>CheckpointFlow.cs:17</code>)、firstEver分岐のシーン遷移を新設<code>LeaveToShopTutorialAfterCameoExit</code>（<code>CheckpointFlow.cs:52-63</code>）へ委譲。cameoが自然にQueueFreeされるまで<code>await stage.ToSignal(tree, SceneTree.SignalName.PhysicsFrame)</code>で毎物理フレーム待ってから<code>ShopTutorial.tscn</code>へ遷移(既存の<code>GameCamera.cs</code>のHitstop待機と同じイディオムを踏襲。無効/null時は待たず即遷移＝旧挙動と同じ)。<code>StageRei.cs:465</code>/<code>StageAkari.cs:530</code>/<code>StageKoharu.cs:502</code>の呼び出しに<code>_cameo</code>を追加。2回目以降（<code>firstEver=false</code>）はこの分岐自体に到達しないため無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error(指揮官が再実行して確認済み)。指揮官が差分をレビューし、null/インスタンス有効性チェックが適切でクラッシュ・無限待機のリスクが無いことを確認済み。<strong>未確認</strong>: <code>--demo</code>/<code>--qa</code>はfirstEver分岐自体を迂回するため既存オートプレイQAでは検証不可。実機（手動プレイ、新規セーブでの初回中ボス撃破）での目視確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-none">—</span>
@@ -2049,18 +2049,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1efdfa8</span><span>2026-09-07</span><span class="s">auto: WIP着手 - 中ボス初回撃破時の退場演出バグ修正</span></li>
+      <li><span class="h">bb0484a</span><span>2026-09-07</span><span class="s">auto: エピローグE1〜E6を案Cに差し替え(合言葉を最後に送った言葉へ)</span></li>
       <li><span class="h">6d63f52</span><span>2026-09-07</span><span class="s">auto: WIP着手 - エピローグE1〜E6を案Cに差し替え</span></li>
       <li><span class="h">7c6a70d</span><span>2026-09-07</span><span class="s">auto: FINAL F4を案Cに差し替え(頂点の下書き選択・少年退場)</span></li>
       <li><span class="h">fc7bf4e</span><span>2026-09-07</span><span class="s">auto: WIP着手 - FINAL F1〜F4を案Cに差し替え</span></li>
       <li><span class="h">d8c4879</span><span>2026-09-07</span><span class="s">auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)</span></li>
       <li><span class="h">1b12bac</span><span>2026-09-05</span><span class="s">auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）</span></li>
       <li><span class="h">264f9a0</span><span>2026-09-06</span><span class="s">Track the Godot uid files for BgLayers and BossParts</span></li>
-      <li><span class="h">8ef4fa0</span><span>2026-09-06</span><span class="s">Wiki: add in-game shots of the STAGE 3 Rei script</span></li>
-      <li><span class="h">d8bd150</span><span>2026-09-06</span><span class="s">Convert hub H0, H3, and H3r to the approved plan-C script</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-07 19:27 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-07 19:33 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

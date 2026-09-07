@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-07 19:27 UTC",
+  "generated": "2026-09-07 19:33 UTC",
   "counts": {
-    "todo": 9,
+    "todo": 8,
     "wip": 0,
     "blocked": 19,
-    "done": 208
+    "done": 209
   },
   "percent": 96,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "中ボス初回撃破時に退場演出が再生されないまま遷移する",
-      "worker": "engineer",
-      "accept": "2026-09-07監査で発見。`CheckpointFlow.cs:27-38` の `firstEver` 分岐（そのセーブで最初の中ボス撃破、かつ非autoplay）が `ChangeSceneToFile` を即座に呼ぶが、`_cameo.Finished` が立つ瞬間 `Enemy.cs:1028-1049` の `_purifiedExitT` はまだ0（`_crying`中は加算されない）。結果、直近コミット`1b12bac`で意図した3.2秒（`CameoBoss.cs:114` `PurifiedExitHoldOverride`）の退場演出が初回撃破では1コマも再生されずシーンごと消える。`--demo`/`--qa`はこの分岐自体を迂回するため自動検証でも検出されない。受入条件: `CheckpointFlow.OnMidBossCleared` の firstEver分岐で、中ボスの退場演出完了（`_purifiedExitT >= ExitHold+PurifiedExitFade` 相当、またはノードの自然QueueFree）を待ってから `ShopTutorial.tscn` へ遷移するようにする。通常プレイ（`--demo`/`--qa`無し）でセーブ新規作成→最初のステージの中ボス撃破→中の人がフル不透明で見えてから遷移することを確認。2回目以降（`firstEver=false`）の動作は変えない。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
-    },
     {
       "priority": "P2",
       "title": "投稿文集の層付きプールを新設",
@@ -181,6 +175,12 @@
     }
   ],
   "done": [
+    {
+      "priority": null,
+      "title": "中ボス初回撃破時に退場演出が再生されないまま遷移する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-07) 2026-09-07監査で発見・同日修正。`CheckpointFlow.cs`の`firstEver`分岐（初回中ボス撃破・非autoplay）が`ChangeSceneToFile`を即座に呼び、`Enemy.cs`の`_purifiedExitT`が0のまま中ボスの改心退場演出(3.2秒`PurifiedExitHoldOverride`)が1コマも再生されずシーンごと消える回帰があった。**修正**: `CheckpointFlow.OnMidBossCleared`に`Node? cameo=null`引数を追加(`CheckpointFlow.cs:17`)、firstEver分岐のシーン遷移を新設`LeaveToShopTutorialAfterCameoExit`（`CheckpointFlow.cs:52-63`）へ委譲。cameoが自然にQueueFreeされるまで`await stage.ToSignal(tree, SceneTree.SignalName.PhysicsFrame)`で毎物理フレーム待ってから`ShopTutorial.tscn`へ遷移(既存の`GameCamera.cs`のHitstop待機と同じイディオムを踏襲。無効/null時は待たず即遷移＝旧挙動と同じ)。`StageRei.cs:465`/`StageAkari.cs:530`/`StageKoharu.cs:502`の呼び出しに`_cameo`を追加。2回目以降（`firstEver=false`）はこの分岐自体に到達しないため無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。指揮官が差分をレビューし、null/インスタンス有効性チェックが適切でクラッシュ・無限待機のリスクが無いことを確認済み。**未確認**: `--demo`/`--qa`はfirstEver分岐自体を迂回するため既存オートプレイQAでは検証不可。実機（手動プレイ、新規セーブでの初回中ボス撃破）での目視確認は未実施。"
+    },
     {
       "priority": null,
       "title": "エピローグ E1〜E6 を案C に差し替え",
@@ -1432,6 +1432,16 @@
   ],
   "commits": [
     {
+      "hash": "1efdfa8",
+      "date": "2026-09-07",
+      "subject": "auto: WIP着手 - 中ボス初回撃破時の退場演出バグ修正"
+    },
+    {
+      "hash": "bb0484a",
+      "date": "2026-09-07",
+      "subject": "auto: エピローグE1〜E6を案Cに差し替え(合言葉を最後に送った言葉へ)"
+    },
+    {
       "hash": "6d63f52",
       "date": "2026-09-07",
       "subject": "auto: WIP着手 - エピローグE1〜E6を案Cに差し替え"
@@ -1460,16 +1470,6 @@
       "hash": "264f9a0",
       "date": "2026-09-06",
       "subject": "Track the Godot uid files for BgLayers and BossParts"
-    },
-    {
-      "hash": "8ef4fa0",
-      "date": "2026-09-06",
-      "subject": "Wiki: add in-game shots of the STAGE 3 Rei script"
-    },
-    {
-      "hash": "d8bd150",
-      "date": "2026-09-06",
-      "subject": "Convert hub H0, H3, and H3r to the approved plan-C script"
     }
   ]
 }

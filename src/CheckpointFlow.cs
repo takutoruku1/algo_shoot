@@ -10,8 +10,11 @@ public static class CheckpointFlow
     // 中ボス(cameo)撃破時に Stage から呼ぶ。
     //   stageId : "rei" / "akari" / "koharu"
     //   tutorial: そのランが操作チュートリアル中か（チュートリアル中はショップ説明へは飛ばさず通常進行）。
-    // 戻り値 true ＝ステージを離脱した（呼び元は以降の進行＝Advance を行わず return する）。
-    public static bool OnMidBossCleared(Node stage, string stageId, bool tutorial)
+    //   cameo   : 呼び元 Stage が保持する CameoBoss（改心退場アニメが自然に QueueFree するまで
+    //             シーン遷移を待つために使う。null なら待たずに即遷移＝旧挙動）。
+    // 戻り値 true ＝ステージを離脱する（呼び元は以降の進行＝Advance を行わず return する）。
+    //   ※ firstEver 分岐の実際のシーン遷移は cameo の退場演出が終わるまで非同期で遅延される。
+    public static bool OnMidBossCleared(Node stage, string stageId, bool tutorial, Node? cameo = null)
     {
         var game = stage.GetNodeOrNull<GameManager>("/root/Game");
         if (game == null) return false;
@@ -33,9 +36,29 @@ public static class CheckpointFlow
             game.SelectedEntry = GameManager.StageEntry.AfterMidBoss;
             game.AutoSave();               // ランで貯めたインプレ＋既読＋中ボス撃破フラグを確定保存
             stage.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            stage.GetTree().ChangeSceneToFile("res://ShopTutorial.tscn");
+            // 通常（2回目以降）の撃破は Advance で次フェーズへ進むだけ＝シーンは変わらないので、
+            // cameo は生かしたまま背後で改心退場アニメ（PurifiedExitHold/Fade）を自然に流し切れる。
+            // だがここは ChangeSceneToFile でシーンごと畳む＝待たずに呼ぶと cameo が退場を1コマも
+            // 見せないまま消える（中の人がフル不透明で見える演出が飛ぶ）。なので退場完了（自然な
+            // QueueFree）を待ってからシーン遷移する。
+            LeaveToShopTutorialAfterCameoExit(stage, cameo);
             return true;
         }
         return false;
+    }
+
+    // firstEver 分岐専用：cameo が退場アニメを終えて自然に QueueFree されるまで待ってからショップ説明へ遷移する。
+    // cameo が null／既に無効なら待たずに即遷移（旧挙動と同じ）。
+    private static async void LeaveToShopTutorialAfterCameoExit(Node stage, Node? cameo)
+    {
+        while (cameo != null && GodotObject.IsInstanceValid(cameo)
+            && GodotObject.IsInstanceValid(stage) && stage.IsInsideTree())
+        {
+            var tree = stage.GetTree();
+            if (tree == null) break;
+            await stage.ToSignal(tree, SceneTree.SignalName.PhysicsFrame);
+        }
+        if (GodotObject.IsInstanceValid(stage))
+            stage.GetTree()?.ChangeSceneToFile("res://ShopTutorial.tscn");
     }
 }

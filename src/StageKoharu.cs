@@ -499,7 +499,7 @@ public partial class StageKoharu : Node
             // ここで即QueueFreeしない＝ガワが割れて出てきた中の人の改心退場アニメ
             // （Enemy._Process の _purified 分岐。PurifiedExitHoldOverride）を最後まで再生させ、自然にQueueFreeさせる。
             // 中ボス撃破フック：撃破記録＋初回なら強化ショップ説明へ離脱（その後ハブ）。離脱したら以降の進行は止める。
-            if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
+            if (CheckpointFlow.OnMidBossCleared(this, "koharu", false, _cameo)) return;
             Advance();
         }
     }
