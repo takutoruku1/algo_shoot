@@ -41,9 +41,9 @@ public sealed class BossMover
     public enum St { Idle, Travel, Settle, Windup, Action, Recover, Hit }
 
     // ボスゾーンの基準（既定値。実際は各ボスの Configure が Field 基準で上書きする）。
-    private Vector2 _zoneCenter = new Vector2(Field.BossCenterX, 70f);
+    private Vector2 _zoneCenter = new Vector2(Field.BossCenterX, Field.BossZoneCenterY);
     private float _zoneHalfW = Field.BossZoneHalfW;
-    private float _zoneHalfH = 28f;
+    private float _zoneHalfH = Field.BossZoneHalfH;
 
     // ── 巡航・追従パラメータ（ini: cruise_speed / accel_time）。
     private float _cruiseSpeed = 40f;
@@ -57,6 +57,21 @@ public sealed class BossMover
     private float _stanceTrackW = 70f;    // Aimed で自機を追える横幅（中心±この値まで）
     private float _stanceTrackGain = 1f;  // 自機 x をどれだけ鏡写しに追うか（ミナ=1.0 / レイ=0.25）
     private float _stanceRiseY = -8f;     // Wall/Spell で浮く量（負＝上）
+
+    // ── 立ち位置の「縦」（2026-09-08 新設）。
+    //   それまで立ち位置の y は Ring/Aimed が _stanceY 固定、Wall/Spell が _stanceY+_stanceRiseY(-8)
+    //   の実質2値しかなく、しかもゾーン半高が 28px だったので上下の動きが見えなかった
+    //   （ユーザー実機指摘「ボスが同じ高さしか移動しない」）。攻撃の種類ごとに縦の持ち場を分け、
+    //   ゾーン半高に対する比で持つ＝ゾーンを広げれば縦の散らばりもそのまま広がる。
+    //     Ring   : 高め（撒くので上から降らせる）        -0.55
+    //     Aimed  : 自機の y へ寄る（track_gain_y で加減）
+    //     Wall   : 低め（帯を近くから張る＝圧が出る）      +0.45
+    //     Spell  : 中央のやや高め（宣告を見せる）          -0.30
+    private float _stanceRingYK = -0.55f;   // Ring の縦の持ち場（ゾーン半高に対する比。負＝上）
+    private float _stanceWallYK = 0.45f;    // Wall の縦の持ち場（正＝下）
+    private float _stanceSpellYK = -0.30f;  // Spell の縦の持ち場
+    private float _stanceTrackH = 44f;      // Aimed で自機を追える縦幅(px)（中心±この値まで）
+    private float _stanceTrackGainY = 0.6f; // 自機 y をどれだけ追うか（1.0＝同じ高さまで下りる）
 
     // ── 構え・本動作・余韻の尺と量。
     private float _windupDur = 0.38f;     // 構えの尺(s)。攻撃の 0.3〜0.5 秒前に入る
@@ -95,7 +110,8 @@ public sealed class BossMover
     private double _flipWant;             // 反対側に居続けている時間(s)
     private bool _flipWantLeft;
     private double _flipSquashT;          // 反転 squash の残り(s)
-    private float _playerX = Field.CenterX; // 直近の自機 x（呼び出し側が SetPlayerX で渡す）
+    private float _playerX = Field.CenterX; // 直近の自機 x（呼び出し側が SetPlayerPos で渡す）
+    private float _playerY = Field.CenterY; // 直近の自機 y（Aimed の縦寄せに使う）
     private bool _hasPlayerX;
     private int _flipCount;               // 反転回数（検証ログ用）
 
@@ -145,6 +161,7 @@ public sealed class BossMover
         _stanceY = zoneCenter.Y;
         _stanceEdgeX = Mathf.Min(_stanceEdgeX, zoneHalfW * 0.7f);
         _stanceTrackW = Mathf.Min(_stanceTrackW, zoneHalfW * 0.8f);
+        _stanceTrackH = Mathf.Min(_stanceTrackH, zoneHalfH * 0.8f); // 縦も同じく（あかりの退場ゾーンは半高6px）
 
         RetargetStance();
     }
@@ -163,25 +180,33 @@ public sealed class BossMover
         //   こはる : 軽く小刻み。攻撃前に一瞬止まる（windup を長め・action を短く鋭く）。
         //   レイ   : 配信の枠から出ない。横移動をほぼ捨て、傾きだけで表情を作る。
         //   ミナ   : 自機を鏡のように追う（track_gain 1.0）。速い。
+        //   縦（2026-09-08 追加）は trackH / trackGainY と、Ring/Wall/Spell の縦の持ち場（ゾーン半高比）。
+        //   横の性格をそのまま縦へ写す: あかりは重く控えめ、こはるは軽く上下によく飛ぶ、レイは枠から
+        //   出ない（縦も小さい）、ミナは鏡写し（自機の高さまで下りてくる）。
         float cruise, accel, hoverA, hoverF, leanM, edgeX, trackW, trackGain, riseY, windup, action;
+        float trackH, trackGainY, ringYK, wallYK, spellYK;
         switch (section)
         {
             case "akari":
                 cruise = 34f; accel = 0.85f; hoverA = 0f;   hoverF = 0.6f; leanM = 0.10f;
                 edgeX = 58f;  trackW = 62f;  trackGain = 0.7f; riseY = -5f;
-                windup = 0.44f; action = 0.26f; break;
+                windup = 0.44f; action = 0.26f;
+                trackH = 40f; trackGainY = 0.55f; ringYK = -0.55f; wallYK = 0.40f; spellYK = -0.30f; break;
             case "koharu":
                 cruise = 46f; accel = 0.34f; hoverA = 0f  ; hoverF = 1.25f; leanM = 0.18f;
                 edgeX = 62f;  trackW = 72f;  trackGain = 0.85f; riseY = -9f;
-                windup = 0.40f; action = 0.16f; break;
+                windup = 0.40f; action = 0.16f;
+                trackH = 48f; trackGainY = 0.70f; ringYK = -0.65f; wallYK = 0.50f; spellYK = -0.35f; break;
             case "rei":
                 cruise = 30f; accel = 0.6f;  hoverA = 0f  ; hoverF = 0.8f; leanM = 0.24f;
                 edgeX = 20f;  trackW = 22f;  trackGain = 0.25f; riseY = -6f;
-                windup = 0.36f; action = 0.20f; break;
+                windup = 0.36f; action = 0.20f;
+                trackH = 30f; trackGainY = 0.35f; ringYK = -0.50f; wallYK = 0.40f; spellYK = -0.25f; break;
             case "mina":
                 cruise = 52f; accel = 0.40f; hoverA = 0f  ; hoverF = 1.0f; leanM = 0.17f;
                 edgeX = 66f;  trackW = 84f;  trackGain = 1.0f; riseY = -8f;
-                windup = 0.32f; action = 0.20f; break;
+                windup = 0.32f; action = 0.20f;
+                trackH = 54f; trackGainY = 0.85f; ringYK = -0.65f; wallYK = 0.55f; spellYK = -0.35f; break;
 
             // ── 道中の中ボス（CameoBoss）。戦いが短いので本戦より単純にする。
             //    共通の縛り: hover_amp = 0（常時の上下揺れ＝「ふよふよ」を全員やめる。待機は Idle の
@@ -191,20 +216,24 @@ public sealed class BossMover
             case "cameo_akari": // 重い。座ったまま滑る＝加速が遅く、寄る量も控えめ
                 cruise = 34f; accel = 0.80f; hoverA = 0f; hoverF = 0.6f; leanM = 0.10f;
                 edgeX = 46f;  trackW = 50f;  trackGain = 0.6f; riseY = -5f;
-                windup = 0.42f; action = 0.26f; break;
+                windup = 0.42f; action = 0.26f;
+                trackH = 30f; trackGainY = 0.45f; ringYK = -0.50f; wallYK = 0.35f; spellYK = -0.25f; break;
             case "cameo_koharu": // 小刻み。軽く速く、構えて一瞬止まってから鋭く出る
                 cruise = 48f; accel = 0.32f; hoverA = 0f; hoverF = 1.2f; leanM = 0.18f;
                 edgeX = 52f;  trackW = 62f;  trackGain = 0.85f; riseY = -8f;
-                windup = 0.38f; action = 0.16f; break;
+                windup = 0.38f; action = 0.16f;
+                trackH = 36f; trackGainY = 0.60f; ringYK = -0.55f; wallYK = 0.45f; spellYK = -0.30f; break;
             case "cameo_rei": // 枠から出ない。横移動は小さく、傾きで演じる（本戦のレイと同じ方向）
                 cruise = 38f; accel = 0.55f; hoverA = 0f; hoverF = 0.8f; leanM = 0.24f;
                 edgeX = 30f;  trackW = 34f;  trackGain = 0.45f; riseY = -6f;
-                windup = 0.34f; action = 0.20f; break;
+                windup = 0.34f; action = 0.20f;
+                trackH = 24f; trackGainY = 0.35f; ringYK = -0.45f; wallYK = 0.35f; spellYK = -0.25f; break;
 
             default: // hikage ほか
                 cruise = 42f; accel = 0.5f;  hoverA = 3.2f; hoverF = 0.95f; leanM = 0.16f;
                 edgeX = 60f;  trackW = 70f;  trackGain = 0.7f; riseY = -7f;
-                windup = 0.38f; action = 0.22f; break;
+                windup = 0.38f; action = 0.22f;
+                trackH = 40f; trackGainY = 0.55f; ringYK = -0.55f; wallYK = 0.45f; spellYK = -0.30f; break;
         }
 
         // ini 上書き（キーが無ければ上の性格既定値のまま）。
@@ -219,6 +248,13 @@ public sealed class BossMover
         _stanceTrackW = BossTuning.F(section, "stance_track_w", trackW);
         _stanceTrackGain = BossTuning.F(section, "stance_track_gain", trackGain);
         _stanceRiseY = BossTuning.F(section, "stance_rise_y", riseY);
+        // 縦の立ち位置。持ち場（ring/wall/spell）はゾーン半高に対する比で持つ＝盤面やゾーンを
+        // 広げれば縦の散らばりもそのまま広がる（絶対座標を ini に置かない＝盤面移動で腐らせない）。
+        _stanceTrackH = BossTuning.F(section, "stance_track_h", trackH);
+        _stanceTrackGainY = BossTuning.F(section, "stance_track_gain_y", trackGainY);
+        _stanceRingYK = BossTuning.F(section, "stance_ring_yk", ringYK);
+        _stanceWallYK = BossTuning.F(section, "stance_wall_yk", wallYK);
+        _stanceSpellYK = BossTuning.F(section, "stance_spell_yk", spellYK);
         _windupDur = BossTuning.F(section, "stance_windup", windup);
         _actionDur = BossTuning.F(section, "stance_action", action);
         _recoverDur = BossTuning.F(section, "stance_recover", 0.30f);
@@ -229,8 +265,11 @@ public sealed class BossMover
         RetargetStance();
     }
 
-    // 自機の x を毎フレーム渡す（Aimed の横滑りと、反転判定に使う）。
-    public void SetPlayerX(float x) { _playerX = x; _hasPlayerX = true; }
+    // 自機の位置を毎フレーム渡す（Aimed の追従と、反転判定に使う）。
+    //   2026-09-08 まで x だけを渡す SetPlayerX だった。Aimed でボスが横にしか寄らないため
+    //   「同じ高さを左右するだけ」に見えていた原因のひとつ。y も渡すと自機狙いのあいだボスが
+    //   自機の高さへ下りてくる＝上下の動きが一番はっきり出る（下りる量は stance_track_gain_y）。
+    public void SetPlayerPos(Vector2 p) { _playerX = p.X; _playerY = p.Y; _hasPlayerX = true; }
 
     // ── 次の攻撃の種類を宣言する。ApplySpell（スペル切替）から呼ぶ。
     //    立ち位置がこれで変わる＝「攻撃の合間に、次の攻撃のための位置へ移る」。
@@ -315,11 +354,18 @@ public sealed class BossMover
         }
         else if (_next == Attack.Aimed && _st != St.Hit)
         {
-            // 自機狙いの間は「自機の x を追って横に滑る」。上下は動かさない。
-            float wantX = TrackedX();
-            float dx = wantX - currentPos.X;
-            if (Mathf.Abs(dx) > _arriveDist)
-                desiredVel = new Vector2(Mathf.Sign(dx) * _cruiseSpeed * Mathf.Clamp(Mathf.Abs(dx) / 40f, 0.25f, 1f), 0f);
+            // 自機狙いの間は自機を追って滑る。2026-09-08 まで x しか追っておらず「同じ高さを
+            // 左右するだけ」の主因だったので、y も同じ式で追う（下りる量は gain_y で加減）。
+            // 縦は横の 0.7 倍の速さに落とす＝真下へ突っ込んで自機と重なる事故を避けつつ、
+            // 「じりじり高さを合わせてくる」圧が出る。ゾーンの外へは出ない（TrackedY 側で切る）。
+            Vector2 want = new Vector2(TrackedX(), TrackedY());
+            float dx = want.X - currentPos.X;
+            float dy = want.Y - currentPos.Y;
+            float vx = Mathf.Abs(dx) > _arriveDist
+                ? Mathf.Sign(dx) * _cruiseSpeed * Mathf.Clamp(Mathf.Abs(dx) / 40f, 0.25f, 1f) : 0f;
+            float vy = Mathf.Abs(dy) > _arriveDist
+                ? Mathf.Sign(dy) * _cruiseSpeed * 0.7f * Mathf.Clamp(Mathf.Abs(dy) / 40f, 0.25f, 1f) : 0f;
+            desiredVel = new Vector2(vx, vy);
         }
 
         // 速度の指数追従（SmoothDamp相当）。accel_time が大きいほど重い＝あかり。
@@ -449,6 +495,11 @@ public sealed class BossMover
     //  スペルが変わるまで立ち位置が動かない＝ユーザー実機指摘「本戦のボスが動いていない」。
     //  そこで据わる系には「据わり位置そのものを左右に振る」オフセット（_perch）を持たせ、
     //  撃つたび（DeclareAttack）に次の持ち場へ送る。振り幅は徘徊ゾーンの内側に収める。
+    //
+    //  ── 縦（2026-09-08）──
+    //  それまで y は Ring/Aimed が _stanceY 固定、Wall/Spell が _stanceY-8 の実質2値しかなく、
+    //  「範囲を広げても立ち位置が同じ高さばかりを指す」状態だった。種類ごとに縦の持ち場を割り、
+    //  さらに据わる系（Ring/Spell）の持ち場送りに縦の振れも混ぜる＝撃つたびに高さも変わる。
     private void RetargetStance()
     {
         float x = _next switch
@@ -460,9 +511,18 @@ public sealed class BossMover
         };
         float y = _next switch
         {
-            Attack.Ring => _stanceY,
-            Attack.Aimed => _stanceY,
-            _ => _stanceY + _stanceRiseY,
+            // リング系は高めから撒く（上から降ってくる＝全方位が読みやすい）。持ち場送りで上下にも振る。
+            Attack.Ring => _stanceY + _zoneHalfH * _stanceRingYK + PerchOffsetY(),
+            // 自機狙いは自機の高さへ寄る＝上下の動きが一番はっきり出る（横の TrackedX と対）。
+            Attack.Aimed => TrackedY(),
+            // 帯・スパイラルは低めを基準に張る。左右の端寄せ（stance_edge_x）と合わせて「隅から張る」。
+            //   Wall にも持ち場送りの縦の振れを混ぜる。実測でこれが要ると分かった: あかりは第1スペルが
+            //   Wall（下向きの雨の扇）で、粘られると Wall しか撃たない。持ち場送りが Ring/Spell にしか
+            //   効いていなかった 120 秒の走行では y の 5-95 帯が 7.4px ＝ほぼ 1 点に張り付いていた
+            //   （横だけ動く＝ユーザー指摘そのもの）。WallPerchY で低め↔高めを行き来させる。
+            Attack.Wall => _stanceY + _zoneHalfH * _stanceWallYK + _stanceRiseY + WallPerchY(),
+            // 宣告付きの大技は中央のやや高めで動かない（安置を見せる）。振れは半分。
+            _ => _stanceY + _zoneHalfH * _stanceSpellYK + PerchOffsetY() * 0.5f,
         };
         _target = new Vector2(
             Mathf.Clamp(x, _zoneCenter.X - _zoneHalfW, _zoneCenter.X + _zoneHalfW),
@@ -483,6 +543,27 @@ public sealed class BossMover
         return (_perchStep % 4) switch { 0 => -amp, 2 => amp, _ => 0f };
     }
 
+    // 据わる系（Ring/Spell）の縦の振れ。横（PerchOffset）とは**位相をずらす**のが肝で、同位相だと
+    // 左右の往復がそのまま斜めの往復になるだけ＝結局「同じ線の上を行き来する」に見える。横が中央に
+    // 来る step 1/3 で縦が振り切れるよう 1 ステップずらすと、持ち場が
+    //   左・中央 → 中央・下 → 右・中央 → 中央・上 → …
+    // と回り、4拍で盤面のひし形を一周する＝撃つたびに高さも横位置も変わる。
+    // 振り幅はゾーン半高の 5 割（横の 6 割よりやや控えめ＝縦は絵が大きく、振り切ると頭がボスバーへ寄る）。
+    private float PerchOffsetY()
+    {
+        float amp = _zoneHalfH * 0.5f;
+        return ((_perchStep + 1) % 4) switch { 0 => -amp, 2 => amp, _ => 0f };
+    }
+
+    // Wall（帯・スパイラル）の縦の持ち場送り。据わる系と違い基準が既に低め（wall_yk 正）なので、
+    // 振れは上向きだけに取る（下へさらに振ると自機の居る高さへ食い込む）。持ち場3点を
+    // 低め→中→高め→中 と巡り、幅はゾーン半高の 1.1 倍＝帯を張る高さが毎回変わる。
+    private float WallPerchY()
+    {
+        float amp = _zoneHalfH * 1.1f;
+        return (_perchStep % 4) switch { 1 => -amp * 0.5f, 3 => -amp, _ => 0f };
+    }
+
     // 自機を追うときの目標 x。track_gain で「どれだけ鏡写しに追うか」を決める
     //（ミナ=1.0 ＝ 同じ x に寄る／レイ=0.25 ＝ 枠の中で気配だけ動く）。
     private float TrackedX()
@@ -490,6 +571,19 @@ public sealed class BossMover
         if (!_hasPlayerX) return _stanceCenterX;
         float want = _stanceCenterX + (_playerX - _stanceCenterX) * _stanceTrackGain;
         return Mathf.Clamp(want, _stanceCenterX - _stanceTrackW, _stanceCenterX + _stanceTrackW);
+    }
+
+    // 自機を追うときの目標 y。gain_y で「どれだけ自機の高さまで下りるか」を決める
+    //（ミナ=0.85 ＝ ほぼ同じ高さまで来る／レイ=0.35 ＝ 枠の中で気配だけ下りる）。
+    // 追える幅（stance_track_h）で頭打ちにし、さらにゾーン半高でも切る。ここで切るのが要点で、
+    // Aimed は Step 側が目標を経由せず常時 y へ滑る唯一の経路＝ここを外すと自機が盤面の下端に
+    // 居るときボスが盤外まで下りてくる（ボス本体の縦半径 23px ぶん自機と重なる事故になる）。
+    private float TrackedY()
+    {
+        if (!_hasPlayerX) return _stanceY;
+        float want = _stanceY + (_playerY - _stanceY) * _stanceTrackGainY;
+        want = Mathf.Clamp(want, _stanceY - _stanceTrackH, _stanceY + _stanceTrackH);
+        return Mathf.Clamp(want, _zoneCenter.Y - _zoneHalfH, _zoneCenter.Y + _zoneHalfH);
     }
 
     private bool PlayerOnLeft() => _hasPlayerX && _playerX < _stanceCenterX;

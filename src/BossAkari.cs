@@ -158,7 +158,7 @@ public partial class BossAkari : Enemy
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
-        _mover.Configure("akari", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
+        _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -174,8 +174,8 @@ public partial class BossAkari : Enemy
 
     protected override void UpdateMovement(double delta)
     {
-        // 自機の x を渡す＝自機狙いの横滑りと、反転の判定（40px 以上・0.6秒）に使う。
-        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
+        // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
@@ -193,7 +193,7 @@ public partial class BossAkari : Enemy
             {
                 _corridorPhase = 2;
                 // 高速で戦線に戻る。ゾーンと速度だけを差し替える（MoveZoneTo）＝ini の性格は保つ。
-                _mover.MoveZoneTo(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, DashSpeed);
+                _mover.MoveZoneTo(new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH, DashSpeed);
             }
         }
         else if (_corridorPhase == 2 && GlobalPosition.X <= Field.Right - 54f)
@@ -202,7 +202,7 @@ public partial class BossAkari : Enemy
             _corridorPhase = 0;
             // 性格つきの Configure で入り直す＝退場で狭めた stance_edge_x / stance_track_w も
             // ini の値に戻る（MoveZoneTo は縮める方向にしか触らないため、ここで復元が要る）。
-            _mover.Configure("akari", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
+            _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
             _caster.SetProcess(true);
             SetPanelsInvulnerable(false);
             SetBodyContactEnabled(true);   // 戦線に戻って通常速度＝接触判定も戻す
@@ -217,7 +217,7 @@ public partial class BossAkari : Enemy
         _corridorPhase = 1;
         GetHud()?.AnnounceSpell("あかり", "@akari_ame", "雨の帰り道", Spells[0].tint);
         GetHud()?.ShowBossLine("あかり", "来ないで……っ", UiKit.Kegare, 2.0);
-        _mover.MoveZoneTo(new Vector2(AwayX, 70f), 4f, 6f, DashSpeed); // 画面右外へ退場（性格は保つ）
+        _mover.MoveZoneTo(new Vector2(AwayX, Field.BossZoneCenterY), 4f, 6f, DashSpeed); // 画面右外へ退場（性格は保つ）
         SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
         SetBodyContactEnabled(false);  // 退場/帰還は DashSpeed=320px/s で場を横切る＝通路中の自機を轢かない
         _caster.SetProcess(false);     // 通常テレグラフの宣告も止める（通路に集中させる）

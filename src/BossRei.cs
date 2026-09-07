@@ -206,7 +206,7 @@ public partial class BossRei : Enemy
         // 移動：状態機械＋立ち位置つき（あかり・こはる・ミナと同じ作法）。レイの性格＝配信の枠から
         // 出ない＝横移動をほぼ捨て（stance_edge_x/track_w が小さい）、傾き（lean_max）で表情を作る。
         // 数値は config/boss_stats.ini の [rei] 節（cruise_speed / stance_* 一式）。
-        _mover.Configure("rei", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
+        _mover.Configure("rei", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -223,8 +223,8 @@ public partial class BossRei : Enemy
 
     protected override void UpdateMovement(double delta)
     {
-        // 自機の x は毎フレーム渡す（自機狙いの横滑りと、向きの反転判定に要る）。
-        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
+        // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);

@@ -76,7 +76,10 @@ public partial class BossHikage : Enemy
         // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに（速度はINI: roam_speed）。
         // 2026-09-07: 旧 Configure(Vector2,...) から性格つきへ。旧版は ini の [hikage] を一切読まず
         // 既定引数で hover 3.5 を強制していた（他の本戦ボスと揃える）。速度・加速は ini 側で持つ。
-        _mover.Configure("hikage", new Vector2(Field.CenterX, 74f), Field.Width * (110f / 384f), 34f);
+        // 2026-09-08: 三ボスのゾーンが Field 側の比（BossZoneHalfW/HalfH）へ集約され、そちらの方が
+        // 広くなった。ヒカゲの「やや広め」を保つため 1.06 倍で入れる（ゾーン中心も揃える）。
+        _mover.Configure("hikage", new Vector2(Field.CenterX, Field.BossZoneCenterY),
+            Field.BossZoneHalfW * 1.06f, Field.BossZoneHalfH * 1.06f);
         GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }

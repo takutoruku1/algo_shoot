@@ -128,7 +128,7 @@ public partial class BossMina : Enemy
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[mina] の
         // cruise_speed / accel_time / stance_*）。ミナは「自機の動きを鏡のように追う」＝
         // stance_track_gain 1.0（自機と同じ x に寄る）。三ボスより速い。
-        _mover.Configure("mina", new Vector2(Field.BossCenterX, 68f), Field.BossZoneHalfW, 28f);
+        _mover.Configure("mina", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -140,8 +140,8 @@ public partial class BossMina : Enemy
 
     protected override void UpdateMovement(double delta)
     {
-        // 自機の x を渡す＝鏡写しの追従（track_gain 1.0）と、反転の判定（40px 以上・0.6秒）に使う。
-        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
+        // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
         // 全画面AOE予告中は詠唱モーション：小刻みに身震いさせ（visualOffset を揺らす）、オーラを強める。
         bool casting = _caster != null && _caster.AoeActive;
