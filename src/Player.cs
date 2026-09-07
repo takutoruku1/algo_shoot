@@ -258,20 +258,23 @@ public partial class Player : Area2D
 
     // ── 照準方向の絵（char/v3/mina_aim/mina_aim_<方向>.png）──
     //   角度から使う絵を引くのはここ1本だけ＝絵が増えても差し替えはこの表だけで済む。
-    //   素材は右半分ぶんだけ（r / ur / u / dr / d）。自機は右向きが基本で、ロック中もボスは
-    //   右側に居るのが通常なので左半分は用意しない。左を向く角度が来たら一番近い右向きの絵に
-    //   丸める（絵が無い方向で無表示にしない）。
-    //   角度は Godot 準拠（0=右・負=上・正=下）。境界は 22.5° 刻みの八方位の中点。
-    private static string AimSpriteFor(float angleRad)
+    //   素材は右半分ぶんだけ（r / ur / u / dr / d）。左半分は**左右反転で作る**（絵の担当の確認済み。
+    //   ミナの意匠は左右対称＝エプロンは中央・髪飾りは片側だけではないので、反転しても別人にならない）。
+    //   以前はここで左向きの角度を真上／真下へ丸めていたため、ボスが左に居ると「上や下を向いたまま
+    //   左へ撃つ」画になっていた。八方位ぶん素直に引き当てて、左半分は flip=true で返す。
+    //   角度は Godot 準拠（0=右・**負=上**・正=下。画面の Y が下向きなので Vector2.Angle() は上が負）。
+    //   絵の担当の対応表は「上が +90」の符号で書かれているので、ここでは上下の符号が逆になる。
+    //   境界は 22.5° 刻みの八方位の中点。
+    private static (string Dir, bool Flip) AimSpriteFor(float angleRad)
     {
-        float deg = Mathf.RadToDeg(angleRad);          // -180..180
-        if (deg > 90f) deg = 90f;                       // 左下 → 真下へ丸める
-        if (deg < -90f) deg = -90f;                     // 左上 → 真上へ丸める
-        if (deg <= -67.5f) return "u";
-        if (deg <= -22.5f) return "ur";
-        if (deg <   22.5f) return "r";
-        if (deg <   67.5f) return "dr";
-        return "d";
+        float deg = Mathf.RadToDeg(angleRad);          // -180..180（0=右 / -90=上 / +90=下）
+        float a = Mathf.Abs(deg);                      // 左右の差は「反転するか」だけ＝絶対値で八方位を引く
+        bool up = deg < 0f;                            // 上半分か（Godot は上が負）
+        if (a >= 157.5f) return ("r", true);           // 真左   ← r を反転
+        if (a >= 112.5f) return (up ? "ur" : "dr", true);   // 左上 / 左下 ← 斜めを反転
+        if (a >   67.5f) return (up ? "u"  : "d",  false);  // 真上 / 真下（左右の別が無い絵）
+        if (a >= 22.5f)  return (up ? "ur" : "dr", false);  // 右上 / 右下
+        return ("r", false);                           // 真右
     }
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
     private string _aimNow = "";
@@ -814,13 +817,17 @@ public partial class Player : Area2D
             // 指さし（_pointActive）と回避スピン中は向こうが姿勢を握るので触らない。
             if (_dodgeTimer <= 0f && !_pointActive)
             {
-                string want = LockedOn ? AimSpriteFor(AimVec.Angle()) : "";
-                if (want != _aimNow)
+                var (aimDir, flip) = LockedOn ? AimSpriteFor(AimVec.Angle()) : ("", false);
+                if (aimDir != _aimNow)
                 {
-                    _aimNow = want;
-                    var tex = want.Length > 0 ? AimTexture(want) : null;
+                    _aimNow = aimDir;
+                    var tex = aimDir.Length > 0 ? AimTexture(aimDir) : null;
                     _sprite.Texture = tex ?? _idleTex;   // 絵が無い方向は idle のまま＝欠けても事故らない
                 }
+                // 左半分の方向は右向きの絵を左右反転して作る。**向き反転（_facing）とは別系統**で、
+                // ここでは _facing に一切書かない＝上の FlipH 代入の結果を、この1フレームぶんだけ上書きする。
+                // 絵が無くて idle へ落ちたときは反転しない（idle は右向き固定の素の絵）。
+                if (_aimNow.Length > 0 && AimTexture(_aimNow) != null) _sprite.FlipH = flip;
             }
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
             _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
