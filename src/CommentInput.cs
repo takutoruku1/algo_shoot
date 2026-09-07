@@ -38,7 +38,14 @@ public partial class CommentInput : Control
 
     // 欄の位置（設計座標 1280×720）。会話バー（y=520〜690）とナレ用テロップ（y=590〜686）の上に置く＝
     //   ミナの観測行を出したまま欄が読める。配信画面の下端に貼りついて見える高さ。
-    private const float BoxX = 232f, BoxY = 424f, BoxW = 816f, BoxH = 64f;
+    //   横は**盤面基準**（2026-09-07）。旧値 BoxX=232 / BoxW=816 は中心が 640＝画面全体の中心で、
+    //   盤面を Field.Left=120 へ寄せた（設計座標で盤面 x 400..1280・中心 840）あとは欄が 200px 左へ
+    //   はみ出し、左端がサイドパネルに掛かっていた（ChoiceOverlay と同じ原因）。会話バー
+    //   （Hud.DlgBoxX = Field.DLeft+20 / DlgBoxW = Field.DWidth-40）と同じ幅・同じ左端に揃えると、
+    //   欄とバーが1本の縦線で並ぶ＝「同じ画面の下端に貼りついた欄」に見える。
+    private const float BoxX = Field.DLeft + 20f;      // 420（会話バーと同じ左端）
+    private const float BoxW = Field.DWidth - 40f;     // 840（会話バーと同じ幅）
+    private const float BoxY = 424f, BoxH = 64f;
     private const float FadeIn = 0.35f;      // 枠の出現
     private const float TypeInterval = 0.075f;   // 1文字打つ間隔（会話のタイプ送りより少し遅い＝手で打っている）
     private const float EraseInterval = 0.11f;   // 1文字消す間隔（打つより遅い＝ためらいながら消す）
