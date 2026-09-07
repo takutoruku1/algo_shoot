@@ -114,7 +114,7 @@ public partial class AkariRoot : Node2D
         {
             if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
         }
-        else { Hud?.ShowGameOverPrompt(""); _exitHeld = false; }
+        else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
 
         // 浄化が進むと部屋が晴れる（寒色→暖色）。
         var game = GetNodeOrNull<GameManager>("/root/Game");

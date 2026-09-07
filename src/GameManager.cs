@@ -1417,43 +1417,97 @@ public partial class GameManager : Node
     public void NotifyRedemptionStart() => RedemptionActive = true;
 
     // ───────────────────────────────────────────────────────────
-    // ゲームオーバー時の「ステージから抜ける（ハブへ戻る）」共通処理。
+    // ゲームオーバー時の選択（やり直す／最初から／抜ける）共通処理。
     // 各 *Root.cs が _Process で残機0を検知したら毎フレーム呼ぶ。
-    //   ・抜けプロンプトを HUD に出し続ける（リトライ＝R は各 *Root.cs の別経路で有効。通常は長押し・
-    //     ゲームオーバー中は即発。パッドはポーズメニューの「さいしょからやりなおす」経由）。
-    //   ・Q / パッドB(×) で「抜ける」を選んだら、ランで貯めたインプレを AutoSave で
-    //     確定保存（恒久値なので破棄しない・§0-3）してから Hub へ遷移する。
-    // 戻り値 true ＝抜けを実行（呼び元はそれ以降の処理を打ち切ってよい）。
+    //
+    // 2026-09-07: 旧実装は「R：ボスからやり直す ／ Shift+R：最初から ／ Q：ステージから抜ける」を
+    //   盤面の中央に**一行**で出すだけで、弾に埋もれて読めなかった（ユーザー実機指摘
+    //   「ここも選択肢みたいに選べるようにして」）。会話の選択と同じ ChoiceOverlay に載せ替え、
+    //   縦に積んで ↑↓/Z でもマウスのホバー＋クリックでも選べるようにした（onBoard:true＝盤面の中心）。
+    //   既存のキー（R／Shift+R／Q／パッドB）は**そのまま残す**＝覚えている人が困らない。
+    //   R の長押し／即発の扱いは従来どおり各 *Root.cs 側にある（こちらは触らない）。
+    private static ChoiceOverlay? _gameOverChoice;
+    // 選択肢の並び。沈黙の自動決定は末尾が選ばれるので、末尾は最も害の小さい「抜ける」にする
+    //（ChoiceOverlay の既定挙動＝呼び出し側が引き下がる側を最後に置く約束）。
+    private static readonly string[] GameOverChoices =
+    {
+        "（ボスからやり直す）",
+        "（最初からやり直す）",
+        "（ステージから抜ける）",
+    };
+
+    // 戻り値 true ＝画面遷移を実行した（呼び元はそれ以降の処理を打ち切ってよい）。
     public static bool HandleGameOverExit(Node root, Hud? hud, ref bool exitHeld)
     {
         var game = root.GetNodeOrNull<GameManager>("/root/Game");
 
         // 改心演出が始まっていたら勝負は決着＝ゲームオーバー扱いを取り下げ、演出を優先する
-        //（残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケース。プロンプトを重ねない）。
+        //（残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケース。選択を重ねない）。
         // R リトライは各 *Root.cs の別経路で従来どおり有効。
         if (game?.RedemptionActive ?? false)
         {
-            hud?.ShowGameOverPrompt("");
+            ClearGameOverChoice(hud);
             exitHeld = false;
             return false;
         }
 
-        // プロンプトは直近デバイス（Pad.ShowKeyboard）に追従。パッドのリトライはポーズメニュー経由
-        //（Start はメニュー開閉に使うため）、抜けは B（×）＝Back(SELECT/VIEW) は会話ログの開キーと衝突する。
-        hud?.ShowGameOverPrompt(Pad.ShowKeyboard
-            ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：ステージから抜ける（ハブへ戻る）"
-            : $"{Pad.Face(JoyButton.Start)}：メニュー→さいしょからやりなおす　／　{Pad.Face(JoyButton.B)}：ステージから抜ける（ハブへ戻る）");
+        // 選択UIを一度だけ立てる。会話の選択と同じ見た目・同じ操作（盤面の中心・↑↓/Z・マウス）。
+        if (_gameOverChoice == null || !IsInstanceValid(_gameOverChoice))
+        {
+            if (hud == null) return false;
+            _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices,
+                defaultSel: 0, onBoard: true);   // 既定は「ボスからやり直す」＝いちばん続けやすい手
+            // キー操作の案内は選択肢の下に小さく添える（覚えている人向け。選択UIの邪魔をしない量）。
+            hud.ShowGameOverTitle("くじけちゃった…");
+            hud.ShowGameOverPrompt(Pad.ShowKeyboard
+                ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：抜ける"
+                : $"{Pad.Face(JoyButton.B)}：抜ける");
+        }
 
+        // 既存キー：Q／パッドB＝抜ける（従来どおり即発）。R 系は各 *Root.cs が持っている。
         bool exit = Input.IsKeyPressed(Key.Q) || Pad.Pressed(JoyButton.B);
         bool fired = exit && !exitHeld;
         exitHeld = exit;
-        if (!fired) return false;
+        if (fired) { ExitToHub(root, game, hud); return true; }
 
-        // ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、ここで確実に保存してから帰還。
+        // 選択が決まったら、その行の処理へ。
+        if (!_gameOverChoice.Decided) return false;
+        int sel = _gameOverChoice.Selected;
+        ClearGameOverChoice(hud);
+        switch (sel)
+        {
+            case 0:   // ボスからやり直す＝R 単体と同じ経路（SelectedEntry を Boss にしてシーン再読込）
+                if (game != null) game.SelectedEntry = StageEntry.Boss;
+                root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                root.GetTree().ReloadCurrentScene();
+                return true;
+            case 1:   // 最初からやり直す＝Shift+R と同じ経路（SelectedEntry に触らない）
+                root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                root.GetTree().ReloadCurrentScene();
+                return true;
+            default:  // ステージから抜ける＝Q と同じ経路
+                ExitToHub(root, game, hud);
+                return true;
+        }
+    }
+
+    // 選択UIと案内を片付ける（残機が戻った／改心に入った／選び終えた）。
+    // *Root.cs は残機が0でないフレームに ShowGameOverPrompt("") を呼ぶので、そこからも消せるよう public。
+    public static void ClearGameOverChoice(Hud? hud)
+    {
+        if (_gameOverChoice != null && IsInstanceValid(_gameOverChoice)) _gameOverChoice.QueueFree();
+        _gameOverChoice = null;
+        hud?.ShowGameOverTitle("");
+        hud?.ShowGameOverPrompt("");
+    }
+
+    // 抜ける：ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、確実に保存してから帰還。
+    private static void ExitToHub(Node root, GameManager? game, Hud? hud)
+    {
+        ClearGameOverChoice(hud);
         game?.AutoSave();
         root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();
         root.GetTree().ChangeSceneToFile("res://Hub.tscn");
-        return true;
     }
 }

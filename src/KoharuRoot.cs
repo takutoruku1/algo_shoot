@@ -132,7 +132,7 @@ public partial class KoharuRoot : Node2D
         {
             if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
         }
-        else { Hud?.ShowGameOverPrompt(""); _exitHeld = false; }
+        else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
 
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。

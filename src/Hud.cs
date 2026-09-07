@@ -41,8 +41,12 @@ public partial class Hud : CanvasLayer
     private string _bannerScore = "";     // 例 "SCORE 12,345"
     private string _bannerScoreBest = ""; // 例 "NEW BEST!" or "BEST 12,000"
     private bool _bannerScoreNewBest;
-    // ゲームオーバー時の追加プロンプト（バナー直下）。「リトライ／ハブへ抜ける」の選択肢を出す。
-    // *Root.cs が残機0を検知して ShowGameOverPrompt で立て、抜けキー受付中だけ表示する。
+    // ゲームオーバーの選択UI（GameManager の ChoiceOverlay）に添える2つの文字列。
+    //   Title  … 選択肢の上（y=150）に出す見出し「くじけちゃった…」。旧 ShowBanner（y=300）は
+    //            3択の2行目と重なるので使わない（Player.GameOver のコメント参照）。
+    //   Prompt … 選択肢の下（y=496）に出す、R/Shift+R/Q の控えめな添え書き。
+    // どちらも *Root.cs / GameManager が残機0のあいだ毎フレーム立て、復帰時に空文字でクリアする。
+    private string _gameOverTitle = "";
     private string _gameOverPrompt = "";
 
     // R 長押しリトライの充填率（0=非表示）。各 *Root.cs が毎フレーム SetRetryHold で渡す
@@ -536,7 +540,8 @@ public partial class Hud : CanvasLayer
     private const double EpicDur = 5.2;   // 0.0 暗転寄せ → 1.0 タグ合わせ → 2.4 副題滲み → 3.4 ため → 5.2 引き
 
 
-    // ゲームオーバー中の追加プロンプト（バナー直下）。空文字でクリア。*Root.cs が毎フレーム立てる。
+    // ゲームオーバーの選択UIに添える見出し／添え書き。どちらも空文字でクリア。
+    public void ShowGameOverTitle(string text) { _gameOverTitle = text; }
     public void ShowGameOverPrompt(string text) { _gameOverPrompt = text; }
 
     // R 長押しリトライの充填率（0..1）。*Root.cs が毎フレーム渡す（0 で非表示）。
@@ -695,6 +700,7 @@ public partial class Hud : CanvasLayer
         if (_dlgText.Length > 0) DrawDialog(ci);
         if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
+        if (_gameOverTitle.Length > 0) DrawGameOverTitle(ci);
         if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
         if (_retryHold > 0f) DrawRetryHoldChip(ci, _retryHold, "R 長押しでリトライ");
         // 被弾エッジ
@@ -1672,11 +1678,23 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    // ゲームオーバー時の選択肢プロンプト（バナー直下）。バナーのフェードに依らず常時表示。
+    // ゲームオーバー時のキー案内。2026-09-07 に主役は ChoiceOverlay（縦積みの選択）へ移り、
+    // ここは「R／Shift+R／Q を覚えている人向けの控えめな添え書き」になった。
+    //   位置: 3択の最下行（y=375〜）と ChoiceOverlay の操作ヒント（y=464）の下＝y=496。
+    //         旧位置 y=372 は選択肢の3行目と真上から重なる。
+    //   大きさ: FontHeading → FontSmall、αも落として選択肢より一段引く。
     private void DrawGameOverPrompt(HudCanvas ci)
     {
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 372), _gameOverPrompt, UiKit.FontHeading, new Color(UiKit.Text2, 1f),
-            HorizontalAlignment.Center, Field.DWidth);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 496), _gameOverPrompt, UiKit.FontSmall,
+            new Color(UiKit.Text3, 0.75f), HorizontalAlignment.Center, Field.DWidth);
+    }
+
+    // ゲームオーバーの見出し（選択肢の上・y=150）。3択の最上行 y=195 より上＝重ならない。
+    // 旧 ShowBanner（y=300・FontDisplay）の代わり。大きさは一段落として選択肢に主役を譲る。
+    private void DrawGameOverTitle(HudCanvas ci)
+    {
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(Field.DLeft, 150), _gameOverTitle, UiKit.FontTitle,
+            new Color(UiKit.Light, 0.92f), HorizontalAlignment.Center, Field.DWidth);
     }
 }
 

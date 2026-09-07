@@ -97,7 +97,7 @@ public partial class Stage0Root : Node2D
         {
             if (GameManager.HandleGameOverExit(this, Hud, ref _exitHeld)) return;
         }
-        else { Hud?.ShowGameOverPrompt(""); _exitHeld = false; }
+        else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
     }
 
     public override void _ExitTree()

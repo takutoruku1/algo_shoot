@@ -1373,10 +1373,12 @@ public partial class Player : Area2D
         _gameOver = true;
         _invincible = true;
         _invincibleTimer = 9999f; // 以降は無敵で待機
-        // バナーは直近デバイスの表記に合わせる（パッドはメニューの「さいしょからやりなおす」へ誘導）。
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner(
-            Pad.ShowKeyboard ? "くじけちゃった… Rでもう一度" : "くじけちゃった… " + Pad.Face(JoyButton.Start) + " でもう一度");
-        // 自動リロードはしない。各ステージルート(*Root.cs)の _Process が R＝リトライ／Q＝抜ける を
+        // 2026-09-07: ゲームオーバーのバナー（ShowBanner）は出さない。
+        //   バナーは y=300 に大きく出るので、この直後に立つ選択UI
+        //   （GameManager.HandleGameOverExit の ChoiceOverlay・3択は y=195/285/375）の2行目と
+        //   真上から重なって読めなくなる。「くじけちゃった…」の一言は選択UIの見出しとして
+        //   Hud.ShowGameOverTitle が選択肢の上（y=150）に出す＝重ならず、同じ案内も二重にならない。
+        // 自動リロードはしない。各ステージルート(*Root.cs)の _Process が選択UIとキー（R/Shift+R/Q）を
         // 受け付けるので、プレイヤーが選ぶまでこのまま無敵で待機する。
     }
 
