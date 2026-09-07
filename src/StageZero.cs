@@ -53,8 +53,10 @@ public partial class StageZero : Node
     private const double SafetyTimeout = 60.0;
 
     // スポット矩形（設計座標 1280x720）。Hud.cs の各 Draw* の実座標から確定。
-    private static readonly Rect2 SpotBomb     = new Rect2(18, 16, 200, 86);   // DrawLifeBomb（LIFE/BOMB パネル）
-    private static readonly Rect2 SpotPurify   = new Rect2(640 - 210, 16, 420, 38); // DrawPurify（浄化カプセル）
+    //   2026-09-07：常設HUDをサイドパネル（設計 x 0..373）へ移したので、穴もそこへ移した。
+    //   数字は Hud.cs の PanelX(26) / RowLifeBomb(28) / RowPurify(196) と各要素の高さから確定させる。
+    private static readonly Rect2 SpotBomb     = new Rect2(20, 22, 327, 144);  // DrawLifeBomb（LIFE/BOMB パネル）
+    private static readonly Rect2 SpotPurify   = new Rect2(20, 190, 327, 74);  // DrawPurify（浄化ゲージ）
 
     // 自機の練習場での定位置（盤面の穏やかな中央）。
     private const float CenterX = Field.CenterX, CenterY = 120f;
