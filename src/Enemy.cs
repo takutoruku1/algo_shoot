@@ -914,7 +914,8 @@ public partial class Enemy : Area2D
         GameCamera.Instance?.Hitstop(HitstopDur);
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
         Audio.Instance?.PlayPurify();
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
+        // 浄化の一言（ありがとう等）は 2026-09-07 のユーザー指示で非表示。文言の作り直し案は
+        // wiki/08_仮台本/18_浄化の一言_案C.md にあり、承認されたらここへ差し戻す。
 
         // やさしさの波紋（連鎖浄化のトリガー）。
         // Redeem は被弾/パネル砕けのシグナル（物理クエリのフラッシュ中）から呼ばれることがある。
