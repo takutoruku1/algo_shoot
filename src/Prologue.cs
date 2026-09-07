@@ -802,6 +802,7 @@ public partial class Prologue : Node2D
     private void DrawTalkSpeakers()
     {
         if (_line >= _talk.Count) return;
+        if (_talk[_line].Who == WhoFx) return;   // 演出行のあいだは立ち絵も引く（中央のカードに場を譲る）
         string face = _talk[_line].Face;
         if (string.IsNullOrEmpty(face)) return;   // システム表示・投稿・あなたの下書きには立ち絵を出さない
         var tex = ResourceLoader.Load<Texture2D>(face);
@@ -831,6 +832,7 @@ public partial class Prologue : Node2D
     {
         if (_font == null || _line >= _talk.Count) return;
         var d = _talk[_line];
+        if (d.Who == WhoFx) return;   // 演出行は話者がいない＝空の額縁を出さない（中央のカードだけを見せる）
         var (label, edge) = SpeakerOf(d);
         var font = FontFor(d);
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
