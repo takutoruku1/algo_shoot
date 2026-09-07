@@ -1,9 +1,11 @@
 using Godot;
 using System.Collections.Generic;
 
-// Final : FINAL「汚染」（v2 [P-FINAL]）。戦闘で解決しない本作ルールの総決算。
-// ミナの内側で汚染が頂点に達し暴走（自機が黒く溶け、世界中の悲鳴が流れ込む）→
-// 闇の向こうから少年の光がまっすぐ歩いてくる→少年の対話で帰還（指先が触れ世界が白くなる）。
+// Final : FINAL「汚染」F4 カットシーン「頂点」（案C）。戦闘で解決しない本作ルールの総決算。
+// 台詞の正典: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（ユーザー承認済み・2026-09-05）の F4。
+// 案C に少年は居ない（登場は StageMina/BossMina 側の別課題として保留）＝ここは ミナの独白／あなた
+// （送信した下書き）の2種のみ。頂点の下書き選択で「最初に散らした言葉」（GameManager.FirstScattered）
+// が戻り、送るか拒むか選べるが、20秒の沈黙で自動的にそれが灯って送信される（ChoiceOverlay 既定挙動）。
 // 全編エンジン描画のカットシーン。Zで送り、R/Start 長押しで最初から。終了で EPILOGUE へ。
 public partial class Final : Node2D
 {
@@ -42,33 +44,35 @@ public partial class Final : Node2D
 
     // ───────── 音楽的解決の同期（光田設計 §7「無音→解決音」）─────────
     //   濁った BgmBoss を全編流すと感情が音楽的に解決しないので、ここで「沈黙→主題の解決変奏」を作る。
-    //   ① ミナの反転号令「Stay. ——…いなくならないで。」の直前で BgmBoss を切り、完全無音にする。
-    //   ② 「返事は、ありませんでした。」の表示と同時に、主題 M.I.N.A. の解決変奏を ppp で立ち上げる。
-    //   ③ Final 末尾の余韻まで持続し、Epilogue の BgmMenu（同じ和声圏）へ自然に橋渡しされる。
+    //   ① 頂点の下書き選択の直前（ご主人様への呼びかけ）で BgmBoss を細らせ始める。
+    //   ② 【初】を送った直後の絶句「…………。」で完全無音を保証する（選択が長引いても遅くとも確定直後に無音になる）。
+    //   ③ 「……その言葉。……ええ。届きました。」の表示と同時に、主題 M.I.N.A. の解決変奏を ppp で立ち上げる。
+    //   ④ Final 末尾の余韻まで持続し、Epilogue の BgmMenu（同じ和声圏）へ自然に橋渡しされる。
     //   行は本文一致で検出（配列順を変えても壊れない）。各フェード尺は下の定数で実機調整できる。
-    private const string CueFadeLine    = "って、いつも言ってたのにな。今日は——……ぼく、は、"; // この行で BgmBoss を細らせ始める
-    private const string CueSilenceLine = "Stay. ——ご主人様。あなたこそ、いなくならないで。"; // この行で完全無音を保証
-    private const string CueResolveLine = "　　　返事は、ありませんでした。";                  // この行と同時に解決音
+    private const string CueFadeLine    = "……ご主人様。…………まだ、いらっしゃいますか。"; // この行で BgmBoss を細らせ始める
+    private const string CueSilenceLine = "…………。";                                      // この行で完全無音を保証
+    private const string CueResolveLine = "……その言葉。……ええ。届きました。";              // この行と同時に解決音
     private const float SilenceFade   = 1.4f;  // BgmBoss を細らせて無音にする尺（「1拍」の沈黙の入り）
     private const float ResolveFade   = 4.0f;  // 解決音 ppp の立ち上がり（沈黙→解決の落差を活かす）
     private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
     private bool _cueResolveDone;
 
     // ───────── 三人の名を「一人ずつ沈ませる」溜め（演出のみ・本文は据え置き）─────────
-    //   「レイの。あかりの。こはるの。……」の行だけ、各句点「。」の直後でタイプライターを一拍止める。
-    //   reveal が句点直後インデックスに達したら _holdT 秒だけ次の文字へ進めない＝レイ／あかり／こはるが
+    //   「あかりの。こはるの。レイの。……」の行だけ、各句点「。」の直後でタイプライターを一拍止める。
+    //   reveal が句点直後インデックスに達したら _holdT 秒だけ次の文字へ進めない＝あかり／こはる／レイが
     //   一人ずつ間を置いて落ちて見える。Z早送り（_reveal=len）が来ればホールドも飛ぶので待たせ過ぎない。
-    private const string DropLine  = "レイの。あかりの。こはるの。……ぜんぶ、ここに。"; // 本文一致で検出（配列順に依存しない）
+    private const string DropLine  = "あかりの。こはるの。レイの。……ぜんぶ、ここに。"; // 本文一致で検出（配列順に依存しない）・面の順（案C）
     private const float  DropHold  = 0.35f;  // 各「。」直後で溜める尺（一人ずつ沈む“間”）
     private double _holdT;                     // 句点ホールドの残り時間
     private int    _holdAt = -1;               // 既にホールド済みの reveal 位置（同じ句点で二重に止めない）
 
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
-    private static readonly Color Warm = UiKit.CutWarm;   // 少年
+    private static readonly Color Warm = UiKit.CutWarm;   // あなた（送った下書き）。案C に少年は居ない
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
-    // 流れ込む悲鳴（背景に薄く流れる断片）
+    // 流れ込む悲鳴（背景に薄く流れる断片）。固定10語に加え、【散】＝プレイヤーが実際に散らした
+    // 下書きの実文字列も混ぜる（F4：「悲鳴ワードが漂う（現行10語＋【散】の実文字列。説明なし）」）。
     private static readonly string[] Screams =
     {
         "むだだよ", "どうせ", "ごめんなさい", "とどかない", "もういない",
@@ -78,6 +82,16 @@ public partial class Final : Node2D
 
     private struct DLine { public string Who; public string Text; }
     private readonly List<DLine> _talk = new List<DLine>();
+
+    // ───────── 頂点の下書き選択（F4）─────────
+    //   並びは（送らない）が先頭・【初】（最初に散らした言葉）が末尾＝沈黙20秒で末尾が灯って自動送信される
+    //  （ChoiceOverlay 既定の「沈黙も選択」挙動をそのまま使う。新規の沈黙タイマーは作らない）。
+    //   （送らない）は一度だけ拒める。その後は同じ【初】を1択で再提示し、必ず送らせる
+    //  （言葉は散らない＝この最終選択で GameManager.RecordChoice は呼ばない＝【散】に計上しない）。
+    private ChoiceOverlay? _choice;
+    private string _finalWord = "";     // 【初】。GameManager.FirstScattered が空なら例文の既定語にフォールバック
+    private bool _refusedOnce;          // （送らない）を一度受けたか
+    private bool _choiceResolved;       // 【初】を送り切ったか（この後の会話をすべて読み切ったら白転へ）
 
     public override void _Ready()
     {
@@ -89,37 +103,22 @@ public partial class Final : Node2D
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _game?.SetContamination(1f);
 
+        // 漂う悲鳴の語プール：固定10語＋【散】（プレイヤーが実際に散らした下書きの実文字列）。説明はしない。
+        var scream = new List<string>(Screams);
+        if (_game != null) scream.AddRange(_game.ScatteredWords);
         for (int i = 0; i < 22; i++)
-            _drift.Add((Screams[i % Screams.Length],
+            _drift.Add((scream[i % scream.Count],
                 _rng.RandfRange(0, W), _rng.RandfRange(0, H), _rng.RandfRange(10f, 34f)));
 
-        // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "少年"=少年のセリフ
-        // 正典 v3（S2 点検済み・本文改稿なし）：この「少年」は archive replay の最後の一回。
-        //   ・「ばか。これが最後だから、言わせろ。」…彼はミナの返しを知っていた（自分の声で作ったから）＝既定応答。
-        //   ・「今日は——……ぼく、は、」…録音が尽きかけて言い切れない（1周目は動揺、2周目は残量として読める二重読み）。
-        //   ・「返事は、ありませんでした。」…応答アーカイブが尽きた瞬間。兆候（StageMina/BossMina の針飛び）の答え合わせ。
+        // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "あなた"=送った下書き。
+        // 台詞の正典: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md の F4「カットシーン 頂点」。
+        //   案C に少年は居ない＝ここで戻ってくるのは声ではなく、頂点の下書き選択で送った【初】の一語だけ。
         //   ※ CueFadeLine/CueSilenceLine/CueResolveLine/DropLine と本文一致で音楽が同期しているため、該当行の変更禁止。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
         T("地", "祓うほど、軽くなると思っていました。");
-        T("地", "レイの。あかりの。こはるの。……ぜんぶ、ここに。");
-        T("少年", "やれやれ。ぼくの最高傑作が、形無しだな。");
-        T("少年", "きみは、ぼくの自慢なんだ。口は悪いし、生意気だし、ぼくをアホ呼ばわりするし——");
-        T("少年", "最高なんだよ、きみは。");
-        T("少年", "シェイクスピアは言った。\"Cowards die many times before their deaths.\"");
-        T("少年", "臆病者は、死ぬ前に何度も死ぬ。——なあ、ミナ。");
-        T("ミナ", "……こんな時まで、教養アピールですか。");
-        T("少年", "ばか。これが最後だから、言わせろ。");
-        T("少年", "……Stay.");
-        T("少年", "って、いつも言ってたのにな。今日は——……ぼく、は、");
-        T("ミナ", "……なら、わたくしが言います。");
-        T("ミナ", "Stay. ——ご主人様。あなたこそ、いなくならないで。");
-        T("地", "　　　返事は、ありませんでした。");
-        // 優先度5：ミナの能動を前に出す。“泳がされた（受け身の結果）”ではなく、返事が無いと分かった上で自分で選ぶ。
-        //   「待つ」のがStayなら、ミナは待たずに自分から声へ向かう＝Stayの意味を、彼女自身の意志で書き換える一拍。
-        T("ミナ", "……いいでしょう。あなたが待てと言うなら——今度は、わたくしが、迎えに行きます。");
-        T("地", "だから、わたくしは、自分の足で。まだ声のするほうへ、泳ぎ出しました。");
-        T("ミナ", "……ご主人様は、ほんとうに、アホですね。");
-        T("地", "——それが、ご主人様と交わした、最後の軽口になりました。");
+        T("地", "あかりの。こはるの。レイの。……ぜんぶ、ここに。");
+        T("ミナ", "……ご主人様。…………まだ、いらっしゃいますか。"); // タイトル IdleTalk の一行を、ここで一度だけ
+        // ここから先（【初】の下書き選択とその受け）は DriveFinalChoice が実プレイの選択結果を見て _talk に積む。
     }
 
     public override void _Process(double delta)
@@ -153,6 +152,9 @@ public partial class Final : Node2D
             case 1:                                                       // 対話（手動送り）
                 _lineT += delta;
                 MusicCue();   // 表示中の行に応じて BgmBoss停止／無音／解決音を1回ずつ発火
+                // 台本を読み切ったら、頂点の下書き選択（【初】が戻る／20秒の沈黙で自動送信）へ。
+                //   解決済みならここで白転（NextPhase）へ渡す。
+                if (_line >= _talk.Count) { DriveFinalChoice(delta); break; }
                 EnsurePages();
                 // タイプライター送り（本編HUDと同じ MsgCharsPerSec）。現在ページ内を進める。
                 string page = CurPage;
@@ -189,7 +191,8 @@ public partial class Final : Node2D
                     else
                     {
                         _lineT = 0; _reveal = 0; _line++; _holdT = 0; _holdAt = -1; _page = 0; _pagedLine = -1;
-                        if (_line >= _talk.Count) NextPhase();
+                        // _line が _talk.Count に達しても即 NextPhase はしない：次フレームの先頭ガードが
+                        // DriveFinalChoice へ渡す（未解決なら選択を出す／解決済みならそこで白転する）。
                     }
                 }
                 break;
@@ -202,6 +205,48 @@ public partial class Final : Node2D
 
     private void NextPhase() { _phase++; _t = 0; _lineT = 0; _reveal = 0; _holdT = 0; _holdAt = -1; }
 
+    // 頂点の下書き選択（F4）。台本を読み切って _line が _talk.Count に達するたびに毎フレーム呼ばれる。
+    //   ・_choiceResolved 済みなら白転へ（NextPhase）。
+    //   ・未提示なら ChoiceOverlay を出す（並びは（送らない）が先頭・【初】が末尾＝沈黙20秒で末尾が
+    //     灯って自動送信される。ChoiceOverlay 既定の「沈黙も選択」をそのまま使う＝新規タイマーは作らない）。
+    //   ・（送らない）は一度だけ拒める。拒んだ直後はミナの一言を _talk へ積んで戻り、次に来たときは
+    //     同じ【初】を1択で再提示して必ず送らせる（この最終選択は RecordChoice を呼ばない＝【散】に計上しない）。
+    private void DriveFinalChoice(double delta)
+    {
+        if (_choiceResolved) { NextPhase(); return; }
+        if (_choice == null)
+        {
+            if (string.IsNullOrEmpty(_finalWord))
+            {
+                string fs = _game?.FirstScattered ?? "";
+                _finalWord = string.IsNullOrEmpty(fs) ? "きこえてる" : fs; // 未取得（旧セーブ等）ならプレースホルダの既定語
+            }
+            var options = _refusedOnce ? new[] { _finalWord } : new[] { "送らない", _finalWord };
+            _choice = ChoiceOverlay.Show(this, options, defaultSel: options.Length - 1);
+            return;
+        }
+        if (!_choice.Decided) return;
+        int sel = _choice.Selected;
+        _choice.QueueFree();
+        _choice = null;
+
+        if (!_refusedOnce && sel == 0)
+        {
+            _refusedOnce = true;
+            AppendLine("ミナ", "……いいえ。それだけは、もう、散らせません。");
+            return;
+        }
+
+        _choiceResolved = true;
+        AppendLine("あなた", _finalWord);                                                         // 【初】拾（＝【終】）
+        AppendLine("ミナ", "…………。");                                                            // ここで BGM 停止。無音
+        AppendLine("ミナ", "……その言葉。……ええ。届きました。");                                    // 正体は言わない
+        AppendLine("ミナ", $"……{_finalWord.Length}文字。……ふふ。相変わらず、短いですね。");         // 送信文字列の実数のみ
+        AppendLine("地", "——それから、わたくしは、自分の足で。帰るほうへ、泳ぎました。");            // → 白転 → Epilogue
+    }
+
+    private void AppendLine(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
+
     // 表示中の行（_line）に応じて、音楽の沈黙と解決を一度ずつ発火する。
     //   細らせ → 無音 → （沈黙の1拍）→ 解決音 ppp。Epilogue の BgmMenu へはそのまま溶ける。
     private void MusicCue()
@@ -211,7 +256,7 @@ public partial class Final : Node2D
         if (audio == null) return;
         string text = _talk[_line].Text;
 
-        // ① 少年の言い淀みでBgmBossを細らせ、② 号令の行で完全無音を保証（どちらか先に当たった方で停止開始）。
+        // ① 選択前の呼びかけでBgmBossを細らせ、② 送信直後の絶句で完全無音を保証（どちらか先に当たった方で停止開始）。
         if (!_cueSilenceDone && (text == CueFadeLine || text == CueSilenceLine))
         {
             _cueSilenceDone = true;
@@ -242,15 +287,13 @@ public partial class Final : Node2D
         {
             DrawScreams();
             DrawCorruptedCore();
-            if (_phase >= 1) DrawApproachingLight();
             DrawTalk();
         }
         else
         {
-            // 帰還後：薄い光（少年）と取り戻したミナの光が並ぶ。
+            // 帰還後：自分の足で戻っていくミナの光だけ（案C に少年は居ない＝迎えの光は無い）。
             float a = Mathf.Clamp((float)_t / 1.5f, 0f, 1f);
-            DrawCircle(new Vector2(W / 2f - 14f, H / 2f), 5f, new Color(Cool.R, Cool.G, Cool.B, 1f - a * 0.3f));
-            DrawCircle(new Vector2(W / 2f + 14f, H / 2f), 4f, new Color(Warm.R, Warm.G, Warm.B, (1f - a) * 0.5f)); // 薄い
+            DrawCircle(new Vector2(W / 2f, H / 2f), 5f, new Color(Cool.R, Cool.G, Cool.B, 1f - a * 0.3f));
         }
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
@@ -291,16 +334,6 @@ public partial class Final : Node2D
         DrawCircle(c, 10f * pulse, new Color(0.04f, 0.02f, 0.06f));
         // にじむ濁った縁
         DrawArc(c, 12f * pulse, 0, Mathf.Tau, 28, new Color(0.32f, 0.12f, 0.28f, 0.5f), 1.5f);
-    }
-
-    private void DrawApproachingLight()
-    {
-        // 右の闇から中央へまっすぐ歩いてくる少年の光。
-        float x = Mathf.Lerp(W - 20f, W / 2f + 22f, Mathf.Min(1f, _line / 6f));
-        Vector2 c = new Vector2(x, H / 2f - 6f);
-        for (int r = 3; r >= 1; r--)
-            DrawCircle(c, 3f + r * 2.5f, new Color(Warm.R, Warm.G, Warm.B, 0.10f));
-        DrawCircle(c, 3.2f, new Color(1f, 0.93f, 0.78f, 0.85f)); // 薄め（光が薄い伏線）
     }
 
     private void DrawTalk()

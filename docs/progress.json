@@ -1,24 +1,24 @@
 {
-  "generated": "2026-09-05 20:26 UTC",
+  "generated": "2026-09-07 19:11 UTC",
   "counts": {
-    "todo": 8,
+    "todo": 10,
     "wip": 0,
-    "blocked": 17,
-    "done": 206
+    "blocked": 19,
+    "done": 207
   },
-  "percent": 96,
+  "percent": 95,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "FINAL F1〜F4 を案C に差し替え",
-      "worker": "engineer",
-      "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。F4 で「最初に散らした言葉」が戻り、20秒の沈黙で自動送信"
-    },
     {
       "priority": "P1",
       "title": "エピローグ E1〜E6 を案C に差し替え",
       "worker": "engineer",
       "accept": "ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の \"stay\" ゲートを置換"
+    },
+    {
+      "priority": "P1",
+      "title": "中ボス初回撃破時に退場演出が再生されないまま遷移する",
+      "worker": "engineer",
+      "accept": "2026-09-07監査で発見。`CheckpointFlow.cs:27-38` の `firstEver` 分岐（そのセーブで最初の中ボス撃破、かつ非autoplay）が `ChangeSceneToFile` を即座に呼ぶが、`_cameo.Finished` が立つ瞬間 `Enemy.cs:1028-1049` の `_purifiedExitT` はまだ0（`_crying`中は加算されない）。結果、直近コミット`1b12bac`で意図した3.2秒（`CameoBoss.cs:114` `PurifiedExitHoldOverride`）の退場演出が初回撃破では1コマも再生されずシーンごと消える。`--demo`/`--qa`はこの分岐自体を迂回するため自動検証でも検出されない。受入条件: `CheckpointFlow.OnMidBossCleared` の firstEver分岐で、中ボスの退場演出完了（`_purifiedExitT >= ExitHold+PurifiedExitFade` 相当、またはノードの自然QueueFree）を待ってから `ShopTutorial.tscn` へ遷移するようにする。通常プレイ（`--demo`/`--qa`無し）でセーブ新規作成→最初のステージの中ボス撃破→中の人がフル不透明で見えてから遷移することを確認。2回目以降（`firstEver=false`）の動作は変えない。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
     },
     {
       "priority": "P2",
@@ -55,6 +55,18 @@
       "title": "MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名",
       "worker": "engineer",
       "accept": "内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み"
+    },
+    {
+      "priority": "P2",
+      "title": "正典シナリオ設計書v2が案C移行後も旧面順・こはる旧設定のまま放置されている",
+      "worker": "scenario",
+      "accept": "2026-09-07監査で発見。`docs/20260613/MINA_シナリオ設計書_v2.md:62,77-79,261,265,267,268`と`docs/ゲーム内テキスト台本_改稿版.txt:265-347,541`(自称「コード反映済み」)が旧面順(STAGE1レイ/STAGE2あかり/STAGE3こはる)・旧こはる設定(兄の死を看取る妹)のまま。実装は既に`wiki/08_仮台本/05_場面表_案C.md`(2026-09-05ユーザー承認)通り`GameManager.cs:196-203`(あかり→こはる→レイ)・`BossKoharu.cs:3-7,117-128`(推しの配信/八十七回)へ移行済み。**台詞や物語内容そのものの追加・変更ではなく、既に承認・実装済みの内容へ正典docsを追いつかせる注記のみ**（本文の書き換えはしない。過去のGAME_DESIGN.md/CONCEPT_V2.md非正典バナーと同種の作業）。受入条件: `docs/20260613/MINA_シナリオ設計書_v2.md`冒頭と`docs/ゲーム内テキスト台本_改稿版.txt`冒頭に「STAGE構成・こはる設定は案C(wiki/08_仮台本/05〜08、2026-09-05承認)で上書き済み。本書の面順表とこはる関連記述は非正典」の注記(バナー)を追加するのみ。本文の面順表・セリフ本体は変更しない。"
+    },
+    {
+      "priority": "P3",
+      "title": "HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない",
+      "worker": "engineer",
+      "accept": "2026-09-07監査で発見。`EnemySpec.cs:112-155`・`Spawner.cs:25-43`で全テーマ共通稼働中の引用リプ(FlankAim)・バズ壁(BuzzWall・通常の2.5倍の耐久)・祈り運び(KoharuPrayerCarry)が、`HowToPlay.cs:271-288`のコア機能カード5枚(やさしさ全開/ボム/弾強化/後方弾/浄化)に一切含まれない。特にバズ壁は見た目の差が乏しく初見で「弾が効いていない」と誤解されうる。受入条件: `HowToPlay.cs`ページ3(または適切な既存ページ)に3種のいずれかの体験に必要な最小限の一言を追加(例:硬い盾役もいる、無視して素通りしてもいい等)。既存カード様式`(title, body, accent)`を踏襲しレイアウト崩れが無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
     }
   ],
   "wip": [],
@@ -160,9 +172,27 @@
       "title": "人力確認: R長押しリトライ / ESC の操作感",
       "worker": null,
       "accept": "自動では判定不能。**ユーザーの実プレイ待ち**"
+    },
+    {
+      "priority": null,
+      "title": "Hub SNSカードの反応数が新面順(あかり→こはる→レイ)でエスカレーションと逆転したまま",
+      "worker": null,
+      "accept": "2026-09-07監査で発見。`Hub.cs:194` の `[\"rei\"]=(12,3,48), [\"akari\"]=(34,9,210), [\"koharu\"]=(58,21,402)` が旧面順(レイ→あかり→こはる=小→中→大)のまま。新面順(`GameManager.cs:196-203`: あかり→こはる→レイ)に当てはめると中→大→小となり、話が進むほど反応が小さく見える不自然な流れになる。仮台本(`wiki/08_仮台本/05〜08`)に具体的数値の指定なし。要ユーザー判断: 新面順で単調増加にするか、意図した別の曲線にするか"
+    },
+    {
+      "priority": null,
+      "title": "案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している",
+      "worker": null,
+      "accept": "2026-09-07監査で発見。`wiki/08_仮台本/05_場面表_案C.md`はSTAGE3(レイ)クリア後、帰還→即FINALの構成でMinaBattleへの言及が一切ない(grep 0件)。一方 `src/Hub.cs:218,261,565` は3面クリア後に `MinaBattle.tscn` へ遷移する導線が現存し、`src/StageMina.cs:194` はクリア後に `Final.tscn` へ遷移する(現状は3面帰還→MinaBattle→Finalの3段構成)。TODO先頭の「FINAL F1〜F4を案Cに差し替え」に着手する前に解消しておくべき前提の分岐。要ユーザー判断: (a)MinaBattleを維持し案Cのフローに独自に組み込む、(b)BossMinaの戦闘要素をFinal.csのF1〜F4に統合しStageMina/MinaBattle.tscnの独立ステージを廃止する"
     }
   ],
   "done": [
+    {
+      "priority": null,
+      "title": "FINAL F1〜F4 を案C に差し替え",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-07) ユーザー承認済み仮台本: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（2026-09-05承認）。**実装前調査で判明**: 台本のF1（導入）はStageMina.cs、F2/F3（ボス戦・邂逅）はBossMina.csに実装されており、**Final.csに実在するのはF4（カットシーン「頂点」）のみ**。StageMina.cs/BossMina.csは案Cの「少年は居ない」規約が未適用のまま残っており(唯一少年が実キャラとして喋る箇所)、これはBLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している」の範囲の構造的論点のため今回は着手せず据え置き。**今回はFinal.cs内のF4のみを案Cへ差し替え**: `_talk`配列を全面差し替えし少年の台詞を全廃(地/ミナ/あなたの3話者のみ)。頂点の下書き選択を新規実装し、既存`GameManager.FirstScattered`/`ScatteredWords`(器のみで未使用だった)を接続、既存`ChoiceOverlay`の沈黙20秒自動決定(`ChoiceOverlay.cs:85` `SilenceAuto=20.0`)をそのまま流用して「最初に散らした言葉」が戻り自動送信される挙動を実装。「(送らない)」は一度だけ拒めるがその後は【初】を1択で再提示し必ず送らせる(RecordChoiceは呼ばず【散】に計上しない)。BGM同期キュー(CueFadeLine/CueSilenceLine/CueResolveLine)・三人の名を沈ませるDropLineを新台詞・新面順(あかり→こはる→レイ)に合わせて更新。少年が存在しない案Cに合わせ`DrawApproachingLight`(少年の光の演出)を削除。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。`Final.tscn`を`--qa`ヘッドレスで起動し暴走→対話→下書き選択→送信→白転→Epilogue.tscnまで例外なく遷移(約8秒)。ChoiceOverlay/GameManagerの実装を確認し、`SilenceAuto=20.0`が受入条件の「20秒の沈黙」と一致することを確認済み。**未確認**: 選択UIを20秒放置して実際に自動送信されるかの実時間テストは未実施(ロジック確認のみ)。StageMina.cs/BossMina.cs(F1〜F3)は変更していない。"
+    },
     {
       "priority": null,
       "title": "(バグ修正・夜間自動開発の並行実行監査で発見) 中ボス撃破後の中の人表示が即消える不具合を修正",
@@ -1402,6 +1432,21 @@
   ],
   "commits": [
     {
+      "hash": "fc7bf4e",
+      "date": "2026-09-07",
+      "subject": "auto: WIP着手 - FINAL F1〜F4を案Cに差し替え"
+    },
+    {
+      "hash": "d8c4879",
+      "date": "2026-09-07",
+      "subject": "auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)"
+    },
+    {
+      "hash": "1b12bac",
+      "date": "2026-09-05",
+      "subject": "auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）"
+    },
+    {
       "hash": "264f9a0",
       "date": "2026-09-06",
       "subject": "Track the Godot uid files for BgLayers and BossParts"
@@ -1425,21 +1470,6 @@
       "hash": "21a1d30",
       "date": "2026-09-06",
       "subject": "Replace STAGE3 Rei's midstage dialogue with approved plan-C script"
-    },
-    {
-      "hash": "15bda3b",
-      "date": "2026-09-06",
-      "subject": "Wiki: add in-game shots of the STAGE 2 Koharu script"
-    },
-    {
-      "hash": "bbb278e",
-      "date": "2026-09-06",
-      "subject": "Rewrite the STAGE2 boss, redemption and hub beats for plan C"
-    },
-    {
-      "hash": "688cdf2",
-      "date": "2026-09-06",
-      "subject": "Rewrite the STAGE2 midgame for plan C (S2-1 to S2-5)"
     }
   ]
 }

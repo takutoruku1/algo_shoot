@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">96<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 206 / 対象 214 タスク<br>保留 17 件は人間の判断待ちのため対象外</span>
+      <span class="pct">95<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 207 / 対象 217 タスク<br>保留 19 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 96パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+    <div class="rail" role="img" aria-label="進捗 95パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">206</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">207</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">8</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">17</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">10</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">19</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -149,18 +149,18 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
-          <span class="task-title">FINAL F1〜F4 を案C に差し替え</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。F4 で「最初に散らした言葉」が戻り、20秒の沈黙で自動送信</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
           <span class="task-title">エピローグ E1〜E6 を案C に差し替え</span>
           <span class="worker">engineer</span>
         </div>
         <p class="accept">ユーザー承認済み仮台本: wiki/08_仮台本/08（2026-09-05）。E2 の合言葉を「最後に送った言葉」に。既存の &quot;stay&quot; ゲートを置換</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">中ボス初回撃破時に退場演出が再生されないまま遷移する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-07監査で発見。<code>CheckpointFlow.cs:27-38</code> の <code>firstEver</code> 分岐（そのセーブで最初の中ボス撃破、かつ非autoplay）が <code>ChangeSceneToFile</code> を即座に呼ぶが、<code>_cameo.Finished</code> が立つ瞬間 <code>Enemy.cs:1028-1049</code> の <code>_purifiedExitT</code> はまだ0（<code>_crying</code>中は加算されない）。結果、直近コミット<code>1b12bac</code>で意図した3.2秒（<code>CameoBoss.cs:114</code> <code>PurifiedExitHoldOverride</code>）の退場演出が初回撃破では1コマも再生されずシーンごと消える。<code>--demo</code>/<code>--qa</code>はこの分岐自体を迂回するため自動検証でも検出されない。受入条件: <code>CheckpointFlow.OnMidBossCleared</code> の firstEver分岐で、中ボスの退場演出完了（<code>_purifiedExitT &gt;= ExitHold+PurifiedExitFade</code> 相当、またはノードの自然QueueFree）を待ってから <code>ShopTutorial.tscn</code> へ遷移するようにする。通常プレイ（<code>--demo</code>/<code>--qa</code>無し）でセーブ新規作成→最初のステージの中ボス撃破→中の人がフル不透明で見えてから遷移することを確認。2回目以降（<code>firstEver=false</code>）の動作は変えない。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
       </li>
       <li class="task ">
         <div class="task-head">
@@ -209,12 +209,36 @@
           <span class="worker">engineer</span>
         </div>
         <p class="accept">内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">正典シナリオ設計書v2が案C移行後も旧面順・こはる旧設定のまま放置されている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-07監査で発見。<code>docs/20260613/MINA_シナリオ設計書_v2.md:62,77-79,261,265,267,268</code>と<code>docs/ゲーム内テキスト台本_改稿版.txt:265-347,541</code>(自称「コード反映済み」)が旧面順(STAGE1レイ/STAGE2あかり/STAGE3こはる)・旧こはる設定(兄の死を看取る妹)のまま。実装は既に<code>wiki/08_仮台本/05_場面表_案C.md</code>(2026-09-05ユーザー承認)通り<code>GameManager.cs:196-203</code>(あかり→こはる→レイ)・<code>BossKoharu.cs:3-7,117-128</code>(推しの配信/八十七回)へ移行済み。<strong>台詞や物語内容そのものの追加・変更ではなく、既に承認・実装済みの内容へ正典docsを追いつかせる注記のみ</strong>（本文の書き換えはしない。過去のGAME_DESIGN.md/CONCEPT_V2.md非正典バナーと同種の作業）。受入条件: <code>docs/20260613/MINA_シナリオ設計書_v2.md</code>冒頭と<code>docs/ゲーム内テキスト台本_改稿版.txt</code>冒頭に「STAGE構成・こはる設定は案C(wiki/08_仮台本/05〜08、2026-09-05承認)で上書き済み。本書の面順表とこはる関連記述は非正典」の注記(バナー)を追加するのみ。本文の面順表・セリフ本体は変更しない。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-07監査で発見。<code>EnemySpec.cs:112-155</code>・<code>Spawner.cs:25-43</code>で全テーマ共通稼働中の引用リプ(FlankAim)・バズ壁(BuzzWall・通常の2.5倍の耐久)・祈り運び(KoharuPrayerCarry)が、<code>HowToPlay.cs:271-288</code>のコア機能カード5枚(やさしさ全開/ボム/弾強化/後方弾/浄化)に一切含まれない。特にバズ壁は見た目の差が乏しく初見で「弾が効いていない」と誤解されうる。受入条件: <code>HowToPlay.cs</code>ページ3(または適切な既存ページ)に3種のいずれかの体験に必要な最小限の一言を追加(例:硬い盾役もいる、無視して素通りしてもいい等)。既存カード様式<code>(title, body, accent)</code>を踏襲しレイアウト崩れが無いことを確認。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
       </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">FINAL F1〜F4 を案C に差し替え</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-07) ユーザー承認済み仮台本: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（2026-09-05承認）。<strong>実装前調査で判明</strong>: 台本のF1（導入）はStageMina.cs、F2/F3（ボス戦・邂逅）はBossMina.csに実装されており、<strong>Final.csに実在するのはF4（カットシーン「頂点」）のみ</strong>。StageMina.cs/BossMina.csは案Cの「少年は居ない」規約が未適用のまま残っており(唯一少年が実キャラとして喋る箇所)、これはBLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している」の範囲の構造的論点のため今回は着手せず据え置き。<strong>今回はFinal.cs内のF4のみを案Cへ差し替え</strong>: <code>_talk</code>配列を全面差し替えし少年の台詞を全廃(地/ミナ/あなたの3話者のみ)。頂点の下書き選択を新規実装し、既存<code>GameManager.FirstScattered</code>/<code>ScatteredWords</code>(器のみで未使用だった)を接続、既存<code>ChoiceOverlay</code>の沈黙20秒自動決定(<code>ChoiceOverlay.cs:85</code> <code>SilenceAuto=20.0</code>)をそのまま流用して「最初に散らした言葉」が戻り自動送信される挙動を実装。「(送らない)」は一度だけ拒めるがその後は【初】を1択で再提示し必ず送らせる(RecordChoiceは呼ばず【散】に計上しない)。BGM同期キュー(CueFadeLine/CueSilenceLine/CueResolveLine)・三人の名を沈ませるDropLineを新台詞・新面順(あかり→こはる→レイ)に合わせて更新。少年が存在しない案Cに合わせ<code>DrawApproachingLight</code>(少年の光の演出)を削除。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error(指揮官が再実行して確認済み)。<code>Final.tscn</code>を<code>--qa</code>ヘッドレスで起動し暴走→対話→下書き選択→送信→白転→Epilogue.tscnまで例外なく遷移(約8秒)。ChoiceOverlay/GameManagerの実装を確認し、<code>SilenceAuto=20.0</code>が受入条件の「20秒の沈黙」と一致することを確認済み。<strong>未確認</strong>: 選択UIを20秒放置して実際に自動送信されるかの実時間テストは未実施(ロジック確認のみ)。StageMina.cs/BossMina.cs(F1〜F3)は変更していない。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-none">—</span>
@@ -2003,24 +2027,40 @@
           
         </div>
         <p class="accept">自動では判定不能。<strong>ユーザーの実プレイ待ち</strong></p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">Hub SNSカードの反応数が新面順(あかり→こはる→レイ)でエスカレーションと逆転したまま</span>
+          
+        </div>
+        <p class="accept">2026-09-07監査で発見。<code>Hub.cs:194</code> の <code>[&quot;rei&quot;]=(12,3,48), [&quot;akari&quot;]=(34,9,210), [&quot;koharu&quot;]=(58,21,402)</code> が旧面順(レイ→あかり→こはる=小→中→大)のまま。新面順(<code>GameManager.cs:196-203</code>: あかり→こはる→レイ)に当てはめると中→大→小となり、話が進むほど反応が小さく見える不自然な流れになる。仮台本(<code>wiki/08_仮台本/05〜08</code>)に具体的数値の指定なし。要ユーザー判断: 新面順で単調増加にするか、意図した別の曲線にするか</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している</span>
+          
+        </div>
+        <p class="accept">2026-09-07監査で発見。<code>wiki/08_仮台本/05_場面表_案C.md</code>はSTAGE3(レイ)クリア後、帰還→即FINALの構成でMinaBattleへの言及が一切ない(grep 0件)。一方 <code>src/Hub.cs:218,261,565</code> は3面クリア後に <code>MinaBattle.tscn</code> へ遷移する導線が現存し、<code>src/StageMina.cs:194</code> はクリア後に <code>Final.tscn</code> へ遷移する(現状は3面帰還→MinaBattle→Finalの3段構成)。TODO先頭の「FINAL F1〜F4を案Cに差し替え」に着手する前に解消しておくべき前提の分岐。要ユーザー判断: (a)MinaBattleを維持し案Cのフローに独自に組み込む、(b)BossMinaの戦闘要素をFinal.csのF1〜F4に統合しStageMina/MinaBattle.tscnの独立ステージを廃止する</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">fc7bf4e</span><span>2026-09-07</span><span class="s">auto: WIP着手 - FINAL F1〜F4を案Cに差し替え</span></li>
+      <li><span class="h">d8c4879</span><span>2026-09-07</span><span class="s">auto: 監査で5件をキューに追加(TODO3件・BLOCKED2件)</span></li>
+      <li><span class="h">1b12bac</span><span>2026-09-05</span><span class="s">auto: 中ボス撃破後の中の人表示が即消える不具合を修正（mainの並行実装に対して再適用）</span></li>
       <li><span class="h">264f9a0</span><span>2026-09-06</span><span class="s">Track the Godot uid files for BgLayers and BossParts</span></li>
       <li><span class="h">8ef4fa0</span><span>2026-09-06</span><span class="s">Wiki: add in-game shots of the STAGE 3 Rei script</span></li>
       <li><span class="h">d8bd150</span><span>2026-09-06</span><span class="s">Convert hub H0, H3, and H3r to the approved plan-C script</span></li>
       <li><span class="h">6c7cc38</span><span>2026-09-06</span><span class="s">Rewrite STAGE3 Rei's boss, in-battle interrupt, and redemption</span></li>
       <li><span class="h">21a1d30</span><span>2026-09-06</span><span class="s">Replace STAGE3 Rei's midstage dialogue with approved plan-C script</span></li>
-      <li><span class="h">15bda3b</span><span>2026-09-06</span><span class="s">Wiki: add in-game shots of the STAGE 2 Koharu script</span></li>
-      <li><span class="h">bbb278e</span><span>2026-09-06</span><span class="s">Rewrite the STAGE2 boss, redemption and hub beats for plan C</span></li>
-      <li><span class="h">688cdf2</span><span>2026-09-06</span><span class="s">Rewrite the STAGE2 midgame for plan C (S2-1 to S2-5)</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-05 20:26 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-07 19:11 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
