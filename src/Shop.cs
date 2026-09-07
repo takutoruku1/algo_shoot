@@ -293,6 +293,10 @@ public partial class Shop : Node2D
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
+    // ミナの一言か（true＝立ち絵から出る吹き出し／false＝従来の下部トースト）。
+    //   小話3の台詞だけを吹き出しに回し、購入可否などのシステム通知は下部トーストのまま残す。
+    private bool _toastIsMina;
+    private double _toastAge;    // 出てからの経過秒（ぴこん、と跳ねる出方の位相）
     private bool _autoplay;
 
     // 小話3・退店演出：ExitShop() は即遷移せず「一言トースト→短い遅延」を挟む。二重発火は _exitPending が防ぐ
@@ -410,13 +414,13 @@ public partial class Shop : Node2D
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
         // 小話3：入店時、ミナがぽつりと一言（既存トーストで表示するだけ＝新規UIなし）。
-        Toast(ShopEnterTalk[GD.RandRange(0, ShopEnterTalk.Length - 1)], UiKit.Mina);
+        MinaTalk(ShopEnterTalk[GD.RandRange(0, ShopEnterTalk.Length - 1)]);
     }
 
     public override void _Process(double delta)
     {
         _t += delta;
-        if (_toastT > 0) _toastT -= delta;
+        if (_toastT > 0) { _toastT -= delta; _toastAge += delta; }
         if (_buyFxT > 0) _buyFxT -= delta;
         if (_walletPopT > 0) _walletPopT -= delta;
         if (_sweepT > 0) _sweepT -= delta;
@@ -758,7 +762,7 @@ public partial class Shop : Node2D
             game.PendingResumeScene = null; // 消費
         }
         // 小話3：退店の一言を見せてから、短い遅延の後に実際のシーン遷移（_Process 側で処理）。
-        Toast(ShopExitTalk[GD.RandRange(0, ShopExitTalk.Length - 1)], UiKit.Mina);
+        MinaTalk(ShopExitTalk[GD.RandRange(0, ShopExitTalk.Length - 1)]);
         _pendingExitDest = dest;
         _exitDelayT = 0.8;
         _exitPending = true;
@@ -835,7 +839,7 @@ public partial class Shop : Node2D
             bool isUnlock = id == "spread_1" || id == "homing_1" || id == "accel_1";
             // 小話3：低頻度（約25%）で強化確認トーストの代わりにミナの一言を出す。買い物のテンポを崩さないよう
             //   毎回は出さない（頻発すると邪魔）。強化確認自体は毎回のフィードバックとして残す＝置き換えのみ。
-            if (GD.Randf() < 0.25f) Toast(ShopBuyTalk[GD.RandRange(0, ShopBuyTalk.Length - 1)], UiKit.Mina);
+            if (GD.Randf() < 0.25f) MinaTalk(ShopBuyTalk[GD.RandRange(0, ShopBuyTalk.Length - 1)]);
             else Toast($"{d.Name} を{(isUnlock ? "解放" : "強化")}！", UiKit.Info);
             _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = id; _buyFxAt = at;
             // 拡散/ホーミング/加速球を解放したら自動で装備に切り替える（従来挙動を踏襲）。
@@ -884,7 +888,14 @@ public partial class Shop : Node2D
         _sweepT = 1.1;
     }
 
-    private void Toast(string msg, Color col) { _toast = msg; _toastCol = col; _toastT = 1.8; }
+    private void Toast(string msg, Color col)
+    { _toast = msg; _toastCol = col; _toastT = 1.8; _toastIsMina = false; _toastAge = 0; }
+
+    // ミナの一言（小話3）。文面も表示時間も Toast と同じで、出す場所だけが違う＝
+    //   「つぎの一手」の立ち絵から吹き出しが出る（DrawMinaBubble）。画面下の細い帯だと
+    //   気づかれない、という実機指摘（2026-09-07）への対処。
+    private void MinaTalk(string msg)
+    { _toast = msg; _toastCol = UiKit.Mina; _toastT = 1.8; _toastIsMina = true; _toastAge = 0; }
 
     // ノード → その枝のショットモード（詳細プレビューと C 装備用。-1＝モード固有でない＝装備中を映す）。
     private static int PreviewModeFor(string? id) => id switch
@@ -2059,9 +2070,59 @@ public partial class Shop : Node2D
     private void DrawToast()
     {
         if (_toastT <= 0) return;
+        // ミナの一言は立ち絵の吹き出しへ（下部の帯だと気づかれない・2026-09-07 実機指摘）。
+        if (_toastIsMina) { DrawMinaBubble(); return; }
         float w = UiKit.TextW(UiKit.ZenBold, _toast, 16) + 48;
         float x = (W - w) / 2f;
         UiKit.Box(this, new Rect2(x, H - 96, w, 38f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 88), _toast, 16, _toastCol, HorizontalAlignment.Center, w);
+    }
+
+    // ミナの一言の吹き出し：「つぎの一手」の射撃プレビューに立つ立ち絵から、真下へ出す。
+    //   意匠は会話バーの語彙をそのまま借りる（角丸16／地 0.05,0.04,0.09／縁は話者色・1.4px）。地は不透明にする＝
+    //   下のノード説明が透けて字が重なって見えない（会話バーは盤面の上に出るので α0.95 で済んでいる）。
+    //   しっぽは立ち絵の足元へ向く三角ひとつだけ＝誰が喋ったかが位置で分かる。
+    //   出方は PostToast と同じ back-out（0.9→1.04→1.0 とわずかに行き過ぎて戻る）で、視界の端でも動きに気づく。
+    private void DrawMinaBubble()
+    {
+        // 立ち絵の位置は DrawDetailPanel → DrawModeField と同じ式から引く（あちらを動かすと追随する）。
+        //   プレビュー枠 = (DetailX+10, TreeTop+40, DetailW-20, 90)、立ち絵は枠左端+28・枠の縦中央。
+        float fx = DetailX + 10f, fy = TreeTop + 40f, fh = 90f;
+        Vector2 mina = new(fx + 28f, fy + fh / 2f);
+
+        const float bw = DetailW - 24f;            // 詳細パネルの幅に収める
+        const float padX = 18f, padY = 14f, tail = 11f;
+        var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, 16, bw - padX * 2f);
+        float lh = UiKit.ZenBold.GetHeight(16);
+        float bh = padY * 2f + lh * lines.Count;
+        float bx = DetailX + 12f;
+        float by = mina.Y + 46f + tail;            // 立ち絵の下＝プレビュー枠を隠さない
+
+        // ぴこん、と出る（PostToast の出方を流用）。消え際はすっと薄く。
+        float k = Mathf.Clamp((float)(_toastAge / 0.18), 0f, 1f);
+        float e = 1f - Mathf.Pow(1f - k, 3f);
+        float scale = 0.9f + 0.14f * e - 0.04f * Mathf.Pow(e, 6f);
+        float a = Mathf.Min(k, Mathf.Clamp((float)_toastT / 0.3f, 0f, 1f));
+        float dy = 10f * (1f - e);                 // 少し下から持ち上がる
+        if (a <= 0.004f) return;
+
+        // 拡大は箱の上辺（しっぽの付け根）を中心に効かせる＝しっぽが箱から離れない。
+        float dw = bw * scale, dh = bh * scale;
+        float cx = bx + bw * 0.5f;
+        float x = cx - dw * 0.5f, y = by + dy;
+
+        Color edge = new(UiKit.Mina, 0.6f * a);
+        Color face = new Color(0.05f, 0.04f, 0.09f).Lerp(new Color(0.09f, 0.07f, 0.15f), 0.5f) with { A = a };
+        // しっぽ（立ち絵の足元 → 箱の上辺）。箱と同じ地色で塗り、縁は描かない＝角丸の縁と喧嘩しない。
+        float tipX = Mathf.Clamp(mina.X, x + 22f, x + dw - 22f);
+        Vector2[] tri = { new(tipX, y - tail), new(tipX - 9f, y + 2f), new(tipX + 9f, y + 2f) };
+        UiKit.Box(this, new Rect2(x, y, dw, dh), face, 16f, edge, 1.4f);
+        DrawColoredPolygon(tri, face);
+        DrawLine(tri[1], tri[0], edge, 1.4f, true);
+        DrawLine(tri[0], tri[2], edge, 1.4f, true);
+
+        for (int i = 0; i < lines.Count; i++)
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + padX * scale, y + padY * scale + lh * i * scale),
+                lines[i], 16, new Color(UiKit.Mina, a), HorizontalAlignment.Left, dw - padX * 2f * scale);
     }
 }
