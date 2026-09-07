@@ -135,6 +135,7 @@ const GROUPS = [
   { label: '', ids: ['06_用語集'] },
   { label: 'ギャラリー', prefix: '07_ギャラリー/' },
   { label: '仮台本（非正典）', prefix: '08_仮台本/' },
+  { label: 'システム', prefix: '09_システム/' },
 ];
 
 const escapeHtml = (s) =>
