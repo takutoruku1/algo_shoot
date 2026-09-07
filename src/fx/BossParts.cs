@@ -891,14 +891,9 @@ public partial class BossParts : Node2D
         {
             case "akari":
             {
-                // ビーム：beam_segment（256×64 の横長）を横に連結して前方へ伸ばす。
-                // 根元から順に Delay をずらして置く＝1本の光が伸びていくように見え、0.4 秒で減衰。
-                const int n = 6;
-                float seg = _bodyH * 0.42f;    // 1枚の長さ（少し重ねて継ぎ目を消す）
-                for (int i = 0; i < n; i++)
-                    AddBurst(_texBeam, m + new Vector2(dir * seg * 0.86f * (i + 0.5f), 0f),
-                             baseAng, seg, 0.85f - i * 0.06f, 0.40f - i * 0.02f,
-                             delay: i * 0.025f);
+                // ビーム（beam_segment を横に連結して前方へ伸ばす演出）は 2026-09-08 のユーザー指示で削除。
+                // 全長156px・加算合成の直線＝弾幕STGでは「レーザー」の記号そのものなのに当たり判定が無く、
+                // 「攻撃にしか見えないのに当たらない」＝本物の予兆まで信用されなくなる。飾りに使ってよい形ではない。
                 // ノイズの帯：撃った直後に 0.1 秒だけ本体へかぶせる（常設の Blink とは別の一発）。
                 AddBurst(_texGlitch, new Vector2(0f, -_bodyH * 0.08f), 0f, _bodyH * 0.95f, 0.5f, 0.10f);
                 break;
@@ -906,31 +901,33 @@ public partial class BossParts : Node2D
 
             case "koharu":
             {
-                // 視線の線を5本、発射点から扇状に前方へ。gaze_line は 763×6 の横長＝そのまま光条になる。
-                for (int i = 0; i < 5; i++)
+                // 視線の線は 2026-09-08 のユーザー指示で弱めた（前へ飛ぶ光条＝弾に見えるため）。
+                // 本数 5→2、長さ 1.5→0.55、α 0.75→0.30、前進 120→30px/s。刺さる空気だけ残す。
+                for (int i = 0; i < 2; i++)
                 {
-                    float spread = (i - 2) * 0.16f;
-                    AddBurst(_texGazeLine, m, baseAng + spread * dir, _bodyH * 1.5f,
-                             0.75f, 0.34f, additive: true,
-                             vel: new Vector2(dir, 0f).Rotated(spread * dir) * 120f,
-                             delay: i * 0.02f);
+                    float spread = (i - 0.5f) * 0.22f;
+                    AddBurst(_texGazeLine, m, baseAng + spread * dir, _bodyH * 0.55f,
+                             0.30f, 0.26f, additive: true,
+                             vel: new Vector2(dir, 0f).Rotated(spread * dir) * 30f,
+                             delay: i * 0.03f);
                 }
-                break;
+                                break;
             }
 
             case "rei":
             {
-                // 光の帯を手（発射点）から4本、角度を変えて放射。金と菫を交互に。
-                for (int i = 0; i < 4; i++)
+                // 光の帯は 2026-09-08 のユーザー指示で弱めた（前へ飛ぶ帯＝弾に見えるため）。
+                // 本数 4→2、α 0.70→0.30、前進 70→22px/s、growK 0.5→0.9＝「飛ぶ」から「広がって消える」へ。
+                for (int i = 0; i < 2; i++)
                 {
-                    float a = (i - 1.5f) * 0.30f;
+                    float a = (i - 0.5f) * 0.34f;
                     AddBurst(i % 2 == 0 ? _texRayGold : _texRayViolet,
-                             m, baseAng + a * dir, _bodyH * (1.15f - i * 0.06f),
-                             0.70f, 0.42f, additive: true,
-                             vel: new Vector2(dir, 0f).Rotated(a * dir) * 70f,
-                             delay: i * 0.03f, growK: 0.5f);
+                             m, baseAng + a * dir, _bodyH * 0.60f,
+                             0.30f, 0.30f, additive: true,
+                             vel: new Vector2(dir, 0f).Rotated(a * dir) * 22f,
+                             delay: i * 0.04f, growK: 0.9f);
                 }
-                break;
+                                break;
             }
         }
     }
