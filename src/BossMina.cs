@@ -165,10 +165,10 @@ public partial class BossMina : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); Aimed(pool); } break;
-            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); Flower(pool, Dn(_flowerPetals)); } break;
-            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); Ring(pool, Dn(_ringCount), _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); Aimed(pool); } break;
+            case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); Flower(pool, Dn(_flowerPetals)); } break;
+            case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); Spiral(pool); } break;
             default: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(22), 66f); Ring(pool, Dn(22), 92f); } break;
         }
     }

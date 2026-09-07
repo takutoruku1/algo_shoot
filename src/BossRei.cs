@@ -297,10 +297,10 @@ public partial class BossRei : Enemy
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
         }
     }
 
@@ -310,7 +310,7 @@ public partial class BossRei : Enemy
         _fireT += delta; _fireT2 += delta;
         // 2スペル同時展開＝どちらか一方の立ち位置に寄せると常に取り合いになるので、
         // 遅い方（リング）の一拍だけ拾って中央に据わらせる（螺旋は毎フレーム級で撃つため一拍にしない）。
-        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
+        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
         if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
     }
 

@@ -30,7 +30,12 @@ public static class Field
     //   従来は「中心X=200 / 半幅=90」の直書きだった。盤面が動いても同じ“やや右寄り・盤面の1/4幅”に
     //   なるよう、中心からのずれと半幅を Field 基準の係数で持つ（Left=0 の今は 200 / 90 に一致する）。
     public const float BossOffsX = 8f;                  // 中心からの右寄せ量（192+8=200）
-    public const float BossZoneHalfWK = 90f / 384f;     // 盤面幅に対する徘徊半幅の比（384*0.2344=90）
+    // 徘徊半幅は盤面幅に対する比で持つ。2026-09-07 に 90/384(=0.2344) → 0.34 へ広げた。
+    //   旧値は盤面が 384px 幅だった頃の「半幅 90px」をそのまま比にしたもので、盤面が 264px に
+    //   狭まったあと半幅が 62px＝可動域 124px しか無く、実測でもレイの本体 x が 225..300 の
+    //   75px しか動かなかった（ユーザー実機指摘「本戦のボスが動いていない」の可動域側の原因）。
+    //   0.34 なら半幅 90px＝可動域 180px で、盤面 264px に対して昔と同じ「盤面の約 2/3」に戻る。
+    public const float BossZoneHalfWK = 0.34f;
     public const float BossZoneHalfW = Width * BossZoneHalfWK;
     public const float BossCenterX = CenterX + BossOffsX;
 }

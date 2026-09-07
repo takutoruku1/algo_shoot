@@ -191,14 +191,17 @@ public partial class BossAkari : Enemy
             if (_corridor == null || !IsInstanceValid(_corridor) || _corridor.Finished)
             {
                 _corridorPhase = 2;
-                _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, DashSpeed); // 高速で戦線に戻る
+                // 高速で戦線に戻る。ゾーンと速度だけを差し替える（MoveZoneTo）＝ini の性格は保つ。
+                _mover.MoveZoneTo(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, DashSpeed);
             }
         }
         else if (_corridorPhase == 2 && GlobalPosition.X <= Field.Right - 54f)
         {
             // 帰還完了：徘徊を通常速度へ戻し、宣告を再開。
             _corridorPhase = 0;
-            _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, _roamSpeed);
+            // 性格つきの Configure で入り直す＝退場で狭めた stance_edge_x / stance_track_w も
+            // ini の値に戻る（MoveZoneTo は縮める方向にしか触らないため、ここで復元が要る）。
+            _mover.Configure("akari", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
             _caster.SetProcess(true);
             SetPanelsInvulnerable(false);
             SetBodyContactEnabled(true);   // 戦線に戻って通常速度＝接触判定も戻す
@@ -213,7 +216,7 @@ public partial class BossAkari : Enemy
         _corridorPhase = 1;
         GetHud()?.AnnounceSpell("あかり", "@akari_ame", "雨の帰り道", Spells[0].tint);
         GetHud()?.ShowBossLine("あかり", "来ないで……っ", UiKit.Kegare, 2.0);
-        _mover.Configure(new Vector2(AwayX, 70f), 4f, 6f, DashSpeed); // 画面右外へ退場
+        _mover.MoveZoneTo(new Vector2(AwayX, 70f), 4f, 6f, DashSpeed); // 画面右外へ退場（性格は保つ）
         SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
         SetBodyContactEnabled(false);  // 退場/帰還は DashSpeed=320px/s で場を横切る＝通路中の自機を轢かない
         _caster.SetProcess(false);     // 通常テレグラフの宣告も止める（通路に集中させる）
@@ -231,10 +234,10 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇＝帯を張る
-            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
+            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇＝帯を張る
+            case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
         }
     }
 

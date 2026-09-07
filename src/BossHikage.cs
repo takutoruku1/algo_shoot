@@ -74,7 +74,9 @@ public partial class BossHikage : Enemy
         // ボス登場＝道中BGMからヒカゲ専用テーマ（The_Frozen_Threshold）へクロスフェード。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossHikage);
         // 徘徊：ヒカゲは動きが速い炎上ボス＝ゾーンをやや広め・縦も広めに（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(Field.CenterX, 74f), Field.Width * (110f / 384f), 34f, BossTuning.F("hikage", "roam_speed", RoamSpeed), accelTime: 0.4f);
+        // 2026-09-07: 旧 Configure(Vector2,...) から性格つきへ。旧版は ini の [hikage] を一切読まず
+        // 既定引数で hover 3.5 を強制していた（他の本戦ボスと揃える）。速度・加速は ini 側で持つ。
+        _mover.Configure("hikage", new Vector2(Field.CenterX, 74f), Field.Width * (110f / 384f), 34f);
         GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }

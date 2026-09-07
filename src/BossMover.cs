@@ -125,29 +125,27 @@ public sealed class BossMover
         _hoverPhase = _rng.RandfRange(0f, Mathf.Tau);
     }
 
-    // ── 旧シグネチャ（ゾーン指定）。退場・帰還など「ここへ行け」を直接指示する用途で残す。
-    //    ゾーン中心をそのまま立ち位置の基準に読み替える＝呼び出し側の既存コードが壊れない。
-    public void Configure(
-        Vector2 zoneCenter, float zoneHalfW, float zoneHalfH, float cruiseSpeed,
-        float accelTime = 0.55f, float hoverAmp = 3.5f, float hoverFreq = 0.9f,
-        float leanMax = 0.16f)
+    // ── 徘徊ゾーンと速度だけを差し替える（退場・帰還など「ここへ行け」を直接指示する用途）。
+    //    2026-09-07: 旧 Configure(Vector2,...) オーバーロードを置き換えた。旧版は hover_amp・
+    //    lean_max・stance_* を既定引数で**上書き**していたため、あかりの「雨の帰り道」が
+    //    退場→帰還で3回これを呼ぶたび（BossAkari.cs の TickCorridor / StartCorridor）
+    //    ini で入れた性格（[akari] hover_amp=0 ほか）が消え、以降は汎用の hover 3.5 に戻っていた
+    //    ＝ユーザー実機指摘「ふよふよする」の、あかり側の実際の原因（実測でも hover=3.5 が出た）。
+    //    ここではゾーンと巡航速度だけを触り、性格（ini 由来の値）は保つ。
+    public void MoveZoneTo(Vector2 zoneCenter, float zoneHalfW, float zoneHalfH, float cruiseSpeed)
     {
         _zoneCenter = zoneCenter;
         _zoneHalfW = zoneHalfW;
         _zoneHalfH = zoneHalfH;
         _cruiseSpeed = cruiseSpeed;
-        _accelTime = Mathf.Max(0.05f, accelTime);
-        _hoverAmp = hoverAmp;
-        _hoverFreq = hoverFreq;
-        _leanMax = leanMax;
 
-        // 立ち位置の既定をゾーンから作る（名前指定が来ていなければこれで動く）。
+        // 立ち位置の基準もゾーンへ寄せる（退場のように中心が飛ぶ場合、即その先を向く）。
+        // 端へ寄る量・自機を追える幅はゾーン幅に対する比で取り直す＝狭いゾーンで飛び出さない。
         _stanceCenterX = zoneCenter.X;
         _stanceY = zoneCenter.Y;
-        _stanceEdgeX = Mathf.Min(62f, zoneHalfW * 0.7f);
-        _stanceTrackW = Mathf.Min(70f, zoneHalfW * 0.8f);
+        _stanceEdgeX = Mathf.Min(_stanceEdgeX, zoneHalfW * 0.7f);
+        _stanceTrackW = Mathf.Min(_stanceTrackW, zoneHalfW * 0.8f);
 
-        // 立ち位置を今の設定で取り直す（退場指示のように中心が飛ぶ場合、即その先を向く）。
         RetargetStance();
     }
 
@@ -173,15 +171,15 @@ public sealed class BossMover
                 edgeX = 58f;  trackW = 62f;  trackGain = 0.7f; riseY = -5f;
                 windup = 0.44f; action = 0.26f; break;
             case "koharu":
-                cruise = 46f; accel = 0.34f; hoverA = 3.0f; hoverF = 1.25f; leanM = 0.18f;
+                cruise = 46f; accel = 0.34f; hoverA = 0f  ; hoverF = 1.25f; leanM = 0.18f;
                 edgeX = 62f;  trackW = 72f;  trackGain = 0.85f; riseY = -9f;
                 windup = 0.40f; action = 0.16f; break;
             case "rei":
-                cruise = 30f; accel = 0.6f;  hoverA = 2.2f; hoverF = 0.8f; leanM = 0.24f;
+                cruise = 30f; accel = 0.6f;  hoverA = 0f  ; hoverF = 0.8f; leanM = 0.24f;
                 edgeX = 20f;  trackW = 22f;  trackGain = 0.25f; riseY = -6f;
                 windup = 0.36f; action = 0.20f; break;
             case "mina":
-                cruise = 52f; accel = 0.40f; hoverA = 3.0f; hoverF = 1.0f; leanM = 0.17f;
+                cruise = 52f; accel = 0.40f; hoverA = 0f  ; hoverF = 1.0f; leanM = 0.17f;
                 edgeX = 66f;  trackW = 84f;  trackGain = 1.0f; riseY = -8f;
                 windup = 0.32f; action = 0.20f; break;
 
@@ -254,6 +252,28 @@ public sealed class BossMover
         if (_st == St.Windup || _st == St.Action) return; // 連射中は一拍を伸ばさない（震えない）
         _st = St.Windup; _stT = 0.0;
     }
+
+    // ── 撃つたびに呼ぶ「立ち位置の宣言＋一拍」（中ボスの CameoBoss.Declare と同じ役割）。
+    //    SetNextAttack は種類が変わった時しか動かないため、1つのスペルで1種類しか撃たない本戦ボスでは
+    //    スペルが変わる（＝HP 閾値の 3 回）まで立ち位置が固定されていた。ここは**種類が同じでも**
+    //    持ち場（_perch）を次へ送って向かい直す＝撃つたびに立ち位置が変わる。
+    //    弾の数・速度・間隔には一切触らない（撃つのは呼び出し側のまま）。
+    //    攻撃の一拍（Windup/Action）の最中は割り込まない＝動作が途中で崩れない。
+    public void DeclareAttack(Attack a)
+    {
+        bool changed = _next != a;
+        _next = a;
+        // 種類が変わったら即その立ち位置へ向き直す（従来の SetNextAttack と同じ）。
+        // 種類が同じなら「次の持ち場へ送る」予約だけ立て、実際に向かうのは攻撃の一拍を終えた
+        // Recover の後（RetargetIfDrifted）＝撃っている最中に本体が滑って弾幕の出所がぶれない。
+        if (changed)
+        {
+            if (_st == St.Idle || _st == St.Travel || _st == St.Settle) BeginTravel();
+        }
+        else _perchPending = true;
+        OnAttack(a);
+    }
+    private bool _perchPending;   // 次の一拍明けに持ち場を1つ送る
 
     // ── 被弾の一拍（小さくのけぞって戻る）。呼び出し側の被弾フックから。
     //    無防備窓では弾が 0.05 秒間隔で刺さり続ける（Enemy.BodyHitCd）ので、「Hit 中は弾く」だけだと
@@ -408,8 +428,11 @@ public sealed class BossMover
 
     // 一拍が終わった直後の後始末。立ち位置を取り直し、そこから離れていれば向かい直す（Travel）。
     // 離れていなければ素直に待機（Idle）＝その場で呼吸する。
+    // DeclareAttack が「同じ種類の連投」で予約した持ち場送り（_perchPending）はここで消化する
+    // ＝撃ち終えてから次の持ち場へ歩き出す（撃っている最中に本体が滑らない）。
     private void RetargetIfDrifted(Vector2 currentPos)
     {
+        if (_perchPending) { _perchPending = false; _perchStep++; }
         RetargetStance();
         _stT = 0.0;
         _st = (_target - currentPos).Length() > _arriveDist ? St.Travel : St.Idle;
@@ -420,14 +443,20 @@ public sealed class BossMover
     //    Aimed : 自機の x を追う（Step 側で常時追うので、目標は現在の追従先）
     //    Wall  : 端に寄る（帯を張るので端から）。寄る側は自機と反対＝画面が広く使える方
     //    Spell : 中央の高め（宣告を見せる。動かない）
+    //
+    //  Ring/Spell は「中央に据わる」ので、同じスペルが続くあいだ目標が1点に固定される。本戦ボスは
+    //  1つのスペルにつき1種類の弾しか撃たない（中ボスのように2種を交互に撃たない）ため、それだと
+    //  スペルが変わるまで立ち位置が動かない＝ユーザー実機指摘「本戦のボスが動いていない」。
+    //  そこで据わる系には「据わり位置そのものを左右に振る」オフセット（_perch）を持たせ、
+    //  撃つたび（DeclareAttack）に次の持ち場へ送る。振り幅は徘徊ゾーンの内側に収める。
     private void RetargetStance()
     {
         float x = _next switch
         {
-            Attack.Ring => _stanceCenterX,
+            Attack.Ring => _stanceCenterX + PerchOffset(),
             Attack.Aimed => TrackedX(),
             Attack.Wall => _stanceCenterX + (PlayerOnLeft() ? _stanceEdgeX : -_stanceEdgeX),
-            _ => _stanceCenterX,
+            _ => _stanceCenterX + PerchOffset() * 0.5f,   // Spell は宣告を見せる＝振り幅を半分に
         };
         float y = _next switch
         {
@@ -438,6 +467,20 @@ public sealed class BossMover
         _target = new Vector2(
             Mathf.Clamp(x, _zoneCenter.X - _zoneHalfW, _zoneCenter.X + _zoneHalfW),
             Mathf.Clamp(y, _zoneCenter.Y - _zoneHalfH, _zoneCenter.Y + _zoneHalfH));
+    }
+
+    // 据わる系（Ring/Spell）の持ち場を左右に振るオフセット。-1/0/+1/0 … と巡回する3点で、
+    // 振り幅は「端へ寄る量（stance_edge_x）の 0.7 倍」かつ徘徊ゾーンの内側。ランダムにしないのは
+    // 旧実装の「ランダム巡航＝何をしているか読めない」に戻さないため＝順番に持ち場を移る。
+    private int _perchStep;
+    private float PerchOffset()
+    {
+        // 振り幅は徘徊ゾーンの 6 割。端へ寄る量（stance_edge_x）を基準にすると、レイのように
+        // 「枠から出ない＝edge_x が小さい」性格では振り幅が Wall の可動域に埋もれ、持ち場を
+        // 移っても見た目の可動域が変わらなかった（実測: range 74→72 で横ばい）。ゾーン基準なら
+        // 性格（edge_x / track_w）は Wall・Aimed 側に残したまま、据わる系だけ広く巡れる。
+        float amp = _zoneHalfW * 0.6f;
+        return (_perchStep % 4) switch { 0 => -amp, 2 => amp, _ => 0f };
     }
 
     // 自機を追うときの目標 x。track_gain で「どれだけ鏡写しに追うか」を決める
