@@ -98,8 +98,6 @@ public sealed class BossMover
     private float _playerX = Field.CenterX; // 直近の自機 x（呼び出し側が SetPlayerX で渡す）
     private bool _hasPlayerX;
     private int _flipCount;               // 反転回数（検証ログ用）
-    public int MeasureStanceMoves;        // TEMP-MEASURE
-    private Vector2 _measureLastTarget = new Vector2(-9999f, -9999f); // TEMP-MEASURE
 
     // ── 公開：視覚用の付加情報（呼び出し側が ApplyBossMotion に渡す）。
     public Vector2 VisualOffset { get; private set; }
@@ -186,7 +184,26 @@ public sealed class BossMover
                 cruise = 52f; accel = 0.40f; hoverA = 3.0f; hoverF = 1.0f; leanM = 0.17f;
                 edgeX = 66f;  trackW = 84f;  trackGain = 1.0f; riseY = -8f;
                 windup = 0.32f; action = 0.20f; break;
-            default: // hikage / cameo ほか
+
+            // ── 道中の中ボス（CameoBoss）。戦いが短いので本戦より単純にする。
+            //    共通の縛り: hover_amp = 0（常時の上下揺れ＝「ふよふよ」を全員やめる。待機は Idle の
+            //    呼吸＝視覚専用の VisualOffset だけで見せ、本体位置は動かさない）。
+            //    移動は攻撃の合間だけ＝撃つ弾の種類が変わったときにだけ立ち位置が変わる。
+            //    性格は本人に沿って三者三様に分ける（本戦ボスと同じ方向で、振れ幅だけ小さく）。
+            case "cameo_akari": // 重い。座ったまま滑る＝加速が遅く、寄る量も控えめ
+                cruise = 34f; accel = 0.80f; hoverA = 0f; hoverF = 0.6f; leanM = 0.10f;
+                edgeX = 46f;  trackW = 50f;  trackGain = 0.6f; riseY = -5f;
+                windup = 0.42f; action = 0.26f; break;
+            case "cameo_koharu": // 小刻み。軽く速く、構えて一瞬止まってから鋭く出る
+                cruise = 48f; accel = 0.32f; hoverA = 0f; hoverF = 1.2f; leanM = 0.18f;
+                edgeX = 52f;  trackW = 62f;  trackGain = 0.85f; riseY = -8f;
+                windup = 0.38f; action = 0.16f; break;
+            case "cameo_rei": // 枠から出ない。横移動は小さく、傾きで演じる（本戦のレイと同じ方向）
+                cruise = 38f; accel = 0.55f; hoverA = 0f; hoverF = 0.8f; leanM = 0.24f;
+                edgeX = 30f;  trackW = 34f;  trackGain = 0.45f; riseY = -6f;
+                windup = 0.34f; action = 0.20f; break;
+
+            default: // hikage ほか
                 cruise = 42f; accel = 0.5f;  hoverA = 3.2f; hoverF = 0.95f; leanM = 0.16f;
                 edgeX = 60f;  trackW = 70f;  trackGain = 0.7f; riseY = -7f;
                 windup = 0.38f; action = 0.22f; break;
@@ -239,9 +256,15 @@ public sealed class BossMover
     }
 
     // ── 被弾の一拍（小さくのけぞって戻る）。呼び出し側の被弾フックから。
+    //    無防備窓では弾が 0.05 秒間隔で刺さり続ける（Enemy.BodyHitCd）ので、「Hit 中は弾く」だけだと
+    //    のけぞりが延々と再点火して窓のあいだ立ち位置へ戻れなくなる。専用のクールダウンで間引き、
+    //    のけぞりは 0.34 秒に1回までに絞る＝連射されても震え続けない。
+    private double _hitCd;
+    private const double HitCd = 0.34;
     public void OnHit(Vector2 fromDir)
     {
-        if (_st == St.Hit && _stT < 0.10) return; // 連続被弾の間引き
+        if (_hitCd > 0.0) return;
+        _hitCd = HitCd;
         _st = St.Hit; _stT = 0.0;
         Vector2 d = fromDir.LengthSquared() > 0.001f ? fromDir.Normalized() : Vector2.Up;
         _poseWant = d * 4f; // のけぞりは 4px まで（当たり判定が暴れない範囲）
@@ -254,6 +277,7 @@ public sealed class BossMover
         if (dt <= 0f) return currentPos;
 
         _stT += delta;
+        if (_hitCd > 0.0) _hitCd -= delta;
         TickState(currentPos);
 
         // ── 立ち位置へ向かう推進。Travel 以外はその場（Idle/Settle/構え〜余韻は位置を保つ）。
@@ -359,15 +383,18 @@ public sealed class BossMover
                 break;
 
             case St.Recover:
-                // 余韻＝元の高さへ戻る。
+                // 余韻＝元の高さへ戻る。戻り切ったら立ち位置を取り直して、必要なら向かい直す。
+                //   Wall は「自機と反対の端」なので自機が回り込めば行き先が変わるし、被弾ののけぞりや
+                //   Aimed の横滑りで立ち位置から流されていることもある。ここで確かめないと、
+                //   同じ種類の攻撃が続く間ずっと同じ場所に留まる（＝旧実装の「その場から動かない」）。
                 _poseWant = Vector2.Zero;
-                if (_stT >= _recoverDur) { _st = St.Idle; _stT = 0.0; }
+                if (_stT >= _recoverDur) { RetargetIfDrifted(currentPos); }
                 break;
 
             case St.Hit:
                 // のけぞり→戻る。半分過ぎたら戻し始める。
                 if (_stT >= 0.09) _poseWant = Vector2.Zero;
-                if (_stT >= 0.26) { _st = St.Idle; _stT = 0.0; }
+                if (_stT >= 0.26) { RetargetIfDrifted(currentPos); }
                 break;
         }
     }
@@ -377,6 +404,15 @@ public sealed class BossMover
     {
         RetargetStance();
         _st = St.Travel; _stT = 0.0;
+    }
+
+    // 一拍が終わった直後の後始末。立ち位置を取り直し、そこから離れていれば向かい直す（Travel）。
+    // 離れていなければ素直に待機（Idle）＝その場で呼吸する。
+    private void RetargetIfDrifted(Vector2 currentPos)
+    {
+        RetargetStance();
+        _stT = 0.0;
+        _st = (_target - currentPos).Length() > _arriveDist ? St.Travel : St.Idle;
     }
 
     // ── スペルごとの立ち位置。
@@ -402,7 +438,6 @@ public sealed class BossMover
         _target = new Vector2(
             Mathf.Clamp(x, _zoneCenter.X - _zoneHalfW, _zoneCenter.X + _zoneHalfW),
             Mathf.Clamp(y, _zoneCenter.Y - _zoneHalfH, _zoneCenter.Y + _zoneHalfH));
-        if ((_target - _measureLastTarget).Length() > 8f) { _measureLastTarget = _target; MeasureStanceMoves++; } // TEMP-MEASURE
     }
 
     // 自機を追うときの目標 x。track_gain で「どれだけ鏡写しに追うか」を決める

@@ -231,7 +231,7 @@ public partial class BossKoharu : Enemy
         // 自機の x を渡す＝自機狙いの横滑りと、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
         TickGoto(delta);
@@ -509,6 +509,10 @@ public partial class BossKoharu : Enemy
         }
         return new Vector2(-1, 0);
     }
+
+    // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
+    // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
+    protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
 
     protected override void OnHpChanged()
     {

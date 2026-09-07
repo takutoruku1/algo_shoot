@@ -237,6 +237,10 @@ public partial class BossMina : Enemy
         return new Vector2(-1, 0);
     }
 
+    // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
+    // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
+    protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
+
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);

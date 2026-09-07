@@ -73,6 +73,37 @@ public partial class CameoBoss : Enemy
     private double _fireT;
     private double _fireT2;
     private float _ringOff;
+
+    // ── 中ボスの立ち位置サイクル（2026-09-07）──
+    // 旧実装は BossMover の旧シグネチャ（ゾーン指定）を呼んでいたため、状態機械にも立ち位置にも
+    // 繋がらず「Ring の立ち位置＝ゾーン中心に着いたら、あとは一生ホバーするだけ」だった
+    //（実測: 戦闘中の x が 300 から1pxも動かない＝ユーザー所感「ふよふよして動かない」の正体）。
+    // 中ボスは尺が短いので本戦ボスのようなスペル切替を持たない。代わりに、撃った攻撃の種類を
+    // そのまま「次の立ち位置」として宣言する＝2種の弾幕を交互に撃つあいだ、寄る／離れるを往復する。
+    // 立ち位置そのものは BossMover.Attack が決める（Aimed=自機の x を追って寄る／Ring=中央に据わる／
+    // Wall=自機と反対の端へ離れる／Spell=中央の高めで動かない）。
+    // ステージ別の性格は Configure の section 名で分ける（下の MoverSection）。
+    private BossMover.Attack _stance = BossMover.Attack.Ring;
+
+    // 撃った攻撃の種類を BossMover へ伝える。同じ種類が続く間は立ち位置を動かさない
+    //（SetNextAttack が同値を弾く）＝撃つたびに目標が飛んで震えることはない。
+    private void Declare(BossMover.Attack a)
+    {
+        _stance = a;
+        _mover.SetNextAttack(a);
+        _mover.OnAttack(a);
+    }
+
+    // ステージごとの性格（BossMover.Configure の section 名。値は config/boss_stats.ini の同名節）。
+    //   レイ  ＝ 配信の枠から出ない（本戦のレイと同じ "cameo_rei"：横移動が小さく傾きで演じる）
+    //   あかり＝ 重い（座ったまま滑る。加速が遅く上下に揺れない）
+    //   こはる＝ 小刻み（軽く速い。構えて一瞬止まってから鋭く出る）
+    private string MoverSection => Theme.Fire switch
+    {
+        CameoFireTheme.ReiAggressive => "cameo_rei",
+        CameoFireTheme.AkariGrief    => "cameo_akari",
+        _                            => "cameo_koharu",
+    };
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
     // 撃破後の捨て台詞ドライバ（Enemy.Redeem→OnCryStart で起動）。
@@ -115,7 +146,10 @@ public partial class CameoBoss : Enemy
         _rng.Randomize();
         base._Ready();
         if (Audio.Instance != null && Theme.Bgm != null) Audio.Instance.Music(Theme.Bgm);
-        _mover.Configure(ZoneCenter, ZoneHalfW, ZoneHalfH, BossTuning.F("cameo", "roam_speed", RoamSpeed));
+        // 移動：状態機械＋立ち位置つき（本戦ボスと同じ作法）。速度・立ち位置は ini の
+        // [cameo_rei]/[cameo_akari]/[cameo_koharu] 節で上書きでき、無ければ BossMover 側の性格既定値。
+        _mover.Configure(MoverSection, ZoneCenter, ZoneHalfW, ZoneHalfH);
+        _mover.SetNextAttack(_stance);
         SetSpellVisual(Theme.SpellShape, Theme.SpellTint);
 
         // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）。本ボス前なので時系列は重ならない。
@@ -130,8 +164,10 @@ public partial class CameoBoss : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        // 自機の x は毎フレーム渡す（自機狙いの横滑りと、向きの反転判定に要る）。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(Theme.Aura, GlobalPosition, (float)delta, 30f);
         FirePattern(delta);
     }
@@ -150,28 +186,29 @@ public partial class CameoBoss : Enemy
         }
     }
 
-    // レイ：詰める。自機狙いの扇＋回転リング（攻撃的）。
+    // レイ：詰める。自機狙いの扇＝自機の側へ寄る／回転リング＝中央に据わって撒く。
+    // 弾の間隔・数・速さは一切変えていない（Declare は立ち位置と一拍だけを動かす）。
     private void FireRei(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; Aimed(pool, 3, 13f, 96f); }
-        if (_fireT2 >= Di(1.2)) { _fireT2 = 0; Ring(pool, Dn(12), CameoBulletSpd * 0.85f); }
+        if (_fireT >= Di(0.95)) { _fireT = 0; Declare(BossMover.Attack.Aimed); Aimed(pool, 3, 13f, 96f); }
+        if (_fireT2 >= Di(1.2)) { _fireT2 = 0; Declare(BossMover.Attack.Ring); Ring(pool, Dn(12), CameoBulletSpd * 0.85f); }
     }
 
-    // あかり：悲嘆の雨（上から降る自責）＋本人周りの弱いリング（攻撃的でない）。
+    // あかり：悲嘆の雨（上から降る自責）＝画面幅の帯なので端へ離れて張る／本人周りの弱いリング＝中央。
     private void FireAkari(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.0)) { _fireT = 0; RainDown(pool, Dn(7), CameoBulletSpd * 0.9f); }
-        if (_fireT2 >= Di(1.4)) { _fireT2 = 0; Ring(pool, Dn(8), CameoBulletSpd * 0.55f); }
+        if (_fireT >= Di(1.0)) { _fireT = 0; Declare(BossMover.Attack.Wall); RainDown(pool, Dn(7), CameoBulletSpd * 0.9f); }
+        if (_fireT2 >= Di(1.4)) { _fireT2 = 0; Declare(BossMover.Attack.Ring); Ring(pool, Dn(8), CameoBulletSpd * 0.55f); }
     }
 
-    // こはる：落ちる祈り（上から落ちる弾）＋本人足元から下向きの弱い扇。
+    // こはる：落ちる祈り（上から落ちる弾）＝帯なので端へ／足元からの下向きの扇＝自機の側へ寄って落とす。
     private void FireKoharu(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.1)) { _fireT = 0; RainDown(pool, Dn(8), CameoBulletSpd * 0.95f); }
-        if (_fireT2 >= Di(1.5)) { _fireT2 = 0; FanDown(pool, Dn(5), 50f, CameoBulletSpd * 0.7f); }
+        if (_fireT >= Di(1.1)) { _fireT = 0; Declare(BossMover.Attack.Wall); RainDown(pool, Dn(8), CameoBulletSpd * 0.95f); }
+        if (_fireT2 >= Di(1.5)) { _fireT2 = 0; Declare(BossMover.Attack.Aimed); FanDown(pool, Dn(5), 50f, CameoBulletSpd * 0.7f); }
     }
 
     // ── 弾幕プリミティブ ──
@@ -226,6 +263,10 @@ public partial class CameoBoss : Enemy
         return new Vector2(-1, 0);
     }
 
+    // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
+    // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
+    protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
+
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
@@ -238,6 +279,9 @@ public partial class CameoBoss : Enemy
         string? line = NextBossLine(Theme.TauntLines, ref _tauntIdx);
         _tauntIdx++; // 次サイクルは次の行へ（尽きたら以降は出ない＝静かに再生成）
         if (line != null) ShowRecloseLine(Theme.DisplayName, line);
+        // 言い返しながらパネルを張り直す一拍＝宣告の立ち位置（中央の高めに据わって動かない）。
+        // 次に弾を撃った時点で Declare が通常の立ち位置へ戻すので、据わるのはこのサイクルの間だけ。
+        _mover.SetNextAttack(BossMover.Attack.Spell);
     }
 
     // カメオはフォロワー化しない（味方化は本戦ボスのみ）。

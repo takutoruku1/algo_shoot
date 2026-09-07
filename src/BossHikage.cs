@@ -83,7 +83,7 @@ public partial class BossHikage : Enemy
     protected override void UpdateMovement(double delta)
     {
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Hikage, GlobalPosition, (float)delta, 28f);
         FirePatterns(delta);
     }

@@ -9,6 +9,8 @@ public partial class BossRei : Enemy
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
+    // 旧・徘徊速度。移動は BossMover の cruise_speed（ini [rei]）が握るので、これは
+    // ini に cruise_speed も roam_speed も無いときの最終フォールバックとして残してある。
     private const float RoamSpeed = 42f;
 
     private double _fireT;
@@ -79,10 +81,23 @@ public partial class BossRei : Enemy
         ("同接８",               BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞（減っていく数字）
         ("切り抜かれない",       BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング（裏に孤独）
     };
+    // 攻撃パターン→立ち位置の対応（あかり・こはる・ミナと同じ作法）。スペルが変わるたび BossMover に
+    // 「次に何をするか」を伝え、攻撃の合間にその立ち位置へ移らせる。
+    //   0/1 リング   ＝ 中央に据わって撒く（全方位なので真ん中が一番読みやすい）
+    //   2   自機狙い ＝ 自機の x を追って横に滑る（ただしレイは track_gain 0.25＝枠の中で気配だけ）
+    //   3   スパイラル＝ 端へ寄って糸を引く
+    private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
+    {
+        2 => BossMover.Attack.Aimed,
+        3 => BossMover.Attack.Wall,
+        _ => BossMover.Attack.Ring,
+    };
+
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
         SetSpellVisual(s.shape, s.tint);
+        _mover.SetNextAttack(StanceOf(_pattern));
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("レイ", "@hoshiai_rei_live", s.name, s.tint);
     }
@@ -187,8 +202,10 @@ public partial class BossRei : Enemy
         base._Ready();
         // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
-        // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
+        // 移動：状態機械＋立ち位置つき（あかり・こはる・ミナと同じ作法）。レイの性格＝配信の枠から
+        // 出ない＝横移動をほぼ捨て（stance_edge_x/track_w が小さい）、傾き（lean_max）で表情を作る。
+        // 数値は config/boss_stats.ini の [rei] 節（cruise_speed / stance_* 一式）。
+        _mover.Configure("rei", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
         GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -205,8 +222,10 @@ public partial class BossRei : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        // 自機の x は毎フレーム渡す（自機狙いの横滑りと、向きの反転判定に要る）。
+        if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerX(pl.GlobalPosition.X);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
         TickPressure(delta);
@@ -271,16 +290,17 @@ public partial class BossRei : Enemy
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         // 安置リレー（最終選考）の宣告〜最終着弾中は通常弾を止める（避け先＝安置へ集中させる）。
-        if (_caster != null && _caster.AoeActive) return;
+        // このあいだは「宣告付きの大技」の立ち位置＝中央の高めに据わって動かない（見せ場を固定する）。
+        if (_caster != null && _caster.AoeActive) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; TriggerAttackPose(); Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
-            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; TriggerAttackPose(); Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
-            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; TriggerAttackPose(); Aimed(pool); } break;
-            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; TriggerAttackPose(); Spiral(pool); } break;
+            case 0: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ringCount) + _pressure, _ringSpeed); } break;
+            case 1: if (_fireT >= Di(_ring2Interval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool, Dn(_ring2Count) + _pressure, _ring2Speed); } break;
+            case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Aimed); TriggerAttackPose(); Aimed(pool); } break;
+            default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;
         }
     }
 
@@ -288,7 +308,9 @@ public partial class BossRei : Enemy
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.9)) { _fireT = 0; SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
+        // 2スペル同時展開＝どちらか一方の立ち位置に寄せると常に取り合いになるので、
+        // 遅い方（リング）の一拍だけ拾って中央に据わらせる（螺旋は毎フレーム級で撃つため一拍にしない）。
+        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.OnAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
         if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
     }
 
@@ -337,6 +359,10 @@ public partial class BossRei : Enemy
         }
         return new Vector2(-1, 0);
     }
+
+    // 本体に弾が刺さった一拍を移動側へ渡す（小さくのけぞって戻る）。当たり判定の中心は
+    // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
+    protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
 
     protected override void OnHpChanged()
     {

@@ -234,6 +234,10 @@ public partial class Enemy : Area2D
     // 派生ボスの「攻めているか」駆動ギミック（レイの逃げ腰圧など）が上書きする。基底は何もしない。
     public virtual void OnPlayerDealtDamage() { }
 
+    // 本体に自機弾が刺さった瞬間のフック。fromDir＝弾から本体へ向かう単位ベクトル（＝のけぞる向き）。
+    // 派生ボスが BossMover.OnHit(fromDir) へ流して「小さくのけぞって戻る」一拍を出す。基底は何もしない。
+    protected virtual void OnBodyDamaged(Vector2 fromDir) { }
+
     public override void _Ready()
     {
         AddToGroup("enemies");
@@ -634,6 +638,16 @@ public partial class Enemy : Area2D
             // 部品層にも「刺さった」を伝える＝カード・吹き出し・星が外へ散って戻る（見た目だけ）。
             // 改心へ入る一撃（_hp<=0）は下の Redeem 側の改心演出に譲る＝散らしてから消すと二度手間になる。
             if (_hp > 0) _parts?.OnHit();
+            // 移動側にも「刺さった」を伝える＝BossMover が最大4pxのけぞって 0.26 秒で戻す（当たり判定の
+            // 中心は動くが、時定数 0.12s で寄せるので1フレームで飛ばない＝弾避けの公平性は保つ）。
+            // 弾の進行方向＝押される向き。速度が取れない場合は本体←弾の向きで代用する。
+            if (_hp > 0)
+            {
+                Vector2 push = b.Velocity.LengthSquared() > 0.01f
+                    ? b.Velocity.Normalized()
+                    : (GlobalPosition - b.GlobalPosition);
+                OnBodyDamaged(push);
+            }
             Audio.Instance?.PlayBossHit(dmg);
             if (dmg >= 3) GameCamera.Instance?.Shake(1.6f, 0.10f);
 
@@ -826,17 +840,24 @@ public partial class Enemy : Area2D
     }
 
     // ボス徘徊の“見た目だけ”の演出を立ち絵(_bodySprite)へ適用する（BossMover 経由）。
-    // visualOffset=呼吸/浮遊の微小オフセット、lean=進行方向への傾き(rad)、faceLeft=向き。
+    // visualOffset=呼吸/浮遊の微小オフセット、lean=進行方向への傾き(rad)、faceLeft=向き、
+    // squash=反転の瞬間の縮み倍率（BossMover.SquashScale。既定＝(1,1)＝縮まない）。
     // ★当たり判定（本体 Area2D の GlobalPosition と _bodyShape）は一切動かさない＝弾避けの公平性を保つ。
     // 立ち絵が無い（プレースホルダ図形の）ボスでは何もしない。
-    protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft)
+    protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft, Vector2? squash = null)
     {
         AutoBank = false; // 姿勢はこちら(BossMover.Lean)が握る＝基底の自動バンクと競合させない
         if (!_hasBodyTex || _bodySprite == null) return;
         _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
         // 差し替えアニメ中は _PhysicsProcess 側が Position/Scale を握る（pop の持ち上げを潰さない）。
         if (!_swapAnim)
+        {
             _bodySprite.Position = visualOffset;
+            // 反転の縮み。差し替えアニメ（squash→pop）と Scale を取り合わないよう、走っていない間だけ
+            // ここが握る。倍率が 1 のときも毎フレーム基準スケールへ戻す＝縮みが残り続けない。
+            Vector2 sq = squash ?? Vector2.One;
+            _bodySprite.Scale = new Vector2(_baseScale * sq.X, _baseScale * sq.Y);
+        }
         _bodySprite.Rotation = lean;
         if (_bodySprite.FlipH != faceLeft) { _bodySprite.FlipH = faceLeft; ApplyBodyOffset(); }
         _parts?.SetFlip(faceLeft);
