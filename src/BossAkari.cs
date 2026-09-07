@@ -135,6 +135,9 @@ public partial class BossAkari : Enemy
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
         // 描き下ろしの *_body_cry.png（720px・エフェクトなし）に差し替えた。倍率・アンカーは待機と同じ。
+        // 第二形態（2026-09-07）＝待つのをやめて顔を上げ、取り消した一通が溢れている姿。
+        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.52）。攻撃・被弾の絵は流用する。
+        Form2TexPath = "res://char/v3/boss_akari_body_idle2.png";
         CryTexPath = "res://char/v3/boss_akari_body_cry.png";
         PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
@@ -313,6 +316,9 @@ public partial class BossAkari : Enemy
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
+            // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.52）に乗せる＝新しい閾値を足さない。
+            // ここは既に ApplySpell の宣告が出る節目なので、形態変化も同じ一拍に重ねて読ませる。
+            if (_beatsFired == 2) AdvanceForm2();
         }
         // イライラ棒「雨の帰り道」：HP52%（INI: corridor_hp）を割った瞬間に一度だけ（パターン第2切替と同じ節目＝中盤の山）。
         // 上の ApplySpell と同フレームで重なり得るが、宣告は後勝ち＝「雨の帰り道」が表示される。

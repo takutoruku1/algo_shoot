@@ -32,6 +32,10 @@ public partial class Enemy : Area2D
     protected string PreTexPath = "";
     protected string PostTexPath = "";
     protected string PanelTexPath = "";
+    // 任意：第二形態の待機絵（*_body_idle2.png）。設定すると HP 閾値の中盤で AdvanceForm2() が
+    // PreTexPath をこれに差し替える＝以後の待機はすべて第二形態になる（攻撃の一拍から戻る先も同じ）。
+    // 空なら第二形態は起きない＝設定していないボス（ヒカゲ・ミナ・カメオ・ザコ）は完全に不変。
+    protected string Form2TexPath = "";
     // 任意：浄化の瞬間に一時表示する「大泣き」スプライト。設定すると pre→cry→(CryHoldDur秒)→post の3段階に。
     protected string CryTexPath = "";
     protected double CryHoldDur = 0;
@@ -654,6 +658,54 @@ public partial class Enemy : Area2D
         hud?.FlashBossBarBreak(); // HPバー自体も白く光らせ「1本割れた」を視線先で読ませる
         Audio.Instance?.PlaySpell();
         if (_hasBodyTex) { _swapAnim = true; _swapAnimT = 0; } // 一拍の弾み（演出過多にしない＝これ以上足さない）
+    }
+
+    // ─── 第二形態（2026-09-07）───
+    //   テーマ「下書き＝本音／投稿＝仮初の自分」を形態に乗せる。一形態＝仮初の自分で戦い、
+    //   第二形態＝繕っていたものが剥がれて本音が露出した姿。壊れて中身が出るのではない。
+    //
+    //   派生ボスが OnHpChanged の既存の閾値ブロック（PatternThresholds の中盤＝index 1）から
+    //   一度だけ呼ぶ。新しい閾値も新しい仕組みも足さない＝発動する HP は既存のスペル切替と同じ節目。
+    //
+    //   やること:
+    //     ・本体の待機絵を Form2TexPath へ差し替える（既存の SwapBody＝クロスフェード＋squash→pop）
+    //     ・PreTexPath 自体を差し替える＝攻撃の一拍から戻る先も第二形態になる（TickAttackPose）
+    //     ・姿勢を Pose.Form2 にする＝足元が待機と同じ画面位置に来る（BossParts.BodyOffsets）
+    //     ・部品層を派手にする（BossParts.EnterForm2）
+    //     ・節目の一拍は既存の語彙（Hud.Flash ＋ PlaySpell ＋ 軽い Shake）だけ
+    //   やらないこと: 当たり判定・HP・弾幕の値は一切動かさない。ヒットストップも入れない
+    //  （弾を止めると弾幕の読みが切れる＝派手さのために可読性を落とさない）。
+    //   ★戻り値 true＝この呼び出しで実際に移行した（派生が宣告などを足したいとき用）。
+    private bool _form2;
+    protected bool IsForm2 => _form2;
+    protected bool AdvanceForm2()
+    {
+        if (_form2) return false;
+        if (_purified || _crying) return false;          // 改心の三段に割り込ませない
+        if (string.IsNullOrEmpty(Form2TexPath)) return false;
+        if (!ResourceLoader.Exists(Form2TexPath)) return false; // 絵が無ければ黙って起きない
+        _form2 = true;
+
+        PreTexPath = Form2TexPath;                       // 以後の待機はすべて第二形態
+        // 攻撃の一拍の最中なら絵は差し替えない（攻撃絵の上に待機絵を被せない）。
+        // _attackPoseT が切れたとき TickAttackPose が新しい PreTexPath＝第二形態へ戻す。
+        if (_attackPoseT <= 0)
+        {
+            SetBodyPose(BossParts.Pose.Form2);
+            SwapBody(PreTexPath);
+        }
+        else
+        {
+            _bodyPose = BossParts.Pose.Form2;            // 戻ったときのオフセットだけ先に決めておく
+        }
+
+        _parts?.EnterForm2();
+
+        var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        hud?.Flash();
+        Audio.Instance?.PlaySpell();
+        GameCamera.Instance?.Shake(2.0f, 0.12f);
+        return true;
     }
 
     // 外部（ボム等）から強制浄化。

@@ -93,6 +93,9 @@ public partial class BossParts : Node2D
         public float BlinkOn;        // Blink の点灯残り(s)
         public float PeelPhase;      // ガワ割れで凍らせた公転の位相（T の代わりに描画で使う）
         public float Focus;          // 集束（0=待機の薄さ／1=発射点に集まって濃い）。こはるの後光だけ使う
+        // 掛け色（既定は白＝素材の色そのまま）。第二形態でレイのひびを金へ寄せるためだけに使う
+        //  ＝素材（crack.png）は菫の細線で、本体の菫の上に重ねると沈んで読めないため（実機で確認）。
+        public Color Tint = Colors.White;
     }
 
     // ───── 一発きりの演出（Burst）─────
@@ -194,23 +197,29 @@ public partial class BossParts : Node2D
     //   計算: 画像の中心を原点にした足元中央の位置 rel = 足元中央 - (幅/2, 720/2)。
     //         Offset = rel(待機) - rel(その姿勢) ＝ どの姿勢でも足元が待機と同じ画面位置に来る。
     //   実測値（足元中央 x,y／画像幅）:
-    //     あかり idle(294,719)/487  attack(282,719)/639  hit(270,719)/553
-    //     こはる idle(427,629)/626  attack(346,668)/585  hit(270,633)/530
-    //     レイ   idle(255,719)/533  attack(218,719)/556  hit(238,719)/457
+    //     あかり idle(294,719)/487  attack(282,719)/639  hit(270,719)/553  idle2(205,718)/455
+    //     こはる idle(427,629)/626  attack(346,668)/585  hit(270,633)/530  idle2(410,681)/639
+    //     レイ   idle(255,719)/533  attack(218,719)/556  hit(238,719)/457  idle2(230,715)/516
     private static readonly Dictionary<string, Vector2[]> BodyOffsets = new Dictionary<string, Vector2[]>
     {
-        // 並びは Pose の順（Idle, Attack, Hit）。単位は 720px 基準の画素。
-        ["akari"] = new[] { Vector2.Zero, new Vector2(88f, 0f), new Vector2(57f, 0f) },
-        ["koharu"] = new[] { Vector2.Zero, new Vector2(60.5f, -39f), new Vector2(109f, -4f) },
-        ["rei"] = new[] { Vector2.Zero, new Vector2(48.5f, 0f), new Vector2(-21f, 0f) },
+        // 並びは Pose の順（Idle, Attack, Hit, Form2）。単位は 720px 基準の画素。
+        // Form2＝第二形態の待機絵（*_body_idle2.png）。姿勢が変わって足元中央がずれるので、
+        // Idle と同じ画面位置に来るよう実測から算出した（計算式は上のコメントと同じ）。
+        //   あかり: 膝立ちで前へ出る＝待機より左・ほぼ同じ高さ
+        //   こはる: ペンライトを下ろして重心が下がる＝待機より下（y 負で持ち上げ戻す）
+        //   レイ  : 立ち姿のまま＝ほぼ待機と同じ
+        ["akari"] = new[] { Vector2.Zero, new Vector2(88f, 0f), new Vector2(57f, 0f), new Vector2(73f, 0f) },
+        ["koharu"] = new[] { Vector2.Zero, new Vector2(60.5f, -39f), new Vector2(109f, -4f), new Vector2(23.5f, -52f) },
+        ["rei"] = new[] { Vector2.Zero, new Vector2(48.5f, 0f), new Vector2(-21f, 0f), new Vector2(16.5f, 4f) },
         // 中ボス（v3 のちび・360px 高）は絵の重心が判定中心より約4px上にある（前タスクの実測）。
         // 表示高 50px に対し約8%＝無防備窓の円が胸〜頭に乗る。ここで絵を下げて円の中心へ寄せる。
         // 360px 基準の画素なので、表示高 50px なら 4px 相当は 360/50×4 ≈ 28.8px。
-        ["cameo"] = new[] { new Vector2(0f, 28.8f), new Vector2(0f, 28.8f), new Vector2(0f, 28.8f) },
+        // 中ボスに第二形態は無いので Form2 も同じ値（BodyOffsetFor が範囲外を Zero に落とさない保険）。
+        ["cameo"] = new[] { new Vector2(0f, 28.8f), new Vector2(0f, 28.8f), new Vector2(0f, 28.8f), new Vector2(0f, 28.8f) },
     };
 
-    // 姿勢。BodyOffsetFor の添字。
-    public enum Pose { Idle, Attack, Hit }
+    // 姿勢。BodyOffsetFor の添字。Form2 は末尾に足す＝既存の添字（Idle/Attack/Hit）は動かさない。
+    public enum Pose { Idle, Attack, Hit, Form2 }
 
     // ───── 基準点（待機絵で実測した足元中央・発射点）─────
     //   単位は待機の本体画像（720px 高）の左上原点の画素。AnchorFoot / AnchorMuzzle が
@@ -419,6 +428,132 @@ public partial class BossParts : Node2D
     private static Def WithFile(Def d, string file) =>
         new Def(file, d.L, d.R, d.SizeK, d.Alpha, d.RadiusK, d.Omega, d.Phase,
                 d.PulseAmp, d.PulseSec, d.BobPx, d.Pos, d.SwapZ, d.MirrorX, d.MirrorY, d.Framed);
+
+    // ───── 第二形態（EnterForm2 が使う）─────
+
+    // 動きの強さだけ倍率で差し替えた複製。Pos は実 px なので触らない＝配置は動かさず、
+    // 「大きさ・濃さ・公転半径・回る速さ・脈動」だけを強める（派手さの中身はこの 5 つに限る）。
+    private static Def Amplify(Def d, float sizeK = 1f, float alphaK = 1f, float radiusK = 1f,
+                               float omegaK = 1f, float pulseK = 1f) =>
+        new Def(d.File, d.L, d.R, d.SizeK * sizeK, Mathf.Min(1f, d.Alpha * alphaK),
+                d.RadiusK * radiusK, d.Omega * omegaK, d.Phase,
+                d.PulseAmp * pulseK, d.PulseSec, d.BobPx, d.Pos, d.SwapZ, d.MirrorX, d.MirrorY, d.Framed);
+
+    // 既存の1部品を種にして「もう1個」を作る（位相・半径・大きさ・濃さ・回る向きを変えた複製）。
+    // 新しい部品画像を足さずに数を増やすための口＝生成物を増やさない（設計 4 節）。
+    private static Def Clone(Def d, float phase, float sizeK = 1f, float alpha = -1f,
+                             float radiusK = 1f, float omegaK = 1f, Layer? layer = null) =>
+        new Def(d.File, layer ?? d.L, d.R, d.SizeK * sizeK, alpha < 0f ? d.Alpha : alpha,
+                d.RadiusK * radiusK, d.Omega * omegaK, phase,
+                d.PulseAmp, d.PulseSec, d.BobPx, d.Pos, d.SwapZ, d.MirrorX, d.MirrorY, d.Framed);
+
+    private bool _form2;
+    public bool IsForm2 => _form2;
+
+    // 第二形態へ入る（HP 閾値の中盤で Enemy が一度だけ呼ぶ）。
+    //
+    //   やることは 2 つだけ:
+    //     1. 既存の部品の「大きさ・濃さ・半径・回る速さ・脈動」に倍率を掛ける（Amplify）
+    //     2. 既存の部品を種に複製を足して数を増やす（Clone）
+    //   ★新しい部品画像は読まない。★配置（Pos）と層（Z）と当たり判定は動かさない。
+    //
+    //   弾の視認性を守るための縛り（設計 4 節。ここを緩めるときは実機の撮り直しとセット）:
+    //     ・加算合成（Layer.Add）の部品は本数も α も増やさない。光り物が一番弾を潰す。
+    //     ・公転半径は本体高の 0.90 倍まで。それ以上は弾の湧く帯へはみ出す。
+    //     ・足した部品の α は既存より必ず低く（0.45〜0.70）。
+    public void EnterForm2()
+    {
+        if (_form2 || _parts.Count == 0) return;
+        _form2 = true;
+
+        var added = new List<Part>();
+        foreach (var p in _parts)
+        {
+            switch (_name)
+            {
+                // あかり＝二重の輪。取り消した一通が一周では収まらない。
+                //   内側のカード（半径 0.60）はそのまま速さだけ上げ、外側に逆回りの輪をもう 1 周足す。
+                case "akari":
+                    if (p.D.R == Role.Orbit)
+                    {
+                        // 外周（半径 0.60×1.43＝0.86。上限 0.90 の内側）を逆回りで。奥／手前の振り分けは種のまま。
+                        added.Add(Spawn(Clone(p.D, p.D.Phase + 1.05f, sizeK: 0.85f, alpha: 0.70f,
+                                              radiusK: 1.43f, omegaK: -0.79f), p.Tex));
+                        p.D = Amplify(p.D, omegaK: 1.35f);
+                    }
+                    break;
+
+                // こはる＝数を増やす。送れなかったコメントが束になって絡む。
+                //   視線の線 4→8、菫の粒 3→6。後光（gaze_ray・加算）は据え置き＝顔が白飛びしない。
+                case "koharu":
+                    if (p.D.File == "gaze_line")
+                    {
+                        added.Add(Spawn(Clone(p.D, p.D.Phase + 0.79f, sizeK: 0.92f, alpha: 0.45f,
+                                              radiusK: 1.7f), p.Tex));
+                        p.D = Amplify(p.D, omegaK: 1.4f, pulseK: 1.6f);
+                    }
+                    else if (p.D.File == "particle_violet" && p.D.L != Layer.Add)
+                        added.Add(Spawn(Clone(p.D, p.D.Phase + 1.3f, sizeK: 0.9f, alpha: 0.45f), p.Tex));
+                    else if (p.D.R == Role.Drift)
+                        p.D = Amplify(p.D, omegaK: 1.3f, pulseK: 1.4f);
+                    break;
+
+                // レイ＝大きくする＋速く回す。ガワが膨れて手に負えない。
+                //   枠は 1.18 倍、空の吹き出しは 1.25 倍・半径 1.12 倍・1.5 倍速、星は 3→6。
+                //   光の帯（ray_*・加算）は Burst 側なのでここでは触らない＝据え置き。
+                case "rei":
+                    // 枠は 1.10 倍まで。1.18 倍は実機で枠が外へ張り出して弾の通り道へ寄った（撮って確認）。
+                    // 「膨らんだ」は脈動（1.5 倍）で出し、張り出しでは出さない。
+                    if (p.D.File.StartsWith("frame_"))
+                        p.D = Amplify(p.D, sizeK: 1.10f, pulseK: 1.5f);
+                    else if (p.D.File.StartsWith("bubble_empty_"))
+                        p.D = Amplify(p.D, sizeK: 1.25f, radiusK: 1.12f, omegaK: 1.5f);
+                    else if (p.D.File == "star_small" && p.D.L != Layer.Add)
+                        added.Add(Spawn(Clone(p.D, p.D.Phase + 1.6f, sizeK: 0.85f, alpha: 0.5f), p.Tex));
+                    break;
+            }
+        }
+        _parts.AddRange(added);
+
+        // レイだけ：ガワのひびを常設の層として本体に重ねる（第二形態＝ひびが入って光が漏れている）。
+        //
+        //   本体絵（idle2）にもひびは描いてあるが、表示高 56px まで落ちると金の縁取りと見分けが付かず
+        //   「割れている」が読めなかった（実機で確認）。そこでここが読みを担う:
+        //     ・Add 層＝加算合成。菫のガワの上で「中から光が漏れている」に見える唯一の合成
+        //     ・掛け色を金へ（素材 crack.png は菫の細線で、菫のガワに重ねると沈む）
+        //     ・α 0.42・脈動 0.16＝ゆっくり明滅して「生きている割れ目」に見せる
+        //   それでも改心のガワ割れ（ShellPeelFx＋EmitPeelCrack）より弱い＝決定打の一拍を食わない。
+        //   ★本体と同寸（SizeK 1.0）で本体の上にだけ乗る＝弾の通り道へは広がらない。
+        if (_name == "rei" && _texCrack != null)
+            _parts.Add(new Part
+            {
+                D = new Def("crack", Layer.Add, Role.Fixed, 1.00f, 0.42f,
+                            pulseAmp: 0.16f, pulseSec: 1.6f, pos: Vector2.Zero),
+                Tex = _texCrack,
+                Tint = new Color(1.0f, 0.86f, 0.45f), // 金＝漏れている光の色（本体のひびと同じ色味）
+            });
+
+        // 一拍だけ外へ広がって戻る（既存の被弾の散りと同じ機構を薄く流用）。派手さの合図はこれだけ。
+        // ★状態（_st）は変えない＝攻撃・被弾・改心の流れに割り込まない。
+        for (int i = 0; i < _parts.Count; i++)
+        {
+            var p = _parts[i];
+            if (IsAnchored(p)) continue;
+            Vector2 cur = p.Extra + BasePos(p, p.T);
+            Vector2 dir = cur.LengthSquared() > 1f ? cur.Normalized()
+                                                   : new Vector2(Mathf.Cos(i * 1.7f), Mathf.Sin(i * 1.7f));
+            p.Vel = dir * 42f;   // 被弾の散り(70〜126)より弱い＝「殴られた」ではなく「膨らんだ」
+        }
+    }
+
+    // Def から実行時の Part を作る（Configure と同じ初期化。EnterForm2 の複製に使う）。
+    private static Part Spawn(Def d, Texture2D tex) => new Part
+    {
+        D = d,
+        Tex = tex,
+        T = d.Phase,
+        BlinkT = 1.2f + (d.Phase % 1f) * 2.0f,
+    };
 
     private Node2D NewLayerNode(string name, int z, bool additive)
     {
@@ -983,7 +1118,7 @@ public partial class BossParts : Node2D
             var mir = new Vector2(mx ? -1f : 1f, p.D.MirrorY ? -1f : 1f);
             canvas.DrawSetTransform(pos, p.Spin, mir);
             canvas.DrawTextureRect(p.Tex, new Rect2(-size * 0.5f, size), false,
-                                   new Color(1f, 1f, 1f, alpha * p.Fade));
+                                   new Color(p.Tint.R, p.Tint.G, p.Tint.B, alpha * p.Fade));
             canvas.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
         }
 

@@ -151,6 +151,10 @@ public partial class BossRei : Enemy
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用でガワのまま笑っていた＝ガワが割れた感じが出なかったので、
         // 描き下ろしの *_body_cry.png（720px・中の人・エフェクトなし）に差し替えた。
+        // 第二形態（2026-09-07）＝ガワにひびが入り、割れ目から中の人の光が漏れている姿。
+        // 「割れる」のは改心の決定打（ShellPeelFx）に取っておく＝ここでは割らず、中の人も出さない。
+        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.50）。攻撃・被弾の絵は流用する。
+        Form2TexPath = "res://char/v3/boss_rei_body_idle2.png";
         CryTexPath = "res://char/v3/boss_rei_body_cry.png";
         PostTexPath = "res://char/v3/boss_rei_post.png";
         // レイだけ cry/post が「ガワの中の人」＝ガワと同じ表示高で出すと同一人物の等身が破綻する。
@@ -342,6 +346,9 @@ public partial class BossRei : Enemy
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
+            // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.50）に乗せる＝新しい閾値を足さない。
+            // ガワにひびが入る一拍。割るのは改心の決定打（ShellPeelFx）なのでここでは割らない。
+            if (_beatsFired == 2) AdvanceForm2();
         }
         // 適応演出：総HPの2割を割った瞬間に、実音源の戦闘BGMを一度だけ加速させる（緊迫の高揚）。
         //   PitchScale を 0.6秒かけて約1.15へ滑らかに上げる＝ピッチも少し上がる（合意済み）。

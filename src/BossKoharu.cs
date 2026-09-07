@@ -191,6 +191,9 @@ public partial class BossKoharu : Enemy
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
         // 描き下ろしの *_body_cry.png（720px・エフェクトなし）に差し替えた。倍率・アンカーは待機と同じ。
+        // 第二形態（2026-09-07）＝明るい子の顔が剥がれ、送れなかった手が止まったまま露出した姿。
+        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.50）。攻撃・被弾の絵は流用する。
+        Form2TexPath = "res://char/v3/boss_koharu_body_idle2.png";
         CryTexPath = "res://char/v3/boss_koharu_body_cry.png";
         PostTexPath = "res://char/v3/enemy_koharu_post.png";
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
@@ -543,6 +546,10 @@ public partial class BossKoharu : Enemy
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
             ApplySpell();
+            // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.50）に乗せる＝新しい閾値を足さない。
+            // ワンショットギミック（食事・十字火）の進行中は上の holds で保留されるので、
+            // 形態変化も同じ保留に乗る＝宣言カードと形態変化が潰し合わない。
+            if (_beatsFired == 2) AdvanceForm2();
         }
         // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。finale_cap（既定0.26）は Min なので
         // 下げる方向にしか効かず、Easy(2本)は式の 25% が採用される＝第4スペル切替(26%)の 2HP 下で発火し、
