@@ -19,7 +19,9 @@ using Godot;
 //   world.AddChild(c); c.GlobalPosition = Vector2.Zero;   // 画面座標基準で描く
 public partial class CorridorRun : Node2D, IAoeHazard
 {
-    private const float W = 384f, H = 216f;
+    // 通路が覆う矩形＝盤面（Field）。GlobalPosition=0 に置かれ、画面座標のまま描く。
+    private const float W = Field.Width, H = Field.Height;
+    private const float L = Field.Left, T = Field.Top, R = Field.Right, B = Field.Bottom;
     private const float PlayerHit = 2.5f;       // 自機の被弾半径ぶんの寄せ（AreaStrike と同値）
     private const float WallThick = 12f;        // 壁カラムの厚み
     private const float WallStride = 24f;       // カラム間隔（中心から中心）
@@ -95,7 +97,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
         _center = new float[n];
         float maxSlope = _maxVy / _scrollSpeed;
         float yMargin = _gap * 0.8f + 10f; // 中央線が端に寄りすぎない（ボム拡幅1.6×の半幅＋余白）
-        float y = H / 2f;
+        float y = Field.CenterY;
         double theta = 0;
         float waveLen = _rng.RandfRange(90f, 170f);
         for (int i = 0; i < n; i++)
@@ -104,7 +106,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
             float d = i * SampleStep;
             if (d < _dStraight) continue; // 学習区間＝直進
             y += maxSlope * Mathf.Sin((float)theta) * SampleStep;
-            y = Mathf.Clamp(y, yMargin, H - yMargin);
+            y = Mathf.Clamp(y, T + yMargin, B - yMargin);
             theta += Mathf.Tau / waveLen * SampleStep;
             if (theta >= Mathf.Tau) { theta -= Mathf.Tau; waveLen = _rng.RandfRange(90f, 170f); }
         }
@@ -120,7 +122,12 @@ public partial class CorridorRun : Node2D, IAoeHazard
         int i = (int)fi;
         return Mathf.Lerp(_center[i], _center[i + 1], fi - i);
     }
-    public float GuideYAt(float worldX) => CenterAtD(worldX + _scroll);
+    public float GuideYAt(float worldX) => CenterAtD(DAt(worldX));
+
+    // 画面X ⇄ 走行距離d の対応。壁は d=0 が盤面左端(Field.Left)に来る形で左へ流れる。
+    //   描画・当たり判定・ガイドの3経路がここ1本を通ることで、盤面が動いてもズレない。
+    private float DAt(float screenX) => screenX - L + _scroll;
+    private float XAt(float d) => L + d - _scroll;
 
     // 距離dの通路幅（学習区間の広幅→通常幅の移行＋ボム拡張を織り込む）。
     private float GapAtD(float d)
@@ -135,12 +142,12 @@ public partial class CorridorRun : Node2D, IAoeHazard
     // 点pが壁の中か（当たり判定。CoversPoint と共用）。近傍3カラムだけ調べる。
     private bool InsideWall(Vector2 p)
     {
-        int kc = Mathf.RoundToInt((p.X + _scroll) / WallStride);
+        int kc = Mathf.RoundToInt(DAt(p.X) / WallStride);
         for (int k = kc - 1; k <= kc + 1; k++)
         {
             if (k < 0) continue;
             float colD = k * WallStride;
-            float colX = colD - _scroll;
+            float colX = XAt(colD);
             if (Mathf.Abs(p.X - colX) > WallThick / 2f + PlayerHit) continue;
             float half = GapAtD(colD) / 2f;
             if (Mathf.Abs(p.Y - CenterAtD(colD)) >= half - PlayerHit) return true;
@@ -185,7 +192,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
             _remnantSpawned++;
             var r = new RemnantEnemy { Corridor = this, BossRef = Boss };
             GetParent().AddChild(r);
-            float sx = W + 12f;
+            float sx = R + 12f;
             r.GlobalPosition = new Vector2(sx, GuideYAt(sx));
         }
 
@@ -226,21 +233,21 @@ public partial class CorridorRun : Node2D, IAoeHazard
         for (int k = kMin; k <= kMax; k++)
         {
             float colD = k * WallStride;
-            float colX = colD - _scroll;
-            if (colX < -WallThick || colX > W + WallThick) continue;
+            float colX = XAt(colD);
+            if (colX < L - WallThick || colX > R + WallThick) continue;
             float c = CenterAtD(colD);
             float half = GapAtD(colD) / 2f;
             float top = c - half, bot = c + half;
             float x0 = colX - WallThick / 2f;
-            if (top > 0f)
+            if (top > T)
             {
-                DrawRect(new Rect2(x0, 0, WallThick, top), fill);
-                DrawRect(new Rect2(x0 + 3f, 0, WallThick - 6f, top), deep);
+                DrawRect(new Rect2(x0, T, WallThick, top - T), fill);
+                DrawRect(new Rect2(x0 + 3f, T, WallThick - 6f, top - T), deep);
             }
-            if (bot < H)
+            if (bot < B)
             {
-                DrawRect(new Rect2(x0, bot, WallThick, H - bot), fill);
-                DrawRect(new Rect2(x0 + 3f, bot, WallThick - 6f, H - bot), deep);
+                DrawRect(new Rect2(x0, bot, WallThick, B - bot), fill);
+                DrawRect(new Rect2(x0 + 3f, bot, WallThick - 6f, B - bot), deep);
             }
             // 通路縁の危険ライン（AreaStrike の予兆輪郭と同語彙）：カラムごとに位相をずらして明滅＝流れが読める。
             float ep = 0.45f + 0.45f * Mathf.Sin((float)_t * 7f + k * 0.9f);
@@ -254,7 +261,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
         {
             float cprog = (float)(_t / PreviewDur);
             float inset = Mathf.Lerp(0f, 10f, cprog);
-            DrawRect(new Rect2(inset, inset, W - inset * 2f, H - inset * 2f),
+            DrawRect(new Rect2(L + inset, T + inset, W - inset * 2f, H - inset * 2f),
                      new Color(1f, 1f, 1f, 0.35f * cprog * (0.5f + 0.5f * pulse)), false, 2f);
         }
     }

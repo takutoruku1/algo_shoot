@@ -16,7 +16,7 @@ public partial class Spawner : Node
     // 道中を三部構成にして「後半ほど詰めてくる」緩急を作るため、後続の波で上げて渡す（§3 緩急）。
     public float StartIntensity = 0f;
 
-    private const float SpawnX = 398f;   // 画面右外
+    private const float SpawnX = Field.Right + 14f;   // 盤面の右外
     private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
     private const float IntervalStart = 2.0f;
     private const float IntervalEnd = 0.8f;

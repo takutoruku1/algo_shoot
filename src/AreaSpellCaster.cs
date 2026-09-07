@@ -11,7 +11,9 @@ using Godot;
 //   AddChild(caster);
 public partial class AreaSpellCaster : Node2D
 {
-    private const float W = 384f, H = 216f;
+    // 盤面（Field）の寸法と端の別名。位置には Left/Right/CenterX を、長さには W/H を使い分ける。
+    private const float W = Field.Width, H = Field.Height;
+    private const float L = Field.Left, R = Field.Right, T = Field.Top, B = Field.Bottom;
 
     private string _key = "";  // Configure のプロファイルキー（rei/akari/koharu/mina。リレー宣告の文言分岐に使う）
     private string _disp = "", _handle = "";
@@ -153,11 +155,11 @@ public partial class AreaSpellCaster : Node2D
     {
         Vector2 player = PlayerPos();
         Vector2? boss = BossPos();
-        Vector2 safe = new Vector2(W / 2f, H / 2f); // 全候補が条件を満たさない時のフォールバック＝中央（12候補全棄却はほぼ起きない）
+        Vector2 safe = new Vector2(Field.CenterX, Field.CenterY); // 全候補が条件を満たさない時のフォールバック＝盤面中央（12候補全棄却はほぼ起きない）
         float bestD = float.MaxValue;
         for (int i = 0; i < 12; i++)
         {
-            var cand = new Vector2(_rng.RandfRange(margin, W - margin), _rng.RandfRange(margin, H - margin));
+            var cand = new Vector2(_rng.RandfRange(L + margin, R - margin), _rng.RandfRange(T + margin, B - margin));
             if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの居場所＝安置にしない
             float d = cand.DistanceTo(player);
             if (d >= 70f && d < bestD) { bestD = d; safe = cand; }
@@ -167,7 +169,7 @@ public partial class AreaSpellCaster : Node2D
 
     // 自機の現在地（いなければ画面中央＝旧フォールバックを踏襲）。
     private Vector2 PlayerPos() =>
-        (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition ?? new Vector2(W / 2f, H / 2f);
+        (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition ?? new Vector2(Field.CenterX, Field.CenterY);
     // このキャスターを抱えるボスの現在地（未キャッシュ/消滅時は null）。
     private Vector2? BossPos() =>
         _owner != null && IsInstanceValid(_owner) ? _owner.GlobalPosition : null;
@@ -196,8 +198,8 @@ public partial class AreaSpellCaster : Node2D
                 var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
                 if (_chainPrevDir != Vector2.Zero && dir.Dot(_chainPrevDir) >= 0.5f) continue; // 同方向すぎ＝採り直し
                 var cand = _chainPrevSafe + dir * _rng.RandfRange(_chainHopMin, _chainHopMax);
-                cand.X = Mathf.Clamp(cand.X, margin, W - margin);
-                cand.Y = Mathf.Clamp(cand.Y, margin, H - margin);
+                cand.X = Mathf.Clamp(cand.X, L + margin, R - margin);
+                cand.Y = Mathf.Clamp(cand.Y, T + margin, B - margin);
                 if (cand.DistanceTo(_chainPrevSafe) < _chainHopMin * 0.9f) continue; // 端クランプで潰れた＝採り直し（0.9: 縦216pxで垂直系候補が潰れやすく、棄却→再抽選で横方向が創発的に優先される。sakurai査定 2026-07-05）
                 if (boss.HasValue && cand.DistanceTo(boss.Value) < BossClear) continue; // ボスの上に安置＝採り直し（安置内接触の理不尽防止）
                 safe = cand;
@@ -207,10 +209,10 @@ public partial class AreaSpellCaster : Node2D
             //（この保険だけはボス距離より画面内保証を優先＝24回の抽選が全滅する極端な状況の脱出弁）。
             if (safe == _chainPrevSafe)
             {
-                var dir = (new Vector2(W / 2f, H / 2f) - _chainPrevSafe).Normalized();
+                var dir = (new Vector2(Field.CenterX, Field.CenterY) - _chainPrevSafe).Normalized();
                 safe = _chainPrevSafe + dir * _chainHopMin;
-                safe.X = Mathf.Clamp(safe.X, margin, W - margin);
-                safe.Y = Mathf.Clamp(safe.Y, margin, H - margin);
+                safe.X = Mathf.Clamp(safe.X, L + margin, R - margin);
+                safe.Y = Mathf.Clamp(safe.Y, T + margin, B - margin);
             }
             _chainPrevDir = (safe - _chainPrevSafe).Normalized();
         }
@@ -392,7 +394,7 @@ public partial class AreaSpellCaster : Node2D
             if (shape == AreaStrike.Shape.BeamSeg)
             {
                 Vector2 through = anchor ? PlayerPos()
-                    : new Vector2(_rng.RandfRange(W * 0.30f, W * 0.85f), _rng.RandfRange(H * 0.25f, H * 0.75f));
+                    : new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.85f), _rng.RandfRange(T + H * 0.25f, T + H * 0.75f));
                 SpawnKnifeBeam(through, (i % 2 == 0 ? -1f : 1f) * KnifeDeg, warn + 0.35 * i);
                 continue;
             }
@@ -438,8 +440,8 @@ public partial class AreaSpellCaster : Node2D
     {
         switch (shape)
         {
-            case AreaStrike.Shape.BeamH: return (new Vector2(W / 2f, p.Y), W / 2f, _rng.RandfRange(5f, 8f));
-            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, H / 2f), _rng.RandfRange(5f, 8f), H / 2f);
+            case AreaStrike.Shape.BeamH: return (new Vector2(Field.CenterX, p.Y), W / 2f, _rng.RandfRange(5f, 8f));
+            case AreaStrike.Shape.BeamV: return (new Vector2(p.X, Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
             case AreaStrike.Shape.Circle: return (p, 20f, 20f);
             default: // Rect
             {
@@ -475,20 +477,20 @@ public partial class AreaSpellCaster : Node2D
     {
         switch (shape)
         {
-            // サイズは 384×216 の実画面に合わせて小さめ（自機が避けられる大きさ）。
+            // サイズは盤面（Field）の実寸に合わせて小さめ（自機が避けられる大きさ）。
             case AreaStrike.Shape.BeamH: // 横ビーム（全幅・細め）
-                return (new Vector2(W / 2f, _rng.RandfRange(22f, H - 22f)), W / 2f, _rng.RandfRange(5f, 8f));
+                return (new Vector2(Field.CenterX, _rng.RandfRange(T + 22f, B - 22f)), W / 2f, _rng.RandfRange(5f, 8f));
             case AreaStrike.Shape.BeamV: // 縦カラム（全高・細め）
-                return (new Vector2(_rng.RandfRange(W * 0.30f, W * 0.92f), H / 2f), _rng.RandfRange(5f, 8f), H / 2f);
+                return (new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.92f), Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
             case AreaStrike.Shape.Circle:
             {
                 float rad = _rng.RandfRange(15f, 24f);
-                return (new Vector2(_rng.RandfRange(W * 0.28f, W * 0.9f), _rng.RandfRange(rad, H - rad)), rad, rad);
+                return (new Vector2(_rng.RandfRange(L + W * 0.28f, L + W * 0.9f), _rng.RandfRange(T + rad, B - rad)), rad, rad);
             }
             default: // Rect
             {
                 float w = _rng.RandfRange(32f, 56f), h = _rng.RandfRange(28f, 50f);
-                return (new Vector2(_rng.RandfRange(W * 0.30f, W * 0.88f), _rng.RandfRange(h / 2f, H - h / 2f)), w / 2f, h / 2f);
+                return (new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.88f), _rng.RandfRange(T + h / 2f, B - h / 2f)), w / 2f, h / 2f);
             }
         }
     }

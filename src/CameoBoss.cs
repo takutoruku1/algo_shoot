@@ -53,9 +53,10 @@ public partial class CameoBoss : Enemy
     private const int CameoPoints = 700;      // 浄化スコア（本戦1500より控えめ）
     private const float CameoBulletSpd = 80f; // 基準弾速
 
-    // 徘徊ゾーン（画面上部・右寄り～中央。自機側＝左下まで降りすぎない）。内部解像度384×216。
-    private static readonly Vector2 ZoneCenter = new Vector2(210f, 72f);
-    private const float ZoneHalfW = 80f;
+    // 徘徊ゾーン（盤面上部・右寄り～中央。自機側＝左下まで降りすぎない）。盤面の矩形は Field が定義元。
+    //   中心Xは盤面中心の +18px（Left=0 の従来値 210 に一致）、半幅は盤面幅の 80/384。
+    private static readonly Vector2 ZoneCenter = new Vector2(Field.CenterX + 18f, 72f);
+    private const float ZoneHalfW = Field.Width * (80f / 384f);
     private const float ZoneHalfH = 26f;
     private const float RoamSpeed = 40f;
 

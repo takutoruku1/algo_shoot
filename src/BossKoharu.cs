@@ -209,7 +209,7 @@ public partial class BossKoharu : Enemy
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[koharu] の
         // cruise_speed / accel_time / stance_*）。こはるは「軽く小刻み・攻撃前に一瞬止まる」＝
         // accel_time が小さく（キビキビ）、構え（stance_windup）が長めで本動作が短く鋭い。
-        _mover.Configure("koharu", new Vector2(200f, 70f), 90f, 28f);
+        _mover.Configure("koharu", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
         GetHud()?.ShowBossBar("我に返るわたし", "@koharu_light");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -438,12 +438,12 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 第一十字：自機の行（BeamH・全幅）＋列（BeamV・全高）。画面 384×216 の中心軸に置く。
+    // 第一十字：自機の行（BeamH・全幅）＋列（BeamV・全高）。盤面（Field）の中心軸に置く。
     private void SpawnGotoAxisCross(double warn)
     {
         var world = GetParent();
-        AddCrossStrike(world, AreaStrike.Shape.BeamH, new Vector2(192f, _gotoCenter.Y), 192f, GotoBeamHalf, warn);
-        AddCrossStrike(world, AreaStrike.Shape.BeamV, new Vector2(_gotoCenter.X, 108f), GotoBeamHalf, 108f, warn);
+        AddCrossStrike(world, AreaStrike.Shape.BeamH, new Vector2(Field.CenterX, _gotoCenter.Y), Field.Width * 0.5f, GotoBeamHalf, warn);
+        AddCrossStrike(world, AreaStrike.Shape.BeamV, new Vector2(_gotoCenter.X, Field.CenterY), GotoBeamHalf, Field.Height * 0.5f, warn);
     }
 
     private void AddCrossStrike(Node world, AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)

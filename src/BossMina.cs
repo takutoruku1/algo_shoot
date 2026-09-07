@@ -127,7 +127,7 @@ public partial class BossMina : Enemy
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[mina] の
         // cruise_speed / accel_time / stance_*）。ミナは「自機の動きを鏡のように追う」＝
         // stance_track_gain 1.0（自機と同じ x に寄る）。三ボスより速い。
-        _mover.Configure("mina", new Vector2(200f, 68f), 90f, 28f);
+        _mover.Configure("mina", new Vector2(Field.BossCenterX, 68f), Field.BossZoneHalfW, 28f);
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();

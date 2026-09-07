@@ -18,9 +18,7 @@ public partial class Bullet : Area2D
     private const uint LayerEnemyBullet = 8;
     private const uint MaskEnemyBullet = 1;
 
-    // 画面サイズと画面外判定の余白
-    private const float ScreenWidth = 384f;
-    private const float ScreenHeight = 216f;
+    // 画面外判定の余白（盤面の矩形は Field が定義元）
     private const float Margin = 16f;
 
     public Vector2 Velocity;
@@ -528,10 +526,10 @@ public partial class Bullet : Area2D
             return;
         }
 
-        // 画面外(余白16px)に出たら Despawn
+        // 盤面の外(余白16px)に出たら Despawn。パネル側へ抜けた弾もここで消える。
         var p = GlobalPosition;
-        if (p.X < -Margin || p.X > ScreenWidth + Margin ||
-            p.Y < -Margin || p.Y > ScreenHeight + Margin)
+        if (p.X < Field.Left - Margin || p.X > Field.Right + Margin ||
+            p.Y < Field.Top - Margin || p.Y > Field.Bottom + Margin)
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
             if (pool != null)

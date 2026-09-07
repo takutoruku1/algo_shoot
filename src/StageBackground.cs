@@ -347,17 +347,15 @@ public partial class StageBackground : Node2D
 // BgScroll : 背景スクロールの位置係数まわりの共有ヘルパ（StageBackground / ScrollFx / WorldGrade から使う）。
 //   nx（自機の正規化X, 0=左端/1=右端）の取得を1箇所に集約。engineer が公開した GameManager.PlayerNormX
 //   （TickProgress で毎フレーム更新）を第一参照にし、GameManager が無い場面では Player を group から引いて
-//   x/384 で算出するフォールバックを残す。参照名が変わってもここだけ直せばよい。
+//   盤面(Field)基準で算出するフォールバックを残す。参照名が変わってもここだけ直せばよい。
 public static class BgScroll
 {
-    private const float ScreenW = 384f;
-
     public static float PlayerNx(Node self)
     {
         var g = self.GetNodeOrNull<GameManager>("/root/Game");
         if (g != null) return g.PlayerNormX;
         var p = self.GetTree().GetFirstNodeInGroup("player") as Node2D;
-        if (p != null) return Mathf.Clamp(p.GlobalPosition.X / ScreenW, 0f, 1f);
+        if (p != null) return Mathf.Clamp((p.GlobalPosition.X - Field.Left) / Field.Width, 0f, 1f);
         return 0.5f;
     }
 }

@@ -31,7 +31,7 @@ public partial class BossAkari : Enemy
     private bool _corridorFired;   // 発火ワンショット
     private int _corridorPhase;    // 0=なし / 1=退場〜通路中 / 2=帰還中
     private CorridorRun? _corridor;
-    private const float AwayX = 434f;   // 退場先X（弾消滅境界400 ＋ パネル軌道29 ＋ 余白）
+    private const float AwayX = Field.Right + 50f;   // 退場先X（弾消滅境界+16 ＋ パネル軌道29 ＋ 余白）
     private const float DashSpeed = 320f; // 退場/帰還の移動速度（通路の尺を演出で食わない）
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [akari]。読めなければ現行既定値）──
@@ -154,7 +154,7 @@ public partial class BossAkari : Enemy
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
-        _mover.Configure("akari", new Vector2(200f, 70f), 90f, 28f);
+        _mover.Configure("akari", new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f);
         GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
@@ -188,14 +188,14 @@ public partial class BossAkari : Enemy
             if (_corridor == null || !IsInstanceValid(_corridor) || _corridor.Finished)
             {
                 _corridorPhase = 2;
-                _mover.Configure(new Vector2(200f, 70f), 90f, 28f, DashSpeed); // 高速で戦線に戻る
+                _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, DashSpeed); // 高速で戦線に戻る
             }
         }
-        else if (_corridorPhase == 2 && GlobalPosition.X <= 330f)
+        else if (_corridorPhase == 2 && GlobalPosition.X <= Field.Right - 54f)
         {
             // 帰還完了：徘徊を通常速度へ戻し、宣告を再開。
             _corridorPhase = 0;
-            _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
+            _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, _roamSpeed);
             _caster.SetProcess(true);
             SetPanelsInvulnerable(false);
             SetBodyContactEnabled(true);   // 戦線に戻って通常速度＝接触判定も戻す

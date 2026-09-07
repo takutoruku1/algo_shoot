@@ -184,7 +184,7 @@ public partial class BossRei : Enemy
         // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
         // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
-        _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
+        _mover.Configure(new Vector2(Field.BossCenterX, 70f), Field.BossZoneHalfW, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
         GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();

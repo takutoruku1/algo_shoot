@@ -43,14 +43,14 @@ public partial class MidEnemy : Enemy
     //   空白があり、その間に自機の DPS でザコ HP(6ヒット) を超える約18ヒットぶん削れて「撃つ前に死ぬ」。
     //   ゲートを「画面内に入って一定時間見えている」に変え、居座る前でも撃てるようにする。
     //   画面外・出現直後は従来どおり撃たない（理不尽撃ちは作らない）。
-    private const float FireGateX = 340f;        // このXより左＝画面内に入り切った（右端は398から出現）
+    private const float FireGateX = Field.Right - 44f;   // このXより左＝盤面に入り切った（右端は Field.Right+14 から出現）
     private const double FireGateVisible = 0.7;  // 画面内でこの秒数を過ぎたら撃ってよい
     private double _visibleT;                    // 画面内に居た累計秒（進入中のみ積む）
     private bool _approachFired;                 // 進入中に発射ゲートが開いたか（居座り時の初弾プライムを二重にしない）
 
-    // 画面内か（出現エッジ＝右外/上外/下外から入ってくるので、上下も見る）。
-    private bool OnScreen => GlobalPosition.X < FireGateX && GlobalPosition.X > 0f
-                          && GlobalPosition.Y > 0f && GlobalPosition.Y < 216f;
+    // 盤面内か（出現エッジ＝右外/上外/下外から入ってくるので、上下も見る）。
+    private bool OnScreen => GlobalPosition.X < FireGateX && GlobalPosition.X > Field.Left
+                          && GlobalPosition.Y > Field.Top && GlobalPosition.Y < Field.Bottom;
 
     // 撃ってよいか。居座っていれば従来どおり無条件、進入中は「画面内に FireGateVisible 秒」で開く。
     // 回り込み（FlankAim）は走行中に撃たない＝背後へ回る経路を先に読ませる設計を維持する。

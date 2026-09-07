@@ -139,6 +139,9 @@ public partial class Enemy : Area2D
     private double _cryTotalT;
     // 浄化後の退場：旧仕様（-30px/s で画面外まで歩く）は最大10秒超も“撃っても当たらない敵”が見え続けて
     // 誤認源だった（QA発見）。速めに歩かせ、余韻の後にフェードアウトで「もう敵ではない」を視覚的に明示する。
+    // 盤面の左外へ抜けきったら破棄（従来の -24f ＝ Field.Left-24）。パネル裏に残り続けない。
+    private const float OffLeftX = Field.Left - 24f;
+
     private const float PurifiedExitSpeed = 90f;   // 退場の歩き速度（旧30）
     private const double PurifiedExitHold = 0.6;   // 改心の余韻＝不透明のまま歩く秒数（笑顔を見せる間）
     private const double PurifiedExitFade = 0.9;   // その後この秒数で透明化して消える
@@ -1163,7 +1166,7 @@ public partial class Enemy : Area2D
             GlobalPosition += new Vector2(-ExitSpeed * (float)delta, 0f);
             float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - ExitHold) / PurifiedExitFade), 0f, 1f);
             Modulate = new Color(Modulate.R, Modulate.G, Modulate.B, exitA);
-            if (exitA <= 0f || GlobalPosition.X < -24f) QueueFree();
+            if (exitA <= 0f || GlobalPosition.X < OffLeftX) QueueFree();
             return;
         }
 
@@ -1174,7 +1177,7 @@ public partial class Enemy : Area2D
 
         UpdateMovement(delta);
         TickAutoBank(delta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
-        if (GlobalPosition.X < -24f) QueueFree();
+        if (GlobalPosition.X < OffLeftX) QueueFree();
     }
 
     // BREAK→EXPOSED→RECLOSE→SHIELDED の尺管理。SHIELDED 中は何もしない（パネル待ち）。

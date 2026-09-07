@@ -70,7 +70,9 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 全画面AOEの安置(セーフゾーン)判定は現状据え置き（縁+2.5pxまで安全＝自機半径ぶんの許し）。
     private const float SafeHit = 2.5f;
     private const double StrikeFlash = 0.20;  // 着弾フラッシュの尺
-    private const float W = 384f, H = 216f;   // 全画面AOEの画面寸法
+    // 全画面AOEが覆う矩形＝盤面（Field）。Fullscreen は GlobalPosition=0 に置かれ、ここを画面座標のまま描く。
+    private const float W = Field.Width, H = Field.Height;
+    private const float L = Field.Left, T = Field.Top;
 
     // Fullscreen（全画面AOE）専用：画面全体を被弾域にし、安置(セーフゾーン)円だけをくり抜く。
     // _safeR<=0 は「安置なし＝回避不能」になるため本編では使わない（描画/判定の経路だけ保険で残す）。
@@ -225,7 +227,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
             case Shape.Fullscreen:
                 // 全画面：安置の縁に沿って弾けさせる＝「安全だったのはここ」を余韻で刻む。撒きすぎない。
                 if (_safeR > 0f) fx.AoeImpact(_safeCenter, _tint, _hot, Vector2.Zero, _safeR, 10);
-                else fx.AoeImpact(new Vector2(W * 0.5f, H * 0.5f), _tint, _hot, Vector2.Zero, 60f, 12);
+                else fx.AoeImpact(new Vector2(Field.CenterX, Field.CenterY), _tint, _hot, Vector2.Zero, 60f, 12);
                 break;
             case Shape.Circle:
                 fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Zero, Radius, 12);
@@ -474,7 +476,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         if (_shape == Shape.Fullscreen)
         {
             // 全画面着弾：画面全体を白フラッシュ。安置だけは抜く（そこにいた自機は無傷の余韻）。
-            DrawRect(new Rect2(0, 0, W, H), new Color(1f, 1f, 1f, 0.85f * f));
+            DrawRect(Field.Rect, new Color(1f, 1f, 1f, 0.85f * f));
             if (_safeR > 0f)
             {
                 DrawCircle(_safeCenter, _safeR, new Color(0.4f, 0.95f, 0.6f, 0.25f * f));
@@ -551,7 +553,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         if (_safeR > 0f)
             DrawColoredPolygon(ScreenWithHole(_safeCenter, _safeR), danger);
         else
-            DrawRect(new Rect2(0, 0, W, H), danger); // 安置なし＝全面
+            DrawRect(Field.Rect, danger); // 安置なし＝全面
 
         if (_safeR > 0f)
         {
@@ -569,29 +571,29 @@ public partial class AreaStrike : Node2D, IAoeHazard
             float c = (k - 0.82f) / 0.18f; // 0→1
             float inset = Mathf.Lerp(0f, 10f, c);
             var white = new Color(1f, 1f, 1f, 0.5f * c);
-            DrawRect(new Rect2(inset, inset, W - inset * 2f, H - inset * 2f), white, false, 2.5f);
+            DrawRect(new Rect2(L + inset, T + inset, W - inset * 2f, H - inset * 2f), white, false, 2.5f);
             // 2枚目の枠を半拍遅らせて追わせる＝「二重の収束」で来る速度が読める（線のみ）。
             float c2 = Mathf.Max(0f, c - 0.35f) / 0.65f;
             if (c2 > 0f)
             {
                 float in2 = Mathf.Lerp(0f, 22f, c2);
-                DrawRect(new Rect2(in2, in2, W - in2 * 2f, H - in2 * 2f),
+                DrawRect(new Rect2(L + in2, T + in2, W - in2 * 2f, H - in2 * 2f),
                     new Color(_hot.R, _hot.G, _hot.B, 0.4f * c2), false, 1.4f);
             }
         }
     }
 
-    // 画面矩形に circle(中心 c・半径 r)の穴を空けたキーホール多角形を返す（穴の内側は塗られない）。
+    // 盤面矩形に circle(中心 c・半径 r)の穴を空けたキーホール多角形を返す（穴の内側は塗られない）。
     private static Vector2[] ScreenWithHole(Vector2 c, float r)
     {
         const int seg = 36;
         var pts = new System.Collections.Generic.List<Vector2>(seg + 8);
         // 外周（左上→右上→右下→左下）。最後に左上付近へ戻り、橋を渡して円へ。
-        pts.Add(new Vector2(0, 0));
-        pts.Add(new Vector2(W, 0));
-        pts.Add(new Vector2(W, H));
-        pts.Add(new Vector2(0, H));
-        pts.Add(new Vector2(0, 0));
+        pts.Add(new Vector2(Field.Left, Field.Top));
+        pts.Add(new Vector2(Field.Right, Field.Top));
+        pts.Add(new Vector2(Field.Right, Field.Bottom));
+        pts.Add(new Vector2(Field.Left, Field.Bottom));
+        pts.Add(new Vector2(Field.Left, Field.Top));
         // 橋：外周(左上)→円の最上点へ。
         Vector2 bridge = new Vector2(c.X, c.Y - r);
         pts.Add(bridge);

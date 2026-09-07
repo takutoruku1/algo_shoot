@@ -144,7 +144,7 @@ public partial class GameManager : Node
     private float _progAccum;
     private const float ProgBaseRate = 1f / 95f; // 中央基準の進行速度（posFactor=1 で 95 秒フル）
     private const float ProgTimeCap = 0.35f;     // 時間だけで伸ばせる上限
-    // 自機Xの正規化（0=左端 / 0.5=中央 / 1=右端）。プレイフィールドは 384 幅（Player.MinX..MaxX）。
+    // 自機Xの正規化（0=左端 / 0.5=中央 / 1=右端）。プレイフィールドの矩形は Field が定義元。
     public float PlayerNormX { get; private set; } = 0.5f;
     // 現在の前のめり係数（posFactor）。左端0.55 / 中央1.075 / 右端1.60。artist の背景/HUD が読む。
     public float CurrentPosFactor => PosFactor(PlayerNormX);
@@ -157,7 +157,7 @@ public partial class GameManager : Node
     // 撃破カウンタ(PurifiedCount)には一切触れない＝撃破ゲート/StageCleared は不変。
     public void TickProgress(float playerX, float dt)
     {
-        PlayerNormX = Mathf.Clamp(playerX / 384f, 0f, 1f);
+        PlayerNormX = Mathf.Clamp((playerX - Field.Left) / Field.Width, 0f, 1f);
         _progAccum += ProgBaseRate * PosFactor(PlayerNormX) * (float)dt;
         _progAccum = Mathf.Clamp(_progAccum, 0f, ProgTimeCap);
     }

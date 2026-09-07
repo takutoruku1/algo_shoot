@@ -56,8 +56,8 @@ public partial class StageZero : Node
     private static readonly Rect2 SpotBomb     = new Rect2(18, 16, 200, 86);   // DrawLifeBomb（LIFE/BOMB パネル）
     private static readonly Rect2 SpotPurify   = new Rect2(640 - 210, 16, 420, 38); // DrawPurify（浄化カプセル）
 
-    // 自機の練習場での定位置（穏やかな中央）。
-    private const float CenterX = 192f, CenterY = 120f;
+    // 自機の練習場での定位置（盤面の穏やかな中央）。
+    private const float CenterX = Field.CenterX, CenterY = 120f;
 
     // ════════════════════ セリフ（案C T1：2行だけ）════════════════════
     // who: 0=あなた / 1=ミナ / 3=ナレ（Hud.LineKind）。face は char/ に実在確認済み。

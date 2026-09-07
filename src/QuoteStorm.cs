@@ -105,10 +105,10 @@ public partial class QuoteStorm : Node2D
     private const int TotalQuotes = 5 + 6 + 6;
     private const int StackCap = 12;
 
-    // ピン留めカードの設計位置（プレイ領域 384x216 の上部中央）。ガワ（ボスの姿）はまだ出ていないので、
+    // ピン留めカードの設計位置（プレイ領域＝Field の上部中央）。ガワ（ボスの姿）はまだ出ていないので、
     // 貼りつき先はカードのまわり＝この矩形の下側の帯になる。
     // HUD の上帯（浄化バー）と自機の主戦場を避け、幅は本文が一行に収まる最小に留める。
-    private static readonly Rect2 PinRect = new(84f, 20f, 216f, 22f);
+    private static readonly Rect2 PinRect = new(Field.CenterX - 108f, Field.Top + 20f, 216f, 22f);
 
     public override void _Ready()
     {
@@ -217,7 +217,7 @@ public partial class QuoteStorm : Node2D
         var dst = new Vector2(dx, dy);
 
         // 飛行 1.8 秒で右端 → 貼りつき位置（11 の「読ませる速度」）。飛行中だけ核を持つ。
-        var from = new Vector2(384f + 30f, dst.Y + _rng.RandfRange(-10f, 10f));
+        var from = new Vector2(Field.Right + 30f, dst.Y + _rng.RandfRange(-10f, 10f));
         var vel = (dst - from) / 1.8f;
         var b = pool.Spawn(from, vel, isEnemy: true, 3f, 1);
         if (b == null) return;

@@ -21,8 +21,9 @@ using Godot;
 //   ・左右ヒント：右端寄りに薄い赤み（危険）、左端寄りに薄い青み（落ち着き）。nx連動・端1/4のみ・α≤0.10。
 //
 //   ZIndex は StageImagery(-50) の上・MurkVignette(-45)/弾(0..) の奥（-48/-47）。中央は薄いので弾を隠さない。
-//   Player を group("player") から引いて nx=clamp(x/384,0,1) を算出。GameManager.PlayerNormX が公開されたら
-//   そちらを優先する（参照は Nx プロパティ1箇所に集約）。
+//   nx は GameManager.PlayerNormX（盤面 Field 基準の正規化X）を優先し、無い場面だけ Player の座標から
+//   BgScroll.PlayerNx が算出する（参照は Nx プロパティ1箇所に集約）。
+//   W/H はこの層自体の描画範囲＝画面全体(384×216)であって盤面(Field)ではない。混同しないこと。
 public partial class WorldGrade : Node2D
 {
     private const float W = 384f, H = 216f;

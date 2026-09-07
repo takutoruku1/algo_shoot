@@ -118,11 +118,11 @@ public partial class Player : Area2D
         return true;
     }
 
-    // プレイ領域
-    private const float MinX = 0f;
-    private const float MaxX = 384f;
-    private const float MinY = 0f;
-    private const float MaxY = 216f;
+    // プレイ領域（盤面の矩形の定義元は Field。ここは短い別名として残す）
+    private const float MinX = Field.Left;
+    private const float MaxX = Field.Right;
+    private const float MinY = Field.Top;
+    private const float MaxY = Field.Bottom;
 
     // 残機
     public int Lives { get; private set; } = 3;
