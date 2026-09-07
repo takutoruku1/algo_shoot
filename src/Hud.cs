@@ -103,7 +103,6 @@ public partial class Hud : CanvasLayer
     // ヒカゲスキル
     private bool _skillHas, _skillReady;
     private float _skillCdRatio; // 0=フル充填済み(OK) / 1=たった今使った直後。DrawSkillの充填バーに使う。
-    private bool _dodgeReady = true; // 回避がCD明けで使えるか（操作ガイドの点灯/淡色に使う。既定は使える）
 
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
     private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
@@ -154,16 +153,15 @@ public partial class Hud : CanvasLayer
     //   常設HUDをサイドパネル（設計 x 0..373）へ移して弾と原理的に重ならなくなり、透かす動機が消えた
     //   （docs/20260906/HUD整理_案.md §4「恒久的にプレイ領域に居座る UI はボスバー1つだけになる」）。
 
-    // 操作ガイド：プレイ中ずっと右端に常駐する縦パネル（一度きりの旧タイマー方式は廃止）。
-    // 会話・チュートリアル中は透過を下げて弾と説明の邪魔をしない（後述 DrawControls 参照）。
-    // 出現は「操作を握った瞬間」から：開幕会話前の一瞬で出さないよう、会話を見た後 or 1.2秒経過後にフェードイン。
-    private float _controlsAlpha;   // 0→1 へ滑らかに立ち上げる常駐パネルの基準α
-    private double _sceneTime;
-    private bool _sawDialogue;
+    // ※「プレイ中の常駐操作ガイド」(_controlsAlpha / DrawControls) は 2026-09-07 に撤去した。
+    //   盤面の右下に「移動／撃つ／低速／回避／ボム／切替」の帯が常時出て弾と重なっており、
+    //   ユーザー実機指摘は「操作の UI を非表示にしてじゃま」＝薄めるのではなく最初から出さない。
+    //   操作は Esc メニュー →「あそびかた」(HowToPlay) で参照できる。練習面（StageZero）の
+    //   指示帯（DrawTutorialHint / DrawTutorialKeys）は教える画面なので別物として残す。
 
     // チュートリアルの常駐指示（操作させる区間に下部へ出す小帯）。会話と違い敵/自機は止めない
     //（ShowMessage は BubblePaused を立ててしまうため、止めない専用の表示を用意する）。
-    // 値が空でない間だけ描画する。チュートリアル中は既存 DrawControls（6.5秒一覧）を抑止する。
+    // 値が空でない間だけ描画する（練習面 StageZero 専用＝本番の盤面には操作の案内を出さない）。
     private string _tutorialHint = "";
     public bool TutorialActive { get; set; }
     public void SetTutorialHint(string text) => _tutorialHint = text ?? "";
@@ -196,19 +194,17 @@ public partial class Hud : CanvasLayer
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.ModeToken;
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
-    private static string TokDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
-    // プレイ中HUDの操作ヒント（DrawControls）が使う。視認性のため区切りは細い「/」。
+    // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
+    // ※ 2026-09-07 に本番プレイ中の常駐操作ガイド（DrawControls）を廃止したので、ここは
+    //   「教える画面」専用になった。本番の盤面には操作の案内を一切出さない（Esc メニューと
+    //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
     // 低速はパッドでは LB のみ（RB は向き反転へ割り当てたため。Player.cs の判定と一致させる）。
     private static string AllFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
-    // 向き反転（射撃方向を右⇔左にトグル）。KB=F / 左クリック / パッド=RB(R1)。
-    private static string AllFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder): "F / 左クリック";
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string AllMode  => Pad.ModeToken;
-    private static string AllSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
@@ -304,20 +300,6 @@ public partial class Hud : CanvasLayer
             // 割り込み（S3-7）に入る直前のカードが区間いっぱい貼りついたままになるため。
             if (_spellTimer > 0) { _spellTimer = 0; _spellGlow = 0; }
         }
-
-        // 操作ガイド（常駐）：プレイ中ずっと右端に出す。立ち上げは「操作を握った瞬間」から。
-        //   ・会話を一度見た後、または会話なしステージでは1.2秒経過後、かつ自機が存在する間。
-        //   ・会話／チュートリアル中は α を絞って弾と説明を邪魔しない（親切設計に追従）。
-        _sceneTime += delta;
-        if (BubblePaused) _sawDialogue = true;
-        bool wantControls = (_sawDialogue || _sceneTime > 1.2)
-                            && GetTree().GetFirstNodeInGroup("player") != null;
-        // 目標α：通常=1.0／会話中=0.22（裏で薄く残す）／チュートリアル中=0.0（個別指導と重複を避け完全に引く）。
-        float targetAlpha = !wantControls ? 0f
-                          : TutorialActive ? 0f
-                          : BubblePaused ? 0.22f
-                          : 1f;
-        _controlsAlpha = Mathf.MoveToward(_controlsAlpha, targetAlpha, (float)delta * 3.2f);
 
         _canvas.QueueRedraw();
     }
@@ -638,7 +620,6 @@ public partial class Hud : CanvasLayer
 
     // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
     public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
-    public void SetDodgeReady(bool ready) => _dodgeReady = ready;
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
     public void SetShotMode(GameManager.ShotMode m, bool announce)
@@ -706,7 +687,6 @@ public partial class Hud : CanvasLayer
         DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
-        if (_controlsAlpha > 0.01f) DrawControls(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
         // チュートリアルのスポット暗転は会話/バナーより前(下)に描く＝会話テキスト・立ち絵は
         // 暗幕の上にフル輝度で読める（暗転がセリフ枠を覆って読みづらい問題への対処 #3）。
@@ -1158,83 +1138,6 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, 54f), new Color(0.06f, 0.10f, 0.14f, 0.9f * a), 15f, new Color(UiKit.Info, 0.6f * a), 1.4f);
         UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 22, y + 9), "MODE", new Color(UiKit.Info, a));
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, y + 13), name, UiKit.FontTitle, new Color(UiKit.PurifyHi, a), HorizontalAlignment.Center, w);
-    }
-
-    // 操作ガイド（常駐）：プレイ中ずっと画面「右下」に「ボタン→動作」を横一列で出す。
-    //   座席：右下（右端 22px ＋下端アンカー）。下の Esc メニューヒント(上端≈652)の直上に右寄せで収め、
-    //         中央の弾フィールドにも左ゲージ群にも掛けない。半透明ピル＋小キー枠で上品にまとめる。
-    //   表記：Pad.Display(KB/PS/Xbox) に追従する代表トークン Tok*（移動=WASD/L 等、コンパクト優先）。
-    //   出し分け：ヒカゲ技は所持時のみ点灯、非所持時は淡色で「技（未所持）」と添える。
-    //             モード切替はモード解放時のみ。全体αは _controlsAlpha（会話=薄/チュートリアル=消）。
-    private void DrawControls(HudCanvas ci)
-    {
-        float a = _controlsAlpha;
-        if (a <= 0.01f) return;
-
-        // 行データ：トークン・動作名・有効か（無効は淡色＝まだ使えない/未解放を自然に示す）。
-        bool hasModes = (_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false)
-                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false)
-                     || (_game?.IsModeUnlocked(GameManager.ShotMode.Accel) ?? false);
-        var items = new System.Collections.Generic.List<(string tok, string label, bool on)>
-        {
-            // 同じ動作に複数の割り当てがあるものは All*（全部列挙）。単一割り当ては Tok* のまま。
-            (AllMove,  "移動",  true),
-            (AllShot,  "撃つ",  true),
-            (AllFocus, "低速",  true),
-            (TokDodge, "回避",  _dodgeReady), // 低速の隣（共に回避手段）。CD中は淡色＝使える時だけ点灯
-            (AllBomb,  "ボム",  true),
-            (AllMode,  "切替",  hasModes),  // ショットモード未解放なら淡く
-        };
-        // 「向き」（射撃方向を右⇔左にトグル）は機能自体をオフにしているあいだは列から外す
-        //（押しても何も起きない案内を出さない）。Player.FacingFlipEnabled を true に戻すと回避の隣へ復帰する。
-        // 挿入位置は「回避の次」を名前で引く＝上の列の増減で位置がずれない（添字を直に書かない）。
-        if (Player.FacingFlipEnabled)
-        {
-            int atFlip = items.FindIndex(it => it.label == "回避");
-            items.Insert(atFlip < 0 ? items.Count : atFlip + 1, (AllFlip, "向き", true));
-        }
-
-        // 「技」（C/Y＝ヒカゲ大波）はヒカゲが仲間の時だけ出す。本編ではヒカゲは加入しない＝
-        // 常時表示すると“使えないボタン”になるため、仲間にいる時だけ列に加える（W0 等）。
-        if (_skillHas) items.Add((AllSkill, "技", true));
-
-        // レイアウト（設計1280x720）：右下に横一列。各アイテム＝[キー枠][動作名]、右寄せで並べる。
-        const float labelSize = UiKit.FontLabel, badgeGap = 5f, itemGap = 16f, padX = 14f, padY = 7f, badgeH = KeyBadgeH;
-
-        // 右寄せのため、先に各アイテム幅と総幅を測る（KeyBadge と同じ式でバッジ幅を算出）。
-        string Label(string label, bool on) => (label == "技" && !on) ? "技(仲間時)" : label;
-        float[] iw = new float[items.Count];
-        float contentW = 0f;
-        for (int i = 0; i < items.Count; i++)
-        {
-            float badgeW = KeyBadgeW(items[i].tok);
-            float labelW = UiKit.TextW(UiKit.ZenBold, Label(items[i].label, items[i].on), (int)labelSize);
-            iw[i] = badgeW + badgeGap + labelW;
-            contentW += iw[i];
-        }
-        contentW += itemGap * (items.Count - 1);
-
-        float h = padY * 2 + badgeH;
-        float w = contentW + padX * 2;
-        float x = Field.DRight - 22 - w;   // 盤面の右下・右端 22px に揃える（左へ伸びても板には掛からない）
-        float y = 648f - h;        // 下の Esc メニューヒント(上端≈652) の直上
-
-        // 背景ピル（薄め＝弾より目立たない・文字は読める明度）。
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.05f, 0.04f, 0.09f, 0.62f * a), h * 0.5f,
-            new Color(UiKit.Info, 0.34f * a), 1f);
-
-        // 左→右に [キー枠][動作名] を並べる。無効（未解放/未所持）はαを落として淡く。
-        float cx = x + padX, by = y + padY;
-        for (int i = 0; i < items.Count; i++)
-        {
-            var (tok, label, on) = items[i];
-            float ra = a * (on ? 1f : 0.4f);
-            Color accent = on ? UiKit.PurifyHi : UiKit.Text3;
-            float bw = KeyBadge(ci, new Vector2(cx, by), tok, accent, ra);
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + bw + badgeGap, by + 4), Label(label, on), (int)labelSize,
-                new Color(0.92f, 0.92f, 0.97f, ra));
-            cx += iw[i] + itemGap;
-        }
     }
 
     // チュートリアルの常駐指示帯（操作させる区間・下部中央）。会話バーより上、ティッカーの上に出す。

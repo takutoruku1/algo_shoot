@@ -483,16 +483,22 @@ public partial class PauseCanvas : Node2D
     }
 
     // 「Esc メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
+    //   2026-09-07: プレイ中の常駐操作ガイド（Hud.DrawControls）を撤去した際、これ1つだけを残した。
+    //   Esc（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
+    //   薄く小さく（キー枠の縁とラベルのαを落とし、ラベルは FontSmall へ）。
+    private const float HintAlpha = 0.5f;
     private void DrawHint()
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float y = H - 38f - 30f;
         const string label = "メニュー";
         string keyTok = Pad.PauseToken; // 表示モードに追従（Esc / MENU / OPTIONS）
-        float keyW = Mathf.Max(28f, UiKit.TextW(UiKit.Mono, keyTok, 12) + 14f);
-        float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontLabel);
-        float x = W - 24f - (keyW + 8f + labelW);
-        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, 0.06f), new Color(UiKit.Info, 0.4f), UiKit.Info);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 8f, y + 4f), label, UiKit.FontLabel, UiKit.Text2);
+        float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
+        float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontSmall);
+        float x = W - 24f - (keyW + 7f + labelW);
+        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, 0.04f),
+            new Color(UiKit.Info, 0.22f), new Color(UiKit.Info, HintAlpha));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 7f, y + 5f), label, UiKit.FontSmall,
+            new Color(UiKit.Text2, HintAlpha));
     }
 }

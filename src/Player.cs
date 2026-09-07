@@ -641,8 +641,8 @@ public partial class Player : Area2D
         _specialHeld = specialKey;
         // HUDにスキル状態を反映
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f, SpecialCdRatio);
-        // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
+        // ※ 回避CDの HUD 通知（SetDodgeReady）は 2026-09-07 に廃止。唯一の読み手だった常駐操作ガイド
+        //   （Hud.DrawControls）を撤去したため（案内は Esc メニュー →「あそびかた」に集約）。
 
         // 無敵・点滅更新
         if (_invincible)
