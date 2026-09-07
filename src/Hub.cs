@@ -1175,13 +1175,15 @@ public partial class Hub : Node2D
             UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + e.RelT, UiKit.FontLabel, new Color(UiKit.Text4, alpha));
         }
 
-        // バッジ（右上）— 世界の言葉のピル（2-a）。声＝これから潜る投稿／届いた＝浄化済み／限界＝FINAL。
+        // バッジ（右上）— 世界の言葉のピル（2-a）。届いた＝浄化済み／限界＝FINAL。
         //   ロックと埋め草はピルを出さない（「LOCKED」という管理画面の語彙を画面から消す）。
         //   固定ポストだけは「固定」＝X の pinned post の作法で置く。
+        //   「声」＝これから潜る投稿の印は廃止（2026-09-07）。潜れる合図は縁の脈動とミナの一言で足りていて、
+        //   ピルは同じことを三度言っていた。届いた／限界は「結果」なので残す。
         if (e.Sort == Kind.Pinned) DrawPinnedMark(x + w - 24f, cy + 14f, alpha);
         else if (voice)
         {
-            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : e.Unlocked ? "声" : "";
+            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "";
             if (badge.Length > 0) DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
         }
 
@@ -1571,8 +1573,9 @@ public partial class Hub : Node2D
         UiKit.VerifiedBadge(this, new Vector2(tx + nw + 18f, cy + 41f), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
         UiKit.Text(this, UiKit.Mono, new Vector2(tx, cy + 56f), $"{e.Handle} · {e.RelT}", UiKit.FontLabel, new Color(UiKit.Text3, a));
         {
-            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "声";
-            DrawBadgePill(e, badge, cx + cw - 26f, cy + 28f, a);
+            // カードと同じく「声」のピルは出さない（2026-09-07）。届いた／限界＝結果だけをピルにする。
+            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "";
+            if (badge.Length > 0) DrawBadgePill(e, badge, cx + cw - 26f, cy + 28f, a);
         }
 
         // ── 本文 ──
