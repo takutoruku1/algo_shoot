@@ -78,6 +78,34 @@ public partial class BgLayers : Node2D
     private const float ParallaxSway = 22f;
     private const float ParallaxFollow = 26f;
 
+    // ── 隠れている左側を見せる視差（2026-09-07）──
+    //   ユーザー実機指摘「背景の左側がもったいないから、画面の右側に入ったら右側が、左側に入ったら
+    //   左側が見えるように背景を動かして」。
+    //
+    //   何が起きていたか: 全画面の層は 1280x720 を高さフィット（216/720=0.3）で敷くので、ちょうど
+    //   画面幅 384px になる。これを x=0 に置くと、盤面（Field.Left=120 以降＝幅 264px）に映るのは
+    //   素材の x 120..384 だけで、**左の 120px は常にサイドパネルの裏**に隠れたままだった。
+    //
+    //   どう直すか: 素材の幅 384px と盤面の幅 264px の差 120px が「動かせる幅」。この 120px の中で
+    //   素材を横に滑らせ、自機が左に居るときは素材の左端（隠れていた側）を、右に居るときは右端を
+    //   盤面に出す。寄せ量 0 のとき素材の左端が盤面の左端に来る（＝RevealBase の分だけ右へ置く）。
+    //   層ごとに深さで割合を変えて奥行きを出し、追従は時定数で緩める（急に動くと酔う）。
+    private const float RevealMax = Field.Left;   // 動かせる幅（画面幅 384 − 盤面幅 264 ＝ 120px）
+    private const float RevealFollow = 2.2f;      // 追従の時定数の逆数(1/s)。小さいほど緩やか
+    private float _reveal;                        // 現在の寄せ量(px・0..RevealMax)
+
+    // 層ごとの視差の割合（0=動かない〜1=上限いっぱい）。ScrollMul を「深さ」の代用として読む
+    //   （L1 遠景 0.15 / L2 中景 0.45 / L3 近景 1.0 / L4 光 0）。遠景は小さく、近景は大きく動かす。
+    //   光の層（ScrollMul=0）は据え置き＝画面に貼りついた光は動かさない。
+    //   遠景でも 0.4 は動かす＝「左が見える」効果が遠景だけ効かないと画がちぐはぐになる。
+    private static float RevealK(float scrollMul)
+        => scrollMul <= 0f ? 0f : Mathf.Clamp(0.40f + 0.60f * scrollMul, 0.40f, 1f);
+
+    // 全画面の一枚物（素材幅がほぼ画面幅）だけを視差の対象にする。部分素材（近景の傘・看板など、
+    // stage1 の L3_near_* は 304x293 / 207x134）は元々ぴったり置く前提の絵なので動かさない
+    //   ＝既存の ParallaxSway（±22px）に任せる。判定は「素材幅が画面幅の 9 割以上」。
+    private static bool IsFullWidth(float tileW) => tileW >= ScreenWidth * 0.9f;
+
     // 敷けた層が1つでもあるか（Root 側のフォールバック判定用）。
     public bool HasAny => _live.Count > 0;
 
@@ -285,9 +313,19 @@ public partial class BgLayers : Node2D
 
         float nx = BgScroll.PlayerNx(this);
 
+        // 隠れている左側を見せる寄せ量。自機が左端(nx=0)なら 0＝素材の左端が盤面の左端に来て、
+        // それまでパネルの裏に隠れていた 120px が見える。右端(nx=1)なら RevealMax だけ左へ寄せ、
+        // 素材の右端が盤面の右端に来る。指数追従で緩めるので、自機を弾いても背景は飛ばない。
+        _reveal = Mathf.Lerp(_reveal, RevealMax * nx, 1f - Mathf.Exp(-RevealFollow * dt));
+
         foreach (var l in _live)
         {
             if (l.ScrollMul <= 0f) continue;   // 光の層は動かさない
+
+            // 全画面の一枚物だけ「隠れていた左側を見せる」視差に乗せる。0 の層は従来の挙動のまま。
+            //   基準位置は盤面の左端（Field.Left）＝寄せ量 0 で素材の左端がそこに来る。
+            float revealBase = IsFullWidth(l.TileW) ? RevealMax : 0f;
+            float reveal = revealBase - _reveal * RevealK(l.ScrollMul);
 
             if (l.Loop && l.TileW > 0f)
             {
@@ -297,8 +335,8 @@ public partial class BgLayers : Node2D
                 for (int i = 0; i < l.Tiles.Length; i++)
                 {
                     var p = l.Tiles[i].Position;
-                    p.X = l.Offset.X + i * l.TileW - off;
-                    if (p.X <= l.Offset.X - l.TileW) p.X += l.Tiles.Length * l.TileW;
+                    p.X = l.Offset.X + reveal + i * l.TileW - off;
+                    if (p.X <= l.Offset.X + reveal - l.TileW) p.X += l.Tiles.Length * l.TileW;
                     l.Tiles[i].Position = p;
                 }
             }
@@ -307,8 +345,11 @@ public partial class BgLayers : Node2D
                 // 非ループ層：流し続けると画面外へ出て二度と戻らないので、自機の左右位置に紐づけた
                 // 有限の視差スウェイにする（nx 0→1 で右→左へ最大 ParallaxSway*scrollMul だけずれる）。
                 // 置いた一枚物（近景の傘・看板など）が消えず、動きだけが手前らしく大きい。
-                float target = l.Offset.X - ParallaxSway * l.ScrollMul * nx;
-                l.X = Mathf.MoveToward(l.X, target, ParallaxFollow * dt);
+                // 全画面の一枚物（L1/L2）はこれに加えて上の「隠れていた左側を見せる」寄せが乗る。
+                float target = l.Offset.X + reveal - ParallaxSway * l.ScrollMul * nx;
+                // 追従の等速。寄せ量 _reveal は上で時定数を持っているので、ここが遅すぎると
+                // そちらに追いつけない。120px を渡り切れる速度まで上げる（急には動かない）。
+                l.X = Mathf.MoveToward(l.X, target, (ParallaxFollow + RevealMax * RevealFollow) * dt);
                 foreach (var s in l.Tiles) s.Position = new Vector2(l.X, s.Position.Y);
             }
         }

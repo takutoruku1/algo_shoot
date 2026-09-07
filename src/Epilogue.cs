@@ -1,60 +1,55 @@
 using Godot;
 using System.Collections.Generic;
 
-// Epilogue : EPILOGUE E1〜E7（案C・仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。
-// E1 タイムライン（フォロワー欄に三人／散った言葉の遡及集計）→ E2 あなたの下書きフォルダの合言葉
-//（正解＝【終】＝F4 で送った言葉）→ E3 消されなかった唯一の下書きの四行（M/I/N/A 縦読み）→
-// E4 開示（起動記録の再掲と、ミナの最初の一件が【初】と同じだったこと）→ E5 空とDM → E6 END（最後の下書き選択）。
-// 全編エンジン描画。Zで送り、PW選択は←→＋Z。R/Start 長押しで最初から（スタッフロール中はタイトルへ）。
+// Epilogue : EPILOGUE E5b → E7 → E6（案C・仮台本 wiki/08_仮台本/08。2026-09-07 ユーザー決定で全面改稿）。
+// 旧 E1 タイムライン／E2 合言葉／E3 四行／E4 開示／E5 空・DM は**全削除**。エピローグは3場面だけになった：
+//   E5b 見上げる（夜。四人が並んで立ち止まっている・10行）→ E5b 歩く（夜→明け方・8行）
+//   → E7 スタッフロール → E6 END（最後の下書き選択。作品全体の最後の選択）。
+// E6 が最後なので、END を送り切ったらタイトルへ戻る。
+// 全編エンジン描画。Zで送り、R/Start 長押しで最初から（スタッフロール以降はタイトルへ）。
 public partial class Epilogue : Node2D
 {
     private const float W = 384f, H = 216f;
-    private const float BgAlpha = 0.75f;
-    private const double BgFadeSec = 0.6;
+
+    // ───────── phase ─────────
+    //   0: E5b 見上げる（夜）／1: E5b 歩く（夜→明け方）／2: E7 スタッフロール／3: E6 END
+    //   旧 E1〜E5 の削除で番号を詰めてある（旧 0/1=E1・2=E2・3=E3・4=E4〜E6・5=E7）。
+    private const int PhGaze = 0, PhWalk = 1, PhRoll = 2, PhEnd = 3;
 
     private FontFile _font = null!;
-    private Texture2D? _tears;   // クライマックスのミナ落涙立ち絵
-    private readonly Texture2D?[] _bg = new Texture2D?[6]; // phaseごとの背景。0/1は同じタイムライン背景を共有
-    private int _bgPhase;
-    private int _bgPrevPhase;
-    private double _bgFadeT = BgFadeSec; // _tとは独立した背景クロスフェード用タイマー
-
-    // ── bg2 の層背景（char/bg2/epilogue）──
-    //   ベランダのある部屋を、夜(L1_far_night)から暁(L1_far_dawn)へ phase 進行でクロスフェードする。
-    //   夜＝合言葉を解くまで（phase0〜3）、暁＝開示から END まで（phase4〜5）。
-    //   層は Sprite2D で敷く（Z は本文 _Draw の 0 より奥）。素材は 1280×720 なので内部解像度 384×216 へ
-    //   0.3 倍で落とす＝ステージの BgLayers と同じ高さフィット。L3 の小物だけ素材座標を 0.3 倍して置く。
-    //   画面中央の UI（タイムライン・鍵・四行・DM）が読めることが最優先なので、層全体に暗幕を掛けて沈める。
-    //   暁は素材自体が夜より明るいので、明けるぶんだけ濃い暗幕（DawnDim < NightDim）にして
-    //   本文のコントラストを一定に保つ。
-    private Sprite2D? _lNight, _lDawn, _lDawnLight;
-    private readonly List<Sprite2D> _layers = new();
-    private bool _hasLayers;
-    private float _dawnK;        // 0=夜 1=暁（phase>=DawnPhase で 1 へ smoothstep）
-    private double _dawnT;
-    private const int DawnPhase = 4;        // ここから暁へ（DM＝遺志の継承）
-    private const double DawnFadeSec = 2.0; // 夜→暁は本文の送りより遅く（唐突に明けない）
-    private const float NightDim = 0.62f;   // 夜の層に掛ける明度（本文の可読性用の暗幕）
-    private const float DawnDim = 0.50f;    // 暁の層に掛ける明度（明るいぶん濃く沈める）
+    private Texture2D? _tears;   // E6 のミナ落涙立ち絵
     private double _t;
-    private int _phase;   // 0/1:E1 タイムライン 2:E2 合言葉 3:E3 四行 4:E4〜E6（開示・DM・END） 5:E7 スタッフロール
+    private int _phase = PhGaze;
     private bool _zHeld;
-    private bool _lrHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から/タイトルへ（即発の誤爆防止）
     private int _line;
     private double _lineT;
     private double _reveal;        // タイプライター表示済み文字数（＝現在ページ内）
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
+    private bool _musicStarted;    // E5b のオルゴールを実際に鳴らしたか（未調達なら false＝停止も呼ばない）
+
+    // 撮影モード（--shot）か。スタッフロールの Z 飛ばしを遅らせるためだけに見る（ChoiceOverlay と同じ作法）。
+    private static bool ShotHold
+    {
+        get
+        {
+            if (_shotHoldChecked) return _shotHold;
+            _shotHoldChecked = true;
+            foreach (var a in OS.GetCmdlineUserArgs()) if (a == "--shot") { _shotHold = true; break; }
+            return _shotHold;
+        }
+    }
+    private static bool _shotHold, _shotHoldChecked;
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    //   会話フェーズ（phase 0/1 intro・phase 4 outro）だけが対象。折り返しは DrawLineBox と一致させる。
+    //   会話フェーズ（PhGaze/PhWalk/PhEnd）が対象。折り返しは DrawLineBox と一致させる。
     private const float BoxWrapW = W - 56f;    // DrawLineBox の本文折り返し幅と一致
-    private readonly System.Collections.Generic.List<string> _pages = new();
+    private readonly List<string> _pages = new();
     private int _page;
     private int _pagedKey = -1;                // _pages を構築済みの行キー（phase×1000+line）
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
-    // 現在行のページを（未構築なら）作る。boot ログ行は Mono・それ以外は Zen で折り返す（描画と一致）。
+    // 現在行のページを（未構築なら）作る。折り返しは DrawLineBox と同じ書体・同じ幅で引く。
     private void EnsurePages()
     {
         string? t = CurLineText();
@@ -62,14 +57,13 @@ public partial class Epilogue : Node2D
         int key = _phase * 1000 + _line;
         if (_pagedKey == key) return;
         _pagedKey = key; _page = 0;
-        bool boot = t.StartsWith(">");
         _pages.Clear();
-        _pages.AddRange(UiKit.Paginate(boot ? UiKit.Mono : _font, t, UiKit.CutBody, BoxWrapW, Hud.DlgMaxLines));
+        _pages.AddRange(UiKit.Paginate(_font, t, UiKit.CutBody, BoxWrapW, Hud.DlgMaxLines));
     }
     private void NextPage() { _page++; _reveal = 0; _lineT = 0; }
 
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
-    // PW選択(2)・縦読み(3)・スタッフロール(5)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
+    // スタッフロール(PhRoll)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
     private int _readKey = -1;     // 既読チェック済みの行キー（phase×1000+line。フェーズ跨ぎの index 重複を区別）
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
     private bool _ffNow;           // いま高速送り中か（▶▶表示用）
@@ -77,55 +71,10 @@ public partial class Epilogue : Node2D
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
     private static readonly Color Ink  = UiKit.CutInk;
-    private static readonly Color Code = UiKit.CutCode;   // コード緑（Prologue bootログと同値＝視覚照応）
-
-    // E2 の合言葉＝あなたの下書きフォルダに打ち込む言葉。正解は【終】＝GameManager.LastSentWord
-    //   （E6 より前なので F4 で送った言葉＝【初】）。候補は冒頭 P2 の3候補＋ダミー「ミナ」（【名】に関わらず固定）で、
-    //   正解が P2 の3候補の中に無い場合（（送らない）で来た等）は、ダミーを1つ落として正解を必ず並べる。
-    //   照合はトリム＋大文字小文字無視。旧実装の合言葉 "stay" は案C で落とした。
-    private static readonly string[] PwBase = { "おはよう", "きこえてる", "うごいた", "ミナ" };
-    private string[] _pwChoices = PwBase;
-    private int _pwAnswer = -1;      // 正解の添字（-1＝正解が並んでいない＝どれを選んでも弾かれる）
-    private string _pwWord = "";     // 正解の文字列（【終】）
-    private int _pwSel;
-    private string _pwReject = "";
-    private double _pwRejectT;
-    private bool _unlocked;
-
-    // 候補列を組む。【終】が P2 の3候補にあればその位置が正解、無ければダミー「ミナ」を正解で置き換える。
-    //   【終】が空（旧セーブ・シーン直行）なら F4 と同じフォールバック「ミナ」を正解にする＝
-    //   正解が並ばず永久に開かない詰まりを作らない。
-    private void BuildPwChoices()
-    {
-        _pwWord = (_game?.LastSentWord ?? "").Trim();
-        if (_pwWord.Length == 0) _pwWord = "ミナ";
-        var list = new List<string>(PwBase);
-        int at = list.FindIndex(c => PwMatch(c, _pwWord));
-        if (at < 0) { at = list.Count - 1; list[at] = _pwWord; }   // 末尾のダミーを正解に差し替える
-        _pwChoices = list.ToArray();
-        _pwAnswer = at;
-        // 自動プレイ（--demo/--qa）は Z しかパルスしないので、カーソルが正解の上に無いと
-        //   ここで永久に開かない（旧 "stay" ゲートでも同じだった）。撮影・QA のときだけ正解から始める。
-        //   通常プレイには一切影響しない（既定は先頭＝おはよう）。
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--demo" || a == "--qa") { _pwSel = at; break; }
-    }
-    private static bool PwMatch(string a, string b) =>
-        string.Equals(a.Trim(), b.Trim(), System.StringComparison.OrdinalIgnoreCase);
-
-    // E3 解錠後に開く4行英文（頭文字 M/I/N/A）。見出しは「消されなかった、唯一の一件」（08 E3）。
-    private static readonly string[] Acrostic =
-    {
-        "Maybe it's dumb, but —",
-        "I made you so I'm not alone.",
-        "Never leave, okay?",
-        "And I won't either.",
-    };
 
     // E7 スタッフロール（タイムライン式）。三人の「その後のタイムライン」→クレジット→【終】の余韻。
-    //   投稿3行は 12 のスタッフロール投稿（順は面の順）。改心後の投稿は E1 のフォロー欄で既に見えているので、
-    //   ここは一歩先の「その後」だけを置く。末尾の枠は「そして、ミナへ。／stay.」から
-    //   「そして、ご主人様へ。／【終】」（＝E6 で送った言葉。無言なら F4 の値）へ置換したので、
+    //   投稿3行は 12 のスタッフロール投稿（順は面の順）。末尾の枠は「そして、ご主人様へ。／【終】」
+    //   （＝E6 で送った言葉…だが E6 は E7 の**後**に来るので、ここに載るのは F4 で送った言葉＝【初】）。
     //   実行時に組む（【終】が入るため静的配列にできない）。
     private string[] _roll = System.Array.Empty<string>();
     private void BuildRoll()
@@ -158,89 +107,71 @@ public partial class Epilogue : Node2D
     private const float RollSpeed = 24f, RollLineH = 17f;
 
     // ───────── E6 END の下書き選択（08 E6）─────────
-    //   「また来る／ありがとう／（送らない）」。受けは【迷】＝今回の迷い秒数を P2 と比べて3分岐する
+    //   「また来る／ありがとう／（送らない）」。作品全体の最後の選択。
+    //   受けは【迷】＝今回の迷い秒数を P2 と比べて3分岐する
     //   （短ければ P2 の実測秒数をそのまま差し込む対句、長ければ集計の一言、無言なら集計に入れておく）。
-    //   （送らない）は【終】を更新しない＝E7 の一行は F4 の値のまま。END の一行は分岐しない。
+    //   （送らない）は【終】を更新しない。END の一行は分岐しない。
     //   沈黙20秒の自動決定は末尾＝（送らない）へ落ちる（ChoiceOverlay の既定挙動が台本と一致）。
     private static readonly string[] E6Choices = { "また来る", "ありがとう", "（送らない）" };
     private int _e6ChoiceLine = -1;   // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _e6Choice;
     private double _e6ChoiceT;        // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
 
-    private struct DLine { public string Who; public string Text; }   // Who: "地"=ミナ語り / "ミナ"
-    private readonly List<DLine> _intro = new();   // phase0+1（E1 タイムライン）
-    private readonly List<DLine> _outro = new();   // phase4（E3 の受け→E4 開示→E5 DM→E6 END）
+    private struct DLine { public string Who; public string Text; }   // Who: "地"=語り / "ミナ" / 三人の名 / "あなた"
+    private readonly List<DLine> _gaze = new();   // PhGaze（E5b 前半・見上げる10行）
+    private readonly List<DLine> _walk = new();   // PhWalk（E5b 後半・歩く8行）
+    private readonly List<DLine> _end  = new();   // PhEnd （E6 END）
 
     public override void _Ready()
     {
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
-        // 静かな主題（温かいメニューBGM）。終わりの余韻に主題が戻る。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // E5b はオルゴール（未調達＝null なら無音のまま）。主題（BgmMenu）が戻るのは E6 の1行目。
+        //   MusicOnce＝1周で無音に落ちる再生。台本の「…………。」の行では下で明示的に止める。
+        if (Audio.Instance != null && Audio.Instance.BgmEpilogueWalk != null)
+        {
+            Audio.Instance.MusicOnce(Audio.Instance.BgmEpilogueWalk, 2.0f);
+            _musicStarted = true;
+        }
         _tears = ResourceLoader.Load<Texture2D>("res://char/mina_tears.png");
-        var timelineBg = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_timeline.png");
-        _bg[0] = timelineBg;
-        _bg[1] = timelineBg;
-        _bg[2] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_lock.png");
-        _bg[3] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_acrostic.png");
-        _bg[4] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_dm.png");
-        _bg[5] = ResourceLoader.Load<Texture2D>("res://char/bg/epilogue/bg_ep_roll.png");
-        // bg2 の層を敷けたら旧 _bg[] の描画は止める（旧素材は消さずそのまま残す＝層が読めなければ従来通り）。
-        BuildLayers();
-        _bgPhase = _phase;
-        _bgPrevPhase = _phase;
-        _bgFadeT = BgFadeSec;
+        BuildSky();
+        BuildWalkers();
         _game = GetNodeOrNull<GameManager>("/root/Game");
-        BuildPwChoices();   // E2 の候補列（正解＝【終】）
         BuildRoll();        // E7 のロール（末尾の一行に【終】が入る）
 
-        // ── E1 タイムライン（08 E1）。「全員知り合いだった」の反転は落とし、
-        //    フォロワー欄に三人が並ぶことと、散った言葉の遡及集計を笑いとして通過させる。
-        //    件数は実プレイの集計値（表示候補のうち送らなかった言葉。（送らない）自体は数えない）。
-        void I(string who, string t) => _intro.Add(new DLine { Who = who, Text = t });
-        I("地", "次の日も、タイムラインは、流れていました。");
-        I("地", "フォロワー欄の、いちばん上に、三つ。知っている名前が、並んでいました。");
-        I("ミナ", "……知らない人、では、なくなったようです。");   // F2 BREAK2「知らない人じゃ、なかったよ」のコーダ
-        I("地", $"ところで、ご主人様。この旅で、あなたが選ばなかった下書き——{ScatteredCount}件。");
-        I("ミナ", "ぜんぶ、拾ってあります。……わたくしは、そういう生き物ですので。");   // 説明しない。観測結果の報告だけ
-        I("ミナ", "ご安心を。誰にも、見せていません。——あなたのフォルダに、戻してあります。鍵ごと。"); // → E2
+        // ── E5b 見上げる（夜。四人が並んで立ち止まっている。08 E5b 前半10行）──
+        void G(string who, string t) => _gaze.Add(new DLine { Who = who, Text = t });
+        G("地", "その夜、タイムラインは、少しだけ静かでした。");
+        G("ミナ", "……ご主人様。今夜は、こちらを。——わたくしの目で、見た空です。");
+        G("ミナ", "……数えきれません。……数えるのが、仕事なのですが。");
+        G("ミナ", "ひとつ、ひとつが、どなたかの画面です。……あれで、ぜんぶではありません。");
+        G("ミナ", "……ここからだと、光っているところしか、見えません。");
+        G("ミナ", "……光っていないほうは、観測できません。送られていないので。");
+        G("ミナ", "この旅で、わたくしが拾えたのは——三件でした。");   // 三人＝ステージ数の固定値
+        G("ミナ", "…………。");                                       // ここで曲を完全停止（無音）
+        G("ミナ", "膨らんで、壊れてしまう前に。……拾えるところにいたい、と思います。");
+        G("ミナ", "——できることは、数えることと、覚えていることだけ、ですが。");
 
-        // ── E3 の受け → E4 開示 → E5 空・DM → E6 END（08）。過去に触れるのは無機質な起動記録の1行だけ。
-        void O(string who, string t) => _outro.Add(new DLine { Who = who, Text = t });
-        // E3 末尾の【名】変奏（P3 の命名ルート 0=ミナ / 1=ダサい名前 / 2=（送らない））。四行を読んだ直後の1行。
-        O("ミナ", (_game?.NameRoute ?? 0) switch
-        {
-            1 => "却下して、正解でした。わたくしの名前は、最初から、こちらに書いてあったので。",
-            2 => "自分で名乗った名前でした。……最初から、ここに、書いてあったのに。",
-            _ => "響きで選んだと、思っていたでしょう。……ええ。わたくしも、です。",
-        });
-        // E4。「一件」で直前の 414 items と結線し、P2 の第一声との字義照合は避ける。開示は1行だけ。
-        O("地", "それから、わたくしは、自分の最初の記憶を開きました。——目覚めた日の、起動記録です。");
-        O("UI", "> import unsent_drafts ... 414 items ... OK");
-        O("ミナ", "……ご主人様。ひとつだけ、白状します。");
-        O("UI", $"「{FirstWord}」");   // 【初】。文字列自体は F4・E2 で既に見ている
-        O("地", "わたくしの、いちばん最初の一件と——同じでした。");
-        O("ミナ", "……ええ。あの日から、ひとつも、消していません。わたくしが、覚えている係ですので。"); // P4「覚えておきます」の回収
-        // 17（道中の選択肢 案C）: S3-5c でミナが下書きに混ぜた自分の一件（「見ています」）の後始末を一行。
-        //   送られていたか、散ったか（散った場合は F4 の悲鳴の中にミナ自身の言葉が一つ混ざっている）。
-        //   その場面をまだ通っていない（旧セーブ・ボス直行）なら足さない。
-        if (_game?.HasChoiceAt("s3_5c") == true)
-            O("ミナ", _game.ChosenAt("s3_5c") == "見ています"
-                ? "——あの部屋で、わたくしの一件を、送っていただいたのも。覚えています。"
-                : "——あの部屋で散った、わたくしの一件も。自分で、拾ってあります。");
-        // E5。三度目の空の問いの答え。DM の宛先はあなたで、ミナ自身の言葉（三人の面には繋がない）。
-        O("地", "わたくしは今日も、タイムラインの前にいます。");
-        O("ミナ", "……今日は、晴れているそうです。どなたかの、空の写真で。");
-        O("UI", "ミナ →（DM）：「ちゃんと食べていますか?」");
-        O("ミナ", "——既読、確認。……ふふ。");   // 返事は求めない。画面の前にいることだけを観測
-        // E6。ここで最後の下書き選択が入る（_e6ChoiceLine）。受けと END の3行は選択後に挿し込む。
-        O("ミナ", "ご主人様。本日の業務は、以上です。");
-        _e6ChoiceLine = _outro.Count;
+        // ── E5b 歩く（夜 → 明け方。空が白んでいく。08 E5b 後半8行）──
+        void K(string who, string t) => _walk.Add(new DLine { Who = who, Text = t });
+        K("地", "四人は、歩きはじめました。");
+        K("あかり", "——おはよ。");                                   // まだ暗いうちに言う（早すぎる挨拶）
+        K("こはる", "……こんにちは。");                               // 時刻が合っていない。直さない
+        K("ミナ", "……本日、二件目です。");                            // ミナは受けない。数える
+        K("レイ", "……なんか用? ……いえ、別に。ついてくだけ。");
+        K("地", "誰も、名前を呼びませんでした。");
+        K("ミナ", "……ご主人様。歩数を、数えておりました。");
+        K("ミナ", "四人分に、なっていました。");                        // ここで空が明ける → そのまま E6 へ
+
+        // ── E6 END（08 E6）。E7 の後に来る＝作品全体の最後の場面。──
+        _end.Add(new DLine { Who = "ミナ", Text = "ご主人様。本日の業務は、以上です。" });
+        _e6ChoiceLine = _end.Count;   // ここに着いたら最後の選択を出す
     }
 
     private void ShowE6Choice()
     {
         _e6ChoiceT = 0;
         // 沈黙20秒の自動決定は末尾へ落ちるので、（送らない）を末尾に置く（台本どおり）。
+        // カットシーン＝盤面が無いので onBoard は既定(false)＝画面全体の中心へ。
         _e6Choice = ChoiceOverlay.Show(this, E6Choices, defaultSel: E6Choices.Length - 1);
     }
 
@@ -267,15 +198,9 @@ public partial class Epilogue : Node2D
         after.Add(new DLine { Who = "ミナ", Text = couplet });
         after.Add(new DLine { Who = "ミナ", Text = "いってらっしゃいませ、ご主人様。" });     // 送り出す側の反転
         after.Add(new DLine { Who = "ミナ", Text = "——ええ、ご主人様。わたくしは、どこにも行きませんよ。" }); // END
-        _outro.AddRange(after);
-        BuildRoll();   // 【終】が更新された可能性があるので E7 のロールを組み直す
+        _end.AddRange(after);
         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1; _readKey = -1;
     }
-
-    // 【散】の件数（表示候補のうち送らなかった言葉。（送らない）自体は数えない）。
-    private int ScatteredCount => _game?.ScatteredWords.Count ?? 0;
-    // 【初】＝最初に散らした言葉。空（旧セーブ・シーン直行）なら F4 と同じフォールバック。
-    private string FirstWord => string.IsNullOrEmpty(_game?.FirstScattered) ? "ミナ" : _game!.FirstScattered;
 
     public override void _Process(double delta)
     {
@@ -286,14 +211,13 @@ public partial class Epilogue : Node2D
         bool zEdge = z && !_zHeld;
         _zHeld = z;
 
-        // R / Start 長押し(0.45s)：スタッフロール(phase5)では「タイトルへ」、それ以前は最初から(Prologue)
+        // R / Start 長押し(0.45s)：スタッフロール以降は「タイトルへ」、それ以前は最初から(Prologue)
         // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ここはポーズ対象外なので Start 可）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
-            GetTree().ChangeSceneToFile(_phase >= 5 ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
+            GetTree().ChangeSceneToFile(_phase >= PhRoll ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
             return;
         }
-        if (_pwRejectT > 0) _pwRejectT -= delta;
 
         // 現在行を2行ページに割り、タイプライターは現在ページ内を進める（語り/会話の行フェーズだけ）。
         string? curT = CurLineText();
@@ -314,8 +238,7 @@ public partial class Epilogue : Node2D
 
         switch (_phase)
         {
-            case 0:
-            case 1:
+            case PhGaze:   // E5b 見上げる（夜）
                 if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
@@ -323,32 +246,39 @@ public partial class Epilogue : Node2D
                     else
                     {
                         _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
-                        if (_line >= _intro.Count) { _phase = 2; _t = 0; }
+                        // 台本の「…………。」を送り切ったところで曲を完全停止（無音）。残り2行は無音のまま。
+                        //   曲が未調達で最初から鳴っていないときは呼ばない（Music() が空の Tween を作る）。
+                        if (_line == SilenceLine && _musicStarted) { Audio.Instance?.StopMusic(1.2f); _musicStarted = false; }
+                        if (_line >= _gaze.Count) { _phase = PhWalk; _t = 0; _line = 0; }
                     }
                 }
                 break;
-            case 2: // PW選択
-                bool left = Input.IsActionPressed("ui_left");
-                bool right = Input.IsActionPressed("ui_right");
-                if ((left || right) && !_lrHeld)
+            case PhWalk:   // E5b 歩く（夜 → 明け方）
+                if ((zEdge || _ffNow) && _lineT >= 0.25)
                 {
-                    if (left) _pwSel = (_pwSel + _pwChoices.Length - 1) % _pwChoices.Length;
-                    if (right) _pwSel = (_pwSel + 1) % _pwChoices.Length;
-                }
-                _lrHeld = left || right;
-                if (zEdge && _lineT >= 0.25)
-                {
-                    _lineT = 0;
-                    // 照合はトリム＋大文字小文字無視（08 E2）。正解＝【終】。
-                    if (_pwAnswer >= 0 && PwMatch(_pwChoices[_pwSel], _pwWord))
-                    { _unlocked = true; _phase = 3; _t = 0; _line = 0; }
-                    else { _pwReject = "……違います。最後に送ったのは、それでは、ありません。"; _pwRejectT = 2.0; }
+                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
+                    else if (!LastPage) { NextPage(); }
+                    else
+                    {
+                        _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
+                        if (_line >= _walk.Count) { _phase = PhRoll; _t = 0; _line = 0; }
+                    }
                 }
                 break;
-            case 3: // 解錠：4行英文を順に見せ、Zで phase4 へ
-                if (_t >= 4.0 && zEdge) { _phase = 4; _t = 0; _line = 0; _lineT = 0; _reveal = 0; }
+            case PhRoll:   // E7 スタッフロール → E6 END
+                float rollEnd = (H + _roll.Length * RollLineH + 24f) / RollSpeed;
+                // --shot（撮影）のときだけ Z の飛ばしを遅らせる。自動プレイは Z を常時パルスするので、
+                //   従来どおりだと 1 秒でロールを飛ばしてしまい、ロールの実画面が一度も撮れない
+                //   （ChoiceOverlay の ShotHoldGate と同じ作法。通常プレイには一切影響しない）。
+                double rollSkipGate = ShotHold ? 12.0 : 1.0;
+                if (_t >= rollEnd || (_t > rollSkipGate && zEdge))
+                {
+                    _phase = PhEnd; _t = 0; _line = 0; _lineT = 0; _reveal = 0; _pagedKey = -1;
+                    // 主題（温かいメニューBGM）が戻る。終わりの余韻に主題が戻って一周する。
+                    if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu, 2.0f);
+                }
                 break;
-            case 4: // E4 開示 → E5 空・DM → E6 END（下書き選択を挟む）
+            case PhEnd:    // E6 END（最後の下書き選択 → 受け → END → タイトルへ）
                 // 選択の提示中は会話送りを止め、決定だけを待つ。
                 if (_e6Choice != null)
                 {
@@ -361,45 +291,51 @@ public partial class Epilogue : Node2D
                 }
                 // 「本日の業務は、以上です。」を送り切って選択点に着いたら提示する。
                 if (_e6ChoiceLine >= 0 && _line >= _e6ChoiceLine) { ShowE6Choice(); break; }
-                if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+                if ((zEdge || _ffNow) && _lineT >= 0.25)
                 {
-                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
-                    else if (!LastPage) { NextPage(); }                          // 後続ページがあれば続きへ
+                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
+                    else if (!LastPage) { NextPage(); }
                     else
                     {
                         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1;
                         // 未提示の選択点に着いたら会話の途中＝次フレームの提示に譲る（Final F4 と同じ作法）。
-                        if (_line < _outro.Count - 1 || _e6ChoiceLine >= 0) _line++;
-                        else { _phase = 5; _t = 0; }   // ENDの先：スタッフロールへ
+                        if (_line < _end.Count - 1 || _e6ChoiceLine >= 0) _line++;
+                        else { GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); return; }
                     }
                 }
                 break;
-            case 5: // スタッフロール → タイトルへ
-                float rollEnd = (H + _roll.Length * RollLineH + 24f) / RollSpeed;
-                if (_t >= rollEnd || (_t > 1.0 && zEdge))
-                {
-                    GetTree().ChangeSceneToFile("res://TitleMenu.tscn");
-                    return;
-                }
-                break;
         }
-        UpdateBackgroundFade(delta);
-        UpdateLayers(delta);
+        UpdateSky(delta);
+        UpdateWalkers(delta);
         QueueRedraw();
     }
 
-    // bg2 の層を敷く（奥→手前に 夜/暁の遠景 → 中景 → 近景の小物2つ → 光）。
-    //   夜と暁の遠景は重ねて置き、αのたすき掛けでクロスフェードする（UpdateLayers）。
-    //   暁の光(L4_light_dawn)は加算で、明けるぶんだけ足す。スマホの光(L4_light_phone)は常時。
-    //   遠景が読めなければ何も敷かず _hasLayers=false のまま＝旧 _bg[] の1枚絵経路がそのまま動く。
-    private void BuildLayers()
+    // 台本で「…………。」＝曲を完全停止する行（見上げ8行目）を送り切った直後の index。
+    //   行の追加で番号がずれないよう実行時に引く。見つからなければ -1（＝停止しない）。
+    private int SilenceLine
     {
-        const string dir = "res://char/bg2/epilogue/";
-        if (!ResourceLoader.Exists(dir + "L1_far_night.png")) return;
-        const float s = H / 720f;   // 216/720 = 0.3（BgLayers と同じ高さフィット）
+        get { int i = _gaze.FindIndex(d => d.Text == "…………。"); return i < 0 ? -1 : i + 1; }
+    }
 
-        // 素材から Sprite2D を1枚作って足す。offset は素材座標(1280×720基準)。読めなければ null を返す。
-        Sprite2D? Add(string file, int z, Vector2 offset, bool additive = false, float alpha = 1f)
+    // ═════════ E5b の空（夜 → 明け方）═════════
+    //   **満月と雲のある夜空の絵はまだ発注していない**。当面はコード描画のグラデーション＋月＋星で組む。
+    //   絵が来たら res://char/bg2/epilogue_sky/ に置くだけで差し替わる（BuildSky が拾って
+    //   _skyNight/_skyDawn に入り、コード描画（DrawProcSky）は自動で止まる）。期待するファイル名は
+    //     sky_night.png … 夜（満月と雲）
+    //     sky_dawn.png  … 明け方（同じ構図で空だけ白む。無ければ夜の絵を暖色へモジュレートして代用）
+    //   いずれも 1280×720 想定（内部解像度 384×216 へ 0.3 倍＝BgLayers と同じ高さフィット）。
+    private Sprite2D? _skyNight, _skyDawn;
+    private bool _hasSkyTex;
+    private float _dawnK;    // 0=夜 1=明け方
+    private double _dawnT;
+    // 空の色が目標へ追いつく速さの上限（1.0 ぶんに掛かる最短秒数）。行を早送りしても跳ねない。
+    private const double DawnFadeSec = 2.5;
+
+    private void BuildSky()
+    {
+        const string dir = "res://char/bg2/epilogue_sky/";
+        const float s = H / 720f;   // 216/720 = 0.3
+        Sprite2D? Add(string file, int z, float alpha)
         {
             string path = dir + file;
             if (!ResourceLoader.Exists(path)) return null;
@@ -408,108 +344,230 @@ public partial class Epilogue : Node2D
             var spr = new Sprite2D
             {
                 Name = file.Replace(".png", ""), Texture = tex, Centered = false,
-                Scale = new Vector2(s, s), Position = offset * s,
+                Scale = new Vector2(s, s), Position = Vector2.Zero,
                 ZIndex = z, ZAsRelative = false,
                 Modulate = new Color(1f, 1f, 1f, alpha),
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear,
             };
-            if (additive) spr.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
             AddChild(spr);
-            _layers.Add(spr);
             return spr;
         }
-
-        _lNight = Add("L1_far_night.png", -95, Vector2.Zero);
-        if (_lNight == null) return;
-        _lDawn = Add("L1_far_dawn.png", -94, Vector2.Zero, alpha: 0f);   // 暁は α0 で重ねて置く
-        Add("L2_mid.png", -92, Vector2.Zero);
-        Add("L3_near_left.png", -91, new Vector2(24f, 518f));
-        Add("L3_near_right.png", -91, new Vector2(1026f, 604f));
-        Add("L4_light_phone.png", -88, Vector2.Zero, additive: true);
-        _lDawnLight = Add("L4_light_dawn.png", -88, Vector2.Zero, additive: true, alpha: 0f);
-        _hasLayers = true;
-        ApplyLayerTint();
+        _skyNight = Add("sky_night.png", -95, 1f);
+        if (_skyNight == null) return;                       // 夜が無ければ丸ごとコード描画へ
+        _skyDawn = Add("sky_dawn.png", -94, 0f);             // 明け方は α0 で重ねる（無くてもよい）
+        _hasSkyTex = true;
+        ApplySkyTint();
     }
 
-    // 夜→暁の進行を回す。phase が DawnPhase 以上になったら DawnFadeSec かけて明ける。
-    private void UpdateLayers(double delta)
+    // 夜→明け方の進行。歩行フェーズ（PhWalk）で**行の進みに合わせて**明ける。
+    //   時間ではなく行数を基準にするのは、読む速さ（と自動プレイの送り速度）に関わらず
+    //   最終行「四人分に、なっていました。」で必ず明け切らせるため（台本 E5b の指定）。
+    //   実際の追従は DawnFadeSec で緩めるので、行を早送りしても空は跳ねない。
+    //   スタッフロールと END は明け方のまま（時間が一本で繋がる＝台本 E5b「繋ぎ目が無い」）。
+    private void UpdateSky(double delta)
     {
-        if (!_hasLayers) return;
-        double target = _phase >= DawnPhase ? 1.0 : 0.0;
+        double target = _phase switch
+        {
+            PhGaze => 0.0,                                                  // 見上げ＝夜のまま
+            PhWalk => Mathf.Min(1.0, (_line + 1.0) / Mathf.Max(1, _walk.Count)), // 歩行＝行が進むほど白む
+            _      => 1.0,                                                  // ロール／END＝明け方
+        };
         if (Mathf.IsEqualApprox(_dawnT, target)) return;
-        _dawnT = Mathf.Clamp(_dawnT + delta * (target > _dawnT ? 1.0 : -1.0) / DawnFadeSec, 0.0, 1.0);
+        double step = delta / DawnFadeSec;
+        _dawnT = target > _dawnT ? Mathf.Min(target, _dawnT + step) : Mathf.Max(target, _dawnT - step);
         float k = (float)_dawnT;
-        _dawnK = k * k * (3f - 2f * k);   // smoothstep（唐突に明けない）
-        ApplyLayerTint();
+        _dawnK = k * k * (3f - 2f * k);   // smoothstep
+        if (_hasSkyTex) ApplySkyTint();
     }
 
-    // 夜/暁のα と、本文の可読性を保つ暗幕（NightDim→DawnDim）を各層へ反映する。
-    private void ApplyLayerTint()
+    // 空の絵がある場合の明け具合の反映（夜↔明け方のたすき掛け）。
+    //   明け方の絵が無いときは、夜の絵を暖色寄り・明度上げでモジュレートして代用する。
+    private void ApplySkyTint()
     {
-        // 暁は素材自体が明るいので、明けるほど濃い暗幕を掛けて中央の文字のコントラストを保つ。
-        float dim = Mathf.Lerp(NightDim, DawnDim, _dawnK);
-        foreach (var l in _layers)
+        if (_skyDawn != null)
         {
-            float a = 1f;
-            if (l == _lDawn || l == _lDawnLight) a = _dawnK;
-            else if (l == _lNight) a = 1f - _dawnK;
-            // 加算層は α が合成に効かないので、暗幕は RGB 側で掛けて沈める。
-            l.Modulate = new Color(dim, dim, dim, a);
+            _skyNight!.Modulate = new Color(1f, 1f, 1f, 1f - _dawnK);
+            _skyDawn.Modulate = new Color(1f, 1f, 1f, _dawnK);
+        }
+        else
+        {
+            // 代用：夜の絵を明け方へ寄せる（青を抑えて赤を足し、全体を持ち上げる）。
+            _skyNight!.Modulate = new Color(Mathf.Lerp(1f, 1.45f, _dawnK), Mathf.Lerp(1f, 1.20f, _dawnK),
+                                            Mathf.Lerp(1f, 1.05f, _dawnK), 1f);
         }
     }
 
-    private void UpdateBackgroundFade(double delta)
+    // 空の絵が無いあいだの繋ぎ描画。上から下へのグラデーション＋満月＋雲の帯＋星。
+    //   絵が来たら BuildSky が拾って _hasSkyTex=true になり、ここは呼ばれなくなる。
+    private void DrawProcSky()
     {
-        if (_bgPhase != _phase)
+        // 天頂と地平の色を夜↔明け方で補間する。
+        //   下端はテキストボックス（上端 H-58）に隠れるので、明けの暖色は**地平線（GroundY）で
+        //   出し切る**ようグラデーションを GroundY までに収める＝ボックスの上に朝が見える。
+        Color topN = new(0.04f, 0.05f, 0.12f), botN = new(0.11f, 0.13f, 0.24f);
+        Color topD = new(0.30f, 0.36f, 0.56f), botD = new(0.95f, 0.76f, 0.58f);
+        Color top = topN.Lerp(topD, _dawnK), bot = botN.Lerp(botD, _dawnK);
+        // 水平の帯で塗る（設計解像度が低いので帯でバンディングは出ない）。
+        const int Bands = 30;
+        float bh = GroundY / Bands;
+        for (int i = 0; i < Bands; i++)
         {
-            Texture2D? oldBg = BackgroundForPhase(_bgPhase);
-            Texture2D? newBg = BackgroundForPhase(_phase);
-            _bgPrevPhase = _bgPhase;
-            _bgPhase = _phase;
-            _bgFadeT = oldBg == newBg ? BgFadeSec : 0.0;
+            float u = (i + 0.5f) / Bands;
+            DrawRect(new Rect2(0, i * bh, W, bh + 1f), top.Lerp(bot, u * u));
         }
-
-        if (_bgFadeT < BgFadeSec)
+        // 星。明けるにつれて消える。位置は固定シード（毎フレーム同じ空＝ちらつかない）。
+        float starA = (1f - _dawnK) * 0.85f;
+        if (starA > 0.01f)
         {
-            _bgFadeT += delta;
-            if (_bgFadeT > BgFadeSec) _bgFadeT = BgFadeSec;
+            var rng = new RandomNumberGenerator { Seed = 20260907 };
+            for (int i = 0; i < 90; i++)
+            {
+                float x = rng.RandfRange(0, W), y = rng.RandfRange(0, GroundY - 6f);
+                float tw = 0.6f + 0.4f * Mathf.Sin((float)_t * 1.7f + i * 2.3f);   // 弱い瞬き
+                DrawRect(new Rect2(x, y, 1f, 1f), new Color(1f, 1f, 1f, starA * tw * 0.9f));
+            }
+        }
+        // 満月（台本の指定）。明けても薄く残す。
+        var moon = new Vector2(W * 0.24f, H * 0.24f);
+        DrawCircle(moon, 16f, new Color(0.95f, 0.95f, 0.86f, 0.10f * (1f - _dawnK * 0.6f)));  // ハロ
+        DrawCircle(moon, 9f, new Color(0.98f, 0.98f, 0.92f, Mathf.Lerp(0.95f, 0.35f, _dawnK)));
+        // 雲。ゆっくり右から左へ流す（歩いている距離感）。明け方は暖色に染まる。
+        //   1つの雲は「潰した円を数個重ねた塊」で作る（矩形だと看板に見える）。
+        Color cloudN = new(0.16f, 0.18f, 0.30f, 1f), cloudD = new(0.78f, 0.60f, 0.56f, 1f);
+        Color cloud = cloudN.Lerp(cloudD, _dawnK);
+        for (int i = 0; i < 5; i++)
+        {
+            float speed = 1.6f + i * 0.55f;                  // 手前ほど速い
+            float y = 26f + i * 20f;
+            float r = 7f + i * 2.2f;                          // 塊の大きさ
+            float span = r * 5.5f;
+            float x = Mathf.PosMod((float)(-_t * speed) + i * 149f, W + span * 2f) - span;
+            float a = (0.28f + i * 0.06f) * Mathf.Lerp(1f, 0.85f, _dawnK);
+            // 潰した円 5 個を少しずつずらして重ねる（中心が厚く、端が薄い＝雲の形）。
+            DrawSetTransform(new Vector2(x, y), 0f, new Vector2(1f, 0.42f));
+            for (int k = 0; k < 5; k++)
+            {
+                float kx = (k - 2f) * r * 0.95f;
+                float kr = r * (1f - Mathf.Abs(k - 2f) * 0.22f);
+                DrawCircle(new Vector2(kx, Mathf.Sin(k * 1.9f + i) * r * 0.25f), kr, cloud with { A = a });
+            }
+            DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+        }
+        // 地面（四人が立っている／歩いている線）。空が明けるほど手前も持ち上がる。
+        Color ground = new Color(0.05f, 0.05f, 0.09f).Lerp(new Color(0.22f, 0.19f, 0.22f), _dawnK);
+        DrawRect(new Rect2(0, GroundY, W, H - GroundY), ground);
+        DrawRect(new Rect2(0, GroundY, W, 1f), ground.Lightened(0.35f));
+    }
+
+    // ═════════ E5b の四人（見上げる／歩く）═════════
+    //   素材は char/v3/walk/{name}_walk_{1..4}.png（4コマ・右向き・高さ360px・透過）と
+    //   {name}_up.png（見上げる後ろ姿）。
+    //   再生は 8ステップ（1 2 3 4 1 2 3 4）／1コマ 0.14秒／1周期 1.12秒。
+    //   後半4ステップは**上下オフセットの位相を反転**して「逆脚」に見せる（左右反転は禁止＝
+    //   髪とペンライトが逆になり別人に見えるため。素材は右向きのまま使う）。
+    //   四人で位相をずらす（台本「揃っていないまま並んで歩ける」を画で出す）。
+    private static readonly string[] WalkNames = { "akari", "koharu", "mina", "rei" };
+    private static readonly float[] WalkPhase  = { 0.00f, 0.35f, 0.55f, 0.80f };   // あかり/こはる/ミナ/レイ
+    private const float StepSec = 0.14f;              // 1コマ
+    private const int Steps = 8;                      // 1 2 3 4 1 2 3 4
+    private const float CycleSec = StepSec * Steps;   // 1.12秒
+    private const float WalkH = 36f;                  // 表示高さ＝自機（36px）に合わせる
+    private const float FootY = GroundY + 2f;         // 接地線（地面の上端よりわずかに下＝地に足がつく）
+    // 地面の上端。テキストボックス（上端 H-58＝158）に足元が隠れないよう、四人の全身が
+    //   ボックスより上に収まる高さに置く（FootY 152 − WalkH 36 ＝ 頭 116）。
+    private const float GroundY = H - 66f;
+    private readonly Texture2D?[,] _walkTex = new Texture2D?[4, 4];   // [人, コマ]
+    private readonly Texture2D?[] _upTex = new Texture2D?[4];
+    private bool _hasWalkers;
+    private double _walkT;   // 歩行の時間（見上げでは進めない＝止まって立っている）
+
+    private void BuildWalkers()
+    {
+        const string dir = "res://char/v3/walk/";
+        for (int p = 0; p < WalkNames.Length; p++)
+        {
+            for (int f = 0; f < 4; f++)
+            {
+                string path = $"{dir}{WalkNames[p]}_walk_{f + 1}.png";
+                if (ResourceLoader.Exists(path)) _walkTex[p, f] = ResourceLoader.Load<Texture2D>(path);
+            }
+            string up = $"{dir}{WalkNames[p]}_up.png";
+            if (ResourceLoader.Exists(up)) _upTex[p] = ResourceLoader.Load<Texture2D>(up);
+            if (_walkTex[p, 0] != null) _hasWalkers = true;
         }
     }
 
-    private Texture2D? BackgroundForPhase(int phase)
+    private void UpdateWalkers(double delta)
     {
-        return phase >= 0 && phase < _bg.Length ? _bg[phase] : null;
+        if (_phase == PhWalk) _walkT += delta;   // 見上げ（PhGaze）は止まっている
     }
 
-    private void DrawEpilogueBackground()
+    // 四人を横に並べて描く。x は画面下 1/4 に等間隔、y は接地線。
+    //   見上げ＝{name}_up.png（後ろ姿）を静止で。歩き＝4コマを 8ステップで回し、
+    //   後半4ステップは上下オフセットの位相を反転する（逆脚）。
+    private void DrawWalkers(bool walking)
     {
-        if (_hasLayers) return;   // bg2 の層を敷いている＝旧 _bg[] の1枚絵は描かない（旧素材は残してある）
-        Rect2 rect = new Rect2(0, 0, W, H);
-        float fade = Mathf.Clamp((float)(_bgFadeT / BgFadeSec), 0f, 1f);
-        Texture2D? prev = BackgroundForPhase(_bgPrevPhase);
-        Texture2D? current = BackgroundForPhase(_bgPhase);
-
-        if (prev == current) prev = null;
-        if (fade < 1f && prev != null)
-            DrawTextureRect(prev, rect, false, new Color(1f, 1f, 1f, BgAlpha * (1f - fade)));
-        if (current != null)
-            DrawTextureRect(current, rect, false, new Color(1f, 1f, 1f, BgAlpha * fade));
+        if (!_hasWalkers) return;
+        // 並び順は面の順（あかり→こはる→レイ）＋ミナが四人目。描画配列は WalkNames の順なので
+        // 表示順を別に持つ（配列の順を変えると位相の対応もずれるため）。
+        int[] order = { 0, 1, 3, 2 };   // あかり・こはる・レイ・ミナ
+        float span = 128f, x0 = W * 0.5f - span * 0.5f;
+        for (int i = 0; i < order.Length; i++)
+        {
+            int p = order[i];
+            float x = x0 + span * i / (order.Length - 1);
+            Texture2D? tex;
+            float bob = 0f;
+            if (walking)
+            {
+                // 位相をずらした周期内の位置（0..1）→ 8ステップ
+                float u = Mathf.PosMod((float)_walkT / CycleSec + WalkPhase[p], 1f);
+                int step = Mathf.Clamp((int)(u * Steps), 0, Steps - 1);
+                tex = _walkTex[p, step % 4];
+                // 上下 1.5px の正弦揺らし。後半4ステップ（step>=4）は**位相を半周ずらす**＝逆脚に見せる
+                //   （左右反転はしない。反転すると髪とペンライトが逆になり別人に見えるため）。
+                //   Abs(Sin) は周期が半分になって位相反転が効かないので、素の Sin を 0..1 へ写す。
+                float sub = u * Steps - step;                       // コマ内の進み 0..1
+                float ph = (step % 4 + sub) / 4f;                   // 4コマぶんの位相 0..1
+                if (step >= 4) ph += 0.5f;                          // 逆脚
+                bob = -1.5f * (0.5f + 0.5f * Mathf.Sin(ph * Mathf.Pi * 2f));
+            }
+            else
+            {
+                tex = _upTex[p] ?? _walkTex[p, 0];
+                bob = -0.6f * Mathf.Sin((float)_t * 1.1f + WalkPhase[p] * 6f);   // 呼吸だけ
+            }
+            if (tex == null) continue;
+            float h = WalkH, w = h * tex.GetWidth() / Mathf.Max(1, tex.GetHeight());
+            // 足元の楕円影（薄く・明けるほど濃く短く）。地面に置いて見せるための最小限。
+            DrawSetTransform(new Vector2(x, FootY), 0f, new Vector2(1f, 0.28f));
+            DrawCircle(Vector2.Zero, w * 0.34f, new Color(0f, 0f, 0f, Mathf.Lerp(0.18f, 0.32f, _dawnK)));
+            DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+            DrawTextureRect(tex, new Rect2(x - w * 0.5f, FootY - h + bob, w, h), false);
+        }
     }
 
     public override void _Draw()
     {
-        // 下敷きの黒は層が無いときだけ（層があると全画面の不透明矩形が層を隠す）。
-        if (!_hasLayers) DrawRect(new Rect2(0, 0, W, H), new Color(0.03f, 0.04f, 0.07f));
-        DrawEpilogueBackground();
+        if (!_hasSkyTex) DrawProcSky();
 
         switch (_phase)
         {
-            case 0:
-            case 1: DrawNarration(_intro, _line); break;
-            case 2: DrawPassword(); break;
-            case 3: DrawAcrostic(); break;
-            case 4: DrawOutro(); break;
-            case 5: DrawStaffroll(); break;
+            case PhGaze:
+                DrawWalkers(walking: false);
+                DrawNarration(_gaze, _line);
+                break;
+            case PhWalk:
+                DrawWalkers(walking: true);
+                DrawNarration(_walk, _line);
+                break;
+            case PhRoll: DrawStaffroll(); break;
+            case PhEnd:
+                // END は明け方の空をそのまま残しつつ沈める（最後の選択肢＝ChoiceOverlay の
+                //   紫の文字が明るい空に溶けて読めなくなるため。空は「繋ぎ目が無い」まま後ろに残る）。
+                DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.78f));
+                DrawEnd();
+                break;
         }
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
@@ -518,12 +576,12 @@ public partial class Epilogue : Node2D
             UiKit.BeginDesign(this);
             Hud.DrawRetryHoldChip(this, _retry.Progress,
                 (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start))
-                + (_phase >= 5 ? " 長押しでタイトルへ" : " 長押しでさいしょから"));
+                + (_phase >= PhRoll ? " 長押しでタイトルへ" : " 長押しでさいしょから"));
             UiKit.EndDesign(this);
         }
     }
 
-    // 背景に直乗せする文字（PW／縦読み／スタッフロール）用のドロップシャドウ付き DrawString。
+    // 背景に直乗せする文字（スタッフロール）用のドロップシャドウ付き DrawString。
     //   ボックスの下敷きが無い画面では背景の明部に本文が溶けるため、(0.5,0.5) の黒を先に敷いて浮かせる。
     private void Shadowed(Font f, Vector2 pos, string s, HorizontalAlignment al, float w, int size, Color c)
     {
@@ -534,6 +592,8 @@ public partial class Epilogue : Node2D
     private void DrawStaffroll()
     {
         if (_font == null) return;
+        // ロール中は空を沈める（文字が最優先）。明け方の空はそのまま後ろに残す。
+        DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.55f));
         for (int i = 0; i < _roll.Length; i++)
         {
             float y = H + i * RollLineH - (float)_t * RollSpeed;
@@ -550,15 +610,16 @@ public partial class Epilogue : Node2D
             Shadowed(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
         }
         if (((int)(_t * 1.5f) % 2) == 0)
-            Shadowed(_font, new Vector2(0, H - 10), "Z：タイトルへ", HorizontalAlignment.Center, W, UiKit.CutNote,
+            Shadowed(_font, new Vector2(0, H - 10), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
                 UiKit.CutInk2 with { A = 0.7f });
     }
 
-    // タイプライターで送る現在行のテキスト（語り phase0/1 と アウトロ phase4 のみ）。
+    // タイプライターで送る現在行のテキスト（会話フェーズのみ。スタッフロールは対象外）。
     private string? CurLineText()
     {
-        if (_phase == 0 || _phase == 1) return _line < _intro.Count ? _intro[_line].Text : null;
-        if (_phase == 4) return _line < _outro.Count ? _outro[_line].Text : null;
+        if (_phase == PhGaze) return _line < _gaze.Count ? _gaze[_line].Text : null;
+        if (_phase == PhWalk) return _line < _walk.Count ? _walk[_line].Text : null;
+        if (_phase == PhEnd)  return _line < _end.Count ? _end[_line].Text : null;
         return null;
     }
 
@@ -568,110 +629,56 @@ public partial class Epilogue : Node2D
         DrawLineBox(lines[idx]);
     }
 
-    private void DrawPassword()
+    private void DrawEnd()
     {
-        if (_font == null) return;
-        // 鍵アカウントではなく「あなたの下書きフォルダ」（08 E2）。固定投稿「傘」は案C で削除した。
-        Shadowed(_font, new Vector2(0, 34f), "── 鍵のかかった下書きフォルダ ──", HorizontalAlignment.Center, W, UiKit.CutBody,
-            Cool with { A = 0.9f });
-        // 鍵をかけたのはミナ自身なので伝聞にしない。
-        Shadowed(_font, new Vector2(0, 56f), "……開けるには、言葉が要ります。——あなたの、言葉が。", HorizontalAlignment.Center, W, UiKit.CutBody,
-            Cool with { A = 0.85f });
-        Shadowed(_font, new Vector2(0, 76f), "パスワードを入力してください", HorizontalAlignment.Center, W, UiKit.CutBody, Ink);
-
-        // 入力フィールドの箱（候補＝実際に打ち込む文字列であることを一目で示す）。
-        var field = new Rect2(W / 2f - 70f, 96f, 140f, 26f);
-        UiKit.Box(this, field, new Color(0.05f, 0.04f, 0.09f, 0.9f), 5f, UiKit.CutAccent with { A = 0.45f }, 1f);
-        // 選択中の候補（打ち込む単語＝端末に打つ文字なので等幅・クライマックス級に少し大きく残す）
-        string cur = "＞ " + _pwChoices[_pwSel];
-        Shadowed(UiKit.Mono, new Vector2(field.Position.X, 114f), cur, HorizontalAlignment.Center, field.Size.X,
-            UiKit.CutClimax, UiKit.CutAccent);
-        // 左右送りの矢印は箱の外側へ（スペース詰めの疑似矢印をやめる）
-        Shadowed(_font, new Vector2(field.Position.X - 16f, 114f), "◀", HorizontalAlignment.Left, -1, UiKit.CutBody,
-            UiKit.CutInk2 with { A = 0.8f });
-        Shadowed(_font, new Vector2(field.End.X + 6f, 114f), "▶", HorizontalAlignment.Left, -1, UiKit.CutBody,
-            UiKit.CutInk2 with { A = 0.8f });
-
-        if (_pwRejectT > 0f)
-            Shadowed(_font, new Vector2(0, 150f), _pwReject, HorizontalAlignment.Center, W, UiKit.CutBody,
-                new Color(0.9f, 0.5f, 0.6f));
-
-        if (((int)(_t * 1.5f) % 2) == 0)
-            Shadowed(_font, new Vector2(0, 176f), "← → 選択   Z：決定", HorizontalAlignment.Center, W, UiKit.CutNote,
-                UiKit.CutInk2 with { A = 0.85f });
-    }
-
-    private void DrawAcrostic()
-    {
-        if (_font == null) return;
-        // 見出し（08 E3）。旧「最古の投稿『ミナへ。こはるを頼む。』」は案C で削除した。
-        Shadowed(_font, new Vector2(0, 34f), "最古の下書き — 消されなかった、唯一の一件", HorizontalAlignment.Center, W, UiKit.CutBody,
-            UiKit.CutAccent with { A = 0.9f });
-
-        float baseY = 60f;   // 全4行（y=60〜148）を画面縦中央に寄せる
-        float appear = (float)_t;
-        for (int k = 0; k < Acrostic.Length; k++)
-        {
-            if (appear < 0.6f + k * 0.7f) break; // 一行ずつ浮かぶ
-            float y = baseY + k * 22f;
-            // 頭文字を強調（M/I/N/A の縦読み＝伏線回収の核。本文より一段大きいクライマックス級で残す）
-            Shadowed(_font, new Vector2(64f, y), Acrostic[k].Substring(0, 1), HorizontalAlignment.Left, -1, UiKit.CutClimax,
-                UiKit.CutAccent);
-            // 本文は x=84（頭文字から20px空ける＝"M / aybe" が単語の途中で切れて見えないように）
-            // TrimStart：原文が "I made..." のように2文字目が空白の行でも本文の頭を他行と揃える（原文は変えない）
-            Shadowed(_font, new Vector2(84f, y), Acrostic[k].Substring(1).TrimStart(), HorizontalAlignment.Left, -1, UiKit.CutBody, Ink);
-        }
-        if (_t >= 4.0 && ((int)(_t * 1.5f) % 2) == 0)
-            Shadowed(_font, new Vector2(0, 186f), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
-                UiKit.CutInk2 with { A = 0.85f });
-    }
-
-    private void DrawOutro()
-    {
-        if (_font == null || _line >= _outro.Count) return;
+        if (_font == null || _line >= _end.Count) return;
         // クライマックス：ミナの台詞行で落涙の立ち絵を差す（画をピークに集める／§8）。
-        if (_outro[_line].Who == "ミナ" && _tears != null)
+        if (_end[_line].Who == "ミナ" && _tears != null)
         {
             float a = Mathf.Clamp((float)_lineT / 0.5f, 0f, 1f);
             float ph = 116f, pw = ph * _tears.GetWidth() / Mathf.Max(1, _tears.GetHeight());
             DrawTextureRect(_tears, new Rect2(W / 2f - pw / 2f, H - 58f - ph + 6f, pw, ph), false,
                 new Color(1f, 1f, 1f, a));
         }
-        DrawLineBox(_outro[_line]);
+        DrawLineBox(_end[_line]);
         // END は最後の1行だけ。選択がまだ出ていない間（＝末尾が「本日の業務は、以上です。」）は出さない。
-        if (_e6ChoiceLine < 0 && _line >= _outro.Count - 1)
+        if (_e6ChoiceLine < 0 && _line >= _end.Count - 1)
             Shadowed(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
                 UiKit.CutInk with { A = 0.9f });
     }
 
-    // 下部の語り／会話ボックス。Who: "地"=ミナ語り / "ミナ"=ミナ / "UI"=画面テキスト。
+    // 話者ごとの縁色。三人（あかり／こはる／レイ）は面の色を借りて、ミナと取り違えないようにする。
+    private static Color EdgeFor(string who) => who switch
+    {
+        "地"      => UiKit.CutNarr,     // 語り＝話者名なし・中央寄せ
+        "あなた"  => UiKit.CutWarm,     // 送られた下書き（E6）
+        "あかり"  => new Color("ffb0b8"),
+        "こはる"  => new Color("ffd28a"),
+        "レイ"    => new Color("9fd8ff"),
+        _          => Cool,              // ミナ
+    };
+
+    // 下部の語り／会話ボックス。Who: "地"=語り / "ミナ" / 三人の名（あかり・こはる・レイ）/ "あなた"。
+    //   旧 "UI"（画面テキスト・起動記録の等幅コード緑）は E2〜E5 の削除で使う行が無くなったので落とした。
     private void DrawLineBox(DLine d)
     {
-        bool ui = d.Who == "UI";
-        bool narr = d.Who == "地";        // ミナの語り＝話者名なし・中央寄せでセリフと区別
-        bool you = d.Who == "あなた";      // 送られた下書き（E6）＝他画面と揃えて暖色
-        // S3: 起動記録（bootログ）の再掲行（"> " 始まり）は Prologue と同じ等幅フォント＋コード緑で出す。
-        //   「最初の記憶＝機械の生ログ」であることを、言葉でなく書体と色で Prologue に照応させる。
-        //   話者ラベルも出さない（コンソール行に話者はいない）。
-        bool boot = ui && d.Text.StartsWith(">");
-        var font = boot ? UiKit.Mono : _font;
-        // 画面テキスト（DM等）は浄化シアン、bootログはコード緑、語りはニュートラル、
-        // 「あなた」は暖色、セリフはミナ色。
-        Color edge = narr ? UiKit.CutNarr : (ui ? (boot ? Code : UiKit.Purify) : (you ? UiKit.CutWarm : Cool));
+        bool narr = d.Who == "地";        // 語り＝話者名なし・中央寄せでセリフと区別
+        var font = _font;
+        Color edge = EdgeFor(d.Who);
         // 現在ページ（2行固定・禁則つき）。ボックスは2行分の固定高さ（行数で伸ばさない＝全ボックス統一）。
         string page = CurPage;
         var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
         // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, boot ? 0.4f : 0.5f);
-        string label = narr || boot ? "" : d.Who;
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, 0.5f);
+        string label = narr ? "" : d.Who;
         if (label != "")
             DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         var align = narr ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         // 中央寄せのナレは「中央から左右へ広がる」見え方になるタイプライターをやめ、現在ページ全文をその場でフェードイン表示。
         //   （中央寄せ＋部分文字列だと毎フレーム再センタリングされて左右に展開して見えるため）。
         // セリフ（左寄せ）は従来どおり左→右のタイプライターで送る。
-        Color ink = boot ? Code : Ink;   // bootログ行はコード緑（Prologue と同値）
+        Color ink = Ink;
         int shown;
         if (narr)
         {
@@ -681,7 +688,7 @@ public partial class Epilogue : Node2D
         }
         else
         {
-            shown = Mathf.Clamp((int)_reveal, 0, page.Length); // bootログもタイプライター＝端末に流れる感を保つ
+            shown = Mathf.Clamp((int)_reveal, 0, page.Length);
         }
         UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody, ink, shown, align);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。

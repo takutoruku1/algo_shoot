@@ -117,6 +117,15 @@ public partial class Audio : Node
     //   ロード失敗時は従来のコード合成 BuildBgmFinalResolve()（主題 M.I.N.A. の解決変奏）にフォールバック。
     public AudioStream BgmFinalResolve = null!;
 
+    // エピローグ E5b「見上げる／歩く」のオルゴール（未調達）。
+    //   台本 08 E5b 演出の指定：オルゴール音色・夜→明け方の静けさ・泣かせにかからない・
+    //   ループ不要（一度きりで終わってよい）・70〜90秒。候補は BGM/candidates.md「⑬ bgm_epilogue_walk」。
+    //   **曲がまだ決まっていない**ので、いまは res://audio/bgm_epilogue_walk.ogg を置くだけの器にしてある。
+    //   ファイルが無ければ null のまま＝E5b は無音で通る（Epilogue 側が null を受けて何も鳴らさない）。
+    //   採用曲が決まったら ogg をこの名前で置くだけで鳴る（コード変更不要）。
+    //   再生は MusicOnce()＝1周で無音に落ちる（台本の「…………。」で完全停止する扱いは Epilogue 側）。
+    public AudioStream? BgmEpilogueWalk;
+
     // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
     //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
     //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
@@ -197,6 +206,7 @@ public partial class Audio : Node
         BgmStageW0     = LoadBgmStageW0();
         BgmBoss   = BuildBgmBoss();
         BgmFinalResolve = LoadBgmFinalResolve();
+        BgmEpilogueWalk = LoadBgmEpilogueWalk();
         BgmBossRei    = LoadBgmBossRei();
         BgmBossAkari  = LoadBgmBossAkari();
         BgmBossKoharu = LoadBgmBossKoharu();
@@ -358,6 +368,35 @@ public partial class Audio : Node
     }
 
     public void StopMusic(float fade = 0.5f) => Music(null, fade);
+
+    // ───────── 1周だけ鳴らして無音に落ちる再生（Epilogue E5b のオルゴール）─────────
+    //   Music() はループ前提（曲尾で止めずに鳴らしっぱなし）なので、「1周で終わって無音」を
+    //   別経路で持つ。やることは Music() と同じクロスフェード起動＋
+    //   (a) ogg/mp3 のループ焼きをこの再生に限って外す（Loop=false）
+    //   (b) Finished を1回だけ拾って _currentMusic を落とす
+    //   ＝曲が終わったあと Music(BgmMenu) を呼べば「無音からの復帰」として素直に立ち上がる。
+    //   ストリーム側の Loop を書き換えるので、同じリソースをループ再生に戻すときは Music() が
+    //   LoadBgm* の設定を触らない＝呼び出し側は「ワンショット専用の曲」を渡すこと。
+    public void MusicOnce(AudioStream? stream, float fade = 1.0f)
+    {
+        if (Muted || stream == null) return;
+        if (stream is AudioStreamOggVorbis ogg) ogg.Loop = false;
+        else if (stream is AudioStreamMP3 mp3) mp3.Loop = false;
+        else if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Disabled;
+        Music(stream, fade);
+        // Music() が _useA を反転させた後なので、いま鳴らし始めたのは反転前の「次」＝現在の cur。
+        var p = _useA ? _musicA : _musicB;
+        if (p.Stream != stream) return;
+        // ワンショット専用の一度きり接続（多重接続と、次の曲での誤発火を避ける）。
+        p.Connect(AudioStreamPlayer.SignalName.Finished, Callable.From(OnMusicOnceFinished),
+                  (uint)GodotObject.ConnectFlags.OneShot);
+    }
+
+    // ワンショットが鳴り終わった＝無音。次の Music() が「無音からの立ち上げ」になるよう状態を落とす。
+    private void OnMusicOnceFinished()
+    {
+        _currentMusic = null;
+    }
 
     // ───────── 適応演出：再生中の音楽の再生速度（PitchScale）を滑らかに変える ─────────
     //   レイ戦で HP20%以下になった瞬間に SetMusicSpeed(1.15f) を1回呼ぶ＝曲が加速する（緊迫）。
@@ -968,6 +1007,17 @@ public partial class Audio : Node
     //   ogg は import 設定 loop=true でループを焼いてあるが、念のため
     //   AudioStreamOggVorbis.Loop も明示する（Music() は曲尾で止めず鳴らしっぱなしにするため）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来のコード合成 BuildBgmMenu() に戻す。
+    // ───────── BgmEpilogueWalk のロード（未調達＝ファイルが無ければ null）─────────
+    //   E5b のオルゴール。曲がまだ選定中（BGM/candidates.md ⑬）なので、合成フォールバックは置かない
+    //   ＝「無い曲を代わりの音で埋めない」（沈黙のほうが台本の意図に近い）。
+    //   res://audio/bgm_epilogue_walk.ogg を置けば、そのまま E5b で鳴る。
+    private AudioStream? LoadBgmEpilogueWalk()
+    {
+        const string path = "res://audio/bgm_epilogue_walk.ogg";
+        if (!ResourceLoader.Exists(path)) return null;   // 未調達＝無音で通す（警告も出さない）
+        return ResourceLoader.Load<AudioStream>(path);
+    }
+
     private AudioStream LoadBgmMenu()
     {
         var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_menu_mina.ogg");
