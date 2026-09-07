@@ -11,7 +11,19 @@ public partial class Enemy : Area2D
     // 浄化(改心)時の基礎得点（派生で上書き）。
     protected int Points = 100;
     protected float BodyRadius = 9f;
-    // 合図リング／露出オーラ／被弾リングの描画基準（見た目だけ。当たり判定は BodyRadius のまま）。
+    // ── 本体の当たり判定の形（2026-09-07）──
+    //   BodyHalfH > BodyRadius なら円ではなく**縦長のカプセル**（CapsuleShape2D）を使う。
+    //   BodyHalfH の既定は 0＝従来どおりの円で、ザコ・弾・小物は何も変わらない（オプトイン）。
+    //
+    //   なぜ円をやめたか: ボスの立ち絵は縦長（表示高 56px に対し幅 38〜49px）で、円ひとつだと
+    //   「横は絵の端に届くが縦は届かない」形になる。半径 22 では直径 44px＝横幅とはほぼ一致する
+    //   のに高さの 79% しか覆えず、頭と足が判定の外に残った＝ユーザー実機指摘「上から当たらない」
+    //   「ボスのイラストに当たり判定つけて」。半径を上げるだけだと今度は横がはみ出す
+    //   （26 にすると直径 52px で、いちばん細い絵の 38px を 14px も超える）。
+    //   カプセルなら縦横を別々に決められるので、1つの形のまま絵に沿う。
+    protected float BodyHalfH = 0f;   // 0＝円（従来）／>BodyRadius でカプセルの縦半径
+
+    // 合図リング／露出オーラ／被弾リングの描画基準（見た目だけ。当たり判定は上の形のまま）。
     //   接触半径をボスで 9→22 に上げた（2026-09-06）ぶん、そのまま基準にすると露出オーラが
     //   スイートスポットの薄リング（PointBlankRange=48px）と重なって「どこまで詰めれば得か」が読めなくなる。
     //   描画側だけ上限を設けて、オーラと 48px リングの間隔を残す。
@@ -249,10 +261,18 @@ public partial class Enemy : Area2D
         AreaEntered += OnBodyHitByPlayerBullet;
 
         OnEnemyReady();
-        // ★当たり円は OnEnemyReady の後で作る：BodyRadius は派生（MidEnemy / 各ボスの boss_stats.ini）が
-        //   OnEnemyReady で上書きするので、その前に円を作ると全敵が基底の既定値 9px のまま固定されてしまう
-        //   （＝「ボスに触っても当たらない」の原因。2026-09-06 修正）。
-        _bodyShape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius } };
+        // ★当たり判定は OnEnemyReady の後で作る：BodyRadius / BodyHalfH は派生（MidEnemy / 各ボスの
+        //   boss_stats.ini）が OnEnemyReady で上書きするので、その前に作ると全敵が基底の既定値 9px の
+        //   まま固定されてしまう（＝「ボスに触っても当たらない」の原因。2026-09-06 修正）。
+        //   BodyHalfH を指定した敵（ボス）は縦長カプセル、それ以外は従来どおり円。
+        //   CapsuleShape2D の Height は「全高」＝両端の半円込み。縦半径 BodyHalfH の 2 倍を渡し、
+        //   Radius より小さくならないようクランプする（Godot は Height < 2*Radius を許さない）。
+        _bodyShape = new CollisionShape2D
+        {
+            Shape = BodyHalfH > BodyRadius
+                ? new CapsuleShape2D { Radius = BodyRadius, Height = Mathf.Max(BodyHalfH * 2f, BodyRadius * 2f) }
+                : new CircleShape2D { Radius = BodyRadius },
+        };
         AddChild(_bodyShape);
         // ボスHPは難易度別バー本数で決まる（総HP=BarHp×BarCount）。本数は派生 OnEnemyReady で確定済み。
         _maxHp = BarCount * BarHp;

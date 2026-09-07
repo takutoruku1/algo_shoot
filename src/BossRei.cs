@@ -130,7 +130,8 @@ public partial class BossRei : Enemy
     {
         // 主要バランス値は INI（config/boss_stats.ini [rei]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("rei", "points", 1500);
-        BodyRadius = BossTuning.F("rei", "body_radius", 9f);
+        BodyRadius = BossTuning.F("rei", "body_radius", 19f);
+        BodyHalfH = BossTuning.F("rei", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
         PanelInk = BossTuning.I("rei", "panel_ink", 2);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);

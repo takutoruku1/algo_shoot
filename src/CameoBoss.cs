@@ -48,7 +48,8 @@ public partial class CameoBoss : Enemy
     private const int CameoPanelInk = 2;      // 1パネルの耐久（剥がすのに要する被弾数）
     private const float CameoOrbitR = 24f;    // パネル周回半径
     private const float CameoSpin = 1.0f;     // パネル周回速度(rad/s)
-    private const float CameoBodyR = 9f;      // 本体当たり半径
+    private const float CameoBodyR = 14f;     // 本体当たり「横」半径（カプセルの半径）
+    private const float CameoBodyHalfH = 20f; // 本体当たり「縦」半径（カプセルの縦半径）
     private const float CameoBodyH = 50f;     // 立ち絵の表示高
     private const int CameoPoints = 700;      // 浄化スコア（本戦1500より控えめ）
     private const float CameoBulletSpd = 80f; // 基準弾速
@@ -117,6 +118,7 @@ public partial class CameoBoss : Enemy
         // 第3引数＝現行既定値（上の Tunables 定数）。
         Points = BossTuning.I("cameo", "points", CameoPoints);
         BodyRadius = BossTuning.F("cameo", "body_radius", CameoBodyR);
+        BodyHalfH = BossTuning.F("cameo", "body_half_h", CameoBodyHalfH);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("cameo", "panel_count", CameoPanels);
         PanelInk = BossTuning.I("cameo", "panel_ink", CameoPanelInk);
         OrbitRadius = BossTuning.F("cameo", "orbit_radius", CameoOrbitR);

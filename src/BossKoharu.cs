@@ -150,7 +150,8 @@ public partial class BossKoharu : Enemy
     {
         // 主要バランス値は INI（config/boss_stats.ini [koharu]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("koharu", "points", 1800);
-        BodyRadius = BossTuning.F("koharu", "body_radius", 9f);
+        BodyRadius = BossTuning.F("koharu", "body_radius", 19f);
+        BodyHalfH = BossTuning.F("koharu", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだ」等の言葉（黒い吹き出し）
         PanelInk = BossTuning.I("koharu", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);

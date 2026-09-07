@@ -102,7 +102,8 @@ public partial class BossAkari : Enemy
     {
         // 主要バランス値は INI（config/boss_stats.ini [akari]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("akari", "points", 1500);
-        BodyRadius = BossTuning.F("akari", "body_radius", 9f);
+        BodyRadius = BossTuning.F("akari", "body_radius", 19f);
+        BodyHalfH = BossTuning.F("akari", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
         PanelInk = BossTuning.I("akari", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);

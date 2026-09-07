@@ -83,7 +83,8 @@ public partial class BossMina : Enemy
     {
         // 主要バランス値は INI（config/boss_stats.ini [mina]）で上書き可。第3引数＝現行既定値。
         Points = BossTuning.I("mina", "points", 3000);
-        BodyRadius = BossTuning.F("mina", "body_radius", 10f);
+        BodyRadius = BossTuning.F("mina", "body_radius", 16f);
+        BodyHalfH = BossTuning.F("mina", "body_half_h", 20f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
         PanelInk = BossTuning.I("mina", "panel_ink", 4); // 2→4（B-5: 終盤の強化に対しラスボスを最も厚く）
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
