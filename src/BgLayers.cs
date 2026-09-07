@@ -203,7 +203,9 @@ public partial class BgLayers : Node2D
                 Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = def.Offset,
                 Fade = fade,
                 // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
-                X = def.Loop ? 0f : def.Offset.X,
+                // 全画面の一枚物は「盤面の左端が素材の左端」を初期位置にする（_reveal は 0 から立ち上がる）
+                // ＝1フレーム目から視差の基準位置に居る（開幕に背景がガクッと寄らない）。
+                X = def.Loop ? 0f : def.Offset.X + (IsFullWidth(tileW) ? RevealMax : 0f),
             });
         }
     }
