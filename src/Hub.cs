@@ -640,7 +640,9 @@ public partial class Hub : Node2D
         if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
         _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
         // 縦スクロールは選択を追って滑らかに寄る（フィードのスクロール感）。
-        UpdateFeedScrollTarget();
+        //   ホイールで手動スクロールした直後（_wheelHoldT>0）は追従を止める＝手で送った位置を保つ。
+        if (_wheelHoldT > 0) _wheelHoldT -= delta;
+        else UpdateFeedScrollTarget();
         _feedScroll = Mathf.Lerp(_feedScroll, _feedScrollTarget, Mathf.Min(1f, (float)delta * 12f));
         if (_dived) { QueueRedraw(); return; }
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
@@ -782,12 +784,56 @@ public partial class Hub : Node2D
         return new Rect2(40f, top + i * (h + gap) - _feedScroll, W - 80f, h);
     }
 
+    // ───────── 投稿詳細（Detail）のマウス当たり判定 ─────────
+    //   寸法は DrawDetail と同じ式をここに写して共有する（cw/ch/cx/cy、潜り方の ty/th/tg、フッタの y）。
+    //   展開アニメの浮き（(1-k)*24）は無視して確定位置で判定＝開いた直後でもクリック位置が動かない。
+    //   ホットスポット id は カード id と衝突しないよう TierIdBase / DetailCloseId の帯を使う。
+    private const int TierIdBase = 20000, DetailCloseId = 20900;
+
+    private (float cx, float cy, float cw, float ch) DetailBox(bool tiers)
+    {
+        float cw = W - 160f, ch = tiers ? 512f : 300f;
+        return ((W - cw) / 2f, 108f, cw, ch);
+    }
+
+    // 潜り方 i 段目の矩形（DrawDetail の DrawTier 呼び出しと同じ x/y/w/h）。
+    private Rect2 TierHitRect(int i)
+    {
+        var (cx, cy, cw, _) = DetailBox(true);
+        float ty = cy + 266f, th = 44f, tg = 6f;
+        return new Rect2(cx + 40f, ty + i * (th + tg), cw - 80f, th);
+    }
+
+    // 詳細フッタの「とじる」の矩形。フッタは Hint を左から並べる（↑↓潜り方 → 潜る → とじる）ので、
+    //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
+    private Rect2 DetailCloseRect(bool tiers)
+    {
+        var (cx, cy, _, ch) = DetailBox(tiers);
+        float fy = cy + ch - 22f, fx = cx + 40f;
+        if (tiers) fx += FootItemSpan("↑↓", "潜り方");
+        fx += FootItemSpan(Pad.ConfirmToken, "潜る");
+        string key = Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B);
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        return new Rect2(fx - 4f, fy - 16f, kw + 8 + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontLabel) + 8f, 30f);
+    }
+
     private void ProcessCards()
     {
         if (_autoplay) { if (_t - _cardsEnteredT >= AutoDiveDelay) DiveAuto(); return; }
 
         // R＝タイムラインの再読込。パッドの Start はポーズメニュー（開閉）と衝突するため外した。
         if (Input.IsKeyPressed(Key.R)) { GetTree().ReloadCurrentScene(); return; }
+
+        // マウスホイール：feed の縦スクロール（2026-09-07）。作法は Shop.cs に合わせる＝
+        //   ホイールは「視点だけ」を動かし、カーソル(_sel)は動かさない。動かしている間は選択追従
+        //   （UpdateFeedScrollTarget）を _wheelHoldT 秒だけ止める＝手で送った位置が選択に引き戻されない。
+        //   ホイールで送った先のカードにマウスが乗れば、下のホバー追従が選択を移す＝送って選ぶ、が繋がる。
+        float wheel = Pad.WheelDelta();
+        if (wheel != 0f && FeedMaxScroll() > 0f)
+        {
+            _feedScrollTarget = Mathf.Clamp(_feedScrollTarget - wheel * WheelStep, 0f, FeedMaxScroll());
+            _wheelHoldT = WheelHoldSecs;
+        }
 
         // マウス：フレーム頭でホットスポットをクリア＋カード矩形とフッタ操作を登録（カードモードのみ＝会話中は登録しない）。
         //   カード id = 0..entries-1／フッタ id = FooterIdBase+i（空間を分けて種別を判別する）。
@@ -813,6 +859,7 @@ public partial class Hub : Node2D
         {
             if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
             if (down) _sel = (_sel + 1) % _entries.Length;
+            _wheelHoldT = 0;   // 十字で動かしたら選択追従を即再開（ホイールで送った位置に固まらない）
             Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
@@ -899,6 +946,20 @@ public partial class Hub : Node2D
         // FINAL は潜り方を選ばせない（従来の FINAL の扱いを踏襲＝深さは選ばずそのまま内側へ）。
         bool tiers = !e.IsFinal;
 
+        // マウス：潜り方の段と「とじる」を登録（DiffSelect / Shop と同じ作法）。
+        //   ホバーで選択が移るのは解放済みの段だけ＝未解放（底まで）にはカーソルを乗せない。
+        //   クリックは下の zEdge / backEdge と同じ確定経路へ合流させる。
+        UiKit.BeginHotspots(Pad.MousePos());
+        if (tiers) for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierHitRect(i), TierIdBase + i);
+        UiKit.Hotspot(DetailCloseRect(tiers), DetailCloseId);
+        int dhov = UiKit.HoveredId();
+        if (Pad.UsingMouse && dhov >= TierIdBase && dhov < TierIdBase + Tiers.Length)
+        {
+            int hi = dhov - TierIdBase;
+            if (TierOpen(hi) && hi != _tierSel) { _tierSel = hi; Audio.Instance?.PlayUiMove(); }
+        }
+        int dclk = UiKit.ClickedId(Pad.MouseClick());
+
         if (tiers)
         {
             bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
@@ -916,8 +977,22 @@ public partial class Hub : Node2D
             _navHeld = up || down;
         }
 
+        // マウス：「とじる」クリック＝X と同じ（カード一覧へ戻る）。ここで消費して潜る側へ流さない。
+        if (dclk == DetailCloseId && _detailT > 0.15)
+        {
+            Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; _xHeld = true;
+            return;
+        }
+
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
+        // マウス：段のクリックで選択＋確定（＝Z と同じ）。未解禁の段（底まで）は拒否音だけで何も起きない。
+        if (dclk >= TierIdBase && dclk < TierIdBase + Tiers.Length && _detailT > 0.15)
+        {
+            int ci = dclk - TierIdBase;
+            if (TierOpen(ci)) { _tierSel = ci; zEdge = true; }
+            else { Audio.Instance?.PlayUiDeny(); return; }
+        }
         if (zEdge && _detailT > 0.15 && (!tiers || TierOpen(_tierSel)))
         {
             Audio.Instance?.PlayUiConfirm();
@@ -1052,6 +1127,10 @@ public partial class Hub : Node2D
 
     // 縦スクロール量（px）。選択カードが常に画面内に収まるよう追従する。
     private float _feedScroll, _feedScrollTarget;
+    // マウスホイールで手動スクロールした直後は選択追従を止める（Shop.cs と同じ作法・同じ値）。
+    private double _wheelHoldT;
+    private const double WheelHoldSecs = 0.9;   // ホイール後この秒数は追従を抑止
+    private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
     private float FeedMaxScroll()
     {
         var (top, h, gap) = CardMetrics();
@@ -1604,10 +1683,12 @@ public partial class Hub : Node2D
         }
 
         // ── フッタ（この画面の操作）──
+        //   「とじる」はクリックできる＝ホバー中は下敷きを敷く（カード側フッタと同じ見せ方）。
         float fy = cy + ch - 22f, fx = cx + 40f;
         if (tiers) fx = Hint(fx, fy, "↑↓", "潜り方", false);
         fx = Hint(fx, fy, Pad.ConfirmToken, "潜る", true);
-        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false);
+        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false,
+            UiKit.HoveredId() == DetailCloseId);
     }
 
     // 潜り方の1段。名前／ミナの一言（DiffSelect の Quip）／♥ボム／板の枚数（ボスHPバー本数）。
