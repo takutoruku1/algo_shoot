@@ -2,15 +2,16 @@ using Godot;
 using System.Collections.Generic;
 
 // Player : Area2D。グループ "player" に追加。
-// 移動(通常150 / 低速65 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
+// 移動(通常75 / 低速33 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
 // W0 では残機を減らさず「練習中」扱い（ゲームオーバーにしない）。
 // 衝突: layer=1, mask=12（敵=4 と 敵弾=8 を検出）。
 // 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点を _Draw で小さく描く。
 public partial class Player : Area2D
 {
-    // 速度
-    private const float NormalSpeed = 150f;
-    private const float FocusSpeed = 65f;
+    // 速度（2026-09-08 ユーザー指示で基本移動を半減：150→75）。
+    //   低速も同率で落とす（65→33）。片方だけ下げると通常と低速の差が消えて低速の意味が無くなる。
+    private const float NormalSpeed = 75f;
+    private const float FocusSpeed = 33f;
 
     // 連射
     private const float FireInterval = 0.13f;
