@@ -506,7 +506,7 @@ public partial class StageKoharu : Node
                     _cStarted = true;
                     _cChoiceT = 0;
                     // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
-                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _cChoiceT += delta;
                 if (_cOverlay == null || !_cOverlay.Decided) return false;
@@ -644,7 +644,7 @@ public partial class StageKoharu : Node
             string[] opts = three
                 ? new[] { "もういちど、聞く", "しずかに、まつ", "ひきさがる" }
                 : new[] { "もういちど、聞く", "ひきさがる" };
-            _midChoice = ChoiceOverlay.Show(Hud, opts, defaultSel: opts.Length - 1); // 0=A / 末尾=B（既定=B＝正典側）
+            _midChoice = ChoiceOverlay.Show(Hud, opts, defaultSel: opts.Length - 1, onBoard: true); // 0=A / 末尾=B（既定=B＝正典側）
         }
         if (_midChoice == null || !_midChoice.Decided) return;
         _midChoseA = _midChoice.Selected == 0;

@@ -414,7 +414,7 @@ public partial class StageAkari : Node
                     _stepStarted = true;
                     _s14ChoiceT = 0;
                     // 既定カーソルは末尾＝（送らない）。ChoiceOverlay の沈黙20秒の自動決定もここへ落ちる（台本どおり）。
-                    _s14Choice = ChoiceOverlay.Show(Hud, S14Choices, defaultSel: S14Choices.Length - 1);
+                    _s14Choice = ChoiceOverlay.Show(Hud, S14Choices, defaultSel: S14Choices.Length - 1, onBoard: true);
                 }
                 _s14ChoiceT += delta;
                 if (_s14Choice == null || !_s14Choice.Decided) return;
@@ -473,7 +473,7 @@ public partial class StageAkari : Node
                     _stepStarted = true;
                     _choiceT = 0;
                     // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
-                    _choice = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                    _choice = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _choiceT += delta;
                 if (_choice == null || !_choice.Decided) return;

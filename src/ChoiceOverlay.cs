@@ -3,12 +3,15 @@ using System.Collections.Generic;
 
 // ChoiceOverlay : 会話中のN択（2〜4）選択UI（「言いかけの言葉」演出・中央整列版）。
 //   旧メニュー箱（フラット暗幕＋UiKit.Box）は使わないが、断片を世界に溶かしすぎて選択の記号性を失った
-//   反省（プレイ評: 位置がわかりづらい・文字が小さい）から、断片は**画面中央に大きく縦積み**し、
+//   反省（プレイ評: 位置がわかりづらい・文字が小さい）から、断片は**中央に大きく縦積み**し、
 //   ▸マーカー＋光の下線で「並んだ選択リスト」に見せる。没入は暗幕でなく**周辺減光（ビネット）**で作り、
 //   戦場（QuietVeil の鈍色）は見えたまま中央へ視線を集める。Hud(CanvasLayer) にぶら下げて全画面に描く。
 //
-// 使い方（StageKoharu.Step_MidChoice 参照）── 外部APIは旧版と不変:
-//   _choice = ChoiceOverlay.Show(Hud, new[] { "選択肢A", "選択肢B" }, defaultSel: 1);
+//   横の基準は2通りある（Show の onBoard で選ぶ。詳細は _centerX のコメント）:
+//     道中の会話（盤面あり）＝盤面 Field の中心（設計 x 840）／カットシーン＝画面の中心（640）。
+//
+// 使い方（StageKoharu.Step_MidChoice 参照）:
+//   _choice = ChoiceOverlay.Show(Hud, new[] { "選択肢A", "選択肢B" }, defaultSel: 1, onBoard: true);
 //   ... _choice.Decided が立ったら _choice.Selected を読み、QueueFree する（後始末は呼び出し側の責務）。
 //
 // 演出タイムライン（予備動作→本動作→余韻。yoshida style §4）:
@@ -84,7 +87,6 @@ public partial class ChoiceOverlay : Control
     private const double SilenceWarm = 14.0;  // ここから「ひきさがる」が灯りはじめる
     private const double SilenceAuto = 20.0;  // 自動決定
     private const int FontSize = 38;          // 会話文（FontHeading=20）の約2倍＝選択肢だと一目で分かる大きさ
-    private const float CenterX = UiKit.DesignW * 0.5f;
     // 縦積みの配置（N択共通）。行間 RowPitch で BlockCenterY を中心に上下対称へ並べる。
     //   2択は従来と同じ y=240/330 に来る（285±45）＝既存の呼び出しの見え方は不変。
     //   3択は y=195/285/375、4択は y=150/240/330/420。いずれも吹き出し（y=520〜690）と
@@ -92,7 +94,21 @@ public partial class ChoiceOverlay : Control
     private const float RowPitch = 90f;       // 行間（2択の 330-240 と同じ）
     private const float BlockCenterY = 285f;  // 縦積み全体の中心（2択の中点 (240+330)/2）
     private const int MaxChoices = 4;         // 想定する上限（これを超えると下が吹き出しに掛かる）
-    private static readonly Vector2 BubbleTarget = new(640f, 535f); // 吹き出し（Hud.DrawDialog: 40,520,1200,170）の上辺中央
+
+    // ── 横の基準（2026-09-07: 盤面／画面全体の出し分け）──
+    //   盤面を左に寄せた（Field.Left=120 ＝ 設計座標で盤面 x 400..1280）あと、DesignW*0.5=640 の
+    //   中央寄せでは断片が盤面の中心（Field.DCenterX=840）より 200px 左＝サイドパネルに半分かぶった。
+    //   道中の会話（Hud にぶら下がる呼び出し）は盤面の中心へ、カットシーン（Prologue/Final/Epilogue
+    //   ＝盤面が無く画面全体を使う）は従来どおり画面の中心へ。どちらかは Show の onBoard で受け取る
+    //   ＝「Field を使う画面か」を呼び出し側が知っている情報として明示的に渡す（推測しない）。
+    private float _centerX = UiKit.DesignW * 0.5f;   // 断片の中央揃えとビネットの中心
+    private float _fieldLeft;                         // ビネットを敷く矩形の左端（盤面 or 画面）
+    private float _fieldWidth = UiKit.DesignW;        // 同・幅
+    // 決定した断片が昇って溶ける先＝吹き出しの上辺中央。道中は Hud.DrawDialog のバー（DlgBoxX/W ＝
+    // Field.DLeft+20 / Field.DWidth-40 ＝ 盤面の中、中心 840）、カットシーンは画面幅いっぱいのバー
+    // （中心 640）。どちらも中心は _centerX と一致するので、x は _centerX から取る。
+    private const float BubbleTargetY = 535f;
+    private Vector2 BubbleTarget => new(_centerX, BubbleTargetY);
 
     // 周辺減光テクスチャ（中心透明→縁が暗い放射グラデ）。毎フレーム new しない（UiKit._gradCache と同じ理由）。
     private static GradientTexture2D? _vignetteTex;
@@ -103,7 +119,11 @@ public partial class ChoiceOverlay : Control
 
     // N択（2〜MaxChoices）を出す。choices の並びがそのまま上から下の並びで、Selected はその添字。
     // 沈黙の自動決定は常に**末尾**が選ばれる＝呼び出し側は「引き下がる/何もしない」側を最後に置くこと。
-    public static ChoiceOverlay Show(Node parent, string[] choices, int defaultSel)
+    //
+    // onBoard: true＝盤面のある画面（道中の会話。Hud にぶら下げる呼び出し）＝盤面(Field)の中心へ出す。
+    //          false＝盤面の無い画面（Prologue/Final/Epilogue のカットシーン）＝画面全体の中心へ出す。
+    //          既定を false にしてあるのは、カットシーン側が「従来どおり」で通るようにするため。
+    public static ChoiceOverlay Show(Node parent, string[] choices, int defaultSel, bool onBoard = false)
     {
         if (choices.Length > MaxChoices)
             GD.PushWarning($"[ChoiceOverlay] {choices.Length} 択は想定外（上限 {MaxChoices}）。下の行が吹き出しに掛かる。");
@@ -112,6 +132,9 @@ public partial class ChoiceOverlay : Control
             Name = "ChoiceOverlay",
             _choices = choices,
             Selected = Mathf.Clamp(defaultSel, 0, Mathf.Max(0, choices.Length - 1)),
+            _centerX = onBoard ? Field.DCenterX : UiKit.DesignW * 0.5f,
+            _fieldLeft = onBoard ? Field.DLeft : 0f,
+            _fieldWidth = onBoard ? Field.DWidth : UiKit.DesignW,
         };
         parent.AddChild(c);
         return c;
@@ -140,7 +163,7 @@ public partial class ChoiceOverlay : Control
             _disp[i] = Quoted(_choices[i]);
             _w[i] = UiKit.TextW(UiKit.ZenBold, _disp[i], FontSize);
             // 画面中央に中央揃えで縦積み（行間は N によらず RowPitch で一定）。
-            _pos[i] = new Vector2(CenterX - _w[i] * 0.5f, top + RowPitch * i);
+            _pos[i] = new Vector2(_centerX - _w[i] * 0.5f, top + RowPitch * i);
         }
     }
 
@@ -339,6 +362,10 @@ public partial class ChoiceOverlay : Control
         // ── 周辺減光（ビネット）：フラット暗幕の代わり。戦場は見えたまま中央へ視線を集める。──
         //   出現時 0.3s でフェードイン、決定/解散時は断片と一緒に明ける。テクスチャは1枚を使い回し
         //   （毎フレーム new は RID 競合の実績あり＝UiKit._gradCache コメント参照）、αは modulate で動かす。
+        //   2026-09-07: 敷く矩形を**盤面だけ**にした（onBoard の呼び出し）。全画面のままだと減光の中心が
+        //   画面中心＝断片より 200px 左にずれて「暗いところと明るいところが別の場所」になるうえ、
+        //   サイドパネル（設計 x 0..373）の常設HUDまで暗くなって板の文字が読めなくなる。
+        //   カットシーンは盤面が無いので従来どおり画面全体（_fieldLeft=0 / _fieldWidth=DesignW）。
         _vignetteTex ??= new GradientTexture2D
         {
             Gradient = new Gradient
@@ -352,7 +379,8 @@ public partial class ChoiceOverlay : Control
         };
         float vigA = Mathf.Clamp((float)_t / VignetteIn, 0f, 1f) * (1f - dis);
         if (vigA > 0.01f)
-            DrawTextureRect(_vignetteTex, new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), false, new Color(1, 1, 1, vigA));
+            DrawTextureRect(_vignetteTex, new Rect2(_fieldLeft, 0, _fieldWidth, UiKit.DesignH), false,
+                new Color(1, 1, 1, vigA));
 
         float breath = 0.5f + 0.5f * Mathf.Sin((float)_t * 2.5f);
         for (int i = 0; i < _choices.Length; i++)
@@ -384,7 +412,7 @@ public partial class ChoiceOverlay : Control
             float wNow = UiKit.TextW(UiKit.ZenBold, _disp[i], size);
             // 位置：中央揃え（サイズが変わっても中心を保つ）。決定中の選ばれた断片だけ昇りの軌道へ。
             float bobY = FragBasePos(i).Y;
-            Vector2 p = chosen ? ChosenPos(dis) : new Vector2(CenterX - wNow * 0.5f, bobY);
+            Vector2 p = chosen ? ChosenPos(dis) : new Vector2(_centerX - wNow * 0.5f, bobY);
             var center = new Vector2(p.X + wNow * 0.5f, p.Y + size * 0.62f);
 
             // やわらかい発光（気配）。選択中は呼吸、決定中は溶ける光へ膨らむ。
@@ -471,13 +499,14 @@ public partial class ChoiceOverlay : Control
         // 操作ヒント：出現直後から小さく表示（入力が始まったら薄める）。
         //   位置は吹き出し（y=520〜690）の直上＝最下部ティッカー帯（y≈696〜）と重ねない。
         //   背景（棚のシルエット等）の上でも読めるよう薄い落ち影を敷く。
+        //   横は断片と同じ基準で中央寄せ（盤面 or 画面全体）＝ヒントだけ別の場所に出さない。
         if (_hintA > 0.01f && !_deciding)
         {
             string hint = "↑↓ / マウス えらぶ　" + Pad.ConfirmToken + " けってい";
-            UiKit.Text(this, UiKit.Mono, new Vector2(1.2f, 465.2f), hint, UiKit.FontSmall,
-                new Color(0f, 0f, 0f, 0.6f * _hintA), HorizontalAlignment.Center, UiKit.DesignW);
-            UiKit.Text(this, UiKit.Mono, new Vector2(0f, 464f), hint, UiKit.FontSmall,
-                new Color(UiKit.Text2, 0.95f * _hintA), HorizontalAlignment.Center, UiKit.DesignW);
+            UiKit.Text(this, UiKit.Mono, new Vector2(_fieldLeft + 1.2f, 465.2f), hint, UiKit.FontSmall,
+                new Color(0f, 0f, 0f, 0.6f * _hintA), HorizontalAlignment.Center, _fieldWidth);
+            UiKit.Text(this, UiKit.Mono, new Vector2(_fieldLeft, 464f), hint, UiKit.FontSmall,
+                new Color(UiKit.Text2, 0.95f * _hintA), HorizontalAlignment.Center, _fieldWidth);
         }
 
         UiKit.EndDesign(this);

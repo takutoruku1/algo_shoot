@@ -459,7 +459,7 @@ public partial class StageRei : Node
                     _cStarted = true;
                     _cChoiceT = 0;
                     // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
-                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1);
+                    _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _cChoiceT += delta;
                 if (_cOverlay == null || !_cOverlay.Decided) return;
@@ -816,7 +816,7 @@ public partial class StageRei : Node
         {
             _stepStarted = true;
             _s37ChoiceT = 0;
-            _midChoice = ChoiceOverlay.Show(Hud, S37Choices, defaultSel: S37Choices.Length - 1);
+            _midChoice = ChoiceOverlay.Show(Hud, S37Choices, defaultSel: S37Choices.Length - 1, onBoard: true);
         }
         _s37ChoiceT += delta;
         if (_midChoice == null || !_midChoice.Decided) return;
