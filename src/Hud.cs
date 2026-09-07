@@ -1356,24 +1356,38 @@ public partial class Hud : CanvasLayer
     private static float TickerHandleW(string h)
         => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6f;
 
-    // 「あなた」の行に出す下書きの吹き出し印（立ち絵の代わり）。枠の左端に置く小さな角丸＋打ちかけの三点。
-    // ハブの小話にも「あなた」の行があるので、Hub.DrawDialog から同じ印を使えるよう公開する（見え方を1か所に保つ）。
+    // 「あなた」の行に出す下書き欄（立ち絵の代わり）。
+    //   「あなた」は顔を持たず、下書きを選んで送ることでしか喋らない＝顔は描かない、が設計。
+    //   旧実装は 74×46 の横長の枠に薄い三点だけで、縦長のミナの立ち絵（約107×162）と並ぶと
+    //   面積比26%＋横長で釣り合わず、素材が読めなかったプレースホルダに見えていた。
+    //   そこで「こはる面の入力欄（CommentInput）」と同じ意匠の“縦長の入力欄”に作り直す：
+    //   顔の無い丸アバター → 区切り線 → 打ちかけの3行 → 末尾に明滅カーソル。
+    //   下半分をあえて空けるのは「まだ書き足せる余地」＝下書きであることの表現（欄の枠内なので抜けて見えない）。
+    //   幅は 74 のまま（DlgWrapW / BuildDialogPages のレイアウトを動かさない）。高さだけ 46→120 に伸ばす。
     public const float DraftMarkW = 74f;
-    public static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col)
+    public const float DraftMarkH = 120f;
+    public static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col, double t = 0)
     {
-        const float mh = 46f;
-        var r = new Rect2(leftCenter.X, leftCenter.Y - mh / 2f, DraftMarkW, mh);
-        UiKit.Box(ci, r, new Color(col.R, col.G, col.B, 0.10f), 10f, new Color(col, 0.45f), 1.2f);
-        // 吹き出しのしっぽ（左下へ）
-        ci.DrawPolyline(new[]
-        {
-            new Vector2(r.Position.X + 14, r.End.Y),
-            new Vector2(r.Position.X + 8,  r.End.Y + 9),
-            new Vector2(r.Position.X + 26, r.End.Y),
-        }, new Color(col, 0.45f), 1.2f);
-        // 打ちかけの三点（下書き＝まだ言葉になっていない）
+        var r = new Rect2(leftCenter.X, leftCenter.Y - DraftMarkH / 2f, DraftMarkW, DraftMarkH);
+        // 塗りは CommentInput と同じ暗い不透明。旧実装の α0.10 は背景の弾や絵が透けて“抜け”て見える原因だった。
+        UiKit.Box(ci, r, new Color(0.05f, 0.045f, 0.075f, 0.92f), 10f, new Color(col, 0.42f), 1.4f);
+        float lx = r.Position.X + 11f, full = DraftMarkW - 22f;
+        // 顔の無い丸アバター（CommentInput と同じく「顔は無い＝名前を出さない」）
+        float ay = r.Position.Y + 22f;
+        UiKit.Avatar(ci, new Vector2(r.Position.X + DraftMarkW / 2f, ay), 12f, new Color(col, 0.55f), "");
+        ci.DrawRect(new Rect2(lx, ay + 19f, full, 1f), new Color(col, 0.28f));
+        // 打ちかけの本文＝3行。最後の行だけ短く、その末尾でカーソルが明滅する（＝いま打っている途中）。
+        // 明滅の周期は CommentInput のカーソルと同じ 2.2（同じ欄だと体で分かるように揃える）。
+        float[] wf = { 1.0f, 0.78f, 0.40f };
+        float top = ay + 33f;
         for (int i = 0; i < 3; i++)
-            ci.DrawCircle(new Vector2(r.Position.X + 22 + i * 15, leftCenter.Y), 3.2f, new Color(col, 0.55f));
+        {
+            float ly = top + i * 13f, lw = full * wf[i];
+            bool last = i == 2;
+            UiKit.Box(ci, new Rect2(lx, ly, lw, 4.5f), new Color(col, last ? 0.34f : 0.24f), 2f);
+            if (last && ((int)(t * 2.2)) % 2 == 0)
+                ci.DrawRect(new Rect2(lx + lw + 3f, ly - 4.5f, 1.8f, 13f), new Color(1f, 1f, 1f, 0.85f));
+        }
     }
 
     private void DrawDialog(HudCanvas ci)
@@ -1405,9 +1419,9 @@ public partial class Hud : CanvasLayer
         // ここで描く立ち絵＝いま発話中の話者なので、揺れは「話者だけ」に自然に閉じる。
         if (_dlgPortrait == null && _dlgDraftMark)
         {
-            // 「あなた」には顔が無い。立ち絵の枠は空けたまま、下書きの吹き出し風の小さな印だけ置く
+            // 「あなた」には顔が無い。立ち絵の代わりに下書き欄（入力欄）を置く
             //（＝画面に人が増えず、それでも誰が喋ったかの居場所は残る）。
-            DrawDraftMark(ci, new Vector2(x + 10, y + h / 2f), _dlgSpeakerCol);
+            DrawDraftMark(ci, new Vector2(x + 10, y + h / 2f), _dlgSpeakerCol, _t);
             textX = x + 10 + DraftMarkW + 20;
         }
         if (_dlgPortrait != null)

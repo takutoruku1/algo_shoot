@@ -1793,7 +1793,9 @@ public partial class Hub : Node2D
         bool draft = spTop == DraftTop;
         bool faceless = spTop < 0f;
         if (draft)
-            Hud.DrawDraftMark(this, new Vector2(box.Position.X + 14, box.Position.Y + 44), spc);
+            // 下書き欄は縦長（DraftMarkH）。アバター（r=26）と違い上端 44 を中心にすると枠を割るので、
+            // 欄の上端を話者名と揃う位置（+24）に置いた上での縦中心を渡す。
+            Hud.DrawDraftMark(this, new Vector2(box.Position.X + 14, box.Position.Y + 24 + Hud.DraftMarkH / 2f), spc, _t);
         else if (!faceless)
             UiKit.FaceAvatar(this, new Vector2(box.Position.X + 44, box.Position.Y + 44), 26f, spFace, spc, false, spTop, 1f, _t);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(box.Position.X + (draft ? 14 + Hud.DraftMarkW + 20 : faceless ? 36 : 84), box.Position.Y + 24), sp, UiKit.FontSpeaker, spc);
