@@ -40,9 +40,9 @@ public sealed class BossMover
     // ── 状態。
     public enum St { Idle, Travel, Settle, Windup, Action, Recover, Hit }
 
-    // 画面は内部解像度 384×216。ボスゾーンの基準。
-    private Vector2 _zoneCenter = new Vector2(200f, 70f);
-    private float _zoneHalfW = 90f;
+    // ボスゾーンの基準（既定値。実際は各ボスの Configure が Field 基準で上書きする）。
+    private Vector2 _zoneCenter = new Vector2(Field.BossCenterX, 70f);
+    private float _zoneHalfW = Field.BossZoneHalfW;
     private float _zoneHalfH = 28f;
 
     // ── 巡航・追従パラメータ（ini: cruise_speed / accel_time）。
@@ -51,7 +51,7 @@ public sealed class BossMover
     private float _arriveDist = 6f;
 
     // ── 立ち位置（ini: stance_*）。ボスごとの性格はここと Configure(name) の分岐で出す。
-    private float _stanceCenterX = 200f;  // リング系で据わる x
+    private float _stanceCenterX = Field.BossCenterX;  // リング系で据わる x
     private float _stanceY = 70f;         // 基準の高さ
     private float _stanceEdgeX = 62f;     // Wall で端へ寄るときの中心からの距離
     private float _stanceTrackW = 70f;    // Aimed で自機を追える横幅（中心±この値まで）
@@ -95,9 +95,11 @@ public sealed class BossMover
     private double _flipWant;             // 反対側に居続けている時間(s)
     private bool _flipWantLeft;
     private double _flipSquashT;          // 反転 squash の残り(s)
-    private float _playerX = 200f;        // 直近の自機 x（呼び出し側が SetPlayerX で渡す）
+    private float _playerX = Field.CenterX; // 直近の自機 x（呼び出し側が SetPlayerX で渡す）
     private bool _hasPlayerX;
     private int _flipCount;               // 反転回数（検証ログ用）
+    public int MeasureStanceMoves;        // TEMP-MEASURE
+    private Vector2 _measureLastTarget = new Vector2(-9999f, -9999f); // TEMP-MEASURE
 
     // ── 公開：視覚用の付加情報（呼び出し側が ApplyBossMotion に渡す）。
     public Vector2 VisualOffset { get; private set; }
@@ -400,6 +402,7 @@ public sealed class BossMover
         _target = new Vector2(
             Mathf.Clamp(x, _zoneCenter.X - _zoneHalfW, _zoneCenter.X + _zoneHalfW),
             Mathf.Clamp(y, _zoneCenter.Y - _zoneHalfH, _zoneCenter.Y + _zoneHalfH));
+        if ((_target - _measureLastTarget).Length() > 8f) { _measureLastTarget = _target; MeasureStanceMoves++; } // TEMP-MEASURE
     }
 
     // 自機を追うときの目標 x。track_gain で「どれだけ鏡写しに追うか」を決める

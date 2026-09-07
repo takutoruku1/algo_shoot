@@ -9,7 +9,7 @@ using Godot;
 public static class Field
 {
     // 内部座標(384×216)のプレイフィールド矩形。ここだけを直せば盤面が動く。
-    public const float Left = 0f;   // ← 第3段でサイドパネルぶん右へ寄せる。今は 0 のまま（挙動不変）
+    public const float Left = 120f; // サイドパネル(0..112)＋額縁の隙間(112..120) の右端＝盤面の左端
     public const float Top = 0f, Right = 384f, Bottom = 216f;
     public const float Width = Right - Left;
     public const float Height = Bottom - Top;
@@ -18,10 +18,13 @@ public static class Field
     public static Rect2 Rect => new Rect2(Left, Top, Width, Height);
 
     // 設計座標(1280×720)版（UiKit.BeginDesign 後の HUD 描画用）。
+    //   HUD は BeginDesign で 1280×720 に伸ばして描くので、盤面に揃えたい UI はこちらを見る。
+    //   DLeft=400 / DCenterX=840 / DWidth=880。中央寄せは 640 ではなく DCenterX を使うこと。
     public const float DLeft = Left / UiKit.Scale;
     public const float DCenterX = CenterX / UiKit.Scale;
     public const float DWidth = Width / UiKit.Scale;
-    public const float PanelW = 373f;   // 設計座標のサイドパネル幅（第3段で使う）
+    public const float DRight = DLeft + DWidth;
+    public const float PanelW = 373f;   // 設計座標のサイドパネル幅（額縁の隙間 373..400 の左）
 
     // ── ボスの徘徊ゾーン（BossMover.Configure に渡す既定値）──
     //   従来は「中心X=200 / 半幅=90」の直書きだった。盤面が動いても同じ“やや右寄り・盤面の1/4幅”に

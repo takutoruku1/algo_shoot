@@ -338,11 +338,15 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 配膳：画面右半分（ボス側＝前へ出るほど早く食べ進められる）に 3列×8＝24発の“料理弾”を並べる。
+    // 配膳：盤面の右半分（ボス側＝前へ出るほど早く食べ進められる）に 3列×8＝24発の“料理弾”を並べる。
     // 祈り弾（MakeErasable）＝自機弾で消す→AddPrayerCleared の既存経路がそのまま「食べた」報酬になる。
     // Y=44/64/84 開始＋降下12px/s：8秒（＋難易度の弾速倍率）でも下端216pxに届かず画面外に落ちない
     // ＝「勝手に消えて完食扱い」の事故を構造で防ぐ。INIで行列数を増やしても、格子の間隔を画面内に
-    // 収まるようクランプして同じ保証を維持する（右端356px・開始Y上限94px）。
+    // 収まるようクランプして同じ保証を維持する（右端 MealRight・開始Y上限94px）。
+    // 配膳格子の左右端（盤面の右半分＝ボス側）。Field 基準なので盤面が動いても同じ“右半分”に並ぶ。
+    private const float MealLeft = Field.CenterX + Field.Width * 0.0573f;   // 旧 214（Left=0 時の 192+22）
+    private const float MealRight = Field.Right - 28f;                       // 旧 356（384-28）
+
     private bool ServeMeal()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
@@ -351,12 +355,12 @@ public partial class BossKoharu : Enemy
         // 「全部見なきゃ」の配膳弾＝箱から溢れたグッズ（うちわ）。祈り弾として並ぶので、
         // 撃って消す＝「見た／片づけた」になる。琥珀の円弾の色はグローとして絵の裏に残す。
         SetSpellVisual(Spells[0].shape, Spells[0].tint, BulletArt.KoharuUchiwa, 34f);
-        float colStep = _mealCols > 1 ? Mathf.Min(20f, (356f - 214f) / (_mealCols - 1)) : 0f;
+        float colStep = _mealCols > 1 ? Mathf.Min(20f, (MealRight - MealLeft) / (_mealCols - 1)) : 0f;
         float rowStep = _mealRows > 1 ? Mathf.Min(20f, (94f - 44f) / (_mealRows - 1)) : 0f;
         for (int row = 0; row < _mealRows; row++)
             for (int col = 0; col < _mealCols; col++)
             {
-                var pos = new Vector2(214f + col * colStep, 44f + row * rowStep);
+                var pos = new Vector2(MealLeft + col * colStep, 44f + row * rowStep);
                 var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f);
                 b.MakeErasable();
                 _meal.Add(b);
@@ -421,7 +425,7 @@ public partial class BossKoharu : Enemy
             case 1: // 宣告 → 第一十字（“出現時”の自機の現在地に置く）
                 if (_gotoT < GotoFirstDelay) return;
                 _gotoCenter = (GetTree().GetFirstNodeInGroup("player") as Node2D)?.GlobalPosition
-                              ?? new Vector2(120f, 130f); // 自機不在（起こらない保険）＝自機定位置側
+                              ?? new Vector2(Field.Left + 60f, 130f); // 自機不在（起こらない保険）＝自機定位置側
                 SpawnGotoAxisCross(1.2 * wm);
                 _gotoPhase = 2; _gotoT = 0;
                 return;

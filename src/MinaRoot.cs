@@ -35,7 +35,7 @@ public partial class MinaRoot : Node2D
         //   濁りは掛けない（穢れているのはここ＝彼女の内側であって、潜る光ではない）。
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(60, 108);
+        Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
         Player.SetCorruption(0f);
 
         Hud = new Hud { Name = "Hud" };

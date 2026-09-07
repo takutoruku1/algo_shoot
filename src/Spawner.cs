@@ -140,16 +140,16 @@ public partial class Spawner : Node
                 switch (edge)
                 {
                     case 1: // 画面上部・右上から下りてくる
-                        pos = new Vector2(_rng.RandfRange(230f, 360f), -12f);
-                        camp = new Vector2(_rng.RandfRange(180f, 300f), _rng.RandfRange(55f, 110f));
+                        pos = new Vector2(_rng.RandfRange(Field.Right - 154f, Field.Right - 24f), Field.Top - 12f);
+                        camp = new Vector2(_rng.RandfRange(Field.Left + 100f, Field.Left + 200f), _rng.RandfRange(55f, 110f));
                         break;
                     case 2: // 画面下部・右下から上ってくる
-                        pos = new Vector2(_rng.RandfRange(324f, 374f), 228f);
-                        camp = new Vector2(_rng.RandfRange(120f, 240f), _rng.RandfRange(110f, 165f));
+                        pos = new Vector2(_rng.RandfRange(Field.Right - 60f, Field.Right - 10f), Field.Bottom + 12f);
+                        camp = new Vector2(_rng.RandfRange(Field.Left + 60f, Field.Left + 160f), _rng.RandfRange(110f, 165f));
                         break;
                     default: // 右から（従来）
                         pos = new Vector2(SpawnX, y);
-                        camp = new Vector2(_rng.RandfRange(150f, 280f), y);
+                        camp = new Vector2(_rng.RandfRange(Field.Left + 60f, Field.Left + 180f), y);
                         break;
                 }
                 me.SetEntry(camp);

@@ -129,14 +129,14 @@ public partial class TrainingRoot : Node2D
 
         _player = new Player { Name = "Player" };
         _world.AddChild(_player);
-        _player.GlobalPosition = new Vector2(96, 120);
+        _player.GlobalPosition = new Vector2(Field.Left + 30f, 120f); // 盤面の左端寄り（可動域は Field でクランプ済み）
         _player.SetCorruption(0f);
 
         // ダミー敵（数値が見える実験台）。被弾ごとに DPS 計へ通知。
-        //   x=215（設計 ~717px）＝スキルパネル（開くと設計 x850〜）と干渉しない中央〜やや右に配置。
+        //   盤面中央のやや右＝スキルパネル（開くと設計 x850〜）と干渉しない位置。
         _dummy = new TrainingDummy { Name = "TrainingDummy", OnDamaged = OnDummyDamaged };
         _world.AddChild(_dummy);
-        _dummy.GlobalPosition = new Vector2(215, 120);
+        _dummy.GlobalPosition = new Vector2(Field.CenterX + 23f, 120f);
 
         // スキルパネル＋DPS表示のオーバーレイ（設計座標で描く専用 Control）。
         _uiLayer = new Control { Name = "UiLayer", MouseFilter = Control.MouseFilterEnum.Ignore };

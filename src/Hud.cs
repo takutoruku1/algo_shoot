@@ -734,6 +734,7 @@ public partial class Hud : CanvasLayer
     public void DrawAll(HudCanvas ci)
     {
         UiKit.BeginDesign(ci);
+        DrawSidePanel(ci);   // 最初に描く＝背景(384幅のまま)の上に不透明の板を被せてプレイ領域を切り出す
         DrawLifeBomb(ci);
         DrawPurify(ci);
         DrawScore(ci);
@@ -765,6 +766,28 @@ public partial class Hud : CanvasLayer
         if (_flashAlpha > 0f)
             ci.DrawRect(new Rect2(0, 0, 1280, 720), new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha));
         UiKit.EndDesign(ci);
+    }
+
+    // ───────── サイドパネル（プレイ領域の外側・設計座標 x 0..373）─────────
+    //   背景（StageBackground/StageImagery）は従来どおり内部 384px 幅いっぱいに描かれる。ここで
+    //   その上に不透明の板を被せて左を潰し、盤面を x 400..1280（内部 120..384）へ切り出す
+    //   ＝背景側のコードは一切触らずに「弾と UI を原理的に重ねない」を成立させる。
+    //   額縁の隙間（設計 373..400）は板を置かず、右端に縦罫だけを引く＝盤面の左辺が線として立つ。
+    //   不透明であることが要件（半透明だと背景が透けて、その上の文字が読めなくなる）。
+    private void DrawSidePanel(HudCanvas ci)
+    {
+        const float pw = Field.PanelW;   // 373
+        // 板本体：ほぼ不透明の暗色。上ほどわずかに明るいタテのグラデで“奥行きのある一枚板”にする。
+        UiKit.VGradient(ci, new Rect2(0, 0, pw, UiKit.DesignH),
+            new[] { new Color(0.043f, 0.037f, 0.075f, 1f), new Color(0.024f, 0.020f, 0.047f, 1f) },
+            new[] { 0f, 1f });
+        // 右端の額縁：内側から順に「淡い縦グラデの縁」「細い罫」。盤面の左辺をここで一本立てる。
+        UiKit.VGradient(ci, new Rect2(pw - 10f, 0, 10f, UiKit.DesignH),
+            new[] { new Color(UiKit.Mina.R, UiKit.Mina.G, UiKit.Mina.B, 0.10f), new Color(0f, 0f, 0f, 0.22f) },
+            new[] { 0f, 1f });
+        ci.DrawRect(new Rect2(pw - 1.5f, 0, 1.5f, UiKit.DesignH), new Color(UiKit.Mina, 0.42f));
+        // 盤面の左辺（隙間の右＝x=400）にも細い罫。板と盤面のあいだの“溝”が読める。
+        ci.DrawRect(new Rect2(Field.DLeft, 0, 1f, UiKit.DesignH), new Color(1f, 1f, 1f, 0.07f));
     }
 
     // 左上クラスタの自動退避用：色のαに _topLeftFade を乗じる（弾接近時だけ薄くなる）。

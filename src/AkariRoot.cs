@@ -71,7 +71,7 @@ public partial class AkariRoot : Node2D
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(60, 108);
+        Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
         // STAGE1：ミナの光はまだ澄んでいる（汚染なし）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetContamination(0f);
         Player.SetCorruption(0f);

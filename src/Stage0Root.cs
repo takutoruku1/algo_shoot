@@ -63,7 +63,7 @@ public partial class Stage0Root : Node2D
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
-        Player.GlobalPosition = new Vector2(180, 140);
+        Player.GlobalPosition = new Vector2(Field.Left + 60f, 140f); // 練習場の定位置（盤面左寄り）
         g?.SetContamination(0f);
         Player.SetCorruption(0f);
 
