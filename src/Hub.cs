@@ -1275,7 +1275,9 @@ public partial class Hub : Node2D
         UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
             new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? (filler ? alpha * 0.78f : alpha) : alpha * 0.34f), w2, bodyLines);
         // 伏字は本文の直下。ホバー行が出ている選択カードでは、その帯をミナに譲る。
-        bool hoverHere = sel && voice && e.Unlocked && _mode == Mode.Cards && HoverLineFor(e).Length > 0;
+        //   埋め草（モブ）にもカーソルを乗せればミナの一言が出る（2026-09-07）。文言が未記入のあいだは
+        //   HoverLineFor が空を返す＝従来どおり無言のまま＝見た目は変わらない。
+        bool hoverHere = sel && (voice || filler) && e.Unlocked && _mode == Mode.Cards && HoverLineFor(e).Length > 0;
         if (!hoverHere && ((voice && e.Unlocked && !e.Cleared) || e.Redacted))
             RedactedBars(tx, cy + 44 + bodyLines * 22f, w2, alpha);
 
@@ -1369,12 +1371,44 @@ public partial class Hub : Node2D
     // ホバー行の文言。既存の台詞からの転用に限る（新規の台詞は書かない）。
     private string HoverLineFor(Entry e)
     {
+        if (e.Sort == Kind.Filler) return MobLineFor(e);      // 埋め草＝声の聞こえない側の一言
         if (e.IsFinal) return "……ご主人様。次のカードは——わたくしの、内側です。";   // H3 帰還の行
         if (e.Cleared) return "";                                                     // 届いた投稿には、もう言うことがない
         // あかりの初回＝H0（仮台本 06）の2行目をそのまま置く。旧実装の入場ダイアログの代わり。
         if (e.Id == "akari") return "……この投稿の下から、も。聞こえます。";
         // こはる・レイは帰還小話の「次の声も、もう、聞こえています。」（H1 帰還の最終行）を引く。
         return "次の声も、もう、聞こえています。";
+    }
+
+    // ───────── 埋め草（モブの投稿）に添えるミナの一言 ─────────
+    //   2026-09-07 ユーザー要望「他の投稿を選ぶとミナのひとことあるとうれしい」。
+    //
+    //   【この行が壊してはいけないもの】
+    //   潜れる投稿とそうでない投稿の見分け。声のある投稿の行（上の HoverLineFor）は「聞こえます」＝
+    //   潜れる合図で、こちらは “聞こえない側” の一言＝観測だけを言う。
+    //   ここに「聞こえます」系の語を絶対に書かないこと（書くと探す遊びが消える）。
+    //
+    //   【文言は未確定】以下は差し込み口を通すための暫定で、正式な文言は scenario 担当が書く。
+    //   必要数＝SnsVoices.Count（20）。添字は名前・アイコンと同じ VoiceIndex なので、
+    //   同じアカウントには毎回同じ一言が付く（名前と一言が噛み合う形で書ける）。
+    private static readonly string[] MobLines =
+    {
+        // TODO(scenario): 20行。SnsVoices.All と同じ並び＝各行はその人の名前に噛み合わせて書く。
+        //   観測だけを言う（例：「……この方は、下書きがありません」「……送ってから、消していませんね」）。
+        //   「聞こえます」「声」は使わない＝潜れる投稿との見分けを保つ。
+        "", "", "", "", "", "", "", "", "", "",
+        "", "", "", "", "", "", "", "", "", "",
+    };
+
+    // Entry（埋め草）→ その人の一言。未記入（空文字）なら行を出さない＝いまは従来どおり無言になる。
+    //   Icon から人を引けないので（12種を20人で共有）、名前と同じ FillerVoice 添字を Entry.Id に
+    //   埋めてある通し番号から引き直す。Id は "filler{i}" 形式（BuildFiller が振る）。
+    private static string MobLineFor(Entry e)
+    {
+        if (!e.Id.StartsWith("filler")) return "";
+        if (!int.TryParse(e.Id.Substring(6), out int i)) return "";
+        int v = FillerVoice(i);
+        return v >= 0 && v < MobLines.Length ? MobLines[v] : "";
     }
 
     // カード右下のベストタイム表示。最速難易度のベスト＋小さな難易度ラベル。
