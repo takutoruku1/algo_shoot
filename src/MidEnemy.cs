@@ -64,11 +64,11 @@ public partial class MidEnemy : Enemy
     private float _bodyBaseScale = 1f;// _bodySprite の素のスケール（Scale演出はこれに係数を掛ける）
     private float _gaze;              // 監視カメラの“ギョロッ”用：目標ヨー(rad)。たまに切り替える
     private double _gazeT;            // 次に視線を変えるまでの残り秒
-    private float _spin;             // こはる包丁の“クルッ”用：余韻回転(rad)。撃つ瞬間に蹴って減衰
+    private float _spin;             // こはるペンライトの“クルッ”用：余韻回転(rad)。撃つ瞬間に蹴って減衰
     private float _kick;             // 予告/発射の溜め：一瞬の縦スカッシュ量（0で平常、減衰）
 
     // 1枚絵の transform で“生きてる感”を出す周期モーションの型（種＝モチーフごと）。
-    private enum LivingMotion { None, ReiDrone, ReiEye, AkariDesk, AkariNote, KoharuKnife, KoharuPot }
+    private enum LivingMotion { None, ReiDrone, ReiEye, AkariDesk, AkariNote, KoharuPenlight, KoharuBox }
 
     // Spawner から AddChild 前に呼ぶ（OnEnemy Ready/_Ready より先に値を渡しておく）。
     public void Configure(in EnemySpec spec) => _spec = spec;
@@ -136,8 +136,8 @@ public partial class MidEnemy : Enemy
         AttackPattern.ReiPulseRing => LivingMotion.ReiEye,     // 監視カメラの目
         AttackPattern.AkariScatter => LivingMotion.AkariDesk,  // 机・椅子
         AttackPattern.AkariDrop    => LivingMotion.AkariNote,  // ノート・教科書
-        AttackPattern.KoharuSharp3 => LivingMotion.KoharuKnife,// 包丁・まな板
-        AttackPattern.KoharuSimmer => LivingMotion.KoharuPot,  // 鍋・お玉
+        AttackPattern.KoharuSharp3 => LivingMotion.KoharuPenlight,// ペンライト
+        AttackPattern.KoharuSimmer => LivingMotion.KoharuBox,     // グッズ箱
         _ => LivingMotion.None,                                 // Default/アンチくん：素のまま
     };
 
@@ -574,8 +574,8 @@ public partial class MidEnemy : Enemy
                 oy = Mathf.Sin(t * 2.0f) * 2.2f;                 // ふわっと上下 ±2.2px
                 break;
 
-            // 包丁・まな板：突進的な小刻み振動（じりじり）＋進行(左)へ鋭い前傾＋たまにクルッと一回転の余韻。
-            case LivingMotion.KoharuKnife:
+            // ペンライト：突進的な小刻み振動（じりじり）＋進行(左)へ鋭い前傾＋たまにクルッと一回転の余韻。
+            case LivingMotion.KoharuPenlight:
                 ox = Mathf.Sin(t * 26.0f) * 0.7f;                // じりじり高速横振動 ±0.7px
                 oy = Mathf.Sin(t * 23.0f) * 0.5f;
                 rot = -0.12f;                                    // 鋭い前傾 -6.9°（攻め）
@@ -586,8 +586,8 @@ public partial class MidEnemy : Enemy
                 }
                 break;
 
-            // 鍋・お玉：ぐつぐつ。上下に小バウンド＋ぷるぷる横揺れ（粘性のある重い揺れ＝低周波＋微振動）。
-            case LivingMotion.KoharuPot:
+            // グッズ箱：ぐつぐつ。上下に小バウンド＋ぷるぷる横揺れ（粘性のある重い揺れ＝低周波＋微振動）。
+            case LivingMotion.KoharuBox:
                 oy = -Mathf.Abs(Mathf.Sin(t * 2.6f)) * 1.6f      // ぐつっと持ち上がるバウンド
                      + Mathf.Sin(t * 14.0f) * 0.4f;              // 沸騰の微振動を重ねる
                 ox = Mathf.Sin(t * 1.5f) * 0.9f;                 // 重い横揺れ（ゆっくり）

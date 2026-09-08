@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-08 19:02 UTC",
+  "generated": "2026-09-08 19:04 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 21,
-    "done": 212
+    "done": 213
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名",
-      "worker": "engineer",
-      "accept": "内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み"
-    },
     {
       "priority": "P2",
       "title": "正典シナリオ設計書v2が案C移行後も旧面順・こはる旧設定のまま放置されている",
@@ -163,6 +157,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-08) `src/EnemySpec.cs:95-100`でスキンは既に`enemy_koharu_penlight_*`(KoharuSharp3)・`enemy_koharu_box_*`(KoharuSimmer)に差し替え済みと確認。`src/MidEnemy.cs`内の`LivingMotion`列挙体の内部識別子のみ改名: `KoharuKnife`→`KoharuPenlight`(`MidEnemy.cs:71,139,578`)、`KoharuPot`→`KoharuBox`(`MidEnemy.cs:71,140,590`)。付随するコメント(`MidEnemy.cs:67`「こはる包丁の“クルッ”」→「こはるペンライトの“クルッ”」、`MidEnemy.cs:577`「包丁・まな板」→「ペンライト」、`MidEnemy.cs:589`「鍋・お玉」→「グッズ箱」)も更新。モーション自体の数値(振動周期・振幅等)は変更なし＝名称のみの改名。grep で`KoharuKnife`/`KoharuPot`の残存参照が無いことを確認済み。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P3",
       "title": "S2-4 入力欄を配信画面のコメント欄風の専用UIにする",
@@ -1438,6 +1438,16 @@
   ],
   "commits": [
     {
+      "hash": "1dc6937",
+      "date": "2026-09-08",
+      "subject": "auto: WIP着手 - MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名"
+    },
+    {
+      "hash": "ba4a00d",
+      "date": "2026-09-08",
+      "subject": "auto: S2-4入力欄を配信画面のコメント欄風の専用UIにする"
+    },
+    {
       "hash": "0032fcd",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - S2-4入力欄を配信画面のコメント欄風の専用UIにする"
@@ -1466,16 +1476,6 @@
       "hash": "27b2838",
       "date": "2026-09-07",
       "subject": "auto: 病みポストを見つける(案A)もBLOCKEDへ(仮台本10が未承認+前提未着手)"
-    },
-    {
-      "hash": "316115e",
-      "date": "2026-09-07",
-      "subject": "auto: 投稿文集の層付きプールをBLOCKEDへ(仮台本09が未採用の検討用草稿)"
-    },
-    {
-      "hash": "c8d4c62",
-      "date": "2026-09-07",
-      "subject": "auto: WIP着手 - 投稿文集の層付きプールを新設"
     }
   ]
 }
