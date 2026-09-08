@@ -30,7 +30,6 @@
 ## TODO
 
 <!-- 2026-09-05 組み込み計画（wiki/08_仮台本/15_組み込み計画.md）から投入。上から順に消化 -->
-- [ ] (P3) HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない | engineer | 2026-09-07監査で発見。`EnemySpec.cs:112-155`・`Spawner.cs:25-43`で全テーマ共通稼働中の引用リプ(FlankAim)・バズ壁(BuzzWall・通常の2.5倍の耐久)・祈り運び(KoharuPrayerCarry)が、`HowToPlay.cs:271-288`のコア機能カード5枚(やさしさ全開/ボム/弾強化/後方弾/浄化)に一切含まれない。特にバズ壁は見た目の差が乏しく初見で「弾が効いていない」と誤解されうる。受入条件: `HowToPlay.cs`ページ3(または適切な既存ページ)に3種のいずれかの体験に必要な最小限の一言を追加(例:硬い盾役もいる、無視して素通りしてもいい等)。既存カード様式`(title, body, accent)`を踏襲しレイアウト崩れが無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 <!-- 2026-09-07 監査モードで追加。根拠は各行の受入条件を参照 -->
 
@@ -38,6 +37,8 @@
 - [ ] (P2) DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる | qa→engineer | 2026-09-08発見。`--demo`（無敵なしの自然な自動プレイ）で `Rei.tscn -- --demo --seconds 220` を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。`--qa --assist`(god+aim)でも `build/shots/rei7.log` に `[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4` の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット`72d8c00`)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: `Rei.tscn -- --demo --seconds 220` を複数回実行し無被弾クリアの前提(`demo-video` skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## WIP
+
+- [ ] (P3) HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない | engineer | 2026-09-07監査で発見。`EnemySpec.cs:112-155`・`Spawner.cs:25-43`で全テーマ共通稼働中の引用リプ(FlankAim)・バズ壁(BuzzWall・通常の2.5倍の耐久)・祈り運び(KoharuPrayerCarry)が、`HowToPlay.cs:271-288`のコア機能カード5枚(やさしさ全開/ボム/弾強化/後方弾/浄化)に一切含まれない。特にバズ壁は見た目の差が乏しく初見で「弾が効いていない」と誤解されうる。受入条件: `HowToPlay.cs`ページ3(または適切な既存ページ)に3種のいずれかの体験に必要な最小限の一言を追加(例:硬い盾役もいる、無視して素通りしてもいい等)。既存カード様式`(title, body, accent)`を踏襲しレイアウト崩れが無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## BLOCKED
 
