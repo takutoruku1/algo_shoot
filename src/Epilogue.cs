@@ -248,7 +248,11 @@ public partial class Epilogue : Node2D
                         _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
                         // 台本の「…………。」を送り切ったところで曲を完全停止（無音）。残り2行は無音のまま。
                         //   曲が未調達で最初から鳴っていないときは呼ばない（Music() が空の Tween を作る）。
-                        if (_line == SilenceLine && _musicStarted) { Audio.Instance?.StopMusic(1.2f); _musicStarted = false; }
+                        //   フェードは 0.9 秒＝ぶつ切りにせず、しかし次の行を読み始める前に無音へ着く長さ
+                        //   （行送りの最短間隔 0.25 秒＋次行のタイプ時間より短く収まる）。
+                        //   StopMusicOnce＝MusicOnce の Finished フックを解いてから止める（曲尾まで
+                        //   行かない停止なので OneShot が残る。Audio.StopMusicOnce のコメント参照）。
+                        if (_line == SilenceLine && _musicStarted) { Audio.Instance?.StopMusicOnce(0.9f); _musicStarted = false; }
                         if (_line >= _gaze.Count) { _phase = PhWalk; _t = 0; _line = 0; }
                     }
                 }

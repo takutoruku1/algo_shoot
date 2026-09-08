@@ -334,6 +334,10 @@ public partial class Audio : Node
         // 挿入歌（Final の解決）は BgmMenu と同じ 0dB＝無音から ppp で立ち上がったのち満ちて、
         //   Epilogue の BgmMenu（0dB）へ同じ土俵・同じ和声圏で段差なく橋渡しする。
         if (stream == BgmFinalResolve) return 0f;
+        // E5b のオルゴール（夕べの星）も同じ理由で 0dB。カットシーン専用の一点物で、
+        //   鳴り終わった無音のあと E6 で BgmMenu が戻る＝BgmMenu と同じ土俵に置かないと段差が出る。
+        //   音源側を BgmMenu と同じ -17.6 LUFS へマスタリング済みなので、ここで下げると逆に沈む。
+        if (stream == BgmEpilogueWalk) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
         return isReal ? StageBgmRealDb : 0f;
     }
@@ -401,13 +405,40 @@ public partial class Audio : Node
         var p = _useA ? _musicA : _musicB;
         if (p.Stream != stream) return;
         // ワンショット専用の一度きり接続（多重接続と、次の曲での誤発火を避ける）。
-        p.Connect(AudioStreamPlayer.SignalName.Finished, Callable.From(OnMusicOnceFinished),
+        _onceCb = Callable.From(OnMusicOnceFinished);
+        _oncePlayer = p;
+        p.Connect(AudioStreamPlayer.SignalName.Finished, _onceCb,
                   (uint)GodotObject.ConnectFlags.OneShot);
+    }
+
+    // ワンショット接続の持ち主。曲尾まで行かず途中で止めた場合（E5b の「…………。」での
+    //   StopMusic）は Finished が飛ばないので OneShot が解けず、その AudioStreamPlayer に
+    //   接続が残る。次の曲でその player が再利用され、その曲が鳴り終わったときに
+    //   OnMusicOnceFinished が誤発火して _currentMusic を落とす（＝汚染連動の LowPass が
+    //   効かなくなる）ので、明示停止のときはここで外す。
+    private AudioStreamPlayer? _oncePlayer;
+    private Callable _onceCb;
+
+    // ワンショットの途中停止（曲尾を待たずに無音へ落とす）。E5b の「…………。」で使う。
+    //   Finished が飛ばない経路なので、残った OneShot 接続を自分で解いてから止める。
+    public void StopMusicOnce(float fade = 0.5f)
+    {
+        CancelOnceHook();
+        StopMusic(fade);
+    }
+
+    private void CancelOnceHook()
+    {
+        if (_oncePlayer != null && GodotObject.IsInstanceValid(_oncePlayer)
+            && _oncePlayer.IsConnected(AudioStreamPlayer.SignalName.Finished, _onceCb))
+            _oncePlayer.Disconnect(AudioStreamPlayer.SignalName.Finished, _onceCb);
+        _oncePlayer = null;
     }
 
     // ワンショットが鳴り終わった＝無音。次の Music() が「無音からの立ち上げ」になるよう状態を落とす。
     private void OnMusicOnceFinished()
     {
+        _oncePlayer = null;
         _currentMusic = null;
     }
 
@@ -1021,9 +1052,14 @@ public partial class Audio : Node
     //   AudioStreamOggVorbis.Loop も明示する（Music() は曲尾で止めず鳴らしっぱなしにするため）。
     //   ロード失敗（インポート未済・差し替えミス等）の場合は従来のコード合成 BuildBgmMenu() に戻す。
     // ───────── BgmEpilogueWalk のロード（未調達＝ファイルが無ければ null）─────────
-    //   E5b のオルゴール。曲がまだ選定中（BGM/candidates.md ⑬）なので、合成フォールバックは置かない
-    //   ＝「無い曲を代わりの音で埋めない」（沈黙のほうが台本の意図に近い）。
-    //   res://audio/bgm_epilogue_walk.ogg を置けば、そのまま E5b で鳴る。
+    //   E5b のオルゴール＝「夕べの星」（甘茶の音楽工房・クレジット任意→config/credits.ini に記載）。
+    //   2026-09-08 ユーザー決定で採用（BGM/candidates.md ⑬・取得記録は BGM/acquisition_list.md §6）。
+    //   原曲 157.4秒は Intro+A+B / A'+B' / coda の二部構成なので、**1周目の終わり＝A が再開する直前**
+    //   （110BPM の 34小節目 74.65秒）で切ってある。フェードアウトではなく曲想の切れ目＝台本の
+    //   「…………。」での完全停止と噛み合う（切った先が余韻の谷なので、止めても曲を裁断した音がしない）。
+    //   加工: 0..74.65秒・-3.7dB（-17.6 LUFS＝BgmMenu の -17.7 LUFS に合わせた）・頭40ms/尻250msフェード。
+    //   **ループしない曲**なので .import は loop=false（既存10曲の loop=true と唯一違う点）。
+    //   合成フォールバックは置かない＝「無い曲を代わりの音で埋めない」（沈黙のほうが台本の意図に近い）。
     private AudioStream? LoadBgmEpilogueWalk()
     {
         const string path = "res://audio/bgm_epilogue_walk.ogg";
