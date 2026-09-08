@@ -1,22 +1,28 @@
 {
-  "generated": "2026-09-08 19:12 UTC",
+  "generated": "2026-09-08 19:40 UTC",
   "counts": {
     "todo": 1,
     "wip": 0,
-    "blocked": 21,
+    "blocked": 22,
     "done": 215
   },
   "percent": 100,
   "todo": [
     {
-      "priority": "P2",
-      "title": "DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる",
-      "worker": null,
-      "accept": "2026-09-08発見。`--demo`（無敵なしの自然な自動プレイ）で `Rei.tscn -- --demo --seconds 220` を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。`--qa --assist`(god+aim)でも `build/shots/rei7.log` に `[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4` の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット`72d8c00`)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: `Rei.tscn -- --demo --seconds 220` を複数回実行し無被弾クリアの前提(`demo-video` skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+      "priority": "P3",
+      "title": "DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い",
+      "worker": "engineer",
+      "accept": "2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。`src/DemoPilot.cs`は終始`HomeX=104`(`DemoPilot.cs:57`)を基準にした前方限定の回避・攻撃ロジックのみで、`Key.F`/`JoyButton.RightShoulder`等の反転入力(`src/Player.cs:582-596`)を一度も送らない。背後に居座る引用リプ(FlankAim、`FlankCampX=40`、`Spawner.cs:112-123`)は基礎バックファイア(1dmg/0.9s、`GameManager.cs:799-801`)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が`HomeX`より背後にいる場合に反転入力を送る(または脅威側へ`HomeX`を寄せる)ロジックを`DemoPilot.cs`に追加。既存の前方回避・攻撃ロジックを壊さないこと。`Rei.tscn -- --demo --seconds 220`を複数回実行し、反転が機能し既存動作に regression が無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
     }
   ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる（原因はS3-5bではなくレイ面前半の既存ペース）",
+      "worker": null,
+      "accept": "2026-09-08調査(qa)。当初「S3-5b引用の嵐が原因」という前提で積まれたタスクだったが、`Rei.tscn -- --demo --seconds 220/230/60`を3回実行し実際の被弾/GAME OVER地点を特定したところ、いずれも**S3-5bに到達する遥か手前**（t≈20〜56秒、道中ザコ戦A終盤〜S3-4中ボス(CameoBoss)戦）で発生していた（`build/shots/demo1〜3/`のスクショ・タイムスタンプで確認）。引用元の`build/shots/rei7.log`の`stuck ... purified=33`警告も再解釈すると、S3-5b(引用の嵐はAddPrayerClearedのみでPurifiedCountを変えない)ではなく**Step_MidwaveC(終盤ザコ密集波,`StageRei.cs:608`)**でのスタックだった。コミット`72d8c00`(S3-5b)は`Bullet.cs`/`Hud.cs`/`StageRei.cs`/`FxLayer.cs`のみ変更で`CameoBoss.cs`/`Spawner.cs`/`EnemySpec.cs`は無変更のため、この早期死亡はS3-5bの回帰ではなく**既存のレイ面前半ペースの特性**と判明。さらに`DEV_QUEUE.md`DONE(2026-08-16、S3-5bより前)の別AI(QaPilotのsine-wave)による記録でも「t=34.1, purified=5/46」という道中ザコ戦A序盤での早期死亡が既に報告されており、複数の異なる単純AIが同じ序盤で苦戦する＝レイ面の`MidWaveA`密度ランプ(`MaxAlive=10`,`Spawner.cs:20`)や`CameoBoss`の長期戦(`ExposedDamageCap=100`×2バー,`CameoBoss.cs:46-48,73`)自体の難度特性である可能性が高い。**要ユーザー判断**: (a)`MidWaveA`のスポーン密度ランプや`CameoBoss`の露出ダメージ上限/パネル枚数を緩和する（既存プレイヤーへの難度低下を伴う）、(b)`DemoPilot`側の回避モデル強化（`BuildThreats`の脅威優先度、`NearRange`/`Horizon`拡大など`DemoPilot.cs:221-240`）で対処し弾幕バランスは変更しない、(c)現状を許容し無被弾クリア前提の`demo-video`skill側の期待値を下げる、のいずれか指定してほしい。**副次的に発見した安全な改善余地**(このBLOCKEDとは独立に着手可能。TODO参照): `DemoPilot.cs`に方向反転(`Key.F`/`FireBackfire`)ロジックが一切無く、背後の敵(引用リプ/FlankAim等)への対処が基礎バックファイア任せになっている。"
+    },
     {
       "priority": null,
       "title": "病みポストを見つける（案A）も同じ理由・かつ前提の層2チップ自体が未実装のため着手不能",
@@ -1438,6 +1444,16 @@
   ],
   "commits": [
     {
+      "hash": "f400a45",
+      "date": "2026-09-08",
+      "subject": "auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査"
+    },
+    {
+      "hash": "c932072",
+      "date": "2026-09-08",
+      "subject": "auto: HowToPlayに道中敵3種(バズ壁)の説明を追加"
+    },
+    {
       "hash": "b37af3a",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - HowToPlayに道中敵3種の説明を追加"
@@ -1466,16 +1482,6 @@
       "hash": "ba4a00d",
       "date": "2026-09-08",
       "subject": "auto: S2-4入力欄を配信画面のコメント欄風の専用UIにする"
-    },
-    {
-      "hash": "0032fcd",
-      "date": "2026-09-08",
-      "subject": "auto: WIP着手 - S2-4入力欄を配信画面のコメント欄風の専用UIにする"
-    },
-    {
-      "hash": "160ff50",
-      "date": "2026-09-08",
-      "subject": "auto: 三面と冒頭のスクショを撮り直してwikiの図を更新"
     }
   ]
 }

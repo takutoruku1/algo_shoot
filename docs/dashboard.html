@@ -126,7 +126,7 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 215 / 対象 216 タスク<br>保留 21 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 215 / 対象 216 タスク<br>保留 22 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
@@ -135,7 +135,7 @@
     <div class="state done"><div class="state-n">215</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">21</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">22</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -148,11 +148,11 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる</span>
-          
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い</span>
+          <span class="worker">engineer</span>
         </div>
-        <p class="accept">2026-09-08発見。<code>--demo</code>（無敵なしの自然な自動プレイ）で <code>Rei.tscn -- --demo --seconds 220</code> を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。<code>--qa --assist</code>(god+aim)でも <code>build/shots/rei7.log</code> に <code>[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4</code> の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット<code>72d8c00</code>)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: <code>Rei.tscn -- --demo --seconds 220</code> を複数回実行し無被弾クリアの前提(<code>demo-video</code> skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+        <p class="accept">2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。<code>src/DemoPilot.cs</code>は終始<code>HomeX=104</code>(<code>DemoPilot.cs:57</code>)を基準にした前方限定の回避・攻撃ロジックのみで、<code>Key.F</code>/<code>JoyButton.RightShoulder</code>等の反転入力(<code>src/Player.cs:582-596</code>)を一度も送らない。背後に居座る引用リプ(FlankAim、<code>FlankCampX=40</code>、<code>Spawner.cs:112-123</code>)は基礎バックファイア(1dmg/0.9s、<code>GameManager.cs:799-801</code>)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が<code>HomeX</code>より背後にいる場合に反転入力を送る(または脅威側へ<code>HomeX</code>を寄せる)ロジックを<code>DemoPilot.cs</code>に追加。既存の前方回避・攻撃ロジックを壊さないこと。<code>Rei.tscn -- --demo --seconds 220</code>を複数回実行し、反転が機能し既存動作に regression が無いことを確認。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
       </li></ol>
   </section>
 
@@ -1887,6 +1887,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる（原因はS3-5bではなくレイ面前半の既存ペース）</span>
+          
+        </div>
+        <p class="accept">2026-09-08調査(qa)。当初「S3-5b引用の嵐が原因」という前提で積まれたタスクだったが、<code>Rei.tscn -- --demo --seconds 220/230/60</code>を3回実行し実際の被弾/GAME OVER地点を特定したところ、いずれも<strong>S3-5bに到達する遥か手前</strong>（t≈20〜56秒、道中ザコ戦A終盤〜S3-4中ボス(CameoBoss)戦）で発生していた（<code>build/shots/demo1〜3/</code>のスクショ・タイムスタンプで確認）。引用元の<code>build/shots/rei7.log</code>の<code>stuck ... purified=33</code>警告も再解釈すると、S3-5b(引用の嵐はAddPrayerClearedのみでPurifiedCountを変えない)ではなく<strong>Step_MidwaveC(終盤ザコ密集波,<code>StageRei.cs:608</code>)</strong>でのスタックだった。コミット<code>72d8c00</code>(S3-5b)は<code>Bullet.cs</code>/<code>Hud.cs</code>/<code>StageRei.cs</code>/<code>FxLayer.cs</code>のみ変更で<code>CameoBoss.cs</code>/<code>Spawner.cs</code>/<code>EnemySpec.cs</code>は無変更のため、この早期死亡はS3-5bの回帰ではなく<strong>既存のレイ面前半ペースの特性</strong>と判明。さらに<code>DEV_QUEUE.md</code>DONE(2026-08-16、S3-5bより前)の別AI(QaPilotのsine-wave)による記録でも「t=34.1, purified=5/46」という道中ザコ戦A序盤での早期死亡が既に報告されており、複数の異なる単純AIが同じ序盤で苦戦する＝レイ面の<code>MidWaveA</code>密度ランプ(<code>MaxAlive=10</code>,<code>Spawner.cs:20</code>)や<code>CameoBoss</code>の長期戦(<code>ExposedDamageCap=100</code>×2バー,<code>CameoBoss.cs:46-48,73</code>)自体の難度特性である可能性が高い。<strong>要ユーザー判断</strong>: (a)<code>MidWaveA</code>のスポーン密度ランプや<code>CameoBoss</code>の露出ダメージ上限/パネル枚数を緩和する（既存プレイヤーへの難度低下を伴う）、(b)<code>DemoPilot</code>側の回避モデル強化（<code>BuildThreats</code>の脅威優先度、<code>NearRange</code>/<code>Horizon</code>拡大など<code>DemoPilot.cs:221-240</code>）で対処し弾幕バランスは変更しない、(c)現状を許容し無被弾クリア前提の<code>demo-video</code>skill側の期待値を下げる、のいずれか指定してほしい。<strong>副次的に発見した安全な改善余地</strong>(このBLOCKEDとは独立に着手可能。TODO参照): <code>DemoPilot.cs</code>に方向反転(<code>Key.F</code>/<code>FireBackfire</code>)ロジックが一切無く、背後の敵(引用リプ/FlankAim等)への対処が基礎バックファイア任せになっている。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">病みポストを見つける（案A）も同じ理由・かつ前提の層2チップ自体が未実装のため着手不能</span>
           <span class="worker">engineer</span>
         </div>
@@ -2057,18 +2065,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f400a45</span><span>2026-09-08</span><span class="s">auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査</span></li>
+      <li><span class="h">c932072</span><span>2026-09-08</span><span class="s">auto: HowToPlayに道中敵3種(バズ壁)の説明を追加</span></li>
       <li><span class="h">b37af3a</span><span>2026-09-08</span><span class="s">auto: WIP着手 - HowToPlayに道中敵3種の説明を追加</span></li>
       <li><span class="h">ca11521</span><span>2026-09-08</span><span class="s">auto: 正典シナリオ設計書v2に非正典バナーを追加</span></li>
       <li><span class="h">be05409</span><span>2026-09-08</span><span class="s">auto: WIP着手 - 正典シナリオ設計書v2に非正典バナーを追加</span></li>
       <li><span class="h">b18008a</span><span>2026-09-08</span><span class="s">auto: MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名</span></li>
       <li><span class="h">1dc6937</span><span>2026-09-08</span><span class="s">auto: WIP着手 - MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名</span></li>
       <li><span class="h">ba4a00d</span><span>2026-09-08</span><span class="s">auto: S2-4入力欄を配信画面のコメント欄風の専用UIにする</span></li>
-      <li><span class="h">0032fcd</span><span>2026-09-08</span><span class="s">auto: WIP着手 - S2-4入力欄を配信画面のコメント欄風の専用UIにする</span></li>
-      <li><span class="h">160ff50</span><span>2026-09-08</span><span class="s">auto: 三面と冒頭のスクショを撮り直してwikiの図を更新</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-08 19:12 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-08 19:40 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
