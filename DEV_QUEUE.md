@@ -34,9 +34,10 @@
 <!-- 2026-09-07 監査モードで追加。根拠は各行の受入条件を参照 -->
 
 <!-- 2026-09-08 スクショ撮り直しタスクの副産物として qa が発見 -->
-- [ ] (P3) DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い | engineer | 2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。`src/DemoPilot.cs`は終始`HomeX=104`(`DemoPilot.cs:57`)を基準にした前方限定の回避・攻撃ロジックのみで、`Key.F`/`JoyButton.RightShoulder`等の反転入力(`src/Player.cs:582-596`)を一度も送らない。背後に居座る引用リプ(FlankAim、`FlankCampX=40`、`Spawner.cs:112-123`)は基礎バックファイア(1dmg/0.9s、`GameManager.cs:799-801`)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が`HomeX`より背後にいる場合に反転入力を送る(または脅威側へ`HomeX`を寄せる)ロジックを`DemoPilot.cs`に追加。既存の前方回避・攻撃ロジックを壊さないこと。`Rei.tscn -- --demo --seconds 220`を複数回実行し、反転が機能し既存動作に regression が無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## WIP
+
+- [ ] (P3) DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い | engineer | 2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。`src/DemoPilot.cs`は終始`HomeX=104`(`DemoPilot.cs:57`)を基準にした前方限定の回避・攻撃ロジックのみで、`Key.F`/`JoyButton.RightShoulder`等の反転入力(`src/Player.cs:582-596`)を一度も送らない。背後に居座る引用リプ(FlankAim、`FlankCampX=40`、`Spawner.cs:112-123`)は基礎バックファイア(1dmg/0.9s、`GameManager.cs:799-801`)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が`HomeX`より背後にいる場合に反転入力を送る(または脅威側へ`HomeX`を寄せる)ロジックを`DemoPilot.cs`に追加。既存の前方回避・攻撃ロジックを壊さないこと。`Rei.tscn -- --demo --seconds 220`を複数回実行し、反転が機能し既存動作に regression が無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## BLOCKED
 
