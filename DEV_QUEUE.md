@@ -30,7 +30,6 @@
 ## TODO
 
 <!-- 2026-09-05 組み込み計画（wiki/08_仮台本/15_組み込み計画.md）から投入。上から順に消化 -->
-- [ ] (P3) MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名 | engineer | 内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み
 - [ ] (P2) 正典シナリオ設計書v2が案C移行後も旧面順・こはる旧設定のまま放置されている | scenario | 2026-09-07監査で発見。`docs/20260613/MINA_シナリオ設計書_v2.md:62,77-79,261,265,267,268`と`docs/ゲーム内テキスト台本_改稿版.txt:265-347,541`(自称「コード反映済み」)が旧面順(STAGE1レイ/STAGE2あかり/STAGE3こはる)・旧こはる設定(兄の死を看取る妹)のまま。実装は既に`wiki/08_仮台本/05_場面表_案C.md`(2026-09-05ユーザー承認)通り`GameManager.cs:196-203`(あかり→こはる→レイ)・`BossKoharu.cs:3-7,117-128`(推しの配信/八十七回)へ移行済み。**台詞や物語内容そのものの追加・変更ではなく、既に承認・実装済みの内容へ正典docsを追いつかせる注記のみ**（本文の書き換えはしない。過去のGAME_DESIGN.md/CONCEPT_V2.md非正典バナーと同種の作業）。受入条件: `docs/20260613/MINA_シナリオ設計書_v2.md`冒頭と`docs/ゲーム内テキスト台本_改稿版.txt`冒頭に「STAGE構成・こはる設定は案C(wiki/08_仮台本/05〜08、2026-09-05承認)で上書き済み。本書の面順表とこはる関連記述は非正典」の注記(バナー)を追加するのみ。本文の面順表・セリフ本体は変更しない。
 - [ ] (P3) HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない | engineer | 2026-09-07監査で発見。`EnemySpec.cs:112-155`・`Spawner.cs:25-43`で全テーマ共通稼働中の引用リプ(FlankAim)・バズ壁(BuzzWall・通常の2.5倍の耐久)・祈り運び(KoharuPrayerCarry)が、`HowToPlay.cs:271-288`のコア機能カード5枚(やさしさ全開/ボム/弾強化/後方弾/浄化)に一切含まれない。特にバズ壁は見た目の差が乏しく初見で「弾が効いていない」と誤解されうる。受入条件: `HowToPlay.cs`ページ3(または適切な既存ページ)に3種のいずれかの体験に必要な最小限の一言を追加(例:硬い盾役もいる、無視して素通りしてもいい等)。既存カード様式`(title, body, accent)`を踏襲しレイアウト崩れが無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
@@ -40,6 +39,8 @@
 - [ ] (P2) DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる | qa→engineer | 2026-09-08発見。`--demo`（無敵なしの自然な自動プレイ）で `Rei.tscn -- --demo --seconds 220` を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。`--qa --assist`(god+aim)でも `build/shots/rei7.log` に `[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4` の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット`72d8c00`)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: `Rei.tscn -- --demo --seconds 220` を複数回実行し無被弾クリアの前提(`demo-video` skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## WIP
+
+- [ ] (P3) MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名 | engineer | 内部識別子のみ。スキンはペンライト/グッズ箱に差し替え済み
 
 ## BLOCKED
 
