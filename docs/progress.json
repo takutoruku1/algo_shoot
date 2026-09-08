@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-08 19:40 UTC",
+  "generated": "2026-09-08 20:24 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 22,
-    "done": 215
+    "done": 216
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い",
-      "worker": "engineer",
-      "accept": "2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。`src/DemoPilot.cs`は終始`HomeX=104`(`DemoPilot.cs:57`)を基準にした前方限定の回避・攻撃ロジックのみで、`Key.F`/`JoyButton.RightShoulder`等の反転入力(`src/Player.cs:582-596`)を一度も送らない。背後に居座る引用リプ(FlankAim、`FlankCampX=40`、`Spawner.cs:112-123`)は基礎バックファイア(1dmg/0.9s、`GameManager.cs:799-801`)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が`HomeX`より背後にいる場合に反転入力を送る(または脅威側へ`HomeX`を寄せる)ロジックを`DemoPilot.cs`に追加。既存の前方回避・攻撃ロジックを壊さないこと。`Rei.tscn -- --demo --seconds 220`を複数回実行し、反転が機能し既存動作に regression が無いことを確認。`dotnet build algo_shoot.sln` 0 Warning/0 Error。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -151,6 +144,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-08) `src/DemoPilot.cs`に最寄りの生存中の敵の座標を`_nearestEnemyPos`/`_hasNearestEnemy`として記録(既存`BuildThreats`ループを拡張、`DemoPilot.cs:238-251`)、新設`DriveFacing`(`DemoPilot.cs:256-291`)で`Player.Facing`(`Player.cs:223`)基準に最寄り敵が射撃方向の背後(`FlankBehindMargin=20f`のヒステリシス付き)にあるとき`Key.F`の押下→解放エッジを1回パルスして反転させる。反転後は`Facing`が更新され「背後」の意味が自動的に入れ替わるため、敵を倒して次の最寄り敵(ボス等)が新たな背後になっても同じロジックで自動的に向き直る閉ループ。会話中/通路走行中は`ReleaseFlip()`で解放し既存の`DriveDodge`/`DriveShootAndAdvance`/`DriveBomb`ロジックには一切手を入れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。`Rei.tscn -- --demo --seconds 220`を3回実行し全て正常完走(exit=0、例外無し)、反転が実際に毎回発火(1試行あたり6〜18回)。変更前(`git stash`)との比較でも新規の被弾増加・regressionは確認されず。**申し送り**: STAGE3の早期死亡自体(残機0に至る根本原因)は別のBLOCKED項目(「DemoPilotがSTAGE3で本ボスに到達する前にゲームオーバーになる」)のスコープであり本タスクでは未解決(要ユーザー判断待ち)。反転ロジックの映像目視確認(ヘッドレスのみでスクショ/動画は未実施)は未実施。"
+    },
     {
       "priority": "P3",
       "title": "HowToPlayで新規道中敵3種(引用リプ/バズ壁/祈り運び)が一切説明されていない",
@@ -1444,6 +1443,16 @@
   ],
   "commits": [
     {
+      "hash": "1ebabf6",
+      "date": "2026-09-08",
+      "subject": "auto: WIP着手 - DemoPilotに背後の敵への反転ロジックを追加"
+    },
+    {
+      "hash": "20e1334",
+      "date": "2026-09-08",
+      "subject": "auto: DemoPilotのSTAGE3早期死亡は要ユーザー判断としてBLOCKEDへ、DemoPilot反転ロジック欠如をTODOへ"
+    },
+    {
       "hash": "f400a45",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査"
@@ -1472,16 +1481,6 @@
       "hash": "b18008a",
       "date": "2026-09-08",
       "subject": "auto: MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名"
-    },
-    {
-      "hash": "1dc6937",
-      "date": "2026-09-08",
-      "subject": "auto: WIP着手 - MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名"
-    },
-    {
-      "hash": "ba4a00d",
-      "date": "2026-09-08",
-      "subject": "auto: S2-4入力欄を配信画面のコメント欄風の専用UIにする"
     }
   ]
 }

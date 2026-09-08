@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 215 / 対象 216 タスク<br>保留 22 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 216 / 対象 216 タスク<br>保留 22 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">215</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">216</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">22</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-08発見(DemoPilot STAGE3ゲームオーバー調査の副産物)。<code>src/DemoPilot.cs</code>は終始<code>HomeX=104</code>(<code>DemoPilot.cs:57</code>)を基準にした前方限定の回避・攻撃ロジックのみで、<code>Key.F</code>/<code>JoyButton.RightShoulder</code>等の反転入力(<code>src/Player.cs:582-596</code>)を一度も送らない。背後に居座る引用リプ(FlankAim、<code>FlankCampX=40</code>、<code>Spawner.cs:112-123</code>)は基礎バックファイア(1dmg/0.9s、<code>GameManager.cs:799-801</code>)任せになり、前方DPSより大幅に弱く被弾リスクの露出時間が伸びる。受入条件: 最寄りの生存中の敵が<code>HomeX</code>より背後にいる場合に反転入力を送る(または脅威側へ<code>HomeX</code>を寄せる)ロジックを<code>DemoPilot.cs</code>に追加。既存の前方回避・攻撃ロジックを壊さないこと。<code>Rei.tscn -- --demo --seconds 220</code>を複数回実行し、反転が機能し既存動作に regression が無いことを確認。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-08) <code>src/DemoPilot.cs</code>に最寄りの生存中の敵の座標を<code>_nearestEnemyPos</code>/<code>_hasNearestEnemy</code>として記録(既存<code>BuildThreats</code>ループを拡張、<code>DemoPilot.cs:238-251</code>)、新設<code>DriveFacing</code>(<code>DemoPilot.cs:256-291</code>)で<code>Player.Facing</code>(<code>Player.cs:223</code>)基準に最寄り敵が射撃方向の背後(<code>FlankBehindMargin=20f</code>のヒステリシス付き)にあるとき<code>Key.F</code>の押下→解放エッジを1回パルスして反転させる。反転後は<code>Facing</code>が更新され「背後」の意味が自動的に入れ替わるため、敵を倒して次の最寄り敵(ボス等)が新たな背後になっても同じロジックで自動的に向き直る閉ループ。会話中/通路走行中は<code>ReleaseFlip()</code>で解放し既存の<code>DriveDodge</code>/<code>DriveShootAndAdvance</code>/<code>DriveBomb</code>ロジックには一切手を入れていない。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error(指揮官が再実行して確認済み)。<code>Rei.tscn -- --demo --seconds 220</code>を3回実行し全て正常完走(exit=0、例外無し)、反転が実際に毎回発火(1試行あたり6〜18回)。変更前(<code>git stash</code>)との比較でも新規の被弾増加・regressionは確認されず。<strong>申し送り</strong>: STAGE3の早期死亡自体(残機0に至る根本原因)は別のBLOCKED項目(「DemoPilotがSTAGE3で本ボスに到達する前にゲームオーバーになる」)のスコープであり本タスクでは未解決(要ユーザー判断待ち)。反転ロジックの映像目視確認(ヘッドレスのみでスクショ/動画は未実施)は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2065,18 +2065,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1ebabf6</span><span>2026-09-08</span><span class="s">auto: WIP着手 - DemoPilotに背後の敵への反転ロジックを追加</span></li>
+      <li><span class="h">20e1334</span><span>2026-09-08</span><span class="s">auto: DemoPilotのSTAGE3早期死亡は要ユーザー判断としてBLOCKEDへ、DemoPilot反転ロジック欠如をTODOへ</span></li>
       <li><span class="h">f400a45</span><span>2026-09-08</span><span class="s">auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査</span></li>
       <li><span class="h">c932072</span><span>2026-09-08</span><span class="s">auto: HowToPlayに道中敵3種(バズ壁)の説明を追加</span></li>
       <li><span class="h">b37af3a</span><span>2026-09-08</span><span class="s">auto: WIP着手 - HowToPlayに道中敵3種の説明を追加</span></li>
       <li><span class="h">ca11521</span><span>2026-09-08</span><span class="s">auto: 正典シナリオ設計書v2に非正典バナーを追加</span></li>
       <li><span class="h">be05409</span><span>2026-09-08</span><span class="s">auto: WIP着手 - 正典シナリオ設計書v2に非正典バナーを追加</span></li>
       <li><span class="h">b18008a</span><span>2026-09-08</span><span class="s">auto: MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名</span></li>
-      <li><span class="h">1dc6937</span><span>2026-09-08</span><span class="s">auto: WIP着手 - MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名</span></li>
-      <li><span class="h">ba4a00d</span><span>2026-09-08</span><span class="s">auto: S2-4入力欄を配信画面のコメント欄風の専用UIにする</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-08 19:40 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-08 20:24 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

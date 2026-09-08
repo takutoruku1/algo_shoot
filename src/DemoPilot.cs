@@ -75,10 +75,14 @@ public partial class DemoPilot : Node
     private bool _xDown;
     private double _bombArm;
     private int _prevDir;       // 慣性用（0=静止, 1..DirCount=方向インデックス+1）
+    private bool _flipDown;     // 反転(F)入力のパルス状態
 
     // ---- 毎フレーム再利用する脅威リスト（割り当てを抑える）----
     private readonly List<(Vector2 pos, Vector2 vel, float rad)> _threats = new();
     private float _aimY = 108f;  // 攻撃定位置のY（最寄りの敵に合わせる）
+    private Vector2 _nearestEnemyPos; // 最寄りの生存中の敵の座標（背後判定に使う）
+    private bool _hasNearestEnemy;
+    private const float FlipBehindMargin = 20f; // 背後判定のヒステリシス（HomeX付近でのガタつき・連打防止）
 
     public override void _Ready()
     {
@@ -137,15 +141,18 @@ public partial class DemoPilot : Node
         {
             // 会話中は弾も自機も止まる＝動かす必要なし。軸を解放しておく。
             ReleaseAxes();
+            ReleaseFlip();
         }
         else if (GetTree().GetFirstNodeInGroup("corridor") is CorridorRun cor && cor.Steering)
         {
             // イライラ棒「雨の帰り道」中は回避ブレインを使わず、通路の中心線に追従する最小対応。
             DriveCorridor(player.GlobalPosition, cor);
+            ReleaseFlip();
         }
         else
         {
             bestGap = DriveDodge(player.GlobalPosition);
+            DriveFacing(player.GlobalPosition, player);
         }
 
         DriveBomb(delta, bestGap, talking);
@@ -228,15 +235,64 @@ public partial class DemoPilot : Node
                 _threats.Add((b.GlobalPosition, b.Velocity, b.Radius));
 
         float bestEnemyY = 108f, bestEnemyDist = float.MaxValue;
+        _hasNearestEnemy = false;
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
         {
             if (n is not Enemy e || e.IsPurified) continue;
             Vector2 ep = e.GlobalPosition;
             float d2 = ppos.DistanceSquaredTo(ep);
             if (d2 <= near2) _threats.Add((ep, Vector2.Zero, EnemyRadius));
-            if (d2 < bestEnemyDist) { bestEnemyDist = d2; bestEnemyY = ep.Y; }
+            if (d2 < bestEnemyDist)
+            {
+                bestEnemyDist = d2;
+                bestEnemyY = ep.Y;
+                _nearestEnemyPos = ep;
+                _hasNearestEnemy = true;
+            }
         }
         _aimY = Mathf.Clamp(bestEnemyY, MinY + 8f, MaxY - 8f);
+    }
+
+    // =====================  向き反転（背後の敵への対処）  =====================
+    //
+    // 前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:799-801)より大幅に強い。
+    // ところが従来の DemoPilot は HomeX(=104) を基準にした前方限定の回避・攻撃ロジックしか持たず、
+    // 引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)のように自機の背後に居座る敵はバックファイア
+    // 任せ＝削り切りが遅く被弾リスクの露出時間が伸びていた。
+    //
+    // ここでは最寄りの生存中の敵（BuildThreats が既に計測済み）が現在の射撃方向(Player.Facing)の
+    // 背後にいるとき、F相当の反転入力を1回パルスして facing ごと向き直す＝前方の強い火力を
+    // 背後の脅威へ振り向ける。反転後は「背後」の意味が入れ替わる（Facing が下流で更新される）ので、
+    // 次フレームには自動的に条件が解消／逆転し、敵が倒れて別の敵（例えばボス）が新たな最寄りに
+    // なればまた同じロジックでそちらへ向き直る＝閉ループで両方向に効く。
+    private void DriveFacing(Vector2 ppos, Player player)
+    {
+        if (Hud.BubblePaused || !_hasNearestEnemy)
+        {
+            // 会話中は Player 側が反転入力を無視する（Player.cs:591）ので送っても無駄＝軸と揃えて解放。
+            ReleaseFlip();
+            return;
+        }
+
+        int facing = player.Facing; // +1=右向き / -1=左向き
+        // 射撃方向を軸にした符号付き距離。負＝背後（射撃方向と逆側）。
+        bool behind = (_nearestEnemyPos.X - ppos.X) * facing < -FlipBehindMargin;
+        if (behind && !_flipDown)
+        {
+            _flipDown = true;
+            Send(new InputEventKey { Keycode = Key.F, Pressed = true });
+        }
+        else if (!behind && _flipDown)
+        {
+            ReleaseFlip();
+        }
+    }
+
+    private void ReleaseFlip()
+    {
+        if (!_flipDown) return;
+        _flipDown = false;
+        Send(new InputEventKey { Keycode = Key.F, Pressed = false });
     }
 
     // 速度 vel(px/s) で進んだとき、先読み区間中に脅威表面とどれだけ近づくか。
