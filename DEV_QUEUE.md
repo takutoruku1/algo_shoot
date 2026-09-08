@@ -34,9 +34,10 @@
 <!-- 2026-09-07 監査モードで追加。根拠は各行の受入条件を参照 -->
 
 <!-- 2026-09-08 スクショ撮り直しタスクの副産物として qa が発見 -->
-- [ ] (P2) DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる | qa→engineer | 2026-09-08発見。`--demo`（無敵なしの自然な自動プレイ）で `Rei.tscn -- --demo --seconds 220` を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。`--qa --assist`(god+aim)でも `build/shots/rei7.log` に `[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4` の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット`72d8c00`)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: `Rei.tscn -- --demo --seconds 220` を複数回実行し無被弾クリアの前提(`demo-video` skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## WIP
+
+- [ ] (P2) DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる | qa→engineer | 2026-09-08発見。`--demo`（無敵なしの自然な自動プレイ）で `Rei.tscn -- --demo --seconds 220` を3回実行し3回ともボス到達前にゲームオーバー(引用の嵐(S3-5b)〜終盤ザコ密集波あたり)。`--qa --assist`(god+aim)でも `build/shots/rei7.log` に `[QA-WARN] stuck: no progress for 40s ... (purified=33 bossMin=- bubble=False) t=188.4` の進行停滞警告あり。S3-5b「引用の嵐」実装(コミット`72d8c00`)後にDemoPilot/難度が未検証だった可能性が高い。受入条件: `Rei.tscn -- --demo --seconds 220` を複数回実行し無被弾クリアの前提(`demo-video` skill が要求)が成立するか確認。DemoPilotのAI側の調整で直るか、弾幕バランス自体の見直しが要るかを切り分けてから対処。`dotnet build algo_shoot.sln` 0 Warning/0 Error。
 
 ## BLOCKED
 
