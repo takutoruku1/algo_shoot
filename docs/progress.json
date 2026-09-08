@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-08 18:47 UTC",
+  "generated": "2026-09-08 19:02 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 21,
-    "done": 211
+    "done": 212
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "S2-4 入力欄を配信画面のコメント欄風の専用UIにする",
-      "worker": "engineer",
-      "accept": "今は who=3 の中央テロップで代用"
-    },
     {
       "priority": "P3",
       "title": "MidEnemy の KoharuKnife/KoharuPot ポーズ名を案C の名前に改名",
@@ -169,6 +163,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "S2-4 入力欄を配信画面のコメント欄風の専用UIにする",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-08) `src/Hud.cs:415-419`に新しい`LineKind.StreamInput`(=6)を追加(既存の`Narration`(=3)経路から分離)。`KindColor`(`Hud.cs:448-451`。緑`UiKit.Ok`)・`BacklogSpeaker`(`Hud.cs:463-467`。「コメント欄」表記)にも対応するcaseを追加。`DrawStreamInputBox`/`DrawCommentTag`(`Hud.cs:1631-1662`)を新設し、既存のNarrationテロップと同じ矩形・文字位置・折り返し幅のまま、暗緑の角丸パネル＋点滅する緑の枠線＋左上に吹き出し尻尾付き「コメント」タグを描画(`DrawDialog`の分岐は`Hud.cs:1671-1677`)。ページング・スキップ・▼インジケータ等は既存Narration経路と共有。`src/StageKoharu.cs:118-124`の`InputField`配列の該当2行(`\"レイちゃんが | \"`/`\"今日も来ました | \"`)を`who=3`→`who=6`に変更(**台詞テキスト・順序は無変更、who値のみ変更**)。他の`who=3`利用箇所(`src/StageRei.cs`の「引用: 0」等)には影響なし(grep確認済み)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。指揮官が差分を確認し台詞本文が一切変更されていないことを確認済み(承認ゲート対象外＝UI変更のみ)。エージェントがheadless(`--demo`で`StageKoharu._Ready`の`_step`を一時的に8へ書き換えて該当箇所へジャンプ)で視覚確認後、変更を元に戻し(`git diff`で意図した差分のみであることを確認済み)。"
+    },
     {
       "priority": "P3",
       "title": "三面と冒頭のスクショを撮り直して wiki の図を更新",
@@ -1438,6 +1438,16 @@
   ],
   "commits": [
     {
+      "hash": "0032fcd",
+      "date": "2026-09-08",
+      "subject": "auto: WIP着手 - S2-4入力欄を配信画面のコメント欄風の専用UIにする"
+    },
+    {
+      "hash": "160ff50",
+      "date": "2026-09-08",
+      "subject": "auto: 三面と冒頭のスクショを撮り直してwikiの図を更新"
+    },
+    {
       "hash": "a350943",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - 三面と冒頭のスクショを撮り直してwikiの図を更新"
@@ -1466,16 +1476,6 @@
       "hash": "c8d4c62",
       "date": "2026-09-07",
       "subject": "auto: WIP着手 - 投稿文集の層付きプールを新設"
-    },
-    {
-      "hash": "467b1ad",
-      "date": "2026-09-07",
-      "subject": "auto: 中ボス初回撃破時の退場演出が飛ぶ回帰を修正"
-    },
-    {
-      "hash": "1efdfa8",
-      "date": "2026-09-07",
-      "subject": "auto: WIP着手 - 中ボス初回撃破時の退場演出バグ修正"
     }
   ]
 }

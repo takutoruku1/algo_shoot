@@ -413,7 +413,9 @@ public partial class Hud : CanvasLayer
     }
 
     // ───────── テキストボックスの行の種類 ─────────
-    public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5 }
+    // StreamInput（6）＝配信画面のコメント入力欄そのもの（S2-4）。表示はナレーション同様に立ち絵なし・
+    //   中央テロップの枠を使うが、DrawDialog 側でコメント欄らしい専用の見た目に描き分ける。
+    public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5, StreamInput = 6 }
 
     // ───────── 会話ログ（バックログ）─────────
     // ストーリー重視ゲームの読み返し用に、表示済みの会話/ナレ/投稿を蓄積する（ADV のバックログ相当）。
@@ -446,6 +448,7 @@ public partial class Hud : CanvasLayer
         LineKind.Other => UiKit.Kegare,
         LineKind.Relay => UiKit.Info,
         LineKind.Post  => UiKit.Text3,
+        LineKind.StreamInput => UiKit.Ok, // コメント欄＝配信UIの緑
         _              => UiKit.Text2, // Narration（ナレ＝ミナの語り）は淡色
     };
 
@@ -460,6 +463,7 @@ public partial class Hud : CanvasLayer
             LineKind.Relay => "あなた（ミナの声）",
             LineKind.Post  => "Ｘ 投稿",
             LineKind.Narration => "ナレーション",
+            LineKind.StreamInput => "コメント欄",
             _              => "",
         };
     }
@@ -1624,6 +1628,37 @@ public partial class Hud : CanvasLayer
             ci.DrawCircle(new Vector2(r.Position.X + 22 + i * 15, leftCenter.Y), 3.2f, new Color(col, 0.55f));
     }
 
+    // S2-4「配信画面のコメント入力欄」専用の見た目（ナレーションと同じ枠・折り返し幅を流用）。
+    // 配信サイトのコメント欄を模し、緑系＋角丸強め＋「コメント」タグで中央テロップと見分けをつける。
+    // 枠線は打鍵中を思わせる明滅（弾は止めない演出なので、うるさくない程度に控えめ）。
+    private void DrawStreamInputBox(HudCanvas ci, string shown, bool morePages)
+    {
+        var box = new Rect2(140, 590, 1000, 96);
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 3.2f);
+        UiKit.Box(ci, box, new Color(0.05f, 0.09f, 0.07f, 0.86f), 14f, new Color(UiKit.Ok, 0.30f + 0.30f * pulse), 1.6f);
+        DrawCommentTag(ci, new Vector2(150, 578));   // 枠の左上に食い込む「コメント」タグ
+        UiKit.MultiLeading(ci, UiKit.Zen, new Vector2(180, 606), shown, UiKit.FontHeading, new Color(0.86f, 0.98f, 0.90f), 920, NarrLeading, DlgMaxLines);
+        if (FastForwarding) DrawSkipChip(ci, new Vector2(140 + 1000 - 20, 598));
+        if (morePages && ((int)(_t * 2f) % 2) == 0)
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(140 + 1000 - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
+    }
+
+    // コメント欄タグ（緑の小片＋吹き出しの尻尾）。DrawDraftMark と同じ流儀の軽量アイコン。
+    private static void DrawCommentTag(CanvasItem ci, Vector2 topLeft)
+    {
+        const string label = "コメント";
+        float tw = UiKit.TextW(UiKit.ZenBold, label, 12);
+        var r = new Rect2(topLeft, new Vector2(tw + 20, 20));
+        UiKit.Box(ci, r, new Color(UiKit.Ok, 0.88f), 6f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(topLeft.X + 10, topLeft.Y + 4), label, 12, new Color(0.04f, 0.06f, 0.05f));
+        ci.DrawPolyline(new[]
+        {
+            new Vector2(r.Position.X + 10, r.End.Y),
+            new Vector2(r.Position.X + 5,  r.End.Y + 7),
+            new Vector2(r.Position.X + 18, r.End.Y),
+        }, new Color(UiKit.Ok, 0.88f), 1.4f);
+    }
+
     private void DrawDialog(HudCanvas ci)
     {
         // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
@@ -1633,6 +1668,13 @@ public partial class Hud : CanvasLayer
         // ページ継続サイン：現在ページを出し切っていて、まだ後続ページがあるとき「▼」を点滅（Zで続きへ）。
         bool morePages = !OnLastPage && _dlgRevealed >= page.Length;
 
+        if (!_dlgIsDialog && _dlgKind == LineKind.StreamInput)
+        {
+            // S2-4 入力欄：配信画面のコメント欄を模した専用の枠。ナレーションと同じ位置・折り返し幅を使い、
+            // 配色とタグだけを描き分ける（本文の送り・改ページ処理は共通のまま）。
+            DrawStreamInputBox(ci, shown, morePages);
+            return;
+        }
         if (!_dlgIsDialog)
         {
             // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。

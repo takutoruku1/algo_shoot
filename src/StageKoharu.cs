@@ -115,13 +115,14 @@ public partial class StageKoharu : Node
     // 配信画面の下のコメント入力欄。「レイちゃんが」まで打たれて、一文字ずつ消える。
     // 「今日も来ました」だけが残って、送られる。ミナは消えたほうの一行を拾い、中身は本人の前まで言わない
     //（S2-8 の決定打の一段目で返す）。台本どおり選択は置かない。
-    // who=3（システム表示）＝入力欄そのもの。カーソル「|」付きで打ちかけを見せる。
+    // who=6（Hud.LineKind.StreamInput）＝入力欄そのもの。配信画面のコメント欄を模した専用UIで表示され、
+    // カーソル「|」付きで打ちかけを見せる（Hud.cs の DrawStreamInputBox／DrawCommentTag 参照）。
     private static readonly (int who, string text, string face)[] InputField =
     {
         (1, "ご主人様、これ。配信画面の下に、コメントの入力欄が。……文字が、打たれています。", MFace),
-        (3, "レイちゃんが|", ""),   // 入力欄。カーソル付き
+        (6, "レイちゃんが|", ""),   // 入力欄。カーソル付き
         (1, "……消えていきます。一文字ずつ。", MWorried),
-        (3, "今日も来ました|", ""),
+        (6, "今日も来ました|", ""),
         (1, "……「今日も来ました」。それだけが、残って——送られました。", MFace),
         (1, "消えたほうの一行は、拾っておきます。……中身は、本人の前で。", MFace),   // S2-8 まで温存
         (1, "……画面の中の笑顔は、いまの一行を、読んだでしょうか。——観測できません。向こう側ですので。", MFace),   // レイの側は言わない
@@ -296,8 +297,8 @@ public partial class StageKoharu : Node
     {
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
-        // 案C のこの面に出るのは ミナ(1)／こはる(2)／システム表示(3＝入力欄)／投稿(4)。
-        //   3 は Narration 扱いで Hud 側が立ち絵を捨て中央テロップになる＝入力欄がそのまま画面に出る。
+        // 案C のこの面に出るのは ミナ(1)／こはる(2)／投稿(4)／配信コメント欄(6＝入力欄)。
+        //   6 は StreamInput 扱いで Hud 側が立ち絵を捨て、配信画面のコメント欄風の専用UIで表示する。
         string portrait = kind switch
         {
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,   // 蒼白(KPale)・光(KLit)を行ごとに
