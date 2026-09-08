@@ -285,8 +285,11 @@ public partial class HowToCanvas : Node2D
             ("浄化と汚染",
              "敵を浄化＝救うこと。汚染は物語が進むほど自然に上がる演出で、高いとやさしさが鈍る。澄んだ心I/IIで上昇をゆるやかにできる。",
              UiKit.Kegare),
+            ("硬い盾役",
+             "たまに硬い盾役の敵が混ざる。弾はちゃんと効いているが粘り強いだけ＝無視して素通りしてもいい。",
+             UiKit.Text2),
         };
-        float cardH = 96f, gap = 14f;
+        float cardH = 72f, gap = 10f;
         for (int i = 0; i < cards.Length; i++)
         {
             float ry = y + i * (cardH + gap);
