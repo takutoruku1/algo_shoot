@@ -5,7 +5,7 @@ using System.Collections.Generic;
 // 移動(通常75 / 低速33 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
 // W0 では残機を減らさず「練習中」扱い（ゲームオーバーにしない）。
 // 衝突: layer=1, mask=12（敵=4 と 敵弾=8 を検出）。
-// 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点を _Draw で小さく描く。
+// 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点は子ノード PlayerHitDot が絵より前に描く。
 public partial class Player : Area2D
 {
     // 速度（2026-09-08 ユーザー指示で基本移動を半減：150→75）。
@@ -156,7 +156,7 @@ public partial class Player : Area2D
     private const float MouseSnapDist = 0.6f;           // この距離まで詰めたら吸着（微振動を止める）
     private ulong _mouseWheelFrame;                     // ホイールを消費した描画フレーム（1フレーム2回消費の二重切替を防ぐ）
 
-    // 「今かすった」を自機側のリングで一瞬光らせる残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
+    // 「今かすった」を自機の絵の発光で一瞬返す残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
     private float _grazeFlash = 0f;
     private const float GrazeFlashDecay = 6f; // 約0.17秒で消える（即・短く＝テンポを殺さない）
 
@@ -296,7 +296,10 @@ public partial class Player : Area2D
         foreach (Node n in GetTree().GetNodesInGroup("enemies"))
             if (n is Enemy e && e.HasHpBar && !e.IsPurified) { boss = e; break; }
 
-        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
+        // F / パッド R1 / マウス右クリック（2026-09-08 ユーザー指示で右クリックを追加）。
+        // 右クリックはメニュー系画面では「もどる」に使うが、戦闘中は空いているので衝突しない。
+        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
+                   || Input.IsMouseButtonPressed(MouseButton.Right);
         bool edge = key && !_lockHeld;
         _lockHeld = key;
 
@@ -510,6 +513,10 @@ public partial class Player : Area2D
         _pool = GetNode<BulletPool>("/root/Pool");
 
         ZIndex = 10;
+
+        // 被弾点は専用の子ノードで、スプライトより前に描く（下の PlayerHitDot の説明を参照）。
+        // ZAsRelative（既定 true）なので ZIndex=1 は「自機 10 に対し +1＝11」の意味になる。
+        AddChild(new PlayerHitDot { Name = "HitDot", Radius = _hitR, ZIndex = 1 });
 
         // 開始/リスタート直後の被弾を防ぐスポーン無敵（点滅）
         _invincible = true;
@@ -890,6 +897,14 @@ public partial class Player : Area2D
             }
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
             _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
+            // 残光（_grazeFlash）はグレイズ境界リングを廃止した（2026-09-08）ぶん、絵そのものの発光で返す。
+            // TutorialGlow() がステージ0で「自機を光らせて目立たせる」のに同じ値を使うので、
+            // リングと一緒に消すとチュートリアルの誘導が黙って死ぬ。行き先だけ絵側へ移した。
+            if (_grazeFlash > 0f)
+            {
+                float g = 1f + 0.55f * _grazeFlash;
+                _sprite.SelfModulate = new Color(_sprite.SelfModulate.R * g, _sprite.SelfModulate.G * g, _sprite.SelfModulate.B * g);
+            }
 
             // ── 回避中は「その場ピルエット」＝縦軸まわりの本物のスピン（回転各アングルの差分イラストを送る）──
             // 旧実装の Scale.X=cos によるカードスピン擬似（紙っぽさの原因）は廃止し、5枚のフレーム＋FlipH 流用で
@@ -1325,7 +1340,7 @@ public partial class Player : Area2D
 
             FxLayer.Instance?.Graze(GlobalPosition); // グレイズ閃光（共通の手応え）
             Audio.Instance?.PlayGraze();
-            _grazeFlash = 1f; // 自機側のグレイズリングを一瞬光らせる（“今かすった”を強調）
+            _grazeFlash = 1f; // 自機の絵を一瞬光らせる（“今かすった”を強調。旧グレイズリングの代替）
         }
     }
 
@@ -1554,18 +1569,32 @@ public partial class Player : Area2D
             DrawArc(Vector2.Zero, _veilR - 3f, 0f, Mathf.Tau, 44, new Color(1f, 0.9f, 0.6f, 0.25f * va), 1f);
         }
 
-        // ── グレイズ境界（外側リング）＝「ぎりぎり回避＝ご褒美」になる範囲 ──
-        // 実際の判定値 GrazeRadius(11f) に必ず一致させて描く（旧 5.5f の不一致を廃止）。
-        // 控えめなシアン：被弾点(赤)と意味が一目で違う。通常時は薄く、低速(Shift)時は濃く＝精密回避を促す。
-        // “今かすった”残光(_grazeFlash)を上乗せして一瞬明るくする。
-        float grazeBaseA = _focus ? 0.55f : 0.22f;
-        float grazeA = Mathf.Min(0.95f, grazeBaseA + _grazeFlash * 0.6f);
-        float grazeW = _focus ? 1.4f : 1f;
-        DrawArc(Vector2.Zero, GrazeRadius, 0f, Mathf.Tau, 40,
-            new Color(0.45f, 0.95f, 1f, grazeA), grazeW); // シアンの細いリング＝グレイズ境界
+        // ※グレイズ境界のシアンのリングは削除（2026-09-08）。
+        //   常時ミナの周りに出ている輪で、ユーザーに「何のためにあるか分からない」と指摘された。
+        //   グレイズ判定（GrazeRadius の GrazeArea＝スコア加算・SE・FxLayer 閃光）はそのまま生きている。
+        //   “かすった”手応えは FxLayer.Graze の閃光と SE が担う＝情報は失われない。
 
-        // ── 被弾点（中心・常時・最も目立つ）＝この赤い点に当たると死ぬ ──
-        DrawCircle(Vector2.Zero, _hitR + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
-        DrawCircle(Vector2.Zero, _hitR, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
+        // ※被弾点は _Draw では描かない。ここ（Player 自身の描画）だと**子の _sprite に必ず覆われる**
+        //   （子は親の描画より後＝上に出る）。「常に最も目立つ」を守るため HitDot 子ノードへ移した。
+    }
+}
+
+// 被弾点（赤い点）専用の描画ノード。
+//   Player._Draw で描くと、子である _sprite（ミナの絵）が後から上に乗って点が完全に隠れる
+//   ＝ユーザー実機指摘「あたり判定の表記がミナの後ろにある」。CanvasItem の描画順は
+//   「親 → 子（同 ZIndex なら宣言順）」なので、親の _Draw に居るかぎり絵には勝てない。
+//   そこで点だけを子ノードに切り出し、ZIndex を相対 +1（＝自機 10 に対し 11）に上げる。
+//   _sprite は相対 0（＝10）、回避残像は Player と同じ親の下で ZIndex-1（＝9）なので、
+//   残像 < 絵 < 被弾点 の順が確定する。祈りの帳・拡散サブの光球は親の _Draw のままなので
+//   これらより点が前に出る（設計意図どおり「最も目立つ」）。
+//   親の Modulate（被弾点滅）は子にも掛かるため、点滅の見え方は移設前と変わらない。
+public partial class PlayerHitDot : Node2D
+{
+    public float Radius = 2f;
+
+    public override void _Draw()
+    {
+        DrawCircle(Vector2.Zero, Radius + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
+        DrawCircle(Vector2.Zero, Radius, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
     }
 }

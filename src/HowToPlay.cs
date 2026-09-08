@@ -103,8 +103,8 @@ public partial class HowToCanvas : Node2D
     private static string TokShot  => "オート";                                                       // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)  : "Shift";       // RB は向き反転へ移した
     private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック"; // 向き反転：Player.cs RightShoulder / 左クリック
-    // ロックオン照準（ボス戦のみ）：Player.cs の Key.F / パッド RB。向き反転は機能オフなので F は空いている。
-    private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F";
+    // ロックオン照準（ボス戦のみ）：Player.cs の Key.F / パッド RB / マウス右クリック。向き反転は機能オフなので F は空いている。
+    private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 右クリック";
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B

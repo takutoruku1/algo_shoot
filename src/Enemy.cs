@@ -1357,10 +1357,9 @@ public partial class Enemy : Area2D
                     : new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
                 DrawCircle(Vector2.Zero, AuraRadius + 6f + 3f * pulse, aura);
                 DrawArc(Vector2.Zero, AuraRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
-                // スイートスポット：PointBlankRange の薄い金リング＝「ここまで近づくと大ダメージ」を学習させる。
-                // 弾を隠さない淡さ＆破線風（点描）で控えめに。当たり判定とは無関係の見せかけ。
-                DrawArc(Vector2.Zero, PointBlankRange, 0, Mathf.Tau, 48,
-                        new Color(1f, 0.84f, 0.32f, 0.10f + 0.06f * pulse), 1f);
+                // ※スイートスポット（PointBlankRange）の薄い金リングは削除（2026-09-08）。
+                //   露出中ずっと出ている常時リングで、ユーザーに「何のための輪か分からない」と指摘された。
+                //   密着クリティカルの判定（PointBlankRange）そのものは生きている＝描画だけを落とした。
                 // 終了予告：窓が「閉じてくる」収縮リング（外→内へ詰まる＝残り時間を直感的に見せる）。
                 if (warn)
                 {
@@ -1383,9 +1382,9 @@ public partial class Enemy : Area2D
         if (!_hasBodyTex)
             DrawPerson(_purified ? new Color(1f, 0.86f, 0.62f) : new Color(0.55f, 0.6f, 0.78f), happy: _purified);
 
-        // 波紋射程プレビュー（残り1枚＝剥がし切ると波紋がここまで届く）
-        if (!_purified && _panels.Count == 1)
-            DrawArc(Vector2.Zero, Ripple.MaxRadius, 0, Mathf.Tau, 40, new Color(0.7f, 0.92f, 1f, 0.28f), 1f);
+        // ※波紋射程プレビュー（Ripple.MaxRadius の薄い輪）は削除（2026-09-08）。
+        //   盾が残り1枚のあいだ出っぱなしで、タイミングを伝える記号（合図リング・露出オーラ）と
+        //   紛らわしいうえ意味が読めなかった。波紋そのものは剥がし切った瞬間に出るので情報は失われない。
     }
 
     private static readonly string[] KindWords = { "ありがとう", "だいじょうぶ", "きみは悪くないよ", "ごめんね", "また話そう" };
