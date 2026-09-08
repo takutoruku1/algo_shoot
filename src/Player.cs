@@ -225,22 +225,28 @@ public partial class Player : Area2D
     private bool _mouseFlipLocked = false;      // 会話送りのクリックが会話明けに向き反転へ流れ込むのを止めるゲート（離すまで反転しない）
     public int Facing => _facing;
 
-    // ───────── ロックオン照準（ボス戦だけ・2026-09-07）─────────
-    // ユーザー指示「ボスの時だけボスの方向に打てるロックオン照準システムを作りたい、解除可能」。
+    // ───────── ロックオン照準（全敵・巡回式・2026-09-08）─────────
+    // 初出はボス戦専用（2026-09-07）。ユーザー指示で**雑魚・中ボス・ボスすべて**を対象にし、
+    // 「クリックのたびに一番近い敵から順に一つ遠い敵へ移り、画面内を一巡したらまた一番近い敵へ戻る」
+    // 巡回式に作り替えた。
     //
-    //   ・ボスが居るあいだだけ使える。道中では入／切そのものを受け付けない（居なくなれば自動で切れる）。
-    //   ・弾そのものは曲げない。**発射方向**をボスへ向けるだけ＝ホーミング（弾が追う）とは別物。
+    //   ・候補＝**画面（盤面）に映っていて、まだ浄化されていない敵**。ボスが居なくても使える
+    //     （道中で切る早期 return は撤去した）。
+    //   ・弾そのものは曲げない。**発射方向**を対象へ向けるだけ＝ホーミング（弾が追う）とは別物。
     //     実装は ShotDir / ShotAngle の差し替え1点に閉じる＝全射撃経路（連射・拡散・ホーミング・
     //     貫通・子分）が自動で追従し、弾数・威力・間隔には触れない。
-    //   ・入／切は F。押すたびに切り替わる（押しっぱなし不要）。F は向き反転に割り当てられていたが
-    //     FacingFlipEnabled=false で機能ごと止まっており、実質どこにも効いていない空きキーだった。
-    //     V はジョブ、C はヒカゲ技が使う。**向き反転とは別系統**で、こちらは _facing を書き換えない
-    //     （_facing は +1 のまま。ロック中だけ ShotDir が上書きされる）。
+    //   ・入力＝**左クリック** / F / パッド R1。押すたびに次の敵へ進む（押しっぱなし不要）。
+    //     **右クリックは解除専用**（回避と同じボタン＝回避と同時にロックが外れる）。ロックしていない
+    //     ときの右クリックは回避が出るだけで何も起きない。
+    //     **向き反転とは別系統**で、こちらは _facing を書き換えない（_facing は +1 のまま。
+    //     ロック中だけ ShotDir が上書きされる）。
     //   ・ロック中は移動が遅くなる（LockMoveMul）＝照準を任せるあいだは足が重い、という取引。
     private const float LockMoveMul = 0.8f;   // ロック中の移動速度倍率（ユーザー決定の目安 0.8）
     private bool _locked;                     // ロックオン中か
-    private bool _lockHeld = true;            // トグルのエッジ検出（_flipHeld と同じ理由で true 始まり）
-    private Node2D? _lockTarget;              // 現在のロック先（ボス本体）
+    private bool _lockHeld = true;            // 送りのエッジ検出（_flipHeld と同じ理由で true 始まり）
+    private bool _mouseLockLocked = false;    // 会話送りのクリックが会話明けにロック送りへ流れ込むのを止めるゲート（離すまで送らない）
+    private bool _lockClearHeld = true;       // 解除（右クリック）のエッジ検出。回避と同じ理由で true 始まり
+    private Node2D? _lockTarget;              // 現在のロック先（雑魚・中ボス・ボスのいずれか）
     public bool LockedOn => _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
     public Node2D? LockTarget => LockedOn ? _lockTarget : null;
 
@@ -279,6 +285,51 @@ public partial class Player : Area2D
     }
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
     private string _aimNow = "";
+    // ── 表示スケールの単一ソース（2026-09-08）──
+    //   自機の表示高さは常に 36px。ただし正規化の基準は **canvas の高さではなく「絵の中身（不透明部分）の高さ」**。
+    //   canvas 基準だと、素材ごとの上下の余白ぶんだけキャラが小さく描かれる。実測では
+    //   mina_aim_d が canvas720 に対し中身664（上下28px ずつ余白）で、キャラの高さが 33.2px＝他方向の
+    //   35.2〜35.8px より約8%低かった＝ユーザー指摘「完全に揃えたい」。中身基準にすれば全方向が 36.0px で揃う。
+    //   余白は上下対称（28/28・2/2 等）なので、中身基準にしても縦位置はずれない。
+    //   不透明部分の高さは画像を1回だけ走査して求め、テクスチャごとにキャッシュする（毎フレームは走査しない）。
+    //   中身の高さは素材ごとに固定の値なので、**実行時に画素を走査しない**。走査版を一度入れたところ
+    //   480x720 の照準絵1枚で 5.4〜7.0ms かかり、各方向の初出フレームだけ 11.8ms→40ms へ跳ねた
+    //   （弾幕中に最大5回のカクつき）。値は下の表に焼き込み、素材を差し替えたときだけ表を直す。
+    //   表に無いテクスチャは canvas 高さで従来どおり動く＝載せ忘れても事故らない（揃わないだけ）。
+    //   計測は「α>7/255 の行の上端〜下端」。素材を差し替えたら同じ基準で測り直して表を更新すること。
+    private static readonly System.Collections.Generic.Dictionary<string, float> _contentH = new()
+    {
+        // 待機・回避スピン・少年：余白ゼロ＝canvas と同じ（表に載せるのは「確認済み」の意思表示）
+        { "mina_idle",     360f }, { "shonen_idle",  360f }, { "shonen_point", 360f },
+        { "mina_spin_00",  360f }, { "mina_spin_01", 360f }, { "mina_spin_02", 360f },
+        { "mina_spin_03",  360f }, { "mina_spin_04", 360f },
+        // 旧フォールバック素材（通常は使われない）
+        { "algo_idle",     146f }, { "algo_cutout", 1345f }, { "algo",        1402f },
+        // 照準（canvas 720。上下に余白があるので canvas 基準では下向きだけ 8% 低く出ていた）
+        { "mina_aim_u",    716f }, { "mina_aim_ur",  703f }, { "mina_aim_r",   715f },
+        { "mina_aim_dr",   716f }, { "mina_aim_d",   664f },
+    };
+
+    private static float ContentHeight(Texture2D tex)
+    {
+        string key = tex.ResourcePath;
+        if (key.Length > 0)
+        {
+            int s = key.LastIndexOf('/') + 1, d = key.LastIndexOf('.');
+            if (d > s) key = key.Substring(s, d - s);
+            if (_contentH.TryGetValue(key, out float h) && h > 0f) return h;
+        }
+        return tex.GetHeight(); // 表に無い＝canvas 基準（従来動作）へ素直に落ちる
+    }
+
+    // このテクスチャを表示高さ36pxで描くための等倍スケール。差し替えのたびに必ずここを通す。
+    private static float ScaleFor(Texture2D? tex)
+    {
+        if (tex == null) return 1f;
+        float h = ContentHeight(tex);
+        return h > 0 ? 36f / h : 1f;
+    }
+
     private Texture2D? AimTexture(string dir)
     {
         if (_aimTex.TryGetValue(dir, out var t)) return t;
@@ -288,28 +339,81 @@ public partial class Player : Area2D
         return tex;
     }
 
-    // ロックの入／切と対象の維持。ボスが居なければ黙って切る（道中で切り替えを持ち越さない）。
+    // ロック対象になれるか＝浄化されておらず、**盤面（画面）の中に居る**敵。
+    //   画面内判定はカメラのビューポート矩形ではなく Field.Rect を使う。このゲームの描画域は
+    //   ビューポート全体ではなく「左のサイドパネル(0..112)＋額縁を除いた Field.Left(120)〜Right(384)」で、
+    //   ビューポート判定だとパネルの裏に隠れた敵まで候補に入ってしまう。敵の出現も退場（OffLeftX）も
+    //   Field 基準で書かれているので、盤面矩形で見るほうが実装全体と整合する。
+    //   上下は少しだけ甘くする（Margin）＝画面の縁に半分だけ見えている敵を「映っていない」扱いにしない。
+    private const float LockEdgeMargin = 6f;  // 盤面の縁の許容(px)。半分だけ見えている敵も候補に入れる
+    private static bool LockCandidate(Node n, out Enemy e)
+    {
+        e = null!;
+        if (n is not Enemy en || en.IsPurified || !IsInstanceValid(en)) return false;
+        var p = en.GlobalPosition;
+        if (p.X < Field.Left - LockEdgeMargin || p.X > Field.Right + LockEdgeMargin) return false;
+        if (p.Y < Field.Top - LockEdgeMargin || p.Y > Field.Bottom + LockEdgeMargin) return false;
+        e = en;
+        return true;
+    }
+
+    // ロックの送り／解除と対象の維持。
+    //   送り（左クリック / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
+    //   解除（右クリック）＝ 回避と同じボタン。ロックを外すだけ（回避は別経路で同時に出る）。
     private void TickLockOn()
     {
-        // 対象＝HPバーを持つ敵（＝ボス／中ボス）のうち、まだ浄化されていない最初の1体。
-        Node2D? boss = null;
-        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
-            if (n is Enemy e && e.HasHpBar && !e.IsPurified) { boss = e; break; }
+        // ── 対象の維持：倒された／浄化された／画面外へ出たらロックを落とす ──
+        // ここで落としておけば、次の送りは自動的に「一番近い敵」から始まる＝巡回位置のリセットも兼ねる。
+        if (_locked && (!IsInstanceValid(_lockTarget!) || _lockTarget == null
+                        || !LockCandidate(_lockTarget, out _)))
+        { _locked = false; _lockTarget = null; }
 
-        // F / パッド R1 / マウス右クリック（2026-09-08 ユーザー指示で右クリックを追加）。
-        // 右クリックはメニュー系画面では「もどる」に使うが、戦闘中は空いているので衝突しない。
+        // ── 解除入力＝右クリックのみ（回避と同じボタン。回避は _PhysicsProcess 側で別に出る）──
+        // ロックしていなければ何も起きない（回避だけが出る）。キーボード／パッドには解除専用は割り当てない
+        //（F / R1 の送りで一巡すれば戻ってこられるうえ、空きボタンが無い）。
+        bool clearKey = Pad.MouseRightDown();
+        if (clearKey && !_lockClearHeld && !Hud.BubblePaused && _locked)
+        {
+            _locked = false; _lockTarget = null;
+            if (Audio.Instance is { } auc) auc.Se(auc.SfxUiMove, volDb: -18f, pitch: 0.85f);
+        }
+        _lockClearHeld = clearKey;
+
+        // ── 送り入力＝左クリック / F / パッド R1 ──
+        // 左クリックは会話送り（Pad.AdvanceHeld）と兼用なので、会話中に押されていたクリックは
+        // 離すまでロック送りに使わない（会話明けの1クリックが誤爆するのを止める。_mouseFlipLocked と同手口）。
+        // 向き反転が復活しているあいだ（FacingFlipEnabled=true）は左クリックがそちらの持ち物なので、
+        // ロック送りはマウスから外して F / R1 だけにする＝1クリックで反転とロックが同時に走らない。
+        bool mouseL = !FacingFlipEnabled && Pad.MouseDown();
+        if (Hud.BubblePaused && mouseL) _mouseLockLocked = true;
+        else if (!mouseL) _mouseLockLocked = false;
         bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
-                   || Input.IsMouseButtonPressed(MouseButton.Right);
+                   || (mouseL && !_mouseLockLocked);
         bool edge = key && !_lockHeld;
         _lockHeld = key;
+        if (!edge || Hud.BubblePaused || _gameOver) return;
 
-        if (boss == null) { _locked = false; _lockTarget = null; return; }  // ボスが居ない＝ロックは無い
-        _lockTarget = boss;
-        if (edge && !Hud.BubblePaused)
-        {
-            _locked = !_locked;
-            if (Audio.Instance is { } au) au.Se(au.SfxUiMove, volDb: -18f, pitch: _locked ? 1.15f : 0.85f);
-        }
+        // ── 候補を自機からの距離順に並べ、「今の対象の次」を取る ──
+        //   毎回ソートし直す＝敵が動けば列も変わるが、**列の中から今の対象の位置を引き直して次を取る**ので
+        //   順番が入れ替わっても巡回が飛ばない（インデックスを覚えておく方式だと、敵が動いた瞬間に
+        //   別の敵を指してしまう）。今の対象が列から消えていれば先頭＝最も近い敵から。
+        var cands = new System.Collections.Generic.List<Enemy>();
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+            if (LockCandidate(n, out var e)) cands.Add(e);
+        if (cands.Count == 0) { _locked = false; _lockTarget = null; return; }
+
+        var me = GlobalPosition;
+        cands.Sort((a, b) => a.GlobalPosition.DistanceSquaredTo(me)
+                              .CompareTo(b.GlobalPosition.DistanceSquaredTo(me)));
+
+        int cur = _locked && _lockTarget != null ? cands.IndexOf((Enemy)_lockTarget) : -1;
+        int next = (cur + 1) % cands.Count;   // cur=-1（未ロック/列外）→ 0＝最も近い敵。末尾→先頭へ一巡。
+        var prev = _lockTarget;
+        _lockTarget = cands[next];
+        _locked = true;
+        // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。
+        if (prev is Enemy pe && IsInstanceValid(pe) && !ReferenceEquals(pe, _lockTarget)) pe.QueueRedraw();
+        if (Audio.Instance is { } au) au.Se(au.SfxUiMove, volDb: -18f, pitch: 1.15f);
     }
 
     // ───────── 回避（ドッジ）─────────
@@ -456,11 +560,9 @@ public partial class Player : Area2D
                 // 背景に合わせ、なめらか高精細で小さく表示（リニア縮小）
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear
             };
-            // 表示高さ約36px（弾幕向けに小さめ）
-            float texHeight = tex.GetHeight();
-            if (texHeight > 0)
+            // 表示高さ約36px（弾幕向けに小さめ）。基準は絵の中身の高さ（ScaleFor）。
             {
-                float scale = 36f / texHeight;
+                float scale = ScaleFor(tex);
                 _sprite.Scale = new Vector2(scale, scale);
                 _baseScaleX = scale; // 縦軸スピンの cos 駆動はこの素値を基準にする（向きは FlipH 固定＝符号は常に正）。
             }
@@ -561,6 +663,8 @@ public partial class Player : Area2D
         // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
         // マウス時は右クリックが回避（低速は Shift のまま＝マウス側には割り当てない）。
+        // 右クリックは**回避とロック解除を兼ねる**（2026-09-08 ユーザー指示。両方が同時に起きてよい）。
+        // 解除そのものは TickLockOn 側で拾う＝ここは回避だけを見る。
         bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick)
                         || (mouse && Pad.MouseRightDown());
         if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
@@ -850,6 +954,12 @@ public partial class Player : Area2D
                     _aimNow = aimDir;
                     var tex = aimDir.Length > 0 ? AimTexture(aimDir) : null;
                     _sprite.Texture = tex ?? _idleTex;   // 絵が無い方向は idle のまま＝欠けても事故らない
+                    // 差し替えた絵で基準スケールを取り直す（2026-09-08）。
+                    //   _baseScaleX は起動時に idle から焼き込んだ値を使い回していたが、照準の絵は
+                    //   canvas が2倍(720)なので同じ値を掛けると**2倍の大きさで出る**
+                    //   ＝ユーザー実機指摘「ロックオン中だけミナがでかい」。素材ごとに寸法が違う以上、
+                    //   基準は「今どのテクスチャを表示しているか」から毎回引き直すのが正しい。
+                    _baseScaleX = ScaleFor(_sprite.Texture);
                 }
                 // 左半分の方向は右向きの絵を左右反転して作る。**向き反転（_facing）とは別系統**で、
                 // ここでは _facing に一切書かない＝上の FlipH 代入の結果を、この1フレームぶんだけ上書きする。
@@ -1175,11 +1285,9 @@ public partial class Player : Area2D
         // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
         // 着地フレーム(00)がちゃんと左向きに戻る（向きが回避で壊れない）。
         _sprite.FlipH = _dodgeFlip ^ (_facing < 0);
-        // フレーム差し替えごとに高さ正規化スケールを再計算（高さ360で統一＝実質どれも同一値）。
-        float h = tex.GetHeight();
-        if (h > 0)
+        // フレーム差し替えごとに正規化スケールを再計算（基準は絵の中身の高さ＝ScaleFor）。
         {
-            float scale = 36f / h;
+            float scale = ScaleFor(tex);
             _baseScaleX = scale;
             _sprite.Scale = new Vector2(scale, scale);
         }
@@ -1204,8 +1312,7 @@ public partial class Player : Area2D
             if (_idleTex != null)
             {
                 _sprite.Texture = _idleTex;
-                float h = _idleTex.GetHeight();
-                if (h > 0) { _baseScaleX = 36f / h; }
+                _baseScaleX = ScaleFor(_idleTex);
             }
             // スケールを素値へきっちり戻す（Scale.X=Scale.Y=baseScale）。
             _sprite.Scale = new Vector2(_baseScaleX, _baseScaleX);

@@ -240,6 +240,7 @@ public partial class Enemy : Area2D
     private CollisionShape2D _bodyShape = null!;
 
     public bool IsPurified => _purified;
+    private bool _wasLockTarget = false;   // 前フレームのロック対象だったか（照準マーカーの消し忘れ防止。_PhysicsProcess で更新）
     protected bool IsShieldPhase => _phase == BossPhase.Shielded; // 派生ギミックが「今は殴れる時間か」を参照
 
     // 自機がこのボスへ有効打を入れた瞬間のフック（パネルのインク削り＝Panel 側／無防備窓の本体ヒット）。
@@ -1266,6 +1267,15 @@ public partial class Enemy : Area2D
 
         // 無防備窓サイクルの進行（BubblePaused でも止めない＝合図/窓が固まらないように）。
         if (_maxHp > 0) TickBossPhase(delta);
+
+        // ロックオンの照準マーカー（_Draw）を回すための再描画（2026-09-08）。
+        //   ザコ（_maxHp==0）は普段いっさい QueueRedraw を呼ばない＝ロック対象を雑魚まで広げた今、
+        //   これが無いとマーカーが点かない／外しても消えない。「今ロックされているか」が
+        //   前フレームから変わったとき＋ロック中は毎フレーム、の2条件で促す
+        //   （無関係な雑魚まで毎フレーム再描画しない＝描画コストは増やさない）。
+        bool lockedNow = GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this;
+        if (lockedNow || _wasLockTarget) QueueRedraw();
+        _wasLockTarget = lockedNow;
 
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
 

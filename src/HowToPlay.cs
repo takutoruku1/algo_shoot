@@ -103,9 +103,10 @@ public partial class HowToCanvas : Node2D
     private static string TokShot  => "オート";                                                       // ショットはボタン不要（常時自動発射）
     private static string TokFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)  : "Shift";       // RB は向き反転へ移した
     private static string TokFlip  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック"; // 向き反転：Player.cs RightShoulder / 左クリック
-    // ロックオン照準（ボス戦のみ）：Player.cs の Key.F / パッド RB / マウス右クリック。向き反転は機能オフなので F は空いている。
-    private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 右クリック";
-    private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt";        // 回避ダッシュ：Player.cs LeftStick
+    // ロックオン照準（全敵・巡回式）：Player.cs の Key.F / パッド RB / マウス**左**クリック。
+    // 向き反転は機能オフなので F と左クリックは空いている。解除は右クリック（回避と同時に外れる）。
+    private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック";
+    private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt / 右クリック"; // 回避ダッシュ：Player.cs LeftStick / マウス右クリック
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
     private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
@@ -164,9 +165,10 @@ public partial class HowToCanvas : Node2D
             (TokShot,  "撃つ",        "自動で撃ちます。光を放って心を浄化する",          UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
+            // 回避の右クリックはロック解除も兼ねる（Player.TickLockOn）。説明は下のロックオン行に置く。
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
-            (TokLock,  "ロックオン",  "ボス戦だけ。弾がボスの方向へ飛ぶ。移動は少し遅くなる", UiKit.Purify, true),
+            (TokLock,  "ロックオン",  "押すたび近い敵から順に狙う。右クリックで解除。移動は少し遅くなる", UiKit.Purify, true),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
         // 向き反転は機能をオフにしているあいだ説明ごと伏せる（Player.FacingFlipEnabled で復活）。
@@ -195,10 +197,11 @@ public partial class HowToCanvas : Node2D
             float ny = y + half * rowH + 6f;
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny),
                 "※ 光は自動で出ます。撃つボタンはありません", UiKit.FontLabel, UiKit.Gold);
-            // 左クリックの「向き反転」は機能オフ中は案内から外す（Player.FacingFlipEnabled で復活）。
+            // 左クリックは通常ロックオン送り。向き反転が復活しているときだけ、そちらへ譲る
+            //（Player.FacingFlipEnabled で復活。両方を左クリックに載せると衝突するため）。
             string mouseHint = Player.FacingFlipEnabled
-                ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）"
-                : "◆ マウスでも遊べます — カーソルへ移動／右クリック 回避／中クリック ボム／ホイール ショット切替（低速は Shift）";
+                ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避＋ロック解除／中クリック ボム／ホイール ショット切替（低速は Shift）"
+                : "◆ マウスでも遊べます — カーソルへ移動／左クリック ロックオン送り／右クリック 回避＋ロック解除／中クリック ボム／ホイール ショット切替（低速は Shift）";
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
                 mouseHint, UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
         }
