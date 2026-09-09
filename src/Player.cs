@@ -264,6 +264,7 @@ public partial class Player : Area2D
     public bool DodgeReady => _dodgeCd <= 0f && _dodgeTimer <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）。TryDodge の実行可否ガード(999行目)と同条件に揃える＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     public int  BombCount { get; private set; }  // ボムを発動した累計回数（練習モードでは残数が減らないのでチュートリアルはこの増分で発動検出）
+    public int  FlipCount { get; private set; }  // 向き反転を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
     private float _baseScaleX = 1f;             // 素の横スケール（高さ正規化値）。フレーム差し替えのたびにこの基準で再計算する。
     private int _dodgeGrazeCount = 0;           // 今回の回避でよけた弾数（farming防止のCap判定用）。TryDodge でリセット。
@@ -591,6 +592,7 @@ public partial class Player : Area2D
         if (flipKey && !_flipHeld && !Hud.BubblePaused && !_gameOver)
         {
             _facing = -_facing;
+            FlipCount++;         // 実行回数を加算（チュートリアルの向き反転検出用。報酬や挙動には無関係）
             FxLayer.Instance?.Muzzle(GlobalPosition + ShotDir * 20f); // 「向きが変わった」を銃口側の一閃で示す
         }
         _flipHeld = flipKey;

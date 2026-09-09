@@ -1,15 +1,28 @@
 {
-  "generated": "2026-09-08 20:24 UTC",
+  "generated": "2026-09-09 18:51 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 1,
     "wip": 0,
-    "blocked": 22,
-    "done": 216
+    "blocked": 23,
+    "done": 217
   },
   "percent": 100,
-  "todo": [],
+  "todo": [
+    {
+      "priority": "P3",
+      "title": "Enemy/Panel の未使用フィールド `PanelsFire`/`PanelFireInterval` を削除する",
+      "worker": "engineer",
+      "accept": "2026-09-09監査(engineer)発見。`src/Enemy.cs:21-22`で`protected bool PanelsFire = true;`/`protected float PanelFireInterval = 1.9f;`が宣言されているが、`Enemy`の全11サブクラス（`BossAkari.cs:94`, `BossHikage.cs:46`, `BossKoharu.cs:141`, `BossMina.cs:77`, `BossRei.cs:123`, `CameoBoss.cs:92`, `CorridorRun.cs:280`, `GlyphMote.cs:26`, `MidEnemy.cs:85`, `PageShard.cs:20`, `TrainingDummy.cs:40`）でコンストラクタ内に`PanelsFire = false;`が明示され、`true`のデフォルト値は一度も実際のインスタンスで観測されない。さらに唯一の呼び出し元`Enemy.cs:450`が`PanelsFire`/`PanelFireInterval`を`Panel.Setup`（`Panel.cs:27-41`）へ渡すが、`Panel.cs:37`で`_fires = false;`と受け取った引数を無視してハードコードしており、`_fireInterval`（`Panel.cs:38`）もその後どこからも読まれない（`Panel.cs`内の他の出現は`:36`の説明コメントと`:98`のみでコードではない）。`Panel.cs:36`のコメント自体が「引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用」と自認する既知の残骸。受入条件: `Enemy.cs:21-22`の2フィールドと11サブクラスの`PanelsFire = false;`行、`Panel.Setup`のシグネチャ（`Panel.cs:27-28`）から`fires`/`fireInterval`引数、`Panel.cs:15-16,37-38`の`_fires`/`_fireInterval`フィールドを削除し、`Enemy.cs:450`の呼び出しを整合させる。`dotnet build algo_shoot.sln`が0 Warning/0 Error。挙動変化がないことをいずれかのボスステージで`--qa`パスして確認（パネルが従来通りシールドとして機能すること）。"
+    }
+  ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "「会話選択・層2プロト」の疑いフラグ `PressedTheQuestion` が書き込まれるだけで一度も読まれず、設計書の分岐台詞も未実装のまま放置",
+      "worker": null,
+      "accept": "2026-09-09調査(scenario)。正典`docs/20260831/会話選択_層2_プロト仕様.md`は`StageKoharu.cs`上でのMidStoryA/B台詞差し替え(§3-4)・Clear行差し替え(§6, `StageKoharu.cs:196`)・Epilogue phase4独白差し替え(§7, `Epilogue.cs:159`)・フラグ記録タイミング(§8)を指定する。実装側は`src/StageKoharu.cs:355-380`の`Step_MidChoice`で選択肢UIとフラグ書き込み(`:377 game.PressedTheQuestion = true`)自体は存在するが、この機構は`StageKoharu.cs:530 KoharuInterruptEnabled = false`でこはる面では無効化され、案C(`wiki/08_仮台本/07`)に伴い別内容の3択(`StageRei.cs:242-268,774-816`「つづけて／むりしないで／（送らない）」)としてレイ面S3-7へ移設済み(コード内コメント`StageKoharu.cs:220-223,527-530`が明記)。`docs/20260831/`本文指定のMidStoryA/B具体台詞は`src/`全体をgrepしても0件＝未実装。`PressedTheQuestion`自体は`GameManager.cs:332`(定義)/`:898`(セーブ)/`:981`(ロード)/`:1029`(リセット)で永続化されているが、読み出し(分岐に使う箇所)は`src/`全体で0件——書くだけで一度も参照されない死に伏線フラグ。**要ユーザー判断**: (a)`docs/20260831/会話選択_層2_プロト仕様.md`を「レイ面S3-7への移設により非正典化」と明記した上で`PressedTheQuestion`とその未使用の永続化コードを削除する(死にコード整理)、(b)逆に元仕様通りこはる面のClear行・Epilogue独白の1行差し替えを正式承認し`PressedTheQuestion`を実際に消費する分岐台詞を実装する、(c)保留のまま存置する。新規台詞を伴う(b)は台詞承認ゲート対象。"
+    },
     {
       "priority": null,
       "title": "DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる（原因はS3-5bではなくレイ面前半の既存ペース）",
@@ -144,6 +157,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "練習ステージ(StageZero)に「向き反転」の実践フェーズを追加する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-09) `src/StageZero.cs`の旧case15（締めフェーズ）の直前に新フェーズを挿入し、締めをcase17へ繰り下げ（既存phase0〜14の順序・達成条件は無変更）。case15はTutFlip(空配列)で即通過、case16で自機の背後にダミー(GlyphMote)を配置し`Player.FlipCount`(新設、`src/Player.cs:267`、`_facing`反転時に`src/Player.cs:595`でインクリメント)の増分を計測、FlipNeed=3回反転で次へ進む(SafetyTimeout=60s併設)。`OpForPhase`(`src/StageZero.cs:113-126`)に`15 or 16 => \"flip\"`を追加し`src/Hud.cs:1421`の`DrawTutorialKeys`に`\"flip\"`ケース(既存`AllFlip`トークン再利用、新規セリフなし)を追加。ヘルパー`SpawnFlankDummy()`(`src/StageZero.cs:577`)新設。`Tut6Purify`/`Tut8End`の既存セリフ2行は無変更、台詞承認ゲート対象外(新規セリフなし)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error(指揮官が再実行して確認済み)。`Stage0.tscn -- --demo --seconds 400`のheadless実行でphase遷移をログ確認: phase15→16(t=0.01, 空配列即通過)、phase16→17(t=5.68, `_facing`が1→-1へ実際に反転し`FlipCount`が0→3までカウント)、既存phase0〜14も全て正常通過・例外なし。マウス左クリック/パッド(RB)経路での実プレイ確認は未実施(キーボードF相当の合成入力のみ)だが、既存の`flipKey`判定ロジック自体は無変更のためリグレッションリスクは低いと判断。"
+    },
     {
       "priority": "P3",
       "title": "DemoPilot に方向反転(背後の敵への対処)ロジックが一切無い",
@@ -1443,6 +1462,21 @@
   ],
   "commits": [
     {
+      "hash": "7ba5dab",
+      "date": "2026-09-09",
+      "subject": "auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加"
+    },
+    {
+      "hash": "a3f9e0a",
+      "date": "2026-09-09",
+      "subject": "auto: 監査で 3 件をキューに追加（TODO 2件・BLOCKED 1件）"
+    },
+    {
+      "hash": "34815cc",
+      "date": "2026-09-08",
+      "subject": "auto: DemoPilotに背後の敵への反転ロジックを追加"
+    },
+    {
       "hash": "1ebabf6",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - DemoPilotに背後の敵への反転ロジックを追加"
@@ -1466,21 +1500,6 @@
       "hash": "b37af3a",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - HowToPlayに道中敵3種の説明を追加"
-    },
-    {
-      "hash": "ca11521",
-      "date": "2026-09-08",
-      "subject": "auto: 正典シナリオ設計書v2に非正典バナーを追加"
-    },
-    {
-      "hash": "be05409",
-      "date": "2026-09-08",
-      "subject": "auto: WIP着手 - 正典シナリオ設計書v2に非正典バナーを追加"
-    },
-    {
-      "hash": "b18008a",
-      "date": "2026-09-08",
-      "subject": "auto: MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名"
     }
   ]
 }

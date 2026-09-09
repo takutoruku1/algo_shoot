@@ -1418,6 +1418,7 @@ public partial class Hud : CanvasLayer
             "focus" => ("低速",       AllFocus, UiKit.Info),
             "dodge" => ("回避",       AllDodge, UiKit.Gold),
             "bomb"  => ("ボム",       AllBomb,  UiKit.Mina),
+            "flip"  => ("向き反転",   AllFlip,  UiKit.Light),
             "kind"  => ("やさしさ全開", AllKind,  UiKit.PurifyHi),
             _       => ("",           "",       UiKit.White),
         };

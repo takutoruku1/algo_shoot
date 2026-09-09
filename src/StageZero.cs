@@ -1,9 +1,9 @@
 using Godot;
 
 // StageZero : ステージ0「れんしゅう」の進行（案C の T1）。
-//   Prologue 直後・Hub 入場前に独立シーンとして 9 ステップで各操作を教える。
+//   Prologue 直後・Hub 入場前に独立シーンとして 10 ステップで各操作を教える。
 //   案Cでは**教え役を置かない**：説明はボタンの絵と単語（指示帯）だけで、少年の台詞もミナの実況も無い。
-//   ミナが喋るのは概念に関わる2行だけ——浄化の段（phase 11）と締め（phase 15）。
+//   ミナが喋るのは概念に関わる2行だけ——浄化の段（phase 11）と締め（phase 17）。
 //   各ステップ＝「①暗転＋対象ゲージだけスポット（会話がある段だけツリー停止）→
 //                ②指示帯を残して実践（停止解除）→③その技を“やり遂げる”まで進まない」の3拍。
 //   実践は押した瞬間/短時間では進まず、撃破数・回避回数・ボム巻き込み数・全開での撃破など
@@ -42,6 +42,7 @@ public partial class StageZero : Node
     private int _t6PurifyBase;                            // 浄化：PurifiedCount の起点
     private int _t7OverloadKillBase; private bool _t7Activated; // 全開：発動済みフラグと、発動後の撃破起点
     private double _t7ActivatedT;                               // 全開：発動した時刻（_phaseTime 基準）。フォールバック判定用
+    private int _tFlipBase, _tFlipLast;                         // 向き反転：FlipCount の起点／直近値（湧き直しの再配置トリガに使う）
     private double _refill;
 
     // 各ステップの達成目標。
@@ -49,6 +50,7 @@ public partial class StageZero : Node
     private const int DodgeNeed      = 3;   // 回避を成功させる回数
     private const int BombKillNeed   = 3;   // ボムでまとめて巻き込んで倒す数
     private const int PurifyNeed     = 2;   // 浄化する数
+    private const int FlipNeed       = 3;   // 向き反転を実行する回数
     private const double SlowHoldNeed = 1.0; // 低速で動き続ける最低秒
 
     // 進行不能回避のための保険タイムアウト（十分長く＝通常プレイで勝手に進まない）。
@@ -80,6 +82,7 @@ public partial class StageZero : Node
         (1, "倒すのではなく、届ける。……これが、わたくしの役目なんですね。", "res://char/mina_face.png"),
     };
     private static readonly (int who, string text, string face)[] Tut7Warmth = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] TutFlip = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut8End =
     {
         (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
@@ -108,8 +111,9 @@ public partial class StageZero : Node
 
     // 各ステップ（説明会話フェーズ＆実践フェーズ）で、その操作に割り当たった“全ボタン”を
     // 指示帯の上にバッジで出すための操作名。Player.cs の入力判定と一致させる。
-    //   move=移動 / shot=撃つ（浄化も板を撃って祓う）/ focus=低速 / dodge=回避 / bomb=ボム / kind=やさしさ全開。
-    //   導入(0)・締め(15) は操作なし＝空。会話／実践のどちらのフェーズでも同じ操作名を出す。
+    //   move=移動 / shot=撃つ（浄化も板を撃って祓う）/ focus=低速 / dodge=回避 / bomb=ボム /
+    //   flip=向き反転（F/RB/左クリック） / kind=やさしさ全開。
+    //   導入(0)・締め(17) は操作なし＝空。会話／実践のどちらのフェーズでも同じ操作名を出す。
     private static string OpForPhase(int phase) => phase switch
     {
         1 or 2   => "move",
@@ -119,7 +123,8 @@ public partial class StageZero : Node
         9 or 10  => "bomb",
         11 or 12 => "shot",   // 浄化＝ショットで板を祓う
         13 or 14 => "kind",
-        _        => "",       // 0=導入 / 15=締め は操作ボタンを出さない
+        15 or 16 => "flip",
+        _        => "",       // 0=導入 / 17=締め は操作ボタンを出さない
     };
 
     // 各フェーズ。説明会話＝Hud(止まる)＋スポットON／実践＝指示帯(止めない)＋スポット弱め。
@@ -406,8 +411,44 @@ public partial class StageZero : Node
                 }
                 break;
 
-            // ── 8 締め（会話のみ）→ MarkTutorialSeen → Hub ──
+            // ── 8 向き反転（F / RB / 左クリック）：自機の背後にダミーを置いて反転を促す ──
             case 15:
+                if (TutTalk(TutFlip)) NextPhase();
+                break;
+            case 16: // 反転するたび“今の背後”にダミーを置き直す→FlipCount が3回増えるまで進まない
+                if (!_phaseStarted)
+                {
+                    _phaseStarted = true;
+                    _tFlipBase = _tFlipLast = Player?.FlipCount ?? 0;
+                    Hud.ClearSpot();
+                    ClearDummies();
+                    SpawnFlankDummy();
+                }
+                Player?.TutorialGlow();
+                {
+                    int flipsNow = Player?.FlipCount ?? 0;
+                    int flips = flipsNow - _tFlipBase;
+                    if (flipsNow != _tFlipLast)
+                    {
+                        // 反転を検出＝今向いている方向の逆（新しい背後）にダミーを置き直し、次の反転の理由を保つ。
+                        _tFlipLast = flipsNow;
+                        ClearDummies();
+                        if (flips < FlipNeed) SpawnFlankDummy();
+                    }
+                    else if (flips < FlipNeed && CountLiveEnemies() == 0) SpawnFlankDummy(); // 撃たれて消えたら湧き直し
+                    Hud.SetTutorialHint($"うしろにも 敵がいるよ。向きを 反転してみよう（{Mathf.Min(flips, FlipNeed)}/{FlipNeed}）");
+                    if (flips >= FlipNeed || _phaseTime > SafetyTimeout)
+                    {
+                        Hud.ClearTutorialHint();
+                        ClearDummies();
+                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+                        NextPhase();
+                    }
+                }
+                break;
+
+            // ── 9 締め（会話のみ）→ MarkTutorialSeen → Hub ──
+            case 17:
                 if (!_phaseStarted) { _phaseStarted = true; Hud.SetSpot(new Rect2(), 0.35f); }
                 if (TutTalk(Tut8End)) { Hud.ClearSpot(); ToHub(); }
                 break;
@@ -531,5 +572,17 @@ public partial class StageZero : Node
         var e = new GlyphMote { Harmless = harmless };
         World.AddChild(e);
         e.GlobalPosition = new Vector2(360f, _rng.RandfRange(70f, 150f));
+    }
+
+    // 向き反転練習：今向いている方向とは逆側（＝背後）にダミーを置く。撃たずとも良い、無害な標的（撃ち込めば消える）。
+    // 「引用リプ」(FlankAim) が背後に着座する体験を模して、向きを変える理由を作る。
+    private void SpawnFlankDummy()
+    {
+        float px = Player?.GlobalPosition.X ?? CenterX;
+        int facing = Player?.Facing ?? 1;
+        float x = facing >= 0 ? Mathf.Max(20f, px - 140f) : Mathf.Min(364f, px + 140f);
+        var e = new GlyphMote { Harmless = true };
+        World.AddChild(e);
+        e.GlobalPosition = new Vector2(x, _rng.RandfRange(70f, 150f));
     }
 }

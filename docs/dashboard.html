@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 216 / 対象 216 タスク<br>保留 22 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 217 / 対象 218 タスク<br>保留 23 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">216</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">217</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">22</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">23</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Enemy/Panel の未使用フィールド <code>PanelsFire</code>/<code>PanelFireInterval</code> を削除する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-09監査(engineer)発見。<code>src/Enemy.cs:21-22</code>で<code>protected bool PanelsFire = true;</code>/<code>protected float PanelFireInterval = 1.9f;</code>が宣言されているが、<code>Enemy</code>の全11サブクラス（<code>BossAkari.cs:94</code>, <code>BossHikage.cs:46</code>, <code>BossKoharu.cs:141</code>, <code>BossMina.cs:77</code>, <code>BossRei.cs:123</code>, <code>CameoBoss.cs:92</code>, <code>CorridorRun.cs:280</code>, <code>GlyphMote.cs:26</code>, <code>MidEnemy.cs:85</code>, <code>PageShard.cs:20</code>, <code>TrainingDummy.cs:40</code>）でコンストラクタ内に<code>PanelsFire = false;</code>が明示され、<code>true</code>のデフォルト値は一度も実際のインスタンスで観測されない。さらに唯一の呼び出し元<code>Enemy.cs:450</code>が<code>PanelsFire</code>/<code>PanelFireInterval</code>を<code>Panel.Setup</code>（<code>Panel.cs:27-41</code>）へ渡すが、<code>Panel.cs:37</code>で<code>_fires = false;</code>と受け取った引数を無視してハードコードしており、<code>_fireInterval</code>（<code>Panel.cs:38</code>）もその後どこからも読まれない（<code>Panel.cs</code>内の他の出現は<code>:36</code>の説明コメントと<code>:98</code>のみでコードではない）。<code>Panel.cs:36</code>のコメント自体が「引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用」と自認する既知の残骸。受入条件: <code>Enemy.cs:21-22</code>の2フィールドと11サブクラスの<code>PanelsFire = false;</code>行、<code>Panel.Setup</code>のシグネチャ（<code>Panel.cs:27-28</code>）から<code>fires</code>/<code>fireInterval</code>引数、<code>Panel.cs:15-16,37-38</code>の<code>_fires</code>/<code>_fireInterval</code>フィールドを削除し、<code>Enemy.cs:450</code>の呼び出しを整合させる。<code>dotnet build algo_shoot.sln</code>が0 Warning/0 Error。挙動変化がないことをいずれかのボスステージで<code>--qa</code>パスして確認（パネルが従来通りシールドとして機能すること）。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">練習ステージ(StageZero)に「向き反転」の実践フェーズを追加する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-09) <code>src/StageZero.cs</code>の旧case15（締めフェーズ）の直前に新フェーズを挿入し、締めをcase17へ繰り下げ（既存phase0〜14の順序・達成条件は無変更）。case15はTutFlip(空配列)で即通過、case16で自機の背後にダミー(GlyphMote)を配置し<code>Player.FlipCount</code>(新設、<code>src/Player.cs:267</code>、<code>_facing</code>反転時に<code>src/Player.cs:595</code>でインクリメント)の増分を計測、FlipNeed=3回反転で次へ進む(SafetyTimeout=60s併設)。<code>OpForPhase</code>(<code>src/StageZero.cs:113-126</code>)に<code>15 or 16 =&gt; &quot;flip&quot;</code>を追加し<code>src/Hud.cs:1421</code>の<code>DrawTutorialKeys</code>に<code>&quot;flip&quot;</code>ケース(既存<code>AllFlip</code>トークン再利用、新規セリフなし)を追加。ヘルパー<code>SpawnFlankDummy()</code>(<code>src/StageZero.cs:577</code>)新設。<code>Tut6Purify</code>/<code>Tut8End</code>の既存セリフ2行は無変更、台詞承認ゲート対象外(新規セリフなし)。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error(指揮官が再実行して確認済み)。<code>Stage0.tscn -- --demo --seconds 400</code>のheadless実行でphase遷移をログ確認: phase15→16(t=0.01, 空配列即通過)、phase16→17(t=5.68, <code>_facing</code>が1→-1へ実際に反転し<code>FlipCount</code>が0→3までカウント)、既存phase0〜14も全て正常通過・例外なし。マウス左クリック/パッド(RB)経路での実プレイ確認は未実施(キーボードF相当の合成入力のみ)だが、既存の<code>flipKey</code>判定ロジック自体は無変更のためリグレッションリスクは低いと判断。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1887,6 +1903,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">「会話選択・層2プロト」の疑いフラグ <code>PressedTheQuestion</code> が書き込まれるだけで一度も読まれず、設計書の分岐台詞も未実装のまま放置</span>
+          
+        </div>
+        <p class="accept">2026-09-09調査(scenario)。正典<code>docs/20260831/会話選択_層2_プロト仕様.md</code>は<code>StageKoharu.cs</code>上でのMidStoryA/B台詞差し替え(§3-4)・Clear行差し替え(§6, <code>StageKoharu.cs:196</code>)・Epilogue phase4独白差し替え(§7, <code>Epilogue.cs:159</code>)・フラグ記録タイミング(§8)を指定する。実装側は<code>src/StageKoharu.cs:355-380</code>の<code>Step_MidChoice</code>で選択肢UIとフラグ書き込み(<code>:377 game.PressedTheQuestion = true</code>)自体は存在するが、この機構は<code>StageKoharu.cs:530 KoharuInterruptEnabled = false</code>でこはる面では無効化され、案C(<code>wiki/08_仮台本/07</code>)に伴い別内容の3択(<code>StageRei.cs:242-268,774-816</code>「つづけて／むりしないで／（送らない）」)としてレイ面S3-7へ移設済み(コード内コメント<code>StageKoharu.cs:220-223,527-530</code>が明記)。<code>docs/20260831/</code>本文指定のMidStoryA/B具体台詞は<code>src/</code>全体をgrepしても0件＝未実装。<code>PressedTheQuestion</code>自体は<code>GameManager.cs:332</code>(定義)/<code>:898</code>(セーブ)/<code>:981</code>(ロード)/<code>:1029</code>(リセット)で永続化されているが、読み出し(分岐に使う箇所)は<code>src/</code>全体で0件——書くだけで一度も参照されない死に伏線フラグ。<strong>要ユーザー判断</strong>: (a)<code>docs/20260831/会話選択_層2_プロト仕様.md</code>を「レイ面S3-7への移設により非正典化」と明記した上で<code>PressedTheQuestion</code>とその未使用の永続化コードを削除する(死にコード整理)、(b)逆に元仕様通りこはる面のClear行・Epilogue独白の1行差し替えを正式承認し<code>PressedTheQuestion</code>を実際に消費する分岐台詞を実装する、(c)保留のまま存置する。新規台詞を伴う(b)は台詞承認ゲート対象。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">DemoPilot が STAGE3(レイ)で本ボスに到達する前にゲームオーバーになる（原因はS3-5bではなくレイ面前半の既存ペース）</span>
           
         </div>
@@ -2065,18 +2089,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">7ba5dab</span><span>2026-09-09</span><span class="s">auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加</span></li>
+      <li><span class="h">a3f9e0a</span><span>2026-09-09</span><span class="s">auto: 監査で 3 件をキューに追加（TODO 2件・BLOCKED 1件）</span></li>
+      <li><span class="h">34815cc</span><span>2026-09-08</span><span class="s">auto: DemoPilotに背後の敵への反転ロジックを追加</span></li>
       <li><span class="h">1ebabf6</span><span>2026-09-08</span><span class="s">auto: WIP着手 - DemoPilotに背後の敵への反転ロジックを追加</span></li>
       <li><span class="h">20e1334</span><span>2026-09-08</span><span class="s">auto: DemoPilotのSTAGE3早期死亡は要ユーザー判断としてBLOCKEDへ、DemoPilot反転ロジック欠如をTODOへ</span></li>
       <li><span class="h">f400a45</span><span>2026-09-08</span><span class="s">auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査</span></li>
       <li><span class="h">c932072</span><span>2026-09-08</span><span class="s">auto: HowToPlayに道中敵3種(バズ壁)の説明を追加</span></li>
       <li><span class="h">b37af3a</span><span>2026-09-08</span><span class="s">auto: WIP着手 - HowToPlayに道中敵3種の説明を追加</span></li>
-      <li><span class="h">ca11521</span><span>2026-09-08</span><span class="s">auto: 正典シナリオ設計書v2に非正典バナーを追加</span></li>
-      <li><span class="h">be05409</span><span>2026-09-08</span><span class="s">auto: WIP着手 - 正典シナリオ設計書v2に非正典バナーを追加</span></li>
-      <li><span class="h">b18008a</span><span>2026-09-08</span><span class="s">auto: MidEnemyのKoharuKnife/KoharuPotポーズ名を案Cの名前に改名</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-08 20:24 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-09 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
