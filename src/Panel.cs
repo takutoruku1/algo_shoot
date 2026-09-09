@@ -12,8 +12,7 @@ public partial class Panel : Area2D
     public bool Invulnerable;
 
     private Enemy _owner = null!;
-    private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _fireInterval;
-    private bool _fires;
+    private float _baseAngle, _orbitRadius, _spinSpeed, _spin;
     private bool _dead;
     private CollisionShape2D _shape = null!;
     private string _texPath = "";
@@ -25,17 +24,14 @@ public partial class Panel : Area2D
     private const double HitFlashDur = 0.09;  // 一瞬。連射で点滅し続けないよう Enemy(0.16)よりさらに短く
 
     public void Setup(Enemy owner, float baseAngle, float orbitRadius, float spinSpeed,
-                      bool fires, float fireInterval, int ink, string texPath = "", float displayScale = 1f)
+                      int ink, string texPath = "", float displayScale = 1f)
     {
         _displayScale = displayScale;
         _owner = owner;
         _baseAngle = baseAngle;
         _orbitRadius = orbitRadius;
         _spinSpeed = spinSpeed;
-        // 発射は本体(Enemy/MidEnemy)へ一括移管したため、パネル自前の発射は常に無効。
-        // パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する（引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用）。
-        _fires = false;
-        _fireInterval = fireInterval;
+        // 発射は本体(Enemy/MidEnemy)へ一括移管済み。パネルは「盾＝弾を遮る／剥がして浄化」の役割のみに専念する。
         Ink = ink;
         _texPath = texPath;
     }
@@ -95,7 +91,7 @@ public partial class Panel : Area2D
         }
         if (Hud.BubblePaused) return; // 吹き出し表示中は旋回を止める
         UpdateOrbit(delta);
-        // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
+        // 発射は本体側へ移管済み。ここでは旋回＝盾の挙動のみ。
     }
 
     private void OnAreaEntered(Area2D area)

@@ -138,7 +138,6 @@ public partial class BossKoharu : Enemy
         PanelInk = BossTuning.I("koharu", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("koharu", "bullet_speed", 80f);
 
         // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。INI hp_bars > 0 で固定上書き。

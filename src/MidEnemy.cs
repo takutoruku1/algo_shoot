@@ -82,8 +82,6 @@ public partial class MidEnemy : Enemy
         OrbitRadius = 11.5f;            // 一回り小さく（周回をやや内側へ）
         PanelDisplayScale = 0.82f;      // パネル絵＆当たりを縮小
         SpinSpeed = _spec.SpinSpeed;
-        PanelsFire = false; // 発射は本体へ移管。パネルは盾専念。
-        PanelFireInterval = _spec.FireInterval;
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;

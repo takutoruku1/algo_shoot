@@ -18,8 +18,6 @@ public partial class Enemy : Area2D
     protected float OrbitRadius = 18f;
     protected float PanelDisplayScale = 1f; // パネル絵＆当たりの拡縮（ザコ縮小用。ボスは1のまま）
     protected float SpinSpeed = 1.4f; // rad/s
-    protected bool PanelsFire = true;
-    protected float PanelFireInterval = 1.9f;
     protected float EnemyBulletSpeed = 90f;
 
     // スプライト素材（null/未設定なら _Draw のプレースホルダ図形を使う）
@@ -447,7 +445,7 @@ public partial class Enemy : Area2D
     private void SpawnOnePanel(float baseAngle)
     {
         var p = new Panel();
-        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelsFire, PanelFireInterval, PanelInk, PanelTexPath, PanelDisplayScale);
+        p.Setup(this, baseAngle, OrbitRadius, SpinSpeed, PanelInk, PanelTexPath, PanelDisplayScale);
         AddChild(p);
         _panels.Add(p);
     }

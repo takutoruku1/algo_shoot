@@ -37,7 +37,6 @@ public partial class TrainingDummy : Enemy
         // 非ボス（BarCount=0）・パネル0＝基底のフェーズ機構/パネル剥がし/改心退場をすべて不活性化する。
         BarCount = 0;
         PanelCount = 0;
-        PanelsFire = false;
         BodyRadius = Radius;
         AutoBank = false; // 姿勢は自前（ゆらゆら）。基底の自動バンクは切る。
     }

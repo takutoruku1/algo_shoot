@@ -43,7 +43,6 @@ public partial class BossHikage : Enemy
         PanelInk = BossTuning.I("hikage", "panel_ink", 2);
         OrbitRadius = BossTuning.F("hikage", "orbit_radius", 28f);
         SpinSpeed = BossTuning.F("hikage", "spin_speed", 1.2f);
-        PanelsFire = false;      // 弾はパネルでなく本体の幾何学弾幕で撃つ
         EnemyBulletSpeed = BossTuning.F("hikage", "bullet_speed", 95f);
 
         // HPバー方式（言葉のシールド＋無防備窓サイクル）。本数は難易度別（通常ボス）。INI hp_bars > 0 で固定上書き。

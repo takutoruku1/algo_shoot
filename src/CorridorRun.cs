@@ -277,7 +277,6 @@ public partial class RemnantEnemy : Enemy
         PanelInk = 1;
         OrbitRadius = 8f;
         SpinSpeed = 2.4f;
-        PanelsFire = false;
         CollisionLayer = 0;  // 本体接触ダメージなし（"aoe" にも入れない＝壁とは別物）
     }
 

@@ -17,7 +17,6 @@ public partial class PageShard : Enemy
         OrbitRadius = 11.5f;
         PanelDisplayScale = 0.82f; // 一回り小さく
         SpinSpeed = 1.0f;
-        PanelsFire = false; // 無口（最初の練習台）
 
         // MVPでは アンチくん素材を流用（後で専用素材に差し替え可）
         PreTexPath = "res://char/enemy_anti_pre.png";

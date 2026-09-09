@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-09 18:51 UTC",
+  "generated": "2026-09-09 18:54 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 23,
-    "done": 217
+    "done": 218
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "Enemy/Panel の未使用フィールド `PanelsFire`/`PanelFireInterval` を削除する",
-      "worker": "engineer",
-      "accept": "2026-09-09監査(engineer)発見。`src/Enemy.cs:21-22`で`protected bool PanelsFire = true;`/`protected float PanelFireInterval = 1.9f;`が宣言されているが、`Enemy`の全11サブクラス（`BossAkari.cs:94`, `BossHikage.cs:46`, `BossKoharu.cs:141`, `BossMina.cs:77`, `BossRei.cs:123`, `CameoBoss.cs:92`, `CorridorRun.cs:280`, `GlyphMote.cs:26`, `MidEnemy.cs:85`, `PageShard.cs:20`, `TrainingDummy.cs:40`）でコンストラクタ内に`PanelsFire = false;`が明示され、`true`のデフォルト値は一度も実際のインスタンスで観測されない。さらに唯一の呼び出し元`Enemy.cs:450`が`PanelsFire`/`PanelFireInterval`を`Panel.Setup`（`Panel.cs:27-41`）へ渡すが、`Panel.cs:37`で`_fires = false;`と受け取った引数を無視してハードコードしており、`_fireInterval`（`Panel.cs:38`）もその後どこからも読まれない（`Panel.cs`内の他の出現は`:36`の説明コメントと`:98`のみでコードではない）。`Panel.cs:36`のコメント自体が「引数 fires/fireInterval は後方互換のため残置。値は保持のみで未使用」と自認する既知の残骸。受入条件: `Enemy.cs:21-22`の2フィールドと11サブクラスの`PanelsFire = false;`行、`Panel.Setup`のシグネチャ（`Panel.cs:27-28`）から`fires`/`fireInterval`引数、`Panel.cs:15-16,37-38`の`_fires`/`_fireInterval`フィールドを削除し、`Enemy.cs:450`の呼び出しを整合させる。`dotnet build algo_shoot.sln`が0 Warning/0 Error。挙動変化がないことをいずれかのボスステージで`--qa`パスして確認（パネルが従来通りシールドとして機能すること）。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -157,6 +150,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Enemy/Panel の未使用フィールド `PanelsFire`/`PanelFireInterval` を削除する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-09) `Enemy.cs:21-22`の2フィールド削除、`Enemy.cs:450`の`Panel.Setup`呼び出しを新シグネチャへ整合。`Panel.cs:15-16`の`_fires`/`_fireInterval`フィールド削除、`Panel.Setup`(`Panel.cs:27-38`)から`fires`/`fireInterval`引数・代入行を削除しコメントも整理。11サブクラス（BossAkari/BossHikage/BossKoharu/BossMina/BossRei/CameoBoss/CorridorRun/MidEnemy/PageShard/TrainingDummy/GlyphMote）の`PanelsFire = false;`行を削除（MidEnemyは付随する`PanelFireInterval = _spec.FireInterval;`も削除、`_spec.FireInterval`自体が他で未使用と確認済み）。削除前後で`PanelsFire`/`PanelFireInterval`/`_fires`/`_fireInterval`の残存参照が無いことをgrepで確認済み。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。`Koharu.tscn -- --qa --seconds 45 --quit`のheadless QAで`[QA-SUMMARY] no anomalies flagged. clean run.`、`purified=0/46→17/46`と浄化進行・被弾判定とも正常、パネルのシールド機能に挙動変化なしを確認。"
+    },
     {
       "priority": "P1",
       "title": "練習ステージ(StageZero)に「向き反転」の実践フェーズを追加する",
@@ -1462,6 +1461,16 @@
   ],
   "commits": [
     {
+      "hash": "c207e0f",
+      "date": "2026-09-09",
+      "subject": "auto: WIP着手 - Enemy/Panel未使用フィールドPanelsFire等の削除"
+    },
+    {
+      "hash": "15e738a",
+      "date": "2026-09-09",
+      "subject": "auto: 練習ステージ(StageZero)に向き反転の実践フェーズを追加"
+    },
+    {
       "hash": "7ba5dab",
       "date": "2026-09-09",
       "subject": "auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加"
@@ -1490,16 +1499,6 @@
       "hash": "f400a45",
       "date": "2026-09-08",
       "subject": "auto: WIP着手 - DemoPilotがSTAGE3で本ボス到達前にゲームオーバーになる件を調査"
-    },
-    {
-      "hash": "c932072",
-      "date": "2026-09-08",
-      "subject": "auto: HowToPlayに道中敵3種(バズ壁)の説明を追加"
-    },
-    {
-      "hash": "b37af3a",
-      "date": "2026-09-08",
-      "subject": "auto: WIP着手 - HowToPlayに道中敵3種の説明を追加"
     }
   ]
 }

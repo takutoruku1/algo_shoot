@@ -74,7 +74,6 @@ public partial class BossMina : Enemy
         PanelInk = BossTuning.I("mina", "panel_ink", 4); // 2→4（B-5: 終盤の強化に対しラスボスを最も厚く）
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("mina", "bullet_speed", 86f);
 
         // HPバー本数は難易度別（ラスボス格は +2本：Easy4/Normal6/Hard7/Lunatic8。B-5）。INI hp_bars > 0 で固定上書き。

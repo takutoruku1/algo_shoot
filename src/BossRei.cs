@@ -120,7 +120,6 @@ public partial class BossRei : Enemy
         PanelInk = BossTuning.I("rei", "panel_ink", 2);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
-        PanelsFire = false;
         EnemyBulletSpeed = BossTuning.F("rei", "bullet_speed", 82f);
 
         // HPバー本数は難易度別（通常ボス：Easy2/Normal4/Hard5/Lunatic6）。総HP=BarHp×本数。
