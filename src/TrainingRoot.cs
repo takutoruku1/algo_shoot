@@ -527,12 +527,13 @@ public partial class TrainingRoot : Node2D
     };
     private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済", "加速球" };
     private static Stream StreamOf(string id) =>
-        id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
+        id.StartsWith("spread") || id.StartsWith("fol_gain")
             || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
         : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
         : id.StartsWith("bf_") ? Stream.Backfire
         : id.StartsWith("accel") ? Stream.Accel
         : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
-            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
+            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb")
+            || id.StartsWith("combo_hold") ? Stream.Survive // combo_holdはmove_speed_1直下(経済帯)へ移設済み(Shop.csと同期)
         : Stream.Rapid;
 }

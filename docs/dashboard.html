@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 219 / 対象 220 タスク<br>保留 25 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 220 / 対象 220 タスク<br>保留 25 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">219</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">220</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">25</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-10監査(engineer)。<code>src/TrainingRoot.cs:522</code> は「Shop の StreamOf を最小移植」と明記するコピーだが、<code>Shop.cs:205-215</code> の <code>StreamOf</code> はコミット<code>2b611af</code>で <code>combo_hold_1/2</code> を <code>Stream.Spread</code>（拡散/アンバー）から <code>Stream.Survive</code>（生存・経済/ローズ）へ再分類済み（<code>GameManager.cs:469</code> の <code>combo_hold_1.ParentId</code> も <code>move_speed_1</code> 直下=経済帯へ移設済み）。<code>src/TrainingRoot.cs:529-531</code> の <code>StreamOf</code> だけが移設前のまま <code>id.StartsWith(&quot;combo_hold&quot;)</code> を Spread 側の条件式に残置しており（<code>git log -S &quot;combo_hold&quot; -- src/TrainingRoot.cs</code> で <code>2b611af</code> の修正が未反映と確認済み）、<code>TrainingRoot.cs:468</code> の <code>StreamName</code>/<code>StreamCol</code> 描画を通じて combo_hold ノードの見出し色がShop画面（ローズ）とTraining画面（アンバー）で矛盾する。<code>TrainingRoot.cs:529-531</code> を <code>Shop.cs:207-216</code> の現行版（combo_hold を Survive 側の条件式へ）と一致させるだけの1行修正。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-10) <code>src/TrainingRoot.cs:529-537</code> の <code>StreamOf</code> から <code>id.StartsWith(&quot;combo_hold&quot;)</code> を Spread 側の条件式から削除し、Survive 側の条件式（<code>move_speed</code>/<code>contam</code>/<code>hitbox</code>/<code>imp_mult</code>/<code>max_life</code>/<code>bomb</code> と同列）へ移動。<code>Shop.cs:207-216</code> の現行分類と一致させた。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認済み）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2121,18 +2121,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e7abaaa</span><span>2026-09-10</span><span class="s">auto: WIP着手 - TrainingRoot.csのStreamOf系統分類をShop.csに追従させる</span></li>
+      <li><span class="h">9c50224</span><span>2026-09-10</span><span class="s">auto: Hub.cs koharu再訪小話を仮台本07準拠に差し替え</span></li>
       <li><span class="h">b457802</span><span>2026-09-10</span><span class="s">auto: WIP着手 - Hub.cs koharu再訪小話の仮台本差し替え</span></li>
       <li><span class="h">bfb5f73</span><span>2026-09-10</span><span class="s">auto: 監査で 2 件をキューに追加（TODO 2件・BLOCKED 2件）</span></li>
       <li><span class="h">a1c8dcb</span><span>2026-09-09</span><span class="s">auto: Enemy/Panel未使用フィールドPanelsFire等を削除</span></li>
       <li><span class="h">c207e0f</span><span>2026-09-09</span><span class="s">auto: WIP着手 - Enemy/Panel未使用フィールドPanelsFire等の削除</span></li>
       <li><span class="h">15e738a</span><span>2026-09-09</span><span class="s">auto: 練習ステージ(StageZero)に向き反転の実践フェーズを追加</span></li>
       <li><span class="h">7ba5dab</span><span>2026-09-09</span><span class="s">auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加</span></li>
-      <li><span class="h">a3f9e0a</span><span>2026-09-09</span><span class="s">auto: 監査で 3 件をキューに追加（TODO 2件・BLOCKED 1件）</span></li>
-      <li><span class="h">34815cc</span><span>2026-09-08</span><span class="s">auto: DemoPilotに背後の敵への反転ロジックを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-10 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-10 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
