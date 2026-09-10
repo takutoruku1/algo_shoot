@@ -37,11 +37,21 @@
 
 <!-- 2026-09-09 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
+<!-- 2026-09-10 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
+
+- [ ] (P2) Hub.cs の koharu 再訪小話が承認済み仮台本の未使用テキストのまま旧稿（少年との掛け合い）で残っている | scenario→engineer | ユーザー承認済み仮台本: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（2026-09-05承認、190-203行に一言一句明記）。`src/Hub.cs:1112-1150` の `IdleDialogs("koharu")` は「ごはん」「三段オチ」「眠気」「湯気」の4本で、いずれも話者に `"少年"` を使い続けている（`Hub.cs:1118,1120,1127,1129,1135,1137,1145,1147`）。同じ仮台本を根拠に `rei`（`Hub.cs:1072-1090`）と `akari`（`Hub.cs:1093-1111`）は既に承認テキストへ差し替え済みなのに `koharu` キーだけ取り残されている。`Hub.cs:1112-1150` の `"koharu" =>` ブロックを仮台本07の190-203行目にある2本（「数える」「電気」、ミナの独り観測芸・少年は出てこない）にそのまま差し替える。`rei`/`akari` の実装（属性なし・観測芸のみ・`{n}` 差し込みの流儀）に合わせること。
+- [ ] (P3) TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う | engineer | 2026-09-10監査(engineer)。`src/TrainingRoot.cs:522` は「Shop の StreamOf を最小移植」と明記するコピーだが、`Shop.cs:205-215` の `StreamOf` はコミット`2b611af`で `combo_hold_1/2` を `Stream.Spread`（拡散/アンバー）から `Stream.Survive`（生存・経済/ローズ）へ再分類済み（`GameManager.cs:469` の `combo_hold_1.ParentId` も `move_speed_1` 直下=経済帯へ移設済み）。`src/TrainingRoot.cs:529-531` の `StreamOf` だけが移設前のまま `id.StartsWith("combo_hold")` を Spread 側の条件式に残置しており（`git log -S "combo_hold" -- src/TrainingRoot.cs` で `2b611af` の修正が未反映と確認済み）、`TrainingRoot.cs:468` の `StreamName`/`StreamCol` 描画を通じて combo_hold ノードの見出し色がShop画面（ローズ）とTraining画面（アンバー）で矛盾する。`TrainingRoot.cs:529-531` を `Shop.cs:207-216` の現行版（combo_hold を Survive 側の条件式へ）と一致させるだけの1行修正。
+
 ## WIP
 
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
+
+<!-- 2026-09-10 監査モード(scenario)で追加 -->
+
+- [ ] TrainingRoot（射撃訓練場）の小話4が「少年」を実在キャラとして喋らせ続けており、案C正典（少年不在）と矛盾したまま実プレイヤーが到達可能な状態 | scenario | 2026-09-10監査(scenario)。`src/TrainingRoot.cs:55-85` の `TrainEnter`/`TrainShoot`/`TrainIdle` 配列に who=0(少年)の実セリフが5行現存（例: `:59`「遠慮するな。壊しても弁償はぼくの財布じゃない。」、`:66`「おお、伸びたな。ぼくの設計が優秀だからだ。」等）。`docs/小話集_v1.md §4` に基づき2026-08-13実装（案C承認=2026-09-05より前）で、案C承認済み仮台本(06〜08・12)はいずれも「少年不在」を前提とするが、この小話4だけ「組み込み計画」(`wiki/08_仮台本/15`)の改修対象リストに含まれておらず取り残された。`src/Shop.cs:768-771` の `EnterTraining()` はShopヘッダーの「トレーニング」ボタンから正規に遷移する正典シーン（StageW0のような非正典プロトタイプではない）＝実プレイヤーが普通に見られる。要ユーザー判断: (a)少年の5行を削除しミナの独り言に新規差し替える（新規台詞につき別途仮台本承認が要る）、(b)訓練場だけ「過去ログの再生」等の設定にして少年ボイスを意図的に残す、のいずれか指定してほしい。
+- [ ] AreaSpellCaster のあかりプロファイルだけ「雨の教室」時代の技名・コメントが案C（退勤後のフロア）に未追従 | scenario→engineer | 2026-09-10監査(scenario)。`src/AreaSpellCaster.cs:278-283` の `case "akari"` は `_spells = { ("豪雨予報", V), ("沈黙の波紋", C) }` で直上コメントも `// 雨の教室・降る前に予報（蒼）` のまま。案Cのあかりの舞台は「雨の降りやまない、退勤後のフロア」（`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:36`）で「教室」ではなく、技名も06/07仮台本の語彙と一致しない。対照的に `case "rei"`（`AreaSpellCaster.cs:269-276`）と `case "koharu"`（`:285-295`）は既に案C語彙へ更新済み（コメント「旧◯◯の技名は落とす」付き、DEV_QUEUE DONE該当）。要ユーザー判断: 技名2件の新規命名（レイ・こはるの前例=仮台本に一言一句の明記なく実装者が語彙圏内で命名）をあかりにも同様に及ぼしてよいか。可であれば技名の新規創作を伴うため台詞承認ゲート対象として仮台本での明記 or 前例踏襲の承認を得てからTODOへ。直上コメントの「雨の教室」→「退勤後のフロア」の事実訂正のみなら機械的修正として先行可能。
 
 - [ ] 「会話選択・層2プロト」の疑いフラグ `PressedTheQuestion` が書き込まれるだけで一度も読まれず、設計書の分岐台詞も未実装のまま放置 | scenario→engineer | 2026-09-09調査(scenario)。正典`docs/20260831/会話選択_層2_プロト仕様.md`は`StageKoharu.cs`上でのMidStoryA/B台詞差し替え(§3-4)・Clear行差し替え(§6, `StageKoharu.cs:196`)・Epilogue phase4独白差し替え(§7, `Epilogue.cs:159`)・フラグ記録タイミング(§8)を指定する。実装側は`src/StageKoharu.cs:355-380`の`Step_MidChoice`で選択肢UIとフラグ書き込み(`:377 game.PressedTheQuestion = true`)自体は存在するが、この機構は`StageKoharu.cs:530 KoharuInterruptEnabled = false`でこはる面では無効化され、案C(`wiki/08_仮台本/07`)に伴い別内容の3択(`StageRei.cs:242-268,774-816`「つづけて／むりしないで／（送らない）」)としてレイ面S3-7へ移設済み(コード内コメント`StageKoharu.cs:220-223,527-530`が明記)。`docs/20260831/`本文指定のMidStoryA/B具体台詞は`src/`全体をgrepしても0件＝未実装。`PressedTheQuestion`自体は`GameManager.cs:332`(定義)/`:898`(セーブ)/`:981`(ロード)/`:1029`(リセット)で永続化されているが、読み出し(分岐に使う箇所)は`src/`全体で0件——書くだけで一度も参照されない死に伏線フラグ。**要ユーザー判断**: (a)`docs/20260831/会話選択_層2_プロト仕様.md`を「レイ面S3-7への移設により非正典化」と明記した上で`PressedTheQuestion`とその未使用の永続化コードを削除する(死にコード整理)、(b)逆に元仕様通りこはる面のClear行・Epilogue独白の1行差し替えを正式承認し`PressedTheQuestion`を実際に消費する分岐台詞を実装する、(c)保留のまま存置する。新規台詞を伴う(b)は台詞承認ゲート対象。
 
