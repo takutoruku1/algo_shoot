@@ -39,10 +39,11 @@
 
 <!-- 2026-09-10 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
-- [ ] (P2) Hub.cs の koharu 再訪小話が承認済み仮台本の未使用テキストのまま旧稿（少年との掛け合い）で残っている | scenario→engineer | ユーザー承認済み仮台本: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（2026-09-05承認、190-203行に一言一句明記）。`src/Hub.cs:1112-1150` の `IdleDialogs("koharu")` は「ごはん」「三段オチ」「眠気」「湯気」の4本で、いずれも話者に `"少年"` を使い続けている（`Hub.cs:1118,1120,1127,1129,1135,1137,1145,1147`）。同じ仮台本を根拠に `rei`（`Hub.cs:1072-1090`）と `akari`（`Hub.cs:1093-1111`）は既に承認テキストへ差し替え済みなのに `koharu` キーだけ取り残されている。`Hub.cs:1112-1150` の `"koharu" =>` ブロックを仮台本07の190-203行目にある2本（「数える」「電気」、ミナの独り観測芸・少年は出てこない）にそのまま差し替える。`rei`/`akari` の実装（属性なし・観測芸のみ・`{n}` 差し込みの流儀）に合わせること。
 - [ ] (P3) TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う | engineer | 2026-09-10監査(engineer)。`src/TrainingRoot.cs:522` は「Shop の StreamOf を最小移植」と明記するコピーだが、`Shop.cs:205-215` の `StreamOf` はコミット`2b611af`で `combo_hold_1/2` を `Stream.Spread`（拡散/アンバー）から `Stream.Survive`（生存・経済/ローズ）へ再分類済み（`GameManager.cs:469` の `combo_hold_1.ParentId` も `move_speed_1` 直下=経済帯へ移設済み）。`src/TrainingRoot.cs:529-531` の `StreamOf` だけが移設前のまま `id.StartsWith("combo_hold")` を Spread 側の条件式に残置しており（`git log -S "combo_hold" -- src/TrainingRoot.cs` で `2b611af` の修正が未反映と確認済み）、`TrainingRoot.cs:468` の `StreamName`/`StreamCol` 描画を通じて combo_hold ノードの見出し色がShop画面（ローズ）とTraining画面（アンバー）で矛盾する。`TrainingRoot.cs:529-531` を `Shop.cs:207-216` の現行版（combo_hold を Survive 側の条件式へ）と一致させるだけの1行修正。
 
 ## WIP
+
+- [ ] (P2) Hub.cs の koharu 再訪小話が承認済み仮台本の未使用テキストのまま旧稿（少年との掛け合い）で残っている | scenario→engineer | ユーザー承認済み仮台本: wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md（2026-09-05承認、190-203行に一言一句明記）。`src/Hub.cs:1112-1150` の `IdleDialogs("koharu")` は「ごはん」「三段オチ」「眠気」「湯気」の4本で、いずれも話者に `"少年"` を使い続けている（`Hub.cs:1118,1120,1127,1129,1135,1137,1145,1147`）。同じ仮台本を根拠に `rei`（`Hub.cs:1072-1090`）と `akari`（`Hub.cs:1093-1111`）は既に承認テキストへ差し替え済みなのに `koharu` キーだけ取り残されている。`Hub.cs:1112-1150` の `"koharu" =>` ブロックを仮台本07の190-203行目にある2本（「数える」「電気」、ミナの独り観測芸・少年は出てこない）にそのまま差し替える。`rei`/`akari` の実装（属性なし・観測芸のみ・`{n}` 差し込みの流儀）に合わせること。
 
 ## BLOCKED
 
