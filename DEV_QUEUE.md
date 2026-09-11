@@ -45,8 +45,6 @@
 
 ## WIP
 
-- [ ] (P3) Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落 | scenario→engineer | 2026-09-11監査(scenario)。`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`が「メイン @akari.、末尾の「.」は送信取消のあとに残った一文字」と物語上の意味を明記（S1-4の「送信取消」伏線と直結）。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:314`の例文も「[@akari.]」とピリオド付き。実装は`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`は正しく「@akari.」だが、`src/Hub.cs:1309-1310`の`ReplyDialog("akari")`のみ`("ミナ→@akari", ...)`/`("@akari", ...)`とピリオド無し。表記ゆれの機械的修正のみ（ピリオド1文字追加×2箇所）、文意変更なしにつき承認ゲート対象外。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -88,6 +86,7 @@
 - [ ] 案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している | scenario+engineer | 2026-09-07監査で発見。`wiki/08_仮台本/05_場面表_案C.md`はSTAGE3(レイ)クリア後、帰還→即FINALの構成でMinaBattleへの言及が一切ない(grep 0件)。一方 `src/Hub.cs:218,261,565` は3面クリア後に `MinaBattle.tscn` へ遷移する導線が現存し、`src/StageMina.cs:194` はクリア後に `Final.tscn` へ遷移する(現状は3面帰還→MinaBattle→Finalの3段構成)。TODO先頭の「FINAL F1〜F4を案Cに差し替え」に着手する前に解消しておくべき前提の分岐。要ユーザー判断: (a)MinaBattleを維持し案Cのフローに独自に組み込む、(b)BossMinaの戦闘要素をFinal.csのF1〜F4に統合しStageMina/MinaBattle.tscnの独立ステージを廃止する
 
 ## DONE
+- [x] (P3) Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落 | scenario→engineer | (完了 2026-09-11) `src/Hub.cs:1309-1310`の`ReplyDialog("akari")`の2箇所（`"ミナ→@akari"`/`"@akari"`）に末尾ピリオドを追加し、`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`の表記「@akari.」に統一。文意変更なしの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。
 - [x] (P1) Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従 | scenario→engineer | (完了 2026-09-11) 承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md`「E7 スタッフロール」節の指示どおり、`src/Epilogue.cs`の`Roll`配列を差し替え。三人の投稿を面順(あかり→こはる→レイ)の12スタッフロール投稿(`wiki/08_仮台本/09_投稿文集_X風.md`確定文言A46/K45/R50)へ、「そして、ミナへ。」を「そして、ご主人様へ。」へ、「stay.」を`GameManager.LastSentWord`(空なら`"きこえてる"`フォールバック)の実行時値へ置換。`Roll`をstatic readonlyからインスタンスフィールドに変更し`_Ready()`で組み立て、クライマックス表示判定も文字列比較から添字比較(`_rollClimaxIdx`)へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。変更は`src/Epilogue.cs`のみ、新規台詞創作なし(仮台本からの一字一句転記)。
 - [x] (P3) TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う | engineer | (完了 2026-09-10) `src/TrainingRoot.cs:529-537` の `StreamOf` から `id.StartsWith("combo_hold")` を Spread 側の条件式から削除し、Survive 側の条件式（`move_speed`/`contam`/`hitbox`/`imp_mult`/`max_life`/`bomb` と同列）へ移動。`Shop.cs:207-216` の現行分類と一致させた。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。
 - [x] (P2) Hub.cs の koharu 再訪小話が承認済み仮台本の未使用テキストのまま旧稿（少年との掛け合い）で残っている | scenario→engineer | (完了 2026-09-10) ユーザー承認済み仮台本 `wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:190-203` の「H2r 再訪小話」2本（「（軽口）数える」「（情緒）電気」、話者は全て「ミナ」、少年は登場しない）を一言一句そのまま転記し、`src/Hub.cs:1112-1129` の `IdleDialogs("koharu")` を旧4本（ごはん/三段オチ/眠気/湯気、少年登場）から差し替えた。`rei`/`akari` ケース（`Hub.cs:1072-1111`）と同じ書式（属性なし・観測芸のみ・`{n}` 差し込み）に合わせた。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。

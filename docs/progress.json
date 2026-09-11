@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-11 18:38 UTC",
+  "generated": "2026-09-11 18:39 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 26,
-    "done": 221
+    "done": 222
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落",
-      "worker": null,
-      "accept": "2026-09-11監査(scenario)。`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`が「メイン @akari.、末尾の「.」は送信取消のあとに残った一文字」と物語上の意味を明記（S1-4の「送信取消」伏線と直結）。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:314`の例文も「[@akari.]」とピリオド付き。実装は`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`は正しく「@akari.」だが、`src/Hub.cs:1309-1310`の`ReplyDialog(\"akari\")`のみ`(\"ミナ→@akari\", ...)`/`(\"@akari\", ...)`とピリオド無し。表記ゆれの機械的修正のみ（ピリオド1文字追加×2箇所）、文意変更なしにつき承認ゲート対象外。"
-    },
     {
       "priority": "P3",
       "title": "sakurai skillの design-map.md が実コードの数値とズレている",
@@ -181,6 +175,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落",
+      "worker": null,
+      "accept": "(完了 2026-09-11) `src/Hub.cs:1309-1310`の`ReplyDialog(\"akari\")`の2箇所（`\"ミナ→@akari\"`/`\"@akari\"`）に末尾ピリオドを追加し、`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`の表記「@akari.」に統一。文意変更なしの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。"
+    },
     {
       "priority": "P1",
       "title": "Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従",
@@ -1510,6 +1510,16 @@
   ],
   "commits": [
     {
+      "hash": "7678ebf",
+      "date": "2026-09-11",
+      "subject": "auto: WIP着手 - Hub.csのあかり返信@akari.ピリオド欠落を修正"
+    },
+    {
+      "hash": "c0759ae",
+      "date": "2026-09-11",
+      "subject": "auto: Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
+    },
+    {
       "hash": "199c97d",
       "date": "2026-09-11",
       "subject": "auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
@@ -1538,16 +1548,6 @@
       "hash": "b457802",
       "date": "2026-09-10",
       "subject": "auto: WIP着手 - Hub.cs koharu再訪小話の仮台本差し替え"
-    },
-    {
-      "hash": "bfb5f73",
-      "date": "2026-09-10",
-      "subject": "auto: 監査で 2 件をキューに追加（TODO 2件・BLOCKED 2件）"
-    },
-    {
-      "hash": "a1c8dcb",
-      "date": "2026-09-09",
-      "subject": "auto: Enemy/Panel未使用フィールドPanelsFire等を削除"
     }
   ]
 }
