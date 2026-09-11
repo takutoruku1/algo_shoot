@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 222 / 対象 223 タスク<br>保留 26 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 223 / 対象 223 タスク<br>保留 26 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">222</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">223</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">26</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">sakurai skillの design-map.md が実コードの数値とズレている</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">2026-09-11監査(game-designer)。<code>.claude/skills/sakurai/references/design-map.md:15</code>は<code>Player.cs</code>の<code>HomingTurnRate=200</code>と記載するが実際は<code>src/Bullet.cs:80</code>で<code>HomingTurnRate = 150f</code>(deg/s)。同<code>design-map.md:18</code>「ボスHP(難易度非依存)…難易度で変えない方針」も実際は<code>src/GameManager.cs:76-77</code>の<code>DiffBarBonus</code>がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠<code>GameManager.cs:73-75</code>のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">sakurai skillの design-map.md が実コードの数値とズレている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-09-11) <code>.claude/skills/sakurai/references/design-map.md:15</code>の<code>HomingTurnRate=200</code>を実値<code>150</code>(deg/s、<code>src/Bullet.cs:80</code>)へ修正。同<code>:18</code>「ボスHP(難易度非依存)…難易度で変えない方針」の行を<code>GameManager.DiffBarBonus</code>(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2153,18 +2153,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">52eae25</span><span>2026-09-11</span><span class="s">auto: WIP着手 - sakurai skillのdesign-map.mdを実コードへ同期</span></li>
+      <li><span class="h">59d9a17</span><span>2026-09-11</span><span class="s">auto: Hub.csのあかり返信@akari.ピリオド欠落を修正</span></li>
       <li><span class="h">7678ebf</span><span>2026-09-11</span><span class="s">auto: WIP着手 - Hub.csのあかり返信@akari.ピリオド欠落を修正</span></li>
       <li><span class="h">c0759ae</span><span>2026-09-11</span><span class="s">auto: Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え</span></li>
       <li><span class="h">199c97d</span><span>2026-09-11</span><span class="s">auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え</span></li>
       <li><span class="h">f487024</span><span>2026-09-11</span><span class="s">auto: 監査モードでTODO 3件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">4c3bb37</span><span>2026-09-10</span><span class="s">auto: TrainingRoot.csのStreamOf combo_hold分類をShop.csに追従させる</span></li>
       <li><span class="h">e7abaaa</span><span>2026-09-10</span><span class="s">auto: WIP着手 - TrainingRoot.csのStreamOf系統分類をShop.csに追従させる</span></li>
-      <li><span class="h">9c50224</span><span>2026-09-10</span><span class="s">auto: Hub.cs koharu再訪小話を仮台本07準拠に差し替え</span></li>
-      <li><span class="h">b457802</span><span>2026-09-10</span><span class="s">auto: WIP着手 - Hub.cs koharu再訪小話の仮台本差し替え</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-11 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-11 18:40 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

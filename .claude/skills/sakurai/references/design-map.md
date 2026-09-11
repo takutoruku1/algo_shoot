@@ -12,10 +12,10 @@
 | 仲間（救出の報酬曲線） | `src/Player.cs` | `MaxFollowers=4` / `SavedPerFollower=3`（救うほど増える）|
 | 特殊（ボム的リソース） | `src/Player.cs` | `SpecialCdMax=7` |
 | 撃破・被弾の手応え（快感） | `src/Player.cs` / `src/fx/` / `src/Ripple.cs` / `src/Enemy.cs` | ヒットストップ / `FxLayer` ダメージ数字 / 発光 |
-| 弾の見た目・視認性 | `src/Bullet.cs` | `BulletShape`（Orb/Diamond/Star/Ring/Needle/Rice）/ `Radius` / `HomingTurnRate=200` |
+| 弾の見た目・視認性 | `src/Bullet.cs` | `BulletShape`（Orb/Diamond/Star/Ring/Needle/Rice）/ `Radius` / `HomingTurnRate=150`(deg/s) |
 | 道中の密度・テンポ | `src/Spawner.cs` | `RampDur=60`（最大密度まで）/ `IntervalStart=2.0`→`IntervalEnd=0.9` / `MaxAlive=9` |
 | 敵・ボスの弾幕 | `src/Enemy.cs` / `src/BossRei.cs` 等 | `EnemyBulletSpeed=90` / `SpinSpeed` / パネル発射 / スペルカード |
-| ボスHP（難易度非依存） | `src/Enemy.cs` | HP=剥がし回数で固定。**難易度で変えない方針** |
+| ボスHP（バー本数は難易度で変動） | `src/GameManager.cs` | `DiffBarBonus`: 通常ボスEasy2/Normal4/Hard5/Lunatic6本、ラスボス格は+2本。1本=BarHp固定、**本数の調整は弾数調整とは別軸の「殴る回数」調整として意図的** |
 | 難易度カーブ | `src/GameManager.cs` | `BulletCountMul` / `BulletSpeedMul` / `DanmakuIntervalMul` / `StartLives` / `StartBombs`（Diff別）|
 | 難易度選択UI | `src/DiffSelect.cs` | Tiers / Lunatic 解放条件 |
 | 経済・リスクリターンの変換 | `src/Shop.cs` / `src/GameManager.cs` | `GetUpgradeCost` / `ShotMode`（Rapid/Spread/Homing）/ `SpreadWays` / `HomingShots` |
@@ -24,6 +24,6 @@
 | 入力 | `src/Pad.cs` | 操作マッピング・レスポンス |
 
 ## 既存方針（壊さないこと）
-- **難易度は「弾の量・速度・間隔」で調整**し、**ボスHP（剥がし回数）は固定**（`src/Enemy.cs` のコメント参照）。ボス戦の長さを難易度で変えない。
+- **難易度は「弾の量・速度・間隔」で調整**するのが基本だが、ボスHPバー本数（`GameManager.DiffBarBonus`）も難易度で意図的に変動する（通常ボスEasy2〜Lunatic6本）。「1本あたりのHP(BarHp)は固定」という意味で、総HP・撃破に要する時間は難易度で変わる（`src/GameManager.cs:70-75` のコメント参照）。
 - 浄化＝「倒す」ではなく「届ける／救う」。撃破演出はこの世界観に合わせる。
 - 数値変更を提案するときは、変更前の値・変更後の値・狙う体験の変化を必ずセットで示す。

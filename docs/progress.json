@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-11 18:39 UTC",
+  "generated": "2026-09-11 18:40 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 26,
-    "done": 222
+    "done": 223
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "sakurai skillの design-map.md が実コードの数値とズレている",
-      "worker": "game-designer",
-      "accept": "2026-09-11監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:15`は`Player.cs`の`HomingTurnRate=200`と記載するが実際は`src/Bullet.cs:80`で`HomingTurnRate = 150f`(deg/s)。同`design-map.md:18`「ボスHP(難易度非依存)…難易度で変えない方針」も実際は`src/GameManager.cs:76-77`の`DiffBarBonus`がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠`GameManager.cs:73-75`のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -175,6 +168,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "sakurai skillの design-map.md が実コードの数値とズレている",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-11) `.claude/skills/sakurai/references/design-map.md:15`の`HomingTurnRate=200`を実値`150`(deg/s、`src/Bullet.cs:80`)へ修正。同`:18`「ボスHP(難易度非依存)…難易度で変えない方針」の行を`GameManager.DiffBarBonus`(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。"
+    },
     {
       "priority": "P3",
       "title": "Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落",
@@ -1510,6 +1509,16 @@
   ],
   "commits": [
     {
+      "hash": "52eae25",
+      "date": "2026-09-11",
+      "subject": "auto: WIP着手 - sakurai skillのdesign-map.mdを実コードへ同期"
+    },
+    {
+      "hash": "59d9a17",
+      "date": "2026-09-11",
+      "subject": "auto: Hub.csのあかり返信@akari.ピリオド欠落を修正"
+    },
+    {
       "hash": "7678ebf",
       "date": "2026-09-11",
       "subject": "auto: WIP着手 - Hub.csのあかり返信@akari.ピリオド欠落を修正"
@@ -1538,16 +1547,6 @@
       "hash": "e7abaaa",
       "date": "2026-09-10",
       "subject": "auto: WIP着手 - TrainingRoot.csのStreamOf系統分類をShop.csに追従させる"
-    },
-    {
-      "hash": "9c50224",
-      "date": "2026-09-10",
-      "subject": "auto: Hub.cs koharu再訪小話を仮台本07準拠に差し替え"
-    },
-    {
-      "hash": "b457802",
-      "date": "2026-09-10",
-      "subject": "auto: WIP着手 - Hub.cs koharu再訪小話の仮台本差し替え"
     }
   ]
 }

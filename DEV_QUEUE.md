@@ -43,8 +43,6 @@
 
 ## WIP
 
-- [ ] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | 2026-09-11監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:15`は`Player.cs`の`HomingTurnRate=200`と記載するが実際は`src/Bullet.cs:80`で`HomingTurnRate = 150f`(deg/s)。同`design-map.md:18`「ボスHP(難易度非依存)…難易度で変えない方針」も実際は`src/GameManager.cs:76-77`の`DiffBarBonus`がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠`GameManager.cs:73-75`のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -86,6 +84,7 @@
 - [ ] 案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している | scenario+engineer | 2026-09-07監査で発見。`wiki/08_仮台本/05_場面表_案C.md`はSTAGE3(レイ)クリア後、帰還→即FINALの構成でMinaBattleへの言及が一切ない(grep 0件)。一方 `src/Hub.cs:218,261,565` は3面クリア後に `MinaBattle.tscn` へ遷移する導線が現存し、`src/StageMina.cs:194` はクリア後に `Final.tscn` へ遷移する(現状は3面帰還→MinaBattle→Finalの3段構成)。TODO先頭の「FINAL F1〜F4を案Cに差し替え」に着手する前に解消しておくべき前提の分岐。要ユーザー判断: (a)MinaBattleを維持し案Cのフローに独自に組み込む、(b)BossMinaの戦闘要素をFinal.csのF1〜F4に統合しStageMina/MinaBattle.tscnの独立ステージを廃止する
 
 ## DONE
+- [x] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | (完了 2026-09-11) `.claude/skills/sakurai/references/design-map.md:15`の`HomingTurnRate=200`を実値`150`(deg/s、`src/Bullet.cs:80`)へ修正。同`:18`「ボスHP(難易度非依存)…難易度で変えない方針」の行を`GameManager.DiffBarBonus`(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。
 - [x] (P3) Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落 | scenario→engineer | (完了 2026-09-11) `src/Hub.cs:1309-1310`の`ReplyDialog("akari")`の2箇所（`"ミナ→@akari"`/`"@akari"`）に末尾ピリオドを追加し、`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`の表記「@akari.」に統一。文意変更なしの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。
 - [x] (P1) Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従 | scenario→engineer | (完了 2026-09-11) 承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md`「E7 スタッフロール」節の指示どおり、`src/Epilogue.cs`の`Roll`配列を差し替え。三人の投稿を面順(あかり→こはる→レイ)の12スタッフロール投稿(`wiki/08_仮台本/09_投稿文集_X風.md`確定文言A46/K45/R50)へ、「そして、ミナへ。」を「そして、ご主人様へ。」へ、「stay.」を`GameManager.LastSentWord`(空なら`"きこえてる"`フォールバック)の実行時値へ置換。`Roll`をstatic readonlyからインスタンスフィールドに変更し`_Ready()`で組み立て、クライマックス表示判定も文字列比較から添字比較(`_rollClimaxIdx`)へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。変更は`src/Epilogue.cs`のみ、新規台詞創作なし(仮台本からの一字一句転記)。
 - [x] (P3) TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う | engineer | (完了 2026-09-10) `src/TrainingRoot.cs:529-537` の `StreamOf` から `id.StartsWith("combo_hold")` を Spread 側の条件式から削除し、Survive 側の条件式（`move_speed`/`contam`/`hitbox`/`imp_mult`/`max_life`/`bomb` と同列）へ移動。`Shop.cs:207-216` の現行分類と一致させた。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。
