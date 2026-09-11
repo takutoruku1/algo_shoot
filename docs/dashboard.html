@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 220 / 対象 220 タスク<br>保留 25 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 221 / 対象 223 タスク<br>保留 26 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">220</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">221</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">25</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">26</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,36 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落</span>
+          
+        </div>
+        <p class="accept">2026-09-11監査(scenario)。<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17</code>が「メイン @akari.、末尾の「.」は送信取消のあとに残った一文字」と物語上の意味を明記（S1-4の「送信取消」伏線と直結）。承認済み仮台本<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:314</code>の例文も「[@akari.]」とピリオド付き。実装は<code>src/GameManager.cs:200</code>/<code>src/StageAkari.cs:504</code>/<code>src/BossAkari.cs:139</code>は正しく「@akari.」だが、<code>src/Hub.cs:1309-1310</code>の<code>ReplyDialog(&quot;akari&quot;)</code>のみ<code>(&quot;ミナ→@akari&quot;, ...)</code>/<code>(&quot;@akari&quot;, ...)</code>とピリオド無し。表記ゆれの機械的修正のみ（ピリオド1文字追加×2箇所）、文意変更なしにつき承認ゲート対象外。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">sakurai skillの design-map.md が実コードの数値とズレている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">2026-09-11監査(game-designer)。<code>.claude/skills/sakurai/references/design-map.md:15</code>は<code>Player.cs</code>の<code>HomingTurnRate=200</code>と記載するが実際は<code>src/Bullet.cs:80</code>で<code>HomingTurnRate = 150f</code>(deg/s)。同<code>design-map.md:18</code>「ボスHP(難易度非依存)…難易度で変えない方針」も実際は<code>src/GameManager.cs:76-77</code>の<code>DiffBarBonus</code>がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠<code>GameManager.cs:73-75</code>のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-11) 承認済み仮台本<code>wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md</code>「E7 スタッフロール」節の指示どおり、<code>src/Epilogue.cs</code>の<code>Roll</code>配列を差し替え。三人の投稿を面順(あかり→こはる→レイ)の12スタッフロール投稿(<code>wiki/08_仮台本/09_投稿文集_X風.md</code>確定文言A46/K45/R50)へ、「そして、ミナへ。」を「そして、ご主人様へ。」へ、「stay.」を<code>GameManager.LastSentWord</code>(空なら<code>&quot;きこえてる&quot;</code>フォールバック)の実行時値へ置換。<code>Roll</code>をstatic readonlyからインスタンスフィールドに変更し<code>_Ready()</code>で組み立て、クライマックス表示判定も文字列比較から添字比較(<code>_rollClimaxIdx</code>)へ変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が再実行して確認済み）。変更は<code>src/Epilogue.cs</code>のみ、新規台詞創作なし(仮台本からの一字一句転記)。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1919,6 +1943,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">FINAL F2「穢れたわたし」ボス戦の三人(あかり/こはる/レイ)による返礼BREAK台詞とF3邂逅のレイ反転台詞が、伏線だけ仕込まれ回収先が実装のどこにも存在しない</span>
+          
+        </div>
+        <p class="accept">2026-09-11監査(scenario)。<code>src/Hub.cs:1297-1299,1305-1306,1312-1313</code>の各面クリア後返信(<code>ReplyDialog</code>)コメントが「FINAL F2の返礼」「F3邂逅でレイが引き継ぐ」と3箇所で明記し伏線として仕込み済み（例:<code>:1298</code>「誰よあんた、って言ったわね。——訂正する。」／<code>:1306</code>「あんたの言い方、この人に、そっくりよ」）。承認済み仮台本<code>wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:44-51</code>(F2 BREAK 3行＋スペル名5つ)と<code>:60-64</code>(F3のレイ反転台詞含む4行)がその回収先の具体台詞を指定するが、<code>src/</code>全体をgrepしても実装は0件——回収先そのものが存在しない。<code>src/Final.cs:5</code>は「台詞の正典…のF4のみ」と明記しておりF1〜F3は未着手・未承認スコープ。既存BLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している」とは角度が異なる（構造の要否ではなく、F2/F3で回収されるはずの三人のセリフ自体が丸ごと未執筆という点）が、両者は同じFINAL領域に属し、その既存BLOCKEDの要ユーザー判断（(a)MinaBattle維持案／(b)BossMinaをFinal.csのF1〜F4へ統合案）が決まらない限り本件の実装先も定まらないため独立に着手不能。新規台詞（5スペル名・BREAK3行・F3反転台詞）の実装は台詞承認ゲート対象。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">TrainingRoot（射撃訓練場）の小話4が「少年」を実在キャラとして喋らせ続けており、案C正典（少年不在）と矛盾したまま実プレイヤーが到達可能な状態</span>
           <span class="worker">scenario</span>
         </div>
@@ -2121,18 +2153,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">199c97d</span><span>2026-09-11</span><span class="s">auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え</span></li>
+      <li><span class="h">f487024</span><span>2026-09-11</span><span class="s">auto: 監査モードでTODO 3件・BLOCKED 1件をキューに追加</span></li>
+      <li><span class="h">4c3bb37</span><span>2026-09-10</span><span class="s">auto: TrainingRoot.csのStreamOf combo_hold分類をShop.csに追従させる</span></li>
       <li><span class="h">e7abaaa</span><span>2026-09-10</span><span class="s">auto: WIP着手 - TrainingRoot.csのStreamOf系統分類をShop.csに追従させる</span></li>
       <li><span class="h">9c50224</span><span>2026-09-10</span><span class="s">auto: Hub.cs koharu再訪小話を仮台本07準拠に差し替え</span></li>
       <li><span class="h">b457802</span><span>2026-09-10</span><span class="s">auto: WIP着手 - Hub.cs koharu再訪小話の仮台本差し替え</span></li>
       <li><span class="h">bfb5f73</span><span>2026-09-10</span><span class="s">auto: 監査で 2 件をキューに追加（TODO 2件・BLOCKED 2件）</span></li>
       <li><span class="h">a1c8dcb</span><span>2026-09-09</span><span class="s">auto: Enemy/Panel未使用フィールドPanelsFire等を削除</span></li>
-      <li><span class="h">c207e0f</span><span>2026-09-09</span><span class="s">auto: WIP着手 - Enemy/Panel未使用フィールドPanelsFire等の削除</span></li>
-      <li><span class="h">15e738a</span><span>2026-09-09</span><span class="s">auto: 練習ステージ(StageZero)に向き反転の実践フェーズを追加</span></li>
-      <li><span class="h">7ba5dab</span><span>2026-09-09</span><span class="s">auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-10 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-11 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

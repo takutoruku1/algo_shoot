@@ -105,28 +105,12 @@ public partial class Epilogue : Node2D
     };
     private string _nameReply = "";   // E3 末尾の一言（【名】効・命名ルート別。_Ready で確定）
 
-    // スタッフロール（タイムライン式）。救った三人の“その後の投稿”→クレジット→stay. の余韻。
-    private static readonly string[] Roll =
-    {
-        "", "", "", "",
-        "── その後のタイムライン ──",
-        "",
-        "レイ ：「次は、本気のあなたと。——逃げたら、承知しないから。」",
-        "あかり：「ほんと、バカなんだから。……あたしも、だけど。」",
-        "こはる：「ちゃんと食べてね。……あたしも、食べるから。」",
-        "", "", "",
-        "── staff ──",
-        "",
-        "企画・ディレクション   takutoruku1",
-        "シナリオ・サウンド     Claude (AI)",
-        "キャラクター・実装     Claude (AI)",
-        "", "", "",
-        "そして、ミナへ。",
-        "",
-        "stay.",
-        "", "", "",
-        "Thank you for playing.",
-    };
+    // スタッフロール（タイムライン式）。救った三人の“その後の投稿”→クレジット→【終】の余韻。
+    //   正典: wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md「E7 スタッフロール」節。
+    //   三人の投稿は面の順（あかり→こはる→レイ）。末尾は GameManager.LastSentWord（＝【終】）を
+    //   実行時に差し込むので、Roll は static ではなくインスタンスフィールドとして _Ready で組み立てる。
+    private string[] Roll = null!;
+    private int _rollClimaxIdx = -1;   // 【終】を出す行番号（大きいフォントで描く）
     private const float RollSpeed = 24f, RollLineH = 17f;
 
     private struct DLine { public string Who; public string Text; }   // Who: "地"=ミナ語り / "ミナ" / "UI" / "あなた"
@@ -159,6 +143,32 @@ public partial class Epilogue : Node2D
         _bgPrevPhase = _phase;
         _bgFadeT = BgFadeSec;
         _game = GetNodeOrNull<GameManager>("/root/Game");
+
+        // スタッフロール（E7）：【終】＝GameManager.LastSentWord（プレイヤーが実際に送った最後の言葉。
+        //   E6で（送らない）ならF4の値のまま）。空なら他の【〇】箇所と同じフォールバック（Final.cs の既定語）。
+        string lastWord = string.IsNullOrEmpty(_game?.LastSentWord) ? "きこえてる" : _game.LastSentWord;
+        Roll = new[]
+        {
+            "", "", "", "",
+            "── その後のタイムライン ──",
+            "",
+            "[あかり @akari.] 向かいの席 中途の人来た 自分から話しかけた 既読とかない 顔見て言った",
+            "[こはる @koharu] 今日も来ました って打った あと一行 足した",
+            "[星逢レイ @rei_____] 同接7 うち1人はわたし 6人は知らない人 名前覚えた",
+            "", "", "",
+            "── staff ──",
+            "",
+            "企画・ディレクション   takutoruku1",
+            "シナリオ・サウンド     Claude (AI)",
+            "キャラクター・実装     Claude (AI)",
+            "", "", "",
+            "そして、ご主人様へ。",
+            "",
+            lastWord,
+            "", "", "",
+            "Thank you for playing.",
+        };
+        _rollClimaxIdx = System.Array.IndexOf(Roll, lastWord);
 
         // PW正解の確定：GameManager.LastSentWord（最後に送った言葉）と一致する候補を探す。
         // F4（Final.cs）は【初】を送った瞬間に LastSentWord を同値へ更新するので、E2 時点では常に一致する。
@@ -504,7 +514,7 @@ public partial class Epilogue : Node2D
             Color c = head ? Cool with { A = 0.9f }
                     : post ? UiKit.CutInk with { A = 0.95f }
                     : Ink;
-            int sz = line == "stay." ? UiKit.CutClimax : UiKit.CutBody;
+            int sz = i == _rollClimaxIdx ? UiKit.CutClimax : UiKit.CutBody;
             Shadowed(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
         }
         if (((int)(_t * 1.5f) % 2) == 0)

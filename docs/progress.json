@@ -1,15 +1,34 @@
 {
-  "generated": "2026-09-10 18:32 UTC",
+  "generated": "2026-09-11 18:38 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 2,
     "wip": 0,
-    "blocked": 25,
-    "done": 220
+    "blocked": 26,
+    "done": 221
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 99,
+  "todo": [
+    {
+      "priority": "P3",
+      "title": "Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落",
+      "worker": null,
+      "accept": "2026-09-11監査(scenario)。`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`が「メイン @akari.、末尾の「.」は送信取消のあとに残った一文字」と物語上の意味を明記（S1-4の「送信取消」伏線と直結）。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:314`の例文も「[@akari.]」とピリオド付き。実装は`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`は正しく「@akari.」だが、`src/Hub.cs:1309-1310`の`ReplyDialog(\"akari\")`のみ`(\"ミナ→@akari\", ...)`/`(\"@akari\", ...)`とピリオド無し。表記ゆれの機械的修正のみ（ピリオド1文字追加×2箇所）、文意変更なしにつき承認ゲート対象外。"
+    },
+    {
+      "priority": "P3",
+      "title": "sakurai skillの design-map.md が実コードの数値とズレている",
+      "worker": "game-designer",
+      "accept": "2026-09-11監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:15`は`Player.cs`の`HomingTurnRate=200`と記載するが実際は`src/Bullet.cs:80`で`HomingTurnRate = 150f`(deg/s)。同`design-map.md:18`「ボスHP(難易度非依存)…難易度で変えない方針」も実際は`src/GameManager.cs:76-77`の`DiffBarBonus`がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠`GameManager.cs:73-75`のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。"
+    }
+  ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "FINAL F2「穢れたわたし」ボス戦の三人(あかり/こはる/レイ)による返礼BREAK台詞とF3邂逅のレイ反転台詞が、伏線だけ仕込まれ回収先が実装のどこにも存在しない",
+      "worker": null,
+      "accept": "2026-09-11監査(scenario)。`src/Hub.cs:1297-1299,1305-1306,1312-1313`の各面クリア後返信(`ReplyDialog`)コメントが「FINAL F2の返礼」「F3邂逅でレイが引き継ぐ」と3箇所で明記し伏線として仕込み済み（例:`:1298`「誰よあんた、って言ったわね。——訂正する。」／`:1306`「あんたの言い方、この人に、そっくりよ」）。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:44-51`(F2 BREAK 3行＋スペル名5つ)と`:60-64`(F3のレイ反転台詞含む4行)がその回収先の具体台詞を指定するが、`src/`全体をgrepしても実装は0件——回収先そのものが存在しない。`src/Final.cs:5`は「台詞の正典…のF4のみ」と明記しておりF1〜F3は未着手・未承認スコープ。既存BLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しないが実装に残存している」とは角度が異なる（構造の要否ではなく、F2/F3で回収されるはずの三人のセリフ自体が丸ごと未執筆という点）が、両者は同じFINAL領域に属し、その既存BLOCKEDの要ユーザー判断（(a)MinaBattle維持案／(b)BossMinaをFinal.csのF1〜F4へ統合案）が決まらない限り本件の実装先も定まらないため独立に着手不能。新規台詞（5スペル名・BREAK3行・F3反転台詞）の実装は台詞承認ゲート対象。"
+    },
     {
       "priority": null,
       "title": "TrainingRoot（射撃訓練場）の小話4が「少年」を実在キャラとして喋らせ続けており、案C正典（少年不在）と矛盾したまま実プレイヤーが到達可能な状態",
@@ -162,6 +181,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従",
+      "worker": null,
+      "accept": "(完了 2026-09-11) 承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md`「E7 スタッフロール」節の指示どおり、`src/Epilogue.cs`の`Roll`配列を差し替え。三人の投稿を面順(あかり→こはる→レイ)の12スタッフロール投稿(`wiki/08_仮台本/09_投稿文集_X風.md`確定文言A46/K45/R50)へ、「そして、ミナへ。」を「そして、ご主人様へ。」へ、「stay.」を`GameManager.LastSentWord`(空なら`\"きこえてる\"`フォールバック)の実行時値へ置換。`Roll`をstatic readonlyからインスタンスフィールドに変更し`_Ready()`で組み立て、クライマックス表示判定も文字列比較から添字比較(`_rollClimaxIdx`)へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。変更は`src/Epilogue.cs`のみ、新規台詞創作なし(仮台本からの一字一句転記)。"
+    },
     {
       "priority": "P3",
       "title": "TrainingRoot.cs の系統分類(StreamOf)が Shop.cs の combo_hold 再分類修正に追従しておらず、試し打ち画面とショップ画面で見出し色が食い違う",
@@ -1485,6 +1510,21 @@
   ],
   "commits": [
     {
+      "hash": "199c97d",
+      "date": "2026-09-11",
+      "subject": "auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
+    },
+    {
+      "hash": "f487024",
+      "date": "2026-09-11",
+      "subject": "auto: 監査モードでTODO 3件・BLOCKED 1件をキューに追加"
+    },
+    {
+      "hash": "4c3bb37",
+      "date": "2026-09-10",
+      "subject": "auto: TrainingRoot.csのStreamOf combo_hold分類をShop.csに追従させる"
+    },
+    {
       "hash": "e7abaaa",
       "date": "2026-09-10",
       "subject": "auto: WIP着手 - TrainingRoot.csのStreamOf系統分類をShop.csに追従させる"
@@ -1508,21 +1548,6 @@
       "hash": "a1c8dcb",
       "date": "2026-09-09",
       "subject": "auto: Enemy/Panel未使用フィールドPanelsFire等を削除"
-    },
-    {
-      "hash": "c207e0f",
-      "date": "2026-09-09",
-      "subject": "auto: WIP着手 - Enemy/Panel未使用フィールドPanelsFire等の削除"
-    },
-    {
-      "hash": "15e738a",
-      "date": "2026-09-09",
-      "subject": "auto: 練習ステージ(StageZero)に向き反転の実践フェーズを追加"
-    },
-    {
-      "hash": "7ba5dab",
-      "date": "2026-09-09",
-      "subject": "auto: WIP着手 - 練習ステージに向き反転の実践フェーズを追加"
     }
   ]
 }
