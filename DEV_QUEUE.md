@@ -41,9 +41,9 @@
 
 <!-- 2026-09-11 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
-- [ ] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | 2026-09-11監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:15`は`Player.cs`の`HomingTurnRate=200`と記載するが実際は`src/Bullet.cs:80`で`HomingTurnRate = 150f`(deg/s)。同`design-map.md:18`「ボスHP(難易度非依存)…難易度で変えない方針」も実際は`src/GameManager.cs:76-77`の`DiffBarBonus`がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠`GameManager.cs:73-75`のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。
-
 ## WIP
+
+- [ ] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | 2026-09-11監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:15`は`Player.cs`の`HomingTurnRate=200`と記載するが実際は`src/Bullet.cs:80`で`HomingTurnRate = 150f`(deg/s)。同`design-map.md:18`「ボスHP(難易度非依存)…難易度で変えない方針」も実際は`src/GameManager.cs:76-77`の`DiffBarBonus`がEasy2/Normal4/Hard5/Lunatic6本と難易度で変動(意図的変更、根拠`GameManager.cs:73-75`のコメント)。両箇所を実コードの値に合わせて記述修正し、以後のsakurai監査が誤った前提で批評しないようにする。
 
 ## BLOCKED
 
