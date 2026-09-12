@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-12 18:48 UTC",
+  "generated": "2026-09-12 18:52 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 29,
-    "done": 226
+    "done": 227
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する",
-      "worker": "engineer",
-      "accept": "2026-09-12監査(game-designer)。`src/Settings.cs:83-84`の`Toggle(\"bright\",...)`/`Toggle(\"hitbox\",...)`も`Apply()`にcase無しで死んでいる(grep確認、他に参照ゼロ)。加えて`src/Player.cs:1474-1475`は自機の被弾点を設定に関係なく常時描画済みで、「当たり判定を常時表示」(既定OFF)というトグルの説明文と矛盾する。対応: (a) `bright`は敵弾描画(`src/Bullet.cs`のEnemyMid/EnemyGlow系アルファ)に静的倍率を追加して配線する。(b) `hitbox`は実体の無い死んだ設定項目のため`Settings.cs`から削除する(新規の当たり判定表示機能を新設するのではなく、既に常時表示という現状に合わせて紛らわしいトグルを整理する)。`dotnet build algo_shoot.sln`で確認。"
-    },
     {
       "priority": "P3",
       "title": "StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する",
@@ -205,6 +199,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-12) `src/Settings.cs:83`から`Toggle(\"hitbox\",...)`行を削除(他に参照無し、`hitbox_1/2/3`はShop.cs等の無関係な被弾半径強化ID)。`Apply()`に`case \"bright\": Bullet.BrightEnemyBullets = d.B; break;`を追加、`src/Bullet.cs`に`public static bool BrightEnemyBullets = true`(Settings既定ONに合わせ既定true)を追加し、敵弾描画の色決定部(`:665-671`)でON時`c = c.Lightened(0.22f)`(mid色・glow色ともに明るくなる。自機弾は対象外)。`Player.cs:1474-1475`の被弾点常時描画は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での見た目目視は未実施。"
+    },
     {
       "priority": "P2",
       "title": "CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する",
@@ -1564,6 +1564,16 @@
   ],
   "commits": [
     {
+      "hash": "b365470",
+      "date": "2026-09-12",
+      "subject": "auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する"
+    },
+    {
+      "hash": "c0eb140",
+      "date": "2026-09-12",
+      "subject": "auto: CameoBossのセリフで顔アイコンが表示されない不具合を修正"
+    },
+    {
       "hash": "5928c9b",
       "date": "2026-09-12",
       "subject": "auto: WIP着手 - CameoBossのセリフで顔アイコンが表示されない不具合を修正する"
@@ -1592,16 +1602,6 @@
       "hash": "aad6723",
       "date": "2026-09-12",
       "subject": "auto: 監査で6件をTODOに、3件をBLOCKEDに追加"
-    },
-    {
-      "hash": "f8877f9",
-      "date": "2026-09-11",
-      "subject": "auto: sakurai skillのdesign-map.mdを実コードへ同期"
-    },
-    {
-      "hash": "52eae25",
-      "date": "2026-09-11",
-      "subject": "auto: WIP着手 - sakurai skillのdesign-map.mdを実コードへ同期"
     }
   ]
 }

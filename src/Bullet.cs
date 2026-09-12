@@ -164,6 +164,9 @@ public partial class Bullet : Area2D
     // ドット絵ではなく「白ハイライト→中間色→暗エッジのグラデ＋外周グロー」の滑らかな弾。
     // 敵弾: radial-gradient(circle at 35% 30%, #fff, #e072ac 60%, #7a2f5a) + glow rgba(224,114,172,.75)
     private static readonly Color EnemyMid  = new Color(0.882f, 0.447f, 0.675f); // #e072ac ボス穢れ
+    // 設定「弾を明るく表示」(既定ON)：Settings.Apply が同期する。ON時は敵弾の色（mid/glow共通のc）を
+    // 白へ少し寄せ、視認性を上げる。Settings画面を一度も開かなくても既定ONの見た目になるよう既定値もtrue。
+    public static bool BrightEnemyBullets = true;
     // 自機弾: radial-gradient(circle at 40% 35%, #fff, #6cbcd8 65%) + glow rgba(108,188,216,.8)
     private static readonly Color PlayerMid  = new Color(0.424f, 0.737f, 0.847f); // #6cbcd8 浄化
     private static readonly Color PlayerEdge = new Color(0.247f, 0.490f, 0.604f); // 暗めの水色縁
@@ -663,6 +666,9 @@ public partial class Bullet : Area2D
 
         // 敵弾：スペルの色（未指定なら既定の穢れ色）と弾形で描く。
         Color c = TintSet ? Tint : EnemyMid;
+        // 「弾を明るく表示」ON：mid色を少し白へ寄せる＝この c を使う glow（DrawGlow）も含めて
+        // 敵弾全体が明るくなる（該当形状の DrawGlow(r, c, …) 呼び出しへそのまま波及）。
+        if (BrightEnemyBullets) c = c.Lightened(0.22f);
         // グレイズ軟化済み（キミ弾）：白へ寄せた淡色＝「和らいだ」を色で読ませる（判定は不変）。
         if (Softened) c = c.Lerp(new Color(1f, 1f, 1f), 0.5f);
         switch (Shape)

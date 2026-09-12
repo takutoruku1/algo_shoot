@@ -81,7 +81,6 @@ public partial class Settings : Node2D
 
         var gp = C("game", "ゲームプレイ", "Gameplay");
         gp.Items.Add(Toggle("bright", "弾を明るく表示", true, "視認性を上げる"));
-        gp.Items.Add(Toggle("hitbox", "当たり判定を常時表示", false));
         gp.Items.Add(Slider("shake", "画面振動", 30));
         gp.Items.Add(Slider("flash", "被弾フラッシュ", 60, "赤い明滅の強さ"));
         gp.Items.Add(Seg("msg", "メッセージ速度", new[] { "遅", "中", "速" }, 1));
@@ -319,6 +318,8 @@ public partial class Settings : Node2D
             case "se":     SetBusDb("SE",     d.F); break;
             case "voice":  SetBusDb("Voice",  d.F); break;
             case "amb":    SetBusDb("Amb",    d.F); break;
+            // 弾を明るく表示：敵弾の色を心持ち白へ寄せ、視認性を上げる（Bullet 側の描画で反映）。
+            case "bright": Bullet.BrightEnemyBullets = d.B; break;
             // 画面振動・被弾フラッシュ：既定スライダー位置(30/60)で倍率1.0＝現状の体感を維持する
             // （F/既定値。単純な F/100 だと初回起動から現状より弱くなってしまうため避ける）。
             case "shake": GameCamera.ShakeMul = d.F / 30f; break;

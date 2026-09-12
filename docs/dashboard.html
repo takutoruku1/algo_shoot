@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 226 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 227 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">226</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">227</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">29</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-12監査(game-designer)。<code>src/Settings.cs:83-84</code>の<code>Toggle(&quot;bright&quot;,...)</code>/<code>Toggle(&quot;hitbox&quot;,...)</code>も<code>Apply()</code>にcase無しで死んでいる(grep確認、他に参照ゼロ)。加えて<code>src/Player.cs:1474-1475</code>は自機の被弾点を設定に関係なく常時描画済みで、「当たり判定を常時表示」(既定OFF)というトグルの説明文と矛盾する。対応: (a) <code>bright</code>は敵弾描画(<code>src/Bullet.cs</code>のEnemyMid/EnemyGlow系アルファ)に静的倍率を追加して配線する。(b) <code>hitbox</code>は実体の無い死んだ設定項目のため<code>Settings.cs</code>から削除する(新規の当たり判定表示機能を新設するのではなく、既に常時表示という現状に合わせて紛らわしいトグルを整理する)。<code>dotnet build algo_shoot.sln</code>で確認。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-12) <code>src/Settings.cs:83</code>から<code>Toggle(&quot;hitbox&quot;,...)</code>行を削除(他に参照無し、<code>hitbox_1/2/3</code>はShop.cs等の無関係な被弾半径強化ID)。<code>Apply()</code>に<code>case &quot;bright&quot;: Bullet.BrightEnemyBullets = d.B; break;</code>を追加、<code>src/Bullet.cs</code>に<code>public static bool BrightEnemyBullets = true</code>(Settings既定ONに合わせ既定true)を追加し、敵弾描画の色決定部(<code>:665-671</code>)でON時<code>c = c.Lightened(0.22f)</code>(mid色・glow色ともに明るくなる。自機弾は対象外)。<code>Player.cs:1474-1475</code>の被弾点常時描画は変更なし。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での見た目目視は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2225,18 +2225,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b365470</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する</span></li>
+      <li><span class="h">c0eb140</span><span>2026-09-12</span><span class="s">auto: CameoBossのセリフで顔アイコンが表示されない不具合を修正</span></li>
       <li><span class="h">5928c9b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - CameoBossのセリフで顔アイコンが表示されない不具合を修正する</span></li>
       <li><span class="h">715a761</span><span>2026-09-12</span><span class="s">auto: あそびかたにグレイズのスコア/浄化通貨即時加算を追記</span></li>
       <li><span class="h">ade992f</span><span>2026-09-12</span><span class="s">auto: WIP着手 - あそびかたにグレイズのスコア/浄化通貨即時加算を追記する</span></li>
       <li><span class="h">026e32b</span><span>2026-09-12</span><span class="s">auto: Settingsの画面振動/被弾フラッシュスライダーを実配線</span></li>
       <li><span class="h">08e1aeb</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの画面振動/被弾フラッシュスライダーを実配線する</span></li>
       <li><span class="h">aad6723</span><span>2026-09-12</span><span class="s">auto: 監査で6件をTODOに、3件をBLOCKEDに追加</span></li>
-      <li><span class="h">f8877f9</span><span>2026-09-11</span><span class="s">auto: sakurai skillのdesign-map.mdを実コードへ同期</span></li>
-      <li><span class="h">52eae25</span><span>2026-09-11</span><span class="s">auto: WIP着手 - sakurai skillのdesign-map.mdを実コードへ同期</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-12 18:48 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-12 18:52 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

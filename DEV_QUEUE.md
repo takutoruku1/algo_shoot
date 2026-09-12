@@ -48,8 +48,6 @@
 
 ## WIP
 
-- [ ] (P2) Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する | engineer | 2026-09-12監査(game-designer)。`src/Settings.cs:83-84`の`Toggle("bright",...)`/`Toggle("hitbox",...)`も`Apply()`にcase無しで死んでいる(grep確認、他に参照ゼロ)。加えて`src/Player.cs:1474-1475`は自機の被弾点を設定に関係なく常時描画済みで、「当たり判定を常時表示」(既定OFF)というトグルの説明文と矛盾する。対応: (a) `bright`は敵弾描画(`src/Bullet.cs`のEnemyMid/EnemyGlow系アルファ)に静的倍率を追加して配線する。(b) `hitbox`は実体の無い死んだ設定項目のため`Settings.cs`から削除する(新規の当たり判定表示機能を新設するのではなく、既に常時表示という現状に合わせて紛らわしいトグルを整理する)。`dotnet build algo_shoot.sln`で確認。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -97,6 +95,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P2) Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する | engineer | (完了 2026-09-12) `src/Settings.cs:83`から`Toggle("hitbox",...)`行を削除(他に参照無し、`hitbox_1/2/3`はShop.cs等の無関係な被弾半径強化ID)。`Apply()`に`case "bright": Bullet.BrightEnemyBullets = d.B; break;`を追加、`src/Bullet.cs`に`public static bool BrightEnemyBullets = true`(Settings既定ONに合わせ既定true)を追加し、敵弾描画の色決定部(`:665-671`)でON時`c = c.Lightened(0.22f)`(mid色・glow色ともに明るくなる。自機弾は対象外)。`Player.cs:1474-1475`の被弾点常時描画は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での見た目目視は未実施。
 - [x] (P2) CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する | engineer | (完了 2026-09-12) `src/Hud.cs:660-668 ShowBossLine`に`string face = ""`引数を追加し`_bossLineFace`へロード、`:1777-1789 DrawBossLine`で話者名の左に30px角の顔アイコンを描画するよう拡張(通常会話のフル立ち絵機構は流用せず一行カードに収まる最小実装)。`src/CameoBoss.cs`の`FirstBossLine`/`NextBossLine`の戻り値を`(text, face)`タプルに変更し、`:128-132`(登場)・`:274-291`(撃破後捨て台詞)の2箇所で`face`(行指定優先、無ければ`Theme.Face`)を`ShowBossLine`に渡すよう配線。`OnRecloseLine`(`:239-245`)は本戦ボスと共有の顔非対応`ShowRecloseLine`経由のためスコープ外として据え置き。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での目視確認は未実施。
 - [x] (P1) あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する | engineer | (完了 2026-09-12) `src/HowToPlay.cs:194-208`(ページ1操作、`DrawPageControls`末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は`GameManager.cs:1307-1315 AddGraze()`のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。
 - [x] (P1) Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する | engineer | (完了 2026-09-12) `src/Settings.cs`の`Apply(Def d)`に`case "shake"`/`case "flash"`を追加し、`GameCamera.ShakeMul = d.F/30f`・`Hud.FlashMul = d.F/60f`（既定スライダー位置で倍率1.0＝現状の体感を維持）を配線。`src/fx/GameCamera.cs`の`Shake()`は`_shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul)`、`src/Hud.cs`の`HitFlash()`は`_flashAlpha = 0.7f * FlashMul`へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。実機でのスライダー操作による見た目差分の目視確認は未実施。
