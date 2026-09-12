@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 228 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 229 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">228</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">229</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">29</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-12監査(engineer)。<code>src/Hud.cs:253</code>のコメント「軽さ7:沈む一言3」は実配列<code>src/Hud.cs:256-260 TickerWords</code>(要素数8)と食い違う。「沈む」側は<code>src/PostBullets.cs:103-106 MurkWords</code>の3件(だれか、みてる?/どうせ、とどかない/きえたい)と一致するが、「軽い」側は5件で「7」ではない(実際は5:3、計8)。<code>src/Hud.cs:253</code>のコメントを「軽さ5:沈む一言3(計8語)」等、実数値に訂正する(文面変更なし、事実訂正のコメント修正のみ)。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-12) <code>src/Hud.cs:255</code>のコメント「軽さ7:沈む一言3」を実配列<code>TickerWords</code>(要素数8、軽さ5:沈む3)に合わせ「軽さ5:沈む一言3（計8語）」に訂正。文面(配列の中身)は変更なし、事実訂正のコメント修正のみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2225,18 +2225,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">19e8e4a</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する</span></li>
+      <li><span class="h">5b272fb</span><span>2026-09-12</span><span class="s">auto: StageZeroのSpawnDummy(harmless)死にコードを整理</span></li>
       <li><span class="h">646fa7b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する</span></li>
       <li><span class="h">b2ec709</span><span>2026-09-12</span><span class="s">auto: Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除</span></li>
       <li><span class="h">b365470</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する</span></li>
       <li><span class="h">c0eb140</span><span>2026-09-12</span><span class="s">auto: CameoBossのセリフで顔アイコンが表示されない不具合を修正</span></li>
       <li><span class="h">5928c9b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - CameoBossのセリフで顔アイコンが表示されない不具合を修正する</span></li>
       <li><span class="h">715a761</span><span>2026-09-12</span><span class="s">auto: あそびかたにグレイズのスコア/浄化通貨即時加算を追記</span></li>
-      <li><span class="h">ade992f</span><span>2026-09-12</span><span class="s">auto: WIP着手 - あそびかたにグレイズのスコア/浄化通貨即時加算を追記する</span></li>
-      <li><span class="h">026e32b</span><span>2026-09-12</span><span class="s">auto: Settingsの画面振動/被弾フラッシュスライダーを実配線</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-12 18:54 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-12 18:55 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

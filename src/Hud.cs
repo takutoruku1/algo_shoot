@@ -252,7 +252,7 @@ public partial class Hud : CanvasLayer
 
     // ティッカー（降ってくる言葉）＝「Xの川」の共有ノイズプール。
     // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、投稿弾もここから引く（PostBullets）。
-    // #11 文面改稿（maeda）：バズ・断片・広告っぽい軽さ7 : 沈む一言3。個人特定・死の直接言及・ボス本人の声は入れない
+    // #11 文面改稿（maeda）：バズ・断片・広告っぽい軽さ5 : 沈む一言3（計8語）。個人特定・死の直接言及・ボス本人の声は入れない
     //（旧「あたしのせいだ」「なんで庇ったの」は本人特定に近いため撤去）。ハンドル空欄はティッカー側で幅を詰める（TickerHandleW）。
     private double _t;
     public static readonly (string h, string w)[] TickerWords =

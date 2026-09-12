@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-12 18:54 UTC",
+  "generated": "2026-09-12 18:55 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 29,
-    "done": 228
+    "done": 229
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する",
-      "worker": "engineer",
-      "accept": "2026-09-12監査(engineer)。`src/Hud.cs:253`のコメント「軽さ7:沈む一言3」は実配列`src/Hud.cs:256-260 TickerWords`(要素数8)と食い違う。「沈む」側は`src/PostBullets.cs:103-106 MurkWords`の3件(だれか、みてる?/どうせ、とどかない/きえたい)と一致するが、「軽い」側は5件で「7」ではない(実際は5:3、計8)。`src/Hud.cs:253`のコメントを「軽さ5:沈む一言3(計8語)」等、実数値に訂正する(文面変更なし、事実訂正のコメント修正のみ)。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -193,6 +186,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-12) `src/Hud.cs:255`のコメント「軽さ7:沈む一言3」を実配列`TickerWords`(要素数8、軽さ5:沈む3)に合わせ「軽さ5:沈む一言3（計8語）」に訂正。文面(配列の中身)は変更なし、事実訂正のコメント修正のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P3",
       "title": "StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する",
@@ -1564,6 +1563,16 @@
   ],
   "commits": [
     {
+      "hash": "19e8e4a",
+      "date": "2026-09-12",
+      "subject": "auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する"
+    },
+    {
+      "hash": "5b272fb",
+      "date": "2026-09-12",
+      "subject": "auto: StageZeroのSpawnDummy(harmless)死にコードを整理"
+    },
+    {
       "hash": "646fa7b",
       "date": "2026-09-12",
       "subject": "auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する"
@@ -1592,16 +1601,6 @@
       "hash": "715a761",
       "date": "2026-09-12",
       "subject": "auto: あそびかたにグレイズのスコア/浄化通貨即時加算を追記"
-    },
-    {
-      "hash": "ade992f",
-      "date": "2026-09-12",
-      "subject": "auto: WIP着手 - あそびかたにグレイズのスコア/浄化通貨即時加算を追記する"
-    },
-    {
-      "hash": "026e32b",
-      "date": "2026-09-12",
-      "subject": "auto: Settingsの画面振動/被弾フラッシュスライダーを実配線"
     }
   ]
 }
