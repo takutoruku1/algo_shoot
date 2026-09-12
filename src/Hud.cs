@@ -101,6 +101,8 @@ public partial class Hud : CanvasLayer
     private const float  CutinLingerX    = 150f;  // 滞在時にさらに外（左）へ寄せる量（footprint 縮小）
 
     // フラッシュ
+    // Settings「被弾フラッシュ」スライダーの倍率（既定60で1.0＝現状の体感を維持）。Settings.Apply(Def) が書き込む。
+    public static float FlashMul = 1f;
     private float _flashAlpha;
     private Color _flashRgb = new(1f, 1f, 1f);
     private double _hurtEdge; // 被弾エッジの残り時間
@@ -766,7 +768,7 @@ public partial class Hud : CanvasLayer
     }
 
     public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
-    public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
+    public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f * FlashMul; _hurtEdge = 0.9; }
 
     // ───────── 描画（子 HudCanvas から呼ばれる。設計座標 1280x720）─────────
     public void DrawAll(HudCanvas ci)

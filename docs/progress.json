@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-12 18:39 UTC",
+  "generated": "2026-09-12 18:41 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 29,
-    "done": 223
+    "done": 224
   },
-  "percent": 97,
+  "percent": 98,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する",
-      "worker": "engineer",
-      "accept": "2026-09-12監査(game-designer)。`src/Settings.cs:85-86`にshake(既定30)/flash(既定60)スライダーがあるが`Apply(Def d)`(`src/Settings.cs:311-351`)にcase「shake」「flash」が無く一切効果がない。`src/fx/GameCamera.cs:44-46 Shake(mag,dur)`と`src/Hud.cs:769 HitFlash()`(`_flashAlpha=0.7f`固定)は常に呼び出し元の固定値を使用。`Apply()`に`case \"shake\"`/`case \"flash\"`を追加し、それぞれ静的倍率(例`GameCamera.ShakeMul`,`Hud.FlashMul`)へ書き込み、`GameCamera.cs:46`の`_shakeMag`と`Hud.cs:769`の`_flashAlpha=0.7f`にその倍率を掛ける。**注意**: 倍率算出は`F / 既定値`とし、既定スライダー位置(30/60)で倍率1.0=現状の体感を維持すること(単純に`F/100`にすると初回起動から現状より弱くなってしまう)。`dotnet build algo_shoot.sln`で確認。"
-    },
     {
       "priority": "P1",
       "title": "あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する",
@@ -223,6 +217,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-12) `src/Settings.cs`の`Apply(Def d)`に`case \"shake\"`/`case \"flash\"`を追加し、`GameCamera.ShakeMul = d.F/30f`・`Hud.FlashMul = d.F/60f`（既定スライダー位置で倍率1.0＝現状の体感を維持）を配線。`src/fx/GameCamera.cs`の`Shake()`は`_shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul)`、`src/Hud.cs`の`HitFlash()`は`_flashAlpha = 0.7f * FlashMul`へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。実機でのスライダー操作による見た目差分の目視確認は未実施。"
+    },
     {
       "priority": "P3",
       "title": "sakurai skillの design-map.md が実コードの数値とズレている",
@@ -1564,6 +1564,16 @@
   ],
   "commits": [
     {
+      "hash": "08e1aeb",
+      "date": "2026-09-12",
+      "subject": "auto: WIP着手 - Settingsの画面振動/被弾フラッシュスライダーを実配線する"
+    },
+    {
+      "hash": "aad6723",
+      "date": "2026-09-12",
+      "subject": "auto: 監査で6件をTODOに、3件をBLOCKEDに追加"
+    },
+    {
       "hash": "f8877f9",
       "date": "2026-09-11",
       "subject": "auto: sakurai skillのdesign-map.mdを実コードへ同期"
@@ -1592,16 +1602,6 @@
       "hash": "199c97d",
       "date": "2026-09-11",
       "subject": "auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
-    },
-    {
-      "hash": "f487024",
-      "date": "2026-09-11",
-      "subject": "auto: 監査モードでTODO 3件・BLOCKED 1件をキューに追加"
-    },
-    {
-      "hash": "4c3bb37",
-      "date": "2026-09-10",
-      "subject": "auto: TrainingRoot.csのStreamOf combo_hold分類をShop.csに追従させる"
     }
   ]
 }

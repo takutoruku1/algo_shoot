@@ -51,8 +51,6 @@
 
 ## WIP
 
-- [ ] (P1) Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する | engineer | 2026-09-12監査(game-designer)。`src/Settings.cs:85-86`にshake(既定30)/flash(既定60)スライダーがあるが`Apply(Def d)`(`src/Settings.cs:311-351`)にcase「shake」「flash」が無く一切効果がない。`src/fx/GameCamera.cs:44-46 Shake(mag,dur)`と`src/Hud.cs:769 HitFlash()`(`_flashAlpha=0.7f`固定)は常に呼び出し元の固定値を使用。`Apply()`に`case "shake"`/`case "flash"`を追加し、それぞれ静的倍率(例`GameCamera.ShakeMul`,`Hud.FlashMul`)へ書き込み、`GameCamera.cs:46`の`_shakeMag`と`Hud.cs:769`の`_flashAlpha=0.7f`にその倍率を掛ける。**注意**: 倍率算出は`F / 既定値`とし、既定スライダー位置(30/60)で倍率1.0=現状の体感を維持すること(単純に`F/100`にすると初回起動から現状より弱くなってしまう)。`dotnet build algo_shoot.sln`で確認。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -100,6 +98,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P1) Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する | engineer | (完了 2026-09-12) `src/Settings.cs`の`Apply(Def d)`に`case "shake"`/`case "flash"`を追加し、`GameCamera.ShakeMul = d.F/30f`・`Hud.FlashMul = d.F/60f`（既定スライダー位置で倍率1.0＝現状の体感を維持）を配線。`src/fx/GameCamera.cs`の`Shake()`は`_shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul)`、`src/Hud.cs`の`HitFlash()`は`_flashAlpha = 0.7f * FlashMul`へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。実機でのスライダー操作による見た目差分の目視確認は未実施。
 - [x] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | (完了 2026-09-11) `.claude/skills/sakurai/references/design-map.md:15`の`HomingTurnRate=200`を実値`150`(deg/s、`src/Bullet.cs:80`)へ修正。同`:18`「ボスHP(難易度非依存)…難易度で変えない方針」の行を`GameManager.DiffBarBonus`(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。
 - [x] (P3) Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落 | scenario→engineer | (完了 2026-09-11) `src/Hub.cs:1309-1310`の`ReplyDialog("akari")`の2箇所（`"ミナ→@akari"`/`"@akari"`）に末尾ピリオドを追加し、`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`の表記「@akari.」に統一。文意変更なしの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。
 - [x] (P1) Epilogueのスタッフロール(E7)が旧稿のまま承認済み仮台本の差し替え指示に未追従 | scenario→engineer | (完了 2026-09-11) 承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md`「E7 スタッフロール」節の指示どおり、`src/Epilogue.cs`の`Roll`配列を差し替え。三人の投稿を面順(あかり→こはる→レイ)の12スタッフロール投稿(`wiki/08_仮台本/09_投稿文集_X風.md`確定文言A46/K45/R50)へ、「そして、ミナへ。」を「そして、ご主人様へ。」へ、「stay.」を`GameManager.LastSentWord`(空なら`"きこえてる"`フォールバック)の実行時値へ置換。`Roll`をstatic readonlyからインスタンスフィールドに変更し`_Ready()`で組み立て、クライマックス表示判定も文字列比較から添字比較(`_rollClimaxIdx`)へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が再実行して確認済み）。変更は`src/Epilogue.cs`のみ、新規台詞創作なし(仮台本からの一字一句転記)。

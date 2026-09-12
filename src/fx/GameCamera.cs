@@ -6,6 +6,9 @@ public partial class GameCamera : Camera2D
 {
     public static GameCamera Instance = null!;
 
+    // Settings「画面振動」スライダーの倍率（既定30で1.0＝現状の体感を維持）。Settings.Apply(Def) が書き込む。
+    public static float ShakeMul = 1f;
+
     private float _shakeMag, _shakeT, _shakeDur = 1f;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
 
@@ -43,7 +46,7 @@ public partial class GameCamera : Camera2D
     // 振幅が満額へ巻き戻ってしまう。延長が起きないときは _shakeDur を据え置き f の連続性を保つ。
     public void Shake(float mag, float dur)
     {
-        _shakeMag = Mathf.Max(_shakeMag, mag);
+        _shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul);
         if (dur > _shakeT)
         {
             _shakeT = dur;

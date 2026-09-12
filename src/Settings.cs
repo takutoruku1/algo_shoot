@@ -319,6 +319,10 @@ public partial class Settings : Node2D
             case "se":     SetBusDb("SE",     d.F); break;
             case "voice":  SetBusDb("Voice",  d.F); break;
             case "amb":    SetBusDb("Amb",    d.F); break;
+            // 画面振動・被弾フラッシュ：既定スライダー位置(30/60)で倍率1.0＝現状の体感を維持する
+            // （F/既定値。単純な F/100 だと初回起動から現状より弱くなってしまうため避ける）。
+            case "shake": GameCamera.ShakeMul = d.F / 30f; break;
+            case "flash": Hud.FlashMul = d.F / 60f; break;
             // 会話：メッセージ速度（遅/中/速）とオート送り。GameManager へ反映。
             case "msg":
             {
