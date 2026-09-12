@@ -125,10 +125,11 @@ public partial class CameoBoss : Enemy
         GetHud()?.ShowBossBar(Theme.DisplayName, Theme.Handle);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
 
-        // 登場の第一声（弾を止めない一行オーバーレイ）。
-        string first = FirstBossLine(Theme.IntroLines);
+        // 登場の第一声（弾を止めない一行オーバーレイ）。顔は行ごとの指定があればそれを優先、無ければテーマ既定。
+        var (first, firstFace) = FirstBossLine(Theme.IntroLines);
         if (!string.IsNullOrEmpty(first))
-            GetHud()?.ShowBossLine(Theme.DisplayName, first, UiKit.Kegare, 2.6);
+            GetHud()?.ShowBossLine(Theme.DisplayName, first, UiKit.Kegare, 2.6,
+                string.IsNullOrEmpty(firstFace) ? Theme.Face : firstFace);
     }
 
     protected override void UpdateMovement(double delta)
@@ -238,7 +239,8 @@ public partial class CameoBoss : Enemy
     private int _tauntIdx;
     protected override void OnRecloseLine()
     {
-        string? line = NextBossLine(Theme.TauntLines, ref _tauntIdx);
+        // RECLOSE の弱気セリフは本戦ボスと共有の ShowRecloseLine（顔アイコン非対応）経由のため face は使わない。
+        var (line, _) = NextBossLine(Theme.TauntLines, ref _tauntIdx);
         _tauntIdx++; // 次サイクルは次の行へ（尽きたら以降は出ない＝静かに再生成）
         if (line != null) ShowRecloseLine(Theme.DisplayName, line);
     }
@@ -277,33 +279,35 @@ public partial class CameoBoss : Enemy
         _defeatT = 0;
         _defeatIdx++;
         NotifyCryProgress(); // 自動送りだが、進んでいる間は保険タイムアウトを起こさない
-        string? line = NextBossLine(Theme.DefeatLines, ref _defeatIdx);
+        var (line, face) = NextBossLine(Theme.DefeatLines, ref _defeatIdx);
         if (line == null)
         {
             _defeatSeq = false;
             EndCryNow(); // cry→post（笑顔）へ着地し OnCryEnd（Finished=true）
             return;
         }
-        GetHud()?.ShowBossLine(Theme.DisplayName, line, UiKit.Kegare, DefeatLineDur);
+        // 顔は行ごとの指定があればそれを優先、無ければテーマ既定（例: RFace/AFaceLit/KFace）。
+        GetHud()?.ShowBossLine(Theme.DisplayName, line, UiKit.Kegare, DefeatLineDur,
+            string.IsNullOrEmpty(face) ? Theme.Face : face);
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;
 
     // ── セリフ配列ヘルパ（旧 CameoHit から移設）──
-    // 会話配列(who, text, face)[] から「本人(who=2)の最初の発話」を1行返す（登場の第一声用）。
-    private static string FirstBossLine((int who, string text, string face)[] lines)
+    // 会話配列(who, text, face)[] から「本人(who=2)の最初の発話」を1行返す（登場の第一声用）。顔も一緒に返す。
+    private static (string text, string face) FirstBossLine((int who, string text, string face)[] lines)
     {
-        foreach (var (who, text, _) in lines)
-            if (who == 2) return text;
-        return lines.Length > 0 ? lines[0].text : "";
+        foreach (var (who, text, face) in lines)
+            if (who == 2) return (text, face);
+        return lines.Length > 0 ? (lines[0].text, lines[0].face) : ("", "");
     }
 
-    // 配列から who=2 の行を idx 番目以降で次に探して返す。無ければ null。
+    // 配列から who=2 の行を idx 番目以降で次に探して返す（テキストと顔）。無ければ (null, "")。
     // idx は呼び出し側が見つかった位置を受け取り、++ してから次回に渡す前提。
-    private static string? NextBossLine((int who, string text, string face)[] lines, ref int idx)
+    private static (string? text, string face) NextBossLine((int who, string text, string face)[] lines, ref int idx)
     {
         for (; idx < lines.Length; idx++)
-            if (lines[idx].who == 2) return lines[idx].text;
-        return null;
+            if (lines[idx].who == 2) return (lines[idx].text, lines[idx].face);
+        return (null, "");
     }
 }

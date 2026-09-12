@@ -49,8 +49,6 @@
 
 ## WIP
 
-- [ ] (P2) CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する | engineer | 2026-09-12監査(engineer)。`src/CameoBoss.cs:37-39`の`IntroLines`/`TauntLines`/`DefeatLines`は`(int who, string text, string face)`で個別の顔差分を持てる設計で、`src/StageAkari.cs:510`/`StageKoharu.cs:483`/`StageRei.cs:650`で`CameoTheme.Face`に実ファイルパスを設定済みだが、`src/CameoBoss.cs:294-298 FirstBossLine`と`:303-308 NextBossLine`はどちらも`face`を明示的にdiscardし`.text`しか返さず、呼び出し元`:131,287`の`Hud.ShowBossLine(speaker, text, ...)`(`src/Hud.cs:662`)自体が顔引数を持たない。対比: 通常ステージ会話`src/StageRei.cs:402-415 ShowLine`は同じタプルから顔を切り替えて`Hud.ShowDialog`に渡している。`Hud.ShowBossLine`に顔アイコン用の引数を1つ追加し、`CameoBoss.cs`の2呼び出し箇所で`Theme.Face`(行ごとの`face`があればそちら優先)を渡すよう配線する。既存の顔画像(AFaceLit/KFace/RFace)は用意済みで新規アセット不要。`dotnet build algo_shoot.sln`で確認。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -98,6 +96,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P2) CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する | engineer | (完了 2026-09-12) `src/Hud.cs:660-668 ShowBossLine`に`string face = ""`引数を追加し`_bossLineFace`へロード、`:1777-1789 DrawBossLine`で話者名の左に30px角の顔アイコンを描画するよう拡張(通常会話のフル立ち絵機構は流用せず一行カードに収まる最小実装)。`src/CameoBoss.cs`の`FirstBossLine`/`NextBossLine`の戻り値を`(text, face)`タプルに変更し、`:128-132`(登場)・`:274-291`(撃破後捨て台詞)の2箇所で`face`(行指定優先、無ければ`Theme.Face`)を`ShowBossLine`に渡すよう配線。`OnRecloseLine`(`:239-245`)は本戦ボスと共有の顔非対応`ShowRecloseLine`経由のためスコープ外として据え置き。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での目視確認は未実施。
 - [x] (P1) あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する | engineer | (完了 2026-09-12) `src/HowToPlay.cs:194-208`(ページ1操作、`DrawPageControls`末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は`GameManager.cs:1307-1315 AddGraze()`のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。
 - [x] (P1) Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する | engineer | (完了 2026-09-12) `src/Settings.cs`の`Apply(Def d)`に`case "shake"`/`case "flash"`を追加し、`GameCamera.ShakeMul = d.F/30f`・`Hud.FlashMul = d.F/60f`（既定スライダー位置で倍率1.0＝現状の体感を維持）を配線。`src/fx/GameCamera.cs`の`Shake()`は`_shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul)`、`src/Hud.cs`の`HitFlash()`は`_flashAlpha = 0.7f * FlashMul`へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。実機でのスライダー操作による見た目差分の目視確認は未実施。
 - [x] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | (完了 2026-09-11) `.claude/skills/sakurai/references/design-map.md:15`の`HomingTurnRate=200`を実値`150`(deg/s、`src/Bullet.cs:80`)へ修正。同`:18`「ボスHP(難易度非依存)…難易度で変えない方針」の行を`GameManager.DiffBarBonus`(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。

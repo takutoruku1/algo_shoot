@@ -661,9 +661,12 @@ public partial class Hud : CanvasLayer
     private string _bossLineSpeaker = "";
     private Color _bossLineCol = Colors.White;
     private double _bossLineTimer;
-    public void ShowBossLine(string speaker, string text, Color col, double dur)
+    private Texture2D? _bossLineFace;
+    // face（res://パス）を渡すと話者名の左に小さな顔アイコンを添える（省略時は従来どおり無し）。
+    public void ShowBossLine(string speaker, string text, Color col, double dur, string face = "")
     {
         _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
+        _bossLineFace = string.IsNullOrEmpty(face) ? null : ResourceLoader.Load<Texture2D>(face);
     }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
@@ -1774,12 +1777,22 @@ public partial class Hud : CanvasLayer
         string sp = _bossLineSpeaker.Length > 0 ? _bossLineSpeaker + "  " : "";
         float spW = UiKit.TextW(UiKit.ZenBold, sp, UiKit.FontSpeaker);
         float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, UiKit.FontHeading);
-        float w = spW + tw + 36, x = 640 - w / 2f, y = 540, h = 38;
+        // 顔アイコン（あれば）ぶんだけ枠を左へ広げる。通常会話の立ち絵ほど大きくせず、この一行カードに収まる正方形で足す。
+        const float faceH = 30f, faceGap = 10f;
+        float faceW = _bossLineFace != null ? faceH * _bossLineFace.GetWidth() / Mathf.Max(1, _bossLineFace.GetHeight()) : 0f;
+        float faceBlockW = _bossLineFace != null ? faceW + faceGap : 0f;
+        float w = faceBlockW + spW + tw + 36, x = 640 - w / 2f, y = 540, h = 38;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.74f * a), 12f,
             new Color(_bossLineCol, 0.55f * a), 1.2f);
+        float textX = x + 18;
+        if (_bossLineFace != null)
+        {
+            ci.DrawTextureRect(_bossLineFace, new Rect2(textX, y + (h - faceH) / 2f, faceW, faceH), false, new Color(1f, 1f, 1f, a));
+            textX += faceBlockW;
+        }
         if (sp.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18, y + 10), sp, UiKit.FontSpeaker, new Color(_bossLineCol, a));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, UiKit.FontHeading, new Color(UiKit.White, a));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX, y + 10), sp, UiKit.FontSpeaker, new Color(_bossLineCol, a));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(textX + spW, y + 9), _bossLine, UiKit.FontHeading, new Color(UiKit.White, a));
     }
 
     // ── FINAL タイトルカード（格上の見せ方）──────────────────────────────
