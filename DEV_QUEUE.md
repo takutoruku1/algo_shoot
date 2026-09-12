@@ -47,8 +47,6 @@
 
 ## WIP
 
-- [ ] (P3) StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する | engineer | 2026-09-12監査(engineer)。`src/GlyphMote.cs:12-15`のコメント自身が「かつては発射本体を無害化するスイッチだったが、GlyphMoteは発射ロジックを持たず常に非発火。現状は挙動に差はない」と明記、`public bool Harmless`はgrep確認で読み出し箇所0件。`src/StageZero.cs:570 SpawnDummy(bool harmless)`はこれをそのまま`GlyphMote`へ渡すだけの薄いラッパー。`GlyphMote { Harmless = ... }`の3箇所(`StageZero.cs:563,572,584`)と`SpawnDummy`呼び出し2箇所(`:311,317`)から引数を除去し、`GlyphMote.Harmless`フィールド自体も削除する。挙動は現状から一切変えない純粋な死にコード整理。`dotnet build algo_shoot.sln`で確認。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -96,6 +94,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P3) StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する | engineer | (完了 2026-09-12) `src/GlyphMote.cs`から未使用の`public bool Harmless`フィールドを削除。`src/StageZero.cs`の`SpawnDummy(bool harmless)`を`SpawnDummy()`に、`new GlyphMote { Harmless = ... }`を`new GlyphMote()`に変更(計3箇所)。呼び出し箇所は当初想定の2箇所(`:311,317`)以外にも4箇所(`:175,181,353,382`)存在したため全6箇所を合わせて修正。`grep Harmless src/`で残存参照0件を確認。挙動は一切変更なし(元々読み出されていなかったフィールドの削除のみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。
 - [x] (P2) Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する | engineer | (完了 2026-09-12) `src/Settings.cs:83`から`Toggle("hitbox",...)`行を削除(他に参照無し、`hitbox_1/2/3`はShop.cs等の無関係な被弾半径強化ID)。`Apply()`に`case "bright": Bullet.BrightEnemyBullets = d.B; break;`を追加、`src/Bullet.cs`に`public static bool BrightEnemyBullets = true`(Settings既定ONに合わせ既定true)を追加し、敵弾描画の色決定部(`:665-671`)でON時`c = c.Lightened(0.22f)`(mid色・glow色ともに明るくなる。自機弾は対象外)。`Player.cs:1474-1475`の被弾点常時描画は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での見た目目視は未実施。
 - [x] (P2) CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する | engineer | (完了 2026-09-12) `src/Hud.cs:660-668 ShowBossLine`に`string face = ""`引数を追加し`_bossLineFace`へロード、`:1777-1789 DrawBossLine`で話者名の左に30px角の顔アイコンを描画するよう拡張(通常会話のフル立ち絵機構は流用せず一行カードに収まる最小実装)。`src/CameoBoss.cs`の`FirstBossLine`/`NextBossLine`の戻り値を`(text, face)`タプルに変更し、`:128-132`(登場)・`:274-291`(撃破後捨て台詞)の2箇所で`face`(行指定優先、無ければ`Theme.Face`)を`ShowBossLine`に渡すよう配線。`OnRecloseLine`(`:239-245`)は本戦ボスと共有の顔非対応`ShowRecloseLine`経由のためスコープ外として据え置き。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での目視確認は未実施。
 - [x] (P1) あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する | engineer | (完了 2026-09-12) `src/HowToPlay.cs:194-208`(ページ1操作、`DrawPageControls`末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は`GameManager.cs:1307-1315 AddGraze()`のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。

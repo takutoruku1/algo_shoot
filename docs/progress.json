@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-12 18:52 UTC",
+  "generated": "2026-09-12 18:54 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 29,
-    "done": 227
+    "done": 228
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する",
-      "worker": "engineer",
-      "accept": "2026-09-12監査(engineer)。`src/GlyphMote.cs:12-15`のコメント自身が「かつては発射本体を無害化するスイッチだったが、GlyphMoteは発射ロジックを持たず常に非発火。現状は挙動に差はない」と明記、`public bool Harmless`はgrep確認で読み出し箇所0件。`src/StageZero.cs:570 SpawnDummy(bool harmless)`はこれをそのまま`GlyphMote`へ渡すだけの薄いラッパー。`GlyphMote { Harmless = ... }`の3箇所(`StageZero.cs:563,572,584`)と`SpawnDummy`呼び出し2箇所(`:311,317`)から引数を除去し、`GlyphMote.Harmless`フィールド自体も削除する。挙動は現状から一切変えない純粋な死にコード整理。`dotnet build algo_shoot.sln`で確認。"
-    },
     {
       "priority": "P3",
       "title": "Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する",
@@ -199,6 +193,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-12) `src/GlyphMote.cs`から未使用の`public bool Harmless`フィールドを削除。`src/StageZero.cs`の`SpawnDummy(bool harmless)`を`SpawnDummy()`に、`new GlyphMote { Harmless = ... }`を`new GlyphMote()`に変更(計3箇所)。呼び出し箇所は当初想定の2箇所(`:311,317`)以外にも4箇所(`:175,181,353,382`)存在したため全6箇所を合わせて修正。`grep Harmless src/`で残存参照0件を確認。挙動は一切変更なし(元々読み出されていなかったフィールドの削除のみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。"
+    },
     {
       "priority": "P2",
       "title": "Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する",
@@ -1564,6 +1564,16 @@
   ],
   "commits": [
     {
+      "hash": "646fa7b",
+      "date": "2026-09-12",
+      "subject": "auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する"
+    },
+    {
+      "hash": "b2ec709",
+      "date": "2026-09-12",
+      "subject": "auto: Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除"
+    },
+    {
       "hash": "b365470",
       "date": "2026-09-12",
       "subject": "auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する"
@@ -1592,16 +1602,6 @@
       "hash": "026e32b",
       "date": "2026-09-12",
       "subject": "auto: Settingsの画面振動/被弾フラッシュスライダーを実配線"
-    },
-    {
-      "hash": "08e1aeb",
-      "date": "2026-09-12",
-      "subject": "auto: WIP着手 - Settingsの画面振動/被弾フラッシュスライダーを実配線する"
-    },
-    {
-      "hash": "aad6723",
-      "date": "2026-09-12",
-      "subject": "auto: 監査で6件をTODOに、3件をBLOCKEDに追加"
     }
   ]
 }

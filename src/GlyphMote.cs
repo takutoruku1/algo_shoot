@@ -9,11 +9,6 @@ public partial class GlyphMote : Enemy
     private float _campX;   // この位置まで来たら居座る（倒さない限り画面外に出ない）
     private float _vy;      // 居座り中の上下往復
 
-    // かつては「弾を撃つ本体を無害化する」ためのスイッチだったが、GlyphMote自体は
-    // 発射ロジックを持たず常に非発火。現状は挙動に差はないが、
-    // 呼び出し側（StageZero のチュートリアル演出意図）を残すためフィールドのみ存置する。
-    public bool Harmless;
-
     protected override void OnEnemyReady()
     {
         Points = 100;

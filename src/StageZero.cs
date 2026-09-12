@@ -172,13 +172,13 @@ public partial class StageZero : Node
                     _phaseStarted = true;
                     _t2KillBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     Hud.ClearSpot();
-                    SpawnDummy(true); // 弾を撃たない無害ダミー（撃って祓う標的）
+                    SpawnDummy(); // 弾を撃たない無害ダミー（撃って祓う標的）
                 }
                 Player?.TutorialGlow();
                 {
                     int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
                     // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
-                    if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
+                    if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy();
                     Hud.SetTutorialHint($"ダミーに 光を あてて たおそう（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
                     if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
                     {
@@ -308,13 +308,13 @@ public partial class StageZero : Node
                     _phaseStarted = true;
                     _t6PurifyBase = GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0;
                     Hud.SetSpot(SpotHeart, 0.25f); // 浄化で増える♥心チップをそっと示す
-                    SpawnDummy(false);
+                    SpawnDummy();
                 }
                 {
                     var game = GetNodeOrNull<GameManager>("/root/Game");
                     int purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase;
                     if (purified < PurifyNeed && CountLiveEnemies() == 0)
-                        SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止）
+                        SpawnDummy(); // 逃げて全滅したら湧き直し（詰み防止）
                     Hud.SetTutorialHint($"ダミーの敵を 浄化してみよう（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
                     if (purified >= PurifyNeed || _phaseTime > SafetyTimeout)
                     {
@@ -350,7 +350,7 @@ public partial class StageZero : Node
                     var g0 = GetNodeOrNull<GameManager>("/root/Game");
                     g0?.FillKindnessForTutorial();           // 確実に満タンから始める
                     Hud.SetSpot(SpotKindness, 0.30f);
-                    SpawnDummy(true);                        // 無害な撃ち込み台
+                    SpawnDummy();                        // 無害な撃ち込み台
                 }
                 Player?.TutorialGlow();
                 {
@@ -379,7 +379,7 @@ public partial class StageZero : Node
                         // ① 全開中にダミー撃破できたら即完了。標的が尽きたら全開のうちに湧き直す。
                         // ② 全開が切れても（撃破前でも）「発動から少し体験したら」フォールバックで完了。
                         int killed = (game?.PurifiedCount ?? 0) - _t7OverloadKillBase;
-                        if (overloadNow && killed < 1 && CountLiveEnemies() == 0) SpawnDummy(true);
+                        if (overloadNow && killed < 1 && CountLiveEnemies() == 0) SpawnDummy();
 
                         Hud.SetTutorialHint(overloadNow
                             ? "全開のまま ダミーに撃ち込んで 倒そう!"
@@ -560,16 +560,16 @@ public partial class StageZero : Node
     {
         for (int i = 0; i < BombKillNeed; i++)
         {
-            var e = new GlyphMote { Harmless = true }; // 弾を撃たない＝練習中に痛手なし
+            var e = new GlyphMote(); // 弾を撃たない＝練習中に痛手なし
             World.AddChild(e);
             e.GlobalPosition = new Vector2(330f + i * 18f, 80f + i * 34f);
         }
     }
 
-    // ダミー敵（GlyphMote）。harmless=true で弾を撃たない撃ち込み台。
-    private void SpawnDummy(bool harmless)
+    // ダミー敵（GlyphMote）。弾を撃たない撃ち込み台。
+    private void SpawnDummy()
     {
-        var e = new GlyphMote { Harmless = harmless };
+        var e = new GlyphMote();
         World.AddChild(e);
         e.GlobalPosition = new Vector2(360f, _rng.RandfRange(70f, 150f));
     }
@@ -581,7 +581,7 @@ public partial class StageZero : Node
         float px = Player?.GlobalPosition.X ?? CenterX;
         int facing = Player?.Facing ?? 1;
         float x = facing >= 0 ? Mathf.Max(20f, px - 140f) : Mathf.Min(364f, px + 140f);
-        var e = new GlyphMote { Harmless = true };
+        var e = new GlyphMote();
         World.AddChild(e);
         e.GlobalPosition = new Vector2(x, _rng.RandfRange(70f, 150f));
     }
