@@ -43,10 +43,11 @@
 
 <!-- 2026-09-12 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照。qaは新規指摘0件 -->
 
-- [ ] (P3) StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する | engineer | 2026-09-12監査(engineer)。`src/GlyphMote.cs:12-15`のコメント自身が「かつては発射本体を無害化するスイッチだったが、GlyphMoteは発射ロジックを持たず常に非発火。現状は挙動に差はない」と明記、`public bool Harmless`はgrep確認で読み出し箇所0件。`src/StageZero.cs:570 SpawnDummy(bool harmless)`はこれをそのまま`GlyphMote`へ渡すだけの薄いラッパー。`GlyphMote { Harmless = ... }`の3箇所(`StageZero.cs:563,572,584`)と`SpawnDummy`呼び出し2箇所(`:311,317`)から引数を除去し、`GlyphMote.Harmless`フィールド自体も削除する。挙動は現状から一切変えない純粋な死にコード整理。`dotnet build algo_shoot.sln`で確認。
 - [ ] (P3) Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する | engineer | 2026-09-12監査(engineer)。`src/Hud.cs:253`のコメント「軽さ7:沈む一言3」は実配列`src/Hud.cs:256-260 TickerWords`(要素数8)と食い違う。「沈む」側は`src/PostBullets.cs:103-106 MurkWords`の3件(だれか、みてる?/どうせ、とどかない/きえたい)と一致するが、「軽い」側は5件で「7」ではない(実際は5:3、計8)。`src/Hud.cs:253`のコメントを「軽さ5:沈む一言3(計8語)」等、実数値に訂正する(文面変更なし、事実訂正のコメント修正のみ)。
 
 ## WIP
+
+- [ ] (P3) StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する | engineer | 2026-09-12監査(engineer)。`src/GlyphMote.cs:12-15`のコメント自身が「かつては発射本体を無害化するスイッチだったが、GlyphMoteは発射ロジックを持たず常に非発火。現状は挙動に差はない」と明記、`public bool Harmless`はgrep確認で読み出し箇所0件。`src/StageZero.cs:570 SpawnDummy(bool harmless)`はこれをそのまま`GlyphMote`へ渡すだけの薄いラッパー。`GlyphMote { Harmless = ... }`の3箇所(`StageZero.cs:563,572,584`)と`SpawnDummy`呼び出し2箇所(`:311,317`)から引数を除去し、`GlyphMote.Harmless`フィールド自体も削除する。挙動は現状から一切変えない純粋な死にコード整理。`dotnet build algo_shoot.sln`で確認。
 
 ## BLOCKED
 
