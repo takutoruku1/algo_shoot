@@ -198,6 +198,14 @@ public partial class HowToCanvas : Node2D
                 "◇ 会話中の2択：↑↓ / マウスで選ぶ、" + Pad.ConfirmToken + " で決定", UiKit.FontLabel, UiKit.PurifyHi,
                 HorizontalAlignment.Left, w);
         }
+        // グレイズ（弾にギリギリ近づく）はボタン不要の能動的リスクリターン。即座にSCORE/通貨/やさしさが乗る
+        // （GameManager.AddGraze：Score+10・AddKindness・GainImpression(1)）ので、その場で伝わるよう明記する。
+        {
+            float ny3 = y + half * rowH + (Pad.UsingPad ? 28f : 72f);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x, ny3),
+                "◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）", UiKit.FontLabel, UiKit.Gold,
+                HorizontalAlignment.Left, w);
+        }
     }
 
     private void DrawControlRow(float x, float y, float w, string tok, string name, string desc, Color accent, bool hot)

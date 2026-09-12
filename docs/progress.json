@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-12 18:41 UTC",
+  "generated": "2026-09-12 18:44 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 29,
-    "done": 224
+    "done": 225
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P1",
-      "title": "あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する",
-      "worker": "engineer",
-      "accept": "2026-09-12監査(game-designer)。グレイズ(`src/Player.cs:26 GrazeRadius=11f`)は`src/GameManager.cs:1307-1315 AddGraze()`でScore+10・やさしさ加算・`GainImpression(1)`(通貨)を即時付与する能動的リスクリターン要素だが、`src/HowToPlay.cs`全文grepで「グレイズ」言及は`:236`の1箇所(やさしさの副次説明)のみで、グレイズ自体が得点/通貨を生む行動だと教える行が無い。`HowToPlay.cs:160-171`(ページ1操作rows)か`:271-291`(ページ3コア機能cards)の既存フォーマットに倣い1行/1カードを追加(例:「弾にギリギリ近づく(グレイズ)＝SCORE+10・浄化した心+1」)。ロジック変更なし、テキスト追加のみ。`dotnet build algo_shoot.sln`で確認。"
-    },
     {
       "priority": "P2",
       "title": "CameoBoss(道中ミニボス)のセリフで顔アイコンが一切表示されない不具合を修正する",
@@ -217,6 +211,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-12) `src/HowToPlay.cs:194-208`(ページ1操作、`DrawPageControls`末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は`GameManager.cs:1307-1315 AddGraze()`のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。"
+    },
     {
       "priority": "P1",
       "title": "Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する",
@@ -1564,6 +1564,16 @@
   ],
   "commits": [
     {
+      "hash": "ade992f",
+      "date": "2026-09-12",
+      "subject": "auto: WIP着手 - あそびかたにグレイズのスコア/浄化通貨即時加算を追記する"
+    },
+    {
+      "hash": "026e32b",
+      "date": "2026-09-12",
+      "subject": "auto: Settingsの画面振動/被弾フラッシュスライダーを実配線"
+    },
+    {
       "hash": "08e1aeb",
       "date": "2026-09-12",
       "subject": "auto: WIP着手 - Settingsの画面振動/被弾フラッシュスライダーを実配線する"
@@ -1592,16 +1602,6 @@
       "hash": "7678ebf",
       "date": "2026-09-11",
       "subject": "auto: WIP着手 - Hub.csのあかり返信@akari.ピリオド欠落を修正"
-    },
-    {
-      "hash": "c0759ae",
-      "date": "2026-09-11",
-      "subject": "auto: Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
-    },
-    {
-      "hash": "199c97d",
-      "date": "2026-09-11",
-      "subject": "auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え"
     }
   ]
 }

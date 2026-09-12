@@ -50,8 +50,6 @@
 
 ## WIP
 
-- [ ] (P1) あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する | engineer | 2026-09-12監査(game-designer)。グレイズ(`src/Player.cs:26 GrazeRadius=11f`)は`src/GameManager.cs:1307-1315 AddGraze()`でScore+10・やさしさ加算・`GainImpression(1)`(通貨)を即時付与する能動的リスクリターン要素だが、`src/HowToPlay.cs`全文grepで「グレイズ」言及は`:236`の1箇所(やさしさの副次説明)のみで、グレイズ自体が得点/通貨を生む行動だと教える行が無い。`HowToPlay.cs:160-171`(ページ1操作rows)か`:271-291`(ページ3コア機能cards)の既存フォーマットに倣い1行/1カードを追加(例:「弾にギリギリ近づく(グレイズ)＝SCORE+10・浄化した心+1」)。ロジック変更なし、テキスト追加のみ。`dotnet build algo_shoot.sln`で確認。
-
 ## BLOCKED
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
@@ -99,6 +97,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P1) あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する | engineer | (完了 2026-09-12) `src/HowToPlay.cs:194-208`(ページ1操作、`DrawPageControls`末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は`GameManager.cs:1307-1315 AddGraze()`のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。
 - [x] (P1) Settingsの「画面振動」「被弾フラッシュ」スライダーを実配線する | engineer | (完了 2026-09-12) `src/Settings.cs`の`Apply(Def d)`に`case "shake"`/`case "flash"`を追加し、`GameCamera.ShakeMul = d.F/30f`・`Hud.FlashMul = d.F/60f`（既定スライダー位置で倍率1.0＝現状の体感を維持）を配線。`src/fx/GameCamera.cs`の`Shake()`は`_shakeMag = Mathf.Max(_shakeMag, mag * ShakeMul)`、`src/Hud.cs`の`HitFlash()`は`_flashAlpha = 0.7f * FlashMul`へ変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。実機でのスライダー操作による見た目差分の目視確認は未実施。
 - [x] (P3) sakurai skillの design-map.md が実コードの数値とズレている | game-designer | (完了 2026-09-11) `.claude/skills/sakurai/references/design-map.md:15`の`HomingTurnRate=200`を実値`150`(deg/s、`src/Bullet.cs:80`)へ修正。同`:18`「ボスHP(難易度非依存)…難易度で変えない方針」の行を`GameManager.DiffBarBonus`(通常ボスEasy2/Normal4/Hard5/Lunatic6本、意図的変動)の実態に合わせて書き換え、末尾「既存方針」節の同種の誤記述も合わせて修正。コード変更なし(スキル参照ドキュメントのみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み、ドキュメントのみの変更のため影響なしを再確認）。
 - [x] (P3) Hub.csのあかり返信でハンドル「@akari.」の末尾ピリオドが欠落 | scenario→engineer | (完了 2026-09-11) `src/Hub.cs:1309-1310`の`ReplyDialog("akari")`の2箇所（`"ミナ→@akari"`/`"@akari"`）に末尾ピリオドを追加し、`src/GameManager.cs:200`/`src/StageAkari.cs:504`/`src/BossAkari.cs:139`の表記「@akari.」に統一。文意変更なしの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認済み）。

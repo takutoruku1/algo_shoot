@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 224 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 225 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">224</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">225</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">29</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p1">P1</span>
-          <span class="task-title">あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-12監査(game-designer)。グレイズ(<code>src/Player.cs:26 GrazeRadius=11f</code>)は<code>src/GameManager.cs:1307-1315 AddGraze()</code>でScore+10・やさしさ加算・<code>GainImpression(1)</code>(通貨)を即時付与する能動的リスクリターン要素だが、<code>src/HowToPlay.cs</code>全文grepで「グレイズ」言及は<code>:236</code>の1箇所(やさしさの副次説明)のみで、グレイズ自体が得点/通貨を生む行動だと教える行が無い。<code>HowToPlay.cs:160-171</code>(ページ1操作rows)か<code>:271-291</code>(ページ3コア機能cards)の既存フォーマットに倣い1行/1カードを追加(例:「弾にギリギリ近づく(グレイズ)＝SCORE+10・浄化した心+1」)。ロジック変更なし、テキスト追加のみ。<code>dotnet build algo_shoot.sln</code>で確認。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">あそびかたにグレイズ(かすり)のスコア/浄化通貨即時加算を追記する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-12) <code>src/HowToPlay.cs:194-208</code>(ページ1操作、<code>DrawPageControls</code>末尾)に既存の「会話中の2択」案内と同じ形式で1行追加:「◆ 弾にギリギリ近づく（グレイズ）＝SCORE+10・浄化した心+1（やさしさも少し貯まる）」。数値は<code>GameManager.cs:1307-1315 AddGraze()</code>のScore+10・GainImpression(1)・AddKindnessに対応。ロジック変更なし、テキスト追加のみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認済み）。既存の縦位置計算(22px刻み)との重なりなしを確認。実機での見た目目視は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2225,18 +2225,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ade992f</span><span>2026-09-12</span><span class="s">auto: WIP着手 - あそびかたにグレイズのスコア/浄化通貨即時加算を追記する</span></li>
+      <li><span class="h">026e32b</span><span>2026-09-12</span><span class="s">auto: Settingsの画面振動/被弾フラッシュスライダーを実配線</span></li>
       <li><span class="h">08e1aeb</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの画面振動/被弾フラッシュスライダーを実配線する</span></li>
       <li><span class="h">aad6723</span><span>2026-09-12</span><span class="s">auto: 監査で6件をTODOに、3件をBLOCKEDに追加</span></li>
       <li><span class="h">f8877f9</span><span>2026-09-11</span><span class="s">auto: sakurai skillのdesign-map.mdを実コードへ同期</span></li>
       <li><span class="h">52eae25</span><span>2026-09-11</span><span class="s">auto: WIP着手 - sakurai skillのdesign-map.mdを実コードへ同期</span></li>
       <li><span class="h">59d9a17</span><span>2026-09-11</span><span class="s">auto: Hub.csのあかり返信@akari.ピリオド欠落を修正</span></li>
       <li><span class="h">7678ebf</span><span>2026-09-11</span><span class="s">auto: WIP着手 - Hub.csのあかり返信@akari.ピリオド欠落を修正</span></li>
-      <li><span class="h">c0759ae</span><span>2026-09-11</span><span class="s">auto: Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え</span></li>
-      <li><span class="h">199c97d</span><span>2026-09-11</span><span class="s">auto: WIP着手 - Epilogueスタッフロール(E7)を承認済み仮台本へ差し替え</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-12 18:41 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-12 18:44 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
