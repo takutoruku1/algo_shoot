@@ -34,7 +34,10 @@ public partial class Credits : Node2D
 
     public override void _Ready()
     {
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // スタッフロール専用曲「帰り道」（2026-09-14〜。従来は BgmMenu の使い回し）。
+        //   プレイヤーが一画面に最も長く留まる枠なので尺のある曲を当て、勝利ファンファーレにせず
+        //   「作品を見送る」トーンにする。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmCredits);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
         LoadData();

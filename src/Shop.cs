@@ -9,7 +9,7 @@ using Godot;
 //   作り直しの方針はひとつだけ：**買える段は常にひとつ**。
 //     ・縦1列13段。上から順にしか買えない（順序条件は GameManager.IsParentMet＝直前の段の所持）。
 //     ・1画面に収める。スクロールなし・カメラなし・ミニマップなし。
-//     ・ノード名＝効果そのもの（「はーと +1」「弾の火力 2倍」）。説明の地の文を読ませない。
+//     ・ノード名＝効果そのもの（「ハート +1」「火力 2倍」）。説明の地の文を読ませない。
 //     ・買った段は点灯して縦線で連結、次の1段だけ光って呼吸、先の段は暗いが名前と価格は見せる
 //       ＝「いまどこまで来たか」と「この先どこまで行けるか」が、動かさずに一目で分かる。
 //     ・能力を覚える段（#6 溜め打ち／#10 集中モード）だけ一回り大きい＝数値ではなく手が増える段の格。
@@ -122,7 +122,9 @@ public partial class Shop : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // ショップ専用曲「シンプルスタイル」（2026-09-14〜。従来は BgmMenu の使い回し）。
+        //   ハブより硬く電子的な音色で「移動した感」を耳に出す。周回で何十回も入るので平坦な曲を選んである。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
         _minaShot = ResourceLoader.Load<Texture2D>("res://char/mina_shoot.png");
 
         // 起動時のカーソルは「次に買える段」に置く＝開いた瞬間に手が届くところを指している。
@@ -208,8 +210,8 @@ public partial class Shop : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) OnConfirm();
 
-        // X：もどる。
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // X：もどる（Esc は 2026-09-14 に外した＝どの画面でもポーズメニューを開く役へ一本化）。
+        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
 
@@ -550,7 +552,7 @@ public partial class Shop : Node2D
             case "n_slow":      return ("集中モードは使えない", "V / ホイール / LB で敵の時間だけ ×0.35 を1.5秒（CD20秒）");
             case "n_rate_2x":   return ("発射間隔 ×1.0", "発射間隔 ×0.5");
             case "n_pierce":    return ("弾は1体で消える", "どの撃ち方でも 敵1体を貫く");
-            case "n_option":    return ("おともの光 なし", "おともの光 1基（威力×0.5で同時射撃）");
+            case "n_option":    return ("オプション なし", "オプション 1基（威力×0.5で同時射撃）");
             default:            return ("—", Def(i).Desc);
         }
     }

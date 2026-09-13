@@ -6,13 +6,18 @@ using System.Collections.Generic;
 // → identity は [ deferred ] のまま保留 → 光の点灯（ミナ）
 // → P2 目覚めと最初の言葉（3択）→ P3 命名（3択・全ルート MINA へ収束・ここで [ M I N A ] 点灯）
 // → P4 タイムラインと『たすけて』（3択）→ タイトル。
-// 全編エンジン描画のカットシーン。Zで送り、R/Start 長押しで最初から。
+// 背景イラストに起動ログ・立ち絵・会話を重ねるカットシーン。Zで送り、R/Start 長押しで最初から。
 // 案Cでは少年は登場しない（教え役も相方も不在）＝話者は ミナ／あなた（送信した下書き）／システム表示／投稿の4種。
 public partial class Prologue : Node2D
 {
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
+    private Texture2D[] _backgrounds = System.Array.Empty<Texture2D>();
+    private int _backdrop, _previousBackdrop;
+    private float _backdropMix = 1f;
+    private float _choiceShade;
+    private int _timelineLine = -1, _unsentLine = -1;
     private double _t;        // フェーズ内経過
     private int _phase;       // 0:Rain 1:Identity(deferred) 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
     private bool _zHeld;
@@ -101,9 +106,19 @@ public partial class Prologue : Node2D
 
     public override void _Ready()
     {
+        TextureFilter = TextureFilterEnum.Linear;
+        const string bg = "res://char/bg2/prologue/";
+        _backgrounds = new[]
+        {
+            GD.Load<Texture2D>(bg + "bg_p1_boot.png"),
+            GD.Load<Texture2D>(bg + "bg_p2_awakening.png"),
+            GD.Load<Texture2D>(bg + "bg_p4_timeline.png"),
+            GD.Load<Texture2D>(bg + "bg_p4_unsent.png"),
+        };
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
-        // 静かな主題の断片（薄い編成のメニューBGM）。無音の画面を無くす。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // 冒頭専用曲「オーヴⅡ」（2026-09-14〜。従来は BgmMenu の使い回し）。
+        //   Prologue はテキストが主役なので、旋律の立たないアンビエントで「世界の底の音」だけを敷く。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmPrologue);
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _diffSel = (int)(_game?.Difficulty ?? GameManager.Diff.Normal);
         // 会話ログ（バックログ）は「ゲーム1周ぶん」＝周回の起点であるプロローグで前周の行を消す
@@ -337,6 +352,7 @@ public partial class Prologue : Node2D
                 break;
         }
 
+        UpdateBackdrop(delta);
         QueueRedraw();
     }
 
@@ -539,6 +555,8 @@ public partial class Prologue : Node2D
                 _talk.InsertRange(sent != "" ? _line + 1 : _line, P3Reply(sel));
                 // 続けて P4（導入 → 選択）。
                 var p4 = P4Intro();
+                _timelineLine = _talk.Count;
+                _unsentLine = _timelineLine + p4.FindIndex(d => d.Text == FxErase);
                 _talk.AddRange(p4);
                 _p4ChoiceLine = _talk.Count;
                 break;
@@ -598,17 +616,50 @@ public partial class Prologue : Node2D
         _askSel = 0;
     }
 
+    private void UpdateBackdrop(double delta)
+    {
+        int target = _phase < 2 ? 0
+            : _timelineLine < 0 || _line < _timelineLine ? 1
+            : _line < _unsentLine ? 2 : 3;
+        if (target != _backdrop)
+        {
+            _previousBackdrop = _backdrop;
+            _backdrop = target;
+            _backdropMix = 0f;
+        }
+        _backdropMix = Mathf.Min(1f, _backdropMix + (float)delta / 1.2f);
+        _choiceShade = Mathf.MoveToward(_choiceShade, _choice != null ? 1f : 0f, (float)delta / 0.3f);
+    }
+
+    private void DrawBackdrop()
+    {
+        float blend = _backdropMix * _backdropMix * (3f - 2f * _backdropMix);
+        if (blend < 1f) DrawBackgroundArt(_previousBackdrop);
+        DrawBackgroundArt(_backdrop, blend);
+        if (_choiceShade > 0f)
+            DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.02f, 0.035f, _choiceShade * 0.78f));
+    }
+
+    private void DrawBackgroundArt(int index, float alpha = 1f)
+    {
+        var texture = _backgrounds[index];
+        Vector2 size = texture.GetSize();
+        size *= Mathf.Max(W / size.X, H / size.Y);
+        float light = index == 0 ? 0.65f : 1f;
+        DrawTextureRect(texture, new Rect2((new Vector2(W, H) - size) * 0.5f, size),
+            false, new Color(light, light, light, alpha));
+    }
+
     public override void _Draw()
     {
-        // 背景：黒
-        DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.02f, 0.04f));
+        DrawBackdrop();
 
         switch (_phase)
         {
             case 0: DrawRain(); break;
             case 1: DrawIdentity(); break;
             case 2: DrawIgnite(); break;
-            case 3: DrawTalkBackdrop(); DrawTalkSpeakers(); DrawTalk(); break;
+            case 3: DrawTalkSpeakers(); DrawTalk(); break;
             case 4: DrawTitle(); break;
             case 5: DrawTutorialAsk(); break;
         }
@@ -700,102 +751,6 @@ public partial class Prologue : Node2D
         for (int r = 4; r >= 1; r--)
             DrawCircle(c, (3f + r * 3f) * grow, new Color(Cool.R, Cool.G, Cool.B, 0.10f));
         DrawCircle(c, 4.5f * grow, new Color(0.9f, 0.97f, 1f));
-    }
-
-    // --- フェーズ3：会話の背後に流す「デジタル空間」背景 ---
-    // フェーズ0 DrawRain の資産（_stream / コード緑 / 上昇スクロール）を流用し、
-    // “さらに薄く・遅く”流す。立ち絵・会話ボックス・本文の可読性を絶対に侵さないよう、
-    // 画面下40%（ボックス帯）と立ち絵の真後ろは能動的にアルファを落とす。
-    //
-    // 調整ポイント（強度ノブ）：いずれもアルファ上限。0.14 を超えると本文と競り始める＝危険域。
-    private const float BgRainMax = 0.10f; // コードレイン（薄め・遅め）
-    private const float BgGridA   = 0.045f; // デジタルグリッド
-    private const float BgDotMax  = 0.11f; // 漂うドット粒子
-    private const float BgWashMax = 0.05f; // 上方の青い奥行きウォッシュ（Cool）
-    private const float BoxTopY   = H - 58f; // 会話ボックス上端。これ以下は背景を消していく
-    private const float FadeReach = 44f;     // ボックス上端の何px手前から背景を絞り始めるか
-
-    // y 位置の背景許容率（下＝ボックス帯ほど 0 に。上は 1）。文字可読性を守る最重要ガード。
-    private static float BgYGate(float y) => Mathf.Clamp((BoxTopY - y) / FadeReach, 0f, 1f);
-
-    // 立ち絵の真後ろ（中央バンド）を落として、シルエットを澄んだ空間に立てる（吉田 §1）。
-    private static float BgCenterDim(float x, float y)
-    {
-        float dx = (x - W / 2f) / 70f;
-        float dy = (y - 92f) / 70f;
-        float d = Mathf.Sqrt(dx * dx + dy * dy);
-        return Mathf.Clamp(d - 0.25f, 0f, 1f); // 中心ほど 0（背景を消す）、外ほど 1
-    }
-
-    private void DrawTalkBackdrop()
-    {
-        if (_font == null) return;
-
-        // レイヤー1：奥行きウォッシュ。上に薄く Cool、中盤で黒へ。ボックス帯は素の黒のまま。
-        int bands = 5;
-        for (int i = 0; i < bands; i++)
-        {
-            float y0 = i * (BoxTopY / bands);
-            float a = BgWashMax * (1f - (float)i / bands);
-            DrawRect(new Rect2(0, y0, W, BoxTopY / bands + 1f),
-                new Color(Cool.R, Cool.G, Cool.B, a));
-        }
-
-        // レイヤー2：デジタルグリッド（コード緑・上昇ドリフト）。空間の床に見せる。
-        float gScroll = (float)_t * 14f;
-        const float gStep = 22f;
-        float gy0 = -Mathf.PosMod(gScroll, gStep);
-        for (float gy = gy0; gy < BoxTopY; gy += gStep)
-        {
-            float a = BgGridA * BgYGate(gy);
-            if (a <= 0.002f) continue;
-            DrawRect(new Rect2(0, gy, W, 1f), new Color(Code.R, Code.G, Code.B, a));
-        }
-        for (float gx = Mathf.PosMod(-gScroll, gStep); gx < W; gx += gStep)
-        {
-            // 縦線は y方向に薄くグラデートしながら（下ほど消す）
-            for (float gy = 0f; gy < BoxTopY; gy += 4f)
-            {
-                float a = BgGridA * 0.7f * BgYGate(gy) * BgCenterDim(gx, gy);
-                if (a <= 0.002f) continue;
-                DrawRect(new Rect2(gx, gy, 1f, 4f), new Color(Code.R, Code.G, Code.B, a));
-            }
-        }
-
-        // レイヤー3：コードレイン（フェーズ0の _stream を流用。半分の速度・大きい行間・低アルファ）。
-        const float lineH = 16f;            // phase0=11 より疎に
-        float scroll = (float)_t * 30f;     // phase0=78 の半分以下＝ゆっくり
-        float baseBottom = BoxTopY - 4f;
-        for (int i = 0; i < _stream.Count; i++)
-        {
-            float y = baseBottom + i * lineH - scroll;
-            if (y < -lineH || y > BoxTopY) continue;
-            float top = 1f - Mathf.Clamp((H - y) / H, 0f, 1f) * 0.5f; // 上ほどさらに薄く
-            float a = BgRainMax * top * BgYGate(y) * BgCenterDim(40f, y);
-            if (a <= 0.003f) continue;
-            // 横位置は流れごとにずらして単調さを消す（決定論的）
-            float x = 8f + ((i * 53) % 300);
-            DrawString(_font, new Vector2(x, y), _stream[i], HorizontalAlignment.Left, -1, 8,
-                new Color(Code.R, Code.G, Code.B, a));
-        }
-
-        // レイヤー4：漂うドット粒子（決定論ハッシュで配置。新規依存なし）。Code/Cool を混ぜる。
-        const int dots = 20;
-        float pScroll = (float)_t * 9f;
-        for (int i = 0; i < dots; i++)
-        {
-            float hx = ((i * 73 + 11) % 100) / 100f;
-            float hy = ((i * 137 + 41) % 100) / 100f;
-            float x = hx * W;
-            float y = Mathf.PosMod(hy * (BoxTopY + 60f) - pScroll, BoxTopY + 60f) - 30f;
-            if (y < 0f || y > BoxTopY) continue;
-            float twinkle = 0.6f + 0.4f * Mathf.Sin((float)_t * 1.6f + i * 1.3f);
-            float a = BgDotMax * twinkle * BgYGate(y) * BgCenterDim(x, y);
-            if (a <= 0.004f) continue;
-            bool blue = (i % 3) == 0;
-            var c = blue ? Cool : Code;
-            DrawCircle(new Vector2(x, y), (i % 2 == 0) ? 1.0f : 0.7f, new Color(c.R, c.G, c.B, a));
-        }
     }
 
     // --- フェーズ3：話者の立ち絵を中央に表示（行ごとの表情を反映） ---

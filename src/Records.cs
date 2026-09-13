@@ -61,7 +61,8 @@ public partial class Records : Node2D
             UiKit.Hotspot(BackHintRect(), 0);
             bool clickBack = UiKit.ClickedId(Pad.MouseClick()) == 0 || Pad.MouseRightClick();
 
-            bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape)
+            // もどる＝X／T／パッドB。Esc は 2026-09-14 に外した（＝どの画面でもポーズメニューを開く役）。
+            bool back = Input.IsKeyPressed(Key.X)
                         || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
             bool backEdge = back && !_backHeld; _backHeld = back;
             if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }

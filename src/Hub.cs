@@ -1032,7 +1032,9 @@ public partial class Hub : Node2D
             return;
         }
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／パッドB。Esc は外した（2026-09-14：Esc はどの画面でもポーズメニューを開く役に
+        // 一本化した。ここで両方に割り当てると、Esc 一発でメニューが開きつつ裏で詳細も閉じる）。
+        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
         if (backEdge && _detailT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
     }
@@ -1966,7 +1968,8 @@ public partial class Hub : Node2D
             return;
         }
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／パッドB（Esc はポーズメニュー専用。ProcessDetail 側と同じ理由）。
+        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
         if (backEdge && _jobT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
     }

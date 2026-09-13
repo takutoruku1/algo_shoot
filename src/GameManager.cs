@@ -63,7 +63,7 @@ public partial class GameManager : Node
     // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
     // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
     // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
-    // 恒久強化（はーと +1 が2段＝最大 +2）を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
+    // 恒久強化（ハート +1 が2段＝最大 +2）を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
     // ジョブの最大♥増減（結び手 +2 ／ 灯し手 −1）もここへ乗せる＝回復キャップ(Player.AddLife)も同時に追従する。
     // 下限1：灯し手×Lunatic(基礎2)でも 1 は残す＝「開始即ゲームオーバー」を作らない。
     public int StartLives => Mathf.Max(1, BaseLivesFor(Difficulty) + MaxLifeBonus + JobDef.MaxLifeDelta);
@@ -92,7 +92,7 @@ public partial class GameManager : Node
     public int DiffBarBonus(bool finalBoss) =>
         (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
-    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #4「弾の火力 2倍」を持っている。
+    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #4「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
     public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || Has("n_power_2x");
 
@@ -116,7 +116,7 @@ public partial class GameManager : Node
             hud.ShowBanner("回避をおぼえた　—　Alt / 右クリック");
     }
 
-    // ───── 集中モード（一本道 #10「集中モードを覚える」・Vキー）─────
+    // ───── 集中モード（一本道 #10「集中モード」・Vキー）─────
     //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
     //   代わりに「敵側だけが読む delta 係数」をここに一本置き、敵・敵弾・予兆・嵐がそれを掛けて時間を進める。
     //   ＝自機の操作感は等速のまま、向かってくるものだけが遅くなる。
@@ -542,19 +542,19 @@ public partial class GameManager : Node
     //   ★この配列の並びがそのまま画面の並び＝唯一の正典。増減はここだけを編集する。
     public static readonly UpgradeDef[] Upgrades =
     {
-        new() { Id = "n_life_1",   Name = "はーと +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  150, ParentId = "" },
-        new() { Id = "n_dodge_cd", Name = "回避の戻りが早くなる", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_life_1" },
+        new() { Id = "n_life_1",   Name = "ハート +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  150, ParentId = "" },
+        new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_life_1" },
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
-        new() { Id = "n_power_2x", Name = "弾の火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
-        new() { Id = "n_life_2",   Name = "はーと +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
-        new() { Id = "n_charge",   Name = "溜め打ちを覚える",      Desc = "溜めて放つ大玉（威力×4）",              MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
+        new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
+        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "溜めて放つ大玉（威力×4）",              MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
-        new() { Id = "n_lines",    Name = "弾の線 +1本",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
+        new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
-        new() { Id = "n_slow",     Name = "集中モードを覚える",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
+        new() { Id = "n_slow",     Name = "集中モード",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
         new() { Id = "n_rate_2x",  Name = "連射速度 2倍",          Desc = "発射間隔が半分になる",                  MaxLevel = 1, BaseCost = 3000, ParentId = "n_slow" },
-        new() { Id = "n_pierce",   Name = "弾が敵をつらぬく",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_rate_2x" },
-        new() { Id = "n_option",   Name = "おともの光 +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
+        new() { Id = "n_pierce",   Name = "貫通",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_rate_2x" },
+        new() { Id = "n_option",   Name = "オプション +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
     };
 
     // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
@@ -818,21 +818,21 @@ public partial class GameManager : Node
     public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
     // #7 当たり判定 半分（HitRadius 2.0px → 1.0px）。
     public float HitRadiusMul => Has("n_hitbox") ? 0.5f : 1f;
-    // #1 #5 はーと +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
+    // #1 #5 ハート +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
     public int MaxLifeBonus => (Has("n_life_1") ? 1 : 0) + (Has("n_life_2") ? 1 : 0);
     // #3 ボム +1。
     public int BombCountBonus => Has("n_bomb_1") ? 1 : 0;
-    // #13 おともの光 +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
+    // #13 オプション +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
     public int OptionSubCount => Has("n_option") ? 1 : 0;
-    // #12 弾が敵をつらぬく＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
+    // #12 貫通＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
     public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
-    // #8 弾の線 +1本。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
+    // #8 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
     public int ExtraLines => Has("n_lines") ? 1 : 0;
     // #6 溜め打ち（Cキー長押し0.6秒→離すと威力×4の大玉1発・貫通なし）。全ジョブ共通。
     public bool HasChargeShot => Has("n_charge");
     // #10 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
     public bool HasFocusMode => Has("n_slow");
-    // #2 回避の戻りが早くなる（CD 0.8→0.65秒・距離 64→76px）。
+    // #2 回避強化（CD 0.8→0.65秒・距離 64→76px）。
     public float DodgeCooldown => Has("n_dodge_cd") ? 0.65f : 0.80f;
     public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
 
@@ -1596,6 +1596,15 @@ public partial class GameManager : Node
             if (hud == null) return false;
             _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices,
                 defaultSel: 0, onBoard: true);   // 既定は「ボスからやり直す」＝いちばん続けやすい手
+            // ここで戦闘曲をゲームオーバー曲へ落とす（2026-09-14〜）。従来は**道中/ボス曲が鳴り続けていて**、
+            //   「くじけちゃった…」の選択が音楽的に無句読点だった＝負けた実感が耳に来ない。
+            //   旋律の無い静かなアンビエントへ 1.2 秒かけて渡し、場を鎮めて選択に集中させる。
+            //   曲を止め切らずループさせるのは、選択の滞在時間が不定（プレイヤーが迷う）ため＝
+            //   ジングル+無音だと無音が長引いて「音が死んだ」ように聞こえる（BGM/candidates.md ⑲）。
+            //   復帰は各経路が握るので、ここでは戻さない：やり直しはどちらも ReloadCurrentScene() で
+            //   *Root._Ready → BeginStageRun → SetStageMusic が道中/ボス曲を張り直し、
+            //   抜けるは ExitToHub → Hub._Ready が BgmMenu を張る。
+            Audio.Instance?.Music(Audio.Instance.BgmGameOver, 1.2f);
             // キー操作の案内は選択肢の下に小さく添える（覚えている人向け。選択UIの邪魔をしない量）。
             hud.ShowGameOverTitle("くじけちゃった…");
             hud.ShowGameOverPrompt(Pad.ShowKeyboard
@@ -1612,7 +1621,9 @@ public partial class GameManager : Node
         // 選択が決まったら、その行の処理へ。
         if (!_gameOverChoice.Decided) return false;
         int sel = _gameOverChoice.Selected;
-        ClearGameOverChoice(hud);
+        // 3択はいずれもシーンが変わる（やり直し2つ＝ReloadCurrentScene / 抜ける＝Hubへ）ので、
+        //   曲は遷移先の _Ready に任せる＝ここでは道中曲へ戻さない。
+        ClearGameOverChoice(hud, restoreMusic: false);
         switch (sel)
         {
             case 0:   // ボスからやり直す＝R 単体と同じ経路（SelectedEntry を Boss にしてシーン再読込）
@@ -1632,18 +1643,37 @@ public partial class GameManager : Node
 
     // 選択UIと案内を片付ける（残機が戻った／改心に入った／選び終えた）。
     // *Root.cs は残機が0でないフレームに ShowGameOverPrompt("") を呼ぶので、そこからも消せるよう public。
-    public static void ClearGameOverChoice(Hud? hud)
+    public static void ClearGameOverChoice(Hud? hud) => ClearGameOverChoice(hud, restoreMusic: true);
+
+    // restoreMusic=false ＝「このあとシーンを変えるので曲は遷移先に任せる」呼び出し（ExitToHub）。
+    private static void ClearGameOverChoice(Hud? hud, bool restoreMusic)
     {
-        if (_gameOverChoice != null && IsInstanceValid(_gameOverChoice)) _gameOverChoice.QueueFree();
+        // 実際に選択UIが立っていたかを覚えてから消す（下の BGM 復帰の判定に使う）。
+        //   *Root.cs は**ゲームオーバーでない毎フレーム**ここを呼ぶので、無条件に Music() を
+        //   呼ぶと道中じゅう再生要求を出し続けることになる（Music() 自身は同一曲なら何もしないが、
+        //   意図が読めない書き方になるため、立っていたときだけ戻す）。
+        bool had = _gameOverChoice != null && IsInstanceValid(_gameOverChoice);
+        if (had) _gameOverChoice!.QueueFree();
         _gameOverChoice = null;
         hud?.ShowGameOverTitle("");
         hud?.ShowGameOverPrompt("");
+
+        // シーンを変えずに選択が引っ込んだ＝「残機が戻った／改心に入った」ケースだけ、
+        //   ゲームオーバー曲から**そのステージの曲へ**戻す（2026-09-14〜）。
+        //   やり直し／抜けるの3経路はいずれもシーンが変わり、遷移先の _Ready が曲を張るので
+        //   ここでは戻さない（戻すと同フレーム帯で Music() が余分に1回走る）。
+        //   ResumeStageMusic() は CurrentStageId から道中曲を引く＝ボス戦中に改心へ入った場合は
+        //   直後に各ボスの PlayRedeem／OnCryEnd が上書きするので、ここは道中曲で正しい。
+        if (restoreMusic && had && Audio.Instance != null && Audio.Instance.IsPlayingGameOver)
+            Audio.Instance.ResumeStageMusic();
     }
 
     // 抜ける：ランで貯めたお金（インプレ）は恒久値。抜けても破棄せず、確実に保存してから帰還。
     private static void ExitToHub(Node root, GameManager? game, Hud? hud)
     {
-        ClearGameOverChoice(hud);
+        // 直後に Hub へ遷移し Hub._Ready が BgmMenu を張るので、ここで道中曲へ戻さない
+        //   （戻すと遷移の直前に一瞬だけ道中曲が立ち上がって無駄なクロスフェードになる）。
+        ClearGameOverChoice(hud, restoreMusic: false);
         game?.AutoSave();
         root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();

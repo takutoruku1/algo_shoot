@@ -141,7 +141,9 @@ public partial class TitleMenu : Node2D
         }
         InitMotes();
         BuildLightLayer();
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // タイトル専用曲「見上げた空」（2026-09-14〜。従来はハブ等と同じ BgmMenu の使い回しだった）。
+        //   起動のたび最初に聴く曲＝作品の顔なので、ハブと切り分けて「本編に入った」感を作る。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmTitle);
         _hasSave = _game.SlotExists(0) || _game.SlotExists(1) || _game.SlotExists(2) || _game.SlotExists(3);
         var uargs = OS.GetCmdlineUserArgs();
         for (int i = 0; i < uargs.Length; i++)

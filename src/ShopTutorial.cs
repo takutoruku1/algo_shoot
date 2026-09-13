@@ -63,7 +63,9 @@ public partial class ShopTutorial : Node2D
     public override void _Ready()
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // ショップ説明はショップの導入なので、ショップと同じ曲を鳴らす（この2画面は一続きの体験＝
+        //   ここで曲が変わると「別の場所へ来た」という嘘になる。BGM/candidates.md ⑯ の設計判断）。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
     }

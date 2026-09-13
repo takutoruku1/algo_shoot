@@ -132,6 +132,19 @@ public partial class Audio : Node
     //   再生は MusicOnce()＝1周で無音に落ちる（台本の「…………。」で完全停止する扱いは Epilogue 側）。
     public AudioStream? BgmEpilogueWalk;
 
+    // 非戦闘画面の個別曲（2026-09-14）。従来ここは全部 BgmMenu の使い回しだった。
+    //   「画面の顔が変わる場所だけ」固有曲にする方針で6枠を割り、BgmMenu はハブ専用曲になった。
+    //   設定・記録・あそびかたは**意図的に親画面の曲を継続**する（曲を持たせない＝オーバーレイだから）。
+    //   6曲とも甘茶の音楽工房・ライセンス実音源（loop=true）。ロード失敗時は BgmMenu へ落ちる。
+    //   ラウドネスは BgmMenu と同じ -17.7 LUFS に揃えてあり、MusicTargetDb() でも 0dB 扱いにする。
+    //   出所・加工内容は各 Load*() のコメントと BGM/acquisition_list.md §6 が正。
+    public AudioStream BgmTitle = null!;
+    public AudioStream BgmPrologue = null!;
+    public AudioStream BgmShop = null!;
+    public AudioStream BgmTraining = null!;
+    public AudioStream BgmCredits = null!;
+    public AudioStream BgmGameOver = null!;
+
     // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
     //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
     //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
@@ -211,6 +224,13 @@ public partial class Audio : Node
         BgmStageKoharu = LoadBgmStageKoharu();
         BgmStageW0     = LoadBgmStageW0();
         BgmBoss   = BuildBgmBoss();
+        // 非戦闘画面の個別曲。フォールバックが BgmMenu を参照するので必ず BgmMenu の後に読む。
+        BgmTitle    = LoadBgmTitle();
+        BgmPrologue = LoadBgmPrologue();
+        BgmShop     = LoadBgmShop();
+        BgmTraining = LoadBgmTraining();
+        BgmCredits  = LoadBgmCredits();
+        BgmGameOver = LoadBgmGameOver();
         BgmFinalResolve = LoadBgmFinalResolve();
         BgmEpilogueWalk = LoadBgmEpilogueWalk();
         BgmBossRei    = LoadBgmBossRei();
@@ -338,6 +358,12 @@ public partial class Audio : Node
         //   鳴り終わった無音のあと E6 で BgmMenu が戻る＝BgmMenu と同じ土俵に置かないと段差が出る。
         //   音源側を BgmMenu と同じ -17.6 LUFS へマスタリング済みなので、ここで下げると逆に沈む。
         if (stream == BgmEpilogueWalk) return 0f;
+        // 非戦闘画面の個別曲（2026-09-14 導入の6枠）も BgmMenu と同じ 0dB 扱い。
+        //   音源側を BgmMenu と同じ -17.7 LUFS へ揃えてあるので、ここで実音源として
+        //   StageBgmRealDb(-10dB) を乗せると、ハブ↔タイトル/ショップ等の行き来で音量が跳ねる。
+        //   「メニュー一族は同じ土俵」という BgmMenu の原則をそのまま拡張したもの。
+        if (stream == BgmTitle || stream == BgmPrologue || stream == BgmShop
+            || stream == BgmTraining || stream == BgmCredits || stream == BgmGameOver) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
         return isReal ? StageBgmRealDb : 0f;
     }
@@ -386,6 +412,11 @@ public partial class Audio : Node
     }
 
     public void StopMusic(float fade = 0.5f) => Music(null, fade);
+
+    // いまゲームオーバー曲が鳴っているか（GameManager.ClearGameOverChoice が復帰判定に使う）。
+    //   「残機が戻った／改心に入った」でシーンを変えずに選択が引っ込んだときだけ道中曲へ戻すため、
+    //   ゲームオーバー曲に切り替わっていた場合に限って復帰させる目印が要る。
+    public bool IsPlayingGameOver => _currentMusic != null && _currentMusic == BgmGameOver;
 
     // ───────── 1周だけ鳴らして無音に落ちる再生（Epilogue E5b のオルゴール）─────────
     //   Music() はループ前提（曲尾で止めずに鳴らしっぱなし）なので、「1周で終わって無音」を
@@ -1234,6 +1265,54 @@ public partial class Audio : Node
         GD.PushWarning("BgmFinalResolve: res://audio/bgm_final_resolve.ogg をロードできず、合成 BuildBgmFinalResolve にフォールバック");
         return BuildBgmFinalResolve();
     }
+
+    // ───────── 非戦闘画面の個別曲（2026-09-14 導入。全て甘茶の音楽工房・クレジット任意）─────────
+    //   それまで非戦闘12画面が BgmMenu（巡る思い出）1本の使い回しだったのを、
+    //   **画面の顔が変わる場所だけ**固有曲へ割った（設計判断は BGM/candidates.md ⑭〜⑲）。
+    //   ・固有曲を持つ＝タイトル / 冒頭 / ショップ / トレーニング / スタッフロール / ゲームオーバー
+    //   ・親の曲を継続＝設定・記録・あそびかた（薄いオーバーレイ or サブ画面。曲を変えると
+    //     「画面が変わった」という嘘になる。特に HowToPlay はシーン遷移すらしない CanvasLayer）
+    //   ・ハブは BgmMenu の定位置（他を割った結果、巡る思い出はハブ専用曲になった）
+    //   6曲とも同一サイト＝同一作曲者に揃えてある（style §1「一つの世界・音色の家族性」）。
+    //   ラウドネスは全曲 -17.7 LUFS へ寄せてあり、BgmMenu（-17.7）と段差なく行き来する。
+    //   そのため MusicTargetDb() でも BgmMenu と同じ 0dB 側に入れる（実音源だからと -10dB を
+    //   乗せるとハブ↔各画面の移動で音量が跳ねる）。全て import loop=true のループ曲。
+    //   ロード失敗時は BgmMenu へフォールバック＝最悪でも従来どおり鳴る（無音にしない）。
+    private AudioStream LoadMenuFamily(string path, string slot)
+    {
+        var s = ResourceLoader.Load<AudioStream>(path);
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s; // 念のため（mp3 等に差し替えても受ける）
+        GD.PushWarning($"{slot}: {path} をロードできず、BgmMenu にフォールバック");
+        return BgmMenu;
+    }
+
+    // タイトル＝「見上げた空」。0→80秒でゆっくり満ちる曲で、待つほど育つ。曲名が
+    //   エピローグ E5b「見上げる」と響き合う（旋律ではなく言葉での伏線）。原曲 170.1秒 →
+    //   0..161.6秒（末尾フェード開始の直前で切る）・-5.4dB。
+    private AudioStream LoadBgmTitle() => LoadMenuFamily("res://audio/bgm_title.ogg", "BgmTitle");
+
+    // 冒頭＝「オーヴⅡ」。Prologue はテキストが主役なので、旋律を立てないアンビエントで
+    //   「世界の底の音」だけを鳴らす（LRA 2.0＝ほぼ平坦）。原曲 155.2秒 → 0..148.0秒・-3.1dB。
+    private AudioStream LoadBgmPrologue() => LoadMenuFamily("res://audio/bgm_prologue.ogg", "BgmPrologue");
+
+    // ショップ＝「シンプルスタイル」。ハブより硬く電子的（スペクトル重心が高い）＝「移動した感」が
+    //   耳で出る。周回で何十回も入る画面なので平坦さ優先（LRA 1.5）。原曲 125.0秒 → 0..111.9秒・-3.9dB。
+    private AudioStream LoadBgmShop() => LoadMenuFamily("res://audio/bgm_shop.ogg", "BgmShop");
+
+    // トレーニング＝「プルキンエ・フェノミナン」。この画面は**SEが主役**なので、
+    //   候補中もっとも静かで平坦なものを当てる（style §5「警告音を埋もれさせない」）。
+    //   原曲 119.0秒 → 0..113.0秒・-1.8dB。
+    private AudioStream LoadBgmTraining() => LoadMenuFamily("res://audio/bgm_training.ogg", "BgmTraining");
+
+    // スタッフロール＝「帰り道」。一画面に最も長く留まる枠なので尺が要る（150.8秒）。
+    //   勝利ファンファーレにせず「作品を見送る」トーン。原曲 166.5秒 → 0..150.8秒・-5.6dB。
+    private AudioStream LoadBgmCredits() => LoadMenuFamily("res://audio/bgm_credits.ogg", "BgmCredits");
+
+    // ゲームオーバー＝「悲しみのテクスチャⅠ」。従来は戦闘曲が鳴りっぱなしで「くじけちゃった…」の
+    //   選択が音楽的に無句読点だった。旋律の無いアンビエントで場を鎮め、選択に集中させる役。
+    //   直接的に泣かせないので再挑戦の気持ちを削がない。原曲 120.2秒 → 0..103.5秒・-5.1dB。
+    private AudioStream LoadBgmGameOver() => LoadMenuFamily("res://audio/bgm_gameover.ogg", "BgmGameOver");
 
     // ───────── ステージ別の道中BGMを引く（将来 akari/koharu の実音源はここに足すだけ）─────────
     //   BeginStageRun(id) と、中ボス撃破後の道中復帰（CameoBoss）から共通で使う。

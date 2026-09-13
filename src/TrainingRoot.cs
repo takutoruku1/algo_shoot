@@ -11,13 +11,13 @@ using System.Collections.Generic;
 //     ・入場(_Ready)で SnapshotMeta＝通貨/フォロワー/装備モード/所持強化を退避。
 //     ・入場で AutoSaveEnabled=false＝Hub帰還等の自動セーブでディスクへ漏れない。TutorialNoConsume=true＝死なない。
 //     ・退場(ExitToShop / _ExitTree)で RestoreMeta＝退避を完全復元し、AutoSaveEnabled/TutorialNoConsume を戻す。
-//     ・トレーニング中はセーブを一切呼ばない（PauseMenu もこのシーンでは開かない＝スロットセーブ導線を出さない）。
+//     ・トレーニング中はセーブを一切呼ばない（PauseMenu は開くが、スロットセーブ行はグレーアウトする）。
 //
 //   住み分け（試し打ちと割り振りを両立）：
 //     ・自機＝矢印/WASD 移動・ショットは常時オート・X ボム・V モード切替（本編と同じ手触り）。
 //     ・スキル割り振り＝右のスキルパネルをマウスで（行クリックで付け外し／ホイールでスクロール）。
 //       キーボードは PageUp/PageDown でスクロール、[ / ] で全オフ/全解放（自機キーと衝突しない住み分け）。
-//     ・もどる＝Esc または左下ボタンのクリック。
+//     ・もどる＝BackSpace／パッドB または左下ボタンのクリック（Esc はポーズメニュー）。
 public partial class TrainingRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -113,7 +113,10 @@ public partial class TrainingRoot : Node2D
             // 撃ち方はジョブが決めるので、モードを直に書かずジョブを置く（結び手＝連射。退場時に復元される）。
             _game.SelectedJob = Job.Tank;
             _game.SetContamination(0f);
-            if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+            // トレーニング専用曲「プルキンエ・フェノミナン」（2026-09-14〜。従来は BgmMenu）。
+            //   この画面は SE（撃ち味）が主役なので、候補中もっとも静かで平坦な曲を当てて
+            //   ショット音・被弾音を絶対に埋もれさせない（mitsuda style §5）。
+            if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmTraining);
         }
 
         // 背景（落ち着いた一様塗り）。
@@ -237,8 +240,10 @@ public partial class TrainingRoot : Node2D
         }
         _bracketHeld = br;
 
-        // もどる＝Esc（このシーンでは PauseMenu は開かない＝Esc は退出専用）。
-        bool esc = Input.IsKeyPressed(Key.Escape);
+        // もどる＝BackSpace／パッドB／左下のもどるボタン。2026-09-14 に Esc から移した：Esc はどの画面でも
+        // ポーズメニューを開く役へ一本化したため。他画面の「もどる」キー X はここでは自機のボムなので使えず、
+        // 自機キー（矢印/WASD/X/C/V/F/Alt）と衝突しない BackSpace を退出に充てた。
+        bool esc = Input.IsKeyPressed(Key.Backspace) || Pad.Pressed(JoyButton.B);
         if (esc && !_escHeld) ExitToShop();
         _escHeld = esc;
     }
@@ -421,7 +426,7 @@ public partial class TrainingRoot : Node2D
         _backRect = new Rect2(40, H - 52, 168, 34);
         bool bh = _backRect.HasPoint(mouse);
         UiKit.Box(_uiLayer, _backRect, new Color(UiKit.Info, bh ? 0.22f : 0.10f), 8f, new Color(UiKit.Info, 0.6f), 1.2f);
-        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(_backRect.Position.X + 16, _backRect.Position.Y + 8), "◀ ショップへもどる (Esc)", 12, UiKit.White);
+        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(_backRect.Position.X + 16, _backRect.Position.Y + 8), "◀ ショップへもどる (BS)", 12, UiKit.White);
     }
 
     private void DrawSkillPanel(Vector2 mouse)

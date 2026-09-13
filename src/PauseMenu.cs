@@ -7,8 +7,13 @@ using Godot;
 //             設定とデータ＝音量3・ボタン表記・あそびかた・スロット1..3にセーブ・タイトルへ
 //   二段目からは X／右クリック／Esc で一段目へ戻り、Esc は一段目でだけ閉じる。
 //   セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない。
-//   ゲームプレイ画面でだけ開く（タイトル/設定/カットシーン/Hub/ショップ/難易度選択/記録は除外＝Esc衝突を避ける）。
-//   ゲームプレイ画面では右下に「Esc メニュー」ヒントを常時表示する。
+//   2026-09-14: ユーザー実機指摘「ステージを選択する画面でメニューが開けない」「基本的にどこの画面でも
+//     ESC のメニューは開けるように」。ハブ/ショップ/記録/難易度選択/トレーニングでも開くようにした。
+//     Esc がそれらの画面の「もどる」を兼ねていた衝突は、各画面から Esc を外して X／パッドB／右クリック
+//     だけを「もどる」に残すことで解消した（Esc＝どこでもメニュー、X＝ひとつ戻る、に役割を割った）。
+//     ステージ外では一段目の「このステージ ▸」を隠す（TopRowsFor 参照）＝意味のない行を見せない。
+//   タイトル/設定/あそびかた/カットシーンは対象外（Esc が既に「閉じる/戻る」の画面＝そちらを優先）。
+//   開ける画面では右下に「Esc メニュー」ヒントを常時表示する。
 //   --qa / --demo では無効（自動プレイのポーズ事故を防ぐ）。
 public partial class PauseMenu : CanvasLayer
 {
@@ -42,6 +47,14 @@ public partial class PauseMenu : CanvasLayer
 
     // 一段目の3行。Act は「即実行するか、どの二段目を開くか」。
     public static readonly string[] TopRows = { "つづける", "このステージ", "設定とデータ" };
+    // ステージ外（ハブ/ショップ/記録/トレーニング）版。「このステージ ▸」は中身が全部 RetryEnabled=false で
+    // グレーアウトするだけの行なので、そもそも出さない（選べない行を見せるより、無い方が分かりやすい）。
+    public static readonly string[] TopRowsOutside = { "つづける", "設定とデータ" };
+
+    // いま開いている画面の一段目。行数と、決定時の割り当て（Activate）が両方これに従う。
+    public string[] CurrentTopRows => RetryEnabled ? TopRows : TopRowsOutside;
+    // 一段目の行数（箱の高さ・行位置の算出に渡す。他ページでは使われない）。
+    public int TopRowCount => CurrentTopRows.Length;
 
     // 設定とデータ（二段目）の先頭に置く音量スライダー3行（←→で調整）。
     // 設定シーンへ遷移するとステージが消えるため、ポーズ中の音量はここでインライン調整する。
@@ -67,7 +80,7 @@ public partial class PauseMenu : CanvasLayer
     // ページごとの行数。設定は 音量3 + 操作表示1 + ConfigRows。
     private int RowCount => _page switch
     {
-        Page.Top => TopRows.Length,
+        Page.Top => CurrentTopRows.Length,
         Page.Stage => StageRows.Length,
         _ => VolRows.Length + 1 + ConfigRows.Length,
     };
@@ -116,22 +129,30 @@ public partial class PauseMenu : CanvasLayer
         AddChild(_canvas);
     }
 
-    // Hub/ショップ/難易度選択/記録＝各画面が独自の「戻る」導線を持つ非戦闘画面。
-    // ここに Esc の戦闘用ポーズが割り込むと各画面固有の戻るより先に発火してしまうため除外する
+    // Hub/ショップ/難易度選択/記録/トレーニング＝ランの外側にある非戦闘画面。
+    // メニューは開くが「このステージ ▸」（やりなおす／会話ログ／ハブへもどる）は意味を持たない。
     // （ShopTutorial は "Shop" の部分一致で自動的に含まれる）。RetryEnabled と揃えること。
     private static bool IsNonCombatMenuScreen(string path) =>
-        path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect") || path.Contains("Records");
+        path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect")
+        || path.Contains("Records") || path.Contains("Training");
 
-    // ゲームプレイ画面でのみ開く/ヒントを出す。タイトル/設定/カットシーン/Hub系メニュー画面は除外。
+    // Esc でメニューを開ける画面か。除外するのは「Esc が既に閉じる/戻るを意味する画面」だけ:
+    //   TitleMenu … ここがルート（戻り先が無い＝メニューの「タイトルへ」も無意味）
+    //   Settings  … Esc＝保存してタイトルへ戻る。音量もボタン表記もこの画面自体が持つ＝重ねる意味が無い
+    //   カットシーン(Prologue/Final/Epilogue/Credits) … Start/R 長押しのやりなおし導線が既にあり、
+    //     BGM とフェーズタイマーが進行中。ツリーポーズを挟むと演出の整合を取り直す必要があるので触らない。
+    // 上に重なるオーバーレイ（あそびかた/会話ログ）は _Process 側の overlayOpen で別途止めている。
     private bool CanOpenHere()
     {
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
         return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits")
-              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue")
-              || path.Contains("Training") // トレーニングは試用のみ＝スロットセーブ導線を出さない（本番状態を汚さない）
-              || IsNonCombatMenuScreen(path));
+              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
     }
+
+    // スロットセーブを出す画面か。トレーニングだけ false＝試用で付け外しした強化がディスクへ漏れない
+    // （TrainingRoot は AutoSaveEnabled=false で自動セーブを止めているが、SaveToSlot はそれを迂回する）。
+    public bool SaveEnabled => !(GetTree().CurrentScene?.SceneFilePath ?? "").Contains("Training");
 
     // マウスホイールは押下状態を持たない＝イベントでしか来ない。Pad は static ヘルパでノードではなく
     // _Input を持てないため、全画面で常駐するここ（PauseMenu）が拾って Pad の当該フレーム蓄積へ流し込む。
@@ -192,7 +213,7 @@ public partial class PauseMenu : CanvasLayer
         // マウス：ポーズが開いている間だけホットスポットを登録する（＝下の画面はツリーポーズで停止中＝
         // 唯一の登録者。閉じている時は BeginHotspots を呼ばない＝下の画面のクリック判定に混線しない）。
         UiKit.BeginHotspots(Pad.MousePos());
-        for (int i = 0; i < RowCount; i++) UiKit.Hotspot(RowRect(_page, i), i);
+        for (int i = 0; i < RowCount; i++) UiKit.Hotspot(RowRect(_page, i, TopRowCount), i);
         int hov = UiKit.HoveredId();
         if (Pad.UsingMouse && hov >= 0 && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
         bool click = Pad.MouseClick();
@@ -268,17 +289,18 @@ public partial class PauseMenu : CanvasLayer
     }
 
     // ── マウス用ジオメトリ（PauseCanvas.DrawPauseMenu と同一式。ホットスポット計算に共用）──
-    //   ダイアログ box: w=460、高さはページごと（一段目は3行しかないので低く、設定は全部入るぶん高い）。
+    //   ダイアログ box: w=460、高さはページごと（一段目は数行しかないので低く、設定は全部入るぶん高い）。
     //   画面中央に置く（x/y は幅高から算出）。
-    public static (float x, float y, float w, float h) BoxMetrics(Page p)
+    //   rows は一段目の行数（ステージ中=3／ステージ外=2）。行が減ったぶん箱も縮めて中央に収める。
+    public static (float x, float y, float w, float h) BoxMetrics(Page p, int rows = 3)
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float w = 460;
         float h = p switch
         {
-            Page.Top => 268,     // 見出し＋3行＋フッタ
-            Page.Stage => 268,   // 同上（3行）
-            _ => 560,            // 設定＝音量3 + 操作表示1 + アクション5
+            Page.Top => 268 - (3 - rows) * 44f, // 見出し＋行＋フッタ（1行=44）
+            Page.Stage => 268,                   // 3行固定
+            _ => 560,                            // 設定＝音量3 + 操作表示1 + アクション5
         };
         float x = (W - w) / 2f, y = (H - h) / 2f;
         return (x, y, w, h);
@@ -287,9 +309,9 @@ public partial class PauseMenu : CanvasLayer
     // ページ内の行 index i の当たり矩形。
     //   一段目／このステージ: 見出しの下からアクション行が並ぶだけ。
     //   設定とデータ: 音量3行 → 操作表示1行 → アクション行、の従来の積み方。
-    public static Rect2 RowRect(Page p, int i)
+    public static Rect2 RowRect(Page p, int i, int rows = 3)
     {
-        var (x, y, w, _) = BoxMetrics(p);
+        var (x, y, w, _) = BoxMetrics(p, rows);
         if (p != Page.Config)
         {
             float top0 = y + 78f, rowH0 = 44f;
@@ -343,12 +365,11 @@ public partial class PauseMenu : CanvasLayer
         _sel = sel;
         if (_page == Page.Top)
         {
-            switch (sel)
-            {
-                case 0: Audio.Instance?.PlayUiConfirm(); Close(); return;          // つづける
-                case 1: OpenPage(Page.Stage); return;                               // このステージ
-                default: OpenPage(Page.Config); return;                             // 設定とデータ
-            }
+            // ステージ外では「このステージ ▸」が無い＝行1が「設定とデータ」になる（CurrentTopRows）。
+            if (sel == 0) { Audio.Instance?.PlayUiConfirm(); Close(); return; }      // つづける
+            if (sel == 1 && RetryEnabled) { OpenPage(Page.Stage); return; }          // このステージ
+            OpenPage(Page.Config);                                                   // 設定とデータ
+            return;
         }
 
         if (_page == Page.Stage)
@@ -394,6 +415,8 @@ public partial class PauseMenu : CanvasLayer
         }
         else if (act >= CfgSlot1 && act < CfgSlot1 + GameManager.SlotCount)
         {
+            // トレーニング中は試用の強化がディスクへ漏れるので保存させない（グレーアウト行）。
+            if (!SaveEnabled) { Audio.Instance?.PlayUiDeny(); return; }
             int slot = act - CfgSlot1 + 1;
             Audio.Instance?.PlayUiConfirm();
             _game?.SaveToSlot(slot);             // スロットへ保存（上書き）
@@ -478,7 +501,7 @@ public partial class PauseCanvas : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
         var page = Menu.CurrentPage;
-        var (x, y, w, h) = PauseMenu.BoxMetrics(page);
+        var (x, y, w, h) = PauseMenu.BoxMetrics(page, Menu.TopRowCount);
         UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
 
         // 見出し。二段目は「MENU ▸ このステージ」のように親を残す＝いま二段目に居ると分かる。
@@ -504,15 +527,17 @@ public partial class PauseCanvas : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), footer, UiKit.FontSmall, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
-    // 一段目：3つの区分だけ。二段目を持つ行には「▸」を右端に添えて「まだ先がある」を示す。
+    // 一段目：区分だけ。二段目を持つ行には「▸」を右端に添えて「まだ先がある」を示す。
+    //   ステージ外（ハブ等）では「このステージ ▸」が落ちて2行になる（PauseMenu.CurrentTopRows）。
     private void DrawTopPage(float x, float w)
     {
-        for (int i = 0; i < PauseMenu.TopRows.Length; i++)
+        var rows = Menu.CurrentTopRows;
+        for (int i = 0; i < rows.Length; i++)
         {
-            var r = PauseMenu.RowRect(PauseMenu.Page.Top, i);
+            var r = PauseMenu.RowRect(PauseMenu.Page.Top, i, rows.Length);
             bool on = i == Menu.Sel;
             if (on) DrawRowCursor(r);
-            DrawRowLabel(r, PauseMenu.TopRows[i], on);
+            DrawRowLabel(r, rows[i], on);
             if (i > 0)   // 「つづける」以外は二段目へ入る
                 UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X + r.Size.X - 30, r.Position.Y + 9), "▸",
                     UiKit.FontBody, on ? UiKit.Purify : UiKit.Text4);
@@ -583,9 +608,15 @@ public partial class PauseCanvas : Node2D
             var r = PauseMenu.RowRect(PauseMenu.Page.Config, nVol + 1 + i);
             bool on = (nVol + 1 + i) == Menu.Sel;
             if (on) DrawRowCursor(r);
-            DrawRowLabel(r, PauseMenu.ConfigRows[i], on);
-            // セーブスロット行は状態（空き/保存済み）を右に出す
-            if (i >= PauseMenu.CfgSlot1 && i < PauseMenu.CfgSlot1 + GameManager.SlotCount)
+            // セーブスロット行は状態（空き/保存済み）を右に出す。トレーニング中は保存させない＝
+            // 「このステージ」のグレーアウトと同じ作法で、理由を右に添えて選べないと分かるようにする。
+            bool isSlot = i >= PauseMenu.CfgSlot1 && i < PauseMenu.CfgSlot1 + GameManager.SlotCount;
+            bool dim = isSlot && !Menu.SaveEnabled;
+            DrawRowLabel(r, PauseMenu.ConfigRows[i], on, dim ? UiKit.Text4 : null);
+            if (dim)
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, r.Position.Y + 11), "トレーニング中は不可", UiKit.FontSmall,
+                    UiKit.Text4, HorizontalAlignment.Right, 136);
+            else if (isSlot)
             {
                 bool filled = Menu.SlotFilled(i - PauseMenu.CfgSlot1 + 1);
                 UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, r.Position.Y + 11), filled ? "保存済み" : "空き", UiKit.FontSmall,
