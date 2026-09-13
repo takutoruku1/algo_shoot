@@ -108,6 +108,8 @@ public partial class HowToCanvas : Node2D
     private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック";
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt / 右クリック"; // 回避ダッシュ：Player.cs LeftStick / マウス右クリック
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
+    private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "C"; // 溜め打ち（長押し）：Player.cs
+    private static string TokFocusMode => "V";                                               // 集中モード：Player.cs（キーボードのみ）
     private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
 
     public override void _Draw()
@@ -163,20 +165,29 @@ public partial class HowToCanvas : Node2D
             (TokMove,  "移動",        "上下左右に動く",                              UiKit.Info,   false),
             (TokShot,  "撃つ",        "自動で撃ちます。光を放って心を浄化する",          UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
-            (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
-            // 回避の右クリックはロック解除も兼ねる（Player.TickLockOn）。説明は下のロックオン行に置く。
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokLock,  "ロックオン",  "押すたび近い敵から順に狙う。右クリックで解除。移動は少し遅くなる", UiKit.Purify, true),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };
+        // ★取得してから現れる行（＝持っていないものは説明しない。解禁そのものが画面で見える）。
+        //   ・回避ダッシュ … 1面クリアの物語報酬（GameManager.HasDodge）
+        //   ・溜め打ち     … 一本道 #6（HasChargeShot）
+        //   ・集中モード   … 一本道 #10（HasFocusMode）
+        //   挿入は「低速移動の次」＝基礎の手触りの並びのすぐ後ろ。名前で引くので行の増減でずれない。
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        int at = rows.FindIndex(r => r.name == "低速移動") + 1;
+        if (at <= 0) at = rows.Count;
+        if (game?.HasDodge ?? false)
+            rows.Insert(at++, (TokDodge, "回避ダッシュ", "一瞬無敵で弾をすり抜ける。攻めの切り札", UiKit.Gold, true));
+        if (game?.HasChargeShot ?? false)
+            rows.Insert(at++, (TokCharge, "溜め打ち", "長押しして離すと、威力4倍の大玉がひとつ", UiKit.Gold, true));
+        if (game?.HasFocusMode ?? false)
+            rows.Insert(at++, (TokFocusMode, "集中モード", "敵の時間だけが遅くなる。1.5秒", UiKit.Purify, true));
+
         // 向き反転は機能をオフにしているあいだ説明ごと伏せる（Player.FacingFlipEnabled で復活）。
-        // 挿入位置は「回避ダッシュの次」を名前で引く＝行の増減で位置がずれない（添字を直に書かない）。
         if (Player.FacingFlipEnabled)
-        {
-            int atFlip = rows.FindIndex(r => r.name == "回避ダッシュ");
-            rows.Insert(atFlip < 0 ? rows.Count : atFlip + 1,
+            rows.Insert(Mathf.Min(at, rows.Count),
                         (TokFlip, "向き反転", "押すたび撃つ方向が 右⇔左 に切り替わる", UiKit.Gold, true));
-        }
 
         float colW = (w - 24f) / 2f, rowH = 60f;
         int half = (rows.Count + 1) / 2;
@@ -197,9 +208,11 @@ public partial class HowToCanvas : Node2D
                 "※ 光は自動で出ます。撃つボタンはありません", UiKit.FontLabel, UiKit.Gold);
             // 左クリックは通常ロックオン送り。向き反転が復活しているときだけ、そちらへ譲る
             //（Player.FacingFlipEnabled で復活。両方を左クリックに載せると衝突するため）。
+            // 右クリックは回避とロック解除を兼ねるが、回避が未解禁の間は解除しか起きない＝そう書く。
+            string rclick = (game?.HasDodge ?? false) ? "右クリック 回避＋ロック解除" : "右クリック ロック解除";
             string mouseHint = Player.FacingFlipEnabled
-                ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／右クリック 回避＋ロック解除／中クリック ボム／ホイール ショット切替（低速は Shift）"
-                : "◆ マウスでも遊べます — カーソルへ移動／左クリック ロックオン送り／右クリック 回避＋ロック解除／中クリック ボム／ホイール ショット切替（低速は Shift）";
+                ? "◆ マウスでも遊べます — カーソルへ移動／左クリック 向き反転／" + rclick + "／中クリック ボム／ホイール ショット切替（低速は Shift）"
+                : "◆ マウスでも遊べます — カーソルへ移動／左クリック ロックオン送り／" + rclick + "／中クリック ボム／ホイール ショット切替（低速は Shift）";
             UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
                 mouseHint, UiKit.FontLabel, UiKit.Info, HorizontalAlignment.Left, w);
         }

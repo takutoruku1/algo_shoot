@@ -73,6 +73,8 @@ public partial class StageZero : Node
     private static readonly (int who, string text, string face)[] Tut2Shot = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut3Slow = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut4Dash = System.Array.Empty<(int, string, string)>();
+    // 回避を持っているか（1面クリアの物語報酬）。練習面は 1面より前なので、通常の初回プレイでは false。
+    private static bool HasDodge => GameManager.Instance?.HasDodge ?? false;
     private static readonly (int who, string text, string face)[] Tut5Bomb = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut6Purify =
     {
@@ -211,10 +213,14 @@ public partial class StageZero : Node
                 break;
 
             // ── 4 回避（各方向） ──
+            //   ★回避は 2026-09-13 から「1面クリアの物語報酬」＝練習面の時点ではまだ持っていない。
+            //     未取得なら説明も必修も出さずに飛ばす（持っていない操作を教えない／進行不能にしない）。
             case 7:
+                if (!HasDodge) { NextPhase(); break; }
                 if (TutTalk(Tut4Dash)) NextPhase();
                 break;
             case 8: // 回避を3回成功（DodgeCount+3）→達成で次へ。弾を絶やさず「弾の近くで抜ける」感を出す。
+                if (!HasDodge) { NextPhase(); break; }
                 if (!_phaseStarted)
                 {
                     _phaseStarted = true;

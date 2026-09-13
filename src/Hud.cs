@@ -114,8 +114,12 @@ public partial class Hud : CanvasLayer
     private double _hurtEdge; // 被弾エッジの残り時間
 
     // ヒカゲスキル
-    private bool _skillHas, _skillReady;
-    private float _skillCdRatio; // 0=フル充填済み(OK) / 1=たった今使った直後。DrawSkillの充填バーに使う。
+    // 集中モード（一本道 #10「集中モードを覚える」）のチップ状態。持っているあいだだけ出す。
+    //   _focusHas   … 所持しているか（未所持なら行ごと出さない＝画面を空けておく）
+    //   _focusReady … いま撃てるか（CDが明けている）
+    //   _focusRatio … 発動中は残り持続 1→0、それ以外は CD の充填 0→1（下のバーに出す）
+    private bool _focusHas, _focusReady, _focusOn;
+    private float _focusRatio;
 
     // ショットモード（現在モード表示＋切替トースト・設計書 §3-5）
     private GameManager.ShotMode _shotMode = GameManager.ShotMode.Rapid;
@@ -205,7 +209,8 @@ public partial class Hud : CanvasLayer
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
+    private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "C"; // 溜め打ち（長押し）
+    private static string TokFocus  => "V";                                                   // 集中モード（キーボードのみ）
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
@@ -638,7 +643,9 @@ public partial class Hud : CanvasLayer
     }
 
     // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
-    public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
+    // 集中モードの状態を Player から毎フレーム受ける（旧 SetHikageSkill の置き換え）。
+    public void SetFocusMode(bool has, bool ready, bool on, float ratio)
+    { _focusHas = has; _focusReady = ready; _focusOn = on; _focusRatio = Mathf.Clamp(ratio, 0f, 1f); }
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
     //   ★2026-09-13 ジョブ導入で V の切替が無くなり、現在の呼び出し元（Player の初回通知）は
@@ -711,7 +718,7 @@ public partial class Hud : CanvasLayer
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
-        if (_skillHas) DrawSkill(ci);
+        if (_focusHas) DrawFocusChip(ci);
         DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
@@ -772,7 +779,7 @@ public partial class Hud : CanvasLayer
     private const float RowTime = 360f;       // 常設
     private const float RowCombo = 440f;      // 条件（コンボ2以上）
     private const float RowShotMode = 520f;   // 常設（ジョブ名＋撃ち方）
-    private const float RowSkill = 626f;      // 条件（W0 専用スキル所持。非正典）
+    private const float RowFocus = 626f;      // 条件（集中モードを覚えているときだけ）
 
     // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
     private const float KeyBadgeH = 21f;
@@ -1117,22 +1124,23 @@ public partial class Hud : CanvasLayer
         return p * p * ((s + 1f) * p + s) + 1f;
     }
 
-    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
-    // ヒカゲ専用スキルのチップ（パネル・条件表示）。発動キーのバッジ＋名前＋状態＋充填バー。
-    private void DrawSkill(HudCanvas ci)
+    // 集中モードのチップ（パネル・条件表示）。発動キーのバッジ＋名前＋状態＋バー。
+    //   ★枠・行・バーの描き方は旧「ヒカゲの大波」チップ（W0 専用・非正典）から丸ごと引き継いだ。
+    //     新しいUIを起こさず、空いた行にそのまま新しい意味を載せている。
+    //   バーの読み： 発動中＝残り持続（減っていく・Mina色）／それ以外＝CDの充填（溜まっていく・Hp色）。
+    private void DrawFocusChip(HudCanvas ci)
     {
-        Color accent = _skillReady ? UiKit.Hp : UiKit.Text3;
-        string label = "ヒカゲの大波  " + (_skillReady ? "OK!" : "充填中…");
-        float x = PanelX, y = RowSkill, w = PanelInnerW, h = 34f;
+        Color accent = _focusOn ? UiKit.Mina : (_focusReady ? UiKit.Hp : UiKit.Text3);
+        string label = "集中モード  " + (_focusOn ? "発動中" : _focusReady ? "OK!" : "充填中…");
+        float x = PanelX, y = RowFocus, w = PanelInnerW, h = 34f;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 11f, new Color(accent, 0.5f), 1f);
-        float bw = KeyBadge(ci, new Vector2(x + 14, y + 7), TokSkill, accent, 1f);
+        float bw = KeyBadge(ci, new Vector2(x + 14, y + 7), TokFocus, accent, 1f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 14 + bw + 8, y + 10), label, UiKit.FontLabel, accent);
-        // 充填バー（チップ直下）：空(充填中)→満(OK)。コンボ猶予バーと同じBurn/Mina式の色補間ロジックを流用。
-        float fillRatio = 1f - _skillCdRatio;
         float barY = y + h + 3f, barH = 3f;
         UiKit.Box(ci, new Rect2(x, barY, w, barH), new Color(1, 1, 1, 0.1f), 1.5f);
-        if (fillRatio > 0)
-            UiKit.Box(ci, new Rect2(x, barY, w * fillRatio, barH), UiKit.Text3.Lerp(UiKit.Hp, fillRatio), 1.5f);
+        if (_focusRatio > 0)
+            UiKit.Box(ci, new Rect2(x, barY, w * _focusRatio, barH),
+                      _focusOn ? UiKit.Mina : UiKit.Text3.Lerp(UiKit.Hp, _focusRatio), 1.5f);
     }
 
     // 今のジョブと、そのジョブが固定で使う撃ち方（パネル・常設）。
