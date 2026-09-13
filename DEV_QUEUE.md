@@ -43,10 +43,19 @@
 
 <!-- 2026-09-12 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照。qaは新規指摘0件 -->
 
+<!-- 2026-09-13 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenario/qaは新規指摘0件 -->
+
+- [ ] (P2) Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま | engineer | 2026-09-13監査(game-designer)。`src/GameManager.cs:81` `IsLunaticUnlocked` はフォロワー200人ルートと並び `ChainLevel("shot_power", 4) >= 4` を解禁条件に採用し、`src/DiffSelect.cs:340` も「解禁：フォロワー {LunaticFollowerReq} または 威力 Lv4」とプレイヤーに案内している。しかし既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)`)により `shot_power_4`(729G)は`shot_power_3`到達時点で既に上限到達済みで戦闘的な意味ゼロと確定済み。つまり解禁条件が「最後の729Gが完全に無駄」と判明済みのノードを目標として案内している。`src/GameManager.cs:81` の `ChainLevel("shot_power", 4) >= 4` を `ChainLevel("shot_power", 3) >= 3` に変更し、`src/DiffSelect.cs:340` の文言も「威力 Lv3」に修正する（パネルダメージ無効化そのものの是正とは独立に着手可能、既存BLOCKEDの意思決定を待たない）。
 
 ## WIP
 
 ## BLOCKED
+
+<!-- 2026-09-13 監査モード(engineer)で追加 -->
+
+- [ ] アクセシビリティ設定5項目（明滅を抑える/色覚サポート/文字サイズ/被弾演出を控えめに/高コントラストUI）が保存されるだけで一切機能しない | engineer | 2026-09-13監査(engineer)。`src/Settings.cs:102-106`でUI上に存在し`Save()`/`LoadSettings()`(`:353-386`)でJSON永続化もされるが、`Apply(Def d)`(`src/Settings.cs:310-352`)に対応する`case`が1つも無く、`src/`全体をgrepしても`reduceflash`等5キーの参照はSettings.cs以外に0件で実効果が皆無。`reduceflash`は`Hud.FlashMul`配線(`:322`)の別キーと混同されがちだが未使用のまま。photosensitivity対応を謳うアクセシビリティ項目が実は無効という実害。要ユーザー判断: (a)各項目に実効果を設計・配線する（フラッシュ強度の追加減衰か色覚シミュレーション用シェーダか等、項目ごとに設計判断が要る）、(b)未実装の間はUIから一旦外す/「近日対応」注記する。
+- [ ] 表示設定5項目（解像度/リフレッシュレート/スキャンライン/ブルーム/ピクセルパーフェクト）が同様に一切機能しない | engineer | 2026-09-13監査(engineer)。`src/Settings.cs:69-73`もSettings.Apply()にcase無し(`mode`＝画面モードのみ実配線)。特に`pixel`(ピクセルパーフェクト)は説明文で「内部384×216を整数倍で表示」という具体的な描画仕様を謳うが実装ゼロ。シェーダ/ウィンドウ解像度変更が絡み小修正では済まないため要ユーザー判断: (a)実装範囲を決めて着手する、(b)UIから一旦間引く。
+- [ ] 「Y連携」カテゴリ5項目（浄化結果の投稿/スコアカードID表示/実際の投稿表示/通知/フィルタ）が丸ごと機能しない | engineer | 2026-09-13監査(engineer)。`src/Settings.cs:109-113`の全項目が`Apply()`未対応かつ`src/`内で他に一切参照なし。実際のX/Twitter連携自体が未実装のため想定内の可能性はあるが、「浄化の結果をYに投稿」「スコアカードに@IDを表示」等、実在しない外部連携を示唆するUIがそのまま残っている点が実害。要ユーザー判断: (a)外部連携実装まで見据えて段階配線、(b)現状は非表示/グレーアウトにする。
 
 <!-- 2026-09-09 監査モード(scenario)で追加 -->
 
