@@ -872,21 +872,24 @@ public partial class Shop : Node2D
         _ => -1,
     };
 
+    // ★2026-09-13 ジョブ導入：撃ち方はジョブが決める従属値になり、ショップからは変えられない（設計書 §3）。
+    //   装備導線そのものの撤去は第3段（ショップ再配置）の仕事なので、ここでは
+    //   「切り替わらない」ことだけを確定させ、理由を1行で返す（無音で反応しない状態を作らない）。
     private void EquipMode(int idx, bool silent = false)
     {
         var m = Modes[idx];
-        if (!(_game?.IsModeUnlocked(m) ?? false)) { if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("まだ解放されていません（枝の入り口で解放）", UiKit.Text4); } return; }
-        // 既に装備中のモードで C＝「装備中」を明示（従来の無音 return ＝“反応しない”の解消）。
-        if (_game!.SelectedShotMode == m)
+        if (_game == null) return;
+        if (_game.SelectedShotMode == m)
         {
-            if (!silent) { Audio.Instance?.PlayUiMove(); Toast($"{_game.ShotModeName(m)} は装備中です", UiKit.Info); }
+            if (!silent) { Audio.Instance?.PlayUiMove(); Toast($"{_game.ShotModeName(m)} は{_game.JobDef.Name}の撃ち方です", UiKit.Info); }
             return;
         }
-        if (!silent) Audio.Instance?.PlayUiConfirm(); // 装備＝決定音
-        _game.SelectedShotMode = m;
-        _sweepName = _game.ShotModeName(m);
-        _sweepT = 1.1;
+        if (!silent) { Audio.Instance?.PlayUiDeny(); Toast("撃ち方はジョブが決める。ハブで選び直す", UiKit.Text4); }
     }
+
+    // そのモードが「今のジョブのもの」か（＝この画面で使える唯一のモードか）。
+    // 旧 IsModeUnlocked（購入で解放）の置き換え。ジョブが違えば買っても使えないので、見た目は同じく沈める。
+    private bool IsJobMode(GameManager.ShotMode m) => _game?.SelectedShotMode == m;
 
     private void Toast(string msg, Color col)
     { _toast = msg; _toastCol = col; _toastT = 1.8; _toastIsMina = false; _toastAge = 0; }
@@ -1224,7 +1227,7 @@ public partial class Shop : Node2D
         for (int i = 0; i < 3; i++)
         {
             var m = Modes[i];
-            bool unlocked = _game?.IsModeUnlocked(m) ?? false;
+            bool unlocked = IsJobMode(m); // ジョブのモードだけ点灯（他は買っても使えない＝沈める）
             bool equipped = _game?.SelectedShotMode == m;
             bool focus = _sel == i;
             string name = _game?.ShotModeName(m) ?? "";
@@ -1239,13 +1242,10 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 26, y + h / 2f - 8), name, 14, unlocked ? (equipped ? UiKit.White : UiKit.Text2) : UiKit.Text4);
         }
 
-        // 右：装備中モードの明示＋装備操作子（過熱チップ跡地の整理）。
-        string cur = "装備中: " + (_game?.ShotModeName(_game.SelectedShotMode) ?? "連射");
+        // 右：今のジョブと、それが決めている撃ち方。装備操作子は出さない（切り替えられないため＝設計書 §3）。
+        string cur = (_game?.JobDef.Name ?? "結び手") + " ▸ " + (_game?.ShotModeName(_game.SelectedShotMode) ?? "連射");
         float curW = UiKit.TextW(UiKit.ZenBold, cur, 12);
-        float keyX = x + w - 148f;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(keyX - curW - 16f, y + h / 2f - 8), cur, 12, new Color(UiKit.PurifyHi, 0.9f));
-        UiKit.Key(this, new Vector2(keyX, y + h / 2f - 13), Pad.EquipToken, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(keyX + 28f, y + h / 2f - 8), "で装備", 12, UiKit.Text3);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - curW - 16f, y + h / 2f - 8), cur, 12, new Color(UiKit.PurifyHi, 0.9f));
     }
 
     private void DrawModeIcon(Vector2 c, int idx, Color col)
@@ -1622,7 +1622,7 @@ public partial class Shop : Node2D
         int pv = _sel <= 2 ? _sel : PreviewModeFor(FocusNodeId);
         if (pv < 0) pv = System.Array.IndexOf(Modes, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid);
         if (pv < 0) pv = 0;
-        bool pvLocked = !(_game?.IsModeUnlocked(Modes[pv]) ?? (pv == 0));
+        bool pvLocked = !IsJobMode(Modes[pv]);
         DrawModeField(x + 10, by + 10, w - 20, 90, pv, pvLocked);
         string pvLabel = _game?.ShotModeName(Modes[pv]) ?? "";
         // ラベルは右上（左はミナ立ち絵が立つので隠れる）。
@@ -1645,17 +1645,16 @@ public partial class Shop : Node2D
         // R0 チップ：モードの案内。
         if (_sel <= 2)
         {
-            bool unlocked = _game?.IsModeUnlocked(Modes[_sel]) ?? (_sel == 0);
+            bool unlocked = IsJobMode(Modes[_sel]);
             DrawRect(new Rect2(ix, iy + 4, 4f, 18f), new Color(CatCol[0], 0.9f));
             UiKit.Text(this, UiKit.ZenBlack, new Vector2(ix + 12, iy), _game?.ShotModeName(Modes[_sel]) ?? "", 19, UiKit.White);
             UiKit.Multi(this, UiKit.Zen, new Vector2(ix, iy + 28), ModeDesc[_sel], 12, UiKit.Text2, iw, 2);
-            if (_sel == 0)
-                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), "初期解放・常時使用可（" + Pad.EquipToken + " で装備）", 12, new Color("7ec880"));
-            else if (unlocked)
-                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), Pad.EquipToken + " で装備", 12, new Color("7ec880"));
-            else
+            // 撃ち方はジョブが決める（設計書 §3）。ここでは「今のジョブのものか」だけを返す。
+            if (unlocked)
                 UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74),
-                    _sel == 1 ? "解放: 連射速度 → 拡散展開（枝の入り口）" : "解放: 身のこなし → 誘導の祈り（枝の入り口）", 12, UiKit.Text3);
+                           (_game?.JobDef.Name ?? "") + "の撃ち方（このランは固定）", 12, new Color("7ec880"));
+            else
+                UiKit.Text(this, UiKit.Zen, new Vector2(ix, iy + 74), "別のジョブの撃ち方。ハブで選び直す", 12, UiKit.Text3);
             return;
         }
 

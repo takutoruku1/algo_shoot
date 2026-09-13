@@ -115,6 +115,23 @@ public partial class Panel : Area2D
         // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
     }
 
+    // ───── 盾のインク削り量（設計書 §4「前提工事」・2026-09-13）─────
+    //   旧実装は「1ヒット＝1インク」で弾の威力を一切見なかった。そのため
+    //   ①火力へ投資しても盾剥がしが速くならない ②弾数の多いモードほど盾剥がしが速い、という
+    //   設計意図と無関係な序列（拡散9wayが最速・加速球の単発が最遅）が生まれていた。
+    //
+    //   係数の決め方：**拡散の1発＝1インク**を基準に据える（設計書の指定）。
+    //   拡散弾の威力は base×SpreadPowerMul(0.50〜0.62) なので、光の出力を最大(shot_power Lv4)まで
+    //   伸ばしても 1〜3 にしか届かない。そこで「威力2ごとに+1インク」の刻みを置く：
+    //       cost = 1 + (Damage - 1) / 2   （整数除算＝切り捨て）
+    //   結果（Damage → cost）: 1,2→1 ／ 3,4→2 ／ 5,6→3 ／ 7,8→4。
+    //   ・未強化（全モードとも Damage=1）では cost=1＝**現状の剥がし所要時間と完全に一致**する。
+    //   ・強化最大でも拡散は 3→2インク止まり（従来比2倍）、加速球の単発は 8→4インク（従来比4倍）で、
+    //     「単発が重いモードほど盾に強い」＝狙いどおりの序列へ反転する。
+    //   ・パネルの Ink は 2〜4（ボス別）なので、最大強化の加速球でようやく1発剥がしに届く＝
+    //     序盤〜中盤のテンポは温存したまま、終盤の火力投資がボス戦でも見える形で返る。
+    private static int InkCost(int damage) => 1 + Mathf.Max(0, damage - 1) / 2;
+
     private void OnAreaEntered(Area2D area)
     {
         if (_dead || Invulnerable) return; // 不可侵中は弾も受けない（消しもしない＝素通し）
@@ -127,7 +144,7 @@ public partial class Panel : Area2D
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             // 集中の光（focus_fire）：パネル越しの撃ち込みも「同じ敵に当て続けている」に数える。
             (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(_owner);
-            Ink--;
+            Ink -= InkCost(b.Damage);
             if (Ink <= 0) Shatter();
             else
             {

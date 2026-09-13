@@ -62,6 +62,10 @@ public partial class QaPilot : Node
     // 通常プレイでは QaPilot が非起動＝常に false なので本編の挙動には影響しない。
     public static bool GodActive { get; private set; }
 
+    // QA走行中（--qa）か。ジョブ補正が実際に効いたかを1ヒットずつログへ出す検証ログの門にする
+    // （Enemy の距離ボーナス・Player ののけぞりなど）。通常プレイでは常に false ＝ログは一切出ない。
+    public static bool Verbose { get; private set; }
+
     // ---- フラグ ----
     private bool _active;
     private bool _god;
@@ -154,9 +158,12 @@ public partial class QaPilot : Node
         if (_diff.HasValue && _game != null) _game.Difficulty = _diff.Value;
 
         GodActive = _god;
+        Verbose = true; // --qa 中だけジョブ補正の検証ログを開ける
 
         _lastProgressT = 0;
-        GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} diff={_diff?.ToString() ?? "(save)"}");
+        GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} diff={_diff?.ToString() ?? "(save)"} "
+               + $"job={_game?.JobDef.Name}({_game?.SelectedJob}) mode={_game?.ShotModeName(_game.SelectedShotMode)} "
+               + $"lives={_game?.StartLives} bombs={_game?.StartBombs}");
     }
 
     public override void _Process(double delta)

@@ -196,7 +196,6 @@ public partial class Hud : CanvasLayer
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokMode  => Pad.ModeToken;
     private static string TokSkill => Pad.UsingPad ? Pad.Face(JoyButton.Y)            : "C";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
@@ -627,6 +626,9 @@ public partial class Hud : CanvasLayer
     public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
+    //   ★2026-09-13 ジョブ導入で V の切替が無くなり、現在の呼び出し元（Player の初回通知）は
+    //     announce=false しか渡さない＝トースト経路は今のところ休眠している。消さずに残すのは、
+    //     ハブのジョブ選択画面（第1段の残り）が「このランは◯◯で行く」を同じ語彙で出せるため。
     public void SetShotMode(GameManager.ShotMode m, bool announce)
     {
         _shotMode = m;
@@ -748,7 +750,7 @@ public partial class Hud : CanvasLayer
     private const float RowScore = 288f;      // 常設
     private const float RowTime = 360f;       // 常設
     private const float RowCombo = 440f;      // 条件（コンボ2以上）
-    private const float RowShotMode = 520f;   // 条件（解放モード2つ以上）
+    private const float RowShotMode = 520f;   // 常設（ジョブ名＋撃ち方）
     private const float RowSkill = 626f;      // 条件（W0 専用スキル所持。非正典）
 
     // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
@@ -1112,25 +1114,21 @@ public partial class Hud : CanvasLayer
             UiKit.Box(ci, new Rect2(x, barY, w * fillRatio, barH), UiKit.Text3.Lerp(UiKit.Hp, fillRatio), 1.5f);
     }
 
-    // 現在のショットモード（パネル・条件表示）。モードが2つ以上解放されている時だけ出す
-    //   ＝1つしか無い間は「切り替えられない切替キー」を案内しない（docs/20260906/HUD整理_案.md §8）。
+    // 今のジョブと、そのジョブが固定で使う撃ち方（パネル・常設）。
+    //   ★2026-09-13 ジョブ導入：以前は「解放モードが2つ以上ある時だけ出す切替パネル」だったが、
+    //     モードは切り替えられなくなった（ジョブが決める従属値＝設計書 §3）。切替キーのバッジは消し、
+    //     代わりに「このランは何者で戦っているか」を常に出す。ランの選択を画面から見失わせない。
     private void DrawShotMode(HudCanvas ci)
     {
-        // 解放済みモード数（既定の連射＋ショップ解放ぶん）。2つ未満なら切替の意味が無いので出さない。
-        int unlocked = 1
-            + ((_game?.IsModeUnlocked(GameManager.ShotMode.Spread) ?? false) ? 1 : 0)
-            + ((_game?.IsModeUnlocked(GameManager.ShotMode.Homing) ?? false) ? 1 : 0)
-            + ((_game?.IsModeUnlocked(GameManager.ShotMode.Accel) ?? false) ? 1 : 0);
-        if (unlocked < 2) return;
-
+        string job = _game?.JobDef.Name ?? "結び手";
         string name = _game?.ShotModeName(_shotMode) ?? "連射";
         float x = PanelX, y = RowShotMode, w = PanelInnerW, h = 34f;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 11f, new Color(UiKit.Info, 0.45f), 1f);
         ci.DrawCircle(new Vector2(x + 20, y + h / 2f), 5f, UiKit.Info);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), name, UiKit.FontLabel, UiKit.PurifyHi);
-        // 切替キーのバッジ（KB=V / パッド=B を出し分け）。パネル内の右端へ寄せる。
-        float bw2 = KeyBadgeW(TokMode);
-        KeyBadge(ci, new Vector2(x + w - bw2 - 14, y + 7), TokMode, UiKit.Info, 1f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), job, UiKit.FontLabel, UiKit.PurifyHi);
+        // 撃ち方はジョブに従属するので、右端に小さく添えるだけ（主役はジョブ名）。
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 12), name, UiKit.FontLabel - 3, new Color(UiKit.Info, 0.85f),
+                   HorizontalAlignment.Right, w - 14f);
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。

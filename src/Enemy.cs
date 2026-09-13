@@ -106,9 +106,11 @@ public partial class Enemy : Area2D
     // ── 無防備窓の「密着ボーナス」(桜井: 引き撃ちだけが最適にならないよう、近いほど得) ──
     // 本体 GlobalPosition と自機の距離が PointBlankRange 以内なら密着クリティカル。
     // 当たり判定(_bodyShape/本体GlobalPosition/自機ヒット半径)は一切変えない＝ダメージ計算のみ。
-    private const float PointBlankRange = 48f;     // この内側はクリティカル（2バンドで明快に）
-    private const float PointBlankMult = 1.6f;     // 密着クリティカル倍率（約+60%）
-    private const int   PointBlankCap = 6;         // クリティカル時の上限（過剰即殺を防ぎバー方式の手応えを保つ）
+    //   ★2026-09-13 ジョブ導入：距離ボーナスの値はジョブ表（Jobs / JobTuning）へ移した。
+    //     しきい値は Jobs.CloseRange(48px) ＝ここの旧 PointBlankRange と同値（判定の見え方は不変）。
+    //     倍率と上限は JobDef.CritMult / CritCap（他ジョブ ×1.25・上限5 ／ 灯し手 ×2.0・上限8 ／ 語り手は無効）。
+    //     鏡像として Jobs.FarRange(120px) より遠い命中に JobDef.FarMult（語り手のみ ×1.3）を掛ける。
+    private const float PointBlankRange = Jobs.CloseRange;
     // ── 1つの無防備窓で本体へ通せる被ダメ上限（窓キャップ）──
     //   1窓で削れる量を頭打ちにし、密着クリティカル＋高連射での「1窓即殺」を抑える。
     //   到達後はその窓では本体HPが減らない（弾の Despawn は継続＝撃ち心地は残す）。EnterExposed で 0 にリセット。
@@ -551,6 +553,8 @@ public partial class Enemy : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -14), "BREAK!", FxLayer.Sig2);
         Audio.Instance?.PlaySpell();
+        // 祈り手（Heal）だけ BREAK 成立ごとに BOMB+1（設計書 §2）。他ジョブでは何も起きない。
+        GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
         OnBreakCue(); // 派生：ミナの煽りセリフ等（共通実装あり）
         QueueRedraw();
     }
@@ -615,20 +619,35 @@ public partial class Enemy : Area2D
             // 本体ヒットのクールダウン中は削らない（同一フレーム多重弾の過剰削りを軽く抑える補助）。
             if (_bodyHitCd > 0) return;
 
-            int dmg = Mathf.Clamp(b.Damage, 1, 4); // ExposedHitDmg=1+ShotDamageBonus を Bullet.Damage 経由で（上限4）
+            // 1ヒット上限 4→8（設計書 §4）。強化しても一定値から先が伸びない＝「ボス戦では威力の軸が死ぬ」
+            // 分裂を解く。窓の合計上限（ExposedDamageCap=100）は据え置きなので即死はせず、窓が早く閉じて
+            // 次の BREAK へ進む＝テンポで返る（#b案と同じリターンの返し方）。
+            int dmg = Mathf.Clamp(b.Damage, 1, 8);
 
-            // 密着ボーナス：自機が本体に PointBlankRange 以内まで踏み込むとクリティカル（約+60%・上限6）。
-            // 当たり判定は不変＝近づくこと自体が接触被弾＆濃い弾幕というリスクの対価。
-            // 自機が取れない場合は base ダメージにフォールバック（null安全）。
+            // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
+            //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
+            //       語り手は CritEnabled=false＝密着しても何も起きない。
+            //   遠: Jobs.FarRange(120px) より遠い → JobDef.FarMult（語り手のみ ×1.3）。近接の鏡像。
+            //   両者は排他（48以内 or 120超のどちらか。48〜120 は素の威力）。
+            var job = GetNodeOrNull<GameManager>("/root/Game")?.JobDef;
             bool crit = false;
             if (GetTree().GetFirstNodeInGroup("player") is Player pl)
             {
                 float d = GlobalPosition.DistanceTo(pl.GlobalPosition);
-                if (d <= PointBlankRange)
+                if (d <= PointBlankRange && (job?.CritEnabled ?? true))
                 {
                     crit = true;
-                    dmg = Mathf.Min(PointBlankCap, Mathf.RoundToInt(dmg * PointBlankMult));
+                    dmg = Mathf.Min(job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
                 }
+                else if (d > Jobs.FarRange && (job?.FarMult ?? 1f) > 1f)
+                {
+                    crit = true; // 表示は密着クリと同じ金色＝「今の距離が効いている」を同じ語彙で返す
+                    dmg = Mathf.RoundToInt(dmg * job!.FarMult);
+                }
+                // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
+                if (crit && QaPilot.Verbose)
+                    GD.Print($"[JOB] {job?.Name} dist={d:0}px raw={b.Damage} -> {dmg} "
+                           + (d <= PointBlankRange ? $"(close x{job?.CritMult:0.00} cap{job?.CritCap})" : $"(far x{job?.FarMult:0.00})"));
             }
 
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。

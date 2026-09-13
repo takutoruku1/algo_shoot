@@ -29,8 +29,7 @@ public partial class Player : Area2D
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
 
-    // ショットモード切替（V / Pad B）のエッジ検出。_modeInit で初回に HUD へ現在モードを通知。
-    private bool _modeHeld = false;
+    // 初回に HUD へ現在モードを通知したか（V の切替ローテは 2026-09-13 に廃止＝エッジ検出はもう要らない）。
     private bool _modeInit = false;
 
     // ヒカゲ専用スキル（フォロワーにヒカゲがいる時だけ・Cキー）
@@ -154,7 +153,6 @@ public partial class Player : Area2D
     private const float MouseFollowResponse = 26f;      // 通常の追従の速さ(1/s)。実質カーソルに張り付く
     private const float MouseFollowResponseFocus = 12f; // 低速時：ゆっくり寄る＝精密よけ用
     private const float MouseSnapDist = 0.6f;           // この距離まで詰めたら吸着（微振動を止める）
-    private ulong _mouseWheelFrame;                     // ホイールを消費した描画フレーム（1フレーム2回消費の二重切替を防ぐ）
 
     // 「今かすった」を自機の絵の発光で一瞬返す残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
     private float _grazeFlash = 0f;
@@ -655,7 +653,11 @@ public partial class Player : Area2D
         _focus = focus;
         // 機動力強化で移動速度UP。低速（Focus）には乗せない：精密回避の速度は“調整済みの手触り”で、
         // 強化が乗ると細かい避けがかえって難しくなる（強化の逆効果）ため、通常速度だけを伸ばす。
-        float speed = focus ? FocusSpeed : NormalSpeed * (_game?.MoveSpeedMul ?? 1f);
+        // ジョブの移動補正（結び手のみ ×0.88＝「避けるのではなく耐える」）は低速側にも同率で掛ける。
+        //   強化(MoveSpeedMul)を通常のみに乗せるのは上のとおりだが、ジョブは「その型の足の速さ」そのもの
+        //   なので片方だけに効かせると低速時だけ結び手が速い、という食い違いが出る。
+        float jobMove = _game?.JobDef.MoveMul ?? 1f;
+        float speed = (focus ? FocusSpeed : NormalSpeed * (_game?.MoveSpeedMul ?? 1f)) * jobMove;
         // ロックオン中は足を重くする＝照準を任せるあいだの対価（低速にも同じ率で掛ける）。
         TickLockOn();
         if (LockedOn) speed *= LockMoveMul;
@@ -745,33 +747,14 @@ public partial class Player : Area2D
 
         // ショットはオート発射（下の shoot 判定）。ここでは初回に HUD へ現在モードを通知
         // （HUD の _Ready 順に依存しないよう最初の物理フレームで）。
+        // ★2026-09-13 ジョブ導入：モードはジョブが決める従属値になったので、V／パッドB／マウスホイールの
+        //   切替ローテは廃止した（設計書 §3「切り替える対象が無いので操作が1つ減る」）。
+        //   ここは「今のジョブのモードを HUD へ1度伝える」だけの窓口になる。
         if (!_modeInit && _game != null)
         {
-            if (!_game.IsModeUnlocked(_game.SelectedShotMode)) _game.SelectedShotMode = GameManager.ShotMode.Rapid;
             (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetShotMode(_game.SelectedShotMode, false);
             _modeInit = true;
         }
-
-        // ショットモード切替＝V / Pad B。解放済みモードを循環。会話中は不可。
-        bool modeKey = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.B);
-        // マウスホイールでも切替。Pad.WheelDelta はフレーム値なので、1描画フレームに物理が2回
-        // 回っても二重に切り替えないよう、消費した描画フレームを覚えて1回だけ通す。
-        bool wheelMode = false;
-        if (mouse && Pad.WheelDelta() != 0f && _mouseWheelFrame != Engine.GetProcessFrames())
-        {
-            _mouseWheelFrame = Engine.GetProcessFrames();
-            wheelMode = true;
-        }
-        if ((wheelMode || (modeKey && !_modeHeld)) && !Hud.BubblePaused && _game != null)
-        {
-            var nm = _game.NextUnlockedMode(_game.SelectedShotMode);
-            if (nm != _game.SelectedShotMode)
-            {
-                _game.SelectedShotMode = nm;
-                (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetShotMode(nm, true);
-            }
-        }
-        _modeHeld = modeKey;
 
         // 向き反転＝F / パッド RB / 左クリック。押した瞬間だけ反転するトグル（押しっぱなし不要）。会話中は不可。
         // 反転は _facing のみを書き換える＝射撃方向も見た目(FlipH)も下流がここを読んで追従する。
@@ -992,8 +975,12 @@ public partial class Player : Area2D
                     // のけぞり：残量^2＝直後に最大→スッと復帰（余韻）。後方へ倒れ・沈み・潰れる squash。
                     // 変位は世界座標なので -_facing 側へ、Rotation は FlipH で見た目が反転するぶん _facing を掛ける。
                     float e = _hitReact / HitReactDur; e *= e;
-                    _sprite.Position += new Vector2(-5f * e * _facing, 1.5f * e);
-                    _sprite.Rotation += -0.32f * e * _facing; // 後ろ（射撃方向と逆）へのけぞる
+                    // ★結び手の「踏みとどまり」（設計書 §2・手触りの本体）：変位と傾きを 0 にする。
+                    //   他ジョブは押し出されて位置を失うが、結び手だけその場に留まる。
+                    //   squash（潰れ）と点滅は残す＝「当たった」という情報自体は落とさない。
+                    float knock = (_game?.JobDef.NoHitKnockback ?? false) ? 0f : 1f;
+                    _sprite.Position += new Vector2(-5f * e * _facing, 1.5f * e) * knock;
+                    _sprite.Rotation += -0.32f * e * _facing * knock; // 後ろ（射撃方向と逆）へのけぞる
                     scl = new Vector2(_baseScaleX * (1f + 0.10f * e), _baseScaleX * (1f - 0.16f * e));
                 }
                 else if (_bombCast > 0f)
@@ -1063,7 +1050,11 @@ public partial class Player : Area2D
         // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
         // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
-        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f))) + FocusFireBonus;
+        // ジョブの基礎威力補正（JobDef.PowerMul）もここへ乗せる＝本体・パネル・雑魚の全経路に同じ係数が届く
+        // （祈り手だけ ×0.8＝4ジョブ最遅。他3ジョブは 1.0 で従来どおり）。下限1は据え置き。
+        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0))
+                                                * (_game?.FollowerPowerMul ?? 1f)
+                                                * (_game?.JobDef.PowerMul ?? 1f))) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -1223,6 +1214,17 @@ public partial class Player : Area2D
     // ───────── 回避（ドッジ）アクション ─────────
     // 入力方向があればその方向へ短い無敵ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵のみ）。
     // クールダウン中・会話中・ゲームオーバー中は不可。
+    // 敵（未浄化）が半径 r 以内に居るか。灯し手の「密着圏に居る間だけ回避CDが縮む」判定に使う。
+    // ボス本体も "enemies" グループに居るので、ボス戦の踏み込みでもそのまま効く。
+    private bool IsNearEnemy(float r)
+    {
+        float r2 = r * r;
+        foreach (Node node in GetTree().GetNodesInGroup("enemies"))
+            if (node is Enemy e && !e.IsPurified && e.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= r2)
+                return true;
+        return false;
+    }
+
     private void TryDodge(Vector2 dir)
     {
         if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;
@@ -1234,8 +1236,16 @@ public partial class Player : Area2D
         _dodgeTimer = DodgeDuration;
         _dodgeInv = DodgeIFrame;
         // 身のこなし強化で CD 短縮・距離延長（i-frame は手触り固定）。GameManager 不在時は基準値。
-        _dodgeCd = _game?.DodgeCooldown ?? DodgeCooldown;
-        _dodgeDist = _game?.DodgeDistance ?? DodgeDistance;
+        // ジョブの回避補正（設計書 §2）。
+        //   ・DodgeCdMul     : 語り手 ×1.15（近づかれたら逃げる手段が薄い）
+        //   ・CloseDodgeCdMul: 灯し手だけ、敵に Jobs.CloseRange(48px) 以内で ×0.75
+        //                      ＝「危険地帯に居るほど抜ける手段が回る」。踏み込んだ瞬間の CD にだけ効く。
+        //   ・DodgeDistMul   : 結び手 ×0.9（避けるのではなく耐える）
+        var jd = _game?.JobDef;
+        float cdMul = (jd?.DodgeCdMul ?? 1f)
+                    * ((jd != null && jd.CloseDodgeCdMul < 1f && IsNearEnemy(Jobs.CloseRange)) ? jd.CloseDodgeCdMul : 1f);
+        _dodgeCd = (_game?.DodgeCooldown ?? DodgeCooldown) * cdMul;
+        _dodgeDist = (_game?.DodgeDistance ?? DodgeDistance) * (jd?.DodgeDistMul ?? 1f);
         DodgeCount++;         // 実行回数を加算（チュートリアルの回避検出用。報酬や挙動には無関係）
         _dodgeGrazeCount = 0; // 回避ごとに報酬カウンタをリセット（Cap=DodgeGrazeCap までが高報酬対象）
         _counterParity = 0;   // 返し光（counter_light）の間引き・上限も回避ごとにリセット
@@ -1552,6 +1562,10 @@ public partial class Player : Area2D
         GameCamera.Instance?.Hitstop(0.09);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.HitFlash();
         _hitReact = HitReactDur; // 体ののけぞり＋squash（練習モード含む＝「痛がった」は常に返す）
+        // QA走行だけ、ジョブの被弾まわりの補正が効いているかをログへ（のけぞり変位0／無敵秒）。
+        if (QaPilot.Verbose && _game != null)
+            GD.Print($"[JOB] {_game.JobDef.Name} hit: knockback={( _game.JobDef.NoHitKnockback ? "0px(踏みとどまり)" : "-5px")} "
+                   + $"invul={_game.JobDef.HitInvulSec:0.0}s lives={Lives}->{Mathf.Max(0, Lives - 1)}/{_game.StartLives}");
 
         // 集中の光（focus_fire）は被弾で霧散＝積み上げた連続ヒットをリセット（練習モードでも同様）。
         _focusTarget = null;
@@ -1629,7 +1643,9 @@ public partial class Player : Area2D
     private void StartInvincible(bool fromHit = false)
     {
         _invincible = true;
-        _invincibleTimer = InvincibleDuration;
+        // 被弾由来の無敵だけジョブ補正を効かせる（結び手 1.2→1.8秒＝連鎖被弾を潰す）。
+        // ボム無敵（fromHit=false）はボム側の設計値なのでジョブでは動かさない。
+        _invincibleTimer = fromHit ? (_game?.JobDef.HitInvulSec ?? InvincibleDuration) : InvincibleDuration;
         _blinkPhase = 0f;
         _hitInvincible = fromHit;
         // 被弾フラッシュ（一瞬非表示にして点滅開始の合図）

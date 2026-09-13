@@ -21,42 +21,44 @@ public partial class GameManager : Node
     //   ★enum は末尾に追加＝Rapid/Spread/Homing の保存値(0/1/2)は不変＝既存セーブと互換。Accel(=3)は
     //     加速球解放ノード(accel_1)購入 or トレーニング中のみ選べる（拡散/ホーミングと同じ「入り口ノード購入で解放」流儀）。
     public enum ShotMode { Rapid, Spread, Homing, Accel }
-    public ShotMode SelectedShotMode = ShotMode.Rapid; // 最後に選んだモード（Save 対象・起動時復元）
-    // トレーニング場（TrainingRoot）が立てる：この間だけ全モードを解放し、V の切替ローテに入れる。
-    public bool TrainingMode;
-    // 拡散/ホーミング/加速球の解放判定は各系統の入り口ノード（spread_1 / homing_1 / accel_1）の所持で決まる（単Lvノード方式）。
-    public bool HasSpread => GetUpgradeLevel("spread_1") >= 1;
-    public bool HasHoming => GetUpgradeLevel("homing_1") >= 1;
-    public bool HasAccel => GetUpgradeLevel("accel_1") >= 1;
-    // 拡散の本数 5→7→9 ／ ホーミングの追尾数 2→3→4（連続所持段数 ChainLevel に対応）。
-    public int SpreadWays => new[] { 0, 5, 7, 9 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
-    public int HomingShots => new[] { 0, 2, 3, 4 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
-    public bool IsModeUnlocked(ShotMode m) => m switch
+    // ★2026-09-13 ジョブ導入：モードはプレイヤーが選ばない「ジョブが決める従属値」になった（設計書 §3）。
+    //   書き込むのは SelectedJob のセッタ（と旧セーブのモード→ジョブ逆引き）だけ。セーブ形式は無変更。
+    public ShotMode SelectedShotMode = ShotMode.Rapid;
+
+    // ───── ジョブ（設計書 §2・ラン単位で固定／ハブで選び直す）─────
+    //   初期選択は結び手(Tank)。セットすると対応モードへ自動同期する＝「型が撃ち方を決める」を
+    //   1箇所で担保し、ジョブとモードが食い違う状態を作らない。
+    private Job _job = Job.Tank;
+    public Job SelectedJob
     {
-        ShotMode.Spread => HasSpread,
-        ShotMode.Homing => HasHoming,
-        // 加速球：加速球解放ノードを購入済みなら通常プレイでも解放（拡散/ホーミングと同流儀）。トレーニング中は全解放。
-        ShotMode.Accel => TrainingMode || HasAccel,
-        _ => true,
-    };
-    // 解放済みモードを循環（連射→拡散→ホーミング→加速球→連射…・未解放はスキップ）。
-    private const int ModeCount = 4;
-    public ShotMode NextUnlockedMode(ShotMode cur)
-    {
-        for (int i = 1; i <= ModeCount; i++)
-        {
-            var m = (ShotMode)(((int)cur + i) % ModeCount);
-            if (IsModeUnlocked(m)) return m;
-        }
-        return ShotMode.Rapid;
+        get => _job;
+        set { _job = value; SelectedShotMode = Jobs.Get(value).Mode; }
     }
+    public JobTuning JobDef => Jobs.Get(_job);
+    // コマンドライン --job=xxx（Main が解決）で固定されたか。true の間はセーブのロードでも上書きしない
+    //   ＝QA走行で「セーブに入っていた別ジョブ」へ戻される事故を防ぐ。デバッグ専用の逃し口。
+    public bool JobForcedByCmdline;
+    // トレーニング場（TrainingRoot）が立てる：この間だけ全ノードを試せる（ジョブ導入後もモード自体はジョブ固定）。
+    public bool TrainingMode;
+    // ★モード「解放」ノードは 2026-09-13 のジョブ導入で解放の意味を失った（モードはジョブが決める＝設計書 §3）。
+    //   そのぶん spread_1 / homing_1 / accel_1 は「その系統の第一段」の効果へ付け替える。
+    //   具体的には各鎖を1段ずらし、未所持(Lv0)＝素の基準値、入り口ノード購入＝旧IIの効果、という形にした。
+    //     拡散の本数  : 5(素) → 7 → 9 → 11
+    //     ホーミング数: 2(素) → 3 → 4 → 5
+    //     加速球      : accel_1 が「威力 +1」（旧 accel_power_1 の効果）を担い、accel_power_* は +2/+3 へ繰り上げ
+    //   ＝「買ったのに何も変わらない」ノードを残さない。既存セーブは所持IDがそのままなので効果だけが強くなる
+    //     （没収ゼロ＝MigrateUpgradesIfLegacy の方針と同じ）。
+    public int SpreadWays => new[] { 5, 7, 9, 11 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
+    public int HomingShots => new[] { 2, 3, 4, 5 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
     public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
     // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
     // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
     // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
     // 恒久強化(max_life/bomb_count、ChainLevel上限+2)を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
-    public int StartLives => BaseLivesFor(Difficulty) + MaxLifeBonus;
+    // ジョブの最大♥増減（結び手 +2 ／ 灯し手 −1）もここへ乗せる＝回復キャップ(Player.AddLife)も同時に追従する。
+    // 下限1：灯し手×Lunatic(基礎2)でも 1 は残す＝「開始即ゲームオーバー」を作らない。
+    public int StartLives => Mathf.Max(1, BaseLivesFor(Difficulty) + MaxLifeBonus + JobDef.MaxLifeDelta);
     public int StartBombs => BaseBombsFor(Difficulty) + BombCountBonus;
     // DiffSelect（難易度選択画面）が「今の選択」ではなく各ティア個別の基礎値を並べて見せられるよう、
     // Difficultyに依存しない静的版を用意（恒久強化ボーナスは含めない＝難易度そのものの賭け金のみ）。
@@ -486,9 +488,9 @@ public partial class GameManager : Node
         new() { Id = "focus_1",       Name = "集中の光I",   Desc = "同じ敵に当て続けて威力 最大+1", MaxLevel = 1, BaseCost = 800,  ParentId = "rapid_power_1" },
         new() { Id = "focus_2",       Name = "集中の光II",  Desc = "同じ敵に当て続けて威力 最大+2", MaxLevel = 1, BaseCost = 1280, ParentId = "focus_1" },
         // ── 拡散系 ──
-        new() { Id = "spread_1",      Name = "拡散展開I",   Desc = "拡散モード解放・5way",     MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
-        new() { Id = "spread_2",      Name = "拡散展開II",  Desc = "拡散 7way",                MaxLevel = 1, BaseCost = 500,  ParentId = "spread_1" },
-        new() { Id = "spread_3",      Name = "拡散展開III", Desc = "拡散 9way",                MaxLevel = 1, BaseCost = 690,  ParentId = "spread_2" },
+        new() { Id = "spread_1",      Name = "拡散展開I",   Desc = "拡散 7way",     MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
+        new() { Id = "spread_2",      Name = "拡散展開II",  Desc = "拡散 9way",                MaxLevel = 1, BaseCost = 500,  ParentId = "spread_1" },
+        new() { Id = "spread_3",      Name = "拡散展開III", Desc = "拡散 11way",                MaxLevel = 1, BaseCost = 690,  ParentId = "spread_2" },
         new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.56",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
         new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.62",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
         new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.35", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
@@ -501,9 +503,9 @@ public partial class GameManager : Node
         new() { Id = "chain_1",       Name = "連鎖の光I",   Desc = "拡散弾が1回跳弾（威力×0.4）", MaxLevel = 1, BaseCost = 800,  ParentId = "fol_gain_2", PrereqId = "spread_2", PrereqLv = 1 },
         new() { Id = "chain_2",       Name = "連鎖の光II",  Desc = "拡散弾が2回跳弾",          MaxLevel = 1, BaseCost = 1280, ParentId = "chain_1" },
         // ── ホーミング系 ──
-        new() { Id = "homing_1",      Name = "誘導の祈りI", Desc = "ホーミングモード解放・2体追尾", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "3体追尾",                 MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
-        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "4体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
+        new() { Id = "homing_1",      Name = "誘導の祈りI", Desc = "3体追尾", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "4体追尾",                 MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
+        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "5体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
         new() { Id = "homing_power_1",Name = "誘導威力I",   Desc = "ホーミング弾の威力 ×0.95", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_1" },
         new() { Id = "homing_power_2",Name = "誘導威力II",  Desc = "ホーミング弾の威力 ×1.05", MaxLevel = 1, BaseCost = 480,  ParentId = "homing_power_1" },
         new() { Id = "homing_rate_1", Name = "誘導速射I",   Desc = "ホーミングの間隔税 ×1.40・旋回200", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_2" },
@@ -511,12 +513,12 @@ public partial class GameManager : Node
         new() { Id = "counter_2",     Name = "返し光II",    Desc = "回避よけした弾を全弾光弾化", MaxLevel = 1, BaseCost = 1280, ParentId = "counter_1" },
         new() { Id = "veil_1",        Name = "祈りの帳I",   Desc = "回避後の弾消し光輪 r20px", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_rate_1", PrereqId = "homing_2", PrereqLv = 1 },
         new() { Id = "veil_2",        Name = "祈りの帳II",  Desc = "弾消し光輪 r28px",         MaxLevel = 1, BaseCost = 1280, ParentId = "veil_1" },
-        // ── 加速球系（ACCEL・独立ストリーム）。入り口 accel_1 でモード解放（拡散/ホーミングと同格の帯）。
+        // ── 加速球系（ACCEL・灯し手の枝）。モードはジョブが決めるので accel_1 は「威力の第一段」へ付け替え済み（§3）。
         //    強化軸は加速球固有のメカニクス：威力／タメ短縮（0.8→0.65→0.5s）／発進速度（640→760）。
         //    親は move_speed_1（homing_1 と同じ流儀）。効果アクセサは AccelPowerBonus/AccelChargeDelay/AccelLaunchSpeed。
-        new() { Id = "accel_1",       Name = "加速球",      Desc = "加速球モード解放・タメて撃つ→ロケット発進", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "accel_power_1", Name = "加速威力I",   Desc = "加速球の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
-        new() { Id = "accel_power_2", Name = "加速威力II",  Desc = "加速球の威力 +2",          MaxLevel = 1, BaseCost = 450,  ParentId = "accel_power_1" },
+        new() { Id = "accel_1",       Name = "加速威力I",   Desc = "加速球の威力 +1", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
+        new() { Id = "accel_power_1", Name = "加速威力II",  Desc = "加速球の威力 +2",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
+        new() { Id = "accel_power_2", Name = "加速威力III", Desc = "加速球の威力 +3",          MaxLevel = 1, BaseCost = 450,  ParentId = "accel_power_1" },
         new() { Id = "accel_charge_1",Name = "速填I",       Desc = "タメ時間 0.65秒",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
         new() { Id = "accel_charge_2",Name = "速填II",      Desc = "タメ時間 0.5秒",           MaxLevel = 1, BaseCost = 420,  ParentId = "accel_charge_1" },
         new() { Id = "accel_speed_1", Name = "推進強化I",   Desc = "発進速度 640→760（ロケット強化）", MaxLevel = 1, BaseCost = 400,  ParentId = "accel_charge_1" },
@@ -727,6 +729,7 @@ public partial class GameManager : Node
         public long Impression;
         public int Followers;
         public ShotMode SelectedShotMode;
+        public Job SelectedJob;
         public Dictionary<string, int> Upgrades = new();
     }
 
@@ -738,6 +741,7 @@ public partial class GameManager : Node
             Impression = Impression,
             Followers = Followers,
             SelectedShotMode = SelectedShotMode,
+            SelectedJob = SelectedJob,
             Upgrades = new Dictionary<string, int>(_upgrades), // 値コピー（各Lvは 0/1 の int）
         };
         return s;
@@ -749,6 +753,7 @@ public partial class GameManager : Node
         if (s == null) return;
         Impression = s.Impression;
         Followers = s.Followers;
+        SelectedJob = s.SelectedJob;      // ジョブ→モードの順（セッタがモードを上書きするため）
         SelectedShotMode = s.SelectedShotMode;
         _upgrades = new Dictionary<string, int>(s.Upgrades);
     }
@@ -804,8 +809,10 @@ public partial class GameManager : Node
     // 連鎖の光：拡散弾の跳弾回数（Lv1=1回・Lv2=2回。威力×0.4は Bullet.TryChain 側）。
     public int ChainLightBounces => ChainLevel("chain", 2);
     // 祈りの帳：回避後の弾消し光輪（半径 r20/28px・持続 0.5/0.7s）。Lv0 は 0＝無効。
-    public float VeilLightRadius => new[] { 0f, 20f, 28f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
-    public float VeilLightDuration => new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
+    // 祈りの帳：未購入(Lv0)は 0＝出ない。★祈り手だけ未購入でも「小さい帳」を常時持つ（設計書 §2）。
+    //   床値（JobDef.VeilFloor*＝r14/0.4s）は Lv1(r20/0.5s)より必ず小さく、Max で床を取るので購入の意味は残る。
+    public float VeilLightRadius => Mathf.Max(JobDef.VeilFloorRadius, new[] { 0f, 20f, 28f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)]);
+    public float VeilLightDuration => Mathf.Max(JobDef.VeilFloorDuration, new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)]);
 
     // ── モード別強化（rapid/spread/homing の威力・間隔）──
     //   Player の各 Fire・modeMul が ChainLevel 経由で参照する。式はショップの効果表記と同期。
@@ -819,7 +826,8 @@ public partial class GameManager : Node
     public float HomingRateMul => Mathf.Max(1.40f, 1.55f - 0.15f * ChainLevel("homing_rate", 1)); // ホーミング間隔税 1.55→1.40
     public int HomingTurnRateOverride => ChainLevel("homing_rate", 1) >= 1 ? 200 : 0; // 誘導速射で旋回200（0=既定150）
     // ── 加速球系（accel_* ノード）。Player.FireAccel が毎発射時に読む＝購入/付け外しで即反映 ──
-    public int AccelPowerBonus => ChainLevel("accel_power", 2);                                   // 加速球の追加威力 +Lv
+    // 加速球の追加威力。accel_1（旧「モード解放」）が第一段＝+1 を担い、accel_power_1/2 が +2/+3 へ繰り上がる（§3）。
+    public int AccelPowerBonus => (GetUpgradeLevel("accel_1") >= 1 ? 1 : 0) + ChainLevel("accel_power", 2);
     public float AccelChargeDelay => new[] { 0.8f, 0.65f, 0.5f }[Mathf.Clamp(ChainLevel("accel_charge", 2), 0, 2)]; // タメ時間（速填で短縮）
     public float AccelLaunchSpeed => GetUpgradeLevel("accel_speed_1") >= 1 ? 760f : 640f;         // 発進速度（推進強化で760）
 
@@ -885,6 +893,8 @@ public partial class GameManager : Node
             ["impression"] = Impression,
             ["followers"] = Followers,
             ["shotmode"] = (int)SelectedShotMode,
+            // ジョブ（ラン単位の選択だが「次に潜るときの既定」としてスロットに残す）。後方互換：キー無し＝結び手。
+            ["job"] = (int)SelectedJob,
         };
         var up = new Godot.Collections.Dictionary();
         foreach (var kv in _upgrades)
@@ -1048,12 +1058,32 @@ public partial class GameManager : Node
             foreach (var v in ids)
                 _idleDialogSeen.Add(v.AsString());
         }
-        // 最後に選んだモードを復元（未解放なら連射へフォールバック＝後方互換）。
-        //   クランプ上限は 3（Accel＝加速球を正当な保存値として許容）。未解放なら下の IsModeUnlocked で Rapid へ落ちる。
-        if (data.ContainsKey("shotmode"))
+        // ジョブの復元（2026-09-13）。モードはジョブが決めるので、ここが唯一の入口になる。
+        //   ・"job" があればそれを採用（範囲外は結び手へクランプ）。
+        //   ・"job" が無い＝ジョブ導入前の既存セーブ。壊さずに読むため、保存されていた "shotmode" から
+        //     対応するジョブを逆引きする（拡散→語り手／ホーミング→祈り手／加速球→灯し手／連射→結び手）。
+        //     "shotmode" も無ければ結び手（初期選択）。
+        //   ・--job=xxx で固定中（JobForcedByCmdline）はセーブに上書きさせない＝QA走行の指定を守る。
+        if (!JobForcedByCmdline)
         {
-            var m = (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 3);
-            SelectedShotMode = IsModeUnlocked(m) ? m : ShotMode.Rapid;
+            if (data.ContainsKey("job"))
+            {
+                int jv = data["job"].AsInt32();
+                SelectedJob = System.Enum.IsDefined(typeof(Job), jv) ? (Job)jv : Job.Tank;
+            }
+            else
+            {
+                var m = data.ContainsKey("shotmode")
+                    ? (ShotMode)Mathf.Clamp(data["shotmode"].AsInt32(), 0, 3)
+                    : ShotMode.Rapid;
+                SelectedJob = m switch
+                {
+                    ShotMode.Spread => Job.Magic,
+                    ShotMode.Homing => Job.Heal,
+                    ShotMode.Accel => Job.Melee,
+                    _ => Job.Tank,
+                };
+            }
         }
         return true;
     }
@@ -1064,7 +1094,9 @@ public partial class GameManager : Node
         Impression = 0;
         Followers = 0;
         _upgrades.Clear();
-        SelectedShotMode = ShotMode.Rapid;
+        // ジョブも初期選択（結び手）へ。SelectedShotMode はセッタが連射へ同期する。
+        //   --job=xxx で固定中は「はじめから」でも指定を守る（QA走行で新規データを作る経路を壊さない）。
+        if (!JobForcedByCmdline) SelectedJob = Job.Tank;
         _midBossCleared.Clear();
         ShopTutorialSeen = false;
         SelectedEntry = StageEntry.Start;
@@ -1204,6 +1236,39 @@ public partial class GameManager : Node
         LoadPrefs();
         LoadReadLog();
 
+        // --job=melee|heal|tank|magic : このランのジョブを強制する（ハブの選択画面ができるまでの入口、
+        //   かつ以後も残すデバッグ機能）。立てると JobForcedByCmdline が立ち、セーブのロードや
+        //   「はじめから」でも上書きされない＝QA走行で指定したジョブのまま最後まで走れる。
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (!a.StartsWith("--job=")) continue;
+            var j = Jobs.Parse(a.Substring(6));
+            if (j.HasValue)
+            {
+                SelectedJob = j.Value;
+                JobForcedByCmdline = true;
+                GD.Print($"[JOB] forced by cmdline: {JobDef.Name}({j.Value}) mode={ShotModeName(SelectedShotMode)}");
+            }
+            else GD.PushWarning($"[JOB] unknown --job value: {a}");
+            break;
+        }
+
+        // --loadslot=N : 起動時にスロット N を読む（検証専用。通常は起動時ロードしない方針＝手動のみ）。
+        //   ジョブ導入後、「ジョブ欄の無い既存セーブを読んでも壊れない」ことをヘッドレスで確かめる口として置く。
+        //   --job= より後に処理する＝JobForcedByCmdline が立っていればロードはジョブを上書きしない。
+        foreach (var a in OS.GetCmdlineUserArgs())
+        {
+            if (!a.StartsWith("--loadslot=")) continue;
+            if (int.TryParse(a.Substring(11), out int slot))
+            {
+                bool ok = LoadFromSlot(slot);
+                GD.Print($"[SAVE] --loadslot={slot} -> {(ok ? "ok" : "FAILED/absent")} "
+                       + $"imp={Impression} fol={Followers} upgrades={_upgrades.Count} "
+                       + $"job={JobDef.Name}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives}");
+            }
+            break;
+        }
+
         // 検証専用：--seed-records でダミーのクリアタイムをメモリに注入（記録画面/カードの確認用）。
         // セーブには一切書かない（手動セーブしない限り消える）＝本番フロー/既存スロットを汚さない。
         foreach (var a in OS.GetCmdlineUserArgs())
@@ -1313,9 +1378,46 @@ public partial class GameManager : Node
             Score += basePoints * Mathf.Max(1, Combo);
         }
         PurifiedCount++;
+        TickPurifyDrain();
         // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
         if (rewarded)
             GainImpression(2 + Combo);
+    }
+
+    // ───── 祈り手（Heal）の浄化ドレイン（設計書 §2）─────
+    //   雑魚を DrainPerLife 体（=24）浄化するごとに ♥+1。ボム由来の浄化も数える
+    //   （ボムは既にボムキャップで報酬が絞られており、ここまで塞ぐと回復の入口が細くなりすぎる）。
+    //   ★満タン時はカウンタを進めない：「満タンのうちに貯めておいて、削られてから一気に戻す」
+    //     という最適化を潰すため（設計書の明示要求）。AddLife が false を返した＝増えなかった場合も
+    //     同じ扱いにすると「上限で捨てた1回」を数えたことになるので、先に満タン判定で弾く。
+    private int _purifyDrain;
+    public int PurifyDrainCount => _purifyDrain;   // HUD/デバッグ表示用（現在の貯まり）
+    private void TickPurifyDrain()
+    {
+        int need = JobDef.DrainPerLife;
+        if (need <= 0) return;
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        if (player == null) return;
+        if (player.Lives >= StartLives) return;   // 満タン＝カウンタを進めない
+        if (++_purifyDrain < need) return;
+        _purifyDrain = 0;
+        if (player.AddLife(1))
+        {
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("♥ +1");
+            GD.Print($"[JOB] heal drain: ♥+1 (every {need} purified, lives={player.Lives}/{StartLives})");
+        }
+    }
+
+    // ───── 祈り手（Heal）の BREAK 報酬（設計書 §2）─────
+    //   盾を剥がし切って BREAK が成立するたび BOMB+1。上限（StartBombs）は超えない＝
+    //   中ボス撃破報酬（RewardCameoDefeat）と同じ作法。他ジョブでは何も起きない。
+    public void NotifyBossBreak()
+    {
+        if (!JobDef.BombOnBreak) return;
+        if (Bombs >= StartBombs) return;
+        Bombs = Mathf.Min(StartBombs, Bombs + 1);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("BOMB +1");
+        GD.Print($"[JOB] heal break: BOMB+1 (bombs={Bombs}/{StartBombs})");
     }
 
     // 敵弾をかすった（グレイズ）時の加点。
@@ -1402,6 +1504,7 @@ public partial class GameManager : Node
         Bombs = StartBombs;
         _bombPurifyCount = 0;
         PurifiedCount = 0;
+        _purifyDrain = 0;     // 祈り手の浄化ドレインもラン単位（面を跨いで持ち越さない）
         RunHitCount = 0;      // 被弾回数（ハブ帰還の「被弾は{n}回」）もラン単位
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）

@@ -109,8 +109,9 @@ public partial class TrainingRoot : Node2D
             _game.ResetRun();                // Bombs 満タン等（Impression/_upgrades/Followers には触れない）
             _game.TrainingSetAllUpgrades(true);        // 既定は全解放＝撃ち味の全開から始めて外して比べる
             _game.TrainingSetImpression(999_999_999);  // 表示上は実質無限（購入では減らさない運用）
-            _game.TrainingMode = true;                 // 加速球モードを解放＝V の切替ローテに入れる（トレーニング中のみ）
-            _game.SelectedShotMode = GameManager.ShotMode.Rapid;
+            _game.TrainingMode = true;                 // 試し打ち中フラグ（退場時に RestoreMeta で元へ戻す）
+            // 撃ち方はジョブが決めるので、モードを直に書かずジョブを置く（結び手＝連射。退場時に復元される）。
+            _game.SelectedJob = Job.Tank;
             _game.SetContamination(0f);
             if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         }

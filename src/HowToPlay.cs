@@ -108,7 +108,6 @@ public partial class HowToCanvas : Node2D
     private static string TokLock  => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder) : "F / 左クリック";
     private static string TokDodge => Pad.UsingPad ? "L3"                             : "Alt / 右クリック"; // 回避ダッシュ：Player.cs LeftStick / マウス右クリック
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokMode  => Pad.UsingPad ? Pad.Face(JoyButton.B)            : "V";          // ショット切替：Player.cs JoyButton.B
     private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
 
     public override void _Draw()
@@ -167,7 +166,6 @@ public partial class HowToCanvas : Node2D
             (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
             // 回避の右クリックはロック解除も兼ねる（Player.TickLockOn）。説明は下のロックオン行に置く。
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
-            (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),
             (TokLock,  "ロックオン",  "押すたび近い敵から順に狙う。右クリックで解除。移動は少し遅くなる", UiKit.Purify, true),
             (TokMenu,  "メニュー",    "セーブ・音量・つづける",                       UiKit.Text2,  false),
         };

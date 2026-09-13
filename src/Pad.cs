@@ -102,11 +102,9 @@ public static class Pad
     //   Cancel  … X(KB) / B(パッド＝×・もどる/キャンセル)
     //   Equip   … C(KB) / Y(パッド＝△・装備/サブ操作)
     //   Bomb    … X(KB) / X(パッド＝□)
-    //   ModeSw  … V(KB) / B(パッド) … HUD のモード切替（TokMode/AllMode）に使用
     public static string CancelToken => ShowKeyboard ? "X" : Face(JoyButton.B);
     public static string EquipToken  => ShowKeyboard ? "C" : Face(JoyButton.Y);
     public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);
-    public static string ModeToken   => ShowKeyboard ? "V" : Face(JoyButton.B);
     // Flip … F(KB) / RB(パッド＝R1)。射撃方向を右⇔左にトグルする向き反転ボタン。
     public static string FlipToken   => ShowKeyboard ? "F" : Face(JoyButton.RightShoulder);
     // 移動（方向）。キーボードは矢印、パッドは左スティック表記。
