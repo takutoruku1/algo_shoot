@@ -546,8 +546,8 @@ public partial class Shop : Node2D
                 string aft = "連射3線・拡散7way・追尾3発";
                 return (now, aft);
             }
-            case "n_move_15x":  return ("移動 75（低速 33）", "移動 112（低速 33のまま）");
-            case "n_slow":      return ("集中モードは使えない", "V で敵の時間だけ ×0.35 を1.5秒（CD20秒）");
+            case "n_move_15x":  return ("移動 75", "移動 112");
+            case "n_slow":      return ("集中モードは使えない", "V / ホイール / LB で敵の時間だけ ×0.35 を1.5秒（CD20秒）");
             case "n_rate_2x":   return ("発射間隔 ×1.0", "発射間隔 ×0.5");
             case "n_pierce":    return ("弾は1体で消える", "どの撃ち方でも 敵1体を貫く");
             case "n_option":    return ("おともの光 なし", "おともの光 1基（威力×0.5で同時射撃）");

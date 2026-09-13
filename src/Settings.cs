@@ -89,14 +89,16 @@ public partial class Settings : Node2D
         gp.Items.Add(Toggle("autosave", "オートセーブ", true, "クリア・帰還時に自動保存"));
 
         var ctrl = C("controls", "操作", "Controls");
-        // 操作表示モード：ヒント/ボタン表記の既定（0=キーボード / 1=PlayStation / 2=Xbox。inputdisplay と一致）。
-        // KB⇔パッドの出し分けは直近デバイスへ自動追従し、ここはパッド時の表記スタイル（PS/Xbox）と初期値を決める。
-        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "PlayStation", "Xbox" }, 0, "パッド時の表記（KB⇔パッドは自動切替）"));
+        // 操作表示モード：起動直後（まだ何も触っていない状態）にどちらの表記でヒントを出すかの初期値。
+        // 触った瞬間から直近デバイスへ自動追従する。パッド表記は Xbox 基準に一本化（2026-09-13）＝
+        // PlayStation の選択肢は廃止し、旧セーブの値(1)は「コントローラー」へ合流する。
+        ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "コントローラー" }, 0, "起動直後の表記（以降は自動切替）"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
         ctrl.Items.Add(Keys("shot", "ショット", new[] { "オート" }, "自動で撃ちます（操作不要）"));
+        ctrl.Items.Add(Keys("lock", "ロックオン送り", new[] { "F" }, "左クリック短押しでも。長押しは溜め打ち"));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
-        ctrl.Items.Add(Keys("slow", "低速移動", new[] { "Shift" }, "判定を見ながら避ける"));
         ctrl.Items.Add(Keys("dodge", "回避", new[] { "Alt" }, "一瞬無敵で弾を抜ける"));
+        ctrl.Items.Add(Keys("focus", "集中モード", new[] { "V" }, "ホイール／サイドボタン／LB でも"));
         ctrl.Items.Add(Keys("pause", "ポーズ", new[] { "Esc" }));
 
         var a11y = C("a11y", "アクセシビリティ", "Accessibility");
@@ -343,10 +345,10 @@ public partial class Settings : Node2D
                 if (!_initializing)
                     DisplayServer.WindowSetMode(d.I == 1 ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;
-            // 操作表示モード（0=キーボード / 1=PlayStation / 2=Xbox）。HUD の操作ガイドへ即反映。
-            // 旧 padstyle(0=Xbox/1=PS) は Pad 側で後方互換に読むだけ（このセグメントが上書きする）。
+            // 操作表示モード。セグメントは 0=キーボード / 1=コントローラー の2値になった（Xbox 一本化）。
+            // 保存キー inputdisplay は 0=KB / 2=Xbox を書く（旧値 1=PS も読み込み側で Xbox 扱いに合流）。
             case "inputdisplay":
-                Pad.Display = Pad.IntToDisplay(d.I); // 0/1/2 → Keyboard/PS/Xbox
+                Pad.Display = d.I <= 0 ? Pad.DisplayMode.Keyboard : Pad.DisplayMode.PadXbox;
                 break;
         }
     }
@@ -379,12 +381,15 @@ public partial class Settings : Node2D
             else if (d.Type == SType.Toggle) d.B = data[d.Key].AsBool();
             else if (d.Type == SType.Segment) d.I = data[d.Key].AsInt32();
         }
-        // 操作表示モードが未保存（旧データ）なら、起動時に復元済みの Pad.Display を反映して
-        // セグメントの初期値が実態とズレないようにする（Auto のときは Xbox 表示に寄せる）。
-        if (!data.ContainsKey("inputdisplay"))
-            foreach (var c in _cats) foreach (var d in c.Items)
-                if (d.Key == "inputdisplay")
-                    d.I = Pad.Display == Pad.DisplayMode.Auto ? 2 : Pad.DisplayToInt(Pad.Display);
+        // 操作表示モードのセグメントは 0=キーボード / 1=コントローラー の2値。
+        //   ・未保存（旧データ）なら起動時に復元済みの Pad.Display から初期値を決める。
+        //   ・保存済みでも旧3値（1=PS / 2=Xbox）が入っていることがあるので 0/1 へ丸める＝
+        //     選択肢の範囲外を指したまま描かない（Xbox 一本化でどちらも「コントローラー」に合流）。
+        foreach (var c in _cats) foreach (var d in c.Items)
+            if (d.Key == "inputdisplay")
+                d.I = data.ContainsKey("inputdisplay")
+                    ? (d.I <= 0 ? 0 : 1)
+                    : (Pad.Display == Pad.DisplayMode.Keyboard ? 0 : 1);
     }
 
     // ───────── 描画（設計座標 1280×720）─────────
@@ -553,9 +558,10 @@ public partial class Settings : Node2D
         }
     }
 
-    // 操作キーバインド行の表記を、操作表示モード(Pad.Display)に従って解決する。
-    // KB 表示時は従来どおりキーボードキー（移動=矢印、ショット=Z…）。
-    // パッド表示時は Pad.Face で物理 JoyButton を Xbox/PS 表記に出し分ける（物理マッピングは不変・表記のみ）。
+    // 操作キーバインド行の表記を、直近デバイス（Pad.ShowKeyboard）に従って解決する。
+    // KB 表示時は従来どおりキーボードキー（移動=矢印、ショット=オート…）。
+    // パッド表示時は Pad.Face で物理 JoyButton を Xbox 表記へ（物理マッピングは不変・表記のみ）。
+    //   ※"slow"（低速移動）は 2026-09-13 に機能ごと廃止＝行が存在しない。
     private static string[] KeyTokens(string rowKey)
     {
         if (Pad.ShowKeyboard)
@@ -563,20 +569,22 @@ public partial class Settings : Node2D
             {
                 "move"  => new[] { "↑", "↓", "←", "→" },
                 "shot"  => new[] { "オート" },   // 射撃ボタンは廃止（常時オート発射）
+                "lock"  => new[] { "F" },
                 "bomb"  => new[] { "X" },
-                "slow"  => new[] { "Shift" },
                 "dodge" => new[] { "Alt" },
+                "focus" => new[] { "V" },
                 "pause" => new[] { "Esc" },
                 _       => System.Array.Empty<string>(),
             };
-        // パッド表記（Pad.Style に従い Xbox/PS）。Player.cs の入力判定と一致させる。
+        // パッド表記（Xbox 基準）。Player.cs の入力判定と一致させる。
         return rowKey switch
         {
             "move"  => new[] { "L" },                                    // 左スティック
             "shot"  => new[] { "オート" },                               // 射撃ボタンは廃止（常時オート発射）
+            "lock"  => new[] { Pad.Face(JoyButton.RightShoulder) },
             "bomb"  => new[] { Pad.Face(JoyButton.X) },
-            "slow"  => new[] { Pad.Face(JoyButton.LeftShoulder), Pad.Face(JoyButton.RightShoulder) },
             "dodge" => new[] { Pad.Face(JoyButton.LeftStick) },
+            "focus" => new[] { Pad.Face(JoyButton.LeftShoulder) },
             "pause" => new[] { Pad.Face(JoyButton.Start) },
             _       => System.Array.Empty<string>(),
         };

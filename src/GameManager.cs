@@ -550,7 +550,7 @@ public partial class GameManager : Node
         new() { Id = "n_charge",   Name = "溜め打ちを覚える",      Desc = "溜めて放つ大玉（威力×4）",              MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
         new() { Id = "n_lines",    Name = "弾の線 +1本",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
-        new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "通常移動が1.5倍速くなる（低速は不変）", MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
+        new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
         new() { Id = "n_slow",     Name = "集中モードを覚える",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
         new() { Id = "n_rate_2x",  Name = "連射速度 2倍",          Desc = "発射間隔が半分になる",                  MaxLevel = 1, BaseCost = 3000, ParentId = "n_slow" },
         new() { Id = "n_pierce",   Name = "弾が敵をつらぬく",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_rate_2x" },
@@ -814,7 +814,7 @@ public partial class GameManager : Node
     public int ShotPowerMul => Has("n_power_2x") ? 2 : 1;
     // #11 連射速度2倍＝発射間隔 ×0.5。炎上による間隔弱体は撤廃した（収入0.6倍だけが罰）。
     public float FireIntervalMul => Has("n_rate_2x") ? 0.5f : 1f;
-    // #9 移動速度1.5倍（通常移動のみ。低速33は Player 側で据え置き）。炎上による移動弱体も撤廃。
+    // #9 移動速度1.5倍（低速移動の廃止＝2026-09-13 により、速度は1本になった）。炎上による移動弱体も撤廃。
     public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
     // #7 当たり判定 半分（HitRadius 2.0px → 1.0px）。
     public float HitRadiusMul => Has("n_hitbox") ? 0.5f : 1f;

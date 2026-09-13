@@ -210,7 +210,10 @@ public partial class Hud : CanvasLayer
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "C"; // 溜め打ち（長押し）
-    private static string TokFocus  => "V";                                                   // 集中モード（キーボードのみ）
+    // 集中モード：V / パッド LB / マウスのホイール回転・サイドボタン（Player.cs の判定と一致させる）。
+    // 単体チップは代表1表記なので、直近デバイスに合わせて1つだけ出す（マウス時は KB 表記へ落ちないよう明示）。
+    private static string TokFocus  => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
+                                     : Pad.UsingMouse ? "ホイール" : "V";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
@@ -219,8 +222,7 @@ public partial class Hud : CanvasLayer
     //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
-    // 低速はパッドでは LB のみ（RB は向き反転へ割り当てたため。Player.cs の判定と一致させる）。
-    private static string AllFocus => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) : "Shift";
+    // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
@@ -1196,7 +1198,6 @@ public partial class Hud : CanvasLayer
         {
             "move"  => ("移動",       AllMove,  UiKit.Info),
             "shot"  => ("撃つ",       AllShot,  UiKit.Purify),   // 浄化ステップも板を“撃って”祓う＝ショット表記
-            "focus" => ("低速",       AllFocus, UiKit.Info),
             "dodge" => ("回避",       AllDodge, UiKit.Gold),
             "bomb"  => ("ボム",       AllBomb,  UiKit.Mina),
             _       => ("",           "",       UiKit.White),

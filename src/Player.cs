@@ -2,16 +2,17 @@ using Godot;
 using System.Collections.Generic;
 
 // Player : Area2D。グループ "player" に追加。
-// 移動(通常75 / 低速33 px/s)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
+// 移動(75 px/s 一定)、連射(Pool経由・右方向+360・上下2way)、被弾無敵点滅、TakeHit、Lives。
 // W0 では残機を減らさず「練習中」扱い（ゲームオーバーにしない）。
 // 衝突: layer=1, mask=12（敵=4 と 敵弾=8 を検出）。
 // 当たり判定は半径2px の極小（胸の紫十字相当）。可視ヒットボックス点は子ノード PlayerHitDot が絵より前に描く。
 public partial class Player : Area2D
 {
     // 速度（2026-09-08 ユーザー指示で基本移動を半減：150→75）。
-    //   低速も同率で落とす（65→33）。片方だけ下げると通常と低速の差が消えて低速の意味が無くなる。
+    //   ★低速移動（Shift / パッド L1）は 2026-09-13 ユーザー決定で廃止＝速度はこの1本だけ。
+    //     基本移動そのものが既に遅く、低速は「遅いものをさらに遅くする」だけで手触りを損ねていた。
+    //     空いた L1 は集中モードへ回した（下の集中モード入力を参照）。
     private const float NormalSpeed = 75f;
-    private const float FocusSpeed = 33f;
 
     // 連射
     private const float FireInterval = 0.13f;
@@ -151,15 +152,13 @@ public partial class Player : Area2D
     private Sprite2D _sprite = null!;
     private bool _hasTexture = false;
 
-    private bool _focus = false; // 低速（Shift）中か。ヒットボックス強調表示に使う。
-
     // ───────── マウス操作（キーボード/パッドへ純粋に追加）─────────
     // 弾幕STG標準のカーソル追従。直近デバイスがマウスのとき（Pad.UsingMouse）だけ有効＝
     // キーボード/パッドを触った瞬間に Pad 側で false へ落ちるので、カーソルが画面内にあっても引っ張られない。
-    // 追従は瞬間移動だとワープして見えるので指数補間。ただし「張り付く」速さに置き、
-    // 低速(Shift)中は係数を落として精密よけを許す。到達速度は既存の移動速度上限で頭打ちにする。
-    private const float MouseFollowResponse = 26f;      // 通常の追従の速さ(1/s)。実質カーソルに張り付く
-    private const float MouseFollowResponseFocus = 12f; // 低速時：ゆっくり寄る＝精密よけ用
+    // 追従は瞬間移動だとワープして見えるので指数補間。ただし「張り付く」速さに置く。
+    // 到達速度は既存の移動速度上限で頭打ちにする。
+    //（低速時に係数を落とす分岐は、低速移動の廃止＝2026-09-13 に一緒に撤去した）
+    private const float MouseFollowResponse = 26f;      // 追従の速さ(1/s)。実質カーソルに張り付く
     private const float MouseSnapDist = 0.6f;           // この距離まで詰めたら吸着（微振動を止める）
 
     // 「今かすった」を自機の絵の発光で一瞬返す残光（1→0 へ減衰）。FxLayer.Graze の閃光と併用。
@@ -208,7 +207,6 @@ public partial class Player : Area2D
     private static readonly float BankY = Mathf.DegToRad(13f); // 上下（縦移動）のバンク
     private const float LeadPx = 2.5f;        // 進行方向への体の先行量(px)
     private const float LeanResponse = 9f;    // 慣性の追従の速さ（大きいほど機敏／小さいほどたゆたう）
-    private const float FocusLeanMul = 0.45f; // 低速(Shift)時はバンクを抑える＝丁寧さを画で見せる
 
     // ───────── 向き（射撃方向）─────────
     // 入力＝F / パッド RB。押すたびに右(+X)⇔左(-X) をトグルする（押しっぱなし不要）。
@@ -251,6 +249,18 @@ public partial class Player : Area2D
     private bool _locked;                     // ロックオン中か
     private bool _lockHeld = true;            // 送りのエッジ検出（_flipHeld と同じ理由で true 始まり）
     private bool _mouseLockLocked = false;    // 会話送りのクリックが会話明けにロック送りへ流れ込むのを止めるゲート（離すまで送らない）
+
+    // ── 左クリックの短押し／長押し分岐（2026-09-13 ユーザー決定）──
+    //   短押し（MouseTapMax 未満で離す）＝ロックオン送り。従来は押下エッジで送っていたが、
+    //   長押しを溜め打ちに使うため「離した瞬間に送る」へ変えた（この 0.25 秒の遅れは許容と決定済み）。
+    //   長押し（MouseTapMax 以上）＝溜め打ちのチャージ開始。充填の時計は Cキーと同じ ChargeNeed だが、
+    //   数え始めは**押下した瞬間**＝0.25 秒ぶんの体感の遅れを作らない（押しっぱなし 0.6 秒で完了）。
+    //   完了前（0.25〜0.6 秒）に離したら何も起きない＝ロック送りもしない（暴発させない）。
+    private const float MouseTapMax = 0.25f;  // これ未満で離せば「短押し」＝ロックオン送り
+    private float _mouseHoldT;                // 有効な左クリックを押し続けている秒（0＝押していない）
+    private bool _mouseHoldValid;             // この押下がゲームプレイ入力として有効か（会話明けの持ち越しでない）
+    private bool _mouseTapFire;               // このフレームに短押し解放が確定したか（TickLockOn が1回だけ読む）
+    private bool _mouseChargeHold;            // このフレーム、左クリック長押しをチャージ入力として扱うか
     private bool _lockClearHeld = true;       // 解除（右クリック）のエッジ検出。回避と同じ理由で true 始まり
     private Node2D? _lockTarget;              // 現在のロック先（雑魚・中ボス・ボスのいずれか）
     public bool LockedOn => _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
@@ -363,8 +373,43 @@ public partial class Player : Area2D
         return true;
     }
 
+    // 左クリックの押し続け時間を計り、短押し（ロック送り）と長押し（溜め打ち）に振り分ける。
+    //   TickLockOn と溜め打ちブロックの**両方**がこの結果を読むので、どちらより先に必ず1回だけ呼ぶ。
+    //   ゲート（会話中／ゲームオーバー／向き反転が左クリックを握っているとき）は従来の _mouseLockLocked の
+    //   作法をそのまま使う＝会話中に押されたクリックは、離すまでゲームプレイ入力として起きてこない。
+    private void TickMouseHold(float dt)
+    {
+        bool down = !FacingFlipEnabled && Pad.MouseDown();
+        // 会話中に押されたクリックは、離すまで丸ごと無効（会話明けの1クリックが誤爆するのを止める）。
+        if (Hud.BubblePaused && down) _mouseLockLocked = true;
+        else if (!down) _mouseLockLocked = false;
+        bool live = down && !_mouseLockLocked && !Hud.BubblePaused && !_gameOver;
+
+        if (live)
+        {
+            // 押下の立ち上がりで計時を始める。以降は押し続けている限り積む。
+            if (!_mouseHoldValid) { _mouseHoldValid = true; _mouseHoldT = 0f; }
+            _mouseHoldT += dt;
+        }
+        else if (_mouseHoldValid)
+        {
+            // 離した（または途中で無効化された）エッジ。短押しだけがロック送りになる。
+            // 長押しの解放は溜め打ち側（_chargeHeld の解放エッジ）が撃つので、ここでは何もしない。
+            //   ★溜め打ちを**まだ持っていない**あいだは長押しの行き先が無い＝押しっぱなしにすると
+            //     ロック送りごと死んでしまう。未取得のうちは長さを問わず従来どおり送る。
+            bool tap = _mouseHoldT < MouseTapMax || !(_game?.HasChargeShot ?? false);
+            if (tap && !Hud.BubblePaused && !_gameOver) _mouseTapFire = true;
+            _mouseHoldValid = false;
+            _mouseHoldT = 0f;
+        }
+
+        // 長押しがしきいを越えたら、このフレームは溜め打ちの押下入力として扱う。
+        // ※充填の時計（_chargeT）は押下起点で数えるので、下の溜め打ちブロックが _mouseHoldT を直接読む。
+        _mouseChargeHold = _mouseHoldValid && _mouseHoldT >= MouseTapMax;
+    }
+
     // ロックの送り／解除と対象の維持。
-    //   送り（左クリック / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
+    //   送り（左クリック短押し / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
     //   解除（右クリック）＝ 回避と同じボタン。ロックを外すだけ（回避は別経路で同時に出る）。
     private void TickLockOn()
     {
@@ -385,18 +430,13 @@ public partial class Player : Area2D
         }
         _lockClearHeld = clearKey;
 
-        // ── 送り入力＝左クリック / F / パッド R1 ──
-        // 左クリックは会話送り（Pad.AdvanceHeld）と兼用なので、会話中に押されていたクリックは
-        // 離すまでロック送りに使わない（会話明けの1クリックが誤爆するのを止める。_mouseFlipLocked と同手口）。
-        // 向き反転が復活しているあいだ（FacingFlipEnabled=true）は左クリックがそちらの持ち物なので、
-        // ロック送りはマウスから外して F / R1 だけにする＝1クリックで反転とロックが同時に走らない。
-        bool mouseL = !FacingFlipEnabled && Pad.MouseDown();
-        if (Hud.BubblePaused && mouseL) _mouseLockLocked = true;
-        else if (!mouseL) _mouseLockLocked = false;
-        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder)
-                   || (mouseL && !_mouseLockLocked);
-        bool edge = key && !_lockHeld;
+        // ── 送り入力＝左クリック（短押し）/ F / パッド R1 ──
+        // 左クリックは TickMouseHold が短押し／長押しに振り分けたうえで、短押しの解放フレームにだけ
+        // _mouseTapFire を立てる（長押しは溜め打ちへ行き、ここには来ない）。F / R1 は従来どおり押下エッジ。
+        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
+        bool edge = (key && !_lockHeld) || _mouseTapFire;
         _lockHeld = key;
+        _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
         if (!edge || Hud.BubblePaused || _gameOver) return;
 
         // ── 候補を自機からの距離順に並べ、「今の対象の次」を取る ──
@@ -658,24 +698,19 @@ public partial class Player : Area2D
             if (wasd != Vector2.Zero) dir = wasd;
             dir = dir.LimitLength(1f);
         }
-        // 低速＝Shift / 肩ボタン(L1)。※RB(R1) は向き反転へ割り当てたため低速からは外した
-        // （パッドの空きボタンが他に無く、RB は LB と同機能の重複割り当てだったため）。
-        bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder);
-        _focus = focus;
-        // 機動力強化で移動速度UP。低速（Focus）には乗せない：精密回避の速度は“調整済みの手触り”で、
-        // 強化が乗ると細かい避けがかえって難しくなる（強化の逆効果）ため、通常速度だけを伸ばす。
-        // ジョブの移動補正（結び手のみ ×0.88＝「避けるのではなく耐える」）は低速側にも同率で掛ける。
-        //   強化(MoveSpeedMul)を通常のみに乗せるのは上のとおりだが、ジョブは「その型の足の速さ」そのもの
-        //   なので片方だけに効かせると低速時だけ結び手が速い、という食い違いが出る。
+        // 速度は1本（低速移動は 2026-09-13 に廃止）。機動力強化(MoveSpeedMul)と
+        // ジョブの移動補正（結び手のみ ×0.88＝「避けるのではなく耐える」）を素の速度に乗せる。
         float jobMove = _game?.JobDef.MoveMul ?? 1f;
-        float speed = (focus ? FocusSpeed : NormalSpeed * (_game?.MoveSpeedMul ?? 1f)) * jobMove;
-        // ロックオン中は足を重くする＝照準を任せるあいだの対価（低速にも同じ率で掛ける）。
+        float speed = NormalSpeed * (_game?.MoveSpeedMul ?? 1f) * jobMove;
+        // ロックオン中は足を重くする＝照準を任せるあいだの対価。
+        // 左クリックの短押し／長押し判定は、それを読む TickLockOn・溜め打ちより必ず先に1回だけ回す。
+        TickMouseHold(dt);
         TickLockOn();
         if (LockedOn) speed *= LockMoveMul;
 
         // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
-        // マウス時は右クリックが回避（低速は Shift のまま＝マウス側には割り当てない）。
+        // マウス時は右クリックが回避。
         // 右クリックは**回避とロック解除を兼ねる**（2026-09-08 ユーザー指示。両方が同時に起きてよい）。
         // 解除そのものは TickLockOn 側で拾う＝ここは回避だけを見る。
         bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick)
@@ -732,8 +767,7 @@ public partial class Player : Area2D
             target.X = Mathf.Clamp(target.X, MinX, MaxX);
             target.Y = Mathf.Clamp(target.Y, MinY, MaxY);
             Vector2 to = target - GlobalPosition;
-            float resp = focus ? MouseFollowResponseFocus : MouseFollowResponse;
-            Vector2 step = to * (1f - Mathf.Exp(-resp * dt));
+            Vector2 step = to * (1f - Mathf.Exp(-MouseFollowResponse * dt));
             step = step.LimitLength(speed * dt);
             pos = to.Length() <= MouseSnapDist ? target : GlobalPosition + step;
             // バンク（体の傾き）は KB/パッドと同じく「進行方向の強さ」で駆動する＝マウスでも姿勢が付いてくる。
@@ -823,14 +857,20 @@ public partial class Player : Area2D
             TryBomb();
         _bombHeld = bombKey;
 
-        // 溜め打ち（C / パッドY 長押し）：#6「溜め打ちを覚える」を持っているあいだだけ。
+        // 溜め打ち（C / パッドY 長押し、または左クリック長押し）：#6「溜め打ちを覚える」を持っているあいだだけ。
         //   押しているあいだ _chargeT を積み、ChargeNeed に届いてから離すと大玉が出る。
         //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
-        bool chargeKey = (_game?.HasChargeShot ?? false)
-                         && (Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y));
+        //   左クリック（_mouseChargeHold）だけは充填の起点が違う：短押し判定の 0.25 秒が過ぎてから
+        //   数え始めると、Cキーより 0.25 秒ぶん遅れて完了して手触りが噛み合わない。押下からの経過
+        //   （_mouseHoldT）をそのまま充填時間に使う＝**押しっぱなし 0.6 秒で完了**でキーと揃う。
+        bool chargeHas = _game?.HasChargeShot ?? false;
+        bool chargeKeyRaw = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
+        bool chargeKey = chargeHas && (chargeKeyRaw || _mouseChargeHold);
         if (chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f)
         {
-            _chargeT += dt;
+            // キーとマウスを同時に握っていたら、進んでいるほうを採る（どちらか一方でも完了させる）。
+            if (chargeKeyRaw) _chargeT += dt;
+            if (_mouseChargeHold) _chargeT = Mathf.Max(_chargeT, _mouseHoldT);
         }
         else if (_chargeHeld)
         {
@@ -841,11 +881,19 @@ public partial class Player : Area2D
         else _chargeT = 0f;
         _chargeHeld = chargeKey;
 
-        // 集中モード（V）：#10「集中モードを覚える」。敵側の時間だけ ×0.35 に落とす（1.5秒・CD20秒）。
+        // 集中モード（V / マウスのホイール回転・サイドボタン / パッド L1）：#10「集中モードを覚える」。
+        //   敵側の時間だけ ×0.35 に落とす（1.5秒・CD20秒）。
         //   時計は実時間で送る＝自機側の delta。Engine.TimeScale は触らない（GameManager.EnemyTimeScale 参照）。
+        //   L1 は低速移動の廃止（2026-09-13）で空いた枠。ホイールは戦闘中これまで未使用だった
+        //   （ショット切替はジョブ導入で廃止済み）。サイドボタンは XButton1/2 の両方を拾う。
         _game?.TickFocusMode(dt);
-        bool focusKey = Input.IsKeyPressed(Key.V);
-        if (focusKey && !_focusModeHeld && !Hud.BubblePaused && !_gameOver)
+        bool focusKey = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.LeftShoulder)
+                        || Pad.MouseSideDown();
+        bool focusEdge = focusKey && !_focusModeHeld;
+        // ホイールは押下状態を持たない＝1回転ぶんのパルス。読んだ時点でラッチを落とす（連続発動しない）。
+        //   会話中／ゲームオーバー中も必ず消費して、溜めた回転が明けた瞬間に暴発するのを防ぐ。
+        bool wheelTurn = Pad.ConsumeWheelTurn();
+        if ((focusEdge || wheelTurn) && !Hud.BubblePaused && !_gameOver)
         {
             if (_game?.TryFocusMode() ?? false)
             {
@@ -959,7 +1007,6 @@ public partial class Player : Area2D
         _lean = _lean.Lerp(dir, 1f - Mathf.Exp(-LeanResponse * dt));
         if (_hasTexture && _sprite != null)
         {
-            float leanMul = _focus ? FocusLeanMul : 1f;
             float bobY = Mathf.Sin(_bobTime * BobSpeed) * BobAmp;
             // 向き反転（★#4 改訂）：左向き(_facing<0)ならスプライトを左右反転して顔と銃口を射撃方向へ向ける。
             // 回避スピン中は ApplySpinFrame が FlipH を「回転フレームの流用」として握るので、ここでは触らず、
@@ -988,12 +1035,12 @@ public partial class Player : Area2D
                 if (_aimNow.Length > 0 && AimTexture(_aimNow) != null) _sprite.FlipH = flip;
             }
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
-            _sprite.Position = new Vector2(_lean.X * LeadPx * leanMul, bobY + _lean.Y * LeadPx * leanMul);
+            _sprite.Position = new Vector2(_lean.X * LeadPx, bobY + _lean.Y * LeadPx);
             // 前傾＋バンク：射撃方向への移動で前へ、上下移動で機首を振る（前進は深く・後退は浅い非対称バンク）。
             // 左向き時はスプライトが FlipH で反転する＝Rotation の見た目も左右反転するので、
             // 傾き角そのものに _facing を掛けて打ち消し、「進行方向へ倒れる」画を両向きで保つ。
             float bankX = _lean.X * _facing >= 0f ? BankXFwd : BankXBack; // 前後は「向きから見て」判定する
-            _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * leanMul * _facing;
+            _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * _facing;
             // 指さし中＋戻りの余韻：ミナの方（右）へほんの少し前傾＋先行して「見据える」勢いを足す。
             if (_pointActive || _pointSettle > 0f)
             {

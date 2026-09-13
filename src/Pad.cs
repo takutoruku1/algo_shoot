@@ -2,7 +2,7 @@ using Godot;
 
 // Pad : 接続中のゲームパッドのボタン押下を、デバイス番号を気にせず判定する小ヘルパ。
 // 移動と決定(ui_*/ui_accept)は既定のInputMapがジョイパッドを含むため、ここでは
-// 追加で割り当てたいボタン（ボム/低速/スキル/リスタート/送り）の判定に使う。
+// 追加で割り当てたいボタン（ボム/集中モード/ロックオン/溜め打ち/リスタート/送り）の判定に使う。
 public static class Pad
 {
     public static bool Pressed(JoyButton b)
@@ -51,45 +51,45 @@ public static class Pad
     // 表記がパッドか（＝!ShowKeyboard）。HUD トークンが使う。
     public static bool UsingPad => !ShowKeyboard;
 
-    // ───────── ボタン表記スタイル（Xbox / PlayStation 切替）─────────
-    // Godot の JoyButton は物理配置（Xbox 系）で固定。表記だけを切り替える。
-    // Display 導入に伴い、Style は Display から導出する（PadPlayStation⇔PlayStation / その他⇔Xbox）。
-    // Auto のときは別途保持した _autoStyle（旧 padstyle 由来）に従う＝後方互換。
+    // ───────── ボタン表記スタイル（Xbox 基準に一本化）─────────
+    // ★2026-09-13 ユーザー決定：パッドの表記は **Xbox 基準で統一**する。
+    //   Godot の JoyButton はもともと物理配置が Xbox 系で固定なので、表記を Xbox に揃えると
+    //   「物理ボタン＝画面の文字」が常に一致し、変換表が要らなくなる（PS 表記だけが中間層だった）。
+    //   切替スイッチそのものを無くすことで、画面ごとの書き分けも起きない＝全画面が Face() を通る。
+    // ※ ButtonStyle / Style は旧セーブ（padstyle）と旧呼び出しのために形だけ残すが、
+    //   表記には一切影響しない（Face は Style を読まない）。
     public enum ButtonStyle { Xbox, PlayStation }
-
-    private static ButtonStyle _autoStyle = ButtonStyle.Xbox; // Auto 時に使うパッド表記（旧 padstyle）
 
     public static ButtonStyle Style
     {
-        get => Display switch
-        {
-            DisplayMode.PadPlayStation => ButtonStyle.PlayStation,
-            DisplayMode.PadXbox        => ButtonStyle.Xbox,
-            _                          => _autoStyle, // Keyboard でもパッド入力時の表記基準として使う
-        };
-        // 旧コード（Settings の padstyle 切替）との互換：Auto 用のスタイルを更新する。
-        set => _autoStyle = value;
+        get => ButtonStyle.Xbox;   // 常に Xbox 表記
+        set { }                    // 旧 Settings の切替からの代入を黙って捨てる（後方互換）
     }
 
-    // JoyButton → 現在スタイルでの表記文字列。HUD の操作子トークンが使う。
-    // PlayStation は Unicode 記号（〇=U+3007 / ×=U+00D7 / □=U+25A1 / △=U+25B3）。
-    public static string Face(JoyButton b)
+    // JoyButton → Xbox 表記の文字列。HUD・あそびかた・各 UI の操作子トークンが必ずここを通る。
+    public static string Face(JoyButton b) => b switch
     {
-        bool ps = Style == ButtonStyle.PlayStation;
-        return b switch
-        {
-            JoyButton.A             => ps ? "〇" : "A",   // 物理 A ＝ PS 〇
-            JoyButton.B             => ps ? "×"  : "B",   // 物理 B ＝ PS ×
-            JoyButton.X             => ps ? "□"  : "X",   // 物理 X ＝ PS □
-            JoyButton.Y             => ps ? "△"  : "Y",   // 物理 Y ＝ PS △
-            JoyButton.LeftShoulder  => ps ? "L1" : "LB",
-            JoyButton.RightShoulder => ps ? "R1" : "RB",
-            JoyButton.RightStick    => ps ? "R3" : "R3",
-            JoyButton.Start         => ps ? "OPTIONS" : "MENU", // PS=OPTIONS / Xbox=メニュー(≡)ボタン
-            JoyButton.Back          => ps ? "SHARE" : "VIEW",   // PS=SHARE / Xbox=ビュー(左小)ボタン
-            _ => b.ToString(),
-        };
-    }
+        JoyButton.A              => "A",
+        JoyButton.B              => "B",
+        JoyButton.X              => "X",
+        JoyButton.Y              => "Y",
+        JoyButton.LeftShoulder   => "LB",
+        JoyButton.RightShoulder  => "RB",
+        JoyButton.LeftStick      => "L3",   // 左スティック押し込み（回避ダッシュ）
+        JoyButton.RightStick     => "R3",
+        JoyButton.DpadUp         => "十字キー↑",
+        JoyButton.DpadDown       => "十字キー↓",
+        JoyButton.DpadLeft       => "十字キー←",
+        JoyButton.DpadRight      => "十字キー→",
+        JoyButton.Start          => "Menu(≡)",
+        JoyButton.Back           => "View",
+        _ => b.ToString(),
+    };
+
+    // トリガー（LT / RT）はボタンではなく軸（JoyAxis.TriggerLeft/Right）なので Face の対象外。
+    // 表記が要る画面はこの2つを使う（現状ゲームプレイでの割り当ては無い）。
+    public const string TriggerLeftToken = "LT";
+    public const string TriggerRightToken = "RT";
 
     // ポーズ開閉の操作子表記：キーボード表示なら Esc、パッド表示なら Start(MENU/OPTIONS)。
     public static string PauseToken => ShowKeyboard ? "Esc" : Face(JoyButton.Start);
@@ -111,9 +111,10 @@ public static class Pad
     public static string MoveToken   => ShowKeyboard ? "↑↓←→" : "L";
 
     // ───────── 永続化 ─────────
-    // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox) の両方を扱う。
-    // 後方互換：inputdisplay が無ければ Display=Auto のまま、padstyle で _autoStyle だけ復元する。
-    public const string SettingKey = "padstyle";        // 旧：Auto 用のパッド表記
+    // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox)。
+    // ★表記の Xbox 一本化（2026-09-13）で、どちらも「表記スタイル」としては意味を失った。
+    //   読み込みで落ちないよう受け付けるだけにして、値は無視する（＝壊れない・書き戻しもしない）。
+    public const string SettingKey = "padstyle";        // 旧：パッド表記スタイル（現在は無視）
     public const string DisplayKey = "inputdisplay";    // 新：操作表示モード(0=KB/1=PS/2=Xbox)
 
     // 操作表示モード ⇄ inputdisplay の整数の対応。
@@ -167,9 +168,7 @@ public static class Pad
         var json = new Json();
         if (json.Parse(f.GetAsText()) != Error.Ok || json.Data.VariantType != Variant.Type.Dictionary) return;
         var data = json.Data.AsGodotDictionary();
-        // 旧 padstyle（Auto 用のパッド表記）。
-        if (data.ContainsKey(SettingKey))
-            _autoStyle = data[SettingKey].AsInt32() == 1 ? ButtonStyle.PlayStation : ButtonStyle.Xbox;
+        // 旧 padstyle（パッド表記スタイル）は Xbox 一本化により読み捨てる（キーが在っても何もしない）。
         // 新 inputdisplay（操作表示モード）。あれば初期表示の種に、無ければ Auto のまま。
         if (data.ContainsKey(DisplayKey))
         {
@@ -222,9 +221,16 @@ public static class Pad
 
     // マウス左/右/中ボタンの状態と前フレーム値（エッジ検出用）。PollMouse が毎フレーム更新する。
     private static bool _mL, _mLPrev, _mR, _mRPrev, _mM;
+    // サイドボタン（親指側の戻る/進む＝XButton1/XButton2）。弾幕パートの集中モードに割り当てる。
+    // どちらか一方でも押されていれば押下扱い（機種で番号が入れ替わるので両方拾う）。
+    private static bool _mX;
     // ホイールの当該フレーム蓄積量（上=+ / 下=-）。_UnhandledInput で貯め、フレーム末に消費してリセット。
     private static float _wheelAccum;
     private static float _wheelFrame;   // このフレームで確定したホイール量（PollMouse で accum→frame へ移す）
+    // 弾幕パート専用のホイール「回した」ラッチ。_wheelFrame は PollMouse を呼んだフレームでだけ立つが、
+    // 集中モードを読む Player は _PhysicsProcess（PauseMenu._Process とフレームが一致しない）なので、
+    // そのままだと取りこぼす／同じ回転を二度読む。イベント受信時に立てて、読み手が明示的に消費する。
+    private static bool _wheelTurned;
     // 最後に検知したマウス設計座標。移動しきい値でデバイス追従に使う。
     private static Vector2 _mousePos, _mousePosPrev;
     // 初回 PollMouse かどうか。既定の _mousePos は (0,0) なので、初回はカーソル実座標へ「跳ぶ」ぶんが
@@ -236,7 +242,16 @@ public static class Pad
 
     // 常駐 PauseMenu の _UnhandledInput から呼ぶ：ホイールを当該フレームぶん蓄積する
     //（1フレームに複数の WheelUp/Down が来ても取りこぼさない）。
-    public static void FeedWheel(float delta) => _wheelAccum += delta;
+    public static void FeedWheel(float delta) { _wheelAccum += delta; _wheelTurned = true; }
+
+    // 弾幕パートが使う「ホイールを回した」の消費読み。読んだ瞬間にラッチを落とす＝1回転につき1回だけ true。
+    // 上下どちらの回転でも立つ（集中モードの発動はどちらでもよい、というユーザー決定）。
+    public static bool ConsumeWheelTurn()
+    {
+        if (!_wheelTurned) return false;
+        _wheelTurned = false;
+        return true;
+    }
 
     // 毎フレーム呼ぶ（PauseMenu / Player）：マウス座標・ボタンエッジを更新し、ホイール蓄積をフレーム値へ確定する。
     // viewport 経由でビューポート実座標(384系)を取り、UiKit.Scale で割って設計座標(1280系)へ変換する。
@@ -246,6 +261,8 @@ public static class Pad
         _mL = Input.IsMouseButtonPressed(MouseButton.Left);
         _mR = Input.IsMouseButtonPressed(MouseButton.Right);
         _mM = Input.IsMouseButtonPressed(MouseButton.Middle);
+        _mX = Input.IsMouseButtonPressed(MouseButton.Xbutton1)
+              || Input.IsMouseButtonPressed(MouseButton.Xbutton2);
 
         _mousePosPrev = _mousePos;
         if (vp != null) _mousePos = vp.GetMousePosition() / UiKit.Scale; // 384系 → 設計1280系
@@ -258,7 +275,7 @@ public static class Pad
 
         // ── デバイス追従：マウス移動(しきい値超)/クリック/ホイールがあれば直近デバイス=マウス ──
         bool moved = (_mousePos - _mousePosPrev).Length() > MouseMoveThresh;
-        if (moved || _mL || _mR || _mM || _wheelFrame != 0f) _usingMouse = true;
+        if (moved || _mL || _mR || _mM || _mX || _wheelFrame != 0f) _usingMouse = true;
         // KB/パッド操作は PollDevice 側で _usingMouse=false に落ちる（同フレームで PollDevice が後勝ち/先勝ちに
         // ならないよう、呼び順は「PollDevice → PollMouse」を推奨。マウス無操作なら _usingMouse は据え置き）。
     }
@@ -269,6 +286,7 @@ public static class Pad
     public static bool MouseRightDown() => _mR;                   // 右ボタン押下中
     public static bool MouseRightClick() => _mR && !_mRPrev;      // 右ボタン押下エッジ
     public static bool MouseMiddleDown() => _mM;                  // 中ボタン押下中（弾幕パートのボム）
+    public static bool MouseSideDown() => _mX;                    // サイドボタン押下中（弾幕パートの集中モード）
     public static float WheelDelta() => _wheelFrame;             // このフレームのホイール量（上=+ / 下=-、無=0）
     public static Vector2 MousePos() => _mousePos;                // 設計座標(1280×720)でのマウス位置
 

@@ -78,15 +78,17 @@ public partial class PauseMenu : CanvasLayer
     public static int DisplayRowGlobalIndex => VolRows.Length;         // 描画用：操作表示行のグローバル行番号
     public Page CurrentPage => _page;
 
-    // 操作表示モードの循環（Auto は含めず KB→PS→Xbox の3値を回す）。
+    // 操作表示モードの循環。★パッド表記の Xbox 一本化（2026-09-13）で PlayStation は選択肢から外した。
+    //   残る2値は「何も触っていない起動直後にどちらの表記で出すか」の初期値だけを決める
+    //   （触った瞬間から Pad.PollDevice / PollMouse が直近デバイスへ自動追従する）。
     private static readonly Pad.DisplayMode[] DispCycle =
-        { Pad.DisplayMode.Keyboard, Pad.DisplayMode.PadPlayStation, Pad.DisplayMode.PadXbox };
+        { Pad.DisplayMode.Keyboard, Pad.DisplayMode.PadXbox };
 
     public static string DisplayLabel(Pad.DisplayMode m) => m switch
     {
         Pad.DisplayMode.Keyboard       => "キーボード",
-        Pad.DisplayMode.PadPlayStation => "PlayStation",
-        Pad.DisplayMode.PadXbox        => "Xbox",
+        Pad.DisplayMode.PadPlayStation => "コントローラー", // 旧セーブ由来の値。表記は Xbox 基準に合流
+        Pad.DisplayMode.PadXbox        => "コントローラー",
         _                              => "自動",
     };
     public string DisplayValue => DisplayLabel(Pad.Display);
@@ -150,6 +152,11 @@ public partial class PauseMenu : CanvasLayer
         Pad.PollDevice();
         // マウス座標・ボタンエッジの更新＋ホイール蓄積のフレーム確定（全画面で毎フレーム）。
         Pad.PollMouse(GetViewport());
+        // ポーズ中・非戦闘画面のホイールは、弾幕パートの集中モード（Pad.ConsumeWheelTurn）へ持ち越さない。
+        //   ポーズ中は Player._PhysicsProcess が止まるのでラッチを誰も消費できず、再開した瞬間に
+        //   メニューで回したぶんが集中モードとして暴発する。ここで毎フレーム捨てておく
+        //   （戦闘中は Player が先に消費するので、この呼び出しは何も奪わない）。
+        if (GetTree().Paused) Pad.ConsumeWheelTurn();
 
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;

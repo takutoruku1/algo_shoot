@@ -37,7 +37,6 @@ public partial class StageZero : Node
     // 達成計測用ベースライン／フラグ。
     private double _t1Up, _t1Down, _t1Left, _t1Right;
     private int _t2KillBase;                              // ショット：ダミー撃破の起点（PurifiedCount 増分で判定）
-    private double _t3FocusHeld; private bool _t3Moved;   // 低速：Shift 保持秒／低速中の移動
     private int _t4DodgeBase;                             // 回避：DodgeCount の起点
     private int _t6PurifyBase;                            // 浄化：PurifiedCount の起点
     private double _refill;
@@ -47,7 +46,6 @@ public partial class StageZero : Node
     private const int DodgeNeed      = 3;   // 回避を成功させる回数
     private const int BombKillNeed   = 3;   // ボムでまとめて巻き込んで倒す数
     private const int PurifyNeed     = 2;   // 浄化する数
-    private const double SlowHoldNeed = 1.0; // 低速で動き続ける最低秒
 
     // 進行不能回避のための保険タイムアウト（十分長く＝通常プレイで勝手に進まない）。
     private const double SafetyTimeout = 60.0;
@@ -71,7 +69,6 @@ public partial class StageZero : Node
     private static readonly (int who, string text, string face)[] Tut0Intro = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut1Move = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut2Shot = System.Array.Empty<(int, string, string)>();
-    private static readonly (int who, string text, string face)[] Tut3Slow = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] Tut4Dash = System.Array.Empty<(int, string, string)>();
     // 回避を持っているか（1面クリアの物語報酬）。練習面は 1面より前なので、通常の初回プレイでは false。
     private static bool HasDodge => GameManager.Instance?.HasDodge ?? false;
@@ -107,13 +104,13 @@ public partial class StageZero : Node
 
     // 各ステップ（説明会話フェーズ＆実践フェーズ）で、その操作に割り当たった“全ボタン”を
     // 指示帯の上にバッジで出すための操作名。Player.cs の入力判定と一致させる。
-    //   move=移動 / shot=撃つ（浄化も板を撃って祓う）/ focus=低速 / dodge=回避 / bomb=ボム。
+    //   move=移動 / shot=撃つ（浄化も板を撃って祓う）/ dodge=回避 / bomb=ボム。
     //   導入(0)・締め(13) は操作なし＝空。会話／実践のどちらのフェーズでも同じ操作名を出す。
+    //   ※5/6（旧・低速）は低速移動の廃止で素通りフェーズになった＝バッジも出さない。
     private static string OpForPhase(int phase) => phase switch
     {
         1 or 2   => "move",
         3 or 4   => "shot",
-        5 or 6   => "focus",
         7 or 8   => "dodge",
         9 or 10  => "bomb",
         11 or 12 => "shot",   // 浄化＝ショットで板を祓う
@@ -183,33 +180,12 @@ public partial class StageZero : Node
                 }
                 break;
 
-            // ── 3 低速（Shift） ──
+            // ── 3 低速 ──（2026-09-13 ユーザー決定で低速移動そのものを廃止＝教えるものが無くなった）
+            //   フェーズ番号は動かさず素通りさせる。番号を詰めると switch 本体と OpForPhase、
+            //   さらに他所（デモ/QA の想定フェーズ数）まで一斉に突き合わせ直しになるため。
             case 5:
-                if (TutTalk(Tut3Slow)) NextPhase();
-                break;
-            case 6: // ゆっくり弾を流す中、低速(Shift)を保ったまま動き続ける体験（1秒以上＋移動）→達成で次へ
-                if (!_phaseStarted)
-                {
-                    _phaseStarted = true; _t3FocusHeld = 0; _t3Moved = false; _refill = 0;
-                    Hud.ClearSpot();
-                    SpawnSlowBullets(); // 精密回避の的になるゆっくり弾
-                }
-                Player?.TutorialGlow();
-                _refill += delta;
-                if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); } // 隙間を絶やさない
-                {
-                    bool focus = Input.IsKeyPressed(Key.Shift) || Pad.Pressed(JoyButton.LeftShoulder); // RB は向き反転へ移した（Player.cs と一致）
-                    // 低速を保ったまま動いている間だけ加算（離す/止まると進捗は溜まらない＝低速の意味を体験）。
-                    if (focus && MovePressed()) { _t3FocusHeld += delta; _t3Moved = true; }
-                    int pct = Mathf.Clamp((int)(_t3FocusHeld / SlowHoldNeed * 100), 0, 100);
-                    Hud.SetTutorialHint($"Shift で低速のまま 弾の隙間を ぬけよう（{pct}%）");
-                    if ((_t3FocusHeld >= SlowHoldNeed && _t3Moved) || _phaseTime > SafetyTimeout)
-                    {
-                        Hud.ClearTutorialHint();
-                        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                        NextPhase();
-                    }
-                }
+            case 6:
+                NextPhase();
                 break;
 
             // ── 4 回避（各方向） ──
@@ -396,10 +372,6 @@ public partial class StageZero : Node
         var (who, text, face) = lines[_tLine];
         Hud.ShowDialog((Hud.LineKind)who, text, string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face);
     }
-
-    private bool MovePressed() =>
-        Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down").Length() > 0.2f
-        || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.D);
 
     // ════════════════════ ダミー弾・ダミー敵 ════════════════════
     private int CountEnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").Count;

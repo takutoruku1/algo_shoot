@@ -368,9 +368,10 @@ public partial class TrainingRoot : Node2D
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, 72), "スキルは無料で付け外し・試用のみ。もどると本番の状態はそのまま（保存されません）。", 12, UiKit.Text2);
 
         // 操作ヒント（左下）。案C は教え役を置かない＝説明は単語＋キーバッジだけで足りる形にする
-        //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／低速／回避／ボム／浄化）。
+        //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／回避／ボム／浄化）。
+        //   ※低速移動は 2026-09-13 に廃止。V は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　低速: Shift　回避: Alt　ボム: X　モード切替: V", 12, UiKit.Text3);
+            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: F/左クリック　溜め打ち: C/左クリック長押し　回避: Alt　ボム: X　集中モード: V/ホイール", 12, UiKit.Text3);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
             "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
 
