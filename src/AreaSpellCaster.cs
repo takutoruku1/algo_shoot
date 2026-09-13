@@ -37,6 +37,13 @@ public partial class AreaSpellCaster : Node2D
 
     private double _castT, _fireT;
     private bool _pending;
+
+    public void CancelPendingAttacks()
+    {
+        _pending = _aoePending = false;
+        _chainRemain = 0;
+        _castT = _fireT = _aoeFireT = 0;
+    }
     private AreaStrike.Shape? _pendShape;
     private double _fireDelay = 0.7; // 技名宣告 → 予兆出現までの溜め
 

@@ -151,7 +151,7 @@ public partial class StageAkari : Node
         0 => new (int, string, string)[]
         {
             (0, "ひろって", ""),
-            (1, "……はい。そっと、拾います。……渡すのは、わたくしではありませんので。", MFace),
+            (1, "……はい。そっと、拾います。……送るかどうかを決めるのは、ご本人ですので。", MFace),
         },
         1 => new (int, string, string)[]
         {
@@ -204,7 +204,7 @@ public partial class StageAkari : Node
     };
     private static readonly (int who, string text, string face)[] S15Tail =
     {
-        (1, "……雨の奥へ、一通。——届いたかは、観測できません。", MFace),
+        (1, "……雨の奥からは、返事がありません。——先へ、まいりましょう。", MFace),
     };
 
     // S1-2 小話・雨（step 6 の末尾へずらし）。ミナが一度だけ、返事を待つ。問いの形にはしない。
@@ -218,7 +218,7 @@ public partial class StageAkari : Node
         0 => new (int, string, string)[]
         {
             (0, "べつに", ""),
-            (1, "……べつに。——二文字。……このフロアで、はじめて拾った、返事の形です。", MFace),
+            (1, "……べつに。——三文字。……このフロアで、はじめて拾った、返事の形です。", MFace),
         },
         1 => new (int, string, string)[]
         {
@@ -264,6 +264,9 @@ public partial class StageAkari : Node
         (1, "……いえ。返事は、いりません。いつか、で結構ですので。", MSmile),   // 空の問い・一度目
     };
 
+    private static readonly (int who, string text, string face)[] ClearBefore = Clear.Take(2).ToArray();
+    private static readonly (int who, string text, string face)[] ClearAfter = Clear.Skip(2).ToArray();
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -293,6 +296,7 @@ public partial class StageAkari : Node
 
     public override void _Process(double delta)
     {
+        if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
         // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
@@ -707,6 +711,7 @@ public partial class StageAkari : Node
 
     // ---- 5: クリア（帰還の会話を手動送り） ----
     private bool _clearBannerShown;
+    private int _clearPhase;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -720,7 +725,21 @@ public partial class StageAkari : Node
             Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
-        Step_Lines(delta, Clear);
+        if (_clearPhase == 0)
+        {
+            RunLinesInPlace(delta, ClearBefore, () =>
+            {
+                _clearPhase = 1;
+                AkariStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
+                {
+                    _clearPhase = 2;
+                    _stepStarted = false;
+                    _zHeld = Pad.AdvanceHeld();
+                    _zEdge = false;
+                });
+            });
+        }
+        else if (_clearPhase == 2) Step_Lines(delta, ClearAfter);
     }
 
     // ---- 6: STAGE2（こはる）へ ----

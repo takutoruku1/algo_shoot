@@ -15,6 +15,8 @@ public partial class BossKoharu : Enemy
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
     private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _memoryPending;
+    private bool _memoryPlayed;
     private float _ringOff;
     private int _pattern;
     private int _beatsFired;
@@ -139,12 +141,13 @@ public partial class BossKoharu : Enemy
         (1, "消されたコメントを、拾っておりました。「レイちゃんがいたから、今日も学校行けた」。", ""),   // (1) S2-4 の回収
         (2, "……っ。……それ、消したもん。……重いって、思われそうで、やだったから……", KPale),
         (1, "“むだだ”という声なら、ここへ来るまでに、ぜんぶ祓いました。", MWorried),
-        (1, "来ていた回数を、数えました。八十七回。一度も、欠けていません。", MWorried),   // ここで BGM 停止
+        (1, "来ていた回数を、数えました。八十七回。", MWorried),   // ここで BGM 停止
         (1, "——むだな時間は、一秒も、ありませんでしたよ。", MWorried),                     // (2) 決定打。無音のまま
-        (2, "……ほんとに? ……明日も、見に行って、いいのかな。", KFace),
+        (1, "でも、明日も欠かさず来る約束は、しなくていいのです。", MWorried),
+        (2, "……ほんとに？ ……また、見に行って、いいのかな。", KFace),
     };
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
-    private const string BgmStopLine = "来ていた回数を、数えました。八十七回。一度も、欠けていません。";
+    private const string BgmStopLine = "来ていた回数を、数えました。八十七回。";
 
     protected override void OnEnemyReady()
     {
@@ -518,10 +521,16 @@ public partial class BossKoharu : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        if (_memoryPending) return;
+        if (!_memoryPlayed && HpRatio <= _mealHp && _mealPhase == 0 && _gotoPhase == 0)
+        {
+            _memoryPending = true;
+            return;
+        }
         // 「五徳の十字火」：HP26%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替と同じ被弾＝終盤入りの合図）。
         // お残し禁止の進行中は持ち越し（TickMeal の終了が呼ぶ OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
         // スペル切替より先に判定する＝同じ被弾では十字火の宣言が勝つ（切替の宣言は下の gotoHolds で保留）。
-        if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
+        if (!_gotoFired && _mealFired && _mealPhase == 0 && HpRatio <= _gotoHp)
         {
             _gotoFired = true;
             _gotoPhase = 1; _gotoT = 0;
@@ -619,6 +628,20 @@ public partial class BossKoharu : Enemy
 
     public override void _Process(double delta)
     {
+        if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
+        {
+            _memoryPending = false;
+            _memoryPlayed = true;
+            _caster.CancelPendingAttacks();
+            KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            {
+                _zHeld = Pad.AdvanceHeld();
+                _fireT = _fireT2 = 0;
+                Audio.Instance?.Music(Audio.Instance.BgmBossKoharu, 0.8f);
+                OnHpChanged();
+            });
+            return;
+        }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
@@ -627,7 +650,15 @@ public partial class BossKoharu : Enemy
 
         if (_seq)
         {
-            if (zEdge && _lineT >= 0.25)
+            var dialogHud = GetHud()!;
+            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            {
+                dialogHud.RevealDialogNow();
+                _lineT = 0;
+                NotifyCryProgress();
+            }
+            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
+                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvance && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

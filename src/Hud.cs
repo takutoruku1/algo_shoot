@@ -12,6 +12,15 @@ public partial class Hud : CanvasLayer
 
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
+    public bool CinematicMode { get; private set; }
+    private static UiKit.TextStyle FilmBody => new(UiKit.Zen, 24, 0, 1.55f);
+    private const float FilmTextWidth = 1056f;
+
+    public void SetCinematicMode(bool active)
+    {
+        CinematicMode = active;
+        BubblePaused = active || (_messageTimer > 0 && _dlgText.Length > 0);
+    }
     public bool HoldBubble = false;
 
     private int _lives = 3;
@@ -278,7 +287,7 @@ public partial class Hud : CanvasLayer
         }
 
         // 会話・メッセージ表示中は敵を止める（種類を問わず。旧挙動を踏襲）。開始の瞬間に敵弾を一掃。
-        bool nowPaused = _messageTimer > 0 && _dlgText.Length > 0;
+        bool nowPaused = CinematicMode || (_messageTimer > 0 && _dlgText.Length > 0);
         if (nowPaused && !BubblePaused) { ClearEnemyBullets(); Audio.Instance?.PlayCalm(); } // ⑦鎮まる音で転換
         BubblePaused = nowPaused;
 
@@ -411,6 +420,7 @@ public partial class Hud : CanvasLayer
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
+        if (CinematicMode) color = UiKit.Text2;
         SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
         _messageTimer = 6.0;
     }
@@ -464,6 +474,11 @@ public partial class Hud : CanvasLayer
     {
         _dlgPages.Clear();
         _dlgPage = 0;
+        if (CinematicMode)
+        {
+            _dlgPages.AddRange(UiKit.Paginate(FilmBody, _dlgText, FilmTextWidth, DlgMaxLines));
+            return;
+        }
         // DrawDialog と同じジオメトリで本文の折り返し幅を求める。
         float wrapW;
         if (!dialog)
@@ -680,6 +695,12 @@ public partial class Hud : CanvasLayer
     public void DrawAll(HudCanvas ci)
     {
         UiKit.BeginDesign(ci);
+        if (CinematicMode)
+        {
+            if (_dlgText.Length > 0) DrawDialog(ci);
+            UiKit.EndDesign(ci);
+            return;
+        }
         DrawSidePanel(ci);   // 最初に描く＝背景(384幅のまま)の上に不透明の板を被せてプレイ領域を切り出す
         DrawLifeBomb(ci);
         DrawPurify(ci);
@@ -1402,6 +1423,18 @@ public partial class Hud : CanvasLayer
         var lines = new List<string>(page.Split('\n'));
         // ページ継続サイン：現在ページを出し切っていて、まだ後続ページがあるとき「▼」を点滅（Zで続きへ）。
         bool morePages = !OnLastPage && _dlgRevealed >= page.Length;
+
+        if (CinematicMode)
+        {
+            if (_dlgSpeaker.Length > 0)
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(112, 542), _dlgSpeaker, 21, Colors.White);
+            UiKit.TypewriterLines(ci, UiKit.Zen, lines,
+                new Vector2(112, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmTextWidth,
+                FilmBody.Size, Colors.White, n, extraLeading: FilmBody.ExtraLeading);
+            if (FastForwarding) DrawSkipChip(ci, new Vector2(1168, 546));
+            else if (morePages) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14, Colors.White);
+            return;
+        }
 
         if (!_dlgIsDialog)
         {

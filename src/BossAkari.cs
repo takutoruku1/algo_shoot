@@ -14,6 +14,8 @@ public partial class BossAkari : Enemy
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
     private bool _finale;     // HP2割以下＝2スペル同時展開
+    private bool _memoryPending;
+    private bool _memoryPlayed;
     private float _ringOff;
     private int _pattern;       // 現在の攻撃パターン（セリフを挟むたびに変化）
     private int _beatsFired;    // 流した独白の数
@@ -42,7 +44,7 @@ public partial class BossAkari : Enemy
 
     // スペルカード（STAGE1 あかり＝雨のフロア・青と白の寒色）。技名は仮台本 06 の S1-9。
     // 弾は「仕事の書類」の絵で飛ぶ（art の名前＝char/v3/bullets/<name>.png）。総務三十歳の、
-    // 送別会の夜に三秒で取り消した一通——机の上のものが、そのまま人へ向かって飛んでくる。
+    // 最後の出社日の夜に三秒で取り消した一通——机の上のものが、そのまま人へ向かって飛んでくる。
     // 弾形・色は絵の裏のグロー（と、絵が無い時の保険）として残す＝当たり判定・弾数・弾速は不変。
     //   rot: 絵の回転速度(deg/s)。追う弾ほど遅く回して「じっと向いている」感を出す。
     private static readonly (string name, BulletShape shape, Color tint, string art, float rot)[] Spells =
@@ -318,6 +320,7 @@ public partial class BossAkari : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        if (_memoryPending) return;
         // HPが閾値を割るたびに攻撃パターンを変える。
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
@@ -326,7 +329,11 @@ public partial class BossAkari : Enemy
             ApplySpell();
             // 第二形態は既存の閾値の中盤（PatternThresholds[1]=0.52）に乗せる＝新しい閾値を足さない。
             // ここは既に ApplySpell の宣告が出る節目なので、形態変化も同じ一拍に重ねて読ませる。
-            if (_beatsFired == 2) AdvanceForm2();
+            if (_beatsFired == 2 && !_memoryPlayed)
+            {
+                _memoryPending = true;
+                return;
+            }
         }
         // イライラ棒「雨の帰り道」：HP52%（INI: corridor_hp）を割った瞬間に一度だけ（パターン第2切替と同じ節目＝中盤の山）。
         // 上の ApplySpell と同フレームで重なり得るが、宣告は後勝ち＝「雨の帰り道」が表示される。
@@ -390,6 +397,23 @@ public partial class BossAkari : Enemy
     // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
     {
+        // Start outside collision dispatch so suspending the world cannot interrupt a hit callback.
+        if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
+        {
+            _memoryPending = false;
+            _memoryPlayed = true;
+            _caster.CancelPendingAttacks();
+            AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            {
+                _zHeld = Pad.AdvanceHeld();
+                _fireT = _fireT2 = 0;
+                Audio.Instance?.Music(Audio.Instance.BgmBossAkari, 0.8f);
+                AdvanceForm2();
+                ApplySpell();
+                OnHpChanged();
+            });
+            return;
+        }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
@@ -398,7 +422,15 @@ public partial class BossAkari : Enemy
 
         if (_seq)
         {
-            if (zEdge && _lineT >= 0.25)
+            var dialogHud = GetHud()!;
+            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            {
+                dialogHud.RevealDialogNow();
+                _lineT = 0;
+                NotifyCryProgress();
+            }
+            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
+                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvance && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

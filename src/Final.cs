@@ -165,7 +165,7 @@ public partial class Final : Node2D
             new() { Who = "ミナ",  Text = CueResolveLine },                  // 正体は言わない。届いたことだけ
             // 最後の軽口。送信文字列の実数だけを差し込む観測（人格の断定は置かない）。
             new() { Who = "ミナ",  Text = $"……{word.Length}文字。……ふふ。相変わらず、短いですね。" },
-            new() { Who = "地",   Text = "——それから、わたくしは、自分の足で。帰るほうへ、泳ぎました。" },
+            new() { Who = "地",   Text = "——それから、わたくしは。帰るほうへ、自分で泳いでいきました。" },
         };
         _talk.InsertRange(_line, after);
         _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;

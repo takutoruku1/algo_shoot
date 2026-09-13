@@ -116,6 +116,8 @@ public partial class AkariRoot : Node2D
         }
         else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
 
+        if (Hud?.CinematicMode == true) return;
+
         // 浄化が進むと部屋が晴れる（寒色→暖色）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。

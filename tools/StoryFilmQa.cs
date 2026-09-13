@@ -1,0 +1,227 @@
+using Godot;
+using System;
+using System.Reflection;
+using System.Threading.Tasks;
+
+public partial class StoryFilmQa : Node
+{
+    private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+    private string _out = "";
+    private static T Read<T>(object obj, string field, Type? type = null)
+        => (T)(type ?? obj.GetType()).GetField(field, Private)!.GetValue(obj)!;
+    private static void Write(object obj, string field, object value, Type? type = null)
+        => (type ?? obj.GetType()).GetField(field, Private)!.SetValue(obj, value);
+    private static void Call(object obj, string method, Type? type = null)
+        => (type ?? obj.GetType()).GetMethod(method, Private)!.Invoke(obj, null);
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+        GD.Print($"[StoryQA] PASS {message}");
+    }
+
+    public override async void _Ready()
+    {
+        ProcessMode = ProcessModeEnum.Always;
+        bool koharu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--koharu") >= 0;
+        bool burst = koharu && Array.IndexOf(OS.GetCmdlineUserArgs(), "--burst") >= 0;
+        string stageName = koharu ? "Koharu" : "Akari";
+        try
+        {
+            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
+            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            _out = ProjectSettings.GlobalizePath($"res://build/qa_story/{stageName.ToLowerInvariant()}/shots");
+            DirAccess.MakeDirRecursiveAbsolute(_out);
+            var game = GetNode<GameManager>("/root/Game");
+            game.SelectedEntry = GameManager.StageEntry.Boss;
+            game.MsgCharsPerSec = 300;
+            game.AutoAdvanceDialog = false;
+            var root = GD.Load<PackedScene>($"res://{stageName}.tscn").Instantiate<Node2D>();
+            await Frames(1);
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            var hud = root.GetNode<Hud>("Hud");
+            var world = root.GetNode<Node2D>("World");
+            var stage = root.GetNode<Node>($"Stage{stageName}");
+            var player = world.GetNode<Player>("Player");
+            void PlayFilm(bool aftermath, Action completed)
+            {
+                if (koharu) KoharuStoryFilm.Play(hud, world, aftermath, completed);
+                else AkariStoryFilm.Play(hud, world, aftermath, completed);
+            }
+            await Frames(15);
+            await AdvanceUntil(() => Read<int>(stage, "_step") == 13);
+            var boss = world.GetNode<Enemy>($"Boss{stageName}");
+            int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
+            Write(boss, "_hp", (int)(maxHp * 0.77f), typeof(Enemy));
+            Call(boss, "OnHpChanged");
+            Write(boss, "_hp", (int)(maxHp * (burst ? 0.24f : koharu ? 0.49f : 0.51f)), typeof(Enemy));
+            Call(boss, "OnHpChanged");
+            await Frames(10);
+            var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
+            Check(film != null && hud.CinematicMode, "HP threshold starts flashback");
+            Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "combat is suspended");
+            var position = player.GlobalPosition;
+            int lives = player.Lives;
+            int bombs = game.Bombs;
+            int bombCount = player.BombCount;
+            float hp = boss.HpRatio;
+            double phaseT = Read<double>(boss, "_phaseT", typeof(Enemy));
+            double elapsed = Read<double>(stage, "_stageElapsed");
+            KeyEvent(Key.Right, true);
+            KeyEvent(Key.X, true);
+            await Frames(90);
+            KeyEvent(Key.Right, false);
+            KeyEvent(Key.X, false);
+            Check(player.GlobalPosition == position && player.Lives == lives && boss.HpRatio == hp
+                  && game.Bombs == bombs && player.BombCount == bombCount, "movement, damage and bombs stay frozen");
+            Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT && Read<double>(stage, "_stageElapsed") == elapsed, "boss phase and stage clocks stay frozen");
+            var first = await Shot("memory_start", grayscale: true);
+            await Frames(90);
+            var moving = await Shot("memory_motion", grayscale: true);
+            int changed = 0;
+            for (int y = 100; y < 440; y += 4)
+                for (int x = 60; x < Math.Min(900, first.GetWidth()); x += 4)
+                    if (first.GetPixel(x, y) != moving.GetPixel(x, y)) changed++;
+            Check(changed > 100, "background camera motion renders");
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(15);
+            await Shot("memory_small", grayscale: true);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(15);
+
+            var backlog = GetNode<Backlog>("/root/Backlog");
+            backlog.Open();
+            double motion = Read<double>(film!, "_shotT");
+            await Frames(30);
+            Check(GetTree().Paused && Read<double>(film!, "_shotT") == motion, "backlog pauses the film");
+            Call(backlog, "Close");
+            await Frames(30);
+            Check(!GetTree().Paused, "backlog restores normal playback");
+            await AdvanceUntil(() => Read<int>(film!, "_shot") == 1);
+            await Frames(60);
+            await Shot("memory_pressure", grayscale: true);
+            if (koharu)
+                for (int shot = 2; shot <= 4; shot++)
+                {
+                    await AdvanceUntil(() => Read<int>(film!, "_shot") == shot);
+                    await Frames(60);
+                    await Shot($"memory_scene_{shot}", grayscale: true);
+                }
+            await AdvanceUntil(() => !IsInstanceValid(film));
+            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit, "flashback restores world and HUD");
+            if (koharu)
+            {
+                Check(Read<bool>(boss, "_mealFired") && Read<int>(boss, "_mealPhase") > 0, "archive mechanic starts after memory");
+                Check(Read<int>(boss, "_gotoPhase") == 0, "crossfire does not overlap archive mechanic");
+                Check(!Read<bool>(boss, "_form2", typeof(Enemy)), "form change waits for the archive mechanic");
+                await WaitUntil(() => Read<int>(boss, "_mealPhase") == 0, 1600);
+                if (burst)
+                {
+                    Check(Read<int>(boss, "_gotoPhase") > 0, "large damage queues crossfire after archives");
+                    await WaitUntil(() => Read<int>(boss, "_gotoPhase") == 0, 1600);
+                }
+                Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form follows completed archive mechanic");
+            }
+            else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"), "second form and corridor begin after the memory");
+            Call(boss, "OnHpChanged");
+            await Frames(15);
+            Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory is one-shot");
+            await Shot("battle_resumed", grayscale: false);
+
+            Write(boss, "_hp", 0, typeof(Enemy));
+            Call(boss, "Redeem", typeof(Enemy));
+            await AdvanceUntil(() => hud.CinematicMode);
+            film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
+            Check(film != null && Read<bool>(film, "_aftermath"), "clear dialogue starts next-day aftermath");
+            await Frames(90);
+            await Shot("aftermath_start", grayscale: false);
+            await AdvanceUntil(() => Read<int>(film!, "_line") == 7);
+            await Frames(60);
+            await Shot("aftermath_action", grayscale: false);
+            await AdvanceUntil(() => Read<int>(film!, "_shot") == (koharu ? 7 : 5));
+            await Frames(60);
+            await Shot("aftermath_changed", grayscale: false);
+            await AdvanceUntil(() => !IsInstanceValid(film));
+            stage.SetProcess(false);
+            Check(!hud.CinematicMode && Read<int>(stage, "_clearPhase") == 2, "aftermath returns to clear dialogue");
+
+            bool ended = false;
+            PlayFilm(false, () => ended = true);
+            KeyEvent(Key.Ctrl, true);
+            await WaitUntil(() => ended, 1600);
+            KeyEvent(Key.Ctrl, false);
+            Check(ended, "read-only fast-forward completes memory");
+            game.AutoAdvanceDialog = true;
+            ended = false;
+            PlayFilm(true, () => ended = true);
+            await WaitUntil(() => ended, 2600);
+            game.AutoAdvanceDialog = false;
+            Check(ended, "auto mode completes aftermath");
+
+            PlayFilm(false, () => throw new Exception("aborted callback fired"));
+            await Frames(5);
+            hud.GetNode($"{stageName}StoryFilm").QueueFree();
+            await Frames(5);
+            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit, "aborted film releases pause state");
+            Write(stage, "_stepStarted", false);
+            stage.SetProcess(true);
+            await AdvanceUntil(() => GetTree().CurrentScene != root);
+            Check(GetTree().CurrentScene.SceneFilePath is "res://ShopTutorial.tscn" or "res://Hub.tscn", "normal clear transition completes");
+            GD.Print($"[StoryQA] {stageName} ALL PASS");
+            GetTree().Quit();
+        }
+        catch (Exception ex)
+        {
+            GD.PushError($"[StoryQA] FAIL {ex}");
+            GetTree().Paused = false;
+            GetTree().Quit(1);
+        }
+    }
+
+    private async Task Frames(int count)
+    {
+        for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task WaitUntil(Func<bool> condition, int limit)
+    {
+        for (int i = 0; i < limit && !condition(); i++) await Frames(1);
+        if (!condition()) throw new Exception("Timed out waiting for playback");
+    }
+
+    private async Task AdvanceUntil(Func<bool> condition)
+    {
+        for (int i = 0; i < 500 && !condition(); i++)
+        {
+            KeyEvent(Key.Z, true);
+            await Frames(16);
+            KeyEvent(Key.Z, false);
+            await Frames(2);
+        }
+        if (!condition()) throw new Exception("Timed out advancing dialogue");
+    }
+
+    private static void KeyEvent(Key key, bool pressed)
+        => Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = pressed });
+
+    private async Task<Image> Shot(string name, bool grayscale)
+    {
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        var image = GetViewport().GetTexture().GetImage();
+        image.SavePng($"{_out}/{name}.png");
+        float min = 1, max = 0;
+        int colored = 0;
+        for (int y = image.GetHeight() / 5; y < image.GetHeight() / 2; y += 9)
+            for (int x = image.GetWidth() / 8; x < image.GetWidth() * 7 / 8; x += 9)
+            {
+                var c = image.GetPixel(x, y);
+                min = Math.Min(min, c.R);
+                max = Math.Max(max, c.R);
+                if (Math.Abs(c.R - c.G) + Math.Abs(c.G - c.B) > 0.025f) colored++;
+            }
+        Check(max - min > 0.2f, $"{name}: nonblank image");
+        Check(grayscale ? colored == 0 : colored > 100, $"{name}: correct color mode");
+        return image;
+    }
+}

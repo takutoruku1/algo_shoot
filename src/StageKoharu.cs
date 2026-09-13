@@ -55,7 +55,7 @@ public partial class StageKoharu : Node
     {
         (1, "ご主人様。……暗いですね。電気の消えた部屋に、画面の光だけ。", MFace),
         (4, "「今日の配信も最高だった。これで、明日も学校、行ける。」", ""),   // 層1。本人の主投稿。明るい
-        (1, "……にぎやかな投稿ですね。——この投稿の下から、も。聞こえます。……ずいぶん、小さな声が。", MWorried),   // 中身は言わない
+        (1, "……にぎやかな投稿ですね。——この投稿の下からも、聞こえます。……ずいぶん、小さな声が。", MWorried),   // 中身は言わない
         (1, "壁一面が、画面。中で、笑っている人がひとり。……こちらへ向いて、笑っています。", MFace),   // 映るのはガワの笑顔だけ
         (1, "机の下に、箱が三つ。……開けられた跡は、ひとつだけ。", MFace),
         (1, "行きます。——放っておけないので。", MFace),
@@ -85,7 +85,7 @@ public partial class StageKoharu : Node
     //   明るさと蒼白を往復する。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た来た。……あたし、なにしてんだろ、って顔してる? ……してないよ。してないってば。", KFace),   // 第一声
+        (2, "あ、来た来た。……「あたし、なにしてんだろ」って顔、してた? ……してないよ。してないってば。", KFace),   // 第一声
     };
     // RECLOSE（サイクルごとに順送り）。「やめないで……止まったら」の型。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
@@ -108,7 +108,7 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] S22Cue =
     {
         (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
-        (1, "ご主人様。……手は、わたくしにありません。受け取りは、そちらで。", MSmile),
+        (1, "ご主人様。……わたくしには、手がありませんので。受け取りは、そちらで。", MSmile),
     };
     private static readonly string[] S22Choices = { "あとで", "振ってみる", "電池、切れてる", "（送らない）" };
     private static (int who, string text, string face)[] S22Reply(int sel) => sel switch
@@ -127,7 +127,7 @@ public partial class StageKoharu : Node
         2 => new (int, string, string)[]
         {
             (0, "電池、切れてる", ""),
-            (1, "……切れています。——本人も、知っています。振っていましたので。——推定です。", MFace),
+            (1, "……切れていますね。——消えたまま、振っていました。本人も、知っているのでしょう。……推定です。", MFace),
         },
         _ => new (int, string, string)[]
         {
@@ -178,11 +178,11 @@ public partial class StageKoharu : Node
     //   どの席もこちらを見ていない。視線だけがある。黒板に「期待」。文字はここ一箇所。
     private static readonly (int who, string text, string face)[] ClassTalk =
     {
-        (1, "……場所が、変わりました。教室。席は、ぜんぶ埋まっているのに——どの席も、こちらを見ていません。視線だけが、あります。", MWorried),
+        (1, "……場所が、変わりました。教室。席は、ぜんぶ埋まっています。——誰とも目が合わないのに、視線だけが、こちらに。", MWorried),
         (1, "黒板に、二文字。「期待」。……消す人が、いないようです。", MFace),
         (4, "「今日も明るいねって言われた。……何の話してたか、覚えてない。」", ""),   // 層3
         (1, "……明るい声で、投稿しています。明るい、と、言われたことを。", MFace),
-        (1, "机の列を、数えました。四十。……座っている人の顔は、ひとつも、見えません。", MFace),   // Chat2（日常）
+        (1, "机を、数えました。四十。……座っている人の顔は、ひとつも、見えません。", MFace),   // Chat2（日常）
         (1, "期待、という字は、画数が多いですね。……消すのも、手間がかかりそうです。", MSmile),   // Chat3（軽口）
     };
 
@@ -267,6 +267,7 @@ public partial class StageKoharu : Node
 
     public override void _Process(double delta)
     {
+        if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -889,6 +890,7 @@ public partial class StageKoharu : Node
     }
 
     private bool _clearBannerShown;
+    private int _clearPhase;
     // クリア会話の実体（S2-9）。案C ではこの面に下流変種が無い（戦闘中の割り込み＝選択がレイ面へ移ったため）
     //   ので、Clear をそのまま流す。写しで回す形だけ残す＝差し替えを足すときの入口を潰さない。
     private (int who, string text, string face)[]? _clearLines;
@@ -905,8 +907,17 @@ public partial class StageKoharu : Node
             Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
             _clearLines = (((int who, string text, string face)[])Clear.Clone());
+            _clearPhase = 1;
+            KoharuStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
+            {
+                _clearPhase = 2;
+                _stepStarted = false;
+                _zHeld = Pad.AdvanceHeld();
+                _zEdge = false;
+            });
+            return;
         }
-        Step_Lines(delta, _clearLines!);
+        if (_clearPhase == 2) Step_Lines(delta, _clearLines!);
     }
 
     private bool _clearing;

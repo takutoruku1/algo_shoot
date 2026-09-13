@@ -346,6 +346,7 @@ public partial class Audio : Node
     public void Music(AudioStream? stream, float fade = 1.0f)
     {
         if (Muted) return;
+        if (stream == null && _currentMusic == null) return;
         var cur = _useA ? _musicA : _musicB;
         var nxt = _useA ? _musicB : _musicA;
         if (cur.Stream == stream && cur.Playing) return;

@@ -134,6 +134,8 @@ public partial class KoharuRoot : Node2D
         }
         else { GameManager.ClearGameOverChoice(Hud); _exitHeld = false; }
 
+        if (Hud?.CinematicMode == true) return;
+
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。
         if (Player != null) game?.TickProgress(Player.GlobalPosition.X, (float)delta);
