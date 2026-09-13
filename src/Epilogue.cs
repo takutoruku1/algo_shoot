@@ -6,7 +6,6 @@ using System.Collections.Generic;
 //   E5b 見上げる（夜。四人が並んで立ち止まっている・10行）→ E5b 歩く（夜→明け方・8行）
 //   → E7 スタッフロール → E6 END（最後の下書き選択。作品全体の最後の選択）。
 // E6 が最後なので、END を送り切ったらタイトルへ戻る。
-// 全編エンジン描画。Zで送り、R/Start 長押しで最初から（スタッフロール以降はタイトルへ）。
 public partial class Epilogue : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -124,6 +123,7 @@ public partial class Epilogue : Node2D
 
     public override void _Ready()
     {
+        TextureFilter = TextureFilterEnum.Linear;
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
         // E5b はオルゴール（未調達＝null なら無音のまま）。主題（BgmMenu）が戻るのは E6 の1行目。
         //   MusicOnce＝1周で無音に落ちる再生。台本の「…………。」の行では下で明示的に止める。
@@ -316,6 +316,7 @@ public partial class Epilogue : Node2D
         }
         UpdateSky(delta);
         UpdateWalkers(delta);
+        if (ShowingGoodbye) _goodbyeT += delta;
         QueueRedraw();
     }
 
@@ -326,15 +327,10 @@ public partial class Epilogue : Node2D
         get { int i = _gaze.FindIndex(d => d.Text == "…………。"); return i < 0 ? -1 : i + 1; }
     }
 
-    // ═════════ E5b の空（夜 → 明け方）═════════
-    //   **満月と雲のある夜空の絵はまだ発注していない**。当面はコード描画のグラデーション＋月＋星で組む。
-    //   絵が来たら res://char/bg2/epilogue_sky/ に置くだけで差し替わる（BuildSky が拾って
-    //   _skyNight/_skyDawn に入り、コード描画（DrawProcSky）は自動で止まる）。期待するファイル名は
-    //     sky_night.png … 夜（満月と雲）
-    //     sky_dawn.png  … 明け方（同じ構図で空だけ白む。無ければ夜の絵を暖色へモジュレートして代用）
-    //   いずれも 1280×720 想定（内部解像度 384×216 へ 0.3 倍＝BgLayers と同じ高さフィット）。
-    private Sprite2D? _skyNight, _skyDawn;
-    private bool _hasSkyTex;
+    private Texture2D _skyNight = null!, _skyDawn = null!, _rest = null!, _goodbye = null!;
+    private double _goodbyeT;
+    private bool ShowingGoodbye => _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 2;
+    private float GoodbyeAlpha => Mathf.SmoothStep(0f, 1f, Mathf.Clamp((float)_goodbyeT / 1.2f, 0f, 1f));
     private float _dawnK;    // 0=夜 1=明け方
     private double _dawnT;
     // 空の色が目標へ追いつく速さの上限（1.0 ぶんに掛かる最短秒数）。行を早送りしても跳ねない。
@@ -342,30 +338,11 @@ public partial class Epilogue : Node2D
 
     private void BuildSky()
     {
-        const string dir = "res://char/bg2/epilogue_sky/";
-        const float s = H / 720f;   // 216/720 = 0.3
-        Sprite2D? Add(string file, int z, float alpha)
-        {
-            string path = dir + file;
-            if (!ResourceLoader.Exists(path)) return null;
-            var tex = ResourceLoader.Load<Texture2D>(path);
-            if (tex == null || tex.GetHeight() <= 0) return null;
-            var spr = new Sprite2D
-            {
-                Name = file.Replace(".png", ""), Texture = tex, Centered = false,
-                Scale = new Vector2(s, s), Position = Vector2.Zero,
-                ZIndex = z, ZAsRelative = false,
-                Modulate = new Color(1f, 1f, 1f, alpha),
-                TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-            };
-            AddChild(spr);
-            return spr;
-        }
-        _skyNight = Add("sky_night.png", -95, 1f);
-        if (_skyNight == null) return;                       // 夜が無ければ丸ごとコード描画へ
-        _skyDawn = Add("sky_dawn.png", -94, 0f);             // 明け方は α0 で重ねる（無くてもよい）
-        _hasSkyTex = true;
-        ApplySkyTint();
+        const string dir = "res://char/bg2/ending/";
+        _skyNight = GD.Load<Texture2D>(dir + "bg_ep_night.png");
+        _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn.png");
+        _rest = GD.Load<Texture2D>(dir + "cg_ep_rest.png");
+        _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye.png");
     }
 
     // 夜→明け方の進行。歩行フェーズ（PhWalk）で**行の進みに合わせて**明ける。
@@ -386,124 +363,22 @@ public partial class Epilogue : Node2D
         _dawnT = target > _dawnT ? Mathf.Min(target, _dawnT + step) : Mathf.Max(target, _dawnT - step);
         float k = (float)_dawnT;
         _dawnK = k * k * (3f - 2f * k);   // smoothstep
-        if (_hasSkyTex) ApplySkyTint();
     }
 
-    // 空の絵がある場合の明け具合の反映（夜↔明け方のたすき掛け）。
-    //   明け方の絵が無いときは、夜の絵を暖色寄り・明度上げでモジュレートして代用する。
-    private void ApplySkyTint()
+    private void DrawArt(Texture2D texture, float alpha = 1f)
     {
-        if (_skyDawn != null)
-        {
-            _skyNight!.Modulate = new Color(1f, 1f, 1f, 1f - _dawnK);
-            _skyDawn.Modulate = new Color(1f, 1f, 1f, _dawnK);
-        }
-        else
-        {
-            // 代用：夜の絵を明け方へ寄せる（青を抑えて赤を足し、全体を持ち上げる）。
-            _skyNight!.Modulate = new Color(Mathf.Lerp(1f, 1.45f, _dawnK), Mathf.Lerp(1f, 1.20f, _dawnK),
-                                            Mathf.Lerp(1f, 1.05f, _dawnK), 1f);
-        }
+        Vector2 viewport = new(W, H);
+        Vector2 size = texture.GetSize();
+        size *= Mathf.Max(W / size.X, H / size.Y);
+        DrawTextureRect(texture, new Rect2((viewport - size) * 0.5f, size), false, new Color(1f, 1f, 1f, alpha));
     }
 
-    // 空の絵が無いあいだの繋ぎ描画。上から下へのグラデーション＋満月＋雲の帯＋星。
-    //   絵が来たら BuildSky が拾って _hasSkyTex=true になり、ここは呼ばれなくなる。
-    private void DrawProcSky()
-    {
-        // 天頂と地平の色を夜↔明け方で補間する。
-        //   下端はテキストボックス（上端 H-58）に隠れるので、明けの暖色は**地平線（GroundY）で
-        //   出し切る**ようグラデーションを GroundY までに収める＝ボックスの上に朝が見える。
-        Color topN = new(0.04f, 0.05f, 0.12f), botN = new(0.11f, 0.13f, 0.24f);
-        Color topD = new(0.30f, 0.36f, 0.56f), botD = new(0.95f, 0.76f, 0.58f);
-        Color top = topN.Lerp(topD, _dawnK), bot = botN.Lerp(botD, _dawnK);
-        // 水平の帯で塗る（設計解像度が低いので帯でバンディングは出ない）。
-        const int Bands = 30;
-        float bh = GroundY / Bands;
-        for (int i = 0; i < Bands; i++)
-        {
-            float u = (i + 0.5f) / Bands;
-            DrawRect(new Rect2(0, i * bh, W, bh + 1f), top.Lerp(bot, u * u));
-        }
-        // 星。明けるにつれて消える。位置は固定シード（毎フレーム同じ空＝ちらつかない）。
-        float starA = (1f - _dawnK) * 0.85f;
-        if (starA > 0.01f)
-        {
-            var rng = new RandomNumberGenerator { Seed = 20260907 };
-            for (int i = 0; i < 90; i++)
-            {
-                float x = rng.RandfRange(0, W), y = rng.RandfRange(0, GroundY - 6f);
-                float tw = 0.6f + 0.4f * Mathf.Sin((float)_t * 1.7f + i * 2.3f);   // 弱い瞬き
-                DrawRect(new Rect2(x, y, 1f, 1f), new Color(1f, 1f, 1f, starA * tw * 0.9f));
-            }
-        }
-        // 満月（台本の指定）。明けても薄く残す。
-        var moon = new Vector2(W * 0.24f, H * 0.24f);
-        DrawCircle(moon, 16f, new Color(0.95f, 0.95f, 0.86f, 0.10f * (1f - _dawnK * 0.6f)));  // ハロ
-        DrawCircle(moon, 9f, new Color(0.98f, 0.98f, 0.92f, Mathf.Lerp(0.95f, 0.35f, _dawnK)));
-        // 雲。ゆっくり右から左へ流す（歩いている距離感）。明け方は暖色に染まる。
-        //   1つの雲は「潰した円を数個重ねた塊」で作る（矩形だと看板に見える）。
-        Color cloudN = new(0.16f, 0.18f, 0.30f, 1f), cloudD = new(0.78f, 0.60f, 0.56f, 1f);
-        Color cloud = cloudN.Lerp(cloudD, _dawnK);
-        for (int i = 0; i < 5; i++)
-        {
-            float speed = 1.6f + i * 0.55f;                  // 手前ほど速い
-            float y = 26f + i * 20f;
-            float r = 7f + i * 2.2f;                          // 塊の大きさ
-            float span = r * 5.5f;
-            float x = Mathf.PosMod((float)(-_t * speed) + i * 149f, W + span * 2f) - span;
-            float a = (0.28f + i * 0.06f) * Mathf.Lerp(1f, 0.85f, _dawnK);
-            // 潰した円 5 個を少しずつずらして重ねる（中心が厚く、端が薄い＝雲の形）。
-            DrawSetTransform(new Vector2(x, y), 0f, new Vector2(1f, 0.42f));
-            for (int k = 0; k < 5; k++)
-            {
-                float kx = (k - 2f) * r * 0.95f;
-                float kr = r * (1f - Mathf.Abs(k - 2f) * 0.22f);
-                DrawCircle(new Vector2(kx, Mathf.Sin(k * 1.9f + i) * r * 0.25f), kr, cloud with { A = a });
-            }
-            DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
-        }
-        // 地面（四人が立っている／歩いている線）。空が明けるほど手前も持ち上がる。
-        Color ground = new Color(0.05f, 0.05f, 0.09f).Lerp(new Color(0.22f, 0.19f, 0.22f), _dawnK);
-        DrawRect(new Rect2(0, GroundY, W, H - GroundY), ground);
-        DrawRect(new Rect2(0, GroundY, W, 1f), ground.Lightened(0.35f));
-    }
-
-    // ═════════ E5b の四人（見上げる／歩く）═════════
-    //   素材は char/v3/walk/{name}_walk_{1..4}.png（4コマ・右向き・高さ360px・透過）と
-    //   {name}_up.png（見上げる後ろ姿）。
-    //   再生は 8ステップ（1 2 3 4 1 2 3 4）／1コマ 0.14秒／1周期 1.12秒。
-    //   後半4ステップは**上下オフセットの位相を反転**して「逆脚」に見せる（左右反転は禁止＝
-    //   髪とペンライトが逆になり別人に見えるため。素材は右向きのまま使う）。
-    //   四人で位相をずらす（台本「揃っていないまま並んで歩ける」を画で出す）。
-    private static readonly string[] WalkNames = { "akari", "koharu", "mina", "rei" };
-    private static readonly float[] WalkPhase  = { 0.00f, 0.35f, 0.55f, 0.80f };   // あかり/こはる/ミナ/レイ
-    private const float StepSec = 0.14f;              // 1コマ
-    private const int Steps = 8;                      // 1 2 3 4 1 2 3 4
-    private const float CycleSec = StepSec * Steps;   // 1.12秒
-    private const float WalkH = 36f;                  // 表示高さ＝自機（36px）に合わせる
-    private const float FootY = GroundY + 2f;         // 接地線（地面の上端よりわずかに下＝地に足がつく）
-    // 地面の上端。テキストボックス（上端 H-58＝158）に足元が隠れないよう、四人の全身が
-    //   ボックスより上に収まる高さに置く（FootY 152 − WalkH 36 ＝ 頭 116）。
-    private const float GroundY = H - 66f;
-    private readonly Texture2D?[,] _walkTex = new Texture2D?[4, 4];   // [人, コマ]
-    private readonly Texture2D?[] _upTex = new Texture2D?[4];
-    private bool _hasWalkers;
-    private double _walkT;   // 歩行の時間（見上げでは進めない＝止まって立っている）
+    private EpilogueWalker[] _walkers = System.Array.Empty<EpilogueWalker>();
+    private double _walkT;
 
     private void BuildWalkers()
     {
-        const string dir = "res://char/v3/walk/";
-        for (int p = 0; p < WalkNames.Length; p++)
-        {
-            for (int f = 0; f < 4; f++)
-            {
-                string path = $"{dir}{WalkNames[p]}_walk_{f + 1}.png";
-                if (ResourceLoader.Exists(path)) _walkTex[p, f] = ResourceLoader.Load<Texture2D>(path);
-            }
-            string up = $"{dir}{WalkNames[p]}_up.png";
-            if (ResourceLoader.Exists(up)) _upTex[p] = ResourceLoader.Load<Texture2D>(up);
-            if (_walkTex[p, 0] != null) _hasWalkers = true;
-        }
+        _walkers = EpilogueWalker.CreateParty();
     }
 
     private void UpdateWalkers(double delta)
@@ -511,63 +386,30 @@ public partial class Epilogue : Node2D
         if (_phase == PhWalk) _walkT += delta;   // 見上げ（PhGaze）は止まっている
     }
 
-    // 四人を横に並べて描く。x は画面下 1/4 に等間隔、y は接地線。
-    //   見上げ＝{name}_up.png（後ろ姿）を静止で。歩き＝4コマを 8ステップで回し、
-    //   後半4ステップは上下オフセットの位相を反転する（逆脚）。
-    private void DrawWalkers(bool walking)
+    private void DrawWalkers()
     {
-        if (!_hasWalkers) return;
-        // 並び順は面の順（あかり→こはる→レイ）＋ミナが四人目。描画配列は WalkNames の順なので
-        // 表示順を別に持つ（配列の順を変えると位相の対応もずれるため）。
-        int[] order = { 0, 1, 3, 2 };   // あかり・こはる・レイ・ミナ
-        float span = 128f, x0 = W * 0.5f - span * 0.5f;
-        for (int i = 0; i < order.Length; i++)
-        {
-            int p = order[i];
-            float x = x0 + span * i / (order.Length - 1);
-            Texture2D? tex;
-            float bob = 0f;
-            if (walking)
-            {
-                // 位相をずらした周期内の位置（0..1）→ 8ステップ
-                float u = Mathf.PosMod((float)_walkT / CycleSec + WalkPhase[p], 1f);
-                int step = Mathf.Clamp((int)(u * Steps), 0, Steps - 1);
-                tex = _walkTex[p, step % 4];
-                // 上下 1.5px の正弦揺らし。後半4ステップ（step>=4）は**位相を半周ずらす**＝逆脚に見せる
-                //   （左右反転はしない。反転すると髪とペンライトが逆になり別人に見えるため）。
-                //   Abs(Sin) は周期が半分になって位相反転が効かないので、素の Sin を 0..1 へ写す。
-                float sub = u * Steps - step;                       // コマ内の進み 0..1
-                float ph = (step % 4 + sub) / 4f;                   // 4コマぶんの位相 0..1
-                if (step >= 4) ph += 0.5f;                          // 逆脚
-                bob = -1.5f * (0.5f + 0.5f * Mathf.Sin(ph * Mathf.Pi * 2f));
-            }
-            else
-            {
-                tex = _upTex[p] ?? _walkTex[p, 0];
-                bob = -0.6f * Mathf.Sin((float)_t * 1.1f + WalkPhase[p] * 6f);   // 呼吸だけ
-            }
-            if (tex == null) continue;
-            float h = WalkH, w = h * tex.GetWidth() / Mathf.Max(1, tex.GetHeight());
-            // 足元の楕円影（薄く・明けるほど濃く短く）。地面に置いて見せるための最小限。
-            DrawSetTransform(new Vector2(x, FootY), 0f, new Vector2(1f, 0.28f));
-            DrawCircle(Vector2.Zero, w * 0.34f, new Color(0f, 0f, 0f, Mathf.Lerp(0.18f, 0.32f, _dawnK)));
-            DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
-            DrawTextureRect(tex, new Rect2(x - w * 0.5f, FootY - h + bob, w, h), false);
-        }
+        float span = 100f, x0 = W * 0.5f - span * 0.5f;
+        for (int i = 0; i < _walkers.Length; i++)
+            _walkers[i].Draw(this, x0 + span * i / (_walkers.Length - 1), _walkT, _dawnK);
     }
 
     public override void _Draw()
     {
-        if (!_hasSkyTex) DrawProcSky();
+        if (_phase == PhGaze) DrawArt(_rest);
+        else
+        {
+            // Keep the night layer opaque so the crossfade never exposes the clear color.
+            DrawArt(_skyNight);
+            DrawArt(_skyDawn, _dawnK);
+        }
 
         switch (_phase)
         {
             case PhGaze:
-                DrawWalkers(walking: false);
                 DrawNarration(_gaze, _line);
                 break;
             case PhWalk:
-                DrawWalkers(walking: true);
+                DrawWalkers();
                 DrawNarration(_walk, _line);
                 break;
             case PhRoll: DrawStaffroll(); break;
@@ -575,6 +417,7 @@ public partial class Epilogue : Node2D
                 // END は明け方の空をそのまま残しつつ沈める（最後の選択肢＝ChoiceOverlay の
                 //   紫の文字が明るい空に溶けて読めなくなるため。空は「繋ぎ目が無い」まま後ろに残る）。
                 DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.78f));
+                if (ShowingGoodbye) DrawArt(_goodbye, GoodbyeAlpha);
                 DrawEnd();
                 break;
         }
@@ -642,7 +485,7 @@ public partial class Epilogue : Node2D
     {
         if (_font == null || _line >= _end.Count) return;
         // クライマックス：ミナの台詞行で落涙の立ち絵を差す（画をピークに集める／§8）。
-        if (_end[_line].Who == "ミナ" && _tears != null)
+        if (_end[_line].Who == "ミナ" && _tears != null && !ShowingGoodbye)
         {
             float a = Mathf.Clamp((float)_lineT / 0.5f, 0f, 1f);
             float ph = 116f, pw = ph * _tears.GetWidth() / Mathf.Max(1, _tears.GetHeight());
@@ -652,7 +495,7 @@ public partial class Epilogue : Node2D
         DrawLineBox(_end[_line]);
         // END は最後の1行だけ。選択がまだ出ていない間（＝末尾が「本日の業務は、以上です。」）は出さない。
         if (_e6ChoiceLine < 0 && _line >= _end.Count - 1)
-            Shadowed(_font, new Vector2(0, 40f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
+            Shadowed(_font, new Vector2(0, 82f), "END", HorizontalAlignment.Center, W * 0.5f, UiKit.CutClimax,
                 UiKit.CutInk with { A = 0.9f });
     }
 
