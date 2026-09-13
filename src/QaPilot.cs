@@ -53,6 +53,10 @@ public partial class QaPilot : Node
     private const double FocusHoldDuration = 1.6; // 1回の保持時間（StageZero の SlowHoldNeed=1.0s より長めに）
     private const double DodgePeriod = 2.2;       // 回避(Alt)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
+    // 溜め打ち（C 長押し）・集中モード（V）＝一本道13段の #6 / #10。持っていなければ押しても無害に流れる。
+    private const double ChargePeriod = 4.0;      // 溜め打ちを試す周期
+    private const double ChargeHoldDuration = 0.8; // 押している時間（Player.ChargeNeed=0.6s を必ず超える長さ）
+    private const double SlowPeriod = 9.0;        // 集中モード(V)を叩く周期（CD20秒より短くてよい＝空振りは無害）
 
     // プレイ領域（Player.cs と一致）
     private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
@@ -93,6 +97,11 @@ public partial class QaPilot : Node
     private double _focusPhase;
     private bool _dodgeKeyDown;
     private double _dodgePhase;
+    // ---- 溜め打ち(C)／集中モード(V) パルス状態（同上）----
+    private bool _chargeDown;
+    private double _chargePhase;
+    private bool _slowDown;
+    private double _slowPhase;
 
     // ---- 死亡系フロー（R/Shift+R リトライ）----
     private bool _prevGameOver;
@@ -381,6 +390,42 @@ public partial class QaPilot : Node
             Send(new InputEventKey { Keycode = Key.Alt, Pressed = true });
         }
 
+        // ---- 溜め打ち（C）：ChargeHoldDuration だけ**押しっぱなし**にしてから離す（離した瞬間に発射）----
+        //   Alt/X の「叩く」とは違い、Player.ChargeNeed(0.6s) を超える保持が要る＝レベル入力で送る。
+        _chargePhase += delta;
+        if (_chargeDown)
+        {
+            if (idle || _chargePhase >= ChargeHoldDuration)
+            {
+                _chargeDown = false;
+                _chargePhase = 0;
+                Send(new InputEventKey { Keycode = Key.C, Pressed = false });
+            }
+        }
+        else if (!idle && _chargePhase >= ChargePeriod)
+        {
+            _chargeDown = true;
+            _chargePhase = 0;
+            Send(new InputEventKey { Keycode = Key.C, Pressed = true });
+        }
+
+        // ---- 集中モード（V）：叩く。未所持／CD中は GameManager.TryFocusMode が false を返すだけ＝無害 ----
+        _slowPhase += delta;
+        if (_slowDown)
+        {
+            if (_slowPhase >= TapHoldDuration)
+            {
+                _slowDown = false;
+                _slowPhase = 0;
+                Send(new InputEventKey { Keycode = Key.V, Pressed = false });
+            }
+        }
+        else if (!idle && _slowPhase >= SlowPeriod)
+        {
+            _slowDown = true;
+            _slowPhase = 0;
+            Send(new InputEventKey { Keycode = Key.V, Pressed = true });
+        }
     }
 
     // 死亡系フロー（残機0・チェックポイント再開／最初から）のQA：
