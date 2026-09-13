@@ -383,9 +383,12 @@ public partial class TrainingRoot : Node2D
         UiKit.Text(_uiLayer, UiKit.Mono, new Vector2(box.Position.X + 18, box.Position.Y + 26), dps.ToString("N0"), 40, UiKit.PurifyHi);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 18, box.Position.Y + 82),
             $"累計与ダメ: {_totalDamage:N0}", 13, UiKit.Text2);
+        // ジョブが撃ち方を決める（V切替は廃止済み）。「装備モード（Vで切替）」の旧表記は嘘になるので、
+        // いまのジョブと撃ち方を出すだけにする。切り替えたい場合はハブのジョブ選択へ。
+        string jobName = _game?.JobDef.Name ?? "結び手";
         string modeName = _game?.ShotModeName(_game.SelectedShotMode) ?? "連射";
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 18, box.Position.Y + 100),
-            $"装備モード: {modeName}（V で切替）", 13, UiKit.Text2);
+            $"ジョブ: {jobName}（撃ち方: {modeName}）", 13, UiKit.Text2);
     }
 
     // 独り言トースト（小話4）。DPS計器（x430-774,y88-210）の真下・スキルパネル（開時 x850〜）より

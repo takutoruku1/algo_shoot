@@ -42,6 +42,10 @@ public partial class Hub : Node2D
     //   判定は IsClearedForDisplay 経由＝デバッグプレビュー（--hub-preview）でも解禁状態が表示と揃う
     //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
     private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
+    // ジョブは解禁ゲートを持たない（初回訪問から選べる＝設計書 §6）。代わりに「まだ一度も潜っていない」
+    //   あいだだけフッタの項目を脈打たせて、存在に気づかせる。一度でも潜れば静かになる＝
+    //   新しい永続項目（既読フラグ）を足さずに「初回だけ」を作る。
+    private bool JobHintGlow => (_game?.TotalDives ?? 0) == 0 && (_game?.HeartsSaved ?? 0) == 0;
     private bool RecordsUnlocked
     {
         get
@@ -78,7 +82,7 @@ public partial class Hub : Node2D
     private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
 
     private int _sel;
-    private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _dived;
+    private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _jHeld, _dived;
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
@@ -91,13 +95,20 @@ public partial class Hub : Node2D
     private bool _openDetail;
     // デバッグ限定：--hub-toast で炎上トーストを出した状態から始める（スクショ用。セーブは触らない）。
     private bool _previewToast;
+    // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用。開くだけで何も確定しない）。
+    private bool _openJob;
 
     // Detail＝2-b の投稿詳細（カードがその場で開く）。本文／消された行の伏字／ミナの一言／潜り方（難易度）を
     //   1枚に置き、旧 DiffSelect.tscn への遷移をここへ吸収した（難易度の数値・実装は不変）。
-    private enum Mode { Cards, Dialogue, Detail }
+    // Job＝ジョブ選択（設計書 §6・ハブのフッタから開くオーバーレイ）。Detail と同じ「カードがその場で開く」
+    //   作法で 4 ジョブを縦に並べ、Z で確定・X でとじる。ハブに居る＝ラン外なので、いつでも選び直せる
+    //   （ラン中＝ステージのシーンには、ジョブを書き換える導線が一つも無い＝「選んだらそのランは変えられない」）。
+    private enum Mode { Cards, Dialogue, Detail, Job }
     private Mode _mode = Mode.Cards;
     private double _detailT;      // 開いてからの経過（展開アニメと入力ゲート）
     private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
+    private double _jobT;         // ジョブ選択を開いてからの経過（展開アニメと入力ゲート。_detailT と同じ役）
+    private int _jobSel;          // ジョブ選択のカーソル（開いたときに現在のジョブへ置く）
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
@@ -189,6 +200,7 @@ public partial class Hub : Node2D
             if (args[i] == "--hub-preview" && i + 1 < args.Length) _previewState = args[i + 1];
             if (args[i] == "--hub-detail") _openDetail = true;
             if (args[i] == "--hub-toast") _previewToast = true;
+            if (args[i] == "--hub-job") _openJob = true;
         }
 
         BuildEntries();
@@ -197,6 +209,8 @@ public partial class Hub : Node2D
         if (_previewState == null) _sel = DefaultSelection();
         // デバッグ限定：--hub-detail で選択カードの投稿詳細を開いた状態から始める（スクショ用）。
         if (_openDetail && IsVoice(_sel)) OpenDetail();
+        // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用）。
+        if (_openJob) OpenJob();
         // デバッグ限定：--hub-toast で炎上トーストの見え方を撮る（GameManager は一切触らない）。
         if (_previewToast) Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
 
@@ -648,12 +662,13 @@ public partial class Hub : Node2D
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _xHeld = _cHeld = _tHeld = true;
+            _navHeld = _zHeld = _xHeld = _cHeld = _tHeld = _jHeld = true;
             QueueRedraw();
             return;
         }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
+        if (_mode == Mode.Job) { ProcessJob(delta); QueueRedraw(); return; }
         ProcessCards();
         QueueRedraw();
     }
@@ -900,6 +915,11 @@ public partial class Hub : Node2D
         bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
         bool tEdge = tk && !_tHeld; _tHeld = tk;
         if (tEdge && _t > 0.3 && !_dived && RecordsUnlocked) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
+
+        // J / RB：ジョブ選択。画面遷移ではなくハブの上に開く（Detail と同じ扱い）＝解禁ゲート無し。
+        bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);
+        bool jEdge = jk && !_jHeld; _jHeld = jk;
+        if (jEdge && _t > 0.3 && !_dived) OpenJob();
     }
 
     // フッタボタン（マウス）押下のアクション。キー導線（X=強化 / T=記録 / C=返信）と同じ処理へ合流する。
@@ -923,6 +943,9 @@ public partial class Hub : Node2D
                     var lines = ReplyDialog(_entries[_sel].Id);
                     if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
                 }
+                break;
+            case FootAct.Job:
+                OpenJob();
                 break;
         }
     }
@@ -1048,6 +1071,7 @@ public partial class Hub : Node2D
 
         if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
         if (_mode == Mode.Detail) { DrawCards(0.20f); DrawDetail(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
+        if (_mode == Mode.Job) { DrawCards(0.20f); DrawJob(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
         DrawCards(1f);
         DrawFooter();
         DrawToast();
@@ -1086,6 +1110,19 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", UiKit.FontLabel, UiKit.Text3);
         float hW = UiKit.TextW(UiKit.Mono, "@mina_ai_", UiKit.FontLabel);
         UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70 + hW + 8, hy + 36), "· now", UiKit.FontLabel, UiKit.Text4);
+        // 今のジョブ（常時表示・設計書 §6「現在の選択が一目で分かる」）。メタ行の空きに小さく置く＝
+        //   新しい区画を作らず、ヘッダの「いまのミナ」の一部として読ませる。ジョブ選択を開いていない
+        //   ときでも必ず見えるので、潜る直前に「今日はどの型か」を確かめられる。
+        {
+            var jd = _game?.JobDef ?? Jobs.Get(Job.Tank);
+            float jx = padX + 70 + hW + 8 + UiKit.TextW(UiKit.Mono, "· now", UiKit.FontLabel) + 14f;
+            string js = $"{jd.Name}・{ShotWord(jd.Mode)}";
+            float jw = UiKit.TextW(UiKit.Zen, js, UiKit.FontSmall) + 22f;
+            var jc = JobColor(jd.Id);
+            UiKit.Box(this, new Rect2(jx, hy + 32f, jw, 20f), new Color(jc, 0.12f), 10f, new Color(jc, 0.42f), 1f);
+            DrawCircle(new Vector2(jx + 10f, hy + 42f), 3.5f, new Color(jc, 0.95f));
+            UiKit.Text(this, UiKit.Zen, new Vector2(jx + 18f, hy + 35f), js, UiKit.FontSmall, new Color(jc, 0.95f));
+        }
 
         long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
         string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
@@ -1553,7 +1590,7 @@ public partial class Hub : Node2D
     //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
     //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
     //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
-    private enum FootAct { None, Reply, Shop, Records }
+    private enum FootAct { None, Reply, Shop, Records, Job }
     private const int FooterIdBase = 10000;
 
     // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
@@ -1565,6 +1602,9 @@ public partial class Hub : Node2D
             (Pad.ConfirmToken, "潜る", true, FootAct.None),
         };
         if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
+        // ジョブは解禁ゲート無し＝初回訪問から出す（設計書 §6：ショップは1面ボスまで開かないので、
+        //   ハブに置かないと最初のダイブ前に一度も選べない）。強化・記録より前に置く＝潜る前に決める順。
+        list.Add((JobKeyToken, "ジョブ", false, FootAct.Job));
         // 強化・記録は解禁されるまでフッタに出さない（押せないものを見せない・2026-09-07）。
         //   強化＝最初の面のボスを倒すまで／記録＝どれか一面をクリアするまで。判定は ShopUnlocked / RecordsUnlocked。
         if (ShopUnlocked) list.Add((Pad.BombToken, "強化", false, FootAct.Shop));                  // ← ショップ入口ボタン
@@ -1603,6 +1643,17 @@ public partial class Hub : Node2D
             // クリック可能な項目はホバー中に淡い下敷きを敷いて「押せる」ことを示す（カードと同じ強調トーン）。
             bool clickable = act != FootAct.None;
             bool hovered = clickable && hov == FooterIdBase + i;
+            // 初回だけ「ジョブ」を軽く光らせる（存在に気づける最小の誘導・設計書 §6）。新しい意匠は作らず、
+            //   カードの左アクセントバーと同じ脈（sin の 4 乗＝60bpm）を Hint の下敷きに流用する。
+            //   条件は「まだ一度も潜っていない」＝この起動のダイブ0かつクリア0。新しい永続項目は足さない。
+            if (act == FootAct.Job && !hovered && JobHintGlow)
+            {
+                float beat = Mathf.Pow(Mathf.Max(0f, Mathf.Sin((float)_t * Mathf.Pi)), 4f);
+                float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+                float lw = UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel);
+                UiKit.Box(this, new Rect2(x - 4f, y - 16f, kw + 8 + lw + 8f, 30f),
+                    new Color(UiKit.Mina, 0.05f + 0.10f * beat), 8f, new Color(UiKit.Mina, 0.20f + 0.45f * beat), 1f);
+            }
             x = Hint(x, y, key, label, accent, hovered);
         }
     }
@@ -1779,6 +1830,232 @@ public partial class Hub : Node2D
         string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
         rx -= 14f + UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall);
         UiKit.Text(this, UiKit.Mono, new Vector2(rx, y + 16f), stake, UiKit.FontSmall, new Color(UiKit.Text3, alpha));
+    }
+
+    // ───────── ジョブ選択（設計書 §6）─────────
+    // ハブのフッタ「ジョブ」から開くオーバーレイ。作法は投稿詳細（Detail）と完全に同じ＝
+    //   ↑↓ で段を選び Z で確定・X／「とじる」で戻る、マウスはホットスポット＋ホバー追従、ホイールは使わない
+    //   （段が4つで画面に収まるため）。ショップとは一切繋がない＝ここは「型を選ぶ」だけの枠。
+    //
+    // 【ここが持ってはいけないもの】
+    //   ・ショップ（強化）への導線。一本道ショップに枝を作らない（設計書 §7 第3段の領分）。
+    //   ・ジョブ補正の数値そのもの。文言は src/Job.cs の Strength / Weakness をそのまま読む
+    //     ＝数値が動いたら表示も一緒に動く（設計書 §2 の表が唯一の出典）。
+    //
+    // ラン中は開かない：この画面はハブのシーンにしか存在せず、ステージ側に SelectedJob を書く導線も無い
+    //   （grep 済み：GameManager / TrainingRoot 以外に代入無し）＝「選んだらそのランは変えられない」。
+    private const int JobIdBase = 21000, JobCloseId = 21900;
+    // キー表記は Pad の共通トークンに無い枠（J / RB）。ハブの既存割り当て（Z/X/C/T/R）と衝突しない。
+    private static string JobKeyToken => Pad.ShowKeyboard ? "J" : Pad.Face(JoyButton.RightShoulder);
+
+    // 撃ち方の1語（設計書 §3 の 1対1）。GameManager.ShotModeName は「ホーミング」を返すが、
+    //   選択画面は4語を同じ長さで並べたいのでここだけ「誘導」に詰める（ログ表記は変えない）。
+    private static string ShotWord(GameManager.ShotMode m) => m switch
+    {
+        GameManager.ShotMode.Accel => "加速球",
+        GameManager.ShotMode.Homing => "誘導",
+        GameManager.ShotMode.Spread => "拡散",
+        _ => "連射",
+    };
+
+    // ジョブの色。既存の語彙から取る＝灯し手=灯(Light)／祈り手=浄化(Purify)／結び手=ミナ紫／語り手=金。
+    private static Color JobColor(Job j) => j switch
+    {
+        Job.Melee => UiKit.Light,
+        Job.Heal => UiKit.Purify,
+        Job.Magic => UiKit.Gold,
+        _ => UiKit.Mina,
+    };
+
+    private (float cx, float cy, float cw, float ch) JobBox()
+    {
+        float cw = W - 160f, ch = 512f;
+        return ((W - cw) / 2f, 108f, cw, ch);
+    }
+
+    // ジョブ i 段目の矩形（DrawJob の DrawJobRow 呼び出しと同じ x/y/w/h）。展開の浮きは無視する
+    //   ＝開いた直後でもクリック位置が動かない（Detail の TierHitRect と同じ考え方）。
+    private Rect2 JobHitRect(int i)
+    {
+        var (cx, cy, cw, _) = JobBox();
+        float ty = cy + 110f, th = 78f, tg = 8f;
+        return new Rect2(cx + 40f, ty + i * (th + tg), cw - 80f, th);
+    }
+
+    // 「とじる」の矩形。フッタは Hint を左から並べる（↑↓ジョブ → 決める → とじる）ので、
+    //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
+    private Rect2 JobCloseRect()
+    {
+        var (cx, cy, _, ch) = JobBox();
+        float fy = cy + ch - 22f, fx = cx + 40f;
+        fx += FootItemSpan("↑↓", "ジョブ");
+        fx += FootItemSpan(Pad.ConfirmToken, "決める");
+        string key = Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B);
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        return new Rect2(fx - 4f, fy - 16f, kw + 8 + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontLabel) + 8f, 30f);
+    }
+
+    private void OpenJob()
+    {
+        if (_dived) return;
+        Audio.Instance?.PlayUiConfirm();
+        _mode = Mode.Job;
+        _jobT = 0;
+        // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
+        var cur = _game?.SelectedJob ?? Job.Tank;
+        _jobSel = 0;
+        for (int i = 0; i < Jobs.All.Length; i++) if (Jobs.All[i].Id == cur) { _jobSel = i; break; }
+    }
+
+    private void ProcessJob(double delta)
+    {
+        _jobT += delta;
+        int n = Jobs.All.Length;
+
+        // マウス：段と「とじる」を登録（Detail と同じ作法）。ホバーでカーソルが移る。
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < n; i++) UiKit.Hotspot(JobHitRect(i), JobIdBase + i);
+        UiKit.Hotspot(JobCloseRect(), JobCloseId);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= JobIdBase && hov < JobIdBase + n && hov - JobIdBase != _jobSel)
+        {
+            _jobSel = hov - JobIdBase; Audio.Instance?.PlayUiMove();
+        }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+
+        bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
+        if ((up || down) && !_navHeld)
+        {
+            _jobSel = (_jobSel + (up ? -1 : 1) + n) % n;
+            Audio.Instance?.PlayUiMove();
+        }
+        _navHeld = up || down;
+
+        // マウス：「とじる」クリック＝X と同じ。ここで消費して確定側へ流さない。
+        if (clk == JobCloseId && _jobT > 0.15)
+        {
+            Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; _xHeld = true;
+            return;
+        }
+
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        // 段のクリック＝選択＋確定（Z と同じ経路）。
+        if (clk >= JobIdBase && clk < JobIdBase + n && _jobT > 0.15) { _jobSel = clk - JobIdBase; zEdge = true; }
+        if (zEdge && _jobT > 0.15)
+        {
+            Audio.Instance?.PlayUiConfirm();
+            var jd = Jobs.All[_jobSel];
+            if (_game != null)
+            {
+                // セッタが SelectedShotMode を同期する＝「型が撃ち方を決める」（設計書 §3）。
+                //   --job= で固定中（JobForcedByCmdline）はデバッグ指定を守り、画面からは変えない。
+                if (_game.JobForcedByCmdline)
+                {
+                    Toast("ジョブは --job= で固定中", $"いまのジョブ：{_game.JobDef.Name}", UiKit.Info);
+                    _mode = Mode.Cards; _xHeld = true;
+                    return;
+                }
+                _game.SelectedJob = jd.Id;
+                GD.Print($"[JOB] selected in hub: {jd.Name}({jd.Id}) mode={_game.ShotModeName(_game.SelectedShotMode)}");
+                _game.AutoSave();   // セーブ経路は既存の SelectedJob のまま（新フォーマットは増やさない）
+            }
+            // トーストは既存の型（1行目＝世界の言葉／2行目＝数値・仕様）で出す。
+            Toast($"今日は{jd.Name}で潜る", $"{jd.TypeName}・撃ち方 {ShotWord(jd.Mode)}", JobColor(jd.Id));
+            _mode = Mode.Cards; _xHeld = true;
+            return;
+        }
+
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_xHeld; _xHeld = back;
+        if (backEdge && _jobT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
+    }
+
+    private void DrawJob()
+    {
+        // 展開：0.18s で下から起き上がる（Detail と同じ）。
+        float k = Mathf.Clamp((float)_jobT / 0.18f, 0f, 1f);
+        k = 1f - Mathf.Pow(1f - k, 3f);
+        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.52f * k));
+
+        var (cx, cy0, cw, ch) = JobBox();
+        float cy = cy0 + (1f - k) * 24f;
+        var cur = _game?.SelectedJob ?? Job.Tank;
+        Color acc = JobColor(Jobs.All[Mathf.Clamp(_jobSel, 0, Jobs.All.Length - 1)].Id);
+        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 15 / 255f, 27 / 255f, 0.98f * k), 18f,
+            new Color(acc, 0.55f * k), 1.5f);
+
+        float a = k;
+        // ── 見出し ──
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 28f), "ジョブ", UiKit.FontTitle, new Color(UiKit.White, a));
+        // 「そのランは変えられない」を一行で言う（設計書 §6／§8）。潜る前に決める、の説明はこれだけで足りる。
+        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 66f),
+            "潜るまでに決める。潜っているあいだは、変えられない。", UiKit.FontLabel, new Color(UiKit.Text3, a));
+        DrawRect(new Rect2(cx + 40f, cy + 96f, cw - 80f, 1f), new Color(1, 1, 1, 0.09f * a));
+
+        float ty = cy + 110f, th = 78f, tg = 8f;
+        for (int i = 0; i < Jobs.All.Length; i++)
+            DrawJobRow(i, cur, cx + 40f, ty + i * (th + tg), cw - 80f, th, a);
+
+        // ── フッタ（この画面の操作）──
+        float fy = cy + ch - 22f, fx = cx + 40f;
+        fx = Hint(fx, fy, "↑↓", "ジョブ", false);
+        fx = Hint(fx, fy, Pad.ConfirmToken, "決める", true);
+        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false, UiKit.HoveredId() == JobCloseId);
+    }
+
+    // ジョブ1段。名前／タイプ・撃ち方／得意（1行）／捨てる（1行）。文言は src/Job.cs の
+    //   Strength / Weakness をそのまま出す＝設計書 §2 の表以外に文言の出典を作らない。
+    //   「いま選んでいるジョブ」には印（●）を付ける＝カーソルとは別に一目で分かる。
+    private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
+    {
+        var jd = Jobs.All[i];
+        bool sel = i == _jobSel;      // カーソル（これから決める段）
+        bool now = jd.Id == cur;      // いま選ばれているジョブ
+        Color acc = JobColor(jd.Id);
+
+        if (sel)
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.65f * alpha), 12f, new Color(acc, 0.85f * alpha), 1.5f);
+        else
+            UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f * alpha), 12f,
+                new Color(now ? acc : UiKit.White, (now ? 0.34f : 0.09f) * alpha), 1f);
+
+        float tx = x + 18f;
+        if (sel) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 13f), "▸", UiKit.FontBody, new Color(acc, alpha)); tx += 20f; }
+        // 現在の選択マーク（●）。カーソルが別の段にあっても「今はこれ」が読める。
+        if (now)
+        {
+            DrawCircle(new Vector2(tx + 5f, y + 23f), 5f, new Color(acc, 0.95f * alpha));
+            tx += 18f;
+        }
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), jd.Name, UiKit.FontSpeaker,
+            new Color(sel ? UiKit.White : UiKit.Text2, alpha));
+        float nw = UiKit.TextW(UiKit.ZenBold, jd.Name, UiKit.FontSpeaker);
+        // タイプ・撃ち方（1語ずつ）。名前の右に小さく添える。
+        UiKit.Text(this, UiKit.Mono, new Vector2(tx + nw + 14f, y + 15f), $"{jd.TypeName} / {ShotWord(jd.Mode)}",
+            UiKit.FontSmall, new Color(acc, 0.9f * alpha));
+
+        // 得意・捨てる を1行ずつ（設計書 §2 の表＝Job.cs の文字列そのまま）。
+        //   本文の開始 x は「捨てる」（長いほう）の実幅から取る＝2行のラベルと本文が縦に揃い、
+        //   字数の違う語がぶつからない（"得意" だけで固定幅を決めると "捨てる" が本文に食い込む）。
+        float lx = x + 18f;
+        float labelW = Mathf.Max(UiKit.TextW(UiKit.Zen, "得意", UiKit.FontSmall),
+                                 UiKit.TextW(UiKit.Zen, "捨てる", UiKit.FontSmall)) + 10f;
+        float bx = lx + labelW, bw = w - 36f - labelW;
+        UiKit.Text(this, UiKit.Zen, new Vector2(lx, y + 38f), "得意", UiKit.FontSmall, new Color(UiKit.Ok, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(bx, y + 37f), jd.Strength, UiKit.FontLabel,
+            new Color(sel ? UiKit.Text2 : UiKit.Text3, alpha), HorizontalAlignment.Left, bw);
+        UiKit.Text(this, UiKit.Zen, new Vector2(lx, y + 58f), "捨てる", UiKit.FontSmall, new Color(UiKit.Kegare, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(bx, y + 57f), jd.Weakness, UiKit.FontLabel,
+            new Color(sel ? UiKit.Text3 : UiKit.Text4, alpha), HorizontalAlignment.Left, bw);
+
+        // 右上に「いま」の一語（マークだけだと色の意味を覚える必要があるので、言葉でも置く）。
+        if (now)
+        {
+            const string s = "いま";
+            float sw = UiKit.TextW(UiKit.Zen, s, UiKit.FontSmall);
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 18f - sw, y + 13f), s, UiKit.FontSmall, new Color(acc, 0.9f * alpha));
+        }
     }
 
     private void DrawDialog()
