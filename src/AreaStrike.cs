@@ -92,6 +92,8 @@ public partial class AreaStrike : Node2D, IAoeHazard
 
     private double _t;
     private bool _struck;
+    // QA検証ログのワンショット（集中モードで遅くなったことを、この予兆につき一度だけ出す）。
+    private bool _slowLogged;
     private bool _sparked;      // 着弾スパーク（FxLayer）を撒いたか＝1回だけ
 
     // 発生源（任意）。設定すると、着弾前に発生源が消滅/浄化された時点で予測線ごとキャンセルする。
@@ -162,7 +164,17 @@ public partial class AreaStrike : Node2D, IAoeHazard
         // 会話中（吹き出し表示中）は弾と同じく時間を止める＝動けない自機に着弾させない。
         if (Hud.BubblePaused) return;
 
-        _t += delta;
+        // ★集中モード（#10）：予兆の時計も敵側。ここを素の delta で進めると、遅くなった弾を尻目に
+        //   予兆だけが定刻で着弾する＝「遅くしたのに当たる」という最悪の読み違いを生む（必須配線）。
+        float ets = GameManager.EnemyTimeScale;
+        // QA走行だけ、予兆が弾と同じ倍率で遅くなっていることを1回/発動ごとにログへ出す（本番は無音）。
+        if (QaPilot.Verbose && ets < 0.99f && !_slowLogged)
+        {
+            _slowLogged = true;
+            GD.Print($"[focus] AreaStrike slowed: scale={ets:0.00} (Bullet uses the same GameManager.EnemyTimeScale) "
+                   + $"warn={_warn:0.00}s -> {_warn / ets:0.00}s in real time");
+        }
+        _t += delta * ets;
         if (!_struck && _t >= _warn) { _struck = true; Strike(); }
         if (_t >= _warn + StrikeFlash) { QueueFree(); return; }
         QueueRedraw();

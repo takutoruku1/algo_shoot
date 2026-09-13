@@ -123,6 +123,9 @@ public partial class QuoteStorm : Node2D
     public override void _Process(double delta)
     {
         if (Hud.BubblePaused) return;    // 会話中（バブル）は嵐も止める（他の ambient と同じ流儀）
+
+        // ★集中モード（#10）：嵐（＝敵の攻撃）も敵側の時計で進める。
+        delta = GameManager.EnemyDelta(delta);
         _elapsed += delta;
         _phaseT += delta;
 

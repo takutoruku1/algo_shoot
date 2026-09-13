@@ -26,6 +26,8 @@ public partial class Bullet : Area2D
     public int Damage;
     public bool Active;
     public bool Grazed;  // グレイズ済みか（重複加点防止）
+    // QA検証ログ（集中モードで遅くなったこと）を弾1発につき一度だけ出すためのワンショット。Activate で戻る。
+    private bool _slowLogged;
     // 残貫通数（自機の連射弾のみ・貫く光 shot_pierce）。>0 の弾はヒットで消えず、消費側が1減らして素通しする。
     public int Pierce;
     // 残跳弾数（自機の拡散弾のみ・連鎖の光 chain_light）。>0 の弾が消費された瞬間、最寄りの別の敵へ跳弾する。
@@ -284,7 +286,8 @@ public partial class Bullet : Area2D
         Radius = radius;
         Active = true;
         Grazed = false;
-        Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は FireRapid 側）
+        Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は各 Fire 側）
+        _slowLogged = false; // QA検証ログのワンショットもプール再利用ごとに戻す
         Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
@@ -483,8 +486,19 @@ public partial class Bullet : Area2D
         if (Hud.BubblePaused)
             return;
 
+        // ★集中モード（#10）：敵弾だけ時間を遅くする（自機弾は等速＝こちらの攻めは鈍らない）。
+        //   以降この関数は delta を使わず edelta で進む＝寿命・加速・旋回・移動が一括で同じ倍率になる。
+        float ets = IsEnemy ? GameManager.EnemyTimeScale : 1f;
+        // QA走行だけ、敵弾が遅くなっていることを弾1発につき一度ログへ（AreaStrike 側と同じ scale が出るはず）。
+        if (QaPilot.Verbose && ets < 0.99f && !_slowLogged)
+        {
+            _slowLogged = true;
+            GD.Print($"[focus] Bullet slowed: scale={ets:0.00} speed={Velocity.Length():0} -> {Velocity.Length() * ets:0} px/s");
+        }
+        double edelta = delta * ets;
+
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
-        _age += (float)delta;
+        _age += (float)edelta;
 
         // 加速球：_accelDelay 秒（タメ）経過した瞬間に、確定済みの発進方向へロケット発進（1回だけ・瞬間切替）。
         //   タメ中の Velocity はほぼ 0 なので向き復元は使わず、MakeAccel で保持した _accelDir を使う（len≈0破綻回避）。
@@ -508,7 +522,7 @@ public partial class Bullet : Area2D
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
         if (Homing && !IsEnemy)
         {
-            SteerToTarget((float)delta);
+            SteerToTarget((float)edelta);
             // シーカー形の旋回追従は「ノード回転」で行う。毎フレーム QueueRedraw で描き直す方式は
             // 80発前後の滞留で CanvasItem 描画コマンドの再記録が積み重なり FPS が 85→9 まで崩落した（QA実測）。
             // Rotation 代入は RenderingServer の変換行列更新のみ＝描画コマンドは Activate 時の1回のまま。
@@ -516,7 +530,7 @@ public partial class Bullet : Area2D
                 Rotation = Velocity.Angle();
         }
 
-        GlobalPosition += Velocity * (float)delta;
+        GlobalPosition += Velocity * (float)edelta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
         if (Homing && !IsEnemy && _age >= HomingLife)

@@ -335,6 +335,9 @@ public partial class AreaSpellCaster : Node2D
         if (Hud.BubblePaused) return; // 会話中は出さない
         if (Suppressed) return;       // ボス側ギミック中（お残し禁止 等）は宣告も発火も保留
 
+        // ★集中モード（#10）：宣告→出現の待ち時間も敵側の時計で進める（AreaStrike の _t と同じ倍率）。
+        delta = GameManager.EnemyDelta(delta);
+
         // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
         TickFullscreen(delta);
         if (AoeActive) return;
