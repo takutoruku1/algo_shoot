@@ -7,5 +7,8 @@
   <!-- UI/RefrainScripts は Unity C# のデザイン参照（UnityEngine 依存）。Godot ビルドには含めない。 -->
   <ItemGroup>
     <Compile Remove="UI\**\*.cs" />
+    <!-- build/ は出力とQA成果物の置き場（.gitignore 済み）。QA走行が src/ を丸ごと複製して置くことがあり、
+         それを SDK の既定 glob が拾うとクラス名が全部二重定義になる（CS0102 が数千件）。ここで明示的に外す。 -->
+    <Compile Remove="build\**\*.cs" />
   </ItemGroup>
 </Project>
