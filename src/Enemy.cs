@@ -118,7 +118,10 @@ public partial class Enemy : Area2D
     //   #25 のHP増（Normal以上+1本）に合わせ 90→100＝ちょうど1本ぶん。未強化でも窓数が伸びすぎない。
     //   #b案：到達した瞬間に窓（VulnDur=4.0s）の残り時間を待たず TickBossPhase が即 EnterReclose へ進める
     //   （火力に投資するほど窓が早く閉じ、次のBREAKへ速く進む＝テンポでリターンを返す。詳細は TickBossPhase 参照）。
-    private const int   ExposedDamageCap = 100;
+    //   ★2026-09-13：定数をやめ、火力3段（#4 火力2倍 / #8 線+1 / #11 連射2倍）の所持数で
+    //     100 + 25×n へ伸ばす＝火力に投資するほど1窓で通せる量が増え、「強くなったのに窓の中で
+    //     手が空く」を作らない。値の定義元は GameManager.ExposedDamageCap（BodyHitCd は据え置き）。
+    private static int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 100;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
     // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
@@ -607,7 +610,7 @@ public partial class Enemy : Area2D
 
             // 窓キャップ到達後は、この窓では本体HPを削らない（弾の消滅は上で済ませ撃ち心地は残す）。
             // 到達の瞬間だけ "MAX" を1回出して「これ以上は次の窓で」を伝える。
-            if (_windowDamage >= ExposedDamageCap)
+            if (_windowDamage >= WindowCap)
             {
                 if (!_windowCapNotified)
                 {
@@ -620,7 +623,7 @@ public partial class Enemy : Area2D
             if (_bodyHitCd > 0) return;
 
             // 1ヒット上限 4→8（設計書 §4）。強化しても一定値から先が伸びない＝「ボス戦では威力の軸が死ぬ」
-            // 分裂を解く。窓の合計上限（ExposedDamageCap=100）は据え置きなので即死はせず、窓が早く閉じて
+            // 分裂を解く。窓の合計上限（WindowCap）は据え置きなので即死はせず、窓が早く閉じて
             // 次の BREAK へ進む＝テンポで返る（#b案と同じリターンの返し方）。
             int dmg = Mathf.Clamp(b.Damage, 1, 8);
 
@@ -651,7 +654,7 @@ public partial class Enemy : Area2D
             }
 
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
-            dmg = Mathf.Min(dmg, ExposedDamageCap - _windowDamage);
+            dmg = Mathf.Min(dmg, WindowCap - _windowDamage);
             _windowDamage += dmg;
             _bodyHitCd = BodyHitCd;
             int prevBarsLeft = (_hp + BarHp - 1) / BarHp; // 減算前の残バー数（切り上げ）
@@ -793,7 +796,7 @@ public partial class Enemy : Area2D
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
         int dmg = Mathf.RoundToInt(BombStrikeBase * (game?.BombPowerMul ?? 1f));
-        dmg = Mathf.Min(dmg, ExposedDamageCap - _windowDamage); // 窓キャップの残り許容内でだけ通す
+        dmg = Mathf.Min(dmg, WindowCap - _windowDamage); // 窓キャップの残り許容内でだけ通す
         if (dmg <= 0)
         {
             // キャップ到達済み：弾ヒットと同じ「MAX」ワンショットで「次の窓で」を伝える。
@@ -1284,8 +1287,13 @@ public partial class Enemy : Area2D
             return;
         }
 
+        // ★集中モード（#10）：ここから下は「敵の時間」＝係数を掛けた delta で進める。
+        //   自機・HUD・音・演出は素の delta のまま＝向かってくるものだけが遅くなる（Engine.TimeScale は使わない）。
+        //   登場演出・改心・退場（上の early-return 群）は物語の尺なので掛けない。
+        double edelta = GameManager.EnemyDelta(delta);
+
         // 無防備窓サイクルの進行（BubblePaused でも止めない＝合図/窓が固まらないように）。
-        if (_maxHp > 0) TickBossPhase(delta);
+        if (_maxHp > 0) TickBossPhase(edelta);
 
         // ロックオンの照準マーカー（_Draw）を回すための再描画（2026-09-08）。
         //   ザコ（_maxHp==0）は普段いっさい QueueRedraw を呼ばない＝ロック対象を雑魚まで広げた今、
@@ -1298,8 +1306,8 @@ public partial class Enemy : Area2D
 
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
 
-        UpdateMovement(delta);
-        TickAutoBank(delta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
+        UpdateMovement(edelta);
+        TickAutoBank(edelta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
         if (GlobalPosition.X < OffLeftX) QueueFree();
     }
 
@@ -1320,7 +1328,7 @@ public partial class Enemy : Area2D
                 QueueRedraw(); // 発光/明滅（_Draw）を更新し「今は殴れる」を可視化
                 // 窓キャップ到達済みなら残り時間（最大4.0s）を待たせず次サイクルへ即移行。
                 // 火力に投資するほど「窓を早く閉じて次のBREAKへ進める」形でリターンを返す（#b案）。
-                if (_windowDamage >= ExposedDamageCap || _phaseT >= VulnDur) EnterReclose();
+                if (_windowDamage >= WindowCap || _phaseT >= VulnDur) EnterReclose();
                 break;
             case BossPhase.Reclose:
                 // 弱気セリフ(RecloseLineDur)を見せ、RespawnGap 置いてパネルを一括再生成＝SHIELDED へ。

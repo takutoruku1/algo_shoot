@@ -8,6 +8,12 @@ using System.Collections.Generic;
 //   - 恒久強化は被弾・リトライ・汚染で溶けない（§0-3）。セーブにのみ依存して永続。
 public partial class GameManager : Node
 {
+    // Autoload の実体への静的参照。敵側の EnemyTimeScale が毎フレーム GetNode するのを避けるためだけの控え。
+    //   _EnterTree で立て、_ExitTree で降ろす（シーン切替で古い実体を掴み続けないように）。
+    public static GameManager? Instance { get; private set; }
+    public override void _EnterTree() => Instance = this;
+    public override void _ExitTree() { if (Instance == this) Instance = null; }
+
     public long Score { get; private set; }
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
@@ -48,14 +54,16 @@ public partial class GameManager : Node
     //     加速球      : accel_1 が「威力 +1」（旧 accel_power_1 の効果）を担い、accel_power_* は +2/+3 へ繰り上げ
     //   ＝「買ったのに何も変わらない」ノードを残さない。既存セーブは所持IDがそのままなので効果だけが強くなる
     //     （没収ゼロ＝MigrateUpgradesIfLegacy の方針と同じ）。
-    public int SpreadWays => new[] { 5, 7, 9, 11 }[Mathf.Clamp(ChainLevel("spread", 3), 0, 3)];
-    public int HomingShots => new[] { 2, 3, 4, 5 }[Mathf.Clamp(ChainLevel("homing", 3), 0, 3)];
+    // 撃ち方ごとの「本数」。素の値（拡散5way／ホーミング2発）に、#8 弾の線+1 のぶんだけ足す。
+    //   ★2026-09-13：本数を火力（旧 shot_power）から導出するのを止めた。線数は線数の段が決める。
+    public int SpreadWays => 5 + ExtraLines * 2;   // 5 → 7way（扇は左右対称に増やすので +2）
+    public int HomingShots => 2 + ExtraLines;      // 2 → 3発
     public string ShotModeName(ShotMode m) => m switch { ShotMode.Spread => "拡散", ShotMode.Homing => "ホーミング", ShotMode.Accel => "加速球", _ => "連射" };
     // 残機・ボムは難易度ベース ＋ 恒久強化ボーナス。
     // Lunaticは弾密度(BulletCountMul=1.9、Hard比+73%)・弾速(1.18)・間隔(0.85)全てが全難易度中最厳。
     // Easy(6)→Normal(4)→Hard(3)の減り方（-2,-1）に沿って Hard→Lunatic も -1 段階減らし、
     // 最終ティアの「賭け金」をリターン（Lunatic解禁自体がフォロワー200等のやり込み到達点）に見合わせる。
-    // 恒久強化(max_life/bomb_count、ChainLevel上限+2)を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
+    // 恒久強化（はーと +1 が2段＝最大 +2）を乗せて初めて現実的に戦える設計は維持（②-4想定通り）。
     // ジョブの最大♥増減（結び手 +2 ／ 灯し手 −1）もここへ乗せる＝回復キャップ(Player.AddLife)も同時に追従する。
     // 下限1：灯し手×Lunatic(基礎2)でも 1 は残す＝「開始即ゲームオーバー」を作らない。
     public int StartLives => Mathf.Max(1, BaseLivesFor(Difficulty) + MaxLifeBonus + JobDef.MaxLifeDelta);
@@ -84,9 +92,79 @@ public partial class GameManager : Node
     public int DiffBarBonus(bool finalBoss) =>
         (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
-    // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
+    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #4「弾の火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
-    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || ChainLevel("shot_power", 4) >= 4;
+    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || Has("n_power_2x");
+
+    // ───── 回避の解禁（1面クリアの物語報酬・2026-09-13 ユーザー決定）─────
+    //   回避（Alt / L3 / 右クリック）は基礎キットではなく「1面をクリアしたら手に入るもの」にした。
+    //   未取得のあいだ Player.TryDodge は即 return し、あそびかたの回避行も出ない＝解禁が画面で見える。
+    //   永続（save_N.json の "hasDodge"）。既存セーブは 1面クリア済みなら読み込み時に自動付与する。
+    public bool HasDodge { get; private set; }
+    // 取得の瞬間だけ立つ（ハブ／ステージのHUDが一言出したら消費して false に戻す）。セーブしない。
+    public bool DodgeJustUnlocked;
+    public void GrantDodge()
+    {
+        if (HasDodge) return;
+        HasDodge = true;
+        DodgeJustUnlocked = true;
+        GD.Print("[dodge] unlocked by first stage clear");
+        // 告知は既存の HUD バナー（ShowBanner）に一言載せるだけ＝新規UIは作らない。
+        //   ここは CompleteStage の入口＝クリア演出の頭なので、ステージのHUDがまだ生きている。
+        //   居なければ黙って落とす（ハブ直行などの経路でクラッシュさせない）。
+        if (GetTree()?.GetFirstNodeInGroup("hud") is Hud hud)
+            hud.ShowBanner("回避をおぼえた　—　Alt / 右クリック");
+    }
+
+    // ───── 集中モード（一本道 #10「集中モードを覚える」・Vキー）─────
+    //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
+    //   代わりに「敵側だけが読む delta 係数」をここに一本置き、敵・敵弾・予兆・嵐がそれを掛けて時間を進める。
+    //   ＝自機の操作感は等速のまま、向かってくるものだけが遅くなる。
+    public const float FocusModeScale = 0.35f;   // 敵側の時間倍率
+    public const float FocusModeDur = 1.5f;      // 持続（秒・実時間）
+    public const float FocusModeCd = 20f;        // クールダウン（秒・実時間）
+    private float _focusModeT;                   // 残り持続
+    private float _focusModeCd;                  // 残りクールダウン
+    public bool FocusModeActive => _focusModeT > 0f;
+    public bool FocusModeReady => HasFocusMode && _focusModeCd <= 0f && _focusModeT <= 0f;
+    public float FocusModeCdRatio => Mathf.Clamp(_focusModeCd / FocusModeCd, 0f, 1f);
+    public float FocusModeRatio => Mathf.Clamp(_focusModeT / FocusModeDur, 0f, 1f);
+
+    // 敵側が delta に掛ける係数。★ヒットストップ（GameCamera が Engine.TimeScale を 0.06 に落とす）と
+    //   二重に掛けない：TimeScale が落ちている間は既に全体が止まっているので、ここでは 1 を返す。
+    public static float EnemyTimeScale
+    {
+        get
+        {
+            if (Engine.TimeScale < 0.99) return 1f;   // ヒットストップ中＝二重掛け禁止
+            var g = Instance;
+            return g != null && g.FocusModeActive ? FocusModeScale : 1f;
+        }
+    }
+    // 敵側ノードが使う唯一の入口。delta にこれを掛けてから時間を進める。
+    public static double EnemyDelta(double delta) => delta * EnemyTimeScale;
+
+    // 発動（Player が V のエッジで呼ぶ）。使えなければ false（＝SE も鳴らさない）。
+    public bool TryFocusMode()
+    {
+        if (!FocusModeReady) return false;
+        _focusModeT = FocusModeDur;
+        _focusModeCd = FocusModeCd;
+        GD.Print($"[focus] ON scale={FocusModeScale} dur={FocusModeDur}s cd={FocusModeCd}s");
+        return true;
+    }
+
+    // 集中モードの時計を送る（Player._PhysicsProcess から実時間 delta で1本呼ぶ）。
+    //   ★ここは自機側の時計＝EnemyTimeScale を掛けない（掛けると自分で自分を伸ばしてしまう）。
+    public void TickFocusMode(float dt)
+    {
+        if (_focusModeT > 0f)
+        {
+            _focusModeT -= dt;
+            if (_focusModeT <= 0f) { _focusModeT = 0f; GD.Print("[focus] OFF"); }
+        }
+        else if (_focusModeCd > 0f) _focusModeCd -= dt;
+    }
 
     // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
     public string PendingStageScene = "res://Rei.tscn";
@@ -317,6 +395,9 @@ public partial class GameManager : Node
     // ステージ完了：クリア報酬を計上し、クリア済に記録。ハブ帰還前に各ステージから呼ぶ。
     public void CompleteStage(string id)
     {
+        // 回避は「1面クリアの物語報酬」（2026-09-13 ユーザー決定）。ステージ側には書かず、ここで完結させる。
+        //   RegisterStageClear（＝オートセーブ）より前に立てる＝取った瞬間がそのまま保存される。
+        if (id == FirstStageId) GrantDodge();
         RegisterStageClear();
         _cleared.Add(id);
         JustClearedStageId = id; // ハブで帰還会話＆自動投稿を再生する
@@ -433,122 +514,70 @@ public partial class GameManager : Node
     // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
     public long RunImpression { get; private set; }
 
-    // 恒久強化レベル（id → 現在Lv）。未所持は 0。単Lvノード方式では値は常に 0/1。
+    // 恒久強化の所持（id → 0/1）。一本道13段はすべて買い切り＝値は 0 か 1 しか取らない。
     // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
     private Dictionary<string, int> _upgrades = new();
 
     // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
-    // 二分木ディシジョンツリー：単一ルート「ミナの核」から 1→2→4→7→6 と二個ずつ広がる（Shop が描画）。
-    //   ・親条件（ParentId）＝ノードに入る（Lv0→1）ときだけ親Lv≥1 を要求。続きLvは親不要。
-    //   ・排他フォーク（ExclusiveWith）＝対の片方をLv1にするともう片方は封印（振り直しで解除可）。
-    //   ・前提（Prereq）は奥義の解放条件（従来どおり次のLv購入時のみ判定＝グランドファーザー規則）。
+    // ★2026-09-13：分岐する木（70ノード・排他・振り直し）を畳み、一本道13段に作り直した。
+    //   買える段は常にひとつ＝「次の一手」を選ばせない。順序条件は ParentId（直前の段）だけ。
     public sealed class UpgradeDef
     {
         public string Id = "";
-        public string Name = "";
-        public string Desc = "";
-        public int MaxLevel;
+        public string Name = "";   // ＝効果そのもの（画面に出る唯一の説明）
+        public string Desc = "";   // 詳細パネルの「いま → 買うと」を組む材料
+        public int MaxLevel;       // 一本道では常に 1（買い切り）
         public long BaseCost;
-        public float CostMul; // 次レベルの価格は BaseCost * CostMul^(現Lv-1)（Lv0→1 は一律100）
-        // ツリー前提（奥義のみ設定）。PrereqId 非空なら「PrereqId が PrereqLv 以上」で購入可。
-        // 判定は“次の Lv を買う瞬間”のみ＝前提未達でも所持済み Lv は没収・無効化しない（グランドファーザー規則）。
-        public string PrereqId = "";
-        public int PrereqLv;
-        public bool Capstone; // 奥義。Lv0→1 の一律100を適用しない（Lv1=BaseCost・以降 ×CostMul）
-        // 二分木の親（""＝ルート直結）。Lv0→1 の購入時のみ「親Lv≥1」を要求する。
+        // 直前の段。""＝先頭（n_life_1 のみ）。これを持っていなければ買えない＝一本道の順序そのもの。
         public string ParentId = "";
-        // 排他フォークの相方（""＝排他なし）。相方Lv≥1 かつ自分Lv0 なら封印（IsSealed）。
-        public string ExclusiveWith = "";
     }
 
-    // ───── 単Lvノード方式（ショップ大改修フェーズ1）─────
-    //   MaxLv方式を廃止し、各レベルを独立した買い切りノード（MaxLevel=1・固定BaseCost）に外出しした。
-    //   ・排他は全撤廃（ExclusiveWith 全空）＝どのノードも買い切りで没収なし。
-    //   ・Prereq は「順序の道しるべ」としてのみ残す（グランドファーザー規則：所持済み Lv は前提未達でも有効）。
-    //   ・効果値は ChainLevel(prefix, n)（連続所持段数）で従来式に読み替える（式は不変・Lv取得元だけ差替え）。
-    //   ・価格は旧 CostAt の各段から移送（総額据え置き）。圧縮系(3→2)は末尾段効果を旧最終Lv相当に補償。
-    //   座標(x,y)は Shop 側の NodePos（フェーズ2でカメラ表示）と対応。ParentId は木の骨格・道しるべ。
+    // ───── 一本道13段（ショップ作り直し・2026-09-13）─────
+    //   分岐・排他・振り直しを全廃し、「上から順にしか買えない」1列だけにした。ノード名＝効果そのもの
+    //   ＝詳細の地の文を読ませなくても何が起きるか分かる（Desc は「いま → 買うと」の材料としてだけ持つ）。
+    //   ・順序は ParentId が直前の段を指すことで担保する（IsParentMet ＝ 直前の段の所持）。
+    //   ・価格は 150→4,000 の単調増加。1面クリア報酬 400×MoneyGainMul(2) と道中の稼ぎで
+    //     「1面ごとに1〜2段」進む速度を狙っている。
+    //   ・#6 溜め打ち／#10 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
+    //   ★この配列の並びがそのまま画面の並び＝唯一の正典。増減はここだけを編集する。
     public static readonly UpgradeDef[] Upgrades =
     {
-        // ── 連射系 ──
-        new() { Id = "fire_rate_1",   Name = "連射速度I",   Desc = "発射間隔 ×0.92",           MaxLevel = 1, BaseCost = 100,  ParentId = "" },
-        new() { Id = "fire_rate_2",   Name = "連射速度II",  Desc = "発射間隔 ×0.84",           MaxLevel = 1, BaseCost = 350,  ParentId = "fire_rate_1" },
-        new() { Id = "fire_rate_3",   Name = "連射速度III", Desc = "発射間隔 ×0.76",           MaxLevel = 1, BaseCost = 462,  ParentId = "fire_rate_2" },
-        new() { Id = "fire_rate_4",   Name = "連射速度IV",  Desc = "発射間隔 ×0.68",           MaxLevel = 1, BaseCost = 610,  ParentId = "fire_rate_3" },
-        new() { Id = "shot_power_1",  Name = "光の出力I",   Desc = "届ける光の威力 +1",        MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
-        new() { Id = "shot_power_2",  Name = "光の出力II",  Desc = "届ける光の威力 +2",        MaxLevel = 1, BaseCost = 400,  ParentId = "shot_power_1" },
-        new() { Id = "shot_power_3",  Name = "光の出力III", Desc = "届ける光の威力 +3",        MaxLevel = 1, BaseCost = 540,  ParentId = "shot_power_2" },
-        new() { Id = "shot_power_4",  Name = "光の出力IV",  Desc = "届ける光の威力 +4（LUNATIC解放条件のひとつ）", MaxLevel = 1, BaseCost = 729,  ParentId = "shot_power_3" },
-        new() { Id = "rapid_power_1", Name = "連射威力I",   Desc = "連射モードの弾威力 +1",    MaxLevel = 1, BaseCost = 100,  ParentId = "shot_power_2" },
-        new() { Id = "rapid_power_2", Name = "連射威力II",  Desc = "連射モードの弾威力 +2",    MaxLevel = 1, BaseCost = 450,  ParentId = "rapid_power_1" },
-        new() { Id = "rapid_rate_1",  Name = "速射I",       Desc = "連射モードの間隔 ×0.94",   MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_3" },
-        new() { Id = "rapid_rate_2",  Name = "速射II",      Desc = "連射モードの間隔 ×0.88",   MaxLevel = 1, BaseCost = 400,  ParentId = "rapid_rate_1" },
-        new() { Id = "pierce_1",      Name = "貫く光I",     Desc = "連射弾が敵1体を貫通する",  MaxLevel = 1, BaseCost = 800,  ParentId = "rapid_power_1", PrereqId = "shot_power_2", PrereqLv = 1 },
-        new() { Id = "pierce_2",      Name = "貫く光II",    Desc = "連射弾が敵2体を貫通する",  MaxLevel = 1, BaseCost = 1280, ParentId = "pierce_1" },
-        new() { Id = "focus_1",       Name = "集中の光I",   Desc = "同じ敵に当て続けて威力 最大+1", MaxLevel = 1, BaseCost = 800,  ParentId = "rapid_power_1" },
-        new() { Id = "focus_2",       Name = "集中の光II",  Desc = "同じ敵に当て続けて威力 最大+2", MaxLevel = 1, BaseCost = 1280, ParentId = "focus_1" },
-        // ── 拡散系 ──
-        new() { Id = "spread_1",      Name = "拡散展開I",   Desc = "拡散 7way",     MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
-        new() { Id = "spread_2",      Name = "拡散展開II",  Desc = "拡散 9way",                MaxLevel = 1, BaseCost = 500,  ParentId = "spread_1" },
-        new() { Id = "spread_3",      Name = "拡散展開III", Desc = "拡散 11way",                MaxLevel = 1, BaseCost = 690,  ParentId = "spread_2" },
-        new() { Id = "spread_power_1",Name = "拡散威力I",   Desc = "拡散弾の威力 ×0.56",       MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
-        new() { Id = "spread_power_2",Name = "拡散威力II",  Desc = "拡散弾の威力 ×0.62",       MaxLevel = 1, BaseCost = 420,  ParentId = "spread_power_1" },
-        new() { Id = "spread_rate_1", Name = "拡散速射I",   Desc = "拡散モードの間隔税 ×1.35", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_2" },
-        new() { Id = "fol_gain_1",    Name = "口コミI",     Desc = "口コミ ×1.15（フォロワー獲得効率UP）", MaxLevel = 1, BaseCost = 100,  ParentId = "spread_1" },
-        new() { Id = "fol_gain_2",    Name = "口コミII",    Desc = "口コミ ×1.30",             MaxLevel = 1, BaseCost = 300,  ParentId = "fol_gain_1" },
-        new() { Id = "combo_hold_1",  Name = "コンボ持続I", Desc = "コンボ猶予 2.4秒",         MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "combo_hold_2",  Name = "コンボ持続II",Desc = "コンボ猶予 2.8秒",         MaxLevel = 1, BaseCost = 200,  ParentId = "combo_hold_1" },
-        new() { Id = "option_1",      Name = "拡散サブI",   Desc = "追従オプション +1（威力×0.5でメイン同期射撃）", MaxLevel = 1, BaseCost = 900,  ParentId = "spread_power_1", PrereqId = "spread_2", PrereqLv = 1 },
-        new() { Id = "option_2",      Name = "拡散サブII",  Desc = "追従オプション 2基",       MaxLevel = 1, BaseCost = 1440, ParentId = "option_1" },
-        new() { Id = "chain_1",       Name = "連鎖の光I",   Desc = "拡散弾が1回跳弾（威力×0.4）", MaxLevel = 1, BaseCost = 800,  ParentId = "fol_gain_2", PrereqId = "spread_2", PrereqLv = 1 },
-        new() { Id = "chain_2",       Name = "連鎖の光II",  Desc = "拡散弾が2回跳弾",          MaxLevel = 1, BaseCost = 1280, ParentId = "chain_1" },
-        // ── ホーミング系 ──
-        new() { Id = "homing_1",      Name = "誘導の祈りI", Desc = "3体追尾", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "homing_2",      Name = "誘導の祈りII",Desc = "4体追尾",                 MaxLevel = 1, BaseCost = 550,  ParentId = "homing_1" },
-        new() { Id = "homing_3",      Name = "誘導の祈りIII",Desc = "5体追尾",                 MaxLevel = 1, BaseCost = 825,  ParentId = "homing_2" },
-        new() { Id = "homing_power_1",Name = "誘導威力I",   Desc = "ホーミング弾の威力 ×0.95", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_1" },
-        new() { Id = "homing_power_2",Name = "誘導威力II",  Desc = "ホーミング弾の威力 ×1.05", MaxLevel = 1, BaseCost = 480,  ParentId = "homing_power_1" },
-        new() { Id = "homing_rate_1", Name = "誘導速射I",   Desc = "ホーミングの間隔税 ×1.40・旋回200", MaxLevel = 1, BaseCost = 100,  ParentId = "homing_2" },
-        new() { Id = "counter_1",     Name = "返し光I",     Desc = "回避よけした弾を追尾光弾へ（2発に1発）", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_power_1", PrereqId = "homing_2", PrereqLv = 1 },
-        new() { Id = "counter_2",     Name = "返し光II",    Desc = "回避よけした弾を全弾光弾化", MaxLevel = 1, BaseCost = 1280, ParentId = "counter_1" },
-        new() { Id = "veil_1",        Name = "祈りの帳I",   Desc = "回避後の弾消し光輪 r20px", MaxLevel = 1, BaseCost = 800,  ParentId = "homing_rate_1", PrereqId = "homing_2", PrereqLv = 1 },
-        new() { Id = "veil_2",        Name = "祈りの帳II",  Desc = "弾消し光輪 r28px",         MaxLevel = 1, BaseCost = 1280, ParentId = "veil_1" },
-        // ── 加速球系（ACCEL・灯し手の枝）。モードはジョブが決めるので accel_1 は「威力の第一段」へ付け替え済み（§3）。
-        //    強化軸は加速球固有のメカニクス：威力／タメ短縮（0.8→0.65→0.5s）／発進速度（640→760）。
-        //    親は move_speed_1（homing_1 と同じ流儀）。効果アクセサは AccelPowerBonus/AccelChargeDelay/AccelLaunchSpeed。
-        new() { Id = "accel_1",       Name = "加速威力I",   Desc = "加速球の威力 +1", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "accel_power_1", Name = "加速威力II",  Desc = "加速球の威力 +2",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
-        new() { Id = "accel_power_2", Name = "加速威力III", Desc = "加速球の威力 +3",          MaxLevel = 1, BaseCost = 450,  ParentId = "accel_power_1" },
-        new() { Id = "accel_charge_1",Name = "速填I",       Desc = "タメ時間 0.65秒",          MaxLevel = 1, BaseCost = 100,  ParentId = "accel_1" },
-        new() { Id = "accel_charge_2",Name = "速填II",      Desc = "タメ時間 0.5秒",           MaxLevel = 1, BaseCost = 420,  ParentId = "accel_charge_1" },
-        new() { Id = "accel_speed_1", Name = "推進強化I",   Desc = "発進速度 640→760（ロケット強化）", MaxLevel = 1, BaseCost = 400,  ParentId = "accel_charge_1" },
-        // ── バックファイア系（後方弾は bf_* 未所持でも初期から弱く発射される）──
-        new() { Id = "bf_power_1",    Name = "後方威力I",   Desc = "後方弾の威力 +1",          MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "bf_power_2",    Name = "後方威力II",  Desc = "後方弾の威力 +2",          MaxLevel = 1, BaseCost = 380,  ParentId = "bf_power_1" },
-        new() { Id = "bf_power_3",    Name = "後方威力III", Desc = "後方弾の威力 +3",          MaxLevel = 1, BaseCost = 532,  ParentId = "bf_power_2" },
-        new() { Id = "bf_rate_1",     Name = "後方速射I",   Desc = "後方弾の間隔 0.7秒",        MaxLevel = 1, BaseCost = 100,  ParentId = "bf_power_1" },
-        new() { Id = "bf_rate_2",     Name = "後方速射II",  Desc = "後方弾の間隔 0.55秒",       MaxLevel = 1, BaseCost = 420,  ParentId = "bf_rate_1" },
-        new() { Id = "bf_track_1",    Name = "後方追尾I",   Desc = "後方弾の旋回90・同時2発",  MaxLevel = 1, BaseCost = 460,  ParentId = "bf_power_1" },
-        // ── 生存・経済系 ──
-        new() { Id = "move_speed_1",  Name = "身のこなしI", Desc = "移動速度UP＋回避のキレ",   MaxLevel = 1, BaseCost = 100,  ParentId = "" },
-        new() { Id = "move_speed_2",  Name = "身のこなしII",Desc = "移動・回避 段2",           MaxLevel = 1, BaseCost = 250,  ParentId = "move_speed_1" },
-        new() { Id = "move_speed_3",  Name = "身のこなしIII",Desc = "移動・回避 段3",          MaxLevel = 1, BaseCost = 350,  ParentId = "move_speed_2" },
-        new() { Id = "contam_1",      Name = "澄んだ心I",   Desc = "汚染の上昇を抑え、心の効率を底上げ", MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_1" },
-        new() { Id = "contam_2",      Name = "澄んだ心II",  Desc = "汚染耐性 段2（旧Lv3効果に補償）", MaxLevel = 1, BaseCost = 300,  ParentId = "contam_1" },
-        new() { Id = "hitbox_1",      Name = "回避域I",     Desc = "被弾判定 ×0.88",           MaxLevel = 1, BaseCost = 100,  ParentId = "contam_1" },
-        new() { Id = "hitbox_2",      Name = "回避域II",    Desc = "被弾判定 ×0.76",           MaxLevel = 1, BaseCost = 600,  ParentId = "hitbox_1" },
-        new() { Id = "hitbox_3",      Name = "回避域III",   Desc = "被弾判定 ×0.64",           MaxLevel = 1, BaseCost = 930,  ParentId = "hitbox_2" },
-        new() { Id = "imp_mult_1",    Name = "浄化倍率I",   Desc = "獲得心 ×1.12",             MaxLevel = 1, BaseCost = 100,  ParentId = "contam_1" },
-        new() { Id = "imp_mult_2",    Name = "浄化倍率II",  Desc = "獲得心 ×1.24",             MaxLevel = 1, BaseCost = 300,  ParentId = "imp_mult_1" },
-        new() { Id = "imp_mult_3",    Name = "浄化倍率III", Desc = "獲得心 ×1.36",             MaxLevel = 1, BaseCost = 435,  ParentId = "imp_mult_2" },
-        new() { Id = "imp_mult_4",    Name = "浄化倍率IV",  Desc = "獲得心 ×1.48",             MaxLevel = 1, BaseCost = 631,  ParentId = "imp_mult_3" },
-        new() { Id = "max_life_1",    Name = "最大♥I",      Desc = "ライフ上限 +1",            MaxLevel = 1, BaseCost = 100,  ParentId = "move_speed_2" },
-        new() { Id = "max_life_2",    Name = "最大♥II",     Desc = "ライフ上限 +2",            MaxLevel = 1, BaseCost = 550,  ParentId = "max_life_1" },
-        new() { Id = "bomb_count_1",  Name = "ボム所持I",   Desc = "初期ボム +1",              MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
-        new() { Id = "bomb_count_2",  Name = "ボム所持II",  Desc = "初期ボム +2",              MaxLevel = 1, BaseCost = 450,  ParentId = "bomb_count_1" },
-        new() { Id = "bomb_power_1",  Name = "ボム威力I",   Desc = "ボム直撃が穢れを深く祓う 段1", MaxLevel = 1, BaseCost = 100,  ParentId = "max_life_1" },
-        new() { Id = "bomb_power_2",  Name = "ボム威力II",  Desc = "ボム直撃 段2",             MaxLevel = 1, BaseCost = 350,  ParentId = "bomb_power_1" },
+        new() { Id = "n_life_1",   Name = "はーと +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  150, ParentId = "" },
+        new() { Id = "n_dodge_cd", Name = "回避の戻りが早くなる", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_life_1" },
+        new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
+        new() { Id = "n_power_2x", Name = "弾の火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
+        new() { Id = "n_life_2",   Name = "はーと +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
+        new() { Id = "n_charge",   Name = "溜め打ちを覚える",      Desc = "溜めて放つ大玉（威力×4）",              MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
+        new() { Id = "n_lines",    Name = "弾の線 +1本",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
+        new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "通常移動が1.5倍速くなる（低速は不変）", MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
+        new() { Id = "n_slow",     Name = "集中モードを覚える",    Desc = "敵の時間だけ遅くする",                  MaxLevel = 1, BaseCost = 2600, ParentId = "n_move_15x" },
+        new() { Id = "n_rate_2x",  Name = "連射速度 2倍",          Desc = "発射間隔が半分になる",                  MaxLevel = 1, BaseCost = 3000, ParentId = "n_slow" },
+        new() { Id = "n_pierce",   Name = "弾が敵をつらぬく",      Desc = "どの撃ち方でも弾が敵1体を貫通する",     MaxLevel = 1, BaseCost = 3500, ParentId = "n_rate_2x" },
+        new() { Id = "n_option",   Name = "おともの光 +1",         Desc = "追従オプションが1基つく（威力×0.5）",   MaxLevel = 1, BaseCost = 4000, ParentId = "n_pierce" },
     };
+
+    // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
+    public static bool IsAbilityNode(string id) => id == "n_charge" || id == "n_slow";
+
+    // 一本道で「次に買える1段」＝先頭から数えて最初の未所持。全部買い切っていれば null。
+    public string? NextColumnNode()
+    {
+        foreach (var d in Upgrades)
+            if (GetUpgradeLevel(d.Id) < 1) return d.Id;
+        return null;
+    }
+
+    // 所持判定のショートハンド（効果アクセサがこれ1本で読む＝ChainLevel の段数計算は要らなくなった）。
+    public bool Has(string id) => GetUpgradeLevel(id) >= 1;
+
+    // 所持している段のID列（検証ログ用。挙動には影響しない）。
+    public List<string> ColumnOwnedIds()
+    {
+        var a = new List<string>();
+        foreach (var d in Upgrades) if (Has(d.Id)) a.Add(d.Id);
+        return a;
+    }
 
     public static UpgradeDef? GetUpgradeDef(string id)
     {
@@ -559,24 +588,50 @@ public partial class GameManager : Node
 
     public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
 
-    // 単Lvノード鎖の連続所持段数を返す（効果アクセサの Lv 取得元）。
-    //   prefix="fire_rate", maxSteps=4 なら fire_rate_1.._4 を頭から数え、最初の未所持で止める。
-    //   途中欠け（_1 未所持だが _2 所持など）でも連続段数だけ数える＝旧 GetUpgradeLevel と同じ「段」を返す。
-    //   効果式は不変・Lv の取得元だけをこのヘルパへ差し替える。
-    public int ChainLevel(string prefix, int maxSteps)
+    // ───── セーブ移行（旧70ノード／旧MaxLv方式 → 一本道13段）─────
+    //   方針は「没収ゼロ」：旧セーブが強化に投じた総額を決定的に再計算し、その金額で新列の先頭から
+    //   買えるだけ自動所持させる（差額は返金しない＝旧価格でどこまで積めたかが、そのまま新列の到達段になる）。
+    //   ・旧MaxLv方式（"fire_rate":3 のように Lv 値を持つ）は「Lv n＝その鎖の先頭 n 段を買った」とみなし、
+    //     旧ノード価格表 LegacyCost から総額を積む。
+    //   ・単Lvノード方式（"fire_rate_1":1 …）はそのノードの旧価格をそのまま積む。
+    //   ・どちらでもない未知キーは無視（壊れたセーブで落ちない）。
+    //   ワンショット：移行後は新IDだけが _upgrades に残るので、次回ロードでは legacy 判定に掛からない。
+    private static readonly Dictionary<string, long> LegacyCost = new()
     {
-        int lv = 0;
-        for (int i = 1; i <= maxSteps; i++)
-            if (GetUpgradeLevel($"{prefix}_{i}") >= 1) lv++;
-            else break;
-        return lv;
-    }
+        // 旧70ノードの BaseCost（2026-09-13 以前のカタログ）。総支払額の再計算にだけ使う。
+        ["fire_rate_1"] = 100, ["fire_rate_2"] = 350, ["fire_rate_3"] = 462, ["fire_rate_4"] = 610,
+        ["shot_power_1"] = 100, ["shot_power_2"] = 400, ["shot_power_3"] = 540, ["shot_power_4"] = 729,
+        ["rapid_power_1"] = 100, ["rapid_power_2"] = 450,
+        ["rapid_rate_1"] = 100, ["rapid_rate_2"] = 400,
+        ["pierce_1"] = 800, ["pierce_2"] = 1280,
+        ["focus_1"] = 800, ["focus_2"] = 1280,
+        ["spread_1"] = 100, ["spread_2"] = 500, ["spread_3"] = 690,
+        ["spread_power_1"] = 100, ["spread_power_2"] = 420,
+        ["spread_rate_1"] = 100,
+        ["fol_gain_1"] = 100, ["fol_gain_2"] = 300,
+        ["combo_hold_1"] = 100, ["combo_hold_2"] = 200,
+        ["option_1"] = 900, ["option_2"] = 1440,
+        ["chain_1"] = 800, ["chain_2"] = 1280,
+        ["homing_1"] = 100, ["homing_2"] = 550, ["homing_3"] = 825,
+        ["homing_power_1"] = 100, ["homing_power_2"] = 480,
+        ["homing_rate_1"] = 100,
+        ["counter_1"] = 800, ["counter_2"] = 1280,
+        ["veil_1"] = 800, ["veil_2"] = 1280,
+        ["accel_1"] = 100, ["accel_power_1"] = 100, ["accel_power_2"] = 450,
+        ["accel_charge_1"] = 100, ["accel_charge_2"] = 420, ["accel_speed_1"] = 400,
+        ["bf_power_1"] = 100, ["bf_power_2"] = 380, ["bf_power_3"] = 532,
+        ["bf_rate_1"] = 100, ["bf_rate_2"] = 420, ["bf_track_1"] = 460,
+        ["move_speed_1"] = 100, ["move_speed_2"] = 250, ["move_speed_3"] = 350,
+        ["contam_1"] = 100, ["contam_2"] = 300,
+        ["hitbox_1"] = 100, ["hitbox_2"] = 600, ["hitbox_3"] = 930,
+        ["imp_mult_1"] = 100, ["imp_mult_2"] = 300, ["imp_mult_3"] = 435, ["imp_mult_4"] = 631,
+        ["max_life_1"] = 100, ["max_life_2"] = 550,
+        ["bomb_count_1"] = 100, ["bomb_count_2"] = 450,
+        ["bomb_power_1"] = 100, ["bomb_power_2"] = 350,
+    };
 
-    // ───── セーブ移行（旧MaxLv方式 → 単Lvノード鎖）─────
-    //   旧セーブは "fire_rate":3 のように「Lv値」を持つ。これを新ノード群（fire_rate_1/_2/_3 所持=1）へ読み替える。
-    //   圧縮系(3→2)は min(n, chain長)＝最大段まで所持＝没収なし（末尾段効果は旧最終Lv相当に補償済み）。
-    //   ワンショット：保存時は新IDで書かれ、次回以降は legacy 判定に引っかからない。
-    private static readonly Dictionary<string, string[]> MigrationMap = new()
+    // さらに古い「Lv値」セーブのID → 旧ノード鎖（LegacyCost を引く順序）。
+    private static readonly Dictionary<string, string[]> LegacyChains = new()
     {
         ["fire_rate"]     = new[] { "fire_rate_1", "fire_rate_2", "fire_rate_3", "fire_rate_4" },
         ["shot_power"]    = new[] { "shot_power_1", "shot_power_2", "shot_power_3", "shot_power_4" },
@@ -584,13 +639,13 @@ public partial class GameManager : Node
         ["shot_homing"]   = new[] { "homing_1", "homing_2", "homing_3" },
         ["move_speed"]    = new[] { "move_speed_1", "move_speed_2", "move_speed_3" },
         ["hitbox"]        = new[] { "hitbox_1", "hitbox_2", "hitbox_3" },
-        ["contam_resist"] = new[] { "contam_1", "contam_2" },               // 3→2: min(n,2)
+        ["contam_resist"] = new[] { "contam_1", "contam_2" },
         ["imp_mult"]      = new[] { "imp_mult_1", "imp_mult_2", "imp_mult_3", "imp_mult_4" },
-        ["fol_gain"]      = new[] { "fol_gain_1", "fol_gain_2" },           // 3→2
-        ["combo_hold"]    = new[] { "combo_hold_1", "combo_hold_2" },       // 3→2
-        ["max_life"]      = new[] { "max_life_1", "max_life_2" },           // 3→2
-        ["bomb_count"]    = new[] { "bomb_count_1", "bomb_count_2" },       // 3→2
-        ["bomb_power"]    = new[] { "bomb_power_1", "bomb_power_2" },       // 3→2
+        ["fol_gain"]      = new[] { "fol_gain_1", "fol_gain_2" },
+        ["combo_hold"]    = new[] { "combo_hold_1", "combo_hold_2" },
+        ["max_life"]      = new[] { "max_life_1", "max_life_2" },
+        ["bomb_count"]    = new[] { "bomb_count_1", "bomb_count_2" },
+        ["bomb_power"]    = new[] { "bomb_power_1", "bomb_power_2" },
         ["shot_pierce"]   = new[] { "pierce_1", "pierce_2" },
         ["focus_fire"]    = new[] { "focus_1", "focus_2" },
         ["option_sub"]    = new[] { "option_1", "option_2" },
@@ -599,29 +654,47 @@ public partial class GameManager : Node
         ["veil_light"]    = new[] { "veil_1", "veil_2" },
     };
 
-    // 旧IDが _upgrades にあれば新ノード群へ読み替える（LoadFromSlot の _upgrades 復元直後・shotmode復元より前に呼ぶ）。
-    // 没収ゼロ：旧Lv n を chain 先頭から min(n, chain長) 個だけ所持=1 にする（圧縮系も最大段まで＝没収なし）。
+    // 旧IDが混じっていれば一本道13段へ読み替える（LoadFromSlot の _upgrades 復元直後に呼ぶ）。
+    //   移行した段数は MigratedNodeCount に控える（ショップ／QAログが「何段引き継いだか」を見せる用）。
+    public int MigratedNodeCount { get; private set; } = -1; // -1＝このロードでは移行が走らなかった
     private void MigrateUpgradesIfLegacy()
     {
+        long paid = 0;
         bool legacy = false;
-        foreach (var k in _upgrades.Keys)
-            if (MigrationMap.ContainsKey(k)) { legacy = true; break; }
-        if (!legacy) return;
-        var migrated = new Dictionary<string, int>();
         foreach (var kv in _upgrades)
         {
-            if (MigrationMap.TryGetValue(kv.Key, out var chain))
+            if (GetUpgradeDef(kv.Key) != null) continue;            // 既に新ID＝そのまま残す
+            legacy = true;
+            if (LegacyCost.TryGetValue(kv.Key, out var c)) { if (kv.Value >= 1) paid += c; continue; }
+            if (LegacyChains.TryGetValue(kv.Key, out var chain))
             {
                 int n = Mathf.Clamp(kv.Value, 0, chain.Length);
-                for (int i = 0; i < n; i++) migrated[chain[i]] = 1;
+                for (int i = 0; i < n; i++) paid += LegacyCost[chain[i]];
             }
-            else migrated[kv.Key] = kv.Value; // 既に新ID or 未知キーはそのまま
+            // 上のどれでもない未知キーは無視（壊れたセーブで落ちない）。
         }
-        _upgrades = migrated;
+        if (!legacy) return;
+
+        // 旧IDを全部落とし、再計算した総額で新列の先頭から買えるだけ所持させる（没収ゼロ）。
+        var keep = new Dictionary<string, int>();
+        foreach (var kv in _upgrades)
+            if (GetUpgradeDef(kv.Key) != null) keep[kv.Key] = kv.Value;
+        _upgrades = keep;
+        int got = 0;
+        foreach (var d in Upgrades)
+        {
+            if (GetUpgradeLevel(d.Id) >= 1) { got++; continue; }    // 既に持っている段は数えるだけ
+            if (paid < d.BaseCost) break;
+            paid -= d.BaseCost;
+            _upgrades[d.Id] = 1;
+            got++;
+        }
+        MigratedNodeCount = got;
+        GD.Print($"[migrate] legacy upgrades -> column: {got} nodes owned (leftover {paid} imp discarded)");
     }
 
-    // Lv→Lv+1 の価格。単Lvノード方式では各ノード MaxLevel=1・固定 BaseCost なので、
-    // Lv0（未所持）なら BaseCost をそのまま返し、Lv1（所持済＝最大）は 0。CostMul/Capstone は使わない。
+    // Lv→Lv+1 の価格。一本道では各ノード MaxLevel=1・固定 BaseCost なので、
+    // Lv0（未所持）なら BaseCost をそのまま返し、Lv1（所持済＝最大）は 0。
     public static long CostAt(UpgradeDef d, int lv)
     {
         if (lv >= d.MaxLevel) return 0;
@@ -638,76 +711,20 @@ public partial class GameManager : Node
         return CostAt(d, lv);
     }
 
-    // ツリー前提（奥義条件）を満たしているか。前提を持たないノードは常に true。
-    // 判定は購入時（次のLv）のみ＝前提未達でも所持済みLvは有効のまま（グランドファーザー規則）。
-    public bool IsPrereqMet(string id)
-    {
-        var d = GetUpgradeDef(id);
-        if (d == null || string.IsNullOrEmpty(d.PrereqId)) return true;
-        return GetUpgradeLevel(d.PrereqId) >= d.PrereqLv;
-    }
-
-    // 二分木の親条件。ノードに入る（Lv0→1）ときだけ親Lv≥1 を要求し、続きLvは親不要。
-    // 旧セーブが親なしで子を所持していても続きLvは買える（自分Lv≥1なら常に true＝移行処理ゼロ）。
+    // 一本道の順序条件＝直前の段を持っているか。先頭（ParentId=""）は常に true。
+    // 所持済みノードは常に true（＝並びを変えても既に買った段が「買えない」扱いに落ちない）。
     public bool IsParentMet(string id)
     {
         if (GetUpgradeLevel(id) >= 1) return true;
         var d = GetUpgradeDef(id);
-        if (d == null || string.IsNullOrEmpty(d.ParentId)) return true; // ""=ルート直結（ミナの核は常に在る）
+        if (d == null || string.IsNullOrEmpty(d.ParentId)) return true;
         return GetUpgradeLevel(d.ParentId) >= 1;
-    }
-
-    // 排他フォークの封印判定。相方をLv1以上にしていて自分が未購入なら封印（買えない）。
-    // 両側所持の旧セーブは双方Lv≥1＝どちらも封印されず両方強化継続可（没収なしの共存特例）。
-    public bool IsSealed(string id)
-    {
-        var d = GetUpgradeDef(id);
-        if (d == null || string.IsNullOrEmpty(d.ExclusiveWith)) return false;
-        return GetUpgradeLevel(d.ExclusiveWith) >= 1 && GetUpgradeLevel(id) == 0;
     }
 
     public bool CanPurchase(string id)
     {
         long c = GetUpgradeCost(id);
-        return c >= 0 && Impression >= c && IsPrereqMet(id) && IsParentMet(id) && !IsSealed(id);
-    }
-
-    // ───── 振り直し（排他フォーク単点のみ・ショップ内限定） ─────
-    // 対に投じた額を100%返金し、手数料20%（10単位切り上げ・最低100）を差し引く。全リセットは作らない。
-
-    // このノードに投じた総額（Lv0..現Lv-1 の CostAt 総和で決定的に再計算）。
-    public long TotalPaid(string id)
-    {
-        var d = GetUpgradeDef(id);
-        if (d == null) return 0;
-        long sum = 0;
-        for (int k = 0; k < GetUpgradeLevel(id); k++) sum += CostAt(d, k);
-        return sum;
-    }
-
-    // フォーク（idA⊗idB）の返金額＝双方に投じた総額。
-    public long RespecRefund(string idA, string idB) => TotalPaid(idA) + TotalPaid(idB);
-
-    // 手数料＝返金対象額の20%を10単位に切り上げ・最低100。未投資（返金0）なら 0。
-    public long RespecFee(string idA, string idB)
-    {
-        long refund = RespecRefund(idA, idB);
-        if (refund <= 0) return 0;
-        long fee = (refund * 20 + 999) / 1000 * 10; // ceil(refund*0.2/10)*10 の整数演算
-        return System.Math.Max(100, fee);
-    }
-
-    // 振り直し実行：対の両ノードを Lv0 に戻し、返金−手数料をウォレットへ。
-    // RunImpression（今ランの稼ぎ表示）には加算しない。成功で true。
-    public bool TryRespec(string idA, string idB)
-    {
-        long refund = RespecRefund(idA, idB);
-        if (refund <= 0) return false;
-        long fee = RespecFee(idA, idB);
-        _upgrades.Remove(idA);
-        _upgrades.Remove(idB);
-        Impression += refund - fee;
-        return true;
+        return c >= 0 && Impression >= c && IsParentMet(id);
     }
 
     // 強化を1段購入。成功で true。保存はポーズメニューの手動セーブで行う。
@@ -783,74 +800,78 @@ public partial class GameManager : Node
     // ── 難易度・強化由来のインプレ倍率 ──
     public static float DifficultyImpressionMulFor(Diff d) => d switch { Diff.Easy => 0.7f, Diff.Hard => 1.6f, Diff.Lunatic => 3.0f, _ => 1f };
     public float DifficultyImpressionMul => DifficultyImpressionMulFor(Difficulty);
-    public float UpgradeImpressionMul => 1f + 0.12f * ChainLevel("imp_mult", 4);
+    // 獲得心の倍率。一本道では「獲得倍率を買う」段を持たないので恒久ボーナスは無し（1.0 固定）。
+    //   稼ぎの伸びは MoneyGainMul（一律2倍）とステージクリア報酬(400)が担う。
+    public float UpgradeImpressionMul => 1f;
     // 獲得インプレ（お金）全体の追加倍率。コスト/価格には掛からない＝獲得だけ増える。後で調整しやすいよう定数化。
     public const float MoneyGainMul = 2f;
+    // 炎上中は収入 0.6倍。★2026-09-13：炎上の弱体は「収入が減る」だけに絞った
+    //   （旧実装の 連射×1.3／移動×0.9 は、手触りそのものを鈍らせて理由も見えない＝いちばん質の悪い罰だった）。
     public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
-    // ── 強化効果アクセサ（Player/Hud が STEP3 で参照する）──
-    //   単Lvノード方式：Lv 取得元を GetUpgradeLevel("x")→ChainLevel("x", n) に差替え。式は不変。
-    public int ShotDamageBonus => ChainLevel("shot_power", 4);                            // 弾ダメージ +Lv
-    // 発射間隔×（連射強化で短縮、炎上中は +30% 延長＝弱体）。
-    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * ChainLevel("fire_rate", 4)) * (BurningThisRun ? 1.3f : 1f);
-    // 移動速度×（機動強化で増、炎上中は -10%）。
-    public float MoveSpeedMul => (1f + 0.12f * ChainLevel("move_speed", 3)) * (BurningThisRun ? 0.9f : 1f);
-    public float HitRadiusMul => Mathf.Max(0.4f, 1f - 0.12f * ChainLevel("hitbox", 3));
-    // 3→2圧縮系（max_life/bomb_count/bomb_power/fol_gain/combo_hold）は効果表どおり段2=+2/×1.30 等。
-    // 式は不変で ChainLevel 直結（没収は移行側の min(n,2) で担保。効果は末尾段が旧最終より一段控えめになる）。
-    public int MaxLifeBonus => ChainLevel("max_life", 2);
-    public int BombCountBonus => ChainLevel("bomb_count", 2);
-    public float BombPowerMul => 1f + 0.25f * ChainLevel("bomb_power", 2);
-    public int OptionSubCount => ChainLevel("option", 2);
-    public int ShotPierceCount => ChainLevel("pierce", 2);     // 連射弾の貫通数（貫く光。0=貫通なし）
-    public int CounterLightLevel => ChainLevel("counter", 2);  // 返し光（回避よけ弾の追尾光弾化）
-    // 集中の光：同一敵への連続ヒットで威力ボーナス（上限=+Lv。積み上げは Player 側が管理）。
-    public int FocusFireMaxStack => ChainLevel("focus", 2);
-    // 連鎖の光：拡散弾の跳弾回数（Lv1=1回・Lv2=2回。威力×0.4は Bullet.TryChain 側）。
-    public int ChainLightBounces => ChainLevel("chain", 2);
-    // 祈りの帳：回避後の弾消し光輪（半径 r20/28px・持続 0.5/0.7s）。Lv0 は 0＝無効。
-    // 祈りの帳：未購入(Lv0)は 0＝出ない。★祈り手だけ未購入でも「小さい帳」を常時持つ（設計書 §2）。
-    //   床値（JobDef.VeilFloor*＝r14/0.4s）は Lv1(r20/0.5s)より必ず小さく、Max で床を取るので購入の意味は残る。
-    public float VeilLightRadius => Mathf.Max(JobDef.VeilFloorRadius, new[] { 0f, 20f, 28f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)]);
-    public float VeilLightDuration => Mathf.Max(JobDef.VeilFloorDuration, new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)]);
+    // ── 強化効果アクセサ（一本道13段。所持しているかどうかの1/0だけで決まる）──
+    // #4 弾の火力2倍。威力式の最終段で掛ける倍率（Player.Fire）。旧 ShotDamageBonus（加算）は廃止。
+    public int ShotPowerMul => Has("n_power_2x") ? 2 : 1;
+    // #11 連射速度2倍＝発射間隔 ×0.5。炎上による間隔弱体は撤廃した（収入0.6倍だけが罰）。
+    public float FireIntervalMul => Has("n_rate_2x") ? 0.5f : 1f;
+    // #9 移動速度1.5倍（通常移動のみ。低速33は Player 側で据え置き）。炎上による移動弱体も撤廃。
+    public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
+    // #7 当たり判定 半分（HitRadius 2.0px → 1.0px）。
+    public float HitRadiusMul => Has("n_hitbox") ? 0.5f : 1f;
+    // #1 #5 はーと +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
+    public int MaxLifeBonus => (Has("n_life_1") ? 1 : 0) + (Has("n_life_2") ? 1 : 0);
+    // #3 ボム +1。
+    public int BombCountBonus => Has("n_bomb_1") ? 1 : 0;
+    // #13 おともの光 +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
+    public int OptionSubCount => Has("n_option") ? 1 : 0;
+    // #12 弾が敵をつらぬく＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
+    public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
+    // #8 弾の線 +1本。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
+    public int ExtraLines => Has("n_lines") ? 1 : 0;
+    // #6 溜め打ち（Cキー長押し0.6秒→離すと威力×4の大玉1発・貫通なし）。全ジョブ共通。
+    public bool HasChargeShot => Has("n_charge");
+    // #10 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
+    public bool HasFocusMode => Has("n_slow");
+    // #2 回避の戻りが早くなる（CD 0.8→0.65秒・距離 64→76px）。
+    public float DodgeCooldown => Has("n_dodge_cd") ? 0.65f : 0.80f;
+    public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
 
-    // ── モード別強化（rapid/spread/homing の威力・間隔）──
-    //   Player の各 Fire・modeMul が ChainLevel 経由で参照する。式はショップの効果表記と同期。
-    public int RapidPowerBonus => ChainLevel("rapid_power", 2);          // 連射弾の追加威力 +Lv
-    public float RapidRateMul => Mathf.Max(0.7f, 1f - 0.06f * ChainLevel("rapid_rate", 2)); // 連射間隔 ×0.94/0.88
-    // 拡散ナーフ（プレイテスト）：面の楽しさ（弾数5way・±35°・320px/s）は据え置きで単体DPSだけ削る。
-    public float SpreadPowerMul => new[] { 0.50f, 0.56f, 0.62f }[Mathf.Clamp(ChainLevel("spread_power", 2), 0, 2)]; // 拡散弾威力補正
-    public float SpreadRateMul => Mathf.Max(1f, 1.45f - 0.10f * ChainLevel("spread_rate", 1)); // 拡散間隔税 1.45→1.35
-    // ホーミング強化（同）：威力・間隔・旋回を底上げして「曲がって当たる」を成立させる。
-    public float HomingPowerMul => new[] { 0.85f, 0.95f, 1.05f }[Mathf.Clamp(ChainLevel("homing_power", 2), 0, 2)]; // ホーミング弾威力補正
-    public float HomingRateMul => Mathf.Max(1.40f, 1.55f - 0.15f * ChainLevel("homing_rate", 1)); // ホーミング間隔税 1.55→1.40
-    public int HomingTurnRateOverride => ChainLevel("homing_rate", 1) >= 1 ? 200 : 0; // 誘導速射で旋回200（0=既定150）
-    // ── 加速球系（accel_* ノード）。Player.FireAccel が毎発射時に読む＝購入/付け外しで即反映 ──
-    // 加速球の追加威力。accel_1（旧「モード解放」）が第一段＝+1 を担い、accel_power_1/2 が +2/+3 へ繰り上がる（§3）。
-    public int AccelPowerBonus => (GetUpgradeLevel("accel_1") >= 1 ? 1 : 0) + ChainLevel("accel_power", 2);
-    public float AccelChargeDelay => new[] { 0.8f, 0.65f, 0.5f }[Mathf.Clamp(ChainLevel("accel_charge", 2), 0, 2)]; // タメ時間（速填で短縮）
-    public float AccelLaunchSpeed => GetUpgradeLevel("accel_speed_1") >= 1 ? 760f : 640f;         // 発進速度（推進強化で760）
+    // 窓キャップ（Enemy.ExposedDamageCap）のテンポ還元。火力に投資するほど1窓で通せる量が増える＝
+    //   「強くなったのに窓の中で手が空く」を作らない。基準100＋火力3段ぶん（各+25）。
+    public int ExposedDamageCap => 100 + 25 * ((Has("n_power_2x") ? 1 : 0) + (Has("n_lines") ? 1 : 0) + (Has("n_rate_2x") ? 1 : 0));
 
-    // ── バックファイア（後方弾）の数値。bf_* 未所持でも初期から弱く撃つ ──
-    public int BackfireDamage => 1 + ChainLevel("bf_power", 3);             // ダメージ 1(初期)→bf_power で 2/3/4
-    public float BackfireInterval => new[] { 0.9f, 0.7f, 0.55f }[Mathf.Clamp(ChainLevel("bf_rate", 2), 0, 2)]; // 間隔 0.9→0.7→0.55s
-    public int BackfireShots => GetUpgradeLevel("bf_track_1") >= 1 ? 2 : 1; // 後方追尾で同時2発
-    public float BackfireTurnRate => GetUpgradeLevel("bf_track_1") >= 1 ? 90f : 60f; // 旋回 60→bf_track で 90
+    // ── 旧ノードが消えたぶんの既定値（買えなくなった軸は「旧ノードを買い切った値」で固定する）──
+    //   ＝一本道化で強化軸が消えても、撃ち味そのものは旧・最終段のまま。弱体化ゼロ（査読確定・§9）。
+    public float SpreadPowerMul => 0.62f;      // 旧 spread_power_2
+    public float SpreadRateMul => 1.35f;       // 旧 spread_rate_1
+    public float HomingPowerMul => 1.05f;      // 旧 homing_power_2
+    public float HomingRateMul => 1.40f;       // 旧 homing_rate_1
+    public int HomingTurnRateOverride => 200;  // 旧 homing_rate_1（0=Bullet 既定150 を使う、の上書き）
+    public float AccelChargeDelay => 0.5f;     // 旧 accel_charge_2
+    public float AccelLaunchSpeed => 760f;     // 旧 accel_speed_1
+    public float BombPowerMul => 1.25f;        // 旧 bomb_power_1
+    public int BackfireDamage => 3;            // 旧 bf_power_2（ダメージ 1+2）
+    public float BackfireInterval => 0.7f;     // 旧 bf_rate_1
+    public int BackfireShots => 2;             // 旧 bf_track_1
+    public float BackfireTurnRate => 90f;      // 旧 bf_track_1
 
-    // 身のこなし（move_speed）の回避リワーク：CD 0.8→0.72/0.68/0.65s・距離 64→68/72/76px。
-    // Player.TryDodge が回避開始時に参照する（低速 Focus と同様、i-frame 秒は手触り固定＝触らない）。
-    // 実効待ち時間は max(DodgeCooldown, DodgeDuration=0.55s) で決まる。旧配列(0.80/0.65/0.58/0.55)は
-    // Lv3のCD=0.55sがDodgeDurationと完全一致し、無敵0.45sを引いた無防備な隙間が0.10sしか残らず
-    // 「ほぼ無敵チェーン」（連打だけで読み・回避判断なしに弾幕を無力化）が成立してしまっていた。
-    // ここではLv3でもCD>=0.65s（=DodgeDuration床+0.10s）を維持し、無敵0.45sを引いても
-    // 最低0.20s以上の無防備な隙間が必ず残る値に再調整。Lv0比でCDが縮む投資リターン自体は維持する。
-    public float DodgeCooldown => new[] { 0.80f, 0.72f, 0.68f, 0.65f }[Mathf.Clamp(ChainLevel("move_speed", 3), 0, 3)];
-    public float DodgeDistance => 64f + 4f * ChainLevel("move_speed", 3);
+    // 汚染耐性（旧 contam）は買えなくなった＝素の上昇率のまま。
+    public float ContaminationGainMul => 1f;
 
-    // 澄んだ心(contam)：汚染の上昇を緩める。3→2圧縮の補償で段2に旧Lv3相当の効果 Lv を渡す。
-    private int ContamSteps => ChainLevel("contam", 2);
-    public int ContamEffLevel => ContamSteps >= 2 ? 3 : ContamSteps; // 段2＝旧Lv3相当の実効Lv
-    public float ContaminationGainMul => Mathf.Max(0f, 1f - 0.15f * ContamEffLevel); // 上昇を緩めるのみ
+    // ── 旧・奥義ノード由来の派生機能（返し光／集中の光／連鎖の光／祈りの帳）──
+    //   一本道13段には入らなかったので、恒久強化としては常に 0＝オフ。Player 側の実装は残してあり、
+    //   ここを 1 以上に戻せば即復活する（機能を削るのではなく、買う手段を畳んだ）。
+    //   ただし祈りの帳だけは「祈り手が素で持つ小さい帳」（JobDef.VeilFloor*）が生き続ける＝ジョブの個性は消さない。
+    public int CounterLightLevel => 0;
+    public int FocusFireMaxStack => 0;
+    public int ChainLightBounces => 0;
+    public float VeilLightRadius => JobDef.VeilFloorRadius;
+    public float VeilLightDuration => JobDef.VeilFloorDuration;
+
+    // ── 旧・モード別の上乗せ（連射威力／速射／加速威力）。買う段が無くなったので素の値で固定 ──
+    public int RapidPowerBonus => 0;
+    public float RapidRateMul => 1f;
+    public int AccelPowerBonus => 3;    // 旧 accel_1 + accel_power_2（+1+2）＝加速球を買い切った値
 
     // インプレを獲得（全倍率を適用して加算）。実際に加算した額を返す。
     public long GainImpression(long baseAmount)
@@ -871,9 +892,11 @@ public partial class GameManager : Node
     // ステージクリア（浄化100%）時の大口報酬。帰還演出から呼ぶ（STEP2/5で配線）。
     public void RegisterStageClear()
     {
-        GainImpression(120);
+        // ★2026-09-13：120→400。一本道13段（150〜4,000）を「1面ごとに1〜2段」で進める速度に合わせた
+        //   （実入りは MoneyGainMul=2 と難易度倍率が更に掛かる）。
+        GainImpression(400);
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
-        int fol = Mathf.RoundToInt(40 * (1f + 0.15f * ChainLevel("fol_gain", 2)) * ReplayMul);
+        int fol = Mathf.RoundToInt(40 * ReplayMul); // 旧 fol_gain ノードは廃止＝素の 40 に周回逓減だけ
         AddFollowers(fol);
         AutoSave(); // クリアでオートセーブ（slot 0）
     }
@@ -895,6 +918,8 @@ public partial class GameManager : Node
             ["shotmode"] = (int)SelectedShotMode,
             // ジョブ（ラン単位の選択だが「次に潜るときの既定」としてスロットに残す）。後方互換：キー無し＝結び手。
             ["job"] = (int)SelectedJob,
+            // 回避の解禁（1面クリアの報酬）。後方互換：キー無し＝ロード側で「1面クリア済みなら付与」へ落ちる。
+            ["hasDodge"] = HasDodge,
         };
         var up = new Godot.Collections.Dictionary();
         foreach (var kv in _upgrades)
@@ -1013,6 +1038,11 @@ public partial class GameManager : Node
             foreach (var v in cl)
                 _cleared.Add(v.AsString());
         }
+        // 回避の解禁を復元。キー無しの旧セーブは「1面クリア済みなら持っている」とみなして自動付与する
+        //   （_cleared の復元より後に置くこと）。＝既存セーブで回避が急に使えなくなる事故を作らない。
+        HasDodge = data.ContainsKey("hasDodge") ? data["hasDodge"].AsBool() : IsStageCleared(FirstStageId);
+        DodgeJustUnlocked = false; // ロードは「取った瞬間」ではない＝告知は出さない
+
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
@@ -1101,6 +1131,7 @@ public partial class GameManager : Node
         ShopTutorialSeen = false;
         SelectedEntry = StageEntry.Start;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
+        HasDodge = false; DodgeJustUnlocked = false; // 回避も「1面クリアでもう一度もらう」ところから
         _burnHappened = false; Burning = false; BurningThisRun = false;
         PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
@@ -1224,7 +1255,8 @@ public partial class GameManager : Node
 
     private double _comboTimer;
     // コンボ猶予はコンボ持続強化で延長される。
-    private double ComboWindow => 2.0 + 0.4 * ChainLevel("combo_hold", 2);
+    // コンボ猶予（秒）。旧 combo_hold ノードは一本道13段に入らなかったので素の 2.0 秒で固定。
+    private double ComboWindow => 2.0;
     private const int MaxCombo = 16;
     // コンボ猶予の残り比率（0..1）。HUDのコンボ減衰バー用。コンボが立っていなければ0。
     public float ComboTimeRatio => Combo > 0 && _comboTimer > 0 ? (float)(_comboTimer / ComboWindow) : 0f;
@@ -1264,7 +1296,9 @@ public partial class GameManager : Node
                 bool ok = LoadFromSlot(slot);
                 GD.Print($"[SAVE] --loadslot={slot} -> {(ok ? "ok" : "FAILED/absent")} "
                        + $"imp={Impression} fol={Followers} upgrades={_upgrades.Count} "
-                       + $"job={JobDef.Name}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives}");
+                       + $"job={JobDef.Name}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives} "
+                       // 一本道13段の移行と、回避の解禁（1面クリアの報酬）が正しく引き継がれたかも見る。
+                       + $"dodge={HasDodge} column=[{string.Join(",", ColumnOwnedIds())}]");
             }
             break;
         }
@@ -1509,6 +1543,8 @@ public partial class GameManager : Node
         _progAccum = 0f;      // 前のめり進行アキュムレータもラン開始でリセット
         PlayerNormX = 0.5f;   // 自機Xは中央からとみなす（初フレーム前の背景/HUD 参照用）
         RunImpression = 0;
+        _focusModeT = 0f;     // 集中モードの持続/CD もラン単位（前の面の残りを持ち込まない）
+        _focusModeCd = 0f;
         PostsDelivered = 0;   // 届けた病みポストの数もラン単位
         RedemptionActive = false;
     }

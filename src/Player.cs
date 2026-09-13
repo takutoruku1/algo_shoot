@@ -28,16 +28,24 @@ public partial class Player : Area2D
 
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
+    // 集中モード（V）入力のエッジ検出用。発動の可否は GameManager.TryFocusMode が持つ。
+    private bool _focusModeHeld = false;
 
     // 初回に HUD へ現在モードを通知したか（V の切替ローテは 2026-09-13 に廃止＝エッジ検出はもう要らない）。
     private bool _modeInit = false;
 
-    // ヒカゲ専用スキル（フォロワーにヒカゲがいる時だけ・Cキー）
-    private bool _specialHeld = false;
-    private float _specialCd = 0f;
-    private const float SpecialCdMax = 7f;
-    // 0=フル充填済み(OK) / 1=たった今使った直後（HUDの充填バー用。コンボゲージのComboTimeRatioと同じ発想）。
-    public float SpecialCdRatio => Mathf.Clamp(_specialCd / SpecialCdMax, 0f, 1f);
+    // ── 溜め打ち（一本道 #6「溜め打ちを覚える」）：C / パッドY を長押し ──
+    //   ★Cキーは 2026-09-13 まで W0 専用のヒカゲスキルが握っていた（非正典＝正典導線からは到達しない）。
+    //     戦闘側の配線（_specialCd・HUDチップ）を撤去し、このボタンを溜め打ちへ明け渡した。
+    //   ChargeNeed 秒押し切ると充填完了。離した瞬間に威力×4の大玉を1発だけ撃つ（貫通なし・CD無し＝
+    //   チャージ時間そのものがコスト）。押しているあいだも通常ショットは止めない＝「撃ちながら溜める」。
+    private const float ChargeNeed = 0.6f;      // 充填に要する長押し秒
+    private const float ChargeDamageMul = 4f;   // 大玉の威力倍率（基礎威力に対して）
+    private const float ChargeSpeed = 760f;     // 大玉の発進速度（MakeAccel の fast と同値）
+    private bool _chargeHeld;                   // 前フレームのボタン状態（離したエッジの検出用）
+    private float _chargeT;                     // 押している累計秒（0 で未充填）
+    public bool ChargeFull => _chargeT >= ChargeNeed;                     // 充填完了か（自機頭上の表示が読む）
+    public float ChargeRatio => Mathf.Clamp(_chargeT / ChargeNeed, 0f, 1f); // 充填率 0..1（同上）
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
@@ -451,7 +459,10 @@ public partial class Player : Area2D
     private int FocusFireBonus => Mathf.Min(_game?.FocusFireMaxStack ?? 0, _focusHits / FocusFireHitsPerStack);
 
     // HUD・チュートリアル向けの公開アクセサ（挙動には一切影響しない読み取り専用情報）。
-    public bool DodgeReady => _dodgeCd <= 0f && _dodgeTimer <= 0f;   // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）。TryDodge の実行可否ガード(999行目)と同条件に揃える＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
+    // クールダウンが明けて今すぐ回避できるか（HUD操作ガイドの点灯に使う）。TryDodge の実行可否ガードと同条件に揃える
+    //   ＝回避モーション中(_dodgeTimer>0)はまだ再回避できないためHUDも点灯させない。
+    //   ★未取得（1面クリア前）は常に false＝「使えるのに光っていない」も「使えないのに光る」も作らない。
+    public bool DodgeReady => (_game?.HasDodge ?? true) && _dodgeCd <= 0f && _dodgeTimer <= 0f;
     public int  DodgeCount { get; private set; } // 回避を実行した累計回数（チュートリアルがベースライン比較で実行検出に使う）
     public int  BombCount { get; private set; }  // ボムを発動した累計回数（練習モードでは残数が減らないのでチュートリアルはこの増分で発動検出）
     private float _dodgeSpinSign = 1f;          // スピンの向き（+1=00→01→02… / -1=逆回り）。回避方向から決める。
@@ -812,15 +823,42 @@ public partial class Player : Area2D
             TryBomb();
         _bombHeld = bombKey;
 
-        // ヒカゲ専用スキル（C）: ヒカゲが仲間にいる時だけ・クールダウン制
-        if (_specialCd > 0f) _specialCd -= dt;
-        // スキル＝C / Yボタン（△）
-        bool specialKey = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
-        if (specialKey && !_specialHeld && !Hud.BubblePaused)
-            TryHikageSpecial();
-        _specialHeld = specialKey;
-        // HUDにスキル状態を反映
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f, SpecialCdRatio);
+        // 溜め打ち（C / パッドY 長押し）：#6「溜め打ちを覚える」を持っているあいだだけ。
+        //   押しているあいだ _chargeT を積み、ChargeNeed に届いてから離すと大玉が出る。
+        //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
+        bool chargeKey = (_game?.HasChargeShot ?? false)
+                         && (Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y));
+        if (chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f)
+        {
+            _chargeT += dt;
+        }
+        else if (_chargeHeld)
+        {
+            // 離したエッジ：充填できていれば撃つ。どちらにせよ充填はここで空にする。
+            if (ChargeFull && !Hud.BubblePaused && !_gameOver) FireCharge();
+            _chargeT = 0f;
+        }
+        else _chargeT = 0f;
+        _chargeHeld = chargeKey;
+
+        // 集中モード（V）：#10「集中モードを覚える」。敵側の時間だけ ×0.35 に落とす（1.5秒・CD20秒）。
+        //   時計は実時間で送る＝自機側の delta。Engine.TimeScale は触らない（GameManager.EnemyTimeScale 参照）。
+        _game?.TickFocusMode(dt);
+        bool focusKey = Input.IsKeyPressed(Key.V);
+        if (focusKey && !_focusModeHeld && !Hud.BubblePaused && !_gameOver)
+        {
+            if (_game?.TryFocusMode() ?? false)
+            {
+                FxLayer.Instance?.PurifyBurst(GlobalPosition);
+                Audio.Instance?.PlayGraze();
+            }
+        }
+        _focusModeHeld = focusKey;
+        // HUD へ集中モードの状態を反映（旧ヒカゲスキルのチップ枠をそのまま使う）。
+        //   バーは 発動中＝残り持続 ／ それ以外＝CDの充填、で読ませる。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFocusMode(
+            _game?.HasFocusMode ?? false, _game?.FocusModeReady ?? false, _game?.FocusModeActive ?? false,
+            (_game?.FocusModeActive ?? false) ? (_game?.FocusModeRatio ?? 0f) : 1f - (_game?.FocusModeCdRatio ?? 0f));
         // ※ 回避CDの HUD 通知（SetDodgeReady）は 2026-09-07 に廃止。唯一の読み手だった常駐操作ガイド
         //   （Hud.DrawControls）を撤去したため（案内は Esc メニュー →「あそびかた」に集約）。
 
@@ -1052,9 +1090,12 @@ public partial class Player : Area2D
         // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
         // ジョブの基礎威力補正（JobDef.PowerMul）もここへ乗せる＝本体・パネル・雑魚の全経路に同じ係数が届く
         // （祈り手だけ ×0.8＝4ジョブ最遅。他3ジョブは 1.0 で従来どおり）。下限1は据え置き。
-        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0))
+        // ★2026-09-13 一本道13段：基礎威力は 1 固定になり、#4「弾の火力 2倍」が最終段の倍率（×2）として掛かる。
+        //   掛ける順は フォロワーバフ → ジョブ補正 → 火力2倍。丸めは1回だけ（段ごとに丸めると2倍が2倍にならない）。
+        int dmg = Mathf.Max(1, Mathf.RoundToInt(1f
                                                 * (_game?.FollowerPowerMul ?? 1f)
-                                                * (_game?.JobDef.PowerMul ?? 1f))) + FocusFireBonus;
+                                                * (_game?.JobDef.PowerMul ?? 1f)
+                                                * (_game?.ShotPowerMul ?? 1))) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
@@ -1088,16 +1129,17 @@ public partial class Player : Area2D
         _recoil = 1f;
     }
 
-    // 連射：射撃方向（_facing）へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
-    // 連射威力（rapid_power）で弾ダメージ +Lv（連射モード専用の火力ノード）。
-    // 貫く光（pierce）：連射弾のみ敵を Lv 体まで貫通（Bullet.Pierce。消費側が減算する）。
+    // 連射：射撃方向（_facing）へ直線の高速ストリーム。線数 = 2 + ExtraLines（#8「弾の線 +1本」）。
+    //   ★線数を火力から導出するのは 2026-09-13 にやめた（火力を買ったら勝手に線が増える＝どちらの段の
+    //     効果か読めなかった）。線数は線数の段だけが決める。
+    // 貫通（#12「弾が敵をつらぬく」）：全モード共通で敵を 1 体貫通（Bullet.Pierce。消費側が減算する）。
     // 見た目＝光のダート（BulletShape.Dart・進行方向へ尖る細身）＝「まっすぐ速い主力弾」が形で読める。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 vel = ShotDir * 360f;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
-        int lines = Mathf.Clamp(2 + (_game?.ShotDamageBonus ?? 0) / 2, 2, 4);
+        int lines = 2 + (_game?.ExtraLines ?? 0);
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
                                   : new[] { -10f, -4f, 4f, 10f };
@@ -1122,12 +1164,16 @@ public partial class Player : Area2D
         if (_accelCharging.Count >= AccelChargeCap)
             return;
 
-        // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
-        // 貫く光（pierce）は連射弾専用のショップ表記＝加速球弾には付与しない。
-        foreach (float dy in new[] { -4f, 4f })
+        // 上下2本（連射と同じ正面集中の手触り）＋ #8「弾の線 +1本」で1発増える。
+        //   発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
+        //   貫通（#12）は 2026-09-13 から全モード共通＝加速球にも乗せる。
+        int pierce = _game?.ShotPierceCount ?? 0;
+        float[] adys = (_game?.ExtraLines ?? 0) >= 1 ? new[] { -8f, 0f, 8f } : new[] { -4f, 4f };
+        foreach (float dy in adys)
         {
             var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
+            b.Pierce = pierce;
             _accelCharging.Add(b);
         }
     }
@@ -1140,12 +1186,15 @@ public partial class Player : Area2D
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
+        int spierce = _game?.ShotPierceCount ?? 0; // 貫通（#12）は 2026-09-13 から全モード共通
         for (int i = 0; i < n; i++)
         {
             float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
             float ang = ShotAngle + t * Mathf.DegToRad(70f);
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg, BulletShape.Petal).Chain = chain;
+            var sb = _pool.Spawn(muzzle, dir * 320f, isEnemy: false, 3f, sdmg, BulletShape.Petal);
+            sb.Chain = chain;
+            sb.Pierce = spierce;
         }
     }
 
@@ -1157,6 +1206,7 @@ public partial class Player : Area2D
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
         int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
         int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
+        int hpierce = _game?.ShotPierceCount ?? 0;     // 貫通（#12）は 2026-09-13 から全モード共通
         for (int i = 0; i < shots; i++)
         {
             float t = shots == 1 ? 0f : (float)i / (shots - 1) - 0.5f;
@@ -1164,6 +1214,7 @@ public partial class Player : Area2D
             Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             var hb = _pool.Spawn(muzzle, dir * 200f, isEnemy: false, 3f, hdmg, BulletShape.Seeker, null, homing: true); // 弾速 260→200
             if (turn > 0) hb.TurnRateOverride = turn;
+            hb.Pierce = hpierce;
         }
     }
 
@@ -1227,6 +1278,9 @@ public partial class Player : Area2D
 
     private void TryDodge(Vector2 dir)
     {
+        // ★回避は「1面クリアの物語報酬」（2026-09-13 ユーザー決定）。未取得のあいだは何も起きない。
+        //   ロック解除（右クリック）は TickLockOn が別経路で拾うので、未取得でもそちらは生きる。
+        if (!(_game?.HasDodge ?? true)) return;
         if (_dodgeCd > 0f || _dodgeTimer > 0f || _gameOver) return;
 
         // 方向入力あり＝その方向へダッシュ。無し＝その場回避（変位ゼロ＝_dodgeDir を Zero に）。
@@ -1443,7 +1497,7 @@ public partial class Player : Area2D
                         _counterCount++;
                         Vector2 at = b.GlobalPosition;
                         // 威力はホーミング射と同等（基礎×フォロワーバフ×追尾税0.7）。弾はその場で光弾に置き換える。
-                        int cdmg = Mathf.Max(1, Mathf.RoundToInt((1 + (game.ShotDamageBonus)) * game.FollowerPowerMul * 0.7f));
+                        int cdmg = Mathf.Max(1, Mathf.RoundToInt(1f * game.ShotPowerMul * game.FollowerPowerMul * 0.7f));
                         _pool?.Despawn(b);
                         _pool?.Spawn(at, ShotDir * 200f, isEnemy: false, 3f, cdmg, BulletShape.Orb, null, homing: true);
                         FxLayer.Instance?.Muzzle(at); // 変換の一閃（“返した”を短く見せる）
@@ -1501,50 +1555,30 @@ public partial class Player : Area2D
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
     }
 
-    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
-    // ヒカゲが仲間にいるか。
-    private bool HasHikage()
+    // ★ヒカゲ専用スキル（TryHikageSpecial）は 2026-09-13 に撤去した。W0 専用・非正典の機能が
+    //   正典のCキーを占有し続けていたため（Cキーは溜め打ちへ）。AddHikageFollower / HasHikage /
+    //   Follower.IsHikage は W0 の見た目のためだけに残してある＝戦闘の配線はもう無い。
+
+    // 溜め打ちの発射：威力×4の大玉を1発だけ、射撃方向へ。貫通なし（＝連射の貫通とは別物）。
+    //   弾は Bullet.MakeAccel を流用するが「タメ0秒」で渡す＝スポーンした瞬間に ChargeSpeed で発進する
+    //   （加速球のタメ演出は要らない。溜めは自機側で既に終わっている）。
+    private void FireCharge()
     {
-        foreach (var f in _followers)
-            if (f.IsHikage) return true;
-        return false;
-    }
-
-    // W0 専用・非正典。正典導線からは到達しない（2026-09-06 ユーザー決定: ヒカゲは使わない）。以後この系統への追加投資はしない。
-    // ヒカゲ専用スキル「やさしさの大波（鎮火）」。
-    // 前方に強い大粒ハート弾を扇状に放ち、前方の敵弾を花びらに変えて消す。クールダウンあり。
-    private void TryHikageSpecial()
-    {
-        if (_specialCd > 0f || !HasHikage() || _gameOver) return;
-        _specialCd = SpecialCdMax;
-
-        // 前方に扇状の大波（強い大粒弾）
-        const int n = 15;
-        for (int i = 0; i < n; i++)
-        {
-            float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f; // -0.5..0.5
-            float ang = ShotAngle + t * Mathf.DegToRad(64f);   // 射撃方向を基準に上下±32°の扇
-            Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            _pool?.Spawn(GlobalPosition + ShotDir * 14f, dir * 400f, isEnemy: false, 4.5f, 3);
-        }
-
-        // 前方の敵弾を花びらに変えて消す（防御も兼ねる）
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        foreach (Node node in GetTree().GetNodesInGroup("enemy_bullets"))
-        {
-            // 「前方」＝射撃方向側。向き反転（_facing）に追従させる（右決め打ちにしない）。
-            if (node is Bullet b && b.Active && (b.GlobalPosition.X - GlobalPosition.X) * _facing > -8f)
-            {
-                game?.AddBulletCleared();
-                FxLayer.Instance?.BulletToPetal(b.GlobalPosition);
-                _pool?.Despawn(b);
-            }
-        }
-
-        // 演出
-        FxLayer.Instance?.PurifyBurst(GlobalPosition + ShotDir * 20f);
-        GameCamera.Instance?.Shake(3.5f, 0.12f);
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
+        if (_pool == null) return;
+        // 基礎威力は通常ショットと同じ経路（フォロワーバフ×ジョブ補正×火力2倍）で作り、最後に ×4。
+        int baseDmg = Mathf.Max(1, Mathf.RoundToInt(1f
+                                                    * (_game?.FollowerPowerMul ?? 1f)
+                                                    * (_game?.JobDef.PowerMul ?? 1f)
+                                                    * (_game?.ShotPowerMul ?? 1)));
+        int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * ChargeDamageMul));
+        Vector2 muzzle = GlobalPosition + ShotDir * 20f;
+        var b = _pool.Spawn(muzzle, ShotDir * ChargeSpeed, isEnemy: false, 7f, dmg);
+        b.MakeAccel(ChargeSpeed, ChargeSpeed, 0f); // タメ0＝即発進（大玉の見た目だけ流用）
+        b.Pierce = 0;                              // 貫通なし（仕様）
+        GD.Print($"[charge] fire dmg={dmg} (base={baseDmg} x{ChargeDamageMul})");
+        FxLayer.Instance?.PurifyBurst(muzzle);
+        Audio.Instance?.PlayShot();
+        _recoil = 1.6f; // 通常ショット(1.0)より深いキックバック＝重い一発を手に返す
     }
 
     private bool _gameOver = false;
@@ -1690,6 +1724,22 @@ public partial class Player : Area2D
             float va = Mathf.Clamp(_veilT / _game.VeilLightDuration, 0f, 1f);
             DrawArc(Vector2.Zero, _veilR, 0f, Mathf.Tau, 44, new Color(1f, 0.95f, 0.78f, 0.55f * va), 1.6f);
             DrawArc(Vector2.Zero, _veilR - 3f, 0f, Mathf.Tau, 44, new Color(1f, 0.9f, 0.6f, 0.25f * va), 1f);
+        }
+
+        // ── 溜め打ち（#6）の充填表示：自機の頭上に小さな弧。0→1 で伸び、満ちたら白く脈打つ ──
+        //   常設のリングは 2026-09-08 に「何のためにあるか分からない」と消したばかりなので、
+        //   ここは**押しているあいだだけ**出す＝溜めていることと満ちたことだけを、その瞬間に返す。
+        if (_chargeT > 0f)
+        {
+            float cr = ChargeRatio;
+            var at = new Vector2(0f, -24f);
+            // 受け皿（薄い弧・全周）＋ 充填ぶん（上から時計回りに伸びる）
+            DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.18f), 1.4f);
+            Color cc = ChargeFull
+                ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
+                : new Color(0.65f, 0.9f, 1f, 0.9f);                                 // 充填中：浄化の水色
+            DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * cr, 24, cc, 2.2f);
+            if (ChargeFull) DrawCircle(at, 2.2f, cc);
         }
 
         // ※グレイズ境界のシアンのリングは削除（2026-09-08）。
