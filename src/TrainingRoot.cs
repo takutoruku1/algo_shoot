@@ -507,20 +507,11 @@ public partial class TrainingRoot : Node2D
         UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(r.Position.X + (r.Size.X - tw) / 2f, r.Position.Y + 6), label, 12, UiKit.White);
     }
 
-    // ───── 系統分類（Shop の StreamOf を最小移植。見出し色分けに使う）─────
-    private enum Stream { Rapid = 0, Spread = 1, Homing = 2, Backfire = 3, Survive = 4, Accel = 5 }
-    private static readonly Color[] StreamCol =
-    {
-        new("7ad7f0"), new("f2b866"), new("86dca0"), new("c39cf0"), new("f0a0a8"), new("f0925c"),
-    };
-    private static readonly string[] StreamName = { "連射", "拡散", "ホーミング", "後方の光", "生存・経済", "加速球" };
-    private static Stream StreamOf(string id) =>
-        id.StartsWith("spread") || id.StartsWith("fol_gain") || id.StartsWith("combo_hold")
-            || id.StartsWith("option") || id.StartsWith("chain") ? Stream.Spread
-        : id.StartsWith("homing") || id.StartsWith("counter") || id.StartsWith("veil") ? Stream.Homing
-        : id.StartsWith("bf_") ? Stream.Backfire
-        : id.StartsWith("accel") ? Stream.Accel
-        : id.StartsWith("move_speed") || id.StartsWith("contam") || id.StartsWith("hitbox")
-            || id.StartsWith("imp_mult") || id.StartsWith("max_life") || id.StartsWith("bomb") ? Stream.Survive
-        : Stream.Rapid;
+    // ───── 見出し分類 ─────
+    //   ★2026-09-13：ショップが一本道13段になり「系統」が無くなったので、分類は1つだけ残した
+    //     （見出し行・色分けの仕組みそのものは触らず、返す値を1本に畳んだ＝行の描き方は不変）。
+    private enum Stream { Column = 0 }
+    private static readonly Color[] StreamCol = { UiKit.Purify };
+    private static readonly string[] StreamName = { "強化（一本道13段・上から順）" };
+    private static Stream StreamOf(string id) => Stream.Column;
 }
