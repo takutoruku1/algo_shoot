@@ -22,9 +22,9 @@ public static class UiKit
     public static readonly Color Light   = new("ffd98a");
     public static readonly Color Info    = new("a6dcec"); // 見出しシアン
     public static readonly Color White   = new("ffffff");
-    public static readonly Color Text2   = new("c8b8d8");
-    public static readonly Color Text3   = new("8a7a9a");
-    public static readonly Color Text4   = new("6b6478");
+    public static readonly Color Text2   = new("d5cfdf");
+    public static readonly Color Text3   = new("b0a8bf");
+    public static readonly Color Text4   = new("9690a5");
     public static readonly Color BgDeep  = new("070a16");
     public static readonly Color Ok      = new("2ec78c"); // リポスト緑/成功
     public static readonly Color Burn    = new("f2353d"); // 炎上赤
@@ -50,7 +50,7 @@ public static class UiKit
     public const int FontHeading = 20; // サブ見出し・カード名・大きめ数値（SCORE 等）
     public const int FontSpeaker = 19; // 会話の話者名（旧18）
     public const int FontBody    = 17; // 本文・セリフ・説明文（画面をまたぐ標準本文・旧15）
-    public const int FontLabel   = 13; // ボタン／行ラベル・カード説明・小見出し
+    public const int FontLabel   = 14; // ボタン／行ラベル・カード説明・小見出し
     public const int FontSmall   = 13; // 注釈・キーヒント・メタ情報・英字サブラベル（旧11＝実効3.3pxで可読下限割れ）
     // FontTiny(9) は廃止（実効2.7px＝画面に出してはいけない大きさ）。参照は FontSmall(13) へ寄せた。
 
@@ -79,13 +79,13 @@ public static class UiKit
     }
 
     // 役割別スタイル（docs/20260906/HUD整理_案.md §9 の表）。
-    public static TextStyle PanelValueLarge => new(Mono, 26, 0.5f, 1f);      // 数値（大）：SCORE / TIME の値
-    public static TextStyle PanelValueMid   => new(Mono, 18, 0.5f, 1f);      // 数値（中）：コンボ / 残バー / 浄化 %
-    public static TextStyle PanelLabel      => new(ZenBold, 15, 1.5f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
+    public static TextStyle PanelValueLarge => new(Mono, 26, 0f, 1f);      // 数値（大）：SCORE / TIME の値
+    public static TextStyle PanelValueMid   => new(Mono, 18, 0f, 1f);      // 数値（中）：コンボ / 残バー / 浄化 %
+    public static TextStyle PanelLabel      => new(ZenBold, 15, 0f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
     public static TextStyle DialogBody      => new(Zen, FontBody, 0f, 1.55f);// 本文・セリフ・ナレ
-    public static TextStyle DialogSpeaker   => new(ZenBold, FontSpeaker, 0.5f, 1f); // 話者名
-    public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0.5f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
-    public static TextStyle SmallValue      => new(Mono, FontSmall, 0.5f, 1f);      // 小さい「値」：残バー数・リプ数（数値は Mono に残す）
+    public static TextStyle DialogSpeaker   => new(ZenBold, FontSpeaker, 0f, 1f); // 話者名
+    public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
+    public static TextStyle SmallValue      => new(Mono, FontSmall, 0f, 1f);      // 小さい「値」：残バー数・リプ数（数値は Mono に残す）
 
     // ── 字間つき描画（Hud のローカル実装から公開ヘルパへ格上げ）──
     //   track を1文字ごとに足しながら1文字ずつ描く。track=0 なら普通の DrawString と同じなので素通しする。
@@ -226,11 +226,10 @@ public static class UiKit
         float width, float extraLeading, int maxLines = -1)
     {
         var lines = WrapLines(f, s, size, width);
-        // 禁則の追い出しで行数が増え、上限(maxLines)からあふれるときだけ素の文字折りへ戻す
-        //（上限打ち切りで末尾の文字が消えるより、多少不格好でも全文が読める方を優先）。
+        // Keep kinsoku when compacting phrase-based wrapping into a capped label.
         if (maxLines > 0 && lines.Count > maxLines)
         {
-            var plain = WrapLines(f, s, size, width, kinsoku: false);
+            var plain = WrapLines(f, s, size, width, preferPhrases: false);
             if (plain.Count <= maxLines) lines = plain;
         }
         float lineH = f.GetHeight(size) + extraLeading;
@@ -251,39 +250,81 @@ public static class UiKit
     private const string KinsokuNoTail = "（「『【〔｛〈《‘“([{";
     private static bool IsWordChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || c == '\'');
 
+    private static bool CanBreakLine(string text, int at)
+    {
+        char before = text[at - 1], after = text[at];
+        bool pause = after is '…' or '‥' or '—';
+        if (pause && before == after) return false;
+        bool pauseStart = pause && at + 1 < text.Length && text[at + 1] == after;
+        return (KinsokuNoHead.IndexOf(after) < 0 || pauseStart)
+            && KinsokuNoTail.IndexOf(before) < 0;
+    }
+
+    private static bool IsPhraseEnd(string text, int at)
+        => "。！？、；!?;）」』】〕｝〉》’”)]}".IndexOf(text[at - 1]) >= 0
+            || char.IsWhiteSpace(text[at - 1]);
+
     // width に収まるよう折り返した行リストを返す。明示改行 '\n' は尊重。
     //   エンディング等の独自レンダラも同じ折り返し結果（＝同じ禁則・同じ行数）を共有できるよう public。
     public static System.Collections.Generic.List<string> WrapLines(Font f, string s, int size, float width,
-        bool kinsoku = true)
+        bool kinsoku = true, bool preferPhrases = true)
     {
         var outLines = new System.Collections.Generic.List<string>();
-        foreach (var para in s.Split('\n'))
+        foreach (var para in s.Replace("\r\n", "\n").Split('\n'))
         {
             if (para.Length == 0) { outLines.Add(""); continue; }
-            int start = 0;
-            while (start < para.Length)
+            var stops = new System.Collections.Generic.List<int>(System.Globalization.StringInfo.ParseCombiningCharacters(para));
+            stops.Add(para.Length);
+            int first = 0;
+            while (first < stops.Count - 1)
             {
-                // 幅に収まる最大文字数を貪欲に確定（最低1文字は必ず進める＝無限ループ防止）。
-                int fit = 1;
-                while (start + fit < para.Length && TextW(f, para.Substring(start, fit + 1), size) <= width)
+                int start = stops[first];
+                int fit = first + 1;
+                while (fit + 1 < stops.Count && TextW(f, para.Substring(start, stops[fit + 1] - start), size) <= width)
                     fit++;
-                int brk = start + fit;                       // para[brk] が次行の先頭
-                if (brk < para.Length && kinsoku)
+                int brk = fit;
+                if (stops[brk] < para.Length && kinsoku)
                 {
-                    // 英単語の途中では折らない：単語頭まで戻す。
-                    if (IsWordChar(para[brk]) && IsWordChar(para[brk - 1]))
+                    if (IsWordChar(para[stops[brk]]) && IsWordChar(para[stops[brk] - 1]))
                     {
                         int head = brk;
-                        while (head > start && IsWordChar(para[head - 1])) head--;
-                        if (head > start) brk = head;
+                        while (head > first && IsWordChar(para[stops[head] - 1])) head--;
+                        if (head > first) brk = head;
                     }
-                    // 行頭禁則：句読点等が行頭に来るなら、手前の文字ごと次行へ追い出す。
-                    while (brk > start + 1 && KinsokuNoHead.IndexOf(para[brk]) >= 0) brk--;
-                    // 行末禁則：開き括弧で行が終わるなら、それも次行へ送る。
-                    while (brk > start + 1 && KinsokuNoTail.IndexOf(para[brk - 1]) >= 0) brk--;
+                    while (brk > first + 1 && !CanBreakLine(para, stops[brk])) brk--;
+                    if (preferPhrases)
+                    {
+                        bool phrase = false;
+                        for (int candidate = brk; candidate > first; candidate--)
+                        {
+                            int at = stops[candidate];
+                            if (!IsPhraseEnd(para, at) || !CanBreakLine(para, at)) continue;
+                            float used = TextW(f, para.Substring(start, at - start), size);
+                            bool lastLineFits = TextW(f, para.Substring(at), size) <= width;
+                            if (used < width * 0.5f && !lastLineFits) continue;
+                            brk = candidate;
+                            phrase = true;
+                            break;
+                        }
+                        // Keep a short sentence ending with enough preceding text to read as a line.
+                        if (!phrase && TextW(f, para.Substring(stops[brk]), size) < size * 4f)
+                        {
+                            float minimumTail = Mathf.Min(size * 6f, width * 0.4f);
+                            for (int candidate = brk - 1; candidate > first; candidate--)
+                            {
+                                int at = stops[candidate];
+                                float tail = TextW(f, para.Substring(at), size);
+                                if (tail > width) break;
+                                if (tail < minimumTail || !CanBreakLine(para, at)) continue;
+                                if (IsWordChar(para[at - 1]) && IsWordChar(para[at])) continue;
+                                brk = candidate;
+                                break;
+                            }
+                        }
+                    }
                 }
-                outLines.Add(para.Substring(start, brk - start));
-                start = brk;
+                outLines.Add(para.Substring(start, stops[brk] - start));
+                first = brk;
             }
         }
         return outLines;
@@ -330,9 +371,9 @@ public static class UiKit
     //   align=Center はナレ用（全文を一括フェードインで出す前提。部分表示だと毎フレーム再センタリングされるため）。
     public static void TypewriterLines(CanvasItem ci, Font f, System.Collections.Generic.List<string> lines,
         Vector2 firstBaseline, float width, int size, Color c, int reveal,
-        HorizontalAlignment align = HorizontalAlignment.Left, bool shadow = false)
+        HorizontalAlignment align = HorizontalAlignment.Left, bool shadow = false, float extraLeading = 0f)
     {
-        float lineH = f.GetHeight(size);
+        float lineH = f.GetHeight(size) + extraLeading;
         float y = firstBaseline.Y;
         foreach (var ln in lines)
         {
@@ -344,7 +385,7 @@ public static class UiKit
                 ci.DrawString(f, new Vector2(firstBaseline.X + 0.5f, y + 0.5f), part, align, w, size,
                     new Color(0f, 0f, 0f, 0.55f * c.A));
             ci.DrawString(f, new Vector2(firstBaseline.X, y), part, align, w, size, c);
-            reveal -= ln.Length;
+            reveal -= ln.Length + 1;
             y += lineH;
         }
     }

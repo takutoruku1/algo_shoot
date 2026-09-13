@@ -1401,7 +1401,7 @@ public partial class Hud : CanvasLayer
         // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
         string page = CurPageText;
         int n = Mathf.Clamp(Mathf.FloorToInt(_dlgRevealed), 0, page.Length);
-        string shown = page.Substring(0, n);
+        var lines = new List<string>(page.Split('\n'));
         // ページ継続サイン：現在ページを出し切っていて、まだ後続ページがあるとき「▼」を点滅（Zで続きへ）。
         bool morePages = !OnLastPage && _dlgRevealed >= page.Length;
 
@@ -1409,7 +1409,9 @@ public partial class Hud : CanvasLayer
         {
             // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。
             UiKit.Box(ci, new Rect2(NarrBoxX, 590, NarrBoxW, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
-            UiKit.DrawMulti(ci, UiKit.DialogBody, new Vector2(NarrBoxX + 40, 606), shown, new Color(0.9f, 0.9f, 0.95f), NarrWrapW, DlgMaxLines);
+            UiKit.TypewriterLines(ci, UiKit.Zen, lines,
+                new Vector2(NarrBoxX + 40, 606 + UiKit.Zen.GetAscent(UiKit.FontBody)), NarrWrapW,
+                UiKit.FontBody, new Color(0.9f, 0.9f, 0.95f), n, extraLeading: UiKit.DialogBody.ExtraLeading);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(NarrBoxX + NarrBoxW - 20, 598));
             if (morePages && ((int)(_t * 2f) % 2) == 0)
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(NarrBoxX + NarrBoxW - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
@@ -1459,8 +1461,9 @@ public partial class Hud : CanvasLayer
             UiKit.Draw(ci, UiKit.DialogSpeaker, new Vector2(textX, y + 16), _dlgSpeaker, _dlgSpeakerCol);
         // 本文：DialogBody（17px・行間1.55倍）。全ボックス 2行固定（DlgMaxLines）＝はみ出し防止＋箇所ごとの行数差を解消。
         //   折り返し幅は BuildDialogPages と同じ式（DlgWrapW）。式を1か所にしてページ分割とのズレを断つ。
-        UiKit.DrawMulti(ci, UiKit.DialogBody, new Vector2(textX, y + 48), shown, new Color(0.95f, 0.95f, 0.98f),
-            DlgWrapW(textX), DlgMaxLines);
+        UiKit.TypewriterLines(ci, UiKit.Zen, lines,
+            new Vector2(textX, y + 48 + UiKit.Zen.GetAscent(UiKit.FontBody)), DlgWrapW(textX),
+            UiKit.FontBody, new Color(0.95f, 0.95f, 0.98f), n, extraLeading: UiKit.DialogBody.ExtraLeading);
         // 既読高速送り中の控えめな表示（バー右上・#22）。
         if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
         // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。

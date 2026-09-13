@@ -404,7 +404,8 @@ public partial class Settings : Node2D
         UiKit.Box(this, new Rect2(padX, hy, 40, 40), new Color(UiKit.Purify, 0.12f), 11f, new Color(UiKit.Info, 0.35f), 1f);
         DrawArc(new Vector2(padX + 20, hy + 20), 9f, Mathf.Pi * 0.2f, Mathf.Pi * 1.5f, 24, UiKit.Info, 3f);
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + 54, hy + 6), "設定", UiKit.FontTitle, UiKit.White);
-        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(padX + 110, hy + 20), "SETTINGS", UiKit.Text4);
+        float headingRight = padX + 54 + UiKit.TextW(UiKit.ZenBlack, "設定", UiKit.FontTitle);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(headingRight + 12, hy + 20), "SETTINGS", UiKit.Text3);
         DrawRect(new Rect2(padX, hy + 50, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── 本体：左ナビ＋右パネル ──
@@ -449,7 +450,7 @@ public partial class Settings : Node2D
         var cat = _cats[_cat];
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, y - 4), cat.Name, UiKit.FontHeading, UiKit.White);
         float titleW = UiKit.TextW(UiKit.ZenBlack, cat.Name, UiKit.FontHeading);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + titleW + 12, y + 6), cat.Sub.ToUpper(), UiKit.FontSmall, UiKit.Text4);
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + titleW + 12, y + 6), cat.Sub.ToUpper(), UiKit.Text3);
 
         float top = y + 34f, cardH = 54f, gap = 9f;
         for (int i = 0; i < Cur.Count; i++)
@@ -518,7 +519,8 @@ public partial class Settings : Node2D
         {
             bool on = i == d.I;
             if (on) UiKit.Box(this, new Rect2(ox, gy + padIn, ws[i], h), UiKit.Purify, 7f);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, cy - 8), d.Options[i], UiKit.FontLabel, on ? UiKit.White : new Color(138 / 255f, 131 / 255f, 152 / 255f), HorizontalAlignment.Center, ws[i]);
+            float textTop = cy - UiKit.ZenBold.GetHeight(UiKit.FontLabel) / 2f;
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(ox, textTop), d.Options[i], UiKit.FontLabel, on ? UiKit.BgDeep : UiKit.Text2, HorizontalAlignment.Center, ws[i]);
             ox += ws[i] + 4f;
         }
     }

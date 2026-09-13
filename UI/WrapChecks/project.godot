@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+config/name="algo_shoot_wrap_checks"
+run/main_scene="res://WrapChecks.tscn"
+config/features=PackedStringArray("4.6", "C#")
+
+[display]
+window/size/viewport_width=1152
+window/size/viewport_height=720
+window/size/mode=0
+
+[dotnet]
+project/assembly_name="WrapChecks"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"

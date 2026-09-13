@@ -591,7 +591,7 @@ public partial class PauseCanvas : Node2D
     //   2026-09-07: プレイ中の常駐操作ガイド（Hud.DrawControls）を撤去した際、これ1つだけを残した。
     //   Esc（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
     //   薄く小さく（キー枠の縁とラベルのαを落とし、ラベルは FontSmall へ）。
-    private const float HintAlpha = 0.5f;
+    private const float HintAlpha = 0.85f;
     private void DrawHint()
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;

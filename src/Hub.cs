@@ -1802,8 +1802,10 @@ public partial class Hub : Node2D
         // 現在ページ（2行固定）を表示済みの分だけ描画。
         string page = DlgCurPage;
         int shown = Mathf.Clamp((int)_dlgReveal, 0, page.Length);
-        string body = page.Substring(0, shown);
-        UiKit.Multi(this, UiKit.Zen, new Vector2(box.Position.X + 36, box.Position.Y + 76), body, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), box.Size.X - 72, Hud.DlgMaxLines);
+        var lines = new System.Collections.Generic.List<string>(page.Split('\n'));
+        UiKit.TypewriterLines(this, UiKit.Zen, lines,
+            new Vector2(box.Position.X + 36, box.Position.Y + 76 + UiKit.Zen.GetAscent(UiKit.FontHeading)),
+            box.Size.X - 72, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow) Hud.DrawSkipChip(this, new Vector2(box.Position.X + box.Size.X - 20, box.Position.Y + 14));
         // 送り表示は現在ページの全文表示後だけ点滅。後続ページなら「▼ つづき」、最終ページなら「Z すすむ ▸」。

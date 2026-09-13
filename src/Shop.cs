@@ -1487,9 +1487,9 @@ public partial class Shop : Node2D
         UiKit.Box(_ci, new Rect2(x, y + 4f, 3.5f, r.Size.Y - 8f), new Color(sCol, lv >= 1 ? 0.9f : can ? 0.5f : 0.25f), 2f);
 
         // 名前（買えるものは白＝“いま買える”が一覧で拾える。買えない/MAX/封印は沈める）
-        Color nameCol = sealed_ ? UiKit.Text4 : maxed ? UiKit.Text4 : can ? UiKit.White : (!parentOk && lv == 0) ? UiKit.Text4 : UiKit.Text3;
-        UiKit.Text(_ci, UiKit.ZenBold, new Vector2(x + 12, y + 5), d.Name, 12, nameCol);
-        float nw = UiKit.TextW(UiKit.ZenBold, d.Name, 12);
+        Color nameCol = focus || can ? UiKit.White : sealed_ ? UiKit.Text4 : maxed ? UiKit.Text2 : UiKit.Text3;
+        UiKit.Text(_ci, UiKit.ZenBold, new Vector2(x + 12, y + 3), d.Name, UiKit.FontSmall, nameCol);
+        float nw = UiKit.TextW(UiKit.ZenBold, d.Name, UiKit.FontSmall);
 
         // 王冠（shot_power_4＝光の出力IV＝LUNATIC解放条件のひとつ）。所持で点灯。
         if (id == "shot_power_4")
@@ -1519,16 +1519,16 @@ public partial class Shop : Node2D
         {
             string pn = GameManager.GetUpgradeDef(d.PrereqId)?.Name ?? d.PrereqId;
             DrawLockIcon(new Vector2(x + 17, ly + 8f), 5f, new Color(Deny, 0.9f));
-            UiKit.Text(_ci, UiKit.Zen, new Vector2(x + 27, ly + 2f), $"前提: {pn}", 9, Deny);
+            UiKit.Text(_ci, UiKit.Zen, new Vector2(x + 27, ly - 1f), $"前提: {pn}", UiKit.FontSmall, Deny);
         }
         else if (maxed)
         {
-            UiKit.Text(_ci, UiKit.Mono, new Vector2(x + 12, ly + 1f), "所持済み", 11, new Color("c9b6ef"));
+            UiKit.Text(_ci, UiKit.Zen, new Vector2(x + 12, ly - 1f), "所持済み", UiKit.FontSmall, UiKit.Text2);
         }
         else
         {
             string costS = "♥" + cost.ToString("N0");
-            UiKit.Text(_ci, UiKit.Mono, new Vector2(x + 12, ly + 1f), costS, 11, can ? UiKit.Gold : UiKit.Text4);
+            UiKit.Text(_ci, UiKit.Mono, new Vector2(x + 12, ly), costS, UiKit.FontSmall, can ? UiKit.Gold : UiKit.Text3);
         }
 
         DrawCellFx(id, r, can);
@@ -1628,7 +1628,8 @@ public partial class Shop : Node2D
         // ラベルは右上（左はミナ立ち絵が立つので隠れる）。
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 16 - UiKit.TextW(UiKit.Mono, pvLabel, 10), by + 14), pvLabel, 10, new Color(1, 1, 1, 0.55f));
 
-        float ix = x + 16f, iw = w - 32f, iy = by + 112f;
+        // Reserve three speech lines so a transient bubble never covers upgrade details.
+        float ix = x + 16f, iw = w - 32f, iy = by + 224f;
 
         // root（ミナの核）：説明アンカー。
         if (_sel == 3)
