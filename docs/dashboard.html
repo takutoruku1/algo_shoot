@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 229 / 対象 229 タスク<br>保留 29 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 230 / 対象 230 タスク<br>保留 32 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">229</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">230</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">29</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">32</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-13) 2026-09-13監査(game-designer)発見。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(<code>Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)</code>)により<code>shot_power_4</code>(729G)が戦闘的に無価値と確定済みだったため、<code>src/GameManager.cs:81 IsLunaticUnlocked</code>の解禁条件を<code>ChainLevel(&quot;shot_power&quot;, 4) &gt;= 4</code>から<code>ChainLevel(&quot;shot_power&quot;, 3) &gt;= 3</code>へ変更し、<code>src/DiffSelect.cs:340</code>の案内文言「威力 Lv4」も「威力 Lv3」に修正。ロジックと表示文言を実際に効果のある段階に一致させた。パネルダメージ無効化そのものの是正は対象外のBLOCKED項目のまま。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -1991,6 +1999,30 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">アクセシビリティ設定5項目（明滅を抑える/色覚サポート/文字サイズ/被弾演出を控えめに/高コントラストUI）が保存されるだけで一切機能しない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-13監査(engineer)。<code>src/Settings.cs:102-106</code>でUI上に存在し<code>Save()</code>/<code>LoadSettings()</code>(<code>:353-386</code>)でJSON永続化もされるが、<code>Apply(Def d)</code>(<code>src/Settings.cs:310-352</code>)に対応する<code>case</code>が1つも無く、<code>src/</code>全体をgrepしても<code>reduceflash</code>等5キーの参照はSettings.cs以外に0件で実効果が皆無。<code>reduceflash</code>は<code>Hud.FlashMul</code>配線(<code>:322</code>)の別キーと混同されがちだが未使用のまま。photosensitivity対応を謳うアクセシビリティ項目が実は無効という実害。要ユーザー判断: (a)各項目に実効果を設計・配線する（フラッシュ強度の追加減衰か色覚シミュレーション用シェーダか等、項目ごとに設計判断が要る）、(b)未実装の間はUIから一旦外す/「近日対応」注記する。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">表示設定5項目（解像度/リフレッシュレート/スキャンライン/ブルーム/ピクセルパーフェクト）が同様に一切機能しない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-13監査(engineer)。<code>src/Settings.cs:69-73</code>もSettings.Apply()にcase無し(<code>mode</code>＝画面モードのみ実配線)。特に<code>pixel</code>(ピクセルパーフェクト)は説明文で「内部384×216を整数倍で表示」という具体的な描画仕様を謳うが実装ゼロ。シェーダ/ウィンドウ解像度変更が絡み小修正では済まないため要ユーザー判断: (a)実装範囲を決めて着手する、(b)UIから一旦間引く。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">「Y連携」カテゴリ5項目（浄化結果の投稿/スコアカードID表示/実際の投稿表示/通知/フィルタ）が丸ごと機能しない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-13監査(engineer)。<code>src/Settings.cs:109-113</code>の全項目が<code>Apply()</code>未対応かつ<code>src/</code>内で他に一切参照なし。実際のX/Twitter連携自体が未実装のため想定内の可能性はあるが、「浄化の結果をYに投稿」「スコアカードに@IDを表示」等、実在しない外部連携を示唆するUIがそのまま残っている点が実害。要ユーザー判断: (a)外部連携実装まで見据えて段階配線、(b)現状は非表示/グレーアウトにする。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">FINAL F2「穢れたわたし」ボス戦の三人(あかり/こはる/レイ)による返礼BREAK台詞とF3邂逅のレイ反転台詞が、伏線だけ仕込まれ回収先が実装のどこにも存在しない</span>
           
         </div>
@@ -2225,18 +2257,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">a20eae4</span><span>2026-09-13</span><span class="s">auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する</span></li>
+      <li><span class="h">1ee77cd</span><span>2026-09-13</span><span class="s">auto: 監査で TODO 1件・BLOCKED 3件をキューに追加</span></li>
+      <li><span class="h">76ad327</span><span>2026-09-12</span><span class="s">auto: Hud.csのティッカー語彙コメントの数値表記を修正</span></li>
       <li><span class="h">19e8e4a</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する</span></li>
       <li><span class="h">5b272fb</span><span>2026-09-12</span><span class="s">auto: StageZeroのSpawnDummy(harmless)死にコードを整理</span></li>
       <li><span class="h">646fa7b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する</span></li>
       <li><span class="h">b2ec709</span><span>2026-09-12</span><span class="s">auto: Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除</span></li>
       <li><span class="h">b365470</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する</span></li>
-      <li><span class="h">c0eb140</span><span>2026-09-12</span><span class="s">auto: CameoBossのセリフで顔アイコンが表示されない不具合を修正</span></li>
-      <li><span class="h">5928c9b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - CameoBossのセリフで顔アイコンが表示されない不具合を修正する</span></li>
-      <li><span class="h">715a761</span><span>2026-09-12</span><span class="s">auto: あそびかたにグレイズのスコア/浄化通貨即時加算を追記</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-12 18:55 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-13 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

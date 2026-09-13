@@ -47,8 +47,6 @@
 
 ## WIP
 
-- [ ] (P2) Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま | engineer | 2026-09-13監査(game-designer)。`src/GameManager.cs:81` `IsLunaticUnlocked` はフォロワー200人ルートと並び `ChainLevel("shot_power", 4) >= 4` を解禁条件に採用し、`src/DiffSelect.cs:340` も「解禁：フォロワー {LunaticFollowerReq} または 威力 Lv4」とプレイヤーに案内している。しかし既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)`)により `shot_power_4`(729G)は`shot_power_3`到達時点で既に上限到達済みで戦闘的な意味ゼロと確定済み。つまり解禁条件が「最後の729Gが完全に無駄」と判明済みのノードを目標として案内している。`src/GameManager.cs:81` の `ChainLevel("shot_power", 4) >= 4` を `ChainLevel("shot_power", 3) >= 3` に変更し、`src/DiffSelect.cs:340` の文言も「威力 Lv3」に修正する（パネルダメージ無効化そのものの是正とは独立に着手可能、既存BLOCKEDの意思決定を待たない）。
-
 ## BLOCKED
 
 <!-- 2026-09-13 監査モード(engineer)で追加 -->
@@ -102,6 +100,7 @@
 - [ ] FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている | scenario→engineer | 2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える
 
 ## DONE
+- [x] (P2) Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま | engineer | (完了 2026-09-13) 2026-09-13監査(game-designer)発見。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)`)により`shot_power_4`(729G)が戦闘的に無価値と確定済みだったため、`src/GameManager.cs:81 IsLunaticUnlocked`の解禁条件を`ChainLevel("shot_power", 4) >= 4`から`ChainLevel("shot_power", 3) >= 3`へ変更し、`src/DiffSelect.cs:340`の案内文言「威力 Lv4」も「威力 Lv3」に修正。ロジックと表示文言を実際に効果のある段階に一致させた。パネルダメージ無効化そのものの是正は対象外のBLOCKED項目のまま。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。
 - [x] (P3) Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する | engineer | (完了 2026-09-12) `src/Hud.cs:255`のコメント「軽さ7:沈む一言3」を実配列`TickerWords`(要素数8、軽さ5:沈む3)に合わせ「軽さ5:沈む一言3（計8語）」に訂正。文面(配列の中身)は変更なし、事実訂正のコメント修正のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P3) StageZeroのSpawnDummy(harmless)引数とGlyphMote.Harmlessフィールドの死にコードを整理する | engineer | (完了 2026-09-12) `src/GlyphMote.cs`から未使用の`public bool Harmless`フィールドを削除。`src/StageZero.cs`の`SpawnDummy(bool harmless)`を`SpawnDummy()`に、`new GlyphMote { Harmless = ... }`を`new GlyphMote()`に変更(計3箇所)。呼び出し箇所は当初想定の2箇所(`:311,317`)以外にも4箇所(`:175,181,353,382`)存在したため全6箇所を合わせて修正。`grep Harmless src/`で残存参照0件を確認。挙動は一切変更なし(元々読み出されていなかったフィールドの削除のみ)。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。
 - [x] (P2) Settingsの「弾を明るく表示」トグルを配線し、機能していない「当たり判定を常時表示」トグルは削除する | engineer | (完了 2026-09-12) `src/Settings.cs:83`から`Toggle("hitbox",...)`行を削除(他に参照無し、`hitbox_1/2/3`はShop.cs等の無関係な被弾半径強化ID)。`Apply()`に`case "bright": Bullet.BrightEnemyBullets = d.B; break;`を追加、`src/Bullet.cs`に`public static bool BrightEnemyBullets = true`(Settings既定ONに合わせ既定true)を追加し、敵弾描画の色決定部(`:665-671`)でON時`c = c.Lightened(0.22f)`(mid色・glow色ともに明るくなる。自機弾は対象外)。`Player.cs:1474-1475`の被弾点常時描画は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。実機での見た目目視は未実施。

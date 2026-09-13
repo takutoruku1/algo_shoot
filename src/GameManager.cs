@@ -78,7 +78,7 @@ public partial class GameManager : Node
 
     // ルナティック解禁条件（①-9）：フォロワーが一定 or 主要火力強化が一定段階。
     public const int LunaticFollowerReq = 200;
-    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || ChainLevel("shot_power", 4) >= 4;
+    public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || ChainLevel("shot_power", 3) >= 3;
 
     // ダイブ先の受け渡し（ハブ→難易度選択→ステージ）。
     public string PendingStageScene = "res://Rei.tscn";
