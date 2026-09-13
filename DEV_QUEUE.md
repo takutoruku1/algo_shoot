@@ -45,9 +45,9 @@
 
 <!-- 2026-09-13 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenario/qaは新規指摘0件 -->
 
-- [ ] (P2) Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま | engineer | 2026-09-13監査(game-designer)。`src/GameManager.cs:81` `IsLunaticUnlocked` はフォロワー200人ルートと並び `ChainLevel("shot_power", 4) >= 4` を解禁条件に採用し、`src/DiffSelect.cs:340` も「解禁：フォロワー {LunaticFollowerReq} または 威力 Lv4」とプレイヤーに案内している。しかし既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)`)により `shot_power_4`(729G)は`shot_power_3`到達時点で既に上限到達済みで戦闘的な意味ゼロと確定済み。つまり解禁条件が「最後の729Gが完全に無駄」と判明済みのノードを目標として案内している。`src/GameManager.cs:81` の `ChainLevel("shot_power", 4) >= 4` を `ChainLevel("shot_power", 3) >= 3` に変更し、`src/DiffSelect.cs:340` の文言も「威力 Lv3」に修正する（パネルダメージ無効化そのものの是正とは独立に着手可能、既存BLOCKEDの意思決定を待たない）。
-
 ## WIP
+
+- [ ] (P2) Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま | engineer | 2026-09-13監査(game-designer)。`src/GameManager.cs:81` `IsLunaticUnlocked` はフォロワー200人ルートと並び `ChainLevel("shot_power", 4) >= 4` を解禁条件に採用し、`src/DiffSelect.cs:340` も「解禁：フォロワー {LunaticFollowerReq} または 威力 Lv4」とプレイヤーに案内している。しかし既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs:468 Mathf.Clamp(b.Damage, 1, 4)`)により `shot_power_4`(729G)は`shot_power_3`到達時点で既に上限到達済みで戦闘的な意味ゼロと確定済み。つまり解禁条件が「最後の729Gが完全に無駄」と判明済みのノードを目標として案内している。`src/GameManager.cs:81` の `ChainLevel("shot_power", 4) >= 4` を `ChainLevel("shot_power", 3) >= 3` に変更し、`src/DiffSelect.cs:340` の文言も「威力 Lv3」に修正する（パネルダメージ無効化そのものの是正とは独立に着手可能、既存BLOCKEDの意思決定を待たない）。
 
 ## BLOCKED
 
