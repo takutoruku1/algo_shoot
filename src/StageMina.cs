@@ -1,7 +1,7 @@
 using Godot;
 
 // StageMina : FINAL「穢れたわたし」進行（案C・仮台本 08 F1〜F3）。三人ぶんの穢れが限界に達したミナ自身が
-// 襲ってくる。自機は強化なしの「素の光」で、彼女が抱えた穢れを撃ち祓う。
+// 襲ってくる。自機は通信路を通る「あなたの光」で、彼女が抱えた穢れを撃ち祓う。
 //   1: 導入（F1。ミナの声が壊れ、三人の投稿が変質して戻る）
 //   2: ボス出現（BossMina）
 //   3: ボス戦（撃破＝穢れを祓う／中で短い邂逅セリフ）
@@ -31,7 +31,7 @@ public partial class StageMina : Node
     //      ミナの声は壊れた断片2行だけ＝言葉が壊れる、を見せる（show-don't-tell）。
     //   ② 三人の投稿が「変質して戻る」＝ミナが吸って抱え込んだ穢れの断片。順は面の順（あかり→こはる→レイ）。
     //      本人の現在の感情ではなく残響。F4「あかりの。こはるの。レイの。」の予感。
-    //   ③ 末尾は自機交代の表示（強化は一切使えない）。ここで自機は「素の光」に変わって無言で潜る。
+    //   ③ 末尾は残った通信路と送信元の提示。自機はミナの身体ではなく「あなたの光」。
     //   ④ S3-7 で送った言葉の引用は1行だけ動的に差し替える（S37Quote）。
     private static readonly (int who, string text, string face)[] IntroHead =
     {
@@ -55,21 +55,28 @@ public partial class StageMina : Node
             _            => (1, "……あのとき、無言、でしたね。……それを、続行と、読みました。", MWorried), // （送らない）＝空文字
         };
     }
-    // 自機交代の表示。強化は一切使えない＝素の光でそのまま潜る。
-    private static readonly (int who, string text, string face) IntroTail =
-        (3, "> control: operator   /   upgrades: none", "");
+    // The channel survives even when Mina can no longer move her body.
+    private static readonly (int who, string text, string face)[] IntroTail =
+    {
+        (1, "……わたくしの身体は、もう、動かせません。でも。あなたとの回線だけは、まだ……。", MWorried),
+        (1, "いつも、言葉を届けてくださった道です。……切れて、いません。", MWorried),
+        (3, "通信先：ミナの内側\n送信元：あなた", ""),
+        (3, "入力に応じて、小さな光が動く。\nそこに、ミナの姿はない。", ""),
+        (1, "……あなたの光。わたくしを動かさなくても、届いてしまうのですね。", MWorried),
+    };
     private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
 
     public override void _Ready()
     {
         _rng.Randomize();
         _step = 1;
+        World.ProcessMode = ProcessModeEnum.Disabled;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.SetStageTarget(1);
-        // 導入は S3-7 の分岐受け1行だけが可変。頭6行＋引用1行＋自機交代表示の順に組み立てる。
+        // 導入は S3-7 の分岐受け1行だけが可変。
         var intro = new System.Collections.Generic.List<(int who, string text, string face)>(IntroHead);
         intro.Add(S37Quote(game));
-        intro.Add(IntroTail);
+        intro.AddRange(IntroTail);
         _intro = intro.ToArray();
         // 導入は「バナー＋暴走ビジュアル＋無音に委ねる」（Intro コメント①）。
         //   Audio はシーンをまたいで常駐するため、ここで止めないとハブ等の BgmMenu が
@@ -80,6 +87,7 @@ public partial class StageMina : Node
 
     public override void _Process(double delta)
     {
+        if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -103,6 +111,7 @@ public partial class StageMina : Node
             _titleThumpT += delta;
             if (_titleThumpT >= 1.25) { _titleThump = true; GameCamera.Instance?.Shake(2.6f, 0.34f); }
         }
+        if (Hud.EpicBannerActive) return;
         switch (_step)
         {
             case 1: Step_Lines(delta, _intro); break;
@@ -113,7 +122,7 @@ public partial class StageMina : Node
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
         // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
         // ボス本体(BossMina)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Final, fallSpeed: 56f,
+        if (_bossActive && !_boss.IsPurified && !Hud.BubblePaused && !_boss.AoeGateActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Final, fallSpeed: 56f,
             accent: new Color(0.70f, 0.55f, 0.84f), murkAll: true); // FINAL テーマ＝ミナの菫。渦巻く悲鳴＝全語濁色チップ
     }
 
@@ -124,6 +133,7 @@ public partial class StageMina : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            World.ProcessMode = ProcessModeEnum.Inherit;
             _introLine = 0; _lineHold = 0;
             if (lines.Length == 0) { Advance(); return; }
             Hud.HoldBubble = true;
@@ -200,8 +210,15 @@ public partial class StageMina : Node
     }
 
     private bool _clearing;
+    private bool _returnShown;
     private void Step_Transition()
     {
+        if (!_returnShown)
+        {
+            _returnShown = true;
+            MinaStoryFilm.Play(Hud, World, aftermath: true, completed: () => _zHeld = Pad.AdvanceHeld());
+            return;
+        }
         if (_clearing) return;
         _clearing = true;
         // FINAL クリア確定＝この瞬間に経過秒を確定しベスト記録（記録画面/カードで参照）。

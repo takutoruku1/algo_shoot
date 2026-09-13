@@ -23,8 +23,9 @@ public partial class StoryFilmQa : Node
     {
         ProcessMode = ProcessModeEnum.Always;
         bool koharu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--koharu") >= 0;
-        bool burst = koharu && Array.IndexOf(OS.GetCmdlineUserArgs(), "--burst") >= 0;
-        string stageName = koharu ? "Koharu" : "Akari";
+        bool rei = Array.IndexOf(OS.GetCmdlineUserArgs(), "--rei") >= 0;
+        bool burst = (koharu || rei) && Array.IndexOf(OS.GetCmdlineUserArgs(), "--burst") >= 0;
+        string stageName = rei ? "Rei" : koharu ? "Koharu" : "Akari";
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
@@ -33,6 +34,7 @@ public partial class StoryFilmQa : Node
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/{stageName.ToLowerInvariant()}/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var game = GetNode<GameManager>("/root/Game");
+            var gameMode = game.ProcessMode;
             game.SelectedEntry = GameManager.StageEntry.Boss;
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
@@ -46,21 +48,32 @@ public partial class StoryFilmQa : Node
             var player = world.GetNode<Player>("Player");
             void PlayFilm(bool aftermath, Action completed)
             {
-                if (koharu) KoharuStoryFilm.Play(hud, world, aftermath, completed);
+                if (rei) ReiStoryFilm.Play(hud, world, aftermath, completed);
+                else if (koharu) KoharuStoryFilm.Play(hud, world, aftermath, completed);
                 else AkariStoryFilm.Play(hud, world, aftermath, completed);
             }
             await Frames(15);
-            await AdvanceUntil(() => Read<int>(stage, "_step") == 13);
+            await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
             int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
-            Write(boss, "_hp", (int)(maxHp * 0.77f), typeof(Enemy));
+            if (!(rei && burst))
+            {
+                Write(boss, "_hp", (int)(maxHp * 0.77f), typeof(Enemy));
+                Call(boss, "OnHpChanged");
+            }
+            Write(boss, "_hp", (int)(maxHp * (burst ? rei ? 0.18f : 0.24f : koharu || rei ? 0.49f : 0.51f)), typeof(Enemy));
             Call(boss, "OnHpChanged");
-            Write(boss, "_hp", (int)(maxHp * (burst ? 0.24f : koharu ? 0.49f : 0.51f)), typeof(Enemy));
-            Call(boss, "OnHpChanged");
+            Write(game, "_comboTimer", 5.0);
             await Frames(10);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null && hud.CinematicMode, "HP threshold starts flashback");
             Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused, "combat is suspended");
+            if (rei)
+            {
+                Check(!Read<bool>(stage, "_midStoryShown"), "flashback takes priority over Mina choice");
+                Check(!Read<bool>(boss, "_form2", typeof(Enemy)) && !Read<bool>(boss, "_relayFired")
+                      && !Read<bool>(boss, "_accelerated"), "form, relay and music changes wait for memory");
+            }
             var position = player.GlobalPosition;
             int lives = player.Lives;
             int bombs = game.Bombs;
@@ -68,6 +81,7 @@ public partial class StoryFilmQa : Node
             float hp = boss.HpRatio;
             double phaseT = Read<double>(boss, "_phaseT", typeof(Enemy));
             double elapsed = Read<double>(stage, "_stageElapsed");
+            double comboTime = Read<double>(game, "_comboTimer");
             KeyEvent(Key.Right, true);
             KeyEvent(Key.X, true);
             await Frames(90);
@@ -76,6 +90,7 @@ public partial class StoryFilmQa : Node
             Check(player.GlobalPosition == position && player.Lives == lives && boss.HpRatio == hp
                   && game.Bombs == bombs && player.BombCount == bombCount, "movement, damage and bombs stay frozen");
             Check(Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT && Read<double>(stage, "_stageElapsed") == elapsed, "boss phase and stage clocks stay frozen");
+            Check(game.ProcessMode == ProcessModeEnum.Disabled && Read<double>(game, "_comboTimer") == comboTime, "combo timeout stays frozen during memory");
             var first = await Shot("memory_start", grayscale: true);
             await Frames(90);
             var moving = await Shot("memory_motion", grayscale: true);
@@ -101,7 +116,7 @@ public partial class StoryFilmQa : Node
             await AdvanceUntil(() => Read<int>(film!, "_shot") == 1);
             await Frames(60);
             await Shot("memory_pressure", grayscale: true);
-            if (koharu)
+            if (koharu || rei)
                 for (int shot = 2; shot <= 4; shot++)
                 {
                     await AdvanceUntil(() => Read<int>(film!, "_shot") == shot);
@@ -109,7 +124,8 @@ public partial class StoryFilmQa : Node
                     await Shot($"memory_scene_{shot}", grayscale: true);
                 }
             await AdvanceUntil(() => !IsInstanceValid(film));
-            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit, "flashback restores world and HUD");
+            Check(!hud.CinematicMode && (rei || !Hud.BubblePaused) && world.ProcessMode == ProcessModeEnum.Inherit
+                  && game.ProcessMode == gameMode, "flashback restores world and HUD");
             if (koharu)
             {
                 Check(Read<bool>(boss, "_mealFired") && Read<int>(boss, "_mealPhase") > 0, "archive mechanic starts after memory");
@@ -123,6 +139,22 @@ public partial class StoryFilmQa : Node
                 }
                 Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form follows completed archive mechanic");
             }
+            else if (rei)
+            {
+                Check(Read<bool>(boss, "_form2", typeof(Enemy)), "avatar cracks only after memory");
+                if (burst)
+                {
+                    Check(Read<int>(boss, "_beatsFired") == 3 && Read<bool>(boss, "_relayFired")
+                          && Read<bool>(boss, "_accelerated"), "large damage resumes all crossed thresholds");
+                    Check(((BossRei)boss).AoeGateActive, "relay telegraph starts after memory");
+                    await WaitUntil(() => !((BossRei)boss).AoeGateActive, 1600);
+                }
+                else
+                {
+                    await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
+                    Check(!Hud.BubblePaused && !hud.SuppressCallouts, "Mina choice completes after memory and restores battle");
+                }
+            }
             else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"), "second form and corridor begin after the memory");
             Call(boss, "OnHpChanged");
             await Frames(15);
@@ -131,6 +163,16 @@ public partial class StoryFilmQa : Node
 
             Write(boss, "_hp", 0, typeof(Enemy));
             Call(boss, "Redeem", typeof(Enemy));
+            if (rei)
+            {
+                await AdvanceUntil(() => boss.ShellPeelBusy);
+                int peelLine = Read<int>(boss, "_line");
+                KeyEvent(Key.Z, true);
+                await Frames(30);
+                KeyEvent(Key.Z, false);
+                Check(boss.ShellPeelBusy && Read<int>(boss, "_line") == peelLine, "advance cannot skip the avatar peel");
+                await Shot("avatar_peel", grayscale: false);
+            }
             await AdvanceUntil(() => hud.CinematicMode);
             film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null && Read<bool>(film, "_aftermath"), "clear dialogue starts next-day aftermath");
@@ -139,7 +181,7 @@ public partial class StoryFilmQa : Node
             await AdvanceUntil(() => Read<int>(film!, "_line") == 7);
             await Frames(60);
             await Shot("aftermath_action", grayscale: false);
-            await AdvanceUntil(() => Read<int>(film!, "_shot") == (koharu ? 7 : 5));
+            await AdvanceUntil(() => Read<int>(film!, "_shot") == (koharu || rei ? 7 : 5));
             await Frames(60);
             await Shot("aftermath_changed", grayscale: false);
             await AdvanceUntil(() => !IsInstanceValid(film));
@@ -163,7 +205,8 @@ public partial class StoryFilmQa : Node
             await Frames(5);
             hud.GetNode($"{stageName}StoryFilm").QueueFree();
             await Frames(5);
-            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit, "aborted film releases pause state");
+            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit
+                  && game.ProcessMode == gameMode, "aborted film releases pause state");
             Write(stage, "_stepStarted", false);
             stage.SetProcess(true);
             await AdvanceUntil(() => GetTree().CurrentScene != root);

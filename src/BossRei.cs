@@ -7,6 +7,7 @@ using Godot;
 public partial class BossRei : Enemy
 {
     public bool Finished { get; private set; }
+    public bool MemoryPlayed => _memoryPlayed;
 
     private readonly BossMover _mover = new BossMover();
     // 旧・徘徊速度。移動は BossMover の cruise_speed（ini [rei]）が握るので、これは
@@ -17,6 +18,8 @@ public partial class BossRei : Enemy
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
     private bool _finale;     // HP2割以下＝2スペル同時展開
     private bool _accelerated; // HP2割以下で戦闘BGMを一度だけ加速させた（多重発火防止）
+    private bool _memoryPending;
+    private bool _memoryPlayed;
     private float _ringOff;
     private int _pattern;
     private int _beatsFired;
@@ -368,7 +371,13 @@ public partial class BossRei : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
+        if (_memoryPending) return;
+        if (!_memoryPlayed && HpRatio <= PatternThresholds[1])
+        {
+            _memoryPending = true;
+            return;
+        }
+        while (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
@@ -458,6 +467,20 @@ public partial class BossRei : Enemy
 
     public override void _Process(double delta)
     {
+        if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
+        {
+            _memoryPending = false;
+            _memoryPlayed = true;
+            _caster.CancelPendingAttacks();
+            ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            {
+                _zHeld = Pad.AdvanceHeld();
+                _fireT = _fireT2 = 0;
+                Audio.Instance?.Music(Audio.Instance.BgmBossRei, 0.8f);
+                OnHpChanged();
+            });
+            return;
+        }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
@@ -469,7 +492,15 @@ public partial class BossRei : Enemy
             // ガワ割れが走っている間（2.2秒）は送らせない。ここを送れてしまうと、二枚が離れていく途中で
             // 会話が畳まれて post 差し替えが走り、「割れる」より先に「別の絵になった」が来てしまう。
             // QA の自動送りも同じ経路（Pad.AdvanceHeld）を通るので、同じだけ待つ。
-            if (zEdge && _lineT >= 0.25 && !ShellPeelBusy)
+            var dialogHud = GetHud()!;
+            if (zEdge && _lineT >= 0.25 && !ShellPeelBusy && !dialogHud.DialogRevealed)
+            {
+                dialogHud.RevealDialogNow();
+                _lineT = 0;
+                NotifyCryProgress();
+            }
+            else if (_lineT >= 0.25 && !ShellPeelBusy && dialogHud.DialogRevealed
+                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvance && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

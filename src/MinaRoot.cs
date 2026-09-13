@@ -30,10 +30,8 @@ public partial class MinaRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new MurkVignette { Name = "MurkVignette" }); // FINAL=汚染頂点：端から寄る濁りビネット（弾より奥・中央は抜け）
 
-        // 自機＝「素の光」（F1 の `> control: operator / upgrades: none`）。案C では少年は居ないので
-        //   boy スキン（shonen_idle）は使わない＝既定のミナ自機のまま、強化なしで潜る。
-        //   濁りは掛けない（穢れているのはここ＝彼女の内側であって、潜る光ではない）。
-        Player = new Player { Name = "Player" };
+        // FINAL controls the operator's transmission, not a second Mina body.
+        Player = new Player { Name = "Player", Skin = "operator" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
         Player.SetCorruption(0f);
@@ -168,6 +166,7 @@ public partial class MinaRoot : Node2D
 
     public override void _Process(double delta)
     {
+        if (Hud.CinematicMode) { _exitHeld = true; return; }
         TickJourney(); // 歴代ボス背景の追体験（ミナのHP段階でクロスフェード）。ポーズ中も止めない＝フェードが凍らない。
         // ポーズメニュー等を閉じた押下の漏れ（B=抜ける 等）がこのフレームに誤発火しないよう食う。
         if (Pad.UiBlocked(this)) { _exitHeld = true; return; }

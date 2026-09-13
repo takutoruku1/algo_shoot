@@ -1,12 +1,15 @@
 using Godot;
 
 // BossMina : FINAL「穢れたわたし」（案C・仮台本 08 F2/F3）。三人ぶんの穢れがミナの中で限界に達した姿。
-// 自機は強化なしの「素の光」＝あなたが操作して、ミナ自身が抱えた穢れを撃ち祓う。
+// 自機は通信路を通る「あなたの光」。ミナ自身が抱えた穢れを撃ち祓う。
 // BREAK ごとに、祓った三人（あかり→こはる→レイ）が浄化波の援護とともに返礼を投げる。
 // HPを削り切る＝穢れを祓い、核が開く。短い邂逅（F3）のあと、Final（F4 の頂点）へ。
 public partial class BossMina : Enemy
 {
     public bool Finished { get; private set; }
+    public bool MemoryPlayed => _memoryPlayed;
+    public bool AoeGateActive => _caster != null && _caster.AoeActive;
+    private bool _memoryPending, _memoryPlayed;
 
     private readonly BossMover _mover = new BossMover();
     private const float RoamSpeed = 38f;
@@ -110,11 +113,12 @@ public partial class BossMina : Enemy
         _aoeSingleHp = BossTuning.F("mina", "aoe_single_hp", 0.62f);
         _aoeChainHp = BossTuning.F("mina", "aoe_chain_hp", 0.42f);
 
-        PreTexPath = "res://char/enemy_mina_pre.png";
+        PreTexPath = "res://char/v3/boss_mina_body_idle.png";
+        AttackTexPath = "res://char/v3/boss_mina_body_attack.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ半剥がれ・決壊の涙)→清浄(post)。
         // cry は邂逅の会話尺いっぱい保持し、EndCryNow で post（本来の姿）へ着地（他ボスと同作法）。
-        CryTexPath = "res://char/enemy_mina_cry.png";
-        PostTexPath = "res://char/enemy_mina_post.png";
+        CryTexPath = "res://char/v3/boss_mina_body_cry.png";
+        PostTexPath = "res://char/v3/boss_mina_body_post.png";
         BodyDisplayH = BossTuning.F("mina", "body_display_h", 56f);
         CryHoldDur = 9999.0;
     }
@@ -245,7 +249,12 @@ public partial class BossMina : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
+        if (!_memoryPlayed && HpRatio <= 0.5f)
+        {
+            _memoryPending = true;
+            return;
+        }
+        while (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
         {
             _pattern = (_pattern + 1) % PatternCount;
             _beatsFired++;
@@ -346,6 +355,11 @@ public partial class BossMina : Enemy
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
+        if (!_memoryPlayed)
+        {
+            _memoryPending = true;
+            return;
+        }
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
@@ -361,6 +375,25 @@ public partial class BossMina : Enemy
 
     public override void _Process(double delta)
     {
+        if (_memoryPending && !_seq && !Hud.BubblePaused)
+        {
+            _memoryPending = false;
+            _memoryPlayed = true;
+            _thanksPending = -1;
+            _caster.CancelPendingAttacks();
+            MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            {
+                _zHeld = Pad.AdvanceHeld();
+                _fireT = _fireT2 = 0;
+                if (IsPurified) OnCryStart();
+                else
+                {
+                    Audio.Instance?.Music(Audio.Instance.BgmBossMina, 0.8f);
+                    OnHpChanged();
+                }
+            });
+            return;
+        }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
@@ -370,7 +403,15 @@ public partial class BossMina : Enemy
 
         if (_seq)
         {
-            if (zEdge && _lineT >= 0.25)
+            var dialogHud = GetHud()!;
+            if (zEdge && _lineT >= 0.25 && !dialogHud.DialogRevealed)
+            {
+                dialogHud.RevealDialogNow();
+                _lineT = 0;
+                NotifyCryProgress();
+            }
+            else if (_lineT >= 0.25 && dialogHud.DialogRevealed
+                     && (zEdge || dialogHud.FastForwarding || (dialogHud.AutoAdvance && _lineT >= 1.4)))
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない

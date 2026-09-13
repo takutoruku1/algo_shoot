@@ -90,5 +90,10 @@ public static class KeyTrimScale {
   }
 }
 '@
-Add-Type -TypeDefinition $cs -ReferencedAssemblies System.Drawing
+Add-Type -AssemblyName System.Drawing
+$references = @([System.Drawing.Bitmap].Assembly.Location, [System.Drawing.Rectangle].Assembly.Location)
+if ($PSEdition -eq 'Core') {
+  $references += @('System.Runtime.dll', 'System.Runtime.InteropServices.dll', 'System.Private.Windows.Core.dll', 'System.Private.Windows.GdiPlus.dll') | ForEach-Object { Join-Path $PSHOME $_ }
+}
+Add-Type -TypeDefinition $cs -ReferencedAssemblies $references -ErrorAction Stop
 [KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline)

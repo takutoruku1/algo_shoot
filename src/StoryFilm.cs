@@ -8,6 +8,8 @@ public partial class StoryFilm : Node2D
     protected Hud _hud = null!;
     protected Node _world = null!;
     protected ProcessModeEnum _worldMode;
+    private GameManager _game = null!;
+    private ProcessModeEnum _gameMode;
     protected Action _completed = null!;
     protected Line[] _lines = null!;
     protected ShaderMaterial _grade = null!;
@@ -27,6 +29,9 @@ public partial class StoryFilm : Node2D
         _worldMode = _world.ProcessMode;
         // BubblePaused alone leaves the boss's BREAK/RECLOSE clock running.
         _world.ProcessMode = ProcessModeEnum.Disabled;
+        _game = GetNode<GameManager>("/root/Game");
+        _gameMode = _game.ProcessMode;
+        _game.ProcessMode = ProcessModeEnum.Disabled;
         _suppressed = _hud.SuppressCallouts;
         _hud.SuppressCallouts = true;
         _hud.HideBubble();
@@ -135,6 +140,7 @@ public partial class StoryFilm : Node2D
         if (_restored) return;
         _restored = true;
         if (IsInstanceValid(_world)) _world.ProcessMode = _worldMode;
+        if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))
         {
             _hud.HoldBubble = false;

@@ -552,11 +552,11 @@ public partial class Player : Area2D
 
         // テクスチャ読み込み（失敗時は _Draw フォールバック）
         // ドット絵スプライトを優先。無ければ透過カットアウト→元イラストにフォールバック。
-        var tex = (Skin == "boy" ? ResourceLoader.Load<Texture2D>("res://char/shonen_idle.png") : null)
+        var tex = Skin == "operator" ? null : ((Skin == "boy" ? ResourceLoader.Load<Texture2D>("res://char/shonen_idle.png") : null)
                   ?? ResourceLoader.Load<Texture2D>("res://char/mina_idle.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
                   ?? ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
-                  ?? ResourceLoader.Load<Texture2D>("res://char/algo.png");
+                  ?? ResourceLoader.Load<Texture2D>("res://char/algo.png"));
         if (tex != null)
         {
             _hasTexture = true;
@@ -581,7 +581,7 @@ public partial class Player : Area2D
         // 回避スピンのフレーム5枚を一度だけロードしてキャッシュ（mina のみ。boy 等は絵が無い）。
         // 5枚すべて読めたときだけ _spinReady=true＝本物のフレームアニメで回す。1枚でも欠けたら
         // _spinReady=false のまま idle 単一フレームへフォールバック（落とさない）。
-        if (Skin != "boy")
+        if (Skin == "mina")
         {
             bool allLoaded = true;
             for (int i = 0; i < _spinTex.Length; i++)
@@ -1696,8 +1696,23 @@ public partial class Player : Area2D
 
     public override void _Draw()
     {
+        if (Skin == "operator")
+        {
+            float pulse = 0.8f + 0.2f * Mathf.Sin(_bobTime * 4f);
+            Vector2 tail = -new Vector2(_facing, 0) * 18f - _lean * 8f;
+            var points = new Vector2[6];
+            for (int i = 0; i < points.Length; i++)
+            {
+                float k = i / 5f;
+                points[i] = tail * k + new Vector2(0, Mathf.Sin(_bobTime * 5f + k * 4f) * 3f * k);
+            }
+            DrawPolyline(points, new Color(0.55f, 0.92f, 1f, 0.8f), 1.4f, true);
+            DrawCircle(Vector2.Zero, 9f, new Color(1f, 0.88f, 0.58f, 0.18f * pulse));
+            DrawCircle(Vector2.Zero, 6f, new Color(1f, 0.92f, 0.72f, 0.65f * pulse));
+            DrawCircle(Vector2.Zero, 3.8f, new Color(1f, 0.98f, 0.92f));
+        }
         // テクスチャが無い場合のプレースホルダ（白い体＋紫十字）
-        if (!_hasTexture)
+        else if (!_hasTexture)
         {
             // 体（白い円）
             DrawCircle(Vector2.Zero, 12f, new Color(1f, 1f, 1f, 0.95f));

@@ -338,6 +338,7 @@ public partial class StageRei : Node
 
     public override void _Process(double delta)
     {
+        if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
         // ステージ経過タイム：クリア確定までは積算し続け、HUDへ常時反映（クリア後は確定値で固定）。
         if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
@@ -758,7 +759,7 @@ public partial class StageRei : Node
             float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
             // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりは _midStoryShown が保証）
             bool debugNow = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceNow == true;
-            if ((frac <= 0.5f && frac >= 0.2f) || debugNow)
+            if ((_boss.MemoryPlayed && frac <= 0.5f && frac >= 0.2f) || debugNow)
             {
                 _midStoryShown = true;
                 _step = 15; _stepStarted = false;
@@ -884,6 +885,7 @@ public partial class StageRei : Node
     }
 
     private bool _clearBannerShown;
+    private int _clearPhase;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -897,8 +899,17 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            _clearPhase = 1;
+            ReiStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
+            {
+                _clearPhase = 2;
+                _stepStarted = false;
+                _zHeld = Pad.AdvanceHeld();
+                _zEdge = false;
+            });
+            return;
         }
-        Step_Lines(delta, Clear);
+        if (_clearPhase == 2) Step_Lines(delta, Clear);
     }
 
     private bool _clearing;

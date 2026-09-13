@@ -554,6 +554,7 @@ public partial class Hud : CanvasLayer
     }
 
     private bool _epic;
+    public bool EpicBannerActive => _epic && _bannerTimer > 0;
     private string _epicTag = "", _epicSub = "";
     private Color _epicAccent = UiKit.Kegare;
     private const double EpicDur = 5.2;   // 0.0 暗転寄せ → 1.0 タグ合わせ → 2.4 副題滲み → 3.4 ため → 5.2 引き
@@ -623,7 +624,7 @@ public partial class Hud : CanvasLayer
             ["レイ"]   = ("res://char/v3/cutin_rei_gawa_a.png", "初見さん、いらっしゃい!"),   // ボス＝ガワ（笑顔固定）。仮台本 07 の S3-6
             ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
             ["こはる"] = ("res://char/v3/cutin_koharu.png", "ちゃんとしなきゃ。……みんな、見てるもん。"),
-            ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),
+            ["ミナ"]   = ("res://char/v3/boss_mina_body_attack.png", "……おやめください。あなたまで、汚したくない……。"),
         };
         if (!_cutinData.TryGetValue(who, out var d)) return;
         var tex = ResourceLoader.Load<Texture2D>(d.path);
