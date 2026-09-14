@@ -47,10 +47,11 @@
 
 <!-- 2026-09-14 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照。qaは新規指摘0件 -->
 
-- [ ] ショップのLUNATIC解禁UI（王冠アイコン/詳細パネル案内/ヘッダ進捗表示）が「威力Lv4」を指したまま — 2026-09-13是正コミットの取りこぼし | engineer | 2026-09-14監査(engineer)。DEV_QUEUE.md DONE(2026-09-13)でLUNATIC解禁条件を`ChainLevel("shot_power",4)>=4`から`ChainLevel("shot_power",3)>=3`へ是正し`GameManager.cs:81`と`DiffSelect.cs:340`は修正済みだが、他4箇所が旧値`shot_power_4`のまま残存: `Shop.cs:1167`のヘッダ進捗表示(`ChainLevel("shot_power",4)`/`"/4"`)、`Shop.cs:1481-1482`の王冠アイコン描画条件(`id=="shot_power_4"`)、`Shop.cs:1739-1741`の詳細パネル案内文（`id=="shot_power_4"`のとき「LUNATIC解放条件のひとつ」表示）、`GameManager.cs:451`のshot_power_4ノードDesc文言（`（LUNATIC解放条件のひとつ）`が残存）。実害: プレイヤーが不要な`shot_power_4`（729G、既にBLOCKED「パネルダメージ強化無効化」により戦闘的に無価値と確定済み）を王冠・詳細文・ヘッダ進捗の3つの独立UIに誘導され誤購入する。対応: 上記4箇所のID/表記を`shot_power_3`/`"/3"`基準へ統一し、`GameManager.cs:451`のDescから該当文言を削除。あわせて`wiki/05_ゲーム仕様/07_ショップと強化.md:13`・`wiki/05_ゲーム仕様/08_難易度.md:39`の「光の出力IV」表記も「光の出力III」へ機械的に訂正。ロジック変更なし。
 - [ ] sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている | game-designer | 2026-09-14監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:9`の`FireInterval=0.11`は実装`src/Player.cs:16`の`0.13f`と不一致。同`:16`の`RampDur=60/IntervalEnd=0.9/MaxAlive=9`も実装`src/Spawner.cs:20-23`の`RampDur=28f`（コメントで60→28へ意図的短縮済みと明記）/`IntervalEnd=0.8f`/`MaxAlive=10`と不一致（2026-09-11に同ファイルの`HomingTurnRate`等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: `design-map.md`の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。
 
 ## WIP
+
+- [ ] ショップのLUNATIC解禁UI（王冠アイコン/詳細パネル案内/ヘッダ進捗表示）が「威力Lv4」を指したまま — 2026-09-13是正コミットの取りこぼし | engineer | 2026-09-14監査(engineer)。DEV_QUEUE.md DONE(2026-09-13)でLUNATIC解禁条件を`ChainLevel("shot_power",4)>=4`から`ChainLevel("shot_power",3)>=3`へ是正し`GameManager.cs:81`と`DiffSelect.cs:340`は修正済みだが、他4箇所が旧値`shot_power_4`のまま残存: `Shop.cs:1167`のヘッダ進捗表示(`ChainLevel("shot_power",4)`/`"/4"`)、`Shop.cs:1481-1482`の王冠アイコン描画条件(`id=="shot_power_4"`)、`Shop.cs:1739-1741`の詳細パネル案内文（`id=="shot_power_4"`のとき「LUNATIC解放条件のひとつ」表示）、`GameManager.cs:451`のshot_power_4ノードDesc文言（`（LUNATIC解放条件のひとつ）`が残存）。実害: プレイヤーが不要な`shot_power_4`（729G、既にBLOCKED「パネルダメージ強化無効化」により戦闘的に無価値と確定済み）を王冠・詳細文・ヘッダ進捗の3つの独立UIに誘導され誤購入する。対応: 上記4箇所のID/表記を`shot_power_3`/`"/3"`基準へ統一し、`GameManager.cs:451`のDescから該当文言を削除。あわせて`wiki/05_ゲーム仕様/07_ショップと強化.md:13`・`wiki/05_ゲーム仕様/08_難易度.md:39`の「光の出力IV」表記も「光の出力III」へ機械的に訂正。ロジック変更なし。
 
 ## BLOCKED
 
