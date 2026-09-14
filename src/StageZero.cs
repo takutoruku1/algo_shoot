@@ -79,7 +79,9 @@ public partial class StageZero : Node
     };
     private static readonly (int who, string text, string face)[] Tut8End =
     {
-        (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_smile.png"),
+        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】（感情アークの厳格運用）
+        //   れんしゅう＝あかり面より前＝ミナはまだ何も獲得していない。笑顔の立ち絵は出さない。
+        (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_face.png"),
     };
 
     public override void _Ready()
@@ -147,7 +149,11 @@ public partial class StageZero : Node
                     if (v.Y >  0.2f || Input.IsKeyPressed(Key.S)) _t1Down  += delta;
                     int done = (_t1Up >= need ? 1 : 0) + (_t1Down >= need ? 1 : 0)
                              + (_t1Left >= need ? 1 : 0) + (_t1Right >= need ? 1 : 0);
-                    Hud.SetTutorialHint($"上下左右を それぞれ1秒くらい 押してみよう（{done}/4）");
+                    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【10】
+                    //   分かち書き＋「〜してみよう」は児童向けで、対象読者（20代後半〜30代後半）と衝突する。
+                    //   かつ、ここも世界の中ではミナが喋っている場所なので、口上だけ話者の人格が変わってはいけない。
+                    //   ミナの文体（体言止め・読点で区切る・命令ではなく提示）へ揃える。
+                    Hud.SetTutorialHint($"上下左右へ、それぞれ一秒（{done}/4）");
                     if (done >= 4 || _phaseTime > 30.0) { Hud.ClearTutorialHint(); NextPhase(); }
                 }
                 break;
@@ -169,7 +175,7 @@ public partial class StageZero : Node
                     int killed = (GetNodeOrNull<GameManager>("/root/Game")?.PurifiedCount ?? 0) - _t2KillBase;
                     // 倒し切る前に標的が尽きたら湧き直し（詰み防止）。湧き直しは1体ずつで「撃って→消える」を反復。
                     if (killed < ShotKillNeed && CountLiveEnemies() == 0) SpawnDummy(true);
-                    Hud.SetTutorialHint($"ダミーに 光を あてて たおそう（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
+                    Hud.SetTutorialHint($"ダミーに光を当てる（{Mathf.Min(killed, ShotKillNeed)}/{ShotKillNeed}）");
                     if (killed >= ShotKillNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -210,7 +216,7 @@ public partial class StageZero : Node
                 if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); }
                 {
                     int dodged = (Player?.DodgeCount ?? 0) - _t4DodgeBase;
-                    Hud.SetTutorialHint($"いろんな方向に 回避してみよう（{Mathf.Min(dodged, DodgeNeed)}/{DodgeNeed}）");
+                    Hud.SetTutorialHint($"向きを変えて、回避（{Mathf.Min(dodged, DodgeNeed)}/{DodgeNeed}）");
                     if (dodged >= DodgeNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -249,7 +255,7 @@ public partial class StageZero : Node
                     // 散らばって標的が尽きたら固め直し（詰み防止）。
                     else if (!bombed && CountLiveEnemies() == 0)
                         SpawnBombCluster();
-                    Hud.SetTutorialHint($"ダミーを 3体まとめて X のボムで（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
+                    Hud.SetTutorialHint($"Ｘ のボムで、三体まとめて（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
                     if (caught >= BombKillNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -288,7 +294,7 @@ public partial class StageZero : Node
                     int purified = (game?.PurifiedCount ?? 0) - _t6PurifyBase;
                     if (purified < PurifyNeed && CountLiveEnemies() == 0)
                         SpawnDummy(false); // 逃げて全滅したら湧き直し（詰み防止）
-                    Hud.SetTutorialHint($"ダミーの敵を 浄化してみよう（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
+                    Hud.SetTutorialHint($"ダミーを浄化する（{Mathf.Min(purified, PurifyNeed)}/{PurifyNeed}）");
                     if (purified >= PurifyNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();

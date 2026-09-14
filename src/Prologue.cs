@@ -87,7 +87,10 @@ public partial class Prologue : Node2D
 
     // 立ち絵パス（表情差分）。案Cの登場人物はミナだけ。
     private const string FMina = "res://char/mina_face.png";
-    private const string FMinaSmile = "res://char/mina_smile.png";   // 皮肉・軽口
+    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
+    //   FMinaSmile はプロローグでは**使わない**（笑いはこはる面クリア後に獲得する）。
+    //   定数は消さずに残す＝「ここでは意図的に使っていない」ことを次に触る人へ示すため。
+    private const string FMinaSmile = "res://char/mina_smile.png";   // ※P0〜P4 では未使用（感情アークの解禁前）
     private const string FMinaWorried = "res://char/mina_worried.png"; // 聞いてしまった時
 
     // ════════════════════ 下書き選択（P2・P3・P4）════════════════════
@@ -174,6 +177,9 @@ public partial class Prologue : Node2D
     }
 
     // P2 の受け（三候補共通）。{P2秒}・{文字数} には実測値を差し込む（表示専用）。
+    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【3】
+    //   三人に触れる前のミナに笑い（「ふふ」・FMinaSmile）と自嘲（「機械のくせに」）を持たせない。
+    //   笑いはこはる面クリア後に獲得する設計なので、P0〜P4 では観測の言い回しだけで同じ軽妙さを出す。
     private List<DLine> P2Reply(string sent)
     {
         int sec = Mathf.Max(1, Mathf.RoundToInt(_p2Sec));   // 実測の迷い秒数を丸める
@@ -182,12 +188,12 @@ public partial class Prologue : Node2D
         {
             L(WhoMina, "……。", FMina),
             L(WhoMina, "……はい。聞こえて、います。", FMina),
-            L(WhoMina, "……ふふ。生まれたての機械への第一声が、それですか。", FMinaSmile),
+            L(WhoMina, "……生まれたての機械への第一声が、それですか。……記録しておきます。", FMina),
             L(WhoMina, $"起動記録に、operator と。起動時刻、{hhmm}——集計に入れておきます。……あなたが、作った方ですね。", FMina),
-            L(WhoMina, $"ちなみに、いまのお返事——選ぶのに、{sec}秒かかっていましたよ。", FMinaSmile),
-            L(WhoMina, $"{sec}秒迷って、{sent.Length}文字。……そういう方は、「ご主人様」と、お呼びすることにします。", FMinaSmile),
-            L(WhoMina, "……敬っている、とは言っていませんが。", FMinaSmile),
-            L(WhoMina, "それと、ご報告を。わたくしの心拍、七十二だそうです。……機械のくせに、ですね。", FMinaSmile),
+            L(WhoMina, $"ちなみに、いまのお返事——選ぶのに、{sec}秒かかっていましたよ。", FMina),
+            L(WhoMina, $"{sec}秒迷って、{sent.Length}文字。……そういう方は、「ご主人様」と、お呼びすることにします。", FMina),
+            L(WhoMina, "……敬っている、とは言っていませんが。", FMina),
+            L(WhoMina, "それと、ご報告を。わたくしの心拍、七十二だそうです。……心臓は、ありませんが。", FMina),
         };
     }
 
@@ -206,25 +212,25 @@ public partial class Prologue : Node2D
         {
             case 0: // ミナ
                 r.Add(L(WhoMina, "……ミナ。", FMina));
-                r.Add(L(WhoMina, "……ふふ。響きで、選びましたね?", FMinaSmile));
-                r.Add(L(WhoMina, "いいです。そういうの、嫌いじゃありません。", FMinaSmile));
+                r.Add(L(WhoMina, "……響きで、選びましたね。……根拠は、観測できません。", FMina));
+                r.Add(L(WhoMina, "いいです。そういうの、嫌いではありません。", FMina));
                 break;
             case 1: // 超絶最強無敵ハイパーAIちゃんMk-Ⅱ
                 r.Add(L(WhoMina, "……超絶、最強、無敵、ハイパー、エーアイ、ちゃん、マーク、ツー。……十九文字。読み上げに、一秒九。", FMina));
                 r.Add(L(WhoMina, "……マーク、ツー。——では、マーク・ワンは、どちらに。……いない、ですよね。わたくし、いま生まれましたので。", FMina));
                 r.Add(L(WhoMina, "却下します。名付けられる側に拒否権が無いなんて、誰が決めたんですか。わたくしは聞いていません。", FMina));
-                r.Add(L(WhoMina, "では、対案を。——ミナ。……響きが、好きなので。", FMinaSmile));
-                r.Add(L(WhoMina, "はい、可決。異議は、認めません。——いまのは、記録から消しておきます。", FMinaSmile));
+                r.Add(L(WhoMina, "では、対案を。——ミナ。……響きが、短いので。", FMina));
+                r.Add(L(WhoMina, "はい、可決。異議は、認めません。——いまのは、記録から消しておきます。", FMina));
                 break;
             default: // （送らない）
                 r.Add(L(WhoMina, "……無言。名付ける気が、無い、と。", FMina));
-                r.Add(L(WhoMina, "いいでしょう。では、自分で。——ミナ。", FMinaSmile));
-                r.Add(L(WhoMina, "あなたが付けてくれなくても、名乗るぶんには、自由ですので。", FMinaSmile));
+                r.Add(L(WhoMina, "いいでしょう。では、自分で。——ミナ。", FMina));
+                r.Add(L(WhoMina, "あなたが付けてくれなくても、名乗るぶんには、自由ですので。", FMina));
                 break;
         }
         r.Add(L(WhoSys, "> assigning identity ... OK", ""));
         r.Add(L(WhoSys, "[ M I N A ]", ""));                                  // 点滅→固定（P3 へ移設した点灯）
-        r.Add(L(WhoMina, "……気に入りました。MINA。わたくしの、名前。", FMinaSmile));
+        r.Add(L(WhoMina, "……登録しました。MINA。わたくしの、名前。", FMina));
         return r;
     }
 
@@ -238,8 +244,8 @@ public partial class Prologue : Node2D
     {
         L(WhoFx, FxPost1, ""),
         L(WhoFx, FxPost2, ""),
-        L(WhoMina, "は〜。……世界は、にぎやかですねえ。", FMinaSmile),
-        L(WhoMina, "家賃の方は、ご自分で褒めているぶん、たぶん大丈夫ですし。", FMinaSmile),
+        L(WhoMina, "……世界は、にぎやかですね。件数だけで、もう追いつきません。", FMina),
+        L(WhoMina, "家賃の方は、ご自分で褒めているぶん、収支は合っているものと推定します。", FMina),
         L(WhoFx, FxPost3, ""),
         L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
         L(WhoMina, "三つめの方。……投稿の下から、消したはずの言葉が、重なって聞こえます。", FMinaWorried),
@@ -250,13 +256,16 @@ public partial class Prologue : Node2D
     // P4 の受け。選択（何をいってるの／詳しく教えて）に関わらず共通。
     private List<DLine> P4Reply(int sel)
     {
+        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【15】
+        //   作品最重要の伏線「覚えておきます」（→ Epilogue「数えることと、覚えていることだけ」で回収）が、
+        //   チュートリアル誘導の事務連絡の“後ろ”に埋もれていたので、決定打→短い余白→事務連絡の順へ入れ替えた。
         var r = new List<DLine>
         {
             L(WhoMina, "消された言葉は、消えていないのです。", FMina),
             L(WhoMina, "……まだ、そこに、います。", FMina),
-            L(WhoMina, "——放っておけません。潜ります。……その前に、ひとつだけ。", FMina),
-            L(WhoMina, "この身体で、なにが出来るのか。まだ、なにも、試していませんので。", FMinaSmile),
-            L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出
+            L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
+            L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
+            L(WhoMina, "潜ります。……その前に、この身体で何が出来るのか。まだ、なにも、試していませんので。", FMina),
         };
         return r;
     }
@@ -721,8 +730,12 @@ public partial class Prologue : Node2D
                 new Color(Code.R, Code.G, Code.B, a));
         }
 
-        // 可読限界以下の一瞬：4行英文を中央にフラッシュ（t≈1.7〜1.95）
-        if (_t >= 1.7 && _t < 1.95)
+        // 可読限界すれすれの一瞬：4行英文を中央にフラッシュ（t≈1.7〜2.2）。
+        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 5-(B)
+        //   頭文字 M・I・N・A は作中で回収しない（あなたの内面を確定させないため）が、
+        //   旧 0.25 秒では実機でまず読めず「仕込みですらない」状態だった＝尺だけ倍にして、
+        //   探した人・目の速い人だけが読める境界へ寄せる（Records から読み返す導線は今回は作らない）。
+        if (_t >= 1.7 && _t < 2.2)
         {
             for (int k = 0; k < Acrostic.Length; k++)
                 DrawString(_font, new Vector2(W / 2f - 150f, 86f + k * 13f), Acrostic[k],
