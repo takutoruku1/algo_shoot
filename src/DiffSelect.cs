@@ -293,8 +293,8 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(mulX, y + 50), mulS, UiKit.FontLabel, UiKit.Hp);
         UiKit.Heart(this, new Vector2(mulX - 12f, y + 57f), 6f, UiKit.Hp);
 
-        // 「賭け金」＝残機・ボム初期数（GameManager.BaseLivesFor/BaseBombsFor）。密度メーターだけでは
-        // 見えない残機3倍差（Easy6→Lunatic2）を選ぶ前に提示する。恒久強化ボーナスは含めない素の値。
+        // ♥・ボムの基礎値は全難易度で共通（3/1・2026-09-15）になったため、この欄は素の値をそのまま出すだけ。
+        
         string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
         UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 24f - UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall), y + 66), stake, UiKit.FontSmall, UiKit.Text3);
     }

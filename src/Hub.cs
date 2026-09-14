@@ -11,6 +11,9 @@ public partial class Hub : Node2D
 {
     private GameManager _game = null!;
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
+    private const float PhoneW = 480f, PhoneX = (W - PhoneW) / 2f;
+    private static readonly Color PhoneBg = new("14171d");
+    private static readonly Color PhoneRaised = new("1d2229");
 
     private struct Entry
     {
@@ -121,7 +124,7 @@ public partial class Hub : Node2D
     private readonly System.Collections.Generic.List<string> _dlgPages = new();
     private int _dlgPage;
     private int _dlgPagedIdx = -1;                 // _dlgPages を構築済みの行 index
-    private const float DlgBodyWrapW = W - 80f - 72f;   // DrawDialog 本文幅（box幅 W-80 の内側パディング 36×2）と一致
+    private const float DlgBodyWrapW = PhoneW - 48f;
     private string DlgCurPage => _dlgPages.Count > 0 ? _dlgPages[Mathf.Min(_dlgPage, _dlgPages.Count - 1)] : "";
     private bool DlgLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private void DlgEnsurePages()
@@ -813,53 +816,51 @@ public partial class Hub : Node2D
     private bool CanReplySel() => !_autoplay && IsVoice(_sel)
         && _entries[_sel].Cleared && !(_game?.HasReplied(_entries[_sel].Id) ?? true);
 
-    // カードの矩形（DrawCards / CardMetrics と同一：x=40, w=W-80, top+i*(h+gap)）。
-    //   流入アニメの滑り込み(1-ep)*26 は無視して確定位置で判定＝アニメ中でもクリック位置が安定する。
     private Rect2 CardHitRect(int i)
     {
-        var (top, h, gap) = CardMetrics();
-        return new Rect2(40f, top + i * (h + gap) - _feedScroll, W - 80f, h);
+        return new Rect2(PhoneX, FeedTop + CardTop(i) - _feedScroll, PhoneW, CardHeight(_entries[i]))
+            .Intersection(new Rect2(PhoneX, FeedTop, PhoneW, FeedBottom - FeedTop));
     }
 
     // ───────── 投稿詳細（Detail）のマウス当たり判定 ─────────
     //   寸法は DrawDetail と同じ式をここに写して共有する（cw/ch/cx/cy、潜り方の ty/th/tg、フッタの y）。
     //   展開アニメの浮き（(1-k)*24）は無視して確定位置で判定＝開いた直後でもクリック位置が動かない。
     //   ホットスポット id は カード id と衝突しないよう TierIdBase / DetailCloseId の帯を使う。
-    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901;
+    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901, DetailConfirmId = 20902;
 
-    private static Rect2 HeaderJobRect() => new(540f, 30f, 184f, 42f);
+    private Rect2 HeaderJobRect() => new(PhoneX + PhoneW - 184f, 76f, 164f, 40f);
 
     private Rect2 DetailJobRect(bool tiers)
     {
         var (cx, cy, cw, ch) = DetailBox(tiers);
-        return new Rect2(cx + cw - 224f, cy + ch - 42f, 184f, 34f);
+        return new Rect2(cx + cw - 188f, cy + 12f, 164f, 40f);
     }
 
     private (float cx, float cy, float cw, float ch) DetailBox(bool tiers)
     {
-        float cw = W - 160f, ch = tiers ? 512f : 300f;
-        return ((W - cw) / 2f, 108f, cw, ch);
+        float ch = tiers ? 688f : 448f;
+        return (PhoneX, H - 16f - ch, PhoneW, ch);
     }
 
     // 潜り方 i 段目の矩形（DrawDetail の DrawTier 呼び出しと同じ x/y/w/h）。
     private Rect2 TierHitRect(int i)
     {
         var (cx, cy, cw, _) = DetailBox(true);
-        float ty = cy + 266f, th = 44f, tg = 6f;
-        return new Rect2(cx + 40f, ty + i * (th + tg), cw - 80f, th);
+        return new Rect2(cx + 24f, cy + 338f + i * 68f, cw - 48f, 62f);
     }
 
     // 詳細フッタの「とじる」の矩形。フッタは Hint を左から並べる（↑↓潜り方 → 潜る → とじる）ので、
     //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
     private Rect2 DetailCloseRect(bool tiers)
     {
-        var (cx, cy, _, ch) = DetailBox(tiers);
-        float fy = cy + ch - 22f, fx = cx + 40f;
-        if (tiers) fx += FootItemSpan("↑↓", "潜り方");
-        fx += FootItemSpan(Pad.ConfirmToken, "潜る");
-        string key = Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        return new Rect2(fx - 4f, fy - 16f, kw + 8 + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontLabel) + 8f, 30f);
+        var (cx, cy, _, _) = DetailBox(tiers);
+        return new Rect2(cx + 12f, cy + 12f, 40f, 40f);
+    }
+
+    private Rect2 DetailConfirmRect(bool tiers)
+    {
+        var (cx, cy, cw, ch) = DetailBox(tiers);
+        return new Rect2(cx + 24f, cy + ch - 58f, cw - 48f, 42f);
     }
 
     private void ProcessCards()
@@ -883,7 +884,8 @@ public partial class Hub : Node2D
         // マウス：フレーム頭でホットスポットをクリア＋カード矩形とフッタ操作を登録（カードモードのみ＝会話中は登録しない）。
         //   カード id = 0..entries-1／フッタ id = FooterIdBase+i（空間を分けて種別を判別する）。
         UiKit.BeginHotspots(Pad.MousePos());
-        for (int i = 0; i < _entries.Length; i++) UiKit.Hotspot(CardHitRect(i), i);
+        for (int i = 0; i < _entries.Length; i++)
+            if (CardHitRect(i).HasArea()) UiKit.Hotspot(CardHitRect(i), i);
         var footItems = FooterItems();
         for (int i = 0; i < footItems.Count; i++)
             if (footItems[i].act != FootAct.None) UiKit.Hotspot(FooterItemRect(i), FooterIdBase + i);
@@ -964,6 +966,9 @@ public partial class Hub : Node2D
         if (_t <= 0.3 || _dived) return;
         switch (act)
         {
+            case FootAct.Dive:
+                if (IsVoice(_sel)) OpenDetail();
+                break;
             // 解禁前はそもそも項目を出していないが、ゲートはキー導線と同じ条件でここにも掛けておく。
             case FootAct.Shop:
                 if (!ShopUnlocked) break;
@@ -1012,6 +1017,7 @@ public partial class Hub : Node2D
         if (tiers) for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierHitRect(i), TierIdBase + i);
         UiKit.Hotspot(DetailCloseRect(tiers), DetailCloseId);
         UiKit.Hotspot(DetailJobRect(tiers), JobOpenId);
+        UiKit.Hotspot(DetailConfirmRect(tiers), DetailConfirmId);
         int dhov = UiKit.HoveredId();
         if (Pad.UsingMouse && dhov >= TierIdBase && dhov < TierIdBase + Tiers.Length)
         {
@@ -1053,6 +1059,7 @@ public partial class Hub : Node2D
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
+        if (dclk == DetailConfirmId && _detailT > 0.15) zEdge = true;
         // マウス：段のクリックで選択＋確定（＝Z と同じ）。未解禁の段（底まで）は拒否音だけで何も起きない。
         if (dclk >= TierIdBase && dclk < TierIdBase + Tiers.Length && _detailT > 0.15)
         {
@@ -1104,22 +1111,17 @@ public partial class Hub : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        // 背景：夜景(NightBg スプライト)を敷けているならその上に半透明のスクリムだけを乗せ（カードが読める暗さ）、
-        //       敷けていないなら従来どおり不透明の夜グラデで塗る＝素材が無くても画面が壊れない。
-        float bgA = _hasNightBg ? 0.62f : 1f;
-        UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0e1430") with { A = bgA * 0.85f }, new Color("0a0e22") with { A = bgA },
-                    new Color("070a16") with { A = bgA } }, new[] { 0f, 0.55f, 1f });
-        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 500f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.12f);
-        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
-
+        DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
+        DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+        DrawCards(_mode == Mode.Cards ? 1f : 0.22f);
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, FeedTop), PhoneBg);
+        DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
         DrawHeader();
-
-        if (_mode == Mode.Dialogue) { DrawCards(0.22f); DrawDialog(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
-        if (_mode == Mode.Detail) { DrawCards(0.20f); DrawDetail(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
-        if (_mode == Mode.Job) { DrawCards(0.20f); DrawJob(); DrawToast(); DrawContaminationOverlay(); UiKit.EndDesign(this); return; }
-        DrawCards(1f);
-        DrawFooter();
+        if (_mode == Mode.Dialogue) DrawDialog();
+        else if (_mode == Mode.Detail) DrawDetail();
+        else if (_mode == Mode.Job) DrawJob();
+        else DrawFooter();
         DrawToast();
         DrawContaminationOverlay();
         UiKit.EndDesign(this);
@@ -1146,67 +1148,45 @@ public partial class Hub : Node2D
 
     private void DrawHeader()
     {
-        float padX = 40f, hy = 24f;
-        UiKit.FaceAvatar(this, new Vector2(padX + 28, hy + 28), 28f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), 1f, _t);
-        // 名前＋認証バッジ
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(padX + 70, hy + 6), "ミナ", UiKit.FontHeading, UiKit.White);
-        float nameW = UiKit.TextW(UiKit.ZenBold, "ミナ", UiKit.FontHeading);
-        UiKit.VerifiedBadge(this, new Vector2(padX + 70 + nameW + 13, hy + 18), 8f, UiKit.Purify);
-        // ハンドル · 時刻（X風メタ行）
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70, hy + 36), "@mina_ai_", UiKit.FontLabel, UiKit.Text3);
-        float hW = UiKit.TextW(UiKit.Mono, "@mina_ai_", UiKit.FontLabel);
-        UiKit.Text(this, UiKit.Mono, new Vector2(padX + 70 + hW + 8, hy + 36), "· now", UiKit.FontLabel, UiKit.Text4);
-        // 今のジョブ（常時表示・設計書 §6「現在の選択が一目で分かる」）。メタ行の空きに小さく置く＝
-        //   新しい区画を作らず、ヘッダの「いまのミナ」の一部として読ませる。ジョブ選択を開いていない
-        //   ときでも必ず見えるので、潜る直前に「今日はどの型か」を確かめられる。
-        {
-            var jd = _game?.JobDef ?? Jobs.Get(Job.Tank);
-            float jx = padX + 70 + hW + 8 + UiKit.TextW(UiKit.Mono, "· now", UiKit.FontLabel) + 14f;
-            string js = $"{jd.CharacterName}・{jd.Name}";
-            float jw = UiKit.TextW(UiKit.Zen, js, UiKit.FontSmall) + 22f;
-            var jc = JobColor(jd.Id);
-            UiKit.Box(this, new Rect2(jx, hy + 32f, jw, 20f), new Color(jc, 0.12f), 10f, new Color(jc, 0.42f), 1f);
-            DrawCircle(new Vector2(jx + 10f, hy + 42f), 3.5f, new Color(jc, 0.95f));
-            UiKit.Text(this, UiKit.Zen, new Vector2(jx + 18f, hy + 35f), js, UiKit.FontSmall, new Color(jc, 0.95f));
-        }
-        if (_mode == Mode.Cards) DrawJobButton(HeaderJobRect());
-
-        long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
-        string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
-        // インプレ（金）
-        float impW = 40f + UiKit.TextW(UiKit.Mono, impS, UiKit.FontSpeaker);
-        float impX = W - padX - impW, chipY = hy + 12f;
-        UiKit.Box(this, new Rect2(impX, chipY, impW, 34f), new Color(UiKit.Gold, 0.1f), 17f, new Color(UiKit.Gold, 0.4f), 1f);
-        DrawCircle(new Vector2(impX + 17, chipY + 17), 7f, UiKit.Gold);
-        UiKit.Text(this, UiKit.Mono, new Vector2(impX + 30, chipY + 8), impS, UiKit.FontSpeaker, new Color("f0d98a"));
-        // フォロワー（桃ハート）
-        float folW = 40f + UiKit.TextW(UiKit.Mono, folS, UiKit.FontSpeaker);
-        float folX = impX - 12 - folW;
-        UiKit.Box(this, new Rect2(folX, chipY, folW, 34f), new Color(UiKit.Hp, 0.1f), 17f, new Color(UiKit.Hp, 0.4f), 1f);
-        DrawHeart(new Vector2(folX + 18, chipY + 17), 6f, UiKit.Hp);
-        UiKit.Text(this, UiKit.Mono, new Vector2(folX + 30, chipY + 8), folS, UiKit.FontSpeaker, new Color("f3aec6"));
-
-        DrawRect(new Rect2(0, hy + 64, W, 1f), new Color(1, 1, 1, 0.08f));
-        // 汚染バー
+        float x = PhoneX + 22f;
+        UiKit.FaceAvatar(this, new Vector2(x + 21f, 36f), 20f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), 1f, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 54f, 15f), "ミナ", 19, UiKit.White);
+        UiKit.VerifiedBadge(this, new Vector2(x + 106f, 27f), 7f, UiKit.Purify);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 54f, 41f), "@mina_ai_", 12, UiKit.Text3);
+        string imp = UiKit.Abbrev(_game?.Impression ?? 0), fol = UiKit.Abbrev(_game?.Followers ?? 0);
+        float right = PhoneX + PhoneW - 22f;
+        float iw = UiKit.TextW(UiKit.Mono, imp, 15);
+        DrawCircle(new Vector2(right - iw - 15f, 33f), 6f, UiKit.Gold);
+        UiKit.Text(this, UiKit.Mono, new Vector2(right - iw, 23f), imp, 15, UiKit.Gold);
+        float fw = UiKit.TextW(UiKit.Mono, fol, 15), fx = right - iw - 46f - fw;
+        DrawHeart(new Vector2(fx - 15f, 33f), 6f, UiKit.Hp);
+        UiKit.Text(this, UiKit.Mono, new Vector2(fx, 23f), fol, 15, UiKit.Hp);
+        DrawRect(new Rect2(PhoneX + 20f, 68f, PhoneW - 40f, 1f), new Color(1, 1, 1, 0.07f));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, 87f), "タイムライン", 20, UiKit.White);
+        DrawJobButton(HeaderJobRect());
         float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
-        DrawRect(new Rect2(0, hy + 65, W, 3f), new Color(UiKit.Kegare, 0.18f));
-        if (contam > 0) DrawRect(new Rect2(0, hy + 65, W * contam, 3f), UiKit.Kegare);
-        // 偽タブ「おすすめ｜フォロー中」は削除（2-a）。切替できないタブはハリボテのダッシュボードに見える。
+        DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW, 3f), new Color(UiKit.Kegare, 0.10f));
+        if (contam > 0) DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW * contam, 3f), UiKit.Kegare);
     }
 
     // カード寸法。2-b で feed が 8〜14 枚になったので「全部を等分」はやめ、1 画面 5〜6 枚に固定して
     //   はみ出した分は縦スクロールで送る（カードが潰れると本文も伏字も読めなくなる）。
     //   高さは声のカード（ミナの返信・エンゲージ・BEST を持つ）が成立する 96px を下限に取る。
-    private const float FeedTop = 122f, FeedBottom = 656f, CardGap = 12f;
-    private (float top, float h, float gap) CardMetrics()
+    private const float FeedTop = 128f, FeedBottom = 646f;
+    private static float CardHeight(Entry e) => e.Sort == Kind.Voice && e.Unlocked ? 232f : 152f;
+
+    private float CardTop(int index)
     {
-        int n = Mathf.Max(1, _entries.Length);
-        float span = FeedBottom - FeedTop;
-        // 4 枚までは従来どおり画面に収め（＝スクロール無し）、それを超えたら 1 画面 5 枚で刻む。
-        //   5 枚＝カード高 98px。名前行・本文2行・ミナのホバー行が重ならずに収まる下限。
-        int fit = Mathf.Clamp(n, 1, 5);
-        float h = Mathf.Min(150f, (span - CardGap * (fit - 1)) / fit);
-        return (FeedTop, h, CardGap);
+        float y = 0;
+        for (int i = 0; i < index; i++) y += CardHeight(_entries[i]);
+        return y;
+    }
+
+    private static string FitText(Font font, string text, int size, float width)
+    {
+        if (UiKit.TextW(font, text, size) <= width) return text;
+        while (text.Length > 0 && UiKit.TextW(font, text + "…", size) > width) text = text[..^1];
+        return text + "…";
     }
 
     // 縦スクロール量（px）。選択カードが常に画面内に収まるよう追従する。
@@ -1217,16 +1197,14 @@ public partial class Hub : Node2D
     private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
     private float FeedMaxScroll()
     {
-        var (top, h, gap) = CardMetrics();
-        return Mathf.Max(0f, _entries.Length * (h + gap) - gap - (FeedBottom - top));
+        return Mathf.Max(0f, CardTop(_entries.Length) - (FeedBottom - FeedTop));
     }
     // 選択が画面外へ出ないところまでだけスクロールを動かす（上下に 1 枚ぶんの余白を残して先を見せる）。
     private void UpdateFeedScrollTarget()
     {
-        var (top, h, gap) = CardMetrics();
-        float viewH = FeedBottom - top;
-        float y0 = _sel * (h + gap), y1 = y0 + h;
-        float margin = Mathf.Min(h + gap, viewH * 0.25f);
+        float viewH = FeedBottom - FeedTop;
+        float y0 = CardTop(_sel), y1 = y0 + CardHeight(_entries[_sel]);
+        const float margin = 36f;
         if (y0 - margin < _feedScrollTarget) _feedScrollTarget = y0 - margin;
         else if (y1 + margin > _feedScrollTarget + viewH) _feedScrollTarget = y1 + margin - viewH;
         _feedScrollTarget = Mathf.Clamp(_feedScrollTarget, 0f, FeedMaxScroll());
@@ -1234,166 +1212,87 @@ public partial class Hub : Node2D
 
     private void DrawCards(float alpha)
     {
-        var (top, h, gap) = CardMetrics();
         for (int i = 0; i < _entries.Length; i++)
         {
-            float cy = top + i * (h + gap) - _feedScroll;
-            // 画面外のカードは描かない（feed が伸びても描画量が増えない）。
-            if (cy + h < top - 4f || cy > FeedBottom + 4f) continue;
+            float h = CardHeight(_entries[i]);
+            float cy = FeedTop + CardTop(i) - _feedScroll;
+            if (cy + h < FeedTop || cy > FeedBottom) continue;
             bool sel = _mode == Mode.Cards && i == _sel;
-            float st = sel ? _selT : 0f; // 寄りの進捗（0→1）
-            // 流入アニメ：フィード読み込み風。下から 26px 滑り込みつつフェードイン、1枚ずつ 0.06s ずらす。
-            //   帰還小話の後は _cardsEnteredT が更新される＝投稿後の「タイムライン更新」として再流入する。
-            float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.06f) / 0.28f, 0f, 1f);
-            ep = 1f - Mathf.Pow(1f - ep, 3f); // easeOutCubic（滑り込んで、すっと止まる）
-            // 上下端で薄れる（スクロールで切れた縁が硬く見えないよう、帯の外へ向けてフェード）。
-            float edge = Mathf.Clamp(Mathf.Min(cy + h - top, FeedBottom - cy) / 40f, 0f, 1f);
-            DrawCard(_entries[i], cy + (1f - ep) * 26f, h, sel, st, alpha * ep * edge);
+            float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.04f) / 0.20f, 0f, 1f);
+            DrawCard(_entries[i], cy, h, sel, sel ? _selT : 0f, alpha * ep);
         }
-        DrawScrollHint(top, alpha);
+        DrawScrollHint(FeedTop, alpha);
     }
 
     // 右端のスクロールバー風ヒント（3px）。2-b では実スクロール量に対する現在地を出す＝
     //   「TL はこの先も続いている」ことを言う（つまみの短さが feed の長さ）。
     private void DrawScrollHint(float top, float alpha)
     {
-        int n = _entries.Length;
-        if (n <= 1) return;
-        float x = W - 18f, y0 = top, y1 = FeedBottom;
-        DrawRect(new Rect2(x, y0, 3f, y1 - y0), new Color(1, 1, 1, 0.05f * alpha));
         float max = FeedMaxScroll();
-        float viewH = y1 - y0;
-        float th = max > 0f ? Mathf.Max(28f, viewH * viewH / (viewH + max)) : viewH;
-        float ty = y0 + (viewH - th) * (max > 0f ? Mathf.Clamp(_feedScroll / max, 0f, 1f) : 0f);
-        UiKit.Box(this, new Rect2(x, ty, 3f, th), new Color(UiKit.Purify, 0.45f * alpha), 2f);
+        if (max <= 0f) return;
+        float viewH = FeedBottom - top;
+        float th = Mathf.Max(28f, viewH * viewH / (viewH + max));
+        float ty = top + (viewH - th) * Mathf.Clamp(_feedScroll / max, 0f, 1f);
+        UiKit.Box(this, new Rect2(PhoneX + PhoneW - 4f, ty, 2f, th), new Color(UiKit.Text3, 0.45f * alpha), 1f);
     }
 
     private void DrawCard(Entry e, float cy, float h, bool sel, float st, float alpha)
     {
-        float x = 40f, w = W - 80f;
-        // (B) 選択時の寄り：右へ +6・上へ -3（0.12s lerp の st で補間）。隣カードと干渉しない控えめ量。
-        float dx = sel ? 6f * st : 0f;
-        float dy = sel ? -3f * st : 0f;
-        x += dx; cy += dy;
-
-        bool voice = e.Sort == Kind.Voice;
-        bool filler = e.Sort == Kind.Filler;
-
-        // (B) 背面グロウ（0.06→0.09 を呼吸で行き来。選択カードの後ろにアカウント色を淡く敷く）。
-        //   埋め草は光らない＝グロウそのものが「この投稿には声がある」の合図になる。
-        if (sel && !filler)
-        {
-            Color acc0 = e.IsFinal ? UiKit.Kegare : e.Sort == Kind.Pinned ? UiKit.Mina : AccountColor(e.Id);
-            float glow = (0.06f + 0.03f * (0.5f + 0.5f * Mathf.Sin((float)_t * 2.2f))) * st * alpha;
-            UiKit.RadialGlow(this, new Vector2(x + w * 0.5f, cy + h * 0.5f), w * 0.55f, acc0, glow);
-        }
-
-        Color bg = e.Unlocked
-            ? new Color(22 / 255f, 18 / 255f, 34 / 255f, ((filler ? 0.42f : 0.55f) + 0.12f * st) * alpha)
-            : new Color(13 / 255f, 11 / 255f, 19 / 255f, 0.42f * alpha); // (A) 声の届かないカードは沈める
-        Color border = sel
-            ? new Color(filler ? UiKit.Text3 : UiKit.Purify, (0.55f + 0.30f * st) * alpha)
-            : e.IsFinal
-                ? new Color(UiKit.Kegare, 0.32f * alpha) // FINAL は非選択でも穢れ色の枠＝ただ事でない投稿
-                : new Color(1, 1, 1, (e.Unlocked ? (filler ? 0.06f : 0.09f) : 0.05f) * alpha);
-        UiKit.Box(this, new Rect2(x, cy, w, h), bg, 16f, border, sel ? 1.6f : 1f);
-
-        // (B) 左アクセントバー：選択時だけ Purify、それ以外はアカウント色を淡く。
-        //   2-a/2-b: 声のあるカードを選んだときだけ、バーが 60bpm（1秒に一拍）で脈打つ。
-        //   拍は鋭く立ち上がって減衰する形（sin の 4 乗）にし、ゆるい呼吸（背面グロウ）と混ざらないようにする。
-        //   埋め草を選んでも脈は打たない＝カーソルを動かして「脈を探す」のが選ぶ行為になる。
-        Color barCol;
-        if (sel && voice && e.Unlocked)
-        {
-            float beat = Mathf.Pow(Mathf.Max(0f, Mathf.Sin((float)_t * Mathf.Pi)), 4f);
-            barCol = new Color(UiKit.Purify, (0.42f + 0.48f * beat) * st * alpha + 0.5f * (1f - st) * alpha);
-        }
-        else if (sel) barCol = new Color(UiKit.Text3, (0.35f + 0.25f * st) * alpha);
-        else barCol = new Color(BarColorFor(e), (e.Unlocked ? (filler ? 0.20f : 0.35f) : 0.18f) * alpha);
-        DrawRect(new Rect2(x + 4, cy + 10, 3, h - 20), barCol);
-
+        float x = PhoneX, w = PhoneW;
+        bool voice = e.Sort == Kind.Voice, filler = e.Sort == Kind.Filler;
         Color acc = BarColorFor(e);
-        float ax = x + 36, ay = cy + 36;
-        // 埋め草は顔を持たない他人＝アバターはアカウント色の無地円（FaceAvatar の「?」ロック円は出さない）。
+        if (sel) DrawRect(new Rect2(x, cy, w, h), new Color(acc, (0.045f + 0.025f * st) * alpha));
+        DrawRect(new Rect2(x + 20f, cy + h - 1f, w - 40f, 1f), new Color(1, 1, 1, 0.09f * alpha));
+        if (sel && voice && e.Unlocked)
+            DrawRect(new Rect2(x, cy + 16f, 3f, h - 32f), new Color(UiKit.Purify, alpha));
+        float ax = x + 43f, ay = cy + 37f;
         if (filler) DrawFillerAvatar(ax, ay, e.Icon, alpha);
-        else UiKit.FaceAvatar(this, new Vector2(ax, ay), 24f, e.Unlocked ? FaceFor(e.Id) : null, acc, sel,
+        else UiKit.FaceAvatar(this, new Vector2(ax, ay), 23f, e.Unlocked ? FaceFor(e.Id) : null, acc, false,
             TopCropFor(e.IsFinal ? "final" : e.Sort == Kind.Pinned ? "mina" : e.Id), alpha, _t);
-
-        float tx = x + 74, w2 = w - 110;
-        Color main = new(UiKit.White, e.Unlocked ? (filler ? alpha * 0.72f : alpha) : alpha * 0.45f);
-        var nameFont = filler ? UiKit.Zen : UiKit.ZenBold;
-        UiKit.Text(this, nameFont, new Vector2(tx, cy + 16), e.Name, UiKit.FontSpeaker, main);
-        float nameW = UiKit.TextW(nameFont, e.Name, UiKit.FontSpeaker);
-        // (C) 認証バッジ（声のあるカードのみ）→ ハンドル · 時刻。埋め草にはバッジを付けない。
-        float metaX = tx + nameW + 12;
+        float tx = x + 80f;
+        string name = FitText(filler ? UiKit.Zen : UiKit.ZenBold, e.Name, 17, w - 186f);
+        UiKit.Text(this, filler ? UiKit.Zen : UiKit.ZenBold, new Vector2(tx, cy + 17f), name, 17,
+            new Color(UiKit.White, e.Unlocked ? alpha : alpha * 0.5f));
         if (e.Unlocked && !filler)
+            UiKit.VerifiedBadge(this, new Vector2(tx + UiKit.TextW(UiKit.ZenBold, name, 17) + 13f, cy + 28f),
+                6f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
+        UiKit.Text(this, UiKit.Mono, new Vector2(tx, cy + 43f), FitText(UiKit.Mono, e.Handle, 12, w - 108f),
+            12, new Color(UiKit.Text3, alpha));
+        if (e.Sort == Kind.Pinned) DrawPinnedMark(x + w - 22f, cy + 19f, alpha);
+        else if (e.IsFinal || e.Cleared)
+            DrawBadgePill(e, e.IsFinal ? "限界" : "届いた", x + w - 22f, cy + 19f, alpha);
+        else if (e.Unlocked)
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 82f, cy + 20f), e.RelT, 12,
+                new Color(UiKit.Text4, alpha), HorizontalAlignment.Right, 60f);
+
+        UiKit.Multi(this, UiKit.Zen, new Vector2(x + 24f, cy + 75f), e.Tweet, 17,
+            new Color(UiKit.Text2, e.Unlocked ? alpha : alpha * 0.45f), w - 48f, 2);
+        bool hoverHere = sel && e.Unlocked && HoverLineFor(e).Length > 0;
+        if (voice && e.Unlocked)
         {
-            UiKit.VerifiedBadge(this, new Vector2(metaX + 7, cy + 26), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, alpha);
-            metaX += 22;
+            if (e.Cleared && !e.IsFinal) DrawMinaReply(e.Id, x, cy, w, h, alpha);
+            else if (hoverHere) DrawHoverLine(e, x, cy, w, h, alpha);
+            else RedactedBars(x + 24f, cy + 136f, w - 48f, alpha);
+            if (!e.IsFinal && !hoverHere) DrawCardBest(e.Id, x + w - 24f, cy + 179f, alpha);
         }
-        UiKit.Text(this, UiKit.Mono, new Vector2(metaX, cy + 22), e.Handle, UiKit.FontLabel, new Color(UiKit.Text3, e.Unlocked ? alpha : alpha * 0.5f));
-        if (e.Unlocked && !e.IsFinal)
+        else if (e.Redacted) RedactedBars(x + 24f, cy + 103f, w - 48f, alpha);
+
+        if (e.Unlocked)
         {
-            float hW = UiKit.TextW(UiKit.Mono, e.Handle, UiKit.FontLabel);
-            UiKit.Text(this, UiKit.Mono, new Vector2(metaX + hW + 7, cy + 22), "· " + e.RelT, UiKit.FontLabel, new Color(UiKit.Text4, alpha));
+            float ey = cy + h - 25f, ex = x + 26f;
+            if (e.IsFinal)
+            {
+                ex = Metric(ex, ey, 2, _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
+                Metric(ex, ey, 3, _game?.Impression ?? 0, new Color(UiKit.Text3, alpha));
+            }
+            else
+            {
+                ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
+                ex = Metric(ex, ey, 1, e.Reposts, new Color(UiKit.Ok, alpha));
+                ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
+                if (!filler) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text3, alpha));
+            }
         }
-
-        // バッジ（右上）— 世界の言葉のピル（2-a）。届いた＝浄化済み／限界＝FINAL。
-        //   ロックと埋め草はピルを出さない（「LOCKED」という管理画面の語彙を画面から消す）。
-        //   固定ポストだけは「固定」＝X の pinned post の作法で置く。
-        //   「声」＝これから潜る投稿の印は廃止（2026-09-07）。潜れる合図は縁の脈動とミナの一言で足りていて、
-        //   ピルは同じことを三度言っていた。届いた／限界は「結果」なので残す。
-        if (e.Sort == Kind.Pinned) DrawPinnedMark(x + w - 24f, cy + 14f, alpha);
-        else if (voice)
-        {
-            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "";
-            if (badge.Length > 0) DrawBadgePill(e, badge, x + w - 24f, cy + 14f, alpha);
-        }
-
-        // 本文。声の届かないカードも本文は薄く出す（隠さない＝「まだ聞こえないだけ」で、投稿そのものは並んでいる）。
-        //   伏字バーは「消された一行がある」印（2-a）。声のあるカード（未クリア）と、
-        //   層2（病みサイン）の埋め草に出す＝病みサインだけでは潜れない、というのが見分けの中身になる。
-        //   低いカード（feed が伸びて 1 画面 5 枚になった状態）では本文は1行に留める＝
-        //   下段（伏字・ミナの一行・指標）と重ならない。
-        int bodyLines = h >= 120f ? 2 : 1;
-        UiKit.Multi(this, UiKit.Zen, new Vector2(tx, cy + 44), e.Tweet, UiKit.FontBody,
-            new Color(232 / 255f, 224 / 255f, 240 / 255f, e.Unlocked ? (filler ? alpha * 0.78f : alpha) : alpha * 0.34f), w2, bodyLines);
-        // 伏字は本文の直下。ホバー行が出ている選択カードでは、その帯をミナに譲る。
-        //   埋め草（モブ）にもカーソルを乗せればミナの一言が出る（2026-09-07）。文言が未記入のあいだは
-        //   HoverLineFor が空を返す＝従来どおり無言のまま＝見た目は変わらない。
-        bool hoverHere = sel && (voice || filler) && e.Unlocked && _mode == Mode.Cards && HoverLineFor(e).Length > 0;
-        if (!hoverHere && ((voice && e.Unlocked && !e.Cleared) || e.Redacted))
-            RedactedBars(tx, cy + 44 + bodyLines * 22f, w2, alpha);
-
-        // ミナの自動投稿（クリア済カードにスレッド返信風でぶら下げる＝ミナの投稿が同じタイムラインに混ざる）
-        if (voice && e.Unlocked && e.Cleared && !e.IsFinal && h >= 118f)
-            DrawMinaReply(e.Id, x, cy, w, h, alpha);
-
-        // 声のあるカードにカーソルが乗ったときだけ、カード下部にミナの一行（2-b）。他は無言。
-        if (hoverHere) DrawHoverLine(e, x, cy, w, h, alpha * st);
-
-        // エンゲージメント（ロック以外）。(C) ビュー指標を末尾に追加。
-        //   2-b でカードが低くなった（1画面5枚）ので、指標行の下限を 110→90 に下げる。
-        //   ホバー行が出ている選択カードでは指標行を出さない（同じ帯を奪い合わない）。
-        if (e.Unlocked && !e.IsFinal && h > 90f && !hoverHere)
-        {
-            float ey = cy + h - 26f, ex = tx;
-            ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
-            ex = Metric(ex, ey, 1, e.Reposts, new Color(0f, 0.73f, 0.49f, alpha));
-            ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
-            if (!filler) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text4, alpha)); // 表示回数
-        }
-        else if (e.IsFinal && h > 90f && !hoverHere)
-        {
-            // FINAL＝ミナ自身の投稿。数字は「いま」のミナ（♥=フォロワー / ビュー=インプレ）に直結させる。
-            float ey = cy + h - 26f;
-            float ex = Metric(tx, ey, 2, _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
-            Metric(ex, ey, 3, _game?.Impression ?? 0, new Color(UiKit.Text4, alpha));
-        }
-
-        // ベストタイム（右下・記録のある最速難易度＋その難易度ラベル。記録なしは "--"）。声のあるカードだけ。
-        if (voice && e.Unlocked && !e.IsFinal && !hoverHere)
-            DrawCardBest(e.Id, x + w - 24f, cy + h - 26f, alpha);
     }
 
     // カードの左バー／アバターのリング色。埋め草は色を持たない他人＝くすんだ灰。
@@ -1444,12 +1343,9 @@ public partial class Hub : Node2D
     {
         string line = HoverLineFor(e);
         if (line.Length == 0) return;
-        // カード下端から 26px。本文（1〜2行・cy+44 から）とぶつからない位置に置く。
-        float ly = cy + h - 26f;
-        // ミナの小さなアバター＋一行。カードの中に居る＝この投稿を一緒に見ている、という置き方。
-        UiKit.FaceAvatar(this, new Vector2(x + 44f, ly + 8f), 9f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 60f, ly + 1f), line, UiKit.FontLabel,
-            new Color(UiKit.Mina, 0.95f * alpha), HorizontalAlignment.Left, w - 84f);
+        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 158f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(x + 56f, cy + 146f), line, 14,
+            new Color(UiKit.Mina, alpha), w - 80f, 2);
     }
 
     // ホバー行の文言。既存の台詞からの転用に限る（新規の台詞は書かない）。
@@ -1552,18 +1448,9 @@ public partial class Hub : Node2D
     //   帰還小話で見た「ミナの投稿」が、そのままタイムラインに残っている——という画。
     private void DrawMinaReply(string id, float x, float cy, float w, float h, float alpha)
     {
-        float ax = x + 36f, tx = x + 74f;
-        float sy = cy + h - 52f; // 指標行（cy+h-26）の 1 行上
-        // スレッド線（親アバター下端 → ミナのミニアバター上端）
-        DrawLine(new Vector2(ax, cy + 62f), new Vector2(ax, sy - 3f), new Color(1, 1, 1, 0.12f * alpha), 1.5f);
-        UiKit.FaceAvatar(this, new Vector2(ax, sy + 8f), 11f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
-        float px = tx;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(px, sy), "ミナ", UiKit.FontLabel, new Color(UiKit.White, 0.92f * alpha));
-        px += UiKit.TextW(UiKit.ZenBold, "ミナ", UiKit.FontLabel) + 8f;
-        const string meta = "@mina_ai_ · 返信";
-        UiKit.Text(this, UiKit.Mono, new Vector2(px, sy + 1f), meta, UiKit.FontSmall, new Color(UiKit.Text4, alpha));
-        px += UiKit.TextW(UiKit.Mono, meta, UiKit.FontSmall) + 10f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(px, sy), MinaPostShort(id, x + w - 30f - px), UiKit.FontLabel, new Color(UiKit.Text2, alpha));
+        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 148f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 56f, cy + 132f), "ミナ", 13, new Color(UiKit.Mina, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 56f, cy + 152f), MinaPostShort(id, w - 80f), 14, new Color(UiKit.Text2, alpha));
     }
 
     // ミナの自動投稿の 1 行短縮（幅に収まるよう末尾を「…」で省略。レイアウト幅は固定なので id キャッシュで足りる）。
@@ -1637,7 +1524,7 @@ public partial class Hub : Node2D
     //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
     //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
     //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
-    private enum FootAct { None, Reply, Shop, Records, Job }
+    private enum FootAct { None, Dive, Reply, Shop, Records, Job }
     private const int FooterIdBase = 10000;
 
     // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
@@ -1646,7 +1533,7 @@ public partial class Hub : Node2D
         // 「えらぶ」は儀式の語なので削除（2-a）。「ダイブ」→「潜る」＝この作品の動詞に寄せる。
         var list = new System.Collections.Generic.List<(string, string, bool, FootAct)>
         {
-            (Pad.ConfirmToken, "潜る", true, FootAct.None),
+            (Pad.ConfirmToken, "潜る", true, FootAct.Dive),
         };
         if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
         // ジョブは解禁ゲート無し＝初回訪問から出す（設計書 §6：ショップは1面ボスまで開かないので、
@@ -1660,79 +1547,44 @@ public partial class Hub : Node2D
     }
 
     // フッタ1項目の占有幅（キーチップ＋余白＋ラベル＋末尾ギャップ）。Hint の x 送り量と一致させる。
-    private static float FootItemSpan(string key, string label)
-    {
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        return kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
-    }
 
     // フッタ i 項目のクリック矩形（末尾ギャップ24pxは含めず、チップ＋ラベル帯だけを当たり判定にする）。
     private Rect2 FooterItemRect(int i)
     {
-        var items = FooterItems();
-        float y = H - 40f, x = 40f;
-        for (int k = 0; k < i; k++) x += FootItemSpan(items[k].key, items[k].label);
-        var (key, label, _, _) = items[i];
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        float span = kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel); // 末尾24は除く
-        // クリック帯は縦方向にヒントの高さ相当（キーチップ24px）＋わずかな余白を確保。
-        return new Rect2(x - 4f, y - 16f, span + 8f, 30f);
+        float width = (PhoneW - 24f) / FooterItems().Count;
+        return new Rect2(PhoneX + 12f + i * width, FeedBottom + 7f, width, 60f);
     }
 
     private void DrawFooter()
     {
+        DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, 1f), new Color(1, 1, 1, 0.12f));
         var items = FooterItems();
-        int hov = UiKit.HoveredId();
-        float y = H - 40f, x = 40f;
         for (int i = 0; i < items.Count; i++)
         {
-            var (key, label, accent, act) = items[i];
-            // クリック可能な項目はホバー中に淡い下敷きを敷いて「押せる」ことを示す（カードと同じ強調トーン）。
-            bool clickable = act != FootAct.None;
-            bool hovered = clickable && hov == FooterIdBase + i;
-            // 初回だけ「ジョブ」を軽く光らせる（存在に気づける最小の誘導・設計書 §6）。新しい意匠は作らず、
-            //   カードの左アクセントバーと同じ脈（sin の 4 乗＝60bpm）を Hint の下敷きに流用する。
-            //   条件は「まだ一度も潜っていない」＝この起動のダイブ0かつクリア0。新しい永続項目は足さない。
-            if (act == FootAct.Job && !hovered && JobHintGlow)
-            {
-                float beat = Mathf.Pow(Mathf.Max(0f, Mathf.Sin((float)_t * Mathf.Pi)), 4f);
-                float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-                float lw = UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel);
-                UiKit.Box(this, new Rect2(x - 4f, y - 16f, kw + 8 + lw + 8f, 30f),
-                    new Color(UiKit.Mina, 0.05f + 0.10f * beat), 8f, new Color(UiKit.Mina, 0.20f + 0.45f * beat), 1f);
-            }
-            x = Hint(x, y, key, label, accent, hovered);
+            var (_, label, accent, act) = items[i];
+            var rect = FooterItemRect(i);
+            bool enabled = act != FootAct.Dive || IsVoice(_sel);
+            bool hovered = enabled && UiKit.HoveredId() == FooterIdBase + i;
+            Color col = !enabled ? UiKit.Text4 : accent ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
+            if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
+            DrawFooterIcon(act, rect.Position + new Vector2(rect.Size.X / 2f, 18f), col);
+            UiKit.Text(this, UiKit.Zen, rect.Position + new Vector2(0, 38f), label, 12, col, HorizontalAlignment.Center, rect.Size.X);
         }
     }
 
-    private float Hint(float x, float y, string key, string label, bool accent, bool hovered = false)
-    {
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        float labelW = UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel);
-        // ホバー時の下敷き（チップ＋ラベル帯）。既存の選択ハイライトと同系のシアン淡塗り。
-        if (hovered)
-            UiKit.Box(this, new Rect2(x - 4f, y - 16f, kw + 8 + labelW + 8f, 30f),
-                new Color(UiKit.Purify, 0.10f), 8f, new Color(UiKit.Info, 0.35f), 1f);
-        Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
-        Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
-        UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + labelW + 24f;
-    }
 
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        bool sub = _toastSub.Length > 0;
-        float w = Mathf.Max(UiKit.TextW(UiKit.ZenBold, _toast, UiKit.FontBody),
-                            sub ? UiKit.TextW(UiKit.Mono, _toastSub, UiKit.FontSmall) : 0f) + 48;
-        float h = sub ? 58f : 40f;
-        float x = (W - w) / 2f, y = H - 120f - (sub ? 12f : 0f);
-        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 10f), _toast, UiKit.FontBody, _toastCol, HorizontalAlignment.Center, w);
-        // 2行目＝現状の数値。世界の言葉より一段落として置く（読みたい人だけが読む行）。
-        if (sub)
-            UiKit.Text(this, UiKit.Mono, new Vector2(x, y + 34f), _toastSub, UiKit.FontSmall, new Color(UiKit.Text3, 0.9f), HorizontalAlignment.Center, w);
+        const float w = PhoneW - 32f;
+        var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, 15, w - 32f);
+        var sub = UiKit.WrapLines(UiKit.Zen, _toastSub, 12, w - 32f);
+        float h = 24f + lines.Count * UiKit.ZenBold.GetHeight(15) + (_toastSub.Length > 0 ? sub.Count * UiKit.Zen.GetHeight(12) + 6f : 0f);
+        float x = PhoneX + 16f, y = _mode == Mode.Dialogue ? FeedTop + 12f : FeedBottom - h - 8f;
+        UiKit.Box(this, new Rect2(x, y, w, h), PhoneRaised, 8f, new Color(_toastCol, 0.6f), 1f);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(x + 16f, y + 12f), _toast, 15, _toastCol, w - 32f);
+        if (_toastSub.Length > 0)
+            UiKit.Multi(this, UiKit.Zen, new Vector2(x + 16f, y + 18f + lines.Count * UiKit.ZenBold.GetHeight(15)), _toastSub, 12, UiKit.Text3, w - 32f);
     }
 
     // 小話の話者文字列 → (立ち絵, 円窓のリング色, topCrop)。本編会話と同じ FaceAvatar で顔を出す。
@@ -1763,84 +1615,44 @@ public partial class Hub : Node2D
     {
         var e = _entries[Mathf.Clamp(_sel, 0, _entries.Length - 1)];
         bool tiers = !e.IsFinal;
-        // 展開：0.18s で下から起き上がる（カードがその場で開く、の感じ。カード列は _Draw 側で沈めてある）。
-        float k = Mathf.Clamp((float)_detailT / 0.18f, 0f, 1f);
-        k = 1f - Mathf.Pow(1f - k, 3f);
-
-        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.52f * k));
-
-        // 高さ：見出し〜ミナの一言で 266px、潜り方 4 段で 4*(44+6)=200px、フッタに 46px。
-        float cw = W - 160f, ch = tiers ? 512f : 300f;
-        float cx = (W - cw) / 2f, cy = 108f + (1f - k) * 24f;
+        float a = Mathf.Clamp((float)_detailT / 0.18f, 0f, 1f);
+        var (cx, cy, cw, ch) = DetailBox(tiers);
         Color acc = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
-        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 15 / 255f, 27 / 255f, 0.98f * k), 18f,
-            new Color(acc, 0.55f * k), 1.5f);
-
-        float a = k;
-        // ── 投稿のヘッダ（アバター／名前／ハンドル・時刻／ピル）──
-        UiKit.FaceAvatar(this, new Vector2(cx + 60f, cy + 54f), 26f, FaceFor(e.Id), acc, false,
-            TopCropFor(e.IsFinal ? "final" : e.Id), a, _t);
-        float tx = cx + 100f;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, cy + 30f), e.Name, UiKit.FontHeading, new Color(UiKit.White, a));
-        float nw = UiKit.TextW(UiKit.ZenBold, e.Name, UiKit.FontHeading);
-        UiKit.VerifiedBadge(this, new Vector2(tx + nw + 18f, cy + 41f), 7f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
-        UiKit.Text(this, UiKit.Mono, new Vector2(tx, cy + 56f), $"{e.Handle} · {e.RelT}", UiKit.FontLabel, new Color(UiKit.Text3, a));
-        {
-            // カードと同じく「声」のピルは出さない（2026-09-07）。届いた／限界＝結果だけをピルにする。
-            string badge = e.IsFinal ? "限界" : e.Cleared ? "届いた" : "";
-            if (badge.Length > 0) DrawBadgePill(e, badge, cx + cw - 26f, cy + 28f, a);
-        }
-
-        // ── 本文 ──
-        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 40f, cy + 92f), e.Tweet, UiKit.FontHeading,
-            new Color(238 / 255f, 232 / 255f, 246 / 255f, a), cw - 80f, 3);
-
-        // ── 消された行の伏字（読ませない。「ここに、消された一行がある」だけを言う）──
-        float ry = cy + 156f;
-        RedactedBars(cx + 40f, ry, cw - 80f, a);
-
-        // ── ミナの一言（既存の行の転用。カードのホバー行と同じ文言）──
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
+        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
+        DrawBackButton(DetailCloseRect(tiers), DetailCloseId, a);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "投稿", 20, new Color(UiKit.White, a));
+        DrawJobButton(DetailJobRect(tiers), a);
+        UiKit.FaceAvatar(this, new Vector2(cx + 47f, cy + 91f), 23f, FaceFor(e.Id), acc, false, TopCropFor(e.IsFinal ? "final" : e.Id), a, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 84f, cy + 70f), e.Name, 19, new Color(UiKit.White, a));
+        UiKit.VerifiedBadge(this, new Vector2(cx + 97f + UiKit.TextW(UiKit.ZenBold, e.Name, 19), cy + 82f), 6f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
+        UiKit.Text(this, UiKit.Mono, new Vector2(cx + 84f, cy + 98f), e.Handle + " · " + e.RelT, 12, new Color(UiKit.Text3, a));
+        if (e.IsFinal || e.Cleared) DrawBadgePill(e, e.IsFinal ? "限界" : "届いた", cx + cw - 24f, cy + 74f, a);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 135f), e.Tweet, 18, new Color(UiKit.Text2, a), cw - 48f, 3);
+        RedactedBars(cx + 24f, cy + 226f, cw - 48f, a);
         string quip = HoverLineFor(e);
-        if (quip.Length == 0) quip = "……届きました。";   // クリア済＝H1 帰還の「お疲れさまでした。」の場の一言
-        float qy = cy + 196f;
-        UiKit.FaceAvatar(this, new Vector2(cx + 52f, qy + 12f), 12f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), a, _t);
-        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 74f, qy + 3f), quip, UiKit.FontBody,
-            new Color(UiKit.Mina, 0.95f * a), HorizontalAlignment.Left, cw - 114f);
-
-        // ── 潜り方（難易度4段）──
+        if (quip.Length == 0) quip = "……届きました。";
+        UiKit.FaceAvatar(this, new Vector2(cx + 35f, cy + 274f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), a, _t);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 56f, cy + 260f), quip, 14, new Color(UiKit.Mina, a), cw - 80f, 2);
         if (tiers)
         {
-            DrawRect(new Rect2(cx + 40f, cy + 232f, cw - 80f, 1f), new Color(1, 1, 1, 0.09f * a));
-            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 242f), "潜り方", UiKit.FontLabel, new Color(UiKit.Text3, a));
-            float ty = cy + 266f, th = 44f, tg = 6f;
-            for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 40f, ty + i * (th + tg), cw - 80f, th, a);
+            DrawRect(new Rect2(cx + 24f, cy + 305f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
+            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 24f, cy + 313f), "潜り方", 13, new Color(UiKit.Text3, a));
+            for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 24f, cy + 338f + i * 68f, cw - 48f, 62f, a);
         }
-
-        // ── フッタ（この画面の操作）──
-        //   「とじる」はクリックできる＝ホバー中は下敷きを敷く（カード側フッタと同じ見せ方）。
-        float fy = cy + ch - 22f, fx = cx + 40f;
-        if (tiers) fx = Hint(fx, fy, "↑↓", "潜り方", false);
-        fx = Hint(fx, fy, Pad.ConfirmToken, "潜る", true);
-        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false,
-            UiKit.HoveredId() == DetailCloseId);
-        var jobRect = DetailJobRect(tiers);
-        jobRect.Position += new Vector2(0, (1f - k) * 24f);
-        var jd = _game.JobDef;
-        UiKit.Text(this, UiKit.Zen, new Vector2(jobRect.Position.X - 240f, jobRect.Position.Y + 8f),
-            $"{jd.CharacterName}・{jd.Name}", UiKit.FontLabel, new Color(JobColor(jd.Id), a),
-            HorizontalAlignment.Right, 224f);
-        DrawJobButton(jobRect, a);
+        DrawPrimaryButton(DetailConfirmRect(tiers), "潜る", DetailConfirmId, acc, a);
     }
 
     private void DrawJobButton(Rect2 rect, float alpha = 1f)
     {
-        bool hovered = UiKit.HoveredId() == JobOpenId;
-        UiKit.Box(this, rect, new Color(UiKit.Purify, (hovered ? 0.22f : 0.12f) * alpha), 8f,
-            new Color(UiKit.Info, (hovered ? 0.9f : 0.55f) * alpha), 1.5f);
-        UiKit.Key(this, rect.Position + new Vector2(12f, (rect.Size.Y - 24f) * 0.5f), JobKeyToken,
-            new Color(UiKit.Purify, 0.12f * alpha), new Color(UiKit.Info, 0.5f * alpha), new Color(UiKit.PurifyHi, alpha));
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(56f, rect.Size.Y * 0.5f - 9f), "タイプ変更",
-            UiKit.FontLabel, new Color(UiKit.White, alpha));
+        var job = _game.JobDef;
+        Color acc = JobColor(job.Id);
+        if (UiKit.HoveredId() == JobOpenId) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
+        UiKit.FaceAvatar(this, rect.Position + new Vector2(20f, 20f), 15f, _playerFaces[job.CharacterId], acc, false, 0f, alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(44f, 2f), job.CharacterName, 14, new Color(UiKit.White, alpha));
+        UiKit.Text(this, UiKit.Zen, rect.Position + new Vector2(44f, 23f), job.Name, 11, new Color(acc, alpha));
+        Vector2 p = rect.Position + new Vector2(rect.Size.X - 12f, 19f);
+        DrawPolyline(new[] { p + new Vector2(-4, -2), p + new Vector2(0, 2), p + new Vector2(4, -2) }, new Color(UiKit.Text3, alpha), 1.5f, true);
     }
 
     // 潜り方の1段。名前／ミナの一言（DiffSelect の Quip）／♥ボム／板の枚数（ボスHPバー本数）。
@@ -1848,55 +1660,26 @@ public partial class Hub : Node2D
     private void DrawTier(int i, float x, float y, float w, float h, float alpha)
     {
         var tr = Tiers[i];
-        bool sel = i == _tierSel;
-        bool open = TierOpen(i);
-        Color acc = tr.Diff == GameManager.Diff.Lunatic ? UiKit.Kegare
-                  : tr.Diff == GameManager.Diff.Hard ? new Color("e89460") : UiKit.Purify;
-
-        if (!open)
-            UiKit.Box(this, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 24 / 255f, 0.5f * alpha), 12f, new Color(1, 1, 1, 0.05f * alpha), 1f);
-        else if (sel)
-            UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.65f * alpha), 12f, new Color(acc, 0.85f * alpha), 1.5f);
-        else
-            UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f * alpha), 12f, new Color(1, 1, 1, 0.09f * alpha), 1f);
-
-        float tx = x + 18f;
-        if (sel && open) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 14f), "▸", UiKit.FontBody, new Color(acc, alpha)); tx += 20f; }
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), tr.Name, UiKit.FontSpeaker,
-            new Color(open ? (sel ? UiKit.White : UiKit.Text2) : UiKit.Text4, alpha));
-
+        bool sel = i == _tierSel, open = TierOpen(i);
+        Color acc = tr.Diff == GameManager.Diff.Lunatic ? UiKit.Kegare : tr.Diff == GameManager.Diff.Hard ? UiKit.Gold : UiKit.Purify;
+        if (sel && open) UiKit.Box(this, new Rect2(x, y, w, h), new Color(acc, 0.10f * alpha), 8f, new Color(acc, 0.6f * alpha), 1f);
+        else DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.06f * alpha));
+        DrawArc(new Vector2(x + 18f, y + 20f), 5f, 0f, Mathf.Tau, 20, new Color(open ? acc : UiKit.Text4, alpha), 1.5f, true);
+        if (sel && open) DrawCircle(new Vector2(x + 18f, y + 20f), 2.5f, new Color(acc, alpha));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 33f, y + 8f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
         if (!open)
         {
-            // 「底まで」の解禁条件は GameManager の定数から引く（DiffSelect と同じ出典）。
-            UiKit.Text(this, UiKit.Zen, new Vector2(tx + 92f, y + 14f),
-                $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4", UiKit.FontLabel, new Color(UiKit.Mina, alpha));
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 16f, y + 36f), $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4",
+                12, new Color(UiKit.Text4, alpha));
             return;
         }
-
-        // ミナの一言（DiffSelect の Quip をそのまま）。名前の右に置いて1行に収める。
-        UiKit.Text(this, UiKit.Zen, new Vector2(tx + 92f, y + 14f), tr.Quip, UiKit.FontLabel,
-            new Color(sel ? UiKit.Text2 : UiKit.Text3, alpha), HorizontalAlignment.Left, w - 330f);
-
-        // 右端：♥（残機）／ボム／板（ボスHPバー本数）／報酬倍率（♥アイコン＋数字だけ）。
-        float rx = x + w - 18f;
-        float mul = GameManager.DifficultyImpressionMulFor(tr.Diff);
-        string mulS = $"×{mul:0.0}";
-        float mw = UiKit.TextW(UiKit.Mono, mulS, UiKit.FontLabel);
-        rx -= mw;
-        UiKit.Text(this, UiKit.Mono, new Vector2(rx, y + 15f), mulS, UiKit.FontLabel, new Color(UiKit.Hp, alpha));
-        rx -= 16f;
-        DrawHeart(new Vector2(rx, y + h / 2f), 6f, new Color(UiKit.Hp, alpha));
-
-        // 板（ボスHPバー本数）＝隠れた賭け金。小さな縦板を本数ぶん並べる（数字ではなく枚数で見せる）。
-        int bars = (tr.Diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Hard => 5, GameManager.Diff.Lunatic => 6, _ => 4 });
-        rx -= 12f + bars * 7f;
-        for (int b = 0; b < bars; b++)
-            DrawRect(new Rect2(rx + b * 7f, y + h / 2f - 7f, 4f, 14f), new Color(acc, 0.75f * alpha));
-
-        // ♥（残機）とボムは素の値（恒久強化ボーナスを含まない＝DiffSelect と同じ提示）。
-        string stake = $"♥{GameManager.BaseLivesFor(tr.Diff)}  ボム{GameManager.BaseBombsFor(tr.Diff)}";
-        rx -= 14f + UiKit.TextW(UiKit.Mono, stake, UiKit.FontSmall);
-        UiKit.Text(this, UiKit.Mono, new Vector2(rx, y + 16f), stake, UiKit.FontSmall, new Color(UiKit.Text3, alpha));
+        // ♥・ボムの基礎値は全難易度3/1で共通になった（2026-09-15）ので賭け金表示から外し、
+        // 難易度で本当に変わる獲得倍率だけを出す。
+        string stake = $"×{GameManager.DifficultyImpressionMulFor(tr.Diff):0.0}";
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 132f, y + 12f), stake, 12, new Color(UiKit.Hp, alpha), HorizontalAlignment.Right, w - 148f);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 16f, y + 36f), tr.Quip, 12, new Color(UiKit.Text3, alpha));
+        int bars = tr.Diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Hard => 5, GameManager.Diff.Lunatic => 6, _ => 4 };
+        for (int b = 0; b < bars; b++) DrawRect(new Rect2(x + w - 18f - (bars - b) * 7f, y + 37f, 3f, 11f), new Color(acc, 0.6f * alpha));
     }
 
     // ───────── ジョブ選択（設計書 §6）─────────
@@ -1911,7 +1694,7 @@ public partial class Hub : Node2D
     //
     // ラン中は開かない：この画面はハブのシーンにしか存在せず、ステージ側に SelectedJob を書く導線も無い
     //   （grep 済み：GameManager / TrainingRoot 以外に代入無し）＝「選んだらそのランは変えられない」。
-    private const int JobIdBase = 21000, JobCloseId = 21900;
+    private const int JobIdBase = 21000, JobCloseId = 21900, JobConfirmId = 21901;
     // キー表記は Pad の共通トークンに無い枠（J / RB）。ハブの既存割り当て（Z/X/C/T/R）と衝突しない。
     private static string JobKeyToken => Pad.ShowKeyboard ? "J" : Pad.Face(JoyButton.RightShoulder);
 
@@ -1936,8 +1719,7 @@ public partial class Hub : Node2D
 
     private (float cx, float cy, float cw, float ch) JobBox()
     {
-        float cw = W - 160f, ch = 512f;
-        return ((W - cw) / 2f, 108f, cw, ch);
+        return (PhoneX, 16f, PhoneW, 688f);
     }
 
     // ジョブ i 段目の矩形（DrawJob の DrawJobRow 呼び出しと同じ x/y/w/h）。展開の浮きは無視する
@@ -1945,21 +1727,62 @@ public partial class Hub : Node2D
     private Rect2 JobHitRect(int i)
     {
         var (cx, cy, cw, _) = JobBox();
-        float ty = cy + 110f, th = 78f, tg = 8f;
-        return new Rect2(cx + 40f, ty + i * (th + tg), cw - 80f, th);
+        return new Rect2(cx + 24f, cy + 76f + i * 98f, cw - 48f, 92f);
     }
 
     // 「とじる」の矩形。フッタは Hint を左から並べる（↑↓ジョブ → 決める → とじる）ので、
     //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
     private Rect2 JobCloseRect()
     {
-        var (cx, cy, _, ch) = JobBox();
-        float fy = cy + ch - 22f, fx = cx + 40f;
-        fx += FootItemSpan("↑↓", "ジョブ");
-        fx += FootItemSpan(Pad.ConfirmToken, "決める");
-        string key = Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        return new Rect2(fx - 4f, fy - 16f, kw + 8 + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontLabel) + 8f, 30f);
+        var (cx, cy, _, _) = JobBox();
+        return new Rect2(cx + 12f, cy + 12f, 40f, 40f);
+    }
+
+    private Rect2 JobConfirmRect()
+    {
+        var (cx, cy, cw, ch) = JobBox();
+        return new Rect2(cx + 24f, cy + ch - 58f, cw - 48f, 42f);
+    }
+
+    private void DrawBackButton(Rect2 rect, int id, float alpha)
+    {
+        if (UiKit.HoveredId() == id) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
+        Vector2 c = rect.GetCenter();
+        DrawPolyline(new[] { c + new Vector2(3, -7), c + new Vector2(-4, 0), c + new Vector2(3, 7) },
+            new Color(UiKit.Text2, alpha), 2f, true);
+    }
+
+    private void DrawPrimaryButton(Rect2 rect, string label, int id, Color accent, float alpha)
+    {
+        bool hovered = UiKit.HoveredId() == id;
+        UiKit.Box(this, rect, new Color(accent, (hovered ? 0.24f : 0.14f) * alpha), 8f, new Color(accent, 0.6f * alpha), 1f);
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(0, 10f), label, 16,
+            new Color(UiKit.White, alpha), HorizontalAlignment.Center, rect.Size.X);
+    }
+
+    private void DrawFooterIcon(FootAct act, Vector2 c, Color color)
+    {
+        switch (act)
+        {
+            case FootAct.Dive:
+                DrawLine(c + new Vector2(0, -10), c + new Vector2(0, 7), color, 2f, true);
+                DrawPolyline(new[] { c + new Vector2(-7, 1), c + new Vector2(0, 8), c + new Vector2(7, 1) }, color, 2f, true);
+                break;
+            case FootAct.Job:
+                UiKit.FaceAvatar(this, c, 13f, _playerFaces[_game.JobDef.CharacterId], JobColor(_game.SelectedJob), false, 0f, 1f, _t);
+                break;
+            case FootAct.Shop:
+                DrawLine(c + new Vector2(-9, 0), c + new Vector2(9, 0), color, 2f, true);
+                DrawLine(c + new Vector2(0, -9), c + new Vector2(0, 9), color, 2f, true);
+                break;
+            case FootAct.Records:
+                for (int i = 0; i < 3; i++) DrawRect(new Rect2(c.X - 9f + i * 7f, c.Y + 5f - i * 6f, 4f, 5f + i * 6f), color);
+                break;
+            case FootAct.Reply:
+                UiKit.Box(this, new Rect2(c - new Vector2(10, 8), new Vector2(20, 14)), Colors.Transparent, 4f, color, 1.5f);
+                DrawPolyline(new[] { c + new Vector2(-5, 6), c + new Vector2(-5, 10), c + new Vector2(0, 6) }, color, 1.5f, true);
+                break;
+        }
     }
 
     private void OpenJob()
@@ -1984,6 +1807,7 @@ public partial class Hub : Node2D
         UiKit.BeginHotspots(Pad.MousePos());
         for (int i = 0; i < n; i++) UiKit.Hotspot(JobHitRect(i), JobIdBase + i);
         UiKit.Hotspot(JobCloseRect(), JobCloseId);
+        UiKit.Hotspot(JobConfirmRect(), JobConfirmId);
         int hov = UiKit.HoveredId();
         if (Pad.UsingMouse && hov >= JobIdBase && hov < JobIdBase + n && hov - JobIdBase != _jobSel)
         {
@@ -2010,6 +1834,7 @@ public partial class Hub : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         // 段のクリック＝選択＋確定（Z と同じ経路）。
         if (clk >= JobIdBase && clk < JobIdBase + n && _jobT > 0.15) { _jobSel = clk - JobIdBase; zEdge = true; }
+        if (clk == JobConfirmId && _jobT > 0.15) zEdge = true;
         if (zEdge && _jobT > 0.15)
         {
             Audio.Instance?.PlayUiConfirm();
@@ -2050,35 +1875,24 @@ public partial class Hub : Node2D
 
     private void DrawJob()
     {
-        // 展開：0.18s で下から起き上がる（Detail と同じ）。
-        float k = Mathf.Clamp((float)_jobT / 0.18f, 0f, 1f);
-        k = 1f - Mathf.Pow(1f - k, 3f);
-        DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.52f * k));
-
-        var (cx, cy0, cw, ch) = JobBox();
-        float cy = cy0 + (1f - k) * 24f;
-        var cur = _game?.SelectedJob ?? Job.Tank;
-        Color acc = JobColor(Jobs.All[Mathf.Clamp(_jobSel, 0, Jobs.All.Length - 1)].Id);
-        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(16 / 255f, 15 / 255f, 27 / 255f, 0.98f * k), 18f,
-            new Color(acc, 0.55f * k), 1.5f);
-
-        float a = k;
-        // ── 見出し ──
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 28f), "キャラクター / ジョブ", UiKit.FontTitle, new Color(UiKit.White, a));
-        // 「そのランは変えられない」を一行で言う（設計書 §6／§8）。潜る前に決める、の説明はこれだけで足りる。
-        UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 66f),
-            "潜るまでに決める。潜っているあいだは、変えられない。", UiKit.FontLabel, new Color(UiKit.Text3, a));
-        DrawRect(new Rect2(cx + 40f, cy + 96f, cw - 80f, 1f), new Color(1, 1, 1, 0.09f * a));
-
-        float ty = cy + 110f, th = 78f, tg = 8f;
+        float a = Mathf.Clamp((float)_jobT / 0.18f, 0f, 1f);
+        var (cx, cy, cw, ch) = JobBox();
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), new Color(0, 0, 0, 0.5f * a));
+        UiKit.Box(this, new Rect2(cx, cy, cw, ch), new Color(PhoneBg, a), 8f);
+        DrawBackButton(JobCloseRect(), JobCloseId, a);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "キャラクター", 20, new Color(UiKit.White, a));
+        var cur = _game.SelectedJob;
         for (int i = 0; i < Jobs.All.Length; i++)
-            DrawJobRow(i, cur, cx + 40f, ty + i * (th + tg), cw - 80f, th, a);
-
-        // ── フッタ（この画面の操作）──
-        float fy = cy + ch - 22f, fx = cx + 40f;
-        fx = Hint(fx, fy, "↑↓", "ジョブ", false);
-        fx = Hint(fx, fy, Pad.ConfirmToken, "決める", true);
-        Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false, UiKit.HoveredId() == JobCloseId);
+        {
+            var r = JobHitRect(i);
+            DrawJobRow(i, cur, r.Position.X, r.Position.Y, r.Size.X, r.Size.Y, a);
+        }
+        var job = Jobs.All[_jobSel];
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 486f), "得意", 12, new Color(UiKit.Ok, a));
+        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 508f), job.Strength, 14, new Color(UiKit.Text2, a), cw - 48f, 2);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 564f), "捨てる", 12, new Color(UiKit.Kegare, a));
+        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 586f), job.Weakness, 14, new Color(UiKit.Text3, a), cw - 48f, 2);
+        DrawPrimaryButton(JobConfirmRect(), "決める", JobConfirmId, JobColor(job.Id), a);
     }
 
     // ジョブ1段。名前／タイプ・撃ち方／得意（1行）／捨てる（1行）。文言は src/Job.cs の
@@ -2087,48 +1901,17 @@ public partial class Hub : Node2D
     private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
     {
         var jd = Jobs.All[i];
-        bool sel = i == _jobSel;      // カーソル（これから決める段）
-        bool now = jd.Id == cur;      // いま選ばれているジョブ
+        bool sel = i == _jobSel, now = jd.Id == cur;
         Color acc = JobColor(jd.Id);
-
-        if (sel)
-            UiKit.Box(this, new Rect2(x, y, w, h), new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.65f * alpha), 12f, new Color(acc, 0.85f * alpha), 1.5f);
-        else
-            UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f * alpha), 12f,
-                new Color(now ? acc : UiKit.White, (now ? 0.34f : 0.09f) * alpha), 1f);
-
-        var face = _playerFaces[jd.CharacterId];
-        UiKit.FaceAvatar(this, new Vector2(x + 44f, y + h / 2f), 28f, face, acc, sel,
-            0f, alpha, _t);
-        float tx = x + 88f;
-        string title = $"{jd.CharacterName} / {jd.Name}";
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), title, UiKit.FontSpeaker,
-            new Color(sel ? UiKit.White : UiKit.Text2, alpha));
-        float nw = UiKit.TextW(UiKit.ZenBold, title, UiKit.FontSpeaker);
-        // タイプ・撃ち方（1語ずつ）。名前の右に小さく添える。
-        UiKit.Text(this, UiKit.Mono, new Vector2(tx + nw + 14f, y + 15f), $"{jd.TypeName} / {ShotWord(jd.Mode)}",
-            UiKit.FontSmall, new Color(acc, 0.9f * alpha));
-
-        // 得意・捨てる を1行ずつ（設計書 §2 の表＝Job.cs の文字列そのまま）。
-        //   本文の開始 x は「捨てる」（長いほう）の実幅から取る＝2行のラベルと本文が縦に揃い、
-        //   字数の違う語がぶつからない（"得意" だけで固定幅を決めると "捨てる" が本文に食い込む）。
-        float lx = tx;
-        float labelW = Mathf.Max(UiKit.TextW(UiKit.Zen, "得意", UiKit.FontSmall),
-                                 UiKit.TextW(UiKit.Zen, "捨てる", UiKit.FontSmall)) + 10f;
-        float bx = lx + labelW, bw = x + w - 18f - bx;
-        UiKit.Text(this, UiKit.Zen, new Vector2(lx, y + 38f), "得意", UiKit.FontSmall, new Color(UiKit.Ok, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(bx, y + 37f), jd.Strength, UiKit.FontLabel,
-            new Color(sel ? UiKit.Text2 : UiKit.Text3, alpha), HorizontalAlignment.Left, bw);
-        UiKit.Text(this, UiKit.Zen, new Vector2(lx, y + 58f), "捨てる", UiKit.FontSmall, new Color(UiKit.Kegare, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(bx, y + 57f), jd.Weakness, UiKit.FontLabel,
-            new Color(sel ? UiKit.Text3 : UiKit.Text4, alpha), HorizontalAlignment.Left, bw);
-
-        // 右上に「いま」の一語（マークだけだと色の意味を覚える必要があるので、言葉でも置く）。
+        if (sel) UiKit.Box(this, new Rect2(x, y, w, h), new Color(acc, 0.09f * alpha), 8f, new Color(acc, 0.55f * alpha), 1f);
+        else DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.07f * alpha));
+        UiKit.FaceAvatar(this, new Vector2(x + 44f, y + h / 2f), 28f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 90f, y + 18f), $"{jd.CharacterName} / {jd.Name}", 19, new Color(UiKit.White, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 90f, y + 52f), $"{jd.TypeName} · {ShotWord(jd.Mode)}", 14, new Color(acc, alpha));
         if (now)
         {
-            const string s = "いま";
-            float sw = UiKit.TextW(UiKit.Zen, s, UiKit.FontSmall);
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 18f - sw, y + 13f), s, UiKit.FontSmall, new Color(acc, 0.9f * alpha));
+            Vector2 p = new(x + w - 24f, y + h / 2f);
+            DrawPolyline(new[] { p + new Vector2(-5, 0), p + new Vector2(-1, 4), p + new Vector2(6, -5) }, new Color(acc, alpha), 2f, true);
         }
     }
 
@@ -2136,8 +1919,8 @@ public partial class Hub : Node2D
     {
         var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
         var (spFace, spc, spTop) = SpeakerFace(sp);
-        var box = new Rect2(40, 470, W - 80, 200);
-        UiKit.Box(this, box, new Color(0.05f, 0.04f, 0.09f, 0.96f), 16f, new Color(spc, 0.5f), 1.4f);
+        var box = new Rect2(PhoneX, 428f, PhoneW, 276f);
+        UiKit.Box(this, box, PhoneBg, 8f, new Color(spc, 0.5f), 1f);
         // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
         //   spTop < 0＝顔の無い話者（Ｘ 投稿／Ｘ システム）＝アバターを描かず、話者名を左端へ寄せる。
         //   spTop == DraftTop＝「あなた」＝顔の代わりに Hud と同じ下書きの吹き出し印（見え方を本編会話に揃える）。
@@ -2155,15 +1938,15 @@ public partial class Hub : Node2D
         int shown = Mathf.Clamp((int)_dlgReveal, 0, page.Length);
         var lines = new System.Collections.Generic.List<string>(page.Split('\n'));
         UiKit.TypewriterLines(this, UiKit.Zen, lines,
-            new Vector2(box.Position.X + 36, box.Position.Y + 76 + UiKit.Zen.GetAscent(UiKit.FontHeading)),
-            box.Size.X - 72, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), shown);
+            new Vector2(box.Position.X + 24, box.Position.Y + 90 + UiKit.Zen.GetAscent(UiKit.FontHeading)),
+            DlgBodyWrapW, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), shown);
         // 既読高速送り中の控えめな表示（ボックス右上・#22）。
         if (_ffNow) Hud.DrawSkipChip(this, new Vector2(box.Position.X + box.Size.X - 20, box.Position.Y + 14));
         // 送り表示は現在ページの全文表示後だけ点滅。後続ページなら「▼ つづき」、最終ページなら「Z すすむ ▸」。
         if (!_autoplay && _dlgReveal >= page.Length)
         {
             float blink = 0.5f + 0.5f * Mathf.Sin((float)_t * 4f);
-            string hint = DlgLastPage ? "Z すすむ ▸" : "▼ つづき";
+            string hint = DlgLastPage ? "次へ  ›" : "つづき  ›";
             UiKit.Text(this, UiKit.Zen, new Vector2(box.Position.X + box.Size.X - 150, box.Position.Y + box.Size.Y - 36),
                 hint, UiKit.FontLabel, new Color(UiKit.Info, blink));
         }
