@@ -76,7 +76,8 @@ public partial class StageMina : Node
         // 導入は S3-7 の分岐受け1行だけが可変。
         var intro = new System.Collections.Generic.List<(int who, string text, string face)>(IntroHead);
         intro.Add(S37Quote(game));
-        intro.AddRange(IntroTail);
+        intro.AddRange(game?.SelectedJob is Job.Melee or Job.Heal or Job.Magic
+            ? CompanionDialogue.Final(game.SelectedJob) : IntroTail);
         _intro = intro.ToArray();
         // 導入は「バナー＋暴走ビジュアル＋無音に委ねる」（Intro コメント①）。
         //   Audio はシーンをまたいで常駐するため、ここで止めないとハブ等の BgmMenu が

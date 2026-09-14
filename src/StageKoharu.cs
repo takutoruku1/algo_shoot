@@ -260,12 +260,20 @@ public partial class StageKoharu : Node
         (1, "…………。", MFace),   // 二度目は無言で流す
     };
 
+    private (int who, string text, string face)[] _playerIntro = null!;
+    private (int who, string text, string face)[] _playerMid = null!;
+    private (int who, string text, string face)[] _playerBoss = null!;
+
     public override void _Ready()
     {
         _rng.Randomize();
         _step = 1;
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
+        var job = game?.SelectedJob ?? Job.Tank;
+        _playerIntro = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Intro, Intro);
+        _playerMid = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Mid, ClassTalk);
+        _playerBoss = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Boss, BossIntro);
         game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
         // [一時/デバッグ] --input-field : S2-4 の入力欄（step 8）から始める。コメント欄UI の確認・スクショ専用。
@@ -307,18 +315,18 @@ public partial class StageKoharu : Node
         //   （KoharuInterruptEnabled=false。コードとステップ 15〜19 はレイ面での再利用のため残す）。
         switch (_step)
         {
-            case 1: Step_Lines(delta, Intro); break;      // S2-1 部屋・導入
+            case 1: Step_Lines(delta, _playerIntro); break;
             case 2: Step_Lines(delta, Mid); break;        // S2-3 Mid（部屋）＋Chat1
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
             case 4: Step_Lines(delta, BossTalk); break;   // S2-2 中ボスの受け（配信画面の中の人）
             case 5: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（部屋→教室へクロスフェード）
-            case 7: Step_Lines(delta, ClassTalk); break;  // S2-3 BossTalk（教室）＋Chat2／Chat3
+            case 7: Step_Lines(delta, _playerMid); break;
             case 8: Step_InputField(delta); break;        // ★S2-4 入力欄（打って、消す手。選択は置かない）
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（教室→部屋へ戻る。最大密度の山）
             case 10: Step_MidEndLines(delta); break;      // S2-5 我に返る一拍（{n} 差し込みあり）
             case 11: Step_BossSpawn(); break;
-            case 12: Step_Lines(delta, BossIntro); break; // S2-6 ボス出現（ボスは出現済みだが会話中は止まる）
+            case 12: Step_Lines(delta, _playerBoss); break;
             case 13: Step_BossWait(delta); break;         // S2-7 ボス戦
             case 14: Step_Clear(delta); break;            // S2-9 クリア
             case 15: Step_Transition(); break;

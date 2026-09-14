@@ -321,6 +321,10 @@ public partial class StageRei : Node
     };
     private const float S37SkipContam = 0.02f;   // （送らない）で【濁】微増（S1-4 と同値）
 
+    private (int who, string text, string face)[] _playerIntro = null!;
+    private (int who, string text, string face)[] _playerMid = null!;
+    private (int who, string text, string face)[] _playerBoss = null!;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -331,6 +335,10 @@ public partial class StageRei : Node
 
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
+        var job = game?.SelectedJob ?? Job.Tank;
+        _playerIntro = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Intro, Intro);
+        _playerMid = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Mid, BossTalk);
+        _playerBoss = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Boss, BossIntro);
         if (Hud != null) Hud.TutorialActive = false;
 
         // [一時/デバッグ] --boss : 道中を飛ばしてボス戦から始める（予測攻撃のテストプレイ用）。
@@ -375,11 +383,11 @@ public partial class StageRei : Node
         //   呑みこまれる部屋（S3-5c）→ ボス＝ガワ（S3-6）。改心（S3-8）は BossRei 側。
         switch (_step)
         {
-            case 1: Step_Lines(delta, Intro); break;      // S3-1 配信枠・導入
+            case 1: Step_Lines(delta, _playerIntro); break;
             // ★S3-2 の下書き選択（17）＝小話の末尾に「見えていますか」 → 選択 → 受け＋締め
             case 2: Step_Choice(delta, "s3_2", MidThenS32, S32Choices, S32Reply, S32Tail); break;
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            case 4: Step_Lines(delta, BossTalk); break;   // S3-3 道中A／BossTalk（削除済みの一行・足音）
+            case 4: Step_Lines(delta, _playerMid); break;
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
@@ -387,7 +395,7 @@ public partial class StageRei : Node
             // ★S3-5c の下書き選択（17）＝三つの席の直後にミナの一件が混ざる → 選択 → 07 の残り2行
             case 9: Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
             case 10: Step_BossSpawn(); break;
-            case 11: Step_Lines(delta, BossIntro); break; // S3-6 ボス出現（07 に導入行は無い＝空）
+            case 11: Step_Lines(delta, _playerBoss); break;
             case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
             case 13: Step_Clear(delta); break;            // S3-9 クリア
             case 14: Step_Transition(); break;

@@ -189,7 +189,7 @@ public static class Pad
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
         Key.Z, Key.X, Key.C, Key.V, Key.F, Key.Shift, Key.Ctrl, Key.Alt,
-        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.Tab,
+        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.J, Key.Tab,
     };
 
     // 毎フレーム呼ぶ：パッド操作があれば _autoUsingPad=true、キー操作があれば false（無操作なら直前を維持）。

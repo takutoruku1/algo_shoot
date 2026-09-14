@@ -85,8 +85,7 @@ public partial class Shop : Node2D
         "次に来るときは、もう少し稼いでおきます。",
     };
 
-    // 射撃プレビューのミナ立ち絵（右へ撃つポーズ）。毎フレームLoadしないよう_Readyで一度だけキャッシュ。
-    private Texture2D? _minaShot;
+    private Texture2D? _playerShot;
 
     // フォーカス＝列のインデックス（0..12）。この画面には列以外の選択対象が無い＝番号体系はこれだけ。
     private int _sel;
@@ -96,8 +95,7 @@ public partial class Shop : Node2D
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
-    // ミナの一言か（true＝立ち絵から出る吹き出し／false＝従来の下部トースト）。
-    private bool _toastIsMina;
+    private bool _toastIsDialogue;
     private double _toastAge;    // 出てからの経過秒（ぴこん、と跳ねる出方の位相）
     private bool _autoplay;
 
@@ -128,7 +126,8 @@ public partial class Shop : Node2D
         // ショップ専用曲「シンプルスタイル」（2026-09-14〜。従来は BgmMenu の使い回し）。
         //   ハブより硬く電子的な音色で「移動した感」を耳に出す。周回で何十回も入るので平坦な曲を選んである。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
-        _minaShot = ResourceLoader.Load<Texture2D>("res://char/mina_shoot.png");
+        _playerShot = ResourceLoader.Load<Texture2D>(_game.SelectedJob == Job.Tank
+            ? "res://char/mina_shoot.png" : _game.JobDef.PlayerTexturePath);
 
         // 起動時のカーソルは「次に買える段」に置く＝開いた瞬間に手が届くところを指している。
         //   全部買い切っていれば最終段（読み返す用）。
@@ -142,7 +141,7 @@ public partial class Shop : Node2D
         if (_game != null && _game.MigratedNodeCount >= 0)
             Toast($"前の強化を引き継ぎました（{_game.MigratedNodeCount}段）", UiKit.Info);
         else
-            MinaTalk(ShopEnterTalk[GD.RandRange(0, ShopEnterTalk.Length - 1)]);
+            ShowShopTalk(CompanionDialogue.Menu.ShopEnter, ShopEnterTalk);
     }
 
     // 次に買える段のインデックス（全部所持なら -1）。
@@ -236,9 +235,9 @@ public partial class Shop : Node2D
             dest = game.PendingResumeScene!;
             game.PendingResumeScene = null; // 消費
         }
-        MinaTalk(ShopExitTalk[GD.RandRange(0, ShopExitTalk.Length - 1)]);
+        ShowShopTalk(CompanionDialogue.Menu.ShopExit, ShopExitTalk);
         _pendingExitDest = dest;
-        _exitDelayT = 0.8;
+        _exitDelayT = _game.SelectedJob == Job.Tank ? 0.8 : 2.4;
         _exitPending = true;
     }
 
@@ -275,7 +274,7 @@ public partial class Shop : Node2D
 
         Audio.Instance?.PlayUiBuy();
         // 小話3：低頻度（約25%）で購入確認トーストの代わりにミナの一言。買い物のテンポを崩さない。
-        if (GD.Randf() < 0.25f) MinaTalk(ShopBuyTalk[GD.RandRange(0, ShopBuyTalk.Length - 1)]);
+        if (GD.Randf() < 0.25f) ShowShopTalk(CompanionDialogue.Menu.ShopBuy, ShopBuyTalk);
         else Toast($"{d.Name}", UiKit.Info);
         _buyFxT = 0.7; _walletPopT = 0.5; _buyFxId = d.Id;
 
@@ -285,11 +284,17 @@ public partial class Shop : Node2D
     }
 
     private void Toast(string msg, Color col)
-    { _toast = msg; _toastCol = col; _toastT = 1.8; _toastIsMina = false; _toastAge = 0; }
+    { _toast = msg; _toastCol = col; _toastT = 1.8; _toastIsDialogue = false; _toastAge = 0; }
 
-    // ミナの一言（小話3）。文面も表示時間も Toast と同じで、出す場所だけが違う＝立ち絵から吹き出し。
-    private void MinaTalk(string msg)
-    { _toast = msg; _toastCol = UiKit.Mina; _toastT = 1.8; _toastIsMina = true; _toastAge = 0; }
+    private void ShowShopTalk(CompanionDialogue.Menu scene, string[] minaLines)
+    {
+        var job = _game.SelectedJob;
+        _toast = job == Job.Tank ? minaLines[GD.RandRange(0, minaLines.Length - 1)] : CompanionDialogue.MenuText(job, scene);
+        _toastCol = CompanionDialogue.Accent(job);
+        _toastT = job == Job.Tank ? 1.8 : 4.5;
+        _toastIsDialogue = true;
+        _toastAge = 0;
+    }
 
     // ───────────────────────── 版面の計算 ─────────────────────────
     // i 段目の高さ（能力を覚える段だけ一回り大きい）。
@@ -455,13 +460,12 @@ public partial class Shop : Node2D
 
         float x = DetailX, y = RowTop, w = DetailW;
 
-        // 射撃プレビュー（ミナの立ち絵）＝この画面がどのキャラの話なのかを画に置いておく。
         float fy = y, fh = 96f;
         UiKit.Box(this, new Rect2(x, fy, w, fh), new Color(0.05f, 0.06f, 0.12f, 0.6f), 12f, new Color(UiKit.Mina, 0.25f), 1f);
-        if (_minaShot != null)
+        if (_playerShot != null)
         {
-            float ih = 78f, iw = ih * _minaShot.GetWidth() / Mathf.Max(1, _minaShot.GetHeight());
-            DrawTextureRect(_minaShot, new Rect2(x + 18f, fy + (fh - ih) / 2f, iw, ih), false);
+            float ih = 78f, iw = ih * _playerShot.GetWidth() / Mathf.Max(1, _playerShot.GetHeight());
+            DrawTextureRect(_playerShot, new Rect2(x + 18f, fy + (fh - ih) / 2f, iw, ih), false);
         }
         UiKit.Text(this, UiKit.Zen, new Vector2(x + 128f, fy + fh / 2f - 24f),
                    $"{_game?.JobDef.Name ?? "結び手"}　—　{_game?.ShotModeName(_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid) ?? "連射"}",
@@ -579,27 +583,22 @@ public partial class Shop : Node2D
     private void DrawToast()
     {
         if (_toastT <= 0) return;
-        if (_toastIsMina) { DrawMinaBubble(); return; }
+        if (_toastIsDialogue) { DrawDialogueBubble(); return; }
         float w = UiKit.TextW(UiKit.ZenBold, _toast, 16) + 48;
         float x = (W - w) / 2f;
         UiKit.Box(this, new Rect2(x, H - 96, w, 38f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 88), _toast, 16, _toastCol, HorizontalAlignment.Center, w);
     }
 
-    // ミナの一言の吹き出し：詳細パネルの立ち絵から、真下へ出す。
-    //   意匠は会話バーの語彙をそのまま借りる（角丸16／地 0.05,0.04,0.09／縁は話者色・1.4px）。
-    //   出方は PostToast と同じ back-out（0.9→1.04→1.0 とわずかに行き過ぎて戻る）。
-    private void DrawMinaBubble()
+    private void DrawDialogueBubble()
     {
-        Vector2 mina = new(DetailX + 18f + 28f, RowTop + 48f);
-
         const float bw = DetailW - 24f;
-        const float padX = 18f, padY = 14f, tail = 11f;
+        const float padX = 18f, padY = 14f;
         var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, 16, bw - padX * 2f);
         float lh = UiKit.ZenBold.GetHeight(16);
         float bh = padY * 2f + lh * lines.Count;
         float bx = DetailX + 12f;
-        float by = mina.Y + 60f + tail;
+        float by = 516f;
 
         float k = Mathf.Clamp((float)(_toastAge / 0.18), 0f, 1f);
         float e = 1f - Mathf.Pow(1f - k, 3f);
@@ -612,17 +611,12 @@ public partial class Shop : Node2D
         float cx = bx + bw * 0.5f;
         float x = cx - dw * 0.5f, y = by + dy;
 
-        Color edge = new(UiKit.Mina, 0.6f * a);
+        Color edge = new(_toastCol, 0.6f * a);
         Color face = new Color(0.05f, 0.04f, 0.09f).Lerp(new Color(0.09f, 0.07f, 0.15f), 0.5f) with { A = a };
-        float tipX = Mathf.Clamp(mina.X, x + 22f, x + dw - 22f);
-        Vector2[] tri = { new(tipX, y - tail), new(tipX - 9f, y + 2f), new(tipX + 9f, y + 2f) };
         UiKit.Box(this, new Rect2(x, y, dw, dh), face, 16f, edge, 1.4f);
-        DrawColoredPolygon(tri, face);
-        DrawLine(tri[1], tri[0], edge, 1.4f, true);
-        DrawLine(tri[0], tri[2], edge, 1.4f, true);
 
         for (int i = 0; i < lines.Count; i++)
             UiKit.Text(this, UiKit.ZenBold, new Vector2(x + padX * scale, y + padY * scale + lh * i * scale),
-                lines[i], 16, new Color(UiKit.Mina, a), HorizontalAlignment.Left, dw - padX * 2f * scale);
+                lines[i], 16, new Color(_toastCol, a), HorizontalAlignment.Left, dw - padX * 2f * scale);
     }
 }

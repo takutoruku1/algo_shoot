@@ -148,13 +148,24 @@ public partial class TrainingRoot : Node2D
         AddChild(_uiLayer);
 
         // 入場時の独り言（小話4）。他のトリガーより先に一度だけ。
-        ShowTalk(TrainEnter[GD.RandRange(0, TrainEnter.Length - 1)]);
+        ShowTrainingTalk(CompanionDialogue.Menu.TrainEnter, TrainEnter);
     }
 
     private void ShowTalk(string text)
     {
         _talk = text;
         _talkT = TalkShowSec;
+    }
+
+    private void ShowTrainingTalk(CompanionDialogue.Menu scene, string[] minaLines)
+    {
+        var job = _game?.SelectedJob ?? Job.Tank;
+        if (job == Job.Tank) ShowTalk(minaLines[GD.RandRange(0, minaLines.Length - 1)]);
+        else
+        {
+            ShowTalk(CompanionDialogue.MenuText(job, scene));
+            _talkT = 4.5;
+        }
     }
 
     private void OnDummyDamaged(int dmg)
@@ -164,7 +175,7 @@ public partial class TrainingRoot : Node2D
 
         // 撃っている最中の独り言（小話4）。頻発を避けるため低確率＋非表示中のみ抽選。
         if (_talkT <= 0 && GD.Randf() < 0.10f)
-            ShowTalk(TrainShoot[GD.RandRange(0, TrainShoot.Length - 1)]);
+            ShowTrainingTalk(CompanionDialogue.Menu.TrainShoot, TrainShoot);
     }
 
     public override void _Process(double delta)
@@ -194,7 +205,7 @@ public partial class TrainingRoot : Node2D
             if (_idleTimer >= IdleTalkSec && !_idleFired)
             {
                 _idleFired = true;
-                ShowTalk(TrainIdle[GD.RandRange(0, TrainIdle.Length - 1)]);
+                ShowTrainingTalk(CompanionDialogue.Menu.TrainIdle, TrainIdle);
             }
         }
 
@@ -400,9 +411,11 @@ public partial class TrainingRoot : Node2D
     {
         if (_talkT <= 0 || string.IsNullOrEmpty(_talk)) return;
         var box = new Rect2(430, 224, 344, 96);
-        Color accent = UiKit.Mina; // 話者はミナだけ＝Hud.LineKind のミナ色で固定。
+        var job = _game?.SelectedJob ?? Job.Tank;
+        Color accent = CompanionDialogue.Accent(job);
+        string speaker = job == Job.Tank ? "ミナ" : $"ミナ / {Jobs.Get(job).CharacterName}";
         UiKit.Box(_uiLayer, box, new Color(0.06f, 0.07f, 0.12f, 0.88f), 12f, new Color(accent, 0.5f), 1f);
-        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(box.Position.X + 16, box.Position.Y + 10), "ミナ", 12, accent);
+        UiKit.Text(_uiLayer, UiKit.ZenBold, new Vector2(box.Position.X + 16, box.Position.Y + 10), speaker, 12, accent);
         UiKit.Multi(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 16, box.Position.Y + 32), _talk, 13, UiKit.Text2, box.Size.X - 32, 3);
     }
 

@@ -285,12 +285,20 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] ClearBefore = Clear.Take(2).ToArray();
     private static readonly (int who, string text, string face)[] ClearAfter = Clear.Skip(2).ToArray();
 
+    private (int who, string text, string face)[] _playerIntro = null!;
+    private (int who, string text, string face)[] _playerMid = null!;
+    private (int who, string text, string face)[] _playerBoss = null!;
+
     public override void _Ready()
     {
         _rng.Randomize();
         _step = 1;
         // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
+        var job = game?.SelectedJob ?? Job.Tank;
+        _playerIntro = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Intro, Intro);
+        _playerMid = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Mid, MidEnd);
+        _playerBoss = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Boss, BossIntro);
         game?.SetStageTarget(MidWave0 + MidWaveA + MidWaveB + MidWaveC + 1);
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
@@ -328,7 +336,7 @@ public partial class StageAkari : Node
         // 3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
         switch (_step)
         {
-            case 1: Step_Lines(delta, Intro); break;
+            case 1: Step_Lines(delta, _playerIntro); break;
             case 2: Step_MidWave0(delta); break;          // 肩慣らし波（6体・圧ゼロ）＝カメオへの布石
             case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
             // ★S1-5 の下書き選択（17）＝中ボスの受け2行＋問い → 選択 → 受け＋締め → S1-2 の小話
@@ -339,9 +347,9 @@ public partial class StageAkari : Node
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 8: Step_MidStory(delta); break;          // ★S1-4 束（下書き選択）＝ボス前の溜め
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 10: Step_Lines(delta, MidEnd); break;    // 道中後の小話
+            case 10: Step_Lines(delta, _playerMid); break;
             case 11: Step_BossSpawn(); break;
-            case 12: Step_Lines(delta, BossIntro); break; // ボスは出現済みだが会話中は止まる
+            case 12: Step_Lines(delta, _playerBoss); break;
             case 13: Step_BossWait(delta); break;
             case 14: Step_Clear(delta); break;
             case 15: Step_Transition(); break;

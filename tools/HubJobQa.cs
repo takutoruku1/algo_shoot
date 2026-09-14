@@ -25,6 +25,7 @@ public partial class HubJobQa : Node
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
+            foreach (var job in Jobs.All) game.MarkIdleDialogSeen($"once_companion_select_{job.CharacterId}");
             game.Difficulty = GameManager.Diff.Normal;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));

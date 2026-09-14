@@ -616,6 +616,7 @@ public partial class Audio : Node
             case Hud.LineKind.Boy:   VoiceSe(TypBoy,  volDb: -18f, pitch: p); break;
             case Hud.LineKind.Mina:  VoiceSe(TypMina, volDb: -19f, pitch: p); break;
             case Hud.LineKind.Other: VoiceSe(TypBoss, volDb: -18f, pitch: p); break;
+            case Hud.LineKind.Companion: VoiceSe(TypBoss, volDb: -20f, pitch: p); break;
             case Hud.LineKind.Relay: VoiceSe(TypBoy,  volDb: -19f, pitch: p * 1.04f); break; // 少年寄り・やや高く
             case Hud.LineKind.Post:  VoiceSe(TypMina, volDb: -28f, pitch: p * 1.08f); break; // ごく控えめ・素っ気ない
             default: return; // Narration＝無音（語りとセリフを耳で区別）

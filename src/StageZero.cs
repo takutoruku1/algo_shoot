@@ -84,9 +84,13 @@ public partial class StageZero : Node
         (1, "……あ。暗闇に、ひとつ。行く先の光が、灯りました。", "res://char/mina_face.png"),
     };
 
+    private (int who, string text, string face)[] _playerIntro = null!;
+
     public override void _Ready()
     {
         _rng.Randomize();
+        _playerIntro = CompanionDialogue.Add(GameManager.Instance?.SelectedJob ?? Job.Tank,
+            "tutorial", CompanionDialogue.Beat.Intro, Tut0Intro);
         // 浄化カプセルが進まないよう目標は大きめに（チュートリアルでクリア扱いにしない）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(99);
     }
@@ -130,7 +134,7 @@ public partial class StageZero : Node
             // ── 0 導入（会話のみ・全画面うっすら暗転） ──
             case 0:
                 if (!_phaseStarted) { _phaseStarted = true; Hud.SetSpot(new Rect2(), 0.4f); }
-                if (TutTalk(Tut0Intro)) { Hud.ClearSpot(); NextPhase(); }
+                if (TutTalk(_playerIntro)) { Hud.ClearSpot(); NextPhase(); }
                 break;
 
             // ── 1 移動（自機系：スポットは使わず自機を発光させる） ──

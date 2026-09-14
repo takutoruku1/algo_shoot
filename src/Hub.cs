@@ -234,6 +234,13 @@ public partial class Hub : Node2D
                 Toast(keys, "", UiKit.Ok);
             }
             var lines = FillObservations(ReturnDialog(cleared));
+            var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Return);
+            if (companion.Length > 0)
+            {
+                var combined = new System.Collections.Generic.List<(string, string)>(lines);
+                combined.AddRange(companion);
+                lines = combined.ToArray();
+            }
             if (_game.ShouldBurnAfter(cleared))
             {
                 var combined = new System.Collections.Generic.List<(string, string)>(lines);
@@ -276,6 +283,14 @@ public partial class Hub : Node2D
             string key = $"idle_{lastCleared}_{pin}";
             _game.MarkIdleDialogSeen(key);
             StartDialogue(FillDives(PinnedIdle(_game, lastCleared, idle[pin])), null);
+            return;
+        }
+        string companionKey = $"companion_hub_{_game!.JobDef.CharacterId}";
+        var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Hub);
+        if (companion.Length > 0 && !_game.IsIdleDialogSeen(companionKey))
+        {
+            _game.MarkIdleDialogSeen(companionKey);
+            StartDialogue(companion, null, noPost: true);
             return;
         }
         for (int i = 0; i < SmallTalks.Length; i++)
@@ -681,10 +696,13 @@ public partial class Hub : Node2D
     // noPost=true＝この会話はミナの投稿ではない（H0 のような場面の導入）。閉じたときに
     //   インプレ／フォロワーの加算とトーストを出さない＝まだ何も投稿していないのに数字が動くのを防ぐ。
     private bool _dlgNoPost;
-    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false)
+    private Mode _dlgReturnMode = Mode.Cards;
+    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards)
     {
         _mode = Mode.Dialogue;
         _dlgNoPost = noPost;
+        _dlgReturnMode = returnMode;
+        _zHeld = Pad.AdvanceHeld();
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
@@ -755,7 +773,7 @@ public partial class Hub : Node2D
             // 投稿ではない会話（H0）＝加算もトーストも無し。オートセーブと画面戻しだけ行う。
             _dlgNoPost = false;
             _game?.AutoSave();
-            _mode = Mode.Cards;
+            _mode = _dlgReturnMode;
             _cardsEnteredT = _t;
             return;
         }
@@ -1730,6 +1748,8 @@ public partial class Hub : Node2D
         // 「あなた」＝顔を持たない読み手。本編会話（Hud.LineKind.Boy）と同じく、立ち絵の代わりに下書きの吹き出し印。
         if (sp == "あなた") return (null, UiKit.Info, DraftTop);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
+        foreach (var job in Jobs.All)
+            if (sp == job.CharacterName) return (_playerFaces[job.CharacterId], CompanionDialogue.Accent(job.Id), 0f);
         if (sp.Contains("rei")) return (FaceFor("rei"), AccountColor("rei"), TopCropFor("rei"));
         if (sp.Contains("akari")) return (FaceFor("akari"), AccountColor("akari"), TopCropFor("akari"));
         if (sp.Contains("koharu")) return (FaceFor("koharu"), AccountColor("koharu"), TopCropFor("koharu"));
@@ -2011,6 +2031,14 @@ public partial class Hub : Node2D
             // トーストは既存の型（1行目＝世界の言葉／2行目＝数値・仕様）で出す。
             Toast($"{jd.CharacterName}で潜る", $"{jd.Name}・{jd.TypeName}・{ShotWord(jd.Mode)}", JobColor(jd.Id));
             _mode = _jobReturnMode; _xHeld = true;
+            string key = $"once_companion_select_{jd.CharacterId}";
+            var lines = CompanionDialogue.MenuLines(jd.Id, CompanionDialogue.Menu.Select);
+            if (lines.Length > 0 && _game != null && !_game.IsIdleDialogSeen(key))
+            {
+                _game.MarkIdleDialogSeen(key);
+                _toastT = 0;
+                StartDialogue(lines, null, noPost: true, returnMode: _jobReturnMode);
+            }
             return;
         }
 

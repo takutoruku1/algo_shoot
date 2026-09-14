@@ -339,7 +339,7 @@ public partial class Hud : CanvasLayer
     }
 
     // ───────── テキストボックスの行の種類 ─────────
-    public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5 }
+    public enum LineKind { Boy = 0, Mina = 1, Other = 2, Narration = 3, Post = 4, Relay = 5, Companion = 6 }
 
     // ───────── 会話ログ（バックログ）─────────
     // ストーリー重視ゲームの読み返し用に、表示済みの会話/ナレ/投稿を蓄積する（ADV のバックログ相当）。
@@ -370,6 +370,7 @@ public partial class Hud : CanvasLayer
         LineKind.Boy   => UiKit.Info,
         LineKind.Mina  => UiKit.Mina,
         LineKind.Other => UiKit.Kegare,
+        LineKind.Companion => CompanionDialogue.Accent(GameManager.Instance?.SelectedJob ?? Job.Tank),
         LineKind.Relay => UiKit.Info,
         LineKind.Post  => UiKit.Text3,
         _              => UiKit.Text2, // Narration（ナレ＝ミナの語り）は淡色
@@ -423,6 +424,12 @@ public partial class Hud : CanvasLayer
             case LineKind.Boy:   speaker = "あなた"; color = UiKit.Info; portraitToUse = ""; break;
             case LineKind.Mina:  speaker = MinaLabel; color = UiKit.Mina; break;
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
+            case LineKind.Companion:
+                var job = _game?.SelectedJob ?? Job.Tank;
+                speaker = $"{Jobs.Get(job).CharacterName}（同行）";
+                color = CompanionDialogue.Accent(job);
+                portraitToUse = CompanionDialogue.Portrait(job);
+                break;
             case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
@@ -447,6 +454,7 @@ public partial class Hud : CanvasLayer
         // 表示と同時に既読へ記録する（read.json・全スロット共有）。
         _dlgReadBefore = _game?.IsLineRead(text) ?? false;
         _game?.MarkLineRead(text);
+        bool sameSpeaker = _dlgSpeaker == speaker && _dlgKind == kind;
         _dlgText = text; _dlgSpeaker = speaker; _dlgSpeakerCol = speakerCol;
         _dlgIsDialog = dialog; _dlgRevealed = 0;
         // 新しい行＝送り音の差分検出をリセット。送り音の音色は kind（Narration＝無音）。
@@ -458,7 +466,7 @@ public partial class Hud : CanvasLayer
         BuildDialogPages(dialog, next, _dlgDraftMark);
         // 表情クロスフェード：face テクスチャが実際に変わる瞬間だけ、旧絵を短時間重ねて移ろわせる。
         // 同一立ち絵の続き（同じ話者の連続行）はクロスフェードせず、無からの登場/退場もハード切替で十分。
-        if (next != null && _dlgPortrait != null && next != _dlgPortrait)
+        if (sameSpeaker && next != null && _dlgPortrait != null && next != _dlgPortrait)
         {
             _dlgPortraitPrev = _dlgPortrait;
             _portraitFadeT = PortraitFade;
