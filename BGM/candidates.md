@@ -280,3 +280,116 @@
 - 対抗: **微睡み**（2:06・LRA 11.5）＝起伏が大きく、選択UIの下で落ち着かない
 - 対抗: 短いジングル＋無音（前回 B1 案）＝ `HandleGameOverExit` は**選択が決まるまで滞在時間が不定**なので、
   ジングル後の無音が長引くと「音が死んだ」ように聞こえる。**静かなループの方が破綻しない**と判断
+
+---
+
+# 2026-09-14 追加調査② — ボス戦の回想（StoryFilm）⑳〜㉖
+
+> 背景: **ユーザー実機指摘**「ボス戦の回想シーンにBGM入ってないよ、あらためて、BGMが入っていない、
+> または重複しているところがないか見直して」。前回の監査（⑭〜⑲）は `9278815` で入ったが、
+> **回想シーン（`src/StoryFilm.cs` 系・`a1f5ce9` で追加）は台帳に含まれていなかった＝監査の空白地帯**。
+
+## 実測した無音の正体（推測ではなくログ）
+
+`StoryFilm._Ready()` が **`Audio.Instance?.StopMusic(0.7f)` を呼び、`Restore()` が曲を戻さない**
+（`Restore()` は ProcessMode と Hud しか戻していない）。そのため:
+
+- **回想中（memory / aftermath とも）＝完全無音**
+- **memory（戦闘中の回想）は、呼び出し側の `completed:` コールバックがボス曲を張り直している**
+  （`BossRei.cs` / `BossAkari.cs` / `BossKoharu.cs` / `BossMina.cs` の4箇所とも `Music(Bgm Boss*, 0.8f)`）＝
+  回想明けは復帰する。**無音なのは回想そのものの尺だけ**
+- **aftermath（撃破後・ステージクリアの回想）は、どの呼び出し側も曲を戻していない**
+  （`StageRei.cs` / `StageAkari.cs` / `StageKoharu.cs` / `StageMina.cs` の4箇所とも `completed:` に音の処理なし）＝
+  **回想後のクリア会話まで丸ごと無音のまま、シーン遷移まで続く**
+
+実測ログ（`Rei.tscn --demo --assist --easy --boss`・Music バスの再生曲を0.25秒毎に記録）:
+
+```
+t=0.9   bgm_boss_rei.ogg        ボス戦
+t=32.5  (silence)               ← memory 回想が開始（StopMusic）
+t=51.4  bgm_boss_rei.ogg        ← memory 明け（BossRei の completed が復帰）
+t=77.9  (silence)               ← 改心（StopMusic）
+t=78.1  (synth:AudioStreamWav)  ← Redeem ジングル
+t=80.x  (silence)               ← aftermath 回想。**以後クリア会話まで戻らない**
+```
+
+## 設計方針
+
+- 回想は **memory（戦闘中・過去の傷）と aftermath（撃破後・癒えた未来）の2種**あり、
+  シェーダが `grayscale = !_aftermath`（`StoryFilm.cs`）で**モノクロ／カラーを出し分けている**。
+  ＝**音もこの対で割る**のが画と一致する（memory＝翳り／aftermath＝温度が戻る）。
+- **8枠すべて別曲**（キャラ4人 × memory/aftermath）。回想同士の共有もしない（ユーザーの「重複」指摘に従う）。
+- 前回同様、全て甘茶の音楽工房に揃えて音色の家族性を保つ（style §1）。
+- **ミナの aftermath だけは意図的に無音のまま**（㉖に理由）。
+
+## ⑳ bgm_story_rei（レイ memory）
+
+- ★ **街路灯の明かり** — 甘茶 https://amachamusic.chagasi.com/music_gairotounoakari.html
+  - 2:03(123.4s) / 2014.11 / 「悲しい・ピアノ」 / -14.5 LUFS・**centroid 803Hz（低く丸い＝ピアノ主体）**
+  - **なぜここか**: レイの memory は「配信前の三十分、リングライトの前で笑顔を練習する」「十四件の企画メモ、
+    公開したものは、なかった」＝**灯りのついた部屋に一人**の話。曲名がその画そのもの。
+    30-45秒に落ち込みがあり、単調に押し続けない（27行の長い回想に起伏が要る）
+
+## ㉑ bgm_story_rei_after（レイ aftermath）
+
+- ★ **放課後の夕空** — 甘茶 https://amachamusic.chagasi.com/music_houkagonoyuzora.html
+  - 2:33(153.1s) / 2019.06 / 「ほのぼの・ポップ」 / -14.4 LUFS・**LRA 3.3（平坦）**
+  - **なぜここか**: aftermath は「好きな本の話を、最後までした」＝**やっと自分の言葉で話せた夕方**。
+    曲線が 0〜135s ずっと平坦で、16行＋クリア会話まで鳴らしても飽きない。夕方の時間帯が場面と一致
+
+## ㉒ bgm_story_akari（あかり memory）
+
+- ★ **霧雨の彼方** — 甘茶 https://amachamusic.chagasi.com/music_kirisamenokanata.html
+  - 2:35(155.4s) / 2017.09 / 「悲しい・ピアノ」 / -14.3 LUFS・centroid 841Hz
+  - **なぜここか**: あかりの世界は既に**雨**（道中曲＝「6月の雨傘」・記憶フラッシュSEも雨と
+    クラクション）。**同じ世界の天気で回想を包む**と、道中→回想が地続きに聞こえる。
+    29行と最長の回想なので 155s の尺が要る
+
+## ㉓ bgm_story_akari_after（あかり aftermath）
+
+- ★ **春の予感** — 甘茶 https://amachamusic.chagasi.com/music_harunoyokan.html
+  - 1:50(110.0s) / 2014.03 / 「ほのぼの・イージーリスニング」 / -12.9 LUFS
+  - **なぜここか**: aftermath は「何度も送って消して、ごめん。おめでとう ほんとだよ」＝
+    **八年ぶりに送信できた**話。雨（memory）から**季節が動く**方向へ抜ける＝雨→春の対比で
+    「言えた」が音でも分かる。13行と最短の aftermath なので 110s で足りる
+
+## ㉔ bgm_story_koharu（こはる memory）
+
+- ★ **ないしょのお話** — 甘茶 https://amachamusic.chagasi.com/music_naishonoohanashi.html
+  - 2:38(158.5s) / 2015.01 / 「悲しい・ピアノ」 / -16.2 LUFS・**LRA 2.1（今回の候補中もっとも平坦）**
+  - **なぜここか**: 曲名が**そのまま「誰にも言えなかったこと」**。こはるの memory は
+    「教えて、と言われた放課後」から始まり、誰にも言えないまま冷えていく27行。
+    平坦さは「淡々と続く日常の中で冷えていく」構造と一致する（山を作らない）
+
+## ㉕ bgm_story_koharu_after（こはる aftermath）
+
+- ★ **陽だまり** — 甘茶 https://amachamusic.chagasi.com/music_hidamari.html
+  - 1:42(102.5s) / 2011.11 / 「ほのぼの・イージーリスニング」 / -11.0 LUFS・centroid 2872Hz（明るい）
+  - **なぜここか**: こはるの主題は**台所の灯／温度**（道中＝「小さな足あと」、ボス戦の未完モチーフが
+    「温かい旋律が冷えて減衰する」）。aftermath は**冷えた温度が戻る**場面なので、
+    候補中もっとも明るい曲（centroid 2872Hz）を当てて「灯りがついた」を耳で言う
+
+## ㉖ bgm_story_mina（ミナ memory）＋ aftermath は**意図的に無音**
+
+- ★ **虚しさと星空** — 甘茶 https://amachamusic.chagasi.com/music_munashisatohoshizora.html
+  - 1:44(104.0s) / 2018.11 / 「悲しい・ニューエイジ」 / -15.2 LUFS・**LRA 2.3**
+  - **なぜ memory にここか**: ミナの memory は「……一件、完了。」と件数を数えるだけの18行＝
+    **人ではないものの空虚**。曲名がそのまま。ニューエイジ（生楽器でない）を選ぶのは、
+    他3人が生楽器なのに対し**ミナだけ人間の楽器で鳴らさない**＝style §3「楽器で描き分ける」
+
+### ミナの aftermath を無音のままにする判断（実装しない）
+
+`MinaStoryFilm` の aftermath は**作品の最大の山**（三人の声が戻り「一緒に帰ろうって、言ってるの。」）で、
+直後に `StageMina.Step_Transition` → **`Final.tscn` へ遷移**する。Final は
+`_Ready` で `BgmBoss` を張り、終盤で **`StopMusic` → 無音 → `PlayFinalResolve`（作中唯一の挿入歌）**
+という一点投入を持っている（`Final.cs:90,282,290`）。ここに曲を足すと:
+
+1. **挿入歌の希少性が落ちる**（pitfalls P6「決定打音の乱発」）。回想で一度盛り上げてから
+   Final でもう一度盛り上げると、本番の落差が鈍る
+2. この場面は**三人の声そのものが音楽**（あかり・こはる・レイの台詞が順に戻ってくる構成）。
+   下に曲を敷くと、台詞＝声の主役性を奪う（style §7「無音は最強の音」）
+3. 指揮官の指示にある「ミナ戦の無音→bgm_boss_mina の設計は壊さない」と同じ理由が、
+   **その先の Final の無音→挿入歌にも当てはまる**
+
+→ **㉖の aftermath は曲を当てず、現状の無音を「意図的な無音」として維持**する。
+ただし**無音の意味を明示するコメントを実装に残す**（次に読む人が「配線漏れ」と誤解して埋めないように）。

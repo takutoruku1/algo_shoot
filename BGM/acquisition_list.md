@@ -366,3 +366,65 @@ E5b の無音 → E6 で BgmMenu が戻る繋ぎで段差を出さないこと�
 **再生系での扱い**: 6曲とも `MusicTargetDb()` で **0dB 側に除外**した（`BgmMenu`・`BgmFinalResolve`・
 `BgmEpilogueWalk` と同じ扱い）。除外しないと実音源として -10dB が乗り、**ハブ↔タイトル/ショップ等の
 移動で音量が 10dB 跳ねる**。音源側を BgmMenu と同じラウドネスに揃えてあるので 0dB が正しい。
+
+---
+
+## 8. ボス戦の回想（StoryFilm）7本（2026-09-14② 導入・composer）
+
+**背景**: **ユーザー実機指摘**「ボス戦の回想シーンにBGM入ってないよ、あらためて、BGMが入っていない、
+または重複しているところがないか見直して」。§7 の監査（2026-09-14①）は `9278815` で入ったが、
+**回想シーン（`src/StoryFilm.cs` 系・`a1f5ce9` で追加）は監査対象に入っていなかった**。
+
+**無音の原因（実測で特定）**: `StoryFilm._Ready()` が `Audio.Instance?.StopMusic(0.7f)` で曲を落とし、
+`Restore()` が戻していなかった。memory（戦闘中）は呼び出し側の `completed:` がボス曲を張り直すので
+回想の尺だけ無音、**aftermath（撃破後）は誰も戻さずクリア会話まで無音が続いていた**。
+
+**選定理由・対抗馬は `BGM/candidates.md` ⑳〜㉖**。加工は §7 と同一レシピ、ラウドネスも同じ -17.7 LUFS 基準。
+
+### 8.1 取得記録
+
+| 日付 | スロット | 曲名 | サイト/作者 | 規約URL | 商用/改変/組込 | クレジット義務 | 備考 |
+|---|---|---|---|---|---|---|---|
+| 2026-09-14 | bgm_story_rei | 街路灯の明かり | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_gairotounoakari.html | ○/○/○ | 任意（記載済） | レイ memory。原曲 123.4s → **0..116.3s・-3.2dB**（減衰開始 116.5s の直前） |
+| 2026-09-14 | bgm_story_rei_after | 放課後の夕空 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_houkagonoyuzora.html | ○/○/○ | 任意（記載済） | レイ aftermath。原曲 153.1s → **0..148.6s・-3.3dB**（減衰開始 148.9s の直前） |
+| 2026-09-14 | bgm_story_akari | 霧雨の彼方 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_kirisamenokanata.html | ○/○/○ | 任意（記載済） | あかり memory。原曲 155.4s → **0..151.0s・-3.4dB**（減衰開始 151.1s の直前） |
+| 2026-09-14 | bgm_story_akari_after | 春の予感 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_harunoyokan.html | ○/○/○ | 任意（記載済） | あかり aftermath。原曲 110.0s → **0..104.3s・-4.8dB**（減衰開始 104.5s の直前） |
+| 2026-09-14 | bgm_story_koharu | ないしょのお話 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_naishonoohanashi.html | ○/○/○ | 任意（記載済） | こはる memory。原曲 158.5s → **0..152.3s・-1.5dB**（減衰開始 152.5s の直前） |
+| 2026-09-14 | bgm_story_koharu_after | 陽だまり | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_hidamari.html | ○/○/○ | 任意（記載済） | こはる aftermath。原曲 102.5s → **0..92.0s・-6.7dB**（長い自然減衰の入口で切る） |
+| 2026-09-14 | bgm_story_mina | 虚しさと星空 | 甘茶の音楽工房 | https://amachamusic.chagasi.com/music_munashisatohoshizora.html | ○/○/○ | 任意（記載済） | ミナ memory。原曲 104.0s → **0..99.0s・-2.5dB**（減衰開始 99.3s の直前） |
+| — | （ミナ aftermath） | **曲を当てない＝意図的な無音** | — | — | — | — | 理由は §8.3 |
+
+### 8.2 ライセンス確認（規約原文を 2026-09-14 当日に再取得）
+
+§7.2 と同一サイト・同一規約。**同日に再度 curl で原文取得して、条件が変わっていないことを確認済み**:
+「公開中の音楽素材は、商用利用、個人利用問わず利用できます。」「ウェブ、映像、ゲーム、ラジオなど、
+何かのBGMとして」「Q:加工して使用しても良いですか？ A:問題ありません。」
+「Q:mp3のファイル名やファイル形式を変更しても良いですか？ A:問題ありません。」
+「著作権表示は必須ではありませんが〜」。禁止事項（音楽単体の販売・2次配布／作曲者を偽る／
+JASRAC等への登録／YouTube Content ID 登録／直リンク使用）にいずれも該当しない。
+マスターは `BGM/<slug>.mp3` に保存（export除外）。クレジットは `config/credits.ini` に記載。
+
+### 8.3 ラウドネス実測（加工後）と、ミナ aftermath を無音のままにした判断
+
+| スロット | Integrated | LRA | True Peak | 尺 | 基準(-17.7)との差 |
+|---|---|---|---|---|---|
+| bgm_story_rei | -17.6 | 3.6 | -3.3 | 116.3s | +0.1 |
+| bgm_story_rei_after | -17.7 | 3.2 | -3.5 | 148.6s | ±0.0 |
+| bgm_story_akari | -17.7 | 4.9 | -3.6 | 151.0s | ±0.0 |
+| bgm_story_akari_after | -17.6 | 5.1 | -4.8 | 104.3s | +0.1 |
+| bgm_story_koharu | -17.7 | 2.1 | -4.0 | 152.3s | ±0.0 |
+| bgm_story_koharu_after | -17.7 | 3.0 | -6.2 | 92.0s | ±0.0 |
+| bgm_story_mina | -17.7 | 2.2 | -5.6 | 99.0s | ±0.0 |
+
+**再生系での扱い**: 7曲とも `MusicTargetDb()` で **0dB 側に除外**（メニュー一族と同じ）。
+ボス曲は実音源として -10dB が乗った状態で実効音量が揃っているので、回想だけ -10dB を乗せると
+**ボス戦→回想の切り替わりで回想が沈む**。回想はカットシーン＝台詞を読ませる場なので 0dB が正しい。
+
+**ミナ aftermath を無音のままにした判断（実装せず）**: この回想は作品の最大の山
+（三人の声が戻り「一緒に帰ろうって、言ってるの。」）で、直後に `StageMina.Step_Transition` →
+**`Final.tscn`** へ遷移する。Final は `_Ready` で `BgmBoss` を張り、終盤で
+**`StopMusic` → 無音 → `PlayFinalResolve`（作中唯一の挿入歌）** の一点投入を持つ（`Final.cs:90,282,290`）。
+ここに曲を足すと ①挿入歌の希少性が落ちる（pitfalls P6）②三人の声そのものが音楽である場面の
+主役性を奪う（style §7）。よって **`Audio.StoryBgm("mina", aftermath:true)` は `null` を返し、
+`StoryFilm` は従来どおり `StopMusic` して沈黙のまま通す**。
+「配線漏れ」と誤解されないよう、`Audio.StoryBgm()` と `StoryFilm._Ready()` の両方にコメントを残した。

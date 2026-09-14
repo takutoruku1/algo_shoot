@@ -23,6 +23,10 @@ public partial class StoryFilm : Node2D
     protected string _storyName = "";
     protected int _atlasRows = 3;
 
+    // 回想BGMを引くためのキー（"rei"/"akari"/"koharu"/"mina"）。_storyName の小文字＝
+    //   派生側で別に持たせず、ここで一意に導出する（表示名と選曲キーがズレない）。
+    private string _storyKey => _storyName.ToLowerInvariant();
+
     public override void _Ready()
     {
         AddToGroup("storyfilm");
@@ -40,7 +44,16 @@ public partial class StoryFilm : Node2D
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
             if (hazard is AreaStrike) hazard.QueueFree();
-        Audio.Instance?.StopMusic(0.7f);
+        // 回想の曲へクロスフェードする（2026-09-14②。ユーザー実機指摘「ボス戦の回想シーンに
+        //   BGM入ってないよ」への対応）。ここは以前 StopMusic(0.7f) で**無音に落とすだけ**だった。
+        //   ・memory（戦闘中・モノクロ）＝過去の傷。戦闘曲から翳りのある曲へ。
+        //   ・aftermath（撃破後・カラー）＝癒えた未来。温度の戻る曲へ。
+        //   StoryBgm() が null を返す枠（＝ミナの aftermath）は**意図的な無音**なので、
+        //   従来どおり StopMusic して沈黙のまま通す（直後の Final が「無音→挿入歌」を持つため。
+        //   詳細は Audio.StoryBgm() のコメントと BGM/candidates.md ㉖）。
+        var storyBgm = Audio.Instance?.StoryBgm(_storyKey, _aftermath);
+        if (storyBgm != null) Audio.Instance?.Music(storyBgm, 0.7f);
+        else Audio.Instance?.StopMusic(0.7f);
         _held = Pad.AdvanceHeld();
         _shot = _lines[0].Shot;
         _grade = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/story_film.gdshader") };
@@ -148,6 +161,17 @@ public partial class StoryFilm : Node2D
             _hud.SetCinematicMode(false);
             _hud.SuppressCallouts = _suppressed;
         }
+
+        // 回想明けの曲の担当（2026-09-14②）。**memory と aftermath で違う**ので、ここでは何もしない:
+        //   ・memory（戦闘へ戻る）＝呼び出し側の completed: が各ボス曲を張り直している
+        //     （BossRei/BossAkari/BossKoharu/BossMina の4箇所）。ここで触ると同フレーム帯で Music() が
+        //     二重に走り、以前直した「ボス曲が消える」事故（_musicFadeTween の Kill 漏れ）と同型の
+        //     競合を招く。**触らない**のが正しい。
+        //   ・aftermath（撃破後のクリア会話へ戻る）＝**回想曲をそのまま鳴らし続ける**。
+        //     クリア会話はミナが独白する感情の後日談（例: StageRei.Clear の6行）で、
+        //     回想 aftermath と**同じ「癒えたあと」の一続きの場面**なので、ここで切ると
+        //     会話が無音に落ちる（＝ユーザー指摘の無音がクリア会話に残る）。
+        //     曲は次のシーン（Hub / Final）の _Ready が張る Music() が自然に上書きする。
     }
 
     public override void _ExitTree() => Restore();

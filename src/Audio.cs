@@ -145,6 +145,20 @@ public partial class Audio : Node
     public AudioStream BgmCredits = null!;
     public AudioStream BgmGameOver = null!;
 
+    // ボス戦の回想（StoryFilm）専用曲（2026-09-14②）。**ユーザー実機指摘「ボス戦の回想シーンに
+    //   BGM入ってないよ」への対応**。原因は StoryFilm._Ready() の StopMusic() で曲を落としたまま
+    //   Restore() が戻さないこと（memory は呼び出し側がボス曲を張り直すが、aftermath は誰も戻さず
+    //   クリア会話まで無音が続いていた）。
+    //   回想は memory（戦闘中・過去の傷・**モノクロ**）と aftermath（撃破後・癒えた未来・**カラー**）の
+    //   対で、シェーダの grayscale=!_aftermath がその対を持っている＝**音も同じ対で割る**。
+    //   キャラ4人×2状態＝8枠のうち**7枠に固有曲**を当て、**ミナの aftermath だけ意図的に無音**
+    //   （直後の Final が「無音→挿入歌」の一点投入を持つため。BGM/candidates.md ㉖）。
+    //   7曲とも甘茶の音楽工房・-17.7 LUFS・loop=true。MusicTargetDb() では 0dB 扱い（メニュー一族と同じ）。
+    public AudioStream BgmStoryRei = null!,   BgmStoryReiAfter = null!;
+    public AudioStream BgmStoryAkari = null!, BgmStoryAkariAfter = null!;
+    public AudioStream BgmStoryKoharu = null!, BgmStoryKoharuAfter = null!;
+    public AudioStream BgmStoryMina = null!;   // ミナの aftermath は曲を持たない（意図的な無音）
+
     // ボス別の戦闘BGM（設計 §1-2「各ボスの固有モチーフ＝未完→完」）。
     //   いずれも M.I.N.A. 構成音ベース。戦闘中はモチーフが「未完」で、改心で PlayRedeem が「完」を返す。
     //   Rei  ＝主音直前で落ちる（半音で届かない／順位＝あと一歩で一番になれない）。
@@ -231,6 +245,14 @@ public partial class Audio : Node
         BgmTraining = LoadBgmTraining();
         BgmCredits  = LoadBgmCredits();
         BgmGameOver = LoadBgmGameOver();
+        // ボス戦の回想（StoryFilm）。これらも BgmMenu フォールバックなので BgmMenu の後に読む。
+        BgmStoryRei         = LoadBgmStoryRei();
+        BgmStoryReiAfter    = LoadBgmStoryReiAfter();
+        BgmStoryAkari       = LoadBgmStoryAkari();
+        BgmStoryAkariAfter  = LoadBgmStoryAkariAfter();
+        BgmStoryKoharu      = LoadBgmStoryKoharu();
+        BgmStoryKoharuAfter = LoadBgmStoryKoharuAfter();
+        BgmStoryMina        = LoadBgmStoryMina();
         BgmFinalResolve = LoadBgmFinalResolve();
         BgmEpilogueWalk = LoadBgmEpilogueWalk();
         BgmBossRei    = LoadBgmBossRei();
@@ -364,6 +386,14 @@ public partial class Audio : Node
         //   「メニュー一族は同じ土俵」という BgmMenu の原則をそのまま拡張したもの。
         if (stream == BgmTitle || stream == BgmPrologue || stream == BgmShop
             || stream == BgmTraining || stream == BgmCredits || stream == BgmGameOver) return 0f;
+        // 回想（StoryFilm）の7曲も同じ -17.7 LUFS に揃えてあるので 0dB 扱い。
+        //   ここを -10dB にすると、ボス曲（-10dB 適用済みで実効が揃っている）から回想へ移った瞬間に
+        //   回想だけが沈んで聞こえる。回想はカットシーン＝台詞を読ませる場なので、
+        //   メニュー一族と同じ土俵（0dB）に置くのが正しい。
+        if (stream == BgmStoryRei || stream == BgmStoryReiAfter
+            || stream == BgmStoryAkari || stream == BgmStoryAkariAfter
+            || stream == BgmStoryKoharu || stream == BgmStoryKoharuAfter
+            || stream == BgmStoryMina) return 0f;
         bool isReal = stream is AudioStreamMP3 || stream is AudioStreamOggVorbis;
         return isReal ? StageBgmRealDb : 0f;
     }
@@ -1313,6 +1343,44 @@ public partial class Audio : Node
     //   選択が音楽的に無句読点だった。旋律の無いアンビエントで場を鎮め、選択に集中させる役。
     //   直接的に泣かせないので再挑戦の気持ちを削がない。原曲 120.2秒 → 0..103.5秒・-5.1dB。
     private AudioStream LoadBgmGameOver() => LoadMenuFamily("res://audio/bgm_gameover.ogg", "BgmGameOver");
+
+    // ───────── ボス戦の回想（StoryFilm）の曲。memory＝翳り／aftermath＝温度が戻る ─────────
+    //   選定理由は BGM/candidates.md ⑳〜㉖。加工値は BGM/acquisition_list.md §8。
+    //   レイ memory＝「街路灯の明かり」（灯りのついた部屋で一人＝笑顔の練習と十四件の企画メモ）。
+    //     原曲 123.4s → 0..116.3s・-3.2dB。
+    private AudioStream LoadBgmStoryRei() => LoadMenuFamily("res://audio/bgm_story_rei.ogg", "BgmStoryRei");
+    //   レイ aftermath＝「放課後の夕空」（好きな本の話を最後までした夕方）。平坦でクリア会話まで保つ。
+    //     原曲 153.1s → 0..148.6s・-3.3dB。
+    private AudioStream LoadBgmStoryReiAfter() => LoadMenuFamily("res://audio/bgm_story_rei_after.ogg", "BgmStoryReiAfter");
+    //   あかり memory＝「霧雨の彼方」。あかりの世界は既に雨（道中＝6月の雨傘／記憶フラッシュSEも雨）なので
+    //     **同じ天気で回想を包む**＝道中から地続きに聞こえる。29行と最長なので 151s の尺。
+    private AudioStream LoadBgmStoryAkari() => LoadMenuFamily("res://audio/bgm_story_akari.ogg", "BgmStoryAkari");
+    //   あかり aftermath＝「春の予感」。八年ぶりに送信できた話＝雨から**季節が動く**方向へ抜ける。
+    //     原曲 110.0s → 0..104.3s・-4.8dB。
+    private AudioStream LoadBgmStoryAkariAfter() => LoadMenuFamily("res://audio/bgm_story_akari_after.ogg", "BgmStoryAkariAfter");
+    //   こはる memory＝「ないしょのお話」。曲名がそのまま「誰にも言えなかったこと」。
+    //     LRA 2.1 の平坦さが「淡々と続く日常の中で冷えていく」27行と一致（山を作らない）。
+    private AudioStream LoadBgmStoryKoharu() => LoadMenuFamily("res://audio/bgm_story_koharu.ogg", "BgmStoryKoharu");
+    //   こはる aftermath＝「陽だまり」。こはるの主題は台所の灯／温度（ボス戦の未完モチーフ＝
+    //     「温かい旋律が冷えて減衰する」）なので、**冷えた温度が戻る**場面に候補中最も明るい曲を当てる。
+    private AudioStream LoadBgmStoryKoharuAfter() => LoadMenuFamily("res://audio/bgm_story_koharu_after.ogg", "BgmStoryKoharuAfter");
+    //   ミナ memory＝「虚しさと星空」。「……一件、完了。」と件数を数えるだけの18行＝人ではないものの空虚。
+    //     他3人が生楽器なのに対し**ミナだけニューエイジ（人間の楽器で鳴らさない）**＝style §3 の描き分け。
+    private AudioStream LoadBgmStoryMina() => LoadMenuFamily("res://audio/bgm_story_mina.ogg", "BgmStoryMina");
+
+    // ───────── 回想の曲を引く（StoryFilm が自分で呼ぶ）─────────
+    //   story＝"rei"/"akari"/"koharu"/"mina"、aftermath＝撃破後のカラー回想か。
+    //   **ミナの aftermath だけ null を返す＝意図的な無音**（直後の Final が「無音→挿入歌」の
+    //   一点投入を持っており、ここで曲を足すと決定打の落差が鈍る。BGM/candidates.md ㉖）。
+    //   null が返ると StoryFilm は StopMusic したまま＝従来どおりの無音で通る。
+    public AudioStream? StoryBgm(string story, bool aftermath) => story switch
+    {
+        "rei"    => aftermath ? BgmStoryReiAfter    : BgmStoryRei,
+        "akari"  => aftermath ? BgmStoryAkariAfter  : BgmStoryAkari,
+        "koharu" => aftermath ? BgmStoryKoharuAfter : BgmStoryKoharu,
+        "mina"   => aftermath ? null                : BgmStoryMina,
+        _ => null,
+    };
 
     // ───────── ステージ別の道中BGMを引く（将来 akari/koharu の実音源はここに足すだけ）─────────
     //   BeginStageRun(id) と、中ボス撃破後の道中復帰（CameoBoss）から共通で使う。
