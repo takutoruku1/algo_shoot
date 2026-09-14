@@ -66,9 +66,10 @@ public partial class PostToast : Control
     // ── 出す：読ませるだけの通知（数秒で自分から消える）──
     public static PostToast Show(Node parent, string name, string handle, string relT, string body,
         bool verified = false, int icon = 1, int replies = 0, int reposts = 0, int likes = 0, int views = 0,
-        float dwell = DwellDefault)
+        float dwell = DwellDefault, Texture2D? portrait = null)
     {
         var t = Make(parent, name, handle, relT, verified, icon);
+        if (portrait != null) t._iconTex = portrait;
         t._body = body; t._target = body; t._dwell = dwell;
         t._replies = replies; t._reposts = reposts; t._likes = likes; t._views = views;
         return t;

@@ -166,17 +166,21 @@ public partial class CompanionDialogueQa : Node
         var game = GetNode<GameManager>("/root/Game");
         game.ResetPersistent();
         game.AutoSaveEnabled = false;
-        game.SelectedJob = job.Id;
+        game.SelectedJob = Job.Tank;
         var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
         GetTree().Root.AddChild(hub);
         GetTree().CurrentScene = hub;
         Read<HashSet<string>>(game, "_cleared").Add(job.UnlockStageId);
         await Frames(30);
+        Check(Read<object>(hub, "_mode").ToString() == "Cards", "first visit starts in SNS without a launcher detour");
         long followers = game.Followers, impression = game.Impression;
         await Press(Key.J);
         Check(Read<object>(hub, "_mode").ToString() == "Job", "keyboard opens character selection");
-        Check(Jobs.All[Read<int>(hub, "_jobSel")].Id == job.Id && !Pad.UsingMouse,
+        Check(Jobs.All[Read<int>(hub, "_jobSel")].Id == Job.Tank && !Pad.UsingMouse,
             "keyboard shortcut keeps the selected character instead of following the mouse");
+        int accountIndex = Array.FindIndex(Jobs.All, entry => entry.Id == job.Id);
+        for (int i = 0; i < accountIndex; i++) await Press(Key.Down);
+        Check(Jobs.All[Read<int>(hub, "_jobSel")].Id == job.Id, "keyboard selects a different account before switching");
         Write(hub, "_jobT", 1d);
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").ToString() == "Dialogue", "first character selection starts its conversation");
@@ -192,12 +196,14 @@ public partial class CompanionDialogueQa : Node
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").ToString() == "Cards", "repeat selection does not force another greeting");
         Read<HashSet<string>>(game, "_idleDialogSeen").Remove($"once_companion_select_{job.CharacterId}");
+        game.SelectedJob = Job.Tank;
         Call(hub, "OpenDetail");
         Write(hub, "_tierSel", (int)GameManager.Diff.Hard);
         int selectedStage = Read<int>(hub, "_sel");
         await Frames(12);
         await Press(Key.J);
         Check(Read<object>(hub, "_mode").ToString() == "Job", "detail shortcut opens character selection");
+        for (int i = 0; i < accountIndex; i++) await Press(Key.Down);
         Write(hub, "_jobT", 1d);
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").ToString() == "Dialogue", "first selection from detail starts its conversation");
@@ -224,6 +230,8 @@ public partial class CompanionDialogueQa : Node
         Check(game.JustClearedStageId == null, "stage-clear return is consumed once");
         long expectedImpression = (long)Mathf.Round(40 * game.TotalImpressionMul * game.ReplayMul * GameManager.MoneyGainMul);
         await ReadHubDialogue(hub, $"{job.CharacterId}_return");
+        await Frames(145);
+        Check(Read<object>(hub, "_mode").ToString() == "Home", "stage-clear conversation returns home");
         Check(game.Followers == followers + 8 && game.Impression == impression + expectedImpression,
             "return dialogue keeps the existing single post reward");
         await RemoveScene(hub);

@@ -265,8 +265,12 @@ public partial class Prologue : Node2D
             L(WhoMina, "……まだ、そこに、います。", FMina),
             L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
             L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
-            L(WhoMina, "潜ります。……その前に、この身体で何が出来るのか。まだ、なにも、試していませんので。", FMina),
+            L(WhoFx, FxFirstStage, ""),
+            L(WhoMina, "……こちらにも、声が。ご主人様、この投稿を開いておきます。", FMinaWorried),
         };
+        bool tutorial = GameManager.TutorialEnabled;
+        if (tutorial)
+            r.Add(L(WhoMina, "潜ります。……その前に、この身体で何が出来るのか。まだ、なにも、試していませんので。", FMina));
         return r;
     }
 
@@ -278,6 +282,7 @@ public partial class Prologue : Node2D
     // ════════════════════ P4 の演出（中央の Ｘ 通知カード）════════════════════
     // 演出行（WhoFx）の Text がそのままトリガ名。DriveFx がこれで分岐する。
     private const string FxPost1 = "fx:post1", FxPost2 = "fx:post2", FxPost3 = "fx:post3", FxErase = "fx:erase";
+    private const string FxFirstStage = "fx:first_stage";
 
     // 通知カードの中身。アカウントは SnsVoices の表から引く（背景・ハブに並ぶ「他人」と同じ名前と顔）。
     //   1件目=残業のひと（社会人）／2件目=家賃のひと／3件目=「げんきです」のひと＝この後の『たすけて』の主。
@@ -439,6 +444,18 @@ public partial class Prologue : Node2D
             case FxPost2: DriveShowPost(V2, "· 1時間", "家賃振り込んだ 今月もえらい 誰も言ってくれないので自分で言う（定期）", 1, 0, 12, 940); break;
             case FxPost3: DriveShowPost(V3, "· 3分", "げんきです。こっちは、なにも問題ないよ", 0, 0, 2, 61); break;
             case FxErase: DriveErase(); break;
+            case FxFirstStage:
+                if (_toast == null && _fxStep == 0)
+                {
+                    var stage = GameManager.Stages[0];
+                    var job = System.Array.Find(Jobs.All, candidate => candidate.CharacterId == stage.Id)!;
+                    var portrait = GD.Load<Texture2D>($"res://char/player/{stage.Id}/{stage.Id}_spin_v2_00.png");
+                    _toast = PostToast.Show(this, job.CharacterName, stage.Handle, "· 5h", stage.Tweet,
+                        verified: true, replies: 34, reposts: 9, likes: 210, views: 2000, portrait: portrait);
+                    _fxStep = 1;
+                }
+                if (_toast != null && _toast.Gone) NextFx();
+                break;
             default: NextFx(); break;   // 知らないトリガは素通り（台本の書き間違いで進行を止めない）
         }
     }
@@ -662,11 +679,26 @@ public partial class Prologue : Node2D
     public override void _Draw()
     {
         DrawBackdrop();
+        Rect2 device = DeviceViewport();
+        float frame = DeviceProgress();
+        if (frame > 0f)
+        {
+            var visible = device.Intersection(new Rect2(0, 0, W, H));
+            Color shade = new(0.01f, 0.015f, 0.02f, frame * 0.88f);
+            DrawRect(new Rect2(0, 0, visible.Position.X, H), shade);
+            DrawRect(new Rect2(visible.End.X, 0, W - visible.End.X, H), shade);
+            DrawRect(new Rect2(visible.Position.X, 0, visible.Size.X, visible.Position.Y), shade);
+            DrawRect(new Rect2(visible.Position.X, visible.End.Y, visible.Size.X, H - visible.End.Y), shade);
+            UiKit.Box(this, device.Grow(2.5f), Colors.Transparent, 8f, new Color("101318"), 5f);
+            UiKit.Box(this, device.Grow(5f), Colors.Transparent, 8f, new Color(0.65f, 0.7f, 0.75f, frame), 0.8f);
+            UiKit.Box(this, new Rect2(device.GetCenter().X - 12f, device.Position.Y + 2f, 24f, 2f), new Color(0.01f, 0.01f, 0.015f, frame), 1f);
+            UiKit.Box(this, new Rect2(device.GetCenter().X - 16f, device.End.Y - 4f, 32f, 1f), new Color(0.8f, 0.85f, 0.9f, frame), 0.5f);
+        }
 
         switch (_phase)
         {
-            case 0: DrawRain(); break;
-            case 1: DrawIdentity(); break;
+            case 0: DrawRain(device); break;
+            case 1: DrawIdentity(device); break;
             case 2: DrawIgnite(); break;
             case 3: DrawTalkSpeakers(); DrawTalk(); break;
             case 4: DrawTitle(); break;
@@ -681,6 +713,23 @@ public partial class Prologue : Node2D
                 (Pad.ShowKeyboard ? "R" : Pad.Face(JoyButton.Start)) + " 長押しでさいしょから");
             UiKit.EndDesign(this);
         }
+    }
+
+    private float DeviceProgress() => _phase switch
+    {
+        0 => Mathf.SmoothStep(0f, 1f, Mathf.Clamp(((float)_t - 2.3f) / 1.1f, 0f, 1f)),
+        1 => 1f,
+        2 => 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp((float)_t / 1.2f, 0f, 1f)),
+        _ => 0f,
+    };
+
+    private Rect2 DeviceViewport()
+    {
+        float k = DeviceProgress();
+        if (k <= 0f) return new Rect2(0, 0, W, H);
+        float width = Mathf.Lerp(W + 12f, 140f, k);
+        var size = new Vector2(width, width * 192f / 140f);
+        return new Rect2((new Vector2(W, H) - size) / 2f, size);
     }
 
     // 受講確認ダイアログ（既プレイ時）。TitleMenu.DrawDisplayPicker の作り（暗幕＋角丸Box＋↑↓選択＋Z決定/X戻る）を流用。
@@ -715,18 +764,18 @@ public partial class Prologue : Node2D
     }
 
     // --- フェーズ0：コードレイン（上昇）＋ アクロスティックの一瞬フラッシュ ---
-    private void DrawRain()
+    private void DrawRain(Rect2 viewport)
     {
         if (_font == null) return;
         const float lineH = 11f;
         float scroll = (float)_t * 78f;
-        float baseBottom = H - 12f;
+        float baseBottom = Mathf.Min(H, viewport.End.Y) - 12f;
         for (int i = 0; i < _stream.Count; i++)
         {
             float y = baseBottom + i * lineH - scroll;
-            if (y < -lineH || y > H) continue;
+            if (y < Mathf.Max(0f, viewport.Position.Y) + 12f || y > Mathf.Min(H, viewport.End.Y) - 8f) continue;
             float a = 0.85f - Mathf.Clamp((H - y) / H, 0f, 1f) * 0.55f; // 上ほど薄く
-            DrawString(_font, new Vector2(10, y), _stream[i], HorizontalAlignment.Left, -1, 8,
+            DrawString(_font, new Vector2(viewport.Position.X + 10, y), _stream[i], HorizontalAlignment.Left, viewport.Size.X - 20f, 8,
                 new Color(Code.R, Code.G, Code.B, a));
         }
 
@@ -744,12 +793,12 @@ public partial class Prologue : Node2D
     }
 
     // --- フェーズ1：identity は保留のまま（[ M I N A ] は P3 の命名まで点灯しない）---
-    private void DrawIdentity()
+    private void DrawIdentity(Rect2 viewport)
     {
         if (_font == null) return;
         bool blink = ((int)(_t * 3f) % 2) == 0;
-        DrawString(_font, new Vector2(W / 2f - 120f, 100f), "> assigning identity ...",
-            HorizontalAlignment.Left, -1, 9, new Color(Code.R, Code.G, Code.B, 0.7f));
+        DrawString(_font, new Vector2(viewport.Position.X + 10f, 96f), "> assigning identity ...",
+            HorizontalAlignment.Left, viewport.Size.X - 20f, 7, new Color(Code.R, Code.G, Code.B, 0.7f));
         // 保留の一行だけが、答えを待って明滅し続ける。
         if (blink)
             DrawString(_font, new Vector2(W / 2f - 34f, 118f), "[ deferred ]",

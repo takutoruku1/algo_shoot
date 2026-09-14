@@ -36,9 +36,24 @@ public partial class HubJobQa : Node
             GetTree().Root.AddChild(hub);
             GetTree().CurrentScene = hub;
             await Frames(30);
-            Check(Mode(hub) == "Cards", "new game starts on stage selection without a forced job prompt");
-            await Shot("cards");
+            Check(Mode(hub) == "Cards", "new game continues directly into SNS");
             var phone = new Rect2(400, 0, 480, 720);
+            for (int i = 0; i < 3; i++)
+            {
+                Check(phone.Encloses((Rect2)Call(hub, "HomeAppRect", i)!), "app icons stay inside the phone screen");
+                Check((bool)Call(hub, "HomeAppUnlocked", i)! == (i == 0), "new data can open SNS but keeps shop and records locked");
+            }
+            int initialStage = Read<int>(hub, "_sel");
+            var initialFooter = (IList)Call(hub, "FooterItems")!;
+            Check(initialFooter.Count == 2, "home is not offered before the first rescue");
+            await Keypress(Key.X);
+            Check(Mode(hub) == "Cards" && Read<int>(hub, "_sel") == initialStage, "back cannot reveal home before the first rescue");
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(20);
+            await Shot("first_timeline_small");
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(20);
+            await Shot("cards");
             Check(phone.Encloses((Rect2)Call(hub, "HeaderJobRect")!), "character switch stays inside the phone column");
             var initialEntries = Read<IList>(hub, "_entries");
             var feed = new Rect2(400, 128, 480, 518);
@@ -55,9 +70,14 @@ public partial class HubJobQa : Node
                 Check(face.ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png",
                     $"{job.CharacterId} player portrait is available before stage clears");
                 var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
-                Check(UiKit.WrapLines(UiKit.Zen, job.Strength, 14, box.w - 48f).Count <= 2
-                    && UiKit.WrapLines(UiKit.Zen, job.Weakness, 14, box.w - 48f).Count <= 2,
-                    $"{job.CharacterId} descriptions fit the compact character sheet");
+                Check(UiKit.WrapLines(UiKit.Zen, job.Strength, 14, box.w - 102f).Count <= 2
+                    && UiKit.WrapLines(UiKit.Zen, job.Weakness, 14, box.w - 102f).Count <= 2,
+                    $"{job.CharacterId} descriptions fit the compact account sheet");
+                string handle = (string)typeof(Hub).GetMethod("AccountHandle", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
+                string expectedHandle = job.Id == Job.Tank ? "@mina_ai_" : Array.Find(GameManager.Stages, s => s.Id == job.CharacterId)!.Handle;
+                Check(handle == expectedHandle && UiKit.TextW(UiKit.Mono, handle, 11) <= 96f,
+                    $"{job.CharacterId} uses its timeline handle in the compact account button");
+                Check(phone.Encloses(new Rect2(box.x, box.y, box.w, box.h)), "account sheet stays inside the phone column");
             }
             await Frames(20);
             await Shot("types");
@@ -159,6 +179,27 @@ public partial class HubJobQa : Node
             await Keypress(Key.X);
             Check(Mode(hub) == "Cards", "existing card-screen shortcut still returns to cards");
 
+            foreach (var job in Jobs.All)
+            {
+                int index = Array.FindIndex(Jobs.All, entry => entry.Id == job.Id);
+                Click(hub, (Rect2)Call(hub, "HeaderJobRect")!, "ProcessCards");
+                await Frames(20);
+                Click(hub, (Rect2)Call(hub, "JobHitRect", index)!, "ProcessJob", 0.01);
+                Check(Mode(hub) == "Cards" && game.JobDef.CharacterId == job.CharacterId,
+                    $"{job.CharacterId} becomes the active timeline account");
+                Check(Read<string>(hub, "_toast") == "アカウントを切り替えました"
+                    && Read<string>(hub, "_toastSub").Contains(job.CharacterName), "account switch notification names the new user");
+                Write(hub, "_toastT", 0d);
+                await Frames(20);
+                await Shot($"account_{job.CharacterId}");
+                Click(hub, (Rect2)Call(hub, "HeaderJobRect")!, "ProcessCards");
+                await Frames(20);
+                Click(hub, (Rect2)Call(hub, "JobHitRect", index)!, "ProcessJob", 0.01);
+                Check(Mode(hub) == "Cards" && Read<double>(hub, "_toastT") == 0d,
+                    "choosing the active account returns without another switch notification");
+                await Frames(3);
+            }
+
             var cleared = Read<HashSet<string>>(game, "_cleared");
             foreach (var item in GameManager.Stages) cleared.Add(item.Id);
             Call(hub, "BuildEntries");
@@ -206,6 +247,68 @@ public partial class HubJobQa : Node
             Check(GetTree().CurrentScene is MinaRoot, "primary dive button enters the selected stage");
             GetTree().CurrentScene.QueueFree();
             await Frames(5);
+            hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+            GetTree().Root.AddChild(hub);
+            GetTree().CurrentScene = hub;
+            await Frames(30);
+            Check(Mode(hub) == "Home", "returning to the hub lands on home without a random conversation");
+            Write(hub, "_idleTalkPending", false);
+            Click(hub, (Rect2)Call(hub, "HomeAppRect", 0)!, "ProcessHome");
+            var unlockedFooter = (IList)Call(hub, "FooterItems")!;
+            Click(hub, (Rect2)Call(hub, "FooterItemRect", unlockedFooter.Count - 1)!, "ProcessCards");
+            Check(Mode(hub) == "Home", "home navigation is available after rescue");
+            for (int i = 0; i < 3; i++) Check((bool)Call(hub, "HomeAppUnlocked", i)!, "cleared stages unlock all existing apps");
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(20);
+            await Shot("home_unlocked");
+            DisplayServer.WindowSetSize(new Vector2I(1920, 1080));
+            await Frames(20);
+            await Shot("home_wide");
+            Click(hub, (Rect2)Call(hub, "HomeAppRect", 1)!, "ProcessHome");
+            await Frames(20);
+            Check(GetTree().CurrentScene is Shop && game.SelectedJob == Job.Magic, "shop app opens with the active SNS account");
+            Call(GetTree().CurrentScene, "ExitShop");
+            await Frames(180);
+            Check(GetTree().CurrentScene is Hub && Mode((Hub)GetTree().CurrentScene) == "Home", "closing the shop returns home");
+            hub = (Hub)GetTree().CurrentScene;
+            await KeyAction("ui_right");
+            await KeyAction("ui_right");
+            await Keypress(Key.Z);
+            Check(GetTree().CurrentScene is Records, "keyboard navigation opens the records app");
+            await Keypress(Key.X);
+            Check(GetTree().CurrentScene is Hub && Mode((Hub)GetTree().CurrentScene) == "Home", "records also returns home");
+            GetTree().CurrentScene.QueueFree();
+            await Frames(5);
+            game.ResetPersistent();
+            Read<HashSet<string>>(game, "_cleared").Add(GameManager.FirstStageId);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            for (int visit = 0; visit < 2; visit++)
+            {
+                game.JustClearedStageId = GameManager.FirstStageId;
+                hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+                GetTree().Root.AddChild(hub);
+                GetTree().CurrentScene = hub;
+                await Frames(10);
+                Check(Mode(hub) == "Dialogue", "rescue conversation precedes the home screen");
+                Call(hub, "EndDialogue");
+                if (visit == 0)
+                {
+                    Check(Mode(hub) == "HomeReveal" && Read<Texture2D>(hub, "_homeSnapshot").GetWidth() > 0, "first return captures SNS for the home reveal");
+                    await Frames(26);
+                    await Shot("home_first_reveal");
+                    await Frames(70);
+                    await Shot("home_shop_activation");
+                    await Frames(60);
+                }
+                Check(Mode(hub) == "Home", "home reveal completes and does not repeat on replay");
+                Check(game.IsIdleDialogSeen("once_phone_home"), "home reveal completion is remembered");
+                game.ResetIdleDialogSeen();
+                Check(game.IsIdleDialogSeen("once_phone_home"), "small-talk resets do not repeat the reveal");
+                Check(game.LoadFromSlot(0) && game.IsIdleDialogSeen("once_phone_home"), "home reveal completion survives save loading");
+                if (visit == 0) await Shot("home_first_rescue");
+                hub.QueueFree();
+                await Frames(5);
+            }
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer player)

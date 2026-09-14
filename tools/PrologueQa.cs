@@ -29,6 +29,7 @@ public partial class PrologueQa : Node
 
             for (int route = 0; route < 3; route++)
             {
+                GetNode<GameManager>("/root/Game").ResetPersistent();
                 var pro = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
                 GetTree().Root.AddChild(pro);
                 GetTree().CurrentScene = pro;
@@ -45,6 +46,11 @@ public partial class PrologueQa : Node
                     await WaitUntil(() => Read<int>(pro, "_phase") == 1);
                     await Frames(10);
                     await Shot("identity", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                    await Frames(15);
+                    await Shot("identity_small", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                    await Frames(15);
                     await WaitUntil(() => Read<int>(pro, "_phase") == 2);
                     await Frames(35);
                     Check(Read<float>(pro, "_backdropMix") is > 0.3f and < 0.8f, "awakening crossfades during ignition");
@@ -103,8 +109,20 @@ public partial class PrologueQa : Node
                 Check(Read<float>(pro, "_choiceShade") == 0f, "background brightness returns after choosing");
                 if (route == 0) await Shot("unsent_reply_small", pro);
                 Check(Read<float>(pro, "_backdropMix") == 1f, "dialogue and choices do not restart the fade");
+                await AdvanceUntil(() => Read<PostToast?>(pro, "_toast") is PostToast toast
+                    && Read<string>(toast, "_handle") == GameManager.Stages[0].Handle);
+                var firstPost = Read<PostToast>(pro, "_toast");
+                Check(Read<string>(firstPost, "_body") == GameManager.Stages[0].Tweet, "opening shows the first stage's actual SNS post");
+                Check(Read<Texture2D>(firstPost, "_iconTex").ResourcePath.Contains("/player/akari/"), "first stage post uses Akari's portrait");
+                if (route == 0) await Shot("first_stage_post");
                 await AdvanceUntil(() => !IsInstanceValid(pro));
                 Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", $"route {route} reaches the hub");
+                var hub = (Hub)GetTree().CurrentScene;
+                Check(Read<object>(hub, "_mode").ToString() == "Cards", "opening continues into SNS instead of home");
+                var entries = Read<System.Collections.IList>(hub, "_entries");
+                var selected = entries[Read<int>(hub, "_sel")]!;
+                Check((string)selected.GetType().GetField("Id")!.GetValue(selected)! == GameManager.FirstStageId,
+                    "SNS keeps the first stage post selected");
                 GetTree().CurrentScene.QueueFree();
                 await Frames(2);
                 DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -112,7 +130,8 @@ public partial class PrologueQa : Node
             }
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
-                if (child is AudioStreamPlayer player) player.Stop();
+                if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+            await Task.Delay(250);
             await Frames(5);
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -171,6 +190,15 @@ public partial class PrologueQa : Node
         using var image = GetViewport().GetTexture().GetImage();
         Check(image.SavePng($"{_out}/{name}.png") == Error.Ok, $"screenshot {name}");
         if (pro == null) return;
+        float deviceProgress = (float)typeof(Prologue).GetMethod("DeviceProgress", Private)!.Invoke(pro, null)!;
+        if (deviceProgress > 0f)
+        {
+            var device = (Rect2)typeof(Prologue).GetMethod("DeviceViewport", Private)!.Invoke(pro, null)!;
+            Check(new Rect2(0, 0, 384, 216).Intersects(device) && device.Size.X < 384f, "opening pulls back to a visible device frame");
+            Check(Mathf.Abs(device.Size.X / device.Size.Y - 140f / 192f) < 0.001f, "device keeps its portrait proportions while zooming");
+            if (Read<int>(pro, "_phase") == 1) Check(new Rect2(0, 0, 384, 216).Encloses(device), "resting device fits the viewport");
+            return;
+        }
         var backgrounds = Read<Texture2D[]>(pro, "_backgrounds");
         int index = Read<int>(pro, "_backdrop"), previous = Read<int>(pro, "_previousBackdrop");
         using var reference = backgrounds[index].GetImage();

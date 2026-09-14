@@ -572,7 +572,7 @@ public partial class Shop : Node2D
         bool hov = UiKit.Hotspot(_backBtnRect, HsBack);
         UiKit.Box(this, _backBtnRect, new Color(1f, 1f, 1f, hov ? 0.10f : 0.04f), 10f, new Color(UiKit.Text3, hov ? 0.8f : 0.3f), 1f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(_backBtnRect.Position.X, FooterY + 9f),
-                   $"{Pad.CancelToken}  もどる", UiKit.FontLabel, hov ? UiKit.White : UiKit.Text3,
+                   $"{Pad.CancelToken}  {(string.IsNullOrEmpty(_game.PendingResumeScene) ? "ホーム" : "もどる")}", UiKit.FontLabel, hov ? UiKit.White : UiKit.Text3,
                    HorizontalAlignment.Center, _backBtnRect.Size.X);
 
         UiKit.Text(this, UiKit.Zen, new Vector2(ColX + 200f, FooterY + 10f),
