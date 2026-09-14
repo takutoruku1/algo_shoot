@@ -6,14 +6,14 @@
 | レバー | 主なファイル | 代表的な値・場所 |
 |---|---|---|
 | 自機の手触り（移動） | `src/Player.cs` | `NormalSpeed=150` / `FocusSpeed=65`（低速）/ `MoveSpeedMul` |
-| 自機の手触り（射撃） | `src/Player.cs` | `FireInterval=0.11` / `ShotDamageBonus` / 弾筋数 `lines` |
+| 自機の手触り（射撃） | `src/Player.cs` | `FireInterval=0.13` / `ShotDamageBonus` / 弾筋数 `lines` |
 | 当たり・かすり（リスクリターンの核） | `src/Player.cs` | `HitRadius=2` / `GrazeRadius=11` / `InvincibleDuration=1.2` |
 | 救済（残機・無敵） | `src/Player.cs` | `Lives=3` / 被弾後無敵 |
 | 仲間（救出の報酬曲線） | `src/Player.cs` | `MaxFollowers=4` / `SavedPerFollower=3`（救うほど増える）|
 | 特殊（ボム的リソース） | `src/Player.cs` | `SpecialCdMax=7` |
 | 撃破・被弾の手応え（快感） | `src/Player.cs` / `src/fx/` / `src/Ripple.cs` / `src/Enemy.cs` | ヒットストップ / `FxLayer` ダメージ数字 / 発光 |
 | 弾の見た目・視認性 | `src/Bullet.cs` | `BulletShape`（Orb/Diamond/Star/Ring/Needle/Rice）/ `Radius` / `HomingTurnRate=150`(deg/s) |
-| 道中の密度・テンポ | `src/Spawner.cs` | `RampDur=60`（最大密度まで）/ `IntervalStart=2.0`→`IntervalEnd=0.9` / `MaxAlive=9` |
+| 道中の密度・テンポ | `src/Spawner.cs` | `RampDur=28`（最大密度まで。60→28へ意図的に短縮済み）/ `IntervalStart=2.0`→`IntervalEnd=0.8` / `MaxAlive=10` |
 | 敵・ボスの弾幕 | `src/Enemy.cs` / `src/BossRei.cs` 等 | `EnemyBulletSpeed=90` / `SpinSpeed` / パネル発射 / スペルカード |
 | ボスHP（バー本数は難易度で変動） | `src/GameManager.cs` | `DiffBarBonus`: 通常ボスEasy2/Normal4/Hard5/Lunatic6本、ラスボス格は+2本。1本=BarHp固定、**本数の調整は弾数調整とは別軸の「殴る回数」調整として意図的** |
 | 難易度カーブ | `src/GameManager.cs` | `BulletCountMul` / `BulletSpeedMul` / `DanmakuIntervalMul` / `StartLives` / `StartBombs`（Diff別）|

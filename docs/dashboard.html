@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 231 / 対象 232 タスク<br>保留 33 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 232 / 対象 232 タスク<br>保留 33 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">231</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">232</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">33</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-none">—</span>
-          <span class="task-title">sakurai skillのdesign-map.mdの<code>FireInterval</code>と<code>Spawner</code>密度3値が実装値からズレている</span>
-          <span class="worker">game-designer</span>
-        </div>
-        <p class="accept">2026-09-14監査(game-designer)。<code>.claude/skills/sakurai/references/design-map.md:9</code>の<code>FireInterval=0.11</code>は実装<code>src/Player.cs:16</code>の<code>0.13f</code>と不一致。同<code>:16</code>の<code>RampDur=60/IntervalEnd=0.9/MaxAlive=9</code>も実装<code>src/Spawner.cs:20-23</code>の<code>RampDur=28f</code>（コメントで60→28へ意図的短縮済みと明記）/<code>IntervalEnd=0.8f</code>/<code>MaxAlive=10</code>と不一致（2026-09-11に同ファイルの<code>HomingTurnRate</code>等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: <code>design-map.md</code>の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">sakurai skillのdesign-map.mdの<code>FireInterval</code>と<code>Spawner</code>密度3値が実装値からズレている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-09-14) 2026-09-14監査(game-designer)発見。<code>.claude/skills/sakurai/references/design-map.md</code>の<code>FireInterval=0.11</code>→<code>0.13</code>（<code>src/Player.cs:16</code>に一致）、<code>RampDur=60/IntervalEnd=0.9/MaxAlive=9</code>→<code>RampDur=28（60→28へ意図的短縮済み）/IntervalEnd=0.8/MaxAlive=10</code>（<code>src/Spawner.cs:20-23</code>に一致）へ修正。コード変更なし、参照ドキュメントのみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2281,18 +2281,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">17af48b</span><span>2026-09-14</span><span class="s">auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する</span></li>
+      <li><span class="h">b09ebd5</span><span>2026-09-14</span><span class="s">auto: LUNATIC解禁UIのshot_power_4残存表記を修正</span></li>
       <li><span class="h">0a20987</span><span>2026-09-14</span><span class="s">auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する</span></li>
       <li><span class="h">ff1c1f9</span><span>2026-09-14</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">df56713</span><span>2026-09-13</span><span class="s">auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正</span></li>
       <li><span class="h">a20eae4</span><span>2026-09-13</span><span class="s">auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する</span></li>
       <li><span class="h">1ee77cd</span><span>2026-09-13</span><span class="s">auto: 監査で TODO 1件・BLOCKED 3件をキューに追加</span></li>
       <li><span class="h">76ad327</span><span>2026-09-12</span><span class="s">auto: Hud.csのティッカー語彙コメントの数値表記を修正</span></li>
-      <li><span class="h">19e8e4a</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する</span></li>
-      <li><span class="h">5b272fb</span><span>2026-09-12</span><span class="s">auto: StageZeroのSpawnDummy(harmless)死にコードを整理</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-14 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-14 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

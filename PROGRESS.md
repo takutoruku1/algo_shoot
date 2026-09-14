@@ -1,19 +1,19 @@
 # PROGRESS — 自動開発の進捗
 
 > `node tools/progress.mjs` が `DEV_QUEUE.md` から自動生成。手で編集しない。
-> 生成: 2026-09-14 18:28 UTC
+> 生成: 2026-09-14 18:29 UTC
 
 ## 消化率
 
 ```
-████████████████████  100%   (完了 231 / 対象 232)
+████████████████████  100%   (完了 232 / 対象 232)
 ```
 
 | 状態 | 件数 |
 |---|---:|
-| ✅ 完了 | 231 |
+| ✅ 完了 | 232 |
 | 🔨 作業中 | 0 |
-| 📋 残り | 1 |
+| 📋 残り | 0 |
 | ⛔ 保留（人間の判断待ち） | 33 |
 
 ## 🔨 いま作業中
@@ -22,7 +22,7 @@ _なし_
 
 ## 📋 次にやること
 
-- sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている
+_キューが空です_
 
 ## ⛔ 保留（自動では進められない）
 
@@ -62,6 +62,7 @@ _なし_
 
 ## ✅ 完了
 
+- `P3` sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている
 - `P1` ショップのLUNATIC解禁UIが「威力Lv4」を指したまま
 - `P2` Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま
 - `P3` Hud.csのティッカー語彙コメントの数値表記を実配列に合わせて修正する
@@ -296,11 +297,11 @@ _なし_
 
 ## 直近のコミット
 
+- `17af48b` 2026-09-14 auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する
+- `b09ebd5` 2026-09-14 auto: LUNATIC解禁UIのshot_power_4残存表記を修正
 - `0a20987` 2026-09-14 auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する
 - `ff1c1f9` 2026-09-14 auto: 監査で TODO 2件・BLOCKED 1件をキューに追加
 - `df56713` 2026-09-13 auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正
 - `a20eae4` 2026-09-13 auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する
 - `1ee77cd` 2026-09-13 auto: 監査で TODO 1件・BLOCKED 3件をキューに追加
 - `76ad327` 2026-09-12 auto: Hud.csのティッカー語彙コメントの数値表記を修正
-- `19e8e4a` 2026-09-12 auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する
-- `5b272fb` 2026-09-12 auto: StageZeroのSpawnDummy(harmless)死にコードを整理

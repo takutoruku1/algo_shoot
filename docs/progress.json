@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-14 18:28 UTC",
+  "generated": "2026-09-14 18:29 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 33,
-    "done": 231
+    "done": 232
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": null,
-      "title": "sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている",
-      "worker": "game-designer",
-      "accept": "2026-09-14監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:9`の`FireInterval=0.11`は実装`src/Player.cs:16`の`0.13f`と不一致。同`:16`の`RampDur=60/IntervalEnd=0.9/MaxAlive=9`も実装`src/Spawner.cs:20-23`の`RampDur=28f`（コメントで60→28へ意図的短縮済みと明記）/`IntervalEnd=0.8f`/`MaxAlive=10`と不一致（2026-09-11に同ファイルの`HomingTurnRate`等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: `design-map.md`の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -217,6 +210,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-14) 2026-09-14監査(game-designer)発見。`.claude/skills/sakurai/references/design-map.md`の`FireInterval=0.11`→`0.13`（`src/Player.cs:16`に一致）、`RampDur=60/IntervalEnd=0.9/MaxAlive=9`→`RampDur=28（60→28へ意図的短縮済み）/IntervalEnd=0.8/MaxAlive=10`（`src/Spawner.cs:20-23`に一致）へ修正。コード変更なし、参照ドキュメントのみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P1",
       "title": "ショップのLUNATIC解禁UIが「威力Lv4」を指したまま",
@@ -1606,6 +1605,16 @@
   ],
   "commits": [
     {
+      "hash": "17af48b",
+      "date": "2026-09-14",
+      "subject": "auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する"
+    },
+    {
+      "hash": "b09ebd5",
+      "date": "2026-09-14",
+      "subject": "auto: LUNATIC解禁UIのshot_power_4残存表記を修正"
+    },
+    {
       "hash": "0a20987",
       "date": "2026-09-14",
       "subject": "auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する"
@@ -1634,16 +1643,6 @@
       "hash": "76ad327",
       "date": "2026-09-12",
       "subject": "auto: Hud.csのティッカー語彙コメントの数値表記を修正"
-    },
-    {
-      "hash": "19e8e4a",
-      "date": "2026-09-12",
-      "subject": "auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する"
-    },
-    {
-      "hash": "5b272fb",
-      "date": "2026-09-12",
-      "subject": "auto: StageZeroのSpawnDummy(harmless)死にコードを整理"
     }
   ]
 }
