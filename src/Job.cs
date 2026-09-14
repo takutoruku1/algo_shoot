@@ -24,6 +24,9 @@ public sealed class JobTuning
 {
     public Job Id;
     public string Name = "";                 // 画面表記（名詞形）
+    public string CharacterId = "";
+    public string CharacterName = "";
+    public string PlayerTexturePath = "";
     public string TypeName = "";             // タイプ（近接／回復／耐久／魔法）
     public string Strength = "";             // 得意（選択画面の1行）
     public string Weakness = "";             // 捨てる（選択画面の1行）
@@ -70,6 +73,7 @@ public static class Jobs
         new()
         {
             Id = Job.Tank, Name = "結び手", TypeName = "耐久", Mode = GameManager.ShotMode.Rapid,
+            CharacterId = "mina", CharacterName = "ミナ", PlayerTexturePath = "res://char/player/mina/mina_idle_v2.png",
             Strength = "被弾しても止まらない。最大♥ +2／無敵1.8秒／のけぞらない",
             Weakness = "機動力。移動 ×0.88／回避距離 ×0.9",
             MaxLifeDelta = +2,
@@ -83,6 +87,7 @@ public static class Jobs
         new()
         {
             Id = Job.Melee, Name = "灯し手", TypeName = "近接", Mode = GameManager.ShotMode.Accel,
+            CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             Strength = "密着すると一撃が2倍（上限8）。近いほど回避が速く戻る",
             Weakness = "安全な距離。最大♥ −1",
             MaxLifeDelta = -1,
@@ -95,6 +100,7 @@ public static class Jobs
         new()
         {
             Id = Job.Heal, Name = "祈り手", TypeName = "回復", Mode = GameManager.ShotMode.Homing,
+            CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
             Strength = "雑魚24体の浄化ごとに♥+1／BREAK ごとに BOMB+1／帳を常時持つ",
             Weakness = "一発の重さ。4ジョブで最も遅い（威力 ×0.8）",
             // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
@@ -112,6 +118,7 @@ public static class Jobs
         new()
         {
             Id = Job.Magic, Name = "語り手", TypeName = "魔法", Mode = GameManager.ShotMode.Spread,
+            CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             Strength = "面を取る。120pxより遠くから当てた弾は威力 ×1.3",
             Weakness = "至近戦。密着クリ無効／回避クールダウン ×1.15",
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）

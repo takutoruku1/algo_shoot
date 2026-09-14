@@ -1,7 +1,7 @@
 using Godot;
 
 // MinaRoot : FINAL「穢れたわたし」のルート（MinaBattle.tscn にアタッチ）。
-// ミナの内側＝穢れに沈んだ暗い心象世界。自機（素の光）/Hud/StageMina を生成。
+// ミナの内側＝穢れに沈んだ暗い心象世界。自機/Hud/StageMina を生成。
 public partial class MinaRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -30,8 +30,7 @@ public partial class MinaRoot : Node2D
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new MurkVignette { Name = "MurkVignette" }); // FINAL=汚染頂点：端から寄る濁りビネット（弾より奥・中央は抜け）
 
-        // FINAL controls the operator's transmission, not a second Mina body.
-        Player = new Player { Name = "Player", Skin = "operator" };
+        Player = new Player { Name = "Player" };
         World.AddChild(Player);
         Player.GlobalPosition = new Vector2(Field.Left + 60f, 108f); // 盤面の左端から60px（サイドパネル裏に湧かない）
         Player.SetCorruption(0f);

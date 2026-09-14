@@ -77,6 +77,7 @@ public partial class Hub : Node2D
 
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _playerFaces = new();
     private Texture2D? _minaFace;
     // 埋め草アカウントのアイコン（添字＝SnsVoices の Icon 番号。1..IconCount。[0] は未使用）。
     private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
@@ -109,6 +110,7 @@ public partial class Hub : Node2D
     private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
     private double _jobT;         // ジョブ選択を開いてからの経過（展開アニメと入力ゲート。_detailT と同じ役）
     private int _jobSel;          // ジョブ選択のカーソル（開いたときに現在のジョブへ置く）
+    private Mode _jobReturnMode = Mode.Cards;
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
@@ -580,6 +582,8 @@ public partial class Hub : Node2D
     //   ミナだけは v3 の描き直しが無く char/mina_face.png が全編の基準なので、そのまま使う。
     private void LoadFaces()
     {
+        foreach (var job in Jobs.All)
+            _playerFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png");
         _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
         foreach (var e in _entries)
         {
@@ -803,7 +807,15 @@ public partial class Hub : Node2D
     //   寸法は DrawDetail と同じ式をここに写して共有する（cw/ch/cx/cy、潜り方の ty/th/tg、フッタの y）。
     //   展開アニメの浮き（(1-k)*24）は無視して確定位置で判定＝開いた直後でもクリック位置が動かない。
     //   ホットスポット id は カード id と衝突しないよう TierIdBase / DetailCloseId の帯を使う。
-    private const int TierIdBase = 20000, DetailCloseId = 20900;
+    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901;
+
+    private static Rect2 HeaderJobRect() => new(540f, 30f, 184f, 42f);
+
+    private Rect2 DetailJobRect(bool tiers)
+    {
+        var (cx, cy, cw, ch) = DetailBox(tiers);
+        return new Rect2(cx + cw - 224f, cy + ch - 42f, 184f, 34f);
+    }
 
     private (float cx, float cy, float cw, float ch) DetailBox(bool tiers)
     {
@@ -857,10 +869,16 @@ public partial class Hub : Node2D
         var footItems = FooterItems();
         for (int i = 0; i < footItems.Count; i++)
             if (footItems[i].act != FootAct.None) UiKit.Hotspot(FooterItemRect(i), FooterIdBase + i);
+        UiKit.Hotspot(HeaderJobRect(), JobOpenId);
         int hov = UiKit.HoveredId();
         // ホバー追従はカード側のみ（フッタはボタン＝ホバーで選択を動かさない。下敷きは DrawFooter が hov で描く）。
         if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
         int clk = UiKit.ClickedId(Pad.MouseClick());
+        if (clk == JobOpenId && _t > 0.3)
+        {
+            OpenJob();
+            return;
+        }
         // フッタボタンのクリック → 対応アクション（強化=ショップ入口が主目的。返信/記録も同じ導線）。
         if (clk >= FooterIdBase)
         {
@@ -975,6 +993,7 @@ public partial class Hub : Node2D
         UiKit.BeginHotspots(Pad.MousePos());
         if (tiers) for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierHitRect(i), TierIdBase + i);
         UiKit.Hotspot(DetailCloseRect(tiers), DetailCloseId);
+        UiKit.Hotspot(DetailJobRect(tiers), JobOpenId);
         int dhov = UiKit.HoveredId();
         if (Pad.UsingMouse && dhov >= TierIdBase && dhov < TierIdBase + Tiers.Length)
         {
@@ -982,6 +1001,13 @@ public partial class Hub : Node2D
             if (TierOpen(hi) && hi != _tierSel) { _tierSel = hi; Audio.Instance?.PlayUiMove(); }
         }
         int dclk = UiKit.ClickedId(Pad.MouseClick());
+        bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);
+        bool jEdge = jk && !_jHeld; _jHeld = jk;
+        if ((dclk == JobOpenId || jEdge) && _detailT > 0.15)
+        {
+            OpenJob();
+            return;
+        }
 
         if (tiers)
         {
@@ -1118,13 +1144,14 @@ public partial class Hub : Node2D
         {
             var jd = _game?.JobDef ?? Jobs.Get(Job.Tank);
             float jx = padX + 70 + hW + 8 + UiKit.TextW(UiKit.Mono, "· now", UiKit.FontLabel) + 14f;
-            string js = $"{jd.Name}・{ShotWord(jd.Mode)}";
+            string js = $"{jd.CharacterName}・{jd.Name}";
             float jw = UiKit.TextW(UiKit.Zen, js, UiKit.FontSmall) + 22f;
             var jc = JobColor(jd.Id);
             UiKit.Box(this, new Rect2(jx, hy + 32f, jw, 20f), new Color(jc, 0.12f), 10f, new Color(jc, 0.42f), 1f);
             DrawCircle(new Vector2(jx + 10f, hy + 42f), 3.5f, new Color(jc, 0.95f));
             UiKit.Text(this, UiKit.Zen, new Vector2(jx + 18f, hy + 35f), js, UiKit.FontSmall, new Color(jc, 0.95f));
         }
+        if (_mode == Mode.Cards) DrawJobButton(HeaderJobRect());
 
         long fol = _game?.Followers ?? 0, imp = _game?.Impression ?? 0;
         string folS = UiKit.Abbrev(fol), impS = UiKit.Abbrev(imp);
@@ -1776,6 +1803,24 @@ public partial class Hub : Node2D
         fx = Hint(fx, fy, Pad.ConfirmToken, "潜る", true);
         Hint(fx, fy, Pad.ShowKeyboard ? "X" : Pad.Face(JoyButton.B), "とじる", false,
             UiKit.HoveredId() == DetailCloseId);
+        var jobRect = DetailJobRect(tiers);
+        jobRect.Position += new Vector2(0, (1f - k) * 24f);
+        var jd = _game.JobDef;
+        UiKit.Text(this, UiKit.Zen, new Vector2(jobRect.Position.X - 240f, jobRect.Position.Y + 8f),
+            $"{jd.CharacterName}・{jd.Name}", UiKit.FontLabel, new Color(JobColor(jd.Id), a),
+            HorizontalAlignment.Right, 224f);
+        DrawJobButton(jobRect, a);
+    }
+
+    private void DrawJobButton(Rect2 rect, float alpha = 1f)
+    {
+        bool hovered = UiKit.HoveredId() == JobOpenId;
+        UiKit.Box(this, rect, new Color(UiKit.Purify, (hovered ? 0.22f : 0.12f) * alpha), 8f,
+            new Color(UiKit.Info, (hovered ? 0.9f : 0.55f) * alpha), 1.5f);
+        UiKit.Key(this, rect.Position + new Vector2(12f, (rect.Size.Y - 24f) * 0.5f), JobKeyToken,
+            new Color(UiKit.Purify, 0.12f * alpha), new Color(UiKit.Info, 0.5f * alpha), new Color(UiKit.PurifyHi, alpha));
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(56f, rect.Size.Y * 0.5f - 9f), "タイプ変更",
+            UiKit.FontLabel, new Color(UiKit.White, alpha));
     }
 
     // 潜り方の1段。名前／ミナの一言（DiffSelect の Quip）／♥ボム／板の枚数（ボスHPバー本数）。
@@ -1901,6 +1946,7 @@ public partial class Hub : Node2D
     {
         if (_dived) return;
         Audio.Instance?.PlayUiConfirm();
+        _jobReturnMode = _mode == Mode.Detail ? Mode.Detail : Mode.Cards;
         _mode = Mode.Job;
         _jobT = 0;
         // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
@@ -1936,7 +1982,7 @@ public partial class Hub : Node2D
         // マウス：「とじる」クリック＝X と同じ。ここで消費して確定側へ流さない。
         if (clk == JobCloseId && _jobT > 0.15)
         {
-            Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; _xHeld = true;
+            Audio.Instance?.PlayUiCancel(); _mode = _jobReturnMode; _xHeld = true;
             return;
         }
 
@@ -1955,7 +2001,7 @@ public partial class Hub : Node2D
                 if (_game.JobForcedByCmdline)
                 {
                     Toast("ジョブは --job= で固定中", $"いまのジョブ：{_game.JobDef.Name}", UiKit.Info);
-                    _mode = Mode.Cards; _xHeld = true;
+                    _mode = _jobReturnMode; _xHeld = true;
                     return;
                 }
                 _game.SelectedJob = jd.Id;
@@ -1963,15 +2009,15 @@ public partial class Hub : Node2D
                 _game.AutoSave();   // セーブ経路は既存の SelectedJob のまま（新フォーマットは増やさない）
             }
             // トーストは既存の型（1行目＝世界の言葉／2行目＝数値・仕様）で出す。
-            Toast($"今日は{jd.Name}で潜る", $"{jd.TypeName}・撃ち方 {ShotWord(jd.Mode)}", JobColor(jd.Id));
-            _mode = Mode.Cards; _xHeld = true;
+            Toast($"{jd.CharacterName}で潜る", $"{jd.Name}・{jd.TypeName}・{ShotWord(jd.Mode)}", JobColor(jd.Id));
+            _mode = _jobReturnMode; _xHeld = true;
             return;
         }
 
         // もどる＝X／パッドB（Esc はポーズメニュー専用。ProcessDetail 側と同じ理由）。
         bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
-        if (backEdge && _jobT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
+        if (backEdge && _jobT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = _jobReturnMode; }
     }
 
     private void DrawJob()
@@ -1990,7 +2036,7 @@ public partial class Hub : Node2D
 
         float a = k;
         // ── 見出し ──
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 28f), "ジョブ", UiKit.FontTitle, new Color(UiKit.White, a));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 28f), "キャラクター / ジョブ", UiKit.FontTitle, new Color(UiKit.White, a));
         // 「そのランは変えられない」を一行で言う（設計書 §6／§8）。潜る前に決める、の説明はこれだけで足りる。
         UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 66f),
             "潜るまでに決める。潜っているあいだは、変えられない。", UiKit.FontLabel, new Color(UiKit.Text3, a));
@@ -2023,17 +2069,14 @@ public partial class Hub : Node2D
             UiKit.Box(this, new Rect2(x, y, w, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.5f * alpha), 12f,
                 new Color(now ? acc : UiKit.White, (now ? 0.34f : 0.09f) * alpha), 1f);
 
-        float tx = x + 18f;
-        if (sel) { UiKit.Text(this, UiKit.Mono, new Vector2(tx, y + 13f), "▸", UiKit.FontBody, new Color(acc, alpha)); tx += 20f; }
-        // 現在の選択マーク（●）。カーソルが別の段にあっても「今はこれ」が読める。
-        if (now)
-        {
-            DrawCircle(new Vector2(tx + 5f, y + 23f), 5f, new Color(acc, 0.95f * alpha));
-            tx += 18f;
-        }
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), jd.Name, UiKit.FontSpeaker,
+        var face = _playerFaces[jd.CharacterId];
+        UiKit.FaceAvatar(this, new Vector2(x + 44f, y + h / 2f), 28f, face, acc, sel,
+            0f, alpha, _t);
+        float tx = x + 88f;
+        string title = $"{jd.CharacterName} / {jd.Name}";
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 11f), title, UiKit.FontSpeaker,
             new Color(sel ? UiKit.White : UiKit.Text2, alpha));
-        float nw = UiKit.TextW(UiKit.ZenBold, jd.Name, UiKit.FontSpeaker);
+        float nw = UiKit.TextW(UiKit.ZenBold, title, UiKit.FontSpeaker);
         // タイプ・撃ち方（1語ずつ）。名前の右に小さく添える。
         UiKit.Text(this, UiKit.Mono, new Vector2(tx + nw + 14f, y + 15f), $"{jd.TypeName} / {ShotWord(jd.Mode)}",
             UiKit.FontSmall, new Color(acc, 0.9f * alpha));
@@ -2041,10 +2084,10 @@ public partial class Hub : Node2D
         // 得意・捨てる を1行ずつ（設計書 §2 の表＝Job.cs の文字列そのまま）。
         //   本文の開始 x は「捨てる」（長いほう）の実幅から取る＝2行のラベルと本文が縦に揃い、
         //   字数の違う語がぶつからない（"得意" だけで固定幅を決めると "捨てる" が本文に食い込む）。
-        float lx = x + 18f;
+        float lx = tx;
         float labelW = Mathf.Max(UiKit.TextW(UiKit.Zen, "得意", UiKit.FontSmall),
                                  UiKit.TextW(UiKit.Zen, "捨てる", UiKit.FontSmall)) + 10f;
-        float bx = lx + labelW, bw = w - 36f - labelW;
+        float bx = lx + labelW, bw = x + w - 18f - bx;
         UiKit.Text(this, UiKit.Zen, new Vector2(lx, y + 38f), "得意", UiKit.FontSmall, new Color(UiKit.Ok, alpha));
         UiKit.Text(this, UiKit.Zen, new Vector2(bx, y + 37f), jd.Strength, UiKit.FontLabel,
             new Color(sel ? UiKit.Text2 : UiKit.Text3, alpha), HorizontalAlignment.Left, bw);

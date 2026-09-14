@@ -136,8 +136,7 @@ public partial class Player : Area2D
     // 残機
     public int Lives { get; private set; } = 3;
 
-    // 自機の見た目スキン（"mina"=銀髪メイド / "boy"=少年）。AddChild 前にセットする。
-    public string Skin = "mina";
+    public string CharacterId { get; private set; } = "mina";
 
     // 無敵・点滅
     private bool _invincible = false;
@@ -279,15 +278,7 @@ public partial class Player : Area2D
     public Vector2 ShotDir => AimVec;
     public float ShotAngle => LockedOn ? AimVec.Angle() : (_facing >= 0 ? 0f : Mathf.Pi);
 
-    // ── 照準方向の絵（char/v3/mina_aim/mina_aim_<方向>.png）──
-    //   角度から使う絵を引くのはここ1本だけ＝絵が増えても差し替えはこの表だけで済む。
-    //   素材は右半分ぶんだけ（r / ur / u / dr / d）。左半分は**左右反転で作る**（絵の担当の確認済み。
-    //   ミナの意匠は左右対称＝エプロンは中央・髪飾りは片側だけではないので、反転しても別人にならない）。
-    //   以前はここで左向きの角度を真上／真下へ丸めていたため、ボスが左に居ると「上や下を向いたまま
-    //   左へ撃つ」画になっていた。八方位ぶん素直に引き当てて、左半分は flip=true で返す。
-    //   角度は Godot 準拠（0=右・**負=上**・正=下。画面の Y が下向きなので Vector2.Angle() は上が負）。
-    //   絵の担当の対応表は「上が +90」の符号で書かれているので、ここでは上下の符号が逆になる。
-    //   境界は 22.5° 刻みの八方位の中点。
+    // 5方向の素材を左右反転で八方位へ割り当てる。Godotの角度は上が負。
     private static (string Dir, bool Flip) AimSpriteFor(float angleRad)
     {
         float deg = Mathf.RadToDeg(angleRad);          // -180..180（0=右 / -90=上 / +90=下）
@@ -302,58 +293,10 @@ public partial class Player : Area2D
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
     private string _aimNow = "";
     // ── 表示スケールの単一ソース（2026-09-08）──
-    //   自機の表示高さは常に 36px。ただし正規化の基準は **canvas の高さではなく「絵の中身（不透明部分）の高さ」**。
-    //   canvas 基準だと、素材ごとの上下の余白ぶんだけキャラが小さく描かれる。実測では
-    //   mina_aim_d が canvas720 に対し中身664（上下28px ずつ余白）で、キャラの高さが 33.2px＝他方向の
-    //   35.2〜35.8px より約8%低かった＝ユーザー指摘「完全に揃えたい」。中身基準にすれば全方向が 36.0px で揃う。
-    //   余白は上下対称（28/28・2/2 等）なので、中身基準にしても縦位置はずれない。
-    //   不透明部分の高さは画像を1回だけ走査して求め、テクスチャごとにキャッシュする（毎フレームは走査しない）。
-    //   中身の高さは素材ごとに固定の値なので、**実行時に画素を走査しない**。走査版を一度入れたところ
-    //   480x720 の照準絵1枚で 5.4〜7.0ms かかり、各方向の初出フレームだけ 11.8ms→40ms へ跳ねた
-    //   （弾幕中に最大5回のカクつき）。値は下の表に焼き込み、素材を差し替えたときだけ表を直す。
-    //   表に無いテクスチャは canvas 高さで従来どおり動く＝載せ忘れても事故らない（揃わないだけ）。
-    //   計測は「α>7/255 の行の上端〜下端」。素材を差し替えたら同じ基準で測り直して表を更新すること。
-    private static readonly System.Collections.Generic.Dictionary<string, float> _contentH = new()
-    {
-        // 待機・回避スピン・少年：余白ゼロ＝canvas と同じ（表に載せるのは「確認済み」の意思表示）
-        { "mina_idle",     360f }, { "shonen_idle",  360f }, { "shonen_point", 360f },
-        { "mina_spin_00",  360f }, { "mina_spin_01", 360f }, { "mina_spin_02", 360f },
-        { "mina_spin_03",  360f }, { "mina_spin_04", 360f },
-        // 旧フォールバック素材（通常は使われない）
-        { "algo_idle",     146f }, { "algo_cutout", 1345f }, { "algo",        1402f },
-        // 照準（canvas 720。上下に余白があるので canvas 基準では下向きだけ 8% 低く出ていた）
-        { "mina_aim_u",    716f }, { "mina_aim_ur",  703f }, { "mina_aim_r",   715f },
-        { "mina_aim_dr",   716f }, { "mina_aim_d",   664f },
-    };
+    // 全ポーズを事前に余白トリム済みなので、実行時の画素走査なしで表示高を統一できる。
+    private static float ScaleFor(Texture2D tex) => 36f / tex.GetHeight();
 
-    private static float ContentHeight(Texture2D tex)
-    {
-        string key = tex.ResourcePath;
-        if (key.Length > 0)
-        {
-            int s = key.LastIndexOf('/') + 1, d = key.LastIndexOf('.');
-            if (d > s) key = key.Substring(s, d - s);
-            if (_contentH.TryGetValue(key, out float h) && h > 0f) return h;
-        }
-        return tex.GetHeight(); // 表に無い＝canvas 基準（従来動作）へ素直に落ちる
-    }
-
-    // このテクスチャを表示高さ36pxで描くための等倍スケール。差し替えのたびに必ずここを通す。
-    private static float ScaleFor(Texture2D? tex)
-    {
-        if (tex == null) return 1f;
-        float h = ContentHeight(tex);
-        return h > 0 ? 36f / h : 1f;
-    }
-
-    private Texture2D? AimTexture(string dir)
-    {
-        if (_aimTex.TryGetValue(dir, out var t)) return t;
-        string path = $"res://char/v3/mina_aim/mina_aim_{dir}.png";
-        var tex = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
-        if (tex != null) _aimTex[dir] = tex;
-        return tex;
-    }
+    private Texture2D AimTexture(string dir) => _aimTex[dir];
 
     // ロック対象になれるか＝浄化されておらず、**盤面（画面）の中に居る**敵。
     //   画面内判定はカメラのビューポート矩形ではなく Field.Rect を使う。このゲームの描画域は
@@ -535,21 +478,8 @@ public partial class Player : Area2D
     // 通常／回避フレームのテクスチャは _Ready で一度だけロードしてキャッシュ（毎フレームLoad禁止）。
     private Texture2D _idleTex = null!;
 
-    // ───────── 少年の登場ポーズ：ミナ（画面右のボス）を指さす一拍（boy スキンのみ）─────────
-    //   FINAL戦＝役割反転。自機になった少年が、開幕のイントロ会話の間（Hud.BubblePaused 中）だけ
-    //   「画面右にいるミナ」へ右腕を伸ばして指さすポーズを取る＝「迎えに来た／今度はぼくが行く番だ」を画で示す。
-    //   イントロ会話が初めて明けた瞬間に通常 idle へ滑らかにクロスフェードして戻り、以降は二度と出さない（一度きりの導入演出）。
-    //   操作・当たり判定・難易度には一切影響しない（テクスチャ差し替え＋見た目の前傾だけ）。
-    private Texture2D? _pointTex;               // 指さしスプライト（boy のみ・無ければ null＝従来通り idle）
-    private bool _pointActive;                  // いま指さしポーズ表示中か
-    private bool _pointDone;                    // 既に指さし導入を終えたか（true で恒久抑止）
-    private bool _sawIntroPause;                // 開幕のイントロ会話（BubblePaused）を一度でも見たか
-    private float _pointSettle;                 // idle へ戻すクロスフェード残量（1→0）
-    private const float PointSettleDur = 0.45f; // 指さし→idle のクロスフェード秒
     // 回転各アングルの差分イラスト（0/45/90/135/180°）。225/270/315° は FlipH で 03/02/01 を流用。
-    // boyスキン等で読めない場合は要素が null。_spinReady で全周ロード成否を持つ。
     private readonly Texture2D[] _spinTex = new Texture2D[5];
-    private bool _spinReady = false;            // 5枚すべて読めたか（false なら従来の idle 単一フレームへフォールバック）
     private readonly List<Sprite2D> _trail = new List<Sprite2D>(); // 残像スプライトのプール
 
     // Pool 取得用キャッシュ
@@ -590,13 +520,9 @@ public partial class Player : Area2D
         };
         AddChild(shape);
 
-        // テクスチャ読み込み（失敗時は _Draw フォールバック）
-        // ドット絵スプライトを優先。無ければ透過カットアウト→元イラストにフォールバック。
-        var tex = Skin == "operator" ? null : ((Skin == "boy" ? ResourceLoader.Load<Texture2D>("res://char/shonen_idle.png") : null)
-                  ?? ResourceLoader.Load<Texture2D>("res://char/mina_idle.png")
-                  ?? ResourceLoader.Load<Texture2D>("res://char/algo_idle.png")
-                  ?? ResourceLoader.Load<Texture2D>("res://char/algo_cutout.png")
-                  ?? ResourceLoader.Load<Texture2D>("res://char/algo.png"));
+        var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
+        CharacterId = job.CharacterId;
+        var tex = ResourceLoader.Load<Texture2D>(job.PlayerTexturePath);
         if (tex != null)
         {
             _hasTexture = true;
@@ -618,31 +544,10 @@ public partial class Player : Area2D
             AddChild(_sprite);
         }
 
-        // 回避スピンのフレーム5枚を一度だけロードしてキャッシュ（mina のみ。boy 等は絵が無い）。
-        // 5枚すべて読めたときだけ _spinReady=true＝本物のフレームアニメで回す。1枚でも欠けたら
-        // _spinReady=false のまま idle 単一フレームへフォールバック（落とさない）。
-        if (Skin == "mina")
-        {
-            bool allLoaded = true;
-            for (int i = 0; i < _spinTex.Length; i++)
-            {
-                _spinTex[i] = ResourceLoader.Load<Texture2D>($"res://char/mina_spin_{i:00}.png");
-                if (_spinTex[i] == null) allLoaded = false;
-            }
-            _spinReady = allLoaded;
-        }
-
-        // 少年の登場ポーズ用テクスチャ（boy のみ）。読めなければ _pointTex=null＝指さし導入を出さない。
-        if (Skin == "boy")
-        {
-            _pointTex = ResourceLoader.Load<Texture2D>("res://char/shonen_point.png");
-            // 開幕がイントロ会話（停止中）で始まるなら、最初のフレームから指さしポーズで立つ。
-            if (_pointTex != null && Hud.BubblePaused)
-            {
-                _pointActive = true;
-                if (_sprite != null) _sprite.Texture = _pointTex;
-            }
-        }
+        for (int i = 0; i < _spinTex.Length; i++)
+            _spinTex[i] = ResourceLoader.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_spin_v2_{i:00}.png");
+        foreach (string direction in new[] { "u", "ur", "r", "dr", "d" })
+            _aimTex[direction] = ResourceLoader.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_aim_v2_{direction}.png");
 
         // 被弾検出（敵 / 敵弾）
         AreaEntered += OnAreaEntered;
@@ -976,33 +881,6 @@ public partial class Player : Area2D
         // 常時ふわふわ浮遊＋移動バンク（スプライトのみ。当たり判定点は固定）
         _bobTime += dt;
 
-        // ── 少年の登場ポーズ：ミナ（画面右のボス）を指さす一拍（boy のみ・一度きり）──
-        // 開幕のイントロ会話（BubblePaused）中は指さしテクスチャを保持。会話が初めて明けたら
-        // settle クロスフェードで idle に戻し、_pointDone を立てて以降は出さない。
-        if (_pointTex != null && _idleTex != null && !_pointDone && _sprite != null)
-        {
-            if (Hud.BubblePaused)
-            {
-                // イントロ会話中：指さしポーズで待機（一度でも会話を見た記録を残す）。
-                _sawIntroPause = true;
-                if (!_pointActive) { _pointActive = true; _sprite.Texture = _pointTex; }
-            }
-            else if (_pointActive)
-            {
-                // 会話が明けた：idle へ戻すクロスフェードを開始し、二度と出さない。
-                _pointActive = false;
-                _pointDone = true;
-                _pointSettle = PointSettleDur;
-                _sprite.Texture = _idleTex; // 以降は通常 idle（残量中だけ前傾の余韻を足す）
-            }
-            else if (_sawIntroPause)
-            {
-                // 会話を一度も「停止」では見ずに通り過ぎた等の保険：以降は通常運用に委ねる。
-                _pointDone = true;
-            }
-        }
-        if (_pointSettle > 0f) _pointSettle = Mathf.Max(0f, _pointSettle - dt); // 余韻の前傾を抜く
-
         // 慣性つきで入力方向へ寄せる（会話中は dir=0 なので自然に直立へ戻る＝余韻）。
         _lean = _lean.Lerp(dir, 1f - Mathf.Exp(-LeanResponse * dt));
         if (_hasTexture && _sprite != null)
@@ -1013,26 +891,18 @@ public partial class Player : Area2D
             // スピン側が _facing と XOR して合成する（EndDodge も _facing 基準へ戻す）。
             if (_dodgeTimer <= 0f) _sprite.FlipH = _facing < 0;
             // ロック中は狙っている方向の絵に差し替える（弾がボスへ飛ぶのに絵が右向きのまま、を避ける）。
-            // 指さし（_pointActive）と回避スピン中は向こうが姿勢を握るので触らない。
-            if (_dodgeTimer <= 0f && !_pointActive)
+            if (_dodgeTimer <= 0f)
             {
                 var (aimDir, flip) = LockedOn ? AimSpriteFor(AimVec.Angle()) : ("", false);
                 if (aimDir != _aimNow)
                 {
                     _aimNow = aimDir;
-                    var tex = aimDir.Length > 0 ? AimTexture(aimDir) : null;
-                    _sprite.Texture = tex ?? _idleTex;   // 絵が無い方向は idle のまま＝欠けても事故らない
-                    // 差し替えた絵で基準スケールを取り直す（2026-09-08）。
-                    //   _baseScaleX は起動時に idle から焼き込んだ値を使い回していたが、照準の絵は
-                    //   canvas が2倍(720)なので同じ値を掛けると**2倍の大きさで出る**
-                    //   ＝ユーザー実機指摘「ロックオン中だけミナがでかい」。素材ごとに寸法が違う以上、
-                    //   基準は「今どのテクスチャを表示しているか」から毎回引き直すのが正しい。
+                    _sprite.Texture = aimDir.Length > 0 ? AimTexture(aimDir) : _idleTex;
                     _baseScaleX = ScaleFor(_sprite.Texture);
                 }
                 // 左半分の方向は右向きの絵を左右反転して作る。**向き反転（_facing）とは別系統**で、
                 // ここでは _facing に一切書かない＝上の FlipH 代入の結果を、この1フレームぶんだけ上書きする。
-                // 絵が無くて idle へ落ちたときは反転しない（idle は右向き固定の素の絵）。
-                if (_aimNow.Length > 0 && AimTexture(_aimNow) != null) _sprite.FlipH = flip;
+                if (LockedOn) _sprite.FlipH = flip;
             }
             // 進行方向へわずかに先行（体が動きをリードする）。bob は縦に重畳。
             _sprite.Position = new Vector2(_lean.X * LeadPx, bobY + _lean.Y * LeadPx);
@@ -1041,13 +911,6 @@ public partial class Player : Area2D
             // 傾き角そのものに _facing を掛けて打ち消し、「進行方向へ倒れる」画を両向きで保つ。
             float bankX = _lean.X * _facing >= 0f ? BankXFwd : BankXBack; // 前後は「向きから見て」判定する
             _sprite.Rotation = (_lean.X * bankX + _lean.Y * BankY) * _facing;
-            // 指さし中＋戻りの余韻：ミナの方（右）へほんの少し前傾＋先行して「見据える」勢いを足す。
-            if (_pointActive || _pointSettle > 0f)
-            {
-                float k = _pointActive ? 1f : Mathf.Clamp(_pointSettle / PointSettleDur, 0f, 1f);
-                _sprite.Rotation += Mathf.DegToRad(5f) * k;          // 右前へわずかに傾く
-                _sprite.Position += new Vector2(LeadPx * 1.2f * k, 0f); // 右へ先行
-            }
             // ── 体のリアクション（被弾のけぞり／発射反動／ボム解放）。回避中はスピンが姿勢を握るので触らない ──
             // スケールはここで毎フレーム確定する（リアクション無し＝素値）＝復帰の状態管理を持たない。
             if (_dodgeTimer <= 0f)
@@ -1099,18 +962,8 @@ public partial class Player : Area2D
                 float spinEase = k < anticK ? 0f : 1f - (1f - (k - anticK) / (1f - anticK)) * (1f - (k - anticK) / (1f - anticK));
                 // 位相 θ：0→2π*DodgeSpins。終端で spinEase=1 → 周回数ちょうど → 正面(00)に着地する。
                 float theta = Mathf.Tau * DodgeSpins * spinEase;
-                if (_spinReady)
-                {
-                    ApplySpinFrame(theta);
-                    _sprite.Rotation = 0f; // 直立を保つ＝側転(Z回転)はしない。通常バンクも回避中は無効化。
-                }
-                else
-                {
-                    // スピン差分の無いスキン（少年＝FINAL自機など）：一回転の側転ロールで「回避した」を体で示す。
-                    // フレームアニメ組(ミナ)は上の全周スピンが受け持つ＝二重には回さない。変位と同カーブ＝
-                    // 回り出し速く・終端で減速し、spinEase=1 でちょうど一周＝直立に着地（EndDodge の 0 リセットと整合）。
-                    _sprite.Rotation = _dodgeSpinSign * Mathf.Tau * spinEase;
-                }
+                ApplySpinFrame(theta);
+                _sprite.Rotation = 0f;
                 // ジャンプスピンの軽い浮き＋進行方向への先行（やり過ぎない）。
                 _sprite.Position += _dodgeDir * (3f * Mathf.Sin(k * Mathf.Pi)) - new Vector2(0f, DodgeLift * Mathf.Sin(k * Mathf.Pi));
                 // 回避無敵を発光＋点滅で可視化（i-frame 終了で通常へ）。
@@ -1363,9 +1216,7 @@ public partial class Player : Area2D
         else
             _dodgeSpinSign = _dodgeDir.Y >= 0f ? 1f : -1f;
 
-        // スプライトを回避スピンの開始フレーム（正面 00）へ。フレームが揃っているときだけ（mina）。
-        // 揃っていないスキン（boy 等）は idle のまま回す＝フォールバック（落とさない）。
-        if (_hasTexture && _sprite != null && _spinReady)
+        if (_hasTexture && _sprite != null)
             ApplySpinFrame(0f);
 
         // 踏み込みの SE/演出（既存のグレイズ閃光を流用＝専用アセット不要で“抜けた”手応え）。
@@ -1378,7 +1229,6 @@ public partial class Player : Area2D
     // 8分割インデックス k=floor(frac(θ/2π)*8)。マッピング（正回り _dodgeSpinSign>=0）:
     //   0→00,flip- / 1→01,flip- / 2→02,flip- / 3→03,flip- / 4→04,flip- / 5→03,flip+ / 6→02,flip+ / 7→01,flip+
     // 逆回り（_dodgeSpinSign<0）は k を反転（00→07→06…相当）して左右逆に見せる＝(8-k)%8 を引く。
-    // 高さは全フレーム360で統一されているので高さ正規化スケール(36f/h)はどのフレームでも同一になる。
     private static readonly int[]  SpinFrameIdx  = { 0, 1, 2, 3, 4, 3, 2, 1 };
     private static readonly bool[] SpinFrameFlip = { false, false, false, false, false, true, true, true };
     private void ApplySpinFrame(float theta)
@@ -1390,7 +1240,6 @@ public partial class Player : Area2D
         if (_dodgeSpinSign < 0f) k = (8 - k) % 8;  // 逆回り＝たどり順を反転（00→07→06…）
 
         var tex = _spinTex[SpinFrameIdx[k]];
-        if (tex == null) return;                   // 念のため null 安全（_spinReady 前提だが）
         _sprite.Texture = tex;
         _dodgeFlip = SpinFrameFlip[k];
         // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
@@ -1409,6 +1258,7 @@ public partial class Player : Area2D
     {
         _dodgeTimer = 0f;
         _dodgeFlip = false;
+        _aimNow = "";
 
         // 祈りの帳（veil_light・支え側の奥義）：回避の終わり際、自機の周りに弾消しの光輪をまとう。
         if ((_game?.VeilLightRadius ?? 0f) > 0f)
@@ -1743,23 +1593,8 @@ public partial class Player : Area2D
 
     public override void _Draw()
     {
-        if (Skin == "operator")
-        {
-            float pulse = 0.8f + 0.2f * Mathf.Sin(_bobTime * 4f);
-            Vector2 tail = -new Vector2(_facing, 0) * 18f - _lean * 8f;
-            var points = new Vector2[6];
-            for (int i = 0; i < points.Length; i++)
-            {
-                float k = i / 5f;
-                points[i] = tail * k + new Vector2(0, Mathf.Sin(_bobTime * 5f + k * 4f) * 3f * k);
-            }
-            DrawPolyline(points, new Color(0.55f, 0.92f, 1f, 0.8f), 1.4f, true);
-            DrawCircle(Vector2.Zero, 9f, new Color(1f, 0.88f, 0.58f, 0.18f * pulse));
-            DrawCircle(Vector2.Zero, 6f, new Color(1f, 0.92f, 0.72f, 0.65f * pulse));
-            DrawCircle(Vector2.Zero, 3.8f, new Color(1f, 0.98f, 0.92f));
-        }
         // テクスチャが無い場合のプレースホルダ（白い体＋紫十字）
-        else if (!_hasTexture)
+        if (!_hasTexture)
         {
             // 体（白い円）
             DrawCircle(Vector2.Zero, 12f, new Color(1f, 1f, 1f, 0.95f));

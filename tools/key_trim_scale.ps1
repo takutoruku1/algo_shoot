@@ -6,7 +6,9 @@ param(
   [Parameter(Mandatory=$true)][ValidateSet('magenta','green','none')][string]$Key,
   [int]$TargetH = 44,
   [int]$Levels = 0,
-  [int]$Outline = 0
+  [int]$Outline = 0,
+  [int[]]$Region = @(),
+  [switch]$Despill
 )
 $cs = @'
 using System;
@@ -15,11 +17,20 @@ using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 public static class KeyTrimScale {
-  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline){
+  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline, int[] region, bool despill){
     using(var src0=new Bitmap(inPath)){
       int w=src0.Width,h=src0.Height;
+      int cropX=0,cropY=0;
+      if(region.Length>0){
+        if(region.Length!=4) throw new ArgumentException("Region must contain x, y, width and height.");
+        cropX=region[0]; cropY=region[1]; w=region[2]; h=region[3];
+        if(cropX<0||cropY<0||w<=0||h<=0||cropX+w>src0.Width||cropY+h>src0.Height)
+          throw new ArgumentOutOfRangeException("region", "Region must stay inside the source image.");
+      }
       var bmp=new Bitmap(w,h,PixelFormat.Format32bppArgb);
-      using(var g=Graphics.FromImage(bmp)){g.DrawImage(src0,0,0,w,h);}
+      using(var g=Graphics.FromImage(bmp)){
+        g.DrawImage(src0,new Rectangle(0,0,w,h),new Rectangle(cropX,cropY,w,h),GraphicsUnit.Pixel);
+      }
       var rect=new Rectangle(0,0,w,h);
       var d=bmp.LockBits(rect,ImageLockMode.ReadWrite,PixelFormat.Format32bppArgb);
       int n=d.Stride*h; byte[] buf=new byte[n]; Marshal.Copy(d.Scan0,buf,0,n);
@@ -39,6 +50,15 @@ public static class KeyTrimScale {
             if(x>0&&buf[(i-1)*4+3]==0)nT=true; if(x<w-1&&buf[(i+1)*4+3]==0)nT=true;
             if(y>0&&buf[(i-w)*4+3]==0)nT=true; if(y<h-1&&buf[(i+w)*4+3]==0)nT=true; if(nT)outA[i]=0;}}
         for(int i=0;i<w*h;i++) buf[i*4+3]=outA[i];
+        if(!magenta&&despill){
+          for(int y=0;y<h;y++)for(int x=0;x<w;x++){
+            int i=y*w+x,p=i*4;
+            // Clear hidden key colors before bicubic filtering can mix them into edge pixels.
+            if(outA[i]==0){buf[p]=0;buf[p+1]=0;buf[p+2]=0;continue;}
+            if(buf[p+1]<=Math.Max(buf[p],buf[p+2])+4)continue;
+            buf[p+1]=Math.Max(buf[p],buf[p+2]);
+          }
+        }
       }
       Marshal.Copy(buf,0,d.Scan0,n); bmp.UnlockBits(d);
       // bbox
@@ -51,6 +71,14 @@ public static class KeyTrimScale {
       int th=targetH; int tw=(int)Math.Round(cw*(double)th/ch);
       var o=new Bitmap(tw,th,PixelFormat.Format32bppArgb);
       using(var g=Graphics.FromImage(o)){ g.InterpolationMode=InterpolationMode.HighQualityBicubic; g.PixelOffsetMode=PixelOffsetMode.HighQuality; g.CompositingQuality=CompositingQuality.HighQuality; g.DrawImage(crop,new Rectangle(0,0,tw,th)); }
+      // Resampling can reintroduce green dominance where different edge colors meet.
+      if(key=="green"&&despill){
+        var od=o.LockBits(new Rectangle(0,0,tw,th),ImageLockMode.ReadWrite,PixelFormat.Format32bppArgb);
+        int on=od.Stride*th; byte[] ob=new byte[on]; Marshal.Copy(od.Scan0,ob,0,on);
+        for(int p=0;p<on;p+=4)
+          if(ob[p+3]>0&&ob[p+1]>Math.Max(ob[p],ob[p+2])+4) ob[p+1]=Math.Max(ob[p],ob[p+2]);
+        Marshal.Copy(ob,0,od.Scan0,on); o.UnlockBits(od);
+      }
       // posterize + hard alpha (crisp pixel-art look)
       if(levels>0){
         var od=o.LockBits(new Rectangle(0,0,tw,th),ImageLockMode.ReadWrite,PixelFormat.Format32bppArgb);
@@ -96,4 +124,4 @@ if ($PSEdition -eq 'Core') {
   $references += @('System.Runtime.dll', 'System.Runtime.InteropServices.dll', 'System.Private.Windows.Core.dll', 'System.Private.Windows.GdiPlus.dll') | ForEach-Object { Join-Path $PSHOME $_ }
 }
 Add-Type -TypeDefinition $cs -ReferencedAssemblies $references -ErrorAction Stop
-[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline)
+[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline,$Region,$Despill.IsPresent)

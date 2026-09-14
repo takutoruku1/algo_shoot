@@ -45,14 +45,15 @@ public partial class MinaStoryQa : Node
             await Frames(10);
             Check(hud.EpicBannerActive && !Read<bool>(stage, "_stepStarted") && world.ProcessMode == ProcessModeEnum.Disabled,
                 "title finishes before dialogue and player controls begin");
-            Check(player.Skin == "operator" && !Read<bool>(player, "_hasTexture")
-                  && !Read<bool>(player, "_spinReady"), "operator is light, never Mina idle or spin art");
+            Check(player.CharacterId == game.JobDef.CharacterId && Read<bool>(player, "_hasTexture")
+                  && player.GetNode<Sprite2D>("Sprite").Texture.ResourcePath == game.JobDef.PlayerTexturePath,
+                  "final stage uses the selected playable character");
             var intro = Read<(int, string, string)[]>(stage, "_intro");
             Check(Array.Exists(intro, x => x.Item2.Contains("送信元：あなた"))
                   && Array.Exists(intro, x => x.Item2.Contains("回線")), "intro explains the remaining connection and sender");
             await AdvanceUntil(() => Read<int>(stage, "_introLine") >= 9);
             await Frames(80);
-            await Shot("operator_intro", false);
+            await Shot("player_intro", false);
             await AdvanceUntil(() => Read<int>(stage, "_step") == 3);
             var boss = world.GetNode<BossMina>("BossMina");
             Write(player, "_invincible", true);

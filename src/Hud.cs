@@ -1152,12 +1152,12 @@ public partial class Hud : CanvasLayer
     //     代わりに「このランは何者で戦っているか」を常に出す。ランの選択を画面から見失わせない。
     private void DrawShotMode(HudCanvas ci)
     {
-        string job = _game?.JobDef.Name ?? "結び手";
+        var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
         string name = _game?.ShotModeName(_shotMode) ?? "連射";
         float x = PanelX, y = RowShotMode, w = PanelInnerW, h = 34f;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 11f, new Color(UiKit.Info, 0.45f), 1f);
         ci.DrawCircle(new Vector2(x + 20, y + h / 2f), 5f, UiKit.Info);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), job, UiKit.FontLabel, UiKit.PurifyHi);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), $"{job.CharacterName}・{job.Name}", UiKit.FontLabel, UiKit.PurifyHi);
         // 撃ち方はジョブに従属するので、右端に小さく添えるだけ（主役はジョブ名）。
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 12), name, UiKit.FontLabel - 3, new Color(UiKit.Info, 0.85f),
                    HorizontalAlignment.Right, w - 14f);

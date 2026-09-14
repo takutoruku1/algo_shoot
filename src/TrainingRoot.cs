@@ -110,8 +110,6 @@ public partial class TrainingRoot : Node2D
             _game.TrainingSetAllUpgrades(true);        // 既定は全解放＝撃ち味の全開から始めて外して比べる
             _game.TrainingSetImpression(999_999_999);  // 表示上は実質無限（購入では減らさない運用）
             _game.TrainingMode = true;                 // 試し打ち中フラグ（退場時に RestoreMeta で元へ戻す）
-            // 撃ち方はジョブが決めるので、モードを直に書かずジョブを置く（結び手＝連射。退場時に復元される）。
-            _game.SelectedJob = Job.Tank;
             _game.SetContamination(0f);
             // トレーニング専用曲「プルキンエ・フェノミナン」（2026-09-14〜。従来は BgmMenu）。
             //   この画面は SE（撃ち味）が主役なので、候補中もっとも静かで平坦な曲を当てて
@@ -390,10 +388,10 @@ public partial class TrainingRoot : Node2D
             $"累計与ダメ: {_totalDamage:N0}", 13, UiKit.Text2);
         // ジョブが撃ち方を決める（V切替は廃止済み）。「装備モード（Vで切替）」の旧表記は嘘になるので、
         // いまのジョブと撃ち方を出すだけにする。切り替えたい場合はハブのジョブ選択へ。
-        string jobName = _game?.JobDef.Name ?? "結び手";
+        var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
         string modeName = _game?.ShotModeName(_game.SelectedShotMode) ?? "連射";
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 18, box.Position.Y + 100),
-            $"ジョブ: {jobName}（撃ち方: {modeName}）", 13, UiKit.Text2);
+            $"{job.CharacterName}・{job.Name}（{modeName}）", 13, UiKit.Text2);
     }
 
     // 独り言トースト（小話4）。DPS計器（x430-774,y88-210）の真下・スキルパネル（開時 x850〜）より
