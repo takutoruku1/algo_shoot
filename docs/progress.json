@@ -1,13 +1,20 @@
 {
-  "generated": "2026-09-13 18:29 UTC",
+  "generated": "2026-09-14 18:28 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 1,
     "wip": 0,
-    "blocked": 32,
-    "done": 230
+    "blocked": 33,
+    "done": 231
   },
   "percent": 100,
-  "todo": [],
+  "todo": [
+    {
+      "priority": null,
+      "title": "sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている",
+      "worker": "game-designer",
+      "accept": "2026-09-14監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:9`の`FireInterval=0.11`は実装`src/Player.cs:16`の`0.13f`と不一致。同`:16`の`RampDur=60/IntervalEnd=0.9/MaxAlive=9`も実装`src/Spawner.cs:20-23`の`RampDur=28f`（コメントで60→28へ意図的短縮済みと明記）/`IntervalEnd=0.8f`/`MaxAlive=10`と不一致（2026-09-11に同ファイルの`HomingTurnRate`等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: `design-map.md`の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -201,9 +208,21 @@
       "title": "FINAL E3「頭文字4行」が仮台本自身の「憲法違反の可能性」という未解決の判断待ちノート付きのまま無修正で実装されている",
       "worker": null,
       "accept": "2026-09-12監査(scenario)。承認済み仮台本`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127`に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=`wiki/08_仮台本/03_物語骨子の比較案.md:168,256`)。実装`src/Epilogue.cs:99-105 Acrostic`配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える"
+    },
+    {
+      "priority": null,
+      "title": "承認済み仮台本（05/06/07/08/12）自身のヘッダー/フッターが今も「検討中の草稿・非正典・実装とは一致しない」と自己申告し続けている",
+      "worker": "scenario",
+      "accept": "2026-09-14監査(scenario)。`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:3`・`07_粗い台本_案C_2_こはるとレイ.md:3,443`(フッターも「実装とは一致しない」)・`08_粗い台本_案C_3_FINALと結末.md:3,211`・`12_キャラ設定シートv2_社会人版.md:3`(「ゲーム本体のコード・データ・画像は一切変更していない」)はいずれも旧文言のまま。一方`15_組み込み計画.md:3`は「承認済み仮台本（05・06〜08・12、ユーザー承認2026-09-05）」と明言し、実装側`src/BossRei.cs:6`・`src/BossAkari.cs:64`等も「台詞の正典…ユーザー承認済み・2026-09-05」と明記、実セリフも一字一句一致済み。既存BLOCKED（直上「正典ポインタ陳腐化」）と同種の「正典注記の更新」だが対象ファイルが異なり重複ではない。将来の監査がこのバナーを鵜呑みにし運用ルール8（未承認は台詞変更BLOCKED送り）の判断を誤らせるリスクがある。要ユーザー判断: (a)05/06/07/08/12の冒頭バナー・07:443/08:211のフッターを「ユーザー承認済み（2026-09-05）。15_組み込み計画.mdに準拠し実装済み」等へ更新する、(b)12ファイル末尾`:199`の未解決の判断点（FINALでこはるの返礼をどこへ向けるか）は現状実装（ミナへの「知らない人じゃ、なかったよ」）で確定している旨を追記する、のいずれか（または両方）を指定してほしい。"
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "ショップのLUNATIC解禁UIが「威力Lv4」を指したまま",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-14) 2026-09-14監査(engineer)発見。2026-09-13是正コミットで`GameManager.cs:81`と`DiffSelect.cs:340`はLv3基準に修正済みだったが、他4箇所が旧`shot_power_4`基準のまま残存していた。`src/Shop.cs:1167`のヘッダ進捗表示、`:1481-1483`の王冠アイコン描画条件、`:1587`のコメント、`:1739`の詳細パネル案内文をいずれも`shot_power_3`基準へ変更。`src/GameManager.cs:451`のshot_power_4 Descから「（LUNATIC解放条件のひとつ）」を削除。`wiki/05_ゲーム仕様/07_ショップと強化.md`・`08_難易度.md`の「光の出力IV」表記も「光の出力III」へ機械的に訂正。ロジック変更なし、UI/ドキュメント表記のみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。"
+    },
     {
       "priority": "P2",
       "title": "Lunatic解禁の「威力Lv4」ルートが実戦で無価値なノードを指したまま",
@@ -1587,6 +1606,21 @@
   ],
   "commits": [
     {
+      "hash": "0a20987",
+      "date": "2026-09-14",
+      "subject": "auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する"
+    },
+    {
+      "hash": "ff1c1f9",
+      "date": "2026-09-14",
+      "subject": "auto: 監査で TODO 2件・BLOCKED 1件をキューに追加"
+    },
+    {
+      "hash": "df56713",
+      "date": "2026-09-13",
+      "subject": "auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正"
+    },
+    {
       "hash": "a20eae4",
       "date": "2026-09-13",
       "subject": "auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する"
@@ -1610,21 +1644,6 @@
       "hash": "5b272fb",
       "date": "2026-09-12",
       "subject": "auto: StageZeroのSpawnDummy(harmless)死にコードを整理"
-    },
-    {
-      "hash": "646fa7b",
-      "date": "2026-09-12",
-      "subject": "auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する"
-    },
-    {
-      "hash": "b2ec709",
-      "date": "2026-09-12",
-      "subject": "auto: Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除"
-    },
-    {
-      "hash": "b365470",
-      "date": "2026-09-12",
-      "subject": "auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する"
     }
   ]
 }

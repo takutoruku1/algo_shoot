@@ -1164,7 +1164,7 @@ public partial class Shop : Node2D
         //（フォロワー200 or 光の出力Lv4＝ツリー側にも王冠マークで重ねる）。解放済みなら出さない。
         if (_game != null && !_game.IsLunaticUnlocked)
         {
-            string goal = $"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel("shot_power", 4)}/4";
+            string goal = $"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel("shot_power", 3)}/3";
             UiKit.Text(this, UiKit.Zen, new Vector2(W - PadX - UiKit.TextW(UiKit.Zen, goal, 11), 80), goal, 11, new Color("c9b6ef"));
         }
 
@@ -1478,8 +1478,8 @@ public partial class Shop : Node2D
         UiKit.Text(_ci, UiKit.ZenBold, new Vector2(x + 12, y + 5), d.Name, 12, nameCol);
         float nw = UiKit.TextW(UiKit.ZenBold, d.Name, 12);
 
-        // 王冠（shot_power_4＝光の出力IV＝LUNATIC解放条件のひとつ）。所持で点灯。
-        if (id == "shot_power_4")
+        // 王冠（shot_power_3＝光の出力III＝LUNATIC解放条件のひとつ）。所持で点灯。
+        if (id == "shot_power_3")
             DrawCrown(new Vector2(x + 12 + nw + 12, y + 13f), 6f, lv >= 1 ? UiKit.Gold : new Color(UiKit.Gold, 0.5f));
 
         // Lvピップ（右上：MaxLevel 個、lv ぶん充填）。所持ピップは系統色。
@@ -1584,7 +1584,7 @@ public partial class Shop : Node2D
         UiKit.Box(_ci, new Rect2(c.X - s * 0.6f, c.Y - s * 0.2f, s * 1.2f, s * 0.95f), col, 2f);
     }
 
-    // 小さな王冠（shot_power_4 ＝ LUNATIC 解放条件、の印）。凹多角形は使わず矩形＋三角3枚で描く。
+    // 小さな王冠（shot_power_3 ＝ LUNATIC 解放条件、の印）。凹多角形は使わず矩形＋三角3枚で描く。
     // 呼び先の _ci（ツリーセル or 詳細パネル）へ描く＝どちらの座標系でも正しく乗る。
     private void DrawCrown(Vector2 c, float s, Color col)
     {
@@ -1736,7 +1736,7 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.Zen, new Vector2(ix, ny), exText, 11, new Color(ForkGold, 0.9f));
             ny += 20f;
         }
-        if (id == "shot_power_4")
+        if (id == "shot_power_3")
         {
             DrawCrown(new Vector2(ix + 7, ny + 10), 6f, UiKit.Gold);
             UiKit.Text(this, UiKit.Zen, new Vector2(ix + 18, ny), "所持で LUNATIC 解放条件のひとつを満たします", 11, new Color("c9b6ef"));

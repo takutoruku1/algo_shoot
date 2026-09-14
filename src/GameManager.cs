@@ -448,7 +448,7 @@ public partial class GameManager : Node
         new() { Id = "shot_power_1",  Name = "光の出力I",   Desc = "届ける光の威力 +1",        MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_1" },
         new() { Id = "shot_power_2",  Name = "光の出力II",  Desc = "届ける光の威力 +2",        MaxLevel = 1, BaseCost = 400,  ParentId = "shot_power_1" },
         new() { Id = "shot_power_3",  Name = "光の出力III", Desc = "届ける光の威力 +3",        MaxLevel = 1, BaseCost = 540,  ParentId = "shot_power_2" },
-        new() { Id = "shot_power_4",  Name = "光の出力IV",  Desc = "届ける光の威力 +4（LUNATIC解放条件のひとつ）", MaxLevel = 1, BaseCost = 729,  ParentId = "shot_power_3" },
+        new() { Id = "shot_power_4",  Name = "光の出力IV",  Desc = "届ける光の威力 +4",        MaxLevel = 1, BaseCost = 729,  ParentId = "shot_power_3" },
         new() { Id = "rapid_power_1", Name = "連射威力I",   Desc = "連射モードの弾威力 +1",    MaxLevel = 1, BaseCost = 100,  ParentId = "shot_power_2" },
         new() { Id = "rapid_power_2", Name = "連射威力II",  Desc = "連射モードの弾威力 +2",    MaxLevel = 1, BaseCost = 450,  ParentId = "rapid_power_1" },
         new() { Id = "rapid_rate_1",  Name = "速射I",       Desc = "連射モードの間隔 ×0.94",   MaxLevel = 1, BaseCost = 100,  ParentId = "fire_rate_3" },

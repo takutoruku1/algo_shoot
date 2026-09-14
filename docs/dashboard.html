@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 230 / 対象 230 タスク<br>保留 32 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 231 / 対象 232 タスク<br>保留 33 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">230</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">231</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">32</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">33</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">sakurai skillのdesign-map.mdの<code>FireInterval</code>と<code>Spawner</code>密度3値が実装値からズレている</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">2026-09-14監査(game-designer)。<code>.claude/skills/sakurai/references/design-map.md:9</code>の<code>FireInterval=0.11</code>は実装<code>src/Player.cs:16</code>の<code>0.13f</code>と不一致。同<code>:16</code>の<code>RampDur=60/IntervalEnd=0.9/MaxAlive=9</code>も実装<code>src/Spawner.cs:20-23</code>の<code>RampDur=28f</code>（コメントで60→28へ意図的短縮済みと明記）/<code>IntervalEnd=0.8f</code>/<code>MaxAlive=10</code>と不一致（2026-09-11に同ファイルの<code>HomingTurnRate</code>等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: <code>design-map.md</code>の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ショップのLUNATIC解禁UIが「威力Lv4」を指したまま</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-14) 2026-09-14監査(engineer)発見。2026-09-13是正コミットで<code>GameManager.cs:81</code>と<code>DiffSelect.cs:340</code>はLv3基準に修正済みだったが、他4箇所が旧<code>shot_power_4</code>基準のまま残存していた。<code>src/Shop.cs:1167</code>のヘッダ進捗表示、<code>:1481-1483</code>の王冠アイコン描画条件、<code>:1587</code>のコメント、<code>:1739</code>の詳細パネル案内文をいずれも<code>shot_power_3</code>基準へ変更。<code>src/GameManager.cs:451</code>のshot_power_4 Descから「（LUNATIC解放条件のひとつ）」を削除。<code>wiki/05_ゲーム仕様/07_ショップと強化.md</code>・<code>08_難易度.md</code>の「光の出力IV」表記も「光の出力III」へ機械的に訂正。ロジック変更なし、UI/ドキュメント表記のみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・再ビルドして確認済み）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2251,24 +2267,32 @@
           
         </div>
         <p class="accept">2026-09-12監査(scenario)。承認済み仮台本<code>wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:127</code>に台本作成者自身による「判断待ち: 四行の内容が憲法『主張するのは未送信があったこと、それだけ』と衝突する可能性。代案: 孤独の断定を含まない4行(例 Maybe tomorrow. / I'll say it then. / Not today. / Anyway, good night.)」という未解決コメントが残る(憲法の参照先=<code>wiki/08_仮台本/03_物語骨子の比較案.md:168,256</code>)。実装<code>src/Epilogue.cs:99-105 Acrostic</code>配列はこの懸念への結論を反映せず原文4行をそのまま採用しており代案は検討されていない。要ユーザー判断: (a)原文4行のまま確定する、(b)代案4行に差し替える</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">承認済み仮台本（05/06/07/08/12）自身のヘッダー/フッターが今も「検討中の草稿・非正典・実装とは一致しない」と自己申告し続けている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-14監査(scenario)。<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:3</code>・<code>07_粗い台本_案C_2_こはるとレイ.md:3,443</code>(フッターも「実装とは一致しない」)・<code>08_粗い台本_案C_3_FINALと結末.md:3,211</code>・<code>12_キャラ設定シートv2_社会人版.md:3</code>(「ゲーム本体のコード・データ・画像は一切変更していない」)はいずれも旧文言のまま。一方<code>15_組み込み計画.md:3</code>は「承認済み仮台本（05・06〜08・12、ユーザー承認2026-09-05）」と明言し、実装側<code>src/BossRei.cs:6</code>・<code>src/BossAkari.cs:64</code>等も「台詞の正典…ユーザー承認済み・2026-09-05」と明記、実セリフも一字一句一致済み。既存BLOCKED（直上「正典ポインタ陳腐化」）と同種の「正典注記の更新」だが対象ファイルが異なり重複ではない。将来の監査がこのバナーを鵜呑みにし運用ルール8（未承認は台詞変更BLOCKED送り）の判断を誤らせるリスクがある。要ユーザー判断: (a)05/06/07/08/12の冒頭バナー・07:443/08:211のフッターを「ユーザー承認済み（2026-09-05）。15_組み込み計画.mdに準拠し実装済み」等へ更新する、(b)12ファイル末尾<code>:199</code>の未解決の判断点（FINALでこはるの返礼をどこへ向けるか）は現状実装（ミナへの「知らない人じゃ、なかったよ」）で確定している旨を追記する、のいずれか（または両方）を指定してほしい。</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0a20987</span><span>2026-09-14</span><span class="s">auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する</span></li>
+      <li><span class="h">ff1c1f9</span><span>2026-09-14</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
+      <li><span class="h">df56713</span><span>2026-09-13</span><span class="s">auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正</span></li>
       <li><span class="h">a20eae4</span><span>2026-09-13</span><span class="s">auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する</span></li>
       <li><span class="h">1ee77cd</span><span>2026-09-13</span><span class="s">auto: 監査で TODO 1件・BLOCKED 3件をキューに追加</span></li>
       <li><span class="h">76ad327</span><span>2026-09-12</span><span class="s">auto: Hud.csのティッカー語彙コメントの数値表記を修正</span></li>
       <li><span class="h">19e8e4a</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Hud.csのティッカー語彙コメントの数値表記を修正する</span></li>
       <li><span class="h">5b272fb</span><span>2026-09-12</span><span class="s">auto: StageZeroのSpawnDummy(harmless)死にコードを整理</span></li>
-      <li><span class="h">646fa7b</span><span>2026-09-12</span><span class="s">auto: WIP着手 - StageZeroのSpawnDummy(harmless)死にコードを整理する</span></li>
-      <li><span class="h">b2ec709</span><span>2026-09-12</span><span class="s">auto: Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除</span></li>
-      <li><span class="h">b365470</span><span>2026-09-12</span><span class="s">auto: WIP着手 - Settingsの弾を明るく表示トグルを配線しhitboxトグルを削除する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-13 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-14 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
