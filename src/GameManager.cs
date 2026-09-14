@@ -44,6 +44,33 @@ public partial class GameManager : Node
     // コマンドライン --job=xxx（Main が解決）で固定されたか。true の間はセーブのロードでも上書きしない
     //   ＝QA走行で「セーブに入っていた別ジョブ」へ戻される事故を防ぐ。デバッグ専用の逃し口。
     public bool JobForcedByCmdline;
+
+    // ───── ジョブの解禁（2026-09-14・ステージクリア報酬）─────
+    //   最初は結び手（ミナ）だけ。あかり／こはる／レイのジョブは、その子の面をクリアすると開く
+    //   （Job.UnlockStageId）。判定は _cleared だけを見る＝専用の永続項目を足さない＝
+    //   既存セーブ（クリア済みステージが入っている）はロードした瞬間に正しい解禁状態になる。
+    //   --job= 固定中（JobForcedByCmdline）は解禁を無視する＝デバッグ起動は従来どおり。
+    public bool IsJobUnlocked(Job j)
+    {
+        if (JobForcedByCmdline) return true;
+        string need = Jobs.Get(j).UnlockStageId;
+        return need.Length == 0 || IsStageCleared(need);
+    }
+    // 未解禁ジョブの1行説明（選択画面が出す）。解禁済み／条件なしは null。
+    //   文言は既存のステージ見出し（StageDef.Title の "STAGE 1 — あかり" の左側）から作る
+    //   ＝面の並びを変えても表示が追随し、ここに面の名前を二重に持たない。
+    public string? JobUnlockHint(Job j)
+    {
+        if (IsJobUnlocked(j)) return null;
+        string need = Jobs.Get(j).UnlockStageId;
+        foreach (var s in Stages)
+            if (s.Id == need)
+            {
+                string label = s.Title.Contains('—') ? s.Title.Split('—')[0].Trim() : s.Title;
+                return $"{label} をクリアすると";
+            }
+        return "まだ、出会っていない";
+    }
     // トレーニング場（TrainingRoot）が立てる：この間だけ全ノードを試せる（ジョブ導入後もモード自体はジョブ固定）。
     public bool TrainingMode;
     // ★モード「解放」ノードは 2026-09-13 のジョブ導入で解放の意味を失った（モードはジョブが決める＝設計書 §3）。
@@ -1116,6 +1143,10 @@ public partial class GameManager : Node
                     _ => Job.Tank,
                 };
             }
+            // 解禁制（2026-09-14）の保険：クリア記録と食い違うジョブが入っていたら結び手へ落とす。
+            //   ジョブ導入後〜解禁制の前に保存した「まだ誰も救っていないのに語り手」のデータや、
+            //   旧セーブのモード逆引き（拡散→語り手）がここに当たる。_cleared 復元より後に置くこと。
+            if (!IsJobUnlocked(SelectedJob)) SelectedJob = Job.Tank;
         }
         return true;
     }

@@ -170,6 +170,7 @@ public partial class CompanionDialogueQa : Node
         var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
         GetTree().Root.AddChild(hub);
         GetTree().CurrentScene = hub;
+        Read<HashSet<string>>(game, "_cleared").Add(job.UnlockStageId);
         await Frames(30);
         long followers = game.Followers, impression = game.Impression;
         await Press(Key.J);

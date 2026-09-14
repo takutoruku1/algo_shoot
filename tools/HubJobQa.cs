@@ -30,27 +30,76 @@ public partial class HubJobQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
+            // Keep the desktop cursor outside this deterministic input test.
+            GetNode<PauseMenu>("/root/PauseMenu").SetProcess(false);
             var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
             GetTree().Root.AddChild(hub);
             GetTree().CurrentScene = hub;
             await Frames(30);
             Check(Mode(hub) == "Cards", "new game starts on stage selection without a forced job prompt");
             await Shot("cards");
-            Click(hub, new Rect2(540, 30, 184, 42), "ProcessCards");
+            var phone = new Rect2(400, 0, 480, 720);
+            Check(phone.Encloses((Rect2)Call(hub, "HeaderJobRect")!), "character switch stays inside the phone column");
+            var initialEntries = Read<IList>(hub, "_entries");
+            var feed = new Rect2(400, 128, 480, 518);
+            for (int i = 0; i < initialEntries.Count; i++)
+            {
+                var hit = (Rect2)Call(hub, "CardHitRect", i)!;
+                Check(!hit.HasArea() || feed.Encloses(hit), "post hit areas are clipped above navigation and below the header");
+            }
+            Click(hub, (Rect2)Call(hub, "HeaderJobRect")!, "ProcessCards");
             Check(Mode(hub) == "Job", "header button opens all four job types");
             foreach (var job in Jobs.All)
             {
                 var face = Read<Dictionary<string, Texture2D>>(hub, "_playerFaces")[job.CharacterId];
                 Check(face.ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png",
                     $"{job.CharacterId} player portrait is available before stage clears");
-                float labelWidth = UiKit.TextW(UiKit.Zen, "捨てる", UiKit.FontSmall) + 10f;
-                float bodyWidth = 1040f - 88f - 18f - labelWidth;
-                Check(UiKit.TextW(UiKit.Zen, job.Strength, UiKit.FontLabel) <= bodyWidth
-                    && UiKit.TextW(UiKit.Zen, job.Weakness, UiKit.FontLabel) <= bodyWidth,
-                    $"{job.CharacterId} descriptions fit beside the portrait");
+                var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
+                Check(UiKit.WrapLines(UiKit.Zen, job.Strength, 14, box.w - 48f).Count <= 2
+                    && UiKit.WrapLines(UiKit.Zen, job.Weakness, 14, box.w - 48f).Count <= 2,
+                    $"{job.CharacterId} descriptions fit the compact character sheet");
             }
             await Frames(20);
             await Shot("types");
+            // ジョブ解禁制（2026-09-14）：新規データは結び手（ミナ）だけ。残る3人は行を残したまま
+            //   灰色＋解禁条件が出る。押しても選ばれず、理由（どの面をクリアすれば開くか）だけ返る。
+            foreach (var job in Jobs.All)
+            {
+                bool free = job.UnlockStageId.Length == 0;
+                Check(game.IsJobUnlocked(job.Id) == free, $"{job.CharacterId} starts {(free ? "unlocked" : "locked")} on new data");
+                Check((game.JobUnlockHint(job.Id) == null) == free,
+                    $"{job.CharacterId} {(free ? "needs no unlock line" : "explains the stage that opens it")}");
+            }
+            Click(hub, (Rect2)Call(hub, "JobHitRect", 1)!, "ProcessJob", 0.01);
+            Check(Mode(hub) == "Job" && game.SelectedJob == Job.Tank, "locked character keeps the selection sheet open");
+            Check(Read<string>(hub, "_toastSub") == game.JobUnlockHint(Job.Melee), "the refusal names the stage that opens it");
+            await Shot("types_locked");
+            var clearedStages = Read<HashSet<string>>(game, "_cleared");
+            // 1面（あかり）クリア＝灯し手だけが開く。残る2人は伏せたまま＝1クリアにつき1人。
+            clearedStages.Add("akari");
+            Check(game.IsJobUnlocked(Job.Melee) && !game.IsJobUnlocked(Job.Heal) && !game.IsJobUnlocked(Job.Magic),
+                "clearing akari opens only her job");
+            foreach (var item in GameManager.Stages) clearedStages.Add(item.Id);
+            foreach (var job in Jobs.All) Check(game.IsJobUnlocked(job.Id), $"{job.CharacterId} opens once every stage is cleared");
+            // 既存セーブの移行：解禁は専用キーではなくクリア記録から導くので、読み直すだけで開いている。
+            game.SelectedJob = Job.Magic;
+            game.SaveToSlot(0);
+            game.SelectedJob = Job.Tank;
+            Check(game.LoadFromSlot(0) && game.SelectedJob == Job.Magic && game.IsJobUnlocked(Job.Magic),
+                "an existing cleared save loads with its jobs already open");
+            // --job= のデバッグ起動は解禁を無視する（クリア記録が空でも全ジョブに届く）。
+            clearedStages.Clear();
+            Check(!game.IsJobUnlocked(Job.Magic), "clearing the record locks the job again");
+            game.JobForcedByCmdline = true;
+            foreach (var job in Jobs.All) Check(game.IsJobUnlocked(job.Id), $"--job= reaches {job.CharacterId} without any clear");
+            game.JobForcedByCmdline = false;
+            // クリア記録と食い違うジョブが保存されていたら、ロードで結び手へ落とす（解禁前の旧データの保険）。
+            game.SaveToSlot(0);
+            Check(game.LoadFromSlot(0) && game.SelectedJob == Job.Tank, "a save whose job is not yet earned falls back to the starting job");
+            foreach (var item in GameManager.Stages) clearedStages.Add(item.Id);
+            Write(hub, "_toastT", 0d);
+            await Frames(20);
+            await Shot("types_unlocked");
             Click(hub, (Rect2)Call(hub, "JobHitRect", 1)!, "ProcessJob", 0.01);
             Check(Mode(hub) == "Cards" && game.SelectedJob == Job.Melee, "header selection applies the job and returns to cards");
             await Frames(10);
@@ -62,6 +111,9 @@ public partial class HubJobQa : Node
             Check(tier == (int)GameManager.Diff.Hard, "difficulty can be chosen before changing type");
             Check(!((Rect2)Call(hub, "DetailJobRect", true)!).Intersects((Rect2)Call(hub, "TierHitRect", 3)!),
                 "type button does not overlap difficulty rows");
+            Check(phone.Encloses((Rect2)Call(hub, "DetailConfirmRect", true)!)
+                && !((Rect2)Call(hub, "DetailConfirmRect", true)!).Intersects((Rect2)Call(hub, "TierHitRect", 3)!),
+                "dive button stays below all four difficulties");
             await Frames(240);
             await Shot("detail");
             for (int i = 0; i < Jobs.All.Length; i++)
@@ -110,7 +162,25 @@ public partial class HubJobQa : Node
             var cleared = Read<HashSet<string>>(game, "_cleared");
             foreach (var item in GameManager.Stages) cleared.Add(item.Id);
             Call(hub, "BuildEntries");
+            Call(hub, "LoadFaces");
             var entries = Read<IList>(hub, "_entries");
+            var footer = (IList)Call(hub, "FooterItems")!;
+            for (int i = 0; i < footer.Count; i++)
+                Check(phone.Encloses((Rect2)Call(hub, "FooterItemRect", i)!), "unlocked navigation fits the phone column");
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i]!;
+                string id = (string)entry.GetType().GetField("Id")!.GetValue(entry)!;
+                if (id != "akari" && id != "koharu" && id != "rei" && id != "pinned") continue;
+                Write(hub, "_sel", i);
+                await Frames(40);
+                await Shot($"cleared_{id}_small");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1920, 1080));
+            await Frames(20);
+            await Shot("cards_wide");
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(20);
             int final = -1;
             for (int i = 0; i < entries.Count; i++)
                 if ((bool)entries[i]!.GetType().GetField("IsFinal")!.GetValue(entries[i])!) final = i;
@@ -123,11 +193,28 @@ public partial class HubJobQa : Node
             await Frames(20);
             Click(hub, (Rect2)Call(hub, "JobCloseRect")!, "ProcessJob", 0.01);
             Check(Mode(hub) == "Detail" && Read<int>(hub, "_sel") == final, "final stage job button returns to its shorter detail layout");
-            hub.QueueFree();
+            Click(hub, (Rect2)Call(hub, "DetailCloseRect", false)!, "ProcessDetail", 0.01);
+            Click(hub, (Rect2)Call(hub, "FooterItemRect", 0)!, "ProcessCards");
+            Check(Mode(hub) == "Detail", "bottom dive navigation opens the selected post");
+            await Frames(20);
+            Click(hub, (Rect2)Call(hub, "DetailJobRect", false)!, "ProcessDetail", 0.01);
+            await Frames(20);
+            Click(hub, (Rect2)Call(hub, "JobConfirmRect")!, "ProcessJob", 0.01);
+            Check(Mode(hub) == "Detail" && game.SelectedJob == Job.Magic, "character confirmation button applies the highlighted character");
+            Click(hub, (Rect2)Call(hub, "DetailConfirmRect", false)!, "ProcessDetail", 0.01);
+            await Frames(5);
+            Check(GetTree().CurrentScene is MinaRoot, "primary dive button enters the selected stage");
+            GetTree().CurrentScene.QueueFree();
             await Frames(5);
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
-                if (child is AudioStreamPlayer player) player.Stop();
+                if (child is AudioStreamPlayer player)
+                {
+                    player.Stop();
+                    player.Stream = null;
+                }
+            // Audio playback cleanup runs on a real-time thread even with --fixed-fps.
+            await Task.Delay(250);
             await Frames(5);
             GC.Collect();
             GC.WaitForPendingFinalizers();

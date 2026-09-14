@@ -26,6 +26,11 @@ public partial class PlayerJobQa : Node
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
             game.GrantDodge();
+            // ジョブは 2026-09-14 から解禁制（その子の面をクリアすると開く）。ここは4キャラの
+            //   自機まわりを見るQAなので、クリア記録だけを直接立てて全ジョブを開けた状態から始める
+            //   （CompleteStage だと報酬・オートセーブまで動く。解禁ゲート自体の検証は HubJobQa の担当）。
+            var clearedStages = Read<HashSet<string>>(game, "_cleared");
+            foreach (var stage in GameManager.Stages) clearedStages.Add(stage.Id);
             game.Difficulty = GameManager.Diff.Normal;
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));

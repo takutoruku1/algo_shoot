@@ -45,10 +45,19 @@ public partial class Hub : Node2D
     //   判定は IsClearedForDisplay 経由＝デバッグプレビュー（--hub-preview）でも解禁状態が表示と揃う
     //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
     private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
-    // ジョブは解禁ゲートを持たない（初回訪問から選べる＝設計書 §6）。代わりに「まだ一度も潜っていない」
-    //   あいだだけフッタの項目を脈打たせて、存在に気づかせる。一度でも潜れば静かになる＝
-    //   新しい永続項目（既読フラグ）を足さずに「初回だけ」を作る。
+    // ジョブ（＝一緒に潜る子）は 2026-09-14 から解禁制：最初は結び手（ミナ）だけで、あかり／こはる／レイは
+    //   その子の面をクリアすると開く（GameManager.IsJobUnlocked / JobUnlockHint）。未解禁の行は
+    //   消さずに灰色で残す＝「まだ居る」が見える。ゲートの判定は _cleared だけ＝ここも新しい永続項目は足さない。
+    //   フッタの脈打ち（存在に気づかせる合図）は「まだ一度も潜っていない」あいだだけ。一度でも潜れば静かになる。
     private bool JobHintGlow => (_game?.TotalDives ?? 0) == 0 && (_game?.HeartsSaved ?? 0) == 0;
+
+    // このステージのクリアで新しく開いたジョブ（無ければ null）。帰還トーストの見出しに使う。
+    private static JobTuning? JobUnlockedBy(string stageId)
+    {
+        foreach (var j in Jobs.All)
+            if (j.UnlockStageId == stageId) return j;
+        return null;
+    }
     private bool RecordsUnlocked
     {
         get
@@ -229,13 +238,25 @@ public partial class Hub : Node2D
             //   強化の中身の案内は ShopTutorial（同じ瞬間に一度きり出る説明パート）が持つ。
             //   ※見出しに世界の言葉（例「タイムラインに、新しい操作が増えた」）を添えるかは
             //     scenario 担当の領分なので、ここでは足していない。
-            if (_game.HeartsSaved == 1)
-            {
-                string keys = ShopUnlocked
+            //   ★トーストは1枚しか出ない（_toast は上書き式）。1面クリアの瞬間は「強化／記録が開く」と
+            //     「ジョブが増える」が同時に来るので、2枚を重ねずに1枚へまとめる：見出し＝隣に立った子、
+            //     副題＝開いた導線のキー。以後の面は見出しだけ（導線はもう開いている）。
+            //     回避の解禁（同じ1面クリア）は告知の場所が違う（ステージ側の HUD バナー＝GameManager.GrantDodge）
+            //     ので、こことは渋滞しない。
+            string keyHint = _game.HeartsSaved == 1
+                ? (ShopUnlocked
                     ? $"{Pad.BombToken} 強化    {(Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder))} 記録"
-                    : $"{(Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder))} 記録";
-                Toast(keys, "", UiKit.Ok);
+                    : $"{(Pad.ShowKeyboard ? "T" : Pad.Face(JoyButton.LeftShoulder))} 記録")
+                : "";
+            var freed = JobUnlockedBy(cleared);
+            if (freed != null)
+            {
+                string sub = $"{JobKeyToken} ジョブ「{freed.Name}」";
+                if (keyHint.Length > 0) sub += $"    {keyHint}";
+                Toast($"{freed.CharacterName}が、隣に立つ", sub, JobColor(freed.Id));
             }
+            else if (keyHint.Length > 0)
+                Toast(keyHint, "", UiKit.Ok);
             var lines = FillObservations(ReturnDialog(cleared));
             var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Return);
             if (companion.Length > 0)
@@ -849,8 +870,6 @@ public partial class Hub : Node2D
         return new Rect2(cx + 24f, cy + 338f + i * 68f, cw - 48f, 62f);
     }
 
-    // 詳細フッタの「とじる」の矩形。フッタは Hint を左から並べる（↑↓潜り方 → 潜る → とじる）ので、
-    //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
     private Rect2 DetailCloseRect(bool tiers)
     {
         var (cx, cy, _, _) = DetailBox(tiers);
@@ -1169,9 +1188,6 @@ public partial class Hub : Node2D
         if (contam > 0) DrawRect(new Rect2(PhoneX, FeedTop - 3f, PhoneW * contam, 3f), UiKit.Kegare);
     }
 
-    // カード寸法。2-b で feed が 8〜14 枚になったので「全部を等分」はやめ、1 画面 5〜6 枚に固定して
-    //   はみ出した分は縦スクロールで送る（カードが潰れると本文も伏字も読めなくなる）。
-    //   高さは声のカード（ミナの返信・エンゲージ・BEST を持つ）が成立する 96px を下限に取る。
     private const float FeedTop = 128f, FeedBottom = 646f;
     private static float CardHeight(Entry e) => e.Sort == Kind.Voice && e.Unlocked ? 232f : 152f;
 
@@ -1546,9 +1562,6 @@ public partial class Hub : Node2D
         return list;
     }
 
-    // フッタ1項目の占有幅（キーチップ＋余白＋ラベル＋末尾ギャップ）。Hint の x 送り量と一致させる。
-
-    // フッタ i 項目のクリック矩形（末尾ギャップ24pxは含めず、チップ＋ラベル帯だけを当たり判定にする）。
     private Rect2 FooterItemRect(int i)
     {
         float width = (PhoneW - 24f) / FooterItems().Count;
@@ -1730,8 +1743,6 @@ public partial class Hub : Node2D
         return new Rect2(cx + 24f, cy + 76f + i * 98f, cw - 48f, 92f);
     }
 
-    // 「とじる」の矩形。フッタは Hint を左から並べる（↑↓ジョブ → 決める → とじる）ので、
-    //   先行分の幅（FootItemSpan）を足した x から帯を求める＝表示と当たりがずれない。
     private Rect2 JobCloseRect()
     {
         var (cx, cy, _, _) = JobBox();
@@ -1837,8 +1848,19 @@ public partial class Hub : Node2D
         if (clk == JobConfirmId && _jobT > 0.15) zEdge = true;
         if (zEdge && _jobT > 0.15)
         {
-            Audio.Instance?.PlayUiConfirm();
             var jd = Jobs.All[_jobSel];
+            // 未解禁は選べない（2026-09-14）。行は消さずに残してあるので、押したときは理由を返す
+            //   ＝「まだ居る／どうすれば来るか」が分かる。拒否音は既存の UiCancel をそのまま使う。
+            //   見出しは相手の名前で言う（まだ出会っていない＝カードが ??? の相手は「この人」）
+            //   ＝下の解説欄（DrawJob の「解禁」行）と同じ文が画面に二度並ばない。
+            string? hint = _game?.JobUnlockHint(jd.Id);
+            if (hint != null)
+            {
+                Audio.Instance?.PlayUiCancel();
+                Toast($"{(_game!.IsStageUnlocked(jd.UnlockStageId) ? jd.CharacterName : "この人")}は、まだ隣に立てない", hint, UiKit.Text3);
+                return;
+            }
+            Audio.Instance?.PlayUiConfirm();
             if (_game != null)
             {
                 // セッタが SelectedShotMode を同期する＝「型が撃ち方を決める」（設計書 §3）。
@@ -1888,6 +1910,16 @@ public partial class Hub : Node2D
             DrawJobRow(i, cur, r.Position.X, r.Position.Y, r.Size.X, r.Size.Y, a);
         }
         var job = Jobs.All[_jobSel];
+        // 未解禁にカーソルが乗っているあいだは、得意／捨てるの代わりに解禁条件だけを出す
+        //   ＝「何ができる子か」は救ってから知る（先に手の内が全部見えると出会いの意味が薄れる）。
+        string? hint = _game.JobUnlockHint(job.Id);
+        if (hint != null)
+        {
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 486f), "解禁", 12, new Color(UiKit.Text3, a));
+            UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 508f), hint, 14, new Color(UiKit.Text2, a), cw - 48f, 2);
+            DrawPrimaryButton(JobConfirmRect(), "まだ決められない", JobConfirmId, UiKit.Text3, a * 0.5f);
+            return;
+        }
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 486f), "得意", 12, new Color(UiKit.Ok, a));
         UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 508f), job.Strength, 14, new Color(UiKit.Text2, a), cw - 48f, 2);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 564f), "捨てる", 12, new Color(UiKit.Kegare, a));
@@ -1898,17 +1930,30 @@ public partial class Hub : Node2D
     // ジョブ1段。名前／タイプ・撃ち方／得意（1行）／捨てる（1行）。文言は src/Job.cs の
     //   Strength / Weakness をそのまま出す＝設計書 §2 の表以外に文言の出典を作らない。
     //   「いま選んでいるジョブ」には印（●）を付ける＝カーソルとは別に一目で分かる。
+    //
+    //   未解禁（2026-09-14）は行を消さずに灰色で残す＝「まだ居る」が見える。名前を伏せるかは
+    //   タイムラインのカードと同じ基準で決める：まだ出会っていない相手（IsStageUnlocked=false）は
+    //   カード側も ??? なので、ここだけ名前が割れると伏せた意味が消える。出会い済み（＝次に潜る面）は
+    //   カードに名前が出ているので、ここでも出す＝二つの画面で同じ人の見え方が食い違わない。
     private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
     {
         var jd = Jobs.All[i];
         bool sel = i == _jobSel, now = jd.Id == cur;
-        Color acc = JobColor(jd.Id);
+        bool locked = !(_game?.IsJobUnlocked(jd.Id) ?? true);
+        // 名前を出してよいか＝そのキャラの面のカードが解放済みか（LockedName と同じゲート）。
+        bool met = jd.UnlockStageId.Length == 0 || (_game?.IsStageUnlocked(jd.UnlockStageId) ?? true);
+        Color acc = locked ? UiKit.Text3 : JobColor(jd.Id);
+        float ra = locked ? alpha * 0.55f : alpha;   // 行まるごと沈める＝押せないことが色で分かる
         if (sel) UiKit.Box(this, new Rect2(x, y, w, h), new Color(acc, 0.09f * alpha), 8f, new Color(acc, 0.55f * alpha), 1f);
         else DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.07f * alpha));
-        UiKit.FaceAvatar(this, new Vector2(x + 44f, y + h / 2f), 28f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 90f, y + 18f), $"{jd.CharacterName} / {jd.Name}", 19, new Color(UiKit.White, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 90f, y + 52f), $"{jd.TypeName} · {ShotWord(jd.Mode)}", 14, new Color(acc, alpha));
-        if (now)
+        // 未解禁は顔も伏せる＝FaceAvatar の「?」ロック円（カードの未解放と同じ意匠）。
+        UiKit.FaceAvatar(this, new Vector2(x + 44f, y + h / 2f), 28f, met ? _playerFaces[jd.CharacterId] : null, acc, false, 0f, ra, _t);
+        string who = met ? jd.CharacterName : LockedName;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 90f, y + 18f), $"{who} / {jd.Name}", 19, new Color(UiKit.White, ra));
+        // 2行目：解禁済みはタイプ・撃ち方、未解禁は解禁条件（行だけ見て「どうすれば来るか」が分かる）。
+        string sub = locked ? (_game?.JobUnlockHint(jd.Id) ?? "") : $"{jd.TypeName} · {ShotWord(jd.Mode)}";
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 90f, y + 52f), sub, 14, new Color(acc, ra));
+        if (now && !locked)
         {
             Vector2 p = new(x + w - 24f, y + h / 2f);
             DrawPolyline(new[] { p + new Vector2(-5, 0), p + new Vector2(-1, 4), p + new Vector2(6, -5) }, new Color(acc, alpha), 2f, true);

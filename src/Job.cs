@@ -10,6 +10,11 @@ using Godot;
 //
 // ★enum の並びは保存値（save_N.json の "job"）になるので末尾追加のみ。既存値の入れ替え禁止。
 //   セーブに "job" が無い旧データは Tank（結び手＝初期選択）へ落ちる（GameManager.LoadFromSlot）。
+//
+// ★2026-09-14 解禁制：最初は結び手（ミナ）だけ。あかり／こはる／レイのジョブは、その子の面を
+//   クリアすると開く（JobTuning.UnlockStageId）＝救った子が隣に立ってくれる、という意味を持たせる。
+//   判定は GameManager._cleared（IsStageCleared）だけを見る＝新しい永続項目は足さない＝既存セーブは
+//   読み込んだ時点で自動的に正しい解禁状態になる（Hub.ShopUnlocked と同じ流儀）。
 public enum Job
 {
     Tank = 0,   // 結び手（耐久・連射）← 初期選択。一番素直で死ににくい
@@ -27,6 +32,9 @@ public sealed class JobTuning
     public string CharacterId = "";
     public string CharacterName = "";
     public string PlayerTexturePath = "";
+    // 解禁条件のステージID（GameManager.Stages の Id）。空＝最初から選べる（結び手のみ）。
+    //   キャラ＝そのステージのボス本人なので、条件は素直に「その子の面をクリアする」＝救った子が隣に立つ。
+    public string UnlockStageId = "";
     public string TypeName = "";             // タイプ（近接／回復／耐久／魔法）
     public string Strength = "";             // 得意（選択画面の1行）
     public string Weakness = "";             // 捨てる（選択画面の1行）
@@ -88,6 +96,7 @@ public static class Jobs
         {
             Id = Job.Melee, Name = "灯し手", TypeName = "近接", Mode = GameManager.ShotMode.Accel,
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
+            UnlockStageId = "akari",
             Strength = "密着すると一撃が2倍（上限8）。近いほど回避が速く戻る",
             Weakness = "安全な距離。最大♥ −1",
             MaxLifeDelta = -1,
@@ -101,6 +110,7 @@ public static class Jobs
         {
             Id = Job.Heal, Name = "祈り手", TypeName = "回復", Mode = GameManager.ShotMode.Homing,
             CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
+            UnlockStageId = "koharu",
             Strength = "雑魚24体の浄化ごとに♥+1／BREAK ごとに BOMB+1／帳を常時持つ",
             Weakness = "一発の重さ。4ジョブで最も遅い（威力 ×0.8）",
             // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
@@ -119,6 +129,7 @@ public static class Jobs
         {
             Id = Job.Magic, Name = "語り手", TypeName = "魔法", Mode = GameManager.ShotMode.Spread,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
+            UnlockStageId = "rei",
             Strength = "面を取る。120pxより遠くから当てた弾は威力 ×1.3",
             Weakness = "至近戦。密着クリ無効／回避クールダウン ×1.15",
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
