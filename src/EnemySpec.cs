@@ -1,6 +1,5 @@
 // EnemySpec / StageTheme : 道中ザコのステージ別スポーンテーブル。
 // 「どの絵・どんな挙動のザコが湧くか」を表データで持ち、Spawner が StageTheme に応じて引く。
-// MidEnemy 1クラス＋このテーブルで、ステージ×2種の出し分けをサブクラス量産なしに実現する。
 
 // 各ステージの「心象世界」テーマ。Stage*.cs が Spawner.Theme に渡す。
 public enum StageTheme
@@ -9,6 +8,7 @@ public enum StageTheme
     Rei,     // 配信枠（視聴者アイコン / 空の吹き出し）
     Akari,   // 退勤後のフロア（向かいの席の机 / 送信取消の束）
     Koharu,  // 推し活の部屋（ペンライト / グッズの箱）
+    Mina,
 }
 
 // 道中ザコの固有攻撃パターン。本体(MidEnemy)が _spec.Pattern で発射を分岐する。
@@ -42,11 +42,13 @@ public readonly struct EnemySpec
     public readonly float SwayAmp;     // 上下うねりの振幅（0=直進）
     public readonly float SwayFreq;
     public readonly AttackPattern Pattern; // 固有攻撃パターン（既定 None＝撃たない、後方互換）
+    public readonly bool Humanoid;
+    public readonly bool FlipH;
 
     public EnemySpec(string pre, string post, int points, float bodyRadius,
         float moveSpeed, float spinSpeed, bool fires, float fireInterval,
         float swayAmp = 0f, float swayFreq = 0f,
-        AttackPattern pattern = AttackPattern.None)
+        AttackPattern pattern = AttackPattern.None, bool humanoid = false, bool flipH = true)
     {
         PreTexPath = pre;
         PostTexPath = post;
@@ -59,6 +61,8 @@ public readonly struct EnemySpec
         SwayAmp = swayAmp;
         SwayFreq = swayFreq;
         Pattern = pattern;
+        Humanoid = humanoid;
+        FlipH = flipH;
     }
 }
 
@@ -69,7 +73,6 @@ public static class EnemyTable
     // レイ＝視聴者アイコン / あかり＝向かいの席の机 / こはる＝ペンライト。
     // 各テーマの「撃たない種」（PageShard相当：ゆっくり・上下にうねる・無口）。
     // レイ＝空の吹き出し / あかり＝送信取消の束 / こはる＝グッズの箱。
-    // v3 素材は面ごとに2種ちょうどなので、旧素材（教室・台所・ドローン）と1対1で置き換わる。
     // 旧 char/enemy_* は消していない（StageW0 等の非正典が参照する）。
     public static (EnemySpec shooter, EnemySpec drifter) For(StageTheme theme) => theme switch
     {
@@ -107,6 +110,51 @@ public static class EnemyTable
                 pattern: AttackPattern.DefaultAim),
             new EnemySpec("res://char/enemy_anti_pre.png", "res://char/enemy_anti_post.png",
                 80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f)),
+    };
+
+    private static EnemySpec Character(EnemySpec basis, string stage, string id, bool flipH = false)
+    {
+        string path = $"res://char/v3/enemies/{stage}/enemy_{id}_pre.png";
+        return new EnemySpec(path, path, basis.Points, basis.BodyRadius, basis.MoveSpeed,
+            basis.SpinSpeed, basis.Fires, basis.FireInterval, basis.SwayAmp, basis.SwayFreq,
+            basis.Pattern, humanoid: true, flipH: flipH);
+    }
+
+    private static readonly EnemySpec[] AkariCharacters =
+    {
+        Character(For(StageTheme.Akari).shooter, "akari", "deadline"),
+        Character(For(StageTheme.Akari).drifter, "akari", "unsent"),
+        Character(For(StageTheme.Akari).drifter, "akari", "vacant"),
+    };
+
+    private static readonly EnemySpec[] KoharuCharacters =
+    {
+        Character(For(StageTheme.Koharu).shooter, "koharu", "comparison"),
+        Character(For(StageTheme.Koharu).shooter, "koharu", "cheer"),
+        Character(For(StageTheme.Koharu).drifter, "koharu", "parcel"),
+    };
+
+    private static readonly EnemySpec[] ReiCharacters =
+    {
+        Character(For(StageTheme.Rei).shooter, "rei", "anonymous", flipH: true),
+        Character(For(StageTheme.Rei).shooter, "rei", "clipper"),
+        Character(For(StageTheme.Rei).drifter, "rei", "metrics"),
+    };
+
+    private static readonly EnemySpec[] MinaCharacters =
+    {
+        Character(For(StageTheme.Default).shooter, "mina", "eraser"),
+        Character(For(StageTheme.Default).drifter, "mina", "memory"),
+        Character(For(StageTheme.Default).shooter, "mina", "unanswered"),
+    };
+
+    public static System.Collections.Generic.IReadOnlyList<EnemySpec> CharactersFor(StageTheme theme) => theme switch
+    {
+        StageTheme.Akari => AkariCharacters,
+        StageTheme.Koharu => KoharuCharacters,
+        StageTheme.Rei => ReiCharacters,
+        StageTheme.Mina => MinaCharacters,
+        _ => System.Array.Empty<EnemySpec>(),
     };
 
     // 第4種：回り込み「引用リプ」（FlankAim）。スキンは各テーマの“撃つ種”を流用（新規アート不要）し、

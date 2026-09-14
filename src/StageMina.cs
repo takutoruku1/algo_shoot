@@ -3,7 +3,7 @@ using Godot;
 // StageMina : FINAL「穢れたわたし」進行（案C・仮台本 08 F1〜F3）。三人ぶんの穢れが限界に達したミナ自身が
 // 襲ってくる。自機は通信路を通る「あなたの光」で、彼女が抱えた穢れを撃ち祓う。
 //   1: 導入（F1。ミナの声が壊れ、三人の投稿が変質して戻る）
-//   2: ボス出現（BossMina）
+//   2: 残響3体の浄化 → ボス出現（BossMina）
 //   3: ボス戦（撃破＝穢れを祓う／中で短い邂逅セリフ）
 //   4: Final（対話で帰還）へ
 public partial class StageMina : Node
@@ -18,6 +18,7 @@ public partial class StageMina : Node
     private double _lineHold;
     private int _introLine;
     private BossMina _boss = null!;
+    private Spawner _echoSpawner = null!;
     private bool _bossActive;
     private double _rainT;
     private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
@@ -72,7 +73,7 @@ public partial class StageMina : Node
         _step = 1;
         World.ProcessMode = ProcessModeEnum.Disabled;
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        game?.SetStageTarget(1);
+        game?.SetStageTarget(EnemyTable.CharactersFor(StageTheme.Mina).Count + 1);
         // 導入は S3-7 の分岐受け1行だけが可変。
         var intro = new System.Collections.Generic.List<(int who, string text, string face)>(IntroHead);
         intro.Add(S37Quote(game));
@@ -179,12 +180,29 @@ public partial class StageMina : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _boss = new BossMina { Name = "BossMina" };
-            World.AddChild(_boss);
-            _boss.GlobalPosition = new Vector2(SpawnX, 70f);
-            _bossActive = true;
-            Advance();
+            _echoSpawner = new Spawner
+            {
+                Name = "EchoSpawner", World = World, Theme = StageTheme.Mina,
+                SpawnLimit = EnemyTable.CharactersFor(StageTheme.Mina).Count,
+            };
+            AddChild(_echoSpawner);
+            _echoSpawner.Begin();
         }
+        if (Hud.BubblePaused || _echoSpawner.SpawnedCount < _echoSpawner.SpawnLimit) return;
+        var game = GetNode<GameManager>("/root/Game");
+        if (game.PurifiedCount < _echoSpawner.SpawnLimit) return;
+
+        _echoSpawner.Stop();
+        _echoSpawner.QueueFree();
+        // Residual purification waves must not peel the boss's opening shield.
+        foreach (Node node in World.GetChildren())
+            if (node is MidEnemy or Ripple) node.QueueFree();
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        _boss = new BossMina { Name = "BossMina" };
+        World.AddChild(_boss);
+        _boss.GlobalPosition = new Vector2(SpawnX, 70f);
+        _bossActive = true;
+        Advance();
     }
 
     // 撃破後に Finished が立たないまま固まる進行不能への保険。

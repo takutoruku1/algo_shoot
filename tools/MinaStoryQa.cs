@@ -54,7 +54,34 @@ public partial class MinaStoryQa : Node
             await AdvanceUntil(() => Read<int>(stage, "_introLine") >= 9);
             await Frames(80);
             await Shot("player_intro", false);
-            await AdvanceUntil(() => Read<int>(stage, "_step") == 3);
+            await AdvanceUntil(() => Read<int>(stage, "_step") == 2);
+            player.SetPhysicsProcess(false);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            await WaitUntil(() => Read<Spawner?>(stage, "_echoSpawner") is { SpawnedCount: 3 }, 800);
+            var echoes = new System.Collections.Generic.List<MidEnemy>();
+            var echoPaths = new System.Collections.Generic.HashSet<string>();
+            foreach (var node in world.GetChildren())
+                if (node is MidEnemy echo) { echoes.Add(echo); echoPaths.Add(echo.GetNode<Sprite2D>("Body").Texture.ResourcePath); }
+            Check(echoes.Count == 3 && echoPaths.Count == 3 && !Read<Spawner>(stage, "_echoSpawner").Active,
+                "all three Mina enemies spawn once before the boss");
+            foreach (var spec in EnemyTable.CharactersFor(StageTheme.Mina))
+                Check(echoPaths.Contains(spec.PreTexPath), "Mina echo uses the correct stage illustration");
+            Check(!game.StageCleared && world.GetNodeOrNull<BossMina>("BossMina") == null,
+                "echo spawning does not clear the stage or overlap the boss");
+            await Frames(140);
+            await Shot("echo_wave", false);
+            echoes[0].Purify();
+            await Frames(5);
+            Check(!game.StageCleared && Read<int>(stage, "_step") == 2, "one echo cannot complete the final stage");
+            foreach (var echo in echoes) if (IsInstanceValid(echo)) echo.Purify();
+            await WaitUntil(() => Read<int>(stage, "_step") == 3, 120);
+            await Frames(3);
+            Check(!game.StageCleared && game.PurifiedCount == 3 && game.StageTarget == 4,
+                "only the boss remains in final-stage progress");
+            foreach (var node in world.GetChildren())
+                Check(node is not MidEnemy && node is not Ripple, "echoes and purification waves do not leak into the boss fight");
+            player.SetPhysicsProcess(true);
             var boss = world.GetNode<BossMina>("BossMina");
             Write(player, "_invincible", true);
             Write(player, "_invincibleTimer", 999f);

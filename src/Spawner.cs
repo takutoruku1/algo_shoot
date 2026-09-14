@@ -7,10 +7,13 @@ using Godot;
 public partial class Spawner : Node
 {
     public Node2D World = null!;
-    // ステージの「心象世界」テーマ。湧くザコ2種の絵・挙動をここで切り替える。
+    // ステージの「心象世界」テーマ。
     // 既定は Default（既存アンチくん/うつむきさん）＝StageW0 等は従来どおり。
     public StageTheme Theme = StageTheme.Default;
     public bool Active { get; private set; }
+    public int SpawnLimit;
+    public int SpawnedCount { get; private set; }
+    private int _characterIndex;
 
     // 道中の“波ごとの圧”を変える起点。0=ふつうに緩く立ち上がる、1=最初から最大密度。
     // 道中を三部構成にして「後半ほど詰めてくる」緩急を作るため、後続の波で上げて渡す（§3 緩急）。
@@ -58,6 +61,8 @@ public partial class Spawner : Node
     public void Begin()
     {
         Active = true;
+        SpawnedCount = 0;
+        _characterIndex = 0;
         // 後半の波は StartIntensity ぶんランプを前倒し＝最初からやや詰まった圧で始める。
         float si = Mathf.Clamp(StartIntensity, 0f, 1f);
         _t = si * RampDur;
@@ -110,11 +115,13 @@ public partial class Spawner : Node
         else
         {
             var me = new MidEnemy();
+            var characters = EnemyTable.CharactersFor(Theme);
+            bool introducing = _characterIndex < characters.Count;
             float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
             // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
             // 盤面のやや左に陣取って“読める形”で圧をかける＝左端の安置化を構造的に崩す。
             // 自機は着座Xより左へ回り込めるので、撃ち返して倒せる（2026-09-08 の FlankCampXK 変更）。
-            if (ramp >= FlankRampGate && _rng.Randf() < FlankRate)
+            if (!introducing && ramp >= FlankRampGate && _rng.Randf() < FlankRate)
             {
                 me.Configure(EnemyTable.Flanker(Theme));
                 bool top = _rng.Randf() < 0.5f;
@@ -125,14 +132,14 @@ public partial class Spawner : Node
                     new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
             }
             // 盾もち「バズ壁」：波B/C（StartIntensity>=0.3）のみ。右から出て場の中ほどに陣取る壁。
-            else if (StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
+            else if (!introducing && StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
             {
                 me.Configure(EnemyTable.BuzzWall(Theme));
                 pos = new Vector2(SpawnX, y);
                 me.SetEntry(new Vector2(_rng.RandfRange(160f, 260f), y)); // 中列に居座って射線を塞ぐ
             }
             // 祈り運び：こはる面の道中のみ。ぶら下げた祈り弾ごと左へ横断（居座らない＝SetEntry不要）。
-            else if (Theme == StageTheme.Koharu && _rng.Randf() < PrayerCarrierRate)
+            else if (!introducing && Theme == StageTheme.Koharu && _rng.Randf() < PrayerCarrierRate)
             {
                 me.Configure(EnemyTable.PrayerCarrier());
                 // ぶら下げ弾（最大+37px＋振れ）が画面下端216pxを割らないYで横断させる。
@@ -141,7 +148,8 @@ public partial class Spawner : Node
             else
             {
                 var (shooter, drift) = EnemyTable.For(Theme);
-                me.Configure(drifter ? drift : shooter);
+                bool character = introducing || (characters.Count > 0 && _rng.Randf() < 0.6f);
+                me.Configure(character ? characters[_characterIndex++ % characters.Count] : drifter ? drift : shooter);
                 // 出現エッジを散らす：右60% / 右上20% / 右下20%。各エッジから場内の居座り点へ進入する。
                 int edge = _rng.Randf() < 0.6f ? 0 : (_rng.Randf() < 0.5f ? 1 : 2);
                 Vector2 camp;
@@ -166,5 +174,7 @@ public partial class Spawner : Node
         }
         World.AddChild(e);
         e.GlobalPosition = pos;
+        SpawnedCount++;
+        if (SpawnLimit > 0 && SpawnedCount >= SpawnLimit) Active = false;
     }
 }

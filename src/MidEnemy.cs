@@ -94,7 +94,7 @@ public partial class MidEnemy : Enemy
     private float _kick;             // 予告/発射の溜め：一瞬の縦スカッシュ量（0で平常、減衰）
 
     // 1枚絵の transform で“生きてる感”を出す周期モーションの型（種＝モチーフごと）。
-    private enum LivingMotion { None, ReiDrone, ReiEye, AkariDesk, AkariNote, KoharuPenlight, KoharuBox }
+    private enum LivingMotion { None, ReiDrone, ReiEye, AkariDesk, AkariNote, KoharuPenlight, KoharuBox, Humanoid }
 
     // Spawner から AddChild 前に呼ぶ（OnEnemy Ready/_Ready より先に値を渡しておく）。
     public void Configure(in EnemySpec spec) => _spec = spec;
@@ -113,8 +113,9 @@ public partial class MidEnemy : Enemy
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;
+        FaceLeft = _spec.FlipH;
         // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
-        BodyDisplayH = 23f;             // 一回り小さく
+        BodyDisplayH = _spec.Humanoid ? 30f : 23f;
 
         // 盾もち「バズ壁」：撃たない代わりにパネル5枚×インク3＝“剥がし切る”DPSチェック
         //（拡散/ホーミング/貫通の使い所を作る優先順位の壁）。体も大きく見せて「硬そう」を絵で予告
@@ -146,7 +147,7 @@ public partial class MidEnemy : Enemy
         ApplySpellVisual();
 
         // 生命感モーション：モチーフ＝_spec.Pattern から動きの型を決め、位相を個体ごとにずらす。
-        _motion = MotionFor(_spec.Pattern);
+        _motion = _spec.Humanoid ? LivingMotion.Humanoid : MotionFor(_spec.Pattern);
         _motionPhase = GD.Randf() * Mathf.Tau;   // 0〜2π：群れが同期しないよう全位相を散らす
         _gazeT = GD.RandRange(1.2, 2.6);         // 監視カメラ：最初の視線変更までの間
 
@@ -585,6 +586,11 @@ public partial class MidEnemy : Enemy
         const float Tau = Mathf.Tau;
         switch (_motion)
         {
+            case LivingMotion.Humanoid:
+                oy = Mathf.Sin(t * 2.2f) * 0.6f;
+                rot = Mathf.Sin(t * 1.8f) * 0.025f;
+                break;
+
             // 偵察ドローン：ホバリング。速い小刻み上下ブレ＋進行(左)へわずか前傾＋ローター示唆の速い微小ロール。
             case LivingMotion.ReiDrone:
                 oy = Mathf.Sin(t * 7.5f) * 1.4f;                 // 上下ブレ ±1.4px / ~1.2Hz
@@ -641,8 +647,8 @@ public partial class MidEnemy : Enemy
         // 予告/発射の溜め：縦に潰す（_kick:1→0）。攻撃の直前に“ためてる”を全種共通で足す。
         if (_kick > 0f)
         {
-            sy *= 1f - 0.18f * _kick;
-            sx *= 1f + 0.08f * _kick;
+            sy *= 1f - (_spec.Humanoid ? 0.025f : 0.18f) * _kick;
+            sx *= 1f + (_spec.Humanoid ? 0.012f : 0.08f) * _kick;
         }
 
         // 合成して反映（基準スケールへ係数を掛ける）。Rotation は FlipH と独立に効く。
