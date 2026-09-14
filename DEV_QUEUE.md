@@ -47,9 +47,9 @@
 
 <!-- 2026-09-14 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照。qaは新規指摘0件 -->
 
-- [ ] sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている | game-designer | 2026-09-14監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:9`の`FireInterval=0.11`は実装`src/Player.cs:16`の`0.13f`と不一致。同`:16`の`RampDur=60/IntervalEnd=0.9/MaxAlive=9`も実装`src/Spawner.cs:20-23`の`RampDur=28f`（コメントで60→28へ意図的短縮済みと明記）/`IntervalEnd=0.8f`/`MaxAlive=10`と不一致（2026-09-11に同ファイルの`HomingTurnRate`等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: `design-map.md`の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。
-
 ## WIP
+
+- [ ] sakurai skillのdesign-map.mdの`FireInterval`と`Spawner`密度3値が実装値からズレている | game-designer | 2026-09-14監査(game-designer)。`.claude/skills/sakurai/references/design-map.md:9`の`FireInterval=0.11`は実装`src/Player.cs:16`の`0.13f`と不一致。同`:16`の`RampDur=60/IntervalEnd=0.9/MaxAlive=9`も実装`src/Spawner.cs:20-23`の`RampDur=28f`（コメントで60→28へ意図的短縮済みと明記）/`IntervalEnd=0.8f`/`MaxAlive=10`と不一致（2026-09-11に同ファイルの`HomingTurnRate`等は是正済みだが、この2箇所は未修正のまま残存）。この参照ドキュメントは今後のsakurai監査がテンポ判断の根拠に直接使うため、ズレたままだと誤った前提で批評しかねない。対応: `design-map.md`の該当2箇所を実装値に同期。コード変更なし（ドキュメントのみ）。
 
 ## BLOCKED
 
