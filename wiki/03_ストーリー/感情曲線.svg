@@ -42,7 +42,7 @@
 
   <!-- 面 + 線 (x=場面の順, y=380-汚染*280)
        命名0 → 練習0 → 束0.09 → あかり改心0.18 → H1 0.18 → 入力欄0.32 → こはる改心0.45 → H2 0.45
-       → 引用の嵐0.60 → 割り込み0.70 → ガワが割れる0.80 → 返礼1.0 → F4 1.0 → E2 0 → E6 0 -->
+       → 引用の嵐0.60 → 割り込み0.70 → ガワが割れる0.80 → 救援1.0 → F4 1.0 → E2 0 → E6 0 -->
   <path d="M70,380 L114,380 L200,355 L250,330 L300,330 L380,290 L440,254 L490,254 L560,212 L610,184 L660,156 L720,100 L770,100 L850,380 L906,380 Z"
         fill="#0E9490" opacity="0.08"/>
   <path d="M70,380 L114,380 L200,355 L250,330 L300,330 L380,290 L440,254 L490,254 L560,212 L610,184 L660,156 L720,100 L770,100 L850,380 L906,380"
@@ -78,7 +78,7 @@
     <text x="560" y="199" text-anchor="middle">引用の嵐</text>
     <text x="610" y="171" text-anchor="middle">割り込み</text>
     <text x="660" y="143" text-anchor="middle">ガワが割れる</text>
-    <text x="720" y="87"  text-anchor="middle">三人の返礼</text>
+    <text x="720" y="87"  text-anchor="middle">三人の救援</text>
     <text x="780" y="96"  text-anchor="start" font-weight="700">【初】が戻る（F4 頂点）</text>
     <text x="842" y="400" text-anchor="end" font-weight="700">【終】が最後に出る（ロール）</text>
     <text x="906" y="366" text-anchor="middle">END</text>
