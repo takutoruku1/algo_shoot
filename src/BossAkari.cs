@@ -136,7 +136,7 @@ public partial class BossAkari : Enemy
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
         // 徘徊：画面上部のボスゾーンに収め、イージング＋ホバーで漂わせる（速度はINI: roam_speed）。
         _mover.Configure(new Vector2(200f, 70f), 90f, 28f, _roamSpeed);
-        GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
+        GetHud()?.ShowBossBar("あふれるわたし", "@akari_ame");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 

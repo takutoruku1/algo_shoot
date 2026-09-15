@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-15 18:31 UTC",
+  "generated": "2026-09-15 18:32 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 34,
-    "done": 233
+    "done": 234
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame)",
-      "worker": null,
-      "accept": "2026-09-15監査(scenario)。`src/BossAkari.cs:139`の`GetHud()?.ShowBossBar(\"あふれるわたし\",\"@akari.\")`に対し、同ファイル`:56,189,305`の`GetHud()?.AnnounceSpell(\"あかり\",\"@akari_ame\",...)`は同じ戦闘内で`\"@akari_ame\"`を使い、同一ボス・同一ファイル内でハンドルが2種類混在している。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247`は「ボスバー『あふれるわたし』『@akari_ame』(技を宣言するときのハンドル)」と明記しボスバー自体のハンドルを`@akari_ame`と指定。他2ボスは内部・仮台本とも一致済み(`src/BossKoharu.cs:193`と`:108/489/499/508`は共に`\"@koharu_light\"`、`src/BossRei.cs:183`と`:87/372`は共に`\"@hoshiai_rei_live\"`)。2026-09-11のDONEタスク(Hub.csのハンドル末尾ピリオド統一)が`BossAkari.cs:139`の値自体が仮台本06:247と食い違っている点を検証せず、誤った値を基準に他ファイルを揃えてしまっていた。受入条件: `src/BossAkari.cs:139`のハンドルを`\"@akari_ame\"`に修正する。`GameManager.cs:200`/`StageAkari.cs:504`/`Hub.cs:1309-1310`(メイン`@akari.`文脈、`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`「メイン @akari.、技を宣言するときだけ @akari_ame」に整合)は変更しない。台詞本文は変更せず識別子1箇所のみの修正(機械的修正のため承認ゲート対象外)。`dotnet build algo_shoot.sln` 0 Warning/0 Errorを確認すること。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -223,6 +216,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame)",
+      "worker": null,
+      "accept": "(完了 2026-09-15) 2026-09-15監査(scenario)発見。`src/BossAkari.cs:139`の`GetHud()?.ShowBossBar(\"あふれるわたし\",\"@akari.\")`を`\"@akari_ame\"`に修正し、同ファイル`:56,189,305`の`AnnounceSpell`呼び出しおよび承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247`と一致させた。`GameManager.cs:200`/`StageAkari.cs:504`/`Hub.cs:1309-1310`のメイン`@akari.`文脈は変更していない。台詞本文の変更は無く識別子1箇所のみの機械的修正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "ボス無防備窓(EXPOSED)で密着連打するとダメージ数字が積み上がりボス本体・危険弾の視認性を悪化させる",
@@ -1624,6 +1623,16 @@
   ],
   "commits": [
     {
+      "hash": "ee651e2",
+      "date": "2026-09-15",
+      "subject": "auto: WIP着手 - あかりのSNSハンドル食い違いを修正する"
+    },
+    {
+      "hash": "2a40426",
+      "date": "2026-09-15",
+      "subject": "auto: ボス無防備窓のダメージ数字積み上がりによる視認性悪化を修正"
+    },
+    {
       "hash": "7976a43",
       "date": "2026-09-15",
       "subject": "auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する"
@@ -1652,16 +1661,6 @@
       "hash": "0a20987",
       "date": "2026-09-14",
       "subject": "auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する"
-    },
-    {
-      "hash": "ff1c1f9",
-      "date": "2026-09-14",
-      "subject": "auto: 監査で TODO 2件・BLOCKED 1件をキューに追加"
-    },
-    {
-      "hash": "df56713",
-      "date": "2026-09-13",
-      "subject": "auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正"
     }
   ]
 }

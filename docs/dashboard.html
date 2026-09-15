@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 233 / 対象 234 タスク<br>保留 34 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 234 / 対象 234 タスク<br>保留 34 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">233</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">234</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">34</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame)</span>
-          
-        </div>
-        <p class="accept">2026-09-15監査(scenario)。<code>src/BossAkari.cs:139</code>の<code>GetHud()?.ShowBossBar(&quot;あふれるわたし&quot;,&quot;@akari.&quot;)</code>に対し、同ファイル<code>:56,189,305</code>の<code>GetHud()?.AnnounceSpell(&quot;あかり&quot;,&quot;@akari_ame&quot;,...)</code>は同じ戦闘内で<code>&quot;@akari_ame&quot;</code>を使い、同一ボス・同一ファイル内でハンドルが2種類混在している。承認済み仮台本<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247</code>は「ボスバー『あふれるわたし』『@akari_ame』(技を宣言するときのハンドル)」と明記しボスバー自体のハンドルを<code>@akari_ame</code>と指定。他2ボスは内部・仮台本とも一致済み(<code>src/BossKoharu.cs:193</code>と<code>:108/489/499/508</code>は共に<code>&quot;@koharu_light&quot;</code>、<code>src/BossRei.cs:183</code>と<code>:87/372</code>は共に<code>&quot;@hoshiai_rei_live&quot;</code>)。2026-09-11のDONEタスク(Hub.csのハンドル末尾ピリオド統一)が<code>BossAkari.cs:139</code>の値自体が仮台本06:247と食い違っている点を検証せず、誤った値を基準に他ファイルを揃えてしまっていた。受入条件: <code>src/BossAkari.cs:139</code>のハンドルを<code>&quot;@akari_ame&quot;</code>に修正する。<code>GameManager.cs:200</code>/<code>StageAkari.cs:504</code>/<code>Hub.cs:1309-1310</code>(メイン<code>@akari.</code>文脈、<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17</code>「メイン @akari.、技を宣言するときだけ @akari_ame」に整合)は変更しない。台詞本文は変更せず識別子1箇所のみの修正(機械的修正のため承認ゲート対象外)。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Errorを確認すること。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame)</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-15) 2026-09-15監査(scenario)発見。<code>src/BossAkari.cs:139</code>の<code>GetHud()?.ShowBossBar(&quot;あふれるわたし&quot;,&quot;@akari.&quot;)</code>を<code>&quot;@akari_ame&quot;</code>に修正し、同ファイル<code>:56,189,305</code>の<code>AnnounceSpell</code>呼び出しおよび承認済み仮台本<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247</code>と一致させた。<code>GameManager.cs:200</code>/<code>StageAkari.cs:504</code>/<code>Hub.cs:1309-1310</code>のメイン<code>@akari.</code>文脈は変更していない。台詞本文の変更は無く識別子1箇所のみの機械的修正。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2305,18 +2305,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ee651e2</span><span>2026-09-15</span><span class="s">auto: WIP着手 - あかりのSNSハンドル食い違いを修正する</span></li>
+      <li><span class="h">2a40426</span><span>2026-09-15</span><span class="s">auto: ボス無防備窓のダメージ数字積み上がりによる視認性悪化を修正</span></li>
       <li><span class="h">7976a43</span><span>2026-09-15</span><span class="s">auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する</span></li>
       <li><span class="h">1b16370</span><span>2026-09-15</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">1462b48</span><span>2026-09-14</span><span class="s">auto: sakurai design-map.mdの実装値ズレを是正</span></li>
       <li><span class="h">17af48b</span><span>2026-09-14</span><span class="s">auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する</span></li>
       <li><span class="h">b09ebd5</span><span>2026-09-14</span><span class="s">auto: LUNATIC解禁UIのshot_power_4残存表記を修正</span></li>
       <li><span class="h">0a20987</span><span>2026-09-14</span><span class="s">auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する</span></li>
-      <li><span class="h">ff1c1f9</span><span>2026-09-14</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
-      <li><span class="h">df56713</span><span>2026-09-13</span><span class="s">auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-15 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-15 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
