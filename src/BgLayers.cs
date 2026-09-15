@@ -29,6 +29,7 @@ public partial class BgLayers : Node2D
 {
     private const float ScreenWidth = 384f;
     private const float ScreenHeight = 216f;
+    private const float PanoramaOverlap = 0.08f;
 
     // 層の定義（Root から配列で注入する）。
     //   Path      : res:// のテクスチャ。読めない層は黙って飛ばす（他の層は敷かれる＝事故らない）。
@@ -48,12 +49,13 @@ public partial class BgLayers : Node2D
         public readonly bool Additive;
         public readonly bool Loop;
         public readonly Vector2 Offset;
+        public readonly bool FitToField;
 
         public Layer(string path, float scrollMul, int z, Color tint, bool additive = false, bool loop = false,
-                     Vector2 offset = default)
+                     Vector2 offset = default, bool fitToField = false)
         {
             Path = path; ScrollMul = scrollMul; Z = z; Tint = tint;
-            Additive = additive; Loop = loop; Offset = offset;
+            Additive = additive; Loop = loop; Offset = offset; FitToField = fitToField;
         }
     }
 
@@ -64,10 +66,10 @@ public partial class BgLayers : Node2D
     //   Dim   : 既定。光(L4)のαを 0 へ、L1〜L3 を 0.55 倍へ落として世界を沈める（STAGE1 あかり/STAGE2 こはる）。
     //   Brighten : 逆に光を増やす（STAGE3 レイ）。L1〜L3 は 0.7 倍に留め、BossLayers の層セットへ
     //              クロスフェードして金の光を足す＝舞台が煌々と点く。
-    public enum BossBehavior { Dim, Brighten }
+    public enum BossBehavior { Dim, Brighten, Illustrated }
     public BossBehavior OnBoss = BossBehavior.Dim;
 
-    // OnBoss=Brighten のとき、ボス突入でこの層セットへクロスフェードする（空なら層は据え置きで係数だけ）。
+    // 専用絵は既に照明を描き込んでいるため、Illustrated では追加の暗転を掛けない。
     public Layer[] BossLayers = System.Array.Empty<Layer>();
 
     // 基準スクロール速度（px/s）。StageBackground.MidScrollSpeed と同じ控えめな値に揃える。
@@ -119,6 +121,8 @@ public partial class BgLayers : Node2D
         public bool Additive;
         public Color BaseTint;    // Root が指定した元の色（暗転はこれに係数を掛ける）
         public Vector2 Offset;
+        public bool FitToField;
+        public ShaderMaterial? PanoramaMaterial;
         public float Fade = 1f;   // 層セットのクロスフェード用のα（旧セットは 1→0、新セットは 0→1）
     }
 
@@ -170,11 +174,24 @@ public partial class BgLayers : Node2D
 
             // 1280x720 の素材を内部解像度の高さに合わせる（216/720 = 0.3）。
             // 部分素材（L3 の一枚物など）も同じ 0.3 倍で置く＝素材どうしの大きさの関係が崩れない。
-            float scale = ScreenHeight / 720f;
+            float scale = def.FitToField
+                ? Mathf.Max((Field.Width + 8f) / tex.GetWidth(), (ScreenHeight + 8f) / tex.GetHeight())
+                : ScreenHeight / 720f;
             float tileW = tex.GetWidth() * scale;
+            var origin = def.FitToField
+                ? new Vector2(Field.CenterX, ScreenHeight * 0.5f) - tex.GetSize() * scale * 0.5f
+                : def.Offset;
+            ShaderMaterial? panorama = null;
+            if (def.FitToField && def.Loop)
+            {
+                origin.X = Field.Left - 4f;
+                panorama = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/route_panorama.gdshader") };
+                panorama.SetShaderParameter("edge_blend", PanoramaOverlap);
+            }
 
             // ループ層は画面幅を覆う枚数＋1（巻き戻し用に最低2枚）。非ループは1枚。
-            int count = def.Loop ? Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / Mathf.Max(1f, tileW)) + 1) : 1;
+            int count = def.Loop && !def.FitToField
+                ? Mathf.Max(2, Mathf.CeilToInt(ScreenWidth / Mathf.Max(1f, tileW)) + 1) : 1;
 
             var tiles = new Sprite2D[count];
             for (int i = 0; i < count; i++)
@@ -185,7 +202,7 @@ public partial class BgLayers : Node2D
                     Texture = tex,
                     Centered = false,
                     Scale = new Vector2(scale, scale),
-                    Position = def.Offset + new Vector2(i * tileW, 0f),
+                    Position = origin + new Vector2(i * tileW, 0f),
                     ZIndex = def.Z,
                     ZAsRelative = false,
                     TextureFilter = CanvasItem.TextureFilterEnum.Linear,
@@ -193,6 +210,12 @@ public partial class BgLayers : Node2D
                 };
                 if (def.Additive)
                     spr.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+                if (panorama != null)
+                {
+                    spr.Material = panorama;
+                    spr.RegionEnabled = true;
+                    spr.RegionRect = new Rect2(0, 0, (Field.Width + 8f) / scale, tex.GetHeight());
+                }
                 AddChild(spr);
                 tiles[i] = spr;
             }
@@ -200,12 +223,14 @@ public partial class BgLayers : Node2D
             into.Add(new Live
             {
                 Tiles = tiles, TileW = tileW, ScrollMul = def.ScrollMul,
-                Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = def.Offset,
+                Loop = def.Loop, Additive = def.Additive, BaseTint = def.Tint, Offset = origin,
+                FitToField = def.FitToField,
+                PanoramaMaterial = panorama,
                 Fade = fade,
                 // ループ層の X はループ用オフセット(0起点)、非ループ層の X は現在の画面X（初期位置＝配置位置）。
                 // 全画面の一枚物は「盤面の左端が素材の左端」を初期位置にする（_reveal は 0 から立ち上がる）
                 // ＝1フレーム目から視差の基準位置に居る（開幕に背景がガクッと寄らない）。
-                X = def.Loop ? 0f : def.Offset.X + (IsFullWidth(tileW) ? RevealMax : 0f),
+                X = def.Loop ? 0f : def.FitToField ? origin.X : def.Offset.X + (IsFullWidth(tileW) ? RevealMax : 0f),
             });
         }
     }
@@ -230,7 +255,7 @@ public partial class BgLayers : Node2D
     }
 
     // 現行の層をすべて消す（新セット無し）。FINAL の巡回の終点＝三人の場所から離れ、
-    // 背後のミナ自身の背景（生成グラデ）だけが残る＝旅が彼女に着地する。
+    // 背後のミナ自身の背景だけが残る＝旅が彼女に着地する。
     public void FadeOutAll(float dur = 1.0f)
     {
         if (_swapping) FinishSwap();
@@ -263,7 +288,7 @@ public partial class BgLayers : Node2D
         if (_dimming || _dimK >= 1f) return;
         _dimming = true;
         _dimT = 0f;
-        if (OnBoss == BossBehavior.Brighten && BossLayers.Length > 0) CrossfadeTo(BossLayers, BossDimDur);
+        if (BossLayers.Length > 0) CrossfadeTo(BossLayers, BossDimDur);
     }
 
     // 層セットと「ボス中の見え方」を同時に差し替える（FINAL の巡回専用）。
@@ -322,6 +347,24 @@ public partial class BgLayers : Node2D
 
         foreach (var l in _live)
         {
+            if (l.PanoramaMaterial != null)
+            {
+                // 端の重ね幅を周期から引き、静止した切り抜き窓の中だけを連続して左へ流す。
+                if (!Hud.BubblePaused)
+                {
+                    l.X = (l.X + ScrollSpeed * l.ScrollMul * posMul * dt) % (l.TileW * (1f - PanoramaOverlap));
+                    l.PanoramaMaterial.SetShaderParameter("scroll_offset", l.X / l.TileW);
+                }
+                continue;
+            }
+            if (l.FitToField)
+            {
+                // 専用一枚絵は盤面内に収め、余白の範囲だけ動かして継ぎ目と大きな横流れを防ぐ。
+                float target = l.Offset.X + (0.5f - nx) * 4f;
+                l.X = Mathf.Lerp(l.X, target, 1f - Mathf.Exp(-RevealFollow * dt));
+                foreach (var s in l.Tiles) s.Position = new Vector2(l.X, l.Offset.Y);
+                continue;
+            }
             if (l.ScrollMul <= 0f) continue;   // 光の層は動かさない
 
             // 全画面の一枚物だけ「隠れていた左側を見せる」視差に乗せる。0 の層は従来の挙動のまま。
@@ -366,7 +409,7 @@ public partial class BgLayers : Node2D
             var b = l.BaseTint;
             // Dim: 加算層（光）はαを 0 へ、それ以外は明度を 0.45 倍へ。
             // Brighten: 光は消さず（レイのボスは煌々と点く）、L1〜L3 は 0.7 倍に留める。
-            float dimTo = brighten ? BossBrightMul : BossDimMul;
+            float dimTo = OnBoss == BossBehavior.Illustrated ? 1f : brighten ? BossBrightMul : BossDimMul;
             float rgbMul = l.Additive ? 1f : Mathf.Lerp(1f, dimTo, _dimK);
             float aMul = (!l.Additive || brighten) ? 1f : Mathf.Lerp(1f, 0f, _dimK);
             var c = new Color(

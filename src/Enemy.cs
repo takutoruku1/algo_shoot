@@ -654,7 +654,8 @@ public partial class Enemy : Area2D
             }
 
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
-            dmg = Mathf.Min(dmg, WindowCap - _windowDamage);
+            dmg = LimitBodyDamage(Mathf.Min(dmg, WindowCap - _windowDamage));
+            if (dmg <= 0) return;
             _windowDamage += dmg;
             _bodyHitCd = BodyHitCd;
             int prevBarsLeft = (_hp + BarHp - 1) / BarHp; // 減算前の残バー数（切り上げ）
@@ -807,6 +808,8 @@ public partial class Enemy : Area2D
             }
             return;
         }
+        dmg = LimitBodyDamage(dmg);
+        if (dmg <= 0) return;
         _windowDamage += dmg;
         int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
         _hp = Mathf.Max(0, _hp - dmg);
@@ -835,6 +838,8 @@ public partial class Enemy : Area2D
     public void DealDirectDamage(int dmg)
     {
         if (_purified || _maxHp <= 0 || dmg <= 0) return;
+        dmg = LimitBodyDamage(dmg);
+        if (dmg <= 0) return;
         int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
@@ -930,6 +935,20 @@ public partial class Enemy : Area2D
 
     // HPが変化した（HUDバー更新用フック）。
     protected virtual void OnHpChanged() { }
+
+    protected virtual int LimitBodyDamage(int damage) => damage;
+
+    protected int DamageToHpFloor(int damage, float ratio)
+        => Mathf.Clamp(damage, 0, Mathf.Max(0, _hp - Mathf.RoundToInt(_maxHp * ratio)));
+
+    protected void ChangeBattleCostume(string idle, string attack)
+    {
+        PreTexPath = idle;
+        AttackTexPath = attack;
+        _attackPoseT = 0;
+        SetBodyPose(BossParts.Pose.Idle);
+        SwapBody(idle);
+    }
 
     // 改心処理（消さない。味方化して残る）。
     private void Redeem()

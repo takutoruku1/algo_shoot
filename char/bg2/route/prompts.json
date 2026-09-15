@@ -1,0 +1,136 @@
+{
+  "generator": "built-in image_gen",
+  "style_reference": "D:/dev/algo_shoot/char/bg2/ending/bg_ep_dawn.png",
+  "canvas": [
+    2172,
+    724
+  ],
+  "layers": [
+    {
+      "id": "akari_far",
+      "path": "res://char/bg2/route/akari_far.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-ecf85b12-e83d-4651-8447-b60039d44ec7.png",
+      "prompt": "Use case: stylized-concept. Create the FAR BACKGROUND layer of a three-layer Japanese anime side-scrolling shooter level. Image 1 is STYLE ONLY: use its crisp hand-painted anime background finish, gently simplified detailed environment, no photographic textures. Entirely NEW location: Akari's lonely late-night COMMUTING STREET, outside in the business district after rain. Wide seamless horizontal panorama, aspect ratio 3:1, target 2880x960. This far layer is fully OPAQUE. Cloudy indigo-gray night sky above staggered distant small office buildings and overhead railway silhouette. Scattered muted warm windows. Distant skyline sits around lower half. Bottom 35% is a subdued continuous wet dark charcoal roadway, small horizontal blue reflections, no dominating objects. No foreground railing, no close lamp posts, no close shops; these are separate layers later. Side-on lateral composition: horizon stays level across whole image, NO central vanishing point, no framing objects, no focal hero building. Matching left and right edge lighting and road height for horizontal tiling. Legible, moderately detailed, quiet middle gameplay band. This is an ordinary empty outdoor city, NOT a boss arena: no interior, no office desks or chairs, no giant windows, no ceremonial symmetry. No people, lettering, signs with text, UI, bullets, sparkles, bokeh, lens effects, watermark. Do not reproduce the reference rooftop or moon.",
+      "processing": "original"
+    },
+    {
+      "id": "akari_mid",
+      "path": "res://char/bg2/route/akari_mid.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-01bb7097-ca26-4d25-8b2f-c309a0fc36c4.png",
+      "prompt": "Use case: stylized-concept. Paint ONLY a MIDGROUND parallax overlay for this side-scrolling anime game background (reference image 1 supplies exact palette and rendering). 3:1 panorama target 2880x960. Solid FLAT pure magenta #FF00FF wherever there is no object, for chroma-key removal. NO checkerboard and no gradients in the magenta. Do NOT paint the sky, far skyline, road or water from the reference. Objects only: a long varied side-on row of modest Japanese closed shopfronts along a late-night commuting street, shuttered florist and small convenience storefront with blank dark signs, a station staircase to one side, low business buildings. Detailed hand-painted anime, muted charcoal slate and dark desaturated blue with small soft amber windows. Building bottom baseline is at 78% canvas height; roof heights vary between 30% and 55%. Leave TOP 25% and BOTTOM 20% entirely solid magenta. Large gaps between several building groups show magenta, preserving far-layer sky. Narrow sidewalk strip immediately below buildings allowed, no broad ground plane. Side-on facade orientation with parallel horizontal baselines, no central vanishing point, not an interior. Matching edge darkness; keep extreme edges unobtrusive. No close foreground railing or lamp posts; those go on another layer. No characters, text, legible signs, UI, bullets, particles, stars, vignette, borders, watermark. This is an outdoor route, not an office boss room.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "akari_near",
+      "path": "res://char/bg2/route/akari_near.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-d1c629e5-812a-424a-87e8-a633c645cdac.png",
+      "prompt": "Use case: stylized-concept. Create ONLY a FOREGROUND overlay layer for the side-scrolling anime commuting street in reference 1. Match its hand-painted cool dark blue night palette with restrained amber edge light. 3:1 image target 2880x960, full canvas registration. TRANSPARENT background, true PNG alpha. If alpha cannot be provided, use uniform flat pure magenta #FF00FF, never a checkerboard or black backdrop. Content confined to the BOTTOM 24% of the canvas: a continuous low dark wet roadside metal guardrail and curb, spaced short steel posts, one small utility cabinet, a few weeds growing by the curb. Guardrail top is at 82% height and ground at 98%. One cabinet may reach 76%; NOTHING above 75%. Top 75% entirely empty transparent. Perspective side-on parallel horizontal railing, right and left ends match at same height for horizontal looping. Sparse elegant readable silhouette with finely illustrated wet metal edges, not a solid flat vector bar. Keep objects DARK and visually modest so they never hide gameplay. No lamps reaching high up, no characters, buildings, sky, road plane, distant skyline, signs, lettering, UI, guns, bullets, particles, glow balls, watermark. This is a separate foreground only, not a complete scene.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "koharu_far",
+      "path": "res://char/bg2/route/koharu_far.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-b1793e4c-4a12-4f69-9d0e-d01997e1b191.png",
+      "prompt": "Use case: stylized-concept. Create the FAR BACKGROUND layer of a three-layer Japanese anime side-scrolling shooter level. Image 1 is STYLE ONLY: match the crisp hand-painted anime background finish and simplified shapes, not a photo. Entirely NEW location: Koharu's empty SCHOOL COMMUTE PATH at early evening, seen outdoors along a residential neighborhood. Wide seamless horizontal panorama, aspect ratio 3:1, target 2880x960. Fully OPAQUE far layer. Soft dusty rose dusk sky, lavender-gray cloud bands and distant muted sage hills, small low residential roofs far away, a modest distant school roof. Lower 35% is a continuous desaturated cool-gray walking path with muted warm light, horizontal side-on ground. Ordinary quiet wistful evening, NOT an interior bedroom, no idol merchandise, no stage, no classroom, no giant sun/moon. No foreground trees, fences, lampposts or large buildings; these are separate layers. Level horizontal skyline, NO central vanishing point, no tunnel view, evenly detailed across width with matching edges for tiling. Quiet low-contrast central action space, not too bright for bullet readability. No characters, text, UI, projectiles, sparkles, bokeh, watermark. Do not recreate the reference rooftop.",
+      "processing": "original"
+    },
+    {
+      "id": "koharu_mid",
+      "path": "res://char/bg2/route/koharu_mid.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-b4087f55-744d-47c4-b111-490e4b645a03.png",
+      "prompt": "Use case: stylized-concept. Paint ONLY a MIDGROUND parallax overlay for Koharu's anime side-scrolling SCHOOL COMMUTE PATH (reference 1 supplies exact muted dusk palette and hand-painted finish). Wide 3:1 image target 2880x960. TRUE TRANSPARENT PNG alpha background; if not possible, flat pure magenta #FF00FF only, no checkerboard. Do NOT include reference sky, distant skyline or road. Only side-on outdoor scenery: a long modest school boundary wall, glimpses of school windows and a few leafy sage-green trees behind it, two widely spaced open gates, a little sheltered bicycle rack, small residential roofs behind wall. School wall height about 60%-76% canvas; trees/buildings reach at most 28% height. Baseline 77%. Top 25% and bottom 21% MUST remain fully transparent. Several open spaces between tree/building groups reveal sky through transparency. Color lavender-gray wall, muted dusty green foliage, soft faded peach rim light, restrained warm windows. Attractive finely illustrated anime shapes, not vector silhouettes or photorealism. Perfectly horizontal side-on composition, no central vanishing point, no hero gateway or symmetric arena. No foreground railing, people, readable text or signs, school logos, UI, floating petals, sparkle effects, merchandise, bedroom furniture, watermark.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "koharu_near",
+      "path": "res://char/bg2/route/koharu_near.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-10eb047e-ddfc-4cf6-8741-09fb83a6a04b.png",
+      "prompt": "Use case: stylized-concept. Create ONLY a FOREGROUND parallax overlay for Koharu's anime dusk school commute path. Reference 1 defines muted rose dusk and sage/lavender anime painting style. 3:1 image target 2880x960, full-canvas registration. True TRANSPARENT PNG alpha background, no black backdrop or checkerboard. If no true alpha, uniform pure magenta #FF00FF. Upper 76% completely EMPTY transparent. Objects only along lower 24%: a short weathered roadside railing with widely spaced square posts, low ivy and grasses growing along a gray pavement edge, a few tiny faded flowers tucked in the low verge. Horizontal top rail at 83% canvas height, curb at 97%. Muted charcoal sage and cool gray, fine restrained peach light on edges. No large plants, no trees projecting high into screen, no central focal object. Side-on repeating lateral scenery with matching curb/rail height at both edges. No broad opaque ground plane, sky, buildings, distant hills, school wall, people, text, logos, UI, flying petals, projectiles, glow, watermark. Detailed hand-painted anime, not vector or photographic.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "rei_far",
+      "path": "res://char/bg2/route/rei_far.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-f0c13e22-9d46-4840-a22d-11264106c272.png",
+      "prompt": "Use case: stylized-concept. Create the FAR BACKGROUND layer of a three-layer Japanese anime side-scrolling shooter level, Rei's world. Image 1 is STYLE ONLY: precise hand-painted anime background aesthetic, illustrated and gently simplified, never photographic/3D render. Entirely new OUTDOOR location: abandoned virtual communications district at blue hour, a long lateral data canal beneath distant softly silhouetted relay towers and uneven miniature server buildings. Wide 3:1 panorama, target 2880x960, fully opaque. Deep muted petrol teal sky with sparse layered clouds, muted coral and ice-green signal windows clustered near distant horizon at 60% height. Lower 35% dark quiet reflective canal water with horizontal reflected colored dashes, no big glowing circles. Top and middle mostly open low-contrast teal atmosphere. All detailed architecture small and distant, no foreground objects. Side-on scrollable composition, level horizon and equal water heights and lighting at both edges, NO central vanishing point, no large center centerpiece. Ordinary neglected outskirts of a digital city, NOT the boss's royal virtual stage. Absolutely NO stage, gold, gold stars, ornate arch, theater curtains, floating UI windows, text panels, humans, lettering, logos, projectiles, particles, bokeh, lens flare, watermark. Do not copy the reference rooftop, moon or sunset palette.",
+      "processing": "original"
+    },
+    {
+      "id": "rei_mid",
+      "path": "res://char/bg2/route/rei_mid.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-34289f3f-d786-4513-8799-4e2599ee4ece.png",
+      "prompt": "Use case: stylized-concept. Create only MIDGROUND parallax overlay for Rei's side-scrolling virtual communications district. Reference 1 is palette and anime rendering style ONLY. Wide 3:1 target 2880x960. TRANSPARENT background PNG, no black or checkerboard. Alternative flat pure magenta #FF00FF chroma backing. Do not include sky, far skyline, water or ground plane. Painted isolated environment band: irregular groups of stylized dark teal relay cabinets, modest cooling towers, thin aerials and connected horizontal cable bridges, scattered narrow muted coral and mint status windows (no text). Three main groups separated by open gaps. Baseline at 78% height, taller structures up to 30%, most objects below 48%. Upper 24% and lower 20% absolutely empty transparent. Detailed clean anime industrial shapes, a gently unreal disused data canal outskirt, no photorealism or noisy cyberpunk overload. Side-on continuous horizontal composition, level baselines, no central vanishing point. Edges share calm dark cablework at same height. This must be completely distinct from an ornate livestream boss stage: NO gold stars, gold trim, arches, curtains, throne, palace, UI screens, floating squares, huge circles, people, text, projectiles, particles, bokeh, watermark.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "rei_near",
+      "path": "res://char/bg2/route/rei_near.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-fb446928-2cbc-4566-a48c-bddb97d4aea3.png",
+      "prompt": "Use case: stylized-concept. Generate ONLY the FOREGROUND parallax overlay for the anime digital canal route in reference image 1. Keep illustrated muted petrol-teal, charcoal and restrained coral/mint equipment lights. 3:1 target 2880x960. True TRANSPARENT PNG alpha, no black/checkerboard. If needed a solid pure magenta #FF00FF background for keying. Upper 76% fully empty. Bottom 24% only: low industrial canal maintenance rail, chunky cable conduits, a narrow segmented dark metal walkway lip, occasional small junction boxes flush with railing. Parallel horizontal rail at 84% canvas height, walkway at 97%, small boxes may reach 78%. Compact hand-painted details and dark modest silhouettes so bullets remain readable. Left and right edge rail/walkway at matching heights for seamless lateral movement. Do NOT paint sky, water, buildings, tower, tall poles or full ground surface. No ornate stage, gold trim, gold stars, theatrical curtains, crystal glass, people, labels, lettering, UI, floating shapes, bullets, particles, bright glow, lens effects, watermark.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "matte",
+        "keep_canvas": true,
+        "target_h": 724
+      }
+    },
+    {
+      "id": "mina_far",
+      "path": "res://char/bg2/route/mina_far.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-6aeee97d-7962-4044-adc3-b9cea8074f24.png",
+      "prompt": "Use case: stylized-concept. Create the FAR BACKGROUND layer of a three-layer Japanese anime side-scrolling shooter level, Mina's approach to the final boss. Reference image is STYLE ONLY: crisp professional painted anime background rendering with softly simplified clouds. Entirely NEW outdoor location: a silent boundless SEA OF MEMORIES under an overcast silver-lilac twilight. Wide seamless 3:1 horizontal panorama target 2880x960, fully opaque. Broad slow horizontal clouds occupy upper half, far low misty island silhouettes on level horizon at 58% height, calm desaturated dark purple-gray ocean fills the lower half with delicate flat silvery ripples. Almost-natural dreamlike empty seascape, sparse and poignant, distinct from all city stages. Restrained light across cloudy horizon, NO sun/moon orb, no central beam of light. No foreground objects at all; broken walkway fragments are separate layers to add later. Texture and values must vary gently across the width while both ends share same horizon, lighting and water height for lateral looping. Quiet central gameplay area. Do NOT create a hall, chamber, walls, arches, pillars, glass panels, window shards, palace, boss arena or office chair. No characters, letters, symbols, UI, bullets, decorative sparkles, bokeh, lens effects, watermark. Do not copy reference rooftop, city or peach sunset.",
+      "processing": "original"
+    },
+    {
+      "id": "mina_mid",
+      "path": "res://char/bg2/route/mina_mid.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-4e6e86f3-6699-4a87-a603-9a03f0c10180.png",
+      "prompt": "Use case: stylized-concept. Paint ONLY a MIDGROUND asset layer for Mina's anime sea-of-memories route. Reference image is exact silver-lilac twilight palette and high-quality anime background style. Wide 3:1 target 2880x960. This must be an OPAQUE CHROMA KEY source. Background everywhere MUST be solid pure GREEN #00FF00 RGB 0,255,0, including all holes between rails and underneath bridge fragments. NO transparency, checkerboard, black matte, white matte or gradients. Do NOT include reference sky, sea or distant islands. Only three separated side-on fragments of an ordinary weathered concrete footbridge with short simple iron railings. Fragment deck baseline at 77% canvas height. Rail tops at 56%. All content confined to y=52%-82%; top half and bottom 18% entirely green. Three distinct groups separated by broad green gaps, same deck height. Slight narrow view of slab tops, broad lateral composition, no center vanishing point. Soft gray-lilac painted concrete, tiny chipped edges, dark iron, subtle pale silver top light. This is a quiet outdoor broken path, not a boss's glass hall. No pillars, arches, glass, crystals, chairs, magical lights, palace, tower, people, text, logos, UI, projectiles or particles. Every railing opening is uninterrupted flat pure green. The green backing is essential, do not remove it.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "green",
+        "keep_canvas": true,
+        "target_h": 724,
+        "despill": true
+      }
+    },
+    {
+      "id": "mina_near",
+      "path": "res://char/bg2/route/mina_near.png",
+      "source": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-b55e5477-a11f-4c6f-a55b-473922048411.png",
+      "prompt": "Use case: stylized-concept. Create ONLY a FOREGROUND asset layer for Mina's anime sea-of-memories route. Match reference image's hand-painted silver-lilac twilight and muted cool gray. Wide 3:1 target 2880x960. This deliverable is an OPAQUE chroma-key source: background MUST be one uniform pure GREEN #00FF00 with RGB values 0,255,0. No transparency, no checkerboard, no shadows on green. Everything not an object, including gaps, is solid green. Upper 78% entirely green. Only along bottom 22%: a few large weathered charcoal-gray broken seaside pavement lips, short rusted railing stumps, a loose thick rope draped between two squat mooring posts. Most objects along 89%-100% canvas height. Sparse asymmetrical fragments with wide green gaps, no tall object above 78%. No sky, water, waves, distant islands, midground bridge, people or text. Broad side-on objects with subtle lavender edge highlights and painted chipped concrete, horizontal overall alignment for scrolling. No pillars, glass, arches, palace, boss arena, crystals, circles, magical glows, particles, UI, lettering, bullets or watermark. Produce flat pure green behind ONLY these low foreground objects, do not recreate a whole scene.",
+      "processing": {
+        "script": "tools/key_trim_scale.ps1",
+        "key": "green",
+        "keep_canvas": true,
+        "target_h": 724,
+        "despill": true
+      }
+    }
+  ]
+}

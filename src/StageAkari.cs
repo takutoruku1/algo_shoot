@@ -369,6 +369,8 @@ public partial class StageAkari : Node
 
     private void Advance()
     {
+        // The opening wave flows straight into the cameo without a dialogue stop.
+        if (_step != 2) (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }
@@ -647,6 +649,7 @@ public partial class StageAkari : Node
     private void StartMidwaveSpawner(float startIntensity = 0f)
     {
         if (_spawner != null) return;
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Akari, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
@@ -665,6 +668,7 @@ public partial class StageAkari : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
             _cameo = new CameoBoss
             {
                 Name = "AkariCameo",

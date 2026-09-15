@@ -33,6 +33,8 @@ public partial class StageBackground : Node2D
     // 層システム（BgLayers）へ渡す層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
     // 空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
     public BgLayers.Layer[] LayerDefs = System.Array.Empty<BgLayers.Layer>();
+    public BgLayers.Layer[] RouteLayerDefs = System.Array.Empty<BgLayers.Layer>();
+    public BgLayers.Layer[] MidbossLayerDefs = System.Array.Empty<BgLayers.Layer>();
     // ボス突入の挙動（暗転／明転）と、明転のときに差し替える層セット。層モードのときだけ意味を持つ。
     public BgLayers.BossBehavior LayerBossBehavior = BgLayers.BossBehavior.Dim;
     public BgLayers.Layer[] BossLayerDefs = System.Array.Empty<BgLayers.Layer>();
@@ -45,7 +47,32 @@ public partial class StageBackground : Node2D
 
     // 層モードで層セットを丸ごと入れ替える（道中で場所が変わる面。こはるの部屋→教室）。
     // 層モードでないときや層が読めないときは何もしない。
-    public void CrossfadeLayersTo(BgLayers.Layer[] defs, float dur = 1.0f) => _layers?.CrossfadeTo(defs, dur);
+    public void CrossfadeLayersTo(BgLayers.Layer[] defs, float dur = 1.0f)
+    {
+        LayerDefs = defs;
+        if (_mode != Mode.Route && _mode != Mode.Midboss) _layers?.CrossfadeTo(defs, dur);
+    }
+
+    public void BeginRoute()
+    {
+        if (_mode == Mode.Route || _mode == Mode.Boss || RouteLayerDefs.Length == 0) return;
+        _mode = Mode.Route;
+        _layers.CrossfadeTo(RouteLayerDefs, 0.8f);
+    }
+
+    public void BeginMidboss()
+    {
+        if (_mode == Mode.Midboss || _mode == Mode.Boss || MidbossLayerDefs.Length == 0) return;
+        _mode = Mode.Midboss;
+        _layers.CrossfadeTo(MidbossLayerDefs, 0.8f);
+    }
+
+    public void ReturnToStory()
+    {
+        if (_mode != Mode.Route && _mode != Mode.Midboss) return;
+        _mode = Mode.Mid;
+        _layers.CrossfadeTo(LayerDefs, 0.8f);
+    }
 
     // 層セットと「ボス中の見え方」を同時に入れ替える（FINAL の巡回。巡る先の面のボス時の係数に揃える）。
     public void CrossfadeLayersToBoss(BgLayers.BossBehavior onBoss, BgLayers.Layer[] defs, float dur = 1.0f)
@@ -67,7 +94,7 @@ public partial class StageBackground : Node2D
 
     public bool HasMid { get; private set; }
 
-    private enum Mode { Mid, Boss }
+    private enum Mode { Mid, Route, Midboss, Boss }
     private Mode _mode = Mode.Mid;
     private double _t;
 
@@ -218,7 +245,6 @@ public partial class StageBackground : Node2D
     // ボス戦突入：道中背景を隠し、専用背景へ切替（軽く動かす）。BossBgPath が無ければ何もしない（道中のまま）。
     public void EnterBoss()
     {
-        // 層モード：暗転（L4 のα→0、L1〜L3 を 0.55 倍）だけを行い、背景の差し替えはしない。
         if (_layers != null) { _mode = Mode.Boss; _layers.EnterBoss(); return; }
         if (_mode == Mode.Boss) return;
         bool hasTex = BossBgTexture != null || (!string.IsNullOrEmpty(BossBgPath) && ResourceLoader.Exists(BossBgPath));

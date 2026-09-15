@@ -14,6 +14,23 @@ public partial class KoharuRoot : Node2D
     public Node2D World { get; private set; } = null!;
     public StageBackground Bg { get; private set; } = null!;
 
+    public static readonly BgLayers.Layer[] RouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/koharu_far.png", 0.22f, -95, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_mid.png", 0.62f, -92, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/koharu_near.png", 1.20f, -91, Colors.White, loop: true, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] MidbossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/midboss/koharu_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] BossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/boss/koharu_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
+
     // 道中A＝部屋（配信の部屋）。L1 は菫寄りの藍で色掛け、L4 は配信画面の加算光。
     private static readonly Color RoomBlue = new Color(0.72f, 0.68f, 1.00f);
     public static readonly BgLayers.Layer[] RoomLayers =
@@ -60,12 +77,16 @@ public partial class KoharuRoot : Node2D
         // （StageKoharu が Step_MidwaveB の頭で Bg.CrossfadeLayersTo(ClassLayers) を呼ぶ）。
         // L1 は無彩色の素材なので Modulate で色掛けする（部屋＝菫寄りの藍／教室＝青灰）。
         // L3 の一枚物は素材座標(1280x720基準)の配置を 0.3 倍して画面座標に落とす。
-        // L4（配信画面／窓の光）は加算・非スクロール。ボス突入(EnterBoss)で L4 が消えて L1〜L3 が沈む。
+        // 道中の光は加算で重ね、ボス突入時は画面の消えた部屋の専用画へ切り替える。
         var bg = new StageBackground
         {
             Name = "StageBackground",
+            RouteLayerDefs = RouteLayers,
+            MidbossLayerDefs = MidbossLayers,
             MidScrollSpeed = 18f, // 電気の消えた部屋は凪いだ空気＝最も控えめな前進感
             LayerDefs = RoomLayers,
+            LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
+            BossLayerDefs = BossLayers,
         };
         AddChild(bg);
         Bg = bg;

@@ -2,7 +2,7 @@ using Godot;
 
 // ReiRoot : STAGE3「レイ」のルート（Rei.tscn にアタッチ）。
 // レイの心象世界（bg2 stage3 の四層）を敷き、Player(=ミナ)/Hud/StageRei を生成。改心が進むと少し晴れる。
-// ボス突入は他の2面と逆に光が増える（枠が全面化して金の光が点く）＝舞台に上がる面。
+// ボス突入で配信の部屋から星飾りの専用舞台へ切り替わる。
 public partial class ReiRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -12,6 +12,23 @@ public partial class ReiRoot : Node2D
     public Hud Hud { get; private set; } = null!;
     public StageRei Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
+
+    public static readonly BgLayers.Layer[] RouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/rei_far.png", 0.22f, -95, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/rei_mid.png", 0.62f, -92, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/rei_near.png", 1.20f, -91, Colors.White, loop: true, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] MidbossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/midboss/rei_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] BossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/boss/rei_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
 
     private CanvasModulate _tint = null!;
     private static readonly Color Cold = new Color(0.58f, 0.66f, 0.95f); // サイバー寒色
@@ -32,13 +49,12 @@ public partial class ReiRoot : Node2D
         // レイ面の四層背景（char/bg2/stage3）。奥→手前に L1 遠景 → L2 中景（飾り枠と配信卓）→ L3 近景 → L4 光。
         // L1 は無彩色の素材なので Modulate で菫寄りの深い藍に色掛けする。
         // L3 の一枚物は素材の中で既に置き場所が決まった 1280x720 なので配置は (0,0) のまま（0.3 倍で画面に収まる）。
-        // ボス突入は他の2面と逆に「光を増やす」：L2_mid → L2_frame_full（枠の全面版）へ層セットを
-        // クロスフェードし、L4_light_gold を加算で足す＝舞台が煌々と点く。L1〜L3 の沈みも 0.7 倍に留める
-        // （BgLayers.BossBehavior.Brighten）。
         var deepViolet = new Color(0.52f, 0.46f, 0.90f);
         var bg = new StageBackground
         {
             Name = "StageBackground",
+            RouteLayerDefs = RouteLayers,
+            MidbossLayerDefs = MidbossLayers,
             LayerDefs = new[]
             {
                 new BgLayers.Layer("res://char/bg2/stage3/L1_far.png",          0.15f, -95, deepViolet),
@@ -48,19 +64,8 @@ public partial class ReiRoot : Node2D
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_screen.png", 0f,    -88, Colors.White, additive: true),
                 new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
             },
-            LayerBossBehavior = BgLayers.BossBehavior.Brighten,
-            // ボスの層セット：枠が全面へ広がり、金の光（α0.50 の加算）が足される。近景と遠景は据え置き。
-            BossLayerDefs = new[]
-            {
-                new BgLayers.Layer("res://char/bg2/stage3/L1_far.png",          0.15f, -95, deepViolet),
-                new BgLayers.Layer("res://char/bg2/stage3/L2_frame_full.png",   0.45f, -92, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L3_near_left.png",    1.00f, -91, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L3_near_right.png",   1.00f, -91, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L4_light_screen.png", 0f,    -88, Colors.White, additive: true),
-                new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
-                new BgLayers.Layer("res://char/bg2/stage3/L4_light_gold.png",   0f,    -88,
-                    new Color(1f, 1f, 1f, 0.50f), additive: true),
-            },
+            LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
+            BossLayerDefs = BossLayers,
         };
         AddChild(bg);
         if (!bg.HasMid)

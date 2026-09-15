@@ -705,6 +705,7 @@ public partial class Hud : CanvasLayer
     // 現行スペルの色をHPバーへ連動させる（各ボスの ApplySpell が呼ぶ）。null=既定の穢れ色。
     private Color? _bossTint;
     public void SetBossBarTint(Color c) => _bossTint = c;
+    public void SetBossPhaseName(string name) => _bossName = name;
     // HPバー1本割れの白フラッシュ（Enemy の本体ヒットでバー境界を跨いだ瞬間に焚く）。
     private double _bossBarFlash;
     private const double BossBarFlashDur = 0.32;

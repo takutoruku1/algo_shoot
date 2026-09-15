@@ -12,6 +12,23 @@ public partial class AkariRoot : Node2D
     public StageAkari Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
 
+    public static readonly BgLayers.Layer[] RouteLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/route/akari_far.png", 0.22f, -95, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_mid.png", 0.62f, -92, Colors.White, loop: true, fitToField: true),
+        new BgLayers.Layer("res://char/bg2/route/akari_near.png", 1.20f, -91, Colors.White, loop: true, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] MidbossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/midboss/akari_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
+
+    public static readonly BgLayers.Layer[] BossLayers =
+    {
+        new BgLayers.Layer("res://char/bg2/boss/akari_v1.png", 0.15f, -95, Colors.White, fitToField: true),
+    };
+
     private CanvasModulate _tint = null!;
     private static readonly Color Cold = new Color(0.60f, 0.68f, 0.92f); // 雨の寒色
     private static readonly Color Warm = new Color(1.05f, 0.99f, 0.92f); // 晴れた暖色
@@ -32,11 +49,15 @@ public partial class AkariRoot : Node2D
         // L1 と F2 は無彩色の素材なので Modulate で雨青に色掛けする（設計は (0.69,0.94,1.28) だが
         // Modulate は 1.0 を超えられないので同じ色相のまま (0.54,0.73,1.00) へ正規化）。
         // L3 の一枚物は素材座標(1280x720基準)の配置を 0.3 倍して画面座標に落とす。
-        // L4（モニタと窓の光）は加算・非スクロール。ボス突入(EnterBoss)で L4 が消えて L1〜L3 が沈む。
+        // L4（モニタと窓の光）は道中専用。ボス突入時は専用画へ層ごと切り替える。
         var rainBlue = new Color(0.54f, 0.73f, 1.00f);
         var bg = new StageBackground
         {
             Name = "StageBackground",
+            RouteLayerDefs = RouteLayers,
+            MidbossLayerDefs = MidbossLayers,
+            LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
+            BossLayerDefs = BossLayers,
             LayerDefs = new[]
             {
                 new BgLayers.Layer("res://char/bg2/stage1/L1_far.png",           0.15f, -95, rainBlue),

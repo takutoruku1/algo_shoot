@@ -425,6 +425,7 @@ public partial class StageRei : Node
 
     private void Advance()
     {
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }
@@ -658,6 +659,7 @@ public partial class StageRei : Node
             if (_storm != null && IsInstanceValid(_storm)) _storm.Dismiss();
             _storm = null;
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
             _step = 19; _stepStarted = false;
         }
     }
@@ -700,6 +702,7 @@ public partial class StageRei : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
             _cameo = new CameoBoss
             {
                 Name = "ReiCameo",
@@ -738,6 +741,7 @@ public partial class StageRei : Node
     private void StartMidwaveSpawner(float startIntensity = 0f)
     {
         if (_spawner != null) return;
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();

@@ -202,6 +202,7 @@ public partial class StageMina : Node
         World.AddChild(_boss);
         _boss.GlobalPosition = new Vector2(SpawnX, 70f);
         _bossActive = true;
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
         Advance();
     }
 

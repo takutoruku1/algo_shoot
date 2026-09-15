@@ -348,6 +348,7 @@ public partial class StageKoharu : Node
 
     private void Advance()
     {
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }
@@ -766,6 +767,7 @@ public partial class StageKoharu : Node
     private void StartMidwaveSpawner(float startIntensity = 0f)
     {
         if (_spawner != null) return;
+        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
         _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Koharu, StartIntensity = startIntensity };
         AddChild(_spawner);
         _spawner.Begin();
@@ -784,6 +786,7 @@ public partial class StageKoharu : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
             _cameo = new CameoBoss
             {
                 Name = "KoharuCameo",

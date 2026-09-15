@@ -13,6 +13,8 @@ public partial class Player : Area2D
     //     基本移動そのものが既に遅く、低速は「遅いものをさらに遅くする」だけで手触りを損ねていた。
     //     空いた L1 は集中モードへ回した（下の集中モード入力を参照）。
     private const float NormalSpeed = 75f;
+    public float SlowestMoveSpeed => NormalSpeed * (_game?.MoveSpeedMul ?? 1f)
+        * (_game?.JobDef.MoveMul ?? 1f) * LockMoveMul;
 
     // 連射
     private const float FireInterval = 0.13f;

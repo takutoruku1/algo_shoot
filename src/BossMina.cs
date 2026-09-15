@@ -2,13 +2,15 @@ using Godot;
 
 // BossMina : FINAL「穢れたわたし」（案C・仮台本 08 F2/F3）。三人ぶんの穢れがミナの中で限界に達した姿。
 // 自機は通信路を通る「あなたの光」。ミナ自身が抱えた穢れを撃ち祓う。
-// BREAK ごとに、祓った三人（あかり→こはる→レイ）が浄化波の援護とともに返礼を投げる。
 // HPを削り切る＝穢れを祓い、核が開く。短い邂逅（F3）のあと、Final（F4 の頂点）へ。
 public partial class BossMina : Enemy
 {
     public bool Finished { get; private set; }
     public bool MemoryPlayed => _memoryPlayed;
-    public bool AoeGateActive => _caster != null && _caster.AoeActive;
+    public bool AoeGateActive => Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
+    public bool Transitioning { get; private set; }
+    public int EncounterPhase => _pattern;
+    private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
     private bool _memoryPending, _memoryPlayed;
 
     private readonly BossMover _mover = new BossMover();
@@ -16,10 +18,8 @@ public partial class BossMina : Enemy
 
     private double _fireT;
     private double _fireT2;   // フィナーレ用の第2タイマー（2スペル同時撃ち）
-    private bool _finale;     // HP2割以下＝2スペル同時展開
     private float _ringOff;
     private int _pattern;
-    private int _beatsFired;
     private const int PatternCount = 5;
     private Texture2D?[][] _spellArt = null!;
     private int _visualPattern, _artIndex;
@@ -29,29 +29,33 @@ public partial class BossMina : Enemy
     private double _lineT;
     private bool _zHeld;
 
-    // 全画面AOEキャスター（このボス専用）。HP閾値で安置型/全面型を1回ずつ撃たせ、予告中は通常弾を止める。
-    private AreaSpellCaster _caster = null!;
-    private bool _aoe62Done, _aoe42Done, _aoeFinaleDone; // 各閾値ワンショット
+    private MinaPhaseAttacks _caster = null!;
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [mina]。読めなければ現行既定値）──
     private double _ringInterval = 0.95, _aimedInterval = 0.8, _flowerInterval = 1.0, _spiralInterval = 0.075;
     private int _ringCount = 16, _flowerPetals = 10, _aimedWing = 2; // wing=way数の片翼（5way→2）
     private float _ringSpeed = 72f, _aimedSpeed = 104f, _spiralSpeed = 92f;
-    private float _aoeSingleHp = 0.62f, _aoeChainHp = 0.42f; // 全画面AOEの発動HP割合（単発/リレー2連）
 
     // HPがこの割合を割るたびに弾幕パターンを変える。
-    private static readonly float[] PatternThresholds = { 0.82f, 0.62f, 0.42f, 0.22f };
+    public static readonly float[] PhaseThresholds = { 0.80f, 0.58f, 0.36f, 0.16f };
+    private static readonly string[] Costumes = { "", "rain", "screen", "stream", "home" };
+    public static string CostumePath(int phase, string pose) => phase == 0
+        ? $"res://char/v3/boss_mina_body_{pose}.png"
+        : $"res://char/v3/mina_phases/{Costumes[phase]}_{pose}.tres";
+    public static string PhaseBackground(int phase) => $"res://char/bg2/boss/{phase switch
+        { 1 => "akari", 2 => "koharu", 3 => "rei", _ => "mina" }}_v1.png";
+    public static string PhaseName(int phase) => Spells[phase].name;
+    public static Color PhaseTint(int phase) => Spells[phase].tint;
+    public void ShowSignaturePose() => TriggerAttackPose();
 
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("届かなかった言葉",     BulletShape.Diamond, new Color("b07cd0")),
-        ("見ていてほしかった",   BulletShape.Star,    new Color("e0648c")),
-        ("ちゃんとしなければ",   BulletShape.Rice,    new Color("9a8cd0")),
-        ("心象の核",             BulletShape.Ring,    new Color("f0d98a")), // 濁金
-        ("世界中の悲鳴",         BulletShape.Orb,     new Color("e0729c")), // 濁桃・全部同時
+        ("穢れたわたし",         BulletShape.Diamond, new Color("b07cd0")),
+        ("未送信の雨",           BulletShape.Star,    new Color("74b8e8")),
+        ("消えない拍手",         BulletShape.Rice,    new Color("ee9bb7")),
+        ("仮面の向こう",         BulletShape.Ring,    new Color("f0d98a")),
+        ("わたしの声",           BulletShape.Orb,     new Color("85e8d0")),
     };
-    // 攻撃パターン→立ち位置の対応（0 リング・2 花型＝中央に据わる／1 自機狙い＝鏡写しに追う／
-    // 3 三重スパイラル＝端／4「世界中の悲鳴」＝全部同時＝中央の高めで動かない）。
     private static BossMover.Attack StanceOf(int pattern) => (pattern % PatternCount) switch
     {
         1 => BossMover.Attack.Aimed,
@@ -67,7 +71,7 @@ public partial class BossMina : Enemy
         _artIndex = 0;
         SetMemoryVisual(_pattern);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", s.name, s.tint);
+        GetHud()?.SetBossPhaseName($"ミナ / {s.name}");
     }
 
     private void SetMemoryVisual(int pattern)
@@ -84,18 +88,13 @@ public partial class BossMina : Enemy
         bullet.SetSprite(art[_artIndex++ % art.Length], 28f);
     }
 
-    // F3 邂逅（HP0。仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。who: 1=ミナ / 2=レイ。
-    //   核が開く一拍。本決着（F4 の頂点）は Final に委ねるので、ここは4行だけ。
-    //   出自に触れる行は置かない（03 の「あなたが捨てた言葉で、できているのに」は不採用）。
-    //   レイの1行は H1r 返信「あなたの言い方、誰かに似てる」の反転回収＝一面目のあかりの気づきを、
-    //   三面あとにレイが言い切る。ガワではなく中の人の顔（v3 rei_face）で。
-    //   ミナの受けは断定しない＝測れなかったことだけを言って白転へ渡す。
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (1, "……こないで、ください。……ご主人、様……穢れて、しまいます……", "res://char/mina_worried.png"), // 動揺・拒絶＝worried（表情マトリクス指定行）
-        (2, "ねえ、知ってた? あんたの言い方——この人に、そっくりよ。", "res://char/v3/rei_face.png"),
-        (1, "…………。", "res://char/mina_worried.png"),
-        (1, "……いまの、は。……観測、できません。", "res://char/mina_tears.png"), // 断定しない。測れなかったことだけ → 白転 → F4
+        (1, "……今のは。業務報告では、ありません。", "res://char/mina_tears.png"),
+        (2, "知ってる。あんたの声だった。", "res://char/v3/rei_face.png"),
+        (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_tears.png"),
+        (2, "何回だって言いなさい。聞くから。", "res://char/v3/rei_face.png"),
+        (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_tears.png"),
     };
 
     protected override void OnEnemyReady()
@@ -126,8 +125,6 @@ public partial class BossMina : Enemy
         _flowerPetals = Mathf.Max(1, BossTuning.I("mina", "flower_petals", 10));
         _spiralInterval = BossTuning.F("mina", "spiral_interval", 0.075f);
         _spiralSpeed = BossTuning.F("mina", "spiral_speed", 92f);
-        _aoeSingleHp = BossTuning.F("mina", "aoe_single_hp", 0.62f);
-        _aoeChainHp = BossTuning.F("mina", "aoe_chain_hp", 0.42f);
 
         PreTexPath = "res://char/v3/boss_mina_body_idle.png";
         AttackTexPath = "res://char/v3/boss_mina_body_attack.png";
@@ -154,33 +151,34 @@ public partial class BossMina : Enemy
         _spellArt = new Texture2D?[][]
         {
             new[] { BulletArt.AkariEnvelope, BulletArt.Get("enemy_rei_anonymous") },
-            new[] { BulletArt.KoharuAcrylic, BulletArt.Get("enemy_rei_metrics") },
-            new[] { BulletArt.AkariDocs, BulletArt.KoharuTicket },
-            new[] { GD.Load<Texture2D>("res://char/player/mina/mina_core_v1.png") },
-            new[] { BulletArt.AkariEnvelope, BulletArt.KoharuPenlight, BulletArt.Get("enemy_rei_anonymous") },
+            new[] { BulletArt.AkariEnvelope, BulletArt.AkariDocs },
+            new[] { BulletArt.KoharuAcrylic, BulletArt.KoharuPenlight },
+            new[] { BulletArt.Get("enemy_rei_anonymous"), BulletArt.Get("enemy_rei_metrics") },
+            new[] { GD.Load<Texture2D>("res://char/player/mina/mina_core_v1.png"), BulletArt.AkariEnvelope,
+                BulletArt.KoharuPenlight, BulletArt.Get("enemy_rei_anonymous") },
         };
         ApplySpell();
 
-        _caster = new AreaSpellCaster();
-        _caster.Configure("mina", GetParent());
+        _caster = new MinaPhaseAttacks();
+        _caster.Configure(this, GetParent());
         AddChild(_caster);
     }
 
     protected override void UpdateMovement(double delta)
     {
+        if (_caster.Active || Transitioning || _memoryPending || PhasePending)
+        {
+            // EnterExposed can re-enable the body during a signature's safe-zone relay.
+            if (_caster.Active) SetBodyContactEnabled(false);
+            ApplyBossMotion(new Vector2(0, Mathf.Sin((float)Time.GetTicksMsec() * 0.003f) * 0.8f), 0, true);
+            FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 48f);
+            return;
+        }
         // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        // 全画面AOE予告中は詠唱モーション：小刻みに身震いさせ（visualOffset を揺らす）、オーラを強める。
-        bool casting = _caster != null && _caster.AoeActive;
-        Vector2 vis = _mover.VisualOffset;
-        if (casting)
-        {
-            float q = Mathf.Sin((float)Time.GetTicksMsec() * 0.03f) * 1.6f;
-            vis += new Vector2(q, -Mathf.Abs(q) * 0.5f);
-        }
-        ApplyBossMotion(vis, _mover.Lean, _mover.FacingLeft);
-        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, casting ? 64f : 36f);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
         FirePattern(delta);
     }
 
@@ -189,8 +187,8 @@ public partial class BossMina : Enemy
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         // 全画面AOEの予告〜着弾中は通常弾を止める（避け先＝安置へ集中させる／弾の過密回避）。
-        if (_caster != null && _caster.AoeActive) return;
-        if (_finale) { FireFinale(pool, delta); return; }
+        if (AoeGateActive) return;
+        if (_pattern == 4) { FireFinale(pool, delta); return; }
         _fireT += delta;
         switch (_pattern)
         {
@@ -198,7 +196,6 @@ public partial class BossMina : Enemy
             case 1: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); Aimed(pool); } break;
             case 2: if (_fireT >= Di(_flowerInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); Flower(pool, Dn(_flowerPetals)); } break;
             case 3: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); Spiral(pool); } break;
-            default: if (_fireT >= Di(1.1)) { _fireT = 0; Ring(pool, Dn(22), 66f); Ring(pool, Dn(22), 92f); } break;
         }
     }
 
@@ -206,7 +203,7 @@ public partial class BossMina : Enemy
     {
         _fireT += delta; _fireT2 += delta;
         if (_fireT >= Di(0.95)) { _fireT = 0; SetMemoryVisual(4); Ring(pool, Dn(18), 70f); }
-        if (_fireT2 >= Di(0.08)) { _fireT2 = 0; SetMemoryVisual(3); Spiral(pool); }
+        if (_fireT2 >= Di(0.12)) { _fireT2 = 0; SetMemoryVisual(4); Spiral(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
@@ -269,111 +266,73 @@ public partial class BossMina : Enemy
     // 最大4px・時定数0.12sでしか動かない＝弾避けの公平性は保つ（BossMover.OnHit のコメント参照）。
     protected override void OnBodyDamaged(Vector2 fromDir) => _mover.OnHit(fromDir);
 
+    protected override int LimitBodyDamage(int damage)
+    {
+        if (Transitioning || Hud.BubblePaused || PhasePending || _memoryPending) return 0;
+        float floor = _pattern < PhaseThresholds.Length ? PhaseThresholds[_pattern] : 0f;
+        if (!_memoryPlayed && _pattern >= 2) floor = Mathf.Max(floor, 0.5f);
+        // Each costume gets its opening attack before the next HP boundary can be crossed.
+        if (_caster != null && !_caster.OpenerCompleted) floor += 1f / (TotalBars * BarHp);
+        return DamageToHpFloor(damage, floor);
+    }
+
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        if (!_memoryPlayed && HpRatio <= 0.5f)
-        {
-            _memoryPending = true;
-            return;
-        }
-        while (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
-        {
-            _pattern = (_pattern + 1) % PatternCount;
-            _beatsFired++;
-            ApplySpell();
-        }
-        // 全画面AOE（ラスボス専用）：HP 0.62（INI: aoe_single_hp）で安置型の単発（学習）→
-        // 0.42（INI: aoe_chain_hp）で安置リレー2連（強化）。フィナーレ突入時に狭安置の「絶域」を1回（計3回）。
-        // リレーの距離帯 140-190px は到達限界（(1.6s×WarnMul−0.3s)×150px/s＋r30。Normal 225px）内。
-        if (!_aoe62Done && HpRatio <= _aoeSingleHp) { _aoe62Done = true; _caster?.CastFullscreen(wide: true); }
-        if (!_aoe42Done && HpRatio <= _aoeChainHp) { _aoe42Done = true; _caster?.CastFullscreenChain(2, 140f, 190f); }
-
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
-        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
-        {
-            _finale = true;
-            GetHud()?.SetBossBarTint(Spells[4].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", Spells[3].name + "＋" + Spells[4].name, Spells[4].tint);
-            // フィナーレの「絶域」：安置は狭い（Easy30/Normal24/Hard20/Luna17px）が必ず在り、
-            // そのぶん予兆を 1.45 倍に伸ばす（Normal 2.32s）＝狭い的でも走って入れる。
-            // 旧実装は安置なし＝ボム以外に回避手段が無く、ボム0個なら確定被弾だった。
-            if (!_aoeFinaleDone) { _aoeFinaleDone = true; _caster?.CastFullscreen(wide: false); }
-        }
+        if (!_memoryPlayed && HpRatio <= 0.5f) _memoryPending = true;
     }
 
-    // BREAK 合図（仮台本 wiki/08_仮台本/08 F2。ユーザー承認済み・2026-09-05）。
-    //   ミナ本人が敵なので「ミナが煽る」共通実装は使わない。案C では少年が居ないので、
-    //   祓った三人がミナへ返礼を投げる＝浄化波の援護になる。順は面の順（あかり→こはる→レイ）で、
-    //   BREAK の回数ではなく **その時点の HP** で誰の番かを決める（BREAK はパネル全壊が条件で
-    //   回数が可変なため。閾値は背景巡回 MinaRoot.Journey と同じ 0.80/0.58/0.36）。
-    //   一人ぶん一度きり＝同じ人が二度返さない。四度目以降の BREAK は字幕を出さない（言い尽くした）。
-    //   字幕は1行しか折り返さないので、返礼は2拍に割って順に出す（BREAK 窓 4.45s の内側）。
-    private static readonly (float hp, string who, Color col, string a, string b)[] BreakThanks =
+    private void BeginPhaseTransition()
     {
-        // あかり＝S1-11「あったかい声が、した。……知らない声なのに」の返礼。取り消さない側へ反転
-        (0.80f, "あかり", UiKit.Purify,
-            "あったかい声、って言ったの、あたし。",
-            "——既読、つけに来た。あなたのぶん。……今度は、取り消さない。"),
-        // こはる＝H2r「ありがと、知らない人。」の返礼。送れなかったコメントとペンライトを回収
-        (0.58f, "こはる", UiKit.Purify,
-            "ありがと、知らない人——って。……知らない人じゃ、なかったよ。",
-            "送れなかったやつ、送ったもん。——ペンライト、振るね。"),
-        // レイ＝H3r「は? 誰よあんた。」の返礼。決定打「見ていました」を見る側へ反転
-        (0.36f, "レイ", UiKit.Purify,
-            "誰よあんた、って言ったわね。——訂正する。",
-            "……見てたの、あんたでしょ。今度は、わたしが見てる番なんだから。"),
-    };
-    private int _thanksIdx;                 // 次に返す人（0=あかり 1=こはる 2=レイ）。一人一度きり
-    private double _thanksT;                // 1拍目からの経過（2拍目の差し替え待ち）
-    private int _thanksPending = -1;        // 2拍目を出す相手（-1＝待ちなし）
-    private const double ThanksBeat = 2.15; // 1拍目→2拍目の間（BREAK 窓 4.45s に2拍が収まる尺）
+        Transitioning = true;
+        _caster.CancelPendingAttacks();
+        _pattern++;
+        _fireT = _fireT2 = 0;
+        ChangeBattleCostume(CostumePath(_pattern, "idle"), CostumePath(_pattern, "attack"));
+        if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
+        ApplySpell();
+        MinaPhaseScene.Play(GetHud()!, GetParent(), _pattern, CompletePhaseTransition);
+    }
+
+    private void CompletePhaseTransition()
+    {
+        if (!IsInsideTree() || IsQueuedForDeletion()) return;
+        Transitioning = false;
+        _caster.BeginPhase(_pattern);
+        _zHeld = Pad.AdvanceHeld();
+        GetHud()?.FlashBossBarBreak();
+    }
 
     protected override void OnBreakCue()
     {
-        if (_thanksIdx >= BreakThanks.Length) return;   // 三人とも返し終えた＝以降は無言
-        // HP が次の人の番に達していなければ、まだその人は出さない（背景巡回と歩を揃える）。
-        if (HpRatio > BreakThanks[_thanksIdx].hp) return;
-        // 高火力で閾値を飛び越えたときは、いま出ている背景の人まで送る＝背景と喋る人がずれない
-        //   （飛ばされた人の返礼は聞けない。三人ぶんを必ず流したいわけではなく、画と声を合わせる方を採る）。
-        while (_thanksIdx + 1 < BreakThanks.Length && HpRatio <= BreakThanks[_thanksIdx + 1].hp)
-            _thanksIdx++;
-        _thanksPending = _thanksIdx;
-        _thanksT = 0;
-        _thanksIdx++;
-        var t = BreakThanks[_thanksPending];
-        GetHud()?.ShowBossLine(t.who, t.a, t.col, ThanksBeat);
+        var (name, line) = _pattern switch
+        {
+            1 => ("あかり", "届いてる。もう一歩、こっちへ！"),
+            2 => ("こはる", "その声、消さないで。ちゃんと聞いてるよ！"),
+            3 => ("レイ", "顔、上げて。ここからは一人でやらせない。"),
+            4 => ("ミナ", "……聞こえています。帰り道を、開いてください！"),
+            _ => ("ミナ", "……いけません。まだ、近づいては……。"),
+        };
+        GetHud()?.ShowBossLine(name, line, UiKit.Purify, 3.2);
     }
 
-    // 返礼の2拍目を、1拍目の尺が切れるところで差し替える（会話送りは無い＝戦闘は止めない）。
-    private void TickThanks(double delta)
-    {
-        if (_thanksPending < 0) return;
-        _thanksT += delta;
-        if (_thanksT < ThanksBeat) return;
-        var t = BreakThanks[_thanksPending];
-        _thanksPending = -1;
-        GetHud()?.ShowBossLine(t.who, t.b, t.col, ThanksBeat + 0.3);
-    }
-
-    // RECLOSE のキャラ別弱気セリフ（高貴さの仮面の下で剥がれを拒む）。
     private static readonly string[] RecloseLines =
     {
-        "いけません……これ以上、近づいては……",
-        "わたくしに、触れないでくださいまし……穢れて、しまう……",
-        "おやめください……あなたまで、汚したくない……",
+        "この重さは、わたくしが……。",
+        "……返事を、待っていても、よいのですか。",
+        "何もできなくても、ここに……？",
+        "……消さずに。今度こそ、言葉に……。",
+        "声が、邪魔を……でも。もう、聞こえています。",
     };
-    private int _recloseIdx;
+
     protected override void OnRecloseLine()
-    {
-        ShowRecloseLine("ミナ", RecloseLines[Mathf.Min(_recloseIdx, RecloseLines.Length - 1)]);
-        _recloseIdx++;
-    }
+        => ShowRecloseLine("ミナ", RecloseLines[_pattern]);
 
     protected override void GrantFollower() { }
 
     protected override void OnCryStart()
     {
+        _caster.CancelPendingAttacks();
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
@@ -398,11 +357,21 @@ public partial class BossMina : Enemy
 
     public override void _Process(double delta)
     {
-        if (_memoryPending && !_seq && !Hud.BubblePaused)
+        if (Transitioning)
+        {
+            if (!GetHud()!.CinematicMode) CompletePhaseTransition();
+            return;
+        }
+        if (!IsPurified && !_seq && !Hud.BubblePaused && !_caster.Active && PhasePending
+            && (!_memoryPending || _pattern < 2))
+        {
+            BeginPhaseTransition();
+            return;
+        }
+        if (_memoryPending && !_seq && !Hud.BubblePaused && !_caster.Active)
         {
             _memoryPending = false;
             _memoryPlayed = true;
-            _thanksPending = -1;
             _caster.CancelPendingAttacks();
             MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
@@ -422,7 +391,6 @@ public partial class BossMina : Enemy
         bool zEdge = z && !_zHeld;
         _zHeld = z;
         _lineT += delta;
-        TickThanks(delta);   // BREAK 返礼の2拍目（戦闘は止めない字幕の差し替え）
 
         if (_seq)
         {

@@ -95,6 +95,9 @@ public partial class MinaStoryQa : Node
             }
             await Shot("battle_black_hair", false);
             int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
+            var caster = Read<MinaPhaseAttacks>(boss, "_caster");
+            caster.SetProcess(false);
+            caster.CancelPendingAttacks();
             if (lethal)
             {
                 Write(boss, "_hp", 0, typeof(Enemy));
@@ -102,6 +105,8 @@ public partial class MinaStoryQa : Node
             }
             else
             {
+                // Costume transitions are exercised separately by MinaPhaseQa.
+                Write(boss, "_pattern", 2);
                 Write(boss, "_hp", (int)(maxHp * (burst ? 0.18f : 0.49f)), typeof(Enemy));
                 Call(boss, "OnHpChanged");
             }
@@ -148,19 +153,20 @@ public partial class MinaStoryQa : Node
             await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 14);
             await Frames(100);
             await Shot("unsent_request_to_rest", true);
+            if (!lethal) boss.SetProcess(false);
             await AdvanceUntil(() => !IsInstanceValid(film));
             Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode != ProcessModeEnum.Disabled,
                 "memory restores processing");
             Check(boss.MemoryPlayed, "memory completion recorded");
             if (!lethal)
             {
-                Check(Read<int>(boss, "_beatsFired") == (burst ? 4 : 2) && Read<bool>(boss, "_aoe42Done") == burst,
-                    "crossed combat thresholds resume");
+                Check(boss.EncounterPhase == 2 && boss.MemoryPlayed, "memory preserves the active costume phase");
                 Call(boss, "OnHpChanged");
                 await Frames(10);
                 Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory is one-shot");
                 Write(boss, "_hp", 0, typeof(Enemy));
                 Call(boss, "Redeem", typeof(Enemy));
+                boss.SetProcess(true);
             }
             await AdvanceUntil(() => hud.CinematicMode);
             film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;

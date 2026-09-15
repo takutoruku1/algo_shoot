@@ -1,0 +1,83 @@
+{
+  "generator": "builtin image_gen",
+  "sources": {
+    "rain": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-7d48d0a1-0b9b-4fc4-9b0f-6e03e3c75a7f.png",
+    "screen": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-16bf6ccd-a8de-4af5-b926-6a1c496a0ca6.png",
+    "stream": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-f7407c38-e353-4693-9a21-713a2b384ece.png",
+    "home": "C:\\Users\\takut\\.codex\\generated_images\\01a09a43-c0cc-7680-801d-568b0dbd7f24\\exec-f1a3c665-fbac-4018-9d7a-611720ae5ddd.png"
+  },
+  "prompts": {
+    "rain": "Use case: identity-preserve. Production anime chibi sprite sheet for the existing Japanese shooter Refrain. Two reference images show MINA's exact identity and existing idle/cast poses. Create ONE NEW COSTUME 'Unsent Rain' for her Akari-memory phase, rendered in TWO poses side by side, each complete head-to-shoes, equal body height, generous empty margins and a clear empty vertical gutter at x=50%. Left half: floating idle pose hands held close to blue brooch, worried but resolute. Right half: casting pose reaching one open hand forward, other hand against chest, skirt and long hair lifted subtly. Keep the SAME character: long flowing jet BLACK hair (never white/silver), vivid blue eyes, white frilled maid headband, large head and 2.8-head-tall body, soft polished cel-paint shading and clean fine line art EXACTLY like references. New outfit must be genuinely different, not recolor: a tailored charcoal storm coat with split long coattails worn over a modest white frilled dress, pearl-gray lapels, a small burgundy neck ribbon and silver envelope-shaped clasp, blue gemstone still at throat, dark closed shoes and opaque stockings. Rain/office memory is conveyed by clothing construction, no umbrella prop. Elegant compact silhouette, not armor, no weapons, no detached magic particles. Match head/body scale of reference; torso stays short chibi not long anime adult. Front-three-quarter view, both poses same facing and same costume. Landscape 3:2 sheet. Transparent alpha background, isolated cutouts, no floor, no cast shadows, NO checkerboard painted into pixels, no labels, no text, no panels, no extra character. Both figures fully separate and never touch image borders. White clothing remains opaque.",
+    "rainKey": "Edit this sprite sheet. Preserve BOTH characters' identity, beautiful drawing, the exact storm-coat costume, BLACK hair, blue eyes, headbands and the two different poses. Change ONLY background and spacing: remove ALL of the dark cloudy/gradient background and any glow behind the figures. Replace entire background with perfectly uniform flat pure chroma GREEN #00FF00, including every gap between hair strands, arms and skirts. No shadows, haze, gradients, checkerboard or floor anywhere in the green. Shrink each whole figure uniformly to 85% of current size, centered within its own half of the canvas, so full silhouettes including every strand of hair and coat-tail have ample empty green margin and an empty vertical green gutter between the two figures. Left idle and right cast remain same height, floating complete head-to-shoes, fully separated. Keep all white fabric opaque and unchanged. Two cutout sprite illustrations only, not a scene.",
+    "screen": "Use case: identity-preserve. Anime chibi production sprite sheet for Refrain. References 1 and 2 define MINA's exact identity and idle/cast poses. Reference3 is a STYLE AND PROPORTIONS guide for her other new costume, DO NOT reuse its coat. Create ONE NEW COSTUME 'Borrowed Applause' for her Koharu-memory boss phase, in TWO complete separate poses side by side. Same girl: long flowing jet BLACK hair, vivid blue eyes, white frilled maid headband, large head and short chibi torso (2.8 heads tall), polished soft cel shading and fine clean anime outlines. New costume: modest short emerald-teal and pearl-white performance dress, wide white sailor collar with a small coral-pink ribbon, layered fan-pleated skirt, opaque white stockings, closed dark teal shoes, white lace cuffs, a blue gemstone at throat. Two narrow long coral ribbons attached to waist (attached to dress, not separate effects), a small clear ticket-shaped charm near the belt. Clearly different CLOTHING SILHOUETTE from the reference storm coat. No green-tinted hair, no white hair, no skin exposed at torso, no wings/halo/weapon. Left idle: hands gently hold ribbon near chest, hesitant expression. Right cast: one open hand reaching forward, other held to heart, protective but distressed. Both same scale and outfit. Full head-to-shoes with all hair and skirt contained INSIDE their own half. Figures occupy only 82% canvas HEIGHT and 80% of each half WIDTH, centered at x25% and x75%, substantial empty margin and gutter. Landscape3:2. Genuine transparent alpha background, opaque clothes, no ground shadows, no background, no aura or floating particles, no painted checkerboard, no text, labels or panels.",
+    "stream": "Use case: identity-preserve. Refrain Japanese game production sprite sheet, TWO complete separated poses of a single NEW costume for boss MINA in the Rei-memory phase. Reference1 defines her identity, reference2 her casting pose, reference3 defines the exact chibi scale and polished fine-line anime rendering to match. Keep the same long jet-BLACK hair, blue eyes, white maid headband, oversized head and short chibi body. New costume 'Behind the Starlight': a short white and charcoal stage-uniform jacket with restrained GOLD piping, teal cuffs, a broad asymmetrical white shoulder cape, dark pleated knee-length skirt with gold hem and deep burgundy lining, opaque dark tights and black ankle boots, small star clasp at collar over her signature blue jewel. Cape is attached and compact, no wings. Ornate but clean and readable at 56px, visibly a stage uniform rather than the previous long coat or green sailor dress. Hair jet black in BOTH poses. Left floating idle: one hand over heart, other lightly holds cape edge, vulnerable serious face. Right active spell-casting: one hand extends forward, the other opens slightly at side, cape raised with motion, worried determined face. Fully modest outfit. Entire head-to-feet, same scale, silhouettes contained within each half of landscape3:2 sheet, figures no taller than82% image height with generous empty outer margins and center gutter. Genuine alpha TRANSPARENT background, isolated opaque figures, no floor, no shadows, no white halo, no background illumination, no detached particles or magic shapes, no text, labels, frames, weapons or checkerboard.",
+    "home": "Use case: identity-preserve. Create the emotional FINAL COSTUME sprite sheet for boss MINA in Refrain, TWO separate complete poses. Reference1 and2 are exact identity/pose guides. Reference3 is polished chibi style/scale guide only; replace its stage uniform. Same girl in EVERY pose: flowing jet BLACK hair, luminous BLUE eyes, white frilled maid headband, short 2.8-head chibi proportions, clean fine anime outlines and richly painted soft cel shading. Costume name 'A Voice of Her Own': a beautiful predominantly WHITE modest frilled dress with a fitted high-neck bodice and long white lace sleeves, layered knee-length skirt, white stockings, pearl-gray shoes, small blue gemstone clasp. Three narrow ribbons, burgundy, coral-pink and teal, meet at the blue clasp and trail from waist, representing the three friends returning her care. A few tiny charcoal cracked fabric fragments remain attached at hem and cuffs, as corruption finally peels away; the dress is not fully restored yet. Silhouette clearly unlike dark coat / green sailor dress / stage uniform. Do not turn hair white or silver. Left idle: both hands clasped tightly over heart, trembling vulnerable expression with a small tear at eye, looking toward viewer. Right casting/reaching pose: right hand reaches open toward viewer as if asking to be rescued, left hand over heart, a determined tearful expression; dress flares modestly, not aggressive villain expression. Restrained, moving, not smiling triumphantly yet. Exact same outfit and character size in both halves. Landscape3:2 sheet, floating full head-to-shoes figures no taller than82% canvas with generous empty outer margin and a clear empty middle gutter, no limb or hair crosses center or border. Genuine transparent alpha background with opaque white dress. NO background, cast shadow, haze, glow halo, checkerboard, detached particles, weapons, wings, text, logo, labels or panels."
+  },
+  "processing": "Original transparent PNGs unchanged. AtlasTexture regions select idle/casting poses at runtime.",
+  "regions": [
+    {
+      "Id": "rain",
+      "Pose": "idle",
+      "X": 69,
+      "Y": 91,
+      "W": 652,
+      "H": 837
+    },
+    {
+      "Id": "rain",
+      "Pose": "attack",
+      "X": 806,
+      "Y": 106,
+      "W": 671,
+      "H": 831
+    },
+    {
+      "Id": "screen",
+      "Pose": "idle",
+      "X": 30,
+      "Y": 85,
+      "W": 731,
+      "H": 887
+    },
+    {
+      "Id": "screen",
+      "Pose": "attack",
+      "X": 769,
+      "Y": 98,
+      "W": 746,
+      "H": 875
+    },
+    {
+      "Id": "stream",
+      "Pose": "idle",
+      "X": 11,
+      "Y": 71,
+      "W": 757,
+      "H": 895
+    },
+    {
+      "Id": "stream",
+      "Pose": "attack",
+      "X": 768,
+      "Y": 83,
+      "W": 756,
+      "H": 891
+    },
+    {
+      "Id": "home",
+      "Pose": "idle",
+      "X": 8,
+      "Y": 55,
+      "W": 760,
+      "H": 939
+    },
+    {
+      "Id": "home",
+      "Pose": "attack",
+      "X": 768,
+      "Y": 72,
+      "W": 763,
+      "H": 922
+    }
+  ]
+}

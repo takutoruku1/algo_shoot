@@ -39,43 +39,59 @@ public partial class BossSpellQa : Node
                 GetTree().Quit();
                 return;
             }
-            foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+            if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
+                await CheckBossBackgrounds(game);
+            else
             {
-                game.Difficulty = GameManager.Diff.Normal;
-                var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
-                GetTree().Root.AddChild(root);
-                GetTree().CurrentScene = root;
-                var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
-                stage.SetProcess(false);
-                var world = root.GetNode<Node2D>("World");
-                world.ProcessMode = ProcessModeEnum.Inherit;
-                var player = world.GetNode<Player>("Player");
-                player.SetPhysicsProcess(false);
-                Write(player, "_invincible", true);
-                Write(player, "_invincibleTimer", 999f);
-                player.GlobalPosition = new Vector2(Field.Left + 50f, 160f);
-                var hud = root.GetNode<Hud>("Hud");
-                hud.HoldBubble = false;
-                hud.HideBubble();
-                Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(), _ => new BossMina() };
-                world.AddChild(boss);
-                boss.GlobalPosition = new Vector2(Field.Right - 70f, 90f);
-                await Frames(250);
-                boss.SetPhysicsProcess(false);
-                var caster = Read<AreaSpellCaster>(boss, "_caster");
-                caster.SetProcess(false);
-                caster.CancelPendingAttacks();
-                await ClearStrikes(world);
-                Pool.DespawnAll();
-                if (scene == "MinaBattle") await CheckMina(game, (BossMina)boss, caster, hud, world);
-                else if (scene != "Akari") await CheckTelegraphs(game, scene, caster, hud, world, player);
-                await CheckAreaPresentation(game, scene, boss, caster, hud, world);
-                root.QueueFree();
-                await Frames(5);
-                Pool.DespawnAll();
-                Hud.BubblePaused = false;
+                foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+                {
+                    game.Difficulty = GameManager.Diff.Normal;
+                    var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+                    GetTree().Root.AddChild(root);
+                    GetTree().CurrentScene = root;
+                    var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+                    stage.SetProcess(false);
+                    var world = root.GetNode<Node2D>("World");
+                    world.ProcessMode = ProcessModeEnum.Inherit;
+                    var player = world.GetNode<Player>("Player");
+                    player.SetPhysicsProcess(false);
+                    Write(player, "_invincible", true);
+                    Write(player, "_invincibleTimer", 999f);
+                    player.GlobalPosition = new Vector2(Field.Left + 50f, 160f);
+                    var hud = root.GetNode<Hud>("Hud");
+                    hud.HoldBubble = false;
+                    hud.HideBubble();
+                    Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(), _ => new BossMina() };
+                    world.AddChild(boss);
+                    boss.GlobalPosition = new Vector2(Field.Right - 70f, 90f);
+                    root.GetNode<StageBackground>("StageBackground").EnterBoss();
+                    await Frames(250);
+                    boss.SetPhysicsProcess(false);
+                    if (boss is BossMina mina)
+                    {
+                        var caster = Read<MinaPhaseAttacks>(mina, "_caster");
+                        caster.SetProcess(false);
+                        caster.CancelPendingAttacks();
+                        await ClearStrikes(world);
+                        await CheckMina(game, mina, hud);
+                    }
+                    else
+                    {
+                        var caster = Read<AreaSpellCaster>(boss, "_caster");
+                        caster.SetProcess(false);
+                        caster.CancelPendingAttacks();
+                        await ClearStrikes(world);
+                        Pool.DespawnAll();
+                        if (scene != "Akari") await CheckTelegraphs(game, scene, caster, hud, world, player);
+                        await CheckAreaPresentation(game, scene, boss, caster, hud, world);
+                    }
+                    root.QueueFree();
+                    await Frames(5);
+                    Pool.DespawnAll();
+                    Hud.BubblePaused = false;
+                }
+                await CheckSafeZonePixels();
             }
-            await CheckSafeZonePixels();
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -174,10 +190,8 @@ public partial class BossSpellQa : Node
         await ClearStrikes(world);
     }
 
-    private async Task CheckMina(GameManager game, BossMina boss, AreaSpellCaster caster, Hud hud, Node2D world)
+    private async Task CheckMina(GameManager game, BossMina boss, Hud hud)
     {
-        Check(Read<(string, AreaStrike.Shape?)[]>(caster, "_spells").Select(s => s.Item1)
-            .SequenceEqual(new[] { "消せなかった声", "声が、止まらない" }), "Mina random spells express the voices she carries");
         foreach (var diff in Enum.GetValues<GameManager.Diff>())
         {
             game.Difficulty = diff;
@@ -187,6 +201,7 @@ public partial class BossSpellQa : Node
                 Write(boss, "_pattern", pattern);
                 Call(boss, "ApplySpell");
                 Write(boss, "_fireT", 100d);
+                Write(boss, "_fireT2", 100d);
                 Call(boss, "FirePattern", 0d);
                 var bullets = Bullets();
                 int count = pattern switch
@@ -195,7 +210,7 @@ public partial class BossSpellQa : Node
                     1 => Read<int>(boss, "_aimedWing") * 2 + 1,
                     2 => game.ScaleBullets(Read<int>(boss, "_flowerPetals")) * 2,
                     3 => 3,
-                    _ => game.ScaleBullets(22) * 2,
+                    _ => game.ScaleBullets(18) + 3,
                 };
                 Check(bullets.Length == count && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
                     && b.Damage == 1 && !b.Homing && !b.Accel && !b.Erasable), $"Mina/{diff}/{pattern}: illustrated attack preserves count and damage");
@@ -211,7 +226,8 @@ public partial class BossSpellQa : Node
                         1 => Mathf.IsEqualApprox(speed, Read<float>(boss, "_aimedSpeed")) && b.Radius == 4f,
                         2 => (Mathf.IsEqualApprox(speed, 64f) && b.Radius == 4f) || (Mathf.IsEqualApprox(speed, 100f) && b.Radius == 2.6f),
                         3 => Mathf.IsEqualApprox(speed, Read<float>(boss, "_spiralSpeed")) && b.Radius == 2.6f,
-                        _ => (Mathf.IsEqualApprox(speed, 66f) || Mathf.IsEqualApprox(speed, 92f)) && b.Radius == 3f,
+                        _ => (Mathf.IsEqualApprox(speed, 70f) && b.Radius == 3f)
+                            || (Mathf.IsEqualApprox(speed, Read<float>(boss, "_spiralSpeed")) && b.Radius == 2.6f),
                     };
                     Check(valid, "memory bullet keeps its speed and radius");
                 }
@@ -226,8 +242,8 @@ public partial class BossSpellQa : Node
             Write(boss, "_fireT2", 100d);
             Call(boss, "FireFinale", Pool, 0d);
             Check(Bullets().Length == game.ScaleBullets(18) + 3
-                && Bullets().Count(b => b.Shape == BulletShape.Ring && Read<Texture2D>(b, "_sprite").ResourcePath.Contains("mina_core")) == 3,
-                $"Mina/{diff}: finale now fires the announced heart-core art and shape");
+                && Bullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.Contains("mina_core")),
+                $"Mina/{diff}: finale combines Mina's core and the three memories");
             if (diff == GameManager.Diff.Normal)
             {
                 hud.AnnounceSpell("ミナ", "@mina_ai_", "心象の核＋世界中の悲鳴", new Color("e0729c"));
@@ -239,25 +255,6 @@ public partial class BossSpellQa : Node
                 DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             }
             Pool.DespawnAll();
-            foreach (bool wide in new[] { true, false })
-            {
-                caster.CastFullscreen(wide);
-                Check(Read<string>(hud, "_spellName") == (wide ? "この重さは、わたくしが" : "あなたまで、穢したくない"), "Mina AOE uses her own words");
-                Call(caster, "TickFullscreen", 1d);
-                var z = world.GetChildren().OfType<AreaStrike>().Single();
-                float radius = wide ? 30f : diff switch { GameManager.Diff.Easy => 30f, GameManager.Diff.Hard => 20f, GameManager.Diff.Lunatic => 17f, _ => 24f };
-                Check(Read<float>(z, "_safeR") == radius && !z.CoversPoint(Read<Vector2>(z, "_safeCenter")), "Mina AOE keeps the existing safe radius");
-                await ClearStrikes(world);
-            }
-            caster.CastFullscreenChain(2, 140f, 190f);
-            Check(Read<string>(hud, "_spellName") == "まだ、抱えられます", "Mina relay has her own declaration");
-            for (int i = 0; i < 2; i++)
-            {
-                Call(caster, "SpawnChainHop");
-                Check(Read<string>(hud, "_spellName") == "まだ、抱えられます", "Mina relay does not inherit Rei dialogue");
-                await ClearStrikes(world);
-            }
-            caster.CancelPendingAttacks();
         }
         var reused = Pool.Spawn(new Vector2(Field.CenterX, 100f), Vector2.Left * 30f, true);
         Check(Read<Texture2D?>(reused, "_sprite") == null, "pool reuse clears memory art");
@@ -458,6 +455,144 @@ public partial class BossSpellQa : Node
     {
         foreach (var strike in world.GetChildren().OfType<AreaStrike>()) strike.QueueFree();
         await Frames(2);
+    }
+
+    private async Task CheckBossBackgrounds(GameManager game)
+    {
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            string id = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+            string path = $"res://char/bg2/boss/{id}_v1.png";
+            var texture = GD.Load<Texture2D>(path);
+            using (var pixels = texture.GetImage())
+                Check(pixels.GetWidth() >= 1280 && pixels.GetHeight() >= 1000
+                    && pixels.DetectAlpha() == Image.AlphaMode.None, $"{id}: high-resolution opaque artwork");
+
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            stage.SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            Write(player, "_invincible", true);
+            Write(player, "_invincibleTimer", 999f);
+            player.GlobalPosition = new Vector2(Field.Left + 55, 165);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            var layers = bg.GetNode<BgLayers>("BgLayers");
+            Enemy boss;
+            if (id == "mina")
+            {
+                boss = new BossMina { Name = "BossMina" };
+                world.AddChild(boss);
+                boss.GlobalPosition = new Vector2(Field.Right - 62, 94);
+                bg.EnterBoss();
+            }
+            else
+            {
+                Check(layers.GetChildren().OfType<Sprite2D>().All(s => s.Texture.ResourcePath != path),
+                    $"{id}: road background is unchanged before boss spawn");
+                Write(stage, "_stepStarted", false);
+                Call(stage, "Step_BossSpawn");
+                boss = world.GetChildren().OfType<Enemy>().Single();
+                await Frames(12);
+                var entering = layers.GetChildren().OfType<Sprite2D>().Single(s => s.Texture.ResourcePath == path);
+                Check(entering.Modulate.A > 0 && entering.Modulate.A < 1 && layers.BossDimK > 0,
+                    $"{id}: actual boss spawn starts a crossfade");
+                int tiles = layers.GetChildCount();
+                bg.EnterBoss();
+                Check(layers.GetChildCount() == tiles, $"{id}: repeated boss entry does not duplicate artwork");
+            }
+            await Frames(350);
+            boss.SetPhysicsProcess(false);
+            var caster = Read<Node>(boss, "_caster");
+            caster.SetProcess(false);
+            if (caster is AreaSpellCaster areaCaster) areaCaster.CancelPendingAttacks();
+            else ((MinaPhaseAttacks)caster).CancelPendingAttacks();
+            await ClearStrikes(world);
+            Pool.DespawnAll();
+            hud.HideBubble();
+            boss.GlobalPosition = new Vector2(Field.Right - 62, 94);
+            var art = layers.GetChildren().OfType<Sprite2D>().Single();
+            Check(art.Texture.ResourcePath == path && art.Modulate.A == 1 && art.Modulate.R >= 0.8f,
+                $"{id}: dedicated artwork replaces old layers without double dimming");
+            foreach (float x in new[] { Field.Left, Field.Right, Field.CenterX })
+            {
+                game.TickProgress(x, 0);
+                await Frames(120);
+                var bounds = new Rect2(art.GlobalPosition, art.Texture.GetSize() * art.GlobalScale);
+                Check(bounds.Position.X <= Field.Left && bounds.End.X >= Field.Right
+                    && bounds.Position.Y <= 0 && bounds.End.Y >= Field.Bottom
+                    && Mathf.Abs(art.Scale.X - art.Scale.Y) < 0.00001f,
+                    $"{id}: full field covered at player x={x} without distortion");
+            }
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Shot($"background_{id}_{size.X}x{size.Y}");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            var motif = id switch { "akari" => AreaStrike.Motif.Rain, "koharu" => AreaStrike.Motif.Screen,
+                "rei" => AreaStrike.Motif.Stream, _ => AreaStrike.Motif.Data };
+            var color = id switch { "akari" => new Color("78bdf4"), "koharu" => new Color("e59b73"),
+                "rei" => new Color("d8b0ff"), _ => new Color("df85b6") };
+            var strike = new AreaStrike();
+            world.AddChild(strike);
+            if (id is "rei" or "mina")
+                strike.ConfigureFullscreen(new Vector2(Field.Left + 90, 120), 24, 1.4, color, Colors.White, motif);
+            else
+            {
+                strike.GlobalPosition = new Vector2(Field.CenterX, 120);
+                strike.Configure(AreaStrike.Shape.Circle, 35, 35, 1.4, color, Colors.White, motif);
+            }
+            strike.SetProcess(false);
+            strike._Process(0.9);
+            await Shot($"background_{id}_aoe");
+            strike.QueueFree();
+            await Frames(2);
+            if (id == "mina")
+            {
+                var journey = root.GetNode<StageBackground>("JourneyBackground").GetNode<BgLayers>("BgLayers");
+                foreach (var (phase, memory) in new[] { (1, "akari"), (2, "koharu"), (3, "rei"), (4, "mina") })
+                {
+                    Write(boss, "_pattern", phase);
+                    Call(root, "TickJourney");
+                    await Frames(220);
+                    var memoryArt = journey.GetChildren().OfType<Sprite2D>().ToArray();
+                    Check(memory == "mina" ? memoryArt.Length == 0
+                        : memoryArt.Length == 1 && memoryArt[0].Texture.ResourcePath == $"res://char/bg2/boss/{memory}_v1.png",
+                        $"Mina journey follows the active {memory} encounter phase");
+                    await Shot($"background_mina_memory_{memory}");
+                }
+            }
+            root.QueueFree();
+            await Frames(8);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+
+            if (id == "mina") continue;
+            game.SelectedEntry = GameManager.StageEntry.Boss;
+            var retry = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(retry);
+            GetTree().CurrentScene = retry;
+            await Frames(120);
+            var retryArt = retry.GetNode<StageBackground>("StageBackground").GetNode<BgLayers>("BgLayers")
+                .GetChildren().OfType<Sprite2D>().ToArray();
+            Check(retryArt.Length == 1 && retryArt[0].Texture.ResourcePath == path,
+                $"{id}: boss checkpoint also loads the dedicated artwork");
+            retry.QueueFree();
+            await Frames(8);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+        }
     }
     private async Task Frames(int n)
     {
