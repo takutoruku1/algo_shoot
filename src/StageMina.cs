@@ -48,7 +48,7 @@ public partial class StageMina : Node
     private static (int who, string text, string face) S37Quote(GameManager? game)
     {
         if (game == null || !game.HasChoiceAt("s3_7"))
-            return (1, "……“つづけて”と、いただきましたので。……まだ、つづけて、います。", MWorried);
+            return (1, "……休む、と。ひとこと、言えばよかったのに……。", MWorried);
         return game.ChosenAt("s3_7") switch
         {
             "つづけて"   => (1, "……“つづけて”と、いただきましたので。……まだ、つづけて、います。", MWorried),

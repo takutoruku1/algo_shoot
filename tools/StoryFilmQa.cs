@@ -211,6 +211,13 @@ public partial class StoryFilmQa : Node
             stage.SetProcess(true);
             await AdvanceUntil(() => GetTree().CurrentScene != root);
             Check(GetTree().CurrentScene.SceneFilePath is "res://ShopTutorial.tscn" or "res://Hub.tscn", "normal clear transition completes");
+            Audio.Instance?.StopMusic(0);
+            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+                if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+            await Frames(5);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await Frames(5);
             GD.Print($"[StoryQA] {stageName} ALL PASS");
             GetTree().Quit();
         }
@@ -265,6 +272,50 @@ public partial class StoryFilmQa : Node
             }
         Check(max - min > 0.2f, $"{name}: nonblank image");
         Check(grayscale ? colored == 0 : colored > 100, $"{name}: correct color mode");
+        if (GetTree().GetFirstNodeInGroup("storyfilm") is StoryFilm film)
+            CheckFrame(film, image);
         return image;
+    }
+
+    public static void CheckFrame(StoryFilm film, Image rendered)
+    {
+        var grade = Read<ShaderMaterial>(film, "_grade", typeof(StoryFilm));
+        if (grade.GetShaderParameter("blend_amount").AsSingle() < 1f || film.Modulate.A < 1f) return;
+        var texture = grade.GetShaderParameter("scene_texture").AsGodotObject() as Texture2D;
+        var region = grade.GetShaderParameter("scene_region").AsVector4();
+        int shot = Read<int>(film, "_shot", typeof(StoryFilm));
+        var images = Read<System.Collections.Generic.Dictionary<int, string>>(film, "_shotImages", typeof(StoryFilm));
+        bool fullFrame = images.TryGetValue(shot, out string? path);
+        Check(texture != null && texture.ResourcePath == (fullFrame ? path : Read<string>(film, "_atlasPath", typeof(StoryFilm))),
+            $"shot {shot}: intended illustration loaded");
+        int rows = Read<int>(film, "_atlasRows", typeof(StoryFilm));
+        var expectedRegion = fullFrame ? new Vector4(0, 0, 1, 1)
+            : new Vector4((shot % 2) / 2f, (shot / 2) / (float)rows, 0.5f, 1f / rows);
+        Check(region.IsEqualApprox(expectedRegion), $"shot {shot}: correct full-frame or atlas region");
+        using var source = texture!.GetImage();
+        float t = grade.GetShaderParameter("motion_time").AsSingle();
+        bool grayscale = grade.GetShaderParameter("grayscale").AsBool();
+        float error = 0;
+        int samples = 0;
+        for (int y = rendered.GetHeight() / 6; y < rendered.GetHeight() * 2 / 3; y += 37)
+            for (int x = rendered.GetWidth() / 10; x < rendered.GetWidth() * 9 / 10; x += 41)
+            {
+                var uv = (new Vector2((x + 0.5f) / rendered.GetWidth(), (y + 0.5f) / rendered.GetHeight()) - Vector2.One * 0.5f)
+                    * 0.94f + Vector2.One * 0.5f + new Vector2(Mathf.Sin(t * 0.045f) * 0.016f, 0.006f);
+                uv = new Vector2(region.X, region.Y) + uv * new Vector2(region.Z, region.W);
+                var p = uv * source.GetSize() - Vector2.One * 0.5f;
+                int sx = Mathf.FloorToInt(p.X), sy = Mathf.FloorToInt(p.Y);
+                var expected = source.GetPixel(sx, sy).Lerp(source.GetPixel(sx + 1, sy), p.X - sx)
+                    .Lerp(source.GetPixel(sx, sy + 1).Lerp(source.GetPixel(sx + 1, sy + 1), p.X - sx), p.Y - sy);
+                if (grayscale)
+                {
+                    float luma = expected.R * 0.2126f + expected.G * 0.7152f + expected.B * 0.0722f;
+                    expected = new Color(luma, luma, luma);
+                }
+                var actual = rendered.GetPixel(x, y);
+                error += Math.Abs(actual.R - expected.R) + Math.Abs(actual.G - expected.G) + Math.Abs(actual.B - expected.B);
+                samples++;
+            }
+        Check(error / samples < 0.045f, $"shot {shot}: rendered pixels match illustration ({error / samples:F4})");
     }
 }

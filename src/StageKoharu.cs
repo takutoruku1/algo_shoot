@@ -79,7 +79,7 @@ public partial class StageKoharu : Node
     {
         (1, "ペンライトの光が、画面に向かって、振られています。……届いていません。画面まで。", MWorried),
         (1, "ここの声は……「むだだ」と、繰り返しています。合間に、「今日も明るいね」と、「模試、どうだった」が。同じ色の声で。", MFace),   // 学校の声と家の声
-        (1, "わたくしも振ってみたいのですが。……手が、ありません。振るのは、光のほうにお願いします。", MSmile),   // Chat1（軽口）
+        (1, "わたくしも振ってみたいのですが。……どちらへ振るのでしょう。集計するより、難しそうです。", MSmile),
     };
 
     // S2-2 中ボスの受け（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
@@ -120,7 +120,7 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] S22Cue =
     {
         (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
-        (1, "ご主人様。……わたくしには、手がありませんので。受け取りは、そちらで。", MSmile),
+        (1, "ご主人様。……ひとまず、受け取りました。さて。この一本、どういたしましょう。", MSmile),
     };
     private static readonly string[] S22Choices = { "あとで", "振ってみる", "電池、切れてる", "（送らない）" };
     private static (int who, string text, string face)[] S22Reply(int sel) => sel switch

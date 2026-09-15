@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 public partial class StoryFilm : Node2D
 {
@@ -22,6 +23,8 @@ public partial class StoryFilm : Node2D
     protected string _atlasPath = "";
     protected string _storyName = "";
     protected int _atlasRows = 3;
+    protected Dictionary<int, string> _shotImages = new();
+    private Texture2D _atlas = null!;
 
     // 回想BGMを引くためのキー（"rei"/"akari"/"koharu"/"mina"）。_storyName の小文字＝
     //   派生側で別に持たせず、ここで一意に導出する（表示名と選曲キーがズレない）。
@@ -56,14 +59,14 @@ public partial class StoryFilm : Node2D
         else Audio.Instance?.StopMusic(0.7f);
         _held = Pad.AdvanceHeld();
         _shot = _lines[0].Shot;
+        _atlas = GD.Load<Texture2D>(_atlasPath);
         _grade = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/story_film.gdshader") };
-        _grade.SetShaderParameter("scene_index", _shot);
-        _grade.SetShaderParameter("previous_index", _shot);
+        SetFrame("scene", _shot);
+        SetFrame("previous", _shot);
         _grade.SetShaderParameter("grayscale", !_aftermath);
-        _grade.SetShaderParameter("atlas_rows", _atlasRows);
         AddChild(new TextureRect
         {
-            Texture = GD.Load<Texture2D>(_atlasPath),
+            Texture = _atlas,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             Size = new Vector2(384, 216), MouseFilter = Control.MouseFilterEnum.Ignore,
             Material = _grade, ZIndex = -1,
@@ -128,15 +131,25 @@ public partial class StoryFilm : Node2D
         var line = _lines[_line];
         if (line.Shot != _shot)
         {
-            _grade.SetShaderParameter("previous_index", _shot);
+            SetFrame("previous", _shot);
             _shot = line.Shot;
-            _grade.SetShaderParameter("scene_index", _shot);
+            SetFrame("scene", _shot);
             _blendT = 0;
             _shotT = 0;
         }
         _lineT = _readT = 0;
         if (line.Speaker.Length == 0) _hud.ShowMessage(line.Text);
         else _hud.ShowDialog(Hud.LineKind.Other, line.Text, otherName: line.Speaker);
+    }
+
+    private void SetFrame(string prefix, int shot)
+    {
+        bool fullFrame = _shotImages.TryGetValue(shot, out string? path);
+        var texture = fullFrame ? GD.Load<Texture2D>(path!) : _atlas;
+        var region = fullFrame ? new Vector4(0, 0, 1, 1)
+            : new Vector4((shot % 2) / 2f, (shot / 2) / (float)_atlasRows, 0.5f, 1f / _atlasRows);
+        _grade.SetShaderParameter(prefix + "_texture", texture);
+        _grade.SetShaderParameter(prefix + "_region", region);
     }
 
     public override void _Draw()

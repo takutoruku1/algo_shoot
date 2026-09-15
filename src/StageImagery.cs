@@ -388,9 +388,9 @@ public partial class StageImagery : Node2D
         }
     }
     // ピン留めの固定ポスト＝三年で止まった登録者数。道中は「登録者 2,000」が白飛びで読めない眩しさ、
-    //   改心後の反転で色が差して読めるようになり、その下に「登録者 2,001」が灯る（DrawReiReversal）。
+    //   改心後は数字を変えず、公開できた企画がその下に灯る（DrawReiReversal）。
     //   同接（11→8→3→4）は台詞側が持つ数字なので、背景は別の軸＝登録者で「ひとり増えた」を言う。
-    private const string PinPre = "登録者 2,000", PinPost = "登録者 2,001";
+    private const string PinPre = "登録者 2,000", PinPost = "好きな本の話";
     private float PinPreW => _font.GetStringSize(PinPre, HorizontalAlignment.Left, -1, 12).X;
     private float PinPostW => _font.GetStringSize(PinPost, HorizontalAlignment.Left, -1, 10).X;
     // 枠は文字幅から起こす（左右 14px の余白）。道中と反転で同じ矩形が戻るよう、前後で同じ式を使う。
@@ -565,13 +565,12 @@ public partial class StageImagery : Node2D
 
     // ---- レイ：白飛びしていた「登録者 2,000」のピン留めに、色が差す ----
     //   読めない眩しさ（＝数字に潰される側の眩しさ）が夜明けの暖色に置き換わって“読める”数字に戻り、
-    //   その下に「登録者 2,001」が同じ光で灯る。三年止まっていた数字が、ひとつだけ動く。
-    //   誰が登録したかは言わない。言葉でなく色と数字で言う。
+    //   数字ではなく、自分の好きな話をできたことを救済の変化として示す。
     private void DrawReiReversal()
     {
         float aIn = RevPhase(0f, 4.5f);       // カードが戻ってくる
         float col = RevPhase(2f, 9f);         // 白 → 暖色（色が差す）
-        float second = RevPhase(6.5f, 12f);   // 「登録者 2,001」が同じ色で灯る
+        float second = RevPhase(6.5f, 12f);
         if (aIn <= 0f) return;
         var ci = GetCanvasItem();
 
@@ -585,7 +584,6 @@ public partial class StageImagery : Node2D
             Mathf.Lerp(0.40f, 0.62f, col) * aIn);
         _font.DrawString(ci, new Vector2(W / 2f - PinPreW / 2f, 22f), PinPre, HorizontalAlignment.Left, -1, 12, t1);
 
-        // 「登録者 2,001」：ひとまわり小さく、同じ暖色・同じ光で下に灯る（大きさの序列は残す＝嘘をつかない）。
         if (second > 0f)
         {
             float bw = PinPostW + 14f;

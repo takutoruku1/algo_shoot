@@ -32,6 +32,10 @@ public partial class MinaStoryQa : Node
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/mina{(lethal ? "_lethal" : burst ? "_burst" : "")}/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var game = GetNode<GameManager>("/root/Game");
+            var quoteMethod = typeof(StageMina).GetMethod("S37Quote", BindingFlags.Static | BindingFlags.NonPublic)!;
+            var missingQuote = ((int, string, string))quoteMethod.Invoke(null, new object?[] { null })!;
+            Check(!missingQuote.Item2.Contains("つづけて") && !missingQuote.Item2.Contains("いただ"),
+                "missing choice history does not invent a player instruction");
             game.MsgCharsPerSec = 300;
             game.AutoAdvanceDialog = false;
             var root = GD.Load<PackedScene>("res://MinaBattle.tscn").Instantiate<MinaRoot>();
@@ -176,6 +180,19 @@ public partial class MinaStoryQa : Node
             await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 12);
             await Frames(100);
             await Shot("come_home_together", false);
+            Check(Read<int>(film!, "_shot", typeof(StoryFilm)) == 4, "Mina accepts the invitation before taking the hand");
+            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 13);
+            var grade = Read<ShaderMaterial>(film!, "_grade", typeof(StoryFilm));
+            Check((grade.GetShaderParameter("previous_texture").AsGodotObject() as Texture2D)?.ResourcePath
+                  == "res://char/bg2/story/cg_mina_reunion_v1.png", "hand scene dissolves from the reunion CG");
+            await Shot("take_hand_blend", false);
+            await Frames(65);
+            await Shot("take_hand", false);
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(15);
+            await Shot("take_hand_small", false);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(15);
             if (!lethal && !burst)
             {
                 stage.SetProcess(false);
@@ -270,6 +287,8 @@ public partial class MinaStoryQa : Node
         Check(max - min > 0.15f, $"{name}: nonblank");
         Check(grayscale ? colored == 0 : colored > 100, $"{name}: correct color mode");
         Check(green == 0, $"{name}: no chroma background");
+        if (GetTree().GetFirstNodeInGroup("storyfilm") is StoryFilm film)
+            StoryFilmQa.CheckFrame(film, image);
         return image;
     }
 }
