@@ -3,12 +3,13 @@
 param(
   [Parameter(Mandatory=$true)][string]$In,
   [Parameter(Mandatory=$true)][string]$Out,
-  [Parameter(Mandatory=$true)][ValidateSet('magenta','green','none')][string]$Key,
+  [Parameter(Mandatory=$true)][ValidateSet('magenta','green','matte','none')][string]$Key,
   [int]$TargetH = 44,
   [int]$Levels = 0,
   [int]$Outline = 0,
   [int[]]$Region = @(),
-  [switch]$Despill
+  [switch]$Despill,
+  [switch]$KeepCanvas
 )
 $cs = @'
 using System;
@@ -17,7 +18,7 @@ using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 public static class KeyTrimScale {
-  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline, int[] region, bool despill){
+  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline, int[] region, bool despill, bool keepCanvas){
     using(var src0=new Bitmap(inPath)){
       int w=src0.Width,h=src0.Height;
       int cropX=0,cropY=0;
@@ -37,9 +38,11 @@ public static class KeyTrimScale {
       if(key!="none"){
         bool magenta = key=="magenta";
         Func<int,bool> isBg = (i)=>{ int p=i*4; int b=buf[p],gg=buf[p+1],r=buf[p+2];
+          if(key=="matte") return Math.Max(r,Math.Max(gg,b))>=160 && Math.Min(r,Math.Min(gg,b))<=40 && Math.Max(r,Math.Max(gg,b))-Math.Min(r,Math.Min(gg,b))>=140;
           if(magenta) return r>=170 && b>=150 && (r-gg)>55 && (b-gg)>35 && gg<=135;
           else        return gg>=140 && r<=130 && b<=130 && (gg-r)>40 && (gg-b)>40; };
         Func<int,bool> tint = (i)=>{ int p=i*4; int b=buf[p],gg=buf[p+1],r=buf[p+2];
+          if(key=="matte") return Math.Max(r,Math.Max(gg,b))-Math.Min(r,Math.Min(gg,b))>=90;
           if(magenta) return (r-gg)>35 && (b-gg)>20; else return (gg-r)>25 && (gg-b)>20; };
         // global key
         for(int i=0;i<w*h;i++) if(isBg(i)) buf[i*4+3]=0;
@@ -65,6 +68,8 @@ public static class KeyTrimScale {
       int minX=w,minY=h,maxX=-1,maxY=-1;
       for(int y=0;y<h;y++)for(int x=0;x<w;x++){ if(buf[(y*w+x)*4+3]>16){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; } }
       if(maxX<0) return "empty";
+      // Parallax layers must retain the shared canvas registration, including transparent margins.
+      if(keepCanvas){minX=0;minY=0;maxX=w-1;maxY=h-1;}
       int cw=maxX-minX+1, ch=maxY-minY+1;
       var crop=new Bitmap(cw,ch,PixelFormat.Format32bppArgb);
       using(var g=Graphics.FromImage(crop)){ g.DrawImage(bmp,new Rectangle(0,0,cw,ch),new Rectangle(minX,minY,cw,ch),GraphicsUnit.Pixel); }
@@ -124,4 +129,4 @@ if ($PSEdition -eq 'Core') {
   $references += @('System.Runtime.dll', 'System.Runtime.InteropServices.dll', 'System.Private.Windows.Core.dll', 'System.Private.Windows.GdiPlus.dll') | ForEach-Object { Join-Path $PSHOME $_ }
 }
 Add-Type -TypeDefinition $cs -ReferencedAssemblies $references -ErrorAction Stop
-[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline,$Region,$Despill.IsPresent)
+[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline,$Region,$Despill.IsPresent,$KeepCanvas.IsPresent)

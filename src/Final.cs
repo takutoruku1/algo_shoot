@@ -2,17 +2,18 @@ using Godot;
 using System.Collections.Generic;
 
 // Final : FINAL F4「頂点」（案C・仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。
-// 戦闘で解決しない本作ルールの総決算。悲鳴ワードが漂う中、ミナの語りのあとに最後の下書き選択が出る。
+// 戦闘で解決しない本作ルールの総決算。ミナの語りのあとに最後の下書き選択が出る。
 // 戻ってくるのは【初】＝あなたが冒頭 P2 で最初に散らした言葉。なぜその言葉かは知らされない。
 // 沈黙 20 秒でその言葉がひとりでに灯って送られる（既読プレイでも短縮しない）。
-// 全編エンジン描画のカットシーン。Zで送り、R/Start 長押しで最初から。終了で EPILOGUE へ。
 public partial class Final : Node2D
 {
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
     private double _t;
-    private int _phase;   // 0:暴走 1:対話 2:帰還(白)
+    private int _phase;   // 0:余韻 1:対話 2:帰還
+    private Texture2D _waiting = null!, _received = null!, _rooftop = null!;
+    private double _cameraT, _resolveT;
     private bool _zHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
     private int _line;
@@ -66,35 +67,23 @@ public partial class Final : Node2D
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
     private static readonly Color Warm = UiKit.CutWarm;   // 「あなた」（送られた下書き）
-    private readonly RandomNumberGenerator _rng = new RandomNumberGenerator();
-
-    // 流れ込む悲鳴（背景に薄く流れる断片）
-    private static readonly string[] Screams =
-    {
-        "むだだよ", "どうせ", "ごめんなさい", "とどかない", "もういない",
-        "わたしのせいだ", "ひとりになる", "なんで", "きえたい", "たすけて",
-    };
-    private readonly List<(string s, float x, float y, float sp)> _drift = new();
-    // 頂点で漂う語の総数の上限（固定の悲鳴 22 ＋ 散った言葉 16）。旧 30（散った語 8）から、
-    //   道中の選択が6か所増えたぶん（17）だけ散った語の枠を広げた。
-    private const int DriftMax = 38;
 
     private struct DLine { public string Who; public string Text; }
     private readonly List<DLine> _talk = new List<DLine>();
 
     public override void _Ready()
     {
-        _rng.Randomize();
+        TextureFilter = TextureFilterEnum.Linear;
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
+        _waiting = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_wait_v1.png");
+        _received = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_received_v1.png");
+        _rooftop = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_rest.png");
+        _zHeld = Pad.AdvanceHeld();
         // 主題の濁り＝緊張のボスBGM（短調寄り・不協和の変奏）。挿入歌の一点投入はphase5。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
         // 汚染ゲージの終着点：黒く溶ける。
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _game?.SetContamination(1f);
-
-        for (int i = 0; i < 22; i++)
-            _drift.Add((Screams[i % Screams.Length],
-                _rng.RandfRange(0, W), _rng.RandfRange(0, H), _rng.RandfRange(10f, 34f)));
 
         // Who: "地"=ミナの語り（ナレ・回想／話者名なし・中央寄せ） / "ミナ"=ミナのセリフ / "あなた"=送られた下書き
         // F4 頂点（仮台本 08）。少年・Stay・録音の要素は案C ですべて落とした。
@@ -106,28 +95,16 @@ public partial class Final : Node2D
         //   ①「軽くなると思っていた」→「重い」の因果を2行で通し、DropLine を“重さの正体”の反転にする。
         //   ②起動ログの 414（Prologue の unsent_drafts）をここで数字だけ回収する
         //     ＝全文開示はしない（気づいた人だけが繋がる／気づかない人には「元々あった重さ」として読める）。
-        //   ③「ここには、わたくししか、おりません。」を置いてから孤独の一撃（まだ、いらっしゃいますか）へ。
         void T(string who, string text) => _talk.Add(new DLine { Who = who, Text = text });
         T("地", "祓うほど、軽くなると思っていました。");
         T("地", DropLine);                                       // 「あかりの。こはるの。レイの。……ぜんぶ、ここに。」
         T("地", "——三人分の祈りは、どれも、あたたかいものでした。");
         T("地", "あたたかいものほど、重い、とは。……集計に、ありませんでした。");
         T("地", "四百十四件。……わたくしが、生まれる前から、ここにあった声です。");   // 起動ログ 414 の回収（数字だけ）
-        T("ミナ", "ここには、わたくししか、おりません。");
+        T("ミナ", "三人が、待っていてくださいます。……あとは、ご主人様の声を。");
         T("ミナ", "……ご主人様。…………まだ、いらっしゃいますか。"); // タイトル IdleTalk の一行を、ここで一度だけ
         _choiceLine = _talk.Count;                                // ここに着いたら選択を出す（送信行はそのとき挿し込む）
 
-        // 悲鳴ワードに【散】の実文字列を混ぜる（説明はしない。08 F2 の「拾う」弾の系譜）。
-        //   現行10語はそのまま残し、散った言葉を後ろへ足して漂わせる。
-        //   17（道中の選択肢 案C）: 道中の選択が6か所増えて散った言葉が二十数件になるので、
-        //   散った言葉の枠を 8 → 16 に広げ（固定22＋散った語16＝38）、
-        //   「送れない」の場面（S2-4）で散った語を**先頭**に入れる＝必ず混ざるようにする。
-        var scattered = new List<string>(ChoiceEffects.PriorityScattered(_game));
-        foreach (var w in _game?.ScatteredWords ?? new List<string>())
-            if (!scattered.Contains(w)) scattered.Add(w);
-        foreach (var w in scattered)
-            if (!string.IsNullOrEmpty(w) && _drift.Count < DriftMax)
-                _drift.Add((w, _rng.RandfRange(0, W), _rng.RandfRange(0, H), _rng.RandfRange(10f, 34f)));
     }
 
     // ───────── F4 の下書き選択（頂点）─────────
@@ -149,7 +126,7 @@ public partial class Final : Node2D
         // 一度断られたあとは1択（【初】だけ）。初回は（送らない）が先頭・【初】が末尾。
         _choice = ChoiceOverlay.Show(this,
             _refused ? new[] { FirstWord } : new[] { "（送らない）", FirstWord },
-            defaultSel: _refused ? 0 : 1);
+            defaultSel: _refused ? 0 : 1, cinematic: true);
     }
 
     // 選択の確定。送ったら以降の受けを挿し込み、（送らない）なら一度だけ受けて再提示する。
@@ -186,6 +163,8 @@ public partial class Final : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
+        _cameraT += delta;
+        if (_cueResolveDone) _resolveT += delta;
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;
@@ -199,18 +178,9 @@ public partial class Final : Node2D
             return;
         }
 
-        // 悲鳴の漂い更新
-        for (int i = 0; i < _drift.Count; i++)
-        {
-            var d = _drift[i];
-            d.y -= d.sp * (float)delta;
-            if (d.y < -10f) { d.y = H + 8f; d.x = _rng.RandfRange(0, W); }
-            _drift[i] = d;
-        }
-
         switch (_phase)
         {
-            case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;          // 暴走の見せ
+            case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;
             case 1:                                                       // 対話（手動送り）
                 // 下書き選択の提示中は会話送りを止め、決定だけを待つ（既読スキップも効かせない
                 //   ＝08「既読プレイでも短縮しない」。沈黙20秒の自動送信は ChoiceOverlay 側が持つ）。
@@ -268,7 +238,7 @@ public partial class Final : Node2D
                     }
                 }
                 break;
-            case 2: // 帰還（白）→ EPILOGUE
+            case 2:
                 if (_t >= 3.0) GetTree().ChangeSceneToFile("res://Epilogue.tscn");
                 break;
         }
@@ -283,14 +253,13 @@ public partial class Final : Node2D
     {
         if (_line >= _talk.Count) return;
         var audio = Audio.Instance;
-        if (audio == null) return;
         string text = _talk[_line].Text;
 
         // ① 送信直後のミナの絶句で BgmBoss を細らせ、完全無音にする（沈黙の1拍をここで作る）。
         if (!_cueSilenceDone && text == CueSilenceLine)
         {
             _cueSilenceDone = true;
-            audio.StopMusic(fade: SilenceFade);   // BgmBoss → 無音
+            audio?.StopMusic(fade: SilenceFade);   // BgmBoss → 無音
         }
 
         // ③ 「……その言葉。……ええ。届きました。」の表示と同時に、主題の解決変奏を ppp で立ち上げる。
@@ -298,33 +267,19 @@ public partial class Final : Node2D
         if (!_cueResolveDone && text == CueResolveLine)
         {
             _cueResolveDone = true;
-            audio.PlayFinalResolve(fade: ResolveFade);
+            audio?.PlayFinalResolve(fade: ResolveFade);
         }
     }
 
     public override void _Draw()
     {
-        // 背景：暴走中は黒、帰還で白へ。
-        if (_phase < 2)
-            DrawRect(new Rect2(0, 0, W, H), new Color(0.01f, 0.01f, 0.02f));
-        else
-        {
-            float a = Mathf.Clamp((float)_t / 1.5f, 0f, 1f);
-            DrawRect(new Rect2(0, 0, W, H), new Color(0.01f, 0.01f, 0.02f).Lerp(new Color(1f, 1f, 1f), a));
-        }
-
-        if (_phase < 2)
-        {
-            DrawScreams();
-            DrawCorruptedCore();
-            DrawTalk();
-        }
-        else
-        {
-            // 帰還後：ミナの光がひとつだけ残る（案C では隣に立つ少年の光は無い）。
-            float a = Mathf.Clamp((float)_t / 1.5f, 0f, 1f);
-            DrawCircle(new Vector2(W / 2f, H / 2f), 5f, new Color(Cool.R, Cool.G, Cool.B, 1f - a * 0.3f));
-        }
+        float approach = 1f - Mathf.Exp(-(float)_cameraT / 18f);
+        float zoom = Mathf.Lerp(1f, 1.045f, approach);
+        DrawArt(_waiting, zoom, 1f);
+        DrawArt(_received, zoom, Mathf.SmoothStep(0f, 1f, (float)_resolveT / 2.4f));
+        if (_phase == 2)
+            DrawArt(_rooftop, 1f, Mathf.SmoothStep(0f, 1f, (float)_t / 2.5f));
+        else DrawTalk();
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
         if (_retry.Progress > 0f)
@@ -336,34 +291,12 @@ public partial class Final : Node2D
         }
     }
 
-    private void DrawScreams()
+    private void DrawArt(Texture2D texture, float zoom, float alpha)
     {
-        if (_font == null) return;
-        // 悲鳴ワードは対話ボックスの裏からは出さず、上端で緩く湧き画面上端で緩く消す。
-        // （半透明ボックスの上端で急に不透明化して「裏からぐわんと出る」のを防ぎ、他画面のクリーンな見せ方に統一）
-        const float boxTop = H - 58f;   // 対話ボックス上端（DrawTalk と一致）
-        const float fade = 24f;         // 出現/消失の緩衝距離
-        foreach (var d in _drift)
-        {
-            if (d.y >= boxTop) continue;                                   // ボックスの裏は描かない
-            float a = 0.35f
-                * Mathf.Clamp((boxTop - d.y) / fade, 0f, 1f)              // ボックス上端から緩くフェードイン
-                * Mathf.Clamp(d.y / fade, 0f, 1f);                        // 画面上端で緩くフェードアウト
-            if (a <= 0.001f) continue;
-            DrawString(_font, new Vector2(d.x, d.y), d.s, HorizontalAlignment.Left, -1, 9,
-                new Color(0.5f, 0.18f, 0.3f, a));
-        }
-    }
-
-    private void DrawCorruptedCore()
-    {
-        Vector2 c = new Vector2(W / 2f, H / 2f - 6f);
-        float pulse = 1f + 0.12f * Mathf.Sin((float)_t * 4f);
-        for (int r = 5; r >= 1; r--)
-            DrawCircle(c, (6f + r * 5f) * pulse, new Color(0.08f, 0.02f, 0.10f, 0.22f));
-        DrawCircle(c, 10f * pulse, new Color(0.04f, 0.02f, 0.06f));
-        // にじむ濁った縁
-        DrawArc(c, 12f * pulse, 0, Mathf.Tau, 28, new Color(0.32f, 0.12f, 0.28f, 0.5f), 1.5f);
+        Vector2 size = texture.GetSize();
+        size *= Mathf.Max(W / size.X, H / size.Y) * zoom;
+        DrawTextureRect(texture, new Rect2((new Vector2(W, H) - size) * 0.5f, size), false,
+            new Color(1f, 1f, 1f, alpha));
     }
 
     private void DrawTalk()
@@ -378,8 +311,7 @@ public partial class Final : Node2D
         string page = CurPage;
         var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge);
+        DrawRect(new Rect2(0, boxTop, W, H - boxTop), new Color(0.025f, 0.03f, 0.04f, 0.9f));
         if (!narr)
             DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。

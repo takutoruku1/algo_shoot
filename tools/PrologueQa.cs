@@ -115,6 +115,9 @@ public partial class PrologueQa : Node
                 Check(Read<string>(firstPost, "_body") == GameManager.Stages[0].Tweet, "opening shows the first stage's actual SNS post");
                 Check(Read<Texture2D>(firstPost, "_iconTex").ResourcePath.Contains("/player/akari/"), "first stage post uses Akari's portrait");
                 if (route == 0) await Shot("first_stage_post");
+                await AdvanceUntil(() => Read<int>(pro, "_phase") == 6);
+                Check(GameManager.MinaNamed && pro.GetNodeOrNull<OpeningFilm>("OpeningFilm") != null,
+                    $"route {route} starts the animated opening after the first stage post");
                 await AdvanceUntil(() => !IsInstanceValid(pro));
                 Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", $"route {route} reaches the hub");
                 var hub = (Hub)GetTree().CurrentScene;

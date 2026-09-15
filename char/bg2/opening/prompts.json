@@ -1,0 +1,38 @@
+{
+  "generator": "built-in image_gen",
+  "outputs": [
+    "char/bg2/opening/op_akari_v1.png",
+    "char/bg2/opening/op_koharu_v1.png",
+    "char/bg2/opening/op_rei_v1.png",
+    "char/bg2/opening/op_mina_v1.png",
+    "char/bg2/opening/op_mina_blink_v1.png"
+  ],
+  "references": [
+    "char/v3/akari_story_atlas.png",
+    "char/v3/koharu_story_atlas.png",
+    "char/v3/rei_story_atlas.png",
+    "char/bg2/title/mina_kv.png"
+  ],
+  "prompts": [
+    {
+      "id": "op_akari_v1",
+      "prompt": "Use case: illustration-story. Asset: one full-bleed 16:9 keyframe for the opening animation of the Japanese 2D game Refrain. Reference image is the EXISTING GAME art, specifically Akari (the blonde woman); match her design and the reference's clean anime linework, restrained cel shading, soft painted backgrounds. Generate ONE new wide scene, NOT an atlas or collage. Akari, a young adult office worker with honey blonde short hair and a small side ponytail, violet eyes, white shirt, pale cardigan and blue employee lanyard, is alone at her desk late at night. Three-quarter waist-up profile on the right half of the frame, her fingers paused above a smartphone on the desk, tired and quietly wanting to say something, not crying. The left half shows the vacant desk of a former coworker, an empty chair and dark monitor, clearly recognizable. Stacked paperwork in foreground; office windows with a few city lights behind. Intimate cinematic low desk-height camera, foreground desk edges and background separated for a slow camera push. Warm muted yellow from a desk lamp, cool teal window reflections, dark neutral grays. Clear readable actual objects, not a dark mushy image. Preserve the emotional understated quality and the SAME degree of stylization as the game. No photorealism, no realistic skin or 3D, no dramatic sobbing, no magical particles, no words, no logos, no panel borders. Deliver landscape 1536x864 or equivalent 16:9."
+    },
+    {
+      "id": "op_koharu_v1",
+      "prompt": "Use case: illustration-story. Asset: one full-bleed 16:9 keyframe for a Japanese anime-game opening. Input image 1 is the original Koharu story atlas, use only for identity and style. Input image 2 is the approved opening Akari keyframe, match its cel-painted finish and gentle cinematic lighting. Create ONE new wide scene, not a collage. Koharu is the SAME brown bob-haired girl with amber eyes and a single gold hairclip as image 1. Lavender pajama top with small pale floral patterns, seated in her bedroom at night. Frame from the side at desk height, Koharu on the LEFT half looking toward a laptop at right, her hand holding a purple penlight that is now unlit, resting on the desk. On the laptop a small long dark-violet-haired anime streaming avatar with a gold star hairpin, but the screen is receding into sleep and carries NO text. A few acrylic standee goods and an open school notebook are visible in the foreground. Her expression is quiet and uncertain, small tired eyes, no crying and no exaggerated smile. Warm small desk lamp at far right and muted plum laptop reflection, believable modest bedroom, fine clear anime outlines, restrained two-tone cel shading, softly painted backgrounds at the EXACT game reference level. Camera has clear foreground middle and back for gentle movement. No photography, no realistic skin, no 3D, no magical particles, no logos, no typography or panel borders. Landscape 16:9."
+    },
+    {
+      "id": "op_rei_v1",
+      "prompt": "Use case: illustration-story. Asset: ONE full-bleed 16:9 cinematic anime-game opening keyframe, no collage. Image 1 is the existing Rei story atlas: preserve the real girl's short dark-violet bob, violet eyes, pale blouse and gray cardigan, and the Vtuber avatar's long violet hair, gold star hairclip and white/purple sailor costume. Image 2 is the approved opening art style: keep the same clear cel-painted anime finish and modest detail, not photography or 3D. Scene: late-night streamer desk. Real Rei on the right half in 3/4 waist-up profile, small exhausted expression with a barely held smile, her fingers just leaving the microphone mute control. The LEFT half has a large monitor displaying her bright smiling long-haired Vtuber persona in the same costume as reference. Contrast the smile on screen with the girl's weary eyes, without crying. A microphone, headphones, handwritten but unreadable preparation notes and a star mug on foreground desk; turned-off ring light reflected softly in window. The screen interface only abstract short lines and tiny neutral dots, NO readable text/numbers/icons/logos. Teal-white monitor glow, soft muted plum shadows and a small warm lamp, keep objects clearly visible. Believable compact bedroom studio. Deliberate negative space between avatar and real face. Layered foreground, subject and background suitable for a slow camera move. No borders, no dramatic particles, no fantasy wings or spoiler transformation. Match existing art precisely. Wide 16:9."
+    },
+    {
+      "id": "op_mina_v1",
+      "prompt": "Use case: identity-preserve / illustration-story. Asset: ONE isolated character layer for a 2D anime game opening, landscape 1536x1024. The reference is MINA, keep exactly her very long silver-white hair, soft blue eyes, white frilled maid headband with navy trim, navy long-sleeve modest maid dress, white frilled apron and collar, navy neck bow with small cyan rectangular gem. Preserve her quiet, reserved non-smiling expression and clean delicate anime linework. NEW POSE: cinematic waist-up three-quarter view, body gently angled to the right, eyes looking slightly up and toward the viewer/right as if hearing a distant voice. Right hand extended gently forward at chest height, palm upward, natural five fingers; left hand near heart. Flowing long hair and apron ribbons trail widely to the LEFT in a single gentle wind direction, visible distinct strands, dramatic but controlled. Normal anime illustration proportions, NOT chibi. Character's face centered around x=62%, y=29%; character fits ENTIRELY within frame with generous 6% margins on sides/top, torso ends naturally at bottom. Subtle blue-white rim light, soft restrained two-tone shading, no realism. TRUE TRANSPARENT RGBA background with no backdrop, no floor or cast shadow, no drawn checkerboard, no gray/magenta/green background, no scenery, no particles, no halos, no words. This character will be composited over a moving city background; keep transparent spaces between flowing hair locks. Do not change outfit, no wings, no weapon, no smile."
+    },
+    {
+      "id": "op_mina_blink_v1",
+      "prompt": "Use case: precise-object-edit. Edit target: the supplied Mina opening character layer. Create the CLOSED-EYES frame of a blink animation. Change ONLY the eyelids in the existing eye areas to softly closed natural anime eyelids. Do not alter the face outline, head position, eyebrows, mouth, hair, fingers, clothes, highlights, composition, canvas size or any pixels outside the small two eye areas. The expression remains reserved, mouth unchanged, NO smile. Preserve the entire exact pose and the long flowing silver hair, all current proportions. The output must align pixel-for-pixel with the original as the second animation frame. Keep the same 1536x1024 canvas, same coordinates. Preserve the original REAL transparent RGBA alpha background and semi-transparent edge pixels; do not add background or a glow, no checkerboard, no text. Only close the two eyes."
+    }
+  ]
+}

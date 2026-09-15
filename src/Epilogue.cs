@@ -1,22 +1,14 @@
 using Godot;
 using System.Collections.Generic;
 
-// Epilogue : EPILOGUE E5b → E7 → E6（案C・仮台本 wiki/08_仮台本/08。2026-09-07 ユーザー決定で全面改稿）。
-// 旧 E1 タイムライン／E2 合言葉／E3 四行／E4 開示／E5 空・DM は**全削除**。エピローグは3場面だけになった：
-//   E5b 見上げる（夜。四人が並んで立ち止まっている・10行）→ E5b 歩く（夜→明け方・8行）
-//   → E7 スタッフロール → E6 END（最後の下書き選択。作品全体の最後の選択）。
-// E6 が最後なので、END を送り切ったらタイトルへ戻る。
 public partial class Epilogue : Node2D
 {
     private const float W = 384f, H = 216f;
 
-    // ───────── phase ─────────
-    //   0: E5b 見上げる（夜）／1: E5b 歩く（夜→明け方）／2: E7 スタッフロール／3: E6 END
-    //   旧 E1〜E5 の削除で番号を詰めてある（旧 0/1=E1・2=E2・3=E3・4=E4〜E6・5=E7）。
-    private const int PhGaze = 0, PhWalk = 1, PhRoll = 2, PhEnd = 3;
+    private const int PhGaze = 0, PhFilm = 1, PhRoll = 2, PhEnd = 3;
+    private EndingFilm? _film;
 
     private FontFile _font = null!;
-    private Texture2D? _tears;   // E6 のミナ落涙立ち絵
     private double _t;
     private int _phase = PhGaze;
     private bool _zHeld;
@@ -41,7 +33,7 @@ public partial class Epilogue : Node2D
     private static bool _shotHold, _shotHoldChecked;
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
-    //   会話フェーズ（PhGaze/PhWalk/PhEnd）が対象。折り返しは DrawLineBox と一致させる。
+    //   会話フェーズ（PhGaze/PhEnd）が対象。折り返しは DrawLineBox と一致させる。
     private const float BoxWrapW = W - 56f;    // DrawLineBox の本文折り返し幅と一致
     private readonly List<string> _pages = new();
     private int _page;
@@ -118,7 +110,6 @@ public partial class Epilogue : Node2D
 
     private struct DLine { public string Who; public string Text; }   // Who: "地"=語り / "ミナ" / 三人の名 / "あなた"
     private readonly List<DLine> _gaze = new();   // PhGaze（E5b 前半・見上げる10行）
-    private readonly List<DLine> _walk = new();   // PhWalk（E5b 後半・歩く8行）
     private readonly List<DLine> _end  = new();   // PhEnd （E6 END）
 
     public override void _Ready()
@@ -132,9 +123,8 @@ public partial class Epilogue : Node2D
             Audio.Instance.MusicOnce(Audio.Instance.BgmEpilogueWalk, 2.0f);
             _musicStarted = true;
         }
-        _tears = ResourceLoader.Load<Texture2D>("res://char/mina_tears.png");
         BuildSky();
-        BuildWalkers();
+        _zHeld = Pad.AdvanceHeld();
         _game = GetNodeOrNull<GameManager>("/root/Game");
         BuildRoll();        // E7 のロール（末尾の一行に【終】が入る）
 
@@ -159,25 +149,7 @@ public partial class Epilogue : Node2D
         G("ミナ", "ご主人様。もう少し、ここにいても、よろしいですか。");
         G("ミナ", "……まだ、空を見ていたいので。");
         G("あかり", "うん。もう少し、見てよう。");
-        G("ミナ", "……誰も、先には歩き出しませんでした。わたくしも、次の仕事を、探しませんでした。");
-
-        // ── E5b 歩く（夜 → 明け方。空が白んでいく。08 E5b 後半8行）──
-        // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【5】【17】
-        //   【5】"地" → "ミナ"（上と同じ理由）。
-        //   【17】旧「……本日、二件目です。」は“何の二件目”か伝わらなかった。一度だけ説明してから、
-        //         レイの後に「……三件。」だけを置く＝同じ言葉の二度目が短くなる（日常語の再来）。
-        //         直後の「名前を呼びませんでした」→「歩数を、数えておりました」で“数える”が三度反復し、
-        //         最終行「四人分に、なっていました。」が決定打として立つ。
-        void K(string who, string t) => _walk.Add(new DLine { Who = who, Text = t });
-        K("ミナ", "……わたくしたちは、歩きはじめました。");
-        K("あかり", "——おはよ。");                                   // まだ暗いうちに言う（早すぎる挨拶）
-        K("こはる", "……こんにちは。");                               // 時刻が合っていない。直さない
-        K("ミナ", "……挨拶、二件。時刻とは、どちらも合っておりません。");   // ミナは受けない。数える
-        K("レイ", "……なんか用? ……いえ、別に。ついてくだけ。");
-        K("ミナ", "……三件。");                                        // 二度目は短く（反復の二段目）
-        K("ミナ", "……誰も、名前を呼びませんでした。");
-        K("ミナ", "……ご主人様。歩数を、数えておりました。");
-        K("ミナ", "四人分に、なっていました。");                        // ここで空が明ける → そのまま E6 へ
+        G("ミナ", "……誰も、わたくしを急かしませんでした。次の仕事は、探しませんでした。");
 
         // ── E6 END（08 E6）。E7 の後に来る＝作品全体の最後の場面。──
         _end.Add(new DLine { Who = "ミナ", Text = "ご主人様。本日の業務は、以上です。" });
@@ -189,7 +161,7 @@ public partial class Epilogue : Node2D
         _e6ChoiceT = 0;
         // 沈黙20秒の自動決定は末尾へ落ちるので、（送らない）を末尾に置く（台本どおり）。
         // カットシーン＝盤面が無いので onBoard は既定(false)＝画面全体の中心へ。
-        _e6Choice = ChoiceOverlay.Show(this, E6Choices, defaultSel: E6Choices.Length - 1);
+        _e6Choice = ChoiceOverlay.Show(this, E6Choices, defaultSel: E6Choices.Length - 1, cinematic: true);
     }
 
     // E6 の確定：送った言葉と迷い秒数を記録し、受け（対句）と END の2行を挿し込む。
@@ -233,6 +205,7 @@ public partial class Epilogue : Node2D
 
     public override void _Process(double delta)
     {
+        if (_phase == PhFilm) { _zHeld = Pad.AdvanceHeld(); return; }
         _t += delta;
         _lineT += delta;
         // 会話送り／各フェーズの決定：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも進める共通ヘルパ（マウス対応 P2）。
@@ -282,19 +255,7 @@ public partial class Epilogue : Node2D
                         //   StopMusicOnce＝MusicOnce の Finished フックを解いてから止める（曲尾まで
                         //   行かない停止なので OneShot が残る。Audio.StopMusicOnce のコメント参照）。
                         if (_line == SilenceLine && _musicStarted) { Audio.Instance?.StopMusicOnce(0.9f); _musicStarted = false; }
-                        if (_line >= _gaze.Count) { _phase = PhWalk; _t = 0; _line = 0; }
-                    }
-                }
-                break;
-            case PhWalk:   // E5b 歩く（夜 → 明け方）
-                if ((zEdge || _ffNow) && _lineT >= 0.25)
-                {
-                    if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
-                    else if (!LastPage) { NextPage(); }
-                    else
-                    {
-                        _lineT = 0; _reveal = 0; _line++; _page = 0; _pagedKey = -1;
-                        if (_line >= _walk.Count) { _phase = PhRoll; _t = 0; _line = 0; }
+                        if (_line >= _gaze.Count) StartFilm();
                     }
                 }
                 break;
@@ -338,8 +299,6 @@ public partial class Epilogue : Node2D
                 }
                 break;
         }
-        UpdateSky(delta);
-        UpdateWalkers(delta);
         if (ShowingGoodbye) _goodbyeT += delta;
         QueueRedraw();
     }
@@ -351,96 +310,64 @@ public partial class Epilogue : Node2D
         get { int i = _gaze.FindIndex(d => d.Text == "…………。"); return i < 0 ? -1 : i + 1; }
     }
 
-    private Texture2D _skyNight = null!, _skyDawn = null!, _rest = null!, _goodbye = null!;
+    private void StartFilm()
+    {
+        if (_musicStarted) { Audio.Instance?.StopMusicOnce(0); _musicStarted = false; }
+        _phase = PhFilm;
+        _t = 0;
+        _line = 0;
+        _film = new EndingFilm { Completed = () =>
+        {
+            _film = null;
+            _phase = PhRoll;
+            _t = 0;
+            _zHeld = Pad.AdvanceHeld();
+            QueueRedraw();
+        }};
+        AddChild(_film);
+    }
+
+    public override void _ExitTree()
+    {
+        if (_musicStarted) Audio.Instance?.StopMusicOnce(0.3f);
+    }
+
+    private Texture2D _skyDawn = null!, _rest = null!, _goodbye = null!, _together = null!;
     private double _goodbyeT;
     private bool ShowingGoodbye => _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 2;
     private float GoodbyeAlpha => Mathf.SmoothStep(0f, 1f, Mathf.Clamp((float)_goodbyeT / 1.2f, 0f, 1f));
-    private float _dawnK;    // 0=夜 1=明け方
-    private double _dawnT;
-    // 空の色が目標へ追いつく速さの上限（1.0 ぶんに掛かる最短秒数）。行を早送りしても跳ねない。
-    private const double DawnFadeSec = 2.5;
 
     private void BuildSky()
     {
         const string dir = "res://char/bg2/ending/";
-        _skyNight = GD.Load<Texture2D>(dir + "bg_ep_night.png");
         _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn.png");
         _rest = GD.Load<Texture2D>(dir + "cg_ep_rest.png");
         _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye.png");
+        _together = GD.Load<Texture2D>(dir + "cg_ep_together_v1.png");
     }
 
-    // 夜→明け方の進行。歩行フェーズ（PhWalk）で**行の進みに合わせて**明ける。
-    //   時間ではなく行数を基準にするのは、読む速さ（と自動プレイの送り速度）に関わらず
-    //   最終行「四人分に、なっていました。」で必ず明け切らせるため（台本 E5b の指定）。
-    //   実際の追従は DawnFadeSec で緩めるので、行を早送りしても空は跳ねない。
-    //   スタッフロールと END は明け方のまま（時間が一本で繋がる＝台本 E5b「繋ぎ目が無い」）。
-    private void UpdateSky(double delta)
-    {
-        double target = _phase switch
-        {
-            PhGaze => 0.0,                                                  // 見上げ＝夜のまま
-            PhWalk => Mathf.Min(1.0, (_line + 1.0) / Mathf.Max(1, _walk.Count)), // 歩行＝行が進むほど白む
-            _      => 1.0,                                                  // ロール／END＝明け方
-        };
-        if (Mathf.IsEqualApprox(_dawnT, target)) return;
-        double step = delta / DawnFadeSec;
-        _dawnT = target > _dawnT ? Mathf.Min(target, _dawnT + step) : Mathf.Max(target, _dawnT - step);
-        float k = (float)_dawnT;
-        _dawnK = k * k * (3f - 2f * k);   // smoothstep
-    }
-
-    private void DrawArt(Texture2D texture, float alpha = 1f)
+    private void DrawArt(Texture2D texture, float alpha = 1f, float zoom = 1f)
     {
         Vector2 viewport = new(W, H);
         Vector2 size = texture.GetSize();
-        size *= Mathf.Max(W / size.X, H / size.Y);
+        size *= Mathf.Max(W / size.X, H / size.Y) * zoom;
         DrawTextureRect(texture, new Rect2((viewport - size) * 0.5f, size), false, new Color(1f, 1f, 1f, alpha));
-    }
-
-    private EpilogueWalker[] _walkers = System.Array.Empty<EpilogueWalker>();
-    private double _walkT;
-
-    private void BuildWalkers()
-    {
-        _walkers = EpilogueWalker.CreateParty();
-    }
-
-    private void UpdateWalkers(double delta)
-    {
-        if (_phase == PhWalk) _walkT += delta;   // 見上げ（PhGaze）は止まっている
-    }
-
-    private void DrawWalkers()
-    {
-        float span = 100f, x0 = W * 0.5f - span * 0.5f;
-        for (int i = 0; i < _walkers.Length; i++)
-            _walkers[i].Draw(this, x0 + span * i / (_walkers.Length - 1), _walkT, _dawnK);
     }
 
     public override void _Draw()
     {
-        if (_phase == PhGaze) DrawArt(_rest);
-        else
-        {
-            // Keep the night layer opaque so the crossfade never exposes the clear color.
-            DrawArt(_skyNight);
-            DrawArt(_skyDawn, _dawnK);
-        }
+        if (_phase == PhGaze)
+            DrawArt(_rest, zoom: 1f + 0.025f * (1f - Mathf.Exp(-(float)_t / 22f)));
+        else DrawArt(_skyDawn);
 
         switch (_phase)
         {
             case PhGaze:
                 DrawNarration(_gaze, _line);
                 break;
-            case PhWalk:
-                DrawWalkers();
-                DrawNarration(_walk, _line);
-                break;
             case PhRoll: DrawStaffroll(); break;
             case PhEnd:
-                // END は明け方の空をそのまま残しつつ沈める（最後の選択肢＝ChoiceOverlay の
-                //   紫の文字が明るい空に溶けて読めなくなるため。空は「繋ぎ目が無い」まま後ろに残る）。
-                DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.78f));
+                DrawArt(_together);
                 if (ShowingGoodbye) DrawArt(_goodbye, GoodbyeAlpha);
                 DrawEnd();
                 break;
@@ -494,7 +421,6 @@ public partial class Epilogue : Node2D
     private string? CurLineText()
     {
         if (_phase == PhGaze) return _line < _gaze.Count ? _gaze[_line].Text : null;
-        if (_phase == PhWalk) return _line < _walk.Count ? _walk[_line].Text : null;
         if (_phase == PhEnd)  return _line < _end.Count ? _end[_line].Text : null;
         return null;
     }
@@ -508,14 +434,6 @@ public partial class Epilogue : Node2D
     private void DrawEnd()
     {
         if (_font == null || _line >= _end.Count) return;
-        // クライマックス：ミナの台詞行で落涙の立ち絵を差す（画をピークに集める／§8）。
-        if (_end[_line].Who == "ミナ" && _tears != null && !ShowingGoodbye)
-        {
-            float a = Mathf.Clamp((float)_lineT / 0.5f, 0f, 1f);
-            float ph = 116f, pw = ph * _tears.GetWidth() / Mathf.Max(1, _tears.GetHeight());
-            DrawTextureRect(_tears, new Rect2(W / 2f - pw / 2f, H - 58f - ph + 6f, pw, ph), false,
-                new Color(1f, 1f, 1f, a));
-        }
         DrawLineBox(_end[_line]);
         // END は最後の1行だけ。選択がまだ出ていない間（＝末尾が「本日の業務は、以上です。」）は出さない。
         if (_e6ChoiceLine < 0 && _line >= _end.Count - 1)
@@ -545,8 +463,7 @@ public partial class Epilogue : Node2D
         string page = CurPage;
         var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        // ボックス（Hub/Shop と同じ角丸＋話者色の額縁。UiKit.CutBox で3画面共通）
-        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, 0.5f);
+        DrawRect(new Rect2(0, boxTop, W, H - boxTop), new Color(0.025f, 0.03f, 0.04f, 0.9f));
         string label = narr ? "" : d.Who;
         if (label != "")
             DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);

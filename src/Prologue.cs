@@ -19,7 +19,7 @@ public partial class Prologue : Node2D
     private float _choiceShade;
     private int _timelineLine = -1, _unsentLine = -1;
     private double _t;        // フェーズ内経過
-    private int _phase;       // 0:Rain 1:Identity(deferred) 2:Ignite 3:Talk 4:Title 5:TutorialAsk（受講確認）
+    private int _phase;       // 0:Rain 1:Identity(deferred) 2:Ignite 3:Talk 4:Title 5:TutorialAsk 6:Opening
     private bool _zHeld;
     private bool _backHeld;
     private readonly RetryHold _retry = new(); // R/Start 長押しで最初から（即発の誤爆防止）
@@ -305,6 +305,7 @@ public partial class Prologue : Node2D
 
     public override void _Process(double delta)
     {
+        if (_phase == 6) return;
         _t += delta;
 
         // 会話送り／各フェーズの決定：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも進める共通ヘルパ（マウス対応 P2）。
@@ -621,9 +622,28 @@ public partial class Prologue : Node2D
     //     一度通したプレイヤーには毎回スキップ選択肢を出す、という設計。
     //   ※練習面の非表示中(GameManager.TutorialEnabled==false)は上記を全部飛ばしてハブへ直行する。
     private bool _started;
+    private bool _openingShown;
     private void StartGame()
     {
         if (_started) return;
+        if (!_openingShown)
+        {
+            _openingShown = true;
+            _phase = 6;
+            AddChild(new OpeningFilm { Completed = () =>
+            {
+                _zHeld = Pad.AdvanceHeld();
+                _backHeld = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+                _retry.Update(0, false);
+                StartGame();
+                if (!_started)
+                {
+                    Audio.Instance?.Music(Audio.Instance.BgmPrologue, 0.8f);
+                    QueueRedraw();
+                }
+            } });
+            return;
+        }
         // 保険：プロローグを抜ける時点では必ず名前がある（点灯行は全ルートが通るが、
         //   将来この場面を飛ばす導線が出来ても他画面に「？」を持ち出さない）。
         GameManager.MinaNamed = true;
