@@ -20,10 +20,6 @@ public partial class Player : Area2D
     private const float FireInterval = 0.13f;
     private float _fireCooldown = 0f;
 
-    // バックファイア（後方弾）：後方(-X)に敵がいると自動で軽ホーミング弾を撃つ。前方メインとは独立CD。
-    // bf_* ノード未所持でも初期から弱く撃てる（ダメージ1・間隔0.9s）。bf_power/rate/track で強化する。
-    private float _backfireCd = 0f;
-
     // 当たり半径（極小）
     private const float HitRadius = 2f;
     // グレイズ半径（かすり判定の広さ）
@@ -747,14 +743,7 @@ public partial class Player : Area2D
             _fireCooldown = FireInterval * (_game?.FireIntervalMul ?? 1f) * modeMul;
         }
 
-        // バックファイア（後方弾）：前方射撃とは独立に、後方(-X)へ敵がいるときだけ自動発射。
-        // 会話中・回避中・ゲームオーバー後は撃たない（前方射撃と同じゲート）。CD は BackfireInterval（bf_rate で短縮）。
-        if (_backfireCd > 0f) _backfireCd -= dt;
-        if (!Hud.BubblePaused && _dodgeTimer <= 0f && _backfireCd <= 0f && !_gameOver)
-        {
-            if (FireBackfire())
-                _backfireCd = _game?.BackfireInterval ?? 0.9f;
-        }
+        // バックファイア（後方弾・淡い金の菱形）：2026-09-15 ユーザー指示で廃止（発射のみ停止、FireBackfire は復活可能なまま残置）。
 
         // ボム（X）: 押した瞬間だけ発動
         // ボム＝X / Xボタン（□）
