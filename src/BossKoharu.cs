@@ -155,6 +155,13 @@ public partial class BossKoharu : Enemy
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
     private const string BgmStopLine = "来ていた回数を、数えました。八十七回。";
 
+    // 改心の台詞の実体。他ジョブ潜行中はミナ前提の Lines の代わりに改心相当シーン
+    //   （CharacterStory.Redemption＝キャラ×面の9通り）を流す（2026-09-15。_Ready で差し替える）。
+    //   _storySilenceAt＝改心相当シーンの「ここでBGM停止」行（ト書き。-1=無し）。
+    private bool _charStory;
+    private (int who, string text, string face)[] _lines = Lines;
+    private int _storySilenceAt = -1;
+
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [koharu]）で上書き可。第3引数＝現行既定値。
@@ -217,6 +224,14 @@ public partial class BossKoharu : Enemy
     public override void _Ready()
     {
         base._Ready();
+        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            _lines = CharacterStory.Redemption(game!.SelectedJob, "koharu");
+            _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "koharu");
+        }
         // ボス登場＝道中BGMからこはる固有テーマへクロスフェード（温かい旋律が冷えて減衰＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossKoharu);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[koharu] の
@@ -614,7 +629,7 @@ public partial class BossKoharu : Enemy
         Audio.Instance?.PlayRedeem(2);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -638,6 +653,10 @@ public partial class BossKoharu : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
+            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
+            //   やっていた戦闘再開処理（閾値の再評価）だけを直接行う。BGM はフィルムへ
+            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
+            if (_charStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
@@ -668,7 +687,7 @@ public partial class BossKoharu : Enemy
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
-                if (_line >= Lines.Length)
+                if (_line >= _lines.Length)
                 {
                     _seq = false;
                     var hud = GetHud();
@@ -683,16 +702,18 @@ public partial class BossKoharu : Enemy
 
     private void ShowLine()
     {
-        var (who, text, face) = Lines[_line];
+        var (who, text, face) = _lines[_line];
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
         // 旧稿の記憶フラッシュ（StageImagery.TriggerMemoryFlash）は呼ばない。案C の改心は回想ではなく
         // 「S2-4 で消えた一行を、本人の前で返す」なので、台所の回想の画は場面と食い違う。
         // 決定打の手前で音を落とす（台本の「ここでBGM停止。無音のまま」）。
-        if (text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
+        //   本編＝本文一致（BgmStopLine）／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。
+        if (_charStory ? _line == _storySilenceAt : text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
         string portrait = kind switch
         {
+            Hud.LineKind.Companion => face,   // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             // こはるは通常 koharu_face。絶望行だけ face に蒼白(KPale)を指定して差し替える。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,
             _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face,   // ミナも行ごと表情

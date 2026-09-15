@@ -325,6 +325,19 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _playerMid = null!;
     private (int who, string text, string face)[] _playerBoss = null!;
 
+    // ── 他ジョブ潜行（2026-09-15）──
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・S3-7 割り込み・回想フィルムを
+    //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   改心相当シーン（山場）は BossRei 側が CharacterStory.Redemption で差し替える。
+    //   ビート対応：step1=Sortie / 2=Mid1 / 4=Mid2 / 7=Mid3（嵐の導入枠）/ 9=PreBoss / 13=Return。
+    //   step11（ボスの口上＝who=2）と引用の嵐そのもの（step18）はどちらのモードでも流す。
+    private bool _charStory;
+    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyPreBoss = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -336,9 +349,25 @@ public partial class StageRei : Node
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
-        _playerIntro = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Intro, Intro);
-        _playerMid = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Mid, BossTalk);
-        _playerBoss = CompanionDialogue.Add(job, "rei", CompanionDialogue.Beat.Boss, BossIntro);
+        // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
+        //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            int ch = game!.CharacterChapter(job);
+            _playerIntro = CharacterStory.Lines(job, ch, CharacterStory.Beat.Sortie);
+            _storyMid1 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid1);
+            _playerMid = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid2);
+            _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
+            _storyPreBoss = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
+            _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+        }
+        else
+        {
+            _playerIntro = Intro;
+            _playerMid = BossTalk;
+        }
+        _playerBoss = BossIntro;   // ガワの第一声（who=2）はどちらのモードでも流す
         if (Hud != null) Hud.TutorialActive = false;
 
         // [一時/デバッグ] --boss : 道中を飛ばしてボス戦から始める（予測攻撃のテストプレイ用）。
@@ -387,7 +416,8 @@ public partial class StageRei : Node
         {
             case 1: Step_Lines(delta, _playerIntro); break;
             // ★S3-2 の下書き選択（17）＝小話の末尾に「見えていますか」 → 選択 → 受け＋締め
-            case 2: Step_Choice(delta, "s3_2", MidThenS32, S32Choices, S32Reply, S32Tail); break;
+            //   他ジョブ潜行中は下書き選択ごと抑止（ミナ前提）＝専用ストーリーの道中ビートに置換。
+            case 2: if (_charStory) Step_Lines(delta, _storyMid1); else Step_Choice(delta, "s3_2", MidThenS32, S32Choices, S32Reply, S32Tail); break;
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             case 4: Step_Lines(delta, _playerMid); break;
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
@@ -395,7 +425,7 @@ public partial class StageRei : Node
             case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             // ★S3-5c の下書き選択（17）＝三つの席の直後にミナの一件が混ざる → 選択 → 07 の残り2行
-            case 9: Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
+            case 9: if (_charStory) Step_Lines(delta, _storyPreBoss); else Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, _playerBoss); break;
             case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
@@ -565,9 +595,11 @@ public partial class StageRei : Node
         var kind = (Hud.LineKind)who;
         // 案C のこの面に出るのは あなた(0)／ミナ(1)／レイ(2)／システム表示(3)／投稿(4)。
         //   0 と 4 は Hud 側が立ち絵を捨てる（0＝下書きの吹き出し印）。3 は Narration 扱いで中央テロップ。
+        // 他ジョブ潜行では潜行キャラ本人(6)が加わる＝face をそのまま渡す（空欄は Hud がジョブ立ち絵へ落とす）。
         string portrait = kind switch
         {
             Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
+            Hud.LineKind.Companion => face,                                    // 表情差分は face 指定、空欄＝ジョブ立ち絵
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RFace : face,   // 中の人(RFace/RSmile)・ガワ(RGawa)を行ごとに
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? MFace : face,    // ミナも行ごと表情
             _ => MFace,
@@ -630,9 +662,10 @@ public partial class StageRei : Node
 
     // 道中ザコ戦“C（終盤）”：ミッドシナリオの後。最大密度（StartIntensity 0.7）でボス直前の山を作る。
     // S3-5a／S3-5b 接続（07 の接続3行まで）。流し切ったら step 8 ではなく 18（嵐の本体）へ落とす。
+    //   他ジョブ潜行中は接続もミナ観測なので道中3ビートへ置換（嵐の本体＝ゲームプレイはそのまま流す）。
     private void Step_MidStory(double delta)
     {
-        Step_Lines(delta, MidStory);
+        Step_Lines(delta, _charStory ? _storyMid3 : MidStory);
         if (_step > 7) { _step = 18; _stepStarted = false; }
     }
 
@@ -665,9 +698,10 @@ public partial class StageRei : Node
     }
 
     // 剥がし切りの受け（11 の台詞4行）。流し切ったら道中C（step 8）へ。
+    //   他ジョブ潜行中は受けもミナ観測なのでスキップ（空配列＝即 Advance）。
     private void Step_StormAfter(double delta)
     {
-        Step_Lines(delta, StormAfter);
+        Step_Lines(delta, _charStory ? NoLines : StormAfter);
         if (_step > 19) { _step = 8; _stepStarted = false; }
     }
 
@@ -790,7 +824,8 @@ public partial class StageRei : Node
             }
             return; // 撃破後は割り込みの判定に入らない
         }
-        if (!_midStoryShown && !Hud.BubblePaused)
+        // S3-7 割り込み（ミナの状態報告＋下書き選択）はミナ前提＝他ジョブ潜行中は発火させない。
+        if (!_midStoryShown && !_charStory && !Hud.BubblePaused)
         {
             float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
             // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりは _midStoryShown が保証）
@@ -935,6 +970,9 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            // 他ジョブ潜行：クリア会話（ミナ）と回想（aftermath＝ミナの語り）を丸ごと帰還ビートへ置換。
+            //   フィルムを踏まない＝BGM はボス戦のまま流れ続け、次のシーン（Hub）の _Ready が張り替える。
+            if (_charStory) { _clearPhase = 2; return; }
             _clearPhase = 1;
             ReiStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
             {
@@ -945,7 +983,7 @@ public partial class StageRei : Node
             });
             return;
         }
-        if (_clearPhase == 2) Step_Lines(delta, Clear);
+        if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : Clear);
     }
 
     private bool _clearing;

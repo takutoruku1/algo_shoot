@@ -136,6 +136,15 @@ public partial class BossRei : Enemy
     // ガワが割れる行（0始まり）。この行の表示で cry テクスチャ（＝中の人）へ差し替える。
     private const int BreakAtLine = 5;
 
+    // 改心の台詞の実体。他ジョブ潜行中はミナ前提の Lines の代わりに改心相当シーン
+    //   （CharacterStory.Redemption＝キャラ×面の9通り）を流す（2026-09-15。_Ready で差し替える）。
+    //   行番号トリガのうち BGM 停止はト書き（_storySilenceAt）へ差し替え、**ガワ割れは発火させない**：
+    //   R3/R6/R9 の正典（doc 第1部6節）は「ガワは割れず、声だけが素に戻る／再契約する」＝
+    //   割れる（ShellPeel）はミナ本編の専有。改心後（post）もガワのまま退場する（_Ready で差し替え）。
+    private bool _charStory;
+    private (int who, string text, string face)[] _lines = Lines;
+    private int _storySilenceAt = -1;
+
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [rei]）で上書き可。第3引数＝現行既定値。
@@ -211,6 +220,19 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
+        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            _lines = CharacterStory.Redemption(game!.SelectedJob, "rei");
+            _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "rei");
+            // ガワは割らない（R3/R6/R9 の契約）：BreakCryBodyNow を呼ばないので DeferCryBodySwap の
+            //   ままガワで喋り切り、FinishCry の post 着地もガワの姿へ差し替える（中の人を出さない）。
+            //   等身補正（0.75）は中の人用なのでガワには掛けない。
+            PostTexPath = PreTexPath;
+            PostBodyScale = 1f;
+        }
         // ボス登場＝道中BGMからレイ固有テーマへクロスフェード（モチーフが主音直前で半音落ちる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossRei);
         // 移動：状態機械＋立ち位置つき（あかり・こはる・ミナと同じ作法）。レイの性格＝配信の枠から
@@ -455,7 +477,7 @@ public partial class BossRei : Enemy
         Audio.Instance?.PlayRedeem(0);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -477,7 +499,11 @@ public partial class BossRei : Enemy
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
             _memoryPending = false;
-            _memoryPlayed = true;
+            _memoryPlayed = true;   // S3-7 割り込みの前提フラグ（他ジョブ時は StageRei 側で割り込み自体を抑止）
+            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
+            //   やっていた戦闘再開処理（閾値の再評価）だけを直接行う。BGM はフィルムへ
+            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
+            if (_charStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
@@ -511,7 +537,7 @@ public partial class BossRei : Enemy
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
-                if (_line >= Lines.Length)
+                if (_line >= _lines.Length)
                 {
                     _seq = false;
                     var hud = GetHud();
@@ -526,16 +552,19 @@ public partial class BossRei : Enemy
 
     private void ShowLine()
     {
-        var (who, text, face) = Lines[_line];
+        var (who, text, face) = _lines[_line];
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
         // 決定打の手前で音を落とす（台本の「ここでBGM停止。無音のまま」。あかり・こはる面と同型）。
-        if (_line == SilenceAtLine) Audio.Instance?.StopMusic(1.2f);
+        //   本編＝SilenceAtLine／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。
+        if (_charStory ? _line == _storySilenceAt : _line == SilenceAtLine) Audio.Instance?.StopMusic(1.2f);
         // 決定打でガワが割れる＝ここで初めて本体を cry（中の人）へ差し替える。それまではガワのまま。
-        if (_line == BreakAtLine) BreakCryBodyNow();
+        //   改心相当シーン（他ジョブ）では**割らない**＝R3/R6/R9 の正典「ガワは割れず、声だけが素に戻る」。
+        if (!_charStory && _line == BreakAtLine) BreakCryBodyNow();
         string portrait = kind switch
         {
+            Hud.LineKind.Companion => face,   // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。割れる行だけ face 指定で中の人の泣き顔へ。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face,
             _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情

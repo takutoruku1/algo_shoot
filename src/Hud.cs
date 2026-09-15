@@ -431,9 +431,13 @@ public partial class Hud : CanvasLayer
             case LineKind.Other: speaker = otherName; color = UiKit.Kegare; break;
             case LineKind.Companion:
                 var job = _game?.SelectedJob ?? Job.Tank;
-                speaker = $"{Jobs.Get(job).CharacterName}（同行）";
+                // 話者名は素の名前（2026-09-15）。他ジョブ潜行の専用ストーリーでは潜行キャラ本人が
+                //   語り手なので「（同行）」の添え書きを外す。ボス側（Other）とは色と立ち絵で区別が付く。
+                speaker = Jobs.Get(job).CharacterName;
                 color = CompanionDialogue.Accent(job);
-                portraitToUse = CompanionDialogue.Portrait(job);
+                // face 指定行（CharacterStory の表情差分＝akari_face/_cry 等）は渡された画像をそのまま出す。
+                //   空欄だけ従来どおりジョブの立ち絵（spin）へ落とす（scenario 実装メモ2項・2026-09-15）。
+                if (string.IsNullOrEmpty(portraitToUse)) portraitToUse = CompanionDialogue.Portrait(job);
                 break;
             case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;

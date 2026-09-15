@@ -196,6 +196,11 @@ public partial class DiffSelect : Node2D
         // DebugAlwaysBoss を見て毎ランそれを復元するので、ここで潰しても壊れない。
         if (_game != null && !_game.DebugAlwaysBoss) _game.SelectedEntry = GameManager.StageEntry.Start;
         string scene = _game?.PendingStageScene ?? "res://Rei.tscn";
+        // 他ジョブ潜行の章カウンタ：ダイブ確定のここで1回だけ数える（Stage 側の _Ready で数えると
+        //   R リトライの ReloadCurrentScene でも増えて章が飛ぶ）。対象は本編3面×結び手以外のみ
+        //   （FINAL は StageIdForScene が null＝数えない。FINAL は常にミナ本編のため章も持たない）。
+        if (_game != null && _game.SelectedJob != Job.Tank && GameManager.StageIdForScene(scene) != null)
+            _game.RegisterCharacterDive(_game.SelectedJob);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GetTree().ChangeSceneToFile(scene);
     }

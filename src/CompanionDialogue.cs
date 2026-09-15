@@ -19,6 +19,10 @@ public static class CompanionDialogue
     private static (int who, string text, string face) M(string text) => (1, text, "res://char/mina_face.png");
     private static (int who, string text, string face) P(string text) => (6, text, "");
 
+    // ※2026-09-15 他ジョブ潜行リワーク：STAGE1〜3 は Add を呼ばなくなった（他ジョブ時は
+    //   CharacterStory の専用ストーリーへ全面置換されるため、同行3行の追記が成立しない）。
+    //   現在の呼び元はチュートリアル（StageZero）だけ。akari/koharu/rei の Stage アームは
+    //   ステージからは参照されない（scenario の素材として当面残す）。
     public static (int who, string text, string face)[] Add(Job job, string stage, Beat beat,
         (int who, string text, string face)[] original)
     {
@@ -181,27 +185,9 @@ public static class CompanionDialogue
         _ => Array.Empty<(int, string, string)>(),
     };
 
-    public static (int who, string text, string face)[] Final(Job job)
-    {
-        string name = Jobs.Get(job).CharacterName;
-        var reply = job switch
-        {
-            Job.Melee => new[] { P("ミナ。今度は、あたしがそっちへ行く。返事を急がせるためじゃないよ。"),
-                M("……あかり、さん。あなたの声まで、ここに……。"),
-                P("うん。ひとりに預けたままに、したくないから。帰ったら、あたしの話も聞いて。") },
-            Job.Heal => new[] { P("ミナ、聞こえる？　あたし。今日は、画面を閉じる前に、迎えに来た。"),
-                M("……こはる、さん。ご無理は、なさらず……。"),
-                P("無理だったら、言うよ。だからミナも、言って。あたし、ちゃんと聞くから。") },
-            Job.Magic => new[] { P("音声チェック。……ミナ、返事は後でいい。わたしから、話すわ。"),
-                M("……レイ、さん。その声は、いまも……。"),
-                P("ここにいる。今日は、最後の挨拶を一緒にしたいの。先に、いなくならないで。") },
-            _ => Array.Empty<(int, string, string)>(),
-        };
-        return new[] { M("……わたくしの身体は、もう、動かせません。でも。あなたとの回線だけは、まだ……。"),
-            (3, $"通信先：ミナの内側\n送信元：あなた / 同行する声：{name}", ""),
-            (3, $"回線に、{name}の姿が映る。\nミナを動かすのではなく、彼女のもとへ向かう。", "") }.Concat(reply)
-            .Select(line => line.Item1 == 1 ? (1, line.Item2, "res://char/mina_worried.png") : line).ToArray();
-    }
+    // ※Final（FINAL 導入を同行キャラの掛け合いへ置換）は 2026-09-15 に廃止した。
+    //   FINAL はジョブに関わらず常にミナ本編（StageMina）。他ジョブの専用ストーリーは
+    //   STAGE1〜3 のみで、テーブルは CharacterStory.cs に集約されている。
 
     public static (string speaker, string text)[] MenuLines(Job job, Menu scene)
     {

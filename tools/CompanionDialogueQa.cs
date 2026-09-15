@@ -59,14 +59,29 @@ public partial class CompanionDialogueQa : Node
         int count = 0;
         foreach (var job in Jobs.All)
         {
-            foreach (string stage in new[] { "akari", "koharu", "rei" })
-            foreach (var beat in Enum.GetValues<CompanionDialogue.Beat>())
+            // 他ジョブ潜行の専用ストーリー（CharacterStory・2026-09-15）：全章×全ビート＋改心相当9通りに
+            // ミナの声（who=1/3）が一切無いこと、[仮] プレースホルダへ到達しないこと（＝全アーム執筆済み）、
+            // 改心の BGM 停止行（ト書き）が本文の範囲内を指すこと、を機械検査する。
+            if (job.Id != Job.Tank)
             {
-                var lines = CompanionDialogue.Stage(job.Id, stage, beat);
-                if (job.Id == Job.Tank) { Check(lines.Length == 0, $"Mina {stage}/{beat} unchanged"); continue; }
-                Check(lines.Length == 3 && lines.Any(l => l.who == 1) && lines.Any(l => l.who == 6), $"{job.CharacterId} {stage}/{beat} exchange");
-                Check(lines.All(l => !string.IsNullOrWhiteSpace(l.text)), "no empty dialogue");
-                count += lines.Length;
+                for (int ch = 1; ch <= CharacterStory.LoopChapter; ch++)
+                    foreach (var beat in Enum.GetValues<CharacterStory.Beat>())
+                    {
+                        var story = CharacterStory.Lines(job.Id, ch, beat);
+                        Check(story.Length > 0 && story.All(l => l.who != 1 && l.who != 3)
+                            && story.All(l => !string.IsNullOrWhiteSpace(l.text)), $"{job.CharacterId} ch{ch}/{beat} has no Mina voice");
+                        Check(story.All(l => !l.text.StartsWith("[仮]")), $"{job.CharacterId} ch{ch}/{beat} is authored (no placeholder)");
+                        count += story.Length;
+                    }
+                foreach (string stage in new[] { "akari", "koharu", "rei" })
+                {
+                    var story = CharacterStory.Redemption(job.Id, stage);
+                    Check(story.Length > 0 && story.All(l => l.who != 1 && l.who != 3), $"{job.CharacterId} redemption@{stage} has no Mina voice");
+                    Check(story.All(l => !l.text.StartsWith("[仮]")), $"{job.CharacterId} redemption@{stage} is authored (no placeholder)");
+                    int silence = CharacterStory.RedemptionSilenceAt(job.Id, stage);
+                    Check(silence >= 0 && silence < story.Length, $"{job.CharacterId} redemption@{stage} BGM-stop line is in range");
+                    count += story.Length;
+                }
             }
             foreach (var scene in Enum.GetValues<CompanionDialogue.Menu>())
             {
@@ -81,7 +96,7 @@ public partial class CompanionDialogueQa : Node
                     Check(UiKit.WrapLines(UiKit.ZenBold, text, 16, 548).Count <= 3, $"{job.CharacterId} {scene} fits below shop details");
             }
         }
-        GD.Print($"[CompanionQA] {count} stage/menu lines, plus tutorial and final scenes");
+        GD.Print($"[CompanionQA] {count} story/menu lines, plus the tutorial scene");
     }
 
     private async Task CheckStages(JobTuning job)
@@ -102,12 +117,31 @@ public partial class CompanionDialogueQa : Node
                     "same-speaker expression changes still crossfade");
                 hud.HideBubble();
             }
-            foreach (var (field, original) in new[] { ("_playerIntro", "Intro"), ("_playerMid", mid), ("_playerBoss", "BossIntro") })
+            // フィールド→期待値の対応（2026-09-15 他ジョブ潜行リワーク）：
+            //   結び手＝本編そのまま（beat=null）。他ジョブ＝CharacterStory のビートへ全面置換。
+            //   beat=null のままの欄はボス本人の口上（who=2）＝どちらのモードでも本編を流す欄。
+            var fields = job.Id == Job.Tank
+                ? new (string field, string original, CharacterStory.Beat? beat)[]
+                    { ("_playerIntro", "Intro", null), ("_playerMid", mid, null), ("_playerBoss", "BossIntro", null) }
+                : stageId switch
+                {
+                    "akari" => new (string, string, CharacterStory.Beat?)[]
+                        { ("_playerIntro", "Intro", CharacterStory.Beat.Sortie), ("_playerMid", mid, CharacterStory.Beat.PreBoss), ("_playerBoss", "BossIntro", null) },
+                    "koharu" => new (string, string, CharacterStory.Beat?)[]
+                        { ("_playerIntro", "Intro", CharacterStory.Beat.Sortie), ("_playerMid", mid, CharacterStory.Beat.Mid2), ("_playerBoss", "BossIntro", CharacterStory.Beat.PreBoss) },
+                    _ => new (string, string, CharacterStory.Beat?)[]
+                        { ("_playerIntro", "Intro", CharacterStory.Beat.Sortie), ("_playerMid", mid, CharacterStory.Beat.Mid2), ("_playerBoss", "BossIntro", null) },
+                };
+            foreach (var (field, original, beat) in fields)
             {
                 var lines = Read<(int who, string text, string face)[]>(stage, field);
                 var baseline = Data<(int who, string text, string face)[]>(stage.GetType(), original);
-                Check(lines.Take(baseline.Length).SequenceEqual(baseline), $"{job.CharacterId} {stageId}/{original} keeps original lines");
-                Check(lines.Length == baseline.Length + (job.Id == Job.Tank ? 0 : 3), "adds exactly one exchange");
+                if (beat == null)
+                    Check(lines.SequenceEqual(baseline), $"{job.CharacterId} {stageId}/{original} keeps canon lines");
+                else
+                    Check(lines.SequenceEqual(CharacterStory.Lines(job.Id, 1, beat.Value)), $"{job.CharacterId} {stageId}/{beat} uses the character story");
+                if (job.Id != Job.Tank)
+                    Check(lines.All(l => l.who != 1 && l.who != 3), $"{job.CharacterId} {stageId}/{field} has no Mina voice");
                 Write(stage, "_stepStarted", false);
                 if (field == "_playerBoss") Call(stage, "Step_BossSpawn");
                 Write(stage, "_zEdge", false);
@@ -122,17 +156,24 @@ public partial class CompanionDialogueQa : Node
                     Check(hud.DialogRevealed, "dialogue pages can be revealed");
                     if (lines[i].who == 6)
                     {
-                        Check(Read<string>(hud, "_dlgSpeaker") == $"{job.CharacterName}（同行）", "companion label differs from boss");
-                        Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job.Id), "companion uses its player portrait");
-                        Check(Read<Texture2D?>(hud, "_dlgPortraitPrev") == null && Read<double>(hud, "_portraitFadeT") <= 0,
-                            "speaker changes never superimpose two characters");
-                        Check(Hud.Backlog[^1].Speaker == $"{job.CharacterName}（同行）", "backlog has the right speaker");
-                        if (field == "_playerBoss" && stageId == job.CharacterId && i == lines.Length - 1)
+                        // 話者名は素の名前（「（同行）」を付けない＝2026-09-15 仕様）。
+                        Check(Read<string>(hud, "_dlgSpeaker") == job.CharacterName, "companion label is the bare character name");
+                        // 立ち絵：face 指定行はその表情差分、空欄はジョブの立ち絵（spin）へ落ちる（scenario 実装メモ2項）。
+                        string expected = string.IsNullOrEmpty(lines[i].face) ? CompanionDialogue.Portrait(job.Id) : lines[i].face;
+                        Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == expected, "companion portrait follows the face token");
+                        // 同一話者の表情差し替え行はクロスフェードが正しい挙動なので、重ね合わせ検査から除外する。
+                        string? prevFace = i > 0 && lines[i - 1].who == 6
+                            ? (string.IsNullOrEmpty(lines[i - 1].face) ? CompanionDialogue.Portrait(job.Id) : lines[i - 1].face) : null;
+                        if (prevFace == null || prevFace == expected)
+                            Check(Read<Texture2D?>(hud, "_dlgPortraitPrev") == null && Read<double>(hud, "_portraitFadeT") <= 0,
+                                "speaker changes never superimpose two characters");
+                        Check(Hud.Backlog[^1].Speaker == job.CharacterName, "backlog has the right speaker");
+                        if (field == "_playerIntro" && stageId == job.CharacterId && i == lines.Length - 1)
                         {
-                            await Shot($"{job.CharacterId}_own_boss");
+                            await Shot($"{job.CharacterId}_own_stage");
                             DisplayServer.WindowSetSize(new Vector2I(960, 540));
                             await Frames(3);
-                            await Shot($"{job.CharacterId}_own_boss_small");
+                            await Shot($"{job.CharacterId}_own_stage_small");
                             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                         }
                     }
@@ -153,10 +194,12 @@ public partial class CompanionDialogueQa : Node
             var stage = root.GetChildren().OfType<Node>().Single(n => n is StageZero || n is StageMina);
             stage.SetProcess(false);
             var lines = Read<(int who, string text, string face)[]>(stage, path == "Stage0.tscn" ? "_playerIntro" : "_intro");
-            Check(lines.Count(l => l.who == 6) == (job.Id == Job.Tank ? 0 : 2), $"{job.CharacterId} {path} selects the correct introduction");
-            if (path == "MinaBattle.tscn" && job.Id != Job.Tank)
-                Check(lines.Any(l => l.text.Contains($"同行する声：{job.CharacterName}"))
-                    && !lines.Any(l => l.text.Contains("あなたの光") || l.text.Contains("小さな光が動く")), "final explains the playable companion instead of an orb");
+            if (path == "Stage0.tscn")
+                Check(lines.Count(l => l.who == 6) == (job.Id == Job.Tank ? 0 : 2), $"{job.CharacterId} {path} selects the correct introduction");
+            else
+                // FINAL はジョブに関わらず常にミナ本編（2026-09-15：CompanionDialogue.Final の置換を廃止）。
+                Check(lines.All(l => l.who != 6) && lines.Any(l => l.text.Contains("あなたの光")),
+                    $"{job.CharacterId} final keeps the Mina-canon introduction");
             await RemoveScene(root);
         }
     }
@@ -222,6 +265,9 @@ public partial class CompanionDialogueQa : Node
         await RemoveScene(hub);
 
         game.JustClearedStageId = "akari";
+        // ホーム初公開の演出（once_phone_home・1面初クリアの帰還時に一度だけ入るシネマ）を既読化する。
+        //   未読のままだと帰還会話の戻り先が Home ではなく HomeReveal になり、下の Home 判定が偽陽性で落ちる。
+        game.MarkIdleDialogSeen("once_phone_home");
         hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
         GetTree().Root.AddChild(hub);
         GetTree().CurrentScene = hub;

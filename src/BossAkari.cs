@@ -100,6 +100,13 @@ public partial class BossAkari : Enemy
     // 決定打の手前で音を落とす行（本文一致で拾う）。ここから BGM 無しで決定打を置く。
     private const string BgmStopLine = "取り消された十二通は、ぜんぶ、わたくしに当たりました。";
 
+    // 改心の台詞の実体。他ジョブ潜行中はミナ前提の Lines の代わりに改心相当シーン
+    //   （CharacterStory.Redemption＝キャラ×面の9通り）を流す（2026-09-15。_Ready で差し替える）。
+    //   _storySilenceAt＝改心相当シーンの「ここでBGM停止」行（ト書き。-1=無し）。
+    private bool _charStory;
+    private (int who, string text, string face)[] _lines = Lines;
+    private int _storySilenceAt = -1;
+
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [akari]）で上書き可。第3引数＝現行既定値。
@@ -155,6 +162,14 @@ public partial class BossAkari : Enemy
     public override void _Ready()
     {
         base._Ready();
+        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            _lines = CharacterStory.Redemption(game!.SelectedJob, "akari");
+            _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "akari");
+        }
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
@@ -377,7 +392,7 @@ public partial class BossAkari : Enemy
         Audio.Instance?.PlayRedeem(1);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -402,6 +417,10 @@ public partial class BossAkari : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
+            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
+            //   やっていた戦闘再開処理（第二形態＋宣告＋閾値の再評価）だけを直接行う。BGM はフィルムへ
+            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
+            if (_charStory) { AdvanceForm2(); ApplySpell(); OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
@@ -434,7 +453,7 @@ public partial class BossAkari : Enemy
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
-                if (_line >= Lines.Length)
+                if (_line >= _lines.Length)
                 {
                     _seq = false;
                     var hud = GetHud();
@@ -449,7 +468,7 @@ public partial class BossAkari : Enemy
 
     private void ShowLine()
     {
-        var (who, text, face) = Lines[_line];
+        var (who, text, face) = _lines[_line];
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
@@ -457,9 +476,11 @@ public partial class BossAkari : Enemy
         // 呼ばない。案C の改心は回想ではなく「取り消されていない一通が背景にひらく」ので、
         // 交差点の画は場面と食い違う。差し替えの背景素材は未発注のため、いまは何も焚かないでおく。
         // 決定打の手前で音を落とす（台本の「ここでBGM停止」）。以降は無音のまま決定打を置く。
-        if (text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
+        //   本編＝本文一致（BgmStopLine）／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。
+        if (_charStory ? _line == _storySilenceAt : text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);
         string portrait = kind switch
         {
+            Hud.LineKind.Companion => face,                 // 潜行キャラ本人＝表情差分（空欄は Hud がジョブ立ち絵へ）
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? "res://char/v3/akari_face.png" : face, // あかりは行ごと差し替え可（こはる方式）
             _ => "res://char/mina_face.png",                // ミナ
         };

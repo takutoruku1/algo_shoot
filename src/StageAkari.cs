@@ -289,6 +289,16 @@ public partial class StageAkari : Node
     private (int who, string text, string face)[] _playerMid = null!;
     private (int who, string text, string face)[] _playerBoss = null!;
 
+    // ── 他ジョブ潜行（2026-09-15）──
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・回想フィルムをすべて抑止し、
+    //   ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   改心相当シーン（山場）は BossAkari 側が CharacterStory.Redemption で差し替える。
+    private bool _charStory;
+    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid2 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -296,9 +306,25 @@ public partial class StageAkari : Node
         // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
-        _playerIntro = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Intro, Intro);
-        _playerMid = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Mid, MidEnd);
-        _playerBoss = CompanionDialogue.Add(job, "akari", CompanionDialogue.Beat.Boss, BossIntro);
+        // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
+        //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            int ch = game!.CharacterChapter(job);
+            _playerIntro = CharacterStory.Lines(job, ch, CharacterStory.Beat.Sortie);
+            _storyMid1 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid1);
+            _storyMid2 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid2);
+            _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
+            _playerMid = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
+            _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+        }
+        else
+        {
+            _playerIntro = Intro;
+            _playerMid = MidEnd;
+        }
+        _playerBoss = BossIntro;   // ボス本人の口上（who=2）はどちらのモードでも流す
         game?.SetStageTarget(MidWave0 + MidWaveA + MidWaveB + MidWaveC + 1);
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
@@ -342,12 +368,13 @@ public partial class StageAkari : Node
             case 2: Step_MidWave0(delta); break;          // 肩慣らし波（6体・圧ゼロ）＝カメオへの布石
             case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
             // ★S1-5 の下書き選択（17）＝中ボスの受け2行＋問い → 選択 → 受け＋締め → S1-2 の小話
-            case 4: Step_Choice(delta, "s1_5", MidPre, S15Choices, S15Reply, S15Tail, Mid); break;
+            //   他ジョブ潜行中は下書き選択ごと抑止（ミナ前提）＝専用ストーリーの道中ビートに置換。
+            case 4: if (_charStory) Step_Lines(delta, _storyMid1); else Step_Choice(delta, "s1_5", MidPre, S15Choices, S15Reply, S15Tail, Mid); break;
             case 5: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             // ★S1-2 の下書き選択（17）＝道中Bの末尾に雨の言いかけ → 選択 → 受け＋締め
-            case 6: Step_Choice(delta, "s1_2", BossTalkThenS12, S12Choices, S12Reply, S12Tail); break;
+            case 6: if (_charStory) Step_Lines(delta, _storyMid2); else Step_Choice(delta, "s1_2", BossTalkThenS12, S12Choices, S12Reply, S12Tail); break;
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 8: Step_MidStory(delta); break;          // ★S1-4 束（下書き選択）＝ボス前の溜め
+            case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_MidStory(delta); break;   // ★S1-4 束（下書き選択）＝ボス前の溜め
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             case 10: Step_Lines(delta, _playerMid); break;
             case 11: Step_BossSpawn(); break;
@@ -413,9 +440,11 @@ public partial class StageAkari : Node
         var (who, text, face) = lines[_introLine];
         var kind = (Hud.LineKind)who;
         // 案C のこの面に出るのは あなた(0)／ミナ(1)／あかり(2)／投稿(4)（あなたと投稿は Hud 側で立ち絵を捨てる）。
+        // 他ジョブ潜行では潜行キャラ本人(6)が加わる＝face をそのまま渡す（空欄は Hud がジョブ立ち絵へ落とす）。
         string portrait = kind switch
         {
             Hud.LineKind.Boy => "",                                            // 「あなた」に顔は無い
+            Hud.LineKind.Companion => face,                                    // 表情差分は face 指定、空欄＝ジョブ立ち絵
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? AFace : face,   // あかりは行ごと差し替え可
             _ => string.IsNullOrEmpty(face) ? MFace : face,                    // ミナも行ごと表情
         };
@@ -757,6 +786,9 @@ public partial class StageAkari : Node
             Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
+        // 他ジョブ潜行：クリア会話（ミナ）と回想（aftermath＝ミナの語り）を丸ごと帰還ビートへ置換。
+        //   フィルムを踏まない＝BGM はボス戦のまま流れ続け、次のシーン（Hub）の _Ready が張り替える。
+        if (_charStory) { Step_Lines(delta, _storyReturn); return; }
         if (_clearPhase == 0)
         {
             RunLinesInPlace(delta, ClearBefore, () =>

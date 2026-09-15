@@ -264,6 +264,18 @@ public partial class StageKoharu : Node
     private (int who, string text, string face)[] _playerMid = null!;
     private (int who, string text, string face)[] _playerBoss = null!;
 
+    // ── 他ジョブ潜行（2026-09-15）──
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）・回想フィルムを
+    //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
+    //   ビート対応：step1=Sortie / 2=Mid1 / 7=Mid2 / 8=Mid3 / 12=PreBoss（ボス出現後の口上枠）/ 14=Return。
+    //   step4（中ボスの受け）と step10（S2-5 我に返る一拍）はミナ観測のみの場面なので空でスキップ。
+    private bool _charStory;
+    private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
+    private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -271,9 +283,25 @@ public partial class StageKoharu : Node
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
-        _playerIntro = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Intro, Intro);
-        _playerMid = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Mid, ClassTalk);
-        _playerBoss = CompanionDialogue.Add(job, "koharu", CompanionDialogue.Beat.Boss, BossIntro);
+        // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
+        //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
+        _charStory = CharacterStory.DiveActive(game);
+        if (_charStory)
+        {
+            int ch = game!.CharacterChapter(job);
+            _playerIntro = CharacterStory.Lines(job, ch, CharacterStory.Beat.Sortie);
+            _storyMid1 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid1);
+            _playerMid = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid2);
+            _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
+            _playerBoss = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
+            _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+        }
+        else
+        {
+            _playerIntro = Intro;
+            _playerMid = ClassTalk;
+            _playerBoss = BossIntro;
+        }
         game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
         // [一時/デバッグ] --input-field : S2-4 の入力欄（step 8）から始める。コメント欄UI の確認・スクショ専用。
@@ -318,15 +346,16 @@ public partial class StageKoharu : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
-            case 2: Step_Lines(delta, Mid); break;        // S2-3 Mid（部屋）＋Chat1
+            case 2: Step_Lines(delta, _charStory ? _storyMid1 : Mid); break;   // S2-3 Mid（部屋）＋Chat1／他ジョブ＝道中1
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
-            case 4: Step_Lines(delta, BossTalk); break;   // S2-2 中ボスの受け（配信画面の中の人）
+            case 4: Step_Lines(delta, _charStory ? NoLines : BossTalk); break; // S2-2 中ボスの受け（ミナ観測＝他ジョブ時はスキップ）
             case 5: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（部屋→教室へクロスフェード）
             case 7: Step_Lines(delta, _playerMid); break;
-            case 8: Step_InputField(delta); break;        // ★S2-4 入力欄（打って、消す手。選択は置かない）
+            // ★S2-4 入力欄（打って、消す手）＝ミナ観測＋下書き選択の場面。他ジョブ時は道中3ビートに置換。
+            case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_InputField(delta); break;
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（教室→部屋へ戻る。最大密度の山）
-            case 10: Step_MidEndLines(delta); break;      // S2-5 我に返る一拍（{n} 差し込みあり）
+            case 10: if (_charStory) Step_Lines(delta, NoLines); else Step_MidEndLines(delta); break;   // S2-5 我に返る一拍（ミナ観測＝他ジョブ時はスキップ）
             case 11: Step_BossSpawn(); break;
             case 12: Step_Lines(delta, _playerBoss); break;
             case 13: Step_BossWait(delta); break;         // S2-7 ボス戦
@@ -615,8 +644,10 @@ public partial class StageKoharu : Node
         var kind = (Hud.LineKind)who;
         // 案C のこの面に出るのは ミナ(1)／こはる(2)／システム表示(3＝入力欄)／投稿(4)。
         //   3 は Narration 扱いで Hud 側が立ち絵を捨て中央テロップになる＝入力欄がそのまま画面に出る。
+        // 他ジョブ潜行では潜行キャラ本人(6)が加わる＝face をそのまま渡す（空欄は Hud がジョブ立ち絵へ落とす）。
         string portrait = kind switch
         {
+            Hud.LineKind.Companion => face,                                    // 表情差分は face 指定、空欄＝ジョブ立ち絵
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? KFace : face,   // 蒼白(KPale)・光(KLit)を行ごとに
             Hud.LineKind.Mina => string.IsNullOrEmpty(face) ? MFace : face,    // ミナも行ごと表情
             _ => MFace,
@@ -822,7 +853,8 @@ public partial class StageKoharu : Node
             }
             // ★S2-2 の下書き選択（17）＝押しつけられたペンライト。撃破を確認した直後、ショップ離脱の前に置く
             //   （離脱の後ろに置くと初回は飛んでしまう＝17 の実装メモ）。流し切るまでここで留まる。
-            if (!RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
+            //   他ジョブ潜行中は下書き選択ごと抑止（きっかけ・受けともミナ前提）＝撃破後すぐ次へ。
+            if (!_charStory && !RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
             // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
             if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
@@ -943,6 +975,9 @@ public partial class StageKoharu : Node
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            // 他ジョブ潜行：クリア会話（ミナ）と回想（aftermath＝ミナの語り）を丸ごと帰還ビートへ置換。
+            //   フィルムを踏まない＝BGM はボス戦のまま流れ続け、次のシーン（Hub）の _Ready が張り替える。
+            if (_charStory) { _clearLines = _storyReturn; _clearPhase = 2; return; }
             _clearLines = (((int who, string text, string face)[])Clear.Clone());
             _clearPhase = 1;
             KoharuStoryFilm.Play(Hud, World, aftermath: true, completed: () =>

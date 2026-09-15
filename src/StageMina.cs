@@ -75,10 +75,12 @@ public partial class StageMina : Node
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.SetStageTarget(EnemyTable.CharactersFor(StageTheme.Mina).Count + 1);
         // 導入は S3-7 の分岐受け1行だけが可変。
+        // ★FINAL はジョブに関わらず常にミナ本編（2026-09-15 ユーザー承認仕様）。
+        //   旧 CompanionDialogue.Final（他ジョブ時に導入をその子の掛け合いへ置換）は廃止した。
+        //   他ジョブの専用ストーリーは STAGE1〜3 だけ（CharacterStory 参照）＝この面は固定。
         var intro = new System.Collections.Generic.List<(int who, string text, string face)>(IntroHead);
         intro.Add(S37Quote(game));
-        intro.AddRange(game?.SelectedJob is Job.Melee or Job.Heal or Job.Magic
-            ? CompanionDialogue.Final(game.SelectedJob) : IntroTail);
+        intro.AddRange(IntroTail);
         _intro = intro.ToArray();
         // 導入は「バナー＋暴走ビジュアル＋無音に委ねる」（Intro コメント①）。
         //   Audio はシーンをまたいで常駐するため、ここで止めないとハブ等の BgmMenu が

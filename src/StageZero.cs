@@ -382,7 +382,12 @@ public partial class StageZero : Node
     private void TutShowLine((int who, string text, string face)[] lines)
     {
         var (who, text, face) = lines[_tLine];
-        Hud.ShowDialog((Hud.LineKind)who, text, string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face);
+        var kind = (Hud.LineKind)who;
+        // 同行キャラ(6)の face 空欄行にミナの顔を渡さない（2026-09-15：Hud が渡された portrait を
+        //   そのまま出すようになったため。空欄＝Hud 側でジョブの立ち絵へ落ちる）。
+        string portrait = !string.IsNullOrEmpty(face) ? face
+            : kind == Hud.LineKind.Companion ? "" : "res://char/mina_face.png";
+        Hud.ShowDialog(kind, text, portrait);
     }
 
     // ════════════════════ ダミー弾・ダミー敵 ════════════════════

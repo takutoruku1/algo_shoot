@@ -71,6 +71,24 @@ public partial class GameManager : Node
             }
         return "まだ、出会っていない";
     }
+    // ───── 他ジョブ潜行の章管理（2026-09-15・キャラ専用ストーリー）─────
+    //   キャラごとの「ダイブ回数」カウンタ。DiffSelect のダイブ確定時に、結び手以外のジョブで
+    //   本編3面へ潜るときだけ増える（Stage の _Ready で数えると R リトライの ReloadCurrentScene
+    //   でも増えて章が飛ぶため、入口を DiffSelect に一本化）。永続は save_N.json の "charDives"
+    //   （CharacterId→回数）。キー無し＝旧セーブは全員0回＝後方互換（新キーはこの1個だけ）。
+    private readonly Dictionary<string, int> _charDives = new();
+    public int CharacterDives(Job j) => _charDives.TryGetValue(Jobs.Get(j).CharacterId, out var v) ? v : 0;
+    public void RegisterCharacterDive(Job j)
+    {
+        if (j == Job.Tank) return;   // 結び手＝ミナ本編。専用ストーリーの章は進めない
+        string id = Jobs.Get(j).CharacterId;
+        _charDives[id] = CharacterDives(j) + 1;
+        GD.Print($"[CharStory] dive #{_charDives[id]} as {Jobs.Get(j).Name}({id}) -> chapter {CharacterChapter(j)}");
+    }
+    // いま潜ったら流れる章：1〜3回目＝第1〜3章、4回目以降＝ループ章（CharacterStory.LoopChapter）。
+    //   ダイブ0回（--job= でのステージ直接起動＝QA走行など）でも第1章に落ちる＝進行は壊れない。
+    public int CharacterChapter(Job j) => Mathf.Clamp(CharacterDives(j), 1, CharacterStory.LoopChapter);
+
     // トレーニング場（TrainingRoot）が立てる：この間だけ全ノードを試せる（ジョブ導入後もモード自体はジョブ固定）。
     public bool TrainingMode;
     // ★モード「解放」ノードは 2026-09-13 のジョブ導入で解放の意味を失った（モードはジョブが決める＝設計書 §3）。
@@ -1004,6 +1022,11 @@ public partial class GameManager : Node
         foreach (var key in _idleDialogSeen)
             ids.Add(key);
         data["idleDialogSeen"] = ids;
+        // 他ジョブ潜行の章カウンタ（CharacterId→ダイブ回数）。後方互換：キー無し＝空扱い。
+        var cd = new Godot.Collections.Dictionary();
+        foreach (var kv in _charDives)
+            cd[kv.Key] = kv.Value;
+        data["charDives"] = cd;
 
         using var f = FileAccess.Open(SlotPath(slot), FileAccess.ModeFlags.Write);
         if (f != null)
@@ -1117,6 +1140,14 @@ public partial class GameManager : Node
             foreach (var v in ids)
                 _idleDialogSeen.Add(v.AsString());
         }
+        // 他ジョブ潜行の章カウンタ復元（キー無し＝旧セーブは全員0回＝第1章から＝後方互換）。
+        _charDives.Clear();
+        if (data.ContainsKey("charDives"))
+        {
+            var cd = data["charDives"].AsGodotDictionary();
+            foreach (var k in cd.Keys)
+                _charDives[k.AsString()] = cd[k].AsInt32();
+        }
         // ジョブの復元（2026-09-13）。モードはジョブが決めるので、ここが唯一の入口になる。
         //   ・"job" があればそれを採用（範囲外は結び手へクランプ）。
         //   ・"job" が無い＝ジョブ導入前の既存セーブ。壊さずに読むため、保存されていた "shotmode" から
@@ -1171,6 +1202,7 @@ public partial class GameManager : Node
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
+        _charDives.Clear();        // 他ジョブ潜行の章カウンタも初期化＝新規データは全員第1章から
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、murk・自機の濁りが濁ったまま描かれる。
         Contamination = 0f;
