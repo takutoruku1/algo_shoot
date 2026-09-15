@@ -1,20 +1,50 @@
 using Godot;
 using System.Collections.Generic;
 
-// BulletArt : 「絵つき敵弾」のテクスチャ置き場（読み込みキャッシュ）。
+// BulletArt : 自機弾・敵弾のテクスチャ置き場（読み込みキャッシュ）。
 //
 // こはるの弾は推し活グッズ、あかりの弾は仕事の書類で飛んでくる。どちらも「その人が何に
 // しがみついているか」を弾そのもので言うための絵で、当たり判定・弾数・弾速には一切関与しない
 // （見た目だけ。判定は Bullet の円のまま）。
 //
-// ・素材は char/v3/bullets/*.png（高さ96pxの透過PNG・アニメ塗り2段・黒線なし）。
+// ・敵弾素材は char/v3/bullets/*.png（高さ96pxの透過PNG・アニメ塗り2段・黒線なし）。
 //   ゲーム内では Bullet.DrawSprite が「絵の最長辺＝当たり直径×1.35」に縮めて描くので、
 //   縦長（ペンライト・クリップ）でも横長（チケット・封筒）でも判定との食い違いが同じに収まる。
 // ・ResourceLoader は1回だけ走らせて static に持つ（弾は毎フレーム大量に出るのでロードは禁物）。
-// ・素材が欠けている（.import 未生成など）場合は null を返し、呼び出し側は従来の弾形へ落ちる
+// ・敵弾素材が欠けている（.import 未生成など）場合は null を返し、呼び出し側は従来の弾形へ落ちる
 //   ＝絵が無くてもゲームは成立する（生成前・生成失敗でも弾幕は壊れない）。
 public static class BulletArt
 {
+    public sealed record PlayerVisual(Texture2D Texture, Rect2 Region, Vector2 Pivot, Color Accent);
+    private static readonly Dictionary<Job, PlayerVisual> _playerShots = new();
+
+    public static PlayerVisual PlayerShot(Job job)
+    {
+        if (_playerShots.TryGetValue(job, out var art)) return art;
+        string id = Jobs.Get(job).CharacterId;
+        var texture = GD.Load<Texture2D>($"res://char/player/{id}/{id}_shot_v1.png");
+        using var image = texture.GetImage();
+        // 尾を含む画像の中心ではなく、結晶の芯を当たり判定の中心へ合わせる。
+        Vector2 pivot = job switch
+        {
+            Job.Melee => new(0.64f, 0.51f),
+            Job.Heal => new(0.545f, 0.49f),
+            Job.Magic => new(0.65f, 0.51f),
+            _ => new(0.48f, 0.5f),
+        };
+        art = new PlayerVisual(texture, image.GetUsedRect(), pivot * texture.GetSize(), PlayerColor(job));
+        _playerShots[job] = art;
+        return art;
+    }
+
+    public static Color PlayerColor(Job job) => job switch
+    {
+        Job.Melee => new Color("ffe27a"),
+        Job.Heal => new Color("91e5c5"),
+        Job.Magic => new Color("c3a4fa"),
+        _ => new Color("8de1ff"),
+    };
+
     private const string Dir = "res://char/v3/bullets/";
     private static readonly Dictionary<string, Texture2D?> _cache = new();
 

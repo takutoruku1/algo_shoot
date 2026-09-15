@@ -466,7 +466,7 @@ public partial class BossKoharu : Enemy
     private void AddCrossStrike(Node world, AreaStrike.Shape shape, Vector2 c, float hw, float hh, double warn)
     {
         var z = new AreaStrike();
-        z.Configure(shape, hw, hh, warn, GotoTint, GotoHot);
+        z.Configure(shape, hw, hh, warn, GotoTint, GotoHot, AreaStrike.Motif.Screen);
         z.SetOwner(this); // 着弾前に浄化されたら予兆ごと消える（残留着弾を断つ）
         world.AddChild(z);
         z.GlobalPosition = c;
@@ -481,7 +481,7 @@ public partial class BossKoharu : Enemy
             float a = Mathf.DegToRad(deg);
             var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
             var z = new AreaStrike();
-            z.ConfigureBeam(dir, GotoDiagLen, GotoBeamHalf - 1f, warn, GotoXTint, GotoXHot);
+            z.ConfigureBeam(dir, GotoDiagLen, GotoBeamHalf - 1f, warn, GotoXTint, GotoXHot, AreaStrike.Motif.Screen);
             z.SetOwner(this);
             world.AddChild(z);
             z.GlobalPosition = _gotoCenter - dir * (GotoDiagLen * 0.5f);

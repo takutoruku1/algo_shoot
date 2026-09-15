@@ -1,0 +1,8 @@
+{
+  "mode": "built-in image_gen",
+  "asset": "res://char/player/rei/rei_shot_v1.png",
+  "source": "exec-4c02a830-1266-4466-bfce-b1604ec3fe2a.png",
+  "reference": "res://char/player/rei/rei_idle_v2.png",
+  "style_reference": "res://char/player/mina/mina_shot_v1.png",
+  "prompt": "Use case: stylized-concept. Create ONE small friendly game projectile sprite on true transparent RGBA background. Reference image 1 is Rei's playable VTuber appearance: gold star hair ornament and violet-white costume. Reference image 2 is the projectile set's crisp anime cel shading. Design a compact 5-point luminous STAR crystal flying RIGHT: white-gold five-point star core centered at canvas center, violet faceted border, with two short violet and silver ribbon streaks trailing LEFT, a very small cyan edge highlight. Main recognizable silhouette is a five-point star, not a spear, not a circular medal. Gold center with lilac edges, soft and bright but no glow cloud. About 65% canvas wide and 40% high. Minimal three-step cel shading, clean outline and broad simple facets so it stays recognizable at 22 pixels wide. Polished 2D anime shoot-em-up sprite, front-facing flat item, consistent with the attached projectile. No character, no text, no UI, no frame, no border around canvas, no detached sparkles, no blur, no lens flare, no motion trail beyond the short ribbons. Square canvas with real transparent margins all around. Output transparent PNG."
+}

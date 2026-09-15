@@ -66,13 +66,14 @@ public partial class PlayerJobQa : Node
                     $"{character} keeps job lives and shot mode");
                 Check(Mathf.IsEqualApprox(((CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape).Radius,
                     2f * game.HitRadiusMul), $"{character} keeps the shared hitbox");
+                CheckMarker(player, character);
                 Write(player, "_invincible", false);
                 Call(player, "SetSpriteVisible", true);
                 player.GlobalPosition = new Vector2(Field.Left + 50, 120);
                 var position = player.GlobalPosition;
-                Input.ParseInputEvent(new InputEventAction { Action = "ui_right", Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, PhysicalKeycode = Key.Right, Pressed = true });
                 await Frames(8);
-                Input.ParseInputEvent(new InputEventAction { Action = "ui_right", Pressed = false });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, PhysicalKeycode = Key.Right, Pressed = false });
                 Check(player.GlobalPosition.X > position.X + 1f, $"{character} responds to movement");
                 await Frames(18);
                 bool fired = false;
@@ -93,6 +94,7 @@ public partial class PlayerJobQa : Node
                         $"{character} uses the correct pose aiming {direction}");
                     Check(Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 36f), $"{character} aim height is stable");
                     Check(sprite.FlipH == (direction.X < 0), $"{character} faces the target");
+                    CheckMarker(player, character);
                 }
 
                 dummy.GlobalPosition = player.GlobalPosition + new Vector2(30, -60);
@@ -123,6 +125,7 @@ public partial class PlayerJobQa : Node
                 Write(player, "_dodgeSpinSign", 1f);
                 Write(player, "_facing", 1);
                 await Shot($"{character}_dodge");
+                CheckMarker(player, character);
                 await Frames(40);
                 Check(sprite.Texture.ResourcePath == aimPath, $"{character} returns to the same aim pose after dodge");
                 Write(player, "_locked", false);
@@ -131,6 +134,11 @@ public partial class PlayerJobQa : Node
                 Call(training, "RebuildPlayer");
                 await Frames(3);
                 Check(Read<Player>(training, "_player").CharacterId == character, $"{character} survives a training rebuild");
+                CheckMarker(Read<Player>(training, "_player"), character);
+                DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                await Frames(3);
+                await Shot($"{character}_play_small");
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                 training.QueueFree();
                 await Frames(5);
                 pool.DespawnAll();
@@ -145,6 +153,7 @@ public partial class PlayerJobQa : Node
                     Check(stagePlayer.CharacterId == character
                         && stagePlayer.GetNode<Sprite2D>("Sprite").Texture.ResourcePath == job.PlayerTexturePath,
                         $"{scene} spawns {character}");
+                    CheckMarker(stagePlayer, character);
                     root.QueueFree();
                     await Frames(5);
                     pool.DespawnAll();
@@ -173,6 +182,18 @@ public partial class PlayerJobQa : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
+    private static void CheckMarker(Player player, string character)
+    {
+        var marker = player.GetNode<PlayerHitDot>("HitDot");
+        var body = player.GetNode<Sprite2D>("Sprite");
+        var collision = (CircleShape2D)player.GetNode<CollisionShape2D>("HitShape").Shape;
+        Check(marker.CharacterId == character && marker.Texture.ResourcePath == $"res://char/player/{character}/{character}_core_v1.png",
+            $"{character} uses its own generated emblem");
+        Check(Mathf.IsEqualApprox(marker.Radius, collision.Radius) && marker.GlobalPosition.IsEqualApprox(player.GlobalPosition)
+            && marker.Rotation == 0f && marker.Scale == Vector2.One && marker.ZIndex > body.ZIndex,
+            $"{character} emblem stays above every pose at the unchanged collision center");
+    }
+
     private static readonly string[] Poses = { "idle_v2", "aim_v2_u", "aim_v2_ur", "aim_v2_r", "aim_v2_dr", "aim_v2_d",
         "spin_v2_00", "spin_v2_01", "spin_v2_02", "spin_v2_03", "spin_v2_04" };
     private static string PosePath(string id, string pose) => $"res://char/player/{id}/{id}_{pose}.png";
@@ -180,6 +201,14 @@ public partial class PlayerJobQa : Node
     private static void CheckAssets()
     {
         var hashes = new HashSet<string>();
+        foreach (var job in Jobs.All)
+        {
+            using var image = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png").GetImage();
+            Check(image.GetHeight() == 128 && image.DetectAlpha() != Godot.Image.AlphaMode.None
+                && image.GetPixel(0, 0).A < 0.05f, $"{job.CharacterId} emblem is a transparent raster asset");
+            Check(hashes.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image.GetData()))),
+                $"{job.CharacterId} emblem has distinct artwork");
+        }
         foreach (var job in Jobs.All)
         foreach (string pose in Poses)
         {

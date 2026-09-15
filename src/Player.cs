@@ -572,7 +572,7 @@ public partial class Player : Area2D
 
         // 被弾点は専用の子ノードで、スプライトより前に描く（下の PlayerHitDot の説明を参照）。
         // ZAsRelative（既定 true）なので ZIndex=1 は「自機 10 に対し +1＝11」の意味になる。
-        AddChild(new PlayerHitDot { Name = "HitDot", Radius = _hitR, ZIndex = 1 });
+        AddChild(new PlayerHitDot { Name = "HitDot", Radius = _hitR, ZIndex = 1, CharacterId = CharacterId });
 
         // 開始/リスタート直後の被弾を防ぐスポーン無敵（点滅）
         _invincible = true;
@@ -1022,9 +1022,8 @@ public partial class Player : Area2D
         }
 
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
-        // モード別マズル：弾本体は不変のまま、発砲の手元でモード4種（連射/拡散/ホーミング/加速球）を描き分ける。
         FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
-                                 _game?.SpreadWays ?? 5);
+                                 _game?.SpreadWays ?? 5, ShotDir);
         Audio.Instance?.PlayShot();
         _recoil = 1f;
     }
@@ -1033,7 +1032,6 @@ public partial class Player : Area2D
     //   ★線数を火力から導出するのは 2026-09-13 にやめた（火力を買ったら勝手に線が増える＝どちらの段の
     //     効果か読めなかった）。線数は線数の段だけが決める。
     // 貫通（#12「貫通」）：全モード共通で敵を 1 体貫通（Bullet.Pierce。消費側が減算する）。
-    // 見た目＝光のダート（BulletShape.Dart・進行方向へ尖る細身）＝「まっすぐ速い主力弾」が形で読める。
     private void FireRapid(Vector2 muzzle, int dmg)
     {
         Vector2 vel = ShotDir * 360f;
@@ -1079,8 +1077,7 @@ public partial class Player : Area2D
     }
 
     // 拡散：射撃方向（ShotAngle）を基準に扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
-    // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる。跳弾も花弁形を引き継ぐ）。
-    // 見た目＝花弁（BulletShape.Petal・短く幅広）＝扇に開いた瞬間、水色の花になる（数の圧を面で見せる）。
+    // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
@@ -1100,7 +1097,6 @@ public partial class Player : Area2D
 
     // ホーミング：追尾弾を扇状に放ち、射撃方向（ShotAngle）側の穢れへ曲射。弾速200。追尾数 2→3→4（誘導Lv）。
     // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
-    // 見た目＝彗星シーカー（BulletShape.Seeker・フィン＋短い尾）＝曲がって追う軌跡が尾で映える。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
@@ -1634,7 +1630,7 @@ public partial class Player : Area2D
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.18f), 1.4f);
             Color cc = ChargeFull
                 ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
-                : new Color(0.65f, 0.9f, 1f, 0.9f);                                 // 充填中：浄化の水色
+                : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * cr, 24, cc, 2.2f);
             if (ChargeFull) DrawCircle(at, 2.2f, cc);
         }
@@ -1649,22 +1645,36 @@ public partial class Player : Area2D
     }
 }
 
-// 被弾点（赤い点）専用の描画ノード。
-//   Player._Draw で描くと、子である _sprite（ミナの絵）が後から上に乗って点が完全に隠れる
-//   ＝ユーザー実機指摘「あたり判定の表記がミナの後ろにある」。CanvasItem の描画順は
-//   「親 → 子（同 ZIndex なら宣言順）」なので、親の _Draw に居るかぎり絵には勝てない。
-//   そこで点だけを子ノードに切り出し、ZIndex を相対 +1（＝自機 10 に対し 11）に上げる。
-//   _sprite は相対 0（＝10）、回避残像は Player と同じ親の下で ZIndex-1（＝9）なので、
-//   残像 < 絵 < 被弾点 の順が確定する。祈りの帳・拡散サブの光球は親の _Draw のままなので
-//   これらより点が前に出る（設計意図どおり「最も目立つ」）。
-//   親の Modulate（被弾点滅）は子にも掛かるため、点滅の見え方は移設前と変わらない。
+// Keep the emblem above the animated sprite and anchored to the collision body.
 public partial class PlayerHitDot : Node2D
 {
     public float Radius = 2f;
+    public string CharacterId = "mina";
+    public Texture2D Texture { get; private set; } = null!;
+    private Vector2 _jewelCenter;
+
+    public override void _Ready()
+    {
+        Texture = GD.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_core_v1.png");
+        TextureFilter = TextureFilterEnum.Linear;
+        // The flame and ribbon are asymmetric; center the jewel, not their image bounds.
+        _jewelCenter = new Vector2(0.5f, CharacterId switch
+        {
+            "mina" => 0.46f,
+            "akari" => 0.66f,
+            "rei" => 0.56f,
+            _ => 0.5f,
+        });
+    }
 
     public override void _Draw()
     {
-        DrawCircle(Vector2.Zero, Radius + 1.1f, new Color(1f, 1f, 1f, 0.95f)); // 白フチで背景に沈まない
-        DrawCircle(Vector2.Zero, Radius, new Color(1f, 0.2f, 0.45f, 1f));      // 赤コア＝被弾点
+        Vector2 size = Texture.GetSize();
+        Vector2 center = size * _jewelCenter;
+        float extent = Mathf.Max(Mathf.Max(center.X, size.X - center.X), Mathf.Max(center.Y, size.Y - center.Y));
+        float scale = (Radius + 1.6f) / extent;
+        DrawTextureRect(Texture, new Rect2(-center * scale, size * scale), false);
+        DrawCircle(Vector2.Zero, 0.65f, new Color(0.08f, 0.08f, 0.16f, 0.8f));
+        DrawCircle(Vector2.Zero, 0.38f, Colors.White);
     }
 }

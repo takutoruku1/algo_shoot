@@ -102,7 +102,7 @@ public partial class AreaSpellCaster : Node2D
         _aoeTight = !wide;
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
-        string name = wide ? "全画面浄化・安置" : "全画面浄化・絶域";
+        string name = wide ? "この重さは、わたくしが" : "あなたまで、穢したくない";
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
 
@@ -117,10 +117,7 @@ public partial class AreaSpellCaster : Node2D
         _aoeTight = false; // リレーは r=30 固定（直前の「絶域」設定を引きずらない）
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
-        // 技名：レイは「最終選考・N連」。他ボス（ミナ）はレイの技を濁して写した体＝汎用名にする。
-        string name = _key == "rei"
-            ? "最終選考・" + (hops switch { 2 => "二連", 4 => "四連", _ => "三連" })
-            : "全画面浄化・連鎖";
+        string name = _key == "rei" ? "最後まで見てて" : "まだ、抱えられます";
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, name, _tint);
     }
 
@@ -229,12 +226,10 @@ public partial class AreaSpellCaster : Node2D
         _chainPrevSafe = safe;
         LastChainSafe = safe;
 
-        // ホップ宣告（レイの選考演出）：一次選考→二次選考→（三次選考→）最終選考。
-        // 他ボス（ミナ）は選考モチーフが合わないので初回宣告のみ＝安置の緑リング自体が次の合図。
         if (_key == "rei")
         {
-            string label = _chainRemain == 0 ? "最終選考"
-                         : hopIdx switch { 0 => "一次選考", 1 => "二次選考", _ => "三次選考" };
+            string label = _chainRemain == 0 ? "……まだ、いてくれる？"
+                         : hopIdx switch { 0 => "画面、閉じないで", 1 => "まだ、話していたい", _ => "あと少しだけ" };
             (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, label, _tint);
         }
 
@@ -242,15 +237,14 @@ public partial class AreaSpellCaster : Node2D
         _restT = ChainRestDur; // 次ホップまでの生存確認の間（着弾フラッシュが消えてから計時される）
     }
 
-    // ボス別のテレグラフ・モチーフ（心象を予兆で語る）。BeamSeg（こはる『包丁の軌跡』）だけは None＝鋭い深紅のまま。
     private AreaStrike.Motif MotifFor(AreaStrike.Shape shape)
     {
         if (shape == AreaStrike.Shape.BeamSeg) return AreaStrike.Motif.None;
         return _key switch
         {
-            "rei"    => AreaStrike.Motif.Rank,
+            "rei"    => AreaStrike.Motif.Stream,
             "akari"  => AreaStrike.Motif.Rain,
-            "koharu" => AreaStrike.Motif.Kitchen,
+            "koharu" => AreaStrike.Motif.Screen,
             "mina"   => AreaStrike.Motif.Data,
             _        => AreaStrike.Motif.Data, // 既定（mina 相当）
         };
@@ -260,8 +254,7 @@ public partial class AreaSpellCaster : Node2D
     private void SpawnFullscreenStrike(Vector2 safe, float r, float warnBoost = 1f)
     {
         var z = new AreaStrike();
-        // Fullscreen は自前の予兆演出（濁桃tint＋緑リング＋白フレーム収束）を持つ＝モチーフ層は対象外（§1-b）。
-        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul() * warnBoost, _tint, _hot);
+        z.ConfigureFullscreen(safe, r, AoeWarn * WarnMul() * warnBoost, _tint, _hot, MotifFor(AreaStrike.Shape.Fullscreen));
         if (_owner != null) z.SetOwner(_owner); // 着弾前にボス浄化されたら予兆ごと消える
         _world.AddChild(z);
         z.GlobalPosition = Vector2.Zero; // 画面座標基準（Fullscreen は内部で安置座標を画面系で扱う）
@@ -308,7 +301,7 @@ public partial class AreaSpellCaster : Node2D
                 _tint = new Color("e072ac"); _hot = new Color("ff8cc4");
                 _warnMin = 0.8; _warnMax = 1.2; _interval = 6.0;
                 _shapes = new[] { H_, V, C, R };
-                _spells = new (string, AreaStrike.Shape?)[] { ("全テレグラフ同時", null), ("濁渦と雨", null) };
+                _spells = new (string, AreaStrike.Shape?)[] { ("消せなかった声", null), ("声が、止まらない", null) };
                 break;
         }
         // INI上書き（config/boss_stats.ini の [key] セクション）。キーが無ければ上のハードコード既定のまま。
@@ -356,8 +349,7 @@ public partial class AreaSpellCaster : Node2D
     private void Cast()
     {
         var sp = _spells[_rng.RandiRange(0, _spells.Length - 1)];
-        // 宣告カードの色：『包丁の軌跡』だけ深紅＝ビーム本体と同色（宣告と予兆が色で結びつく）。
-        Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? KnifeTint : _tint;
+        Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? ReadLineTint : _tint;
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, tint);
         _pendShape = sp.shape;
         _pending = true; _fireT = _fireDelay;
@@ -398,14 +390,12 @@ public partial class AreaSpellCaster : Node2D
             double warn = anchor ? 1.2 * wm
                                  : _rng.RandfRange((float)_warnMin, (float)_warnMax) * wm;
 
-            // 『包丁の軌跡』（こはる第3スペル）：±26°の深紅の一閃（catalog準拠）。1本目は自機の現在地を
-            // “通る線”として引き、2本目以降は中央帯のランダム点を逆角度で交差させる。予兆を +0.35s ずつ
-            // ずらして順に斬る（catalog の delay 相当）。交差が意図なので重なり回避は掛けない。
+            // Crossing read lines intentionally overlap; later lines keep the staggered warning.
             if (shape == AreaStrike.Shape.BeamSeg)
             {
                 Vector2 through = anchor ? PlayerPos()
                     : new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.85f), _rng.RandfRange(T + H * 0.25f, T + H * 0.75f));
-                SpawnKnifeBeam(through, (i % 2 == 0 ? -1f : 1f) * KnifeDeg, warn + 0.35 * i);
+                SpawnReadLine(through, (i % 2 == 0 ? -1f : 1f) * ReadLineDeg, warn + 0.35 * i);
                 continue;
             }
 
@@ -433,8 +423,6 @@ public partial class AreaSpellCaster : Node2D
     {
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
-        // 軸形状に技名アートは重ねない（案C のこはる面は台所ではなく「電気を消した部屋」で、
-        // 旧案の鍋・フライパンの絵は場面と食い違うため 2026-09-07 に実装ごと撤去した）。
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
@@ -459,25 +447,21 @@ public partial class AreaSpellCaster : Node2D
         }
     }
 
-    // 『包丁の軌跡』の1本：through を通る角度 deg の一閃。長さ460px＝対角441pxを覆う
-    //（通過点が画面のどこでも全画面を横断する）。色は深紅固定（catalog #d6443f）。
-    private const float KnifeDeg = 26f;
-    private const float KnifeLen = 460f;
-    private const float KnifeHalfThick = 6f;
-    private static readonly Color KnifeTint = new("d6443f");
-    private static readonly Color KnifeHot = new("ff8a7a");
-    private void SpawnKnifeBeam(Vector2 through, float deg, double warn)
+    private const float ReadLineDeg = 26f;
+    private const float ReadLineLen = 460f;
+    private const float ReadLineHalfThick = 6f;
+    private static readonly Color ReadLineTint = new("d6443f");
+    private static readonly Color ReadLineHot = new("ff8a7a");
+    private void SpawnReadLine(Vector2 through, float deg, double warn)
     {
         float a = Mathf.DegToRad(deg);
         var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
         var z = new AreaStrike();
-        z.ConfigureBeam(dir, KnifeLen, KnifeHalfThick, warn, KnifeTint, KnifeHot);
-        // 技名アート：包丁のイラストが刃を進行方向に向けてビーム上を飛ぶ（見た目のみ・判定不変）。
-        // 五徳の十字火（BossKoharu）やドローンのロックオンビームは SetArt しない＝従来のまま。
-        z.SetArt(AreaStrike.Art.Knife);
+        z.ConfigureBeam(dir, ReadLineLen, ReadLineHalfThick, warn, ReadLineTint, ReadLineHot, AreaStrike.Motif.Screen);
+        z.SetArt(AreaStrike.Art.ReadReceipt);
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
-        z.GlobalPosition = through - dir * (KnifeLen * 0.5f);
+        z.GlobalPosition = through - dir * (ReadLineLen * 0.5f);
     }
 
     // 形状ごとの候補配置（自機の起点＝左側はやや空け、中央〜右に寄せる＝フェアな逃げ場）。

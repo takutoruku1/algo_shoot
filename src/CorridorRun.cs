@@ -35,6 +35,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
     private const float SampleStep = 4f;        // 中心線サンプルの距離刻み(px)
     private static readonly Color Tint = new("6c9cd8"); // あかり心象色（AreaSpellCaster "akari" と同色）
     private static readonly Color Hot = new("a9dcff");
+    private Texture2D _letterTex = null!;
 
     // このギミックの発生源（BossAkari）。浄化されたら通路は即時解散する。
     public Enemy? Boss;
@@ -73,6 +74,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
     public override void _Ready()
     {
         _rng.Randomize();
+        _letterTex = GD.Load<Texture2D>("res://char/v3/fx/akari/card_unsent_1.png");
         AddToGroup("aoe");       // QaPilot が IAoeHazard として走査（AreaStrike と同じ観測経路）
         AddToGroup("corridor");  // StageAkari（投稿弾の停止）／DemoPilot（中心線追従）が探す
         ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下（全画面AOEと同じ層）
@@ -222,7 +224,6 @@ public partial class CorridorRun : Node2D, IAoeHazard
         if (_dissolving) alpha *= 1f - (float)(_dissolveT / DissolveDur);
         if (alpha <= 0f) return;
 
-        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 6f);
         var fill = new Color(Tint.R, Tint.G, Tint.B, 0.30f * alpha);
         var deep = new Color(Tint.R * 0.5f, Tint.G * 0.5f, Tint.B * 0.6f, 0.35f * alpha); // 壁の芯（雨脚の濃い帯）
         // ボム拡張中は縁を白熱色に＝「いま広い」を色でも伝える。
@@ -243,26 +244,42 @@ public partial class CorridorRun : Node2D, IAoeHazard
             {
                 DrawRect(new Rect2(x0, T, WallThick, top - T), fill);
                 DrawRect(new Rect2(x0 + 3f, T, WallThick - 6f, top - T), deep);
+                DrawRainLetters(new Rect2(x0, T, WallThick, top - T), k, alpha);
             }
             if (bot < B)
             {
                 DrawRect(new Rect2(x0, bot, WallThick, B - bot), fill);
                 DrawRect(new Rect2(x0 + 3f, bot, WallThick - 6f, B - bot), deep);
+                DrawRainLetters(new Rect2(x0, bot, WallThick, B - bot), k + 1, alpha);
             }
-            // 通路縁の危険ライン（AreaStrike の予兆輪郭と同語彙）：カラムごとに位相をずらして明滅＝流れが読める。
-            float ep = 0.45f + 0.45f * Mathf.Sin((float)_t * 7f + k * 0.9f);
-            var edge = new Color(edgeBase.R, edgeBase.G, edgeBase.B, ep * alpha);
-            DrawLine(new Vector2(x0, top), new Vector2(x0 + WallThick, top), edge, 1.5f);
-            DrawLine(new Vector2(x0, bot), new Vector2(x0 + WallThick, bot), edge, 1.5f);
+            // 通路境界は消灯させず、雨だけを動かして壁の位置を保つ。
+            float edgeAlpha = _dissolving ? alpha : _t < PreviewDur ? 0.7f : 0.95f;
+            var edge = new Color(edgeBase, edgeAlpha);
+            var shadow = new Color(0.025f, 0.02f, 0.05f, edgeAlpha);
+            DrawLine(new Vector2(x0, top), new Vector2(x0 + WallThick, top), shadow, 3f);
+            DrawLine(new Vector2(x0, bot), new Vector2(x0 + WallThick, bot), shadow, 3f);
+            DrawLine(new Vector2(x0, top), new Vector2(x0 + WallThick, top), edge, 1.2f);
+            DrawLine(new Vector2(x0, bot), new Vector2(x0 + WallThick, bot), edge, 1.2f);
         }
 
-        // プレビュー中：中央に「来る」の合図（点滅する開始予告）。文字は使わず白フレーム収束（Fullscreen と同語彙）。
         if (_t < PreviewDur)
         {
             float cprog = (float)(_t / PreviewDur);
-            float inset = Mathf.Lerp(0f, 10f, cprog);
-            DrawRect(new Rect2(L + inset, T + inset, W - inset * 2f, H - inset * 2f),
-                     new Color(1f, 1f, 1f, 0.35f * cprog * (0.5f + 0.5f * pulse)), false, 2f);
+            DrawLine(new Vector2(L, T + 2), new Vector2(L + W * cprog, T + 2), new Color(Hot, 0.85f), 1f);
+            DrawLine(new Vector2(L, B - 2), new Vector2(L + W * cprog, B - 2), new Color(Hot, 0.85f), 1f);
+        }
+    }
+
+    private void DrawRainLetters(Rect2 wall, int column, float alpha)
+    {
+        if (wall.Size.Y < 14) return;
+        int count = Mathf.Clamp((int)(wall.Size.Y / 30), 1, 4);
+        Vector2 size = _letterTex.GetSize() * (9f / _letterTex.GetWidth());
+        for (int i = 0; i < count; i++)
+        {
+            float t = Mathf.PosMod((i + column * 0.27f) / count + (float)_t * 0.32f, 1f);
+            Vector2 at = new(wall.GetCenter().X, wall.Position.Y + 5 + (wall.Size.Y - 10) * t);
+            DrawTextureRect(_letterTex, new Rect2(at - size / 2, size), false, new Color(1, 1, 1, 0.65f * alpha));
         }
     }
 }

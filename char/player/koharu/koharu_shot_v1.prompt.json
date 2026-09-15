@@ -1,0 +1,8 @@
+{
+  "mode": "built-in image_gen",
+  "asset": "res://char/player/koharu/koharu_shot_v1.png",
+  "source": "exec-9ce31189-e202-4505-9a36-34ef29048ee6.png",
+  "reference": "res://char/player/koharu/koharu_core_v1.png",
+  "style_reference": "res://char/player/mina/mina_shot_v1.png",
+  "prompt": "Use case: stylized-concept. Create ONE tiny game projectile sprite on a real transparent RGBA background. Reference image 1 is Koharu's heart-shaped crystal emblem: keep that gentle heart idea, do not copy the large badge. Reference 2 supplies the companion shot set's polished clean anime cel style. The new friendly homing projectile is a small compact upright HEART crystal with a pale lavender-white luminous core and mint-green faceted outer edges, plus two very short soft mint ribbon fins trailing LEFT; flying RIGHT. The heart's dip and two lobes must be immediately recognizable. Core centered at canvas center, shape about 65% canvas wide and 46% high. Mint and pearl-white dominate, a touch of lavender inside, NO red and NO hot pink. Kind, hopeful, light. Solid crisp dark green contour, only 3 tonal levels and minimal facets so it stays clear at 22 pixels wide. Flat front-facing 2D anime shoot-em-up sprite. No characters, no badge frame, no wings, no particles, no detached sparkles, no blur, no glow cloud, no long trail, no text, no UI. Square canvas, generous truly transparent margins, single isolated object. Output transparent PNG."
+}

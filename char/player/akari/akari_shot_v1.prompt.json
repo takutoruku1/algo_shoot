@@ -1,0 +1,8 @@
+{
+  "mode": "built-in image_gen",
+  "asset": "res://char/player/akari/akari_shot_v1.png",
+  "source": "exec-00e52649-3435-4423-85cc-7ffdc94cfa79.png",
+  "reference": "res://char/player/akari/akari_core_v1.png",
+  "style_reference": "res://char/player/mina/mina_shot_v1.png",
+  "prompt": "Use case: stylized-concept. Create ONE small friendly projectile sprite on a true transparent RGBA background, no background color/checkerboard. Reference image 1 supplies Akari's golden flame motif. Reference image 2 supplies the matching projectile set's crisp anime cel finish and clean silhouette, not its blue color or needle shape. A compact pear-shaped white-gold flame seed flying RIGHT. The rounded luminous golden faceted core is centered at canvas center and faces right, and three very short curling yellow-gold flame tongues trail LEFT. Warm ivory and lemon gold dominate, small amber outline, no red or orange outer halo. Suggest a brave little lamp flame, not an explosion or a sun disk. Horizontal compact silhouette about 70% canvas wide, 40% high. Thick clean silhouette with minimal internal facets; readable at 22 pixels wide, solid white-gold core centered on the collision point. Polished 2D anime game item rendering, simple 3-step cel shading, no blur, no particles or detached sparkles, no long motion trail, no glow cloud, no text, no character, no UI or border. Square canvas, one centered object with transparent margins, all details inside canvas. Output transparent PNG."
+}

@@ -19,7 +19,7 @@ public partial class Hud : CanvasLayer
     public void SetCinematicMode(bool active)
     {
         CinematicMode = active;
-        BubblePaused = active || (_messageTimer > 0 && _dlgText.Length > 0);
+        UpdateDialoguePause();
     }
     public bool HoldBubble = false;
 
@@ -293,10 +293,7 @@ public partial class Hud : CanvasLayer
             if (_messageTimer <= 0) ClearDialog();
         }
 
-        // 会話・メッセージ表示中は敵を止める（種類を問わず。旧挙動を踏襲）。開始の瞬間に敵弾を一掃。
-        bool nowPaused = CinematicMode || (_messageTimer > 0 && _dlgText.Length > 0);
-        if (nowPaused && !BubblePaused) { ClearEnemyBullets(); Audio.Instance?.PlayCalm(); } // ⑦鎮まる音で転換
-        BubblePaused = nowPaused;
+        UpdateDialoguePause();
 
         if (_bannerTimer > 0) { _bannerTimer -= delta; }
         if (_bossLineTimer > 0) { _bossLineTimer -= delta; if (_bossLineTimer <= 0) _bossLine = ""; }
@@ -323,19 +320,25 @@ public partial class Hud : CanvasLayer
         _canvas.QueueRedraw();
     }
 
-    private void ClearEnemyBullets()
+    private void UpdateDialoguePause()
     {
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (pool == null) return;
-        foreach (Node n in GetTree().GetNodesInGroup("enemy_bullets"))
-            if (n is Bullet b && b.Active) pool.Despawn(b);
+        bool paused = CinematicMode || (_messageTimer > 0 && _dlgText.Length > 0);
+        if (paused && !BubblePaused)
+        {
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+            Audio.Instance?.PlayCalm();
+        }
+        BubblePaused = paused;
     }
+
+    public override void _ExitTree() => BubblePaused = false;
 
     private void ClearDialog()
     {
         _dlgText = ""; _dlgSpeaker = ""; _dlgPortrait = null; _dlgDraftMark = false; _dlgRevealed = 0;
         _dlgPortraitPrev = null; _portraitFadeT = 0; _nodT = 0; _revealWasDone = false;
         _dlgPages.Clear(); _dlgPage = 0;
+        UpdateDialoguePause();
     }
 
     // ───────── テキストボックスの行の種類 ─────────
@@ -402,6 +405,7 @@ public partial class Hud : CanvasLayer
         // 立ち絵なしの中央メッセージ＝ナレ扱い（地の文。会話ログにもナレとして残す）。
         SetDialog(text, "", default, dialog: false, portrait: "", kind: LineKind.Narration);
         _messageTimer = 4.5;
+        UpdateDialoguePause();
     }
 
     // 立ち絵付きの素の会話（少年/ヒカゲ等、LineKind を取らない旧経路）。
@@ -412,6 +416,7 @@ public partial class Hud : CanvasLayer
     {
         SetDialog(text, "", default, dialog: true, portrait: portraitResPath, kind: LineKind.Narration, logKind: LineKind.Boy);
         _messageTimer = 6.0;
+        UpdateDialoguePause();
     }
 
     public void ShowDialog(LineKind kind, string text, string portrait = "", string otherName = "")
@@ -437,6 +442,7 @@ public partial class Hud : CanvasLayer
         if (CinematicMode) color = UiKit.Text2;
         SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
         _messageTimer = 6.0;
+        UpdateDialoguePause();
     }
 
     // kind   … 送り音の音色（＝表示中の話者。Narration は無音）。

@@ -316,6 +316,8 @@ public partial class StageAkari : Node
             //   ただし --boss デバッグ中は「毎回ボスから」を保つため貼り直す。
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
+        _zHeld = Pad.AdvanceHeld();
+        if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
     private bool _startBannerShown;

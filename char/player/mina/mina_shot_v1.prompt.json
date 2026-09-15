@@ -1,0 +1,7 @@
+{
+  "mode": "built-in image_gen",
+  "asset": "res://char/player/mina/mina_shot_v1.png",
+  "source": "exec-3e122316-e10d-4c25-83a5-4263bebee782.png",
+  "reference": "res://char/player/mina/mina_core_v1.png",
+  "prompt": "Use case: stylized-concept. Create ONE small game projectile sprite on a true transparent RGBA background, no background color/checkerboard. Use the attached cyan jewel and navy ribbon as the style and color reference, but do NOT copy the entire badge. The shot is a slim horizontal icy-cyan crystal needle flying RIGHT: pointed diamond tip on the right, compact faceted blue-white gem core centered exactly at canvas center, two short tapered silver-blue ribbon tails trailing left. Clean anime cel shading, crisp dark teal contour, 3 clear tonal steps, white central glint. Silhouette width about 72% of canvas, height 30%, largest solid gem at canvas center, no long motion trail or separate sparkles, no glow cloud. Must remain readable when displayed at 24 pixels wide. Flat front-facing 2D game asset, not perspective, no text, no character, no border, no circle plate, no UI, no ground shadow. Square canvas, one centered object with transparent margins, all details inside canvas. Match the reference's polished anime material finish. Output transparent PNG."
+}

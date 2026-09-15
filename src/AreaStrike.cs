@@ -1,7 +1,7 @@
 using Godot;
 
 // AreaStrike : 範囲攻撃テレグラフ（RefrainArenaHTML 移植）。ボスの範囲技と道中ドローンのビームで共用。
-//   予兆（点滅輪郭＋範囲を囲う）→ 充填（範囲が満ちる）→ 着弾（白熱フラッシュ・このフレームのみ判定）の3段。
+//   固定輪郭の予兆 → 内側の進行線 → キャラクター別の着弾（このフレームのみ判定）の3段。
 //   形状＝予測線（横/縦/任意向きビーム）・予測エリア（円/矩形）。色はキャラの心象色（tint）＋着弾の明色（hot）。
 //   弾の下・背景の上（ZIndex -10）の“床マーカー”として描き、弾の視認を妨げない。
 //   予兆中は当たり判定なし、着弾の瞬間にだけ範囲内の自機を被弾させる（必ず予告＝§7 理不尽回避）。
@@ -29,35 +29,37 @@ public partial class AreaStrike : Node2D, IAoeHazard
 {
     public enum Shape { BeamH, BeamV, Circle, Rect, BeamSeg, Fullscreen }
 
-    // テレグラフ・モチーフ層：ボスの心象を予兆で語る（レイ=順位罫線/あかり=雨/こはる=気泡/ミナ=グリッチ位相）。
-    //   新色は混ぜず _tint/_hot の範囲内。面塗り(fill)にはモチーフ分を先取り減算して合計0.38以下を死守する。
-    public enum Motif { None, Rank, Rain, Kitchen, Data }
+    public enum Motif { None, Stream, Rain, Screen, Data }
     private Motif _motif = Motif.None;
 
-    // 技名アート層：技名と一致するイラストを見た目だけ重ねる（判定・尺・Zは一切不変）。
-    //   Knife＝こはる『包丁の軌跡』（BeamSeg）… 予兆中は走る光条の先頭を包丁が刃を進行方向に向けて飛び、
-    //          着弾フラッシュ中は源→先端へ一気に走り抜ける（＝斬った軌跡が読める）。
-    //   発行元が明示的に SetArt した時だけ有効＝こはるの十字火／ドローンのロックオンビーム等の
-    //   他 BeamSeg 利用は Art.None のまま変わらない。
-    public enum Art { None, Knife }
+    public enum Art { None, ReadReceipt }
     private Art _art = Art.None;
     public void SetArt(Art art) => _art = art;
 
-    // 包丁テクスチャ（char/fx_knife.png 57x12・刃が右向き）。static に1回だけロードして全弾で使い回す
-    //（毎フレームどころか毎インスタンスのロードもしない＝Bullet.cs の FPS 事故の轍を踏まない）。
-    private static Texture2D? _knifeTex;
-    private static bool _knifeTried;
-    private static Texture2D? KnifeTex
+    private static Texture2D? _messageTex, _readDotsTex;
+    private static Texture2D MessageTex => _messageTex ??= GD.Load<Texture2D>("res://char/v3/fx/rei/bubble_empty_1.png");
+    private static Texture2D ReadDotsTex => _readDotsTex ??= GD.Load<Texture2D>("res://char/v3/fx/akari/read_dots.png");
+    private static readonly System.Collections.Generic.Dictionary<Motif, Texture2D[]> MotifTextures = new();
+    private Texture2D[] _motifArt = System.Array.Empty<Texture2D>();
+    private Vector2[][] _dangerCorners = System.Array.Empty<Vector2[]>();
+
+    private void SetMotif(Motif motif)
     {
-        get
+        _motif = motif;
+        if (motif == Motif.None) return;
+        if (!MotifTextures.TryGetValue(motif, out _motifArt!))
         {
-            if (!_knifeTried)
+            string[] paths = motif switch
             {
-                _knifeTried = true;
-                const string p = "res://char/fx_knife.png";
-                if (ResourceLoader.Exists(p)) _knifeTex = ResourceLoader.Load<Texture2D>(p);
-            }
-            return _knifeTex;
+                Motif.Rain => new[] { "char/v3/fx/akari/card_unsent_1.png", "char/v3/bullets/akari_envelope.png" },
+                Motif.Screen => new[] { "char/v3/fx/akari/phone_screen.png", "char/v3/fx/koharu/eye_cross.png" },
+                Motif.Stream => new[] { "char/v3/fx/rei/bubble_empty_1.png", "char/v3/fx/rei/frame_star.png" },
+                _ => new[] { "char/player/mina/mina_core_v1.png", "char/v3/fx/akari/card_unsent_1.png",
+                    "char/v3/fx/rei/bubble_empty_1.png", "char/v3/fx/rei/crack.png" },
+            };
+            _motifArt = new Texture2D[paths.Length];
+            for (int i = 0; i < paths.Length; i++) _motifArt[i] = GD.Load<Texture2D>("res://" + paths[i]);
+            MotifTextures[motif] = _motifArt;
         }
     }
 
@@ -117,7 +119,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _shape = shape; _hw = halfW; _hh = halfH;
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
-        _motif = motif;
+        SetMotif(motif);
         ZIndex = -10; ZAsRelative = false;
     }
 
@@ -131,7 +133,8 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _safeR = Mathf.Max(0f, safeR);
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
-        _motif = motif;
+        SetMotif(motif);
+        BuildDangerCorners();
         ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下で画面を満たす
     }
 
@@ -139,7 +142,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 予兆中は予測線（細い危険色ライン）を出すだけで当たらず、着弾フレームだけ線分上の自機を被弾させる。
     // 位置は他形状と同じく AddChild 後に GlobalPosition=発射源 を設定して使う。
     public void ConfigureBeam(Vector2 dir, float length, float halfThick,
-        double warn, Color tint, Color hot)
+        double warn, Color tint, Color hot, Motif motif = Motif.None)
     {
         _shape = Shape.BeamSeg;
         _segDir = dir.LengthSquared() > 0.0001f ? dir.Normalized() : new Vector2(-1, 0);
@@ -148,6 +151,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _hw = _segLen; // 描画/便宜用（未使用経路の保険）
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
+        SetMotif(motif);
         ZIndex = -10; ZAsRelative = false;
     }
 
@@ -258,465 +262,265 @@ public partial class AreaStrike : Node2D, IAoeHazard
         }
     }
 
-    // 角ブラケット（矩形の個性＝ターゲティング）。外から角へ寄り、スナップで白く張る。
-    private void DrawBrackets(Rect2 r, float k, float snap)
-    {
-        float off = Mathf.Lerp(7f, 1f, k * k);                       // 外→角へ収束
-        float armX = Mathf.Min(r.Size.X * 0.3f, 7f), armY = Mathf.Min(r.Size.Y * 0.3f, 7f);
-        var bc = _tint.Lerp(_hot, 0.5f + 0.5f * snap);
-        var col = new Color(bc.R, bc.G, bc.B, 0.45f + 0.45f * k);
-        float w = 1.3f + 0.9f * snap;
-        float l = r.Position.X - off, t = r.Position.Y - off, rt = r.End.X + off, b = r.End.Y + off;
-        // 左上
-        DrawLine(new Vector2(l, t), new Vector2(l + armX, t), col, w);
-        DrawLine(new Vector2(l, t), new Vector2(l, t + armY), col, w);
-        // 右上
-        DrawLine(new Vector2(rt, t), new Vector2(rt - armX, t), col, w);
-        DrawLine(new Vector2(rt, t), new Vector2(rt, t + armY), col, w);
-        // 右下
-        DrawLine(new Vector2(rt, b), new Vector2(rt - armX, b), col, w);
-        DrawLine(new Vector2(rt, b), new Vector2(rt, b - armY), col, w);
-        // 左下
-        DrawLine(new Vector2(l, b), new Vector2(l + armX, b), col, w);
-        DrawLine(new Vector2(l, b), new Vector2(l, b - armY), col, w);
-    }
-
     public override void _Draw()
     {
-        if (!_struck) DrawTelegraph();
-        else DrawStrike();
-    }
+        float progress = Mathf.Clamp((float)(_t / _warn), 0f, 1f);
+        float fade = _struck ? 1f - Mathf.Clamp((float)((_t - _warn) / StrikeFlash), 0f, 1f) : 1f;
+        float snap = Mathf.SmoothStep(0f, 1f, Mathf.Clamp((progress - 0.82f) / 0.18f, 0f, 1f));
+        Color edge = new(_tint.Lerp(_hot, snap), fade);
+        Color fill = new(_struck ? _hot : _tint, (_struck ? 0.42f : 0.12f + 0.13f * progress) * fade);
 
-    // 予兆＋充填（HTML準拠）：破線のマーチング輪郭＋面のベタ塗り（着弾へ濃く）＋警告マーカーで“範囲”を明示。
-    private void DrawTelegraph()
-    {
-        float raw = Mathf.Clamp((float)(_t / _warn), 0f, 1f);
-        float k = raw * raw * (3f - 2f * raw);                  // smoothstep：序盤ゆっくり→終盤で一気に満ちる「タメ→着弾」。端点(0→1)不変＝α上限/Z/描画数は不変
-        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 9f);
-        float phase = (float)_t * 46f;                          // 破線のマーチング
-        // スナップ（アンティシペーション）：着弾直前の 0.14 区間だけ輪郭が張り、白く硬くなる。
-        //   面（fill）は一切増やさず線の輝度だけで「来る」を告げる＝視認性を侵さず読みやすさは向上。
-        float snap = k > 0.86f ? (k - 0.86f) / 0.14f : 0f;
-        // ミナ（Data）：破線位相を揺らして「制御を失ったAI」のグリッチ感を出す。新規描画ゼロ＝高密度のミナ面でも描画コール増ゼロ。
-        if (_motif == Motif.Data) phase += Mathf.Sin((float)_t * 30f) * 3f;
-        // 面のベタ塗り＝範囲を面で示す。Rank（レイ）は横罫線を面に重ねるので、その分を fill から先取りで引き、
-        //   罫線+面の実効輝度が §6 の面塗り上限0.38を超えないようにする（視認性死守）。
-        float motifFill = (_motif == Motif.Rank) ? (0.10f + 0.12f * k) : 0f;
-        float fillA = Mathf.Min(0.38f, 0.12f + 0.26f * k);
-        Color fill = new Color(_tint.R, _tint.G, _tint.B, Mathf.Max(0f, fillA - motifFill));
-        // 縁の明滅の下限を引き上げ（0.6→0.75）＋暗色の下縁取り：台所（こはる面）の暖色ランプ等、
-        // 明るい背景でも輪郭が沈まない。危険色そのものは変えず“影”で読ませる（視認性の底上げ）。
-        // 縁：スナップ中は _hot 側へ寄せて白く張る（色相は tint→hot の範囲内＝新色なし）。
-        Color edgeBase = _tint.Lerp(_hot, 0.75f * snap);
-        Color edge = new Color(edgeBase.R, edgeBase.G, edgeBase.B, Mathf.Min(1f, 0.75f + 0.25f * pulse + 0.25f * snap));
-        Color under = new Color(0.10f, 0.04f, 0.03f, 0.55f + 0.25f * k);
-        Color core = new Color(_hot.R, _hot.G, _hot.B, 0.08f + 0.14f * k);
-        // 縁幅もスナップで太る（予備動作＝張り）。
-        float ew = 2f + 1.4f * snap;
-
-        if (_shape == Shape.Fullscreen) { DrawFullscreenTelegraph(k, pulse); return; }
-
-        if (_shape == Shape.Circle)
+        if (_shape == Shape.Fullscreen)
         {
-            DrawCircle(Vector2.Zero, Radius, fill);
-            DrawCircle(Vector2.Zero, Radius * Mathf.Lerp(0.12f, 1f, k), core); // 中心から満ちる白熱核
-            DrawMotif(k, pulse);
-            // 集束リング：外から縁へ寄る細線。円は「集まって落ちる」の形（線のみ＝面は増やさない）。
-            float cr = Radius * Mathf.Lerp(1.75f, 1.0f, k * k);
-            DrawArc(Vector2.Zero, cr, 0f, Mathf.Tau, 40,
-                new Color(_hot.R, _hot.G, _hot.B, 0.28f + 0.35f * k), 1.2f + 1.0f * snap);
-            DashedRing(Radius, 28, under, 3.8f, phase * 0.012f);               // 暗色の下縁取り
-            DashedRing(Radius, 28, edge, ew, phase * 0.012f);
-            // 逆回転の内側二重リング：静止した円に「回っている」情報量を足す（細線・低α）。
-            DashedRing(Radius * 0.72f, 18, new Color(_tint.R, _tint.G, _tint.B, 0.30f + 0.25f * k),
-                1.0f, -phase * 0.017f);
-            DrawWarn(Vector2.Zero, k);
+            DrawFullscreen(progress, fade);
             return;
         }
-
         if (_shape == Shape.BeamSeg)
         {
-            Vector2 tip = _segDir * _segLen;
-            DrawLine(Vector2.Zero, tip, fill, _hh * 2f);                        // 帯（面）
-            DashedLine(Vector2.Zero, tip, under, 3.2f + 1.2f * k, 7f, 5f, phase); // 暗色の下縁取り
-            DashedLine(Vector2.Zero, tip, edge, 1.6f + 1.2f * k + 1.0f * snap, 7f, 5f, phase); // 破線の中心ガイド
-            // 走る光条：源→先端を 0.55s 周期で駆ける短い白熱セグメント（＝ビームの「向き」が一目で読める）。
-            {
-                float run = Mathf.PosMod((float)_t / 0.55f, 1f);
-                float s0 = _segLen * run, s1 = Mathf.Min(_segLen, s0 + _segLen * 0.22f);
-                DrawLine(_segDir * s0, _segDir * s1,
-                    new Color(_hot.R, _hot.G, _hot.B, 0.35f + 0.4f * k), _hh * 0.9f);
-                // 『包丁の軌跡』：光条の先頭を包丁が刃を進行方向に向けて飛ぶ（見た目のみ・判定不変）。
-                //   光条が尾＝彗星の読み。芯線（危険色）を刃の上に重ね直し、軌跡の芯は常にイラストより上。
-                if (_art == Art.Knife && KnifeTex is { } kt)
-                {
-                    float half = kt.GetWidth() * 0.5f;
-                    float sK = Mathf.Clamp(s1, half, _segLen - half); // 先頭に載せ、線分内に収める
-                    DrawSetTransform(_segDir * sK, _segDir.Angle(), Vector2.One);
-                    DrawTexture(kt, new Vector2(-half, -kt.GetHeight() * 0.5f),
-                        new Color(1f, 1f, 1f, 0.7f + 0.3f * k));
-                    DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
-                    DrawLine(_segDir * (sK - half), _segDir * (sK + half),
-                        new Color(_tint.R, _tint.G, _tint.B, 0.85f), 1.1f); // 当たり芯線（刃より上）
-                }
-            }
-            DrawCircle(Vector2.Zero, 3.2f + 2.2f * snap, new Color(_tint.R, _tint.G, _tint.B, 0.85f * pulse)); // 発射源（着弾直前に膨らむ＝チャージ）
-            DrawWarn(_segDir * (_segLen * 0.5f), k);
+            DrawSetTransform(Vector2.Zero, _segDir.Angle(), Vector2.One);
+            DrawLane(new Rect2(0, -_hh, _segLen, _hh * 2), progress, fade, edge, fill);
+            DrawSetTransform(Vector2.Zero, 0, Vector2.One);
+            return;
+        }
+        if (_shape is Shape.BeamH or Shape.BeamV)
+        {
+            bool vertical = _shape == Shape.BeamV;
+            float length = vertical ? _hh : _hw;
+            float half = vertical ? _hw : _hh;
+            DrawSetTransform(Vector2.Zero, vertical ? Mathf.Pi / 2 : 0, Vector2.One);
+            DrawLane(new Rect2(-length, -half, length * 2, half * 2), progress, fade, edge, fill);
+            DrawSetTransform(Vector2.Zero, 0, Vector2.One);
             return;
         }
 
-        var r = new Rect2(-_hw, -_hh, _hw * 2f, _hh * 2f);
-        if (_shape == Shape.Rect)
+        Color shadow = new(0.025f, 0.02f, 0.05f, 0.85f * fade);
+        float width = _struck ? 2.2f : 1.1f + 0.7f * snap;
+        if (_shape == Shape.Circle)
         {
-            // 矩形は角丸（他UIと同じ Clean Glass 調＝角ばらせない）。
-            float rad = Mathf.Min(7f, Mathf.Min(_hw, _hh) * 0.8f);
-            RoundFill(r, rad, fill);
-            DrawMotif(k, pulse);
-            RoundOutline(r, rad, under, 3.8f); // 暗色の下縁取り
-            RoundOutline(r, rad, edge, ew);
-            // 角ブラケット：外から角へ寄って「範囲が確定する」（矩形の個性＝ターゲティング）。
-            DrawBrackets(r, k, snap);
-            // 掃引スキャンライン：上から下へ1本走る細線（面は増やさない）。
-            {
-                float sw = Mathf.PosMod((float)_t / 0.7f, 1f);
-                float y = -_hh + _hh * 2f * sw;
-                DrawLine(new Vector2(-_hw, y), new Vector2(_hw, y),
-                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.30f * k), 1f);
-            }
-            DrawWarn(Vector2.Zero, k);
-            return;
+            DrawCircle(Vector2.Zero, Radius, fill, true, -1, true);
+            DrawMotif(new Vector2(Radius * 1.15f, Radius * 1.15f), progress, fade);
+            DrawArc(Vector2.Zero, Radius, 0, Mathf.Tau, 64, shadow, width + 1.8f, true);
+            DrawArc(Vector2.Zero, Radius, 0, Mathf.Tau, 64, edge, width, true);
+            // 発動までの弧は危険範囲の内側に置き、実際の境界を動かさない。
+            DrawArc(Vector2.Zero, Radius - 3, -Mathf.Pi / 2,
+                -Mathf.Pi / 2 + Mathf.Tau * progress, 64, new Color(_hot, 0.85f * fade), 1.2f, true);
         }
-        // ビーム：細い帯＋両端の予測線（破線）。線に沿って警告バッジ。
-        DrawRect(r, fill);
-        DrawMotif(k, pulse);
-        DashedBoxBorder(under, 3.8f, phase); // 暗色の下縁取り
-        DashedBoxBorder(edge, ew, phase);
-        // 走る光条（軸ビーム版）：帯の長手方向を短い白熱セグメントが駆ける＝「どっちへ走るか」が読める。
+        else
         {
-            float run = Mathf.PosMod((float)_t / 0.6f, 1f);
-            if (_shape == Shape.BeamH)
+            var rect = new Rect2(-_hw, -_hh, _hw * 2, _hh * 2);
+            DrawRect(rect, fill);
+            DrawMotif(new Vector2(_hw * 1.35f, _hh * 1.3f), progress, fade);
+            DrawRect(rect, shadow, false, width + 1.8f);
+            DrawRect(rect, edge, false, width);
+            DrawFrameProgress(rect.Grow(-3), progress, new Color(_hot, 0.9f * fade));
+        }
+        if (_motif == Motif.None) DrawWarn(Vector2.Zero, fade);
+    }
+
+    private void DrawLane(Rect2 rect, float progress, float fade, Color edge, Color fill)
+    {
+        DrawRect(rect, fill);
+        float thickness = _struck ? 2f : 1.2f;
+        Color shadow = new(0.025f, 0.02f, 0.05f, 0.85f * fade);
+        var top = rect.Position;
+        var bottom = new Vector2(rect.Position.X, rect.End.Y);
+        var along = new Vector2(rect.Size.X, 0);
+        DrawLine(top, top + along, shadow, thickness + 1.8f);
+        DrawLine(bottom, bottom + along, shadow, thickness + 1.8f);
+        DrawLine(top, top + along, edge, thickness);
+        DrawLine(bottom, bottom + along, edge, thickness);
+        var hot = new Color(_hot, 0.85f * fade);
+        DrawLine(top + Vector2.Down * 2.5f, top + Vector2.Down * 2.5f + along * progress, hot, 0.8f);
+        DrawLine(bottom + Vector2.Up * 2.5f, bottom + Vector2.Up * 2.5f + along * progress, hot, 0.8f);
+        float span = rect.Size.X;
+        int count = Mathf.Clamp((int)(span / 36f), 2, 12);
+        for (int i = 0; i < count; i++)
+        {
+            float u = Mathf.PosMod((i + 0.5f) / count + (float)_t * 0.13f, 1f);
+            float x = rect.Position.X + 10f + (span - 20f) * u;
+            var at = new Vector2(x, 0);
+            if (_art == Art.ReadReceipt)
+                DrawReadReceipt(at, new Vector2(17, rect.Size.Y - 3), (0.45f + 0.35f * progress) * fade);
+            else if (_motif != Motif.None)
+                DrawStamp(i, at, new Vector2(18, rect.Size.Y - 3), (0.45f + 0.35f * progress) * fade);
+            else
             {
-                float x0 = -_hw + _hw * 2f * run, x1 = Mathf.Min(_hw, x0 + _hw * 0.5f);
-                DrawLine(new Vector2(x0, 0f), new Vector2(x1, 0f),
-                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.35f * k), _hh * 0.85f);
+                DrawLine(at + new Vector2(-2, -2), at, hot, 0.8f);
+                DrawLine(at, at + new Vector2(-2, 2), hot, 0.8f);
+            }
+        }
+        if (_struck)
+            DrawLine(new Vector2(rect.Position.X, 0), new Vector2(rect.End.X, 0), new Color(_hot, fade), 1.8f);
+    }
+
+    private void DrawMotif(Vector2 size, float progress, float fade)
+    {
+        if (_motif == Motif.None) return;
+        float alpha = (0.5f + progress * 0.35f) * fade;
+        switch (_motif)
+        {
+            case Motif.Rain:
+                DrawStamp(0, Vector2.Zero, size * 0.9f, alpha);
+                for (int i = 0; i < 3; i++)
+                {
+                    float y = Mathf.Lerp(-size.Y * 0.42f, size.Y * 0.26f,
+                        Mathf.PosMod((float)_t * 0.8f + i / 3f, 1f));
+                    float x = size.X * (i - 1) * 0.3f;
+                    DrawLine(new Vector2(x, y), new Vector2(x, y + size.Y * 0.16f), new Color(_hot, alpha * 0.65f), 0.8f);
+                }
+                break;
+            case Motif.Screen:
+                DrawStamp(_shape == Shape.Rect ? 1 : 0, Vector2.Zero, size * 0.95f, alpha);
+                if (_shape == Shape.Circle)
+                    DrawLine(new Vector2(-size.X * 0.16f, size.Y * 0.18f),
+                        new Vector2(size.X * 0.16f, size.Y * 0.18f), new Color(_tint, alpha), 1f);
+                break;
+            case Motif.Stream:
+                DrawStamp(0, Vector2.Zero, size, alpha);
+                DrawStamp(1, new Vector2(size.X * 0.29f, -size.Y * 0.25f), size * 0.34f, alpha);
+                for (int i = 0; i < 2; i++)
+                {
+                    float y = size.Y * (-0.12f + 0.22f * i);
+                    DrawLine(new Vector2(-size.X * 0.25f, y), new Vector2(size.X * (0.18f - i * 0.08f), y),
+                        new Color(_hot, alpha * 0.7f), 0.8f);
+                }
+                break;
+            case Motif.Data:
+                DrawStamp(0, Vector2.Zero, size, alpha);
+                DrawStamp(3, Vector2.Zero, size * 0.9f, alpha);
+                float offset = size.X * 0.34f;
+                DrawLine(new Vector2(-offset, size.Y * 0.25f), new Vector2(offset, size.Y * 0.25f),
+                    new Color(_tint, alpha), 0.8f);
+                break;
+        }
+    }
+
+    private void DrawStamp(int index, Vector2 at, Vector2 box, float alpha)
+    {
+        var texture = _motifArt[index % _motifArt.Length];
+        Vector2 size = texture.GetSize();
+        size *= Mathf.Min(box.X / size.X, box.Y / size.Y);
+        Color tint = _motif == Motif.Data ? new Color(1f, 0.7f, 0.87f, alpha) : new Color(1, 1, 1, alpha);
+        DrawTextureRect(texture, new Rect2(at - size / 2, size), false, tint);
+    }
+
+    private void DrawReadReceipt(Vector2 at, Vector2 box, float alpha)
+    {
+        Vector2 size = MessageTex.GetSize();
+        size *= Mathf.Min(box.X / size.X, box.Y / size.Y);
+        DrawTextureRect(MessageTex, new Rect2(at - size / 2, size), false, new Color(1, 1, 1, alpha));
+        var dots = new Vector2(size.X * 0.42f, size.Y * 0.25f);
+        DrawTextureRect(ReadDotsTex, new Rect2(at - dots / 2, dots), false, new Color(1, 1, 1, alpha));
+    }
+
+    private void DrawFrameProgress(Rect2 rect, float progress, Color color)
+    {
+        float remaining = 2f * (rect.Size.X + rect.Size.Y) * progress;
+        Vector2 start = rect.Position;
+        for (int side = 0; side < 4 && remaining > 0; side++)
+        {
+            Vector2 direction = side switch { 0 => Vector2.Right, 1 => Vector2.Down, 2 => Vector2.Left, _ => Vector2.Up };
+            float length = side % 2 == 0 ? rect.Size.X : rect.Size.Y;
+            DrawLine(start, start + direction * Mathf.Min(length, remaining), color, 1.1f);
+            remaining -= length;
+            start += direction * length;
+        }
+    }
+
+    private void DrawFullscreen(float progress, float fade)
+    {
+        Color danger = new(_struck ? _hot : _tint, (_struck ? 0.4f : 0.13f + 0.16f * progress) * fade);
+        DrawDanger(danger);
+        DrawFullscreenMotif(progress, fade);
+        if (_safeR <= 0) return;
+
+        var mint = new Color(0.4f, 0.95f, 0.72f);
+        DrawArc(_safeCenter, _safeR, 0, Mathf.Tau, 72, new Color(0.015f, 0.035f, 0.055f, fade), 3.2f, true);
+        DrawArc(_safeCenter, _safeR, 0, Mathf.Tau, 72, new Color(mint, fade), 1.2f, true);
+        DrawArc(_safeCenter, _safeR + 3.5f, -Mathf.Pi / 2,
+            -Mathf.Pi / 2 + Mathf.Tau * progress, 72, new Color(0.92f, 1f, 0.96f, 0.9f * fade), 0.85f, true);
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 direction = Vector2.Right.Rotated(i * Mathf.Pi / 2);
+            Vector2 tangent = direction.Orthogonal();
+            Vector2 point = _safeCenter + direction * (_safeR - 4f);
+            DrawLine(point + direction * 3 + tangent * 2, point, new Color(mint, fade), 0.9f);
+            DrawLine(point, point + direction * 3 - tangent * 2, new Color(mint, fade), 0.9f);
+        }
+    }
+
+    private void DrawFullscreenMotif(float progress, float fade)
+    {
+        if (_motif == Motif.None) return;
+        float alpha = (0.28f + 0.3f * progress) * fade;
+        for (int row = 0; row < 4; row++)
+        for (int col = 0; col < 5; col++)
+        {
+            float u = Mathf.PosMod((col + 0.5f + row * 0.35f) / 5f + (float)_t * (_motif == Motif.Stream ? -0.045f : 0.012f), 1f);
+            var at = new Vector2(L + 20 + (W - 40) * u, T + 22 + row * (H - 44) / 3f);
+            if (at.DistanceTo(_safeCenter) < _safeR + 25) continue;
+            int index = _motif == Motif.Stream ? ((row + col) % 4 == 0 ? 1 : 0) : (row + col) % 3;
+            if (_motif == Motif.Stream)
+            {
+                DrawFieldSegment(at + new Vector2(-18, 0), at + new Vector2(-11, 0), new Color(_tint, alpha));
             }
             else
             {
-                float y0 = -_hh + _hh * 2f * run, y1 = Mathf.Min(_hh, y0 + _hh * 0.5f);
-                DrawLine(new Vector2(0f, y0), new Vector2(0f, y1),
-                    new Color(_hot.R, _hot.G, _hot.B, 0.30f + 0.35f * k), _hw * 0.85f);
+                Vector2 toward = (_safeCenter - at).Normalized();
+                DrawFieldSegment(at, at + toward * 14, new Color(_tint, alpha));
+                DrawFieldSegment(at + toward * 14, at + toward * 17 + toward.Orthogonal() * 4, new Color(_hot, alpha));
             }
-        }
-        if (_shape == Shape.BeamH)
-        { DrawWarn(new Vector2(-_hw * 0.5f, 0), k); DrawWarn(new Vector2(_hw * 0.5f, 0), k); }
-        else
-        { DrawWarn(new Vector2(0, -_hh * 0.5f), k); DrawWarn(new Vector2(0, _hh * 0.5f), k); }
-    }
-
-    // テレグラフ・モチーフ層：ボスの心象を予兆で語る。fill 描画後・DrawWarn 前に各軸形状から1回呼ぶ。
-    //   GCフリー（配列を new せず DrawLine/DrawCircle 直描き）。Data（ミナ）は phase 揺らしで別処理＝ここでは描かない。
-    //   BeamSeg（こはる『包丁の軌跡』）は Motif.None＝ここへ来ない（鋭い深紅のまま）。
-    private void DrawMotif(float k, float pulse)
-    {
-        // 形状のローカル境界（Circle は半径 Radius の正方枠、Rect/Beam は _hw×_hh の枠）。
-        float halfW = (_shape == Shape.Circle) ? Radius : _hw;
-        float halfH = (_shape == Shape.Circle) ? Radius : _hh;
-        float top = -halfH, bottom = halfH, left = -halfW, right = halfW;
-
-        switch (_motif)
-        {
-            case Motif.Rank: // レイ：順位が確定する＝下から満ちる横罫線3本。fill は先取り減算済み。
+            DrawStamp(index, at, new Vector2(27, 18), alpha);
+            if (_motif == Motif.Stream && index == 0)
             {
-                var line = new Color(_hot.R, _hot.G, _hot.B, 0.10f + 0.12f * k);
-                for (int n = 1; n <= 3; n++)
-                {
-                    float y = bottom - (bottom - top) * k * (n / 3f);
-                    DrawLine(new Vector2(left, y), new Vector2(right, y), line, 1f);
-                }
-                if (k > 0.85f) // 順位が確定する瞬間、中央縦線が白熱する。
-                {
-                    float f = (k - 0.85f) / 0.15f;
-                    DrawLine(new Vector2(0f, top), new Vector2(0f, bottom),
-                        new Color(_hot.R, _hot.G, _hot.B, Mathf.Lerp(0.3f, 1f, f)), 1.4f);
-                }
-                break;
+                DrawLine(at + new Vector2(-8, -3), at + new Vector2(7, -3), new Color(_hot, alpha), 0.7f);
+                DrawLine(at + new Vector2(-8, 1), at + new Vector2(2, 1), new Color(_hot, alpha * 0.7f), 0.7f);
             }
-            case Motif.Rain: // あかり：上縁から下へ短い雨ストリーク。α は上限を侵さぬよう 0.35*pulse に抑制。
-            {
-                var col = new Color(_tint.R, _tint.G, _tint.B, 0.35f * pulse);
-                float span = right - left;
-                for (int i = 0; i < 3; i++)
-                {
-                    float x = left + span * (0.25f + 0.25f * i);
-                    var head = new Vector2(x, top + 2f);
-                    DrawLine(head, head + new Vector2(0f, 6f * k), col, 1f);
-                }
-                break;
-            }
-            case Motif.Kitchen: // こはる：中心白熱核の周りに気泡ドットが k で浮上する＝「沸く」。
-            {
-                var col = new Color(_hot.R, _hot.G, _hot.B, 0.5f * pulse);
-                for (int i = 0; i < 3; i++)
-                {
-                    float bx = (i - 1) * halfW * 0.35f;
-                    float by = bottom * 0.4f - (bottom - top) * 0.5f * k * (0.6f + 0.2f * i);
-                    DrawCircle(new Vector2(bx, by), 1.2f, col);
-                }
-                break;
-            }
+            if (_motif == Motif.Data && index == 0) DrawStamp(3, at, new Vector2(24, 18), alpha);
         }
     }
 
-    // 着弾：白熱フラッシュ（短く強く）＋輪郭バースト。
-    private void DrawStrike()
+    private void DrawFieldSegment(Vector2 from, Vector2 to, Color color)
     {
-        float st = Mathf.Clamp((float)((_t - _warn) / StrikeFlash), 0f, 1f);
-        float f = 1f - st;
-        Color core = new Color(_hot.R, _hot.G, _hot.B, 0.6f * f);
-        Color rim = new Color(1f, 1f, 1f, f);
-        if (_shape == Shape.Fullscreen)
-        {
-            // 全画面着弾：画面全体を白フラッシュ。安置だけは抜く（そこにいた自機は無傷の余韻）。
-            DrawRect(Field.Rect, new Color(1f, 1f, 1f, 0.85f * f));
-            if (_safeR > 0f)
-            {
-                DrawCircle(_safeCenter, _safeR, new Color(0.4f, 0.95f, 0.6f, 0.25f * f));
-                // 安置の縁を守った緑の衝撃波（＝「ここに居たから助かった」の余韻。緑はボム安置と同語彙）。
-                DrawArc(_safeCenter, _safeR * (1f + 0.45f * st), 0f, Mathf.Tau, 48,
-                    new Color(0.4f, 0.95f, 0.6f, 0.75f * f), 2.0f);
-            }
-            return;
-        }
-        if (_shape == Shape.Circle)
-        {
-            // 着弾3段：A 白閃（st<0.35＝rimを鋭く立ち上げ）→ B 色残光（0.35<st<0.7＝誰の攻撃か0.2s残す）→ C 消散（バーストのease-out）。
-            DrawCircle(Vector2.Zero, Radius, core);
-            float rimA = st < 0.35f ? Mathf.Clamp(st / 0.35f, 0f, 1f) : f / 0.65f; // 白閃を鋭く、以降フェード
-            DrawArc(Vector2.Zero, Radius, 0f, Mathf.Tau, 56, new Color(1f, 1f, 1f, rimA), 2.6f);
-            if (st > 0.35f && st < 0.7f) // B 色残光：_hot→_tint の残り火リング1本（新色なし＝「誰の攻撃か」を色で残す）。
-            {
-                Color glow = _hot.Lerp(_tint, st);
-                DrawArc(Vector2.Zero, Radius * 1.1f, 0f, Mathf.Tau, 48,
-                    new Color(glow.R, glow.G, glow.B, 0.4f * f), 2f);
-            }
-            DrawArc(Vector2.Zero, Radius * (1f + 0.55f * st), 0f, Mathf.Tau, 48,
-                new Color(_hot.R, _hot.G, _hot.B, 0.5f * f), 2f); // C 広がるバースト（消散）
-            return;
-        }
-        if (_shape == Shape.BeamSeg)
-        {
-            Vector2 tip = _segDir * _segLen;
-            // A 白閃：帯が一瞬太る（本動作）→ B 芯だけ残る（余韻）。
-            DrawLine(Vector2.Zero, tip, core, _hh * 2f * (1f + 0.5f * f));
-            // 『包丁の軌跡』：着弾フラッシュの0.2sで包丁が源→先端を一気に走り抜ける（＝斬撃の本動作）。
-            //   直後に描く白の芯線（rim）がイラストの上に載る＝当たり芯は必ず見える。
-            if (_art == Art.Knife && KnifeTex is { } kt)
-            {
-                float sK = _segLen * st;
-                DrawSetTransform(_segDir * sK, _segDir.Angle(), Vector2.One * (1f + 0.35f * f));
-                DrawTexture(kt, new Vector2(-kt.GetWidth() * 0.5f, -kt.GetHeight() * 0.5f),
-                    new Color(1f, 1f, 1f, 0.25f + 0.75f * f));
-                DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
-            }
-            DrawLine(Vector2.Zero, tip, rim, 2.6f + 2.0f * f);
-            // C 直交する衝撃波：帯から左右へ広がる2本（線分なので「横に抜ける」で表現）。
-            {
-                Vector2 n = new Vector2(-_segDir.Y, _segDir.X) * (_hh + 14f * st);
-                var sw = new Color(_hot.R, _hot.G, _hot.B, 0.45f * f);
-                DrawLine(n, tip + n, sw, 1.2f);
-                DrawLine(-n, tip - n, sw, 1.2f);
-            }
-            return;
-        }
-        var rr = new Rect2(-_hw, -_hh, _hw * 2f, _hh * 2f);
-        // 衝撃波枠：矩形/軸ビーム共通。範囲の外へ ease-out で広がる細枠（余韻・面は増やさない）。
-        float ex = 18f * st * (1f - st * 0.35f);
-        DrawRect(new Rect2(rr.Position - new Vector2(ex, ex), rr.Size + new Vector2(ex, ex) * 2f),
-            new Color(_hot.R, _hot.G, _hot.B, 0.5f * f), false, 1.6f);
-        if (_shape == Shape.Rect)
-        {
-            float rad = Mathf.Min(7f, Mathf.Min(_hw, _hh) * 0.8f);
-            RoundFill(rr, rad, core);
-            RoundOutline(rr, rad, rim, 2.6f + 1.6f * f);
-            return;
-        }
-        DrawRect(rr, core);
-        DrawBoxBorder(rim, 2.6f + 1.6f * f);
+        Vector2 closest = Geometry2D.GetClosestPointToSegment(_safeCenter, from, to);
+        if (closest.DistanceTo(_safeCenter) <= _safeR + 3) return;
+        DrawLine(from, to, color, 0.8f, true);
     }
 
-    // 全画面AOEの予兆：画面全体を濁桃tintで満たし、安置(セーフゾーン)だけα0でくり抜く＋緑の脈動リング。
-    //   くり抜きは「画面矩形に円の穴を空けたキーホール多角形」で実現（穴の内側は塗られない＝真にα0）。
-    //   tintは着弾へ向け濃く（k）。終了直前(k>0.82)に白フレームを内側へ収束させて着弾を予告する。
-    private void DrawFullscreenTelegraph(float k, float pulse)
+    private void BuildDangerCorners()
     {
-        // 画面を満たす濁桃tint（安置を穴として抜く）。弾の視認のため α は中程度までに抑える。
-        Color danger = new Color(_tint.R, _tint.G, _tint.B, 0.18f + 0.30f * k);
-        if (_safeR > 0f)
-            DrawColoredPolygon(ScreenWithHole(_safeCenter, _safeR), danger);
-        else
-            DrawRect(Field.Rect, danger); // 安置なし＝全面
-
-        if (_safeR > 0f)
+        if (_safeR <= 0) return;
+        _dangerCorners = new Vector2[4][];
+        const int segments = 16;
+        for (int quadrant = 0; quadrant < 4; quadrant++)
         {
-            // 安置：淡い緑のフィル＋脈動する緑リング（ここが安全だと一目で分かる色）。緑はボム安置と完全一致（語彙統一）。
-            // 「聖域」へ締める：内リング＝細く高α（淵が光る）／外リング＝太く低α（にじむ余韻）。彩度・色相は不変。
-            var green = new Color(0.4f, 0.95f, 0.6f);
-            DrawCircle(_safeCenter, _safeR, new Color(green.R, green.G, green.B, 0.10f + 0.06f * pulse));
-            DrawArc(_safeCenter, _safeR + 3f, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.20f * pulse), 3.0f);       // 外：太く低α
-            DrawArc(_safeCenter, _safeR, 0f, Mathf.Tau, 48, new Color(green.R, green.G, green.B, 0.65f + 0.35f * pulse), 1.6f);   // 内：細く高α（淵が光る）
-        }
-
-        // 着弾予告：終了直前に画面外周から白フレームが収束（“来る”の合図）。
-        if (k > 0.82f)
-        {
-            float c = (k - 0.82f) / 0.18f; // 0→1
-            float inset = Mathf.Lerp(0f, 10f, c);
-            var white = new Color(1f, 1f, 1f, 0.5f * c);
-            DrawRect(new Rect2(L + inset, T + inset, W - inset * 2f, H - inset * 2f), white, false, 2.5f);
-            // 2枚目の枠を半拍遅らせて追わせる＝「二重の収束」で来る速度が読める（線のみ）。
-            float c2 = Mathf.Max(0f, c - 0.35f) / 0.65f;
-            if (c2 > 0f)
-            {
-                float in2 = Mathf.Lerp(0f, 22f, c2);
-                DrawRect(new Rect2(L + in2, T + in2, W - in2 * 2f, H - in2 * 2f),
-                    new Color(_hot.R, _hot.G, _hot.B, 0.4f * c2), false, 1.4f);
-            }
+            float angle = quadrant * Mathf.Pi / 2;
+            var points = new Vector2[segments + 2];
+            points[0] = _safeCenter + new Vector2(Mathf.Cos(angle + Mathf.Pi / 4), Mathf.Sin(angle + Mathf.Pi / 4))
+                * (_safeR * Mathf.Sqrt(2));
+            for (int i = 0; i <= segments; i++)
+                points[i + 1] = _safeCenter + Vector2.Right.Rotated(angle + i * Mathf.Pi / (2 * segments)) * _safeR;
+            _dangerCorners[quadrant] = points;
         }
     }
 
-    // 盤面矩形に circle(中心 c・半径 r)の穴を空けたキーホール多角形を返す（穴の内側は塗られない）。
-    private static Vector2[] ScreenWithHole(Vector2 c, float r)
+    private void DrawDanger(Color color)
     {
-        const int seg = 36;
-        var pts = new System.Collections.Generic.List<Vector2>(seg + 8);
-        // 外周（左上→右上→右下→左下）。最後に左上付近へ戻り、橋を渡して円へ。
-        pts.Add(new Vector2(Field.Left, Field.Top));
-        pts.Add(new Vector2(Field.Right, Field.Top));
-        pts.Add(new Vector2(Field.Right, Field.Bottom));
-        pts.Add(new Vector2(Field.Left, Field.Bottom));
-        pts.Add(new Vector2(Field.Left, Field.Top));
-        // 橋：外周(左上)→円の最上点へ。
-        Vector2 bridge = new Vector2(c.X, c.Y - r);
-        pts.Add(bridge);
-        // 円を一周（CW）して穴を作る。
-        for (int i = 0; i <= seg; i++)
-        {
-            float a = -Mathf.Pi / 2f - Mathf.Tau * i / seg; // 上から時計回り
-            pts.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
-        }
-        // 橋を戻して外周へ閉じる。
-        pts.Add(bridge);
-        pts.Add(new Vector2(0, 0));
-        return pts.ToArray();
+        if (_safeR <= 0) { DrawRect(Field.Rect, color); return; }
+        // 単純な四隅と矩形に分け、穴付き多角形の三角形分割で安置が塗られるのを防ぐ。
+        float left = _safeCenter.X - _safeR, right = _safeCenter.X + _safeR;
+        float top = _safeCenter.Y - _safeR, bottom = _safeCenter.Y + _safeR;
+        DrawRect(new Rect2(L, T, W, top - T), color);
+        DrawRect(new Rect2(L, bottom, W, Field.Bottom - bottom), color);
+        DrawRect(new Rect2(L, top, left - L, _safeR * 2), color);
+        DrawRect(new Rect2(right, top, Field.Right - right, _safeR * 2), color);
+        foreach (var corner in _dangerCorners) DrawColoredPolygon(corner, color);
     }
 
-    // ビーム＝範囲の両端を線で囲う（予測線）／矩形＝四辺。
-    private void DrawBoxBorder(Color col, float w)
+    private void DrawWarn(Vector2 at, float alpha)
     {
-        float l = -_hw, rgt = _hw, t = -_hh, b = _hh;
-        if (_shape == Shape.BeamH)
-        {
-            DrawLine(new Vector2(l, t), new Vector2(rgt, t), col, w);
-            DrawLine(new Vector2(l, b), new Vector2(rgt, b), col, w);
-        }
-        else if (_shape == Shape.BeamV)
-        {
-            DrawLine(new Vector2(l, t), new Vector2(l, b), col, w);
-            DrawLine(new Vector2(rgt, t), new Vector2(rgt, b), col, w);
-        }
-        else // Rect
-        {
-            DrawLine(new Vector2(l, t), new Vector2(rgt, t), col, w);
-            DrawLine(new Vector2(rgt, t), new Vector2(rgt, b), col, w);
-            DrawLine(new Vector2(rgt, b), new Vector2(l, b), col, w);
-            DrawLine(new Vector2(l, b), new Vector2(l, t), col, w);
-        }
-    }
-
-    // 警告マーカー：危険色の丸バッジ＋白い「!」（角丸UIに合わせて丸く・小さく）。
-    private void DrawWarn(Vector2 p, float k)
-    {
-        float s = 3.4f + 1.2f * k;
-        DrawCircle(p, s, new Color(_tint.R, _tint.G, _tint.B, 0.5f));
-        DrawCircle(p, s * 0.66f, new Color(_tint.R, _tint.G, _tint.B, 0.75f));
-        DrawLine(p + new Vector2(0, -s * 0.45f), p + new Vector2(0, s * 0.12f), new Color(1f, 1f, 1f, 0.95f), 1.2f);
-        DrawCircle(p + new Vector2(0, s * 0.45f), 0.8f, new Color(1f, 1f, 1f, 0.95f));
-    }
-
-    // ───── 角丸矩形（他UIと同じ Clean Glass 調。塗りと輪郭で共用）─────
-    private static Vector2[] RoundRectPoints(Rect2 r, float rad)
-    {
-        rad = Mathf.Max(0.5f, Mathf.Min(rad, Mathf.Min(r.Size.X, r.Size.Y) * 0.5f));
-        var pts = new System.Collections.Generic.List<Vector2>();
-        Vector2[] cen =
-        {
-            new(r.Position.X + rad, r.Position.Y + rad),       // 左上
-            new(r.End.X - rad, r.Position.Y + rad),            // 右上
-            new(r.End.X - rad, r.End.Y - rad),                 // 右下
-            new(r.Position.X + rad, r.End.Y - rad),            // 左下
-        };
-        float[] start = { Mathf.Pi, -Mathf.Pi / 2f, 0f, Mathf.Pi / 2f };
-        const int seg = 4;
-        for (int c = 0; c < 4; c++)
-            for (int i = 0; i <= seg; i++)
-            {
-                float a = start[c] + (Mathf.Pi / 2f) * (i / (float)seg);
-                pts.Add(cen[c] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rad);
-            }
-        return pts.ToArray();
-    }
-    private void RoundFill(Rect2 r, float rad, Color col) => DrawColoredPolygon(RoundRectPoints(r, rad), col);
-    private void RoundOutline(Rect2 r, float rad, Color col, float w)
-    {
-        var p = RoundRectPoints(r, rad);
-        var closed = new Vector2[p.Length + 1];
-        p.CopyTo(closed, 0); closed[p.Length] = p[0];
-        DrawPolyline(closed, col, w);
-    }
-
-    // ───── 破線描画（マーチングする予兆輪郭。HTMLの dashed border 相当）─────
-    private void DashedLine(Vector2 a, Vector2 b, Color col, float w, float dash, float gap, float phase)
-    {
-        Vector2 d = b - a; float len = d.Length();
-        if (len < 0.001f) return;
-        Vector2 dir = d / len; float step = dash + gap; float o = phase % step;
-        for (float s = -o; s < len; s += step)
-        {
-            float s0 = Mathf.Max(0f, s), s1 = Mathf.Min(len, s + dash);
-            if (s1 > s0) DrawLine(a + dir * s0, a + dir * s1, col, w);
-        }
-    }
-
-    private void DashedRing(float r, int dashes, Color col, float w, float phase)
-    {
-        float seg = Mathf.Tau / dashes, fill = seg * 0.58f;
-        for (int i = 0; i < dashes; i++)
-        {
-            float a0 = i * seg + phase;
-            DrawArc(Vector2.Zero, r, a0, a0 + fill, 5, col, w);
-        }
-    }
-
-    private void DashedBoxBorder(Color col, float w, float phase)
-    {
-        float l = -_hw, rgt = _hw, t = -_hh, b = _hh;
-        const float dash = 8f, gap = 6f;
-        if (_shape == Shape.BeamH)
-        {
-            DashedLine(new Vector2(l, t), new Vector2(rgt, t), col, w, dash, gap, phase);
-            DashedLine(new Vector2(l, b), new Vector2(rgt, b), col, w, dash, gap, phase);
-        }
-        else if (_shape == Shape.BeamV)
-        {
-            DashedLine(new Vector2(l, t), new Vector2(l, b), col, w, dash, gap, phase);
-            DashedLine(new Vector2(rgt, t), new Vector2(rgt, b), col, w, dash, gap, phase);
-        }
-        else
-        {
-            DashedLine(new Vector2(l, t), new Vector2(rgt, t), col, w, dash, gap, phase);
-            DashedLine(new Vector2(rgt, t), new Vector2(rgt, b), col, w, dash, gap, phase);
-            DashedLine(new Vector2(rgt, b), new Vector2(l, b), col, w, dash, gap, phase);
-            DashedLine(new Vector2(l, b), new Vector2(l, t), col, w, dash, gap, phase);
-        }
+        DrawCircle(at, 3.4f, new Color(_tint, alpha * 0.7f), true, -1, true);
+        DrawLine(at + new Vector2(0, -1.6f), at + new Vector2(0, 0.4f), new Color(1, 1, 1, alpha), 1f);
+        DrawCircle(at + new Vector2(0, 1.6f), 0.6f, new Color(1, 1, 1, alpha), true, -1, true);
     }
 }

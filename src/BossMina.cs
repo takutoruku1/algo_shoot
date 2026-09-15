@@ -21,6 +21,8 @@ public partial class BossMina : Enemy
     private int _pattern;
     private int _beatsFired;
     private const int PatternCount = 5;
+    private Texture2D?[][] _spellArt = null!;
+    private int _visualPattern, _artIndex;
 
     private bool _seq;
     private int _line;
@@ -40,12 +42,11 @@ public partial class BossMina : Enemy
     // HPがこの割合を割るたびに弾幕パターンを変える。
     private static readonly float[] PatternThresholds = { 0.82f, 0.62f, 0.42f, 0.22f };
 
-    // スペルカード（RefrainHTML Danmaku v3 FINAL ミナ＝全ステージの弾形・色を濁らせて融合）。
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
-        ("レイの渦＋あかりの雨", BulletShape.Diamond, new Color("b07cd0")), // 濁紫
-        ("こはるの怒り＋レイの星", BulletShape.Star,  new Color("e0648c")), // 濁桃
-        ("あかりの落下＋こはるの扇", BulletShape.Rice, new Color("9a8cd0")), // 濁藍
+        ("届かなかった言葉",     BulletShape.Diamond, new Color("b07cd0")),
+        ("見ていてほしかった",   BulletShape.Star,    new Color("e0648c")),
+        ("ちゃんとしなければ",   BulletShape.Rice,    new Color("9a8cd0")),
         ("心象の核",             BulletShape.Ring,    new Color("f0d98a")), // 濁金
         ("世界中の悲鳴",         BulletShape.Orb,     new Color("e0729c")), // 濁桃・全部同時
     };
@@ -63,9 +64,24 @@ public partial class BossMina : Enemy
     {
         var s = Spells[_pattern % Spells.Length];
         _mover.SetNextAttack(StanceOf(_pattern));
-        SetSpellVisual(s.shape, s.tint);
+        _artIndex = 0;
+        SetMemoryVisual(_pattern);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("ミナ", "@mina_ai_", s.name, s.tint);
+    }
+
+    private void SetMemoryVisual(int pattern)
+    {
+        _visualPattern = pattern;
+        var spell = Spells[pattern];
+        SetSpellVisual(spell.shape, spell.tint);
+    }
+
+    private void FireMemoryBullet(BulletPool pool, Vector2 pos, Vector2 velocity, float radius)
+    {
+        var bullet = FireBullet(pool, pos, velocity, radius);
+        var art = _spellArt[_visualPattern];
+        bullet.SetSprite(art[_artIndex++ % art.Length], 28f);
     }
 
     // F3 邂逅（HP0。仮台本 wiki/08_仮台本/08。ユーザー承認済み・2026-09-05）。who: 1=ミナ / 2=レイ。
@@ -135,6 +151,14 @@ public partial class BossMina : Enemy
         _mover.Configure("mina", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        _spellArt = new Texture2D?[][]
+        {
+            new[] { BulletArt.AkariEnvelope, BulletArt.Get("enemy_rei_anonymous") },
+            new[] { BulletArt.KoharuAcrylic, BulletArt.Get("enemy_rei_metrics") },
+            new[] { BulletArt.AkariDocs, BulletArt.KoharuTicket },
+            new[] { GD.Load<Texture2D>("res://char/player/mina/mina_core_v1.png") },
+            new[] { BulletArt.AkariEnvelope, BulletArt.KoharuPenlight, BulletArt.Get("enemy_rei_anonymous") },
+        };
         ApplySpell();
 
         _caster = new AreaSpellCaster();
@@ -178,12 +202,11 @@ public partial class BossMina : Enemy
         }
     }
 
-    // フィナーレ（HP2割以下）：「心象の核」(濁金リング)＋「世界中の悲鳴」(濁桃の星螺旋)を同時展開＝全部同時。
     private void FireFinale(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; SetSpellVisual(Spells[4].shape, Spells[4].tint); Ring(pool, Dn(18), 70f); }
-        if (_fireT2 >= Di(0.08)) { _fireT2 = 0; SetSpellVisual(Spells[1].shape, Spells[1].tint); Spiral(pool); }
+        if (_fireT >= Di(0.95)) { _fireT = 0; SetMemoryVisual(4); Ring(pool, Dn(18), 70f); }
+        if (_fireT2 >= Di(0.08)) { _fireT2 = 0; SetMemoryVisual(3); Spiral(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
@@ -195,7 +218,7 @@ public partial class BossMina : Enemy
         for (int i = 0; i < k; i++)
         {
             float a = _ringOff + Mathf.Tau * i / k;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
+            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, 3.0f);
         }
     }
 
@@ -206,7 +229,7 @@ public partial class BossMina : Enemy
         for (int i = -_aimedWing; i <= _aimedWing; i++)
         {
             float a = baseA + i * Mathf.DegToRad(11f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
+            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _aimedSpeed, 4.0f);
         }
     }
 
@@ -216,8 +239,8 @@ public partial class BossMina : Enemy
         for (int i = 0; i < petals; i++)
         {
             float a = _ringOff + Mathf.Tau * i / petals;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 4.0f);
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 100f, 2.6f);
+            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 64f, 4.0f);
+            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 100f, 2.6f);
         }
     }
 
@@ -227,7 +250,7 @@ public partial class BossMina : Enemy
         for (int s = 0; s < 3; s++)
         {
             float a = _ringOff + Mathf.Tau * s / 3f;
-            FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
+            FireMemoryBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _spiralSpeed, 2.6f);
         }
     }
 

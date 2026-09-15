@@ -126,11 +126,10 @@ public partial class FxLayer : Node2D
         }
     }
 
-    // モード別マズル：弾本体は触らず、発砲の“手元”だけでモード（連射/拡散/ホーミング/加速球）を描き分ける。
-    //   色は水色ロック（§2）の範囲。
-    //   全て加算プール（Add=true→ZIndex21）＝弾レイヤー(Z0)には何も足さない＝ヒエラルキー維持。
-    public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays)
+    public void Muzzle(Vector2 pos, GameManager.ShotMode mode, int spreadWays, Vector2 direction)
     {
+        Color shotColor = BulletArt.PlayerColor(GameManager.Instance!.SelectedJob);
+        float baseAngle = direction.Angle();
         // 共通の芯グロー（連射ベース）。
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 5, Ttl = 0.10f, Col = White, Add = true, Grow = 0.4f });
 
@@ -139,27 +138,27 @@ public partial class FxLayer : Node2D
             case GameManager.ShotMode.Spread:
             {
                 // 拡散：リングを一回り大きく開き、各way角へ粒を散らして「広がる」を予感させる。
-                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 9, Ttl = 0.10f, Col = Cyan, W = 1.4f, A0 = 0.95f, Add = true });
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 9, Ttl = 0.10f, Col = shotColor, W = 1.4f, A0 = 0.95f, Add = true });
                 int n = Mathf.Clamp(spreadWays, 3, 9);
                 for (int i = 0; i < n; i++)
                 {
                     float t = n == 1 ? 0f : (float)i / (n - 1) - 0.5f;
-                    float a = t * Mathf.DegToRad(70f), sp = R(90, 150);
-                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.16f), Col = Cyan, Drag = 6, Add = true });
+                    float a = baseAngle + t * Mathf.DegToRad(70f), sp = R(90, 150);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.16f), Col = shotColor, Drag = 6, Add = true });
                 }
                 break;
             }
             case GameManager.ShotMode.Homing:
             {
-                // ホーミング：中心グローを淡ピンク（Sig2）に＝「追って届ける」優しさ。接線方向の粒で「曲がる弾」を予告。
-                Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 6, Ttl = 0.11f, Col = Sig2, Add = true, Grow = 0.6f });
-                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 7, Ttl = 0.10f, Col = Sig2, W = 1.3f, A0 = 0.9f, Add = true });
+                // 接線方向の粒で、曲がって届く光を表す。
+                Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 6, Ttl = 0.11f, Col = shotColor, Add = true, Grow = 0.6f });
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 7, Ttl = 0.10f, Col = shotColor, W = 1.3f, A0 = 0.9f, Add = true });
                 for (int i = 0; i < 3; i++)
                 {
                     float a = R(0f, Mathf.Tau), sp = R(50, 100);
                     // 接線方向（周回感）＝直進でなく“曲がって届く”気配。
                     var tan = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * sp;
-                    Add0(new P { Type = T.Spark, X = pos.X + Mathf.Cos(a) * 3f, Y = pos.Y + Mathf.Sin(a) * 3f, Vx = tan.X, Vy = tan.Y, Size = 3.5f, W = 1, Ttl = R(0.10f, 0.18f), Col = Sig2, Drag = 5, Add = true });
+                    Add0(new P { Type = T.Spark, X = pos.X + Mathf.Cos(a) * 3f, Y = pos.Y + Mathf.Sin(a) * 3f, Vx = tan.X, Vy = tan.Y, Size = 3.5f, W = 1, Ttl = R(0.10f, 0.18f), Col = shotColor, Drag = 5, Add = true });
                 }
                 break;
             }
@@ -167,22 +166,22 @@ public partial class FxLayer : Node2D
             {
                 // 加速球：タメて撃つロケット弾。連射よりリングを一回り大きく・厚く・長めに開いて「力を溜めて放つ」重さを出す。
                 // 粒は連射より少なく・大きく・遅く（Drag弱め）で、飛び出すというより押し出されるような尾を引かせる。
-                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 10, Ttl = 0.14f, Col = Cyan, W = 2.0f, A0 = 0.95f, Add = true });
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 10, Ttl = 0.14f, Col = shotColor, W = 2.0f, A0 = 0.95f, Add = true });
                 for (int i = 0; i < 3; i++)
                 {
-                    float a = R(-0.15f, 0.15f), sp = R(40, 90);
-                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 5.5f, W = 1.4f, Ttl = R(0.14f, 0.22f), Col = Cyan, Drag = 3, Add = true });
+                    float a = baseAngle + R(-0.15f, 0.15f), sp = R(40, 90);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 5.5f, W = 1.4f, Ttl = R(0.14f, 0.22f), Col = shotColor, Drag = 3, Add = true });
                 }
                 break;
             }
             default: // Rapid（連射）
             {
                 // 連射：リングを ease-out で開き、前方Sparkを銃口方向±0.25radに絞って「射線」を出す。
-                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 6, Ttl = 0.08f, Col = Cyan, W = 1.6f, A0 = 0.95f, Add = true });
+                Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 1, R1 = 6, Ttl = 0.08f, Col = shotColor, W = 1.6f, A0 = 0.95f, Add = true });
                 for (int i = 0; i < 2; i++)
                 {
-                    float a = R(-0.25f, 0.25f), sp = R(90, 150);
-                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.14f), Col = Cyan, Drag = 6, Add = true });
+                    float a = baseAngle + R(-0.25f, 0.25f), sp = R(90, 150);
+                    Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = 4, W = 1, Ttl = R(0.08f, 0.14f), Col = shotColor, Drag = 6, Add = true });
                 }
                 break;
             }

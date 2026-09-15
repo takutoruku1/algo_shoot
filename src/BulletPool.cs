@@ -53,6 +53,8 @@ public partial class BulletPool : Node2D
         }
 
         b.Activate(pos, vel, isEnemy, radius, damage, shape, tint, homing, backwardHoming);
+        // 会話開始と同フレームの遅延発射も、表示・衝突させずに返す。
+        if (Hud.BubblePaused) Despawn(b);
         return b;
     }
 

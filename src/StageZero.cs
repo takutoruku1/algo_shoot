@@ -93,6 +93,8 @@ public partial class StageZero : Node
             "tutorial", CompanionDialogue.Beat.Intro, Tut0Intro);
         // 浄化カプセルが進まないよう目標は大きめに（チュートリアルでクリア扱いにしない）。
         GetNodeOrNull<GameManager>("/root/Game")?.SetStageTarget(99);
+        _zHeld = Pad.AdvanceHeld();
+        TutTalk(_playerIntro);
     }
 
     public override void _Process(double delta)
