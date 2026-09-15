@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 232 / 対象 232 タスク<br>保留 33 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 233 / 対象 234 タスク<br>保留 34 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">232</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">233</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">33</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">34</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame)</span>
+          
+        </div>
+        <p class="accept">2026-09-15監査(scenario)。<code>src/BossAkari.cs:139</code>の<code>GetHud()?.ShowBossBar(&quot;あふれるわたし&quot;,&quot;@akari.&quot;)</code>に対し、同ファイル<code>:56,189,305</code>の<code>GetHud()?.AnnounceSpell(&quot;あかり&quot;,&quot;@akari_ame&quot;,...)</code>は同じ戦闘内で<code>&quot;@akari_ame&quot;</code>を使い、同一ボス・同一ファイル内でハンドルが2種類混在している。承認済み仮台本<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247</code>は「ボスバー『あふれるわたし』『@akari_ame』(技を宣言するときのハンドル)」と明記しボスバー自体のハンドルを<code>@akari_ame</code>と指定。他2ボスは内部・仮台本とも一致済み(<code>src/BossKoharu.cs:193</code>と<code>:108/489/499/508</code>は共に<code>&quot;@koharu_light&quot;</code>、<code>src/BossRei.cs:183</code>と<code>:87/372</code>は共に<code>&quot;@hoshiai_rei_live&quot;</code>)。2026-09-11のDONEタスク(Hub.csのハンドル末尾ピリオド統一)が<code>BossAkari.cs:139</code>の値自体が仮台本06:247と食い違っている点を検証せず、誤った値を基準に他ファイルを揃えてしまっていた。受入条件: <code>src/BossAkari.cs:139</code>のハンドルを<code>&quot;@akari_ame&quot;</code>に修正する。<code>GameManager.cs:200</code>/<code>StageAkari.cs:504</code>/<code>Hub.cs:1309-1310</code>(メイン<code>@akari.</code>文脈、<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17</code>「メイン @akari.、技を宣言するときだけ @akari_ame」に整合)は変更しない。台詞本文は変更せず識別子1箇所のみの修正(機械的修正のため承認ゲート対象外)。<code>dotnet build algo_shoot.sln</code> 0 Warning/0 Errorを確認すること。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ボス無防備窓(EXPOSED)で密着連打するとダメージ数字が積み上がりボス本体・危険弾の視認性を悪化させる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-15) 2026-09-15監査(game-designer)発見。判定側(<code>Enemy.cs</code>の<code>BodyHitCd=0.05</code>・ダメージ量計算)は一切変更せず、<code>src/fx/FxLayer.cs:287-320</code>の<code>DamageNumber(pos,text,col,size)</code>に加算合成ロジックを追加：直近0.15s以内・10px以内に湧いた「素のダメージ数字」パーティクルがあれば新規パーティクルを積まずその数字に加算合成する（<code>IsPlainDmg</code>ヘルパーで純粋な数値+任意の末尾<code>!</code>のみを対象にし、<code>&quot;BREAK!&quot;</code>/<code>&quot;MAX&quot;</code>等の固定テキストは対象外＝従来通り）。合成時は密着クリットが混ざれば金色にアップグレードし残TTLも少し延ばして「積み上がっている」ことを読ませる。密着連打の本体ヒット数字(<code>Enemy.cs:579,581</code>)のみが対象。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・Life/Ttlのエイジング方向を確認済み）。実機での視覚確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2275,24 +2291,32 @@
           <span class="worker">scenario</span>
         </div>
         <p class="accept">2026-09-14監査(scenario)。<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:3</code>・<code>07_粗い台本_案C_2_こはるとレイ.md:3,443</code>(フッターも「実装とは一致しない」)・<code>08_粗い台本_案C_3_FINALと結末.md:3,211</code>・<code>12_キャラ設定シートv2_社会人版.md:3</code>(「ゲーム本体のコード・データ・画像は一切変更していない」)はいずれも旧文言のまま。一方<code>15_組み込み計画.md:3</code>は「承認済み仮台本（05・06〜08・12、ユーザー承認2026-09-05）」と明言し、実装側<code>src/BossRei.cs:6</code>・<code>src/BossAkari.cs:64</code>等も「台詞の正典…ユーザー承認済み・2026-09-05」と明記、実セリフも一字一句一致済み。既存BLOCKED（直上「正典ポインタ陳腐化」）と同種の「正典注記の更新」だが対象ファイルが異なり重複ではない。将来の監査がこのバナーを鵜呑みにし運用ルール8（未承認は台詞変更BLOCKED送り）の判断を誤らせるリスクがある。要ユーザー判断: (a)05/06/07/08/12の冒頭バナー・07:443/08:211のフッターを「ユーザー承認済み（2026-09-05）。15_組み込み計画.mdに準拠し実装済み」等へ更新する、(b)12ファイル末尾<code>:199</code>の未解決の判断点（FINALでこはるの返礼をどこへ向けるか）は現状実装（ミナへの「知らない人じゃ、なかったよ」）で確定している旨を追記する、のいずれか（または両方）を指定してほしい。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">レイのHub SNSカードのツイート文が案C以前の「一位前提」設定のまま残っている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-15監査(scenario)。<code>src/GameManager.cs:202</code>の<code>Tweet = &quot;だれも、わたしには追いつけない。……それの、なにが、いけないの。&quot;</code>は<code>:197</code>のコメントが明記する通り案C以前の旧正典(<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>)由来。<code>src/Hub.cs:766</code>でHub画面のSNSカードに毎回表示されるメイン導線。一方<code>src/StageRei.cs</code>は2026-09-06のDONEタスクで同じ「だれも、わたしには追いつけない」を含む旧11行を仮台本07の新6行へ置換済みで、現在<code>StageRei.cs</code>内にこの台詞は0件(grep確認)——<code>GameManager.cs</code>のHubカードTweetだけ置換から漏れている。案Cの人物設定(<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:102</code>)はレイを「登録者二千で一年止まり、同接と再生は右肩下がり」と再定義しており「だれも追いつけない」という一位前提の煽り文とは正反対。仮台本09(<code>wiki/08_仮台本/09_投稿文集_X風.md:436</code>)も同箇所の置換を指摘済みだが同文書自身が「未採用の検討用草稿」と自己申告しているため採用不可。要ユーザー判断: (a)案Cのレイ像(伸び悩み・登録者減)に沿った新規ツイート文を書き起こして承認し差し替える、(b)現状のまま据え置く。新規文言の創作を伴うため台詞承認ゲート対象。承認後の受入条件: 承認された文言を<code>src/GameManager.cs:202</code>の<code>Tweet</code>フィールドへ反映し、レイの「登録者伸び悩み・同接低下」設定と矛盾しないこと。</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">7976a43</span><span>2026-09-15</span><span class="s">auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する</span></li>
+      <li><span class="h">1b16370</span><span>2026-09-15</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
+      <li><span class="h">1462b48</span><span>2026-09-14</span><span class="s">auto: sakurai design-map.mdの実装値ズレを是正</span></li>
       <li><span class="h">17af48b</span><span>2026-09-14</span><span class="s">auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する</span></li>
       <li><span class="h">b09ebd5</span><span>2026-09-14</span><span class="s">auto: LUNATIC解禁UIのshot_power_4残存表記を修正</span></li>
       <li><span class="h">0a20987</span><span>2026-09-14</span><span class="s">auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する</span></li>
       <li><span class="h">ff1c1f9</span><span>2026-09-14</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">df56713</span><span>2026-09-13</span><span class="s">auto: Lunatic解禁の威力Lv4ルートを威力Lv3へ是正</span></li>
-      <li><span class="h">a20eae4</span><span>2026-09-13</span><span class="s">auto: WIP着手 - Lunatic解禁の威力Lv4ルートを是正する</span></li>
-      <li><span class="h">1ee77cd</span><span>2026-09-13</span><span class="s">auto: 監査で TODO 1件・BLOCKED 3件をキューに追加</span></li>
-      <li><span class="h">76ad327</span><span>2026-09-12</span><span class="s">auto: Hud.csのティッカー語彙コメントの数値表記を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-14 18:29 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-15 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

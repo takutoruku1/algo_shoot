@@ -284,9 +284,44 @@ public partial class FxLayer : Node2D
     }
 
     // size 付き：密着クリティカルなど「一回り大きく」見せたい数字向け（既定9は通常被弾）。
+    //
+    // 密着連打対策（#無防備窓の視認性）：判定側(BodyHitCd=0.05=最大20発/秒)は不変のまま、
+    // 表示側だけ独立して間引く。直近 MergeWindow 秒以内・MergeRadius px 以内に沸いたばかりの
+    // 「素のダメージ数字」があれば新規パーティクルを積まず、その数字へ加算合成する。
+    // "BREAK!"/"MAX"/"+1000" などの固定テキストは数値表記ではないため対象外＝挙動は変えない。
     public void DamageNumber(Vector2 pos, string text, Color col, float size)
     {
+        const float MergeRadius = 10f;
+        const float MergeWindow = 0.15f;
+        if (IsPlainDmg(text, out int addVal, out bool addCrit))
+        {
+            for (int i = _p.Count - 1; i >= 0; i--)
+            {
+                var q = _p[i];
+                if (q.Type != T.Dmg || q.Life >= MergeWindow) continue;
+                if (!IsPlainDmg(q.Text, out int prevVal, out bool prevCrit)) continue;
+                if (new Vector2(q.X, q.Y).DistanceSquaredTo(pos) > MergeRadius * MergeRadius) continue;
+
+                bool crit = prevCrit || addCrit;
+                int sum = prevVal + addVal;
+                q.Text = crit ? sum + "!" : sum.ToString();
+                q.Col = crit ? Gold : col;
+                q.Size = Mathf.Max(q.Size, size);
+                q.Life = Mathf.Max(0f, q.Life - 0.05f); // 少し伸ばして「積み上がっている」を読ませる
+                return;
+            }
+        }
         Add0(new P { Type = T.Dmg, X = pos.X, Y = pos.Y, Vy = -26, Drag = 1.5f, Size = size, Ttl = 0.7f, Text = text, Col = col });
+    }
+
+    // "12" / "12!" のような素のダメージ数字表記か判定し、数値と密着クリット有無を取り出す。
+    private static bool IsPlainDmg(string s, out int val, out bool crit)
+    {
+        val = 0; crit = false;
+        if (string.IsNullOrEmpty(s)) return false;
+        crit = s.EndsWith("!");
+        string digits = crit ? s.Substring(0, s.Length - 1) : s;
+        return int.TryParse(digits, out val);
     }
 
     // ボム：魔法陣 + 光の波（弾→花びら変換と画面効果は Player.TryBomb 側）
