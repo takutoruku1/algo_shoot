@@ -32,6 +32,11 @@ public partial class MidEnemy : Enemy
     private double _burstT;     // バースト内の小間隔タイマー
     private Vector2 _burstDir;  // バースト方向（予告で固定した自機方向）
     private double _telegraphT;  // 予告中の残り秒（>0 で予告表示中＝まだ撃たない）
+    private Vector2 _characterOrigin;
+    private int _characterAttackIndex;
+    private int _salvoRemaining;
+    private int _salvoIndex;
+    private double _salvoT;
 
     // 進入が遅すぎると居座る前に浄化されて「撃たずに去る」ので、進入だけ最低速度を保証する
     // （居座り後の上下うねり＝種の性格は据え置き）。居座った瞬間に初弾を素早く撃つ＝設置→即攻撃。
@@ -75,6 +80,15 @@ public partial class MidEnemy : Enemy
         AttackPattern.KoharuSimmer => 3.0,
         AttackPattern.DefaultAim   => 1.9,
         AttackPattern.FlankAim     => 2.4,  // 既存の撃つ種（1.6〜2.2）よりやや遅め＝背後からの圧は緩く
+        AttackPattern.AkariDeadline => 3.2,
+        AttackPattern.AkariUnsent => 3.4,
+        AttackPattern.AkariVacant => 4.4,
+        AttackPattern.KoharuComparison => 3.0,
+        AttackPattern.KoharuCheer => 3.8,
+        AttackPattern.KoharuParcel => 4.6,
+        AttackPattern.ReiAnonymous => 3.1,
+        AttackPattern.ReiClipper => 3.8,
+        AttackPattern.ReiMetrics => 4.2,
         // BuzzWall / KoharuPrayerCarry は撃たない（盾専念/運び専念）＝既定 999 に落とす。
         _ => 999.0,
     };
@@ -191,6 +205,24 @@ public partial class MidEnemy : Enemy
                 SetSpellVisual(BulletShape.Orb, EnemyKegare); break; // 既定穢れ色（スキン流用種＝弾も見慣れた形で読める）
             case AttackPattern.KoharuPrayerCarry:
                 SetSpellVisual(BulletShape.Orb, new Color(0.98f, 0.82f, 0.55f)); break; // ぶら下げる祈り弾＝暖色（消せる合図のハロと同系）
+            case AttackPattern.AkariDeadline:
+                SetSpellVisual(BulletShape.Orb, new Color("ef8095"), BulletArt.Get("enemy_akari_deadline"), 24f); break;
+            case AttackPattern.AkariUnsent:
+                SetSpellVisual(BulletShape.Rice, new Color("f2b7c8"), BulletArt.Get("enemy_akari_unsent"), -18f); break;
+            case AttackPattern.AkariVacant:
+                SetSpellVisual(BulletShape.Diamond, new Color("a6d9ee"), BulletArt.Get("enemy_akari_vacant"), 12f); break;
+            case AttackPattern.KoharuComparison:
+                SetSpellVisual(BulletShape.Rice, new Color("f29baf"), BulletArt.Get("enemy_koharu_comparison"), -28f); break;
+            case AttackPattern.KoharuCheer:
+                SetSpellVisual(BulletShape.Star, new Color("d1b3f5"), BulletArt.Get("enemy_koharu_cheer"), 32f); break;
+            case AttackPattern.KoharuParcel:
+                SetSpellVisual(BulletShape.Diamond, new Color("efcbb2"), BulletArt.Get("enemy_koharu_parcel"), 15f); break;
+            case AttackPattern.ReiAnonymous:
+                SetSpellVisual(BulletShape.Diamond, new Color("f2a2b9"), BulletArt.Get("enemy_rei_anonymous"), -12f); break;
+            case AttackPattern.ReiClipper:
+                SetSpellVisual(BulletShape.Rice, new Color("d3c2f3"), BulletArt.Get("enemy_rei_clipper"), 38f); break;
+            case AttackPattern.ReiMetrics:
+                SetSpellVisual(BulletShape.Diamond, new Color("f2d480"), BulletArt.Get("enemy_rei_metrics"), 0f); break;
         }
     }
     // 既定の穢れ色（Bullet.EnemyMid #e072ac 相当）。Orb 種はこれで撒く。
@@ -286,6 +318,13 @@ public partial class MidEnemy : Enemy
             return;
         }
 
+        if (_salvoRemaining > 0)
+        {
+            _salvoT -= delta;
+            if (_salvoT <= 0) FireCharacterSalvo();
+            return;
+        }
+
         // ロックオン連射のバースト消化中（予告後の3連）。
         if (_burstLeft > 0)
         {
@@ -312,6 +351,16 @@ public partial class MidEnemy : Enemy
             case AttackPattern.KoharuSimmer:  FireSimmer();      break;
             case AttackPattern.DefaultAim:    FireDefaultAim();  break;
             case AttackPattern.FlankAim:      FireFlank();       break;
+            case AttackPattern.AkariDeadline:
+            case AttackPattern.AkariUnsent:
+            case AttackPattern.AkariVacant:
+            case AttackPattern.KoharuComparison:
+            case AttackPattern.KoharuCheer:
+            case AttackPattern.KoharuParcel:
+            case AttackPattern.ReiAnonymous:
+            case AttackPattern.ReiClipper:
+            case AttackPattern.ReiMetrics:
+                BeginCharacterAttack(); break;
         }
     }
 
@@ -361,12 +410,127 @@ public partial class MidEnemy : Enemy
     }
     private void FireAfterTelegraph()
     {
-        // ReiLockBurst のビームは AreaStrike が自前で予兆→着弾するため、ここでは何もしない。
-        // KoharuSharp3 のみ MidEnemy 側の短予告を消費して本射する。
         if (_spec.Pattern == AttackPattern.KoharuSharp3)
         {
             FireSharp3();
         }
+        else if (_salvoRemaining > 0) FireCharacterSalvo();
+    }
+
+    private void BeginCharacterAttack()
+    {
+        _characterOrigin = GlobalPosition;
+        if (_spec.Pattern is AttackPattern.KoharuParcel or AttackPattern.ReiClipper)
+            _characterOrigin.Y = Mathf.Clamp(_characterOrigin.Y, Field.Top + 40f, Field.Bottom - 40f);
+        _burstDir = AimDir();
+        _salvoIndex = 0;
+        _salvoRemaining = _spec.Pattern switch
+        {
+            AttackPattern.AkariUnsent or AttackPattern.KoharuCheer => 2,
+            AttackPattern.KoharuParcel or AttackPattern.ReiAnonymous => 3,
+            _ => 1,
+        };
+        _telegraphT = Mathf.Max(0.45, Di(0.6));
+        SquishBody();
+        FxLayer.Instance?.AimFlash(_characterOrigin, CurTint);
+        foreach (var origin in CharacterShotOrigins())
+            if (origin != _characterOrigin) FxLayer.Instance?.AimFlash(origin, CurTint);
+    }
+
+    private System.Collections.Generic.IEnumerable<Vector2> CharacterShotOrigins()
+    {
+        switch (_spec.Pattern)
+        {
+            case AttackPattern.AkariVacant:
+                int slots = Mathf.Max(3, Dn(5));
+                int gap = 1 + _characterAttackIndex % (slots - 2);
+                float spacing = Mathf.Max(16f, 96f / (slots - 1));
+                float halfSpan = spacing * (slots - 1) * 0.5f;
+                float center = Mathf.Clamp(_characterOrigin.Y, Field.Top + halfSpan + 12f, Field.Bottom - halfSpan - 12f);
+                for (int i = 0; i < slots; i++)
+                    if (i != gap)
+                        yield return new Vector2(_characterOrigin.X, center + (i - (slots - 1) * 0.5f) * spacing);
+                break;
+            case AttackPattern.ReiClipper:
+                yield return _characterOrigin + new Vector2(0, -24);
+                yield return _characterOrigin + new Vector2(0, 24);
+                break;
+            case AttackPattern.ReiMetrics:
+                int count = Mathf.Max(2, Dn(4));
+                float x = Mathf.Clamp(_characterOrigin.X, Field.Left + 52f, Field.Right - 52f);
+                for (int i = 0; i < count; i++)
+                    yield return new Vector2(x + Mathf.Lerp(-40f, 40f, i / (float)(count - 1)),
+                        Mathf.Max(Field.Top + 16f, _characterOrigin.Y - 24f));
+                break;
+            default:
+                yield return _characterOrigin;
+                break;
+        }
+    }
+
+    private void CharacterFan(BulletPool pool, Vector2 origin, Vector2 dir, int count,
+        float spread, float speed, float radius = 3.8f, bool accelerate = false)
+    {
+        int n = Mathf.Max(1, Dn(count));
+        for (int i = 0; i < n; i++)
+        {
+            float angle = n == 1 ? 0 : Mathf.Lerp(-spread, spread, i / (float)(n - 1));
+            var bullet = FireBullet(pool, origin, Rotate(dir, angle) * speed, radius);
+            if (accelerate)
+            {
+                // MakeAccel replaces velocity, so preserve the pool's difficulty speed multiplier.
+                float mul = bullet.Velocity.Length() / speed;
+                bullet.MakeAccel(10f * mul, speed * mul, (float)Di(0.55));
+            }
+        }
+    }
+
+    private void FireCharacterSalvo()
+    {
+        var pool = GetNode<BulletPool>("/root/Pool");
+        switch (_spec.Pattern)
+        {
+            case AttackPattern.AkariDeadline:
+                CharacterFan(pool, _characterOrigin, _burstDir, 3, 14f, 116f, accelerate: true);
+                break;
+            case AttackPattern.AkariUnsent:
+                CharacterFan(pool, _characterOrigin, Rotate(_burstDir, _salvoIndex == 0 ? -16f : 16f), 2, 7f, 64f);
+                break;
+            case AttackPattern.AkariVacant:
+                foreach (var origin in CharacterShotOrigins())
+                    FireBullet(pool, origin, Vector2.Left * 52f, 3.8f);
+                break;
+            case AttackPattern.KoharuComparison:
+                CharacterFan(pool, _characterOrigin, Rotate(Vector2.Left, _characterAttackIndex % 2 == 0 ? -22f : 22f), 3, 16f, 84f);
+                break;
+            case AttackPattern.KoharuCheer:
+                CharacterFan(pool, _characterOrigin, _burstDir, 3, _salvoIndex == 0 ? 10f : 34f, 72f);
+                break;
+            case AttackPattern.KoharuParcel:
+                int parcels = Mathf.Max(1, Dn(2));
+                for (int i = 0; i < parcels; i++)
+                    FireBullet(pool, _characterOrigin + new Vector2(0, (i - (parcels - 1) * 0.5f) * 22f + (_salvoIndex % 2) * 10f),
+                        Vector2.Left * 38f, 4f);
+                break;
+            case AttackPattern.ReiAnonymous:
+                CharacterFan(pool, _characterOrigin, _burstDir, 1, 5f, 100f, 3.6f);
+                break;
+            case AttackPattern.ReiClipper:
+                foreach (var origin in CharacterShotOrigins())
+                    CharacterFan(pool, origin, Rotate(Vector2.Left, origin.Y < _characterOrigin.Y ? -24f : 24f), 2, 4f, 85f);
+                break;
+            case AttackPattern.ReiMetrics:
+                foreach (var origin in CharacterShotOrigins())
+                {
+                    var bullet = FireBullet(pool, origin, Rotate(new Vector2(-0.3f, 1).Normalized(), _characterAttackIndex % 2 == 0 ? -12f : 12f) * 55f, 3.8f);
+                    bullet.Rotation = 0f;
+                }
+                break;
+        }
+        _salvoIndex++;
+        _salvoRemaining--;
+        _salvoT = Di(_spec.Pattern == AttackPattern.ReiAnonymous ? 0.18 : _spec.Pattern == AttackPattern.AkariUnsent ? 0.48 : 0.32);
+        if (_salvoRemaining == 0) _characterAttackIndex++;
     }
     private void FireBurstShot()
     {

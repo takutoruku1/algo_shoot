@@ -26,6 +26,15 @@ public enum AttackPattern
     FlankAim,        // 回り込み「引用リプ」：右から出現→上下端を走行→自機後方(x≈40)に着座→右向き低速単発（全テーマ共通）
     BuzzWall,        // 盾もち「バズ壁」：撃たない・遅い・硬い（パネル5×インク3）＝DPSチェックの壁（全テーマ・波B/C限定）
     KoharuPrayerCarry, // 祈り運び：消せる祈り弾を3発ぶら下げて横断するボーナス種（こはる面専用・お残し禁止の練習台）
+    AkariDeadline,
+    AkariUnsent,
+    AkariVacant,
+    KoharuComparison,
+    KoharuCheer,
+    KoharuParcel,
+    ReiAnonymous,
+    ReiClipper,
+    ReiMetrics,
 }
 
 // 1種のザコの見た目（pre/post テクスチャ）と挙動パラメータ。
@@ -112,33 +121,34 @@ public static class EnemyTable
                 80, 5f, moveSpeed: 28f, spinSpeed: 1.0f, fires: false, fireInterval: 0f)),
     };
 
-    private static EnemySpec Character(EnemySpec basis, string stage, string id, bool flipH = false)
+    private static EnemySpec Character(EnemySpec basis, string stage, string id, bool flipH = false,
+        AttackPattern? pattern = null)
     {
         string path = $"res://char/v3/enemies/{stage}/enemy_{id}_pre.png";
         return new EnemySpec(path, path, basis.Points, basis.BodyRadius, basis.MoveSpeed,
-            basis.SpinSpeed, basis.Fires, basis.FireInterval, basis.SwayAmp, basis.SwayFreq,
-            basis.Pattern, humanoid: true, flipH: flipH);
+            basis.SpinSpeed, pattern.HasValue || basis.Fires, basis.FireInterval, basis.SwayAmp, basis.SwayFreq,
+            pattern ?? basis.Pattern, humanoid: true, flipH: flipH);
     }
 
     private static readonly EnemySpec[] AkariCharacters =
     {
-        Character(For(StageTheme.Akari).shooter, "akari", "deadline"),
-        Character(For(StageTheme.Akari).drifter, "akari", "unsent"),
-        Character(For(StageTheme.Akari).drifter, "akari", "vacant"),
+        Character(For(StageTheme.Akari).shooter, "akari", "deadline", pattern: AttackPattern.AkariDeadline),
+        Character(For(StageTheme.Akari).drifter, "akari", "unsent", pattern: AttackPattern.AkariUnsent),
+        Character(For(StageTheme.Akari).drifter, "akari", "vacant", pattern: AttackPattern.AkariVacant),
     };
 
     private static readonly EnemySpec[] KoharuCharacters =
     {
-        Character(For(StageTheme.Koharu).shooter, "koharu", "comparison"),
-        Character(For(StageTheme.Koharu).shooter, "koharu", "cheer"),
-        Character(For(StageTheme.Koharu).drifter, "koharu", "parcel"),
+        Character(For(StageTheme.Koharu).shooter, "koharu", "comparison", pattern: AttackPattern.KoharuComparison),
+        Character(For(StageTheme.Koharu).shooter, "koharu", "cheer", pattern: AttackPattern.KoharuCheer),
+        Character(For(StageTheme.Koharu).drifter, "koharu", "parcel", pattern: AttackPattern.KoharuParcel),
     };
 
     private static readonly EnemySpec[] ReiCharacters =
     {
-        Character(For(StageTheme.Rei).shooter, "rei", "anonymous", flipH: true),
-        Character(For(StageTheme.Rei).shooter, "rei", "clipper"),
-        Character(For(StageTheme.Rei).drifter, "rei", "metrics"),
+        Character(For(StageTheme.Rei).shooter, "rei", "anonymous", flipH: true, pattern: AttackPattern.ReiAnonymous),
+        Character(For(StageTheme.Rei).shooter, "rei", "clipper", pattern: AttackPattern.ReiClipper),
+        Character(For(StageTheme.Rei).drifter, "rei", "metrics", pattern: AttackPattern.ReiMetrics),
     };
 
     private static readonly EnemySpec[] MinaCharacters =

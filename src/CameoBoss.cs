@@ -179,7 +179,6 @@ public partial class CameoBoss : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
-        SetSpellVisual(Theme.SpellShape, Theme.SpellTint);
         switch (Theme.Fire)
         {
             case CameoFireTheme.ReiAggressive: FireRei(pool, delta); break;
@@ -193,24 +192,60 @@ public partial class CameoBoss : Enemy
     private void FireRei(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(0.95)) { _fireT = 0; Declare(BossMover.Attack.Aimed); Aimed(pool, 3, 13f, 96f); }
-        if (_fireT2 >= Di(1.2)) { _fireT2 = 0; Declare(BossMover.Attack.Ring); Ring(pool, Dn(12), CameoBulletSpd * 0.85f); }
+        if (_fireT >= Di(0.95))
+        {
+            _fireT = 0;
+            Declare(BossMover.Attack.Aimed);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.Get("enemy_rei_anonymous"), -18f);
+            Aimed(pool, 3, 13f, 96f);
+        }
+        if (_fireT2 >= Di(1.2))
+        {
+            _fireT2 = 0;
+            Declare(BossMover.Attack.Ring);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.Get("enemy_rei_metrics"), 22f);
+            Ring(pool, Dn(12), CameoBulletSpd * 0.85f);
+        }
     }
 
     // あかり：悲嘆の雨（上から降る自責）＝画面幅の帯なので端へ離れて張る／本人周りの弱いリング＝中央。
     private void FireAkari(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.0)) { _fireT = 0; Declare(BossMover.Attack.Wall); RainDown(pool, Dn(7), CameoBulletSpd * 0.9f); }
-        if (_fireT2 >= Di(1.4)) { _fireT2 = 0; Declare(BossMover.Attack.Ring); Ring(pool, Dn(8), CameoBulletSpd * 0.55f); }
+        if (_fireT >= Di(1.0))
+        {
+            _fireT = 0;
+            Declare(BossMover.Attack.Wall);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.AkariDocs, 24f);
+            RainDown(pool, Dn(7), CameoBulletSpd * 0.9f);
+        }
+        if (_fireT2 >= Di(1.4))
+        {
+            _fireT2 = 0;
+            Declare(BossMover.Attack.Ring);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.AkariEnvelope, -18f);
+            Ring(pool, Dn(8), CameoBulletSpd * 0.55f);
+        }
     }
 
     // こはる：落ちる祈り（上から落ちる弾）＝帯なので端へ／足元からの下向きの扇＝自機の側へ寄って落とす。
     private void FireKoharu(BulletPool pool, double delta)
     {
         _fireT += delta; _fireT2 += delta;
-        if (_fireT >= Di(1.1)) { _fireT = 0; Declare(BossMover.Attack.Wall); RainDown(pool, Dn(8), CameoBulletSpd * 0.95f); }
-        if (_fireT2 >= Di(1.5)) { _fireT2 = 0; Declare(BossMover.Attack.Aimed); FanDown(pool, Dn(5), 50f, CameoBulletSpd * 0.7f); }
+        if (_fireT >= Di(1.1))
+        {
+            _fireT = 0;
+            Declare(BossMover.Attack.Wall);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.KoharuPenlight, 16f);
+            RainDown(pool, Dn(8), CameoBulletSpd * 0.95f);
+        }
+        if (_fireT2 >= Di(1.5))
+        {
+            _fireT2 = 0;
+            Declare(BossMover.Attack.Aimed);
+            SetSpellVisual(Theme.SpellShape, Theme.SpellTint, BulletArt.KoharuTicket, -26f);
+            FanDown(pool, Dn(5), 50f, CameoBulletSpd * 0.7f);
+        }
     }
 
     // ── 弾幕プリミティブ ──
