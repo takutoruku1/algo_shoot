@@ -49,9 +49,9 @@
 
 <!-- 2026-09-15 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineer/qaは新規指摘0件 -->
 
-- [ ] (P2) あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame) | scenario→engineer | 2026-09-15監査(scenario)。`src/BossAkari.cs:139`の`GetHud()?.ShowBossBar("あふれるわたし","@akari.")`に対し、同ファイル`:56,189,305`の`GetHud()?.AnnounceSpell("あかり","@akari_ame",...)`は同じ戦闘内で`"@akari_ame"`を使い、同一ボス・同一ファイル内でハンドルが2種類混在している。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247`は「ボスバー『あふれるわたし』『@akari_ame』(技を宣言するときのハンドル)」と明記しボスバー自体のハンドルを`@akari_ame`と指定。他2ボスは内部・仮台本とも一致済み(`src/BossKoharu.cs:193`と`:108/489/499/508`は共に`"@koharu_light"`、`src/BossRei.cs:183`と`:87/372`は共に`"@hoshiai_rei_live"`)。2026-09-11のDONEタスク(Hub.csのハンドル末尾ピリオド統一)が`BossAkari.cs:139`の値自体が仮台本06:247と食い違っている点を検証せず、誤った値を基準に他ファイルを揃えてしまっていた。受入条件: `src/BossAkari.cs:139`のハンドルを`"@akari_ame"`に修正する。`GameManager.cs:200`/`StageAkari.cs:504`/`Hub.cs:1309-1310`(メイン`@akari.`文脈、`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`「メイン @akari.、技を宣言するときだけ @akari_ame」に整合)は変更しない。台詞本文は変更せず識別子1箇所のみの修正(機械的修正のため承認ゲート対象外)。`dotnet build algo_shoot.sln` 0 Warning/0 Errorを確認すること。
-
 ## WIP
+
+- [ ] (P2) あかりのSNSハンドルがボスバー表示とスペル宣言バナーで食い違う(@akari. vs @akari_ame) | scenario→engineer | 2026-09-15監査(scenario)。`src/BossAkari.cs:139`の`GetHud()?.ShowBossBar("あふれるわたし","@akari.")`に対し、同ファイル`:56,189,305`の`GetHud()?.AnnounceSpell("あかり","@akari_ame",...)`は同じ戦闘内で`"@akari_ame"`を使い、同一ボス・同一ファイル内でハンドルが2種類混在している。承認済み仮台本`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:247`は「ボスバー『あふれるわたし』『@akari_ame』(技を宣言するときのハンドル)」と明記しボスバー自体のハンドルを`@akari_ame`と指定。他2ボスは内部・仮台本とも一致済み(`src/BossKoharu.cs:193`と`:108/489/499/508`は共に`"@koharu_light"`、`src/BossRei.cs:183`と`:87/372`は共に`"@hoshiai_rei_live"`)。2026-09-11のDONEタスク(Hub.csのハンドル末尾ピリオド統一)が`BossAkari.cs:139`の値自体が仮台本06:247と食い違っている点を検証せず、誤った値を基準に他ファイルを揃えてしまっていた。受入条件: `src/BossAkari.cs:139`のハンドルを`"@akari_ame"`に修正する。`GameManager.cs:200`/`StageAkari.cs:504`/`Hub.cs:1309-1310`(メイン`@akari.`文脈、`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:17`「メイン @akari.、技を宣言するときだけ @akari_ame」に整合)は変更しない。台詞本文は変更せず識別子1箇所のみの修正(機械的修正のため承認ゲート対象外)。`dotnet build algo_shoot.sln` 0 Warning/0 Errorを確認すること。
 
 ## BLOCKED
 
