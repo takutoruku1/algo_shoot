@@ -8,7 +8,7 @@
 
 > ミナ @mina_ai_ 「——汚染が、限界へ。ミナ自身の内側へダイブする。」 — FINAL
 
-カードを選ぶと難易度選択に入る（見出しは「FINAL ミナ へダイブ」。難易度ごとのミナの一言は各面と同じ）。途中から始める入口はなく、いつでも最初からである。自機はミナの身体ではなく、残った通信路を通る「あなたの光」になる。今回は操作と強化の仕様を変えず、誰を動かしているかの設定と見た目を明確にした。ミナのボス姿だけは黒髪で、通常の銀髪の立ち絵や帰還後の姿は据え置く。
+カードを選ぶと投稿詳細が開くが、潜り方の段は出ず、そのまま潜る。途中から始める入口はなく、いつでも最初からである。自機はミナの身体ではなく、残った通信路を通る「あなたの光」になる。今回は操作と強化の仕様を変えず、誰を動かしているかの設定と見た目を明確にした。ミナのボス姿だけは黒髪で、通常の銀髪の立ち絵や帰還後の姿は据え置く。
 
 ## 登場人物
 
@@ -55,6 +55,10 @@
 **ミナ**「……あなたの光。わたくしを動かさなくても、届いてしまうのですね。」
 
 あなたは無言で潜る。
+
+結び手以外のアカウント（あかり／こはる／レイ）で潜っていた場合、ここからの導入はその子のものに置き換わる——回線に映った同行キャラ自身が、動けなくなったミナのもとへ会いに行く（→ [ジョブ](../05_ゲーム仕様/12_ジョブ.md)）。
+
+ボスの前に、ミナの内側の「残響」が 3 体だけ立ちはだかる（消しゴム・記憶・応答のない電話の姿。→ [敵](../05_ゲーム仕様/05_敵.md)）。3 体すべてを浄化すると、穢れたわたしが現れる。
 
 ### 承 — ボス戦「穢れたわたし」
 
@@ -229,4 +233,4 @@ HP50%で戦闘・弾・範囲攻撃・コンボと経過時間を止め、ミナ
 - [ボス戦](../05_ゲーム仕様/06_ボス戦.md)
 - [音楽と演出](../05_ゲーム仕様/11_音楽と演出.md)
 
-<!-- 出典: src/Hub.cs（FINAL カード・DiffSelect 経由）, src/DiffSelect.cs（FINAL 見出し・入口なし）, src/MinaRoot.cs（素の光・汚染 1.0・Journey の背景巡回）, src/StageMina.cs（ShowEpicBanner "FINAL" 副題「まだ、いますか」・IntroHead・S37Quote・IntroTail・投稿弾 Final テーマ）, src/BossMina.cs（Spells・BreakThanks・RecloseLines・Lines）, src/PostPool.cs（FINAL の言葉弾）, src/Final.cs（Screams＋ScatteredWords・語り／ミナ／あなたの三話者・FirstWord の選択・拒否の受け・CueSilenceLine・CueResolveLine・文字数の軽口・白転→Epilogue）, src/GameManager.cs（FirstScattered・ScatteredWords・ChosenAt "s3_7"・RecordChoice "f4"）, wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（F1〜F4） -->
+<!-- 出典: src/Hub.cs（FINAL カード・DiffSelect 経由）, src/DiffSelect.cs（FINAL 見出し・入口なし）, src/MinaRoot.cs（素の光・汚染 1.0・Journey の背景巡回）, src/StageMina.cs（ShowEpicBanner "FINAL" 副題「まだ、いますか」・IntroHead・S37Quote・IntroTail／同行時は CompanionDialogue.Final に置換・EchoSpawner＝残響3体の浄化→ボス出現・投稿弾 Final テーマ）, src/CompanionDialogue.cs（Final の同行導入）, src/EnemySpec.cs（MinaCharacters＝eraser/memory/unanswered）, src/BossMina.cs（Spells・BreakThanks・RecloseLines・Lines）, src/PostPool.cs（FINAL の言葉弾）, src/Final.cs（Screams＋ScatteredWords・語り／ミナ／あなたの三話者・FirstWord の選択・拒否の受け・CueSilenceLine・CueResolveLine・文字数の軽口・白転→Epilogue）, src/GameManager.cs（FirstScattered・ScatteredWords・ChosenAt "s3_7"・RecordChoice "f4"）, wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md（F1〜F4） -->
