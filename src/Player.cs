@@ -840,11 +840,14 @@ public partial class Player : Area2D
         int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f))) + FocusFireBonus;
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
+        // fired: 実際に弾をスポーンしたか。加速球は同時タメ上限でスキップする場合があり、
+        //        その試行だけマズルフラッシュ/発射音/反動も鳴らさない（他モードは常にtrue扱い）。
+        bool fired = true;
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
         {
             case GameManager.ShotMode.Spread: FireSpread(muzzle, dmg); break;
             case GameManager.ShotMode.Homing: FireHoming(muzzle, dmg); break;
-            case GameManager.ShotMode.Accel:  FireAccel(muzzle, dmg);  break;
+            case GameManager.ShotMode.Accel:  fired = FireAccel(muzzle, dmg); break;
             default:                          FireRapid(muzzle, dmg);  break;
         }
 
@@ -865,10 +868,14 @@ public partial class Player : Area2D
 
         // マズルフラッシュ＋発射音（画と同フレーム）＋体のキックバック（反動）
         // モード別マズル：弾本体は不変のまま、発砲の手元でモード4種（連射/拡散/ホーミング/加速球）を描き分け、全開時はさらに金色オーラを重ねる。
-        FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
-                                 _game?.SpreadWays ?? 5, _overload);
-        Audio.Instance?.PlayShot(_overload);
-        _recoil = 1f;
+        // fired=false（加速球の同時タメ上限）の試行は弾が出ないため、光・音・反動もスキップ＝「音だけ鳴る」フェイク発射を防ぐ。
+        if (fired)
+        {
+            FxLayer.Instance?.Muzzle(muzzle, _game?.SelectedShotMode ?? GameManager.ShotMode.Rapid,
+                                     _game?.SpreadWays ?? 5, _overload);
+            Audio.Instance?.PlayShot(_overload);
+            _recoil = 1f;
+        }
     }
 
     // 連射：射撃方向（_facing）へ直線の高速ストリーム。段数 = 2 + ⌊光の出力Lv/2⌋（最大4段）＝正面集中。
@@ -892,7 +899,9 @@ public partial class Player : Area2D
     //   タメ速度=12px/s（ほぼその場・「タメている」のが分かる程度）。タメ時間/発進速度/威力は加速球系ノードで可変：
     //   タメ 0.8→0.65→0.5s（速填）／発進 640→760px/s（推進強化）／威力 +1/+2（加速威力）。
     //   数値は GameManager のアクセサを毎発射時に読む＝ショップ購入・トレーニングの付け外しで即反映。
-    private void FireAccel(Vector2 muzzle, int dmg)
+    // 戻り値：実際に弾をスポーンしたか。上限到達でスキップした試行は false を返し、
+    // 呼び出し元（Fire）でマズルフラッシュ/発射音/反動をまとめて抑止できるようにする。
+    private bool FireAccel(Vector2 muzzle, int dmg)
     {
         const float charge = 12f;
         float fast = _game?.AccelLaunchSpeed ?? 640f;
@@ -903,7 +912,7 @@ public partial class Player : Area2D
         // 上限（AccelChargeCap）到達中は新規スポーンをスキップ＝タメ中弾の自弾グローが自機前方に積み上がるのを防ぐ。
         _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
         if (_accelCharging.Count >= AccelChargeCap)
-            return;
+            return false;
 
         // 上下2本（連射と同じ正面集中の手触り）。発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
         // 貫く光（pierce）は連射弾専用のショップ表記＝加速球弾には付与しない。
@@ -913,6 +922,7 @@ public partial class Player : Area2D
             b.MakeAccel(charge, fast, delay); // タメ(ほぼ静止)→delay秒後に発進
             _accelCharging.Add(b);
         }
+        return true;
     }
 
     // 拡散：射撃方向（ShotAngle）を基準に扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
