@@ -126,39 +126,47 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 236 / 対象 237 タスク<br>保留 36 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 237 / 対象 238 タスク<br>保留 36 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">236</div><div class="state-l">完了</div></div>
-    <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state done"><div class="state-n">237</div><div class="state-l">完了</div></div>
+    <div class="state wip"><div class="state-n">1</div><div class="state-l">作業中</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">36</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
     <h2>いま作業中</h2>
-    <div id="live-wip"><p class="empty">アイドル — 次の実行を待っています</p></div>
-  </section>
-
-  <section>
-    <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
+    <div id="live-wip"><ol class="tasks">
+      <li class="task is-wip">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない</span>
           <span class="worker">engineer</span>
         </div>
         <p class="accept">2026-09-16監査(game-designer)。<code>src/GameManager.cs:1317-1320</code>の<code>AddDodgeGraze()</code>直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の<code>AddGraze()</code>(<code>:1307-1315</code>)は<code>GainImpression(1)</code>を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: <code>src/GameManager.cs:1318</code>のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。</p>
-      </li></ol>
+      </li></ol></div>
+  </section>
+
+  <section>
+    <h2>キュー（上から消化）</h2>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-16) 2026-09-16監査(game-designer)発見。<code>src/GameManager.cs:1318</code>のコメント「通常グレイズ(Score+10・お金なし)より大きめ」を、<code>AddGraze()</code>(<code>:1307-1315</code>)が<code>GainImpression(1)</code>でインプレも生む実装(DONE 2026-08-13で是正済み)に合わせて「通常グレイズ(Score+10・インプレ+1)より大きめ」に修正。ロジック変更なし、コメントのみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2345,18 +2353,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">7e50c6f</span><span>2026-09-16</span><span class="s">auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する</span></li>
+      <li><span class="h">f8e2703</span><span>2026-09-16</span><span class="s">auto: 加速球のフェイク発射フィードバックを修正</span></li>
       <li><span class="h">eca3a05</span><span>2026-09-16</span><span class="s">auto: WIP着手 - 加速球のフェイク発射フィードバックを修正する</span></li>
       <li><span class="h">160de44</span><span>2026-09-16</span><span class="s">auto: Training.tscnのSIGABRTクラッシュを修正</span></li>
       <li><span class="h">66b8111</span><span>2026-09-16</span><span class="s">auto: WIP着手 - Training.tscnのSIGABRTクラッシュを修正する</span></li>
       <li><span class="h">f30d094</span><span>2026-09-16</span><span class="s">auto: 監査で TODO 3件・BLOCKED 2件をキューに追加</span></li>
       <li><span class="h">41a65ef</span><span>2026-09-15</span><span class="s">auto: あかりのSNSハンドル食い違い(@akari. vs @akari_ame)を修正</span></li>
       <li><span class="h">ee651e2</span><span>2026-09-15</span><span class="s">auto: WIP着手 - あかりのSNSハンドル食い違いを修正する</span></li>
-      <li><span class="h">2a40426</span><span>2026-09-15</span><span class="s">auto: ボス無防備窓のダメージ数字積み上がりによる視認性悪化を修正</span></li>
-      <li><span class="h">7976a43</span><span>2026-09-15</span><span class="s">auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-16 19:57 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-16 20:00 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

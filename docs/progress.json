@@ -1,13 +1,14 @@
 {
-  "generated": "2026-09-16 19:57 UTC",
+  "generated": "2026-09-16 20:00 UTC",
   "counts": {
-    "todo": 1,
-    "wip": 0,
+    "todo": 0,
+    "wip": 1,
     "blocked": 36,
-    "done": 236
+    "done": 237
   },
   "percent": 100,
-  "todo": [
+  "todo": [],
+  "wip": [
     {
       "priority": "P3",
       "title": "GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない",
@@ -15,7 +16,6 @@
       "accept": "2026-09-16監査(game-designer)。`src/GameManager.cs:1317-1320`の`AddDodgeGraze()`直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の`AddGraze()`(`:1307-1315`)は`GainImpression(1)`を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: `src/GameManager.cs:1318`のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。"
     }
   ],
-  "wip": [],
   "blocked": [
     {
       "priority": null,
@@ -235,6 +235,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-16) 2026-09-16監査(game-designer)発見。`src/GameManager.cs:1318`のコメント「通常グレイズ(Score+10・お金なし)より大きめ」を、`AddGraze()`(`:1307-1315`)が`GainImpression(1)`でインプレも生む実装(DONE 2026-08-13で是正済み)に合わせて「通常グレイズ(Score+10・インプレ+1)より大きめ」に修正。ロジック変更なし、コメントのみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P1",
       "title": "加速球モードで同時タメ上限に達した試行でもマズルフラッシュ・発射音・反動が鳴ってしまい「弾が消えた」ように見える",
@@ -1654,6 +1660,16 @@
   ],
   "commits": [
     {
+      "hash": "7e50c6f",
+      "date": "2026-09-16",
+      "subject": "auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する"
+    },
+    {
+      "hash": "f8e2703",
+      "date": "2026-09-16",
+      "subject": "auto: 加速球のフェイク発射フィードバックを修正"
+    },
+    {
       "hash": "eca3a05",
       "date": "2026-09-16",
       "subject": "auto: WIP着手 - 加速球のフェイク発射フィードバックを修正する"
@@ -1682,16 +1698,6 @@
       "hash": "ee651e2",
       "date": "2026-09-15",
       "subject": "auto: WIP着手 - あかりのSNSハンドル食い違いを修正する"
-    },
-    {
-      "hash": "2a40426",
-      "date": "2026-09-15",
-      "subject": "auto: ボス無防備窓のダメージ数字積み上がりによる視認性悪化を修正"
-    },
-    {
-      "hash": "7976a43",
-      "date": "2026-09-15",
-      "subject": "auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する"
     }
   ]
 }
