@@ -243,7 +243,7 @@ public partial class TitleMenu : Node2D
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(72, 686), "ver 0.3.0", UiKit.FontSmall, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(72, 686), "ver 2.010", UiKit.FontSmall, Muted);
         DrawToast();
         if (_picking) DrawSlotPicker();
         UiKit.EndDesign(this);
