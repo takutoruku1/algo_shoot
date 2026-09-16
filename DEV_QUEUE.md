@@ -51,10 +51,11 @@
 
 <!-- 2026-09-16 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
-- [ ] (P1) 加速球モードで同時タメ上限に達した試行でもマズルフラッシュ・発射音・反動が鳴ってしまい「弾が消えた」ように見える | engineer | 2026-09-16監査(game-designer)。`src/Player.cs:895-916 FireAccel()`は`_accelCharging.Count >= AccelChargeCap`(`Player.cs:50`, 既定6)の時、何もスポーンせず`return`する(`:905-906`)が、`src/Player.cs:866-871`のマズルフラッシュ(`FxLayer.Instance?.Muzzle`)・発射音(`Audio.Instance?.PlayShot`)・反動(`_recoil = 1f`)はswitch文の外側で無条件に実行される。未強化時`AccelChargeDelay=0.8f`(`GameManager.cs:795`)に対しオート連射間隔`FireInterval=0.13f`(`Player.cs:16`)は遥かに短く、定常状態で約半数のFire()試行が「音と光だけ出て弾が出ない」状態になる。`accel_1`はショップ入口ノードで100Gと最安(`GameManager.cs:489`)＝プレイヤーが最も早く触る強化のひとつで、かつ"速填"強化を買う前が最も症状が重い。`AccelChargeCap`・`AccelChargeDelay`などのバランス値は変更せず、`FireAccel()`を`bool`（弾を実際にスポーンしたか）を返す形に変え、戻り値が`false`の時は加速球モードに限りマズルフラッシュ・発射音・反動もスキップすること。受入条件: 加速球モードで同時タメ上限に達している間、発射操作をしてもマズルフラッシュ・発射音・反動のいずれも発生しないこと（弾がスポーンする試行では従来通り発生すること）。バランス値(`AccelChargeCap`/`AccelChargeDelay`/`FireInterval`)は変更しない。
 - [ ] (P3) GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない | engineer | 2026-09-16監査(game-designer)。`src/GameManager.cs:1317-1320`の`AddDodgeGraze()`直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の`AddGraze()`(`:1307-1315`)は`GainImpression(1)`を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: `src/GameManager.cs:1318`のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。
 
 ## WIP
+
+- [ ] (P1) 加速球モードで同時タメ上限に達した試行でもマズルフラッシュ・発射音・反動が鳴ってしまい「弾が消えた」ように見える | engineer | 2026-09-16監査(game-designer)。`src/Player.cs:895-916 FireAccel()`は`_accelCharging.Count >= AccelChargeCap`(`Player.cs:50`, 既定6)の時、何もスポーンせず`return`する(`:905-906`)が、`src/Player.cs:866-871`のマズルフラッシュ(`FxLayer.Instance?.Muzzle`)・発射音(`Audio.Instance?.PlayShot`)・反動(`_recoil = 1f`)はswitch文の外側で無条件に実行される。未強化時`AccelChargeDelay=0.8f`(`GameManager.cs:795`)に対しオート連射間隔`FireInterval=0.13f`(`Player.cs:16`)は遥かに短く、定常状態で約半数のFire()試行が「音と光だけ出て弾が出ない」状態になる。`accel_1`はショップ入口ノードで100Gと最安(`GameManager.cs:489`)＝プレイヤーが最も早く触る強化のひとつで、かつ"速填"強化を買う前が最も症状が重い。`AccelChargeCap`・`AccelChargeDelay`などのバランス値は変更せず、`FireAccel()`を`bool`（弾を実際にスポーンしたか）を返す形に変え、戻り値が`false`の時は加速球モードに限りマズルフラッシュ・発射音・反動もスキップすること。受入条件: 加速球モードで同時タメ上限に達している間、発射操作をしてもマズルフラッシュ・発射音・反動のいずれも発生しないこと（弾がスポーンする試行では従来通り発生すること）。バランス値(`AccelChargeCap`/`AccelChargeDelay`/`FireInterval`)は変更しない。
 
 ## BLOCKED
 
