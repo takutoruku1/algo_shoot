@@ -124,7 +124,7 @@ public partial class BossKoharu : Enemy
         _mover.SetNextAttack(StanceOf(_pattern));
         SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rot);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("こはる", "@koharu_light", s.name, s.tint);
+        GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, s.name, s.tint);
     }
 
     // S2-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
@@ -238,7 +238,7 @@ public partial class BossKoharu : Enemy
         // cruise_speed / accel_time / stance_*）。こはるは「軽く小刻み・攻撃前に一瞬止まる」＝
         // accel_time が小さく（キビキビ）、構え（stance_windup）が長めで本動作が短く鋭い。
         _mover.Configure("koharu", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("我に返るわたし", "@koharu_light");
+        GetHud()?.ShowBossBar("我に返るわたし", BossHandles.KoharuMain);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
@@ -556,7 +556,7 @@ public partial class BossKoharu : Enemy
             _gotoFired = true;
             _gotoPhase = 1; _gotoT = 0;
             if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（十字に集中させる）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", GotoTint);
+            GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "自分なにしてんだろ", GotoTint);
             GetHud()?.ShowBossLine("こはる", "……うごかないで。いま、鏡、見ちゃうから。", UiKit.Kegare, 2.0);
         }
         // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
@@ -569,7 +569,7 @@ public partial class BossKoharu : Enemy
             _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
             _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
             if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_light", "全部見なきゃ", Spells[0].tint);
+            GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "全部見なきゃ", Spells[0].tint);
             GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
         }
         // ワンショットギミック（食事・十字火）の進行中と、その発火待ちの間は、スペル切替とフィナーレの宣言を保留する。
@@ -598,7 +598,7 @@ public partial class BossKoharu : Enemy
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("こはる", "@koharu_light", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
+            GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }
 

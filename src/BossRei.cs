@@ -102,7 +102,7 @@ public partial class BossRei : Enemy
         SetSpellVisual(s.shape, s.tint);
         _mover.SetNextAttack(StanceOf(_pattern));
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("レイ", "@hoshiai_rei_live", s.name, s.tint);
+        GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, s.name, s.tint);
     }
 
     // S3-8 改心（仮台本 07。ユーザー承認済み・2026-09-05）。二段で抜く：
@@ -239,7 +239,7 @@ public partial class BossRei : Enemy
         // 出ない＝横移動をほぼ捨て（stance_edge_x/track_w が小さい）、傾き（lean_max）で表情を作る。
         // 数値は config/boss_stats.ini の [rei] 節（cruise_speed / stance_* 一式）。
         _mover.Configure("rei", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
+        GetHud()?.ShowBossBar("星逢レイ", BossHandles.ReiMain);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
@@ -446,7 +446,7 @@ public partial class BossRei : Enemy
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[2].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("レイ", "@hoshiai_rei_live", Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
+            GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
     }
 

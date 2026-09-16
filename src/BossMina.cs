@@ -146,7 +146,7 @@ public partial class BossMina : Enemy
         // cruise_speed / accel_time / stance_*）。ミナは「自機の動きを鏡のように追う」＝
         // stance_track_gain 1.0（自機と同じ x に寄る）。三ボスより速い。
         _mover.Configure("mina", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("穢れたわたし", "@mina_ai_");
+        GetHud()?.ShowBossBar("穢れたわたし", BossHandles.MinaBattle);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         _spellArt = new Texture2D?[][]
         {

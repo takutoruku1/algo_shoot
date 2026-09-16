@@ -56,7 +56,7 @@ public partial class MinaPhaseAttacks : Node
             _boss.SetBodyContactEnabled(false);
             _boss.ShowSignaturePose();
             (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(
-                "ミナ", "@mina_ai_", SignatureName(_phase), BossMina.PhaseTint(_phase));
+                "ミナ", BossHandles.MinaBattle, SignatureName(_phase), BossMina.PhaseTint(_phase));
             return;
         }
         _strikes.RemoveAll(s => !IsInstanceValid(s) || s.IsQueuedForDeletion());

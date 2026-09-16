@@ -394,6 +394,9 @@ public partial class StageRei : Node
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
         _zHeld = Pad.AdvanceHeld();
+        // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
+        //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -742,7 +745,7 @@ public partial class StageRei : Node
                 Name = "ReiCameo",
                 Theme = new CameoTheme
                 {
-                    DisplayName = "レイ", Handle = "@rei_____",
+                    DisplayName = "レイ", Handle = BossHandles.ReiCameo,
                     // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
                     // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。レイだけ中ボスは中の人＝ボスのガワと姿が違うのが仕込み。
                     PreTex = "res://char/v3/rei_mid.png",
@@ -792,6 +795,9 @@ public partial class StageRei : Node
             _bossActive = true;
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
+            // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
+            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。
+            _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
             Advance();
         }
     }

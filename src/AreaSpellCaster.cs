@@ -272,7 +272,7 @@ public partial class AreaSpellCaster : Node2D
         switch (key)
         {
             case "rei": // 壁一面の配信画面・整然と裁く（予兆長め・金/菫）
-                _disp = "レイ"; _handle = "@hoshiai_rei_live";
+                _disp = "レイ"; _handle = BossHandles.ReiMain;
                 _tint = new Color("e8c45a"); _hot = new Color("ffe39a");
                 _warnMin = 1.1; _warnMax = 1.6; _interval = 8.0; // 11.0→8.0：範囲技の存在感を上げる（sakurai 2026-07 週次）
                 // 技名は仮台本 07 の S3-6 の圏内へ寄せた（旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす）。
@@ -280,13 +280,13 @@ public partial class AreaSpellCaster : Node2D
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
             case "akari": // 雨の教室・降る前に予報（蒼）
-                _disp = "あかり"; _handle = "@akari_ame";
+                _disp = "あかり"; _handle = BossHandles.AkariSpell;
                 _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
                 _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;
                 _spells = new (string, AreaStrike.Shape?)[] { ("豪雨予報", V), ("沈黙の波紋", C) };
                 break;
             case "koharu": // 消えた配信画面の前の部屋・溜めてから一気に（予兆やや短め・琥珀/深紅）
-                _disp = "こはる"; _handle = "@koharu_light";
+                _disp = "こはる"; _handle = BossHandles.KoharuMain;
                 _tint = new Color("e8945a"); _hot = new Color("ffc06a");
                 // warn 下限 0.7→1.0s：全ボス最短の予兆が5秒の宣言カードと乖離し「宣言だけ出て
                 // 何も起きない」感の主因だった（QA 2026-07 週次）。短予兆の性格は上限1.3sで残す。
@@ -297,7 +297,7 @@ public partial class AreaSpellCaster : Node2D
                 _anchorPlayer = true; // 1枚目は自機の現在地（円/矩形は頭上・包丁は自機を通る線）
                 break;
             default: // mina（暴走）：全テレグラフ同時・濁った全色
-                _disp = "ミナ"; _handle = "@mina_ai_";
+                _disp = "ミナ"; _handle = BossHandles.MinaBattle;
                 _tint = new Color("e072ac"); _hot = new Color("ff8cc4");
                 _warnMin = 0.8; _warnMax = 1.2; _interval = 6.0;
                 _shapes = new[] { H_, V, C, R };

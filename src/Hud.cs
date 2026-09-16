@@ -9,6 +9,7 @@ public partial class Hud : CanvasLayer
 {
     private GameManager _game = null!;
     private HudCanvas _canvas = null!;
+    private HudAddCanvas _addCanvas = null!;   // 加算ブレンド層（被弾のライフ砕け散り・2026-09-16）
 
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
@@ -24,6 +25,7 @@ public partial class Hud : CanvasLayer
     public bool HoldBubble = false;
 
     private int _lives = 3;
+    private bool _livesInited;   // 初回 SetLives（ステージ開始の初期値渡し）では砕け散り演出を出さない
     private readonly Dictionary<Job, Texture2D> _lifeMarks = new();
     private readonly Dictionary<Job, Texture2D> _accountFaces = new();
     private Texture2D _bombMark = null!;
@@ -254,6 +256,14 @@ public partial class Hud : CanvasLayer
         PostPool.ResetHistory();   // 面の入り口で語の直近履歴を空ける（前の面の履歴で最初の数枚が偏らない）
         _canvas = new HudCanvas { Name = "HudCanvas", Hud = this };
         AddChild(_canvas);
+        // 加算ブレンド専用の子キャンバス（被弾のライフ砕け散り・2026-09-16）。DrawSetBlendMode は
+        // _Draw に無いので、WorldGrade と同じく CanvasItemMaterial{Add} を子ノードに載せて分離する。
+        _addCanvas = new HudAddCanvas
+        {
+            Name = "HudAddCanvas", Hud = this,
+            Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add },
+        };
+        AddChild(_addCanvas);
     }
 
     public override void _Process(double delta)
@@ -263,6 +273,7 @@ public partial class Hud : CanvasLayer
         if (_flashAlpha > 0f) _flashAlpha = Mathf.Max(0f, _flashAlpha - (float)delta * 2.2f);
         if (_hurtEdge > 0) _hurtEdge -= delta;
         if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
+        if (_lifeShatterT > 0) _lifeShatterT -= delta; // ライフ砕け散りの残り時間（2026-09-16）
 
         // 既読高速送り中は現在ページを即時全表示し、後続ページも自動で進める（行送り自体は Step_Lines が FastForwarding を見て進める）。
         if (FastForwarding)
@@ -327,6 +338,7 @@ public partial class Hud : CanvasLayer
         }
 
         _canvas.QueueRedraw();
+        _addCanvas.QueueRedraw();
     }
 
     private void UpdateDialoguePause()
@@ -724,7 +736,15 @@ public partial class Hud : CanvasLayer
     private const double BossBarFlashDur = 0.32;
     public void FlashBossBarBreak() => _bossBarFlash = BossBarFlashDur;
 
-    public void SetLives(int n) { _lives = Mathf.Max(0, n); }
+    // 残機セット。減った瞬間（被弾）は、消える核マーク1個を「砕けて散る」で見送る（2026-09-16）。
+    //   消えるのは index=新残数 のマーク（点灯は 0.._lives-1 なので、境界の1個が暗転する）。
+    public void SetLives(int n)
+    {
+        n = Mathf.Max(0, n);
+        if (_livesInited && n < _lives) StartLifeShatter(n);
+        _lives = n;
+        _livesInited = true;
+    }
 
     public void Flash() { _flashRgb = new Color(1f, 1f, 1f); _flashAlpha = 0.55f; }
     public void HitFlash() { _flashRgb = new Color(1f, 0.2f, 0.28f); _flashAlpha = 0.7f; _hurtEdge = 0.9; }
@@ -750,7 +770,7 @@ public partial class Hud : CanvasLayer
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         if (_focusHas) DrawFocusChip(ci);
-        DrawTicker(ci);
+        if (TickerEnabled) DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
         if (_tutorialOp.Length > 0) DrawTutorialKeys(ci);
         if (_shotModeToast > 0) DrawShotModeToast(ci);
@@ -864,6 +884,66 @@ public partial class Hud : CanvasLayer
         }
     }
 
+    // ───────── 被弾のライフ演出（2026-09-16）─────────
+    //   減った核マーク1個が「砕けて飛び散って消える」。加算ブレンドの専用子キャンバス（_addCanvas）に
+    //   描くので、サイドパネル内で完結し盤面の弾は一切隠さない。約0.55秒・欠片12枚＋割れた瞬間の短命グロー。
+    private const double LifeShatterDur = 0.55;
+    private const int LifeShardCount = 12;
+    private struct LifeShard { public float Ang, Spd, Size, Rot, Spin; }
+    private readonly LifeShard[] _lifeShards = new LifeShard[LifeShardCount];
+    private int _lifeLostIndex = -1;      // 散っているマークの index（SetLives 減少時＝新残数の位置）
+    private double _lifeShatterT;         // 残り秒（0 で非表示）
+    private readonly RandomNumberGenerator _fxRng = new();
+
+    private void StartLifeShatter(int lostIndex)
+    {
+        _lifeLostIndex = lostIndex;
+        _lifeShatterT = LifeShatterDur;
+        for (int i = 0; i < LifeShardCount; i++)
+        {
+            // 全周へ散らす。角度は等分＋ゆらぎ＝偏りなく「割れた」形に見せる。
+            _lifeShards[i] = new LifeShard
+            {
+                Ang = Mathf.Tau * i / LifeShardCount + _fxRng.RandfRange(-0.25f, 0.25f),
+                Spd = _fxRng.RandfRange(30f, 64f),     // 飛距離（設計座標px）。サイドパネル内にほぼ収まる
+                Size = _fxRng.RandfRange(2.5f, 5.5f),
+                Rot = _fxRng.RandfRange(0f, Mathf.Tau),
+                Spin = _fxRng.RandfRange(-6f, 6f),
+            };
+        }
+    }
+
+    // 加算キャンバスの描画（HudAddCanvas._Draw から）。今はライフ砕け散りのみ。
+    public void DrawAdditive(HudAddCanvas ci)
+    {
+        if (_lifeShatterT <= 0 || _lifeLostIndex < 0 || CinematicMode) return;
+        UiKit.BeginDesign(ci);
+        // 消えたマークの中心＝DrawLifeBomb と同じレイアウト式（レイアウト変更に自動追随）。
+        int maxLives = Mathf.Max(_lives, _game?.StartLives ?? 4);
+        float hStep = Mathf.Min(42f, PanelInnerW / Mathf.Max(1, maxLives));
+        var center = new Vector2(PanelX + _lifeLostIndex * hStep + hStep / 2f, RowLifeBomb + 40f);
+        float t = 1f - (float)(_lifeShatterT / LifeShatterDur);   // 0→1
+        float fly = 1f - Mathf.Pow(1f - t, 3f);                   // out-cubic＝はじけて減速
+        float a = (1f - t) * (1f - t);                            // 早めに減衰＝派手にしない
+        Color col = SideRose.Lerp(Colors.White, 0.35f);
+        // 割れた瞬間の芯グロー（一拍で消える）。
+        if (t < 0.35f)
+        {
+            float g = 1f - t / 0.35f;
+            UiKit.RadialGlow(ci, center, 10f + 24f * g, col, 0.45f * g);
+        }
+        // 欠片：小さな回転矩形が外へ飛びつつ、わずかに落ちて薄れる（「こぼれた」感）。
+        foreach (var s in _lifeShards)
+        {
+            var pos = center + new Vector2(Mathf.Cos(s.Ang), Mathf.Sin(s.Ang)) * (s.Spd * fly)
+                      + new Vector2(0f, 14f * t * t);
+            float sz = s.Size * (1f - 0.5f * t);
+            ci.DrawSetTransform(pos * UiKit.Scale, s.Rot + s.Spin * t, new Vector2(UiKit.Scale, UiKit.Scale));
+            ci.DrawRect(new Rect2(-sz / 2f, -sz / 2f, sz, sz), new Color(col, a));
+        }
+        UiKit.EndDesign(ci);
+    }
+
     private void DrawPurify(HudCanvas ci)
     {
         float prog = _game?.StageProgress ?? 0f;
@@ -918,7 +998,10 @@ public partial class Hud : CanvasLayer
     {
         // 盤面の上端に残す唯一の常設UI（docs/20260906/HUD整理_案.md §4）。中心は盤面の中心、
         // 高さ 60→44・y 60→8 に詰めて、ボスの真上の薄い帯だけを使う。幅は盤面幅の 8 割。
-        float w = Mathf.Min(560f, Field.DWidth * 0.8f), x = Field.DCenterX - w / 2f, y = 8f, h = 44f;
+        // 2026-09-16: y 8→24（内部座標で約5px下げ）。上端に張り付いて見づらい実機指摘への対処。
+        //   中ボス（CameoBoss）も本ボスもこのカード共通＝両方下がる。スペル宣告カード（DrawSpellCard）の
+        //   y も連動して 66→82 に下げた。
+        float w = Mathf.Min(560f, Field.DWidth * 0.8f), x = Field.DCenterX - w / 2f, y = 24f, h = 44f;
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(18 / 255f, 12 / 255f, 22 / 255f, 0.62f), 16f, new Color(UiKit.Kegare, 0.4f), 1.2f);
         // アバター（穢れ）＋認証
         Vector2 ac = new(x + 34, y + h / 2f);
@@ -994,7 +1077,7 @@ public partial class Hud : CanvasLayer
         // 幅の上限は盤面幅（880px）に収める＝サイドパネルへはみ出さない。
         float w = Mathf.Clamp(Mathf.Max(titleW, headW) + 84f, 380f, Mathf.Min(780f, Field.DWidth - 40f));
         float h = 60f;
-        float x = Field.DCenterX - w / 2f, y = 66f + slide;   // ボスバー(y=8,h=44)の直下
+        float x = Field.DCenterX - w / 2f, y = 82f + slide;   // ボスバー(y=24,h=44)の直下（2026-09-16 バーの下げに連動）
         Vector2 center = new(Field.DCenterX, y + h / 2f);
 
         Color col = _spellCol;
@@ -1324,6 +1407,10 @@ public partial class Hud : CanvasLayer
         if (hr < ar) ci.DrawRect(new Rect2(hr, ht, ar - hr, hb - ht), col);   // 右
     }
 
+    // 2026-09-16: 下部ティッカー（降ってくる言葉）は表示OFF（ユーザー指摘＝画面下部の帯を消す）。
+    //   投稿弾（PostBullets）が同じ PostPool の“声”を降らせるので情報は失われない。
+    //   コードは復活可能な形で残置（KoharuInterruptEnabled と同じ流儀＝フラグだけで止める）。
+    private static readonly bool TickerEnabled = false;
     private void DrawTicker(HudCanvas ci)
     {
         // 帯は盤面の中だけに敷く（サイドパネルの上を横切らせない）。左端＝盤面の左端。
@@ -1751,4 +1838,12 @@ public partial class HudCanvas : Node2D
 {
     public Hud Hud = null!;
     public override void _Draw() => Hud?.DrawAll(this);
+}
+
+// HUD の加算ブレンド層（Hud にぶら下げ、CanvasItemMaterial{Add} 付き・2026-09-16）。
+// 被弾のライフ砕け散りなど「光る」演出だけをここへ描く（通常層 HudCanvas と分離）。
+public partial class HudAddCanvas : Node2D
+{
+    public Hud Hud = null!;
+    public override void _Draw() => Hud?.DrawAdditive(this);
 }

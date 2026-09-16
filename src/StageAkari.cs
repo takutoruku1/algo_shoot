@@ -343,6 +343,10 @@ public partial class StageAkari : Node
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
         _zHeld = Pad.AdvanceHeld();
+        // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾＝道中開始の
+        //   直前にミナの説明を流す。_step==1 確定後に繋ぐ＝チェックポイント入口（中ボス/ボスから）では
+        //   イントロごと飛ぶので消費しない。結び手のみ・once はセーブ単位（StageTutorial が一括で判定）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -703,7 +707,7 @@ public partial class StageAkari : Node
                 Name = "AkariCameo",
                 Theme = new CameoTheme
                 {
-                    DisplayName = "あかり", Handle = "@akari.",
+                    DisplayName = "あかり", Handle = BossHandles.AkariBar,
                     // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
                     // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。
                     PreTex = "res://char/v3/akari_mid.png",
@@ -745,6 +749,9 @@ public partial class StageAkari : Node
             _bossActive = true;
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
+            // 初見チュートリアル（2026-09-16）：板（パネル）が周回する本ボス戦の初回だけ、
+            //   ボスの口上の末尾にミナの説明を繋ぐ。消費はこの瞬間＝道中で倒れても初ボス到達まで温存。
+            _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
             Advance(); // 出現と同時に説明会話へ（会話中はボス停止・雨も止む）
         }
     }

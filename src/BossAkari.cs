@@ -71,7 +71,7 @@ public partial class BossAkari : Enemy
         _mover.SetNextAttack(StanceOf(_pattern));
         SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rot);
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
-        GetHud()?.AnnounceSpell("あかり", "@akari_ame", s.name, s.tint);
+        GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, s.name, s.tint);
     }
 
     // 浄化時のかけあい（who: 1=ミナ / 2=あかり）。Zで手動送り。
@@ -176,7 +176,7 @@ public partial class BossAkari : Enemy
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
         _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("あふれるわたし", "@akari.");
+        GetHud()?.ShowBossBar("あふれるわたし", BossHandles.AkariBar);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         ApplySpell();
 
@@ -232,7 +232,7 @@ public partial class BossAkari : Enemy
     private void StartCorridor()
     {
         _corridorPhase = 1;
-        GetHud()?.AnnounceSpell("あかり", "@akari_ame", "雨の帰り道", Spells[0].tint);
+        GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, "雨の帰り道", Spells[0].tint);
         GetHud()?.ShowBossLine("あかり", "来ないで……っ", UiKit.Kegare, 2.0);
         _mover.MoveZoneTo(new Vector2(AwayX, Field.BossZoneCenterY), 4f, 6f, DashSpeed); // 画面右外へ退場（性格は保つ）
         SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
@@ -362,7 +362,7 @@ public partial class BossAkari : Enemy
         {
             _finale = true;
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
-            GetHud()?.AnnounceSpell("あかり", "@akari_ame", Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
+            GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }
     }
 
