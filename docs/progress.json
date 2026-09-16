@@ -1,21 +1,14 @@
 {
-  "generated": "2026-09-16 20:00 UTC",
+  "generated": "2026-09-16 20:01 UTC",
   "counts": {
     "todo": 0,
-    "wip": 1,
+    "wip": 0,
     "blocked": 36,
     "done": 237
   },
   "percent": 100,
   "todo": [],
-  "wip": [
-    {
-      "priority": "P3",
-      "title": "GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない",
-      "worker": "engineer",
-      "accept": "2026-09-16監査(game-designer)。`src/GameManager.cs:1317-1320`の`AddDodgeGraze()`直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の`AddGraze()`(`:1307-1315`)は`GainImpression(1)`を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: `src/GameManager.cs:1318`のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。"
-    }
-  ],
+  "wip": [],
   "blocked": [
     {
       "priority": null,
@@ -1660,6 +1653,11 @@
   ],
   "commits": [
     {
+      "hash": "adab9bc",
+      "date": "2026-09-16",
+      "subject": "auto: グレイズ報酬コメントの記載ズレを修正"
+    },
+    {
       "hash": "7e50c6f",
       "date": "2026-09-16",
       "subject": "auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する"
@@ -1693,11 +1691,6 @@
       "hash": "41a65ef",
       "date": "2026-09-15",
       "subject": "auto: あかりのSNSハンドル食い違い(@akari. vs @akari_ame)を修正"
-    },
-    {
-      "hash": "ee651e2",
-      "date": "2026-09-15",
-      "subject": "auto: WIP着手 - あかりのSNSハンドル食い違いを修正する"
     }
   ]
 }

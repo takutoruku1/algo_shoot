@@ -53,8 +53,6 @@
 
 ## WIP
 
-- [ ] (P3) GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない | engineer | 2026-09-16監査(game-designer)。`src/GameManager.cs:1317-1320`の`AddDodgeGraze()`直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の`AddGraze()`(`:1307-1315`)は`GainImpression(1)`を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: `src/GameManager.cs:1318`のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。
-
 ## BLOCKED
 
 <!-- 2026-09-16 監査モード(scenario/engineer)で追加 -->
