@@ -969,12 +969,12 @@ public partial class Enemy : Area2D
         _flashT = 0;
 
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
-        GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify);
+        bool rewarded = GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify) == true;
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
         GameCamera.Instance?.Hitstop(HitstopDur);
-        FxLayer.Instance?.PurifyBurst(GlobalPosition);
+        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, _maxHp > 0);
         Audio.Instance?.PlayPurify();
         // 浄化の一言（ありがとう等）は 2026-09-07 のユーザー指示で非表示。文言の作り直し案は
         // wiki/08_仮台本/18_浄化の一言_案C.md にあり、承認されたらここへ差し戻す。

@@ -35,6 +35,12 @@ public partial class PlayerJobQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--life"))
+            {
+                await CheckLifeHud(game);
+                await Finish();
+                return;
+            }
 
             var expected = new[] { (Job.Tank, "mina", "ミナ"), (Job.Melee, "akari", "あかり"),
                 (Job.Heal, "koharu", "こはる"), (Job.Magic, "rei", "レイ") };
@@ -160,15 +166,7 @@ public partial class PlayerJobQa : Node
                     Hud.BubblePaused = false;
                 }
             }
-            Audio.Instance?.StopMusic(0);
-            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
-                if (child is AudioStreamPlayer audio) audio.Stop();
-            await Frames(5);
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await Frames(5);
-            GD.Print("[PlayerJobQA] ALL PASS");
-            GetTree().Quit();
+            await Finish();
         }
         catch (Exception ex)
         {
@@ -180,6 +178,176 @@ public partial class PlayerJobQa : Node
     private async Task Frames(int count)
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async Task Finish()
+    {
+        Audio.Instance?.StopMusic(0);
+        foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+            if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+        await Task.Delay(250);
+        await Frames(5);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(5);
+        GD.Print("[PlayerJobQA] ALL PASS");
+        GetTree().Quit();
+    }
+
+    private async Task CheckLifeHud(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/sidebar");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        using var overview = Image.CreateEmpty(373 * Jobs.All.Length, 720, false, Image.Format.Rgba8);
+        game.SetProcess(false);
+        int row = 0;
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Disabled;
+            root.Hud.HoldBubble = false;
+            root.Hud.HideBubble();
+            root.Hud.SetShotMode(job.Mode, false);
+            root.Hud.SetElapsed(83.45f);
+            root.Hud.SetFocusMode(true, true, false, 1f);
+            typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
+            typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
+            typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget / 2);
+            Write(game, "_comboTimer", 1.6);
+            var faces = Read<Dictionary<Job, Texture2D>>(root.Hud, "_accountFaces");
+            Check(faces[job.Id].ResourcePath == CompanionDialogue.Portrait(job.Id), "account portrait matches the playable character");
+            var marks = Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks");
+            Check(marks[job.Id].ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png",
+                $"{job.CharacterId}: LIFE uses the same emblem as the player");
+            var bombMark = Read<Texture2D>(root.Hud, "_bombMark");
+            Check(bombMark.ResourcePath == "res://char/ui/bomb_v2.png", "BOMB uses the generated bomb illustration");
+            using (var bombImage = bombMark.GetImage())
+                Check(bombImage.DetectAlpha() != Image.AlphaMode.None && bombImage.GetPixel(0, 0).A == 0,
+                    "bomb illustration has a genuinely transparent background");
+            int cap = root.Player.Lives;
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+            {
+                DisplayServer.WindowSetSize(size);
+                Write(root.Hud, "_bannerTimer", 0.0);
+                Write(root.Hud, "_hurtEdge", 0f);
+                Call(root.Player, "SetSpriteVisible", true);
+                root.Hud.SetLives(cap);
+                using var full = await Capture("full");
+                var background = full.GetPixel(Mathf.RoundToInt(12f * size.X / 1280f), Mathf.RoundToInt(400f * size.Y / 720f));
+                Check(background.R > 0.10f && background.R < 0.25f && Mathf.Abs(background.R - background.B) < 0.04f,
+                    "sidebar uses a charcoal surface instead of white or pure black");
+                if (size.X == 1280) overview.BlitRect(full, new Rect2I(0, 0, 373, 720), new Vector2I(row * 373, 0));
+                Check(Light(full, cap - 1, cap) > 0.025f, $"{job.CharacterId} {size}: LIFE marks contrast with the sidebar background");
+                Write(root.Player, "_invincible", false);
+                root.Player.TakeHit();
+                Check(root.Player.Lives == cap - 1 && Read<int>(root.Hud, "_lives") == cap - 1,
+                    "damage updates the existing life count");
+                using var hurt = await Capture("hurt");
+                Check(Light(hurt, cap - 1, cap) < Light(full, cap - 1, cap) * 0.55f
+                    && Light(hurt, 0, cap) > Light(full, 0, cap) * 0.85f,
+                    "only the lost life mark becomes dim");
+                Check(root.Player.AddLife() && root.Player.Lives == cap, "healing restores the missing life");
+                using var healed = await Capture("healed");
+                Check(Mathf.Abs(Light(healed, cap - 1, cap) - Light(full, cap - 1, cap)) < 0.01f,
+                    "healing restores the same emblem at the same position and size");
+                root.Hud.SetLives(0);
+                using var empty = await Capture("empty");
+                Check(Light(empty, 0, cap) < Light(full, 0, cap) * 0.55f, "zero lives leaves dim marks instead of hearts");
+                root.Hud.SetLives(12);
+                using var packed = await Capture("packed");
+                Check(Light(packed, 11, 12) > 0.015f, "high life counts still fit inside the panel");
+                root.Hud.SetLives(cap);
+                int bombs = game.Bombs;
+                Check(Light(full, 0, bombs, bomb: true) > 0.025f, "bomb silhouette remains visible at HUD size");
+                Check(game.UseBomb() && game.Bombs == bombs - 1, "using a bomb consumes the existing inventory");
+                using var used = await Capture("bomb_used");
+                Check(Light(used, bombs - 1, bombs, bomb: true) < Light(full, bombs - 1, bombs, bomb: true) * 0.65f,
+                    "the consumed bomb illustration dims");
+                game.RewardCameoDefeat();
+                using var refilled = await Capture("bomb_refilled");
+                Check(game.Bombs == bombs
+                    && Mathf.Abs(Light(refilled, 0, bombs, bomb: true) - Light(full, 0, bombs, bomb: true)) < 0.01f,
+                    "bomb replenishment restores the same illustration");
+                typeof(GameManager).GetProperty("Bombs")!.SetValue(game, 12);
+                using var packedBombs = await Capture("bomb_packed");
+                Check(Light(packedBombs, 11, 12, bomb: true) > 0.015f, "large bomb inventories fit inside the panel");
+                typeof(GameManager).GetProperty("Bombs")!.SetValue(game, bombs);
+                root.Hud.SetFocusMode(true, false, true, 0.6f);
+                using var focusActive = await Capture("focus_active");
+                root.Hud.SetFocusMode(true, false, false, 0.3f);
+                using var focusCharging = await Capture("focus_charging");
+                root.Hud.SetFocusMode(false, false, false, 0f);
+                typeof(GameManager).GetProperty("Combo")!.SetValue(game, 0);
+                using var noExtras = await Capture("no_extras");
+                Check(RegionDifference(full, noExtras, new Rect2I(26, 574, 321, 44)) > 0.01f
+                    && RegionDifference(full, noExtras, new Rect2I(26, 647, 321, 42)) > 0.01f,
+                    "combo and focus rows only appear while applicable");
+                Check(RegionDifference(full, noExtras, new Rect2I(26, 156, 321, 90)) < 0.001f,
+                    "conditional rows do not shift the resource layout");
+                typeof(GameManager).GetProperty("Score")!.SetValue(game, long.MaxValue);
+                using var wideScore = await Capture("wide_score");
+                Check(RegionDifference(noExtras, wideScore, new Rect2I(348, 452, 24, 55)) < 0.001f,
+                    "maximum score fits before the sidebar edge");
+                typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
+                typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
+                root.Hud.SetFocusMode(true, true, false, 1f);
+
+                async Task<Image> Capture(string state)
+                {
+                    await Frames(4);
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    var image = GetViewport().GetTexture().GetImage();
+                    Check(image.SavePng($"{output}/{job.CharacterId}_{size.X}_{state}.png") == Error.Ok, $"LIFE screenshot {state}");
+                    return image;
+                }
+            }
+            root.QueueFree();
+            await Task.Delay(150);
+            await Frames(5);
+            row++;
+        }
+        game.SetProcess(true);
+        Check(overview.SavePng($"{output}/all_characters.png") == Error.Ok, "four-character sidebar overview");
+
+        static float Light(Image image, int slot, int count = 5, bool bomb = false)
+        {
+            float scale = image.GetWidth() / 1280f;
+            float step = Mathf.Min(bomb ? 44f : 42f, 321f / count);
+            float cx = 26f + slot * step + step / 2f;
+            float cy = bomb ? 298f : 220f;
+            var paper = image.GetPixel(Mathf.RoundToInt(355f * scale), Mathf.RoundToInt(cy * scale));
+            float sum = 0;
+            int samples = 0;
+            for (int y = Mathf.RoundToInt((cy - 12f) * scale); y < (cy + 12f) * scale; y++)
+                for (int x = Mathf.RoundToInt((cx - 10f) * scale); x < (cx + 10f) * scale; x++)
+                {
+                    var c = image.GetPixel(x, y);
+                    sum += (Mathf.Abs(c.R - paper.R) + Mathf.Abs(c.G - paper.G) + Mathf.Abs(c.B - paper.B)) / 3f;
+                    samples++;
+                }
+            return sum / samples;
+        }
+
+        static float RegionDifference(Image a, Image b, Rect2I rect)
+        {
+            float scale = a.GetWidth() / 1280f;
+            float difference = 0f;
+            int samples = 0;
+            for (int y = Mathf.RoundToInt(rect.Position.Y * scale); y < rect.End.Y * scale; y++)
+                for (int x = Mathf.RoundToInt(rect.Position.X * scale); x < rect.End.X * scale; x++)
+                {
+                    var ca = a.GetPixel(x, y);
+                    var cb = b.GetPixel(x, y);
+                    difference += (Mathf.Abs(ca.R - cb.R) + Mathf.Abs(ca.G - cb.G) + Mathf.Abs(ca.B - cb.B)) / 3f;
+                    samples++;
+                }
+            return difference / samples;
+        }
     }
 
     private static void CheckMarker(Player player, string character)

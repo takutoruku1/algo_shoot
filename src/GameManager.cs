@@ -1467,7 +1467,7 @@ public partial class GameManager : Node
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
     // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。
-    public void AddPurify(int basePoints, bool fromBomb = false)
+    public bool AddPurify(int basePoints, bool fromBomb = false)
     {
         bool rewarded = !fromBomb || ++_bombPurifyCount <= BombPurifyRewardCap;
         if (rewarded)
@@ -1481,7 +1481,10 @@ public partial class GameManager : Node
         // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
         if (rewarded)
             GainImpression(2 + Combo);
+        return rewarded;
     }
+
+    public void AddScoreShard(int points) => Score += points;
 
     // ───── 祈り手（Heal）の浄化ドレイン（設計書 §2）─────
     //   雑魚を DrainPerLife 体（=24）浄化するごとに ♥+1。ボム由来の浄化も数える

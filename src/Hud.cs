@@ -24,6 +24,9 @@ public partial class Hud : CanvasLayer
     public bool HoldBubble = false;
 
     private int _lives = 3;
+    private readonly Dictionary<Job, Texture2D> _lifeMarks = new();
+    private readonly Dictionary<Job, Texture2D> _accountFaces = new();
+    private Texture2D _bombMark = null!;
 
     // ステージ経過タイム（秒）。各ステージシーンが毎フレーム SetElapsed で渡す。
     // delta基準でステージ側が積算するため、ポーズ中（ツリーpause）は自然に止まる。
@@ -242,6 +245,12 @@ public partial class Hud : CanvasLayer
     {
         AddToGroup("hud");
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        foreach (var job in Jobs.All)
+        {
+            _lifeMarks[job.Id] = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png");
+            _accountFaces[job.Id] = GD.Load<Texture2D>(CompanionDialogue.Portrait(job.Id));
+        }
+        _bombMark = GD.Load<Texture2D>("res://char/ui/bomb_v2.png");
         PostPool.ResetHistory();   // 面の入り口で語の直近履歴を空ける（前の面の履歴で最初の数枚が偏らない）
         _canvas = new HudCanvas { Name = "HudCanvas", Hud = this };
         AddChild(_canvas);
@@ -764,61 +773,61 @@ public partial class Hud : CanvasLayer
         UiKit.EndDesign(ci);
     }
 
-    // ───────── サイドパネル（プレイ領域の外側・設計座標 x 0..373）─────────
-    //   背景（StageBackground/StageImagery）は従来どおり内部 384px 幅いっぱいに描かれる。ここで
-    //   その上に不透明の板を被せて左を潰し、盤面を x 400..1280（内部 120..384）へ切り出す
-    //   ＝背景側のコードは一切触らずに「弾と UI を原理的に重ねない」を成立させる。
-    //   額縁の隙間（設計 373..400）は板を置かず、右端に縦罫だけを引く＝盤面の左辺が線として立つ。
-    //   不透明であることが要件（半透明だと背景が透けて、その上の文字が読めなくなる）。
+    private static readonly Color SideSurface = new("242629");
+    private static readonly Color SideRaised = new("2c2f33");
+    private static readonly Color SideInk = new("f0f1f3");
+    private static readonly Color SideMuted = new("adb5bd");
+    private static readonly Color SideRule = new("40464d");
+    private static readonly Color SideTeal = new("7bcbbc");
+    private static readonly Color SideRose = new("f28bab");
+    private Color AccountAccent => _game.SelectedJob switch
+    {
+        Job.Melee => new Color("e9bd7c"),
+        Job.Heal => new Color("83cfb0"),
+        Job.Magic => new Color("a0cdee"),
+        _ => new Color("bdb1e1"),
+    };
+
+    // Stage art extends behind the HUD, so the sidebar must remain opaque.
     private void DrawSidePanel(HudCanvas ci)
     {
-        const float pw = Field.PanelW;   // 373
-        // 板本体：ほぼ不透明の暗色。上ほどわずかに明るいタテのグラデで“奥行きのある一枚板”にする。
-        UiKit.VGradient(ci, new Rect2(0, 0, pw, UiKit.DesignH),
-            new[] { new Color(0.043f, 0.037f, 0.075f, 1f), new Color(0.024f, 0.020f, 0.047f, 1f) },
-            new[] { 0f, 1f });
-        // 右端の額縁：内側から順に「淡い縦グラデの縁」「細い罫」。盤面の左辺をここで一本立てる。
-        UiKit.VGradient(ci, new Rect2(pw - 10f, 0, 10f, UiKit.DesignH),
-            new[] { new Color(UiKit.Mina.R, UiKit.Mina.G, UiKit.Mina.B, 0.10f), new Color(0f, 0f, 0f, 0.22f) },
-            new[] { 0f, 1f });
-        ci.DrawRect(new Rect2(pw - 1.5f, 0, 1.5f, UiKit.DesignH), new Color(UiKit.Mina, 0.42f));
-        // 盤面の左辺（隙間の右＝x=400）にも細い罫。板と盤面のあいだの“溝”が読める。
+        const float pw = Field.PanelW;
+        ci.DrawRect(new Rect2(0, 0, pw, UiKit.DesignH), SideSurface);
+        ci.DrawRect(new Rect2(0, 0, pw, 156f), SideRaised.Lerp(AccountAccent, 0.05f));
+        ci.DrawRect(new Rect2(0, 0, pw, 4f), AccountAccent);
+        ci.DrawRect(new Rect2(0, 156f, pw, 1f), SideRule);
+        ci.DrawRect(new Rect2(pw - 1f, 0, 1f, UiKit.DesignH), SideRule);
+        ci.DrawRect(new Rect2(pw, 0, 8f, UiKit.DesignH), new Color(0, 0, 0, 0.12f));
         ci.DrawRect(new Rect2(Field.DLeft, 0, 1f, UiKit.DesignH), new Color(1f, 1f, 1f, 0.07f));
+        ci.DrawRect(new Rect2(PanelX, 330f, PanelInnerW, 1f), SideRule);
+        ci.DrawRect(new Rect2(PanelX, 411f, PanelInnerW, 1f), SideRule);
+        ci.DrawRect(new Rect2(PanelX, 554f, PanelInnerW, 1f), SideRule);
     }
 
-    // ───────── サイドパネルの縦の並び（設計座標・docs/20260906/HUD整理_案.md §8）─────────
-    //   上から LIFE/BOMB → 浄化 → SCORE → TIME → コンボ → ショットモード。見る頻度が高いものほど上。
-    //   条件表示（コンボ／モード）は出ない時に空白のまま残す＝器を作って情報を呼び戻さない。
-    //   炎上の表示は 2026-09-07 に撤去（戦闘中は画面の邪魔になるだけ、という指摘）。炎上したことは
-    //   ハブのトーストと会話で伝わる。デバフの効果そのもの（GameManager の FireIntervalMul /
-    //   MoveSpeedMul / TotalImpressionMul）は据え置きで、消したのは戦闘画面の表示だけ。
-    //   各要素の y をここに集約し、中身のサイズを触っても縦の並びが崩れないようにする。
-    private const float PanelX = 26f;                             // 板の左余白（全要素の左端）
-    private const float PanelInnerW = Field.PanelW - PanelX * 2f; // 321：要素の共通幅
-    private const float RowLifeBomb = 28f;    // 常設
-    private const float RowPurify = 196f;     // 常設
-    private const float RowScore = 288f;      // 常設
-    private const float RowTime = 360f;       // 常設
-    private const float RowCombo = 440f;      // 条件（コンボ2以上）
-    private const float RowShotMode = 520f;   // 常設（ジョブ名＋撃ち方）
-    private const float RowFocus = 626f;      // 条件（集中モードを覚えているときだけ）
+    private const float PanelX = 26f;
+    private const float PanelInnerW = Field.PanelW - PanelX * 2f;
+    private const float RowLifeBomb = 180f;
+    private const float RowPurify = 350f;
+    private const float RowScore = 428f;
+    private const float RowTime = 519f;
+    private const float RowCombo = 576f;
+    private const float RowFocus = 649f;
 
     // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
     private const float KeyBadgeH = 21f;
     private static float KeyBadgeW(string token) => UiKit.TrackedW(UiKit.SmallLabel, token) + 14f;
 
     // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
-    private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f)
+    private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f, bool sidebar = false)
     {
         // キー名は英字ラベル＝小ラベル(ZenBold 13・字間+0.5)。旧 Mono 11 は実効3.3pxで読めなかった。
         float w = KeyBadgeW(token), h = KeyBadgeH;
-        UiKit.Box(ci, new Rect2(p.X, p.Y, w, h), new Color(0.10f, 0.09f, 0.16f, 0.92f * a), 5f, new Color(accent, 0.75f * a), 1f);
+        UiKit.Box(ci, new Rect2(p.X, p.Y, w, h), sidebar ? SideRaised : new Color(0.10f, 0.09f, 0.16f, 0.92f * a),
+            4f, sidebar ? SideRule : new Color(accent, 0.75f * a), 1f);
         UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(p.X + 7, p.Y + 3), token, new Color(accent, 0.98f * a));
         return w;
     }
 
-    // LIFE / BOMB（パネル最上段・常設）。パネル幅 321px を使えるのでハートも玉も大きく描ける。
-    // 残数が増えても幅に収まるよう、刻み幅を「上限 ÷ 実数」で詰める（はみ出さない）。
     private void DrawLifeBomb(HudCanvas ci)
     {
         int maxLives = Mathf.Max(_lives, _game?.StartLives ?? 4);
@@ -826,95 +835,83 @@ public partial class Hud : CanvasLayer
         int maxBombs = Mathf.Max(bombs, _game?.StartBombs ?? 4);
         bool low = _lives <= 2;
 
-        float x = PanelX, y = RowLifeBomb, w = PanelInnerW, h = 132f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 16f,
-            low ? new Color(1f, 0.35f, 0.42f, 0.45f) : new Color(1, 1, 1, 0.12f), 1f);
-        // LIFE：見出しの下にハートを一列。半径 13px（旧10）＝パネル幅に合わせて大きくした。
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 20, y + 14), "LIFE", UiKit.Text2);
-        float hStep = Mathf.Min(34f, (w - 44f) / Mathf.Max(1, maxLives));
+        float x = PanelX, y = RowLifeBomb, w = PanelInnerW;
+        Color lifeColor = low ? SideRose : SideMuted;
+        if (low) ci.DrawRect(new Rect2(0, y - 4, 4f, 62f), SideRose);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "LIFE", lifeColor);
+        UiKit.DrawRight(ci, UiKit.SmallValue, x + w, y + 2f, $"{_lives:D2} / {maxLives:D2}", lifeColor);
+        float hStep = Mathf.Min(42f, w / Mathf.Max(1, maxLives));
+        var mark = _lifeMarks[_game!.SelectedJob];
+        var markSize = mark.GetSize();
+        markSize *= Mathf.Min(38f, hStep - 4f) / Mathf.Max(markSize.X, markSize.Y);
         for (int i = 0; i < maxLives; i++)
         {
-            Color hc = i < _lives ? (low ? new Color("ff5a6a") : UiKit.Hp) : new Color(UiKit.Hp, 0.22f);
-            UiKit.Heart(ci, new Vector2(x + 22f + i * hStep + hStep / 2f, y + 52f), 13f, hc);
+            var center = new Vector2(x + i * hStep + hStep / 2f, y + 40f);
+            ci.DrawTextureRect(mark, new Rect2(center - markSize / 2f, markSize), false,
+                new Color(1, 1, 1, i < _lives ? 1f : 0.22f));
         }
-        ci.DrawRect(new Rect2(x + 18, y + 72, w - 36, 1f), new Color(1, 1, 1, 0.08f));
-        // BOMB（残数＋発動キーのバッジ＝「どのボタンで撃つか」を常時提示）
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 20, y + 82), "BOMB", new Color("c8b0ec"));
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y + 78f), "BOMB", SideMuted);
         float badgeW = KeyBadgeW(TokBomb);
-        KeyBadge(ci, new Vector2(x + w - badgeW - 16, y + 80), TokBomb, UiKit.Mina, 1f);
-        float bStep = Mathf.Min(26f, (w - 44f) / Mathf.Max(1, maxBombs));
+        KeyBadge(ci, new Vector2(x + w - badgeW, y + 77f), TokBomb, SideMuted, sidebar: true);
+        float bStep = Mathf.Min(44f, w / Mathf.Max(1, maxBombs));
+        var bombSize = _bombMark.GetSize();
+        bombSize *= Mathf.Min(40f, bStep - 4f) / Mathf.Max(bombSize.X, bombSize.Y);
         for (int i = 0; i < maxBombs; i++)
-            ci.DrawCircle(new Vector2(x + 22f + i * bStep + bStep / 2f, y + 116f), 7.5f,
-                i < bombs ? UiKit.Mina : new Color(UiKit.Mina, 0.28f));
+        {
+            var center = new Vector2(x + i * bStep + bStep / 2f, y + 118f);
+            ci.DrawTextureRect(_bombMark, new Rect2(center - bombSize / 2f, bombSize), false,
+                new Color(1, 1, 1, i < bombs ? 1f : 0.22f));
+        }
     }
 
-    // 浄化ゲージ（パネル・常設）。見出し＋% を1行目、バーを2行目に積む＝横幅が狭くても % が潰れない。
     private void DrawPurify(HudCanvas ci)
     {
         float prog = _game?.StageProgress ?? 0f;
         bool full = prog >= 0.999f;
-        float x = PanelX, y = RowPurify, w = PanelInnerW, h = 62f;
-        // 前のめり可視化（数字なし・控えめ）：自機が右へ寄る（＝ゲージが速く伸びる）ほど縁の光を速く/強く脈動させる。
-        //   posFactor 0.55(左端)→1.60(右端) を 0..1 に均し、脈動Hz(2.4→7.0)と縁の明るさに薄く乗せる。full 時は従来演出優先。
+        float x = PanelX, y = RowPurify, w = PanelInnerW;
+        // Keep the forward-position pulse on the fill without flashing the whole sidebar.
         float posF = _game?.CurrentPosFactor ?? 1.075f;
         float lean = Mathf.Clamp((posF - 0.55f) / 1.05f, 0f, 1f); // 左端0 → 右端1
         float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
-        Color edge = full
-            ? new Color(UiKit.PurifyHi, 0.9f)
-            : new Color(UiKit.Purify, Mathf.Lerp(0.12f, 0.12f + 0.30f * lean, pulse)); // 右ほど明滅の振れ幅が大きい
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 15f,
-            edge, full ? 1.5f : 1f);
-        ci.DrawCircle(new Vector2(x + 26, y + 20f), 7f, UiKit.Purify);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 42, y + 12), "浄化", UiKit.Info);
-        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w - 18, y + 11, $"{Mathf.RoundToInt(prog * 100f)}%", UiKit.PurifyHi);
-        float barX = x + 20, barW = w - 40, barY = y + 42f;
-        UiKit.Box(ci, new Rect2(barX, barY, barW, 12f), new Color(1, 1, 1, 0.08f), 6f);
-        if (prog > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * prog, 12f), full ? UiKit.PurifyHi : UiKit.Purify, 6f);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "浄化", SideTeal);
+        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w, y - 1f, $"{Mathf.RoundToInt(prog * 100f)}%", SideTeal);
+        UiKit.Box(ci, new Rect2(x, y + 34f, w, 8f), SideRule, 4f);
+        if (prog > 0)
+            UiKit.Box(ci, new Rect2(x, y + 34f, w * prog, 8f),
+                full ? SideTeal : SideTeal.Lerp(new Color("9bdfd0"), pulse * lean * 0.5f), 4f);
     }
 
-    // SCORE（パネル・常設）。見出しは左上、値は右下へ寄せる＝数値(大)26px を潰さず入れる。
     private void DrawScore(HudCanvas ci)
     {
         long score = _game?.Score ?? 0;
         string scoreStr = score.ToString("000,000");
-        float x = PanelX, y = RowScore, w = PanelInnerW, h = 58f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 14f, new Color(UiKit.Gold, 0.3f), 1f);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 20, y + 9), "SCORE", new Color("f0d98a"));
-        UiKit.DrawRight(ci, UiKit.PanelValueLarge, x + w - 18, y + 26, scoreStr, new Color("f0d98a"));
+        float x = PanelX, y = RowScore;
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "SCORE", SideMuted);
+        int size = 36;
+        while (size > 13 && UiKit.TextW(UiKit.Mono, scoreStr, size) > PanelInnerW) size--;
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 29f), scoreStr, size, SideInk);
     }
 
-    // ステージ経過タイム（パネル・常設。SCORE の直下）。等幅で桁が踊らない。
     private void DrawTimer(HudCanvas ci)
     {
         string t = UiKit.FormatTime(_elapsed);
-        float x = PanelX, y = RowTime, w = PanelInnerW, h = 48f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 12f, new Color(UiKit.Info, 0.4f), 1f);
-        ci.DrawCircle(new Vector2(x + 24, y + h / 2f), 4f, UiKit.Info);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 38, y + 15), "TIME", UiKit.Text2);
-        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w - 18, y + 13, t, UiKit.PurifyHi);
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(PanelX, RowTime), "TIME", SideMuted);
+        UiKit.DrawRight(ci, UiKit.PanelValueMid, PanelX + PanelInnerW, RowTime - 2f, t, SideInk);
     }
 
-    // コンボ（パネル・条件表示）。コンボ2以上のときだけ出す＝倍率が立っている間の一時表示。
-    //   ♥「心」チップ（RunImpression）と人数チップ（フォロワー）とフォロワー進捗ピップは
-    //   2026-09-06 の HUD 整理で撤去した（docs/20260906/HUD整理_案.md §1）。
-    //   ♥の加算そのもの（ショップ通貨）は GameManager 側で生きている＝表示だけを落としている。
     private void DrawCombo(HudCanvas ci)
     {
         int combo = _game?.Combo ?? 0;
         if (combo < 2) return;
-        float x = PanelX, y = RowCombo, w = PanelInnerW, h = 42f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.5f), 11f, new Color(UiKit.Mina, 0.4f), 1f);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x + 20, y + 12), "COMBO", new Color("c8b0ec"));
-        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w - 18, y + 10, $"× {combo}", new Color("c8b0ec"));
-        // コンボ猶予バー：チップ直下に細いバーを添え、_comboTimer/ComboWindow の比率で減衰させる。
-        // 猶予が切れるとコンボが0にリセットされる（最大16倍）ため、残り時間を視認できるようにする。
-        // 色は満タンのMina（紫）→枯渇間際のBurn（赤）へ線形補間し、切迫感を出す。
+        float x = PanelX, y = RowCombo, w = PanelInnerW;
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "COMBO", SideRose);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y - 7f), $"×{combo:D2}", 28, SideRose, HorizontalAlignment.Right, w);
         float comboRatio = Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f);
-        float cbY = y + h + 3f, cbH = 3f;
-        UiKit.Box(ci, new Rect2(x, cbY, w, cbH), new Color(1, 1, 1, 0.1f), 1.5f);
+        float cbY = y + 34f, cbH = 4f;
+        UiKit.Box(ci, new Rect2(x, cbY, w, cbH), SideRule, 2f);
         if (comboRatio > 0)
-            UiKit.Box(ci, new Rect2(x, cbY, w * comboRatio, cbH), UiKit.Burn.Lerp(UiKit.Mina, comboRatio), 1.5f);
+            UiKit.Box(ci, new Rect2(x, cbY, w * comboRatio, cbH), UiKit.Burn.Lerp(SideRose, comboRatio), 2f);
     }
 
     private void DrawBossCard(HudCanvas ci)
@@ -1146,40 +1143,28 @@ public partial class Hud : CanvasLayer
         return p * p * ((s + 1f) * p + s) + 1f;
     }
 
-    // 集中モードのチップ（パネル・条件表示）。発動キーのバッジ＋名前＋状態＋バー。
-    //   ★枠・行・バーの描き方は旧「ヒカゲの大波」チップ（W0 専用・非正典）から丸ごと引き継いだ。
-    //     新しいUIを起こさず、空いた行にそのまま新しい意味を載せている。
-    //   バーの読み： 発動中＝残り持続（減っていく・Mina色）／それ以外＝CDの充填（溜まっていく・Hp色）。
     private void DrawFocusChip(HudCanvas ci)
     {
-        Color accent = _focusOn ? UiKit.Mina : (_focusReady ? UiKit.Hp : UiKit.Text3);
-        string label = "集中モード  " + (_focusOn ? "発動中" : _focusReady ? "OK!" : "充填中…");
-        float x = PanelX, y = RowFocus, w = PanelInnerW, h = 34f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 11f, new Color(accent, 0.5f), 1f);
-        float bw = KeyBadge(ci, new Vector2(x + 14, y + 7), TokFocus, accent, 1f);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 14 + bw + 8, y + 10), label, UiKit.FontLabel, accent);
-        float barY = y + h + 3f, barH = 3f;
-        UiKit.Box(ci, new Rect2(x, barY, w, barH), new Color(1, 1, 1, 0.1f), 1.5f);
+        Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
+        string status = _focusOn ? "発動中" : _focusReady ? "READY" : "充填中";
+        float x = PanelX, y = RowFocus, w = PanelInnerW;
+        KeyBadge(ci, new Vector2(x, y), TokFocus, accent, sidebar: true);
+        UiKit.DrawRight(ci, UiKit.SmallLabel, x + w, y + 2f, status, accent);
+        float barY = y + 34f, barH = 4f;
+        UiKit.Box(ci, new Rect2(x, barY, w, barH), SideRule, 2f);
         if (_focusRatio > 0)
-            UiKit.Box(ci, new Rect2(x, barY, w * _focusRatio, barH),
-                      _focusOn ? UiKit.Mina : UiKit.Text3.Lerp(UiKit.Hp, _focusRatio), 1.5f);
+            UiKit.Box(ci, new Rect2(x, barY, w * _focusRatio, barH), accent, 2f);
     }
 
-    // 今のジョブと、そのジョブが固定で使う撃ち方（パネル・常設）。
-    //   ★2026-09-13 ジョブ導入：以前は「解放モードが2つ以上ある時だけ出す切替パネル」だったが、
-    //     モードは切り替えられなくなった（ジョブが決める従属値＝設計書 §3）。切替キーのバッジは消し、
-    //     代わりに「このランは何者で戦っているか」を常に出す。ランの選択を画面から見失わせない。
     private void DrawShotMode(HudCanvas ci)
     {
-        var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
-        string name = _game?.ShotModeName(_shotMode) ?? "連射";
-        float x = PanelX, y = RowShotMode, w = PanelInnerW, h = 34f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.55f), 11f, new Color(UiKit.Info, 0.45f), 1f);
-        ci.DrawCircle(new Vector2(x + 20, y + h / 2f), 5f, UiKit.Info);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 34, y + 10), $"{job.CharacterName}・{job.Name}", UiKit.FontLabel, UiKit.PurifyHi);
-        // 撃ち方はジョブに従属するので、右端に小さく添えるだけ（主役はジョブ名）。
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 12), name, UiKit.FontLabel - 3, new Color(UiKit.Info, 0.85f),
-                   HorizontalAlignment.Right, w - 14f);
+        var job = _game.JobDef;
+        string handle = job.Id == Job.Tank ? "@mina_ai_"
+            : System.Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
+        UiKit.FaceAvatar(ci, new Vector2(PanelX + 34f, 80f), 33f, _accountFaces[job.Id], AccountAccent, false, 0f);
+        float tx = PanelX + 86f;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, 57f), job.CharacterName, 24, SideInk);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx, 90f), handle, 12, SideMuted);
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。

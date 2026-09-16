@@ -8,6 +8,7 @@ using System.Collections.Generic;
 public partial class FxLayer : Node2D
 {
     public static FxLayer Instance = null!;
+    public ScoreShards ScoreDrops { get; private set; } = null!;
 
     // ---- 配色（fx.js の PAL を移植） ----
     public static readonly Color White   = new Color("ffffff");
@@ -68,6 +69,8 @@ public partial class FxLayer : Node2D
         ZIndex = 20;
         _rng.Randomize();
         _font = UiKit.Mono; // 非ピクセル（演出の数値・ラベル）
+        ScoreDrops = new ScoreShards { Name = "ScoreShards" };
+        AddChild(ScoreDrops);
 
         _add = new AddDraw { Owner2D = this, ZIndex = 21, ZAsRelative = false };
         _add.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -244,7 +247,7 @@ public partial class FxLayer : Node2D
     // そこで飛散物（花びら・ハート・光の粒・リング）は Deep=true で弾より奥(-6/-5)へ沈める。
     //   手応えは殺さない：芯の白熱グローだけは手前(ZIndex21)に残す＝「当たった」は一目で判る。
     //   散る向きも上→右上寄りへ振る。敵弾は自機のいる左へ飛ぶので、右上に散らすと重なりが減る。
-    public void PurifyBurst(Vector2 pos)
+    public void PurifyBurst(Vector2 pos, int basePoints = 0, bool boss = false)
     {
         // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 11, Ttl = 0.28f, Col = White, Add = true, Grow = 0.5f });
@@ -252,12 +255,15 @@ public partial class FxLayer : Node2D
         Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 30, Ttl = 0.6f, Col = Sig2, W = 1.4f, A0 = 0.9f, Add = true, Deep = true });
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 16, Ttl = 0.45f, Col = Sig2, Add = true, Grow = 0.5f, Deep = true });
         int n = Ri(10, 16);
+        int points = basePoints > 0 ? Mathf.Clamp(basePoints / 10, boss ? 18 : 6, boss ? 180 : 40) : 0;
         for (int i = 0; i < n; i++)
         {
             // 真上(-π/2)±1.2rad → 右上(-π/4 中心)±1.0rad。左（弾の進む先）へはほぼ散らない。
             float a = -Mathf.Pi / 4 + R(-1.0f, 1.0f), sp = R(45, 110);
             bool heart = _rng.Randf() < 0.35f;
-            Add0(new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true });
+            var particle = new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true };
+            if (points == 0 || !ScoreDrops.Add(particle, points / n + (i < points % n ? 1 : 0)))
+                Add0(particle);
         }
         for (int i = 0; i < 6; i++)
         {
@@ -272,6 +278,15 @@ public partial class FxLayer : Node2D
     {
         Add0(new P { Type = T.Petal, X = pos.X, Y = pos.Y, Vx = R(-20, 20), Vy = R(-50, -15), Size = R(2.4f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-6, 6), Grav = 65, Drag = 0.7f, Ttl = R(0.7f, 1.1f), Col = _rng.Randf() < 0.5f ? PetalA : PetalB, Deep = true });
         Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 4, Ttl = 0.2f, Col = Mote, Add = true });
+    }
+
+    public void ScorePickup(Vector2 pos, Color color)
+    {
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 8, Ttl = 0.16f,
+            Col = color, W = 0.8f, A0 = 0.65f, Add = true, Deep = true });
+        for (int i = 0; i < 2; i++)
+            Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = R(-18, 18), Vy = R(-30, -12),
+                Size = 1.2f, Ttl = 0.18f, Col = color, Add = true, Deep = true });
     }
 
     // 道中ザコの攻撃予告（テレグラフ）。
@@ -490,7 +505,7 @@ public partial class FxLayer : Node2D
         c.DrawCircle(p, r * 0.3f, new Color(col.R, col.G, col.B, a * 0.95f));
     }
 
-    private static void DrawP(Node2D c, P p, Font font)
+    internal static void DrawP(Node2D c, P p, Font? font)
     {
         float k = p.Life / p.Ttl, inv = 1f - k;
         var pos = new Vector2(p.X, p.Y);

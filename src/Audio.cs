@@ -66,6 +66,7 @@ public partial class Audio : Node
 
     // コアSE（コードで合成したプレースホルダ。実音源が来たら差し替える）。
     public AudioStreamWav SfxShot = null!, SfxGraze = null!, SfxHit = null!, SfxPurify = null!;
+    public AudioStreamWav SfxScorePickup = null!;
 
     // 拡張SE（設計書 ③④⑥⑦⑧⑩）。同じくプレースホルダ。
     public AudioStreamWav SfxBomb = null!, SfxCalm = null!,
@@ -217,6 +218,7 @@ public partial class Audio : Node
         SfxGraze  = SynthGraze();
         SfxHit    = SynthHit();
         SfxPurify = SynthPurify();
+        SfxScorePickup = SynthScorePickup();
         SfxBomb     = SynthBomb();
         SfxCalm     = SynthCalm();
         SfxSpell    = SynthSpell();
@@ -568,6 +570,9 @@ public partial class Audio : Node
     public void PlayPurify()
         => Se(SfxPurify, volDb: -14f, pitch: _rng.RandfRange(0.99f, 1.02f));
 
+    public void PlayScorePickup(int chain)
+        => Se(SfxScorePickup, volDb: -20f, pitch: Mathf.Pow(2f, Mathf.Min(chain, 7) / 12f));
+
     // ───────── 拡張SE（③④⑥⑦⑧⑩）─────────
     // ③ボム：一拍の溜め→開放の二段。破壊でなく「鎮める／光が満ちる」。
     public void PlayBomb()
@@ -684,6 +689,19 @@ public partial class Audio : Node
             s[i] = (a + b) * env * 0.32f;
         }
         return MakeWav(s);
+    }
+
+    private static AudioStreamWav SynthScorePickup()
+    {
+        var samples = new float[(int)(Rate * 0.10f)];
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = (float)i / Rate;
+            float envelope = Mathf.Min(1f, t / 0.003f) * Mathf.Exp(-t / 0.022f);
+            float tone = Mathf.Sin(Mathf.Tau * 880f * t) + 0.3f * Mathf.Sin(Mathf.Tau * 1320f * t);
+            samples[i] = tone * envelope * 0.32f;
+        }
+        return MakeWav(samples);
     }
 
     // 被弾：低いトーン（160→90Hz）＋ノイズの鈍いバースト（~200ms）。
