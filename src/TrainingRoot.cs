@@ -52,6 +52,22 @@ public partial class TrainingRoot : Node2D
     private double _idleTimer;   // 無入力の継続秒数（移動/ショット/ボム/モード切替のいずれかで0にリセット）。
     private bool _idleFired;     // このアイドル継続中に一度でも独り言を出したか（連呼防止。入力が戻るまで再発火しない）。
 
+    // ───── GCの定期こまめ実行（SIGABRTクラッシュ対策）─────
+    //   本編ステージは敵/パネルの出現・撃破やシーン遷移で C# 側のオブジェクトが継続的に生成・破棄され、
+    //   その過程で .NET の GC が自然に何度も走る。トレーニングは的（TrainingDummy）が1体だけ生き続け、
+    //   弾はプール再利用（Bullet.cs）で新規生成がほぼ無い＝本編よりずっと GC が回りにくいシーンになっている。
+    //   これ単体は無害だが、GC が長時間走らないまま `--quit`/終了操作でエンジンがシーンツリーを一括解放すると、
+    //   ファイナライズ待ちの C# ラッパーが一度に大量に処理されることになり、Godot 側の C# バインディング解放
+    //   （modules/mono/csharp_script.cpp の _instance_binding_free_callback）とファイナライザスレッドが
+    //   競合して `FATAL: csharp_lang && !csharp_lang->script_bindings.is_empty()` で SIGABRT する事故が
+    //   実機QAで再現した（Training.tscn を60秒前後プレイし続けると発生）。
+    //   対策として、本編シーンで自然に起きている「時々 GC が走る」状態を明示的に作る＝数秒おきに
+    //   GC.Collect()＋WaitForPendingFinalizers()＋GC.Collect() を同期実行し、ファイナライズ待ちの
+    //   C# ラッパーを溜め込ませない。表示・撃ち味・当たり判定には一切触れない安全な保険（数秒に1回、
+    //   一瞬のブロッキングコストはあるが実測ではフレームレートに有意な影響は出ていない）。
+    private const double GcNudgeInterval = 4.0;
+    private double _gcNudgeT;
+
     private static readonly (int who, string text)[] TrainEnter =
     {
         (1, "試し打ちですね。……ええ、思う存分どうぞ。ここでは誰も痛みません。"),
@@ -180,6 +196,18 @@ public partial class TrainingRoot : Node2D
     public override void _Process(double delta)
     {
         _elapsed += delta;
+
+        // GCの定期こまめ実行（フィールド宣言のコメント参照）。ファイナライザ待ちまで含めて溜め込ませない
+        // ＝ Quit() 時にファイナライザスレッドと本編の一括解放が競合する余地を無くすのが狙いなので、
+        // 非同期(blocking:false)では確実性が足りず（実測で再現継続）、同期で完了まで待つ。
+        _gcNudgeT += delta;
+        if (_gcNudgeT >= GcNudgeInterval)
+        {
+            _gcNudgeT = 0;
+            System.GC.Collect();
+            System.GC.WaitForPendingFinalizers();
+            System.GC.Collect();
+        }
 
         // 直近 DpsWindow 秒より古い与ダメ記録を捨てる。
         while (_dmgLog.Count > 0 && _dmgLog.Peek().t < _elapsed - DpsWindow)

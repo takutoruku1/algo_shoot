@@ -278,16 +278,21 @@ public static class UiKit
     }
 
     // ── 角丸ボックス（border/塗り）──
+    //   GC対策：呼び出し毎の `new StyleBoxFlat` を廃止し、static 1個を使い回す（Bullet.cs の頂点バッファ
+    //   使い回しと同じ作法）。DrawStyleBox は呼び出し時点でリソースの現在値を読んで描画コマンドへ焼き込む
+    //   （後から参照し直さない）ので、次の呼び出しまでの間だけ値を保持すれば安全。
+    //   毎フレーム大量に呼ばれる画面（Training 等・他が動かず GC が長時間走らない状況）で
+    //   使い捨て StyleBoxFlat が回収されないまま滞留し、シーン終了時の一括解放と GC のファイナライザが
+    //   競合して Godot 側が「Leaked unsafe reference to object」→ FATAL で異常終了する事故があったため。
+    private static readonly StyleBoxFlat _boxSb = new() { AntiAliasing = true };
     public static void Box(CanvasItem ci, Rect2 r, Color? bg, float radius, Color? border = null, float borderW = 0f)
     {
-        var sb = new StyleBoxFlat
-        {
-            BgColor = bg ?? new Color(0, 0, 0, 0),
-            CornerRadiusTopLeft = (int)radius, CornerRadiusTopRight = (int)radius,
-            CornerRadiusBottomLeft = (int)radius, CornerRadiusBottomRight = (int)radius,
-            AntiAliasing = true,
-        };
+        var sb = _boxSb;
+        sb.BgColor = bg ?? new Color(0, 0, 0, 0);
+        sb.CornerRadiusTopLeft = sb.CornerRadiusTopRight =
+            sb.CornerRadiusBottomLeft = sb.CornerRadiusBottomRight = (int)radius;
         if (border is Color bc && borderW > 0f) { sb.BorderColor = bc; sb.SetBorderWidthAll((int)Mathf.Max(1, borderW)); }
+        else { sb.SetBorderWidthAll(0); } // 前回呼び出しの縁を持ち越さない
         ci.DrawStyleBox(sb, r);
     }
 

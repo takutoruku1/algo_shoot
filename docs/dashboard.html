@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 234 / 対象 234 タスク<br>保留 34 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 235 / 対象 237 タスク<br>保留 36 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">234</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">235</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">34</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">36</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,36 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">加速球モードで同時タメ上限に達した試行でもマズルフラッシュ・発射音・反動が鳴ってしまい「弾が消えた」ように見える</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-16監査(game-designer)。<code>src/Player.cs:895-916 FireAccel()</code>は<code>_accelCharging.Count &gt;= AccelChargeCap</code>(<code>Player.cs:50</code>, 既定6)の時、何もスポーンせず<code>return</code>する(<code>:905-906</code>)が、<code>src/Player.cs:866-871</code>のマズルフラッシュ(<code>FxLayer.Instance?.Muzzle</code>)・発射音(<code>Audio.Instance?.PlayShot</code>)・反動(<code>_recoil = 1f</code>)はswitch文の外側で無条件に実行される。未強化時<code>AccelChargeDelay=0.8f</code>(<code>GameManager.cs:795</code>)に対しオート連射間隔<code>FireInterval=0.13f</code>(<code>Player.cs:16</code>)は遥かに短く、定常状態で約半数のFire()試行が「音と光だけ出て弾が出ない」状態になる。<code>accel_1</code>はショップ入口ノードで100Gと最安(<code>GameManager.cs:489</code>)＝プレイヤーが最も早く触る強化のひとつで、かつ&quot;速填&quot;強化を買う前が最も症状が重い。<code>AccelChargeCap</code>・<code>AccelChargeDelay</code>などのバランス値は変更せず、<code>FireAccel()</code>を<code>bool</code>（弾を実際にスポーンしたか）を返す形に変え、戻り値が<code>false</code>の時は加速球モードに限りマズルフラッシュ・発射音・反動もスキップすること。受入条件: 加速球モードで同時タメ上限に達している間、発射操作をしてもマズルフラッシュ・発射音・反動のいずれも発生しないこと（弾がスポーンする試行では従来通り発生すること）。バランス値(<code>AccelChargeCap</code>/<code>AccelChargeDelay</code>/<code>FireInterval</code>)は変更しない。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-16監査(game-designer)。<code>src/GameManager.cs:1317-1320</code>の<code>AddDodgeGraze()</code>直上コメントが「通常グレイズ(Score+10・お金なし)より大きめ」と書かれているが、実際の<code>AddGraze()</code>(<code>:1307-1315</code>)は<code>GainImpression(1)</code>を呼び通常グレイズも通貨(インプレ)を生む(DEV_QUEUE DONE 2026-08-13で是正済み)。コメントが古いまま実装意図の誤読を招く。受入条件: <code>src/GameManager.cs:1318</code>のコメントを「通常グレイズ(Score+10・インプレ+1)より大きめ」等、実値に合わせて訂正する。ロジック変更はしないこと。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">Training.tscnを一定時間プレイし続けるとGodotプロセスがSIGABRTでクラッシュする</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-16) 2026-09-16監査(qa)で発見・同日修正。自分で<code>Training.tscn -- --qa --easy --seconds 45 --quit</code>を複数回再現し(2/3回exit code 134)、<code>ERROR: Leaked unsafe reference to object</code>の内訳をログ集計するとCircleShape2Dが支配的(460件/511件)だった。原因候補として申し送られた<code>TrainingDummy.cs</code>のDown()/Revive()無限復活は、<code>DummyMaxHp</code>を4億に上げて撃破が一切発生しない状態でも同条件で3/3回クラッシュが再現したため<strong>原因ではないと切り分け済み</strong>（該当箇所は変更していない）。もう一方の候補<code>UiKit.cs:283-289 Box()</code>（呼び出し毎に<code>new StyleBoxFlat</code>を使い捨て生成）が真因：<code>TrainingRoot.cs</code>は<code>_uiLayer.Draw += DrawUi</code>で毎<code>_Process</code>フレーム無条件に<code>QueueRedraw()</code>しており(<code>TrainingRoot.cs:222</code>付近)、DPS計器・タブ・もどるボタンだけでも最低3個/フレーム×約145fps×45〜60秒＝数万個のStyleBoxFlatを生成していた（他ステージのHudは同程度以上のBox呼び出しがあるが、ザコ敵/パネルの出現・撃破やシーン遷移でC#オブジェクトの生成・破棄が常時起きているぶんGCが自然に回るのに対し、Training唯一の敵は<code>TrainingDummy</code>1体だけが生き続け弾もプール再利用でノード新規生成がほぼ無く、GCが長時間走らない特異なシーンだった）。実際に<code>_uiLayer.Draw</code>を無効化(=Box呼び出しゼロ)しただけで3/3回クラッシュが消えたことで確定。<strong>修正</strong>: <code>src/UiKit.cs:281-296 Box()</code>を毎回<code>new StyleBoxFlat</code>する実装から、<code>Bullet.cs</code>の頂点バッファ使い回しと同じ作法でstatic 1個(<code>_boxSb</code>)を使い回す実装に変更(border未指定時は前回の縁を持ち越さないよう<code>SetBorderWidthAll(0)</code>でリセット)。あわせて<code>src/TrainingRoot.cs</code>に4秒おきの<code>GC.Collect()</code>+<code>GC.WaitForPendingFinalizers()</code>+<code>GC.Collect()</code>を追加し、本編ステージで自然に起きている「GCがときどき回る」状態を明示的に作った（表示・撃ち味・当たり判定には非干渉）。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。修正後<code>Training.tscn -- --qa --easy --seconds 45/60 --quit</code>をqa-bootstrap経由で計14回実行し全てexit code 0（内訳: 45秒×8回・60秒×6回、うち指定の受入条件どおり60秒を2回連続実行して両方exit code 0を確認）。なお検証中に発覚した副次情報として、この<code>FATAL: csharp_lang &amp;&amp; !csharp_lang-&gt;script_bindings.is_empty()</code>クラッシュ自体はTraining固有ではなく低確率ながら他ステージ(Koharu、<code>InputEventAction</code>過多が支配的要因)でも未修正コードのまま3回中1回再現した＝Godot 4.6.3 monoモジュール側のGC/ファイナライザスレッド競合という一般的な既知の脆さで、Training側の対処はこのタスクの受入条件が要求する「Trainingで支配的だった高確率トリガー(StyleBoxFlat過剰生成)」の除去にとどまる。他ステージ側の低確率フレークは本タスクの受入条件外のため未着手（別途起票が要るなら追記する）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2031,6 +2055,22 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">wiki/README.mdおよびwiki/03_ストーリー/*.md(8本)・wiki/04_キャラクター/*.md(6本)が案C承認(2026-09-05)後も旧正典(少年実在・旧面順レイ→あかり→こはる)を「完成した正典」と記述し、逆に案Cの承認済み仮台本05〜08・12を「検討中の草稿・非正典」と明記したままで、正典/非正典のラベルが実態と逆転している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-16監査(scenario)。<code>wiki/README.md:3-4,74</code>は「ゲーム本体が正典」と自称しつつ<code>:23-26</code>で旧面順(STAGE1レイ/STAGE2あかり/STAGE3こはる)を掲げ<code>:55-67</code>で05・06・07・08・12を「検討中の草稿。非正典」と明記。実装側<code>src/GameManager.cs:200-202</code>(あかり→こはる→レイ)・<code>src/BossRei.cs:6</code>・<code>src/BossAkari.cs:64</code>・<code>src/Prologue.cs:10</code>は「台詞の正典はwiki/08_仮台本…ユーザー承認済み・2026-09-05」と明記し案Cを一字一句反映済み。<code>wiki/04_キャラクター/01_少年.md:9,13,17-28</code>は少年を実在の死者として詳述し案Cの「少年不在」と正面矛盾。<code>wiki/03_ストーリー/08_伏線と回収.md</code>も同じ旧設定で記述。既存BLOCKED「正典を指す上位ドキュメント群(docs/STORY.md等3ファイル)が陳腐化」とは対象ファイル群が完全に別(<code>wiki/</code>配下15本)で、かつ「非正典ラベルの逆転」という追加の実害がある。要ユーザー判断: (a)wiki/README.mdの目次・約束と05〜08・12の「検討中の草稿」表記を「実装済み正典」に更新する範囲、(b)<code>wiki/03_ストーリー/*.md</code>・<code>wiki/04_キャラクター/*.md</code>(特に01_少年.md)を全面改稿するか冒頭に「旧設定に基づく。現行正典は仮台本05〜08・12」と注記するに留めるか、のいずれかを指定してほしい。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">STAGE3(レイ)背景タイムライン(StageImagery.ReiBodies)が案Cで廃止済みのはずの「順位掲示板」世界観のまま実装され続けている</span>
+          
+        </div>
+        <p class="accept">2026-09-16監査(engineer)。<code>src/StageImagery.cs:278-280</code>の<code>ReiBodies</code>配列は「また２位ｗ」「２位おめでとう（笑）」等、順位競争をあざける文面のまま、<code>:283-288</code>は「１位」ポストの固定表示演出も現存。一方<code>src/AreaSpellCaster.cs:274</code>のコメントは「旧・順位掲示板の技名＝ランキング／表彰台／序列は落とす」と明記し案Cでの廃止方針を既に確定済み、ハンドルも<code>@rei_compete</code>→<code>@hoshiai_rei_live</code>へ変更済み(DONE 2026-09-06)。<code>git log --oneline -- src/StageImagery.cs</code>ではAkari分(<code>6ea3b38</code>)・Koharu分(<code>688cdf2</code>)は案C移行コミットがあるがRei分だけ案C移行コミットが無く2026-06-20の旧世界観実装のまま。<code>src/BossRei.cs:411</code>(改心後に「１位」ポストへ色が差す反転演出)の扱いも合わせて判断が要る。既存BLOCKED「レイのHub SNSカードのツイート文」(<code>GameManager.cs:202</code>対象)とは別ファイルの同根問題。要ユーザー判断: 案Cのレイ像(登録者伸び悩み・同接低下, <code>wiki/08_仮台本/12</code>)に沿った新規フレーバーテキストへの差し替えを承認するか、現状維持か。新規台詞の創作を伴うため台詞承認ゲート対象。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">アクセシビリティ設定5項目（明滅を抑える/色覚サポート/文字サイズ/被弾演出を控えめに/高コントラストUI）が保存されるだけで一切機能しない</span>
           <span class="worker">engineer</span>
         </div>
@@ -2305,18 +2345,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">66b8111</span><span>2026-09-16</span><span class="s">auto: WIP着手 - Training.tscnのSIGABRTクラッシュを修正する</span></li>
+      <li><span class="h">f30d094</span><span>2026-09-16</span><span class="s">auto: 監査で TODO 3件・BLOCKED 2件をキューに追加</span></li>
+      <li><span class="h">41a65ef</span><span>2026-09-15</span><span class="s">auto: あかりのSNSハンドル食い違い(@akari. vs @akari_ame)を修正</span></li>
       <li><span class="h">ee651e2</span><span>2026-09-15</span><span class="s">auto: WIP着手 - あかりのSNSハンドル食い違いを修正する</span></li>
       <li><span class="h">2a40426</span><span>2026-09-15</span><span class="s">auto: ボス無防備窓のダメージ数字積み上がりによる視認性悪化を修正</span></li>
       <li><span class="h">7976a43</span><span>2026-09-15</span><span class="s">auto: WIP着手 - ボス無防備窓のダメージ数字視認性を改善する</span></li>
       <li><span class="h">1b16370</span><span>2026-09-15</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">1462b48</span><span>2026-09-14</span><span class="s">auto: sakurai design-map.mdの実装値ズレを是正</span></li>
-      <li><span class="h">17af48b</span><span>2026-09-14</span><span class="s">auto: WIP着手 - sakurai design-map.mdの実装値ズレを是正する</span></li>
-      <li><span class="h">b09ebd5</span><span>2026-09-14</span><span class="s">auto: LUNATIC解禁UIのshot_power_4残存表記を修正</span></li>
-      <li><span class="h">0a20987</span><span>2026-09-14</span><span class="s">auto: WIP着手 - LUNATIC解禁UIのshot_power_4残存を修正する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-15 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-16 19:54 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
