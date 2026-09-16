@@ -36,24 +36,84 @@ public partial class HubJobQa : Node
             GetTree().Root.AddChild(hub);
             GetTree().CurrentScene = hub;
             await Frames(30);
-            Check(Mode(hub) == "Cards", "new game continues directly into SNS");
+            bool introMovie = Array.IndexOf(OS.GetCmdlineUserArgs(), "--intro-movie") >= 0;
+            Check(Mode(hub) == "Home", "new game starts on the phone home before opening SNS");
+            Check(!game.IsIdleDialogSeen("once_phone_home"), "starting on home does not consume the first rescue reward reveal");
             var phone = new Rect2(400, 0, 480, 720);
             for (int i = 0; i < 3; i++)
             {
                 Check(phone.Encloses((Rect2)Call(hub, "HomeAppRect", i)!), "app icons stay inside the phone screen");
                 Check((bool)Call(hub, "HomeAppUnlocked", i)! == (i == 0), "new data can open SNS but keeps shop and records locked");
             }
+            await Shot("home_first_visit");
+            if (!introMovie)
+            {
+                DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                await Frames(20);
+                await Shot("home_first_visit_small");
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                await Frames(20);
+            }
+            else await Frames(120);
+            long initialImpression = game.Impression, initialFollowers = game.Followers;
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
+            Click(hub, (Rect2)Call(hub, "HomeAppRect", 0)!, "ProcessHome");
+            Check(Mode(hub) == "SnsOpening", "SNS opens with an app launch transition");
+            await Frames(8);
+            await Shot("sns_opening_start");
+            await Frames(12);
+            await Shot("sns_opening_expand");
+            await Frames(58);
+            Check(Mode(hub) == "Dialogue" && Read<int>(hub, "_dlgIdx") == 0 && Read<int>(hub, "_dlgPage") == 0,
+                "holding confirm through app launch does not skip the purpose explanation");
+            Check(Read<bool>(hub, "_dlgNoPost") && !Read<bool>(hub, "_dived"), "the introduction neither posts nor enters combat");
+            var introPost = (Rect2)Call(hub, "CardHitRect", Read<int>(hub, "_sel"))!;
+            Check(introPost.Position.Y >= 128 && introPost.End.Y < 428, "the first voice remains visible above the purpose dialogue");
+            Check(!game.IsIdleDialogSeen("once_sns_intro"), "the explanation stays unread until it is completed");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
+            await Frames(3);
+            foreach (var (_, line) in Read<(string, string)[]>(hub, "_dlg"))
+                foreach (string page in UiKit.Paginate(UiKit.Zen, line, UiKit.FontHeading, 432f, Hud.DlgMaxLines))
+                    Check(UiKit.WrapLines(UiKit.Zen, page, UiKit.FontHeading, 432f).Count <= Hud.DlgMaxLines,
+                        "the SNS purpose dialogue fits its two-line pages");
+            int introPages = 0;
+            while (Mode(hub) == "Dialogue" && introPages < 20)
+            {
+                await Frames(introMovie ? 180 : 60);
+                await Shot($"sns_intro_{introPages}");
+                await Keypress(Key.Z);
+                introPages++;
+            }
+            Check(Mode(hub) == "Cards" && game.IsIdleDialogSeen("once_sns_intro"), "reading the guide returns to SNS and remembers completion");
+            Check(game.Impression == initialImpression && game.Followers == initialFollowers && Read<double>(hub, "_toastT") == 0,
+                "reading the guide awards no post rewards or notification");
+            game.ResetIdleDialogSeen();
+            Check(game.IsIdleDialogSeen("once_sns_intro"), "small-talk resets preserve the SNS introduction");
+            Check(game.LoadFromSlot(0) && game.IsIdleDialogSeen("once_sns_intro"), "SNS introduction completion is saved");
+            await Frames(30);
+            await Shot("sns_first_selection");
+            if (introMovie)
+            {
+                await Frames(90);
+                await Finish();
+                return;
+            }
             int initialStage = Read<int>(hub, "_sel");
             var initialFooter = (IList)Call(hub, "FooterItems")!;
-            Check(initialFooter.Count == 2, "home is not offered before the first rescue");
+            Check(initialFooter.Count == 2, "home replaces dive without duplicating navigation");
             await Keypress(Key.X);
-            Check(Mode(hub) == "Cards" && Read<int>(hub, "_sel") == initialStage, "back cannot reveal home before the first rescue");
+            Check(Mode(hub) == "Home" && Read<int>(hub, "_sel") == initialStage, "back returns home without changing the selected post");
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "SnsOpening", "keyboard confirmation opens the SNS app");
+            await Frames(45);
+            Check(Mode(hub) == "Cards", "opening SNS again does not repeat the explanation");
             DisplayServer.WindowSetSize(new Vector2I(960, 540));
             await Frames(20);
             await Shot("first_timeline_small");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(20);
             await Shot("cards");
+            await CheckScroll(hub);
             Check(phone.Encloses((Rect2)Call(hub, "HeaderJobRect")!), "character switch stays inside the phone column");
             var initialEntries = Read<IList>(hub, "_entries");
             var feed = new Rect2(400, 128, 480, 518);
@@ -63,16 +123,19 @@ public partial class HubJobQa : Node
                 Check(!hit.HasArea() || feed.Encloses(hit), "post hit areas are clipped above navigation and below the header");
             }
             Click(hub, (Rect2)Call(hub, "HeaderJobRect")!, "ProcessCards");
-            Check(Mode(hub) == "Job", "header button opens all four job types");
+            Check(Mode(hub) == "Job", "header button opens the available accounts");
+            Check(Read<JobTuning[]>(hub, "_jobChoices").Length == 1
+                && Read<JobTuning[]>(hub, "_jobChoices")[0].Id == Job.Tank, "new data shows only Mina without locked rows");
             foreach (var job in Jobs.All)
             {
                 var face = Read<Dictionary<string, Texture2D>>(hub, "_playerFaces")[job.CharacterId];
                 Check(face.ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png",
                     $"{job.CharacterId} player portrait is available before stage clears");
                 var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
-                Check(UiKit.WrapLines(UiKit.Zen, job.Strength, 14, box.w - 102f).Count <= 2
-                    && UiKit.WrapLines(UiKit.Zen, job.Weakness, 14, box.w - 102f).Count <= 2,
-                    $"{job.CharacterId} descriptions fit the compact account sheet");
+                string stats = (string)typeof(Hub).GetMethod("JobStats", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
+                Check(stats == System.FormattableString.Invariant($"♥{job.MaxLifeDelta:+0;-0;+0}／移動×{job.MoveMul:0.##}／回避距離×{job.DodgeDistMul:0.##}")
+                    && UiKit.TextW(UiKit.Zen, stats, 14) <= box.w - 124f,
+                    $"{job.CharacterId} shows only the actual life, movement and dodge modifiers on one line");
                 string handle = (string)typeof(Hub).GetMethod("AccountHandle", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
                 string expectedHandle = job.Id == Job.Tank ? "@mina_ai_" : Array.Find(GameManager.Stages, s => s.Id == job.CharacterId)!.Handle;
                 Check(handle == expectedHandle && UiKit.TextW(UiKit.Mono, handle, 11) <= 96f,
@@ -81,8 +144,13 @@ public partial class HubJobQa : Node
             }
             await Frames(20);
             await Shot("types");
-            // ジョブ解禁制（2026-09-14）：新規データは結び手（ミナ）だけ。残る3人は行を残したまま
-            //   灰色＋解禁条件が出る。押しても選ばれず、理由（どの面をクリアすれば開くか）だけ返る。
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(20);
+            await Shot("accounts_mina_small");
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await KeyAction("ui_down");
+            await KeyAction("ui_up");
+            Check(Read<int>(hub, "_jobSel") == 0, "keyboard navigation cannot reach an unrescued account");
             foreach (var job in Jobs.All)
             {
                 bool free = job.UnlockStageId.Length == 0;
@@ -90,16 +158,22 @@ public partial class HubJobQa : Node
                 Check((game.JobUnlockHint(job.Id) == null) == free,
                     $"{job.CharacterId} {(free ? "needs no unlock line" : "explains the stage that opens it")}");
             }
-            Click(hub, (Rect2)Call(hub, "JobHitRect", 1)!, "ProcessJob", 0.01);
-            Check(Mode(hub) == "Job" && game.SelectedJob == Job.Tank, "locked character keeps the selection sheet open");
-            Check(Read<string>(hub, "_toastSub") == game.JobUnlockHint(Job.Melee), "the refusal names the stage that opens it");
-            await Shot("types_locked");
             var clearedStages = Read<HashSet<string>>(game, "_cleared");
-            // 1面（あかり）クリア＝灯し手だけが開く。残る2人は伏せたまま＝1クリアにつき1人。
-            clearedStages.Add("akari");
-            Check(game.IsJobUnlocked(Job.Melee) && !game.IsJobUnlocked(Job.Heal) && !game.IsJobUnlocked(Job.Magic),
-                "clearing akari opens only her job");
-            foreach (var item in GameManager.Stages) clearedStages.Add(item.Id);
+            for (int i = 0; i < GameManager.Stages.Length; i++)
+            {
+                await Keypress(Key.X);
+                clearedStages.Add(GameManager.Stages[i].Id);
+                await Keypress(Key.J);
+                var choices = Read<JobTuning[]>(hub, "_jobChoices");
+                Check(choices.Length == i + 2 && choices[^1].CharacterId == GameManager.Stages[i].Id,
+                    "each rescue adds exactly its character to the account list");
+                var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
+                Check(phone.Encloses(new Rect2(box.x, box.y, box.w, box.h)), "account sheet grows within the phone screen");
+                for (int row = 0; row < choices.Length; row++)
+                    Check(!((Rect2)Call(hub, "JobHitRect", row)!).Intersects((Rect2)Call(hub, "JobConfirmRect")!),
+                        "account rows do not overlap the confirmation button");
+                await Shot($"accounts_after_{GameManager.Stages[i].Id}");
+            }
             foreach (var job in Jobs.All) Check(game.IsJobUnlocked(job.Id), $"{job.CharacterId} opens once every stage is cleared");
             // 既存セーブの移行：解禁は専用キーではなくクリア記録から導くので、読み直すだけで開いている。
             game.SelectedJob = Job.Magic;
@@ -117,6 +191,7 @@ public partial class HubJobQa : Node
             game.SaveToSlot(0);
             Check(game.LoadFromSlot(0) && game.SelectedJob == Job.Tank, "a save whose job is not yet earned falls back to the starting job");
             foreach (var item in GameManager.Stages) clearedStages.Add(item.Id);
+            Call(hub, "OpenJob");
             Write(hub, "_toastT", 0d);
             await Frames(20);
             await Shot("types_unlocked");
@@ -214,6 +289,7 @@ public partial class HubJobQa : Node
                 string id = (string)entry.GetType().GetField("Id")!.GetValue(entry)!;
                 if (id != "akari" && id != "koharu" && id != "rei" && id != "pinned") continue;
                 Write(hub, "_sel", i);
+                Call(hub, "UpdateFeedScrollTarget");
                 await Frames(40);
                 await Shot($"cleared_{id}_small");
             }
@@ -227,6 +303,7 @@ public partial class HubJobQa : Node
                 if ((bool)entries[i]!.GetType().GetField("IsFinal")!.GetValue(entries[i])!) final = i;
             Check(final >= 0, "final stage is available for layout verification");
             Write(hub, "_sel", final);
+            Call(hub, "UpdateFeedScrollTarget");
             await Keypress(Key.Z);
             Check(Mode(hub) == "Detail", "final stage detail opens normally");
             await Shot("final_detail_small");
@@ -236,7 +313,12 @@ public partial class HubJobQa : Node
             Check(Mode(hub) == "Detail" && Read<int>(hub, "_sel") == final, "final stage job button returns to its shorter detail layout");
             Click(hub, (Rect2)Call(hub, "DetailCloseRect", false)!, "ProcessDetail", 0.01);
             Click(hub, (Rect2)Call(hub, "FooterItemRect", 0)!, "ProcessCards");
-            Check(Mode(hub) == "Detail", "bottom dive navigation opens the selected post");
+            Check(Mode(hub) == "Home" && !Read<bool>(hub, "_dived"), "former dive navigation returns home instead of starting a stage");
+            await Frames(3);
+            Click(hub, (Rect2)Call(hub, "HomeAppRect", 0)!, "ProcessHome");
+            await Frames(45);
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "Detail", "opening a post still reaches the stage difficulty and dive controls");
             await Frames(20);
             Click(hub, (Rect2)Call(hub, "DetailJobRect", false)!, "ProcessDetail", 0.01);
             await Frames(20);
@@ -254,8 +336,9 @@ public partial class HubJobQa : Node
             Check(Mode(hub) == "Home", "returning to the hub lands on home without a random conversation");
             Write(hub, "_idleTalkPending", false);
             Click(hub, (Rect2)Call(hub, "HomeAppRect", 0)!, "ProcessHome");
-            var unlockedFooter = (IList)Call(hub, "FooterItems")!;
-            Click(hub, (Rect2)Call(hub, "FooterItemRect", unlockedFooter.Count - 1)!, "ProcessCards");
+            await Frames(45);
+            Check(Mode(hub) == "Cards", "returning players open SNS without the introduction");
+            Click(hub, (Rect2)Call(hub, "FooterItemRect", 0)!, "ProcessCards");
             Check(Mode(hub) == "Home", "home navigation is available after rescue");
             for (int i = 0; i < 3; i++) Check((bool)Call(hub, "HomeAppUnlocked", i)!, "cleared stages unlock all existing apps");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -309,21 +392,7 @@ public partial class HubJobQa : Node
                 hub.QueueFree();
                 await Frames(5);
             }
-            Audio.Instance?.StopMusic(0);
-            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
-                if (child is AudioStreamPlayer player)
-                {
-                    player.Stop();
-                    player.Stream = null;
-                }
-            // Audio playback cleanup runs on a real-time thread even with --fixed-fps.
-            await Task.Delay(250);
-            await Frames(5);
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await Frames(5);
-            GD.Print("[HubJobQA] ALL PASS");
-            GetTree().Quit();
+            await Finish();
         }
         catch (Exception ex)
         {
@@ -332,10 +401,64 @@ public partial class HubJobQa : Node
         }
     }
 
+    private async Task Finish()
+    {
+        Audio.Instance?.StopMusic(0);
+        foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+            if (child is AudioStreamPlayer player)
+            {
+                player.Stop();
+                player.Stream = null;
+            }
+        // Audio playback cleanup runs on a real-time thread even with --fixed-fps.
+        await Task.Delay(250);
+        await Frames(5);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(5);
+        GD.Print("[HubJobQA] ALL PASS");
+        GetTree().Quit();
+    }
+
+    private async Task CheckScroll(Hub hub)
+    {
+        int selected = Read<int>(hub, "_sel");
+        float target = Read<float>(hub, "_feedScrollTarget");
+        Vector2 mouse = Pad.MousePos();
+        foreach (var (offset, y) in new[] { (0f, 644f), (200f, 130f) })
+        {
+            Write(hub, "_feedScroll", offset);
+            Write(hub, "_feedScrollTarget", offset);
+            PadField("_mousePos", new Vector2(620, y));
+            PadField("_usingMouse", true);
+            await Frames(120);
+            Check(Read<float>(hub, "_feedScrollTarget") == offset && Read<float>(hub, "_feedScroll") == offset,
+                "hovering a clipped post at the timeline edge never scrolls");
+        }
+        float beforeWheel = Read<float>(hub, "_feedScrollTarget");
+        PadField("_wheelFrame", -1f);
+        Call(hub, "ProcessCards");
+        PadField("_wheelFrame", 0f);
+        await Frames(120);
+        Check(Read<float>(hub, "_feedScrollTarget") > beforeWheel
+            && Mathf.Abs(Read<float>(hub, "_feedScroll") - Read<float>(hub, "_feedScrollTarget")) < 0.01f,
+            "mouse wheel scrolls and never snaps back after idling");
+        PadField("_usingMouse", false);
+        PadField("_mousePos", mouse);
+        Write(hub, "_sel", Read<IList>(hub, "_entries").Count - 2);
+        Write(hub, "_feedScrollTarget", 0f);
+        await KeyAction("ui_down");
+        Check(Read<float>(hub, "_feedScrollTarget") > 0f, "keyboard navigation still brings its selected post into view");
+        Write(hub, "_sel", selected);
+        Write(hub, "_feedScrollTarget", target);
+        await Frames(60);
+    }
+
+    private static void PadField(string name, object value) => typeof(Pad).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);
+
     private static void Click(Hub hub, Rect2 rect, string handler, params object[] args)
     {
         // Inject design-space mouse state without moving the desktop cursor.
-        void PadField(string name, object value) => typeof(Pad).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);
         Vector2 previousPosition = Pad.MousePos();
         PadField("_mousePos", rect.GetCenter());
         PadField("_usingMouse", true);

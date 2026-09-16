@@ -3,12 +3,32 @@ using System;
 
 public partial class OpeningFilm : Node2D
 {
-    public const double Duration = 41.0;
+    private const double PhoneDuration = 10.5;
+    public const double Duration = PhoneDuration + 37.5;
     public Action? Completed;
     public double Elapsed { get; private set; }
     public bool Finished { get; private set; }
 
-    private static readonly double[] Cuts = { 0, 3.5, 7, 10.5, 14, 19, 22.5, 26, 29.5, 33, 37, Duration };
+    private static readonly double[] Cuts =
+    {
+        0, PhoneDuration, PhoneDuration + 3.5, PhoneDuration + 7, PhoneDuration + 10.5,
+        PhoneDuration + 15.5, PhoneDuration + 19, PhoneDuration + 22.5,
+        PhoneDuration + 26, PhoneDuration + 29.5, PhoneDuration + 33.5, Duration,
+    };
+    private static readonly (double Time, string Text)[] DraftBeats =
+    {
+        (0, ""),
+        (1.8, "た"),
+        (2.35, "たす"),
+        (2.9, "たすけ"),
+        (3.8, "たす"),
+        (4.0, "た"),
+        (4.2, ""),
+        (6.0, "た"),
+        (6.65, "たす"),
+        (7.45, "たすけ"),
+        (8.2, "たすけて"),
+    };
     private static readonly string[] Characters = { "akari", "koharu", "rei", "mina" };
     private static readonly string[] DailyLines =
     {
@@ -269,22 +289,28 @@ public partial class OpeningFilm : Node2D
         DrawPolygon(points, new[] { tint, tint, tint, tint }, uv, portrait);
     }
 
+    private static (string Text, bool Caret) PhoneDraft(double time)
+    {
+        int beat = 0;
+        while (beat < DraftBeats.Length - 1 && time >= DraftBeats[beat + 1].Time) beat++;
+        double idle = time - DraftBeats[beat].Time;
+        return (DraftBeats[beat].Text, idle % 1.1 < 0.6);
+    }
+
     private void DrawPhone(float t, float alpha)
     {
-        float pull = Ease(t / 3.5f);
+        float pull = Ease(t / (float)PhoneDuration);
         float scale = Mathf.Lerp(1.12f, 0.94f, pull);
         DrawSetTransform(new Vector2(640, 364), -0.035f + pull * 0.025f, Vector2.One * scale);
         UiKit.Box(this, new Rect2(-161, -282, 322, 564), new Color(0.055f, 0.065f, 0.075f, alpha), 25, new Color(0.38f, 0.44f, 0.47f, alpha), 1.8f);
         UiKit.Box(this, new Rect2(-149, -268, 298, 536), new Color(0.02f, 0.03f, 0.035f, alpha), 18);
         UiKit.Box(this, new Rect2(-38, -258, 76, 9), new Color(0.1f, 0.13f, 0.15f, alpha), 4);
         UiKit.Text(this, UiKit.Zen, new Vector2(-124, -213), "下書き", 17, Fade(UiKit.Text3, alpha));
-        string cry = "たすけて";
-        int count = t < 1.45f ? Mathf.Clamp((int)(t * 5), 0, cry.Length)
-            : Mathf.Clamp(cry.Length - (int)((t - 1.45f) * 6), 0, cry.Length);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(-124, -110), cry[..count], 31, Fade(UiKit.White, alpha));
-        if (t < 2.45f)
+        var draft = PhoneDraft(t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(-124, -110), draft.Text, 31, Fade(UiKit.White, alpha));
+        if (draft.Caret)
         {
-            float x = -123 + UiKit.TextW(UiKit.ZenBold, cry[..count], 31);
+            float x = -123 + UiKit.TextW(UiKit.ZenBold, draft.Text, 31);
             DrawLine(new Vector2(x, -105), new Vector2(x, -75), Fade(UiKit.Info, alpha), 1.5f);
         }
         DrawLine(new Vector2(-124, 174), new Vector2(124, 174), new Color(0.35f, 0.46f, 0.49f, alpha * 0.4f), 1);

@@ -34,7 +34,7 @@ public partial class OpeningFilmQa : Node
                 int completed = 0;
                 var movie = new OpeningFilm { Completed = () => completed++ };
                 prologue.AddChild(movie);
-                for (int i = 0; i < 2100 && completed == 0; i++) await Frames(1);
+                for (int i = 0; i < (OpeningFilm.Duration + 2) * 60 && completed == 0; i++) await Frames(1);
                 Check(completed == 1, "movie plays to completion");
                 await Cleanup();
                 return;
@@ -44,6 +44,24 @@ public partial class OpeningFilmQa : Node
             prologue.AddChild(film);
             film.SetProcess(false);
             await Frames(3);
+            var cuts = (double[])typeof(OpeningFilm).GetField("Cuts", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            var draftMethod = typeof(OpeningFilm).GetMethod("PhoneDraft", BindingFlags.Static | BindingFlags.NonPublic)!;
+            (string Text, bool Caret) Draft(double time) => ((string, bool))draftMethod.Invoke(null, new object[] { time })!;
+            foreach (var (time, text) in new (double, string)[]
+            {
+                (0, ""), (1.79, ""), (1.8, "た"), (2.35, "たす"), (2.9, "たすけ"),
+                (3.79, "たすけ"), (3.8, "たす"), (4.0, "た"), (4.2, ""), (5.99, ""),
+                (6.0, "た"), (6.65, "たす"), (7.45, "たすけ"), (8.2, "たすけて"), (10.49, "たすけて"),
+            })
+                Check(Draft(time).Text == text, $"draft at {time:0.00}s hesitates, types, erases, and retypes in order");
+            Check(Draft(0.1).Caret && !Draft(0.7).Caret && Draft(4.21).Caret && !Draft(4.9).Caret,
+                "caret blinks during both empty pauses and returns after editing");
+            Check(cuts[1] - 8.2 >= 2 && cuts[^1] == OpeningFilm.Duration,
+                "completed plea remains readable before the next scene");
+            foreach (var (index, duration) in new[] { (1, 3.5), (2, 3.5), (3, 3.5), (4, 5.0),
+                (5, 3.5), (6, 3.5), (7, 3.5), (8, 3.5), (9, 4.0), (10, 4.0) })
+                Check(Math.Abs(cuts[index + 1] - cuts[index] - duration) < 0.001,
+                    $"shot {index} keeps its original duration");
             var daily = Read<Texture2D[]>(film, "_daily");
             Check(daily.Length == 3 && Array.TrueForAll(daily, tex => tex.GetWidth() > 1000), "three dedicated full-resolution daily scenes");
             var portraits = Read<Texture2D[]>(film, "_cutins");
@@ -68,9 +86,11 @@ public partial class OpeningFilmQa : Node
                 DisplayServer.WindowSetSize(size);
                 await Frames(10);
                 foreach (var (time, name) in new (double, string)[] {
-                    (1.1, "phone"), (5.2, "akari"), (8.7, "koharu"), (12.2, "rei"),
-                    (16.55, "mina_wind"), (20.7, "akari_action"), (24.2, "koharu_action"),
-                    (27.7, "rei_action"), (31.2, "mina_action"), (35.5, "together"), (38.7, "title") })
+                    (1.2, "phone_wait"), (3.2, "phone_partial"), (4.05, "phone_erasing"),
+                    (5.2, "phone_erased"), (6.8, "phone_retry"), (9.2, "phone_plea"),
+                    (cuts[1] + 1.7, "akari"), (cuts[2] + 1.7, "koharu"), (cuts[3] + 1.7, "rei"),
+                    (cuts[4] + 2.55, "mina_wind"), (cuts[5] + 1.7, "akari_action"), (cuts[6] + 1.7, "koharu_action"),
+                    (cuts[7] + 1.7, "rei_action"), (cuts[8] + 1.7, "mina_action"), (cuts[9] + 2.5, "together"), (cuts[10] + 1.7, "title") })
                 {
                     Seek(film, time);
                     await Shot($"{name}_{size.X}x{size.Y}");
@@ -79,7 +99,7 @@ public partial class OpeningFilmQa : Node
 
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(10);
-            Seek(film, 16.55);
+            Seek(film, cuts[4] + 2.55);
             var wind = Read<ShaderMaterial>(film, "_wind");
             wind.SetShaderParameter("blink", 0);
             wind.SetShaderParameter("motion_time", 0);
@@ -196,6 +216,7 @@ public partial class OpeningFilmQa : Node
         Audio.Instance?.StopMusic(0);
         foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
             if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+        await Task.Delay(250);
         await Frames(5);
         GC.Collect();
         GC.WaitForPendingFinalizers();

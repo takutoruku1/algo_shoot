@@ -468,7 +468,7 @@ public partial class Shop : Node2D
             DrawTextureRect(_playerShot, new Rect2(x + 18f, fy + (fh - ih) / 2f, iw, ih), false);
         }
         UiKit.Text(this, UiKit.Zen, new Vector2(x + 128f, fy + fh / 2f - 24f),
-                   $"{_game?.JobDef.Name ?? "結び手"}　—　{_game?.ShotModeName(_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid) ?? "連射"}",
+                   _game!.JobDef.CharacterName,
                    UiKit.FontLabel, UiKit.Text3);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 128f, fy + fh / 2f - 4f),
                    $"{_sel + 1} / {Steps} 段目", UiKit.FontHeading, UiKit.White);

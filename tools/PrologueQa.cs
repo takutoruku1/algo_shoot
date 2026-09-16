@@ -9,6 +9,8 @@ public partial class PrologueQa : Node
     private string _out = "";
     private static T Read<T>(object obj, string field)
         => (T)obj.GetType().GetField(field, Private)!.GetValue(obj)!;
+    private static void Write(object obj, string field, object value)
+        => obj.GetType().GetField(field, Private)!.SetValue(obj, value);
     private static void Check(bool ok, string message)
     {
         if (!ok) throw new Exception(message);
@@ -26,6 +28,35 @@ public partial class PrologueQa : Node
             DirAccess.MakeDirRecursiveAbsolute(_out);
             GetNode<GameManager>("/root/Game").MsgCharsPerSec = 300;
             await Frames(1);
+
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--erase"))
+            {
+                var erase = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
+                GetTree().Root.AddChild(erase);
+                GetTree().CurrentScene = erase;
+                var talk = Read<System.Collections.IList>(erase, "_talk");
+                var intro = (System.Collections.IList)typeof(Prologue).GetMethod("P4Intro", Private)!.Invoke(erase, null)!;
+                talk.Clear();
+                int line = 0;
+                foreach (var entry in intro)
+                {
+                    if ((string)entry.GetType().GetField("Text")!.GetValue(entry)! == "fx:erase") line = talk.Count;
+                    talk.Add(entry);
+                }
+                Write(erase, "_line", line);
+                Write(erase, "_phase", 3);
+                Write(erase, "_p2ChoiceLine", -1);
+                Write(erase, "_timelineLine", 0);
+                Write(erase, "_unsentLine", line);
+                Write(erase, "_backdrop", 3);
+                Write(erase, "_previousBackdrop", 3);
+                GameManager.MinaNamed = true;
+                await CheckErasePacing(erase, true);
+                await Frames(90);
+                erase.QueueFree();
+                await Finish();
+                return;
+            }
 
             for (int route = 0; route < 3; route++)
             {
@@ -89,10 +120,7 @@ public partial class PrologueQa : Node
                 if (route == 0) await Shot("timeline", pro);
                 await AdvanceUntil(() => Read<int>(pro, "_backdrop") == 3);
                 Check(Read<float>(pro, "_backdropMix") < 1f, "erased draft starts its own crossfade");
-                await Frames(90);
-                if (route == 0) await Shot("unsent_typing", pro);
-                await WaitUntil(() => Read<int>(pro, "_fxStep") >= 2);
-                Check(Read<PostToast?>(pro, "_toast") != null, "draft typing and erasing continues");
+                await CheckErasePacing(pro, route == 0);
                 await AdvanceUntil(() => Read<ChoiceOverlay?>(pro, "_choice") != null);
                 Check(Read<int>(pro, "_backdrop") == 3 && Read<float>(pro, "_backdropMix") == 1f,
                     "draft background persists through the final choice");
@@ -121,7 +149,7 @@ public partial class PrologueQa : Node
                 await AdvanceUntil(() => !IsInstanceValid(pro));
                 Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn", $"route {route} reaches the hub");
                 var hub = (Hub)GetTree().CurrentScene;
-                Check(Read<object>(hub, "_mode").ToString() == "Cards", "opening continues into SNS instead of home");
+                Check(Read<object>(hub, "_mode").ToString() == "Home", "opening continues into the phone home before SNS");
                 var entries = Read<System.Collections.IList>(hub, "_entries");
                 var selected = entries[Read<int>(hub, "_sel")]!;
                 Check((string)selected.GetType().GetField("Id")!.GetValue(selected)! == GameManager.FirstStageId,
@@ -131,22 +159,86 @@ public partial class PrologueQa : Node
                 DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                 await Frames(15);
             }
-            Audio.Instance?.StopMusic(0);
-            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
-                if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
-            await Task.Delay(250);
-            await Frames(5);
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            await Frames(5);
-            GD.Print("[PrologueQA] ALL PASS");
-            GetTree().Quit();
+            await Finish();
         }
         catch (Exception ex)
         {
             GD.PushError($"[PrologueQA] FAIL {ex}");
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckErasePacing(Prologue pro, bool screenshots)
+    {
+        await WaitUntil(() => Read<PostToast?>(pro, "_toast") != null);
+        int line = Read<int>(pro, "_line");
+        var beats = ((string Text, double Hold, bool Send)[])typeof(Prologue)
+            .GetField("EraseBeats", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        var doneAt = new double[beats.Length];
+        var leftAt = new double[beats.Length];
+        Array.Fill(doneAt, -1);
+        Array.Fill(leftAt, -1);
+        double start = Read<double>(pro, "_t");
+        int lastStep = -1, cries = 0, erased = 0;
+        bool sent = false;
+        Check(Read<int>(pro, "_fxStep") == 0 && Read<string>(Read<PostToast>(pro, "_toast"), "_body") == "",
+            "draft opens empty before any typing");
+        for (int frame = 0; frame < 1800 && Read<int>(pro, "_line") == line; frame++)
+        {
+            int step = Read<int>(pro, "_fxStep");
+            double now = Read<double>(pro, "_t");
+            if (step != lastStep)
+            {
+                if (lastStep >= 0 && lastStep < beats.Length) leftAt[lastStep] = now;
+                lastStep = step;
+            }
+            var toast = Read<PostToast>(pro, "_toast");
+            if (step < beats.Length && Read<int>(pro, "_fxBegun") == step && toast.Done && doneAt[step] < 0)
+            {
+                doneAt[step] = now;
+                string body = Read<string>(toast, "_body");
+                Check(body == beats[step].Text && Read<bool>(toast, "_sending") == beats[step].Send,
+                    $"draft beat {step} reaches its intended text and send state");
+                if (body == "たすけて") cries++;
+                if (body == "" && step > 0) erased++;
+                if (screenshots)
+                {
+                    if (step == 0) { await Frames(24); await Shot("unsent_wait", pro); }
+                    else if (body == "たすけて") await Shot($"unsent_cry_{cries}", pro);
+                    else if (body == "") await Shot($"unsent_erased_{erased}", pro);
+                    else if (beats[step].Send) await Shot("unsent_sent", pro);
+                }
+            }
+            if (!sent && Read<double>(toast, "_sendGlow") > 0)
+            {
+                sent = true;
+                Check(step == beats.Length - 1 && Read<string>(toast, "_body") == "元気です。",
+                    "only the final reassuring post is sent");
+            }
+            await Frames(1);
+        }
+        Check(Read<int>(pro, "_line") == line + 1 && Read<PostToast?>(pro, "_toast") == null,
+            "draft sequence cleans up and returns to Mina's dialogue once");
+        Check(cries == 3 && erased == 3 && sent, "three unsent pleas still lead to the original reassuring post");
+        for (int i = 0; i < beats.Length; i++)
+            Check(doneAt[i] >= 0 && leftAt[i] - doneAt[i] >= (i == 0 ? 1.3 : beats[i].Hold - 0.04),
+                $"beat {i} pauses after editing completes ({leftAt[i] - doneAt[i]:0.00}s)");
+        double elapsed = Read<double>(pro, "_t") - start;
+        Check(elapsed is > 17 and < 22, $"draft hesitation remains paced at {elapsed:0.00}s");
+    }
+
+    private async Task Finish()
+    {
+        Audio.Instance?.StopMusic(0);
+        foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+            if (child is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+        await Task.Delay(250);
+        await Frames(5);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(5);
+        GD.Print("[PrologueQA] ALL PASS");
+        GetTree().Quit();
     }
 
     private async Task Frames(int count)

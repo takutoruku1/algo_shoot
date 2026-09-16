@@ -45,9 +45,6 @@ public partial class Hub : Node2D
     //   判定は IsClearedForDisplay 経由＝デバッグプレビュー（--hub-preview）でも解禁状態が表示と揃う
     //   （スクショで「名前は伏せているのにフッタだけ解禁済み」といった嘘が出ない）。
     private bool ShopUnlocked => IsClearedForDisplay(GameManager.FirstStageId);
-    // ジョブ（＝一緒に潜る子）は 2026-09-14 から解禁制：最初は結び手（ミナ）だけで、あかり／こはる／レイは
-    //   その子の面をクリアすると開く（GameManager.IsJobUnlocked / JobUnlockHint）。未解禁の行は
-    //   消さずに灰色で残す＝「まだ居る」が見える。ゲートの判定は _cleared だけ＝ここも新しい永続項目は足さない。
     //   フッタの脈打ち（存在に気づかせる合図）は「まだ一度も潜っていない」あいだだけ。一度でも潜れば静かになる。
     private bool JobHintGlow => (_game?.TotalDives ?? 0) == 0 && (_game?.HeartsSaved ?? 0) == 0;
 
@@ -116,26 +113,40 @@ public partial class Hub : Node2D
     // Job＝ジョブ選択（設計書 §6・ハブのフッタから開くオーバーレイ）。Detail と同じ「カードがその場で開く」
     //   作法で 4 ジョブを縦に並べ、Z で確定・X でとじる。ハブに居る＝ラン外なので、いつでも選び直せる
     //   （ラン中＝ステージのシーンには、ジョブを書き換える導線が一つも無い＝「選んだらそのランは変えられない」）。
-    private enum Mode { Home, HomeReveal, Cards, Dialogue, Detail, Job }
+    private enum Mode { Home, HomeReveal, SnsOpening, Cards, Dialogue, Detail, Job }
     private Mode _mode = Mode.Home;
     private int _homeSel;
     private bool _idleTalkPending;
     private const string HomeRevealSeenKey = "once_phone_home";
+    private const string SnsIntroSeenKey = "once_sns_intro";
+    private const double SnsOpenDuration = 0.65;
+    private double _snsOpeningT;
+    private bool NeedsSnsIntro => _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
+    private static readonly (string, string)[] SnsIntro =
+    {
+        ("ミナ", "ご主人様。SNSでは、投稿に埋もれた「助けて」を探します。"),
+        ("ミナ", "明るい言葉の裏にも、送れずに消した言葉が残っています。わたくしには、その声が聞こえます。"),
+        ("ミナ", "声のある投稿を開いてください。そこから、その人の心へ潜れます。"),
+        ("ミナ", "戦うのは、その人を閉じ込めている痛みです。本人を傷つけるためではありません。"),
+        ("ミナ", "その人が、もう一度、自分の言葉で話せるように。心をふさぐ言葉や記憶を、ほどいていきましょう。"),
+        ("ミナ", "「ひとつでいいから、本物になって」。……まずは、この声のところへ。"),
+    };
     private bool _homeRevealPending;
     private double _homeRevealT;
     private Texture2D? _homeSnapshot;
     private Rect2 _homeSnapshotRegion;
-    private bool HomeAvailable => ShopUnlocked;
     private double _detailT;      // 開いてからの経過（展開アニメと入力ゲート）
     private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
     private double _jobT;         // ジョブ選択を開いてからの経過（展開アニメと入力ゲート。_detailT と同じ役）
     private int _jobSel;          // ジョブ選択のカーソル（開いたときに現在のジョブへ置く）
+    private JobTuning[] _jobChoices = System.Array.Empty<JobTuning>();
     private Mode _jobReturnMode = Mode.Cards;
     private (string sp, string tx)[] _dlg = System.Array.Empty<(string, string)>();
     private int _dlgIdx;
     private double _dlgLineT;
     private double _dlgReveal;     // タイプライター表示済み文字数（＝現在ページ内）
     private string? _dlgReplyId;
+    private string? _dlgSeenKey;
 
     // テキストボックスは2行固定。2行超の行はページに割り、送り（Z）で続きを読ませる（本文は削らない）。
     private readonly System.Collections.Generic.List<string> _dlgPages = new();
@@ -230,7 +241,8 @@ public partial class Hub : Node2D
         ApplyPreview();
         LoadFaces();
         if (_previewState == null) _sel = DefaultSelection();
-        if (!HomeAvailable || _autoplay || _previewState != null || _openDetail || _openJob) _mode = Mode.Cards;
+        UpdateFeedScrollTarget();
+        if (_autoplay || _previewState != null || _openDetail || _openJob) _mode = Mode.Cards;
         // デバッグ限定：--hub-detail で選択カードの投稿詳細を開いた状態から始める（スクショ用）。
         if (_openDetail && IsVoice(_sel)) OpenDetail();
         // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用）。
@@ -241,7 +253,7 @@ public partial class Hub : Node2D
         string? cleared = _game?.JustClearedStageId;
         _homeRevealPending = !_autoplay && cleared == GameManager.FirstStageId && _game!.HeartsSaved == 1
             && !_game.IsIdleDialogSeen(HomeRevealSeenKey);
-        if (cleared == null && HomeAvailable) _game!.MarkIdleDialogSeen(HomeRevealSeenKey);
+        if (cleared == null && ShopUnlocked) _game!.MarkIdleDialogSeen(HomeRevealSeenKey);
         if (cleared != null)
         {
             _game!.JustClearedStageId = null;
@@ -287,8 +299,6 @@ public partial class Hub : Node2D
             }
             if (lines.Length > 0) StartDialogue(lines, null, returnMode: _autoplay ? Mode.Cards : Mode.Home);
         }
-        // 2-b: H0 ハブ初回の一度きりの会話は廃止。あかりのカードにカーソルが乗ったときの
-        //   ホバー行（HoverLineFor）へ台詞を移し、「投稿を見つける」行為そのものに台詞を載せた。
         else if ((_game?.HeartsSaved ?? 0) > 0 && GD.Randf() < 0.5f)
         {
             // 再訪小話（小話集 v1 §1）：クリア直後ではない入場のうち約半分で、ハブ待機中の雑談を1本挟む。
@@ -710,10 +720,6 @@ public partial class Hub : Node2D
         // 選択の寄り（0.12s で 0→1 に近づける lerp。選択が変わったら 0 へリセット）
         if (_selAnim != _sel) { _selAnim = _sel; _selT = 0f; }
         _selT = Mathf.Min(1f, _selT + (float)delta / 0.12f);
-        // 縦スクロールは選択を追って滑らかに寄る（フィードのスクロール感）。
-        //   ホイールで手動スクロールした直後（_wheelHoldT>0）は追従を止める＝手で送った位置を保つ。
-        if (_wheelHoldT > 0) _wheelHoldT -= delta;
-        else UpdateFeedScrollTarget();
         _feedScroll = Mathf.Lerp(_feedScroll, _feedScrollTarget, Mathf.Min(1f, (float)delta * 12f));
         if (_dived) { QueueRedraw(); return; }
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
@@ -727,6 +733,7 @@ public partial class Hub : Node2D
         if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
         if (_mode == Mode.Job) { ProcessJob(delta); QueueRedraw(); return; }
         if (_mode == Mode.HomeReveal) { ProcessHomeReveal(delta); QueueRedraw(); return; }
+        if (_mode == Mode.SnsOpening) { ProcessSnsOpening(delta); QueueRedraw(); return; }
         if (_mode == Mode.Home) { ProcessHome(); QueueRedraw(); return; }
         ProcessCards();
         QueueRedraw();
@@ -737,11 +744,12 @@ public partial class Hub : Node2D
     //   インプレ／フォロワーの加算とトーストを出さない＝まだ何も投稿していないのに数字が動くのを防ぐ。
     private bool _dlgNoPost;
     private Mode _dlgReturnMode = Mode.Cards;
-    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards)
+    private void StartDialogue((string, string)[] lines, string? replyId, bool noPost = false, Mode returnMode = Mode.Cards, string? seenKey = null)
     {
         _mode = Mode.Dialogue;
         _dlgNoPost = noPost;
         _dlgReturnMode = returnMode;
+        _dlgSeenKey = seenKey;
         _zHeld = Pad.AdvanceHeld();
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
@@ -808,6 +816,11 @@ public partial class Hub : Node2D
 
     private void EndDialogue()
     {
+        if (_dlgSeenKey != null)
+        {
+            _game.MarkIdleDialogSeen(_dlgSeenKey);
+            _dlgSeenKey = null;
+        }
         if (_dlgNoPost)
         {
             // 投稿ではない会話（H0）＝加算もトーストも無し。オートセーブと画面戻しだけ行う。
@@ -891,6 +904,12 @@ public partial class Hub : Node2D
         return new Rect2(PhoneX + 24f + index * width, 288f, width, 132f);
     }
 
+    private Rect2 HomeAppIconRect(int index)
+    {
+        var rect = HomeAppRect(index);
+        return new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
+    }
+
     private bool HomeAppUnlocked(int index) => index == 0 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
 
     private void ProcessHome()
@@ -935,14 +954,13 @@ public partial class Hub : Node2D
         _toastT = 0;
         if (index == 0)
         {
-            _mode = Mode.Cards;
+            _mode = Mode.SnsOpening;
+            _snsOpeningT = 0;
             _cardsEnteredT = _t;
-            _zHeld = Pad.AdvanceHeld();
-            _xHeld = false;
-            if (_idleTalkPending)
+            if (NeedsSnsIntro)
             {
-                _idleTalkPending = false;
-                TryStartIdleSmallTalk();
+                _sel = DefaultSelection();
+                _feedScroll = _feedScrollTarget = Mathf.Clamp(CardTop(_sel), 0f, FeedMaxScroll());
             }
             return;
         }
@@ -952,12 +970,54 @@ public partial class Hub : Node2D
 
     private void GoHome()
     {
-        if (!HomeAvailable) return;
         Audio.Instance?.PlayUiCancel();
         _mode = Mode.Home;
         _homeSel = 0;
         _zHeld = _navHeld = true;
         _toastT = 0;
+    }
+
+    private void ProcessSnsOpening(double delta)
+    {
+        _snsOpeningT += delta;
+        if (_snsOpeningT < SnsOpenDuration + (NeedsSnsIntro ? 0.5 : 0)) return;
+        _mode = Mode.Cards;
+        _zHeld = Pad.AdvanceHeld();
+        _navHeld = _xHeld = _cHeld = _tHeld = _jHeld = true;
+        if (NeedsSnsIntro)
+        {
+            StartDialogue(SnsIntro, null, noPost: true, seenKey: SnsIntroSeenKey);
+        }
+        else if (_idleTalkPending)
+        {
+            _idleTalkPending = false;
+            TryStartIdleSmallTalk();
+        }
+    }
+
+    private void DrawSnsOpening()
+    {
+        float t = Mathf.Clamp((float)(_snsOpeningT / SnsOpenDuration), 0f, 1f);
+        float expansion = Mathf.Clamp(t / 0.7f, 0f, 1f);
+        float k = 1f - Mathf.Pow(1f - expansion, 3f);
+        var icon = HomeAppIconRect(0);
+        var panel = new Rect2(icon.Position.Lerp(new Vector2(PhoneX, 0), k), icon.Size.Lerp(new Vector2(PhoneW, H), k));
+        if (expansion >= 1f)
+        {
+            DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+            DrawTimeline(1f);
+            DrawFooter();
+        }
+        float cover = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp((t - 0.7f) / 0.3f, 0f, 1f));
+        UiKit.Box(this, panel, new Color(new Color("82d8dc"), cover), 8f * (1f - k));
+        DrawSnsIcon(panel.GetCenter(), new Color(new Color("242c32"), cover));
+    }
+
+    private void DrawSnsIcon(Vector2 center, Color ink)
+    {
+        UiKit.Box(this, new Rect2(center - new Vector2(23, 20), new Vector2(46, 34)), Colors.Transparent, 8f, ink, 3f);
+        DrawPolyline(new[] { center + new Vector2(-11, 14), center + new Vector2(-11, 23), center + new Vector2(1, 14) }, ink, 3f, true);
+        for (int dot = 0; dot < 3; dot++) DrawCircle(center + new Vector2(-11 + dot * 11, -3), 2.5f, ink);
     }
 
     private void DrawHome()
@@ -977,7 +1037,7 @@ public partial class Hub : Node2D
         for (int i = 0; i < HomeApps.Length; i++)
         {
             var rect = HomeAppRect(i);
-            var icon = new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
+            var icon = HomeAppIconRect(i);
             bool unlocked = HomeAppUnlocked(i);
             float activation = _mode == Mode.HomeReveal && i == 1 ? Mathf.Clamp(((float)_homeRevealT - 1.15f) / 0.65f, 0f, 1f) : 1f;
             bool focused = _mode == Mode.Home && (Pad.UsingMouse ? UiKit.HoveredId() == HomeAppIdBase + i : i == _homeSel);
@@ -992,9 +1052,7 @@ public partial class Hub : Node2D
             Color ink = new("242c32");
             if (i == 0)
             {
-                UiKit.Box(this, new Rect2(c - new Vector2(23, 20), new Vector2(46, 34)), Colors.Transparent, 8f, ink, 3f);
-                DrawPolyline(new[] { c + new Vector2(-11, 14), c + new Vector2(-11, 23), c + new Vector2(1, 14) }, ink, 3f, true);
-                for (int dot = 0; dot < 3; dot++) DrawCircle(c + new Vector2(-11 + dot * 11, -3), 2.5f, ink);
+                DrawSnsIcon(c, ink);
             }
             else if (i == 1)
             {
@@ -1084,15 +1142,10 @@ public partial class Hub : Node2D
         // R＝タイムラインの再読込。パッドの Start はポーズメニュー（開閉）と衝突するため外した。
         if (Input.IsKeyPressed(Key.R)) { GetTree().ReloadCurrentScene(); return; }
 
-        // マウスホイール：feed の縦スクロール（2026-09-07）。作法は Shop.cs に合わせる＝
-        //   ホイールは「視点だけ」を動かし、カーソル(_sel)は動かさない。動かしている間は選択追従
-        //   （UpdateFeedScrollTarget）を _wheelHoldT 秒だけ止める＝手で送った位置が選択に引き戻されない。
-        //   ホイールで送った先のカードにマウスが乗れば、下のホバー追従が選択を移す＝送って選ぶ、が繋がる。
         float wheel = Pad.WheelDelta();
         if (wheel != 0f && FeedMaxScroll() > 0f)
         {
             _feedScrollTarget = Mathf.Clamp(_feedScrollTarget - wheel * WheelStep, 0f, FeedMaxScroll());
-            _wheelHoldT = WheelHoldSecs;
         }
 
         // マウス：フレーム頭でホットスポットをクリア＋カード矩形とフッタ操作を登録（カードモードのみ＝会話中は登録しない）。
@@ -1126,7 +1179,7 @@ public partial class Hub : Node2D
         {
             if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
             if (down) _sel = (_sel + 1) % _entries.Length;
-            _wheelHoldT = 0;   // 十字で動かしたら選択追従を即再開（ホイールで送った位置に固まらない）
+            UpdateFeedScrollTarget();
             Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
@@ -1179,9 +1232,6 @@ public partial class Hub : Node2D
         if (_t <= 0.3 || _dived) return;
         switch (act)
         {
-            case FootAct.Dive:
-                if (IsVoice(_sel)) OpenDetail();
-                break;
             case FootAct.Home:
                 GoHome();
                 break;
@@ -1326,17 +1376,12 @@ public partial class Hub : Node2D
         DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
         DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
         DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
-        bool home = _mode == Mode.Home || _mode == Mode.HomeReveal
+        bool home = _mode == Mode.Home || _mode == Mode.HomeReveal || _mode == Mode.SnsOpening
             || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home && !_homeRevealPending);
         if (home) DrawHome();
-        else
-        {
-            DrawCards(_mode == Mode.Cards ? 1f : 0.22f);
-            DrawRect(new Rect2(PhoneX, 0, PhoneW, FeedTop), PhoneBg);
-            DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
-            DrawHeader();
-        }
+        else DrawTimeline(_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey ? 1f : 0.22f);
         if (_mode == Mode.HomeReveal) DrawHomeReveal();
+        else if (_mode == Mode.SnsOpening) DrawSnsOpening();
         else if (_mode == Mode.Dialogue) DrawDialog();
         else if (_mode == Mode.Detail) DrawDetail();
         else if (_mode == Mode.Job) DrawJob();
@@ -1344,6 +1389,14 @@ public partial class Hub : Node2D
         DrawToast();
         DrawContaminationOverlay();
         UiKit.EndDesign(this);
+    }
+
+    private void DrawTimeline(float alpha)
+    {
+        DrawCards(alpha);
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, FeedTop), PhoneBg);
+        DrawRect(new Rect2(PhoneX, FeedBottom, PhoneW, H - FeedBottom), PhoneBg);
+        DrawHeader();
     }
 
     // 汚染ゲージ連動のハブ全体オーバーレイ。清浄(0-24%)は無し、兆候(25-49%)はごく薄い灰、
@@ -1401,11 +1454,7 @@ public partial class Hub : Node2D
         return text + "…";
     }
 
-    // 縦スクロール量（px）。選択カードが常に画面内に収まるよう追従する。
     private float _feedScroll, _feedScrollTarget;
-    // マウスホイールで手動スクロールした直後は選択追従を止める（Shop.cs と同じ作法・同じ値）。
-    private double _wheelHoldT;
-    private const double WheelHoldSecs = 0.9;   // ホイール後この秒数は追従を抑止
     private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
     private float FeedMaxScroll()
     {
@@ -1429,7 +1478,7 @@ public partial class Hub : Node2D
             float h = CardHeight(_entries[i]);
             float cy = FeedTop + CardTop(i) - _feedScroll;
             if (cy + h < FeedTop || cy > FeedBottom) continue;
-            bool sel = _mode == Mode.Cards && i == _sel;
+            bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel;
             float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.04f) / 0.20f, 0f, 1f);
             DrawCard(_entries[i], cy, h, sel, sel ? _selT : 0f, alpha * ep);
         }
@@ -1736,22 +1785,20 @@ public partial class Hub : Node2D
     //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
     //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
     //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
-    private enum FootAct { Dive, Reply, Job, Home }
+    private enum FootAct { Reply, Job, Home }
     private const int FooterIdBase = 10000;
 
     // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
     private System.Collections.Generic.List<(string key, string label, bool accent, FootAct act)> FooterItems()
     {
-        // 「えらぶ」は儀式の語なので削除（2-a）。「ダイブ」→「潜る」＝この作品の動詞に寄せる。
         var list = new System.Collections.Generic.List<(string, string, bool, FootAct)>
         {
-            (Pad.ConfirmToken, "潜る", true, FootAct.Dive),
+            (Pad.CancelToken, "ホームに戻る", false, FootAct.Home),
         };
         if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
         // ジョブは解禁ゲート無し＝初回訪問から出す（設計書 §6：ショップは1面ボスまで開かないので、
         //   ハブに置かないと最初のダイブ前に一度も選べない）。強化・記録より前に置く＝潜る前に決める順。
         list.Add((JobKeyToken, "アカウント", false, FootAct.Job));
-        if (HomeAvailable) list.Add((Pad.CancelToken, "ホーム", false, FootAct.Home));
         return list;
     }
 
@@ -1769,9 +1816,8 @@ public partial class Hub : Node2D
         {
             var (_, label, accent, act) = items[i];
             var rect = FooterItemRect(i);
-            bool enabled = act != FootAct.Dive || IsVoice(_sel);
-            bool hovered = enabled && UiKit.HoveredId() == FooterIdBase + i;
-            Color col = !enabled ? UiKit.Text4 : accent ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
+            bool hovered = UiKit.HoveredId() == FooterIdBase + i;
+            Color col = accent ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
             if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
             DrawFooterIcon(act, rect.Position + new Vector2(rect.Size.X / 2f, 18f), col);
             UiKit.Text(this, UiKit.Zen, rect.Position + new Vector2(0, 38f), label, 12, col, HorizontalAlignment.Center, rect.Size.X);
@@ -1905,8 +1951,7 @@ public partial class Hub : Node2D
     //
     // 【ここが持ってはいけないもの】
     //   ・ショップ（強化）への導線。一本道ショップに枝を作らない（設計書 §7 第3段の領分）。
-    //   ・ジョブ補正の数値そのもの。文言は src/Job.cs の Strength / Weakness をそのまま読む
-    //     ＝数値が動いたら表示も一緒に動く（設計書 §2 の表が唯一の出典）。
+    //   ・ジョブ補正の数値そのもの。表示値は JobTuning の実設定から組み立てる。
     //
     // ラン中は開かない：この画面はハブのシーンにしか存在せず、ステージ側に SelectedJob を書く導線も無い
     //   （grep 済み：GameManager / TrainingRoot 以外に代入無し）＝「選んだらそのランは変えられない」。
@@ -1925,7 +1970,8 @@ public partial class Hub : Node2D
 
     private (float cx, float cy, float cw, float ch) JobBox()
     {
-        return (PhoneX, 68f, PhoneW, 636f);
+        float height = 142f + _jobChoices.Length * 100f;
+        return (PhoneX, H - 16f - height, PhoneW, height);
     }
 
     // ジョブ i 段目の矩形（DrawJob の DrawJobRow 呼び出しと同じ x/y/w/h）。展開の浮きは無視する
@@ -1933,7 +1979,7 @@ public partial class Hub : Node2D
     private Rect2 JobHitRect(int i)
     {
         var (cx, cy, cw, _) = JobBox();
-        return new Rect2(cx + 24f, cy + 68f + i * 84f, cw - 48f, 84f);
+        return new Rect2(cx + 24f, cy + 68f + i * 100f, cw - 48f, 100f);
     }
 
     private Rect2 JobCloseRect()
@@ -1968,10 +2014,6 @@ public partial class Hub : Node2D
     {
         switch (act)
         {
-            case FootAct.Dive:
-                DrawLine(c + new Vector2(0, -10), c + new Vector2(0, 7), color, 2f, true);
-                DrawPolyline(new[] { c + new Vector2(-7, 1), c + new Vector2(0, 8), c + new Vector2(7, 1) }, color, 2f, true);
-                break;
             case FootAct.Job:
                 UiKit.FaceAvatar(this, c, 13f, _playerFaces[_game.JobDef.CharacterId], JobColor(_game.SelectedJob), false, 0f, 1f, _t);
                 break;
@@ -1996,14 +2038,15 @@ public partial class Hub : Node2D
         _jobT = 0;
         // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
         var cur = _game?.SelectedJob ?? Job.Tank;
+        _jobChoices = System.Array.FindAll(Jobs.All, job => _game!.IsJobUnlocked(job.Id));
         _jobSel = 0;
-        for (int i = 0; i < Jobs.All.Length; i++) if (Jobs.All[i].Id == cur) { _jobSel = i; break; }
+        for (int i = 0; i < _jobChoices.Length; i++) if (_jobChoices[i].Id == cur) { _jobSel = i; break; }
     }
 
     private void ProcessJob(double delta)
     {
         _jobT += delta;
-        int n = Jobs.All.Length;
+        int n = _jobChoices.Length;
 
         // マウス：段と「とじる」を登録（Detail と同じ作法）。ホバーでカーソルが移る。
         UiKit.BeginHotspots(Pad.MousePos());
@@ -2039,18 +2082,7 @@ public partial class Hub : Node2D
         if (clk == JobConfirmId && _jobT > 0.15) zEdge = true;
         if (zEdge && _jobT > 0.15)
         {
-            var jd = Jobs.All[_jobSel];
-            // 未解禁は選べない（2026-09-14）。行は消さずに残してあるので、押したときは理由を返す
-            //   ＝「まだ居る／どうすれば来るか」が分かる。拒否音は既存の UiCancel をそのまま使う。
-            //   見出しは相手の名前で言う（まだ出会っていない＝カードが ??? の相手は「この人」）
-            //   ＝下の解説欄（DrawJob の「解禁」行）と同じ文が画面に二度並ばない。
-            string? hint = _game?.JobUnlockHint(jd.Id);
-            if (hint != null)
-            {
-                Audio.Instance?.PlayUiCancel();
-                Toast($"{(_game!.IsStageUnlocked(jd.UnlockStageId) ? jd.CharacterName : "この人")}は、まだ隣に立てない", hint, UiKit.Text3);
-                return;
-            }
+            var jd = _jobChoices[_jobSel];
             Audio.Instance?.PlayUiConfirm();
             if (_game != null)
             {
@@ -2100,56 +2132,32 @@ public partial class Hub : Node2D
         DrawBackButton(JobCloseRect(), JobCloseId, a);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "アカウント切り替え", 20, new Color(UiKit.White, a));
         var cur = _game.SelectedJob;
-        for (int i = 0; i < Jobs.All.Length; i++)
+        for (int i = 0; i < _jobChoices.Length; i++)
         {
             var r = JobHitRect(i);
             DrawJobRow(i, cur, r.Position.X, r.Position.Y, r.Size.X, r.Size.Y, a);
         }
-        var job = Jobs.All[_jobSel];
-        // 未解禁にカーソルが乗っているあいだは、得意／捨てるの代わりに解禁条件だけを出す
-        //   ＝「何ができる子か」は救ってから知る（先に手の内が全部見えると出会いの意味が薄れる）。
-        string? hint = _game.JobUnlockHint(job.Id);
-        if (hint != null)
-        {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 422f), "まだつながっていないアカウント", 14, new Color(UiKit.Text3, a));
-            UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 24f, cy + 456f), hint, 14, new Color(UiKit.Text2, a), cw - 48f, 2);
-            DrawPrimaryButton(JobConfirmRect(), "切り替えできません", JobConfirmId, UiKit.Text3, a * 0.5f);
-            return;
-        }
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 422f), $"{job.Name} · {job.TypeName}", 14, new Color(JobColor(job.Id), a));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 452f), "得意", 12, new Color(UiKit.Ok, a));
-        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 78f, cy + 450f), job.Strength, 14, new Color(UiKit.Text2, a), cw - 102f, 2);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 24f, cy + 503f), "苦手", 12, new Color(UiKit.Kegare, a));
-        UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 78f, cy + 501f), job.Weakness, 14, new Color(UiKit.Text3, a), cw - 102f, 2);
+        var job = _jobChoices[_jobSel];
         string label = job.Id == cur ? (_jobReturnMode == Mode.Detail ? "投稿に戻る" : "タイムラインに戻る") : $"{job.CharacterName}に切り替え";
         DrawPrimaryButton(JobConfirmRect(), label, JobConfirmId, JobColor(job.Id), a);
     }
 
-    //   未解禁（2026-09-14）は行を消さずに灰色で残す＝「まだ居る」が見える。名前を伏せるかは
-    //   タイムラインのカードと同じ基準で決める：まだ出会っていない相手（IsStageUnlocked=false）は
-    //   カード側も ??? なので、ここだけ名前が割れると伏せた意味が消える。出会い済み（＝次に潜る面）は
-    //   カードに名前が出ているので、ここでも出す＝二つの画面で同じ人の見え方が食い違わない。
+    private static string JobStats(JobTuning job) => System.FormattableString.Invariant(
+        $"♥{job.MaxLifeDelta:+0;-0;+0}／移動×{job.MoveMul:0.##}／回避距離×{job.DodgeDistMul:0.##}");
+
     private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
     {
-        var jd = Jobs.All[i];
+        var jd = _jobChoices[i];
         bool sel = i == _jobSel, now = jd.Id == cur;
-        bool locked = !(_game?.IsJobUnlocked(jd.Id) ?? true);
-        // 名前を出してよいか＝そのキャラの面のカードが解放済みか（LockedName と同じゲート）。
-        bool met = jd.UnlockStageId.Length == 0 || (_game?.IsStageUnlocked(jd.UnlockStageId) ?? true);
-        Color acc = locked ? UiKit.Text3 : JobColor(jd.Id);
-        float ra = locked ? alpha * 0.55f : alpha;   // 行まるごと沈める＝押せないことが色で分かる
+        Color acc = JobColor(jd.Id);
         if (sel) DrawRect(new Rect2(x, y, w, h), new Color(acc, 0.07f * alpha));
         DrawRect(new Rect2(x, y + h - 1f, w, 1f), new Color(1, 1, 1, 0.07f * alpha));
-        // 未解禁は顔も伏せる＝FaceAvatar の「?」ロック円（カードの未解放と同じ意匠）。
-        UiKit.FaceAvatar(this, new Vector2(x + 32f, y + h / 2f), 24f, met ? _playerFaces[jd.CharacterId] : null, acc, false, 0f, ra, _t);
-        string who = met ? jd.CharacterName : LockedName;
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 76f, y + 9f), who, 18, new Color(UiKit.White, ra));
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 76f, y + 34f), met ? AccountHandle(jd) : LockedHandle, 12, new Color(UiKit.Text3, ra));
-        string sub = locked ? (_game?.JobUnlockHint(jd.Id) ?? "") : $"{jd.Name} · {jd.TypeName}";
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 76f, y + 58f), sub, 12, new Color(acc, ra));
-        if (now && !locked)
+        UiKit.FaceAvatar(this, new Vector2(x + 32f, y + 34f), 24f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 76f, y + 9f), jd.CharacterName, 18, new Color(UiKit.White, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 76f, y + 34f), AccountHandle(jd), 12, new Color(UiKit.Text3, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 76f, y + 65f), JobStats(jd), 14, new Color(UiKit.Text2, alpha));
+        if (now)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + w - 80f, y + 13f), "使用中", 11, new Color(acc, alpha));
             Vector2 p = new(x + w - 20f, y + 21f);
             DrawPolyline(new[] { p + new Vector2(-5, 0), p + new Vector2(-1, 4), p + new Vector2(6, -5) }, new Color(acc, alpha), 2f, true);
         }

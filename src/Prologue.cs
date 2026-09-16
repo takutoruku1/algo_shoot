@@ -237,7 +237,7 @@ public partial class Prologue : Node2D
     // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
     //   2026-09-07 ユーザー指示で作り直し：
     //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｘ の通知カードを出す（PostToast）。
-    //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて、、、」と打たれては消える、を
+    //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて」と打たれては消える、を
     //     三度くり返し、最後に「元気です。」が打たれて送信される。ミナは声の聞こえた投稿を指すだけ。
     //   演出行（WhoFx）は会話バーに何も出さず、済んだら自動で次へ進む（Z を待たない）。
     private List<DLine> P4Intro() => new()
@@ -266,7 +266,7 @@ public partial class Prologue : Node2D
             L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
             L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
             L(WhoFx, FxFirstStage, ""),
-            L(WhoMina, "……こちらにも、声が。ご主人様、この投稿を開いておきます。", FMinaWorried),
+            L(WhoMina, "……こちらにも、声が。ご主人様、スマホのホームから、SNSを開いてみてください。", FMinaWorried),
         };
         bool tutorial = GameManager.TutorialEnabled;
         if (tutorial)
@@ -293,15 +293,25 @@ public partial class Prologue : Node2D
     private int _fxStep;            // 演出の中の何手目か
     private double _fxT;            // その手に入ってからの経過（待ちに使う）
 
-    // 『たすけて』の演出値。打つ／消す速度は PostToast（＝CommentInput）が持つので、ここは「間」だけ。
-    //   打ち終えてから消し始めるまで（迷い）＝ EraseHold、消し切ってから打ち直すまで＝ EraseGap。
-    //   全体で 3 回くり返して約 12.5 秒（ユーザー指定 12〜18 秒の範囲内）。
-    private const string CryText = "たすけて、、、";
+    private const string CryText = "たすけて";
     private const string FineText = "元気です。";
-    private const int CryLoops = 3;          // 三回、書いて。三回、消して。
-    private const float EraseHold = 1.1f;    // 打ち終えて、消すまでの間（ここが「迷い」）
-    private const float EraseGap = 0.8f;     // 消し切って、打ち直すまでの間
-    private const float SentHold = 2.2f;     // 「元気です。」が送られたあとの余韻（送信の灯りを見せる）
+    private static readonly (string Text, double Hold, bool Send)[] EraseBeats =
+    {
+        ("", 1.8, false),
+        ("た", 0.35, false),
+        ("たす", 0.5, false),
+        ("たすけ", 0.35, false),
+        (CryText, 1.2, false),
+        ("", 1.5, false),
+        ("たす", 0.35, false),
+        (CryText, 1.6, false),
+        ("", 1.6, false),
+        ("た", 0.45, false),
+        ("たすけ", 0.45, false),
+        (CryText, 1.8, false),
+        ("", 1.4, false),
+        (FineText, 2.2, true),
+    };
 
     public override void _Process(double delta)
     {
@@ -476,9 +486,6 @@ public partial class Prologue : Node2D
         if (_toast != null && _toast.Gone) NextFx();
     }
 
-    // 『たすけて』を打っては消し、三度めのあとに「元気です。」を打って送る。
-    //   手順は「出す→(打つ→迷う→消す→間) × CryLoops →元気ですを打って送る→余韻→引く」。
-    //   打つ／消す速度は PostToast（＝CommentInput）が持っている＝こはる面の入力欄と同じ手つき。
     private void DriveErase()
     {
         if (_toast == null)
@@ -488,28 +495,17 @@ public partial class Prologue : Node2D
             _fxStep = 0; _fxT = 0;
             return;
         }
-        // _fxStep: 0..(CryLoops*2-1) が「打つ／消す」の往復、CryLoops*2 が「元気です。」、+1 が余韻。
-        bool typing = (_fxStep % 2) == 0;   // 偶数手＝打つ／奇数手＝消す
-
-        if (_fxStep < CryLoops * 2)
+        if (_fxStep < EraseBeats.Length)
         {
-            if (typing)
+            var beat = EraseBeats[_fxStep];
+            if (FxBegin())
             {
-                // 打ち終えてから EraseHold だけ置いて（＝送るかどうか迷っている間）、消しへ。
-                if (FxBegin()) _toast.Type(CryText);
-                if (_toast.Done && _fxT >= EraseHold) AdvanceFx();
+                if (beat.Text.Length == 0) _toast.Erase();
+                else _toast.Type(beat.Text, send: beat.Send);
             }
-            else
-            {
-                if (FxBegin()) _toast.Erase();
-                if (_toast.Done && _fxT >= EraseGap) AdvanceFx();
-            }
-            return;
-        }
-        if (_fxStep == CryLoops * 2)
-        {
-            if (FxBegin()) _toast.Type(FineText, send: true);
-            if (_toast.Done && _fxT >= SentHold) AdvanceFx();
+            // Typing and erasing must not consume the pause after the edit.
+            if (!_toast.Done) _fxT = 0;
+            else if (_fxT >= beat.Hold) AdvanceFx();
             return;
         }
         // 余韻まで済んだら引かせ、引き終わったら次の会話行へ。

@@ -402,7 +402,7 @@ public partial class TrainingRoot : Node2D
         var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
         string modeName = _game?.ShotModeName(_game.SelectedShotMode) ?? "連射";
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 18, box.Position.Y + 100),
-            $"{job.CharacterName}・{job.Name}（{modeName}）", 13, UiKit.Text2);
+            $"{job.CharacterName}（{modeName}）", 13, UiKit.Text2);
     }
 
     // 独り言トースト（小話4）。DPS計器（x430-774,y88-210）の真下・スキルパネル（開時 x850〜）より

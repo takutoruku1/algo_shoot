@@ -34,7 +34,7 @@ public partial class PostToast : Control
     private const float TypeInterval = 0.075f;
     private const float EraseInterval = 0.11f;
     // CommentInput は 0.9 秒だが、あちらは会話の送りが被さって次へ流れる。ここは送信のあとに余韻
-    //   （Prologue.SentHold=2.2 秒）を置いて見せる場面なので、灯りが余韻より先に落ちないよう伸ばす。
+    //   （送信後2.2秒）を置いて見せる場面なので、灯りが余韻より先に落ちないよう伸ばす。
     private const float SendGlowDur = 1.8f;
 
     // カードの寸法・位置（設計座標 1280×720）。画面中央（横）の、会話バーより上。

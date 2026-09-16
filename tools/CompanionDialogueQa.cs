@@ -29,17 +29,19 @@ public partial class CompanionDialogueQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
-            CheckScripts();
+            bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
+            if (!menusOnly) CheckScripts();
             foreach (var job in Jobs.All)
             {
                 game.SelectedJob = job.Id;
-                await CheckStages(job);
+                if (!menusOnly) await CheckStages(job);
                 if (job.Id == Job.Tank) continue;
                 await CheckMenus(job);
             }
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+            await Task.Delay(250);
             await Frames(5);
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -215,15 +217,21 @@ public partial class CompanionDialogueQa : Node
         GetTree().CurrentScene = hub;
         Read<HashSet<string>>(game, "_cleared").Add(job.UnlockStageId);
         await Frames(30);
-        Check(Read<object>(hub, "_mode").ToString() == "Cards", "first visit starts in SNS without a launcher detour");
+        Check(Read<object>(hub, "_mode").ToString() == "Home", "first visit starts on the phone home");
+        await Press(Key.Z);
+        await Frames(45);
+        Check(Read<object>(hub, "_mode").ToString() == "Cards", "rescued characters enter SNS through its home app");
         long followers = game.Followers, impression = game.Impression;
         await Press(Key.J);
         Check(Read<object>(hub, "_mode").ToString() == "Job", "keyboard opens character selection");
-        Check(Jobs.All[Read<int>(hub, "_jobSel")].Id == Job.Tank && !Pad.UsingMouse,
+        var accounts = Read<JobTuning[]>(hub, "_jobChoices");
+        Check(accounts.Length == 2 && accounts[0].Id == Job.Tank && accounts[1].Id == job.Id,
+            "only Mina and the rescued character are listed");
+        Check(accounts[Read<int>(hub, "_jobSel")].Id == Job.Tank && !Pad.UsingMouse,
             "keyboard shortcut keeps the selected character instead of following the mouse");
-        int accountIndex = Array.FindIndex(Jobs.All, entry => entry.Id == job.Id);
+        int accountIndex = Array.FindIndex(accounts, entry => entry.Id == job.Id);
         for (int i = 0; i < accountIndex; i++) await Press(Key.Down);
-        Check(Jobs.All[Read<int>(hub, "_jobSel")].Id == job.Id, "keyboard selects a different account before switching");
+        Check(accounts[Read<int>(hub, "_jobSel")].Id == job.Id, "keyboard selects a different account before switching");
         Write(hub, "_jobT", 1d);
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").ToString() == "Dialogue", "first character selection starts its conversation");

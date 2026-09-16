@@ -35,9 +35,6 @@ public sealed class JobTuning
     // 解禁条件のステージID（GameManager.Stages の Id）。空＝最初から選べる（結び手のみ）。
     //   キャラ＝そのステージのボス本人なので、条件は素直に「その子の面をクリアする」＝救った子が隣に立つ。
     public string UnlockStageId = "";
-    public string TypeName = "";             // タイプ（近接／回復／耐久／魔法）
-    public string Strength = "";             // 得意（選択画面の1行）
-    public string Weakness = "";             // 捨てる（選択画面の1行）
     public GameManager.ShotMode Mode;        // このジョブが固定で使うショットモード
 
     // ── 体力・被弾 ──
@@ -80,10 +77,8 @@ public static class Jobs
         // ── 結び手（耐久・連射）＝初期選択。避けるのではなく耐える ──
         new()
         {
-            Id = Job.Tank, Name = "結び手", TypeName = "耐久", Mode = GameManager.ShotMode.Rapid,
+            Id = Job.Tank, Name = "結び手", Mode = GameManager.ShotMode.Rapid,
             CharacterId = "mina", CharacterName = "ミナ", PlayerTexturePath = "res://char/player/mina/mina_idle_v2.png",
-            Strength = "被弾しても止まらない。最大♥ +2／無敵1.8秒／のけぞらない",
-            Weakness = "機動力。移動 ×0.88／回避距離 ×0.9",
             MaxLifeDelta = +2,
             HitInvulSec = 1.8f,        // 1.2→1.8。連鎖被弾を潰す
             NoHitKnockback = true,     // 踏みとどまり＝手触りの本体
@@ -94,11 +89,9 @@ public static class Jobs
         // ── 灯し手（近接・加速球）＝無防備窓の瞬間火力 ──
         new()
         {
-            Id = Job.Melee, Name = "灯し手", TypeName = "近接", Mode = GameManager.ShotMode.Accel,
+            Id = Job.Melee, Name = "灯し手", Mode = GameManager.ShotMode.Accel,
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             UnlockStageId = "akari",
-            Strength = "密着すると一撃が2倍（上限8）。近いほど回避が速く戻る",
-            Weakness = "安全な距離。最大♥ −1",
             MaxLifeDelta = -1,
             CritMult = 2.0f,           // 他ジョブ ×1.25 に対し ×2.0
             CritCap = 8,               // 本体1ヒット上限(8)と同値＝クリの伸びしろを潰さない
@@ -108,11 +101,9 @@ public static class Jobs
         // ── 祈り手（回復・ホーミング）＝削られても戻せる。そのぶん一発が軽い ──
         new()
         {
-            Id = Job.Heal, Name = "祈り手", TypeName = "回復", Mode = GameManager.ShotMode.Homing,
+            Id = Job.Heal, Name = "祈り手", Mode = GameManager.ShotMode.Homing,
             CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
             UnlockStageId = "koharu",
-            Strength = "雑魚24体の浄化ごとに♥+1／BREAK ごとに BOMB+1／帳を常時持つ",
-            Weakness = "一発の重さ。4ジョブで最も遅い（威力 ×0.8）",
             // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
             // ここを強く掛けると基礎威力1の序盤で下限(max(1,…))に張り付いて差が消える。
             // ×0.8 なら 0.85×0.8=0.68＝実効で最遅を保ちつつ、強化が伸びた終盤でも
@@ -127,11 +118,9 @@ public static class Jobs
         // ── 語り手（魔法・拡散）＝面の制圧。近づかれたら逃げる手段が薄い ──
         new()
         {
-            Id = Job.Magic, Name = "語り手", TypeName = "魔法", Mode = GameManager.ShotMode.Spread,
+            Id = Job.Magic, Name = "語り手", Mode = GameManager.ShotMode.Spread,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             UnlockStageId = "rei",
-            Strength = "面を取る。120pxより遠くから当てた弾は威力 ×1.3",
-            Weakness = "至近戦。密着クリ無効／回避クールダウン ×1.15",
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
             FarMult = 1.3f,
             DodgeCdMul = 1.15f,
