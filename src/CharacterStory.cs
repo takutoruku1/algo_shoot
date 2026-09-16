@@ -123,7 +123,7 @@ public static class CharacterStory
     // 章1・ボス前
     private static readonly (int who, string text, string face)[] AkariCh1PreBoss =
     {
-        (6, "……奥に、誰かいる。声、ずっとしてたもんね。", AFace),
+        (6, "……ん。いま、聞こえた。……ううん、ずっと聞こえてたんだ、これ。", AFace),   // 言いかけて、訂正して、言い切る（あかりの構文）
         (6, "だいじょうぶ。あたし、聞くのは得意。八年、聞く側だったから。", AFace),
         (6, "言うのは……まだ、練習中だけど。——行くよ。", AFace),
     };
@@ -151,7 +151,7 @@ public static class CharacterStory
     {
         (6, "会社でね、ひとつ、口で言ってみたの。「それ、明日でもいいですか」って。", AFace),
         (6, "……言えた。世界、終わらなかった。……「いいよ」だって。拍子抜け。", AFace),
-        (6, "八年分の下書き、なんだったんだろね。……いや、いい。数えない。", AFace),
+        (6, "八年分の下書き、なんだったんだろね。……ちがうか。あれ、ぜんぶ、練習だったんだ。", AFace),   // 数える自己ツッコミはこはる専有＝言い切りで放す
     };
 
     // 章2・道中の節目2
@@ -173,7 +173,7 @@ public static class CharacterStory
     // 章2・ボス前
     private static readonly (int who, string text, string face)[] AkariCh2PreBoss =
     {
-        (6, "……奥の人。あたしみたいに、練習中なのかな。それとも、練習の前かな。", AFace),
+        (6, "……この先にいる人。あたしみたいに、練習中なのかな。それとも、練習の前かな。", AFace),
         (6, "どっちでも、いいや。……聞いてから、決める。", AFace),
         (6, "行くよ。今日は、声、出てるほうのあたしだから。", AFace),
     };
@@ -202,7 +202,7 @@ public static class CharacterStory
     {
         (6, "なんて話しかけたか、って? ……「お昼、どの辺で食べてます?」。", AFace),
         (6, "われながら、しょぼい。……でもね、続いたの。会話。三往復も。", AFace),
-        (6, "三往復。……あ、また数えてる。癖だなあ、もう。", AFace),
+        (6, "三往復も。……うん。これは、数えて、いい数字。", AFace),   // 「あ、また数えてる」の自己ツッコミはこはる専有（P2）
     };
 
     // 章3・道中の節目2
@@ -223,7 +223,7 @@ public static class CharacterStory
     // 章3・ボス前
     private static readonly (int who, string text, string face)[] AkariCh3PreBoss =
     {
-        (6, "……奥の人の声、ずっと聞いてた。言いかけて、止まるの。何回も。", AFace),
+        (6, "……あの声、ずっと聞いてた。言いかけて、止まるの。何回も。", AFace),   // 三体とも正典で言いさし（——）で止まる＝面非依存で嘘にならない
         (6, "止まるのはいいの。あたしも、七秒止まったし。", AFace),
         (6, "止まったまま終わるのだけ、もったいない。——行こ。", AFace),
     };
@@ -257,7 +257,7 @@ public static class CharacterStory
     };
     private static readonly (int who, string text, string face)[] AkariLoopPreBoss =
     {
-        (6, "奥まで行くよ。……聞くのは得意なの。ほんとだよ。", AFace),
+        (6, "いちばん深くまで行くよ。……聞くのは得意なの。ほんとだよ。", AFace),
     };
     private static readonly (int who, string text, string face)[] AkariLoopReturn =
     {
@@ -304,7 +304,7 @@ public static class CharacterStory
     // 章1・ボス前
     private static readonly (int who, string text, string face)[] KoharuCh1PreBoss =
     {
-        (6, "奥の人、いるんでしょ。……声、ずっとしてるもん。", KFace),
+        (6, "……いるんでしょ、そこに。声、ずっとしてるもん。", KFace),
         (6, "だいじょうぶ。あたし、詰まってる人の隣に座るの、ちょっと得意になったから。", KFace),
         (6, "行くよ。ペンライトは……持ってきてないけど。気持ちだけ振っとく。", KFace),
     };
@@ -346,7 +346,7 @@ public static class CharacterStory
     // 章2・道中の節目3
     private static readonly (int who, string text, string face)[] KoharuCh2Mid3 =
     {
-        (6, "そうだ。こないだ、推しの告知にね、「地味だけど、好きだから」って書いてあって。", KFace),   // ReiStoryFilm Aftermath の告知。片方向の照応
+        (6, "そうだ。こないだ、推しの告知にね、「たぶん、地味だけど。わたしは、好きだから」って書いてあって。", KFace),   // ReiStoryFilm Aftermath の告知（原文一致）。片方向の照応
         (6, "いいなって思って、スクショした。……あたしも、好きなもの、好きって言お、って。", KFace),
         (6, "だから宣言します。あたし、抹茶オレは、ホット派です。……以上、宣言おわり。", KFace),
     };
@@ -354,8 +354,8 @@ public static class CharacterStory
     // 章2・ボス前
     private static readonly (int who, string text, string face)[] KoharuCh2PreBoss =
     {
-        (6, "……奥の人。息継ぎ、してない感じの声だった。", KFace),
-        (6, "あたし、息継ぎのタイミングなら、最近ちょっと分かるんだよね。", KFace),
+        (6, "……すー、はー。……いまの、二行目を打つ前にやる、いつもの深呼吸。", KFace),   // 章1の癖（二行目の前の深呼吸）を所作として持ち込む
+        (6, "あの声、息継ぎしてない感じだったから。……タイミングなら、あたし、ちょっと分かるんだよね。", KFace),
         (6, "行こ。……隣、座るだけでもいいし。", KFace),
     };
 
@@ -402,7 +402,7 @@ public static class CharacterStory
     // 章3・ボス前
     private static readonly (int who, string text, string face)[] KoharuCh3PreBoss =
     {
-        (6, "……奥の人。あのさ、たぶん、あたしが行っても、すぐには変わんないと思う。", KFace),
+        (6, "……あのさ。たぶん、あたしが行っても、すぐには変わんないと思う。", KFace),
         (6, "でも、隣に誰か座るとさ、問題って、ちょっとだけ小さく見えるんだよ。……あたし調べ、二回目。", KFace),
         (6, "行こ。", KFace),
     };
@@ -436,7 +436,7 @@ public static class CharacterStory
     };
     private static readonly (int who, string text, string face)[] KoharuLoopPreBoss =
     {
-        (6, "奥まで行くよ。隣、座りに。", KFace),
+        (6, "隣、座りに行くよ。いちばん詰まってる人のとこ。", KFace),
     };
     private static readonly (int who, string text, string face)[] KoharuLoopReturn =
     {
@@ -484,7 +484,7 @@ public static class CharacterStory
     // 章1・ボス前
     private static readonly (int who, string text, string face)[] ReiCh1PreBoss =
     {
-        (6, "……奥ね。分かってるわよ、声で。", RFace),
+        (6, "……いるわね。分かるのよ、声で。", RFace),
         (6, "初対面の人と話すのは、得意なの。三年やってるんだから。……初対面のまま終わらせないほうも、練習中。", RFace),
         (6, "行くわよ。マイク……は、ないけど。声は、ある。", RFace),
     };
@@ -533,7 +533,7 @@ public static class CharacterStory
     // 章2・ボス前
     private static readonly (int who, string text, string face)[] ReiCh2PreBoss =
     {
-        (6, "奥の人ね。……声、張ってるわね。ずっと。", RFace),
+        (6, "……あの人、ずっと声、張ってるわね。", RFace),
         (6, "声を張るのって、体力いるのよ。知ってる? わたしは知ってる。", RFace),
         (6, "行くわよ。……今日は、地声で。", RFace),
     };
@@ -583,9 +583,9 @@ public static class CharacterStory
     // 章3・ボス前
     private static readonly (int who, string text, string face)[] ReiCh3PreBoss =
     {
-        (6, "……奥の声。二重に聞こえるのよね。作った声と、その下の。", RFace),
-        (6, "分かるのよ、わたし。プロだから。……どっちも本人の声だってことも、ね。", RFace),
-        (6, "行くわよ。両方に、挨拶してくる。", RFace),
+        (6, "……聞こえる? あの声。無理してる音が、混ざってるの。", RFace),   // 面非依存（三体とも「無理してる声」は嘘にならない。「作った声」の診断はSTAGE3専用だったのでR9へ譲る）
+        (6, "分かるのよ、わたし。プロだから。……無理も、本人の声のうちだってことも、ね。", RFace),
+        (6, "行くわよ。挨拶は、素の声でしてくる。", RFace),
     };
 
     // 章3・帰還時
@@ -609,7 +609,7 @@ public static class CharacterStory
     };
     private static readonly (int who, string text, string face)[] ReiLoopMid2 =
     {
-        (6, "レジのおばあちゃん、今日も来たわ。「いい声ねえ」って。……三回目。覚えたわよ、もちろん。", RFace),
+        (6, "レジのおばあちゃん、今日も来たわ。また「いい声ねえ」って。……ふふん。何回でもどうぞ。", RFace),   // ループ章は毎回同文＝固定の回数を持たせない
     };
     private static readonly (int who, string text, string face)[] ReiLoopMid3 =
     {
@@ -617,7 +617,7 @@ public static class CharacterStory
     };
     private static readonly (int who, string text, string face)[] ReiLoopPreBoss =
     {
-        (6, "奥まで。……地声で行くわ。", RFace),
+        (6, "……さ、本番。地声で行くわ。", RFace),
     };
     private static readonly (int who, string text, string face)[] ReiLoopReturn =
     {
@@ -683,7 +683,7 @@ public static class CharacterStory
         (2, "でしょ? ずーっと、笑ってられるよ。疲れた顔は、映らないんだから。", RGawa),
         (6, "あたしもね、持ってるの。そういう顔。会社用の。八年もので。", AFace),
         (2, "……ふうん? じゃあ、わかるでしょ。外したら、終わりだって。", RGawa),
-        (6, "うん、思ってた。……外したらね、終わらなかった。「え、どうしたの」って言われただけだった。", AFace),
+        (6, "うん、思ってた。……一回だけ、うっかり外れちゃってね。——終わらなかった。「え、どうしたの」って言われただけだった。", AFace),   // 一回の事故として語る＝章1と同一ランでも先走らない
         (2, "……。……見てて。ちゃんと、見ててよ。", RGawa),
         (6, "見てる。笑ってるほうも……その奥で、息継ぎしてるほうも。", AFace),
         (2, "……っ、なに、それ……やだ、笑えて——笑ってるってば。", RGawa),   // 笑顔は固定のまま、声だけ崩れる（正典の挙動）
@@ -707,7 +707,7 @@ public static class CharacterStory
         (2, "……あなたも? ……返事、来た?", AFace),
         (6, "来てない。……あたしもね、ありがとうって、ちゃんと言えてなかったの。ずっと。", KFace),
         (2, "……どういうこと。", AFace),
-        (6, "毎晩ね、助けられてた人がいるの。その人、あたしがコメント書かなくても、「見ててくれた人も、ありがとう」って言うの。", KFace),
+        (6, "毎晩ね、あたしを助けてくれてた人がいるの。その人、あたしがコメント書かなくても、「見ててくれた人も、ありがとう」って言うの。", KFace),
         (6, "二年間、「今日も来ました」しか書けなかった。……助けられてたこと、伝えたかったのに。", KFace),
         // ここでBGM停止（RedemptionSilenceAt=9）
         (2, "……返事が、なくても……?", ACry),
@@ -741,24 +741,25 @@ public static class CharacterStory
     };
 
     // ═══════════ R6. こはる × STAGE3（星逢レイ＝ガワ） ═══════════
-    // 七人の視聴者の一人が名乗る。相互に知らなかった二年が、初めて向き合う。
-    // ※レイは「こはる」個人を知らないまま（正典の片方向を保つ）。ガワが知っているのは「毎日来る一行」だけ。
+    // 七人の視聴者の一人が名乗り、送った続きの一行（KoharuStoryFilm Aftermath）が読まれていたと初めて知る。
+    //   正典はミナに読まれたかを観測させないまま開けている（「向こう側ですので」）＝ここで閉じる。
+    // ※レイは「こはる」個人を知らないまま（正典の片方向を保つ）。ガワが知っているのは「毎日来る一行」と「一度だけ来た続き」だけ。
     private static readonly (int who, string text, string face)[] Redeem_Koharu_OnRei =
     {
         (2, "初見さん、いらっしゃい! 今日も来てくれて、ありがとう!", RGawa),
         (6, "…………初見じゃ、ないよ。二年、来てる。", KFace),
-        (2, "……二年？ でも、あなたとこうして話すのは、初めてよね。", RGawa),
-        (6, "「今日も来ました」って、いつも書いてる。……その続きが、言えなくて。", KFace),
+        (2, "……二年? でも、あなたとこうして話すのは、初めてよね。", RGawa),
+        (6, "「今日も来ました」って、いつも書いてる。……一回だけ、続きも書いた。", KFace),   // Aftermathで送った一行。中身はここでは言わない
+        (6, "読まれたかは、知らないまま。……送るとこまでが、あたしの番、だから。", KFace),   // 章3のテーゼの再来
         (2, "…………。……あれ、あなたなの。", RGawa),
         (6, "……知ってたんだ。", KFace),
         (2, "知ってるわよ。……配信つけるとね、まず、あの一行、探すの。……来てるかなって。", RGawa),
-        (6, "…………。", KFace),
         (2, "同接は、七人。その名前の向こうで、どんな顔して聞いてるか……考えたこと、なかった。", RGawa),
         // ここでBGM停止。決定打は無音のまま（RedemptionSilenceAt=9）
         (6, "その七人の中に、あたしもいるよ。……ずっと、ここで聞いてた。", KFace),
         (2, "…………。", RGawa),
-        (6, "言うの、二年かかっちゃったけど。……あたし、あんたの「またね」で、学校行けてたの。", KFace),
-        (2, "……っ。……こっちも……あの一行が来る日は、最後まで、声が出たのよ……。", RGawa),   // 笑顔は固定のまま、声だけ崩れる
+        (6, "続きの一行ね、……声でも、言っとく。——あたし、あんたの「またね」で、学校行けてたの。", KFace),   // 打った言葉を、初めて声で
+        (2, "……っ。……読んだわよ、あれ。何回も。……読み上げる勇気が、なかっただけ。", RGawa),   // 笑顔は固定のまま、声だけ崩れる。BossRei「ぜんぶ、読んだから」の地続き
         (6, "……なにそれ。……お互い、言わなさすぎでしょ。……ペンライト、振っていい? 配信中でしょ、ここ。", KFace),
         (2, "……うん。……いま、初めて、客席が見えた。", RGawa),
     };
@@ -770,7 +771,7 @@ public static class CharacterStory
         (2, "ねえ、こっち見て。すきって言って。あたしも言うから。", AFace),
         (6, "見てるわよ。ちゃんと。……「すき」は言わない。安売りしない主義なの、わたし。", RFace),   // 緩を一枚
         (2, "……なんで。言うだけなら、タダじゃない。", AFace),
-        (6, "タダじゃないから、あんた、十二回も取り消したんでしょ。", RFace),
+        (6, "タダじゃないから、取り消したんでしょ。……そこら中の封筒、数えたわよ、さっき。十二。", RFace),   // 集計（ミナの専有）ではなく、舞台に見えている封筒（弾幕＝akari_envelope）を数える
         (2, "……っ。……だって、送ったら、重いって思われて、既読のまま——", ACry),
         (6, "……ねえ。ひとつ、わたしの話をするわ。三年前、知らない人がね、わたしに一行くれたの。", RFace),
         (6, "「今日、誰とも話してなかった。声聞けてよかった」。……それだけ。返事する暇もなく、その人、もういなかった。", RFace),   // ReiStoryFilm:19 の一行
@@ -791,7 +792,7 @@ public static class CharacterStory
     private static readonly (int who, string text, string face)[] Redeem_Rei_OnKoharu =
     {
         (2, "……見てるもん。ちゃんと見てる。アーカイブも、ぜんぶ、ちゃんと——", KPale),
-        (6, "……この部屋。……そのペンライト、うちの公式のやつじゃない。", RFace),
+        (6, "……この部屋。……そのペンライト。……うちは、グッズなんて出してないのに。", RFace),   // 同接7の現実と整合。公式グッズのない推しのために買った市販のペンライト
         (2, "……え。……え、うそ、その髪飾り——なんで、本物——", KPale),
         (2, "やだ、見ないで! 部屋、散らかってるし、あたし、いま、ひどい顔——", KPale),   // 推しに病みを見られる、最悪の形
         (6, "お邪魔してるのは、こっちよ。……で? 「ぜんぶ見なきゃ」って、聞こえたけど。", RFace),
