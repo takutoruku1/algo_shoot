@@ -52,11 +52,12 @@
 <!-- 2026-09-16 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
 <!-- 2026-09-17 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
-- [ ] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | `src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)
 - [ ] (P3) GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド | engineer | `src/GameManager.cs:342`(定義)/`:355,364`(加減算)/`:907,997`(セーブ/ロード)を`grep`しても消費箇所が無い(兄弟フィールド`P2HesitationSec`は`Epilogue.cs:346`で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理
 - [ ] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | `src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)
 
 ## WIP
+
+- [ ] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | `src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)
 
 ## BLOCKED
 
