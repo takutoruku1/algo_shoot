@@ -78,15 +78,21 @@ public partial class EpilogueQa : Node
             }
             if (route == 2)
             {
-                await Frames(1250);
+                // 沈黙20秒の自動送信は実時間で進むので、フレーム数ではなく経過秒で待つ
+                //   （高リフレッシュ環境だと 1250F が 20 秒に満たず取りこぼす）。
+                await Seconds(21);
                 Check(Read<ChoiceOverlay?>(final, "_choice") == null, "F4 silence sends after twenty seconds");
             }
             else await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
             Check(game.LastSentWord == "おかえり", $"F4 route {route} sends the original word");
             Check(!Read<bool>(final, "_cueResolveDone"), "Mina does not smile before receiving the word");
             await AdvanceUntil(() => Read<bool>(final, "_cueResolveDone"));
-            await Frames(155);
-            Check(Read<double>(final, "_resolveT") >= 2.4, "received CG finishes its dissolve");
+            // 受け取りCGのディゾルブ（Final._Draw の _resolveT / 2.4）が出切るまで待つ。
+            //   ディゾルブは実時間で進むのでフレーム数で待たない（旧 Frames(155) は 60fps 前提で、
+            //   高リフレッシュ環境だと 2.4 秒に届かず落ちていた）。
+            await Seconds(2.6);
+            Check(Read<double>(final, "_resolveT") >= 2.4,
+                $"received CG finishes its dissolve ({Read<double>(final, "_resolveT"):F2}s)");
             if (route == 0)
             {
                 using var resolved = await Shot("final_received");
@@ -105,6 +111,15 @@ public partial class EpilogueQa : Node
             GetTree().CurrentScene.QueueFree();
             await Frames(3);
         }
+    }
+
+    // E7 ロールの自動終了時刻（Epilogue._Process の rollEnd と同じ式。行数から伸びる）。
+    private static float RollEnd(Epilogue ep)
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        float speed = (float)typeof(Epilogue).GetField("RollSpeed", flags)!.GetValue(null)!;
+        float lineH = (float)typeof(Epilogue).GetField("RollLineH", flags)!.GetValue(null)!;
+        return (216f + Read<string[]>(ep, "_roll").Length * lineH + 24f) / speed;
     }
 
     private static Rect2 FinalRect(Final final)
@@ -148,9 +163,14 @@ public partial class EpilogueQa : Node
             KeyDown(Key.Z, false);
             await Frames(3);
         }
-        Write(ep, "_t", 11.0);
+        // ロールの staff 欄が画面に載っている時刻で1枚撮る（2026-09-17 の拡充で職種が8セクションに増え、
+        //   旧 11.0 秒では「その後のタイムライン」の投稿までしか出なくなった）。
+        Write(ep, "_t", 16.0);
         await Frames(2);
         if (choice == 0) { using var credits = await Shot("credits"); }
+        // 残りのロール（全体で約72秒）は素通しで待たず、末尾直前まで送ってから END へ落とす
+        //   ＝AdvanceUntil のフレーム上限（300回×18F）に収める。
+        Write(ep, "_t", RollEnd(ep) - 0.5);
         await AdvanceUntil(() => Read<int>(ep, "_phase") == 3);
         await AdvanceUntil(() => Read<ChoiceOverlay?>(ep, "_e6Choice") != null);
         await Frames(60);
@@ -228,8 +248,10 @@ public partial class EpilogueQa : Node
             for (int x = 60; x < 1220; x += 5)
                 if (Difference(before.GetPixel(x, y), after.GetPixel(x, y)) > 0.15f) changed++;
         Check(changed > 100, "illustrated camera movement is visible");
+        // 残り（Duration 53 秒 − 49）を実時間で進ませ、自動終了（Complete→QueueFree）を待つ。
+        //   Elapsed は delta 加算なのでフレーム数ではなく経過秒で待つ（旧 Frames(260) は 60fps 前提）。
         typeof(EndingFilm).GetProperty(nameof(EndingFilm.Elapsed))!.SetValue(film, 49.0);
-        await Frames(260);
+        await Seconds(EndingFilm.Duration - 49 + 1.0);
         Check(!IsInstanceValid(film), "film completes automatically");
     }
 
@@ -258,6 +280,19 @@ public partial class EpilogueQa : Node
     private async Task Frames(int count)
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+
+    // 実時間で進む演出（ディゾルブ・沈黙タイマー・フィルムの Elapsed）を待つ。
+    //   ゲーム側は delta 加算なので、フレーム数で待つと実フレームレート依存で尺が変わる
+    //   ＝60fps 以外の環境で落ちる。ここは経過秒そのもので待ち切る。
+    private async Task Seconds(double seconds)
+    {
+        double waited = 0;
+        while (waited < seconds)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            waited += GetProcessDeltaTime();
+        }
     }
 
     private static void KeyDown(Key key, bool pressed)

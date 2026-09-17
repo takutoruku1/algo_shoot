@@ -49,14 +49,18 @@ public partial class OpeningFilmQa : Node
             (string Text, bool Caret) Draft(double time) => ((string, bool))draftMethod.Invoke(null, new object[] { time })!;
             foreach (var (time, text) in new (double, string)[]
             {
-                (0, ""), (1.79, ""), (1.8, "た"), (2.35, "たす"), (2.9, "たすけ"),
-                (3.79, "たすけ"), (3.8, "たす"), (4.0, "た"), (4.2, ""), (5.99, ""),
-                (6.0, "た"), (6.65, "たす"), (7.45, "たすけ"), (8.2, "たすけて"), (10.49, "たすけて"),
+                // 消す手つきを見せるため 0.20→0.60 秒/字・迷いの静止 0.90→1.60 秒に伸ばした版の節目。
+                (0, ""), (1.19, ""), (1.2, "た"), (1.75, "たす"), (2.3, "たすけ"),
+                (3.89, "たすけ"), (3.9, "たす"), (4.5, "た"), (5.1, ""), (6.29, ""),
+                (6.3, "た"), (6.95, "たす"), (7.75, "たすけ"), (8.5, "たすけて"), (10.49, "たすけて"),
             })
                 Check(Draft(time).Text == text, $"draft at {time:0.00}s hesitates, types, erases, and retypes in order");
-            Check(Draft(0.1).Caret && !Draft(0.7).Caret && Draft(4.21).Caret && !Draft(4.9).Caret,
+            Check(Draft(0.1).Caret && !Draft(0.7).Caret && Draft(5.2).Caret && !Draft(5.8).Caret,
                 "caret blinks during both empty pauses and returns after editing");
-            Check(cuts[1] - 8.2 >= 2 && cuts[^1] == OpeningFilm.Duration,
+            // 消すほうが打つより遅い＝「消す」がいちばん見せたい動作、という不変条件。
+            Check(3.9 - 2.3 >= 1.5 && 4.5 - 3.9 > 1.75 - 1.2,
+                "the hesitation holds and erasing is slower than typing");
+            Check(cuts[1] - 8.5 >= 2 && cuts[^1] == OpeningFilm.Duration,
                 "completed plea remains readable before the next scene");
             foreach (var (index, duration) in new[] { (1, 3.5), (2, 3.5), (3, 3.5), (4, 5.0),
                 (5, 3.5), (6, 3.5), (7, 3.5), (8, 3.5), (9, 4.0), (10, 4.0) })

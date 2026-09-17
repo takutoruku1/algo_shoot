@@ -13,7 +13,7 @@ using Godot;
 //     ・買った段は点灯して縦線で連結、次の1段だけ光って呼吸、先の段は暗いが名前と価格は見せる
 //       ＝「いまどこまで来たか」と「この先どこまで行けるか」が、動かさずに一目で分かる。
 //     ・能力を覚える段（#6 溜め打ち／#10 集中モード）だけ一回り大きい＝数値ではなく手が増える段の格。
-//     ・詳細は「いま → 買うと」の2行のみ。
+//     ・詳細は「買う前の値 → 買った後の値」の矢印1行のみ（長い段だけ矢印を行頭に落として2行）。
 //   操作：↑↓ えらぶ ／ Z 買う ／ X もどる ／ T トレーニング（マウスはクリックで選択＋確定）。
 //
 //   撤去したもの（復活させないこと）：振り直し／おすすめ誘導と金パルス／排他と封印／装備チップと C 装備操作／
@@ -336,8 +336,9 @@ public partial class Shop : Node2D
 
     private void DrawHeader()
     {
-        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(ColX, 30f), "SHOP", UiKit.Info);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(ColX, 44f), "つよくなる", UiKit.FontTitle, UiKit.White);
+        // 見出しはひとつだけ。以前は小ラベル "SHOP" ＋ 大見出し「つよくなる」の二段だったが、
+        //   同じことを二度言っているだけなので "SHOP" を FontTitle へ昇格して1行に畳んだ。
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(ColX, 36f), "SHOP", UiKit.FontTitle, UiKit.White);
 
         // 財布（購入の瞬間だけ跳ねる）。
         float pop = 1f + 0.10f * (float)Mathf.Max(0, _walletPopT) / 0.5f;
@@ -480,15 +481,39 @@ public partial class Shop : Node2D
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, hy), d.Name, UiKit.FontTitle,
                    owned ? Owned : UiKit.White);
 
-        // ── いま → 買うと ──（この画面で読ませる地の文はこの2行だけ）
+        // ── 現在値 → 購入後 ──（この画面で読ませる地の文はここだけ）
+        //   旧版は「いま」「買うと」の2ラベルで対比していたが、所持済みの段では「いま」が
+        //   “買う前の値”を指す（＝画面の「いま」と意味が反転する）ので読み違えが起きていた。
+        //   ラベルはひとつだけ置き、値そのものは矢印でつなぐ＝どちらからどちらへ動くかを記号で言う。
         var (now, after) = EffectPair(_sel);
         float ey = hy + 52f;
         UiKit.Box(this, new Rect2(x, ey, w, 84f), new Color(1f, 1f, 1f, 0.035f), 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 20f, ey + 14f), "いま", UiKit.FontLabel, UiKit.Text4);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 86f, ey + 12f), now, UiKit.FontBody, UiKit.Text2);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 20f, ey + 50f), owned ? "いまは" : "買うと", UiKit.FontLabel, UiKit.Text4);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 86f, ey + 48f), after, UiKit.FontBody,
-                   owned ? new Color(Owned, 0.9f) : UiKit.Gold);
+        Color afterCol = owned ? new Color(Owned, 0.95f) : UiKit.Gold;
+        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 20f, ey + 13f),
+                   owned ? "買って、こうなった" : "買うとどうなる", UiKit.Text4);
+
+        // 1行に畳めるなら「現在値 → 購入後」。長い段（集中モード等）だけ矢印を行頭に落として2行にする。
+        const float arrowGap = 10f;
+        float bodyX = x + 20f, bodyW = w - 40f;
+        string arrow = "→";
+        float nowW = UiKit.TextW(UiKit.ZenBold, now, UiKit.FontBody);
+        float arrowW = UiKit.TextW(UiKit.ZenBold, arrow, UiKit.FontBody);
+        float afterW = UiKit.TextW(UiKit.ZenBold, after, UiKit.FontBody);
+        if (nowW + afterW + arrowW + arrowGap * 2f <= bodyW)
+        {
+            float ty2 = ey + 45f;
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ty2), now, UiKit.FontBody, UiKit.Text4);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + nowW + arrowGap, ty2), arrow, UiKit.FontBody, UiKit.Text3);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + nowW + arrowGap + arrowW + arrowGap, ty2),
+                       after, UiKit.FontBody, afterCol);
+        }
+        else
+        {
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ey + 32f), now, UiKit.FontBody, UiKit.Text4);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ey + 56f), arrow, UiKit.FontBody, UiKit.Text3);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + arrowW + arrowGap, ey + 56f),
+                       after, UiKit.FontBody, afterCol, HorizontalAlignment.Left, bodyW - arrowW - arrowGap);
+        }
 
         // ── 買うボタン（状態で文言と色が変わる。押せないときは理由をそのまま書く）──
         float by = ey + 110f;
@@ -522,7 +547,8 @@ public partial class Shop : Node2D
             UiKit.Box(this, new Rect2(x, py + 24f, pw * ownedCount / Steps, ph), Owned, 2f);
     }
 
-    // 「いま → 買うと」の2行を作る。所持済みなら「いま」＝買う前の値、「いまは」＝現在の値、という読みになる。
+    // 矢印の左右（買う前の値 → 買った後の値）を作る。所持済みの段では左＝過去の値・右＝いまの値になる
+    //   （表示側のラベルが「買って、こうなった」に変わるので、左右の意味は所持前後で一貫する）。
     //   ここは各段の効果を人の言葉で1行にするだけ＝数式は GameManager のアクセサが正典。
     private (string now, string after) EffectPair(int i)
     {
@@ -547,7 +573,8 @@ public partial class Shop : Node2D
                 return (owned ? $"ボム {cur - 1}" : $"ボム {cur}", $"ボム {(owned ? cur : cur + 1)}");
             }
             case "n_power_2x":  return ("弾の火力 ×1", "弾の火力 ×2");
-            case "n_charge":    return ("溜め打ちは使えない", "C 長押し0.6秒 → 威力×4 の大玉");
+            // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
+            case "n_charge":    return ("溜め打ちは使えない", "C 長押し0.6秒で 威力×4 の大玉");
             case "n_hitbox":    return ("当たり判定 2.0px", "当たり判定 1.0px");
             case "n_lines":
             {
@@ -576,7 +603,9 @@ public partial class Shop : Node2D
                    HorizontalAlignment.Center, _backBtnRect.Size.X);
 
         UiKit.Text(this, UiKit.Zen, new Vector2(ColX + 200f, FooterY + 10f),
-                   $"{Pad.MoveToken} えらぶ　　{Pad.ConfirmToken} 買う　　上から順に買えます",
+                   // 「上から順に買えます」は削らないと説明過多：点灯・縦線・呼吸の演出と、
+                   //   買えないときの理由（DrawDetail の買うボタン文言）で既に言えている。
+                   $"{Pad.MoveToken} えらぶ　　{Pad.ConfirmToken} 買う",
                    UiKit.FontLabel, UiKit.Text4);
     }
 

@@ -128,16 +128,16 @@ public partial class StoryFilmQa : Node
                   && game.ProcessMode == gameMode, "flashback restores world and HUD");
             if (koharu)
             {
-                Check(Read<bool>(boss, "_mealFired") && Read<int>(boss, "_mealPhase") > 0, "archive mechanic starts after memory");
-                Check(Read<int>(boss, "_gotoPhase") == 0, "crossfire does not overlap archive mechanic");
-                Check(!Read<bool>(boss, "_form2", typeof(Enemy)), "form change waits for the archive mechanic");
-                await WaitUntil(() => Read<int>(boss, "_mealPhase") == 0, 1600);
+                // 2026-09-17 ユーザー指示：配膳（うちわ）は削除（BossKoharu.MealEnabled=false）。
+                //   閾値を跨いだ一度だけ _mealFired が立ち、_mealPhase には入らず素通りする＝
+                //   保留（holds）が残らず、第二形態・スペル切替がその場で通ること自体が回帰テストになる。
+                Check(Read<bool>(boss, "_mealFired") && Read<int>(boss, "_mealPhase") == 0, "archive mechanic stays disabled after memory");
                 if (burst)
                 {
-                    Check(Read<int>(boss, "_gotoPhase") > 0, "large damage queues crossfire after archives");
+                    Check(Read<int>(boss, "_gotoPhase") > 0, "large damage still reaches crossfire without archives");
                     await WaitUntil(() => Read<int>(boss, "_gotoPhase") == 0, 1600);
                 }
-                Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form follows completed archive mechanic");
+                Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form is no longer held by the archive mechanic");
             }
             else if (rei)
             {

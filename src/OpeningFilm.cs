@@ -17,17 +17,22 @@ public partial class OpeningFilm : Node2D
     };
     private static readonly (double Time, string Text)[] DraftBeats =
     {
+        // 打つ(0.55s/字)より消す(旧0.20s/字)のほうが2.75倍速く、いちばん見せたい「消す」が一瞬で終わっていた。
+        //   迷いの静止を 0.90→1.60 秒、消去を 0.20→0.60 秒/字に伸ばし、消す手つきを見せる。
+        //   伸ばしたぶんは前後の空白（打ち始めまでの 1.8→1.2 秒、消したあとの間 1.8→1.2 秒）から借りる。
+        //   PhoneDuration(10.5) は全カットの基準なので触らない。末尾 8.50 ＝完成した「たすけて」が
+        //   次のカットまで 2.0 秒残る（OpeningFilmQa の可読性チェックと同じ下限）。
         (0, ""),
-        (1.8, "た"),
-        (2.35, "たす"),
-        (2.9, "たすけ"),
-        (3.8, "たす"),
-        (4.0, "た"),
-        (4.2, ""),
-        (6.0, "た"),
-        (6.65, "たす"),
-        (7.45, "たすけ"),
-        (8.2, "たすけて"),
+        (1.2, "た"),
+        (1.75, "たす"),
+        (2.3, "たすけ"),
+        (3.9, "たす"),      // ← 迷いの静止 1.60 秒
+        (4.5, "た"),
+        (5.1, ""),
+        (6.3, "た"),        // ← 消したあとの間 1.20 秒
+        (6.95, "たす"),
+        (7.75, "たすけ"),
+        (8.5, "たすけて"),
     };
     private static readonly string[] Characters = { "akari", "koharu", "rei", "mina" };
     private static readonly string[] DailyLines =
@@ -171,6 +176,10 @@ public partial class OpeningFilm : Node2D
 
     private static float Ease(float v) { v = Mathf.Clamp(v, 0, 1); return v * v * (3 - 2 * v); }
     private static Color Fade(Color c, float a) => new(c.R, c.G, c.B, a);
+    // キャラの X ハンドル（Hub.AccountHandle と同じ引き方。ミナだけステージ表に居ないので直書き）。
+    private static string Handle(JobTuning job) => job.Id == Job.Tank
+        ? "@mina_ai_"
+        : Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
 
     private void UpdateMina()
     {
@@ -397,7 +406,10 @@ public partial class OpeningFilm : Node2D
             float a = Ease((t - 0.28f) / 0.25f) * (1 - Ease((t - 3.3f) / 0.2f));
             canvas.DrawRect(new Rect2(0, 480, 590, 205), new Color(0.025f, 0.025f, 0.03f, a * 0.85f));
             float x = 68 - (1 - Ease(t / 0.55f)) * 35;
-            UiKit.Text(canvas, UiKit.ZenBold, new Vector2(x, 491), _cast[i].Name, 18, Fade(Accents[i], a));
+            // ★2026-09-17：ここはジョブ名（結び手／灯し手…）を名前の上に置いていたが、ユーザー指示で
+            //   ジョブ名・型名の表記は全廃。ハブ／HUD と同じ「@ハンドル」に差し替える＝
+            //   キャラ名の添え書きは最後まで X のアカウント表記で統一される。
+            UiKit.Text(canvas, UiKit.ZenBold, new Vector2(x, 491), Handle(_cast[i]), 18, Fade(Accents[i], a));
             UiKit.Text(canvas, UiKit.ZenBlack, new Vector2(x, 516), _cast[i].CharacterName, 43, Fade(UiKit.White, a));
             DrawQuote(canvas, CutinLines[i], new Vector2(68, 581), 27, a);
         }

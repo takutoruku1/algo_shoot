@@ -20,6 +20,27 @@ public partial class StoryFilm : Node2D
     protected bool _started;
     protected const double FadeTime = 0.65;
 
+    // ───────── 時制の見出し（「いつのシーンか」）─────────
+    // 以前は左上（64,19）に _lines[_line].Time を**常時**出していた（ユーザー指摘「回想シーンで
+    //   左上に出しているいつのシーンか」）。常時表示は絵の隅に札が貼りっぱなしで、場面が変わった
+    //   ことを知らせる力が無く、シネスコの額の外に情報が逃げていた。
+    //   → 会話欄の位置に、場面が変わった瞬間だけ出す**字幕**へ変える。
+    // ・話者名を持たない＝名前欄そのものを描かない。本作のナレはミナの肉声（三人称の語り手は居ない）
+    //   ので、これを Hud.ShowMessage（＝LineKind.Narration。会話ログに「ナレーション」として積まれ、
+    //   既読記録も付く）に流すと**ミナが時刻を読み上げた**ことになってしまう。
+    //   時制は語りではなく画面の見出しなので、Hud を通さずこの _Draw が自前で描く
+    //   （バックログを汚さない・送り音が鳴らない・既読スキップの対象にもならない）。
+    // ・字幕として読ませる工夫：本文（白・24px）より一段落とした淡色＋小さめの字、字間を開け、
+    //   細い罫を添えて「見出しの体裁」にする。セリフの吹き出し様式（枠・話者色）は使わない。
+    //   置き場所は会話欄の話者名の行の右端（左詰めの話者名とぶつからない。DrawTimeCard 参照）。
+    private string _timeText = "";        // いま出している見出し（空＝出していない）
+    private string _timeShown = "";       // 直近に見出しを出した Time。同じ時制が続く行では出し直さない
+    private double _timeT;                // 見出しの経過秒
+    private double _timeHold;             // セリフを出すまで待つ秒（0＝もう出した）
+    private const double TimeLead = 1.05; // 見出しだけを見せる一拍
+    private const double TimeLife = 3.2;  // 見出しが消えるまで（セリフと重なって余韻を残す）
+    private const double TimeWipe = 0.42; // 罫が伸びて字が出るまで
+
     protected string _atlasPath = "";
     protected string _storyName = "";
     protected int _atlasRows = 3;
@@ -106,6 +127,17 @@ public partial class StoryFilm : Node2D
             return;
         }
         _lineT += delta;
+        if (_timeText.Length > 0) _timeT += delta;
+        // 時制の見出しの一拍。ここではまだセリフを出していないので、行送りの判定より先に返す
+        //   （_hud は空＝DialogRevealed が true を返すため、素通りさせると _line が飛ぶ）。
+        if (_timeHold > 0)
+        {
+            // オートは一拍を待たせる（そのための自動送り）。押した人と既読スキップだけ即座に明ける。
+            //   FastForwarding は「表示中の行が既読」で立つフラグ＝ここでは直前の行を見ているが、
+            //   既読スキップ中に見出しで止まらないという意図どおりに働く。
+            if (_timeT >= _timeHold || edge || _hud.FastForwarding) ShowLineText();
+            return;
+        }
         if (_hud.DialogRevealed) _readT += delta;
         if (edge && _lineT >= 0.2 && !_hud.DialogRevealed)
         {
@@ -138,6 +170,31 @@ public partial class StoryFilm : Node2D
             _shotT = 0;
         }
         _lineT = _readT = 0;
+        // 時制が変わった行＝場面の切り替わり。見出しを先に一拍だけ見せてからセリフへ渡す。
+        //   判定は Shot ではなく Time の変化で取る。4本とも「絵が変わる行は必ず時制も変わる」が、
+        //   逆は成り立たない（例 AkariStoryFilm の shot 1 に「数年後」「別の日」「一か月前」の3場面、
+        //   shot 4 の aftermath に3場面）。Shot だけを見ると、同じ絵のまま日が飛ぶ場面で
+        //   見出しが出ず、常時表示だった頃より情報が減る。
+        //   1行目は _timeShown が空なので必ず出る（4本とも Time は全行埋まっていて空文字は無い）。
+        if (line.Time.Length > 0 && line.Time != _timeShown)
+        {
+            _timeShown = _timeText = line.Time;
+            _timeT = 0;
+            // 一拍のあいだセリフを出さずに待つ。**送りボタンは増やさない**：待ちは _Process が
+            //   自動で明け、待っている間に送りを押せばその場で明ける（＝待ちたくない人は素通りできる）。
+            _timeHold = TimeLead;
+            return;
+        }
+        ShowLineText();
+    }
+
+    // 見出しの一拍が明けた（あるいは最初から不要だった）あとの、実際のセリフ表示。
+    private void ShowLineText()
+    {
+        _timeHold = 0;
+        // 一拍ぶん進んでいた行タイマを仕切り直す（待ち時間を「もう読んだ時間」に数えない）。
+        _lineT = _readT = 0;
+        var line = _lines[_line];
         if (line.Speaker.Length == 0) _hud.ShowMessage(line.Text);
         else _hud.ShowDialog(Hud.LineKind.Other, line.Text, otherName: line.Speaker);
     }
@@ -157,8 +214,46 @@ public partial class StoryFilm : Node2D
         UiKit.BeginDesign(this);
         DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.025f, 0.025f, 0.025f, 0.94f));
         DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.025f, 0.025f, 0.94f));
-        UiKit.Text(this, UiKit.Zen, new Vector2(64, 19), _lines[Math.Min(_line, _lines.Length - 1)].Time, 20, Colors.White);
+        DrawTimeCard();
         UiKit.EndDesign(this);
+    }
+
+    // 時制の見出し（字幕）。会話欄の話者名の行（Hud のシネマ表示は 112,542 に話者名を描く）に、
+    //   その**逆端**から出す。時制が変わった瞬間だけ現れ、TimeLife 秒かけて自分で消える。
+    //   ・右端に寄せる理由：見出しの一拍が明けた直後の行に話者が居る場合（例 KoharuStoryFilm の
+    //     各場面の頭は同級生／こはるの台詞）、左詰めだと 112,542 の話者名と同じ場所に重なる。
+    //     実際に重なったのを確認して右寄せへ直した（build/qa_story/akari/shots/memory_pressure.png の初版）。
+    //     右端は Hud の既読スキップ印（1168,546）とページ送りの▼（1136,664）を避けて 1136 で止める。
+    //   ・左詰めの話者名＝発話、右端の淡い小さな字＝画面の見出し、と位置と書体で役割が分かれる。
+    //   セリフ本文は Hud が下の行（112,588）に描くので、縦にも重ならない。
+    private void DrawTimeCard()
+    {
+        if (_timeText.Length == 0) return;
+        if (_timeT >= TimeLife) { _timeText = ""; return; }
+        // 出るとき：罫が伸び、字が追って浮く。消えるとき：最後の 0.5 秒で一緒に沈む。
+        float wipe = Mathf.Clamp((float)(_timeT / TimeWipe), 0, 1);
+        float ease = 1 - (1 - wipe) * (1 - wipe);
+        float outA = Mathf.Clamp((float)((TimeLife - _timeT) / 0.5), 0, 1);
+        const float right = 1136f, y = 542f;
+        const int size = 18;
+        const float track = 1.6f;   // 字間。少し開けて「見出し」に寄せる
+        // 右端から積むので、先に総幅を測って書き出しを決める。
+        float w = 0;
+        for (int i = 0; i < _timeText.Length; i++)
+            w += UiKit.TextW(UiKit.Zen, _timeText.Substring(i, 1), size) + track;
+        float cx = right - w;
+        // 字幕であって発話ではない、という体裁を作る唯一の飾り（本文側の縦罫と対になる細い罫）。
+        DrawRect(new Rect2(cx - 14f, y + 4, 2.5f, 17f * ease), new Color(UiKit.Text3, 0.8f * outA));
+        for (int i = 0; i < _timeText.Length; i++)
+        {
+            string ch = _timeText.Substring(i, 1);
+            // 一文字ずつ、罫の伸びを追いかけて浮き上がる（字送りの演出。送り音は鳴らさない）。
+            float t = Mathf.Clamp((float)((_timeT - TimeWipe * 0.5 - i * 0.012) / 0.22), 0, 1);
+            if (t > 0)
+                UiKit.Text(this, UiKit.Zen, new Vector2(cx, y + (1 - t) * 5f), ch, size,
+                    new Color(UiKit.Text3, 0.95f * t * outA));
+            cx += UiKit.TextW(UiKit.Zen, ch, size) + track;
+        }
     }
 
     private void Restore()

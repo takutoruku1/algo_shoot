@@ -570,8 +570,15 @@ public partial class Audio : Node
     public void PlayPurify()
         => Se(SfxPurify, volDb: -14f, pitch: _rng.RandfRange(0.99f, 1.02f));
 
+    // 欠片回収の連鎖音。chain が伸びるほど半音ずつ上がる「チャリチャリ…」の駆け上がり。
+    //   上限 7→12（完全5度→1オクターブ）：ボス撃破の欠片ラッシュは 100粒超が連続で入るので、
+    //   7 で頭打ちだと一番気持ちいい所で音程が平らになり「増えた実感」が消える（mitsuda §4 / sakurai §12）。
+    //   天井に着いた後は音量をわずかに持ち上げて、伸び切った連鎖を耳で締める。
     public void PlayScorePickup(int chain)
-        => Se(SfxScorePickup, volDb: -20f, pitch: Mathf.Pow(2f, Mathf.Min(chain, 7) / 12f));
+    {
+        int step = Mathf.Min(chain, 12);
+        Se(SfxScorePickup, volDb: -20f + (step >= 12 ? 2f : 0f), pitch: Mathf.Pow(2f, step / 12f));
+    }
 
     // ───────── 拡張SE（③④⑥⑦⑧⑩）─────────
     // ③ボム：一拍の溜め→開放の二段。破壊でなく「鎮める／光が満ちる」。

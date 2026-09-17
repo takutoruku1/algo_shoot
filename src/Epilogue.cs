@@ -19,7 +19,7 @@ public partial class Epilogue : Node2D
     private GameManager? _game;    // 文字送り速度（MsgCharsPerSec）を本編設定と共有
     private bool _musicStarted;    // E5b のオルゴールを実際に鳴らしたか（未調達なら false＝停止も呼ばない）
 
-    // 撮影モード（--shot）か。スタッフロールの Z 飛ばしを遅らせるためだけに見る（ChoiceOverlay と同じ作法）。
+    // 撮影モード（--shot）か。スタッフロールのスキップを止めるためだけに見る（ChoiceOverlay と同じ作法）。
     private static bool ShotHold
     {
         get
@@ -82,9 +82,53 @@ public partial class Epilogue : Node2D
             "", "", "",
             "── staff ──",
             "",
-            "企画・ディレクション   takutoruku1",
-            "シナリオ・サウンド     Claude (AI)",
-            "キャラクター・実装     Claude (AI)",
+            "企画・ディレクション\t こくとう",
+            "ゲームデザイン\t こくとう",
+            "",
+            "── scenario ──",
+            "",
+            "シナリオ・脚本",
+            "世界観・キャラクター設定",
+            "投稿テキスト・小話\t Claude (AI)",
+            "",
+            "── programming ──",
+            "",
+            "ゲームシステム・自機・敵・ボス",
+            "UI／HUD・カットシーン・エフェクト",
+            "シェーダー・背景・オーディオ実装",
+            "\t Claude (AI) ／ Codex (AI)",
+            "",
+            "── art ──",
+            "",
+            "キャラクターデザイン・立ち絵・表情差分",
+            "敵／ボスアート・カットイン・背景",
+            "タイトルビジュアル・弾／エフェクト素材",
+            "\t Claude (AI) ／ Codex (AI)",
+            "画像生成\t OpenAI gpt-image-2",
+            "",
+            "── sound ──",
+            "",
+            "効果音（手続き合成）・音響調整・楽曲選定",
+            "\t Claude (AI)",
+            "",
+            "── music ──",
+            "",
+            "甘茶（甘茶の音楽工房）",
+            "蒲鉾さちこ ／ もっぴーさうんど ／ のる ／ シンシンワダ（DOVA-SYNDROME）",
+            "watson（BGM:MusMus）",
+            "PeriTune（CC BY 4.0）",
+            "",
+            "── quality assurance ──",
+            "",
+            "自動プレイ検証・バグ検証\t Claude (AI)",
+            "プレイテスト\t MAGOME GAMES",
+            "\t こくとう",
+            "",
+            "── special thanks ──",
+            "",
+            "Godot Engine（MIT License）",
+            "Zen Kaku Gothic New ／ JetBrains Mono（OFL 1.1）",
+            "プレイしてくださった、あなた",
             "", "", "",
             "そして、ご主人様へ。",
             "",
@@ -95,7 +139,22 @@ public partial class Epilogue : Node2D
         _rollLast = last.Length > 0 ? last : "ミナ";
     }
     private string _rollLast = "";   // クライマックス級で大きく出す1行（旧 "stay." の枠）
-    private const float RollSpeed = 24f, RollLineH = 17f;
+    // 24→20px/秒。投稿3行は1行30字超で情報量が多く、24（約0.71秒/行）では読み切れない（収録時の所見）。
+    //   rollEnd は RollSpeed から引くので、ロール全体は行数から自動で伸びる（現在 約61秒）。
+    private const float RollSpeed = 20f, RollLineH = 17f;
+    // 「職種\t担当者」行の欄の境（設計座標 X）。左に職種（右寄せ）、右に担当者（左寄せ）。
+    //   最長の職種「タイトルビジュアル・弾／エフェクト素材」と最長の担当「Claude (AI) ／ Codex (AI)」が
+    //   どちらも W=384 に収まる位置。左右どちらかに寄せると片側がはみ出すので中央よりやや左に置く。
+    //   RollGap＝欄の間の空き。1文字ぶんの空白だと職種と名前が地続きの一文に読めたので広めに取る。
+    private const float RollGutter = 196f, RollGap = 10f;
+
+    // E7 スタッフロールのスキップ（長押し）。ここは作品の締めくくり
+    //   （「そして、ご主人様へ。」→ 送った言葉 →「Thank you for playing.」）が末尾に来るので、
+    //   単押しで飛ばすと直前まで会話送りを連打してきた流れのまま、ほぼ確実に失われていた。
+    //   → EndingFilm のスキップと同じ作法（長押し＋充填バー、離すまで武装しない）に寄せる。
+    //   長押し秒は RetryHold.HoldTime（0.45s）＝本作の長押し標準に合わせる。
+    private readonly RetryHold _rollSkip = new();
+    private bool _rollSkipArmed;     // 一度離すまで長押しを受けない（映画スキップの押しっぱなしを引き継がない）
 
     // ───────── E6 END の下書き選択（08 E6）─────────
     //   「また来る／ありがとう／（送らない）」。作品全体の最後の選択。
@@ -142,6 +201,13 @@ public partial class Epilogue : Node2D
         G("ミナ", "……ここからだと、光っているところしか、見えません。");
         G("ミナ", "……光っていないほうは、観測できません。送られていないので。");
         G("ミナ", "この旅で、声のもとまで辿り着けたのは——三件でした。");   // 三人＝ステージ数の固定値
+        // 三人が並んで立っている場面なのに、ここまで喋るのがミナだけだった（あかりの1行を除く）。
+        //   「三件」＝少なさの数字を、救われた側の二人が受ける。E7 スタッフロールの「その後」
+        //   （こはる＝あと一行／レイ＝同接7・名前覚えた）は追い越さず、いまの場で言えることだけ。
+        G("こはる", "三件、って言った? ……あたし、そのうちの一件だよ。");
+        G("こはる", "ひとりぶんでも、届いたら、その日は学校行けるんだよ。……ほんとだってば。");
+        G("レイ", "三、ね。……わたしは、その数字、笑えないわ。");
+        G("レイ", "一桁のほうが、顔が見えるの。……数えてるんでしょ。なら、胸張りなさいよ。");
         G("ミナ", "…………。");                                       // ここで曲を完全停止（無音）
         G("ミナ", "膨らんで、壊れてしまう前に。……拾えるところにいたい、と思います。");
         G("ミナ", "——できることは、数えることと、覚えていることだけ、ですが。");
@@ -260,12 +326,15 @@ public partial class Epilogue : Node2D
                 }
                 break;
             case PhRoll:   // E7 スタッフロール → E6 END
-                float rollEnd = (H + _roll.Length * RollLineH + 24f) / RollSpeed;
-                // --shot（撮影）のときだけ Z の飛ばしを遅らせる。自動プレイは Z を常時パルスするので、
-                //   従来どおりだと 1 秒でロールを飛ばしてしまい、ロールの実画面が一度も撮れない
-                //   （ChoiceOverlay の ShotHoldGate と同じ作法。通常プレイには一切影響しない）。
-                double rollSkipGate = ShotHold ? 12.0 : 1.0;
-                if (_t >= rollEnd || (_t > rollSkipGate && zEdge))
+                float rollEnd = (H + _roll.Length * RollLineH + 24f) / RollSpeed;   // ≒35秒（RollSpeed=20）
+                // スキップは**長押し**（単押しでは飛ばさない）。ロール末尾の三要素が締めくくりなので、
+                //   会話送りの連打がそのままロール飛ばしにならないようにする。飛ばしたい人は押し続ければ飛ぶ。
+                //   離すまで武装しない＝直前の EndingFilm を送りっぱなしで抜けてきても即発しない。
+                // --shot（撮影）のときだけ完全に受け付けない。自動プレイは Z を常時パルス／保持するので、
+                //   受け付けるとロールの実画面が撮れない（ChoiceOverlay の ShotHoldGate と同じ作法）。
+                if (!z) _rollSkipArmed = true;
+                bool rollSkip = _rollSkip.Update(delta, !ShotHold && _rollSkipArmed && z);
+                if (_t >= rollEnd || rollSkip)
                 {
                     _phase = PhEnd; _t = 0; _line = 0; _lineT = 0; _reveal = 0; _pagedKey = -1;
                     // 主題（温かいメニューBGM）が戻る。終わりの余韻に主題が戻って一周する。
@@ -410,11 +479,46 @@ public partial class Epilogue : Node2D
                     : Ink;
             // 【終】の一行だけクライマックス級（旧 "stay." の枠）。見出し・投稿とは重ならない。
             int sz = !head && !post && line == _rollLast ? UiKit.CutClimax : UiKit.CutBody;
+            // 「職種\t担当者」の2欄行は、欄の境（RollGutter）で左右に振り分けて描く。
+            //   ここを中央寄せの1文字列で済ませると、職種の長短で担当者名の頭が行ごとに揺れ、
+            //   複数行の職種を最後の1行で受ける書き方（職種だけの行→担当者だけの行）も繋がって見えない。
+            //   → 職種は境で右寄せ、担当者は境から左寄せ＝どの行でも名前の頭が縦に揃う。
+            int tabAt = !head && !post ? line.IndexOf('\t') : -1;
+            if (tabAt >= 0)
+            {
+                string role = line[..tabAt], name = line[(tabAt + 1)..].TrimStart();
+                if (role.Length > 0)
+                    Shadowed(_font, new Vector2(0, y), role, HorizontalAlignment.Right, RollGutter - RollGap, sz, c);
+                Shadowed(_font, new Vector2(RollGutter, y), name, HorizontalAlignment.Left, W - RollGutter, sz, c);
+                continue;
+            }
             Shadowed(_font, new Vector2(0, y), line, HorizontalAlignment.Center, W, sz, c);
         }
-        if (((int)(_t * 1.5f) % 2) == 0)
-            Shadowed(_font, new Vector2(0, H - 10), "Z：つづける", HorizontalAlignment.Center, W, UiKit.CutNote,
-                UiKit.CutInk2 with { A = 0.7f });
+        // ヒントは実態（長押しで飛ばせる）に合わせる。旧「Z：つづける」は単押しで進むように読めたうえ、
+        //   実際そのとおり単押しで末尾まで飛んでいた。点滅はやめて常時薄く出す（急かさない）。
+        //   締めくくり（「そして、ご主人様へ。」以降）に入ったら消す＝最後の三行に注記を重ねない
+        //   （ヒントと同じ y をロール行が通るので、出したままだと作品の最後の一行と重なる）。
+        float hintA = Mathf.Clamp((float)(_t - 2.0) / 1.0f, 0f, 1f);   // 冒頭2秒は出さない＝ロールの入りを邪魔しない
+        int tail = System.Array.IndexOf(_roll, "そして、ご主人様へ。");
+        if (tail >= 0)
+        {
+            float tailIn = (H + tail * RollLineH - H) / RollSpeed;      // その行が画面下端に現れる時刻
+            hintA *= 1f - Mathf.Clamp((float)(_t - tailIn) / 1.0f, 0f, 1f);
+        }
+        if (hintA > 0f)
+        {
+            // スキップ判定は Pad.AdvanceHeld＝左クリックの長押しでも飛ばせる。直近デバイスがマウスの間は
+            //   表記もそれに合わせる（Pad.ShowKeyboard はマウス時も true＝キーボード表記へ落ちるため、
+            //   ここで明示的に出し分ける。Hud.TokFocus と同じ作法）。
+            string tok = Pad.UsingMouse ? "左クリック" : Pad.ShowKeyboard ? "Z" : Pad.Face(JoyButton.A);
+            Shadowed(_font, new Vector2(0, H - 10), tok + " 長押しでスキップ", HorizontalAlignment.Center, W, UiKit.CutNote,
+                UiKit.CutInk2 with { A = 0.6f * hintA });
+            // 充填バー（押している間だけ）。EndingFilm のスキップ表示と同じ「文字の下に伸びる線」。
+            float p = _rollSkip.Progress;
+            if (p > 0f)
+                DrawLine(new Vector2(W * 0.5f - 30f, H - 6f), new Vector2(W * 0.5f - 30f + 60f * p, H - 6f),
+                    Cool with { A = 0.9f }, 1f);
+        }
     }
 
     // タイプライターで送る現在行のテキスト（会話フェーズのみ。スタッフロールは対象外）。
