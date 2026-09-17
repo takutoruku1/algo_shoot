@@ -182,6 +182,7 @@ public partial class BossRei : Enemy
         _mover.Configure(new Vector2(200f, 70f), 90f, 28f, BossTuning.F("rei", "roam_speed", RoamSpeed));
         GetHud()?.ShowBossBar("星逢レイ", "@hoshiai_rei_live");
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        GetHud()?.SetBossPressure(_pressure, _pressureMax); // 「また逃げる」圧ゲージの枠だけ先に出す（他ボスには出さない）
         ApplySpell();
 
         // 予測攻撃（テレグラフ）キャスター：技名宣告→予測線/予測エリア。数は難易度でスケール。
@@ -240,6 +241,7 @@ public partial class BossRei : Enemy
         if (want > _pressure)
         {
             _pressure = want;
+            GetHud()?.SetBossPressure(_pressure, _pressureMax); // HUDの段階インジケーターに即反映（タウントが出ない再上昇時も含む）
             if (_tauntCd <= 0)
             {
                 _tauntCd = 8.0;
@@ -253,7 +255,11 @@ public partial class BossRei : Enemy
     public override void OnPlayerDealtDamage()
     {
         _noDmgT = 0;
-        if (_pressure > 0) _pressure--;
+        if (_pressure > 0)
+        {
+            _pressure--;
+            GetHud()?.SetBossPressure(_pressure, _pressureMax); // 緩んだこともHUDへ即反映
+        }
     }
 
     // 攻撃パターン（セリフを挟むたびに変化）。

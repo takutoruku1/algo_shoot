@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-17 19:19 UTC",
+  "generated": "2026-09-17 19:23 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 38,
-    "done": 240
+    "done": 241
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない",
-      "worker": "engineer",
-      "accept": "`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで、現在の圧レベル・閾値までの残り時間を示すUIが皆無(`Hud.cs`に該当ゲージなし)。ボスバー付近(`Hud.cs:964 DrawBossCard`周辺)に圧レベルを示す簡易インジケーターを追加するか、閾値到達が近づくタイミングで事前警告(SE/自機リング明滅)を出す"
-    },
     {
       "priority": "P2",
       "title": "Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用",
@@ -265,6 +259,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(game-designer)発見。`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで現在の圧レベルを示すUIが皆無だった。`src/Hud.cs`に`_bossPressure`/`_bossPressureMax`と`SetBossPressure(level,max)`を追加、`ShowBossBar`で毎回0リセット(他ボスに持ち越さない・BossAkari/Koharu/Hikage等は呼ばないため描画されない)。`DrawBossCard`末尾にボスカード直下の段階ドット(点灯=オレンジ、最終段=赤+グロー)を`_bossPressureMax>0`の時だけ描画。`src/BossRei.cs`側は`_Ready()`・`TickPressure`上昇時・`OnPlayerDealtDamage`緩和時に`GetHud()?.SetBossPressure(_pressure,_pressureMax)`を呼びHUDへ即時反映するだけで、`_pressureMax`/`_pressureDelay`/`_pressureStep`本体や弾密度増加ロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での目視確認は未実施。"
+    },
     {
       "priority": "P2",
       "title": "あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる",
@@ -1708,6 +1708,16 @@
   ],
   "commits": [
     {
+      "hash": "96ac800",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - BossReiの「圧」上昇ギミックにHUDフィードバックを追加する"
+    },
+    {
+      "hash": "026f516",
+      "date": "2026-09-17",
+      "subject": "auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正"
+    },
+    {
       "hash": "4919bd6",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する"
@@ -1736,16 +1746,6 @@
       "hash": "ea1698a",
       "date": "2026-09-17",
       "subject": "auto: 監査で TODO 7件・BLOCKED 2件をキューに追加"
-    },
-    {
-      "hash": "f7b9bb3",
-      "date": "2026-09-16",
-      "subject": "auto: DEV_QUEUE.mdのWIP重複記載を修正（グレイズコメント修正タスクの移動漏れ）"
-    },
-    {
-      "hash": "adab9bc",
-      "date": "2026-09-16",
-      "subject": "auto: グレイズ報酬コメントの記載ズレを修正"
     }
   ]
 }

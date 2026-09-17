@@ -34,6 +34,10 @@ public partial class Hud : CanvasLayer
     private int _bossBarIndex;             // 残バーの先頭インデックス（0始まり）
     private int _bossBarsTotal = 1;        // 総バー数
     private long _bossReplies = 2847;
+    // 「また逃げる」圧インジケーター（現状レイ専用）。_bossPressureMax=0＝ボスカードに一切出さない
+    // （max未設定＝レイ以外のボスに影響なし。BossRei.SetBossPressure が上昇/緩和のたびに更新する）。
+    private int _bossPressure;
+    private int _bossPressureMax;
 
     // バナー
     private string _bannerText = "";
@@ -730,6 +734,7 @@ public partial class Hud : CanvasLayer
     {
         _bossName = bossName; _bossVisible = true;
         _bossTint = null; _bossBarFlash = 0; // 次のボスへ前ボスのスペル色/フラッシュを持ち越さない
+        _bossPressure = 0; _bossPressureMax = 0; // 圧ゲージも前ボスから持ち越さない（既定は非表示）
         ResetSpellCutin();   // ボス戦開始＝このボス戦のカットイン初回フラグをリセット
         if (!string.IsNullOrEmpty(handle))
         {
@@ -747,6 +752,12 @@ public partial class Hud : CanvasLayer
         _bossFrac = Mathf.Clamp(frac, 0f, 1f);
     }
     public void HideBossBar() { _bossVisible = false; }
+    // 「また逃げる」圧の現在値をボスカードへ渡す（BossRei専用。max<=0なら描画自体をしない＝他ボス無影響）。
+    public void SetBossPressure(int level, int max)
+    {
+        _bossPressureMax = Mathf.Max(0, max);
+        _bossPressure = Mathf.Clamp(level, 0, _bossPressureMax);
+    }
     // スペル宣告カード（＋袖カットイン）を即時に消す。会話バブル中は _spellTimer が停止する仕様のため、
     // 改心開始（各ボス OnCryStart）で明示的に消さないと、宣告カードが改心演出〜帰還会話まで残留する。
     public void HideSpellCard() { _spellTimer = 0; _spellGlow = 0; _cutinTimer = 0; _cutinTex = null; }
@@ -1002,6 +1013,22 @@ public partial class Hud : CanvasLayer
                 i < barsLeft ? barCol : new Color(barCol, 0.22f));
         // 「残/総」表示。
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{barsLeft}/{_bossBarsTotal}", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
+        // 「また逃げる」圧インジケーター（#12：カード直下に段階ドット。BossRei が値を持つ時だけ出す＝
+        // 他ボスは _bossPressureMax=0 のまま＝一切描かれない）。満タン時は赤味を強めて警告色にする。
+        if (_bossPressureMax > 0)
+        {
+            float py = y + h + 8f;
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, py - 2), "圧", 10, new Color("f0a8cf"));
+            float dotX = x + 18f;
+            for (int i = 0; i < _bossPressureMax; i++)
+            {
+                bool lit = i < _bossPressure;
+                Vector2 c = new(dotX + i * 15f + 4f, py + 3f);
+                Color col = lit ? (i == _bossPressureMax - 1 ? new Color("ff4d6a") : new Color("ffb35a")) : new Color(UiKit.Kegare, 0.2f);
+                if (lit) UiKit.RadialGlow(ci, c, 11f, col, 0.5f);
+                ci.DrawCircle(c, 4.5f, col);
+            }
+        }
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。

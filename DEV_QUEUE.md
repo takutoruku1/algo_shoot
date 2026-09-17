@@ -58,8 +58,6 @@
 
 ## WIP
 
-- [ ] (P2) BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない | engineer | `src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで、現在の圧レベル・閾値までの残り時間を示すUIが皆無(`Hud.cs`に該当ゲージなし)。ボスバー付近(`Hud.cs:964 DrawBossCard`周辺)に圧レベルを示す簡易インジケーターを追加するか、閾値到達が近づくタイミングで事前警告(SE/自機リング明滅)を出す
-
 ## BLOCKED
 
 <!-- 2026-09-16 監査モード(scenario/engineer)で追加 -->
@@ -131,6 +129,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P2) BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない | engineer | (完了 2026-09-17) 2026-09-17監査(game-designer)発見。`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで現在の圧レベルを示すUIが皆無だった。`src/Hud.cs`に`_bossPressure`/`_bossPressureMax`と`SetBossPressure(level,max)`を追加、`ShowBossBar`で毎回0リセット(他ボスに持ち越さない・BossAkari/Koharu/Hikage等は呼ばないため描画されない)。`DrawBossCard`末尾にボスカード直下の段階ドット(点灯=オレンジ、最終段=赤+グロー)を`_bossPressureMax>0`の時だけ描画。`src/BossRei.cs`側は`_Ready()`・`TickPressure`上昇時・`OnPlayerDealtDamage`緩和時に`GetHud()?.SetBossPressure(_pressure,_pressureMax)`を呼びHUDへ即時反映するだけで、`_pressureMax`/`_pressureDelay`/`_pressureStep`本体や弾密度増加ロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での目視確認は未実施。
 - [x] (P2) あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる | engineer | (完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証が通常移動速度のみを想定し、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(旧Normal=80/Hard=100/Lunatic=115)が上回っていた不具合。Focus中は移動方向が実質縦のみでFocusSpeedをフルに使えるため、`_maxVy`をFocusSpeed(65)未満に是正する方針(a)を採用し`src/CorridorRun.cs:82-85`をNormal 80→58/Hard 100→60/Lunatic 115→62へ変更(Easy=55は既に安全で無変更、難易度間の序列は維持)。`_gap`/`_scrollSpeed`/Focus速度自体/他ステージ・他区間は無変更。`:7-9,78-79`のコメントも実際の保証内容(Focus 65px/s基準)に合わせて更新。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P2) STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生 | engineer | (完了 2026-09-17) 2026-09-17監査(qa)発見。`src/StageZero.cs:305-328`(case 12)・`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが、湧いた瞬間に倒され次フレームでまた湧く高速respawn-killループに陥る場合があった(再現ログ`build/qa/progress_easy.log:110-126`)。呼び出し元(case 4/10/12/14)は変更せず、共通の`SpawnDummy()`本体(`src/StageZero.cs:577-`)に直前スポーンから0.5秒未満の呼び出しは素通りする簡易デバウンス(`_lastDummySpawnAt`)を追加。ステージ進行条件(PurifiedCount/killedしきい値、SafetyTimeout)は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。低頻度バグのため修正後に実機で再現しなくなったことまでは確認していない。
 - [x] (P1) 改心フォロワーの見た目が全ステージで「アンチくん」固定 | engineer | (完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/Follower.cs:18`が全Followerで無条件に`enemy_anti_post.png`を使用しており面専用post画像が反映されない不具合。`src/Follower.cs`に`PostTexPath`フィールドを追加し存在すればロード、無ければ`enemy_anti_post.png`にフォールバック。`src/Player.cs:AddFollower`にpostTexPathパラメータ（デフォルト引数で既存呼び出し元と後方互換）を追加し生成するFollowerへ渡す。`src/Enemy.cs:GrantFollower()`が既存の`PostTexPath`フィールド（MidEnemyでは`EnemySpec`由来、`src/MidEnemy.cs:87`で浄化前に既にセット済み）をそのまま`AddFollower`へ渡すよう変更。フォロワー追従挙動・上限4体・ヒカゲ専用フォロワーには手を入れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機でのレイ/あかり/こはる面での目視確認は未実施。
