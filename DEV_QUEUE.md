@@ -57,8 +57,6 @@
 
 ## WIP
 
-- [ ] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | `src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)
-
 ## BLOCKED
 
 <!-- 2026-09-16 監査モード(scenario/engineer)で追加 -->
@@ -130,6 +128,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想していた。Stay言及部分のみ削除し「行ってまいります。」へ変更(新規文言の創作なし、他6要素は無変更)。`DemoPilot.cs`の`StayBonus`定数名・`StageMina.cs:50`のコメント中の"Stay"は台詞文字列ではないため対象外として未変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない | engineer | (完了 2026-09-17) 2026-09-17監査(game-designer)発見。`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで現在の圧レベルを示すUIが皆無だった。`src/Hud.cs`に`_bossPressure`/`_bossPressureMax`と`SetBossPressure(level,max)`を追加、`ShowBossBar`で毎回0リセット(他ボスに持ち越さない・BossAkari/Koharu/Hikage等は呼ばないため描画されない)。`DrawBossCard`末尾にボスカード直下の段階ドット(点灯=オレンジ、最終段=赤+グロー)を`_bossPressureMax>0`の時だけ描画。`src/BossRei.cs`側は`_Ready()`・`TickPressure`上昇時・`OnPlayerDealtDamage`緩和時に`GetHud()?.SetBossPressure(_pressure,_pressureMax)`を呼びHUDへ即時反映するだけで、`_pressureMax`/`_pressureDelay`/`_pressureStep`本体や弾密度増加ロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での目視確認は未実施。
 - [x] (P2) あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる | engineer | (完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証が通常移動速度のみを想定し、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(旧Normal=80/Hard=100/Lunatic=115)が上回っていた不具合。Focus中は移動方向が実質縦のみでFocusSpeedをフルに使えるため、`_maxVy`をFocusSpeed(65)未満に是正する方針(a)を採用し`src/CorridorRun.cs:82-85`をNormal 80→58/Hard 100→60/Lunatic 115→62へ変更(Easy=55は既に安全で無変更、難易度間の序列は維持)。`_gap`/`_scrollSpeed`/Focus速度自体/他ステージ・他区間は無変更。`:7-9,78-79`のコメントも実際の保証内容(Focus 65px/s基準)に合わせて更新。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P2) STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生 | engineer | (完了 2026-09-17) 2026-09-17監査(qa)発見。`src/StageZero.cs:305-328`(case 12)・`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが、湧いた瞬間に倒され次フレームでまた湧く高速respawn-killループに陥る場合があった(再現ログ`build/qa/progress_easy.log:110-126`)。呼び出し元(case 4/10/12/14)は変更せず、共通の`SpawnDummy()`本体(`src/StageZero.cs:577-`)に直前スポーンから0.5秒未満の呼び出しは素通りする簡易デバウンス(`_lastDummySpawnAt`)を追加。ステージ進行条件(PurifiedCount/killedしきい値、SafetyTimeout)は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。低頻度バグのため修正後に実機で再現しなくなったことまでは確認していない。

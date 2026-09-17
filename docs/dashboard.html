@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 241 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 242 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">241</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">242</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept"><code>src/Shop.cs:267</code>(<code>ShopExitTalk</code>)の「行ってまいります。Stay——でしたね。」が旧正典由来で、<code>Prologue.cs</code>/<code>Epilogue.cs</code>等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -175,6 +167,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-17) 2026-09-17監査(scenario)発見。<code>src/Shop.cs:267</code>(<code>ShopExitTalk</code>)の「行ってまいります。Stay——でしたね。」が旧正典由来で、<code>Prologue.cs</code>/<code>Epilogue.cs</code>等では既に除去済みの合言葉を宙に浮いた形で回想していた。Stay言及部分のみ削除し「行ってまいります。」へ変更(新規文言の創作なし、他6要素は無変更)。<code>DemoPilot.cs</code>の<code>StayBonus</code>定数名・<code>StageMina.cs:50</code>のコメント中の&quot;Stay&quot;は台詞文字列ではないため対象外として未変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2417,18 +2417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">305c19f</span><span>2026-09-17</span><span class="s">auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する</span></li>
+      <li><span class="h">5263389</span><span>2026-09-17</span><span class="s">auto: BossReiの「圧」上昇ギミックにHUDインジケーターを追加</span></li>
       <li><span class="h">96ac800</span><span>2026-09-17</span><span class="s">auto: WIP着手 - BossReiの「圧」上昇ギミックにHUDフィードバックを追加する</span></li>
       <li><span class="h">026f516</span><span>2026-09-17</span><span class="s">auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正</span></li>
       <li><span class="h">4919bd6</span><span>2026-09-17</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する</span></li>
       <li><span class="h">49f98b9</span><span>2026-09-17</span><span class="s">auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）</span></li>
       <li><span class="h">26da043</span><span>2026-09-17</span><span class="s">auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する</span></li>
       <li><span class="h">8edb0ad</span><span>2026-09-17</span><span class="s">auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正</span></li>
-      <li><span class="h">d7a79a1</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する</span></li>
-      <li><span class="h">ea1698a</span><span>2026-09-17</span><span class="s">auto: 監査で TODO 7件・BLOCKED 2件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-17 19:23 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-17 19:25 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
