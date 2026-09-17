@@ -1,7 +1,7 @@
 using Godot;
 
 // AkariRoot : STAGE1「あかり」のルート（Akari.tscn にアタッチ）。
-// 雨の教室の背景を敷き、Player(=ミナ)/Hud/StageAkari を生成。浄化が進むと部屋が暖色へ晴れる。
+// 雨の降る退勤後のフロアの背景を敷き、Player(=ミナ)/Hud/StageAkari を生成。浄化が進むと部屋が暖色へ晴れる。
 public partial class AkariRoot : Node2D
 {
     public const int ScreenWidth = 384;

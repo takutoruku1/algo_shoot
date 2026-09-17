@@ -1022,7 +1022,7 @@ public partial class Audio : Node
 
     // ───────── BgmStageAkari のロード（ライセンス実音源 → 失敗時は合成 BgmStage へフォールバック）─────────
     //   res://audio/bgm_stage_akari.ogg＝「6月の雨傘」（甘茶の音楽工房・クレジット任意）。
-    //   梅雨の儚げなピアノ＝あかり道中「雨の教室」の生楽器スペック一致枠。
+    //   梅雨の儚げなピアノ＝あかり道中「雨の降る退勤後のフロア」の生楽器スペック一致枠。
     //   原曲 102.35秒の末尾リタルダンド減衰をトリムした 0..97.5秒・-1.3dB（ピーク-3dB化）・
     //   頭40ms/尻120ms 極小フェード。出所と規約記録は BGM/acquisition_list.md §6。
     //   ogg は loop を焼いてあるが、念のため AudioStreamOggVorbis.Loop も明示する（Music() は鳴らしっぱなし）。

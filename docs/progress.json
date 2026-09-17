@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-17 19:28 UTC",
+  "generated": "2026-09-17 19:30 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 38,
-    "done": 243
+    "done": 244
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)",
-      "worker": "scenario",
-      "accept": "`src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -247,6 +240,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/AkariRoot.cs:4`/`src/StageImagery.cs:339`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageAkari.cs:252`のコメント中「雨の教室」を案C設定(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:36`「雨の降りやまない、退勤後のフロア」)に沿った「退勤後のフロア」表記へ機械的に訂正。コメントのみでロジック・文字列リテラルには無変更。既存BLOCKED対象の`src/AreaSpellCaster.cs:278`は指示通り触れておらず、修正後`grep -rn \"雨の教室\" src/`はこの1件のみ残存を確認済み。`src/ScrollFx.cs:218`の`classroom.png`はファイルパス参照のため対象外。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド",
@@ -1708,6 +1707,16 @@
   ],
   "commits": [
     {
+      "hash": "a29a1fa",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - 「雨の教室」旧称の残存コメント5箇所を修正する"
+    },
+    {
+      "hash": "cf2365d",
+      "date": "2026-09-17",
+      "subject": "auto: GameManager.HesitationSecの死にコードを整理"
+    },
+    {
       "hash": "e3410bc",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する"
@@ -1736,16 +1745,6 @@
       "hash": "026f516",
       "date": "2026-09-17",
       "subject": "auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正"
-    },
-    {
-      "hash": "4919bd6",
-      "date": "2026-09-17",
-      "subject": "auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する"
-    },
-    {
-      "hash": "49f98b9",
-      "date": "2026-09-17",
-      "subject": "auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）"
     }
   ]
 }

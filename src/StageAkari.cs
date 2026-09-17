@@ -249,7 +249,7 @@ public partial class StageAkari : Node
         // イライラ棒「雨の帰り道」（CorridorRun 展開中）は降らせない＝通路避けに弾を重ねる理不尽を断つ。
         if (_bossActive && GetTree().GetFirstNodeInGroup("corridor") == null)
             PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, fallSpeed: 48f,
-                accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
+                accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（退勤後のフロアの雨弾幕と同系）
     }
 
     private void Advance()

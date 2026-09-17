@@ -55,8 +55,6 @@
 
 ## WIP
 
-- [ ] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | `src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)
-
 ## BLOCKED
 
 <!-- 2026-09-16 監査モード(scenario/engineer)で追加 -->
@@ -128,6 +126,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/AkariRoot.cs:4`/`src/StageImagery.cs:339`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageAkari.cs:252`のコメント中「雨の教室」を案C設定(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:36`「雨の降りやまない、退勤後のフロア」)に沿った「退勤後のフロア」表記へ機械的に訂正。コメントのみでロジック・文字列リテラルには無変更。既存BLOCKED対象の`src/AreaSpellCaster.cs:278`は指示通り触れておらず、修正後`grep -rn "雨の教室" src/`はこの1件のみ残存を確認済み。`src/ScrollFx.cs:218`の`classroom.png`はファイルパス参照のため対象外。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド | engineer | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/GameManager.cs`の`HesitationSec`フィールド(旧342行定義)を`grep -rn "\.HesitationSec\b" src/`で消費箇所0件と再確認の上、定義・`RecordChoice`内の加減算(旧355,364行)・セーブ(旧907行)・ロード(旧997行)・`ResetPersistent()`内の初期化(旧1032行、削除必須の追加対応)の計6箇所を削除。兄弟フィールド`P2HesitationSec`(`Prologue.cs`書込/`Epilogue.cs:346`読出で使用中)には触れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想していた。Stay言及部分のみ削除し「行ってまいります。」へ変更(新規文言の創作なし、他6要素は無変更)。`DemoPilot.cs`の`StayBonus`定数名・`StageMina.cs:50`のコメント中の"Stay"は台詞文字列ではないため対象外として未変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない | engineer | (完了 2026-09-17) 2026-09-17監査(game-designer)発見。`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで現在の圧レベルを示すUIが皆無だった。`src/Hud.cs`に`_bossPressure`/`_bossPressureMax`と`SetBossPressure(level,max)`を追加、`ShowBossBar`で毎回0リセット(他ボスに持ち越さない・BossAkari/Koharu/Hikage等は呼ばないため描画されない)。`DrawBossCard`末尾にボスカード直下の段階ドット(点灯=オレンジ、最終段=赤+グロー)を`_bossPressureMax>0`の時だけ描画。`src/BossRei.cs`側は`_Ready()`・`TickPressure`上昇時・`OnPlayerDealtDamage`緩和時に`GetHud()?.SetBossPressure(_pressure,_pressureMax)`を呼びHUDへ即時反映するだけで、`_pressureMax`/`_pressureDelay`/`_pressureStep`本体や弾密度増加ロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での目視確認は未実施。

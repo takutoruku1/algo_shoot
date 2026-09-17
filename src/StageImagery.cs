@@ -336,7 +336,7 @@ public partial class StageImagery : Node2D
                      quote: quote);
         }
 
-        // 雨（細い横斜線）。画面（X）越しに降る雨の教室の湿度を残すが、進行＝横流れを優先＝左へ強く流す。
+        // 雨（細い横斜線）。画面（X）越しに降る退勤後のフロアの湿度を残すが、進行＝横流れを優先＝左へ強く流す。
         // 縦の落下が主役にならないよう α は控えめ(0.07)、横へ寝た斜め(左:下 ≈ 4:1)。
         var rain = new Color(0.7f, 0.8f, 1f, 0.07f * fade);
         float rainSpan = W + 12f;
