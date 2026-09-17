@@ -52,9 +52,10 @@
 <!-- 2026-09-16 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
 <!-- 2026-09-17 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
-- [ ] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | `src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)
 
 ## WIP
+
+- [ ] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | `src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)
 
 ## BLOCKED
 
