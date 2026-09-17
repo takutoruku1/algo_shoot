@@ -52,13 +52,14 @@
 <!-- 2026-09-16 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
 
 <!-- 2026-09-17 監査モード(game-designer/engineer/scenario/qa並列)で追加。根拠は各行の受入条件を参照 -->
-- [ ] (P2) あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる | engineer | `src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(Normal=80/Hard=100/Lunatic=115、`src/CorridorRun.cs:78-86`)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう`_maxVy`または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)
 - [ ] (P2) BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない | engineer | `src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで、現在の圧レベル・閾値までの残り時間を示すUIが皆無(`Hud.cs`に該当ゲージなし)。ボスバー付近(`Hud.cs:964 DrawBossCard`周辺)に圧レベルを示す簡易インジケーターを追加するか、閾値到達が近づくタイミングで事前警告(SE/自機リング明滅)を出す
 - [ ] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | `src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)
 - [ ] (P3) GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド | engineer | `src/GameManager.cs:342`(定義)/`:355,364`(加減算)/`:907,997`(セーブ/ロード)を`grep`しても消費箇所が無い(兄弟フィールド`P2HesitationSec`は`Epilogue.cs:346`で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理
 - [ ] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | `src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)
 
 ## WIP
+
+- [ ] (P2) あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる | engineer | `src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(Normal=80/Hard=100/Lunatic=115、`src/CorridorRun.cs:78-86`)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう`_maxVy`または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)
 
 ## BLOCKED
 
