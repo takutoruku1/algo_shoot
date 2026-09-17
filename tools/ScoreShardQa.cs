@@ -11,6 +11,14 @@ public partial class ScoreShardQa : Node
     private static T Read<T>(object obj, string field) => (T)obj.GetType().GetField(field, Fields)!.GetValue(obj)!;
     private static IList Shards(ScoreShards drops) => Read<IList>(drops, "_shards");
     private static int Value(ScoreShards drops) => Shards(drops).Cast<object>().Sum(s => Read<int>(s, "Points"));
+    // 欠片が運ぶショップ通貨の基礎額の総和（2026-09-17 経済改修）。スコア(Points)とは別系統。
+    private static int ImpValue(ScoreShards drops) => Shards(drops).Cast<object>().Sum(s => Read<int>(s, "Imp"));
+    // 基礎額 impBase が GainImpression の全倍率を通ったあとの実加算額（期待値計算用）。
+    private static long Expected(GameManager game, int impBase) =>
+        impBase <= 0 ? 0 : (long)Mathf.Round(impBase * game.TotalImpressionMul * game.ReplayMul * GameManager.MoneyGainMul);
+    // 浄化1体が欠片に積む基礎額（コンボ加算後の値に取りこぼし補正 ShardImpressionMul を掛けたもの）。
+    private static int PurifyImp(int comboAfter) =>
+        Mathf.Max(1, Mathf.RoundToInt((2 + comboAfter) * GameManager.ShardImpressionMul));
     private static FxLayer.P[] Particles(FxLayer fx) => Read<IList>(fx, "_p").Cast<FxLayer.P>().ToArray();
     private static void Check(bool ok, string message)
     {
@@ -82,6 +90,7 @@ public partial class ScoreShardQa : Node
                 enemy.SetPhysicsProcess(false);
                 var panels = enemy.GetChildren().OfType<Panel>().ToArray();
                 long defeatScore = game.Score + 80 + panels.Length * 5;
+                long impressionAtDefeat = game.Impression;
                 foreach (var panel in panels) panel.Shatter();
                 int dropCount = Shards(drops).Count;
                 Check(enemy.IsPurified && dropCount >= 10 && dropCount <= 16,
@@ -90,6 +99,11 @@ public partial class ScoreShardQa : Node
                     "original defeat score, combo and stage progress are unchanged");
                 int bonus = Value(drops);
                 Check(bonus == 8, "shards carry a small separate pickup bonus");
+                // ★経済改修：撃破の瞬間にはインプレが1も入らない（通貨は拾って初めて入る）。
+                long afterDefeat = game.Impression;
+                Check(afterDefeat == impressionAtDefeat, "defeating an enemy alone never awards shop currency");
+                int impBonus = ImpValue(drops);
+                Check(impBonus == PurifyImp(1), $"shards carry the whole purify impression base ({impBonus})");
                 enemy.Purify();
                 Check(Shards(drops).Count == dropCount && game.Score == defeatScore, "repeat defeat cannot duplicate rewards");
                 Tick(drops, 30);
@@ -124,18 +138,29 @@ public partial class ScoreShardQa : Node
                 Tick(drops, 150);
                 Check(Shards(drops).Count == 0 && game.Score == defeatScore + bonus,
                     "attracted shards follow the moving player and award their points exactly once");
-                Check(game.Combo == 1 && game.PurifiedCount == 1 && game.Impression == money,
-                    "collecting cannot farm combo, stage progress or shop currency");
+                // 拾った瞬間にショップ通貨が増える（説明文「浄化した心＝通貨」と実装が一致する）。
+                // 小口はしきい値まで貯めてから1回で通すので、締めてから総額を比べる。
+                game.FlushShardImpression();
+                Check(game.Impression == money + Expected(game, impBonus),
+                    $"collecting shards is what actually pays the shop currency (+{game.Impression - money})");
+                Check(game.Combo == 1 && game.PurifiedCount == 1,
+                    "collecting cannot farm combo or stage progress");
+                money = game.Impression;
                 Check(!Particles(fx).Any(p => p.Type == FxLayer.T.Dmg && p.Text.StartsWith("+")),
                     "pickup rewards update the HUD without floating plus-point labels");
                 Tick(drops, 90);
-                Check(game.Score == defeatScore + bonus, "collected shards never score twice");
+                Check(game.Score == defeatScore + bonus && game.Impression == money,
+                    "collected shards never score or pay twice");
                 await Shot(job.CharacterId + "_collected");
 
                 root.Player.GlobalPosition = new Vector2(Field.Left + 10, 190);
                 fx.PurifyBurst(new Vector2(340, 65), 100);
                 Tick(drops, 330);
-                Check(Shards(drops).Count == 0 && game.Score == defeatScore + bonus, "uncollected shards expire without awarding points");
+                // 取りこぼしはスコアも通貨も入らない＝「拾いに行く」ことが賭けになる（リスクとリターン）。
+                // ボス/中ボスは BeginRush、クリアは sweep で全回収が保証されるので、これは道中だけの賭け。
+                game.FlushShardImpression();
+                Check(Shards(drops).Count == 0 && game.Score == defeatScore + bonus && game.Impression == money,
+                    "uncollected shards expire without awarding points or shop currency");
                 fx.PurifyBurst(new Vector2(Field.Right + 30, -20), 100);
                 Tick(drops, 1);
                 Check(Shards(drops).Cast<object>().All(s => Field.Rect.HasPoint(Read<Vector2>(s, "Position"))),
@@ -155,21 +180,128 @@ public partial class ScoreShardQa : Node
                 }
                 Check(Value(drops) == 24 && game.PurifiedCount == 4 && game.Combo == 3,
                     "bomb reward cap also caps shard drops without blocking stage progress");
+                // キャップ超過の4体目は通貨も積まない＝ボム撃ちの無限ファームは通貨側でも塞がれている。
+                Check(ImpValue(drops) == PurifyImp(1) + PurifyImp(2) + PurifyImp(3),
+                    "bomb reward cap also caps the shop currency the shards carry");
                 Shards(drops).Clear();
 
+                // ── ボス/中ボス撃破の欠片量（2026-09-17 の爽快感強化）──
+                // 粒の数を格で増やす。スコア総量は basePoints/10 に難易度倍率だけを掛ける。
+                // 以下の期待値は Normal（倍率1.0）基準なので、難易度を明示的に固定してから測る。
+                game.Difficulty = GameManager.Diff.Normal;
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
+                fx.PurifyBurst(new Vector2(350, 70), 700, FxLayer.PurifyTier.MidBoss);
+                int midCount = Shards(drops).Count;
+                Check(midCount >= 52 && midCount <= 64, $"mid-boss defeat scatters a mid-tier shard count ({midCount})");
+                Check(Value(drops) == 70, "mid-boss shard total matches basePoints/10 exactly (economy unchanged)");
+                Check(Read<float>(drops, "_rush") > 0, "mid-boss defeat forces the collection rush");
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+
                 fx.PurifyBurst(new Vector2(350, 70), 1500, true);
+                int bossCount = Shards(drops).Count;
+                Check(bossCount >= 104 && bossCount <= 128, $"boss defeat scatters the largest shard count ({bossCount})");
+                Check(bossCount > midCount * 1.6f, "boss defeat is visibly denser than a mid-boss defeat");
                 Check(Value(drops) == 150, "boss defeat preserves its larger pickup reward without adding particles");
+
+                // ── 難易度で欠片の量が変わる（Easy0.8 / Normal1.0 / Hard1.3 / Lunatic1.6）──
+                //   粒数とスコア総量に同じ倍率が掛かり、階層（Zako<MidBoss<Boss）の段差は保たれる。
+                //   ★通貨(impBase)にだけは DifficultyShardMul を掛けない。難易度の賭け金は経済側の
+                //     DifficultyImpressionMul(0.7/1.0/1.6/3.0) 1本だけが担う＝二重適用の回帰検査。
+                var shardDiffs = new[]
+                {
+                    (GameManager.Diff.Easy, 0.8f), (GameManager.Diff.Normal, 1.0f),
+                    (GameManager.Diff.Hard, 1.3f), (GameManager.Diff.Lunatic, 1.6f),
+                };
+                // 難易度間は「実サンプル」でなく期待レンジの下限で比べる（Ri のゆらぎでレンジが
+                // 一部重なるため、単発の実測値どうしの比較はフレーキーになる）。
+                int previousBossFloor = 0;
+                foreach (var (diff, mul) in shardDiffs)
+                {
+                    game.Difficulty = diff;
+                    long impressionBefore = game.Impression;
+                    foreach (var (tier, basePoints, lo, hi, rawPoints) in new[]
+                    {
+                        (FxLayer.PurifyTier.Zako, 100, 10, 16, 10),
+                        (FxLayer.PurifyTier.MidBoss, 700, 52, 64, 70),
+                        (FxLayer.PurifyTier.Boss, 1500, 104, 128, 150),
+                    })
+                    {
+                        Shards(drops).Clear();
+                        Read<IList>(fx, "_p").Clear();
+                        // 通貨側の二重適用を検出するため、基礎額を明示して撒く（40＝分配の割り切れない値）。
+                        const int ImpSeed = 40;
+                        fx.PurifyBurst(new Vector2(350, 70), basePoints, tier, ImpSeed);
+                        Check(ImpValue(drops) == ImpSeed,
+                            $"{diff}/{tier}: shards carry the impression base unscaled by the shard multiplier ({ImpValue(drops)})");
+                        int count = Shards(drops).Count;
+                        int expectLo = Mathf.Max(1, Mathf.RoundToInt(lo * mul));
+                        int expectHi = Mathf.Max(1, Mathf.RoundToInt(hi * mul));
+                        Check(count >= expectLo && count <= expectHi,
+                            $"{diff}/{tier}: shard count {count} scales with the difficulty multiplier ({expectLo}-{expectHi})");
+                        Check(Value(drops) == Mathf.Max(1, Mathf.RoundToInt(rawPoints * mul)),
+                            $"{diff}/{tier}: shard score total follows the same multiplier, distribution still sums exactly");
+                        Check(Shards(drops).Count <= 640, $"{diff}/{tier}: shard count stays inside Capacity");
+                        if (tier == FxLayer.PurifyTier.Boss)
+                        {
+                            Check(expectLo > previousBossFloor, $"{diff}: harder difficulty scatters more boss shards than the tier below");
+                            previousBossFloor = expectLo;
+                        }
+                    }
+                    // 撒いただけでは1も入らない（通貨は拾って初めて入る）。難易度倍率も撒く側には掛からない。
+                    Check(game.Impression == impressionBefore, $"{diff}: scattering alone never pays shop currency");
+                    drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+                }
+
+                // 同じ基礎額を難易度違いで実際に拾い、実入りが DifficultyImpressionMul(0.7/1.0/1.6/3.0) の
+                // 1本だけで決まることを確かめる（欠片側 0.8/1.0/1.3/1.6 が混ざっていれば比が崩れて落ちる）。
+                foreach (var diff in new[] { GameManager.Diff.Easy, GameManager.Diff.Normal, GameManager.Diff.Hard, GameManager.Diff.Lunatic })
+                {
+                    game.Difficulty = diff;
+                    Shards(drops).Clear();
+                    Read<IList>(fx, "_p").Clear();
+                    game.FlushShardImpression();
+                    long before = game.Impression;
+                    const int ImpSeed = 40;
+                    fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako, ImpSeed);
+                    root.Player.GlobalPosition = new Vector2(350, 70);
+                    Tick(drops, 2);
+                    root.Player.GlobalPosition = new Vector2(350, 70);
+                    Tick(drops, 120);
+                    game.FlushShardImpression();
+                    Check(Shards(drops).Count == 0 && game.Impression - before == Expected(game, ImpSeed),
+                        $"{diff}: picked-up currency follows only the economy multiplier (+{game.Impression - before})");
+                    drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+                }
+                // 以降の検査はすべて Normal（倍率1.0）の期待値で書かれているので Normal に戻して続ける。
+                game.Difficulty = GameManager.Diff.Normal;
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+
+                fx.PurifyBurst(new Vector2(350, 70), 1500, FxLayer.PurifyTier.Boss, 40);
                 int clearBonus = Value(drops);
+                int clearImp = ImpValue(drops);
                 long beforeClear = game.Score;
+                game.FlushShardImpression();
+                long beforeClearImp = game.Impression;
                 game.SetStageTarget(game.PurifiedCount);
                 root.Hud.HoldBubble = true;
                 root.Hud.ShowMessage("QA");
                 Tick(drops, 150);
-                Check(Shards(drops).Count == 0 && game.Score == beforeClear + clearBonus,
-                    "stage clear sweeps up all remaining shards even during the defeat dialogue");
+                game.FlushShardImpression();
+                // 掃引は通貨も含めて全部回収する＝ステージ終わりの取りこぼしは原理的に起きない。
+                // これがあるので「拾い逃しのストレス」は道中に限定され、補正係数もそこだけを見ればよい。
+                Check(Shards(drops).Count == 0 && game.Score == beforeClear + clearBonus
+                    && game.Impression == beforeClearImp + Expected(game, clearImp),
+                    "stage clear sweeps up all remaining shards, currency included, even during the defeat dialogue");
                 root.Hud.HoldBubble = false;
                 root.Hud.HideBubble();
                 game.SetStageTarget(999);
+                // 以降の「離れた欠片は拾えないまま」系の検査に撃破ラッシュの残りが効かないよう明示的に切る。
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
 
                 foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
                 {
@@ -196,12 +328,23 @@ public partial class ScoreShardQa : Node
                 }
                 DisplayServer.WindowSetSize(new Vector2I(1280, 720));
 
-                for (int i = 0; i < 60; i++) fx.PurifyBurst(new Vector2(310, 100), 100);
-                Check(Shards(drops).Count == 256, "large chains have a bounded particle count");
+                // 容量 256→640（ボス撃破 104〜128 粒 + 道中の取り残しを飲み込むため）。
+                // 溢れた分は Add が false を返し、ただの装飾パーティクルへ落ちる＝上限は依然として有効。
+                game.FlushShardImpression();
+                long beforeOverflow = game.Impression;
+                for (int i = 0; i < 120; i++) fx.PurifyBurst(new Vector2(310, 100), 100, FxLayer.PurifyTier.Zako, 40);
+                Check(Shards(drops).Count == 640, "large chains have a bounded particle count");
+                // 容量超過で欠片になれなかったぶんの通貨は、その場で入金して帳尻を合わせる
+                // （演出の都合でお金が黙って消えるのは「気づけない損」＝いちばん質の悪い罰）。
+                game.FlushShardImpression();
+                Check(game.Impression > beforeOverflow + Expected(game, 40),
+                    "currency that overflows the shard capacity is paid out instead of vanishing");
                 typeof(Player).GetProperty("Lives")!.SetValue(root.Player, 0);
-                long beforeDeath = game.Score;
+                long beforeDeath = game.Score, beforeDeathImp = game.Impression;
                 Tick(drops, 60);
-                Check(Shards(drops).Count == 0 && game.Score == beforeDeath, "game over cannot collect lingering bonuses");
+                game.FlushShardImpression();
+                Check(Shards(drops).Count == 0 && game.Score == beforeDeath && game.Impression == beforeDeathImp,
+                    "game over cannot collect lingering bonuses");
                 fx.PurifyBurst(new Vector2(300, 100), 100);
                 root.QueueFree();
                 await Task.Delay(150);

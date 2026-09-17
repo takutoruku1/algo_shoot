@@ -124,12 +124,29 @@ public partial class Enemy : Area2D
     private static int WindowCap => GameManager.Instance?.ExposedDamageCap ?? 100;
     private int _windowDamage;                      // 現在の無防備窓で本体へ通した累計ダメージ
     private bool _windowCapNotified;               // 「MAX」表示を窓ごとに一度だけ出すワンショット
+    // ── 与ダメ数値のポップアップ（2026-09-17 ユーザー指示で非表示）──
+    //   「いくつ食らわせた／食らっているか」を数字で見せない＝手応えは光・音・揺れ・HPバーで返す。
+    //   数字そのものをやめるだけで、ダメージ計算・窓キャップ・バー割れの帳簿は一切変えない。
+    //   「MAX」「BREAK!」のような“状態を伝える語”は数値ではないので残す（下の Show* とは別扱い）。
+    //   復活させたいときはこのフラグを true に戻す（呼び出し側のコードは残置）。
+    //   const ではなく static readonly にするのは、const だと呼び出し側が「到達しないコード」と
+    //   判定されて CS0162 が出るため（0 Warning を保ちつつコードを残す）。
+    public static readonly bool ShowDamageNumbers = false;
     // 本体ヒットのクールダウン（同一フレームの多重弾で過剰に削れるのを軽く抑える補助）。
     private double _bodyHitCd;
     private const double BodyHitCd = 0.05;
     private int _maxHp;                             // 総HP（=BarHp×BarCount）
     private int _hp;
     public bool HasHpBar => _maxHp > 0;
+    // 撃破時に散る「心の欠片」の量を決める格（FxLayer.PurifyBurst）。
+    //   HPバー持ち＝ボス級。カメオ（中ボス）だけ CameoBoss が MidBoss へ落とす。
+    //   スコアの総量は変えず、粒の数と散り方だけが変わる。
+    protected virtual FxLayer.PurifyTier PurifyGrade
+        => _maxHp > 0 ? FxLayer.PurifyTier.Boss : FxLayer.PurifyTier.Zako;
+    // 種ごとの欠片の粒数倍率（2026-09-17）。MidEnemy が EnemySpec.ShardWeight を返す。
+    //   既定 1f＝従来どおり。ボス/中ボス・旧ザコ（GlyphMote/PageShard）は種の概念が無いので据え置き。
+    //   ★スコアもショップ通貨も変わらない（FxLayer.PurifyBurst の countMul コメント参照）。
+    protected virtual float ShardMul => 1f;
     public virtual float HpRatio => _maxHp > 0 ? (float)_hp / _maxHp : 0f;
     // HUD「1本リフィル方式」用。現在の1本ぶんを 0〜1 で、残バー数を index/total で示す。
     public int TotalBars => BarCount;
@@ -649,7 +666,7 @@ public partial class Enemy : Area2D
                 }
                 // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
                 if (crit && QaPilot.Verbose)
-                    GD.Print($"[JOB] {job?.Name} dist={d:0}px raw={b.Damage} -> {dmg} "
+                    GD.Print($"[JOB] {job?.CharacterName} dist={d:0}px raw={b.Damage} -> {dmg} "
                            + (d <= PointBlankRange ? $"(close x{job?.CritMult:0.00} cap{job?.CritCap})" : $"(far x{job?.FarMult:0.00})"));
             }
 
@@ -666,10 +683,13 @@ public partial class Enemy : Area2D
             if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
                 OnBarBroken();
             // クリティカルは金色＋一回り大きく＋"!" で「密着が効いている」を視認させる（通常は既存色）。
-            if (crit)
-                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -10), dmg + "!", FxLayer.Gold, 13);
-            else
-                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
+            if (ShowDamageNumbers)
+            {
+                if (crit)
+                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -10), dmg + "!", FxLayer.Gold, 13);
+                else
+                    FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(GD.Randf() * 8 - 4, -8), dmg.ToString(), FxLayer.Sig2);
+            }
             OnHpChanged();
 
             // 手応え：本体に当たった一発ごとに「効いてる」を即・短く返す（当たり判定は不変）。
@@ -815,8 +835,9 @@ public partial class Enemy : Area2D
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
-        // 金色・大きめの数字＝「ボムが刺さった」を通常ヒットと見分けさせる。
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
+        // 金色・大きめの数字＝「ボムが刺さった」を通常ヒットと見分けさせる（数値表示は 2026-09-17 に非表示）。
+        if (ShowDamageNumbers)
+            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
         OnHpChanged();
         _hitFlashT = HitFlashDur;
         _hitFlashMag = 4f;
@@ -844,7 +865,8 @@ public partial class Enemy : Area2D
         _hp = Mathf.Max(0, _hp - dmg);
         if (_hp > 0 && (_hp + BarHp - 1) / BarHp < prevBarsLeft)
             OnBarBroken();
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
+        if (ShowDamageNumbers)
+            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), dmg.ToString(), FxLayer.Gold, 15);
         OnHpChanged();
         if (_hp <= 0)
         {
@@ -969,12 +991,17 @@ public partial class Enemy : Area2D
         _flashT = 0;
 
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
-        bool rewarded = GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify) == true;
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        bool rewarded = game?.AddPurify(Points, _bombPurify) == true;
+        // ★2026-09-17：インプレ（ショップ通貨）は撃破の瞬間ではなく「散った欠片を拾ったとき」に入る。
+        //   基礎額は旧実装と同じ 2+Combo（AddPurify でコンボ加算済みの値を読む）。
+        //   報酬なし（ボムキャップ超過）の浄化は 0＝欠片も通貨も付かない、という既存の線引きをそのまま守る。
+        int impBase = rewarded ? (game?.PurifyImpressionBase ?? 0) : 0;
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
         GameCamera.Instance?.Hitstop(HitstopDur);
-        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, _maxHp > 0);
+        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, PurifyGrade, impBase, ShardMul);
         Audio.Instance?.PlayPurify();
         // 浄化の一言（ありがとう等）は 2026-09-07 のユーザー指示で非表示。文言の作り直し案は
         // wiki/08_仮台本/18_浄化の一言_案C.md にあり、承認されたらここへ差し戻す。

@@ -320,7 +320,10 @@ public partial class RemnantEnemy : Enemy
     {
         if (BossRef == null || !IsInstanceValid(BossRef) || BossRef.IsPurified) return;
         BossRef.DealDirectDamage(Mathf.RoundToInt(Enemy.BarHp * BossRef.TotalBars * 0.04f));
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), "-4%", FxLayer.Gold, 12);
+        // 「-4%」の数値表示は 2026-09-17 ユーザー指示の与ダメ非表示（Enemy.ShowDamageNumbers）に含める。
+        // 手応えはHPバーの減りで返す（コードは復活できるよう残置）。
+        if (Enemy.ShowDamageNumbers)
+            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), "-4%", FxLayer.Gold, 12);
     }
 
     // 立ち絵なし＝専用プレースホルダ（基底の人型は使わない）。黒い吹き出し＋「…」＋報酬色のリング。

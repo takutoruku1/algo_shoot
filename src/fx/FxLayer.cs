@@ -241,35 +241,109 @@ public partial class FxLayer : Node2D
         GameCamera.Instance?.Shake(3.2f, 0.18f);
     }
 
+    // 撃破対象の「格」。散る心の欠片の量をこれで決める（2026-09-17）。
+    //   Zako   : 道中ザコ（従来どおり 10〜16 粒）
+    //   MidBoss: 道中カメオ（中ボス）＝ザコの約4倍
+    //   Boss   : 本戦ボス＝ザコの約8倍。ステージの頂点なので画面が欠片で埋まる
+    // スコア総量（basePoints/10 のクランプ）は据え置き＝ショップ economy は不変。増やすのは「粒の数」だけ。
+    public enum PurifyTier { Zako, MidBoss, Boss }
+
+    // 旧シグネチャ（bool boss）の互換オーバーロード。引数なし呼び出し（Player の演出転用など）は Zako 扱い。
+    public void PurifyBurst(Vector2 pos, int basePoints = 0, bool boss = false)
+        => PurifyBurst(pos, basePoints, boss ? PurifyTier.Boss : PurifyTier.Zako);
+
     // 浄化バースト（敵の改心＝倒した瞬間の一拍）。
     // 視認性の要（2026-09-08 実機指摘）：倒した敵が最後に撃った弾がこの演出に隠れて、
     // 避けようのない被弾になっていた。原因は層（FxLayer が ZIndex 20/21＝弾 0 の上）。
     // そこで飛散物（花びら・ハート・光の粒・リング）は Deep=true で弾より奥(-6/-5)へ沈める。
     //   手応えは殺さない：芯の白熱グローだけは手前(ZIndex21)に残す＝「当たった」は一目で判る。
     //   散る向きも上→右上寄りへ振る。敵弾は自機のいる左へ飛ぶので、右上に散らすと重なりが減る。
-    public void PurifyBurst(Vector2 pos, int basePoints = 0, bool boss = false)
+    // impBase : この撃破が欠片に積んで運ぶ「ショップ通貨（インプレ）」の基礎額（2026-09-17 経済改修）。
+    //   ★スコア(points)と違い、難易度シャード倍率(DifficultyShardMul) は掛けない。
+    //     インプレ側は GameManager.GainImpression が DifficultyImpressionMul(0.7/1.0/1.6/3.0) を
+    //     掛けるので、ここでも掛けると 0.8〜1.6 と 0.7〜3.0 の二重適用になり Lunatic が 4.8倍に跳ねる。
+    //     「粒の数・スコアは難易度で増える／お金の倍率は経済側の1本だけ」と軸を分ける。
+    //   分配は points と同じ総和保存（impBase/n ＋ 余りを先頭から1ずつ）。拾い切れば必ず全額入る。
+    // countMul : 種ごとの粒数倍率（EnemySpec.ShardWeight → Enemy.ShardMul、2026-09-17）。
+    //   ★経済には影響しない。impBase も points も「総和保存」で n 粒へ割るので、n をいくつに変えても
+    //     拾い切ったときの合計は同じ。変わるのは撒かれる粒の数＝見た目の量と拾う回数だけ。
+    //     （ボス/中ボスは種の概念が無いので既定 1f のまま＝従来値を一切動かさない。）
+    public void PurifyBurst(Vector2 pos, int basePoints, PurifyTier tier, int impBase = 0, float countMul = 1f)
     {
+        bool boss = tier != PurifyTier.Zako;
         // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。
-        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 11, Ttl = 0.28f, Col = White, Add = true, Grow = 0.5f });
+        // 格が上がるほど芯も一回り大きく＝「大物を倒した」を一目の面積で返す（視認性は Ttl 据え置きで守る）。
+        float coreMul = tier == PurifyTier.Boss ? 1.7f : tier == PurifyTier.MidBoss ? 1.3f : 1f;
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 11 * coreMul, Ttl = 0.28f, Col = White, Add = true, Grow = 0.5f });
         // 広がるリングは弾の奥へ（30px まで開くので手前だと弾を横切る）。
-        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 30, Ttl = 0.6f, Col = Sig2, W = 1.4f, A0 = 0.9f, Add = true, Deep = true });
-        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 16, Ttl = 0.45f, Col = Sig2, Add = true, Grow = 0.5f, Deep = true });
-        int n = Ri(10, 16);
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 30 * coreMul, Ttl = 0.6f, Col = Sig2, W = 1.4f, A0 = 0.9f, Add = true, Deep = true });
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 16 * coreMul, Ttl = 0.45f, Col = Sig2, Add = true, Grow = 0.5f, Deep = true });
+        // ボス級は追いリングを一拍遅らせて二重に開く＝余韻（follow-through）。1発だけなので視認性を侵さない。
+        if (tier == PurifyTier.Boss)
+            Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 6, R1 = 78, Ttl = 0.85f, Col = Heart, W = 1.2f, A0 = 0.7f, Add = true, Deep = true });
+
+        // 難易度倍率（Easy0.8 / Normal1.0 / Hard1.3 / Lunatic1.6）。粒数とスコア総量の両方に同じ係数を
+        // 掛ける＝「粒1個あたりの価値」を難易度に依らずほぼ一定に保ち、見た目の量と得点が食い違わない。
+        // ★インプレ(impBase)にだけは掛けない（上の引数コメント＝二重適用の回避）。
+        float diffMul = GameManager.Instance?.DifficultyShardMul ?? 1f;
+        int n = tier switch
+        {
+            PurifyTier.Boss    => Ri(104, 128),
+            PurifyTier.MidBoss => Ri(52, 64),
+            _                  => Ri(10, 16),
+        };
+        // 最低1粒は残す（Easy でもザコ撃破が無音・無粒にならない）。
+        // 種ごとの粒数倍率（countMul）はここで一緒に掛ける＝難易度倍率と同じ「粒数だけ」の軸に乗せる。
+        n = Mathf.Max(1, Mathf.RoundToInt(n * diffMul * Mathf.Max(0.05f, countMul)));
+        // ザコだけ 56 粒で頭打ちにする＝バズ壁(2.5)×Lunatic(1.6)×上振れ16 で 64 粒まで伸び、
+        // 中ボス(52〜64)の格を追い越してしまうため。格の序列（ザコ＜中ボス＜ボス）は崩さない。
+        // ★ボス/中ボスには掛けない（countMul は常に既定 1f＝従来の 104〜128 / 52〜64 がそのまま伸びる）。
+        if (tier == PurifyTier.Zako) n = Mathf.Min(n, 56);
         int points = basePoints > 0 ? Mathf.Clamp(basePoints / 10, boss ? 18 : 6, boss ? 180 : 40) : 0;
+        // 総量にも同じ倍率。分配は従来どおり総和保存（points/n + 余りを先頭 n 個へ1ずつ）。
+        if (points > 0) points = Mathf.Max(1, Mathf.RoundToInt(points * diffMul));
+        // 大量に撒くときはハート率を落とす（HeartP は Petal の約3倍の描画コスト）。
+        float heartRate = tier == PurifyTier.Zako ? 0.35f : 0.18f;
+        // 格が上がるほど初速と散り幅を広げる＝「画面いっぱいに溢れる」。
+        float spread = tier == PurifyTier.Zako ? 1.0f : 1.45f;
+        float speedMul = tier == PurifyTier.Boss ? 1.55f : tier == PurifyTier.MidBoss ? 1.3f : 1f;
+        // 報酬を持つ撃破か（＝散った粒を全部「拾える欠片」にするか）。点も通貨も無い呼び出し
+        // （Player の演出転用など）は従来どおり丸ごと装飾のまま＝拾って点が入る事故を防ぐ。
+        bool reward = points > 0 || impBase > 0;
+        int overflowImp = 0;
         for (int i = 0; i < n; i++)
         {
             // 真上(-π/2)±1.2rad → 右上(-π/4 中心)±1.0rad。左（弾の進む先）へはほぼ散らない。
-            float a = -Mathf.Pi / 4 + R(-1.0f, 1.0f), sp = R(45, 110);
-            bool heart = _rng.Randf() < 0.35f;
+            // ボス級は改心会話へ即移行し弾も消えるので、散り幅を広げても弾を隠す事故は起きない。
+            float a = -Mathf.Pi / 4 + R(-spread, spread), sp = R(45, 110) * speedMul;
+            bool heart = _rng.Randf() < heartRate;
             var particle = new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true };
-            if (points == 0 || !ScoreDrops.Add(particle, points / n + (i < points % n ? 1 : 0)))
+            int pt = points > 0 ? points / n + (i < points % n ? 1 : 0) : 0;
+            int im = impBase > 0 ? impBase / n + (i < impBase % n ? 1 : 0) : 0;
+            // ★拾える／拾えないの判定は「この撃破が報酬を持つか(reward)」だけで決める。粒ごとの取り分
+            //   (pt/im) で弾いてはいけない：総和保存の分配は余りを先頭から配るので、n=13・points=10 なら
+            //   末尾3粒の取り分が0になり、その3粒だけ拾えない装飾に落ちる＝「散った粒より拾える数が少ない」。
+            //   総額は変わらないので気づかれにくいが、手触りとしては明確な退行（2026-09-17 QA検出）。
+            if (!reward || !ScoreDrops.Add(particle, pt, im))
+            {
+                // 容量(640)超過で欠片になれなかったぶん。演出粒としては出すが、通貨まで
+                // 消すと「画面の都合でお金が減った」＝気づけない損になるので、取りこぼし分は
+                // その場で入金して帳尻を合わせる（スコアは従来どおり演出扱いで捨てる）。
+                overflowImp += im;
                 Add0(particle);
+            }
         }
-        for (int i = 0; i < 6; i++)
+        if (overflowImp > 0) GameManager.Instance?.AddScoreShard(0, overflowImp);
+        int motes = tier == PurifyTier.Boss ? 22 : tier == PurifyTier.MidBoss ? 13 : 6;
+        for (int i = 0; i < motes; i++)
         {
-            float a = R(0, Mathf.Tau), sp = R(40, 90);
+            float a = R(0, Mathf.Tau), sp = R(40, 90) * speedMul;
             Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp - 15, Size = R(1.6f, 2.6f), Drag = 1.2f, Ttl = R(0.5f, 0.8f), Col = Mote, Add = true, Deep = true });
         }
+        // ボス/中ボス撃破は直後に改心会話（BubblePaused）へ入る＝放っておくと欠片は凍ったまま
+        // 寿命(5s)で消え、拾えずに損をする。撃破の瞬間だけ全欠片を強制吸引に切り替えて、
+        // 会話が始まっても「チャリチャリ」と吸い込まれ切るまで回収を走らせる（§2-3 リターンは即・明確に）。
+        if (boss) ScoreDrops.BeginRush(tier == PurifyTier.Boss ? 2.6f : 1.9f);
     }
 
     // 弾→花びら（ボム/受け止め）。消えた弾の位置に残る花びらは、まだ飛んでいる他の弾を隠しうるので

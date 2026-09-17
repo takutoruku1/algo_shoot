@@ -6,6 +6,8 @@ using Godot;
 //   開いている間だけ入力を奪って描画する（閉じると元の画面/ポーズへそのまま戻る＝シーン遷移しない）。
 //
 //   ・ページ送り：←→ または LB/RB。X / B / Esc で閉じる。
+//   ・マウス：デバイスタブ直接クリックで切替、ページドットで直接ジャンプ、フッタ「とじる」で閉じる
+//     （Records/Credits と同じ BackHintRect 作法。右クリック・ホイールは従来どおり）。
 //   ・キー表記は Pad.UsingPad / Pad.Face で KB / パッドを出し分ける（操作表示モードに自動追従）。
 //     生文字でキーを書かず Tok* ヘルパに集約＝チュートリアル(StageRei)や HUD と同じ表記で自動一致する。
 //
@@ -28,6 +30,43 @@ public partial class HowToPlay : CanvasLayer
     // 操作の割り当て一覧タブ（先頭3ページ）。0=キーボード / 1=コントローラー / 2=マウス。
     public const int TabCount = 3;
     public const int PageCount = TabCount + 2;
+
+    // ── マウス用ジオメトリ（HowToCanvas.DrawScreen と同一式）──
+    //   パネル：pad=64, x=pad, y=48, w=W-128, h=H-96。以降の3つはそこからの相対。
+    //   ホットスポット id：0..TabCount-1＝デバイスタブ／IdDotBase+i＝ページドット／IdClose＝フッタ「とじる」。
+    public const int IdDotBase = 10, IdClose = 90;
+
+    // デバイスタブの矩形（DrawDeviceTabs と同一式。操作ページを開いている時だけ意味を持つ）。
+    public static Rect2 TabRect(int i)
+    {
+        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f;
+        float ix = x + 32f, iy = y + 92f, iw = w - 64f;
+        float tw = (iw - 16f) / TabCount, th = 34f;
+        return new Rect2(ix + i * (tw + 8f), iy, tw, th);
+    }
+
+    // ページドット（右上）の当たり矩形。描画は半径5の円だが、点を突くのは酷なので 22×22 の枠で取る。
+    public static Rect2 DotRect(int i)
+    {
+        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f;
+        var c = new Vector2(x + w - 32f - (PageCount - 1 - i) * 22f, y + 40f);
+        return new Rect2(c.X - 11f, c.Y - 11f, 22f, 22f);
+    }
+
+    // フッタの「とじる」矩形（Records.BackHintRect と同じ考え方＝キー表記＋ラベルの帯だけを取る）。
+    //   フッタ行は中央寄せの1本の文字列なので、「とじる」の実描画位置を同じ式で再現して切り出す。
+    public static Rect2 CloseHintRect()
+    {
+        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 96f;
+        string page = (Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→")
+                      + HowToCanvas.FootGap;
+        string close = HowToCanvas.FootCloseToken + " とじる";
+        float pageW = UiKit.TextW(UiKit.Mono, page, UiKit.FontSmall);
+        float closeW = UiKit.TextW(UiKit.Mono, close, UiKit.FontSmall);
+        float lineX = x + (w - (pageW + closeW)) / 2f;   // 中央寄せ1行の左端
+        float ty = y + h - 32f;
+        return new Rect2(lineX + pageW - 6f, ty - 6f, closeW + 12f, UiKit.Mono.GetHeight(UiKit.FontSmall) + 12f);
+    }
 
     // スクリーンショット用（--shot --howto N）：起動直後にこのページを開いたまま固定する。
     //   Shot オートロードはメニューを操作できないので、撮りたいページを引数で名指しできるようにする。
@@ -91,6 +130,17 @@ public partial class HowToPlay : CanvasLayer
         //（閉じた Esc/X の同じ押下が下で二重処理されないための門・Pad.UiBlocked）。
         Pad.ConsumeUi(this);
 
+        // マウス：タブ／ページドット／「とじる」を登録する。開いている間はツリーがポーズ済み or
+        //   下の画面の入力を食っている＝このフレームの唯一の登録者（PauseMenu は overlayOpen で早期 return）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(CloseHintRect(), IdClose);
+        for (int i = 0; i < PageCount; i++) UiKit.Hotspot(DotRect(i), IdDotBase + i);
+        if (_page < TabCount) for (int i = 0; i < TabCount; i++) UiKit.Hotspot(TabRect(i), i);
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+        if (clk == IdClose) { Close(); return; }
+        if (clk >= IdDotBase) { SetPage(clk - IdDotBase); }
+        else if (clk >= 0) SetPage(clk);
+
         // ←→ / LB・RB でページ送り。
         bool left  = Input.IsActionPressed("ui_left")  || Pad.Pressed(JoyButton.LeftShoulder);
         bool right = Input.IsActionPressed("ui_right") || Pad.Pressed(JoyButton.RightShoulder);
@@ -116,6 +166,15 @@ public partial class HowToPlay : CanvasLayer
         _canvas.QueueRedraw();
     }
 
+    // ページ移動（クリック経由）。同じページを押しても音は鳴らさない＝連打で耳が痛くならない。
+    private void SetPage(int p)
+    {
+        p = Mathf.Clamp(p, 0, PageCount - 1);
+        if (p == _page) return;
+        _page = p;
+        Audio.Instance?.PlayUiMove();
+    }
+
     public bool IsOpen => _open;
     public int Page => _page;
 }
@@ -132,7 +191,7 @@ public partial class HowToCanvas : Node2D
     // ※フッタなど「いま握っているデバイス向けの案内」で使う。割り当て一覧表（3タブ）は
     //   デバイス固定で書くので、下の ControlRows(tab) が直に文字列を持つ。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokMenu  => Pad.UsingPad ? Pad.Face(JoyButton.Start)        : "Esc"; // PS=OPTIONS / Xbox=MENU
+    // メニュー（Esc / MENU / OPTIONS）の表記はフッタの「とじる」と共有＝下の FootCloseToken を使う。
 
     public override void _Draw()
     {
@@ -156,11 +215,13 @@ public partial class HowToCanvas : Node2D
         UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 32, y + 22), "HOW TO PLAY", UiKit.Info);
         string[] titles = { "操作 — キーボード", "操作 — コントローラー", "操作 — マウス", "画面の見かた", "コア機能" };
         UiKit.Text(this, UiKit.ZenBlack, new Vector2(x + 32, y + 38), "あそびかた — " + titles[Menu.Page], UiKit.FontTitle, UiKit.White);
-        // ページドット（右上）
+        // ページドット（右上）。クリックで直接ジャンプできるので、ホバー中は一回り大きく光らせる。
+        int hov = UiKit.HoveredId();
         for (int i = 0; i < HowToPlay.PageCount; i++)
         {
             var dc = new Vector2(x + w - 32 - (HowToPlay.PageCount - 1 - i) * 22f, y + 40f);
-            DrawCircle(dc, 5f, i == Menu.Page ? UiKit.PurifyHi : new Color(1, 1, 1, 0.2f));
+            bool dh = hov == HowToPlay.IdDotBase + i;
+            DrawCircle(dc, dh ? 7f : 5f, i == Menu.Page ? UiKit.PurifyHi : new Color(1, 1, 1, dh ? 0.55f : 0.2f));
         }
         DrawRect(new Rect2(x + 32, y + 74, w - 64, 1f), new Color(1, 1, 1, 0.1f));
 
@@ -175,11 +236,27 @@ public partial class HowToCanvas : Node2D
         else DrawPageCore(x + 32, bodyY, w - 64);
 
         // ── フッタ（操作ヒント）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 32),
-            (Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→")
-            + " タブ・ページ    " + TokMenu + " とじる", UiKit.FontSmall,
-            UiKit.Text3, HorizontalAlignment.Center, w);
+        //   「とじる」だけはクリックできる＝ホバーで明るくして押せることを示す（左の「タブ・ページ」は
+        //   純粋な操作説明なので触れない＝ショップの「箱がボタン／素の文字は説明」の流儀）。
+        string pageTok = (Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→")
+                         + FootGap;
+        string closeTok = FootCloseToken + " とじる";
+        float pageW = UiKit.TextW(UiKit.Mono, pageTok, UiKit.FontSmall);
+        float closeW = UiKit.TextW(UiKit.Mono, closeTok, UiKit.FontSmall);
+        float lineX = x + (w - (pageW + closeW)) / 2f;
+        float fy = y + h - 32;
+        bool closeHov = hov == HowToPlay.IdClose;
+        if (closeHov)
+            UiKit.Box(this, HowToPlay.CloseHintRect(), new Color(UiKit.Purify, 0.14f), 7f, new Color(UiKit.Info, 0.5f), 1f);
+        UiKit.Text(this, UiKit.Mono, new Vector2(lineX, fy), pageTok, UiKit.FontSmall, UiKit.Text3);
+        UiKit.Text(this, UiKit.Mono, new Vector2(lineX + pageW, fy), closeTok, UiKit.FontSmall,
+            closeHov ? UiKit.PurifyHi : UiKit.Text3);
     }
+
+    // フッタ1行を「ページ送りの説明」と「とじる（クリック可）」に割るための共有トークン。
+    //   HowToPlay.CloseHintRect が同じ式で矩形を再現するので、ここを変えたら向こうも自動で追従する。
+    public const string FootGap = " タブ・ページ    ";
+    public static string FootCloseToken => Pad.UsingPad ? Pad.Face(JoyButton.Start) : "Esc";
 
     // ───────── デバイスタブの見出し（操作ページの上端）─────────
     //   3つ並べ、選択中だけ塗りとアクセント色を強める。切替そのものは ←→ / LB・RB のページ送り
@@ -189,15 +266,19 @@ public partial class HowToCanvas : Node2D
     private void DrawDeviceTabs(float x, float y, float w, int sel)
     {
         float tw = (w - 16f) / HowToPlay.TabCount, th = 34f;
+        int hov = UiKit.HoveredId();
         for (int i = 0; i < HowToPlay.TabCount; i++)
         {
             float tx = x + i * (tw + 8f);
             bool on = i == sel;
-            Color accent = on ? UiKit.PurifyHi : UiKit.Text3;
+            // タブは直接クリックできる（HowToPlay._Process）。未選択でもホバー中は枠と塗りを一段上げて
+            //   「押せる」ことと「いま触れている」ことを両方示す。
+            bool hv = !on && hov == i;
+            Color accent = on ? UiKit.PurifyHi : hv ? UiKit.Info : UiKit.Text3;
             UiKit.Box(this, new Rect2(tx, y, tw, th),
-                      new Color(accent, on ? 0.16f : 0.05f), 9f, new Color(accent, on ? 0.9f : 0.35f), 1.2f);
+                      new Color(accent, on ? 0.16f : hv ? 0.12f : 0.05f), 9f, new Color(accent, on ? 0.9f : hv ? 0.7f : 0.35f), 1.2f);
             UiKit.Text(this, on ? UiKit.ZenBold : UiKit.Zen, new Vector2(tx, y + 8),
-                       TabNames[i], UiKit.FontLabel, on ? UiKit.White : UiKit.Text3,
+                       TabNames[i], UiKit.FontLabel, on ? UiKit.White : hv ? UiKit.PurifyHi : UiKit.Text3,
                        HorizontalAlignment.Center, tw);
         }
     }
@@ -227,6 +308,12 @@ public partial class HowToCanvas : Node2D
             ? "短く押すたび近い敵から順に狙う。移動は少し遅くなる"
             : "押すたび近い敵から順に狙う。移動は少し遅くなる";
         rows.Add((lockTok, "ロックオン送り", lockDesc, UiKit.Purify, true));
+
+        // ロックオン解除。2026-09-17 にキーボード(G)／パッド(R3)へも割り当てた（従来はマウス右クリックのみ）。
+        // マウスの右クリックは回避と兼用なので、下の回避行でまとめて出す＝ここはKB/パッドの2タブだけ。
+        if (tab != 2)
+            rows.Add((tab == 1 ? Pad.Face(JoyButton.RightStick) : "G", "ロックオン解除",
+                      "狙っている敵から照準を外す。放っておいても自然に外れる", UiKit.Purify, false));
 
         if (hasCharge)
         {
@@ -315,9 +402,11 @@ public partial class HowToCanvas : Node2D
             (0, "LIFE",        "残りの体力。弾に当たると1つ減る",                      UiKit.Hp),
             (1, "BOMB",        "ボムの残り。" + TokBomb + " で画面の弾を消せる",        UiKit.Mina),
             (2, "浄化 ％",     "ステージの進み具合。100%でボスへ",                     UiKit.Purify),
-            (1, "コンボ",      "連続で浄化するとSCOREと浄化した心が倍増。猶予内に次を倒せないと途切れる", UiKit.Mina),
+            (1, "コンボ",      "連続で浄化するとSCOREも、こぼれる心の量も増える。猶予内に次を倒せないと途切れる", UiKit.Mina),
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
-            (0, "浄化した心",  "通貨。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
+            // ★2026-09-17 経済改修：通貨は撃破時ではなく「散った欠片を拾ったとき」に入る。
+            //   拾う動作が報酬だと一目で分かる説明にする（実装と表記の一致＝§3 わかりやすさ）。
+            (0, "浄化した心",  "通貨。浄化でこぼれた欠片を拾うと貯まる。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
         };

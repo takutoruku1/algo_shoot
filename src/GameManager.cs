@@ -56,6 +56,16 @@ public partial class GameManager : Node
         string need = Jobs.Get(j).UnlockStageId;
         return need.Length == 0 || IsStageCleared(need);
     }
+    // ───── FINAL 初挑戦のミナ封じ（2026-09-17 ユーザー指示「ラスボスに初めて入るときはミナは使えなくしてほしい」）─────
+    //   FINAL のボスはミナ本人（「穢れたわたし」）で、三人が救援に来る構成。そこへ自機もミナで入ると
+    //   「結び手のミナが、ボスのミナを撃ち、三人に助けられる」という二重になる。初挑戦だけは
+    //   あかり／こはる／レイ の誰かで潜る＝救援に来る三人の側に立つ。
+    //   一度クリアすれば（IsFinalCleared）周回として結び手でも入れる＝やり込みは塞がない。
+    //   --job= 固定中（JobForcedByCmdline）は QA のため素通し＝IsJobUnlocked と同じ逃し口。
+    public bool IsMinaLockedForFinal => !JobForcedByCmdline && !IsFinalCleared;
+    // FINAL のカード／ジョブ選択が出す1行。ミナ本人が自分を指す言い方は「わたくし」（ミナの口調）。
+    public const string MinaFinalLockHint = "この投稿には、わたくし自身では潜れません";
+
     // 未解禁ジョブの1行説明（選択画面が出す）。解禁済み／条件なしは null。
     //   文言は既存のステージ見出し（StageDef.Title の "STAGE 1 — あかり" の左側）から作る
     //   ＝面の並びを変えても表示が追随し、ここに面の名前を二重に持たない。
@@ -83,7 +93,7 @@ public partial class GameManager : Node
         if (j == Job.Tank) return;   // 結び手＝ミナ本編。専用ストーリーの章は進めない
         string id = Jobs.Get(j).CharacterId;
         _charDives[id] = CharacterDives(j) + 1;
-        GD.Print($"[CharStory] dive #{_charDives[id]} as {Jobs.Get(j).Name}({id}) -> chapter {CharacterChapter(j)}");
+        GD.Print($"[CharStory] dive #{_charDives[id]} as {Jobs.Get(j).CharacterName}({id}) -> chapter {CharacterChapter(j)}");
     }
     // いま潜ったら流れる章：1〜3回目＝第1〜3章、4回目以降＝ループ章（CharacterStory.LoopChapter）。
     //   ダイブ0回（--job= でのステージ直接起動＝QA走行など）でも第1章に落ちる＝進行は壊れない。
@@ -130,6 +140,22 @@ public partial class GameManager : Node
     // 同時に画面へ出せるザコの上限（Spawner の過密ガード）。間隔だけ縮めても上限で頭打ちになるので対で動かす。
     public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 6, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
+
+    // ── 撃破時に散る「心の欠片」の難易度倍率（2026-09-17 ユーザー要望）──
+    //   粒の個数と、欠片が運ぶスコア総量の両方に掛ける（FxLayer.PurifyBurst）。
+    //   ★ショップ通貨(Impression)の DifficultyImpressionMulFor(0.7/1.0/1.6/3.0) とは別物。
+    //     ★2026-09-17 の経済改修で、欠片は Score に加えてショップ通貨も運ぶようになったが、
+    //       この倍率が掛かるのは「粒の数」と「Score 総量」だけ。欠片が運ぶインプレ基礎額
+    //       (impBase) には掛けない（FxLayer.PurifyBurst の引数コメント参照）＝二重適用の回避。
+    //       なのでここを動かしても、ショップ経済（価格150〜4,000／クリア報酬400）には影響しない。
+    //   ★カーブを 0.7/1.0/1.6/3.0 より緩くした理由：この倍率は「画面に出る粒の実数」に直結する。
+    //     3.0 を掛けると Lunatic のボスで 128×3.0＝384粒となり、容量640の6割を1撃で食い潰し、
+    //     改心の一拍で画面が花びらに埋まって視認性が落ちる（派手さは視認性を侵さない範囲で＝§4）。
+    //     1.6 なら最大205粒＝qa 実測(121粒/144fps)の1.7倍で容量にもフレームにも余裕が残る。
+    //   ★Easy を 0.8 止まり（0.7 でなく）にしたのは、入口の難易度で「明らかに寂しい撃破」を
+    //     作らないため（§3 とっつき）。賭け金の差は弾速・弾数・出現密度が既に担っている。
+    public static float DifficultyShardMulFor(Diff d) => d switch { Diff.Easy => 0.8f, Diff.Hard => 1.3f, Diff.Lunatic => 1.6f, _ => 1f };
+    public float DifficultyShardMul => DifficultyShardMulFor(Difficulty);
 
     // ボスHPバー本数（言葉のシールド＋無防備窓リワーク）。1本=BarHp(=100)で、総HP=本数×BarHp。
     // 難易度で本数が増える＝堅くなる（弾数調整とは別軸の「殴る回数」調整）。
@@ -259,10 +285,14 @@ public partial class GameManager : Node
     public int StageTarget { get; private set; } = 24;
     public void SetStageTarget(int t) => StageTarget = Mathf.Max(1, t);
 
-    // ───── 前のめり進行（リスクリターン：時間＋撃破＋自機の左右位置）─────
-    //   進行度＝「撃破率」を下限に、時間アキュムレータを右へ寄るほど速く積む。
-    //   ・killFrac  ＝撃破率（従来の式。下限保証＝ここが痩せることはない）。
+    // ───── 前のめり進行（リスクリターン：撃破＋時間＋自機の左右位置）─────
+    //   進行度＝「撃破率」が本体。そこへ時間アキュムレータぶんだけ先行（前のめり）を上乗せする。
+    //   ・killFrac  ＝撃破率。ゲージの本体＝下限保証（ここが痩せることはない）。
     //   ・progAccum ＝時間アキュムレータ。posFactor(playerX) で毎フレーム積む（右ほど速い）。
+    //   ★ゲージのラベルは「浄化」＝撃破の達成度。撃破ゼロで動いてはならない（ラベルが嘘になる）。
+    //     そのため時間ぶんは単独では効かせず、**撃破が進んでいるぶんだけ**先行を許す（LeadGate）。
+    //     撃破0 → 先行0（ゲージは 0% のまま動かない）。撃破が進むほど前のめりの取り分が増える
+    //     ＝「攻めたほうが得」（リスクリターン §2-4）が撃破と比例して立つ。
     //   進行不能防止の不変条件（絶対に壊さない）：
     //     ・道中ウェーブの撃破ゲート／StageCleared は PurifiedCount だけで判定＝ここは一切触らない。
     //       progAccum/timeFrac は「見た目のゲージ＝StageProgress／Warmth／背景切替」を先行させるだけ。
@@ -270,7 +300,7 @@ public partial class GameManager : Node
     //   progAccum は ResetRun（ステージ開始）でリセット。
     private float _progAccum;
     private const float ProgBaseRate = 1f / 95f; // 中央基準の進行速度（posFactor=1 で 95 秒フル）
-    private const float ProgTimeCap = 0.35f;     // 時間だけで伸ばせる上限
+    private const float ProgTimeCap = 0.35f;     // 時間アキュムレータ自体の上限（先行の原資）
     // 自機Xの正規化（0=左端 / 0.5=中央 / 1=右端）。プレイフィールドの矩形は Field が定義元。
     public float PlayerNormX { get; private set; } = 0.5f;
     // 現在の前のめり係数（posFactor）。左端0.55 / 中央1.075 / 右端1.60。artist の背景/HUD が読む。
@@ -289,15 +319,28 @@ public partial class GameManager : Node
         _progAccum = Mathf.Clamp(_progAccum, 0f, ProgTimeCap);
     }
 
+    // 先行のぶんは「まだ埋まっていない残り幅」から借りる＝撃破ぶんを絶対に食わない・溢れない。
+    //   lead = 残り幅(1-killFrac) × timeFrac × LeadGain
+    //   ・撃破0 → killFrac=0 でも lead は 0 でなければならない（ラベル「浄化」が嘘になる）ので、
+    //     さらに「撃破が始まっているか」の係数 LeadGate(killFrac) を掛ける。
+    //   ・LeadGate は単調増加（＝撃破するほど先行の取り分が増える）。減少する形（山型）にすると
+    //     終盤の1体を倒した瞬間にゲージが“下がる”＝浄化したのに浄化ゲージが減る最悪の嘘になるため使わない。
+    //   ・残り幅から借りるので killFrac<1 の間は必ず 100% 未満、killFrac=1 でちょうど 100%。
+    private const float LeadGain = 0.85f;   // 先行の最大取り分（残り幅に対する割合の上限側）
+    private const float LeadFullAt = 0.25f; // 撃破率がここに達すると先行の窓が全開（序盤だけ絞る）
+    private static float LeadGate(float killFrac) => Mathf.Clamp(killFrac / LeadFullAt, 0f, 1f);
+
     // 浄化ゲージ(0..1)＝目標までの達成度。世界の暖かさもこれに連動する。
-    //   撃破率(killFrac)を下限に、時間ぶん(timeFrac)を混ぜて“前のめり”に先行させる（合成は設計確定式）。
+    //   撃破率(killFrac)が本体。そこへ時間ぶん(timeFrac)を「残り幅から・撃破が進んでいるぶんだけ」上乗せする。
+    //   撃破0 → LeadGate=0 → ゲージは 0% のまま（時間では一切動かない＝ラベルと実装が一致）。
     public float StageProgress
     {
         get
         {
             float killFrac = Mathf.Clamp((float)PurifiedCount / StageTarget, 0f, 1f);
             float timeFrac = _progAccum; // TickProgress で 0..ProgTimeCap に clamp 済み
-            return Mathf.Clamp(Mathf.Max(killFrac, killFrac * 0.55f + timeFrac), 0f, 1f);
+            float lead = (1f - killFrac) * timeFrac * LeadGain * LeadGate(killFrac);
+            return Mathf.Clamp(killFrac + lead, 0f, 1f);
         }
     }
     public bool StageCleared => PurifiedCount >= StageTarget;
@@ -338,6 +381,10 @@ public partial class GameManager : Node
     // 物語の最初の面のID（＝Stages の先頭。現在は "akari"）。強化ショップの解禁ゲートが引く
     //   ＝「最初の面のボスを倒したら強化が開く」。面の並びを変えても定義が1か所で追随する。
     public static string FirstStageId => Stages[0].Id;
+
+    // FINAL（ミナ自身の内側＝res://MinaBattle.tscn）の記録ID。Stages には並ばない面なので、
+    //   クリアタイム/ベストスコアのキーと、ハブのカードID・記録画面の行IDをこの1語に揃える。
+    public const string FinalStageId = "final";
 
     // シーンパス → ステージID（DiffSelect が選択中ステージの解放ゲートを引くのに使う）。未登録は null。
     public static string? StageIdForScene(string scene)
@@ -424,6 +471,20 @@ public partial class GameManager : Node
         _idleDialogSeen.RemoveWhere(k => !k.StartsWith("once_"));
     }
     public bool IsStageCleared(string id) => _cleared.Contains(id);
+    // FINAL を一度でもクリアしたか（周回判定）。FINAL は _cleared に入らない（CompleteStage を通らず
+    //   StageMina.Step_Transition が RecordClearTime/RecordScore だけを書く）ので、同じ永続項目
+    //   ClearTimes に "final_{Diff}" が1つでもあるか＝クリア記録の有無で見る。新しい保存項目は足さない
+    //   ＝既存セーブ（FINAL 到達済み）はロードした瞬間に周回扱いになる。Records.cs も同じ考えで
+    //   AllStoryCleared を「FINAL の行を開く条件」に使っている（あちらは表示、ここは進行ゲート）。
+    public bool IsFinalCleared
+    {
+        get
+        {
+            foreach (Diff d in System.Enum.GetValues(typeof(Diff)))
+                if (GetBestTime(FinalStageId, d) != null) return true;
+            return false;
+        }
+    }
     // マクロ目標（表ゴール＝控えめHUD用）：救うべき心の総数と、浄化済みの数。
     public int HeartGoal => Stages.Length;
     public int HeartsSaved { get { int n = 0; foreach (var s in Stages) if (_cleared.Contains(s.Id)) n++; return n; } }
@@ -941,6 +1002,9 @@ public partial class GameManager : Node
     {
         // ★2026-09-13：120→400。一本道13段（150〜4,000）を「1面ごとに1〜2段」で進める速度に合わせた
         //   （実入りは MoneyGainMul=2 と難易度倍率が更に掛かる）。
+        // クリア掃引(sweep)で拾い切った欠片の端数を、リザルト表示より前に確定させる
+        // （閾値未満のまま残った基礎額が「拾ったのに増えていない」に見えるのを防ぐ）。
+        FlushShardImpression();
         GainImpression(400);
         // フォロワー大口報酬。周回逓減も適用（同ステージ連続周回で減る）。
         int fol = Mathf.RoundToInt(40 * ReplayMul); // 旧 fol_gain ノードは廃止＝素の 40 に周回逓減だけ
@@ -1344,7 +1408,7 @@ public partial class GameManager : Node
             {
                 SelectedJob = j.Value;
                 JobForcedByCmdline = true;
-                GD.Print($"[JOB] forced by cmdline: {JobDef.Name}({j.Value}) mode={ShotModeName(SelectedShotMode)}");
+                GD.Print($"[JOB] forced by cmdline: {JobDef.CharacterName}({j.Value}) mode={ShotModeName(SelectedShotMode)}");
             }
             else GD.PushWarning($"[JOB] unknown --job value: {a}");
             break;
@@ -1361,7 +1425,7 @@ public partial class GameManager : Node
                 bool ok = LoadFromSlot(slot);
                 GD.Print($"[SAVE] --loadslot={slot} -> {(ok ? "ok" : "FAILED/absent")} "
                        + $"imp={Impression} fol={Followers} upgrades={_upgrades.Count} "
-                       + $"job={JobDef.Name}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives} "
+                       + $"job={JobDef.CharacterName}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives} "
                        // 一本道13段の移行と、回避の解禁（1面クリアの報酬）が正しく引き継がれたかも見る。
                        + $"dodge={HasDodge} column=[{string.Join(",", ColumnOwnedIds())}]");
             }
@@ -1446,10 +1510,11 @@ public partial class GameManager : Node
         bool gotLife = player?.AddLife(1) ?? false;
         if (gotBomb || gotLife)
         {
+            // ★2026-09-17：「♥ +1」のベタ文字をやめ、サイドパネルの LIFE/BOMB 列と同じ絵
+            //   （そのキャラの核マーク／ボム印）＋"+1" のアイコン表記で返す（Hud.ShowRewardBanner）。
+            //   ♥は4キャラ共通の記号で「誰の何が増えたか」が伝わらないのが差し替えの理由。
             var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
-            string msg = (gotLife && gotBomb) ? "♥ +1　BOMB +1"
-                       : gotLife ? "♥ +1" : "BOMB +1";
-            hud?.ShowBanner(msg);
+            hud?.ShowRewardBanner(gotLife, gotBomb);
         }
     }
     // 900→2000：やさしさ +0.6（直後のボス戦で全開を撃てる下準備）を失ったぶんの置き換え。
@@ -1467,6 +1532,14 @@ public partial class GameManager : Node
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
     // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。
+    //
+    // ★2026-09-17 経済改修：ここで直接 GainImpression(2+Combo) していたのを廃止し、
+    //   インプレは「散った欠片を拾う」経路（AddScoreShard）だけから入るようにした。
+    //   理由：ShopTutorial/HowToPlay/Shop が一貫して「浄化するたびに貯まる♥＝通貨」と説明しており、
+    //   プレイヤーは画面上の欠片＝お金だと読む。実装が「撃破の瞬間に見えない加算／欠片はスコアだけ」
+    //   だったので、説明と手触りが食い違っていた（§3 わかりやすさ）。表記に実装を合わせる。
+    //   両方から入れると単純に倍増するので、必ず片方だけ（＝拾う側）に寄せる。
+    //   PurifyImpressionBase は Enemy.Redeem が PurifyBurst へ渡し、欠片に積んで運ばせる。
     public bool AddPurify(int basePoints, bool fromBomb = false)
     {
         bool rewarded = !fromBomb || ++_bombPurifyCount <= BombPurifyRewardCap;
@@ -1478,13 +1551,97 @@ public partial class GameManager : Node
         }
         PurifiedCount++;
         TickPurifyDrain();
-        // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
-        if (rewarded)
-            GainImpression(2 + Combo);
         return rewarded;
     }
 
-    public void AddScoreShard(int points) => Score += points;
+    // この浄化が欠片に積んで運ぶインプレの基礎額。
+    // Enemy.Redeem が AddPurify の直後に読む＝コンボ加算済みの値になる（旧実装と同じタイミング）。
+    //
+    // ★係数 1.25（旧 2+Combo → (2+Combo)×1.25）：取りこぼし補正。
+    //   旧実装は撃破の瞬間に無条件で入っていたので取りこぼしが原理的にゼロだった。拾う側へ寄せた今は
+    //   道中ザコの欠片だけが「拾わないと入らない」（ボス/中ボスは BeginRush、ステージクリアは sweep で
+    //   全回収が保証されている＝取りこぼしは道中でしか起きない）。磁力半径48px／寿命5秒／左へ流れる
+    //   ドリフトがあるため実際の取りこぼしは2割前後で、そのぶんを均して戻す。
+    //   ＝「普通に前へ出て拾う人は旧実装より少し得、画面端に張り付く人は旧実装並み」に着地させる係数。
+    //   これで初めて「拾いに行く＝攻める」に見返りが生まれる（§2-4 攻めたほうが得）。
+    //   四捨五入は掛けた後に1回だけ。Combo=0 でも最低1は出す（撃破が無報酬に見えない＝§2-3）。
+    public const float ShardImpressionMul = 1.25f;
+    public int PurifyImpressionBase => Mathf.Max(1, Mathf.RoundToInt((2 + Combo) * ShardImpressionMul));
+
+    // ───── 欠片の回収＝スコアとショップ通貨の同時入金（2026-09-17）─────
+    //   points : スコア（従来どおり。ランキング／ハイスコアの軸）
+    //   impBase: インプレの基礎額（ショップ通貨の軸）。GainImpression の全倍率を通す。
+    //
+    //   ★役割分担：Score は「上手さの記録」、Impression は「買い物の原資」。欠片は両方を運ぶが、
+    //     額は別系統で持つ。スコア側は難易度シャード倍率(0.8/1.0/1.3/1.6)で膨らむ一方、
+    //     インプレ側は DifficultyImpressionMul(0.7/1.0/1.6/3.0) が GainImpression 内で掛かるため、
+    //     両方を掛けると二重適用になる。だから欠片が運ぶ impBase には
+    //     DifficultyShardMul を一切掛けない（FxLayer.PurifyBurst 側で分離済み）。
+    //
+    //   ★端数の持ち越し：1回の回収は数粒ずつ＝基礎1〜3の小口になる。GainImpression は呼び出しごとに
+    //     Round するので、小口を個別に通すと Easy(0.7×2=1.4)で 1→Round(1.4)=1 のように倍率が潰れ、
+    //     難易度差が消える。基礎額を整数のまま貯め、一定額を超えた分だけ 1回の GainImpression に
+    //     まとめて通す（_impCarry）。
+    //
+    //   ★総額の保存（2026-09-17 QA検出の修正）：閾値でまとめるだけでは丸め損が残る。基礎40が
+    //     8ずつ5バッチに割れると Round が5回走り、Easy×ReplayMul0.8 で 45 のはずが 44 になっていた。
+    //     そこで「累積台帳」方式にする：この倍率のもとで払った基礎額(_impPaidBase)と実際に払った額
+    //     (_impPaidOut)を覚えておき、毎回の支払いは
+    //         Round((_impPaidBase + carry) × 倍率) − _impPaidOut
+    //     ＝「ここまでの理論値と既払額の差分」だけにする。バッチの切れ目に関係なく、拾い終えた時点の
+    //     総額は必ず単発で払った場合と一致する（丸め損ゼロ）。
+    //     倍率自体は run 中に動く（フォロワー増・炎上・周回逓減）ので、変わった瞬間に台帳を締めて
+    //     リセットする＝過去の基礎額が新しい倍率で再評価される事故を防ぐ。
+    private int _impCarry;
+    private long _impPaidBase, _impPaidOut;
+    private float _impLedgerTotalMul = float.NaN, _impLedgerReplayMul = float.NaN;
+    private const int ImpFlushThreshold = 8;   // この基礎額まで貯めてから1回で通す（倍率の丸め潰れ対策）
+
+    // 累積基礎額の理論値。GainImpression と「掛ける順番まで」同じ式にする
+    // （float は掛ける順で最下位ビットが変わるので、単発で払った場合と1単位ずれないよう揃える）。
+    private static long ImpTheory(long baseAmount, float total, float replay) =>
+        (long)Mathf.Round(baseAmount * total * replay * MoneyGainMul);
+
+    public void AddScoreShard(int points, int impBase = 0)
+    {
+        Score += points;
+        if (impBase <= 0) return;
+        _impCarry += impBase;
+        if (_impCarry < ImpFlushThreshold) return;
+        PayShardImpression();
+    }
+
+    // 取りこぼしの端数を吐き出す（ステージ終了・リザルト前に呼ぶ）。
+    // 閾値未満で貯まったまま捨てると「拾ったのに入らない」が起きるので、必ず締める。
+    public void FlushShardImpression()
+    {
+        if (_impCarry > 0) PayShardImpression();
+        // 締めたら台帳も畳む（次のステージ／次の倍率へ端数を持ち越さない）。
+        _impPaidBase = _impPaidOut = 0;
+        _impLedgerTotalMul = _impLedgerReplayMul = float.NaN;
+    }
+
+    // 台帳の差分を実際に入金する。Impression/RunImpression への反映は GainImpression と同じ
+    // （倍率は台帳側で適用済みなので、ここでは加算だけを直接行う）。
+    private void PayShardImpression()
+    {
+        float total = TotalImpressionMul, replay = ReplayMul;
+        // 倍率が動いたら、それまでの台帳は確定済みとして畳む（過去分の再評価を避ける）。
+        if (total != _impLedgerTotalMul || replay != _impLedgerReplayMul)
+        {
+            _impPaidBase = _impPaidOut = 0;
+            _impLedgerTotalMul = total;
+            _impLedgerReplayMul = replay;
+        }
+        long theory = ImpTheory(_impPaidBase + _impCarry, total, replay);
+        long pay = theory - _impPaidOut;
+        _impPaidBase += _impCarry;
+        _impPaidOut = theory;
+        _impCarry = 0;
+        if (pay == 0) return;
+        Impression += pay;
+        RunImpression += pay;
+    }
 
     // ───── 祈り手（Heal）の浄化ドレイン（設計書 §2）─────
     //   雑魚を DrainPerLife 体（=24）浄化するごとに ♥+1。ボム由来の浄化も数える
@@ -1600,6 +1757,9 @@ public partial class GameManager : Node
     // ラン開始時のリセット。※インプレ/フォロワー/強化は恒久なので消さない（§0-3）。
     public void ResetRun()
     {
+        // 前のランで閾値未満のまま残った欠片インプレを、捨てずに先に入金してから締める
+        // （ゲームオーバー／シーン遷移で消える経路の受け皿。RunImpression のリセットより前に呼ぶ）。
+        FlushShardImpression();
         Score = 0;
         Combo = 0;
         _comboTimer = 0;
