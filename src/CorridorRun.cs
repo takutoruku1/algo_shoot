@@ -5,7 +5,8 @@ using Godot;
 //   プレイヤーは12秒間、通路を縫って生き延びる（尺は全難易度固定＝差は幅/速度/蛇行で付ける）。
 //   ・開始前に1.5sの非致死プレビュー（壁α0.35・判定なし）＝「これが来る」を先に見せる（§7 理不尽回避）。
 //   ・本番の最初の3sに自機が出会う壁は直進・広幅（G×1.5）＝学習区間。蛇行は先に右から見えてくる。
-//   ・蛇行の最大縦速度は難易度別でも必ず自機速度150px/sより低い＝「入力し続ければ必ず追える」公平ライン。
+//   ・蛇行の最大縦速度は難易度別でも必ず自機の最低速度＝低速回避(Focus)65px/s(Player.FocusSpeed)より
+//     低い＝「Focusで避けている最中でも入力し続ければ必ず追える」公平ライン（通常速度150px/sはさらに余裕）。
 //   ・壁接触＝Player.TakeHit() 1回（Player側の被弾無敵1.2sが復帰猶予。--god 中はスキップ）。
 //   ・ボム＝壁は消えないが 2.5s 間 通路幅×1.6（緊急脱出はできる・攻略のスキップはさせない）。
 //   ・通路中央線上に「言葉の残滓」（弾なし・不可触の小ザコ）が3体流れてくる。撃破でボス総HPの4%直撃。
@@ -75,14 +76,15 @@ public partial class CorridorRun : Node2D, IAoeHazard
         AddToGroup("corridor");  // StageAkari（投稿弾の停止）／DemoPilot（中心線追従）が探す
         ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下（全画面AOEと同じ層）
 
-        // 難易度：G / スクロール速度 / 蛇行最大縦速度。縦速度は自機150px/sを厳守で下回る。
+        // 難易度：G / スクロール速度 / 蛇行最大縦速度。縦速度は自機の最低速度＝Focus 65px/s(Player.FocusSpeed)
+        // を全難易度で厳守で下回る（低速回避中でも「入力し続ければ必ず追える」を成立させるため）。
         var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
         (_gap, _scrollSpeed, _maxVy) = diff switch
         {
             GameManager.Diff.Easy => (64f, 60f, 55f),
-            GameManager.Diff.Hard => (42f, 80f, 100f),
-            GameManager.Diff.Lunatic => (34f, 90f, 115f),
-            _ => (52f, 70f, 80f),
+            GameManager.Diff.Hard => (42f, 80f, 60f),
+            GameManager.Diff.Lunatic => (34f, 90f, 62f),
+            _ => (52f, 70f, 58f),
         };
 
         // 中心線ジェネレータ：傾きクランプ付き区分サイン。

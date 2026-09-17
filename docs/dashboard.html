@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 239 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 240 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">239</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">240</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/CorridorRun.cs:8</code>のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避<code>FocusSpeed=65px/s</code>(<code>src/Player.cs:13</code>)を<code>_maxVy</code>(Normal=80/Hard=100/Lunatic=115、<code>src/CorridorRun.cs:78-86</code>)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう<code>_maxVy</code>または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -191,6 +183,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-17) 2026-09-17監査(engineer)発見。<code>src/CorridorRun.cs:8</code>のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証が通常移動速度のみを想定し、低速回避<code>FocusSpeed=65px/s</code>(<code>src/Player.cs:13</code>)を<code>_maxVy</code>(旧Normal=80/Hard=100/Lunatic=115)が上回っていた不具合。Focus中は移動方向が実質縦のみでFocusSpeedをフルに使えるため、<code>_maxVy</code>をFocusSpeed(65)未満に是正する方針(a)を採用し<code>src/CorridorRun.cs:82-85</code>をNormal 80→58/Hard 100→60/Lunatic 115→62へ変更(Easy=55は既に安全で無変更、難易度間の序列は維持)。<code>_gap</code>/<code>_scrollSpeed</code>/Focus速度自体/他ステージ・他区間は無変更。<code>:7-9,78-79</code>のコメントも実際の保証内容(Focus 65px/s基準)に合わせて更新。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2417,18 +2417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">4919bd6</span><span>2026-09-17</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する</span></li>
+      <li><span class="h">49f98b9</span><span>2026-09-17</span><span class="s">auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）</span></li>
       <li><span class="h">26da043</span><span>2026-09-17</span><span class="s">auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する</span></li>
       <li><span class="h">8edb0ad</span><span>2026-09-17</span><span class="s">auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正</span></li>
       <li><span class="h">d7a79a1</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する</span></li>
       <li><span class="h">ea1698a</span><span>2026-09-17</span><span class="s">auto: 監査で TODO 7件・BLOCKED 2件をキューに追加</span></li>
       <li><span class="h">f7b9bb3</span><span>2026-09-16</span><span class="s">auto: DEV_QUEUE.mdのWIP重複記載を修正（グレイズコメント修正タスクの移動漏れ）</span></li>
       <li><span class="h">adab9bc</span><span>2026-09-16</span><span class="s">auto: グレイズ報酬コメントの記載ズレを修正</span></li>
-      <li><span class="h">7e50c6f</span><span>2026-09-16</span><span class="s">auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する</span></li>
-      <li><span class="h">f8e2703</span><span>2026-09-16</span><span class="s">auto: 加速球のフェイク発射フィードバックを修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-17 19:16 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-17 19:19 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

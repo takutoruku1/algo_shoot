@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-17 19:16 UTC",
+  "generated": "2026-09-17 19:19 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 38,
-    "done": 239
+    "done": 240
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる",
-      "worker": "engineer",
-      "accept": "`src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(Normal=80/Hard=100/Lunatic=115、`src/CorridorRun.cs:78-86`)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう`_maxVy`または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)"
-    },
     {
       "priority": "P2",
       "title": "BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない",
@@ -271,6 +265,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証が通常移動速度のみを想定し、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(旧Normal=80/Hard=100/Lunatic=115)が上回っていた不具合。Focus中は移動方向が実質縦のみでFocusSpeedをフルに使えるため、`_maxVy`をFocusSpeed(65)未満に是正する方針(a)を採用し`src/CorridorRun.cs:82-85`をNormal 80→58/Hard 100→60/Lunatic 115→62へ変更(Easy=55は既に安全で無変更、難易度間の序列は維持)。`_gap`/`_scrollSpeed`/Focus速度自体/他ステージ・他区間は無変更。`:7-9,78-79`のコメントも実際の保証内容(Focus 65px/s基準)に合わせて更新。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P2",
       "title": "STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生",
@@ -1708,6 +1708,16 @@
   ],
   "commits": [
     {
+      "hash": "4919bd6",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する"
+    },
+    {
+      "hash": "49f98b9",
+      "date": "2026-09-17",
+      "subject": "auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）"
+    },
+    {
       "hash": "26da043",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する"
@@ -1736,16 +1746,6 @@
       "hash": "adab9bc",
       "date": "2026-09-16",
       "subject": "auto: グレイズ報酬コメントの記載ズレを修正"
-    },
-    {
-      "hash": "7e50c6f",
-      "date": "2026-09-16",
-      "subject": "auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する"
-    },
-    {
-      "hash": "f8e2703",
-      "date": "2026-09-16",
-      "subject": "auto: 加速球のフェイク発射フィードバックを修正"
     }
   ]
 }
