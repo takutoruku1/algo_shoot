@@ -1,13 +1,50 @@
 {
-  "generated": "2026-09-16 20:01 UTC",
+  "generated": "2026-09-17 19:10 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 6,
     "wip": 0,
-    "blocked": 36,
-    "done": 237
+    "blocked": 38,
+    "done": 238
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 98,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生",
+      "worker": "engineer",
+      "accept": "`src/StageZero.cs:305-328`(case 12)と`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが高速respawn-killループに陥る場合がある(再現条件・ログはqa監査`build/qa/progress_easy.log:110-126`参照)。SpawnDummy呼び出しに直前スポーンからの簡易デバウンスを追加し、高頻度respawnを防ぐ"
+    },
+    {
+      "priority": "P2",
+      "title": "あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる",
+      "worker": "engineer",
+      "accept": "`src/CorridorRun.cs:8`のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避`FocusSpeed=65px/s`(`src/Player.cs:13`)を`_maxVy`(Normal=80/Hard=100/Lunatic=115、`src/CorridorRun.cs:78-86`)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう`_maxVy`または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)"
+    },
+    {
+      "priority": "P2",
+      "title": "BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない",
+      "worker": "engineer",
+      "accept": "`src/BossRei.cs:44-52,231-249,271-303`の圧(弾密度増加)は上昇時のタウント台詞1回のみで、現在の圧レベル・閾値までの残り時間を示すUIが皆無(`Hud.cs`に該当ゲージなし)。ボスバー付近(`Hud.cs:964 DrawBossCard`周辺)に圧レベルを示す簡易インジケーターを追加するか、閾値到達が近づくタイミングで事前警告(SE/自機リング明滅)を出す"
+    },
+    {
+      "priority": "P2",
+      "title": "Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用",
+      "worker": "scenario",
+      "accept": "`src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)"
+    },
+    {
+      "priority": "P3",
+      "title": "GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド",
+      "worker": "engineer",
+      "accept": "`src/GameManager.cs:342`(定義)/`:355,364`(加減算)/`:907,997`(セーブ/ロード)を`grep`しても消費箇所が無い(兄弟フィールド`P2HesitationSec`は`Epilogue.cs:346`で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理"
+    },
+    {
+      "priority": "P3",
+      "title": "「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)",
+      "worker": "scenario",
+      "accept": "`src/AkariRoot.cs:4`/`src/StageAkari.cs:252`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageImagery.cs:339`のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -225,9 +262,27 @@
       "title": "レイのHub SNSカードのツイート文が案C以前の「一位前提」設定のまま残っている",
       "worker": "scenario",
       "accept": "2026-09-15監査(scenario)。`src/GameManager.cs:202`の`Tweet = \"だれも、わたしには追いつけない。……それの、なにが、いけないの。\"`は`:197`のコメントが明記する通り案C以前の旧正典(`docs/20260613/MINA_シナリオ設計書_v2.md`)由来。`src/Hub.cs:766`でHub画面のSNSカードに毎回表示されるメイン導線。一方`src/StageRei.cs`は2026-09-06のDONEタスクで同じ「だれも、わたしには追いつけない」を含む旧11行を仮台本07の新6行へ置換済みで、現在`StageRei.cs`内にこの台詞は0件(grep確認)——`GameManager.cs`のHubカードTweetだけ置換から漏れている。案Cの人物設定(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:102`)はレイを「登録者二千で一年止まり、同接と再生は右肩下がり」と再定義しており「だれも追いつけない」という一位前提の煽り文とは正反対。仮台本09(`wiki/08_仮台本/09_投稿文集_X風.md:436`)も同箇所の置換を指摘済みだが同文書自身が「未採用の検討用草稿」と自己申告しているため採用不可。要ユーザー判断: (a)案Cのレイ像(伸び悩み・登録者減)に沿った新規ツイート文を書き起こして承認し差し替える、(b)現状のまま据え置く。新規文言の創作を伴うため台詞承認ゲート対象。承認後の受入条件: 承認された文言を`src/GameManager.cs:202`の`Tweet`フィールドへ反映し、レイの「登録者伸び悩み・同接低下」設定と矛盾しないこと。"
+    },
+    {
+      "priority": null,
+      "title": "仮台本にある周回要素(R1「次回起動」/R2「はじめから」)が実装ゼロで組み込み計画のチェックリストからも漏れている",
+      "worker": null,
+      "accept": "要ユーザー判断。2026-09-17監査(scenario)。`wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:184-200`(R1:起動間隔の日数集計と再訪小話1本、R2:前周の【終】を一度だけ引用するBootTalk)に対し`src/TitleMenu.cs:31-51`のBootTalk/IdleTalkに該当行なし、`src/GameManager.cs`に起動日時を保持するフィールドも皆無(`grep -n \"DateTime\" src/GameManager.cs`も0件)で日数集計自体が不可能。`wiki/08_仮台本/15_組み込み計画.md:184-190`の37件チェックリストも「エピローグE1〜E6を案Cに差し替え」(:186)で明示的に止まっておりR1/R2は一度もタスク化されていない。意図的除外か取りこぼしか、また起動/セーブ日時の永続化という新規エンジニアリング領域の要否について指定してほしい"
+    },
+    {
+      "priority": null,
+      "title": "あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置",
+      "worker": null,
+      "accept": "要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい"
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "改心フォロワーの見た目が全ステージで「アンチくん」固定",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/Follower.cs:18`が全Followerで無条件に`enemy_anti_post.png`を使用しており面専用post画像が反映されない不具合。`src/Follower.cs`に`PostTexPath`フィールドを追加し存在すればロード、無ければ`enemy_anti_post.png`にフォールバック。`src/Player.cs:AddFollower`にpostTexPathパラメータ（デフォルト引数で既存呼び出し元と後方互換）を追加し生成するFollowerへ渡す。`src/Enemy.cs:GrantFollower()`が既存の`PostTexPath`フィールド（MidEnemyでは`EnemySpec`由来、`src/MidEnemy.cs:87`で浄化前に既にセット済み）をそのまま`AddFollower`へ渡すよう変更。フォロワー追従挙動・上限4体・ヒカゲ専用フォロワーには手を入れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機でのレイ/あかり/こはる面での目視確認は未実施。"
+    },
     {
       "priority": "P3",
       "title": "GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない",
@@ -1653,6 +1708,21 @@
   ],
   "commits": [
     {
+      "hash": "d7a79a1",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する"
+    },
+    {
+      "hash": "ea1698a",
+      "date": "2026-09-17",
+      "subject": "auto: 監査で TODO 7件・BLOCKED 2件をキューに追加"
+    },
+    {
+      "hash": "f7b9bb3",
+      "date": "2026-09-16",
+      "subject": "auto: DEV_QUEUE.mdのWIP重複記載を修正（グレイズコメント修正タスクの移動漏れ）"
+    },
+    {
       "hash": "adab9bc",
       "date": "2026-09-16",
       "subject": "auto: グレイズ報酬コメントの記載ズレを修正"
@@ -1676,21 +1746,6 @@
       "hash": "160de44",
       "date": "2026-09-16",
       "subject": "auto: Training.tscnのSIGABRTクラッシュを修正"
-    },
-    {
-      "hash": "66b8111",
-      "date": "2026-09-16",
-      "subject": "auto: WIP着手 - Training.tscnのSIGABRTクラッシュを修正する"
-    },
-    {
-      "hash": "f30d094",
-      "date": "2026-09-16",
-      "subject": "auto: 監査で TODO 3件・BLOCKED 2件をキューに追加"
-    },
-    {
-      "hash": "41a65ef",
-      "date": "2026-09-15",
-      "subject": "auto: あかりのSNSハンドル食い違い(@akari. vs @akari_ame)を修正"
     }
   ]
 }

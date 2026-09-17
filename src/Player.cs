@@ -109,12 +109,13 @@ public partial class Player : Area2D
 
     // 人を救うたびに呼ばれる（Enemy.Redeem）。一定人数ごとにフォロワーが1体増える。
     // 救った本人がフォロワー化したら true（呼び出し元の Enemy はその本体を退場させずフォロワーに引き継ぐ）。
-    public bool AddFollower(Vector2 globalFromPos)
+    // postTexPath＝浄化元(EnemySpec.PostTexPath)の改心後テクスチャ。省略/空ならFollower側でアンチくんにフォールバック。
+    public bool AddFollower(Vector2 globalFromPos, string postTexPath = "")
     {
         _savedCount++;
         if (_followers.Count >= MaxFollowers) { NotifyFollowerProgress(); return false; }
         if (_savedCount % SavedPerFollower != 0) { NotifyFollowerProgress(); return false; } // 3人救うごとに1体
-        var f = new Follower { SlotOffset = FollowerSlots[_followers.Count] };
+        var f = new Follower { SlotOffset = FollowerSlots[_followers.Count], PostTexPath = postTexPath };
         AddChild(f);
         f.Position = ToLocal(globalFromPos); // 浄化した位置（＝救った本人の場所）から飛んでくる
         _followers.Add(f);

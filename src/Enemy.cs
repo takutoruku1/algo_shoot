@@ -936,7 +936,7 @@ public partial class Enemy : Area2D
     {
         var players = GetTree().GetNodesInGroup("player");
         if (players.Count > 0 && players[0] is Player pl)
-            _becameFollower = pl.AddFollower(GlobalPosition); // フォロワー化したら本体は退場せず引き継ぐ
+            _becameFollower = pl.AddFollower(GlobalPosition, PostTexPath); // フォロワー化したら本体は退場せず引き継ぐ（面専用post絵をそのまま持たせる）
     }
 
     // 大泣き演出の開始／終了フック（派生でセリフ等に使う）。

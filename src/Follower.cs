@@ -8,6 +8,11 @@ public partial class Follower : Node2D
     public Vector2 SlotOffset; // algoローカル座標での定位置
     public bool IsHikage { get; private set; } // ヒカゲ強化フォロワーか
 
+    // 浄化元(EnemySpec.PostTexPath)の改心後テクスチャパス。AddChild前にセットする想定。
+    // 空/読込不可のときだけ FallbackTexPath（アンチくん）へ落ちる＝面専用の絵（視聴者アイコン/机/ペンライト等）を反映するため。
+    public string PostTexPath = "";
+    private const string FallbackTexPath = "res://char/enemy_anti_post.png"; // 最終フォールバック（改心後の笑顔）
+
     private Sprite2D _sprite = null!;
     private float _bobT;
     private const float MoveInSpeed = 220f; // 飛んでくる速度(px/s)
@@ -15,7 +20,8 @@ public partial class Follower : Node2D
     public override void _Ready()
     {
         ZIndex = 9; // 自機(10)のすぐ後ろ
-        var tex = ResourceLoader.Load<Texture2D>("res://char/enemy_anti_post.png"); // 改心後の笑顔を流用
+        string path = !string.IsNullOrEmpty(PostTexPath) && ResourceLoader.Exists(PostTexPath) ? PostTexPath : FallbackTexPath;
+        var tex = ResourceLoader.Load<Texture2D>(path);
         _sprite = new Sprite2D
         {
             Centered = true,

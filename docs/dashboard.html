@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 237 / 対象 237 タスク<br>保留 36 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 238 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">237</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">238</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">36</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,68 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/StageZero.cs:305-328</code>(case 12)と<code>:344-411</code>(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが高速respawn-killループに陥る場合がある(再現条件・ログはqa監査<code>build/qa/progress_easy.log:110-126</code>参照)。SpawnDummy呼び出しに直前スポーンからの簡易デバウンスを追加し、高頻度respawnを防ぐ</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/CorridorRun.cs:8</code>のコメント「蛇行の最大縦速度は必ず自機速度150px/sより低い＝入力し続ければ必ず追える」という保証は通常移動速度のみを想定しており、低速回避<code>FocusSpeed=65px/s</code>(<code>src/Player.cs:13</code>)を<code>_maxVy</code>(Normal=80/Hard=100/Lunatic=115、<code>src/CorridorRun.cs:78-86</code>)が上回っている。Focus使用時でもコード自身が明記する回避可能性の保証が成立するよう<code>_maxVy</code>または回避手段を是正する(下げ幅・対処方法は実装時の判断でよいが保証を破らないこと)</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">BossReiの「圧」上昇ギミックがHUDに一切表示されずフィードバックがない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/BossRei.cs:44-52,231-249,271-303</code>の圧(弾密度増加)は上昇時のタウント台詞1回のみで、現在の圧レベル・閾値までの残り時間を示すUIが皆無(<code>Hud.cs</code>に該当ゲージなし)。ボスバー付近(<code>Hud.cs:964 DrawBossCard</code>周辺)に圧レベルを示す簡易インジケーターを追加するか、閾値到達が近づくタイミングで事前警告(SE/自機リング明滅)を出す</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>src/Shop.cs:267</code>(<code>ShopExitTalk</code>)の「行ってまいります。Stay——でしたね。」が旧正典由来で、<code>Prologue.cs</code>/<code>Epilogue.cs</code>等では既に除去済みの合言葉を宙に浮いた形で回想している。この1行を削除する機械的修正(新規文言の創作は不要)</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/GameManager.cs:342</code>(定義)/<code>:355,364</code>(加減算)/<code>:907,997</code>(セーブ/ロード)を<code>grep</code>しても消費箇所が無い(兄弟フィールド<code>P2HesitationSec</code>は<code>Epilogue.cs:346</code>で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept"><code>src/AkariRoot.cs:4</code>/<code>src/StageAkari.cs:252</code>/<code>src/Audio.cs:1025</code>/<code>src/ScrollFx.cs:221</code>/<code>src/StageImagery.cs:339</code>のコメントが案Cの「退勤後のオフィスフロア」ではなく旧称「雨の教室」のまま。プレイヤー非表示のコメント文言のみを訂正する機械的修正(新規創作なし)</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">改心フォロワーの見た目が全ステージで「アンチくん」固定</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-17) 2026-09-17監査(engineer)発見。<code>src/Follower.cs:18</code>が全Followerで無条件に<code>enemy_anti_post.png</code>を使用しており面専用post画像が反映されない不具合。<code>src/Follower.cs</code>に<code>PostTexPath</code>フィールドを追加し存在すればロード、無ければ<code>enemy_anti_post.png</code>にフォールバック。<code>src/Player.cs:AddFollower</code>にpostTexPathパラメータ（デフォルト引数で既存呼び出し元と後方互換）を追加し生成するFollowerへ渡す。<code>src/Enemy.cs:GrantFollower()</code>が既存の<code>PostTexPath</code>フィールド（MidEnemyでは<code>EnemySpec</code>由来、<code>src/MidEnemy.cs:87</code>で浄化前に既にセット済み）をそのまま<code>AddFollower</code>へ渡すよう変更。フォロワー追従挙動・上限4体・ヒカゲ専用フォロワーには手を入れていない。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。実機でのレイ/あかり/こはる面での目視確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2339,24 +2395,40 @@
           <span class="worker">scenario</span>
         </div>
         <p class="accept">2026-09-15監査(scenario)。<code>src/GameManager.cs:202</code>の<code>Tweet = &quot;だれも、わたしには追いつけない。……それの、なにが、いけないの。&quot;</code>は<code>:197</code>のコメントが明記する通り案C以前の旧正典(<code>docs/20260613/MINA_シナリオ設計書_v2.md</code>)由来。<code>src/Hub.cs:766</code>でHub画面のSNSカードに毎回表示されるメイン導線。一方<code>src/StageRei.cs</code>は2026-09-06のDONEタスクで同じ「だれも、わたしには追いつけない」を含む旧11行を仮台本07の新6行へ置換済みで、現在<code>StageRei.cs</code>内にこの台詞は0件(grep確認)——<code>GameManager.cs</code>のHubカードTweetだけ置換から漏れている。案Cの人物設定(<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:102</code>)はレイを「登録者二千で一年止まり、同接と再生は右肩下がり」と再定義しており「だれも追いつけない」という一位前提の煽り文とは正反対。仮台本09(<code>wiki/08_仮台本/09_投稿文集_X風.md:436</code>)も同箇所の置換を指摘済みだが同文書自身が「未採用の検討用草稿」と自己申告しているため採用不可。要ユーザー判断: (a)案Cのレイ像(伸び悩み・登録者減)に沿った新規ツイート文を書き起こして承認し差し替える、(b)現状のまま据え置く。新規文言の創作を伴うため台詞承認ゲート対象。承認後の受入条件: 承認された文言を<code>src/GameManager.cs:202</code>の<code>Tweet</code>フィールドへ反映し、レイの「登録者伸び悩み・同接低下」設定と矛盾しないこと。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">仮台本にある周回要素(R1「次回起動」/R2「はじめから」)が実装ゼロで組み込み計画のチェックリストからも漏れている</span>
+          
+        </div>
+        <p class="accept">要ユーザー判断。2026-09-17監査(scenario)。<code>wiki/08_仮台本/08_粗い台本_案C_3_FINALと結末.md:184-200</code>(R1:起動間隔の日数集計と再訪小話1本、R2:前周の【終】を一度だけ引用するBootTalk)に対し<code>src/TitleMenu.cs:31-51</code>のBootTalk/IdleTalkに該当行なし、<code>src/GameManager.cs</code>に起動日時を保持するフィールドも皆無(<code>grep -n &quot;DateTime&quot; src/GameManager.cs</code>も0件)で日数集計自体が不可能。<code>wiki/08_仮台本/15_組み込み計画.md:184-190</code>の37件チェックリストも「エピローグE1〜E6を案Cに差し替え」(:186)で明示的に止まっておりR1/R2は一度もタスク化されていない。意図的除外か取りこぼしか、また起動/セーブ日時の永続化という新規エンジニアリング領域の要否について指定してほしい</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置</span>
+          
+        </div>
+        <p class="accept">要ユーザー判断。2026-09-17監査(scenario)。<code>src/StageImagery.cs:36-44</code>のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、<code>src/BossAkari.cs:386</code>も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)<code>TriggerMemoryFlash</code>と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">d7a79a1</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する</span></li>
+      <li><span class="h">ea1698a</span><span>2026-09-17</span><span class="s">auto: 監査で TODO 7件・BLOCKED 2件をキューに追加</span></li>
+      <li><span class="h">f7b9bb3</span><span>2026-09-16</span><span class="s">auto: DEV_QUEUE.mdのWIP重複記載を修正（グレイズコメント修正タスクの移動漏れ）</span></li>
       <li><span class="h">adab9bc</span><span>2026-09-16</span><span class="s">auto: グレイズ報酬コメントの記載ズレを修正</span></li>
       <li><span class="h">7e50c6f</span><span>2026-09-16</span><span class="s">auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する</span></li>
       <li><span class="h">f8e2703</span><span>2026-09-16</span><span class="s">auto: 加速球のフェイク発射フィードバックを修正</span></li>
       <li><span class="h">eca3a05</span><span>2026-09-16</span><span class="s">auto: WIP着手 - 加速球のフェイク発射フィードバックを修正する</span></li>
       <li><span class="h">160de44</span><span>2026-09-16</span><span class="s">auto: Training.tscnのSIGABRTクラッシュを修正</span></li>
-      <li><span class="h">66b8111</span><span>2026-09-16</span><span class="s">auto: WIP着手 - Training.tscnのSIGABRTクラッシュを修正する</span></li>
-      <li><span class="h">f30d094</span><span>2026-09-16</span><span class="s">auto: 監査で TODO 3件・BLOCKED 2件をキューに追加</span></li>
-      <li><span class="h">41a65ef</span><span>2026-09-15</span><span class="s">auto: あかりのSNSハンドル食い違い(@akari. vs @akari_ame)を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-16 20:01 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-17 19:10 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
