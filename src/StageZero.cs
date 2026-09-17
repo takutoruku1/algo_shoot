@@ -567,8 +567,19 @@ public partial class StageZero : Node
     }
 
     // ダミー敵（GlyphMote）。弾を撃たない撃ち込み台。
+    // 「0体になったら即湧き直す」呼び出し元（case 12/14 等）が、湧いた瞬間に倒されて
+    // また0体判定→即湧き直し…を1フレーム内で繰り返すと、respawn-killの高速ループに陥り
+    // PurifiedCount暴走やFPS急落を起こし得る。直前のスポーンから一定時間内の呼び出しは
+    // 素通り（何もスポーンしない）させ、密なループの芽を摘む簡易デバウンス。
+    private double _lastDummySpawnAt = double.NegativeInfinity;
+    private const double DummySpawnDebounce = 0.5; // 秒
+
     private void SpawnDummy()
     {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (now - _lastDummySpawnAt < DummySpawnDebounce) return;
+        _lastDummySpawnAt = now;
+
         var e = new GlyphMote();
         World.AddChild(e);
         e.GlobalPosition = new Vector2(360f, _rng.RandfRange(70f, 150f));

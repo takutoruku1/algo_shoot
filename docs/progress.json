@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-17 19:10 UTC",
+  "generated": "2026-09-17 19:16 UTC",
   "counts": {
-    "todo": 6,
+    "todo": 5,
     "wip": 0,
     "blocked": 38,
-    "done": 238
+    "done": 239
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生",
-      "worker": "engineer",
-      "accept": "`src/StageZero.cs:305-328`(case 12)と`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが高速respawn-killループに陥る場合がある(再現条件・ログはqa監査`build/qa/progress_easy.log:110-126`参照)。SpawnDummy呼び出しに直前スポーンからの簡易デバウンスを追加し、高頻度respawnを防ぐ"
-    },
     {
       "priority": "P2",
       "title": "あかり面「雨の帰り道」がFocus移動時に理不尽回避不能になりうる",
@@ -277,6 +271,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(qa)発見。`src/StageZero.cs:305-328`(case 12)・`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが、湧いた瞬間に倒され次フレームでまた湧く高速respawn-killループに陥る場合があった(再現ログ`build/qa/progress_easy.log:110-126`)。呼び出し元(case 4/10/12/14)は変更せず、共通の`SpawnDummy()`本体(`src/StageZero.cs:577-`)に直前スポーンから0.5秒未満の呼び出しは素通りする簡易デバウンス(`_lastDummySpawnAt`)を追加。ステージ進行条件(PurifiedCount/killedしきい値、SafetyTimeout)は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。低頻度バグのため修正後に実機で再現しなくなったことまでは確認していない。"
+    },
     {
       "priority": "P1",
       "title": "改心フォロワーの見た目が全ステージで「アンチくん」固定",
@@ -1708,6 +1708,16 @@
   ],
   "commits": [
     {
+      "hash": "26da043",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する"
+    },
+    {
+      "hash": "8edb0ad",
+      "date": "2026-09-17",
+      "subject": "auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正"
+    },
+    {
       "hash": "d7a79a1",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する"
@@ -1736,16 +1746,6 @@
       "hash": "f8e2703",
       "date": "2026-09-16",
       "subject": "auto: 加速球のフェイク発射フィードバックを修正"
-    },
-    {
-      "hash": "eca3a05",
-      "date": "2026-09-16",
-      "subject": "auto: WIP着手 - 加速球のフェイク発射フィードバックを修正する"
-    },
-    {
-      "hash": "160de44",
-      "date": "2026-09-16",
-      "subject": "auto: Training.tscnのSIGABRTクラッシュを修正"
     }
   ]
 }

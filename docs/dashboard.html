@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 238 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 239 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">238</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">239</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">5</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/StageZero.cs:305-328</code>(case 12)と<code>:344-411</code>(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが高速respawn-killループに陥る場合がある(再現条件・ログはqa監査<code>build/qa/progress_easy.log:110-126</code>参照)。SpawnDummy呼び出しに直前スポーンからの簡易デバウンスを追加し、高頻度respawnを防ぐ</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -199,6 +191,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-17) 2026-09-17監査(qa)発見。<code>src/StageZero.cs:305-328</code>(case 12)・<code>:344-411</code>(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが、湧いた瞬間に倒され次フレームでまた湧く高速respawn-killループに陥る場合があった(再現ログ<code>build/qa/progress_easy.log:110-126</code>)。呼び出し元(case 4/10/12/14)は変更せず、共通の<code>SpawnDummy()</code>本体(<code>src/StageZero.cs:577-</code>)に直前スポーンから0.5秒未満の呼び出しは素通りする簡易デバウンス(<code>_lastDummySpawnAt</code>)を追加。ステージ進行条件(PurifiedCount/killedしきい値、SafetyTimeout)は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error。低頻度バグのため修正後に実機で再現しなくなったことまでは確認していない。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2417,18 +2417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">26da043</span><span>2026-09-17</span><span class="s">auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する</span></li>
+      <li><span class="h">8edb0ad</span><span>2026-09-17</span><span class="s">auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正</span></li>
       <li><span class="h">d7a79a1</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 改心フォロワーの見た目が全ステージで「アンチくん」固定を修正する</span></li>
       <li><span class="h">ea1698a</span><span>2026-09-17</span><span class="s">auto: 監査で TODO 7件・BLOCKED 2件をキューに追加</span></li>
       <li><span class="h">f7b9bb3</span><span>2026-09-16</span><span class="s">auto: DEV_QUEUE.mdのWIP重複記載を修正（グレイズコメント修正タスクの移動漏れ）</span></li>
       <li><span class="h">adab9bc</span><span>2026-09-16</span><span class="s">auto: グレイズ報酬コメントの記載ズレを修正</span></li>
       <li><span class="h">7e50c6f</span><span>2026-09-16</span><span class="s">auto: WIP着手 - グレイズ報酬コメントの記載ズレを修正する</span></li>
       <li><span class="h">f8e2703</span><span>2026-09-16</span><span class="s">auto: 加速球のフェイク発射フィードバックを修正</span></li>
-      <li><span class="h">eca3a05</span><span>2026-09-16</span><span class="s">auto: WIP着手 - 加速球のフェイク発射フィードバックを修正する</span></li>
-      <li><span class="h">160de44</span><span>2026-09-16</span><span class="s">auto: Training.tscnのSIGABRTクラッシュを修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-17 19:10 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-17 19:16 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

@@ -60,8 +60,6 @@
 
 ## WIP
 
-- [ ] (P2) STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生 | engineer | `src/StageZero.cs:305-328`(case 12)と`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが高速respawn-killループに陥る場合がある(再現条件・ログはqa監査`build/qa/progress_easy.log:110-126`参照)。SpawnDummy呼び出しに直前スポーンからの簡易デバウンスを追加し、高頻度respawnを防ぐ
-
 ## BLOCKED
 
 <!-- 2026-09-16 監査モード(scenario/engineer)で追加 -->
@@ -133,6 +131,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P2) STAGE0チュートリアルで低頻度にPurifiedCount暴走とFPS急落(15〜21fps)が発生 | engineer | (完了 2026-09-17) 2026-09-17監査(qa)発見。`src/StageZero.cs:305-328`(case 12)・`:344-411`(case 14)の「場に敵が0体なら即座にSpawnDummy()で湧き直す」ロジックが、湧いた瞬間に倒され次フレームでまた湧く高速respawn-killループに陥る場合があった(再現ログ`build/qa/progress_easy.log:110-126`)。呼び出し元(case 4/10/12/14)は変更せず、共通の`SpawnDummy()`本体(`src/StageZero.cs:577-`)に直前スポーンから0.5秒未満の呼び出しは素通りする簡易デバウンス(`_lastDummySpawnAt`)を追加。ステージ進行条件(PurifiedCount/killedしきい値、SafetyTimeout)は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。低頻度バグのため修正後に実機で再現しなくなったことまでは確認していない。
 - [x] (P1) 改心フォロワーの見た目が全ステージで「アンチくん」固定 | engineer | (完了 2026-09-17) 2026-09-17監査(engineer)発見。`src/Follower.cs:18`が全Followerで無条件に`enemy_anti_post.png`を使用しており面専用post画像が反映されない不具合。`src/Follower.cs`に`PostTexPath`フィールドを追加し存在すればロード、無ければ`enemy_anti_post.png`にフォールバック。`src/Player.cs:AddFollower`にpostTexPathパラメータ（デフォルト引数で既存呼び出し元と後方互換）を追加し生成するFollowerへ渡す。`src/Enemy.cs:GrantFollower()`が既存の`PostTexPath`フィールド（MidEnemyでは`EnemySpec`由来、`src/MidEnemy.cs:87`で浄化前に既にセット済み）をそのまま`AddFollower`へ渡すよう変更。フォロワー追従挙動・上限4体・ヒカゲ専用フォロワーには手を入れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機でのレイ/あかり/こはる面での目視確認は未実施。
 - [x] (P3) GameManager.cs内のグレイズ報酬コメントが2026-08-13の仕様変更に追従していない | engineer | (完了 2026-09-16) 2026-09-16監査(game-designer)発見。`src/GameManager.cs:1318`のコメント「通常グレイズ(Score+10・お金なし)より大きめ」を、`AddGraze()`(`:1307-1315`)が`GainImpression(1)`でインプレも生む実装(DONE 2026-08-13で是正済み)に合わせて「通常グレイズ(Score+10・インプレ+1)より大きめ」に修正。ロジック変更なし、コメントのみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。
 - [x] (P1) 加速球モードで同時タメ上限に達した試行でもマズルフラッシュ・発射音・反動が鳴ってしまい「弾が消えた」ように見える | engineer | (完了 2026-09-16) 2026-09-16監査(game-designer)発見。`src/Player.cs:895-916 FireAccel()`を`bool`（実際に弾をスポーンしたか）を返す形に変更し、上限到達でスキップする箇所(旧`:905-906`、現行`_accelCharging.Count >= AccelChargeCap`の`return`)で`false`を返すよう修正。呼び出し元`Fire()`(`src/Player.cs:842-849`)のswitch文で加速球分岐の戻り値を`fired`変数へ受け、`src/Player.cs:866-873`のマズルフラッシュ(`FxLayer.Instance?.Muzzle`)・発射音(`Audio.Instance?.PlayShot`)・反動(`_recoil = 1f`)を`if (fired)`で包んでスキップ対象にした。他モード(FireRapid/FireSpread/FireHoming)は分岐で`fired`を変更しないため常にtrueのまま従来通り無条件で光・音・反動が鳴る。フォロワー射撃・拡散サブショット（`Fire()`内の別ブロック）や`AccelChargeCap`/`AccelChargeDelay`/`FireInterval`のバランス値は変更していない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。実機での聴覚確認（連続発射時に上限到達分だけ無音になること）は未実施、差分レビューとビルド成功で確認。
