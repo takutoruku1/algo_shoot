@@ -23,6 +23,18 @@ public partial class Backlog : CanvasLayer
 
     private const float WheelStep = 90f; // ホイール1ノッチあたりのスクロール量（Shop と同じ設計座標）
 
+    // フッタ「とじる」のクリック矩形（Records.BackHintRect と同じ作法）。BacklogCanvas のフッタは
+    //   中央寄せ1行なので、同じ式で「とじる」側の位置を再現して切り出す（左の「スクロール」は説明＝対象外）。
+    public static Rect2 CloseHintRect()
+    {
+        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 96f;
+        float scrollW = UiKit.TextW(UiKit.Mono, BacklogCanvas.FootScrollToken(), UiKit.FontSmall);
+        float closeW = UiKit.TextW(UiKit.Mono, BacklogCanvas.FootCloseToken(), UiKit.FontSmall);
+        float lineX = x + (w - (scrollW + closeW)) / 2f;
+        float ty = y + h - 32f;
+        return new Rect2(lineX + scrollW - 6f, ty - 6f, closeW + 12f, UiKit.Mono.GetHeight(UiKit.FontSmall) + 12f);
+    }
+
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always; // ポーズ中も動く
@@ -123,11 +135,16 @@ public partial class Backlog : CanvasLayer
         // マウスホイールでも縦スクロール（↑↓と同じ向き：上(+)＝過去へ／下(−)＝最新へ）。
         _scroll = Mathf.Clamp(_scroll + Pad.WheelDelta() * WheelStep, 0f, _maxScroll);
 
+        // マウス：フッタの「とじる」を左クリックでも押せる（開いている間はこのオーバーレイが唯一の登録者）。
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(CloseHintRect(), 0);
+        bool clickClose = UiKit.ClickedId(Pad.MouseClick()) == 0;
+
         // X / B / Esc、または開キー(L/Tab/Back)でも閉じる（トグル感覚）。右クリックでも閉じる。
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Back)
                     || Pad.MouseRightClick();
-        if (back && !_backHeld) Close();
+        if ((back && !_backHeld) || clickClose) { _backHeld = back; Close(); return; }
         _backHeld = back;
 
         _canvas.QueueRedraw();
@@ -224,11 +241,24 @@ public partial class BacklogCanvas : Node2D
         DrawRect(new Rect2(x + 32, y + 74, w - 64, 1f), new Color(1, 1, 1, 0.1f));
 
         // ── フッタ ──
-        string scrollTok = Pad.ShowKeyboard ? "↑↓" : "L";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 32),
-            scrollTok + " スクロール    " + Pad.CancelToken + " とじる", UiKit.FontSmall,
-            UiKit.Text3, HorizontalAlignment.Center, w);
+        //   「とじる」だけクリック可＝ホバーで明るくする（左の「スクロール」は操作説明なので素の文字のまま）。
+        string scrollTok = FootScrollToken(), closeTok = FootCloseToken();
+        float scrollW = UiKit.TextW(UiKit.Mono, scrollTok, UiKit.FontSmall);
+        float closeW = UiKit.TextW(UiKit.Mono, closeTok, UiKit.FontSmall);
+        float lineX = x + (w - (scrollW + closeW)) / 2f;
+        float fy = y + h - 32;
+        bool closeHov = UiKit.HoveredId() == 0;
+        if (closeHov)
+            UiKit.Box(this, Backlog.CloseHintRect(), new Color(UiKit.Purify, 0.14f), 7f, new Color(UiKit.Info, 0.5f), 1f);
+        UiKit.Text(this, UiKit.Mono, new Vector2(lineX, fy), scrollTok, UiKit.FontSmall, UiKit.Text3);
+        UiKit.Text(this, UiKit.Mono, new Vector2(lineX + scrollW, fy), closeTok, UiKit.FontSmall,
+            closeHov ? UiKit.PurifyHi : UiKit.Text3);
     }
+
+    // フッタ1行の分割トークン（Backlog.CloseHintRect が同じ式で「とじる」側の矩形を再現する）。
+    //   マウス使用中はスクロールがホイールなので、表記もそれに合わせる（Hud.TokFocus と同じ出し分け作法）。
+    public static string FootScrollToken() => (Pad.UsingMouse ? "ホイール" : Pad.ShowKeyboard ? "↑↓" : "L") + " スクロール    ";
+    public static string FootCloseToken() => Pad.CancelToken + " とじる";
 
     // 高さ/幅が正のときだけ塗る小ヘルパ（マスク帯用）。
     private void ci_DrawRect(float x, float y, float w, float h, Color c)

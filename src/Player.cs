@@ -351,7 +351,7 @@ public partial class Player : Area2D
 
     // ロックの送り／解除と対象の維持。
     //   送り（左クリック短押し / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
-    //   解除（右クリック）＝ 回避と同じボタン。ロックを外すだけ（回避は別経路で同時に出る）。
+    //   解除（右クリック / G / R3）＝ ロックを外すだけ（右クリックは回避と兼用で、回避は別経路で同時に出る）。
     private void TickLockOn()
     {
         // ── 対象の維持：倒された／浄化された／画面外へ出たらロックを落とす ──
@@ -360,10 +360,18 @@ public partial class Player : Area2D
                         || !LockCandidate(_lockTarget, out _)))
         { _locked = false; _lockTarget = null; }
 
-        // ── 解除入力＝右クリックのみ（回避と同じボタン。回避は _PhysicsProcess 側で別に出る）──
-        // ロックしていなければ何も起きない（回避だけが出る）。キーボード／パッドには解除専用は割り当てない
-        //（F / R1 の送りで一巡すれば戻ってこられるうえ、空きボタンが無い）。
-        bool clearKey = Pad.MouseRightDown();
+        // ── 解除入力＝G / パッド R3 / 右クリック ──
+        //   ロックしていなければ何も起きない（右クリックの場合は回避だけが出る。回避は _PhysicsProcess 側で別に出る）。
+        //   ★2026-09-17 ユーザー指示でキーボード／パッドにも解除を割り当てた。それまでは
+        //     「F / RB の送りで一巡すれば戻ってこられる」として右クリック専用にしていたが、
+        //     敵が多いと一巡が長く、狙いを捨てたいだけの操作に手間がかかっていた。
+        //   ・G … 送りの F の隣（同じ指のまま押せる）。プロジェクト全体で未使用だった。
+        //   ・R3（右スティック押し込み）… 戦闘中の唯一の空きボタン。移動は左スティック＝右親指が空いており、
+        //     「送り=RB / 解除=R3」で右手にロックオン操作をまとめられる。
+        //     （RB 長押しは既読スキップ、LB=集中、L3=回避、X=ボム、Y=溜め、A=送り、B=ゲームオーバーの抜ける、
+        //       Start=メニュー で埋まっている。R3 は旧「やさしさ全開」の枠だが、その機能ごと撤去済み＝完全に空き。）
+        bool clearKey = Input.IsKeyPressed(Key.G) || Pad.Pressed(JoyButton.RightStick)
+                        || Pad.MouseRightDown();
         if (clearKey && !_lockClearHeld && !Hud.BubblePaused && _locked)
         {
             _locked = false; _lockTarget = null;
@@ -1482,7 +1490,7 @@ public partial class Player : Area2D
         _hitReact = HitReactDur; // 体ののけぞり＋squash（練習モード含む＝「痛がった」は常に返す）
         // QA走行だけ、ジョブの被弾まわりの補正が効いているかをログへ（のけぞり変位0／無敵秒）。
         if (QaPilot.Verbose && _game != null)
-            GD.Print($"[JOB] {_game.JobDef.Name} hit: knockback={( _game.JobDef.NoHitKnockback ? "0px(踏みとどまり)" : "-5px")} "
+            GD.Print($"[JOB] {_game.JobDef.CharacterName} hit: knockback={( _game.JobDef.NoHitKnockback ? "0px(踏みとどまり)" : "-5px")} "
                    + $"invul={_game.JobDef.HitInvulSec:0.0}s lives={Lives}->{Mathf.Max(0, Lives - 1)}/{_game.StartLives}");
 
         // 集中の光（focus_fire）は被弾で霧散＝積み上げた連続ヒットをリセット（練習モードでも同様）。

@@ -127,6 +127,28 @@ public partial class DiffSelect : Node2D
         return new Rect2(padX, rowTop + i * (rowH + gap), rowW, rowH);
     }
 
+    // フッタ「もどる」のクリック矩形（Records.BackHintRect と同じ作法）。_Draw のフッタは Hint を
+    //   左から並べていくので、手前2つ（↑↓ 潜り方／Z 潜る）の送り幅を同じ式で足して3つ目の左端を出す。
+    //   ※手前2つは操作説明なのでクリック対象にしない（ショップの「箱がボタン／素の文字が説明」の流儀）。
+    private const int IdBack = 100;
+    private static Rect2 BackHintRect()
+    {
+        float padX = 56f, fy = H - 56f;
+        float x = padX;
+        x = HintAdvance(x, "↑↓", "潜り方");
+        x = HintAdvance(x, "Z", "潜る");
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, "X", 12) + 12f);
+        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
+        return new Rect2(x, fy - 16f, kw + 8f + lw + 8f, 32f);
+    }
+
+    // Hint が返す「次の x」だけを、描画せずに求める（Hint 本体と同一式）。
+    private static float HintAdvance(float x, string key, string label)
+    {
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
+    }
+
     public override void _Process(double delta)
     {
         _t += delta;
@@ -157,11 +179,15 @@ public partial class DiffSelect : Node2D
         _navHeld = up || down;
 
         // マウス：ティア行にホバー＝カーソル移動（選択可の行のみ・表情もクロスフェード）、クリック＝決定。
+        //   フッタの「もどる」も同じレジストリに載せる（ティア行とは重ならない）。
+        UiKit.Hotspot(BackHintRect(), IdBack);
         for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierRect(i), i);
         int hov = UiKit.HoveredId();
-        if (Pad.UsingMouse && hov >= 0 && hov != _sel && Selectable(hov))
+        if (Pad.UsingMouse && hov >= 0 && hov < Tiers.Length && hov != _sel && Selectable(hov))
         { _sel = hov; StartFaceSwap(_sel); Audio.Instance?.PlayUiMove(); }
         int clk = UiKit.ClickedId(click);
+        bool clickBack = clk == IdBack;
+        if (clickBack) clk = -1;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
@@ -183,7 +209,7 @@ public partial class DiffSelect : Node2D
         bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick();
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
 
         QueueRedraw();
     }
@@ -240,7 +266,10 @@ public partial class DiffSelect : Node2D
         float fx = padX;
         fx = Hint(fx, fy, "↑↓", "潜り方", false);
         fx = Hint(fx, fy, "Z", "潜る", true);
-        Hint(fx, fy, "X", "もどる", false);
+        // 「もどる」だけクリックできる＝ホバー中は下敷きを敷いて明るくする（手前2つは操作説明）。
+        bool backHov = UiKit.HoveredId() == IdBack;
+        if (backHov) UiKit.Box(this, BackHintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
+        Hint(fx, fy, "X", "もどる", backHov);
 
         UiKit.EndDesign(this);
     }

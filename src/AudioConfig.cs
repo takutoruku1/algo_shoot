@@ -53,6 +53,23 @@ public static class AudioConfig
         Write(data);
     }
 
+    // ── セグメント系（整数）キーの読み書き ──
+    //   settings.json は音量だけでなく画面モード等も同じ1ファイルに入る（Settings.Save 参照）。
+    //   ポーズの設定画面から画面モードを変えるときに、音量と同じ「他キーを保ったままマージ書き」を
+    //   使い回すためのペア。値の意味は Settings.cs の該当セグメント（例 "mode": 0=ウィンドウ/1=フルスクリーン）。
+    public static int GetInt(string key, int def)
+    {
+        var data = Read();
+        return data.ContainsKey(key) ? data[key].AsInt32() : def;
+    }
+
+    public static void SetInt(string key, int v)
+    {
+        var data = Read();
+        data[key] = v;
+        Write(data);
+    }
+
     private static float GetF(Godot.Collections.Dictionary d, string key, float def)
         => d.ContainsKey(key) ? (float)d[key].AsDouble() : def;
 

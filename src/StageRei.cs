@@ -397,6 +397,8 @@ public partial class StageRei : Node
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
         //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
+        // アンチャー紹介（2026-09-17）：道中開始の直前にこの面のアンチャーの性格を流す（StageAkari と同じ流儀）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerRei(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -608,6 +610,9 @@ public partial class StageRei : Node
             _ => MFace,
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "レイ");
+        // 初見チュートリアル（2026-09-17）：操作の話をしている行では盤面中央に操作カードを出す。
+        //   道中チュートリアル本文の行でなければ内部で畳む＝通常の会話には一切干渉しない。
+        StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
     // 道中ザコ戦“前半”：Spawnerを起動し、MidWaveA体を浄化したら抜ける（→ボスのツイート→チラ見せへ）。

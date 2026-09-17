@@ -4,13 +4,17 @@ public partial class TitleMenu : Node2D
 {
     private GameManager _game = null!;
 
-    private enum Item { NewGame, Continue, Tutorial, Settings }
+    private enum Item { NewGame, Continue, Tutorial, Settings, Credits }
+    // 「クレジット」は設定の下＝据え置き機のタイトルメニューと同じ並び（遊ぶ項目→設定→表記）。
+    //   BGM 素材の表記義務（MusMus / PeriTune CC BY 4.0）を果たす唯一の導線なので、常に出す
+    //   （チュートリアルのような出し分けはしない）。
     private static readonly (Item item, string jp)[] AllItems =
     {
         (Item.NewGame,   "はじめから"),
         (Item.Continue,  "つづきから"),
         (Item.Tutorial,  "チュートリアル"),
         (Item.Settings,  "設定"),
+        (Item.Credits,   "クレジット"),
     };
     private static readonly (Item item, string jp)[] Items =
         System.Array.FindAll(AllItems, e => GameManager.TutorialEnabled || e.item != Item.Tutorial);
@@ -220,6 +224,8 @@ public partial class TitleMenu : Node2D
                 Go("res://Stage0.tscn");
                 break;
             case Item.Settings: Go("res://Settings.tscn"); break;
+            // クレジット＝素材表記の画面（X/Esc・右クリックでここへ戻る）。専用曲「帰り道」は Credits 側で鳴る。
+            case Item.Credits: Go("res://Credits.tscn"); break;
         }
     }
 
@@ -243,7 +249,7 @@ public partial class TitleMenu : Node2D
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(72, 686), "ver 2.010", UiKit.FontSmall, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(72, 686), "ver 2.011", UiKit.FontSmall, Muted);
         DrawToast();
         if (_picking) DrawSlotPicker();
         UiKit.EndDesign(this);

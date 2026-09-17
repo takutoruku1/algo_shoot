@@ -44,9 +44,30 @@ public partial class Hud : CanvasLayer
     private int _bossBarsTotal = 1;        // 総バー数
     private long _bossReplies = 2847;
 
+    // ── ボスカードのXアイコン（2026-09-17）──
+    //   ボスバーのアバターは長らく「穢れ色の無地の円」で、Xのプロフィールカードを模した意匠なのに
+    //   肝心のアイコン画像が入っていなかった。ハブの投稿カードと同じ素材（char/v3/{id}_face.png、
+    //   ミナだけ char/mina_face.png）を同じ UiKit.FaceAvatar で出し、「いま戦っている相手＝TLで見た
+    //   あのアカウント」を一目で結ぶ。
+    //   誰かの判定は ShowBossBar に渡る handle（全呼び出し元が BossHandles の定数）から引く。
+    //   名前は本ボスだとフェーズ名（"あふれるわたし" 等）で本人名を含まないため、handle が唯一確実な鍵。
+    private string _bossFaceId = "";                      // "akari"/"koharu"/"rei"/"mina"。空＝顔なし（ヒカゲ等）
+    private readonly Dictionary<string, Texture2D?> _bossFaces = new();   // id → 顔（初回だけロードして保持）
+    // 改心（HideBossBar）で即消しにせず、穢れが晴れる一拍だけカードを残す。
+    //   0 → 穢れたまま／1 → 浄化しきり。PurifyFadeDur かけて 0→1 に上げ、上がりきってからカードを畳む。
+    private double _bossPurify;            // 0..1
+    private double _bossCardFade = 1f;     // カード全体の不透明（浄化後の見送りで 1→0）
+    private const double BossPurifyDur = 0.75;   // 穢れが剥がれるまで
+    private const double BossCardFadeDur = 0.45; // そのあとカードが消えるまで
+
     // バナー
     private string _bannerText = "";
     private double _bannerTimer;
+    // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1　BOMB +1」のベタ文字をやめ、
+    //   残機マークと同じ**そのキャラの核マーク**（_lifeMarks）＋ボム印（_bombMark）で「何が増えたか」を示す。
+    //   ♥は4キャラ共通の記号で「誰の何か」が伝わらない＝サイドパネルの LIFE 列と語彙を揃える。
+    //   true のあいだ DrawBanner が文字の代わりにアイコン列を描く（_bannerText は互換のため保持）。
+    private bool _bannerRewardLife, _bannerRewardBomb;
     // クリアリザルトのタイム行（バナー直下）。空なら描かない。
     private string _bannerTime = "";     // 例 "TIME 1:23.45"
     private string _bannerBest = "";     // 例 "NEW BEST!" or "BEST 1:20.00"
@@ -325,6 +346,16 @@ public partial class Hud : CanvasLayer
         // カットインも会話バブル中は時間を止める（カードと同じく“戦闘の瞬間”に確実に見せる）。
         if (_cutinTimer > 0 && !BubblePaused) { _cutinTimer -= delta; if (_cutinTimer <= 0) _cutinTex = null; }
         if (_shotModeToast > 0) { _shotModeToast -= delta; }
+        // 改心の見送り：穢れが剥がれる（_bossPurify 0→1）→ カードが引く（_bossCardFade 1→0）→ 非表示。
+        if (_bossVisible && _bossPurify > 0)
+        {
+            if (_bossPurify < 1) _bossPurify = System.Math.Min(1.0, _bossPurify + delta / BossPurifyDur);
+            else
+            {
+                _bossCardFade -= delta / BossCardFadeDur;
+                if (_bossCardFade <= 0) { _bossCardFade = 1f; _bossPurify = 0; _bossVisible = false; }
+            }
+        }
 
         // 割り込み演出中の戦闘テロップ抑制（フィールド宣言部のコメント参照）。0.2s フェード→消去。
         _calloutA = Mathf.MoveToward(_calloutA, SuppressCallouts ? 0f : 1f, (float)delta * 5f);
@@ -580,7 +611,17 @@ public partial class Hud : CanvasLayer
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
     public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; }
+
+    // 中ボス撃破の回復報酬バナー（2026-09-17）。文字ではなくアイコンで「増えたもの」を返す。
+    //   life … いま選んでいるキャラの核マーク（サイドパネルの LIFE 列と同じ絵）＋ "+1"
+    //   bomb … ボム印（bomb_v2.png・BOMB 列と同じ絵）＋ "+1"
+    // どちらも false で呼ばれることは無い（GameManager.RewardCameoDefeat が増えた時だけ呼ぶ）。
+    public void ShowRewardBanner(bool life, bool bomb)
+    {
+        ShowBanner(life && bomb ? "LIFE +1  BOMB +1" : life ? "LIFE +1" : "BOMB +1"); // バックログ/互換用の文字列
+        _bannerRewardLife = life; _bannerRewardBomb = bomb;
+    }
 
     // FINAL 専用の「格上」タイトルカード。通常バナー（出て消えるだけの一行）とは別の描画経路に入る。
     //   ダサさの正体＝①全ステージ共通のベタ一行で FINAL に重みが無い ②字間0で小さく詰まって見える
@@ -705,15 +746,71 @@ public partial class Hud : CanvasLayer
     {
         _bossName = bossName; _bossVisible = true;
         _bossTint = null; _bossBarFlash = 0; // 次のボスへ前ボスのスペル色/フラッシュを持ち越さない
+        _bossPurify = 0; _bossCardFade = 1f; // 前のボスの「浄化しきった見送り」を持ち越さない
         ResetSpellCutin();   // ボス戦開始＝このボス戦のカットイン初回フラグをリセット
         if (!string.IsNullOrEmpty(handle))
         {
             _bossHandle = handle;
+            _bossFaceId = FaceIdFor(handle, bossName);
             return;
         }
         _bossHandle = "@" + System.Text.RegularExpressions.Regex.Replace(bossName, "[^A-Za-z0-9]", "").ToLower();
         if (_bossHandle.Length <= 1) _bossHandle = "@boss";
+        _bossFaceId = FaceIdFor(_bossHandle, bossName);
     }
+
+    // ハンドル（＋保険で名前）から顔ID を引く。BossHandles の定数はすべて "@akari…" "@koharu…"
+    //   "@rei…"/"@hoshiai_rei…" "@mina…" の形なので、キャラ名の部分文字列で確実に決まる。
+    //   中ボス（CameoBoss）はそのステージの本人が出るのが実装（StageRei→"レイ"/@rei_____6390 等）＝
+    //   本ボスと同じ顔でよい。別人格の別アイコンにはしない（同じ人が道中で先に立ち塞がる話のため）。
+    //   該当なし（W0 のヒカゲ等）は "" ＝従来どおり無地の穢れ円に落ちる。
+    private static string FaceIdFor(string handle, string name)
+    {
+        string h = handle.ToLowerInvariant();
+        if (h.Contains("akari")) return "akari";
+        if (h.Contains("koharu")) return "koharu";
+        if (h.Contains("rei")) return "rei";
+        if (h.Contains("mina")) return "mina";
+        // 保険：ハンドルが未知でも日本語名から拾う（FINAL のフェーズ名は "穢れたわたし" 等で拾えない）。
+        if (name.Contains("あかり")) return "akari";
+        if (name.Contains("こはる")) return "koharu";
+        if (name.Contains("レイ")) return "rei";
+        if (name.Contains("ミナ")) return "mina";
+        return "";
+    }
+
+    // 顔テクスチャ（ハブの投稿カードと同一素材）。初回だけロードして辞書に持つ。
+    //   三人は char/v3/（社会人版・アニメ塗り v3）、ミナは v3 の描き直しが無く char/mina_face.png が基準。
+    private Texture2D? BossFace(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+        if (_bossFaces.TryGetValue(id, out var cached)) return cached;
+        string path = id == "mina" ? "res://char/mina_face.png" : $"res://char/v3/{id}_face.png";
+        if (!ResourceLoader.Exists(path)) path = $"res://char/{id}_face.png";   // v3 が無い名前への保険
+        var tex = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        _bossFaces[id] = tex;
+        return tex;
+    }
+
+    // 円窓の上端 UV（Hub.TopCropFor と同じ実測値）。立ち絵ごとに頭部の高さが違うため顔に合わせる。
+    private static float BossTopCrop(string id) => id switch
+    {
+        "rei" => 0.02f,
+        "akari" => 0.025f,
+        "koharu" => 0.02f,
+        "mina" => 0.05f,
+        _ => 0.06f,
+    };
+
+    // アカウント色（Hub.AccountColor と同じ）。浄化しきった縁の色に使う。
+    private static Color BossAccent(string id) => id switch
+    {
+        "mina" => UiKit.Mina,
+        "rei" => new Color(0.90f, 0.52f, 0.38f),
+        "akari" => new Color(0.40f, 0.62f, 0.88f),
+        "koharu" => new Color(0.46f, 0.74f, 0.52f),
+        _ => UiKit.Kegare,
+    };
     // 1本リフィル方式：メインバーは「現在の1本ぶん」を 0〜1 で描く。残バー数は pip と「残/総」で示す。
     public void UpdateBossBar(int barIndex, int totalBars, float frac)
     {
@@ -721,7 +818,15 @@ public partial class Hud : CanvasLayer
         _bossBarIndex = Mathf.Clamp(barIndex, 0, _bossBarsTotal - 1);
         _bossFrac = Mathf.Clamp(frac, 0f, 1f);
     }
-    public void HideBossBar() { _bossVisible = false; }
+    // 改心（各ボス OnCryStart）で呼ばれる。顔が出るボスは即消しにせず、
+    //   「穢れが剥がれてアイコンが晴れる」一拍（BossPurifyDur）を見せてから畳む（見せ場）。
+    //   顔が無いボス（ヒカゲ等）と、そもそも出ていない場合は従来どおり即 Hide。
+    public void HideBossBar()
+    {
+        if (!_bossVisible || string.IsNullOrEmpty(_bossFaceId) || BossFace(_bossFaceId) == null)
+        { _bossVisible = false; return; }
+        if (_bossPurify <= 0) _bossPurify = 0.0001;   // 0 のままだと「浄化中」に入らないので種を置く
+    }
     // スペル宣告カード（＋袖カットイン）を即時に消す。会話バブル中は _spellTimer が停止する仕様のため、
     // 改心開始（各ボス OnCryStart）で明示的に消さないと、宣告カードが改心演出〜帰還会話まで残留する。
     public void HideSpellCard() { _spellTimer = 0; _spellGlow = 0; _cutinTimer = 0; _cutinTex = null; }
@@ -1002,44 +1107,93 @@ public partial class Hud : CanvasLayer
         //   中ボス（CameoBoss）も本ボスもこのカード共通＝両方下がる。スペル宣告カード（DrawSpellCard）の
         //   y も連動して 66→82 に下げた。
         float w = Mathf.Min(560f, Field.DWidth * 0.8f), x = Field.DCenterX - w / 2f, y = 24f, h = 44f;
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(18 / 255f, 12 / 255f, 22 / 255f, 0.62f), 16f, new Color(UiKit.Kegare, 0.4f), 1.2f);
-        // アバター（穢れ）＋認証
-        Vector2 ac = new(x + 34, y + h / 2f);
-        UiKit.RadialGlow(ci, ac, 28f, UiKit.Kegare, 0.4f);
-        ci.DrawCircle(ac, 22f, new Color(0.35f, 0.13f, 0.27f));
-        ci.DrawCircle(ac + new Vector2(15, 15), 9f, UiKit.Kegare);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 11, ac.Y + 6), "✓", 11, UiKit.White);
+        float ca = (float)_bossCardFade;   // 改心の見送りでカードごと引く不透明
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(18 / 255f, 12 / 255f, 22 / 255f, 0.62f * ca), 16f, new Color(UiKit.Kegare, 0.4f * ca), 1.2f);
+        DrawBossAvatar(ci, new Vector2(x + 34, y + h / 2f), ca);
         // 名前＋ハンドル＋リプ
         float tx = x + 70;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 4), _bossName, 17, UiKit.White);
+        var rose = new Color("f0a8cf") with { A = ca };
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 4), _bossName, 17, UiKit.White with { A = ca });
         float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 17);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 7), _bossHandle, 13, UiKit.Text3);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 7), _bossHandle, 13, UiKit.Text3 with { A = ca });
         // 残バー数（=index+1）と総バー数。リプ数は総HP比で減らす（演出）。
         int barsLeft = _bossBarIndex + 1;
         float overall = (_bossBarIndex + _bossFrac) / _bossBarsTotal;
         string rep = UiKit.Abbrev((long)(_bossReplies * overall));
-        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 7, rep, new Color("f0a8cf"));
+        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 7, rep, rose);
         // 穢れバー（現在の1本ぶん）＋残バー数の● pip。
         // バー/pip の色は現行スペルの色に連動（#26 フェーズ移行の可視化。未設定なら既定の穢れ色）。
-        Color barCol = _bossTint ?? UiKit.Kegare;
-        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(tx, y + 25), "穢れ", new Color("f0a8cf"));
+        Color barCol = (_bossTint ?? UiKit.Kegare) with { A = ca };
+        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(tx, y + 25), "穢れ", rose);
         float pipsW = _bossBarsTotal * 9f;
         float barX = tx + UiKit.TrackedW(UiKit.SmallLabel, "穢れ") + 8f, barW = w - (barX - x) - 66 - pipsW, barY = y + 28;
-        UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f), 5f);
+        UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f * ca), 5f);
         if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), barCol, 5f);
         // バー1本割れの白フラッシュ（割れた一拍を「ゲージが光る」で読ませる）。
         if (_bossBarFlash > 0)
         {
             float f = (float)(_bossBarFlash / BossBarFlashDur);
-            UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1f, 1f, 1f, 0.7f * f), 5f);
+            UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1f, 1f, 1f, 0.7f * f * ca), 5f);
         }
         // 残バー pip（左から「残っている本数」を満たす）。
         float pipX = barX + barW + 8f;
         for (int i = 0; i < _bossBarsTotal; i++)
             ci.DrawCircle(new Vector2(pipX + i * 9f + 3f, barY + 5f), 3f,
-                i < barsLeft ? barCol : new Color(barCol, 0.22f));
+                i < barsLeft ? barCol : barCol with { A = 0.22f * ca });
         // 「残/総」表示。
-        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 24, $"{barsLeft}/{_bossBarsTotal}", new Color("f0a8cf"));
+        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 24, $"{barsLeft}/{_bossBarsTotal}", rose);
+    }
+
+    // ── ボスカードのアバター（X のプロフィールアイコン）──
+    // 2026-09-17: ここは長らく「穢れ色の無地の円」だった。X のプロフィールカードを模した意匠なのに、
+    //   本来アイコンが入る座が空で、誰と戦っているのかが名前の文字だけに頼っていた。
+    //   ハブの投稿カードと同じ顔素材・同じ UiKit.FaceAvatar（円クリップ＋topCrop の顔位置合わせ）で
+    //   出し、「TL で見たあのアカウントが、いま目の前で暴れている」を結ぶ。
+    //
+    // 穢れの表現（＝平常時のハブのアイコンと必ず見分けが付くこと）：
+    //   ① 顔の上に穢れ色のベール（乗算寄りの暗い紫を被せて沈める）＝顔は判るが血の気が無い
+    //   ② リングは穢れ色（アカウント色ではない）＝ハブの平常アイコンは各自のアカウント色
+    //   ③ 背面の穢れグロウが呼吸で脈打つ＝「まだ穢れている」
+    // 改心（HideBossBar）後：_bossPurify 0→1 でベールが剥がれ、リングが穢れ色→アカウント色へ、
+    //   グロウが穢れ色→浄化色へ抜ける。顔が晴れる一拍を見せてからカードごと引く。
+    private void DrawBossAvatar(HudCanvas ci, Vector2 ac, float ca)
+    {
+        const float R = 22f;
+        var face = BossFace(_bossFaceId);
+        float p = (float)_bossPurify;                      // 0=穢れたまま 1=浄化しきり
+        float pe = p * p * (3f - 2f * p);                  // smoothstep（剥がれ際を滑らかに）
+
+        // 背面グロウ。穢れの間は脈打ち、浄化で色が抜けて広がる。
+        Color glowCol = UiKit.Kegare.Lerp(UiKit.PurifyHi, pe);
+        float pulse = 0.4f + 0.10f * Mathf.Sin((float)_t * 3.2f) * (1f - pe);
+        UiKit.RadialGlow(ci, ac, (28f + 10f * pe), glowCol, (pulse + 0.35f * pe) * ca);
+
+        if (face == null)
+        {
+            // 顔素材が無いボス（W0 ヒカゲ等）は従来どおりの無地の穢れ円。
+            ci.DrawCircle(ac, R, new Color(0.35f, 0.13f, 0.27f, ca));
+        }
+        else
+        {
+            // 顔本体。リングは穢れ色→アカウント色へ。topCrop はハブと同じ実測値＝頭が切れない。
+            Color ring = UiKit.Kegare.Lerp(BossAccent(_bossFaceId), pe);
+            UiKit.FaceAvatar(ci, ac, R, face, ring, false, BossTopCrop(_bossFaceId), ca, _t);
+            // 穢れのベール：顔の上に穢れ色を被せて血の気を落とす。浄化で引いていく。
+            //   濃さは 0.38。実測（2026-09-17 スクショ）で 0.52 だと髪の暗いレイ／こはるが
+            //   シルエットに潰れて誰か判らなくなった。顔が判る／でも明らかに病んでいる、の境目がここ。
+            float veil = 0.38f * (1f - pe);
+            if (veil > 0.002f) ci.DrawCircle(ac, R, new Color(0.34f, 0.07f, 0.26f, veil * ca));
+            // 浄化しきった瞬間の白い抜け（顔が晴れる一拍）。中盤で最大、終わりに消える。
+            float flash = Mathf.Sin(pe * Mathf.Pi);
+            if (flash > 0.01f) ci.DrawCircle(ac, R, new Color(UiKit.PurifyHi, 0.40f * flash * ca));
+        }
+
+        // 認証バッジ（右下）。顔と重なる位置だが X の実物と同じ置き方で、r=9 は顔の縁にかかるだけ。
+        //   下敷きを一段暗く敷いてから穢れ色→浄化色の丸を置き、✓ が顔の柄に埋もれないようにする。
+        Vector2 bc = ac + new Vector2(15, 15);
+        ci.DrawCircle(bc, 10.5f, new Color(0.07f, 0.05f, 0.10f, 0.9f * ca));
+        ci.DrawCircle(bc, 9f, UiKit.Kegare.Lerp(UiKit.Purify, pe) with { A = ca });
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 11, ac.Y + 6), "✓", 11, UiKit.White with { A = ca });
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
@@ -1776,6 +1930,7 @@ public partial class Hud : CanvasLayer
     {
         if (_epic) { DrawEpicBanner(ci); return; }
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
+        if (_bannerRewardLife || _bannerRewardBomb) { DrawRewardBanner(ci, a); return; }
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(Field.DCenterX - w / 2f, 300), _bannerText, UiKit.FontDisplay, new Color(UiKit.Light, a),
             HorizontalAlignment.Left, -1);
@@ -1810,6 +1965,34 @@ public partial class Hud : CanvasLayer
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 506), note, UiKit.FontSmall, new Color(UiKit.Text3, a),
                     HorizontalAlignment.Center, Field.DWidth);
             }
+        }
+    }
+
+    // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1」の汎用記号をやめ、
+    //   サイドパネルの LIFE/BOMB 列と同じ絵（キャラの核マーク・ボム印）に "+1" を添えて横に並べる。
+    //   ♥は4キャラ共通で「誰の何が増えたか」が伝わらないのが差し替えの理由。
+    //   位置は通常バナーと同じ y=300 帯（盤面中央）。アイコン48px＋"+1"を1組として中央寄せ。
+    private void DrawRewardBanner(HudCanvas ci, float a)
+    {
+        const float Icon = 48f, Gap = 10f, Pair = 28f;  // 絵の辺長／絵と文字の間／組と組の間
+        var marks = new System.Collections.Generic.List<Texture2D>();
+        if (_bannerRewardLife && _game != null) marks.Add(_lifeMarks[_game.SelectedJob]);
+        if (_bannerRewardBomb && _bombMark != null) marks.Add(_bombMark);
+        if (marks.Count == 0) return;
+
+        float plusW = UiKit.TextW(UiKit.ZenBlack, "+1", UiKit.FontDisplay);
+        float total = marks.Count * (Icon + Gap + plusW) + (marks.Count - 1) * Pair;
+        float x = Field.DCenterX - total / 2f, cy = 300f + Icon / 2f;
+        foreach (var tex in marks)
+        {
+            var size = tex.GetSize();
+            size *= Icon / Mathf.Max(size.X, size.Y);   // 長辺を Icon に合わせる（縦横比は保つ）
+            ci.DrawTextureRect(tex, new Rect2(new Vector2(x + (Icon - size.X) / 2f, cy - size.Y / 2f), size),
+                false, new Color(1, 1, 1, a));
+            x += Icon + Gap;
+            UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, 300f), "+1", UiKit.FontDisplay, new Color(UiKit.Light, a),
+                HorizontalAlignment.Left, -1);
+            x += plusW + Pair;
         }
     }
 

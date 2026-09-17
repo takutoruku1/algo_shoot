@@ -1,17 +1,18 @@
 using Godot;
 
 // PauseMenu : 全画面共通のポーズメニュー（オートロード /root/PauseMenu）。
-//   Esc で開き、ツリーをポーズして**二段構成**のメニューを出す（2026-09-07。旧版は13行を一度に並べていた）。
-//     一段目: つづける ／ このステージ ▸ ／ 設定とデータ ▸
-//     二段目: このステージ＝さいしょからやりなおす・会話ログ・ハブへもどる
-//             設定とデータ＝音量3・ボタン表記・あそびかた・スロット1..3にセーブ・タイトルへ
-//   二段目からは X／右クリック／Esc で一段目へ戻り、Esc は一段目でだけ閉じる。
-//   セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない。
-//   2026-09-14: ユーザー実機指摘「ステージを選択する画面でメニューが開けない」「基本的にどこの画面でも
-//     ESC のメニューは開けるように」。ハブ/ショップ/記録/難易度選択/トレーニングでも開くようにした。
-//     Esc がそれらの画面の「もどる」を兼ねていた衝突は、各画面から Esc を外して X／パッドB／右クリック
-//     だけを「もどる」に残すことで解消した（Esc＝どこでもメニュー、X＝ひとつ戻る、に役割を割った）。
-//     ステージ外では一段目の「このステージ ▸」を隠す（TopRowsFor 参照）＝意味のない行を見せない。
+//   Esc で開き、ツリーをポーズして**1枚のダイアログ**を出す。
+//   2026-09-17 ユーザー指示で作り直した（旧版は Top/Stage/Config の三段ページ構成）。
+//     トップ（ステージ中）: 離脱／リスタート／ログ／セーブ／ロード／タイトルへ
+//       ・離脱／リスタートは破壊的なので確認ダイアログ（はい/いいえ）を挟む。
+//       ・セーブ／ロードはスロット選択ダイアログを挟む（見た目・語彙はタイトルの「つづきから」に揃える）。
+//     「つづける」行は廃止＝下部中央の「閉じる」ボタンへ。
+//     「このステージ」の階層は廃止＝中身をトップへ展開した。
+//     「ボタン表記」「あそびかた」は廃止。
+//     設定（音量・画面モード）は右上の歯車ボタンから開く別ページへ移した。
+//   ステージ外（ハブ/ショップ/記録/難易度選択/トレーニング）では 離脱／リスタート／ログ が意味を持たない
+//     ので出さない（セーブ／ロード／タイトルへ の3行＋閉じる＋歯車だけ）。RetryEnabled 参照。
+//   セーブは手動・スロット制（自動セーブは別枠）＝ここでしか手動保存されない。
 //   タイトル/設定/あそびかた/カットシーンは対象外（Esc が既に「閉じる/戻る」の画面＝そちらを優先）。
 //   開ける画面では右下に「Esc メニュー」ヒントを常時表示する。
 //   --qa / --demo では無効（自動プレイのポーズ事故を防ぐ）。
@@ -22,98 +23,108 @@ public partial class PauseMenu : CanvasLayer
     private bool _open;
     private int _sel;
     private bool _navHeld, _lrHeld, _zHeld, _escHeld, _backHeld;
-    private int _pageFrom;   // 二段目へ入るとき一段目のどの行から来たか（戻り先）
     private double _savedToast;
     private int _savedSlot;
     private bool _autoplay;
-    // 「ハブへもどる」の2段階確認。1回目のZ/クリックで true になり、同じ行をもう一度
-    // 選ぶまで実行しない（誤爆防止）。選択行を離れる／メニューを閉じるとリセットする。
-    private bool _hubConfirm;
+    // デバッグ限定：--pause-shot <top|confirm|save|load|settings> で、その状態を開いたところから始める
+    //   （スクショ用。Hub の --hub-detail / --hub-job と同じ趣旨で、開くだけで何も確定しない）。
+    private string? _shotState;
 
-    // ───────── 行モデル（2026-09-07: 二段構成へ）─────────
-    // ユーザー実機指摘「メニューの情報量が多いから、三つぐらいから選択したら次のメニューが開ける
-    // ような感じにして」。旧版は音量3行＋操作表示1行＋アクション9行＝13行が一度に並んでいた。
-    //
-    // 一段目は3つだけ:
-    //   つづける         … 即閉じる（いちばん多い用事なので、二段目を挟まず1操作で終わる）
-    //   このステージ     … いま遊んでいる面に対する操作（やりなおす／会話ログ／ハブへもどる）
-    //   設定とデータ     … ラン外の話（音量・ボタン表記・あそびかた・セーブ・タイトルへ）
-    // 分類の根拠: 「今すぐ戻る」「この面をどうするか」「ゲーム全体の設定と出入り」の3つが、
-    //   実際の項目を並べたときに自然に割れる境目だった（セーブはランを跨ぐ恒久データなので設定側）。
-    //
-    // 二段目からは X／右クリック／Esc で一段目へ戻る。Esc は一段目でだけメニューを閉じる。
-    public enum Page { Top, Stage, Config }
+    // ───────── ページ ─────────
+    //   Top      … 項目リスト＋閉じる＋歯車。
+    //   Settings … 歯車の遷移先（音量3・画面モード）。X／右クリック／Esc でトップへ戻る。
+    public enum Page { Top, Settings }
     private Page _page = Page.Top;
+    public Page CurrentPage => _page;
 
-    // 一段目の3行。Act は「即実行するか、どの二段目を開くか」。
-    public static readonly string[] TopRows = { "つづける", "このステージ", "設定とデータ" };
-    // ステージ外（ハブ/ショップ/記録/トレーニング）版。「このステージ ▸」は中身が全部 RetryEnabled=false で
-    // グレーアウトするだけの行なので、そもそも出さない（選べない行を見せるより、無い方が分かりやすい）。
-    public static readonly string[] TopRowsOutside = { "つづける", "設定とデータ" };
+    // ───────── トップの項目 ─────────
+    //   Act は「何をする行か」。行の並びは列挙順そのままで、ステージ外では Leave/Restart/Log が落ちる。
+    public enum Act { Leave, Restart, Log, Save, Load, Title }
+    private static readonly (Act act, string label)[] AllRows =
+    {
+        (Act.Leave,   "離脱"),
+        (Act.Restart, "リスタート"),
+        (Act.Log,     "ログ"),
+        (Act.Save,    "セーブ"),
+        (Act.Load,    "ロード"),
+        (Act.Title,   "タイトルへ"),
+    };
+    // ステージ外で出す行（＝ラン中にしか意味が無い3つを外したもの）。
+    private static readonly (Act act, string label)[] OutsideRows =
+        System.Array.FindAll(AllRows, e => e.act is Act.Save or Act.Load or Act.Title);
 
-    // いま開いている画面の一段目。行数と、決定時の割り当て（Activate）が両方これに従う。
-    public string[] CurrentTopRows => RetryEnabled ? TopRows : TopRowsOutside;
-    // 一段目の行数（箱の高さ・行位置の算出に渡す。他ページでは使われない）。
-    public int TopRowCount => CurrentTopRows.Length;
+    public (Act act, string label)[] Rows => RetryEnabled ? AllRows : OutsideRows;
 
-    // 設定とデータ（二段目）の先頭に置く音量スライダー3行（←→で調整）。
-    // 設定シーンへ遷移するとステージが消えるため、ポーズ中の音量はここでインライン調整する。
+    // 項目リストの下に続く「閉じる」「歯車」も、矢印キー/パッドで選べる仮想行として扱う
+    //   ＝カーソルは 0..RowCount-1 が項目、RowCount が閉じる、RowCount+1 が歯車。
+    //   ホットスポット id もこの番号をそのまま使う（マウスとカーソルの番号体系を一本化）。
+    public int RowCount => Rows.Length;
+    public int CloseIndex => RowCount;
+    public int GearIndex => RowCount + 1;
+    private int TopSelCount => RowCount + 2;
+
+    // 設定ページの行。音量3行（←→で調整）＋画面モード1行（←→/Zで切替）。
+    //   ★ここに出すのは「実際に効く項目」だけ。Settings.cs の「解像度」は表示だけで実反映のコードが
+    //     無い（SType.Select＝Apply に case が無い）ため、ポーズの設定からは出さない。
     public static readonly (string Key, string Label)[] VolRows =
     {
         ("master", "マスター音量"),
         ("bgm",    "BGM"),
         ("se",     "効果音 (SE)"),
     };
+    // 画面モード＝Settings.cs の "mode" セグメントと同じキー・同じ値（0=ウィンドウ / 1=フルスクリーン）。
+    public static readonly string[] ScreenModes = { "ウィンドウ", "フルスクリーン" };
+    private int _screenMode;
+    public int ScreenMode => _screenMode;
+    private int SettingsRowCount => VolRows.Length + 1;
+    private bool IsVolRow(int sel) => _page == Page.Settings && sel < VolRows.Length;
+    private bool IsScreenRow(int sel) => _page == Page.Settings && sel == VolRows.Length;
+    public static int ScreenRowIndex => VolRows.Length;
 
-    // このステージ（二段目）のアクション。
-    //   「さいしょからやりなおす」は R 即発リトライの置き換え先（誤爆防止）＝パッドの正式なリトライ導線。
-    //   「ハブへもどる」も同じくステージ中のみ有効＝難易度を変えたいだけの離脱に、タイトル経由の
-    //   数画面戻りを強いない導線（誤爆防止に2段階Z確認、Choose() 参照）。
-    public static readonly string[] StageRows = { "さいしょからやりなおす", "会話ログ", "ハブへもどる" };
-    public const int StageRetry = 0, StageBacklog = 1, StageHub = 2;
+    // ───────── 確認ダイアログ（はい/いいえ）─────────
+    //   旧版の「同じ行を2回押す」方式（_hubConfirm）を廃止した新規の共通実装。
+    //   ChoiceOverlay は沈黙で自動決定する（＝放っておくと勝手に選ばれる）仕様なので確認には使えない。
+    //   キーボード（←→/↑↓ + Z）・パッド（十字/スティック + A）・マウス（ホバー＋クリック）で操作でき、
+    //   既定は「いいえ」。X／パッドB／Esc／右クリックで閉じる＝キャンセル。
+    private bool _confirmOpen;
+    private string _confirmText = "";
+    private Act _confirmAct;
+    private bool _confirmYes;   // false = いいえ（既定）
+    public bool ConfirmOpen => _confirmOpen;
+    public string ConfirmText => _confirmText;
+    public bool ConfirmYes => _confirmYes;
 
-    // 設定とデータ（二段目）の、音量3行＋操作表示1行より下のアクション。
-    public static readonly string[] ConfigRows =
-        { "あそびかた", "スロット1にセーブ", "スロット2にセーブ", "スロット3にセーブ", "タイトルへ" };
-    public const int CfgHowTo = 0, CfgSlot1 = 1, CfgTitle = 4;
-
-    // ページごとの行数。設定は 音量3 + 操作表示1 + ConfigRows。
-    private int RowCount => _page switch
+    private void OpenConfirm(Act act, string text)
     {
-        Page.Top => CurrentTopRows.Length,
-        Page.Stage => StageRows.Length,
-        _ => VolRows.Length + 1 + ConfigRows.Length,
-    };
-    // 設定ページの中だけ、先頭が音量／その次が操作表示／以降がアクション。
-    private bool IsVolRow(int sel) => _page == Page.Config && sel < VolRows.Length;
-    private bool IsDisplayRow(int sel) => _page == Page.Config && sel == VolRows.Length;
-    private int ConfigActionIndex(int sel) => sel - VolRows.Length - 1;
-    public static int DisplayRowGlobalIndex => VolRows.Length;         // 描画用：操作表示行のグローバル行番号
-    public Page CurrentPage => _page;
-
-    // 操作表示モードの循環。★パッド表記の Xbox 一本化（2026-09-13）で PlayStation は選択肢から外した。
-    //   残る2値は「何も触っていない起動直後にどちらの表記で出すか」の初期値だけを決める
-    //   （触った瞬間から Pad.PollDevice / PollMouse が直近デバイスへ自動追従する）。
-    private static readonly Pad.DisplayMode[] DispCycle =
-        { Pad.DisplayMode.Keyboard, Pad.DisplayMode.PadXbox };
-
-    public static string DisplayLabel(Pad.DisplayMode m) => m switch
-    {
-        Pad.DisplayMode.Keyboard       => "キーボード",
-        Pad.DisplayMode.PadPlayStation => "コントローラー", // 旧セーブ由来の値。表記は Xbox 基準に合流
-        Pad.DisplayMode.PadXbox        => "コントローラー",
-        _                              => "自動",
-    };
-    public string DisplayValue => DisplayLabel(Pad.Display);
-
-    // ←→/Z で操作表示モードを循環し、即反映＋保存（Pad 側がファイルへマージ書き込み）。
-    private void CycleDisplay(int dir)
-    {
-        int idx = System.Array.IndexOf(DispCycle, Pad.Display);
-        idx = idx < 0 ? 0 : (idx + dir + DispCycle.Length) % DispCycle.Length; // Auto は KB から
-        Pad.SetDisplayAndSave(DispCycle[idx]);
-        Audio.Instance?.PlayUiMove();
+        Audio.Instance?.PlayUiMove();   // まだ何も起きていない＝移動音
+        _confirmOpen = true; _confirmAct = act; _confirmText = text; _confirmYes = false;
     }
+    private void CloseConfirm() { _confirmOpen = false; }
+
+    // ───────── スロット選択ダイアログ（セーブ／ロード）─────────
+    //   見た目と語彙はタイトルの「つづきから」（TitleMenu.DrawSlotPicker）に合わせる
+    //   ＝行ラベル「スロット N」／右に「セーブあり」「空き」。
+    //   セーブは空スロットも選べる（新規保存）。ロードは空スロットを選べない（拒否音）。
+    //   オートセーブ枠(スロット0)は出さない：ユーザー指示が「3スロット」なので手動枠の1..3だけ扱う。
+    private bool _slotOpen;
+    private bool _slotForSave;  // true=セーブ / false=ロード
+    private int _slotSel;       // 0..SlotCount-1 が スロット1..3、SlotCount が「閉じる」
+    public bool SlotOpen => _slotOpen;
+    public bool SlotForSave => _slotForSave;
+    public int SlotSel => _slotSel;
+    public int SlotCloseIndex => GameManager.SlotCount;
+
+    private void OpenSlots(bool forSave)
+    {
+        Audio.Instance?.PlayUiMove();
+        _slotOpen = true; _slotForSave = forSave;
+        // カーソルの初期位置：セーブは先頭、ロードは最初の「セーブあり」に置く（空へ置いても押せない）。
+        _slotSel = 0;
+        if (!forSave)
+            for (int i = 0; i < GameManager.SlotCount; i++)
+                if (SlotFilled(i + 1)) { _slotSel = i; break; }
+    }
+    private void CloseSlots() { _slotOpen = false; }
 
     // 表示用にキャッシュした音量（0..100）。Open 時に保存値から読む。
     private readonly float[] _vol = new float[VolRows.Length];
@@ -123,14 +134,36 @@ public partial class PauseMenu : CanvasLayer
         ProcessMode = ProcessModeEnum.Always; // ポーズ中も動く
         Layer = 100;                          // 最前面
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
+        var args = OS.GetCmdlineUserArgs();
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--demo" || args[i] == "--qa") _autoplay = true;
+            else if (args[i] == "--pause-shot" && i + 1 < args.Length) _shotState = args[i + 1];
+        }
         _canvas = new PauseCanvas { Menu = this };
         AddChild(_canvas);
     }
 
+    // デバッグ限定：--pause-shot の状態へ飛ぶ（最初の _Process で1回だけ）。撮影用なので何も実行しない。
+    private void ApplyShotState()
+    {
+        string s = _shotState!;
+        _shotState = null;
+        if (!CanOpenHere()) return;
+        Open();
+        // ツリーポーズは掛けたままにしない：Shot オートロードは Inherit で止まってしまい撮影できない。
+        GetTree().Paused = false;
+        switch (s)
+        {
+            case "confirm":  _sel = 0; OpenConfirm(Act.Leave, "本当に離脱しますか？"); break;
+            case "save":     OpenSlots(forSave: true); break;
+            case "load":     OpenSlots(forSave: false); break;
+            case "settings": _page = Page.Settings; _sel = 0; break;
+        }
+    }
+
     // Hub/ショップ/難易度選択/記録/トレーニング＝ランの外側にある非戦闘画面。
-    // メニューは開くが「このステージ ▸」（やりなおす／会話ログ／ハブへもどる）は意味を持たない。
+    // メニューは開くが 離脱／リスタート／ログ は意味を持たない。
     // （ShopTutorial は "Shop" の部分一致で自動的に含まれる）。RetryEnabled と揃えること。
     private static bool IsNonCombatMenuScreen(string path) =>
         path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect")
@@ -138,7 +171,7 @@ public partial class PauseMenu : CanvasLayer
 
     // Esc でメニューを開ける画面か。除外するのは「Esc が既に閉じる/戻るを意味する画面」だけ:
     //   TitleMenu … ここがルート（戻り先が無い＝メニューの「タイトルへ」も無意味）
-    //   Settings  … Esc＝保存してタイトルへ戻る。音量もボタン表記もこの画面自体が持つ＝重ねる意味が無い
+    //   Settings  … Esc＝保存してタイトルへ戻る。音量も画面モードもこの画面自体が持つ＝重ねる意味が無い
     //   カットシーン(Prologue/Final/Epilogue/Credits) … Start/R 長押しのやりなおし導線が既にあり、
     //     BGM とフェーズタイマーが進行中。ツリーポーズを挟むと演出の整合を取り直す必要があるので触らない。
     // 上に重なるオーバーレイ（あそびかた/会話ログ）は _Process 側の overlayOpen で別途止めている。
@@ -168,7 +201,7 @@ public partial class PauseMenu : CanvasLayer
 
     public override void _Process(double delta)
     {
-        // 直近デバイスの追跡（ボタン表記の動的 KB/パッド切替）。ゲーム中は Player も呼ぶが、
+        // 直近デバイスの追跡（ボタンプロンプト表記の動的 KB/パッド切替）。ゲーム中は Player も呼ぶが、
         // メニュー/ハブ/ショップ/カットシーン等の非戦闘画面は常駐のここが担う。
         Pad.PollDevice();
         // マウス座標・ボタンエッジの更新＋ホイール蓄積のフレーム確定（全画面で毎フレーム）。
@@ -179,9 +212,10 @@ public partial class PauseMenu : CanvasLayer
         //   （戦闘中は Player が先に消費するので、この呼び出しは何も奪わない）。
         if (GetTree().Paused) Pad.ConsumeWheelTurn();
 
+        if (_shotState != null) { ApplyShotState(); _canvas.QueueRedraw(); return; }
         if (_autoplay) return;
         if (_savedToast > 0) _savedToast -= delta;
-        // 操作説明・会話ログのオーバーレイが上に開いている間／閉じた直後フレーム(UiBlocked)は、
+        // 会話ログのオーバーレイが上に開いている間／閉じた直後フレーム(UiBlocked)は、
         // ポーズメニュー側の入力を止める（Esc/Z の二重処理でメニューまで連鎖して閉じるのを防ぐ）。
         // held は「既押し」扱いにして、同じ押下がエッジとして立たないよう食っておく。
         bool overlayOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
@@ -202,54 +236,231 @@ public partial class PauseMenu : CanvasLayer
 
         if (!_open)
         {
-            if (escEdge && CanOpenHere()) Open();
+            // 右下ヒントの左クリック。非戦闘画面かつ会話中でないときだけ受ける（HintClickable のコメント参照）。
+            if ((escEdge && CanOpenHere()) || HintClicked()) Open();
             _canvas.QueueRedraw(); // 常時ヒントの更新
             return;
         }
 
-        // 「ハブへもどる」の2段階確認：選択行を離れたら（矢印/マウス移動/クリック）リセットする。
-        int selBefore = _sel;
+        // 共通の入力エッジ（どのページ／どのダイアログでも同じ割り当てで読む）。
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_backHeld; _backHeld = back;
+        bool cancel = backEdge || escEdge || Pad.MouseRightClick();
 
-        // マウス：ポーズが開いている間だけホットスポットを登録する（＝下の画面はツリーポーズで停止中＝
-        // 唯一の登録者。閉じている時は BeginHotspots を呼ばない＝下の画面のクリック判定に混線しない）。
+        // 上に重ねたダイアログが優先（確認 → スロット選択 → ページ本体）。
+        if (_confirmOpen) { ProcessConfirm(zEdge, cancel); _canvas.QueueRedraw(); return; }
+        if (_slotOpen) { ProcessSlots(zEdge, cancel); _canvas.QueueRedraw(); return; }
+        if (_page == Page.Settings) ProcessSettings(zEdge, cancel);
+        else ProcessTop(zEdge, cancel);
+
+        _canvas.QueueRedraw();
+    }
+
+    // ───────── トップ ─────────
+    private void ProcessTop(bool zEdge, bool cancel)
+    {
+        // マウス：項目・閉じる・歯車をまとめて登録（id＝カーソル番号）。
+        //   ポーズが開いている間だけホットスポットを登録する（＝下の画面はツリーポーズで停止中＝
+        //   唯一の登録者。閉じている時は BeginHotspots を呼ばない＝下の画面のクリック判定に混線しない）。
         UiKit.BeginHotspots(Pad.MousePos());
-        for (int i = 0; i < RowCount; i++) UiKit.Hotspot(RowRect(_page, i, TopRowCount), i);
+        for (int i = 0; i < RowCount; i++) UiKit.Hotspot(RowRect(i, RowCount), i);
+        UiKit.Hotspot(CloseRect(RowCount), CloseIndex);
+        UiKit.Hotspot(GearRect(RowCount), GearIndex);
         int hov = UiKit.HoveredId();
         if (Pad.UsingMouse && hov >= 0 && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
-        bool click = Pad.MouseClick();
-        int clk = UiKit.ClickedId(click);
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+
+        // ↑↓：項目 → 閉じる → 歯車 の順に巡る（歯車も矢印キー/パッドで選べる）。
+        bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
+        if ((up || down) && !_navHeld)
+        {
+            int n = TopSelCount;
+            _sel = (_sel + (up ? n - 1 : 1)) % n;
+            Audio.Instance?.PlayUiMove();
+        }
+        _navHeld = up || down;
+        // ←→：閉じる ⇄ 歯車（下段の2ボタンは横並びなので、横キーでも行き来できると素直）。
+        bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+        if ((left || right) && !_lrHeld && _sel >= CloseIndex)
+        {
+            _sel = _sel == CloseIndex ? GearIndex : CloseIndex;
+            Audio.Instance?.PlayUiMove();
+        }
+        _lrHeld = left || right;
+
+        if (clk >= 0) { _sel = clk; Activate(clk); return; }
+        if (zEdge) { Activate(_sel); return; }
+        if (cancel) { Audio.Instance?.PlayUiCancel(); Close(); }
+    }
+
+    // 行（または閉じる／歯車）を決定する。破壊的なものは確認ダイアログを、
+    // セーブ/ロードはスロット選択ダイアログを挟む。
+    private void Activate(int sel)
+    {
+        _sel = sel;
+        if (sel == CloseIndex) { Audio.Instance?.PlayUiConfirm(); Close(); return; }
+        if (sel == GearIndex) { Audio.Instance?.PlayUiMove(); _page = Page.Settings; _sel = 0; return; }
+        if (sel < 0 || sel >= RowCount) return;
+
+        switch (Rows[sel].act)
+        {
+            case Act.Leave:
+                // 離脱＝このステージを抜けてハブへ。稼いだぶんを捨てるので確認を挟む。
+                OpenConfirm(Act.Leave, "本当に離脱しますか？");
+                return;
+            case Act.Restart:
+                // リスタート＝ステージの最初から。進捗が消えるので確認を挟む。
+                OpenConfirm(Act.Restart, "本当に最初からでよろしいですか？");
+                return;
+            case Act.Log:
+                // ログ：ポーズを保ったままバックログ・オーバーレイを重ねる（閉じたらポーズへ戻る）。
+                Audio.Instance?.PlayUiConfirm();
+                GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
+                return;
+            case Act.Save:
+                // トレーニング中は試用の強化がディスクへ漏れるので保存させない（グレーアウト行）。
+                if (!SaveEnabled) { Audio.Instance?.PlayUiDeny(); return; }
+                OpenSlots(forSave: true);
+                return;
+            case Act.Load:
+                OpenSlots(forSave: false);
+                return;
+            default:
+                Audio.Instance?.PlayUiConfirm();
+                _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); // タイトルへ（離脱時オートセーブ）
+                return;
+        }
+    }
+
+    // ───────── 確認ダイアログ ─────────
+    private void ProcessConfirm(bool zEdge, bool cancel)
+    {
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(ConfirmBtnRect(false), 0); // いいえ
+        UiKit.Hotspot(ConfirmBtnRect(true), 1);  // はい
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && (hov == 1) != _confirmYes) { _confirmYes = hov == 1; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+
+        // 左右（横並びの2ボタン）でも上下でも行き来できる＝どのキーでも迷わない。
+        bool nav = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_right")
+                || Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_down");
+        if (nav && !_navHeld) { _confirmYes = !_confirmYes; Audio.Instance?.PlayUiMove(); }
+        _navHeld = nav;
+        _lrHeld = nav;
+
+        if (clk >= 0) { _confirmYes = clk == 1; RunConfirm(); return; }
+        if (zEdge) { RunConfirm(); return; }
+        if (cancel) { Audio.Instance?.PlayUiCancel(); CloseConfirm(); }
+    }
+
+    // 確認の決定。いいえ＝閉じるだけ。はい＝そのアクションを実行する。
+    private void RunConfirm()
+    {
+        if (!_confirmYes) { Audio.Instance?.PlayUiCancel(); CloseConfirm(); return; }
+        var act = _confirmAct;
+        CloseConfirm();
+        Audio.Instance?.PlayUiConfirm();
+        if (act == Act.Restart)
+        {
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Close();
+            GetTree().ReloadCurrentScene();
+        }
+        else // Act.Leave ＝ハブへもどる。GameManager の抜け処理と同型（AutoSave→DespawnAll→Hub.tscn）。
+        {
+            _game?.AutoSave();
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Close();
+            GetTree().ChangeSceneToFile("res://Hub.tscn");
+        }
+    }
+
+    // ───────── スロット選択ダイアログ ─────────
+    private void ProcessSlots(bool zEdge, bool cancel)
+    {
+        int n = GameManager.SlotCount;
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < n; i++) UiKit.Hotspot(SlotRowRect(i), i);
+        UiKit.Hotspot(SlotCloseRect(), SlotCloseIndex);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov < n && hov != _slotSel) { _slotSel = hov; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
 
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         if ((up || down) && !_navHeld)
         {
-            if (up) _sel = (_sel + RowCount - 1) % RowCount;
-            if (down) _sel = (_sel + 1) % RowCount;
+            _slotSel = (_slotSel + (up ? n : 1)) % (n + 1); // n（閉じる）も巡回に含める
             Audio.Instance?.PlayUiMove();
         }
         _navHeld = up || down;
 
-        // ←→：音量行のときだけ ±5 調整＝即バス反映＋保存（SEは鳴らして耳で確認）。
+        if (clk == SlotCloseIndex) { Audio.Instance?.PlayUiCancel(); CloseSlots(); return; }
+        if (clk >= 0) _slotSel = clk;
+        if (zEdge || clk >= 0)
+        {
+            if (_slotSel == SlotCloseIndex) { Audio.Instance?.PlayUiCancel(); CloseSlots(); return; }
+            RunSlot(_slotSel + 1); // 表示のスロット1..3 ＝ GameManager のスロット番号と同じ
+            return;
+        }
+        if (cancel) { Audio.Instance?.PlayUiCancel(); CloseSlots(); }
+    }
+
+    private void RunSlot(int slot)
+    {
+        if (_slotForSave)
+        {
+            Audio.Instance?.PlayUiConfirm();
+            _game?.SaveToSlot(slot);             // スロットへ保存（上書き）
+            _savedSlot = slot; _savedToast = 1.8;
+            CloseSlots();
+            return;
+        }
+        // ロード：空スロットは選べない（タイトルの「つづきから」と同じ拒否音）。
+        if (!SlotFilled(slot)) { Audio.Instance?.PlayUiDeny(); return; }
+        Audio.Instance?.PlayUiConfirm();
+        CloseSlots();
+        // ロード後の遷移はタイトルの「つづきから」と同じ作法＝LoadFromSlot してハブへ入る
+        //   （どのステージの途中から開いても、読み込んだセーブの続きはハブから始まる）。
+        if (_game?.LoadFromSlot(slot) == true)
+        {
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Close();
+            GetTree().ChangeSceneToFile("res://Hub.tscn");
+        }
+    }
+
+    // ───────── 設定ページ（歯車の遷移先）─────────
+    private void ProcessSettings(bool zEdge, bool cancel)
+    {
+        int n = SettingsRowCount;
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < n; i++) UiKit.Hotspot(SettingsRowRect(i), i);
+        UiKit.Hotspot(SettingsBackRect(), n);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+
+        bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
+        if ((up || down) && !_navHeld)
+        {
+            _sel = (_sel + (up ? n : 1)) % (n + 1); // n＝「もどる」ボタン
+            Audio.Instance?.PlayUiMove();
+        }
+        _navHeld = up || down;
+
+        // ←→：音量は ±5／画面モードは循環。どちらも即反映＋保存。
         bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
         if ((left || right) && !_lrHeld)
         {
-            if (IsVolRow(_sel))
-            {
-                _vol[_sel] = Mathf.Clamp(_vol[_sel] + (right ? 5f : -5f), 0f, 100f);
-                AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
-                Audio.Instance?.PlayUiMove();
-            }
-            else if (IsDisplayRow(_sel)) CycleDisplay(right ? 1 : -1);
+            if (IsVolRow(_sel)) SetVol(_sel, _vol[_sel] + (right ? 5f : -5f));
+            else if (IsScreenRow(_sel)) CycleScreenMode(right ? 1 : -1);
         }
         _lrHeld = left || right;
 
-        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
-        bool zEdge = z && !_zHeld; _zHeld = z;
-
-        // もどる（二段目→一段目）。X／パッドB＝他画面の「もどる」と同じ割り当て。
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
-        bool backEdge = back && !_backHeld; _backHeld = back;
-
-        // マウスクリック：クリック先の行種別で処理する（音量＝バー位置で値設定／操作表示＝循環／アクション＝決定）。
+        if (clk == n) { Audio.Instance?.PlayUiCancel(); BackToTop(); return; }
         if (clk >= 0)
         {
             _sel = clk;
@@ -257,93 +468,148 @@ public partial class PauseMenu : CanvasLayer
             {
                 // バーのクリック位置(X)で音量を直接設定（5刻みスナップ＝KB操作と粒度を揃える）。
                 var (barX, barW) = VolBarMetrics();
-                float ratio = Mathf.Clamp((Pad.MousePos().X - barX) / barW, 0f, 1f);
-                _vol[clk] = Mathf.RoundToInt(ratio * 20f) * 5f;
-                AudioConfig.Set(VolRows[clk].Key, _vol[clk]);
-                Audio.Instance?.PlayUiMove();
+                SetVol(clk, Mathf.RoundToInt(Mathf.Clamp((Pad.MousePos().X - barX) / barW, 0f, 1f) * 20f) * 5f);
             }
-            else if (IsDisplayRow(clk)) CycleDisplay(1);
-            else Activate(clk);
+            else if (IsScreenRow(clk)) CycleScreenMode(1);
+            return;
         }
-        // 音量行で Z＝ミュート/復帰のトグル（0 ⇄ 既定相当）。アクション行は従来どおり決定。
-        else if (zEdge && IsVolRow(_sel))
+        if (zEdge)
         {
-            _vol[_sel] = _vol[_sel] > 0.5f ? 0f : 80f;
-            AudioConfig.Set(VolRows[_sel].Key, _vol[_sel]);
-            Audio.Instance?.PlayUiConfirm();
+            if (_sel == n) { Audio.Instance?.PlayUiCancel(); BackToTop(); return; }
+            // 音量行で Z＝ミュート/復帰のトグル（0 ⇄ 既定相当）。
+            if (IsVolRow(_sel)) { SetVol(_sel, _vol[_sel] > 0.5f ? 0f : 80f); Audio.Instance?.PlayUiConfirm(); }
+            else if (IsScreenRow(_sel)) CycleScreenMode(1);
+            return;
         }
-        else if (zEdge && IsDisplayRow(_sel)) CycleDisplay(1); // Z でも前へ循環
-        else if (zEdge) Activate(_sel);
-        // 戻る／閉じる：二段目では一段目へ戻り、一段目でだけ閉じる（＝つづける）。
-        //   X も受ける＝他の画面（Hub/Shop/DiffSelect）の「もどる」と同じ指の動きにする。
-        else if (escEdge || backEdge || Pad.MouseRightClick())
-        {
-            Audio.Instance?.PlayUiCancel();
-            if (_page == Page.Top) Close();
-            else { _page = Page.Top; _sel = _pageFrom; _hubConfirm = false; }
-        }
-
-        if (_sel != selBefore) _hubConfirm = false; // 別の行へ移ったら確認状態を解除（誤爆防止）
-
-        _canvas.QueueRedraw();
+        if (cancel) { Audio.Instance?.PlayUiCancel(); BackToTop(); }
     }
 
-    // ── マウス用ジオメトリ（PauseCanvas.DrawPauseMenu と同一式。ホットスポット計算に共用）──
-    //   ダイアログ box: w=460、高さはページごと（一段目は数行しかないので低く、設定は全部入るぶん高い）。
-    //   画面中央に置く（x/y は幅高から算出）。
-    //   rows は一段目の行数（ステージ中=3／ステージ外=2）。行が減ったぶん箱も縮めて中央に収める。
-    public static (float x, float y, float w, float h) BoxMetrics(Page p, int rows = 3)
+    // 設定 → トップ。カーソルは歯車（そこから来た場所）へ戻す。
+    private void BackToTop() { _page = Page.Top; _sel = GearIndex; }
+
+    private void SetVol(int i, float v)
     {
-        float W = UiKit.DesignW, H = UiKit.DesignH;
-        float w = 460;
-        float h = p switch
-        {
-            Page.Top => 268 - (3 - rows) * 44f, // 見出し＋行＋フッタ（1行=44）
-            Page.Stage => 268,                   // 3行固定
-            _ => 560,                            // 設定＝音量3 + 操作表示1 + アクション5
-        };
-        float x = (W - w) / 2f, y = (H - h) / 2f;
-        return (x, y, w, h);
+        _vol[i] = Mathf.Clamp(v, 0f, 100f);
+        AudioConfig.Set(VolRows[i].Key, _vol[i]);
+        Audio.Instance?.PlayUiMove();   // SE は鳴らして耳で確認する
     }
 
-    // ページ内の行 index i の当たり矩形。
-    //   一段目／このステージ: 見出しの下からアクション行が並ぶだけ。
-    //   設定とデータ: 音量3行 → 操作表示1行 → アクション行、の従来の積み方。
-    public static Rect2 RowRect(Page p, int i, int rows = 3)
+    // 画面モードを循環＝DisplayServer へ即反映し、settings.json の "mode" へも書く
+    // （設定画面 Settings.cs が同じキーを読む＝どちらから変えても一つの真実になる）。
+    private void CycleScreenMode(int dir)
     {
-        var (x, y, w, _) = BoxMetrics(p, rows);
-        if (p != Page.Config)
-        {
-            float top0 = y + 78f, rowH0 = 44f;
-            return new Rect2(x + 22, top0 + i * rowH0, w - 44, 36);
-        }
-        int nVol = VolRows.Length;
-        float volTop = y + 80, volRowH = 38;
-        if (i < nVol) return new Rect2(x + 22, volTop + i * volRowH, w - 44, 34);
-        float dispLabelY = volTop + nVol * volRowH + 8f;
-        float dispRowY = dispLabelY + 18f;
-        if (i == nVol) return new Rect2(x + 22, dispRowY, w - 44, 34); // 操作表示行
-        float divY = dispRowY + 34f + 8f;
-        float top = divY + 16f, actRowH = 40f;
-        int ai = i - nVol - 1;
-        return new Rect2(x + 22, top + ai * actRowH, w - 44, 36);
+        _screenMode = (_screenMode + dir + ScreenModes.Length) % ScreenModes.Length;
+        DisplayServer.WindowSetMode(_screenMode == 1
+            ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
+        AudioConfig.SetInt("mode", _screenMode);
+        Audio.Instance?.PlayUiMove();
     }
 
-    // 音量行のバー（トラック）矩形の X 起点と幅（DrawPauseMenu と同一算出）。設定ページ専用。
+    // ── マウス用ジオメトリ（PauseCanvas の描画と同一式。ホットスポット計算に共用）──
+    //   ダイアログ box: w=460。高さは「見出し＋行＋下段ボタン」。画面中央に置く。
+    public const float BoxW = 460f;
+    private const float HeadH = 78f;    // 箱の上端から1行目までの余白（見出し＋区切り線）
+    private const float RowH = 44f;     // 項目1行の送り
+    private const float FootH = 76f;    // 最終行の下から箱の下端まで（閉じるボタン帯）
+
+    public static (float x, float y, float w, float h) TopBox(int rows)
+    {
+        float h = HeadH + rows * RowH + FootH;
+        return ((UiKit.DesignW - BoxW) / 2f, (UiKit.DesignH - h) / 2f, BoxW, h);
+    }
+
+    // 設定ページの箱（音量3＋画面モード1＝4行。下段は「もどる」ボタン）。
+    public static (float x, float y, float w, float h) SettingsBox()
+    {
+        float h = HeadH + (VolRows.Length + 1) * 46f + FootH;
+        return ((UiKit.DesignW - BoxW) / 2f, (UiKit.DesignH - h) / 2f, BoxW, h);
+    }
+
+    public static Rect2 RowRect(int i, int rows)
+    {
+        var (x, y, w, _) = TopBox(rows);
+        return new Rect2(x + 22, y + HeadH + i * RowH, w - 44, 36);
+    }
+
+    // 下部中央の「閉じる」ボタン（旧「つづける」行の役）。
+    public static Rect2 CloseRect(int rows)
+    {
+        var (x, y, w, h) = TopBox(rows);
+        const float bw = 150f;
+        return new Rect2(x + (w - bw) / 2f, y + h - 56f, bw, 38f);
+    }
+
+    // 右上の歯車ボタン（設定ページへ）。見出しと同じ帯の右端に置く。
+    public static Rect2 GearRect(int rows)
+    {
+        var (x, y, w, _) = TopBox(rows);
+        return new Rect2(x + w - 52f, y + 12f, 38f, 38f);
+    }
+
+    public static Rect2 SettingsRowRect(int i)
+    {
+        var (x, y, w, _) = SettingsBox();
+        return new Rect2(x + 22, y + HeadH + i * 46f, w - 44, 38);
+    }
+
+    public static Rect2 SettingsBackRect()
+    {
+        var (x, y, w, h) = SettingsBox();
+        const float bw = 150f;
+        return new Rect2(x + (w - bw) / 2f, y + h - 56f, bw, 38f);
+    }
+
+    // 音量行のバー（トラック）矩形の X 起点と幅（描画と同一算出）。設定ページ専用。
     private static (float barX, float barW) VolBarMetrics()
     {
-        var (x, _, w, _) = BoxMetrics(Page.Config);
+        var (x, _, w, _) = SettingsBox();
         float barW = 132f, barX = x + w - barW - 64f;
         return (barX, barW);
+    }
+
+    // ── 確認ダイアログのジオメトリ（中央・横並び2ボタン）──
+    public const float ConfirmW = 420f, ConfirmH = 170f;
+    public static (float x, float y, float w, float h) ConfirmBox()
+        => ((UiKit.DesignW - ConfirmW) / 2f, (UiKit.DesignH - ConfirmH) / 2f, ConfirmW, ConfirmH);
+
+    public static Rect2 ConfirmBtnRect(bool yes)
+    {
+        var (x, y, w, h) = ConfirmBox();
+        const float bw = 150f, gap = 20f;
+        float left = x + (w - bw * 2f - gap) / 2f;
+        return new Rect2(yes ? left + bw + gap : left, y + h - 62f, bw, 42f);
+    }
+
+    // ── スロット選択のジオメトリ（タイトルの「つづきから」と同じ寸法体系）──
+    public const float SlotW = 460f;
+    public static float SlotBoxH => 82f + GameManager.SlotCount * 56f;
+    public static (float x, float y, float w, float h) SlotBox()
+        => ((UiKit.DesignW - SlotW) / 2f, (UiKit.DesignH - SlotBoxH) / 2f, SlotW, SlotBoxH);
+
+    public static Rect2 SlotRowRect(int i)
+    {
+        var (x, y, w, _) = SlotBox();
+        return new Rect2(x + 22, y + 64f + i * 56f, w - 44, 46);
+    }
+
+    public static Rect2 SlotCloseRect()
+    {
+        var (x, y, w, _) = SlotBox();
+        return new Rect2(x + w - 56f, y + 12f, 40f, 40f);
     }
 
     private void Open()
     {
         Audio.Instance?.PlayUiCancel(); // ポーズ＝開く合図（柔らかい下降）
-        _open = true; _sel = 0; _hubConfirm = false;
-        _page = Page.Top;   // 開くたび一段目から（前回どこを見ていたかは引きずらない）
+        _open = true; _sel = 0;
+        _page = Page.Top;   // 開くたびトップから（前回どこを見ていたかは引きずらない）
+        _confirmOpen = false; _slotOpen = false;
         _navHeld = false; _lrHeld = false; _zHeld = false; _backHeld = true;   // back は開幕の押下を食う
         for (int i = 0; i < VolRows.Length; i++) _vol[i] = AudioConfig.Get(VolRows[i].Key); // 保存値を読む
+        // 画面モードは保存値ではなく実ウィンドウ状態から読む（Settings.SyncModeFromWindow と同じ理由＝
+        // 表示と実状態を食い違わせない）。
+        var wm = DisplayServer.WindowGetMode();
+        _screenMode = wm is DisplayServer.WindowMode.Fullscreen or DisplayServer.WindowMode.ExclusiveFullscreen ? 1 : 0;
         GetTree().Paused = true;
         Pad.ConsumeUi(this); // 開いたフレームから下の画面への入力を食う
         _canvas.QueueRedraw();
@@ -352,97 +618,14 @@ public partial class PauseMenu : CanvasLayer
     private void Close()
     {
         _open = false;
-        _hubConfirm = false;
+        _confirmOpen = false; _slotOpen = false;
         GetTree().Paused = false;
         _canvas.QueueRedraw();
     }
 
-    // 行を決定する。一段目は「即実行 or 二段目を開く」、二段目は各アクション。
-    // 音が3種類あるのは意味が違うから: 移動音＝まだ何も起きていない（ページ遷移／確認の1段階目）、
-    // 確定音＝実行した、拒否音＝この画面では選べない行。
-    private void Activate(int sel)
-    {
-        _sel = sel;
-        if (_page == Page.Top)
-        {
-            // ステージ外では「このステージ ▸」が無い＝行1が「設定とデータ」になる（CurrentTopRows）。
-            if (sel == 0) { Audio.Instance?.PlayUiConfirm(); Close(); return; }      // つづける
-            if (sel == 1 && RetryEnabled) { OpenPage(Page.Stage); return; }          // このステージ
-            OpenPage(Page.Config);                                                   // 設定とデータ
-            return;
-        }
-
-        if (_page == Page.Stage)
-        {
-            switch (sel)
-            {
-                case StageRetry:
-                    // さいしょからやりなおす：ステージ中のみ。R 即発リトライの置き換え先（誤爆防止）で、
-                    // パッド（Start=このメニュー）からの正式なリトライ導線でもある。
-                    if (!RetryEnabled) { Audio.Instance?.PlayUiDeny(); return; }
-                    Audio.Instance?.PlayUiConfirm();
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    Close();
-                    GetTree().ReloadCurrentScene();
-                    return;
-                case StageBacklog:
-                    // 会話ログ：ポーズを保ったままバックログ・オーバーレイを重ねる（閉じたらポーズへ戻る）。
-                    Audio.Instance?.PlayUiConfirm();
-                    GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
-                    return;
-                default:
-                    // ハブへもどる：ステージ中のみ。誤爆防止に2段階Z確認（1回目で確認状態へ、2回目で実行）。
-                    // 実処理は GameManager の抜け処理と同型（AutoSave→DespawnAll→Hub.tscn）＝稼いだ心も保存される。
-                    if (!RetryEnabled) { Audio.Instance?.PlayUiDeny(); return; }
-                    if (!_hubConfirm) { _hubConfirm = true; Audio.Instance?.PlayUiMove(); return; }
-                    _hubConfirm = false;
-                    Audio.Instance?.PlayUiConfirm();
-                    _game?.AutoSave();
-                    GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                    Close();
-                    GetTree().ChangeSceneToFile("res://Hub.tscn");
-                    return;
-            }
-        }
-
-        // 設定とデータ（音量行・操作表示行は呼び出し側で処理済み＝ここはその下のアクションのみ）。
-        int act = ConfigActionIndex(sel);
-        if (act == CfgHowTo)
-        {
-            // あそびかた：ポーズを保ったまま操作説明オーバーレイを重ねる（閉じたらポーズへ戻る）。
-            Audio.Instance?.PlayUiConfirm();
-            GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
-        }
-        else if (act >= CfgSlot1 && act < CfgSlot1 + GameManager.SlotCount)
-        {
-            // トレーニング中は試用の強化がディスクへ漏れるので保存させない（グレーアウト行）。
-            if (!SaveEnabled) { Audio.Instance?.PlayUiDeny(); return; }
-            int slot = act - CfgSlot1 + 1;
-            Audio.Instance?.PlayUiConfirm();
-            _game?.SaveToSlot(slot);             // スロットへ保存（上書き）
-            _savedSlot = slot; _savedToast = 1.8;
-        }
-        else
-        {
-            Audio.Instance?.PlayUiConfirm();
-            _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); // タイトルへ（離脱時オートセーブ）
-        }
-    }
-
-    // 二段目を開く。戻り先（一段目のどの行から来たか）を覚えてカーソルを先頭へ。
-    private void OpenPage(Page p)
-    {
-        Audio.Instance?.PlayUiMove();   // まだ何も起きていない＝移動音（確定音は実行のときだけ）
-        _pageFrom = _sel;
-        _page = p;
-        _sel = 0;
-        _hubConfirm = false;
-    }
-
-    // 「さいしょからやりなおす」が意味を持つ画面か＝ステージ系のみ。
-    // Hub/ショップ/難易度選択/記録ではシーン再読込に意味がないためグレーアウトする
-    // （CanOpenHere() が既にこれらの画面を除外しているため実質ここには来ないが、
-    //   将来 CanOpenHere() 側だけ緩んだ場合の保険として残す＝IsNonCombatMenuScreen で揃える）。
+    // 「リスタート」「離脱」「ログ」が意味を持つ画面か＝ステージ系のみ。
+    // Hub/ショップ/難易度選択/記録ではシーン再読込にも離脱にも意味がないため、行ごと出さない
+    // （CanOpenHere() が既にこれらの画面を除外しているわけではない＝ステージ外でもメニューは開く）。
     public bool RetryEnabled
     {
         get
@@ -461,8 +644,53 @@ public partial class PauseMenu : CanvasLayer
 
     public bool IsOpen => _open;
     public int Sel => _sel;
-    public bool HubConfirmPending => _hubConfirm;
     public bool ShowHint => !_open && !_autoplay && CanOpenHere();
+
+    // ═══════ 右下「Esc／メニュー」ヒントのクリック対応（2026-09-17）═══════
+    //   ★戦闘画面では対応しない。理由は3つ、どれも実装上の事実:
+    //     1) 戦闘中の自機はマウスカーソルへ追従する（Player.cs:597）。弾を避けて画面右下へ寄った瞬間に
+    //        ポーズが開く＝避けている最中に一番やってはいけない誤爆になる。
+    //     2) 戦闘中の左クリックはロックオン送り（HowToPlay のマウスタブ参照）。右下だけ意味が変わる
+    //        ボタンを置くと、狙いを送ったつもりでメニューが開く。
+    //     3) ホットスポットは UiKit のグローバル単一レジストリ。戦闘中に毎フレーム BeginHotspots を
+    //        呼ぶと、同フレームで登録している ChoiceOverlay（ゲームオーバー3択）と互いの登録を潰し合う。
+    //   → 非戦闘画面（Hub/ショップ/難易度選択/記録/トレーニング）でだけ押せるようにする。この5画面は
+    //     どれも自前で BeginHotspots を呼ぶ「唯一の登録者」なので、ここは共有レジストリに載せず
+    //     Rect2.HasPoint 直書きで判定する（OpeningFilm / TrainingRoot と同じ既存の流儀）。
+    //     クリックの二重処理は Open() の Pad.ConsumeUi → 各画面の Pad.UiBlocked 早期 return が防ぐ。
+    //   会話中（Hud.BubblePaused）は左クリックが会話送り（Pad.AdvanceHeld）なので無効にする。
+    public bool HintClickable
+    {
+        get
+        {
+            if (!ShowHint) return false;
+            // 上にオーバーレイ（あそびかた/会話ログ）が乗っている間は押せない＝暗幕の下で光らせない
+            //（_Process 側は overlayOpen で早期 return するのでクリックは元から通らないが、
+            //  描画だけは続くので HintHovered をここで止める）。
+            if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
+                || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true }) return false;
+            string path = GetTree().CurrentScene?.SceneFilePath ?? "";
+            return IsNonCombatMenuScreen(path) && !Hud.BubblePaused;
+        }
+    }
+
+    // ヒントの当たり矩形（PauseCanvas.DrawHint と同一式＝キーキャップ＋ラベル帯だけ。周囲へは広げない）。
+    public static Rect2 HintRect()
+    {
+        float W = UiKit.DesignW, H = UiKit.DesignH;
+        float y = H - 38f - 30f;
+        string keyTok = Pad.PauseToken;
+        float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
+        float labelW = UiKit.TextW(UiKit.ZenBold, "メニュー", UiKit.FontSmall);
+        float x = W - 24f - (keyW + 7f + labelW);
+        return new Rect2(x - 4f, y - 3f, keyW + 7f + labelW + 8f, 30f);
+    }
+
+    // ヒントにマウスが乗っているか（描画のハイライト用）。押せない画面では常に false＝光らせない。
+    public bool HintHovered => HintClickable && HintRect().HasPoint(Pad.MousePos());
+
+    // このフレームにヒントが左クリックされたか。_Process と QA が同じ1本の判定を通る。
+    public bool HintClicked() => HintHovered && Pad.MouseClick();
     public bool SlotFilled(int slot) => _game?.SlotExists(slot) ?? false;
     public string SavedText => _savedToast > 0 ? $"スロット{_savedSlot}にセーブしました" : "";
     // 描画用：音量行の現在値（0..100）。
@@ -476,6 +704,8 @@ public partial class PauseCanvas : Node2D
 
     public override void _Ready() { ProcessMode = ProcessModeEnum.Always; }
 
+    private static readonly Color RowIdle = new(185 / 255f, 174 / 255f, 203 / 255f);
+
     public override void _Draw()
     {
         if (Menu == null) return;
@@ -483,7 +713,7 @@ public partial class PauseCanvas : Node2D
         else if (Menu.ShowHint) { UiKit.BeginDesign(this); DrawHint(); UiKit.EndDesign(this); }
     }
 
-    // 選択行のハイライト（枠＋▸）。3ページで同じ見え方にするためここに集約する。
+    // 選択行のハイライト（枠＋▸）。全ページで同じ見え方にするためここに集約する。
     private void DrawRowCursor(Rect2 r)
     {
         UiKit.Box(this, r, new Color(20 / 255f, 30 / 255f, 40 / 255f, 0.55f), 10f, new Color(UiKit.Purify, 0.45f), 1f);
@@ -493,135 +723,157 @@ public partial class PauseCanvas : Node2D
     // 行のラベル（選択中は白＋太字）。
     private void DrawRowLabel(Rect2 r, string label, bool on, Color? col = null)
         => UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(r.Position.X + 36, r.Position.Y + 7),
-            label, UiKit.FontBody, col ?? (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f)));
+            label, UiKit.FontBody, col ?? (on ? UiKit.White : RowIdle));
+
+    // 下段の枠つきボタン（閉じる／もどる／はい／いいえ）。選択中は塗りと縁を強める。
+    private void DrawButton(Rect2 r, string label, bool on, Color accent)
+    {
+        UiKit.Box(this, r, new Color(accent, on ? 0.24f : 0.10f), 9f, new Color(accent, on ? 0.85f : 0.4f), on ? 1.4f : 1f);
+        UiKit.Text(this, on ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(r.Position.X, r.Position.Y + (r.Size.Y - 18f) / 2f),
+            label, UiKit.FontBody, on ? UiKit.White : UiKit.Text2, HorizontalAlignment.Center, r.Size.X);
+    }
+
+    // 歯車アイコン（既存ヘルパが無いので手描き）。外周の8歯＋内円のリング。
+    //   歯は「内半径→外半径」の短い線分を 8 本、45度おきに引く＝ポリゴンを組まずに歯車に見える。
+    private void DrawGear(Rect2 r, bool on)
+    {
+        Color col = on ? UiKit.White : UiKit.Text3;
+        if (on) UiKit.Box(this, r, new Color(UiKit.Purify, 0.18f), 9f, new Color(UiKit.Purify, 0.7f), 1f);
+        Vector2 c = r.GetCenter();
+        float rIn = 6.0f, rMid = 8.0f, rOut = 11.0f;
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i / 8f * Mathf.Tau;
+            var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            DrawLine(c + d * rMid, c + d * rOut, col, 2.4f, true);
+        }
+        DrawArc(c, rMid, 0f, Mathf.Tau, 28, col, 2.0f, true);
+        DrawArc(c, rIn * 0.5f, 0f, Mathf.Tau, 20, col, 1.6f, true);
+    }
 
     private void DrawPauseMenu()
     {
         float W = UiKit.DesignW, H = UiKit.DesignH;
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.62f)); // 暗幕
 
-        var page = Menu.CurrentPage;
-        var (x, y, w, h) = PauseMenu.BoxMetrics(page, Menu.TopRowCount);
-        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
+        if (Menu.CurrentPage == PauseMenu.Page.Settings) DrawSettingsPage();
+        else DrawTopPage();
 
-        // 見出し。二段目は「MENU ▸ このステージ」のように親を残す＝いま二段目に居ると分かる。
-        string head = page switch
-        {
-            PauseMenu.Page.Stage => "MENU ▸ このステージ",
-            PauseMenu.Page.Config => "MENU ▸ 設定とデータ",
-            _ => "MENU",
-        };
+        // 上に重なるダイアログ（確認 → スロット）。暗幕を1枚追加して手前に描く。
+        if (Menu.ConfirmOpen) DrawConfirm();
+        else if (Menu.SlotOpen) DrawSlotPicker();
+    }
+
+    // 箱の見出し帯（タイトル文字＋区切り線）。全ページ共通。
+    private void DrawHead(float x, float y, float w, string head)
+    {
         UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 28, y + 22), head, UiKit.Info);
         DrawRect(new Rect2(x + 28, y + 48, w - 56, 1f), new Color(1, 1, 1, 0.1f));
-
-        if (page == PauseMenu.Page.Top) DrawTopPage(x, w);
-        else if (page == PauseMenu.Page.Stage) DrawStagePage(x, w);
-        else DrawConfigPage(x, y, w);
-
-        if (Menu.SavedText.Length > 0)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 54), Menu.SavedText, UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Center, w);
-        // フッタ：一段目は「閉じる」、二段目は「もどる」＝いまその操作が何をするかを言う。
-        string footer = page == PauseMenu.Page.Top
-            ? $"{Pad.ConfirmToken} 決定    {Pad.PauseToken} 閉じる"
-            : $"{Pad.ConfirmToken} 決定    X もどる";
-        UiKit.Text(this, UiKit.Mono, new Vector2(x, y + h - 30), footer, UiKit.FontSmall, UiKit.Text3, HorizontalAlignment.Center, w);
     }
 
-    // 一段目：区分だけ。二段目を持つ行には「▸」を右端に添えて「まだ先がある」を示す。
-    //   ステージ外（ハブ等）では「このステージ ▸」が落ちて2行になる（PauseMenu.CurrentTopRows）。
-    private void DrawTopPage(float x, float w)
+    // トップ：項目リスト ＋ 下部中央の「閉じる」 ＋ 右上の歯車。
+    private void DrawTopPage()
     {
-        var rows = Menu.CurrentTopRows;
+        var rows = Menu.Rows;
+        var (x, y, w, h) = PauseMenu.TopBox(rows.Length);
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
+        DrawHead(x, y, w, "MENU");
+        DrawGear(PauseMenu.GearRect(rows.Length), Menu.Sel == Menu.GearIndex);
+
         for (int i = 0; i < rows.Length; i++)
         {
-            var r = PauseMenu.RowRect(PauseMenu.Page.Top, i, rows.Length);
+            var r = PauseMenu.RowRect(i, rows.Length);
             bool on = i == Menu.Sel;
             if (on) DrawRowCursor(r);
-            DrawRowLabel(r, rows[i], on);
-            if (i > 0)   // 「つづける」以外は二段目へ入る
-                UiKit.Text(this, UiKit.Mono, new Vector2(r.Position.X + r.Size.X - 30, r.Position.Y + 9), "▸",
-                    UiKit.FontBody, on ? UiKit.Purify : UiKit.Text4);
-        }
-    }
-
-    // 二段目「このステージ」：やりなおす／会話ログ／ハブへもどる。
-    private void DrawStagePage(float x, float w)
-    {
-        for (int i = 0; i < PauseMenu.StageRows.Length; i++)
-        {
-            var r = PauseMenu.RowRect(PauseMenu.Page.Stage, i);
-            bool on = i == Menu.Sel;
-            if (on) DrawRowCursor(r);
-            // 「さいしょからやりなおす」「ハブへもどる」はステージ外では選べない＝グレーアウト＋理由を右に出す。
-            bool dim = (i == PauseMenu.StageRetry || i == PauseMenu.StageHub) && !Menu.RetryEnabled;
-            bool confirming = i == PauseMenu.StageHub && !dim && Menu.HubConfirmPending;
-            string label = confirming ? "ほんとうに もどる？" : PauseMenu.StageRows[i];
-            Color col = confirming ? UiKit.Burn
-                : dim ? UiKit.Text4
-                : (on ? UiKit.White : new Color(185 / 255f, 174 / 255f, 203 / 255f));
-            DrawRowLabel(r, label, on, col);
+            // トレーニング中はセーブだけ選べない＝グレーアウト＋理由を右に添える（旧版と同じ作法）。
+            bool dim = rows[i].act == PauseMenu.Act.Save && !Menu.SaveEnabled;
+            DrawRowLabel(r, rows[i].label, on, dim ? UiKit.Text4 : null);
             if (dim)
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, r.Position.Y + 11), "ステージ中のみ", UiKit.FontSmall,
-                    UiKit.Text4, HorizontalAlignment.Right, 136);
-            else if (confirming)
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, r.Position.Y + 11), "もう一度で確定", UiKit.FontSmall,
-                    UiKit.Burn, HorizontalAlignment.Right, 136);
+                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 180, r.Position.Y + 11), "トレーニング中は不可", UiKit.FontSmall,
+                    UiKit.Text4, HorizontalAlignment.Right, 158);
         }
+
+        if (Menu.SavedText.Length > 0)
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + h - 80), Menu.SavedText, UiKit.FontLabel, UiKit.PurifyHi, HorizontalAlignment.Center, w);
+        DrawButton(PauseMenu.CloseRect(rows.Length), "閉じる", Menu.Sel == Menu.CloseIndex, UiKit.Purify);
     }
 
-    // 二段目「設定とデータ」：音量3行（←→）→ ボタン表記（←→/Z）→ あそびかた／セーブ3／タイトルへ。
-    private void DrawConfigPage(float x, float y, float w)
+    // 設定：音量3行（←→）＋画面モード1行（←→/Z）＋「もどる」。
+    //   解像度は Settings.cs 側でも表示だけ（実反映のコードが無い）なのでここには出さない。
+    private void DrawSettingsPage()
     {
-        int nVol = PauseMenu.VolRows.Length;
+        var (x, y, w, h) = PauseMenu.SettingsBox();
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.98f), 18f, new Color(UiKit.Purify, 0.6f), 1.4f);
+        DrawHead(x, y, w, "MENU ▸ 設定");
 
-        // ── 音量セクション（←→ で調整／Z でミュート切替）──
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, y + 62), "音量  VOLUME", UiKit.FontSmall, UiKit.Text4);
+        int nVol = PauseMenu.VolRows.Length;
         for (int i = 0; i < nVol; i++)
         {
-            var r = PauseMenu.RowRect(PauseMenu.Page.Config, i);
+            var r = PauseMenu.SettingsRowRect(i);
             bool on = i == Menu.Sel;
             if (on) DrawRowCursor(r);
             DrawRowLabel(r, PauseMenu.VolRows[i].Label, on);
             // バー（トラック＋塗り）＋数値
             float v = Menu.VolValue(i);
-            float barW = 132f, barX = x + w - barW - 64f, barY = r.Position.Y + 14f, barH = 6f;
+            float barW = 132f, barX = x + w - barW - 64f, barY = r.Position.Y + 16f, barH = 6f;
             DrawRect(new Rect2(barX, barY, barW, barH), new Color(1, 1, 1, 0.12f));
             DrawRect(new Rect2(barX, barY, barW * v / 100f, barH), new Color(UiKit.Info, on ? 0.95f : 0.7f));
-            UiKit.Text(this, UiKit.Mono, new Vector2(barX + barW + 8f, r.Position.Y + 9), Mathf.RoundToInt(v).ToString(), UiKit.FontLabel,
+            UiKit.Text(this, UiKit.Mono, new Vector2(barX + barW + 8f, r.Position.Y + 10), Mathf.RoundToInt(v).ToString(), UiKit.FontLabel,
                 on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 40);
         }
 
-        // ── 操作表示モード（←→/Z で キーボード / PlayStation / Xbox）──
-        var dr = PauseMenu.RowRect(PauseMenu.Page.Config, nVol);
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 28, dr.Position.Y - 18f), "操作表示  BUTTONS", UiKit.FontSmall, UiKit.Text4);
-        {
-            bool on = Menu.Sel == PauseMenu.DisplayRowGlobalIndex;
-            if (on) DrawRowCursor(dr);
-            DrawRowLabel(dr, "ボタン表記", on);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - 64 - 200, dr.Position.Y + 7), "◂ " + Menu.DisplayValue + " ▸", UiKit.FontLabel,
-                on ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 200);
-        }
+        var sr = PauseMenu.SettingsRowRect(PauseMenu.ScreenRowIndex);
+        bool son = Menu.Sel == PauseMenu.ScreenRowIndex;
+        if (son) DrawRowCursor(sr);
+        DrawRowLabel(sr, "画面サイズ", son);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + w - 64 - 200, sr.Position.Y + 8), "◂ " + PauseMenu.ScreenModes[Menu.ScreenMode] + " ▸",
+            UiKit.FontLabel, son ? UiKit.White : UiKit.Text3, HorizontalAlignment.Right, 200);
 
-        // ── アクション（Z で決定）──
-        for (int i = 0; i < PauseMenu.ConfigRows.Length; i++)
+        DrawButton(PauseMenu.SettingsBackRect(), "もどる", Menu.Sel == PauseMenu.ScreenRowIndex + 1, UiKit.Purify);
+    }
+
+    // 確認ダイアログ（はい/いいえ）。既定は「いいえ」＝誤爆しても何も起きない。
+    private void DrawConfirm()
+    {
+        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(0, 0, 0, 0.45f));
+        var (x, y, w, h) = PauseMenu.ConfirmBox();
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.07f, 0.055f, 0.115f, 0.99f), 16f, new Color(UiKit.Burn, 0.55f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 40f), Menu.ConfirmText, UiKit.FontBody, UiKit.White,
+            HorizontalAlignment.Center, w);
+        DrawButton(PauseMenu.ConfirmBtnRect(false), "いいえ", !Menu.ConfirmYes, UiKit.Purify);
+        DrawButton(PauseMenu.ConfirmBtnRect(true), "はい", Menu.ConfirmYes, UiKit.Burn);
+    }
+
+    // スロット選択（セーブ／ロード）。見た目と語彙はタイトルの「つづきから」に合わせる。
+    private void DrawSlotPicker()
+    {
+        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(0, 0, 0, 0.45f));
+        var (x, y, w, h) = PauseMenu.SlotBox();
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.99f), 16f, new Color(UiKit.Purify, 0.6f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 28, y + 20), Menu.SlotForSave ? "セーブ" : "ロード", UiKit.FontHeading, UiKit.White);
+
+        // 右上の×（閉じる）。カーソルでも選べる（SlotCloseIndex）。
+        Rect2 close = PauseMenu.SlotCloseRect();
+        bool closeOn = Menu.SlotSel == Menu.SlotCloseIndex;
+        Color closeCol = closeOn ? UiKit.White : UiKit.Text3;
+        if (closeOn) UiKit.Box(this, close, new Color(UiKit.Purify, 0.18f), 9f, new Color(UiKit.Purify, 0.7f), 1f);
+        Vector2 c = close.GetCenter();
+        DrawLine(c + new Vector2(-6, -6), c + new Vector2(6, 6), closeCol, 2, true);
+        DrawLine(c + new Vector2(6, -6), c + new Vector2(-6, 6), closeCol, 2, true);
+
+        for (int i = 0; i < GameManager.SlotCount; i++)
         {
-            var r = PauseMenu.RowRect(PauseMenu.Page.Config, nVol + 1 + i);
-            bool on = (nVol + 1 + i) == Menu.Sel;
+            Rect2 r = PauseMenu.SlotRowRect(i);
+            bool on = i == Menu.SlotSel;
+            bool exists = Menu.SlotFilled(i + 1);
+            // ロード時の空スロットは選べない＝タイトル同様「空き」を薄く出して押しても拒否音だけ。
+            bool dim = !Menu.SlotForSave && !exists;
             if (on) DrawRowCursor(r);
-            // セーブスロット行は状態（空き/保存済み）を右に出す。トレーニング中は保存させない＝
-            // 「このステージ」のグレーアウトと同じ作法で、理由を右に添えて選べないと分かるようにする。
-            bool isSlot = i >= PauseMenu.CfgSlot1 && i < PauseMenu.CfgSlot1 + GameManager.SlotCount;
-            bool dim = isSlot && !Menu.SaveEnabled;
-            DrawRowLabel(r, PauseMenu.ConfigRows[i], on, dim ? UiKit.Text4 : null);
-            if (dim)
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 158, r.Position.Y + 11), "トレーニング中は不可", UiKit.FontSmall,
-                    UiKit.Text4, HorizontalAlignment.Right, 136);
-            else if (isSlot)
-            {
-                bool filled = Menu.SlotFilled(i - PauseMenu.CfgSlot1 + 1);
-                UiKit.Text(this, UiKit.Mono, new Vector2(x + w - 130, r.Position.Y + 11), filled ? "保存済み" : "空き", UiKit.FontSmall,
-                    filled ? UiKit.Info : UiKit.Text4, HorizontalAlignment.Right, 108);
-            }
+            UiKit.Text(this, on && !dim ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(r.Position.X + 36, r.Position.Y + 12),
+                $"スロット {i + 1}", UiKit.FontSpeaker, dim ? UiKit.Text4 : on ? UiKit.White : RowIdle);
+            UiKit.Text(this, UiKit.Zen, new Vector2(r.Position.X + r.Size.X - 140, r.Position.Y + 15),
+                exists ? "セーブあり" : "空き", UiKit.FontBody, exists ? UiKit.Info : UiKit.Text4,
+                HorizontalAlignment.Right, 132);
         }
     }
 
@@ -629,6 +881,10 @@ public partial class PauseCanvas : Node2D
     //   2026-09-07: プレイ中の常駐操作ガイド（Hud.DrawControls）を撤去した際、これ1つだけを残した。
     //   Esc（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
     //   薄く小さく（キー枠の縁とラベルのαを落とし、ラベルは FontSmall へ）。
+    //   ★2026-09-17：非戦闘画面（Hub/ショップ/難易度選択/記録/トレーニング）ではここを左クリックでも
+    //     開けるようにした（PauseMenu.HintClickable）。押せる画面でホバーしたときだけ下敷きを敷いて
+    //     明るくし、「押せる」ことと「いま触れている」ことを見せる。戦闘中は押せないので光りもしない
+    //     ＝見た目が変わらない＝弾の視認を邪魔しない。
     private const float HintAlpha = 0.85f;
     private void DrawHint()
     {
@@ -639,9 +895,11 @@ public partial class PauseCanvas : Node2D
         float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
         float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontSmall);
         float x = W - 24f - (keyW + 7f + labelW);
-        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, 0.04f),
-            new Color(UiKit.Info, 0.22f), new Color(UiKit.Info, HintAlpha));
+        bool hov = Menu.HintHovered;
+        if (hov) UiKit.Box(this, PauseMenu.HintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
+        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, hov ? 0.10f : 0.04f),
+            new Color(UiKit.Info, hov ? 0.6f : 0.22f), new Color(hov ? UiKit.PurifyHi : UiKit.Info, hov ? 1f : HintAlpha));
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 7f, y + 5f), label, UiKit.FontSmall,
-            new Color(UiKit.Text2, HintAlpha));
+            new Color(hov ? UiKit.White : UiKit.Text2, hov ? 1f : HintAlpha));
     }
 }

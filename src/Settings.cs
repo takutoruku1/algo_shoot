@@ -129,6 +129,33 @@ public partial class Settings : Node2D
     // ホットスポット id 空間（単一の HoveredId/ClickedId を種別で解釈するため範囲で分ける）。
     private const int IdNavBase = 1000;   // ナビ・カテゴリ
     private const int IdSegBase = 3000;   // セグメントの各オプション（IdSegBase + row*100 + opt）
+    // フッタの「もどる」。カード id（0..Cur.Count）より上・ナビ/セグメントの帯より下に置く
+    //   ＝下のホバー追従（hov<Cur.Count／hov>=IdSegBase の分岐）のどちらにも誤って吸われない。
+    private const int IdBack    = 500;
+
+    // フッタ「もどる」のクリック矩形。_Draw のフッタは FootHint を左から並べていくので、
+    //   手前3つ（↑↓項目／←→調整／カテゴリ）の送り幅を同じ式で足して4つ目の左端を求める。
+    //   ※手前3つは「操作説明」なのでクリック対象にしない（ショップの「箱で囲われた方がボタン」の流儀）。
+    private static Rect2 BackHintRect()
+    {
+        float padX = 40f, fy = H - 56f;
+        string catTok = Pad.ShowKeyboard ? "Q E" : $"{Pad.Face(JoyButton.LeftShoulder)} {Pad.Face(JoyButton.RightShoulder)}";
+        float x = padX;
+        x = FootHintAdvance(x, "↑↓", "項目");
+        x = FootHintAdvance(x, "←→", "調整");
+        x = FootHintAdvance(x, catTok, "カテゴリ");
+        string key = Pad.CancelToken;
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
+        return new Rect2(x, fy - 16f, kw + 8f + lw + 8f, 32f);
+    }
+
+    // FootHint が返す「次の x」だけを、描画せずに求める（FootHint 本体と同一式）。
+    private static float FootHintAdvance(float x, string key, string label)
+    {
+        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
+    }
 
     public override void _Process(double delta)
     {
@@ -167,13 +194,13 @@ public partial class Settings : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) { Adjust(1, viaZ: true); Audio.Instance?.PlayUiConfirm(); }
 
-        // ── マウス：カテゴリ／カード／セグメント各オプションのホットスポット登録と処理 ──
-        MouseSettings(click);
+        // ── マウス：カテゴリ／カード／セグメント各オプション／フッタ「もどる」の登録と処理 ──
+        bool clickBack = MouseSettings(click);
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick(); // 右クリック＝もどる
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
 
         QueueRedraw();
     }
@@ -182,9 +209,12 @@ public partial class Settings : Node2D
     //   ・ナビ行クリック → カテゴリ切替（_row リセット）。
     //   ・カード：未選択ならまず選択。選択済みカードの操作領域クリックで値を変える
     //     （スライダー＝トラック上のクリック位置で値を直接設定／トグル＝反転／セグメント＝各オプション直接選択）。
-    private void MouseSettings(bool click)
+    //   返り値：フッタの「もどる」が押されたか（シーン遷移は呼び出し側＝_Process の back 判定に合流させる）。
+    private bool MouseSettings(bool click)
     {
         Vector2 m = Pad.MousePos();
+        // フッタの「もどる」（他とは重ならない）。
+        UiKit.Hotspot(BackHintRect(), IdBack);
         // ナビ（カテゴリ）: id = IdNavBase + i。
         for (int i = 0; i < _cats.Count; i++) UiKit.Hotspot(NavRowRect(i), IdNavBase + i);
         // カード（項目）: id = i。セグメントは各オプション矩形も別 id で登録（後勝ち＝オプションが優先）。
@@ -214,16 +244,18 @@ public partial class Settings : Node2D
             }
         }
 
-        if (!click) return;
+        if (!click) return false;
         int clk = UiKit.HoveredId(); // クリックした瞬間のホバー先
-        if (clk < 0) return;
+        if (clk < 0) return false;
 
+        // フッタの「もどる」をクリック（遷移は呼び出し側へ返す）。
+        if (clk == IdBack) return true;
         // カテゴリをクリック
         if (clk >= IdNavBase && clk < IdNavBase + _cats.Count)
         {
             int ci = clk - IdNavBase;
             if (ci != _cat) { _cat = ci; _row = 0; Audio.Instance?.PlayUiMove(); }
-            return;
+            return false;
         }
         // セグメントのオプションを直接クリック
         if (clk >= IdSegBase)
@@ -233,14 +265,15 @@ public partial class Settings : Node2D
             var d = Cur[ri];
             if (d.Type == SType.Segment && oi >= 0 && oi < d.Options.Length && oi != d.I)
             { d.I = oi; Apply(d); Save(); Audio.Instance?.PlayUiConfirm(); }
-            return;
+            return false;
         }
         // カード本体クリック：未選択なら選択、選択済みなら操作領域のクリック位置で値変更。
         if (clk >= 0 && clk < Cur.Count)
         {
-            if (clk != _row) { _row = clk; Audio.Instance?.PlayUiMove(); return; }
+            if (clk != _row) { _row = clk; Audio.Instance?.PlayUiMove(); return false; }
             AdjustByClick(Cur[clk], m);
         }
+        return false;
     }
 
     // 選択済みカードの操作領域を、クリック位置で操作する（スライダー＝比率設定／トグル＝反転）。
@@ -430,7 +463,11 @@ public partial class Settings : Node2D
         fx = FootHint(fx, fy, "↑↓", "項目");
         fx = FootHint(fx, fy, "←→", "調整");
         fx = FootHint(fx, fy, catTok, "カテゴリ");
-        FootHint(fx, fy, Pad.CancelToken, "もどる");
+        // 「もどる」だけクリックできる＝ホバー中は下敷きを敷いて明るくする
+        //   （手前3つは操作説明なので素のまま。ショップの「箱がボタン／素の文字が説明」の流儀）。
+        bool backHov = UiKit.HoveredId() == IdBack;
+        if (backHov) UiKit.Box(this, BackHintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
+        FootHint(fx, fy, Pad.CancelToken, "もどる", backHov);
 
         UiKit.EndDesign(this);
     }
@@ -590,11 +627,15 @@ public partial class Settings : Node2D
         };
     }
 
-    private float FootHint(float x, float y, string key, string label)
+    // hot=true はマウスホバー中（クリックできるヒントだけが取りうる状態）＝縁と文字を一段明るく。
+    private float FootHint(float x, float y, string key, string label, bool hot = false)
     {
-        UiKit.Key(this, new Vector2(x, y - 12), key, new Color(1, 1, 1, 0.07f), new Color(1, 1, 1, 0.16f), UiKit.Text2);
+        UiKit.Key(this, new Vector2(x, y - 12), key,
+            hot ? new Color(UiKit.Purify, 0.16f) : new Color(1, 1, 1, 0.07f),
+            hot ? new Color(UiKit.Info, 0.6f) : new Color(1, 1, 1, 0.16f),
+            hot ? UiKit.PurifyHi : UiKit.Text2);
         float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, UiKit.Text3);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, hot ? UiKit.Info : UiKit.Text3);
         return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 }

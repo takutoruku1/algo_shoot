@@ -417,7 +417,8 @@ public partial class PlayerJobQa : Node
             if (row % 2 == 0) viewport.AddChild(new ColorRect { Position = new Vector2(0, y), Size = new Vector2(2040, 266),
                 Color = new Color("30343b") });
             LabelAt(job.CharacterName, new Vector2(22, y + 104), 26);
-            LabelAt(job.Name, new Vector2(22, y + 144), 19);
+            // 2026-09-17：ジョブ名（結び手…）の表記は全廃したので、行の副題は撃ち方に差し替える。
+            LabelAt(ModeLabel(job.Mode), new Vector2(22, y + 144), 19);
             for (int column = 0; column < Poses.Length; column++)
                 viewport.AddChild(new TextureRect { Position = new Vector2(162 + column * 168, y + 14), Size = new Vector2(156, 238),
                     Texture = GD.Load<Texture2D>(PosePath(job.CharacterId, Poses[column])),
@@ -439,6 +440,16 @@ public partial class PlayerJobQa : Node
             viewport.AddChild(label);
         }
     }
+
+    // 撃ち方の表記（GameManager.ShotModeName と同じ語）。QA走行では /root/Game が居ないことがあるので
+    // インスタンス経由ではなくここで引く（2026-09-17・ジョブ名表記の全廃に伴う差し替え）。
+    private static string ModeLabel(GameManager.ShotMode m) => m switch
+    {
+        GameManager.ShotMode.Spread => "拡散",
+        GameManager.ShotMode.Homing => "ホーミング",
+        GameManager.ShotMode.Accel => "加速球",
+        _ => "連射",
+    };
 
     private async Task Shot(string name)
     {

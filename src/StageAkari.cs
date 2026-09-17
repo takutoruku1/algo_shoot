@@ -347,6 +347,9 @@ public partial class StageAkari : Node
         //   直前にミナの説明を流す。_step==1 確定後に繋ぐ＝チェックポイント入口（中ボス/ボスから）では
         //   イントロごと飛ぶので消費しない。結び手のみ・once はセーブ単位（StageTutorial が一括で判定）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
+        // アンチャー紹介（2026-09-17）：チュートリアルの後ろ＝道中開始の直前に、この面のアンチャーの
+        //   性格だけを流す（一般→個別）。once は面ごと（once_ankers_akari）＝ステージ初回のみ。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerAkari(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -453,6 +456,9 @@ public partial class StageAkari : Node
             _ => string.IsNullOrEmpty(face) ? MFace : face,                    // ミナも行ごと表情
         };
         Hud.ShowDialog(kind, text, portrait, otherName: "あかり");
+        // 初見チュートリアル（2026-09-17）：操作の話をしている行では盤面中央に操作カードを出す。
+        //   道中チュートリアル本文の行でなければ内部で畳む＝通常の会話には一切干渉しない。
+        StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
     // ---- S1-4 束（ミッドシナリオ枠）：問いかけまで流す → 下書き選択 → 受け＋締め ----

@@ -60,7 +60,7 @@ public partial class Credits : Node2D
         if (_items.Count == 0)
         {
             _items.Add((Kind.Section, "開発 — DEVELOPMENT"));
-            _items.Add((Kind.Line, "企画・開発 — takutoruku1"));
+            _items.Add((Kind.Line, "企画・開発 — こくとう"));
         }
     }
 

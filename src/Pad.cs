@@ -182,13 +182,14 @@ public static class Pad
     {
         JoyButton.A, JoyButton.B, JoyButton.X, JoyButton.Y,
         JoyButton.LeftShoulder, JoyButton.RightShoulder,
+        JoyButton.LeftStick, JoyButton.RightStick,   // L3=回避 / R3=ロック解除（2026-09-17）
         JoyButton.DpadUp, JoyButton.DpadDown, JoyButton.DpadLeft, JoyButton.DpadRight,
         JoyButton.Start, JoyButton.Back,
     };
     private static readonly Key[] HintKeys =
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
-        Key.Z, Key.X, Key.C, Key.V, Key.F, Key.Shift, Key.Ctrl, Key.Alt,
+        Key.Z, Key.X, Key.C, Key.V, Key.F, Key.G, Key.Shift, Key.Ctrl, Key.Alt,
         Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.J, Key.Tab,
     };
 

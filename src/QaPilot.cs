@@ -175,7 +175,7 @@ public partial class QaPilot : Node
 
         _lastProgressT = 0;
         GD.Print($"[QA] start. budget={_seconds:0}s god={_god} aim={_aim} diff={_diff?.ToString() ?? "(save)"} "
-               + $"job={_game?.JobDef.Name}({_game?.SelectedJob}) mode={_game?.ShotModeName(_game.SelectedShotMode)} "
+               + $"job={_game?.JobDef.CharacterName}({_game?.SelectedJob}) mode={_game?.ShotModeName(_game.SelectedShotMode)} "
                + $"lives={_game?.StartLives} bombs={_game?.StartBombs}");
     }
 

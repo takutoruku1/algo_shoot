@@ -265,7 +265,8 @@ public partial class PlayerShotQa : Node
                 var size = portrait.GetSize() * (120f / portrait.GetHeight());
                 DrawTextureRect(portrait, new Rect2(new Vector2(82, y) - new Vector2(size.X / 2, 0), size), false);
                 UiKit.Text(this, UiKit.ZenBold, new Vector2(146, y + 34), job.CharacterName, 27, art.Accent);
-                UiKit.Text(this, UiKit.Zen, new Vector2(148, y + 74), job.Name, 17, Colors.White);
+                // 2026-09-17：ジョブ名（結び手…）の表記は全廃。副題は撃ち方の語に差し替える。
+                UiKit.Text(this, UiKit.Zen, new Vector2(148, y + 74), ModeLabel(job.Mode), 17, Colors.White);
                 Vector2 enlarged = art.Region.Size * Mathf.Min(260 / art.Region.Size.X, 110 / art.Region.Size.Y);
                 DrawTextureRectRegion(art.Texture, new Rect2(new Vector2(510, y + 57) - enlarged / 2, enlarged), art.Region);
                 float radius = job.Id == Job.Melee ? 3.4f : 3;
@@ -275,5 +276,14 @@ public partial class PlayerShotQa : Node
             }
             UiKit.EndDesign(this);
         }
+
+        // 撃ち方の表記（GameManager.ShotModeName と同じ語）。QA走行では /root/Game に頼らない。
+        private static string ModeLabel(GameManager.ShotMode m) => m switch
+        {
+            GameManager.ShotMode.Spread => "拡散",
+            GameManager.ShotMode.Homing => "ホーミング",
+            GameManager.ShotMode.Accel => "加速球",
+            _ => "連射",
+        };
     }
 }

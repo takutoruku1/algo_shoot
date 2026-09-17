@@ -6,7 +6,7 @@ using Godot;
 //     カードは下から滑り込む流入アニメ（帰還投稿後は「タイムライン更新」として再流入）。
 //     エンゲージ数はクリア状態・フォロワー数と連動し、クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
 //   - クリア帰還でミナの会話＋自動投稿。クリア済カードで C：コメント返信（1回）。
-//   - 全クリアで FINAL カード（枠とピルは穢れ色・♥=フォロワー/ビュー=インプレの生値）。autoplay は会話を自動送り→自動ダイブ。
+//   - 全クリアで FINAL カード（枠とピルは穢れ色・フォロワー/インプレの生値を語ラベル付きで出す）。autoplay は会話を自動送り→自動ダイブ。
 public partial class Hub : Node2D
 {
     private GameManager _game = null!;
@@ -68,18 +68,21 @@ public partial class Hub : Node2D
     //   「誰かは分からないが、投稿はそこに並んでいる」だけを言う。新しい意匠は作らない。
     private const string LockedName = "???";
     private const string LockedHandle = "@???";
+    // FINAL（ミナ自身の内側）のシーン。カード生成・プレビュー・自動ダイブの3か所が同じ文字列を書いていたので定数へ。
+    private const string FinalScene = "res://MinaBattle.tscn";
 
     // ───────── 3-1: 潜り方（難易度）の4段 ─────────
     // 数値・実装は DiffSelect のまま（GameManager.Diff / BaseLivesFor / BaseBombsFor / DiffBarBonus）。
-    //   変えたのは名前と、添える情報だけ。「報酬 ×1.0」の文字は消し、♥アイコン＋倍率だけを残す。
-    //   一言は DiffSelect.Tiers の Quip をそのまま持ってくる（ミナの新しい台詞は書かない）。
-    private struct Tier { public string Name, Quip; public GameManager.Diff Diff; }
+    //   2026-09-17 ユーザー指示：段の表示名を情緒的な和名（浅く／いつも通り／深く／底まで）から
+    //   一般的な難易度名へ変更した。「どれを選べば何が起きるか」が一目で分かることを優先する。
+    //   同じ指示でミナの一言（Quip）も削除＝段は「名前・倍率・板の枚数」だけの素直な一覧になった。
+    private struct Tier { public string Name; public GameManager.Diff Diff; }
     private static readonly Tier[] Tiers =
     {
-        new() { Name = "浅く",       Diff = GameManager.Diff.Easy,    Quip = "ゆっくりで、いいんですよ。" },
-        new() { Name = "いつも通り", Diff = GameManager.Diff.Normal,  Quip = "では、いつも通りに。" },
-        new() { Name = "深く",       Diff = GameManager.Diff.Hard,    Quip = "……無理は、しないでくださいね。" },
-        new() { Name = "底まで",     Diff = GameManager.Diff.Lunatic, Quip = "……覚悟は、できていますか。" },
+        new() { Name = "EASY",    Diff = GameManager.Diff.Easy },
+        new() { Name = "NORMAL",  Diff = GameManager.Diff.Normal },
+        new() { Name = "HARD",    Diff = GameManager.Diff.Hard },
+        new() { Name = "LUNATIC", Diff = GameManager.Diff.Lunatic },
     };
     private bool TierOpen(int i) => i >= 0 && i < Tiers.Length
         && (Tiers[i].Diff != GameManager.Diff.Lunatic || (_game?.IsLunaticUnlocked ?? false));
@@ -403,7 +406,7 @@ public partial class Hub : Node2D
         {
             list.Add(new Entry
             {
-                IsFinal = true, Id = "final", Scene = "res://MinaBattle.tscn", Name = "ミナ", Handle = "@mina_ai_",
+                IsFinal = true, Id = "final", Scene = FinalScene, Name = "ミナ", Handle = "@mina_ai_",
                 Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                 Unlocked = true, Cleared = false,
                 Sort = Kind.Voice, RelT = "now",
@@ -574,7 +577,7 @@ public partial class Hub : Node2D
                 }
                 list.Add(new Entry
                 {
-                    IsFinal = true, Id = "final", Scene = "res://MinaBattle.tscn",
+                    IsFinal = true, Id = "final", Scene = FinalScene,
                     Name = "ミナ", Handle = "@mina_ai_",
                     Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                     Unlocked = true, Cleared = false,
@@ -1100,7 +1103,11 @@ public partial class Hub : Node2D
     //   寸法は DrawDetail と同じ式をここに写して共有する（cw/ch/cx/cy、潜り方の ty/th/tg、フッタの y）。
     //   展開アニメの浮き（(1-k)*24）は無視して確定位置で判定＝開いた直後でもクリック位置が動かない。
     //   ホットスポット id は カード id と衝突しないよう TierIdBase / DetailCloseId の帯を使う。
-    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901, DetailConfirmId = 20902;
+    //   2026-09-17: 「潜る」ボタン（DetailConfirmId）を廃止した＝段をクリック/決定した時点で潜る。
+    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901;
+
+    // 段（Tier）の1段目の上端（DetailBox の cy からの相対）。見出し「潜り方」を消したぶん詰めた。
+    private const float TierTop = 320f;
 
     private Rect2 HeaderJobRect() => new(PhoneX + 16f, 8f, PhoneW - 32f, 52f);
 
@@ -1110,9 +1117,10 @@ public partial class Hub : Node2D
         return new Rect2(cx + cw - 188f, cy + 12f, 164f, 40f);
     }
 
+    // 高さ：段あり＝TierTop + 4段(68刻み・末段62) + 下余白16。段なし(FINAL)は従来どおり。
     private (float cx, float cy, float cw, float ch) DetailBox(bool tiers)
     {
-        float ch = tiers ? 688f : 448f;
+        float ch = tiers ? TierTop + 3f * 68f + 62f + 16f : 448f;
         return (PhoneX, H - 16f - ch, PhoneW, ch);
     }
 
@@ -1120,19 +1128,13 @@ public partial class Hub : Node2D
     private Rect2 TierHitRect(int i)
     {
         var (cx, cy, cw, _) = DetailBox(true);
-        return new Rect2(cx + 24f, cy + 338f + i * 68f, cw - 48f, 62f);
+        return new Rect2(cx + 24f, cy + TierTop + i * 68f, cw - 48f, 62f);
     }
 
     private Rect2 DetailCloseRect(bool tiers)
     {
         var (cx, cy, _, _) = DetailBox(tiers);
         return new Rect2(cx + 12f, cy + 12f, 40f, 40f);
-    }
-
-    private Rect2 DetailConfirmRect(bool tiers)
-    {
-        var (cx, cy, cw, ch) = DetailBox(tiers);
-        return new Rect2(cx + 24f, cy + ch - 58f, cw - 48f, 42f);
     }
 
     private void ProcessCards()
@@ -1274,7 +1276,6 @@ public partial class Hub : Node2D
         if (tiers) for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierHitRect(i), TierIdBase + i);
         UiKit.Hotspot(DetailCloseRect(tiers), DetailCloseId);
         UiKit.Hotspot(DetailJobRect(tiers), JobOpenId);
-        UiKit.Hotspot(DetailConfirmRect(tiers), DetailConfirmId);
         int dhov = UiKit.HoveredId();
         if (Pad.UsingMouse && dhov >= TierIdBase && dhov < TierIdBase + Tiers.Length)
         {
@@ -1284,7 +1285,7 @@ public partial class Hub : Node2D
         int dclk = UiKit.ClickedId(Pad.MouseClick());
         bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);
         bool jEdge = jk && !_jHeld; _jHeld = jk;
-        if ((dclk == JobOpenId || jEdge) && _detailT > 0.15)
+        if (dclk == JobOpenId || jEdge)
         {
             OpenJob();
             return;
@@ -1308,7 +1309,7 @@ public partial class Hub : Node2D
         }
 
         // マウス：「とじる」クリック＝X と同じ（カード一覧へ戻る）。ここで消費して潜る側へ流さない。
-        if (dclk == DetailCloseId && _detailT > 0.15)
+        if (dclk == DetailCloseId)
         {
             Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; _xHeld = true;
             return;
@@ -1316,15 +1317,29 @@ public partial class Hub : Node2D
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (dclk == DetailConfirmId && _detailT > 0.15) zEdge = true;
-        // マウス：段のクリックで選択＋確定（＝Z と同じ）。未解禁の段（底まで）は拒否音だけで何も起きない。
-        if (dclk >= TierIdBase && dclk < TierIdBase + Tiers.Length && _detailT > 0.15)
+        // マウス：段のクリックで即ダイブ（＝Z と同じ確定経路）。未解禁の段は拒否音だけで何も起きない。
+        //   2026-09-17: ここに付いていた入力ゲート（_detailT > 0.15）を外した。ユーザー実機指摘
+        //   「ダブルクリックしないと入らない」の正体がこれで、詳細を開いた直後 0.15 秒のクリックが
+        //   丸ごと捨てられていた（ホバーで _tierSel だけが動くので「1回目は選択だけ」に見える）。
+        //   詳細を開いた押下がそのまま確定へ流れる事故は、クリックもZも押下エッジ（MouseClick /
+        //   _zHeld）で取っているので時間ゲート無しでも起きない。
+        if (dclk >= TierIdBase && dclk < TierIdBase + Tiers.Length)
         {
             int ci = dclk - TierIdBase;
             if (TierOpen(ci)) { _tierSel = ci; zEdge = true; }
             else { Audio.Instance?.PlayUiDeny(); return; }
         }
-        if (zEdge && _detailT > 0.15 && (!tiers || TierOpen(_tierSel)))
+        // FINAL 初挑戦に結び手（ミナ）のままで潜ろうとしたら、ダイブを止めてアカウント切り替えを開く
+        //   （2026-09-17 ユーザー指示）。拒否して突き放さず、そのまま選び直せる場所へ連れて行く
+        //   ＝一覧からは既にミナが落ちている（OpenJob）ので、ここで詰まることは無い。
+        if (zEdge && e.IsFinal && MinaBlockedHere && (_game?.SelectedJob ?? Job.Tank) == Job.Tank)
+        {
+            OpenJob();                       // 先に開く（中で鳴る確定音を、この下の拒否音で上書きする）
+            Audio.Instance?.PlayUiDeny();
+            Toast(GameManager.MinaFinalLockHint, "あかり／こはる／レイ のどなたかで、潜ってください。", UiKit.Kegare);
+            return;
+        }
+        if (zEdge && (!tiers || TierOpen(_tierSel)))
         {
             Audio.Instance?.PlayUiConfirm();
             // 難易度はここで確定（DiffSelect と同じ代入。数値・実装は不変）。
@@ -1344,7 +1359,7 @@ public partial class Hub : Node2D
         // 一本化した。ここで両方に割り当てると、Esc 一発でメニューが開きつつ裏で詳細も閉じる）。
         bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
-        if (backEdge && _detailT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
+        if (backEdge) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
     }
 
     private void DiveAuto()
@@ -1353,12 +1368,23 @@ public partial class Hub : Node2D
         if (next != null)
             foreach (var s in GameManager.Stages)
                 if (s.Id == next) { Dive(s.Scene); return; }
-        Dive("res://MinaBattle.tscn");
+        Dive(FinalScene);
     }
 
     private void Dive(string scene)
     {
         if (_dived) return;
+        // FINAL 初挑戦のミナ封じ（2026-09-17）の最後の砦。Detail 側で止めているので手操作ではここへ来ないが、
+        //   詳細を通らない自動ダイブ（--demo/--qa の DiveAuto）が残るため、ここで結び手のまま潜らせない。
+        //   ゲート自体は GameManager.IsMinaLockedForFinal（--job= 固定中は素通し＝QA の逃し口は従来どおり）。
+        if (scene == FinalScene && _game != null && _game.IsMinaLockedForFinal && _game.SelectedJob == Job.Tank)
+        {
+            // 解禁済みのうち一番手前＝あかり（Jobs.All の並び順）へ寄せる。三人とも未解禁なら
+            //   そもそも AllStoryCleared が立たず FINAL カードが出ないので、ここは必ず誰かに当たる。
+            foreach (var job in Jobs.All)
+                if (job.Id != Job.Tank && _game.IsJobUnlocked(job.Id)) { _game.SelectedJob = job.Id; break; }
+            GD.Print($"[JOB] FINAL は初挑戦のため結び手を回避 -> {_game.JobDef.CharacterName}");
+        }
         _dived = true;
         // 他ジョブ潜行の章カウンタ（2026-09-15）：ダイブ確定のここで1回だけ数える（Stage 側の _Ready で
         //   数えると R リトライの ReloadCurrentScene でも増えて章が飛ぶ）。対象は本編3面×結び手以外のみ
@@ -1422,13 +1448,18 @@ public partial class Hub : Node2D
     {
         float x = PhoneX + 22f;
         DrawJobButton(HeaderJobRect());
+        // ★2026-09-17：ヘッダの2つの数字は左が Followers・右が Impression だが、♥と金の丸だけでは
+        //   何の数かが読み取れなかった（ユーザー指摘「タイムラインの♥の意味は何？」）。
+        //   記号をやめ「フォロワー」「インプレ」の語ラベルを数字の前に置く＝ハブ本文（745行・841行）の語彙と揃える。
         string imp = UiKit.Abbrev(_game?.Impression ?? 0), fol = UiKit.Abbrev(_game?.Followers ?? 0);
         float right = PhoneX + PhoneW - 22f;
-        float iw = UiKit.TextW(UiKit.Mono, imp, 15);
-        DrawCircle(new Vector2(right - iw - 15f, 99f), 6f, UiKit.Gold);
+        const string ImpLabel = "インプレ", FolLabel = "フォロワー";
+        float iw = UiKit.TextW(UiKit.Mono, imp, 15), ilw = UiKit.TextW(UiKit.Zen, ImpLabel, 12);
+        UiKit.Text(this, UiKit.Zen, new Vector2(right - iw - 6f - ilw, 92f), ImpLabel, 12, new Color(UiKit.Gold, 0.75f));
         UiKit.Text(this, UiKit.Mono, new Vector2(right - iw, 89f), imp, 15, UiKit.Gold);
-        float fw = UiKit.TextW(UiKit.Mono, fol, 15), fx = right - iw - 46f - fw;
-        DrawHeart(new Vector2(fx - 15f, 99f), 6f, UiKit.Hp);
+        float fw = UiKit.TextW(UiKit.Mono, fol, 15), flw = UiKit.TextW(UiKit.Zen, FolLabel, 12);
+        float fx = right - iw - 6f - ilw - 18f - fw;
+        UiKit.Text(this, UiKit.Zen, new Vector2(fx - 6f - flw, 92f), FolLabel, 12, new Color(UiKit.Hp, 0.75f));
         UiKit.Text(this, UiKit.Mono, new Vector2(fx, 89f), fol, 15, UiKit.Hp);
         DrawRect(new Rect2(PhoneX + 20f, 68f, PhoneW - 40f, 1f), new Color(1, 1, 1, 0.07f));
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x, 87f), "タイムライン", 20, UiKit.White);
@@ -1543,8 +1574,11 @@ public partial class Hub : Node2D
             float ey = cy + h - 25f, ex = x + 26f;
             if (e.IsFinal)
             {
-                ex = Metric(ex, ey, 2, _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
-                Metric(ex, ey, 3, _game?.Impression ?? 0, new Color(UiKit.Text3, alpha));
+                // ★2026-09-17：FINAL だけは他カードと違い「いいね/ビュー」ではなくミナ自身の
+                //   フォロワー数・インプレッションの生値を出している。♥と棒グラフのままでは
+                //   投稿のエンゲージ数と読み違える（ユーザー指摘）ので、語ラベル付きに変える。
+                ex = MetricLabeled(ex, ey, "フォロワー", _game?.Followers ?? 0, new Color(UiKit.Hp, alpha));
+                MetricLabeled(ex, ey, "インプレ", _game?.Impression ?? 0, new Color(UiKit.Text3, alpha));
             }
             else
             {
@@ -1772,6 +1806,17 @@ public partial class Hub : Node2D
         return x + 20 + UiKit.TextW(UiKit.Mono, s, UiKit.FontLabel) + 26;
     }
 
+    // 記号の代わりに語で意味を示す指標（FINAL カードのフォロワー／インプレ）。次の x を返す。
+    //   Metric と同じ行・同じフォントサイズに揃え、ラベルだけ一段小さく前に置く。
+    private float MetricLabeled(float x, float y, string label, long count, Color col)
+    {
+        float lw = UiKit.TextW(UiKit.Zen, label, UiKit.FontSmall);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 2f), label, UiKit.FontSmall, new Color(col, col.A * 0.8f));
+        string s = UiKit.Abbrev(count);
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + lw + 6f, y), s, UiKit.FontLabel, col);
+        return x + lw + 6f + UiKit.TextW(UiKit.Mono, s, UiKit.FontLabel) + 26;
+    }
+
     private void DrawHeart(Vector2 c, float r, Color col)
     {
         DrawCircle(new Vector2(c.X - r * 0.45f, c.Y - r * 0.25f), r * 0.55f, col);
@@ -1861,7 +1906,8 @@ public partial class Hub : Node2D
     }
 
     // ───────── 2-b: 投稿詳細（開いたカード）─────────
-    // 本文／消された行の伏字／ミナの一言／潜り方（難易度4段）を1枚に置く。
+    // 本文／消された行の伏字／ミナの一言／難易度4段を1枚に置く。段を押した時点でそのままダイブする
+    //   （2026-09-17 ユーザー指示で「潜る」ボタンと「潜り方」の見出しを廃止＝押す場所は段だけ）。
     //   FINAL は段を出さず、従来の FINAL の見出し（穢れ色・「限界」）の扱いを踏襲する。
     private void DrawDetail()
     {
@@ -1888,11 +1934,23 @@ public partial class Hub : Node2D
         UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 56f, cy + 260f), quip, 14, new Color(UiKit.Mina, a), cw - 80f, 2);
         if (tiers)
         {
+            // 2026-09-17 ユーザー指示：「潜り方」の見出しを削除。区切り線は本文と段の境目として残す
+            //   （線まで消すと、投稿本文と難易度の一覧が地続きに見えて読み分けられない）。
             DrawRect(new Rect2(cx + 24f, cy + 305f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
-            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 24f, cy + 313f), "潜り方", 13, new Color(UiKit.Text3, a));
-            for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 24f, cy + 338f + i * 68f, cw - 48f, 62f, a);
+            for (int i = 0; i < Tiers.Length; i++) DrawTier(i, cx + 24f, cy + TierTop + i * 68f, cw - 48f, 62f, a);
         }
-        DrawPrimaryButton(DetailConfirmRect(tiers), "潜る", DetailConfirmId, acc, a);
+        // FINAL 初挑戦のミナ封じ（2026-09-17）。押す前に「なぜ潜れないか」を出す＝拒否されてから知る、を避ける。
+        //   段の無い FINAL のカードは下が空いているので、ミナの一言の下に穢れ色で1枚だけ置く。
+        else if (MinaBlockedHere)
+        {
+            DrawRect(new Rect2(cx + 24f, cy + 320f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
+            UiKit.Box(this, new Rect2(cx + 24f, cy + 344f, cw - 48f, 76f), new Color(UiKit.Kegare, 0.10f * a), 8f,
+                new Color(UiKit.Kegare, 0.5f * a), 1f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 40f, cy + 356f), GameManager.MinaFinalLockHint, 15,
+                new Color(UiKit.Kegare, a));
+            UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 384f),
+                "あかり／こはる／レイ のどなたかで、潜ってください。", 13, new Color(UiKit.Text2, a));
+        }
     }
 
     private void DrawJobButton(Rect2 rect, float alpha = 1f)
@@ -1917,31 +1975,36 @@ public partial class Hub : Node2D
         ? "@mina_ai_"
         : System.Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
 
-    // 潜り方の1段。名前／ミナの一言（DiffSelect の Quip）／♥ボム／板の枚数（ボスHPバー本数）。
-    //   「報酬 ×1.0」の文字は消し、♥アイコン＋倍率だけを右端に置く。
+    // 潜り方の1段。名前／獲得倍率／板の枚数（ボスHPバー本数）。
+    //   2026-09-17: ミナの一言（Quip）を落として1行の行になったので、中身は行の縦中央に揃える
+    //   （h=62 のまま段の間隔は変えない＝TierHitRect と DrawDetail の座標式を触らずに済む）。
     private void DrawTier(int i, float x, float y, float w, float h, float alpha)
     {
         var tr = Tiers[i];
         bool sel = i == _tierSel, open = TierOpen(i);
+        float mid = y + h / 2f;   // 行の縦中央（1行になったぶん、ここへ寄せる）
         Color acc = tr.Diff == GameManager.Diff.Lunatic ? UiKit.Kegare : tr.Diff == GameManager.Diff.Hard ? UiKit.Gold : UiKit.Purify;
         if (sel && open) UiKit.Box(this, new Rect2(x, y, w, h), new Color(acc, 0.10f * alpha), 8f, new Color(acc, 0.6f * alpha), 1f);
         else DrawRect(new Rect2(x + 12f, y + h - 1f, w - 24f, 1f), new Color(1, 1, 1, 0.06f * alpha));
-        DrawArc(new Vector2(x + 18f, y + 20f), 5f, 0f, Mathf.Tau, 20, new Color(open ? acc : UiKit.Text4, alpha), 1.5f, true);
-        if (sel && open) DrawCircle(new Vector2(x + 18f, y + 20f), 2.5f, new Color(acc, alpha));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 33f, y + 8f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
+        DrawArc(new Vector2(x + 18f, mid), 5f, 0f, Mathf.Tau, 20, new Color(open ? acc : UiKit.Text4, alpha), 1.5f, true);
+        if (sel && open) DrawCircle(new Vector2(x + 18f, mid), 2.5f, new Color(acc, alpha));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 33f, mid - 12f), tr.Name, 17, new Color(open ? UiKit.White : UiKit.Text4, alpha));
         if (!open)
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(x + 16f, y + 36f), $"解禁：フォロワー {GameManager.LunaticFollowerReq} または 威力 Lv4",
-                12, new Color(UiKit.Text4, alpha));
+            // 実装（GameManager.IsLunaticUnlocked）はフォロワー200 か 威力Lv4（n_power_2x）のどちらでも解放する。
+            // ユーザー指示の文言は「フォロワー200以上で解放」だが、Lv4 の道を落とすと表示が嘘になるため
+            // 主条件を前に出し、もう一方は括弧で添える（簡潔さは保ちつつ両方が分かる）。
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + 110f, mid - 8f),
+                $"フォロワー{GameManager.LunaticFollowerReq}以上で解放（威力Lv4でも可）",
+                12, new Color(UiKit.Text4, alpha), HorizontalAlignment.Right, w - 126f);
             return;
         }
         // ♥・ボムの基礎値は全難易度3/1で共通になった（2026-09-15）ので賭け金表示から外し、
         // 難易度で本当に変わる獲得倍率だけを出す。
         string stake = $"×{GameManager.DifficultyImpressionMulFor(tr.Diff):0.0}";
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 132f, y + 12f), stake, 12, new Color(UiKit.Hp, alpha), HorizontalAlignment.Right, w - 148f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 16f, y + 36f), tr.Quip, 12, new Color(UiKit.Text3, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 132f, mid - 7f), stake, 12, new Color(UiKit.Hp, alpha), HorizontalAlignment.Right, w - 190f);
         int bars = tr.Diff switch { GameManager.Diff.Easy => 2, GameManager.Diff.Hard => 5, GameManager.Diff.Lunatic => 6, _ => 4 };
-        for (int b = 0; b < bars; b++) DrawRect(new Rect2(x + w - 18f - (bars - b) * 7f, y + 37f, 3f, 11f), new Color(acc, 0.6f * alpha));
+        for (int b = 0; b < bars; b++) DrawRect(new Rect2(x + w - 18f - (bars - b) * 7f, mid - 5f, 3f, 11f), new Color(acc, 0.6f * alpha));
     }
 
     // ───────── ジョブ選択（設計書 §6）─────────
@@ -2029,6 +2092,13 @@ public partial class Hub : Node2D
         }
     }
 
+    // ───────── FINAL 初挑戦のミナ封じ（2026-09-17）─────────
+    //   FINAL のボスはミナ本人で、三人が救援に来る面。初挑戦だけは結び手（＝ミナ）で潜れない
+    //   （判定は GameManager.IsMinaLockedForFinal＝FINAL のクリア記録が無く、--job= 固定でもないとき）。
+    //   ここは「いま FINAL のカードに向き合っているか」だけを言う＝ゲートの条件は GameManager 側に一本化。
+    private bool SelIsFinal => _sel >= 0 && _sel < _entries.Length && _entries[_sel].IsFinal;
+    private bool MinaBlockedHere => SelIsFinal && (_game?.IsMinaLockedForFinal ?? false);
+
     private void OpenJob()
     {
         if (_dived) return;
@@ -2038,7 +2108,11 @@ public partial class Hub : Node2D
         _jobT = 0;
         // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
         var cur = _game?.SelectedJob ?? Job.Tank;
-        _jobChoices = System.Array.FindAll(Jobs.All, job => _game!.IsJobUnlocked(job.Id));
+        // FINAL のカードに向き合っている間だけ、結び手（ミナ）を一覧から落とす＝押せないものを見せない
+        //   （未解禁ジョブと同じ作法。ここは「選べる口が無い」だけで、ヒントは Detail 側が文で出す）。
+        bool hideMina = MinaBlockedHere;
+        _jobChoices = System.Array.FindAll(Jobs.All,
+            job => _game!.IsJobUnlocked(job.Id) && !(hideMina && job.Id == Job.Tank));
         _jobSel = 0;
         for (int i = 0; i < _jobChoices.Length; i++) if (_jobChoices[i].Id == cur) { _jobSel = i; break; }
     }
@@ -2100,7 +2174,7 @@ public partial class Hub : Node2D
                     return;
                 }
                 _game.SelectedJob = jd.Id;
-                GD.Print($"[JOB] selected in hub: {jd.Name}({jd.Id}) mode={_game.ShotModeName(_game.SelectedShotMode)}");
+                GD.Print($"[JOB] selected in hub: {jd.CharacterName}({jd.Id}) mode={_game.ShotModeName(_game.SelectedShotMode)}");
                 _game.AutoSave();   // セーブ経路は既存の SelectedJob のまま（新フォーマットは増やさない）
             }
             // トーストは既存の型（1行目＝世界の言葉／2行目＝数値・仕様）で出す。

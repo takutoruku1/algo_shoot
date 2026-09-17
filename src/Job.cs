@@ -28,7 +28,10 @@ public enum Job
 public sealed class JobTuning
 {
     public Job Id;
-    public string Name = "";                 // 画面表記（名詞形）
+    // ★2026-09-17 ユーザー指示：ジョブ名（結び手/灯し手/祈り手/語り手）と型名（耐久/近接/回復/魔法）の
+    //   表記は UI から全廃し、画面にはキャラクター名（ミナ/あかり/こはる/レイ＝CharacterName）だけを出す。
+    //   旧 JobTuning.Name はこの決定で消した（画面表記の入口を残すと再び漏れる）。enum の識別子
+    //   （Job.Tank 等）と --job= の英語トークンは内部表現なので従来どおり。ログも CharacterName で出す。
     public string CharacterId = "";
     public string CharacterName = "";
     public string PlayerTexturePath = "";
@@ -77,7 +80,7 @@ public static class Jobs
         // ── 結び手（耐久・連射）＝初期選択。避けるのではなく耐える ──
         new()
         {
-            Id = Job.Tank, Name = "結び手", Mode = GameManager.ShotMode.Rapid,
+            Id = Job.Tank, Mode = GameManager.ShotMode.Rapid,
             CharacterId = "mina", CharacterName = "ミナ", PlayerTexturePath = "res://char/player/mina/mina_idle_v2.png",
             MaxLifeDelta = +2,
             HitInvulSec = 1.8f,        // 1.2→1.8。連鎖被弾を潰す
@@ -89,7 +92,7 @@ public static class Jobs
         // ── 灯し手（近接・加速球）＝無防備窓の瞬間火力 ──
         new()
         {
-            Id = Job.Melee, Name = "灯し手", Mode = GameManager.ShotMode.Accel,
+            Id = Job.Melee, Mode = GameManager.ShotMode.Accel,
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             UnlockStageId = "akari",
             MaxLifeDelta = -1,
@@ -101,7 +104,7 @@ public static class Jobs
         // ── 祈り手（回復・ホーミング）＝削られても戻せる。そのぶん一発が軽い ──
         new()
         {
-            Id = Job.Heal, Name = "祈り手", Mode = GameManager.ShotMode.Homing,
+            Id = Job.Heal, Mode = GameManager.ShotMode.Homing,
             CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
             UnlockStageId = "koharu",
             // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
@@ -118,7 +121,7 @@ public static class Jobs
         // ── 語り手（魔法・拡散）＝面の制圧。近づかれたら逃げる手段が薄い ──
         new()
         {
-            Id = Job.Magic, Name = "語り手", Mode = GameManager.ShotMode.Spread,
+            Id = Job.Magic, Mode = GameManager.ShotMode.Spread,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             UnlockStageId = "rei",
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
@@ -138,12 +141,14 @@ public static class Jobs
     }
 
     // コマンドライン --job=melee|heal|tank|magic の解決（Main が読む）。未知の語は null。
+    //   英語トークンは enum 名そのもの＝内部表現なので据え置き。和名の別名は 2026-09-17 に
+    //   ジョブ名（結び手…）からキャラクター名（ミナ…）へ差し替えた＝画面と同じ語で呼べる。
     public static Job? Parse(string s) => s.ToLowerInvariant() switch
     {
-        "tank" or "結び手" => Job.Tank,
-        "melee" or "灯し手" => Job.Melee,
-        "heal" or "祈り手" => Job.Heal,
-        "magic" or "語り手" => Job.Magic,
+        "tank" or "mina" or "ミナ" => Job.Tank,
+        "melee" or "akari" or "あかり" => Job.Melee,
+        "heal" or "koharu" or "こはる" => Job.Heal,
+        "magic" or "rei" or "レイ" => Job.Magic,
         _ => null,
     };
 }
