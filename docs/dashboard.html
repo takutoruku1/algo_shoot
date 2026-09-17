@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 242 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 243 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">242</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">243</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept"><code>src/GameManager.cs:342</code>(定義)/<code>:355,364</code>(加減算)/<code>:907,997</code>(セーブ/ロード)を<code>grep</code>しても消費箇所が無い(兄弟フィールド<code>P2HesitationSec</code>は<code>Epilogue.cs:346</code>で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)</span>
           <span class="worker">scenario</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-17) 2026-09-17監査(scenario)発見。<code>src/GameManager.cs</code>の<code>HesitationSec</code>フィールド(旧342行定義)を<code>grep -rn &quot;\.HesitationSec\b&quot; src/</code>で消費箇所0件と再確認の上、定義・<code>RecordChoice</code>内の加減算(旧355,364行)・セーブ(旧907行)・ロード(旧997行)・<code>ResetPersistent()</code>内の初期化(旧1032行、削除必須の追加対応)の計6箇所を削除。兄弟フィールド<code>P2HesitationSec</code>(<code>Prologue.cs</code>書込/<code>Epilogue.cs:346</code>読出で使用中)には触れていない。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2417,18 +2417,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">e3410bc</span><span>2026-09-17</span><span class="s">auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する</span></li>
+      <li><span class="h">34629e6</span><span>2026-09-17</span><span class="s">auto: Shop.csの退店小話から廃止済み「Stay」合言葉を削除</span></li>
       <li><span class="h">305c19f</span><span>2026-09-17</span><span class="s">auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する</span></li>
       <li><span class="h">5263389</span><span>2026-09-17</span><span class="s">auto: BossReiの「圧」上昇ギミックにHUDインジケーターを追加</span></li>
       <li><span class="h">96ac800</span><span>2026-09-17</span><span class="s">auto: WIP着手 - BossReiの「圧」上昇ギミックにHUDフィードバックを追加する</span></li>
       <li><span class="h">026f516</span><span>2026-09-17</span><span class="s">auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正</span></li>
       <li><span class="h">4919bd6</span><span>2026-09-17</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正する</span></li>
       <li><span class="h">49f98b9</span><span>2026-09-17</span><span class="s">auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）</span></li>
-      <li><span class="h">26da043</span><span>2026-09-17</span><span class="s">auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する</span></li>
-      <li><span class="h">8edb0ad</span><span>2026-09-17</span><span class="s">auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-17 19:25 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-17 19:28 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

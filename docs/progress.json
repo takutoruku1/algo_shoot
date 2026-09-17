@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-17 19:25 UTC",
+  "generated": "2026-09-17 19:28 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 38,
-    "done": 242
+    "done": 243
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド",
-      "worker": "engineer",
-      "accept": "`src/GameManager.cs:342`(定義)/`:355,364`(加減算)/`:907,997`(セーブ/ロード)を`grep`しても消費箇所が無い(兄弟フィールド`P2HesitationSec`は`Epilogue.cs:346`で使用済み)。仮台本にこの値を使う演出指定はないため、フィールドと加減算コード計4箇所を削除する死にコード整理"
-    },
     {
       "priority": "P3",
       "title": "「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)",
@@ -253,6 +247,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/GameManager.cs`の`HesitationSec`フィールド(旧342行定義)を`grep -rn \"\\.HesitationSec\\b\" src/`で消費箇所0件と再確認の上、定義・`RecordChoice`内の加減算(旧355,364行)・セーブ(旧907行)・ロード(旧997行)・`ResetPersistent()`内の初期化(旧1032行、削除必須の追加対応)の計6箇所を削除。兄弟フィールド`P2HesitationSec`(`Prologue.cs`書込/`Epilogue.cs:346`読出で使用中)には触れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用",
@@ -1708,6 +1708,16 @@
   ],
   "commits": [
     {
+      "hash": "e3410bc",
+      "date": "2026-09-17",
+      "subject": "auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する"
+    },
+    {
+      "hash": "34629e6",
+      "date": "2026-09-17",
+      "subject": "auto: Shop.csの退店小話から廃止済み「Stay」合言葉を削除"
+    },
+    {
       "hash": "305c19f",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する"
@@ -1736,16 +1746,6 @@
       "hash": "49f98b9",
       "date": "2026-09-17",
       "subject": "auto: STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正（SpawnDummyデバウンス）"
-    },
-    {
-      "hash": "26da043",
-      "date": "2026-09-17",
-      "subject": "auto: WIP着手 - STAGE0チュートリアルのPurifiedCount暴走・FPS急落を修正する"
-    },
-    {
-      "hash": "8edb0ad",
-      "date": "2026-09-17",
-      "subject": "auto: 改心フォロワーの見た目が全ステージで「アンチくん」固定になる不具合を修正"
     }
   ]
 }
