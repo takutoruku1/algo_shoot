@@ -272,6 +272,8 @@ public partial class Bullet : Area2D
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
+        // 減速弾のフラグ群も同様にリセット（持ち越すと別の弾が勝手に失速する）。
+        Decel = false; _decelDelay = 0f; _slowSpeed = 0f; _fromSpeed = 0f; _decelDir = Vector2.Zero;
 
         // 言葉弾（投稿チップ）の層と当たり芯の子も再利用時にリセット。
         // SetWord が ZIndex -12（チップは弾より奥）へ沈めるので、通常弾は必ず 0 へ戻す。
@@ -379,6 +381,30 @@ public partial class Bullet : Area2D
         QueueRedraw();
     }
 
+    // ─── 減速弾（FINAL「未応答の残響」＝届かない弾）───
+    //   投げた瞬間が最も速く、_decelDelay 秒かけて _slowSpeed まで落ちてそこで一定になる（止まりはしない）。
+    //   MakeAccel（タメ→瞬間発進）の裏返しで、こちらは「勢いが失われていく」＝既読がつかない声。
+    //   ★理不尽にしない：速い→遅いの向きなので、初見でも「近づいてくるほど遅くなる」＝避ける猶予が
+    //     時間とともに“増える”。逆（遅い→速い）のような不意打ちにはならない。方向も一切変えない。
+    //   ★止め切らない理由：完全停止すると画面外カリングに掛からず、盤面に当たり判定が残り続けて
+    //     「見えているのに動かない地雷」になる。下限速度を持たせて必ず左端へ抜けさせる（弾は必ず消える）。
+    public bool Decel;
+    private float _decelDelay;   // この秒数をかけて減速し切る
+    private float _slowSpeed;    // 減速後の速さ（px/s）。0 にはしない
+    private float _fromSpeed;    // 減速開始時の速さ（＝Spawn 時の速さ）
+    private Vector2 _decelDir;   // 進行方向（不変）
+
+    public void MakeDecel(float slowSpeed, float delaySec)
+    {
+        float len = Velocity.Length();
+        if (len < 0.01f) return;
+        Decel = true;
+        _decelDir = Velocity / len;
+        _fromSpeed = len;
+        _slowSpeed = Mathf.Min(slowSpeed, len);  // 「速くなる」方向には決して働かせない
+        _decelDelay = Mathf.Max(0.05f, delaySec);
+    }
+
     // 祈り弾×自機弾の重なり：双方消して「受け止めた」の手応え＋やさしさ微加算。
     // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
     private void OnAreaEntered(Area2D area)
@@ -473,6 +499,16 @@ public partial class Bullet : Area2D
                 Velocity = _accelDir * _fastSpeed;
             }
             QueueRedraw(); // タメ中は充填リングを毎フレーム脈動（発進の瞬間は尾へ切替）
+        }
+
+        // 減速弾：_decelDelay 秒かけて _fromSpeed → _slowSpeed へ落ちる（向きは不変）。
+        //   毎フレーム Velocity を掛け算で減らすのではなく _age から絶対値で引き直す＝
+        //   集中モード（EnemyTimeScale）で edelta が縮んでも減速カーブの形が変わらない。
+        //   ease-out（1-(1-x)^2）＝最初に大きく失速し、最後はゆるく寄る＝「声が届かなくなる」画。
+        if (Decel)
+        {
+            float x = Mathf.Min(1f, _age / _decelDelay);
+            Velocity = _decelDir * Mathf.Lerp(_fromSpeed, _slowSpeed, 1f - (1f - x) * (1f - x));
         }
 
         // テクスチャ弾（グッズ／書類）の回転と横揺れ。描き直しゼロで動かすため、

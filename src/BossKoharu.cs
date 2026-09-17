@@ -50,7 +50,17 @@ public partial class BossKoharu : Enemy
     //  （報酬の流儀はレイの安置リレー完走報酬 BossRei.TickRelayWatch に合わせる。♥上限時はスコアで返す）。
     //   テーマ＝「アーカイブ、ぜんぶ見て」：前へ出て見るほど見残し（＝後の弾）が減って安全
     //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“食べて”いない＝完食報酬なし。
-    private bool _mealFired;         // 発火ワンショット
+    //
+    // 2026-09-17 ユーザー指示：「うちわが3列ぐらい下に落ちてくる攻撃」＝この配膳を削除。
+    //   復活できるよう、以下のコード（TickMeal / ServeMeal / CountMealAlive / FinishMeal と INI 値）は
+    //   丸ごと残置し、このフラグ1個だけで止める（Hud.TickerEnabled・Enemy.ShowDamageNumbers と同じ流儀）。
+    //   const ではなく static readonly ＝ false 固定でも分岐が畳まれず CS0162 が出ない。
+    //   止め方は「_mealPhase に入れない」ではなく「HP52% を跨いだ瞬間に _mealFired だけ立てて素通りさせる」。
+    //   _mealFired は十字火(26%)の前提条件（下の OnHpChanged）であり、_mealPhase は
+    //   スペル切替／フィナーレ／第二形態の保留（holds）条件でもあるため、
+    //   「発火済み・進行中でない」状態で素通りさせるのが唯一デッドロックを作らない畳み方になる。
+    public static readonly bool MealEnabled = false;
+    private bool _mealFired;         // 発火ワンショット（OFF時も「消化済み」として立てる）
     private int _mealPhase;          // 0=非活性 / 1=宣告→配膳待ち / 2=食事時間(8s) / 3=お残し→ニードル変換中
     private double _mealT;
     private int _mealStartLives, _mealStartBombs;  // 完食報酬の判定スナップショット（被弾なし・ボムなし）
@@ -301,17 +311,21 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝画面から落ちてくる光は、自機弾で“受け止め”られる。
+    // 「祈り弾」ギミック（#12 機構側／#20）：向かってくる光は、自機弾で“受け止め”られる。
     // 消すと双方消滅＋加点（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
     // FanDown はスペル「みんな見てる」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
     // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
+    // 2026-09-17 ユーザー指示：真下（Pi/2）固定をやめ、自機方向を中心に張る（あかりの扇と同じ直し）。
+    //   受け止め遊びはむしろ成立しやすくなる＝正面から来る弾に自機弾を合わせる形になる。
     private void FanDown(BulletPool pool)
     {
         int k = Dn(_fanCount);
+        var aim = AimAtPlayer();
+        float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
         {
-            float t = (float)i / (k - 1) - 0.5f;
-            float a = Mathf.Pi / 2f + t * Mathf.DegToRad(78f);
+            float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
+            float a = baseA + t * Mathf.DegToRad(78f);
             var b = FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.6f);
             b.MakeErasable();
         }
@@ -562,15 +576,31 @@ public partial class BossKoharu : Enemy
         // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
         // 十字火と同じくスペル切替より先に判定する＝同じ被弾では食事の宣言が勝つ（切替の宣言は下の mealHolds で保留）。
         // 十字火(26%)は必ず食事(52%)より後なので、十字火側のような進行中ガードは要らない（＝ここで止めると発火しない）。
+        // 2026-09-17 ユーザー指示で配膳は削除（MealEnabled=false）。閾値を跨いだ一度だけ _mealFired を
+        // 立てて素通りさせる＝「済んだこと」にする。_mealPhase は 0 のままなので
+        //   ・下の mealHolds が立たない＝スペル切替(50%)・第二形態・フィナーレがその場で通る
+        //   ・十字火(26%)の前提 `_mealFired` は満たされる＝十字火が死なない
+        //   ・TickMeal が呼ぶ OnHpChanged（＝保留の解除役）が要らない＝解除待ちのデッドロックが起きない
+        // 宣告カードと台詞も出さない（出す攻撃が無い）。
         if (!_mealFired && HpRatio <= _mealHp)
         {
             _mealFired = true;
-            _mealPhase = 1; _mealT = 0;
-            _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
-            _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
-            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
-            GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "全部見なきゃ", Spells[0].tint);
-            GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
+            if (MealEnabled)
+            {
+                _mealPhase = 1; _mealT = 0;
+                _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
+                _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
+                if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
+                GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, "全部見なきゃ", Spells[0].tint);
+                GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
+            }
+            // 配膳OFF時だけの取りこぼし対策：大ダメージ1発で 52%→26% を同時に跨ぐと、上の十字火の判定は
+            // この行より前で「_mealFired がまだ false」として素通りしている。配膳があった頃は
+            // FinishMeal が OnHpChanged() を呼び直して拾い直していたが、その呼び直しが無くなるため、
+            // ここで一度だけ自分で呼び直す（_mealFired は既に true＝再帰は1段で止まる）。
+            // 拾い直さないと gotoHolds が立ちっぱなしになり、スペル切替・第二形態・フィナーレが
+            // 永久に保留される（＝進行不能）。
+            if (!MealEnabled && !_gotoFired && HpRatio <= _gotoHp) { OnHpChanged(); return; }
         }
         // ワンショットギミック（食事・十字火）の進行中と、その発火待ちの間は、スペル切替とフィナーレの宣言を保留する。
         // 無防備窓（4秒・上限100HP）の中では発動HPと切替を何%離しても1〜2ヒットで跨ぐため、値では宣言カードを守れない

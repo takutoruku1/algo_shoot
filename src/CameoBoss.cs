@@ -324,6 +324,10 @@ public partial class CameoBoss : Enemy
     // カメオはフォロワー化しない（味方化は本戦ボスのみ）。
     protected override void GrantFollower() { }
 
+    // 撃破の欠片は「中ボスの格」＝ザコの約4倍・本戦ボスの約半分。
+    // 本戦ボス（ステージの頂点）との差が絵で分かるようにする（§2-1 リスクに比例したリターン）。
+    protected override FxLayer.PurifyTier PurifyGrade => FxLayer.PurifyTier.MidBoss;
+
     // ── 撃破（Redeem=サイクル完了/HP0）後の締め ──
     // Enemy.Redeem が Reward/手応え演出（PurifyBurst/Hitstop）の作法を持つが、カメオ専用の報酬
     // （RewardCameoDefeat＝スコア+2000）はここで1回だけ付与する。

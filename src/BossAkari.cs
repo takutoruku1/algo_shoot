@@ -252,7 +252,7 @@ public partial class BossAkari : Enemy
         _fireT += delta;
         switch (_pattern)
         {
-            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 下向きの雨の扇＝帯を張る
+            case 0: if (_fireT >= Di(_fanInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); FanDown(pool); } break;       // 雨の扇＝自機方向へ帯を張る
             case 1: if (_fireT >= Di(_ringInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); TriggerAttackPose(); Ring(pool); } break;         // 回転する放射リング
             case 2: if (_fireT >= Di(_aimedInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Aimed); TriggerAttackPose(); AimedSpread(pool); } break; // 自機狙いの3way連射
             default: if (_fireT >= Di(_spiralInterval)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Wall); TriggerAttackPose(); Spiral(pool); } break;    // 二重スパイラル
@@ -270,13 +270,17 @@ public partial class BossAkari : Enemy
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(FanDown/Ring)=小／連続糸(Spiral)=極小／
     //   自機狙いの精密弾(AimedSpread)=大。当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
+    // 2026-09-17 ユーザー指示：真下（Pi/2）固定の扇をやめ、自機方向を中心に張る。
+    // 左に張り付いているだけでは当たらない＝どこにいても避ける動きを要求する。扇の幅は据え置き。
     private void FanDown(BulletPool pool)
     {
         int k = Dn(_fanCount);
+        var aim = AimAtPlayer();
+        float baseA = Mathf.Atan2(aim.Y, aim.X);
         for (int i = 0; i < k; i++)
         {
-            float t = (float)i / (k - 1) - 0.5f;
-            float a = Mathf.Pi / 2f + t * Mathf.DegToRad(80f);
+            float t = k > 1 ? (float)i / (k - 1) - 0.5f : 0f;
+            float a = baseA + t * Mathf.DegToRad(80f);
             FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * EnemyBulletSpeed, 3.0f);
         }
     }

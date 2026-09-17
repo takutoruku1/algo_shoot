@@ -55,9 +55,13 @@ public partial class EnemyRosterQa : Node
             foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"), (StageTheme.Rei, "Rei") })
                 await CheckStage(game, theme, scene);
             Check(_characterPatterns.Count == 9 && _attackSignatures.Count == 9, "nine distinct projectile attacks");
+            // FINAL の3種は 2026-09-17 に固有パターンを新設した。それ以前は eraser/unanswered が
+            // DefaultAim・memory が None ＝「絵以外の差分ゼロ」で、3体とも同じ動きの敵だった。
             Check(EnemyTable.CharactersFor(StageTheme.Mina).Select(s => s.Pattern)
-                .SequenceEqual(new[] { AttackPattern.DefaultAim, AttackPattern.None, AttackPattern.DefaultAim }),
-                "Mina enemies keep their previous attacks");
+                .SequenceEqual(new[] { AttackPattern.MinaEraser, AttackPattern.MinaMemory, AttackPattern.MinaUnanswered }),
+                "Mina echoes each own a distinct attack");
+            CheckShardWeights();
+            await CheckApproachAlwaysCamps();
 
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
@@ -117,8 +121,18 @@ public partial class EnemyRosterQa : Node
         var before = firstWave.Select(e => e.GetNode<Sprite2D>("Body").Position).ToArray();
         await Frames(10);
         Check(firstWave.Where((e, i) => e.GetNode<Sprite2D>("Body").Position != before[i]).Any(), "characters gently move");
-        Check(firstWave.All(e => Mathf.Abs(e.GetNode<Sprite2D>("Body").Rotation) <= 0.026f), "humanoids do not inherit prop spinning");
-        Check(GetTree().GetNodesInGroup("enemy_bullets").Count > 0, "new characters use the existing attacks");
+        // 人型12種は 2026-09-17 に「全員 Humanoid 一種（±0.025rad）」から種ごとの専用モーションへ分けた。
+        // 上限を 0.026→0.16rad(≒9.2°) へ広げる。狙いは変わらない＝道具種の SpinSpeed による
+        // “ぐるぐる回る”を人型が受け継がないこと（AutoBank=false のまま基底の回転は握らせない）。
+        // 9.2° は「首を振る／応援で体を振る」の範囲で、人が物のように回っては見えない線。
+        Check(firstWave.All(e => Mathf.Abs(e.GetNode<Sprite2D>("Body").Rotation) <= 0.16f), "humanoids do not inherit prop spinning");
+        // 予備動作を種ごとに 0.34〜0.78s へ分けた（2026-09-17 差別化）ので初弾の時刻が種で変わる。
+        // あかり面は最長の溜め（Deadline 0.78 / Vacant 0.74）を持ち、NORMAL の Di(x1.35) に
+        // 発射ゲート(0.7s)と FirstShotDelay(0.25s) が乗ると初弾が約 2.1s ＝ 固定150フレーム時点
+        // （実測 約1.88s）に間に合わない。フレーム数ではなく「弾が出るまで待つ」判定に変え、
+        // 溜めの長さにも実行環境のフレーム間隔にも依存しないようにする。
+        Check(await WaitFrames(() => GetTree().GetNodesInGroup("enemy_bullets").Count > 0, 300),
+            "new characters use the existing attacks");
         await Shot($"{scene.ToLowerInvariant()}_new_enemies");
         DisplayServer.WindowSetSize(new Vector2I(960, 540));
         await Frames(10);
@@ -153,9 +167,14 @@ public partial class EnemyRosterQa : Node
 
         var skins = new HashSet<string>();
         var patterns = new HashSet<AttackPattern>();
+        // ★下のループの .Last() は「SpawnOne が同期で world へ AddChild する」ことに依存している。
+        //   Hard/Lunatic の左エッジ湧きだけは予告(0.4s)を挟む遅延スポーン（Spawner._pendingLeft）で、
+        //   同期では world に現れない。Normal なら左エッジ確率が 0 なので安全＝ここで前提を明示しておく。
+        //   このループを難易度でパラメータ化するなら、遅延ぶんを待つか左エッジを除外すること。
+        Check(game.Difficulty == GameManager.Diff.Normal, "roster sampling runs on Normal (left-edge spawns are deferred)");
         for (int i = 0; i < 100; i++)
         {
-            Call(spawner, "SpawnOne");
+            Call(spawner, "SpawnOne", game);   // Spawner.SpawnOne は GameManager? を取る（出現方向の拡張で引数が増えた）
             var enemy = world.GetChildren().OfType<MidEnemy>().Last();
             var spec = Read<EnemySpec>(enemy, "_spec");
             skins.Add(spec.PreTexPath);
@@ -184,6 +203,168 @@ public partial class EnemyRosterQa : Node
         await Frames(5);
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         Hud.BubblePaused = false;
+    }
+
+    // ─── 進入が必ず終わる（＝着座に到達する）ことの実測（2026-09-17 移動パターン差別化）───
+    //   移動を種ごとに変えた結果いちばん怖いのは「着座しない個体」＝倒すまで居座る前提が崩れ、
+    //   MaxAliveEnemies の枠を食い潰して以降のウェーブが湧かない＝進行不能になること。
+    //   全種 × 全出現エッジ（右/上/下/左）× 全難易度 を実際に物理で回し、
+    //   規定時間内に _camped が立つことを実測する。設計上の最悪値は
+    //   「盤面対角 460px ÷ 実効前進 46px/s ≒ 10秒」なので、余裕をみて 12 秒を上限にする。
+    private async Task CheckApproachAlwaysCamps()
+    {
+        const double LimitSec = 12.0;
+        var world = new Node2D { Name = "ApproachWorld" };
+        GetTree().Root.AddChild(world);
+        var game = GetNode<GameManager>("/root/Game");
+
+        // 全種を集める（基底6種＋人型12種＋引用リプ＋バズ壁＋祈り運び）。
+        var specs = new List<(string label, EnemySpec spec)>();
+        foreach (var theme in new[] { StageTheme.Rei, StageTheme.Akari, StageTheme.Koharu, StageTheme.Mina })
+        {
+            var (shooter, drifter) = EnemyTable.For(theme);
+            if (theme != StageTheme.Mina)
+            {
+                specs.Add(($"{theme}.shooter", shooter));
+                specs.Add(($"{theme}.drifter", drifter));
+                specs.Add(($"{theme}.flank", EnemyTable.Flanker(theme)));
+                specs.Add(($"{theme}.wall", EnemyTable.BuzzWall(theme)));
+            }
+            foreach (var c in EnemyTable.CharactersFor(theme))
+                specs.Add(($"{theme}.{c.Pattern}", c));
+        }
+
+        // 出現点と着座点の組。Spawner が実際に使う4エッジを模す（右/上/下/左）。
+        // 左だけは SetSilentEntry（着座まで撃たない）で、着座 x は 184〜224 の保証帯を使う。
+        var entries = new (string edge, Vector2 pos, Vector2 camp, bool silent)[]
+        {
+            ("right",  new Vector2(Field.Right + 14f, 46f),  new Vector2(268f, 150f), false),
+            ("top",    new Vector2(300f, Field.Top - 18f),   new Vector2(176f, 172f), false),
+            ("bottom", new Vector2(320f, Field.Bottom + 18f), new Vector2(200f, 40f),  false),
+            ("left",   new Vector2(Field.Left - 18f, 120f),  new Vector2(184f, 60f),  true),
+        };
+
+        foreach (var diff in Enum.GetValues<GameManager.Diff>())
+        {
+            game.Difficulty = diff;
+            foreach (var (label, spec) in specs)
+            {
+                // 祈り運びは「居座らず横断する」設計＝着座しないのが正。左端へ抜けて消えることだけ確かめる。
+                if (spec.Pattern == AttackPattern.KoharuPrayerCarry) continue;
+                foreach (var (edge, pos, camp, silent) in entries)
+                {
+                    var e = new MidEnemy();
+                    e.Configure(spec);
+                    if (silent) e.SetSilentEntry(camp); else e.SetEntry(camp);
+                    world.AddChild(e);
+                    e.GlobalPosition = pos;
+                    double t = 0;
+                    while (!Read<bool>(e, "_camped") && t < LimitSec)
+                    {
+                        e._PhysicsProcess(1.0 / 60.0);
+                        t += 1.0 / 60.0;
+                    }
+                    Check(Read<bool>(e, "_camped"),
+                        $"{label}/{edge}/{diff}: approach reaches its camp point in {t:0.00}s (< {LimitSec}s)");
+                    // 着座点から離れていないこと（進入の横オフセットが収束せずズレたまま止まっていない）。
+                    //   X は camp.X ± CampDriftMax(9px) の帯に収まる＝左湧きの着座保証 x=184..224 が保たれる。
+                    //   Y は種ごとの縦の形（鋸波±22 / 段送り±24 など）を許す帯で見る。
+                    Check(Mathf.Abs(e.GlobalPosition.X - camp.X) <= 10f,
+                        $"{label}/{edge}/{diff}: settles on the camp column (x={e.GlobalPosition.X:0.0} vs {camp.X:0.0})");
+                    Check(Mathf.Abs(e.GlobalPosition.Y - camp.Y) <= 30f,
+                        $"{label}/{edge}/{diff}: settles near the camp row (y={e.GlobalPosition.Y:0.0} vs {camp.Y:0.0})");
+                    // 左湧きは着座まで一度も撃たない（SetSilentEntry の保証を移動変更で壊していない）。
+                    if (silent) Check(GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().All(b => !b.Active),
+                        $"{label}/{edge}/{diff}: left-edge spawns stay silent until camped");
+                    e.QueueFree();
+                    // 予兆（AreaStrike）は発生源に紐づくが、発生源を消すのは次フレーム＝ここで一緒に掃除する
+                    //（4難易度×全種×4エッジ ぶん溜め込まない）。
+                    foreach (var n in world.GetChildren()) if (n is AreaStrike) n.QueueFree();
+                    GetNode<BulletPool>("/root/Pool").DespawnAll();
+                    await Frames(1);
+                }
+            }
+        }
+
+        // 着座後は盤面内に留まり続ける（横揺れ・縦の形が画面外へ持ち出さない）ことを長回しで確認。
+        foreach (var (label, spec) in specs)
+        {
+            if (spec.Pattern == AttackPattern.KoharuPrayerCarry) continue;
+            var e = new MidEnemy();
+            e.Configure(spec);
+            e.SetEntry(new Vector2(200f, 108f));
+            world.AddChild(e);
+            e.GlobalPosition = new Vector2(Field.Right + 14f, 108f);
+            for (int i = 0; i < 60 * 25; i++)   // 25 秒ぶん回す
+            {
+                e._PhysicsProcess(1.0 / 60.0);
+                if (!Read<bool>(e, "_camped")) continue;   // 進入中は見ない（出現点 Field.Right+14 は盤面外＝初回フレームで必ず範囲外になる）。このループの主題は「着座後」に留まり続けるか。
+                var q = e.GlobalPosition;
+                if (q.X < Field.Left + 8f || q.X > Field.Right - 8f || q.Y < 20f || q.Y > 196f)
+                    throw new Exception($"{label}: camped enemy left the safe area at {q}");
+            }
+            e.QueueFree();
+            foreach (var n in world.GetChildren()) if (n is AreaStrike) n.QueueFree();
+            GetNode<BulletPool>("/root/Pool").DespawnAll();
+            await Frames(1);
+        }
+        game.Difficulty = GameManager.Diff.Normal;
+        world.QueueFree();
+        await Frames(2);
+        Check(true, "every enemy type camps in bounded time and stays inside the field");
+    }
+
+    // 種ごとの欠片配分（EnemySpec.ShardWeight・2026-09-17）の検証。
+    //   ①「強い敵・倒しにくい敵ほど多い」の序列が崩れていないこと（リスクとリターンの比例）。
+    //   ②粒数を変えても経済（ショップ通貨＝インプレ）が一切変わらないこと。
+    //     PurifyBurst は impBase を n 粒へ総和保存で割る（impBase/n ＋ 余りを先頭から1ずつ）ので、
+    //     n をどう動かしても拾い切ったときの合計は impBase のまま——これを実数で確かめる。
+    private void CheckShardWeights()
+    {
+        float Weight(StageTheme theme, int i) => EnemyTable.CharactersFor(theme)[i].ShardWeight;
+
+        // ① 序列：手間2.5倍のバズ壁が最大、手間1/3のボーナス種（祈り運び）が最小。
+        float wall = EnemyTable.BuzzWall(StageTheme.Akari).ShardWeight;
+        float carry = EnemyTable.PrayerCarrier().ShardWeight;
+        Check(wall == 2.5f && carry == 0.45f && wall > EnemyTable.Flanker(StageTheme.Rei).ShardWeight,
+            "shield wall drops the most shards and the bonus carrier the fewest");
+        // 撃つ種 > 撃たない種（同じ6ヒットなら、残すと痛い方が多く落とす）。
+        foreach (var theme in new[] { StageTheme.Rei, StageTheme.Akari, StageTheme.Koharu })
+        {
+            var (shooter, drifter) = EnemyTable.For(theme);
+            Check(shooter.ShardWeight > drifter.ShardWeight, $"{theme} shooter outdrops its drifter");
+        }
+        // 人型は「撃つ頻度が高い／避け場を奪う」ほど多い。各面の最寡黙な種が最小になっていること。
+        Check(Weight(StageTheme.Koharu, 2) < Weight(StageTheme.Koharu, 0)
+            && Weight(StageTheme.Koharu, 2) < Weight(StageTheme.Koharu, 1)
+            && Weight(StageTheme.Rei, 2) < Weight(StageTheme.Rei, 0)
+            && Weight(StageTheme.Akari, 1) < Weight(StageTheme.Akari, 0),
+            "quiet characters drop fewer shards than the pressuring ones");
+        // 全種が妥当な範囲（0 や負で消えない・中ボス級を超えない）。
+        var all = new[] { StageTheme.Rei, StageTheme.Akari, StageTheme.Koharu, StageTheme.Mina }
+            .SelectMany(t => EnemyTable.CharactersFor(t).Select(s => s.ShardWeight))
+            .Concat(new[] { wall, carry }).ToArray();
+        Check(all.All(w => w >= 0.4f && w <= 2.5f), "every shard weight stays inside a sane range");
+
+        // ② 経済不変：同じ impBase を、粒数だけ変えて撒いたときの入金額が一致するか。
+        //    FxLayer 実物を通すのではなく、PurifyBurst と同じ総和保存の分配式で検算する
+        //    （FxLayer は他ワーカーが編集中のため、ここでは式の不変性だけを見る）。
+        int Distributed(int impBase, int n)
+        {
+            int sum = 0;
+            for (int i = 0; i < n; i++) sum += impBase / n + (i < impBase % n ? 1 : 0);
+            return sum;
+        }
+        foreach (int impBase in new[] { 1, 2, 7, 13, 40, 99 })
+        {
+            int baseline = Distributed(impBase, 13);   // 従来の Zako 粒数（10〜16）の中央
+            foreach (float w in all)
+            {
+                int n = Mathf.Clamp(Mathf.RoundToInt(13 * w), 1, 64);
+                Check(Distributed(impBase, n) == impBase && baseline == impBase,
+                    $"shard weight {w} keeps the {impBase} impression payout intact");
+            }
+        }
     }
 
     private Bullet[] EnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().Where(b => b.Active).ToArray();
@@ -241,10 +422,12 @@ public partial class EnemyRosterQa : Node
         Write(cameo, "_fireT", 0d);
         Write(cameo, "_fireT2", 0d);
         cameo.SetPhysicsProcess(true);
-        await Frames(130);
-        Check(EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{firstArt}.png"))
-            && EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{secondArt}.png")),
-            $"{scene}: both illustrated attacks fire during real cameo combat");
+        // 2つ目の攻撃の間隔は Di 込みで最大 1.4x1.35=1.89s（あかり）。固定130フレーム（約1.6s）では
+        // 遅い方が間に合わずに落ちるので、両方の弾が出そろうまで待つ判定にする。
+        bool bothFired = await WaitFrames(() =>
+            EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{firstArt}.png"))
+            && EnemyBullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.EndsWith($"/{secondArt}.png")), 600);
+        Check(bothFired, $"{scene}: both illustrated attacks fire during real cameo combat");
         await Shot($"{scene.ToLowerInvariant()}_cameo_attacks");
         DisplayServer.WindowSetSize(new Vector2I(960, 540));
         await Frames(3);
@@ -426,6 +609,17 @@ public partial class EnemyRosterQa : Node
             }
         }
         game.Difficulty = GameManager.Diff.Normal;
+    }
+
+    // 条件が成立するまで最大 limit フレーム待つ（成立したら true）。
+    private async Task<bool> WaitFrames(Func<bool> cond, int limit)
+    {
+        for (int i = 0; i < limit; i++)
+        {
+            if (cond()) return true;
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        return cond();
     }
 
     private async Task Frames(int count)
