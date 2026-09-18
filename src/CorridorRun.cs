@@ -81,10 +81,10 @@ public partial class CorridorRun : Node2D, IAoeHazard
         var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
         (_gap, _scrollSpeed, _maxVy) = diff switch
         {
-            GameManager.Diff.Easy => (64f, 60f, 55f),
-            GameManager.Diff.Hard => (42f, 80f, 60f),
+            GameManager.Diff.Easy => (64f, 60f, 36f),
+            GameManager.Diff.Hard => (42f, 80f, 56f),
             GameManager.Diff.Lunatic => (34f, 90f, 62f),
-            _ => (52f, 70f, 58f),
+            _ => (52f, 70f, 47f),
         };
 
         // 中心線ジェネレータ：傾きクランプ付き区分サイン。

@@ -57,8 +57,6 @@
 
 ## WIP
 
-- [ ] (P3) あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している | game-designer | 2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`がEasy55→Lunatic62の7px/s(約13%)しか開いておらず、同じ表の`_gap`(64→34、約47%減)・`_scrollSpeed`(60→90、50%増)と比べ蛇行の難易度カーブが実質フラット化している(2026-09-17のFocus回避不能修正で上限だけ揃えた副作用)。`Player.FocusSpeed=65px/s`未満(安全マージンとして63px/s以下)は必ず守ったまま下限側を開いて差を作り直す(例: Easy=34f, Normal=44f, Hard=54f, Lunatic=62f)。2026-09-17の修正が担保した「Focus移動で入力し続ければ必ず追える」保証は維持すること。`_gap`/`_scrollSpeed`は変更しない。
-
 ## BLOCKED
 
 <!-- 2026-09-18 監査モード(scenario)で追加 -->
@@ -134,6 +132,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P3) あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している | game-designer | (完了 2026-09-18) 2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`列をEasy55/Normal58/Hard60/Lunatic62(開き7=13%)からEasy36/Normal47/Hard56/Lunatic62(開き26=72%)へ是正。`Player.FocusSpeed=65px/s`未満の安全上限(Lunatic=62)は変更せず、`_gap`/`_scrollSpeed`の既存カーブと同じ形の逓減増分(+11→+9→+6)でEasy側を大きく下げて難易度間の差を作り直した。2026-09-17のFocus回避不能修正が担保する「入力し続ければ必ず追える」保証(_maxVy<FocusSpeed)は全難易度で維持。`_gap`/`_scrollSpeed`は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) 加速球のタメ中弾が自機に追従せず置き去りになる | game-designer | (完了 2026-09-18) 2026-09-18監査(game-designer)発見。`src/Bullet.cs`の`MakeAccel()`(367行付近)に自機参照フィールド`_accelPlayer`/固定オフセット`_accelOffset`を追加し、呼び出し時点の「弾位置－自機位置」を保持(自機参照は`GetTree().GetNodesInGroup("player")`、既存の`Enemy.cs:937`等と同じ流儀)。`_PhysicsProcess`のタメ判定ブロックでタメ中(`Accel && !_accelDone`)は毎フレーム`GlobalPosition = _accelPlayer.GlobalPosition + _accelOffset`へ上書きして自機に追従させ、通常のVelocity積分は二重加算になるためガードでスキップ。`_accelDone`到達(発進)の瞬間に`_accelPlayer = null`でワールド空間へ切り離し、以降は既存のVelocity積分に戻る。`Reset()`にもフィールドクリアを追加(プール再利用対策)。発進後の速度・方向・威力・当たり判定・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)・`src/Player.cs`は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/AkariRoot.cs:4`/`src/StageImagery.cs:339`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageAkari.cs:252`のコメント中「雨の教室」を案C設定(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:36`「雨の降りやまない、退勤後のフロア」)に沿った「退勤後のフロア」表記へ機械的に訂正。コメントのみでロジック・文字列リテラルには無変更。既存BLOCKED対象の`src/AreaSpellCaster.cs:278`は指示通り触れておらず、修正後`grep -rn "雨の教室" src/`はこの1件のみ残存を確認済み。`src/ScrollFx.cs:218`の`classroom.png`はファイルパス参照のため対象外。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド | engineer | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/GameManager.cs`の`HesitationSec`フィールド(旧342行定義)を`grep -rn "\.HesitationSec\b" src/`で消費箇所0件と再確認の上、定義・`RecordChoice`内の加減算(旧355,364行)・セーブ(旧907行)・ロード(旧997行)・`ResetPersistent()`内の初期化(旧1032行、削除必須の追加対応)の計6箇所を削除。兄弟フィールド`P2HesitationSec`(`Prologue.cs`書込/`Epilogue.cs:346`読出で使用中)には触れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。

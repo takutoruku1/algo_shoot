@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-18 18:22 UTC",
+  "generated": "2026-09-18 18:25 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 39,
-    "done": 245
+    "done": 246
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している",
-      "worker": "game-designer",
-      "accept": "2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`がEasy55→Lunatic62の7px/s(約13%)しか開いておらず、同じ表の`_gap`(64→34、約47%減)・`_scrollSpeed`(60→90、50%増)と比べ蛇行の難易度カーブが実質フラット化している(2026-09-17のFocus回避不能修正で上限だけ揃えた副作用)。`Player.FocusSpeed=65px/s`未満(安全マージンとして63px/s以下)は必ず守ったまま下限側を開いて差を作り直す(例: Easy=34f, Normal=44f, Hard=54f, Lunatic=62f)。2026-09-17の修正が担保した「Focus移動で入力し続ければ必ず追える」保証は維持すること。`_gap`/`_scrollSpeed`は変更しない。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -253,6 +246,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-18) 2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`列をEasy55/Normal58/Hard60/Lunatic62(開き7=13%)からEasy36/Normal47/Hard56/Lunatic62(開き26=72%)へ是正。`Player.FocusSpeed=65px/s`未満の安全上限(Lunatic=62)は変更せず、`_gap`/`_scrollSpeed`の既存カーブと同じ形の逓減増分(+11→+9→+6)でEasy側を大きく下げて難易度間の差を作り直した。2026-09-17のFocus回避不能修正が担保する「入力し続ければ必ず追える」保証(_maxVy<FocusSpeed)は全難易度で維持。`_gap`/`_scrollSpeed`は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "加速球のタメ中弾が自機に追従せず置き去りになる",
@@ -1726,6 +1725,16 @@
   ],
   "commits": [
     {
+      "hash": "265e2cc",
+      "date": "2026-09-18",
+      "subject": "auto: WIP着手 - あかり面「雨の帰り道」の縦速度難易度カーブを是正する"
+    },
+    {
+      "hash": "432847c",
+      "date": "2026-09-18",
+      "subject": "auto: 加速球のタメ中弾を自機に追従させる"
+    },
+    {
       "hash": "f0f193e",
       "date": "2026-09-18",
       "subject": "auto: WIP着手 - 加速球のタメ中弾を自機に追従させる"
@@ -1754,16 +1763,6 @@
       "hash": "e3410bc",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する"
-    },
-    {
-      "hash": "34629e6",
-      "date": "2026-09-17",
-      "subject": "auto: Shop.csの退店小話から廃止済み「Stay」合言葉を削除"
-    },
-    {
-      "hash": "305c19f",
-      "date": "2026-09-17",
-      "subject": "auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する"
     }
   ]
 }
