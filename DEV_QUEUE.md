@@ -59,8 +59,6 @@
 
 ## WIP
 
-- [ ] (P2) 加速球のタメ中弾が自機に追従せず置き去りになる | game-designer | 2026-09-18監査(game-designer)発見。`src/Bullet.cs:356-366`(`MakeAccel`)は`Velocity`設定のみで自機参照を持たず、`src/Bullet.cs:469`の素の直線移動によりタメ中弾は発射地点付近に取り残される。`src/Player.cs:899-903`のコメントは「発射直後は自機のすぐ近くでほぼ静止してタメを作り」と意図しているが実装が伴っていない。タメ中(`Accel && !_accelDone`)は発射時の自機位置からの相対オフセットを保持して自機に追従させ、`_accelDone`到達時点でワールド空間へ切り離して現行の`Velocity`積分に戻す。発進後の挙動・当たり判定・威力・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)は変更しない。
-
 ## BLOCKED
 
 <!-- 2026-09-18 監査モード(scenario)で追加 -->
@@ -136,6 +134,7 @@
 - [ ] あかり改心の「取り消されていない一通がひらく」演出が未実装のまま旧演出フック(TriggerMemoryFlash)が死にコードとして残置 | scenario→artist→engineer | 要ユーザー判断。2026-09-17監査(scenario)。`src/StageImagery.cs:36-44`のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、`src/BossAkari.cs:386`も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)`TriggerMemoryFlash`と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい
 
 ## DONE
+- [x] (P2) 加速球のタメ中弾が自機に追従せず置き去りになる | game-designer | (完了 2026-09-18) 2026-09-18監査(game-designer)発見。`src/Bullet.cs`の`MakeAccel()`(367行付近)に自機参照フィールド`_accelPlayer`/固定オフセット`_accelOffset`を追加し、呼び出し時点の「弾位置－自機位置」を保持(自機参照は`GetTree().GetNodesInGroup("player")`、既存の`Enemy.cs:937`等と同じ流儀)。`_PhysicsProcess`のタメ判定ブロックでタメ中(`Accel && !_accelDone`)は毎フレーム`GlobalPosition = _accelPlayer.GlobalPosition + _accelOffset`へ上書きして自機に追従させ、通常のVelocity積分は二重加算になるためガードでスキップ。`_accelDone`到達(発進)の瞬間に`_accelPlayer = null`でワールド空間へ切り離し、以降は既存のVelocity積分に戻る。`Reset()`にもフィールドクリアを追加(プール再利用対策)。発進後の速度・方向・威力・当たり判定・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)・`src/Player.cs`は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) 「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所) | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/AkariRoot.cs:4`/`src/StageImagery.cs:339`/`src/Audio.cs:1025`/`src/ScrollFx.cs:221`/`src/StageAkari.cs:252`のコメント中「雨の教室」を案C設定(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:36`「雨の降りやまない、退勤後のフロア」)に沿った「退勤後のフロア」表記へ機械的に訂正。コメントのみでロジック・文字列リテラルには無変更。既存BLOCKED対象の`src/AreaSpellCaster.cs:278`は指示通り触れておらず、修正後`grep -rn "雨の教室" src/`はこの1件のみ残存を確認済み。`src/ScrollFx.cs:218`の`classroom.png`はファイルパス参照のため対象外。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) GameManager.HesitationSec(累計迷い秒数)が書き込まれるだけで一度も読み出されない死にフィールド | engineer | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/GameManager.cs`の`HesitationSec`フィールド(旧342行定義)を`grep -rn "\.HesitationSec\b" src/`で消費箇所0件と再確認の上、定義・`RecordChoice`内の加減算(旧355,364行)・セーブ(旧907行)・ロード(旧997行)・`ResetPersistent()`内の初期化(旧1032行、削除必須の追加対応)の計6箇所を削除。兄弟フィールド`P2HesitationSec`(`Prologue.cs`書込/`Epilogue.cs:346`読出で使用中)には触れていない。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) Shop.csの退店小話が案C以前に廃止された「Stay」合言葉を今も引用 | scenario | (完了 2026-09-17) 2026-09-17監査(scenario)発見。`src/Shop.cs:267`(`ShopExitTalk`)の「行ってまいります。Stay——でしたね。」が旧正典由来で、`Prologue.cs`/`Epilogue.cs`等では既に除去済みの合言葉を宙に浮いた形で回想していた。Stay言及部分のみ削除し「行ってまいります。」へ変更(新規文言の創作なし、他6要素は無変更)。`DemoPilot.cs`の`StayBonus`定数名・`StageMina.cs:50`のコメント中の"Stay"は台詞文字列ではないため対象外として未変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。

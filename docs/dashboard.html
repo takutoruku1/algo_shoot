@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 244 / 対象 244 タスク<br>保留 38 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 245 / 対象 246 タスク<br>保留 39 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">244</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">245</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">38</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">39</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">あかり面「雨の帰り道」の縦速度(<code>_maxVy</code>)が難易度間でほぼ無差別化している</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">2026-09-18監査(game-designer)発見。<code>src/CorridorRun.cs:82-88</code>の<code>_maxVy</code>がEasy55→Lunatic62の7px/s(約13%)しか開いておらず、同じ表の<code>_gap</code>(64→34、約47%減)・<code>_scrollSpeed</code>(60→90、50%増)と比べ蛇行の難易度カーブが実質フラット化している(2026-09-17のFocus回避不能修正で上限だけ揃えた副作用)。<code>Player.FocusSpeed=65px/s</code>未満(安全マージンとして63px/s以下)は必ず守ったまま下限側を開いて差を作り直す(例: Easy=34f, Normal=44f, Hard=54f, Lunatic=62f)。2026-09-17の修正が担保した「Focus移動で入力し続ければ必ず追える」保証は維持すること。<code>_gap</code>/<code>_scrollSpeed</code>は変更しない。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球のタメ中弾が自機に追従せず置き去りになる</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-09-18) 2026-09-18監査(game-designer)発見。<code>src/Bullet.cs</code>の<code>MakeAccel()</code>(367行付近)に自機参照フィールド<code>_accelPlayer</code>/固定オフセット<code>_accelOffset</code>を追加し、呼び出し時点の「弾位置－自機位置」を保持(自機参照は<code>GetTree().GetNodesInGroup(&quot;player&quot;)</code>、既存の<code>Enemy.cs:937</code>等と同じ流儀)。<code>_PhysicsProcess</code>のタメ判定ブロックでタメ中(<code>Accel &amp;&amp; !_accelDone</code>)は毎フレーム<code>GlobalPosition = _accelPlayer.GlobalPosition + _accelOffset</code>へ上書きして自機に追従させ、通常のVelocity積分は二重加算になるためガードでスキップ。<code>_accelDone</code>到達(発進)の瞬間に<code>_accelPlayer = null</code>でワールド空間へ切り離し、以降は既存のVelocity積分に戻る。<code>Reset()</code>にもフィールドクリアを追加(プール再利用対策)。発進後の速度・方向・威力・当たり判定・タメ時間(<code>AccelChargeCap</code>/<code>AccelChargeDelay</code>)・<code>src/Player.cs</code>は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2111,6 +2127,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">タイトル画面ティッカーの匿名ハンドル<code>@rei_0w0</code>がレイの本ハンドル<code>@rei_____</code>と紛らわしく、無関係な投稿がレイ本人の悲痛な投稿に誤読されうる</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（新規ハンドル文字列の考案を伴うため機械的修正の範囲を超える）。2026-09-18監査(scenario)発見。<code>src/TitleMenu.cs:24</code>のTicker配列<code>(&quot;@rei_0w0&quot;,&quot;ごめん、もう無理かも。&quot;)</code>が未修正のまま現存。正典<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:102</code>はレイの本ハンドルを<code>@rei_____</code>と定義し、実装側<code>src/GameManager.cs:202</code>・<code>src/StageRei.cs:477,644</code>・<code>src/Hub.cs:1302-1303</code>・<code>src/Epilogue.cs:157</code>は既に<code>@rei_____</code>で統一済み。<code>wiki/08_仮台本/09_投稿文集_X風.md:435,489</code>(非正典草稿、自己申告あり)も同種の懸念を指摘済み。タイトル画面は物語開始前の最初の画面であり、案Cのレイ像(<code>12_キャラ設定シートv2_社会人版.md:198</code>「本人も分からない、で通す」)と整合しない誤読リスクがある。要ユーザー判断: (a)<code>@yoru_no_tl</code>等の紛れないハンドルへ差し替えを承認する、(b)意図的な紛れとして現状維持する、のいずれかを指定してほしい。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">wiki/README.mdおよびwiki/03_ストーリー/*.md(8本)・wiki/04_キャラクター/*.md(6本)が案C承認(2026-09-05)後も旧正典(少年実在・旧面順レイ→あかり→こはる)を「完成した正典」と記述し、逆に案Cの承認済み仮台本05〜08・12を「検討中の草稿・非正典」と明記したままで、正典/非正典のラベルが実態と逆転している</span>
           <span class="worker">scenario</span>
         </div>
@@ -2417,18 +2441,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f0f193e</span><span>2026-09-18</span><span class="s">auto: WIP着手 - 加速球のタメ中弾を自機に追従させる</span></li>
+      <li><span class="h">bc7abf4</span><span>2026-09-18</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
+      <li><span class="h">3e1632c</span><span>2026-09-17</span><span class="s">auto: 「雨の教室」旧称の残存コメント5箇所を退勤後のフロア表記へ修正</span></li>
       <li><span class="h">a29a1fa</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 「雨の教室」旧称の残存コメント5箇所を修正する</span></li>
       <li><span class="h">cf2365d</span><span>2026-09-17</span><span class="s">auto: GameManager.HesitationSecの死にコードを整理</span></li>
       <li><span class="h">e3410bc</span><span>2026-09-17</span><span class="s">auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する</span></li>
       <li><span class="h">34629e6</span><span>2026-09-17</span><span class="s">auto: Shop.csの退店小話から廃止済み「Stay」合言葉を削除</span></li>
       <li><span class="h">305c19f</span><span>2026-09-17</span><span class="s">auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する</span></li>
-      <li><span class="h">5263389</span><span>2026-09-17</span><span class="s">auto: BossReiの「圧」上昇ギミックにHUDインジケーターを追加</span></li>
-      <li><span class="h">96ac800</span><span>2026-09-17</span><span class="s">auto: WIP着手 - BossReiの「圧」上昇ギミックにHUDフィードバックを追加する</span></li>
-      <li><span class="h">026f516</span><span>2026-09-17</span><span class="s">auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-17 19:30 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-18 18:22 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

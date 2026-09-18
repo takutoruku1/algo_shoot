@@ -65,6 +65,11 @@ public partial class Bullet : Area2D
     private float _fastSpeed;    // 加速後（発進）の速さ（px/s）
     private Vector2 _accelDir;   // 発進方向（単位ベクトル・MakeAccel で確定）。タメ中の微速もこの向き。
     private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
+    // タメ中は自機に追従させる：MakeAccel 呼び出し時点の「弾位置－自機位置」を固定オフセットとして保持し、
+    // _PhysicsProcess で毎フレーム「自機の現在位置＋オフセット」へ位置を上書きする（Velocity 積分はしない）。
+    // _accelDone に達した瞬間に _accelPlayer を null に戻してワールド空間へ切り離し、通常の Velocity 積分へ戻す。
+    private Player? _accelPlayer;
+    private Vector2 _accelOffset;
     private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
     // タメ中か（Accel かつ未発進）の外部参照用。Player 側の同時タメ弾数カウント（上限化）に使う。
     public bool AccelCharging => Accel && !_accelDone;
@@ -270,6 +275,7 @@ public partial class Bullet : Area2D
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
+        _accelPlayer = null; _accelOffset = Vector2.Zero; // タメ追従の自機参照/オフセットも持ち越さない
 
         // 言葉弾（投稿チップ）の層と当たり芯の子も再利用時にリセット。
         // SetWord が ZIndex -12（チップは弾より奥）へ沈めるので、通常弾は必ず 0 へ戻す。
@@ -361,7 +367,19 @@ public partial class Bullet : Area2D
         _fastSpeed = fastSpeed;
         float len = Velocity.Length();
         _accelDir = len > 0.01f ? Velocity / len : Vector2.Right; // 発進方向を確定（vel が空なら右へ）
-        Velocity = _accelDir * chargeSpeed;                        // タメ中はこの向きへごく僅かに進む（ほぼ静止）
+        Velocity = _accelDir * chargeSpeed;                        // タメ中はこの向きへごく僅かに進む（ほぼ静止・発進時の初速計算にのみ使う）
+
+        // タメ中は自機に追従させる（発射地点に置き去りにしない）：
+        // 今この瞬間の「弾位置－自機位置」を固定オフセットとして保持し、_PhysicsProcess 側で
+        // 毎フレーム「自機の現在位置＋オフセット」へ位置を上書きする（他ノードの自機参照と同じ流儀：
+        // GetTree().GetNodesInGroup("player")、例 Enemy.cs:937）。
+        _accelPlayer = null;
+        var players = GetTree().GetNodesInGroup("player");
+        if (players.Count > 0 && players[0] is Player pl)
+        {
+            _accelPlayer = pl;
+            _accelOffset = GlobalPosition - pl.GlobalPosition;
+        }
         QueueRedraw();
     }
 
@@ -451,6 +469,12 @@ public partial class Bullet : Area2D
             {
                 _accelDone = true;
                 Velocity = _accelDir * _fastSpeed;
+                _accelPlayer = null; // ワールド空間へ切り離し＝以降は下の通常 Velocity 積分に戻る
+            }
+            else if (_accelPlayer != null && IsInstanceValid(_accelPlayer))
+            {
+                // タメ中は自機に追従：発射時に固定したオフセットを自機の現在位置へ足すだけ（Velocity 積分はしない）。
+                GlobalPosition = _accelPlayer.GlobalPosition + _accelOffset;
             }
             QueueRedraw(); // タメ中は充填リングを毎フレーム脈動（発進の瞬間は尾へ切替）
         }
@@ -466,7 +490,10 @@ public partial class Bullet : Area2D
                 Rotation = Velocity.Angle();
         }
 
-        GlobalPosition += Velocity * (float)delta;
+        // 加速球のタメ中（Accel && !_accelDone）は直前のブロックで自機追従の位置上書きを済ませているので、
+        // ここでの Velocity 積分は二重加算になり自機からずれる＝スキップする。発進後（_accelDone）は通常どおり積分する。
+        if (!(Accel && !_accelDone))
+            GlobalPosition += Velocity * (float)delta;
 
         // 自機のホーミング弾は 2.5 秒で寿命切れ（画面内を漂う“自機弾の雲”を作らない）。
         if (Homing && !IsEnemy && _age >= HomingLife)

@@ -1,15 +1,28 @@
 {
-  "generated": "2026-09-17 19:30 UTC",
+  "generated": "2026-09-18 18:22 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 1,
     "wip": 0,
-    "blocked": 38,
-    "done": 244
+    "blocked": 39,
+    "done": 245
   },
   "percent": 100,
-  "todo": [],
+  "todo": [
+    {
+      "priority": "P3",
+      "title": "あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している",
+      "worker": "game-designer",
+      "accept": "2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`がEasy55→Lunatic62の7px/s(約13%)しか開いておらず、同じ表の`_gap`(64→34、約47%減)・`_scrollSpeed`(60→90、50%増)と比べ蛇行の難易度カーブが実質フラット化している(2026-09-17のFocus回避不能修正で上限だけ揃えた副作用)。`Player.FocusSpeed=65px/s`未満(安全マージンとして63px/s以下)は必ず守ったまま下限側を開いて差を作り直す(例: Easy=34f, Normal=44f, Hard=54f, Lunatic=62f)。2026-09-17の修正が担保した「Focus移動で入力し続ければ必ず追える」保証は維持すること。`_gap`/`_scrollSpeed`は変更しない。"
+    }
+  ],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "タイトル画面ティッカーの匿名ハンドル`@rei_0w0`がレイの本ハンドル`@rei_____`と紛らわしく、無関係な投稿がレイ本人の悲痛な投稿に誤読されうる",
+      "worker": "scenario",
+      "accept": "要ユーザー判断（新規ハンドル文字列の考案を伴うため機械的修正の範囲を超える）。2026-09-18監査(scenario)発見。`src/TitleMenu.cs:24`のTicker配列`(\"@rei_0w0\",\"ごめん、もう無理かも。\")`が未修正のまま現存。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:102`はレイの本ハンドルを`@rei_____`と定義し、実装側`src/GameManager.cs:202`・`src/StageRei.cs:477,644`・`src/Hub.cs:1302-1303`・`src/Epilogue.cs:157`は既に`@rei_____`で統一済み。`wiki/08_仮台本/09_投稿文集_X風.md:435,489`(非正典草稿、自己申告あり)も同種の懸念を指摘済み。タイトル画面は物語開始前の最初の画面であり、案Cのレイ像(`12_キャラ設定シートv2_社会人版.md:198`「本人も分からない、で通す」)と整合しない誤読リスクがある。要ユーザー判断: (a)`@yoru_no_tl`等の紛れないハンドルへ差し替えを承認する、(b)意図的な紛れとして現状維持する、のいずれかを指定してほしい。"
+    },
     {
       "priority": null,
       "title": "wiki/README.mdおよびwiki/03_ストーリー/*.md(8本)・wiki/04_キャラクター/*.md(6本)が案C承認(2026-09-05)後も旧正典(少年実在・旧面順レイ→あかり→こはる)を「完成した正典」と記述し、逆に案Cの承認済み仮台本05〜08・12を「検討中の草稿・非正典」と明記したままで、正典/非正典のラベルが実態と逆転している",
@@ -240,6 +253,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "加速球のタメ中弾が自機に追従せず置き去りになる",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-18) 2026-09-18監査(game-designer)発見。`src/Bullet.cs`の`MakeAccel()`(367行付近)に自機参照フィールド`_accelPlayer`/固定オフセット`_accelOffset`を追加し、呼び出し時点の「弾位置－自機位置」を保持(自機参照は`GetTree().GetNodesInGroup(\"player\")`、既存の`Enemy.cs:937`等と同じ流儀)。`_PhysicsProcess`のタメ判定ブロックでタメ中(`Accel && !_accelDone`)は毎フレーム`GlobalPosition = _accelPlayer.GlobalPosition + _accelOffset`へ上書きして自機に追従させ、通常のVelocity積分は二重加算になるためガードでスキップ。`_accelDone`到達(発進)の瞬間に`_accelPlayer = null`でワールド空間へ切り離し、以降は既存のVelocity積分に戻る。`Reset()`にもフィールドクリアを追加(プール再利用対策)。発進後の速度・方向・威力・当たり判定・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)・`src/Player.cs`は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "「雨の教室」という旧あかり世界観の呼称がコメントに残存(既存BLOCKED対象のAreaSpellCaster.cs以外の5箇所)",
@@ -1707,6 +1726,21 @@
   ],
   "commits": [
     {
+      "hash": "f0f193e",
+      "date": "2026-09-18",
+      "subject": "auto: WIP着手 - 加速球のタメ中弾を自機に追従させる"
+    },
+    {
+      "hash": "bc7abf4",
+      "date": "2026-09-18",
+      "subject": "auto: 監査で TODO 2件・BLOCKED 1件をキューに追加"
+    },
+    {
+      "hash": "3e1632c",
+      "date": "2026-09-17",
+      "subject": "auto: 「雨の教室」旧称の残存コメント5箇所を退勤後のフロア表記へ修正"
+    },
+    {
       "hash": "a29a1fa",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - 「雨の教室」旧称の残存コメント5箇所を修正する"
@@ -1730,21 +1764,6 @@
       "hash": "305c19f",
       "date": "2026-09-17",
       "subject": "auto: WIP着手 - Shop.csの退店小話から廃止済み「Stay」合言葉を削除する"
-    },
-    {
-      "hash": "5263389",
-      "date": "2026-09-17",
-      "subject": "auto: BossReiの「圧」上昇ギミックにHUDインジケーターを追加"
-    },
-    {
-      "hash": "96ac800",
-      "date": "2026-09-17",
-      "subject": "auto: WIP着手 - BossReiの「圧」上昇ギミックにHUDフィードバックを追加する"
-    },
-    {
-      "hash": "026f516",
-      "date": "2026-09-17",
-      "subject": "auto: あかり面「雨の帰り道」のFocus移動時理不尽回避不能を修正"
     }
   ]
 }
