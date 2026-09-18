@@ -55,10 +55,11 @@
 
 <!-- 2026-09-18 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineer/qaは新規指摘0件。根拠は各行の受入条件を参照 -->
 
-- [ ] (P2) 加速球のタメ中弾が自機に追従せず置き去りになる | game-designer | 2026-09-18監査(game-designer)発見。`src/Bullet.cs:356-366`(`MakeAccel`)は`Velocity`設定のみで自機参照を持たず、`src/Bullet.cs:469`の素の直線移動によりタメ中弾は発射地点付近に取り残される。`src/Player.cs:899-903`のコメントは「発射直後は自機のすぐ近くでほぼ静止してタメを作り」と意図しているが実装が伴っていない。タメ中(`Accel && !_accelDone`)は発射時の自機位置からの相対オフセットを保持して自機に追従させ、`_accelDone`到達時点でワールド空間へ切り離して現行の`Velocity`積分に戻す。発進後の挙動・当たり判定・威力・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)は変更しない。
 - [ ] (P3) あかり面「雨の帰り道」の縦速度(`_maxVy`)が難易度間でほぼ無差別化している | game-designer | 2026-09-18監査(game-designer)発見。`src/CorridorRun.cs:82-88`の`_maxVy`がEasy55→Lunatic62の7px/s(約13%)しか開いておらず、同じ表の`_gap`(64→34、約47%減)・`_scrollSpeed`(60→90、50%増)と比べ蛇行の難易度カーブが実質フラット化している(2026-09-17のFocus回避不能修正で上限だけ揃えた副作用)。`Player.FocusSpeed=65px/s`未満(安全マージンとして63px/s以下)は必ず守ったまま下限側を開いて差を作り直す(例: Easy=34f, Normal=44f, Hard=54f, Lunatic=62f)。2026-09-17の修正が担保した「Focus移動で入力し続ければ必ず追える」保証は維持すること。`_gap`/`_scrollSpeed`は変更しない。
 
 ## WIP
+
+- [ ] (P2) 加速球のタメ中弾が自機に追従せず置き去りになる | game-designer | 2026-09-18監査(game-designer)発見。`src/Bullet.cs:356-366`(`MakeAccel`)は`Velocity`設定のみで自機参照を持たず、`src/Bullet.cs:469`の素の直線移動によりタメ中弾は発射地点付近に取り残される。`src/Player.cs:899-903`のコメントは「発射直後は自機のすぐ近くでほぼ静止してタメを作り」と意図しているが実装が伴っていない。タメ中(`Accel && !_accelDone`)は発射時の自機位置からの相対オフセットを保持して自機に追従させ、`_accelDone`到達時点でワールド空間へ切り離して現行の`Velocity`積分に戻す。発進後の挙動・当たり判定・威力・タメ時間(`AccelChargeCap`/`AccelChargeDelay`)は変更しない。
 
 ## BLOCKED
 
