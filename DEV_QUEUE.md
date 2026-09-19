@@ -57,9 +57,9 @@
 
 <!-- 2026-09-19 監査モード(game-designer/engineer/scenario/qa並列)で追加。engineer/qaは新規指摘0件 -->
 
-- [ ] (P2) バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す問題を是正 | engineer | 2026-09-19監査(game-designer)。`src/Spawner.cs:75`の`if (...Count >= MaxAlive) { _cd=0.3; return; }`（`MaxAlive=10`、`Spawner.cs:23`）により、上限到達で新規湧きが丸ごと停止する。一方バズ壁は`src/MidEnemy.cs:109-111`のコメント通り「倒すまで去らない」座り込み型で、`src/Spawner.cs:39-40`(`BuzzWallRate=0.10f`)により波B/C中に継続的に湧きうる。撃たない・無視できる設計(`src/EnemySpec.cs:125-134`)のはずが、無視すればするほど画面に蓄積し複数枠を占有、結果として新規の脅威・グレイズ機会・撃破報酬の湧きが見えない形で止まる。是正: `Spawner.SpawnOne`(`Spawner.cs:116-122`)でバズ壁を選ぶ前に`"enemies"`グループ内に既存バズ壁が1体でも生存していれば通常湧きへフォールバックする（同時存在数を1体に制限）。あわせて`BuzzWallRate`を`src/Spawner.cs:39`の`0.10f`から`0.06f`程度へ軽減する。他種(Flanker/PrayerCarrier)の湧き条件・パネル耐久・報酬は無変更。
-
 ## WIP
+
+- [ ] (P2) バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す問題を是正 | engineer | 2026-09-19監査(game-designer)。`src/Spawner.cs:75`の`if (...Count >= MaxAlive) { _cd=0.3; return; }`（`MaxAlive=10`、`Spawner.cs:23`）により、上限到達で新規湧きが丸ごと停止する。一方バズ壁は`src/MidEnemy.cs:109-111`のコメント通り「倒すまで去らない」座り込み型で、`src/Spawner.cs:39-40`(`BuzzWallRate=0.10f`)により波B/C中に継続的に湧きうる。撃たない・無視できる設計(`src/EnemySpec.cs:125-134`)のはずが、無視すればするほど画面に蓄積し複数枠を占有、結果として新規の脅威・グレイズ機会・撃破報酬の湧きが見えない形で止まる。是正: `Spawner.SpawnOne`(`Spawner.cs:116-122`)でバズ壁を選ぶ前に`"enemies"`グループ内に既存バズ壁が1体でも生存していれば通常湧きへフォールバックする（同時存在数を1体に制限）。あわせて`BuzzWallRate`を`src/Spawner.cs:39`の`0.10f`から`0.06f`程度へ軽減する。他種(Flanker/PrayerCarrier)の湧き条件・パネル耐久・報酬は無変更。
 
 ## BLOCKED
 
