@@ -126,7 +126,7 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 246 / 対象 246 タスク<br>保留 39 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 246 / 対象 247 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
@@ -134,8 +134,8 @@
   <div class="states">
     <div class="state done"><div class="state-n">246</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">39</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,7 +145,15 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す問題を是正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-19監査(game-designer)。<code>src/Spawner.cs:75</code>の<code>if (...Count &gt;= MaxAlive) { _cd=0.3; return; }</code>（<code>MaxAlive=10</code>、<code>Spawner.cs:23</code>）により、上限到達で新規湧きが丸ごと停止する。一方バズ壁は<code>src/MidEnemy.cs:109-111</code>のコメント通り「倒すまで去らない」座り込み型で、<code>src/Spawner.cs:39-40</code>(<code>BuzzWallRate=0.10f</code>)により波B/C中に継続的に湧きうる。撃たない・無視できる設計(<code>src/EnemySpec.cs:125-134</code>)のはずが、無視すればするほど画面に蓄積し複数枠を占有、結果として新規の脅威・グレイズ機会・撃破報酬の湧きが見えない形で止まる。是正: <code>Spawner.SpawnOne</code>(<code>Spawner.cs:116-122</code>)でバズ壁を選ぶ前に<code>&quot;enemies&quot;</code>グループ内に既存バズ壁が1体でも生存していれば通常湧きへフォールバックする（同時存在数を1体に制限）。あわせて<code>BuzzWallRate</code>を<code>src/Spawner.cs:39</code>の<code>0.10f</code>から<code>0.06f</code>程度へ軽減する。他種(Flanker/PrayerCarrier)の湧き条件・パネル耐久・報酬は無変更。</p>
+      </li></ol>
   </section>
 
   <section>
@@ -2435,12 +2443,21 @@
           
         </div>
         <p class="accept">要ユーザー判断。2026-09-17監査(scenario)。<code>src/StageImagery.cs:36-44</code>のコメントに「案C(仮台本06)の改心は回想ではなく『取り消されていない一通がひらく』演出のため2026-09-06にBossAkari側の呼び出しを外した。差し替えの背景演出を決めてから判断する」と明記されたまま代替実装なし、<code>src/BossAkari.cs:386</code>も同旨コメントのみで代替呼び出しなし。(a)新規演出をartistへ発注する、(b)<code>TriggerMemoryFlash</code>と交差点素材参照を削除しテキストのみの改心で確定する、のいずれか指定してほしい</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">エピローグE5のミナ→DM「ちゃんと食べていますか?」が、こはる面から台所要素が撤去された結果、根拠を失ったまま残置されている</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（新規文言の創作を伴う）。2026-09-19監査(scenario)。実装<code>src/Epilogue.cs:212</code>の<code>O(&quot;UI&quot;, &quot;ミナ →（DM）：「ちゃんと食べていますか?」&quot;);</code>は、承認済み仮台本12(<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:200</code>)が「ミナの投稿『ちゃんと食べていますか』（現行はこはるの台所由来）とエピローグのDMの文面は、こはるが台所を失ったので、別の一行に差し替えるか判断が要る」と台本作成者自身が明記する未解決の判断点#5。この“食べる/来ない”系の世界観要素(<code>12:96</code>)は案Cで正式に撤去済みで、実装側<code>src/StageKoharu.cs:221</code>にも撤去済みを示すコメントのみが残り本文の台所描写は現行<code>StageKoharu.cs</code>に存在しない。既存BLOCKED（<code>12</code>ファイルの判断点#4=FINALでこはるの返礼の向き先）とは同ファイルの別項目(#5)で重複ではない。要ユーザー判断: (a)こはる由来ではない新しい一行に差し替える、(b)汎用的なミナの気遣いとして現状維持を正式承認する。承認後の受入条件: 承認された文言を<code>src/Epilogue.cs:212</code>へ反映すること</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">612cd7d</span><span>2026-09-18</span><span class="s">auto: あかり面「雨の帰り道」の縦速度難易度カーブを是正</span></li>
       <li><span class="h">265e2cc</span><span>2026-09-18</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の縦速度難易度カーブを是正する</span></li>
       <li><span class="h">432847c</span><span>2026-09-18</span><span class="s">auto: 加速球のタメ中弾を自機に追従させる</span></li>
       <li><span class="h">f0f193e</span><span>2026-09-18</span><span class="s">auto: WIP着手 - 加速球のタメ中弾を自機に追従させる</span></li>
@@ -2448,11 +2465,10 @@
       <li><span class="h">3e1632c</span><span>2026-09-17</span><span class="s">auto: 「雨の教室」旧称の残存コメント5箇所を退勤後のフロア表記へ修正</span></li>
       <li><span class="h">a29a1fa</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 「雨の教室」旧称の残存コメント5箇所を修正する</span></li>
       <li><span class="h">cf2365d</span><span>2026-09-17</span><span class="s">auto: GameManager.HesitationSecの死にコードを整理</span></li>
-      <li><span class="h">e3410bc</span><span>2026-09-17</span><span class="s">auto: WIP着手 - GameManager.HesitationSecの死にコードを整理する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-18 18:25 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-19 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
