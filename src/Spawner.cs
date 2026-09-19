@@ -36,7 +36,7 @@ public partial class Spawner : Node
     // ── 盾もち種「バズ壁」（BuzzWall）の調整値（全テーマ・波B/C限定）──
     // 撃たない・遅い・硬い（パネル5枚×インク3）＝剥がし切るDPSチェックで優先順位判断を生む
     //（拡散/ホーミング/貫通の使い所）。序盤A波には出さない＝覚えることを増やしすぎない。
-    private const float BuzzWallRate = 0.10f;         // テーマ湧きのうちこの割合で出現
+    private const float BuzzWallRate = 0.06f;         // テーマ湧きのうちこの割合で出現
     private const float BuzzWallMinIntensity = 0.3f;  // StartIntensity がこれ以上＝波B(0.35)/C(0.7)のみ
     // ── 祈り運び種（KoharuPrayerCarry・こはる面専用）の調整値 ──
     // 消せる祈り弾を3発ぶら下げて横断するボーナス種＝ボス戦「お残し禁止」の練習台。
@@ -84,6 +84,16 @@ public partial class Spawner : Node
         _cd = interval * _rng.RandfRange(0.8f, 1.2f) / spawnMul;
     }
 
+    // "enemies" グループ内に生存中のバズ壁が1体でもいるか（同時出現を1体に制限するための判定）。
+    private bool HasAliveBuzzWall()
+    {
+        foreach (var n in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (n is MidEnemy me && me.IsBuzzWallCamper) return true;
+        }
+        return false;
+    }
+
     private void SpawnOne()
     {
         float y = _rng.RandfRange(46f, 172f);
@@ -114,7 +124,9 @@ public partial class Spawner : Node
                     new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
             }
             // 盾もち「バズ壁」：波B/C（StartIntensity>=0.3）のみ。右から出て場の中ほどに陣取る壁。
-            else if (StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
+            // 倒すまで居座る性質上、複数体が同時に湧くと湧き枠を静かに食い潰す（無視するほど蓄積する）ため、
+            // 既に画面内に1体でも生存していれば通常湧きへフォールバックし、同時1体に制限する。
+            else if (StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate && !HasAliveBuzzWall())
             {
                 me.Configure(EnemyTable.BuzzWall(Theme));
                 pos = new Vector2(SpawnX, y);

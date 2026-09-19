@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 246 / 対象 247 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 247 / 対象 247 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">246</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">247</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す問題を是正</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-19監査(game-designer)。<code>src/Spawner.cs:75</code>の<code>if (...Count &gt;= MaxAlive) { _cd=0.3; return; }</code>（<code>MaxAlive=10</code>、<code>Spawner.cs:23</code>）により、上限到達で新規湧きが丸ごと停止する。一方バズ壁は<code>src/MidEnemy.cs:109-111</code>のコメント通り「倒すまで去らない」座り込み型で、<code>src/Spawner.cs:39-40</code>(<code>BuzzWallRate=0.10f</code>)により波B/C中に継続的に湧きうる。撃たない・無視できる設計(<code>src/EnemySpec.cs:125-134</code>)のはずが、無視すればするほど画面に蓄積し複数枠を占有、結果として新規の脅威・グレイズ機会・撃破報酬の湧きが見えない形で止まる。是正: <code>Spawner.SpawnOne</code>(<code>Spawner.cs:116-122</code>)でバズ壁を選ぶ前に<code>&quot;enemies&quot;</code>グループ内に既存バズ壁が1体でも生存していれば通常湧きへフォールバックする（同時存在数を1体に制限）。あわせて<code>BuzzWallRate</code>を<code>src/Spawner.cs:39</code>の<code>0.10f</code>から<code>0.06f</code>程度へ軽減する。他種(Flanker/PrayerCarrier)の湧き条件・パネル耐久・報酬は無変更。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-19) 2026-09-19監査(game-designer)発見。<code>src/Spawner.cs:75</code>の<code>MaxAlive=10</code>上限判定により、居座り型（倒すまで去らない、<code>src/MidEnemy.cs:109-111</code>）のバズ壁が複数体同時に湧くと新規湧きが丸ごと停止する問題。<code>src/MidEnemy.cs:76-77</code>に軽量プロパティ<code>IsBuzzWallCamper</code>(<code>_spec.Pattern==AttackPattern.BuzzWall</code>)を追加し、<code>src/Spawner.cs</code>に<code>HasAliveBuzzWall()</code>(<code>&quot;enemies&quot;</code>グループを走査)を新設。<code>SpawnOne()</code>のバズ壁分岐条件に<code>&amp;&amp; !HasAliveBuzzWall()</code>を追加し、既に1体生存していれば通常湧き（<code>EnemyTable.For(Theme)</code>）へフォールバック＝同時存在数を1体に制限。あわせて<code>BuzzWallRate</code>を<code>src/Spawner.cs:39</code>の<code>0.10f</code>から<code>0.06f</code>へ軽減。Flanker/PrayerCarrierの湧き条件・バズ壁自体のパネル耐久/報酬/移動速度は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2457,18 +2457,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f609d8a</span><span>2026-09-19</span><span class="s">auto: WIP着手 - バズ壁(BuzzWall)の湧き枠食い潰しを是正する</span></li>
+      <li><span class="h">3561dbc</span><span>2026-09-19</span><span class="s">auto: 監査で TODO 1件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">612cd7d</span><span>2026-09-18</span><span class="s">auto: あかり面「雨の帰り道」の縦速度難易度カーブを是正</span></li>
       <li><span class="h">265e2cc</span><span>2026-09-18</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の縦速度難易度カーブを是正する</span></li>
       <li><span class="h">432847c</span><span>2026-09-18</span><span class="s">auto: 加速球のタメ中弾を自機に追従させる</span></li>
       <li><span class="h">f0f193e</span><span>2026-09-18</span><span class="s">auto: WIP着手 - 加速球のタメ中弾を自機に追従させる</span></li>
       <li><span class="h">bc7abf4</span><span>2026-09-18</span><span class="s">auto: 監査で TODO 2件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">3e1632c</span><span>2026-09-17</span><span class="s">auto: 「雨の教室」旧称の残存コメント5箇所を退勤後のフロア表記へ修正</span></li>
-      <li><span class="h">a29a1fa</span><span>2026-09-17</span><span class="s">auto: WIP着手 - 「雨の教室」旧称の残存コメント5箇所を修正する</span></li>
-      <li><span class="h">cf2365d</span><span>2026-09-17</span><span class="s">auto: GameManager.HesitationSecの死にコードを整理</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-19 18:35 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-19 18:37 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

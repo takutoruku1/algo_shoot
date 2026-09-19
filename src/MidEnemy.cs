@@ -73,6 +73,10 @@ public partial class MidEnemy : Enemy
     // Spawner から AddChild 前に呼ぶ（OnEnemy Ready/_Ready より先に値を渡しておく）。
     public void Configure(in EnemySpec spec) => _spec = spec;
 
+    // このインスタンスがバズ壁（居座り型の盾もち）かどうか。Spawner が同時湧き数を1体に制限するため参照する
+    // （無視され続けると倒すまで居座り続ける性質上、複数体が同時に湧くと湧き枠を静かに食い潰すため）。
+    public bool IsBuzzWallCamper => _spec.Pattern == AttackPattern.BuzzWall;
+
     protected override void OnEnemyReady()
     {
         Points = _spec.Points;
