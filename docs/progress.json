@@ -1,13 +1,38 @@
 {
-  "generated": "2026-09-19 18:37 UTC",
+  "generated": "2026-09-20 18:28 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 4,
     "wip": 0,
     "blocked": 40,
-    "done": 247
+    "done": 248
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 98,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落",
+      "worker": "scenario",
+      "accept": "2026-09-20監査(scenario)発見。ユーザー承認済み仮台本: `wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:301-308`（S3-6想定8行）のBREAK合図宣言(:306)が`src/BossRei.cs`のどのセリフ配列（`TauntLines`/`RecloseLines`等）にも存在しない（grep 0件）。他の7行（カットイン/挑発/RECLOSE/無被弾報酬）は実装済みでこの1行のみ転記漏れ。「同接3→4」の伏線（`src/StageRei.cs:174,209,223`）の本人肉声宣言にあたる箇所。BREAK遷移時（既存`TauntLines`/`RecloseLines`と同じ`ShowBossLine`相当の仕組み）にこの行を一度きり表示するよう追加すること。新規文言の創作なし（承認済みテキストの追加のみ）。"
+    },
+    {
+      "priority": "P2",
+      "title": "被弾してもコンボ倍率・経済ボーナスが一切途切れない",
+      "worker": "game-designer",
+      "accept": "2026-09-20監査(game-designer)発見。`src/GameManager.cs:1281-1295 AddPurify()`はComboが`MaxCombo=16`(`:1150`)まで積み上がりScore/インプレ(通貨)双方に最大16倍相当で効くが、Comboが切れる経路は`ComboWindow`(`:1149`)の時間切れ(`:1210 Combo=0`)のみ。`src/Player.cs:1328-1386 TakeHit()`を全文確認したがComboに触れる呼び出しが無い(grep 0件)＝被弾は残機減少(`:1359`)・フォロワー離脱・無敵付与はするがComboは素通し。一方同種の連続ヒットボーナスである集中の光(focus_fire)は被弾で明示的にリセットされる先例が既にある(`Player.cs:1342-1344`のコメント)。無敵時間1.2秒中も浄化を続ければ最大倍率をノーリスクで維持できてしまう非対称を是正すること。`Player.TakeHit()`の残機減算直後（練習モード除く）で`GameManager`のComboを0にリセットする経路を追加し、HUDのコンボチップ・減衰バーがその場で消えることを受入条件とする。"
+    },
+    {
+      "priority": "P3",
+      "title": "ボス戦カットイン台詞があかり・こはるで承認済み仮台本と一致していない",
+      "worker": "scenario",
+      "accept": "2026-09-20監査(scenario)発見。`src/Hud.cs:700-701`の`_cutinData`。あかり行`\"ねえ……まだ、そこにいる？\"`は承認済み06/07/08を全文grepしても存在せず、承認済みのあかりカットイン行は`wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:250`の`\"ねえ、こっち見て。\"`（`src/StageAkari.cs:74`で実際に使用中の行と同一）。こはる行`\"ちゃんとしなきゃ。……みんな、見てるもん。\"`は承認済み単独カットイン行`wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:118`の`\"ちゃんとしなきゃ。\"`と一致しない独自の合成文。`Hud.cs:700`のあかり行を`\"ねえ、こっち見て。\"`へ、`:701`のこはる行を`\"ちゃんとしなきゃ。\"`へ、それぞれ承認済み行と一字一句一致させること。新規文言の創作なし。"
+    },
+    {
+      "priority": "P3",
+      "title": "BossRei専用「圧」段階インジケーターがスペル宣言カードと座標重複し隠れる",
+      "worker": "engineer",
+      "accept": "2026-09-20監査(engineer)発見。`src/Hud.cs:975 DrawBossCard`のボスカード下端(y=120)直下`:1013-1030`に「圧」インジケーター(y≈118〜142, x≈360〜468)を描画するが、`:1035-1043 DrawSpellCard`（y=126〜186、ホールド中は座標固定）がほぼ不透明(`0.90f*a`)なカードを**その後に**重ねて描く(`:795-797`の描画順)。`_spellTimer`と`_bossPressure`の間に座標調停ロジックは存在しない(grep確認済み)。BossRei戦で圧ゲージ表示中にスペル宣言が起きる通常進行で頻発。圧インジケーターとスペルカードのいずれかのY座標をずらす、またはスペルカード表示中は圧インジケーターを一時非表示にすることで、両者が同時に視認できるようにすること。"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -252,6 +277,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P1",
+      "title": "あかり面「雨の帰り道」の壁当たり判定が視覚上の通路より狭い",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-20) 2026-09-20監査(engineer)発見。`src/CorridorRun.cs:138-149`の`InsideWall()`が安全域`half`から`PlayerHit=2.5f`を減算しており、実際の被弾境界が視覚上の通路端(`half`)より2.5px内側に狭まっていた（描画側は`PlayerHit`を使わず`half`ぴったりで通路を描画）。`src/AreaStrike.cs:65-69`の既存是正方針（負値マージン＝描画縁より内側にしか当たらない）に倣い、Y方向専用に新規定数`WallHitMarginY=-1.5f`を追加（`src/CorridorRun.cs:24-28`）、`InsideWall()`の判定式を`half - PlayerHit`から`half - WallHitMarginY`へ変更＝安全域が描画通路端より1.5px広がる方向に是正。X方向判定（`WallThick/2f + PlayerHit`）・壁の描画・`_gap`/`_maxVy`/`RunDur`等の難易度バランス値は無変更。虚偽コメント（「AreaStrike と同値」）も実態に合わせて訂正。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "バズ壁(BuzzWall)を無視し続けると湧き枠を静かに食い潰す",
@@ -1737,6 +1768,21 @@
   ],
   "commits": [
     {
+      "hash": "4dbca53",
+      "date": "2026-09-20",
+      "subject": "auto: WIP着手 - あかり面「雨の帰り道」の壁当たり判定を視覚に合わせる"
+    },
+    {
+      "hash": "ecf1d87",
+      "date": "2026-09-20",
+      "subject": "auto: 監査で TODO 5件をキューに追加"
+    },
+    {
+      "hash": "353e618",
+      "date": "2026-09-19",
+      "subject": "auto: バズ壁(BuzzWall)の湧き枠食い潰しを是正"
+    },
+    {
       "hash": "f609d8a",
       "date": "2026-09-19",
       "subject": "auto: WIP着手 - バズ壁(BuzzWall)の湧き枠食い潰しを是正する"
@@ -1760,21 +1806,6 @@
       "hash": "432847c",
       "date": "2026-09-18",
       "subject": "auto: 加速球のタメ中弾を自機に追従させる"
-    },
-    {
-      "hash": "f0f193e",
-      "date": "2026-09-18",
-      "subject": "auto: WIP着手 - 加速球のタメ中弾を自機に追従させる"
-    },
-    {
-      "hash": "bc7abf4",
-      "date": "2026-09-18",
-      "subject": "auto: 監査で TODO 2件・BLOCKED 1件をキューに追加"
-    },
-    {
-      "hash": "3e1632c",
-      "date": "2026-09-17",
-      "subject": "auto: 「雨の教室」旧称の残存コメント5箇所を退勤後のフロア表記へ修正"
     }
   ]
 }

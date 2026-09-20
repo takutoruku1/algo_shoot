@@ -21,7 +21,11 @@ using Godot;
 public partial class CorridorRun : Node2D, IAoeHazard
 {
     private const float W = 384f, H = 216f;
-    private const float PlayerHit = 2.5f;       // 自機の被弾半径ぶんの寄せ（AreaStrike と同値）
+    private const float PlayerHit = 2.5f;       // 壁カラムのX方向 判定マージン（現状維持・今回のタスク範囲外）
+    // 通路(安全域)のY方向 判定マージン：負値＝描画される通路端(half)より内側（壁の中）にしか当たらない
+    //（＝通路端ギリギリは安全。旧 half-PlayerHit(2.5f) は安全域が描画より2.5px狭まり「見た目の通路幅を
+    //   信じて避けたのに被弾」の理不尽だった。AreaStrike.PlayerHit(-1.5f) の是正方針に倣う）。
+    private const float WallHitMarginY = -1.5f;
     private const float WallThick = 12f;        // 壁カラムの厚み
     private const float WallStride = 24f;       // カラム間隔（中心から中心）
     private const double PreviewDur = 1.5;      // 非致死プレビュー
@@ -145,7 +149,7 @@ public partial class CorridorRun : Node2D, IAoeHazard
             float colX = colD - _scroll;
             if (Mathf.Abs(p.X - colX) > WallThick / 2f + PlayerHit) continue;
             float half = GapAtD(colD) / 2f;
-            if (Mathf.Abs(p.Y - CenterAtD(colD)) >= half - PlayerHit) return true;
+            if (Mathf.Abs(p.Y - CenterAtD(colD)) >= half - WallHitMarginY) return true;
         }
         return false;
     }
