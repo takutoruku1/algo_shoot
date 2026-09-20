@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-20 18:28 UTC",
+  "generated": "2026-09-20 18:30 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 40,
-    "done": 248
+    "done": 249
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落",
-      "worker": "scenario",
-      "accept": "2026-09-20監査(scenario)発見。ユーザー承認済み仮台本: `wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:301-308`（S3-6想定8行）のBREAK合図宣言(:306)が`src/BossRei.cs`のどのセリフ配列（`TauntLines`/`RecloseLines`等）にも存在しない（grep 0件）。他の7行（カットイン/挑発/RECLOSE/無被弾報酬）は実装済みでこの1行のみ転記漏れ。「同接3→4」の伏線（`src/StageRei.cs:174,209,223`）の本人肉声宣言にあたる箇所。BREAK遷移時（既存`TauntLines`/`RecloseLines`と同じ`ShowBossLine`相当の仕組み）にこの行を一度きり表示するよう追加すること。新規文言の創作なし（承認済みテキストの追加のみ）。"
-    },
     {
       "priority": "P2",
       "title": "被弾してもコンボ倍率・経済ボーナスが一切途切れない",
@@ -277,6 +271,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落",
+      "worker": "scenario",
+      "accept": "(完了 2026-09-20) 2026-09-20監査(scenario)発見。ユーザー承認済み仮台本: `wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:301-308`（S3-6想定8行）のBREAK合図宣言(:306)が`src/BossRei.cs`から欠落していた（他7行は実装済み）。安置リレー「最終選考」（`_relayFired`、HP26%到達時に一度だけ発火、`wiki`本文の「最終選考『同接３』」と対応）の発火直後・`_caster?.CastFullscreenChain(...)`呼び出し直前（`src/BossRei.cs:369`）に`GetHud()?.ShowBossLine(\"レイ\", \"同接、三。……三人も、いてくれるんだから。\", UiKit.Kegare, 2.0);`を追加（既存の無被弾報酬`:217`・挑発`:248`と同じ呼び出しパターン）。新規文言の創作なし（承認済みテキストの一字一句そのまま）。難易度別hops/hopMin/hopMax等のバランス値・他7行・リレー本体ロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P1",
       "title": "あかり面「雨の帰り道」の壁当たり判定が視覚上の通路より狭い",
@@ -1768,6 +1768,16 @@
   ],
   "commits": [
     {
+      "hash": "6d2c997",
+      "date": "2026-09-20",
+      "subject": "auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する"
+    },
+    {
+      "hash": "58681d7",
+      "date": "2026-09-20",
+      "subject": "auto: あかり面「雨の帰り道」の壁当たり判定を視覚に合わせて修正"
+    },
+    {
       "hash": "4dbca53",
       "date": "2026-09-20",
       "subject": "auto: WIP着手 - あかり面「雨の帰り道」の壁当たり判定を視覚に合わせる"
@@ -1796,16 +1806,6 @@
       "hash": "612cd7d",
       "date": "2026-09-18",
       "subject": "auto: あかり面「雨の帰り道」の縦速度難易度カーブを是正"
-    },
-    {
-      "hash": "265e2cc",
-      "date": "2026-09-18",
-      "subject": "auto: WIP着手 - あかり面「雨の帰り道」の縦速度難易度カーブを是正する"
-    },
-    {
-      "hash": "432847c",
-      "date": "2026-09-18",
-      "subject": "auto: 加速球のタメ中弾を自機に追従させる"
     }
   ]
 }

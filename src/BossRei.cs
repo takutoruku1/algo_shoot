@@ -366,6 +366,7 @@ public partial class BossRei : Enemy
                 GameManager.Diff.Lunatic => (4, 110f, 145f),
                 _ => (3, 140f, 190f),
             };
+            GetHud()?.ShowBossLine("レイ", "同接、三。……三人も、いてくれるんだから。", UiKit.Kegare, 2.0); // 最終選考『同接３』の宣言（仮台本 07 の S3-6。安置リレー発火の合図）
             _caster?.CastFullscreenChain(hops, hopMin, hopMax);
             _relayWatching = true;
             _relayStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;

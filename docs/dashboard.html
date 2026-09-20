@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 248 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 249 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">248</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">249</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">2026-09-20監査(scenario)発見。ユーザー承認済み仮台本: <code>wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:301-308</code>（S3-6想定8行）のBREAK合図宣言(:306)が<code>src/BossRei.cs</code>のどのセリフ配列（<code>TauntLines</code>/<code>RecloseLines</code>等）にも存在しない（grep 0件）。他の7行（カットイン/挑発/RECLOSE/無被弾報酬）は実装済みでこの1行のみ転記漏れ。「同接3→4」の伏線（<code>src/StageRei.cs:174,209,223</code>）の本人肉声宣言にあたる箇所。BREAK遷移時（既存<code>TauntLines</code>/<code>RecloseLines</code>と同じ<code>ShowBossLine</code>相当の仕組み）にこの行を一度きり表示するよう追加すること。新規文言の創作なし（承認済みテキストの追加のみ）。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-20) 2026-09-20監査(scenario)発見。ユーザー承認済み仮台本: <code>wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:301-308</code>（S3-6想定8行）のBREAK合図宣言(:306)が<code>src/BossRei.cs</code>から欠落していた（他7行は実装済み）。安置リレー「最終選考」（<code>_relayFired</code>、HP26%到達時に一度だけ発火、<code>wiki</code>本文の「最終選考『同接３』」と対応）の発火直後・<code>_caster?.CastFullscreenChain(...)</code>呼び出し直前（<code>src/BossRei.cs:369</code>）に<code>GetHud()?.ShowBossLine(&quot;レイ&quot;, &quot;同接、三。……三人も、いてくれるんだから。&quot;, UiKit.Kegare, 2.0);</code>を追加（既存の無被弾報酬<code>:217</code>・挑発<code>:248</code>と同じ呼び出しパターン）。新規文言の創作なし（承認済みテキストの一字一句そのまま）。難易度別hops/hopMin/hopMax等のバランス値・他7行・リレー本体ロジックは無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p1">P1</span>
@@ -2497,18 +2497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">6d2c997</span><span>2026-09-20</span><span class="s">auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する</span></li>
+      <li><span class="h">58681d7</span><span>2026-09-20</span><span class="s">auto: あかり面「雨の帰り道」の壁当たり判定を視覚に合わせて修正</span></li>
       <li><span class="h">4dbca53</span><span>2026-09-20</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の壁当たり判定を視覚に合わせる</span></li>
       <li><span class="h">ecf1d87</span><span>2026-09-20</span><span class="s">auto: 監査で TODO 5件をキューに追加</span></li>
       <li><span class="h">353e618</span><span>2026-09-19</span><span class="s">auto: バズ壁(BuzzWall)の湧き枠食い潰しを是正</span></li>
       <li><span class="h">f609d8a</span><span>2026-09-19</span><span class="s">auto: WIP着手 - バズ壁(BuzzWall)の湧き枠食い潰しを是正する</span></li>
       <li><span class="h">3561dbc</span><span>2026-09-19</span><span class="s">auto: 監査で TODO 1件・BLOCKED 1件をキューに追加</span></li>
       <li><span class="h">612cd7d</span><span>2026-09-18</span><span class="s">auto: あかり面「雨の帰り道」の縦速度難易度カーブを是正</span></li>
-      <li><span class="h">265e2cc</span><span>2026-09-18</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の縦速度難易度カーブを是正する</span></li>
-      <li><span class="h">432847c</span><span>2026-09-18</span><span class="s">auto: 加速球のタメ中弾を自機に追従させる</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-20 18:28 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-20 18:30 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
