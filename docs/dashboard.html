@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 250 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 251 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">250</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">251</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
-          <span class="task-title">ボス戦カットイン台詞があかり・こはるで承認済み仮台本と一致していない</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">2026-09-20監査(scenario)発見。<code>src/Hud.cs:700-701</code>の<code>_cutinData</code>。あかり行<code>&quot;ねえ……まだ、そこにいる？&quot;</code>は承認済み06/07/08を全文grepしても存在せず、承認済みのあかりカットイン行は<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:250</code>の<code>&quot;ねえ、こっち見て。&quot;</code>（<code>src/StageAkari.cs:74</code>で実際に使用中の行と同一）。こはる行<code>&quot;ちゃんとしなきゃ。……みんな、見てるもん。&quot;</code>は承認済み単独カットイン行<code>wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:118</code>の<code>&quot;ちゃんとしなきゃ。&quot;</code>と一致しない独自の合成文。<code>Hud.cs:700</code>のあかり行を<code>&quot;ねえ、こっち見て。&quot;</code>へ、<code>:701</code>のこはる行を<code>&quot;ちゃんとしなきゃ。&quot;</code>へ、それぞれ承認済み行と一字一句一致させること。新規文言の創作なし。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
           <span class="task-title">BossRei専用「圧」段階インジケーターがスペル宣言カードと座標重複し隠れる</span>
           <span class="worker">engineer</span>
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">ボス戦カットイン台詞があかり・こはるで承認済み仮台本と一致していない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-20) 2026-09-20監査(scenario)発見。<code>src/Hud.cs:700-701</code>の<code>_cutinData</code>。あかり行<code>&quot;ねえ……まだ、そこにいる？&quot;</code>が承認済み06/07/08のどこにも存在せず、こはる行<code>&quot;ちゃんとしなきゃ。……みんな、見てるもん。&quot;</code>も承認済み単独カットイン行と非一致の独自合成文だった。あかり行を<code>wiki/08_仮台本/06_粗い台本_案C_1_冒頭とあかり.md:250</code>の<code>&quot;ねえ、こっち見て。&quot;</code>（<code>src/StageAkari.cs:74</code>の使用中の行と同一）へ、こはる行を<code>wiki/08_仮台本/07_粗い台本_案C_2_こはるとレイ.md:118</code>の<code>&quot;ちゃんとしなきゃ。&quot;</code>へ、それぞれ一字一句一致させた。新規文言の創作なし（承認済みテキストへの置換のみ）。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2497,18 +2497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">efd1226</span><span>2026-09-20</span><span class="s">auto: WIP着手 - ボス戦カットイン台詞を承認済み仮台本に一致させる</span></li>
+      <li><span class="h">e608a8b</span><span>2026-09-20</span><span class="s">auto: 被弾時にコンボをリセットする</span></li>
       <li><span class="h">9d9acba</span><span>2026-09-20</span><span class="s">auto: WIP着手 - 被弾時にコンボをリセットする</span></li>
       <li><span class="h">9d07be5</span><span>2026-09-20</span><span class="s">auto: STAGE3レイのBREAK宣言セリフを追加</span></li>
       <li><span class="h">6d2c997</span><span>2026-09-20</span><span class="s">auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する</span></li>
       <li><span class="h">58681d7</span><span>2026-09-20</span><span class="s">auto: あかり面「雨の帰り道」の壁当たり判定を視覚に合わせて修正</span></li>
       <li><span class="h">4dbca53</span><span>2026-09-20</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の壁当たり判定を視覚に合わせる</span></li>
       <li><span class="h">ecf1d87</span><span>2026-09-20</span><span class="s">auto: 監査で TODO 5件をキューに追加</span></li>
-      <li><span class="h">353e618</span><span>2026-09-19</span><span class="s">auto: バズ壁(BuzzWall)の湧き枠食い潰しを是正</span></li>
-      <li><span class="h">f609d8a</span><span>2026-09-19</span><span class="s">auto: WIP着手 - バズ壁(BuzzWall)の湧き枠食い潰しを是正する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-20 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-20 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

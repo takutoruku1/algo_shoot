@@ -697,8 +697,8 @@ public partial class Hud : CanvasLayer
         _cutinData ??= new Dictionary<string, (string, string)>
         {
             ["レイ"]   = ("res://char/v3/cutin_rei_gawa_a.png", "初見さん、いらっしゃい!"),   // ボス＝ガワ（笑顔固定）。仮台本 07 の S3-6
-            ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ……まだ、そこにいる？"),
-            ["こはる"] = ("res://char/v3/cutin_koharu.png", "ちゃんとしなきゃ。……みんな、見てるもん。"),
+            ["あかり"] = ("res://char/v3/cutin_akari.png",  "ねえ、こっち見て。"),
+            ["こはる"] = ("res://char/v3/cutin_koharu.png", "ちゃんとしなきゃ。"),
             ["ミナ"]   = ("res://char/cutin_mina.png",   "ご主人様……見ていてくださいね。"),
         };
         if (!_cutinData.TryGetValue(who, out var d)) return;
