@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-20 18:30 UTC",
+  "generated": "2026-09-20 18:32 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 40,
-    "done": 249
+    "done": 250
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "被弾してもコンボ倍率・経済ボーナスが一切途切れない",
-      "worker": "game-designer",
-      "accept": "2026-09-20監査(game-designer)発見。`src/GameManager.cs:1281-1295 AddPurify()`はComboが`MaxCombo=16`(`:1150`)まで積み上がりScore/インプレ(通貨)双方に最大16倍相当で効くが、Comboが切れる経路は`ComboWindow`(`:1149`)の時間切れ(`:1210 Combo=0`)のみ。`src/Player.cs:1328-1386 TakeHit()`を全文確認したがComboに触れる呼び出しが無い(grep 0件)＝被弾は残機減少(`:1359`)・フォロワー離脱・無敵付与はするがComboは素通し。一方同種の連続ヒットボーナスである集中の光(focus_fire)は被弾で明示的にリセットされる先例が既にある(`Player.cs:1342-1344`のコメント)。無敵時間1.2秒中も浄化を続ければ最大倍率をノーリスクで維持できてしまう非対称を是正すること。`Player.TakeHit()`の残機減算直後（練習モード除く）で`GameManager`のComboを0にリセットする経路を追加し、HUDのコンボチップ・減衰バーがその場で消えることを受入条件とする。"
-    },
     {
       "priority": "P3",
       "title": "ボス戦カットイン台詞があかり・こはるで承認済み仮台本と一致していない",
@@ -271,6 +265,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "被弾してもコンボ倍率・経済ボーナスが一切途切れない",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-20) 2026-09-20監査(game-designer)発見。`src/GameManager.cs:1281-1295 AddPurify()`はComboが`MaxCombo=16`(`:1150`)まで積み上がりScore/インプレ双方に最大16倍相当で効くが、被弾では一切リセットされていなかった（切れる経路は`ComboWindow`時間切れのみ）。同種の連続ヒットボーナスである集中の光(focus_fire)は被弾で明示的にリセットされる先例(`Player.cs:1342-1344`)があるのに非対称だった。`GameManager.cs:1152`直後に`public void BreakCombo() { Combo = 0; _comboTimer = 0; }`を新設し、`Player.cs:1359`（`TakeHit()`内、残機減算直後・練習モードの早期return`:1348-1352`より後）から`_game?.BreakCombo();`を呼び出すよう配線。`Hud.cs`のコンボチップ・減衰バーは独自キャッシュを持たず毎フレーム`_game.Combo`/`ComboTimeRatio`を直接参照するため自動追従（Hud.cs側の変更なし）。`MaxCombo`/`ComboWindow`計算式/`AddPurify`のScore・インプレ計算式/残機・フォロワー離脱・無敵付与のロジックは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "STAGE3 レイのボス戦からBREAK宣言セリフ「同接、三。……三人も、いてくれるんだから。」が丸ごと欠落",
@@ -1768,6 +1768,16 @@
   ],
   "commits": [
     {
+      "hash": "9d9acba",
+      "date": "2026-09-20",
+      "subject": "auto: WIP着手 - 被弾時にコンボをリセットする"
+    },
+    {
+      "hash": "9d07be5",
+      "date": "2026-09-20",
+      "subject": "auto: STAGE3レイのBREAK宣言セリフを追加"
+    },
+    {
       "hash": "6d2c997",
       "date": "2026-09-20",
       "subject": "auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する"
@@ -1796,16 +1806,6 @@
       "hash": "f609d8a",
       "date": "2026-09-19",
       "subject": "auto: WIP着手 - バズ壁(BuzzWall)の湧き枠食い潰しを是正する"
-    },
-    {
-      "hash": "3561dbc",
-      "date": "2026-09-19",
-      "subject": "auto: 監査で TODO 1件・BLOCKED 1件をキューに追加"
-    },
-    {
-      "hash": "612cd7d",
-      "date": "2026-09-18",
-      "subject": "auto: あかり面「雨の帰り道」の縦速度難易度カーブを是正"
     }
   ]
 }

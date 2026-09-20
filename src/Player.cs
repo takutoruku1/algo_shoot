@@ -1359,6 +1359,10 @@ public partial class Player : Area2D
         Lives = Mathf.Max(0, Lives - 1);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);
 
+        // コンボ（Score/インプレの主力倍率）も被弾で即断ち切る（§2 リスクとリターン）。
+        // 練習モードはこの行より前の早期returnで抜けるため対象外。
+        _game?.BreakCombo();
+
         // 被弾でフォロワーが1体だけ離れてしまう（やさしさの輪が少しほどける＝全滅させない）
         // ヒカゲ（専用スキル持ち）は通常フォロワーが残っている限り離脱対象から除外する
         // （加入直後にリスト末尾へ入り、次の被弾で即離脱＝スキルを丸ごと失うのを防ぐ）。

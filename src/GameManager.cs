@@ -1151,6 +1151,16 @@ public partial class GameManager : Node
     // コンボ猶予の残り比率（0..1）。HUDのコンボ減衰バー用。コンボが立っていなければ0。
     public float ComboTimeRatio => Combo > 0 && _comboTimer > 0 ? (float)(_comboTimer / ComboWindow) : 0f;
 
+    // 被弾でコンボを即座に断ち切る（§2 リスクとリターン）。
+    // Combo/インプレ/Score倍率は「攻め続ける」リスクへの対価。被弾はその賭けに負けた結果なので、
+    // 時間切れ(ComboWindow経過)と同じくコンボを0に戻す＝積み上げの免罪符にしない。
+    // 練習モード（TutorialNoConsume）はPlayer.TakeHit側の早期returnで呼ばれないため、ここでは無条件でよい。
+    public void BreakCombo()
+    {
+        Combo = 0;
+        _comboTimer = 0;
+    }
+
     public override void _Ready()
     {
         // セーブはスロット制（手動）。起動時は自動ロードしない。
