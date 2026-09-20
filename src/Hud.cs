@@ -1015,7 +1015,9 @@ public partial class Hud : CanvasLayer
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 16 - 40, y + 34), $"{barsLeft}/{_bossBarsTotal}", 12, new Color("f0a8cf"), HorizontalAlignment.Right, 40);
         // 「また逃げる」圧インジケーター（#12：カード直下に段階ドット。BossRei が値を持つ時だけ出す＝
         // 他ボスは _bossPressureMax=0 のまま＝一切描かれない）。満タン時は赤味を強めて警告色にする。
-        if (_bossPressureMax > 0)
+        // スペル宣言カード（DrawSpellCard、y=126〜186）と座標が重なるため、その表示中は一時的に隠す
+        // （圧の状態は裏で維持されるので、スペルカードが消え次第そのまま復帰する）。
+        if (_bossPressureMax > 0 && _spellTimer <= 0)
         {
             float py = y + h + 8f;
             UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, py - 2), "圧", 10, new Color("f0a8cf"));

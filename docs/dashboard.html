@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 251 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 252 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">251</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">252</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">BossRei専用「圧」段階インジケーターがスペル宣言カードと座標重複し隠れる</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-20監査(engineer)発見。<code>src/Hud.cs:975 DrawBossCard</code>のボスカード下端(y=120)直下<code>:1013-1030</code>に「圧」インジケーター(y≈118〜142, x≈360〜468)を描画するが、<code>:1035-1043 DrawSpellCard</code>（y=126〜186、ホールド中は座標固定）がほぼ不透明(<code>0.90f*a</code>)なカードを<strong>その後に</strong>重ねて描く(<code>:795-797</code>の描画順)。<code>_spellTimer</code>と<code>_bossPressure</code>の間に座標調停ロジックは存在しない(grep確認済み)。BossRei戦で圧ゲージ表示中にスペル宣言が起きる通常進行で頻発。圧インジケーターとスペルカードのいずれかのY座標をずらす、またはスペルカード表示中は圧インジケーターを一時非表示にすることで、両者が同時に視認できるようにすること。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">BossRei専用「圧」段階インジケーターがスペル宣言カードと座標重複し隠れる</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-20) 2026-09-20監査(engineer)発見。<code>src/Hud.cs:975 DrawBossCard</code>のボスカード下端直下<code>:1013-1030</code>に描画する「圧」インジケーター(y≈118〜142)が、<code>:1035-1043 DrawSpellCard</code>（y=126〜186、ほぼ不透明<code>0.90f*a</code>、ホールド中は座標固定）に描画順(<code>:795-797</code>)で後から重ねられ隠れていた。座標調停ロジックが無かったため、圧インジケーターの表示条件に<code>&amp;&amp; _spellTimer &lt;= 0</code>を追加し、スペルカード表示中は一時的に非表示にする方式で解消（圧の内部状態<code>_bossPressure</code>自体はそのまま保持されるため、スペルカードが消え次第すぐ復帰する）。ボスカード本体・スペルカードの座標・他ボスの表示（<code>_bossPressureMax=0</code>で従来通り非表示）は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2497,18 +2497,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">1b0f045</span><span>2026-09-20</span><span class="s">auto: WIP着手 - BossReiの圧インジケーターとスペルカードの座標重複を解消する</span></li>
+      <li><span class="h">d839c5e</span><span>2026-09-20</span><span class="s">auto: ボス戦カットイン台詞を承認済み仮台本に一致させる</span></li>
       <li><span class="h">efd1226</span><span>2026-09-20</span><span class="s">auto: WIP着手 - ボス戦カットイン台詞を承認済み仮台本に一致させる</span></li>
       <li><span class="h">e608a8b</span><span>2026-09-20</span><span class="s">auto: 被弾時にコンボをリセットする</span></li>
       <li><span class="h">9d9acba</span><span>2026-09-20</span><span class="s">auto: WIP着手 - 被弾時にコンボをリセットする</span></li>
       <li><span class="h">9d07be5</span><span>2026-09-20</span><span class="s">auto: STAGE3レイのBREAK宣言セリフを追加</span></li>
       <li><span class="h">6d2c997</span><span>2026-09-20</span><span class="s">auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する</span></li>
       <li><span class="h">58681d7</span><span>2026-09-20</span><span class="s">auto: あかり面「雨の帰り道」の壁当たり判定を視覚に合わせて修正</span></li>
-      <li><span class="h">4dbca53</span><span>2026-09-20</span><span class="s">auto: WIP着手 - あかり面「雨の帰り道」の壁当たり判定を視覚に合わせる</span></li>
-      <li><span class="h">ecf1d87</span><span>2026-09-20</span><span class="s">auto: 監査で TODO 5件をキューに追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-20 18:33 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-20 18:34 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
