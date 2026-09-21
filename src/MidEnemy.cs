@@ -54,11 +54,32 @@ public partial class MidEnemy : Enemy
 
     // 進入が遅すぎると居座る前に浄化されて「撃たずに去る」ので、進入だけ最低速度を保証する
     // （居座り後の上下うねり＝種の性格は据え置き）。居座った瞬間に初弾を素早く撃つ＝設置→即攻撃。
-    private const float ApproachFloor = 90f;     // 進入の最低速度(px/s)。78→90（2026-09-06：射線上を歩く時間を詰める）。
+    // ★90→46（2026-09-22）。倍率レンジ [0.62, 1.85] を掛けると実効 28.5〜85.1px/s で、
+    //   下の ApproachCeil(58) に当たるのは速い側（Hurry/Dash/StepCut/Bounce ほか mul>1.26 の種）だけ。
+    //   遅い種（Trudge 0.70→32.2 / Settle 0.78→35.9 / Wall 0.72→33.1）は天井に触れず、
+    //   種ごとの「速い／遅い」の差はそのまま残る。90 のままだと全種が天井に張り付いて個性が消え、
+    //   34 まで落とすと最遅個体の着座が 20秒級になって盤面が渋滞した（同時出現上限を食い潰す）。
+    //   46 なら最遅 28.5px/s でも盤面対角 460px を約 16秒、実際の進入距離（150〜280px）なら 5〜10秒で着座する。
+    private const float ApproachFloor = 46f;     // 進入の最低速度(px/s)
     private const double FirstShotDelay = 0.25;  // 発射ゲートが開いてこの秒で初弾（0.55→0.25）。
 
+    // ─── 進入速度の絶対上限（2026-09-22 ユーザー要望「敵が自機より速いのをやめる」）───
+    // ★不変条件：**道中ザコの移動速度は、どんな種・どんな進入フェーズでも自機の素の足を超えない。**
+    //   自機の実効速度は Player.NormalSpeed(75) × MoveSpeedMul(強化 1.5) × JobDef.MoveMul。
+    //   基準に採るのは「強化なし・いちばん足の遅いジョブ」＝結び手(MoveMul=0.88) の 75×0.88 = 66px/s。
+    //   強化前提で上限を引くと「機動力強化を買うまで振り切れない」＝救済を買わせる設計になり本末転倒。
+    //   さらに 66 ちょうどだと同速＝真後ろから追われると永久に距離が詰まったままになるので、
+    //   明確に下回る 58px/s を上限に置く（66 の約 88%＝1秒で 8px ずつ必ず引き離せる）。
+    //   ※ロック中(LockMoveMul=0.8→52.8px/s)はこれを下回るが、ロックは**自機が能動的に選ぶ取引**
+    //     （照準を任せる代わりに足が重くなる＝§2-2 リスクは能動的に選ばせる）であり、G/R3/右クリックで
+    //     いつでも解除できる。解除すれば必ず振り切れる、が保証されていればよい。
+    // ★2026-09-22 修正：この上限は**合成移動ベクトルの長さ**に掛ける（UpdateMovement 内の正規化）。
+    //   前進成分だけに掛けていた当初の実装では、横に膨らむ種で 58×√(1+0.55²) ≒ 66.2px/s まで
+    //   伸びてこの不変条件を破っていた（QA 実測でも最大ちょうど 66px/s を観測）。
+    private const float ApproachCeil = 58f;
+
     // ─── 移動の個性（2026-09-17 ユーザー要望「アンチャーごとに移動パターンも変更して」）───
-    // それまで進入は全種が「目標点へ単一直進・速度 Max(MoveSpeed, 90)」で完全に同一、
+    // それまで進入は全種が「目標点へ単一直進・速度 Max(MoveSpeed, ApproachFloor)」で完全に同一、
     // 着座後も全種 ±14px/s の上下往復＋SwayAmp の有無だけだった。
     // ここを種ごとに割り、前段で作った待機モーション（装飾）と性格を揃える
     //   （例：締切の人は小走り＝進入も急いで詰める／空席の人はほとんど動かない）。
@@ -72,8 +93,11 @@ public partial class MidEnemy : Enemy
     //   ③【盤面外へ出ない】着座後の横の揺れは camp.X の周囲 ±CampDriftMax(=9px) に固定クランプし、
     //      さらに Field.Left+18 〜 Field.Right-18 で二重に締める。左湧きの着座 x=184..224 も、
     //      ±9px では自機側（Field.Left=120）へ届かない＝SetSilentEntry の保証を壊さない。
-    private const float ApproachSpeedMin = 0.62f;  // 進入速度倍率の下限（＝実効 55.8px/s。必ず前進する）
-    private const float ApproachSpeedMax = 1.85f;  // 同・上限（＝実効 166.5px/s。読める速さの上限）
+    // 倍率のレンジは「種ごとの性格の差」を作るためのもの。実効速度そのものは下の ApproachCeil(58px/s) で
+    // 最終クランプされるので、倍率の上限を 1.85 のまま残しても自機より速くはならない
+    //   （＝遅い種と速い種の“相対的な差”は保ったまま、絶対値だけ自機以下に押し込む）。
+    private const float ApproachSpeedMin = 0.62f;  // 進入速度倍率の下限（＝実効 28.5px/s。必ず前進する）
+    private const float ApproachSpeedMax = 1.85f;  // 同・上限（最速種は下の ApproachCeil=58px/s で頭打ち）
     private const float ArcMaxOffset = 26f;        // 進入軌道の横ふくらみ最大(px)。これ以上は経路が読めなくなる
     private const float CampDriftMax = 9f;         // 着座後の横揺れ最大(px)。camp.X からの片振幅
     private const float CampMarginX = 18f;         // 盤面左右端からの安全マージン(px)
@@ -399,10 +423,12 @@ public partial class MidEnemy : Enemy
 
     // ─── 進入の速度プロファイル ───
     // 引数 p は進捗 0（出現）→1（着座直前）。返すのは Max(MoveSpeed, ApproachFloor) に掛ける倍率。
-    // ★戻り値は必ず [ApproachSpeedMin(0.62), ApproachSpeedMax(1.85)] にクランプする＝
-    //   実効速度は 55.8〜166.5px/s の範囲を絶対に出ない。0 にも負にもならないので、
-    //   残距離は毎フレーム必ず減る＝どの種も有限時間（最悪でも盤面対角 460px ÷ 55.8 ≒ 8.2秒）で着座する。
-    //   これが「進入が必ず終わる」の保証。ApproachFloor(90) の意図（＝撃つ前に死なせない）も維持する。
+    // ★戻り値は必ず [ApproachSpeedMin(0.62), ApproachSpeedMax(1.85)] にクランプし、さらに呼び出し側で
+    //   ApproachCeil(58) の頭打ちを掛ける＝実効速度は 28.5〜58px/s の範囲を絶対に出ない。
+    //   0 にも負にもならないので残距離は毎フレーム必ず減る＝どの種も有限時間
+    //   （最悪でも盤面対角 460px ÷ 28.5 ≒ 16.1秒。横オフセットの前進ロス 0.83 を見ても約 19秒）で着座する。
+    //   実際の進入距離は 150〜280px なので 3〜10秒＝従来（2〜5秒）より一拍遅いが渋滞はしない。
+    //   これが「進入が必ず終わる」の保証。ApproachFloor(46) の意図（＝撃つ前に死なせない）も維持する。
     private float ApproachSpeedMul(float p)
     {
         float t = (float)_moveT + _movePhase;
@@ -625,27 +651,47 @@ public partial class MidEnemy : Enemy
                 _moveT += delta;
 
                 // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる（従来の保証）。
-                // そこへ種ごとの速度倍率を掛ける。倍率は必ず [ApproachSpeedMin, ApproachSpeedMax] に
-                // クランプされる＝実効速度は常に 55.8〜166.5px/s。0 や負にはならないので必ず着座する。
-                float approach = Mathf.Max(_spec.MoveSpeed, ApproachFloor) * ApproachSpeedMul(p);
+                // そこへ種ごとの速度倍率を掛け、最後に ApproachCeil で頭を押さえる。
+                // ＝実効速度は常に 28.5〜58px/s。0 や負にはならないので必ず着座し、
+                //   58 < 66（強化なし・最遅ジョブの自機）なので**どの種にも必ず振り切れる**。
+                float approach = Mathf.Min(
+                    Mathf.Max(_spec.MoveSpeed, ApproachFloor) * ApproachSpeedMul(p), ApproachCeil);
                 Vector2 fwd = to / dist;   // 目標点への単位ベクトル（正規化を1回に）
-                GlobalPosition += fwd * approach * dt;
+                float fwdStep = approach * dt;   // このフレームに許される移動量（＝速度の予算）
 
                 // 軌道の演出：進行方向に対する法線へ、p で 0 に収束する横オフセットを“差分で”加える。
                 // ★位置を直接置き換えず「前フレームとの差分」だけ足すので、目標点は動かない＝
-                //   上の直進成分がそのまま残距離を減らし続ける（着座の保証を侵さない）。
+                //   前進成分がそのまま残距離を減らし続ける（着座の保証を侵さない）。
                 float lat = LateralOffset(p);
                 float step = lat - _lastLateral;
                 // ★【着座保証の要】横へ動かす量を、そのフレームの前進量の LateralStepRatio 倍までに制限する。
                 //   法線は毎フレーム向きが変わるので、横の差分が前進量より大きいと理屈上は
                 //   「横に泳いで残距離が減らない」個体が作れてしまう（＝進入が終わらない＝渋滞）。
                 //   前進量の 0.55 倍までに抑えれば、合成移動の前進成分は必ず正のまま
-                //   （√(1²−0.55²)≒0.83 → 実効前進は最低でも 55.8×0.83 ≒ 46px/s）＝
-                //   盤面対角 460px でも最悪 10 秒以内に必ず着座する。
-                float fwdStep = approach * dt;
+                //   （下の正規化で縮めても前進:横の比 1:0.55 は保たれる＝前進係数 1/√(1+0.55²) ≒ 0.872）。
+                //   ＝実効前進は最低でも 28.5×0.872 ≒ 24.9px/s、最速でも 58×0.872 ≒ 50.6px/s。
+                //   最悪ケース（最遅種＋常に横いっぱい）で盤面対角 460px を約 18.5秒、
+                //   実際の進入距離 150〜280px なら 6〜11秒で必ず着座する（進入は有限時間で必ず終わる）。
                 step = Mathf.Clamp(step, -fwdStep * LateralStepRatio, fwdStep * LateralStepRatio);
                 Vector2 normal = new Vector2(-fwd.Y, fwd.X);
-                GlobalPosition += normal * step;
+
+                // ★【速度上限の要・2026-09-22 修正】前進と横を足した**合成ベクトルの長さ**で上限を掛ける。
+                //   以前は前進成分だけに ApproachCeil を掛けていたため、横に膨らむ種
+                //   （Compare/Bounce/Hesitant/Jitter/StepCut/Erase/Drift/Walk/Flutter/Patrol/Hover/Trudge
+                //    ＝全 MoveStyle の過半）の実効速度が 58×√(1+0.55²) ≒ 66.2px/s まで伸び、
+                //   最遅ジョブ＝結び手(75×0.88=66px/s)と同速〜わずかに上だった＝**振り切れない**。
+                //   ここで合成長を fwdStep に丸めれば、横の有無にかかわらず実効速度は必ず
+                //   ApproachCeil(58) 以下＝「毎秒 8px ずつ必ず引き離せる」が全種で成立する。
+                //   丸めは前進と横を**同じ係数で**縮めるので、種ごとの軌道の形（膨らみの比率）は変わらない。
+                Vector2 delta2 = fwd * fwdStep + normal * step;
+                float len = delta2.Length();
+                if (len > fwdStep && len > 0.0001f)
+                {
+                    float shrink = fwdStep / len;
+                    delta2 *= shrink;
+                    step *= shrink;   // 実際に動かした横量に合わせる（_lastLateral と食い違わせない）
+                }
+                GlobalPosition += delta2;
                 _lastLateral += step;   // 実際に動かした量だけ記録（クランプ後の値と食い違わせない）
                 // 盤面の上下へはみ出して見失われないよう、進入中も縦だけ緩く締める
                 //（横は出現エッジの外側から入るので締めない）。

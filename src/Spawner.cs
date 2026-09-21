@@ -310,10 +310,12 @@ public partial class Spawner : Node
     //   リードは 0.4s：AimFlash の Ttl(0.4s) と一致させる＝「リングが消える瞬間に敵が現れる」で
     //   因果が途切れない（旧 0.55s はリング消滅後 0.15s の“無”を挟んでいた）。
     //   実効の猶予はこれより長い：敵は x=104 から進入するので、盤面左端(120)へ届くまで更に時間が要る。
-    //   進入速度は MidEnemy の種別倍率（ApproachSpeedMin/Max）で実効 55.8〜166.5px/s（2026-09-17 の
-    //   「移動の個性」リワーク後）＝可変。qa 実測で、予告点灯から敵が盤面左端へ届くまで 0.533〜0.565s、
-    //   そのあいだに自機（NormalSpeed=75px/s）は 32.7〜38.1px 動ける。接触半径は自機2＋敵8＝10px
-    //   なので、最短ケース（32.7px）でも真横に逃げるだけで抜けられる。
+    //   進入速度は MidEnemy の種別倍率（ApproachSpeedMin/Max）＋上限クランプ（ApproachCeil=58px/s）で
+    //   実効 28.5〜58px/s（2026-09-22 の「敵は自機より速くしない」リワーク後）＝可変。
+    //   旧値（55.8〜166.5px/s）より**必ず遅い**ので、予告点灯から敵が盤面左端へ届くまでの時間は
+    //   旧実測 0.533〜0.565s より長くなるだけ＝そのあいだに自機（NormalSpeed=75px/s）が動ける距離は
+    //   旧 32.7〜38.1px を必ず上回る。接触半径は自機2＋敵8＝10px なので、真横に逃げれば確実に抜けられる
+    //   （猶予は一方向にしか増えないので、この予告リードは据え置きで安全側）。
     private const double LeftWarnLead = 0.4;
     private readonly System.Collections.Generic.List<(Enemy enemy, Vector2 pos, double t)> _pendingLeft = new();
 
