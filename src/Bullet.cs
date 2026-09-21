@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 // 弾形。前6種は敵弾用（RefrainHTML/Refrain Danmaku v3 の弾形）。言葉弾は Bullet.Word で別扱い。
 // Dart/Petal/Seeker は自機の発射パターン識別用。描画素材は発射時のキャラクターで決める。
@@ -31,6 +32,32 @@ public partial class Bullet : Area2D
     public int Pierce;
     // 残跳弾数（自機の拡散弾のみ・連鎖の光 chain_light）。>0 の弾が消費された瞬間、最寄りの別の敵へ跳弾する。
     public int Chain;
+    public bool Charged { get; private set; }
+    public Job ChargeJob { get; private set; }
+    private readonly HashSet<ulong> _chargeHits = new();
+    private bool _chargeImpactPlayed;
+
+    public void MakeCharged(Job job)
+    {
+        Charged = true;
+        ChargeJob = job;
+        Pierce = 3;
+        QueueRedraw();
+    }
+
+    // A piercing charge must not hit the same moving shield/body twice.
+    public bool RegisterChargeHit(Node target) => !Charged || _chargeHits.Add(target.GetInstanceId());
+
+    public void ChargeImpact(Vector2 position)
+    {
+        if (!Charged) return;
+        FxLayer.Instance?.ChargeBurst(position, Vector2.FromAngle(Rotation), ChargeJob, ChargeShotFx.Beat.Impact);
+        if (_chargeImpactPlayed) return;
+        _chargeImpactPlayed = true;
+        Audio.Instance?.PlayChargeImpact(ChargeJob);
+        GameCamera.Instance?.Shake(2.2f, 0.14f);
+        GameCamera.Instance?.Hitstop(0.035);
+    }
     public string Word = "";  // 非空なら「言葉弾」＝文字そのものが弾（道中の敵。設計書 4）
 
     // 弾形とスペル色（敵弾のみ反映）。色未指定時は既定の穢れ色。
@@ -54,7 +81,6 @@ public partial class Bullet : Area2D
     //     描くので、どれだけ回しても絵が判定円から食み出さない＝回転と判定が食い違わない。
     //   ・回転はゆっくり（既定 40〜70deg/s 程度）＋僅かな横揺れ。読みを妨げない範囲に留める（P2）。
     //   ・暗背景から浮かせるため、絵の裏に一回り大きい暗色シルエットを敷いてから絵を描く（P1）。
-    //     グレイズ光・当たり芯・祈り弾のハロは既存のまま絵の上に出る＝「刺さるのはこの点」を保つ。
     private Texture2D? _sprite;
     private float _spriteRotSpeed;  // rad/s（符号で回転方向）
     private float _spriteSway;      // 初期角のばらつき（rad）。同時発射で絵が揃って見える硬さを消す
@@ -68,6 +94,7 @@ public partial class Bullet : Area2D
     public void SetSprite(Texture2D? tex, float rotSpeedDeg = 55f)
     {
         _sprite = tex;
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         _spriteRotSpeed = Mathf.DegToRad(rotSpeedDeg);
         // 弾ごとに初期角をばらす（同時発射でも「同じ絵が同じ向きで並ぶ」硬さが消える）。
         _spriteSway = GD.Randf() * Mathf.Tau;
@@ -131,7 +158,8 @@ public partial class Bullet : Area2D
     // 他のチップ文字に芯が埋もれない。
     //   aching : 層2（病みサイン）の投稿＝「見つけて届ける」対象（10 の案A）。いいねが 0〜3 に落ち、
     //            ハートの位置に深夜（2:00〜4:59）の時刻が出て、暖白のハロ（撃てば拾える合図）が点く。
-    public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false, bool aching = false)
+    public void SetWord(string w, string handle = "", Color? accent = null, bool murk = false, bool aching = false,
+        Texture2D? coreArt = null)
     {
         Word = w;
         _wordHandle = handle;
@@ -161,11 +189,12 @@ public partial class Bullet : Area2D
         // 当たり芯の子ノード（実効 z0 ＝通常弾と同層）。プール再利用でも1個だけ生やして使い回す。
         if (_wordCore == null)
         {
-            _wordCore = new BulletWordCore { ZIndex = 12 }; // 親(-12)＋12＝実効0
+            _wordCore = new BulletWordCore { ZIndex = 12, TextureFilter = TextureFilterEnum.LinearWithMipmaps };
             AddChild(_wordCore);
         }
         _wordCore.CoreR = Radius;
         _wordCore.PunchCol = ChipBg();
+        _wordCore.Art = coreArt ?? BulletArt.Get("enemy_rei_anonymous");
         _wordCore.Visible = true;
         _wordCore.QueueRedraw();
         QueueRedraw();
@@ -254,6 +283,10 @@ public partial class Bullet : Area2D
         Active = true;
         Grazed = false;
         Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は各 Fire 側）
+        Charged = false;
+        ChargeJob = default;
+        _chargeHits.Clear();
+        _chargeImpactPlayed = false;
         _slowLogged = false; // QA検証ログのワンショットもプール再利用ごとに戻す
         Chain = 0;  // 跳弾数も同様（付与は FireSpread 側）
         Word = "";  // 再利用時に前の言葉を持ち越さない
@@ -413,7 +446,10 @@ public partial class Bullet : Area2D
         if (area is Bullet pb && !pb.IsEnemy && pb.Active)
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-            pool?.Despawn(pb);
+            if (!pb.RegisterChargeHit(this)) return;
+            pb.ChargeImpact(GlobalPosition);
+            if (pb.Charged && pb.Pierce > 0) pb.Pierce--;
+            else pool?.Despawn(pb);
             FxLayer.Instance?.BulletToPetal(GlobalPosition); // 弾が花びらへ＝“祈りを受け止めた”
             Audio.Instance?.PlayStrip();                     // 軽い「コツッ」（剥離と同域＝浄化より一段軽い）
             var gm = GetNodeOrNull<GameManager>("/root/Game");
@@ -488,6 +524,7 @@ public partial class Bullet : Area2D
 
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
         _age += (float)edelta;
+        if (Charged) QueueRedraw();
 
         // 加速球：_accelDelay 秒（タメ）経過した瞬間に、確定済みの発進方向へロケット発進（1回だけ・瞬間切替）。
         //   タメ中の Velocity はほぼ 0 なので向き復元は使わず、MakeAccel で保持した _accelDir を使う（len≈0破綻回避）。
@@ -696,7 +733,7 @@ public partial class Bullet : Area2D
                 UiKit.Box(this, new Rect2(x0 - 3.2f, y0 - 3.2f, cw + 6.4f, ch + 6.4f), null, rad + 3.2f,
                     new Color(1f, 0.95f, 0.8f, 0.42f), 1.1f);
 
-            // 当たり芯（赤コア＋白フチ＋抜き円）は子ノード BulletWordCore（実効 z0）が描く＝
+            // 当たり芯のイラストは子ノード BulletWordCore（実効 z0）が描く＝
             // 他チップの文字や自チップ本文に埋もれず、常に弾層で読める。ここでは描かない。
             return;
         }
@@ -712,13 +749,9 @@ public partial class Bullet : Area2D
         // グレイズ軟化済み（キミ弾）：白へ寄せた淡色＝「和らいだ」を色で読ませる（判定は不変）。
         if (Softened) c = c.Lerp(new Color(1f, 1f, 1f), 0.5f);
 
-        // テクスチャ弾（グッズ／書類）：弾形の代わりに絵を回しながら描く。
-        // 描き順は「スペル色のグロー → 暗色シルエット → 絵」。グローが暗背景側に色の座を作り、
-        // シルエットが絵の縁を締めるので、暗い部屋・雨のオフィスのどちらでも輪郭が浮く（P1）。
-        // このあとに続く当たり芯の白ドットと祈り弾のハロは共通処理のまま絵の上へ出る。
         if (_sprite != null)
         {
-            DrawSprite(r, c);
+            DrawSprite(r);
         }
         else
         switch (Shape)
@@ -733,11 +766,21 @@ public partial class Bullet : Area2D
 
         // 当たり芯（#16 見える化）：弾中心の高輝度ドット＝「刺さるのはこの点」。
         // 言葉弾の赤コアと同じ発想を通常弾へ。弾形の色を隠さないよう小さく・白のみ（派手にしない）。
-        DrawCircle(Vector2.Zero, Mathf.Min(1.5f, r * 0.42f), new Color(1f, 1f, 1f, 0.9f), true, -1f, true);
+        if (_sprite == null)
+            DrawCircle(Vector2.Zero, Mathf.Min(1.5f, r * 0.42f), new Color(1f, 1f, 1f, 0.9f), true, -1f, true);
 
-        // 祈り弾（消せる弾）の合図：淡い暖白のハロリング＝「自機弾で受け止められる」を一目で。
         if (Erasable)
-            DrawArc(Vector2.Zero, r + 2.4f, 0, Mathf.Tau, 24, new Color(1f, 0.95f, 0.8f, 0.55f), 1.1f, true);
+        {
+            float edge = r + 2.4f;
+            var mark = new Color(1f, 0.95f, 0.8f, 0.75f);
+            for (int x = -1; x <= 1; x += 2)
+                for (int y = -1; y <= 1; y += 2)
+                {
+                    var corner = new Vector2(x * edge, y * edge);
+                    DrawLine(corner, corner - new Vector2(x * 2f, 0), mark, 0.8f, true);
+                    DrawLine(corner, corner - new Vector2(0, y * 2f), mark, 0.8f, true);
+                }
+        }
     }
 
     // 認証バッジの白✓。極小サイズではフォント✓が潰れるので2線分のチェック記号で描く。
@@ -777,6 +820,11 @@ public partial class Bullet : Area2D
     private void DrawPlayerProjectile(float r)
     {
         var art = _playerVisual!;
+        if (Charged)
+        {
+            ChargeShotFx.DrawProjectile(this, art, ChargeJob, _age, r);
+            return;
+        }
         Color accent = art.Accent;
         if (AccelCharging)
         {
@@ -799,7 +847,7 @@ public partial class Bullet : Area2D
     //   倍率は「絵の最長辺 ＝ 当たり直径 × SpriteFit」で決める＝縦長（ペンライト・クリップ）でも
     //   横長（チケット・封筒）でも、回した時に判定円から食み出す量が同じになる（回転と判定が食い違わない）。
     //   回転は _age 基準の緩やかな等速＋僅かな横揺れ。会話停止中は _age が進まない＝弾停止と整合。
-    private void DrawSprite(float r, Color c)
+    private void DrawSprite(float r)
     {
         var tex = _sprite;
         if (tex == null) return;
@@ -807,9 +855,6 @@ public partial class Bullet : Area2D
         float longSide = Mathf.Max(ts.X, ts.Y);
         if (longSide < 1f) return;
         float scale = (r * 2f * SpriteFit) / longSide;
-
-        // スペル色のグロー（弾形と同じ語彙・控えめ）。暗背景に色の座を作って絵を浮かせる。
-        DrawGlow(r, c, 1.0f);
 
         // ★回転・揺れはここでは焼き込まない。描画コマンドの記録は Activate/SetSprite 時の1回だけにして、
         //   実際の回転はノード Rotation（_PhysicsProcess で代入＝変換行列の更新のみ）で行う。
@@ -821,7 +866,7 @@ public partial class Bullet : Area2D
         // 暗色シルエット：絵の裏に一回り大きい暗い複製を4方向へずらして敷く＝縁取り。
         // 明るい背景でも暗い背景でも、絵の外周に必ず暗線が回るので輪郭が締まる。
         var silhouette = new Color(0.05f, 0.03f, 0.06f, 0.85f);
-        float o = 1.6f / scale; // 画面上でおよそ 1.6px 相当のふち（倍率の影響を受けない太さ）
+        float o = 0.8f / scale;
         DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(-o, 0f), ts), false, silhouette);
         DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(o, 0f), ts), false, silhouette);
         DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, -o), ts), false, silhouette);
@@ -898,23 +943,24 @@ public partial class Bullet : Area2D
 // BulletWordCore : 投稿チップ弾（言葉弾）の「当たり芯」だけを弾層（実効 z0）で描く子ノード。
 //   チップ本体（親 Bullet）は z-12 の背景の“声”へ沈むが、刺さる点だけは通常弾と同じ層に浮かせて
 //   「当たり判定のあるものは常にコメント文字より上」を保証する（#最重要 視認性）。
-//   芯の周囲は“抜き”円（チップ下地色の円）で文字を薄くし、芯が本文に埋もれないようにする。
+//   芯の周囲はチップ下地色で文字を薄くし、イラストが本文に埋もれないようにする。
 //   描画コマンドの記録は SetWord 時の1回だけ（位置追従は親の Transform 継承＝毎フレーム再描画なし）。
 public partial class BulletWordCore : Node2D
 {
     public float CoreR = 3f;     // 親 Bullet の当たり半径
-    public Color PunchCol;       // 抜き円の色（チップ下地色と同系）
+    public Color PunchCol;
+    public Texture2D? Art;
 
     public override void _Draw()
     {
-        float r = CoreR;
-        // 抜き（文字を薄くする円）：芯まわりの本文を沈めて赤芯の読みを確保する。
-        DrawCircle(Vector2.Zero, r + 3.6f, new Color(PunchCol.R, PunchCol.G, PunchCol.B, 0.85f), true, -1f, true);
-        // 芯の発光（控えめ2段）＝弾の当たり芯ドットと同じ「危険はここ」の記号を一段強く。
-        DrawCircle(Vector2.Zero, r + 3.0f, new Color(1f, 0.25f, 0.35f, 0.14f), true, -1f, true);
-        DrawCircle(Vector2.Zero, r + 1.9f, new Color(1f, 0.25f, 0.35f, 0.22f), true, -1f, true);
-        // 赤コア＋白フチ（自機の被弾点と同じ記号語彙）。
-        DrawCircle(Vector2.Zero, r + 1f, new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
-        DrawCircle(Vector2.Zero, r, new Color(1f, 0.2f, 0.3f, 1f), true, -1f, true);
+        if (Art == null) return;
+        var size = Art.GetSize();
+        size *= CoreR * 2f * 1.35f / Mathf.Max(size.X, size.Y);
+        var rect = new Rect2(-size / 2f, size);
+        DrawRect(rect.Grow(2f), new Color(PunchCol, 0.9f));
+        var edge = new Color(0.06f, 0.03f, 0.08f, 0.95f);
+        foreach (var offset in new[] { Vector2.Left, Vector2.Right, Vector2.Up, Vector2.Down })
+            DrawTextureRect(Art, new Rect2(rect.Position + offset, size), false, edge);
+        DrawTextureRect(Art, rect, false);
     }
 }

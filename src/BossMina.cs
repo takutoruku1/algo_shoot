@@ -150,11 +150,11 @@ public partial class BossMina : Enemy
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         _spellArt = new Texture2D?[][]
         {
-            new[] { BulletArt.AkariEnvelope, BulletArt.Get("enemy_rei_anonymous") },
+            new[] { BulletArt.Get("mina_butterfly"), BulletArt.Get("mina_memory") },
             new[] { BulletArt.AkariEnvelope, BulletArt.AkariDocs },
             new[] { BulletArt.KoharuAcrylic, BulletArt.KoharuPenlight },
             new[] { BulletArt.Get("enemy_rei_anonymous"), BulletArt.Get("enemy_rei_metrics") },
-            new[] { GD.Load<Texture2D>("res://char/player/mina/mina_core_v1.png"), BulletArt.AkariEnvelope,
+            new[] { BulletArt.Get("mina_butterfly"), BulletArt.AkariEnvelope,
                 BulletArt.KoharuPenlight, BulletArt.Get("enemy_rei_anonymous") },
         };
         ApplySpell();
@@ -315,7 +315,7 @@ public partial class BossMina : Enemy
             4 => ("ミナ", "……聞こえています。帰り道を、開いてください！"),
             _ => ("ミナ", "……いけません。まだ、近づいては……。"),
         };
-        GetHud()?.ShowBossLine(name, line, UiKit.Purify, 3.2);
+        GetHud()?.ShowBossLine(name, line, UiKit.Purify, 3.2, shieldBreak: true);
     }
 
     private static readonly string[] RecloseLines =

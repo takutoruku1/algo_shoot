@@ -2,7 +2,7 @@ using Godot;
 
 // CharacterStory : 他ジョブ潜行（結び手＝ミナ以外のジョブで STAGE1〜3 に潜る）専用ストーリーの台詞テーブル集約。
 //   2026-09-15 ユーザー承認仕様：他ジョブで潜ったランではミナは一切登場しない（who=1/3 の全行と
-//   下書き選択・StoryFilm 回想・ミナ前提の改心シーンを抑止）。代わりに潜行キャラ本人の専用ストーリーを、
+//   下書き選択・ミナ前提の回想と改心シーンを置換）。代わりに潜行キャラ本人の専用ストーリーを、
 //   本編と同じビート枠（出撃／道中の節目3箇所／ボス前／改心相当／帰還）へ全面置換で流す。
 //   ※FINAL は例外＝ジョブに関わらず常にミナ本編（StageMina 側で固定済み）。ハブ／ショップ／
 //     トレーニングの掛け合い（CompanionDialogue.Menu*）も対象外＝現状維持。
@@ -81,7 +81,7 @@ public static class CharacterStory
     private const string RFace = "res://char/v3/rei_face.png";          // レイ中の人・平常
     private const string RSmile = "res://char/v3/rei_face_smile.png";   // レイ中の人・配信用の笑顔
     private const string RCry = "res://char/v3/rei_face_cry.png";       // レイ中の人・泣き
-    private const string RGawa = "res://char/v3/rei_gawa.png";          // ガワ。笑顔固定・泣き顔は存在しない
+    private const string RGawa = CompanionDialogue.ReiAvatarPortrait; // ガワ。笑顔固定・泣き顔は存在しない
 
     // ═══════════════════════════════════════════════════════════════════
     // A. あかり（灯し手）——章ビート（面非依存）
@@ -215,7 +215,7 @@ public static class CharacterStory
     // 章3・道中の節目3
     private static readonly (int who, string text, string face)[] AkariCh3Mid3 =
     {
-        (6, "きのう、雨だった。八百円の傘、初出動。", AFace),
+        (6, "きのうも、雨だった。八百円の傘、すっかり出番が増えた。", AFace),
         (6, "……雨の音、けっこう好きかも。傘があると、ぜんぜん違うんだよ。", AFace),
         (6, "帰りに、駅前で、あったかいの食べた。……冷める前に食べると、おいしいの。知ってた?", AFace),   // AkariStoryFilm Aftermath（駅前の店）の続き
     };

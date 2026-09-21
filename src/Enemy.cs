@@ -203,8 +203,8 @@ public partial class Enemy : Area2D
     // ─── 改心の“溶けるような”差し替え演出（クロスフェード＋squash→pop）の調整定数 ───
     // 当たり判定は一切動かさない：すべて _bodySprite の Transform/Modulate のみで表現する。
     private const double SwapFadeDur = 0.12; // 旧→新テクスチャのクロスフェード尺
-    private const float SquashScale = 1.15f; // 差し替え瞬間の最大ふくらみ（×BaseScale）
-    private const float PopLiftPx = 6f;      // フォロースルーで一瞬持ち上げる量(px・見た目のみ)
+    protected float SquashScale = 1.15f; // 差し替え瞬間の最大ふくらみ（×BaseScale）
+    protected float PopLiftPx = 6f;      // フォロースルーで一瞬持ち上げる量(px・見た目のみ)
     private const double HitstopDur = 0.08;  // 改心確定の一拍で止める長さ
 
     // ─── ボス登場演出（吉田 §6 登場・§4 三段：予備動作→本動作→余韻）───
@@ -244,6 +244,7 @@ public partial class Enemy : Area2D
 
     // 差し替えクロスフェード：旧テクスチャを別 Sprite2D に退避してα落とし、本体(新)をα上げ。
     private Sprite2D? _fadeSprite;
+    private float _fadeBaseScale;
     // squash→pop の進行（0..1）。差し替えの瞬間に起動し、SwapAnimDur で 1 に達して終わる。
     private bool _swapAnim;
     private double _swapAnimT;
@@ -468,21 +469,22 @@ public partial class Enemy : Area2D
             ZIndex = -1, // パネルより奥
             FlipH = FaceLeft, // 素材は右向き→左(進行方向)へ反転
         };
-        float s = BodyDisplayH / t.GetHeight();
+        float s = BodyDisplayH / t.GetHeight() * GetBodyFrame(t).Scale;
         _baseScale = s;
         _bodySprite.Scale = new Vector2(s, s);
         ApplyBodyOffset();
         AddChild(_bodySprite);
     }
 
+    protected virtual (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
+        => (1f, BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose));
+
     // 現在の姿勢（_bodyPose）のオフセットを本体スプライトへ入れる。
     // FlipH は Offset の x も一緒に反転させるので、反転時は符号を戻して見た目の位置を合わせる。
     private void ApplyBodyOffset()
     {
         if (_bodySprite == null) return;
-        Vector2 o = string.IsNullOrEmpty(BodyOffsetName)
-            ? Vector2.Zero
-            : BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose);
+        Vector2 o = GetBodyFrame(_bodySprite.Texture).Offset;
         // 縮めた絵の足元合わせ：素材はどれも足元まで詰めてある（不透明域が下端）ので、
         // 中央基準のまま倍率を下げると足元が (1-倍率)/2 ぶん浮く。その差を Offset(画像画素) で押し下げる。
         //   浮き = 表示高×(1-倍率)/2 [画面px] → 画像画素に直すと 高さ×(1-倍率)/(2×倍率)。
@@ -615,6 +617,7 @@ public partial class Enemy : Area2D
         if (_phase != BossPhase.Exposed || _purified) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
+            if (!b.RegisterChargeHit(this)) return;
             // 連鎖の光（chain_light）：消費位置から最寄りの別の敵へ跳弾（Despawn 前＝位置と威力が生きているうちに）。
             b.TryChain(this);
             // 貫く光（shot_pierce）：残貫通数のある弾は消えずに突き抜ける（ダメージ処理はそのまま通す）。
@@ -636,12 +639,10 @@ public partial class Enemy : Area2D
                 return;
             }
             // 本体ヒットのクールダウン中は削らない（同一フレーム多重弾の過剰削りを軽く抑える補助）。
-            if (_bodyHitCd > 0) return;
+            if (_bodyHitCd > 0 && !b.Charged) return;
 
-            // 1ヒット上限 4→8（設計書 §4）。強化しても一定値から先が伸びない＝「ボス戦では威力の軸が死ぬ」
-            // 分裂を解く。窓の合計上限（WindowCap）は据え置きなので即死はせず、窓が早く閉じて
-            // 次の BREAK へ進む＝テンポで返る（#b案と同じリターンの返し方）。
-            int dmg = Mathf.Clamp(b.Damage, 1, 8);
+            // Charge bypasses the rapid-fire cap, but still respects the window and story HP floors.
+            int dmg = Mathf.Clamp(b.Damage, 1, b.Charged ? 32 : 8);
 
             // 距離ボーナス（設計書 §2・ジョブ差の本体）。自機が取れない場合は base のまま（null安全）。
             //   近: Jobs.CloseRange(48px) 以内 → JobDef.CritMult / CritCap（灯し手 ×2.0・上限8／他 ×1.25・上限5）。
@@ -656,12 +657,13 @@ public partial class Enemy : Area2D
                 if (d <= PointBlankRange && (job?.CritEnabled ?? true))
                 {
                     crit = true;
-                    dmg = Mathf.Min(job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
+                    dmg = Mathf.Min(b.Charged ? 32 : job?.CritCap ?? 5, Mathf.RoundToInt(dmg * (job?.CritMult ?? 1.25f)));
                 }
                 else if (d > Jobs.FarRange && (job?.FarMult ?? 1f) > 1f)
                 {
                     crit = true; // 表示は密着クリと同じ金色＝「今の距離が効いている」を同じ語彙で返す
                     dmg = Mathf.RoundToInt(dmg * job!.FarMult);
+                    if (b.Charged) dmg = Mathf.Min(dmg, 32);
                 }
                 // QA走行だけ、ジョブの距離ボーナスが実際に効いたかを1ヒットずつログへ出す（検証用）。
                 if (crit && QaPilot.Verbose)
@@ -672,6 +674,7 @@ public partial class Enemy : Area2D
             // 窓キャップ：残り許容ぶんへクランプ（密着クリティカルは上限を超えず到達を早めるだけ）。
             dmg = LimitBodyDamage(Mathf.Min(dmg, WindowCap - _windowDamage));
             if (dmg <= 0) return;
+            b.ChargeImpact(b.GlobalPosition);
             _windowDamage += dmg;
             _bodyHitCd = BodyHitCd;
             int prevBarsLeft = (_hp + BarHp - 1) / BarHp; // 減算前の残バー数（切り上げ）
@@ -924,7 +927,7 @@ public partial class Enemy : Area2D
     protected void ShowBreakCueLine(string speaker, string text, Color? col = null)
     {
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine(speaker, text, col ?? UiKit.Mina, BreakCueDur + VulnDur);
+            .ShowBossLine(speaker, text, col ?? UiKit.Mina, BreakCueDur + VulnDur, shieldBreak: true);
     }
     protected virtual void OnRecloseLine() { }
 
@@ -1006,7 +1009,7 @@ public partial class Enemy : Area2D
         RemoveFromGroup("enemies");
 
         // 戦闘終了の瞬間：画面に残った自機の弾を消す（改心の会話に弾が飛び続けないように）。
-        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnPlayerBullets();
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnPlayerBullets(preserveCharged: PurifyGrade == FxLayer.PurifyTier.Zako);
 
         // 接触で自機を傷つけないようにする。浄化は被弾シグナル中に走ることがあるため遅延設定。
         SetDeferred(Area2D.PropertyName.Monitorable, false);
@@ -1095,6 +1098,7 @@ public partial class Enemy : Area2D
         if (old != null)
         {
             _fadeSprite?.QueueFree();
+            _fadeBaseScale = _baseScale;
             _fadeSprite = new Sprite2D
             {
                 Texture = old,
@@ -1112,7 +1116,7 @@ public partial class Enemy : Area2D
 
         // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
         _bodySprite.Texture = t;
-        _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul;
+        _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * GetBodyFrame(t).Scale;
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
@@ -1146,7 +1150,7 @@ public partial class Enemy : Area2D
             float fa = (float)Mathf.Clamp(_swapAnimT / SwapFadeDur, 0, 1); // フェード進行
             _bodySprite.SelfModulate = new Color(1f, 1f, 1f, fa);
             _fadeSprite.SelfModulate = new Color(1f, 1f, 1f, 1f - fa);
-            _fadeSprite.Scale = _bodySprite.Scale; // 同じ squash に乗せて一体に揺らす
+            _fadeSprite.Scale = Vector2.One * (_fadeBaseScale * scaleMul);
             _fadeSprite.Position = _bodySprite.Position;
             if (fa >= 1f) { _fadeSprite.QueueFree(); _fadeSprite = null; }
         }
@@ -1375,7 +1379,7 @@ public partial class Enemy : Area2D
         //   前フレームから変わったとき＋ロック中は毎フレーム、の2条件で促す
         //   （無関係な雑魚まで毎フレーム再描画しない＝描画コストは増やさない）。
         bool lockedNow = GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this;
-        if (lockedNow || _wasLockTarget) QueueRedraw();
+        if (lockedNow || _wasLockTarget || (_maxHp > 0 && !_purified)) QueueRedraw();
         _wasLockTarget = lockedNow;
 
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
@@ -1413,30 +1417,76 @@ public partial class Enemy : Area2D
 
     protected virtual void UpdateMovement(double delta) { }
 
+    private static Texture2D? _shieldArt;
+    private void DrawShield()
+    {
+        if (_maxHp <= 0 || _purified || _entering) return;
+        bool breaking = _phase == BossPhase.Break;
+        if (!breaking && (_phase != BossPhase.Shielded || _panels.Count == 0)) return;
+        _shieldArt ??= GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png");
+        float h = BodyDisplayH + 28f;
+        var size = new Vector2(h * 1.15f, h);
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0022f);
+        var tint = new Color("d6e9fa");
+        float alpha = 0.35f + pulse * 0.1f;
+        if (!breaking)
+        {
+            DrawTextureRect(_shieldArt, new Rect2(-size / 2f, size), false, new Color(tint, alpha));
+            return;
+        }
+        float t = Mathf.Clamp((float)(_phaseT / BreakCueDur), 0, 1);
+        var source = _shieldArt.GetSize() / new Vector2(2, 3);
+        var piece = size / new Vector2(2, 3);
+        for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 2; x++)
+            {
+                var offset = new Vector2(x == 0 ? -1 : 1, y - 1) * t * 16f;
+                var position = -size / 2 + piece * new Vector2(x, y) + offset;
+                DrawTextureRectRegion(_shieldArt, new Rect2(position, piece),
+                    new Rect2(source * new Vector2(x, y), source), new Color(tint, 0.6f * (1f - t)));
+            }
+    }
+
+    private void DrawLockOn(Job job)
+    {
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
+        float r = Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse;
+        var color = new Color(BulletArt.PlayerColor(job), 0.65f + pulse * 0.2f);
+        for (int i = 0; i < 4; i++)
+        {
+            float angle = Mathf.Pi / 2 * i;
+            var axis = Vector2.FromAngle(angle);
+            var side = axis.Orthogonal();
+            switch (job)
+            {
+                case Job.Heal:
+                    DrawArc(Vector2.Zero, r, angle - 0.38f, angle + 0.38f, 12, color, 1.2f, true);
+                    break;
+                case Job.Melee:
+                    DrawPolyline(new[] { axis * (r + 4) + side * 4, axis * (r - 1),
+                        axis * (r + 4) - side * 4 }, color, 1.3f, true);
+                    break;
+                case Job.Magic:
+                    DrawPolyline(new[] { axis * (r - 3) + side * 4, axis * (r + 3),
+                        axis * (r - 3) - side * 4 }, color, 1.2f, true);
+                    break;
+                default:
+                    var corner = Vector2.FromAngle(angle + Mathf.Pi / 4) * r;
+                    DrawPolyline(new[] { corner - axis * 6, corner, corner + side * 6 }, color, 1.2f, true);
+                    break;
+            }
+        }
+        var art = BulletArt.PlayerMark(job);
+        float size = job == Job.Magic ? 13f : 12f;
+        DrawTextureRect(art, new Rect2(-size / 2, -r - size - 3, size, size), false,
+            new Color(Colors.White, 0.88f));
+    }
+
     public override void _Draw()
     {
-        // ── ロックオンの照準マーカー（2026-09-07）──
-        //   ユーザー指示「ロックオンしている間は照準マーカーがボスにつくようにして」。
-        //   ここ（敵本体の _Draw）に描くので、ボスが動けばマーカーも一緒に動く＝追従は自動。
-        //   意匠は既存の語彙から借りる: 露出オーラ／スイートスポットと同じ「薄いリング」＋四隅の鉤括弧。
-        //   色は**自機側の色**（Purify 系の水色）にする。予兆（AreaStrike）や警告は深紅・琥珀なので、
-        //   同じ形でも色で「これは危険の記号ではない＝こちらの照準」と読み分けられる。
+        DrawShield();
         if (GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this)
-        {
-            float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
-            float rr = Mathf.Max(BodyHalfH, BodyRadius) + 8f + 2f * pulse;
-            var mc = new Color(UiKit.Purify, 0.45f + 0.25f * pulse);
-            DrawArc(Vector2.Zero, rr, 0f, Mathf.Tau, 40, mc, 1.2f);
-            // 四隅の鉤括弧（照準らしさ）。リングの外側に短い2本ずつ。
-            float k = rr + 3f, arm = 5f;
-            for (int sx = -1; sx <= 1; sx += 2)
-                for (int sy = -1; sy <= 1; sy += 2)
-                {
-                    var c0 = new Vector2(sx * k, sy * k) * 0.72f;
-                    DrawLine(c0, c0 + new Vector2(-sx * arm, 0f), mc, 1.2f);
-                    DrawLine(c0, c0 + new Vector2(0f, -sy * arm), mc, 1.2f);
-                }
-        }
+            DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank);
 
         // 改心フラッシュ（やさしい色：淡ピンク→淡紫に着地）
         if (_flashing)

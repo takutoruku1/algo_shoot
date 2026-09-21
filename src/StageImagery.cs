@@ -95,18 +95,8 @@ public partial class StageImagery : Node2D
             }
     }
 
-    // ───────── 共通：背景を流れる投稿の「薄い板」 ─────────
-    // 全ステージ共通の小さな板。右→左へ 12px/s でループ。同時4枚・上下2段レーン（縦中央は弾の主戦場なので空ける）。
-    // 2026-09-08 意匠の統一（ユーザー指摘）。オープニングの通知カード（src/PostToast.cs）と同じ見た目にする：
-    //   ①角丸の紫黒の面＋淡い縁 ②丸アイコンは char/v3/icons の実画像（SnsVoices の同じ添字＝同じ人は同じ顔）
-    //   ③頭の行は 表示名(太)→認証バッジ→@ハンドル · 時刻(薄) ④本文は 1 行 11px（三段の主役）
-    //   ⑤エンゲージ行は点 4 つ＋薄い数字（返信/リポスト/いいね/閲覧の順は X のまま。図像は描かない）。
-    //   **濃さと彩度は背景のまま**＝彩度は弾より低く、加算しない。α は従来の上限を維持（DrawCard の頭を参照）。
-    // 本文 12 字が 11px＋字間(BodyTrack) で収まる幅／三段（頭・本文・点）の高さ。
-    //   2026-09-07：本文に字間 +1.0 を入れたぶん（12字で約12px）幅を広げ、右端で文字が板からはみ出すのを防ぐ。
-    //   2026-09-08：PostToast に合わせて本文の左端が 4px 右へ寄った（アイコンが実画像になり丸が大きい）ぶん、
-    //     12 字の budget を保つために幅を 170→176 にする。
-    private const float CardW = 176f, CardH = 46f;
+    // 投稿は上下の背景レーンに限定し、弾幕が増えるほど薄くする。
+    private const float CardW = 164f, CardH = 48f;
     private const float ScrollSpeed = 12f;           // px/s（ScrollFx近層より遥か遅い＝奥／画面酔い対策で半減）
     private const int CardCount = 4;                 // 同時表示（控えめ）
     // 上下2段：縦中央の帯（弾の主戦場）を空ける。上段は画面上端寄り、下段は下端寄り（CardH=46）。
@@ -162,11 +152,7 @@ public partial class StageImagery : Node2D
         DrawRect(new Rect2(x + 2f, y + 3f, 1f, 1f), c);
     }
 
-    // ── 背景の文字の見え方（2026-09-07・docs/20260906/HUD整理_案.md §9）──
-    //   ここの文字は「読ませない文字」。読めるように濃く詰めて置くと、ただ小汚い塊に見える
-    //   （＝ユーザー指摘「背景の流れているコメントのフォントがださい」の正体）。
-    //   フォントは変えず、字間を +1.0 開けて 1 文字ずつ立たせ、濃さを一段落とす。サイズは据え置き。
-    private const float BodyTrack = 1.0f;      // 本文・下書きの字間（px・384系の生座標）
+    private const float BodyTrack = 0f;
     private const float BodyAlphaMax = 0.50f;  // 本文 α の上限（旧 0.62）
     private const float DraftAlpha = 0.38f;    // 下書きの基準 α（旧 0.46）
 
@@ -209,106 +195,69 @@ public partial class StageImagery : Node2D
         }
     }
 
-    // 1枚の板を描く。本文・名前・メタは i で決定論（周回中は固定＝チラつかない。切替は画面外）。
-    //   panel : 縁光と文字の基調色（面の tint）, text : 本文/名前色, accent : アバターの輪の色
-    //   replies/reposts/likes/views : 点の横の薄い数字, liked : いいね済み（点を淡い薔薇色に）, quote : 引用リプ線（あかり）
-    //   pa は「その面の板の濃さ」（レイ/あかり 0.13・こはる 0.07）。α の配分はこの値を軸に、
-    //   板の暗さ ×1.7 ／縁光 ×1.2 ／本文 ×3.0（上限 BodyAlphaMax）／頭の行 ×1.6 ／点と数字 ×1.4 で組む。
-    //
-    // 2026-09-08 ユーザー指摘「道中の背景の投稿を、オープニングで出したものと同じ見た目に」：
-    //   意匠を src/PostToast.cs（オープニングの通知カード）に揃える。新しい意匠は作らず、あちらの
-    //   組み方をそのまま縮めて写す（PostToast 640×176 → ここ 176×46 ＝おおむね 0.27 倍）：
-    //     角丸16→4／pad 26→7／丸アイコン r27→7（実画像）／文字列の左端 pad+2r+16→x+25／
-    //     本文 iy+pad+44→y+18／エンゲージ行 iy+CardH-pad-14→y+CardH-9／点 r3.4→1.2
-    //   文字の階層も PostToast と同じ書体で揃える：表示名＝ZenBold（太）／@ハンドルと時刻＝Mono（薄）／
-    //   本文＝Zen（主）。認証は点ではなく UiKit.VerifiedBadge（あちらと同じ図像）。
-    //
-    //   **濃さと彩度は背景のまま**（ここが PostToast と違ってよい唯一の点）。カードは読ませる物ではないので、
-    //   面の色は PostToast の紫黒(22,18,34)を敷きつつ α は従来どおり上限 0.30、本文は字間 +1.0・α 上限 0.50、
-    //   アイコンも同じ α 帯（上限 0.34）まで落とす。加算合成にしない・弾より彩度を下げる、も従来どおり。
-    //
-    //   PostToast と描画関数は共有していない：あちらは設計座標(1280)を UiKit.Text/Multi で組み、
-    //   こちらは生座標(384)を字間つき DrawTracked で組む（背景専用の字間・α 上限のため）。座標系も
-    //   文字ヘルパも α の作り方も違うので、共有するとほぼ全部が引数になる。**意匠だけ**を上の対応表で揃える。
     private void DrawCard(float x, float y, float pa, float fade, Color panel, Color text, Color accent,
                           int i, string body, int replies, int reposts, int likes, int views,
                           bool liked = false, bool quote = false)
     {
-        var ci = GetCanvasItem();
         float a = pa * fade;
-        var rect = new Rect2(x, y, CardW, CardH);
-        const float Pad = 7f, Av = 7f;          // PostToast の pad 26 / アイコン半径 27 を縮めた値
-        float tx = x + Pad + Av * 2f + 4f;      // 文字列の左端（PostToast: pad + 2r + 16）
-
-        // ① カード本体：PostToast と同じ角丸の紫黒の面＋淡い縁（あちらは角丸16／ここは 0.266 倍の 4）。
-        //    面は PostToast の Face(22,18,34) を敷き、その面の tint をわずかに混ぜて層背景と馴染ませる。
-        //    α は従来どおり上限 0.30＝背景として沈んだまま（PostToast の 0.96 には寄せない）。
-        var glass = new Color(0.086f + panel.R * 0.03f, 0.071f + panel.G * 0.03f, 0.133f + panel.B * 0.05f,
-            Mathf.Min(a * 1.7f, 0.30f));
-        var rim = new Color(panel.R, panel.G, panel.B, a * 1.2f);
-        UiKit.Box(this, rect, glass, 4f, rim, 1f);
-
-        // ② アイコン（丸・実画像）。PostToast と同じ char/v3/icons のモブアイコンを SnsVoices の同じ添字から引く
-        //    ＝ハブ・オープニング・道中で同じ人には同じ顔。背景なので α は文字と同じ帯まで落とす。
-        DrawAvatar(new Vector2(x + Pad + Av, y + Pad + Av), Av, VoiceIndex(i), accent, a);
-
-        // ③ 頭の行：表示名（太）→ 認証バッジ → @ハンドル · 時刻（薄）。PostToast と同じ並び・同じ書体。
-        //    PostToast は幅 640 に同じ行を組めるが、こちらは 176 しかない＝入り切らない。X の実物と同じく
-        //    左から詰めて、名前は「…」で切り、入らなくなった要素（ハンドル→時刻）は落とす＝板からはみ出さない。
-        var head = new Color(text.R, text.G, text.B, Mathf.Min(a * 1.6f, 0.36f));
-        var meta = new Color(text.R, text.G, text.B, Mathf.Min(a * 1.3f, 0.30f));
-        float right = x + CardW - Pad;                 // 頭の行が使ってよい右端
-        float nameBase = y + Pad + UiKit.ZenBold.GetAscent(9);
-        // 名前は行の半分までに収める（残り半分をハンドルに残す＝どちらか一方だけが伸びない）。
-        string name = Elide(UiKit.ZenBold, DisplayName(i), 9, (right - tx) * 0.52f);
-        UiKit.ZenBold.DrawString(ci, new Vector2(tx, nameBase), name, HorizontalAlignment.Left, -1, 9, head);
-        float hx = tx + UiKit.TextW(UiKit.ZenBold, name, 9) + 3f;
+        const float pad = 6, avatar = 6;
+        float tx = x + 23, right = x + CardW - pad;
+        var ink = new Color(0.035f, 0.045f, 0.055f, Mathf.Min(a * 2.4f, 0.36f));
+        var white = new Color("e7e9ea");
+        var meta = new Color(white, Mathf.Min(a * 1.7f, 0.3f));
+        UiKit.Box(this, new Rect2(x, y, CardW, CardH), ink, 2f);
+        DrawLine(new Vector2(x + pad, y + CardH), new Vector2(right, y + CardH),
+            new Color(white, a * 0.7f), 0.4f);
+        DrawAvatar(new Vector2(x + pad + avatar, y + pad + avatar), avatar, VoiceIndex(i), accent, a);
+        string name = Elide(UiKit.ZenBold, DisplayName(i), 7, 52);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + pad), name, 7, new Color(white, Mathf.Min(a * 2.3f, 0.4f)));
+        float hx = tx + UiKit.TextW(UiKit.ZenBold, name, 7) + 3;
         if (Verified(i))
         {
-            // 認証バッジ＝PostToast と同じ図像（塗り円＋白チェック）。色は淡い水色で弾の色相と分離。
-            UiKit.VerifiedBadge(this, new Vector2(hx + 2f, y + Pad + 4.5f), 2.2f,
-                new Color(0.55f, 0.70f, 0.88f), Mathf.Min(a * 2.0f, 0.40f));
-            hx += 6f;
+            UiKit.VerifiedBadge(this, new Vector2(hx + 2, y + 10), 1.8f, accent, Mathf.Min(a * 2, 0.35f));
+            hx += 6;
         }
-        // @ハンドルと時刻は Mono・一段薄く（PostToast の Text3 / Text4 の落差をここでも作る）。
-        float metaBase = y + Pad + UiKit.Mono.GetAscent(7);
-        string handle = Elide(UiKit.Mono, Handle(i), 7, right - hx);
-        UiKit.Mono.DrawString(ci, new Vector2(hx, metaBase), handle, HorizontalAlignment.Left, -1, 7, meta);
-        float rx = hx + UiKit.TextW(UiKit.Mono, handle, 7) + 3f;
-        string relT = RelTime(i);
-        if (rx + UiKit.TextW(UiKit.Mono, relT, 7) <= right)   // 入るときだけ出す（時刻は3つの中で一番落としてよい）
-            UiKit.Mono.DrawString(ci, new Vector2(rx, metaBase), relT, HorizontalAlignment.Left, -1, 7,
-                new Color(text.R, text.G, text.B, Mathf.Min(a * 1.1f, 0.26f)));
-
-        // ④ 本文（11px・1 行）。板の中では一番濃いが「読ませる文字」ではない＝字間を開けて濃さを落とす
-        //   （2026-09-07 §9：ユーザー指摘「背景の流れているコメントのフォントがださい」への対処。
-        //    サイズは据え置き。詰まった小さい字が“汚い”のであって、大きさではない）。
-        //   引用リプ（quote）なら左に極細の線＋字下げ。
-        float bx = tx, by = y + 18f + _font.GetAscent(11);
-        if (quote)
+        string handle = Elide(UiKit.Mono, Handle(i), 5, right - hx - 7);
+        UiKit.Text(this, UiKit.Mono, new Vector2(hx, y + pad + 1), handle, 5, meta);
+        for (int k = 0; k < 3; k++) DrawCircle(new Vector2(right - 4 + k * 1.6f, y + 9), 0.35f, meta);
+        string content = body.StartsWith("> ") ? body.Substring(2) : body;
+        var lines = UiKit.WrapLines(UiKit.Zen, content, 8, right - tx - (quote ? 4 : 0));
+        if (quote) DrawLine(new Vector2(tx, y + 17), new Vector2(tx, y + 32), new Color(accent, a * 1.6f), 0.7f);
+        for (int line = 0; line < Mathf.Min(lines.Count, 2); line++)
         {
-            DrawLine(new Vector2(tx - 5f, y + 19f), new Vector2(tx - 5f, y + 31f),
-                new Color(panel.R, panel.G, panel.B, a * 1.4f), 1f);
-            bx = tx + 3f;
+            string s = line == 1 && lines.Count > 2 ? Elide(UiKit.Zen, lines[line] + "…", 8, right - tx - 4) : lines[line];
+            UiKit.Text(this, UiKit.Zen, new Vector2(tx + (quote ? 4 : 0), y + 17 + line * 9), s, 8,
+                new Color(white, Mathf.Min(a * 2.8f, 0.46f)));
         }
-        DrawTracked(ci, new Vector2(bx, by), body, 11,
-            new Color(text.R, text.G, text.B, Mathf.Min(a * 3.0f, BodyAlphaMax)), BodyTrack);
-
-        // ⑤ エンゲージ行：点 4 つ＋薄い数字（返信・リポスト・いいね・閲覧の順）。図像は描かない。
-        //    PostToast と同じく本文の幅を 4 等分して置く（あちらの DrawEngagement）。
-        float dy = y + CardH - Pad - 2f;     // 点の中心（PostToast: iy + CardH - pad - 14）
-        var dot = new Color(text.R, text.G, text.B, Mathf.Min(a * 1.4f, 0.30f));
-        float ax = tx;
-        float step = (x + CardW - Pad - tx) / 4f;
-        string[] nums = { replies.ToString(), reposts.ToString(), likes.ToString(), FmtCount(views) };
+        float step = (right - tx) / 4f;
+        string[] nums = { replies.ToString(), reposts.ToString(), FmtCount(likes), FmtCount(views) };
         for (int k = 0; k < 4; k++)
         {
-            // いいね済みは点だけ淡い薔薇色（弾の濃ピンクと被らない低彩度）。
-            var c = (k == 2 && liked) ? new Color(0.80f, 0.60f, 0.66f, Mathf.Min(a * 2.0f, 0.42f)) : dot;
-            DrawCircle(new Vector2(ax, dy), 1.2f, c);
-            UiKit.Mono.DrawString(ci, new Vector2(ax + 3f, dy + 2.5f), nums[k], HorizontalAlignment.Left, -1, 7, c);
-            ax += step;
+            var color = k == 2 && liked ? new Color(0.85f, 0.6f, 0.69f, meta.A) : meta;
+            var p = new Vector2(tx + step * k, y + 40);
+            DrawEngagementIcon(k, p, color);
+            UiKit.Text(this, UiKit.Mono, p + new Vector2(7, -3), nums[k], 5, color);
         }
+    }
+
+    private void DrawEngagementIcon(int kind, Vector2 p, Color color)
+    {
+        if (kind == 0)
+            DrawPolyline(new[] { p + new Vector2(0, 2), p + new Vector2(0, -2), p + new Vector2(5, -2),
+                p + new Vector2(5, 1), p + new Vector2(2, 1), p + new Vector2(0, 3) }, color, 0.5f, true);
+        else if (kind == 1)
+        {
+            DrawPolyline(new[] { p + new Vector2(0, 2), p + new Vector2(0, -2), p + new Vector2(5, -2),
+                p + new Vector2(3, -4) }, color, 0.5f, true);
+            DrawPolyline(new[] { p + new Vector2(5, -2), p + new Vector2(5, 2), p + new Vector2(0, 2),
+                p + new Vector2(2, 4) }, color, 0.5f, true);
+        }
+        else if (kind == 2)
+            DrawPolyline(new[] { p + new Vector2(2.5f, 3), p + new Vector2(-0.5f, 0), p + new Vector2(0, -2),
+                p + new Vector2(1.5f, -2), p + new Vector2(2.5f, -1), p + new Vector2(3.5f, -2),
+                p + new Vector2(5, -2), p + new Vector2(5.5f, 0), p + new Vector2(2.5f, 3) }, color, 0.5f, true);
+        else
+            for (int i = 0; i < 3; i++) DrawLine(p + new Vector2(i * 2, 2), p + new Vector2(i * 2, -i * 2), color, 0.6f);
     }
 
     // 丸アイコン。PostToast.DrawIcon と同じ落とし方（実画像があればそれ、無ければ無地円＋人影）だが、
@@ -387,23 +336,26 @@ public partial class StageImagery : Node2D
             return _reiBodies = list.ToArray();
         }
     }
-    // ピン留めの固定ポスト＝三年で止まった登録者数。道中は「登録者 2,000」が白飛びで読めない眩しさ、
-    //   改心後は数字を変えず、公開できた企画がその下に灯る（DrawReiReversal）。
-    //   同接（11→8→3→4）は台詞側が持つ数字なので、背景は別の軸＝登録者で「ひとり増えた」を言う。
-    private const string PinPre = "登録者 2,000", PinPost = "好きな本の話";
-    private float PinPreW => _font.GetStringSize(PinPre, HorizontalAlignment.Left, -1, 12).X;
-    private float PinPostW => _font.GetStringSize(PinPost, HorizontalAlignment.Left, -1, 10).X;
-    // 枠は文字幅から起こす（左右 14px の余白）。道中と反転で同じ矩形が戻るよう、前後で同じ式を使う。
-    private Rect2 PinPreBox => new(W / 2f - (PinPreW + 14f) / 2f, 6f, PinPreW + 14f, 22f);
+    private const string PinPost = "好きな本の話";
+    private static Texture2D? _reiIcon;
+    private void DrawSubscriberCard(float alpha, Color accent)
+    {
+        const float w = 128, h = 26;
+        float x = Field.CenterX - w / 2, y = 27;
+        _reiIcon ??= GD.Load<Texture2D>(CompanionDialogue.AccountIcon("rei"));
+        DrawRect(new Rect2(x, y, w, h), new Color(0.035f, 0.045f, 0.055f, 0.38f * alpha));
+        DrawLine(new Vector2(x, y + h), new Vector2(x + w, y + h), new Color(accent, 0.3f * alpha), 0.5f);
+        UiKit.FaceAvatar(this, new Vector2(x + 13, y + 13), 8, _reiIcon, accent, false, 0, 0.55f * alpha);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 26, y + 5), "星逢レイ", 7, new Color(Colors.White, 0.55f * alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 26, y + 15), Elide(UiKit.Mono, BossHandles.ReiMain, 5, 54),
+            5, new Color(accent, 0.45f * alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 92, y + 3), "登録者", 5, new Color(accent, 0.5f * alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(x + 87, y + 11), "2,000", 10, new Color(Colors.White, 0.65f * alpha));
+    }
 
     private void DrawRei(float fade)
     {
-        // 「登録者 2,000」は白飛びの固定ポスト（ピン留め）。スクロールしない最上部のカード。読めない眩しさ。
-        var glow = new Color(1f, 1f, 1f, 0.16f * fade);
-        DrawRect(PinPreBox, glow);
-        DrawRect(PinPreBox, new Color(1f, 1f, 1f, 0.09f * fade), false, 1f);
-        _font.DrawString(GetCanvasItem(), new Vector2(W / 2f - PinPreW / 2f, 22f), PinPre,
-            HorizontalAlignment.Left, -1, 12, new Color(1f, 1f, 1f, 0.42f * fade));
+        DrawSubscriberCard(fade, new Color("a9c6d8"));
 
         // 配信のコメント欄。冷たい青、メタは不自然に多い（切り抜き・引用の拡散）。
         var panel = new Color(0.80f, 0.86f, 1f);
@@ -563,35 +515,18 @@ public partial class StageImagery : Node2D
     // 共通の作法：①同じ場所・同じ形で戻す（道中で見た象徴だと分かる）②白/寒色 → 暖色は
     //   クロスフェード（瞬間切替しない）③α上限は「前」と同水準（説明的に明るくしない・指ししない）。
 
-    // ---- レイ：白飛びしていた「登録者 2,000」のピン留めに、色が差す ----
-    //   読めない眩しさ（＝数字に潰される側の眩しさ）が夜明けの暖色に置き換わって“読める”数字に戻り、
-    //   数字ではなく、自分の好きな話をできたことを救済の変化として示す。
     private void DrawReiReversal()
     {
-        float aIn = RevPhase(0f, 4.5f);       // カードが戻ってくる
-        float col = RevPhase(2f, 9f);         // 白 → 暖色（色が差す）
+        float a = RevPhase(0f, 4.5f);
         float second = RevPhase(6.5f, 12f);
-        if (aIn <= 0f) return;
-        var ci = GetCanvasItem();
-
-        // パネル：白飛びの glow と同じ矩形が、色温度だけ変えて同じ場所に戻る。
-        var warm = new Color(1f, 0.78f, 0.45f); // 夜明けの琥珀（寒色の画面で洗われない程度に彩度を持つ）
-        var pc = new Color(Mathf.Lerp(1f, warm.R, col), Mathf.Lerp(1f, warm.G, col), Mathf.Lerp(1f, warm.B, col));
-        DrawRect(PinPreBox, new Color(pc.R, pc.G, pc.B, 0.14f * aIn));
-        DrawRect(PinPreBox, new Color(pc.R, pc.G, pc.B, 0.09f * aIn), false, 1f);
-        // 「登録者 2,000」：白飛び(0.42)から“読める”暖色へ。眩しさが取れて、ただの数字に戻る。
-        var t1 = new Color(Mathf.Lerp(1f, 1f, col), Mathf.Lerp(1f, 0.83f, col), Mathf.Lerp(1f, 0.50f, col),
-            Mathf.Lerp(0.40f, 0.62f, col) * aIn);
-        _font.DrawString(ci, new Vector2(W / 2f - PinPreW / 2f, 22f), PinPre, HorizontalAlignment.Left, -1, 12, t1);
-
-        if (second > 0f)
+        if (a <= 0) return;
+        var accent = new Color("badfd1");
+        DrawSubscriberCard(a, accent);
+        if (second > 0)
         {
-            float bw = PinPostW + 14f;
-            var box = new Rect2(W / 2f - bw / 2f, 32f, bw, 16f);
-            DrawRect(box, new Color(warm.R, warm.G, warm.B, 0.10f * second));
-            DrawRect(box, new Color(warm.R, warm.G, warm.B, 0.07f * second), false, 1f);
-            _font.DrawString(ci, new Vector2(W / 2f - PinPostW / 2f, 44f), PinPost,
-                HorizontalAlignment.Left, -1, 10, new Color(1f, 0.83f, 0.50f, 0.55f * second));
+            float width = UiKit.TextW(UiKit.ZenBold, PinPost, 8);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(Field.CenterX - width / 2, 59), PinPost, 8,
+                new Color(accent, 0.65f * second));
         }
     }
 

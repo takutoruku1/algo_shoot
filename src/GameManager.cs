@@ -664,7 +664,7 @@ public partial class GameManager : Node
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
         new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
         new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
-        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "溜めて放つ大玉（威力×4）",              MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "溜めて放つ貫通弾（威力×12）",             MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
         new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },

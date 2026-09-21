@@ -106,6 +106,8 @@ public partial class TrainingDummy : Enemy
         if (_down) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
+            if (!b.RegisterChargeHit(this)) return;
+            b.ChargeImpact(b.GlobalPosition);
             b.TryChain(this);                                  // 連鎖の光：Despawn 前に跳弾
             if (b.Pierce > 0) b.Pierce--;                      // 貫く光：残貫通は素通し
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);

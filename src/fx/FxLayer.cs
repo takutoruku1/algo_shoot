@@ -116,6 +116,13 @@ public partial class FxLayer : Node2D
     private float R(float a, float b) => (float)_rng.RandfRange(a, b);
     private int Ri(int a, int b) => _rng.RandiRange(a, b);
 
+    public void ChargeBurst(Vector2 position, Vector2 direction, Job job, ChargeShotFx.Beat kind)
+    {
+        var burst = new ChargeShotFx { Character = job, Kind = kind, Rotation = direction.Angle() };
+        AddChild(burst);
+        burst.GlobalPosition = position;
+    }
+
     // ===== スポナー（fx.js Fx.* を移植） =====
 
     public void Muzzle(Vector2 pos)

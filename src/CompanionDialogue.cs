@@ -7,7 +7,18 @@ public static class CompanionDialogue
     public enum Beat { Intro, Mid, Boss }
     public enum Menu { Select, Hub, Return, ShopEnter, ShopBuy, ShopExit, TrainEnter, TrainShoot, TrainIdle }
 
-    public static string Portrait(Job job) => $"res://char/player/{Jobs.Get(job).CharacterId}/{Jobs.Get(job).CharacterId}_spin_v2_00.png";
+    public const string ReiAvatarPortrait = "res://char/v3/rei_gawa_face_v1.png";
+
+    public static string Portrait(Job job) => job switch
+    {
+        Job.Melee => "res://char/v3/akari_face.png",
+        Job.Heal => "res://char/v3/koharu_face.png",
+        Job.Magic => ReiAvatarPortrait,
+        _ => "res://char/mina_face.png",
+    };
+
+    public static string AccountPortrait(Job job) => AccountIcon(Jobs.Get(job).CharacterId);
+    public static string AccountIcon(string id) => $"res://char/ui/sns_{(id == "final" ? "mina" : id)}_v1.png";
     public static Color Accent(Job job) => job switch
     {
         Job.Melee => UiKit.Gold,

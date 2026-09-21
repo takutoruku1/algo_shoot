@@ -114,7 +114,7 @@ public partial class BossKoharu : Enemy
     //   rot: 絵の回転速度(deg/s)。落ちてくるもの（ペンライト）ほど大きく回す。
     private static readonly (string name, BulletShape shape, Color tint, string art, float rot)[] Spells =
     {
-        ("ちゃんとしなきゃ", BulletShape.Orb,     new Color("e8a24a"), "koharu_badge",    46f), // 缶バッジの輪
+        ("ちゃんとしなきゃ", BulletShape.Orb,     new Color("e8a24a"), "koharu_star_pin", 46f),
         ("みんな見てる",     BulletShape.Diamond, new Color("d6443f"), "koharu_acrylic",  30f), // アクスタ＝視線
         ("期待",             BulletShape.Needle,  new Color("e87a3c"), "koharu_ticket",   62f), // チケットの半券
         ("我に返る",         BulletShape.Rice,    new Color("ffa14a"), "koharu_penlight", 96f), // 消えたペンライト
@@ -225,16 +225,32 @@ public partial class BossKoharu : Enemy
         PostTexPath = "res://char/v3/enemy_koharu_post.png";
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("koharu", "body_display_h", 72f);
-        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "koharu" 行）。こはるは 3 姿勢で足元の高さも
-        // 違う（待機 y=629／攻撃 668／被弾 633）ので x だけでなく y も補正する。
-        BodyOffsetName = "koharu";
+        SquashScale = 1f;
+        PopLiftPx = 0f;
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
+    }
+
+    protected override (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
+    {
+        // Normalize the person, not the staff or coat, and keep the idle foot anchor.
+        var (headY, foot) = texture.ResourcePath.GetFile() switch
+        {
+            "boss_koharu_body_attack.png" => (166f, new Vector2(346f, 668f)),
+            "boss_koharu_body_idle2.png" => (0f, new Vector2(410f, 681f)),
+            "boss_koharu_body_cry.png" => (0f, new Vector2(243f, 637f)),
+            "enemy_koharu_post.png" => (0f, new Vector2(111f, 358f)),
+            _ => (72f, new Vector2(427f, 629f)),
+        };
+        float height = texture.GetHeight();
+        float scale = (629f - 72f) / (foot.Y - headY) * height / 720f;
+        Vector2 anchor = new Vector2(114f, 269f) * height / (720f * scale);
+        return (scale, anchor - (foot - texture.GetSize() / 2f));
     }
 
     public override void _Ready()
     {
         base._Ready();
-        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        // ミナ以外の潜行は、操作キャラの改心会話と回想を使う。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _charStory = CharacterStory.DiveActive(game);
         if (_charStory)
@@ -266,7 +282,7 @@ public partial class BossKoharu : Enemy
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
         TickGoto(delta);
@@ -683,18 +699,16 @@ public partial class BossKoharu : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
-            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
-            //   やっていた戦闘再開処理（閾値の再評価）だけを直接行う。BGM はフィルムへ
-            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
-            if (_charStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
-            KoharuStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
                 Audio.Instance?.Music(Audio.Instance.BgmBossKoharu, 0.8f);
                 OnHpChanged();
-            });
+            }
+            if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
+            else KoharuStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             return;
         }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。

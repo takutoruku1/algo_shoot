@@ -35,8 +35,13 @@ public partial class RouteBackgroundQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
-                await CheckStage(game, scene);
+            if (OS.GetCmdlineUserArgs().Contains("--ui-refresh"))
+                await CheckPresentation(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--start-banner") || OS.GetCmdlineUserArgs().Contains("--start-banner-demo"))
+                await CheckStartBanners(game);
+            else
+                foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+                    await CheckStage(game, scene);
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
             { audio.Stop(); audio.Stream = null; }
@@ -52,6 +57,270 @@ public partial class RouteBackgroundQa : Node
             GD.PushError($"[RouteQA] FAIL {e}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckPresentation(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/ui_refresh");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        void BaseCall(Enemy boss, string method, params object[] args) =>
+            typeof(Enemy).GetMethod(method, Private)!.Invoke(boss, args);
+        object BaseRead(Enemy boss, string field) => typeof(Enemy).GetField(field, Private)!.GetValue(boss)!;
+        async Task Shot(string name)
+        {
+            await Frames(4);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            Check(image.SavePng($"{output}/{name}.png") == Error.Ok, $"rendered {name}");
+        }
+        foreach (var job in Jobs.All)
+        {
+            var icon = GD.Load<Texture2D>(CompanionDialogue.AccountPortrait(job.Id));
+            Check(icon.GetWidth() == icon.GetHeight() && icon.ResourcePath.Contains("/ui/sns_"),
+                $"{job.CharacterId}: dedicated square SNS art");
+            Check(icon.ResourcePath != CompanionDialogue.Portrait(job.Id), "SNS and dialogue art remain separate");
+            Check(BulletArt.PlayerMark(job.Id).GetWidth() > 0, $"{job.CharacterId}: lock emblem loads");
+        }
+        using (var shield = GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png").GetImage())
+            Check(shield.GetPixel(0, 0).A == 0 && shield.GetPixel(shield.GetWidth() / 2, shield.GetHeight() / 2).A == 0,
+                "shield art has a transparent exterior and center");
+        using (var you = GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png").GetImage())
+            Check(you.DetectAlpha() != Image.AlphaMode.None, "anonymous dialogue emblem is transparent");
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            Write(player, "_invincible", true);
+            player.Position = new Vector2(170, 135);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.SetProcess(false);
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(boss);
+            boss.Position = new Vector2(290, 110);
+            boss.SetPhysicsProcess(false);
+            boss.SetProcess(false);
+            foreach (var child in boss.GetChildren()) { child.SetProcess(false); child.SetPhysicsProcess(false); }
+            BaseCall(boss, "TickEntrance", 0d);
+            BaseCall(boss, "TickEntrance", 2d);
+            world.ProcessMode = ProcessModeEnum.Disabled;
+            boss.QueueRedraw();
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            hud.ShowBossBar(scene == "MinaBattle" ? "ミナ" : scene == "Akari" ? "あかり" : scene == "Koharu" ? "こはる" : "レイ");
+            hud.HideSpellCard();
+            Write(hud, "_cutinTimer", 0d);
+            await Frames(100);
+            Write(hud, "_bossLineTimer", 0d);
+            Pool.DespawnAll();
+            hud._Process(0);
+            Check(BaseRead(boss, "_phase").ToString() == "Shielded" && boss.GetChildren().OfType<Panel>().Any(),
+                $"{scene}: shield follows actual panel state");
+            Check(boss.CollisionMask == 0, $"{scene}: shielded body is not vulnerable");
+            await Shot($"{scene}_shield");
+            if (scene == "Akari")
+                foreach (var job in Jobs.All)
+                {
+                    game.SelectedJob = job.Id;
+                    Write(player, "_locked", true);
+                    Write(player, "_lockTarget", boss);
+                    hud._Process(0);
+                    boss.QueueRedraw();
+                    await Shot($"lock_{job.CharacterId}");
+                }
+            Write(player, "_locked", false);
+            float hp = boss.HpRatio;
+            foreach (var panel in boss.GetChildren().OfType<Panel>().ToArray()) panel.Shatter();
+            Check(BaseRead(boss, "_phase").ToString() == "Break" && boss.HpRatio == hp,
+                $"{scene}: real panel destruction breaks only the shield");
+            Check(Read<bool>(hud, "_bossLineBreak"), $"{scene}: shield break uses the new callout");
+            typeof(Enemy).GetField("_phaseT", Private)!.SetValue(boss, 0.16d);
+            Write(hud, "_bossLineTimer", Read<double>(hud, "_bossLineDuration") - 0.4);
+            boss.QueueRedraw();
+            hud._Process(0);
+            await Shot($"{scene}_break");
+            BaseCall(boss, "EnterExposed");
+            Check(boss.GetCollisionMaskValue(2), $"{scene}: exposed body still accepts shots");
+            boss.QueueRedraw();
+            await Shot($"{scene}_exposed");
+            BaseCall(boss, "EnterReclose");
+            BaseCall(boss, "EnterShielded");
+            Check(BaseRead(boss, "_phase").ToString() == "Shielded" && !boss.GetCollisionMaskValue(2),
+                $"{scene}: shield and original collision rules return");
+            if (scene == "Rei")
+            {
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(540, 960) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    hud.ShowBossLine("レイ", "切り抜かれたところだけじゃなくて、最後まで、わたしの話を聞いてよ。", new Color("c3a4fa"), 5);
+                    Write(hud, "_bossLineTimer", 4d);
+                    hud._Process(0);
+                    await Shot($"callout_{size.X}");
+                    hud.ShowRewardBanner(true, true);
+                    hud.ShowClearBanner("STAGE 3 CLEAR", 123.45f, true, 150f, 123456789, false, 987654321);
+                    Check(!Read<bool>(hud, "_bannerRewardLife") && !Read<bool>(hud, "_epic"),
+                        "clear presentation replaces other banner modes");
+                    Write(hud, "_bannerTimer", 4d);
+                    Write(hud, "_bossLineTimer", 0d);
+                    hud._Process(0);
+                    await Shot($"clear_{size.X}");
+                    Write(hud, "_bannerTimer", 0d);
+                    hud.ShowDialog(Hud.LineKind.Boy, "消した言葉も、届いています。いっしょに帰ろう。");
+                    hud.RevealDialogNow();
+                    hud._Process(0);
+                    Check(Read<bool>(hud, "_dlgDraftMark"), "your dialogue uses the anonymous emblem");
+                    await Shot($"you_{size.X}");
+                    hud.HideBubble();
+                }
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                var imagery = root.GetNode<StageImagery>("Imagery");
+                imagery.TriggerReversal();
+                imagery._Process(12);
+                await Shot("rei_subscribers_restored");
+            }
+            root.QueueFree();
+            await Frames(5);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+        }
+        var cleared = Read<System.Collections.Generic.HashSet<string>>(game, "_cleared");
+        foreach (var stage in GameManager.Stages) cleared.Add(stage.Id);
+        var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+        GetTree().Root.AddChild(hub);
+        GetTree().CurrentScene = hub;
+        hub.SetProcess(false);
+        Write(hub, "_sel", 0);
+        Write(hub, "_t", 2d);
+        Call(hub, "OpenJob");
+        Write(hub, "_jobT", 1d);
+        Check(Read<JobTuning[]>(hub, "_jobChoices").Length == 4, "all rescued accounts appear in the selector");
+        hub.QueueRedraw();
+        await Shot("sns_accounts");
+        hub.QueueFree();
+        await Frames(5);
+    }
+
+    private async Task CheckStartBanners(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/stage_start");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        bool demo = OS.GetCmdlineUserArgs().Contains("--start-banner-demo");
+        int number = 0;
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei" })
+        {
+            number++;
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.AutoAdvanceDialog = false;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            stage.SetProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.SetProcess(false);
+            root.GetNode<Node2D>("World").ProcessMode = ProcessModeEnum.Disabled;
+            root.GetNode<StageBackground>("StageBackground").ProcessMode = ProcessModeEnum.Disabled;
+            stage._Process(0);
+            Check(Read<int>(hud, "_startStage") == number, $"{scene}: actual stage entry selects its start title");
+            double duration = Read<double>(hud, "_bannerTimer");
+            hud._Process(6);
+            Check(Hud.BubblePaused && Read<double>(hud, "_bannerTimer") == duration,
+                $"{scene}: intro dialogue does not consume the start animation");
+            var canvas = Read<HudCanvas>(hud, "_canvas");
+            var probe = new SubViewport { Size = new Vector2I(1280, 720), TransparentBg = true,
+                RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
+            root.AddChild(probe);
+            probe.CanvasTransform = new Transform2D(0, Vector2.Zero).Scaled(Vector2.One / UiKit.Scale);
+            var probeCanvas = new HudCanvas { Hud = hud };
+            probe.AddChild(probeCanvas);
+            async Task<Image> Render(double remaining)
+            {
+                Write(hud, "_bannerTimer", remaining);
+                canvas.QueueRedraw();
+                probeCanvas.QueueRedraw();
+                await Frames(3);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                return probe.GetTexture().GetImage();
+            }
+            if (!demo)
+            {
+                using var pending = await Render(duration);
+                using var hidden = await Render(0);
+                Check(pending.GetData().SequenceEqual(hidden.GetData()), $"{scene}: no title overlaps dialogue");
+            }
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            hud._Process(0);
+            Write(hud, "_bannerTimer", duration);
+            if (demo)
+            {
+                hud.SetProcess(true);
+                await Frames(170);
+            }
+            else
+            {
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    probe.Size = new Vector2I(size.X, Mathf.RoundToInt(size.X * 720f / 1280f));
+                    probe.CanvasTransform = new Transform2D(0, Vector2.Zero).Scaled(Vector2.One * size.X / 384f);
+                    await Frames(4);
+                    using var blank = await Render(0);
+                    foreach (double age in new[] { 0.16, 0.6, 1.2, 1.95 })
+                    {
+                        using var shown = await Render(duration - age);
+                        float scale = shown.GetWidth() / UiKit.DesignW;
+                        int changed = 0, outside = 0, white = 0;
+                        for (int y = 0; y < shown.GetHeight(); y++)
+                            for (int x = 0; x < shown.GetWidth(); x++)
+                            {
+                                Color a = blank.GetPixel(x, y), b = shown.GetPixel(x, y);
+                                if (Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B) < 0.06f) continue;
+                                changed++;
+                                if (x < (Field.DLeft + 70) * scale || x > (Field.DRight - 55) * scale
+                                    || y < 125 * scale || y > 340 * scale) outside++;
+                                if (b.R > 0.85f && b.G > 0.85f && b.B > 0.85f) white++;
+                            }
+                        Check(changed > 100 && outside == 0, $"{scene}/{size}/{age}: animated title remains above combat and inside the playfield");
+                        if (age is 0.6 or 1.2)
+                            Check(white > 180 * scale * scale, "high-contrast START lettering is visible");
+                        using var actual = GetViewport().GetTexture().GetImage();
+                        Check(actual.SavePng($"{output}/{scene}_{size.X}x{size.Y}_{age:F2}.png") == Error.Ok, "game viewport screenshot saved");
+                    }
+                }
+                Write(hud, "_bannerTimer", 0.01d);
+                hud._Process(0.02);
+                Check(Read<double>(hud, "_bannerTimer") <= 0, "start title finishes without pausing combat");
+                stage._Process(0);
+                Check(Read<double>(hud, "_bannerTimer") <= 0, "stage entry title is not retriggered");
+                hud.ShowRewardBanner(true, true);
+                Check(Read<int>(hud, "_startStage") == 0 && Read<bool>(hud, "_bannerRewardLife"), "reward banner keeps its icon mode");
+                hud.ShowStageStart(number, "test", Colors.White);
+                hud.ShowClearBanner("CLEAR", 12f, false, null, 100, false, null);
+                Check(Read<int>(hud, "_startStage") == 0 && Read<string>(hud, "_bannerTime").Length > 0, "clear results replace the start title");
+                hud.ShowStageStart(number, "test", Colors.White);
+                hud.ShowEpicBanner("FINAL", "まだ、いますか", UiKit.Kegare);
+                Check(Read<int>(hud, "_startStage") == 0 && hud.EpicBannerActive, "FINAL retains its own cinematic title");
+            }
+            root.QueueFree();
+            await Frames(6);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
     }
 

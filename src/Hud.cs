@@ -63,6 +63,10 @@ public partial class Hud : CanvasLayer
     // バナー
     private string _bannerText = "";
     private double _bannerTimer;
+    private int _startStage;
+    private string _startName = "";
+    private Color _startAccent;
+    private const double StageStartDur = 2.2;
     // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1　BOMB +1」のベタ文字をやめ、
     //   残機マークと同じ**そのキャラの核マーク**（_lifeMarks）＋ボム印（_bombMark）で「何が増えたか」を示す。
     //   ♥は4キャラ共通の記号で「誰の何か」が伝わらない＝サイドパネルの LIFE 列と語彙を揃える。
@@ -271,7 +275,7 @@ public partial class Hud : CanvasLayer
         foreach (var job in Jobs.All)
         {
             _lifeMarks[job.Id] = GD.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png");
-            _accountFaces[job.Id] = GD.Load<Texture2D>(CompanionDialogue.Portrait(job.Id));
+            _accountFaces[job.Id] = GD.Load<Texture2D>(CompanionDialogue.AccountPortrait(job.Id));
         }
         _bombMark = GD.Load<Texture2D>("res://char/ui/bomb_v2.png");
         PostPool.ResetHistory();   // 面の入り口で語の直近履歴を空ける（前の面の履歴で最初の数枚が偏らない）
@@ -336,7 +340,7 @@ public partial class Hud : CanvasLayer
 
         UpdateDialoguePause();
 
-        if (_bannerTimer > 0) { _bannerTimer -= delta; }
+        if (_bannerTimer > 0 && (_startStage == 0 || !BubblePaused)) { _bannerTimer -= delta; }
         if (_bossLineTimer > 0) { _bossLineTimer -= delta; if (_bossLineTimer <= 0) _bossLine = ""; }
         // スペル宣言は会話バブル表示中は時間を止める＝発動の宣言を“戦闘が始まる瞬間”に確実に見せる。
         // （ボス _Ready の宣言が開幕イントロのバブルに食われて見落とされていた問題への対処。
@@ -489,7 +493,7 @@ public partial class Hud : CanvasLayer
                 speaker = Jobs.Get(job).CharacterName;
                 color = CompanionDialogue.Accent(job);
                 // face 指定行（CharacterStory の表情差分＝akari_face/_cry 等）は渡された画像をそのまま出す。
-                //   空欄だけ従来どおりジョブの立ち絵（spin）へ落とす（scenario 実装メモ2項・2026-09-15）。
+                // 空欄だけ同行キャラの会話用ポートレートで補う。
                 if (string.IsNullOrEmpty(portraitToUse)) portraitToUse = CompanionDialogue.Portrait(job);
                 break;
             case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
@@ -612,7 +616,16 @@ public partial class Hud : CanvasLayer
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
     public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; _startStage = 0; }
+
+    public void ShowStageStart(int stage, string name, Color accent)
+    {
+        ShowBanner($"STAGE {stage} START");
+        _startStage = stage;
+        _startName = name;
+        _startAccent = accent;
+        _bannerTimer = StageStartDur;
+    }
 
     // 中ボス撃破の回復報酬バナー（2026-09-17）。文字ではなくアイコンで「増えたもの」を返す。
     //   life … いま選んでいるキャラの核マーク（サイドパネルの LIFE 列と同じ絵）＋ "+1"
@@ -631,6 +644,7 @@ public partial class Hud : CanvasLayer
     //   色収差(R/Cのズレ)＋走査線＋弱いグロー、そして最後に“ため”てから静かに引く。
     public void ShowEpicBanner(string tag, string sub, Color accent)
     {
+        _startStage = 0;
         _epic = true; _epicTag = tag; _epicSub = sub; _epicAccent = accent;
         _bannerText = tag + " — " + sub; // バックログ/互換用に文字列は保持
         _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = "";
@@ -657,7 +671,7 @@ public partial class Hud : CanvasLayer
     public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest,
         long score, bool scoreIsBest, long? prevScore)
     {
-        _bannerText = text; _bannerTimer = 5.0;
+        ShowBanner(text);
         _bannerTime = "TIME " + UiKit.FormatTime(seconds);
         _bannerNewBest = isBest;
         if (isBest) _bannerBest = "NEW BEST!";
@@ -676,9 +690,13 @@ public partial class Hud : CanvasLayer
     private string _bossLineSpeaker = "";
     private Color _bossLineCol = Colors.White;
     private double _bossLineTimer;
-    public void ShowBossLine(string speaker, string text, Color col, double dur)
+    private double _bossLineDuration;
+    private bool _bossLineBreak;
+    public void ShowBossLine(string speaker, string text, Color col, double dur, bool shieldBreak = false)
     {
         _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
+        _bossLineDuration = dur;
+        _bossLineBreak = shieldBreak;
     }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
@@ -780,28 +798,15 @@ public partial class Hud : CanvasLayer
         return "";
     }
 
-    // 顔テクスチャ（ハブの投稿カードと同一素材）。初回だけロードして辞書に持つ。
-    //   三人は char/v3/（社会人版・アニメ塗り v3）、ミナは v3 の描き直しが無く char/mina_face.png が基準。
+    // ボスのプロフィールもハブと同じSNSアカウントを表示する。
     private Texture2D? BossFace(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
         if (_bossFaces.TryGetValue(id, out var cached)) return cached;
-        string path = id == "mina" ? "res://char/mina_face.png" : $"res://char/v3/{id}_face.png";
-        if (!ResourceLoader.Exists(path)) path = $"res://char/{id}_face.png";   // v3 が無い名前への保険
-        var tex = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        var tex = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(id));
         _bossFaces[id] = tex;
         return tex;
     }
-
-    // 円窓の上端 UV（Hub.TopCropFor と同じ実測値）。立ち絵ごとに頭部の高さが違うため顔に合わせる。
-    private static float BossTopCrop(string id) => id switch
-    {
-        "rei" => 0.02f,
-        "akari" => 0.025f,
-        "koharu" => 0.02f,
-        "mina" => 0.05f,
-        _ => 0.06f,
-    };
 
     // アカウント色（Hub.AccountColor と同じ）。浄化しきった縁の色に使う。
     private static Color BossAccent(string id) => id switch
@@ -1179,7 +1184,7 @@ public partial class Hud : CanvasLayer
         {
             // 顔本体。リングは穢れ色→アカウント色へ。topCrop はハブと同じ実測値＝頭が切れない。
             Color ring = UiKit.Kegare.Lerp(BossAccent(_bossFaceId), pe);
-            UiKit.FaceAvatar(ci, ac, R, face, ring, false, BossTopCrop(_bossFaceId), ca, _t);
+            UiKit.FaceAvatar(ci, ac, R, face, ring, false, 0f, ca, _t);
             // 穢れのベール：顔の上に穢れ色を被せて血の気を落とす。浄化で引いていく。
             //   濃さは 0.38。実測（2026-09-17 スクショ）で 0.52 だと髪の暗いレイ／こはるが
             //   シルエットに潰れて誰か判らなくなった。顔が判る／でも明らかに病んでいる、の境目がここ。
@@ -1654,38 +1659,14 @@ public partial class Hud : CanvasLayer
     private static float TickerHandleW(string h)
         => string.IsNullOrEmpty(h) ? 0f : UiKit.TextW(UiKit.Mono, h, UiKit.FontSmall) + 6f;
 
-    // 「あなた」の行に出す下書き欄（立ち絵の代わり）。
-    //   「あなた」は顔を持たず、下書きを選んで送ることでしか喋らない＝顔は描かない、が設計。
-    //   旧実装は 74×46 の横長の枠に薄い三点だけで、縦長のミナの立ち絵（約107×162）と並ぶと
-    //   面積比26%＋横長で釣り合わず、素材が読めなかったプレースホルダに見えていた。
-    //   そこで「こはる面の入力欄（CommentInput）」と同じ意匠の“縦長の入力欄”に作り直す：
-    //   顔の無い丸アバター → 区切り線 → 打ちかけの3行 → 末尾に明滅カーソル。
-    //   下半分をあえて空けるのは「まだ書き足せる余地」＝下書きであることの表現（欄の枠内なので抜けて見えない）。
-    //   幅は 74 のまま（DlgWrapW / BuildDialogPages のレイアウトを動かさない）。高さだけ 46→120 に伸ばす。
     public const float DraftMarkW = 74f;
     public const float DraftMarkH = 120f;
+    private static Texture2D? _draftArt;
     public static void DrawDraftMark(CanvasItem ci, Vector2 leftCenter, Color col, double t = 0)
     {
-        var r = new Rect2(leftCenter.X, leftCenter.Y - DraftMarkH / 2f, DraftMarkW, DraftMarkH);
-        // 塗りは CommentInput と同じ暗い不透明。旧実装の α0.10 は背景の弾や絵が透けて“抜け”て見える原因だった。
-        UiKit.Box(ci, r, new Color(0.05f, 0.045f, 0.075f, 0.92f), 10f, new Color(col, 0.42f), 1.4f);
-        float lx = r.Position.X + 11f, full = DraftMarkW - 22f;
-        // 顔の無い丸アバター（CommentInput と同じく「顔は無い＝名前を出さない」）
-        float ay = r.Position.Y + 22f;
-        UiKit.Avatar(ci, new Vector2(r.Position.X + DraftMarkW / 2f, ay), 12f, new Color(col, 0.55f), "");
-        ci.DrawRect(new Rect2(lx, ay + 19f, full, 1f), new Color(col, 0.28f));
-        // 打ちかけの本文＝3行。最後の行だけ短く、その末尾でカーソルが明滅する（＝いま打っている途中）。
-        // 明滅の周期は CommentInput のカーソルと同じ 2.2（同じ欄だと体で分かるように揃える）。
-        float[] wf = { 1.0f, 0.78f, 0.40f };
-        float top = ay + 33f;
-        for (int i = 0; i < 3; i++)
-        {
-            float ly = top + i * 13f, lw = full * wf[i];
-            bool last = i == 2;
-            UiKit.Box(ci, new Rect2(lx, ly, lw, 4.5f), new Color(col, last ? 0.34f : 0.24f), 2f);
-            if (last && ((int)(t * 2.2)) % 2 == 0)
-                ci.DrawRect(new Rect2(lx + lw + 3f, ly - 4.5f, 1.8f, 13f), new Color(1f, 1f, 1f, 0.85f));
-        }
+        _draftArt ??= GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png");
+        var size = new Vector2(DraftMarkW, DraftMarkW * _draftArt.GetHeight() / _draftArt.GetWidth());
+        ci.DrawTextureRect(_draftArt, new Rect2(leftCenter + new Vector2(0, -size.Y / 2f), size), false);
     }
 
     private void DrawDialog(HudCanvas ci)
@@ -1811,19 +1792,25 @@ public partial class Hud : CanvasLayer
     private const float NarrWrapW = NarrBoxW - 80f;          // ナレ本文（箱の内側・左右40pxずつ空ける）
     private static float DlgWrapW(float textX) => DlgBoxX + DlgBoxW - textX - 30f; // セリフ（バーの内側）
 
-    // 無防備窓サイクルの短い字幕（弾を止めない）。下部・話者色つきの一行カード。
     private void DrawBossLine(HudCanvas ci)
     {
-        float a = Mathf.Clamp((float)_bossLineTimer * 2f, 0f, 1f) * _calloutA; // 割り込み中は抑制フェード
-        string sp = _bossLineSpeaker.Length > 0 ? _bossLineSpeaker + "  " : "";
-        float spW = UiKit.TextW(UiKit.ZenBold, sp, UiKit.FontSpeaker);
-        float tw = UiKit.TextW(UiKit.ZenBold, _bossLine, UiKit.FontHeading);
-        float w = spW + tw + 36, x = Field.DCenterX - w / 2f, y = 540, h = 38;   // 盤面の中心
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.74f * a), 12f,
-            new Color(_bossLineCol, 0.55f * a), 1.2f);
-        if (sp.Length > 0)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18, y + 10), sp, UiKit.FontSpeaker, new Color(_bossLineCol, a));
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 18 + spW, y + 9), _bossLine, UiKit.FontHeading, new Color(UiKit.White, a));
+        if (BubblePaused || CinematicMode) return;
+        float enter = Ease((float)(_bossLineDuration - _bossLineTimer) / 0.2f);
+        float a = Mathf.Clamp((float)_bossLineTimer / 0.3f, 0f, 1f) * enter * _calloutA;
+        const float w = 736f;
+        var lines = UiKit.WrapLines(UiKit.ZenBold, _bossLine, 20, w - 44);
+        float h = 43f + lines.Count * 26f;
+        float x = Field.DCenterX - w / 2f + (1f - enter) * 18f, y = 605f - h;
+        ci.DrawRect(new Rect2(x, y, w, h), new Color(0.04f, 0.055f, 0.07f, 0.86f * a));
+        ci.DrawLine(new Vector2(x, y), new Vector2(x, y + h), new Color(_bossLineCol, a), 3f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 9), _bossLineSpeaker, 15, new Color(_bossLineCol, a));
+        if (_bossLineBreak)
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 177, y + 10), "SHIELD BREAK", 16, new Color("c7f4f1", a));
+        for (int i = 0; i < lines.Count; i++)
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 33 + i * 26), lines[i], 20, new Color("f5f8fa", a));
+        float remaining = Mathf.Clamp((float)(_bossLineTimer / _bossLineDuration), 0f, 1f);
+        ci.DrawLine(new Vector2(x, y + h), new Vector2(x + w, y + h), new Color(_bossLineCol, 0.15f * a), 1f);
+        ci.DrawLine(new Vector2(x, y + h), new Vector2(x + w * remaining, y + h), new Color(_bossLineCol, 0.65f * a), 1f);
     }
 
     // ── FINAL タイトルカード（格上の見せ方）──────────────────────────────
@@ -1944,46 +1931,136 @@ public partial class Hud : CanvasLayer
         }
     }
 
+    private void DrawStageStart(HudCanvas ci)
+    {
+        if (BubblePaused || _gameOverTitle.Length > 0) return;
+        float t = (float)(StageStartDur - _bannerTimer);
+        float arrive = Ease(t / 0.32f);
+        float leave = Mathf.SmoothStep(1.55f, (float)StageStartDur, t);
+        float alpha = arrive * (1f - leave);
+        float cx = Field.DCenterX;
+        float y = 252f - leave * 14f;
+        float half = 254f * arrive;
+        var ink = new Color("151b23");
+        var white = new Color("f5fcff");
+
+        ci.DrawColoredPolygon(new Vector2[]
+        {
+            new(cx - half - 28, y - 39), new(cx + half + 28, y - 59),
+            new(cx + half - 12, y + 44), new(cx - half - 50, y + 64),
+        }, new Color(ink, 0.42f * alpha));
+        ci.DrawLine(new Vector2(cx - half - 22, y + 63), new Vector2(cx + half + 10, y + 43),
+            new Color(_startAccent, 0.78f * alpha), 1.5f, true);
+        ci.DrawLine(new Vector2(cx - half + 10, y - 61), new Vector2(cx + half - 18, y - 61),
+            new Color(_startAccent, 0.34f * alpha), 1f, true);
+
+        float metaAlpha = Ease((t - 0.18f) / 0.3f) * (1f - leave);
+        float metaY = y - 101f;
+        string stage = $"STAGE {_startStage:00}";
+        UiKit.Text(ci, UiKit.Mono, new Vector2(cx - 165, metaY), stage, 22,
+            new Color(_startAccent, metaAlpha));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(cx + 164 - UiKit.TextW(UiKit.ZenBold, _startName, 20), metaY),
+            _startName, 20, new Color(white, metaAlpha));
+
+        const string word = "START";
+        const int size = 78;
+        float width = UiKit.TextW(UiKit.ZenBlack, word, size);
+        float x = -width / 2f;
+        for (int i = 0; i < word.Length; i++)
+        {
+            string letter = word[i].ToString();
+            float local = t - 0.08f - i * 0.035f;
+            float settle = Ease(local / 0.26f);
+            float fade = Mathf.Clamp(local / 0.09f, 0f, 1f) * (1f - leave);
+            float trail = 1f - settle;
+            var position = new Vector2(cx + x + trail * 42f - leave * 18f, y + trail * 12f);
+            // Compose with the HUD design transform so the lettering stays inside the playfield at any window size.
+            ci.DrawSetTransformMatrix(new Transform2D(new Vector2(UiKit.Scale, 0),
+                new Vector2(-0.16f * UiKit.Scale, UiKit.Scale), position * UiKit.Scale));
+            var baseline = new Vector2(0, (UiKit.ZenBlack.GetAscent(size) - UiKit.ZenBlack.GetDescent(size)) * 0.5f);
+            if (trail > 0.01f)
+                ci.DrawStringOutline(UiKit.ZenBlack, baseline + new Vector2(16f * trail, 0), letter,
+                    fontSize: size, size: 1, modulate: new Color(_startAccent, 0.38f * fade * trail));
+            ci.DrawStringOutline(UiKit.ZenBlack, baseline + new Vector2(2, 4), letter,
+                fontSize: size, size: 5, modulate: new Color(ink, 0.9f * fade));
+            ci.DrawStringOutline(UiKit.ZenBlack, baseline, letter,
+                fontSize: size, size: 2, modulate: new Color(_startAccent, 0.9f * fade));
+            ci.DrawString(UiKit.ZenBlack, baseline, letter, fontSize: size, modulate: new Color(white, fade));
+            x += UiKit.TextW(UiKit.ZenBlack, letter, size);
+        }
+        UiKit.BeginDesign(ci);
+
+        float sweep = Mathf.Clamp((t - 0.1f) / 0.48f, 0f, 1f);
+        float flare = Mathf.Sin(sweep * Mathf.Pi) * (1f - leave);
+        float sweepX = Mathf.Lerp(cx - 280, cx + 280, sweep);
+        if (flare > 0.01f)
+        {
+            ci.DrawLine(new Vector2(sweepX - 46, y + 60), new Vector2(sweepX + 10, y + 58),
+                new Color(_startAccent, flare * 0.3f), 7f, true);
+            ci.DrawLine(new Vector2(sweepX - 28, y + 60), new Vector2(sweepX + 10, y + 58),
+                new Color(white, flare), 1.6f, true);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float dx = 208f + i * 12f + leave * 25f;
+            float a = (0.65f - i * 0.16f) * alpha;
+            ci.DrawLine(new Vector2(cx - dx - 9, y + 15), new Vector2(cx - dx + 3, y - 15),
+                new Color(_startAccent, a), 2f, true);
+            ci.DrawLine(new Vector2(cx + dx - 3, y + 15), new Vector2(cx + dx + 9, y - 15),
+                new Color(_startAccent, a), 2f, true);
+        }
+    }
+
+    private void DrawClearBanner(HudCanvas ci)
+    {
+        float t = 5f - (float)_bannerTimer;
+        float enter = Ease(t / 0.45f);
+        float a = enter * Mathf.Clamp((float)_bannerTimer / 0.7f, 0, 1);
+        float cx = Field.DCenterX, y = 292f + (1f - enter) * 22f;
+        var accent = new Color("94e5da");
+        var white = new Color("f5fcff");
+        ci.DrawRect(new Rect2(Field.DLeft, y - 91, Field.DWidth, 272), new Color(0.04f, 0.065f, 0.08f, a * 0.82f));
+        ci.DrawLine(new Vector2(cx - 302 * enter, y - 91), new Vector2(cx + 302 * enter, y - 91), new Color(accent, a * 0.65f), 1f);
+        ci.DrawLine(new Vector2(cx - 302 * enter, y + 181), new Vector2(cx + 302 * enter, y + 181), new Color(accent, a * 0.4f), 1f);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(cx - 280, y - 68), _bannerText, 18, new Color(accent, a));
+        const string word = "CLEAR";
+        float width = UiKit.TextW(UiKit.ZenBlack, word, 74);
+        ci.DrawSetTransformMatrix(new Transform2D(new Vector2(UiKit.Scale, 0),
+            new Vector2(-0.16f * UiKit.Scale, UiKit.Scale), new Vector2(cx - width / 2, y + 17) * UiKit.Scale));
+        ci.DrawStringOutline(UiKit.ZenBlack, new Vector2(2, 4), word, fontSize: 74, size: 4, modulate: new Color(accent, a * 0.24f));
+        ci.DrawString(UiKit.ZenBlack, Vector2.Zero, word, fontSize: 74, modulate: new Color(white, a));
+        UiKit.BeginDesign(ci);
+        float rowA = Ease((t - 0.2f) / 0.4f) * a;
+        for (int i = 0; i < 2; i++)
+        {
+            float x = cx - 280 + i * 300;
+            string value = i == 0 ? _bannerTime : _bannerScore;
+            string best = i == 0 ? _bannerBest : _bannerScoreBest;
+            bool isBest = i == 0 ? _bannerNewBest : _bannerScoreNewBest;
+            int size = 24;
+            while (UiKit.TextW(UiKit.Mono, value, size) > 278 && size > 14) size--;
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 67), value, size, new Color(white, rowA));
+            UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 112), best, 16, new Color(isBest ? accent : UiKit.Text2, rowA));
+        }
+        ci.DrawLine(new Vector2(cx, y + 70), new Vector2(cx, y + 135), new Color(white, 0.15f * rowA), 1f);
+        if ((_game?.ReplayMul ?? 1f) < 1f)
+        {
+            string note = $"周回逓減 ×{_game!.ReplayMul:0.0}（連続{_game.RepeatStreak + 1}回目・別ステージ/難度アップでリセット）";
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, y + 198), note, UiKit.FontSmall,
+                new Color(UiKit.Text2, a), HorizontalAlignment.Center, Field.DWidth);
+        }
+    }
+
     private void DrawBanner(HudCanvas ci)
     {
+        if (_startStage > 0) { DrawStageStart(ci); return; }
         if (_epic) { DrawEpicBanner(ci); return; }
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
         if (_bannerRewardLife || _bannerRewardBomb) { DrawRewardBanner(ci, a); return; }
+        if (_bannerTime.Length > 0) { DrawClearBanner(ci); return; }
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
-        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(Field.DCenterX - w / 2f, 300), _bannerText, UiKit.FontDisplay, new Color(UiKit.Light, a),
-            HorizontalAlignment.Left, -1);
-        // クリアリザルトのタイム行（見出しの下）。
-        if (_bannerTime.Length > 0)
-        {
-            UiKit.Text(ci, UiKit.Mono, new Vector2(Field.DLeft, 366), _bannerTime, UiKit.FontTitle, new Color(UiKit.PurifyHi, a),
-                HorizontalAlignment.Center, Field.DWidth);
-            if (_bannerBest.Length > 0)
-            {
-                Color bc = _bannerNewBest ? UiKit.Gold : UiKit.Text2;
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 402), _bannerBest, UiKit.FontHeading, new Color(bc, a),
-                    HorizontalAlignment.Center, Field.DWidth);
-            }
-        }
-        // クリアリザルトのスコア行（タイム行と同じ様式で1段下に）。
-        if (_bannerScore.Length > 0)
-        {
-            UiKit.Text(ci, UiKit.Mono, new Vector2(Field.DLeft, 438), _bannerScore, UiKit.FontTitle, new Color(UiKit.Gold, a),
-                HorizontalAlignment.Center, Field.DWidth);
-            if (_bannerScoreBest.Length > 0)
-            {
-                Color sc = _bannerScoreNewBest ? UiKit.Gold : UiKit.Text2;
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 474), _bannerScoreBest, UiKit.FontHeading, new Color(sc, a),
-                    HorizontalAlignment.Center, Field.DWidth);
-            }
-            // 周回逓減の可視化（①-7）：同ステージを同難度以下で連続周回すると Imp/Fol が ReplayMul で減っているが、
-            // これまでどこにも表示が無く「理由もなく報酬が減った」ように見えていた。逓減が効いている時だけ小さく注記する。
-            if ((_game?.ReplayMul ?? 1f) < 1f)
-            {
-                string note = $"周回逓減 ×{_game!.ReplayMul:0.0}（連続{_game.RepeatStreak + 1}回目・別ステージ/難度アップでリセット）";
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(Field.DLeft, 506), note, UiKit.FontSmall, new Color(UiKit.Text3, a),
-                    HorizontalAlignment.Center, Field.DWidth);
-            }
-        }
+        UiKit.Text(ci, UiKit.ZenBlack, new Vector2(Field.DCenterX - w / 2f, 300), _bannerText,
+            UiKit.FontDisplay, new Color(UiKit.White, a));
     }
 
     // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1」の汎用記号をやめ、

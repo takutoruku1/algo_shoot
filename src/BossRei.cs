@@ -65,7 +65,7 @@ public partial class BossRei : Enemy
     private float _relayHp = 0.26f;
     // ボス戦のレイが被っている配信のガワ（笑顔固定）。中の人（rei_face 系）とは目と輪郭だけが同じ別の姿で、
     // 姿が違うこと自体が仕込み＝道中の中ボスは中の人、ボスはガワ。
-    private const string RGawa = "res://char/v3/rei_gawa_b.png";
+    private const string RGawa = CompanionDialogue.ReiAvatarPortrait;
 
     // 挑発（ボスの動的セリフ演出＝ShowBossLine。弾は止めない。中継 who=5 は使わない）。
     private static readonly string[] TauntLines =
@@ -77,12 +77,12 @@ public partial class BossRei : Enemy
     // スペルカード（仮台本 07 の S3-6。弾形・色は v3 の銀菫金ティールのまま、名前だけ案C へ）。
     // index は _pattern と一致。切替時に弾形・色を変え、X風スペル宣言を出す。
     // 宣告名（AreaSpellCaster の "rei" プロファイル）もこの圏内へ揃えてある＝台本の弾幕名と齟齬を出さない。
-    private static readonly (string name, BulletShape shape, Color tint)[] Spells =
+    private static readonly (string name, BulletShape shape, Color tint, string art, float rotation)[] Spells =
     {
-        ("初見さんいらっしゃい", BulletShape.Orb,     new Color("b9c2d0")), // 銀・全方位同心円
-        ("登録者２０００",       BulletShape.Diamond, new Color("9a72d9")), // 菫・回転スパイラル（去年も二千）
-        ("同接８",               BulletShape.Star,    new Color("e8c45a")), // 金・星乱舞（減っていく数字）
-        ("切り抜かれない",       BulletShape.Ring,    new Color("5fb8c0")), // ティール・中空リング（裏に孤独）
+        ("初見さんいらっしゃい", BulletShape.Orb,     new Color("b9c2d0"), "rei_comment", 18f),
+        ("登録者２０００",       BulletShape.Diamond, new Color("9a72d9"), "rei_subscriber", -22f),
+        ("同接８",               BulletShape.Star,    new Color("e8c45a"), "rei_microphone", 28f),
+        ("切り抜かれない",       BulletShape.Ring,    new Color("5fb8c0"), "rei_film", -32f),
     };
     // 攻撃パターン→立ち位置の対応（あかり・こはる・ミナと同じ作法）。スペルが変わるたび BossMover に
     // 「次に何をするか」を伝え、攻撃の合間にその立ち位置へ移らせる。
@@ -99,7 +99,7 @@ public partial class BossRei : Enemy
     private void ApplySpell()
     {
         var s = Spells[_pattern % Spells.Length];
-        SetSpellVisual(s.shape, s.tint);
+        SetSpellVisual(s.shape, s.tint, BulletArt.Get(s.art), s.rotation);
         _mover.SetNextAttack(StanceOf(_pattern));
         GetHud()?.SetBossBarTint(s.tint); // HPバーもスペル色へ（#26 フェーズ移行の可視化）
         GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, s.name, s.tint);
@@ -220,7 +220,7 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        // ミナ以外の潜行は、操作キャラの改心会話と回想を使う。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _charStory = CharacterStory.DiveActive(game);
         if (_charStory)
@@ -343,8 +343,8 @@ public partial class BossRei : Enemy
         _fireT += delta; _fireT2 += delta;
         // 2スペル同時展開＝どちらか一方の立ち位置に寄せると常に取り合いになるので、
         // 遅い方（リング）の一拍だけ拾って中央に据わらせる（螺旋は毎フレーム級で撃つため一拍にしない）。
-        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint); Ring(pool, Dn(14) + _pressure, 72f); }
-        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint); Spiral(pool); }
+        if (_fireT >= Di(0.9)) { _fireT = 0; _mover.DeclareAttack(BossMover.Attack.Ring); SetSpellVisual(Spells[2].shape, Spells[2].tint, BulletArt.Get(Spells[2].art), Spells[2].rotation); Ring(pool, Dn(14) + _pressure, 72f); }
+        if (_fireT2 >= Di(0.085)) { _fireT2 = 0; SetSpellVisual(Spells[3].shape, Spells[3].tint, BulletArt.Get(Spells[3].art), Spells[3].rotation); Spiral(pool); }
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring/扇)=小(隙間を編む読み)／
@@ -500,18 +500,16 @@ public partial class BossRei : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;   // S3-7 割り込みの前提フラグ（他ジョブ時は StageRei 側で割り込み自体を抑止）
-            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
-            //   やっていた戦闘再開処理（閾値の再評価）だけを直接行う。BGM はフィルムへ
-            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
-            if (_charStory) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
-            ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
                 Audio.Instance?.Music(Audio.Instance.BgmBossRei, 0.8f);
                 OnHpChanged();
-            });
+            }
+            if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
+            else ReiStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             return;
         }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。

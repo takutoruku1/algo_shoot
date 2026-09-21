@@ -129,8 +129,8 @@ public partial class HubJobQa : Node
             foreach (var job in Jobs.All)
             {
                 var face = Read<Dictionary<string, Texture2D>>(hub, "_playerFaces")[job.CharacterId];
-                Check(face.ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png",
-                    $"{job.CharacterId} player portrait is available before stage clears");
+                Check(face.ResourcePath == CompanionDialogue.AccountPortrait(job.Id),
+                    $"{job.CharacterId} dedicated SNS icon is available before stage clears");
                 var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
                 string stats = (string)typeof(Hub).GetMethod("JobStats", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
                 Check(stats == System.FormattableString.Invariant($"♥{job.MaxLifeDelta:+0;-0;+0}／移動×{job.MoveMul:0.##}／回避距離×{job.DodgeDistMul:0.##}")
@@ -206,9 +206,9 @@ public partial class HubJobQa : Node
             Check(tier == (int)GameManager.Diff.Hard, "difficulty can be chosen before changing type");
             Check(!((Rect2)Call(hub, "DetailJobRect", true)!).Intersects((Rect2)Call(hub, "TierHitRect", 3)!),
                 "type button does not overlap difficulty rows");
-            Check(phone.Encloses((Rect2)Call(hub, "DetailConfirmRect", true)!)
-                && !((Rect2)Call(hub, "DetailConfirmRect", true)!).Intersects((Rect2)Call(hub, "TierHitRect", 3)!),
-                "dive button stays below all four difficulties");
+            Check(phone.Encloses((Rect2)Call(hub, "TierHitRect", 3)!)
+                && !((Rect2)Call(hub, "DetailCloseRect", true)!).Intersects((Rect2)Call(hub, "TierHitRect", 3)!),
+                "direct-entry difficulty rows stay inside the phone and clear of navigation");
             await Frames(240);
             await Shot("detail");
             for (int i = 0; i < Jobs.All.Length; i++)
@@ -277,6 +277,7 @@ public partial class HubJobQa : Node
 
             var cleared = Read<HashSet<string>>(game, "_cleared");
             foreach (var item in GameManager.Stages) cleared.Add(item.Id);
+            game.ShopTutorialSeen = true;
             Call(hub, "BuildEntries");
             Call(hub, "LoadFaces");
             var entries = Read<IList>(hub, "_entries");
@@ -315,16 +316,17 @@ public partial class HubJobQa : Node
             Click(hub, (Rect2)Call(hub, "FooterItemRect", 0)!, "ProcessCards");
             Check(Mode(hub) == "Home" && !Read<bool>(hub, "_dived"), "former dive navigation returns home instead of starting a stage");
             await Frames(3);
+            Write(hub, "_idleTalkPending", false);
             Click(hub, (Rect2)Call(hub, "HomeAppRect", 0)!, "ProcessHome");
             await Frames(45);
             await Keypress(Key.Z);
-            Check(Mode(hub) == "Detail", "opening a post still reaches the stage difficulty and dive controls");
+            Check(Mode(hub) == "Detail", $"opening a post reaches stage controls (mode={Mode(hub)})");
             await Frames(20);
             Click(hub, (Rect2)Call(hub, "DetailJobRect", false)!, "ProcessDetail", 0.01);
             await Frames(20);
             Click(hub, (Rect2)Call(hub, "JobConfirmRect")!, "ProcessJob", 0.01);
             Check(Mode(hub) == "Detail" && game.SelectedJob == Job.Magic, "character confirmation button applies the highlighted character");
-            Click(hub, (Rect2)Call(hub, "DetailConfirmRect", false)!, "ProcessDetail", 0.01);
+            Click(hub, (Rect2)Call(hub, "FinalDiveRect")!, "ProcessDetail", 0.01);
             await Frames(5);
             Check(GetTree().CurrentScene is MinaRoot, "primary dive button enters the selected stage");
             GetTree().CurrentScene.QueueFree();
@@ -364,6 +366,7 @@ public partial class HubJobQa : Node
             await Frames(5);
             game.ResetPersistent();
             Read<HashSet<string>>(game, "_cleared").Add(GameManager.FirstStageId);
+            game.ShopTutorialSeen = true;
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             for (int visit = 0; visit < 2; visit++)
             {

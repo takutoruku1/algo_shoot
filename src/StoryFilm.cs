@@ -33,7 +33,7 @@ public partial class StoryFilm : Node2D
     //     memory の呼び元はボス曲の張り直し、aftermath の呼び元はクリア会話への引き渡しを
     //     completed: に持っているので、ここを迂回させると進行が壊れる。
     private readonly FilmSkip _skip = new();
-    private string FilmId => $"{_storyKey}_{(_aftermath ? "aftermath" : "memory")}";
+    protected virtual string FilmId => $"{_storyKey}_{(_aftermath ? "aftermath" : "memory")}";
 
     // ───────── 時制の見出し（「いつのシーンか」）─────────
     // 以前は左上（64,19）に _lines[_line].Time を**常時**出していた（ユーザー指摘「回想シーンで

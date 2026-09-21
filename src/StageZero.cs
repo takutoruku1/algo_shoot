@@ -420,7 +420,8 @@ public partial class StageZero : Node
         for (int i = 0; i < 4; i++)
         {
             float y = 40f + i * 36f;
-            pool.Spawn(new Vector2(Mathf.Min(370f, px + 90f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1);
+            var bullet = pool.Spawn(new Vector2(Mathf.Min(370f, px + 90f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1);
+            bullet.SetSprite(BulletArt.Get("enemy_rei_anonymous"), -12f);
         }
     }
 

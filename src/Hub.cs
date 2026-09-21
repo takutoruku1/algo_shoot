@@ -90,6 +90,7 @@ public partial class Hub : Node2D
     // カード/ヘッダの顔アバター用テクスチャ（毎フレームLoadせずキャッシュ）。
     private readonly System.Collections.Generic.Dictionary<string, Texture2D?> _faces = new();
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _playerFaces = new();
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _dialogueFaces = new();
     private Texture2D? _minaFace;
     // 埋め草アカウントのアイコン（添字＝SnsVoices の Icon 番号。1..IconCount。[0] は未使用）。
     private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
@@ -660,14 +661,14 @@ public partial class Hub : Node2D
         }
     }
 
-    // 各Entryの顔テクスチャを一度だけロードしてキャッシュ。final はミナ本体なので mina_face。
-    //   三人の顔は char/v3/（社会人版・アニメ塗り v3）から引く。2026-09-07 まで旧 char/{id}_face.png
-    //   （制服のセーラー服＝v1）を見ていて、道中の立ち絵・ボスの絵と別人になっていたのを直した。
-    //   ミナだけは v3 の描き直しが無く char/mina_face.png が全編の基準なので、そのまま使う。
+    // SNSアイコンと会話の表情差分は別々に保持する。
     private void LoadFaces()
     {
         foreach (var job in Jobs.All)
-            _playerFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>($"res://char/player/{job.CharacterId}/{job.CharacterId}_spin_v2_00.png");
+        {
+            _playerFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(job.Id));
+            _dialogueFaces[job.CharacterId] = ResourceLoader.Load<Texture2D>(CompanionDialogue.Portrait(job.Id));
+        }
         _minaFace = ResourceLoader.Load<Texture2D>("res://char/mina_face.png");
         foreach (var e in _entries)
         {
@@ -675,10 +676,8 @@ public partial class Hub : Node2D
             if (_faces.ContainsKey(id)) continue;
             // 埋め草＝人の顔を持たない他人。アイコンは _mobIcons 側（SnsVoices の番号）から引く。
             if (e.Sort == Kind.Filler) { _faces[id] = null; continue; }
-            if (e.Sort == Kind.Pinned || e.IsFinal) { _faces[id] = _minaFace; continue; }
-            string path = $"res://char/v3/{id}_face.png";
-            if (!ResourceLoader.Exists(path)) path = $"res://char/{id}_face.png";   // v3 が無い名前への保険
-            _faces[id] = ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+            if (e.Sort == Kind.Pinned || e.IsFinal) { _faces[id] = _playerFaces["mina"]; continue; }
+            _faces[id] = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(id));
         }
         LoadMobIcons();
     }
@@ -1609,7 +1608,7 @@ public partial class Hub : Node2D
         float ax = x + 43f, ay = cy + 37f;
         if (filler) DrawFillerAvatar(ax, ay, e.Icon, alpha);
         else UiKit.FaceAvatar(this, new Vector2(ax, ay), 23f, e.Unlocked ? FaceFor(e.Id) : null, acc, false,
-            TopCropFor(e.IsFinal ? "final" : e.Sort == Kind.Pinned ? "mina" : e.Id), alpha, _t);
+            0f, alpha, _t);
         float tx = x + 80f;
         string name = FitText(filler ? UiKit.Zen : UiKit.ZenBold, e.Name, 17, w - 186f);
         UiKit.Text(this, filler ? UiKit.Zen : UiKit.ZenBold, new Vector2(tx, cy + 17f), name, 17,
@@ -1707,7 +1706,7 @@ public partial class Hub : Node2D
     {
         string line = HoverLineFor(e);
         if (line.Length == 0) return;
-        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 158f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 158f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, alpha, _t);
         UiKit.Multi(this, UiKit.Zen, new Vector2(x + 56f, cy + 146f), line, 14,
             new Color(UiKit.Mina, alpha), w - 80f, 2);
     }
@@ -1812,7 +1811,7 @@ public partial class Hub : Node2D
     //   帰還小話で見た「ミナの投稿」が、そのままタイムラインに残っている——という画。
     private void DrawMinaReply(string id, float x, float cy, float w, float h, float alpha)
     {
-        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 148f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.FaceAvatar(this, new Vector2(x + 35f, cy + 148f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, alpha, _t);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 56f, cy + 132f), "ミナ", 13, new Color(UiKit.Mina, alpha));
         UiKit.Text(this, UiKit.Zen, new Vector2(x + 56f, cy + 152f), MinaPostShort(id, w - 80f), 14, new Color(UiKit.Text2, alpha));
     }
@@ -1967,10 +1966,10 @@ public partial class Hub : Node2D
         if (sp == "あなた") return (null, UiKit.Info, DraftTop);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         foreach (var job in Jobs.All)
-            if (sp == job.CharacterName) return (_playerFaces[job.CharacterId], CompanionDialogue.Accent(job.Id), 0f);
-        if (sp.Contains("rei")) return (FaceFor("rei"), AccountColor("rei"), TopCropFor("rei"));
-        if (sp.Contains("akari")) return (FaceFor("akari"), AccountColor("akari"), TopCropFor("akari"));
-        if (sp.Contains("koharu")) return (FaceFor("koharu"), AccountColor("koharu"), TopCropFor("koharu"));
+            if (sp == job.CharacterName) return (_dialogueFaces[job.CharacterId], CompanionDialogue.Accent(job.Id), TopCropFor(job.CharacterId));
+        if (sp.Contains("rei")) return (_dialogueFaces["rei"], AccountColor("rei"), TopCropFor("rei"));
+        if (sp.Contains("akari")) return (_dialogueFaces["akari"], AccountColor("akari"), TopCropFor("akari"));
+        if (sp.Contains("koharu")) return (_dialogueFaces["koharu"], AccountColor("koharu"), TopCropFor("koharu"));
         return (null, AccountColor("rei"), 0.06f);
     }
 
@@ -1990,7 +1989,7 @@ public partial class Hub : Node2D
         DrawBackButton(DetailCloseRect(tiers), DetailCloseId, a);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 60f, cy + 21f), "投稿", 20, new Color(UiKit.White, a));
         DrawJobButton(DetailJobRect(tiers), a);
-        UiKit.FaceAvatar(this, new Vector2(cx + 47f, cy + 91f), 23f, FaceFor(e.Id), acc, false, TopCropFor(e.IsFinal ? "final" : e.Id), a, _t);
+        UiKit.FaceAvatar(this, new Vector2(cx + 47f, cy + 91f), 23f, FaceFor(e.Id), acc, false, 0f, a, _t);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 84f, cy + 70f), e.Name, 19, new Color(UiKit.White, a));
         UiKit.VerifiedBadge(this, new Vector2(cx + 97f + UiKit.TextW(UiKit.ZenBold, e.Name, 19), cy + 82f), 6f, e.Cleared ? UiKit.Ok : UiKit.Purify, a);
         UiKit.Text(this, UiKit.Mono, new Vector2(cx + 84f, cy + 98f), e.Handle + " · " + e.RelT, 12, new Color(UiKit.Text3, a));
@@ -1999,7 +1998,7 @@ public partial class Hub : Node2D
         RedactedBars(cx + 24f, cy + 226f, cw - 48f, a);
         string quip = HoverLineFor(e);
         if (quip.Length == 0) quip = "……届きました。";
-        UiKit.FaceAvatar(this, new Vector2(cx + 35f, cy + 274f), 10f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), a, _t);
+        UiKit.FaceAvatar(this, new Vector2(cx + 35f, cy + 274f), 10f, _playerFaces["mina"], UiKit.Mina, false, 0f, a, _t);
         UiKit.Multi(this, UiKit.Zen, new Vector2(cx + 56f, cy + 260f), quip, 14, new Color(UiKit.Mina, a), cw - 80f, 2);
         if (tiers)
         {

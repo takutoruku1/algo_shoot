@@ -66,6 +66,7 @@ public partial class BossHikage : Enemy
         PanelTexPath = "res://char/panel_hikage.png";
         BodyDisplayH = 46f;      // algo(36px)に近づけて小型化（でかすぎ対策）
         CryHoldDur = 8.0;        // 大泣き→笑顔までの尺（かけあいに合わせる）
+        SetSpellVisual(BulletShape.Diamond, new Color("ef8095"), BulletArt.Get("enemy_rei_anonymous"), 32f);
     }
 
     public override void _Ready()
@@ -112,7 +113,7 @@ public partial class BossHikage : Enemy
                 for (int i = 0; i < k; i++)
                 {
                     float a = off + Mathf.Tau * i / k;
-                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p1Speed, isEnemy: true, BulletR, 1);
+                    FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p1Speed, BulletR, 1);
                 }
                 _volley++;
             }
@@ -127,7 +128,7 @@ public partial class BossHikage : Enemy
                 for (int s = 0; s < 2; s++)
                 {
                     float a = _spiralAngle + Mathf.Pi * s;
-                    pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p2Speed, isEnemy: true, BulletR, 1);
+                    FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _p2Speed, BulletR, 1);
                 }
             }
         }
@@ -146,7 +147,7 @@ public partial class BossHikage : Enemy
                     for (int i = 0; i < k; i++)
                     {
                         float a = off + Mathf.Tau * i / k;
-                        pool.Spawn(GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, isEnemy: true, BulletR, 1);
+                        FireBullet(pool, GlobalPosition, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * spd, BulletR, 1);
                     }
                 }
                 _volley++;

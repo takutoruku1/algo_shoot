@@ -139,7 +139,7 @@ public static class PostBullets
         float fall = aching ? fallSpeed * AchingFallMul : fallSpeed;
         var b = pool.Spawn(new Vector2(rng.RandfRange(24f, 360f), -8f), new Vector2(0f, fall), isEnemy: true, 3f, 1);
         if (b == null) return false;
-        b.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w), aching);
+        b.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w), aching, BulletArt.PostCore(theme));
         // 撃って「届ける」＝祈り弾と同じ経路（自機弾を拾う mask を開く）。報酬側は Bullet が WordAching で分ける。
         if (aching) b.MakeErasable();
         return aching;

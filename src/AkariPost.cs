@@ -40,7 +40,7 @@ public partial class AkariPost : Area2D
         CollisionMask = 2;
         _shape = new CollisionShape2D { Shape = new RectangleShape2D { Size = new Vector2(156, 96) } };
         AddChild(_shape);
-        _face = GD.Load<Texture2D>("res://char/v3/akari_face.png");
+        _face = GD.Load<Texture2D>(CompanionDialogue.AccountIcon("akari"));
         string body = Posts[Index].Replace("\n", "");
         for (int i = 0; i < _fragments.Length; i++)
             _fragments[i] = body[(i * body.Length / 8)..((i + 1) * body.Length / 8)];
@@ -51,12 +51,14 @@ public partial class AkariPost : Area2D
     private void Hit(Area2D area)
     {
         if (_broken || Hud.BubblePaused || area is not Bullet { IsEnemy: false, Active: true } bullet) return;
+        if (!bullet.RegisterChargeHit(this)) return;
+        bullet.ChargeImpact(bullet.GlobalPosition);
         int damage = bullet.Damage;
         bullet.TryChain(Boss);
         if (bullet.Pierce > 0) bullet.Pierce--;
         else GetNode<BulletPool>("/root/Pool").Despawn(bullet);
         (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(Boss);
-        Damage(Mathf.Clamp(damage, 1, 4));
+        Damage(Mathf.Clamp(damage, 1, bullet.Charged ? 12 : 4));
     }
 
     public void BombHit()
@@ -152,7 +154,7 @@ public partial class AkariPost : Area2D
     private void DrawCard(Rect2 card, float alpha)
     {
         UiKit.Box(this, card, new Color(0.065f, 0.095f, 0.11f, alpha), 6, new Color(Accent, alpha * 0.8f), 2);
-        UiKit.FaceAvatar(this, new Vector2(-218, -119), 22, _face, new Color(Accent, alpha), false, alpha: alpha);
+        UiKit.FaceAvatar(this, new Vector2(-218, -119), 22, _face, new Color(Accent, alpha), false, topCrop: 0f, alpha: alpha);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(-180, -146), "あかり", 23, new Color(1, 1, 1, alpha));
         UiKit.Text(this, UiKit.Zen, new Vector2(-180, -116), "@akari.", 18, new Color(Accent, alpha));
         UiKit.Text(this, UiKit.Zen, new Vector2(112, -136), $"投稿 {Index + 1}/5", 19, new Color(Accent, alpha));

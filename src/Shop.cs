@@ -574,7 +574,7 @@ public partial class Shop : Node2D
             }
             case "n_power_2x":  return ("弾の火力 ×1", "弾の火力 ×2");
             // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
-            case "n_charge":    return ("溜め打ちは使えない", "C 長押し0.6秒で 威力×4 の大玉");
+            case "n_charge":    return ("溜め打ちは使えない", "0.6秒ためて放つ 威力×12 の貫通弾");
             case "n_hitbox":    return ("当たり判定 2.0px", "当たり判定 1.0px");
             case "n_lines":
             {

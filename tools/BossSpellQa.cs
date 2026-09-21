@@ -39,7 +39,9 @@ public partial class BossSpellQa : Node
                 GetTree().Quit();
                 return;
             }
-            if (OS.GetCmdlineUserArgs().Contains("--break"))
+            if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
+                await CheckKoharuBody(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--break"))
                 await CheckBreakEffect(game);
             else if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
                 await CheckBossBackgrounds(game);
@@ -114,6 +116,144 @@ public partial class BossSpellQa : Node
             GD.PushError($"[BossSpellQA] FAIL {ex}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckKoharuBody(GameManager game)
+    {
+        void BaseCall(Enemy boss, string method, params object[] args) =>
+            typeof(Enemy).GetMethod(method, Private)!.Invoke(boss, args);
+        (float head, Vector2 foot) Landmarks(Sprite2D sprite) => sprite.Texture.ResourcePath.GetFile() switch
+        {
+            "boss_koharu_body_idle.png" => (72f, new Vector2(427, 629)),
+            "boss_koharu_body_attack.png" => (166f, new Vector2(346, 668)),
+            "boss_koharu_body_idle2.png" => (0f, new Vector2(410, 681)),
+            "boss_koharu_body_cry.png" => (0f, new Vector2(243, 637)),
+            "enemy_koharu_post.png" => (0f, new Vector2(111, 358)),
+            _ => throw new Exception($"Unexpected Koharu body: {sprite.Texture.ResourcePath}"),
+        };
+        float Height(Sprite2D sprite)
+        {
+            var (head, foot) = Landmarks(sprite);
+            return (foot.Y - head) * sprite.Scale.Y;
+        }
+        Vector2 Foot(Sprite2D sprite)
+        {
+            Vector2 p = Landmarks(sprite).foot - sprite.Texture.GetSize() / 2f;
+            if (sprite.FlipH) p.X = -p.X;
+            p = (p + sprite.Offset) * sprite.Scale;
+            if (sprite.FlipH) p.X = -p.X;
+            return p;
+        }
+        foreach (bool flip in new[] { true, false })
+        {
+            game.Difficulty = GameManager.Diff.Normal;
+            game.SelectedJob = Job.Tank;
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>("res://Koharu.tscn").Instantiate<KoharuRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            root.Stage.SetProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Inherit;
+            root.Player.SetPhysicsProcess(false);
+            Write(root.Player, "_invincible", true);
+            Write(root.Player, "_invincibleTimer", 999f);
+            root.Player.Position = new Vector2(155, 155);
+            root.Hud.HoldBubble = false;
+            root.Hud.HideBubble();
+            var boss = new BossKoharu();
+            typeof(Enemy).GetField("FaceLeft", Private)!.SetValue(boss, flip);
+            root.World.AddChild(boss);
+            boss.Position = new Vector2(290, 110);
+            boss.SetPhysicsProcess(false);
+            BaseCall(boss, "TickEntrance", 0d);
+            BaseCall(boss, "TickEntrance", 2d);
+            BaseCall(boss, "TickSwapAnim", 1d);
+            var caster = Read<AreaSpellCaster>(boss, "_caster");
+            caster.SetProcess(false);
+            caster.CancelPendingAttacks();
+            root.Hud.HideSpellCard();
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            var body = boss.GetNode<Sprite2D>("Body");
+            float expectedHeight = Height(body);
+            Vector2 expectedFoot = Foot(body);
+            var collision = Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy));
+            var shape = (CapsuleShape2D)collision.Shape;
+            float radius = shape.Radius, height = shape.Height;
+            Check(body.Visible && expectedHeight > 40, "Koharu entrance retains the idle body size");
+
+            async Task Transition(string name, Action change, string texture)
+            {
+                change();
+                float heightDrift = 0, footDrift = 0;
+                for (int i = 0; i < 15; i++)
+                {
+                    BaseCall(boss, "TickSwapAnim", 1d / 60);
+                    foreach (var sprite in new[] { body, Read<Sprite2D?>(boss, "_fadeSprite", typeof(Enemy)) })
+                    {
+                        if (sprite == null) continue;
+                        heightDrift = Mathf.Max(heightDrift, Mathf.Abs(Height(sprite) - expectedHeight));
+                        footDrift = Mathf.Max(footDrift, Foot(sprite).DistanceTo(expectedFoot));
+                        Check(Mathf.IsEqualApprox(sprite.Scale.X, sprite.Scale.Y), "body keeps its aspect ratio");
+                    }
+                    await Frames(1);
+                }
+                Check(heightDrift < 0.01f && footDrift < 0.01f,
+                    $"Koharu {name}, flip={flip}: new and fading bodies stay aligned (height={heightDrift:F4}, foot={footDrift:F4})");
+                Check(body.Texture.ResourcePath.GetFile() == texture, $"{name}: expected pose is displayed");
+                if (flip) await Shot($"koharu_body_{name}");
+            }
+            if (flip) await Shot("koharu_body_idle");
+            await Transition("attack", () => BaseCall(boss, "TriggerAttackPose"), "boss_koharu_body_attack.png");
+            await Transition("idle_return", () => BaseCall(boss, "TickAttackPose", 1d), "boss_koharu_body_idle.png");
+            if (flip)
+            {
+                BaseCall(boss, "TriggerAttackPose");
+                BaseCall(boss, "AdvanceForm2");
+                Check(body.Texture.ResourcePath.GetFile() == "boss_koharu_body_attack.png",
+                    "changing phase during an attack keeps the current attack pose");
+                await Transition("form2", () => BaseCall(boss, "TickAttackPose", 1d), "boss_koharu_body_idle2.png");
+            }
+            else
+                await Transition("form2", () => BaseCall(boss, "AdvanceForm2"), "boss_koharu_body_idle2.png");
+            await Transition("form2_attack", () => BaseCall(boss, "TriggerAttackPose"), "boss_koharu_body_attack.png");
+            await Transition("form2_return", () => BaseCall(boss, "TickAttackPose", 1d), "boss_koharu_body_idle2.png");
+
+            var mover = Read<BossMover>(boss, "_mover");
+            int initialFlips = mover.FlipCount;
+            Vector2 initialPosition = boss.Position;
+            float liveDrift = 0;
+            boss.SetPhysicsProcess(true);
+            for (int i = 0; i < 480; i++)
+            {
+                root.Player.Position = new Vector2(i < 240 ? Field.Right - 5 : Field.Left + 5, 150);
+                await Frames(1);
+                liveDrift = Mathf.Max(liveDrift, Mathf.Abs(Height(body) - expectedHeight));
+                Check(Mathf.IsEqualApprox(body.Scale.X, body.Scale.Y), "live turns do not stretch Koharu");
+            }
+            boss.SetPhysicsProcess(false);
+            Check(liveDrift < 0.01f && mover.FlipCount > initialFlips,
+                $"live firing and turns preserve body size (drift={liveDrift:F4})");
+            Check(boss.Position.DistanceTo(initialPosition) > 1, "Koharu's movement remains active");
+            BaseCall(boss, "TickAttackPose", 1d);
+            BaseCall(boss, "TickSwapAnim", 1d);
+            await Transition("cry", () => BaseCall(boss, "SwapBody", "res://char/v3/boss_koharu_body_cry.png", 1f), "boss_koharu_body_cry.png");
+            await Transition("post", () => BaseCall(boss, "SwapBody", "res://char/v3/enemy_koharu_post.png", 1f), "enemy_koharu_post.png");
+            if (flip)
+                foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Shot($"koharu_body_post_{size.X}x{size.Y}");
+                    Check(Mathf.Abs(Height(body) - expectedHeight) < 0.01f, "window resizing preserves the logical body size");
+                }
+            Check(shape.Radius == radius && shape.Height == height && collision.Scale == Vector2.One,
+                "Koharu body normalization leaves collision unchanged");
+            root.QueueFree();
+            Pool.DespawnAll();
+            await Frames(5);
+            Hud.BubblePaused = false;
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
     }
 

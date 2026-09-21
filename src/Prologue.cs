@@ -460,7 +460,7 @@ public partial class Prologue : Node2D
                 {
                     var stage = GameManager.Stages[0];
                     var job = System.Array.Find(Jobs.All, candidate => candidate.CharacterId == stage.Id)!;
-                    var portrait = GD.Load<Texture2D>($"res://char/player/{stage.Id}/{stage.Id}_spin_v2_00.png");
+                    var portrait = GD.Load<Texture2D>(CompanionDialogue.AccountIcon(stage.Id));
                     _toast = PostToast.Show(this, job.CharacterName, stage.Handle, "· 5h", stage.Tweet,
                         verified: true, replies: 34, reposts: 9, likes: 210, views: 2000, portrait: portrait);
                     _fxStep = 1;

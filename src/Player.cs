@@ -36,10 +36,9 @@ public partial class Player : Area2D
     // ── 溜め打ち（一本道 #6「溜め打ち」）：C / パッドY を長押し ──
     //   ★Cキーは 2026-09-13 まで W0 専用のヒカゲスキルが握っていた（非正典＝正典導線からは到達しない）。
     //     戦闘側の配線（_specialCd・HUDチップ）を撤去し、このボタンを溜め打ちへ明け渡した。
-    //   ChargeNeed 秒押し切ると充填完了。離した瞬間に威力×4の大玉を1発だけ撃つ（貫通なし・CD無し＝
-    //   チャージ時間そのものがコスト）。押しているあいだも通常ショットは止めない＝「撃ちながら溜める」。
+    // 通常射撃を続けながら溜め、解放時に盾を貫く一発を放つ。
     private const float ChargeNeed = 0.6f;      // 充填に要する長押し秒
-    private const float ChargeDamageMul = 4f;   // 大玉の威力倍率（基礎威力に対して）
+    private const float ChargeDamageMul = 12f;
     private const float ChargeSpeed = 760f;     // 大玉の発進速度（MakeAccel の fast と同値）
     private bool _chargeHeld;                   // 前フレームのボタン状態（離したエッジの検出用）
     private float _chargeT;                     // 押している累計秒（0 で未充填）
@@ -772,14 +771,21 @@ public partial class Player : Area2D
         bool chargeKey = chargeHas && (chargeKeyRaw || _mouseChargeHold);
         if (chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f)
         {
+            bool wasFull = ChargeFull;
             // キーとマウスを同時に握っていたら、進んでいるほうを採る（どちらか一方でも完了させる）。
             if (chargeKeyRaw) _chargeT += dt;
             if (_mouseChargeHold) _chargeT = Mathf.Max(_chargeT, _mouseHoldT);
+            _chargeT = Mathf.Min(_chargeT, ChargeNeed);
+            if (!wasFull && ChargeFull)
+            {
+                FxLayer.Instance?.ChargeBurst(GlobalPosition + ShotDir * 20, ShotDir, _game!.SelectedJob, ChargeShotFx.Beat.Ready);
+                Audio.Instance?.PlayChargeReady(_game!.SelectedJob);
+            }
         }
         else if (_chargeHeld)
         {
             // 離したエッジ：充填できていれば撃つ。どちらにせよ充填はここで空にする。
-            if (ChargeFull && !Hud.BubblePaused && !_gameOver) FireCharge();
+            if (ChargeFull && !chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f) FireCharge();
             _chargeT = 0f;
         }
         else _chargeT = 0f;
@@ -1457,26 +1463,22 @@ public partial class Player : Area2D
     //   正典のCキーを占有し続けていたため（Cキーは溜め打ちへ）。AddHikageFollower / HasHikage /
     //   Follower.IsHikage は W0 の見た目のためだけに残してある＝戦闘の配線はもう無い。
 
-    // 溜め打ちの発射：威力×4の大玉を1発だけ、射撃方向へ。貫通なし（＝連射の貫通とは別物）。
-    //   弾は Bullet.MakeAccel を流用するが「タメ0秒」で渡す＝スポーンした瞬間に ChargeSpeed で発進する
-    //   （加速球のタメ演出は要らない。溜めは自機側で既に終わっている）。
     private void FireCharge()
     {
-        if (_pool == null) return;
-        // 基礎威力は通常ショットと同じ経路（フォロワーバフ×ジョブ補正×火力2倍）で作り、最後に ×4。
+        if (_pool == null || Hud.BubblePaused || _gameOver) return;
         int baseDmg = Mathf.Max(1, Mathf.RoundToInt(1f
                                                     * (_game?.FollowerPowerMul ?? 1f)
                                                     * (_game?.JobDef.PowerMul ?? 1f)
                                                     * (_game?.ShotPowerMul ?? 1)));
         int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * ChargeDamageMul));
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
-        var b = _pool.Spawn(muzzle, ShotDir * ChargeSpeed, isEnemy: false, 7f, dmg);
-        b.MakeAccel(ChargeSpeed, ChargeSpeed, 0f); // タメ0＝即発進（大玉の見た目だけ流用）
-        b.Pierce = 0;                              // 貫通なし（仕様）
+        var b = _pool.Spawn(muzzle, ShotDir * ChargeSpeed, isEnemy: false, 10f, dmg);
+        b.MakeCharged(_game!.SelectedJob);
         GD.Print($"[charge] fire dmg={dmg} (base={baseDmg} x{ChargeDamageMul})");
-        FxLayer.Instance?.PurifyBurst(muzzle);
-        Audio.Instance?.PlayShot();
-        _recoil = 1.6f; // 通常ショット(1.0)より深いキックバック＝重い一発を手に返す
+        FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, _game.SelectedJob, ChargeShotFx.Beat.Release);
+        Audio.Instance?.PlayChargeRelease(_game.SelectedJob);
+        GameCamera.Instance?.Shake(1.5f, 0.12f);
+        _recoil = 2.3f;
     }
 
     private bool _gameOver = false;
@@ -1487,6 +1489,9 @@ public partial class Player : Area2D
         if (_invincible || _dodgeInv > 0f || _gameOver)
             return;
         if (AbsorbPowerupHit()) return;
+        _chargeT = 0;
+        _chargeHeld = false;
+        _mouseHoldValid = false;
 
         // 被弾演出（自機周囲のフラッシュ＋波紋）＋ 赤フラッシュ・シェイク・ヒットストップで「被弾」を明確化。
         FxLayer.Instance?.PlayerHit(GlobalPosition);
@@ -1629,8 +1634,9 @@ public partial class Player : Area2D
         // ── 溜め打ち（#6）の充填表示：自機の頭上に小さな弧。0→1 で伸び、満ちたら白く脈打つ ──
         //   常設のリングは 2026-09-08 に「何のためにあるか分からない」と消したばかりなので、
         //   ここは**押しているあいだだけ**出す＝溜めていることと満ちたことだけを、その瞬間に返す。
-        if (_chargeT > 0f)
+        if (_chargeT > 0f && !Hud.BubblePaused && !_gameOver)
         {
+            ChargeShotFx.DrawGather(this, _game!.SelectedJob, ShotDir * 20, ShotDir, ChargeRatio, _bobTime);
             float cr = ChargeRatio;
             var at = new Vector2(0f, -24f);
             // 受け皿（薄い弧・全周）＋ 充填ぶん（上から時計回りに伸びる）

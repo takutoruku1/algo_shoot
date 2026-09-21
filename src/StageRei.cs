@@ -65,7 +65,7 @@ public partial class StageRei : Node
     //   中ボス＝中の人（RFace/RSmile）、ボス＝ガワ（RGawa）と、姿が違うこと自体が仕込み。
     private const string RFace = "res://char/v3/rei_face.png";
     private const string RSmile = "res://char/v3/rei_face_smile.png";
-    private const string RGawa = "res://char/v3/rei_gawa.png";
+    private const string RGawa = CompanionDialogue.ReiAvatarPortrait;
 
     // S3-1 配信枠・導入（仮台本 07）。HUD バッジ `炎上中`＝H2 の炎上で弱体化した状態から始まる。
     //   狭い部屋の壁一面が配信画面。右上の同接カウンター「11」。画面の中央にガワの星逢レイが
@@ -326,7 +326,7 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _playerBoss = null!;
 
     // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・S3-7 割り込み・回想フィルムを
+    //   結び手以外で潜ったとき true。回想は本人視点へ。ミナの行（who=1/3）・下書き選択・S3-7 割り込みを
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
     //   改心相当シーン（山場）は BossRei 側が CharacterStory.Redemption で差し替える。
     //   ビート対応：step1=Sortie / 2=Mid1 / 4=Mid2 / 7=Mid3（嵐の導入枠）/ 9=PreBoss / 13=Return。
@@ -411,7 +411,7 @@ public partial class StageRei : Node
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 3 START"); }
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(3, "レイ", new Color("9fcded")); }
 
         // 案C の場面の並び（仮台本 07 の S3-1〜S3-9）を、step 構成を変えずにそのまま流し込む。
         //   配信枠（S3-1・S3-2）→ 道中A（S3-3）→ 中ボス＝中の人（S3-4）→ 引用の嵐の接続（S3-5a/5b）→
@@ -980,8 +980,7 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
-            // 他ジョブ潜行：クリア会話（ミナ）と回想（aftermath＝ミナの語り）を丸ごと帰還ビートへ置換。
-            //   フィルムを踏まない＝BGM はボス戦のまま流れ続け、次のシーン（Hub）の _Ready が張り替える。
+            // 本人の帰還会話を終えてから、日常のアフターへ進む。
             if (_charStory) { _clearPhase = 2; return; }
             _clearPhase = 1;
             ReiStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
@@ -1001,6 +1000,12 @@ public partial class StageRei : Node
     {
         if (_clearing) return;
         _clearing = true;
+        if (_charStory) CharacterStoryFilm.Play(Hud, World, true, ReturnToHub);
+        else ReturnToHub();
+    }
+
+    private void ReturnToHub()
+    {
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.CompleteStage("rei");

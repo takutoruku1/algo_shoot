@@ -29,7 +29,8 @@ public partial class CompanionDialogueQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
-            if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
+            if (OS.GetCmdlineUserArgs().Contains("--portraits-only")) await CheckPortraits(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
             else
             {
                 bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
@@ -58,6 +59,109 @@ public partial class CompanionDialogueQa : Node
             GD.PushError($"[CompanionQA] FAIL {ex}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckPortraits(GameManager game)
+    {
+        var portraits = new HashSet<string>(Jobs.All.Select(job => CompanionDialogue.Portrait(job.Id)));
+        void Collect((int who, string text, string face)[] lines)
+        {
+            foreach (var line in lines)
+                if (!string.IsNullOrEmpty(line.face)) portraits.Add(line.face);
+        }
+        foreach (var type in new[] { typeof(StageZero), typeof(StageAkari), typeof(StageKoharu), typeof(StageRei),
+            typeof(StageMina), typeof(BossAkari), typeof(BossKoharu), typeof(BossRei), typeof(BossMina) })
+            foreach (var field in type.GetFields(BindingFlags.Static | BindingFlags.NonPublic))
+                if (field.GetValue(null) is (int, string, string)[] lines) Collect(lines);
+        foreach (var job in Jobs.All.Where(job => job.Id != Job.Tank))
+        {
+            for (int chapter = 1; chapter <= CharacterStory.LoopChapter; chapter++)
+                foreach (var beat in Enum.GetValues<CharacterStory.Beat>())
+                    Collect(CharacterStory.Lines(job.Id, chapter, beat));
+            foreach (string stage in new[] { "akari", "koharu", "rei" })
+                Collect(CharacterStory.Redemption(job.Id, stage));
+        }
+        foreach (string path in portraits)
+        {
+            Check(!path.Contains("/player/") && !path.Contains("body") && !path.Contains("cutout")
+                && !path.EndsWith("rei_gawa.png") && !path.EndsWith("rei_gawa_b.png"), $"dedicated dialogue portrait: {path}");
+            Check(GD.Load<Texture2D>(path) != null, $"portrait imports: {path}");
+        }
+        using (var image = GD.Load<Texture2D>(CompanionDialogue.ReiAvatarPortrait).GetImage())
+        {
+            Check(image.GetPixel(0, 0).A == 0 && image.GetPixel(image.GetWidth() - 1, 0).A == 0,
+                "Rei avatar has a transparent background");
+            Check(image.GetPixel(image.GetWidth() / 2, image.GetHeight() / 3).A > 0.95f,
+                "Rei avatar face remains opaque");
+        }
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            var root = GD.Load<PackedScene>("res://Rei.tscn").Instantiate<ReiRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.Stage.SetProcess(false);
+            var hud = root.Hud;
+            hud.HoldBubble = true;
+            Write(root.Stage, "_stepStarted", false);
+            Call(root.Stage, "Step_BossSpawn");
+            Write(root.Stage, "_introLine", 0);
+            Call(root.Stage, "ShowLine", (object)Data<(int, string, string)[]>(typeof(StageRei), "BossIntro"));
+            Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == CompanionDialogue.ReiAvatarPortrait,
+                $"{job.Id}: boss introduction uses the avatar portrait");
+            var boss = root.World.GetChildren().OfType<BossRei>().Single();
+            await Frames(90);
+            hud.RevealDialogNow();
+            await Shot($"rei_boss_portrait_{job.Id}");
+            if (job.Id == Job.Tank)
+            {
+                DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                await Frames(4);
+                await Shot("rei_boss_portrait_small");
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
+            var lines = Read<(int who, string text, string face)[]>(boss, "_lines");
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].who != 2 && lines[i].who != 6) continue;
+                Write(boss, "_line", i);
+                Call(boss, "ShowLine");
+                string expected = !string.IsNullOrEmpty(lines[i].face) ? lines[i].face
+                    : lines[i].who == 2 ? CompanionDialogue.ReiAvatarPortrait : CompanionDialogue.Portrait(job.Id);
+                Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == expected,
+                    $"{job.Id}: redemption line {i} preserves avatar/person expressions");
+            }
+            hud.ShowDialog(Hud.LineKind.Companion, "Portrait check");
+            Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job.Id),
+                $"{job.Id}: unspecified companion portrait is a bust");
+            Check(Read<Dictionary<Job, Texture2D>>(hud, "_accountFaces")[job.Id].ResourcePath == CompanionDialogue.AccountPortrait(job.Id),
+                $"{job.Id}: account icon remains unchanged");
+            await RemoveScene(root);
+        }
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+            GetTree().Root.AddChild(hub);
+            GetTree().CurrentScene = hub;
+            hub.SetProcess(false);
+            var face = ((Texture2D? face, Color col, float top))Call(hub, "SpeakerFace", job.CharacterName)!;
+            Check(face.face?.ResourcePath == CompanionDialogue.Portrait(job.Id), $"{job.Id}: menu uses a dialogue portrait");
+            Check(Read<Dictionary<string, Texture2D>>(hub, "_playerFaces")[job.CharacterId].ResourcePath == CompanionDialogue.AccountPortrait(job.Id),
+                $"{job.Id}: menu account icon remains unchanged");
+            if (job.Id != Job.Tank)
+            {
+                var lines = CompanionDialogue.MenuLines(job.Id, CompanionDialogue.Menu.Select);
+                Call(hub, "StartDialogue", lines, null, true, Read<object>(hub, "_mode"), null);
+                Write(hub, "_dlgIdx", Array.FindIndex(lines, line => line.speaker == job.CharacterName));
+                Call(hub, "DlgEnsurePages");
+                Write(hub, "_dlgReveal", 10000f);
+                hub.QueueRedraw();
+                await Frames(3);
+                await Shot($"{job.CharacterId}_menu_portrait");
+            }
+            await RemoveScene(hub);
         }
     }
 
@@ -243,7 +347,6 @@ public partial class CompanionDialogueQa : Node
                     {
                         // 話者名は素の名前（「（同行）」を付けない＝2026-09-15 仕様）。
                         Check(Read<string>(hud, "_dlgSpeaker") == job.CharacterName, "companion label is the bare character name");
-                        // 立ち絵：face 指定行はその表情差分、空欄はジョブの立ち絵（spin）へ落ちる（scenario 実装メモ2項）。
                         string expected = string.IsNullOrEmpty(lines[i].face) ? CompanionDialogue.Portrait(job.Id) : lines[i].face;
                         Check(Read<Texture2D>(hud, "_dlgPortrait").ResourcePath == expected, "companion portrait follows the face token");
                         // 同一話者の表情差し替え行はクロスフェードが正しい挙動なので、重ね合わせ検査から除外する。

@@ -34,6 +34,11 @@ public partial class StoryFilmQa : Node
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/{stageName.ToLowerInvariant()}/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var game = GetNode<GameManager>("/root/Game");
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--playable") >= 0)
+            {
+                await CheckPlayable(stageName, game);
+                return;
+            }
             var gameMode = game.ProcessMode;
             game.SelectedEntry = GameManager.StageEntry.Boss;
             game.MsgCharsPerSec = 300;
@@ -275,6 +280,149 @@ public partial class StoryFilmQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckPlayable(string stageName, GameManager game)
+    {
+        game.AutoSaveEnabled = false;
+        game.MsgCharsPerSec = 300;
+        game.AutoAdvanceDialog = false;
+        int chapter = stageName == "Akari" ? 1 : stageName == "Koharu" ? 2 : 3;
+        var dives = Read<System.Collections.Generic.Dictionary<string, int>>(game, "_charDives");
+        var script = typeof(CharacterStoryFilm).GetMethod("Script", BindingFlags.Static | BindingFlags.NonPublic)!;
+        foreach (var job in new[] { Job.Melee, Job.Heal, Job.Magic })
+        {
+            string id = Jobs.Get(job).CharacterId;
+            for (int ch = 1; ch <= CharacterStory.LoopChapter; ch++)
+                foreach (bool after in new[] { false, true })
+                {
+                    var lines = (Array)script.Invoke(null, new object[] { job, ch, after })!;
+                    Check(lines.Length >= 3, $"{id} ch{ch} after={after}: complete script");
+                    foreach (var line in lines)
+                    {
+                        string ReadLine(string key) => (string)line!.GetType().GetProperty(key)!.GetValue(line)!;
+                        Check(ReadLine("Speaker") == Jobs.Get(job).CharacterName
+                              && ReadLine("Time").Length > 0 && ReadLine("Text").Length > 0,
+                            "named character voice, time and text; no Mina narration");
+                    }
+                }
+
+            game.SelectedJob = job;
+            dives[id] = chapter;
+            game.SelectedEntry = GameManager.StageEntry.Boss;
+            _out = ProjectSettings.GlobalizePath($"res://build/qa_story/playable/{stageName}/{id}");
+            DirAccess.MakeDirRecursiveAbsolute(_out);
+            var root = GD.Load<PackedScene>($"res://{stageName}.tscn").Instantiate<Node2D>();
+            await Frames(1);
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            var hud = root.GetNode<Hud>("Hud");
+            var world = root.GetNode<Node2D>("World");
+            var stage = root.GetNode<Node>($"Stage{stageName}");
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            Hud.ClearBacklog();
+            await AdvanceUntil(() => Read<int>(stage, "_step") == (stageName == "Rei" ? 12 : 13));
+            var boss = world.GetNode<Enemy>($"Boss{stageName}");
+            int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
+            Write(boss, "_hp", (int)(maxHp * 0.77f), typeof(Enemy));
+            Call(boss, "OnHpChanged");
+            Write(boss, "_hp", (int)(maxHp * (stageName == "Akari" ? 0.51f : 0.49f)), typeof(Enemy));
+            Call(boss, "OnHpChanged");
+            await WaitUntil(() => hud.CinematicMode, 120);
+            var film = (CharacterStoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+            Check(Read<string>(film, "_atlasPath") == $"res://char/bg2/story/cg_{id}_playable_memory_v1.png",
+                $"{stageName} as {id}: HP trigger selects player's memory");
+            Check(world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
+                "world and game timers disabled");
+            double elapsed = Read<double>(stage, "_stageElapsed");
+            double phase = Read<double>(boss, "_phaseT", typeof(Enemy));
+            double combo = Read<double>(game, "_comboTimer");
+            await Frames(130);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed
+                  && Read<double>(boss, "_phaseT", typeof(Enemy)) == phase
+                  && Read<double>(game, "_comboTimer") == combo, "all clocks frozen during memory");
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Frames(5);
+                using var shot = await Shot($"memory_{size.X}", true);
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await AdvanceUntil(() => !IsInstanceValid(film));
+            Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit
+                  && game.ProcessMode != ProcessModeEnum.Disabled, "memory restores combat");
+            Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form resumes after memory");
+            Check(FilmSkip.Seen(game, $"{id}_playable_ch{chapter}_memory")
+                  && !FilmSkip.Seen(game, $"{id}_memory"), "playable seen key is separate from Mina route");
+            Call(boss, "OnHpChanged");
+            await Frames(12);
+            Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory only starts once");
+
+            if (chapter == 1)
+            {
+                stage.SetProcess(false);
+                var mode = world.ProcessMode;
+                world.ProcessMode = ProcessModeEnum.Disabled;
+                dives[id] = CharacterStory.LoopChapter;
+                foreach (bool after in new[] { false, true })
+                {
+                    bool complete = false;
+                    CharacterStoryFilm.Play(hud, world, after, () => complete = true);
+                    await AdvanceUntil(() => complete);
+                    Check(world.ProcessMode == ProcessModeEnum.Disabled, "loop film preserves already-disabled world");
+                    Check(FilmSkip.Seen(game, $"{id}_playable_ch4_{(after ? "aftermath" : "memory")}"),
+                        "loop chapter has its own seen key");
+                    complete = false;
+                    CharacterStoryFilm.Play(hud, world, after, () => complete = true);
+                    await Frames(5);
+                    KeyEvent(Key.X, true);
+                    await WaitUntil(() => complete, 160);
+                    KeyEvent(Key.X, false);
+                    await Frames(2);
+                    Check(!hud.CinematicMode, "seen loop film skips and restores HUD");
+                }
+                dives[id] = chapter;
+                world.ProcessMode = mode;
+                stage.SetProcess(true);
+            }
+
+            Write(boss, "_hp", 0, typeof(Enemy));
+            Call(boss, "Redeem", typeof(Enemy));
+            Hud.ClearBacklog();
+            await AdvanceUntil(() => hud.CinematicMode);
+            film = (CharacterStoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+            Check(Read<bool>(film, "_aftermath") && Read<string>(film, "_atlasPath")
+                  == $"res://char/bg2/story/cg_{id}_playable_aftermath_v1.png", "clear selects player's aftermath");
+            var returnLines = CharacterStory.Lines(job, chapter, CharacterStory.Beat.Return);
+            foreach (var line in returnLines)
+                Check(System.Linq.Enumerable.Any(Hud.Backlog, entry => entry.Text == line.text),
+                    "return dialogue finishes before the home-life film");
+            await Frames(135);
+            Check(GetTree().CurrentScene == root && GetTree().GetNodesInGroup("storyfilm").Count == 1,
+                "transition waits for exactly one aftermath film");
+            using (var shot = await Shot("aftermath_1280", false)) { }
+            DisplayServer.WindowSetSize(new Vector2I(960, 540));
+            await Frames(5);
+            using (var shot = await Shot("aftermath_960", false)) { }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await AdvanceUntil(() => GetTree().CurrentScene != root);
+            Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn"
+                  && game.IsStageCleared(stageName.ToLowerInvariant()), "film completion clears stage and returns home");
+            Check(FilmSkip.Seen(game, $"{id}_playable_ch{chapter}_aftermath"), "aftermath seen key recorded");
+            GetTree().CurrentScene.QueueFree();
+            await Frames(8);
+        }
+        Audio.Instance?.StopMusic(0);
+        foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+            if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+        await Task.Delay(250);
+        await Frames(5);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(5);
+        GD.Print($"[StoryQA] {stageName} PLAYABLE ALL PASS");
+        GetTree().Quit();
     }
 
     private async Task Frames(int count)

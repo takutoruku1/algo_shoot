@@ -225,7 +225,8 @@ public partial class QuoteStorm : Node2D
         var b = pool.Spawn(from, vel, isEnemy: true, 3f, 1);
         if (b == null) return;
         // 引用は「投稿に寄る側」で層が違う（09）。濁色チップにして、面の投稿弾（テーマ色）と見分ける。
-        b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true);
+        b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true,
+            coreArt: BulletArt.Get("rei_film"));
         b.MakeErasable();                 // 撃つと剥がれる（祈り弾と同じ経路）
         _flying.Add((b, q.Handle, dst));
         QuoteCount++;

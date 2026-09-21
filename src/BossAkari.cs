@@ -170,7 +170,7 @@ public partial class BossAkari : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // 他ジョブ潜行（2026-09-15）：改心のかけあい（ミナ前提）を改心相当シーンへ差し替え、回想も抑止する。
+        // ミナ以外の潜行は、操作キャラの改心会話と回想を使う。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _charStory = CharacterStory.DiveActive(game);
         if (_charStory)
@@ -510,12 +510,8 @@ public partial class BossAkari : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
-            // 他ジョブ潜行：回想（memory）はミナの語りが前提＝流さない。フィルムの completed: が
-            //   やっていた戦闘再開処理（第二形態＋宣告＋閾値の再評価）だけを直接行う。BGM はフィルムへ
-            //   クロスフェードしていない＝ボス曲が鳴り続けているので張り直しも不要（停止/復帰を壊さない）。
-            if (_charStory) { AdvanceForm2(); ApplySpell(); OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
-            AkariStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            void ResumeBattle()
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
@@ -523,7 +519,9 @@ public partial class BossAkari : Enemy
                 AdvanceForm2();
                 ApplySpell();
                 OnHpChanged();
-            });
+            }
+            if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
+            else AkariStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             return;
         }
         if (_postPending && _corridorPhase == 0 && !_seq && !IsPurified && !Hud.BubblePaused)

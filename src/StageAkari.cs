@@ -290,7 +290,7 @@ public partial class StageAkari : Node
     private (int who, string text, string face)[] _playerBoss = null!;
 
     // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・回想フィルムをすべて抑止し、
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択を抑止し、回想は本人視点へ、
     //   ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
     //   改心相当シーン（山場）は BossAkari 側が CharacterStory.Redemption で差し替える。
     private bool _charStory;
@@ -360,7 +360,7 @@ public partial class StageAkari : Node
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
         if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
-        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 1 START"); }
+        if (!_startBannerShown) { _startBannerShown = true; Hud.ShowStageStart(1, "あかり", new Color("efbc87")); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
@@ -798,8 +798,7 @@ public partial class StageAkari : Node
             Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
-        // 他ジョブ潜行：クリア会話（ミナ）と回想（aftermath＝ミナの語り）を丸ごと帰還ビートへ置換。
-        //   フィルムを踏まない＝BGM はボス戦のまま流れ続け、次のシーン（Hub）の _Ready が張り替える。
+        // 本人の帰還会話を終えてから、日常のアフターへ進む。
         if (_charStory) { Step_Lines(delta, _storyReturn); return; }
         if (_clearPhase == 0)
         {
@@ -824,6 +823,12 @@ public partial class StageAkari : Node
     {
         if (_clearing) return;
         _clearing = true;
+        if (_charStory) CharacterStoryFilm.Play(Hud, World, true, ReturnToHub);
+        else ReturnToHub();
+    }
+
+    private void ReturnToHub()
+    {
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 2026-09-22: ここで強化ショップの説明パートへ離脱するのをやめ、かならずハブへ帰すようにした。
         //   強化が解禁されるのはこの瞬間だが、説明とショップを自動で開くと「ホームのアイコンを押して入る」

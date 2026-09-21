@@ -318,7 +318,7 @@ public partial class HowToCanvas : Node2D
         if (hasCharge)
         {
             string chTok = tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "C 長押し" };
-            rows.Add((chTok, "溜め打ち", "0.6秒ためて離すと、威力4倍の大玉がひとつ", UiKit.Gold, true));
+            rows.Add((chTok, "溜め打ち", "0.6秒ためて離す。威力12倍、盾や敵を貫く", UiKit.Gold, true));
         }
 
         // 回避とロック解除。マウスは同じ右クリックが両方を兼ねる。

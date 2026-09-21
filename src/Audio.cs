@@ -67,6 +67,7 @@ public partial class Audio : Node
     // コアSE（コードで合成したプレースホルダ。実音源が来たら差し替える）。
     public AudioStreamWav SfxShot = null!, SfxGraze = null!, SfxHit = null!, SfxPurify = null!;
     public AudioStreamWav SfxScorePickup = null!;
+    private AudioStreamWav _chargeReady = null!, _chargeRelease = null!, _chargeImpact = null!;
 
     // 拡張SE（設計書 ③④⑥⑦⑧⑩）。同じくプレースホルダ。
     public AudioStreamWav SfxBomb = null!, SfxCalm = null!,
@@ -219,6 +220,9 @@ public partial class Audio : Node
         SfxHit    = SynthHit();
         SfxPurify = SynthPurify();
         SfxScorePickup = SynthScorePickup();
+        _chargeReady = SynthCharge(0);
+        _chargeRelease = SynthCharge(1);
+        _chargeImpact = SynthCharge(2);
         SfxBomb     = SynthBomb();
         SfxCalm     = SynthCalm();
         SfxSpell    = SynthSpell();
@@ -560,6 +564,18 @@ public partial class Audio : Node
     // 発射：短く・減衰速く・ピッチ微ゆらぎ。
     public void PlayShot()
         => Se(SfxShot, volDb: -24f, pitch: _rng.RandfRange(0.97f, 1.03f));
+
+    private static float ChargePitch(Job job) => job switch
+    {
+        Job.Melee => 0.86f,
+        Job.Heal => 1.12f,
+        Job.Magic => 1.22f,
+        _ => 1f,
+    };
+
+    public void PlayChargeReady(Job job) => Se(_chargeReady, -18f, ChargePitch(job));
+    public void PlayChargeRelease(Job job) => Se(_chargeRelease, -11f, ChargePitch(job));
+    public void PlayChargeImpact(Job job) => Se(_chargeImpact, -13f, ChargePitch(job));
     // グレイズ：鋭く高い「チッ」。被弾と音域を分け、混同させない。
     public void PlayGraze()
         => Se(SfxGraze, volDb: -22f, pitch: _rng.RandfRange(0.98f, 1.05f));
@@ -680,6 +696,27 @@ public partial class Audio : Node
             s[i] = (0.12f * sq + 0.88f * v) * env * 0.3f;
         }
         return MakeWav(s);
+    }
+
+    private AudioStreamWav SynthCharge(int beat)
+    {
+        float duration = beat == 0 ? 0.26f : beat == 1 ? 0.34f : 0.28f;
+        var samples = new float[(int)(Rate * duration)];
+        float phase = 0;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = (float)i / Rate;
+            float progress = t / duration;
+            float frequency = beat == 0 ? Mathf.Lerp(680, 1320, progress)
+                : beat == 1 ? 110 + 580 * Mathf.Exp(-t * 22) : 75 + 170 * Mathf.Exp(-t * 30);
+            phase += frequency * Mathf.Tau / Rate;
+            float envelope = Mathf.Min(t / 0.008f, 1) * Mathf.Exp(-t / (beat == 0 ? 0.09f : 0.08f)) * (1 - progress);
+            float fundamental = Mathf.Sin(phase) + Mathf.Sin(phase * 1.5f) * 0.25f;
+            float shimmer = Mathf.Sin(t * Mathf.Tau * (beat == 0 ? 1760 : 1320)) * Mathf.Exp(-t * 15) * 0.18f;
+            float air = beat == 0 ? 0 : _rng.RandfRange(-1, 1) * Mathf.Exp(-t * 35) * 0.2f;
+            samples[i] = (fundamental * 0.65f + shimmer + air) * envelope * 0.7f;
+        }
+        return MakeWav(samples);
     }
 
     // グレイズ：2600Hz の鋭い高音＋倍音、極短（~38ms）。

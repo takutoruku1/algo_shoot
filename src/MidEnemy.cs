@@ -543,23 +543,30 @@ public partial class MidEnemy : Enemy
         switch (_spec.Pattern)
         {
             case AttackPattern.ReiLockBurst:
-                SetSpellVisual(BulletShape.Diamond, new Color(0.85f, 0.55f, 0.80f)); break;
+                SetSpellVisual(BulletShape.Diamond, new Color(0.85f, 0.55f, 0.80f), BulletArt.Get("rei_subscriber"), 12f); break;
             case AttackPattern.ReiPulseRing:
-                SetSpellVisual(BulletShape.Ring, new Color(0.80f, 0.45f, 0.62f)); break;
+                SetSpellVisual(BulletShape.Ring, new Color(0.80f, 0.45f, 0.62f), BulletArt.Get("rei_comment"), -16f); break;
             case AttackPattern.AkariScatter:
-                SetSpellVisual(BulletShape.Orb, EnemyKegare); break; // 既定穢れ色
+                SetSpellVisual(BulletShape.Orb, EnemyKegare, BulletArt.AkariDocs, 24f); break;
             case AttackPattern.AkariDrop:
-                SetSpellVisual(BulletShape.Rice, new Color(0.72f, 0.62f, 0.85f)); break;
+                SetSpellVisual(BulletShape.Rice, new Color(0.72f, 0.62f, 0.85f), BulletArt.AkariEnvelope, -18f); break;
             case AttackPattern.KoharuSharp3:
-                SetSpellVisual(BulletShape.Needle, new Color(0.95f, 0.50f, 0.70f)); break;
+                SetSpellVisual(BulletShape.Needle, new Color(0.95f, 0.50f, 0.70f), BulletArt.KoharuPenlight, 16f); break;
             case AttackPattern.KoharuSimmer:
-                SetSpellVisual(BulletShape.Orb, new Color(0.88f, 0.55f, 0.45f)); break;
+                SetSpellVisual(BulletShape.Orb, new Color(0.88f, 0.55f, 0.45f), BulletArt.KoharuAcrylic, -20f); break;
             case AttackPattern.DefaultAim:
-                SetSpellVisual(BulletShape.Orb, EnemyKegare); break;
+                SetSpellVisual(BulletShape.Orb, EnemyKegare, BulletArt.Get("enemy_rei_anonymous"), -12f); break;
             case AttackPattern.FlankAim:
-                SetSpellVisual(BulletShape.Orb, EnemyKegare); break; // 既定穢れ色（スキン流用種＝弾も見慣れた形で読める）
+                var flankArt = _spec.PreTexPath switch
+                {
+                    "res://char/v3/enemy_akari_desk_pre.png" => BulletArt.AkariDocs,
+                    "res://char/v3/enemy_koharu_penlight_pre.png" => BulletArt.KoharuPenlight,
+                    "res://char/v3/enemy_rei_icon_pre.png" => BulletArt.Get("rei_subscriber"),
+                    _ => BulletArt.Get("enemy_rei_anonymous"),
+                };
+                SetSpellVisual(BulletShape.Orb, EnemyKegare, flankArt, 12f); break;
             case AttackPattern.KoharuPrayerCarry:
-                SetSpellVisual(BulletShape.Orb, new Color(0.98f, 0.82f, 0.55f)); break; // ぶら下げる祈り弾＝暖色（消せる合図のハロと同系）
+                SetSpellVisual(BulletShape.Orb, new Color(0.98f, 0.82f, 0.55f), BulletArt.KoharuTicket, 15f); break;
             case AttackPattern.AkariDeadline:
                 SetSpellVisual(BulletShape.Orb, new Color("ef8095"), BulletArt.Get("enemy_akari_deadline"), 24f); break;
             case AttackPattern.AkariUnsent:
@@ -578,19 +585,12 @@ public partial class MidEnemy : Enemy
                 SetSpellVisual(BulletShape.Rice, new Color("d3c2f3"), BulletArt.Get("enemy_rei_clipper"), 38f); break;
             case AttackPattern.ReiMetrics:
                 SetSpellVisual(BulletShape.Diamond, new Color("f2d480"), BulletArt.Get("enemy_rei_metrics"), 0f); break;
-            // ─── FINAL（ミナの内側）の残響3種（2026-09-17）───
-            // 専用の弾アートはまだ無い（char/v3/bullets に mina_* が存在しない）ので、弾形と色で描き分ける。
-            // 3種ともミナの菫（StageMina の PostBullets accent 0.70/0.55/0.84）を基調に、
-            // 明度と形で役割を読み分けさせる＝FINAL の色語彙を割らない（§3 視認性・一貫性）。
             case AttackPattern.MinaEraser:
-                // 消し線＝進行方向へ細長い針。線を引いて消していく画。冷たい白菫。
-                SetSpellVisual(BulletShape.Needle, new Color(0.80f, 0.74f, 0.94f)); break;
+                SetSpellVisual(BulletShape.Needle, new Color(0.80f, 0.74f, 0.94f), BulletArt.Get("mina_eraser"), 12f); break;
             case AttackPattern.MinaMemory:
-                // 置き弾＝中空のリング。中身が無い＝「もう誰も居ない痕」。沈んだ菫。
-                SetSpellVisual(BulletShape.Ring, new Color(0.62f, 0.50f, 0.82f)); break;
+                SetSpellVisual(BulletShape.Ring, new Color(0.62f, 0.50f, 0.82f), BulletArt.Get("mina_memory"), -16f); break;
             case AttackPattern.MinaUnanswered:
-                // 届かない弾＝止まりかける円弾。他2種より明るい＝画面に残っても読める。
-                SetSpellVisual(BulletShape.Orb, new Color(0.78f, 0.62f, 0.90f)); break;
+                SetSpellVisual(BulletShape.Orb, new Color(0.78f, 0.62f, 0.90f), BulletArt.Get("mina_unanswered"), 10f); break;
         }
     }
     // 既定の穢れ色（Bullet.EnemyMid #e072ac 相当）。Orb 種はこれで撒く。
