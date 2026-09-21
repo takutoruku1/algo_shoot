@@ -163,6 +163,11 @@ public partial class OpeningFilm : Node2D
         if (Finished) return;
         Finished = true;
         Visible = false;
+        // 「見た」を記録しておく（2026-09-22）。このフィルムは**初回からスキップできる**ので
+        //   記録がスキップの条件になることは無いが、回想（StoryFilm）と同じ台帳に載せておく
+        //   ＝どのムービーを通ったかが1か所に揃う。スキップで抜けた場合も「通過した」として記録する
+        //   （ここは記録がゲートではないので、見たかどうかの厳密さより台帳の単純さを採る）。
+        FilmSkip.MarkSeen(GetNodeOrNull<GameManager>("/root/Game"), "opening");
         Completed?.Invoke();
         QueueFree();
     }

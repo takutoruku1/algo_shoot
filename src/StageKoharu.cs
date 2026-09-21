@@ -336,7 +336,7 @@ public partial class StageKoharu : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
@@ -1010,7 +1010,8 @@ public partial class StageKoharu : Node
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("koharu");
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        // 暗転してからハブへ（ボス背景のフラッシュ止め・2026-09-22。StageRei と同じ理由）。
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     // 投稿弾（言葉弾）の周期/tick 用アキュムレータ。湧き処理は全ボス共通ヘルパ PostBullets.Tick に集約。

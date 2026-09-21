@@ -15,6 +15,7 @@ public partial class GameManager : Node
     public override void _ExitTree() { if (Instance == this) Instance = null; }
 
     public long Score { get; private set; }
+    private long _bossRetryScore;
     public int Combo { get; private set; }
     public int Bombs { get; private set; } = 3;
 
@@ -266,8 +267,16 @@ public partial class GameManager : Node
     }
 
     // 初回ショップ説明を見たか（全ゲーム通して一度きり・永続＝save_N.json）。
-    // 「初めて中ボスを倒した」瞬間にショップ説明へ離脱し、完了後 true にする。以降の中ボス撃破では離脱しない。
+    // 最初の面のボスを初めて倒してハブへ帰った回に、ホーム解禁演出の直後へ一度だけ挟む（Hub が立てる）。
+    // 以降のクリアでは説明へ離脱しない。
     public bool ShopTutorialSeen;
+
+    // 説明パート（ShopTutorial）からハブへ帰ってきた直後か（ランタイム限り・保存しない）。
+    //   true のときハブはホーム画面で開き、強化ショップのアイコンを選択＋誘導表示にして「押す」のを待つ。
+    //   ハブが消費して false に戻す＝ショップから戻ったときや次の入場には持ち越さない。
+    //   2026-09-22: 説明を読み切ると勝手にショップが開いていたのをやめ、アイコンを押す操作を
+    //   プレイヤー自身にさせる導線へ変えた（「このアイコンから入る」を体で覚えてもらう）。
+    public bool ShopNudgePending;
 
     // 弾幕の本数を難易度でスケール（最低1発は残す）。各ボスのリング/扇の本数に掛ける。
     public int ScaleBullets(int baseCount) => Mathf.Max(1, Mathf.RoundToInt(baseCount * BulletCountMul));
@@ -1258,6 +1267,7 @@ public partial class GameManager : Node
         _midBossCleared.Clear();
         ShopTutorialSeen = false;
         SelectedEntry = StageEntry.Start;
+        _bossRetryScore = 0;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
         HasDodge = false; DodgeJustUnlocked = false; // 回避も「1面クリアでもう一度もらう」ところから
         _burnHappened = false; Burning = false; BurningThisRun = false;
@@ -1657,7 +1667,7 @@ public partial class GameManager : Node
         if (need <= 0) return;
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         if (player == null) return;
-        if (player.Lives >= StartLives) return;   // 満タン＝カウンタを進めない
+        if (player.Lives >= player.MaxLives) return;   // 満タン＝カウンタを進めない
         if (++_purifyDrain < need) return;
         _purifyDrain = 0;
         if (player.AddLife(1))
@@ -1760,7 +1770,8 @@ public partial class GameManager : Node
         // 前のランで閾値未満のまま残った欠片インプレを、捨てずに先に入金してから締める
         // （ゲームオーバー／シーン遷移で消える経路の受け皿。RunImpression のリセットより前に呼ぶ）。
         FlushShardImpression();
-        Score = 0;
+        Score = _bossRetryScore;
+        _bossRetryScore = 0;
         Combo = 0;
         _comboTimer = 0;
         Bombs = StartBombs;
@@ -1775,6 +1786,13 @@ public partial class GameManager : Node
         _focusModeCd = 0f;
         PostsDelivered = 0;   // 届けた病みポストの数もラン単位
         RedemptionActive = false;
+    }
+
+    public void PrepareBossRetry(bool bossCheckpoint = true)
+    {
+        // Scene reload calls ResetRun; carry the remaining half into that reset exactly once.
+        _bossRetryScore = Score / 2;
+        SelectedEntry = bossCheckpoint ? StageEntry.Boss : StageEntry.Start;
     }
 
     // 改心演出中か。本戦ボスの OnCryStart が立て、次のラン開始（ResetRun）で下りる。
@@ -1798,7 +1816,7 @@ public partial class GameManager : Node
     //（ChoiceOverlay の既定挙動＝呼び出し側が引き下がる側を最後に置く約束）。
     private static readonly string[] GameOverChoices =
     {
-        "（ボスからやり直す）",
+        "（ボスから・スコア半分消費）",
         "（最初からやり直す）",
         "（ステージから抜ける）",
     };
@@ -1855,7 +1873,7 @@ public partial class GameManager : Node
         switch (sel)
         {
             case 0:   // ボスからやり直す＝R 単体と同じ経路（SelectedEntry を Boss にしてシーン再読込）
-                if (game != null) game.SelectedEntry = StageEntry.Boss;
+                game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot);
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                 root.GetTree().ReloadCurrentScene();
                 return true;
@@ -1907,4 +1925,97 @@ public partial class GameManager : Node
         Audio.Instance?.PlayUiCancel();
         root.GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
+
+    // ───────── シーン遷移の暗幕（2026-09-22）─────────
+    // ChangeSceneToFile は**その場で**現シーンを捨てて次を建てるので、切り替えの1フレームに
+    //   直前の画面（＝ボス撃破後もボス背景が出たままのステージ。StageBackground は EnterBoss 後
+    //   Mode.Boss から戻らない）がそのまま映り、ボスのイラストがフラッシュして見えていた。
+    //   ユーザー実機指摘「ステージ切り替えとかで（ボスのステージイラストが）表示される」。
+    //
+    // 対処：遷移の前に全画面の黒を張って**暗転しきってから**シーンを差し替える。
+    //   ・幕は GameManager（Autoload）が自前の CanvasLayer に持つ＝シーンの解放に巻き込まれない。
+    //     呼び出し側のシーンに ColorRect を生やすと ChangeSceneToFile で一緒に消えて意味が無い。
+    //   ・新シーンの _Ready が走ったあとに幕を引く（明転）。遷移先が自前のフェードインを持つ画面
+    //     （Prologue 等）でも、黒→絵 の順序は壊れない。
+    //   ・Layer を極端に上げて PauseMenu/Hud より手前に置く。ProcessMode=Always＝ツリー停止中でも進む。
+    private SceneCurtain _curtainLayer = null!;
+    private ColorRect _curtain = null!;
+    private string _curtainDest = "";
+    private double _curtainT;
+    private int _curtainPhase;   // 0=休止 1=暗転中 2=遷移直後の明転
+    private const double CurtainFall = 0.24, CurtainRise = 0.3;
+
+    // 暗転してからシーンを切り替える。dest は res:// のシーンパス。
+    //   既に暗転中なら二重には受けない（連打・二重遷移の保険）。
+    public void FadeToScene(string dest)
+    {
+        if (_curtainPhase == 1) return;
+        _curtainDest = dest;
+        _curtainPhase = 1;
+        _curtainT = 0;
+        EnsureCurtain();
+        _curtain.Visible = true;
+    }
+
+    // 呼び出し側が Node しか持っていない場所からの入り口（静的ヘルパ）。
+    //   Autoload が居なければ従来どおり即遷移する＝幕のために進行を止めない。
+    public static void FadeToScene(Node from, string dest)
+    {
+        var game = Instance ?? from.GetNodeOrNull<GameManager>("/root/Game");
+        if (game != null) game.FadeToScene(dest);
+        else from.GetTree().ChangeSceneToFile(dest);
+    }
+
+    private void EnsureCurtain()
+    {
+        if (IsInstanceValid(_curtainLayer)) return;
+        // 幕は GameManager 自身の _Process ではなく、この CanvasLayer が自前で進める。
+        //   カットシーン（StoryFilm/MinaPhaseScene）は GameManager.ProcessMode を Disabled に落とすので、
+        //   GameManager の _Process に相乗りすると暗転の途中で幕が凍りつく可能性がある。
+        _curtainLayer = new SceneCurtain { Name = "SceneCurtain", Layer = 256, Owner_ = this };
+        AddChild(_curtainLayer);
+        _curtain = new ColorRect
+        {
+            Name = "Curtain",
+            Color = new Color(0, 0, 0, 0),
+            Size = new Vector2(384, 216),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _curtainLayer.AddChild(_curtain);
+        _curtainLayer.ProcessMode = ProcessModeEnum.Always;
+    }
+
+    // SceneCurtain が毎フレーム呼ぶ。暗転しきったフレームで ChangeSceneToFile し、次から明転へ。
+    internal void TickCurtain(double delta)
+    {
+        if (_curtainPhase == 0) return;
+        _curtainT += delta;
+        if (_curtainPhase == 1)
+        {
+            float k = Mathf.Clamp((float)(_curtainT / CurtainFall), 0, 1);
+            _curtain.Color = new Color(0, 0, 0, k);
+            if (k < 1) return;
+            // 暗転しきった。ここで初めてシーンを差し替える＝切り替わりの瞬間は黒一色。
+            GetTree().ChangeSceneToFile(_curtainDest);
+            _curtainPhase = 2;
+            _curtainT = 0;
+            return;
+        }
+        // 明転。新シーンの _Ready はもう走っている。
+        float r = Mathf.Clamp((float)(_curtainT / CurtainRise), 0, 1);
+        _curtain.Color = new Color(0, 0, 0, 1 - r);
+        if (r < 1) return;
+        _curtain.Visible = false;
+        _curtainPhase = 0;
+    }
+}
+
+// シーン遷移の暗幕を載せる CanvasLayer。幕の時間を**自分で**進めるためだけに _Process を持つ。
+//   GameManager._Process に相乗りしない理由は EnsureCurtain のコメント参照
+//   （カットシーンが GameManager.ProcessMode を Disabled に落とすため）。
+public partial class SceneCurtain : CanvasLayer
+{
+    public GameManager Owner_ = null!;
+    public override void _Process(double delta) => Owner_?.TickCurtain(delta);
 }

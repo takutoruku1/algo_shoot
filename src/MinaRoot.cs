@@ -117,6 +117,8 @@ public partial class MinaRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
+            if (gameOver && !Input.IsKeyPressed(Key.Shift))
+                GetNode<GameManager>("/root/Game").PrepareBossRetry(bossCheckpoint: false);
             // FINAL はチェックポイント対象外なので、残響戦を含めて最初から再開する。
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();

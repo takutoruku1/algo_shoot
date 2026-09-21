@@ -406,8 +406,7 @@ public partial class StageRei : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        // ステージ経過タイム：クリア確定までは積算し続け、HUDへ常時反映（クリア後は確定値で固定）。
-        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
@@ -1005,7 +1004,9 @@ public partial class StageRei : Node
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         var game = GetNodeOrNull<GameManager>("/root/Game");
         game?.CompleteStage("rei");
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        // 暗転してからハブへ。ボス撃破後も StageBackground は Mode.Boss のままボス背景を出し続けるので、
+        //   即時遷移だと切り替えの瞬間にボスのイラストがフラッシュして見えていた（2026-09-22）。
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     // 投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。

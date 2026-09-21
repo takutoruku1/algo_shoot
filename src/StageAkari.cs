@@ -359,8 +359,7 @@ public partial class StageAkari : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        // ステージ経過タイム：クリア確定まで積算しHUDへ反映。
-        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         if (!_startBannerShown) { _startBannerShown = true; Hud.ShowBanner("STAGE 1 START"); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
@@ -396,7 +395,7 @@ public partial class StageAkari : Node
         // 下を流れるコメント（ティッカー）も同じプールを見る＝そのまま降る一体感は保つ。
         // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
         // イライラ棒「雨の帰り道」（CorridorRun 展開中）は降らせない＝通路避けに弾を重ねる理不尽を断つ。
-        if (_bossActive && GetTree().GetFirstNodeInGroup("corridor") == null)
+        if (_bossActive && _boss?.PostSequenceActive != true && GetTree().GetFirstNodeInGroup("corridor") == null)
             PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Akari, fallSpeed: 48f,
                 accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
     }
@@ -826,11 +825,12 @@ public partial class StageAkari : Node
         if (_clearing) return;
         _clearing = true;
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        // 初回だけ、ここで強化ショップの説明パートへ離脱する（クリア記録はその中で確定させる）。
-        //   強化が解禁されるのがこの瞬間なので、案内も同じ瞬間に出す。2回目以降は素通り。
-        if (CheckpointFlow.OnBossCleared(this, "akari")) return;
+        // 2026-09-22: ここで強化ショップの説明パートへ離脱するのをやめ、かならずハブへ帰すようにした。
+        //   強化が解禁されるのはこの瞬間だが、説明とショップを自動で開くと「ホームのアイコンを押して入る」
+        //   操作をプレイヤーが一度も経験しない。説明はハブ側が帰還会話と解禁演出のあとに一度だけ挟む。
         GetNodeOrNull<GameManager>("/root/Game")?.CompleteStage("akari");
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        // 暗転してからハブへ（ボス背景のフラッシュ止め・2026-09-22。StageRei と同じ理由）。
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     // 投稿弾（ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。

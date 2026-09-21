@@ -57,6 +57,15 @@ public partial class MinaPhaseScene : Node2D
     private int _phase, _line;
     private double _time, _lineTime, _readTime, _exitTime;
     private bool _held, _started, _leaving, _restored, _suppressed;
+    // StoryFilm と同型の問題（2026-09-22）：_Draw が全要素を alpha 一本でフェードするので、
+    //   入り／明けの 0.55 秒はレターボックスの帯ごと半透明になり背後の StageBackground が透ける。
+    //   一段奥に不透明の黒板を敷いて塞ぐ（CutsceneBackdrop のコメント参照）。
+    private CutsceneBackdrop _backdrop = null!;
+    // 一度見たフェーズ間カットシーンのスキップ（2026-09-22 ユーザー要望）。StoryFilm と同じ作法。
+    //   FINAL はリトライの多い面で、4本のカットシーンを毎回読まされるのが一番きつい箇所。
+    //   キーはフェーズごと（"mina_phase_1" … "mina_phase_4"）＝到達していないフェーズは飛ばせない。
+    private readonly FilmSkip _skip = new();
+    private string FilmId => $"mina_phase_{_phase}";
 
     public static void Play(Hud hud, Node world, int phase, Action completed)
         => hud.AddChild(new MinaPhaseScene
@@ -85,7 +94,10 @@ public partial class MinaPhaseScene : Node2D
         _hud.SetCinematicMode(true);
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         _held = Pad.AdvanceHeld();
-        GD.Print($"[MinaPhase] {_phase} start");
+        // 本体より先に、その一段奥へ黒板を立ち上げる（ZIndex はこのノードの1つ下）。
+        _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
+        _skip.Begin(_game, FilmId);
+        GD.Print($"[MinaPhase] {_phase} start" + (_skip.Available ? " (skippable)" : ""));
     }
 
     public override void _Process(double delta)
@@ -106,6 +118,8 @@ public partial class MinaPhaseScene : Node2D
             QueueFree();
             return;
         }
+        // 既読カットシーンの長押しスキップ。立ち上げの 0.7 秒の間も受け付ける。
+        if (_skip.Update(delta)) { BeginLeave(); return; }
         if (!_started)
         {
             if (_time < 0.7) return;
@@ -125,9 +139,19 @@ public partial class MinaPhaseScene : Node2D
             && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readTime >= 1.4)))
         {
             _line++;
-            if (_line == _lines.Length) { _leaving = true; _hud.HideBubble(); }
+            if (_line == _lines.Length) BeginLeave();
             else ShowLine();
         }
+    }
+
+    // 畳む（最終行を送り切った／既読スキップ）。どちらも同じ明けフェードを通り、
+    //   _completed（BossMina.CompletePhaseTransition＝次フェーズの武装）へ必ず戻る。
+    private void BeginLeave()
+    {
+        if (_leaving) return;
+        _leaving = true;
+        FilmSkip.MarkSeen(_game, FilmId);
+        _hud.HideBubble();
     }
 
     private void ShowLine()
@@ -170,6 +194,8 @@ public partial class MinaPhaseScene : Node2D
         DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.025f, 0.03f, alpha));
         UiKit.Text(this, UiKit.Zen, new Vector2(64, 19), BossMina.PhaseName(_phase), 22,
             new Color(1, 1, 1, alpha));
+        // 既読のときだけスキップのヒント（上辺の帯の右端。左端のフェーズ名とはぶつからない）。
+        if (!_leaving) _skip.Draw(this);
         UiKit.EndDesign(this);
     }
 
@@ -177,6 +203,8 @@ public partial class MinaPhaseScene : Node2D
     {
         if (_restored) return;
         _restored = true;
+        // 黒板は本体が消えきってから引く＝明けフェードを内側に完全に包む。
+        if (IsInstanceValid(_backdrop)) _backdrop.Dismiss();
         if (IsInstanceValid(_world)) _world.ProcessMode = _worldMode;
         if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))

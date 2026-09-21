@@ -93,7 +93,7 @@ public partial class StageMina : Node
     {
         if (Hud.CinematicMode) { _zHeld = Pad.AdvanceHeld(); return; }
         _lineHold += delta;
-        if (!_clearing) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
+        if (!_clearing && !Hud.BubblePaused) { _stageElapsed += delta; Hud.SetElapsed((float)_stageElapsed); }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
@@ -250,7 +250,8 @@ public partial class StageMina : Node
         game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。
-        GetTree().ChangeSceneToFile("res://Final.tscn");
+        // 暗転してから渡す（ボス背景のフラッシュ止め・2026-09-22。StageRei と同じ理由）。
+        GameManager.FadeToScene(this, "res://Final.tscn");
     }
 
     // 投稿弾（暴走中に渦巻く悲鳴の言葉）の周期/tick 用アキュムレータ。湧き処理は PostBullets.Tick に集約。

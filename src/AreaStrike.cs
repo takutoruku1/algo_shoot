@@ -32,7 +32,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
     public enum Motif { None, Stream, Rain, Screen, Data }
     private Motif _motif = Motif.None;
 
-    public enum Art { None, ReadReceipt }
+    public enum Art { None, ReadReceipt, ClipLine }
     private Art _art = Art.None;
     public void SetArt(Art art) => _art = art;
 
@@ -332,6 +332,15 @@ public partial class AreaStrike : Node2D, IAoeHazard
         var hot = new Color(_hot, 0.85f * fade);
         DrawLine(top + Vector2.Down * 2.5f, top + Vector2.Down * 2.5f + along * progress, hot, 0.8f);
         DrawLine(bottom + Vector2.Up * 2.5f, bottom + Vector2.Up * 2.5f + along * progress, hot, 0.8f);
+        if (_art == Art.ClipLine)
+        {
+            // The bright cut occupies the damage band, not just a thin line through a wider hitbox.
+            if (_struck) DrawRect(rect.Grow(PlayerHit), new Color(_hot, 0.95f * fade));
+            else
+                for (float x = rect.Position.X + 4; x < rect.End.X - 4; x += 10)
+                    DrawLine(new Vector2(x, 0), new Vector2(Mathf.Min(x + 4, rect.End.X - 4), 0), hot, 1f);
+            return;
+        }
         float span = rect.Size.X;
         int count = Mathf.Clamp((int)(span / 36f), 2, 12);
         for (int i = 0; i < count; i++)

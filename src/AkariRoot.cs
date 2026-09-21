@@ -122,7 +122,7 @@ public partial class AkariRoot : Node2D
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
             {
                 var g = GetNodeOrNull<GameManager>("/root/Game");
-                if (g != null) g.SelectedEntry = GameManager.StageEntry.Boss;
+                g?.PrepareBossRetry();
             }
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();

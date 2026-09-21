@@ -339,7 +339,8 @@ public partial class StageZero : Node
         if (game != null) game.TutorialNoConsume = false; // 練習モード解除（Stage0Root._ExitTree でも保険的に解除）
         game?.MarkTutorialSeen();
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        // 暗転してからハブへ（切り替えの瞬間に直前の画面が覗くのを止める・2026-09-22）。
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     // ════════════════════ 会話ミニプレイヤ（StageRei.TutTalk を移植） ════════════════════

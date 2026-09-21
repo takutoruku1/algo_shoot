@@ -19,6 +19,21 @@ public partial class StoryFilm : Node2D
     protected double _fadeT, _lineT, _readT, _shotT, _blendT;
     protected bool _started;
     protected const double FadeTime = 0.65;
+    // 背後（StageBackground/BgLayers のボスイラスト）を塞ぐ不透明の黒板。
+    //   このノードの Modulate フェードはレターボックスの帯にも等しく乗る＝入り／明けの 0.65 秒は
+    //   画面全体が半透明になり、背後のボス背景がそのまま透けていた（2026-09-22 実機指摘）。
+    //   フェードの影響を受けない**別ノード**として一段奥に敷いて塞ぐ。詳細は CutsceneBackdrop。
+    private CutsceneBackdrop _backdrop = null!;
+
+    // ───────── 一度見た回想のスキップ（2026-09-22 ユーザー要望「ムービーは一度みたらスキップ」）─────────
+    //   回想は8本（4人×memory/aftermath）あり、これまでスキップ手段が無かった。初回は最後まで見せ、
+    //   見終えた時点で FilmSkip.Key(FilmId) を既読に落とす＝2回目以降だけ Esc/B 長押しで飛ばせる。
+    //   ・キーは1本ごと（"akari_memory" / "akari_aftermath" …）。まとめると見ていない話まで飛ぶ。
+    //   ・スキップしても「最後まで読んだ」と同じ道（_leaving → Restore → _completed()）を通る。
+    //     memory の呼び元はボス曲の張り直し、aftermath の呼び元はクリア会話への引き渡しを
+    //     completed: に持っているので、ここを迂回させると進行が壊れる。
+    private readonly FilmSkip _skip = new();
+    private string FilmId => $"{_storyKey}_{(_aftermath ? "aftermath" : "memory")}";
 
     // ───────── 時制の見出し（「いつのシーンか」）─────────
     // 以前は左上（64,19）に _lines[_line].Time を**常時**出していた（ユーザー指摘「回想シーンで
@@ -93,7 +108,11 @@ public partial class StoryFilm : Node2D
             Material = _grade, ZIndex = -1,
         });
         Modulate = new Color(1, 1, 1, 0);
-        GD.Print($"[{_storyName}Story] {(_aftermath ? "aftermath" : "memory")} start");
+        // フィルム本体より先に、その一段奥へ黒板を立ち上げる（ZIndex はこのノードの1つ下）。
+        _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
+        _skip.Begin(_game, FilmId);
+        GD.Print($"[{_storyName}Story] {(_aftermath ? "aftermath" : "memory")} start"
+                 + (_skip.Available ? " (skippable)" : ""));
     }
 
     public override void _Process(double delta)
@@ -119,6 +138,9 @@ public partial class StoryFilm : Node2D
             QueueFree();
             return;
         }
+        // 既読フィルムの長押しスキップ。立ち上げの 0.65 秒フェード中も受け付ける（そこで待たせる意味が無い）。
+        //   飛ばしたあとは最終行まで読んだときと**同じ畳み方**（_leaving からの明けフェード）へ落とす。
+        if (_skip.Update(delta)) { BeginLeave(); return; }
         if (!_started)
         {
             if (_fadeT < FadeTime) return;
@@ -148,14 +170,23 @@ public partial class StoryFilm : Node2D
                  && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readT >= 1.4)))
         {
             _line++;
-            if (_line == _lines.Length)
-            {
-                _leaving = true;
-                _fadeT = 0;
-                _hud.HideBubble();
-            }
+            if (_line == _lines.Length) BeginLeave();
             else ShowLine();
         }
+    }
+
+    // 回想を畳む（最終行を送り切った／既読スキップ）。どちらの道でも同じ明けフェードを通し、
+    //   ここで「このフィルムは見た」を記録する＝次回から FilmSkip が開く。
+    //   記録はセーブ（GameManager._idleDialogSeen → idleDialogSeen）に載るが、保存そのものは
+    //   既存のオートセーブ点（ステージクリア／ハブ帰還／FINAL 記録）に任せる。回想の直後は必ず
+    //   戦闘の続きかクリア処理へ戻るので、ここで個別に AutoSave を挟む必要はない。
+    private void BeginLeave()
+    {
+        if (_leaving) return;
+        _leaving = true;
+        _fadeT = 0;
+        FilmSkip.MarkSeen(_game, FilmId);
+        _hud.HideBubble();
     }
 
     private void ShowLine()
@@ -215,6 +246,9 @@ public partial class StoryFilm : Node2D
         DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.025f, 0.025f, 0.025f, 0.94f));
         DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.025f, 0.025f, 0.94f));
         DrawTimeCard();
+        // 既読のときだけ上辺の黒帯にスキップのヒントを出す（初回は存在ごと見せない）。
+        //   明けフェード中は畳む処理が走っているので消す（飛ばしたあとにヒントが残って見える）。
+        if (!_leaving) _skip.Draw(this);
         UiKit.EndDesign(this);
     }
 
@@ -260,6 +294,8 @@ public partial class StoryFilm : Node2D
     {
         if (_restored) return;
         _restored = true;
+        // 黒板はフィルムが消えきってから引く＝フィルムの明けフェードを内側に完全に包む。
+        if (IsInstanceValid(_backdrop)) _backdrop.Dismiss();
         if (IsInstanceValid(_world)) _world.ProcessMode = _worldMode;
         if (IsInstanceValid(_game)) _game.ProcessMode = _gameMode;
         if (IsInstanceValid(_hud))

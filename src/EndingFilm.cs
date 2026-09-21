@@ -98,6 +98,9 @@ public partial class EndingFilm : Node2D
         if (Finished) return;
         Finished = true;
         Visible = false;
+        // 「見た」の記録（OpeningFilm と同じ扱い。このフィルムも初回からスキップできるので
+        //   記録はゲートではなく台帳。Completed はスタッフロールへの引き渡しなので必ず先に呼ばれる前に打つ）。
+        FilmSkip.MarkSeen(GetNodeOrNull<GameManager>("/root/Game"), "ending");
         Completed?.Invoke();
         QueueFree();
     }

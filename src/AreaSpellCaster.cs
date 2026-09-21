@@ -41,10 +41,13 @@ public partial class AreaSpellCaster : Node2D
     public void CancelPendingAttacks()
     {
         _pending = _aoePending = false;
+        _pendArt = AreaStrike.Art.None;
         _chainRemain = 0;
         _castT = _fireT = _aoeFireT = 0;
     }
     private AreaStrike.Shape? _pendShape;
+    private AreaStrike.Art _pendArt;
+    private float HorizontalHalfHeight => _pendArt == AreaStrike.Art.ClipLine ? 4f : _rng.RandfRange(5f, 8f);
     private double _fireDelay = 0.7; // 技名宣告 → 予兆出現までの溜め
 
     // ── 全画面AOE（ラスボスMina専用・通常ランダム枠とは独立した専用経路）──
@@ -352,6 +355,7 @@ public partial class AreaSpellCaster : Node2D
         Color tint = sp.shape == AreaStrike.Shape.BeamSeg ? ReadLineTint : _tint;
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, sp.name, tint);
         _pendShape = sp.shape;
+        _pendArt = _key == "rei" && sp.name == "切り抜きの線" ? AreaStrike.Art.ClipLine : AreaStrike.Art.None;
         _pending = true; _fireT = _fireDelay;
     }
 
@@ -423,6 +427,7 @@ public partial class AreaSpellCaster : Node2D
     {
         var z = new AreaStrike();
         z.Configure(shape, hw, hh, warn, _tint, _hot, MotifFor(shape));
+        if (shape == AreaStrike.Shape.BeamH) z.SetArt(_pendArt);
         // 発生源を結びつけ、着弾前にボスが浄化されたら予兆ごと消えるようにする（残留着弾を断つ）。
         if (_owner != null) z.SetOwner(_owner);
         _world.AddChild(z);
@@ -436,7 +441,7 @@ public partial class AreaSpellCaster : Node2D
     {
         switch (shape)
         {
-            case AreaStrike.Shape.BeamH: return (new Vector2(Field.CenterX, p.Y), W / 2f, _rng.RandfRange(5f, 8f));
+            case AreaStrike.Shape.BeamH: return (new Vector2(Field.CenterX, p.Y), W / 2f, HorizontalHalfHeight);
             case AreaStrike.Shape.BeamV: return (new Vector2(p.X, Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
             case AreaStrike.Shape.Circle: return (p, 20f, 20f);
             default: // Rect
@@ -471,7 +476,7 @@ public partial class AreaSpellCaster : Node2D
         {
             // サイズは盤面（Field）の実寸に合わせて小さめ（自機が避けられる大きさ）。
             case AreaStrike.Shape.BeamH: // 横ビーム（全幅・細め）
-                return (new Vector2(Field.CenterX, _rng.RandfRange(T + 22f, B - 22f)), W / 2f, _rng.RandfRange(5f, 8f));
+                return (new Vector2(Field.CenterX, _rng.RandfRange(T + 22f, B - 22f)), W / 2f, HorizontalHalfHeight);
             case AreaStrike.Shape.BeamV: // 縦カラム（全高・細め）
                 return (new Vector2(_rng.RandfRange(L + W * 0.30f, L + W * 0.92f), Field.CenterY), _rng.RandfRange(5f, 8f), H / 2f);
             case AreaStrike.Shape.Circle:

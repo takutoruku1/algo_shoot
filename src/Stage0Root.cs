@@ -86,6 +86,8 @@ public partial class Stage0Root : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
+            if (gameOver && !Input.IsKeyPressed(Key.Shift))
+                GetNode<GameManager>("/root/Game").PrepareBossRetry(bossCheckpoint: false);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
             return;
