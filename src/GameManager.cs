@@ -166,31 +166,16 @@ public partial class GameManager : Node
     public int DiffBarBonus(bool finalBoss) =>
         (Difficulty switch { Diff.Easy => 2, Diff.Hard => 5, Diff.Lunatic => 6, _ => 4 }) + (finalBoss ? 2 : 0);
 
-    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #4「火力 2倍」を持っている。
+    // ルナティック解禁条件（①-9）：フォロワーが一定 or 一本道 #5「火力 2倍」を持っている。
     public const int LunaticFollowerReq = 200;
     public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || Has("n_power_2x");
 
-    // ───── 回避の解禁（1面クリアの物語報酬・2026-09-13 ユーザー決定）─────
-    //   回避（Alt / L3 / 右クリック）は基礎キットではなく「1面をクリアしたら手に入るもの」にした。
-    //   未取得のあいだ Player.TryDodge は即 return し、あそびかたの回避行も出ない＝解禁が画面で見える。
-    //   永続（save_N.json の "hasDodge"）。既存セーブは 1面クリア済みなら読み込み時に自動付与する。
-    public bool HasDodge { get; private set; }
-    // 取得の瞬間だけ立つ（ハブ／ステージのHUDが一言出したら消費して false に戻す）。セーブしない。
-    public bool DodgeJustUnlocked;
-    public void GrantDodge()
-    {
-        if (HasDodge) return;
-        HasDodge = true;
-        DodgeJustUnlocked = true;
-        GD.Print("[dodge] unlocked by first stage clear");
-        // 告知は既存の HUD バナー（ShowBanner）に一言載せるだけ＝新規UIは作らない。
-        //   ここは CompleteStage の入口＝クリア演出の頭なので、ステージのHUDがまだ生きている。
-        //   居なければ黙って落とす（ハブ直行などの経路でクラッシュさせない）。
-        if (GetTree()?.GetFirstNodeInGroup("hud") is Hud hud)
-            hud.ShowBanner("回避をおぼえた　—　Alt / 右クリック");
-    }
+    // ───── 回避 ─────
+    //   回避（Alt / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
+    //   （それまでは 1面クリアの物語報酬＝GrantDodge／セーブキー "hasDodge"。旧セーブは LoadFromSlot が
+    //   n_dodge の所持へ読み替える）。所持判定 HasDodge は強化効果アクセサの並び（HasChargeShot の隣）。
 
-    // ───── 集中モード（一本道 #10「集中モード」・Vキー）─────
+    // ───── 集中モード（一本道 #11「集中モード」・Vキー）─────
     //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
     //   代わりに「敵側だけが読む delta 係数」をここに一本置き、敵・敵弾・予兆・嵐がそれを掛けて時間を進める。
     //   ＝自機の操作感は等速のまま、向かってくるものだけが遅くなる。
@@ -512,9 +497,6 @@ public partial class GameManager : Node
     // ステージ完了：クリア報酬を計上し、クリア済に記録。ハブ帰還前に各ステージから呼ぶ。
     public void CompleteStage(string id)
     {
-        // 回避は「1面クリアの物語報酬」（2026-09-13 ユーザー決定）。ステージ側には書かず、ここで完結させる。
-        //   RegisterStageClear（＝オートセーブ）より前に立てる＝取った瞬間がそのまま保存される。
-        if (id == FirstStageId) GrantDodge();
         RegisterStageClear();
         _cleared.Add(id);
         JustClearedStageId = id; // ハブで帰還会話＆自動投稿を再生する
@@ -631,7 +613,7 @@ public partial class GameManager : Node
     // 今回のラン(ステージ)で稼いだインプレ。HUD表示「🔥 +N」用。ResetRun で 0。
     public long RunImpression { get; private set; }
 
-    // 恒久強化の所持（id → 0/1）。一本道13段はすべて買い切り＝値は 0 か 1 しか取らない。
+    // 恒久強化の所持（id → 0/1）。一本道14段はすべて買い切り＝値は 0 か 1 しか取らない。
     // セーブ移行（MigrateUpgradesIfLegacy）で丸ごと差し替えるため readonly にはしない。
     private Dictionary<string, int> _upgrades = new();
 
@@ -649,18 +631,23 @@ public partial class GameManager : Node
         public string ParentId = "";
     }
 
-    // ───── 一本道13段（ショップ作り直し・2026-09-13）─────
+    // ───── 一本道14段（ショップ作り直し・2026-09-13／回避を段に加えて 13→14 段・2026-09-22）─────
     //   分岐・排他・振り直しを全廃し、「上から順にしか買えない」1列だけにした。ノード名＝効果そのもの
     //   ＝詳細の地の文を読ませなくても何が起きるか分かる（Desc は「いま → 買うと」の材料としてだけ持つ）。
     //   ・順序は ParentId が直前の段を指すことで担保する（IsParentMet ＝ 直前の段の所持）。
     //   ・価格は 150→4,000 の単調増加。1面クリア報酬 400×MoneyGainMul(2) と道中の稼ぎで
     //     「1面ごとに1〜2段」進む速度を狙っている。
-    //   ・#6 溜め打ち／#10 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
+    //   ・#2 回避／#7 溜め打ち／#11 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
+    //   ・#2 回避（200）はもともと 1面クリアの無料報酬だったもの（2026-09-22 ユーザー決定でショップの品目へ）。
+    //     ショップが開く瞬間（＝1面クリア直後・財布は 800＋道中）に #1〜#3 が 150+200+300=650 で揃う
+    //     ＝移す前（150+300=450 で #2 回避強化まで）と到達段が同じ。回避は実質ただ同然のまま「買って覚える」形になる。
+    //     #3「回避強化」は親に n_dodge を持つ＝回避を持たずに強化だけ買う形は作れない。
     //   ★この配列の並びがそのまま画面の並び＝唯一の正典。増減はここだけを編集する。
     public static readonly UpgradeDef[] Upgrades =
     {
         new() { Id = "n_life_1",   Name = "ハート +1",             Desc = "はじまりの♥が1つ増える",               MaxLevel = 1, BaseCost =  150, ParentId = "" },
-        new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_life_1" },
+        new() { Id = "n_dodge",    Name = "回避",                  Desc = "一瞬無敵になって弾を抜ける",             MaxLevel = 1, BaseCost =  200, ParentId = "n_life_1" },
+        new() { Id = "n_dodge_cd", Name = "回避強化", Desc = "回避が早く戻り、距離も伸びる",         MaxLevel = 1, BaseCost =  300, ParentId = "n_dodge" },
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
         new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
         new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
@@ -675,7 +662,7 @@ public partial class GameManager : Node
     };
 
     // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
-    public static bool IsAbilityNode(string id) => id == "n_charge" || id == "n_slow";
+    public static bool IsAbilityNode(string id) => id == "n_dodge" || id == "n_charge" || id == "n_slow";
 
     // 一本道で「次に買える1段」＝先頭から数えて最初の未所持。全部買い切っていれば null。
     public string? NextColumnNode()
@@ -705,7 +692,7 @@ public partial class GameManager : Node
 
     public int GetUpgradeLevel(string id) => _upgrades.TryGetValue(id, out var v) ? v : 0;
 
-    // ───── セーブ移行（旧70ノード／旧MaxLv方式 → 一本道13段）─────
+    // ───── セーブ移行（旧70ノード／旧MaxLv方式 → 一本道14段）─────
     //   方針は「没収ゼロ」：旧セーブが強化に投じた総額を決定的に再計算し、その金額で新列の先頭から
     //   買えるだけ自動所持させる（差額は返金しない＝旧価格でどこまで積めたかが、そのまま新列の到達段になる）。
     //   ・旧MaxLv方式（"fire_rate":3 のように Lv 値を持つ）は「Lv n＝その鎖の先頭 n 段を買った」とみなし、
@@ -771,7 +758,7 @@ public partial class GameManager : Node
         ["veil_light"]    = new[] { "veil_1", "veil_2" },
     };
 
-    // 旧IDが混じっていれば一本道13段へ読み替える（LoadFromSlot の _upgrades 復元直後に呼ぶ）。
+    // 旧IDが混じっていれば一本道14段へ読み替える（LoadFromSlot の _upgrades 復元直後に呼ぶ）。
     //   移行した段数は MigratedNodeCount に控える（ショップ／QAログが「何段引き継いだか」を見せる用）。
     public int MigratedNodeCount { get; private set; } = -1; // -1＝このロードでは移行が走らなかった
     private void MigrateUpgradesIfLegacy()
@@ -926,30 +913,34 @@ public partial class GameManager : Node
     //   （旧実装の 連射×1.3／移動×0.9 は、手触りそのものを鈍らせて理由も見えない＝いちばん質の悪い罰だった）。
     public float TotalImpressionMul => DifficultyImpressionMul * FollowerImpressionMul * UpgradeImpressionMul * (BurningThisRun ? 0.6f : 1f);
 
-    // ── 強化効果アクセサ（一本道13段。所持しているかどうかの1/0だけで決まる）──
-    // #4 弾の火力2倍。威力式の最終段で掛ける倍率（Player.Fire）。旧 ShotDamageBonus（加算）は廃止。
+    // ── 強化効果アクセサ（一本道14段。所持しているかどうかの1/0だけで決まる）──
+    // #5 弾の火力2倍。威力式の最終段で掛ける倍率（Player.Fire）。旧 ShotDamageBonus（加算）は廃止。
     public int ShotPowerMul => Has("n_power_2x") ? 2 : 1;
-    // #11 連射速度2倍＝発射間隔 ×0.5。炎上による間隔弱体は撤廃した（収入0.6倍だけが罰）。
+    // #12 連射速度2倍＝発射間隔 ×0.5。炎上による間隔弱体は撤廃した（収入0.6倍だけが罰）。
     public float FireIntervalMul => Has("n_rate_2x") ? 0.5f : 1f;
-    // #9 移動速度1.5倍（低速移動の廃止＝2026-09-13 により、速度は1本になった）。炎上による移動弱体も撤廃。
+    // #10 移動速度1.5倍（低速移動の廃止＝2026-09-13 により、速度は1本になった）。炎上による移動弱体も撤廃。
     public float MoveSpeedMul => Has("n_move_15x") ? 1.5f : 1f;
-    // #7 当たり判定 半分（HitRadius 2.0px → 1.0px）。
+    // #8 当たり判定 半分（HitRadius 2.0px → 1.0px）。
     public float HitRadiusMul => Has("n_hitbox") ? 0.5f : 1f;
-    // #1 #5 ハート +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
+    // #1 #6 ハート +1 ×2段（表示はどちらも「+1」。累計は自然に +2）。
     public int MaxLifeBonus => (Has("n_life_1") ? 1 : 0) + (Has("n_life_2") ? 1 : 0);
-    // #3 ボム +1。
+    // #4 ボム +1。
     public int BombCountBonus => Has("n_bomb_1") ? 1 : 0;
-    // #13 オプション +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
+    // #14 オプション +1＝追従オプション1基（威力×0.5・Player.OptionSlots）。
     public int OptionSubCount => Has("n_option") ? 1 : 0;
-    // #12 貫通＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
+    // #13 貫通＝全撃ち方の弾が1体貫通（Bullet.Pierce）。
     public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
-    // #8 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
+    // #9 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
     public int ExtraLines => Has("n_lines") ? 1 : 0;
-    // #6 溜め打ち（Cキー長押し0.6秒→離すと威力×4の大玉1発・貫通なし）。全ジョブ共通。
+    // #7 溜め打ち（Cキー長押し0.6秒→離すと威力×4の大玉1発・貫通なし）。全ジョブ共通。
     public bool HasChargeShot => Has("n_charge");
-    // #10 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
+    // #11 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
     public bool HasFocusMode => Has("n_slow");
-    // #2 回避強化（CD 0.8→0.65秒・距離 64→76px）。
+    // #2 回避（Alt / L3 / 右クリック・無敵 0.45秒）。未所持のあいだ Player.TryDodge は即 return し、
+    //   あそびかた／操作カードの回避行は未取得として薄く出る＝解禁が画面で見える。
+    //   ★名前と型（bool HasDodge）は Player.cs・StageZero.cs・HowToPlay.cs が読むので変えない。
+    public bool HasDodge => Has("n_dodge");
+    // #3 回避強化（CD 0.8→0.65秒・距離 64→76px）。
     public float DodgeCooldown => Has("n_dodge_cd") ? 0.65f : 0.80f;
     public float DodgeDistance => Has("n_dodge_cd") ? 76f : 64f;
 
@@ -976,7 +967,7 @@ public partial class GameManager : Node
     public float ContaminationGainMul => 1f;
 
     // ── 旧・奥義ノード由来の派生機能（返し光／集中の光／連鎖の光／祈りの帳）──
-    //   一本道13段には入らなかったので、恒久強化としては常に 0＝オフ。Player 側の実装は残してあり、
+    //   一本道14段には入らなかったので、恒久強化としては常に 0＝オフ。Player 側の実装は残してあり、
     //   ここを 1 以上に戻せば即復活する（機能を削るのではなく、買う手段を畳んだ）。
     //   ただし祈りの帳だけは「祈り手が素で持つ小さい帳」（JobDef.VeilFloor*）が生き続ける＝ジョブの個性は消さない。
     public int CounterLightLevel => 0;
@@ -1009,7 +1000,7 @@ public partial class GameManager : Node
     // ステージクリア（浄化100%）時の大口報酬。帰還演出から呼ぶ（STEP2/5で配線）。
     public void RegisterStageClear()
     {
-        // ★2026-09-13：120→400。一本道13段（150〜4,000）を「1面ごとに1〜2段」で進める速度に合わせた
+        // ★2026-09-13：120→400。一本道14段（150〜4,000）を「1面ごとに1〜2段」で進める速度に合わせた
         //   （実入りは MoneyGainMul=2 と難易度倍率が更に掛かる）。
         // クリア掃引(sweep)で拾い切った欠片の端数を、リザルト表示より前に確定させる
         // （閾値未満のまま残った基礎額が「拾ったのに増えていない」に見えるのを防ぐ）。
@@ -1038,8 +1029,6 @@ public partial class GameManager : Node
             ["shotmode"] = (int)SelectedShotMode,
             // ジョブ（ラン単位の選択だが「次に潜るときの既定」としてスロットに残す）。後方互換：キー無し＝結び手。
             ["job"] = (int)SelectedJob,
-            // 回避の解禁（1面クリアの報酬）。後方互換：キー無し＝ロード側で「1面クリア済みなら付与」へ落ちる。
-            ["hasDodge"] = HasDodge,
         };
         var up = new Godot.Collections.Dictionary();
         foreach (var kv in _upgrades)
@@ -1129,6 +1118,16 @@ public partial class GameManager : Node
         // セーブ移行：旧MaxLv方式のID群を単Lvノード鎖へ読み替える。
         // shotmode 復元（HasSpread/HasHoming＝spread_1/homing_1 所持判定）より前に呼ぶ＝没収ゼロで解放判定が正しく効く。
         MigrateUpgradesIfLegacy();
+        // 回避の移行（2026-09-22）：回避は「1面クリアの物語報酬（セーブキー "hasDodge"）」からショップの段
+        //   n_dodge へ移った。旧セーブの "hasDodge": true は n_dodge の所持に読み替える＝遊びの途中で回避が
+        //   消えない（没収ゼロ）。キー無し＝新方式で保存されたセーブ（所持は upgrades が正典）なので何もしない。
+        //   "hasDodge" はもう書かない＝次の保存で自然に消える。列の途中の段だけ持つ形（#1 未所持で #2 所持）に
+        //   なっても IsParentMet（所持済みは常に true）と NextColumnNode（先頭から最初の未所持）で破綻しない。
+        if (data.ContainsKey("hasDodge") && data["hasDodge"].AsBool() && !Has("n_dodge"))
+        {
+            _upgrades["n_dodge"] = 1;
+            GD.Print("[migrate] legacy hasDodge -> n_dodge owned");
+        }
         // クリアタイム復元（キー無し＝旧セーブは空のまま＝後方互換）。
         ClearTimes.Clear();
         if (data.ContainsKey("clearTimes"))
@@ -1163,11 +1162,6 @@ public partial class GameManager : Node
             foreach (var v in cl)
                 _cleared.Add(v.AsString());
         }
-        // 回避の解禁を復元。キー無しの旧セーブは「1面クリア済みなら持っている」とみなして自動付与する
-        //   （_cleared の復元より後に置くこと）。＝既存セーブで回避が急に使えなくなる事故を作らない。
-        HasDodge = data.ContainsKey("hasDodge") ? data["hasDodge"].AsBool() : IsStageCleared(FirstStageId);
-        DodgeJustUnlocked = false; // ロードは「取った瞬間」ではない＝告知は出さない
-
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
@@ -1268,8 +1262,7 @@ public partial class GameManager : Node
         ShopTutorialSeen = false;
         SelectedEntry = StageEntry.Start;
         _bossRetryScore = 0;
-        _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から
-        HasDodge = false; DodgeJustUnlocked = false; // 回避も「1面クリアでもう一度もらう」ところから
+        _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
         _burnHappened = false; Burning = false; BurningThisRun = false;
         PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
@@ -1393,8 +1386,11 @@ public partial class GameManager : Node
     }
 
     private double _comboTimer;
+    // 会話／改心区間の凍結エッジ検出と、凍結明けの最低残り時間（下の _Process 参照）。
+    private bool _comboWasFrozen;
+    private const double ComboExitFloor = 1.0;
     // コンボ猶予はコンボ持続強化で延長される。
-    // コンボ猶予（秒）。旧 combo_hold ノードは一本道13段に入らなかったので素の 2.0 秒で固定。
+    // コンボ猶予（秒）。旧 combo_hold ノードは一本道14段に入らなかったので素の 2.0 秒で固定。
     private double ComboWindow => 2.0;
     private const int MaxCombo = 16;
     // コンボ猶予の残り比率（0..1）。HUDのコンボ減衰バー用。コンボが立っていなければ0。
@@ -1436,7 +1432,7 @@ public partial class GameManager : Node
                 GD.Print($"[SAVE] --loadslot={slot} -> {(ok ? "ok" : "FAILED/absent")} "
                        + $"imp={Impression} fol={Followers} upgrades={_upgrades.Count} "
                        + $"job={JobDef.CharacterName}({SelectedJob}) mode={ShotModeName(SelectedShotMode)} lives={StartLives} "
-                       // 一本道13段の移行と、回避の解禁（1面クリアの報酬）が正しく引き継がれたかも見る。
+                       // 一本道14段の移行と、回避（旧 "hasDodge" → n_dodge）が正しく引き継がれたかも見る。
                        + $"dodge={HasDodge} column=[{string.Join(",", ColumnOwnedIds())}]");
             }
             break;
@@ -1493,9 +1489,31 @@ public partial class GameManager : Node
         foreach (var s in Stages) _cleared.Add(s.Id);
     }
 
+    // 回想フィルム等（StoryFilm/AkariDraftScene/MinaPhaseScene/BossDraftScene）は GameManager.ProcessMode を
+    //   Disabled にするため、その間 _Process が回らず _comboWasFrozen が立たない。フィルムが会話を挟まず直接
+    //   戦闘へ戻ると再開初フレームが「前も今も非凍結」に見え、ComboExitFloor の底上げが走らなかった
+    //   （QA 実測: 残り 0.258s → 明け 0.25s で消失）。Disabled/Enabled の通知で凍結扱いにし、再開フレームで底上げを通す。
+    public override void _Notification(int what)
+    {
+        base._Notification(what);
+        if (what == NotificationDisabled || what == NotificationEnabled) _comboWasFrozen = true;
+    }
+
     public override void _Process(double delta)
     {
-        if (_comboTimer > 0)
+        // 2026-09-22 ユーザー指示：会話中はコンボの猶予を減らさない。GameManager は常駐で世界が止まる会話中も
+        //   _Process が回るため、2秒の猶予が会話の裏で必ず切れていた。
+        //   中ボス／本ボスの改心区間も凍結する：捨て台詞は一行字幕（Hud.ShowBossLine）で BubblePaused を立てず、
+        //   尺 2.4s > 猶予 2.0s で「中ボス撃破→捨て台詞→道中再開」が必ず Combo=0 になっていた（QA 実測）。
+        //   区間の目印は Hud.SuppressCallouts（Enemy.Redeem の cry で立ち FinishCry で下りる。ザコでは立たない）。
+        //   凍結明けは残りを最低 ComboExitFloor 秒へ底上げ＝会話直前に残り僅かだと明けた瞬間に切れて
+        //   「会話で途切れた」に見えるため（QA 実測: 残り 0.29s → 37s の会話明け 0.29s で消失）。
+        bool comboFrozen = Hud.BubblePaused
+            || ((GetTree()?.GetFirstNodeInGroup("hud") as Hud)?.SuppressCallouts ?? false);
+        if (_comboWasFrozen && !comboFrozen && _comboTimer > 0)
+            _comboTimer = Mathf.Max(_comboTimer, ComboExitFloor);
+        _comboWasFrozen = comboFrozen;
+        if (_comboTimer > 0 && !comboFrozen)
         {
             _comboTimer -= delta;
             if (_comboTimer <= 0)

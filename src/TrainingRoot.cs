@@ -528,10 +528,10 @@ public partial class TrainingRoot : Node2D
     }
 
     // ───── 見出し分類 ─────
-    //   ★2026-09-13：ショップが一本道13段になり「系統」が無くなったので、分類は1つだけ残した
+    //   ★2026-09-13：ショップが一本道14段になり「系統」が無くなったので、分類は1つだけ残した
     //     （見出し行・色分けの仕組みそのものは触らず、返す値を1本に畳んだ＝行の描き方は不変）。
     private enum Stream { Column = 0 }
     private static readonly Color[] StreamCol = { UiKit.Purify };
-    private static readonly string[] StreamName = { "強化（一本道13段・上から順）" };
+    private static readonly string[] StreamName = { "強化（一本道14段・上から順）" };
     private static Stream StreamOf(string id) => Stream.Column;
 }

@@ -52,7 +52,8 @@ public partial class QaPilot : Node
     // Dodge(回避) 等の合成入力周期（DriveFocusDodge）。※低速(Shift)の周期は廃止に伴い削除。
     private const double DodgePeriod = 2.2;       // 回避(Alt)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
-    // 溜め打ち（C 長押し）・集中モード（V）＝一本道13段の #6 / #10。持っていなければ押しても無害に流れる。
+    // 溜め打ち（C 長押し）・集中モード（V）＝一本道14段の #7 / #11。持っていなければ押しても無害に流れる
+    //   （回避＝#2 n_dodge も同じ。2026-09-22 から 1面クリア報酬ではなくショップ品目＝買うまで Alt は不発）。
     private const double ChargePeriod = 4.0;      // 溜め打ちを試す周期
     private const double ChargeHoldDuration = 0.8; // 押している時間（Player.ChargeNeed=0.6s を必ず超える長さ）
     private const double SlowPeriod = 9.0;        // 集中モード(V)を叩く周期（CD20秒より短くてよい＝空振りは無害）
@@ -650,15 +651,17 @@ public partial class QaPilot : Node
         // 溜め打ち（n_charge）と集中モード（n_slow）を持っていないと長押し／ホイールが不発で終わり、
         // 「割り当てが効いていない」のか「未取得で正しく不発」なのか区別できない。テスト中だけ直に付ける
         //（TrainingSetUpgrade は購入パスを通さない直書き。--inputtest でしか呼ばない＝通常走行は無傷）。
+        // 回避（n_dodge・2026-09-22 からショップ品目）も同じ理由で付ける＝右クリック／Alt が「未取得で不発」に落ちない。
         if (!_itSetup && game != null)
         {
             _itSetup = true;
             game.AutoSaveEnabled = false;   // 直書きした所持をディスクへ漏らさない（トレーニングと同じ作法）
-            GD.Print($"[IT] baseline: hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode} "
+            GD.Print($"[IT] baseline: hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode} hasDodge={game.HasDodge} "
                    + $"moveMul={game.MoveSpeedMul:0.00} jobMove={game.JobDef.MoveMul:0.00}");
+            game.TrainingSetUpgrade("n_dodge", true);
             game.TrainingSetUpgrade("n_charge", true);
             game.TrainingSetUpgrade("n_slow", true);
-            GD.Print($"[IT] granted n_charge/n_slow: hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode}");
+            GD.Print($"[IT] granted n_dodge/n_charge/n_slow: hasDodge={game.HasDodge} hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode}");
         }
 
         // 各段は「_itSub を1つずつ進める」形で書く＝同じ小ステップが複数フレームで多重発火しない。

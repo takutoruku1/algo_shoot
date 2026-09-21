@@ -25,7 +25,9 @@ public partial class PlayerJobQa : Node
             var pool = GetNode<BulletPool>("/root/Pool");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
-            game.GrantDodge();
+            // 回避は 2026-09-22 からショップの段 n_dodge（HasDodge => Has("n_dodge")）。下で TryDodge を叩く検査の
+            //   ため直に付ける（購入パスを通さない直書き。AutoSaveEnabled=false なのでディスクへは漏れない）。
+            game.TrainingSetUpgrade("n_dodge", true);
             // ジョブは 2026-09-14 から解禁制（その子の面をクリアすると開く）。ここは4キャラの
             //   自機まわりを見るQAなので、クリア記録だけを直接立てて全ジョブを開けた状態から始める
             //   （CompleteStage だと報酬・オートセーブまで動く。解禁ゲート自体の検証は HubJobQa の担当）。
@@ -60,6 +62,7 @@ public partial class PlayerJobQa : Node
                 GetTree().Root.AddChild(training);
                 GetTree().CurrentScene = training;
                 game.TrainingSetAllUpgrades(false);
+                game.TrainingSetUpgrade("n_dodge", true);   // 全外しで n_dodge も落ちる＝回避の検査に要るので付け直す
                 Call(training, "RebuildPlayer");
                 await Frames(3);
                 var player = Read<Player>(training, "_player");
