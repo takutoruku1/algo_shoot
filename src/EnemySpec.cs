@@ -208,11 +208,11 @@ public static class EnemyTable
     // ★2026-09-22（ユーザー要望「敵が自機より速いのをやめて」）：110→56。
     //   110px/s は自機の素の足（Player.NormalSpeed=75、最遅ジョブ 結び手では 66）を大きく超えており、
     //   「回り込まれたら走って逃げても追いつかれる」＝避ける手段が無い＝理不尽（§7）だった。
-    //   道中ザコの実効速度は MidEnemy.ApproachCeil(58px/s) で最終クランプされるので、ここを 110 のまま
+    //   道中ザコの実効速度は MidEnemy.SpeedCeil(58px/s) で最終クランプされるので、ここを 110 のまま
     //   残しても挙動上は 58 に抑えられる。が、宣言値が嘘だと次に読む人が誤読するので実値に合わせる。
     //   56 は他の“撃つ種”（Rei 56 / Koharu 60 / Akari 46）と同格＝「走行レーンを渡る」という役割は保つ。
     //   速度で稼いでいた圧は、速度以外（出現位置＝自機の背後／2区間の読める経路／着座後の単発）で担保する。
-    private const float FlankMoveSpeed = 56f; // 走行速度(px/s)。上限は MidEnemy.ApproachCeil(58)
+    private const float FlankMoveSpeed = 56f; // 走行速度(px/s)。上限は MidEnemy.SpeedCeil(58)
     public static EnemySpec Flanker(StageTheme theme)
     {
         var (shooter, _) = For(theme);

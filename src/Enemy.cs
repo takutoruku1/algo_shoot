@@ -438,6 +438,9 @@ public partial class Enemy : Area2D
     {
         var b = pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
         if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
+        // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
+        //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
+        if (_purified) pool.Despawn(b);
         return b;
     }
 
@@ -1008,8 +1011,13 @@ public partial class Enemy : Area2D
         _purified = true;
         RemoveFromGroup("enemies");
 
-        // 戦闘終了の瞬間：画面に残った自機の弾を消す（改心の会話に弾が飛び続けないように）。
-        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnPlayerBullets(preserveCharged: PurifyGrade == FxLayer.PurifyTier.Zako);
+        // 戦闘終了の瞬間：残弾を片付ける（改心の会話に弾が飛び続けないように）。
+        //   2026-09-22 ユーザー指示：ボス／中ボスは敵弾も同時に消す。撃破の瞬間から改心の一拍・会話まで
+        //   数秒あり、その間も飛び続ける残弾で被弾していた。ザコは自機弾のみ（撃破ごとに盤面の弾幕が
+        //   消えると道中が成立しない）。改心後の遅延発射は FireBullet 側で握りつぶす。
+        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
+        if (PurifyGrade != FxLayer.PurifyTier.Zako) pool?.DespawnAll();
+        else pool?.DespawnPlayerBullets(preserveCharged: true);
 
         // 接触で自機を傷つけないようにする。浄化は被弾シグナル中に走ることがあるため遅延設定。
         SetDeferred(Area2D.PropertyName.Monitorable, false);
@@ -1424,11 +1432,11 @@ public partial class Enemy : Area2D
         bool breaking = _phase == BossPhase.Break;
         if (!breaking && (_phase != BossPhase.Shielded || _panels.Count == 0)) return;
         _shieldArt ??= GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png");
-        float h = BodyDisplayH + 28f;
+        float h = BodyDisplayH + 12f;
         var size = new Vector2(h * 1.15f, h);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0022f);
         var tint = new Color("d6e9fa");
-        float alpha = 0.35f + pulse * 0.1f;
+        float alpha = 0.22f + pulse * 0.04f;
         if (!breaking)
         {
             DrawTextureRect(_shieldArt, new Rect2(-size / 2f, size), false, new Color(tint, alpha));
@@ -1440,7 +1448,7 @@ public partial class Enemy : Area2D
         for (int y = 0; y < 3; y++)
             for (int x = 0; x < 2; x++)
             {
-                var offset = new Vector2(x == 0 ? -1 : 1, y - 1) * t * 16f;
+                var offset = new Vector2(x == 0 ? -1 : 1, y - 1) * t * 6f;
                 var position = -size / 2 + piece * new Vector2(x, y) + offset;
                 DrawTextureRectRegion(_shieldArt, new Rect2(position, piece),
                     new Rect2(source * new Vector2(x, y), source), new Color(tint, 0.6f * (1f - t)));
@@ -1496,47 +1504,24 @@ public partial class Enemy : Area2D
             DrawCircle(Vector2.Zero, AuraRadius + 10f * (1f - t), new Color(c.R, c.G, c.B, 0.6f * (1f - t)));
         }
 
-        // 合図・無防備窓の本体演出（「今は殴れる」の可視化）。
-        if (!_purified && _maxHp > 0)
+        if (!_purified && _maxHp > 0 && _phase is BossPhase.Break or BossPhase.Exposed)
         {
-            if (_phase == BossPhase.Break)
+            float remaining = _phase == BossPhase.Break ? 1f : Mathf.Clamp(1f - (float)(_phaseT / VulnDur), 0, 1);
+            float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * Mathf.Tau * 1.5f);
+            float hit = Mathf.Clamp((float)(_hitFlashT / HitFlashDur), 0, 1);
+            var color = new Color(new Color("e9d28b").Lerp(Colors.White, hit), 0.65f + 0.15f * pulse);
+            float w = Mathf.Max(BodyRadius + 3, BodyDisplayH * 0.24f);
+            float h = Mathf.Max(BodyHalfH + 3, BodyDisplayH * 0.35f);
+            for (int x = -1; x <= 1; x += 2)
+            for (int y = -1; y <= 1; y += 2)
             {
-                // タメ：白く膨らむ合図リング。
-                float t = (float)(_phaseT / BreakCueDur);
-                DrawCircle(Vector2.Zero, AuraRadius + 4f + 18f * t, new Color(1f, 1f, 1f, 0.5f * (1f - t)));
+                var corner = new Vector2(x * w, y * h);
+                DrawLine(corner, corner - new Vector2(x * 4, 0), color, 1f + hit * 0.5f);
+                DrawLine(corner, corner - new Vector2(0, y * 4), color, 1f + hit * 0.5f);
             }
-            else if (_phase == BossPhase.Exposed)
-            {
-                // 露出中：黄金の明滅オーラ。終了 VulnWarnLead 秒前から点滅を速めて終了を予告。
-                double rem = VulnDur - _phaseT;
-                bool warn = rem <= VulnWarnLead;
-                float hz = warn ? 9f : 3.2f;
-                float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * hz * Mathf.Tau);
-                // 終了予告中はオーラを金→白へ寄せて「閉じる」を色でも伝える（明滅速度だけだと見落としやすい）。
-                var aura = warn
-                    ? new Color(1f, 0.97f, 0.85f, 0.30f + 0.45f * pulse)
-                    : new Color(1f, 0.86f, 0.36f, 0.30f + 0.45f * pulse);
-                DrawCircle(Vector2.Zero, AuraRadius + 6f + 3f * pulse, aura);
-                DrawArc(Vector2.Zero, AuraRadius + 9f, 0, Mathf.Tau, 32, new Color(1f, 0.95f, 0.6f, 0.5f * pulse), 1.5f);
-                // ※スイートスポット（PointBlankRange）の薄い金リングは削除（2026-09-08）。
-                //   露出中ずっと出ている常時リングで、ユーザーに「何のための輪か分からない」と指摘された。
-                //   密着クリティカルの判定（PointBlankRange）そのものは生きている＝描画だけを落とした。
-                // 終了予告：窓が「閉じてくる」収縮リング（外→内へ詰まる＝残り時間を直感的に見せる）。
-                if (warn)
-                {
-                    float closing = (float)(rem / VulnWarnLead); // 1→0
-                    float rr = AuraRadius + 9f + 16f * closing;
-                    DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 32, new Color(1f, 1f, 1f, 0.55f * closing), 2f);
-                }
-                // 被弾の手応え：撃ち込んだ瞬間の白い衝撃リング（短く・即・尾を引かない）。
-                if (_hitFlashT > 0)
-                {
-                    float h = (float)(_hitFlashT / HitFlashDur);     // 1→0
-                    float rr = AuraRadius + 4f + (10f + 4f * _hitFlashMag) * (1f - h);
-                    DrawCircle(Vector2.Zero, rr, new Color(1f, 1f, 1f, 0.5f * h));
-                    DrawArc(Vector2.Zero, rr, 0, Mathf.Tau, 28, new Color(1f, 1f, 1f, 0.85f * h), 2f);
-                }
-            }
+            var bar = new Rect2(-w, h + 4, w * 2, 1.4f);
+            DrawRect(bar.Grow(0.8f), new Color("211e25"));
+            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * remaining, bar.Size.Y)), color);
         }
 
         // スプライトが無い時だけプレースホルダ図形を描く

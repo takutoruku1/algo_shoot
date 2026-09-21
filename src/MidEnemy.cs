@@ -55,7 +55,7 @@ public partial class MidEnemy : Enemy
     // 進入が遅すぎると居座る前に浄化されて「撃たずに去る」ので、進入だけ最低速度を保証する
     // （居座り後の上下うねり＝種の性格は据え置き）。居座った瞬間に初弾を素早く撃つ＝設置→即攻撃。
     // ★90→46（2026-09-22）。倍率レンジ [0.62, 1.85] を掛けると実効 28.5〜85.1px/s で、
-    //   下の ApproachCeil(58) に当たるのは速い側（Hurry/Dash/StepCut/Bounce ほか mul>1.26 の種）だけ。
+    //   下の SpeedCeil(58) に当たるのは速い側（Hurry/Dash/StepCut/Bounce ほか mul>1.26 の種）だけ。
     //   遅い種（Trudge 0.70→32.2 / Settle 0.78→35.9 / Wall 0.72→33.1）は天井に触れず、
     //   種ごとの「速い／遅い」の差はそのまま残る。90 のままだと全種が天井に張り付いて個性が消え、
     //   34 まで落とすと最遅個体の着座が 20秒級になって盤面が渋滞した（同時出現上限を食い潰す）。
@@ -63,8 +63,8 @@ public partial class MidEnemy : Enemy
     private const float ApproachFloor = 46f;     // 進入の最低速度(px/s)
     private const double FirstShotDelay = 0.25;  // 発射ゲートが開いてこの秒で初弾（0.55→0.25）。
 
-    // ─── 進入速度の絶対上限（2026-09-22 ユーザー要望「敵が自機より速いのをやめる」）───
-    // ★不変条件：**道中ザコの移動速度は、どんな種・どんな進入フェーズでも自機の素の足を超えない。**
+    // ─── 移動速度の絶対上限（2026-09-22 ユーザー要望「敵が自機より速いのをやめる」）───
+    // ★不変条件：**道中ザコの移動速度は、どんな種でも・進入中でも着座後でも自機の素の足を超えない。**
     //   自機の実効速度は Player.NormalSpeed(75) × MoveSpeedMul(強化 1.5) × JobDef.MoveMul。
     //   基準に採るのは「強化なし・いちばん足の遅いジョブ」＝結び手(MoveMul=0.88) の 75×0.88 = 66px/s。
     //   強化前提で上限を引くと「機動力強化を買うまで振り切れない」＝救済を買わせる設計になり本末転倒。
@@ -76,7 +76,12 @@ public partial class MidEnemy : Enemy
     // ★2026-09-22 修正：この上限は**合成移動ベクトルの長さ**に掛ける（UpdateMovement 内の正規化）。
     //   前進成分だけに掛けていた当初の実装では、横に膨らむ種で 58×√(1+0.55²) ≒ 66.2px/s まで
     //   伸びてこの不変条件を破っていた（QA 実測でも最大ちょうど 66px/s を観測）。
-    private const float ApproachCeil = 58f;
+    // ★2026-09-22 追記（ユーザー要望「上下に動くアンチャーの移動速度がバカ早い」）：着座後にも同じ上限を掛ける。
+    //   着座中の SwayAmp が「現在位置への毎フレーム加算」（＝dt を掛けない積分）になっていて、うねる種
+    //   （ReiPulseRing/AkariDrop/AkariUnsent）が実測 290〜340px/s で上下端を往復していた。
+    //   進入用の名前（ApproachCeil）のまま着座に流用すると名前が嘘になるので SpeedCeil に改名し、
+    //   「進入・着座を問わず 1 フレームの移動量は SpeedCeil×dt 以下」を UpdateMovement の両フェーズで保証する。
+    private const float SpeedCeil = 58f;
 
     // ─── 移動の個性（2026-09-17 ユーザー要望「アンチャーごとに移動パターンも変更して」）───
     // それまで進入は全種が「目標点へ単一直進・速度 Max(MoveSpeed, ApproachFloor)」で完全に同一、
@@ -93,14 +98,19 @@ public partial class MidEnemy : Enemy
     //   ③【盤面外へ出ない】着座後の横の揺れは camp.X の周囲 ±CampDriftMax(=9px) に固定クランプし、
     //      さらに Field.Left+18 〜 Field.Right-18 で二重に締める。左湧きの着座 x=184..224 も、
     //      ±9px では自機側（Field.Left=120）へ届かない＝SetSilentEntry の保証を壊さない。
-    // 倍率のレンジは「種ごとの性格の差」を作るためのもの。実効速度そのものは下の ApproachCeil(58px/s) で
+    // 倍率のレンジは「種ごとの性格の差」を作るためのもの。実効速度そのものは下の SpeedCeil(58px/s) で
     // 最終クランプされるので、倍率の上限を 1.85 のまま残しても自機より速くはならない
     //   （＝遅い種と速い種の“相対的な差”は保ったまま、絶対値だけ自機以下に押し込む）。
     private const float ApproachSpeedMin = 0.62f;  // 進入速度倍率の下限（＝実効 28.5px/s。必ず前進する）
-    private const float ApproachSpeedMax = 1.85f;  // 同・上限（最速種は下の ApproachCeil=58px/s で頭打ち）
+    private const float ApproachSpeedMax = 1.85f;  // 同・上限（最速種は下の SpeedCeil=58px/s で頭打ち）
     private const float ArcMaxOffset = 26f;        // 進入軌道の横ふくらみ最大(px)。これ以上は経路が読めなくなる
     private const float CampDriftMax = 9f;         // 着座後の横揺れ最大(px)。camp.X からの片振幅
     private const float CampMarginX = 18f;         // 盤面左右端からの安全マージン(px)
+    private const float CampTopY = 28f;            // 着座後の縦の可動域（画面外へ出て見失われない）
+    private const float CampBottomY = 188f;
+    // SwayAmp（EnemySpec・10〜16px）を着座後のうねり振幅へ落とす係数。4〜6.4px の“小さなうねり”。
+    //   縦速度への寄与は 振幅×角速度＝最大 6.4×1.6 ≒ 10px/s。CampPatrolSpeed の最速 26 と足しても 36px/s。
+    private const float CampSwayScale = 0.4f;
     // 1フレームの横移動量を、同フレームの前進量の何倍までに許すか。1 未満なら前進成分は必ず正＝必ず着座する。
     private const float LateralStepRatio = 0.55f;
 
@@ -136,6 +146,7 @@ public partial class MidEnemy : Enemy
     private double _campPatrolT;    // 着座後の巡回位相
     private float _lastLateral;     // 前フレームの横オフセット（差分適用用。位置の直接置換をしない）
     private float _campBaseX;       // 着座した瞬間の X（横揺れはこの周囲でのみ振れる）
+    private float _campY;           // 着座後の等速往復の“芯”の Y（SwayAmp のうねりはこれに足す。位置から積まない）
 
     // ─── 進入撃ちのゲート（2026-09-06）───
     //   旧仕様は「居座り点に着くまで一切撃たない」＝出現から 1.5〜3.2 秒、射線上を無防備に歩くだけの
@@ -370,13 +381,16 @@ public partial class MidEnemy : Enemy
 
     // ─── 着座後の縦の動き（自前の形を持つ種だけ）───
     // 戻り値は _baseY からのオフセット(px)。null を返した種は従来どおり _vy の等速往復に任せる。
-    // ★どの形も有界（±26px 以内）。この後 28〜188px にクランプされるので盤面外へは出られない。
+    // ★どの形も有界（±26px 以内）。この後 CampTopY〜CampBottomY にクランプされるので盤面外へは出られない。
+    // ★形が“飛ぶ”箇所（鋸波のリセット・段送りの段・着座直後の位相合流）は、呼び出し側の速度上限
+    //   （SpeedCeil=58px/s・合成ベクトル長）で滑らかに丸められる＝瞬間移動にはならない。
     // ★「止まる」種（Absent/Settle/Await/Wall）は 0 近傍に張り付く。止まっていても浄化はできるので
     //   進行不能にはならない（居座り＝倒すまで去らない は従来どおり不変）。
     private float? CampVerticalOverride(float t) => _move switch
     {
-        // 数字の人：下から上へゆっくり登り、上限でぱっと下へ戻る（鋸波＝ランキングのスクロール）。
+        // 数字の人：下から上へゆっくり登り（13px/s）、上限でぱっと下へ戻る（鋸波＝ランキングのスクロール）。
         // 装飾（ReiMetrics モーション）の視線スクロールと同じ周期感を、実際の位置でも出す。
+        // “戻り”は速度上限で 58px/s（約 0.6 秒）に丸められる＝登りの 4 倍以上速い戻り、として読める。
         MoveStyle.Scroll => 22f - Mathf.PosMod(t * 0.30f, 1f) * 44f,
         // 切り抜きの人：段でカクッと上下に飛ぶ（コマ送り）。5段に量子化＝なめらかに動かない。
         MoveStyle.StepCut => Mathf.Round(Mathf.Sin(t * 0.85f) * 2.5f) / 2.5f * 24f,
@@ -424,7 +438,7 @@ public partial class MidEnemy : Enemy
     // ─── 進入の速度プロファイル ───
     // 引数 p は進捗 0（出現）→1（着座直前）。返すのは Max(MoveSpeed, ApproachFloor) に掛ける倍率。
     // ★戻り値は必ず [ApproachSpeedMin(0.62), ApproachSpeedMax(1.85)] にクランプし、さらに呼び出し側で
-    //   ApproachCeil(58) の頭打ちを掛ける＝実効速度は 28.5〜58px/s の範囲を絶対に出ない。
+    //   SpeedCeil(58) の頭打ちを掛ける＝実効速度は 28.5〜58px/s の範囲を絶対に出ない。
     //   0 にも負にもならないので残距離は毎フレーム必ず減る＝どの種も有限時間
     //   （最悪でも盤面対角 460px ÷ 28.5 ≒ 16.1秒。横オフセットの前進ロス 0.83 を見ても約 19秒）で着座する。
     //   実際の進入距離は 150〜280px なので 3〜10秒＝従来（2〜5秒）より一拍遅いが渋滞はしない。
@@ -651,11 +665,11 @@ public partial class MidEnemy : Enemy
                 _moveT += delta;
 
                 // 進入だけ最低速度を保証＝遅い種でも素早く居座って攻撃に移れる（従来の保証）。
-                // そこへ種ごとの速度倍率を掛け、最後に ApproachCeil で頭を押さえる。
+                // そこへ種ごとの速度倍率を掛け、最後に SpeedCeil で頭を押さえる。
                 // ＝実効速度は常に 28.5〜58px/s。0 や負にはならないので必ず着座し、
                 //   58 < 66（強化なし・最遅ジョブの自機）なので**どの種にも必ず振り切れる**。
                 float approach = Mathf.Min(
-                    Mathf.Max(_spec.MoveSpeed, ApproachFloor) * ApproachSpeedMul(p), ApproachCeil);
+                    Mathf.Max(_spec.MoveSpeed, ApproachFloor) * ApproachSpeedMul(p), SpeedCeil);
                 Vector2 fwd = to / dist;   // 目標点への単位ベクトル（正規化を1回に）
                 float fwdStep = approach * dt;   // このフレームに許される移動量（＝速度の予算）
 
@@ -676,12 +690,12 @@ public partial class MidEnemy : Enemy
                 Vector2 normal = new Vector2(-fwd.Y, fwd.X);
 
                 // ★【速度上限の要・2026-09-22 修正】前進と横を足した**合成ベクトルの長さ**で上限を掛ける。
-                //   以前は前進成分だけに ApproachCeil を掛けていたため、横に膨らむ種
+                //   以前は前進成分だけに SpeedCeil を掛けていたため、横に膨らむ種
                 //   （Compare/Bounce/Hesitant/Jitter/StepCut/Erase/Drift/Walk/Flutter/Patrol/Hover/Trudge
                 //    ＝全 MoveStyle の過半）の実効速度が 58×√(1+0.55²) ≒ 66.2px/s まで伸び、
                 //   最遅ジョブ＝結び手(75×0.88=66px/s)と同速〜わずかに上だった＝**振り切れない**。
                 //   ここで合成長を fwdStep に丸めれば、横の有無にかかわらず実効速度は必ず
-                //   ApproachCeil(58) 以下＝「毎秒 8px ずつ必ず引き離せる」が全種で成立する。
+                //   SpeedCeil(58) 以下＝「毎秒 8px ずつ必ず引き離せる」が全種で成立する。
                 //   丸めは前進と横を**同じ係数で**縮めるので、種ごとの軌道の形（膨らみの比率）は変わらない。
                 Vector2 delta2 = fwd * fwdStep + normal * step;
                 float len = delta2.Length();
@@ -723,6 +737,7 @@ public partial class MidEnemy : Enemy
             }
             _camped = true;   // 居座り開始
             _baseY = camp.Y;  // 以降の上下往復の中心
+            _campY = camp.Y;  // 等速往復の芯もここから
             // 着座 X を確定。以降の横揺れはこの値の周囲 ±CampDriftMax でのみ振れる
             //（camp.X をそのまま使う＝左湧きの着座保証 x=184..224 を動かさない）。
             _campBaseX = camp.X;
@@ -743,7 +758,13 @@ public partial class MidEnemy : Enemy
         float pt = (float)_campPatrolT + _movePhase;
 
         // 縦：自前の形を持つ種（鋸波・段送り・静止からの浮き）はそこで ny を決め、
-        // それ以外は従来どおり _vy の往復（速度だけ種ごと＝CampPatrolSpeed）。
+        // それ以外は _vy の等速往復（速度だけ種ごと＝CampPatrolSpeed）。
+        // ★2026-09-22：往復の芯は _campY に積む（GlobalPosition.Y には積まない）。
+        //   以前は「現在位置＋_vy·dt」に下の sin うねりを足していたため、うねりが毎フレーム位置へ
+        //   加算され続ける積分になり（dt を掛けていない＝最大 SwayAmp×0.4 ≒ 6.4px/フレーム ≒ 384px/s）、
+        //   うねる種（ReiPulseRing/AkariDrop/AkariUnsent）が上下端を高速で往復していた。
+        //   芯とうねりを分け、「芯 ＋ sin(t)×振幅」のオフセット（＝ゆらゆら揺れる、の本来の意図）に直す。
+        float swayAmp = _spec.SwayAmp * CampSwayScale;
         float ny;
         float? custom = CampVerticalOverride(pt);
         if (custom.HasValue)
@@ -752,21 +773,37 @@ public partial class MidEnemy : Enemy
         }
         else
         {
-            ny = GlobalPosition.Y + _vy * dt;
-            if (ny < 28f || ny > 188f) { _vy = -_vy; ny = Mathf.Clamp(ny, 28f, 188f); }
+            _campY += _vy * dt;
+            // 折り返しはうねりの分だけ内側で＝うねりを足しても下のクランプに当たって平らにならない。
+            float lo = CampTopY + swayAmp, hi = CampBottomY - swayAmp;
+            if (_campY < lo || _campY > hi) { _vy = -_vy; _campY = Mathf.Clamp(_campY, lo, hi); }
+            ny = _campY;
         }
-        // SwayAmp>0 の種は往復に小さなうねりを重ねて単調さを消す（従来どおり）。
-        if (_spec.SwayAmp > 0f)
+        // SwayAmp>0 の種は往復に小さなうねりを重ねて単調さを消す（芯からのオフセット。積分しない）。
+        if (swayAmp > 0f)
         {
             _swayT += delta;
-            ny += Mathf.Sin((float)_swayT * _spec.SwayFreq) * (_spec.SwayAmp * 0.4f);
+            ny += Mathf.Sin((float)_swayT * _spec.SwayFreq) * swayAmp;
         }
-        ny = Mathf.Clamp(ny, 28f, 188f);   // 縦は必ず盤面内（画面外へ出て見失われない）
+        ny = Mathf.Clamp(ny, CampTopY, CampBottomY);   // 縦は必ず盤面内（画面外へ出て見失われない）
 
         // 横：camp.X の周囲だけを振れる小さな癖。二重にクランプして盤面外・自機側へは絶対に届かせない。
         float nx = _campBaseX + Mathf.Clamp(CampHorizontalDrift(pt), -CampDriftMax, CampDriftMax);
         nx = Mathf.Clamp(nx, Field.Left + CampMarginX, Field.Right - CampMarginX);
-        GlobalPosition = new Vector2(nx, ny);
+
+        // ★【速度上限の要・着座側／2026-09-22】目標位置 (nx,ny) へ“向かう”が、1 フレームの移動量は
+        //   SpeedCeil×dt を超えない（進入側と同じく合成ベクトル長で丸める＝横の癖を足しても 58 を超えない）。
+        //   上の形（往復・sin・鋸波・段送り）はどれも“目標位置”を返すだけなので、ここで移動量を丸めれば
+        //   ・鋸波（Scroll）の「上限でぱっと戻る」44px の瞬間移動 → 58px/s で約 0.6 秒かけて戻る
+        //     （登りは 13px/s なので 4 倍以上速い“戻り”のまま＝鋸波の読みは残る）
+        //   ・段送り（StepCut）の 9.6px の段 → 58px/s で 10 フレームかけて飛ぶ（保持 0.5 秒〜に対して十分“段”）
+        //   ・着座した瞬間の「進入の終点 → 形の初期位相」の飛び（最大 24px）→ 滑らかに合流
+        //   が全部まとめて上限内に収まる。連続的な形は上限に触れない振幅・周期に留めてある
+        //   （最速：Jitter ≒ 40px/s・Bounce ≒ 38px/s、最遅：Wall ≒ 1px/s）ので、種ごとの差はそのまま残る。
+        Vector2 toTarget = new Vector2(nx, ny) - GlobalPosition;
+        float maxStep = SpeedCeil * dt;
+        if (toTarget.LengthSquared() > maxStep * maxStep) toTarget = toTarget.Normalized() * maxStep;
+        GlobalPosition += toTarget;
 
         // 居座っている間だけ固有弾幕を駆動。会話中(BubblePaused)は Enemy._PhysicsProcess が
         // UpdateMovement を呼ばないため、ここに来る時点で攻撃してよい状態。
