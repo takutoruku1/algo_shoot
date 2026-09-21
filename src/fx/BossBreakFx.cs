@@ -14,7 +14,8 @@ public partial class BossBreakFx : Node2D
 
     public override void _Ready()
     {
-        // Keep hostile bullets and character sprites in front of the announcement.
+        // Keep hostile bullets (ZIndex 0) in front of the announcement. The boss body sprite shares -1,
+        // so FxLayer.BossBreak adds this node to the tail of World to draw it after (= over) the body.
         ZIndex = -1;
         ZAsRelative = false;
         Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
@@ -25,12 +26,12 @@ public partial class BossBreakFx : Node2D
         }
     }
 
-    public void PlaceAbove(Vector2 bossPosition, float bodyHeight)
+    // 2026-09-22 ユーザー指示：頭上ではなくボス本体に重ねる。文字と斬線はボスの中心に置き、
+    //   横は斬線の到達幅(70px)が盤面外へ出ない範囲、縦は文字の半高(25px)が盤面内に残る範囲へクランプするだけ。
+    public void PlaceOn(Vector2 bossPosition, float bodyHeight)
     {
-        float y = bossPosition.Y - bodyHeight * 0.5f - 18f;
-        if (y < 49f) y = bossPosition.Y + bodyHeight * 0.5f + 18f;
         GlobalPosition = new Vector2(Mathf.Clamp(bossPosition.X, Field.Left + 78f, Field.Right - 78f),
-            Mathf.Clamp(y, 49f, 136f));
+            Mathf.Clamp(bossPosition.Y, Field.Top + 25f, Field.Bottom - 25f));
     }
 
     public override void _Process(double delta)

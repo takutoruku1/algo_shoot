@@ -94,6 +94,7 @@ public partial class BossSpellQa : Node
                             await CheckAreaPresentation(game, scene, boss, caster, hud, world);
                         }
                     }
+                    if (!clipsOnly) await CheckReadability(scene, boss, hud, world);
                     root.QueueFree();
                     await Frames(5);
                     Pool.DespawnAll();
@@ -263,7 +264,34 @@ public partial class BossSpellQa : Node
         DirAccess.MakeDirRecursiveAbsolute(output);
         void BaseCall(Enemy boss, string method, params object[] args) =>
             typeof(Enemy).GetMethod(method, Private)!.Invoke(boss, args);
-        BossBreakFx[] Effects() => FxLayer.Instance.GetChildren().OfType<BossBreakFx>().ToArray();
+        // The label lives in World (FxLayer's parent) so that it draws after the boss body; see FxLayer.BossBreak.
+        BossBreakFx[] Effects() => FxLayer.Instance.GetParent().GetChildren().OfType<BossBreakFx>().ToArray();
+        async Task<Image> Render(BossBreakFx effect, bool visible)
+        {
+            effect.Visible = visible;
+            effect.QueueRedraw();
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            return GetViewport().GetTexture().GetImage();
+        }
+        // Bright pixels per letter column (the effect's own glyph advances), rows within 14px of the baseline.
+        //   Luminance, not pure white: the boss's break-cue disc (white, alpha 0.5, ZIndex 0, shaded) sits over the
+        //   middle letters and the stage CanvasModulate cools it to about (0.80, 0.84, 0.96); the label itself is
+        //   unshaded, so the outer letters stay pure white. Body/hair under the disc stay below 0.75.
+        int[] WhitePixels(Image image, BossBreakFx effect)
+        {
+            float scale = image.GetWidth() / 384f;
+            var advances = Read<float[]>(effect, "_advances");
+            var white = new int[advances.Length];
+            float left = effect.Position.X - Read<float>(effect, "_textWidth") * 0.5f;
+            for (int i = 0; i < advances.Length; left += advances[i], i++)
+                for (int y = (int)((effect.Position.Y - 14) * scale); y < (effect.Position.Y + 14) * scale; y++)
+                    for (int x = (int)(left * scale); x < (left + advances[i]) * scale; x++)
+                    {
+                        if (image.GetPixel(x, y).Luminance > 0.82f) white[i]++;
+                    }
+            return white;
+        }
         string Phase(Enemy boss) => Read<object>(boss, "_phase", typeof(Enemy)).ToString()!;
         foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle", "Hikage", "Cameo" })
         {
@@ -320,6 +348,10 @@ public partial class BossSpellQa : Node
                 "break reward and original panel scores are unchanged");
             Check(!Hud.BubblePaused && Read<float>(hud, "_flashAlpha") == 0f, "no dialogue pause or full-screen flash");
             Check(effect.ZIndex < 0 && !effect.ZAsRelative, "enemy bullets stay above the entire effect");
+            var body = Read<Sprite2D>(boss, "_bodySprite", typeof(Enemy));
+            int bodyZ = body.ZAsRelative ? boss.ZIndex + body.ZIndex : body.ZIndex;
+            Check(effect.ZIndex == bodyZ && effect.GetParent() == world && effect.GetIndex() > boss.GetIndex(),
+                "BREAK label shares the body sprite layer and follows the boss in World, so it draws over the body");
             Check(!Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p").Any(p => p.Text == "BREAK!"),
                 "old floating damage-number label is not duplicated");
             boss.Purify();
@@ -327,34 +359,41 @@ public partial class BossSpellQa : Node
             foreach (var position in new[] { new Vector2(Field.Left, 51), new Vector2(Field.Right, 51),
                 new Vector2(Field.Left, 148), new Vector2(Field.Right, 148) })
             {
-                effect.PlaceAbove(position, 56);
+                effect.PlaceOn(position, 56);
                 Check(effect.Position.X - 76 >= Field.Left && effect.Position.X + 76 <= Field.Right
-                    && effect.Position.Y - 25 >= 21 && effect.Position.Y + 25 < 162,
-                    "edge placement keeps letters clear of sidebar, boss HP and dialogue caption");
+                    && effect.Position.Y - 25 >= Field.Top && effect.Position.Y + 25 <= Field.Bottom,
+                    "edge placement keeps letters inside the field");
             }
-            effect.PlaceAbove(boss.Position, Read<float>(boss, "BodyDisplayH", typeof(Enemy)));
+            effect.PlaceOn(boss.Position, Read<float>(boss, "BodyDisplayH", typeof(Enemy)));
+            Check(Mathf.Abs(effect.Position.Y - Mathf.Clamp(boss.Position.Y, Field.Top + 25f, Field.Bottom - 25f)) < 0.5f,
+                "BREAK label sits on the boss body, not above it");
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
             {
                 DisplayServer.WindowSetSize(size);
                 foreach (float time in new[] { 0.07f, 0.22f, 0.48f })
                 {
                     Write(effect, "_age", time);
-                    effect.QueueRedraw();
-                    await Frames(3);
-                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-                    using var image = GetViewport().GetTexture().GetImage();
+                    // 0.22 秒＝5文字が据わった瞬間。文字の列ごとに「演出なし→あり」の明画素の差分を取り（ミナの白い
+                    //   衣装や合図リングの白は両方に入るので相殺）、合計と最小列の両方を見る。本体の絵に埋もれて
+                    //   "BR AK" しか読めなかった退行（2026-09-22）は、合計が全文字が見えていた水準（7100〜8400 @1280
+                    //   ≒ 650〜750/unit²）の 5〜6 割に落ち、中央の E 列が平均の 2 割未満（多くは 0）になる。
+                    //   全文字が見えていれば最小列は平均の 45% 以上（ミナの白衣装の上が最小）。画素は面積比なので scale²。
+                    int[] background = Array.Empty<int>();
+                    if (time == 0.22f)
+                    {
+                        using var blank = await Render(effect, false);
+                        background = WhitePixels(blank, effect);
+                    }
+                    using var image = await Render(effect, true);
                     Check(image.SavePng($"{output}/{scene}_{size.X}_{time:0.00}.png") == Error.Ok, "rendered animation keyframe");
                     if (time == 0.22f)
                     {
-                        int white = 0;
                         float scale = image.GetWidth() / 384f;
-                        for (int y = (int)((effect.Position.Y - 14) * scale); y < (effect.Position.Y + 14) * scale; y++)
-                            for (int x = (int)((effect.Position.X - 50) * scale); x < (effect.Position.X + 50) * scale; x++)
-                            {
-                                Color c = image.GetPixel(x, y);
-                                if (c.R > 0.85f && c.G > 0.85f && c.B > 0.85f) white++;
-                            }
-                        Check(white > 80 * scale, $"{scene}/{size}: BREAK lettering is visible, not a blank canvas");
+                        int[] letters = WhitePixels(image, effect).Zip(background, (lit, dark) => lit - dark).ToArray();
+                        int total = letters.Sum();
+                        GD.Print($"[BossSpellQA] {scene}/{size.X}: BREAK white pixels {total} = {string.Join("+", letters)} (background {background.Sum()})");
+                        Check(total > 550 * scale * scale && letters.Min() > total * 0.3f / letters.Length,
+                            $"{scene}/{size}: all five BREAK letters are drawn over the boss body, not buried in it");
                     }
                 }
             }
@@ -577,8 +616,8 @@ public partial class BossSpellQa : Node
                 Check(bullets.Length == count && bullets.All(b => Read<Texture2D?>(b, "_sprite") != null
                     && b.Damage == 1 && !b.Homing && !b.Accel && !b.Erasable), $"Mina/{diff}/{pattern}: illustrated attack preserves count and damage");
                 var expectedArt = Read<Texture2D?[][]>(boss, "_spellArt")[pattern];
-                Check(bullets.Select(b => Read<Texture2D>(b, "_sprite").ResourcePath).Distinct().OrderBy(p => p)
-                    .SequenceEqual(expectedArt.Select(t => t!.ResourcePath).OrderBy(p => p)), "memory attack includes every assigned character illustration");
+                Check(bullets.Select(b => Read<Texture2D>(b, "_sprite").GetInstanceId()).Distinct().OrderBy(p => p)
+                    .SequenceEqual(expectedArt.Select(t => t!.GetInstanceId()).Distinct().OrderBy(p => p)), "memory attack includes every assigned character illustration");
                 foreach (var b in bullets)
                 {
                     float speed = b.Velocity.Length() / game.BulletSpeedMul;
@@ -604,7 +643,7 @@ public partial class BossSpellQa : Node
             Write(boss, "_fireT2", 100d);
             Call(boss, "FireFinale", Pool, 0d);
             Check(Bullets().Length == game.ScaleBullets(18) + 3
-                && Bullets().Any(b => Read<Texture2D>(b, "_sprite").ResourcePath.Contains("mina_core")),
+                && Bullets().Any(b => Read<Texture2D>(b, "_sprite") == Read<Texture2D?[][]>(boss, "_spellArt")[4][0]),
                 $"Mina/{diff}: finale combines Mina's core and the three memories");
             if (diff == GameManager.Diff.Normal)
             {
@@ -772,7 +811,7 @@ public partial class BossSpellQa : Node
         var viewport = new SubViewport { Size = new Vector2I(384, 216), TransparentBg = true,
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
         AddChild(viewport);
-        viewport.AddChild(new ColorRect { Size = new Vector2(384, 216), Color = new Color("102030") });
+        viewport.AddChild(new ColorRect { Size = new Vector2(384, 216), Color = new Color("102030"), ZIndex = -100 });
         foreach (float radius in new[] { 17f, 20f, 24f, 30f })
         foreach (var center in new[] { new Vector2(180, 108), new Vector2(Field.Right - radius - 14, radius + 14) })
         {
@@ -796,7 +835,7 @@ public partial class BossSpellQa : Node
                     Color color = image.GetPixel(x, y);
                     if (distance < radius - 5 && color != background)
                         throw new Exception($"Safe hole covered: r={radius} phase={phase} at {x},{y}");
-                    if (distance > radius + 6 && color != danger)
+                    if (distance > radius + 6 && color.R <= background.R + 0.01f)
                     {
                         image.SavePng(ProjectSettings.GlobalizePath("res://build/qa_story/aoe_mask_failure.png"));
                         throw new Exception($"Danger fill has a gap: r={radius} phase={phase} at {x},{y}: {color} expected {danger}");
@@ -811,6 +850,82 @@ public partial class BossSpellQa : Node
         }
         viewport.QueueFree();
         await Frames(3);
+    }
+
+    private async Task CheckReadability(string scene, Enemy boss, Hud hud, Node2D world)
+    {
+        await ClearStrikes(world);
+        Pool.DespawnAll();
+        hud.HideBubble();
+        hud.HideSpellCard();
+        var fx = FxLayer.Instance;
+        var particles = Read<System.Collections.Generic.List<FxLayer.P>>(fx, "_p");
+        particles.Clear();
+        foreach (var aura in Enum.GetValues<FxLayer.BossAura>())
+        for (int i = 0; i < 20; i++) fx.EmitBossAura(aura, boss.Position, 1f, 48f);
+        Check(particles.Count == 100 && particles.All(p => p.Deep && !p.Add && p.A0 <= 0.3f
+            && p.Type is FxLayer.T.Rain or FxLayer.T.Steam or FxLayer.T.Sym
+            && new Vector2(p.Vx, p.Vy).Length() < 35f), "all boss atmosphere is subdued, slow and behind attacks");
+        particles.Clear();
+        var parts = boss.GetNodeOrNull<BossParts>("Parts");
+        if (parts != null)
+        {
+            Check(parts.GetChildren().OfType<Node2D>().All(n => !n.ZAsRelative && n.ZIndex < -2),
+                "all decorative parts stay behind AOE boundaries");
+            parts.EnterIdle();
+            parts.OnAttackStart();
+            parts._Process(0.16d);
+            var objects = Read<System.Collections.IEnumerable>(parts, "_parts").Cast<object>().ToArray();
+            Check(objects.All(p => (Vector2)p.GetType().GetField("Vel")!.GetValue(p)! == Vector2.Zero),
+                "attack animation does not launch decorative parts as fake bullets");
+        }
+        var motif = scene switch { "Akari" => AreaStrike.Motif.Rain, "Koharu" => AreaStrike.Motif.Screen,
+            "Rei" => AreaStrike.Motif.Stream, _ => AreaStrike.Motif.Data };
+        var tint = scene switch { "Akari" => new Color("8fc4ff"), "Koharu" => new Color("ffc06a"),
+            "Rei" => new Color("e394ce"), _ => new Color("ff8cc4") };
+        var zone = new AreaStrike();
+        if (scene == "MinaBattle") zone.ConfigureFullscreen(new Vector2(185, 150), 24, 1.6, tint, Colors.White, motif);
+        else zone.Configure(AreaStrike.Shape.Circle, 28, 28, 1.6, tint, Colors.White, motif);
+        world.AddChild(zone);
+        if (scene != "MinaBattle") zone.Position = new Vector2(224, 122);
+        zone.SetProcess(false);
+        zone._Process(0.95);
+        Check(zone.ZIndex == -2 && !zone.ZAsRelative, "all area attacks are below bullets and above atmosphere");
+        if (scene != "MinaBattle")
+        {
+            var rect = new Rect2(-28, -28, 56, 56);
+            Check(zone.HatchSegments(rect).All(s => s.from.Length() <= 26.01f && s.to.Length() <= 26.01f),
+                "circular warning stripes do not extend outside the footprint");
+        }
+        else
+            Check(zone.HatchSegments(Field.Rect).All(s => Geometry2D.GetClosestPointToSegment(new Vector2(185, 150), s.from, s.to)
+                .DistanceTo(new Vector2(185, 150)) >= 25.99f), "fullscreen stripes never enter the safe hole");
+        string art = scene switch { "Akari" => "akari_envelope", "Koharu" => "koharu_star_pin",
+            "Rei" => "rei_comment", _ => "mina_memory" };
+        var texture = BulletArt.Get(art);
+        Check(texture != null, "readability preview uses the actual character projectile");
+        for (int i = 0; i < 12; i++)
+        {
+            var bullet = Pool.Spawn(new Vector2(180 + i % 4 * 25, 102 + i / 4 * 19), Vector2.Left * 45, true);
+            bullet.SetSprite(texture, 0);
+            bullet.SetPhysicsProcess(false);
+            Check(bullet.ZIndex > zone.ZIndex, "real projectiles stay above warning fills");
+        }
+        foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            await Shot($"readability_{scene}_{size.X}x{size.Y}");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        var phase = typeof(Enemy).GetField("_phase", Private)!;
+        var before = phase.GetValue(boss);
+        phase.SetValue(boss, Enum.Parse(phase.FieldType, "Exposed"));
+        typeof(Enemy).GetField("_phaseT", Private)!.SetValue(boss, 0.6d);
+        boss.QueueRedraw();
+        await Shot($"readability_{scene}_exposed");
+        phase.SetValue(boss, before);
+        await ClearStrikes(world);
+        Pool.DespawnAll();
     }
 
     private async Task ClearStrikes(Node world)

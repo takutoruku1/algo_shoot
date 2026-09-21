@@ -465,38 +465,15 @@ public partial class FxLayer : Node2D
         Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 12, Ttl = 0.4f, Col = col, W = 1.2f, A0 = 0.9f, Add = true });
     }
 
-    // AOE着弾スパーク（AreaStrike の DrawStrike から1回だけ呼ぶ）。
-    //   加算プール（ZIndex21）＝弾レイヤーには何も足さない。全部 0.28s 未満の短命＝視認性を長く侵さない。
-    //   dirBias: ビーム系は軸方向へ飛ばす（Vector2.Zero で全方位）。scale: 形状の大きさに応じた飛距離。
-    //   色は AreaStrike の tint/hot（ボス色）をそのまま受け取る＝新色を作らない（§9 色語彙の統一）。
-    public void AoeImpact(Vector2 pos, Color tint, Color hot, Vector2 dirBias, float scale, int count = 9)
-    {
-        float s = Mathf.Clamp(scale, 8f, 90f);
-        // 芯の一瞬の白熱（本動作の「止め」）。
-        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 4f + s * 0.10f, Ttl = 0.12f, Col = White, Add = true, Grow = 0.5f });
-        // 衝撃波リング2本（速い白＝一撃、遅いボス色＝誰の攻撃かの余韻）。
-        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = s * 0.25f, R1 = s * 1.05f, Ttl = 0.18f, Col = White, W = 1.5f, A0 = 0.85f, Add = true });
-        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = s * 0.15f, R1 = s * 1.45f, Ttl = 0.30f, Col = tint,  W = 1.1f, A0 = 0.55f, Add = true });
-        bool biased = dirBias.LengthSquared() > 0.0001f;
-        float baseA = biased ? Mathf.Atan2(dirBias.Y, dirBias.X) : 0f;
-        for (int i = 0; i < count; i++)
-        {
-            // ビーム系は軸±0.5rad の扇（＝走った方向へ散る）、円/矩形は全方位。
-            float a = biased ? baseA + R(-0.55f, 0.55f) + (_rng.Randf() < 0.5f ? 0f : Mathf.Pi)
-                             : R(0f, Mathf.Tau);
-            float sp = R(70f, 70f + s * 2.4f);
-            Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y,
-                Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp,
-                Size = R(4f, 8f), W = 1.1f, Ttl = R(0.14f, 0.28f), Drag = 5.5f,
-                Col = _rng.Randf() < 0.55f ? hot : White, Add = true });
-        }
-    }
-
+    //   読めなかった。文字（ZIndex -1 絶対）と本体スプライト（Enemy 0 + Body -1 = -1）は同じ層で、同値の
+    //   前後は木の順序＝後に足した方が手前。FxLayer は World の先頭の子で、ボスはその後に足されるので、
+    //   FxLayer の下に置くと必ず本体の裏へ回る。World（FxLayer の親）の末尾へ足して本体より後・弾(0)より奥。
+    //   ポーズ凍結（ProcessMode 継承）と 0.72 秒の自己破棄は親が変わっても同じ。
     public void BossBreak(Vector2 pos, float bodyHeight)
     {
         var burst = new BossBreakFx();
-        AddChild(burst);
-        burst.PlaceAbove(pos, bodyHeight);
+        (GetParent() ?? this).AddChild(burst);
+        burst.PlaceOn(pos, bodyHeight);
     }
 
     public void DamageNumber(Vector2 pos, string text, Color col)
@@ -517,141 +494,31 @@ public partial class FxLayer : Node2D
         Add0(new P { Type = T.BombRing, X = pos.X, Y = pos.Y, R0 = 6, Sp = 520, Ttl = 1.1f, Col = Sig2 });
     }
 
-    // ===== ボス別アンビエント・オーラ =====
-    // 中心 c（＝ボス GlobalPosition）の周囲に、そのキャラの特徴物をゆっくり舞わせる。
-    // 毎フレーム少量だけ確率スポーンして飽和させない。視覚専用＝当たり判定は一切触らない。
-    // 立ち絵の表示高さは ~50px 想定。半径 R はその少し外（弾の視認を妨げない範囲）。
-
-    // 各キャラ色（既存 PAL の流儀＝各ボスのスペル tint に寄せる）。
-    private static readonly Color AuraReiHot  = new Color("ff5a5a"); // レイ：刺さる赤
-    private static readonly Color AuraReiGold = new Color("ffd06a"); // 順位の金
-    private static readonly Color AuraRain    = new Color("8fc4ff"); // あかり：雨青
-    private static readonly Color AuraRainPale= new Color("cfe6ff"); // 水しぶき
-    private static readonly Color AuraSteam   = new Color("ffe2b0"); // こはる：湯気の温かい白橙
-    private static readonly Color AuraKoharu  = new Color("ffb15a"); // 台所の灯
-    private static readonly Color AuraSilver  = new Color("dfe6f5"); // ミナ：銀の羽根
-    private static readonly Color AuraGlitch  = new Color("a9c6ff"); // データの文字
-    private static readonly Color AuraEmber   = new Color("ff7a3c"); // ヒカゲ：火の粉
-    private static readonly Color AuraSmoke   = new Color("3a3038"); // くすぶる煙
-
-    // ボス周囲のアンビエント発生（種別ディスパッチ）。radius = オーラ半径（立ち絵相当）。
     public void EmitBossAura(BossAura kind, Vector2 c, float dt, float radius = 30f)
     {
-        switch (kind)
+        bool rain = kind == BossAura.Akari;
+        bool symbol = kind is BossAura.Rei or BossAura.Mina;
+        float rate = rain ? 9f : symbol ? 1.8f : 3f;
+        if (_rng.Randf() >= rate * dt) return;
+        float rr = Mathf.Min(radius * 0.55f, 22f);
+        Color tint = kind switch
         {
-            case BossAura.Rei:    AuraRei(c, dt, radius); break;
-            case BossAura.Akari:  AuraAkari(c, dt, radius); break;
-            case BossAura.Koharu: AuraKoharu_(c, dt, radius); break;
-            case BossAura.Mina:   AuraMina(c, dt, radius); break;
-            case BossAura.Hikage: AuraHikage(c, dt, radius); break;
-        }
-    }
-
-    // dt に応じた確率スポーン（rate=1秒あたりの期待発生数）。
-    private bool Spawn(float rate, float dt) => _rng.Randf() < rate * dt;
-
-    // ── レイ：順位・競争。鋭い赤火花が周囲を周回＋順位記号(#1/▲/▼)がふわっと立ち上る。
-    private void AuraRei(Vector2 c, float dt, float rr)
-    {
-        // 周回する赤い火花（接線方向＝回っているように見せる）。
-        if (Spawn(10f, dt))
+            BossAura.Akari => new Color("93a9bc"),
+            BossAura.Koharu => new Color("c8bfb2"),
+            BossAura.Rei => new Color("b7a6bd"),
+            BossAura.Mina => new Color("b6c1cd"),
+            _ => new Color("685e67"),
+        };
+        Add0(new P
         {
-            float a = R(0f, Mathf.Tau);
-            var rad = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (rr + R(-2f, 6f));
-            var tan = new Vector2(-Mathf.Sin(a), Mathf.Cos(a)) * R(36f, 64f); // 接線で旋回感
-            Add0(new P { Type = T.Spark, X = c.X + rad.X, Y = c.Y + rad.Y, Vx = tan.X, Vy = tan.Y,
-                Size = R(3f, 5f), W = 1.2f, Ttl = R(0.3f, 0.5f), Col = AuraReiHot, Drag = 1.4f, Add = true });
-        }
-        // ランキングの記号（#1 / ▲ / ▼）が下からゆっくり昇る。
-        if (Spawn(1.4f, dt))
-        {
-            string[] syms = { "#1", "▲", "▼", "#2" };
-            string s = syms[Ri(0, syms.Length - 1)];
-            bool top = s == "#1" || s == "▲";
-            Add0(new P { Type = T.Sym, X = c.X + R(-rr, rr), Y = c.Y + R(2f, rr * 0.7f),
-                Vy = R(-20f, -12f), Size = R(8f, 11f), Ttl = R(0.9f, 1.3f), Drag = 0.5f,
-                Text = s, Col = top ? AuraReiGold : AuraReiHot, Add = true });
-        }
-    }
-
-    // ── あかり：雨。青い雨粒が斜めに降り、足元で小さな波紋。
-    private void AuraAkari(Vector2 c, float dt, float rr)
-    {
-        // 斜めに降る雨の線（本体の上方から下へ）。
-        if (Spawn(22f, dt))
-        {
-            float x = c.X + R(-rr * 1.3f, rr * 1.3f);
-            Add0(new P { Type = T.Rain, X = x, Y = c.Y - R(rr * 0.6f, rr * 1.4f),
-                Vx = -26f, Vy = R(150f, 200f), Size = R(5f, 9f), W = 1.2f,
-                Ttl = R(0.35f, 0.6f), Col = AuraRain, Add = true });
-        }
-        // 体の下あたりで小さな波紋（雨が当たる音色）。
-        if (Spawn(3.0f, dt))
-        {
-            Add0(new P { Type = T.Ring, X = c.X + R(-rr, rr), Y = c.Y + R(rr * 0.3f, rr * 0.8f),
-                R0 = 1f, R1 = R(5f, 8f), Ttl = R(0.4f, 0.6f), Col = AuraRainPale, W = 1f, A0 = 0.8f, Add = true });
-        }
-    }
-
-    // ── こはる：台所。湯気がゆらゆら立ち上り、温かい灯の粒がことこと。
-    private void AuraKoharu_(Vector2 c, float dt, float rr)
-    {
-        // 湯気（左右にゆらぎながら上昇）。
-        if (Spawn(8f, dt))
-        {
-            Add0(new P { Type = T.Steam, X = c.X + R(-rr * 0.7f, rr * 0.7f), Y = c.Y + R(-2f, rr * 0.5f),
-                Vy = R(-26f, -16f), Size = R(5f, 9f), Ttl = R(1.0f, 1.6f), Sp = R(1.6f, 3.0f),
-                Rot = R(0f, Mathf.Tau), Col = AuraSteam, Add = true });
-        }
-        // ことこと泡＝温かい灯の粒は 2026-09-22 ユーザー指示で削除。こはる戦は弾(e8a24a の缶バッジ)・
-        //   予告(ffc06a)・装飾が全部オレンジ〜黄の狭い色相に詰まっており、本体周囲＝弾の発生源に同色同形の
-        //   丸が常時漂うと「新しい弾が出たのか光の粒か」が読めない。純装飾なので当たり判定・報酬には無影響。
-        // たまに湯気の輪。
-        if (Spawn(0.8f, dt))
-            Add0(new P { Type = T.Ring, X = c.X + R(-rr * 0.4f, rr * 0.4f), Y = c.Y - R(2f, 8f),
-                R0 = 2f, R1 = R(7f, 11f), Ttl = R(0.7f, 1.0f), Col = AuraSteam, W = 1f, A0 = 0.5f, Add = true });
-    }
-
-    // ── ミナ：データ/グリッチ・銀の羽根・浄化色の粒。
-    private void AuraMina(Vector2 c, float dt, float rr)
-    {
-        // 銀の羽根（ゆっくり舞い落ちる、回転しながら）。
-        if (Spawn(5f, dt))
-            Add0(new P { Type = T.Feather, X = c.X + R(-rr, rr), Y = c.Y - R(0f, rr),
-                Vx = R(-10f, 6f), Vy = R(8f, 18f), Size = R(3.5f, 5.5f), Rot = R(0f, Mathf.Tau),
-                Spin = R(-2.4f, 2.4f), Grav = 6f, Drag = 0.4f, Ttl = R(1.2f, 1.8f), Col = AuraSilver, Add = true });
-        // データのグリッチ文字（0/1/記号が一瞬またたく）。
-        if (Spawn(4f, dt))
-        {
-            string[] g = { "0", "1", "01", "</>", "{ }", "AI" };
-            Add0(new P { Type = T.Sym, X = c.X + R(-rr, rr), Y = c.Y + R(-rr, rr),
-                Size = R(7f, 9f), Ttl = R(0.25f, 0.45f), Text = g[Ri(0, g.Length - 1)], Col = AuraGlitch, Add = true });
-        }
-        // 浄化色の粒（既存 Mote/Sig 系の余韻）。
-        if (Spawn(4f, dt))
-            Add0(new P { Type = T.Mote, X = c.X + R(-rr, rr), Y = c.Y + R(-rr * 0.5f, rr),
-                Vy = R(-18f, -8f), Size = R(1.8f, 2.8f), Drag = 0.9f, Ttl = R(0.6f, 0.9f), Col = Sig2, Add = true });
-    }
-
-    // ── ヒカゲ：炎上/影。火の粉が舞い上がり、くすぶる煙がにじむ。
-    private void AuraHikage(Vector2 c, float dt, float rr)
-    {
-        // 火の粉（赤橙のスパークが下から上へ、ゆらぎながら）。
-        if (Spawn(16f, dt))
-        {
-            Add0(new P { Type = T.Spark, X = c.X + R(-rr * 0.8f, rr * 0.8f), Y = c.Y + R(-2f, rr * 0.6f),
-                Vx = R(-16f, 16f), Vy = R(-60f, -34f), Size = R(2.5f, 4.5f), W = 1.1f,
-                Ttl = R(0.4f, 0.7f), Col = _rng.Randf() < 0.4f ? AuraReiGold : AuraEmber, Drag = 0.8f, Add = true });
-        }
-        // くすぶる煙（暗い、非加算でにじむ）。
-        if (Spawn(5f, dt))
-            Add0(new P { Type = T.Steam, X = c.X + R(-rr * 0.6f, rr * 0.6f), Y = c.Y + R(-4f, rr * 0.4f),
-                Vy = R(-22f, -12f), Size = R(6f, 10f), Ttl = R(0.9f, 1.4f), Sp = R(1.2f, 2.4f),
-                Rot = R(0f, Mathf.Tau), Col = AuraSmoke, Add = false });
-        // たまに小さな炎のグロー。
-        if (Spawn(2.5f, dt))
-            Add0(new P { Type = T.Glow, X = c.X + R(-rr * 0.6f, rr * 0.6f), Y = c.Y + R(-2f, rr * 0.5f),
-                Size = R(3f, 5f), Ttl = R(0.25f, 0.45f), Col = AuraEmber, Grow = 0.3f, Add = true });
+            Type = rain ? T.Rain : symbol ? T.Sym : T.Steam,
+            X = c.X + R(-rr, rr), Y = c.Y + R(-rr, rr * 0.6f),
+            Vx = rain ? -3f : 0f, Vy = rain ? 32f : -6f,
+            Size = rain ? 4f : symbol ? 7f : 6f, W = 0.65f,
+            Ttl = rain ? 0.65f : 1.1f, Sp = 1f, A0 = 0.28f,
+            Text = kind == BossAura.Rei ? "#1" : "01",
+            Col = tint, Deep = true,
+        });
     }
 
     private void Add0(P p) { _p.Add(p); }
@@ -750,7 +617,7 @@ public partial class FxLayer : Node2D
             case T.Rain:
             {
                 // 速度方向に伸びる雨の線。フェードは寿命に沿って。
-                float a = Mathf.Min(1f, inv * 1.6f) * 0.85f;
+                float a = Mathf.Min(1f, inv * 1.6f) * 0.85f * p.A0;
                 float sp = Mathf.Max(1f, Mathf.Sqrt(p.Vx * p.Vx + p.Vy * p.Vy));
                 var n = new Vector2(p.Vx / sp, p.Vy / sp);
                 c.DrawLine(pos, pos - n * p.Size, new Color(p.Col.R, p.Col.G, p.Col.B, a), p.W);
@@ -759,7 +626,7 @@ public partial class FxLayer : Node2D
             case T.Steam:
             {
                 // ふわっと現れ消える柔らかい円。左右にゆらぎ（Sp=ゆらぎ強さ）。
-                float a = Mathf.Sin(Mathf.Min(1f, k * 1.05f) * Mathf.Pi) * 0.5f;
+                float a = Mathf.Sin(Mathf.Min(1f, k * 1.05f) * Mathf.Pi) * 0.5f * p.A0;
                 float wob = Mathf.Sin(p.Life * 4f + p.Rot) * p.Sp;
                 float gr = p.Size * (1f + k * 1.2f);
                 var sp = new Vector2(p.X + wob, p.Y);
@@ -797,7 +664,7 @@ public partial class FxLayer : Node2D
                 // 記号/文字（順位記号・グリッチ文字）。Dmg と同じ流儀で font 描画＋影。
                 if (font == null) break;
                 float a = k < 0.18f ? k / 0.18f : inv / 0.82f;
-                a = Mathf.Min(1f, a) * 0.92f;
+                a = Mathf.Min(1f, a) * 0.92f * p.A0;
                 var off = pos - new Vector2(p.Text.Length * p.Size * 0.28f, 0);
                 font.DrawString(c.GetCanvasItem(), off + new Vector2(0.6f, 0.6f), p.Text, HorizontalAlignment.Left, -1, (int)p.Size, new Color(0.05f, 0.03f, 0.06f, a * 0.7f));
                 font.DrawString(c.GetCanvasItem(), off, p.Text, HorizontalAlignment.Left, -1, (int)p.Size, new Color(p.Col.R, p.Col.G, p.Col.B, a));
