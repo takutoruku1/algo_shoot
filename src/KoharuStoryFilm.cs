@@ -63,7 +63,7 @@ public partial class KoharuStoryFilm : StoryFilm
         hud.AddChild(new KoharuStoryFilm
         {
             Name = "KoharuStoryFilm", ZIndex = -10,
-            _atlasPath = "res://char/v3/koharu_story_atlas.png", _storyName = "Koharu", _atlasRows = 4,
+            _atlasPath = "res://char/v3/koharu_story_atlas_v2.png", _storyName = "Koharu", _atlasRows = 4,
             _hud = hud, _world = world, _aftermath = aftermath,
             _lines = aftermath ? Aftermath : Memory, _completed = completed,
         });

@@ -52,6 +52,54 @@ public partial class StoryFilmQa : Node
                 else if (koharu) KoharuStoryFilm.Play(hud, world, aftermath, completed);
                 else AkariStoryFilm.Play(hud, world, aftermath, completed);
             }
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--devices") >= 0)
+            {
+                Check(koharu || rei, "device artwork test selects an updated atlas");
+                game.AutoSaveEnabled = false;
+                root.SetProcess(false);
+                stage.SetProcess(false);
+                player.SetPhysicsProcess(false);
+                world.ProcessMode = ProcessModeEnum.Inherit;
+                _out = ProjectSettings.GlobalizePath($"res://build/qa_story/devices/{stageName}");
+                DirAccess.MakeDirRecursiveAbsolute(_out);
+                foreach (bool aftermath in new[] { false, true })
+                {
+                    bool complete = false;
+                    PlayFilm(aftermath, () => complete = true);
+                    await Frames(90);
+                    var artFilm = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+                    Check(Read<string>(artFilm, "_atlasPath").EndsWith("_story_atlas_v2.png"), "runtime uses the repaired atlas");
+                    Check(Read<int>(artFilm, "_atlasRows") == 4, "original eight-shot layout retained");
+                    for (int shot = aftermath ? 5 : 0; shot <= (aftermath ? 7 : 4); shot++)
+                    {
+                        await AdvanceUntil(() => Read<int>(artFilm, "_shot") == shot);
+                        await Frames(65);
+                        foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+                        {
+                            DisplayServer.WindowSetSize(size);
+                            await Frames(5);
+                            using var frame = await Shot($"shot_{shot}_{size.X}", grayscale: !aftermath);
+                        }
+                        Check(world.ProcessMode == ProcessModeEnum.Disabled && Hud.BubblePaused,
+                            "combat stays paused while the corrected illustration is displayed");
+                    }
+                    await AdvanceUntil(() => complete);
+                    Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit, "film completes and restores combat");
+                    await Frames(30);
+                }
+                root.QueueFree();
+                Audio.Instance?.StopMusic(0);
+                foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+                    if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+                await Task.Delay(250);
+                await Frames(5);
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                await Frames(5);
+                GD.Print($"[StoryQA] {stageName} DEVICES ALL PASS");
+                GetTree().Quit();
+                return;
+            }
             await Frames(15);
             await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");

@@ -64,7 +64,7 @@ public partial class ReiStoryFilm : StoryFilm
         hud.AddChild(new ReiStoryFilm
         {
             Name = "ReiStoryFilm", ZIndex = -10,
-            _atlasPath = "res://char/v3/rei_story_atlas.png", _storyName = "Rei", _atlasRows = 4,
+            _atlasPath = "res://char/v3/rei_story_atlas_v2.png", _storyName = "Rei", _atlasRows = 4,
             _hud = hud, _world = world, _aftermath = aftermath,
             _lines = aftermath ? Aftermath : Memory, _completed = completed,
         });
