@@ -1,7 +1,7 @@
 using Godot;
 
 // AkariRoot : STAGE1「あかり」のルート（Akari.tscn にアタッチ）。
-// 雨の教室の背景を敷き、Player(=ミナ)/Hud/StageAkari を生成。浄化が進むと部屋が暖色へ晴れる。
+// 雨の街の描き込み背景を敷き、Player(=ミナ)/Hud/StageAkari を生成。浄化が進むと部屋が暖色へ晴れる。
 public partial class AkariRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -45,12 +45,9 @@ public partial class AkariRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        // 雨の街の四層背景（char/bg2/stage1）。奥→手前に L1 遠景 → F2 雨窓 → L2 中景 → L3 近景 → L4 光。
-        // L1 と F2 は無彩色の素材なので Modulate で雨青に色掛けする（設計は (0.69,0.94,1.28) だが
-        // Modulate は 1.0 を超えられないので同じ色相のまま (0.54,0.73,1.00) へ正規化）。
-        // L3 の一枚物は素材座標(1280x720基準)の配置を 0.3 倍して画面座標に落とす。
-        // L4（モニタと窓の光）は道中専用。ボス突入時は専用画へ層ごと切り替える。
-        var rainBlue = new Color(0.54f, 0.73f, 1.00f);
+        // 描き込み背景（char/bg2/route・midboss・boss）。開幕は雨の街の道中パノラマ（RouteLayers）を敷き、
+        // 中ボスで専用の部屋、ボス突入で専用画へ層ごと切り替える。会話・選択肢の間も直前の背景をそのまま
+        // 保つので、会話用の層セット（LayerDefs）は渡さない。
         var bg = new StageBackground
         {
             Name = "StageBackground",
@@ -58,18 +55,6 @@ public partial class AkariRoot : Node2D
             MidbossLayerDefs = MidbossLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BossLayerDefs = BossLayers,
-            LayerDefs = new[]
-            {
-                new BgLayers.Layer("res://char/bg2/stage1/L1_far.png",           0.15f, -95, rainBlue),
-                new BgLayers.Layer("res://char/bg2/common/F2_rain_window.png",   0.15f, -94, rainBlue),
-                new BgLayers.Layer("res://char/bg2/stage1/L2_mid.png",           0.45f, -92, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage1/L3_near_left.png",     1.00f, -91, Colors.White,
-                    offset: new Vector2(0f, 407f) * 0.3f),
-                new BgLayers.Layer("res://char/bg2/stage1/L3_near_right.png",    1.00f, -91, Colors.White,
-                    offset: new Vector2(1057f, 566f) * 0.3f),
-                new BgLayers.Layer("res://char/bg2/stage1/L4_light_monitor.png", 0f,    -88, Colors.White, additive: true),
-                new BgLayers.Layer("res://char/bg2/stage1/L4_light_window.png",  0f,    -88, Colors.White, additive: true),
-            },
         };
         AddChild(bg);
         if (!bg.HasMid)
@@ -143,9 +128,10 @@ public partial class AkariRoot : Node2D
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。
         if (Player != null) game?.TickProgress(Player.GlobalPosition.X, (float)delta);
-        float target = game?.Warmth ?? 0f;
+        bool realRealm = GetNodeOrNull<BossRealmFx>("BossRealmFx") is { Revealed: true };
+        float target = realRealm ? 1f : game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
-        if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+        if (_tint != null) _tint.Color = realRealm ? Colors.White : Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：祓うほど濁る。STAGE1は「澄み(0)→わずか(0.18)」（設計書 4-b）。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。

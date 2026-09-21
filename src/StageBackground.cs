@@ -11,7 +11,11 @@ using Godot;
 //   ・層(layers)背景 ＝ LayerDefs に層定義の配列を入れると BgLayers（L1 -95 / L2 -92 / L3 -91 / L4 -88）へ委譲する。
 //     このとき 1枚絵タイルは作らず、EnterBoss は「背景の差し替え」ではなく「暗転（面によっては明転）」を意味する。
 //     LayerDefs が空なら以下の 1枚絵経路のまま＝既存ステージは何も変わらない。
-//     道中で場所が変わる面（こはるの部屋→教室）は Stage 側から CrossfadeLayersTo で層セットごと入れ替える。
+//   ・道中3面（あかり／こはる／レイ）は描き込み背景を Route（道中パノラマ）→ Midboss（中ボスの部屋）→ Boss
+//     （ボスの部屋）の順に BeginRoute / BeginMidboss / EnterBoss で切り替える。**会話・選択肢の間も直前の
+//     戦闘背景をそのまま維持する**＝会話用の層セットは持たない（2026-09-22 ユーザー指摘「選択肢で過去の
+//     ボスステージイラストが出る」＝会話のたびに旧四層へ戻していたのを廃止）。開幕は LayerDefs を空にして
+//     RouteLayerDefs を渡す＝道中パノラマを最初から敷き、ステージ開始直後の会話もその上で進む。
 //
 //   ZIndex は旧額背景と同じ -90（ScrollFx -70..-55 / StageImagery -50 / MurkVignette -45 / 弾0.. の奥）。
 //   背景パスは Root から MidBgPath / BossBgPath で注入する＝新アートが来たらパスを差すだけで反映できる。
@@ -30,8 +34,10 @@ public partial class StageBackground : Node2D
     public Texture2D BossBgTexture = null!;
     public bool StartInBoss = false; // 道中の無いステージ（ラスボ）は最初からボス背景で軽く動かす。
 
-    // 層システム（BgLayers）へ渡す層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
-    // 空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
+    // 層システム（BgLayers）へ渡す開幕の層定義。空でなければこちらが使われ、MidBgPath/BossBgPath は無視する。
+    // 道中3面はここを空にして RouteLayerDefs だけ渡す（道中パノラマで開幕）。静的な層セットで始める面
+    // （Stage0 の練習場／FINAL のミナ）だけがここを使う。
+    // どちらも空なら従来どおり 1枚絵タイルの経路に落ちる＝既存ステージは何も変わらない。
     public BgLayers.Layer[] LayerDefs = System.Array.Empty<BgLayers.Layer>();
     public BgLayers.Layer[] RouteLayerDefs = System.Array.Empty<BgLayers.Layer>();
     public BgLayers.Layer[] MidbossLayerDefs = System.Array.Empty<BgLayers.Layer>();
@@ -45,14 +51,9 @@ public partial class StageBackground : Node2D
     public int BaseZ = -90;
     private BgLayers _layers = null!;
 
-    // 層モードで層セットを丸ごと入れ替える（道中で場所が変わる面。こはるの部屋→教室）。
-    // 層モードでないときや層が読めないときは何もしない。
-    public void CrossfadeLayersTo(BgLayers.Layer[] defs, float dur = 1.0f)
-    {
-        LayerDefs = defs;
-        if (_mode != Mode.Route && _mode != Mode.Midboss) _layers?.CrossfadeTo(defs, dur);
-    }
-
+    // 道中ザコ戦の開始（Stage の StartMidwaveSpawner から）。中ボスの部屋から道中パノラマへ戻る。
+    // 開幕が既に Route なら何もしない（同じ層セットへ無駄にクロスフェードしてスクロール位相が飛ぶのを防ぐ）。
+    // ボス突入後は戻らない。会話のたびに呼ぶものではない＝戦闘の切れ目でだけ背景が動く。
     public void BeginRoute()
     {
         if (_mode == Mode.Route || _mode == Mode.Boss || RouteLayerDefs.Length == 0) return;
@@ -60,18 +61,13 @@ public partial class StageBackground : Node2D
         _layers.CrossfadeTo(RouteLayerDefs, 0.8f);
     }
 
+    // 中ボス（カメオ）の登場（Stage の Step_BossCameo から）。道中パノラマから中ボスの部屋へ。
+    // 撃破後の会話・選択肢（こはるのペンライト等）もこの部屋のまま進み、次の道中ザコ戦の BeginRoute で戻る。
     public void BeginMidboss()
     {
         if (_mode == Mode.Midboss || _mode == Mode.Boss || MidbossLayerDefs.Length == 0) return;
         _mode = Mode.Midboss;
         _layers.CrossfadeTo(MidbossLayerDefs, 0.8f);
-    }
-
-    public void ReturnToStory()
-    {
-        if (_mode != Mode.Route && _mode != Mode.Midboss) return;
-        _mode = Mode.Mid;
-        _layers.CrossfadeTo(LayerDefs, 0.8f);
     }
 
     // 層セットと「ボス中の見え方」を同時に入れ替える（FINAL の巡回。巡る先の面のボス時の係数に揃える）。
@@ -94,6 +90,7 @@ public partial class StageBackground : Node2D
 
     public bool HasMid { get; private set; }
 
+    // Mid ＝ 1枚絵の道中／静的な層セット（Stage0・FINAL）。道中3面は _Ready で Route から始まる。
     private enum Mode { Mid, Route, Midboss, Boss }
     private Mode _mode = Mode.Mid;
     private double _t;
@@ -183,13 +180,17 @@ public partial class StageBackground : Node2D
         AddToGroup("stagebg");
 
         // 層リストが与えられていれば BgLayers に委譲する（1枚絵タイルは作らない）。
-        // ForceLayers は「開幕は層ゼロで、あとから CrossfadeLayersTo で敷く」面（FINAL の巡回）用。
+        // 開幕の層セット：LayerDefs が空で道中パノラマ（RouteLayerDefs）があれば、それを最初から敷いて
+        // Route で始める＝ステージ開始直後の会話（最初の道中ザコ戦より前）も道中の絵の上で進む。
+        // ForceLayers は「開幕は層ゼロで、あとから CrossfadeLayersToBoss で敷く」面（FINAL の巡回）用。
         // 層が0枚でも BgLayers を作って層モードに入る＝背後の別背景（ミナの生成グラデ）が透ける。
-        if (LayerDefs.Length > 0 || ForceLayers)
+        var opening = LayerDefs;
+        if (opening.Length == 0 && RouteLayerDefs.Length > 0) { opening = RouteLayerDefs; _mode = Mode.Route; }
+        if (opening.Length > 0 || ForceLayers)
         {
             _layers = new BgLayers
             {
-                Name = "BgLayers", Layers = LayerDefs, ScrollSpeed = MidScrollSpeed,
+                Name = "BgLayers", Layers = opening, ScrollSpeed = MidScrollSpeed,
                 OnBoss = LayerBossBehavior, BossLayers = BossLayerDefs,
             };
             AddChild(_layers);
@@ -203,6 +204,7 @@ public partial class StageBackground : Node2D
             // 層が1枚も読めなかった＝旧経路へ落ちる（下へ抜ける）。
             _layers.QueueFree();
             _layers = null!;
+            _mode = Mode.Mid;
         }
 
         SetupMid();

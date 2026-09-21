@@ -1,8 +1,7 @@
 using Godot;
 
 // KoharuRoot : STAGE2「こはる」のルート（Koharu.tscn にアタッチ）。
-// こはるの心象世界（bg2 stage2 の四層）を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
-// 場所は2つあり、道中A/Cは配信の部屋、道中Bで教室へ層セットごとクロスフェードで入れ替わる。
+// こはるの心象世界（bg2 の描き込み背景）を敷き、Player(=ミナ)/Hud/StageKoharu を生成。浄化が進むと暖色へ。
 public partial class KoharuRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -12,7 +11,6 @@ public partial class KoharuRoot : Node2D
     public Hud Hud { get; private set; } = null!;
     public StageKoharu Stage { get; private set; } = null!;
     public Node2D World { get; private set; } = null!;
-    public StageBackground Bg { get; private set; } = null!;
 
     public static readonly BgLayers.Layer[] RouteLayers =
     {
@@ -31,32 +29,6 @@ public partial class KoharuRoot : Node2D
         new BgLayers.Layer("res://char/bg2/boss/koharu_v1.png", 0.15f, -95, Colors.White, fitToField: true),
     };
 
-    // 道中A＝部屋（配信の部屋）。L1 は菫寄りの藍で色掛け、L4 は配信画面の加算光。
-    private static readonly Color RoomBlue = new Color(0.72f, 0.68f, 1.00f);
-    public static readonly BgLayers.Layer[] RoomLayers =
-    {
-        new BgLayers.Layer("res://char/bg2/stage2/L1_far_room.png",        0.15f, -95, RoomBlue),
-        new BgLayers.Layer("res://char/bg2/stage2/L2_mid_room.png",        0.45f, -92, Colors.White),
-        new BgLayers.Layer("res://char/bg2/stage2/L3_near_room_left.png",  1.00f, -91, Colors.White,
-            offset: new Vector2(0f, 509f) * 0.3f),
-        new BgLayers.Layer("res://char/bg2/stage2/L3_near_room_right.png", 1.00f, -91, Colors.White,
-            offset: new Vector2(1032f, 520f) * 0.3f),
-        new BgLayers.Layer("res://char/bg2/stage2/L4_light_room_screen.png", 0f, -88, Colors.White, additive: true),
-    };
-
-    // 道中B＝教室（こはるが立てなかった場所）。L1 は青灰で色掛け、L4 は窓の加算光。
-    private static readonly Color ClassBlue = new Color(0.80f, 0.86f, 1.00f);
-    public static readonly BgLayers.Layer[] ClassLayers =
-    {
-        new BgLayers.Layer("res://char/bg2/stage2/L1_far_class.png",        0.15f, -95, ClassBlue),
-        new BgLayers.Layer("res://char/bg2/stage2/L2_mid_class.png",        0.45f, -92, Colors.White),
-        new BgLayers.Layer("res://char/bg2/stage2/L3_near_class_left.png",  1.00f, -91, Colors.White,
-            offset: new Vector2(0f, 380f) * 0.3f),
-        new BgLayers.Layer("res://char/bg2/stage2/L3_near_class_right.png", 1.00f, -91, Colors.White,
-            offset: new Vector2(1051f, 285f) * 0.3f),
-        new BgLayers.Layer("res://char/bg2/stage2/L4_light_class_window.png", 0f, -88, Colors.White, additive: true),
-    };
-
     private CanvasModulate _tint = null!;
     private static readonly Color Cold = new Color(0.64f, 0.68f, 0.84f); // 電気の消えた部屋（背景が元々暗いので濃くしすぎない）
     private static readonly Color Warm = new Color(1.10f, 1.00f, 0.86f); // 灯りの戻った配信画面
@@ -73,23 +45,20 @@ public partial class KoharuRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        // こはる面の四層背景（char/bg2/stage2）。場所が2つあり、道中Aは部屋、道中Bで教室へ層ごと入れ替わる
-        // （StageKoharu が Step_MidwaveB の頭で Bg.CrossfadeLayersTo(ClassLayers) を呼ぶ）。
-        // L1 は無彩色の素材なので Modulate で色掛けする（部屋＝菫寄りの藍／教室＝青灰）。
-        // L3 の一枚物は素材座標(1280x720基準)の配置を 0.3 倍して画面座標に落とす。
-        // 道中の光は加算で重ね、ボス突入時は画面の消えた部屋の専用画へ切り替える。
+        // 描き込み背景（char/bg2/route・midboss・boss）。開幕は道中パノラマ（RouteLayers）を敷き、
+        // 中ボスで専用の部屋、ボス突入で画面の消えた部屋の専用画へ層ごと切り替える。
+        // 旧四層にあった「道中Bで教室へ入れ替える」切替は描き込み背景に教室版が無いので廃止＝道中は一つの場所。
+        // 会話・選択肢の間も直前の背景をそのまま保つので、会話用の層セット（LayerDefs）は渡さない。
         var bg = new StageBackground
         {
             Name = "StageBackground",
             RouteLayerDefs = RouteLayers,
             MidbossLayerDefs = MidbossLayers,
             MidScrollSpeed = 18f, // 電気の消えた部屋は凪いだ空気＝最も控えめな前進感
-            LayerDefs = RoomLayers,
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BossLayerDefs = BossLayers,
         };
         AddChild(bg);
-        Bg = bg;
         if (!bg.HasMid)
         {
             var fill = new ColorRect { Name = "Fill", Color = new Color(0.14f, 0.12f, 0.13f), Size = new Vector2(ScreenWidth, ScreenHeight), ZIndex = -100 };
@@ -160,9 +129,10 @@ public partial class KoharuRoot : Node2D
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。
         if (Player != null) game?.TickProgress(Player.GlobalPosition.X, (float)delta);
-        float target = game?.Warmth ?? 0f;
+        bool realRealm = GetNodeOrNull<BossRealmFx>("BossRealmFx") is { Revealed: true };
+        float target = realRealm ? 1f : game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
-        if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+        if (_tint != null) _tint.Color = realRealm ? Colors.White : Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：STAGE2は「わずか(0.18)→縁の濁り(0.45)」（設計書 4-b）。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。

@@ -359,6 +359,9 @@ public partial class RouteBackgroundQa : Node
                 $"{def.Path}: opaque far layer or transparent overlay");
         }
         await CheckPixels(game, id, defs);
+        // 開幕＝道中パノラマ（会話用の別層セットは無い。ステージ開始直後の会話もこの上で進む）。
+        Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Texture.ResourcePath.Contains("/route/")),
+            $"{id}: stage opens on the route panorama before any wave");
         if (id != "mina")
         {
             Check(Sprites(layers).All(s => !s.Texture.ResourcePath.Contains("/boss/")), $"{id}: boss room not used by route");
@@ -378,10 +381,8 @@ public partial class RouteBackgroundQa : Node
                 typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, 100);
                 Call(stage, method, 0d);
                 await Frames(55);
-                Check(Sprites(layers).All(s => s.Texture.ResourcePath.Contains("/route/") == (wave == "0")),
-                    $"{id}/{wave}: completion preserves direct cameo continuity or restores dialogue location");
-                if (id == "koharu" && wave == "B")
-                    Check(Sprites(layers).Any(s => s.Texture.ResourcePath.Contains("L1_far_class")), "school dialogue retains classroom");
+                Check(Sprites(layers).Length == 3 && Sprites(layers).All(s => s.Texture.ResourcePath.Contains("/route/")),
+                    $"{id}/{wave}: completion keeps the route panorama behind the following dialogue");
             }
             await CheckMidboss(game, id, stage, bg, layers, hud);
             bg.BeginRoute();
@@ -451,7 +452,6 @@ public partial class RouteBackgroundQa : Node
             $"{id}: actual boss spawn replaces all route layers with the original special room");
         bg.BeginRoute();
         bg.BeginMidboss();
-        bg.ReturnToStory();
         await Frames(55);
         Check(Sprites(layers).Length == 1 && Sprites(layers)[0].Material == null, $"{id}: route hooks cannot replace active boss room");
         await Shot($"{id}_boss_arrival");
@@ -473,15 +473,15 @@ public partial class RouteBackgroundQa : Node
         await Frames(55);
         var art = Sprites(layers);
         Check(art.Length == 1 && art[0].Texture.ResourcePath == $"res://char/bg2/midboss/{id}_v1.png"
-            && art[0].Material == null, $"{id}: actual cameo replaces route with its dedicated room");
+            && art[0].Material == null, $"{id}: actual cameo replaces route with its dedicated room"
+            + $" (live={string.Join(",", art.Select(s => s.Texture.ResourcePath + (s.Material == null ? "" : "+mat")))} paused={GetTree().Paused})");
         Check(layers.BossDimK == 0, $"{id}: midboss does not trigger main boss lighting");
         using (var pixels = art[0].Texture.GetImage())
             Check(pixels.GetWidth() >= 1200 && pixels.GetHeight() >= 1000 && pixels.DetectAlpha() == Image.AlphaMode.None,
                 $"{id}: high-resolution opaque midboss painting");
         bg.BeginMidboss();
-        bg.CrossfadeLayersTo(bg.LayerDefs);
         await Frames(55);
-        Check(Sprites(layers).Single() == art[0], $"{id}: repeated entry and story-location updates preserve active room");
+        Check(Sprites(layers).Single() == art[0], $"{id}: repeated entry preserves active room");
         layers.SetProcess(false);
         game.TickProgress(Field.CenterX, 0);
         layers._Process(5d);
@@ -519,8 +519,8 @@ public partial class RouteBackgroundQa : Node
         hud.HideBossBar();
         hud.ShowBossLine("", "", Colors.White, 0);
         await Frames(55);
-        Check(Sprites(layers).All(s => !s.Texture.ResourcePath.Contains("/midboss/") && !s.Texture.ResourcePath.Contains("/route/")),
-            $"{id}: cameo completion restores the story location");
+        // 撃破後の会話も中ボスの部屋のまま（旧仕様の「会話用の場所へ戻す」は廃止。次の道中の BeginRoute で戻る）。
+        Check(Sprites(layers).Single() == art[0], $"{id}: cameo completion keeps the midboss room behind the dialogue");
         Pool.DespawnAll();
     }
 
@@ -605,9 +605,17 @@ public partial class RouteBackgroundQa : Node
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         return viewport.GetTexture().GetImage();
     }
+    // n フレーム待つ。ただし実時間でも n/60 秒は待つ：この QA の待ち幅（55 フレーム）は 60fps 前提で
+    // 0.8 秒のクロスフェードを跨ぐ設計だが、vsync が 84Hz/143Hz のモニタでは 55 フレームが 0.4〜0.65 秒に
+    // 縮んで層の入れ替えが終わる前に検査してしまう（遅い環境ではフレーム数、速い環境では実時間が効く）。
     private async Task Frames(int n)
     {
-        for (int i = 0; i < n; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        double t = 0;
+        for (int i = 0; i < n || t < n / 60.0; i++)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            t += GetProcessDeltaTime();
+        }
     }
     private async Task Shot(string name)
     {

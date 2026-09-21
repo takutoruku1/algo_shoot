@@ -1,8 +1,8 @@
 using Godot;
 
 // ReiRoot : STAGE3「レイ」のルート（Rei.tscn にアタッチ）。
-// レイの心象世界（bg2 stage3 の四層）を敷き、Player(=ミナ)/Hud/StageRei を生成。改心が進むと少し晴れる。
-// ボス突入で配信の部屋から星飾りの専用舞台へ切り替わる。
+// レイの心象世界（bg2 の描き込み背景）を敷き、Player(=ミナ)/Hud/StageRei を生成。改心が進むと少し晴れる。
+// ボス突入で道中の街から星飾りの専用舞台へ切り替わる。
 public partial class ReiRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -46,24 +46,14 @@ public partial class ReiRoot : Node2D
         _tint = new CanvasModulate { Name = "Tint", Color = Cold };
         AddChild(_tint);
 
-        // レイ面の四層背景（char/bg2/stage3）。奥→手前に L1 遠景 → L2 中景（飾り枠と配信卓）→ L3 近景 → L4 光。
-        // L1 は無彩色の素材なので Modulate で菫寄りの深い藍に色掛けする。
-        // L3 の一枚物は素材の中で既に置き場所が決まった 1280x720 なので配置は (0,0) のまま（0.3 倍で画面に収まる）。
-        var deepViolet = new Color(0.52f, 0.46f, 0.90f);
+        // 描き込み背景（char/bg2/route・midboss・boss）。開幕は配信の街の道中パノラマ（RouteLayers）を敷き、
+        // 中ボスで専用の部屋、ボス突入で星飾りの専用舞台へ層ごと切り替える。会話・選択肢の間も直前の背景を
+        // そのまま保つので、会話用の層セット（LayerDefs）は渡さない。
         var bg = new StageBackground
         {
             Name = "StageBackground",
             RouteLayerDefs = RouteLayers,
             MidbossLayerDefs = MidbossLayers,
-            LayerDefs = new[]
-            {
-                new BgLayers.Layer("res://char/bg2/stage3/L1_far.png",          0.15f, -95, deepViolet),
-                new BgLayers.Layer("res://char/bg2/stage3/L2_mid.png",          0.45f, -92, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L3_near_left.png",    1.00f, -91, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L3_near_right.png",   1.00f, -91, Colors.White),
-                new BgLayers.Layer("res://char/bg2/stage3/L4_light_screen.png", 0f,    -88, Colors.White, additive: true),
-                new BgLayers.Layer("res://char/bg2/stage3/L4_light_ring.png",   0f,    -88, Colors.White, additive: true),
-            },
             LayerBossBehavior = BgLayers.BossBehavior.Illustrated,
             BossLayerDefs = BossLayers,
         };
@@ -138,9 +128,10 @@ public partial class ReiRoot : Node2D
         var game = GetNodeOrNull<GameManager>("/root/Game");
         // 前のめり進行：自機の左右位置ぶんだけ時間アキュムレータを進める（撃破カウンタには不干渉）。
         if (Player != null) game?.TickProgress(Player.GlobalPosition.X, (float)delta);
-        float target = game?.Warmth ?? 0f;
+        bool realRealm = GetNodeOrNull<BossRealmFx>("BossRealmFx") is { Revealed: true };
+        float target = realRealm ? 1f : game?.Warmth ?? 0f;
         _warmth = Mathf.MoveToward(_warmth, target, (float)delta * 0.4f);
-        if (_tint != null) _tint.Color = Cold.Lerp(Warm, _warmth);
+        if (_tint != null) _tint.Color = realRealm ? Colors.White : Cold.Lerp(Warm, _warmth);
 
         // 汚染ゲージ：STAGE3は「縁の濁り(0.45)→深刻に翳る(0.80)」（設計書 4-b）。次のFINALで黒く溶ける(1.0)。
         // 開始値は据え置き、このステージで増える分だけ汚染耐性で緩む（#2-B）。

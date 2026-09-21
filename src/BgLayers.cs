@@ -22,9 +22,9 @@ using System.Collections.Generic;
 //   色掛け（tint）は層ごとの Modulate。WorldGrade の CanvasModulate グレーディングとは別系統で二重掛けにしない
 //   （tint は Root が持ち、WorldGrade は従来どおり CanvasModulate 側に残す）。
 //
-//   層セットの入れ替え（CrossfadeTo）: 道中の途中で場所が変わる面（STAGE2 こはる＝部屋→教室）のために、
-//   新しい層セットを α0 で敷いてから 0.8〜1.2 秒で入れ替え、旧セットを解放する。唐突に切らない
-//   （StageBackground.CrossfadeBossTo と同じ作法）。
+//   層セットの入れ替え（CrossfadeTo）: 道中パノラマ→中ボスの部屋→ボスの部屋（StageBackground の
+//   BeginRoute / BeginMidboss / EnterBoss）と FINAL の巡回のために、新しい層セットを α0 で敷いてから
+//   0.8〜1.2 秒で入れ替え、旧セットを解放する。唐突に切らない（StageBackground.CrossfadeBossTo と同じ作法）。
 public partial class BgLayers : Node2D
 {
     private const float ScreenWidth = 384f;
@@ -235,7 +235,7 @@ public partial class BgLayers : Node2D
         }
     }
 
-    // 層セットを丸ごと入れ替える（道中で場所が変わる面。例：こはるの部屋→教室）。
+    // 層セットを丸ごと入れ替える（道中→中ボス→ボスの切り替え、FINAL の巡回）。
     // 新セットを α0 で敷いてから dur 秒で入れ替え、旧セットは着地時に解放する。唐突に切らない。
     // defs が1枚も読めなければ何もしない（現行の層が残る＝事故らない）。
     public void CrossfadeTo(Layer[] defs, float dur = 1.0f)
