@@ -327,6 +327,9 @@ public partial class StageKoharu : Node
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
         //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
+        // 習得スキル説明（2026-09-22）：回避／溜め打ちを覚えたあと最初に入った面で一度だけ、チュートリアルの
+        //   直後＝アンチャー紹介の前に流す（StageAkari と同じ流儀）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game)).ToArray();
         // アンチャー紹介（2026-09-17）：道中開始の直前にこの面のアンチャーの性格を流す（StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerKoharu(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
@@ -355,11 +358,11 @@ public partial class StageKoharu : Node
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
             case 4: Step_Lines(delta, _charStory ? NoLines : BossTalk); break; // S2-2 中ボスの受け（ミナ観測＝他ジョブ時はスキップ）
             case 5: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
-            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（部屋→教室へクロスフェード）
+            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める。背景の切替は無し）
             case 7: Step_Lines(delta, _playerMid); break;
             // ★S2-4 入力欄（打って、消す手）＝ミナ観測＋下書き選択の場面。他ジョブ時は道中3ビートに置換。
             case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_InputField(delta); break;
-            case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（教室→部屋へ戻る。最大密度の山）
+            case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             case 10: if (_charStory) Step_Lines(delta, NoLines); else Step_MidEndLines(delta); break;   // S2-5 我に返る一拍（ミナ観測＝他ジョブ時はスキップ）
             case 11: Step_BossSpawn(); break;
             case 12: Step_Lines(delta, _playerBoss); break;
@@ -376,13 +379,13 @@ public partial class StageKoharu : Node
         // こはる面は PostPool のこはるのテーマ（09 の K09〜K38 由来の 8 文字弾）を源にする＝
         // その面のテーマ語が降る一体感。層の比率は 09 のとおり 3:6:1（層2 が最も厚い面）。
         // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
+        if (_bossActive && _boss?.PostSequenceActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
             accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝配信画面の琥珀。全語が悲鳴＝濁色チップ
     }
 
+    // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
     private void Advance()
     {
-        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }
@@ -764,10 +767,8 @@ public partial class StageKoharu : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(0.35f);
-            // 場所が変わる：配信の部屋 → 立てなかった教室へ、層セットごと 1.0 秒でクロスフェード。
-            // 唐突に切らない（StageBackground.CrossfadeBossTo と同じ作法）。旧経路の面では何も起きない。
-            if (GetTree().GetFirstNodeInGroup("stagebg") is StageBackground bg)
-                bg.CrossfadeLayersTo(KoharuRoot.ClassLayers, 1.0f);
+            // 背景は道中パノラマのまま（BeginRoute）。旧四層にあった「部屋→教室」の層セット切替は、描き込み
+            // 背景に教室版が無いので廃止した（2026-09-22）。教室の場面は台詞（ClassTalk）だけで語る。
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋終盤Cへ（全滅ハント不要＝進行不能を防ぐ）。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
@@ -788,10 +789,7 @@ public partial class StageKoharu : Node
             _stepStarted = true;
             _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner(0.7f);
-            // S2-5〜S2-6：教室から部屋へ戻る（ボスは「消えた画面の前の部屋」で戦う）。
-            // 唐突に切らず、道中Bと同じ 1.0 秒のクロスフェードで層セットごと入れ替える。
-            if (GetTree().GetFirstNodeInGroup("stagebg") is StageBackground bg)
-                bg.CrossfadeLayersTo(KoharuRoot.RoomLayers, 1.0f);
+            // 背景は道中Bと同じ道中パノラマのまま。「消えた画面の前の部屋」はボス突入（EnterBoss）の専用画で出す。
         }
         // 規定数浄化（or 目標到達）で節目＝スポーン停止＋居座り片付け＋本ボスへ（全滅ハント不要＝進行不能を防ぐ）。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))

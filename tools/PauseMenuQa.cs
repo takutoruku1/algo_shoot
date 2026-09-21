@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 // PauseMenuQa : 作り直したポーズメニュー（2026-09-17）の自動検証。
 //   新設のトップ構成・確認ダイアログ（はい/いいえ）・スロット選択（セーブ/ロード）・歯車の設定ページを、
 //   キーボード / パッド / マウスの3経路すべてで叩いて壊れていないことを確かめる。
+//   2026-09-22：「あそびかた」行の復帰に追随（ステージ内7行／ステージ外4行）。あそびかた→閉じる→ポーズへ戻る
+//   （Esc／X のどちらで閉じても同じ押下でポーズまで閉じない）をステージ内・ハブの両方で見る。
 //   実行: Godot --headless --path . res://tools/qa_pause_menu.tscn -- --qa-pause
 //   ※セーブを実際に書くので、user データは build/qa_pause/ へ隔離した状態で走らせること
 //     （--userdata build/qa_pause 相当の起動をラッパ側で用意する）。
@@ -48,9 +50,20 @@ public partial class PauseMenuQa : Node
             Check(_pause.RetryEnabled, "stage scene enables the run-only rows");
             await OpenPause();
             Check(_pause.IsOpen, "Esc opens the pause menu");
-            Check(_pause.RowCount == 6, $"in-stage top shows 6 rows (got {_pause.RowCount})");
+            Check(_pause.RowCount == 7, $"in-stage top shows 7 rows (got {_pause.RowCount})");
             string labels = string.Join("/", System.Array.ConvertAll(_pause.Rows, r => r.label));
-            Check(labels == "離脱/リスタート/ログ/セーブ/ロード/タイトルへ", $"row order/labels: {labels}");
+            Check(labels == "離脱/リスタート/ログ/あそびかた/セーブ/ロード/タイトルへ", $"row order/labels: {labels}");
+
+            // ── あそびかた（2026-09-22 復帰）：ポーズを保ったままオーバーレイが重なり、Esc で閉じるとポーズへ戻る ──
+            var how = GetNode<HowToPlay>("/root/HowTo");
+            SetSel(3);
+            await Press(Key.Z);
+            Check(how.IsOpen, "あそびかた opens the HowTo overlay from the in-stage menu");
+            Check(_pause.IsOpen && GetTree().Paused, "the pause menu stays open and the tree stays paused under HowTo");
+            await Press(Key.Escape);
+            Check(!how.IsOpen, "Esc closes HowTo");
+            Check(_pause.IsOpen && GetTree().Paused, "closing HowTo with Esc returns to the still-open pause menu");
+            await Frames(3);
 
             // ── 確認ダイアログ（キーボード）──
             // 「リスタート」をZで開き、既定が いいえ であること・キャンセルで閉じることを見る。
@@ -78,7 +91,7 @@ public partial class PauseMenuQa : Node
 
             // ── スロット選択：セーブ（マウスクリック）──
             Check(!_pause.SlotFilled(2), "slot 2 starts empty");
-            ClickAt(PauseMenu.RowRect(3, 6), "ProcessTop");   // 「セーブ」行
+            ClickAt(PauseMenu.RowRect(4, 7), "ProcessTop");   // 「セーブ」行
             Check(_pause.SlotOpen && _pause.SlotForSave, "clicking セーブ opens the save slot picker");
             ClickAt(PauseMenu.SlotRowRect(1), "ProcessSlots"); // スロット2
             Check(!_pause.SlotOpen, "clicking a slot closes the picker");
@@ -87,7 +100,7 @@ public partial class PauseMenuQa : Node
 
             // ── スロット選択：ロード（空スロットは選べない／埋まっていれば実際に復元する）──
             SetImpression(game, 12345);   // ロードで上書きされることの目印（setter は private）
-            SetSel(4);
+            SetSel(5);                    // 「ロード」行
             await Press(Key.Z);
             Check(_pause.SlotOpen && !_pause.SlotForSave, "ロード opens the load slot picker");
             Check(_pause.SlotSel == 1, "load cursor starts on the first filled slot");
@@ -104,9 +117,18 @@ public partial class PauseMenuQa : Node
             // ── ステージ外（ハブ）ではラン専用の3行が消える ──
             await OpenPause();
             Check(!_pause.RetryEnabled, "hub is a non-combat screen");
-            Check(_pause.RowCount == 3, $"outside a stage the top shows 3 rows (got {_pause.RowCount})");
+            Check(_pause.RowCount == 4, $"outside a stage the top shows 4 rows (got {_pause.RowCount})");
             string outside = string.Join("/", System.Array.ConvertAll(_pause.Rows, r => r.label));
-            Check(outside == "セーブ/ロード/タイトルへ", $"outside rows: {outside}");
+            Check(outside == "あそびかた/セーブ/ロード/タイトルへ", $"outside rows: {outside}");
+
+            // ── ハブでも あそびかた が開き、X で閉じてもポーズへ戻る（同じ X の押下でポーズまで閉じない）──
+            ClickAt(PauseMenu.RowRect(0, 4), "ProcessTop");   // 「あそびかた」行
+            Check(how.IsOpen, "clicking あそびかた on the hub opens HowTo");
+            Check(_pause.IsOpen && GetTree().Paused, "the hub pause menu stays open under HowTo");
+            await Press(Key.X);
+            Check(!how.IsOpen, "X closes HowTo");
+            Check(_pause.IsOpen && GetTree().Paused, "closing HowTo with X returns to the still-open pause menu");
+            await Frames(3);
 
             // ── 歯車 → 設定 → もどる（矢印キーだけで歯車まで到達できること）──
             SetSel(0);

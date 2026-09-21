@@ -397,6 +397,9 @@ public partial class StageRei : Node
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
         //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
+        // 習得スキル説明（2026-09-22）：回避／溜め打ちを覚えたあと最初に入った面で一度だけ、チュートリアルの
+        //   直後＝アンチャー紹介の前に流す（StageAkari と同じ流儀）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game)).ToArray();
         // アンチャー紹介（2026-09-17）：道中開始の直前にこの面のアンチャーの性格を流す（StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerRei(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
@@ -452,14 +455,14 @@ public partial class StageRei : Node
         // ボス本体(BossRei)のスペル/予測線/パネル弾はそのまま。道中はSpawner任せでRain非依存。
         // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
         // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
-        if (_bossActive && !(IsInstanceValid(_boss) && _boss.AoeGateActive))
+        if (_bossActive && !(IsInstanceValid(_boss) && (_boss.AoeGateActive || _boss.PostSequenceActive)))
             PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Rei, fallSpeed: 46f,
                 accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
     }
 
+    // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
     private void Advance()
     {
-        (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }
@@ -699,8 +702,7 @@ public partial class StageRei : Node
             if (_storm != null && IsInstanceValid(_storm)) _storm.Dismiss();
             _storm = null;
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
-            _step = 19; _stepStarted = false;
+            _step = 19; _stepStarted = false;   // 受けの会話も道中パノラマのまま（背景は触らない）
         }
     }
 

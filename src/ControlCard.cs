@@ -25,7 +25,8 @@ using Godot;
 public partial class ControlCard : Control
 {
     // 話題（会話の行に対応）。None = カードを出さない行。
-    public enum Topic { None, Move, Shot, Lock, LockClear, Bomb }
+    //   Dodge / Charge（2026-09-22）は習得後の説明（StageTutorial.SkillDodge / SkillCharge）用。
+    public enum Topic { None, Move, Shot, Lock, LockClear, Bomb, Dodge, Charge }
 
     private Topic _topic = Topic.None;   // いま出している話題
     private Topic _next = Topic.None;    // 差し替え先（クロスフェード中のみ _topic と異なる）
@@ -138,6 +139,22 @@ public partial class ControlCard : Control
             new Row("キーボード",     "X",            "残数は左の BOMB 欄"),
             new Row("コントローラー", Pad.Face(JoyButton.X), "残数は左の BOMB 欄"),
             new Row("マウス",         "中クリック",   "残数は左の BOMB 欄"),
+        }),
+        // 回避（ショップ「回避」で覚える）。割り当ては Player.cs の回避入力＝Alt / L3 / 右クリック（HowToPlay と同表記）。
+        //   マウスの右クリックはロックオン解除と兼用＝解除カードの注記と対にする。
+        Topic.Dodge => ("回避", "一瞬だけ駆け抜ける。そのあいだは何も当たらない", UiKit.Gold, new[]
+        {
+            new Row("キーボード",     "Alt",                          "移動方向へ。無ければその場"),
+            new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み"),
+            new Row("マウス",         "右クリック",                    "カーソル方向へ。ロック解除と兼用"),
+        }),
+        // 溜め打ち（ショップ「溜め打ち」で覚える）。割り当ては Player.cs の溜め入力＝C / Y / 左クリックの長押し。
+        //   マウスは短押しがロックオン送り・長押しが溜め（同じ左クリック）＝注記で分ける。
+        Topic.Charge => ("溜め打ち", "押し続けて溜め、満ちたら離す。板も敵も貫く一発", UiKit.Gold, new[]
+        {
+            new Row("キーボード",     "C 長押し",                            "満ちたら離す"),
+            new Row("コントローラー", Pad.Face(JoyButton.Y) + " 長押し",      "満ちたら離す"),
+            new Row("マウス",         "左クリック 長押し",                    "短く押すとロックオン送り"),
         }),
         _ => ("", "", UiKit.White, System.Array.Empty<Row>()),
     };

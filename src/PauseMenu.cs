@@ -8,10 +8,14 @@ using Godot;
 //       ・セーブ／ロードはスロット選択ダイアログを挟む（見た目・語彙はタイトルの「つづきから」に揃える）。
 //     「つづける」行は廃止＝下部中央の「閉じる」ボタンへ。
 //     「このステージ」の階層は廃止＝中身をトップへ展開した。
-//     「ボタン表記」「あそびかた」は廃止。
+//     「ボタン表記」は廃止。
 //     設定（音量・画面モード）は右上の歯車ボタンから開く別ページへ移した。
+//   ★2026-09-22：「あそびかた」を戻した（ユーザー要望「ボタン配置・強化アイテムの説明をメニューから
+//     確認できるように」）。2026-09-17 の作り直しで項目ごと落ちて HowToPlay へ入る導線がゼロになっていた。
+//     ログと同じくポーズを保ったままオーバーレイを重ね、閉じればこのメニューへ戻る（シーン遷移なし）。
+//     ステージ内・ステージ外のどちらでも出す＝ハブからでもボタン配置と強化アイテムを確認できる。
 //   ステージ外（ハブ/ショップ/記録/難易度選択/トレーニング）では 離脱／リスタート／ログ が意味を持たない
-//     ので出さない（セーブ／ロード／タイトルへ の3行＋閉じる＋歯車だけ）。RetryEnabled 参照。
+//     ので出さない（あそびかた／セーブ／ロード／タイトルへ の4行＋閉じる＋歯車だけ）。RetryEnabled 参照。
 //   セーブは手動・スロット制（自動セーブは別枠）＝ここでしか手動保存されない。
 //   タイトル/設定/あそびかた/カットシーンは対象外（Esc が既に「閉じる/戻る」の画面＝そちらを優先）。
 //   開ける画面では右下に「Esc メニュー」ヒントを常時表示する。
@@ -39,19 +43,20 @@ public partial class PauseMenu : CanvasLayer
 
     // ───────── トップの項目 ─────────
     //   Act は「何をする行か」。行の並びは列挙順そのままで、ステージ外では Leave/Restart/Log が落ちる。
-    public enum Act { Leave, Restart, Log, Save, Load, Title }
+    public enum Act { Leave, Restart, Log, HowTo, Save, Load, Title }
     private static readonly (Act act, string label)[] AllRows =
     {
         (Act.Leave,   "離脱"),
         (Act.Restart, "リスタート"),
         (Act.Log,     "ログ"),
+        (Act.HowTo,   "あそびかた"),
         (Act.Save,    "セーブ"),
         (Act.Load,    "ロード"),
         (Act.Title,   "タイトルへ"),
     };
     // ステージ外で出す行（＝ラン中にしか意味が無い3つを外したもの）。
     private static readonly (Act act, string label)[] OutsideRows =
-        System.Array.FindAll(AllRows, e => e.act is Act.Save or Act.Load or Act.Title);
+        System.Array.FindAll(AllRows, e => e.act is Act.HowTo or Act.Save or Act.Load or Act.Title);
 
     public (Act act, string label)[] Rows => RetryEnabled ? AllRows : OutsideRows;
 
@@ -159,6 +164,8 @@ public partial class PauseMenu : CanvasLayer
             case "save":     OpenSlots(forSave: true); break;
             case "load":     OpenSlots(forSave: false); break;
             case "settings": _page = Page.Settings; _sel = 0; break;
+            // あそびかた：ポーズの上にオーバーレイが重なった状態（--howto N と併用すればページも指せる）。
+            case "howto":    GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open(); break;
         }
     }
 
@@ -222,7 +229,9 @@ public partial class PauseMenu : CanvasLayer
                         || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true };
         if (overlayOpen || Pad.UiBlocked(this))
         {
-            _escHeld = _zHeld = _navHeld = _lrHeld = true;
+            // _backHeld も含める（2026-09-22）：あそびかた／ログを X（パッド B）で閉じた同じ押下が、
+            //   次のフレームで cancel エッジとして立ち、ポーズメニューまで閉じてしまっていた。
+            _escHeld = _zHeld = _navHeld = _lrHeld = _backHeld = true;
             _canvas.QueueRedraw();
             return;
         }
@@ -318,6 +327,13 @@ public partial class PauseMenu : CanvasLayer
                 // ログ：ポーズを保ったままバックログ・オーバーレイを重ねる（閉じたらポーズへ戻る）。
                 Audio.Instance?.PlayUiConfirm();
                 GetNodeOrNull<Backlog>("/root/Backlog")?.Open();
+                return;
+            case Act.HowTo:
+                // あそびかた：ログと同じ作法でオーバーレイ（HowToPlay・Layer 110）を重ねる。ツリーポーズは
+                //   掛けたまま＝HowToPlay は ProcessMode=Always で動き、開いている間はこちらの _Process が
+                //   overlayOpen で早期 return して入力を譲る。閉じると NoteOverlayClosed 経由でここへ戻る。
+                //   決定音は HowToPlay.Open が鳴らす（ここで重ねて鳴らさない）。
+                GetNodeOrNull<HowToPlay>("/root/HowTo")?.Open();
                 return;
             case Act.Save:
                 // トレーニング中は試用の強化がディスクへ漏れるので保存させない（グレーアウト行）。

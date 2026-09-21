@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 // StageTutorial : 初見チュートリアル会話（ミナ）の once 管理と本文の一元置き場（2026-09-16）。
 //   ①道中 … セーブで最初にステージの道中へ入ったとき（各ステージ _Ready の _step==1 確定後、
@@ -22,6 +23,9 @@ public static class StageTutorial
     public const string AnkerAkariSeenKey = "once_ankers_akari";
     public const string AnkerKoharuSeenKey = "once_ankers_koharu";
     public const string AnkerReiSeenKey = "once_ankers_rei";
+    public const string ItemsAkariSeenKey = "once_items_akari";
+    public const string SkillDodgeSeenKey = "once_skill_dodge";
+    public const string SkillChargeSeenKey = "once_skill_charge";
 
     private const string MFace = "res://char/mina_face.png";
     private const string MWorried = "res://char/mina_worried.png";
@@ -110,30 +114,107 @@ public static class StageTutorial
         (1, "落ち着いて、正面を空けてください。ご主人様。", MFace),
     };
 
+    // ④ 強化アイテム説明（2026-09-22・ユーザー要望「最初のステージの一番最初に強化弾の説明を」）。
+    //   ザコを浄化すると（Player.KillsPerPowerDrop 体ごとに）心の欠片の1粒に PowerKind（Line/Speed/Life/Shield）
+    //   が乗り、色の枠付きで散る（Enemy.Redeem → Player.CountPowerupKill → FxLayer.PurifyBurst → ScoreShards）。
+    //   拾い方は欠片と同じ（磁力）。効果は Player.ApplyPowerup、表示は Hud.DrawPowerups（左パネル・LIFE の上）、
+    //   被弾で失う（Player.LosePowerupsOnHit／Shield は肩代わりで消費）。本文は数値に依存しない＝WIP の
+    //   調整（倍率・間隔）で嘘にならない書き方にしてある。
+    //   最初の面（あかり）だけ。アンチャー紹介③の後ろへ繋ぐ＝「一般 → この面の敵 → 拾い物」の順。
+    //   once はセーブ単位（once_items_akari）。①③と同じく結び手潜行のときだけ・消費も同条件（Take）。
+    //   本文の正典: docs/20260922/強化アイテム説明_本文_2026-09-22.md。
+    private static readonly (int who, string text, string face)[] ItemsAkari =
+    {
+        (1, "もうひとつ。浄化を重ねていると、ときどき、欠片に混じって——色の枠がついたものが、こぼれます。", MFace),
+        (1, "拾えば、そのぶん、わたくしが変わります。光が増える。足が速くなる。LIFEが増える。被弾を、一度、肩代わりする。", MFace),
+        (1, "いま何を身につけているかは、左のパネル——LIFEの上に、出ます。", MFace),
+        (1, "ただし。攻撃を受けると、消えます。持ったまま進めるのは、当たらないでいるあいだだけです。", MWorried),
+    };
+
+    // ⑤ 習得スキルの説明（2026-09-22・ユーザー要望「回避とチャージショットが追加されたときはステージに
+    //   入ったときに使い方を教える。説明の仕方は最初のステージ開始時と同じで」）。
+    //   ・回避 … ショップの品目 n_dodge（HasDodge。2026-09-22 ユーザー指示で「1面クリアの物語報酬」から変更）。
+    //     発火条件は HasDodge かつ未見＝買ったあと最初に入った面の冒頭。ここは HasDodge だけを見る＝
+    //     習得経路がどちらでも動く（本文はステージ名・主の名を出さないので、どの面で流れても嘘にならない）。
+    //   ・溜め打ち … ショップの一本道ノード n_charge（HasChargeShot）。発火条件は HasChargeShot かつ未見。
+    //   ・両方が同時に並ぶときは 回避 → 溜め打ち（習得の時系列どおり）。文面は互いを参照しないので単独でも成立。
+    //   ・差し込みは各ステージ _step==1 の Concat 列で 道中チュートリアル①の直後・アンチャー紹介③の前
+    //     ＝ステージ1と同じ「操作の説明が先」。FINAL（StageMina）は対象外（ミナが動けない場面で操作説明は
+    //     成立しない＝ShowLine もカードを同期しない）。
+    //   ・once はセーブ単位（once_skill_dodge / once_skill_charge）。①③④と同じく結び手潜行のときだけ・
+    //     消費も同条件（Take）＝他ジョブ潜行中は who=1（ミナ）の発話を出さない流儀に揃える。
+    //   ・キー名は書かない＝どのボタンかは操作カード（SkillDodgeCues / SkillChargeCues）が担う。
+    //   本文の正典: docs/20260922/回避チャージ説明_本文_2026-09-22.md（一字も変えない）。
+    private static readonly (int who, string text, string face)[] SkillDodge =
+    {
+        (1, "集めていただいた欠片で、わたくしの足が、変わりました。——「回避」。身体が、覚えています。", MFace),
+        (1, "押せば、一瞬、向かっている方向へ、駆け抜けます。方向がなければ、その場で。……そのあいだだけ、何も、当たりません。", MFace),
+        (1, "逃げるためでは、ありません。弾の濃いところを、抜けてください。かすめたぶんだけ、わたくしが数えます。", MFace),
+        (1, "ただし。一度抜けると、しばらく、次は出ません。……抜けた先に、立てる場所を。", MWorried),
+    };
+
+    private static readonly (int who, string text, string face)[] SkillCharge =
+    {
+        (1, "拾っていただいた欠片が、ひとつ、かたちになりました。——「溜め打ち」。お伝えします。", MFace),
+        (1, "押し続けているあいだ、わたくしの前に、光が集まります。頭上の弧が満ちて、白く脈打ったら——合図です。", MFace),
+        (1, "そこで、離してください。ひときわ重い一発が、板を貫き、アンチャーを貫いて、なお進みます。", MFace),
+        (1, "満ちる前に離せば、何も出ません。……そのあいだも、いつもの光は、止まりません。", MFace),
+    };
+
+    // ⑤の各行で出す操作カードの話題（本文の [card: ...] 注記どおり。RouteCues と同じ考え方＝
+    //   1行目（提示）は畳み、押す・離すを語る 2〜4 行目は同じ話題を出しっぱなしにする）。
+    private static readonly ControlCard.Topic[] SkillDodgeCues =
+    {
+        ControlCard.Topic.None,    // 1 提示（欠片で足が変わった）
+        ControlCard.Topic.Dodge,   // 2 押す・方向・無敵
+        ControlCard.Topic.Dodge,   // 3 弾の濃いところを抜ける
+        ControlCard.Topic.Dodge,   // 4 クールダウン
+    };
+    private static readonly ControlCard.Topic[] SkillChargeCues =
+    {
+        ControlCard.Topic.None,    // 1 提示（欠片がかたちになった）
+        ControlCard.Topic.Charge,  // 2 押し続ける・合図
+        ControlCard.Topic.Charge,  // 3 離す・貫く
+        ControlCard.Topic.Charge,  // 4 満ちる前に離すと不発
+    };
+
+    // カードを同期する本文ブロックの一覧（本文と cue の対）。SyncCard はここを順に引く。
+    private static readonly ((int who, string text, string face)[] lines, ControlCard.Topic[] cues)[] CardBlocks =
+    {
+        (Route, RouteCues),
+        (SkillDodge, SkillDodgeCues),
+        (SkillCharge, SkillChargeCues),
+    };
+
     // ───────── 操作カード（盤面中央のウィンドウ）の同期 ─────────
     // 各ステージの ShowLine が「いま出した配列と行番号」を渡してくるだけ＝ステージ側はカードの存在を知らない。
-    //   lines が道中チュートリアル（Route）そのものでない限り何もしない（＝通常の会話では一切出ない・
-    //   他ジョブのキャラ別ストーリーにも混ざらない）。ただし Route はイントロ末尾へ Concat されて渡るため、
-    //   「いま出している行が Route の何行目か」を実体参照（ReferenceEquals）で引き当てて話題を選ぶ。
+    //   lines が道中チュートリアル（Route）や習得スキル説明（⑤）の行でない限り何もしない（＝通常の会話では
+    //   一切出ない・他ジョブのキャラ別ストーリーにも混ざらない）。ただしこれらはイントロ末尾へ Concat されて
+    //   渡るため、「いま出している行がどのブロックの何行目か」を実体参照（ReferenceEquals）で引き当てて話題を選ぶ。
     //   ※2026-09-17: 以前は「配列の末尾16行が Route」と決め打ちして添字をずらしていたが、Route の
     //     さらに後ろへアンチャー紹介（③）を Concat した途端に末尾が Route でなくなり、カードが一切
-    //     出なくなる作りだった。Route の各行は他所に無い固有の文字列リテラル＝参照一致で一意に引ける。
+    //     出なくなる作りだった。各行は他所に無い固有の文字列リテラル＝参照一致で一意に引ける。
     //   カードは Hud（CanvasLayer）の子として遅延生成し、以後は使い回す。
     public static void SyncCard(Hud? hud, (int who, string text, string face)[] lines, int index)
     {
         if (hud == null) return;
         var card = hud.GetNodeOrNull<ControlCard>("ControlCard");
-        int cue = -1;
+        var topic = ControlCard.Topic.None;
+        bool found = false;
         if (index >= 0 && index < lines.Length)
-            for (int i = 0; i < Route.Length && i < RouteCues.Length; i++)
-                if (ReferenceEquals(lines[index].text, Route[i].text)) { cue = i; break; }
-        if (cue < 0)
+            foreach (var (block, cues) in CardBlocks)
+            {
+                for (int i = 0; i < block.Length && i < cues.Length; i++)
+                    if (ReferenceEquals(lines[index].text, block[i].text)) { topic = cues[i]; found = true; break; }
+                if (found) break;
+            }
+        if (!found)
         {
             card?.Dismiss();   // チュートリアル以外の行に移った＝畳む（生成前なら何もしない）
             return;
         }
         card ??= ControlCard.Attach(hud);
-        card.Show(RouteCues[cue]);
+        card.Show(topic);
     }
 
     // 道中開始時に一度だけ返す（返した瞬間に once を消費）。出さない条件では None（消費もしない）。
@@ -146,6 +227,22 @@ public static class StageTutorial
     public static (int who, string text, string face)[] TakeAnkerAkari(GameManager? game) => Take(game, AnkerAkariSeenKey, AnkerAkari);
     public static (int who, string text, string face)[] TakeAnkerKoharu(GameManager? game) => Take(game, AnkerKoharuSeenKey, AnkerKoharu);
     public static (int who, string text, string face)[] TakeAnkerRei(GameManager? game) => Take(game, AnkerReiSeenKey, AnkerRei);
+
+    // 強化アイテム説明（④）。あかり面の道中開始時に一度だけ返す（③の直後に繋ぐ）。結び手潜行のときだけ・消費も同条件。
+    public static (int who, string text, string face)[] TakeItemIntroAkari(GameManager? game) => Take(game, ItemsAkariSeenKey, ItemsAkari);
+
+    // 習得スキル説明（⑤）。どのステージでも道中開始時に、習得済みかつ未見のものだけを 回避 → 溜め打ち の順で
+    //   連結して返す（未習得は出さず once も消費しない＝習得後の最初の面で必ず見られる）。
+    //   結び手潜行のときだけ・消費も同条件（Take）。①の直後・③の前に繋ぐ。
+    public static (int who, string text, string face)[] TakeSkillIntros(GameManager? game)
+    {
+        if (game == null) return None;
+        var dodge = game.HasDodge ? Take(game, SkillDodgeSeenKey, SkillDodge) : None;
+        var charge = game.HasChargeShot ? Take(game, SkillChargeSeenKey, SkillCharge) : None;
+        if (dodge.Length == 0) return charge;
+        if (charge.Length == 0) return dodge;
+        return dodge.Concat(charge).ToArray();
+    }
 
     private static (int who, string text, string face)[] Take(
         GameManager? game, string key, (int who, string text, string face)[] lines)

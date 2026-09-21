@@ -261,6 +261,8 @@ public partial class StageAkari : Node
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
+        (4, BossPostStory.Get("akari").Posts[0], ""),
+        (1, "……公開された本文の下に、何度も書き直した跡が、重なっています。", MFace),
         (4, "「いいねが、ひとつ。……増えてないの、知ってるのに、今日だけで四回も、見にきちゃった。」", ""),   // A40
         (1, "……通知の吹き出しが、「1」のまま。同じ形で、四つ、降ってきました。", MWorried),   // 数えただけ。投稿の「四回」とは結び付けて言わない
         (1, "ホワイトボードも、モニタも、窓も……ぜんぶ「すき」で、埋まっていきます。取り消したぶんが、フロアじゅうに、あふれている。", MFace),
@@ -347,9 +349,17 @@ public partial class StageAkari : Node
         //   直前にミナの説明を流す。_step==1 確定後に繋ぐ＝チェックポイント入口（中ボス/ボスから）では
         //   イントロごと飛ぶので消費しない。結び手のみ・once はセーブ単位（StageTutorial が一括で判定）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
+        // 習得スキル説明（2026-09-22）：回避／溜め打ち（どちらもショップ）を覚えたあと最初に入った面で
+        //   一度だけ、チュートリアルの直後＝アンチャー紹介の前に使い方を流す（操作の説明が先）。
+        //   未習得は出さず once も消費しない。結び手潜行のみ（StageTutorial.TakeSkillIntros）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeSkillIntros(game)).ToArray();
         // アンチャー紹介（2026-09-17）：チュートリアルの後ろ＝道中開始の直前に、この面のアンチャーの
         //   性格だけを流す（一般→個別）。once は面ごと（once_ankers_akari）＝ステージ初回のみ。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeAnkerAkari(game)).ToArray();
+        // 強化アイテム説明（2026-09-22）：アンチャー紹介の直後＝道中開始の直前に、ザコが落とす強化欠片の
+        //   拾い方・効果・表示位置・被弾で失うことを流す。最初の面（あかり）だけ。once はセーブ単位
+        //   （once_items_akari）。結び手潜行のときだけ・他ジョブでは非表示かつ非消費（StageTutorial.Take）。
+        if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeItemIntroAkari(game)).ToArray();
         if (_step == 1) Step_Lines(0, _playerIntro);
     }
 
@@ -400,10 +410,9 @@ public partial class StageAkari : Node
                 accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
     }
 
+    // 背景はここでは触らない：会話・選択肢は直前の戦闘背景（道中パノラマ／中ボスの部屋／ボスの部屋）の上で進む。
     private void Advance()
     {
-        // The opening wave flows straight into the cameo without a dialogue stop.
-        if (_step != 2) (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.ReturnToStory();
         _step++;
         _stepStarted = false;
     }

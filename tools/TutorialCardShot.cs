@@ -51,10 +51,15 @@ public partial class TutorialCardShot : Node
             (tut + 10, "04_lockclear"),// 11行目 ロックオン解除（2026-09-17 追加）
             (tut + 11, "05_bomb"),     // 12行目 ボム
             (tut + 13, "06_after"),    // 14行目 心の欠片＝カードが畳まれている
+            // 2026-09-22: チュートリアル16行＋アンチャー紹介3行の後ろに強化アイテム説明（④・4行）が続く。
+            //   会話枠に説明が出ている画を1枚（先頭行）と、4種をまとめた2行目を撮る。
+            (tut + 19, "07_items"),    // 説明④ 1行目（色の枠がついた欠片）
+            (tut + 20, "08_items_kinds"), // 説明④ 2行目（光・足・LIFE・肩代わり）
         };
 
         foreach (var (line, name) in shots)
         {
+            if (line >= lines.Length) { GD.PushWarning($"[cardshot] {name}: 行 {line} が本文の範囲外（{lines.Length} 行）"); continue; }
             SetLine(line);
             await Frames(60);          // フェード（0.22s）＋入替（0.16s）が終わるまで待つ
             Capture(name);
