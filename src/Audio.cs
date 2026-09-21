@@ -299,6 +299,8 @@ public partial class Audio : Node
     //   ステージ外（メニュー/カットシーン）では cutoff 開放・パッド無音へ戻す。
     public override void _Process(double delta)
     {
+        TickAkariMusic(delta);
+        TickPostMusic(delta);
         float dt = (float)delta;
         // 補間係数：1 - e^(-k·dt)。フレームレートに依らず一定の追従感。
         float a = 1f - Mathf.Exp(-MurkSmooth * dt);
@@ -414,6 +416,8 @@ public partial class Audio : Node
         if (cur.Stream == stream && cur.Playing) return;
 
         _currentMusic = stream; // ステージ判定（BgmStage/BgmBoss なら濁し有効）に使う
+        if (stream != BgmBossAkari) StopAkariLayers();
+        if (stream != _postTheme) _postTheme = null;
 
         // 別曲へ切り替わるので再生速度を通常（1.0）へリセット＝ボス戦を抜けたら加速も解除。
         _musicSpeedTween?.Kill();
@@ -423,6 +427,7 @@ public partial class Audio : Node
 
         if (stream != null)
         {
+            nxt.Bus = "Music";
             nxt.Stream = stream;
             nxt.VolumeDb = SilentDb;
             nxt.PitchScale = 1f;

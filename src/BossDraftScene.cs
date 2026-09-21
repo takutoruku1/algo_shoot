@@ -1,15 +1,9 @@
 using Godot;
 using System;
 
-public partial class AkariDraftScene : Node2D
+public partial class BossDraftScene : Node2D
 {
-    private static readonly string[] Lines =
-    {
-        "……それ、送ってない。誰にも、見せてないのに。",
-        "一緒に入った会社なのに。好きって、一度も言えないまま……。",
-        "でも、おめでとうだけは……嘘に、したくなかった。",
-    };
-    private const string Face = "res://char/v3/akari_face_cry.png";
+    private BossPostStory _story = null!;
     private Hud _hud = null!;
     private Node _world = null!;
     private GameManager _game = null!;
@@ -20,16 +14,16 @@ public partial class AkariDraftScene : Node2D
     private int _line;
     private double _time, _lineTime, _readTime, _exitTime;
 
-    public static void Play(Hud hud, Node world, Action completed)
-        => hud.AddChild(new AkariDraftScene
+    public static void Play(Hud hud, Node world, BossPostStory story, Action completed)
+        => hud.AddChild(new BossDraftScene
         {
-            Name = "AkariDraftScene", ZIndex = -10,
-            _hud = hud, _world = world, _completed = completed,
+            Name = "BossDraftScene", ZIndex = -10,
+            _hud = hud, _world = world, _story = story, _completed = completed,
         });
 
     public override void _Ready()
     {
-        AddToGroup("akari_draft");
+        AddToGroup("boss_draft");
         _worldMode = _world.ProcessMode;
         _world.ProcessMode = ProcessModeEnum.Disabled;
         _game = GetNode<GameManager>("/root/Game");
@@ -41,11 +35,11 @@ public partial class AkariDraftScene : Node2D
         _hud.HideBubble();
         _hud.HideSpellCard();
         _hud.HideBossBar();
-        _hud.SetCinematicMode(true);
+        _hud.SetCinematicMode(true, dialogueBubble: _story.Id == "mina");
         GetNode<BulletPool>("/root/Pool").DespawnAll();
-        Audio.Instance?.StopMusic(0.8f);
-        _background = GD.Load<Texture2D>("res://char/bg2/boss/akari_v1.png");
-        _face = GD.Load<Texture2D>(Face);
+        if (Audio.Instance is { } audio) audio.Music(audio.StoryBgm(_story.Id, aftermath: true), 3f);
+        _background = GD.Load<Texture2D>(_story.RealBackground);
+        _face = GD.Load<Texture2D>(_story.Id == "mina" ? BossMina.CostumePath(4, "idle") : _story.Face);
         _held = Pad.AdvanceHeld();
     }
 
@@ -68,7 +62,7 @@ public partial class AkariDraftScene : Node2D
         }
         if (!_started)
         {
-            if (_time < 4.8) return;
+            if (_time < 3.6) return;
             _started = true;
             ShowLine();
             return;
@@ -84,7 +78,7 @@ public partial class AkariDraftScene : Node2D
                  && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readTime >= 1.4)))
         {
             _line++;
-            if (_line == Lines.Length) { _leaving = true; _hud.HideBubble(); }
+            if (_line == _story.Lines.Length) { _leaving = true; _hud.HideBubble(); }
             else ShowLine();
         }
     }
@@ -92,42 +86,39 @@ public partial class AkariDraftScene : Node2D
     private void ShowLine()
     {
         _lineTime = _readTime = 0;
-        _hud.ShowDialog(Hud.LineKind.Other, Lines[_line], Face, otherName: "あかり");
+        _hud.ShowDialog(_story.Id == "mina" ? Hud.LineKind.Mina : Hud.LineKind.Other,
+            _story.Lines[_line], _story.Face, otherName: _story.Name);
     }
 
     public override void _Draw()
     {
         float alpha = _leaving ? 1 - Mathf.Clamp((float)(_exitTime / 0.6), 0, 1)
             : Mathf.Clamp((float)(_time / 0.6), 0, 1);
-        DrawTextureRect(_background, new Rect2(0, 0, 384, 216), false, new Color(0.28f, 0.32f, 0.36f, alpha));
-        UiKit.BeginDesign(this);
-        DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.025f, 0.03f, 0.035f, alpha));
-        DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.03f, 0.035f, alpha));
-        var faceSize = _face.GetSize() * (346f / _face.GetHeight());
-        DrawTextureRect(_face, new Rect2(new Vector2(310, 328) - faceSize * 0.5f, faceSize), false,
+        float scale = 384f / _background.GetWidth();
+        var size = _background.GetSize() * scale;
+        DrawTextureRect(_background, new Rect2(new Vector2(0, 108) - new Vector2(0, size.Y * 0.5f), size), false,
             new Color(1, 1, 1, alpha));
-        float open = Mathf.Clamp((float)((_time - 0.7) / 1.7), 0, 1);
-        for (int i = 0; i < 5; i++)
+        UiKit.BeginDesign(this);
+        DrawRect(new Rect2(0, 0, 1280, 72), new Color(0.025f, 0.03f, 0.035f, alpha));
+        DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.03f, 0.035f, alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(56, 22), "REAL REALM", 24, new Color(0.91f, 0.96f, 1, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(994, 26), $"{_story.Name} / 本当の景色", 18, new Color(0.91f, 0.96f, 1, alpha));
+        float open = Mathf.Clamp((float)((_time - 0.6) / 1.4), 0, 1);
+        if (_story.Id == "mina")
         {
-            float x = 588 + (i - 2) * open * 68;
-            float y = 142 + i * 7 + open * open * (i % 2 == 0 ? -180 : 200);
-            UiKit.Box(this, new Rect2(x, y, 524, 306), new Color(0.10f, 0.16f, 0.19f, alpha * (1 - open)), 6,
-                new Color(0.7f, 0.8f, 0.9f, alpha * (1 - open) * 0.4f), 1);
+            var bodySize = _face.GetSize() * (453f / _face.GetHeight());
+            DrawTextureRect(_face, new Rect2(new Vector2(640, 290) - bodySize * 0.5f, bodySize), false,
+                new Color(1, 1, 1, alpha * open));
+            UiKit.EndDesign(this);
+            return;
         }
-        var paper = new Color(0.94f, 0.96f, 0.95f, alpha * open);
-        UiKit.Box(this, new Rect2(570, 144, 574, 312), paper, 6);
-        UiKit.Text(this, UiKit.Zen, new Vector2(608, 164), "下書き", 22, new Color(0.22f, 0.33f, 0.37f, alpha * open));
-        UiKit.Text(this, UiKit.Zen, new Vector2(1040, 166), "未送信", 19, new Color(0.38f, 0.45f, 0.46f, alpha * open));
-        DrawLine(new Vector2(608, 208), new Vector2(1106, 208), new Color(0.3f, 0.45f, 0.49f, alpha * open * 0.25f));
-        string[] draft = { "おめでとう", "ほんとだよ", "元気でね" };
-        int remaining = Mathf.Clamp((int)((_time - 2) * 7), 0, 14);
-        for (int i = 0; i < draft.Length; i++)
-        {
-            int count = Mathf.Clamp(remaining, 0, draft[i].Length);
-            remaining -= draft[i].Length;
-            UiKit.Text(this, UiKit.Zen, new Vector2(612, 232 + i * 58), draft[i][..count], 34,
-                new Color(0.11f, 0.22f, 0.26f, alpha * open));
-        }
+        var faceSize = _face.GetSize() * (320f / _face.GetHeight());
+        DrawTextureRect(_face, new Rect2(new Vector2(242, 353) - faceSize * 0.5f, faceSize), false,
+            new Color(1, 1, 1, alpha * open));
+        DrawRect(new Rect2(420, 213, 484, 118), new Color(0.035f, 0.065f, 0.08f, alpha * open * 0.82f));
+        DrawLine(new Vector2(420, 213), new Vector2(420, 331), new Color(0.96f, 0.86f, 0.79f, alpha * open), 2);
+        UiKit.Text(this, UiKit.Zen, new Vector2(448, 231), "誰にも見せなかった、最初の言葉。", 20, new Color(0.85f, 0.91f, 0.94f, alpha * open));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(448, 273), _story.Quote, 28, new Color(1, 0.93f, 0.87f, alpha * open));
         UiKit.EndDesign(this);
     }
 

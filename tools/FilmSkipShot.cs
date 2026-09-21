@@ -34,7 +34,7 @@ public partial class FilmSkipShot : Node
             game.SelectedEntry = GameManager.StageEntry.Boss;
             // 「一度見た」状態を作る＝ヒントが出る条件。
             FilmSkip.MarkSeen(game, "akari_memory");
-            FilmSkip.MarkSeen(game, "mina_phase_1");
+            FilmSkip.MarkSeen(game, $"mina_phase_1_{game.JobDef.CharacterId}");
 
             var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<Node2D>();
             await Frames(1);

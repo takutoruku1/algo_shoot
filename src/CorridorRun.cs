@@ -77,7 +77,8 @@ public partial class CorridorRun : Node2D, IAoeHazard
         _letterTex = GD.Load<Texture2D>("res://char/v3/fx/akari/card_unsent_1.png");
         AddToGroup("aoe");       // QaPilot が IAoeHazard として走査（AreaStrike と同じ観測経路）
         AddToGroup("corridor");  // StageAkari（投稿弾の停止）／DemoPilot（中心線追従）が探す
-        ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下（全画面AOEと同じ層）
+        ZIndex = -2; ZAsRelative = false;
+        Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
 
         // 難易度：G / スクロール速度 / 蛇行最大縦速度。縦速度は自機150px/sを厳守で下回る。
         var diff = GetNodeOrNull<GameManager>("/root/Game")?.Difficulty ?? GameManager.Diff.Normal;
@@ -224,10 +225,9 @@ public partial class CorridorRun : Node2D, IAoeHazard
         if (_dissolving) alpha *= 1f - (float)(_dissolveT / DissolveDur);
         if (alpha <= 0f) return;
 
-        var fill = new Color(Tint.R, Tint.G, Tint.B, 0.30f * alpha);
+        var fill = new Color(AreaStrike.DangerEdge, 0.22f * alpha);
         var deep = new Color(Tint.R * 0.5f, Tint.G * 0.5f, Tint.B * 0.6f, 0.35f * alpha); // 壁の芯（雨脚の濃い帯）
-        // ボム拡張中は縁を白熱色に＝「いま広い」を色でも伝える。
-        var edgeBase = _bombWideT > 0 ? Hot : Tint;
+        var edgeBase = AreaStrike.DangerEdge;
 
         int kMin = Mathf.Max(0, Mathf.FloorToInt((_scroll - WallThick) / WallStride));
         int kMax = Mathf.FloorToInt((_scroll + W + WallThick) / WallStride);
@@ -272,6 +272,12 @@ public partial class CorridorRun : Node2D, IAoeHazard
 
     private void DrawRainLetters(Rect2 wall, int column, float alpha)
     {
+        for (float x = wall.Position.X - wall.Size.Y; x < wall.End.X; x += 12f)
+        {
+            var from = new Vector2(Mathf.Max(x, wall.Position.X), wall.Position.Y + Mathf.Max(0, wall.Position.X - x));
+            var to = new Vector2(Mathf.Min(x + wall.Size.Y, wall.End.X), wall.End.Y - Mathf.Max(0, x + wall.Size.Y - wall.End.X));
+            DrawLine(from, to, new Color(AreaStrike.DangerEdge, 0.3f * alpha), 0.65f, true);
+        }
         if (wall.Size.Y < 14) return;
         int count = Mathf.Clamp((int)(wall.Size.Y / 30), 1, 4);
         Vector2 size = _letterTex.GetSize() * (9f / _letterTex.GetWidth());

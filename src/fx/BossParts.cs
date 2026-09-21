@@ -12,11 +12,7 @@ using System.Collections.Generic;
 //     ・本体の座標系にぶら下がるので、ボスが徘徊すれば部品も一緒に動く。
 //     ・会話中（Hud.BubblePaused）は時間を止める＝他の演出と足並みを揃える。
 //
-//   層と Z（本体スプライトは ZIndex -1・パネルは 0）:
-//     Back(-3) → 本体(-1) → Front/Add(-1・Add は加算)
-//   Front/Add を Z0 に置くと弾（Z 0・World 直下で後から積まれる）と同じ層で、弾の方が後に描かれる
-//   はずが本体の子（＝ボスより前）に積まれて弾を隠す場面が出た。-1 まで下げて本体と同じ層に置き、
-//   弾・自機（Z 10）は必ず部品より前に来るようにする。
+//   装飾(-18/-16) → 攻撃予兆(-2) → 本体(-1) → 実弾(0)。装飾は危険範囲を隠さない。
 //
 //   部品の定義は「人物ごとの表」（PartsOf）で持つ。表の1行＝1部品で、どの層に置くか・公転半径・
 //   角速度・脈動・漂い・表示サイズを持つ。ここを触るだけで見え方を調整できる（コードは共通）。
@@ -385,9 +381,9 @@ public partial class BossParts : Node2D
         _bodyH = Mathf.Max(1f, bodyDisplayH);
         _muzzle = anchorMuzzle;
 
-        _back = NewLayerNode("Back", -3, false);
-        _front = NewLayerNode("Front", -1, false);
-        _add = NewLayerNode("Add", -1, true);
+        _back = NewLayerNode("Back", -18, false);
+        _front = NewLayerNode("Front", -16, false);
+        _add = NewLayerNode("Add", -16, true);
         LoadBurstTextures(name);
 
         foreach (var d in PartsOf(name))
@@ -550,7 +546,7 @@ public partial class BossParts : Node2D
 
     private Node2D NewLayerNode(string name, int z, bool additive)
     {
-        var n = new PartsDraw { Owner2D = this, Name = name, ZIndex = z, LayerName = name };
+        var n = new PartsDraw { Owner2D = this, Name = name, ZIndex = z, ZAsRelative = false, LayerName = name };
         if (additive) n.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
         AddChild(n);
         return n;
@@ -572,7 +568,7 @@ public partial class BossParts : Node2D
         _st = St.Idle; _stT = 0f;
     }
 
-    // 攻撃開始。予備動作 0.15 秒で発射点へ吸い寄せ、解放で前方へ 90〜140px/s で流す。
+    // 攻撃開始。予備動作 0.15 秒で発射点へ吸い寄せ、解放後は元の位置へ戻す。
     // 連射（スパイラルは 0.085 秒間隔）で毎発やり直すと部品が発射点に貼り付いて震えるだけになるので、
     // 一度始めたら Wind→Release が終わるまで（AttackRetrigger 秒）新しい攻撃として扱わない。
     public void OnAttackStart()
@@ -602,7 +598,7 @@ public partial class BossParts : Node2D
             Vector2 cur = p.Extra + BasePos(p, p.T);
             Vector2 dir = cur.LengthSquared() > 1f ? cur.Normalized()
                                                    : new Vector2(Mathf.Cos(i * 1.7f), Mathf.Sin(i * 1.7f));
-            p.Vel = dir * (70f + (i % 5) * 14f);
+            p.Vel = dir * (16f + (i % 5) * 3f);
             p.SpinVel = ((i % 2 == 0) ? 1f : -1f) * (1.4f + (i % 3) * 0.5f);
         }
     }
@@ -748,10 +744,7 @@ public partial class BossParts : Node2D
                 if (_stT >= WindDur) { Release(); }
                 break;
             case St.Release:
-                // 抵抗 0.6 では総移動が v/0.6＝150〜230px（画面幅 384px の半分以上）で、
-                // カードが HUD まで飛んで戻ってこなかった（実機で確認）。4.0 なら 22〜35px＝
-                // ボスの1体ぶん前へ流れて止まる＝「撃った方へ吐き出した」が読める距離に収まる。
-                TickFree(dt, drag: 4.0f);
+                TickIdle(dt);
                 if (_stT >= ReleaseDur) EnterIdle();
                 break;
             case St.Hit:
@@ -833,8 +826,7 @@ public partial class BossParts : Node2D
         }
     }
 
-    // 解放：発射点から前方（向いている側）へ 90〜140px/s で流す。
-    // 併せて人物ごとの固有演出（あかりのビーム連結／こはるの視線の扇／レイの光の帯）を発射点から出す。
+    // 装飾を弾と同じ方向へ射出せず、発射後は本体の周囲に戻す。
     private void Release()
     {
         _st = St.Release; _stT = 0f;
@@ -842,13 +834,8 @@ public partial class BossParts : Node2D
         for (int i = 0; i < _parts.Count; i++)
         {
             var p = _parts[i];
-            // 寄せなかったもの（粒）と、寄せただけの貼り付き（こはるの後光）は飛ばさない。
-            // 後者は TickFree が定位置へ戻す＝溜めて撃ってから元の高さへ帰る。
-            if (IsAnchored(p) || !IsWindPulled(p)) { p.Vel = Vector2.Zero; continue; }
-            float sp = 90f + (i % 6) * 10f;                       // 90〜140px/s
-            float spread = (i % 5 - 2) * 0.10f;                    // 少し扇に散らす
-            p.Vel = new Vector2(_fireDirX, 0f).Rotated(spread * _fireDirX) * sp;
-            p.SpinVel = spread * 2.4f;
+            p.Vel = Vector2.Zero;
+            p.SpinVel = 0f;
         }
     }
 
@@ -888,20 +875,17 @@ public partial class BossParts : Node2D
                 // 全長156px・加算合成の直線＝弾幕STGでは「レーザー」の記号そのものなのに当たり判定が無く、
                 // 「攻撃にしか見えないのに当たらない」＝本物の予兆まで信用されなくなる。飾りに使ってよい形ではない。
                 // ノイズの帯：撃った直後に 0.1 秒だけ本体へかぶせる（常設の Blink とは別の一発）。
-                AddBurst(_texGlitch, new Vector2(0f, -_bodyH * 0.08f), 0f, _bodyH * 0.95f, 0.5f, 0.10f);
+                AddBurst(_texGlitch, new Vector2(0f, -_bodyH * 0.08f), 0f, _bodyH * 0.55f, 0.18f, 0.10f);
                 break;
             }
 
             case "koharu":
             {
-                // 視線の線は 2026-09-08 のユーザー指示で弱めた（前へ飛ぶ光条＝弾に見えるため）。
-                // 本数 5→2、長さ 1.5→0.55、α 0.75→0.30、前進 120→30px/s。刺さる空気だけ残す。
                 for (int i = 0; i < 2; i++)
                 {
                     float spread = (i - 0.5f) * 0.22f;
-                    AddBurst(_texGazeLine, m, baseAng + spread * dir, _bodyH * 0.55f,
-                             0.30f, 0.26f, additive: true,
-                             vel: new Vector2(dir, 0f).Rotated(spread * dir) * 30f,
+                    AddBurst(_texGazeLine, m, baseAng + spread * dir, _bodyH * 0.18f,
+                             0.18f, 0.14f, additive: true,
                              delay: i * 0.03f);
                 }
                                 break;
@@ -909,16 +893,12 @@ public partial class BossParts : Node2D
 
             case "rei":
             {
-                // 光の帯は 2026-09-08 のユーザー指示で弱めた（前へ飛ぶ帯＝弾に見えるため）。
-                // 本数 4→2、α 0.70→0.30、前進 70→22px/s、growK 0.5→0.9＝「飛ぶ」から「広がって消える」へ。
                 for (int i = 0; i < 2; i++)
                 {
                     float a = (i - 0.5f) * 0.34f;
                     AddBurst(i % 2 == 0 ? _texRayGold : _texRayViolet,
-                             m, baseAng + a * dir, _bodyH * 0.60f,
-                             0.30f, 0.30f, additive: true,
-                             vel: new Vector2(dir, 0f).Rotated(a * dir) * 22f,
-                             delay: i * 0.04f, growK: 0.9f);
+                             m, baseAng + a * dir, _bodyH * 0.2f,
+                             0.18f, 0.14f, additive: true, delay: i * 0.04f);
                 }
                                 break;
             }
@@ -1087,6 +1067,7 @@ public partial class BossParts : Node2D
 
             float ph = PhaseNow(p);
             Vector2 pos = BasePos(p, ph) + p.Extra;
+            if (!IsAnchored(p)) pos = pos.LimitLength(_bodyH * 0.48f);
             float pulse = p.D.PulseAmp <= 0f ? 1f
                 : 1f + p.D.PulseAmp * Mathf.Sin(ph * Mathf.Tau / Mathf.Max(0.1f, p.D.PulseSec));
             // 集束（こはるの後光）：発射点へ寄る間に 0.35 倍まで縮み、α を上げて「溜まった」を見せる。
@@ -1098,6 +1079,7 @@ public partial class BossParts : Node2D
                 pulse *= Mathf.Lerp(1f, 0.30f, p.Focus);
                 alpha = Mathf.Lerp(p.D.Alpha, 0.20f, p.Focus);
             }
+            alpha *= IsAnchored(p) ? 0.55f : 0.3f;
             float longSide = Mathf.Max(p.Tex.GetWidth(), p.Tex.GetHeight());
             float s = p.D.SizeK * _bodyH / Mathf.Max(1f, longSide) * pulse;
             var size = new Vector2(p.Tex.GetWidth(), p.Tex.GetHeight()) * s;

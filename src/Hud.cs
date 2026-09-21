@@ -16,10 +16,14 @@ public partial class Hud : CanvasLayer
     public bool CinematicMode { get; private set; }
     private static UiKit.TextStyle FilmBody => new(UiKit.Zen, 24, 0, 1.55f);
     private const float FilmTextWidth = 1056f;
+    private bool _cinematicBubble;
+    private float FilmTextX => _cinematicBubble ? 216f : 112f;
+    private float FilmWrapWidth => _cinematicBubble ? 928f : FilmTextWidth;
 
-    public void SetCinematicMode(bool active)
+    public void SetCinematicMode(bool active, bool dialogueBubble = false)
     {
         CinematicMode = active;
+        _cinematicBubble = active && dialogueBubble;
         UpdateDialoguePause();
     }
     public bool HoldBubble = false;
@@ -500,7 +504,7 @@ public partial class Hud : CanvasLayer
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        if (CinematicMode) color = UiKit.Text2;
+        if (CinematicMode && !_cinematicBubble) color = UiKit.Text2;
         SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
         _messageTimer = 6.0;
         UpdateDialoguePause();
@@ -558,7 +562,7 @@ public partial class Hud : CanvasLayer
         _dlgPage = 0;
         if (CinematicMode)
         {
-            _dlgPages.AddRange(UiKit.Paginate(FilmBody, _dlgText, FilmTextWidth, DlgMaxLines));
+            _dlgPages.AddRange(UiKit.Paginate(FilmBody, _dlgText, FilmWrapWidth, DlgMaxLines));
             return;
         }
         // DrawDialog と同じジオメトリで本文の折り返し幅を求める。
@@ -1680,10 +1684,29 @@ public partial class Hud : CanvasLayer
 
         if (CinematicMode)
         {
+            if (_cinematicBubble)
+            {
+                var accent = _dlgSpeakerCol;
+                var fill = new Color(0.035f, 0.04f, 0.055f, 0.98f);
+                float tailX = _dlgKind == LineKind.Mina ? 640 : 160;
+                var tail = new[] { new Vector2(tailX - 10, 531), new Vector2(tailX, 519), new Vector2(tailX + 10, 531) };
+                ci.DrawColoredPolygon(tail, fill);
+                ci.DrawPolyline(tail, new Color(accent, 0.55f), 1.2f, true);
+                UiKit.Box(ci, new Rect2(112, 530, 1056, 166), fill, 8f, new Color(accent, 0.55f), 1.2f);
+                if (_dlgPortrait != null)
+                    UiKit.FaceAvatar(ci, new Vector2(160, 580), 32, _dlgPortrait, accent, false);
+                else if (_dlgDraftMark)
+                {
+                    _draftArt ??= GD.Load<Texture2D>("res://char/ui/dialogue_you_v1.png");
+                    var size = _draftArt.GetSize() * (56f / Mathf.Max(_draftArt.GetWidth(), _draftArt.GetHeight()));
+                    ci.DrawTextureRect(_draftArt, new Rect2(new Vector2(160, 580) - size / 2, size), false);
+                }
+            }
             if (_dlgSpeaker.Length > 0)
-                UiKit.Text(ci, UiKit.ZenBold, new Vector2(112, 542), _dlgSpeaker, 21, Colors.White);
+                UiKit.Text(ci, UiKit.ZenBold, new Vector2(FilmTextX, 542), _dlgSpeaker, 21,
+                    _cinematicBubble ? _dlgSpeakerCol : Colors.White);
             UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-                new Vector2(112, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmTextWidth,
+                new Vector2(FilmTextX, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmWrapWidth,
                 FilmBody.Size, Colors.White, n, extraLeading: FilmBody.ExtraLeading);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(1168, 546));
             else if (morePages) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14, Colors.White);

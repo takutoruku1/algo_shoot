@@ -35,6 +35,8 @@ public partial class BossKoharu : Enemy
 
     // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
+    private BossPostSequence _posts = null!;
+    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [koharu]。読めなければ現行既定値）──
     private double _ringInterval = 1.0, _fanInterval = 1.1, _aimedInterval = 0.7, _spiralInterval = 0.085;
@@ -271,6 +273,11 @@ public partial class BossKoharu : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("koharu", GetParent());
         AddChild(_caster);
+        _posts = BossPostSequence.Attach(this, "koharu", _caster, _caster.CancelPendingAttacks, () =>
+        {
+            _fireT = _fireT2 = 0;
+            ApplySpell();
+        });
 
         // 部品の演出層（char/v3/fx/koharu/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
@@ -648,6 +655,21 @@ public partial class BossKoharu : Enemy
         }
     }
 
+    protected override int LimitBodyDamage(int damage)
+        => _posts == null ? damage : _posts.Active ? 0 : DamageToHpFloor(damage, _posts.Floor);
+
+    public override void Purify()
+    {
+        if (_posts != null && _posts.BombHit()) return;
+        base.Purify();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_posts != null && _posts.Active) return;
+        base._PhysicsProcess(delta);
+    }
+
     // S2-7 の RECLOSE（仮台本 07）。宣言 → 「やめないで……止まったら」 → 取り繕い、の三段を順送り。
     //   「止まったら我に返る」の意味に変わっている（12 流用資産の型はそのまま、文言を組み直し）。
     private static readonly string[] RecloseLines =
@@ -695,6 +717,7 @@ public partial class BossKoharu : Enemy
 
     public override void _Process(double delta)
     {
+        if (_posts.Active) return;
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
             _memoryPending = false;
@@ -704,13 +727,14 @@ public partial class BossKoharu : Enemy
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
-                Audio.Instance?.Music(Audio.Instance.BgmBossKoharu, 0.8f);
+                _posts.ResumeMusic();
                 OnHpChanged();
             }
             if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             else KoharuStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             return;
         }
+        if (!_seq && !_memoryPending && _mealPhase == 0 && _gotoPhase == 0 && _posts.TryStart()) return;
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

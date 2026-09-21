@@ -3,47 +3,118 @@ using System;
 
 public partial class MinaPhaseScene : Node2D
 {
-    private readonly record struct Line(string Speaker, string Text, string Face);
-    private const string MinaFace = "res://char/mina_worried.png";
-    private const string AkariFace = "res://char/v3/akari_face.png";
-    private const string KoharuFace = "res://char/v3/koharu_face.png";
-    private const string ReiFace = "res://char/v3/rei_face.png";
-    private static readonly Line[][] Dialogue =
+    private readonly record struct Line(Hud.LineKind Kind, string Text, string Face = "");
+    private static Line M(string text, bool tears = false)
+        => new(Hud.LineKind.Mina, text, tears ? "res://char/mina_tears.png" : "res://char/mina_worried.png");
+    private static Line P(string text) => new(Hud.LineKind.Companion, text);
+
+    private static Line[] Dialogue(Job job, int phase)
     {
-        new[]
+        string[] replies = (job, phase) switch
         {
-            new Line("ミナ", "届かなかった言葉が、まだ……わたくしの中に。", MinaFace),
-            new Line("あかり", "それ、あたしが言えなかった分でしょ。", AkariFace),
-            new Line("あかり", "でも今、言える。ミナ、迎えに来た。", AkariFace),
-            new Line("ミナ", "……返事を、いただく側は。慣れて、おりません。", MinaFace),
-        },
-        new[]
+            (Job.Melee, 1) => new[] {
+                "それ、あたしが言えなかった分でしょ。",
+                "でも今、言える。ミナ、迎えに来た。",
+            },
+            (Job.Melee, 2) => new[] {
+                "仕事を残して帰るなんて、あたしにはできないって思ってた。",
+                "でも今は、明日でいいって言える。休んでも、あたしはあたしだった。",
+                "ミナに会いたいから。働いてほしいからじゃない。",
+            },
+            (Job.Melee, 3) => new[] {
+                "また、言いたいことを消したの？",
+                "あたしも、好きって言えないまま見送った。ミナの言葉は、ここで聞きたい。",
+                "うん。まとまってなくていい。待ってる。",
+            },
+            (Job.Melee, 4) => new[] {
+                "ここにいる。返事、遅くなってごめん。",
+                "うん。それでも、一緒に帰りたい。",
+                "聞こえた。今度は、あたしが迎えに行く。",
+            },
+            (Job.Heal, 1) => new[] {
+                "あたしが飲みこんだ言葉も、そこにあるんだね。",
+                "ひとりで持たせて、ごめん。今度は、あたしにも聞かせて。",
+            },
+            (Job.Heal, 2) => new[] {
+                "途中で休んだら、好きが消えるって思ってた。",
+                "消えなかったよ。何もしない日にも、好きだった。",
+                "ミナだから、会いたいの。何かしてくれなくても。",
+            },
+            (Job.Heal, 3) => new[] {
+                "助けて、って。書いたままにしてみない？",
+                "あたしも、分かんないって言うのが怖かった。でも、聞いてくれる人がいたよ。",
+                "うん。あたし、最後まで聞くから。",
+            },
+            (Job.Heal, 4) => new[] {
+                "ここだよ。手、離さない。揺れても、つかみ直す。",
+                "いいよ。今度は、あたしの隣で休んで。",
+                "聞こえたよ。待ってて。いま、そっちに行くね。",
+            },
+            (Job.Magic, 1) => new[] {
+                "言えなかった言葉を、全部ひとりで預かってたのね。",
+                "今日は、あんたの番。聞く側は、わたしがやる。",
+            },
+            (Job.Magic, 2) => new[] {
+                "人が減るたび、わたしに価値がなくなった気がしてた。",
+                "でも、好きな本の話をしたら、次に話したいことができた。",
+                "何件救えたかじゃない。ミナ、あんたに会いに来たの。",
+            },
+            (Job.Magic, 3) => new[] {
+                "助けてって書いて、また消したの？",
+                "仕事の話、してない。あんたの話を聞いてる。",
+                "見られるのが怖いのは知ってる。だから、目をそらさない。",
+            },
+            (Job.Magic, 4) => new[] {
+                "ここにいるわ。目、そらしてないでしょ。",
+                "できることの一覧、もう要らない。一緒に帰る話をしてるの。",
+                "聞こえた。最後の壁、開けるわよ。",
+            },
+            (_, 1) => new[] {
+                "ひとりで、ここまで抱えていたんだね。",
+                "今度はミナの言葉を聞きに来た。",
+            },
+            (_, 2) => new[] {
+                "休みたいって言っても、ここにいていい。",
+                "何もできない日も、ミナと話したい。",
+                "会いたかったから。報告を待っていたんじゃない。",
+            },
+            (_, 3) => new[] {
+                "消した言葉を、もう一度聞かせて。",
+                "報告じゃなくていい。ミナが言いたかったことを。",
+                "うん。急がなくていい。ここで待っている。",
+            },
+            _ => new[] {
+                "ここにいる。ちゃんと聞こえているよ。",
+                "それでも、一緒に帰ろう。",
+                "聞こえた。いま、迎えに行く。",
+            },
+        };
+        return phase switch
         {
-            new Line("ミナ", "期待に応えなければ……ここに、いられません。", MinaFace),
-            new Line("こはる", "途中で休んだら、好きが消えるって思ってた。", KoharuFace),
-            new Line("こはる", "消えなかったよ。何もしない日にも、好きだった。", KoharuFace),
-            new Line("こはる", "ミナもそう。役に立つから来たんじゃない。", KoharuFace),
-            new Line("ミナ", "……では、どうして。", MinaFace),
-        },
-        new[]
-        {
-            new Line("レイ", "助けてって書いて、また消したの？", ReiFace),
-            new Line("ミナ", "……報告に、不要なことでしたので。", MinaFace),
-            new Line("レイ", "仕事の話、してない。あんたの話を聞いてる。", ReiFace),
-            new Line("レイ", "見られるのが怖いのは知ってる。だから、目をそらさない。", ReiFace),
-            new Line("ミナ", "……消さずに、伝えても……？", "res://char/mina_tears.png"),
-        },
-        new[]
-        {
-            new Line("ミナ", "三人の声が、もう、遠くない……。", "res://char/mina_tears.png"),
-            new Line("あかり", "ここにいる。返事、遅くなってごめん。", AkariFace),
-            new Line("こはる", "手、離さないよ。揺れても、つかみ直す。", KoharuFace),
-            new Line("レイ", "その先は、あんたの言葉で。", ReiFace),
-            new Line("ミナ", "……ご主人様。あかりさん。こはるさん。レイさん。", "res://char/mina_tears.png"),
-            new Line("ミナ", "わたくしを……助けて、ください。", "res://char/mina_tears.png"),
-            new Line("レイ", "聞こえた。最後の壁、みんなで開けるよ。", ReiFace),
-        },
-    };
+            1 => new[] {
+                M("届かなかった言葉が、まだ……わたくしの中に。"),
+                P(replies[0]), P(replies[1]),
+                M("……返事を、いただく側は。慣れて、おりません。"),
+            },
+            2 => new[] {
+                M("期待に応えなければ……ここに、いられません。"),
+                P(replies[0]), P(replies[1]),
+                M("……では、どうして。"), P(replies[2]),
+            },
+            3 => new[] {
+                P(replies[0]),
+                M("……報告に、不要なことでしたので。"),
+                P(replies[1]),
+                M("……消さずに、伝えても……？", true), P(replies[2]),
+            },
+            _ => new[] {
+                M("……声が、こんなに近くに。", true), P(replies[0]),
+                M("戻っても。もう、前のようには、祓えないかもしれません。", true), P(replies[1]),
+                M(job == Job.Tank ? "……ご主人様。" : $"……{Jobs.Get(job).CharacterName}さん。", true),
+                M("わたくしを……助けて、ください。", true), P(replies[2]),
+            },
+        };
+    }
 
     private Hud _hud = null!;
     private Node _world = null!;
@@ -51,8 +122,7 @@ public partial class MinaPhaseScene : Node2D
     private ProcessModeEnum _worldMode, _gameMode;
     private Action _completed = null!;
     private Texture2D _background = null!, _costume = null!;
-    private Texture2D? _face;
-    private Texture2D[] _friends = Array.Empty<Texture2D>();
+    private Job _job;
     private Line[] _lines = null!;
     private int _phase, _line;
     private double _time, _lineTime, _readTime, _exitTime;
@@ -63,9 +133,9 @@ public partial class MinaPhaseScene : Node2D
     private CutsceneBackdrop _backdrop = null!;
     // 一度見たフェーズ間カットシーンのスキップ（2026-09-22 ユーザー要望）。StoryFilm と同じ作法。
     //   FINAL はリトライの多い面で、4本のカットシーンを毎回読まされるのが一番きつい箇所。
-    //   キーはフェーズごと（"mina_phase_1" … "mina_phase_4"）＝到達していないフェーズは飛ばせない。
+    // 違うキャラクターの返答を未読のまま飛ばさないよう、既読は相手ごとに記録する。
     private readonly FilmSkip _skip = new();
-    private string FilmId => $"mina_phase_{_phase}";
+    private string FilmId => $"mina_phase_{_phase}_{Jobs.Get(_job).CharacterId}";
 
     public static void Play(Hud hud, Node world, int phase, Action completed)
         => hud.AddChild(new MinaPhaseScene
@@ -77,13 +147,13 @@ public partial class MinaPhaseScene : Node2D
     public override void _Ready()
     {
         AddToGroup("mina_phase_scene");
-        _lines = Dialogue[_phase - 1];
+        _game = GetNode<GameManager>("/root/Game");
+        _job = _game.SelectedJob;
+        _lines = Dialogue(_job, _phase);
         _background = GD.Load<Texture2D>(BossMina.PhaseBackground(_phase));
         _costume = GD.Load<Texture2D>(BossMina.CostumePath(_phase, "idle"));
-        if (_phase == 4) _friends = new[] { GD.Load<Texture2D>(AkariFace), GD.Load<Texture2D>(KoharuFace), GD.Load<Texture2D>(ReiFace) };
         _worldMode = _world.ProcessMode;
         _world.ProcessMode = ProcessModeEnum.Disabled;
-        _game = GetNode<GameManager>("/root/Game");
         _gameMode = _game.ProcessMode;
         _game.ProcessMode = ProcessModeEnum.Disabled;
         _suppressed = _hud.SuppressCallouts;
@@ -91,7 +161,7 @@ public partial class MinaPhaseScene : Node2D
         _hud.HoldBubble = true;
         _hud.HideBubble();
         _hud.HideSpellCard();
-        _hud.SetCinematicMode(true);
+        _hud.SetCinematicMode(true, dialogueBubble: true);
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         _held = Pad.AdvanceHeld();
         // 本体より先に、その一段奥へ黒板を立ち上げる（ZIndex はこのノードの1つ下）。
@@ -158,8 +228,8 @@ public partial class MinaPhaseScene : Node2D
     {
         var line = _lines[_line];
         _lineTime = _readTime = 0;
-        _face = line.Speaker == "ミナ" ? null : GD.Load<Texture2D>(line.Face);
-        _hud.ShowDialog(Hud.LineKind.Other, line.Text, line.Face, otherName: line.Speaker);
+        var kind = line.Kind == Hud.LineKind.Companion && _job == Job.Tank ? Hud.LineKind.Boy : line.Kind;
+        _hud.ShowDialog(kind, line.Text, line.Face);
     }
 
     public override void _Draw()
@@ -170,25 +240,9 @@ public partial class MinaPhaseScene : Node2D
         var size = _background.GetSize() * scale;
         DrawTextureRect(_background, new Rect2((new Vector2(384, 216) - size) * 0.5f, size), false,
             new Color(0.6f, 0.6f, 0.65f, alpha));
-        float slide = 20 * (1 - Mathf.Clamp((float)(_time / 0.7), 0, 1));
         var bodySize = _costume.GetSize() * (136f / _costume.GetHeight());
-        DrawTextureRect(_costume, new Rect2(new Vector2(264 + slide, 87) - bodySize * 0.5f, bodySize), false,
+        DrawTextureRect(_costume, new Rect2(new Vector2(192, 87) - bodySize * 0.5f, bodySize), false,
             new Color(1, 1, 1, alpha));
-        if (_phase == 4)
-        {
-            for (int i = 0; i < _friends.Length; i++)
-            {
-                var faceSize = _friends[i].GetSize() * (64f / _friends[i].GetHeight());
-                DrawTextureRect(_friends[i], new Rect2(new Vector2(44 + 56 * i, 110) - faceSize * 0.5f, faceSize), false,
-                    new Color(1, 1, 1, alpha));
-            }
-        }
-        else if (_face != null)
-        {
-            var faceSize = _face.GetSize() * (76f / _face.GetHeight());
-            DrawTextureRect(_face, new Rect2(new Vector2(98, 100) - faceSize * 0.5f, faceSize), false,
-                new Color(1, 1, 1, alpha));
-        }
         UiKit.BeginDesign(this);
         DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.025f, 0.025f, 0.03f, alpha));
         DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.025f, 0.03f, alpha));

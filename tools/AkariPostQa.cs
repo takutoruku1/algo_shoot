@@ -34,6 +34,8 @@ public partial class AkariPostQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
             if (OS.GetCmdlineUserArgs().Contains("--body-art")) await BodyArt(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--realm-movie")) await RealmMovie(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--realm-art")) await RealmArt(game);
             else
                 foreach (var diff in Enum.GetValues<GameManager.Diff>())
                     foreach (var job in Enum.GetValues<Job>())
@@ -96,14 +98,14 @@ public partial class AkariPostQa : Node
             if (story && i == 2)
             {
                 var film = GetTree().GetFirstNodeInGroup("storyfilm") as AkariStoryFilm;
-                Check(film != null && GetTree().GetFirstNodeInGroup("akari_post") == null,
+                Check(film != null && GetTree().GetFirstNodeInGroup("boss_post") == null,
                     "memory runs before the pending third post");
                 typeof(StoryFilm).GetMethod("Restore", Private)!.Invoke(film, null);
                 Read<Action>(film!, "_completed", typeof(StoryFilm))();
                 film!.QueueFree();
                 await Frames(3);
                 var corridor = GetTree().GetFirstNodeInGroup("corridor") as CorridorRun;
-                Check(corridor != null && GetTree().GetFirstNodeInGroup("akari_post") == null,
+                Check(corridor != null && GetTree().GetFirstNodeInGroup("boss_post") == null,
                     "corridor runs before the pending third post");
                 corridor!._PhysicsProcess(14.0);
                 Call(boss, "TickCorridor");
@@ -112,8 +114,10 @@ public partial class AkariPostQa : Node
                 corridor.QueueFree();
                 await Frames(3);
             }
-            var post = GetTree().GetFirstNodeInGroup("akari_post") as AkariPost;
+            var post = GetTree().GetFirstNodeInGroup("boss_post") as BossPost;
             Check(post != null && post.Index == i, "exactly one shootable post in order");
+            Check(BossPost.Labels[i] == (i == 0 ? "公開したポスト" : i == 4 ? "最初の下書き" : $"{i}つ前の下書き"),
+                "one published post rewinds through four draft revisions");
             post!.SetPhysicsProcess(false);
             float hp = boss.HpRatio;
             double phaseTime = Read<double>(boss, "_phaseT", typeof(Enemy));
@@ -167,10 +171,14 @@ public partial class AkariPostQa : Node
             }
             Check(Read<int>(post, "_ink") == 0 && !Read<bool>(post, "_broken"),
                 "real bullet collisions crack the post without erasing it before reading");
-            post._PhysicsProcess(3.2);
+            post._PhysicsProcess(post.MinimumReadTime);
             Check(Read<bool>(post, "_broken"), "shooting destroys the post after its reading hold");
+            var realm = (BossRealmFx)GetTree().GetFirstNodeInGroup("boss_realm");
+            Check(realm.Depth == i + 1 && realm.Revealing == (i == 4), "fracture depth grows; only the original draft opens reality");
+            Check(Audio.Instance.AkariMusicDepth == i + 1, "music intensity follows the destroyed draft depth");
             if (story) await Shot($"post_{i + 1}_broken");
-            post._PhysicsProcess(2.2);
+            if (i == 4) realm._Process(4.0);
+            post._PhysicsProcess(post.BreakDuration + 0.1);
             await Frames(3);
             Check(Read<int>(boss, "_postsBroken") == i + 1, "one destruction advances exactly one gate");
             caster.SetProcess(false);
@@ -181,9 +189,12 @@ public partial class AkariPostQa : Node
                 boss._PhysicsProcess(0.95);
             }
         }
-        var draft = GetTree().GetFirstNodeInGroup("akari_draft") as AkariDraftScene;
+        var draft = GetTree().GetFirstNodeInGroup("boss_draft") as BossDraftScene;
         Check(draft != null && root.World.ProcessMode == ProcessModeEnum.Disabled
             && game.ProcessMode == ProcessModeEnum.Disabled && !boss.IsPurified, "only the fifth post opens the unsent draft");
+        Check(((BossRealmFx)GetTree().GetFirstNodeInGroup("boss_realm")).Revealed,
+            "real realm persists underneath the final dialogue");
+        Check(!Audio.Instance.AkariLayersPlaying, "battle stems stop before the aftermath theme");
         Check(!Pool.GetChildren().OfType<Bullet>().Any(b => b.Active), "draft has no remaining bullets");
         boss.DealDirectDamage(99999);
         boss.Purify();
@@ -232,6 +243,134 @@ public partial class AkariPostQa : Node
         root.QueueFree();
         await Frames(8);
         Check(!Hud.BubblePaused, "scene exit releases dialogue hold");
+    }
+
+    private async Task RealmMovie(GameManager game)
+    {
+        game.Difficulty = GameManager.Diff.Normal;
+        game.SelectedJob = Job.Tank;
+        game.AutoAdvanceDialog = true;
+        game.MsgCharsPerSec = 22;
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        Write(root.Hud, "_bannerTimer", 0d);
+        root.Player.GlobalPosition = new Vector2(Field.Left + 33, 104);
+        root.Player.SetPhysicsProcess(false);
+        var boss = new BossAkari();
+        root.World.AddChild(boss);
+        boss.Position = new Vector2(Field.Right - 76, 104);
+        Write(boss, "_memoryPlayed", true);
+        Write(boss, "_corridorFired", true);
+        root.GetNode<StageBackground>("StageBackground").EnterBoss();
+        await Frames(100);
+        boss.SetPhysicsProcess(false);
+        var caster = Read<AreaSpellCaster>(boss, "_caster");
+        caster.SetProcess(false);
+        caster.CancelPendingAttacks();
+        Pool.DespawnAll();
+        await Frames(40);
+        for (int i = 0; i < 5; i++)
+        {
+            boss.DealDirectDamage(99999);
+            await Frames(3);
+            var post = (BossPost)GetTree().GetFirstNodeInGroup("boss_post");
+            Check(post.Index == i, $"movie revision {i + 1}");
+            await Frames(i == 4 ? 100 : 68);
+            root.Player.SetPhysicsProcess(true);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = true });
+            await Frames(2);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = false });
+            int frames = 0;
+            while (IsInstanceValid(post) && !Read<bool>(post, "_broken") && frames++ < 600) await Frames(1);
+            Check(frames < 600, "actual player shots destroy the revision");
+            root.Player.SetPhysicsProcess(false);
+            await Frames((int)(post.BreakDuration * 60) + 6);
+            caster.SetProcess(false);
+            caster.CancelPendingAttacks();
+            Pool.DespawnAll();
+            if (i < 4) await Frames(54);
+        }
+        var realm = (BossRealmFx)GetTree().GetFirstNodeInGroup("boss_realm");
+        Check(realm.Revealed, "movie reaches the real realm");
+        int tail = 0;
+        while (GetTree().GetFirstNodeInGroup("boss_draft") != null && tail++ < 60 * 45) await Frames(1);
+        Check(tail < 60 * 45, "movie completes the real-realm dialogue");
+        await Frames(60);
+        GD.Print("[AkariPostQA] REALM MOVIE COMPLETE");
+        root.QueueFree();
+        await Frames(4);
+    }
+
+    private async Task RealmArt(GameManager game)
+    {
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        root.Player.SetPhysicsProcess(false);
+        Write(root.Hud, "_bannerTimer", 0d);
+        var boss = new BossAkari();
+        root.World.AddChild(boss);
+        boss.SetPhysicsProcess(false);
+        boss.SetProcess(false);
+        boss.Hide();
+        root.Hud.HideSpellCard();
+        var caster = Read<AreaSpellCaster>(boss, "_caster");
+        caster.SetProcess(false);
+        caster.CancelPendingAttacks();
+        root.GetNode<StageBackground>("StageBackground").EnterBoss();
+        await Frames(90);
+        Pool.DespawnAll();
+        for (int index = 0; index < 5; index++)
+        {
+            int completed = 0;
+            var post = new BossPost { Story = BossPostStory.Get("akari"), Boss = boss, Index = index,
+                Position = new Vector2(Field.Right - 84, 104), Broken = boss.BreakPostRealm, Completed = () => completed++ };
+            root.World.AddChild(post);
+            post.SetPhysicsProcess(false);
+            post._PhysicsProcess(0.5);
+            await Shot($"illustrated_{index + 1}_intact", 4);
+            var vertices = Read<Vector2[]>(post, "_vertices");
+            var triangles = Read<int[]>(post, "_triangles");
+            float area = 0;
+            for (int i = 0; i < triangles.Length; i += 3)
+                area += Mathf.Abs((vertices[triangles[i + 1]] - vertices[triangles[i]]).Cross(vertices[triangles[i + 2]] - vertices[triangles[i]])) / 2;
+            Check(Mathf.Abs(area - 520 * 320) < 0.1f, "shards cover the entire original post, with no missing panel area");
+            Check(Read<SubViewport>(post, "_plateView").Size == new Vector2I(1040, 640), "whole post snapshot retains high-resolution text and artwork");
+            post.BombHit();
+            post.BombHit();
+            await Shot($"illustrated_{index + 1}_cracked", 4);
+            post.BombHit();
+            await Frames(3);
+            post._PhysicsProcess(post.MinimumReadTime);
+            post._PhysicsProcess(0.32);
+            await Shot($"illustrated_{index + 1}_shards", 4);
+            if (index == 4)
+            {
+                foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Shot($"illustrated_shards_{size.X}x{size.Y}", 4);
+                }
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
+            post._PhysicsProcess(post.BreakDuration);
+            Check(completed == 1, "whole-surface destruction still completes exactly once");
+            await Frames(4);
+        }
+        await Frames(240);
+        await Shot("illustrated_real_realm", 3);
+        root.QueueFree();
+        await Frames(4);
     }
 
     private static object? BaseCall(Enemy enemy, string name, params object[] args)
@@ -371,9 +510,9 @@ public partial class AkariPostQa : Node
     {
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
-    private async Task Shot(string name)
+    private async Task Shot(string name, int settle = 65)
     {
-        await Frames(65);
+        await Frames(settle);
         string path = ProjectSettings.GlobalizePath("res://build/qa_story/akari_posts/shots");
         DirAccess.MakeDirRecursiveAbsolute(path);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);

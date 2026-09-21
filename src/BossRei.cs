@@ -32,6 +32,8 @@ public partial class BossRei : Enemy
 
     // 予測攻撃キャスター（通常テレグラフ＋安置リレー「最終選考」の発火に使う）。
     private AreaSpellCaster _caster = null!;
+    private BossPostSequence _posts = null!;
+    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
     // 安置リレー/全画面AOEの宣告〜最終着弾中か。StageRei が投稿弾（言葉弾）の湧きを止めるゲートに参照する
     //（安置円の中に言葉弾が刺さって「安置なのに被弾」になる理不尽を断つ）。
     public bool AoeGateActive => _caster != null && _caster.AoeActive;
@@ -247,6 +249,11 @@ public partial class BossRei : Enemy
         _caster = new AreaSpellCaster();
         _caster.Configure("rei", GetParent());
         AddChild(_caster);
+        _posts = BossPostSequence.Attach(this, "rei", _caster, _caster.CancelPendingAttacks, () =>
+        {
+            _fireT = _fireT2 = 0;
+            ApplySpell();
+        });
 
         // 部品の演出層（char/v3/fx/rei/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
@@ -450,6 +457,21 @@ public partial class BossRei : Enemy
         }
     }
 
+    protected override int LimitBodyDamage(int damage)
+        => _posts == null ? damage : _posts.Active ? 0 : DamageToHpFloor(damage, _posts.Floor);
+
+    public override void Purify()
+    {
+        if (_posts != null && _posts.BombHit()) return;
+        base.Purify();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_posts != null && _posts.Active) return;
+        base._PhysicsProcess(delta);
+    }
+
     // RECLOSE のキャラ別弱気セリフ（序盤=虚勢→終盤=弱気。サイクルごとに index を進め、超えたら最後を使い回す）。
     // S3-6 の RECLOSE（仮台本 07）。笑顔のまま。ガワは崩れず、言葉だけが逃げ腰になっていく。
     private static readonly string[] RecloseLines =
@@ -496,6 +518,7 @@ public partial class BossRei : Enemy
 
     public override void _Process(double delta)
     {
+        if (_posts.Active) return;
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
             _memoryPending = false;
@@ -505,13 +528,14 @@ public partial class BossRei : Enemy
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
-                Audio.Instance?.Music(Audio.Instance.BgmBossRei, 0.8f);
+                _posts.ResumeMusic();
                 OnHpChanged();
             }
             if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             else ReiStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
             return;
         }
+        if (!_seq && !_memoryPending && !_relayWatching && _posts.TryStart()) return;
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
         bool zEdge = z && !_zHeld;

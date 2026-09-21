@@ -19,7 +19,8 @@ public partial class BossAkari : Enemy
     private static readonly float[] PostThresholds = { 0.80f, 0.60f, 0.40f, 0.20f, 0.01f };
     private int _postsBroken;
     private bool _postPending, _revealingDraft;
-    private AkariPost? _post;
+    private BossPost? _post;
+    private BossRealmFx _realm = null!;
     private Vector2 _postReturnPosition;
     private bool _postMonitoring;
     private double _postReturnGrace;
@@ -179,7 +180,9 @@ public partial class BossAkari : Enemy
             _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "akari");
         }
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBossAkari);
+        Audio.Instance?.StartAkariMusic(0);
+        _realm = new BossRealmFx { Name = "BossRealmFx", Story = BossPostStory.Get("akari") };
+        GetParent().GetParent().AddChild(_realm);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
@@ -250,8 +253,16 @@ public partial class BossAkari : Enemy
         foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
             if (hazard is AreaStrike) hazard.QueueFree();
         GetHud()?.HideSpellCard();
-        _post = new AkariPost { Boss = this, Index = _postsBroken, Position = GlobalPosition, Completed = CompletePost };
+        _post = new BossPost { Story = BossPostStory.Get("akari"), Boss = this, Index = _postsBroken,
+            Position = GlobalPosition, Broken = BreakPostRealm, Completed = CompletePost };
         GetParent().AddChild(_post);
+    }
+
+    public void BreakPostRealm(int index, Vector2 position)
+    {
+        _realm.BreakPost(index, position);
+        Audio.Instance?.StartAkariMusic(index + 1, 0.2f);
+        if (index == 4) GetHud()?.HideBossBar();
     }
 
     private void CompletePost()
@@ -262,7 +273,7 @@ public partial class BossAkari : Enemy
         if (_postsBroken == PostThresholds.Length)
         {
             _revealingDraft = true;
-            AkariDraftScene.Play(GetHud()!, GetParent(), () =>
+            BossDraftScene.Play(GetHud()!, GetParent(), BossPostStory.Get("akari"), () =>
             {
                 _revealingDraft = false;
                 RestoreAfterPost();
@@ -515,7 +526,7 @@ public partial class BossAkari : Enemy
             {
                 _zHeld = Pad.AdvanceHeld();
                 _fireT = _fireT2 = 0;
-                Audio.Instance?.Music(Audio.Instance.BgmBossAkari, 0.8f);
+                Audio.Instance?.StartAkariMusic(_postsBroken, 0.8f);
                 AdvanceForm2();
                 ApplySpell();
                 OnHpChanged();

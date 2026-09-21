@@ -55,6 +55,7 @@ public partial class MinaPhaseQa : Node
             caster.SetProcess(false);
             caster.CancelPendingAttacks();
             await Frames(3);
+            await CheckConversations(game, root);
             if (!OS.GetCmdlineUserArgs().Contains("--sequence-only")) await CheckAttacks(game, root, boss, caster);
             await CheckPhases(game, root, boss, caster);
             root.QueueFree();
@@ -174,6 +175,82 @@ public partial class MinaPhaseQa : Node
         return best;
     }
 
+    private async Task CheckConversations(GameManager game, MinaRoot root)
+    {
+        var originalJob = game.SelectedJob;
+        var seenBefore = new System.Collections.Generic.HashSet<string>(
+            Read<System.Collections.Generic.HashSet<string>>(game, "_idleDialogSeen"));
+        foreach (var job in Enum.GetValues<Job>())
+        for (int phase = 1; phase <= 4; phase++)
+        {
+            game.SelectedJob = job;
+            int completions = 0;
+            MinaPhaseScene.Play(root.Hud, root.World, phase, () => completions++);
+            var scene = (MinaPhaseScene)GetTree().GetFirstNodeInGroup("mina_phase_scene");
+            scene.SetProcess(false);
+            scene._Process(0.71);
+            Check(!Read<FilmSkip>(scene, "_skip").Available, $"{job}/{phase}: unread character dialogue cannot be skipped");
+            Check(Read<bool>(root.Hud, "_cinematicBubble"), "phase conversation uses the compact speech bubble");
+            var lines = Read<Array>(scene, "_lines");
+            int minaLines = 0, playerLines = 0;
+            await Frames(8);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var first = GetViewport().GetTexture().GetImage();
+            for (int index = 0; index < lines.Length; index++)
+            {
+                Write(scene, "_line", index);
+                Call(scene, "ShowLine");
+                while (!root.Hud.DialogRevealed) root.Hud.RevealDialogNow();
+                var kind = Read<Hud.LineKind>(root.Hud, "_dlgKind");
+                string speaker = Read<string>(root.Hud, "_dlgSpeaker");
+                if (kind == Hud.LineKind.Mina)
+                {
+                    minaLines++;
+                    Check(speaker == "ミナ", "Mina keeps her own speaker identity");
+                }
+                else
+                {
+                    playerLines++;
+                    Check(kind == (job == Job.Tank ? Hud.LineKind.Boy : Hud.LineKind.Companion)
+                        && speaker == (job == Job.Tank ? "あなた" : Jobs.Get(job).CharacterName),
+                        $"{job}/{phase}/{index}: only the entered character replies");
+                    if (job != Job.Tank)
+                        Check(Read<Texture2D>(root.Hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job),
+                            "speech avatar uses the selected character, including Rei's VTuber form");
+                }
+                foreach (var page in Read<System.Collections.Generic.List<string>>(root.Hud, "_dlgPages"))
+                    Check(page.Split('\n').Length <= 2 && page.Split('\n').All(line => UiKit.TextW(UiKit.Zen, line, 24) <= 928.1f),
+                        "dialogue text fits the bubble without covering the character");
+                await Frames(8);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var current = GetViewport().GetTexture().GetImage();
+                bool sameStage = true;
+                for (int y = 66; y < 514; y += 5)
+                for (int x = 0; x < 1280; x += 5)
+                    sameStage &= current.GetPixel(x, y) == first.GetPixel(x, y);
+                Check(sameStage, "changing speakers never adds a waist-up illustration over the stage");
+                if (playerLines == 1 && kind != Hud.LineKind.Mina && phase is 1 or 4)
+                {
+                    await Shot($"dialogue_{job}_{phase}_1280x720");
+                    DisplayServer.WindowSetSize(new Vector2I(540, 960));
+                    await Shot($"dialogue_{job}_{phase}_540x960");
+                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                    await Frames(8);
+                }
+            }
+            Check(minaLines > 0 && playerLines > 0, "every phase is a two-way conversation");
+            Call(scene, "BeginLeave");
+            scene._Process(0.6);
+            await Frames(3);
+            Check(completions == 1 && !root.Hud.CinematicMode && !Read<bool>(root.Hud, "_cinematicBubble")
+                && root.World.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode != ProcessModeEnum.Disabled,
+                "dialogue completes once and restores combat and the normal HUD");
+            Check(FilmSkip.Seen(game, $"mina_phase_{phase}_{Jobs.Get(job).CharacterId}"), "read status belongs to this character and phase");
+        }
+        game.SelectedJob = originalJob;
+        Write(game, "_idleDialogSeen", seenBefore);
+    }
+
     private async Task CheckPhases(GameManager game, MinaRoot root, BossMina boss, MinaPhaseAttacks caster)
     {
         int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
@@ -186,6 +263,7 @@ public partial class MinaPhaseQa : Node
             Check(Mathf.IsEqualApprox(boss.HpRatio, BossMina.PhaseThresholds[phase - 1]),
                 $"phase {phase}: burst damage stops at the next HP boundary (actual {boss.HpRatio}, paused {Hud.BubblePaused})");
             await Frames(2);
+            await BreakPost(phase - 1);
             var scene = GetTree().GetFirstNodeInGroup("mina_phase_scene") as MinaPhaseScene;
             Check(scene != null && boss.EncounterPhase == phase && boss.Transitioning, $"phase {phase}: transformation is not skipped");
             float hp = boss.HpRatio;
@@ -288,13 +366,29 @@ public partial class MinaPhaseQa : Node
             && game.ProcessMode != ProcessModeEnum.Disabled, "aborted transformation restores processing");
         caster.BeginPhase(4);
         boss.DealDirectDamage(9999);
-        Check(!boss.IsPurified && boss.HpRatio > 0 && boss.HpRatio <= 2f / maxHp,
+        Check(!boss.IsPurified && boss.HpRatio > .01f && boss.HpRatio <= .01f + 2f / maxHp,
             "final costume survives until its opening signature finishes");
         CompleteOpener(caster);
         boss.DealDirectDamage(9999);
         await Frames(3);
+        await BreakPost(4);
+        var draft = GetTree().GetFirstNodeInGroup("boss_draft") as BossDraftScene;
+        Check(draft != null && !boss.IsPurified, "last draft opens true realm before defeat");
+        await AdvanceUntil(() => !IsInstanceValid(draft));
         Check(boss.IsPurified && !caster.Active && root.World.GetChildren().OfType<AreaStrike>().Count() == 0,
             "defeat cancels every signature and enters the final conversation");
+    }
+
+    private async Task BreakPost(int index)
+    {
+        var post = GetTree().GetFirstNodeInGroup("boss_post") as BossPost;
+        Check(post != null && post.Index == index, "post guards the next costume or final truth");
+        post!.SetPhysicsProcess(false);
+        for (int hit = 0; hit < 3; hit++) post.BombHit();
+        post._PhysicsProcess(post.MinimumReadTime + 1);
+        if (index == 4) ((BossRealmFx)GetTree().GetFirstNodeInGroup("boss_realm"))._Process(4);
+        post._PhysicsProcess(post.BreakDuration + .1);
+        await Frames(3);
     }
 
     private static void KeyEvent(Key key, bool pressed)

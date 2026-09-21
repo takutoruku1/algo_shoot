@@ -142,7 +142,7 @@ public partial class FilmSkipQa : Node
     // ⑥FINAL のフェーズ間カットシーンも同じ作法で働く。
     private async Task CheckMinaPhase(GameManager game, Hud hud, Node2D world)
     {
-        string key = FilmSkip.SeenKey("mina_phase_1");
+        string key = FilmSkip.SeenKey($"mina_phase_1_{game.JobDef.CharacterId}");
         Check(!game.IsIdleDialogSeen(key), "the phase cutscene starts unseen");
         bool ended = false;
         MinaPhaseScene.Play(hud, world, 1, () => ended = true);
@@ -153,7 +153,7 @@ public partial class FilmSkipQa : Node
         await AdvanceUntil(() => ended);
         await Frames(5);
         Check(ended && game.IsIdleDialogSeen(key), "finishing the phase cutscene records it as seen");
-        Check(!game.IsIdleDialogSeen(FilmSkip.SeenKey("mina_phase_2")),
+        Check(!game.IsIdleDialogSeen(FilmSkip.SeenKey($"mina_phase_2_{game.JobDef.CharacterId}")),
               "each phase is recorded separately");
 
         ended = false;

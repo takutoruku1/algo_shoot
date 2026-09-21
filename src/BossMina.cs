@@ -7,7 +7,8 @@ public partial class BossMina : Enemy
 {
     public bool Finished { get; private set; }
     public bool MemoryPlayed => _memoryPlayed;
-    public bool AoeGateActive => Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
+    public bool AoeGateActive => PostSequenceActive || Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
+    public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
     public bool Transitioning { get; private set; }
     public int EncounterPhase => _pattern;
     private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
@@ -30,6 +31,7 @@ public partial class BossMina : Enemy
     private bool _zHeld;
 
     private MinaPhaseAttacks _caster = null!;
+    private BossPostSequence _posts = null!;
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [mina]。読めなければ現行既定値）──
     private double _ringInterval = 0.95, _aimedInterval = 0.8, _flowerInterval = 1.0, _spiralInterval = 0.075;
@@ -162,6 +164,8 @@ public partial class BossMina : Enemy
         _caster = new MinaPhaseAttacks();
         _caster.Configure(this, GetParent());
         AddChild(_caster);
+        _posts = BossPostSequence.Attach(this, "mina", _caster, _caster.CancelPendingAttacks,
+            () => { _fireT = _fireT2 = 0; }, new[] { .8f, .58f, .36f, .16f, .01f });
     }
 
     protected override void UpdateMovement(double delta)
@@ -268,12 +272,26 @@ public partial class BossMina : Enemy
 
     protected override int LimitBodyDamage(int damage)
     {
+        if (_posts != null && _posts.Active) return 0;
         if (Transitioning || Hud.BubblePaused || PhasePending || _memoryPending) return 0;
         float floor = _pattern < PhaseThresholds.Length ? PhaseThresholds[_pattern] : 0f;
+        if (_posts != null) floor = Mathf.Max(floor, _posts.Floor);
         if (!_memoryPlayed && _pattern >= 2) floor = Mathf.Max(floor, 0.5f);
         // Each costume gets its opening attack before the next HP boundary can be crossed.
         if (_caster != null && !_caster.OpenerCompleted) floor += 1f / (TotalBars * BarHp);
         return DamageToHpFloor(damage, floor);
+    }
+
+    public override void Purify()
+    {
+        if (_posts != null && _posts.BombHit()) return;
+        base.Purify();
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_posts != null && _posts.Active) return;
+        base._PhysicsProcess(delta);
     }
 
     protected override void OnHpChanged()
@@ -359,11 +377,13 @@ public partial class BossMina : Enemy
 
     public override void _Process(double delta)
     {
+        if (_posts.Active) return;
         if (Transitioning)
         {
             if (!GetHud()!.CinematicMode) CompletePhaseTransition();
             return;
         }
+        if (!IsPurified && !_seq && !_memoryPending && !_caster.Active && _posts.TryStart()) return;
         if (!IsPurified && !_seq && !Hud.BubblePaused && !_caster.Active && PhasePending
             && (!_memoryPending || _pattern < 2))
         {
@@ -382,7 +402,7 @@ public partial class BossMina : Enemy
                 if (IsPurified) OnCryStart();
                 else
                 {
-                    Audio.Instance?.Music(Audio.Instance.BgmBossMina, 0.8f);
+                    _posts.ResumeMusic();
                     OnHpChanged();
                 }
             });

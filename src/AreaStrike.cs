@@ -2,8 +2,7 @@ using Godot;
 
 // AreaStrike : 範囲攻撃テレグラフ（RefrainArenaHTML 移植）。ボスの範囲技と道中ドローンのビームで共用。
 //   固定輪郭の予兆 → 内側の進行線 → キャラクター別の着弾（このフレームのみ判定）の3段。
-//   形状＝予測線（横/縦/任意向きビーム）・予測エリア（円/矩形）。色はキャラの心象色（tint）＋着弾の明色（hot）。
-//   弾の下・背景の上（ZIndex -10）の“床マーカー”として描き、弾の視認を妨げない。
+//   危険域は共通の輪郭と斜線、技の個性は内側のイラストで示す。弾より奥、装飾より手前。
 //   予兆中は当たり判定なし、着弾の瞬間にだけ範囲内の自機を被弾させる（必ず予告＝§7 理不尽回避）。
 //
 // 使い方（軸ビーム/円/矩形）：
@@ -70,6 +69,8 @@ public partial class AreaStrike : Node2D, IAoeHazard
     // 全画面AOEの安置(セーフゾーン)判定は現状据え置き（縁+2.5pxまで安全＝自機半径ぶんの許し）。
     private const float SafeHit = 2.5f;
     private const double StrikeFlash = 0.20;  // 着弾フラッシュの尺
+    internal static readonly Color DangerEdge = new("ff796c");
+    private static readonly Color DangerHot = new("fff0d9");
     // 全画面AOEが覆う矩形＝盤面（Field）。Fullscreen は GlobalPosition=0 に置かれ、ここを画面座標のまま描く。
     private const float W = Field.Width, H = Field.Height;
     private const float L = Field.Left, T = Field.Top;
@@ -96,7 +97,6 @@ public partial class AreaStrike : Node2D, IAoeHazard
     private bool _struck;
     // QA検証ログのワンショット（集中モードで遅くなったことを、この予兆につき一度だけ出す）。
     private bool _slowLogged;
-    private bool _sparked;      // 着弾スパーク（FxLayer）を撒いたか＝1回だけ
 
     // 発生源（任意）。設定すると、着弾前に発生源が消滅/浄化された時点で予測線ごとキャンセルする。
     //   ＝「予兆中に倒せば攻撃も消える」。道中ザコのロックオンビーム＋ボスの範囲技(AreaSpellCaster)で使う。
@@ -112,7 +112,11 @@ public partial class AreaStrike : Node2D, IAoeHazard
     public bool CoversPoint(Vector2 p) => Inside(p);
 
     // 全形状共通で "aoe" グループに入れる（QaPilot が走査する）。ゲーム本編では誰も参照しない。
-    public override void _Ready() => AddToGroup("aoe");
+    public override void _Ready()
+    {
+        AddToGroup("aoe");
+        Material = new CanvasItemMaterial { LightMode = CanvasItemMaterial.LightModeEnum.Unshaded };
+    }
 
     public void Configure(Shape shape, float halfW, float halfH, double warn, Color tint, Color hot, Motif motif = Motif.None)
     {
@@ -120,12 +124,11 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
         SetMotif(motif);
-        ZIndex = -10; ZAsRelative = false;
+        ZIndex = -2; ZAsRelative = false;
     }
 
     // 全画面AOE。画面全体が被弾域で、安置(セーフゾーン)円(safeCenter/safeR)だけが安全。
     // safeR<=0 で安置なしの全面型。位置は画面基準で固定するので GlobalPosition=Zero で AddChild する。
-    // 弾の下・背景の上に描く他形状と違い、全面tintは弾より上にも欲しいので ZIndex を少し上げる。
     public void ConfigureFullscreen(Vector2 safeCenter, float safeR, double warn, Color tint, Color hot, Motif motif = Motif.None)
     {
         _shape = Shape.Fullscreen;
@@ -135,7 +138,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _tint = tint; _hot = hot;
         SetMotif(motif);
         BuildDangerCorners();
-        ZIndex = 5; ZAsRelative = false; // 弾(0)より上・自機(10)より下で画面を満たす
+        ZIndex = -2; ZAsRelative = false;
     }
 
     // 任意向きビーム（線分）。dir 方向へ length 伸び、半太さ halfThick で判定する。
@@ -152,7 +155,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
         _warn = Mathf.Max(0.35, warn);
         _tint = tint; _hot = hot;
         SetMotif(motif);
-        ZIndex = -10; ZAsRelative = false;
+        ZIndex = -2; ZAsRelative = false;
     }
 
     public override void _Process(double delta)
@@ -212,63 +215,19 @@ public partial class AreaStrike : Node2D, IAoeHazard
     {
         if (!QaPilot.GodActive && GetTree().GetFirstNodeInGroup("player") is Player p && Inside(p.GlobalPosition))
             p.TakeHit();
-        // 全画面AOEは画面全体の着弾＝強めに揺らす（他形状は従来どおり軽く）。
-        if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(6.5f, 0.22f);
-        else GameCamera.Instance?.Shake(3.4f, 0.16f);
-        EmitImpactSparks();
+        // 大きな揺れで固定した危険境界を見失わせない。
+        if (_shape == Shape.Fullscreen) GameCamera.Instance?.Shake(2.4f, 0.12f);
+        else GameCamera.Instance?.Shake(1.2f, 0.09f);
     }
 
-    // 着弾スパーク（加算・短命）。形状ごとに「どこで・どちらへ」弾けるかを変える＝形状の個性。
-    //   FxLayer 未初期化（QA/ヘッドレスの一部経路）でも落ちないよう null 安全。
-    private void EmitImpactSparks()
-    {
-        if (_sparked) return;
-        _sparked = true;
-        var fx = FxLayer.Instance;
-        if (fx == null || !IsInstanceValid(fx)) return;
-
-        switch (_shape)
-        {
-            case Shape.Fullscreen:
-                // 全画面：安置の縁に沿って弾けさせる＝「安全だったのはここ」を余韻で刻む。撒きすぎない。
-                if (_safeR > 0f) fx.AoeImpact(_safeCenter, _tint, _hot, Vector2.Zero, _safeR, 10);
-                else fx.AoeImpact(new Vector2(Field.CenterX, Field.CenterY), _tint, _hot, Vector2.Zero, 60f, 12);
-                break;
-            case Shape.Circle:
-                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Zero, Radius, 12);
-                break;
-            case Shape.BeamSeg:
-            {
-                // 線分：源・中間・先端の3点で軸方向へ散らす（走った軌跡が残る）。
-                Vector2 tip = GlobalPosition + _segDir * _segLen;
-                fx.AoeImpact(GlobalPosition, _tint, _hot, _segDir, _hh * 4f, 5);
-                fx.AoeImpact(GlobalPosition + _segDir * (_segLen * 0.5f), _tint, _hot, _segDir, _hh * 4f, 5);
-                fx.AoeImpact(tip, _tint, _hot, _segDir, _hh * 5f, 6);
-                break;
-            }
-            case Shape.BeamH:
-                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Right, _hh * 3f, 6);
-                fx.AoeImpact(GlobalPosition + new Vector2(-_hw * 0.55f, 0f), _tint, _hot, Vector2.Right, _hh * 3f, 5);
-                fx.AoeImpact(GlobalPosition + new Vector2(_hw * 0.55f, 0f), _tint, _hot, Vector2.Right, _hh * 3f, 5);
-                break;
-            case Shape.BeamV:
-                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Down, _hw * 3f, 6);
-                fx.AoeImpact(GlobalPosition + new Vector2(0f, -_hh * 0.55f), _tint, _hot, Vector2.Down, _hw * 3f, 5);
-                fx.AoeImpact(GlobalPosition + new Vector2(0f, _hh * 0.55f), _tint, _hot, Vector2.Down, _hw * 3f, 5);
-                break;
-            default: // Rect
-                fx.AoeImpact(GlobalPosition, _tint, _hot, Vector2.Zero, Mathf.Max(_hw, _hh), 10);
-                break;
-        }
-    }
 
     public override void _Draw()
     {
         float progress = Mathf.Clamp((float)(_t / _warn), 0f, 1f);
         float fade = _struck ? 1f - Mathf.Clamp((float)((_t - _warn) / StrikeFlash), 0f, 1f) : 1f;
         float snap = Mathf.SmoothStep(0f, 1f, Mathf.Clamp((progress - 0.82f) / 0.18f, 0f, 1f));
-        Color edge = new(_tint.Lerp(_hot, snap), fade);
-        Color fill = new(_struck ? _hot : _tint, (_struck ? 0.42f : 0.12f + 0.13f * progress) * fade);
+        Color edge = new(_struck ? DangerHot : DangerEdge.Lerp(DangerHot, snap * 0.3f), fade);
+        Color fill = new(_struck ? DangerHot : DangerEdge, (_struck ? 0.38f : 0.09f + 0.06f * progress) * fade);
 
         if (_shape == Shape.Fullscreen)
         {
@@ -298,21 +257,23 @@ public partial class AreaStrike : Node2D, IAoeHazard
         if (_shape == Shape.Circle)
         {
             DrawCircle(Vector2.Zero, Radius, fill, true, -1, true);
+            DrawHatching(new Rect2(-Radius, -Radius, Radius * 2, Radius * 2), fade);
             DrawMotif(new Vector2(Radius * 1.15f, Radius * 1.15f), progress, fade);
             DrawArc(Vector2.Zero, Radius, 0, Mathf.Tau, 64, shadow, width + 1.8f, true);
             DrawArc(Vector2.Zero, Radius, 0, Mathf.Tau, 64, edge, width, true);
             // 発動までの弧は危険範囲の内側に置き、実際の境界を動かさない。
             DrawArc(Vector2.Zero, Radius - 3, -Mathf.Pi / 2,
-                -Mathf.Pi / 2 + Mathf.Tau * progress, 64, new Color(_hot, 0.85f * fade), 1.2f, true);
+                -Mathf.Pi / 2 + Mathf.Tau * progress, 64, new Color(DangerHot, 0.85f * fade), 1.2f, true);
         }
         else
         {
             var rect = new Rect2(-_hw, -_hh, _hw * 2, _hh * 2);
             DrawRect(rect, fill);
+            DrawHatching(rect, fade);
             DrawMotif(new Vector2(_hw * 1.35f, _hh * 1.3f), progress, fade);
             DrawRect(rect, shadow, false, width + 1.8f);
             DrawRect(rect, edge, false, width);
-            DrawFrameProgress(rect.Grow(-3), progress, new Color(_hot, 0.9f * fade));
+            DrawFrameProgress(rect.Grow(-3), progress, new Color(DangerHot, 0.9f * fade));
         }
         if (_motif == Motif.None) DrawWarn(Vector2.Zero, fade);
     }
@@ -320,6 +281,7 @@ public partial class AreaStrike : Node2D, IAoeHazard
     private void DrawLane(Rect2 rect, float progress, float fade, Color edge, Color fill)
     {
         DrawRect(rect, fill);
+        DrawHatching(rect, fade);
         float thickness = _struck ? 2f : 1.2f;
         Color shadow = new(0.025f, 0.02f, 0.05f, 0.85f * fade);
         var top = rect.Position;
@@ -329,13 +291,13 @@ public partial class AreaStrike : Node2D, IAoeHazard
         DrawLine(bottom, bottom + along, shadow, thickness + 1.8f);
         DrawLine(top, top + along, edge, thickness);
         DrawLine(bottom, bottom + along, edge, thickness);
-        var hot = new Color(_hot, 0.85f * fade);
+        var hot = new Color(DangerHot, 0.85f * fade);
         DrawLine(top + Vector2.Down * 2.5f, top + Vector2.Down * 2.5f + along * progress, hot, 0.8f);
         DrawLine(bottom + Vector2.Up * 2.5f, bottom + Vector2.Up * 2.5f + along * progress, hot, 0.8f);
         if (_art == Art.ClipLine)
         {
             // The bright cut occupies the damage band, not just a thin line through a wider hitbox.
-            if (_struck) DrawRect(rect.Grow(PlayerHit), new Color(_hot, 0.95f * fade));
+            if (_struck) DrawRect(rect.Grow(PlayerHit), new Color(DangerHot, 0.9f * fade));
             else
                 for (float x = rect.Position.X + 4; x < rect.End.X - 4; x += 10)
                     DrawLine(new Vector2(x, 0), new Vector2(Mathf.Min(x + 4, rect.End.X - 4), 0), hot, 1f);
@@ -345,13 +307,13 @@ public partial class AreaStrike : Node2D, IAoeHazard
         int count = Mathf.Clamp((int)(span / 36f), 2, 12);
         for (int i = 0; i < count; i++)
         {
-            float u = Mathf.PosMod((i + 0.5f) / count + (float)_t * 0.13f, 1f);
+            float u = (i + 0.5f) / count;
             float x = rect.Position.X + 10f + (span - 20f) * u;
             var at = new Vector2(x, 0);
             if (_art == Art.ReadReceipt)
-                DrawReadReceipt(at, new Vector2(17, rect.Size.Y - 3), (0.45f + 0.35f * progress) * fade);
+                DrawReadReceipt(at, new Vector2(17, rect.Size.Y - 4), (0.32f + 0.22f * progress) * fade);
             else if (_motif != Motif.None)
-                DrawStamp(i, at, new Vector2(18, rect.Size.Y - 3), (0.45f + 0.35f * progress) * fade);
+                DrawStamp(i, at, new Vector2(18, rect.Size.Y - 4), (0.32f + 0.22f * progress) * fade);
             else
             {
                 DrawLine(at + new Vector2(-2, -2), at, hot, 0.8f);
@@ -359,13 +321,57 @@ public partial class AreaStrike : Node2D, IAoeHazard
             }
         }
         if (_struck)
-            DrawLine(new Vector2(rect.Position.X, 0), new Vector2(rect.End.X, 0), new Color(_hot, fade), 1.8f);
+            DrawLine(new Vector2(rect.Position.X, 0), new Vector2(rect.End.X, 0), new Color(DangerHot, fade), 1.8f);
+    }
+
+    private void DrawHatching(Rect2 rect, float fade)
+    {
+        var color = new Color(DangerEdge, (_struck ? 0.12f : 0.32f) * fade);
+        foreach (var (from, to) in HatchSegments(rect))
+            DrawLine(from, to, color, 0.65f, true);
+    }
+
+    internal System.Collections.Generic.IEnumerable<(Vector2 from, Vector2 to)> HatchSegments(Rect2 rect)
+    {
+        for (float x = rect.Position.X - rect.Size.Y; x < rect.End.X; x += 12f)
+        {
+            var from = new Vector2(Mathf.Max(x, rect.Position.X), rect.Position.Y + Mathf.Max(0, rect.Position.X - x));
+            var to = new Vector2(Mathf.Min(x + rect.Size.Y, rect.End.X), rect.End.Y - Mathf.Max(0, x + rect.Size.Y - rect.End.X));
+            if (_shape != Shape.Circle && (_shape != Shape.Fullscreen || _safeR <= 0))
+            {
+                yield return (from, to);
+                continue;
+            }
+            var center = _shape == Shape.Circle ? Vector2.Zero : _safeCenter;
+            float radius = _shape == Shape.Circle ? Radius - 2 : _safeR + 2;
+            var axis = (to - from).Normalized();
+            float along = (center - from).Dot(axis);
+            float cross = (center - from).Cross(axis);
+            float square = radius * radius - cross * cross;
+            if (square <= 0)
+            {
+                if (_shape == Shape.Fullscreen) yield return (from, to);
+                continue;
+            }
+            float span = Mathf.Sqrt(square), length = from.DistanceTo(to);
+            float enter = Mathf.Clamp(along - span, 0, length);
+            float leave = Mathf.Clamp(along + span, 0, length);
+            if (_shape == Shape.Circle)
+            {
+                if (leave > enter) yield return (from + axis * enter, from + axis * leave);
+            }
+            else
+            {
+                if (enter > 0) yield return (from, from + axis * enter);
+                if (leave < length) yield return (from + axis * leave, to);
+            }
+        }
     }
 
     private void DrawMotif(Vector2 size, float progress, float fade)
     {
         if (_motif == Motif.None) return;
-        float alpha = (0.5f + progress * 0.35f) * fade;
+        float alpha = (0.36f + progress * 0.2f) * fade;
         switch (_motif)
         {
             case Motif.Rain:
@@ -438,15 +444,16 @@ public partial class AreaStrike : Node2D, IAoeHazard
 
     private void DrawFullscreen(float progress, float fade)
     {
-        Color danger = new(_struck ? _hot : _tint, (_struck ? 0.4f : 0.13f + 0.16f * progress) * fade);
+        Color danger = new(_struck ? DangerHot : DangerEdge, (_struck ? 0.3f : 0.08f + 0.06f * progress) * fade);
         DrawDanger(danger);
+        DrawHatching(Field.Rect, fade);
         DrawFullscreenMotif(progress, fade);
         if (_safeR <= 0) return;
 
         var mint = new Color(0.4f, 0.95f, 0.72f);
         DrawArc(_safeCenter, _safeR, 0, Mathf.Tau, 72, new Color(0.015f, 0.035f, 0.055f, fade), 3.2f, true);
         DrawArc(_safeCenter, _safeR, 0, Mathf.Tau, 72, new Color(mint, fade), 1.2f, true);
-        DrawArc(_safeCenter, _safeR + 3.5f, -Mathf.Pi / 2,
+        DrawArc(_safeCenter, _safeR - 2.5f, -Mathf.Pi / 2,
             -Mathf.Pi / 2 + Mathf.Tau * progress, 72, new Color(0.92f, 1f, 0.96f, 0.9f * fade), 0.85f, true);
         for (int i = 0; i < 4; i++)
         {
@@ -461,11 +468,11 @@ public partial class AreaStrike : Node2D, IAoeHazard
     private void DrawFullscreenMotif(float progress, float fade)
     {
         if (_motif == Motif.None) return;
-        float alpha = (0.28f + 0.3f * progress) * fade;
+        float alpha = (0.16f + 0.12f * progress) * fade;
         for (int row = 0; row < 4; row++)
         for (int col = 0; col < 5; col++)
         {
-            float u = Mathf.PosMod((col + 0.5f + row * 0.35f) / 5f + (float)_t * (_motif == Motif.Stream ? -0.045f : 0.012f), 1f);
+            float u = Mathf.PosMod((col + 0.5f + row * 0.35f) / 5f, 1f);
             var at = new Vector2(L + 20 + (W - 40) * u, T + 22 + row * (H - 44) / 3f);
             if (at.DistanceTo(_safeCenter) < _safeR + 25) continue;
             int index = _motif == Motif.Stream ? ((row + col) % 4 == 0 ? 1 : 0) : (row + col) % 3;
