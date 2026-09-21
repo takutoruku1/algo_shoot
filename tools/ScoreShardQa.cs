@@ -48,6 +48,13 @@ public partial class ScoreShardQa : Node
                 GetTree().Quit();
                 return;
             }
+            // --burst : 散り方と回収演出を目視するための連続スクショ（2026-09-22）。
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--burst"))
+            {
+                await BurstShots(game);
+                GetTree().Quit();
+                return;
+            }
             foreach (var job in Jobs.All)
             {
                 game.SelectedJob = job.Id;
@@ -205,6 +212,68 @@ public partial class ScoreShardQa : Node
                 Check(bossCount >= 104 && bossCount <= 128, $"boss defeat scatters the largest shard count ({bossCount})");
                 Check(bossCount > midCount * 1.6f, "boss defeat is visibly denser than a mid-boss defeat");
                 Check(Value(drops) == 150, "boss defeat preserves its larger pickup reward without adding particles");
+
+                // ── 全方位に散る（2026-09-22 ユーザー要望「もっと全体にちって」）──
+                //   ボス級だけ spread=π＝左（自機のいる側）にも散る。ザコは右上の扇のまま
+                //   ＝倒した敵の残弾に破片をかぶせない視認性対策（2026-09-08）を維持する。
+                Vector2[] Velocities() => Shards(drops).Cast<object>()
+                    .Select(s => Read<FxLayer.P>(s, "Particle")).Select(p => new Vector2(p.Vx, p.Vy)).ToArray();
+                var bossVel = Velocities();
+                Check(bossVel.Any(v => v.X < -20f) && bossVel.Any(v => v.X > 20f)
+                    && bossVel.Any(v => v.Y < -20f) && bossVel.Any(v => v.Y > 20f),
+                    "boss shards scatter in every direction, left and down included");
+                // 慣性で飛ぶ時間を伸ばしてあるか（ScatterTime 0.24 のままだと初速を上げても届かない）。
+                Check(Shards(drops).Cast<object>().All(s => Read<float>(s, "Fly") > 0.24f),
+                    "boss shards keep their momentum long enough to reach the field edges");
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+                fx.PurifyBurst(new Vector2(350, 70), 100, FxLayer.PurifyTier.Zako, 40);
+                var zakoVel = Velocities();
+                Check(zakoVel.All(v => v.X > -30f && v.Y < 40f),
+                    "zako scatter stays in its upper-right fan (bullet readability unchanged)");
+                Check(Shards(drops).Cast<object>().All(s => Read<float>(s, "Fly") == 0.24f),
+                    "zako shards keep the original short scatter window");
+
+                // ── 実際に飛ばして「盤面全体に散り、1粒も取り逃さない」を確かめる ──
+                //   欠片の位置は毎フレーム Field.Rect へクランプされるので画面外へは出られないが、
+                //   端に貼りついた粒まで BeginRush の尺で戻り切れるかは実測しないと判らない。
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+                game.FlushShardImpression();
+                long beforeSpread = game.Score;
+                root.Player.GlobalPosition = new Vector2(Field.Left + 20, 170);
+                fx.PurifyBurst(new Vector2(260, 90), 1500, FxLayer.PurifyTier.Boss, 40);
+                int spreadCount = Shards(drops).Count;
+                int spreadBonus = Value(drops);
+                Tick(drops, 48); // 0.8s＝散り切った瞬間の広がりを測る
+                var spread = Shards(drops).Cast<object>().Select(s => Read<Vector2>(s, "Position"))
+                    .Select(p => drops.ToGlobal(p)).ToArray();
+                // 散っている（まだ吸引に入っていない）粒は1つ残らず盤面の中。初速を 1.55→2.6 倍に
+                // 上げても画面外へ飛び去らないのは、_PhysicsProcess が毎フレーム Field.Rect へ
+                // クランプするから＝端に貼りつくだけで「拾えないまま消える」粒は生まれない。
+                var flying = Shards(drops).Cast<object>().Where(s => !Read<bool>(s, "Attracted"))
+                    .Select(s => drops.ToGlobal(Read<Vector2>(s, "Position"))).ToArray();
+                var outside = flying.Where(p => !Field.Rect.HasPoint(p)).ToArray();
+                Check(outside.Length == 0,
+                    $"scattering boss shards never leave the playable field ({outside.Length} outside)");
+                // 盤面(264×216)を 4×4 に割って、少なくとも 12 マスに粒が居る＝「全体に散っている」。
+                var cells = spread.Select(p => (
+                        Mathf.Clamp((int)((p.X - Field.Left) / (Field.Width / 4)), 0, 3),
+                        Mathf.Clamp((int)((p.Y - Field.Top) / (Field.Height / 4)), 0, 3)))
+                    .Distinct().Count();
+                Check(cells >= 12, $"boss shards cover the whole board, not one corner ({cells}/16 cells)");
+                // 撒いた粒は最後の1粒まで拾える（端に貼りついた粒もラッシュ尺で戻り切る）。
+                root.Player.GlobalPosition = new Vector2(260, 120);
+                Tick(drops, 210);
+                game.FlushShardImpression();
+                Check(Shards(drops).Count == 0 && game.Score == beforeSpread + spreadBonus,
+                    $"every one of the {spreadCount} boss shards is collected, none expires off-screen");
+                Check(!Read<bool>(drops, "_harvest"), "the harvest showpiece closes once the last shard lands");
+                drops.GetType().GetField("_rush", Fields)!.SetValue(drops, 0f);
+                Shards(drops).Clear();
+                Read<IList>(fx, "_p").Clear();
 
                 // ── 難易度で欠片の量が変わる（Easy0.8 / Normal1.0 / Hard1.3 / Lunatic1.6）──
                 //   粒数とスコア総量に同じ倍率が掛かり、階層（Zako<MidBoss<Boss）の段差は保たれる。
@@ -435,6 +504,81 @@ public partial class ScoreShardQa : Node
         }
         await Frames(30);
         GD.Print("[ScoreShardQA] MOVIE COMPLETE");
+    }
+
+    // 撃破直後〜散り〜回収中〜拾い切りを、実物の物理とレンダで連続撮影する（--burst）。
+    // FPS も同時に測る（ボス撃破の瞬間にフレームが落ちていないかの実測）。
+    private async Task BurstShots(GameManager game)
+    {
+        game.SelectedJob = Job.Magic;
+        game.Difficulty = GameManager.Diff.Lunatic; // 粒数が最大（×1.6）になる最悪ケースで測る
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        root.World.ProcessMode = ProcessModeEnum.Inherit;
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        game.SetStageTarget(999);
+        var fx = root.World.GetNode<FxLayer>("FxLayer");
+        Audio.Instance?.StopMusic(0);
+        await Frames(45);
+        // シーン/シェーダの暖機。最初の1秒は素で 5fps 台まで落ちるので、計測の前に必ず捨てる。
+        await Frames(180);
+
+        foreach (var (tier, label, basePoints) in new[]
+        {
+            (FxLayer.PurifyTier.Boss, "boss", 1500),
+            (FxLayer.PurifyTier.MidBoss, "mid", 700),
+            (FxLayer.PurifyTier.Zako, "zako", 100),
+        })
+        {
+            root.Player.GlobalPosition = new Vector2(Field.Left + 40, 160);
+            typeof(Player).GetField("_fireCooldown", Fields)!.SetValue(root.Player, 999f);
+            await Frames(20);
+            // 撒く直前の素のFPS（比較の基準）。ここが既に落ちていれば演出のせいではない。
+            double idleMin = 999;
+            for (int f = 0; f < 60; f++)
+            {
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (f >= 20) idleMin = Mathf.Min(idleMin, Engine.GetFramesPerSecond());
+            }
+            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier, 60);
+            GD.Print($"[burst] {label}: shards={Shards(fx.ScoreDrops).Count} idle-min-fps={idleMin:0}");
+            // 0.1 / 0.3 / 0.6 / 0.9 / 1.4 / 2.0 / 2.8s の7枚（散り→吸引→拾い切り→締め）
+            double fpsMin = 999; int prev = 0;
+            foreach (var at in new[] { 6, 12, 18, 18, 30, 36, 48 })
+            {
+                for (int f = 0; f < at; f++)
+                {
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    fpsMin = Mathf.Min(fpsMin, Engine.GetFramesPerSecond());
+                }
+                await Shot($"burst_{label}_{prev:00}");
+                prev++;
+            }
+            // ★min-fps には撮影(SavePng)の停止が混ざる。純粋な描画コストは撮影抜きで測ること
+            //   （2026-09-22 実測: Lunatic・190粒で idle と burst-min が一致＝演出由来の低下は無し）。
+            GD.Print($"[burst] {label}: min-fps={fpsMin:0}(incl. screenshot stalls) remaining={Shards(fx.ScoreDrops).Count}");
+            Shards(fx.ScoreDrops).Clear();
+
+            // 撮影を挟まない素の計測。撒いてから拾い切るまでを回し切って最小FPSを取る。
+            root.Player.GlobalPosition = new Vector2(Field.Left + 40, 160);
+            await Frames(40);
+            double pureIdle = 999;
+            for (int f = 0; f < 40; f++) { await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); if (f >= 10) pureIdle = Mathf.Min(pureIdle, Engine.GetFramesPerSecond()); }
+            fx.PurifyBurst(new Vector2(268, 88), basePoints, tier, 60);
+            double pureMin = 999; int peak = 0;
+            for (int f = 0; f < 180; f++)
+            {
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                pureMin = Mathf.Min(pureMin, Engine.GetFramesPerSecond());
+                peak = Mathf.Max(peak, Shards(fx.ScoreDrops).Count);
+            }
+            GD.Print($"[burst] {label}: idle={pureIdle:0}fps burst-min={pureMin:0}fps peakShards={peak}");
+            Shards(fx.ScoreDrops).Clear();
+        }
+        GD.Print("[ScoreShardQA] BURST COMPLETE");
     }
 
     private async Task PhysicsFrames(int count)

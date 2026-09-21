@@ -14,7 +14,7 @@ public partial class Player : Area2D
     //     空いた L1 は集中モードへ回した（下の集中モード入力を参照）。
     private const float NormalSpeed = 75f;
     public float SlowestMoveSpeed => NormalSpeed * (_game?.MoveSpeedMul ?? 1f)
-        * (_game?.JobDef.MoveMul ?? 1f) * LockMoveMul;
+        * (_game?.JobDef.MoveMul ?? 1f) * LockMoveMul * PowerMoveMultiplier;
 
     // 連射
     private const float FireInterval = 0.13f;
@@ -612,7 +612,7 @@ public partial class Player : Area2D
         // 速度は1本（低速移動は 2026-09-13 に廃止）。機動力強化(MoveSpeedMul)と
         // ジョブの移動補正（結び手のみ ×0.88＝「避けるのではなく耐える」）を素の速度に乗せる。
         float jobMove = _game?.JobDef.MoveMul ?? 1f;
-        float speed = NormalSpeed * (_game?.MoveSpeedMul ?? 1f) * jobMove;
+        float speed = NormalSpeed * (_game?.MoveSpeedMul ?? 1f) * jobMove * PowerMoveMultiplier;
         // ロックオン中は足を重くする＝照準を任せるあいだの対価。
         // 左クリックの短押し／長押し判定は、それを読む TickLockOn・溜め打ちより必ず先に1回だけ回す。
         TickMouseHold(dt);
@@ -1036,10 +1036,11 @@ public partial class Player : Area2D
         Vector2 vel = ShotDir * 360f;
         int pierce = _game?.ShotPierceCount ?? 0;
         int rdmg = dmg + (_game?.RapidPowerBonus ?? 0); // 連射モード専用の威力上乗せ
-        int lines = 2 + (_game?.ExtraLines ?? 0);
+        int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
         float[] offs = lines <= 2 ? new[] { -4f, 4f }
                      : lines == 3 ? new[] { -6f, 0f, 6f }
-                                  : new[] { -10f, -4f, 4f, 10f };
+                     : lines == 4 ? new[] { -10f, -4f, 4f, 10f }
+                                  : new[] { -12f, -6f, 0f, 6f, 12f };
         foreach (float dy in offs)
             _pool.Spawn(muzzle + new Vector2(0f, dy), vel, isEnemy: false, 3f, rdmg, BulletShape.Dart).Pierce = pierce;
     }
@@ -1058,14 +1059,19 @@ public partial class Player : Area2D
         // 同時タメ中の弾数を上限化：無効化(非Active)/発進済み分を掃除してから残数を確認し、
         // 上限（AccelChargeCap）到達中は新規スポーンをスキップ＝タメ中弾の自弾グローが自機前方に積み上がるのを防ぐ。
         _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
-        if (_accelCharging.Count >= AccelChargeCap)
+        int lines = 2 + (_game?.ExtraLines ?? 0) + LinePower;
+        int chargeCap = AccelChargeCap + LinePower * 3;
+        if (_accelCharging.Count + lines > chargeCap)
             return;
 
         // 上下2本（連射と同じ正面集中の手触り）＋ #8「ライン +1」で1発増える。
         //   発進方向は Spawn の vel（射撃方向）で確定し、MakeAccel が初速をタメへ落とす。
         //   貫通（#12）は 2026-09-13 から全モード共通＝加速球にも乗せる。
         int pierce = _game?.ShotPierceCount ?? 0;
-        float[] adys = (_game?.ExtraLines ?? 0) >= 1 ? new[] { -8f, 0f, 8f } : new[] { -4f, 4f };
+        float[] adys = lines <= 2 ? new[] { -4f, 4f }
+                     : lines == 3 ? new[] { -8f, 0f, 8f }
+                     : lines == 4 ? new[] { -10f, -4f, 4f, 10f }
+                                  : new[] { -12f, -6f, 0f, 6f, 12f };
         foreach (float dy in adys)
         {
             var b = _pool.Spawn(muzzle + new Vector2(0f, dy), ShotDir * fast, isEnemy: false, 3.4f, admg);
@@ -1079,7 +1085,7 @@ public partial class Player : Area2D
     // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる）。
     private void FireSpread(Vector2 muzzle, int dmg)
     {
-        int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
+        int n = Mathf.Max(5, _game?.SpreadWays ?? 5) + LinePower;
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
         int spierce = _game?.ShotPierceCount ?? 0; // 貫通（#12）は 2026-09-13 から全モード共通
@@ -1098,7 +1104,7 @@ public partial class Player : Area2D
     // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
     private void FireHoming(Vector2 muzzle, int dmg)
     {
-        int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
+        int shots = Mathf.Max(1, _game?.HomingShots ?? 2) + LinePower;
         int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
         int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
         int hpierce = _game?.ShotPierceCount ?? 0;     // 貫通（#12）は 2026-09-13 から全モード共通
@@ -1373,9 +1379,9 @@ public partial class Player : Area2D
             if (_dodgeInv > 0f && _dodgeGrazeCount < DodgeGrazeCap && game != null)
             {
                 _dodgeGrazeCount++;
-                long imp = game.AddDodgeGraze();
-                // 回避よけのフィードバックは通常グレイズと差別化＝自機位置に金色「+N」（N=稼いだインプレ）。
-                FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -16), "+" + imp, FxLayer.Gold, 12);
+                game.AddDodgeGraze();
+                // 2026-09-22 ユーザー指示：回避よけの「+N」ポップアップは非表示。自機のすぐ上に数字が出ると
+                //   避けている最中の弾と重なって見落とす。報酬（スコア・インプレ・コンボ猶予）は従来どおり入る。
 
                 // 返し光（counter_light・ホーミング幹の奥義）：回避よけした弾そのものを追尾光弾へ変換して撃ち返す。
                 // Lv1=2発に1発・上限6/回避、Lv2=全弾・上限12(=DodgeGrazeCap)。報酬(AddDodgeGraze)はそのまま＝攻めの上乗せ。
@@ -1480,6 +1486,7 @@ public partial class Player : Area2D
         // 無敵中・回避無敵中・ゲームオーバー中は無効（回避の主旨＝回避中は被弾しない）
         if (_invincible || _dodgeInv > 0f || _gameOver)
             return;
+        if (AbsorbPowerupHit()) return;
 
         // 被弾演出（自機周囲のフラッシュ＋波紋）＋ 赤フラッシュ・シェイク・ヒットストップで「被弾」を明確化。
         FxLayer.Instance?.PlayerHit(GlobalPosition);
@@ -1508,6 +1515,7 @@ public partial class Player : Area2D
         // 被弾回数を1つ数える（ハブ帰還の「被弾は{n}回でした」＝表示専用の補助観測）。
         // 練習モードの早期 return より後なので、チュートリアルの被弾は数えない。
         _game?.NotifyPlayerHit();
+        LosePowerupsOnHit();
 
         // ♥（残機）を1つ減らして HUD 更新
         Lives = Mathf.Max(0, Lives - 1);
@@ -1544,7 +1552,7 @@ public partial class Player : Area2D
     public bool AddLife(int n = 1)
     {
         if (_gameOver || n <= 0) return false;
-        int cap = _game?.StartLives ?? 3;
+        int cap = MaxLives;
         if (Lives >= cap) return false;
         Lives = Mathf.Min(cap, Lives + n);
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetLives(Lives);

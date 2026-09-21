@@ -268,7 +268,7 @@ public partial class FxLayer : Node2D
     //   ★経済には影響しない。impBase も points も「総和保存」で n 粒へ割るので、n をいくつに変えても
     //     拾い切ったときの合計は同じ。変わるのは撒かれる粒の数＝見た目の量と拾う回数だけ。
     //     （ボス/中ボスは種の概念が無いので既定 1f のまま＝従来値を一切動かさない。）
-    public void PurifyBurst(Vector2 pos, int basePoints, PurifyTier tier, int impBase = 0, float countMul = 1f)
+    public void PurifyBurst(Vector2 pos, int basePoints, PurifyTier tier, int impBase = 0, float countMul = 1f, PowerKind? power = null)
     {
         bool boss = tier != PurifyTier.Zako;
         // 芯の一拍だけ手前。小さく短命（16→11px / 0.45→0.28s）＝弾を覆う面積と時間を削る。
@@ -304,27 +304,49 @@ public partial class FxLayer : Node2D
         if (points > 0) points = Mathf.Max(1, Mathf.RoundToInt(points * diffMul));
         // 大量に撒くときはハート率を落とす（HeartP は Petal の約3倍の描画コスト）。
         float heartRate = tier == PurifyTier.Zako ? 0.35f : 0.18f;
-        // 格が上がるほど初速と散り幅を広げる＝「画面いっぱいに溢れる」。
-        float spread = tier == PurifyTier.Zako ? 1.0f : 1.45f;
-        float speedMul = tier == PurifyTier.Boss ? 1.55f : tier == PurifyTier.MidBoss ? 1.3f : 1f;
+        // 散り方（2026-09-22 ユーザー要望「もっと全体にちって」）。
+        //   ザコ : 従来どおり右上へ噴き上げる扇（-π/4 中心 ±1.0rad）。戦闘が続くので、倒した敵が
+        //          最後に撃った弾（＝自機のいる左へ飛ぶ）に破片をかぶせない向きを維持する。
+        //   ボス級: 全方位（±π）。ボス撃破は即・改心会話へ移って弾も消えるので、左へ散っても
+        //          弾を隠す事故は起きない（既存コメントの前提そのまま）。中ボスは戦闘が続くが、
+        //          飛散物は全部 Deep＝弾より奥(-6/-5)に沈むので「弾は必ず演出の上」の保証は効く。
+        float spread = tier == PurifyTier.Zako ? 1.0f : Mathf.Pi;
+        // 初速。全方位にしただけでは中心に固まるので、ボス級は盤面（264×216）の端まで届く速さへ。
+        // 最大 sp=110×2.6=286px/s、Drag=0.35 の減速を積分すると約 0.9s で 200px 前後＝盤面の対角に近い。
+        float speedMul = tier == PurifyTier.Boss ? 2.6f : tier == PurifyTier.MidBoss ? 1.9f : 1f;
+        // ボス級は重力と空気抵抗を弱めて「下に落ちる」より「外へ広がる」を強くし、寿命も伸ばす。
+        // ★画面外へは出ない：ScoreShards は毎フレーム欠片位置を Field.Rect へクランプする（_PhysicsProcess）
+        //   ので、速い粒は端で止まるだけ。加えて BeginRush が全粒を強制吸引するので取り逃しは起きない。
+        float grav = boss ? 26f : 70f;
+        float drag = boss ? 0.35f : 0.7f;
+        float ttlLo = boss ? 0.9f : 0.6f, ttlHi = boss ? 1.5f : 1.0f;
+        // 慣性で飛び続ける秒数（ScoreShards.Add の fly）。既定 0.24s のままだと、初速を上げても
+        // 0.24s で急ブレーキが掛かって 25px しか進まない＝「全体に散る」にならない。ボス級だけ
+        // 伸ばして盤面（264×216）の端まで届かせる。0＝ザコ（従来の ScatterTime 0.24s）。
+        float flyBase = tier == PurifyTier.Boss ? 0.78f : tier == PurifyTier.MidBoss ? 0.58f : 0f;
         // 報酬を持つ撃破か（＝散った粒を全部「拾える欠片」にするか）。点も通貨も無い呼び出し
         // （Player の演出転用など）は従来どおり丸ごと装飾のまま＝拾って点が入る事故を防ぐ。
         bool reward = points > 0 || impBase > 0;
         int overflowImp = 0;
         for (int i = 0; i < n; i++)
         {
-            // 真上(-π/2)±1.2rad → 右上(-π/4 中心)±1.0rad。左（弾の進む先）へはほぼ散らない。
-            // ボス級は改心会話へ即移行し弾も消えるので、散り幅を広げても弾を隠す事故は起きない。
-            float a = -Mathf.Pi / 4 + R(-spread, spread), sp = R(45, 110) * speedMul;
+            // ザコは右上(-π/4 中心)±1.0rad の扇。ボス級は spread=π＝全方位へ均等に散る。
+            // 全方位だと「速い粒ほど遠く」がそのまま外周の粒密度になるので、i 番目に応じて初速を
+            // 段階的に振る（内側／中間／外周の三層）＝中心に団子にならず、盤面全体に薄く行き渡る。
+            float a = -Mathf.Pi / 4 + R(-spread, spread);
+            float sp = R(45, 110) * speedMul * (boss ? 0.45f + (i % 3) * 0.33f : 1f);
             bool heart = _rng.Randf() < heartRate;
-            var particle = new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = 70, Drag = 0.7f, Ttl = R(0.6f, 1.0f), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true };
+            var particle = new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.2f, 4f), Rot = R(0, Mathf.Tau), Spin = R(-5, 5), Grav = grav, Drag = drag, Ttl = R(ttlLo, ttlHi), Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true };
             int pt = points > 0 ? points / n + (i < points % n ? 1 : 0) : 0;
             int im = impBase > 0 ? impBase / n + (i < impBase % n ? 1 : 0) : 0;
             // ★拾える／拾えないの判定は「この撃破が報酬を持つか(reward)」だけで決める。粒ごとの取り分
             //   (pt/im) で弾いてはいけない：総和保存の分配は余りを先頭から配るので、n=13・points=10 なら
             //   末尾3粒の取り分が0になり、その3粒だけ拾えない装飾に落ちる＝「散った粒より拾える数が少ない」。
             //   総額は変わらないので気づかれにくいが、手触りとしては明確な退行（2026-09-17 QA検出）。
-            if (!reward || !ScoreDrops.Add(particle, pt, im))
+            // 飛行時間を粒ごとに散らす（±25%）＝全部が同時に止まらず、外周へ届く粒と途中で
+            // ふわっと止まる粒が混ざって「面」で散って見える。
+            float fly = flyBase > 0f ? flyBase * R(0.75f, 1.25f) : 0f;
+            if (!reward || !ScoreDrops.Add(particle, pt, im, fly, power))
             {
                 // 容量(640)超過で欠片になれなかったぶん。演出粒としては出すが、通貨まで
                 // 消すと「画面の都合でお金が減った」＝気づけない損になるので、取りこぼし分は
@@ -332,6 +354,7 @@ public partial class FxLayer : Node2D
                 overflowImp += im;
                 Add0(particle);
             }
+            else power = null;
         }
         if (overflowImp > 0) GameManager.Instance?.AddScoreShard(0, overflowImp);
         int motes = tier == PurifyTier.Boss ? 22 : tier == PurifyTier.MidBoss ? 13 : 6;
@@ -343,7 +366,11 @@ public partial class FxLayer : Node2D
         // ボス/中ボス撃破は直後に改心会話（BubblePaused）へ入る＝放っておくと欠片は凍ったまま
         // 寿命(5s)で消え、拾えずに損をする。撃破の瞬間だけ全欠片を強制吸引に切り替えて、
         // 会話が始まっても「チャリチャリ」と吸い込まれ切るまで回収を走らせる（§2-3 リターンは即・明確に）。
-        if (boss) ScoreDrops.BeginRush(tier == PurifyTier.Boss ? 2.6f : 1.9f);
+        // 全方位へ広く散らしたぶん帰り道も長くなるので、ラッシュ尺も少し伸ばす（2.6→3.2 / 1.9→2.2）。
+        if (boss) ScoreDrops.BeginRush(tier == PurifyTier.Boss ? 3.2f : 2.2f);
+        // 回収の見せ場（2026-09-22）。ボスは「全部拾い切った瞬間の締め」まで出す。中ボスは戦闘が
+        // 続くので段階演出だけに抑える＝画面を覆う締めのフラッシュ／大リングは出さない。
+        if (boss) ScoreDrops.BeginHarvest(tier == PurifyTier.Boss);
     }
 
     // 弾→花びら（ボム/受け止め）。消えた弾の位置に残る花びらは、まだ飛んでいる他の弾を隠しうるので
@@ -361,6 +388,55 @@ public partial class FxLayer : Node2D
         for (int i = 0; i < 2; i++)
             Add0(new P { Type = T.Mote, X = pos.X, Y = pos.Y, Vx = R(-18, 18), Vy = R(-30, -12),
                 Size = 1.2f, Ttl = 0.18f, Col = color, Add = true, Deep = true });
+    }
+
+    // 回収の一粒（ボス/中ボス撃破のラッシュ中だけ）。連鎖 chain が伸びるほど強くなる＝
+    // 半音ずつ上がる連鎖音（Audio.PlayScorePickup）に視覚側の段が揃う（2026-09-22）。
+    //   step 0 : 既存の小リング＋粒だけ（＝ラッシュの序盤は道中と同じ控えめさ）
+    //   step 1 : 白の芯グローが乗る＝「拾えてる」が一目で判る
+    //   step 2 : リングが二重になり弾ける小片が増える＝拾い切りが近い合図
+    // すべて自機の真上で 0.2s 未満・Deep（弾より奥）。中ボス戦で弾を隠さないための上限。
+    public void ShardHarvest(Vector2 pos, Color color, int chain)
+    {
+        int step = chain < 8 ? 0 : chain < 18 ? 1 : 2;
+        ScorePickup(pos, color);
+        if (step == 0) return;
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 3.5f + step * 1.6f, Ttl = 0.14f,
+            Col = White, Add = true, Grow = 0.5f, Deep = true });
+        if (step < 2) return;
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 5, R1 = 15, Ttl = 0.22f,
+            Col = Sig2, W = 0.9f, A0 = 0.6f, Add = true, Deep = true });
+        for (int i = 0; i < 3; i++)
+        {
+            float a = R(0, Mathf.Tau), sp = R(50, 95);
+            Add0(new P { Type = T.Spark, X = pos.X, Y = pos.Y, Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp,
+                Size = 3.5f, W = 1f, Ttl = R(0.10f, 0.18f), Col = color, Drag = 6, Add = true, Deep = true });
+        }
+    }
+
+    // 締めの一拍：撒いた欠片を最後の1粒まで拾い切った瞬間に1回だけ（ボス撃破のみ）。
+    // 自機へ集約した光が弾けて外へ開く＝「全部あなたに渡った」。ボス撃破直後は弾が消えて
+    // 会話へ入るので、ここだけは手前(ZIndex21)の大きな芯を許す。
+    public void ShardHarvestFinale(Vector2 pos)
+    {
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = 18, Ttl = 0.34f, Col = White, Add = true, Grow = 0.8f });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 3, R1 = 46, Ttl = 0.42f, Col = White, W = 1.6f, A0 = 0.9f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 8, R1 = 86, Ttl = 0.7f, Col = Heart, W = 1.3f, A0 = 0.7f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = 2, R1 = 62, Ttl = 0.9f, Col = Sig2, W = 1f, A0 = 0.55f, Add = true, Deep = true });
+        // 外へ開く花びらとハート。これは「散らす」ではなく「返す」一拍なので拾える欠片にはしない。
+        for (int i = 0; i < 18; i++)
+        {
+            float a = (i / 18f) * Mathf.Tau + R(-0.12f, 0.12f), sp = R(70, 150);
+            bool heart = i % 3 == 0;
+            Add0(new P { Type = heart ? T.HeartP : T.Petal, X = pos.X, Y = pos.Y,
+                Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(2.4f, 4.2f), Rot = R(0, Mathf.Tau),
+                Spin = R(-5, 5), Grav = 40, Drag = 1.1f, Ttl = R(0.7f, 1.1f),
+                Col = heart ? Heart : (_rng.Randf() < 0.5f ? PetalA : PetalB), Deep = true });
+        }
+        for (int i = 0; i < 10; i++)
+            Add0(new P { Type = T.Mote, X = pos.X + R(-6, 6), Y = pos.Y + R(-6, 6), Vx = R(-24, 24), Vy = R(-46, -18),
+                Size = R(1.8f, 2.8f), Drag = 1.2f, Ttl = R(0.6f, 0.95f), Col = Mote, Add = true, Deep = true });
+        GameCamera.Instance?.Shake(2.2f, 0.16f);
     }
 
     // 道中ザコの攻撃予告（テレグラフ）。
@@ -407,6 +483,13 @@ public partial class FxLayer : Node2D
                 Size = R(4f, 8f), W = 1.1f, Ttl = R(0.14f, 0.28f), Drag = 5.5f,
                 Col = _rng.Randf() < 0.55f ? hot : White, Add = true });
         }
+    }
+
+    public void BossBreak(Vector2 pos, float bodyHeight)
+    {
+        var burst = new BossBreakFx();
+        AddChild(burst);
+        burst.PlaceAbove(pos, bodyHeight);
     }
 
     public void DamageNumber(Vector2 pos, string text, Color col)
@@ -513,12 +596,9 @@ public partial class FxLayer : Node2D
                 Vy = R(-26f, -16f), Size = R(5f, 9f), Ttl = R(1.0f, 1.6f), Sp = R(1.6f, 3.0f),
                 Rot = R(0f, Mathf.Tau), Col = AuraSteam, Add = true });
         }
-        // ことこと泡＝温かい灯の粒。
-        if (Spawn(3.5f, dt))
-        {
-            Add0(new P { Type = T.Mote, X = c.X + R(-rr, rr), Y = c.Y + R(-rr * 0.3f, rr * 0.5f),
-                Vy = R(-22f, -12f), Size = R(2f, 3f), Drag = 0.7f, Ttl = R(0.5f, 0.8f), Col = AuraKoharu, Add = true });
-        }
+        // ことこと泡＝温かい灯の粒は 2026-09-22 ユーザー指示で削除。こはる戦は弾(e8a24a の缶バッジ)・
+        //   予告(ffc06a)・装飾が全部オレンジ〜黄の狭い色相に詰まっており、本体周囲＝弾の発生源に同色同形の
+        //   丸が常時漂うと「新しい弾が出たのか光の粒か」が読めない。純装飾なので当たり判定・報酬には無影響。
         // たまに湯気の輪。
         if (Spawn(0.8f, dt))
             Add0(new P { Type = T.Ring, X = c.X + R(-rr * 0.4f, rr * 0.4f), Y = c.Y - R(2f, 8f),

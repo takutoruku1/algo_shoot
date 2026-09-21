@@ -381,6 +381,7 @@ public partial class Hud : CanvasLayer
             Audio.Instance?.PlayCalm();
         }
         BubblePaused = paused;
+        if (IsInstanceValid(FxLayer.Instance?.ScoreDrops)) FxLayer.Instance.ScoreDrops.UpdateDialogueVisibility();
     }
 
     public override void _ExitTree() => BubblePaused = false;
@@ -874,6 +875,7 @@ public partial class Hud : CanvasLayer
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
+        DrawPowerups(ci);
         if (_focusHas) DrawFocusChip(ci);
         if (TickerEnabled) DrawTicker(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
@@ -955,7 +957,7 @@ public partial class Hud : CanvasLayer
 
     private void DrawLifeBomb(HudCanvas ci)
     {
-        int maxLives = Mathf.Max(_lives, _game?.StartLives ?? 4);
+        int maxLives = Mathf.Max(_lives, (GetTree().GetFirstNodeInGroup("player") as Player)?.MaxLives ?? _game.StartLives);
         int bombs = _game?.Bombs ?? 0;
         int maxBombs = Mathf.Max(bombs, _game?.StartBombs ?? 4);
         bool low = _lives <= 2;
@@ -1024,7 +1026,7 @@ public partial class Hud : CanvasLayer
         if (_lifeShatterT <= 0 || _lifeLostIndex < 0 || CinematicMode) return;
         UiKit.BeginDesign(ci);
         // 消えたマークの中心＝DrawLifeBomb と同じレイアウト式（レイアウト変更に自動追随）。
-        int maxLives = Mathf.Max(_lives, _game?.StartLives ?? 4);
+        int maxLives = Mathf.Max(_lives, (GetTree().GetFirstNodeInGroup("player") as Player)?.MaxLives ?? _game.StartLives);
         float hStep = Mathf.Min(42f, PanelInnerW / Mathf.Max(1, maxLives));
         var center = new Vector2(PanelX + _lifeLostIndex * hStep + hStep / 2f, RowLifeBomb + 40f);
         float t = 1f - (float)(_lifeShatterT / LifeShatterDur);   // 0→1
@@ -1391,6 +1393,22 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, barY, w, barH), SideRule, 2f);
         if (_focusRatio > 0)
             UiKit.Box(ci, new Rect2(x, barY, w * _focusRatio, barH), accent, 2f);
+    }
+
+    private void DrawPowerups(HudCanvas ci)
+    {
+        if (GetTree().GetFirstNodeInGroup("player") is not Player player) return;
+        for (int i = 0; i < 4; i++)
+        {
+            var kind = (PowerKind)i;
+            int level = player.PowerLevel(kind);
+            if (level == 0) continue;
+            float x = PanelX + i * (PanelInnerW / 4f);
+            PowerPickupArt.Draw(ci, new Rect2(x, 119f, 25f, 25f), kind);
+            for (int pip = 0; pip < Player.PowerLevelCap; pip++)
+                ci.DrawRect(new Rect2(x + 32f + pip * 10f, 130f, 6f, 10f),
+                    pip < level ? PowerPickupArt.ColorFor(kind) : SideRule);
+        }
     }
 
     private void DrawShotMode(HudCanvas ci)
