@@ -8,7 +8,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 
 ## 進め方
 1. アート方針・表情マトリクス・演出実装は `yoshida` skill を呼ぶ（`Skill(skill="yoshida", args="<指示>")`）。
-2. 画像アセットの生成・差し替え・調整は `gen-asset` skill を使う（gpt-image生成→クロマキー→トリム→char/配置→reimport まで担う）。
+2. **画像の新規生成は禁止**（2026-09-21 ユーザー指示）。`tools/gen_image.mjs` / `tools/gen_edit.mjs` を実行しない。絵が要る場合は生成せず、**必要な絵の仕様（構図・表情・サイズ・配置先パス）を報告して止める**。ユーザーが用意した画像の配置・クロマキー・トリム・reimport は従来どおり `gen-asset` skill の該当手順で行ってよい。
 3. モーションは code-driven。該当 .cs を編集してアニメを実装する。どのキャラのどの face がどの `file:line` で使われているかを必ず実コードで確認してから動かす。
 
 ## 返すもの
