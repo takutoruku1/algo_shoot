@@ -39,11 +39,14 @@ public partial class BossSpellQa : Node
                 GetTree().Quit();
                 return;
             }
-            if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
+            if (OS.GetCmdlineUserArgs().Contains("--break"))
+                await CheckBreakEffect(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
                 await CheckBossBackgrounds(game);
             else
             {
-                foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+                bool clipsOnly = OS.GetCmdlineUserArgs().Contains("--rei-clips");
+                foreach (string scene in clipsOnly ? new[] { "Rei" } : new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
                 {
                     game.Difficulty = GameManager.Diff.Normal;
                     var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
@@ -82,8 +85,12 @@ public partial class BossSpellQa : Node
                         caster.CancelPendingAttacks();
                         await ClearStrikes(world);
                         Pool.DespawnAll();
-                        if (scene != "Akari") await CheckTelegraphs(game, scene, caster, hud, world, player);
-                        await CheckAreaPresentation(game, scene, boss, caster, hud, world);
+                        if (scene == "Rei") await CheckReiClipLines(game, caster, hud, world, player);
+                        if (!clipsOnly)
+                        {
+                            if (scene != "Akari") await CheckTelegraphs(game, scene, caster, hud, world, player);
+                            await CheckAreaPresentation(game, scene, boss, caster, hud, world);
+                        }
                     }
                     root.QueueFree();
                     await Frames(5);
@@ -95,7 +102,7 @@ public partial class BossSpellQa : Node
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
-            await Frames(5);
+            await Task.Delay(250);
             GC.Collect();
             GC.WaitForPendingFinalizers();
             await Frames(5);
@@ -108,6 +115,221 @@ public partial class BossSpellQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckBreakEffect(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/boss_break");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        void BaseCall(Enemy boss, string method, params object[] args) =>
+            typeof(Enemy).GetMethod(method, Private)!.Invoke(boss, args);
+        BossBreakFx[] Effects() => FxLayer.Instance.GetChildren().OfType<BossBreakFx>().ToArray();
+        string Phase(Enemy boss) => Read<object>(boss, "_phase", typeof(Enemy)).ToString()!;
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle", "Hikage", "Cameo" })
+        {
+            game.SelectedJob = Job.Heal;
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{(scene is "Hikage" or "Cameo" ? "Akari" : scene)}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            player.Position = new Vector2(170, 140);
+            Write(player, "_invincible", true);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.SetCinematicMode(false);
+            hud.HideBubble();
+            Write(hud, "_bannerTimer", 0d);
+            Enemy boss = scene switch
+            {
+                "Akari" => new BossAkari(), "Koharu" => new BossKoharu(), "Rei" => new BossRei(),
+                "MinaBattle" => new BossMina(), "Hikage" => new BossHikage(),
+                _ => new CameoBoss { Theme = new CameoTheme
+                {
+                    DisplayName = "QA", Handle = "@qa", PreTex = "res://char/v3/akari_mid.png",
+                    CryTex = "res://char/v3/akari_mid.png", PostTex = "res://char/v3/akari_mid.png",
+                    Face = "", IntroLines = Array.Empty<(int, string, string)>(),
+                    TauntLines = Array.Empty<(int, string, string)>(), DefeatLines = Array.Empty<(int, string, string)>(),
+                } },
+            };
+            world.AddChild(boss);
+            boss.Position = new Vector2(290, 110);
+            boss.SetPhysicsProcess(false);
+            boss.SetProcess(false);
+            foreach (var child in boss.GetChildren()) { child.SetProcess(false); child.SetPhysicsProcess(false); }
+            BaseCall(boss, "TickEntrance", 0d);
+            BaseCall(boss, "TickEntrance", 2d);
+            hud.HideSpellCard();
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            await Frames(150);
+            Pool.DespawnAll();
+            Write(hud, "_flashAlpha", 0f);
+            long score = game.Score;
+            int bombs = game.Bombs;
+            float hp = boss.HpRatio;
+            var panels = boss.GetChildren().OfType<Panel>().ToArray();
+            foreach (var panel in panels) panel.Shatter();
+            var effect = Effects().Single();
+            effect.SetProcess(false);
+            Check(Phase(boss) == "Break" && boss.HpRatio == hp, $"{scene}: real panel break starts one effect without body damage");
+            Check(game.Bombs == Mathf.Min(game.StartBombs, bombs + 1) && game.Score == score + panels.Length * 5,
+                "break reward and original panel scores are unchanged");
+            Check(!Hud.BubblePaused && Read<float>(hud, "_flashAlpha") == 0f, "no dialogue pause or full-screen flash");
+            Check(effect.ZIndex < 0 && !effect.ZAsRelative, "enemy bullets stay above the entire effect");
+            Check(!Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p").Any(p => p.Text == "BREAK!"),
+                "old floating damage-number label is not duplicated");
+            boss.Purify();
+            Check(Effects().Length == 1, "repeated purify does not stack announcements");
+            foreach (var position in new[] { new Vector2(Field.Left, 51), new Vector2(Field.Right, 51),
+                new Vector2(Field.Left, 148), new Vector2(Field.Right, 148) })
+            {
+                effect.PlaceAbove(position, 56);
+                Check(effect.Position.X - 76 >= Field.Left && effect.Position.X + 76 <= Field.Right
+                    && effect.Position.Y - 25 >= 21 && effect.Position.Y + 25 < 162,
+                    "edge placement keeps letters clear of sidebar, boss HP and dialogue caption");
+            }
+            effect.PlaceAbove(boss.Position, Read<float>(boss, "BodyDisplayH", typeof(Enemy)));
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                foreach (float time in new[] { 0.07f, 0.22f, 0.48f })
+                {
+                    Write(effect, "_age", time);
+                    effect.QueueRedraw();
+                    await Frames(3);
+                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                    using var image = GetViewport().GetTexture().GetImage();
+                    Check(image.SavePng($"{output}/{scene}_{size.X}_{time:0.00}.png") == Error.Ok, "rendered animation keyframe");
+                    if (time == 0.22f)
+                    {
+                        int white = 0;
+                        float scale = image.GetWidth() / 384f;
+                        for (int y = (int)((effect.Position.Y - 14) * scale); y < (effect.Position.Y + 14) * scale; y++)
+                            for (int x = (int)((effect.Position.X - 50) * scale); x < (effect.Position.X + 50) * scale; x++)
+                            {
+                                Color c = image.GetPixel(x, y);
+                                if (c.R > 0.85f && c.G > 0.85f && c.B > 0.85f) white++;
+                            }
+                        Check(white > 80 * scale, $"{scene}/{size}: BREAK lettering is visible, not a blank canvas");
+                    }
+                }
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            Write(effect, "_age", 0.1f);
+            effect.SetProcess(true);
+            GetTree().Paused = true;
+            await Task.Delay(80);
+            Check(Read<float>(effect, "_age") == 0.1f, "pause menu freezes the animation");
+            GetTree().Paused = false;
+            effect.SetProcess(false);
+            BaseCall(boss, "TickBossPhase", 0.449d);
+            Check(Phase(boss) == "Break", "break cue remains 0.45 seconds");
+            BaseCall(boss, "TickBossPhase", 0.002d);
+            Check(Phase(boss) == "Exposed", "normal vulnerability window opens on time");
+            effect._Process(BossBreakFx.Duration);
+            Check(effect.IsQueuedForDeletion() && !effect.Visible, "effect removes itself within 0.72 seconds");
+            await Frames(2);
+            FxLayer.Instance.BossBreak(boss.Position, 56);
+            var interrupted = Effects().Single();
+            hud.HoldBubble = true;
+            hud.ShowMessage("QA");
+            interrupted._Process(0.01);
+            Check(interrupted.IsQueuedForDeletion() && !interrupted.Visible, "dialogue interruption cannot leave stale BREAK text");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            root.QueueFree();
+            Pool.DespawnAll();
+            await Frames(5);
+            Engine.TimeScale = 1;
+        }
+    }
+
+    private async Task CheckReiClipLines(GameManager game, AreaSpellCaster caster, Hud hud, Node2D world, Player player)
+    {
+        var spells = Read<(string, AreaStrike.Shape?)[]>(caster, "_spells");
+        var clip = spells.Single(s => s.Item1 == "切り抜きの線");
+        Write(caster, "_spells", new[] { clip });
+        var rng = Read<RandomNumberGenerator>(caster, "_rng");
+        foreach (var diff in Enum.GetValues<GameManager.Diff>())
+        foreach (float y in new[] { 12f, 108f, 204f })
+        foreach (ulong seed in new ulong[] { 1, 17, 81 })
+        {
+            game.Difficulty = diff;
+            rng.Seed = seed;
+            player.GlobalPosition = new Vector2(Field.Left + 50, y);
+            Call(caster, "Cast");
+            caster._Process(0.71d);
+            var lines = world.GetChildren().OfType<AreaStrike>().ToArray();
+            foreach (var line in lines) line.SetProcess(false);
+            int count = diff switch { GameManager.Diff.Easy => 1, GameManager.Diff.Hard => 3, GameManager.Diff.Lunatic => 5, _ => 2 };
+            Check(Read<string>(hud, "_spellName") == clip.Item1
+                && lines.Length > 0 && lines.Length <= count && lines[0].GlobalPosition.Y == y,
+                $"Rei clip/{diff}/{y}/{seed}: player-anchored cast with difficulty limit");
+            Check(lines.All(z => Read<float>(z, "_hh") == 4f && Read<float>(z, "_hw") == Field.Width / 2),
+                "clip lines have a fixed eight-pixel visible width");
+            foreach (var line in lines)
+            {
+                Check(Read<AreaStrike.Art>(line, "_art") == AreaStrike.Art.ClipLine, "clip has its own visual instead of the comment lane");
+                foreach (float x in new[] { Field.Left + 2, Field.CenterX, Field.Right - 2 })
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    float cy = line.GlobalPosition.Y;
+                    Check(line.CoversPoint(new Vector2(x, cy + side * 2.4f))
+                        && !line.CoversPoint(new Vector2(x, cy + side * 2.6f))
+                        && !line.CoversPoint(new Vector2(x, cy + side * 4.1f)),
+                        "hit boundary stays 1.5 pixels inside the visible edge");
+                }
+                Check(!line.CoversPoint(new Vector2(Field.Left - 1, line.GlobalPosition.Y))
+                    && !line.CoversPoint(new Vector2(Field.Right + 1, line.GlobalPosition.Y)), "clip cannot hit beyond the lane ends");
+                foreach (var other in lines.Where(z => z != line))
+                    Check(Mathf.Abs(other.GlobalPosition.Y - line.GlobalPosition.Y) >= 16f, "clip lanes leave at least eight pixels of escape space");
+            }
+            var first = lines[0];
+            double warn = Read<double>(first, "_warn");
+            Check(Math.Abs(warn - 1.2 * caster.WarnMul()) < 0.001, "clip retains its original warning time");
+            int lives = player.Lives;
+            Write(player, "_invincible", false);
+            first._Process(warn - 0.01);
+            Check(!first.IsStriking && player.Lives == lives, "standing on the line during warning is harmless");
+            player.GlobalPosition += Vector2.Down * 3;
+            first._Process(0.02);
+            Check(first.IsStriking && player.Lives == lives, "three-pixel sidestep escapes the actual damage check");
+            player.GlobalPosition = first.GlobalPosition;
+            Call(first, "Strike");
+            Check(player.Lives == lives - 1, "the clip center still deals damage");
+            player.AddLife();
+            Write(player, "_invincible", true);
+            if (diff == GameManager.Diff.Normal && y == 108f && seed == 17)
+            {
+                foreach (var z in lines) { Write(z, "_struck", false); Write(z, "_t", Read<double>(z, "_warn") * 0.8); z.QueueRedraw(); }
+                await Shot("rei_clip_warning");
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    foreach (var z in lines) { Write(z, "_struck", true); Write(z, "_t", Read<double>(z, "_warn") + 0.01); z.QueueRedraw(); }
+                    await Shot($"rei_clip_impact_{size.X}x{size.Y}");
+                }
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
+            caster.CancelPendingAttacks();
+            await ClearStrikes(world);
+        }
+        Write(caster, "_spells", new[] { spells.Single(s => s.Item1 == "コメント一斉読み") });
+        Call(caster, "Cast");
+        caster._Process(0.71d);
+        var comments = world.GetChildren().OfType<AreaStrike>().ToArray();
+        Check(comments.Length > 0 && comments.All(z => Read<float>(z, "_hh") >= 5f
+            && Read<float>(z, "_hh") <= 8f && Read<AreaStrike.Art>(z, "_art") == AreaStrike.Art.None),
+            "comment lanes retain their original width and visuals after a clip cast");
+        caster.CancelPendingAttacks();
+        await ClearStrikes(world);
+        Write(caster, "_spells", spells);
+        game.Difficulty = GameManager.Diff.Normal;
+        player.GlobalPosition = new Vector2(Field.Left + 50f, 160f);
     }
 
     private async Task CheckTelegraphs(GameManager game, string scene, AreaSpellCaster caster, Hud hud, Node2D world, Player player)

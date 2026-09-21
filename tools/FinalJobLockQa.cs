@@ -33,6 +33,8 @@ public partial class FinalJobLockQa : Node
     {
         try
         {
+            if (!OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"))
+                throw new Exception("Use isolated QA save data.");
             var game = GetNode<GameManager>("/root/Game");
             game.ResetPersistent();
             game.AutoSaveEnabled = false;
@@ -63,7 +65,9 @@ public partial class FinalJobLockQa : Node
             Check(Mode(hub) == "Detail", "the FINAL card opens its post detail");
             await Frames(20);
             await Shot("final_detail_locked");     // ★スクショ：ミナのままで開いた FINAL（拒否の理由が載る）
-            Call(hub, "OpenJob");
+            ClickAt(hub, FinalButtonRect(hub), "ProcessDetail", 0.01);
+            Check(Mode(hub) == "Job", "mouse confirmation opens the rescue account switch");
+            if (Mode(hub) != "Job") throw new Exception("FINAL has no working mouse entry button.");
             var choices = Read<JobTuning[]>(hub, "_jobChoices");
             Check(Array.TrueForAll(choices, j => j.Id != Job.Tank), "the FINAL account list drops Mina");
             Check(choices.Length == Jobs.All.Length - 1, $"the other three remain selectable ({choices.Length})");
@@ -84,6 +88,9 @@ public partial class FinalJobLockQa : Node
             //   切り替えるので、この確認だけ最後に回す（以降の検証はハブが生きている前提のため）。
             hub.QueueFree();
             await Frames(5);
+
+            foreach (Job job in new[] { Job.Melee, Job.Heal, Job.Magic })
+                await CheckMouseEntry(game, job);
 
             // (c) 他ジョブなら通る＆(d) 三人の面は従来どおり。
             game.SelectedJob = Job.Melee;
@@ -125,6 +132,7 @@ public partial class FinalJobLockQa : Node
             game.ClearTimes.Clear();
             Check(!game.IsFinalCleared, "clearing the in-memory record locks Mina again");
             Check(game.LoadFromSlot(0) && game.IsFinalCleared, "the FINAL clear record survives save and load");
+            await CheckMouseEntry(game, Job.Tank);
             game.SelectedJob = Job.Tank;
             hub = await OpenHub(game);
             final = FindFinal(hub);
@@ -164,8 +172,86 @@ public partial class FinalJobLockQa : Node
             _fails++;
             GD.PrintErr($"[FinalJobLockQA] EXCEPTION {e}");
         }
+        GetTree().CurrentScene?.QueueFree();
+        await Frames(8);
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        Audio.Instance?.StopMusic(0);
+        foreach (var node in GetNode<Audio>("/root/Audio").GetChildren())
+            if (node is AudioStreamPlayer player) { player.Stop(); player.Stream = null; }
+        await Task.Delay(250);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
         GD.Print(_fails == 0 ? "[FinalJobLockQA] ALL PASS" : $"[FinalJobLockQA] {_fails} FAILURE(S)");
         GetTree().Quit(_fails == 0 ? 0 : 1);
+    }
+
+    private async Task CheckMouseEntry(GameManager game, Job job)
+    {
+        game.SelectedJob = game.IsFinalCleared ? job : Job.Tank;
+        game.Difficulty = GameManager.Diff.Hard;
+        var hub = await OpenHub(game);
+        Write(hub, "_sel", FindFinal(hub));
+        Call(hub, "UpdateFeedScrollTarget");
+        await Frames(40);
+        ClickAt(hub, (Rect2)Call(hub, "CardHitRect", Read<int>(hub, "_sel"))!, "ProcessCards");
+        Check(Mode(hub) == "Detail", "mouse opens the FINAL post from the timeline");
+        if (game.SelectedJob != job)
+        {
+            ClickAt(hub, FinalButtonRect(hub), "ProcessDetail", 0.01);
+            Check(Mode(hub) == "Job", "the final button works immediately after opening the post");
+            await Frames(20);
+            var choices = Read<JobTuning[]>(hub, "_jobChoices");
+            int selected = Array.FindIndex(choices, choice => choice.Id == job);
+            ClickAt(hub, (Rect2)Call(hub, "JobHitRect", selected)!, "ProcessJob", 0.01);
+            Check(game.SelectedJob == job && Mode(hub) == "Detail", $"{job}: mouse account selection returns to the FINAL post");
+        }
+        Check(!(bool)typeof(Hub).GetProperty("NeedsFinalAccount", Private)!.GetValue(hub)!,
+            $"{job}: the entry is no longer labeled blocked");
+        foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            await Frames(20);
+            var (x, y, w, h) = ((float, float, float, float))Call(hub, "DetailBox", false)!;
+            Rect2 button = FinalButtonRect(hub);
+            Check(new Rect2(x, y, w, h).Encloses(button)
+                && !button.Intersects((Rect2)Call(hub, "DetailJobRect", false)!)
+                && !button.Intersects(new Rect2(x + 24, y + 344, w - 48, 76)),
+                "FINAL entry button fits without overlapping the account control or lock hint");
+            if (job == Job.Melee) await Shot($"final_ready_{size.X}x{size.Y}");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        game.SelectedEntry = GameManager.StageEntry.Boss;
+        ClickAt(hub, FinalButtonRect(hub), "ProcessDetail", 0.01);
+        Check(Read<bool>(hub, "_dived") && game.PendingStageScene == "res://MinaBattle.tscn",
+            $"{job}: one mouse click starts FINAL");
+        Check(game.Difficulty == GameManager.Diff.Hard && game.SelectedEntry == GameManager.StageEntry.Start,
+            "FINAL preserves difficulty and starts from the beginning");
+        await Frames(8);
+        Check(GetTree().CurrentScene is MinaRoot && game.SelectedJob == job, $"{job}: Mina stage actually loads with the selected character");
+        GetTree().CurrentScene?.QueueFree();
+        await Frames(8);
+    }
+
+    private static Rect2 FinalButtonRect(Hub hub)
+    {
+        var (x, y, w, h) = ((float, float, float, float))Call(hub, "DetailBox", false)!;
+        return new Rect2(x + 24, y + h - 64, w - 48, 48);
+    }
+
+    private static void ClickAt(Hub hub, Rect2 rect, string handler, params object[] args)
+    {
+        void Set(string name, object value)
+            => typeof(Pad).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);
+        Vector2 previous = Pad.MousePos();
+        Set("_mousePos", rect.GetCenter());
+        Set("_usingMouse", true);
+        Set("_mL", true);
+        Set("_mLPrev", false);
+        Call(hub, handler, args);
+        Set("_mousePos", previous);
+        Set("_mL", false);
+        Set("_mLPrev", false);
+        Set("_usingMouse", false);
     }
 
     private async Task<Hub> OpenHub(GameManager game)

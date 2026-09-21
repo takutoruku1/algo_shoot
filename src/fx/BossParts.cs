@@ -185,7 +185,7 @@ public partial class BossParts : Node2D
     // ─────────────────────────────────────────────
     // 姿勢ごとのオフセット表（本体スプライトの Offset に入れる値）
     // ─────────────────────────────────────────────
-    //   v3 の本体は姿勢ごとに絵の幅が違う（あかり 待機487／攻撃639／被弾553 px）。高さフィットの
+    //   v3 の本体は姿勢ごとに絵の幅が違う（あかり 待機393／攻撃645／被弾553 px）。高さフィットの
     //   中央揃えで置くと、腕を伸ばした分だけ足元が横に滑って見える。各担当が実測した「足元中央」の
     //   画素座標（本体画像の左上原点・720px 高）から、待機の足元中央を基準にした差を引いて、
     //   どの姿勢でも足元が同じ画面位置に来るようにする。
@@ -197,7 +197,7 @@ public partial class BossParts : Node2D
     //   計算: 画像の中心を原点にした足元中央の位置 rel = 足元中央 - (幅/2, 720/2)。
     //         Offset = rel(待機) - rel(その姿勢) ＝ どの姿勢でも足元が待機と同じ画面位置に来る。
     //   実測値（足元中央 x,y／画像幅）:
-    //     あかり idle(294,719)/487  attack(282,719)/639  hit(270,719)/553  idle2(205,718)/455
+    //     あかり idle(266,718)/393  attack(302,718)/645  hit(270,719)/553  idle2(205,718)/455  cry(271.5,718)/366
     //     こはる idle(427,629)/626  attack(346,668)/585  hit(270,633)/530  idle2(410,681)/639
     //     レイ   idle(255,719)/533  attack(218,719)/556  hit(238,719)/457  idle2(230,715)/516
     private static readonly Dictionary<string, Vector2[]> BodyOffsets = new Dictionary<string, Vector2[]>
@@ -208,7 +208,7 @@ public partial class BossParts : Node2D
         //   あかり: 膝立ちで前へ出る＝待機より左・ほぼ同じ高さ
         //   こはる: ペンライトを下ろして重心が下がる＝待機より下（y 負で持ち上げ戻す）
         //   レイ  : 立ち姿のまま＝ほぼ待機と同じ
-        ["akari"] = new[] { Vector2.Zero, new Vector2(88f, 0f), new Vector2(57f, 0f), new Vector2(73f, 0f) },
+        ["akari"] = new[] { Vector2.Zero, new Vector2(90f, 0f), new Vector2(76f, -1f), new Vector2(92f, 0f), new Vector2(-19f, 0f) },
         ["koharu"] = new[] { Vector2.Zero, new Vector2(60.5f, -39f), new Vector2(109f, -4f), new Vector2(23.5f, -52f) },
         ["rei"] = new[] { Vector2.Zero, new Vector2(48.5f, 0f), new Vector2(-21f, 0f), new Vector2(16.5f, 4f) },
         // 中ボス（v3 のちび・360px 高）は絵の重心が判定中心より約4px上にある（前タスクの実測）。
@@ -218,8 +218,7 @@ public partial class BossParts : Node2D
         ["cameo"] = new[] { new Vector2(0f, 28.8f), new Vector2(0f, 28.8f), new Vector2(0f, 28.8f), new Vector2(0f, 28.8f) },
     };
 
-    // 姿勢。BodyOffsetFor の添字。Form2 は末尾に足す＝既存の添字（Idle/Attack/Hit）は動かさない。
-    public enum Pose { Idle, Attack, Hit, Form2 }
+    public enum Pose { Idle, Attack, Hit, Form2, Cry }
 
     // ───── 基準点（待機絵で実測した足元中央・発射点）─────
     //   単位は待機の本体画像（720px 高）の左上原点の画素。AnchorFoot / AnchorMuzzle が
@@ -227,7 +226,7 @@ public partial class BossParts : Node2D
     private static readonly Dictionary<string, (Vector2 foot, Vector2 muzzle)> Anchors =
         new Dictionary<string, (Vector2, Vector2)>
         {
-            ["akari"] = (new Vector2(294f, 719f), new Vector2(631f, 296f)),   // 発射点＝スマホの先端（攻撃絵で実測）
+            ["akari"] = (new Vector2(266f, 718f), new Vector2(637f, 296f)),   // 発射点＝スマホの先端（攻撃絵で実測）
             ["koharu"] = (new Vector2(427f, 629f), new Vector2(573f, 4f)),    // 発射点＝ペンライトの先（攻撃絵で実測）
             ["rei"] = (new Vector2(255f, 719f), new Vector2(555f, 234f)),     // 発射点＝右手（攻撃絵で実測）
         };
@@ -279,12 +278,6 @@ public partial class BossParts : Node2D
                     pulseAmp: 0.09f, pulseSec: 2.8f, pos: new Vector2(0.417f, -0.306f)),
             new Def("phone_screen", Layer.Add, Role.Fixed, 0.18f, 0.30f,
                     pulseAmp: 0.11f, pulseSec: 3.3f, pos: new Vector2(0.167f, -0.417f)),
-            new Def("piece_arm", Layer.Back, Role.Drift, 0.22f, 0.9f, omega: 0.9f, phase: 0.4f,
-                    bobPx: 3f, pos: new Vector2(-0.361f, -0.083f)),
-            new Def("piece_leg", Layer.Back, Role.Drift, 0.18f, 0.9f, omega: 0.7f, phase: 2.2f,
-                    bobPx: 3f, pos: new Vector2(-0.278f, 0.222f)),
-            new Def("piece_hem", Layer.Back, Role.Drift, 0.24f, 0.9f, omega: 0.6f, phase: 3.9f,
-                    bobPx: 2.5f, pos: new Vector2(0.250f, 0.278f)),
             new Def("ring_floor", Layer.Back, Role.Ground, 0.80f, 0.55f,
                     pulseAmp: 0.06f, pulseSec: 3.0f, pos: new Vector2(0f, 0.46f)),
             new Def("read_dots", Layer.Front, Role.Fixed, 0.22f, 0.8f,

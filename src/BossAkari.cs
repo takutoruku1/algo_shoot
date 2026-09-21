@@ -16,6 +16,14 @@ public partial class BossAkari : Enemy
     private bool _finale;     // HP2割以下＝2スペル同時展開
     private bool _memoryPending;
     private bool _memoryPlayed;
+    private static readonly float[] PostThresholds = { 0.80f, 0.60f, 0.40f, 0.20f, 0.01f };
+    private int _postsBroken;
+    private bool _postPending, _revealingDraft;
+    private AkariPost? _post;
+    private Vector2 _postReturnPosition;
+    private bool _postMonitoring;
+    private double _postReturnGrace;
+    public bool PostSequenceActive => _postPending || _post != null || _revealingDraft;
     private float _ringOff;
     private int _pattern;       // 現在の攻撃パターン（セリフを挟むたびに変化）
     private int _beatsFired;    // 流した独白の数
@@ -88,11 +96,11 @@ public partial class BossAkari : Enemy
     private const string ACry = "res://char/v3/akari_face_cry.png";
     private static readonly (int who, string text, string face)[] Lines =
     {
-        (2, "ねえ、返して。読んだなら、返してよ。……ねえってば。", ""),
-        (2, "……返事なんて、来ない。分かってる。分かってるから、取り消すしか——", ""),
-        (1, "……束の底に。一通だけ、取り消されていないものが、ありました。", ""),   // 背景: 一通がひらく
+        (2, "……返事がほしかった。おめでとう、より先に。", ACry),
+        (2, "だから、何度も送って……怖くなって、取り消した。", ACry),
+        (1, "……いま、見えた下書き。あの一通だけは、消さずに残していたのですね。", ""),
         (1, "——「おめでとう ほんとだよ 元気でね」。……宛名は、ありません。", ""),   // (1) 本物の一通。A43
-        (2, "……なんで……それ、送ってない……送れなかった、のに……", ACry),
+        (2, "……ほんとは、ちゃんと笑って、見送りたかった。", ACry),
         (1, "取り消された十二通は、ぜんぶ、わたくしに当たりました。", ""),           // ここで BGM 停止
         (1, "十二通、読みました。——汚れた“好き”は、ひとつも、ありませんでした。", ""),   // (2) 決定打。無音のまま
         (2, "……ぁ……", ACry),                                                      // 言わせない（涙のまま抜く＝cry 保持）
@@ -139,8 +147,8 @@ public partial class BossAkari : Enemy
         _corridorHp = BossTuning.F("akari", "corridor_hp", 0.52f);
 
         // v3 の本体（エフェクト無し・720px）。輪・カード・光は BossParts が実行時に重ねる。
-        PreTexPath = "res://char/v3/boss_akari_body_idle.png";
-        AttackTexPath = "res://char/v3/boss_akari_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
+        PreTexPath = "res://char/v3/boss_akari_body_idle_v2.png";
+        AttackTexPath = "res://char/v3/boss_akari_body_attack_v2.png"; // 撃つ一拍だけ差し替えて戻る
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
@@ -148,12 +156,12 @@ public partial class BossAkari : Enemy
         // 第二形態（2026-09-07）＝待つのをやめて顔を上げ、取り消した一通が溢れている姿。
         // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.52）。攻撃・被弾の絵は流用する。
         Form2TexPath = "res://char/v3/boss_akari_body_idle2.png";
-        CryTexPath = "res://char/v3/boss_akari_body_cry.png";
+        CryTexPath = "res://char/v3/boss_akari_body_cry_v2.png";
         PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("akari", "body_display_h", 72f);
-        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "akari" 行）。攻撃絵は待機より 152px 幅広で
+        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "akari" 行）。攻撃絵は待機より 252px 幅広で
         // 腕を右へ伸ばすため、中央揃えのままだと差し替えの瞬間に体が左へ滑る。
         BodyOffsetName = "akari";
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
@@ -186,7 +194,7 @@ public partial class BossAkari : Enemy
 
         // 部品の演出層（char/v3/fx/akari/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
         // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
-        AttachParts("akari", idleTexW: 487f, attackTexW: 639f);
+        AttachParts("akari", idleTexW: 393f, attackTexW: 645f);
     }
 
     protected override void UpdateMovement(double delta)
@@ -198,6 +206,83 @@ public partial class BossAkari : Enemy
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         if (_corridorPhase != 0) { TickCorridor(); return; } // 通路中は撃たない（避けに集中させる）
         FirePattern(delta);
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (_post != null || _revealingDraft) return;
+        base._PhysicsProcess(delta);
+        if (_postReturnGrace > 0 && !IsPurified && !Hud.BubblePaused)
+        {
+            _postReturnGrace -= delta;
+            SetBodyContactEnabled(_postReturnGrace <= 0);
+        }
+    }
+
+    protected override int LimitBodyDamage(int damage)
+    {
+        if (_post != null || _revealingDraft) return 0;
+        return _postsBroken < PostThresholds.Length
+            ? DamageToHpFloor(damage, PostThresholds[_postsBroken]) : damage;
+    }
+
+    public override void Purify()
+    {
+        if (_post != null) { _post.BombHit(); return; }
+        if (_postPending || _revealingDraft) return;
+        base.Purify();
+    }
+
+    private void StartPost()
+    {
+        _postPending = false;
+        _postReturnPosition = GlobalPosition;
+        _postMonitoring = Monitoring;
+        // The boss remains the lock-on/homing anchor while its post is the shootable surface.
+        GlobalPosition = new Vector2(Field.Right - 84, 104);
+        Visible = false;
+        Monitoring = false;
+        SetBodyContactEnabled(false);
+        SetPanelsInvulnerable(true);
+        _caster.CancelPendingAttacks();
+        _caster.SetProcess(false);
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
+            if (hazard is AreaStrike) hazard.QueueFree();
+        GetHud()?.HideSpellCard();
+        _post = new AkariPost { Boss = this, Index = _postsBroken, Position = GlobalPosition, Completed = CompletePost };
+        GetParent().AddChild(_post);
+    }
+
+    private void CompletePost()
+    {
+        _post = null;
+        _postsBroken++;
+        GetNode<BulletPool>("/root/Pool").DespawnAll();
+        if (_postsBroken == PostThresholds.Length)
+        {
+            _revealingDraft = true;
+            AkariDraftScene.Play(GetHud()!, GetParent(), () =>
+            {
+                _revealingDraft = false;
+                RestoreAfterPost();
+                DealDirectDamage(BarHp * TotalBars);
+            });
+            return;
+        }
+        RestoreAfterPost();
+        ApplySpell();
+    }
+
+    private void RestoreAfterPost()
+    {
+        GlobalPosition = _postReturnPosition;
+        Visible = true;
+        Monitoring = _postMonitoring;
+        SetPanelsInvulnerable(false);
+        _postReturnGrace = 0.9;
+        _fireT = _fireT2 = 0;
+        _caster.SetProcess(true);
     }
 
     // 「雨の帰り道」の進行。UpdateMovement 経由＝会話中は通路(CorridorRun)側と一緒に凍る。
@@ -339,6 +424,8 @@ public partial class BossAkari : Enemy
     protected override void OnHpChanged()
     {
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        if (_postsBroken < PostThresholds.Length && HpRatio <= PostThresholds[_postsBroken] + 0.00001f)
+            _postPending = true;
         if (_memoryPending) return;
         // HPが閾値を割るたびに攻撃パターンを変える。
         if (_beatsFired < PatternThresholds.Length && HpRatio <= PatternThresholds[_beatsFired])
@@ -388,6 +475,7 @@ public partial class BossAkari : Enemy
 
     protected override void OnCryStart()
     {
+        SetBodyPose(BossParts.Pose.Cry);
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
@@ -416,6 +504,7 @@ public partial class BossAkari : Enemy
     // 戦闘中の独白・浄化のかけあいを Z で手動送り。
     public override void _Process(double delta)
     {
+        if (_post != null || _revealingDraft) return;
         // Start outside collision dispatch so suspending the world cannot interrupt a hit callback.
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
@@ -435,6 +524,11 @@ public partial class BossAkari : Enemy
                 ApplySpell();
                 OnHpChanged();
             });
+            return;
+        }
+        if (_postPending && _corridorPhase == 0 && !_seq && !IsPurified && !Hud.BubblePaused)
+        {
+            StartPost();
             return;
         }
         // 改心の会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
@@ -476,9 +570,6 @@ public partial class BossAkari : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        // 旧稿の記憶フラッシュ（StageImagery.TriggerMemoryFlash＝雨の交差点に「あのね、あたし——」を焚く）は
-        // 呼ばない。案C の改心は回想ではなく「取り消されていない一通が背景にひらく」ので、
-        // 交差点の画は場面と食い違う。差し替えの背景素材は未発注のため、いまは何も焚かないでおく。
         // 決定打の手前で音を落とす（台本の「ここでBGM停止」）。以降は無音のまま決定打を置く。
         //   本編＝本文一致（BgmStopLine）／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。
         if (_charStory ? _line == _storySilenceAt : text == BgmStopLine) Audio.Instance?.StopMusic(1.2f);

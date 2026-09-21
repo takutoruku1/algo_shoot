@@ -187,23 +187,33 @@ public sealed class BossMover
         float trackH, trackGainY, ringYK, wallYK, spellYK;
         switch (section)
         {
+            // ★2026-09-22 ユーザー要望「寄ってくる技のボスの移動速度を半分に」。
+            //   該当は cruise_speed（＝立ち位置へ向かう Travel と、Aimed の自機追従の両方が使う唯一の速度）。
+            //   全ボス・全中ボスで半減した（ini 側 config/boss_stats.ini も同じ値に揃えてある）。
+            //   ・難易度倍率は掛からない（GameManager.BulletSpeedMul は弾だけ）＝半減は全難易度に等しく効く。
+            //   ・所要時間は伸びるが進行は壊れない：スペル切替もフェーズも HP 割合だけで動き（時間ゲート無し）、
+            //     立ち位置へ着けない間も Idle のまま撃ち続ける（FirePattern は _st を見ない）。
+            //   ・あかりの「雨の帰り道」の退場/帰還だけは別系統（BossAkari.DashSpeed=320 の MoveZoneTo）で
+            //     ここを通らない＝演出の尺は伸びない。
             case "akari":
-                cruise = 34f; accel = 0.85f; hoverA = 0f;   hoverF = 0.6f; leanM = 0.10f;
+                cruise = 17f; accel = 0.85f; hoverA = 0f;   hoverF = 0.6f; leanM = 0.10f;
                 edgeX = 58f;  trackW = 62f;  trackGain = 0.7f; riseY = -5f;
                 windup = 0.44f; action = 0.26f;
                 trackH = 40f; trackGainY = 0.55f; ringYK = -0.55f; wallYK = 0.40f; spellYK = -0.30f; break;
             case "koharu":
-                cruise = 46f; accel = 0.34f; hoverA = 0f  ; hoverF = 1.25f; leanM = 0.18f;
+                cruise = 23f; accel = 0.34f; hoverA = 0f  ; hoverF = 1.25f; leanM = 0.18f;
                 edgeX = 62f;  trackW = 72f;  trackGain = 0.85f; riseY = -9f;
                 windup = 0.40f; action = 0.16f;
                 trackH = 48f; trackGainY = 0.70f; ringYK = -0.65f; wallYK = 0.50f; spellYK = -0.35f; break;
+            // レイのコード既定は旧 30f（2026-09-07 に ini 側だけ 52 へ上げた際の置き去り）。
+            // 半減の基準は実際に効いている ini の 52 なので 26f にする＝ini 欠落時も同じ手触りになる。
             case "rei":
-                cruise = 30f; accel = 0.6f;  hoverA = 0f  ; hoverF = 0.8f; leanM = 0.24f;
+                cruise = 26f; accel = 0.6f;  hoverA = 0f  ; hoverF = 0.8f; leanM = 0.24f;
                 edgeX = 20f;  trackW = 22f;  trackGain = 0.25f; riseY = -6f;
                 windup = 0.36f; action = 0.20f;
                 trackH = 30f; trackGainY = 0.35f; ringYK = -0.50f; wallYK = 0.40f; spellYK = -0.25f; break;
             case "mina":
-                cruise = 52f; accel = 0.40f; hoverA = 0f  ; hoverF = 1.0f; leanM = 0.17f;
+                cruise = 26f; accel = 0.40f; hoverA = 0f  ; hoverF = 1.0f; leanM = 0.17f;
                 edgeX = 66f;  trackW = 84f;  trackGain = 1.0f; riseY = -8f;
                 windup = 0.32f; action = 0.20f;
                 trackH = 54f; trackGainY = 0.85f; ringYK = -0.65f; wallYK = 0.55f; spellYK = -0.35f; break;
@@ -214,23 +224,25 @@ public sealed class BossMover
             //    移動は攻撃の合間だけ＝撃つ弾の種類が変わったときにだけ立ち位置が変わる。
             //    性格は本人に沿って三者三様に分ける（本戦ボスと同じ方向で、振れ幅だけ小さく）。
             case "cameo_akari": // 重い。座ったまま滑る＝加速が遅く、寄る量も控えめ
-                cruise = 34f; accel = 0.80f; hoverA = 0f; hoverF = 0.6f; leanM = 0.10f;
+                cruise = 17f; accel = 0.80f; hoverA = 0f; hoverF = 0.6f; leanM = 0.10f;
                 edgeX = 46f;  trackW = 50f;  trackGain = 0.6f; riseY = -5f;
                 windup = 0.42f; action = 0.26f;
                 trackH = 30f; trackGainY = 0.45f; ringYK = -0.50f; wallYK = 0.35f; spellYK = -0.25f; break;
             case "cameo_koharu": // 小刻み。軽く速く、構えて一瞬止まってから鋭く出る
-                cruise = 48f; accel = 0.32f; hoverA = 0f; hoverF = 1.2f; leanM = 0.18f;
+                cruise = 24f; accel = 0.32f; hoverA = 0f; hoverF = 1.2f; leanM = 0.18f;
                 edgeX = 52f;  trackW = 62f;  trackGain = 0.85f; riseY = -8f;
                 windup = 0.38f; action = 0.16f;
                 trackH = 36f; trackGainY = 0.60f; ringYK = -0.55f; wallYK = 0.45f; spellYK = -0.30f; break;
             case "cameo_rei": // 枠から出ない。横移動は小さく、傾きで演じる（本戦のレイと同じ方向）
-                cruise = 38f; accel = 0.55f; hoverA = 0f; hoverF = 0.8f; leanM = 0.24f;
+                cruise = 19f; accel = 0.55f; hoverA = 0f; hoverF = 0.8f; leanM = 0.24f;
                 edgeX = 30f;  trackW = 34f;  trackGain = 0.45f; riseY = -6f;
                 windup = 0.34f; action = 0.20f;
                 trackH = 24f; trackGainY = 0.35f; ringYK = -0.45f; wallYK = 0.35f; spellYK = -0.25f; break;
 
+            // ヒカゲほか。コード既定 42f は ini の roam_speed=72 に上書きされていたので、
+            // 実効の 72 を半分にした 36f を既定にし、ini 側にも cruise_speed=36 を明記した。
             default: // hikage ほか
-                cruise = 42f; accel = 0.5f;  hoverA = 3.2f; hoverF = 0.95f; leanM = 0.16f;
+                cruise = 36f; accel = 0.5f;  hoverA = 3.2f; hoverF = 0.95f; leanM = 0.16f;
                 edgeX = 60f;  trackW = 70f;  trackGain = 0.7f; riseY = -7f;
                 windup = 0.38f; action = 0.22f;
                 trackH = 40f; trackGainY = 0.55f; ringYK = -0.55f; wallYK = 0.45f; spellYK = -0.30f; break;

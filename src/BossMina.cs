@@ -303,6 +303,8 @@ public partial class BossMina : Enemy
         GetHud()?.FlashBossBarBreak();
     }
 
+    // BREAK 合図：FINAL はどのアカウントで潜っても常にミナ本編なので、基底の「自機キャラ別」は使わない。
+    // ここは段ごとに救援へ来た三人（とミナ自身）が呼びかける形で固定する。
     protected override void OnBreakCue()
     {
         var (name, line) = _pattern switch

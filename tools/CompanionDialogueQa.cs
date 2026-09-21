@@ -29,14 +29,18 @@ public partial class CompanionDialogueQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(2);
-            bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
-            if (!menusOnly) CheckScripts();
-            foreach (var job in Jobs.All)
+            if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
+            else
             {
-                game.SelectedJob = job.Id;
-                if (!menusOnly) await CheckStages(job);
-                if (job.Id == Job.Tank) continue;
-                await CheckMenus(job);
+                bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
+                if (!menusOnly) CheckScripts();
+                foreach (var job in Jobs.All)
+                {
+                    game.SelectedJob = job.Id;
+                    if (!menusOnly) await CheckStages(job);
+                    if (job.Id == Job.Tank) continue;
+                    await CheckMenus(job);
+                }
             }
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
@@ -52,7 +56,86 @@ public partial class CompanionDialogueQa : Node
         catch (Exception ex)
         {
             GD.PushError($"[CompanionQA] FAIL {ex}");
+            GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckStageTimers(GameManager game)
+    {
+        foreach (var job in Jobs.All)
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            game.SelectedJob = job.Id;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            stage.SetProcess(false);
+            var hud = root.GetNode<Hud>("Hud");
+            var world = root.GetNode<Node2D>("World");
+            Write(stage, "_startBannerShown", true);
+            Write(stage, "_stepStarted", false);
+            var intro = Read<(int, string, string)[]>(stage, scene == "MinaBattle" ? "_intro" : "_playerIntro");
+            Call(stage, "Step_Lines", 0d, intro);
+            world.ProcessMode = ProcessModeEnum.Disabled;
+            double elapsed = Read<double>(stage, "_stageElapsed");
+            stage._Process(30d);
+            Check(Hud.BubblePaused && Read<double>(stage, "_stageElapsed") == elapsed
+                && Read<float>(hud, "_elapsed") == (float)elapsed, $"{scene}/{job.Id}: reading time is excluded from HUD and clear time");
+            Check(Read<double>(stage, "_lineHold") >= 30d, "dialogue input timing still advances");
+            for (int page = 0; !hud.DialogRevealed && page < 20; page++) hud.RevealDialogNow();
+            Check(hud.DialogRevealed, "dialogue can finish revealing while the clock is stopped");
+            stage.SetProcess(true);
+            await Press(Key.Z);
+            stage.SetProcess(false);
+            Check(Read<int>(stage, "_introLine") == 1 && Read<double>(stage, "_stageElapsed") == elapsed,
+                "confirm advances the conversation without advancing the clock");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            Write(stage, "_step", 0);
+            stage._Process(0.75d);
+            elapsed += 0.75d;
+            Check(Read<double>(stage, "_stageElapsed") == elapsed && Read<float>(hud, "_elapsed") == (float)elapsed,
+                "combat resumes the same clock without adding the reading time");
+
+            hud.HoldBubble = true;
+            hud.ShowDialog(Hud.LineKind.Other, "Waiting for a reply", otherName: "Timer QA");
+            stage._Process(60d);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed, "held dialogue and choice waiting do not count");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.ShowMessage("Timed conversation");
+            stage._Process(3d);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed, "auto-closing messages also stop the clock");
+            hud._Process(5d);
+            stage._Process(0.25d);
+            elapsed += 0.25d;
+            Check(!Hud.BubblePaused && Read<double>(stage, "_stageElapsed") == elapsed, "auto-close resumes time immediately");
+
+            hud.SetCinematicMode(true);
+            stage._Process(20d);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed, "flashback time remains excluded");
+            hud.SetCinematicMode(false);
+            hud.ShowBossLine("Rei", "Combat continues", Colors.Gold, 2d);
+            stage._Process(0.5d);
+            elapsed += 0.5d;
+            Check(!Hud.BubblePaused && Read<double>(stage, "_stageElapsed") == elapsed, "nonblocking battle callouts still count as play time");
+
+            GetTree().Paused = true;
+            stage.SetProcess(true);
+            await Frames(10);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed, "pause-menu time remains excluded");
+            GetTree().Paused = false;
+            await Frames(5);
+            stage.SetProcess(false);
+            Check(Read<double>(stage, "_stageElapsed") > elapsed, "engine processing resumes the clock after pause");
+            elapsed = Read<double>(stage, "_stageElapsed");
+            Write(stage, "_clearing", true);
+            stage._Process(10d);
+            Check(Read<double>(stage, "_stageElapsed") == elapsed && Read<float>(hud, "_elapsed") == (float)elapsed,
+                "finished runs retain their fixed clear time");
+            await RemoveScene(root);
         }
     }
 

@@ -522,7 +522,7 @@ public partial class Enemy : Area2D
         if (_attackPoseT > 0) return;
         _attackPoseT = 0;
         if (_purified || _crying) return; // 改心後の絵（cry/post）を攻撃の戻しで壊さない
-        SetBodyPose(BossParts.Pose.Idle);
+        SetBodyPose(_form2 ? BossParts.Pose.Form2 : BossParts.Pose.Idle);
         SwapBody(PreTexPath);
     }
 
@@ -569,13 +569,12 @@ public partial class Enemy : Area2D
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
-        // 合図演出：画面フラッシュ＋ BREAK! 表示。ミナの煽りセリフは OnBreakCue（弾を止めない字幕）で。
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Flash();
-        FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -14), "BREAK!", FxLayer.Sig2);
+        FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
+        GameCamera.Instance?.Shake(1.6f, 0.14f);
         Audio.Instance?.PlaySpell();
         // 祈り手（Heal）だけ BREAK 成立ごとに BOMB+1（設計書 §2）。他ジョブでは何も起きない。
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
-        OnBreakCue(); // 派生：ミナの煽りセリフ等（共通実装あり）
+        OnBreakCue(); // 共通実装＝自機キャラ別の合図（派生が上書きする戦いもある）
         QueueRedraw();
     }
 
@@ -893,12 +892,39 @@ public partial class Enemy : Area2D
     }
 
     // 合図・弱気セリフの派生フック。
-    // BREAK 合図は全ボス共通でミナが煽る（who=1）。RECLOSE は派生がキャラ別の弱気セリフを出す。
+    // BREAK 合図は「自機が誰か」で変わる（2026-09-22 ユーザー要望）。剥がれたのは板ではなくその子の
+    // 虚勢なので、それを見た反応は、同じ壁を持っていた側かどうかで変わる＝話者は潜っている本人。
+    //   ミナで潜行＝ミナ（who=1 相当）／あかり・こはる・レイで潜行＝その本人（who=6 Companion 相当）。
+    // 相手が誰かでは変えない（掛け合わせにすると 4×6 になり、窓ごとの短い合図には過剰）。
+    // RECLOSE は派生がキャラ別（＝相手側）の弱気セリフを出す＝こちらとは軸が違う。
     // どちらも ShowBossLine 経由＝弾を止めない（テンポ維持）。
     protected virtual void OnBreakCue()
     {
+        var job = GameManager.Instance?.SelectedJob ?? Job.Tank;
+        ShowBreakCueLine(Jobs.Get(job).CharacterName, BreakCueLineFor(job),
+                         CompanionDialogue.Accent(job));
+    }
+
+    // 自機キャラごとの BREAK 合図。18〜24字＝窓（4.45秒）で読み切れる尺に収める。
+    //   ミナ  ：証人。観測したことだけを言い、意味は付けない。
+    //   あかり：既読と返事の側の語彙。取り消してきた本人だから、剥がれた下を「待っている顔」と読む。
+    //   こはる：止まったら我に返る側。相手の手が止まったことに、自分の経験で気づく。
+    //   レイ  ：ガワを着続ける側。剥がれることを怖がってきた本人なので、正面からは言わない。
+    private static string BreakCueLineFor(Job job) => job switch
+    {
+        Job.Melee => "剥がれた。……その下、あたしが知ってる顔だ。",
+        Job.Heal  => "崩れた。……手、止まってる。いまだよ、いま!",
+        Job.Magic => "剥がれたわね。……こっちは、見ないであげる。",
+        _         => "剥がれました。——奥に、送られなかった分が。",
+    };
+
+    // BREAK 合図を表示するヘルパー（派生から呼ぶ）。尺は合図のタメ＋無防備窓いっぱい＝窓が閉じるまで読める。
+    // 色は自機キャラのアクセント（Hud の Companion 行と同じ CompanionDialogue.Accent）を既定にし、
+    // ミナが絡まない戦い（ヒカゲ）だけ呼び出し側が差し替える。
+    protected void ShowBreakCueLine(string speaker, string text, Color? col = null)
+    {
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine("ミナ", "シールドが、剥がれました! いまです、撃ち抜いて!", UiKit.Mina, BreakCueDur + VulnDur);
+            .ShowBossLine(speaker, text, col ?? UiKit.Mina, BreakCueDur + VulnDur);
     }
     protected virtual void OnRecloseLine() { }
 
@@ -993,6 +1019,8 @@ public partial class Enemy : Area2D
         // スコア＋コンボ（連鎖＝やさしさの広がり）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         bool rewarded = game?.AddPurify(Points, _bombPurify) == true;
+        PowerKind? power = rewarded && PurifyGrade == FxLayer.PurifyTier.Zako
+            ? (GetTree().GetFirstNodeInGroup("player") as Player)?.CountPowerupKill() : null;
         // ★2026-09-17：インプレ（ショップ通貨）は撃破の瞬間ではなく「散った欠片を拾ったとき」に入る。
         //   基礎額は旧実装と同じ 2+Combo（AddPurify でコンボ加算済みの値を読む）。
         //   報酬なし（ボムキャップ超過）の浄化は 0＝欠片も通貨も付かない、という既存の線引きをそのまま守る。
@@ -1001,7 +1029,7 @@ public partial class Enemy : Area2D
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
         GameCamera.Instance?.Hitstop(HitstopDur);
-        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, PurifyGrade, impBase, ShardMul);
+        FxLayer.Instance?.PurifyBurst(GlobalPosition, rewarded ? Points : 0, PurifyGrade, impBase, ShardMul, power);
         Audio.Instance?.PlayPurify();
         // 浄化の一言（ありがとう等）は 2026-09-07 のユーザー指示で非表示。文言の作り直し案は
         // wiki/08_仮台本/18_浄化の一言_案C.md にあり、承認されたらここへ差し戻す。

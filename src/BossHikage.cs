@@ -158,10 +158,7 @@ public partial class BossHikage : Enemy
 
     // BREAK 合図：ヒカゲ戦にミナは絡まないため、話者なしの合図にする（共通の「ミナが煽る」は使わない）。
     protected override void OnBreakCue()
-    {
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine("", "いまだ──黒い炎を、撃ち抜け!", UiKit.Kegare, 0.45 + 4.0);
-    }
+        => ShowBreakCueLine("", "いまだ──黒い炎を、撃ち抜け!", UiKit.Kegare);
 
     protected override void OnCryStart()
     {
