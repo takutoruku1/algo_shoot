@@ -110,6 +110,9 @@ public partial class Hub : Node2D
     private bool _previewToast;
     // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用。開くだけで何も確定しない）。
     private bool _openJob;
+    // デバッグ限定：--hub-shopnudge で「説明を読み終えて帰ってきた直後」のホーム誘導を再現する
+    //   （スクショ／見え方の確認用。セーブは触らない＝ShopTutorialSeen も書き換えない）。
+    private bool _previewShopNudge;
 
     // Detail＝2-b の投稿詳細（カードがその場で開く）。本文／消された行の伏字／ミナの一言／潜り方（難易度）を
     //   1枚に置き、旧 DiffSelect.tscn への遷移をここへ吸収した（難易度の数値・実装は不変）。
@@ -138,6 +141,10 @@ public partial class Hub : Node2D
     private double _homeRevealT;
     private Texture2D? _homeSnapshot;
     private Rect2 _homeSnapshotRegion;
+    // 強化ショップの説明を読み終えて帰ってきた直後だけ立つ（2026-09-22）。ホームの強化アイコンを
+    //   脈動させ、下に「タップして ひらく」の小さな指示を出す＝押すのはプレイヤー自身。
+    //   一度でも開けば（OpenHomeApp）降りる＝用が済んだら普通のホームに戻る。
+    private bool _shopNudge;
     private double _detailT;      // 開いてからの経過（展開アニメと入力ゲート）
     private int _tierSel;         // 潜り方（難易度）の段。既定は前回の難易度＝Z 二押しでそのまま潜れる
     private double _jobT;         // ジョブ選択を開いてからの経過（展開アニメと入力ゲート。_detailT と同じ役）
@@ -238,6 +245,7 @@ public partial class Hub : Node2D
             if (args[i] == "--hub-detail") _openDetail = true;
             if (args[i] == "--hub-toast") _previewToast = true;
             if (args[i] == "--hub-job") _openJob = true;
+            if (args[i] == "--hub-shopnudge") _previewShopNudge = true;
         }
 
         BuildEntries();
@@ -252,6 +260,16 @@ public partial class Hub : Node2D
         if (_openJob) OpenJob();
         // デバッグ限定：--hub-toast で炎上トーストの見え方を撮る（GameManager は一切触らない）。
         if (_previewToast) Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
+
+        // 説明パート（ShopTutorial）から帰ってきた回：ホーム画面で開き、強化ショップのアイコンを
+        //   選択＋誘導表示にして「押す」のを待つ（2026-09-22。押す操作はプレイヤー自身にやらせる）。
+        //   フラグはランタイム限りなので、ここで消費すれば以降の入場には持ち越さない。
+        if ((_game != null && _game.ShopNudgePending) || _previewShopNudge)
+        {
+            if (_game != null) _game.ShopNudgePending = false;
+            _shopNudge = !_autoplay;
+            if (_shopNudge) { _mode = Mode.Home; _homeSel = 1; _zHeld = _navHeld = true; }
+        }
 
         string? cleared = _game?.JustClearedStageId;
         _homeRevealPending = !_autoplay && cleared == GameManager.FirstStageId && _game!.HeartsSaved == 1
@@ -883,6 +901,24 @@ public partial class Hub : Node2D
         _zHeld = Pad.AdvanceHeld();
         _game.MarkIdleDialogSeen(HomeRevealSeenKey);
         _game.AutoSave();
+        TryOpenShopTutorial();
+    }
+
+    // 強化ショップの説明パート（ShopTutorial）を一度だけ挟む。開いたら true（呼び元は以降を打ち切る）。
+    //   置き場所：帰還会話（お疲れさま）→ ホーム解禁演出でアイコンが光る → ここ → ホームで押す、の順。
+    //   説明の最終行「——では、まいりましょう。」が、戻ってきたホームの光ったアイコンへの号令になる。
+    //   説明を先（ステージ側）に出すと「ひと息つきましょう」と帰還会話の帰宅挨拶が二重に立つので、
+    //   かならず帰還会話のあとに置く。ShopTutorial は読み切るとハブへ戻す（ShopNudgePending を立てて）。
+    //   解禁演出（HomeReveal）とホーム入場の両方から呼ぶ＝演出が出ない状態のセーブでも取りこぼさない。
+    private bool TryOpenShopTutorial()
+    {
+        if (_autoplay || _dived || _game == null || _previewShopNudge) return false;
+        if (_game.ShopTutorialSeen || !ShopUnlocked) return false;
+        _game.ShopTutorialSeen = true;   // 一度きり（直後の AutoSave で永続化）
+        _game.AutoSave();
+        _dived = true;                   // 遷移中は入力を食う（多重遷移よけ。他の導線と同じ作法）
+        GetTree().ChangeSceneToFile("res://ShopTutorial.tscn");
+        return true;
     }
 
     private void DrawHomeReveal()
@@ -917,6 +953,8 @@ public partial class Hub : Node2D
 
     private void ProcessHome()
     {
+        // 説明がまだなら、ホームを触らせる前に一度だけ挟む（解禁演出を経ないセーブの取りこぼし防止）。
+        if (TryOpenShopTutorial()) return;
         UiKit.BeginHotspots(Pad.MousePos());
         for (int i = 0; i < HomeApps.Length; i++) UiKit.Hotspot(HomeAppRect(i), HomeAppIdBase + i);
         int hovered = UiKit.HoveredId() - HomeAppIdBase;
@@ -955,6 +993,7 @@ public partial class Hub : Node2D
         }
         Audio.Instance?.PlayUiConfirm();
         _toastT = 0;
+        _shopNudge = false;   // 自分で押せた＝誘導の役目は終わり（どのアプリを開いても降ろす）
         if (index == 0)
         {
             _mode = Mode.SnsOpening;
@@ -1048,6 +1087,18 @@ public partial class Hub : Node2D
             if (!unlocked) color = new Color("737b85");
             color = new Color("737b85").Lerp(color, activation);
             if (focused) UiKit.Box(this, icon.Grow(6f), new Color(1, 1, 1, 0.08f), 8f, new Color(UiKit.White, 0.75f), 1.5f);
+            // 初回だけの誘導（2026-09-22）：説明を読んだ直後、強化ショップのアイコンを脈動させる。
+            //   外へ広がりながら薄くなる輪を2枚ずらして重ねる＝「押して」と言わずに押す場所を示す。
+            //   ミナの台詞は足していない（説明の最終行が号令の役をもう持っている）。
+            if (_shopNudge && i == 1 && _mode == Mode.Home)
+            {
+                for (int ring = 0; ring < 2; ring++)
+                {
+                    float phase = Mathf.PosMod((float)_t * 0.8f + ring * 0.5f, 1f);
+                    UiKit.Box(this, icon.Grow(4f + phase * 16f), Colors.Transparent, 8f + phase * 8f,
+                        new Color(color, (1f - phase) * 0.55f), 2f);
+                }
+            }
             UiKit.Box(this, icon, color, 8f);
             if (_mode == Mode.HomeReveal && i == 1 && activation > 0f)
                 UiKit.Box(this, icon.Grow(6f), Colors.Transparent, 8f, new Color(UiKit.Light, Mathf.Sin(activation * Mathf.Pi)), 2f);
@@ -1078,6 +1129,16 @@ public partial class Hub : Node2D
             UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(0, 104f), HomeApps[i], 15,
                 unlocked ? UiKit.White : UiKit.Text2, HorizontalAlignment.Center, rect.Size.X);
         }
+        // 誘導の指示（初回のみ）。アイコン列の下に一行だけ。操作を名指しするのは UI の言葉で、
+        //   ミナの台詞ではない＝語りの本数を増やさない。点滅は輪と同じ周期に合わせて散らかさない。
+        if (_shopNudge && _mode == Mode.Home)
+        {
+            var nudge = HomeAppRect(1);
+            float blink = 0.65f + 0.35f * Mathf.Sin((float)_t * 4f);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX, nudge.Position.Y + 136f),
+                Pad.UsingMouse ? "▲ クリックして ひらく" : "▲ Z で ひらく", 14,
+                new Color(new Color("eba4b9"), blink), HorizontalAlignment.Center, PhoneW);
+        }
         var job = _game.JobDef;
         DrawRect(new Rect2(PhoneX + 24f, 610f, PhoneW - 48f, 1f), new Color(1, 1, 1, 0.18f));
         UiKit.FaceAvatar(this, new Vector2(PhoneX + 46f, 645f), 20f, _playerFaces[job.CharacterId], JobColor(job.Id), false, 0f, 1f, _t);
@@ -1104,7 +1165,7 @@ public partial class Hub : Node2D
     //   展開アニメの浮き（(1-k)*24）は無視して確定位置で判定＝開いた直後でもクリック位置が動かない。
     //   ホットスポット id は カード id と衝突しないよう TierIdBase / DetailCloseId の帯を使う。
     //   2026-09-17: 「潜る」ボタン（DetailConfirmId）を廃止した＝段をクリック/決定した時点で潜る。
-    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901;
+    private const int TierIdBase = 20000, DetailCloseId = 20900, JobOpenId = 20901, FinalDiveId = 20902;
 
     // 段（Tier）の1段目の上端（DetailBox の cy からの相対）。見出し「潜り方」を消したぶん詰めた。
     private const float TierTop = 320f;
@@ -1117,10 +1178,10 @@ public partial class Hub : Node2D
         return new Rect2(cx + cw - 188f, cy + 12f, 164f, 40f);
     }
 
-    // 高さ：段あり＝TierTop + 4段(68刻み・末段62) + 下余白16。段なし(FINAL)は従来どおり。
+    // FINAL has no difficulty rows, so it needs its own mouse entry below the account hint.
     private (float cx, float cy, float cw, float ch) DetailBox(bool tiers)
     {
-        float ch = tiers ? TierTop + 3f * 68f + 62f + 16f : 448f;
+        float ch = tiers ? TierTop + 3f * 68f + 62f + 16f : 512f;
         return (PhoneX, H - 16f - ch, PhoneW, ch);
     }
 
@@ -1135,6 +1196,12 @@ public partial class Hub : Node2D
     {
         var (cx, cy, _, _) = DetailBox(tiers);
         return new Rect2(cx + 12f, cy + 12f, 40f, 40f);
+    }
+
+    private Rect2 FinalDiveRect()
+    {
+        var (cx, cy, cw, ch) = DetailBox(false);
+        return new Rect2(cx + 24f, cy + ch - 64f, cw - 48f, 48f);
     }
 
     private void ProcessCards()
@@ -1276,6 +1343,7 @@ public partial class Hub : Node2D
         if (tiers) for (int i = 0; i < Tiers.Length; i++) UiKit.Hotspot(TierHitRect(i), TierIdBase + i);
         UiKit.Hotspot(DetailCloseRect(tiers), DetailCloseId);
         UiKit.Hotspot(DetailJobRect(tiers), JobOpenId);
+        if (!tiers) UiKit.Hotspot(FinalDiveRect(), FinalDiveId);
         int dhov = UiKit.HoveredId();
         if (Pad.UsingMouse && dhov >= TierIdBase && dhov < TierIdBase + Tiers.Length)
         {
@@ -1329,10 +1397,11 @@ public partial class Hub : Node2D
             if (TierOpen(ci)) { _tierSel = ci; zEdge = true; }
             else { Audio.Instance?.PlayUiDeny(); return; }
         }
+        if (!tiers && dclk == FinalDiveId) zEdge = true;
         // FINAL 初挑戦に結び手（ミナ）のままで潜ろうとしたら、ダイブを止めてアカウント切り替えを開く
         //   （2026-09-17 ユーザー指示）。拒否して突き放さず、そのまま選び直せる場所へ連れて行く
         //   ＝一覧からは既にミナが落ちている（OpenJob）ので、ここで詰まることは無い。
-        if (zEdge && e.IsFinal && MinaBlockedHere && (_game?.SelectedJob ?? Job.Tank) == Job.Tank)
+        if (zEdge && NeedsFinalAccount)
         {
             OpenJob();                       // 先に開く（中で鳴る確定音を、この下の拒否音で上書きする）
             Audio.Instance?.PlayUiDeny();
@@ -1941,7 +2010,7 @@ public partial class Hub : Node2D
         }
         // FINAL 初挑戦のミナ封じ（2026-09-17）。押す前に「なぜ潜れないか」を出す＝拒否されてから知る、を避ける。
         //   段の無い FINAL のカードは下が空いているので、ミナの一言の下に穢れ色で1枚だけ置く。
-        else if (MinaBlockedHere)
+        else if (NeedsFinalAccount)
         {
             DrawRect(new Rect2(cx + 24f, cy + 320f, cw - 48f, 1f), new Color(1, 1, 1, 0.09f * a));
             UiKit.Box(this, new Rect2(cx + 24f, cy + 344f, cw - 48f, 76f), new Color(UiKit.Kegare, 0.10f * a), 8f,
@@ -1951,6 +2020,9 @@ public partial class Hub : Node2D
             UiKit.Text(this, UiKit.Zen, new Vector2(cx + 40f, cy + 384f),
                 "あかり／こはる／レイ のどなたかで、潜ってください。", 13, new Color(UiKit.Text2, a));
         }
+        if (!tiers)
+            DrawPrimaryButton(FinalDiveRect(), NeedsFinalAccount ? "アカウントを選ぶ" : "ミナを迎えに行く",
+                FinalDiveId, NeedsFinalAccount ? UiKit.Purify : acc, a);
     }
 
     private void DrawJobButton(Rect2 rect, float alpha = 1f)
@@ -2098,6 +2170,7 @@ public partial class Hub : Node2D
     //   ここは「いま FINAL のカードに向き合っているか」だけを言う＝ゲートの条件は GameManager 側に一本化。
     private bool SelIsFinal => _sel >= 0 && _sel < _entries.Length && _entries[_sel].IsFinal;
     private bool MinaBlockedHere => SelIsFinal && (_game?.IsMinaLockedForFinal ?? false);
+    private bool NeedsFinalAccount => MinaBlockedHere && (_game?.SelectedJob ?? Job.Tank) == Job.Tank;
 
     private void OpenJob()
     {

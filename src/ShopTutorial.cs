@@ -1,10 +1,13 @@
 using Godot;
 
-// ShopTutorial : 「初めて中ボスを倒した」直後に一度きり出る、強化ショップの説明パート。
+// ShopTutorial : 最初の面のボスを初めて倒してハブへ帰った回に一度きり出る、強化ショップの説明パート。
 //   ・全画面の会話オーバーレイで ShopTutorialLines を順に流す（Hub の会話描画作法を踏襲）。
-//   ・流し切ったら実際の Shop 画面へ遷移（ミナの説明→本物のショップを見せる導線）。
-//     Shop は X でハブへ戻るので、結果として「中ボス撃破→説明→ショップ→ハブ」の流れになる。
-//   ・離脱判定（一度きり/初回のみ）と ShopTutorialSeen の確定は CheckpointFlow 側で済ませてある。
+//   ・流し切ったらハブへ戻す。ショップ画面は開かない（2026-09-22 変更）。
+//     以前は説明の直後に Shop.tscn を開いていたが、それだと「ホームのアイコンを押してショップへ入る」
+//     操作をプレイヤーが一度も経験しないままショップに放り込まれる。いまはハブのホームへ帰し、
+//     強化ショップのアイコンを誘導表示にして、押すのはプレイヤー自身に任せる。
+//     ＝「ボス撃破→ハブ（帰還会話→解禁演出）→説明→ホームでアイコン押下→ショップ」。
+//   ・出す判定（一度きり/初回のみ）と ShopTutorialSeen の確定は Hub 側で済ませてある。
 //
 //   タプルは (int who, string text, string face)。who は Hud.LineKind 準拠（1=ミナ / 3=ナレ）。
 //   face は立ち絵パス（空ならナレ＝顔なし）。
@@ -121,9 +124,13 @@ public partial class ShopTutorial : Node2D
         if (_idx >= ShopTutorialLines.Length)
         {
             _done = true;
-            // 説明を読み切ったら、実際の Shop 画面を見せる（Shop は X でハブへ戻る）。
+            // 2026-09-22: 読み切っても Shop 画面へは直行しない。ハブ（スマホのホーム）へ戻し、
+            //   強化ショップのアイコンを自分で押してもらう＝「ここから入る」を操作で覚えてもらう。
+            //   最終行「——では、まいりましょう。」は、そのまま光ったアイコンへの号令になる。
+            //   ShopNudgePending がハブに「ホームで開いて強化アイコンを誘導せよ」と伝える。
+            if (_game != null) _game.ShopNudgePending = true;
             Audio.Instance?.PlayUiConfirm();
-            GetTree().ChangeSceneToFile("res://Shop.tscn");
+            GetTree().ChangeSceneToFile("res://Hub.tscn");
         }
     }
 
