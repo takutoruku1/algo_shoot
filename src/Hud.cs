@@ -127,6 +127,13 @@ public partial class Hud : CanvasLayer
     private bool _accelGaugeVisible;
     private float _accelChargeRatio; // 0=タメ枠に空きあり／1=満杯（新規スポーンをスキップ中）
 
+    // こはる面「お残し禁止」スペルの食事タイマー（BossKoharu.TickMeal の _mealPhase==2 から毎フレーム通知）。
+    // 唯一の告知だったスペル名カード（5秒で消える）の後、時間切れ(8秒)までの残り3秒間に進行度の手がかりが
+    // 無かったため新設。SpecialCdRatio/ComboTimeRatio と同じ矩形バー様式・画面上部中央（ボスカード/スペルカードの直下）。
+    private bool _mealTimerVisible;
+    private float _mealTimerRatio; // 1=食事開始直後（満タン）／0=時間切れ寸前
+    public void SetMealTimer(bool visible, float ratio) { _mealTimerVisible = visible; _mealTimerRatio = Mathf.Clamp(ratio, 0f, 1f); }
+
     // 会話／メッセージ
     private string _dlgText = "";       // 現在行の全文（ログ／既読判定用・ページ分割前）
     private string _dlgSpeaker = "";
@@ -803,6 +810,7 @@ public partial class Hud : CanvasLayer
         if (_bossVisible) DrawBossCard(ci);
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
+        if (_mealTimerVisible) DrawMealTimer(ci);
         DrawShotMode(ci);
         DrawKindness(ci);
         DrawGoal(ci);
@@ -1116,6 +1124,23 @@ public partial class Hud : CanvasLayer
 
         // 設計スケールへ戻す（後続描画に影響させない）。
         ci.DrawSetTransform(Vector2.Zero, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
+    }
+
+    // こはる面「お残し禁止」の食事タイマー（BossKoharu.TickMeal の _mealPhase==2 が毎フレーム SetMealTimer で通知）。
+    //   スペル名カード（DrawSpellCard・上のy=126〜186、5秒で消える）の直下に薄いバーを常設し、時間切れ(8秒)
+    //   までの残り3秒間もSpecialCdRatio/ComboTimeRatioと同じ矩形バー様式で進行度を見せ続ける。
+    //   満タン(琥珀寄りのGold)→時間切れ間際(炎上赤Burn)へ色を補間し、ニードル反撃が迫る切迫感を添える。
+    private void DrawMealTimer(HudCanvas ci)
+    {
+        const float w = 260f, h = 8f, y = 210f; // スペルカード(y=126〜186、ラベル分-16pxも含め余裕を取って直下)と重ならない位置
+        float x = 640 - w / 2f;
+        Color col = UiKit.Burn.Lerp(UiKit.Gold, _mealTimerRatio);
+        string label = "お残し禁止";
+        float labelW = UiKit.TextW(UiKit.ZenBold, label, 12);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(640 - labelW / 2f, y - 16), label, 12, new Color(col, 0.9f));
+        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(1, 1, 1, 0.1f), 4f);
+        if (_mealTimerRatio > 0)
+            UiKit.Box(ci, new Rect2(x, y, w * _mealTimerRatio, h), col, 4f);
     }
 
     // スペル宣言の袖カットイン（吉田明彦：anticipation→slide-in→着地flash+shake→hold→袖へ抜ける）。

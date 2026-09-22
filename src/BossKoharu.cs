@@ -280,8 +280,12 @@ public partial class BossKoharu : Enemy
                 _mealPhase = 2; _mealT = 0;
                 return;
             case 2: // 食事時間：完食は即判定。時間切れでお残しを回収して変換へ。
+                // 残り時間を毎フレームHudへ通知（唯一の告知だったスペル名カード=5sが消えた後の残り3秒間、
+                // 進行度が一切見えなかった問題の対処。0=満タン開始 → 1=時間切れ寸前）。
+                GetHud()?.SetMealTimer(true, (float)(1.0 - _mealT / _mealWindow));
                 if (CountMealAlive() == 0) { FinishMeal(fullEat: true); return; }
                 if (_mealT < _mealWindow) return;
+                GetHud()?.SetMealTimer(false, 0f); // 時間切れ→フェーズ3（ニードル変換）へ。FinishMealを経由しないのでここで明示的に隠す
                 _mealLeft.Clear();
                 foreach (var b in _meal)
                     if (IsInstanceValid(b) && b.Active && b.Erasable) _mealLeft.Add(b);
@@ -351,6 +355,7 @@ public partial class BossKoharu : Enemy
         _mealPhase = 0;
         _meal.Clear();
         _mealLeft.Clear();
+        GetHud()?.SetMealTimer(false, 0f); // 食事フェーズ終了＝どの経路でも進行度バーを隠す（フェーズ2以外は非表示の契約）
         if (_caster != null && _gotoPhase == 0) _caster.Suppressed = false; // 十字火が進行中なら解除しない（保険）
         var cur = Spells[_pattern % Spells.Length];
         SetSpellVisual(cur.shape, cur.tint); // 弾形・色を通常スペルへ戻す（宣告カードは再掲しない）

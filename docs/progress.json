@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-22 18:37 UTC",
+  "generated": "2026-09-22 18:40 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 40,
-    "done": 255
+    "done": 256
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する",
-      "worker": "engineer",
-      "accept": "src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は画面上に進行度を示す手がかりが一切ない。時間切れ時は_mealPhase=3でニードル反撃(BossKoharu.cs:282-307)が来る。Hudに既存のSpecialCdRatio/ComboTimeRatioバーと同じ様式の薄いプログレスバーを新設し、BossKoharu.TickMealのcase 2(:282-291)から毎フレーム_mealT/_mealWindowを渡して画面上部中央に表示する。"
-    },
     {
       "priority": "P3",
       "title": "Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正",
@@ -277,6 +271,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-22) 2026-09-22監査(game-designer)発見。src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は進行度の手がかりが無かった。Hud.csに`SetMealTimer(bool visible, float ratio)`（既存SpecialCdRatio/ComboTimeRatioバーと同じ矩形背景＋塗りバー様式）と`DrawMealTimer`を新設し、画面上部中央(スペルカード直下、他HUD要素と非重複)に「お残し禁止」ラベル付きバーを表示。色はBurn(時間切れ間際)→Gold(満タン)を線形補間。BossKoharu.cs TickMealのcase 2(:282-294)から毎フレーム比率を通知し、時間切れ移行時(:288)とFinishMeal(:358)双方で非表示化して`_mealPhase`が2以外の時は必ず消える契約にした。新規アセットなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。実機目視確認は未実施。"
+    },
     {
       "priority": "P2",
       "title": "加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加",
@@ -1810,6 +1810,16 @@
   ],
   "commits": [
     {
+      "hash": "c55c063",
+      "date": "2026-09-22",
+      "subject": "auto: WIP着手 - こはる面スペル『全部見なきゃ』の8秒制限時間を可視化する"
+    },
+    {
+      "hash": "f29fdc1",
+      "date": "2026-09-22",
+      "subject": "auto: 加速球モードのタメ枠上限に視認フィードバックを追加"
+    },
+    {
       "hash": "b00c3f1",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - 加速球モードのタメ枠上限フィードバックを追加する"
@@ -1838,16 +1848,6 @@
       "hash": "3dabcd0",
       "date": "2026-09-22",
       "subject": "auto: 監査で7件をキューに追加"
-    },
-    {
-      "hash": "cfa5eb0",
-      "date": "2026-09-20",
-      "subject": "auto: BossReiの圧インジケーターとスペルカードの座標重複を解消"
-    },
-    {
-      "hash": "1b0f045",
-      "date": "2026-09-20",
-      "subject": "auto: WIP着手 - BossReiの圧インジケーターとスペルカードの座標重複を解消する"
     }
   ]
 }
