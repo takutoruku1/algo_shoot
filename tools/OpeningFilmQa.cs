@@ -19,7 +19,8 @@ public partial class OpeningFilmQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
-            bool movieMode = Array.Exists(OS.GetCmdlineUserArgs(), x => x == "--movie");
+            bool introOnly = Array.Exists(OS.GetCmdlineUserArgs(), x => x == "--intro");
+            bool movieMode = introOnly || Array.Exists(OS.GetCmdlineUserArgs(), x => x == "--movie");
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(movieMode ? new Vector2I(960, 540) : new Vector2I(1280, 720));
             _out = ProjectSettings.GlobalizePath("res://build/qa_story/opening/shots");
@@ -34,8 +35,9 @@ public partial class OpeningFilmQa : Node
                 int completed = 0;
                 var movie = new OpeningFilm { Completed = () => completed++ };
                 prologue.AddChild(movie);
-                for (int i = 0; i < (OpeningFilm.Duration + 2) * 60 && completed == 0; i++) await Frames(1);
-                Check(completed == 1, "movie plays to completion");
+                for (int i = 0; i < (introOnly ? 14 : OpeningFilm.Duration + 2) * 60 && completed == 0; i++) await Frames(1);
+                Check(introOnly ? movie.Elapsed >= 13.9 && completed == 0 : completed == 1,
+                    introOnly ? "intro reaches the first character scene" : "movie plays to completion");
                 await Cleanup();
                 return;
             }
@@ -62,6 +64,53 @@ public partial class OpeningFilmQa : Node
                 "the hesitation holds and erasing is slower than typing");
             Check(cuts[1] - 8.5 >= 2 && cuts[^1] == OpeningFilm.Duration,
                 "completed plea remains readable before the next scene");
+            var cameraMethod = typeof(OpeningFilm).GetMethod("PhoneCamera", BindingFlags.Static | BindingFlags.NonPublic)!;
+            (Vector2 Position, float Angle, float Scale) Camera(float time)
+                => ((Vector2, float, float))cameraMethod.Invoke(null, new object[] { time })!;
+            Check(Camera(1.2f).Scale > Camera(9.2f).Scale * 1.5f, "intro pulls back from a close-up to the whole phone");
+            Check(Camera(8.5f) == Camera(10.49f), "camera settles for the completed plea");
+            var phoneArt = Read<Texture2D>(film, "_phoneArt");
+            var phoneRegion = Read<Rect2>(film, "_phoneArtRegion");
+            Check(phoneArt.ResourcePath.EndsWith("op_phone_v1.png") && phoneRegion.Size.Y > 1400,
+                "opening uses the detailed full-resolution phone artwork");
+            Check(phoneRegion.Size.X / phoneRegion.Size.Y is > 0.42f and < 0.52f,
+                "phone body keeps realistic tall proportions");
+            using (var image = phoneArt.GetImage())
+            {
+                Check(image.GetPixel(0, 0).A == 0 && image.GetPixel(image.GetWidth() / 2, image.GetHeight() / 2).A > 0.98f,
+                    "phone has transparent surroundings and an opaque display");
+                foreach (var point in new[] { new Vector2(-122, -287), new(122, -287), new(122, 285), new(-122, 285) })
+                {
+                    Vector2 source = phoneRegion.GetCenter() + point * (phoneRegion.Size.Y / 610);
+                    Check(image.GetPixel((int)source.X, (int)source.Y).A > 0.98f,
+                        $"phone UI corner {point} stays on the physical display");
+                }
+            }
+            var keyMethod = typeof(OpeningFilm).GetMethod("PhoneKeyAt", BindingFlags.Static | BindingFlags.NonPublic)!;
+            foreach (var (time, row, column) in new[] { (1.2f, 1, 1), (1.75f, 0, 3), (2.3f, 0, 2),
+                (3.9f, 0, 4), (4.5f, 0, 4), (5.1f, 0, 4), (6.3f, 1, 1), (8.5f, 1, 1) })
+            {
+                var key = ((int Row, int Column, float Press))keyMethod.Invoke(null, new object[] { time + 0.02f })!;
+                Check(key.Row == row && key.Column == column && key.Press > 0.9f,
+                    $"kana keyboard follows the correct typing or erase key at {time:0.00}s");
+            }
+            var idleKey = ((int, int, float))keyMethod.Invoke(null, new object[] { 3.2f })!;
+            Check(idleKey.Item3 == 0, "no keyboard press during hesitation");
+            Vector2 textPosition = (Vector2)typeof(OpeningFilm).GetField("PhoneTextPosition", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            int textSize = (int)typeof(OpeningFilm).GetField("PhoneTextSize", BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
+            for (float time = 1.2f; time < 10.5f; time += 0.1f)
+            {
+                var camera = Camera(time);
+                float width = UiKit.TextW(UiKit.Zen, Draft(time).Text, textSize) + 4;
+                foreach (var offset in new[] { Vector2.Zero, new Vector2(width, 0), new(width, 40), new(0, 40) })
+                {
+                    Vector2 local = textPosition + offset;
+                    Vector2 screen = camera.Position + local.Rotated(camera.Angle) * camera.Scale;
+                    if (!new Rect2(24, 38, 1232, 644).HasPoint(screen))
+                        throw new Exception($"draft clipped at {time:0.0}s: {screen}");
+                }
+            }
+            Check(true, "typed text and caret stay inside the cinematic frame throughout the camera move");
             foreach (var (index, duration) in new[] { (1, 3.5), (2, 3.5), (3, 3.5), (4, 5.0),
                 (5, 3.5), (6, 3.5), (7, 3.5), (8, 3.5), (9, 4.0), (10, 4.0) })
                 Check(Math.Abs(cuts[index + 1] - cuts[index] - duration) < 0.001,
@@ -74,6 +123,16 @@ public partial class OpeningFilmQa : Node
             var cast = Read<JobTuning[]>(film, "_cast");
             Check(cast[0].CharacterId == "akari" && cast[1].CharacterId == "koharu"
                 && cast[2].CharacterId == "rei" && cast[3].CharacterId == "mina", "cutin names match the playable characters");
+            var routes = Read<Texture2D[,]>(film, "_routes");
+            var shots = Read<BulletArt.PlayerVisual[]>(film, "_shots");
+            for (int i = 0; i < 4; i++)
+            {
+                for (int layer = 0; layer < 3; layer++)
+                    Check(routes[i, layer].ResourcePath.Contains($"/route/{cast[i].CharacterId}_"),
+                        $"{cast[i].CharacterId} action has route layer {layer}");
+                Check(shots[i].Texture.ResourcePath.Contains($"/{cast[i].CharacterId}_shot_v1.png"),
+                    $"{cast[i].CharacterId} uses its in-game projectile artwork");
+            }
             foreach (var (field, width, font) in new[] { ("DailyLines", 1100f, 29), ("CutinLines", 490f, 27) })
             {
                 var quotes = (string[])typeof(OpeningFilm).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
@@ -90,8 +149,9 @@ public partial class OpeningFilmQa : Node
                 DisplayServer.WindowSetSize(size);
                 await Frames(10);
                 foreach (var (time, name) in new (double, string)[] {
-                    (1.2, "phone_wait"), (3.2, "phone_partial"), (4.05, "phone_erasing"),
-                    (5.2, "phone_erased"), (6.8, "phone_retry"), (9.2, "phone_plea"),
+                    (0.85, "phone_wake"), (1.2, "phone_wait"), (3.2, "phone_partial"), (4.05, "phone_erasing"),
+                    (5.2, "phone_erased"), (6.8, "phone_retry"), (8.52, "phone_keypress"), (9.2, "phone_plea"),
+                    (10.2, "phone_signal"),
                     (cuts[1] + 1.7, "akari"), (cuts[2] + 1.7, "koharu"), (cuts[3] + 1.7, "rei"),
                     (cuts[4] + 2.55, "mina_wind"), (cuts[5] + 1.7, "akari_action"), (cuts[6] + 1.7, "koharu_action"),
                     (cuts[7] + 1.7, "rei_action"), (cuts[8] + 1.7, "mina_action"), (cuts[9] + 2.5, "together"), (cuts[10] + 1.7, "title") })
@@ -100,6 +160,27 @@ public partial class OpeningFilmQa : Node
                     await Shot($"{name}_{size.X}x{size.Y}");
                 }
             }
+
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(10);
+            for (int i = 0; i < 4; i++)
+            {
+                foreach (var (offset, label) in new[] { (0.8, "portrait"), (1.42, "wipe"), (2.02, "release"), (2.48, "break") })
+                {
+                    Seek(film, cuts[5 + i] + offset);
+                    await Shot($"{cast[i].CharacterId}_{label}");
+                }
+                Seek(film, cuts[5 + i] + 1.9);
+                using var beforeImpact = await Capture();
+                Seek(film, cuts[5 + i] + 2.48);
+                using var afterImpact = await Capture();
+                Check(Difference(beforeImpact, afterImpact, new Rect2I(870, 120, 340, 340)) > 0.015f,
+                    $"{cast[i].CharacterId} post shatters visibly");
+            }
+            Seek(film, cuts[9] + 3.4);
+            await Shot("together_launch");
+            Seek(film, cuts[4] + 4.65);
+            await Shot("mina_dive");
 
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(10);

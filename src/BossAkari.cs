@@ -147,25 +147,37 @@ public partial class BossAkari : Enemy
         _roamSpeed = BossTuning.F("akari", "roam_speed", RoamSpeed);
         _corridorHp = BossTuning.F("akari", "corridor_hp", 0.52f);
 
-        // v3 の本体（エフェクト無し・720px）。輪・カード・光は BossParts が実行時に重ねる。
-        PreTexPath = "res://char/v3/boss_akari_body_idle_v2.png";
-        AttackTexPath = "res://char/v3/boss_akari_body_attack_v2.png"; // 撃つ一拍だけ差し替えて戻る
+        PreTexPath = "res://char/v3/boss_akari_body_idle_v3.png";
+        AttackTexPath = "res://char/v3/boss_akari_body_attack_v3.png";
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
         // 描き下ろしの *_body_cry.png（720px・エフェクトなし）に差し替えた。倍率・アンカーは待機と同じ。
         // 第二形態（2026-09-07）＝待つのをやめて顔を上げ、取り消した一通が溢れている姿。
         // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.52）。攻撃・被弾の絵は流用する。
-        Form2TexPath = "res://char/v3/boss_akari_body_idle2.png";
+        Form2TexPath = "res://char/v3/boss_akari_body_form2_v3.png";
         CryTexPath = "res://char/v3/boss_akari_body_cry_v2.png";
         PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
         BodyDisplayH = BossTuning.F("akari", "body_display_h", 72f);
-        // 姿勢ごとの足元合わせ（BossParts.BodyOffsets の "akari" 行）。攻撃絵は待機より 252px 幅広で
-        // 腕を右へ伸ばすため、中央揃えのままだと差し替えの瞬間に体が左へ滑る。
         BodyOffsetName = "akari";
         CryHoldDur = 9999.0;     // 自動終了させない（会話を手動送りし切ったら EndCryNow で閉じる）
+    }
+
+    protected override (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
+    {
+        // Match the person, not the trailing coat, and keep the head's horizontal axis steady.
+        var axis = texture.ResourcePath.GetFile() switch
+        {
+            "boss_akari_body_idle_v3.png" => new Vector2(315, 603),
+            "boss_akari_body_attack_v3.png" => new Vector2(340, 594),
+            "boss_akari_body_form2_v3.png" => new Vector2(303, 572),
+            _ => Vector2.Zero,
+        };
+        if (axis == Vector2.Zero) return base.GetBodyFrame(texture);
+        float scale = 718f / axis.Y;
+        return (scale, new Vector2(69.5f, 358f) / scale - (axis - texture.GetSize() / 2f));
     }
 
     public override void _Ready()
@@ -196,7 +208,7 @@ public partial class BossAkari : Enemy
         AddChild(_caster);
 
         // 部品の演出層（char/v3/fx/akari/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
-        // 引数は待機・攻撃の本体画像の幅（720px 基準）＝実測の基準点を中心基準へ読み替えるのに要る。
+        // GetBodyFrame normalizes the new outfit to the existing 720px effect reference frame.
         AttachParts("akari", idleTexW: 393f, attackTexW: 645f);
     }
 

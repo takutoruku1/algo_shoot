@@ -36,10 +36,7 @@ public partial class Player : Area2D
     // ── 溜め打ち（一本道 #6「溜め打ち」）：C / パッドY を長押し ──
     //   ★Cキーは 2026-09-13 まで W0 専用のヒカゲスキルが握っていた（非正典＝正典導線からは到達しない）。
     //     戦闘側の配線（_specialCd・HUDチップ）を撤去し、このボタンを溜め打ちへ明け渡した。
-    // 通常射撃を続けながら溜め、解放時に盾を貫く一発を放つ。
     private const float ChargeNeed = 0.6f;      // 充填に要する長押し秒
-    private const float ChargeDamageMul = 12f;
-    private const float ChargeSpeed = 760f;     // 大玉の発進速度（MakeAccel の fast と同値）
     private bool _chargeHeld;                   // 前フレームのボタン状態（離したエッジの検出用）
     private float _chargeT;                     // 押している累計秒（0 で未充填）
     public bool ChargeFull => _chargeT >= ChargeNeed;                     // 充填完了か（自機頭上の表示が読む）
@@ -729,11 +726,10 @@ public partial class Player : Area2D
         }
         _flipHeld = flipKey;
 
-        // ショットはオート＝射撃ボタンは無い。「押しっぱなしと同じ状態」が常に続く。
-        // Z / Space / Enter / A / 左クリックは会話送り（Pad.AdvanceHeld）専用に戻した。
-        // 撃てない条件：会話中（吹き出し表示中）／緊急回避中（回避は「避け」に専念）／
-        // ゲームオーバー後（R/Q の選択待ちに専念させる）。
-        bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver;
+        bool chargeHas = _game?.HasChargeShot ?? false;
+        bool chargeKeyRaw = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
+        bool chargeKey = chargeHas && (chargeKeyRaw || _mouseChargeHold);
+        bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver && !chargeKey;
         if (shoot && _fireCooldown <= 0f)
         {
             Fire();
@@ -761,14 +757,10 @@ public partial class Player : Area2D
         _bombHeld = bombKey;
 
         // 溜め打ち（C / パッドY 長押し、または左クリック長押し）：#6「溜め打ち」を持っているあいだだけ。
-        //   押しているあいだ _chargeT を積み、ChargeNeed に届いてから離すと大玉が出る。
         //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
         //   左クリック（_mouseChargeHold）だけは充填の起点が違う：短押し判定の 0.25 秒が過ぎてから
         //   数え始めると、Cキーより 0.25 秒ぶん遅れて完了して手触りが噛み合わない。押下からの経過
         //   （_mouseHoldT）をそのまま充填時間に使う＝**押しっぱなし 0.6 秒で完了**でキーと揃う。
-        bool chargeHas = _game?.HasChargeShot ?? false;
-        bool chargeKeyRaw = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
-        bool chargeKey = chargeHas && (chargeKeyRaw || _mouseChargeHold);
         if (chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f)
         {
             bool wasFull = ChargeFull;
@@ -1466,17 +1458,26 @@ public partial class Player : Area2D
     private void FireCharge()
     {
         if (_pool == null || Hud.BubblePaused || _gameOver) return;
+        var job = _game!.JobDef;
         int baseDmg = Mathf.Max(1, Mathf.RoundToInt(1f
                                                     * (_game?.FollowerPowerMul ?? 1f)
                                                     * (_game?.JobDef.PowerMul ?? 1f)
                                                     * (_game?.ShotPowerMul ?? 1)));
-        int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * ChargeDamageMul));
+        int dmg = baseDmg * job.ChargePower;
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
-        var b = _pool.Spawn(muzzle, ShotDir * ChargeSpeed, isEnemy: false, 10f, dmg);
-        b.MakeCharged(_game!.SelectedJob);
-        GD.Print($"[charge] fire dmg={dmg} (base={baseDmg} x{ChargeDamageMul})");
-        FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, _game.SelectedJob, ChargeShotFx.Beat.Release);
-        Audio.Instance?.PlayChargeRelease(_game.SelectedJob);
+        for (int i = 0; i < job.ChargeWays; i++)
+        {
+            float spread = job.ChargeWays == 1 ? 0 : (float)i / (job.ChargeWays - 1) - 0.5f;
+            Vector2 dir = ShotDir.Rotated(spread * Mathf.DegToRad(job.ChargeSpreadDegrees));
+            var b = _pool.Spawn(muzzle, dir * job.ChargeSpeed, isEnemy: false, job.ChargeRadius, dmg,
+                homing: job.Mode == GameManager.ShotMode.Homing);
+            b.MakeCharged(job.Id);
+            if (b.Homing) b.TurnRateOverride = 240;
+            if (job.Mode == GameManager.ShotMode.Accel) b.MakeAccel(240f, job.ChargeSpeed, 0.12f);
+        }
+        GD.Print($"[charge] {job.CharacterId} fire {job.ChargeWays}x{dmg}");
+        FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, job.Id, ChargeShotFx.Beat.Release);
+        Audio.Instance?.PlayChargeRelease(job.Id);
         GameCamera.Instance?.Shake(1.5f, 0.12f);
         _recoil = 2.3f;
     }

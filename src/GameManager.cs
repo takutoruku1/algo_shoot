@@ -458,6 +458,13 @@ public partial class GameManager : Node
     private readonly HashSet<string> _idleDialogSeen = new();
     public bool IsIdleDialogSeen(string key) => _idleDialogSeen.Contains(key);
     public void MarkIdleDialogSeen(string key) => _idleDialogSeen.Add(key);
+    public string PhoneWallpaperPhotoId { get; private set; } = "";
+    public void SetPhoneWallpaperPhoto(string id)
+    {
+        if (PhoneWallpaperPhotoId == id) return;
+        PhoneWallpaperPhotoId = id;
+        AutoSave();
+    }
     // 全部読み切ったときの抽選プールの戻し。一度きりの会話（ハブ初回の H0 など。接頭辞 "once_"）は
     //   小話ではないので残す＝リセットで再発火させない。新規データ（ResetAll）では丸ごと消える。
     public void ResetIdleDialogSeen()
@@ -651,7 +658,7 @@ public partial class GameManager : Node
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
         new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
         new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
-        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "溜めて放つ貫通弾（威力×12）",             MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "キャラクター固有の強力な弾を溜めて放つ",   MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
         new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
@@ -932,7 +939,6 @@ public partial class GameManager : Node
     public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
     // #9 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
     public int ExtraLines => Has("n_lines") ? 1 : 0;
-    // #7 溜め打ち（Cキー長押し0.6秒→離すと威力×4の大玉1発・貫通なし）。全ジョブ共通。
     public bool HasChargeShot => Has("n_charge");
     // #11 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
     public bool HasFocusMode => Has("n_slow");
@@ -1084,6 +1090,7 @@ public partial class GameManager : Node
         foreach (var key in _idleDialogSeen)
             ids.Add(key);
         data["idleDialogSeen"] = ids;
+        data["phoneWallpaperPhotoId"] = PhoneWallpaperPhotoId;
         // 他ジョブ潜行の章カウンタ（CharacterId→ダイブ回数）。後方互換：キー無し＝空扱い。
         var cd = new Godot.Collections.Dictionary();
         foreach (var kv in _charDives)
@@ -1207,6 +1214,7 @@ public partial class GameManager : Node
             foreach (var v in ids)
                 _idleDialogSeen.Add(v.AsString());
         }
+        PhoneWallpaperPhotoId = data.ContainsKey("phoneWallpaperPhotoId") ? data["phoneWallpaperPhotoId"].AsString() : "";
         // 他ジョブ潜行の章カウンタ復元（キー無し＝旧セーブは全員0回＝第1章から＝後方互換）。
         _charDives.Clear();
         if (data.ContainsKey("charDives"))
@@ -1269,6 +1277,7 @@ public partial class GameManager : Node
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
         _idleDialogSeen.Clear();   // ハブ再訪小話の既読も初期化
+        PhoneWallpaperPhotoId = "";
         _charDives.Clear();        // 他ジョブ潜行の章カウンタも初期化＝新規データは全員第1章から
         // 汚染は物語の背骨でシーンをまたいで持ち越すぶん、ここで戻さないと FINAL/Final で 1.0 にした値のまま
         //   新規データのハブ／プロローグへ入り、murk・自機の濁りが濁ったまま描かれる。

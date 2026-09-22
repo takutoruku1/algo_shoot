@@ -40,10 +40,10 @@ public partial class HubJobQa : Node
             Check(Mode(hub) == "Home", "new game starts on the phone home before opening SNS");
             Check(!game.IsIdleDialogSeen("once_phone_home"), "starting on home does not consume the first rescue reward reveal");
             var phone = new Rect2(400, 0, 480, 720);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 Check(phone.Encloses((Rect2)Call(hub, "HomeAppRect", i)!), "app icons stay inside the phone screen");
-                Check((bool)Call(hub, "HomeAppUnlocked", i)! == (i == 0), "new data can open SNS but keeps shop and records locked");
+                Check((bool)Call(hub, "HomeAppUnlocked", i)! == (i == 0 || i == 3), "new data can open SNS and photos but keeps shop and records locked");
             }
             await Shot("home_first_visit");
             if (!introMovie)
@@ -342,7 +342,7 @@ public partial class HubJobQa : Node
             Check(Mode(hub) == "Cards", "returning players open SNS without the introduction");
             Click(hub, (Rect2)Call(hub, "FooterItemRect", 0)!, "ProcessCards");
             Check(Mode(hub) == "Home", "home navigation is available after rescue");
-            for (int i = 0; i < 3; i++) Check((bool)Call(hub, "HomeAppUnlocked", i)!, "cleared stages unlock all existing apps");
+            for (int i = 0; i < 4; i++) Check((bool)Call(hub, "HomeAppUnlocked", i)!, "cleared stages unlock all existing apps");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(20);
             await Shot("home_unlocked");

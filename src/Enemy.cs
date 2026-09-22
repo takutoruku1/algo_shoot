@@ -589,6 +589,8 @@ public partial class Enemy : Area2D
         _windowDamage = 0;            // 窓キャップを新しい窓ぶんリセット
         _windowCapNotified = false;
         _bodyHitCd = 0;
+        FxLayer.Instance?.BossExpose(GlobalPosition, BodyDisplayH);
+        GameCamera.Instance?.Shake(0.9f, 0.10f);
         // 無防備窓：本体が自機弾を拾うよう監視・マスクを開く（衝突中の変更は遅延設定）。
         SetDeferred(Area2D.PropertyName.Monitoring, true);
         SetCollisionMaskValue(2, true); // 自機弾 layer=2 を拾う
@@ -600,6 +602,8 @@ public partial class Enemy : Area2D
     private void EnterReclose()
     {
         _phase = BossPhase.Reclose; _phaseT = 0;
+        FxLayer.Instance?.BossReclose(GlobalPosition, BodyDisplayH);
+        GameCamera.Instance?.Shake(0.7f, 0.08f);
         // 本体を再び無敵化（自機弾を拾わない）。
         SetDeferred(Area2D.PropertyName.Monitoring, false);
         SetCollisionMaskValue(2, false);
@@ -610,7 +614,11 @@ public partial class Enemy : Area2D
     private void EnterShielded()
     {
         _phase = BossPhase.Shielded; _phaseT = 0;
-        if (_panels.Count == 0) SpawnPanels(); // パネル一括再生成
+        if (_panels.Count == 0)
+        {
+            SpawnPanels(); // パネル一括再生成
+            FxLayer.Instance?.BossShieldReform(GlobalPosition, BodyDisplayH);
+        }
         QueueRedraw();
     }
 

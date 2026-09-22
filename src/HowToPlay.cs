@@ -331,7 +331,7 @@ public partial class HowToCanvas : Node2D
 
         // 溜め打ち（ショップの「溜め打ち」＝n_charge で覚える）。
         Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "C 長押し" },
-            "溜め打ち", "0.6秒ためて離す。威力12倍、盾や敵を貫く", UiKit.Gold, hasCharge,
+            "溜め打ち", $"0.6秒ためて離す。{game!.JobDef.ChargeDescription}", UiKit.Gold, hasCharge,
             hasCharge ? "" : "未習得 — ショップ「溜め打ち」");
 
         // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。

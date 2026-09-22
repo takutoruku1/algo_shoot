@@ -54,6 +54,14 @@ public sealed class JobTuning
     // ── 威力（ボス本体・パネル共通で効く基礎倍率）──
     public float PowerMul = 1f;              // 弾の基礎威力倍率（基準1.0）
 
+    public string ChargeDescription = "";
+    public int ChargeWays = 1;
+    public float ChargeSpreadDegrees;
+    public int ChargePower = 12;
+    public float ChargeSpeed = 820f;
+    public float ChargeRadius = 9f;
+    public int ChargePierce = 5;
+
     // ── 距離ボーナス（近接の利／遠隔の利。互いに鏡像）──
     public bool CritEnabled = true;          // 密着クリティカルが成立するか
     public float CritMult = 1.25f;           // 密着クリ倍率（基準＝非近接ジョブの 1.25）
@@ -82,6 +90,7 @@ public static class Jobs
         {
             Id = Job.Tank, Mode = GameManager.ShotMode.Rapid,
             CharacterId = "mina", CharacterName = "ミナ", PlayerTexturePath = "res://char/player/mina/mina_idle_v2.png",
+            ChargeDescription = "直線を貫く高速弾",
             MaxLifeDelta = +2,
             HitInvulSec = 1.8f,        // 1.2→1.8。連鎖被弾を潰す
             NoHitKnockback = true,     // 踏みとどまり＝手触りの本体
@@ -95,6 +104,8 @@ public static class Jobs
             Id = Job.Melee, Mode = GameManager.ShotMode.Accel,
             CharacterId = "akari", CharacterName = "あかり", PlayerTexturePath = "res://char/player/akari/akari_idle_v2.png",
             UnlockStageId = "akari",
+            ChargeDescription = "高威力の加速弾",
+            ChargePower = 18, ChargeSpeed = 960f, ChargeRadius = 12f, ChargePierce = 1,
             MaxLifeDelta = -1,
             CritMult = 2.0f,           // 他ジョブ ×1.25 に対し ×2.0
             CritCap = 8,               // 本体1ヒット上限(8)と同値＝クリの伸びしろを潰さない
@@ -107,6 +118,9 @@ public static class Jobs
             Id = Job.Heal, Mode = GameManager.ShotMode.Homing,
             CharacterId = "koharu", CharacterName = "こはる", PlayerTexturePath = "res://char/player/koharu/koharu_idle_v2.png",
             UnlockStageId = "koharu",
+            ChargeDescription = "3発の追尾弾",
+            ChargeWays = 3, ChargeSpreadDegrees = 32f,
+            ChargePower = 4, ChargeSpeed = 300f, ChargeRadius = 6f, ChargePierce = 1,
             // 火力は4ジョブ最遅（設計書 §2）。ホーミング自体が既に ×0.85（HomingPowerMul）なので、
             // ここを強く掛けると基礎威力1の序盤で下限(max(1,…))に張り付いて差が消える。
             // ×0.8 なら 0.85×0.8=0.68＝実効で最遅を保ちつつ、強化が伸びた終盤でも
@@ -124,6 +138,9 @@ public static class Jobs
             Id = Job.Magic, Mode = GameManager.ShotMode.Spread,
             CharacterId = "rei", CharacterName = "レイ", PlayerTexturePath = "res://char/player/rei/rei_idle_v2.png",
             UnlockStageId = "rei",
+            ChargeDescription = "5方向の拡散弾",
+            ChargeWays = 5, ChargeSpreadDegrees = 64f,
+            ChargePower = 3, ChargeSpeed = 540f, ChargeRadius = 6f, ChargePierce = 1,
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
             FarMult = 1.3f,
             DodgeCdMul = 1.15f,

@@ -474,6 +474,85 @@ public partial class FxLayer : Node2D
         var burst = new BossBreakFx();
         (GetParent() ?? this).AddChild(burst);
         burst.PlaceOn(pos, bodyHeight);
+
+        float h = Mathf.Max(32f, bodyHeight);
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = h * 0.18f, Ttl = 0.26f, Col = White, A0 = 0.9f, Grow = 1.4f, Add = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.16f, R1 = h * 0.82f, Ttl = 0.38f, Col = Cyan, W = 1.9f, A0 = 0.82f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.36f, R1 = h * 1.08f, Ttl = 0.58f, Col = Edge2, W = 1.1f, A0 = 0.5f, Add = true, Deep = true });
+        for (int i = 0; i < 18; i++)
+        {
+            float side = i % 2 == 0 ? -1f : 1f;
+            float a = side < 0f ? Mathf.Pi + R(-0.24f, 0.24f) : R(-0.24f, 0.24f);
+            float sp = R(90f, 190f);
+            Add0(new P { Type = T.Spark, X = pos.X + side * R(6f, h * 0.18f), Y = pos.Y + R(-h * 0.24f, h * 0.24f),
+                Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp + R(-28f, 28f), Size = R(8f, 16f),
+                W = R(0.8f, 1.8f), Ttl = R(0.18f, 0.32f), Col = i % 3 == 0 ? Edge2 : Cyan, Drag = 5.2f, Add = true });
+        }
+    }
+
+    public void BossExpose(Vector2 pos, float bodyHeight)
+    {
+        float h = Mathf.Max(34f, bodyHeight);
+        var hot = new Color("fff1b8");
+        var amber = new Color("ffbf57");
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = h * 0.2f, Ttl = 0.34f, Col = hot, A0 = 0.82f, Grow = 1.2f, Add = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.12f, R1 = h * 0.9f, Ttl = 0.5f, Col = Gold, W = 2f, A0 = 0.86f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.34f, R1 = h * 0.62f, Ttl = 0.28f, Col = White, W = 0.9f, A0 = 0.72f, Add = true });
+        for (int i = 0; i < 5; i++)
+        {
+            float y = pos.Y + R(-h * 0.36f, h * 0.36f);
+            Add0(new P { Type = T.AimLine, X = pos.X - h * 0.58f, Y = y, Vx = 1, Vy = 0,
+                Size = h * 1.16f, W = i == 0 ? 1.2f : 0.7f, Ttl = R(0.18f, 0.32f), Col = i == 0 ? hot : amber, A0 = 0.52f, Add = true });
+        }
+        for (int i = 0; i < 20; i++)
+        {
+            float a = (i / 20f) * Mathf.Tau + R(-0.08f, 0.08f);
+            float sp = R(54f, 126f);
+            Add0(new P { Type = i % 4 == 0 ? T.Mote : T.Spark, X = pos.X + Mathf.Cos(a) * R(2f, h * 0.1f), Y = pos.Y + Mathf.Sin(a) * R(2f, h * 0.1f),
+                Vx = Mathf.Cos(a) * sp, Vy = Mathf.Sin(a) * sp, Size = R(3.2f, 8.5f), W = R(0.7f, 1.3f),
+                Ttl = R(0.24f, 0.48f), Col = i % 3 == 0 ? White : Gold, Drag = 2.8f, Add = true });
+        }
+    }
+
+    public void BossReclose(Vector2 pos, float bodyHeight)
+    {
+        float h = Mathf.Max(34f, bodyHeight);
+        var lockBlue = new Color("8ba7ff");
+        var lockPink = new Color("ff79b6");
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.94f, R1 = h * 0.28f, Ttl = 0.36f, Col = lockBlue, W = 1.8f, A0 = 0.8f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.68f, R1 = h * 0.18f, Ttl = 0.28f, Col = lockPink, W = 1.2f, A0 = 0.62f, Add = true });
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = h * 0.14f, Ttl = 0.24f, Col = lockBlue, A0 = 0.6f, Grow = 0.5f, Add = true });
+        for (int i = 0; i < 18; i++)
+        {
+            float a = (i / 18f) * Mathf.Tau + R(-0.16f, 0.16f);
+            var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            var at = pos + dir * R(h * 0.42f, h * 0.82f);
+            float sp = R(70f, 150f);
+            Add0(new P { Type = T.Spark, X = at.X, Y = at.Y, Vx = -dir.X * sp, Vy = -dir.Y * sp,
+                Size = R(6f, 12f), W = R(0.8f, 1.5f), Ttl = R(0.18f, 0.34f),
+                Col = i % 3 == 0 ? lockPink : lockBlue, Drag = 4.8f, Add = true });
+        }
+    }
+
+    public void BossShieldReform(Vector2 pos, float bodyHeight)
+    {
+        float h = Mathf.Max(34f, bodyHeight);
+        var shield = new Color("8ae8ed");
+        var shell = new Color("5d79ff");
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.28f, R1 = h * 0.96f, Ttl = 0.52f, Col = shield, W = 2.1f, A0 = 0.78f, Add = true, Deep = true });
+        Add0(new P { Type = T.Ring, X = pos.X, Y = pos.Y, R0 = h * 0.84f, R1 = h * 0.56f, Ttl = 0.34f, Col = shell, W = 1.1f, A0 = 0.58f, Add = true, Deep = true });
+        Add0(new P { Type = T.Glow, X = pos.X, Y = pos.Y, Size = h * 0.18f, Ttl = 0.38f, Col = shield, A0 = 0.58f, Grow = 0.9f, Add = true });
+        for (int i = 0; i < 14; i++)
+        {
+            float a = (i / 14f) * Mathf.Tau + R(-0.05f, 0.05f);
+            var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            var tan = new Vector2(-dir.Y, dir.X);
+            var at = pos + dir * R(h * 0.44f, h * 0.74f);
+            float side = i % 2 == 0 ? 1f : -1f;
+            Add0(new P { Type = T.Mote, X = at.X, Y = at.Y, Vx = tan.X * side * R(18f, 54f) + dir.X * R(-20f, 20f),
+                Vy = tan.Y * side * R(18f, 54f) + dir.Y * R(-20f, 20f), Size = R(2.2f, 3.8f),
+                Ttl = R(0.46f, 0.74f), Col = i % 3 == 0 ? White : shield, Drag = 1.8f, Add = true, Deep = true });
+        }
     }
 
     public void DamageNumber(Vector2 pos, string text, Color col)

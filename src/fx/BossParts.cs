@@ -222,8 +222,8 @@ public partial class BossParts : Node2D
     private static readonly Dictionary<string, (Vector2 foot, Vector2 muzzle)> Anchors =
         new Dictionary<string, (Vector2, Vector2)>
         {
-            ["akari"] = (new Vector2(266f, 718f), new Vector2(637f, 296f)),   // 発射点＝スマホの先端（攻撃絵で実測）
-            ["koharu"] = (new Vector2(427f, 629f), new Vector2(573f, 4f)),    // 発射点＝ペンライトの先（攻撃絵で実測）
+            ["akari"] = (new Vector2(266f, 718f), new Vector2(622f, 230f)),   // Phone tip in the normalized outfit frame.
+            ["koharu"] = (new Vector2(427f, 629f), new Vector2(524.5f, 52f)), // Penlight tip in the normalized outfit frame.
             ["rei"] = (new Vector2(255f, 719f), new Vector2(555f, 234f)),     // 発射点＝右手（攻撃絵で実測）
         };
 

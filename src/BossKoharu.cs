@@ -237,11 +237,11 @@ public partial class BossKoharu : Enemy
         // Normalize the person, not the staff or coat, and keep the idle foot anchor.
         var (headY, foot) = texture.ResourcePath.GetFile() switch
         {
-            "boss_koharu_body_attack.png" => (166f, new Vector2(346f, 668f)),
-            "boss_koharu_body_idle2.png" => (0f, new Vector2(410f, 681f)),
-            "boss_koharu_body_cry.png" => (0f, new Vector2(243f, 637f)),
-            "enemy_koharu_post.png" => (0f, new Vector2(111f, 358f)),
-            _ => (72f, new Vector2(427f, 629f)),
+            "boss_koharu_body_attack.png" => (75f, new Vector2(263f, 718f)),
+            "boss_koharu_body_idle2.png" => (0f, new Vector2(235f, 718f)),
+            "boss_koharu_body_cry.png" => (0f, new Vector2(220f, 718f)),
+            "enemy_koharu_post.png" => (0f, new Vector2(93f, 359f)),
+            _ => (0f, new Vector2(219f, 718f)),
         };
         float height = texture.GetHeight();
         float scale = (629f - 72f) / (foot.Y - headY) * height / 720f;

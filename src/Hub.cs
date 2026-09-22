@@ -111,6 +111,8 @@ public partial class Hub : Node2D
     private bool _previewToast;
     // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用。開くだけで何も確定しない）。
     private bool _openJob;
+    // デバッグ限定：--hub-photos で写真アプリを開いた状態から始める（スクショ用。セーブは触らない）。
+    private bool _openPhotos;
     // デバッグ限定：--hub-shopnudge で「説明を読み終えて帰ってきた直後」のホーム誘導を再現する
     //   （スクショ／見え方の確認用。セーブは触らない＝ShopTutorialSeen も書き換えない）。
     private bool _previewShopNudge;
@@ -120,9 +122,13 @@ public partial class Hub : Node2D
     // Job＝ジョブ選択（設計書 §6・ハブのフッタから開くオーバーレイ）。Detail と同じ「カードがその場で開く」
     //   作法で 4 ジョブを縦に並べ、Z で確定・X でとじる。ハブに居る＝ラン外なので、いつでも選び直せる
     //   （ラン中＝ステージのシーンには、ジョブを書き換える導線が一つも無い＝「選んだらそのランは変えられない」）。
-    private enum Mode { Home, HomeReveal, SnsOpening, Cards, Dialogue, Detail, Job }
+    private enum Mode { Home, HomeReveal, SnsOpening, Cards, Dialogue, Detail, Job, Photos }
     private Mode _mode = Mode.Home;
     private int _homeSel;
+    private int _photoSel;
+    private double _photoT;
+    private float _photoScroll, _photoScrollTarget;
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _photoTextures = new();
     private bool _idleTalkPending;
     private const string HomeRevealSeenKey = "once_phone_home";
     private const string SnsIntroSeenKey = "once_sns_intro";
@@ -246,6 +252,7 @@ public partial class Hub : Node2D
             if (args[i] == "--hub-detail") _openDetail = true;
             if (args[i] == "--hub-toast") _previewToast = true;
             if (args[i] == "--hub-job") _openJob = true;
+            if (args[i] == "--hub-photos") _openPhotos = true;
             if (args[i] == "--hub-shopnudge") _previewShopNudge = true;
         }
 
@@ -259,6 +266,14 @@ public partial class Hub : Node2D
         if (_openDetail && IsVoice(_sel)) OpenDetail();
         // デバッグ限定：--hub-job でジョブ選択を開いた状態から始める（スクショ用）。
         if (_openJob) OpenJob();
+        // デバッグ限定：--hub-photos で写真アプリを開いた状態から始める（スクショ用）。
+        if (_openPhotos)
+        {
+            _mode = Mode.Photos;
+            _photoT = 0;
+            _homeSel = 3;
+            _zHeld = _navHeld = _xHeld = true;
+        }
         // デバッグ限定：--hub-toast で炎上トーストの見え方を撮る（GameManager は一切触らない）。
         if (_previewToast) Toast("炎上中。次に潜るとき、光が薄い。", "発射間隔 +30%  移動 -10%  稼ぎ -40%", UiKit.Burn);
 
@@ -752,6 +767,7 @@ public partial class Hub : Node2D
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
         if (_mode == Mode.Job) { ProcessJob(delta); QueueRedraw(); return; }
+        if (_mode == Mode.Photos) { ProcessPhotos(delta); QueueRedraw(); return; }
         if (_mode == Mode.HomeReveal) { ProcessHomeReveal(delta); QueueRedraw(); return; }
         if (_mode == Mode.SnsOpening) { ProcessSnsOpening(delta); QueueRedraw(); return; }
         if (_mode == Mode.Home) { ProcessHome(); QueueRedraw(); return; }
@@ -933,7 +949,7 @@ public partial class Hub : Node2D
     // トースト：1行目＝世界の言葉（通知文）、2行目＝現状の数値（小さく・任意）。
     private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
 
-    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録" };
+    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真" };
     private const int HomeAppIdBase = 22000;
 
     private Rect2 HomeAppRect(int index)
@@ -948,7 +964,7 @@ public partial class Hub : Node2D
         return new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
     }
 
-    private bool HomeAppUnlocked(int index) => index == 0 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
+    private bool HomeAppUnlocked(int index) => index == 0 || index == 3 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
 
     private void ProcessHome()
     {
@@ -1003,6 +1019,15 @@ public partial class Hub : Node2D
                 _sel = DefaultSelection();
                 _feedScroll = _feedScrollTarget = Mathf.Clamp(CardTop(_sel), 0f, FeedMaxScroll());
             }
+            return;
+        }
+        if (index == 3)
+        {
+            _mode = Mode.Photos;
+            _photoT = 0;
+            _photoSel = Mathf.Clamp(_photoSel, 0, PhotoEntries.Length - 1);
+            UpdatePhotoScrollTarget();
+            _zHeld = _navHeld = _xHeld = true;
             return;
         }
         _dived = true;
@@ -1061,9 +1086,311 @@ public partial class Hub : Node2D
         for (int dot = 0; dot < 3; dot++) DrawCircle(center + new Vector2(-11 + dot * 11, -3), 2.5f, ink);
     }
 
+    private readonly record struct PhotoEntry(string Id, string Title, string Sub, string Path, Vector4 Region, Color Accent, string[] Keys);
+    private static readonly Vector4 PhotoFull = new(0, 0, 1, 1);
+    private static Vector4 StoryRegion(int shot, int rows) => new((shot % 2) / 2f, (shot / 2) / (float)rows, 0.5f, 1f / rows);
+    private static string[] K(params string[] keys) => keys;
+    private static string[] PlayableKeys(string id, string kind) => new[]
+    {
+        $"{id}_playable_ch1_{kind}", $"{id}_playable_ch2_{kind}", $"{id}_playable_ch3_{kind}", $"{id}_playable_ch4_{kind}",
+    };
+    private static string[] MinaPhaseKeys(int phase) => new[]
+    {
+        $"mina_phase_{phase}_mina", $"mina_phase_{phase}_akari", $"mina_phase_{phase}_koharu", $"mina_phase_{phase}_rei",
+    };
+
+    private static readonly PhotoEntry[] PhotoEntries =
+    {
+        new("opening", "はじまりの光", "Opening", "res://char/bg2/opening/op_mina_v1.png", PhotoFull, new Color("87d7ed"), K("opening")),
+        new("akari_memory", "あかり / 回想", "Memory Log", "res://char/v3/akari_story_atlas.png", StoryRegion(3, 3), new Color("f0c969"), K("akari_memory")),
+        new("akari_after", "あかり / その後", "After Scene", "res://char/v3/akari_story_atlas.png", StoryRegion(5, 3), new Color("f0c969"), K("akari_aftermath")),
+        new("koharu_memory", "こはる / 回想", "Memory Log", "res://char/v3/koharu_story_atlas_v2.png", StoryRegion(4, 4), new Color("a6dac8"), K("koharu_memory")),
+        new("koharu_after", "こはる / その後", "After Scene", "res://char/v3/koharu_story_atlas_v2.png", StoryRegion(7, 4), new Color("a6dac8"), K("koharu_aftermath")),
+        new("rei_memory", "レイ / 回想", "Memory Log", "res://char/v3/rei_story_atlas_v2.png", StoryRegion(4, 4), new Color("de91b9"), K("rei_memory")),
+        new("rei_after", "レイ / その後", "After Scene", "res://char/v3/rei_story_atlas_v2.png", StoryRegion(6, 4), new Color("de91b9"), K("rei_aftermath")),
+        new("mina_memory", "ミナ / 回想", "Memory Log", "res://char/v3/mina_story_atlas.png", StoryRegion(3, 3), new Color("87d7ed"), K("mina_memory")),
+        new("mina_after", "ミナ / 手を重ねる", "After Scene", "res://char/bg2/story/cg_mina_take_hand_v1.png", PhotoFull, new Color("87d7ed"), K("mina_aftermath")),
+        new("akari_playable_memory", "あかり / もう一度", "Playable Memory", "res://char/bg2/story/cg_akari_playable_memory_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", "memory")),
+        new("akari_playable_after", "あかり / 帰還", "Playable After", "res://char/bg2/story/cg_akari_playable_aftermath_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", "aftermath")),
+        new("koharu_playable_memory", "こはる / もう一度", "Playable Memory", "res://char/bg2/story/cg_koharu_playable_memory_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", "memory")),
+        new("koharu_playable_after", "こはる / 帰還", "Playable After", "res://char/bg2/story/cg_koharu_playable_aftermath_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", "aftermath")),
+        new("rei_playable_memory", "レイ / もう一度", "Playable Memory", "res://char/bg2/story/cg_rei_playable_memory_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", "memory")),
+        new("rei_playable_after", "レイ / 帰還", "Playable After", "res://char/bg2/story/cg_rei_playable_aftermath_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", "aftermath")),
+        new("mina_phase_rain", "未送信の雨", "Mina Phase", BossMina.PhaseBackground(1), PhotoFull, new Color("74b8e8"), MinaPhaseKeys(1)),
+        new("mina_phase_clap", "消えない拍手", "Mina Phase", BossMina.PhaseBackground(2), PhotoFull, new Color("ee9bb7"), MinaPhaseKeys(2)),
+        new("mina_phase_mask", "仮面の向こう", "Mina Phase", BossMina.PhaseBackground(3), PhotoFull, new Color("f0d98a"), MinaPhaseKeys(3)),
+        new("mina_phase_voice", "わたしの声", "Mina Phase", BossMina.PhaseBackground(4), PhotoFull, new Color("85e8d0"), MinaPhaseKeys(4)),
+        new("ending", "覚えている声", "Ending", "res://char/bg2/ending/cg_ep_together_v1.png", PhotoFull, new Color("ffd98a"), K("ending")),
+    };
+
+    private const int PhotoIdBase = 23000, PhotoCloseId = 23900;
+    private const float PhotoGridTop = 326f, PhotoGridBottom = 644f, PhotoItemW = 204f, PhotoItemH = 112f, PhotoGap = 12f;
+
+    private Rect2 PhotoCloseRect() => new(PhoneX + 16f, 18f, 38f, 38f);
+    private Rect2 PhotoItemRect(int index)
+    {
+        int col = index % 2, row = index / 2;
+        return new Rect2(PhoneX + 24f + col * (PhotoItemW + PhotoGap),
+            PhotoGridTop + row * (PhotoItemH + PhotoGap) - _photoScroll, PhotoItemW, PhotoItemH);
+    }
+
+    private bool PhotoAcquired(PhotoEntry entry)
+    {
+        if (_previewState is "all" or "final") return true;
+        foreach (string key in entry.Keys)
+            if (FilmSkip.Seen(_game, key)) return true;
+        return false;
+    }
+
+    private int WallpaperPhotoIndex()
+    {
+        string id = _game?.PhoneWallpaperPhotoId ?? "";
+        if (id.Length == 0) return -1;
+        for (int i = 0; i < PhotoEntries.Length; i++)
+            if (PhotoEntries[i].Id == id && PhotoAcquired(PhotoEntries[i])) return i;
+        return -1;
+    }
+
+    private bool IsWallpaper(PhotoEntry entry) => _game?.PhoneWallpaperPhotoId == entry.Id && PhotoAcquired(entry);
+
+    private void SetPhotoWallpaper(int index)
+    {
+        index = Mathf.Clamp(index, 0, PhotoEntries.Length - 1);
+        var entry = PhotoEntries[index];
+        if (!PhotoAcquired(entry))
+        {
+            Audio.Instance?.PlayUiDeny();
+            Toast("まだ背景にできません", "シーン取得後に設定できます", UiKit.Text3);
+            return;
+        }
+        _game?.SetPhoneWallpaperPhoto(entry.Id);
+        Audio.Instance?.PlayUiConfirm();
+        Toast("背景を変更しました", entry.Title, entry.Accent);
+    }
+
+    private int PhotoAcquiredCount()
+    {
+        int count = 0;
+        foreach (var entry in PhotoEntries) if (PhotoAcquired(entry)) count++;
+        return count;
+    }
+
+    private Texture2D? PhotoTexture(PhotoEntry entry)
+    {
+        if (_photoTextures.TryGetValue(entry.Path, out var tex)) return tex;
+        if (!ResourceLoader.Exists(entry.Path)) return null;
+        tex = ResourceLoader.Load<Texture2D>(entry.Path);
+        if (tex != null) _photoTextures[entry.Path] = tex;
+        return tex;
+    }
+
+    private static Rect2 PhotoSource(Texture2D tex, Vector4 region, Vector2 destSize)
+    {
+        var src = new Rect2(region.X * tex.GetWidth(), region.Y * tex.GetHeight(),
+            region.Z * tex.GetWidth(), region.W * tex.GetHeight());
+        float srcAspect = src.Size.X / src.Size.Y;
+        float destAspect = destSize.X / destSize.Y;
+        if (srcAspect > destAspect)
+        {
+            float w = src.Size.Y * destAspect;
+            src.Position += new Vector2((src.Size.X - w) * 0.5f, 0);
+            src.Size = new Vector2(w, src.Size.Y);
+        }
+        else
+        {
+            float h = src.Size.X / destAspect;
+            src.Position += new Vector2(0, (src.Size.Y - h) * 0.5f);
+            src.Size = new Vector2(src.Size.X, h);
+        }
+        return src;
+    }
+
+    private float PhotoMaxScroll()
+    {
+        int rows = (PhotoEntries.Length + 1) / 2;
+        float content = rows * PhotoItemH + Mathf.Max(0, rows - 1) * PhotoGap;
+        return Mathf.Max(0f, content - (PhotoGridBottom - PhotoGridTop));
+    }
+
+    private void UpdatePhotoScrollTarget()
+    {
+        var rect = PhotoItemRect(_photoSel);
+        float y0 = rect.Position.Y + _photoScroll, y1 = y0 + rect.Size.Y;
+        const float margin = 16f;
+        if (y0 - margin < PhotoGridTop + _photoScrollTarget) _photoScrollTarget = y0 - margin - PhotoGridTop;
+        else if (y1 + margin > PhotoGridBottom + _photoScrollTarget) _photoScrollTarget = y1 + margin - PhotoGridBottom;
+        _photoScrollTarget = Mathf.Clamp(_photoScrollTarget, 0f, PhotoMaxScroll());
+    }
+
+    private void ProcessPhotos(double delta)
+    {
+        _photoT += delta;
+        _photoScroll = Mathf.Lerp(_photoScroll, _photoScrollTarget, Mathf.Min(1f, (float)delta * 12f));
+        UiKit.BeginHotspots(Pad.MousePos());
+        UiKit.Hotspot(PhotoCloseRect(), PhotoCloseId);
+        for (int i = 0; i < PhotoEntries.Length; i++)
+        {
+            var r = PhotoItemRect(i);
+            if (r.End.Y >= PhotoGridTop && r.Position.Y <= PhotoGridBottom) UiKit.Hotspot(r, PhotoIdBase + i);
+        }
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= PhotoIdBase && hov < PhotoIdBase + PhotoEntries.Length && hov - PhotoIdBase != _photoSel)
+        {
+            _photoSel = hov - PhotoIdBase;
+            UpdatePhotoScrollTarget();
+            Audio.Instance?.PlayUiMove();
+        }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+        if (clk == PhotoCloseId && _photoT > 0.12) { GoHome(); return; }
+        if (clk >= PhotoIdBase && clk < PhotoIdBase + PhotoEntries.Length && _photoT > 0.12)
+        {
+            _photoSel = clk - PhotoIdBase;
+            UpdatePhotoScrollTarget();
+            SetPhotoWallpaper(_photoSel);
+        }
+
+        int move = 0;
+        if ((Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up")) && !_navHeld)
+            move = Input.IsActionPressed("ui_up") ? -2 : -1;
+        else if ((Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down")) && !_navHeld)
+            move = Input.IsActionPressed("ui_down") ? 2 : 1;
+        _navHeld = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up")
+            || Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
+        if (move != 0)
+        {
+            int next = Mathf.Clamp(_photoSel + move, 0, PhotoEntries.Length - 1);
+            if (next != _photoSel)
+            {
+                _photoSel = next;
+                UpdatePhotoScrollTarget();
+                Audio.Instance?.PlayUiMove();
+            }
+        }
+        float wheel = Pad.WheelDelta();
+        if (wheel != 0f && PhotoMaxScroll() > 0f)
+            _photoScrollTarget = Mathf.Clamp(_photoScrollTarget - wheel * WheelStep, 0f, PhotoMaxScroll());
+
+        bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
+        bool zEdge = z && !_zHeld; _zHeld = z;
+        if (zEdge && _photoT > 0.12) SetPhotoWallpaper(_photoSel);
+
+        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_xHeld; _xHeld = back;
+        if (backEdge && _photoT > 0.12) GoHome();
+    }
+
+    private void DrawPhotoImage(Rect2 rect, PhotoEntry entry, bool acquired, float alpha)
+    {
+        if (acquired && PhotoTexture(entry) is Texture2D tex)
+        {
+            DrawTextureRectRegion(tex, rect, PhotoSource(tex, entry.Region, rect.Size), new Color(1, 1, 1, alpha));
+            DrawRect(rect, new Color(0, 0, 0, 0.08f * alpha));
+            return;
+        }
+        UiKit.Box(this, rect, new Color(0.08f, 0.09f, 0.11f, 0.96f * alpha), 6f);
+        for (int i = -2; i < 8; i++)
+        {
+            float x = rect.Position.X + i * 42f;
+            DrawLine(new Vector2(x, rect.Position.Y + rect.Size.Y), new Vector2(x + 92f, rect.Position.Y),
+                new Color(1, 1, 1, 0.045f * alpha), 1f);
+        }
+        Vector2 c = rect.GetCenter();
+        DrawArc(c + new Vector2(0, -5f), 13f, Mathf.Pi, Mathf.Tau, 24, new Color(UiKit.Text3, 0.58f * alpha), 2f, true);
+        UiKit.Box(this, new Rect2(c - new Vector2(15f, 2f), new Vector2(30f, 20f)), new Color(UiKit.Text3, 0.58f * alpha), 4f);
+    }
+
+    private void DrawPhotoCard(int index, float alpha)
+    {
+        var entry = PhotoEntries[index];
+        var rect = PhotoItemRect(index);
+        if (rect.End.Y < PhotoGridTop || rect.Position.Y > PhotoGridBottom) return;
+        bool acquired = PhotoAcquired(entry), selected = index == _photoSel, wallpaper = IsWallpaper(entry);
+        if (selected) UiKit.Box(this, rect.Grow(4f), new Color(entry.Accent, 0.12f * alpha), 7f, new Color(entry.Accent, 0.72f * alpha), 1.5f);
+        UiKit.Box(this, rect, new Color(0.03f, 0.035f, 0.046f, 0.95f * alpha), 6f,
+            new Color(acquired ? entry.Accent : UiKit.Text4, (selected ? 0.44f : 0.2f) * alpha), 1f);
+        var shot = new Rect2(rect.Position + new Vector2(8f, 8f), new Vector2(rect.Size.X - 16f, 64f));
+        DrawPhotoImage(shot, entry, acquired, alpha);
+        if (wallpaper)
+        {
+            var badge = new Rect2(shot.End.X - 50f, shot.Position.Y + 6f, 42f, 18f);
+            UiKit.Box(this, badge, new Color(entry.Accent, 0.92f * alpha), 4f);
+            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 2f), "背景", 11,
+                new Color(0.02f, 0.025f, 0.03f, alpha), HorizontalAlignment.Center, badge.Size.X);
+        }
+        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(12f, 79f), acquired ? entry.Sub : "LOCKED", 11,
+            new Color(acquired ? entry.Accent : UiKit.Text4, alpha));
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(12f, 94f), acquired ? entry.Title : "未取得のシーン", 13,
+            new Color(acquired ? UiKit.White : UiKit.Text3, alpha), HorizontalAlignment.Left, rect.Size.X - 24f);
+    }
+
+    private void DrawPhotos()
+    {
+        float a = Mathf.Clamp((float)_photoT / 0.18f, 0f, 1f);
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+        DrawBackButton(PhotoCloseRect(), PhotoCloseId, a);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX + 66f, 25f), "写真", 22, new Color(UiKit.White, a));
+        UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX + PhoneW - 154f, 29f), $"{PhotoAcquiredCount()}/{PhotoEntries.Length}", 18,
+            new Color(UiKit.Gold, a), HorizontalAlignment.Right, 128f);
+        DrawRect(new Rect2(PhoneX + 24f, 68f, PhoneW - 48f, 1f), new Color(1, 1, 1, 0.10f * a));
+
+        var entry = PhotoEntries[Mathf.Clamp(_photoSel, 0, PhotoEntries.Length - 1)];
+        bool acquired = PhotoAcquired(entry);
+        var hero = new Rect2(PhoneX + 24f, 88f, PhoneW - 48f, 208f);
+        UiKit.Box(this, hero, new Color(0.03f, 0.035f, 0.046f, 0.95f * a), 8f, new Color(entry.Accent, 0.36f * a), 1f);
+        var image = new Rect2(hero.Position + new Vector2(10f, 10f), new Vector2(hero.Size.X - 20f, 142f));
+        DrawPhotoImage(image, entry, acquired, a);
+        DrawRect(new Rect2(image.Position.X, image.End.Y - 38f, image.Size.X, 38f), new Color(0, 0, 0, 0.38f * a));
+        if (acquired)
+        {
+            bool wallpaper = IsWallpaper(entry);
+            float bw = wallpaper ? 112f : 126f;
+            var badge = new Rect2(image.End.X - bw - 8f, image.Position.Y + 8f, bw, 26f);
+            UiKit.Box(this, badge, new Color(wallpaper ? entry.Accent : PhoneBg, 0.90f * a), 6f,
+                new Color(entry.Accent, 0.55f * a), 1f);
+            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 5f), wallpaper ? "現在の背景" : $"{Pad.ConfirmToken} 背景にする", 12,
+                new Color(wallpaper ? new Color(0.02f, 0.025f, 0.03f) : UiKit.White, a), HorizontalAlignment.Center, badge.Size.X);
+        }
+        UiKit.Text(this, UiKit.Mono, hero.Position + new Vector2(20f, 158f), acquired ? entry.Sub : "LOCKED", 12,
+            new Color(acquired ? entry.Accent : UiKit.Text4, a));
+        UiKit.Text(this, UiKit.ZenBold, hero.Position + new Vector2(20f, 176f), acquired ? entry.Title : "まだ取得していないシーン", 18,
+            new Color(acquired ? UiKit.White : UiKit.Text3, a));
+
+        DrawRect(new Rect2(PhoneX, PhotoGridTop - 14f, PhoneW, 14f), PhoneBg);
+        for (int i = 0; i < PhotoEntries.Length; i++) DrawPhotoCard(i, a);
+        DrawRect(new Rect2(PhoneX, PhotoGridBottom, PhoneW, H - PhotoGridBottom), PhoneBg);
+        DrawPhotoScrollHint(a);
+        string hint = $"{Pad.ConfirmToken} 背景にする　{Pad.CancelToken} もどる";
+        UiKit.Text(this, UiKit.Zen, new Vector2(PhoneX, 666f), hint, 14, new Color(UiKit.Text2, 0.78f * a),
+            HorizontalAlignment.Center, PhoneW);
+        UiKit.Box(this, new Rect2(PhoneX + (PhoneW - 116f) / 2f, H - 18f, 116f, 3f), new Color(UiKit.White, 0.65f * a), 1.5f);
+    }
+
+    private void DrawPhotoScrollHint(float alpha)
+    {
+        float max = PhotoMaxScroll();
+        if (max <= 1f) return;
+        const float viewH = PhotoGridBottom - PhotoGridTop;
+        float th = Mathf.Max(34f, viewH * viewH / (viewH + max));
+        float ty = PhotoGridTop + (viewH - th) * Mathf.Clamp(_photoScroll / max, 0f, 1f);
+        DrawRect(new Rect2(PhoneX + PhoneW - 8f, PhotoGridTop, 2f, viewH), new Color(1, 1, 1, 0.08f * alpha));
+        DrawRect(new Rect2(PhoneX + PhoneW - 8f, ty, 2f, th), new Color(UiKit.Info, 0.58f * alpha));
+    }
+
+    private bool DrawSelectedPhotoWallpaper()
+    {
+        int index = WallpaperPhotoIndex();
+        if (index < 0) return false;
+        var entry = PhotoEntries[index];
+        if (PhotoTexture(entry) is not Texture2D tex) return false;
+        var rect = new Rect2(PhoneX, 0, PhoneW, H);
+        DrawTextureRectRegion(tex, rect, PhotoSource(tex, entry.Region, rect.Size), new Color(0.82f, 0.84f, 0.9f));
+        DrawRect(rect, new Color(0.02f, 0.025f, 0.035f, 0.35f));
+        return true;
+    }
+
     private void DrawHome()
     {
-        if (_nightBg?.Texture is Texture2D wallpaper)
+        if (!DrawSelectedPhotoWallpaper() && _nightBg?.Texture is Texture2D wallpaper)
         {
             float sourceW = wallpaper.GetHeight() * PhoneW / H;
             var source = new Rect2((wallpaper.GetWidth() - sourceW) / 2f, 0, sourceW, wallpaper.GetHeight());
@@ -1082,7 +1409,7 @@ public partial class Hub : Node2D
             bool unlocked = HomeAppUnlocked(i);
             float activation = _mode == Mode.HomeReveal && i == 1 ? Mathf.Clamp(((float)_homeRevealT - 1.15f) / 0.65f, 0f, 1f) : 1f;
             bool focused = _mode == Mode.Home && (Pad.UsingMouse ? UiKit.HoveredId() == HomeAppIdBase + i : i == _homeSel);
-            Color color = i == 0 ? new Color("82d8dc") : i == 1 ? new Color("eba4b9") : new Color("bddba7");
+            Color color = i == 0 ? new Color("82d8dc") : i == 1 ? new Color("eba4b9") : i == 2 ? new Color("bddba7") : new Color("f0c969");
             if (!unlocked) color = new Color("737b85");
             color = new Color("737b85").Lerp(color, activation);
             if (focused) UiKit.Box(this, icon.Grow(6f), new Color(1, 1, 1, 0.08f), 8f, new Color(UiKit.White, 0.75f), 1.5f);
@@ -1114,9 +1441,17 @@ public partial class Hub : Node2D
                 DrawLine(c + new Vector2(-8, 5), c + new Vector2(8, 5), ink, 3f, true);
                 DrawLine(c + new Vector2(0, -3), c + new Vector2(0, 13), ink, 3f, true);
             }
-            else
+            else if (i == 2)
             {
                 for (int bar = 0; bar < 3; bar++) DrawRect(new Rect2(c.X - 21f + bar * 16f, c.Y + 5f - bar * 12f, 10f, 16f + bar * 12f), ink);
+            }
+            else
+            {
+                UiKit.Box(this, new Rect2(c - new Vector2(25f, 16f), new Vector2(50f, 34f)), Colors.Transparent, 7f, ink, 3f);
+                UiKit.Box(this, new Rect2(c + new Vector2(-15f, -23f), new Vector2(19f, 9f)), ink, 3f);
+                DrawCircle(c + new Vector2(1f, 1f), 11f, Colors.Transparent);
+                DrawArc(c + new Vector2(1f, 1f), 11f, 0, Mathf.Tau, 32, ink, 3f, true);
+                DrawCircle(c + new Vector2(1f, 1f), 4f, ink);
             }
             if (!unlocked || activation == 0f)
             {
@@ -1468,11 +1803,14 @@ public partial class Hub : Node2D
     {
         UiKit.BeginDesign(this);
         DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
-        DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
-        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
         bool home = _mode == Mode.Home || _mode == Mode.HomeReveal || _mode == Mode.SnsOpening
             || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home && !_homeRevealPending);
+        bool focusedOverlay = _mode == Mode.Dialogue || _mode == Mode.Detail || _mode == Mode.Job;
+        DrawSidePanels(focusedOverlay ? 0.34f : 1f);
+        DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
         if (home) DrawHome();
+        else if (_mode == Mode.Photos) DrawPhotos();
         else DrawTimeline(_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey ? 1f : 0.22f);
         if (_mode == Mode.HomeReveal) DrawHomeReveal();
         else if (_mode == Mode.SnsOpening) DrawSnsOpening();
@@ -1483,6 +1821,128 @@ public partial class Hub : Node2D
         DrawToast();
         DrawContaminationOverlay();
         UiKit.EndDesign(this);
+    }
+
+    private void DrawSidePanels(float alpha)
+    {
+        if (alpha <= 0.01f) return;
+        DrawSideRail(PhoneX - 34f, 108f, 496f, UiKit.Mina, 1f, alpha);
+        DrawSideRail(PhoneX + PhoneW + 34f, 108f, 496f, UiKit.Info, -1f, alpha);
+        DrawMinaSidePanel(new Rect2(64, 86, 264, 240), alpha);
+        DrawSignalSidePanel(new Rect2(952, 86, 264, 240), alpha);
+    }
+
+    private void DrawSideRail(float x, float y, float h, Color accent, float dir, float alpha)
+    {
+        Color line = new Color(accent, 0.20f * alpha);
+        DrawLine(new Vector2(x, y), new Vector2(x, y + h), line, 1f);
+        DrawLine(new Vector2(x, y), new Vector2(x + dir * 24f, y), new Color(accent, 0.18f * alpha), 1f);
+        DrawLine(new Vector2(x, y + h), new Vector2(x + dir * 24f, y + h), new Color(accent, 0.18f * alpha), 1f);
+        DrawRect(new Rect2(x - 1f, y + 102f, 2f, 54f), new Color(accent, 0.18f * alpha));
+        DrawRect(new Rect2(x - 1f, y + 318f, 2f, 86f), new Color(accent, 0.14f * alpha));
+
+        float pulseBase = ((float)_t * 28f) % h;
+        for (int i = 0; i < 6; i++)
+        {
+            float py = y + ((pulseBase + i * 86f) % h);
+            DrawCircle(new Vector2(x, py), 2.4f, new Color(accent, 0.34f * alpha));
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            float py = y + 34f + i * 92f;
+            DrawCircle(new Vector2(x, py), 4.5f, new Color(0.02f, 0.025f, 0.035f, 0.70f * alpha));
+            DrawCircle(new Vector2(x, py), 2.0f, new Color(accent, 0.46f * alpha));
+            DrawLine(new Vector2(x, py), new Vector2(x + dir * (14f + i % 2 * 10f), py), new Color(accent, 0.16f * alpha), 1f);
+        }
+    }
+
+    private void DrawSidePanelBase(Rect2 rect, Color accent, string label, float alpha)
+    {
+        UiKit.Box(this, rect, new Color(0.025f, 0.030f, 0.042f, 0.58f * alpha), 8f,
+            new Color(accent, 0.26f * alpha), 1.1f);
+        UiKit.VGradient(this, new Rect2(rect.Position.X + 1f, rect.Position.Y + 1f, rect.Size.X - 2f, 48f),
+            new[] { new Color(1, 1, 1, 0.050f * alpha), new Color(1, 1, 1, 0f) }, new[] { 0f, 1f });
+        DrawRect(new Rect2(rect.Position.X + 16f, rect.Position.Y + 18f, 3f, 28f), new Color(accent, 0.72f * alpha));
+        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(30f, 18f), label, 13, new Color(accent, 0.86f * alpha));
+    }
+
+    private void DrawMinaSidePanel(Rect2 rect, float alpha)
+    {
+        var job = _game.JobDef;
+        Color accent = JobColor(job.Id);
+        DrawSidePanelBase(rect, accent, "MINA NODE", alpha);
+        if (_minaFace != null)
+            UiKit.FaceAvatar(this, rect.Position + new Vector2(44f, 84f), 26f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(82f, 64f), "ミナ", 17, new Color(UiKit.White, 0.92f * alpha));
+        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(82f, 91f), "@mina_ai_", 12, new Color(UiKit.Text3, 0.82f * alpha));
+
+        DrawSideMetric(rect.Position + new Vector2(24f, 132f), "救った心", $"{_game.HeartsSaved}/{GameManager.Stages.Length}", UiKit.Purify, alpha);
+        DrawSideMetric(rect.Position + new Vector2(24f, 164f), "フォロワー", UiKit.Abbrev(_game.Followers), UiKit.Hp, alpha);
+        DrawSideMetric(rect.Position + new Vector2(24f, 196f), "インプレ", UiKit.Abbrev(_game.Impression), UiKit.Gold, alpha);
+
+        UiKit.FaceAvatar(this, rect.Position + new Vector2(rect.Size.X - 44f, 84f), 22f, _playerFaces[job.CharacterId], accent, false, 0f, alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(rect.Size.X - 102f, 118f), job.CharacterName, 14,
+            new Color(UiKit.Text2, 0.88f * alpha), HorizontalAlignment.Center, 116f);
+    }
+
+    private void DrawSideMetric(Vector2 pos, string label, string value, Color accent, float alpha)
+    {
+        UiKit.Text(this, UiKit.Zen, pos, label, 12, new Color(UiKit.Text3, 0.78f * alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(pos.X + 120f, pos.Y - 2f), value, 16,
+            new Color(accent, 0.92f * alpha), HorizontalAlignment.Right, 98f);
+        DrawRect(new Rect2(pos.X, pos.Y + 23f, 218f, 1f), new Color(1, 1, 1, 0.06f * alpha));
+    }
+
+    private void DrawSignalSidePanel(Rect2 rect, float alpha)
+    {
+        Color accent = UiKit.Info;
+        DrawSidePanelBase(rect, accent, "SIGNAL", alpha);
+        int cleared = ClearedStageCount();
+        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(30f, 62f), "声の受信", 17, new Color(UiKit.White, 0.9f * alpha));
+        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(rect.Size.X - 112f, 61f), $"{cleared}/{GameManager.Stages.Length}", 18,
+            new Color(UiKit.Purify, 0.92f * alpha), HorizontalAlignment.Right, 82f);
+        DrawStagePips(rect.Position + new Vector2(30f, 102f), alpha);
+
+        DrawAppState(rect.Position + new Vector2(30f, 126f), "SNS", HomeAppUnlocked(0), new Color("82d8dc"), alpha);
+        DrawAppState(rect.Position + new Vector2(30f, 154f), "強化", HomeAppUnlocked(1), new Color("eba4b9"), alpha);
+        DrawAppState(rect.Position + new Vector2(30f, 182f), "記録", HomeAppUnlocked(2), new Color("bddba7"), alpha);
+        DrawAppState(rect.Position + new Vector2(30f, 210f), "写真", HomeAppUnlocked(3), new Color("f0c969"), alpha);
+
+        float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
+        DrawRect(new Rect2(rect.Position.X + 30f, rect.Position.Y + 234f, rect.Size.X - 60f, 4f), new Color(1, 1, 1, 0.09f * alpha));
+        DrawRect(new Rect2(rect.Position.X + 30f, rect.Position.Y + 234f, (rect.Size.X - 60f) * contam, 4f), new Color(UiKit.Kegare, 0.72f * alpha));
+    }
+
+    private int ClearedStageCount()
+    {
+        int count = 0;
+        foreach (var s in GameManager.Stages) if (IsClearedForDisplay(s.Id)) count++;
+        return count;
+    }
+
+    private void DrawStagePips(Vector2 pos, float alpha)
+    {
+        for (int i = 0; i < GameManager.Stages.Length; i++)
+        {
+            bool cleared = IsClearedForDisplay(GameManager.Stages[i].Id);
+            bool open = _game?.IsStageUnlocked(GameManager.Stages[i].Id) ?? i == 0;
+            Color c = cleared ? UiKit.Ok : open ? UiKit.Purify : UiKit.Text4;
+            UiKit.Box(this, new Rect2(pos.X + i * 38f, pos.Y, 24f, 8f), new Color(c, (cleared ? 0.82f : 0.34f) * alpha), 4f);
+        }
+        bool finalOpen = _game?.AllStoryCleared ?? false;
+        UiKit.Box(this, new Rect2(pos.X + 3 * 38f + 12f, pos.Y - 2f, 32f, 12f), Colors.Transparent, 6f,
+            new Color(finalOpen ? UiKit.Kegare : UiKit.Text4, (finalOpen ? 0.8f : 0.26f) * alpha), 1.2f);
+    }
+
+    private void DrawAppState(Vector2 pos, string label, bool active, Color col, float alpha)
+    {
+        Color state = active ? col : UiKit.Text4;
+        DrawCircle(pos + new Vector2(5f, 8f), 5f, new Color(state, (active ? 0.86f : 0.32f) * alpha));
+        UiKit.Text(this, UiKit.ZenBold, pos + new Vector2(18f, 0f), label, 14, new Color(UiKit.Text2, 0.86f * alpha));
+        string tag = active ? "ONLINE" : "LOCKED";
+        UiKit.Text(this, UiKit.Mono, pos + new Vector2(126f, 1f), tag, 12,
+            new Color(state, (active ? 0.78f : 0.45f) * alpha), HorizontalAlignment.Right, 86f);
     }
 
     private void DrawTimeline(float alpha)

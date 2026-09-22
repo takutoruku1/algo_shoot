@@ -311,7 +311,7 @@ public partial class Final : Node2D
         string page = CurPage;
         var lines = UiKit.WrapLines(_font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        DrawRect(new Rect2(0, boxTop, W, H - boxTop), new Color(0.025f, 0.03f, 0.04f, 0.9f));
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, narr ? 0.38f : 0.5f);
         if (!narr)
             DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), d.Who, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);
         // ナレも左寄せにする＝中央寄せ＋部分文字列で起きる「中央から左右へ広がる」見え方を撤去。

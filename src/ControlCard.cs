@@ -150,7 +150,7 @@ public partial class ControlCard : Control
         }),
         // 溜め打ち（ショップ「溜め打ち」で覚える）。割り当ては Player.cs の溜め入力＝C / Y / 左クリックの長押し。
         //   マウスは短押しがロックオン送り・長押しが溜め（同じ左クリック）＝注記で分ける。
-        Topic.Charge => ("溜め打ち", "押し続けて溜め、満ちたら離す。板も敵も貫く一発", UiKit.Gold, new[]
+        Topic.Charge => ("溜め打ち", $"満ちたら離す。{GameManager.Instance!.JobDef.ChargeDescription}", UiKit.Gold, new[]
         {
             new Row("キーボード",     "C 長押し",                            "満ちたら離す"),
             new Row("コントローラー", Pad.Face(JoyButton.Y) + " 長押し",      "満ちたら離す"),

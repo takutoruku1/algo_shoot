@@ -41,7 +41,7 @@ public partial class Bullet : Area2D
     {
         Charged = true;
         ChargeJob = job;
-        Pierce = 3;
+        Pierce = Jobs.Get(job).ChargePierce;
         QueueRedraw();
     }
 
@@ -592,7 +592,8 @@ public partial class Bullet : Area2D
     private void SteerToTarget(float delta)
     {
         var tgt = _homeTarget;
-        bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified);
+        bool lost = tgt == null || !IsInstanceValid(tgt) || (tgt is Enemy en && en.IsPurified)
+            || (Charged && _chargeHits.Contains(tgt.GetInstanceId()));
         _retargetT -= delta;
         if (lost)
         {
@@ -635,6 +636,7 @@ public partial class Bullet : Area2D
         {
             if (n is Enemy e && !e.IsPurified)
             {
+                if (Charged && _chargeHits.Contains(e.GetInstanceId())) continue;
                 // 進行方向の側にいる敵だけを狙う（4px の緩衝は自機に重なった敵を取りこぼさないため）。
                 bool inRange = (e.GlobalPosition.X - GlobalPosition.X) * sx > -4f;
                 if (!inRange) continue;

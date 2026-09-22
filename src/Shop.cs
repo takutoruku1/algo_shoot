@@ -1,51 +1,22 @@
 using Godot;
 
-// Shop : ミナ強化ショップ。★2026-09-13 に「分岐なし・一本道13段」へ作り直した（2026-09-22 に回避を段に加えて14段）。
-//
-//   それまでは 70 ノードの二分木（排他フォーク・振り直し・おすすめ誘導・装備チップ・縦横スクロール）だった。
-//   選択肢が多すぎて「次に何を買えばいいか」が決められず、木を見るために画面を動かす必要があり、
-//   おすすめの金パルスが「結局これを買えばいい」と答えを出してしまっていた＝選ばせているようで選ばせていない。
-//
-//   作り直しの方針はひとつだけ：**買える段は常にひとつ**。
-//     ・縦1列14段。上から順にしか買えない（順序条件は GameManager.IsParentMet＝直前の段の所持）。
-//     ・1画面に収める。スクロールなし・カメラなし・ミニマップなし。
-//     ・ノード名＝効果そのもの（「ハート +1」「火力 2倍」）。説明の地の文を読ませない。
-//     ・買った段は点灯して縦線で連結、次の1段だけ光って呼吸、先の段は暗いが名前と価格は見せる
-//       ＝「いまどこまで来たか」と「この先どこまで行けるか」が、動かさずに一目で分かる。
-//     ・能力を覚える段（#2 回避／#7 溜め打ち／#11 集中モード）だけ一回り大きい＝数値ではなく手が増える段の格。
-//     ・詳細は「買う前の値 → 買った後の値」の矢印1行のみ（長い段だけ矢印を行頭に落として2行）。
-//   操作：↑↓ えらぶ ／ Z 買う ／ X もどる ／ T トレーニング（マウスはクリックで選択＋確定）。
-//
-//   撤去したもの（復活させないこと）：振り直し／おすすめ誘導と金パルス／排他と封印／装備チップと C 装備操作／
-//   系統バナー／カプストーン解放パルス／スクロールバーとカメラ。
 public partial class Shop : Node2D
 {
     private GameManager _game = null!;
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
 
-    // ───── 版面（すべて設計座標 1280×720・1画面固定）─────
-    //   左に列（段のカード）、右に詳細。上にヘッダ（財布）、下にフッタ（操作）。
-    private const float HeaderH = 92f;         // ヘッダの高さ
-    private const float FooterY = 660f;        // フッタの基準 Y
-    private const float ColX = 72f;            // 列の左端
-    private const float ColW = 470f;           // カードの幅
-    // 14段ぶんの高さ（通常31×11＋大42×3＋隙間5×13）= 532 に収める。RowTop=104 で下端は 636＝
-    //   フッタの区切り線（FooterY-14=646）より上＝最終段が footer に食い込まない。版面は1画面固定なので、
-    //   段を増やすならここの3値のどれかを必ず詰めること（スクロールは付けない）。
-    //   ★2026-09-22：回避（#2・大）が加わって13→14段になったので 通常34→31・大44→42・隙間6→5 に詰めた
-    //     （13段時の下端 638 とほぼ同じ位置に収まる。本文17px／見出し20px は行内に余白が残る）。
-    private const float RowTop = 104f;         // 1段目の上端
-    private const float RowH = 31f;            // 通常の段の高さ
-    private const float RowBigH = 42f;         // 能力を覚える段（#2 #7 #11）の高さ＝一回り大きい
-    private const float RowGap = 5f;           // 段と段の隙間（ここに縦の連結線が通る）
-    private const float DetailX = 600f;        // 詳細パネルの左端
-    private const float DetailW = 608f;        // 同・幅
-
-    // ───── 色（UiKit の語彙だけで足りる。この画面だけの新色は作らない）─────
-    private static readonly Color Owned = UiKit.Purify;   // 買った段＝浄化の水色（点灯）
-    private static readonly Color NextUp = UiKit.Gold;    // 次に買える1段＝金（呼吸する）
-    private static readonly Color Far = UiKit.Text4;      // まだ先の段＝沈んだ灰
-    private static readonly Color Deny = new("ef9a9a");   // 買えない理由（赤）
+    private const float FooterY = 664f;
+    private const float ColX = 48f, ColW = 444f;
+    private const float RowTop = 134f, RowH = 30f, RowBigH = 38f, RowGap = 4f;
+    private const float DetailX = 562f, DetailW = 670f;
+    private static readonly Color Surface = new("141719");
+    private static readonly Color Raised = new("202628");
+    private static readonly Color Owned = new("98dec6");
+    private static readonly Color Ink = new("edf3ef");
+    private static readonly Color Muted = new("a1afaa");
+    private static readonly Color Line = new("303a38");
+    private static readonly Color Deny = new("f1a798");
+    private Texture2D? _accountIcon;
 
     // 小話3（ショップの一言）：入店・購入時・退店でミナがぽつりと零す台詞。既存の Toast() で表示するだけ＝
     //   買い物のテンポを邪魔しない短時間表示（1.8秒）。docs/小話集_v1.md §3 の文面をそのまま採用。
@@ -89,7 +60,7 @@ public partial class Shop : Node2D
 
     private Texture2D? _playerShot;
 
-    // フォーカス＝列のインデックス（0..12）。この画面には列以外の選択対象が無い＝番号体系はこれだけ。
+    // フォーカス＝列のインデックス（0..13）。この画面には列以外の選択対象が無い＝番号体系はこれだけ。
     private int _sel;
 
     // 入力エッジ
@@ -106,10 +77,10 @@ public partial class Shop : Node2D
     private double _exitDelayT;
     private string _pendingExitDest = "";
 
-    // マウス：段のカード（id=0..12）とフッタのボタン（負の予約帯）をホットスポットで拾う。
+    // マウス：段のカード（id=0..13）とフッタのボタン（負の予約帯）をホットスポットで拾う。
     private const int HsBack = -100;  // フッタ もどる
     private const int HsBuy = -101;   // 詳細パネルの「買う」ボタン
-    private const int HsTrain = -102; // ヘッダ トレーニング
+    private const int HsTrain = -102;
     private Rect2 _backBtnRect, _buyBtnRect, _trainBtnRect;
     private bool _buyBtnActive;
 
@@ -128,8 +99,8 @@ public partial class Shop : Node2D
         // ショップ専用曲「シンプルスタイル」（2026-09-14〜。従来は BgmMenu の使い回し）。
         //   ハブより硬く電子的な音色で「移動した感」を耳に出す。周回で何十回も入るので平坦な曲を選んである。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmShop);
-        _playerShot = ResourceLoader.Load<Texture2D>(_game.SelectedJob == Job.Tank
-            ? "res://char/mina_shoot.png" : _game.JobDef.PlayerTexturePath);
+        _playerShot = ResourceLoader.Load<Texture2D>(_game.JobDef.PlayerTexturePath);
+        _accountIcon = ResourceLoader.Load<Texture2D>(CompanionDialogue.AccountPortrait(_game.SelectedJob));
 
         // 起動時のカーソルは「次に買える段」に置く＝開いた瞬間に手が届くところを指している。
         //   全部買い切っていれば最終段（読み返す用）。
@@ -328,248 +299,260 @@ public partial class Shop : Node2D
 
     private void DrawBg()
     {
-        DrawRect(new Rect2(0, 0, W, H), UiKit.BgDeep);
-        // 列の後ろにだけ、うっすら縦の帯を敷く＝「一本の道」であることを地の色でも言う。
-        //   上下の余白は 14px。フッタの区切り線（FooterY-14）を越えないよう、下端は最終段+14 までに留める。
-        float top = RowTop - 14f;
-        float bot = RowY(Steps - 1) + RowHeightOf(Steps - 1) + 14f;
-        UiKit.Box(this, new Rect2(ColX - 22f, top, ColW + 44f, bot - top), new Color(1f, 1f, 1f, 0.022f), 18f);
+        DrawRect(new Rect2(0, 0, W, H), Surface);
+        DrawRect(new Rect2(0, 0, W, 88), new Color("191e20"));
+        DrawRect(new Rect2(0, 88, W, 1), Line);
+        DrawLine(new Vector2(526, 110), new Vector2(526, 638), Line, 1);
+        DrawRect(new Rect2(0, 650, W, 70), new Color("191e20"));
+        DrawRect(new Rect2(0, 650, W, 1), Line);
     }
+
+    private static string Money(long value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     private void DrawHeader()
     {
-        // 見出しはひとつだけ。以前は小ラベル "SHOP" ＋ 大見出し「つよくなる」の二段だったが、
-        //   同じことを二度言っているだけなので "SHOP" を FontTitle へ昇格して1行に畳んだ。
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(ColX, 36f), "SHOP", UiKit.FontTitle, UiKit.White);
+        UiKit.Box(this, new Rect2(48, 22, 44, 44), Owned, 8);
+        DrawUpgradeMark("n_power_2x", new Vector2(70, 44), Surface, 1.3f);
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(108, 25), "強化ショップ", 28, Ink);
 
-        // 財布（購入の瞬間だけ跳ねる）。
-        float pop = 1f + 0.10f * (float)Mathf.Max(0, _walletPopT) / 0.5f;
-        string money = $"{_game?.Impression ?? 0}";
-        float mw = UiKit.TextW(UiKit.Mono, money, UiKit.FontTitle) * pop;
-        UiKit.Text(this, UiKit.Zen, new Vector2(W - 72f - mw - 96f, 52f), "浄化した心", UiKit.FontLabel, UiKit.Text3);
-        UiKit.Text(this, UiKit.Mono, new Vector2(W - 72f - mw, 42f), money,
-                   Mathf.RoundToInt(UiKit.FontTitle * pop), _walletPopT > 0 ? UiKit.Gold : UiKit.White);
-
-        // トレーニング（試し打ち場）への入口。列の外＝買い物の流れを邪魔しない位置に小さく置く。
-        _trainBtnRect = new Rect2(DetailX, 30f, 168f, 30f);
-        bool hovT = UiKit.Hotspot(_trainBtnRect, HsTrain);
-        UiKit.Box(this, _trainBtnRect, new Color(1f, 1f, 1f, hovT ? 0.10f : 0.05f), 9f, new Color(UiKit.Info, hovT ? 0.7f : 0.3f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(_trainBtnRect.Position.X, 37f),
-                   "T  ためし撃ち", UiKit.FontLabel, hovT ? UiKit.White : UiKit.Text3,
-                   HorizontalAlignment.Center, _trainBtnRect.Size.X);
-
-        DrawRect(new Rect2(ColX, HeaderH - 10f, W - ColX * 2f, 1f), new Color(1f, 1f, 1f, 0.10f));
+        UiKit.FaceAvatar(this, new Vector2(600, 44), 20, _accountIcon,
+            CompanionDialogue.Accent(_game.SelectedJob), false, 0, 1, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(634, 31), _game.JobDef.CharacterName, 19, Ink);
+        string money = Money(_game.Impression);
+        int size = UiKit.TextW(UiKit.Mono, money, 28) > 280 ? 22 : 28;
+        float moneyW = UiKit.TextW(UiKit.Mono, money, size);
+        UiKit.Text(this, UiKit.Zen, new Vector2(1232 - moneyW - 122, 36), "浄化した心", 14, Muted);
+        UiKit.Heart(this, new Vector2(1232 - moneyW - 20, 45), 8, Owned);
+        UiKit.Text(this, UiKit.Mono, new Vector2(1232 - moneyW, 27), money, size,
+            _walletPopT > 0 ? Owned : Ink);
     }
 
-    // ───── 列（本体）─────
-    //   買った段：水色で点灯し、次の段へ太い縦線で連結する（道が伸びていく）。
-    //   次の1段：金で呼吸する（今ここ）。
-    //   先の段：沈んだ灰。それでも**名前と価格は出す**＝この先どこまで行けるかを隠さない。
     private void DrawColumn()
     {
         int next = NextIndex();
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(ColX, 103), "強化リスト", 15, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(ColX + ColW - 96, 103),
+            $"{(next < 0 ? Steps : next):00} / {Steps:00}", 15, Owned, HorizontalAlignment.Right, 96);
+
         for (int i = 0; i < Steps; i++)
         {
             var r = RowRect(i);
-            bool owned = IsOwned(i);
-            bool isNext = i == next;
-            bool focus = i == _sel;
-            bool big = GameManager.IsAbilityNode(Def(i).Id);
-
-            // ── 段と段をつなぐ縦線（この段と次の段のあいだ）。買った先までが明るい＝進んだ距離が線で見える ──
+            bool owned = IsOwned(i), focus = i == _sel;
+            bool hover = UiKit.Hotspot(r, i);
             if (i < Steps - 1)
-            {
-                float lx = ColX + 26f;
-                float y0 = r.End.Y, y1 = RowY(i + 1);
-                // 買った段から出る線は水色、これから先は細く沈める。
-                bool lit = owned;
-                DrawLine(new Vector2(lx, y0), new Vector2(lx, y1),
-                         lit ? new Color(Owned, 0.85f) : new Color(1f, 1f, 1f, 0.10f), lit ? 2.4f : 1.2f);
-            }
-
-            UiKit.Hotspot(r, i);
-            DrawRow(i, r, owned, isNext, focus, big);
+                DrawLine(new Vector2(ColX + 17, r.GetCenter().Y),
+                    new Vector2(ColX + 17, RowRect(i + 1).GetCenter().Y),
+                    owned ? new Color(Owned, 0.7f) : Line, 2);
+            DrawRow(i, r, owned, i == next, focus, hover);
         }
     }
 
-    private void DrawRow(int i, Rect2 r, bool owned, bool isNext, bool focus, bool big)
+    private void DrawRow(int i, Rect2 r, bool owned, bool next, bool focus, bool hover)
     {
         var d = Def(i);
-        // 呼吸（次の1段だけ）。0..1 でゆっくり往復。
-        float breath = isNext ? 0.5f + 0.5f * Mathf.Sin((float)_t * 2.6f) : 0f;
-        Color accent = owned ? Owned : isNext ? NextUp : Far;
+        Color accent = UpgradeColor(d.Id);
+        if (focus)
+        {
+            UiKit.Box(this, r, Raised, 6, new Color(Owned, 0.75f), 1);
+            DrawRect(new Rect2(r.Position.X, r.Position.Y + 6, 3, r.Size.Y - 12), Owned);
+        }
+        else if (hover) UiKit.Box(this, r, new Color("1c2224"), 6);
+        else DrawLine(new Vector2(r.Position.X + 40, r.End.Y), r.End, new Color(Line, 0.5f), 1);
 
-        // 地と縁。フォーカス中は縁を強く、次の1段は呼吸で明滅させる。
-        float bAlpha = owned ? 0.55f : isNext ? 0.45f + 0.35f * breath : 0.16f;
-        Color bg = owned ? new Color(0.07f, 0.12f, 0.15f, 0.70f)
-                 : isNext ? new Color(0.14f, 0.12f, 0.06f, 0.62f)
-                          : new Color(0.07f, 0.06f, 0.11f, 0.45f);
-        if (focus) bg = bg.Lerp(new Color(0.18f, 0.20f, 0.28f, 0.85f), 0.45f);
-        UiKit.Box(this, r, bg, big ? 13f : 10f, new Color(accent, focus ? 0.95f : bAlpha), focus ? 2.0f : (big ? 1.4f : 1f));
+        var node = new Vector2(r.Position.X + 17, r.GetCenter().Y);
+        DrawCircle(node, 10, Surface);
+        if (owned)
+        {
+            DrawCircle(node, 6, new Color(Owned, 0.13f));
+            DrawCheck(node, Owned, 0.65f);
+        }
+        else
+        {
+            DrawArc(node, next ? 6 : 4, 0, Mathf.Tau, 24, next ? Owned : Muted, next ? 2 : 1, true);
+            if (next) DrawCircle(node, 2, Owned);
+        }
 
-        // 購入直後のグロー（買った段が一瞬ふくらむ）。
+        DrawUpgradeMark(d.Id, new Vector2(r.Position.X + 53, r.GetCenter().Y),
+            owned || focus || next ? accent : Muted, 0.75f);
+        float textY = r.GetCenter().Y - UiKit.ZenBold.GetHeight(17) / 2;
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(r.Position.X + 78, textY),
+            d.Name, 17, owned || focus || next ? Ink : Muted);
+        if (owned)
+            UiKit.Text(this, UiKit.Zen, new Vector2(r.End.X - 86, r.GetCenter().Y - 10),
+                "購入済み", 13, Owned, HorizontalAlignment.Right, 72);
+        else
+            UiKit.Text(this, UiKit.Mono, new Vector2(r.End.X - 92, r.GetCenter().Y - 10),
+                Money(d.BaseCost), 14, next && _game.Impression < d.BaseCost ? Deny : next ? Ink : Muted,
+                HorizontalAlignment.Right, 78);
+
         if (_buyFxId == d.Id && _buyFxT > 0)
         {
             float k = (float)(_buyFxT / 0.7);
-            UiKit.Box(this, r.Grow(4f * k), null, big ? 16f : 13f, new Color(Owned, 0.8f * k), 2.4f * k);
-        }
-
-        // ── 左端のしるし：買った＝塗りつぶした丸／次＝呼吸する輪／先＝小さな点 ──
-        var dot = new Vector2(r.Position.X + 26f, r.Position.Y + r.Size.Y / 2f);
-        if (owned)
-        {
-            DrawCircle(dot, big ? 8f : 6.5f, new Color(Owned, 0.30f));
-            DrawCircle(dot, big ? 5f : 4f, Owned);
-        }
-        else if (isNext)
-        {
-            DrawArc(dot, (big ? 8f : 6.5f) + 1.5f * breath, 0f, Mathf.Tau, 22, new Color(NextUp, 0.55f + 0.45f * breath), 1.8f);
-            DrawCircle(dot, 2.4f, new Color(NextUp, 0.75f + 0.25f * breath));
-        }
-        else
-        {
-            DrawCircle(dot, 2.4f, new Color(1f, 1f, 1f, 0.22f));
-        }
-
-        // ── 名前（＝効果そのもの）。能力を覚える段はひと回り大きい字で「格」を付ける ──
-        int nameSize = big ? UiKit.FontHeading : UiKit.FontBody;
-        Color nameCol = owned ? UiKit.White : isNext ? UiKit.White : UiKit.Text4;
-        float ty = r.Position.Y + (r.Size.Y - nameSize) / 2f - 2f;
-        UiKit.Text(this, big ? UiKit.ZenBlack : UiKit.ZenBold, new Vector2(r.Position.X + 46f, ty),
-                   d.Name, nameSize, nameCol);
-
-        // ── 右端：買った段は「済」、それ以外は価格。足りないときだけ赤く沈める ──
-        if (owned)
-        {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(r.End.X - 74f, ty + 2f), "済", UiKit.FontLabel, new Color(Owned, 0.9f),
-                       HorizontalAlignment.Right, 58f);
-        }
-        else
-        {
-            long cost = d.BaseCost;
-            bool afford = (_game?.Impression ?? 0) >= cost;
-            Color cc = isNext ? (afford ? UiKit.Gold : Deny) : new Color(UiKit.Text4, afford ? 0.85f : 0.55f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(r.End.X - 132f, ty + 2f), $"{cost}", UiKit.FontLabel, cc,
-                       HorizontalAlignment.Right, 116f);
+            DrawRect(new Rect2(r.Position.X + 39, r.End.Y - 2, (r.Size.X - 39) * (1 - k), 2),
+                new Color(Owned, k));
         }
     }
 
-    // ───── 詳細：「いま → 買うと」の2行だけ ─────
     private void DrawDetail()
     {
         var d = Def(_sel);
-        bool owned = IsOwned(_sel);
-        bool big = GameManager.IsAbilityNode(d.Id);
+        bool owned = IsOwned(_sel), unlocked = _game.IsParentMet(d.Id);
+        Color accent = UpgradeColor(d.Id);
+        UiKit.Text(this, UiKit.Mono, new Vector2(DetailX, 112), $"UPGRADE / {_sel + 1:00}", 14, Muted);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX, 154), d.Name, 34, Ink);
+        if (GameManager.IsAbilityNode(d.Id))
+            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX, 209), "ABILITY", 13, accent);
+        UiKit.Multi(this, UiKit.Zen, new Vector2(DetailX, 241), d.Desc, 18, Muted, 330, 2);
 
-        float x = DetailX, y = RowTop, w = DetailW;
+        DrawUpgradeMark(d.Id, new Vector2(DetailX + 22, 319), accent, 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 55, 306),
+            owned ? "購入済み" : unlocked ? "次の強化" : "未解放", 17, owned || unlocked ? Owned : Muted);
+        DrawCharacter();
 
-        float fy = y, fh = 96f;
-        UiKit.Box(this, new Rect2(x, fy, w, fh), new Color(0.05f, 0.06f, 0.12f, 0.6f), 12f, new Color(UiKit.Mina, 0.25f), 1f);
-        if (_playerShot != null)
-        {
-            float ih = 78f, iw = ih * _playerShot.GetWidth() / Mathf.Max(1, _playerShot.GetHeight());
-            DrawTextureRect(_playerShot, new Rect2(x + 18f, fy + (fh - ih) / 2f, iw, ih), false);
-        }
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 128f, fy + fh / 2f - 24f),
-                   _game!.JobDef.CharacterName,
-                   UiKit.FontLabel, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 128f, fy + fh / 2f - 4f),
-                   $"{_sel + 1} / {Steps} 段目", UiKit.FontHeading, UiKit.White);
-
-        // 見出し（段の名前）。
-        float hy = fy + fh + 26f;
-        if (big)
-            UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x, hy - 16f), "NEW ABILITY", UiKit.Gold);
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(x, hy), d.Name, UiKit.FontTitle,
-                   owned ? Owned : UiKit.White);
-
-        // ── 現在値 → 購入後 ──（この画面で読ませる地の文はここだけ）
-        //   旧版は「いま」「買うと」の2ラベルで対比していたが、所持済みの段では「いま」が
-        //   “買う前の値”を指す（＝画面の「いま」と意味が反転する）ので読み違えが起きていた。
-        //   ラベルはひとつだけ置き、値そのものは矢印でつなぐ＝どちらからどちらへ動くかを記号で言う。
         var (now, after) = EffectPair(_sel);
-        float ey = hy + 52f;
-        UiKit.Box(this, new Rect2(x, ey, w, 84f), new Color(1f, 1f, 1f, 0.035f), 12f);
-        Color afterCol = owned ? new Color(Owned, 0.95f) : UiKit.Gold;
-        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(x + 20f, ey + 13f),
-                   owned ? "買って、こうなった" : "買うとどうなる", UiKit.Text4);
+        DrawLine(new Vector2(DetailX, 364), new Vector2(DetailX + DetailW, 364), Line, 1);
+        float afterX = DetailX + 358;
+        UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 380), "強化前", 13, Muted);
+        UiKit.Text(this, UiKit.Zen, new Vector2(afterX, 380), "強化後", 13, Owned);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(DetailX, 407), now, 18, Ink, 284, 2);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(afterX, 407), after, 18, Owned, 284, 2);
+        DrawArrow(new Vector2(DetailX + 322, 421), Muted, 1);
 
-        // 1行に畳めるなら「現在値 → 購入後」。長い段（集中モード等）だけ矢印を行頭に落として2行にする。
-        const float arrowGap = 10f;
-        float bodyX = x + 20f, bodyW = w - 40f;
-        string arrow = "→";
-        float nowW = UiKit.TextW(UiKit.ZenBold, now, UiKit.FontBody);
-        float arrowW = UiKit.TextW(UiKit.ZenBold, arrow, UiKit.FontBody);
-        float afterW = UiKit.TextW(UiKit.ZenBold, after, UiKit.FontBody);
-        if (nowW + afterW + arrowW + arrowGap * 2f <= bodyW)
+        long cost = _game.GetUpgradeCost(d.Id);
+        bool enough = _game.Impression >= cost;
+        _buyBtnActive = !owned && unlocked && enough;
+        _buyBtnRect = new Rect2(DetailX, 486, DetailW, 56);
+        bool hover = _buyBtnActive && UiKit.Hotspot(_buyBtnRect, HsBuy);
+        Color fill = _buyBtnActive ? (hover ? new Color("c2f3e1") : Owned) : Raised;
+        Color foreground = _buyBtnActive ? Surface : Muted;
+        UiKit.Box(this, _buyBtnRect, fill, 8, _buyBtnActive ? null : Line, 1);
+        string label = owned ? "購入済み"
+            : !unlocked ? $"「{GameManager.GetUpgradeDef(d.ParentId)!.Name}」の購入で解放"
+            : !enough ? $"あと {Money(cost - _game.Impression)}"
+            : "強化する";
+        if (_buyBtnActive)
         {
-            float ty2 = ey + 45f;
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ty2), now, UiKit.FontBody, UiKit.Text4);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + nowW + arrowGap, ty2), arrow, UiKit.FontBody, UiKit.Text3);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + nowW + arrowGap + arrowW + arrowGap, ty2),
-                       after, UiKit.FontBody, afterCol);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 24, 500), label, 20, foreground);
+            string price = Money(cost);
+            float pw = UiKit.TextW(UiKit.Mono, price, 20);
+            UiKit.Heart(this, new Vector2(DetailX + DetailW - pw - 74, 514), 7, foreground);
+            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + DetailW - pw - 54, 500), price, 20, foreground);
+            DrawArrow(new Vector2(DetailX + DetailW - 26, 514), foreground, 0.8f);
         }
         else
         {
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ey + 32f), now, UiKit.FontBody, UiKit.Text4);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX, ey + 56f), arrow, UiKit.FontBody, UiKit.Text3);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(bodyX + arrowW + arrowGap, ey + 56f),
-                       after, UiKit.FontBody, afterCol, HorizontalAlignment.Left, bodyW - arrowW - arrowGap);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 20, 502), label, 17,
+                unlocked && !owned ? Deny : Muted, HorizontalAlignment.Center, DetailW - 40);
         }
 
-        // ── 買うボタン（状態で文言と色が変わる。押せないときは理由をそのまま書く）──
-        float by = ey + 110f;
-        string label; bool enabled = false;
-        if (owned) { label = "もう持っています"; }
-        else if (!(_game?.IsParentMet(d.Id) ?? false))
+        int count = 0;
+        for (int i = 0; i < Steps; i++) if (IsOwned(i)) count++;
+        if (_toastT <= 0)
         {
-            var prev = GameManager.GetUpgradeDef(d.ParentId);
-            label = $"さきに「{prev?.Name ?? "ひとつ上"}」から";
+            UiKit.Text(this, UiKit.Zen, new Vector2(DetailX, 574), "強化進行", 13, Muted);
+            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + DetailW - 110, 572),
+                $"{count:00} / {Steps:00}", 16, Owned, HorizontalAlignment.Right, 110);
+            float segment = (DetailW - (Steps - 1) * 5) / Steps;
+            for (int i = 0; i < Steps; i++)
+                UiKit.Box(this, new Rect2(DetailX + (segment + 5) * i, 610, segment, 4),
+                    IsOwned(i) ? Owned : Line, 2);
         }
-        else if ((_game?.Impression ?? 0) < d.BaseCost)
-            label = $"あと {d.BaseCost - (_game?.Impression ?? 0)} たりません";
-        else { label = $"{Pad.ConfirmToken}  買う（{d.BaseCost}）"; enabled = true; }
-
-        _buyBtnRect = new Rect2(x, by, 300f, 44f);
-        _buyBtnActive = enabled;
-        bool hov = enabled && UiKit.Hotspot(_buyBtnRect, HsBuy);
-        Color bc = enabled ? UiKit.Gold : UiKit.Text4;
-        UiKit.Box(this, _buyBtnRect, new Color(bc, enabled ? (hov ? 0.28f : 0.16f) : 0.05f), 12f, new Color(bc, enabled ? 0.9f : 0.3f), enabled ? 1.6f : 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(_buyBtnRect.Position.X, by + 13f), label, UiKit.FontLabel,
-                   enabled ? UiKit.White : UiKit.Text4, HorizontalAlignment.Center, _buyBtnRect.Size.X);
-
-        // 進み具合（何段まで来たか）。列を数えなくても一目で分かる小さな帯。
-        int ownedCount = 0;
-        for (int i = 0; i < Steps; i++) if (IsOwned(i)) ownedCount++;
-        float py = by + 66f;
-        UiKit.Text(this, UiKit.Zen, new Vector2(x, py), $"{ownedCount} / {Steps} 段", UiKit.FontLabel, UiKit.Text3);
-        float pw = w, ph = 4f;
-        UiKit.Box(this, new Rect2(x, py + 24f, pw, ph), new Color(1f, 1f, 1f, 0.08f), 2f);
-        if (ownedCount > 0)
-            UiKit.Box(this, new Rect2(x, py + 24f, pw * ownedCount / Steps, ph), Owned, 2f);
     }
 
-    // 矢印の左右（買う前の値 → 買った後の値）を作る。所持済みの段では左＝過去の値・右＝いまの値になる
-    //   （表示側のラベルが「買って、こうなった」に変わるので、左右の意味は所持前後で一貫する）。
-    //   ここは各段の効果を人の言葉で1行にするだけ＝数式は GameManager のアクセサが正典。
+    private void DrawCharacter()
+    {
+        var area = new Rect2(948, 110, 284, 244);
+        Color accent = CompanionDialogue.Accent(_game.SelectedJob);
+        DrawLine(new Vector2(964, 134), new Vector2(980, 134), new Color(accent, 0.65f), 1);
+        DrawLine(new Vector2(964, 134), new Vector2(964, 150), new Color(accent, 0.65f), 1);
+        DrawLine(new Vector2(1216, 330), new Vector2(1200, 330), new Color(accent, 0.65f), 1);
+        DrawLine(new Vector2(1216, 330), new Vector2(1216, 314), new Color(accent, 0.65f), 1);
+        if (_playerShot == null) return;
+        Vector2 size = _playerShot.GetSize();
+        float scale = Mathf.Min(228 / size.X, 244 / size.Y);
+        size *= scale;
+        var rect = new Rect2(area.GetCenter() - size / 2, size);
+        DrawTextureRect(_playerShot, rect, false);
+        if (_buyFxT > 0)
+        {
+            float k = 1 - (float)(_buyFxT / 0.7);
+            float y = area.End.Y - area.Size.Y * k;
+            DrawLine(new Vector2(area.Position.X + 28, y), new Vector2(area.End.X - 28, y),
+                new Color(Owned, 0.65f * (1 - k)), 2, true);
+        }
+    }
+
+    private static Color UpgradeColor(string id) => id switch
+    {
+        "n_life_1" or "n_life_2" or "n_hitbox" => new Color("efa1b6"),
+        "n_bomb_1" or "n_power_2x" or "n_charge" or "n_lines" or "n_rate_2x" or "n_pierce" => new Color("e8ce96"),
+        _ => Owned,
+    };
+
+    private void DrawCheck(Vector2 c, Color color, float scale)
+    {
+        DrawPolyline(new[] { c + new Vector2(-6, 0) * scale, c + new Vector2(-1, 5) * scale,
+            c + new Vector2(8, -5) * scale }, color, 2 * scale, true);
+    }
+
+    private void DrawArrow(Vector2 c, Color color, float scale)
+    {
+        DrawLine(c + new Vector2(-9, 0) * scale, c + new Vector2(9, 0) * scale, color, 1.8f, true);
+        DrawPolyline(new[] { c + new Vector2(3, -6) * scale, c + new Vector2(9, 0) * scale,
+            c + new Vector2(3, 6) * scale }, color, 1.8f, true);
+    }
+
+    private void DrawUpgradeMark(string id, Vector2 c, Color color, float scale)
+    {
+        Vector2 P(float x, float y) => c + new Vector2(x, y) * scale;
+        void L(float x, float y, float xx, float yy) => DrawLine(P(x, y), P(xx, yy), color, 1.8f, true);
+        if (id is "n_life_1" or "n_life_2") UiKit.Heart(this, c, 9 * scale, color);
+        else if (id is "n_dodge" or "n_dodge_cd" or "n_move_15x")
+        {
+            L(-10, -7, -3, 0); L(-3, 0, -10, 7); L(1, -7, 8, 0); L(8, 0, 1, 7);
+        }
+        else if (id == "n_bomb_1")
+        {
+            DrawArc(c, 7 * scale, 0, Mathf.Tau, 24, color, 1.8f, true);
+            L(5, -5, 10, -10); L(8, -13, 8, -10); L(11, -8, 14, -8);
+        }
+        else if (id is "n_hitbox" or "n_slow")
+        {
+            DrawArc(c, 9 * scale, 0, Mathf.Tau, 32, color, 1.8f, true);
+            if (id == "n_slow") { L(0, -5, 0, 0); L(0, 0, 4, 2); }
+            else { L(-13, 0, -6, 0); L(6, 0, 13, 0); L(0, -13, 0, -6); L(0, 6, 0, 13); }
+        }
+        else if (id is "n_lines" or "n_rate_2x")
+        {
+            L(-8, -8, 8, -8); L(-8, 0, 8, 0); L(-8, 8, 8, 8);
+        }
+        else if (id == "n_option")
+        {
+            DrawArc(c, 5 * scale, 0, Mathf.Tau, 20, color, 1.8f, true);
+            DrawCircle(P(-11, 0), 2 * scale, color); DrawCircle(P(11, 0), 2 * scale, color);
+        }
+        else if (id == "n_pierce") { DrawArrow(c, color, scale); L(3, -10, 3, 10); }
+        else
+            DrawPolyline(new[] { P(2, -11), P(-7, 2), P(0, 2), P(-2, 11), P(8, -2), P(1, -2), P(2, -11) }, color, 1.8f, true);
+    }
+
     private (string now, string after) EffectPair(int i)
     {
         var g = _game;
         string id = Def(i).Id;
         bool owned = IsOwned(i);
-        // 「いま」は“この段を持っていない状態の値”を指す。所持済みなら1段ぶん戻した値を見せる。
         switch (id)
         {
             case "n_life_1":
             case "n_life_2":
             {
-                int cur = g?.StartLives ?? 4;
-                return (owned ? $"はーと {cur - 1}" : $"はーと {cur}", $"はーと {(owned ? cur : cur + 1)}");
+                int before = g.StartLives - g.MaxLifeBonus + (id == "n_life_2" ? 1 : 0);
+                return ($"LIFE  {before}", $"LIFE  {before + 1}");
             }
-            case "n_dodge":     return ("回避は使えない", "Alt / 右クリック / L3 で 0.45秒 無敵になって弾を抜ける");
+            case "n_dodge":     return ("未習得", "回避を習得\n無敵時間 0.45秒");
             case "n_dodge_cd":
-                return owned ? ("戻り 0.80秒・距離 64", "戻り 0.65秒・距離 76")
-                             : ("戻り 0.80秒・距離 64", "戻り 0.65秒・距離 76");
+                return ($"再使用 {0.80f * g.JobDef.DodgeCdMul:0.00}秒\n距離 {64 * g.JobDef.DodgeDistMul:0.0}",
+                    $"再使用 {0.65f * g.JobDef.DodgeCdMul:0.00}秒\n距離 {76 * g.JobDef.DodgeDistMul:0.0}");
             case "n_bomb_1":
             {
                 int cur = g?.StartBombs ?? 4;
@@ -577,78 +560,53 @@ public partial class Shop : Node2D
             }
             case "n_power_2x":  return ("弾の火力 ×1", "弾の火力 ×2");
             // 効果の文面に「→」を混ぜない（表示側が値と値を矢印でつなぐので、二重の矢印になって読めなくなる）。
-            case "n_charge":    return ("溜め打ちは使えない", "0.6秒ためて放つ 威力×12 の貫通弾");
+            case "n_charge":    return ("未習得", $"{g.JobDef.ChargeDescription}\nチャージ 0.6秒");
             case "n_hitbox":    return ("当たり判定 2.0px", "当たり判定 1.0px");
             case "n_lines":
             {
-                string now = "連射2線・拡散5way・追尾2発";
-                string aft = "連射3線・拡散7way・追尾3発";
-                return (now, aft);
+                return g.SelectedJob == Job.Magic ? ("同時発射 5発", "同時発射 7発") : ("同時発射 2発", "同時発射 3発");
             }
-            case "n_move_15x":  return ("移動 75", "移動 112");
-            case "n_slow":      return ("集中モードは使えない", "V / ホイール / LB で敵の時間だけ ×0.35 を1.5秒（CD20秒）");
+            case "n_move_15x":  return ($"移動速度 {75 * g.JobDef.MoveMul:0.0}", $"移動速度 {112.5f * g.JobDef.MoveMul:0.0}");
+            case "n_slow":      return ("未習得", "敵の時間 ×0.35 / 1.5秒\n再使用 20秒");
             case "n_rate_2x":   return ("発射間隔 ×1.0", "発射間隔 ×0.5");
             case "n_pierce":    return ("弾は1体で消える", "どの撃ち方でも 敵1体を貫く");
-            case "n_option":    return ("オプション なし", "オプション 1基（威力×0.5で同時射撃）");
+            case "n_option":    return ("オプション なし", "オプション 1基\n威力 ×0.5 で同時射撃");
             default:            return ("—", Def(i).Desc);
         }
     }
 
     private void DrawFooter()
     {
-        DrawRect(new Rect2(ColX, FooterY - 14f, W - ColX * 2f, 1f), new Color(1f, 1f, 1f, 0.10f));
+        _backBtnRect = new Rect2(48, FooterY, 156, 36);
+        bool backHover = UiKit.Hotspot(_backBtnRect, HsBack);
+        if (backHover) UiKit.Box(this, _backBtnRect, Raised, 6);
+        DrawArrow(new Vector2(68, FooterY + 18), backHover ? Ink : Muted, -0.8f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(92, FooterY + 6),
+            string.IsNullOrEmpty(_game.PendingResumeScene) ? "ホーム" : "もどる", 17, backHover ? Ink : Muted);
 
-        _backBtnRect = new Rect2(ColX, FooterY, 172f, 36f);
-        bool hov = UiKit.Hotspot(_backBtnRect, HsBack);
-        UiKit.Box(this, _backBtnRect, new Color(1f, 1f, 1f, hov ? 0.10f : 0.04f), 10f, new Color(UiKit.Text3, hov ? 0.8f : 0.3f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(_backBtnRect.Position.X, FooterY + 9f),
-                   $"{Pad.CancelToken}  {(string.IsNullOrEmpty(_game.PendingResumeScene) ? "ホーム" : "もどる")}", UiKit.FontLabel, hov ? UiKit.White : UiKit.Text3,
-                   HorizontalAlignment.Center, _backBtnRect.Size.X);
-
-        UiKit.Text(this, UiKit.Zen, new Vector2(ColX + 200f, FooterY + 10f),
-                   // 「上から順に買えます」は削らないと説明過多：点灯・縦線・呼吸の演出と、
-                   //   買えないときの理由（DrawDetail の買うボタン文言）で既に言えている。
-                   $"{Pad.MoveToken} えらぶ　　{Pad.ConfirmToken} 買う",
-                   UiKit.FontLabel, UiKit.Text4);
+        _trainBtnRect = new Rect2(980, FooterY, 168, 36);
+        bool trainHover = UiKit.Hotspot(_trainBtnRect, HsTrain);
+        if (trainHover) UiKit.Box(this, _trainBtnRect, Raised, 6);
+        DrawUpgradeMark("n_hitbox", new Vector2(1002, FooterY + 18), trainHover ? Ink : Muted, 0.8f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(1026, FooterY + 6), "ためし撃ち", 17, trainHover ? Ink : Muted);
     }
 
     private void DrawToast()
     {
         if (_toastT <= 0) return;
         if (_toastIsDialogue) { DrawDialogueBubble(); return; }
-        float w = UiKit.TextW(UiKit.ZenBold, _toast, 16) + 48;
-        float x = (W - w) / 2f;
-        UiKit.Box(this, new Rect2(x, H - 96, w, 38f), new Color(0.06f, 0.05f, 0.10f, 0.96f), 12f, new Color(_toastCol, 0.7f), 1f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, H - 88), _toast, 16, _toastCol, HorizontalAlignment.Center, w);
+        float alpha = Mathf.Min(1, (float)_toastT / 0.25f);
+        DrawLine(new Vector2(DetailX, 567), new Vector2(DetailX, 626), new Color(_toastCol, alpha), 2);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(DetailX + 16, 580), _toast, 17,
+            new Color(Ink, alpha), DetailW - 32, 2);
     }
 
     private void DrawDialogueBubble()
     {
-        const float bw = DetailW - 24f;
-        const float padX = 18f, padY = 14f;
-        var lines = UiKit.WrapLines(UiKit.ZenBold, _toast, 16, bw - padX * 2f);
-        float lh = UiKit.ZenBold.GetHeight(16);
-        float bh = padY * 2f + lh * lines.Count;
-        float bx = DetailX + 12f;
-        float by = 516f;
-
-        float k = Mathf.Clamp((float)(_toastAge / 0.18), 0f, 1f);
-        float e = 1f - Mathf.Pow(1f - k, 3f);
-        float scale = 0.9f + 0.14f * e - 0.04f * Mathf.Pow(e, 6f);
-        float a = Mathf.Min(k, Mathf.Clamp((float)_toastT / 0.3f, 0f, 1f));
-        float dy = 10f * (1f - e);
-        if (a <= 0.004f) return;
-
-        float dw = bw * scale, dh = bh * scale;
-        float cx = bx + bw * 0.5f;
-        float x = cx - dw * 0.5f, y = by + dy;
-
-        Color edge = new(_toastCol, 0.6f * a);
-        Color face = new Color(0.05f, 0.04f, 0.09f).Lerp(new Color(0.09f, 0.07f, 0.15f), 0.5f) with { A = a };
-        UiKit.Box(this, new Rect2(x, y, dw, dh), face, 16f, edge, 1.4f);
-
-        for (int i = 0; i < lines.Count; i++)
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + padX * scale, y + padY * scale + lh * i * scale),
-                lines[i], 16, new Color(_toastCol, a), HorizontalAlignment.Left, dw - padX * 2f * scale);
+        float alpha = Mathf.Min(Mathf.Clamp((float)_toastAge / 0.15f, 0, 1),
+            Mathf.Clamp((float)_toastT / 0.3f, 0, 1));
+        DrawLine(new Vector2(DetailX, 564), new Vector2(DetailX, 638), new Color(_toastCol, alpha), 2);
+        UiKit.Multi(this, UiKit.ZenBold, new Vector2(DetailX + 16, 565), _toast, 16,
+            new Color(Ink, alpha), DetailW - 32, 3);
     }
 }

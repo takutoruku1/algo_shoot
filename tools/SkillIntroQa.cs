@@ -23,11 +23,10 @@ public partial class SkillIntroQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
-    // 本文の先頭・末尾行（docs/20260922/回避チャージ説明_本文_2026-09-22.md）。実装と本文の一致確認も兼ねる。
     private const string DodgeHead = "集めていただいた欠片で、わたくしの足が、変わりました。——「回避」。身体が、覚えています。";
     private const string DodgeLast = "ただし。一度抜けると、しばらく、次は出ません。……抜けた先に、立てる場所を。";
     private const string ChargeHead = "拾っていただいた欠片が、ひとつ、かたちになりました。——「溜め打ち」。お伝えします。";
-    private const string ChargeLast = "満ちる前に離せば、何も出ません。……そのあいだも、いつもの光は、止まりません。";
+    private const string ChargeLast = "溜めているあいだ、いつもの光は止まります。満ちる前に離せば、重い一発は出ず、いつもの光に戻ります。";
     // 道中チュートリアル①の「移動」行と末尾行（順序と回帰の確認用）。
     private const string RouteMove = "操作を、お伝えします。まず、移動を。……この盤面のどこへでも、お連れします。";
     private const string RouteLast = "では。オペレータのお仕事を、よろしくお願いいたします。……ご主人様。";

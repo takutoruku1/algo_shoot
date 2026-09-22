@@ -722,9 +722,7 @@ public partial class StageAkari : Node
                 Theme = new CameoTheme
                 {
                     DisplayName = "あかり", Handle = BossHandles.AkariBar,
-                    // v3 の中ボスは穢れ形態を持たない1枚絵なので Pre/Cry/Post に同じパスを入れる
-                    // （50px 表示のちびなので、姿が変わらない損失はほぼ無い）。
-                    PreTex = "res://char/v3/akari_mid.png",
+                    PreTex = "res://char/v3/akari_mid_v2.png",
                     CryTex = "res://char/v3/akari_mid.png",
                     PostTex = "res://char/v3/akari_mid.png",
                     Face = AFaceLit,   // S1-5：片手のスマホの光が顔に当たっている＝画面の光を浴びた顔

@@ -15,6 +15,37 @@ public partial class PlayerShotQa : Node
     private static void Write(object obj, string name, object value) => obj.GetType().GetField(name, Private)!.SetValue(obj, value);
     private static void Call(object obj, string name) => obj.GetType().GetMethod(name, Private)!.Invoke(obj, null);
     private Bullet[] Active() => _pool.GetChildren().OfType<Bullet>().Where(b => b.Active).ToArray();
+    private static (int ways, int damage, float radius, int pierce, float speed, float spread) ChargeStats(Job job) => job switch
+    {
+        Job.Tank => (1, 12, 9f, 5, 820f, 0f),
+        Job.Melee => (1, 18, 12f, 1, 240f, 0f),
+        Job.Heal => (3, 4, 6f, 1, 300f, 32f),
+        Job.Magic => (5, 3, 6f, 1, 540f, 64f),
+        _ => throw new ArgumentOutOfRangeException(nameof(job)),
+    };
+
+    private Bullet[] CheckChargeVolley(Player player)
+    {
+        var job = _game.SelectedJob;
+        var expected = ChargeStats(job);
+        var shots = Active().Where(b => b.Charged).OrderBy(b => player.ShotDir.AngleTo(b.Velocity)).ToArray();
+        Check(shots.Length == expected.ways, $"{job}: charged volley has {expected.ways} projectiles");
+        for (int i = 0; i < shots.Length; i++)
+        {
+            var b = shots[i];
+            Check(b.Damage == expected.damage && b.Radius == expected.radius && b.Pierce == expected.pierce && b.ChargeJob == job,
+                $"{job}: charge damage, radius, penetration and identity match the character");
+            Check(Mathf.IsEqualApprox(b.Velocity.Length(), expected.speed)
+                && b.Homing == (job == Job.Heal) && b.Accel == (job == Job.Melee)
+                && b.TurnRateOverride == (job == Job.Heal ? 240 : 0), $"{job}: charge has its own speed and movement");
+            float angle = shots.Length == 1 ? 0 : (float)i / (shots.Length - 1) - 0.5f;
+            Check(Mathf.Abs(player.ShotDir.AngleTo(b.Velocity) - Mathf.DegToRad(angle * expected.spread)) < 0.001f,
+                $"{job}: charge fan is symmetric about the aim direction");
+            Check(ReferenceEquals(Read<BulletArt.PlayerVisual>(b, "_playerVisual"), BulletArt.PlayerShot(job)),
+                $"{job}: charge retains its character artwork");
+        }
+        return shots;
+    }
     private static void Check(bool ok, string message)
     {
         if (!ok) throw new Exception(message);
@@ -109,7 +140,9 @@ public partial class PlayerShotQa : Node
             await Frames(10);
             await Shot($"{job.CharacterId}_charge_impact_{take}");
             await Frames(44);
-            Check(target.Hp == hp - 12,
+            var expected = ChargeStats(job.Id);
+            int hits = job.Id == Job.Heal ? expected.ways : 1;
+            Check(target.Hp == hp - expected.damage * hits,
                 $"live physics applies charged damage exactly once (before={hp}, after={target.Hp}, player={root.Player.Position}, target={target.Position})");
         }
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
@@ -120,6 +153,7 @@ public partial class PlayerShotQa : Node
 
     private async Task CheckCharge(JobTuning job)
     {
+        var expected = ChargeStats(job.Id);
         _game.SelectedJob = job.Id;
         _game.TrainingSetUpgrade("n_charge", true);
         var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
@@ -138,15 +172,19 @@ public partial class PlayerShotQa : Node
         player._PhysicsProcess(0.3);
         Check(player.ChargeRatio > 0.4f && !player.ChargeFull,
             $"{job.CharacterId}: half charge is not ready (ratio={player.ChargeRatio}, unlocked={_game.HasChargeShot}, paused={Hud.BubblePaused}, key={Input.IsKeyPressed(Key.C)})");
+        Check(Active().Length == 0, "normal fire stops on the first charging frame");
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.01);
         Check(Active().All(b => !b.Charged), "early release does not fire");
+        Check(Active().Any(), "early release resumes normal fire");
+        _pool.DespawnAll();
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.61);
-        Check(player.ChargeFull && Active().Any(b => !b.Charged), "normal fire continues while charging");
+        Check(player.ChargeFull && Active().Length == 0, "normal fire stays stopped until the full charge is released");
         player._PhysicsProcess(0.1);
+        Check(Active().Length == 0, "holding a full charge does not resume normal fire");
         Check(FxLayer.Instance.GetChildren().OfType<ChargeShotFx>().Count(fx => fx.Kind == ChargeShotFx.Beat.Ready) == 1,
             "ready burst happens once per hold");
         _pool.DespawnAll();
@@ -154,17 +192,20 @@ public partial class PlayerShotQa : Node
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.01);
-        var charge = Active().Single(b => b.Charged);
-        Check(charge.Damage == 12 && charge.Radius == 10 && charge.Pierce == 3 && charge.ChargeJob == job.Id,
-            "release creates a 12-power character charge with three penetrations");
-        Check(player.ChargeRatio == 0 && !charge.Accel && !charge.Homing, "release resets the meter and fires immediately");
-        charge.SetPhysicsProcess(false);
-        charge._PhysicsProcess(0.1);
+        var charges = CheckChargeVolley(player);
+        var charge = charges[charges.Length / 2];
+        Check(player.ChargeRatio == 0, "release resets the meter");
+        Check(Active().Any(b => !b.Charged), "full release resumes normal fire");
+        foreach (var b in Active()) b.SetPhysicsProcess(false);
+        foreach (var b in charges) b._PhysicsProcess(0.1);
         await Shot($"{job.CharacterId}_charge_release");
         DisplayServer.WindowSetSize(new Vector2I(960, 540));
         await Shot($"{job.CharacterId}_charge_small");
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         _pool.DespawnAll();
+
+        CheckChargeInputs(player);
+        CheckChargeMovement(player, root.World);
 
         var enemy = new Enemy();
         Write(enemy, "BarCount", 4);
@@ -178,7 +219,9 @@ public partial class PlayerShotQa : Node
         Bullet Fire()
         {
             Call(player, "FireCharge");
-            var shot = Active().Last(b => b.Charged);
+            var shots = Active().Where(b => b.Charged).OrderBy(b => player.ShotDir.AngleTo(b.Velocity)).ToArray();
+            var shot = shots[shots.Length / 2];
+            foreach (var other in shots) if (other != shot) _pool.Despawn(other);
             shot.SetPhysicsProcess(false);
             return shot;
         }
@@ -186,9 +229,9 @@ public partial class PlayerShotQa : Node
         Write(enemy, "_bodyHitCd", 0.04d);
         int hp = Read<int>(enemy, "_hp");
         bodyHit.Invoke(enemy, new object[] { charge });
-        Check(Read<int>(enemy, "_hp") == hp - 12, "charge bypasses ordinary hit cooldown and eight-damage cap");
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage, "character charge bypasses ordinary hit cooldown and damage cap");
         bodyHit.Invoke(enemy, new object[] { charge });
-        Check(Read<int>(enemy, "_hp") == hp - 12 && charge.Pierce == 2, "moving body cannot be hit twice by the same charge");
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage && charge.Pierce == expected.pierce - 1, "moving body cannot be hit twice by the same charge");
         _pool.DespawnAll();
         enemy.Position = player.Position + new Vector2(30, 0);
         Call(enemy, "EnterExposed");
@@ -196,7 +239,7 @@ public partial class PlayerShotQa : Node
         hp = Read<int>(enemy, "_hp");
         bodyHit.Invoke(enemy, new object[] { charge });
         int nearDamage = hp - Read<int>(enemy, "_hp");
-        Check(nearDamage >= 12 && nearDamage <= 32, "close-range bonus never lowers charged damage");
+        Check(nearDamage >= expected.damage && nearDamage <= 32, "close-range bonus never lowers charged damage");
         _pool.DespawnAll();
         enemy.Position = player.Position + new Vector2(85, 0);
         Call(enemy, "EnterExposed");
@@ -209,7 +252,7 @@ public partial class PlayerShotQa : Node
         Call(enemy, "EnterExposed");
         _game.TrainingSetUpgrade("n_power_2x", true);
         charge = Fire();
-        Check(charge.Damage == 24, "charge inherits purchased power upgrades");
+        Check(charge.Damage == expected.damage * 2, "charge inherits purchased power upgrades");
         _game.TrainingSetUpgrade("n_power_2x", false);
         _pool.DespawnAll();
         charge = Fire();
@@ -225,6 +268,21 @@ public partial class PlayerShotQa : Node
         Check(Read<int>(enemy, "_hp") == hp - 8, "ordinary projectiles retain their existing cap");
         _pool.DespawnAll();
 
+        Call(enemy, "EnterExposed");
+        Call(player, "FireCharge");
+        hp = Read<int>(enemy, "_hp");
+        foreach (var b in Active().Where(b => b.Charged).ToArray()) bodyHit.Invoke(enemy, new object[] { b });
+        Check(Read<int>(enemy, "_hp") == hp - expected.damage * expected.ways,
+            "every projectile in a charged volley can damage the same exposed boss once");
+        _pool.DespawnAll();
+        Call(enemy, "EnterExposed");
+        Write(enemy, "_windowDamage", _game.ExposedDamageCap - 5);
+        Call(player, "FireCharge");
+        hp = Read<int>(enemy, "_hp");
+        foreach (var b in Active().Where(b => b.Charged).ToArray()) bodyHit.Invoke(enemy, new object[] { b });
+        Check(Read<int>(enemy, "_hp") == hp - 5, "multi-projectile charge respects the shared boss window cap");
+        _pool.DespawnAll();
+
         var panel = new Panel();
         panel.Setup(enemy, 0, 18, 0, false, 0, 20);
         enemy.AddChild(panel);
@@ -233,8 +291,10 @@ public partial class PlayerShotQa : Node
         var panelHit = typeof(Panel).GetMethod("OnAreaEntered", Private)!;
         panelHit.Invoke(panel, new object[] { charge });
         panelHit.Invoke(panel, new object[] { charge });
-        Check(panel.Ink == 14 && charge.Active && charge.Pierce == 2, "charge strips six ink and hits each shield only once");
-        for (int i = 0; i < 3; i++)
+        int ink = 1 + (expected.damage - 1) / 2;
+        Check(panel.Ink == 20 - ink && charge.Active && charge.Pierce == expected.pierce - 1,
+            "charge strips character-specific ink and hits each shield only once");
+        for (int i = 0; i < expected.pierce; i++)
         {
             var next = new Panel();
             next.Setup(enemy, 0, 18, 0, false, 0, 20);
@@ -242,9 +302,10 @@ public partial class PlayerShotQa : Node
             next.SetPhysicsProcess(false);
             panelHit.Invoke(next, new object[] { charge });
         }
-        Check(!charge.Active, "fourth shield contact consumes the charge");
+        Check(!charge.Active, "the character penetration budget consumes the charge");
         var recycled = _pool.Spawn(player.Position, Vector2.Left * 40, true);
-        Check(ReferenceEquals(recycled, charge) && !recycled.Charged && recycled.Pierce == 0,
+        Check(ReferenceEquals(recycled, charge) && !recycled.Charged && recycled.Pierce == 0
+            && !recycled.Homing && !recycled.Accel && recycled.TurnRateOverride == 0,
             "pool reuse clears charged state for enemies");
         _pool.DespawnAll();
         charge = Fire();
@@ -256,6 +317,9 @@ public partial class PlayerShotQa : Node
         await Frames(5);
 
         Write(player, "_facing", -1);
+        Call(player, "FireCharge");
+        CheckChargeVolley(player);
+        _pool.DespawnAll();
         charge = Fire();
         Check(charge.Velocity.X < 0 && Mathf.Abs(charge.Rotation) > 2, "charge follows a left-facing shot direction");
         _pool.DespawnAll();
@@ -286,6 +350,137 @@ public partial class PlayerShotQa : Node
         root.QueueFree();
         await Frames(5);
         _pool.DespawnAll();
+    }
+
+    private void CheckChargeMovement(Player player, Node2D world)
+    {
+        Call(player, "FireCharge");
+        var shots = CheckChargeVolley(player);
+        foreach (var b in shots) b.SetPhysicsProcess(false);
+        var charge = shots[shots.Length / 2];
+        charge.Position = new Vector2(120, 108);
+        if (_game.SelectedJob == Job.Melee)
+        {
+            charge._PhysicsProcess(0.05);
+            Check(charge.AccelCharging && Mathf.IsEqualApprox(charge.Velocity.Length(), 240),
+                "akari: released flame moves immediately before its acceleration kick");
+            charge._PhysicsProcess(0.08);
+            Check(!charge.AccelCharging && Mathf.IsEqualApprox(charge.Velocity.Length(), 960),
+                "akari: released flame accelerates after 0.12 seconds");
+        }
+        else if (_game.SelectedJob == Job.Heal)
+        {
+            Enemy Target(Vector2 position)
+            {
+                var e = new Enemy();
+                Write(e, "PanelCount", 0);
+                Write(e, "BarCount", 4);
+                world.AddChild(e);
+                e.Position = position;
+                e.SetPhysicsProcess(false);
+                e.SetProcess(false);
+                return e;
+            }
+            var first = Target(new Vector2(210, 150));
+            var second = Target(new Vector2(290, 80));
+            charge._PhysicsProcess(0.05);
+            Check(ReferenceEquals(Read<Node2D>(charge, "_homeTarget"), first) && charge.Velocity.Y > 0
+                && Mathf.IsEqualApprox(charge.Velocity.Length(), 300), "koharu: charge steers toward an off-axis enemy at constant speed");
+            charge.RegisterChargeHit(first);
+            charge._PhysicsProcess(0.01);
+            Check(ReferenceEquals(Read<Node2D>(charge, "_homeTarget"), second),
+                "koharu: a pierced target is replaced by the next unhit enemy");
+            charge.RegisterChargeHit(second);
+            var direction = charge.Velocity;
+            charge._PhysicsProcess(0.01);
+            Check(Read<Node2D?>(charge, "_homeTarget") == null && charge.Velocity.IsEqualApprox(direction),
+                "koharu: no unhit target means straight flight instead of orbiting a previous hit");
+            charge.Position = new Vector2(200, 100);
+            Write(charge, "_age", 2.49f);
+            charge._PhysicsProcess(0.02);
+            Check(!charge.Active, "koharu: seeking charge expires after 2.5 seconds");
+            world.RemoveChild(first);
+            world.RemoveChild(second);
+            first.QueueFree();
+            second.QueueFree();
+        }
+        else
+        {
+            var direction = charge.Velocity;
+            var start = charge.Position;
+            charge._PhysicsProcess(0.05);
+            Check(charge.Velocity.IsEqualApprox(direction) && charge.Position.IsEqualApprox(start + direction * 0.05f),
+                "mina and rei: released charge keeps its straight trajectory");
+        }
+        _pool.DespawnAll();
+    }
+
+    private void CheckChargeInputs(Player player)
+    {
+        void Press(string input, bool down)
+        {
+            InputEvent evt = input switch
+            {
+                "keyboard" => new InputEventKey { Keycode = Key.C, Pressed = down },
+                _ => new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down },
+            };
+            Input.ParseInputEvent(evt);
+            Input.FlushBufferedEvents();
+            Pad.PollMouse(GetViewport());
+        }
+        try
+        {
+            foreach (string input in new[] { "keyboard", "mouse" })
+            {
+                _game.TrainingSetUpgrade("n_charge", false);
+                Write(player, "_fireCooldown", 0f);
+                Press(input, true);
+                player._PhysicsProcess(0.61);
+                Check(Active().Any() && player.ChargeRatio == 0, $"{input}: locked charge skill does not suppress normal fire");
+                Press(input, false);
+                player._PhysicsProcess(0.01);
+                _pool.DespawnAll();
+                _game.TrainingSetUpgrade("n_charge", true);
+
+                Write(player, "_fireCooldown", 0f);
+                player._PhysicsProcess(0.01);
+                var existing = Active();
+                int shots = Read<int>(player, "_shotParity");
+                Press(input, true);
+                if (input == "mouse")
+                {
+                    Write(player, "_fireCooldown", 0f);
+                    player._PhysicsProcess(0.1);
+                    Check(player.ChargeRatio == 0 && Read<int>(player, "_shotParity") > shots,
+                        "short-click lock-on window keeps normal fire");
+                    existing = Active();
+                    shots = Read<int>(player, "_shotParity");
+                }
+                Write(player, "_fireCooldown", 0f);
+                player._PhysicsProcess(0.3);
+                Check(player.ChargeRatio > 0 && Read<int>(player, "_shotParity") == shots,
+                    $"{input}: charging suppresses the next normal volley");
+                Check(existing.All(b => b.Active) && Active().Length == existing.Length,
+                    $"{input}: existing projectiles are preserved without new shots");
+                var position = existing[0].Position;
+                existing[0]._PhysicsProcess(0.05);
+                Check(existing[0].Position != position, $"{input}: an already fired projectile keeps moving");
+                player._PhysicsProcess(0.8);
+                Check(player.ChargeFull && Read<int>(player, "_shotParity") == shots,
+                    $"{input}: full charge stays held without normal fire");
+                _pool.DespawnAll();
+                Press(input, false);
+                player._PhysicsProcess(0.01);
+                Check(Active().Count(b => b.Charged) == ChargeStats(_game.SelectedJob).ways && Active().Any(b => !b.Charged) && player.ChargeRatio == 0,
+                    $"{input}: release fires one character volley and resumes normal fire");
+                _pool.DespawnAll();
+            }
+        }
+        finally
+        {
+            foreach (string input in new[] { "keyboard", "mouse" }) Press(input, false);
+            _game.TrainingSetUpgrade("n_charge", true);
+        }
     }
 
     private async Task CheckCharacter(JobTuning job)
@@ -328,10 +523,7 @@ public partial class PlayerShotQa : Node
         }
         _pool.DespawnAll();
         Call(root.Player, "FireCharge");
-        var charged = Active().Single();
-        Check(charged.Charged && charged.Pierce == 3 && charged.Radius == 10 && charged.Damage == 12 && Mathf.IsEqualApprox(charged.Velocity.Length(), 760)
-            && ReferenceEquals(Read<BulletArt.PlayerVisual>(charged, "_playerVisual"), BulletArt.PlayerShot(job.Id)),
-            $"{job.CharacterId}: charge shot uses its own artwork with enhanced power and piercing");
+        CheckChargeVolley(root.Player);
         _pool.DespawnAll();
         Write(root.Player, "_facing", -1);
         var particles = Read<List<FxLayer.P>>(FxLayer.Instance, "_p");

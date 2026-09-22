@@ -79,7 +79,7 @@ public partial class StoryFilm : Node2D
         _hud.SuppressCallouts = true;
         _hud.HideBubble();
         _hud.HoldBubble = true;
-        _hud.SetCinematicMode(true);
+        _hud.SetCinematicMode(true, accent: StoryAccent());
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
             if (hazard is AreaStrike) hazard.QueueFree();
@@ -243,13 +243,95 @@ public partial class StoryFilm : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.025f, 0.025f, 0.025f, 0.94f));
-        DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.025f, 0.025f, 0.025f, 0.94f));
+        DrawStoryFrame();
         DrawTimeCard();
         // 既読のときだけ上辺の黒帯にスキップのヒントを出す（初回は存在ごと見せない）。
         //   明けフェード中は畳む処理が走っているので消す（飛ばしたあとにヒントが残って見える）。
         if (!_leaving) _skip.Draw(this);
         UiKit.EndDesign(this);
+    }
+
+    private Color StoryAccent() => _storyKey switch
+    {
+        "akari" => new Color("f0c969"),
+        "koharu" => new Color("a6dac8"),
+        "rei" => new Color("de91b9"),
+        "mina" => new Color("87d7ed"),
+        _ => UiKit.Info,
+    };
+
+    private Color StoryAccent2() => _storyKey switch
+    {
+        "akari" => new Color("f5a66a"),
+        "koharu" => new Color("7bd79f"),
+        "rei" => new Color("9a72d9"),
+        "mina" => new Color("9a72d9"),
+        _ => UiKit.Mina,
+    };
+
+    private string StoryLabel() => _storyKey switch
+    {
+        "akari" => "あかり",
+        "koharu" => "こはる",
+        "rei" => "レイ",
+        "mina" => "ミナ",
+        _ => _storyName,
+    };
+
+    private void DrawStoryFrame()
+    {
+        Color accent = StoryAccent();
+        Color accent2 = StoryAccent2();
+        Color ink = new(0.025f, 0.025f, 0.04f, 0.96f);
+        Color glass = new(0.035f, 0.035f, 0.055f, 0.82f);
+
+        UiKit.VGradient(this, new Rect2(0, 0, 1280, 88),
+            new[] { new Color(0.010f, 0.012f, 0.020f, 0.98f), new Color(0.020f, 0.020f, 0.030f, 0.88f), new Color(0, 0, 0, 0f) },
+            new[] { 0f, 0.72f, 1f });
+        UiKit.VGradient(this, new Rect2(0, 480, 1280, 240),
+            new[] { new Color(0, 0, 0, 0f), new Color(0.010f, 0.012f, 0.020f, 0.9f), ink },
+            new[] { 0f, 0.24f, 1f });
+        DrawRect(new Rect2(0, 0, 1280, 64), new Color(0.018f, 0.020f, 0.030f, 0.72f));
+        DrawRect(new Rect2(0, 516, 1280, 204), new Color(0.018f, 0.018f, 0.026f, 0.78f));
+
+        UiKit.HGradient(this, new Rect2(0, 64, 1280, 2), new Color(accent, 0f), new Color(accent, 0.65f));
+        UiKit.HGradient(this, new Rect2(0, 516, 1280, 2), new Color(accent2, 0.55f), new Color(accent, 0f));
+        DrawRect(new Rect2(18, 82, 2, 410), new Color(accent, 0.18f));
+        DrawRect(new Rect2(1260, 82, 2, 410), new Color(accent2, 0.18f));
+
+        const float panelX = 72f, panelY = 526f, panelW = 1136f, panelH = 174f;
+        UiKit.Box(this, new Rect2(panelX, panelY, panelW, panelH), glass, 8f, new Color(accent, 0.28f), 1.2f);
+        UiKit.VGradient(this, new Rect2(panelX + 1, panelY + 1, panelW - 2, 54),
+            new[] { new Color(1, 1, 1, 0.055f), new Color(1, 1, 1, 0f) }, new[] { 0f, 1f });
+        DrawRect(new Rect2(panelX + 20, panelY + 18, 3, 42), new Color(accent, 0.78f));
+        DrawRect(new Rect2(panelX + panelW - 28, panelY + 18, 3, 42), new Color(accent2, 0.52f));
+
+        string mode = _aftermath ? "AFTER SCENE" : "MEMORY LOG";
+        string modeJ = _aftermath ? "アフターシーン" : "回想記録";
+        float chipW = Mathf.Max(188f, UiKit.TextW(UiKit.Mono, mode, 18) + 44f);
+        UiKit.Box(this, new Rect2(42, 18, chipW, 30), new Color(0.040f, 0.038f, 0.058f, 0.72f), 8f, new Color(accent, 0.45f), 1f);
+        UiKit.Text(this, UiKit.Mono, new Vector2(64, 24), mode, 18, new Color(accent, 0.96f));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(64 + chipW, 25), $"  {StoryLabel()} / {modeJ}", 16, new Color(UiKit.Text2, 0.9f));
+
+        float metaRight = _skip.Available ? 990f : 1194f;
+        string progress = $"{_line + 1:00}/{_lines.Length:00}";
+        float progressW = UiKit.TextW(UiKit.Mono, progress, 18);
+        UiKit.Text(this, UiKit.Mono, new Vector2(metaRight - progressW, 25), progress, 18, new Color(UiKit.Text2, 0.86f));
+        DrawProgressTicks(accent, accent2, metaRight - 58f);
+    }
+
+    private void DrawProgressTicks(Color accent, Color accent2, float right)
+    {
+        int count = Math.Max(1, _lines.Length);
+        float w = 206f, x0 = right - w, y = 37f;
+        DrawRect(new Rect2(x0, y, w, 1.4f), new Color(1, 1, 1, 0.11f));
+        for (int i = 0; i < count; i++)
+        {
+            float x = x0 + w * i / Math.Max(1, count - 1);
+            float h = i == _line ? 12f : i < _line ? 8f : 5f;
+            Color c = i <= _line ? accent.Lerp(accent2, count <= 1 ? 0 : i / (float)(count - 1)) : new Color(UiKit.Text4, 0.32f);
+            DrawRect(new Rect2(x - 1.2f, y - h * 0.5f, 2.4f, h), c);
+        }
     }
 
     // 時制の見出し（字幕）。会話欄の話者名の行（Hud のシネマ表示は 112,542 に話者名を描く）に、

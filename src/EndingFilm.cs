@@ -148,9 +148,6 @@ public partial class EndingFilm : Node2D
 
         float captionAlpha = Ease(local / 0.7) * (1 - Ease((local - length + 0.7) / 0.7));
         float framing = shot == 9 ? 1 - Ease(local / 2.5) : 1;
-        if (shot != 8)
-            DrawRect(new Rect2(0, 0, 1280, 26), new Color(0.025f, 0.03f, 0.04f, 0.88f * framing));
-        DrawRect(new Rect2(0, 556, 1280, 164), new Color(0.025f, 0.03f, 0.04f, 0.9f * framing));
         Color accent = Speakers[shot] switch
         {
             "あかり" => new Color("f0c969"),
@@ -158,6 +155,9 @@ public partial class EndingFilm : Node2D
             "レイ" => new Color("de91b9"),
             _ => new Color("87d7ed"),
         };
+        if (shot > 0 && local < 0.35)
+            DrawRect(new Rect2(0, 0, 1280, 720), new Color(accent, 0.045f * (1f - Ease(local / 0.35))));
+        DrawFilmChrome(shot, progress, framing, captionAlpha, accent);
         DrawString(UiKit.ZenBold, new Vector2(80, 587), Speakers[shot], HorizontalAlignment.Left, -1, 22,
             new Color(accent, captionAlpha));
         string[] lines = Lines[shot].Split('\n');
@@ -175,5 +175,51 @@ public partial class EndingFilm : Node2D
         }
         if (_leaving)
             Frame(9, 1, Ease(_leaveTime / 0.7));
+    }
+
+    private void DrawFilmChrome(int shot, float progress, float framing, float captionAlpha, Color accent)
+    {
+        if (framing <= 0f) return;
+        Color dark = new(0.018f, 0.022f, 0.034f, 0.88f * framing);
+        if (shot != 8)
+        {
+            DrawRect(new Rect2(0, 0, 1280, 58), dark);
+            UiKit.VGradient(this, new Rect2(0, 0, 1280, 58),
+                new[] { new Color(1f, 1f, 1f, 0.055f * framing), new Color(1f, 1f, 1f, 0f) },
+                new[] { 0f, 1f });
+            DrawString(UiKit.ZenBold, new Vector2(80, 36), $"ENDING LOG / CUT {shot + 1:00}", HorizontalAlignment.Left, -1, 18,
+                new Color(0.92f, 0.96f, 1f, 0.70f * framing));
+            DrawString(UiKit.Zen, new Vector2(1078, 36), $"{Elapsed:00.0}s", HorizontalAlignment.Right, 120, 16,
+                new Color(0.92f, 0.96f, 1f, 0.52f * framing));
+            DrawTrack(shot, progress, accent, framing);
+        }
+
+        DrawRect(new Rect2(0, 540, 1280, 180), new Color(0.018f, 0.022f, 0.034f, 0.92f * framing));
+        UiKit.VGradient(this, new Rect2(0, 540, 1280, 180),
+            new[] { new Color(1f, 1f, 1f, 0.05f * framing), new Color(0f, 0f, 0f, 0.26f * framing) },
+            new[] { 0f, 1f });
+        UiKit.HGradient(this, new Rect2(80, 556, 560, 2), accent with { A = 0.05f * framing }, accent with { A = 0.78f * framing });
+        UiKit.HGradient(this, new Rect2(640, 556, 560, 2), accent with { A = 0.78f * framing }, accent with { A = 0.05f * framing });
+        DrawLine(new Vector2(62, 585), new Vector2(62, 682), new Color(accent, 0.55f * captionAlpha), 2f);
+        DrawLine(new Vector2(1218, 585), new Vector2(1218, 682), new Color(accent, 0.22f * captionAlpha), 1f);
+        UiKit.RadialGlow(this, new Vector2(1160, 548), 170f, accent, 0.12f * captionAlpha * framing);
+    }
+
+    private void DrawTrack(int shot, float progress, Color accent, float framing)
+    {
+        const float x0 = 850f, y = 28f, gap = 28f;
+        for (int i = 0; i < Cuts.Length - 1; i++)
+        {
+            float x = x0 + i * gap;
+            float a = i < shot ? 0.55f : i == shot ? 0.95f : 0.24f;
+            DrawCircle(new Vector2(x, y), i == shot ? 3.2f : 2.1f, new Color(i == shot ? accent : new Color(0.86f, 0.91f, 1f), a * framing));
+            if (i < Cuts.Length - 2)
+            {
+                float fill = i < shot ? 1f : i == shot ? progress : 0f;
+                DrawLine(new Vector2(x + 5f, y), new Vector2(x + gap - 5f, y), new Color(0.86f, 0.91f, 1f, 0.18f * framing), 1f);
+                if (fill > 0f)
+                    DrawLine(new Vector2(x + 5f, y), new Vector2(x + 5f + (gap - 10f) * fill, y), new Color(accent, 0.70f * framing), 1.5f);
+            }
+        }
     }
 }

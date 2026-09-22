@@ -466,6 +466,7 @@ public partial class Epilogue : Node2D
         if (_font == null) return;
         // ロール中は空を沈める（文字が最優先）。明け方の空はそのまま後ろに残す。
         DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.55f));
+        DrawRollAtmosphere();
         for (int i = 0; i < _roll.Length; i++)
         {
             float y = H + i * RollLineH - (float)_t * RollSpeed;
@@ -479,6 +480,12 @@ public partial class Epilogue : Node2D
                     : Ink;
             // 【終】の一行だけクライマックス級（旧 "stay." の枠）。見出し・投稿とは重ならない。
             int sz = !head && !post && line == _rollLast ? UiKit.CutClimax : UiKit.CutBody;
+            if (sz == UiKit.CutClimax)
+            {
+                float glow = 1f - Mathf.Clamp(Mathf.Abs(y - H * 0.5f) / 110f, 0f, 1f);
+                UiKit.RadialGlow(this, new Vector2(W * 0.5f, y - 5f), 90f, Cool, 0.16f * glow);
+                c = UiKit.CutInk with { A = 1f };
+            }
             // 「職種\t担当者」の2欄行は、欄の境（RollGutter）で左右に振り分けて描く。
             //   ここを中央寄せの1文字列で済ませると、職種の長短で担当者名の頭が行ごとに揺れ、
             //   複数行の職種を最後の1行で受ける書き方（職種だけの行→担当者だけの行）も繋がって見えない。
@@ -521,6 +528,28 @@ public partial class Epilogue : Node2D
         }
     }
 
+    private void DrawRollAtmosphere()
+    {
+        float breath = 0.55f + 0.45f * Mathf.Sin((float)_t * 0.55f);
+        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 18f), 170f, Cool, 0.10f + 0.035f * breath);
+        UiKit.VGradient(this, new Rect2(0, 0, W, 72),
+            new[] { new Color(Cool, 0.18f), new Color(0.02f, 0.03f, 0.06f, 0f) },
+            new[] { 0f, 1f });
+        for (int i = 0; i < 7; i++)
+        {
+            float x = 26f + i * 58f + Mathf.Sin((float)_t * 0.23f + i * 1.7f) * 6f;
+            float a = (0.035f + 0.018f * Mathf.Sin((float)_t * 0.4f + i)) * (i % 2 == 0 ? 1f : 0.65f);
+            DrawLine(new Vector2(x, 0), new Vector2(x - 44f, H - 28f), new Color(0.78f, 0.93f, 1f, a), 1f);
+        }
+        for (int i = 0; i < 20; i++)
+        {
+            float x = (i * 73f + 19f) % W;
+            float y = (float)((i * 31.0 + _t * (4.5 + i % 4)) % (H - 34f));
+            float a = 0.10f + 0.06f * Mathf.Sin((float)_t * 0.7f + i);
+            DrawCircle(new Vector2(x, y), 0.55f + (i % 3) * 0.25f, new Color(0.92f, 0.97f, 1f, a));
+        }
+    }
+
     // タイプライターで送る現在行のテキスト（会話フェーズのみ。スタッフロールは対象外）。
     private string? CurLineText()
     {
@@ -541,8 +570,14 @@ public partial class Epilogue : Node2D
         DrawLineBox(_end[_line]);
         // END は最後の1行だけ。選択がまだ出ていない間（＝末尾が「本日の業務は、以上です。」）は出さない。
         if (_e6ChoiceLine < 0 && _line >= _end.Count - 1)
-            Shadowed(_font, new Vector2(0, 82f), "END", HorizontalAlignment.Center, W * 0.5f, UiKit.CutClimax,
-                UiKit.CutInk with { A = 0.9f });
+        {
+            float pulse = 0.55f + 0.45f * Mathf.Sin((float)_t * 1.7f);
+            UiKit.RadialGlow(this, new Vector2(W * 0.5f, 76f), 116f, Cool, 0.18f + 0.05f * pulse);
+            UiKit.HGradient(this, new Rect2(86, 100, W * 0.5f - 86, 1), Cool with { A = 0f }, Cool with { A = 0.72f });
+            UiKit.HGradient(this, new Rect2(W * 0.5f, 100, W * 0.5f - 86, 1), Cool with { A = 0.72f }, Cool with { A = 0f });
+            Shadowed(_font, new Vector2(0, 82f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
+                UiKit.CutInk with { A = 0.96f });
+        }
     }
 
     // 話者ごとの縁色。三人（あかり／こはる／レイ）は面の色を借りて、ミナと取り違えないようにする。
@@ -567,7 +602,7 @@ public partial class Epilogue : Node2D
         string page = CurPage;
         var lines = UiKit.WrapLines(font, page, UiKit.CutBody, W - 56);
         float boxTop = H - 58f;   // 2行固定（下余白12px＝額縁を効かせる）
-        DrawRect(new Rect2(0, boxTop, W, H - boxTop), new Color(0.025f, 0.03f, 0.04f, 0.9f));
+        UiKit.CutBox(this, new Rect2(14, boxTop, W - 28, H - 10f - boxTop), edge, narr ? 0.38f : 0.5f);
         string label = narr ? "" : d.Who;
         if (label != "")
             DrawString(UiKit.ZenBold, new Vector2(24, boxTop + 12), label, HorizontalAlignment.Left, -1, UiKit.CutSpeaker, edge);

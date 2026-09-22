@@ -17,13 +17,17 @@ public partial class Hud : CanvasLayer
     private static UiKit.TextStyle FilmBody => new(UiKit.Zen, 24, 0, 1.55f);
     private const float FilmTextWidth = 1056f;
     private bool _cinematicBubble;
+    private bool _hasCinematicAccent;
+    private Color _cinematicAccent;
     private float FilmTextX => _cinematicBubble ? 216f : 112f;
     private float FilmWrapWidth => _cinematicBubble ? 928f : FilmTextWidth;
 
-    public void SetCinematicMode(bool active, bool dialogueBubble = false)
+    public void SetCinematicMode(bool active, bool dialogueBubble = false, Color? accent = null)
     {
         CinematicMode = active;
         _cinematicBubble = active && dialogueBubble;
+        _hasCinematicAccent = active && !_cinematicBubble && accent.HasValue;
+        _cinematicAccent = accent ?? UiKit.Info;
         UpdateDialoguePause();
     }
     public bool HoldBubble = false;
@@ -504,7 +508,7 @@ public partial class Hud : CanvasLayer
             case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
-        if (CinematicMode && !_cinematicBubble) color = UiKit.Text2;
+        if (CinematicMode && !_cinematicBubble) color = _hasCinematicAccent ? _cinematicAccent : UiKit.Text2;
         SetDialog(text, speaker, color, dialog, portraitToUse, kind, draftMark: kind == LineKind.Boy);
         _messageTimer = 6.0;
         UpdateDialoguePause();
@@ -1704,12 +1708,13 @@ public partial class Hud : CanvasLayer
             }
             if (_dlgSpeaker.Length > 0)
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(FilmTextX, 542), _dlgSpeaker, 21,
-                    _cinematicBubble ? _dlgSpeakerCol : Colors.White);
+                    _cinematicBubble ? _dlgSpeakerCol : new Color(_dlgSpeakerCol, 0.96f));
             UiKit.TypewriterLines(ci, UiKit.Zen, lines,
                 new Vector2(FilmTextX, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmWrapWidth,
-                FilmBody.Size, Colors.White, n, extraLeading: FilmBody.ExtraLeading);
+                FilmBody.Size, new Color(0.965f, 0.97f, 0.99f), n, extraLeading: FilmBody.ExtraLeading);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(1168, 546));
-            else if (morePages) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14, Colors.White);
+            else if (morePages) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14,
+                _hasCinematicAccent ? new Color(_cinematicAccent, 0.9f) : Colors.White);
             return;
         }
 

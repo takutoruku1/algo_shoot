@@ -1,194 +1,275 @@
 using Godot;
 
-// Records : クリアタイムの記録画面。ステージ(縦) × 難易度(横) のベストタイム表。
-//   未記録は "--"。UiKit のガラストーン/角丸/役割色を踏襲。Hub のフッタ T から開き、X/Esc で戻る。
-//   セーブ(save_N.json)の clearTimes を GameManager 経由で参照（このシーンは状態を変更しない）。
 public partial class Records : Node2D
 {
     private GameManager _game = null!;
     private const float W = UiKit.DesignW, H = UiKit.DesignH;
+    private static readonly Color Surface = new("141719");
+    private static readonly Color Raised = new("1c2224");
+    private static readonly Color Ink = new("edf3ef");
+    private static readonly Color Muted = new("a1afaa");
+    private static readonly Color Line = new("303a38");
+    private static readonly Color TimeInk = new("98dec6");
+    private static readonly Color ScoreInk = new("f0c6a1");
+    private static readonly Rect2 MemoryRect = new(48, 204, 448, 374);
+    private static readonly Rect2 HomeRect = new(48, 662, 192, 40);
+    private readonly Texture2D?[] _memories = new Texture2D?[4];
+    private readonly Texture2D?[] _avatars = new Texture2D?[4];
+    private int _sel;
+    private double _t, _revealT;
+    private float _tabX = 48;
+    private bool _backHeld, _navHeld, _leaving, _autoplay;
+    private int _hover = -1;
 
-    private double _t;
-    private bool _backHeld;
-    private bool _autoplay;
-
-    // 表の行＝ストーリーステージ＋FINAL。表示名は短く。
-    private static readonly (string id, string label)[] Rows =
+    private static readonly (string id, string label, Job job, string art)[] Stages =
     {
-        ("akari", "STAGE 1 — あかり"),
-        ("koharu", "STAGE 2 — こはる"),
-        ("rei", "STAGE 3 — レイ"),
-        ("final", "FINAL — ミナ"),
+        ("akari", "STAGE 01", Job.Melee, "res://char/bg2/boss/akari_real_v1.png"),
+        ("koharu", "STAGE 02", Job.Heal, "res://char/bg2/boss/koharu_real_v1.png"),
+        ("rei", "STAGE 03", Job.Magic, "res://char/bg2/boss/rei_real_v1.png"),
+        ("final", "FINAL", Job.Tank, "res://char/bg2/boss/mina_real_v1.png"),
     };
-    // 列＝難易度。
-    private static readonly (GameManager.Diff diff, string label)[] Cols =
+    private static readonly (GameManager.Diff diff, string label, Color color)[] Difficulties =
     {
-        (GameManager.Diff.Easy, "EASY"),
-        (GameManager.Diff.Normal, "NORMAL"),
-        (GameManager.Diff.Hard, "HARD"),
-        (GameManager.Diff.Lunatic, "LUNATIC"),
+        (GameManager.Diff.Easy, "EASY", new Color("98dec6")),
+        (GameManager.Diff.Normal, "NORMAL", new Color("a6dcec")),
+        (GameManager.Diff.Hard, "HARD", new Color("eeb99b")),
+        (GameManager.Diff.Lunatic, "LUNATIC", new Color("e6a6c3")),
     };
 
     public override void _Ready()
     {
-        _game = GetNodeOrNull<GameManager>("/root/Game")!;
+        _game = GetNode<GameManager>("/root/Game");
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        for (int i = 0; i < Stages.Length; i++)
+        {
+            if (Known(i)) _avatars[i] = GD.Load<Texture2D>(CompanionDialogue.AccountPortrait(Stages[i].job));
+            // The final name is known before its room has been restored.
+            if (Cleared(i)) _memories[i] = GD.Load<Texture2D>(Stages[i].art);
+        }
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
     }
 
-    // 「もどる」フッタヒントのクリック矩形（_Draw のフッタ Hint と同じ x=padX, y=H-56）。
-    //   キー分の幅＋ラベル幅を含む帯を丸ごとクリック可能にする（Records は戻る操作のみ）。
-    private static Rect2 BackHintRect()
+    private bool Cleared(int index) => index == 3 ? _game.IsFinalCleared : _game.IsStageCleared(Stages[index].id);
+    private bool Known(int index) => index == 3 ? _game.AllStoryCleared || _game.IsFinalCleared : Cleared(index);
+    private string StageName(int index) => Known(index) ? Jobs.Get(Stages[index].job).CharacterName : "???";
+    private Color StageAccent(int index) => Known(index) ? CompanionDialogue.Accent(Stages[index].job) : Muted;
+    private static Rect2 TabRect(int index) => new(48 + index * 296, 102, 296, 76);
+
+    private int ClearCount()
     {
-        float padX = 56f, fy = H - 56f;
-        string key = Pad.CancelToken;
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
-        return new Rect2(padX, fy - 16f, kw + 8f + lw + 8f, 32f);
+        int count = 0;
+        for (int i = 0; i < Stages.Length; i++) if (Cleared(i)) count++;
+        return count;
+    }
+
+    private int RecordCount(string id)
+    {
+        int count = 0;
+        foreach (var d in Difficulties)
+            if (_game.GetBestTime(id, d.diff).HasValue || _game.GetBestScore(id, d.diff).HasValue) count++;
+        return count;
+    }
+
+    private (GameManager.Diff diff, long score)? BestScore(string id)
+    {
+        (GameManager.Diff diff, long score)? best = null;
+        foreach (var d in Difficulties)
+        {
+            var score = _game.GetBestScore(id, d.diff);
+            if (score.HasValue && (!best.HasValue || score.Value > best.Value.score)) best = (d.diff, score.Value);
+        }
+        return best;
+    }
+
+    private void SelectStage(int index)
+    {
+        if (_sel == index) return;
+        _sel = index;
+        _revealT = 0;
+        Audio.Instance?.PlayUiMove();
+        QueueRedraw();
+    }
+
+    private void GoHome()
+    {
+        if (_leaving) return;
+        _leaving = true;
+        Audio.Instance?.PlayUiCancel();
+        GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
     public override void _Process(double delta)
     {
         _t += delta;
-        if (!_autoplay)
+        _revealT += delta;
+        _tabX = Mathf.Lerp(_tabX, TabRect(_sel).Position.X, 1f - Mathf.Exp(-18f * (float)delta));
+        if (_leaving || _autoplay) { QueueRedraw(); return; }
+        if (Pad.UiBlocked(this))
         {
-            // ポーズメニューを閉じた Esc の同じ押下が漏れて「もどる」が誤発火しないよう食う（Pad.UiBlocked）。
-            if (Pad.UiBlocked(this)) { _backHeld = true; QueueRedraw(); return; }
-
-            // マウス：フッタの「もどる」クリック／右クリックでも戻れる（Records は他に選択要素なし）。
-            UiKit.BeginHotspots(Pad.MousePos());
-            UiKit.Hotspot(BackHintRect(), 0);
-            bool clickBack = UiKit.ClickedId(Pad.MouseClick()) == 0 || Pad.MouseRightClick();
-
-            // もどる＝X／T／パッドB。Esc は 2026-09-14 に外した（＝どの画面でもポーズメニューを開く役）。
-            bool back = Input.IsKeyPressed(Key.X)
-                        || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
-            bool backEdge = back && !_backHeld; _backHeld = back;
-            if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
+            _backHeld = _navHeld = true;
+            _hover = -1;
+            QueueRedraw();
+            return;
         }
+
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < Stages.Length; i++) UiKit.Hotspot(TabRect(i), i);
+        UiKit.Hotspot(HomeRect, 4);
+        _hover = UiKit.HoveredId();
+        int click = UiKit.ClickedId(Pad.MouseClick());
+        if (click >= 0 && click < Stages.Length) SelectStage(click);
+
+        bool prev = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up") || Pad.Pressed(JoyButton.LeftShoulder);
+        bool next = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down") || Pad.Pressed(JoyButton.RightShoulder);
+        if ((prev || next) && !_navHeld) SelectStage((_sel + (prev ? 3 : 1)) % Stages.Length);
+        _navHeld = prev || next;
+
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
+        bool backEdge = back && !_backHeld;
+        _backHeld = back;
+        if ((backEdge || click == 4 || Pad.MouseRightClick()) && _t > 0.2) GoHome();
         QueueRedraw();
     }
 
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-
-        UiKit.VGradient(this, new Rect2(0, 0, W, H),
-            new[] { new Color("0c142a"), new Color("0a1022"), new Color("070a16") }, new[] { 0f, 0.55f, 1f });
-        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 0), 460f, new Color(120 / 255f, 150 / 255f, 210 / 255f), 0.14f);
-        for (float y = 0; y < H; y += 6f) DrawRect(new Rect2(0, y, W, 1f), new Color(0, 0, 0, 0.05f));
-
-        float padX = 56f, top = 40f;
-        // ── ヘッダ ──
-        UiKit.Draw(this, UiKit.SmallLabel, new Vector2(padX, top + 8), "RECORDS", UiKit.Info);
-        float tagW = UiKit.TrackedW(UiKit.SmallLabel, "RECORDS");
-        UiKit.Text(this, UiKit.ZenBlack, new Vector2(padX + tagW + 16, top), "クリアタイム", UiKit.FontTitle, UiKit.White);
-        UiKit.Text(this, UiKit.Zen, new Vector2(padX, top + 4), "ステージ × 難易度のベストタイム／スコア", UiKit.FontBody, UiKit.Text3,
-            HorizontalAlignment.Right, W - padX * 2);
-        DrawRect(new Rect2(padX, top + 44, W - padX * 2, 1f), new Color(1, 1, 1, 0.1f));
-
-        // ── 表のジオメトリ ──
-        float tableTop = top + 70f;
-        float tableW = W - padX * 2;
-        float labelW = 300f;                         // 行見出し（ステージ名）
-        float colsW = tableW - labelW;
-        float colW = colsW / Cols.Length;
-        float headH = 40f;
-        float rowH = 92f, rowGap = 12f; // タイム＋スコアの2段表示ぶん、タイムのみ(74)より高さを取る
-
-        // ── 列見出し（難易度）──
-        for (int c = 0; c < Cols.Length; c++)
-        {
-            float cx = padX + labelW + c * colW;
-            Color cc = DiffColor(Cols[c].diff);
-            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, tableTop + 12), Cols[c].label, UiKit.FontBody, cc,
-                HorizontalAlignment.Center, colW);
-        }
-        DrawRect(new Rect2(padX, tableTop + headH, tableW, 1f), new Color(1, 1, 1, 0.08f));
-
-        // ── 各行 ──
-        for (int r = 0; r < Rows.Length; r++)
-        {
-            float ry = tableTop + headH + 8f + r * (rowH + rowGap);
-            DrawRow(Rows[r].id, Rows[r].label, padX, ry, labelW, colW, rowH);
-        }
-
-        // ── フッタ ──
-        float fy = H - 56f;
-        DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
-        Hint(padX, fy, Pad.CancelToken, "もどる", true);
-
+        DrawRect(new Rect2(0, 0, W, H), Surface);
+        DrawRect(new Rect2(0, 0, W, 88), Raised);
+        DrawRect(new Rect2(0, 88, W, 1), Line);
+        DrawRect(new Rect2(0, 648, W, H - 648), Raised);
+        DrawRect(new Rect2(0, 648, W, 1), Line);
+        DrawHeader();
+        DrawTabs();
+        DrawMemory();
+        DrawBests();
+        DrawTable();
+        DrawFooter();
         UiKit.EndDesign(this);
     }
 
-    private void DrawRow(string id, string label, float x, float y, float labelW, float colW, float h)
+    private void DrawHeader()
     {
-        float tableW = labelW + colW * Cols.Length;
-        // 行のガラス下敷き
-        UiKit.Box(this, new Rect2(x, y, tableW, h), new Color(22 / 255f, 18 / 255f, 34 / 255f, 0.42f), 12f, new Color(1, 1, 1, 0.07f), 1f);
-        // 行アクセントバー（ステージ色）
-        DrawRect(new Rect2(x + 4, y + 10, 3, h - 20), new Color(StageColor(id), 0.6f));
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(48, 22), "記録", 32, Ink);
+        UiKit.Text(this, UiKit.Mono, new Vector2(130, 37), "RECORDS", 13, Muted);
+        int clears = ClearCount();
+        UiKit.Text(this, UiKit.Zen, new Vector2(950, 24), "クリアステージ", 13, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(1088, 22), $"{clears:00} / 04", 26, clears == 4 ? TimeInk : Ink,
+            HorizontalAlignment.Right, 144);
+        for (int i = 0; i < Stages.Length; i++)
+            DrawRect(new Rect2(950 + i * 72, 64, 66, 3), Cleared(i) ? StageAccent(i) : Line);
+    }
 
-        // ステージ名（2段：STAGE n / 名前）。
-        //   未クリアの行は名前を伏せる（2026-09-07）＝記録画面を開いただけで登場人物が割れないようにする。
-        //   面の番号（STAGE n / FINAL）だけは残す＝「あと何面あるか」は見える。判定は既存のクリア記録のみ。
-        bool known = id == "final" ? (_game?.AllStoryCleared ?? false) : (_game?.IsStageCleared(id) ?? false);
-        string head = label.Contains("—") ? label.Split('—')[0].Trim() : label;
-        string name = label.Contains("—") ? label.Split('—')[^1].Trim() : label;
-        UiKit.Text(this, UiKit.Mono, new Vector2(x + 22, y + 16), head, UiKit.FontSmall, UiKit.Text3);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 22, y + 36), known ? name : "???", UiKit.FontHeading,
-            known ? UiKit.White : UiKit.Text4);
-
-        // この行で最速の難易度（ハイライト用）。
-        var best = _game?.BestAcrossDiffs(id);
-
-        for (int c = 0; c < Cols.Length; c++)
+    private void DrawTabs()
+    {
+        for (int i = 0; i < Stages.Length; i++)
         {
-            float cx = x + labelW + c * colW;
-            var t = _game?.GetBestTime(id, Cols[c].diff);
-            var sc = _game?.GetBestScore(id, Cols[c].diff);
-            bool isRowBest = best != null && t != null && Mathf.IsEqualApprox(t.Value, best.Value.sec) && Cols[c].diff == best.Value.diff;
-            string s = t != null ? UiKit.FormatTime(t.Value) : "--";
-            string scS = sc != null ? UiKit.FormatScore(sc.Value) : "--";
-            Color tc = t == null ? UiKit.Text4 : (isRowBest ? UiKit.Gold : UiKit.PurifyHi);
-            Color scc = sc == null ? UiKit.Text4 : UiKit.Gold;
-            // セル枠（行内ベストは淡く強調・タイム＋スコアの2段ぶん広げる）
-            if (isRowBest)
-                UiKit.Box(this, new Rect2(cx + 8, y + h / 2f - 26, colW - 16, 52f), new Color(UiKit.Gold, 0.08f), 8f, new Color(UiKit.Gold, 0.4f), 1f);
-            // タイム行（上段）
-            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f - 20), s, UiKit.FontHeading, tc,
-                HorizontalAlignment.Center, colW);
-            // ベストスコア行（下段・タイムより小さく）
-            UiKit.Text(this, UiKit.Mono, new Vector2(cx, y + h / 2f + 8), scS, UiKit.FontSmall, scc,
-                HorizontalAlignment.Center, colW);
+            var r = TabRect(i);
+            bool active = _sel == i;
+            if (active || _hover == i) DrawRect(r, active ? Raised : new Color("191d20"));
+            UiKit.FaceAvatar(this, r.Position + new Vector2(35, 35), 22, _avatars[i], StageAccent(i), false, 0);
+            UiKit.Text(this, UiKit.Mono, r.Position + new Vector2(75, 11), Stages[i].label, 13, Muted);
+            UiKit.Text(this, UiKit.ZenBold, r.Position + new Vector2(75, 32), StageName(i), 20, active ? Ink : Muted);
+            if (Cleared(i)) UiKit.Text(this, UiKit.Mono, r.Position + new Vector2(212, 29), "CLEAR", 13, TimeInk);
+        }
+        DrawLine(new Vector2(48, 178), new Vector2(1232, 178), Line, 1);
+        DrawRect(new Rect2(_tabX, 176, 296, 3), StageAccent(_sel));
+    }
+
+    private void DrawMemory()
+    {
+        var art = _memories[_sel];
+        float reveal = Mathf.Clamp((float)_revealT / 0.24f, 0, 1);
+        if (art != null)
+        {
+            Vector2 sourceSize = art.GetSize();
+            float scale = Mathf.Max(MemoryRect.Size.X / sourceSize.X, MemoryRect.Size.Y / sourceSize.Y);
+            Vector2 crop = MemoryRect.Size / scale;
+            DrawTextureRectRegion(art, MemoryRect, new Rect2((sourceSize - crop) / 2, crop), new Color(1, 1, 1, reveal));
+        }
+        else
+        {
+            DrawRect(MemoryRect, Raised);
+            UiKit.Text(this, UiKit.Mono, new Vector2(48, 328), Stages[_sel].label, 18, Muted,
+                HorizontalAlignment.Center, 448);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(48, 365), "未クリア", 28, Ink,
+                HorizontalAlignment.Center, 448);
+            DrawLine(new Vector2(236, 425), new Vector2(308, 425), Line, 2);
+        }
+        DrawRect(new Rect2(48, 578, 448, 3), art != null ? StageAccent(_sel) : Line);
+        UiKit.Text(this, UiKit.Mono, new Vector2(48, 594), art != null ? "REAL REALM" : "NOT CLEARED", 13,
+            art != null ? StageAccent(_sel) : Muted);
+        UiKit.Text(this, UiKit.Zen, new Vector2(252, 592), art != null ? "取り戻した景色" : "記録なし", 14, Muted,
+            HorizontalAlignment.Right, 244);
+    }
+
+    private void DrawBests()
+    {
+        var stage = Stages[_sel];
+        UiKit.Text(this, UiKit.ZenBlack, new Vector2(552, 199), StageName(_sel), 30, Ink);
+        UiKit.Text(this, UiKit.Zen, new Vector2(1070, 213), "記録", 13, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(1114, 212), $"{RecordCount(stage.id):00} / 04", 15, Muted,
+            HorizontalAlignment.Right, 118);
+        var bestTime = _game.BestAcrossDiffs(stage.id);
+        var bestScore = BestScore(stage.id);
+        UiKit.Text(this, UiKit.Zen, new Vector2(552, 264), "最速タイム", 14, Muted);
+        UiKit.Text(this, UiKit.Zen, new Vector2(868, 264), "最高スコア", 14, Muted);
+        if (bestTime.HasValue) UiKit.Text(this, UiKit.Mono, new Vector2(720, 265), bestTime.Value.diff.ToString().ToUpperInvariant(), 13,
+            TimeInk, HorizontalAlignment.Right, 104);
+        if (bestScore.HasValue) UiKit.Text(this, UiKit.Mono, new Vector2(1120, 265), bestScore.Value.diff.ToString().ToUpperInvariant(), 13,
+            ScoreInk, HorizontalAlignment.Right, 112);
+        DrawValue(bestTime.HasValue ? UiKit.FormatTime(bestTime.Value.sec) : "--", new Rect2(552, 289, 272, 48), 38,
+            bestTime.HasValue ? TimeInk : Muted);
+        DrawValue(bestScore.HasValue ? UiKit.FormatScore(bestScore.Value.score) : "--", new Rect2(868, 289, 364, 48), 38,
+            bestScore.HasValue ? ScoreInk : Muted);
+        DrawLine(new Vector2(844, 264), new Vector2(844, 340), Line, 1);
+        DrawLine(new Vector2(552, 360), new Vector2(1232, 360), Line, 1);
+    }
+
+    private void DrawTable()
+    {
+        string id = Stages[_sel].id;
+        UiKit.Text(this, UiKit.Zen, new Vector2(552, 381), "難易度", 13, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(774, 382), "BEST TIME", 13, Muted, HorizontalAlignment.Right, 154);
+        UiKit.Text(this, UiKit.Mono, new Vector2(994, 382), "BEST SCORE", 13, Muted, HorizontalAlignment.Right, 216);
+        for (int i = 0; i < Difficulties.Length; i++)
+        {
+            var diff = Difficulties[i];
+            float y = 416 + i * 54;
+            var time = _game.GetBestTime(id, diff.diff);
+            var score = _game.GetBestScore(id, diff.diff);
+            bool hasRecord = time.HasValue || score.HasValue;
+            if (hasRecord) DrawRect(new Rect2(552, y, 680, 49), Raised);
+            DrawRect(new Rect2(552, y + 12, 3, 25), hasRecord ? diff.color : Line);
+            UiKit.Text(this, UiKit.Mono, new Vector2(570, y + 13), diff.label, 16, hasRecord ? diff.color : Muted);
+            DrawValue(time.HasValue ? UiKit.FormatTime(time.Value) : "--", new Rect2(746, y + 10, 182, 30), 22,
+                time.HasValue ? Ink : Muted, true);
+            DrawValue(score.HasValue ? UiKit.FormatScore(score.Value) : "--", new Rect2(994, y + 10, 216, 30), 22,
+                score.HasValue ? Ink : Muted, true);
+            DrawLine(new Vector2(552, y + 49), new Vector2(1232, y + 49), Line, 1);
         }
     }
 
-    private static Color DiffColor(GameManager.Diff d) => d switch
+    private int ValueSize(string text, float width, int preferred)
     {
-        GameManager.Diff.Easy => UiKit.Ok,
-        GameManager.Diff.Hard => new Color("e89460"),
-        GameManager.Diff.Lunatic => UiKit.Kegare,
-        _ => UiKit.Purify,
-    };
+        int size = preferred;
+        while (size > 1 && UiKit.TextW(UiKit.Mono, text, size) > width) size--;
+        return size;
+    }
 
-    private static Color StageColor(string id) => id switch
+    private void DrawValue(string value, Rect2 rect, int size, Color color, bool right = false)
     {
-        "rei" => new Color(0.90f, 0.52f, 0.38f),
-        "akari" => new Color(0.40f, 0.62f, 0.88f),
-        "koharu" => new Color(0.46f, 0.74f, 0.52f),
-        "final" => UiKit.Kegare,
-        _ => UiKit.Text3,
-    };
+        int fit = ValueSize(value, rect.Size.X, size);
+        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(0, (rect.Size.Y - UiKit.Mono.GetHeight(fit)) / 2), value, fit, color,
+            right ? HorizontalAlignment.Right : HorizontalAlignment.Left, rect.Size.X);
+    }
 
-    private float Hint(float x, float y, string key, string label, bool accent)
+    private void DrawFooter()
     {
-        Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
-        Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
-        UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
+        if (_hover == 4) UiKit.Box(this, HomeRect, new Color("2a3335"), 6);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(64, 670), "ホームに戻る", 16, Ink);
+        UiKit.Key(this, new Vector2(199, 670), Pad.CancelToken, Surface, Line, Muted);
     }
 }

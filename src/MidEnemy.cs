@@ -138,7 +138,15 @@ public partial class MidEnemy : Enemy
         Settle,        // こはるグッズの箱：入りは遅く、着座後はほとんど動かない（重い荷）
         Wall,          // バズ壁：のそのそ。着座後は上下もほぼ動かない（射線を塞ぎ続ける壁）
     }
+    private enum MoveVariant
+    {
+        Native,
+        Shoulder,
+        Weave,
+        Pulse,
+    }
     private MoveStyle _move;
+    private MoveVariant _moveVariant;
     private float _movePhase;      // 個体ごとの位相ずらし（群れが同じ軌道で重ならないように）
     private double _moveT;         // 移動用の経過秒（装飾用 _motionT とは独立）
     private float _approachTotal;  // 進入開始時の目標点までの距離（進捗 p の分母。0 除算は下で回避）
@@ -310,6 +318,7 @@ public partial class MidEnemy : Enemy
 
         // 移動の型（2026-09-17）。装飾モーションと 1:1 で対応させ、見た目と実際の動きの性格を揃える。
         _move = MoveFor(_spec.Pattern);
+        _moveVariant = MoveVariantFor(_spec.Pattern);
         _movePhase = GD.Randf() * Mathf.Tau;              // 軌道の位相も個体ごとに散らす（群れが重ならない）
         _arcSign = GD.Randf() < 0.5f ? -1f : 1f;          // 弧の膨らむ向きをランダムに（片側へ揃わない）
         _campPatrolT = GD.Randf() * Mathf.Tau;
@@ -349,6 +358,13 @@ public partial class MidEnemy : Enemy
         AttackPattern.BuzzWall => MoveStyle.Wall,
         _ => MoveStyle.Straight,                             // Default/アンチくん・引用リプ・祈り運び
     };
+
+    private static MoveVariant MoveVariantFor(AttackPattern p)
+    {
+        if (p is AttackPattern.None or AttackPattern.FlankAim or AttackPattern.BuzzWall or AttackPattern.KoharuPrayerCarry)
+            return MoveVariant.Native;
+        return (MoveVariant)(int)(GD.Randi() % 4);
+    }
 
     // 着座後の上下往復の速度(px/s)。従来は全種 14f 固定だった。
     // ★上限 26px/s：これ以上速いと「上下に暴れる的」になり、狙って撃つ手応え（当てる気持ちよさ）が落ちる。
@@ -435,6 +451,20 @@ public partial class MidEnemy : Enemy
         _ => 0f,
     };
 
+    private Vector2 CampVariantOffset(float t) => _moveVariant switch
+    {
+        MoveVariant.Shoulder => new Vector2(
+            Mathf.Sin(t * 0.78f + _movePhase) * 3.5f,
+            Mathf.Cos(t * 0.78f + _movePhase) * 5.5f),
+        MoveVariant.Weave => new Vector2(
+            Mathf.Sin(t * 1.15f + _movePhase) * 4.5f,
+            Mathf.Sin(t * 0.62f + _movePhase + Mathf.Pi * 0.5f) * 7f),
+        MoveVariant.Pulse => new Vector2(
+            Mathf.Round(Mathf.Sin(t * 0.86f + _movePhase) * 2f) * 2f,
+            -Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * 0.78f + _movePhase)), 2f) * 8f),
+        _ => Vector2.Zero,
+    };
+
     // ─── 進入の速度プロファイル ───
     // 引数 p は進捗 0（出現）→1（着座直前）。返すのは Max(MoveSpeed, ApproachFloor) に掛ける倍率。
     // ★戻り値は必ず [ApproachSpeedMin(0.62), ApproachSpeedMax(1.85)] にクランプし、さらに呼び出し側で
@@ -482,7 +512,14 @@ public partial class MidEnemy : Enemy
             MoveStyle.Wall    => 0.72f,                                        // 壁＝のそのそ（圧を先に見せる）
             _ => 1f,                                                            // Straight＝従来どおり等速
         };
-        return Mathf.Clamp(v, ApproachSpeedMin, ApproachSpeedMax);
+        float variant = _moveVariant switch
+        {
+            MoveVariant.Shoulder => 0.94f + 0.18f * Mathf.SmoothStep(0.58f, 1f, p),
+            MoveVariant.Weave => 0.96f + 0.12f * Mathf.Sin(p * Mathf.Pi),
+            MoveVariant.Pulse => 0.90f + 0.22f * Mathf.Abs(Mathf.Sin(t * 1.7f)),
+            _ => 1f,
+        };
+        return Mathf.Clamp(v * variant, ApproachSpeedMin, ApproachSpeedMax);
     }
 
     // ─── 進入の軌道（進行方向に対する横オフセット・px）───
@@ -523,8 +560,18 @@ public partial class MidEnemy : Enemy
             // 全種を曲げない＝「直線で来る敵」が居るから曲がる敵が際立つ（§3 緩急・読みの基準線）。
             _ => 0f,
         };
+        v += VariantLateralOffset(p, t, fade);
         return Mathf.Clamp(v, -ArcMaxOffset, ArcMaxOffset);
     }
+
+    private float VariantLateralOffset(float p, float t, float fade) => _moveVariant switch
+    {
+        MoveVariant.Shoulder => _arcSign
+            * (Mathf.SmoothStep(0.12f, 0.42f, p) - Mathf.SmoothStep(0.62f, 0.95f, p)) * 15f,
+        MoveVariant.Weave => Mathf.Sin(p * Mathf.Tau * 1.35f + _movePhase) * 10f * fade,
+        MoveVariant.Pulse => _arcSign * Mathf.Sin(t * 2.2f) * (7f + 5f * Mathf.Sin(p * Mathf.Pi)) * fade,
+        _ => 0f,
+    };
 
     // モチーフ別の動きの型を弾幕パターンから引く（種が動きでも見分けられるように1:1）。
     private static LivingMotion MotionFor(AttackPattern p) => p switch
@@ -779,6 +826,8 @@ public partial class MidEnemy : Enemy
             if (_campY < lo || _campY > hi) { _vy = -_vy; _campY = Mathf.Clamp(_campY, lo, hi); }
             ny = _campY;
         }
+        Vector2 variantOffset = CampVariantOffset(pt);
+        ny += variantOffset.Y;
         // SwayAmp>0 の種は往復に小さなうねりを重ねて単調さを消す（芯からのオフセット。積分しない）。
         if (swayAmp > 0f)
         {
@@ -788,7 +837,7 @@ public partial class MidEnemy : Enemy
         ny = Mathf.Clamp(ny, CampTopY, CampBottomY);   // 縦は必ず盤面内（画面外へ出て見失われない）
 
         // 横：camp.X の周囲だけを振れる小さな癖。二重にクランプして盤面外・自機側へは絶対に届かせない。
-        float nx = _campBaseX + Mathf.Clamp(CampHorizontalDrift(pt), -CampDriftMax, CampDriftMax);
+        float nx = _campBaseX + Mathf.Clamp(CampHorizontalDrift(pt) + variantOffset.X, -CampDriftMax, CampDriftMax);
         nx = Mathf.Clamp(nx, Field.Left + CampMarginX, Field.Right - CampMarginX);
 
         // ★【速度上限の要・着座側／2026-09-22】目標位置 (nx,ny) へ“向かう”が、1 フレームの移動量は
