@@ -60,13 +60,14 @@
 <!-- 2026-09-20 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは新規指摘0件 -->
 
 <!-- 2026-09-22 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは新規指摘0件 -->
-- [ ] (P2) 加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加 | engineer | src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了するため、連射し続けている時間の約半分弱で「押しても何も起きない」無反応区間が発生する。HudにSpecialCdRatioバーと同様の様式でタメ枠残数ミニゲージを追加し、上限到達中は視認できるようにする（新規アセット不要、既存バー描画の流用）。
 - [ ] (P2) こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する | engineer | src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は画面上に進行度を示す手がかりが一切ない。時間切れ時は_mealPhase=3でニードル反撃(BossKoharu.cs:282-307)が来る。Hudに既存のSpecialCdRatio/ComboTimeRatioバーと同じ様式の薄いプログレスバーを新設し、BossKoharu.TickMealのcase 2(:282-291)から毎フレーム_mealT/_mealWindowを渡して画面上部中央に表示する。
 - [ ] (P3) Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正 | engineer | src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」と書かれているが、実際のFireRapid()(src/Player.cs:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正するコメントのみの変更。
 - [ ] (P3) QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正 | engineer | 以下5箇所のコメント中file:line引用が実体とズレている（QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→実際は213/226-239/344-390付近、QaPilot.cs:321「Player.cs:650」→実際はPlayer.cs:654、QaPilot.cs:324「:151-155」→実際はQaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→実際はEnemy.cs:550、Player.cs:286「Panel.cs:103」→実際はPanel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→実際はGameManager.cs:67）。各コメントの行番号を現在の実位置に更新するのみ、ロジック変更なし。
 - [ ] (P3) docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する | scenario | 両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内するが、その参照先自体が2026-09-05付で「⚠非正典（案C移行,2026-09-05承認）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っている(docs/20260613/MINA_シナリオ設計書_v2.md:18-23)。両ファイルのバナーに「※参照先も一部非正典化済み。案C部分はwiki/08_仮台本/05〜08・12を参照」等の事実訂正を追記する。
 
 ## WIP
+
+- [ ] (P2) 加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加 | engineer | src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了するため、連射し続けている時間の約半分弱で「押しても何も起きない」無反応区間が発生する。HudにSpecialCdRatioバーと同様の様式でタメ枠残数ミニゲージを追加し、上限到達中は視認できるようにする（新規アセット不要、既存バー描画の流用）。
 
 ## BLOCKED
 
