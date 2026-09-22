@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 252 / 対象 252 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="pct">98<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 253 / 対象 259 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">252</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">253</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">6</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,68 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">docs/【最新】世界観まとめ・統合企画書_最新版に案C非正典バナー追記</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">docs/【最新】世界観・ストーリー・キャラ設定まとめ.md（:1,7,9,12-13,19）とdocs/統合企画書_最新版.md（:1,5,8-10）はいずれも「最新」を自称しつつ案C（2026-09-05承認・少年不在・新面順）への言及が本文中0件で、実装(src/GameManager.cs:198-203)と矛盾する少年実在の旧設定を提示し続けている。両ファイル冒頭に非正典・案C未反映の事実訂正バナーを追記する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了するため、連射し続けている時間の約半分弱で「押しても何も起きない」無反応区間が発生する。HudにSpecialCdRatioバーと同様の様式でタメ枠残数ミニゲージを追加し、上限到達中は視認できるようにする（新規アセット不要、既存バー描画の流用）。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は画面上に進行度を示す手がかりが一切ない。時間切れ時は_mealPhase=3でニードル反撃(BossKoharu.cs:282-307)が来る。Hudに既存のSpecialCdRatio/ComboTimeRatioバーと同じ様式の薄いプログレスバーを新設し、BossKoharu.TickMealのcase 2(:282-291)から毎フレーム_mealT/_mealWindowを渡して画面上部中央に表示する。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」と書かれているが、実際のFireRapid()(src/Player.cs:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正するコメントのみの変更。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">以下5箇所のコメント中file:line引用が実体とズレている（QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→実際は213/226-239/344-390付近、QaPilot.cs:321「Player.cs:650」→実際はPlayer.cs:654、QaPilot.cs:324「:151-155」→実際はQaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→実際はEnemy.cs:550、Player.cs:286「Panel.cs:103」→実際はPanel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→実際はGameManager.cs:67）。各コメントの行番号を現在の実位置に更新するのみ、ロジック変更なし。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内するが、その参照先自体が2026-09-05付で「⚠非正典（案C移行,2026-09-05承認）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っている(docs/20260613/MINA_シナリオ設計書_v2.md:18-23)。両ファイルのバナーに「※参照先も一部非正典化済み。案C部分はwiki/08_仮台本/05〜08・12を参照」等の事実訂正を追記する。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">【MASTER】設定資料統合版.mdに案C非正典バナー追記</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-22) 2026-09-22監査(scenario)発見。docs/【MASTER】設定資料統合版.md:1,4-5,8-10は「Claude Code等で参照する唯一の正」と自称しつつ2026-09-05承認の案C（少年不在・新面順あかり→こはる→レイ）に一切言及がなかった。既存の正典v3バナー(:8-10)直後に「⚠⚠本書は2026-09-05承認の『案C』を未反映＝更に非正典」の追加バナーを挿入し、現行の物語正典が<code>wiki/08_仮台本/05・06・07・08・12</code>である旨と、「このマスターファイルのみを正とすること」という自己申告がもはや誤りである旨を明記した。既存本文・正典v3バナーは無変更、新規セリフ・物語内容の創作なし（事実訂正の注記追加のみ）。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2497,18 +2553,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">46109cb</span><span>2026-09-22</span><span class="s">auto: WIP着手 - 【MASTER】設定資料統合版.mdに案C非正典バナー追記する</span></li>
+      <li><span class="h">3dabcd0</span><span>2026-09-22</span><span class="s">auto: 監査で7件をキューに追加</span></li>
+      <li><span class="h">cfa5eb0</span><span>2026-09-20</span><span class="s">auto: BossReiの圧インジケーターとスペルカードの座標重複を解消</span></li>
       <li><span class="h">1b0f045</span><span>2026-09-20</span><span class="s">auto: WIP着手 - BossReiの圧インジケーターとスペルカードの座標重複を解消する</span></li>
       <li><span class="h">d839c5e</span><span>2026-09-20</span><span class="s">auto: ボス戦カットイン台詞を承認済み仮台本に一致させる</span></li>
       <li><span class="h">efd1226</span><span>2026-09-20</span><span class="s">auto: WIP着手 - ボス戦カットイン台詞を承認済み仮台本に一致させる</span></li>
       <li><span class="h">e608a8b</span><span>2026-09-20</span><span class="s">auto: 被弾時にコンボをリセットする</span></li>
       <li><span class="h">9d9acba</span><span>2026-09-20</span><span class="s">auto: WIP着手 - 被弾時にコンボをリセットする</span></li>
-      <li><span class="h">9d07be5</span><span>2026-09-20</span><span class="s">auto: STAGE3レイのBREAK宣言セリフを追加</span></li>
-      <li><span class="h">6d2c997</span><span>2026-09-20</span><span class="s">auto: WIP着手 - STAGE3レイのBREAK宣言セリフを追加する</span></li>
-      <li><span class="h">58681d7</span><span>2026-09-20</span><span class="s">auto: あかり面「雨の帰り道」の壁当たり判定を視覚に合わせて修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-20 18:34 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-22 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
