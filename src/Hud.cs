@@ -121,6 +121,12 @@ public partial class Hud : CanvasLayer
     private double _shotModeToast;
     private const double ShotModeToastDur = 2.0;
 
+    // 加速球タメ枠ミニゲージ（Player.cs _accelCharging.Count / AccelChargeCap）。
+    // 上限到達中はFireAccelが新規スポーンをスキップし押しても無反応になる区間があるため、
+    // SpecialCdRatio充填バーと同じ様式（矩形の空/満バー）でDrawShotModeの行内に表示する。
+    private bool _accelGaugeVisible;
+    private float _accelChargeRatio; // 0=タメ枠に空きあり／1=満杯（新規スポーンをスキップ中）
+
     // 会話／メッセージ
     private string _dlgText = "";       // 現在行の全文（ログ／既読判定用・ページ分割前）
     private string _dlgSpeaker = "";
@@ -719,6 +725,8 @@ public partial class Hud : CanvasLayer
     }
 
     public void SetHikageSkill(bool has, bool ready, float cdRatio) { _skillHas = has; _skillReady = ready; _skillCdRatio = Mathf.Clamp(cdRatio, 0f, 1f); }
+    // Player.cs から毎フレーム通知：加速球モード選択中(visible)かどうかと、タメ枠の使用率(0..1)。
+    public void SetAccelCharge(bool visible, float chargeRatio) { _accelGaugeVisible = visible; _accelChargeRatio = Mathf.Clamp(chargeRatio, 0f, 1f); }
     public void SetDodgeReady(bool ready) => _dodgeReady = ready;
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
@@ -1246,6 +1254,21 @@ public partial class Hud : CanvasLayer
         // 切替キーのバッジ（KB=V / パッド=B を出し分け）
         float bw = KeyBadge(ci, new Vector2(x + w + 8, y + 3), TokMode, UiKit.Info, _topLeftFade);
         UiKit.Text(ci, UiKit.Mono, new Vector2(x + w + 8 + bw + 6, y + 6), "切替", 10, Fa(UiKit.Text3));
+
+        // 加速球タメ枠ミニゲージ（同じ行の右・「切替」表記の隣）。加速球モード選択中のみ表示。
+        // タメ枠が満杯(=1.0)だとFireAccel（Player.cs）が新規スポーンをスキップし押しても無反応になるため、
+        // その区間をヒカゲスキルの充填バー（DrawSkill）と同じ矩形バーの様式で視認できるようにする。
+        if (_accelGaugeVisible)
+        {
+            float gx = x + w + 8 + bw + 6 + UiKit.TextW(UiKit.Mono, "切替", 10) + 18;
+            bool jam = _accelChargeRatio >= 0.999f; // 満杯＝押しても無反応の区間
+            Color gc = jam ? UiKit.Burn : UiKit.Info;
+            UiKit.Text(ci, UiKit.Mono, new Vector2(gx, y + 3), "タメ枠", 9, Fa(gc));
+            float barY = y + 15f, barW = 60f, barH = 6f;
+            UiKit.Box(ci, new Rect2(gx, barY, barW, barH), Fa(new Color(1, 1, 1, 0.1f)), 3f);
+            if (_accelChargeRatio > 0)
+                UiKit.Box(ci, new Rect2(gx, barY, barW * _accelChargeRatio, barH), Fa(gc), 3f);
+        }
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。

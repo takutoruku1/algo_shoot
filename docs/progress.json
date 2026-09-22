@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-22 18:33 UTC",
+  "generated": "2026-09-22 18:37 UTC",
   "counts": {
-    "todo": 5,
+    "todo": 4,
     "wip": 0,
     "blocked": 40,
-    "done": 254
+    "done": 255
   },
   "percent": 98,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加",
-      "worker": "engineer",
-      "accept": "src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了するため、連射し続けている時間の約半分弱で「押しても何も起きない」無反応区間が発生する。HudにSpecialCdRatioバーと同様の様式でタメ枠残数ミニゲージを追加し、上限到達中は視認できるようにする（新規アセット不要、既存バー描画の流用）。"
-    },
     {
       "priority": "P2",
       "title": "こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する",
@@ -283,6 +277,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-22) 2026-09-22監査(game-designer)発見。src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了し無反応区間が発生していた。Hud.csに`SetAccelCharge(bool visible, float chargeRatio)`（既存のSpecialCdRatioバーと同じ矩形背景＋充填バー様式）を新設し、DrawShotModeのショットモードチップ内にタメ枠残数ミニゲージを追加。満杯時は色をInfo→Burnへ切替して強調。Player.csの`_PhysicsProcess`から毎フレーム`_accelCharging.Count / AccelChargeCap`の比率を通知するよう配線。新規アセットなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。実機目視確認は未実施。"
+    },
     {
       "priority": "P2",
       "title": "docs/【最新】世界観まとめ・統合企画書_最新版に案C非正典バナー追記",
@@ -1810,6 +1810,16 @@
   ],
   "commits": [
     {
+      "hash": "b00c3f1",
+      "date": "2026-09-22",
+      "subject": "auto: WIP着手 - 加速球モードのタメ枠上限フィードバックを追加する"
+    },
+    {
+      "hash": "f344f24",
+      "date": "2026-09-22",
+      "subject": "auto: 世界観まとめ・統合企画書_最新版に案C非正典バナーを追記"
+    },
+    {
       "hash": "38cec03",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - 世界観まとめ・統合企画書_最新版に案C非正典バナー追記する"
@@ -1838,16 +1848,6 @@
       "hash": "1b0f045",
       "date": "2026-09-20",
       "subject": "auto: WIP着手 - BossReiの圧インジケーターとスペルカードの座標重複を解消する"
-    },
-    {
-      "hash": "d839c5e",
-      "date": "2026-09-20",
-      "subject": "auto: ボス戦カットイン台詞を承認済み仮台本に一致させる"
-    },
-    {
-      "hash": "efd1226",
-      "date": "2026-09-20",
-      "subject": "auto: WIP着手 - ボス戦カットイン台詞を承認済み仮台本に一致させる"
     }
   ]
 }

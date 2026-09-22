@@ -645,6 +645,12 @@ public partial class Player : Area2D
         _specialHeld = specialKey;
         // HUDにスキル状態を反映
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetHikageSkill(HasHikage(), _specialCd <= 0f, SpecialCdRatio);
+        // HUDに加速球タメ枠の使用状況を反映（加速球モード時のみ表示）。FireAccel(:914)と同じ掃除を
+        // ここでも行い、無効化済み/発進済み分を除いた実際の残数をゲージへ即時反映する。
+        _accelCharging.RemoveAll(b => b == null || !b.Active || !b.AccelCharging);
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetAccelCharge(
+            (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid) == GameManager.ShotMode.Accel,
+            (float)_accelCharging.Count / AccelChargeCap);
         // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
 
