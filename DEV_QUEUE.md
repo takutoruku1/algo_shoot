@@ -64,8 +64,6 @@
 
 ## WIP
 
-- [ ] (P3) QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正 | engineer | 以下5箇所のコメント中file:line引用が実体とズレている（QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→実際は213/226-239/344-390付近、QaPilot.cs:321「Player.cs:650」→実際はPlayer.cs:654、QaPilot.cs:324「:151-155」→実際はQaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→実際はEnemy.cs:550、Player.cs:286「Panel.cs:103」→実際はPanel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→実際はGameManager.cs:67）。各コメントの行番号を現在の実位置に更新するのみ、ロジック変更なし。
-
 ## BLOCKED
 
 <!-- 2026-09-18 監査モード(scenario)で追加 -->
@@ -145,6 +143,7 @@
 - [ ] エピローグE5のミナ→DM「ちゃんと食べていますか?」が、こはる面から台所要素が撤去された結果、根拠を失ったまま残置されている | scenario | 要ユーザー判断（新規文言の創作を伴う）。2026-09-19監査(scenario)。実装`src/Epilogue.cs:212`の`O("UI", "ミナ →（DM）：「ちゃんと食べていますか?」");`は、承認済み仮台本12(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:200`)が「ミナの投稿『ちゃんと食べていますか』（現行はこはるの台所由来）とエピローグのDMの文面は、こはるが台所を失ったので、別の一行に差し替えるか判断が要る」と台本作成者自身が明記する未解決の判断点#5。この“食べる/来ない”系の世界観要素(`12:96`)は案Cで正式に撤去済みで、実装側`src/StageKoharu.cs:221`にも撤去済みを示すコメントのみが残り本文の台所描写は現行`StageKoharu.cs`に存在しない。既存BLOCKED（`12`ファイルの判断点#4=FINALでこはるの返礼の向き先）とは同ファイルの別項目(#5)で重複ではない。要ユーザー判断: (a)こはる由来ではない新しい一行に差し替える、(b)汎用的なミナの気遣いとして現状維持を正式承認する。承認後の受入条件: 承認された文言を`src/Epilogue.cs:212`へ反映すること
 
 ## DONE
+- [x] (P3) QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正 | engineer | (完了 2026-09-22) 2026-09-22監査(engineer)発見。QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→213/226-239/344-390、QaPilot.cs:321「Player.cs:650」→Player.cs:654、QaPilot.cs:324「:151-155」→QaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→Enemy.cs:550、Player.cs:286「Panel.cs:103」→Panel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→GameManager.cs:67に、実物確認の上で修正。コメント文言のみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正 | engineer | (完了 2026-09-22) 2026-09-22監査(engineer)発見。src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」だったが、実際のFireRapid()(:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正。コメントのみの変更、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する | engineer | (完了 2026-09-22) 2026-09-22監査(game-designer)発見。src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は進行度の手がかりが無かった。Hud.csに`SetMealTimer(bool visible, float ratio)`（既存SpecialCdRatio/ComboTimeRatioバーと同じ矩形背景＋塗りバー様式）と`DrawMealTimer`を新設し、画面上部中央(スペルカード直下、他HUD要素と非重複)に「お残し禁止」ラベル付きバーを表示。色はBurn(時間切れ間際)→Gold(満タン)を線形補間。BossKoharu.cs TickMealのcase 2(:282-294)から毎フレーム比率を通知し、時間切れ移行時(:288)とFinishMeal(:358)双方で非表示化して`_mealPhase`が2以外の時は必ず消える契約にした。新規アセットなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。実機目視確認は未実施。
 - [x] (P2) 加速球モード：タメ枠上限到達時に無反応区間の視認フィードバックを追加 | engineer | (完了 2026-09-22) 2026-09-22監査(game-designer)発見。src/Player.cs:905-916 FireAccel()は上限(AccelChargeCap=6, :50)到達時return falseで新規スポーンをスキップし、src/Player.cs:846,851,873-879 Fire()はfired=false時にマズルフラッシュ・発射音・反動を全てスキップする。充填遅延(GameManager.cs:792 AccelChargeDelay 0.8〜0.5秒)に対し充填自体は最速0.088秒間隔で完了し無反応区間が発生していた。Hud.csに`SetAccelCharge(bool visible, float chargeRatio)`（既存のSpecialCdRatioバーと同じ矩形背景＋充填バー様式）を新設し、DrawShotModeのショットモードチップ内にタメ枠残数ミニゲージを追加。満杯時は色をInfo→Burnへ切替して強調。Player.csの`_PhysicsProcess`から毎フレーム`_accelCharging.Count / AccelChargeCap`の比率を通知するよう配線。新規アセットなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。実機目視確認は未実施。

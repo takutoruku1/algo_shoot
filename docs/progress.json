@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-22 18:41 UTC",
+  "generated": "2026-09-22 18:42 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 40,
-    "done": 257
+    "done": 258
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正",
-      "worker": "engineer",
-      "accept": "以下5箇所のコメント中file:line引用が実体とズレている（QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→実際は213/226-239/344-390付近、QaPilot.cs:321「Player.cs:650」→実際はPlayer.cs:654、QaPilot.cs:324「:151-155」→実際はQaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→実際はEnemy.cs:550、Player.cs:286「Panel.cs:103」→実際はPanel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→実際はGameManager.cs:67）。各コメントの行番号を現在の実位置に更新するのみ、ロジック変更なし。"
-    },
     {
       "priority": "P3",
       "title": "docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する",
@@ -265,6 +259,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-22) 2026-09-22監査(engineer)発見。QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→213/226-239/344-390、QaPilot.cs:321「Player.cs:650」→Player.cs:654、QaPilot.cs:324「:151-155」→QaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→Enemy.cs:550、Player.cs:286「Panel.cs:103」→Panel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→GameManager.cs:67に、実物確認の上で修正。コメント文言のみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正",
@@ -1810,6 +1810,16 @@
   ],
   "commits": [
     {
+      "hash": "77007fe",
+      "date": "2026-09-22",
+      "subject": "auto: WIP着手 - QaPilot.cs等のコメント中のファイル:行参照ズレを修正する"
+    },
+    {
+      "hash": "1edeb36",
+      "date": "2026-09-22",
+      "subject": "auto: Player.cs冒頭コメントの記述を実態に合わせて修正"
+    },
+    {
       "hash": "31105d3",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する"
@@ -1838,16 +1848,6 @@
       "hash": "f344f24",
       "date": "2026-09-22",
       "subject": "auto: 世界観まとめ・統合企画書_最新版に案C非正典バナーを追記"
-    },
-    {
-      "hash": "38cec03",
-      "date": "2026-09-22",
-      "subject": "auto: WIP着手 - 世界観まとめ・統合企画書_最新版に案C非正典バナー追記する"
-    },
-    {
-      "hash": "2086f27",
-      "date": "2026-09-22",
-      "subject": "auto: 【MASTER】設定資料統合版.mdに案C非正典バナーを追記"
     }
   ]
 }

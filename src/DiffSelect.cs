@@ -14,7 +14,7 @@ public partial class DiffSelect : Node2D
         public string Quip;   // 立ち絵脇のミナの一言
     }
     // Density（弾密度メーター、5マス満点）は実際のリスクである GameManager.BulletCountMul
-    // （GameManager.cs:63 — Easy0.38/Normal0.7/Hard1.1/Lunatic1.9、Lunaticが最大値）に比例させて算出。
+    // （GameManager.cs:67 — Easy0.38/Normal0.7/Hard1.1/Lunatic1.9、Lunaticが最大値）に比例させて算出。
     // 5 * mul/1.9 を四捨五入：Easy1/Normal2/Hard3/Lunatic5。旧実装は毎段+1の線形(2/3/4/5)で、
     // 実値では最大の跳ね幅であるHard→Lunatic(+0.8, 全区間最大)が他の段(+0.32/+0.4)と同じ+1マスにしか
     // 見えず、Lunaticへの賭け金を過小に見せていた。以後 BulletCountMul を変えたらここも合わせて見直すこと。

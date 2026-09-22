@@ -313,15 +313,15 @@ public partial class QaPilot : Node
     }
 
     // Focus(低速)・Dodge(回避)・Kindness(やさしさ全開) の合成入力。DriveMovement/Shoot/Bomb に
-    // 加えて周期的に叩くことで、StageZero チュートリアルの低速保持判定(:256)・回避3回判定(:285-287)・
-    // 全開判定(:406〜)を SafetyTimeout(60s)の保険待ちではなく実入力で通す（他ステージでは無害に流す）。
+    // 加えて周期的に叩くことで、StageZero チュートリアルの低速保持判定(:213)・回避3回判定(:226-239)・
+    // 全開判定(:344-390)を SafetyTimeout(60s)の保険待ちではなく実入力で通す（他ステージでは無害に流す）。
     //   低速＝Shift を周期的に一定時間だけ保持（保持中は DriveMovement の移動と重なるので「低速+移動」を満たす）。
     //   回避＝Alt を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
     //   全開＝Ctrl を周期的に短く叩く（ゲージが満タンの時だけ Player 側の TryActivateKindness が実際に発動。
-    //         空の時に叩いても Player.cs:650 の判定で何も起きず無害）。
+    //         空の時に叩いても Player.cs:654 の判定で何も起きず無害）。
     // ゲームオーバー中／会話中は新規に送らない：
     //   Shift は DriveDeathRetry の「Shift+R」（ゲームオーバー2回目以降＝最初からリトライ）と衝突するため。
-    //   Ctrl は --skiptest 専用の押しっぱなしロジック(:151-155)と衝突するため、--skiptest 実行時は
+    //   Ctrl は --skiptest 専用の押しっぱなしロジック(:171-176)と衝突するため、--skiptest 実行時は
     //   Kindness 用の Ctrl 送出を完全にスキップする（Focus/Dodge は --skiptest 中も通常どおり動く）。
     private void DriveFocusDodgeKindness(double delta)
     {
