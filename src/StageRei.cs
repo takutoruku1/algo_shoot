@@ -171,7 +171,7 @@ public partial class StageRei : Node
 
     // S3-5c 道中C／MidEnd（仮台本 07）。同接「3」。壁の画面が部屋を呑みこみはじめる。【濁】広がる。
     //   残った三つの席のひとつが「今日も来ました」＝こはる。ミナは説明しない。
-    //   17（道中の選択肢 案C）: 一行目の直後に S3-5c の下書き選択が入り、受けのあと残り2行（MidEndTail）へ戻る。
+    //   17（道中の選択肢 案C）: 一行目の直後に S3-5c の三件の下書きの報告が入り、そのあと残り2行へ戻る（S35cTalk）。
     private static readonly (int who, string text, string face)[] MidEnd =
     {
         (1, "右上の数字。「3」。……残った三つの席の、ひとつに、あの一行が。", MFace),
@@ -180,9 +180,10 @@ public partial class StageRei : Node
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    // レイ面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
+    // レイ面は道中1か所（s3_2）＋ボス戦中の割り込み（s3_7）。「3択＋（送らない）」で、（送らない）は【濁】+0.02。
     //   s3_2 … Mid（step 2）の末尾。効果＝次のハブの再訪小話が「同接」に固定＋一語混ざる。
-    //   s3_5c … MidEnd（step 9）の一行目の直後。効果＝E4 の開示に一行（送られたか、散ったか）。
+    //   s3_5c … 2026-09-22 に選択を撤去（docs/20260922/選択肢監査_ゲームデザイン視点_2026-09-22.md §4-②）。
+    //          効果先の E4 が削除済みで宙に浮いていたため、旧・無言ルートの受けを固定で流す（S35cTalk）。
 
     // S3-2 小話・暗い画面。炎上で光の薄いミナが、この面で初めて、自分のことで一度だけ聞く。
     private static readonly (int who, string text, string face)[] S32Cue =
@@ -219,44 +220,16 @@ public partial class StageRei : Node
     // step 2 のきっかけ＝S3-2 の小話をそのまま流し切ってから、暗い画面の一行。毎フレーム組み直さない。
     private static readonly (int who, string text, string face)[] MidThenS32 = Mid.Concat(S32Cue).ToArray();
 
-    // S3-5c 道中C・三つの席。ふざけ枠の代わりに**ミナ自身の下書き**を三つめに混ぜる（どれかは言わない）。
-    //   表記（です・ます）で気づける。「見ています」は S3-8 の決定打「見ていました。」の現在形。
-    //   きっかけ＝MidEnd の一行目＋この報告。文言は MidEnd から切り出す（二重に持たない）。
-    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【16】
-    //   旧稿は「わたくしのを、混ぜてあります」と先に宣言していた＝探すゲームになり、
-    //   受けの「気づいて、いただけましたか。それとも、偶然でしょうか。」が答え合わせに落ちていた。
-    //   宣言を落とすと、「見ています」を選んだ人だけが不意打ちを食らう形になり、
-    //   レイの「気づいてよ」とミナの「気づいて、いただけましたか」が同じ面で重なる。
-    private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
+    // S3-5c 道中C・三つの席。三つの下書きが開き、送られないまま散る。うち一件はミナ自身の下書き。
+    //   2026-09-22: 旧「見てる／ここにいる／見ています／（送らない）」の4択は撤去（効果先の E4 が削除済み）。
+    //   旧・無言ルートの受け「三件、散りました。うち、一件は、わたくしのです」を全員に届く形で固定＝
+    //   「あなたが選ばなかったから散った」が、レイの「気づいてよ」と同じ面で重なる。
+    //   きっかけ＝MidEnd の一行目＋報告、締め＝07 の残り2行（MidEnd の二行目・三行目）。文言は MidEnd から切り出す（二重に持たない）。
+    private static readonly (int who, string text, string face)[] S35cTalk = MidEnd.Take(1).Concat(new (int, string, string)[]
     {
         (1, "……ご主人様。下書きが、三件。開いています。", MFace),
-    }).ToArray();
-    private static readonly string[] S35cChoices = { "見てる", "ここにいる", "見ています", "（送らない）" };
-    private static (int who, string text, string face)[] S35cReply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[]
-        {
-            (0, "見てる", ""),
-            (1, "……見てる、と。——はい。……わたくしのは、散りました。自分のぶんは、自分で、拾っておきます。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "ここにいる", ""),
-            (1, "……ここにいる、と。——席が、ひとつ、こちらに。……わたくしのは、散りました。自分で、拾っておきます。", MFace),
-        },
-        // 三つめがミナの一件。気づくかどうかも、この場面の遊び（ミナはどれが自分のかを言わない）。
-        2 => new (int, string, string)[]
-        {
-            (0, "見ています", ""),
-            (1, "……それ、わたくしのです。——気づいて、いただけましたか。それとも、偶然でしょうか。……どちらでも。送られました。", MFace),
-        },
-        _ => new (int, string, string)[]
-        {
-            (1, "……三件、散りました。うち、一件は、わたくしのです。——同じ棚に、置いておきます。", MWorried),
-        },
-    };
-    // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
-    private static readonly (int who, string text, string face)[] S35cTail = MidEnd.Skip(1).ToArray();
+        (1, "……三件、散りました。うち、一件は、わたくしのです。——同じ棚に、置いておきます。", MWorried),
+    }).Concat(MidEnd.Skip(1)).ToArray();
 
     // S3-6 ボス出現。ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘
     //   旧稿は空配列＝三面目のラスボスだけ口上がゼロで、無言で出現して無言で撃ってきた
@@ -291,8 +264,8 @@ public partial class StageRei : Node
     // ボス HP 20〜50% で一度だけ。弾が止まり、画面が鈍色に沈む（SetQuietVeil）。
     // 問うのはミナ自身の状態＝あなたの過去は問わない。「三人分」は S3-9 に取ってあるので、
     // ここは「二人ぶんと、貼られた引用と、いまの声」に留める。
-    // 機構はこはる面（`StageKoharu` の Step_LinesHold／Step_MidChoice／SetQuietVeil）から移植。
-    //   案C ではこの仕掛けの本籍がレイ面なので、こはる面は KoharuInterruptEnabled=false で止めてある。
+    // 機構はこはる面の旧・割り込み2択（Step_LinesHold／Step_MidChoice／SetQuietVeil）から移植したもの。
+    //   案C ではこの仕掛けの本籍がレイ面で、こはる面側の休眠コードは 2026-09-22 に撤去した（写しはここだけ）。
     private static readonly (int who, string text, string face)[] MidChoicePre =
     {
         (1, "……ご主人様。弾がやんでも——聞こえます。画面の向こうで、まだ、コメントを読み上げている声が。", MWorried),
@@ -432,8 +405,8 @@ public partial class StageRei : Node
             case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 7: Step_MidStory(delta); break;          // ★S3-4 受け＋S3-5a／S3-5b 接続 → 嵐（18）へ
             case 8: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            // ★S3-5c の下書き選択（17）＝三つの席の直後にミナの一件が混ざる → 選択 → 07 の残り2行
-            case 9: if (_charStory) Step_Lines(delta, _storyPreBoss); else Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
+            // ★S3-5c 三つの席＝三件の下書きが開いて散る（うち一件はミナの）。選択なし（2026-09-22）→ 07 の残り2行
+            case 9: Step_Lines(delta, _charStory ? _storyPreBoss : S35cTalk); break;
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, _playerBoss); break;
             case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）

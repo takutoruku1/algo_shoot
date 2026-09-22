@@ -522,15 +522,10 @@ public partial class GameManager : Node
     public bool BurningThisRun;   // 現在のステージrunが炎上下か（Player/Hudが参照）
     private bool _burnHappened;    // 一度きりのストーリーイベント済みか
 
-    // ─── 会話選択（層2プロト）───
-    //   STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
-    //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
-    public bool PressedTheQuestion;
-
     // ─── 仕掛けの値（案C の組み込み計画）───
     //   選択のたびに「選ばれなかった言葉」が散り、終盤（FINAL F4 / エピローグ E2）でそれが戻ってくる。
     //   ここは**器だけ**：各場面からの記録は台本タスクで繋ぐので、現時点でこれらを書く呼び出しは無い。
-    //   セーブの作法は pressedQ と同じ＝キー無し＝既定値（旧セーブがそのまま読める）。
+    //   セーブの作法＝キー無し＝既定値（旧セーブがそのまま読める）。
     public readonly List<string> ScatteredWords = new(); // 散った言葉（選ばれなかった候補）。出た順
     public string FirstScattered = "";                   // 最初に散らした言葉（F4 で戻る一語）
     public int NameRoute;                                // 命名ルート 0〜2（冒頭 P2 の3択）
@@ -1059,8 +1054,8 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
-        // 会話選択（層2プロト）：STAGE2（こはる）MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
-        data["pressedQ"] = PressedTheQuestion;
+        // 旧 "pressedQ"（こはる面の休眠していた割り込み2択の疑いフラグ）は 2026-09-22 に廃止。
+        //   書かない。古いセーブに残っていても読み手は ContainsKey で拾う方式なので無視されるだけ。
         // 仕掛けの値（散った言葉ほか）。いずれも後方互換：キー無し＝既定値（空配列／空文字／0）。
         var sw = new Godot.Collections.Array();
         foreach (var w in ScatteredWords)
@@ -1165,8 +1160,6 @@ public partial class GameManager : Node
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
-        // 会話選択（層2プロト）の復元（キー無し＝旧セーブは false＝現行台詞＝後方互換）。
-        PressedTheQuestion = data.ContainsKey("pressedQ") && data["pressedQ"].AsBool();
         // 仕掛けの値の復元（キー無し＝旧セーブは既定値のまま＝後方互換）。
         //   散った語の取り消し台帳（_scatterById）はランを跨いで持たない＝
         //   ロード直後の RecordChoice は「その id の初回」として素直に積まれる。
@@ -1264,7 +1257,6 @@ public partial class GameManager : Node
         _bossRetryScore = 0;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
         _burnHappened = false; Burning = false; BurningThisRun = false;
-        PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
@@ -1450,7 +1442,6 @@ public partial class GameManager : Node
         {
             if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
             if (a == "--choice") DebugChoiceNow = true;
-            if (a == "--choice3") { DebugChoiceNow = true; DebugChoiceThree = true; }
             if (a == "--input-field") DebugInputField = true;
         }
     }
@@ -1458,13 +1449,10 @@ public partial class GameManager : Node
     // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
     public bool DebugAlwaysBoss { get; private set; }
 
-    // [一時/デバッグ] --choice : こはる面のボス戦中割り込み（会話の選択）を HP 条件を待たずに即発火させる。
+    // [一時/デバッグ] --choice : レイ面のボス戦中割り込み（S3-7 の会話選択）を HP 条件を待たずに即発火させる。
     // 選択シーンの確認専用。通常プレイ・配布ビルドでは付けない前提。
+    //   （旧 --choice3＝こはる面の割り込みを3択で出す検証用フラグは、こはる面の休眠コードと一緒に 2026-09-22 に撤去）
     public bool DebugChoiceNow { get; private set; }
-
-    // [一時/デバッグ] --choice3 : 上の割り込みを **3択** で出す（ChoiceOverlay の N 択レイアウト確認用）。
-    // --choice を含む。台本上の選択は2択のままで、これは表示検証専用の差し替え。
-    public bool DebugChoiceThree { get; private set; }
 
     // [一時/デバッグ] --input-field : こはる面を S2-4「入力欄」（StageKoharu の step 8）から始める。
     // コメント欄UI（CommentInput）の見た目確認・スクショ用。道中も中ボスも踏まない＝数秒で欄に着く。
@@ -1859,7 +1847,8 @@ public partial class GameManager : Node
         {
             if (hud == null) return false;
             _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices,
-                defaultSel: 0, onBoard: true);   // 既定は「ボスからやり直す」＝いちばん続けやすい手
+                defaultSel: 0, onBoard: true,
+                gateUntilMove: false);   // 既定は「ボスからやり直す」＝いちばん続けやすい手。システム UI なので Z 即決を許す
             // ここで戦闘曲をゲームオーバー曲へ落とす（2026-09-14〜）。従来は**道中/ボス曲が鳴り続けていて**、
             //   「くじけちゃった…」の選択が音楽的に無句読点だった＝負けた実感が耳に来ない。
             //   旋律の無い静かなアンビエントへ 1.2 秒かけて渡し、場を鎮めて選択に集中させる。

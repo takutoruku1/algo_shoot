@@ -5,7 +5,7 @@ using System.Collections.Generic;
 // コードレイン（緑モノスペースが上昇／MINAの4行英文を可読限界以下で一瞬フラッシュ）
 // → identity は [ deferred ] のまま保留 → 光の点灯（ミナ）
 // → P2 目覚めと最初の言葉（3択）→ P3 命名（3択・全ルート MINA へ収束・ここで [ M I N A ] 点灯）
-// → P4 タイムラインと『たすけて』（3択）→ タイトル。
+// → P4 タイムラインと『たすけて』（選択なし。2026-09-22 に2択を撤去）→ タイトル。
 // 背景イラストに起動ログ・立ち絵・会話を重ねるカットシーン。Zで送り、R/Start 長押しで最初から。
 // 案Cでは少年は登場しない（教え役も相方も不在）＝話者は ミナ／あなた（送信した下書き）／システム表示／投稿の4種。
 public partial class Prologue : Node2D
@@ -93,19 +93,20 @@ public partial class Prologue : Node2D
     private const string FMinaSmile = "res://char/mina_smile.png";   // ※P0〜P4 では未使用（感情アークの解禁前）
     private const string FMinaWorried = "res://char/mina_worried.png"; // 聞いてしまった時
 
-    // ════════════════════ 下書き選択（P2・P3・P4）════════════════════
+    // ════════════════════ 下書き選択（P2・P3）════════════════════
+    // 2026-09-22: P4 の2択（何をいってるの／詳しく教えて）は撤去（docs/20260922/選択肢監査_2026-09-22.md #3）。
+    //   どちらを選んでも受けが同じで、『たすけて』の直後に情報量ゼロの選択が挟まっていた。P4 は導入→受けへ直結。
     // 選択は _talk の途中に「差し込み点」として置く：_line がここに来たら ChoiceOverlay を出し、
     // 決まったら「送った言葉（who=0）＋分岐ぶんの受け」を _talk のその位置へ挿し込んで会話を続ける。
     // 沈黙14秒で末尾が灯り20秒で末尾が決まる（ChoiceOverlay の実装値をそのまま使う）。
     private ChoiceOverlay? _choice;
-    private string _choiceId = ""; // RecordChoice の id（p2/p3/p4）
+    private string _choiceId = ""; // RecordChoice の id（p2/p3）
     private double _choiceT;       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private int _p2ChoiceLine = -1, _p3ChoiceLine = -1, _p4ChoiceLine = -1; // 差し込み点（_talk 構築時に確定）
+    private int _p2ChoiceLine = -1, _p3ChoiceLine = -1; // 差し込み点（_talk 構築時に確定）
     private float _p2Sec;          // P2 の迷い秒数（受けの「{P2秒}秒」に実測を差し込む）
 
     private static readonly string[] P2Choices = { "おはよう", "きこえてる", "うごいた" };
     private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ", "（送らない）" };
-    private static readonly string[] P4Choices = { "何をいってるの", "詳しく教えて" };
 
     public override void _Ready()
     {
@@ -173,7 +174,7 @@ public partial class Prologue : Node2D
 
         // ── P3 命名 ──（P2 の受けの末尾に続けて積む。差し込み点は Decide 後に確定）
 
-        // ── P4 タイムライン ──（同上）
+        // ── P4 タイムライン ──（同上。選択は無く、導入の直後に受けを続けて積む）
     }
 
     // P2 の受け（三候補共通）。{P2秒}・{文字数} には実測値を差し込む（表示専用）。
@@ -234,7 +235,7 @@ public partial class Prologue : Node2D
         return r;
     }
 
-    // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
+    // P4 の導入（タイムライン→『たすけて』まで。この直後に P4Reply が続く）。
     //   2026-09-07 ユーザー指示で作り直し：
     //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｘ の通知カードを出す（PostToast）。
     //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて」と打たれては消える、を
@@ -253,8 +254,8 @@ public partial class Prologue : Node2D
         L(WhoMina, "……この投稿です。いまの声が、聞こえたのは。", FMinaWorried),
     };
 
-    // P4 の受け。選択（何をいってるの／詳しく教えて）に関わらず共通。
-    private List<DLine> P4Reply(int sel)
+    // P4 の受け。選択は置かない（2026-09-22 撤去。旧2択はどちらもこの共通の受けに落ちていた）。
+    private List<DLine> P4Reply()
     {
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【15】
         //   作品最重要の伏線「覚えておきます」（→ Epilogue「数えることと、覚えていることだけ」で回収）が、
@@ -401,7 +402,6 @@ public partial class Prologue : Node2D
         // 差し込み点に達したら選択を出す（各差し込み点は台本の末尾に置かれる＝会話の終わりと同じ index）。
         if (_line == _p2ChoiceLine) { ShowChoice("p2", P2Choices, 0); return; }
         if (_line == _p3ChoiceLine) { ShowChoice("p3", P3Choices, 0); return; }
-        if (_line == _p4ChoiceLine) { ShowChoice("p4", P4Choices, 0); return; }
 
         _lineT += delta;
         EnsurePages();
@@ -535,7 +535,7 @@ public partial class Prologue : Node2D
     }
 
     // いま _line が未提示の差し込み点の上にいるか（＝会話の続きがある）。
-    private bool AtChoicePoint => _line == _p2ChoiceLine || _line == _p3ChoiceLine || _line == _p4ChoiceLine;
+    private bool AtChoicePoint => _line == _p2ChoiceLine || _line == _p3ChoiceLine;
 
     private void ShowChoice(string id, string[] choices, int defaultSel)
     {
@@ -576,29 +576,18 @@ public partial class Prologue : Node2D
                 _game?.RecordChoice("p3", sent, others, hesitation);
                 if (sent != "") _talk.Insert(_line, L(WhoYou, sent, ""));
                 _talk.InsertRange(sent != "" ? _line + 1 : _line, P3Reply(sel));
-                // 続けて P4（導入 → 選択）。
+                // 続けて P4（導入 → 受け）。選択は挟まない＝『たすけて』の直後に「覚えておきます」まで一息で流す。
                 var p4 = P4Intro();
                 _timelineLine = _talk.Count;
                 _unsentLine = _timelineLine + p4.FindIndex(d => d.Text == FxErase);
                 _talk.AddRange(p4);
-                _p4ChoiceLine = _talk.Count;
-                break;
-            }
-            default:
-            {
-                string sent = P4Choices[sel];
-                var others = new List<string>();
-                for (int i = 0; i < P4Choices.Length; i++) if (i != sel) others.Add(P4Choices[i]);
-                _game?.RecordChoice("p4", sent, others, hesitation);
-                _talk.Insert(_line, L(WhoYou, sent, ""));
-                _talk.InsertRange(_line + 1, P4Reply(sel));
+                _talk.AddRange(P4Reply());
                 break;
             }
         }
         // 済んだ差し込み点は潰す（挿し込みで _line がそのまま同じ番号に留まるため、消さないと再提示になる）。
         if (_choiceId == "p2") _p2ChoiceLine = -1;
-        else if (_choiceId == "p3") _p3ChoiceLine = -1;
-        else _p4ChoiceLine = -1;
+        else _p3ChoiceLine = -1;
         // 挿し込みで現在行の中身が変わる＝ページ・タイプライターを組み直す。
         _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;
     }

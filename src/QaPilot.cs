@@ -291,11 +291,13 @@ public partial class QaPilot : Node
     // 移動：サイン波で常時ふらつく。ただし会話中（Hud.BubblePaused）は軸を解放する。
     //
     // ★軸を解放する理由（ChoiceOverlay の選択が既定カーソルで決まらなかった不具合）:
-    //   ChoiceOverlay は ui_up/ui_down の押下エッジでカーソルを上下させる（ChoiceOverlay.cs:183-189）。
+    //   ChoiceOverlay は ui_up/ui_down の押下エッジでカーソルを上下させる（ChoiceOverlay.cs 参照）。
     //   ここで会話中も送り続けると、サイン波が符号を跨ぐたびにエッジが立ち、提示中ずっとカーソルが
-    //   勝手に歩き回る＝どの選択肢が選ばれるかが走行ごとに変わる。StageRei.cs:628-629 が前提にしている
+    //   勝手に歩き回る＝どの選択肢が選ばれるかが走行ごとに変わる。各ステージが前提にしている
     //   「既定カーソルのまま1パルスで即決される」が成り立たず、S3-7 の3択で毎回ちがう枝を通っていた
-    //   （P1 命名・S1-4・F4・E6 も同じ）。DemoPilot は会話中 ReleaseAxes() 済み（DemoPilot.cs:136-140）で、
+    //   （P1 命名・F4・E6 も同じ）。DemoPilot は会話中 ReleaseAxes() 済み（DemoPilot.cs:136-140）で、
+    //   ※2026-09-22: ChoiceOverlay は「カーソルを動かすまで Z を受けない」ゲートを持つが、--qa/--demo 起動時は
+    //     ChoiceOverlay 側がそのゲートを外す（_autoPilot）ので、ここは従来どおり Z パルスだけで即決される。
     //   QaPilot だけがこの解放を持っていなかった＝両者の差はここ1点。
     //   会話中は弾も自機も止まる設計なので、軸を解放しても回避・進行には一切影響しない。
     private void DriveMovement()

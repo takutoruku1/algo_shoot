@@ -1,31 +1,29 @@
 using Godot;
 using System.Collections.Generic;
 
-// ChoiceEffects : 道中の下書き選択（6か所）の共通処理と、選択が下流の場面へ効く「効果」の窓口。
+// ChoiceEffects : 道中の下書き選択（s1_5・s1_2・s2_4・s3_2 の4か所）の共通処理と、選択が下流の場面へ効く「効果」の窓口。
 //   正典: wiki/08_仮台本/17_道中の選択肢_案C.md（ユーザー承認済み・2026-09-06）。
+//   2026-09-22: 6か所のうち s2_2（ペンライト＝スコアだけ）と s3_5c（効果先 E4 が削除済み）は選択を撤去
+//   （docs/20260922/選択肢監査_2026-09-22.md）。同日 P4・S1-4 の選択も撤去。
 //
-// 既存の選択（P2・P3・P4・S1-4・S3-7・F4・E2・E6）はそれぞれの場面が直に RecordChoice を呼んでいるが、
-// 道中の6か所は「3択＋（送らない）」「送らないなら【濁】+0.02」「表示候補のうち選ばれなかったぶんが散る」
-// という同じ作法をそのまま繰り返すので、その一手をここへ寄せる（各ステージの Apply〜Choice が呼ぶ）。
+// 既存の選択（P2・P3・S3-7・F4・E6）はそれぞれの場面が直に RecordChoice を呼んでいるが、
+// 道中の4か所は「3択＋（送らない）」「送らないなら【濁】+0.02」「表示候補のうち選ばれなかったぶんが散る」
+// という同じ作法をそのまま繰り返すので、その一手をここへ寄せる（各ステージの Step_Choice／RunChoice が呼ぶ）。
 //
 // 効果の読み出し（下流の場面が参照する）:
 //   Hub（再訪小話の固定・返信の一語差し込み） … PinnedIdleIndex / SentWordAt
-//   Final（F4 の悲鳴に必ず混ざる語）           … PriorityScattered
-//   Epilogue（E4 の一行）                       … ChosenAt("s3_5c") を直に読む
+//   Final（F4 の悲鳴に必ず混ざる語）           … PriorityScattered（※Final 側の読み出しは未接続）
 // いずれも GameManager の台帳（_chosenById / _scatterById）から引くだけで、新しい状態は持たない
 //   ＝セーブは RecordChoice の既存キーで足りる（新しい id を足すだけで後方互換）。
 public static class ChoiceEffects
 {
-    // （送らない）で【濁】微増。S1-4 の S14SkipContam / S3-7 の S37SkipContam と同値。
+    // （送らない）で【濁】微増。S3-7 の S37SkipContam と同値。
     public const float SkipContam = 0.02f;
-    // S2-2 で「受け取った」ぶんのスコア。三つのどれでも同じ値（どの言葉を送ったかには付けない）。
-    // 旧・やさしさ +0.02 の置き換え（2026-09-06 / docs/20260906/HUD整理_案.md §5）。
-    public const int ReceivedScore = 500;
 
     // 道中の選択1か所ぶんを記録する。choices の末尾は必ず（送らない）＝表示候補は末尾を除いた3件。
     //   戻り値 true＝送った（＝効果を付ける側）。false＝（送らない）／沈黙20秒。
     //   【散】は表示候補のうち選ばれなかったぶんだけを計上する（（送らない）自体は言葉ではないので
-    //   送信語にも散る語にも数えない＝表示候補3件が丸ごと散る）。S1-4・S3-7 と同じ流儀。
+    //   送信語にも散る語にも数えない＝表示候補3件が丸ごと散る）。S3-7 と同じ流儀。
     public static bool Record(GameManager? game, string id, string[] choices, int sel, float hesitationSec)
     {
         bool sent = sel < choices.Length - 1;
@@ -62,11 +60,6 @@ public static class ChoiceEffects
 // GameManager の追記ぶん（本体ファイルは別担当が編集中のため partial で分ける）。
 public partial class GameManager
 {
-    // 会話中の選択にスコアを足す入口。S2-2「消えたペンライトを受け取った」ぶんがここを通る。
-    //   やさしさゲージ撤去（2026-09-06）でゲージ加算からスコア加算へ置き換えた。
-    //   コンボ倍率は掛けない＝戦闘の加点とは別枠の一時金。
-    public void AddScoreFromChoice(int amount) => Score += amount;
-
     // その選択 id で散った言葉（出た順）。F4 の枠の先頭に入れる語をここから引く。
     public IReadOnlyList<string> ScatteredAt(string id)
         => _scatterById.TryGetValue(id, out var v) ? v : (IReadOnlyList<string>)System.Array.Empty<string>();

@@ -10,7 +10,7 @@ using System.Collections.Generic;
 //   横の基準は2通りある（Show の onBoard で選ぶ。詳細は _centerX のコメント）:
 //     道中の会話（盤面あり）＝盤面 Field の中心（設計 x 840）／カットシーン＝画面の中心（640）。
 //
-// 使い方（StageKoharu.Step_MidChoice 参照）:
+// 使い方（StageRei.Step_MidChoice 参照）:
 //   _choice = ChoiceOverlay.Show(Hud, new[] { "選択肢A", "選択肢B" }, defaultSel: 1, onBoard: true);
 //   ... _choice.Decided が立ったら _choice.Selected を読み、QueueFree する（後始末は呼び出し側の責務）。
 //
@@ -28,6 +28,13 @@ using System.Collections.Generic;
 // 沈黙も選択: 無入力が14秒続くと「ひきさがる」（末尾の選択肢）がひとりでに柔らかく灯りはじめ、
 //   20秒で自動的にそれが選ばれる（演出は通常決定と同じ・少し静かに）。ツリーポーズ中は _Process ごと
 //   止まるのでタイマーも停止する。
+// 決定はカーソルを一度動かしてから（2026-09-22。docs/20260922/選択肢監査_ゲームデザイン視点_2026-09-22.md §4 補足）:
+//   既定カーソルが末尾＝（送らない）の場面で、会話送りの Z 連打がそのまま「送らない」を確定していた
+//   （プレイヤーは選んでいない、Z を押しただけ）。↑↓／マウスホバー／行クリックのいずれかでカーソルに
+//   触れるまで Z/Enter/A の決定は受けない（無視した Z はヒントを明るいままにする＝「選んでください」）。
+//   無視した Z は入力に数えない＝沈黙タイマーは進み続け、20秒放置の自動決定は従来どおり末尾へ落ちる
+//   （F4 の「【初】がひとりでに送られる」演出はこれで保たれる）。1択（F4 の再提示）は動かす先が無いので
+//   ゲート無し。システム UI（ゲームオーバー）は gateUntilMove:false で従来どおり即決できる。
 //
 // 仕様（docs/20260831/会話選択_層2_プロト仕様.md）:
 //   ・X キャンセルは付けない＝必ずどれかを選ばせる（収束型の選択）。
@@ -40,11 +47,15 @@ using System.Collections.Generic;
 // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は Hud.BubblePaused 中に Z をパルスし続ける。
 //   出現完了（0.7s）までの Z は無視されるが、パルスは続くので直後の1発で確定し、解散演出（0.5s）後に
 //   Decided が立って先へ進む＝ソフトロックしない（沈黙タイマーの自動決定はその遥か手前で無関係）。
+//   パイロットはカーソルを動かさない（QaPilot は会話中に軸を解放する）ので、上の「動かすまで決定しない」
+//   ゲートは --qa/--demo 起動時だけ外す（_autoPilot。--shot と同じ引数検出）＝既定カーソルのまま即決される。
 public partial class ChoiceOverlay : Control
 {
     public bool Decided { get; private set; }   // 決定済みか（解散演出が終わってから立つ。立ったら Selected を読む）
     public int Selected { get; private set; }   // 現在カーソル／確定した選択肢の添字
     private bool _cinematic;
+    private bool _gateUntilMove = true;   // カーソルを動かすまで決定を受けない（物語の選択は true。システム UI は false）
+    private bool _cursorMoved;            // ↑↓／ホバー／行クリックで一度でもカーソルに触れたか
 
     private string[] _choices = System.Array.Empty<string>();
     private string[] _disp = System.Array.Empty<string>();   // 表示用（Quoted 済み）。文言そのものは変えない
@@ -78,6 +89,8 @@ public partial class ChoiceOverlay : Control
     //   視覚・通常プレイ・QA（--qa は --shot を伴わない）には一切影響しない（Shot.cs と同じ引数検出）。
     private static bool _shotHold;
     private static bool _shotHoldChecked;
+    // 自動プレイ（--qa/--demo）中は「動かすまで決定しない」ゲートを外す（パイロットは Z パルスしか出さない）。
+    private static bool _autoPilot;
 
     private const float AppearDur = 0.7f;     // 出現（粒の集合＋1文字ずつの滲み）
     private const float ShotHoldGate = 4.0f;  // --shot 時の決定ゲート（撮影窓の確保）
@@ -124,7 +137,10 @@ public partial class ChoiceOverlay : Control
     // onBoard: true＝盤面のある画面（道中の会話。Hud にぶら下げる呼び出し）＝盤面(Field)の中心へ出す。
     //          false＝盤面の無い画面（Prologue/Final/Epilogue のカットシーン）＝画面全体の中心へ出す。
     //          既定を false にしてあるのは、カットシーン側が「従来どおり」で通るようにするため。
-    public static ChoiceOverlay Show(Node parent, string[] choices, int defaultSel, bool onBoard = false, bool cinematic = false)
+    // gateUntilMove: true＝カーソルを一度動かすまで Z/Enter/A の決定を受けない（物語の選択の既定）。
+    //                false＝従来どおり出現直後から決定できる（ゲームオーバーなどのシステム UI）。
+    public static ChoiceOverlay Show(Node parent, string[] choices, int defaultSel, bool onBoard = false, bool cinematic = false,
+        bool gateUntilMove = true)
     {
         if (choices.Length > MaxChoices)
             GD.PushWarning($"[ChoiceOverlay] {choices.Length} 択は想定外（上限 {MaxChoices}）。下の行が吹き出しに掛かる。");
@@ -137,6 +153,7 @@ public partial class ChoiceOverlay : Control
             _fieldLeft = onBoard ? Field.DLeft : 0f,
             _fieldWidth = onBoard ? Field.DWidth : UiKit.DesignW,
             _cinematic = cinematic,
+            _gateUntilMove = gateUntilMove,
         };
         parent.AddChild(c);
         return c;
@@ -153,7 +170,10 @@ public partial class ChoiceOverlay : Control
         {
             _shotHoldChecked = true;
             foreach (var a in OS.GetCmdlineUserArgs())
-                if (a == "--shot") { _shotHold = true; break; }
+            {
+                if (a == "--shot") _shotHold = true;
+                if (a == "--qa" || a == "--demo") _autoPilot = true;
+            }
         }
 
         int n = _choices.Length;
@@ -172,7 +192,7 @@ public partial class ChoiceOverlay : Control
 
     // 選択肢の表示文字列。「」は「口に出す／送る言葉」の印なので、送らない側（「（送らない）」など
     // 括弧で始まる“行為”の選択肢）には付けない＝『「（送らない）」』という二重括弧を作らない。
-    // 全場面（P1 命名・S1-4・S3-7・F4・E6）で同じ扱いになるよう、判定はここ1箇所に閉じる。
+    // 全場面（P3 命名・道中・S3-7・F4・E6）で同じ扱いになるよう、判定はここ1箇所に閉じる。
     private static string Quoted(string s)
     {
         if (string.IsNullOrEmpty(s)) return s;
@@ -210,6 +230,7 @@ public partial class ChoiceOverlay : Control
         {
             int n = _choices.Length;
             Selected = (Selected + (down ? 1 : n - 1)) % n;
+            _cursorMoved = true;
             if (Audio.Instance is { } au1) au1.Se(au1.SfxUiMove, volDb: -27f, pitch: 0.8f);
         }
         _navHeld = nav;
@@ -223,9 +244,11 @@ public partial class ChoiceOverlay : Control
         if (Pad.UsingMouse && hov >= 0 && hov != Selected)
         {
             Selected = hov;
+            _cursorMoved = true;
             if (Audio.Instance is { } au2) au2.Se(au2.SfxUiMove, volDb: -27f, pitch: 0.8f);
         }
         // 断片の上で左クリック＝決定。外のクリックは何もしない（誤爆防止）。0.25s ゲート維持。
+        //   行を指してのクリックは「その行を選んだ」意思そのものなので、下の Z ゲートは掛けない。
         bool click = Pad.MouseClick();
         if (click && hov >= 0 && _t >= 0.25 && appeared)
         {
@@ -236,21 +259,26 @@ public partial class ChoiceOverlay : Control
 
         // Z/Enter/Pad A で決定（会話送りと違いマウス左クリックは含めない＝上の矩形クリック経路に分離）。
         // X キャンセルは意図的に無し（必ず選ばせる）。ポーズ中はツリーポーズで本 _Process ごと止まる。
+        // カーソルに一度も触れていない Z は受けない（会話送りの Z 連打が既定＝（送らない）を確定しないため）。
+        //   1択・システム UI・自動プレイはゲート無し。
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter)
                  || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld;
         _zHeld = z;
-        if (zEdge && _t >= 0.25 && appeared)
+        bool zAllowed = _cursorMoved || !_gateUntilMove || _choices.Length <= 1 || _autoPilot;
+        if (zEdge && _t >= 0.25 && appeared && zAllowed)
         {
             StartDissolve(quiet: false);
             return;
         }
 
         // ── 操作ヒント（出現直後から表示・入力が始まったら薄める）と沈黙タイマー ──
+        //   ゲートで無視した Z は入力に数えない＝ヒントは明るいまま、沈黙タイマーも止めない
+        //   （20秒放置の自動決定は従来どおり末尾へ。F4 の「ひとりでに送られる」もこの経路）。
         var mp = Pad.MousePos();
         bool mouseMoved = (mp - _lastMouse).Length() > 6f;
         _lastMouse = mp;
-        if (nav || z || click || mouseMoved) { _inputSeen = true; _silenceT = 0; }
+        if (nav || (z && zAllowed) || click || mouseMoved) { _inputSeen = true; _silenceT = 0; }
         else _silenceT += delta;
         float target = (_inputSeen ? 0.55f : 1f) * Mathf.Clamp((float)_t / VignetteIn, 0f, 1f);
         _hintA = Mathf.MoveToward(_hintA, target, dt * 3f);

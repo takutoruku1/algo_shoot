@@ -149,43 +149,18 @@ public partial class StageAkari : Node
 
     // ───────── S1-4 束（ミッドシナリオ枠＝後半Bと終盤Cの境・ボス前の“溜め”）─────────
     // 仮台本 06 の S1-4。宙に浮いた机に、社内チャットの「メッセージの送信を取り消しました」だけが縦に積み上がった束。
-    // 本文はひとつも残っていない。拾うかどうかを「あなた」に聞く＝この面唯一の下書き選択（ChoiceOverlay）。
-    // 吹き出し会話（Step_Lines）で出す＝弾は止まる。
+    // 本文はひとつも残っていない。吹き出し会話（Step_Lines）で出す＝弾は止まる。
+    // 2026-09-22: 下書き選択（ひろって／そっとしといて／（送らない））は撤去（docs/20260922/選択肢監査_2026-09-22.md #4）。
+    //   三候補とも「そっと拾う」に合流する偽の分岐だったので、「拾って、いいですか」の礼儀だけ残し、
+    //   ミナが自分で「そっと、拾います」と言って締め（足音）へ続ける。（送らない）の【濁】+0.02 も無くなる。
     private static readonly (int who, string text, string face)[] MidStory =
     {
         (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),   // A42。層3
         (1, "ご主人様、これ。宙に浮いた机の上に、束が。……「メッセージの送信を取り消しました」。その一行だけが、縦に、積み上がっています。", MWorried),
         (1, "本文は、ひとつも残っていません。取り消しの行だけ。……数えました。十二。——いまの投稿と、同じ数です。", MWorried),   // 数えただけ
         (1, "ご主人様。——拾って、いいですか。", MFace),
-    };
-
-    // S1-4 の下書き選択。（送らない）は言葉ではないので【散】に数えない＝表示候補の2件だけが散る。
-    private static readonly string[] S14Choices = { "ひろって", "そっとしといて", "（送らない）" };
-    // 選択ごとの受け。どのみち「そっと拾う」＝最後の締め（S14Tail）へ合流する。
-    //   先頭の who=0 は台本 06 の「送った下書きの復唱」行（Hud は LineKind.Boy を「あなた」名義・
-    //   立ち絵なしの下書き印で描く）。（送らない）は言葉を送っていないので復唱を置かない。
-    private static (int who, string text, string face)[] S14Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[]
-        {
-            (0, "ひろって", ""),
-            (1, "……はい。そっと、拾います。……送るかどうかを決めるのは、ご本人ですので。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "そっとしといて", ""),
-            (1, "……はい。そっと。——拾うのと、そっとしておくのは、両立します。", MFace),
-        },
-        // （送らない）／沈黙20秒。【濁】微増（仕様未決につき小さく）。
-        _ => new (int, string, string)[]
-        {
-            (1, "……無言。——では、そっと。……二件、散りましたね。", MFace),
-        },
-    };
-    // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
-    private static readonly (int who, string text, string face)[] S14Tail =
-    {
-        (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),
+        (1, "……はい。そっと、拾います。……送るかどうかを決めるのは、ご本人ですので。", MFace),   // 旧「ひろって」の受けをミナ自身の言葉に
+        (1, "——来ます。雨の奥から、足音が。……スマホの光が、先に見えます。", MWorried),        // 締め（中ボスが来る予感）
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
@@ -393,7 +368,7 @@ public partial class StageAkari : Node
             // ★S1-2 の下書き選択（17）＝道中Bの末尾に雨の言いかけ → 選択 → 受け＋締め
             case 6: if (_charStory) Step_Lines(delta, _storyMid2); else Step_Choice(delta, "s1_2", BossTalkThenS12, S12Choices, S12Reply, S12Tail); break;
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
-            case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_MidStory(delta); break;   // ★S1-4 束（下書き選択）＝ボス前の溜め
+            case 8: Step_Lines(delta, _charStory ? _storyMid3 : MidStory); break;   // ★S1-4 束＝ボス前の溜め（選択なし・2026-09-22）
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
             case 10: Step_Lines(delta, _playerMid); break;
             case 11: Step_BossSpawn(); break;
@@ -472,65 +447,8 @@ public partial class StageAkari : Node
         StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
-    // ---- S1-4 束（ミッドシナリオ枠）：問いかけまで流す → 下書き選択 → 受け＋締め ----
-    // 台本 06 の S1-4。ミナの「拾って、いいですか」で ChoiceOverlay（3択・N択対応版）を重ね、
-    // 決まったら受けの1行と共通の締め（足音）を続けて流してから終盤Cへ。
-    // 会話バブルは提示中も保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
-    // 自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソルのまま即決される＝詰まらない。
-    private ChoiceOverlay? _s14Choice;
-    private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
-    private int _s14Phase;                            // 0=問いかけまで / 1=選択提示中 / 2=受け＋締め
-    private const float S14SkipContam = 0.02f;        // （送らない）で汚染を微増（仕様未決につき小さく）
-    private void Step_MidStory(double delta)
-    {
-        switch (_s14Phase)
-        {
-            case 0:
-                // 束の提示〜「拾って、いいですか」まで。Step_Lines は流し切ると Advance するので、
-                // ここは自前で終端を見て次フェーズへ落とす（step は 8 のまま）。
-                _holdForChoice = true;
-                RunLinesInPlace(delta, MidStory, () => { _s14Phase = 1; _stepStarted = false; });
-                break;
-            case 1:
-                if (!_stepStarted)
-                {
-                    _stepStarted = true;
-                    _s14ChoiceT = 0;
-                    // 既定カーソルは末尾＝（送らない）。ChoiceOverlay の沈黙20秒の自動決定もここへ落ちる（台本どおり）。
-                    _s14Choice = ChoiceOverlay.Show(Hud, S14Choices, defaultSel: S14Choices.Length - 1, onBoard: true);
-                }
-                _s14ChoiceT += delta;
-                if (_s14Choice == null || !_s14Choice.Decided) return;
-                ApplyS14Choice(_s14Choice.Selected);
-                _s14Choice.QueueFree();
-                _s14Choice = null;
-                _s14Phase = 2;
-                _stepStarted = false;
-                break;
-            default:
-                _holdForChoice = false;
-                RunLinesInPlace(delta, _s14After, Advance);
-                break;
-        }
-    }
-
-    private void ApplyS14Choice(int sel)
-    {
-        var game = GetNodeOrNull<GameManager>("/root/Game");
-        // 【散】は表示候補（上2件）のうち選ばれなかったぶんだけを計上する。
-        //   （送らない）自体は言葉ではないので送信語にも散る語にも数えない＝表示候補2件が丸ごと散る。
-        bool sent = sel < S14Choices.Length - 1;
-        var others = new System.Collections.Generic.List<string>();
-        for (int i = 0; i < S14Choices.Length - 1; i++) if (i != sel) others.Add(S14Choices[i]);
-        game?.RecordChoice("s1_4", sent ? S14Choices[sel] : "", others, (float)_s14ChoiceT);
-        // （送らない）＝声を掛けずに見送った ぶんだけ、ミナの光がわずかに濁る。
-        if (!sent) game?.SetContamination((game.Contamination) + S14SkipContam);
-        _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
-    }
-
-    // ---- 道中の下書き選択（17）の汎用三フェーズ：きっかけ → 選択 → 受け＋締め（＋残りの会話）----
-    // 型は S1-4（Step_MidStory）と同じで、id・候補・受け・締めを引数で受けるようにしただけ。
+    // ---- 道中の下書き選択（17）の三フェーズ：きっかけ → 選択 → 受け＋締め（＋残りの会話）----
+    // id・候補・受け・締めを引数で受ける（旧 S1-4 の Step_MidStory と同じ型。S1-4 は 2026-09-22 に選択を撤去）。
     //   提示中もバブルは保持（HoldBubble）＝BubblePaused が続いて弾・敵は止まったまま。
     //   自動プレイ（--qa/--demo）は BubblePaused 中 Z をパルスし続けるので既定カーソル（末尾＝（送らない））
     //   のまま即決される＝詰まらない。tail の後ろに rest を繋げば、選択のあとに元の会話の続きを流せる。

@@ -120,7 +120,7 @@ public partial class Hud : CanvasLayer
     private static Dictionary<string, (string path, string line)>? _cutinData; // who → (カットイン絵, セリフ)
 
     // ── 割り込み演出中の戦闘テロップ抑制（ボス字幕 DrawBossLine ＋ スペルカットイン DrawSpellCutin）──
-    //   こはる面のボス戦中割り込み（会話2択。StageKoharu.SetQuietVeil の ON/OFF に同期）中、
+    //   レイ面のボス戦中割り込み（S3-7 の会話選択。StageRei.SetQuietVeil の ON/OFF に同期）中、
     //   カットインのバトルセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なって双方読めなくなるため、
     //   区間中は 0.2s でフェードアウトして消す（「弾が止まり静けさが残る」演出意図とも一致）。
     //   消え切った時点で実体も消去＝区間明けに残り時間ぶんが再表示されない（次の台詞・次のスペルからは通常）。
@@ -1590,7 +1590,7 @@ public partial class Hud : CanvasLayer
 
     // 2026-09-16: 下部ティッカー（降ってくる言葉）は表示OFF（ユーザー指摘＝画面下部の帯を消す）。
     //   投稿弾（PostBullets）が同じ PostPool の“声”を降らせるので情報は失われない。
-    //   コードは復活可能な形で残置（KoharuInterruptEnabled と同じ流儀＝フラグだけで止める）。
+    //   コードは復活可能な形で残置（フラグだけで止める）。
     private static readonly bool TickerEnabled = false;
     private void DrawTicker(HudCanvas ci)
     {
