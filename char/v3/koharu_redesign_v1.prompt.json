@@ -1,0 +1,314 @@
+{
+  "generator": "builtin image_gen",
+  "reference": "char/concepts/originality_v1/koharu.png",
+  "scope": "Koharu runtime artwork only; Mina redesign remains on hold.",
+  "postprocess": "User-approved background key, pose crop, proportional resize and transparent margins only. No despill or recoloring.",
+  "assets": [
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a40d68af-26cf-4f72-b3a8-fd817756d804.png",
+      "target": "char/v3/koharu_face.png",
+      "height": 720,
+      "region": [
+        0,
+        0,
+        724,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a40d68af-26cf-4f72-b3a8-fd817756d804.png",
+      "target": "char/v3/koharu_face_pale.png",
+      "height": 720,
+      "region": [
+        724,
+        0,
+        724,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a40d68af-26cf-4f72-b3a8-fd817756d804.png",
+      "target": "char/v3/koharu_face_lit.png",
+      "height": 720,
+      "region": [
+        1448,
+        0,
+        724,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_idle_v2.png",
+      "height": 720,
+      "region": [
+        0,
+        0,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_spin_v2_00.png",
+      "height": 720,
+      "region": [
+        418,
+        0,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_spin_v2_01.png",
+      "height": 720,
+      "region": [
+        836,
+        0,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_spin_v2_02.png",
+      "height": 720,
+      "region": [
+        0,
+        627,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_spin_v2_03.png",
+      "height": 720,
+      "region": [
+        418,
+        627,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/player/koharu/koharu_spin_v2_04.png",
+      "height": 720,
+      "region": [
+        836,
+        627,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-83494a52-d82d-43b5-9791-b710ebf47683.png",
+      "target": "char/player/koharu/koharu_aim_v2_u.png",
+      "height": 720,
+      "region": [
+        0,
+        0,
+        434,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-83494a52-d82d-43b5-9791-b710ebf47683.png",
+      "target": "char/player/koharu/koharu_aim_v2_ur.png",
+      "height": 720,
+      "region": [
+        434,
+        0,
+        460,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-83494a52-d82d-43b5-9791-b710ebf47683.png",
+      "target": "char/player/koharu/koharu_aim_v2_r.png",
+      "height": 720,
+      "region": [
+        894,
+        0,
+        436,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-83494a52-d82d-43b5-9791-b710ebf47683.png",
+      "target": "char/player/koharu/koharu_aim_v2_dr.png",
+      "height": 720,
+      "region": [
+        1330,
+        0,
+        408,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-83494a52-d82d-43b5-9791-b710ebf47683.png",
+      "target": "char/player/koharu/koharu_aim_v2_d.png",
+      "height": 720,
+      "region": [
+        1738,
+        0,
+        434,
+        724
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-12157ee4-d113-4d8d-9a44-c2d380bcb574.png",
+      "target": "char/v3/koharu_mid.png",
+      "height": 360,
+      "region": [],
+      "key": "green"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-08f597af-05ff-48b6-bf2e-8638c1938a7d.png",
+      "target": "char/v3/boss_koharu_body_idle.png",
+      "height": 720,
+      "region": [
+        0,
+        0,
+        500,
+        781
+      ],
+      "key": "green"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-08f597af-05ff-48b6-bf2e-8638c1938a7d.png",
+      "target": "char/v3/boss_koharu_body_attack.png",
+      "height": 720,
+      "region": [
+        500,
+        0,
+        524,
+        781
+      ],
+      "key": "green"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-08f597af-05ff-48b6-bf2e-8638c1938a7d.png",
+      "target": "char/v3/boss_koharu_body_idle2.png",
+      "height": 720,
+      "region": [
+        0,
+        781,
+        500,
+        755
+      ],
+      "key": "green"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-08f597af-05ff-48b6-bf2e-8638c1938a7d.png",
+      "target": "char/v3/boss_koharu_body_cry.png",
+      "height": 720,
+      "region": [
+        500,
+        781,
+        524,
+        755
+      ],
+      "key": "green"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d16d98df-6b4a-4a18-a0d3-98741be8a260.png",
+      "target": "char/v3/enemy_koharu_post.png",
+      "height": 360,
+      "region": [
+        418,
+        0,
+        418,
+        627
+      ],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-dc8f2c60-e1c2-4469-b8bd-5cfc8d4afd6a.png",
+      "target": "char/v3/cutin_koharu.png",
+      "height": 720,
+      "region": [],
+      "key": "none"
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d7d41ee8-2af5-4b71-bc01-2c5fa023c407.png",
+      "target": "char/v3/koharu_story_atlas_v2.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-acc35be5-1f5b-412d-9b51-a16591938209.png",
+      "target": "char/bg2/opening/op_koharu_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-fa5fe450-adad-4a2c-a693-2fbb0b96fac8.png",
+      "target": "char/bg2/story/cg_koharu_playable_memory_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-4fe24324-d9ea-45fd-bcea-fe0279375b07.png",
+      "target": "char/bg2/story/cg_koharu_playable_aftermath_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-296d1661-13c5-4135-8552-d7f4cbec779f.png",
+      "target": "char/bg2/ending/cg_ep_koharu_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-7cd81815-ecaa-4237-a2cc-c6340e1f00bd.png",
+      "target": "char/bg2/story/cg_mina_reunion_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-23fd0850-9cc6-4c01-b8ac-dbfe867858d3.png",
+      "target": "char/bg2/story/cg_mina_take_hand_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-f6bfe12f-87c1-40aa-ae71-20b90daad774.png",
+      "target": "char/bg2/ending/cg_ep_together_v1.png",
+      "copy": true
+    },
+    {
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-109794b8-0f06-469d-b01b-72ab2df9f439.png",
+      "target": "char/bg2/ending/cg_ep_rest.png",
+      "copy": true
+    }
+  ],
+  "prompts": {
+    "Portrait": "Use case: stylized-concept. Production sprite portrait atlas, not a concept board. Reference is the EXACT APPROVED new KOHARU design; use the large waist-up portrait's rendering and identity. Koharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nMake THREE separate waist-up dialogue portraits in one wide horizontal 3-column sheet, equal width columns and identical character scale, head top height and waist cut. Include all hair, ponytail, both shoulders, hands and penlight in each cell. Each portrait fits in the middle 82 percent of its column, large fully empty green gutters between portraits, no overlap. THREE EXPRESSIONS left to right: 1 normal gentle friendly smile, 2 pale overwhelmed worried expression with tired wide amber eyes and slightly parted trembling mouth, NOT crying and no shadow covering all eyes; 3 small hopeful smile softly lit from the front by her lavender penlight or monitor, visible face colors and teal hair. Pose matches approved waist-up portrait, penlight held near shoulder, other hand loosely at cardigan sleeve. Her ponytail and bookmark clip are on anatomical RIGHT, viewer LEFT. No extra designs or costume differences.\nPolished fine colored anime outlines, restrained cel shading, warm amber eyes, game-cohesive shading, not realistic.\nOUTPUT: one wide high resolution atlas, exactly 3 columns x 1 row. Background everywhere between the figures must be FLAT PURE CHROMA GREEN #00FF00, no shadow, glow, gradients or checkerboard on the background. Any lavender light is restricted to the character. No labels, no numbers, no borders, no text, no floating particles. This will be chroma-keyed and split into three PNG files.",
+    "PlayerBody": "Use case: stylized-concept. Asset: playable chibi KOHARU sprite sheet with 6 full-body frames for a 2D shooter.\nReference 1 is the APPROVED character design: use its small chibi exactly for face, proportions, outfit and colors. Reference 2 is the OLD current game's sprite ONLY for hovering pose and small-scale readability; do NOT copy the old brown hair or navy uniform.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nExactly SIX full body figures in a square sheet, precisely 3 equal columns x 2 equal rows, no lines or labels. All frames same 3-head-tall body proportions, same head-to-shoe height and vertical alignment. Whole head, ponytail, penlight, hands and shoes fit within the middle 78 percent of each cell, leaving generous clear empty gutters for cutting.\nFrame order LEFT TO RIGHT, then NEXT ROW:\nTOP LEFT = ordinary hovering idle in right-facing 3/4 view, slightly leaned forward, both knees gently bent, close feet trailing behind, penlight held near chest, free hand slightly outward. Same pose as approved chibi.\nTOP MIDDLE = dodge turn FRONT view (0 degrees), upright hover with softly bent knees, penlight tucked close to chest so it rotates with body.\nTOP RIGHT = same dodge pose yaw rotated 45 degrees toward screen RIGHT (front-right 3/4).\nBOTTOM LEFT = same dodge pose true RIGHT SIDE PROFILE, yaw 90 degrees.\nBOTTOM MIDDLE = same dodge pose BACK-RIGHT 3/4, yaw 135 degrees, mostly back visible.\nBOTTOM RIGHT = same dodge pose full BACK view, yaw 180 degrees, NO face or front buttons visible.\nA single upright turn around the body's vertical axis, NOT tumbling. Exactly one right-side low ponytail, scrunchie and clip rotate with the head. Penlight follows the holding hand at every angle; no extra limbs or props. Same exact uniform and neutral friendly expression through all frames. No extreme stretching or alternate costumes.\nPolished chibi anime, fine clean colored outlines, restrained soft cel shading matching reference. Modest school uniform. No hair glow, no aura, no effect, no shadow or floor.\nBackground: genuinely TRANSPARENT RGBA alpha with completely empty gutters, no checkerboard drawn into the image. If alpha is unavailable use FLAT PURE CHROMA GREEN #00FF00 with no gradient or shadows. No labels, numbers, text, arrows, grid lines or vignette.",
+    "Aim": "Use case: stylized-concept. Production FIVE aiming frames for KOHARU's 2D shooter player sprite, same character across five cells.\nInput 1 is approved new design, input 2 is the just-approved six-pose player sheet: preserve its exact proportions and identity. Koharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nA WIDE HORIZONTAL sheet with exactly FIVE equal columns in ONE ROW, aspect ratio 3:1. Every figure FULL BODY including penlight, hair, hands and shoes; keep all silhouette strictly in the middle 78% of its own column with broad EMPTY gutters. Same head-to-shoe height and same y baseline in every frame. Roughly 3-head-tall chibi, knees softly bent and feet close together in a hovering pose, skirt modest, age-appropriate.\nFive clearly different aiming directions LEFT TO RIGHT:\n1 UP: body front facing, face and eyes clearly tilted upward, penlight-bearing hand aimed directly UP above shoulder.\n2 UP-RIGHT: body right three-quarter, head tilted and gaze UP-RIGHT, penlight angled up-right.\n3 RIGHT: right-facing three-quarter hover similar to idle, head level and gaze RIGHT, penlight held toward right.\n4 DOWN-RIGHT: right three-quarter body, head bowed and eyes DOWN-RIGHT, penlight lowered down-right.\n5 DOWN: more top-down view showing top of her head, chin lowered, eyes looking downward, penlight lowered toward directly DOWN, both legs still visible.\nOnly the arm and head aim direction changes, not character height, clothing or identity. EXACTLY one right-side low ponytail with plum scrunchie, one ivory/violet bookmark clip; correct orientation as head rotates. One lavender penlight, never extra fingers or hands. Do not turn into Rei or the old brown-haired Koharu.\nSame fine clean anime outlines and polished soft cel shading as input 2. No aura, bullets, glow spilling outside character, motion trail, text, grid, labels, numbers, floor or shadow.\nBackground genuine TRANSPARENT RGBA alpha, not a painted checkerboard. If alpha is unavailable, use flat pure chroma GREEN #00FF00, no gradients.",
+    "Mid": "Use case: stylized-concept. Asset: ONE full-body chibi MIDBOSS KOHARU sprite with ornate battle outfit, transparent background.\nInput 1 is Koharu's approved new design and exact face/hair identity; Input 2 is the approved ornate AKARI MIDBOSS, reference ONLY for comparable costume richness, clean proportions, tailored ribbon silhouette and rendering quality. Do NOT copy Akari's face, hair, phone, employee badge, envelope coat or orange palette.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nTurn Koharu's school uniform into a distinctive emotional-realm combat outfit while retaining charcoal school blazer, ivory knit neckline, plum ribbon, teal low side ponytail and ivory bookmark hairclip. Make her as impressive as the Akari midboss:\nA fitted charcoal academic coat with broad pale-lavender lapel edging, a small off-white asymmetric shoulder mantle shaped like folded concert tickets, tiny rectangular silver clasps, and a dark pleated skirt with dusty-plum inner pleats. Two long ATTACHED violet fan-cheering ribbon tails emerge from the waist and arc softly outward, with muted mint lining and squared ticket-notch ends. A small single folded-ticket rosette at the collar, NOT stars or bows all over. Fine silver piping, compact geometric seam pattern. The shoulder mantle and ribbons give a broad identifiable silhouette while both legs and shoes remain visible. White ankle socks and dark loafers. Hands naturally connected, holding a lavender short penlight with both hands close to chest, slightly strained friendly smile, amber eyes normal (NOT glowing crosses). Body about 3-head tall and gently airborne, right-facing 3/4 pose. Face and scalp stay the approved compact short teal hair with low side ponytail, not waist-length hair.\nIMPORTANT: all decoration is attached fabric, NO orbiting stars, NO rings, NO halo, NO free-floating pieces, NO painted aura, NO attack-looking beams. The penlight's lavender core is solid and readable, no wide glow. Clean limb anatomy, all fingertips, feet, and ribbons entirely within canvas with 10 percent margin.\nFinely drawn polished chibi anime, consistent clean colored outlines and restrained cel shading like both references. High quality costume detail but readable at small scale, not photoreal, not 3D, not pixel art.\nOutput portrait or square, ONE figure, genuinely transparent alpha background. If no alpha use PURE FLAT GREEN #00FF00. No labels, text, shadows, floor, background glow or checkerboard.",
+    "MidKey": "Use case: background-extraction. Edit ONLY the background of the supplied Koharu midboss sprite. Keep the EXACT character, every face/hair/clothing color, outline, pose, connected limbs, shoes, penlight and attached ribbons unchanged.\nReplace ALL black backdrop and purple/gray background halos with a perfectly UNIFORM SOLID opaque CHROMA GREEN #00FF00 background, including enclosed gaps between arms, legs and ribbons. No black, gray, lavender or cyan glow may remain OUTSIDE the character. The character and attached fabric remain fully opaque and preserve their original shading. Do not recolor teal hair or mint ribbon lining. No shadows, floor, gradients, checkerboard, particles, text or aura.\nAdd a small flat green margin above the head and below both shoes so the complete figure stays comfortably inside the frame. Do not redesign or crop anything.",
+    "Boss": "Use case: stylized-concept. Production chibi BOSS KOHARU atlas. Exactly FOUR full-body poses of ONE consistent character, 2 columns x 2 rows. Input 1 is approved Koharu identity; input 2 is her new ornate midboss outfit: preserve its charcoal/lavender/ticket costume language, face and hairstyle, increase cape/ribbon silhouette for the main boss. Input 3 shows OLD boss only for size and dark emotional mood; DO NOT copy brown long hair, gold pin or old plain uniform.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nBoss outfit is an evolved form of input 2: fitted charcoal uniform coat with pale lavender/silver piping, asymmetric ivory folded-ticket shoulder mantle and small squared clasps, plum neck ribbon and rectangular folded ticket brooch. Pleated charcoal skirt with plum inner pleats. Two broad long attached violet cheering-ribbon coat tails with muted mint lining and notched ticket ends curve around the body, slightly frayed at tips. Short teal side ponytail remains unmistakable, never turns into long hair; the long flowing shapes are CLOTH, not hair. White ankle socks, dark loafers. Her lavender penlight is now a slender staff held in one hand. Solid lavender core only, no aura or outside glow.\nCharacter is ~3-head-tall chibi. All four people must be SAME head diameter and head-to-shoe height; staff tips may extend higher than head. Very generous empty margins and gutters so no pose crosses its cell. Exactly four separate figures, no scenery.\nTOP LEFT idle: full-body right-facing 3/4, feet hovering together, staff held vertically beside her; quiet strained blank expression, subdued shadow at brow, tired amber eyes not glowing crosses.\nTOP RIGHT attack: same body/face/design, raises the staff diagonally up-right with one arm while free arm extends sideways for balance, concentrated pained expression. Correct connected arms, no huge smile.\nBOTTOM LEFT second form: shoulders slump, one hand holds a dark phone at chest, the other lowers staff to side, mouth slightly open with overwhelmed amber eyes, a few extra frayed fabric ends; still same short low ponytail, same outfit and height.\nBOTTOM RIGHT defeat/cry: same costume and body size, tears on cheeks, free hand at chest, staff lowered, shoulders relaxed, no extra props; cloth no longer spread aggressively but remains attached. Both legs and shoes intact.\nStyle: fine polished colored anime outlines, clean restrained soft cel shading consistent with input 1 and 2. Faces readable even small. All effect beams, rings, floating shards, particles, darkness clouds and aura are OMITTED; gameplay effects are separate. No exposed skin beyond normal arms/face/legs, no damage wounds.\nBACKGROUND: SOLID PURE CHROMA GREEN #00FF00 everywhere outside figures and within limb/cloth gaps, uniform with NO shadows, NO gradient, NO glow, NO floor, NO checkerboard. Opaque characters, no green costume. No text, labels, numbers or gridlines.",
+    "BossKey": "Use case: background-extraction. Edit the supplied FOUR-POSE Koharu boss sprite sheet. Preserve all FOUR characters, their exact pose, clothing, face, proportions, teal hair and attached violet/mint ribbons unchanged.\nREMOVE ALL of the current dark gray, black and purple-glowing background and REPLACE it with one perfectly uniform opaque bright CHROMA GREEN #00FF00 background. This is not an artistic background. It must be pure #00FF00 at every point not belonging to a character, including all gaps between limbs, ribbons and staff. No dark halos, lavender glow, gradient, floor, shadow or particles anywhere outside the opaque characters. Do NOT change mint lining or teal hair on characters.\nKeep the existing TWO COLUMNS x TWO ROWS layout and each pose in its current cell. Add generous green outer margin so no staff tip or ribbon is clipped, and a clear green central horizontal and vertical gutter. No cropping, no text, no labels, no extra drawings.\nThe SOLE edit is background replacement and slight empty margin expansion. Do not regenerate another background.",
+    "Cutin": "Use case: identity-preserve. Asset: ONE waist-up battle cut-in portrait of KOHARU, no scene. Image 1 is her OLD cut-in for pose/framing ONLY. Image 2 is approved new Koharu identity. Image 3 is approved ornate midboss outfit. Redraw the person in image 1 with identity 2 and exact combat costume 3.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nKeep the dynamic old cut-in pose: one hand thrusts the lavender penlight toward the viewer with restrained foreshortening, the other fist near chest; brave slightly strained open-mouthed smile and focused amber eyes. Fine anime illustration at portrait/waist-up proportions, NOT a chibi. Full top of hair, ponytail, shoulders, penlight and hands within frame. The ivory/lavender shoulder mantle, silver rectangular clasps and plum folded-ticket brooch from image 3 are visible. No full-body duplicate. Exact short dusty-teal right-side low ponytail and ivory bookmark clip, no old brown long hair or gold barrette.\nVery clean controlled outlines and restrained cel shading, matching the game's polished portraits. Character alone, genuinely transparent alpha if possible, otherwise FLAT PURE GREEN #00FF00 with no glow, shadow, texture, gradient, floor, aura or checkerboard. No text or effects.",
+    "StoryAtlas": "Use case: identity-preserve. EDIT TARGET is image 1, an EIGHT-SCENE story atlas. Image 2 is the approved NEW KOHARU appearance. Replace ONLY KOHARU in ALL EIGHT PANELS with the approved appearance, preserving the original scenes, other people, objects, camera, expressions, mood and panel geometry.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nCRITICAL LAYOUT: exactly TWO equal columns and FOUR equal rows, no gutters, each panel exactly 16:9; total canvas ratio 8:9. Keep original row-major scene order and scene boundaries. No labels, borders or text.\nKoharu is the brown-haired girl with gold barrette in image 1, always the main foreground girl: in the classroom panels she is the girl on the LEFT; do not redesign her classmates, mother, or the violet-haired VTuber pictured on the merchandise.\nIn every panel replace brown bob/gold barrette with dusty blue-green hair, anatomical RIGHT low single side ponytail, plum scrunchie and small ivory/violet bookmark clip. Preserve amber eyes and original expression.\nSchool panels 1,2,3,8: replace Koharu's old navy blazer uniform with approved charcoal blazer, pale-gray knit vest, white shirt and narrow plum ribbon. Classmates keep their original navy uniform.\nBedroom panels 4,5,6,7: KEEP Koharu's existing lavender patterned pajamas, only change her hair/clip/face identity. No battle coat or school blazer over pajamas.\nEight scenes remain: 1 happily helping a classmate with a workbook; 2 lonely in new classroom while other classmates talk; 3 at a desk with worried mother behind holding a grade sheet; 4 first watching a stream on laptop at night; 5 exhausted beside merchandise and exam papers holding violet penlight; 6 typing a thankful comment in warmly lit room; 7 gently closing laptop and choosing rest; 8 asking a classmate for help next morning. Preserve the distinct lighting and emotion of EACH original.\nLAPTOPS: preserve opaque plain backs facing the viewer in the bedroom side/front views, NEVER put a screen/UI on the back of the lid. No mirrored nonsensical UI or legible dialogue. Maintain delicate polished anime linework and soft cel shading exactly like original, not realistic. Do not introduce any new story event, object, character or effects. Full-color atlas; game handles grayscale.",
+    "opening": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nThe only foreground girl sitting at the desk on the LEFT is Koharu. Keep her lavender patterned pajamas, the bored exhausted expression, hand on penlight, and original room/laptop composition. Change only her brown bob and gold clip to approved teal low side ponytail and ivory/violet clip. The long violet-haired VTuber on the laptop screen and acrylic merchandise is REI and must remain unchanged. Preserve laptop screen correct front-facing display.",
+    "memory": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nKoharu is the schoolgirl seated on the LEFT with downcast amber eyes, both hands at her closed notebook. Replace her hair and uniform with the approved teal low side ponytail, ivory/violet clip, charcoal blazer, pale-gray knit vest, white shirt and narrow plum ribbon. Her brown-haired mother on the RIGHT holding the grade sheet must be completely unchanged, as must the dining room, table, mugs and schoolbag. Keep Koharu's sad expression.",
+    "aftermath": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nKoharu is the foreground girl holding a warm mug with both hands. KEEP her lavender flower-patterned pajamas, gentle smile and relaxed pose. Update only her hair to approved teal single low side ponytail, plum scrunchie and ivory bookmark clip. ALSO update HER school uniform hanging on the wall to the approved charcoal blazer, pale-gray V-neck vest and narrow plum ribbon. Leave the violet-haired Rei portrait on shelf unchanged. Keep the laptop CLOSED with a plain opaque lid, no screen or UI on its back.",
+    "ep_koharu": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nKoharu is the girl on the LEFT, amber eyes open, holding a pencil near her mouth. Update her hair/clip and school uniform to the approved design while preserving her warm relieved smile. The laughing long brown-haired girl on the RIGHT is her CLASSMATE and stays exactly unchanged in the original navy uniform. Keep classroom and books unchanged.",
+    "reunion": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nExactly FOUR people remain. Koharu is SECOND FROM LEFT, the brown-haired schoolgirl between blonde Akari and short dark-purple-haired hoodie Rei. Update ONLY Koharu's hair/clip and school uniform to the approved teal low side ponytail, charcoal blazer and pale knit vest. Preserve her kneeling pose and smile. Akari FAR LEFT, Rei THIRD, and black-haired maid Mina FAR RIGHT must be unchanged, including Mina's old maid headband, blue chest jewel, black hair and damaged dress. Do not add the new proposed Mina design.",
+    "take_hand": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nExactly FOUR people remain. Koharu is SECOND FROM LEFT behind the foreground hands, between blonde Akari and short dark-purple-haired hoodie Rei. Update ONLY Koharu's hair/clip and school uniform to the approved teal low side ponytail, charcoal blazer and pale-gray knit vest. Preserve expression and occlusion by the hands. All foreground hands and arms, Akari on far LEFT, Rei in middle, silver-haired maid Mina FAR RIGHT, ruined window scenery and sunset must stay unchanged. Mina's original white frill headband and navy maid outfit must be preserved.",
+    "together": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nExactly FOUR people remain. Koharu is SECOND FROM LEFT, holding a closed dark notebook at chest. Update ONLY her hair/clip and school uniform to approved teal low side ponytail, charcoal blazer, pale knit vest and plum ribbon, keeping notebook and hands as-is. Akari at far left, short dark-haired hoodie Rei third, and long silver-haired maid Mina at far right must stay unchanged. Preserve Mina's original frilled headband, navy/white maid dress and blue chest jewel; do not apply new Mina design. Keep sunrise rooftop scene.",
+    "rest": "Use case: identity-preserve. EDIT target is image 1, an existing in-game story illustration. Image 2 is the APPROVED NEW KOHARU design sheet. Update ONLY KOHARU's appearance in image 1. Keep the original illustration's composition, camera, background, lighting, expression, pose and every other character EXACTLY unchanged. Do NOT adopt the design-sheet layout or background.\nKoharu's APPROVED identity: muted dark dusty blue-green/teal hair with subtle sage highlights, collarbone length, ONE short low side ponytail on her anatomical RIGHT side with a dusty-plum scrunchie, loose face-framing locks, ivory folded-bookmark hairclip with violet stripe on the SAME right side as the ponytail; warm amber eyes, gentle soft face, 17-year-old student. Never brown hair, gold bar clip, twin tails, long straight boss hair or stars in the eyes. Approved ordinary school uniform: charcoal-gray short open blazer with tiny teal pocket seam, pale cool-gray V-neck knit vest over white shirt, small narrow dusty-plum neck ribbon, dark pleated skirt with one plum inner pleat, off-white ankle socks, dark loafers. Holds a lavender penlight with dark grip and short violet ticket-charm wrist loop.\nOnly change the person specified below. Keep her original pose and facial expression; update hair color/style/clip and, only when she wears a school uniform, use the approved charcoal blazer and pale knit vest uniform. If wearing pajamas KEEP her exact pajamas. Do not insert a penlight or any prop absent in the source. No new effects, labels, text, captions, borders, symbols or signatures. Preserve the same wide 16:9 story art composition and original polished anime drawing style. All non-Koharu characters must retain their ORIGINAL faces, hair colors, hairstyles and clothing, especially MINA whose redesign was NOT approved.\nSCENE-SPECIFIC EDIT:\nThis is a wide night rooftop with FOUR small people shown FROM BEHIND at bottom-center. Koharu is SECOND FROM LEFT, originally brown bob and navy school uniform, holding a violet penlight. Change only her to the approved muted teal low side ponytail (on anatomical RIGHT, viewer RIGHT in this BACK view), charcoal blazer/skirt with plum inner pleat and off-white ankle socks. Face NOT visible. Keep all character positions, heights and small scale. Akari left, short dark-haired Rei third and silver-haired maid Mina right unchanged. Keep original night sky, moon, rooftop and perspective. Do NOT enlarge the people or introduce a front-facing portrait."
+  }
+}
