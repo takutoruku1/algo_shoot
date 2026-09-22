@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-22 18:40 UTC",
+  "generated": "2026-09-22 18:41 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 40,
-    "done": 256
+    "done": 257
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正",
-      "worker": "engineer",
-      "accept": "src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」と書かれているが、実際のFireRapid()(src/Player.cs:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正するコメントのみの変更。"
-    },
     {
       "priority": "P3",
       "title": "QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正",
@@ -271,6 +265,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-22) 2026-09-22監査(engineer)発見。src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」だったが、実際のFireRapid()(:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正。コメントのみの変更、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する",
@@ -1810,6 +1810,16 @@
   ],
   "commits": [
     {
+      "hash": "31105d3",
+      "date": "2026-09-22",
+      "subject": "auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する"
+    },
+    {
+      "hash": "8c74d3c",
+      "date": "2026-09-22",
+      "subject": "auto: こはる面スペル『全部見なきゃ』の8秒制限時間を可視化"
+    },
+    {
       "hash": "c55c063",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - こはる面スペル『全部見なきゃ』の8秒制限時間を可視化する"
@@ -1838,16 +1848,6 @@
       "hash": "2086f27",
       "date": "2026-09-22",
       "subject": "auto: 【MASTER】設定資料統合版.mdに案C非正典バナーを追記"
-    },
-    {
-      "hash": "46109cb",
-      "date": "2026-09-22",
-      "subject": "auto: WIP着手 - 【MASTER】設定資料統合版.mdに案C非正典バナー追記する"
-    },
-    {
-      "hash": "3dabcd0",
-      "date": "2026-09-22",
-      "subject": "auto: 監査で7件をキューに追加"
     }
   ]
 }
