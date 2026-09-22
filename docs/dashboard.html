@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 258 / 対象 259 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 259 / 対象 259 タスク<br>保留 40 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">258</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">259</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">40</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内するが、その参照先自体が2026-09-05付で「⚠非正典（案C移行,2026-09-05承認）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っている(docs/20260613/MINA_シナリオ設計書_v2.md:18-23)。両ファイルのバナーに「※参照先も一部非正典化済み。案C部分はwiki/08_仮台本/05〜08・12を参照」等の事実訂正を追記する。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-22) 2026-09-22監査(scenario)発見。両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内していたが、その参照先自体が2026-09-05付で「⚠非正典（案C移行）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っていた（二重の陳腐化）。両ファイルの既存バナー直後に、参照先が一部非正典化済みである旨と、案C部分の正典は<code>wiki/08_仮台本/05・06・07・08・12</code>である旨の事実訂正を追記。既存本文・バナーは無変更、新規セリフ・物語内容の創作なし。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2553,18 +2553,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">f577119</span><span>2026-09-22</span><span class="s">auto: WIP着手 - docs/GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新する</span></li>
+      <li><span class="h">1f41590</span><span>2026-09-22</span><span class="s">auto: QaPilot.cs等のコメント中のファイル:行参照ズレを修正</span></li>
       <li><span class="h">77007fe</span><span>2026-09-22</span><span class="s">auto: WIP着手 - QaPilot.cs等のコメント中のファイル:行参照ズレを修正する</span></li>
       <li><span class="h">1edeb36</span><span>2026-09-22</span><span class="s">auto: Player.cs冒頭コメントの記述を実態に合わせて修正</span></li>
       <li><span class="h">31105d3</span><span>2026-09-22</span><span class="s">auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する</span></li>
       <li><span class="h">8c74d3c</span><span>2026-09-22</span><span class="s">auto: こはる面スペル『全部見なきゃ』の8秒制限時間を可視化</span></li>
       <li><span class="h">c55c063</span><span>2026-09-22</span><span class="s">auto: WIP着手 - こはる面スペル『全部見なきゃ』の8秒制限時間を可視化する</span></li>
       <li><span class="h">f29fdc1</span><span>2026-09-22</span><span class="s">auto: 加速球モードのタメ枠上限に視認フィードバックを追加</span></li>
-      <li><span class="h">b00c3f1</span><span>2026-09-22</span><span class="s">auto: WIP着手 - 加速球モードのタメ枠上限フィードバックを追加する</span></li>
-      <li><span class="h">f344f24</span><span>2026-09-22</span><span class="s">auto: 世界観まとめ・統合企画書_最新版に案C非正典バナーを追記</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-22 18:42 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-22 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

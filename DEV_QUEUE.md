@@ -62,8 +62,6 @@
 <!-- 2026-09-22 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは新規指摘0件 -->
 ## WIP
 
-- [ ] (P3) docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する | scenario | 両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内するが、その参照先自体が2026-09-05付で「⚠非正典（案C移行,2026-09-05承認）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っている(docs/20260613/MINA_シナリオ設計書_v2.md:18-23)。両ファイルのバナーに「※参照先も一部非正典化済み。案C部分はwiki/08_仮台本/05〜08・12を参照」等の事実訂正を追記する。
-
 ## BLOCKED
 
 <!-- 2026-09-18 監査モード(scenario)で追加 -->
@@ -143,6 +141,7 @@
 - [ ] エピローグE5のミナ→DM「ちゃんと食べていますか?」が、こはる面から台所要素が撤去された結果、根拠を失ったまま残置されている | scenario | 要ユーザー判断（新規文言の創作を伴う）。2026-09-19監査(scenario)。実装`src/Epilogue.cs:212`の`O("UI", "ミナ →（DM）：「ちゃんと食べていますか?」");`は、承認済み仮台本12(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:200`)が「ミナの投稿『ちゃんと食べていますか』（現行はこはるの台所由来）とエピローグのDMの文面は、こはるが台所を失ったので、別の一行に差し替えるか判断が要る」と台本作成者自身が明記する未解決の判断点#5。この“食べる/来ない”系の世界観要素(`12:96`)は案Cで正式に撤去済みで、実装側`src/StageKoharu.cs:221`にも撤去済みを示すコメントのみが残り本文の台所描写は現行`StageKoharu.cs`に存在しない。既存BLOCKED（`12`ファイルの判断点#4=FINALでこはるの返礼の向き先）とは同ファイルの別項目(#5)で重複ではない。要ユーザー判断: (a)こはる由来ではない新しい一行に差し替える、(b)汎用的なミナの気遣いとして現状維持を正式承認する。承認後の受入条件: 承認された文言を`src/Epilogue.cs:212`へ反映すること
 
 ## DONE
+- [x] (P3) docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する | scenario | (完了 2026-09-22) 2026-09-22監査(scenario)発見。両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内していたが、その参照先自体が2026-09-05付で「⚠非正典（案C移行）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っていた（二重の陳腐化）。両ファイルの既存バナー直後に、参照先が一部非正典化済みである旨と、案C部分の正典は`wiki/08_仮台本/05・06・07・08・12`である旨の事実訂正を追記。既存本文・バナーは無変更、新規セリフ・物語内容の創作なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正 | engineer | (完了 2026-09-22) 2026-09-22監査(engineer)発見。QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→213/226-239/344-390、QaPilot.cs:321「Player.cs:650」→Player.cs:654、QaPilot.cs:324「:151-155」→QaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→Enemy.cs:550、Player.cs:286「Panel.cs:103」→Panel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→GameManager.cs:67に、実物確認の上で修正。コメント文言のみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) Player.cs冒頭コメントの「連射は右方向+360固定」表記を実態に合わせて修正 | engineer | (完了 2026-09-22) 2026-09-22監査(engineer)発見。src/Player.cs:5のクラス概要コメントは「連射(Pool経由・右方向+360・上下2way)」だったが、実際のFireRapid()(:886-896)はVector2 vel = ShotDir * 360f(ShotDirは_facing依存、:225)で向き反転(F/RB、:214-226)後は左方向にも撃つ。「右方向」を「射撃方向(_facing)へ」に修正。コメントのみの変更、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) こはる面スペル「全部見なきゃ」の8秒制限時間を可視化する | engineer | (完了 2026-09-22) 2026-09-22監査(game-designer)発見。src/BossKoharu.cs:61 _mealWindow=8.0の制限時間について、唯一の告知はHud.AnnounceSpellのスペル名カード(Hud.cs:67 SpellShowDur=5.0で5秒後に消える)のみで、残り3秒間は進行度の手がかりが無かった。Hud.csに`SetMealTimer(bool visible, float ratio)`（既存SpecialCdRatio/ComboTimeRatioバーと同じ矩形背景＋塗りバー様式）と`DrawMealTimer`を新設し、画面上部中央(スペルカード直下、他HUD要素と非重複)に「お残し禁止」ラベル付きバーを表示。色はBurn(時間切れ間際)→Gold(満タン)を線形補間。BossKoharu.cs TickMealのcase 2(:282-294)から毎フレーム比率を通知し、時間切れ移行時(:288)とFinishMeal(:358)双方で非表示化して`_mealPhase`が2以外の時は必ず消える契約にした。新規アセットなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。実機目視確認は未実施。
