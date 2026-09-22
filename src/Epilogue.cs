@@ -263,6 +263,12 @@ public partial class Epilogue : Node2D
         if (sent) after.Add(new DLine { Who = "あなた", Text = E6Choices[sel] });
         after.Add(new DLine { Who = "ミナ", Text = couplet });
         after.Add(new DLine { Who = "ミナ", Text = nameEcho });
+        // 感動テコ入れ（docs/20260922/感動テコ入れ_改稿記録_2026-09-22.md ビート3）
+        //   「空の問い」の最終回収。S1-11「返事は、いりません」→ S2-9 無言 → S3-9「もう、聞きません」→
+        //   F4「戻ったら、空の話を」→ E5b「わたくしの目で、見た空」と来て、最後は同じ「聞きません」を
+        //   意味だけ反転して置く（諦めではなく、見てきてください）。次行の「いってらっしゃいませ」の宛先が
+        //   ここで「外」になる。ShowingGoodbye／END の判定は末尾からの相対なので、挿入位置は影響しない。
+        after.Add(new DLine { Who = "ミナ", Text = "……今日の空は、聞きません。——ご自分の目で、どうぞ。" });
         after.Add(new DLine { Who = "ミナ", Text = "いってらっしゃいませ、ご主人様。" });     // 送り出す側の反転
         after.Add(new DLine { Who = "ミナ", Text = "——ええ、ご主人様。わたくしは、どこにも行きませんよ。" }); // END
         _end.AddRange(after);
