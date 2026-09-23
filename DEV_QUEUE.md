@@ -63,9 +63,9 @@
 
 <!-- 2026-09-23 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenarioは1件BLOCKEDへ、qaは新規指摘0件 -->
 
-- [ ] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | 2026-09-23監査(engineer)発見。以下4箇所の参照行番号をコメントのみ訂正（ロジック無変更）: `src/DemoPilot.cs:258`の「GameManager.cs:799-801」→`GameManager.cs:796-797`（`BackfireDamage`/`BackfireInterval`の実位置）。`src/DemoPilot.cs:350`の「Prologue.cs:178」→`Prologue.cs:242`（`Pad.AdvanceHeld()`呼び出しの実位置）。`src/Bullet.cs:413`の「Panel.cs:103」→`Panel.cs:109`（`Ink--`の実位置）。`src/PostBullets.cs:13`の「Bullet.cs:236〜」→`Bullet.cs:114`（`SetWord`定義の実位置）。
-
 ## WIP
+
+- [ ] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | 2026-09-23監査(engineer)発見。以下4箇所の参照行番号をコメントのみ訂正（ロジック無変更）: `src/DemoPilot.cs:258`の「GameManager.cs:799-801」→`GameManager.cs:796-797`（`BackfireDamage`/`BackfireInterval`の実位置）。`src/DemoPilot.cs:350`の「Prologue.cs:178」→`Prologue.cs:242`（`Pad.AdvanceHeld()`呼び出しの実位置）。`src/Bullet.cs:413`の「Panel.cs:103」→`Panel.cs:109`（`Ink--`の実位置）。`src/PostBullets.cs:13`の「Bullet.cs:236〜」→`Bullet.cs:114`（`SetWord`定義の実位置）。
 
 ## BLOCKED
 
