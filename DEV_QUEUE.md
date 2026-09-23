@@ -63,12 +63,13 @@
 
 <!-- 2026-09-23 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenarioは1件BLOCKEDへ、qaは新規指摘0件 -->
 
-- [ ] (P2) 無被弾クリア（ノーヒット）が一切記録・演出されない | engineer | 2026-09-23監査(game-designer)発見。`src/GameManager.cs:122-123`の`RunHitCount`/`NotifyPlayerHit()`でラン中被弾回数は計測済みだが、用途は`src/Hub.cs:1221`の帰還小話フレーバーテキストのみ。`src/GameManager.cs:221-268`の`ClearTimes`/`BestScores`と同じキー方式・永続化パターンで、そのラン`RunHitCount==0`でのクリアを記録する`NoHitClears`相当のフラグを追加し、`src/Hud.cs:659 ShowClearBanner`の呼び出し元（`src/StageAkari.cs:581-584`／`src/StageKoharu.cs:615-618`／`src/StageRei.cs:865-868`）でクリア時に無被弾なら明示演出（例:「NO DAMAGE」表示）を追加、`src/Records.cs`の該当セルにも無被弾達成の印を表示すること。新規モード・新規セリフではなく既存パターンの拡張。
 - [ ] (P3) 設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない | engineer | 2026-09-23監査(game-designer)発見。`src/Settings.cs:291-303 Adjust(int dir,...)`は`SType.KeyBind`/`SType.Select`（「操作」タブの5行・解像度等）で`default: return;`となり表示は不変だが、`src/Settings.cs:159-161`は型を見ず`ui_left`/`ui_right`入力で無条件に`Audio.Instance?.PlayUiMove()`を鳴らし、`src/Settings.cs:429-430`のフッタヒントも常に「←→　調整」を表示し続ける。`Settings.cs:159-161`で現在選択中行が`SType.KeyBind`/`SType.Select`のときは`PlayUiMove()`を鳴らさない（または変更不可と分かる別フィードバックにする）よう分岐し、`Settings.cs:429-430`のフッタヒントも該当行では「←→　調整」を表示しないようにすること。
 - [ ] (P3) PauseMenuのクラス冒頭コメントがAutoSaveの実態と矛盾している | engineer | 2026-09-23監査(engineer)発見。`src/PauseMenu.cs:5`の「セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない」というコメントが、実態（スロット1-3は手動セーブ専用UI、スロット0は`src/GameManager.cs:1042 AutoSave()`によりステージクリア/ハブ帰還/中ボス撃破/FINAL完了等で自動保存される併用方式）と矛盾している。コメントを実態に一致するよう修正すること。ロジック（`AutoSaveEnabled`/`AutoSave()`/`SaveToSlot`、`GameManager.cs:1041-1042`）は無変更。
 - [ ] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | 2026-09-23監査(engineer)発見。以下4箇所の参照行番号をコメントのみ訂正（ロジック無変更）: `src/DemoPilot.cs:258`の「GameManager.cs:799-801」→`GameManager.cs:796-797`（`BackfireDamage`/`BackfireInterval`の実位置）。`src/DemoPilot.cs:350`の「Prologue.cs:178」→`Prologue.cs:242`（`Pad.AdvanceHeld()`呼び出しの実位置）。`src/Bullet.cs:413`の「Panel.cs:103」→`Panel.cs:109`（`Ink--`の実位置）。`src/PostBullets.cs:13`の「Bullet.cs:236〜」→`Bullet.cs:114`（`SetWord`定義の実位置）。
 
 ## WIP
+
+- [ ] (P2) 無被弾クリア（ノーヒット）が一切記録・演出されない | engineer | 2026-09-23監査(game-designer)発見。`src/GameManager.cs:122-123`の`RunHitCount`/`NotifyPlayerHit()`でラン中被弾回数は計測済みだが、用途は`src/Hub.cs:1221`の帰還小話フレーバーテキストのみ。`src/GameManager.cs:221-268`の`ClearTimes`/`BestScores`と同じキー方式・永続化パターンで、そのラン`RunHitCount==0`でのクリアを記録する`NoHitClears`相当のフラグを追加し、`src/Hud.cs:659 ShowClearBanner`の呼び出し元（`src/StageAkari.cs:581-584`／`src/StageKoharu.cs:615-618`／`src/StageRei.cs:865-868`）でクリア時に無被弾なら明示演出（例:「NO DAMAGE」表示）を追加、`src/Records.cs`の該当セルにも無被弾達成の印を表示すること。新規モード・新規セリフではなく既存パターンの拡張。
 
 ## BLOCKED
 
