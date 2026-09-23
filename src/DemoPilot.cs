@@ -255,7 +255,7 @@ public partial class DemoPilot : Node
 
     // =====================  向き反転（背後の敵への対処）  =====================
     //
-    // 前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:799-801)より大幅に強い。
+    // 前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。
     // ところが従来の DemoPilot は HomeX(=104) を基準にした前方限定の回避・攻撃ロジックしか持たず、
     // 引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)のように自機の背後に居座る敵はバックファイア
     // 任せ＝削り切りが遅く被弾リスクの露出時間が伸びていた。
@@ -347,7 +347,7 @@ public partial class DemoPilot : Node
     //
     // ★以前は Hud.BubblePaused でない間 SetZ(true) の押しっぱなしにしていた。戦闘中は連射が効くので
     //   問題にならないが、**Hud を持たないカットシーン**（Prologue / TitleMenu / Epilogue など）は
-    //   BubblePaused を立てず、各シーンが自前で Pad.AdvanceHeld() のエッジを取る（Prologue.cs:178）。
+    //   BubblePaused を立てず、各シーンが自前で Pad.AdvanceHeld() のエッジを取る（Prologue.cs:242）。
     //   そのため `--demo` の Prologue は最初のエッジで1行進んだきり Z が下がらず、少年の1行目から
     //   永久に進まなかった（QaPilot は常時パルスなので同じ場所を送れていた＝この差が原因）。
     //   戦闘中の周期は QaPilot と同じ 0.16s ＝ 1秒あたり6発ぶんのエッジで、連射の手触りは実質変わらない。

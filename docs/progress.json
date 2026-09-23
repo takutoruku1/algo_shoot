@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-23 18:44 UTC",
+  "generated": "2026-09-23 18:45 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 41,
-    "done": 262
+    "done": 263
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P3",
-      "title": "コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている",
-      "worker": "engineer",
-      "accept": "2026-09-23監査(engineer)発見。以下4箇所の参照行番号をコメントのみ訂正（ロジック無変更）: `src/DemoPilot.cs:258`の「GameManager.cs:799-801」→`GameManager.cs:796-797`（`BackfireDamage`/`BackfireInterval`の実位置）。`src/DemoPilot.cs:350`の「Prologue.cs:178」→`Prologue.cs:242`（`Pad.AdvanceHeld()`呼び出しの実位置）。`src/Bullet.cs:413`の「Panel.cs:103」→`Panel.cs:109`（`Ink--`の実位置）。`src/PostBullets.cs:13`の「Bullet.cs:236〜」→`Bullet.cs:114`（`SetWord`定義の実位置）。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -265,6 +258,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-23) 2026-09-23監査(engineer)発見。`src/DemoPilot.cs:258`「GameManager.cs:799-801」→`GameManager.cs:796-797`、`src/DemoPilot.cs:350`「Prologue.cs:178」→`Prologue.cs:242`、`src/Bullet.cs:413`「Panel.cs:103」→`Panel.cs:109`、`src/PostBullets.cs:13`「Bullet.cs:236〜」→`Bullet.cs:114`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "PauseMenuのクラス冒頭コメントがAutoSaveの実態と矛盾している",
@@ -1840,6 +1839,16 @@
   ],
   "commits": [
     {
+      "hash": "7cf8efd",
+      "date": "2026-09-23",
+      "subject": "auto: WIP着手 - コメント中のファイル:行参照ズレを修正する"
+    },
+    {
+      "hash": "5df8067",
+      "date": "2026-09-23",
+      "subject": "auto: PauseMenuのクラス冒頭コメントをAutoSaveの実態に合わせて修正"
+    },
+    {
       "hash": "50f4d74",
       "date": "2026-09-23",
       "subject": "auto: WIP着手 - PauseMenuのクラス冒頭コメントをAutoSaveの実態に合わせて修正する"
@@ -1868,16 +1877,6 @@
       "hash": "efc5024",
       "date": "2026-09-23",
       "subject": "auto: 監査で4件をTODO・1件をBLOCKEDへ追加"
-    },
-    {
-      "hash": "0d76cc9",
-      "date": "2026-09-22",
-      "subject": "auto: GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新"
-    },
-    {
-      "hash": "f577119",
-      "date": "2026-09-22",
-      "subject": "auto: WIP着手 - docs/GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新する"
     }
   ]
 }

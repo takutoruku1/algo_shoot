@@ -10,7 +10,7 @@ using Godot;
 // 投稿の“声”の源：
 //   - Rei/Akari    … 共通の Hud.TickerWords（下を流れるコメントと同一プール＝ハンドル付きで一致）。
 //   - Koharu/Mina  … 各ステージ固有の悲鳴フレーズ（その面のテーマ語）。ハンドル無しでも可。
-//   いずれも Bullet.SetWord(word, handle) で完成済みの X風カード描画（Bullet.cs:236〜）を流用。
+//   いずれも Bullet.SetWord(word, handle) で完成済みの X風カード描画（Bullet.cs:114）を流用。
 //
 // 難易度スケール（やること2）：難しいほど“投稿数（量）”が増える。
 //   ・湧き間隔：DanmakuIntervalMul（Easy ほど長い）に加え、難易度別の頻度係数 FreqMul を掛ける。
