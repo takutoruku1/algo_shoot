@@ -1,0 +1,6 @@
+{
+  "tool": "image_gen",
+  "reference": "char/ui/cursor_refrain_v1_source.png",
+  "prompt": "Use case: stylized-concept. One transparent RGBA mouse cursor sprite for Refrain, matching the supplied game's crystal pointer reference in illustration quality. New purchasable 'Star Letter' design: compact sharp upper-left arrowhead made of pearl-white and pale gold crystal; a SINGLE small five-point gold star at the base lower right, attached to a short turquoise ribbon tail. Bold dark charcoal outer contour, white inner edge, a few broad luminous gold facets. Readable ARROW at 40 pixels, not a star-shaped projectile or a crosshair. No detached stars, no glow, no particles, no circles. Tip at the top-left extremity, no ornament above or left of tip. One isolated connected pointer on a truly transparent alpha background with generous margins. No labels, text, watermark, checkerboard, or solid backdrop.",
+  "processing": "tools/key_trim_scale.ps1 -Key none -TargetH 40; upper-left hotspot (0,0)."
+}

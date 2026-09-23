@@ -1,0 +1,6 @@
+{
+  "tool": "image_gen",
+  "reference": "char/ui/cursor_refrain_v1_source.png",
+  "prompt": "Use case: stylized-concept. One transparent RGBA mouse cursor sprite for Refrain, matching the supplied game's crystal pointer reference in rendering quality and silhouette clarity. New purchasable 'Ember Letter' design: a compact sharp upper-left arrowhead shaped as a folded white and warm coral-red paper letter, a tiny copper-orange flame-shaped short ribbon tail connected at lower right. Polished anime UI illustration, dark charcoal outer contour, white inner edge, three broad coral facets, no particles, no glow, no circles. Recognizably a mouse ARROW, NOT a flame projectile. Single connected icon, point at its top-left extremity, no objects above/left of tip. Designed to read at 40px. Square canvas, generous truly transparent margins, single isolated pointer only, no text, no labels, no checkerboard or solid background.",
+  "processing": "tools/key_trim_scale.ps1 -Key none -TargetH 40; upper-left hotspot (0,0)."
+}

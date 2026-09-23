@@ -66,6 +66,7 @@ public partial class MouseHintQa : Node
 
             if (_shotDir != null) { await ShotRun(); return; }
 
+            TestCursor();
             await TestHowTo();
             await TestBacklog();
             await TestPauseHint();
@@ -79,6 +80,33 @@ public partial class MouseHintQa : Node
         }
         GD.Print(_fails == 0 ? "[MouseQA] ALL PASS" : $"[MouseQA] {_fails} FAILURE(S)");
         GetTree().Quit(_fails == 0 ? 0 : 1);
+    }
+
+    private void TestCursor()
+    {
+        string path = ProjectSettings.GetSetting("display/mouse_cursor/custom_image").AsString();
+        Vector2 hotspot = ProjectSettings.GetSetting("display/mouse_cursor/custom_image_hotspot").AsVector2();
+        Check(path == "res://char/ui/cursor_refrain_v1.png", "the illustrated cursor is configured for every scene");
+        using var texture = GD.Load<Texture2D>(path);
+        Check(texture != null, "the cursor texture imports successfully");
+        if (texture == null) return;
+        using var image = texture.GetImage();
+        Check(image.GetWidth() == 34 && image.GetHeight() == 40, "cursor stays compact at native window resolution");
+        Check(hotspot == Vector2.Zero && image.GetPixel(0, 0).A > 0.1f,
+            "click hotspot matches the upper-left arrow tip");
+        int clear = 0, bright = 0, dark = 0;
+        for (int y = 0; y < image.GetHeight(); y++)
+        for (int x = 0; x < image.GetWidth(); x++)
+        {
+            Color pixel = image.GetPixel(x, y);
+            if (pixel.A == 0f) clear++;
+            if (pixel.A > 0.8f && pixel.R > 0.7f && pixel.G > 0.7f && pixel.B > 0.7f) bright++;
+            float onWhite = Mathf.Max(pixel.R, Mathf.Max(pixel.G, pixel.B)) * pixel.A + 1f - pixel.A;
+            if (onWhite < 0.65f) dark++;
+        }
+        Check(clear > image.GetWidth() * image.GetHeight() / 3, "cursor background is transparent, not a painted square");
+        Check(bright > 80 && dark > 40, $"crystal remains visible on dark backgrounds ({bright}px) and light backgrounds ({dark}px)");
+        Check(Input.MouseMode == Input.MouseModeEnum.Visible, "native cursor remains visible without a software overlay");
     }
 
     // ── あそびかた：デバイスタブ／ページドット／「とじる」 ──

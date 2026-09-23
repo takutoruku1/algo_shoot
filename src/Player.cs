@@ -524,7 +524,8 @@ public partial class Player : Area2D
 
         var job = _game?.JobDef ?? Jobs.Get(Job.Tank);
         CharacterId = job.CharacterId;
-        var tex = ResourceLoader.Load<Texture2D>(job.PlayerTexturePath);
+        var costume = _game?.CostumeFor(job.Id) ?? Cosmetics.DefaultCostume(job.Id);
+        var tex = ResourceLoader.Load<Texture2D>(costume.PosePath("idle"));
         if (tex != null)
         {
             _hasTexture = true;
@@ -547,9 +548,9 @@ public partial class Player : Area2D
         }
 
         for (int i = 0; i < _spinTex.Length; i++)
-            _spinTex[i] = ResourceLoader.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_spin_v2_{i:00}.png");
+            _spinTex[i] = ResourceLoader.Load<Texture2D>(costume.PosePath($"spin_{i:00}"));
         foreach (string direction in new[] { "u", "ur", "r", "dr", "d" })
-            _aimTex[direction] = ResourceLoader.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_aim_v2_{direction}.png");
+            _aimTex[direction] = ResourceLoader.Load<Texture2D>(costume.PosePath($"aim_{direction}"));
 
         // 被弾検出（敵 / 敵弾）
         AreaEntered += OnAreaEntered;

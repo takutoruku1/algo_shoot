@@ -112,14 +112,13 @@ public partial class OpeningFilmQa : Node
             }
             Check(true, "typed text and caret stay inside the cinematic frame throughout the camera move");
             foreach (var (index, duration) in new[] { (1, 3.5), (2, 3.5), (3, 3.5), (4, 5.0),
-                (5, 3.5), (6, 3.5), (7, 3.5), (8, 3.5), (9, 4.0), (10, 4.0) })
+                (5, 3.1), (6, 4.0), (7, 3.3), (8, 3.6), (9, 4.0), (10, 4.0) })
                 Check(Math.Abs(cuts[index + 1] - cuts[index] - duration) < 0.001,
-                    $"shot {index} keeps its original duration");
+                    $"shot {index} follows its authored duration");
             var daily = Read<Texture2D[]>(film, "_daily");
             Check(daily.Length == 3 && Array.TrueForAll(daily, tex => tex.GetWidth() > 1000), "three dedicated full-resolution daily scenes");
             var portraits = Read<Texture2D[]>(film, "_cutins");
-            Check(portraits.Length == 4 && portraits[2].ResourcePath.EndsWith("cutin_rei_gawa_a.png")
-                && portraits[3].ResourcePath.EndsWith("op_mina_v1.png"), "four cutins keep Rei's avatar and Mina's normal appearance");
+            Check(portraits.Length == 4, "four dedicated opening cutins");
             var cast = Read<JobTuning[]>(film, "_cast");
             Check(cast[0].CharacterId == "akari" && cast[1].CharacterId == "koharu"
                 && cast[2].CharacterId == "rei" && cast[3].CharacterId == "mina", "cutin names match the playable characters");
@@ -127,19 +126,34 @@ public partial class OpeningFilmQa : Node
             var shots = Read<BulletArt.PlayerVisual[]>(film, "_shots");
             for (int i = 0; i < 4; i++)
             {
+                Check(portraits[i].ResourcePath.EndsWith($"op_{cast[i].CharacterId}_cutin_v1.png")
+                    && portraits[i].GetWidth() >= 1024 && portraits[i].GetHeight() >= 1536,
+                    $"{cast[i].CharacterId} uses its new full-resolution portrait");
+                using var portraitImage = portraits[i].GetImage();
+                Check(portraitImage.GetPixel(0, 0).A == 0 && portraitImage.GetPixel(portraitImage.GetWidth() - 1, 0).A == 0,
+                    $"{cast[i].CharacterId} portrait has transparent surroundings");
                 for (int layer = 0; layer < 3; layer++)
                     Check(routes[i, layer].ResourcePath.Contains($"/route/{cast[i].CharacterId}_"),
                         $"{cast[i].CharacterId} action has route layer {layer}");
                 Check(shots[i].Texture.ResourcePath.Contains($"/{cast[i].CharacterId}_shot_v1.png"),
                     $"{cast[i].CharacterId} uses its in-game projectile artwork");
             }
-            foreach (var (field, width, font) in new[] { ("DailyLines", 1100f, 29), ("CutinLines", 490f, 27) })
+            var filmFont = Read<FontFile>(film, "_filmFont");
+            var titleFont = Read<FontFile>(film, "_titleFont");
+            Check(filmFont.ResourcePath.EndsWith("ShipporiMincho-SemiBold.ttf")
+                && titleFont.ResourcePath.EndsWith("CormorantGaramond-Italic.ttf"), "cinematic typography is separate from game UI");
+            foreach (var (field, width, font) in new[] { ("DailyLines", 1100f, 30), ("CutinLines", 368f, 30) })
             {
                 var quotes = (string[])typeof(OpeningFilm).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
                 foreach (string quote in quotes)
                     foreach (string line in quote.Split('\n'))
-                        Check(UiKit.TextW(UiKit.ZenBold, line, font) <= width, $"{field}: dialogue fits its caption area");
+                    {
+                        Check(UiKit.TextW(filmFont, line, font) <= width, $"{field}: dialogue fits its caption area");
+                        Check(Array.TrueForAll(line.ToCharArray(), c => filmFont.HasChar(c)), $"{field}: all glyphs exist in the cinematic font");
+                    }
             }
+            Check(UiKit.TextW(filmFont, cast[1].CharacterName, 80) < 280
+                && UiKit.TextW(titleFont, "Refrain", 164) < 1000, "name and title fit the cinematic frame");
             var mina = Read<Sprite2D>(film, "_mina");
             using (var cutout = mina.Texture.GetImage())
                 Check(cutout.GetPixel(0, 0).A == 0 && cutout.GetPixel(1000, 300).A > 0.95f, "Mina is a real transparent character layer");
@@ -159,22 +173,40 @@ public partial class OpeningFilmQa : Node
                     Seek(film, time);
                     await Shot($"{name}_{size.X}x{size.Y}");
                 }
+                for (int character = 0; character < 4; character++)
+                {
+                    Seek(film, cuts[5 + character] + 0.8);
+                    await Shot($"{cast[character].CharacterId}_portrait_{size.X}x{size.Y}");
+                }
             }
 
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(10);
+            var releases = (float[])typeof(OpeningFilm).GetField("ReleaseTimes", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            var impacts = (float[])typeof(OpeningFilm).GetField("ImpactTimes", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            Rect2I[] impactAreas = { new(820, 120, 390, 340), new(100, 80, 520, 470), new(870, 65, 350, 510), new(580, 180, 620, 285) };
+            Rect2I[] portraitAreas = { new(550, 65, 630, 490), new(45, 60, 620, 490), new(300, 70, 720, 480), new(500, 60, 700, 490) };
             for (int i = 0; i < 4; i++)
             {
-                foreach (var (offset, label) in new[] { (0.8, "portrait"), (1.42, "wipe"), (2.02, "release"), (2.48, "break") })
+                Check(releases[i] < impacts[i] && impacts[i] + 0.5 < cuts[6 + i] - cuts[5 + i],
+                    $"{cast[i].CharacterId} attack has time to land before the cut");
+                foreach (var (offset, label) in new[] { (0.2, "closeup"), (0.8, "portrait"), (1.25, "wipe"),
+                    ((double)releases[i] + 0.35, "release"), ((double)impacts[i] + 0.23, "break") })
                 {
                     Seek(film, cuts[5 + i] + offset);
                     await Shot($"{cast[i].CharacterId}_{label}");
                 }
-                Seek(film, cuts[5 + i] + 1.9);
+                Seek(film, cuts[5 + i] + 0.2);
+                using var portraitEntrance = await Capture();
+                Seek(film, cuts[5 + i] + 0.8);
+                using var portraitReveal = await Capture();
+                Check(Difference(portraitEntrance, portraitReveal, portraitAreas[i]) > 0.025f,
+                    $"{cast[i].CharacterId} closeup and reveal visibly animate");
+                Seek(film, cuts[5 + i] + impacts[i] - 0.08);
                 using var beforeImpact = await Capture();
-                Seek(film, cuts[5 + i] + 2.48);
+                Seek(film, cuts[5 + i] + impacts[i] + 0.28);
                 using var afterImpact = await Capture();
-                Check(Difference(beforeImpact, afterImpact, new Rect2I(870, 120, 340, 340)) > 0.015f,
+                Check(Difference(beforeImpact, afterImpact, impactAreas[i]) > 0.015f,
                     $"{cast[i].CharacterId} post shatters visibly");
             }
             Seek(film, cuts[9] + 3.4);

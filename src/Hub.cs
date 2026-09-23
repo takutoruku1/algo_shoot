@@ -92,6 +92,16 @@ public partial class Hub : Node2D
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _playerFaces = new();
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _dialogueFaces = new();
     private Texture2D? _minaFace;
+    private Texture2D _customizeIcon = null!;
+    private Texture2D _hubMina = null!;
+    private FontFile _sideNameFont = null!, _sideTitleFont = null!;
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sidePortraits = new();
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sideSkies = new();
+    private readonly System.Collections.Generic.Dictionary<string, Texture2D> _sideScenery = new();
+    private string _sideStoryId = "", _sideStoryPrevious = "";
+    private float _sideStoryBlend = 1;
+    private static readonly Rect2 CompanionArea = new(0, 0, PhoneX - 1, H);
+    private static readonly Rect2 StoryArea = new(PhoneX + PhoneW + 1, 0, W - PhoneX - PhoneW - 1, H);
     // 埋め草アカウントのアイコン（添字＝SnsVoices の Icon 番号。1..IconCount。[0] は未使用）。
     private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
 
@@ -242,6 +252,7 @@ public partial class Hub : Node2D
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         _zHeld = Pad.AdvanceHeld();
+        _customizeIcon = GD.Load<Texture2D>("res://char/ui/cursor_refrain_v1.png");
         BuildNightBg();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
         var args = OS.GetCmdlineUserArgs();
@@ -259,7 +270,19 @@ public partial class Hub : Node2D
         BuildEntries();
         ApplyPreview();
         LoadFaces();
+        _hubMina = GD.Load<Texture2D>("res://char/ui/hub_mina_v1.png");
+        _sideNameFont = GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf");
+        _sideTitleFont = GD.Load<FontFile>("res://assets/fonts/CormorantGaramond-Italic.ttf");
+        foreach (var job in Jobs.All)
+        {
+            string id = job.CharacterId;
+            _sidePortraits[id] = id == "mina" ? _hubMina
+                : GD.Load<Texture2D>($"res://char/bg2/opening/op_{id}_cutin_v1.png");
+            _sideSkies[id] = GD.Load<Texture2D>($"res://char/bg2/route/{id}_far.png");
+            _sideScenery[id] = GD.Load<Texture2D>($"res://char/bg2/route/{id}_mid.png");
+        }
         if (_previewState == null) _sel = DefaultSelection();
+        _sideStoryId = _sideStoryPrevious = SideStoryId();
         UpdateFeedScrollTarget();
         if (_autoplay || _previewState != null || _openDetail || _openJob) _mode = Mode.Cards;
         // デバッグ限定：--hub-detail で選択カードの投稿詳細を開いた状態から始める（スクショ用）。
@@ -747,6 +770,14 @@ public partial class Hub : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
+        string sideStory = SideStoryId();
+        if (_sideStoryId != sideStory)
+        {
+            _sideStoryPrevious = _sideStoryId;
+            _sideStoryId = sideStory;
+            _sideStoryBlend = 0;
+        }
+        _sideStoryBlend = Mathf.Min(1, _sideStoryBlend + (float)delta / 0.45f);
         if (_toastT > 0) _toastT -= delta;
         // 夜景のドリフト（会話中も止めない＝画面の裏で夜が流れ続ける）。
         if (_nightBg != null)
@@ -949,13 +980,13 @@ public partial class Hub : Node2D
     // トースト：1行目＝世界の言葉（通知文）、2行目＝現状の数値（小さく・任意）。
     private void Toast(string msg, string sub, Color col) { _toast = msg; _toastSub = sub; _toastCol = col; _toastT = 2.6; }
 
-    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真" };
+    private static readonly string[] HomeApps = { "SNS", "強化ショップ", "記録", "写真", "カスタマイズ" };
     private const int HomeAppIdBase = 22000;
 
     private Rect2 HomeAppRect(int index)
     {
-        float width = (PhoneW - 48f) / HomeApps.Length;
-        return new Rect2(PhoneX + 24f + index * width, 288f, width, 132f);
+        float width = (PhoneW - 48f) / 4f;
+        return new Rect2(PhoneX + 24f + index % 4 * width, 288f + index / 4 * 144f, width, 132f);
     }
 
     private Rect2 HomeAppIconRect(int index)
@@ -964,7 +995,7 @@ public partial class Hub : Node2D
         return new Rect2(rect.Position + new Vector2((rect.Size.X - 80f) / 2f, 8f), new Vector2(80f, 80f));
     }
 
-    private bool HomeAppUnlocked(int index) => index == 0 || index == 3 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
+    private bool HomeAppUnlocked(int index) => index == 0 || index >= 3 || (index == 1 ? ShopUnlocked : RecordsUnlocked);
 
     private void ProcessHome()
     {
@@ -988,7 +1019,9 @@ public partial class Hub : Node2D
         bool next = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
         if ((previous || next) && !_navHeld)
         {
-            _homeSel = (_homeSel + (previous ? -1 : 1) + HomeApps.Length) % HomeApps.Length;
+            if (Input.IsActionPressed("ui_up")) { if (_homeSel >= 4) _homeSel -= 4; }
+            else if (Input.IsActionPressed("ui_down")) { if (_homeSel < 4) _homeSel = Mathf.Min(HomeApps.Length - 1, _homeSel + 4); }
+            else _homeSel = (_homeSel + (previous ? -1 : 1) + HomeApps.Length) % HomeApps.Length;
             Audio.Instance?.PlayUiMove();
         }
         _navHeld = previous || next;
@@ -1031,7 +1064,7 @@ public partial class Hub : Node2D
             return;
         }
         _dived = true;
-        GetTree().ChangeSceneToFile(index == 1 ? "res://Shop.tscn" : "res://Records.tscn");
+        GetTree().ChangeSceneToFile(index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn");
     }
 
     private void GoHome()
@@ -1409,7 +1442,7 @@ public partial class Hub : Node2D
             bool unlocked = HomeAppUnlocked(i);
             float activation = _mode == Mode.HomeReveal && i == 1 ? Mathf.Clamp(((float)_homeRevealT - 1.15f) / 0.65f, 0f, 1f) : 1f;
             bool focused = _mode == Mode.Home && (Pad.UsingMouse ? UiKit.HoveredId() == HomeAppIdBase + i : i == _homeSel);
-            Color color = i == 0 ? new Color("82d8dc") : i == 1 ? new Color("eba4b9") : i == 2 ? new Color("bddba7") : new Color("f0c969");
+            Color color = i == 0 ? new Color("82d8dc") : i == 1 ? new Color("eba4b9") : i == 2 ? new Color("bddba7") : i == 3 ? new Color("f0c969") : new Color("b6c7eb");
             if (!unlocked) color = new Color("737b85");
             color = new Color("737b85").Lerp(color, activation);
             if (focused) UiKit.Box(this, icon.Grow(6f), new Color(1, 1, 1, 0.08f), 8f, new Color(UiKit.White, 0.75f), 1.5f);
@@ -1445,13 +1478,17 @@ public partial class Hub : Node2D
             {
                 for (int bar = 0; bar < 3; bar++) DrawRect(new Rect2(c.X - 21f + bar * 16f, c.Y + 5f - bar * 12f, 10f, 16f + bar * 12f), ink);
             }
-            else
+            else if (i == 3)
             {
                 UiKit.Box(this, new Rect2(c - new Vector2(25f, 16f), new Vector2(50f, 34f)), Colors.Transparent, 7f, ink, 3f);
                 UiKit.Box(this, new Rect2(c + new Vector2(-15f, -23f), new Vector2(19f, 9f)), ink, 3f);
                 DrawCircle(c + new Vector2(1f, 1f), 11f, Colors.Transparent);
                 DrawArc(c + new Vector2(1f, 1f), 11f, 0, Mathf.Tau, 32, ink, 3f, true);
                 DrawCircle(c + new Vector2(1f, 1f), 4f, ink);
+            }
+            else
+            {
+                DrawTextureRect(_customizeIcon, new Rect2(c - new Vector2(17f, 20f), new Vector2(34f, 40f)), false);
             }
             if (!unlocked || activation == 0f)
             {
@@ -1826,92 +1863,152 @@ public partial class Hub : Node2D
     private void DrawSidePanels(float alpha)
     {
         if (alpha <= 0.01f) return;
-        DrawSideRail(PhoneX - 34f, 108f, 496f, UiKit.Mina, 1f, alpha);
-        DrawSideRail(PhoneX + PhoneW + 34f, 108f, 496f, UiKit.Info, -1f, alpha);
-        DrawMinaSidePanel(new Rect2(64, 86, 264, 240), alpha);
-        DrawSignalSidePanel(new Rect2(952, 86, 264, 240), alpha);
+        DrawCompanionSidePanel(alpha);
+        DrawSignalSidePanel(alpha);
     }
 
-    private void DrawSideRail(float x, float y, float h, Color accent, float dir, float alpha)
+    private string SideStoryId()
     {
-        Color line = new Color(accent, 0.20f * alpha);
-        DrawLine(new Vector2(x, y), new Vector2(x, y + h), line, 1f);
-        DrawLine(new Vector2(x, y), new Vector2(x + dir * 24f, y), new Color(accent, 0.18f * alpha), 1f);
-        DrawLine(new Vector2(x, y + h), new Vector2(x + dir * 24f, y + h), new Color(accent, 0.18f * alpha), 1f);
-        DrawRect(new Rect2(x - 1f, y + 102f, 2f, 54f), new Color(accent, 0.18f * alpha));
-        DrawRect(new Rect2(x - 1f, y + 318f, 2f, 86f), new Color(accent, 0.14f * alpha));
-
-        float pulseBase = ((float)_t * 28f) % h;
-        for (int i = 0; i < 6; i++)
-        {
-            float py = y + ((pulseBase + i * 86f) % h);
-            DrawCircle(new Vector2(x, py), 2.4f, new Color(accent, 0.34f * alpha));
-        }
-
-        for (int i = 0; i < 5; i++)
-        {
-            float py = y + 34f + i * 92f;
-            DrawCircle(new Vector2(x, py), 4.5f, new Color(0.02f, 0.025f, 0.035f, 0.70f * alpha));
-            DrawCircle(new Vector2(x, py), 2.0f, new Color(accent, 0.46f * alpha));
-            DrawLine(new Vector2(x, py), new Vector2(x + dir * (14f + i % 2 * 10f), py), new Color(accent, 0.16f * alpha), 1f);
-        }
+        bool home = _mode is Mode.Home or Mode.HomeReveal or Mode.SnsOpening or Mode.Photos
+            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home);
+        if (!home && IsVoice(_sel)) return _entries[_sel].Id;
+        foreach (var entry in _entries)
+            if (entry.Sort == Kind.Voice && entry.Unlocked && !IsClearedForDisplay(entry.Id)) return entry.Id;
+        for (int i = _entries.Length - 1; i >= 0; i--)
+            if (IsVoice(i)) return _entries[i].Id;
+        return GameManager.FirstStageId;
     }
 
-    private void DrawSidePanelBase(Rect2 rect, Color accent, string label, float alpha)
+    private static Vector2 SidePortraitFocus(string id) => id switch
     {
-        UiKit.Box(this, rect, new Color(0.025f, 0.030f, 0.042f, 0.58f * alpha), 8f,
-            new Color(accent, 0.26f * alpha), 1.1f);
-        UiKit.VGradient(this, new Rect2(rect.Position.X + 1f, rect.Position.Y + 1f, rect.Size.X - 2f, 48f),
-            new[] { new Color(1, 1, 1, 0.050f * alpha), new Color(1, 1, 1, 0f) }, new[] { 0f, 1f });
-        DrawRect(new Rect2(rect.Position.X + 16f, rect.Position.Y + 18f, 3f, 28f), new Color(accent, 0.72f * alpha));
-        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(30f, 18f), label, 13, new Color(accent, 0.86f * alpha));
+        "akari" => new(0.52f, 0.24f), "koharu" => new(0.64f, 0.25f),
+        "rei" => new(0.51f, 0.24f), _ => new(0.56f, 0.16f),
+    };
+
+    private void DrawSideTexture(Texture2D texture, Rect2 rect, Rect2 clip, float alpha)
+    {
+        Rect2 visible = rect.Intersection(clip);
+        if (!visible.HasArea()) return;
+        Rect2 source = new((visible.Position - rect.Position) / rect.Size * texture.GetSize(),
+            visible.Size / rect.Size * texture.GetSize());
+        DrawTextureRectRegion(texture, visible, source, new Color(1, 1, 1, alpha));
     }
 
-    private void DrawMinaSidePanel(Rect2 rect, float alpha)
+    private void DrawSideLandscape(string id, Rect2 area, float alpha)
+    {
+        for (int layer = 0; layer < 2; layer++)
+        {
+            Texture2D texture = layer == 0 ? _sideSkies[id] : _sideScenery[id];
+            Vector2 size = texture.GetSize() * ((H + 40) / texture.GetHeight());
+            float drift = Mathf.Sin((float)_t * 0.13f + layer) * (layer == 0 ? 6 : 14);
+            DrawSideTexture(texture, new Rect2(area.GetCenter() - size / 2 + new Vector2(drift, 0), size),
+                area, alpha * (layer == 0 ? 0.82f : 0.68f));
+        }
+        DrawRect(area, new Color(0.015f, 0.025f, 0.035f, alpha * 0.18f));
+    }
+
+    private void DrawSidePortrait(string id, Rect2 area, Vector2 focus, float height, float alpha)
+    {
+        Texture2D texture = _sidePortraits[id];
+        Vector2 size = texture.GetSize() * (height / texture.GetHeight());
+        DrawSideTexture(texture, new Rect2(focus - size * SidePortraitFocus(id), size), area, alpha);
+    }
+
+    private void DrawSideShade(Rect2 area, float top, float alpha, float end = 0.75f)
+    {
+        UiKit.VGradient(this, new Rect2(area.Position.X, top, area.Size.X, H - top),
+            new[] { new Color(0.027f, 0.038f, 0.045f, 0), new Color(0.027f, 0.038f, 0.045f, alpha) },
+            new[] { 0f, end });
+    }
+
+    private void DrawCompanionSidePanel(float alpha)
     {
         var job = _game.JobDef;
-        Color accent = JobColor(job.Id);
-        DrawSidePanelBase(rect, accent, "MINA NODE", alpha);
-        if (_minaFace != null)
-            UiKit.FaceAvatar(this, rect.Position + new Vector2(44f, 84f), 26f, _minaFace, UiKit.Mina, false, TopCropFor("mina"), alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(82f, 64f), "ミナ", 17, new Color(UiKit.White, 0.92f * alpha));
-        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(82f, 91f), "@mina_ai_", 12, new Color(UiKit.Text3, 0.82f * alpha));
+        string id = job.CharacterId;
+        DrawSideLandscape(id, CompanionArea, alpha * 0.72f);
+        float arrive = Mathf.SmoothStep(0, 1, Mathf.Clamp((float)(_t / 0.7), 0, 1));
+        float breath = Mathf.Sin((float)_t * 0.85f) * 3;
+        DrawSidePortrait(id, CompanionArea, new Vector2(218 - (1 - arrive) * 22, 266 + breath),
+            780, alpha * arrive);
+        DrawSideShade(CompanionArea, 430, alpha);
+        UiKit.VGradient(this, new Rect2(0, 0, CompanionArea.Size.X, 195),
+            new[] { new Color(0.027f, 0.038f, 0.045f, alpha * 0.6f), new Color(0, 0, 0, 0) }, new[] { 0f, 1f });
+        UiKit.Text(this, _sideTitleFont, new Vector2(40, 30), "Refrain", 72, new Color("fff4df", alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(46, 128), "同行中", 13, new Color("bee8dc", alpha));
+        UiKit.Text(this, _sideNameFont, new Vector2(42, 548), job.CharacterName, 46, new Color("fff7ea", alpha));
+        UiKit.Text(this, _sideTitleFont, new Vector2(46, 614), AccountHandle(job), 24, new Color("bddde4", alpha));
+        int count = 0;
+        foreach (var companion in Jobs.All)
+        {
+            if (!_game.IsJobUnlocked(companion.Id)) continue;
+            UiKit.FaceAvatar(this, new Vector2(61 + count * 44, 680), 15, _playerFaces[companion.CharacterId],
+                JobColor(companion.Id), false, 0, alpha * (companion.Id == job.Id ? 1 : 0.55f), _t);
+            count++;
+        }
+        UiKit.Text(this, UiKit.Zen, new Vector2(44 + count * 44, 669), $"仲間 {count}", 13,
+            new Color(UiKit.Text2, alpha));
+    }
 
-        DrawSideMetric(rect.Position + new Vector2(24f, 132f), "救った心", $"{_game.HeartsSaved}/{GameManager.Stages.Length}", UiKit.Purify, alpha);
-        DrawSideMetric(rect.Position + new Vector2(24f, 164f), "フォロワー", UiKit.Abbrev(_game.Followers), UiKit.Hp, alpha);
-        DrawSideMetric(rect.Position + new Vector2(24f, 196f), "インプレ", UiKit.Abbrev(_game.Impression), UiKit.Gold, alpha);
+    private void DrawSignalSidePanel(float alpha)
+    {
+        float blend = Mathf.SmoothStep(0, 1, _sideStoryBlend);
+        if (blend < 1) DrawStoryPreview(_sideStoryPrevious, alpha * (1 - blend));
+        DrawStoryPreview(_sideStoryId, alpha * blend);
+        const float x = 919;
+        int cleared = ClearedStageCount();
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, 461), "届いた声", 14, new Color("c9d8d8", alpha));
+        UiKit.Text(this, UiKit.Mono, new Vector2(1159, 457), $"{cleared:00} / {GameManager.Stages.Length:00}", 17,
+            new Color("f4dc9f", alpha));
+        for (int i = 0; i < GameManager.Stages.Length; i++)
+        {
+            var stage = GameManager.Stages[i];
+            var entry = System.Array.Find(_entries, e => e.Id == stage.Id && e.Sort == Kind.Voice);
+            bool saved = IsClearedForDisplay(stage.Id);
+            bool known = entry.Unlocked || saved;
+            float cx = x + 34 + i * 110;
+            bool current = stage.Id == _sideStoryId;
+            Color accent = saved ? UiKit.Ok : current ? new Color("f4dc9f") : UiKit.Text3;
+            if (i < GameManager.Stages.Length - 1)
+                DrawLine(new Vector2(cx + 31, 524), new Vector2(cx + 78, 524),
+                    new Color(accent, alpha * (saved ? 0.8f : 0.24f)), 1.5f, true);
+            UiKit.FaceAvatar(this, new Vector2(cx, 524), current ? 27 : 22, known ? _faces[stage.Id] : null,
+                accent, !known, 0, alpha * (known ? 1 : 0.42f), _t);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(cx - 48, 558), known ? entry.Name : LockedName, 15,
+                new Color(known ? UiKit.White : UiKit.Text3, alpha), HorizontalAlignment.Center, 96);
+            UiKit.Text(this, UiKit.Zen, new Vector2(cx - 48, 584), saved ? "届いた" : known ? "未送信" : "未受信", 11,
+                new Color(accent, alpha * 0.88f), HorizontalAlignment.Center, 96);
+        }
+        DrawSideMetric(new Vector2(x, 624), "フォロワー", UiKit.Abbrev(_game.Followers), new Color("eba4b9"), alpha);
+        DrawSideMetric(new Vector2(x + 170, 624), "インプレ", UiKit.Abbrev(_game.Impression), new Color("e5c986"), alpha);
+    }
 
-        UiKit.FaceAvatar(this, rect.Position + new Vector2(rect.Size.X - 44f, 84f), 22f, _playerFaces[job.CharacterId], accent, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(rect.Size.X - 102f, 118f), job.CharacterName, 14,
-            new Color(UiKit.Text2, 0.88f * alpha), HorizontalAlignment.Center, 116f);
+    private void DrawStoryPreview(string id, float alpha)
+    {
+        bool final = id == "final";
+        string character = final ? "mina" : id;
+        var job = System.Array.Find(Jobs.All, j => j.CharacterId == character)!;
+        DrawSideLandscape(character, StoryArea, alpha);
+        float drift = Mathf.Sin((float)_t * 0.65f + 1.2f);
+        DrawSidePortrait(character, new Rect2(StoryArea.Position, new Vector2(StoryArea.Size.X, 458)),
+            new Vector2(1137 + drift * 4, 222 + drift * 2), 650, alpha);
+        DrawSideShade(StoryArea, 300, alpha, 0.36f);
+        UiKit.VGradient(this, new Rect2(StoryArea.Position.X, 0, StoryArea.Size.X, 135),
+            new[] { new Color(0.027f, 0.038f, 0.045f, alpha * 0.65f), new Color(0, 0, 0, 0) }, new[] { 0f, 1f });
+        string caption = final ? "最後の声" : IsClearedForDisplay(id) ? "届いた声" : "次の声";
+        UiKit.Text(this, _sideNameFont, new Vector2(919, 38), caption, 23, new Color("fff4df", alpha));
+        int index = System.Array.FindIndex(GameManager.Stages, stage => stage.Id == id);
+        UiKit.Text(this, _sideTitleFont, new Vector2(919, 77), final ? "Final" : $"Story {index + 1:00}", 27,
+            new Color("eacb8b", alpha));
+        UiKit.Text(this, _sideNameFont, new Vector2(914, 348), job.CharacterName, 40,
+            new Color("fff7ea", alpha));
+        UiKit.Text(this, _sideTitleFont, new Vector2(919, 404), AccountHandle(job), 21,
+            new Color("dae4e5", alpha));
     }
 
     private void DrawSideMetric(Vector2 pos, string label, string value, Color accent, float alpha)
     {
-        UiKit.Text(this, UiKit.Zen, pos, label, 12, new Color(UiKit.Text3, 0.78f * alpha));
-        UiKit.Text(this, UiKit.Mono, new Vector2(pos.X + 120f, pos.Y - 2f), value, 16,
-            new Color(accent, 0.92f * alpha), HorizontalAlignment.Right, 98f);
-        DrawRect(new Rect2(pos.X, pos.Y + 23f, 218f, 1f), new Color(1, 1, 1, 0.06f * alpha));
-    }
-
-    private void DrawSignalSidePanel(Rect2 rect, float alpha)
-    {
-        Color accent = UiKit.Info;
-        DrawSidePanelBase(rect, accent, "SIGNAL", alpha);
-        int cleared = ClearedStageCount();
-        UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(30f, 62f), "声の受信", 17, new Color(UiKit.White, 0.9f * alpha));
-        UiKit.Text(this, UiKit.Mono, rect.Position + new Vector2(rect.Size.X - 112f, 61f), $"{cleared}/{GameManager.Stages.Length}", 18,
-            new Color(UiKit.Purify, 0.92f * alpha), HorizontalAlignment.Right, 82f);
-        DrawStagePips(rect.Position + new Vector2(30f, 102f), alpha);
-
-        DrawAppState(rect.Position + new Vector2(30f, 126f), "SNS", HomeAppUnlocked(0), new Color("82d8dc"), alpha);
-        DrawAppState(rect.Position + new Vector2(30f, 154f), "強化", HomeAppUnlocked(1), new Color("eba4b9"), alpha);
-        DrawAppState(rect.Position + new Vector2(30f, 182f), "記録", HomeAppUnlocked(2), new Color("bddba7"), alpha);
-        DrawAppState(rect.Position + new Vector2(30f, 210f), "写真", HomeAppUnlocked(3), new Color("f0c969"), alpha);
-
-        float contam = Mathf.Clamp(_game?.Contamination ?? 0f, 0f, 1f);
-        DrawRect(new Rect2(rect.Position.X + 30f, rect.Position.Y + 234f, rect.Size.X - 60f, 4f), new Color(1, 1, 1, 0.09f * alpha));
-        DrawRect(new Rect2(rect.Position.X + 30f, rect.Position.Y + 234f, (rect.Size.X - 60f) * contam, 4f), new Color(UiKit.Kegare, 0.72f * alpha));
+        UiKit.Text(this, UiKit.Zen, pos, label, 12, new Color(UiKit.Text3, 0.86f * alpha));
+        UiKit.Text(this, UiKit.Mono, pos + new Vector2(0, 24), value, 22, new Color(accent, alpha));
     }
 
     private int ClearedStageCount()
@@ -1919,30 +2016,6 @@ public partial class Hub : Node2D
         int count = 0;
         foreach (var s in GameManager.Stages) if (IsClearedForDisplay(s.Id)) count++;
         return count;
-    }
-
-    private void DrawStagePips(Vector2 pos, float alpha)
-    {
-        for (int i = 0; i < GameManager.Stages.Length; i++)
-        {
-            bool cleared = IsClearedForDisplay(GameManager.Stages[i].Id);
-            bool open = _game?.IsStageUnlocked(GameManager.Stages[i].Id) ?? i == 0;
-            Color c = cleared ? UiKit.Ok : open ? UiKit.Purify : UiKit.Text4;
-            UiKit.Box(this, new Rect2(pos.X + i * 38f, pos.Y, 24f, 8f), new Color(c, (cleared ? 0.82f : 0.34f) * alpha), 4f);
-        }
-        bool finalOpen = _game?.AllStoryCleared ?? false;
-        UiKit.Box(this, new Rect2(pos.X + 3 * 38f + 12f, pos.Y - 2f, 32f, 12f), Colors.Transparent, 6f,
-            new Color(finalOpen ? UiKit.Kegare : UiKit.Text4, (finalOpen ? 0.8f : 0.26f) * alpha), 1.2f);
-    }
-
-    private void DrawAppState(Vector2 pos, string label, bool active, Color col, float alpha)
-    {
-        Color state = active ? col : UiKit.Text4;
-        DrawCircle(pos + new Vector2(5f, 8f), 5f, new Color(state, (active ? 0.86f : 0.32f) * alpha));
-        UiKit.Text(this, UiKit.ZenBold, pos + new Vector2(18f, 0f), label, 14, new Color(UiKit.Text2, 0.86f * alpha));
-        string tag = active ? "ONLINE" : "LOCKED";
-        UiKit.Text(this, UiKit.Mono, pos + new Vector2(126f, 1f), tag, 12,
-            new Color(state, (active ? 0.78f : 0.45f) * alpha), HorizontalAlignment.Right, 86f);
     }
 
     private void DrawTimeline(float alpha)

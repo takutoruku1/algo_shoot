@@ -174,7 +174,7 @@ public partial class PauseMenu : CanvasLayer
     // （ShopTutorial は "Shop" の部分一致で自動的に含まれる）。RetryEnabled と揃えること。
     private static bool IsNonCombatMenuScreen(string path) =>
         path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect")
-        || path.Contains("Records") || path.Contains("Training");
+        || path.Contains("Records") || path.Contains("Training") || path.Contains("Customize");
 
     // Esc でメニューを開ける画面か。除外するのは「Esc が既に閉じる/戻るを意味する画面」だけ:
     //   TitleMenu … ここがルート（戻り先が無い＝メニューの「タイトルへ」も無意味）

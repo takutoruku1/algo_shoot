@@ -32,6 +32,8 @@ buses/default_bus_layout="res://default_bus_layout.tres"
 
 [display]
 
+mouse_cursor/custom_image="res://char/ui/cursor_refrain_v1.png"
+mouse_cursor/custom_image_hotspot=Vector2(0, 0)
 window/size/viewport_width=384
 window/size/viewport_height=216
 window/size/window_width_override=1152

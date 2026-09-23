@@ -1,0 +1,23 @@
+{
+  "tool": "image_gen",
+  "asset": "cursor_refrain_v1.png",
+  "source": "cursor_refrain_v1_source.png",
+  "references": [
+    "char/ui/bomb_v2.png",
+    "char/player/mina/mina_core_v1.png"
+  ],
+  "prompt": "Use case: stylized-concept.\nAsset type: a single original illustrated mouse cursor sprite for the Japanese anime bullet-hell game Refrain, production RGBA PNG.\nPrimary request: create ONE compact elegant arrow pointer, a silver-white and pale cyan faceted heart-shard crystal arrow with a very short two-pronged ribbon tail, sharp point at upper left, readable immediately as a mouse pointer and NOT a projectile or crosshair.\nInput images: the supplied bomb and ribbon jewel are STYLE REFERENCES ONLY for clean anime game icon rendering and bold contour; do not recreate a bomb, bow, or circular gemstone.\nComposition: square 1024 canvas; whole connected pointer within x=150..850 and y=110..900 approximately. One precise top-left pointing tip; asymmetric familiar desktop arrow silhouette, broad triangular blade and very short diagonal lower-right stem. No detached elements. Occupies about 75% canvas height. No text.\nStyle: polished 2D anime UI illustration, clean dark charcoal contour, chunky few facets, white luminous upper face and ice cyan lower face, tiny muted lavender accent at tail, limited detail readable when reduced to 40 pixels. Crisp white inner edge and dark outer edge to remain visible on both light and dark gameplay. No fine filigree, no ornament above or to the left of the sharp tip.\nBackground: actual transparent alpha, no black/white/matte/checkerboard backdrop.\nConstraints: single isolated pointer only, no scene, no preview panels, no labels, no logos, no watermark. No surrounding glow, no smoke, no particles, no floating diamonds, no hearts detached from the arrow, no rings or targeting reticle. Preserve actual transparent pixels outside the compact shape.",
+  "processing": {
+    "script": "tools/key_trim_scale.ps1",
+    "args": "-Key none -TargetH 40",
+    "authorization": "User approved resizing and transparent margin adjustment only.",
+    "size": [
+      34,
+      40
+    ],
+    "hotspot": [
+      0,
+      0
+    ]
+  }
+}

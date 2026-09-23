@@ -12,7 +12,12 @@ public partial class GameManager : Node
     //   _EnterTree で立て、_ExitTree で降ろす（シーン切替で古い実体を掴み続けないように）。
     public static GameManager? Instance { get; private set; }
     public override void _EnterTree() => Instance = this;
-    public override void _ExitTree() { if (Instance == this) Instance = null; }
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+        // Release the native cursor texture before the rendering server shuts down.
+        Input.SetCustomMouseCursor(null);
+    }
 
     public long Score { get; private set; }
     private long _bossRetryScore;
@@ -1036,6 +1041,7 @@ public partial class GameManager : Node
             // ジョブ（ラン単位の選択だが「次に潜るときの既定」としてスロットに残す）。後方互換：キー無し＝結び手。
             ["job"] = (int)SelectedJob,
         };
+        SaveCosmetics(data);
         var up = new Godot.Collections.Dictionary();
         foreach (var kv in _upgrades)
             up[kv.Key] = kv.Value;
@@ -1112,6 +1118,7 @@ public partial class GameManager : Node
         if (json.Parse(f.GetAsText()) != Error.Ok) return false;
         if (json.Data.VariantType != Variant.Type.Dictionary) return false;
         var data = json.Data.AsGodotDictionary();
+        LoadCosmetics(data);
 
         Impression = data.ContainsKey("impression") ? data["impression"].AsInt64() : 0;
         Followers = data.ContainsKey("followers") ? data["followers"].AsInt32() : 0;
@@ -1260,6 +1267,7 @@ public partial class GameManager : Node
     // はじめから＝メモリ上の永続状態を初期化（スロットのファイルは消さない）。
     public void ResetPersistent()
     {
+        ResetCosmetics();
         Impression = 0;
         Followers = 0;
         _upgrades.Clear();

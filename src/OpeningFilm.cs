@@ -5,8 +5,8 @@ public partial class OpeningFilm : Node2D
 {
     private const double PhoneDuration = 10.5;
     public const double Duration = PhoneDuration + 37.5;
-    private const float ReleaseTime = 1.5f;
-    private const float ImpactTime = 2.25f;
+    private static readonly float[] ReleaseTimes = { 1.5f, 1.55f, 1.45f, 0.95f };
+    private static readonly float[] ImpactTimes = { 1.91f, 2.45f, 2.18f, 2.46f };
     public Action? Completed;
     public double Elapsed { get; private set; }
     public bool Finished { get; private set; }
@@ -14,8 +14,8 @@ public partial class OpeningFilm : Node2D
     private static readonly double[] Cuts =
     {
         0, PhoneDuration, PhoneDuration + 3.5, PhoneDuration + 7, PhoneDuration + 10.5,
-        PhoneDuration + 15.5, PhoneDuration + 19, PhoneDuration + 22.5,
-        PhoneDuration + 26, PhoneDuration + 29.5, PhoneDuration + 33.5, Duration,
+        PhoneDuration + 15.5, PhoneDuration + 18.6, PhoneDuration + 22.6,
+        PhoneDuration + 25.9, PhoneDuration + 29.5, PhoneDuration + 33.5, Duration,
     };
     private static readonly (double Time, string Text)[] DraftBeats =
     {
@@ -51,6 +51,7 @@ public partial class OpeningFilm : Node2D
         "……聞こえています。\nあなたが、消した言葉も。",
     };
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
+    private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
     private static readonly Rect2 Screen = new(0, 0, 1280, 720);
     private static readonly Rect2 SkipRect = new(1110, 657, 140, 45);
     private static readonly Vector2 PhoneTextPosition = new(-108, -108);
@@ -65,6 +66,7 @@ public partial class OpeningFilm : Node2D
     private Texture2D _city = null!, _light = null!, _space = null!, _message = null!;
     private Texture2D _post = null!;
     private Texture2D _phoneArt = null!;
+    private FontFile _filmFont = null!, _titleFont = null!;
     // Ignore near-transparent generation residue outside the actual hardware.
     private readonly Rect2 _phoneArtRegion = new(70, 145, 711, 1547);
     private string _phoneTime = "";
@@ -85,17 +87,14 @@ public partial class OpeningFilm : Node2D
         _fighters = new Texture2D[4];
         _cores = new Texture2D[4];
         _cast = new JobTuning[4];
-        _cutins = new[]
-        {
-            GD.Load<Texture2D>("res://char/v3/cutin_akari.png"),
-            GD.Load<Texture2D>("res://char/v3/cutin_koharu.png"),
-            GD.Load<Texture2D>("res://char/v3/cutin_rei_gawa_a.png"),
-            GD.Load<Texture2D>("res://char/bg2/opening/op_mina_v1.png"),
-        };
+        _cutins = new Texture2D[4];
+        _filmFont = GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf");
+        _titleFont = GD.Load<FontFile>("res://assets/fonts/CormorantGaramond-Italic.ttf");
         for (int i = 0; i < 4; i++)
         {
             string id = Characters[i];
             _cast[i] = Array.Find(Jobs.All, job => job.CharacterId == id)!;
+            _cutins[i] = GD.Load<Texture2D>($"res://char/bg2/opening/op_{id}_cutin_v1.png");
             if (i < 3) _daily[i] = GD.Load<Texture2D>($"res://char/bg2/opening/op_{id}_v1.png");
             _fighters[i] = GD.Load<Texture2D>($"res://char/player/{id}/{id}_aim_v2_r.png");
             _cores[i] = GD.Load<Texture2D>($"res://char/player/{id}/{id}_core_v1.png");
@@ -176,9 +175,19 @@ public partial class OpeningFilm : Node2D
         for (int i = 0; i < 4; i++)
         {
             double start = Cuts[5 + i];
-            if (Crossed(start + 0.6)) Audio.Instance?.PlayChargeReady(_cast[i].Id);
-            if (Crossed(start + ReleaseTime)) Audio.Instance?.PlayChargeRelease(_cast[i].Id);
-            if (Crossed(start + ImpactTime)) Audio.Instance?.PlayChargeImpact(_cast[i].Id);
+            if (Crossed(start + ReleaseTimes[i] - 0.45)) Audio.Instance?.PlayChargeReady(_cast[i].Id);
+            if (Crossed(start + ReleaseTimes[i])) Audio.Instance?.PlayChargeRelease(_cast[i].Id);
+            if (Crossed(start + ImpactTimes[i])) Audio.Instance?.PlayChargeImpact(_cast[i].Id);
+            if (i == 1)
+                for (int j = 1; j < 3; j++)
+                    if (Crossed(start + ReleaseTimes[i] + j * 0.18)) Audio.Instance?.PlayShot();
+            if (i == 2 && Crossed(start + ReleaseTimes[i] + 0.36)) Audio.Instance?.PlayChargeRelease(_cast[i].Id);
+            if (i == 3)
+            {
+                for (int j = 1; j < 6; j++)
+                    if (Crossed(start + ReleaseTimes[i] + j * 0.14)) Audio.Instance?.PlayShot();
+                if (Crossed(start + 2.12)) Audio.Instance?.PlayChargeRelease(_cast[i].Id);
+            }
         }
         if (Crossed(Cuts[9])) Audio.Instance?.PlayPurify();
         if (Crossed(Cuts[9] + 2.8)) Audio.Instance?.PlayChargeRelease(Job.Tank);
@@ -260,7 +269,6 @@ public partial class OpeningFilm : Node2D
             float pull = Ease((t - 6.1f) / 2.4f);
             Background(_space, 1.18f - pull * 0.1f, new Vector2(-38 + pull * 30, 10), alpha * (0.42f + pull * 0.3f));
             DrawRect(Screen, new Color(0.015f, 0.022f, 0.025f, alpha * (0.78f - pull * 0.2f)));
-            DrawUnsentSignal(t, alpha);
             DrawPhone(t, alpha);
         }
         else if (shot <= 3)
@@ -280,7 +288,6 @@ public partial class OpeningFilm : Node2D
         {
             int i = shot - 5;
             DrawRoute(i, t, alpha);
-            DrawSpeed(t * 1.6f, Accents[i], alpha * 0.6f);
             DrawAction(i, t, alpha);
             DrawCutin(i, t, alpha);
         }
@@ -288,13 +295,8 @@ public partial class OpeningFilm : Node2D
         {
             Background(_city, 1.1f, new Vector2((float)Elapsed * 2 - 55, 18), alpha);
             Background(_light, 1.16f, new Vector2((float)Elapsed * 6 - 175, -6), alpha * 0.8f);
-            DrawSpeed(t * 0.45f, Accents[3], alpha * (shot == 9 ? 0.55f : 0.18f));
             if (shot == 9)
                 DrawTogether(t, alpha);
-            else
-                for (int i = 0; i < 4; i++)
-                    DrawRibbon(new Vector2(-200, 570 + i * 25), new Vector2(1460, 112 + i * 32),
-                        t + i * 0.4f, Accents[i], alpha * (0.3f + 0.3f * (1 - Ease(t))), 18);
         }
     }
 
@@ -304,7 +306,14 @@ public partial class OpeningFilm : Node2D
         {
             var texture = _routes[index, layer];
             Vector2 size = texture.GetSize() * (720f / texture.GetHeight());
-            float speed = layer == 0 ? 35 : layer == 1 ? 135 : 330;
+            float pace = index switch
+            {
+                0 => 0.5f + Ease((t - 0.85f) / 0.8f) * 1.8f,
+                1 => -0.65f,
+                2 => 0.35f + Ease((t - 1.3f) / 0.8f) * 0.5f,
+                _ => 0.15f + Ease((t - 2.1f) / 0.5f) * 0.6f,
+            };
+            float speed = (layer == 0 ? 35 : layer == 1 ? 135 : 330) * pace;
             float x = -Mathf.PosMod(120 + t * speed, size.X);
             Color tint = Fade(Colors.White, alpha * (layer == 2 ? 0.65f : 1));
             DrawTextureRect(texture, new Rect2(new Vector2(x, 0), size), false, tint);
@@ -315,42 +324,123 @@ public partial class OpeningFilm : Node2D
 
     private void DrawAction(int index, float t, float alpha)
     {
-        float arrive = Ease(t / 0.5f);
-        float release = Ease((t - ReleaseTime) / 0.25f);
-        float recoil = Mathf.Sin(release * Mathf.Pi) * 22;
-        Vector2 position = new(290 - (1 - arrive) * 160 - recoil + t * 7, 300 - release * 26);
-        Vector2 muzzle = position + new Vector2(110, -2);
-        DrawRibbon(position - new Vector2(460, -75), position + new Vector2(-65, 75), t,
-            Accents[index], alpha * 0.4f, 15);
-        DrawFlight(index, position, 345, alpha * arrive);
-        DrawPostBreak(index, t - ImpactTime, alpha * Ease((t - 1.1f) / 0.4f));
-        float gather = Ease((t - 0.4f) / 1.1f) * (1 - Ease((t - ReleaseTime) / 0.18f));
-        if (gather > 0)
+        switch (index)
         {
-            for (int j = 0; j < 6; j++)
-            {
-                float p = Mathf.PosMod(t * 1.3f + j / 6f, 1);
-                Vector2 point = muzzle + Vector2.FromAngle(j * Mathf.Tau / 6 + t) * (1 - p) * 96;
-                DrawLine(point, point.Lerp(muzzle, 0.28f), Fade(Accents[index], alpha * gather * p), 2, true);
-            }
-            DrawShotArt(index, muzzle, 58 + gather * 30, 0, alpha * gather);
+            case 0: DrawAkariAction(t, alpha); break;
+            case 1: DrawKoharuAction(t, alpha); break;
+            case 2: DrawReiAction(t, alpha); break;
+            case 3: DrawMinaAction(t, alpha); break;
         }
-        float progress = Mathf.Clamp((t - ReleaseTime) / (ImpactTime - ReleaseTime), 0, 1);
-        float shotAlpha = alpha * Ease((t - ReleaseTime) / 0.08f) * (1 - Ease((t - ImpactTime) / 0.3f));
-        int count = index == 1 ? 3 : index == 2 ? 5 : 1;
-        Vector2 target = new(1030, 290);
-        for (int j = 0; j < count; j++)
+    }
+
+    private void DrawAkariAction(float t, float alpha)
+    {
+        float dash = Ease((t - 0.88f) / 0.6f);
+        float impact = Mathf.Max(0, t - ImpactTimes[0]);
+        float kick = Mathf.Sin(impact * 60) * 10 * (1 - Ease(impact / 0.22f));
+        Vector2 target = new(1000 + kick, 270);
+        Vector2 position = new(180 + dash * 440 - Ease((t - 1.5f) / 0.2f) * 38, 405 - dash * 82);
+        DrawPostBreak(0, t - ImpactTimes[0], alpha * Ease((t - 0.8f) / 0.35f), target, 1.15f);
+        if (t is > 0.9f and < 1.5f)
         {
-            float lane = j - (count - 1) / 2f;
-            float travel = index == 0 ? progress * progress : progress;
-            Vector2 end = target + new Vector2(0, index == 2 ? lane * 53 : 0);
-            Vector2 point = muzzle.Lerp(end, travel);
-            if (index == 1) point.Y += Mathf.Sin(progress * Mathf.Pi) * lane * 165;
-            Vector2 tail = muzzle.Lerp(point, Mathf.Max(0, travel - 0.55f));
-            if (index == 1) tail.Y += lane * 25;
-            DrawRibbon(tail, point, t + j, Accents[index], shotAlpha, index == 0 ? 32 : 18);
-            float angle = (end - muzzle).Angle();
-            DrawShotArt(index, point, index == 0 ? 165 : index == 3 ? 185 : 102, angle, shotAlpha);
+            for (int echo = 2; echo > 0; echo--)
+            {
+                float lag = Ease((t - 0.88f - echo * 0.06f) / 0.6f);
+                DrawFlight(0, new Vector2(180 + lag * 440, 405 - lag * 82), 330, alpha * 0.09f, -0.2f);
+            }
+        }
+        DrawFlight(0, position, 330 + dash * 30, alpha * Ease(t / 0.4f), -0.06f - Mathf.Sin(dash * Mathf.Pi) * 0.22f);
+        Vector2 muzzle = position + new Vector2(110, -20);
+        float charge = Ease((t - 0.5f) / 0.55f) * (1 - Ease((t - ReleaseTimes[0]) / 0.16f));
+        DrawShotArt(0, muzzle, 50 + charge * 85, -0.15f, alpha * charge);
+        float p = Mathf.Clamp((t - ReleaseTimes[0]) / (ImpactTimes[0] - ReleaseTimes[0]), 0, 1);
+        float shotAlpha = alpha * Ease((t - ReleaseTimes[0]) / 0.06f) * (1 - Ease((t - ImpactTimes[0]) / 0.12f));
+        for (int echo = 3; echo >= 0; echo--)
+        {
+            float lag = Mathf.Max(0, p - echo * 0.045f);
+            Vector2 point = new Vector2(730, 303).Lerp(target, lag * lag);
+            DrawShotArt(0, point, 190 - echo * 20, -0.09f, shotAlpha * (echo == 0 ? 1 : 0.12f));
+        }
+    }
+
+    private void DrawKoharuAction(float t, float alpha)
+    {
+        Vector2 position = new(1010 - Ease(t / 0.65f) * 92, 355 + Mathf.Sin(t * 1.6f) * 25);
+        DrawFlight(1, position, 330, alpha * Ease(t / 0.5f), 0.06f, true);
+        for (int j = 0; j < 3; j++)
+        {
+            Vector2 target = new(250 + j * 105, 170 + j * 150);
+            float launch = ReleaseTimes[1] + j * 0.18f;
+            float impact = ImpactTimes[1] + j * 0.22f;
+            DrawPostBreak(1, t - impact, alpha * Ease((t - 1.1f) / 0.3f), target, 0.66f, 0.07f - j * 0.06f);
+            Vector2 start = new(824, 285 + j * 58);
+            float p = Mathf.Clamp((t - launch) / (impact - launch), 0, 1);
+            Vector2 controlA = start + new Vector2(-145, (j - 1) * 230);
+            Vector2 controlB = target + new Vector2(270, (j - 1) * 140);
+            float show = alpha * Ease((t - 0.68f - j * 0.12f) / 0.25f) * (1 - Ease((t - impact) / 0.15f));
+            for (int echo = 2; echo >= 0; echo--)
+            {
+                float lag = Mathf.Max(0, p - echo * 0.045f);
+                Vector2 point = start.BezierInterpolate(controlA, controlB, target, lag);
+                if (t < launch) point += new Vector2(Mathf.Sin(t * 4 + j) * 12, Mathf.Cos(t * 3 + j) * 16);
+                float angle = start.BezierDerivative(controlA, controlB, target, lag).Angle();
+                DrawShotArt(1, point, echo == 0 ? 95 : 72, angle, show * (echo == 0 ? 1 : p * 0.12f));
+            }
+        }
+    }
+
+    private void DrawReiAction(float t, float alpha)
+    {
+        float reveal = Ease((t - 0.5f) / 0.8f);
+        Vector2 position = new(310 + reveal * 65, 430 - reveal * 85);
+        float recoil = Mathf.Sin(Ease((t - ReleaseTimes[2]) / 0.22f) * Mathf.Pi) * 18;
+        DrawFlight(2, position - new Vector2(recoil, 0), 365, alpha * reveal, -0.02f);
+        for (int j = 0; j < 3; j++)
+            DrawPostBreak(2, t - ImpactTimes[2] - j * 0.05f, alpha * Ease((t - 1) / 0.4f),
+                new Vector2(1020, 180 + j * 153), 0.62f, (j - 1) * 0.08f);
+        Vector2 start = new(490, 336);
+        for (int volley = 0; volley < 2; volley++)
+        {
+            float launch = ReleaseTimes[2] + volley * 0.36f;
+            float p = Mathf.Clamp((t - launch) / 0.9f, 0, 1.35f);
+            float visible = alpha * Ease((t - launch) / 0.07f) * (1 - Ease((p - 0.95f) / 0.4f));
+            for (int lane = -2; lane <= 2; lane++)
+            {
+                float angle = lane * 0.14f + (volley == 1 ? 0.035f : 0);
+                Vector2 direction = Vector2.FromAngle(angle);
+                Vector2 point = start + direction * p * 650;
+                DrawShotArt(2, point - direction * 32, 66, angle, visible * 0.12f);
+                DrawShotArt(2, point, 100, angle, visible);
+            }
+        }
+    }
+
+    private void DrawMinaAction(float t, float alpha)
+    {
+        float arrive = Ease((t - 0.35f) / 0.8f);
+        float recoil = Mathf.Sin(Ease((t - 2.12f) / 0.3f) * Mathf.Pi) * 24;
+        Vector2 position = new(260 - recoil, 330 + (1 - arrive) * 55);
+        DrawFlight(3, position, 365, alpha * arrive, 0);
+        for (int j = 2; j >= 0; j--)
+            DrawPostBreak(3, t - ImpactTimes[3] - j * 0.156f, alpha * Ease((t - 1.4f) / 0.35f),
+                new Vector2(725 + j * 160, 315 - j * 8), 0.72f - j * 0.1f, 0.025f * j);
+        for (int j = 0; j < 6; j++)
+        {
+            float launch = ReleaseTimes[3] + j * 0.14f;
+            float p = (t - launch) / 0.6f;
+            if (p is < 0 or > 1.2f) continue;
+            Vector2 point = new(365 + p * 850, 304 + (j % 3 - 1) * 22);
+            DrawShotArt(3, point, 72, 0, alpha * (1 - Ease((p - 0.85f) / 0.35f)));
+        }
+        float charge = Ease((t - 1.7f) / 0.4f) * (1 - Ease((t - 2.12f) / 0.1f));
+        DrawShotArt(3, new Vector2(375, 310), 65 + charge * 80, 0, alpha * charge);
+        float finish = (t - 2.12f) / 0.83f;
+        if (finish is >= 0 and < 1.2f)
+        {
+            float a = alpha * (1 - Ease((finish - 0.95f) / 0.25f));
+            Vector2 point = new(375 + finish * 850, 310);
+            DrawShotArt(3, point - new Vector2(60, 0), 150, 0, a * 0.16f);
+            DrawShotArt(3, point, 230, 0, a);
         }
     }
 
@@ -364,48 +454,23 @@ public partial class OpeningFilm : Node2D
         DrawSetTransform(Vector2.Zero);
     }
 
-    private void DrawRibbon(Vector2 from, Vector2 to, float t, Color color, float alpha, float width)
+    private void DrawPostBreak(int index, float time, float alpha, Vector2 center, float scale = 1, float angle = -0.1f)
     {
-        Vector2 normal = (to - from).Normalized().Orthogonal();
-        var points = new Vector2[20];
-        for (int strand = 0; strand < 2; strand++)
-        {
-            for (int j = 0; j < points.Length; j++)
-            {
-                float p = j / (points.Length - 1f);
-                float wave = Mathf.Sin(p * 9 - t * 7 + strand * Mathf.Pi);
-                points[j] = from.Lerp(to, p) + normal * wave * width * Mathf.Sin(p * Mathf.Pi);
-            }
-            DrawPolyline(points, Fade(color, alpha * 0.12f), width * 0.55f, true);
-            DrawPolyline(points, Fade(color.Lerp(Colors.White, 0.4f), alpha * 0.8f), 1.8f, true);
-        }
-    }
-
-    private void DrawPostBreak(int index, float time, float alpha)
-    {
-        Vector2 center = new(1030, 290);
         Texture2D plate = _postViews[index].GetTexture();
         if (time < 0)
         {
-            DrawSetTransform(center, -0.1f);
+            DrawSetTransform(center, angle, Vector2.One * scale);
             DrawTextureRect(plate, PostRect, false, Fade(Colors.White, alpha));
             DrawSetTransform(Vector2.Zero);
             return;
         }
         float fade = 1 - Ease(time / 1.05f);
-        DrawSetTransform(center, -0.1f);
+        DrawSetTransform(center, angle, Vector2.One * scale);
         var mesh = _postMeshes[index];
         GlassFractureArt.DrawShards(this, plate, PostRect, mesh.Points, mesh.Triangles,
             time * 1.65f, 1.4f, Fade(Colors.White, alpha * fade));
         DrawSetTransform(Vector2.Zero);
-        for (int j = 0; j < 8; j++)
-        {
-            Vector2 ray = Vector2.FromAngle(j * Mathf.Tau / 8 + 0.2f);
-            float reach = 30 + Mathf.Sqrt(time) * 180;
-            DrawLine(center + ray * reach * 0.5f, center + ray * reach,
-                Fade(Accents[index], alpha * fade * 0.7f), 2, true);
-        }
-        DrawShotArt(index, center, 64 + time * 38, 0, alpha * fade);
+        DrawShotArt(index, center, (64 + time * 38) * scale, index == 1 ? Mathf.Pi : 0, alpha * fade);
     }
 
     private void DrawTogether(float t, float alpha)
@@ -416,12 +481,9 @@ public partial class OpeningFilm : Node2D
             float arrive = Ease((t - i * 0.14f) / 0.65f);
             Vector2 p = new(180 + i * 295 - (1 - arrive) * 250 + launch * (1650 - i * 190),
                 330 + (i % 2) * 35 - t * 7 - launch * 190);
-            DrawRibbon(p - new Vector2(550 + launch * 250, -90), p + new Vector2(-60, 80),
-                t + i, Accents[i], alpha * arrive * 0.6f, 24);
             DrawFlight(i, p, i == 3 ? 390 : 350, alpha * arrive);
             DrawShotArt(i, p + new Vector2(115, 35), 50, -0.1f, alpha * arrive);
         }
-        DrawSpeed(t * (1 + launch * 4), Accents[3], alpha * launch * 0.6f);
     }
 
     private void Background(Texture2D texture, float zoom, Vector2 offset, float alpha)
@@ -433,30 +495,78 @@ public partial class OpeningFilm : Node2D
 
     private void DrawCutin(int index, float t, float alpha)
     {
-        float enter = Ease(t / 0.45f);
-        float leave = Ease((t - 1.15f) / 0.55f);
-        if (leave >= 1) return;
-        float shift = (1 - enter) * 260 + leave * 720;
-        alpha *= 1 - leave;
-        Vector2[] band = { new(778 + shift, 22), new(1280 + shift, 22), new(1280 + shift, 698), new(585 + shift, 698) };
-        DrawColoredPolygon(band, new Color(0.07f, 0.075f, 0.085f, alpha * 0.94f));
-        DrawLine(band[0], band[3], Fade(Accents[index], alpha * enter), 3, true);
-        var portrait = _cutins[index];
-        Vector2 size = portrait.GetSize() * (640f / portrait.GetHeight());
-        Vector2 center = new((index == 3 ? 810 : 987) + shift - t * 5, 361);
-        Rect2 rect = new(center - size * 0.5f, size);
-        float edgeTop = Mathf.Lerp(band[0].X, band[3].X, (rect.Position.Y - 22) / 676);
-        float edgeBottom = Mathf.Lerp(band[0].X, band[3].X, (rect.End.Y - 22) / 676);
-        Vector2[] points =
+        switch (index)
         {
-            new(Mathf.Max(rect.Position.X, edgeTop), rect.Position.Y),
-            new(Mathf.Min(rect.End.X, 1280 + shift), rect.Position.Y),
-            new(Mathf.Min(rect.End.X, 1280 + shift), rect.End.Y),
-            new(Mathf.Max(rect.Position.X, edgeBottom), rect.End.Y),
-        };
-        Vector2[] uv = Array.ConvertAll(points, point => (point - rect.Position) / rect.Size);
-        Color tint = Fade(Colors.White, alpha * enter);
-        DrawPolygon(points, new[] { tint, tint, tint, tint }, uv, portrait);
+            case 0:
+            {
+                float enter = Ease(t / 0.32f);
+                float pull = Ease((t - 0.18f) / 0.46f);
+                float leave = Ease((t - 0.93f) / 0.35f);
+                if (leave >= 1) return;
+                float shift = (1 - enter) * 330 + leave * 760;
+                DrawRect(Screen, new Color(0.025f, 0.012f, 0.008f, alpha * enter * (1 - leave) * 0.48f));
+                float top = Mathf.Lerp(224, 22, pull), bottom = Mathf.Lerp(352, 698, pull);
+                Vector2[] mask = { new(640 + shift, top), new(1280 + shift, top),
+                    new(1280 + shift, bottom), new(490 + shift, bottom) };
+                DrawPortrait(0, new Vector2(945 + shift - pull * 32, Mathf.Lerp(282, 226, pull)),
+                    Mathf.Lerp(1700, 1100, pull), mask, alpha * enter * (1 - leave));
+                break;
+            }
+            case 1:
+            {
+                float enter = Ease(t / 0.68f), leave = Ease((t - 1.22f) / 0.48f);
+                if (leave >= 1) return;
+                float rise = (1 - enter) * 200 - leave * 110;
+                DrawRect(Screen, new Color(0.013f, 0.027f, 0.022f, alpha * enter * (1 - leave) * 0.48f));
+                DrawPortrait(1, new Vector2(410 - t * 25, 226 + rise), 1030 + t * 45,
+                    RectPolygon(new Rect2(0, 698 - enter * 676, 760, enter * 676)), alpha * (1 - leave));
+                break;
+            }
+            case 2:
+            {
+                float leave = Ease((t - 1.13f) / 0.44f);
+                if (leave >= 1) return;
+                DrawRect(Screen, new Color(0.028f, 0.012f, 0.021f, alpha * Ease(t / 0.3f) * (1 - leave) * 0.58f));
+                for (int panel = 0; panel < 3; panel++)
+                {
+                    float open = Ease((t - Math.Abs(panel - 1) * 0.13f) / 0.43f) * (1 - leave);
+                    float height = open * 676;
+                    DrawPortrait(2, new Vector2(694 - t * 24, 215 - t * 9), 1080 + t * 30,
+                        RectPolygon(new Rect2(285 + panel * 255, 360 - height / 2, 255, height)), alpha * open);
+                }
+                break;
+            }
+            case 3:
+            {
+                float pull = Ease((t - 0.25f) / 0.7f), leave = Ease((t - 1.13f) / 0.36f);
+                if (leave >= 1) return;
+                float enter = Ease(t / 0.22f);
+                DrawRect(Screen, new Color(0.01f, 0.022f, 0.031f, alpha * enter * (1 - leave) * 0.58f));
+                float height = Mathf.Lerp(122, 676, pull);
+                DrawPortrait(3, new Vector2(Mathf.Lerp(760, 960, pull), Mathf.Lerp(286, 209, pull)),
+                    Mathf.Lerp(2850, 1100, pull), RectPolygon(new Rect2(0, Mathf.Lerp(220, 22, pull), 1280, height)),
+                    alpha * enter * (1 - leave));
+                break;
+            }
+        }
+    }
+
+    private static Vector2[] RectPolygon(Rect2 rect) => new[]
+    {
+        rect.Position, new Vector2(rect.End.X, rect.Position.Y), rect.End, new Vector2(rect.Position.X, rect.End.Y),
+    };
+
+    private void DrawPortrait(int index, Vector2 focus, float height, Vector2[] mask, float alpha)
+    {
+        if (alpha <= 0) return;
+        Texture2D texture = _cutins[index];
+        Vector2 size = texture.GetSize() * (height / texture.GetHeight());
+        Rect2 rect = new(focus - size * PortraitFocus[index], size);
+        foreach (Vector2[] polygon in Geometry2D.IntersectPolygons(RectPolygon(rect), mask))
+        {
+            Vector2[] uv = Array.ConvertAll(polygon, point => (point - rect.Position) / size);
+            DrawPolygon(polygon, new[] { Fade(Colors.White, alpha) }, uv, texture);
+        }
     }
 
     private static (string Text, bool Caret) PhoneDraft(double time)
@@ -475,26 +585,6 @@ public partial class OpeningFilm : Node2D
         return (close.Lerp(new Vector2(640, 360), pull),
             Mathf.Lerp(Mathf.Lerp(-0.14f, -0.1f, drift), -0.028f, pull),
             Mathf.Lerp(Mathf.Lerp(1.92f, 1.82f, drift), 1.04f, pull));
-    }
-
-    private void DrawUnsentSignal(float t, float alpha)
-    {
-        float progress = Ease((t - 8.7f) / 1.8f);
-        if (progress <= 0) return;
-        for (int i = 0; i < 4; i++)
-        {
-            Vector2 from = new(640, 326);
-            Vector2 to = new(i % 2 == 0 ? -100 : 1380, 95 + i * 153);
-            var points = new Vector2[24];
-            for (int j = 0; j < points.Length; j++)
-            {
-                float p = progress * j / (points.Length - 1);
-                points[j] = from.Lerp(to, p) + new Vector2(0, Mathf.Sin(p * Mathf.Pi) * (i % 2 == 0 ? -45 : 45));
-            }
-            DrawPolyline(points, Fade(Accents[i], alpha * progress * 0.08f), 8, true);
-            DrawPolyline(points, Fade(Accents[i], alpha * progress * 0.65f), 1.5f, true);
-            DrawLine(points[^2], points[^1], Fade(Colors.White, alpha * progress * 0.8f), 2, true);
-        }
     }
 
     private static (int Row, int Column, float Press) PhoneKeyAt(float t)
@@ -625,21 +715,11 @@ public partial class OpeningFilm : Node2D
         }
     }
 
-    private void DrawSpeed(float t, Color color, float alpha)
-    {
-        for (int i = 0; i < 15; i++)
-        {
-            float x = Mathf.PosMod(i * 191 + t * (310 + i * 13), 1700) - 220;
-            float y = 78 + Mathf.PosMod(i * 113, 548);
-            DrawLine(new Vector2(x - 120 - i * 7, y + 18), new Vector2(x, y), Fade(color, alpha * (0.14f + i % 3 * 0.07f)), 1 + i % 2, true);
-        }
-    }
-
-    private void DrawFlight(int index, Vector2 position, float height, float alpha)
+    private void DrawFlight(int index, Vector2 position, float height, float alpha, float angle = -0.08f, bool faceLeft = false)
     {
         var texture = _fighters[index];
         Vector2 size = texture.GetSize() * (height / texture.GetHeight());
-        DrawSetTransform(position, -0.08f, Vector2.One);
+        DrawSetTransform(position, angle, new Vector2(faceLeft ? -1 : 1, 1));
         DrawTextureRect(texture, new Rect2(-size * 0.5f, size), false, Fade(Colors.White, alpha));
         DrawSetTransform(Vector2.Zero);
     }
@@ -658,64 +738,48 @@ public partial class OpeningFilm : Node2D
         {
             int i = shot - 1;
             float a = Ease((t - 0.2f) / 0.35f) * (1 - Ease((t - 3.25f) / 0.25f));
-            canvas.DrawRect(new Rect2(0, 520, 1280, 162), new Color(0.025f, 0.025f, 0.03f, a * 0.78f));
-            canvas.DrawLine(new Vector2(68, 542), new Vector2(101, 542), Fade(Accents[i], a), 2, true);
-            UiKit.Text(canvas, UiKit.ZenBold, new Vector2(116, 528), _cast[i].CharacterName, 20, Fade(Accents[i], a));
-            DrawQuote(canvas, DailyLines[i], new Vector2(68, 566), 29, a);
+            DrawCaptionShade(canvas, 486, a);
+            UiKit.Text(canvas, _filmFont, new Vector2(68, 520), _cast[i].CharacterName, 24, Fade(Accents[i], a));
+            DrawQuote(canvas, DailyLines[i], new Vector2(68, 564), 30, a, t - 0.2f);
         }
         if (shot == 4)
         {
             float a = Ease((t - 1) / 0.7f) * (1 - Ease((t - 4.2f) / 0.5f));
-            UiKit.Text(canvas, UiKit.ZenBold, new Vector2(72, 125), "……聞こえました。", 27, Fade(UiKit.PurifyHi, a));
-            DrawQuote(canvas, "行きましょう。\nあの声の向こうへ。", new Vector2(72, 174), 27, a);
-            float dive = Ease((t - 3.9f) / 1.1f);
-            for (int i = 0; i < 18; i++)
-            {
-                Vector2 ray = Vector2.FromAngle(i * Mathf.Tau / 18);
-                Vector2 origin = new(930, 300);
-                float reach = 260 + dive * (280 + i % 3 * 110);
-                canvas.DrawLine(origin + ray * reach, origin + ray * (reach + dive * 220),
-                    Fade(Accents[i % 4], dive * 0.6f), 1 + i % 2, true);
-            }
+            UiKit.Text(canvas, _filmFont, new Vector2(72, 125), "……聞こえました。", 29, Fade(UiKit.PurifyHi, a));
+            DrawQuote(canvas, "行きましょう。\nあの声の向こうへ。", new Vector2(72, 176), 29, a, t - 1);
         }
         if (shot == 10)
         {
             float a = Ease(t / 0.35f);
             string title = "Refrain";
-            float settle = 1 + (1 - Ease(t / 0.65f)) * 0.18f;
+            float settle = 1 + (1 - Ease(t / 1.2f)) * 0.06f;
             canvas.DrawRect(Screen, new Color(0.015f, 0.02f, 0.025f, a * 0.38f));
-            canvas.DrawSetTransform(new Vector2(640, 302), 0, Vector2.One * settle);
-            float w = UiKit.TextW(UiKit.ZenBlack, title, 112);
-            UiKit.Text(canvas, UiKit.ZenBlack, new Vector2(-w / 2, -62), title, 112, Fade(UiKit.PurifyHi, a));
+            canvas.DrawSetTransform(new Vector2(640, 289), 0, Vector2.One * settle);
+            float w = UiKit.TextW(_titleFont, title, 164);
+            UiKit.Text(canvas, _titleFont, new Vector2(-w / 2, -86), title, 164, Fade(new Color("f0eee8"), a));
             canvas.DrawSetTransform(Vector2.Zero);
             string line = "消された言葉は、消えていない。";
-            UiKit.Text(canvas, UiKit.Zen, new Vector2((1280 - UiKit.TextW(UiKit.Zen, line, 23)) / 2, 408), line, 23,
+            UiKit.Text(canvas, _filmFont, new Vector2((1280 - UiKit.TextW(_filmFont, line, 26)) / 2, 418), line, 26,
                 Fade(UiKit.White, Ease((t - 0.6f) / 0.5f)));
-            float reach = Ease(t / 0.9f) * 320;
-            for (int i = 0; i < 4; i++)
-                canvas.DrawLine(new Vector2(640 - reach + reach * i / 2, 382),
-                    new Vector2(640 - reach + reach * (i + 1) / 2 - 3, 382), Fade(Accents[i], a * 0.9f), 2, true);
         }
         if (shot is >= 5 and <= 8)
         {
             int i = shot - 5;
-            float a = Ease((t - 0.28f) / 0.25f) * (1 - Ease((t - 3.3f) / 0.2f));
-            canvas.DrawRect(new Rect2(0, 480, 590, 205), new Color(0.025f, 0.025f, 0.03f, a * 0.85f));
-            canvas.DrawLine(new Vector2(68, 480), new Vector2(525, 480), Fade(Accents[i], a * 0.55f), 1, true);
-            float x = 68 - (1 - Ease(t / 0.55f)) * 35;
-            // ★2026-09-17：ここはジョブ名（結び手／灯し手…）を名前の上に置いていたが、ユーザー指示で
-            //   ジョブ名・型名の表記は全廃。ハブ／HUD と同じ「@ハンドル」に差し替える＝
-            //   キャラ名の添え書きは最後まで X のアカウント表記で統一される。
-            UiKit.Text(canvas, UiKit.ZenBold, new Vector2(x, 491), Handle(_cast[i]), 18, Fade(Accents[i], a));
-            UiKit.Text(canvas, UiKit.ZenBlack, new Vector2(x, 516), _cast[i].CharacterName, 43, Fade(UiKit.White, a));
-            DrawQuote(canvas, CutinLines[i], new Vector2(68, 581), 27, a);
+            float duration = (float)(Cuts[shot + 1] - Cuts[shot]);
+            float a = Ease((t - 0.18f) / 0.3f) * (1 - Ease((t - duration + 0.3f) / 0.3f));
+            DrawCaptionShade(canvas, 493, a);
+            Vector2 namePosition = i == 1 ? new(928, 78) : new(68, 78);
+            DrawName(canvas, _cast[i].CharacterName, namePosition, i == 3 ? 72 : 80, t - 0.18f, a, i == 3);
+            Vector2 handlePosition = i == 3 ? new(72, 522) : namePosition + new Vector2(4, 106);
+            UiKit.Text(canvas, _titleFont, handlePosition, Handle(_cast[i]), 26, Fade(Accents[i], a));
+            DrawQuote(canvas, CutinLines[i], new Vector2(i == 1 ? 840 : 72, 573), 30, a, t - 0.48f);
         }
         if (shot == 9)
         {
             float a = Ease((t - 0.5f) / 0.6f) * (1 - Ease((t - 3.5f) / 0.4f));
-            canvas.DrawRect(new Rect2(0, 568, 1280, 112), new Color(0.015f, 0.02f, 0.025f, a * 0.65f));
+            DrawCaptionShade(canvas, 530, a);
             string line = "まだ届いていない声が、待っている。";
-            UiKit.Text(canvas, UiKit.ZenBold, new Vector2((1280 - UiKit.TextW(UiKit.ZenBold, line, 30)) / 2, 598), line, 30, Fade(UiKit.PurifyHi, a));
+            UiKit.Text(canvas, _filmFont, new Vector2((1280 - UiKit.TextW(_filmFont, line, 32)) / 2, 590), line, 32, Fade(UiKit.PurifyHi, a));
         }
         float bars = shot <= 3 ? 38 : shot == 4 ? Mathf.Lerp(38, 22, Ease(t / 1.2f)) : 22;
         canvas.DrawRect(new Rect2(0, 0, 1280, bars), Colors.Black);
@@ -735,12 +799,35 @@ public partial class OpeningFilm : Node2D
         }
     }
 
-    private static void DrawQuote(Node2D canvas, string text, Vector2 position, int size, float alpha)
+    private static void DrawCaptionShade(Node2D canvas, float top, float alpha)
     {
+        UiKit.VGradient(canvas, new Rect2(0, top, 1280, 720 - top),
+            new[] { new Color(0.015f, 0.02f, 0.025f, 0), new Color(0.015f, 0.02f, 0.025f, alpha * 0.88f) },
+            new[] { 0f, 0.72f });
+    }
+
+    private void DrawName(Node2D canvas, string name, Vector2 position, int size, float time, float alpha, bool vertical)
+    {
+        for (int i = 0; i < name.Length; i++)
+        {
+            float reveal = Ease((time - i * 0.09f) / 0.4f);
+            string letter = name[i].ToString();
+            Vector2 offset = vertical ? new(0, i * size) : new(UiKit.TextW(_filmFont, name[..i], size), 0);
+            Vector2 point = position + offset + new Vector2(0, (1 - reveal) * 15);
+            UiKit.Text(canvas, _filmFont, point + new Vector2(0, 2), letter, size, new Color(0, 0, 0, alpha * reveal * 0.45f));
+            UiKit.Text(canvas, _filmFont, point, letter, size, Fade(new Color("f7f3ed"), alpha * reveal));
+        }
+    }
+
+    private void DrawQuote(Node2D canvas, string text, Vector2 position, int size, float alpha, float time)
+    {
+        int index = 0;
         foreach (string line in text.Split('\n'))
         {
-            UiKit.Text(canvas, UiKit.ZenBold, position, line, size, Fade(UiKit.White, alpha));
-            position.Y += size + 9;
+            float reveal = Ease((time - index * 0.16f) / 0.45f);
+            UiKit.Text(canvas, _filmFont, position + new Vector2(0, (1 - reveal) * 8), line, size, Fade(UiKit.White, alpha * reveal));
+            position.Y += size + 12;
+            index++;
         }
     }
 
@@ -765,8 +852,6 @@ public partial class OpeningFilm : Node2D
             // Mina's later story is deliberately not previewed in the opening.
             string text = Cast.Id == Job.Tank ? "……" : BossPostStory.Get(Cast.CharacterId).Posts[0];
             UiKit.Multi(this, UiKit.Zen, new Vector2(42, 135), text, 30, UiKit.White, 536);
-            for (int i = 0; i < 3; i++)
-                DrawLine(new Vector2(42 + i * 156, 330), new Vector2(114 + i * 156, 330), Fade(Accent, 0.45f), 2, true);
         }
     }
 }
