@@ -241,15 +241,17 @@ public partial class TitleMenu : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        UiKit.HGradient(this, new Rect2(0, 0, 650, UiKit.DesignH),
-            new Color(Ink, 0.86f), new Color(Ink, 0));
-        UiKit.VGradient(this, new Rect2(0, 570, UiKit.DesignW, 150),
-            new[] { new Color(Ink, 0), new Color(Ink, 0.68f), new Color(Ink, 0.94f) }, new[] { 0f, 0.46f, 1f });
+        UiKit.HGradient(this, new Rect2(0, 0, 750, UiKit.DesignH),
+            new Color(Ink, 0.8f), new Color(Ink, 0));
+        UiKit.VGradient(this, new Rect2(0, 545, UiKit.DesignW, 175),
+            new[] { new Color(Ink, 0), new Color(Ink, 0.62f), new Color(Ink, 0.88f) }, new[] { 0f, 0.58f, 1f });
 
+        DrawShards();
         DrawTitleBlock();
         DrawMenu();
         DrawTalk();
-        UiKit.Text(this, UiKit.Mono, new Vector2(72, 686), "ver 2.012", UiKit.FontSmall, Muted);
+        UiKit.Text(this, UiKit.Mono, new Vector2(98, 679), "ver 2.013", UiKit.FontSmall, new Color(Muted, 0.7f * Reveal(0.6f, 0.7f)));
+        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(Ink, 0.8f * (1 - Reveal(0, 0.9f))));
         DrawToast();
         if (_picking) DrawSlotPicker();
         UiKit.EndDesign(this);
