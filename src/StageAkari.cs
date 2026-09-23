@@ -581,7 +581,10 @@ public partial class StageAkari : Node
             var rec = game?.RecordClearTime("akari", game.Difficulty, _clearTime) ?? (true, (float?)null);
             long score = game?.Score ?? 0;
             var recScore = game?.RecordScore("akari", game.Difficulty, score) ?? (true, (long?)null);
-            Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
+            // 無被弾クリア（RunHitCount==0）ならフラグを永続化し、バナーに「NO DAMAGE」を添える。
+            bool noHit = (game?.RunHitCount ?? 1) == 0;
+            if (noHit) game?.RecordNoHitClear("akari", game.Difficulty);
+            Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev, noHit);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
         Step_Lines(delta, Clear);

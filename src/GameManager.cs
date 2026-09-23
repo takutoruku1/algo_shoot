@@ -269,6 +269,21 @@ public partial class GameManager : Node
         }
         return (false, prev);
     }
+    // ───── 無被弾クリア達成フラグ（ステージ×難易度・永続） ─────
+    //   キーはクリアタイム/ベストスコアと同じ "{stageId}_{Diff}"（ClearTimeKey を共有）。
+    //   そのラン（RunHitCount==0）でクリアした実績を、そのステージ×難易度で一度でも達成したかのフラグ。
+    //   Save/Load(save_N.json) の "noHitClears" に永続（ClearTimes/BestScores と同じパターン）。
+    public HashSet<string> NoHitClears { get; } = new();
+    public bool IsNoHitClear(string stageId, Diff diff) => NoHitClears.Contains(ClearTimeKey(stageId, diff));
+    // 無被弾クリアを記録。戻り値 firstEver＝そのステージ×難易度で初めての無被弾達成か（バナー等の演出判定用）。
+    public bool RecordNoHitClear(string stageId, Diff diff)
+    {
+        string key = ClearTimeKey(stageId, diff);
+        bool firstEver = !NoHitClears.Contains(key);
+        NoHitClears.Add(key);
+        return firstEver;
+    }
+
     // コメント返信済みのステージ（セッション内・1回だけ報酬）。
     private readonly HashSet<string> _replied = new();
     public bool HasReplied(string id) => _replied.Contains(id);
@@ -876,6 +891,11 @@ public partial class GameManager : Node
         foreach (var kv in BestScores)
             bs[kv.Key] = kv.Value;
         data["bestScores"] = bs;
+        // 無被弾クリア達成フラグ（"{stageId}_{Diff}" 配列）。後方互換：キー無し＝空扱い。
+        var nh = new Godot.Collections.Array();
+        foreach (var key in NoHitClears)
+            nh.Add(key);
+        data["noHitClears"] = nh;
         // 中ボス撃破フラグ（ステージID配列）。後方互換：キー無し＝空扱い。
         var mb = new Godot.Collections.Array();
         foreach (var id in _midBossCleared)
@@ -951,6 +971,14 @@ public partial class GameManager : Node
             var bs = data["bestScores"].AsGodotDictionary();
             foreach (var k in bs.Keys)
                 BestScores[k.AsString()] = bs[k].AsInt64();
+        }
+        // 無被弾クリア達成フラグ復元（キー無し＝旧セーブは空のまま＝後方互換）。
+        NoHitClears.Clear();
+        if (data.ContainsKey("noHitClears"))
+        {
+            var nh = data["noHitClears"].AsGodotArray();
+            foreach (var v in nh)
+                NoHitClears.Add(v.AsString());
         }
         // 中ボス撃破フラグ復元（キー無し＝旧セーブは空のまま＝後方互換）。
         _midBossCleared.Clear();
@@ -1034,6 +1062,8 @@ public partial class GameManager : Node
         ClearTimes.Clear();
         // ベストスコアも同様に消す（クリアタイムと同じ理由・同じ扱い）。
         BestScores.Clear();
+        // 無被弾クリア達成フラグも同様に消す（クリアタイムと同じ理由・同じ扱い）。
+        NoHitClears.Clear();
     }
 
     // オートセーブ：専用オートスロット(=0)に書く。手動スロット(1..3)は汚さない。

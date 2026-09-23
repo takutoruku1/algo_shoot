@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-23 18:32 UTC",
+  "generated": "2026-09-23 18:39 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 41,
-    "done": 259
+    "done": 260
   },
-  "percent": 98,
+  "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "無被弾クリア（ノーヒット）が一切記録・演出されない",
-      "worker": "engineer",
-      "accept": "2026-09-23監査(game-designer)発見。`src/GameManager.cs:122-123`の`RunHitCount`/`NotifyPlayerHit()`でラン中被弾回数は計測済みだが、用途は`src/Hub.cs:1221`の帰還小話フレーバーテキストのみ。`src/GameManager.cs:221-268`の`ClearTimes`/`BestScores`と同じキー方式・永続化パターンで、そのラン`RunHitCount==0`でのクリアを記録する`NoHitClears`相当のフラグを追加し、`src/Hud.cs:659 ShowClearBanner`の呼び出し元（`src/StageAkari.cs:581-584`／`src/StageKoharu.cs:615-618`／`src/StageRei.cs:865-868`）でクリア時に無被弾なら明示演出（例:「NO DAMAGE」表示）を追加、`src/Records.cs`の該当セルにも無被弾達成の印を表示すること。新規モード・新規セリフではなく既存パターンの拡張。"
-    },
     {
       "priority": "P3",
       "title": "設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない",
@@ -283,6 +277,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "無被弾クリア（ノーヒット）が一切記録・演出されない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-23) 2026-09-23監査(game-designer)発見。`GameManager.cs`に`NoHitClears`(HashSet、`ClearTimeKey`を共有)と`IsNoHitClear`/`RecordNoHitClear`を追加し、`ClearTimes`/`BestScores`と同じ方式でSave/Load/ResetPersistentに組み込み。`Hud.ShowClearBanner`に`noHit`引数を追加し「NO DAMAGE」表示を追加。`StageAkari.cs:581-587`/`StageKoharu.cs:614-622`/`StageRei.cs:865-872`のクリア処理で`RunHitCount==0`判定→記録→バナー分岐。`Records.cs:144-152`に達成時のチェックマーク表示を追加。新規セリフ・新規モードなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する",
@@ -1840,6 +1840,16 @@
   ],
   "commits": [
     {
+      "hash": "3110d7e",
+      "date": "2026-09-23",
+      "subject": "auto: WIP着手 - 無被弾クリア（ノーヒット）の記録・演出を追加する"
+    },
+    {
+      "hash": "efc5024",
+      "date": "2026-09-23",
+      "subject": "auto: 監査で4件をTODO・1件をBLOCKEDへ追加"
+    },
+    {
       "hash": "0d76cc9",
       "date": "2026-09-22",
       "subject": "auto: GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新"
@@ -1868,16 +1878,6 @@
       "hash": "31105d3",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する"
-    },
-    {
-      "hash": "8c74d3c",
-      "date": "2026-09-22",
-      "subject": "auto: こはる面スペル『全部見なきゃ』の8秒制限時間を可視化"
-    },
-    {
-      "hash": "c55c063",
-      "date": "2026-09-22",
-      "subject": "auto: WIP着手 - こはる面スペル『全部見なきゃ』の8秒制限時間を可視化する"
     }
   ]
 }

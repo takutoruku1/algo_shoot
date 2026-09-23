@@ -144,7 +144,9 @@ public partial class Records : Node2D
             var t = _game?.GetBestTime(id, Cols[c].diff);
             var sc = _game?.GetBestScore(id, Cols[c].diff);
             bool isRowBest = best != null && t != null && Mathf.IsEqualApprox(t.Value, best.Value.sec) && Cols[c].diff == best.Value.diff;
-            string s = t != null ? UiKit.FormatTime(t.Value) : "--";
+            // 無被弾クリア達成済みなら、タイムの頭に印を添える（別テキストにせず既存の中央寄せ描画に乗せる＝レイアウトを壊さない）。
+            bool noHit = _game != null && _game.IsNoHitClear(id, Cols[c].diff);
+            string s = t != null ? (noHit ? "✓ " : "") + UiKit.FormatTime(t.Value) : "--";
             string scS = sc != null ? UiKit.FormatScore(sc.Value) : "--";
             Color tc = t == null ? UiKit.Text4 : (isRowBest ? UiKit.Gold : UiKit.PurifyHi);
             Color scc = sc == null ? UiKit.Text4 : UiKit.Gold;

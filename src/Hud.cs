@@ -50,6 +50,8 @@ public partial class Hud : CanvasLayer
     private string _bannerScore = "";     // 例 "SCORE 12,345"
     private string _bannerScoreBest = ""; // 例 "NEW BEST!" or "BEST 12,000"
     private bool _bannerScoreNewBest;
+    // クリアリザルトの無被弾表示（見出しの右肩に短く添える）。そのラン RunHitCount==0 でのクリア時のみ true。
+    private bool _bannerNoHit;
     // ゲームオーバー時の追加プロンプト（バナー直下）。「リトライ／ハブへ抜ける」の選択肢を出す。
     // *Root.cs が残機0を検知して ShowGameOverPrompt で立て、抜けキー受付中だけ表示する。
     private string _gameOverPrompt = "";
@@ -626,7 +628,7 @@ public partial class Hud : CanvasLayer
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
     public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
 
-    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; }
+    public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _bannerNoHit = false; _epic = false; }
 
     // FINAL 専用の「格上」タイトルカード。通常バナー（出て消えるだけの一行）とは別の描画経路に入る。
     //   ダサさの正体＝①全ステージ共通のベタ一行で FINAL に重みが無い ②字間0で小さく詰まって見える
@@ -637,7 +639,7 @@ public partial class Hud : CanvasLayer
     {
         _epic = true; _epicTag = tag; _epicSub = sub; _epicAccent = accent;
         _bannerText = tag + " — " + sub; // バックログ/互換用に文字列は保持
-        _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = "";
+        _bannerTimer = EpicDur; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _bannerNoHit = false;
     }
 
     private bool _epic;
@@ -656,10 +658,12 @@ public partial class Hud : CanvasLayer
     //   ＋ SCORE 行（タイムと同じ様式）。
     //   seconds=今回タイム、isBest=自己ベスト更新か、prevBest=更新前のベスト（初回 null）。
     //   score=今回スコア、scoreIsBest=自己ベスト更新か、prevScore=更新前のベスト（初回 null）。
+    //   noHit=そのラン RunHitCount==0 でのクリアか（true なら見出しの右肩に「NO DAMAGE」を添える）。
     public void ShowClearBanner(string text, float seconds, bool isBest, float? prevBest,
-        long score, bool scoreIsBest, long? prevScore)
+        long score, bool scoreIsBest, long? prevScore, bool noHit = false)
     {
         _bannerText = text; _bannerTimer = 5.0;
+        _bannerNoHit = noHit;
         _bannerTime = "TIME " + UiKit.FormatTime(seconds);
         _bannerNewBest = isBest;
         if (isBest) _bannerBest = "NEW BEST!";
@@ -1997,6 +2001,12 @@ public partial class Hud : CanvasLayer
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(640 - w / 2f, 300), _bannerText, UiKit.FontDisplay, new Color(UiKit.Light, a),
             HorizontalAlignment.Left, -1);
+        // 無被弾クリア（RunHitCount==0）の明示演出：見出しの右肩に短く添える。TIME/BEST行のレイアウトは触らない。
+        if (_bannerNoHit)
+        {
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(640 + w / 2f + 16, 320), "NO DAMAGE", UiKit.FontHeading, new Color(UiKit.Gold, a),
+                HorizontalAlignment.Left, -1);
+        }
         // クリアリザルトのタイム行（見出しの下）。
         if (_bannerTime.Length > 0)
         {

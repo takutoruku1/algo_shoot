@@ -615,7 +615,10 @@ public partial class StageKoharu : Node
             var rec = game?.RecordClearTime("koharu", game.Difficulty, _clearTime) ?? (true, (float?)null);
             long score = game?.Score ?? 0;
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
-            Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
+            // 無被弾クリア（RunHitCount==0）ならフラグを永続化し、バナーに「NO DAMAGE」を添える。
+            bool noHit = (game?.RunHitCount ?? 1) == 0;
+            if (noHit) game?.RecordNoHitClear("koharu", game.Difficulty);
+            Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev, noHit);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
             _clearLines = (((int who, string text, string face)[])Clear.Clone());
         }

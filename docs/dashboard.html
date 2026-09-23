@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">98<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 259 / 対象 263 タスク<br>保留 41 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 260 / 対象 263 タスク<br>保留 41 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 98パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">259</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">260</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">41</div><div class="state-l">保留</div></div>
   </div>
 
@@ -146,14 +146,6 @@
   <section>
     <h2>キュー（上から消化）</h2>
     <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">無被弾クリア（ノーヒット）が一切記録・演出されない</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-23監査(game-designer)発見。<code>src/GameManager.cs:122-123</code>の<code>RunHitCount</code>/<code>NotifyPlayerHit()</code>でラン中被弾回数は計測済みだが、用途は<code>src/Hub.cs:1221</code>の帰還小話フレーバーテキストのみ。<code>src/GameManager.cs:221-268</code>の<code>ClearTimes</code>/<code>BestScores</code>と同じキー方式・永続化パターンで、そのラン<code>RunHitCount==0</code>でのクリアを記録する<code>NoHitClears</code>相当のフラグを追加し、<code>src/Hud.cs:659 ShowClearBanner</code>の呼び出し元（<code>src/StageAkari.cs:581-584</code>／<code>src/StageKoharu.cs:615-618</code>／<code>src/StageRei.cs:865-868</code>）でクリア時に無被弾なら明示演出（例:「NO DAMAGE」表示）を追加、<code>src/Records.cs</code>の該当セルにも無被弾達成の印を表示すること。新規モード・新規セリフではなく既存パターンの拡張。</p>
-      </li>
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -183,6 +175,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">無被弾クリア（ノーヒット）が一切記録・演出されない</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-23) 2026-09-23監査(game-designer)発見。<code>GameManager.cs</code>に<code>NoHitClears</code>(HashSet、<code>ClearTimeKey</code>を共有)と<code>IsNoHitClear</code>/<code>RecordNoHitClear</code>を追加し、<code>ClearTimes</code>/<code>BestScores</code>と同じ方式でSave/Load/ResetPersistentに組み込み。<code>Hud.ShowClearBanner</code>に<code>noHit</code>引数を追加し「NO DAMAGE」表示を追加。<code>StageAkari.cs:581-587</code>/<code>StageKoharu.cs:614-622</code>/<code>StageRei.cs:865-872</code>のクリア処理で<code>RunHitCount==0</code>判定→記録→バナー分岐。<code>Records.cs:144-152</code>に達成時のチェックマーク表示を追加。新規セリフ・新規モードなし。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2593,18 +2593,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">3110d7e</span><span>2026-09-23</span><span class="s">auto: WIP着手 - 無被弾クリア（ノーヒット）の記録・演出を追加する</span></li>
+      <li><span class="h">efc5024</span><span>2026-09-23</span><span class="s">auto: 監査で4件をTODO・1件をBLOCKEDへ追加</span></li>
       <li><span class="h">0d76cc9</span><span>2026-09-22</span><span class="s">auto: GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新</span></li>
       <li><span class="h">f577119</span><span>2026-09-22</span><span class="s">auto: WIP着手 - docs/GAME_DESIGN.md・CONCEPT_V2.mdの参照先案内を更新する</span></li>
       <li><span class="h">1f41590</span><span>2026-09-22</span><span class="s">auto: QaPilot.cs等のコメント中のファイル:行参照ズレを修正</span></li>
       <li><span class="h">77007fe</span><span>2026-09-22</span><span class="s">auto: WIP着手 - QaPilot.cs等のコメント中のファイル:行参照ズレを修正する</span></li>
       <li><span class="h">1edeb36</span><span>2026-09-22</span><span class="s">auto: Player.cs冒頭コメントの記述を実態に合わせて修正</span></li>
       <li><span class="h">31105d3</span><span>2026-09-22</span><span class="s">auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する</span></li>
-      <li><span class="h">8c74d3c</span><span>2026-09-22</span><span class="s">auto: こはる面スペル『全部見なきゃ』の8秒制限時間を可視化</span></li>
-      <li><span class="h">c55c063</span><span>2026-09-22</span><span class="s">auto: WIP着手 - こはる面スペル『全部見なきゃ』の8秒制限時間を可視化する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-23 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-23 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
