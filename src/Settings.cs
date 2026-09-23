@@ -115,6 +115,18 @@ public partial class Settings : Node2D
 
     private List<Def> Cur => _cats[_cat].Items;
 
+    // 現在選択中の行が←→で値変更できる型か（KeyBind/Select は Adjust() が何もしないため対象外）。
+    private bool CurAdjustable
+    {
+        get
+        {
+            var cur = Cur;
+            if (_row < 0 || _row >= cur.Count) return false;
+            var t = cur[_row].Type;
+            return t != SType.KeyBind && t != SType.Select;
+        }
+    }
+
     // ── マウス用のジオメトリ定数（_Draw のレイアウトと同一。ホットスポット計算に共用）──
     //   ヘッダ hy=36 → bodyTop=hy+70=106。ナビ navX=40, navW=236, rowH=54, gap=5。
     //   パネル panX=40+236+26=302, panW=W-302-40。カード top=bodyTop+34=140, cardH=54, gap=9。
@@ -157,7 +169,12 @@ public partial class Settings : Node2D
         _navHeld = up || down;
 
         bool l = Input.IsActionPressed("ui_left"), r = Input.IsActionPressed("ui_right");
-        if ((l || r) && !_lrHeld) { Adjust(l ? -1 : 1); Audio.Instance?.PlayUiMove(); } // 値変更も手応え（SE音量を耳で確認）
+        if ((l || r) && !_lrHeld)
+        {
+            bool adjustable = CurAdjustable; // Adjust前に判定（KeyBind/Selectは値が変わらないので鳴らさない）
+            Adjust(l ? -1 : 1);
+            if (adjustable) Audio.Instance?.PlayUiMove(); // 値変更も手応え（SE音量を耳で確認）
+        }
         _lrHeld = l || r;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
@@ -427,7 +444,7 @@ public partial class Settings : Node2D
         // ボタン表記は Pad 経由＝操作表示モードに追従。Q/E はパッドでは LB/RB(L1/R1)。
         string catTok = Pad.ShowKeyboard ? "Q E" : $"{Pad.Face(JoyButton.LeftShoulder)} {Pad.Face(JoyButton.RightShoulder)}";
         fx = FootHint(fx, fy, "↑↓", "項目");
-        fx = FootHint(fx, fy, "←→", "調整");
+        if (CurAdjustable) fx = FootHint(fx, fy, "←→", "調整"); // KeyBind/Select は←→で変わらないので表示しない
         fx = FootHint(fx, fy, catTok, "カテゴリ");
         FootHint(fx, fy, Pad.CancelToken, "もどる");
 

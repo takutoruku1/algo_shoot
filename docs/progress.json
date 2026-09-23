@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-23 18:39 UTC",
+  "generated": "2026-09-23 18:42 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 41,
-    "done": 260
+    "done": 261
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない",
-      "worker": "engineer",
-      "accept": "2026-09-23監査(game-designer)発見。`src/Settings.cs:291-303 Adjust(int dir,...)`は`SType.KeyBind`/`SType.Select`（「操作」タブの5行・解像度等）で`default: return;`となり表示は不変だが、`src/Settings.cs:159-161`は型を見ず`ui_left`/`ui_right`入力で無条件に`Audio.Instance?.PlayUiMove()`を鳴らし、`src/Settings.cs:429-430`のフッタヒントも常に「←→　調整」を表示し続ける。`Settings.cs:159-161`で現在選択中行が`SType.KeyBind`/`SType.Select`のときは`PlayUiMove()`を鳴らさない（または変更不可と分かる別フィードバックにする）よう分岐し、`Settings.cs:429-430`のフッタヒントも該当行では「←→　調整」を表示しないようにすること。"
-    },
     {
       "priority": "P3",
       "title": "PauseMenuのクラス冒頭コメントがAutoSaveの実態と矛盾している",
@@ -277,6 +271,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-23) 2026-09-23監査(game-designer)発見。`Settings.cs`に`CurAdjustable`判定(`Cur[_row].Type`が`SType.KeyBind`/`SType.Select`以外か、範囲外・空リストもガード)を追加し、`:168-175`の←→入力処理で`CurAdjustable`がfalseなら`PlayUiMove()`を鳴らさないよう分岐、`:444`のフッタヒント「←→　調整」も`CurAdjustable`のときだけ表示するよう修正。スライダー/トグル/セグメント等は従来通り。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "無被弾クリア（ノーヒット）が一切記録・演出されない",
@@ -1840,6 +1840,16 @@
   ],
   "commits": [
     {
+      "hash": "d308b18",
+      "date": "2026-09-23",
+      "subject": "auto: WIP着手 - 設定画面のKeyBind/Select行で操作音だけ鳴る不整合を直す"
+    },
+    {
+      "hash": "55e349f",
+      "date": "2026-09-23",
+      "subject": "auto: 無被弾クリア（ノーヒット）の記録・演出を追加"
+    },
+    {
       "hash": "3110d7e",
       "date": "2026-09-23",
       "subject": "auto: WIP着手 - 無被弾クリア（ノーヒット）の記録・演出を追加する"
@@ -1868,16 +1878,6 @@
       "hash": "77007fe",
       "date": "2026-09-22",
       "subject": "auto: WIP着手 - QaPilot.cs等のコメント中のファイル:行参照ズレを修正する"
-    },
-    {
-      "hash": "1edeb36",
-      "date": "2026-09-22",
-      "subject": "auto: Player.cs冒頭コメントの記述を実態に合わせて修正"
-    },
-    {
-      "hash": "31105d3",
-      "date": "2026-09-22",
-      "subject": "auto: WIP着手 - Player.cs冒頭コメントの記述を実態に合わせて修正する"
     }
   ]
 }

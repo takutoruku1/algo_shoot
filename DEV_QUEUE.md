@@ -68,8 +68,6 @@
 
 ## WIP
 
-- [ ] (P3) 設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない | engineer | 2026-09-23監査(game-designer)発見。`src/Settings.cs:291-303 Adjust(int dir,...)`は`SType.KeyBind`/`SType.Select`（「操作」タブの5行・解像度等）で`default: return;`となり表示は不変だが、`src/Settings.cs:159-161`は型を見ず`ui_left`/`ui_right`入力で無条件に`Audio.Instance?.PlayUiMove()`を鳴らし、`src/Settings.cs:429-430`のフッタヒントも常に「←→　調整」を表示し続ける。`Settings.cs:159-161`で現在選択中行が`SType.KeyBind`/`SType.Select`のときは`PlayUiMove()`を鳴らさない（または変更不可と分かる別フィードバックにする）よう分岐し、`Settings.cs:429-430`のフッタヒントも該当行では「←→　調整」を表示しないようにすること。
-
 ## BLOCKED
 
 <!-- 2026-09-18 監査モード(scenario)で追加 -->
@@ -153,6 +151,7 @@
 - [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
+- [x] (P3) 設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない | engineer | (完了 2026-09-23) 2026-09-23監査(game-designer)発見。`Settings.cs`に`CurAdjustable`判定(`Cur[_row].Type`が`SType.KeyBind`/`SType.Select`以外か、範囲外・空リストもガード)を追加し、`:168-175`の←→入力処理で`CurAdjustable`がfalseなら`PlayUiMove()`を鳴らさないよう分岐、`:444`のフッタヒント「←→　調整」も`CurAdjustable`のときだけ表示するよう修正。スライダー/トグル/セグメント等は従来通り。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) 無被弾クリア（ノーヒット）が一切記録・演出されない | engineer | (完了 2026-09-23) 2026-09-23監査(game-designer)発見。`GameManager.cs`に`NoHitClears`(HashSet、`ClearTimeKey`を共有)と`IsNoHitClear`/`RecordNoHitClear`を追加し、`ClearTimes`/`BestScores`と同じ方式でSave/Load/ResetPersistentに組み込み。`Hud.ShowClearBanner`に`noHit`引数を追加し「NO DAMAGE」表示を追加。`StageAkari.cs:581-587`/`StageKoharu.cs:614-622`/`StageRei.cs:865-872`のクリア処理で`RunHitCount==0`判定→記録→バナー分岐。`Records.cs:144-152`に達成時のチェックマーク表示を追加。新規セリフ・新規モードなし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する | scenario | (完了 2026-09-22) 2026-09-22監査(scenario)発見。両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内していたが、その参照先自体が2026-09-05付で「⚠非正典（案C移行）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っていた（二重の陳腐化）。両ファイルの既存バナー直後に、参照先が一部非正典化済みである旨と、案C部分の正典は`wiki/08_仮台本/05・06・07・08・12`である旨の事実訂正を追記。既存本文・バナーは無変更、新規セリフ・物語内容の創作なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) QaPilot.cs等のコメント中のファイル:行参照ズレを実位置に修正 | engineer | (完了 2026-09-22) 2026-09-22監査(engineer)発見。QaPilot.cs:316-317「StageZero.cs:256/285-287/406〜」→213/226-239/344-390、QaPilot.cs:321「Player.cs:650」→Player.cs:654、QaPilot.cs:324「:151-155」→QaPilot.cs:171-176、Player.cs:284「Enemy.cs:468」→Enemy.cs:550、Player.cs:286「Panel.cs:103」→Panel.cs:109、DiffSelect.cs:17「GameManager.cs:63」→GameManager.cs:67に、実物確認の上で修正。コメント文言のみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
