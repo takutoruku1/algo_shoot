@@ -1,45 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 
-// ChoiceOverlay : 会話中のN択（2〜4）選択UI（「言いかけの言葉」演出・中央整列版）。
-//   旧メニュー箱（フラット暗幕＋UiKit.Box）は使わないが、断片を世界に溶かしすぎて選択の記号性を失った
-//   反省（プレイ評: 位置がわかりづらい・文字が小さい）から、断片は**中央に大きく縦積み**し、
-//   ▸マーカー＋光の下線で「並んだ選択リスト」に見せる。没入は暗幕でなく**周辺減光（ビネット）**で作り、
-//   戦場（QuietVeil の鈍色）は見えたまま中央へ視線を集める。Hud(CanvasLayer) にぶら下げて全画面に描く。
-//
-//   横の基準は2通りある（Show の onBoard で選ぶ。詳細は _centerX のコメント）:
-//     道中の会話（盤面あり）＝盤面 Field の中心（設計 x 840）／カットシーン＝画面の中心（640）。
-//
-// 使い方（StageKoharu.Step_MidChoice 参照）:
-//   _choice = ChoiceOverlay.Show(Hud, new[] { "選択肢A", "選択肢B" }, defaultSel: 1, onBoard: true);
-//   ... _choice.Decided が立ったら _choice.Selected を読み、QueueFree する（後始末は呼び出し側の責務）。
-//
-// 演出タイムライン（予備動作→本動作→余韻。yoshida style §4）:
-//   出現 0〜0.7s … ビネットが0.3sでフェードインし、光の粒が集まりながら1文字ずつ滲んで現れる。完了まで決定不可。
-//   待機         … 中央（y≈285）を軸に行間 90px で縦整列（2択=240/330・3択=195/285/375）。漂いは±2px。
-//                  選択中＝明るく・わずかに拡大・▸マーカー＋光の下線＋呼吸の明滅。非選択＝輝度40%。
-//   決定 0〜0.5s … 選ばれた断片が吹き出しの方へふわりと昇って光に溶ける（＝彼女の言葉になる連続性）。
-//                  選ばれなかった断片は淡い光の粒に散る（浄化と同じ語彙）。ビネットも一緒に明ける。
-//                  解散が終わってから Decided を立てる。
-//   音           … カーソル移動＝SfxUiMove を小さく低く／決定＝会話送りと同じミナのタイプ音（TypMina）。
-//                  メニュー確認音（PlayUiConfirm）は使わない＝これはメニューではなく「言葉を選ぶ」行為。
-//
-// 操作ヒント: 出現直後から下部に小さく表示（迷わせない）。入力が始まったら薄める（消しはしない）。
-// 沈黙も選択: 無入力が14秒続くと「ひきさがる」（末尾の選択肢）がひとりでに柔らかく灯りはじめ、
-//   20秒で自動的にそれが選ばれる（演出は通常決定と同じ・少し静かに）。ツリーポーズ中は _Process ごと
-//   止まるのでタイマーも停止する。
-//
-// 仕様（docs/20260831/会話選択_層2_プロト仕様.md）:
-//   ・X キャンセルは付けない＝必ずどれかを選ばせる（収束型の選択）。
-//   ・パッドは十字↑↓＋A（ui_up/ui_down は十字キーにマップ済み）。
-//   ・マウス（Settings/Hub と同じ流儀）: UiKit.BeginHotspots＋Hotspot＋HoveredId＋Pad.MouseClick。
-//     断片の行矩形ホバーで選択移動（Pad.UsingMouse 中のみ）、その上で左クリック＝決定。
-//     矩形外のクリックは何もしない。0.25s ゲート＝表示直後の押下（会話送りの残り）を拾わない。
-//   ・提示中は呼び出し側が会話バブルを保持（HoldBubble）＝Hud.BubblePaused 継続で弾・敵は止まったまま。
-//
-// 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は Hud.BubblePaused 中に Z をパルスし続ける。
-//   出現完了（0.7s）までの Z は無視されるが、パルスは続くので直後の1発で確定し、解散演出（0.5s）後に
-//   Decided が立って先へ進む＝ソフトロックしない（沈黙タイマーの自動決定はその遥か手前で無関係）。
+// Callers hold the dialogue until Decided, then read Selected and free the overlay.
 public partial class ChoiceOverlay : Control
 {
     public bool Decided { get; private set; }   // 決定済みか（解散演出が終わってから立つ。立ったら Selected を読む）
@@ -48,8 +10,10 @@ public partial class ChoiceOverlay : Control
 
     private string[] _choices = System.Array.Empty<string>();
     private string[] _disp = System.Array.Empty<string>();   // 表示用（Quoted 済み）。文言そのものは変えない
-    private Vector2[] _pos = System.Array.Empty<Vector2>();  // 各断片の基本テキスト左上（設計座標・浮遊前）
-    private float[] _w = System.Array.Empty<float>();        // 各断片の基本テキスト幅（FontSize 時）
+    private Rect2[] _rows = System.Array.Empty<Rect2>();
+    private float[] _focus = System.Array.Empty<float>();
+    private FontFile _font = null!;
+    private int _fontSize;
 
     private double _t;
     // 生成フレームからの押しっぱなしをエッジ扱いしない（直前の会話送りZで即決させない）。
@@ -79,44 +43,25 @@ public partial class ChoiceOverlay : Control
     private static bool _shotHold;
     private static bool _shotHoldChecked;
 
-    private const float AppearDur = 0.7f;     // 出現（粒の集合＋1文字ずつの滲み）
+    private const float AppearDur = 0.7f;
     private const float ShotHoldGate = 4.0f;  // --shot 時の決定ゲート（撮影窓の確保）
-    private const float CharStagger = 0.05f;  // 文字ごとの出現ずらし
-    private const float CharFade = 0.15f;     // 1文字の滲み時間
     private const float DissolveDur = 0.5f;   // 決定→解散（この後に Decided）
     private const float VignetteIn = 0.3f;    // ビネットのフェードイン
     private const double SilenceWarm = 14.0;  // ここから「ひきさがる」が灯りはじめる
     private const double SilenceAuto = 20.0;  // 自動決定
-    private int FontSize => _cinematic ? 30 : 38;
-    // 縦積みの配置（N択共通）。行間 RowPitch で BlockCenterY を中心に上下対称へ並べる。
-    //   2択は従来と同じ y=240/330 に来る（285±45）＝既存の呼び出しの見え方は不変。
-    //   3択は y=195/285/375、4択は y=150/240/330/420。いずれも吹き出し（y=520〜690）と
-    //   HUD 上端（y≈130 まで）に被らない範囲に収まる。
-    private const float RowPitch = 90f;       // 行間（2択の 330-240 と同じ）
-    private const float BlockCenterY = 285f;  // 縦積み全体の中心（2択の中点 (240+330)/2）
     private const int MaxChoices = 4;         // 想定する上限（これを超えると下が吹き出しに掛かる）
 
-    // ── 横の基準（2026-09-07: 盤面／画面全体の出し分け）──
-    //   盤面を左に寄せた（Field.Left=120 ＝ 設計座標で盤面 x 400..1280）あと、DesignW*0.5=640 の
-    //   中央寄せでは断片が盤面の中心（Field.DCenterX=840）より 200px 左＝サイドパネルに半分かぶった。
-    //   道中の会話（Hud にぶら下がる呼び出し）は盤面の中心へ、カットシーン（Prologue/Final/Epilogue
-    //   ＝盤面が無く画面全体を使う）は従来どおり画面の中心へ。どちらかは Show の onBoard で受け取る
-    //   ＝「Field を使う画面か」を呼び出し側が知っている情報として明示的に渡す（推測しない）。
-    private float _centerX = UiKit.DesignW * 0.5f;   // 断片の中央揃えとビネットの中心
-    private float _fieldLeft;                         // ビネットを敷く矩形の左端（盤面 or 画面）
-    private float _fieldWidth = UiKit.DesignW;        // 同・幅
-    // 決定した断片が昇って溶ける先＝吹き出しの上辺中央。道中は Hud.DrawDialog のバー（DlgBoxX/W ＝
-    // Field.DLeft+20 / Field.DWidth-40 ＝ 盤面の中、中心 840）、カットシーンは画面幅いっぱいのバー
-    // （中心 640）。どちらも中心は _centerX と一致するので、x は _centerX から取る。
-    private const float BubbleTargetY = 535f;
-    private Vector2 BubbleTarget => new(_centerX, BubbleTargetY);
-
-    // 周辺減光テクスチャ（中心透明→縁が暗い放射グラデ）。毎フレーム new しない（UiKit._gradCache と同じ理由）。
-    private static GradientTexture2D? _vignetteTex;
-    // 光の下線テクスチャ（透明→白→透明の横グラデ1枚を使い回し、色・αは modulate で動かす）。
-    //   UiKit.HGradient は色をキーにテクスチャをキャッシュするため、呼吸で毎フレーム変わるαを渡すと
-    //   キャッシュが際限なく増える＝ここでは使わない（UiKit._gradCache のコメント参照）。
+    // On-board choices must stay clear of the permanent left HUD.
+    private float _centerX = UiKit.DesignW * 0.5f;
+    private float _fieldLeft;
+    private float _fieldWidth = UiKit.DesignW;
     private static GradientTexture2D? _lineTex;
+    private static GradientTexture2D? _shadeTex;
+    private static readonly Color Ink = new("16171f");
+    private static readonly Color Paper = new("fff9f3");
+    private static readonly Color Muted = new("d3d9df");
+    private static readonly Color Ice = new("b7e5e8");
+    private static readonly Color Rose = new("f2b9ad");
 
     // N択（2〜MaxChoices）を出す。choices の並びがそのまま上から下の並びで、Selected はその添字。
     // 沈黙の自動決定は常に**末尾**が選ばれる＝呼び出し側は「引き下がる/何もしない」側を最後に置くこと。
@@ -147,6 +92,10 @@ public partial class ChoiceOverlay : Control
         // 実画面(384x216)全域に重ねる。描画は UiKit.BeginDesign で設計座標(1280x720)に変換して行う。
         Size = new Vector2(384f, 216f);
         MouseFilter = MouseFilterEnum.Ignore;
+        TextureFilter = TextureFilterEnum.Linear;
+        _font = (FontFile)GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf").Duplicate();
+        _font.Oversampling = 2;
+        _font.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
         _rng.Randomize();
         _lastMouse = Pad.MousePos();
         if (!_shotHoldChecked)
@@ -157,16 +106,18 @@ public partial class ChoiceOverlay : Control
         }
 
         int n = _choices.Length;
-        _disp = new string[n]; _pos = new Vector2[n]; _w = new float[n];
-        // 縦積みの先頭 y：全体を BlockCenterY で上下に振り分ける（N が増えても中心は動かない）。
-        float pitch = _cinematic ? 56f : RowPitch;
-        float top = (_cinematic ? 578f : BlockCenterY) - pitch * (n - 1) * 0.5f;
+        _disp = new string[n]; _rows = new Rect2[n]; _focus = new float[n];
+        float pitch = _cinematic ? 52f : 80f;
+        float height = _cinematic ? 46f : 68f;
+        float width = Mathf.Min(720f, _fieldWidth - 128f);
+        float top = (_cinematic ? 603f : 303f) - pitch * (n - 1) * 0.5f - height * 0.5f;
+        _fontSize = _cinematic ? 26 : 30;
         for (int i = 0; i < n; i++)
         {
             _disp[i] = Quoted(_choices[i]);
-            _w[i] = UiKit.TextW(UiKit.ZenBold, _disp[i], FontSize);
-            // 画面中央に中央揃えで縦積み（行間は N によらず RowPitch で一定）。
-            _pos[i] = new Vector2(_centerX - _w[i] * 0.5f, top + pitch * i);
+            _rows[i] = new Rect2(_centerX - width * 0.5f, top + pitch * i, width, height);
+            _focus[i] = i == Selected ? 1 : 0;
+            while (UiKit.TextW(_font, _disp[i], _fontSize) > width - 144 && _fontSize > 1) _fontSize--;
         }
     }
 
@@ -186,6 +137,8 @@ public partial class ChoiceOverlay : Control
         if (Decided) return;
         float dt = (float)delta;
         UpdateMotes(dt);
+        for (int i = 0; i < _focus.Length; i++)
+            _focus[i] = Mathf.Lerp(_focus[i], i == Selected ? 1f : 0f, 1 - Mathf.Exp(-16f * dt));
 
         // ── 解散演出中：入力は受けず、選ばれた断片のトレイルを撒きながら完了を待つ ──
         if (_deciding)
@@ -263,7 +216,6 @@ public partial class ChoiceOverlay : Control
         }
     }
 
-    // ── 決定→解散を開始。決定音は会話送りと同じミナのタイプ音（メニュー確認音は使わない）──
     private void StartDissolve(bool quiet)
     {
         _deciding = true;
@@ -272,50 +224,32 @@ public partial class ChoiceOverlay : Control
         _trailAcc = 0;
         if (Audio.Instance is { } au)
         {
-            if (quiet) au.VoiceSe(au.TypMina, volDb: -26f);       // 沈黙の自動決定＝さらに静かに
-            else au.PlayType(Hud.LineKind.Mina);                  // 会話送り（ミナの声＝ガラス）と同じ音
+            if (quiet) au.VoiceSe(au.TypMina, volDb: -26f);
+            else au.PlayType(Hud.LineKind.Mina);
         }
-        // 選ばれなかった断片＝淡い光の粒に散る（浄化と同じ語彙）。粒はすべて DissolveDur 内に消える寿命。
-        int per = quiet ? 1 : 2;
         for (int i = 0; i < _choices.Length; i++)
         {
             if (i == Selected) continue;
-            var basePos = FragBasePos(i);
-            for (int j = 0; j < _disp[i].Length; j++)
-            {
-                float cx = basePos.X + UiKit.TextW(UiKit.ZenBold, _disp[i].Substring(0, j), FontSize) + FontSize * 0.45f;
-                for (int m = 0; m < per; m++)
-                {
-                    float ang = _rng.RandfRange(-Mathf.Pi * 0.85f, -Mathf.Pi * 0.15f); // 上方向へ散る
-                    float spd = _rng.RandfRange(26f, 70f);
-                    _motes.Add(new Mote
-                    {
-                        P = new Vector2(cx, basePos.Y + FontSize * 0.6f),
-                        V = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * spd,
-                        Life = _rng.RandfRange(0.28f, 0.46f),
-                        Max = 0.46f,
-                        R = _rng.RandfRange(1.8f, 3.8f),
-                        C = UiKit.PurifyHi.Lerp(UiKit.Mina, _rng.Randf() * 0.5f),
-                    });
-                }
-            }
+            Rect2 row = RowRect(i);
+            for (int j = 0; j < (quiet ? 3 : 9); j++)
+                AddMote(new Vector2(_rng.RandfRange(row.Position.X + 20, row.End.X - 20), row.End.Y),
+                    new Vector2(_rng.RandfRange(-12, 12), _rng.RandfRange(-35, -14)), Ice);
         }
     }
 
-    // 選ばれた断片の昇りに沿って光の粒を1つ撒く（トレイル＝言葉が光へほどけていく余韻）。
+    private void AddMote(Vector2 position, Vector2 velocity, Color color)
+    {
+        float life = _rng.RandfRange(0.22f, 0.4f);
+        _motes.Add(new Mote { P = position, V = velocity, Life = life, Max = life,
+            R = _rng.RandfRange(1.4f, 2.4f), C = color });
+    }
+
     private void SpawnTrail()
     {
-        float d = Mathf.Clamp((float)(_decideT / DissolveDur), 0f, 1f);
-        var p = ChosenPos(d);
-        _motes.Add(new Mote
-        {
-            P = p + new Vector2(_rng.RandfRange(0f, _w[Selected]), _rng.RandfRange(8f, FontSize * 1.1f)),
-            V = new Vector2(_rng.RandfRange(-8f, 8f), _rng.RandfRange(-24f, -10f)),
-            Life = _rng.RandfRange(0.20f, 0.34f),
-            Max = 0.34f,
-            R = _rng.RandfRange(1.6f, 3.0f),
-            C = UiKit.PurifyHi,
-        });
+        float dis = Mathf.Clamp((float)(_decideT / DissolveDur), 0, 1);
+        Rect2 row = VisualRow(Selected, dis);
+        AddMote(new Vector2(Mathf.Lerp(row.Position.X + 16, row.End.X - 16, dis), row.End.Y - 2),
+            new Vector2(24, -14), Rose);
     }
 
     private void UpdateMotes(float dt)
@@ -324,210 +258,139 @@ public partial class ChoiceOverlay : Control
         {
             var m = _motes[k];
             m.Life -= dt;
-            if (m.Life <= 0f) { _motes.RemoveAt(k); continue; }
-            m.V *= Mathf.Exp(-2.6f * dt);   // 減衰
-            m.V.Y -= 18f * dt;              // 光はゆっくり浮き上がる（浄化の語彙）
+            if (m.Life <= 0) { _motes.RemoveAt(k); continue; }
+            m.V *= Mathf.Exp(-2.6f * dt);
             m.P += m.V * dt;
             _motes[k] = m;
         }
     }
 
-    // 断片の行矩形（設計座標）。▸マーカー〜下線まで含む大きめの帯。_Draw と _Process のホットスポット
-    // 登録で共有＝座標系ずれを防ぐ。浮遊（±2px）はパディング内に収まるので矩形は固定でよい。
-    private Rect2 RowRect(int i)
-        => new(_pos[i].X - 56f, _pos[i].Y - (_cinematic ? 8f : 12f), _w[i] + 88f,
-            _cinematic ? 54f : FontSize * 1.5f + 20f);
+    private Rect2 RowRect(int i) => _rows[i];
 
-    // 浮遊込みの基本位置（静かな上下ドリフト。読みやすさ優先で ±2px・周期≒3.3s）。
-    private Vector2 FragBasePos(int i)
-        => _pos[i] + new Vector2(0f, 2f * Mathf.Sin((float)_t * 1.9f + i * 2.6f));
-
-    // 決定後の選ばれた断片の位置：ふわりと持ち上がり（+30px の山）、吹き出しの方へ滑らかに寄りながら溶ける。
-    // 全行程は移動しきらず 55% 付近で光に溶け切る＝「届く途中で言葉になる」余韻。
-    private Vector2 ChosenPos(float d)
+    private float RowAppear(int i)
     {
-        var p = FragBasePos(Selected);
-        var target = new Vector2(BubbleTarget.X - _w[Selected] * 0.5f, BubbleTarget.Y);
-        float k = d * d; // ease-in：ゆっくり離れて、光に吸われるように加速
-        p = p.Lerp(target, k * 0.55f);
-        p.Y -= 30f * Mathf.Sin(Mathf.Min(1f, d * 1.3f) * Mathf.Pi);
-        return p;
+        float p = Mathf.Clamp(((float)_t - 0.08f - i * 0.08f) / 0.34f, 0, 1);
+        return 1 - Mathf.Pow(1 - p, 3);
     }
 
-    // 出現の進捗：文字 j の滲みα（0=未出現〜1=定着）。
-    private float CharAppear(int j)
-        => Mathf.Clamp(((float)_t - (0.06f + j * CharStagger)) / CharFade, 0f, 1f);
+    private Rect2 VisualRow(int i, float dis)
+    {
+        Rect2 row = RowRect(i);
+        row.Position += new Vector2(18 * (1 - RowAppear(i)), 0);
+        if (_deciding && i == Selected)
+            row.Position += new Vector2(0, (535 - row.GetCenter().Y) * 0.18f * dis * dis);
+        return row;
+    }
+
+    private static Vector2[] Outline(Rect2 row)
+    {
+        float cut = 7;
+        return new[]
+        {
+            row.Position + new Vector2(cut, 0), new Vector2(row.End.X, row.Position.Y),
+            row.End - new Vector2(0, cut), row.End - new Vector2(cut, 0),
+            new Vector2(row.Position.X, row.End.Y), row.Position + new Vector2(0, cut),
+            row.Position + new Vector2(cut, 0),
+        };
+    }
+
+    private void DrawMark(Vector2 center, float focus, float alpha)
+    {
+        Vector2[] points = { center + new Vector2(0, -7), center + new Vector2(5, 0),
+            center + new Vector2(0, 7), center + new Vector2(-5, 0), center + new Vector2(0, -7) };
+        DrawPolyline(points, new Color(Ice.Lerp(Rose, focus), alpha * (0.45f + 0.55f * focus)), 1, true);
+        if (focus > 0.01f) DrawColoredPolygon(points[..^1], new Color(Rose, alpha * focus));
+    }
 
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        float dis = _deciding ? Mathf.Clamp((float)(_decideT / DissolveDur), 0f, 1f) : 0f;
-
-        // ── 周辺減光（ビネット）：フラット暗幕の代わり。戦場は見えたまま中央へ視線を集める。──
-        //   出現時 0.3s でフェードイン、決定/解散時は断片と一緒に明ける。テクスチャは1枚を使い回し
-        //   （毎フレーム new は RID 競合の実績あり＝UiKit._gradCache コメント参照）、αは modulate で動かす。
-        //   2026-09-07: 敷く矩形を**盤面だけ**にした（onBoard の呼び出し）。全画面のままだと減光の中心が
-        //   画面中心＝断片より 200px 左にずれて「暗いところと明るいところが別の場所」になるうえ、
-        //   サイドパネル（設計 x 0..373）の常設HUDまで暗くなって板の文字が読めなくなる。
-        //   カットシーンは盤面が無いので従来どおり画面全体（_fieldLeft=0 / _fieldWidth=DesignW）。
-        _vignetteTex ??= new GradientTexture2D
+        float dis = _deciding ? Mathf.Clamp((float)(_decideT / DissolveDur), 0, 1) : 0;
+        float appear = Mathf.Clamp((float)_t / VignetteIn, 0, 1);
+        // Modulation keeps animated opacity out of UiKit's gradient cache keys.
+        _lineTex ??= new GradientTexture2D
         {
             Gradient = new Gradient
             {
-                Offsets = new[] { 0.40f, 1f },
-                Colors = new[] { new Color(0, 0, 0, 0), new Color(0, 0, 0, 0.72f) },
+                Offsets = new[] { 0f, 0.5f, 1f },
+                Colors = new[] { new Color(1, 1, 1, 0), Colors.White, new Color(1, 1, 1, 0) },
             },
-            Width = 256, Height = 256,
-            Fill = GradientTexture2D.FillEnum.Radial,
-            FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(1f, 0.5f),
+            Width = 256, Height = 8,
+            FillFrom = Vector2.Zero, FillTo = new Vector2(1, 0),
         };
-        float vigA = Mathf.Clamp((float)_t / VignetteIn, 0f, 1f) * (1f - dis);
+        _shadeTex ??= new GradientTexture2D
+        {
+            Gradient = new Gradient
+            {
+                Offsets = new[] { 0f, 0.3f, 1f },
+                Colors = new[] { new Color(1, 1, 1, 0), Colors.White, Colors.White },
+            },
+            Width = 8, Height = 128,
+            FillFrom = Vector2.Zero, FillTo = new Vector2(0, 1),
+        };
         if (_cinematic)
-            DrawRect(new Rect2(0, 500, UiKit.DesignW, 220), new Color(0.02f, 0.025f, 0.035f, 0.94f * vigA));
-        else if (vigA > 0.01f)
-            DrawTextureRect(_vignetteTex, new Rect2(_fieldLeft, 0, _fieldWidth, UiKit.DesignH), false,
-                new Color(1, 1, 1, vigA));
+            DrawTextureRect(_shadeTex, new Rect2(0, 470, UiKit.DesignW, 250), false, new Color(Ink, 0.82f * appear * (1 - dis)));
+        else
+            DrawRect(new Rect2(_fieldLeft, 0, _fieldWidth, 510), new Color(Ink, 0.12f * appear * (1 - dis)));
 
-        float breath = 0.5f + 0.5f * Mathf.Sin((float)_t * 2.5f);
         for (int i = 0; i < _choices.Length; i++)
         {
-            bool sel = i == Selected;
-            bool chosen = _deciding && sel;
-            bool dropped = _deciding && !sel;
+            bool chosen = _deciding && i == Selected;
+            float alpha = RowAppear(i);
+            if (_deciding) alpha *= chosen ? 1 - Mathf.SmoothStep(0.35f, 1, dis) : 1 - Mathf.SmoothStep(0, 0.45f, dis);
+            if (alpha <= 0) continue;
+            Rect2 row = VisualRow(i, dis);
+            Vector2[] outline = Outline(row);
+            float focus = chosen ? 1 : _focus[i];
+            float warm = !_deciding && i == _choices.Length - 1
+                ? Mathf.Clamp((float)((_silenceT - SilenceWarm) / (SilenceAuto - SilenceWarm)), 0, 1) : 0;
+            Color edge = Ice.Lerp(Rose, Mathf.Max(focus, warm));
+            float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 1.8f);
+            DrawColoredPolygon(outline[..^1], new Color(Ink, alpha * (0.8f + 0.14f * focus)));
+            DrawTextureRect(_lineTex, row, false, new Color(edge, alpha * (0.035f + focus * 0.065f)));
+            DrawPolyline(outline, new Color(edge, alpha * (0.18f + focus * 0.46f + warm * 0.15f)), 1, true);
+            DrawLine(row.Position + new Vector2(8, 0), row.Position + new Vector2(56, 0),
+                new Color(edge, alpha * (0.25f + focus * 0.65f)), 2, true);
+            DrawLine(row.End - new Vector2(56, 0), row.End - new Vector2(8, 0),
+                new Color(edge, alpha * (0.2f + focus * 0.6f)), 1.5f, true);
+            DrawMark(new Vector2(row.Position.X + 31, row.GetCenter().Y), focus, alpha);
 
-            // 全体α
-            float alpha = 1f;
-            if (chosen) alpha = 1f - Mathf.SmoothStep(0.25f, 1f, dis);            // 後半で光に溶ける
-            if (dropped) alpha = Mathf.Clamp(1f - (float)_decideT / 0.22f, 0f, 1f); // 散る側は素早く淡く（粒が引き継ぐ）
-            if (alpha <= 0f) continue;
+            Vector2 text = new(row.Position.X + 65, row.GetCenter().Y - _font.GetHeight(_fontSize) / 2);
+            UiKit.Text(this, _font, text, _disp[i], _fontSize, new Color(Muted.Lerp(Paper, focus), alpha));
 
-            // 色：ミナの台詞色。選択中は明るく＋呼吸のようにゆっくり明滅、非選択は輝度40%へ沈む。
-            Color col = sel ? UiKit.Mina.Lerp(UiKit.White, 0.40f + 0.20f * breath)
-                            : UiKit.Mina.Darkened(0.60f);
-            if (_cinematic) col = sel ? new Color("c8f4ff") : new Color("e3e7ef");
-            // 沈黙の灯り：14秒から末尾の断片（ひきさがる）がひとりでに柔らかく灯りはじめる。
-            float warm = 0f;
-            if (!sel && !_deciding && i == _choices.Length - 1 && _silenceT > SilenceWarm)
+            if (focus > 0.01f)
             {
-                warm = Mathf.Clamp((float)((_silenceT - SilenceWarm) / (SilenceAuto - SilenceWarm)), 0f, 1f);
-                col = col.Lerp(UiKit.Light, warm * 0.55f);
+                Vector2 arrow = new(row.End.X - 33, row.GetCenter().Y);
+                Color color = new(edge, alpha * focus);
+                DrawLine(arrow - new Vector2(20, 0), arrow, color, 1.5f, true);
+                DrawLine(arrow - new Vector2(6, 5), arrow, color, 1.5f, true);
+                DrawLine(arrow - new Vector2(6, -5), arrow, color, 1.5f, true);
+                DrawTextureRect(_lineTex, new Rect2(row.Position.X + 12, row.End.Y - 2, row.Size.X - 24, 2), false,
+                    new Color(Paper, alpha * focus * (0.35f + pulse * 0.2f)));
             }
-
-            // サイズ：選択中はわずかに拡大。選ばれた断片は昇りながらさらに少し伸びる（光に近づく）。
-            int size = sel ? FontSize + 2 : FontSize;
-            if (chosen) size = FontSize + 2 + (int)(4f * dis);
-            float wNow = UiKit.TextW(UiKit.ZenBold, _disp[i], size);
-            // 位置：中央揃え（サイズが変わっても中心を保つ）。決定中の選ばれた断片だけ昇りの軌道へ。
-            float bobY = FragBasePos(i).Y;
-            Vector2 p = chosen ? ChosenPos(dis) : new Vector2(_centerX - wNow * 0.5f, bobY);
-            var center = new Vector2(p.X + wNow * 0.5f, p.Y + size * 0.62f);
-
-            // やわらかい発光（気配）。選択中は呼吸、決定中は溶ける光へ膨らむ。
-            float appearK = Mathf.Clamp((float)_t / AppearDur, 0f, 1f);
-            float glowA = sel ? 0.10f + 0.05f * breath : 0.05f;
-            if (chosen) glowA = 0.10f + 0.30f * dis;
-            if (!_cinematic) UiKit.RadialGlow(this, center, wNow * 0.7f + 40f, UiKit.Mina, glowA * alpha * appearK);
-            if (!_cinematic && warm > 0f)
-                UiKit.RadialGlow(this, center, wNow * 0.6f, UiKit.Light, 0.10f * warm);
-
-            // 選択の記号性：▸マーカー（選択中のみ）＋テキスト下の光のライン（非選択も薄く＝リストに見せる）。
-            float lineY = p.Y + size * 1.32f;
-            float lineA = (sel ? 0.55f + 0.20f * breath : 0.12f) * alpha * appearK;
-            var lineCol = sel ? UiKit.Mina.Lerp(UiKit.White, 0.35f) : UiKit.Mina;
-            if (_cinematic) lineCol = new Color("87d7ed");
-            float half = wNow * 0.5f + 18f;
-            _lineTex ??= new GradientTexture2D
+            if (chosen)
             {
-                Gradient = new Gradient
-                {
-                    Offsets = new[] { 0f, 0.5f, 1f },
-                    Colors = new[] { new Color(1, 1, 1, 0), new Color(1, 1, 1, 1), new Color(1, 1, 1, 0) },
-                },
-                Width = 256, Height = 8,
-                Fill = GradientTexture2D.FillEnum.Linear,
-                FillFrom = Vector2.Zero, FillTo = new Vector2(1f, 0f),
-            };
-            DrawTextureRect(_lineTex, new Rect2(center.X - half, lineY, half * 2f, 2.5f), false,
-                new Color(lineCol, lineA));
-            if (sel && !dropped)
-            {
-                float mk = (chosen ? alpha : 1f) * appearK;
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(p.X - 45f, p.Y + 3.5f), "▸", size - 6,
-                    new Color(0f, 0f, 0f, 0.6f * mk)); // 影
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(p.X - 46f, p.Y + 2f), "▸", size - 6,
-                    new Color(UiKit.PurifyHi, (0.80f + 0.20f * breath) * mk));
-            }
-
-            // 1文字ずつ：出現中は光の粒が集まりながら滲む。定着後は縁取り＋本体（箱なしでも太く読める）。
-            for (int j = 0; j < _disp[i].Length; j++)
-            {
-                float a = CharAppear(j);
-                float cx = p.X + UiKit.TextW(UiKit.ZenBold, _disp[i].Substring(0, j), size);
-                var cc = new Vector2(cx + size * 0.45f, p.Y + size * 0.6f);
-
-                // 集まる粒：文字の定着前後だけ、周囲から渦を巻いて寄ってくる（決定論ハッシュ＝ちらつかない）。
-                if (a < 1f && _t < AppearDur + 0.2)
-                {
-                    float pre = Mathf.Clamp(((float)_t - (0.06f + j * CharStagger - 0.16f)) / 0.16f, 0f, 1f);
-                    for (int m = 0; m < 3; m++)
-                    {
-                        float h1 = Hash(i * 131 + j * 17 + m * 7);
-                        float h2 = Hash(i * 57 + j * 29 + m * 13 + 999);
-                        float ang = h1 * Mathf.Tau + (float)_t * (0.6f + h2);
-                        float rad = (1f - a) * (20f + 16f * h2) + 3f;
-                        var mpnt = cc + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * rad;
-                        float ma = pre * (1f - a) * 0.6f;
-                        if (ma > 0.01f)
-                            DrawCircle(mpnt, 2.0f, new Color(UiKit.PurifyHi, ma * alpha));
-                    }
-                }
-                if (a <= 0f) continue;
-
-                string ch = _disp[i][j].ToString();
-                float ca = a * a * alpha; // 滲み＝ゆっくり濃くなる
-                // 濃い縁取り（4方向）＋落ち影：QuietVeil の上でも太く読める（ビネットと合わせ可読性を担保）。
-                var ink = new Color(0f, 0f, 0f, 0.75f * ca);
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx - 1.5f, p.Y), ch, size, ink);
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 1.5f, p.Y), ch, size, ink);
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, p.Y - 1.5f), ch, size, ink);
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, p.Y + 1.5f), ch, size, ink);
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx + 2.2f, p.Y + 2.2f), ch, size,
-                    new Color(0f, 0f, 0f, 0.45f * ca));
-                UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, p.Y), ch, size, new Color(col, ca));
+                float sweep = Mathf.Clamp(dis / 0.6f, 0, 1);
+                float x = Mathf.Lerp(row.Position.X + 12, row.End.X - 12, sweep);
+                float flash = Mathf.Sin(sweep * Mathf.Pi) * alpha * (_quiet ? 0.25f : 0.65f);
+                DrawLine(new Vector2(x - 5, row.Position.Y + 6), new Vector2(x + 5, row.End.Y - 6), new Color(Paper, flash), 2, true);
+                DrawTextureRect(_lineTex, new Rect2(x - 24, row.Position.Y + 4, 48, row.Size.Y - 8), false, new Color(Rose, flash * 0.18f));
             }
         }
 
-        // 光の粒（散り・トレイル）
-        foreach (var m in _motes)
+        foreach (var mote in _motes)
         {
-            float ma = Mathf.Clamp(m.Life / m.Max, 0f, 1f) * 0.8f;
-            DrawCircle(m.P, m.R, new Color(m.C, ma));
+            float alpha = Mathf.Clamp(mote.Life / mote.Max, 0, 1) * 0.65f;
+            DrawColoredPolygon(new[] { mote.P + new Vector2(0, -mote.R * 2), mote.P + new Vector2(mote.R, 0),
+                mote.P + new Vector2(0, mote.R * 2), mote.P - new Vector2(mote.R, 0) }, new Color(mote.C, alpha));
         }
 
-        // 操作ヒント：出現直後から小さく表示（入力が始まったら薄める）。
-        //   位置は吹き出し（y=520〜690）の直上＝最下部ティッカー帯（y≈696〜）と重ねない。
-        //   背景（棚のシルエット等）の上でも読めるよう薄い落ち影を敷く。
-        //   横は断片と同じ基準で中央寄せ（盤面 or 画面全体）＝ヒントだけ別の場所に出さない。
         if (_hintA > 0.01f && !_deciding && !_cinematic)
         {
             string hint = "↑↓ / マウス えらぶ　" + Pad.ConfirmToken + " けってい";
-            UiKit.Text(this, UiKit.Mono, new Vector2(_fieldLeft + 1.2f, 465.2f), hint, UiKit.FontSmall,
-                new Color(0f, 0f, 0f, 0.6f * _hintA), HorizontalAlignment.Center, _fieldWidth);
-            UiKit.Text(this, UiKit.Mono, new Vector2(_fieldLeft, 464f), hint, UiKit.FontSmall,
-                new Color(UiKit.Text2, 0.95f * _hintA), HorizontalAlignment.Center, _fieldWidth);
+            UiKit.Text(this, UiKit.Zen, new Vector2(_fieldLeft, 467), hint, UiKit.FontSmall,
+                new Color(Muted, 0.8f * _hintA), HorizontalAlignment.Center, _fieldWidth);
         }
-
         UiKit.EndDesign(this);
-    }
-
-    // 決定論ハッシュ（0〜1）。出現の集合粒を毎フレーム同じ軌道で描くために使う。
-    private static float Hash(int a)
-    {
-        unchecked
-        {
-            uint x = (uint)a * 2654435761u;
-            x ^= x >> 13; x *= 1274126177u; x ^= x >> 16;
-            return (x & 0xFFFFFF) / 16777215f;
-        }
     }
 }

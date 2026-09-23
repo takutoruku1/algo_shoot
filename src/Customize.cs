@@ -5,8 +5,8 @@ using System.Collections.Generic;
 public partial class Customize : Node2D
 {
     private static readonly Color Bg = new("161b20"), Raised = new("242c33"), Ink = new("edf3f5"), Muted = new("a8b5bc");
-    private static readonly Rect2 HomeRect = new(420, 25, 44, 44);
-    private static readonly Rect2 ActionRect = new(424, 620, 432, 48);
+    private static readonly Rect2 HomeRect = new(40, 25, 44, 44);
+    private static readonly Rect2 ActionRect = new(658, 606, 574, 48);
     private static readonly Rect2 CancelRect = new(460, 417, 172, 46), ConfirmRect = new(648, 417, 172, 46);
     private GameManager _game = null!;
     private readonly Dictionary<string, Texture2D> _textures = new();
@@ -18,10 +18,10 @@ public partial class Customize : Node2D
     private string _notice = "";
     private double _time, _noticeTime;
     private CosmeticItem Selected => _items[_selected];
-    private static Rect2 TabRect(int i) => new(424 + i * 216, 96, 216, 40);
-    private static Rect2 CharacterRect(int i) => new(424 + i * 108, 151, 108, 40);
-    private static Rect2 PoseRect(int i) => new(538 + i * 68, 426, 68, 30);
-    private Rect2 ItemRect(int i) => new(424 + i * (440f / _items.Length), 521, 440f / _items.Length - 8, 66);
+    private static Rect2 TabRect(int i) => new(48 + i * 216, 96, 216, 40);
+    private static Rect2 CharacterRect(int i) => new(658 + i * 142, 151, 142, 40);
+    private static Rect2 PoseRect(int i) => new(110 + i * 126, 614, 116, 34);
+    private Rect2 ItemRect(int i) => new(658 + i * (582f / _items.Length), 326, 582f / _items.Length - 8, 196);
 
     public override void _Ready()
     {
@@ -190,16 +190,17 @@ public partial class Customize : Node2D
     {
         if (_items.Length == 0) return;
         UiKit.BeginDesign(this);
-        DrawTextureRect(Texture("res://char/bg2/title/L1_far.png"), new Rect2(0, 0, 1280, 720), false, new Color(0.28f, 0.32f, 0.36f));
-        DrawRect(new Rect2(400, 0, 480, 720), Bg);
-        DrawLine(new Vector2(400, 0), new Vector2(400, 720), Raised, 1);
-        DrawLine(new Vector2(880, 0), new Vector2(880, 720), Raised, 1);
+        DrawRect(new Rect2(0, 0, 1280, 720), Bg);
+        var backdrop = Texture("res://char/bg2/title/L1_far.png");
+        Vector2 sourceSize = new(backdrop.GetHeight() * 610f / 516, backdrop.GetHeight());
+        DrawTextureRectRegion(backdrop, new Rect2(0, 144, 610, 516),
+            new Rect2((backdrop.GetSize() - sourceSize) / 2, sourceSize), new Color(0.34f, 0.4f, 0.44f));
         Vector2 arrow = HomeRect.GetCenter();
         DrawLine(arrow + new Vector2(10, 0), arrow - new Vector2(10, 0), Ink, 2, true);
         DrawPolyline(new[] { arrow + new Vector2(-2, -8), arrow + new Vector2(-10, 0), arrow + new Vector2(-2, 8) }, Ink, 2, true);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(478, 32), "カスタマイズ", 23, Ink);
-        UiKit.Text(this, UiKit.Mono, new Vector2(720, 38), $"{UiKit.Abbrev(_game.Impression)} Imp", 16, new Color("edcf82"), HorizontalAlignment.Right, 136);
-        if (_hover == 100) UiKit.Text(this, UiKit.Zen, new Vector2(424, 72), "ホーム", 12, Muted);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(102, 32), "カスタマイズ", 23, Ink);
+        UiKit.Text(this, UiKit.Mono, new Vector2(980, 38), $"{UiKit.Abbrev(_game.Impression)} Imp", 18, new Color("edcf82"), HorizontalAlignment.Right, 252);
+        if (_hover == 100) UiKit.Text(this, UiKit.Zen, new Vector2(44, 72), "ホーム", 12, Muted);
         for (int i = 0; i < 2; i++)
             Label(TabRect(i), i == 0 ? "カーソル" : "コスチューム", _tab == i, !Pad.UsingMouse && _focus == 0 && _tab == i || _hover == 200 + i);
         if (_tab == 1)
@@ -210,37 +211,36 @@ public partial class Customize : Node2D
             int frame = (int)(_time * 6) % 8;
             int[] spin = { 0, 1, 2, 3, 4, 3, 2, 1 };
             string pose = _pose == 0 ? "idle" : _pose == 1 ? "aim_ur" : $"spin_{spin[frame]:00}";
-            Art(Selected.PosePath(pose), new Rect2(506, 201, 268, 217), _pose == 2 && frame >= 5);
+            Art(Selected.PosePath(pose), new Rect2(134, 178, 342, 400), _pose == 2 && frame >= 5);
             for (int i = 0; i < 3; i++)
                 Label(PoseRect(i), new[] { "通常", "照準", "回避" }[i], _pose == i,
                     !Pad.UsingMouse && _focus == 2 && _pose == i || _hover == 400 + i, 13);
         }
         else
         {
-            UiKit.Text(this, UiKit.Zen, new Vector2(424, 157), "マウスアイコン", 14, Muted);
-            Art(Selected.PreviewPath, new Rect2(559, 217, 136, 160));
-            DrawRect(new Rect2(746, 314, 70, 76), new Color("ecf0ef"));
+            UiKit.Text(this, UiKit.Zen, new Vector2(658, 165), "マウスアイコン", 16, Muted);
+            Art(Selected.PreviewPath, new Rect2(190, 226, 188, 238));
+            DrawRect(new Rect2(464, 464, 70, 76), new Color("ecf0ef"));
             Vector2 nativeSize = Texture(Selected.Art).GetSize() / (GetViewport().GetScreenTransform().Scale * UiKit.Scale);
-            DrawTextureRect(Texture(Selected.Art), new Rect2(new Vector2(781, 352) - nativeSize / 2f, nativeSize), false);
-            UiKit.Text(this, UiKit.Zen, new Vector2(746, 397), "実寸", 13, Muted, HorizontalAlignment.Center, 70);
+            DrawTextureRect(Texture(Selected.Art), new Rect2(new Vector2(499, 502) - nativeSize / 2f, nativeSize), false);
+            UiKit.Text(this, UiKit.Zen, new Vector2(464, 551), "実寸", 13, Muted, HorizontalAlignment.Center, 70);
         }
         Color accent = new(Selected.Accent);
-        DrawRect(new Rect2(424, 466, 432, 1), Raised);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(424, 479), Selected.Name, 20, Ink);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(658, 224), Selected.Name, 28, Ink);
         string state = _game.CosmeticEquipped(Selected.Id) ? "装備中" : _game.OwnsCosmetic(Selected.Id) ? "購入済み" : $"{Selected.Price:N0} Imp";
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(735, 482), state, 15, accent, HorizontalAlignment.Right, 121);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(658, 274), state, 16, accent);
         for (int i = 0; i < _items.Length; i++)
         {
             Rect2 rect = ItemRect(i);
             bool selected = i == _selected;
             UiKit.Box(this, rect, selected ? Raised : Bg, 6, selected ? accent : new Color("343e45"), selected ? 2 : 1);
-            Art(_items[i].PosePath("idle"), new Rect2(rect.Position + new Vector2(7, 9), new Vector2(32, 46)));
-            UiKit.Multi(this, UiKit.ZenBold, rect.Position + new Vector2(46, 12), _items[i].Name, 13,
-                selected ? Ink : Muted, rect.Size.X - 52, 2);
+            Art(_items[i].PosePath("idle"), new Rect2(rect.Position + new Vector2((rect.Size.X - 70) / 2, 16), new Vector2(70, 100)));
+            UiKit.Multi(this, UiKit.ZenBold, rect.Position + new Vector2(14, 134), _items[i].Name, 17,
+                selected ? Ink : Muted, rect.Size.X - 28, 2);
             if (_game.CosmeticEquipped(_items[i].Id))
                 DrawCircle(rect.Position + new Vector2(rect.Size.X - 10, rect.Size.Y - 10), 3, accent);
         }
-        if (_noticeTime > 0) UiKit.Text(this, UiKit.Zen, new Vector2(424, 594), _notice, 14, accent, HorizontalAlignment.Center, 432);
+        if (_noticeTime > 0) UiKit.Text(this, UiKit.Zen, new Vector2(658, 577), _notice, 14, accent, HorizontalAlignment.Center, 574);
         bool equipped = _game.CosmeticEquipped(Selected.Id), owned = _game.OwnsCosmetic(Selected.Id);
         bool affordable = owned || _game.Impression >= Selected.Price;
         string action = equipped ? "装備中" : owned ? "装備する" : affordable ? $"{Selected.Price:N0} Imp で購入" : $"あと {Selected.Price - _game.Impression:N0} Imp";
@@ -249,14 +249,15 @@ public partial class Customize : Node2D
             UiKit.Box(this, ActionRect.Grow(3), Colors.Transparent, 7, Ink, 1);
         UiKit.Text(this, UiKit.ZenBold, ActionRect.Position + new Vector2(0, 11), action, 18,
             equipped || !affordable ? Muted : Bg, HorizontalAlignment.Center, ActionRect.Size.X);
-        UiKit.Text(this, UiKit.Zen, new Vector2(424, 680), _tab == 1 ? "戦闘用コスチューム  /  能力補正なし" : "マウスカーソル", 12, Muted, HorizontalAlignment.Center, 432);
+        UiKit.Text(this, UiKit.Zen, new Vector2(48, 680), _tab == 1 ? "戦闘用コスチューム  /  能力補正なし" : "マウスカーソル", 12, Muted);
         if (_pendingPurchase != null) DrawConfirmation();
+        UiKit.EndDesign(this);
     }
 
     private void DrawConfirmation()
     {
         var item = Cosmetics.Find(_pendingPurchase!)!;
-        DrawRect(new Rect2(400, 0, 480, 720), new Color(0, 0, 0, 0.78f));
+        DrawRect(new Rect2(0, 0, 1280, 720), new Color(0, 0, 0, 0.78f));
         UiKit.Box(this, new Rect2(440, 243, 400, 243), Raised, 8, new Color("53636b"), 1);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(460, 264), "購入の確認", 22, Ink);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(460, 307), item.Name, 19, new Color(item.Accent));

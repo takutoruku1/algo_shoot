@@ -55,20 +55,20 @@ public partial class CustomizeQa : Node
             Nav(menu, "ui_accept");
             Check(Read<string?>(menu, "_pendingPurchase") == null && game.Impression == 4700, "confirmation defaults to cancel");
             Write(menu, "_pose", 0);
-            Click(menu, new Vector2(748, 116));
-            Click(menu, new Vector2(752, 550));
+            Click(menu, new Vector2(372, 116));
+            ClickItem(menu, 1);
             Check(!game.OwnsCosmetic("mina_starway"), "previewing does not buy or equip");
             await Shot("mina_preview");
-            Click(menu, new Vector2(640, 643));
+            Click(menu, new Vector2(945, 630));
             Check(Read<string?>(menu, "_pendingPurchase") == "mina_starway" && game.Impression == 4700, "purchase requires confirmation");
             await Shot("purchase_confirm");
             Click(menu, new Vector2(510, 439));
             Check(Read<string?>(menu, "_pendingPurchase") == null && game.Impression == 4700, "cancel leaves wallet untouched");
-            Click(menu, new Vector2(640, 643));
+            Click(menu, new Vector2(945, 630));
             Click(menu, new Vector2(734, 439));
             Check(game.OwnsCosmetic("mina_starway") && game.CostumeFor(Job.Tank).Id == "mina_starway" && game.Impression == 3900,
                 "confirmed purchase equips once");
-            Click(menu, new Vector2(640, 643));
+            Click(menu, new Vector2(945, 630));
             Check(game.Impression == 3900, "equipped button cannot repurchase");
             Check(game.SelectedJob == Job.Tank, "browsing never switches the player account");
             menu.QueueFree();
@@ -96,26 +96,26 @@ public partial class CustomizeQa : Node
             Write(menu, "_time", 3.0);
             Check(Read<JobTuning[]>(menu, "_characters").Length == 4, "rescued accounts appear in wardrobe");
             Check(GetNode<PauseMenu>("/root/PauseMenu").HintClickable, "customization is a non-combat menu");
-            Click(menu, new Vector2(532, 116));
-            Click(menu, new Vector2(482, 548));
-            Click(menu, new Vector2(640, 643));
+            Click(menu, new Vector2(156, 116));
+            ClickItem(menu, 0);
+            Click(menu, new Vector2(945, 630));
             await Frames(3);
             Check(game.SelectedCursor == Cosmetics.DefaultCursor, "equipping while preview is loaded keeps shared texture alive");
-            Click(menu, new Vector2(787, 548));
-            Click(menu, new Vector2(640, 643));
+            ClickItem(menu, 2);
+            Click(menu, new Vector2(945, 630));
             await Frames(3);
             await Shot("cursors");
             foreach (var job in Jobs.All)
             {
-                Click(menu, new Vector2(748, 116));
-                Click(menu, new Vector2(478 + (int)job.Id * 108, 171));
-                Click(menu, new Vector2(752, 550));
+                Click(menu, new Vector2(372, 116));
+                Click(menu, new Vector2(729 + (int)job.Id * 142, 171));
+                ClickItem(menu, 1);
                 Check(Read<CosmeticItem[]>(menu, "_items")[1].Character == job.Id, "character tab selects its own catalog");
                 await Shot(job.CharacterId + "_wardrobe");
-                Click(menu, new Vector2(710, 440));
+                Click(menu, new Vector2(420, 631));
                 await Frames(12);
                 await Shot(job.CharacterId + "_dodge_preview");
-                Click(menu, new Vector2(570, 440));
+                Click(menu, new Vector2(168, 631));
             }
             foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960), new Vector2I(1920, 1080) })
             {
@@ -160,7 +160,7 @@ public partial class CustomizeQa : Node
             Check(Read<int>(hub, "_homeSel") == 4, "down reaches the customization app on the second row");
             await Shot("home");
             Call(hub, "OpenHomeApp", 4);
-            await Frames(5);
+            await Frames(80);
             Check(GetTree().CurrentScene is Customize, "home icon opens customization app");
             var opened = (Customize)GetTree().CurrentScene;
             Call(opened, "Leave");
@@ -192,6 +192,9 @@ public partial class CustomizeQa : Node
         menu._Process(1.0 / 60);
         PadField("_mL", false); PadField("_mLPrev", false);
     }
+
+    private static void ClickItem(Customize menu, int index)
+        => Click(menu, ((Rect2)Call(menu, "ItemRect", index)!).GetCenter());
 
     private static void Nav(Customize menu, string action)
     {

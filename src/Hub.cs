@@ -1064,7 +1064,7 @@ public partial class Hub : Node2D
             return;
         }
         _dived = true;
-        GetTree().ChangeSceneToFile(index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn");
+        PhoneAppTransition.Open(this, index == 1 ? "res://Shop.tscn" : index == 4 ? "res://Customize.tscn" : "res://Records.tscn");
     }
 
     private void GoHome()
@@ -1658,7 +1658,7 @@ public partial class Hub : Node2D
         // T：クリアタイムの記録画面へ（戻ると Hub に復帰）。一面クリアするまでは開かない。
         bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
         bool tEdge = tk && !_tHeld; _tHeld = tk;
-        if (tEdge && _t > 0.3 && !_dived && RecordsUnlocked) { Audio.Instance?.PlayUiConfirm(); _dived = true; GetTree().ChangeSceneToFile("res://Records.tscn"); }
+        if (tEdge && _t > 0.3 && !_dived && RecordsUnlocked) OpenHomeApp(2);
 
         // J / RB：ジョブ選択。画面遷移ではなくハブの上に開く（Detail と同じ扱い）＝解禁ゲート無し。
         bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);

@@ -1707,7 +1707,7 @@ public partial class GameManager : Node
         _purifyDrain = 0;
         if (player.AddLife(1))
         {
-            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("♥ +1");
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowRewardBanner(life: true, bomb: false);
             GD.Print($"[JOB] heal drain: ♥+1 (every {need} purified, lives={player.Lives}/{StartLives})");
         }
     }
@@ -1720,7 +1720,7 @@ public partial class GameManager : Node
         if (!JobDef.BombOnBreak) return;
         if (Bombs >= StartBombs) return;
         Bombs = Mathf.Min(StartBombs, Bombs + 1);
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowBanner("BOMB +1");
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.ShowRewardBanner(life: false, bomb: true);
         GD.Print($"[JOB] heal break: BOMB+1 (bombs={Bombs}/{StartBombs})");
     }
 

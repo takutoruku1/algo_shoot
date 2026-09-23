@@ -351,7 +351,7 @@ public partial class HubJobQa : Node
             await Frames(20);
             await Shot("home_wide");
             Click(hub, (Rect2)Call(hub, "HomeAppRect", 1)!, "ProcessHome");
-            await Frames(20);
+            await Frames(80);
             Check(GetTree().CurrentScene is Shop && game.SelectedJob == Job.Magic, "shop app opens with the active SNS account");
             Call(GetTree().CurrentScene, "ExitShop");
             await Frames(180);
@@ -360,6 +360,7 @@ public partial class HubJobQa : Node
             await KeyAction("ui_right");
             await KeyAction("ui_right");
             await Keypress(Key.Z);
+            await Frames(70);
             Check(GetTree().CurrentScene is Records, "keyboard navigation opens the records app");
             await Keypress(Key.X);
             Check(GetTree().CurrentScene is Hub && Mode((Hub)GetTree().CurrentScene) == "Home", "records also returns home");

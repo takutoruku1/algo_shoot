@@ -75,11 +75,8 @@ public partial class Hud : CanvasLayer
     private string _startName = "";
     private Color _startAccent;
     private const double StageStartDur = 2.2;
-    // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1　BOMB +1」のベタ文字をやめ、
-    //   残機マークと同じ**そのキャラの核マーク**（_lifeMarks）＋ボム印（_bombMark）で「何が増えたか」を示す。
-    //   ♥は4キャラ共通の記号で「誰の何か」が伝わらない＝サイドパネルの LIFE 列と語彙を揃える。
-    //   true のあいだ DrawBanner が文字の代わりにアイコン列を描く（_bannerText は互換のため保持）。
     private bool _bannerRewardLife, _bannerRewardBomb;
+    private const double RewardBannerDur = 2.3;
     // クリアリザルトのタイム行（バナー直下）。空なら描かない。
     private string _bannerTime = "";     // 例 "TIME 1:23.45"
     private string _bannerBest = "";     // 例 "NEW BEST!" or "BEST 1:20.00"
@@ -635,14 +632,11 @@ public partial class Hud : CanvasLayer
         _bannerTimer = StageStartDur;
     }
 
-    // 中ボス撃破の回復報酬バナー（2026-09-17）。文字ではなくアイコンで「増えたもの」を返す。
-    //   life … いま選んでいるキャラの核マーク（サイドパネルの LIFE 列と同じ絵）＋ "+1"
-    //   bomb … ボム印（bomb_v2.png・BOMB 列と同じ絵）＋ "+1"
-    // どちらも false で呼ばれることは無い（GameManager.RewardCameoDefeat が増えた時だけ呼ぶ）。
     public void ShowRewardBanner(bool life, bool bomb)
     {
-        ShowBanner(life && bomb ? "LIFE +1  BOMB +1" : life ? "LIFE +1" : "BOMB +1"); // バックログ/互換用の文字列
+        ShowBanner(life && bomb ? "LIFE +1  BOMB +1" : life ? "LIFE +1" : "BOMB +1");
         _bannerRewardLife = life; _bannerRewardBomb = bomb;
+        _bannerTimer = RewardBannerDur;
     }
 
     // FINAL 専用の「格上」タイトルカード。通常バナー（出て消えるだけの一行）とは別の描画経路に入る。
@@ -2085,39 +2079,65 @@ public partial class Hud : CanvasLayer
         if (_startStage > 0) { DrawStageStart(ci); return; }
         if (_epic) { DrawEpicBanner(ci); return; }
         float a = Mathf.Clamp((float)_bannerTimer, 0f, 1f);
-        if (_bannerRewardLife || _bannerRewardBomb) { DrawRewardBanner(ci, a); return; }
+        if (_bannerRewardLife || _bannerRewardBomb) { DrawRewardBanner(ci); return; }
         if (_bannerTime.Length > 0) { DrawClearBanner(ci); return; }
         float w = UiKit.TextW(UiKit.ZenBlack, _bannerText, UiKit.FontDisplay);
         UiKit.Text(ci, UiKit.ZenBlack, new Vector2(Field.DCenterX - w / 2f, 300), _bannerText,
             UiKit.FontDisplay, new Color(UiKit.White, a));
     }
 
-    // 中ボス撃破報酬のアイコンバナー（2026-09-17）。「♥ +1」の汎用記号をやめ、
-    //   サイドパネルの LIFE/BOMB 列と同じ絵（キャラの核マーク・ボム印）に "+1" を添えて横に並べる。
-    //   ♥は4キャラ共通で「誰の何が増えたか」が伝わらないのが差し替えの理由。
-    //   位置は通常バナーと同じ y=300 帯（盤面中央）。アイコン48px＋"+1"を1組として中央寄せ。
-    private void DrawRewardBanner(HudCanvas ci, float a)
+    private void DrawRewardBanner(HudCanvas ci)
     {
-        const float Icon = 48f, Gap = 10f, Pair = 28f;  // 絵の辺長／絵と文字の間／組と組の間
-        var marks = new System.Collections.Generic.List<Texture2D>();
-        if (_bannerRewardLife && _game != null) marks.Add(_lifeMarks[_game.SelectedJob]);
-        if (_bannerRewardBomb && _bombMark != null) marks.Add(_bombMark);
-        if (marks.Count == 0) return;
-
-        float plusW = UiKit.TextW(UiKit.ZenBlack, "+1", UiKit.FontDisplay);
-        float total = marks.Count * (Icon + Gap + plusW) + (marks.Count - 1) * Pair;
-        float x = Field.DCenterX - total / 2f, cy = 300f + Icon / 2f;
-        foreach (var tex in marks)
+        const float Width = 196f, Gap = 18f, Icon = 48f;
+        int count = (_bannerRewardLife ? 1 : 0) + (_bannerRewardBomb ? 1 : 0);
+        float t = (float)(RewardBannerDur - _bannerTimer);
+        float leave = 1f - Mathf.Clamp((float)_bannerTimer / 0.4f, 0f, 1f);
+        float total = count * Width + (count - 1) * Gap;
+        var ink = new Color("171c23");
+        var white = new Color("f6fcff");
+        for (int i = 0; i < count; i++)
         {
+            bool life = _bannerRewardLife && i == 0;
+            var tex = life ? _lifeMarks[_game.SelectedJob] : _bombMark;
+            var accent = life ? SideRose : SideTeal;
+            float localT = Mathf.Max(0f, t - i * 0.08f);
+            float enter = Ease(localT / 0.24f);
+            float a = enter * (1f - leave);
+            float pop = Mathf.Sin(Mathf.Clamp(localT / 0.38f, 0f, 1f) * Mathf.Pi);
+            var origin = new Vector2(Field.DCenterX - total / 2f + i * (Width + Gap)
+                - 20f * (1f - enter), 288f + 12f * (1f - enter) - leave * 16f);
+            ci.DrawSetTransform(origin * UiKit.Scale, 0f, Vector2.One * UiKit.Scale);
+
+            ci.DrawColoredPolygon(new[] { new Vector2(12, 0), new Vector2(Width, 0),
+                new Vector2(Width - 12, 92), new Vector2(0, 92) }, new Color(ink, a * 0.78f));
+            ci.DrawLine(new Vector2(14, 0), new Vector2(Width * enter, 0), new Color(accent, a * 0.4f), 1f, true);
+            ci.DrawLine(new Vector2(0, 92), new Vector2((Width - 12) * enter, 92), new Color(accent, a * 0.9f), 2f, true);
+            UiKit.Text(ci, UiKit.Mono, new Vector2(22, 8), life ? "LIFE UP" : "BOMB UP", 13, new Color(accent, a));
+
             var size = tex.GetSize();
-            size *= Icon / Mathf.Max(size.X, size.Y);   // 長辺を Icon に合わせる（縦横比は保つ）
-            ci.DrawTextureRect(tex, new Rect2(new Vector2(x + (Icon - size.X) / 2f, cy - size.Y / 2f), size),
-                false, new Color(1, 1, 1, a));
-            x += Icon + Gap;
-            UiKit.Text(ci, UiKit.ZenBlack, new Vector2(x, 300f), "+1", UiKit.FontDisplay, new Color(UiKit.Light, a),
-                HorizontalAlignment.Left, -1);
-            x += plusW + Pair;
+            size *= Icon * (1f + pop * 0.12f) / Mathf.Max(size.X, size.Y);
+            ci.DrawTextureRect(tex, new Rect2(new Vector2(46, 58) - size / 2f, size), false, new Color(1, 1, 1, a));
+
+            float scale = UiKit.Scale * (1f + pop * 0.1f);
+            ci.DrawSetTransformMatrix(new Transform2D(new Vector2(scale, 0), new Vector2(-0.12f * scale, scale),
+                (origin + new Vector2(90, 76)) * UiKit.Scale));
+            ci.DrawStringOutline(UiKit.ZenBlack, new Vector2(-8f * (1f - enter), 0), "+1",
+                fontSize: 52, size: 7, modulate: new Color(accent, a * (0.08f + pop * 0.2f)));
+            ci.DrawStringOutline(UiKit.ZenBlack, new Vector2(0, 2), "+1",
+                fontSize: 52, size: 4, modulate: new Color(ink, a));
+            ci.DrawStringOutline(UiKit.ZenBlack, Vector2.Zero, "+1",
+                fontSize: 52, size: 1, modulate: new Color(accent, a));
+            ci.DrawString(UiKit.ZenBlack, Vector2.Zero, "+1", fontSize: 52, modulate: new Color(white, a));
+
+            ci.DrawSetTransform(origin * UiKit.Scale, 0f, Vector2.One * UiKit.Scale);
+            float sweep = Mathf.Clamp((localT - 0.08f) / 0.48f, 0f, 1f);
+            float shine = Mathf.Sin(sweep * Mathf.Pi) * a;
+            float sx = 18f + (Width - 54f) * sweep;
+            ci.DrawLine(new Vector2(sx - 10, 92), new Vector2(sx + 20, 92), new Color(accent, shine * 0.3f), 7f, true);
+            ci.DrawLine(new Vector2(sx, 92), new Vector2(sx + 20, 92), new Color(white, shine), 2f, true);
+            ci.DrawLine(new Vector2(Width - 12, 25), new Vector2(Width - 6, 13), new Color(accent, a * 0.8f), 2f, true);
         }
+        UiKit.BeginDesign(ci);
     }
 
     // ゲームオーバー時のキー案内。2026-09-07 に主役は ChoiceOverlay（縦積みの選択）へ移り、
