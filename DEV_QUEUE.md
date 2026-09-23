@@ -60,6 +60,14 @@
 <!-- 2026-09-20 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは新規指摘0件 -->
 
 <!-- 2026-09-22 監査モード(game-designer/engineer/scenario/qa並列)で追加。qaは新規指摘0件 -->
+
+<!-- 2026-09-23 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenarioは1件BLOCKEDへ、qaは新規指摘0件 -->
+
+- [ ] (P2) 無被弾クリア（ノーヒット）が一切記録・演出されない | engineer | 2026-09-23監査(game-designer)発見。`src/GameManager.cs:122-123`の`RunHitCount`/`NotifyPlayerHit()`でラン中被弾回数は計測済みだが、用途は`src/Hub.cs:1221`の帰還小話フレーバーテキストのみ。`src/GameManager.cs:221-268`の`ClearTimes`/`BestScores`と同じキー方式・永続化パターンで、そのラン`RunHitCount==0`でのクリアを記録する`NoHitClears`相当のフラグを追加し、`src/Hud.cs:659 ShowClearBanner`の呼び出し元（`src/StageAkari.cs:581-584`／`src/StageKoharu.cs:615-618`／`src/StageRei.cs:865-868`）でクリア時に無被弾なら明示演出（例:「NO DAMAGE」表示）を追加、`src/Records.cs`の該当セルにも無被弾達成の印を表示すること。新規モード・新規セリフではなく既存パターンの拡張。
+- [ ] (P3) 設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない | engineer | 2026-09-23監査(game-designer)発見。`src/Settings.cs:291-303 Adjust(int dir,...)`は`SType.KeyBind`/`SType.Select`（「操作」タブの5行・解像度等）で`default: return;`となり表示は不変だが、`src/Settings.cs:159-161`は型を見ず`ui_left`/`ui_right`入力で無条件に`Audio.Instance?.PlayUiMove()`を鳴らし、`src/Settings.cs:429-430`のフッタヒントも常に「←→　調整」を表示し続ける。`Settings.cs:159-161`で現在選択中行が`SType.KeyBind`/`SType.Select`のときは`PlayUiMove()`を鳴らさない（または変更不可と分かる別フィードバックにする）よう分岐し、`Settings.cs:429-430`のフッタヒントも該当行では「←→　調整」を表示しないようにすること。
+- [ ] (P3) PauseMenuのクラス冒頭コメントがAutoSaveの実態と矛盾している | engineer | 2026-09-23監査(engineer)発見。`src/PauseMenu.cs:5`の「セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない」というコメントが、実態（スロット1-3は手動セーブ専用UI、スロット0は`src/GameManager.cs:1042 AutoSave()`によりステージクリア/ハブ帰還/中ボス撃破/FINAL完了等で自動保存される併用方式）と矛盾している。コメントを実態に一致するよう修正すること。ロジック（`AutoSaveEnabled`/`AutoSave()`/`SaveToSlot`、`GameManager.cs:1041-1042`）は無変更。
+- [ ] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | 2026-09-23監査(engineer)発見。以下4箇所の参照行番号をコメントのみ訂正（ロジック無変更）: `src/DemoPilot.cs:258`の「GameManager.cs:799-801」→`GameManager.cs:796-797`（`BackfireDamage`/`BackfireInterval`の実位置）。`src/DemoPilot.cs:350`の「Prologue.cs:178」→`Prologue.cs:242`（`Pad.AdvanceHeld()`呼び出しの実位置）。`src/Bullet.cs:413`の「Panel.cs:103」→`Panel.cs:109`（`Ink--`の実位置）。`src/PostBullets.cs:13`の「Bullet.cs:236〜」→`Bullet.cs:114`（`SetWord`定義の実位置）。
+
 ## WIP
 
 ## BLOCKED
@@ -139,6 +147,10 @@
 <!-- 2026-09-19 監査モード(scenario)で追加 -->
 
 - [ ] エピローグE5のミナ→DM「ちゃんと食べていますか?」が、こはる面から台所要素が撤去された結果、根拠を失ったまま残置されている | scenario | 要ユーザー判断（新規文言の創作を伴う）。2026-09-19監査(scenario)。実装`src/Epilogue.cs:212`の`O("UI", "ミナ →（DM）：「ちゃんと食べていますか?」");`は、承認済み仮台本12(`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:200`)が「ミナの投稿『ちゃんと食べていますか』（現行はこはるの台所由来）とエピローグのDMの文面は、こはるが台所を失ったので、別の一行に差し替えるか判断が要る」と台本作成者自身が明記する未解決の判断点#5。この“食べる/来ない”系の世界観要素(`12:96`)は案Cで正式に撤去済みで、実装側`src/StageKoharu.cs:221`にも撤去済みを示すコメントのみが残り本文の台所描写は現行`StageKoharu.cs`に存在しない。既存BLOCKED（`12`ファイルの判断点#4=FINALでこはるの返礼の向き先）とは同ファイルの別項目(#5)で重複ではない。要ユーザー判断: (a)こはる由来ではない新しい一行に差し替える、(b)汎用的なミナの気遣いとして現状維持を正式承認する。承認後の受入条件: 承認された文言を`src/Epilogue.cs:212`へ反映すること
+
+<!-- 2026-09-23 監査モード(scenario)で追加 -->
+
+- [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
 - [x] (P3) docs/GAME_DESIGN.md:6・docs/CONCEPT_V2.md:7の参照先案内を更新する | scenario | (完了 2026-09-22) 2026-09-22監査(scenario)発見。両ファイルの2026-08-29追加バナー(GAME_DESIGN.md:3-6, CONCEPT_V2.md:3-7)は「現行正典 docs/20260613/MINA_シナリオ設計書_v2.mdを優先」と案内していたが、その参照先自体が2026-09-05付で「⚠非正典（案C移行）: 面順表(62,77-79行目)は非正典」という自己宣言バナーを既に持っていた（二重の陳腐化）。両ファイルの既存バナー直後に、参照先が一部非正典化済みである旨と、案C部分の正典は`wiki/08_仮台本/05・06・07・08・12`である旨の事実訂正を追記。既存本文・バナーは無変更、新規セリフ・物語内容の創作なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
