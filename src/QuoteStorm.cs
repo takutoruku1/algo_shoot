@@ -220,10 +220,14 @@ public partial class QuoteStorm : Node2D
         var dst = new Vector2(dx, dy);
 
         // 飛行 1.8 秒で右端 → 貼りつき位置（11 の「読ませる速度」）。飛行中だけ核を持つ。
-        var from = new Vector2(Field.Right + 30f, dst.Y + _rng.RandfRange(-10f, 10f));
+        //   ★旧 +30f は Bullet の画面外余白（16px）を超えており初フレームで Despawn＝引用チップが1枚も出なかった
+        //   （S3-5b の「剥がす」遊びが丸ごと消えていた。2026-09-23 QA 検出）。飛行中だけ BoundsMargin を広げて
+        //   最長チップ（≈282px）の半幅＋縁光ぶん外＝+150 から滑り込ませ、貼りつきで既定へ戻す。
+        var from = new Vector2(Field.Right + 150f, dst.Y + _rng.RandfRange(-10f, 10f));
         var vel = (dst - from) / 1.8f;
         var b = pool.Spawn(from, vel, isEnemy: true, 3f, 1);
         if (b == null) return;
+        b.BoundsMargin = 260f;            // 飛行中は右端の外に丸ごと居られる余白（貼りつきで既定へ）
         // 引用は「投稿に寄る側」で層が違う（09）。濁色チップにして、面の投稿弾（テーマ色）と見分ける。
         b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true,
             coreArt: BulletArt.Get("rei_film"));
@@ -244,6 +248,7 @@ public partial class QuoteStorm : Node2D
 
             b.GlobalPosition = dst;
             b.Velocity = Vector2.Zero;
+            b.BoundsMargin = Bullet.DefaultBoundsMargin;
             b.MakeHarmless();             // 11：核は飛行中だけ。貼りついたあとは当たらない
             _flying.RemoveAt(i);
             _stuck.Add((b, h));

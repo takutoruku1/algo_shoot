@@ -19,7 +19,12 @@ public partial class Bullet : Area2D
     private const uint MaskEnemyBullet = 1;
 
     // 画面外判定の余白（盤面の矩形は Field が定義元）
-    private const float Margin = 16f;
+    public const float DefaultBoundsMargin = 16f;
+    private const float Margin = DefaultBoundsMargin;
+    // 画面外判定の余白を弾ごとに広げられる（既定は Margin）。引用の嵐のチップは幅が本文長で決まり、中心を
+    //   右端+12px に置くと左半分が盤面内へ突然現れる。飛行中だけ広い余白で右端の外から入れ、貼りついたら
+    //   既定へ戻す（流れ弾化しない）。Activate で必ず既定にリセットする（2026-09-23）。
+    public float BoundsMargin = DefaultBoundsMargin;
 
     public Vector2 Velocity;
     public bool IsEnemy;
@@ -292,6 +297,7 @@ public partial class Bullet : Area2D
         Word = "";  // 再利用時に前の言葉を持ち越さない
         Erasable = false;       // ギミックフラグも再利用時に持ち越さない
         SoftenOnGraze = false;
+        BoundsMargin = DefaultBoundsMargin;
         Softened = false;
         // テクスチャ弾も再利用時に必ず落とす（持ち越すと別スペルの弾がグッズ／書類の絵で出る事故になる）。
         _sprite = null; _spriteRotSpeed = 0f; _spriteSway = 0f;
@@ -575,8 +581,9 @@ public partial class Bullet : Area2D
 
         // 盤面の外(余白16px)に出たら Despawn。パネル側へ抜けた弾もここで消える。
         var p = GlobalPosition;
-        if (p.X < Field.Left - Margin || p.X > Field.Right + Margin ||
-            p.Y < Field.Top - Margin || p.Y > Field.Bottom + Margin)
+        float m = BoundsMargin;
+        if (p.X < Field.Left - m || p.X > Field.Right + m ||
+            p.Y < Field.Top - m || p.Y > Field.Bottom + m)
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
             if (pool != null)
