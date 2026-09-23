@@ -23,7 +23,7 @@ using System.Collections.Generic;
 public partial class QuoteStorm : Node2D
 {
     // ───────── 11 の仮台本（引用17枚・3段階）─────────
-    // 表示名と本文は 11 のまま。顔も動機も与えない（09 の「引用型（加害側）」の枠）。
+    // 本文は 11 のまま。表示名（@ハンドル）は Handles.Garble で 1 文字化かす＝実在アカウントと一致させない（2026-09-23）。顔も動機も与えない（09 の「引用型（加害側）」の枠）。
     // チップに乗るのは本文だけなので、表示名は貼りついたカードの上に添える（Handle）。
     private readonly struct Quote
     {
@@ -34,31 +34,31 @@ public partial class QuoteStorm : Node2D
     // 段階1（茶化し。0〜12秒・5枚）
     private static readonly Quote[] Stage1 =
     {
-        new("@tori398",     "これ本気で言ってる?"),
-        new("@gaiya_8",     "それ限定公開でやれ"),
-        new("@anon_5502",   "> それだけで十分 ←十分じゃない顔してる"),
-        new("@rom_only",    "はいはい感謝芸"),
-        new("@kansoku_01",  "誰に向けて言ってんのこれ 3人?"),
+        new(Handles.Garble("@tori398"),     "これ本気で言ってる?"),
+        new(Handles.Garble("@gaiya_8"),     "それ限定公開でやれ"),
+        new(Handles.Garble("@anon_5502"),   "> それだけで十分 ←十分じゃない顔してる"),
+        new(Handles.Garble("@rom_only"),    "はいはい感謝芸"),
+        new(Handles.Garble("@kansoku_01"),  "誰に向けて言ってんのこれ 3人?"),
     };
     // 段階2（嘲笑。12〜26秒・6枚）
     private static readonly Quote[] Stage2 =
     {
-        new("@no_name_77",  "切り抜きで見た 本編行く価値なし"),
-        new("@mob_4410",    "ガワだけで中身ない"),
-        new("@sotogawa_2",  "一年伸びてない配信者のサンプルとして保存した"),
-        new("@nichijo_x",   "企画ゼロで何を見ろと"),
-        new("@kansoku_01",  "いいね3 自分と身内でしょ"),
-        new("@teifujo__",   "痛い 枠ごと消したら?"),
+        new(Handles.Garble("@no_name_77"),  "切り抜きで見た 本編行く価値なし"),
+        new(Handles.Garble("@mob_4410"),    "ガワだけで中身ない"),
+        new(Handles.Garble("@sotogawa_2"),  "一年伸びてない配信者のサンプルとして保存した"),
+        new(Handles.Garble("@nichijo_x"),   "企画ゼロで何を見ろと"),
+        new(Handles.Garble("@kansoku_01"),  "いいね3 自分と身内でしょ"),
+        new(Handles.Garble("@teifujo__"),   "痛い 枠ごと消したら?"),
     };
     // 段階3（存在の否定。26〜40秒・6枚）。最後の一枚「はい次の話題」で飛来が止まる。
     private static readonly Quote[] Stage3 =
     {
-        new("@nanashi_3942", "こういう人がいるから界隈が終わる"),
-        new("@gaiya_8",      "誰も見てないって何回言えばいい"),
-        new("@tori398",      "同接3 まだやってたんだ"),
-        new("@anon_5502",    "配信やめても誰も気づかないタイプ"),
-        new("@rom_only",     "引退しろまでは言わないけど 察して"),
-        new("@nichijo_x",    "はい次の話題"),
+        new(Handles.Garble("@nanashi_3942"), "こういう人がいるから界隈が終わる"),
+        new(Handles.Garble("@gaiya_8"),      "誰も見てないって何回言えばいい"),
+        new(Handles.Garble("@tori398"),      "同接3 まだやってたんだ"),
+        new(Handles.Garble("@anon_5502"),    "配信やめても誰も気づかないタイプ"),
+        new(Handles.Garble("@rom_only"),     "引退しろまでは言わないけど 察して"),
+        new(Handles.Garble("@nichijo_x"),    "はい次の話題"),
     };
 
     // 段階ごとの飛来間隔（11 の表）。段階が進むほど詰まる＝剥がす速度を飛来が上回る。
@@ -72,7 +72,7 @@ public partial class QuoteStorm : Node2D
     private static readonly string[] Replies = { "見てくれてありがとう", "ごめんなさい", "ごめん", "" };
 
     // ピン留めの投稿（09 R42）。配信を切った直後の一言で、配信中と同じ明るさ。
-    private const string PinHandle = "星逢レイ @rei_____";
+    private const string PinHandle = "星逢レイ " + Handles.Rei;
     private const string PinBody = "配信おわり 来てくれてありがとう 人数じゃないから 全部読めた それだけで十分";
 
     // 剥がし切りで残る下書き（09 R46）。送られていない＝いいね欄も時刻欄も無い。何が「いい」のかは書かない。

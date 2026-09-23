@@ -24,7 +24,7 @@ public enum CameoFireTheme { ReiAggressive, AkariGrief, KoharuFalling }
 public struct CameoTheme
 {
     public string DisplayName;     // ボスバー＆セリフ話者名（例 "レイ"）
-    public string Handle;          // ボスバーのハンドル（例 "@rei_____"）
+    public string Handle;          // ボスバーのハンドル（例 BossHandles.ReiCameo = "@rëi_____6390"。Handles.cs の規則で化けた綴り）
     public string PreTex, CryTex, PostTex; // 立ち絵（穢れ/泣き/笑顔）
     public string Face;            // 会話の顔アイコン（例 "res://char/rei_face.png"）
     public Color SpellTint;        // 弾の色（スペル基調色）

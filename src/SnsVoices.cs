@@ -19,7 +19,7 @@ public static class SnsVoices
     public readonly struct Voice
     {
         public readonly string Name;    // 表示名（そのまま出す。絵文字・記号を含む）
-        public readonly string Handle;  // @ の後ろ（末尾の数字は呼び出し側が足す）
+        public readonly string Handle;  // @ の後ろの ASCII（呼び出し側が Handles.Mob で 1 文字化かし、末尾の数字を足す）
         public readonly int Icon;       // char/v3/icons/mob_{Icon:00}.png の番号（1..IconCount）
         public Voice(string name, string handle, int icon) { Name = name; Handle = handle; Icon = icon; }
     }

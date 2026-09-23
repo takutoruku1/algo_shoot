@@ -81,7 +81,7 @@ public partial class BossHikage : Enemy
         // 広くなった。ヒカゲの「やや広め」を保つため 1.06 倍で入れる（ゾーン中心も揃える）。
         _mover.Configure("hikage", new Vector2(Field.CenterX, Field.BossZoneCenterY),
             Field.BossZoneHalfW * 1.06f, Field.BossZoneHalfH * 1.06f);
-        GetHud()?.ShowBossBar("ヒカゲ", "@hikage_");
+        GetHud()?.ShowBossBar("ヒカゲ", Handles.Garble("@hikage_"));
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
     }
 

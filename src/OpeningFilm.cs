@@ -220,9 +220,9 @@ public partial class OpeningFilm : Node2D
 
     private static float Ease(float v) { v = Mathf.Clamp(v, 0, 1); return v * v * (3 - 2 * v); }
     private static Color Fade(Color c, float a) => new(c.R, c.G, c.B, a);
-    // キャラの X ハンドル（Hub.AccountHandle と同じ引き方。ミナだけステージ表に居ないので直書き）。
+    // キャラの X ハンドル（Hub.AccountHandle と同じ引き方。ミナだけステージ表に居ないので Handles.Mina）。
     private static string Handle(JobTuning job) => job.Id == Job.Tank
-        ? "@mina_ai_"
+        ? Handles.Mina
         : Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
 
     private void UpdateMina()

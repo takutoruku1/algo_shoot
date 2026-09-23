@@ -781,19 +781,20 @@ public partial class Hud : CanvasLayer
             _bossFaceId = FaceIdFor(handle, bossName);
             return;
         }
-        _bossHandle = "@" + System.Text.RegularExpressions.Regex.Replace(bossName, "[^A-Za-z0-9]", "").ToLower();
-        if (_bossHandle.Length <= 1) _bossHandle = "@boss";
+        string auto = "@" + System.Text.RegularExpressions.Regex.Replace(bossName, "[^A-Za-z0-9]", "").ToLower();
+        if (auto.Length <= 1) auto = "@boss";
+        _bossHandle = Handles.Garble(auto);   // 自動生成も化かす（ASCII のハンドルを画面に出す経路を残さない）
         _bossFaceId = FaceIdFor(_bossHandle, bossName);
     }
 
-    // ハンドル（＋保険で名前）から顔ID を引く。BossHandles の定数はすべて "@akari…" "@koharu…"
-    //   "@rei…"/"@hoshiai_rei…" "@mina…" の形なので、キャラ名の部分文字列で確実に決まる。
-    //   中ボス（CameoBoss）はそのステージの本人が出るのが実装（StageRei→"レイ"/@rei_____6390 等）＝
+    // ハンドル（＋保険で名前）から顔ID を引く。BossHandles の定数はすべて "@akãri…" "@køharu…"
+    //   "@rëi…"/"@hoshiai_rëi…" "@mïna…" の形なので、Handles.Plain で化けを戻せばキャラ名の部分文字列で確実に決まる。
+    //   中ボス（CameoBoss）はそのステージの本人が出るのが実装（StageRei→"レイ"/@rëi_____6390 等）＝
     //   本ボスと同じ顔でよい。別人格の別アイコンにはしない（同じ人が道中で先に立ち塞がる話のため）。
     //   該当なし（W0 のヒカゲ等）は "" ＝従来どおり無地の穢れ円に落ちる。
     private static string FaceIdFor(string handle, string name)
     {
-        string h = handle.ToLowerInvariant();
+        string h = Handles.Plain(handle).ToLowerInvariant();   // 化けた綴り（akãri 等）を戻してから見る
         if (h.Contains("akari")) return "akari";
         if (h.Contains("koharu")) return "koharu";
         if (h.Contains("rei")) return "rei";
@@ -1427,7 +1428,7 @@ public partial class Hud : CanvasLayer
     private void DrawShotMode(HudCanvas ci)
     {
         var job = _game.JobDef;
-        string handle = job.Id == Job.Tank ? "@mina_ai_"
+        string handle = job.Id == Job.Tank ? Handles.Mina
             : System.Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
         UiKit.FaceAvatar(ci, new Vector2(PanelX + 34f, 80f), 33f, _accountFaces[job.Id], AccountAccent, false, 0f);
         float tx = PanelX + 86f;

@@ -477,7 +477,7 @@ public partial class Prologue : Node2D
         if (_toast == null && _fxStep == 0)
         {
             var v = SnsVoices.At(voice);
-            _toast = PostToast.Show(this, v.Name, $"@{v.Handle}", relT, body,
+            _toast = PostToast.Show(this, v.Name, Handles.Mob(v.Handle), relT, body,
                 verified: false, icon: v.Icon, replies: replies, reposts: reposts, likes: likes, views: views);
             _fxStep = 1;
             return;
@@ -491,7 +491,7 @@ public partial class Prologue : Node2D
         if (_toast == null)
         {
             var v = SnsVoices.At(V3);   // 「げんきです」の投稿と同じ人＝あの一行の裏側を見せている
-            _toast = PostToast.ShowComposing(this, v.Name, $"@{v.Handle}", "· いま", icon: v.Icon);
+            _toast = PostToast.ShowComposing(this, v.Name, Handles.Mob(v.Handle), "· いま", icon: v.Icon);
             _fxStep = 0; _fxT = 0;
             return;
         }

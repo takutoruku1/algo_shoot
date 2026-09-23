@@ -367,9 +367,9 @@ public partial class GameManager : Node
     // タイムラインに並ぶ投稿（ツイート文は シナリオ設計書 v2 P-01a/P-02a/P-03 準拠）。
     public static readonly StageDef[] Stages =
     {
-        new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = "@akari.",   Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 1 — あかり" },
-        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = "@koharu",   Tweet = "今日の配信も最高だった。これで、明日も学校、行ける。", Title = "STAGE 2 — こはる" },
-        new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = "@rei_____", Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 3 — レイ" },
+        new() { Id = "akari",  Scene = "res://Akari.tscn",  Handle = Handles.Akari,  Tweet = "すき、すき、すき。……ひとつでいいから、本物になって。",   Title = "STAGE 1 — あかり" },
+        new() { Id = "koharu", Scene = "res://Koharu.tscn", Handle = Handles.Koharu, Tweet = "今日の配信も最高だった。これで、明日も学校、行ける。", Title = "STAGE 2 — こはる" },
+        new() { Id = "rei",    Scene = "res://Rei.tscn",    Handle = Handles.Rei,    Tweet = "だれも、わたしには追いつけない。……それの、なにが、いけないの。", Title = "STAGE 3 — レイ" },
     };
 
     // 物語の最初の面のID（＝Stages の先頭。現在は "akari"）。強化ショップの解禁ゲートが引く

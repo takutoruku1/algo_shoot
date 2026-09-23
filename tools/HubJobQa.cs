@@ -46,6 +46,7 @@ public partial class HubJobQa : Node
                 Check((bool)Call(hub, "HomeAppUnlocked", i)! == (i == 0 || i == 3), "new data can open SNS and photos but keeps shop and records locked");
             }
             await Shot("home_first_visit");
+            if (!introMovie) await CheckSidePresentation(hub, phone);
             if (!introMovie)
             {
                 DisplayServer.WindowSetSize(new Vector2I(960, 540));
@@ -137,7 +138,7 @@ public partial class HubJobQa : Node
                     && UiKit.TextW(UiKit.Zen, stats, 14) <= box.w - 124f,
                     $"{job.CharacterId} shows only the actual life, movement and dodge modifiers on one line");
                 string handle = (string)typeof(Hub).GetMethod("AccountHandle", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
-                string expectedHandle = job.Id == Job.Tank ? "@mina_ai_" : Array.Find(GameManager.Stages, s => s.Id == job.CharacterId)!.Handle;
+                string expectedHandle = job.Id == Job.Tank ? Handles.Mina : Array.Find(GameManager.Stages, s => s.Id == job.CharacterId)!.Handle;
                 Check(handle == expectedHandle && UiKit.TextW(UiKit.Mono, handle, 11) <= 96f,
                     $"{job.CharacterId} uses its timeline handle in the compact account button");
                 Check(phone.Encloses(new Rect2(box.x, box.y, box.w, box.h)), "account sheet stays inside the phone column");
@@ -455,6 +456,73 @@ public partial class HubJobQa : Node
         Write(hub, "_sel", selected);
         Write(hub, "_feedScrollTarget", target);
         await Frames(60);
+    }
+
+    private async Task CheckSidePresentation(Hub hub, Rect2 phone)
+    {
+        foreach (string field in new[] { "CompanionArea", "StoryArea" })
+        {
+            var area = (Rect2)typeof(Hub).GetField(field, BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            Check(!area.Intersects(phone) && new Rect2(0, 0, 1280, 720).Encloses(area),
+                $"{field} stays outside the interactive phone");
+        }
+        Check(Read<Dictionary<string, Texture2D>>(hub, "_sidePortraits").Count == 4,
+            "all playable companions have a dedicated sidebar illustration");
+        Check((string)Call(hub, "SideStoryId")! == "akari", "new home previews the first available story");
+        var entries = Read<IList>(hub, "_entries");
+        object mode = Read<object>(hub, "_mode");
+        int selected = Read<int>(hub, "_sel");
+        void Select(string id)
+        {
+            var list = Read<IList>(hub, "_entries");
+            for (int i = 0; i < list.Count; i++)
+                if ((string)list[i]!.GetType().GetField("Id")!.GetValue(list[i])! == id) Write(hub, "_sel", i);
+        }
+        Write(hub, "_mode", Enum.Parse(mode.GetType(), "Cards"));
+        Select("rei");
+        Check((string)Call(hub, "SideStoryId")! == "akari", "selecting a locked post does not reveal its illustration");
+        Write(hub, "_previewState", "first");
+        Call(hub, "ApplyPreview");
+        Check((string)Call(hub, "SideStoryId")! == "koharu", "first rescue advances the story preview to Koharu");
+        Select("rei");
+        Check((string)Call(hub, "SideStoryId")! == "koharu", "later locked stories remain hidden after a rescue");
+        Write(hub, "_previewState", "all");
+        Call(hub, "ApplyPreview");
+        Select("rei");
+        Check((string)Call(hub, "SideStoryId")! == "rei", "an available selected story controls the illustration");
+        Write(hub, "_mode", mode);
+        Check((string)Call(hub, "SideStoryId")! == "final", "all rescues reveal the final story on home");
+        Write(hub, "_previewState", null!);
+        Write(hub, "_entries", entries);
+        Write(hub, "_sel", selected);
+
+        double time = Read<double>(hub, "_t");
+        hub.SetProcess(false);
+        Write(hub, "_t", 2d);
+        hub.QueueRedraw();
+        await Frames(3);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var still = GetViewport().GetTexture().GetImage();
+        await Shot("home_journey");
+        Write(hub, "_t", 4d);
+        hub.QueueRedraw();
+        await Frames(3);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var moved = GetViewport().GetTexture().GetImage();
+        foreach (var area in new[] { new Rect2I(30, 165, 330, 355), new Rect2I(925, 115, 300, 245) })
+        {
+            float difference = 0;
+            for (int y = area.Position.Y; y < area.End.Y; y += 4)
+                for (int x = area.Position.X; x < area.End.X; x += 4)
+                {
+                    var a = still.GetPixel(x, y);
+                    var b = moved.GetPixel(x, y);
+                    difference += Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B);
+                }
+            Check(difference / (area.Size.X * area.Size.Y / 16) > 0.003f, "sidebar artwork visibly moves while the phone is idle");
+        }
+        Write(hub, "_t", time);
+        hub.SetProcess(true);
     }
 
     private static void PadField(string name, object value) => typeof(Pad).GetField(name, BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, value);

@@ -440,7 +440,7 @@ public partial class Hub : Node2D
         {
             list.Add(new Entry
             {
-                IsFinal = true, Id = "final", Scene = FinalScene, Name = "ミナ", Handle = "@mina_ai_",
+                IsFinal = true, Id = "final", Scene = FinalScene, Name = "ミナ", Handle = Handles.Mina,
                 Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                 Unlocked = true, Cleared = false,
                 Sort = Kind.Voice, RelT = "now",
@@ -534,7 +534,7 @@ public partial class Hub : Node2D
         if (d.Length == 0) return null;
         return new Entry
         {
-            IsFinal = false, Id = "pinned", Scene = "", Name = "ミナ", Handle = "@mina_ai_",
+            IsFinal = false, Id = "pinned", Scene = "", Name = "ミナ", Handle = Handles.Mina,
             Tweet = d[0].Item2, Initial = "ミ", Unlocked = true, Cleared = false,
             Sort = Kind.Pinned, RelT = "now",
             Likes = _game?.Followers ?? 0, Reposts = (_game?.Followers ?? 0) / 4, Replies = (_game?.Followers ?? 0) / 8,
@@ -560,7 +560,7 @@ public partial class Hub : Node2D
     private static string FillerHandle(int i)
     {
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return $"@{SnsVoices.At(FillerVoice(i)).Handle}_{num}";
+        return Handles.Mob(SnsVoices.At(FillerVoice(i)).Handle, num);
     }
     private static string FillerName(int i) => SnsVoices.At(FillerVoice(i)).Name;
     private static string FillerRelTime(int i)
@@ -612,7 +612,7 @@ public partial class Hub : Node2D
                 list.Add(new Entry
                 {
                     IsFinal = true, Id = "final", Scene = FinalScene,
-                    Name = "ミナ", Handle = "@mina_ai_",
+                    Name = "ミナ", Handle = Handles.Mina,
                     Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
                     Unlocked = true, Cleared = false,
                     Sort = Kind.Voice, RelT = "now",
@@ -873,14 +873,14 @@ public partial class Hub : Node2D
             _game?.AddFollowers(12);
             _game?.MarkReplied(_dlgReplyId);
             BuildEntries();
-            Toast($"@mina_ai_ の返信が 12 人に届いた", $"Imp +{imp}  フォロワー +12", UiKit.Ok);
+            Toast($"{Handles.Mina} の返信が 12 人に届いた", $"Imp +{imp}  フォロワー +12", UiKit.Ok);
         }
         else
         {
             long imp = _game?.GainImpression(40) ?? 0;
             _game?.AddFollowers(8);
             BuildEntries(); // タイムライン更新（クリア/フォロワー連動のエンゲージ数を反映）
-            Toast($"@mina_ai_ の投稿が 8 人に届いた", $"Imp +{imp}  フォロワー +8", UiKit.Ok);
+            Toast($"{Handles.Mina} の投稿が 8 人に届いた", $"Imp +{imp}  フォロワー +8", UiKit.Ok);
         }
         if (_pendingBurn)
         {
@@ -2427,9 +2427,10 @@ public partial class Hub : Node2D
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
         foreach (var job in Jobs.All)
             if (sp == job.CharacterName) return (_dialogueFaces[job.CharacterId], CompanionDialogue.Accent(job.Id), TopCropFor(job.CharacterId));
-        if (sp.Contains("rei")) return (_dialogueFaces["rei"], AccountColor("rei"), TopCropFor("rei"));
-        if (sp.Contains("akari")) return (_dialogueFaces["akari"], AccountColor("akari"), TopCropFor("akari"));
-        if (sp.Contains("koharu")) return (_dialogueFaces["koharu"], AccountColor("koharu"), TopCropFor("koharu"));
+        string plain = Handles.Plain(sp);   // 化けた綴り（@rëi_____ 等）を戻してから部分文字列を見る
+        if (plain.Contains("rei")) return (_dialogueFaces["rei"], AccountColor("rei"), TopCropFor("rei"));
+        if (plain.Contains("akari")) return (_dialogueFaces["akari"], AccountColor("akari"), TopCropFor("akari"));
+        if (plain.Contains("koharu")) return (_dialogueFaces["koharu"], AccountColor("koharu"), TopCropFor("koharu"));
         return (null, AccountColor("rei"), 0.06f);
     }
 
@@ -2503,7 +2504,7 @@ public partial class Hub : Node2D
     }
 
     private static string AccountHandle(JobTuning job) => job.Id == Job.Tank
-        ? "@mina_ai_"
+        ? Handles.Mina
         : System.Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
 
     // 潜り方の1段。名前／獲得倍率／板の枚数（ボスHPバー本数）。
@@ -3122,7 +3123,7 @@ public partial class Hub : Node2D
         string word = ChoiceEffects.SentWordAt(_game, "s1_5");
         if (string.IsNullOrEmpty(word)) return lines;
         var list = new System.Collections.Generic.List<(string, string)>(lines);
-        list.Insert(1, ("ミナ→@akari", $"——あのフロアで、「{word}」という一通が、送られていましたので。"));
+        list.Insert(1, ("ミナ→" + Handles.AkariShort, $"——あのフロアで、「{word}」という一通が、送られていましたので。"));
         return list.ToArray();
     }
 
@@ -3133,23 +3134,23 @@ public partial class Hub : Node2D
         // への伏線＝「は? 誰よあんた。」は文言固定（一字も変えない）。ハンドルは本ハンドル。
         "rei" => new (string, string)[]
         {
-            ("ミナ→@rei_____", "見ていましたよ。……次も、見に行きます。逃げたら承知しない、と、言われましたので。"),
-            ("@rei_____", "は? 誰よあんた。……まあいいわ。次は、本気で来なさい。見てなさい。"),
+            ("ミナ→" + Handles.Rei, "見ていましたよ。……次も、見に行きます。逃げたら承知しない、と、言われましたので。"),
+            (Handles.Rei, "は? 誰よあんた。……まあいいわ。次は、本気で来なさい。見てなさい。"),
         },
         // H1r 返信・あかり（仮台本 06）。返信は投稿枠。一面目の返信で、FINAL F3 の邂逅でレイが
         // 「あんたの言い方、この人に、そっくりよ」と引き継ぐ伏線＝文言は固定（一字も変えない）。
         //   17: S1-5 で送っていれば、ミナ側にだけ一行足す（あかりの返信は一字も変えない）。
         "akari" => WithS15(new (string, string)[]
         {
-            ("ミナ→@akari", "想いは、罪ではありませんよ。たとえ既読が、もう付かなくても。"),
-            ("@akari", "……なんでだろ。あなたの言い方、誰かに似てる。"),
+            ("ミナ→" + Handles.AkariShort, "想いは、罪ではありませんよ。たとえ既読が、もう付かなくても。"),
+            (Handles.AkariShort, "……なんでだろ。あなたの言い方、誰かに似てる。"),
         }),
         // H2r 返信・こはる（仮台本 07）。返信は投稿枠。二面目の返信で、FINAL F2 でこはるが
         // 「知らない人じゃ、なかったよ」を返す伏線＝文言は固定（一字も変えない）。
         "koharu" => new (string, string)[]
         {
-            ("ミナ→@koharu", "八十七回、むだではありませんでしたよ。……八十八回目も、どうぞ。"),
-            ("@koharu", "ありがと、知らない人。……明日も、行ってみる。"),
+            ("ミナ→" + Handles.Koharu, "八十七回、むだではありませんでしたよ。……八十八回目も、どうぞ。"),
+            (Handles.Koharu, "ありがと、知らない人。……明日も、行ってみる。"),
         },
         _ => System.Array.Empty<(string, string)>(),
     };

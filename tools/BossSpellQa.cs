@@ -532,7 +532,7 @@ public partial class BossSpellQa : Node
                     "read line retains player anchoring and warning time");
                 if (diff == GameManager.Diff.Normal)
                 {
-                    hud.AnnounceSpell("こはる", "@koharu_light", "既読の線", new Color("d6443f"));
+                    hud.AnnounceSpell("こはる", BossHandles.KoharuMain, "既読の線", new Color("d6443f"));
                     foreach (var z in lines) { z.SetProcess(false); z._Process(0.85d); }
                     await Shot("koharu_read_line");
                     DisplayServer.WindowSetSize(new Vector2I(960, 540));
@@ -647,7 +647,7 @@ public partial class BossSpellQa : Node
                 $"Mina/{diff}: finale combines Mina's core and the three memories");
             if (diff == GameManager.Diff.Normal)
             {
-                hud.AnnounceSpell("ミナ", "@mina_ai_", "心象の核＋世界中の悲鳴", new Color("e0729c"));
+                hud.AnnounceSpell("ミナ", BossHandles.MinaBattle, "心象の核＋世界中の悲鳴", new Color("e0729c"));
                 foreach (var b in Bullets()) { b._PhysicsProcess(0.5d); b.SetPhysicsProcess(false); }
                 await Shot("mina_finale");
                 DisplayServer.WindowSetSize(new Vector2I(960, 540));
@@ -750,7 +750,7 @@ public partial class BossSpellQa : Node
             Check(cross.Length == 4 && cross.All(z => Read<AreaStrike.Motif>(z, "_motif") == AreaStrike.Motif.Screen),
                 "both stages of Koharu's cross attack use the screen motif");
             foreach (var z in cross) { z.SetProcess(false); z._Process(0.8d); }
-            hud.AnnounceSpell("こはる", "@koharu_light", "自分なにしてんだろ", new Color("e8945a"));
+            hud.AnnounceSpell("こはる", BossHandles.KoharuMain, "自分なにしてんだろ", new Color("e8945a"));
             await Shot("aoe_Koharu_cross");
             await ClearStrikes(world);
         }
@@ -784,7 +784,7 @@ public partial class BossSpellQa : Node
             Check(!corridor.RunActive, "corridor preview stays harmless for 1.5 seconds");
             if (diff == GameManager.Diff.Normal)
             {
-                hud.AnnounceSpell("あかり", "@akari_ame", "雨の帰り道", new Color("6c9cd8"));
+                hud.AnnounceSpell("あかり", BossHandles.AkariSpell, "雨の帰り道", new Color("6c9cd8"));
                 await Shot("aoe_Akari_corridor_preview");
             }
             corridor._PhysicsProcess(3.02d);

@@ -111,7 +111,7 @@ public partial class StageImagery : Node2D
     private string Handle(int i)
     {
         int num = 10 + (int)(Frac(Mathf.Sin(i * 91.7f) * 7351.3f) * 8900f);
-        return $"@{SnsVoices.At(VoiceIndex(i)).Handle}_{num}";
+        return Handles.Mob(SnsVoices.At(VoiceIndex(i)).Handle, num);
     }
 
     // 表示名（@ハンドルとは別の、太め濃いめで出す日本語/英字の通り名）。

@@ -6,7 +6,7 @@ public sealed record BossPostStory(string Id, string Name, Color Accent, Color D
 {
     public string FakeBackground => $"res://char/bg2/boss/{Id}_v1.png";
     public string RealBackground => $"res://char/bg2/boss/{Id}_real_v1.png";
-    public string Handle => Id == "mina" ? "@mina_ai_" : Array.Find(GameManager.Stages, stage => stage.Id == Id)!.Handle;
+    public string Handle => Id == "mina" ? Handles.Mina : Array.Find(GameManager.Stages, stage => stage.Id == Id)!.Handle;
 
     public static BossPostStory Get(string id) => id switch
     {
