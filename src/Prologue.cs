@@ -105,7 +105,9 @@ public partial class Prologue : Node2D
 
     private static readonly string[] P2Choices = { "おはよう", "きこえてる", "うごいた" };
     private static readonly string[] P3Choices = { "ミナ", "超絶最強無敵ハイパーAIちゃんMk-Ⅱ", "（送らない）" };
-    private static readonly string[] P4Choices = { "何をいってるの", "詳しく教えて" };
+    // P4 の2択は「知る／知らないでおく」の対立に置き直した（旧「何をいってるの／詳しく教えて」は
+    //   どちらも“もっと説明して”で、選ぶ手が止まらなかった）。受けは共通だが、選ばなかった側の重みが残る。
+    private static readonly string[] P4Choices = { "だれの声", "見なかったことにする" };
 
     public override void _Ready()
     {
@@ -253,13 +255,21 @@ public partial class Prologue : Node2D
         L(WhoMina, "……この投稿です。いまの声が、聞こえたのは。", FMinaWorried),
     };
 
-    // P4 の受け。選択（何をいってるの／詳しく教えて）に関わらず共通。
+    // P4 の受け。入りの一行だけ選択（だれの声／見なかったことにする）で分け、以降は共通。
     private List<DLine> P4Reply(int sel)
     {
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【15】
         //   作品最重要の伏線「覚えておきます」（→ Epilogue「数えることと、覚えていることだけ」で回収）が、
         //   チュートリアル誘導の事務連絡の“後ろ”に埋もれていたので、決定打→短い余白→事務連絡の順へ入れ替えた。
-        var r = new List<DLine>
+        var r = new List<DLine>();
+        // 選んだ側で入りの一行だけ変える（受けの本体＝決定打「覚えておきます」までは共通）。
+        //   「見なかったことにする」を選んでも、ミナは聞いてしまっている＝取り消せない。
+        //   ここで“選ばなかった側”の重さが残る（P4 の2択は正解のない対立として置いてある）。
+        if (sel == 0)
+            r.Add(L(WhoMina, "……分かりません。名前も、顔も。——聞こえた、ということしか。", FMinaWorried));
+        else
+            r.Add(L(WhoMina, "……はい。では、見なかったことに。——ただ、ひとつだけ、ご報告が。", FMinaWorried));
+        r.AddRange(new List<DLine>
         {
             L(WhoMina, "消された言葉は、消えていないのです。", FMina),
             L(WhoMina, "……まだ、そこに、います。", FMina),
@@ -267,7 +277,7 @@ public partial class Prologue : Node2D
             L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
             L(WhoFx, FxFirstStage, ""),
             L(WhoMina, "……こちらにも、声が。ご主人様、スマホのホームから、SNSを開いてみてください。", FMinaWorried),
-        };
+        });
         bool tutorial = GameManager.TutorialEnabled;
         if (tutorial)
             r.Add(L(WhoMina, "潜ります。……その前に、この身体で何が出来るのか。まだ、なにも、試していませんので。", FMina));
