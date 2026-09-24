@@ -72,8 +72,6 @@
 
 ## WIP
 
-- [ ] (P3) Shop.csのLUNATIC解放ゴールのコメントが実装(Lv3)と食い違うLv4のまま | engineer | 2026-09-24監査(engineer)。`src/Shop.cs:1164`のコメント「（フォロワー200 or 光の出力Lv4＝ツリー側にも王冠マークで重ねる）」が、直後`:1167`の実コード`ChainLevel("shot_power", 3)`(DONE 2026-09-14でLv4→Lv3に是正済み)と矛盾したまま。`:1481-1483`王冠アイコン・`:1587`・`:1739`は既に是正済みで`:1164`のコメントだけ取りこぼされている。コメントを「Lv3」に修正するのみ、ロジック無変更。
-
 ## BLOCKED
 
 <!-- 2026-09-24 監査モード(engineer/scenario)で追加 -->
@@ -162,6 +160,7 @@
 - [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
+- [x] (P3) Shop.csのLUNATIC解放ゴールのコメントが実装(Lv3)と食い違うLv4のまま | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Shop.cs:1164`のコメント「光の出力Lv4」を、直後`:1167`の実コード`ChainLevel("shot_power", 3)`(DONE 2026-09-14でLv4→Lv3是正済み)に合わせて「Lv3」へ修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | (完了 2026-09-23) 2026-09-23監査(engineer)発見。`src/DemoPilot.cs:258`「GameManager.cs:799-801」→`GameManager.cs:796-797`、`src/DemoPilot.cs:350`「Prologue.cs:178」→`Prologue.cs:242`、`src/Bullet.cs:413`「Panel.cs:103」→`Panel.cs:109`、`src/PostBullets.cs:13`「Bullet.cs:236〜」→`Bullet.cs:114`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) PauseMenuのクラス冒頭コメントがAutoSaveの実態と矛盾している | engineer | (完了 2026-09-23) 2026-09-23監査(engineer)発見。`src/PauseMenu.cs:5`の「セーブは手動・スロット制（自動セーブは廃止）＝ここでしか保存されない」を、実態（スロット1-3は手動セーブ専用、スロット0はステージクリア/ハブ帰還/中ボス撃破/FINAL完了等で`GameManager.AutoSave()`により自動保存される併用方式）に一致するよう修正。ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) 設定画面のKeyBind/Select行で←→入力が操作音だけ鳴り表示が変わらない | engineer | (完了 2026-09-23) 2026-09-23監査(game-designer)発見。`Settings.cs`に`CurAdjustable`判定(`Cur[_row].Type`が`SType.KeyBind`/`SType.Select`以外か、範囲外・空リストもガード)を追加し、`:168-175`の←→入力処理で`CurAdjustable`がfalseなら`PlayUiMove()`を鳴らさないよう分岐、`:444`のフッタヒント「←→　調整」も`CurAdjustable`のときだけ表示するよう修正。スライダー/トグル/セグメント等は従来通り。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。

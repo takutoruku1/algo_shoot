@@ -1161,7 +1161,7 @@ public partial class Shop : Node2D
         UiKit.Text(this, UiKit.Zen, new Vector2(PadX, 72), "ミナの核から枝を伸ばして育てる。連射・拡散・誘導、後方の光——好きな順で、いつかすべて。", 13, UiKit.Text2);
 
         // 長期目標（LUNATIC解放）＝「何のために稼ぐか」の遠い灯り。条件は GameManager.IsLunaticUnlocked
-        //（フォロワー200 or 光の出力Lv4＝ツリー側にも王冠マークで重ねる）。解放済みなら出さない。
+        //（フォロワー200 or 光の出力Lv3＝ツリー側にも王冠マークで重ねる）。解放済みなら出さない。
         if (_game != null && !_game.IsLunaticUnlocked)
         {
             string goal = $"LUNATIC解放まで: フォロワー {_game.Followers}/{GameManager.LunaticFollowerReq} ／ 光の出力 Lv{_game.ChainLevel("shot_power", 3)}/3";

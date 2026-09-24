@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 263 / 対象 263 タスク<br>保留 41 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 264 / 対象 268 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">263</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">264</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">41</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">4</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,52 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">コメント中のファイル:行参照ズレが2026-09-22/23の一斉修正後も新たに3箇所発生</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-24監査(engineer)。<code>src/Player.cs:265</code>「TryDodge の実行可否ガード(999行目)」→実際は<code>src/Player.cs:1019</code>。<code>src/EnemySpec.cs:129</code>「MidEnemy.cs:80-81」→実際は<code>src/MidEnemy.cs:84-85</code>。<code>src/QaPilot.cs:321</code>「Player.cs:654の判定」→実際は<code>src/Player.cs:660</code>(<code>TryActivateKindness</code>呼び出し。<code>:654</code>は現在<code>SetDodgeReady</code>のHUD通知で無関係)。いずれもコメントのみ修正、ロジック無変更。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Pad.cs の FlipToken が宣言のみで参照0件の死にコード</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-24監査(engineer)。<code>src/Pad.cs:111</code>の<code>FlipToken</code>は<code>src/</code>全体で宣言以外の参照が0件。向き反転のヒント表示は<code>src/HowToPlay.cs:104-105</code>の<code>TokFlip</code>と<code>src/StageZero.cs:208</code>の直書きで別々に重複実装済み。未使用の<code>FlipToken</code>を削除するか、<code>TokFlip</code>/<code>StageZero.cs</code>側を<code>Pad.FlipToken</code>参照へ寄せて重複を解消するか（挙動不変を維持すること）。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-24監査(scenario)。<code>src/Hud.cs:1142</code>の<code>string label = &quot;お残し禁止&quot;;</code>（2026-09-22追加のタイマーUI、<code>Hud.cs:1133-1144</code>）が、<code>src/BossKoharu.cs:494</code>で実際にアナウンスされる現行スペル名<code>&quot;全部見なきゃ&quot;</code>（2026-09-06に旧名「お残し禁止」から改名済み、DONE記録あり）と食い違う。プレイヤーはスペルカードとタイマーラベルで矛盾する2つの技名を同時に見る上、「お残し禁止」は案Cで撤去済みの台所設定用語（<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:96</code>）。<code>Hud.cs:1142</code>の文字列を既存の承認済み名称<code>&quot;全部見なきゃ&quot;</code>に置換するのみ。新規文言の創作なし、ロジック無変更。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している</span>
+          
+        </div>
+        <p class="accept">2026-09-24監査(game-designer)。<code>src/GameManager.cs:816-824</code>のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、<code>src/Player.cs:1090-1100</code>のEndDodgeで発動する光輪(<code>GameManager.cs:790-792</code> VeilLightDuration={0,0.5,0.7}秒、<code>src/Player.cs:692-704</code>で半径内の敵弾を無条件消去+加点)により、<code>0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown</code>となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または<code>Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)</code>を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">Shop.csのLUNATIC解放ゴールのコメントが実装(Lv3)と食い違うLv4のまま</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-24) 2026-09-24監査(engineer)発見。<code>src/Shop.cs:1164</code>のコメント「光の出力Lv4」を、直後<code>:1167</code>の実コード<code>ChainLevel(&quot;shot_power&quot;, 3)</code>(DONE 2026-09-14でLv4→Lv3是正済み)に合わせて「Lv3」へ修正。コメントのみ、ロジック無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2263,6 +2303,22 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">StageMina.csのコメントが指す伏線回収セリフ「いなくならないって、書いたくせに」がEpilogue.csのどこにも実在しない</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（新規台詞の創作または設計意図の撤回を伴う）。2026-09-24監査(engineer)。<code>src/StageMina.cs:74-75</code>は「副題『いなくならないで』は…2周目＝Epilogue『いなくならないって、書いたくせに』(Epilogue.cs:129)の回収先として意味が反転する」と明記するが、<code>grep -rn &quot;書いたくせに&quot; src/</code>は当該コメント自身1件のみがヒットし、<code>src/Epilogue.cs</code>のoutro台詞配列(<code>:198-216</code>)にこの行は存在しない。<code>Epilogue.cs:129</code>は現在<code>EndChoices</code>配列の宣言行で無関係。FINALバナーの「意味が反転する」という設計意図を実装が担保しておらず、唯一の回収先だとコメントが主張する台詞そのものが欠落している。要ユーザー判断: (a)欠落している回収セリフを新規に執筆・仮台本承認した上でEpilogue.csへ実装する、(b)当該コメントの設計意図自体を撤回し「いなくならないで」を単独の意味に留める（コメント修正のみで完結）、のいずれか指定してほしい。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">wiki上位文書のうち既存BLOCKED(README/03_ストーリー/04_キャラクター対象)が対象外とする12ファイルにも同種の案C未反映(少年実在・旧面順)が残存</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（記述の書き換え範囲判断を伴う）。2026-09-24監査(scenario)。既存BLOCKED（直下、2026-09-16発見分）は対象を<code>wiki/README.md</code>・<code>wiki/03_ストーリー/*.md</code>(8本)・<code>wiki/04_キャラクター/*.md</code>(6本)に限定するが、別途<code>wiki/01_作品概要.md:25,29-32,40-41</code>（少年を実在の死者として記述）・<code>wiki/02_世界観.md</code>（少年関連23箇所）・<code>wiki/06_用語集.md:12-63</code>（「0414」＝少年の死亡日等、旧設定用語23エントリ）・<code>wiki/05_ゲーム仕様/04_ステージ構成.md:10-12,32-34</code>（面順表が実装<code>src/GameManager.cs:198-203</code>のあかり→こはる→レイと正反対のレイ→あかり→こはる表記）ほか<code>wiki/05_ゲーム仕様/*.md</code>11箇所・<code>wiki/07_ギャラリー/*.md</code>8箇所にも同種の陳腐化が残存し、<code>docs/</code>配下の陳腐化ファイルにあるような「非正典」警告バナーも一切無い。特にステージ構成表は面順が実装と正反対で誤読リスクが大きい。要ユーザー判断: 既存BLOCKED（直下）の対応範囲にこれら12ファイルを含めて一括更新するか別途対応するか、少年の実在描写を丸ごと削る場合の書き換え範囲について指定してほしい。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">タイトル画面ティッカーの匿名ハンドル<code>@rei_0w0</code>がレイの本ハンドル<code>@rei_____</code>と紛らわしく、無関係な投稿がレイ本人の悲痛な投稿に誤読されうる</span>
           <span class="worker">scenario</span>
         </div>
@@ -2593,18 +2649,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">28ce815</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正</span></li>
+      <li><span class="h">e6c37ed</span><span>2026-09-24</span><span class="s">auto: 監査で5件をTODO・2件をBLOCKEDへ追加（game-designer/engineer/scenario/qa並列監査）</span></li>
+      <li><span class="h">bcad43e</span><span>2026-09-23</span><span class="s">auto: コメント中のファイル:行参照ズレを実位置に修正</span></li>
       <li><span class="h">7cf8efd</span><span>2026-09-23</span><span class="s">auto: WIP着手 - コメント中のファイル:行参照ズレを修正する</span></li>
       <li><span class="h">5df8067</span><span>2026-09-23</span><span class="s">auto: PauseMenuのクラス冒頭コメントをAutoSaveの実態に合わせて修正</span></li>
       <li><span class="h">50f4d74</span><span>2026-09-23</span><span class="s">auto: WIP着手 - PauseMenuのクラス冒頭コメントをAutoSaveの実態に合わせて修正する</span></li>
       <li><span class="h">e335b68</span><span>2026-09-23</span><span class="s">auto: 設定画面のKeyBind/Select行で操作音だけ鳴る不整合を修正</span></li>
       <li><span class="h">d308b18</span><span>2026-09-23</span><span class="s">auto: WIP着手 - 設定画面のKeyBind/Select行で操作音だけ鳴る不整合を直す</span></li>
-      <li><span class="h">55e349f</span><span>2026-09-23</span><span class="s">auto: 無被弾クリア（ノーヒット）の記録・演出を追加</span></li>
-      <li><span class="h">3110d7e</span><span>2026-09-23</span><span class="s">auto: WIP着手 - 無被弾クリア（ノーヒット）の記録・演出を追加する</span></li>
-      <li><span class="h">efc5024</span><span>2026-09-23</span><span class="s">auto: 監査で4件をTODO・1件をBLOCKEDへ追加</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-23 18:45 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-24 18:51 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
