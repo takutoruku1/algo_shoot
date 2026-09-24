@@ -268,6 +268,11 @@ public partial class GameManager : Node
     //   プレイヤー自身にさせる導線へ変えた（「このアイコンから入る」を体で覚えてもらう）。
     public bool ShopNudgePending;
 
+    // アカウント追加の説明（あかり初回の帰還会話・once_account_intro）を読み切った直後に立つ（ランタイム限り・保存しない）。
+    //   ハブが SNS（タイムライン）のフッタ「アカウント」を脈動させ、押す／切替UIを開く（Hub.OpenJob）と消費する。
+    //   説明は once で二度と流れないので、消費後に再発しない。2026-09-23。
+    public bool AccountNudgePending;
+
     // 弾幕の本数を難易度でスケール（最低1発は残す）。各ボスのリング/扇の本数に掛ける。
     public int ScaleBullets(int baseCount) => Mathf.Max(1, Mathf.RoundToInt(baseCount * BulletCountMul));
 
@@ -1821,14 +1826,31 @@ public partial class GameManager : Node
         _focusModeCd = 0f;
         PostsDelivered = 0;   // 届けた病みポストの数もラン単位
         RedemptionActive = false;
+        BossReached = false;  // ボス到達もラン単位（「ボスから」で再読込した直後は Step_BossSpawn が立て直す）
     }
 
-    public void PrepareBossRetry(bool bossCheckpoint = true)
+    // ゲームオーバーからの「ボスからやり直す」を予約する（スコア半分を次のランへ持ち越し、入口をボスへ）。
+    //   戻り値 false ＝今ランでボス戦に到達していない（BossReached が立っていない）ので予約しない
+    //   ＝呼び元の再読込はそのまま「最初から」（スコア 0・入口 Start）になる。
+    //   2026-09-23 ユーザー報告「ボスまでいってないのにボスからやり直しができる」：従来は無条件に
+    //   SelectedEntry を Boss にしていたので、道中で倒れても未到達のボス戦へ飛べていた。
+    public bool PrepareBossRetry(bool bossCheckpoint = true)
     {
+        if (!BossReached) return false;
         // Scene reload calls ResetRun; carry the remaining half into that reset exactly once.
         _bossRetryScore = Score / 2;
         SelectedEntry = bossCheckpoint ? StageEntry.Boss : StageEntry.Start;
+        return true;
     }
+
+    // 今ランでボス戦に到達したか（ラン単位・非セーブ）。各 Stage の Step_BossSpawn（本ボス出現）が
+    //   NotifyBossReached で立て、次のラン開始（ResetRun）で下りる。中ボス(cameo)では立てない。
+    //   ゲームオーバーの「ボスから」（選択肢／R 単体）はこれが true のときだけ出す＝到達していない
+    //   ボスからは再開できない。セーブの記録（過去にクリアした／中ボスを倒した）は見ない。
+    //   「ボスから」で再読込すると ResetRun が下ろす → _step=Boss の Step_BossSpawn が最初のフレームで
+    //   立て直すので、ボス戦で倒れ続けても選択肢は消えない。
+    public bool BossReached { get; private set; }
+    public void NotifyBossReached() => BossReached = true;
 
     // 改心演出中か。本戦ボスの OnCryStart が立て、次のラン開始（ResetRun）で下りる。
     // 残機0と同フレーム帯で飛翔中の弾がボスを浄化したエッジケースで、ゲームオーバーの
@@ -1847,8 +1869,12 @@ public partial class GameManager : Node
     //   既存のキー（R／Shift+R／Q／パッドB）は**そのまま残す**＝覚えている人が困らない。
     //   R の長押し／即発の扱いは従来どおり各 *Root.cs 側にある（こちらは触らない）。
     private static ChoiceOverlay? _gameOverChoice;
+    // 立てた選択肢が GameOverChoices の何番目から始まるか（0＝「ボスから」あり／1＝ボス未到達で「最初から」始まり）。
+    //   決定後の添字→行の対応に使う（出したときの条件で固定＝ゲームオーバー中に BossReached は変わらない）。
+    private static int _gameOverFirst;
     // 選択肢の並び。沈黙の自動決定は末尾が選ばれるので、末尾は最も害の小さい「抜ける」にする
     //（ChoiceOverlay の既定挙動＝呼び出し側が引き下がる側を最後に置く約束）。
+    // 先頭の「ボスから」は今ランでボス戦に到達しているときだけ出す（GameManager.BossReached）。
     private static readonly string[] GameOverChoices =
     {
         "（ボスから・スコア半分消費）",
@@ -1875,8 +1901,12 @@ public partial class GameManager : Node
         if (_gameOverChoice == null || !IsInstanceValid(_gameOverChoice))
         {
             if (hud == null) return false;
-            _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices,
-                defaultSel: 0, onBoard: true);   // 既定は「ボスからやり直す」＝いちばん続けやすい手
+            // 「ボスから」は今ランでボス戦に到達しているときだけ（2026-09-23 ユーザー報告「ボスまでいってないのに
+            //   ボスからやり直しができる」＝道中 27 秒・ボス未到達でも3択が出ていた）。未到達なら2択（最初から／抜ける）。
+            //   判定はセーブの記録（過去のクリア／中ボス撃破）ではなく BossReached＝今ランの到達事実。
+            _gameOverFirst = (game?.BossReached ?? false) ? 0 : 1;
+            _gameOverChoice = ChoiceOverlay.Show(hud, GameOverChoices[_gameOverFirst..],
+                defaultSel: 0, onBoard: true);   // 既定は先頭＝いちばん続けやすい手（ボスから／未到達なら最初から）
             // ここで戦闘曲をゲームオーバー曲へ落とす（2026-09-14〜）。従来は**道中/ボス曲が鳴り続けていて**、
             //   「くじけちゃった…」の選択が音楽的に無句読点だった＝負けた実感が耳に来ない。
             //   旋律の無い静かなアンビエントへ 1.2 秒かけて渡し、場を鎮めて選択に集中させる。
@@ -1887,9 +1917,12 @@ public partial class GameManager : Node
             //   抜けるは ExitToHub → Hub._Ready が BgmMenu を張る。
             Audio.Instance?.Music(Audio.Instance.BgmGameOver, 1.2f);
             // キー操作の案内は選択肢の下に小さく添える（覚えている人向け。選択UIの邪魔をしない量）。
+            //   ボス未到達のときは R も「最初から」（PrepareBossRetry が予約せず素の再読込になる）＝案内も揃える。
             hud.ShowGameOverTitle("くじけちゃった…");
             hud.ShowGameOverPrompt(Pad.ShowKeyboard
-                ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：抜ける"
+                ? (_gameOverFirst == 0
+                    ? "R：ボスからやり直す　／　Shift+R：最初から　／　Q：抜ける"
+                    : "R：最初からやり直す　／　Q：抜ける")
                 : $"{Pad.Face(JoyButton.B)}：抜ける");
         }
 
@@ -1901,13 +1934,14 @@ public partial class GameManager : Node
 
         // 選択が決まったら、その行の処理へ。
         if (!_gameOverChoice.Decided) return false;
-        int sel = _gameOverChoice.Selected;
+        int sel = _gameOverChoice.Selected + _gameOverFirst;   // GameOverChoices の添字へ戻す（2択なら +1）
         // 3択はいずれもシーンが変わる（やり直し2つ＝ReloadCurrentScene / 抜ける＝Hubへ）ので、
         //   曲は遷移先の _Ready に任せる＝ここでは道中曲へ戻さない。
         ClearGameOverChoice(hud, restoreMusic: false);
         switch (sel)
         {
             case 0:   // ボスからやり直す＝R 単体と同じ経路（SelectedEntry を Boss にしてシーン再読込）
+                      //   ボス未到達でここへは来ない（2択のとき sel は 1 から）。来ても PrepareBossRetry が弾く。
                 game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot);
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                 root.GetTree().ReloadCurrentScene();

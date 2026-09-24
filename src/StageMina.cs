@@ -204,6 +204,10 @@ public partial class StageMina : Node
         World.AddChild(_boss);
         _boss.GlobalPosition = new Vector2(SpawnX, 70f);
         _bossActive = true;
+        // 今ランでボス戦に到達した印。FINAL はチェックポイント対象外（MinaRoot は bossCheckpoint:false）なので、
+        //   ゲームオーバーの「ボスから・スコア半分消費」は残響戦を含む最初からの再開＝スコア半分だけ持ち越す。
+        //   残響戦（ボス出現前）で倒れたときは出さない。
+        game.NotifyBossReached();
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
         Advance();
     }

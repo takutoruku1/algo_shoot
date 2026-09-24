@@ -101,7 +101,8 @@ public partial class ReiRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
-            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageRei._step=10 に乗る）／
+            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageRei._step=10 に乗る。
+            //   今ランでボス未到達なら PrepareBossRetry が予約しない＝最初から）／
             // Shift+R＝最初から（従来どおり）。Shift時は SelectedEntry に触らない
             // （--boss デバッグ起動中の DebugAlwaysBoss 持ち回りを壊さないため。通常プレイでは
             //  前回の _Ready() 時点で既に Start へ消費済みなので実質「最初から」になる）。
