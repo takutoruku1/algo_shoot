@@ -21,6 +21,13 @@ public partial class BossPost : Area2D
     private Sprite2D[] _cracks = null!;
     private Vector2[] _vertices = null!;
     private int[] _triangles = null!;
+    private FontFile _revealFont = null!;
+    private Control _revealMask = null!;
+    private Node2D _revealCanvas = null!;
+    private static readonly string[] RevealTitles =
+    {
+        "消した言葉へ", "言えなかった想いへ", "隠していた本音へ", "はじまりの下書きへ", "本当の景色へ",
+    };
     private static readonly Rect2 Card = new(-260, -160, 520, 320);
     private Color InkColor => Story.Accent.Lerp(Story.Dawn, Index / 4f);
     public double BreakDuration => Index == 4 ? 4.0 : 2.15 + Index * 0.23;
@@ -51,6 +58,23 @@ public partial class BossPost : Area2D
             _plateCanvas.AddChild(_cracks[i]);
         }
         (_vertices, _triangles) = GlassFractureArt.Mesh(Card, Index, (ulong)(4381 + Index * 113));
+        _revealFont = (FontFile)GD.Load<FontFile>("res://assets/fonts/ShipporiMincho-SemiBold.ttf").Duplicate();
+        _revealFont.Oversampling = 2;
+        _revealFont.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
+        _revealMask = new Control
+        {
+            Position = new Vector2(-260, -120) * UiKit.Scale, Scale = Vector2.One * UiKit.Scale,
+            Size = new Vector2(0, 240), ClipContents = true, Visible = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        AddChild(_revealMask);
+        _revealCanvas = new Node2D
+        {
+            Position = new Vector2(260, 120), Material = Material,
+            TextureFilter = TextureFilterEnum.Linear,
+        };
+        _revealMask.AddChild(_revealCanvas);
+        _revealCanvas.Draw += DrawReveal;
         AreaEntered += Hit;
         Audio.Instance?.PlaySpell();
     }
@@ -115,6 +139,7 @@ public partial class BossPost : Area2D
         if (_broken)
         {
             _breakTime += delta;
+            UpdateReveal();
             if (_breakTime >= BreakDuration && !_completed)
             {
                 _completed = true;
@@ -153,17 +178,72 @@ public partial class BossPost : Area2D
             float t = (float)_breakTime;
             GlassFractureArt.DrawShards(this, _plateView.GetTexture(), Card, _vertices, _triangles,
                 t, 0.85f + Index * 0.23f, Colors.White);
-            float titleAlpha = Mathf.Clamp((t - 0.7f) / 0.3f, 0, 1) * Mathf.Clamp((float)(BreakDuration - t) / 0.45f, 0, 1);
-            string title = Index == 4 ? "REAL REALM" : "DEEPER";
-            float widthTitle = UiKit.TextW(UiKit.Mono, title, Index == 4 ? 44 : 36);
-            float offset = 34 * Mathf.Exp(-t * 8);
-            UiKit.Text(this, UiKit.Mono, new Vector2(-widthTitle * 0.5f + offset, -25), title, Index == 4 ? 44 : 36,
-                new Color(InkColor, titleAlpha));
-            string next = Index == 4 ? "隠していた、本当の景色。" : Labels[Index + 1];
-            float widthNext = UiKit.TextW(UiKit.Zen, next, 20);
-            UiKit.Text(this, UiKit.Zen, new Vector2(-widthNext * 0.5f, 32), next, 20, new Color(1, 1, 1, titleAlpha));
         }
         UiKit.EndDesign(this);
+    }
+
+    private static float RevealPhase(double time, double start, double duration)
+        => Mathf.SmoothStep(0, 1, Mathf.Clamp((float)((time - start) / duration), 0, 1));
+
+    private void UpdateReveal()
+    {
+        float wipe = RevealPhase(_breakTime, 0.38, Index == 4 ? 0.9 : 0.62);
+        float fade = 1 - RevealPhase(_breakTime, BreakDuration - 0.42, 0.42);
+        _revealMask.Visible = wipe > 0 && fade > 0;
+        _revealMask.Size = new Vector2(520 * wipe, 240);
+        _revealCanvas.Modulate = new Color(1, 1, 1, fade);
+        _revealCanvas.QueueRedraw();
+    }
+
+    private void DrawReveal()
+    {
+        float t = (float)_breakTime;
+        float settle = RevealPhase(t, 0.38, Index == 4 ? 1.1 : 0.75);
+        float lift = 10 * (1 - settle);
+        float accentAlpha = RevealPhase(t, 0.48, 0.4);
+        Color light = InkColor.Lerp(Colors.White, 0.65f);
+        var ci = _revealCanvas;
+        string chapter = Index == 4 ? "REAL REALM" : $"DRAFT 0{Index + 1} / 04";
+        float chapterWidth = UiKit.TextW(UiKit.Mono, chapter, 12);
+        DrawRevealText(UiKit.Mono, new Vector2(-chapterWidth * 0.5f, -91), chapter, 12, new Color(light, accentAlpha));
+        for (int side = -1; side <= 1; side += 2)
+            ci.DrawLine(new Vector2(side * (chapterWidth * 0.5f + 15), -82),
+                new Vector2(side * (chapterWidth * 0.5f + 45), -82), new Color(InkColor, accentAlpha * 0.6f), 1, true);
+
+        string title = RevealTitles[Index];
+        int size = Index == 4 ? 46 : 40;
+        float width = UiKit.TextW(_revealFont, title, size);
+        var at = new Vector2(-width * 0.5f, -54 + lift);
+        DrawRevealText(_revealFont, at, title, size, new Color("fffaf2"), 4);
+
+        float line = RevealPhase(t, 0.55, 0.55);
+        float half = Mathf.Max(width * 0.5f, 160);
+        ci.DrawLine(new Vector2(-half * line, 18), new Vector2(half * line, 18),
+            new Color(InkColor, accentAlpha * 0.65f), 1, true);
+        float sweep = RevealPhase(t, 0.62, Index == 4 ? 0.95 : 0.62);
+        float gleam = Mathf.Sin(sweep * Mathf.Pi);
+        float x = Mathf.Lerp(-half, half, sweep);
+        ci.DrawLine(new Vector2(x - 15, 18), new Vector2(x + 15, 18), new Color(light, gleam), 2, true);
+        ci.DrawLine(new Vector2(x, 14), new Vector2(x, 22), new Color(light, gleam * 0.7f), 1, true);
+
+        float subtitleAlpha = RevealPhase(t, 0.88, 0.32);
+        string next = Index == 4 ? "隠していた、本当の景色。" : Labels[Index + 1];
+        float nextWidth = UiKit.TextW(UiKit.Zen, next, 19);
+        DrawRevealText(UiKit.Zen, new Vector2(-nextWidth * 0.5f, 36 + 4 * (1 - subtitleAlpha)),
+            next, 19, new Color(light, subtitleAlpha));
+        for (int i = 0; i < 4; i++)
+        {
+            float filled = i < Index ? 1 : i == Index ? RevealPhase(t, 0.9, 0.5) : 0.15f;
+            ci.DrawLine(new Vector2(-43 + i * 24, 78), new Vector2(-29 + i * 24, 78),
+                new Color(light, filled * subtitleAlpha * 0.8f), 2, true);
+        }
+    }
+
+    private void DrawRevealText(Font font, Vector2 at, string text, int size, Color color, int outline = 2)
+    {
+        _revealCanvas.DrawStringOutline(font, at + new Vector2(0, font.GetAscent(size)), text,
+            HorizontalAlignment.Left, -1, size, outline, new Color(0.025f, 0.03f, 0.055f, color.A * 0.75f));
+        UiKit.Text(_revealCanvas, font, at, text, size, color);
     }
 
     private void DrawCard()

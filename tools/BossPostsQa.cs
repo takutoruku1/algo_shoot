@@ -33,12 +33,17 @@ public partial class BossPostsQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            foreach (string id in new[] { "koharu", "rei", "mina" })
+            bool movie = OS.GetCmdlineUserArgs().Contains("--reveal-movie");
+            if (movie || OS.GetCmdlineUserArgs().Contains("--reveal-art")) await RevealPresentation(game, movie);
+            else foreach (string id in new[] { "koharu", "rei", "mina" })
             {
                 if (OS.GetCmdlineUserArgs().Contains("--mina-only") && id != "mina") continue;
                 foreach (var diff in Enum.GetValues<GameManager.Diff>())
                     foreach (var job in Enum.GetValues<Job>())
+                    {
+                        if (OS.GetCmdlineUserArgs().Contains("--smoke") && (diff != GameManager.Diff.Normal || job != Job.Tank)) continue;
                         await Encounter(game, id, diff, job);
+                    }
             }
             Pool.DespawnAll();
             Audio.Instance?.StopMusic(0);
@@ -56,6 +61,114 @@ public partial class BossPostsQa : Node
             GD.PushError($"[BossPostsQA] FAIL {e}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task RevealPresentation(GameManager game, bool movie)
+    {
+        game.SelectedJob = Job.Melee;
+        foreach (string id in movie ? new[] { "rei" } : new[] { "akari", "koharu", "rei", "mina" })
+        {
+            string scene = id switch { "akari" => "Akari", "koharu" => "Koharu", "rei" => "Rei", _ => "MinaBattle" };
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            var stage = root.GetNode("Stage" + (id == "mina" ? "Mina" : scene));
+            stage.SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            Write(hud, "_bannerTimer", 0d);
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            player.GlobalPosition = new Vector2(Field.Left + 40, 140);
+            root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            var story = BossPostStory.Get(id);
+            var realm = new BossRealmFx { Story = story };
+            root.AddChild(realm);
+            await Frames(100);
+            realm.SetProcess(false);
+            Pool.DespawnAll();
+            if (movie) Audio.Instance?.StartPostMusic(id, 0, 0);
+            for (int i = 0; i < 5; i++)
+            {
+                int completed = 0, broken = 0;
+                var post = new BossPost
+                {
+                    Story = story, Index = i, Position = new Vector2(Field.Right - 84, 104),
+                    Broken = (index, at) =>
+                    {
+                        broken++;
+                        realm.BreakPost(index, at);
+                        if (movie) Audio.Instance?.StartPostMusic(id, index + 1, 0.2f);
+                    },
+                    Completed = () => completed++,
+                };
+                world.AddChild(post);
+                post.SetPhysicsProcess(false);
+                post._PhysicsProcess(post.MinimumReadTime);
+                await Frames(movie ? 60 : 2);
+                Call(post, "Damage", 24);
+                post._PhysicsProcess(0);
+                Check(broken == 1 && completed == 0, $"{id}/{i}: reveal starts only after destruction");
+                if (movie)
+                {
+                    realm.SetProcess(true);
+                    post.SetPhysicsProcess(true);
+                    await Frames((int)(post.BreakDuration * 60) + 3);
+                    realm.SetProcess(false);
+                }
+                else
+                {
+                    post._PhysicsProcess(0.7);
+                    realm._Process(0.7);
+                    var mask = Read<Control>(post, "_revealMask");
+                    Check(mask.Visible && mask.Size.X > 0 && mask.Size.X < 520, "whole heading wipes in within the card footprint");
+                    double clock = Read<double>(post, "_breakTime");
+                    hud.HoldBubble = true;
+                    hud.ShowDialog(Hud.LineKind.Mina, "Pause check");
+                    await Frames(1);
+                    post._PhysicsProcess(5);
+                    Check(Read<double>(post, "_breakTime") == clock, "dialogue freezes heading animation");
+                    hud.HoldBubble = false;
+                    hud.HideBubble();
+                    hud.ShowBossLine(story.Name, story.Replies[i], story.Accent, 10);
+                    if (id == "rei" && i == 1) await Shot("reveal_wipe");
+                    post._PhysicsProcess(0.8);
+                    realm._Process(0.8);
+                    Check(Mathf.IsEqualApprox(mask.Size.X, 520), "heading is fully readable before fade");
+                    var titles = (string[])typeof(BossPost).GetField("RevealTitles", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+                    var font = Read<FontFile>(post, "_revealFont");
+                    Check(UiKit.TextW(font, titles[i], i == 4 ? 46 : 40) < 460, "heading fits the post and stays clear of HUD and dialogue");
+                    if (id == "rei" || i == 4) await Shot($"{id}_reveal_{i}");
+                    if (id == "rei" && i == 1)
+                    {
+                        foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+                        {
+                            DisplayServer.WindowSetSize(size);
+                            await Shot($"reveal_{size.X}x{size.Y}");
+                        }
+                        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                    }
+                    if (i == 4)
+                    {
+                        post._PhysicsProcess(1.5);
+                        realm._Process(1.5);
+                        await Shot($"{id}_reveal_clear");
+                    }
+                    post._PhysicsProcess(post.BreakDuration - (i == 4 ? 3.2 : 1.7));
+                    Check(Read<Node2D>(post, "_revealCanvas").Modulate.A is > 0 and < 1, "heading fades out before gameplay resumes");
+                    post._PhysicsProcess(0.3);
+                    await Frames(3);
+                }
+                Check(completed == 1, "presentation preserves original completion timing");
+                Write(hud, "_bossLineTimer", 0d);
+            }
+            root.QueueFree();
+            await Frames(8);
         }
     }
 
