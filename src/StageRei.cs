@@ -132,6 +132,40 @@ public partial class StageRei : Node
         (2, "逃げたら……承知しないんだから。", RSmile),   // 捨て台詞。笑顔のまま
     };
 
+    // レイ面・中ボスの第一声（s3_2 差分・2026-09-25）。s3_2（step 2 末尾）は中ボス（step 5）より前に通る。
+    //   ★この選択はミナが自分のことで聞いた問いへの返答＝レイ宛ではない。それを本人が引用してくる
+    //     ＝部屋の中の独り言まで聞かれていた、という画になる。
+    //   第一声は「中の人・笑っていない」の位置（RFace）を保つ＝ここで配信用の笑顔にはしない
+    //   （RSmile へ切り替わるのは RECLOSE 以降＝CameoTalk3）。
+    //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（（送らない）なら既存が出る）。
+
+    // 「同接、9」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S32Count =
+    {
+        (2, "……だれ? あなた。……「同接、9」って、言ってたでしょ。……数えたの、あなたなの?", RFace),
+    };
+
+    // 「ちゃんと見てる」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S32Watch =
+    {
+        (2, "……だれ? あなた。……「ちゃんと見てる」って、さっき。……誰に言ったの、それ。わたしじゃ、ないわよね。", RFace),
+    };
+
+    // 「見えてる」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S32See =
+    {
+        (2, "……だれ? あなた。……「見えてる」って、言ってたわね。……見えてるなら、なんで、こっちは来ないのよ。", RFace),
+    };
+
+    // 中ボスの第一声を s3_2 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
+    private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s3_2") ?? "") switch
+    {
+        "同接、9" => CameoTalk1_S32Count,
+        "ちゃんと見てる" => CameoTalk1_S32Watch,
+        "見えてる" => CameoTalk1_S32See,
+        _ => CameoTalk1,
+    };
+
     // S3-4 のミナの観測（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
     //   本人の合間に入るミナの行はオーバーレイに乗らない。中ボスの直前／直後に開く step が受け皿になる
     //   （step 構成は変えない前提での置き場所。こはる面と同じ流儀）。
@@ -290,8 +324,8 @@ public partial class StageRei : Node
     // ボス HP 20〜50% で一度だけ。弾が止まり、画面が鈍色に沈む（SetQuietVeil）。
     // 問うのはミナ自身の状態＝あなたの過去は問わない。「三人分」は S3-9 に取ってあるので、
     // ここは「二人ぶんと、貼られた引用と、いまの声」に留める。
-    // 機構はこはる面（`StageKoharu` の Step_LinesHold／Step_MidChoice／SetQuietVeil）から移植。
-    //   案C ではこの仕掛けの本籍がレイ面なので、こはる面は KoharuInterruptEnabled=false で止めてある。
+    // 機構（Step_LinesHold／Step_MidChoice／SetQuietVeil）はこはる面から移植したもので、案C でこの仕掛けの
+    //   本籍がレイ面になったため、こはる面側の到達不能になった現物は撤去した（2026-09-24）＝正典はここ。
     private static readonly (int who, string text, string face)[] MidChoicePre =
     {
         (1, "……ご主人様。弾がやんでも——聞こえます。画面の向こうで、まだ、コメントを読み上げている声が。", MWorried),
@@ -768,7 +802,9 @@ public partial class StageRei : Node
                     Fire = CameoFireTheme.ReiAggressive,
                     Aura = FxLayer.BossAura.Rei,
                     Bgm = Audio.Instance?.BgmBossRei,
-                    IntroLines = CameoTalk1, TauntLines = CameoTalk3, DefeatLines = CameoPost,
+                    // 第一声は s3_2（step 2 末尾）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
+                    IntroLines = CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
             World.AddChild(_cameo);

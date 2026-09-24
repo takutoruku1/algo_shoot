@@ -121,7 +121,7 @@ public partial class Hud : CanvasLayer
     private static Dictionary<string, (string path, string line)>? _cutinData; // who → (カットイン絵, セリフ)
 
     // ── 割り込み演出中の戦闘テロップ抑制（ボス字幕 DrawBossLine ＋ スペルカットイン DrawSpellCutin）──
-    //   こはる面のボス戦中割り込み（会話2択。StageKoharu.SetQuietVeil の ON/OFF に同期）中、
+    //   レイ面のボス戦中割り込み（S3-7 の下書き選択。StageRei.SetQuietVeil の ON/OFF に同期）中、
     //   カットインのバトルセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なって双方読めなくなるため、
     //   区間中は 0.2s でフェードアウトして消す（「弾が止まり静けさが残る」演出意図とも一致）。
     //   消え切った時点で実体も消去＝区間明けに残り時間ぶんが再表示されない（次の台詞・次のスペルからは通常）。
@@ -393,7 +393,13 @@ public partial class Hud : CanvasLayer
         if (IsInstanceValid(FxLayer.Instance?.ScoreDrops)) FxLayer.Instance.ScoreDrops.UpdateDialogueVisibility();
     }
 
-    public override void _ExitTree() => BubblePaused = false;
+    public override void _ExitTree()
+    {
+        BubblePaused = false;
+        // 面を抜ける（リトライ・ハブ帰還・タイトル）ときは【激情】も必ず畳む。改心を見ずに抜けた場合に
+        //   FuryActive が立ったまま残ると、次の画面まで縦メーターが付いてくる。
+        GameManager.Instance?.EndFury();
+    }
 
     private void ClearDialog()
     {
@@ -880,6 +886,7 @@ public partial class Hud : CanvasLayer
         DrawTimer(ci);
         DrawCombo(ci);
         if (_bossVisible) DrawBossCard(ci);
+        DrawFury(ci);        // 右端の縦メーター（ボス戦中のみ。カットインが来ている間は自分から引く）
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
         if (_spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
@@ -1075,6 +1082,203 @@ public partial class Hud : CanvasLayer
         if (prog > 0)
             UiKit.Box(ci, new Rect2(x, y + 34f, w * prog, 8f),
                 full ? SideTeal : SideTeal.Lerp(new Color("9bdfd0"), pulse * lean * 0.5f), 4f);
+    }
+
+    // ── 【激情】縦メーター（2026-09-25・第2稿：見た目の作り直し）──
+    //   置き場所は盤面の右端 x=1244..1260 / y=100..640。左のサイドパネル（0..373）は既に満杯で、
+    //   ボスカード（上中央）とティッカー（y=720-38）を避けるとここしか空いていない。
+    //   弾の視認性を侵さないのが本プロジェクトの明示方針なので、**帯そのものは幅16px**に留め、
+    //   存在感は「幅」でなく**発光と波形**で出す（光は加算でなく半透明で、弾の形が上から読める）。
+    //
+    //   読ませたいことは三つだけ、優先順に:
+    //     (1) 中央（0）が戻るべき場所 …… 安全域（±FurySafeBand）を明るい筒で抜き、中央に呼吸する芯を灯す。
+    //     (2) 今どちら側にどれだけ居るか …… 中央から伸びる塗り＋つまみ。端に寄るほど濃く・熱く。
+    //     (3) 相手の心が今どうなっているか …… 帯の中を縦に走る**波形**。
+    //          激情側 = 振幅も周波数も上がり、倍音が乗って荒れる（脈が速くなる）。
+    //          無感情側 = 振幅が落ちて**フラットラインへ**（心電図の連想＝心が止まる）。
+    //          中央 = ほぼ静止した一本線がゆっくり呼吸するだけ（普段は静か）。
+    //   数値は出さない（作者決定。バーの見た目だけで伝える）。
+    //   袖カットイン（右端にせり上がる・約1.85s）と場所が重なるので、その間は自分からフェードアウトする。
+    private const float FuryX = 1244f, FuryW = 16f, FuryTop = 100f, FuryH = 540f;
+    private const float FurySafeBand = 25f;   // ここに収まっていれば「保てている」（表示専用・判定には使わない）
+    private const int FuryWaveSteps = 44;     // 波形の分割数（帯の中だけを走るので粗くてよい）
+    private readonly Vector2[] _furyWave = new Vector2[FuryWaveSteps + 1];
+
+    private void DrawFury(HudCanvas ci)
+    {
+        if (_game is not { FuryActive: true } g || !_bossVisible) return;
+        // カットイン中は譲る（せり上がってくる絵の真上に細い棒が重なると、どちらも読めない）。
+        float a = _cutinTimer > 0 && _cutinTex != null ? 0f : 1f;
+        a *= _calloutA;                       // 割り込み演出中は他のテロップと一緒に引く
+        if (a <= 0.01f) return;
+
+        float v = Mathf.Clamp(g.FuryValue, Fury.Min, Fury.Max);
+        float cx = FuryX + FuryW * 0.5f;      // 帯の中心 x（波形と芯はここを基準に振れる）
+        float cy = FuryTop + FuryH * 0.5f;    // 中央（0）の y
+        float half = FuryH * 0.5f;
+        float t = (float)_t;
+        bool up = v > 0;
+
+        // 正規化した「どれだけ端に寄っているか」。端（±90）で 1、その外も 1 で頭打ち。
+        float near = Mathf.Clamp(Mathf.Abs(v) / Fury.RageEdge, 0f, 1f);
+        float rage = up ? near : 0f;                                   // 激情の度合い 0→1
+        float numb = up ? 0f : near;                                   // 無感情の度合い 0→1
+        bool inSafe = Mathf.Abs(v) <= FurySafeBand;
+        // 端（失敗域）を踏んだかどうか。踏んだ時だけ警告を足す＝普段は静かなまま。
+        bool atEdge = v >= Fury.RageEdge || v <= Fury.NumbEdge;
+        float edgePulse = atEdge ? 0.5f + 0.5f * Mathf.Sin(t * (up ? 9.0f : 3.0f)) : 0f;
+
+        // その側の色。激情＝穢れ桃から炎上赤へ。無感情＝見出しシアンから、色相だけ残した鈍青へ。
+        //   （落としきると暗い背景で溝と見分けが付かなくなるので "4e6d86" で止める。）
+        //   ★中央では左右どちらの色にも寄せない：0 に近いほど無彩色の"凪"色へ戻す。
+        //     でないと v=0（＝いちばん保ててる状態）が「もう無感情側に傾いている」ように見えてしまう
+        //     （up は v>0 なので、ちょうど 0 だと無感情側の分岐に落ちる）。
+        Color calm = new("8f97b4");            // 凪＝サイドパネルの文字色帯と同じ無彩の青灰
+        float tint = Mathf.Clamp(Mathf.Abs(v) / FurySafeBand, 0f, 1f);   // 安全域を出たところで色が着ききる
+        Color side = calm.Lerp(up ? UiKit.Kegare.Lerp(UiKit.Burn, rage)
+                                  : UiKit.Info.Lerp(new Color("4e6d86"), numb * 0.7f), tint);
+        Color white = new(1f, 1f, 1f, 1f);
+
+        // ── ① 外周グロウ ──────────────────────────────────────────────
+        //   帯を太くする代わりに、帯の外へ柔らかい光をにじませて存在感を出す。
+        //   半透明（最大でも α0.20 程度）なので、この光の上でも弾の形は読める＝視認性を侵さない。
+        //   中央に居るときは弱く静かに、端に寄るほど強く脈打つ。
+        {
+            float breath = 0.5f + 0.5f * Mathf.Sin(t * Mathf.Lerp(1.5f, 7.5f, rage));
+            float gA = (0.05f + 0.10f * near + 0.05f * breath * near) * a;
+            if (atEdge) gA += 0.05f * edgePulse * a;
+            // 縦に3点だけ置いて帯の長さぶん光らせる（円を並べるより安い）。寄っている側を強くする。
+            for (int i = 0; i < 3; i++)
+            {
+                float gy = FuryTop + FuryH * (0.5f + (i - 1) * 0.32f);
+                float sideSign = gy < cy ? 1f : -1f;                    // 上半分＝激情側
+                float vSign = Mathf.Abs(v) < 0.01f ? 0f : Mathf.Sign(v);
+                float lean = 1f + 0.45f * sideSign * vSign * near;      // 寄っている側だけ明るく
+                UiKit.RadialGlow(ci, new Vector2(cx, gy), 46f, side, gA * lean);
+            }
+        }
+
+        // ── ② 溝（背景）──────────────────────────────────────────────
+        //   弾が透ける程度の薄さ＋細い縁。縁は寄っている側の色をうっすら帯びる＝筒そのものが熱を持つ。
+        UiKit.Box(ci, new Rect2(FuryX, FuryTop, FuryW, FuryH), new Color(0.04f, 0.035f, 0.07f, 0.58f * a), 8f,
+            new Color(white.Lerp(side, 0.45f * near), (0.16f + 0.16f * near) * a), 1f);
+
+        // ── ③ 端（±90 の外＝失敗域）─────────────────────────────────
+        //   溝の中にだけ敷く。普段は薄く「ここまで行くと終わる」と置くだけ。
+        //   実際に踏み込んだ時だけ、その側が脈を打って明確に警告する（それでも最大 α0.42 まで）。
+        float edgeH = half * (1f - Fury.RageEdge / Fury.Max);
+        float rageEdgeA = 0.14f + (v >= Fury.RageEdge ? 0.28f * edgePulse : 0f);
+        float numbEdgeA = 0.14f + (v <= Fury.NumbEdge ? 0.28f * edgePulse : 0f);
+        UiKit.Box(ci, new Rect2(FuryX, FuryTop, FuryW, edgeH), new Color(UiKit.Burn, rageEdgeA * a), 8f);
+        UiKit.Box(ci, new Rect2(FuryX, FuryTop + FuryH - edgeH, FuryW, edgeH), new Color(UiKit.Info, numbEdgeA * a), 8f);
+        // 失敗域の入口に刻み目（溝の中の細い横線）。「線を越えた」が形でも分かる。
+        float rageEdgeY = FuryTop + edgeH, numbEdgeY = FuryTop + FuryH - edgeH;
+        UiKit.Box(ci, new Rect2(FuryX + 1f, rageEdgeY, FuryW - 2f, 1f),
+            new Color(UiKit.Burn, (0.30f + 0.45f * (v >= Fury.RageEdge ? edgePulse : 0f)) * a), 0.5f);
+        UiKit.Box(ci, new Rect2(FuryX + 1f, numbEdgeY, FuryW - 2f, 1f),
+            new Color(UiKit.Info, (0.26f + 0.45f * (v <= Fury.NumbEdge ? edgePulse : 0f)) * a), 0.5f);
+
+        // ── ④ 安全域（中央＝戻るべき場所）────────────────────────────
+        //   溝の中央を、わずかに明るい筒で抜く。「この幅に収まっていれば保てている」を面で示す。
+        //   収まっている間だけ、その筒がゆっくり息をする＝静かな「今は大丈夫」の合図。
+        float safeH = half * (FurySafeBand / Fury.Max);
+        float safeBreath = inSafe ? 0.5f + 0.5f * Mathf.Sin(t * 1.9f) : 0f;
+        UiKit.Box(ci, new Rect2(FuryX + 1f, cy - safeH, FuryW - 2f, safeH * 2f),
+            new Color(1f, 1f, 1f, (0.05f + 0.05f * safeBreath) * a), 6f);
+        // 安全域の上下端に小さな爪（帯の左右に短く出す）。面だけだと暗い背景に沈んで境目が読めないので、
+        //   「ここからここまでが保てている範囲」を形でも示す。外へ出ている間は少し濃くして境界を意識させる。
+        float clawA = (inSafe ? 0.30f + 0.10f * safeBreath : 0.42f) * a;
+        foreach (float sy in new[] { cy - safeH, cy + safeH })
+        {
+            UiKit.Box(ci, new Rect2(FuryX - 3f, sy - 0.5f, 4f, 1f), new Color(white, clawA), 0.5f);
+            UiKit.Box(ci, new Rect2(FuryX + FuryW - 1f, sy - 0.5f, 4f, 1f), new Color(white, clawA), 0.5f);
+        }
+
+        // ── ⑤ 現在値の塗り ──────────────────────────────────────────
+        //   中央から上（激情）／下（無感情）へ伸びる。先端へ向かって淡くして「溶けて伸びている」ようにする。
+        float fillH = half * Mathf.Abs(v) / Fury.Max;
+        if (fillH > 0.5f)
+        {
+            float fy = up ? cy - fillH : cy;
+            var fillRect = new Rect2(FuryX + 1f, fy, FuryW - 2f, fillH);
+            float fa = (0.34f + 0.30f * near) * a;
+            // 中央側が濃く、進行方向の先端へ向かって薄れる（＝どちらへ流れているかが塗りで分かる）。
+            UiKit.VGradient(ci, fillRect, up
+                ? new[] { new Color(side, fa * 0.25f), new Color(side, fa) }
+                : new[] { new Color(side, fa), new Color(side, fa * 0.25f) }, new[] { 0f, 1f });
+        }
+
+        // ── ⑥ 波形（このメーターの主役）────────────────────────────
+        //   帯の内側だけを縦に走る一本線。振幅・周波数・荒れが、値によって連続的に変わる。
+        //     中央  : 振幅ほぼ 0・ゆっくり ＝ 静か
+        //     激情  : 振幅が増え、周波数が上がり、倍音が乗って暴れる
+        //     無感情: 振幅が 0 へ落ちて**フラットライン**になる（心電図）
+        //   線幅 1.4px の芯＋3.4px の淡い下地＝2本引きで「光っている線」に見せる。
+        //   振れ幅は帯（16px）の内側で頭打ちにするので、盤面を余計に侵さない。
+        {
+            // 振幅: 中央でも僅かに呼吸させ、激情で最大 5.6px。無感情側は二乗で最後に一気に凪ぐ。
+            //   rage は三乗で効かせる＝中盤（±45 あたり）はまだ落ち着いていて、端が近づいて初めて暴れ出す。
+            //   （二乗だと +45 の時点で既に満振幅の帯に見えてしまい、端の恐さが出なかった。）
+            float surge = rage * rage * rage;
+            //   振幅は rage の立ち上がりで素直に増やす（三乗だと中盤が平らすぎて「何も起きていない」に見えた）。
+            float baseAmp = Mathf.Lerp(1.0f, 5.6f, rage * rage);
+            float amp = baseAmp * (1f - numb * numb);
+            //   ★密度は surge に引きずらない：低い値でも「細かい脈」として読める密度を常に確保する。
+            //     （surge で密度まで絞ると +45 が 4 周期＝130px に1山の間延びした帯になり、
+            //       波形でなく飾りのリボンに見えてしまった。）
+            float freq = Mathf.Lerp(7.0f, 12.0f, rage);        // 縦方向の波の密度＝540px に 7〜12 山
+            float speed = Mathf.Lerp(1.6f, 8.0f, rage * rage); // 流れる速さ＝脈拍。端に寄るほど速く
+            float chaos = surge;                                // 荒れ（倍音）。激情側だけ・端の手前で一気に乗る
+            float maxAmp = FuryW * 0.5f - 2.2f;                 // 帯からはみ出さない上限
+
+            for (int i = 0; i <= FuryWaveSteps; i++)
+            {
+                float p = i / (float)FuryWaveSteps;             // 0（上）→1（下）
+                float y = FuryTop + FuryH * p;
+                float ph = p * freq * Mathf.Tau - t * speed;
+                float w = Mathf.Sin(ph);
+                // 荒れ: 位相のずれた高調波を重ねて崩す（乱数を使わない＝毎フレーム安定してチラつかない）。
+                w += chaos * 0.55f * Mathf.Sin(ph * 2.7f + t * 3.1f);
+                w += chaos * 0.35f * Mathf.Sin(ph * 5.3f - t * 5.7f);
+                // 上下端へ向けて振幅を絞る＝溝の中に納まり、線が縁で切れて見えない。
+                float envelope = Mathf.Sin(p * Mathf.Pi);
+                float off = Mathf.Clamp(w * amp * envelope, -maxAmp, maxAmp);
+                _furyWave[i] = new Vector2(cx + off, y);
+            }
+            float wa = (0.30f + 0.34f * near) * a;
+            ci.DrawPolyline(_furyWave, new Color(side, wa * 0.55f), 3.4f, true);
+            ci.DrawPolyline(_furyWave, new Color(white.Lerp(side, 0.55f), wa + 0.22f * a), 1.4f, true);
+        }
+
+        // ── ⑦ 中央（0）の目盛り ─────────────────────────────────────
+        //   左右へ出す基準線。安全域に居るときは白く強く（＝ここが正解）、外れるほど落として側の色に寄る。
+        float homeA = inSafe ? 0.78f + 0.16f * safeBreath : 0.46f;
+        UiKit.Box(ci, new Rect2(FuryX - 7f, cy - 1f, FuryW + 14f, 2f),
+            new Color(white.Lerp(side, near * 0.5f), homeA * a), 1f);
+        // 安全域に居る間だけ、中央に小さな芯が灯る（静かな鼓動＝「保てている」）。
+        if (inSafe)
+        {
+            float k = 1f - Mathf.Abs(v) / FurySafeBand;        // 中央ちょうどで 1
+            UiKit.RadialGlow(ci, new Vector2(cx, cy), 15f + 5f * safeBreath, UiKit.PurifyHi,
+                (0.10f + 0.13f * safeBreath) * k * a);
+        }
+
+        // ── ⑧ 現在位置のつまみ ──────────────────────────────────────
+        //   波形の中で「今ここ」を示す横木。帯から左右へ少し出し、芯に側の色の光を置く。
+        float hy = cy - half * v / Fury.Max;
+        float hA = (0.62f + 0.34f * near) * a;
+        UiKit.RadialGlow(ci, new Vector2(cx, hy), 13f + 6f * near, side, (0.22f + 0.26f * near) * a);
+        UiKit.Box(ci, new Rect2(FuryX - 4f, hy - 1.5f, FuryW + 8f, 3f), new Color(1f, 1f, 1f, hA), 1.5f);
+
+        // ── ⑨ ラベル ────────────────────────────────────────────────
+        //   上＝「激情」、下＝「無感情」。数値は出さない（作者決定）。
+        //   右端 1270 で揃える＝画面外へはみ出さず、帯（1244..1260）の真上・真下に収まる。
+        //   自分の側へ寄っているときだけ明るくなる＝どちらへ近づいているかが言葉でも分かる。
+        const float labW = 82f, labX = 1270f - labW;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(labX, FuryTop - 26f), "激情", 14,
+            new Color(UiKit.Burn, (0.42f + 0.48f * rage) * a), HorizontalAlignment.Right, labW);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(labX, FuryTop + FuryH + 8f), "無感情", 14,
+            new Color(UiKit.Info, (0.38f + 0.44f * numb) * a), HorizontalAlignment.Right, labW);
     }
 
     private void DrawScore(HudCanvas ci)
@@ -1589,7 +1793,7 @@ public partial class Hud : CanvasLayer
 
     // 2026-09-16: 下部ティッカー（降ってくる言葉）は表示OFF（ユーザー指摘＝画面下部の帯を消す）。
     //   投稿弾（PostBullets）が同じ PostPool の“声”を降らせるので情報は失われない。
-    //   コードは復活可能な形で残置（KoharuInterruptEnabled と同じ流儀＝フラグだけで止める）。
+    //   コードは復活可能な形で残置（TickerEnabled のフラグだけで止める）。
     private static readonly bool TickerEnabled = false;
     private void DrawTicker(HudCanvas ci)
     {

@@ -111,10 +111,90 @@ public partial class StageKoharu : Node
         (2, "はい、これ。ペンライト。振ってみて。楽しいから。ぜったい、楽しいから。", KFace),   // 捨て台詞
     };
 
+    // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表・step 3）を拾う。
+    //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（選んでいなければ既存が出る）。
+    //   s2_2 は中ボス撃破の直後・s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
+    //   中ボスは本ボス本人の先出し＝「ボス戦で会う前から、もう聞かれていた」という画になる。
+    //   3本とも「あ、来た来た。」の書き出しを保つ＝既存の第一声と同じ入り方で、引用だけが増えて見える。
+
+    // 「一日、空けて」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
+    {
+        (2, "あ、来た来た。……「一日、空けて」って、言ってたでしょ。……どこ空けんの? 空いてないってば、どこも。", KFace),
+    };
+
+    // 「三本、飲んでから」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S21Drink =
+    {
+        (2, "あ、来た来た。……「三本、飲んでから」? ……飲んだよ。……うそ。開けてない。……開けてないけど、買ったもん。", KFace),
+    };
+
+    // 「全部に丸がついてる」
+    private static readonly (int who, string text, string face)[] CameoTalk1_S21Circles =
+    {
+        (2, "あ、来た来た。……「全部に丸がついてる」って。……でしょ? ぜんぶだよ。ぜんぶ、ちゃんと。……ちゃんとしてるでしょ?", KFace),
+    };
+
+    // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
+    private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
+    {
+        "一日、空けて" => CameoTalk1_S21Rest,
+        "三本、飲んでから" => CameoTalk1_S21Drink,
+        "全部に丸がついてる" => CameoTalk1_S21Circles,
+        _ => CameoTalk1,
+    };
+
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    // こはる面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
-    //   s2_2 … 中ボスの捨て台詞の直後（step 5 の撃破後・ショップ離脱の前）。効果＝スコア +500。
-    //   s2_4 … 入力欄の場面の末尾（step 8・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
+    // こはる面は3か所。どれも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
+    //   s2_1 … 道中A（部屋）の末尾（step 3・中ボスより前）。効果＝【激情】初期値（FuryMeter.InitialKoharu）。
+    //   s2_2 … 中ボスの捨て台詞の直後（step 6 の撃破後・ショップ離脱の前）。効果＝スコア +500。
+    //   s2_4 … 入力欄の場面の末尾（step 9・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
+
+    // ───── S2-1b 予定表（新規・2026-09-25）─────
+    // 道中A（部屋）の末尾。壁の配信予定表。日付にぜんぶ丸。直近三日は書き足した時間が増えている。
+    //   丸のついていない一日には「模試」。下のかごに、開けていない栄養ドリンクが三本。
+    //   主題は「休むこと」＝こはるの本音（「もう疲れた、休みたい」）に道中で唯一まっすぐ触れる場所。
+    //   s2_2（嘘に付き合うか）・s2_4（プレイヤー自身の宛先）とは主題が重ならない。
+    //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
+    private static readonly (int who, string text, string face)[] S21Cue =
+    {
+        (1, "壁に、予定表が。日付に、丸。……ぜんぶの日に、丸がついています。", MFace),
+        (1, "丸の下に、小さい字で、時間が足してあります。……直近の三日。足された時間が、日ごとに、増えています。", MFace),
+        (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", MWorried),
+        (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", MWorried),
+        (1, "ご主人様。……この予定表に、何も入れない日を、一日、足しますか。", MFace),
+    };
+    private static readonly string[] S21Choices = { "一日、空けて", "三本、飲んでから", "全部に丸がついてる", "（送らない）" };
+    private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
+    {
+        0 => new (int, string, string)[]
+        {
+            (0, "一日、空けて", ""),
+            (1, "……一日、と。——では、どこに足しましょう。丸のない日は、もう、埋まっていますが。", MWorried),
+            (1, "……間に、一行、引いておきます。何も書かない一行を。……読める方が、いらっしゃるかは、分かりません。", MWorried),
+        },
+        1 => new (int, string, string)[]
+        {
+            (0, "三本、飲んでから", ""),
+            (1, "……三本。——承知しました。かごの位置を、手の届くところへ。", MFace),
+            (1, "……買った方は、飲むつもりだったのだと思います。推定です。……買うところまでは、できておられますので。", MFace),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "全部に丸がついてる", ""),
+            (1, "……はい。ぜんぶに、丸。——欠けは、ありません。", MSmile),
+            (1, "……欠けがない、というのは。……ひとつも、抜いていない、ということですね。", MWorried),
+        },
+        _ => new (int, string, string)[]
+        {
+            (1, "……無言。——では、足しません。予定表は、このままで。", MFace),
+            (1, "……三件、こちらで預かります。……かごの三本と、同じ数でした。", MWorried),
+        },
+    };
+    private static readonly (int who, string text, string face)[] S21Tail =
+    {
+        (1, "——先へ。予定表は、壁に、残しておきます。……消す権利は、こちらにありませんので。", MFace),
+    };
 
     // S2-2 中ボス・ペンライト。押しつけられたのは、消えたままのほう。受け取りの返事だけをあなたに回す。
     private static readonly (int who, string text, string face)[] S22Cue =
@@ -327,19 +407,21 @@ public partial class StageKoharu : Node
         }
         game?.SetStageTarget(MidWaveA + MidWaveB + MidWaveC + 1);
 
-        // [一時/デバッグ] --input-field : S2-4 の入力欄（step 8）から始める。コメント欄UI の確認・スクショ専用。
+        // [一時/デバッグ] --input-field : S2-4 の入力欄（step 9）から始める。コメント欄UI の確認・スクショ専用。
         //   開幕バナー（STAGE 2 START）は本来ずっと前に出ているものなので、この入口では出さない。
-        if (game != null && game.DebugInputField) { _step = 8; _startBannerShown = true; }
+        if (game != null && game.DebugInputField) { _step = 9; _startBannerShown = true; }
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
-        // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(11)。
+        // 中ボスから＝Step_BossCameo(6)／ボスから＝Step_BossSpawn(12)。
+        //   ※2026-09-25: 道中Aの末尾へ s2_1（step 3）を挿したぶん、以降の step 番号が +1 ずれている。
+        //     ここはベタ書きなので、挿入時は必ず同時に直すこと（間違えるとコンティニューが別の場面に乗る）。
         else if (game != null && game.SelectedEntry != GameManager.StageEntry.Start)
         {
             _step = game.SelectedEntry switch
             {
-                GameManager.StageEntry.Boss => 11,
-                GameManager.StageEntry.AfterMidBoss => 6, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
-                _ => 5,
+                GameManager.StageEntry.Boss => 12,
+                GameManager.StageEntry.AfterMidBoss => 7, // 中ボスの直後（道中後半）から＝再戦しない（初回ショップ後の続き）
+                _ => 6,
             };
             // 読んだら消す（PendingResumeScene と同じ流儀）。残したままだと R でのリトライが
             //   「さいしょからやりなおす」なのに前回の入口から再開してしまう（ショップ経由後に踏む）。
@@ -372,30 +454,30 @@ public partial class StageKoharu : Node
         //   部屋（S2-1・S2-3 Mid）→ 中ボス（S2-2）→ 教室（S2-3 BossTalk）→ 入力欄（S2-4）→
         //   我に返る一拍（S2-5）→ 消えた画面の前の部屋でボス（S2-6）。
         //   場所の入れ替えは Step_MidwaveB（部屋→教室）と Step_MidwaveC（教室→部屋）が層セットごと担う。
-        // ボス戦中割り込み（会話2択）は案C ではレイ面（S3-7）へ移るため、この面では止めている
-        //   （KoharuInterruptEnabled=false。コードとステップ 15〜19 はレイ面での再利用のため残す）。
+        // ボス戦中割り込み（会話2択）は案C ではレイ面（S3-7）が本籍なので、この面には無い。
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
             case 2: Step_Lines(delta, _charStory ? _storyMid1 : Mid); break;   // S2-3 Mid（部屋）＋Chat1／他ジョブ＝道中1
-            case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
-            case 4: Step_Lines(delta, _charStory ? NoLines : BossTalk); break; // S2-2 中ボスの受け（ミナ観測＝他ジョブ時はスキップ）
-            case 5: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
-            case 6: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める。背景の切替は無し）
-            case 7: Step_Lines(delta, _playerMid); break;
+            case 3: Step_Schedule(delta); break;          // ★S2-1b 壁の予定表＝下書き選択 s2_1（2026-09-25 追加）
+            case 4: Step_MidwaveA(delta); break;          // 道中ザコ戦A（部屋）
+            case 5: Step_Lines(delta, _charStory ? NoLines : BossTalk); break; // S2-2 中ボスの受け（ミナ観測＝他ジョブ時はスキップ）
+            case 6: Step_BossCameo(delta); break;         // S2-2 中ボス こはる
+            case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める。背景の切替は無し）
+            case 8: Step_Lines(delta, _playerMid); break;
             // ★S2-4 入力欄（打って、消す手）＝ミナ観測＋下書き選択の場面。他ジョブ時は道中3ビートに置換。
-            case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_InputField(delta); break;
-            case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
-            case 10: if (_charStory) Step_Lines(delta, NoLines); else Step_MidEndLines(delta); break;   // S2-5 我に返る一拍（ミナ観測＝他ジョブ時はスキップ）
-            case 11: Step_BossSpawn(); break;
-            case 12: Step_Lines(delta, _playerBoss); break;
-            case 13: Step_BossWait(delta); break;         // S2-7 ボス戦
-            case 14: Step_Clear(delta); break;            // S2-9 クリア
-            case 15: Step_Transition(); break;
+            case 9: if (_charStory) Step_Lines(delta, _storyMid3); else Step_InputField(delta); break;
+            case 10: Step_MidwaveC(delta); break;         // 道中ザコ戦C（終盤＝最大密度の山）
+            case 11: if (_charStory) Step_Lines(delta, NoLines); else Step_MidEndLines(delta); break;   // S2-5 我に返る一拍（ミナ観測＝他ジョブ時はスキップ）
+            case 12: Step_BossSpawn(); break;
+            case 13: Step_Lines(delta, _playerBoss); break;
+            case 14: Step_BossWait(delta); break;         // S2-7 ボス戦
+            case 15: Step_Clear(delta); break;            // S2-9 クリア
+            case 16: Step_Transition(); break;
             // ★ボス戦中割込み（会話選択）の受け皿だった step 15〜19 は、案C でこの仕掛けが
             //   レイ面（S3-7「つづけて／むりしないで」）へ移るため撤去した。台詞は旧正典（兄・台所）
             //   そのものなので配列ごと落としている。機構（Step_LinesHold／Step_MidChoice／
-            //   SetQuietVeil／ChoiceOverlay の呼び出し作法）はレイ面での再利用のため残してある。
+            //   SetQuietVeil）も到達不能な死にコードとして落とした（2026-09-24）＝現物は StageRei にある。
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一。
         // 旧「言葉弾＋ただの落下弾」混在から、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
@@ -689,75 +771,19 @@ public partial class StageKoharu : Node
         StageTutorial.SyncCard(Hud, lines, _introLine);
     }
 
-    // Step_Lines の「最終行のバブルを閉じない」変種（会話選択・層2プロト用）。
-    //   完了時に HoldBubble/HideBubble を触らず Advance だけする＝バブルが最終行のまま残り、
-    //   Hud.BubblePaused（弾・敵の停止）が次のステップまで途切れない。後続の Step_Lines / ShowLine が
-    //   バブル内容を差し替えるので閉じ処理は不要。他ステージへ2択を横展開するときもこの組で使う。
-    private void Step_LinesHold(double delta, (int who, string text, string face)[] lines)
+    // ───── S2-1b 壁の予定表（step 3・2026-09-25 追加）─────
+    //   道中A（部屋）の Mid を流し切った直後・道中ザコ戦Aの前に、下書き選択 s2_1 だけを流す step。
+    //   RunChoice は _cId が変われば頭から流れる作りなので、3か所目になっても機構の変更は要らない。
+    //   他ジョブ潜行中（_charStory）は既存2か所と同様に選択ごと抑止＝きっかけ・受けともミナ前提。
+    private void Step_Schedule(double delta)
     {
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _introLine = 0;
-            _lineHold = 0;
-            if (lines.Length == 0) { Advance(); return; }
-            Hud.HoldBubble = true;
-            ShowLine(lines);
+            if (_charStory) { Advance(); return; }
         }
-        if (_zEdge && _lineHold >= 0.15 && !Hud.DialogRevealed)
-        {
-            Hud.RevealDialogNow();   // 1段目：まず全文表示（読み飛ばし防止）
-            _lineHold = 0;
-        }
-        else if (_lineHold >= 0.15 && Hud.DialogRevealed
-                 && (_zEdge || Hud.FastForwarding || (Hud.AutoAdvance && _lineHold >= 1.4)))
-        {
-            _lineHold = 0;
-            _introLine++;
-            if (_introLine >= lines.Length)
-            {
-                Advance();           // バブルは保持したまま（HoldBubble true 継続）
-                return;
-            }
-            ShowLine(lines);
-        }
-    }
-
-    // ───── ボス戦中割込みの2択（会話選択・層2プロト。docs/20260831/会話選択_層2_プロト仕様.md §2）─────
-    //   Pre 最終行「……頼む。それだけは、聞かないでくれ。」のバブルを保持したまま（＝BubblePaused 継続で
-    //   弾・敵は停止のまま）ChoiceOverlay を重ねる。デフォルトカーソルは B（正典側）。Xキャンセル無し。
-    //   選択A確定＝疑いフラグ PressedTheQuestion を分岐再生の開始前に記録（仕様§8）。
-    // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は BubblePaused 中 Z をパルスし続ける
-    //   （QaPilot.cs DriveShootAndAdvance / DemoPilot.cs 同名）ため、既定カーソルBのまま1パルスで即決される
-    //   ＝ここで詰まらない（QaPilot のドリフトで ↑↓ が入りAに動いても、A/B とも MidStoryPost へ収束する）。
-    //   R長押しリトライ（KoharuRoot・Key.R ポーリング）は独立に効き、ポーズはツリーポーズで本ステップごと止まる。
-    private ChoiceOverlay? _midChoice;
-    private bool _midChoseA;
-    private void Step_MidChoice(double delta)
-    {
-        if (!_stepStarted)
-        {
-            _stepStarted = true;
-            // [一時/デバッグ] --choice3 のときだけ中央に1本足して3択で出す（ChoiceOverlay の N 択レイアウト確認用）。
-            //   末尾は「ひきさがる」のまま＝沈黙の自動決定の対象と既定カーソルの位置づけを変えない。
-            //   選択の解釈（_midChoseA = Selected == 0）も据え置きで、増えた中央は B と同じ扱いに落ちる。
-            bool three = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceThree == true;
-            string[] opts = three
-                ? new[] { "もういちど、聞く", "しずかに、まつ", "ひきさがる" }
-                : new[] { "もういちど、聞く", "ひきさがる" };
-            _midChoice = ChoiceOverlay.Show(Hud, opts, defaultSel: opts.Length - 1, onBoard: true); // 0=A / 末尾=B（既定=B＝正典側）
-        }
-        if (_midChoice == null || !_midChoice.Decided) return;
-        _midChoseA = _midChoice.Selected == 0;
-        _midChoice.QueueFree();
-        _midChoice = null;
-        if (_midChoseA)
-        {
-            // 選択A「もういちど、聞く」＝もう一度踏み込んだ。下流2場面（Clear の1行／Epilogue の1行）の変種に使う。
-            var game = GetNodeOrNull<GameManager>("/root/Game");
-            if (game != null) game.PressedTheQuestion = true;
-        }
-        Advance(); // → 17: 分岐A/B
+        if (!RunChoice(delta, "s2_1", S21Cue, S21Choices, S21Reply, S21Tail)) return;
+        Advance();
     }
 
     // 道中ザコ戦“前半”：Spawner起動→MidWaveA体浄化でチラ見せへ。
@@ -863,7 +889,9 @@ public partial class StageKoharu : Node
                     Fire = CameoFireTheme.KoharuFalling,
                     Aura = FxLayer.BossAura.Koharu,
                     Bgm = Audio.Instance?.BgmBossKoharu,
-                    IntroLines = CameoTalk1, TauntLines = CameoTalk3, DefeatLines = CameoPost,
+                    // 第一声は s2_1（壁の予定表・step 3）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
+                    IntroLines = CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
             World.AddChild(_cameo);
@@ -911,15 +939,7 @@ public partial class StageKoharu : Node
         }
     }
 
-    // ボス戦中割込み（型崩し S2）：MidStory を一度だけ、ボスHPが半分を割った付近で差し込む。
-    //   ・トリガ窓は 20〜50%（ボム等で一気に削られ窓を飛ばしたら、割込み無しで素直に進む＝進行不能なし）。
-    //   ・Hud.BubblePaused 中（ボス自身の改心かけあい等）は発火しない＝会話の二重表示を防ぐ。
-    //   ・完了後は case 16 経由で BossWait(11) へ復帰。会話中はエンジン側で弾停止＋敵弾クリア。
-    // 案C：戦闘中の割り込み（Koharu interrupt。ChoiceOverlay の2択）は S3-7 のレイ面へ移った。
-    //   こはる面では発火させない。機構（Step_LinesHold／Step_MidChoice／SetQuietVeil）は
-    //   レイ面で再利用するためコードごと残し、ここのフラグだけで止める。
-    private static readonly bool KoharuInterruptEnabled = false;
-    private bool _midStoryShown;
+    // ボス戦の見張り。案C では戦闘中の割り込み（会話2択）がレイ面（S3-7）の仕掛けなので、この面は撃破待ちだけ。
     // 撃破後に Finished が立たないまま固まる進行不能への保険（StageMina と同方式）。
     // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
     private const double BossFinishGrace = 150.0;
@@ -941,55 +961,8 @@ public partial class StageKoharu : Node
                 _bossActive = false;
                 Advance();
             }
-            return; // 撃破後は割込みの判定に入らない
+            return;
         }
-        // 案C では戦闘中の割り込み（会話2択）はレイ面（S3-7）の仕掛け。こはる面では止めてある。
-        if (!KoharuInterruptEnabled) return;
-        if (!_midStoryShown && !Hud.BubblePaused)
-        {
-            float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
-            // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりの発火は _midStoryShown が保証）
-            bool debugNow = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceNow == true;
-            if ((frac <= 0.5f && frac >= 0.2f) || debugNow)
-            {
-                _midStoryShown = true;
-                _stepStarted = false;
-                SetQuietVeil(true);    // 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
-            }
-        }
-    }
-
-    // ───── S3: ボス戦中割込み（MidStory）の「静けさの溜め」 ─────
-    // 突入で画面全体をわずかに鈍色へ沈め（彩度と対比が一段引いた“息を潜める”画）、戦闘再開でそっと明ける。
-    // 弾・敵の停止はエンジン側（Hud.BubblePaused）＝この膜は画の温度だけを担当。
-    // HUD・会話バブルは CanvasLayer 上なので沈まない（文字の読みやすさは侵さない）。
-    private ColorRect? _quiet;
-    private Tween? _quietTw;
-    private void SetQuietVeil(bool on)
-    {
-        // 割り込み区間はボス字幕・スペルカットインも一緒に鎮める（Hud 側で 0.2s フェード→消去）。
-        //   カットインのセリフ（y≈348）が選択肢と、字幕（y=540）が吹き出しと重なるため。区間明けは
-        //   フラグを戻すだけ＝残っていた表示は復活させない（次の台詞・次のスペルからは通常どおり）。
-        Hud.SuppressCallouts = on;
-        if (_quiet == null || !IsInstanceValid(_quiet))
-        {
-            if (!on) return; // 明ける指示だけ来た（膜が無い）＝何もしない
-            _quiet = new ColorRect
-            {
-                Name = "QuietVeil",
-                Color = new Color(0.52f, 0.55f, 0.62f, 0f), // 中明度の鈍色＝薄く重ねると彩度・対比が少し引く
-                Size = new Vector2(384f, 216f),
-                ZIndex = 30,                // 弾(0..)・自機(10)・FxLayer(20..21)の上、HUD(CanvasLayer)の下
-                ZAsRelative = false,
-                MouseFilter = Control.MouseFilterEnum.Ignore,
-            };
-            World.AddChild(_quiet);
-        }
-        _quietTw?.Kill();
-        _quietTw = CreateTween();
-        // 入り 0.9s（ゆっくり沈む＝溜め）／明け 1.4s（会話の余韻を残してそっと戻す）。Sine/Out で線形にしない。
-        _quietTw.TweenProperty(_quiet, "color:a", on ? 0.16f : 0f, on ? 0.9 : 1.4)
-            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
     }
 
     private bool _clearBannerShown;
