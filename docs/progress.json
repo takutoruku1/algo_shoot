@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-24 18:51 UTC",
+  "generated": "2026-09-24 18:52 UTC",
   "counts": {
-    "todo": 4,
+    "todo": 3,
     "wip": 0,
     "blocked": 43,
-    "done": 264
+    "done": 265
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "コメント中のファイル:行参照ズレが2026-09-22/23の一斉修正後も新たに3箇所発生",
-      "worker": "engineer",
-      "accept": "2026-09-24監査(engineer)。`src/Player.cs:265`「TryDodge の実行可否ガード(999行目)」→実際は`src/Player.cs:1019`。`src/EnemySpec.cs:129`「MidEnemy.cs:80-81」→実際は`src/MidEnemy.cs:84-85`。`src/QaPilot.cs:321`「Player.cs:654の判定」→実際は`src/Player.cs:660`(`TryActivateKindness`呼び出し。`:654`は現在`SetDodgeReady`のHUD通知で無関係)。いずれもコメントのみ修正、ロジック無変更。"
-    },
     {
       "priority": "P3",
       "title": "Pad.cs の FlipToken が宣言のみで参照0件の死にコード",
@@ -295,6 +289,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "コメント中のファイル:行参照ズレが2026-09-22/23の一斉修正後も新たに3箇所発生",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Player.cs:265`「999行目」→`Player.cs:1019`、`src/EnemySpec.cs:129`「MidEnemy.cs:80-81」→`MidEnemy.cs:84-85`、`src/QaPilot.cs:321`「Player.cs:654」→`Player.cs:660`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "Shop.csのLUNATIC解放ゴールのコメントが実装(Lv3)と食い違うLv4のまま",
@@ -1882,6 +1882,16 @@
   ],
   "commits": [
     {
+      "hash": "a2c7962",
+      "date": "2026-09-24",
+      "subject": "auto: WIP着手 - コメント中のファイル:行参照ズレ3箇所を修正する"
+    },
+    {
+      "hash": "6a43892",
+      "date": "2026-09-24",
+      "subject": "auto: Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正"
+    },
+    {
       "hash": "28ce815",
       "date": "2026-09-24",
       "subject": "auto: WIP着手 - Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正"
@@ -1910,16 +1920,6 @@
       "hash": "50f4d74",
       "date": "2026-09-23",
       "subject": "auto: WIP着手 - PauseMenuのクラス冒頭コメントをAutoSaveの実態に合わせて修正する"
-    },
-    {
-      "hash": "e335b68",
-      "date": "2026-09-23",
-      "subject": "auto: 設定画面のKeyBind/Select行で操作音だけ鳴る不整合を修正"
-    },
-    {
-      "hash": "d308b18",
-      "date": "2026-09-23",
-      "subject": "auto: WIP着手 - 設定画面のKeyBind/Select行で操作音だけ鳴る不整合を直す"
     }
   ]
 }

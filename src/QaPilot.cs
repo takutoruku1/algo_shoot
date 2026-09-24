@@ -318,7 +318,7 @@ public partial class QaPilot : Node
     //   低速＝Shift を周期的に一定時間だけ保持（保持中は DriveMovement の移動と重なるので「低速+移動」を満たす）。
     //   回避＝Alt を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
     //   全開＝Ctrl を周期的に短く叩く（ゲージが満タンの時だけ Player 側の TryActivateKindness が実際に発動。
-    //         空の時に叩いても Player.cs:654 の判定で何も起きず無害）。
+    //         空の時に叩いても Player.cs:660 の判定で何も起きず無害）。
     // ゲームオーバー中／会話中は新規に送らない：
     //   Shift は DriveDeathRetry の「Shift+R」（ゲームオーバー2回目以降＝最初からリトライ）と衝突するため。
     //   Ctrl は --skiptest 専用の押しっぱなしロジック(:171-176)と衝突するため、--skiptest 実行時は
