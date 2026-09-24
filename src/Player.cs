@@ -33,14 +33,26 @@ public partial class Player : Area2D
     // 初回に HUD へ現在モードを通知したか（V の切替ローテは 2026-09-13 に廃止＝エッジ検出はもう要らない）。
     private bool _modeInit = false;
 
-    // ── 溜め打ち（一本道 #6「溜め打ち」）：C / パッドY を長押し ──
+    // ── 溜め打ち：C / パッドY を長押し ──
     //   ★Cキーは 2026-09-13 まで W0 専用のヒカゲスキルが握っていた（非正典＝正典導線からは到達しない）。
     //     戦闘側の配線（_specialCd・HUDチップ）を撤去し、このボタンを溜め打ちへ明け渡した。
-    private const float ChargeNeed = 0.6f;      // 充填に要する長押し秒
+    //   ★2026-09-25 のユーザー決定で**最初から使える**（習得ゲートは撤廃）。ショップの段 #7 は同日
+    //     「溜め打ち 二段」＝2段階チャージの解禁になった（GameManager.HasChargeTier2 / ChargeTier）。
+    //   ★段の数え方：1段目は誰でも ChargeNeed 秒（0.60）。#7 を買っていると、そこで離さずさらに
+    //     押し続けると ChargeNeed2 秒（既定は倍の 1.20）で2段目が満ちる。1段で離せば従来どおりの弾。
+    private float ChargeNeed => _game?.ChargeNeedSec ?? 0.60f;   // 1段目の充填に要する長押し秒
+    private float ChargeNeed2 => _game?.ChargeTier2NeedSec ?? 0.60f; // 2段目（合計）。未所持なら1段目と同値
     private bool _chargeHeld;                   // 前フレームのボタン状態（離したエッジの検出用）
     private float _chargeT;                     // 押している累計秒（0 で未充填）
-    public bool ChargeFull => _chargeT >= ChargeNeed;                     // 充填完了か（自機頭上の表示が読む）
-    public float ChargeRatio => Mathf.Clamp(_chargeT / ChargeNeed, 0f, 1f); // 充填率 0..1（同上）
+    public bool ChargeFull => _chargeT >= ChargeNeed;                     // 1段目の充填完了か（自機頭上の表示が読む）
+    public float ChargeRatio => Mathf.Clamp(_chargeT / ChargeNeed, 0f, 1f); // 1段目の充填率 0..1（同上）
+    // 2段目が満ちたか／その充填率 0..1（1段目が満ちてから 2段目まで）。未所持なら常に false / 0。
+    public bool ChargeFull2 => ChargeNeed2 > ChargeNeed && _chargeT >= ChargeNeed2;
+    public float ChargeRatio2 => ChargeNeed2 > ChargeNeed
+        ? Mathf.Clamp((_chargeT - ChargeNeed) / (ChargeNeed2 - ChargeNeed), 0f, 1f)
+        : 0f;
+    // いま離したら何段目の弾が出るか（0＝まだ出ない）。Bullet / 演出はこの値だけを見る。
+    public int ChargeStage => ChargeFull2 ? ChargeTier.Second : ChargeFull ? ChargeTier.First : 0;
 
     // フォロワー（浄化した人＝味方オプション）
     private readonly List<Follower> _followers = new List<Follower>();
@@ -247,8 +259,8 @@ public partial class Player : Area2D
     //   短押し（MouseTapMax 未満で離す）＝ロックオン送り。従来は押下エッジで送っていたが、
     //   長押しを溜め打ちに使うため「離した瞬間に送る」へ変えた（この 0.25 秒の遅れは許容と決定済み）。
     //   長押し（MouseTapMax 以上）＝溜め打ちのチャージ開始。充填の時計は Cキーと同じ ChargeNeed だが、
-    //   数え始めは**押下した瞬間**＝0.25 秒ぶんの体感の遅れを作らない（押しっぱなし 0.6 秒で完了）。
-    //   完了前（0.25〜0.6 秒）に離したら何も起きない＝ロック送りもしない（暴発させない）。
+    //   数え始めは**押下した瞬間**＝0.25 秒ぶんの体感の遅れを作らない（押しっぱなし ChargeNeed 秒で完了）。
+    //   完了前（0.25 秒〜ChargeNeed）に離したら何も起きない＝ロック送りもしない（暴発させない）。
     private const float MouseTapMax = 0.25f;  // これ未満で離せば「短押し」＝ロックオン送り
     private float _mouseHoldT;                // 有効な左クリックを押し続けている秒（0＝押していない）
     private bool _mouseHoldValid;             // この押下がゲームプレイ入力として有効か（会話明けの持ち越しでない）
@@ -332,9 +344,9 @@ public partial class Player : Area2D
         {
             // 離した（または途中で無効化された）エッジ。短押しだけがロック送りになる。
             // 長押しの解放は溜め打ち側（_chargeHeld の解放エッジ）が撃つので、ここでは何もしない。
-            //   ★溜め打ちを**まだ持っていない**あいだは長押しの行き先が無い＝押しっぱなしにすると
-            //     ロック送りごと死んでしまう。未取得のうちは長さを問わず従来どおり送る。
-            bool tap = _mouseHoldT < MouseTapMax || !(_game?.HasChargeShot ?? false);
+            //   ★溜め打ちは最初から使える（2026-09-25）＝長押しの行き先は常にある。以前あった
+            //     「未取得なら長さを問わずロック送り」の逃がしは要らなくなったので外した。
+            bool tap = _mouseHoldT < MouseTapMax;
             if (tap && !Hud.BubblePaused && !_gameOver) _mouseTapFire = true;
             _mouseHoldValid = false;
             _mouseHoldT = 0f;
@@ -727,9 +739,9 @@ public partial class Player : Area2D
         }
         _flipHeld = flipKey;
 
-        bool chargeHas = _game?.HasChargeShot ?? false;
+        // 溜め打ちの入力は常時生きている（2026-09-25 のユーザー決定＝習得ゲート廃止）。
         bool chargeKeyRaw = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
-        bool chargeKey = chargeHas && (chargeKeyRaw || _mouseChargeHold);
+        bool chargeKey = chargeKeyRaw || _mouseChargeHold;
         bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver && !chargeKey;
         if (shoot && _fireCooldown <= 0f)
         {
@@ -757,28 +769,32 @@ public partial class Player : Area2D
             TryBomb();
         _bombHeld = bombKey;
 
-        // 溜め打ち（C / パッドY 長押し、または左クリック長押し）：#6「溜め打ち」を持っているあいだだけ。
+        // 溜め打ち（C / パッドY 長押し、または左クリック長押し）：最初から常時使える。
         //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
         //   左クリック（_mouseChargeHold）だけは充填の起点が違う：短押し判定の 0.25 秒が過ぎてから
         //   数え始めると、Cキーより 0.25 秒ぶん遅れて完了して手触りが噛み合わない。押下からの経過
-        //   （_mouseHoldT）をそのまま充填時間に使う＝**押しっぱなし 0.6 秒で完了**でキーと揃う。
+        //   （_mouseHoldT）をそのまま充填時間に使う＝**押しっぱなしの ChargeNeed 秒で完了**でキーと揃う。
         if (chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f)
         {
-            bool wasFull = ChargeFull;
+            int wasStage = ChargeStage;
             // キーとマウスを同時に握っていたら、進んでいるほうを採る（どちらか一方でも完了させる）。
             if (chargeKeyRaw) _chargeT += dt;
             if (_mouseChargeHold) _chargeT = Mathf.Max(_chargeT, _mouseHoldT);
-            _chargeT = Mathf.Min(_chargeT, ChargeNeed);
-            if (!wasFull && ChargeFull)
+            // 止まる先は「その人が到達できる最後の段」＝未所持なら1段目、#7 所持なら2段目。
+            _chargeT = Mathf.Min(_chargeT, ChargeNeed2);
+            // 段が上がった瞬間にだけ合図を出す（1段目＝Ready／2段目＝Ready2。見た目も手応えも段で別物）。
+            if (ChargeStage > wasStage)
             {
-                FxLayer.Instance?.ChargeBurst(GlobalPosition + ShotDir * 20, ShotDir, _game!.SelectedJob, ChargeShotFx.Beat.Ready);
+                var beat = ChargeStage >= ChargeTier.Second ? ChargeShotFx.Beat.Ready2 : ChargeShotFx.Beat.Ready;
+                FxLayer.Instance?.ChargeBurst(GlobalPosition + ShotDir * 20, ShotDir, _game!.SelectedJob, beat);
                 Audio.Instance?.PlayChargeReady(_game!.SelectedJob);
+                if (ChargeStage >= ChargeTier.Second) GameCamera.Instance?.Shake(1.2f, 0.1f);
             }
         }
         else if (_chargeHeld)
         {
             // 離したエッジ：充填できていれば撃つ。どちらにせよ充填はここで空にする。
-            if (ChargeFull && !chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f) FireCharge();
+            if (ChargeFull && !chargeKey && !Hud.BubblePaused && !_gameOver && _dodgeTimer <= 0f) FireCharge(ChargeStage);
             _chargeT = 0f;
         }
         else _chargeT = 0f;
@@ -1456,7 +1472,9 @@ public partial class Player : Area2D
     //   正典のCキーを占有し続けていたため（Cキーは溜め打ちへ）。AddHikageFollower / HasHikage /
     //   Follower.IsHikage は W0 の見た目のためだけに残してある＝戦闘の配線はもう無い。
 
-    private void FireCharge()
+    // stage は ChargeTier.First / Second（離した時点の ChargeStage）。2段目は威力と半径に倍率が乗り、
+    //   弾は「何段目か」を持って飛ぶ（Bullet.ChargeStage ＝【激情】の変化量を段で変えるための受け皿）。
+    private void FireCharge(int stage)
     {
         if (_pool == null || Hud.BubblePaused || _gameOver) return;
         var job = _game!.JobDef;
@@ -1464,23 +1482,26 @@ public partial class Player : Area2D
                                                     * (_game?.FollowerPowerMul ?? 1f)
                                                     * (_game?.JobDef.PowerMul ?? 1f)
                                                     * (_game?.ShotPowerMul ?? 1)));
-        int dmg = baseDmg * job.ChargePower;
+        int dmg = Mathf.Max(1, Mathf.RoundToInt(baseDmg * job.ChargePower * ChargeTier.PowerMulFor(stage)));
+        float radius = job.ChargeRadius * ChargeTier.RadiusMulFor(stage);
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
         for (int i = 0; i < job.ChargeWays; i++)
         {
             float spread = job.ChargeWays == 1 ? 0 : (float)i / (job.ChargeWays - 1) - 0.5f;
             Vector2 dir = ShotDir.Rotated(spread * Mathf.DegToRad(job.ChargeSpreadDegrees));
-            var b = _pool.Spawn(muzzle, dir * job.ChargeSpeed, isEnemy: false, job.ChargeRadius, dmg,
+            var b = _pool.Spawn(muzzle, dir * job.ChargeSpeed, isEnemy: false, radius, dmg,
                 homing: job.Mode == GameManager.ShotMode.Homing);
-            b.MakeCharged(job.Id);
+            b.MakeCharged(job.Id, stage);
             if (b.Homing) b.TurnRateOverride = 240;
             if (job.Mode == GameManager.ShotMode.Accel) b.MakeAccel(240f, job.ChargeSpeed, 0.12f);
         }
-        GD.Print($"[charge] {job.CharacterId} fire {job.ChargeWays}x{dmg}");
-        FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, job.Id, ChargeShotFx.Beat.Release);
+        GD.Print($"[charge] {job.CharacterId} fire t{stage} {job.ChargeWays}x{dmg} r={radius:0.0}");
+        FxLayer.Instance?.ChargeBurst(muzzle, ShotDir, job.Id,
+            stage >= ChargeTier.Second ? ChargeShotFx.Beat.Release2 : ChargeShotFx.Beat.Release);
         Audio.Instance?.PlayChargeRelease(job.Id);
-        GameCamera.Instance?.Shake(1.5f, 0.12f);
-        _recoil = 2.3f;
+        // 2段目は返ってくる手応えも一回り重く（撃った段がコントローラ越しにも分かる）。
+        GameCamera.Instance?.Shake(stage >= ChargeTier.Second ? 2.6f : 1.5f, stage >= ChargeTier.Second ? 0.18f : 0.12f);
+        _recoil = stage >= ChargeTier.Second ? 3.6f : 2.3f;
     }
 
     private bool _gameOver = false;
@@ -1636,18 +1657,38 @@ public partial class Player : Area2D
         // ── 溜め打ち（#6）の充填表示：自機の頭上に小さな弧。0→1 で伸び、満ちたら白く脈打つ ──
         //   常設のリングは 2026-09-08 に「何のためにあるか分からない」と消したばかりなので、
         //   ここは**押しているあいだだけ**出す＝溜めていることと満ちたことだけを、その瞬間に返す。
+        //   ★2段階チャージ（2026-09-25）：1段目が満ちたら**外側にもう一本の弧**が現れて、そこから
+        //     2段目が伸びる＝「まだ先がある」が弧の本数で読める。2段目が満ちると弧が金色になって
+        //     速く脈打ち、その外側を棘が回る（1段目の白い脈打ちとは必ず別の見た目にする）。
         if (_chargeT > 0f && !Hud.BubblePaused && !_gameOver)
         {
-            ChargeShotFx.DrawGather(this, _game!.SelectedJob, ShotDir * 20, ShotDir, ChargeRatio, _bobTime);
+            ChargeShotFx.DrawGather(this, _game!.SelectedJob, ShotDir * 20, ShotDir, ChargeRatio, _bobTime, ChargeRatio2);
             float cr = ChargeRatio;
             var at = new Vector2(0f, -24f);
             // 受け皿（薄い弧・全周）＋ 充填ぶん（上から時計回りに伸びる）
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.18f), 1.4f);
-            Color cc = ChargeFull
-                ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
-                : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
+            Color cc = ChargeFull2
+                ? new Color(1f, 0.86f, 0.42f, 0.8f + 0.2f * Mathf.Sin(_bobTime * 26f)) // 二段満：金に速く脈打つ
+                : ChargeFull
+                    ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
+                    : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * cr, 24, cc, 2.2f);
             if (ChargeFull) DrawCircle(at, 2.2f, cc);
+            // 2段目の弧（外側）。1段目が満ちた瞬間に受け皿が現れ、そこから同じ向きに伸びる。
+            if (ChargeFull && ChargeNeed2 > ChargeNeed)
+            {
+                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 28, new Color(1f, 0.86f, 0.42f, 0.22f), 1.2f);
+                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * ChargeRatio2, 28,
+                    new Color(1f, 0.86f, 0.42f, ChargeFull2 ? 0.95f : 0.8f), 2.0f);
+                // 満ちたら弧の外を棘が回る＝白い脈打ち（1段）と見分けがつく「もう一段ぶん」の合図。
+                if (ChargeFull2)
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float a = _bobTime * 3.2f + i * Mathf.Tau / 6f;
+                        var d = Vector2.FromAngle(a);
+                        DrawLine(at + d * 11.5f, at + d * 14.5f, new Color(1f, 0.92f, 0.6f, 0.85f), 1.3f, true);
+                    }
+            }
         }
 
         // ※グレイズ境界のシアンのリングは削除（2026-09-08）。

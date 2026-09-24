@@ -25,7 +25,8 @@ using Godot;
 public partial class ControlCard : Control
 {
     // 話題（会話の行に対応）。None = カードを出さない行。
-    //   Dodge / Charge（2026-09-22）は習得後の説明（StageTutorial.SkillDodge / SkillCharge）用。
+    //   Dodge / Charge（2026-09-22）はスキル説明（StageTutorial.SkillDodge / SkillCharge）用。
+    //   Dodge は習得後、Charge は最初から使えるので最初の面の冒頭で出る（2026-09-25）。
     public enum Topic { None, Move, Shot, Lock, LockClear, Bomb, Dodge, Charge }
 
     private Topic _topic = Topic.None;   // いま出している話題
@@ -148,7 +149,7 @@ public partial class ControlCard : Control
             new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み"),
             new Row("マウス",         "右クリック",                    "カーソル方向へ。ロック解除と兼用"),
         }),
-        // 溜め打ち（ショップ「溜め打ち」で覚える）。割り当ては Player.cs の溜め入力＝C / Y / 左クリックの長押し。
+        // 溜め打ち（最初から使える。2026-09-25）。割り当ては Player.cs の溜め入力＝C / Y / 左クリックの長押し。
         //   マウスは短押しがロックオン送り・長押しが溜め（同じ左クリック）＝注記で分ける。
         Topic.Charge => ("溜め打ち", $"満ちたら離す。{GameManager.Instance!.JobDef.ChargeDescription}", UiKit.Gold, new[]
         {

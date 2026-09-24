@@ -294,7 +294,8 @@ public partial class HowToCanvas : Node2D
 
     // ───────── ページ1〜3：操作の割り当て一覧（デバイス別・2列）─────────
     //   tab: 0=キーボード / 1=コントローラー(Xbox 表記) / 2=マウス。
-    //   ★未取得の能力（回避／溜め打ち／集中モード）も行は出す（2026-09-22。以前は行ごと消していた）。
+    //   ★未取得の能力（回避／集中モード）も行は出す（2026-09-22。以前は行ごと消していた）。
+    //     溜め打ちは 2026-09-25 から最初から使える＝常に通常の強調行で出る（入手条件は添えない）。
     //     薄く描いて右端に入手条件を添える＝「どのボタンが何になるか」を取る前から一覧できる。
     //     取ったあとは通常の強調行（★）になる。
     //   ★低速移動は 2026-09-13 に機能ごと廃止＝どのタブにも存在しない。
@@ -302,7 +303,7 @@ public partial class HowToCanvas : Node2D
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
         bool hasDodge = game?.HasDodge ?? false;
-        bool hasCharge = game?.HasChargeShot ?? false;
+        float chargeSec = game?.ChargeNeedSec ?? 0.60f;
         bool hasFocus = game?.HasFocusMode ?? false;
 
         // (token, 名前, 説明, accent, 強調?, 未取得の入手条件)。locked が空でなければ薄く描く。
@@ -329,10 +330,16 @@ public partial class HowToCanvas : Node2D
             tab == 2 ? "狙っている敵から照準を外す。回避と同じボタン"
                      : "狙っている敵から照準を外す。放っておいても自然に外れる", UiKit.Purify, false);
 
-        // 溜め打ち（ショップの「溜め打ち」＝n_charge で覚える）。
+        // 溜め打ち（最初から使える。2026-09-25 のユーザー決定で習得ゲートを撤廃）。
+        //   ショップの「溜め打ち 二段」（n_charge）を買うと、離さずさらに溜めて 2段目が撃てる
+        //   ＝買う前は1段だけの説明、買った後は2段目の秒数と伸びぶんも添える（どちらも実値）。
+        bool tier2 = game?.HasChargeTier2 ?? false;
+        string chargeDesc = tier2
+            ? $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}"
+              + $"／さらに {game.ChargeTier2NeedSec:0.0}秒まで溜めると 威力 ×{ChargeTier.PowerMul:0.0} の大きい一発"
+            : $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}";
         Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "C 長押し" },
-            "溜め打ち", $"0.6秒ためて離す。{game!.JobDef.ChargeDescription}", UiKit.Gold, hasCharge,
-            hasCharge ? "" : "未習得 — ショップ「溜め打ち」");
+            "溜め打ち", chargeDesc, UiKit.Gold, true);
 
         // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Alt" }, "回避",

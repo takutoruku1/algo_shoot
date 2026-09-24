@@ -178,7 +178,7 @@ public partial class GameManager : Node
     // ───── 回避 ─────
     //   回避（Alt / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
     //   （それまでは 1面クリアの物語報酬＝GrantDodge／セーブキー "hasDodge"。旧セーブは LoadFromSlot が
-    //   n_dodge の所持へ読み替える）。所持判定 HasDodge は強化効果アクセサの並び（HasChargeShot の隣）。
+    //   n_dodge の所持へ読み替える）。所持判定 HasDodge は強化効果アクセサの並び（ChargeNeedSec の隣）。
 
     // ───── 集中モード（一本道 #11「集中モード」・Vキー）─────
     //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
@@ -539,15 +539,10 @@ public partial class GameManager : Node
     public bool BurningThisRun;   // 現在のステージrunが炎上下か（Player/Hudが参照）
     private bool _burnHappened;    // 一度きりのストーリーイベント済みか
 
-    // ─── 会話選択（層2プロト）───
-    //   STAGE2（こはる）MidStory の2択で A「もういちど、聞く」を選んだ（＝もう一度踏み込んだ）。
-    //   下流2場面（StageKoharu.Clear の1行／Epilogue 独白の1行）の変種差し替えにだけ使う収束型フラグ。
-    public bool PressedTheQuestion;
-
     // ─── 仕掛けの値（案C の組み込み計画）───
     //   選択のたびに「選ばれなかった言葉」が散り、終盤（FINAL F4 / エピローグ E2）でそれが戻ってくる。
     //   ここは**器だけ**：各場面からの記録は台本タスクで繋ぐので、現時点でこれらを書く呼び出しは無い。
-    //   セーブの作法は pressedQ と同じ＝キー無し＝既定値（旧セーブがそのまま読める）。
+    //   セーブの作法は他の後付け項目と同じ＝キー無し＝既定値（旧セーブがそのまま読める）。
     public readonly List<string> ScatteredWords = new(); // 散った言葉（選ばれなかった候補）。出た順
     public string FirstScattered = "";                   // 最初に散らした言葉（F4 で戻る一語）
     public int NameRoute;                                // 命名ルート 0〜2（冒頭 P2 の3択）
@@ -654,7 +649,11 @@ public partial class GameManager : Node
     //   ・順序は ParentId が直前の段を指すことで担保する（IsParentMet ＝ 直前の段の所持）。
     //   ・価格は 150→4,000 の単調増加。1面クリア報酬 400×MoneyGainMul(2) と道中の稼ぎで
     //     「1面ごとに1〜2段」進む速度を狙っている。
-    //   ・#2 回避／#7 溜め打ち／#11 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
+    //   ・#2 回避／#11 集中モードは「できることが増える」段＝Shop が一回り大きく描く（IsAbilityNode）。
+    //   ・#7 はもと「溜め打ち」の習得段だったが、2026-09-25 のユーザー決定で溜め打ちは最初から使える
+    //     ＝段は残したまま中身を差し替えた。同日さらに「短縮」から「2段階チャージ」へ再決定（ChargeTier）。
+    //     IDは n_charge のまま、価格（1200）と親（n_life_2）も据え置き＝ツリーの形も進行速度も変わらず、
+    //     旧「溜め打ち 短縮」を買い済みのセーブもそのまま 2段目が開く。
     //   ・#2 回避（200）はもともと 1面クリアの無料報酬だったもの（2026-09-22 ユーザー決定でショップの品目へ）。
     //     ショップが開く瞬間（＝1面クリア直後・財布は 800＋道中）に #1〜#3 が 150+200+300=650 で揃う
     //     ＝移す前（150+300=450 で #2 回避強化まで）と到達段が同じ。回避は実質ただ同然のまま「買って覚える」形になる。
@@ -668,7 +667,7 @@ public partial class GameManager : Node
         new() { Id = "n_bomb_1",   Name = "ボム +1",               Desc = "はじまりのボムが1つ増える",             MaxLevel = 1, BaseCost =  450, ParentId = "n_dodge_cd" },
         new() { Id = "n_power_2x", Name = "火力 2倍",          Desc = "撃った光の威力が2倍になる",             MaxLevel = 1, BaseCost =  700, ParentId = "n_bomb_1" },
         new() { Id = "n_life_2",   Name = "ハート +1",             Desc = "はじまりの♥がもう1つ増える",           MaxLevel = 1, BaseCost =  900, ParentId = "n_power_2x" },
-        new() { Id = "n_charge",   Name = "溜め打ち",      Desc = "キャラクター固有の強力な弾を溜めて放つ",   MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
+        new() { Id = "n_charge",   Name = "溜め打ち 二段",         Desc = "もう一段ためると、重く大きい一発になる", MaxLevel = 1, BaseCost = 1200, ParentId = "n_life_2" },
         new() { Id = "n_hitbox",   Name = "当たり判定 半分",       Desc = "被弾判定の半径が半分になる",            MaxLevel = 1, BaseCost = 1500, ParentId = "n_charge" },
         new() { Id = "n_lines",    Name = "ライン +1",           Desc = "撃ち方ごとに光の筋が1本増える",         MaxLevel = 1, BaseCost = 1800, ParentId = "n_hitbox" },
         new() { Id = "n_move_15x", Name = "移動速度 1.5倍",        Desc = "移動が1.5倍速くなる",                   MaxLevel = 1, BaseCost = 2200, ParentId = "n_lines" },
@@ -679,7 +678,7 @@ public partial class GameManager : Node
     };
 
     // 能力を覚える段（Shop が一回り大きく描く）。数値ではなく「できることが増える」段。
-    public static bool IsAbilityNode(string id) => id == "n_dodge" || id == "n_charge" || id == "n_slow";
+    public static bool IsAbilityNode(string id) => id == "n_dodge" || id == "n_slow" || id == "n_charge";
 
     // 一本道で「次に買える1段」＝先頭から数えて最初の未所持。全部買い切っていれば null。
     public string? NextColumnNode()
@@ -949,7 +948,15 @@ public partial class GameManager : Node
     public int ShotPierceCount => Has("n_pierce") ? 1 : 0;
     // #9 ライン +1。連射の線・拡散のway・ホーミングの発数・加速球の発数を、各 Fire が素の値へ足す。
     public int ExtraLines => Has("n_lines") ? 1 : 0;
-    public bool HasChargeShot => Has("n_charge");
+    // 溜め打ち1段目の充填秒（Player.ChargeNeed）。買い物では動かない＝誰でも最初から同じ 0.60秒。
+    //   ★溜め打ちそのものは 2026-09-25 のユーザー決定で「最初から使える」＝習得判定（旧 HasChargeShot）は
+    //     消した。同日「短縮」も撤回され、#7 の中身は 2段階チャージ（下の HasChargeTier2）になった。
+    public float ChargeNeedSec => 0.60f;
+    // #7 2段階チャージ＝1段で離さずさらに押し続けると 2段目が貯まる（ChargeTier）。
+    //   ★IDが n_charge のままなので、旧「溜め打ち 短縮」を買い済みのセーブはそのまま 2段目が開く。
+    public bool HasChargeTier2 => Has("n_charge");
+    // 2段目が満ちるまでの長押し秒（合計）。未所持なら 1段目と同じ＝それ以上は溜まらない。
+    public float ChargeTier2NeedSec => HasChargeTier2 ? ChargeNeedSec * ChargeTier.HoldMul : ChargeNeedSec;
     // #11 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
     public bool HasFocusMode => Has("n_slow");
     // #2 回避（Alt / L3 / 右クリック・無敵 0.45秒）。未所持のあいだ Player.TryDodge は即 return し、
@@ -1076,8 +1083,8 @@ public partial class GameManager : Node
         // 炎上ストーリーイベントの状態（既発生か／次ダイブ適用待ちか）。後方互換：キー無し＝false。
         data["burnHappened"] = _burnHappened;
         data["burning"] = Burning;
-        // 会話選択（層2プロト）：STAGE2（こはる）MidStory の2択でAを選んだか。後方互換：キー無し＝false（=現行台詞）。
-        data["pressedQ"] = PressedTheQuestion;
+        // 旧「会話選択（層2プロト）」の "pressedQ" はもう書かない（こはる面の2択ごと撤去＝2026-09-24）。
+        //   旧セーブに残っていても読む側が居ない＝未知キーとして無視されるだけ。次の保存で自然に消える。
         // 仕掛けの値（散った言葉ほか）。いずれも後方互換：キー無し＝既定値（空配列／空文字／0）。
         var sw = new Godot.Collections.Array();
         foreach (var w in ScatteredWords)
@@ -1184,8 +1191,8 @@ public partial class GameManager : Node
         // 炎上イベント状態復元（キー無し＝false）。
         _burnHappened = data.ContainsKey("burnHappened") && data["burnHappened"].AsBool();
         Burning = data.ContainsKey("burning") && data["burning"].AsBool();
-        // 会話選択（層2プロト）の復元（キー無し＝旧セーブは false＝現行台詞＝後方互換）。
-        PressedTheQuestion = data.ContainsKey("pressedQ") && data["pressedQ"].AsBool();
+        // 旧 "pressedQ"（会話選択・層2プロト）は読まない＝ここは意図的な読み捨て。読み込みはキー単位なので、
+        //   旧セーブに残っていても素通りする（辞書の未知キーで例外にはならない）＝旧セーブはそのまま遊べる。
         // 仕掛けの値の復元（キー無し＝旧セーブは既定値のまま＝後方互換）。
         //   散った語の取り消し台帳（_scatterById）はランを跨いで持たない＝
         //   ロード直後の RecordChoice は「その id の初回」として素直に積まれる。
@@ -1285,7 +1292,6 @@ public partial class GameManager : Node
         _bossRetryScore = 0;
         _cleared.Clear();          // ステージ進行（クリア済み）も初期化＝救った人数0から（回避は _upgrades と一緒に消える）
         _burnHappened = false; Burning = false; BurningThisRun = false;
-        PressedTheQuestion = false; // 会話選択（層2プロト）の疑いフラグも初期化
         // 仕掛けの値も初期化（散った言葉が前データから残ると F4/E2 で他人の言葉が戻ってくる）。
         ScatteredWords.Clear(); _scatterById.Clear(); _hesitationById.Clear(); _chosenById.Clear();
         FirstScattered = ""; NameRoute = 0; LastSentWord = ""; HesitationSec = 0f;
@@ -1472,21 +1478,21 @@ public partial class GameManager : Node
         {
             if (a == "--boss") { DebugAlwaysBoss = true; SelectedEntry = StageEntry.Boss; }
             if (a == "--choice") DebugChoiceNow = true;
-            if (a == "--choice3") { DebugChoiceNow = true; DebugChoiceThree = true; }
             if (a == "--input-field") DebugInputField = true;
         }
+
+        // [一時/デバッグ] --fury / --fury-rate : 【激情】メーターの初期値と上昇速度を直に指定する
+        //   （端の挙動を道中を踏まずに確かめる口）。実体は FuryMeter.cs の partial 側。
+        ParseFuryDebugArgs();
     }
 
     // --boss 起動中か（消費される SelectedEntry と違い、ランを通して残る）。
     public bool DebugAlwaysBoss { get; private set; }
 
-    // [一時/デバッグ] --choice : こはる面のボス戦中割り込み（会話の選択）を HP 条件を待たずに即発火させる。
+    // [一時/デバッグ] --choice : レイ面のボス戦中割り込み（S3-7 の下書き選択）を HP 条件を待たずに即発火させる。
     // 選択シーンの確認専用。通常プレイ・配布ビルドでは付けない前提。
+    //   （--choice3 ＝ 3択表示の検証フラグは、読む側だったこはる面の2択ごと撤去した＝2026-09-24）
     public bool DebugChoiceNow { get; private set; }
-
-    // [一時/デバッグ] --choice3 : 上の割り込みを **3択** で出す（ChoiceOverlay の N 択レイアウト確認用）。
-    // --choice を含む。台本上の選択は2択のままで、これは表示検証専用の差し替え。
-    public bool DebugChoiceThree { get; private set; }
 
     // [一時/デバッグ] --input-field : こはる面を S2-4「入力欄」（StageKoharu の step 8）から始める。
     // コメント欄UI（CommentInput）の見た目確認・スクショ用。道中も中ボスも踏まない＝数秒で欄に着く。
@@ -1541,6 +1547,9 @@ public partial class GameManager : Node
             if (_comboTimer <= 0)
                 Combo = 0;
         }
+
+        // 【激情】の自然上昇（ボス戦中のみ／会話・割り込み中は止まる）。実体は FuryMeter.cs。
+        TickFury(delta);
     }
 
     // 道中カメオ（ミニボス）をHP削り切りで撃破した時の報酬。CameoBoss.OnCryStart から1回だけ呼ぶ。

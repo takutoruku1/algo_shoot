@@ -169,3 +169,42 @@ public static class Jobs
         _ => null,
     };
 }
+
+// ChargeTier : 溜め打ちの「段」（2026-09-25 ユーザー決定「2段階チャージ」）。
+//
+//   1段（誰でも最初から）  ChargeNeedSec 秒（0.60）で満ちる。弾は JobTuning の素の値そのまま。
+//   2段（ショップ n_charge）さらに押し続けると満ちる。溜め時間は**倍**（合計 1.20 秒）で、
+//                           威力・弾の大きさ・【激情】の変化量が伸びる。1段で離せば従来どおりの弾が出る。
+//
+// ★数値はここ一箇所に集める。実機で触ってから調整する前提なので、config/boss_stats.ini の
+//   [charge] セクション（後勝ち）からも差し替えられる＝再ビルド無しで詰められる。
+//   キー: hold_mul / power_mul / radius_mul / fury_mul（下の Default* と同名の意味）。
+public static class ChargeTier
+{
+    // 段の呼び名。Bullet / Player / Fx が「何段目か」をこの値で受け渡す。
+    public const int First = 1;
+    public const int Second = 2;
+
+    // 2段目が満ちるまでの長押し秒 ＝ 1段目 × HoldMul。作者指示の「倍」がそのまま既定。
+    public const float DefaultHoldMul = 2.0f;
+    // 2段目の威力倍率。×4 の大玉（1段）をさらに倍にすると、ボス本体の1ヒット上限 32（Enemy.cs）へ
+    //   結び手 12×2=24 ／ 灯し手 18×2=36（上限で頭打ち）と、上限に触れるか触れないかの辺りに収まる。
+    //   「倍待って倍痛い」が素直に読める値として ×2.0 を初期値に置く。
+    public const float DefaultPowerMul = 2.0f;
+    // 2段目の弾半径倍率（見た目と当たり判定の両方。Bullet.Radius が描画も判定も決める）。
+    //   ×1.6＝結び手 9→14.4px。自機(36px)より小さく保ちつつ、並べれば一目で「太い」と分かる。
+    public const float DefaultRadiusMul = 1.6f;
+    // 2段目で当てたときの【激情】変化量の倍率。★受け皿だけ用意し、実際に動かすのは次段（FuryMeter.cs 参照）。
+    public const float DefaultFuryMul = 2.0f;
+
+    public static float HoldMul => BossTuning.F("charge", "hold_mul", DefaultHoldMul);
+    public static float PowerMul => BossTuning.F("charge", "power_mul", DefaultPowerMul);
+    public static float RadiusMul => BossTuning.F("charge", "radius_mul", DefaultRadiusMul);
+    public static float FuryMul => BossTuning.F("charge", "fury_mul", DefaultFuryMul);
+
+    // 段ごとの倍率（1段は必ず素の 1.0＝未購入の挙動を一切変えない）。
+    public static float PowerMulFor(int stage) => stage >= Second ? PowerMul : 1f;
+    public static float RadiusMulFor(int stage) => stage >= Second ? RadiusMul : 1f;
+    // 【激情】の変化量倍率。第2段の「言葉を当てる」処理がこれを掛けて AddFury を呼ぶ想定。
+    public static float FuryMulFor(int stage) => stage >= Second ? FuryMul : 1f;
+}

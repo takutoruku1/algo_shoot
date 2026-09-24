@@ -7,14 +7,17 @@ using System.Threading.Tasks;
 
 // SkillIntroQa : 習得スキル説明（StageTutorial の ⑤・2026-09-22）の発火とカード同期の自動検証。
 //   AnkerIntroQa と同じ流儀で各ステージを実際に立てて _playerIntro を読み、以下を判定する：
-//     1) 未習得（HasDodge=false / HasChargeShot=false）では出ない・once も消費しない
-//     2) 習得済みかつ未見のときだけ出る（回避だけ／溜め打ちだけ／両方）。once はセーブ単位で消費
+//     1) 回避は未習得（HasDodge=false）では出ない・once も消費しない。溜め打ちは 2026-09-25 から
+//        最初から使える＝習得を問わず未見なら出る（条件は Route と同じ「未見」だけ）
+//     2) 未見のときだけ出る（回避だけ／溜め打ちだけ／両方）。once はセーブ単位で消費
 //     3) 2回目（同じセーブ）は出ない
 //     4) 他ジョブ潜行中は出ない・once も消費しない
 //     5) 3ステージ（あかり／こはる／レイ）のどこでも出る
 //     6) 順序：イントロ → （道中チュートリアル①）→ 回避 → 溜め打ち → アンチャー紹介③
 //     7) 操作カード：回避 2〜4 行目=Dodge／溜め打ち 2〜4 行目=Charge／各 1 行目と紹介の行=畳む。
 //        道中チュートリアルの「移動」行が従来どおり Move を引けること（ブロックを増やしても壊れない）
+//     8) 2段階チャージ⑥（2026-09-25）：n_charge 未購入では出ない・once 未消費／買うと
+//        溜め打ちの直後・紹介③の前に4行出て once を消費し、2回目は出ない
 //   実行: Godot --headless --path . res://tools/qa_skill_intro.tscn -- --qa-skill
 //   スクショ: Godot --path . res://tools/qa_skill_intro.tscn -- --qa-skill --skill-shot-out <絶対パス>
 //     （ウィンドウ必須。カード（回避／溜め打ち）と あそびかた（未習得の薄表示／習得後／強化アイテム）を撮る）
@@ -25,8 +28,11 @@ public partial class SkillIntroQa : Node
 
     private const string DodgeHead = "集めていただいた欠片で、わたくしの足が、変わりました。——「回避」。身体が、覚えています。";
     private const string DodgeLast = "ただし。一度抜けると、しばらく、次は出ません。……抜けた先に、立てる場所を。";
-    private const string ChargeHead = "拾っていただいた欠片が、ひとつ、かたちになりました。——「溜め打ち」。お伝えします。";
+    private const string ChargeHead = "わたくしの光には、溜めるという使い方があります。——「溜め打ち」。お伝えします。";
     private const string ChargeLast = "溜めているあいだ、いつもの光は止まります。満ちる前に離せば、重い一発は出ず、いつもの光に戻ります。";
+    // ⑥ 2段階チャージ（2026-09-25）。ショップの n_charge（HasChargeTier2）を買ったあと最初の面で一度だけ。
+    private const string Charge2Head = "集めていただいた欠片で、溜めの先が、もう一段、開きました。——「二段目」。";
+    private const string Charge2Last = "ただし。待つぶん、こちらの光は、長く止まります。……抜けるところを、先に決めてから。";
     // 道中チュートリアル①の「移動」行と末尾行（順序と回帰の確認用）。
     private const string RouteMove = "操作を、お伝えします。まず、移動を。……この盤面のどこへでも、お連れします。";
     private const string RouteLast = "では。オペレータのお仕事を、よろしくお願いいたします。……ご主人様。";
@@ -59,16 +65,22 @@ public partial class SkillIntroQa : Node
 
             foreach (var (scene, node, ankerHead) in Cases)
             {
-                // ── 1) 未習得＝出ない・once 未消費 ──
+                // ── 1) 回避 未習得＝出ない・once 未消費。溜め打ちは最初から使える＝ここでも出て消費される ──
                 var none = await IntroOf(scene, () => Fresh(game));
                 Check($"{node} 未習得で回避が出ない", IndexOf(none, DodgeHead) < 0, "回避の先頭行が混ざっている");
-                Check($"{node} 未習得で溜め打ちが出ない", IndexOf(none, ChargeHead) < 0, "溜め打ちの先頭行が混ざっている");
-                Check($"{node} 未習得で once 未消費",
-                    !game.IsIdleDialogSeen(StageTutorial.SkillDodgeSeenKey) && !game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey),
-                    "消費されている");
+                Check($"{node} 溜め打ちは未購入でも出る", IndexOf(none, ChargeHead) >= 0, "溜め打ちの先頭行が無い");
+                Check($"{node} 回避の once 未消費", !game.IsIdleDialogSeen(StageTutorial.SkillDodgeSeenKey), "消費されている");
+                Check($"{node} 溜め打ちの once 消費", game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey), "未消費");
 
                 // ── 2) 回避だけ（チュートリアル既読＝通常進行の2面以降に相当）＝イントロ直後・紹介③の直前 ──
-                var dodgeOnly = await IntroOf(scene, () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); GrantDodge(game); });
+                //   溜め打ちは常時解禁＝条件が「未見」だけなので、既読にして回避だけの並びを作る。
+                var dodgeOnly = await IntroOf(scene, () =>
+                {
+                    Fresh(game);
+                    game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey);
+                    game.MarkIdleDialogSeen(StageTutorial.SkillChargeSeenKey);
+                    GrantDodge(game);
+                });
                 int d = IndexOf(dodgeOnly, DodgeHead);
                 Check($"{node} 回避のみ 出る", d >= 0, "回避の先頭行が無い");
                 Check($"{node} 回避のみ 4行", d >= 0 && d + SkillLines - 1 < dodgeOnly.Length && dodgeOnly[d + SkillLines - 1].text == DodgeLast,
@@ -78,14 +90,13 @@ public partial class SkillIntroQa : Node
                     $"回避の直後='{At(dodgeOnly, d + SkillLines)}'");
                 Check($"{node} 回避のみ チュートリアル既読なら①は出ない", IndexOf(dodgeOnly, RouteLast) < 0, "①が混ざっている");
                 Check($"{node} 回避のみ once 消費", game.IsIdleDialogSeen(StageTutorial.SkillDodgeSeenKey), "未消費");
-                Check($"{node} 回避のみ 溜め打ちの once 未消費", !game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey), "消費されている");
 
                 // ── 3) 2回目（同じセーブ）＝出ない ──
                 var second = await IntroOf(scene, null);
                 Check($"{node} 回避 2回目 出ない", IndexOf(second, DodgeHead) < 0, "2回目にも出ている");
 
-                // ── 4) 溜め打ちだけ ──
-                var chargeOnly = await IntroOf(scene, () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); game.TrainingSetUpgrade("n_charge", true); });
+                // ── 4) 溜め打ちだけ（＝回避を買う前の通常進行。Fresh のままで溜め打ちだけが並ぶ） ──
+                var chargeOnly = await IntroOf(scene, () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); });
                 int c = IndexOf(chargeOnly, ChargeHead);
                 Check($"{node} 溜め打ちのみ 出る", c >= 0, "溜め打ちの先頭行が無い");
                 Check($"{node} 溜め打ちのみ 4行", c >= 0 && At(chargeOnly, c + SkillLines - 1) == ChargeLast,
@@ -99,7 +110,7 @@ public partial class SkillIntroQa : Node
                 Check($"{node} 溜め打ち 2回目 出ない", IndexOf(second2, ChargeHead) < 0, "2回目にも出ている");
 
                 // ── 5) 両方＋チュートリアル未読（新規セーブで --stage 直行に相当）＝ ① → 回避 → 溜め打ち → 紹介③ ──
-                var both = await IntroOf(scene, () => { Fresh(game); GrantDodge(game); game.TrainingSetUpgrade("n_charge", true); });
+                var both = await IntroOf(scene, () => { Fresh(game); GrantDodge(game); });
                 int r = IndexOf(both, RouteLast), bd = IndexOf(both, DodgeHead), bc = IndexOf(both, ChargeHead), ba = IndexOf(both, ankerHead);
                 Check($"{node} 両方 順序(①→回避)", r >= 0 && bd == r + 1, $"①末尾={r} 回避={bd}");
                 Check($"{node} 両方 順序(回避→溜め打ち)", bd >= 0 && bc == bd + SkillLines, $"回避={bd} 溜め打ち={bc}");
@@ -113,7 +124,7 @@ public partial class SkillIntroQa : Node
                 // ── 4) 他ジョブ潜行＝出ない・once も消費しない ──
                 var other = await IntroOf(scene, () =>
                 {
-                    Fresh(game); GrantDodge(game); game.TrainingSetUpgrade("n_charge", true);
+                    Fresh(game); GrantDodge(game);
                     game.SelectedJob = Job.Melee;   // 結び手以外＝キャラ別ストーリー潜行中
                 });
                 Check($"{node} 他ジョブで回避が出ない", IndexOf(other, DodgeHead) < 0, "回避が混ざっている");
@@ -121,6 +132,28 @@ public partial class SkillIntroQa : Node
                 Check($"{node} 他ジョブで once 未消費",
                     !game.IsIdleDialogSeen(StageTutorial.SkillDodgeSeenKey) && !game.IsIdleDialogSeen(StageTutorial.SkillChargeSeenKey),
                     "消費されている");
+
+                // ── 8) 2段階チャージ⑥（2026-09-25）：n_charge 未購入では出ない／買うと 溜め打ち の直後に出る ──
+                var noTier2 = await IntroOf(scene, () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); });
+                Check($"{node} 2段目 未購入で出ない", IndexOf(noTier2, Charge2Head) < 0, "2段目の先頭行が混ざっている");
+                Check($"{node} 2段目 未購入で once 未消費", !game.IsIdleDialogSeen(StageTutorial.SkillCharge2SeenKey), "消費されている");
+
+                var tier2 = await IntroOf(scene, () =>
+                {
+                    Fresh(game);
+                    game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey);
+                    game.TrainingSetUpgrade("n_charge", true);
+                });
+                int t2c = IndexOf(tier2, ChargeHead), t2 = IndexOf(tier2, Charge2Head), t2a = IndexOf(tier2, ankerHead);
+                Check($"{node} 2段目 購入後に出る", t2 >= 0, "2段目の先頭行が無い");
+                Check($"{node} 2段目 4行", At(tier2, t2 + SkillLines - 1) == Charge2Last, $"末尾行='{At(tier2, t2 + SkillLines - 1)}'");
+                Check($"{node} 2段目 順序(溜め打ち→2段目)", t2c >= 0 && t2 == t2c + SkillLines, $"溜め打ち={t2c} 2段目={t2}");
+                Check($"{node} 2段目 順序(2段目→紹介③)", t2 >= 0 && t2a == t2 + SkillLines, $"2段目={t2} 紹介={t2a}");
+                Check($"{node} 2段目 once 消費", game.IsIdleDialogSeen(StageTutorial.SkillCharge2SeenKey), "未消費");
+                // 操作カード：2段目も Charge を引く（Topic.Charge2 は無いので 1段目と同じ面）。
+                if (t2 >= 0 && t2c >= 0 && t2a >= 0) await CardCheck(node, tier2, -1, t2c, t2a, t2);
+                var tier2Second = await IntroOf(scene, null);
+                Check($"{node} 2段目 2回目 出ない", IndexOf(tier2Second, Charge2Head) < 0, "2回目にも出ている");
             }
         }
         catch (Exception e)
@@ -134,24 +167,33 @@ public partial class SkillIntroQa : Node
     }
 
     // 操作カードの同期確認。各行で ShowLine を呼び、カードの Topic が期待どおり動くか見る。
-    private async Task CardCheck(string node, (int who, string text, string face)[] lines, int d, int c, int a)
+    //   c2 >= 0 なら 2段階チャージ⑥（Charge 流用）の4行も見る。
+    private async Task CardCheck(string node, (int who, string text, string face)[] lines, int d, int c, int a, int c2 = -1)
     {
         var stage = StageOf();
         var hud = (Hud)_live!.GetType().GetProperty("Hud")!.GetValue(_live)!;
         int mv = IndexOf(lines, RouteMove);
-        var want = new List<(int line, ControlCard.Topic topic, string label)>
+        var want = new List<(int line, ControlCard.Topic topic, string label)>();
+        if (mv >= 0) want.Add((mv, ControlCard.Topic.Move, "①移動(回帰)"));   // ①既読の並びでは Route が無い
+        if (d >= 0)
         {
-            (mv,    ControlCard.Topic.Move,   "①移動(回帰)"),
-            (d,     ControlCard.Topic.None,   "回避1行目(畳む)"),
-            (d + 1, ControlCard.Topic.Dodge,  "回避2行目"),
-            (d + 2, ControlCard.Topic.Dodge,  "回避3行目"),
-            (d + 3, ControlCard.Topic.Dodge,  "回避4行目"),
-            (c,     ControlCard.Topic.None,   "溜め打ち1行目(畳む)"),
-            (c + 1, ControlCard.Topic.Charge, "溜め打ち2行目"),
-            (c + 2, ControlCard.Topic.Charge, "溜め打ち3行目"),
-            (c + 3, ControlCard.Topic.Charge, "溜め打ち4行目"),
-            (a,     ControlCard.Topic.None,   "紹介③1行目(畳む)"),
-        };
+            want.Add((d,     ControlCard.Topic.None,  "回避1行目(畳む)"));
+            want.Add((d + 1, ControlCard.Topic.Dodge, "回避2行目"));
+            want.Add((d + 2, ControlCard.Topic.Dodge, "回避3行目"));
+            want.Add((d + 3, ControlCard.Topic.Dodge, "回避4行目"));
+        }
+        want.Add((c,     ControlCard.Topic.None,   "溜め打ち1行目(畳む)"));
+        want.Add((c + 1, ControlCard.Topic.Charge, "溜め打ち2行目"));
+        want.Add((c + 2, ControlCard.Topic.Charge, "溜め打ち3行目"));
+        want.Add((c + 3, ControlCard.Topic.Charge, "溜め打ち4行目"));
+        if (c2 >= 0)
+        {
+            want.Add((c2,     ControlCard.Topic.None,   "2段目1行目(畳む)"));
+            want.Add((c2 + 1, ControlCard.Topic.Charge, "2段目2行目"));
+            want.Add((c2 + 2, ControlCard.Topic.Charge, "2段目3行目"));
+            want.Add((c2 + 3, ControlCard.Topic.Charge, "2段目4行目"));
+        }
+        want.Add((a,     ControlCard.Topic.None,   "紹介③1行目(畳む)"));
         foreach (var (line, topic, label) in want)
         {
             if (line < 0 || line >= lines.Length) { Check($"{node} カード話題 {label}", false, $"行 {line} が範囲外"); continue; }
@@ -169,7 +211,7 @@ public partial class SkillIntroQa : Node
     private async Task ShotRun(GameManager game)
     {
         DirAccess.MakeDirRecursiveAbsolute(_shotDir!);
-        var lines = await IntroOf("res://Akari.tscn", () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); GrantDodge(game); game.TrainingSetUpgrade("n_charge", true); });
+        var lines = await IntroOf("res://Akari.tscn", () => { Fresh(game); game.MarkIdleDialogSeen(StageTutorial.RouteSeenKey); GrantDodge(game); });
         var stage = StageOf();
         int d = IndexOf(lines, DodgeHead), c = IndexOf(lines, ChargeHead);
         if (d < 0 || c < 0) { GD.PushWarning($"[skillqa] 本文が見つからない d={d} c={c}"); GetTree().Quit(1); return; }

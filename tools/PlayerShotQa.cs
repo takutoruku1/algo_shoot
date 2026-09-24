@@ -13,7 +13,8 @@ public partial class PlayerShotQa : Node
     private string _out = "";
     private static T Read<T>(object obj, string name) => (T)obj.GetType().GetField(name, Private)!.GetValue(obj)!;
     private static void Write(object obj, string name, object value) => obj.GetType().GetField(name, Private)!.SetValue(obj, value);
-    private static void Call(object obj, string name) => obj.GetType().GetMethod(name, Private)!.Invoke(obj, null);
+    private static void Call(object obj, string name, params object[] args)
+        => obj.GetType().GetMethod(name, Private)!.Invoke(obj, args.Length == 0 ? null : args);
     private Bullet[] Active() => _pool.GetChildren().OfType<Bullet>().Where(b => b.Active).ToArray();
     private static (int ways, int damage, float radius, int pierce, float speed, float spread) ChargeStats(Job job) => job switch
     {
@@ -70,6 +71,8 @@ public partial class PlayerShotQa : Node
             CheckArtwork();
             if (OS.GetCmdlineUserArgs().Contains("--charge-demo"))
                 foreach (var job in Jobs.All) await DemoCharge(job);
+            else if (OS.GetCmdlineUserArgs().Contains("--charge-tier-shot"))
+                foreach (var job in Jobs.All) await ShotChargeTiers(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-only"))
                 foreach (var job in Jobs.All) await CheckCharge(job);
             else
@@ -151,6 +154,57 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
     }
 
+    // Shoot the two-tier charge for review: the meter at tier 1 and at tier 2, and the projectile of each.
+    //   Run with a window (screenshots hang headless):
+    //     Godot --path . res://tools/qa_player_shots.tscn -- --charge-tier-shot
+    private async Task ShotChargeTiers(JobTuning job)
+    {
+        _game.SelectedJob = job.Id;
+        _game.TrainingSetUpgrade("n_charge", true);
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        var player = root.Player;
+        player.SetPhysicsProcess(false);
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        Write(root.Hud, "_bannerTimer", 0d);
+        Write(player, "_invincible", false);
+        _pool.DespawnAll();
+        await Frames(2);
+
+        // Hold to tier 1, shoot the meter, then keep holding to tier 2 and shoot it again.
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
+        Input.FlushBufferedEvents();
+        player._PhysicsProcess(0.61);
+        for (int i = 0; i < 8; i++) { player._PhysicsProcess(0.016); await Frames(1); }
+        Check(player.ChargeStage == ChargeTier.First, $"{job.CharacterId}: meter shot is tier 1");
+        await Shot($"{job.CharacterId}_tier1_meter");
+        player._PhysicsProcess(0.60);
+        for (int i = 0; i < 8; i++) { player._PhysicsProcess(0.016); await Frames(1); }
+        Check(player.ChargeStage == ChargeTier.Second, $"{job.CharacterId}: meter shot is tier 2");
+        await Shot($"{job.CharacterId}_tier2_meter");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
+        Input.FlushBufferedEvents();
+        player._PhysicsProcess(0.01);
+        _pool.DespawnAll();
+
+        // The projectiles themselves, side by side: fire one of each and let it travel a little.
+        foreach (int stage in new[] { ChargeTier.First, ChargeTier.Second })
+        {
+            _pool.DespawnAll();
+            Call(player, "FireCharge", stage);
+            foreach (var b in Active()) b.SetPhysicsProcess(false);
+            foreach (var b in Active().Where(b => b.Charged)) b._PhysicsProcess(0.06);
+            await Frames(2);
+            await Shot($"{job.CharacterId}_tier{stage}_projectile");
+        }
+        _pool.DespawnAll();
+        root.QueueFree();
+        await Frames(5);
+    }
+
     private async Task CheckCharge(JobTuning job)
     {
         var expected = ChargeStats(job.Id);
@@ -171,7 +225,7 @@ public partial class PlayerShotQa : Node
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.3);
         Check(player.ChargeRatio > 0.4f && !player.ChargeFull,
-            $"{job.CharacterId}: half charge is not ready (ratio={player.ChargeRatio}, unlocked={_game.HasChargeShot}, paused={Hud.BubblePaused}, key={Input.IsKeyPressed(Key.C)})");
+            $"{job.CharacterId}: half charge is not ready (ratio={player.ChargeRatio}, need={_game.ChargeNeedSec}, paused={Hud.BubblePaused}, key={Input.IsKeyPressed(Key.C)})");
         Check(Active().Length == 0, "normal fire stops on the first charging frame");
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
         Input.FlushBufferedEvents();
@@ -218,7 +272,7 @@ public partial class PlayerShotQa : Node
         var bodyHit = typeof(Enemy).GetMethod("OnBodyHitByPlayerBullet", Private)!;
         Bullet Fire()
         {
-            Call(player, "FireCharge");
+            Call(player, "FireCharge", ChargeTier.First);
             var shots = Active().Where(b => b.Charged).OrderBy(b => player.ShotDir.AngleTo(b.Velocity)).ToArray();
             var shot = shots[shots.Length / 2];
             foreach (var other in shots) if (other != shot) _pool.Despawn(other);
@@ -269,7 +323,7 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
 
         Call(enemy, "EnterExposed");
-        Call(player, "FireCharge");
+        Call(player, "FireCharge", ChargeTier.First);
         hp = Read<int>(enemy, "_hp");
         foreach (var b in Active().Where(b => b.Charged).ToArray()) bodyHit.Invoke(enemy, new object[] { b });
         Check(Read<int>(enemy, "_hp") == hp - expected.damage * expected.ways,
@@ -277,7 +331,7 @@ public partial class PlayerShotQa : Node
         _pool.DespawnAll();
         Call(enemy, "EnterExposed");
         Write(enemy, "_windowDamage", _game.ExposedDamageCap - 5);
-        Call(player, "FireCharge");
+        Call(player, "FireCharge", ChargeTier.First);
         hp = Read<int>(enemy, "_hp");
         foreach (var b in Active().Where(b => b.Charged).ToArray()) bodyHit.Invoke(enemy, new object[] { b });
         Check(Read<int>(enemy, "_hp") == hp - 5, "multi-projectile charge respects the shared boss window cap");
@@ -317,7 +371,7 @@ public partial class PlayerShotQa : Node
         await Frames(5);
 
         Write(player, "_facing", -1);
-        Call(player, "FireCharge");
+        Call(player, "FireCharge", ChargeTier.First);
         CheckChargeVolley(player);
         _pool.DespawnAll();
         charge = Fire();
@@ -340,7 +394,7 @@ public partial class PlayerShotQa : Node
         Write(player, "_chargeT", 0.6f);
         root.Hud.ShowDialog(Hud.LineKind.Mina, "……少し、お話ししましょう。", "res://char/mina_face.png");
         player._PhysicsProcess(0.01);
-        Call(player, "FireCharge");
+        Call(player, "FireCharge", ChargeTier.First);
         await Frames(4);
         Check(player.ChargeRatio == 0 && Active().Length == 0 && !FxLayer.Instance.GetChildren().OfType<ChargeShotFx>().Any(),
             "dialogue cancels charging, shots and charge effects");
@@ -354,7 +408,8 @@ public partial class PlayerShotQa : Node
 
     private void CheckChargeMovement(Player player, Node2D world)
     {
-        Call(player, "FireCharge");
+        // Movement is a tier-1 concern: the tier only scales power/radius, never speed or steering.
+        Call(player, "FireCharge", ChargeTier.First);
         var shots = CheckChargeVolley(player);
         foreach (var b in shots) b.SetPhysicsProcess(false);
         var charge = shots[shots.Length / 2];
@@ -432,15 +487,50 @@ public partial class PlayerShotQa : Node
         {
             foreach (string input in new[] { "keyboard", "mouse" })
             {
+                // Charging works from the very first stage (2026-09-25); n_charge only unlocks the second tier.
+                // Without it the meter needs 0.60s and never goes past tier 1, however long the button is held.
                 _game.TrainingSetUpgrade("n_charge", false);
                 Write(player, "_fireCooldown", 0f);
                 Press(input, true);
-                player._PhysicsProcess(0.61);
-                Check(Active().Any() && player.ChargeRatio == 0, $"{input}: locked charge skill does not suppress normal fire");
+                player._PhysicsProcess(0.45);
+                Check(player.ChargeRatio > 0 && !player.ChargeFull,
+                    $"{input}: charging is available before buying the second tier (ratio={player.ChargeRatio})");
+                player._PhysicsProcess(0.20);
+                Check(player.ChargeFull, $"{input}: the first tier fills at 0.60s");
+                player._PhysicsProcess(1.0);
+                Check(!player.ChargeFull2 && player.ChargeRatio2 == 0 && player.ChargeStage == ChargeTier.First,
+                    $"{input}: holding longer stays on tier 1 without the upgrade (stage={player.ChargeStage})");
                 Press(input, false);
                 player._PhysicsProcess(0.01);
+                Check(Active().Where(b => b.Charged).All(b => b.ChargeStage == ChargeTier.First),
+                    $"{input}: the unupgraded release fires a tier-1 projectile");
                 _pool.DespawnAll();
                 _game.TrainingSetUpgrade("n_charge", true);
+
+                // With the upgrade the meter keeps going: tier 2 arrives at twice the hold (0.60 -> 1.20s)
+                // and the projectile carries the tier, its power multiplier and its wider radius.
+                Write(player, "_fireCooldown", 0f);
+                Press(input, true);
+                player._PhysicsProcess(0.65);
+                Check(player.ChargeFull && !player.ChargeFull2 && player.ChargeStage == ChargeTier.First,
+                    $"{input}: tier 1 is reached first and tier 2 is still filling (ratio2={player.ChargeRatio2})");
+                player._PhysicsProcess(0.60);
+                Check(player.ChargeFull2 && player.ChargeStage == ChargeTier.Second,
+                    $"{input}: tier 2 fills at {_game.ChargeTier2NeedSec:0.00}s (ratio2={player.ChargeRatio2})");
+                Press(input, false);
+                player._PhysicsProcess(0.01);
+                {
+                    var tier2 = Active().Where(b => b.Charged).ToArray();
+                    var stats = ChargeStats(_game.SelectedJob);
+                    Check(tier2.Length == stats.ways && tier2.All(b => b.ChargeStage == ChargeTier.Second),
+                        $"{input}: the tier-2 release fires a full volley tagged as tier 2");
+                    Check(tier2.All(b => b.Damage == Mathf.RoundToInt(stats.damage * ChargeTier.PowerMul)
+                                      && Mathf.IsEqualApprox(b.Radius, stats.radius * ChargeTier.RadiusMul)),
+                        $"{input}: tier 2 scales damage and radius (dmg={tier2[0].Damage}, r={tier2[0].Radius})");
+                    Check(Mathf.IsEqualApprox(tier2[0].FuryMul, ChargeTier.FuryMul),
+                        $"{input}: tier 2 carries the fury multiplier for the next stage (x{tier2[0].FuryMul})");
+                }
+                _pool.DespawnAll();
 
                 Write(player, "_fireCooldown", 0f);
                 player._PhysicsProcess(0.01);

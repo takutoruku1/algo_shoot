@@ -206,6 +206,8 @@ public partial class BossAkari : Enemy
         _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("あふれるわたし", BossHandles.AkariBar);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        // 【激情】メーター開始。初期値は道中（p4/s1_4/s1_5/s1_2）の選択から決まる（FuryMeter.cs）。
+        GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("akari");
         ApplySpell();
 
         _caster = new AreaSpellCaster();
@@ -507,6 +509,7 @@ public partial class BossAkari : Enemy
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝途切れていたフレーズが最後まで歌われる。
         Audio.Instance?.PlayRedeem(1);

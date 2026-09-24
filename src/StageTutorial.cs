@@ -26,6 +26,7 @@ public static class StageTutorial
     public const string ItemsAkariSeenKey = "once_items_akari";
     public const string SkillDodgeSeenKey = "once_skill_dodge";
     public const string SkillChargeSeenKey = "once_skill_charge";
+    public const string SkillCharge2SeenKey = "once_skill_charge2";
 
     private const string MFace = "res://char/mina_face.png";
     private const string MWorried = "res://char/mina_worried.png";
@@ -136,14 +137,20 @@ public static class StageTutorial
     //   ・回避 … ショップの品目 n_dodge（HasDodge。2026-09-22 ユーザー指示で「1面クリアの物語報酬」から変更）。
     //     発火条件は HasDodge かつ未見＝買ったあと最初に入った面の冒頭。ここは HasDodge だけを見る＝
     //     習得経路がどちらでも動く（本文はステージ名・主の名を出さないので、どの面で流れても嘘にならない）。
-    //   ・溜め打ち … ショップの一本道ノード n_charge（HasChargeShot）。発火条件は HasChargeShot かつ未見。
-    //   ・両方が同時に並ぶときは 回避 → 溜め打ち（習得の時系列どおり）。文面は互いを参照しないので単独でも成立。
+    //   ・溜め打ち … 2026-09-25 のユーザー決定で**最初から使える**（ショップの n_charge は「溜め打ち 短縮」＝
+    //     速さの強化になった）。発火条件は「未見」だけ＝Route（①）と同じく最初に入った面の冒頭で必ず出る。
+    //     本文（SkillCharge）の1行目も同日に差し替え済み＝「この光に備わっている
+    //     使い方」の提示で、習得・購入の含意は無い（2〜4行目＝操作の説明は変更なし）。
+    //   ・溜め打ち2段目 … ショップの品目 n_charge「溜め打ち 二段」（HasChargeTier2）。発火条件は
+    //     HasChargeTier2 かつ未見＝買ったあと最初に入った面の冒頭で、回避（SkillDodge）と同じ作法。
+    //     既存の SkillCharge（1段目）は一行も変えない＝この4行は「その先がある」ことだけを足す。
+    //   ・並ぶときは 回避 → 溜め打ち → 溜め打ち2段目。文面は互いを参照しないので単独でも成立。
     //   ・差し込みは各ステージ _step==1 の Concat 列で 道中チュートリアル①の直後・アンチャー紹介③の前
     //     ＝ステージ1と同じ「操作の説明が先」。FINAL（StageMina）は対象外（ミナが動けない場面で操作説明は
     //     成立しない＝ShowLine もカードを同期しない）。
-    //   ・once はセーブ単位（once_skill_dodge / once_skill_charge）。①③④と同じく結び手潜行のときだけ・
-    //     消費も同条件（Take）＝他ジョブ潜行中は who=1（ミナ）の発話を出さない流儀に揃える。
-    //   ・キー名は書かない＝どのボタンかは操作カード（SkillDodgeCues / SkillChargeCues）が担う。
+    //   ・once はセーブ単位（once_skill_dodge / once_skill_charge / once_skill_charge2）。①③④と同じく
+    //     結び手潜行のときだけ・消費も同条件（Take）＝他ジョブ潜行中は who=1（ミナ）の発話を出さない流儀に揃える。
+    //   ・キー名は書かない＝どのボタンかは操作カード（SkillDodgeCues / SkillChargeCues / SkillCharge2Cues）が担う。
     private static readonly (int who, string text, string face)[] SkillDodge =
     {
         (1, "集めていただいた欠片で、わたくしの足が、変わりました。——「回避」。身体が、覚えています。", MFace),
@@ -154,10 +161,23 @@ public static class StageTutorial
 
     private static readonly (int who, string text, string face)[] SkillCharge =
     {
-        (1, "拾っていただいた欠片が、ひとつ、かたちになりました。——「溜め打ち」。お伝えします。", MFace),
+        (1, "わたくしの光には、溜めるという使い方があります。——「溜め打ち」。お伝えします。", MFace),
         (1, "押し続けているあいだ、わたくしの前に、光が集まります。頭上の弧が満ちて、白く脈打ったら——合図です。", MFace),
         (1, "そこで、離してください。ひときわ重い一発が、板を貫き、アンチャーを貫いて、なお進みます。", MFace),
         (1, "溜めているあいだ、いつもの光は止まります。満ちる前に離せば、重い一発は出ず、いつもの光に戻ります。", MFace),
+    };
+
+    // ⑥ 2段階チャージの説明（2026-09-25）。ショップの n_charge（「溜め打ち 二段」1200）を買うと
+    //   1段目の先にもう一段が開く（ChargeTier / GameManager.HasChargeTier2）。発火は HasChargeTier2 かつ
+    //   未見＝買ったあと最初に入った面の冒頭（SkillDodge と同じ作法）。once は once_skill_charge2。
+    //   既存の SkillCharge（1段目）は変更しない＝この4行は「その先がある」ことだけを足す。
+    //   キー名は書かない（操作カードが担う）。数値も書かない＝倍率調整で嘘にならない。
+    private static readonly (int who, string text, string face)[] SkillCharge2 =
+    {
+        (1, "集めていただいた欠片で、溜めの先が、もう一段、開きました。——「二段目」。", MFace),
+        (1, "満ちた合図のところで、手を止めずに。……そのまま、押し続けてください。外側に、もう一本、弧が。", MFace),
+        (1, "そちらが満ちて、金に変わったら——離してください。ひときわ重い一発が、もっと重く、もっと太く、進みます。", MFace),
+        (1, "ただし。待つぶん、こちらの光は、長く止まります。……抜けるところを、先に決めてから。", MWorried),
     };
 
     // ⑤の各行で出す操作カードの話題（本文の [card: ...] 注記どおり。RouteCues と同じ考え方＝
@@ -171,10 +191,19 @@ public static class StageTutorial
     };
     private static readonly ControlCard.Topic[] SkillChargeCues =
     {
-        ControlCard.Topic.None,    // 1 提示（欠片がかたちになった）
+        ControlCard.Topic.None,    // 1 提示（備わっている使い方）
         ControlCard.Topic.Charge,  // 2 押し続ける・合図
         ControlCard.Topic.Charge,  // 3 離す・貫く
         ControlCard.Topic.Charge,  // 4 満ちる前に離すと不発
+    };
+    // ⑥（2段目）の cue。ControlCard.Topic に Charge2 は無いので既存の Charge を流用する
+    //   ＝どのボタンかは 1段目と同じ（押し続ける／離す）ため、カード面を分ける必要が無い。
+    private static readonly ControlCard.Topic[] SkillCharge2Cues =
+    {
+        ControlCard.Topic.None,     // 1 提示（欠片で、先がもう一段）
+        ControlCard.Topic.Charge,   // 2 止めずに押し続ける・外側の弧
+        ControlCard.Topic.Charge,   // 3 金になったら離す
+        ControlCard.Topic.Charge,   // 4 待つあいだ通常弾が止まる
     };
 
     // カードを同期する本文ブロックの一覧（本文と cue の対）。SyncCard はここを順に引く。
@@ -183,6 +212,7 @@ public static class StageTutorial
         (Route, RouteCues),
         (SkillDodge, SkillDodgeCues),
         (SkillCharge, SkillChargeCues),
+        (SkillCharge2, SkillCharge2Cues),
     };
 
     // ───────── 操作カード（盤面中央のウィンドウ）の同期 ─────────
@@ -230,17 +260,25 @@ public static class StageTutorial
     // 強化アイテム説明（④）。あかり面の道中開始時に一度だけ返す（③の直後に繋ぐ）。結び手潜行のときだけ・消費も同条件。
     public static (int who, string text, string face)[] TakeItemIntroAkari(GameManager? game) => Take(game, ItemsAkariSeenKey, ItemsAkari);
 
-    // 習得スキル説明（⑤）。どのステージでも道中開始時に、習得済みかつ未見のものだけを 回避 → 溜め打ち の順で
-    //   連結して返す（未習得は出さず once も消費しない＝習得後の最初の面で必ず見られる）。
+    // 習得スキル説明（⑤⑥）。どのステージでも道中開始時に、未見のものだけを
+    //   回避 → 溜め打ち → 溜め打ち2段目 の順で連結して返す。
+    //   ・回避は未習得なら出さず once も消費しない＝買ったあと最初の面で必ず見られる。
+    //   ・溜め打ちは最初から使える（2026-09-25）＝習得を待たず、最初の面の冒頭で必ず出る。
+    //   ・2段目は未購入（HasChargeTier2=false）なら出さず once も消費しない＝回避と同じ作法。
     //   結び手潜行のときだけ・消費も同条件（Take）。①の直後・③の前に繋ぐ。
     public static (int who, string text, string face)[] TakeSkillIntros(GameManager? game)
     {
         if (game == null) return None;
         var dodge = game.HasDodge ? Take(game, SkillDodgeSeenKey, SkillDodge) : None;
-        var charge = game.HasChargeShot ? Take(game, SkillChargeSeenKey, SkillCharge) : None;
-        if (dodge.Length == 0) return charge;
-        if (charge.Length == 0) return dodge;
-        return dodge.Concat(charge).ToArray();
+        // 溜め打ちは最初から使える（2026-09-25）＝習得を待たず、最初に入った面の冒頭で必ず一度出す。
+        //   Route（道中チュートリアル①）と同じ扱いになった＝条件は「未見」だけ。
+        var charge = Take(game, SkillChargeSeenKey, SkillCharge);
+        // 2段目（⑥・2026-09-25）はショップで n_charge を買ったあと最初に入った面の冒頭で一度だけ。
+        var charge2 = game.HasChargeTier2 ? Take(game, SkillCharge2SeenKey, SkillCharge2) : None;
+        var all = dodge;
+        if (charge.Length > 0) all = all.Length == 0 ? charge : all.Concat(charge).ToArray();
+        if (charge2.Length > 0) all = all.Length == 0 ? charge2 : all.Concat(charge2).ToArray();
+        return all;
     }
 
     private static (int who, string text, string face)[] Take(

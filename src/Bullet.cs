@@ -39,13 +39,20 @@ public partial class Bullet : Area2D
     public int Chain;
     public bool Charged { get; private set; }
     public Job ChargeJob { get; private set; }
+    // 何段目の溜め打ちか（ChargeTier.First / Second。Charged でなければ 0）。
+    //   ★命中側（Enemy.OnBodyHit の ChargeImpact 付近・Panel・BossPost）がこれを読んで、
+    //     【激情】の変化量を段で変える（倍率は下の FuryMul）。値を動かす処理そのものは次段で書く。
+    public int ChargeStage { get; private set; }
+    // この弾が【激情】へ与える変化量の倍率（1段=1.0／2段=ChargeTier.FuryMul）。命中側が掛けるだけの受け皿。
+    public float FuryMul => ChargeTier.FuryMulFor(ChargeStage);
     private readonly HashSet<ulong> _chargeHits = new();
     private bool _chargeImpactPlayed;
 
-    public void MakeCharged(Job job)
+    public void MakeCharged(Job job, int stage = ChargeTier.First)
     {
         Charged = true;
         ChargeJob = job;
+        ChargeStage = Mathf.Max(ChargeTier.First, stage);
         Pierce = Jobs.Get(job).ChargePierce;
         QueueRedraw();
     }
@@ -290,6 +297,7 @@ public partial class Bullet : Area2D
         Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は各 Fire 側）
         Charged = false;
         ChargeJob = default;
+        ChargeStage = 0;
         _chargeHits.Clear();
         _chargeImpactPlayed = false;
         _slowLogged = false; // QA検証ログのワンショットもプール再利用ごとに戻す
@@ -831,7 +839,7 @@ public partial class Bullet : Area2D
         var art = _playerVisual!;
         if (Charged)
         {
-            ChargeShotFx.DrawProjectile(this, art, ChargeJob, _age, r);
+            ChargeShotFx.DrawProjectile(this, art, ChargeJob, _age, r, ChargeStage);
             return;
         }
         Color accent = art.Accent;

@@ -52,10 +52,13 @@ public partial class QaPilot : Node
     // Dodge(回避) 等の合成入力周期（DriveFocusDodge）。※低速(Shift)の周期は廃止に伴い削除。
     private const double DodgePeriod = 2.2;       // 回避(Alt)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
-    // 溜め打ち（C 長押し）・集中モード（V）＝一本道14段の #7 / #11。持っていなければ押しても無害に流れる
-    //   （回避＝#2 n_dodge も同じ。2026-09-22 から 1面クリア報酬ではなくショップ品目＝買うまで Alt は不発）。
+    // 溜め打ち（C 長押し）は 2026-09-25 から最初から使える。集中モード（V）＝一本道14段の #11 は
+    //   持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。2026-09-22 から 1面クリア報酬では
+    //   なくショップ品目＝買うまで Alt は不発）。
     private const double ChargePeriod = 4.0;      // 溜め打ちを試す周期
-    private const double ChargeHoldDuration = 0.8; // 押している時間（Player.ChargeNeed=0.6s を必ず超える長さ）
+    // 押している時間。1段目（Player.ChargeNeed=0.6s）は必ず超え、2段目（ChargeTier 既定 1.2s）には
+    //   届かない長さ＝自動走行では従来どおり1段目の弾が出る（2段目の検証は PlayerShotQa が持つ）。
+    private const double ChargeHoldDuration = 0.8;
     private const double SlowPeriod = 9.0;        // 集中モード(V)を叩く周期（CD20秒より短くてよい＝空振りは無害）
 
     // プレイ領域（Player.cs と一致）
@@ -648,20 +651,22 @@ public partial class QaPilot : Node
         _itT += delta;
         var game = GetNodeOrNull<GameManager>("/root/Game");
 
-        // 溜め打ち（n_charge）と集中モード（n_slow）を持っていないと長押し／ホイールが不発で終わり、
-        // 「割り当てが効いていない」のか「未取得で正しく不発」なのか区別できない。テスト中だけ直に付ける
+        // 集中モード（n_slow）を持っていないとホイールが不発で終わり、「割り当てが効いていない」のか
+        // 「未取得で正しく不発」なのか区別できない。テスト中だけ直に付ける
         //（TrainingSetUpgrade は購入パスを通さない直書き。--inputtest でしか呼ばない＝通常走行は無傷）。
         // 回避（n_dodge・2026-09-22 からショップ品目）も同じ理由で付ける＝右クリック／Alt が「未取得で不発」に落ちない。
+        // 溜め打ちは 2026-09-25 から最初から使える＝付ける必要はないが、n_charge（＝2段階チャージ）も
+        // 付けておく＝「買ってあるのに2段目が開かない」退行をこの走行でも踏める。
         if (!_itSetup && game != null)
         {
             _itSetup = true;
             game.AutoSaveEnabled = false;   // 直書きした所持をディスクへ漏らさない（トレーニングと同じ作法）
-            GD.Print($"[IT] baseline: hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode} hasDodge={game.HasDodge} "
+            GD.Print($"[IT] baseline: chargeNeed={game.ChargeNeedSec:0.00} hasFocus={game.HasFocusMode} hasDodge={game.HasDodge} "
                    + $"moveMul={game.MoveSpeedMul:0.00} jobMove={game.JobDef.MoveMul:0.00}");
             game.TrainingSetUpgrade("n_dodge", true);
             game.TrainingSetUpgrade("n_charge", true);
             game.TrainingSetUpgrade("n_slow", true);
-            GD.Print($"[IT] granted n_dodge/n_charge/n_slow: hasDodge={game.HasDodge} hasCharge={game.HasChargeShot} hasFocus={game.HasFocusMode}");
+            GD.Print($"[IT] granted n_dodge/n_charge/n_slow: hasDodge={game.HasDodge} chargeNeed={game.ChargeNeedSec:0.00} hasFocus={game.HasFocusMode}");
         }
 
         // 各段は「_itSub を1つずつ進める」形で書く＝同じ小ステップが複数フレームで多重発火しない。
@@ -719,14 +724,15 @@ public partial class QaPilot : Node
                 else if (_itT > 30.0 && _itSub <= 1 && Once(1)) { GD.Print("[IT] tap: no enemy appeared"); NextIt(); }
                 break;
 
-            case 3: // 左クリック長押し 0.8秒 → 0.6秒で充填完了しているか、離して発射
+            case 3: // 左クリック長押し 0.8秒 → ChargeNeed で充填完了しているか、離して発射
+                //   ※ChargeNeed(1段目)は 0.6 秒＝0.8 秒の保持で満ちる。2段目(1.2秒)には届かない。
                 if (Once(0)) MouseL(true);
                 else if (_itT >= 0.20 && Once(1))
                     GD.Print($"[IT] hold {_itT:0.00}s: chargeRatio={player.ChargeRatio:0.00} full={player.ChargeFull} (0.25s未満=まだ溜めない)");
                 else if (_itT >= 0.40 && Once(2))
                     GD.Print($"[IT] hold {_itT:0.00}s: chargeRatio={player.ChargeRatio:0.00} full={player.ChargeFull}");
                 else if (_itT >= 0.65 && Once(3))
-                    GD.Print($"[IT] hold {_itT:0.00}s: chargeRatio={player.ChargeRatio:0.00} full={player.ChargeFull} (0.6s超=完了しているはず)");
+                    GD.Print($"[IT] hold {_itT:0.00}s: chargeRatio={player.ChargeRatio:0.00} full={player.ChargeFull} (ChargeNeed超=完了しているはず)");
                 else if (_itT >= 0.80 && Once(4))
                 {
                     GD.Print($"[IT] hold {_itT:0.00}s release: full={player.ChargeFull}");

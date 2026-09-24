@@ -325,7 +325,7 @@ public partial class CompanionDialogueQa : Node
         void Take(string key, string block) { if (!seenBefore.Contains(key)) expected.AddRange(Tutorial(block)); }
         Take(StageTutorial.RouteSeenKey, "Route");
         if (game.HasDodge) Take(StageTutorial.SkillDodgeSeenKey, "SkillDodge");
-        if (game.HasChargeShot) Take(StageTutorial.SkillChargeSeenKey, "SkillCharge");
+        Take(StageTutorial.SkillChargeSeenKey, "SkillCharge");   // 溜め打ちは最初から使える＝習得の条件は無い
         switch (stageId)
         {
             case "akari":

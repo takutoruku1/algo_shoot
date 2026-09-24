@@ -273,6 +273,8 @@ public partial class BossKoharu : Enemy
         _mover.Configure("koharu", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("我に返るわたし", BossHandles.KoharuMain);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        // 【激情】メーター開始。初期値は道中（s2_2/s2_4）の選択から決まる（FuryMeter.cs）。
+        GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("koharu");
         ApplySpell();
 
         _caster = new AreaSpellCaster();
@@ -697,6 +699,7 @@ public partial class BossKoharu : Enemy
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝冷えていた旋律に温かい残響が戻る。
         Audio.Instance?.PlayRedeem(2);

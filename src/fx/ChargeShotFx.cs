@@ -2,13 +2,21 @@ using Godot;
 
 public partial class ChargeShotFx : Node2D
 {
-    public enum Beat { Ready, Release, Impact }
+    // Ready2 / Release2 は 2段階チャージ（2026-09-25）の2段目ぶん。1段目より一回り大きく・長く出し、
+    //   逆回りの金の輪を重ねる＝「もう一段ぶん溜まった／撃った」を1段目と見間違えない形にする。
+    public enum Beat { Ready, Release, Impact, Ready2, Release2 }
     public Job Character;
     public Beat Kind;
     private float _age;
-    private float Duration => Kind == Beat.Ready ? 0.22f : Kind == Beat.Release ? 0.32f : 0.42f;
+    // 2段目かどうか（見た目の尺・大きさ・色に効く）。
+    private bool Tier2 => Kind == Beat.Ready2 || Kind == Beat.Release2;
+    // 段を落とした「素の拍」。既存の分岐（Ready / Release / Impact）はこちらを見る。
+    private Beat Base => Kind == Beat.Ready2 ? Beat.Ready : Kind == Beat.Release2 ? Beat.Release : Kind;
+    private float Duration => (Base == Beat.Ready ? 0.22f : Base == Beat.Release ? 0.32f : 0.42f) * (Tier2 ? 1.5f : 1f);
     private static readonly Vector2[] Curve = new Vector2[25];
     private static readonly Vector2[] Star = new Vector2[10];
+    // 2段目の色（金）。キャラ色（BulletArt.PlayerColor）と必ず別の色にする＝どのジョブでも「2段目だ」と読める。
+    public static readonly Color Tier2Gold = new("ffd782");
 
     public override void _Ready()
     {
@@ -32,23 +40,29 @@ public partial class ChargeShotFx : Node2D
         float spread = Mathf.Sin(t * Mathf.Pi / 2);
         var color = BulletArt.PlayerColor(Character);
         var art = BulletArt.PlayerShot(Character);
-        float reach = Kind == Beat.Impact ? 40 : Kind == Beat.Release ? 29 : 17;
+        // 2段目は届く距離も 1.5 倍＝画面上の面積で「重いほう」と分かる。
+        float reach = (Base == Beat.Impact ? 40 : Base == Beat.Release ? 29 : 17) * (Tier2 ? 1.5f : 1f);
         float radius = 4 + reach * spread;
-        DrawSetTransform(Vector2.Zero, 0, new Vector2(Kind == Beat.Release ? 0.48f : 1, 1));
+        DrawSetTransform(Vector2.Zero, 0, new Vector2(Base == Beat.Release ? 0.48f : 1, 1));
         for (int i = 0; i < 3; i++)
             DrawArc(Vector2.Zero, radius - i * 2, t * 0.8f + i * 2.1f,
                 t * 0.8f + i * 2.1f + 1.65f, 22, new Color(color, fade * 0.8f), 1.4f - i * 0.3f, true);
+        // 2段目だけの上乗せ：逆回りの金の二重輪。既存の弧と回る向きが逆＝重なっても混ざらない。
+        if (Tier2)
+            for (int i = 0; i < 2; i++)
+                DrawArc(Vector2.Zero, radius * (1.18f + i * 0.16f), -t * 1.4f + i * Mathf.Pi,
+                    -t * 1.4f + i * Mathf.Pi + 2.4f, 26, new Color(Tier2Gold, fade * 0.9f), 2.2f - i * 0.8f, true);
         DrawSetTransform(Vector2.Zero);
-        int count = Kind == Beat.Impact ? 10 : 6;
+        int count = Base == Beat.Impact || Tier2 ? 10 : 6;
         for (int i = 0; i < count; i++)
         {
             float angle = i * Mathf.Tau / count + (int)Character * 0.3f;
             var direction = Vector2.FromAngle(angle);
             var at = direction * radius;
             DrawLine(direction * radius * 0.55f, at, new Color(color, fade), 1.4f, true);
-            Emblem(this, art, Character, at, 6 * (1 - t) + 2, angle, fade);
+            Emblem(this, art, Character, at, (6 * (1 - t) + 2) * (Tier2 ? 1.35f : 1f), angle, fade);
         }
-        if (Kind != Beat.Ready)
+        if (Base != Beat.Ready)
         {
             DrawLine(new Vector2(-reach * spread, 0), new Vector2(reach * spread, 0),
                 new Color(color, fade * 0.7f), 5 * (1 - t) + 0.5f, true);
@@ -57,7 +71,8 @@ public partial class ChargeShotFx : Node2D
         }
     }
 
-    public static void DrawGather(Node2D canvas, Job job, Vector2 muzzle, Vector2 direction, float ratio, float time)
+    // ratio2 は 2段目の充填率 0..1（0＝2段目を持っていない／まだ1段目が満ちていない）。
+    public static void DrawGather(Node2D canvas, Job job, Vector2 muzzle, Vector2 direction, float ratio, float time, float ratio2 = 0f)
     {
         var art = BulletArt.PlayerShot(job);
         var color = art.Accent;
@@ -77,20 +92,38 @@ public partial class ChargeShotFx : Node2D
             float start = time * 2.2f + i * Mathf.Tau / 3;
             canvas.DrawArc(Vector2.Zero, orbit, start, start + ratio * 1.5f, 16, new Color(color, ratio * 0.8f), 0.9f, true);
         }
-        DrawCore(canvas, art, Vector2.Zero, 8 + ratio * 13, ratio);
+        // 2段目が溜まるあいだ、集まる光そのものが大きくなる（核の直径が 1→1.45 倍まで育つ）。
+        DrawCore(canvas, art, Vector2.Zero, (8 + ratio * 13) * (1 + ratio2 * 0.45f), ratio);
         if (ratio >= 1)
         {
             float pulse = 0.65f + Mathf.Sin(time * 9) * 0.15f;
             canvas.DrawLine(new Vector2(-19, 0), new Vector2(19, 0), new Color(color, pulse), 0.6f, true);
             canvas.DrawLine(new Vector2(0, -15), new Vector2(0, 15), new Color(Colors.White, pulse), 0.6f, true);
         }
+        // 2段目ぶんの金の輪。溜まるほど締まっていき、満ちると太く・速く脈打つ＝「もう一段ある／満ちた」。
+        if (ratio2 > 0)
+        {
+            float ring = Mathf.Lerp(30, 17, ratio2);
+            bool full2 = ratio2 >= 1;
+            float a2 = full2 ? 0.75f + Mathf.Sin(time * 16) * 0.25f : 0.35f + ratio2 * 0.4f;
+            canvas.DrawArc(Vector2.Zero, ring, 0, Mathf.Tau, 30, new Color(Tier2Gold, a2), full2 ? 2.6f : 1.4f, true);
+            for (int i = 0; i < 5; i++)
+            {
+                float angle = -time * 2.6f + i * Mathf.Tau / 5;
+                var at = Vector2.FromAngle(angle) * ring;
+                canvas.DrawLine(at, at * (full2 ? 0.7f : 0.85f), new Color(Tier2Gold, a2), 1.2f, true);
+            }
+        }
         canvas.DrawSetTransform(Vector2.Zero);
     }
 
-    public static void DrawProjectile(Node2D canvas, BulletArt.PlayerVisual art, Job job, float age, float radius)
+    // stage は ChargeTier.First / Second。2段目は尾を長く引き、核の外に金の輪を重ねる
+    //   （弾そのものの大きさは Bullet.Radius が既に 2段目ぶん太い＝ここは「段の色」を足すだけ）。
+    public static void DrawProjectile(Node2D canvas, BulletArt.PlayerVisual art, Job job, float age, float radius, int stage = ChargeTier.First)
     {
         Color color = art.Accent;
-        float length = Mathf.Min(72, 20 + age * 650);
+        bool tier2 = stage >= ChargeTier.Second;
+        float length = Mathf.Min(tier2 ? 104 : 72, 20 + age * 650);
         for (int strand = 0; strand < 3; strand++)
         {
             for (int i = 0; i < Curve.Length; i++)
@@ -113,6 +146,11 @@ public partial class ChargeShotFx : Node2D
         DrawCore(canvas, art, Vector2.Zero, radius * 4.4f, 1);
         canvas.DrawLine(new Vector2(radius * 0.7f, 0), new Vector2(radius * 2.6f, 0),
             new Color(Colors.White, 0.9f), 1, true);
+        // 2段目の徽章＝核を巻く金の二重輪。飛んでいる弾を見ただけでどちらの一発か分かる。
+        if (tier2)
+            for (int i = 0; i < 2; i++)
+                canvas.DrawArc(Vector2.Zero, radius * (1.5f + i * 0.55f), age * 7 + i * Mathf.Pi,
+                    age * 7 + i * Mathf.Pi + 4.2f, 24, new Color(Tier2Gold, 0.85f - i * 0.3f), 2f - i * 0.7f, true);
     }
 
     private static void DrawCore(Node2D canvas, BulletArt.PlayerVisual art, Vector2 at, float size, float alpha)

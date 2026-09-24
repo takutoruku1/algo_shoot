@@ -248,6 +248,8 @@ public partial class BossRei : Enemy
         _mover.Configure("rei", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("星逢レイ", BossHandles.ReiMain);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
+        // 【激情】メーター開始。初期値は道中（s3_2/s3_5c）の選択から決まる（FuryMeter.cs）。
+        GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("rei");
         ApplySpell();
 
         // 予測攻撃（テレグラフ）キャスター：技名宣告→予測線/予測エリア。数は難易度でスケール。
@@ -499,6 +501,7 @@ public partial class BossRei : Enemy
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）
+        GetNodeOrNull<GameManager>("/root/Game")?.EndFury();           // 【激情】メーターを止めて畳む
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyRedemptionStart(); // 残機0の抜けプロンプトを演出に重ねない
         // 改心が始まる確実な瞬間に「解決音（完）」へ移す＝半音で落ちていたモチーフが主音に届く。
         Audio.Instance?.PlayRedeem(0);
