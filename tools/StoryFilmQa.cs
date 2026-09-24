@@ -34,9 +34,9 @@ public partial class StoryFilmQa : Node
             _out = ProjectSettings.GlobalizePath($"res://build/qa_story/{stageName.ToLowerInvariant()}/shots");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var game = GetNode<GameManager>("/root/Game");
-            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--playable") >= 0)
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--matrix") >= 0)
             {
-                await CheckPlayable(stageName, game);
+                await CheckMatrix(stageName, game);
                 return;
             }
             var gameMode = game.ProcessMode;
@@ -108,6 +108,11 @@ public partial class StoryFilmQa : Node
             await Frames(15);
             await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
+            // 撃破後演出（BossPostSequence＝下書きの札を自機が撃って割る）は、自機を動かさないこの走行では
+            //   札が割れず、ボスの会話送りが _posts.Active で止まる（こはる／レイ）。フィルムの検証には
+            //   関係しないので、しきい値を空にして発火させない（あかりは別実装＝AkariPost で、止まらない）。
+            if (boss.GetNodeOrNull<BossPostSequence>("PostSequence") is { } postSeq)
+                Write(postSeq, "_thresholds", Array.Empty<float>());
             int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
             if (!(rei && burst))
             {
@@ -282,35 +287,38 @@ public partial class StoryFilmQa : Node
         }
     }
 
-    private async Task CheckPlayable(string stageName, GameManager game)
+    // ステージ × 操作キャラ（ミナ／あかり／こはる／レイ）で、戦闘中の回想（memory）と撃破後のアフター
+    //   の中身を確かめる。2026-09-23 後半の仕様：
+    //   ・ミナ潜行（Job.Tank）＝従来どおり**その面のボスのフィルム**（一枚絵）。
+    //   ・他ジョブ潜行＝フィルムを**一本も起こさず**、CharacterStory.Memory / Aftermath（潜行キャラ×この面のボスの
+    //     9通り）を会話枠で流す（ユーザー指示「吹き出しのやり取りだけにして」）。本文は Hud.Backlog で照合する。
+    //   旧仕様（この下のコメント）の回帰も兼ねる：
+    //   （aftermath）に流れるフィルムが**その面のボスのもの**であることを確かめ、表にして出す
+    //   （2026-09-23 ユーザー報告「こはるの話であかりの回想／アフターが入ってる」「レイのときも同様」の回帰。
+    //   以前は他ジョブ潜行で CharacterStoryFilm＝操作キャラ×章のフィルムを流していた）。
+    //   起動: qa_story_film.tscn -- --matrix [--koharu|--rei]（1プロセス＝1面×4キャラ。既定は STAGE1）。
+    //   結果は [StoryQA] MATRIX 行（面／操作キャラ／memory／aftermath の FilmId）。こはる面×あかりだけ
+    //   ユーザー報告の再現条件なので memory／aftermath の画面を PNG に残す（build/qa_story/matrix/koharu/akari/）。
+    //   Shot() の CheckFrame が「描かれている絵＝その面のアトラスの該当コマ」まで画素で照合する。
+    private async Task CheckMatrix(string stageName, GameManager game)
     {
         game.AutoSaveEnabled = false;
         game.MsgCharsPerSec = 300;
         game.AutoAdvanceDialog = false;
-        int chapter = stageName == "Akari" ? 1 : stageName == "Koharu" ? 2 : 3;
+        string stageId = stageName.ToLowerInvariant();
+        bool rei = stageName == "Rei";
+        int stageNo = stageName == "Akari" ? 1 : stageName == "Koharu" ? 2 : 3;
         var dives = Read<System.Collections.Generic.Dictionary<string, int>>(game, "_charDives");
-        var script = typeof(CharacterStoryFilm).GetMethod("Script", BindingFlags.Static | BindingFlags.NonPublic)!;
-        foreach (var job in new[] { Job.Melee, Job.Heal, Job.Magic })
+        var filmId = typeof(StoryFilm).GetProperty("FilmId", Private)!;
+        var rows = new System.Collections.Generic.List<string>();
+        foreach (var job in new[] { Job.Tank, Job.Melee, Job.Heal, Job.Magic })
         {
             string id = Jobs.Get(job).CharacterId;
-            for (int ch = 1; ch <= CharacterStory.LoopChapter; ch++)
-                foreach (bool after in new[] { false, true })
-                {
-                    var lines = (Array)script.Invoke(null, new object[] { job, ch, after })!;
-                    Check(lines.Length >= 3, $"{id} ch{ch} after={after}: complete script");
-                    foreach (var line in lines)
-                    {
-                        string ReadLine(string key) => (string)line!.GetType().GetProperty(key)!.GetValue(line)!;
-                        Check(ReadLine("Speaker") == Jobs.Get(job).CharacterName
-                              && ReadLine("Time").Length > 0 && ReadLine("Text").Length > 0,
-                            "named character voice, time and text; no Mina narration");
-                    }
-                }
-
+            bool report = stageId == "koharu" && job == Job.Melee;   // ユーザー報告の再現条件＝画面も残す
             game.SelectedJob = job;
-            dives[id] = chapter;
+            dives[id] = 1;
             game.SelectedEntry = GameManager.StageEntry.Boss;
-            _out = ProjectSettings.GlobalizePath($"res://build/qa_story/playable/{stageName}/{id}");
+            _out = ProjectSettings.GlobalizePath($"res://build/qa_story/matrix/{stageId}/{id}");
             DirAccess.MakeDirRecursiveAbsolute(_out);
             var root = GD.Load<PackedScene>($"res://{stageName}.tscn").Instantiate<Node2D>();
             await Frames(1);
@@ -322,97 +330,125 @@ public partial class StoryFilmQa : Node
             var player = world.GetNode<Player>("Player");
             player.SetPhysicsProcess(false);
             Hud.ClearBacklog();
-            await AdvanceUntil(() => Read<int>(stage, "_step") == (stageName == "Rei" ? 12 : 13));
+            await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
+            // 撃破後演出（BossPostSequence＝下書きの札を自機が撃って割る）は、自機を動かさないこの走行では
+            //   札が割れず、ボスの会話送りが _posts.Active で止まる（こはる／レイ）。フィルムの検証には
+            //   関係しないので、しきい値を空にして発火させない（あかりは別実装＝AkariPost で、止まらない）。
+            if (boss.GetNodeOrNull<BossPostSequence>("PostSequence") is { } posts)
+                Write(posts, "_thresholds", Array.Empty<float>());
             int maxHp = Read<int>(boss, "_maxHp", typeof(Enemy));
             Write(boss, "_hp", (int)(maxHp * 0.77f), typeof(Enemy));
             Call(boss, "OnHpChanged");
             Write(boss, "_hp", (int)(maxHp * (stageName == "Akari" ? 0.51f : 0.49f)), typeof(Enemy));
             Call(boss, "OnHpChanged");
-            await WaitUntil(() => hud.CinematicMode, 120);
-            var film = (CharacterStoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
-            Check(Read<string>(film, "_atlasPath") == $"res://char/bg2/story/cg_{id}_playable_memory_v1.png",
-                $"{stageName} as {id}: HP trigger selects player's memory");
-            Check(world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
-                "world and game timers disabled");
-            double elapsed = Read<double>(stage, "_stageElapsed");
-            double phase = Read<double>(boss, "_phaseT", typeof(Enemy));
-            double combo = Read<double>(game, "_comboTimer");
-            await Frames(130);
-            Check(Read<double>(stage, "_stageElapsed") == elapsed
-                  && Read<double>(boss, "_phaseT", typeof(Enemy)) == phase
-                  && Read<double>(game, "_comboTimer") == combo, "all clocks frozen during memory");
-            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+            string memory;
+            if (job == Job.Tank)
             {
-                DisplayServer.WindowSetSize(size);
-                await Frames(5);
-                using var shot = await Shot($"memory_{size.X}", true);
+                await WaitUntil(() => hud.CinematicMode, 120);
+                var film = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+                memory = (string)filmId.GetValue(film)!;
+                Check(memory == $"{stageId}_memory" && film.GetType().Name == $"{stageName}StoryFilm",
+                    $"STAGE{stageNo} as {id}: memory film is the stage boss's ({memory})");
+                Check(world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
+                    "world and game timers disabled during memory");
+                if (report) { await Frames(90); using var shot = await Shot("memory", grayscale: true); }
+                await AdvanceUntil(() => !IsInstanceValid(film));
+                Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit
+                      && game.ProcessMode != ProcessModeEnum.Disabled, "memory restores combat");
             }
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            await AdvanceUntil(() => !IsInstanceValid(film));
-            Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit
-                  && game.ProcessMode != ProcessModeEnum.Disabled, "memory restores combat");
-            Check(Read<bool>(boss, "_form2", typeof(Enemy)), "second form resumes after memory");
-            Check(FilmSkip.Seen(game, $"{id}_playable_ch{chapter}_memory")
-                  && !FilmSkip.Seen(game, $"{id}_memory"), "playable seen key is separate from Mina route");
+            else
+            {
+                // 他ジョブ潜行：一枚絵は起こさず、吹き出し（Hud.HoldBubble）だけで流す。
+                var lines = CharacterStory.Memory(job, stageId);
+                memory = $"talk:{id}×{stageId}({lines.Length})";
+                await WaitUntil(() => Hud.BubblePaused, 120);
+                Check(GetTree().GetNodesInGroup("storyfilm").Count == 0,
+                    $"STAGE{stageNo} as {id}: memory raises no film (bubble talk only)");
+                // 最初の1行目が出ていることだけ確かめてから送る（本文全体の照合は送り切ったあと）。
+                if (report)
+                {
+                    await Frames(30);
+                    using (var shot = await Shot("memory", grayscale: false)) { }
+                    // M2 の決めの二行（こはる「終わるまで。ぜんぶ終わるまで。」→ あかり「……あー。……その返事、
+                    //   あたし、八年してた。上司に。」）を画で残す（ユーザー要求のスクショ）。
+                    for (int want = 2; want <= 3; want++)
+                    {
+                        await AdvanceUntil(() => System.Linq.Enumerable.Any(Hud.Backlog, e => e.Text == lines[want].text));
+                        await Frames(30);
+                        using var beat = await Shot($"memory_line{want}", grayscale: false);
+                    }
+                }
+                await AdvanceUntil(() => !Hud.BubblePaused);
+                foreach (var line in lines)
+                    Check(System.Linq.Enumerable.Any(Hud.Backlog, e => e.Text == line.text),
+                        $"{id}×{stageId}: memory line in backlog ({line.text[..Math.Min(12, line.text.Length)]})");
+                Check(world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode != ProcessModeEnum.Disabled,
+                    "memory talk restores combat");
+            }
+            // ミナ本編のレイ面だけ、回想明けに S3-7 の下書き選択（ミナ）が割り込む＝送り切ってから撃破へ。
+            if (rei && job == Job.Tank)
+                await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
             Call(boss, "OnHpChanged");
             await Frames(12);
             Check(GetTree().GetNodesInGroup("storyfilm").Count == 0, "memory only starts once");
 
-            if (chapter == 1)
-            {
-                stage.SetProcess(false);
-                var mode = world.ProcessMode;
-                world.ProcessMode = ProcessModeEnum.Disabled;
-                dives[id] = CharacterStory.LoopChapter;
-                foreach (bool after in new[] { false, true })
-                {
-                    bool complete = false;
-                    CharacterStoryFilm.Play(hud, world, after, () => complete = true);
-                    await AdvanceUntil(() => complete);
-                    Check(world.ProcessMode == ProcessModeEnum.Disabled, "loop film preserves already-disabled world");
-                    Check(FilmSkip.Seen(game, $"{id}_playable_ch4_{(after ? "aftermath" : "memory")}"),
-                        "loop chapter has its own seen key");
-                    complete = false;
-                    CharacterStoryFilm.Play(hud, world, after, () => complete = true);
-                    await Frames(5);
-                    KeyEvent(Key.X, true);
-                    await WaitUntil(() => complete, 160);
-                    KeyEvent(Key.X, false);
-                    await Frames(2);
-                    Check(!hud.CinematicMode, "seen loop film skips and restores HUD");
-                }
-                dives[id] = chapter;
-                world.ProcessMode = mode;
-                stage.SetProcess(true);
-            }
-
             Write(boss, "_hp", 0, typeof(Enemy));
             Call(boss, "Redeem", typeof(Enemy));
             Hud.ClearBacklog();
-            await AdvanceUntil(() => hud.CinematicMode);
-            film = (CharacterStoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
-            Check(Read<bool>(film, "_aftermath") && Read<string>(film, "_atlasPath")
-                  == $"res://char/bg2/story/cg_{id}_playable_aftermath_v1.png", "clear selects player's aftermath");
-            var returnLines = CharacterStory.Lines(job, chapter, CharacterStory.Beat.Return);
-            foreach (var line in returnLines)
-                Check(System.Linq.Enumerable.Any(Hud.Backlog, entry => entry.Text == line.text),
-                    "return dialogue finishes before the home-life film");
-            await Frames(135);
-            Check(GetTree().CurrentScene == root && GetTree().GetNodesInGroup("storyfilm").Count == 1,
-                "transition waits for exactly one aftermath film");
-            using (var shot = await Shot("aftermath_1280", false)) { }
-            DisplayServer.WindowSetSize(new Vector2I(960, 540));
-            await Frames(5);
-            using (var shot = await Shot("aftermath_960", false)) { }
-            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
-            await AdvanceUntil(() => GetTree().CurrentScene != root);
-            Check(GetTree().CurrentScene.SceneFilePath == "res://Hub.tscn"
-                  && game.IsStageCleared(stageName.ToLowerInvariant()), "film completion clears stage and returns home");
-            Check(FilmSkip.Seen(game, $"{id}_playable_ch{chapter}_aftermath"), "aftermath seen key recorded");
+            string aftermath;
+            if (job == Job.Tank)
+            {
+                await AdvanceUntil(() => hud.CinematicMode);
+                var film = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
+                aftermath = (string)filmId.GetValue(film)!;
+                Check(Read<bool>(film, "_aftermath") && aftermath == $"{stageId}_aftermath"
+                      && film.GetType().Name == $"{stageName}StoryFilm",
+                    $"STAGE{stageNo} as {id}: aftermath film is the stage boss's ({aftermath})");
+                if (report) { await Frames(90); using var shot = await Shot("aftermath", grayscale: false); }
+                await AdvanceUntil(() => !IsInstanceValid(film));
+                Check(!hud.CinematicMode, "aftermath restores HUD");
+            }
+            else
+            {
+                var lines = CharacterStory.Aftermath(job, stageId);
+                aftermath = $"talk:{id}×{stageId}({lines.Length})";
+                Check(GetTree().GetNodesInGroup("storyfilm").Count == 0,
+                    $"STAGE{stageNo} as {id}: aftermath raises no film (bubble talk only)");
+            }
+            // 明けの会話 → 遷移。この間に別のフィルム（旧・操作キャラの playable）が立たないことも見る。
+            int extraFilms = 0;
+            for (int i = 0; i < 500 && GetTree().CurrentScene == root; i++)
+            {
+                if (GetTree().GetNodesInGroup("storyfilm").Count > 0) extraFilms++;
+                KeyEvent(Key.Z, true);
+                await Frames(16);
+                KeyEvent(Key.Z, false);
+                await Frames(2);
+            }
+            Check(GetTree().CurrentScene != root, "clear transition leaves the stage");
+            Check(extraFilms == 0, "no second (playable) film between the aftermath and the transition");
+            Check(GetTree().CurrentScene.SceneFilePath is "res://Hub.tscn" or "res://ShopTutorial.tscn"
+                  && game.IsStageCleared(stageId), "clear transition completes after the aftermath");
+            if (job != Job.Tank)
+            {
+                // アフター（吹き出し）→ 帰還ビートの順で両方流れていること。
+                foreach (var line in CharacterStory.Aftermath(job, stageId))
+                    Check(System.Linq.Enumerable.Any(Hud.Backlog, entry => entry.Text == line.text),
+                        $"{id}×{stageId}: aftermath line in backlog ({line.text[..Math.Min(12, line.text.Length)]})");
+                foreach (var line in CharacterStory.Lines(job, 1, CharacterStory.Beat.Return))
+                    Check(System.Linq.Enumerable.Any(Hud.Backlog, entry => entry.Text == line.text),
+                        $"{id}: return beat follows the aftermath talk");
+                // 写真アプリの6枚（「もう一度」／「帰還」）の解禁キーがこの走行で立っていること。
+                Check(FilmSkip.Seen(game, CharacterStory.SeenKey(job, aftermath: false))
+                      && FilmSkip.Seen(game, CharacterStory.SeenKey(job, aftermath: true)),
+                    $"{id}: photo app keys unlocked by the memory/aftermath talk");
+            }
+            rows.Add($"[StoryQA] MATRIX | STAGE{stageNo} {stageId} | {Jobs.Get(job).CharacterName}({id}) | memory={memory} | aftermath={aftermath} |");
             GetTree().CurrentScene.QueueFree();
             await Frames(8);
         }
+        foreach (var row in rows) GD.Print(row);
         Audio.Instance?.StopMusic(0);
         foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
             if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -421,7 +457,7 @@ public partial class StoryFilmQa : Node
         GC.Collect();
         GC.WaitForPendingFinalizers();
         await Frames(5);
-        GD.Print($"[StoryQA] {stageName} PLAYABLE ALL PASS");
+        GD.Print($"[StoryQA] {stageName} MATRIX ALL PASS");
         GetTree().Quit();
     }
 

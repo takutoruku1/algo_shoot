@@ -80,7 +80,11 @@ public partial class CompanionDialogueQa : Node
                 foreach (var beat in Enum.GetValues<CharacterStory.Beat>())
                     Collect(CharacterStory.Lines(job.Id, chapter, beat));
             foreach (string stage in new[] { "akari", "koharu", "rei" })
+            {
                 Collect(CharacterStory.Redemption(job.Id, stage));
+                Collect(CharacterStory.Memory(job.Id, stage));
+                Collect(CharacterStory.Aftermath(job.Id, stage));
+            }
         }
         foreach (string path in portraits)
         {
@@ -270,6 +274,21 @@ public partial class CompanionDialogueQa : Node
                     int silence = CharacterStory.RedemptionSilenceAt(job.Id, stage);
                     Check(silence >= 0 && silence < story.Length, $"{job.CharacterId} redemption@{stage} BGM-stop line is in range");
                     count += story.Length;
+                    // 回想（memory）とアフター（aftermath）の9通り。2026-09-23 に一枚絵（StoryFilm）をやめて
+                    //   吹き出しだけになった枚。who は 6（潜行キャラ本人）／2（相手ボス）／4（Ｘ投稿）のみで、
+                    //   ミナの声（who=1/3）も「あなた」（0）も中継（5）も一行も無いことを、改心と同形で検める。
+                    foreach (var (kind, scene) in new[] { ("memory", CharacterStory.Memory(job.Id, stage)),
+                                                          ("aftermath", CharacterStory.Aftermath(job.Id, stage)) })
+                    {
+                        Check(scene.Length > 0 && scene.All(l => l.who is 6 or 2 or 4)
+                            && scene.All(l => !string.IsNullOrWhiteSpace(l.text)),
+                            $"{job.CharacterId} {kind}@{stage} speaks only as 6/2/4");
+                        Check(scene.All(l => !l.text.StartsWith("[仮]")), $"{job.CharacterId} {kind}@{stage} is authored (no placeholder)");
+                        // Ｘ投稿（who=4）は立ち絵を持たない（face=""）。それ以外は全行 face 指定あり。
+                        Check(scene.All(l => l.who == 4 ? l.face.Length == 0 : l.face.Length > 0),
+                            $"{job.CharacterId} {kind}@{stage} portraits follow the who rule");
+                        count += scene.Length;
+                    }
                 }
             }
             foreach (var scene in Enum.GetValues<CompanionDialogue.Menu>())
@@ -288,10 +307,45 @@ public partial class CompanionDialogueQa : Node
         GD.Print($"[CompanionQA] {count} story/menu lines, plus the tutorial scene");
     }
 
+    // 初見チュートリアル（src/StageTutorial.cs・2026-09-16〜22）の本文を private static から引く。
+    //   各ステージの _Ready はイントロ会話（_playerIntro）の末尾へこれらを Concat する＝
+    //   「本編イントロそのまま」ではなくなるので、期待値も同じ規則で組み立てる。
+    private static (int who, string text, string face)[] Tutorial(string name)
+        => Data<(int who, string text, string face)[]>(typeof(StageTutorial), name);
+
+    // その面の _Ready が _playerIntro の末尾へ足すはずのチュートリアル本文を、
+    //   シーン生成**前**の既読キー集合（once）から組み立てて返す。
+    //   並びは StageAkari/StageKoharu/StageRei._Ready と同じ：道中 → 習得スキル（回避→溜め打ち）
+    //   → アンチャー紹介 → 強化アイテム（あかりのみ）。他ジョブ潜行中は一切出ない（StageTutorial.Take）。
+    private static (int who, string text, string face)[] ExpectedTutorial(
+        GameManager game, JobTuning job, string stageId, HashSet<string> seenBefore)
+    {
+        var expected = new List<(int who, string text, string face)>();
+        if (job.Id != Job.Tank) return expected.ToArray();   // 潜行キャラのストーリー中は非表示・非消費
+        void Take(string key, string block) { if (!seenBefore.Contains(key)) expected.AddRange(Tutorial(block)); }
+        Take(StageTutorial.RouteSeenKey, "Route");
+        if (game.HasDodge) Take(StageTutorial.SkillDodgeSeenKey, "SkillDodge");
+        if (game.HasChargeShot) Take(StageTutorial.SkillChargeSeenKey, "SkillCharge");
+        switch (stageId)
+        {
+            case "akari":
+                Take(StageTutorial.AnkerAkariSeenKey, "AnkerAkari");
+                Take(StageTutorial.ItemsAkariSeenKey, "ItemsAkari");
+                break;
+            case "koharu": Take(StageTutorial.AnkerKoharuSeenKey, "AnkerKoharu"); break;
+            default: Take(StageTutorial.AnkerReiSeenKey, "AnkerRei"); break;
+        }
+        return expected.ToArray();
+    }
+
     private async Task CheckStages(JobTuning job)
     {
+        var game = GetNode<GameManager>("/root/Game");
         foreach (var (path, stageId, mid) in new[] { ("Akari.tscn", "akari", "MidEnd"), ("Koharu.tscn", "koharu", "ClassTalk"), ("Rei.tscn", "rei", "BossTalk") })
         {
+            // Stage._Ready がチュートリアルの once を消費する前の既読集合を控える（期待値の組み立てに使う）。
+            var seenBefore = new HashSet<string>(Read<HashSet<string>>(game, "_idleDialogSeen"));
+            var expectedTutorial = ExpectedTutorial(game, job, stageId, seenBefore);
             var root = GD.Load<PackedScene>($"res://{path}").Instantiate<Node2D>();
             GetTree().Root.AddChild(root);
             GetTree().CurrentScene = root;
@@ -325,8 +379,13 @@ public partial class CompanionDialogueQa : Node
             {
                 var lines = Read<(int who, string text, string face)[]>(stage, field);
                 var baseline = Data<(int who, string text, string face)[]>(stage.GetType(), original);
+                // 初見チュートリアル（2026-09-16〜22）は _playerIntro の**末尾へ**繋がれる。
+                //   本編イントロが前半にそのまま残っていること＋続く分が期待どおりのチュートリアル本文
+                //   であることの両方を検める（ゆるく「前方一致だけ」にすると混入を見逃す）。
+                var canon = beat == null && field == "_playerIntro"
+                    ? baseline.Concat(expectedTutorial).ToArray() : baseline;
                 if (beat == null)
-                    Check(lines.SequenceEqual(baseline), $"{job.CharacterId} {stageId}/{original} keeps canon lines");
+                    Check(lines.SequenceEqual(canon), $"{job.CharacterId} {stageId}/{original} keeps canon lines");
                 else
                     Check(lines.SequenceEqual(CharacterStory.Lines(job.Id, 1, beat.Value)), $"{job.CharacterId} {stageId}/{beat} uses the character story");
                 if (job.Id != Job.Tank)
@@ -398,6 +457,12 @@ public partial class CompanionDialogueQa : Node
         game.ResetPersistent();
         game.AutoSaveEnabled = false;
         game.SelectedJob = Job.Tank;
+        // 強化ショップの初回説明（ShopTutorial・2026-09-22）を既読にしておく。ResetPersistent が
+        //   ShopTutorialSeen を折るので、下で "akari" を _cleared に入れた瞬間 ShopUnlocked が立ち、
+        //   ホームの最初の Process が Hub.TryOpenShopTutorial() で ShopTutorial.tscn へ飛ばしてしまう
+        //   （ハブごと解放されるので Z を押しても SNS へ入れない）。ここで見たいのは SNS の導線なので、
+        //   once_phone_home と同じ流儀でこの一度きりの説明だけ消費済みにする。
+        game.ShopTutorialSeen = true;
         var hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
         GetTree().Root.AddChild(hub);
         GetTree().CurrentScene = hub;
@@ -405,7 +470,10 @@ public partial class CompanionDialogueQa : Node
         await Frames(30);
         Check(Read<object>(hub, "_mode").ToString() == "Home", "first visit starts on the phone home");
         await Press(Key.Z);
-        await Frames(45);
+        // SNS はアプリ起動アニメ（Mode.SnsOpening・Hub.SnsOpenDuration=0.65s）を挟んでから Cards へ移る。
+        //   固定フレーム待ちだと尺を延ばされた途端に落ちるので、抜けるまで待ってから見る。
+        for (int i = 0; i < 180 && Read<object>(hub, "_mode").ToString() == "SnsOpening"; i++) await Frames(1);
+        await Frames(5);
         Check(Read<object>(hub, "_mode").ToString() == "Cards", "rescued characters enter SNS through its home app");
         long followers = game.Followers, impression = game.Impression;
         await Press(Key.J);
