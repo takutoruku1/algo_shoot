@@ -18,8 +18,8 @@ description: Build and package this Godot/.NET game as a distributable single Wi
 - 形式は **メジャー.マイナー**、マイナーは**小数点以下3桁**（`2.001`）。
 - **exe を出力し直すたびに 1 ずつ増やす**（2.001 → 2.002 → 2.003 …）。
 - 現在値は `build/VERSION.txt` に置く。**書き出す前に読み、書き出したら増やして保存する**。
-- ファイル名は `build/algo_shoot_v<版>.exe` と `build/algo_shoot_v<版>.zip`（例 `algo_shoot_v2.001.exe`）。
-- zip の中の exe も同じ版名にする（`algo_shoot_v2.001.exe`）。
+- **ファイル名は `build/refrain_<版>.exe` と `build/refrain_<版>.zip`**（例 `refrain_2.014.exe`。2026-09-23 ユーザー指示で `algo_shoot_v<版>` から変更。`v` は付けない）。エクスポート直後の中間名 `build/algo_shoot.exe` はそのままでよく、最終成果物だけをこの名前にする。
+- zip の中の exe も同じ版名にする（`refrain_2.014.exe`）。readme「■ 起動」のファイル名も合わせる。
 - メジャーを上げるのはユーザーの指示があったときだけ。勝手に上げない。
 
 ## 変数
