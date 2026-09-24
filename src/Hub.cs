@@ -126,6 +126,12 @@ public partial class Hub : Node2D
     // デバッグ限定：--hub-shopnudge で「説明を読み終えて帰ってきた直後」のホーム誘導を再現する
     //   （スクショ／見え方の確認用。セーブは触らない＝ShopTutorialSeen も書き換えない）。
     private bool _previewShopNudge;
+    // デバッグ限定：--hub-accountnudge でフッタ「アカウント」の誘導リングを撮る（--hub-preview と併用。セーブは触らない）。
+    private bool _previewAccountNudge;
+    // アカウント追加の説明を読み切った回だけ、SNS のフッタ「アカウント」を脈動させる（_shopNudge と同じ作法）。
+    //   フラグは GameManager のランタイム限り＝帰還会話→ShopTutorial→ハブ再入場をまたいで残り、
+    //   OpenJob（押す／切替UIを開く）で降りる。once キーで説明が二度と出ないので再発もしない。
+    private bool AccountNudge => !_autoplay && (_previewAccountNudge || (_game?.AccountNudgePending ?? false));
 
     // Detail＝2-b の投稿詳細（カードがその場で開く）。本文／消された行の伏字／ミナの一言／潜り方（難易度）を
     //   1枚に置き、旧 DiffSelect.tscn への遷移をここへ吸収した（難易度の数値・実装は不変）。
@@ -142,6 +148,9 @@ public partial class Hub : Node2D
     private bool _idleTalkPending;
     private const string HomeRevealSeenKey = "once_phone_home";
     private const string SnsIntroSeenKey = "once_sns_intro";
+    // アカウント追加の説明（2026-09-23 ユーザー要望「アカウントが追加されたって説明が入るようにして」）。
+    //   あかり初回の帰還会話に差し込む3行の once キー。読み切ると立ち、二度と流れない。
+    private const string AccountIntroSeenKey = "once_account_intro";
     private const double SnsOpenDuration = 0.65;
     private double _snsOpeningT;
     private bool NeedsSnsIntro => _game.HeartsSaved == 0 && !_game.IsIdleDialogSeen(SnsIntroSeenKey);
@@ -265,6 +274,7 @@ public partial class Hub : Node2D
             if (args[i] == "--hub-job") _openJob = true;
             if (args[i] == "--hub-photos") _openPhotos = true;
             if (args[i] == "--hub-shopnudge") _previewShopNudge = true;
+            if (args[i] == "--hub-accountnudge") _previewAccountNudge = true;
         }
 
         BuildEntries();
@@ -357,7 +367,21 @@ public partial class Hub : Node2D
                 lines = combined.ToArray();
                 _pendingBurn = true;
             }
-            if (lines.Length > 0) StartDialogue(lines, null, returnMode: _autoplay ? Mode.Cards : Mode.Home);
+            // アカウント追加の説明（docs/20260923/アカウント追加説明_本文_2026-09-23.md・A案）。あかり初回だけ、
+            //   H1 の「被弾は{n}回でした」の直後＝「……お疲れさまでした。」の前へ実行時に差し込む
+            //   （集計→ご報告→お疲れさま→次の声、の順で締めの一行を最後に残す）。ReturnDialog は再クリアでも
+            //   流れる静的配列なので配列自体は触らない。once は読み切った時点（EndDialogue）で立てて保存する。
+            //   こはる／レイの追加時には出さない＝本文があかり固有（「名義は、わたくしではありません」）。
+            string? seenKey = null;
+            if (freed != null && freed.CharacterId == "akari" && !_game.IsIdleDialogSeen(AccountIntroSeenKey))
+            {
+                int at = System.Array.FindIndex(lines, l => l.Item2.StartsWith("……お疲れさまでした"));
+                var spliced = new System.Collections.Generic.List<(string, string)>(lines);
+                spliced.InsertRange(at < 0 ? lines.Length : at, AccountIntroAkari);
+                lines = spliced.ToArray();
+                seenKey = AccountIntroSeenKey;
+            }
+            if (lines.Length > 0) StartDialogue(lines, null, returnMode: _autoplay ? Mode.Cards : Mode.Home, seenKey: seenKey);
         }
         else if ((_game?.HeartsSaved ?? 0) > 0 && GD.Randf() < 0.5f)
         {
@@ -885,6 +909,9 @@ public partial class Hub : Node2D
     {
         if (_dlgSeenKey != null)
         {
+            // アカウント追加の説明を読み切った回＝次に SNS を開いたとき、フッタ「アカウント」を脈動させる。
+            //   会話が終わった時点はホーム画面でフッタが見えないので、誘導はここで予約して Cards で出す。
+            if (_dlgSeenKey == AccountIntroSeenKey && !_autoplay) _game.AccountNudgePending = true;
             _game.MarkIdleDialogSeen(_dlgSeenKey);
             _dlgSeenKey = null;
         }
@@ -1123,9 +1150,14 @@ public partial class Hub : Node2D
     private static readonly Vector4 PhotoFull = new(0, 0, 1, 1);
     private static Vector4 StoryRegion(int shot, int rows) => new((shot % 2) / 2f, (shot / 2) / (float)rows, 0.5f, 1f / rows);
     private static string[] K(params string[] keys) => keys;
-    private static string[] PlayableKeys(string id, string kind) => new[]
+    // 他ジョブ潜行の回想／アフターの解禁キー。6枚の絵は**キャラ単位**（cg_{id}_playable_{kind}_v1.png）で
+    //   面別ではないので、「そのキャラで潜って回想／アフターを一度見た」で開く（どの面でもよい）。
+    //   旧キー（{id}_playable_ch{n}_{kind}＝CharacterStoryFilm の FilmId）は**もう誰も立てない**――回想／アフターは
+    //   2026-09-23 に一枚絵をやめて吹き出しだけになった（CharacterStory.Memory / Aftermath）ので、
+    //   そちらが立てる CharacterStory.SeenKey へ付け替える（放置すると14枚中6枚が永久に開かない）。
+    private static string[] PlayableKeys(string id, bool aftermath) => new[]
     {
-        $"{id}_playable_ch1_{kind}", $"{id}_playable_ch2_{kind}", $"{id}_playable_ch3_{kind}", $"{id}_playable_ch4_{kind}",
+        $"charstory_{id}_{(aftermath ? "aftermath" : "memory")}",
     };
     private static string[] MinaPhaseKeys(int phase) => new[]
     {
@@ -1143,12 +1175,12 @@ public partial class Hub : Node2D
         new("rei_after", "レイ / その後", "After Scene", "res://char/v3/rei_story_atlas_v2.png", StoryRegion(6, 4), new Color("de91b9"), K("rei_aftermath")),
         new("mina_memory", "ミナ / 回想", "Memory Log", "res://char/v3/mina_story_atlas.png", StoryRegion(3, 3), new Color("87d7ed"), K("mina_memory")),
         new("mina_after", "ミナ / 手を重ねる", "After Scene", "res://char/bg2/story/cg_mina_take_hand_v1.png", PhotoFull, new Color("87d7ed"), K("mina_aftermath")),
-        new("akari_playable_memory", "あかり / もう一度", "Playable Memory", "res://char/bg2/story/cg_akari_playable_memory_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", "memory")),
-        new("akari_playable_after", "あかり / 帰還", "Playable After", "res://char/bg2/story/cg_akari_playable_aftermath_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", "aftermath")),
-        new("koharu_playable_memory", "こはる / もう一度", "Playable Memory", "res://char/bg2/story/cg_koharu_playable_memory_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", "memory")),
-        new("koharu_playable_after", "こはる / 帰還", "Playable After", "res://char/bg2/story/cg_koharu_playable_aftermath_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", "aftermath")),
-        new("rei_playable_memory", "レイ / もう一度", "Playable Memory", "res://char/bg2/story/cg_rei_playable_memory_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", "memory")),
-        new("rei_playable_after", "レイ / 帰還", "Playable After", "res://char/bg2/story/cg_rei_playable_aftermath_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", "aftermath")),
+        new("akari_playable_memory", "あかり / もう一度", "Playable Memory", "res://char/bg2/story/cg_akari_playable_memory_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", aftermath: false)),
+        new("akari_playable_after", "あかり / 帰還", "Playable After", "res://char/bg2/story/cg_akari_playable_aftermath_v1.png", PhotoFull, new Color("f0c969"), PlayableKeys("akari", aftermath: true)),
+        new("koharu_playable_memory", "こはる / もう一度", "Playable Memory", "res://char/bg2/story/cg_koharu_playable_memory_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", aftermath: false)),
+        new("koharu_playable_after", "こはる / 帰還", "Playable After", "res://char/bg2/story/cg_koharu_playable_aftermath_v1.png", PhotoFull, new Color("a6dac8"), PlayableKeys("koharu", aftermath: true)),
+        new("rei_playable_memory", "レイ / もう一度", "Playable Memory", "res://char/bg2/story/cg_rei_playable_memory_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", aftermath: false)),
+        new("rei_playable_after", "レイ / 帰還", "Playable After", "res://char/bg2/story/cg_rei_playable_aftermath_v1.png", PhotoFull, new Color("de91b9"), PlayableKeys("rei", aftermath: true)),
         new("mina_phase_rain", "未送信の雨", "Mina Phase", BossMina.PhaseBackground(1), PhotoFull, new Color("74b8e8"), MinaPhaseKeys(1)),
         new("mina_phase_clap", "消えない拍手", "Mina Phase", BossMina.PhaseBackground(2), PhotoFull, new Color("ee9bb7"), MinaPhaseKeys(2)),
         new("mina_phase_mask", "仮面の向こう", "Mina Phase", BossMina.PhaseBackground(3), PhotoFull, new Color("f0d98a"), MinaPhaseKeys(3)),
@@ -1360,6 +1392,11 @@ public partial class Hub : Node2D
     {
         float a = Mathf.Clamp((float)_photoT / 0.18f, 0f, 1f);
         DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
+        // グリッドはヘッダ／ヒーロー枠より先に描き、上側を PhoneBg で塗り潰してから重ねる＝スクロールで
+        //   PhotoGridTop より上へ出たカードがヒーロー枠に被らない（2026-09-23 ユーザー報告：未取得のヒーロー枠に
+        //   「はじまりの光」等の行が重なって見えていた。DrawPhotoCard の早期 return は完全に外れたカードしか弾かない）。
+        for (int i = 0; i < PhotoEntries.Length; i++) DrawPhotoCard(i, a);
+        DrawRect(new Rect2(PhoneX, 0, PhoneW, PhotoGridTop), PhoneBg);
         DrawBackButton(PhotoCloseRect(), PhotoCloseId, a);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(PhoneX + 66f, 25f), "写真", 22, new Color(UiKit.White, a));
         UiKit.Text(this, UiKit.Mono, new Vector2(PhoneX + PhoneW - 154f, 29f), $"{PhotoAcquiredCount()}/{PhotoEntries.Length}", 18,
@@ -1388,8 +1425,6 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.ZenBold, hero.Position + new Vector2(20f, 176f), acquired ? entry.Title : "まだ取得していないシーン", 18,
             new Color(acquired ? UiKit.White : UiKit.Text3, a));
 
-        DrawRect(new Rect2(PhoneX, PhotoGridTop - 14f, PhoneW, 14f), PhoneBg);
-        for (int i = 0; i < PhotoEntries.Length; i++) DrawPhotoCard(i, a);
         DrawRect(new Rect2(PhoneX, PhotoGridBottom, PhoneW, H - PhotoGridBottom), PhoneBg);
         DrawPhotoScrollHint(a);
         string hint = $"{Pad.ConfirmToken} 背景にする　{Pad.CancelToken} もどる";
@@ -1879,19 +1914,40 @@ public partial class Hub : Node2D
         return GameManager.FirstStageId;
     }
 
-    private static Vector2 SidePortraitFocus(string id) => id switch
+    // サイドパネル立ち絵の「顔」（画像ピクセル）：eyes＝両目の中点、face＝目線から顎までの高さ。
+    //   4枚とも 1024x1536 だが構図が違う（ミナ＝専用の全身絵 hub_mina_v1、他3人＝オープニングのカットイン
+    //   op_*_cutin_v1 を流用したバストアップ）。高さだけで合わせると顔の大きさが2倍近く違って見える
+    //   （2026-09-23 ユーザー報告「ミナに対してあかりがでかい」）ので、ここから顔の高さ比を出して縮め、
+    //   両目の中点を同じ点に置く＝顔の大きさと肩の高さがミナ基準で揃う。新しい絵は作らない。
+    private static (Vector2 eyes, float face) SidePortraitFace(string id) => id switch
     {
-        "akari" => new(0.52f, 0.24f), "koharu" => new(0.64f, 0.25f),
-        "rei" => new(0.51f, 0.24f), _ => new(0.56f, 0.16f),
+        "akari" => (new(535, 365), 200f), "koharu" => (new(662, 357), 148f),
+        "rei" => (new(555, 357), 163f), _ => (new(615, 240), 97f),
     };
 
-    private void DrawSideTexture(Texture2D texture, Rect2 rect, Rect2 clip, float alpha)
+    // rect を clip で切って描く。fade > 0 なら画像の下端 fade px を透明へ落とす＝バストアップの切り抜きが
+    //   パネルの途中で終わる縁（あかり／こはる／レイ）を下の影へ溶かす。全身絵（ミナ）は下端が画面外なので効かない。
+    private void DrawSideTexture(Texture2D texture, Rect2 rect, Rect2 clip, float alpha, float fade = 0f)
     {
         Rect2 visible = rect.Intersection(clip);
         if (!visible.HasArea()) return;
-        Rect2 source = new((visible.Position - rect.Position) / rect.Size * texture.GetSize(),
-            visible.Size / rect.Size * texture.GetSize());
-        DrawTextureRectRegion(texture, visible, source, new Color(1, 1, 1, alpha));
+        float solidEnd = fade > 0f ? Mathf.Min(visible.End.Y, rect.End.Y - fade) : visible.End.Y;
+        if (solidEnd > visible.Position.Y)
+        {
+            Rect2 solid = new(visible.Position, new Vector2(visible.Size.X, solidEnd - visible.Position.Y));
+            Rect2 source = new((solid.Position - rect.Position) / rect.Size * texture.GetSize(),
+                solid.Size / rect.Size * texture.GetSize());
+            DrawTextureRectRegion(texture, solid, source, new Color(1, 1, 1, alpha));
+        }
+        if (solidEnd >= visible.End.Y) return;
+        float top = Mathf.Max(solidEnd, visible.Position.Y);
+        Vector2[] pts = { new(visible.Position.X, top), new(visible.End.X, top), visible.End, new(visible.Position.X, visible.End.Y) };
+        var uvs = new Vector2[4];
+        for (int i = 0; i < 4; i++) uvs[i] = (pts[i] - rect.Position) / rect.Size;
+        float a0 = alpha * Mathf.Clamp((rect.End.Y - top) / fade, 0f, 1f);
+        float a1 = alpha * Mathf.Clamp((rect.End.Y - visible.End.Y) / fade, 0f, 1f);
+        DrawPolygon(pts, new[] { new Color(1, 1, 1, a0), new Color(1, 1, 1, a0), new Color(1, 1, 1, a1), new Color(1, 1, 1, a1) },
+            uvs, texture);
     }
 
     private void DrawSideLandscape(string id, Rect2 area, float alpha)
@@ -1907,11 +1963,13 @@ public partial class Hub : Node2D
         DrawRect(area, new Color(0.015f, 0.025f, 0.035f, alpha * 0.18f));
     }
 
+    // focus＝両目の中点を置く画面座標。height＝ミナ（全身絵）を描く高さで、他の絵は顔の高さ比で縮める。
     private void DrawSidePortrait(string id, Rect2 area, Vector2 focus, float height, float alpha)
     {
         Texture2D texture = _sidePortraits[id];
-        Vector2 size = texture.GetSize() * (height / texture.GetHeight());
-        DrawSideTexture(texture, new Rect2(focus - size * SidePortraitFocus(id), size), area, alpha);
+        var (eyes, face) = SidePortraitFace(id);
+        float scale = height / texture.GetHeight() * (SidePortraitFace("mina").face / face);
+        DrawSideTexture(texture, new Rect2(focus - eyes * scale, texture.GetSize() * scale), area, alpha, fade: 120f);
     }
 
     private void DrawSideShade(Rect2 area, float top, float alpha, float end = 0.75f)
@@ -1928,7 +1986,8 @@ public partial class Hub : Node2D
         DrawSideLandscape(id, CompanionArea, alpha * 0.72f);
         float arrive = Mathf.SmoothStep(0, 1, Mathf.Clamp((float)(_t / 0.7), 0, 1));
         float breath = Mathf.Sin((float)_t * 0.85f) * 3;
-        DrawSidePortrait(id, CompanionArea, new Vector2(218 - (1 - arrive) * 22, 266 + breath),
+        // 両目の中点を (239, 263) へ＝ミナの見え方は従来（焦点 0.56/0.16・高さ 780）のまま。他3人はここに顔を揃える。
+        DrawSidePortrait(id, CompanionArea, new Vector2(239 - (1 - arrive) * 22, 263 + breath),
             780, alpha * arrive);
         DrawSideShade(CompanionArea, 430, alpha);
         UiKit.VGradient(this, new Rect2(0, 0, CompanionArea.Size.X, 195),
@@ -1989,8 +2048,10 @@ public partial class Hub : Node2D
         var job = System.Array.Find(Jobs.All, j => j.CharacterId == character)!;
         DrawSideLandscape(character, StoryArea, alpha);
         float drift = Mathf.Sin((float)_t * 0.65f + 1.2f);
+        // 基準高 1140＝顔（目線→顎）が約 72px。旧 650 でカットイン3人を流していたときの平均に合わせ、
+        //   最後の声（ミナの全身絵）だけ小さく写っていたのを同じ大きさへ揃える。
         DrawSidePortrait(character, new Rect2(StoryArea.Position, new Vector2(StoryArea.Size.X, 458)),
-            new Vector2(1137 + drift * 4, 222 + drift * 2), 650, alpha);
+            new Vector2(1137 + drift * 4, 222 + drift * 2), 1140, alpha);
         DrawSideShade(StoryArea, 300, alpha, 0.36f);
         UiKit.VGradient(this, new Rect2(StoryArea.Position.X, 0, StoryArea.Size.X, 135),
             new[] { new Color(0.027f, 0.038f, 0.045f, alpha * 0.65f), new Color(0, 0, 0, 0) }, new[] { 0f, 1f });
@@ -2463,9 +2524,22 @@ public partial class Hub : Node2D
             var (_, label, accent, act) = items[i];
             var rect = FooterItemRect(i);
             bool hovered = UiKit.HoveredId() == FooterIdBase + i;
-            Color col = accent ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
+            bool nudge = act == FootAct.Job && AccountNudge;
+            Color col = accent || nudge ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
             if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
-            DrawFooterIcon(act, rect.Position + new Vector2(rect.Size.X / 2f, 18f), col);
+            Vector2 c = rect.Position + new Vector2(rect.Size.X / 2f, 18f);
+            // アカウント追加の説明を読んだ直後だけの誘導（2026-09-23）：フッタ「アカウント」の顔アイコンから
+            //   外へ広がりながら薄くなる輪を2枚ずらして重ねる＝ホームの強化アイコン（_shopNudge）と同じ作法。
+            //   台詞は足していない（説明の2行目「SNSの下、「アカウント」から」が場所をもう言っている）。
+            if (nudge)
+            {
+                for (int ring = 0; ring < 2; ring++)
+                {
+                    float phase = Mathf.PosMod((float)_t * 0.8f + ring * 0.5f, 1f);
+                    DrawArc(c, 17f + phase * 14f, 0f, Mathf.Tau, 48, new Color(UiKit.Purify, (1f - phase) * 0.55f), 2f, true);
+                }
+            }
+            DrawFooterIcon(act, c, col);
             UiKit.Text(this, UiKit.Zen, rect.Position + new Vector2(0, 38f), label, 12, col, HorizontalAlignment.Center, rect.Size.X);
         }
     }
@@ -2709,6 +2783,9 @@ public partial class Hub : Node2D
     {
         if (_dived) return;
         Audio.Instance?.PlayUiConfirm();
+        // 自分で開けた＝アカウント追加の誘導は役目を終える（フッタ／ヘッダ／J どこから開いても降ろす）。
+        _previewAccountNudge = false;
+        if (_game != null) _game.AccountNudgePending = false;
         _jobReturnMode = _mode == Mode.Detail ? Mode.Detail : Mode.Cards;
         _mode = Mode.Job;
         _jobT = 0;
@@ -3096,6 +3173,17 @@ public partial class Hub : Node2D
     private static readonly (string, string)[] NotYetDialog =
     {
         ("ミナ", "……まだ、聞こえません。"),
+    };
+
+    // アカウント追加の説明（docs/20260923/アカウント追加説明_本文_2026-09-23.md・A案 あかり固有）。
+    //   H1（あかり後）の「被弾は{n}回でした」の直後に初回だけ差す（差し込みは _Ready の帰還会話側）。
+    //   キー名・数値は言わない。「アカウント」はフッタの語そのまま。「足取りは、ご主人様のままで」は
+    //   初回切り替え時の掛け合い（CompanionDialogue Select）と同じ言い方＝あとで流れる会話と噛み合う。
+    private static readonly (string, string)[] AccountIntroAkari =
+    {
+        ("ミナ", "ご報告。アカウントが、ひとつ、増えています。……名義は、わたくしではありません。あの方です。"),
+        ("ミナ", "SNSの下、「アカウント」から、切り替えられます。切り替えた回は、あの方が潜ります。足取りは、ご主人様のままで。"),
+        ("ミナ", "光の形も、そこで語られる話も、あの方のものになります。……戻すのも、同じ場所からです。"),
     };
 
     private static (string, string)[] ReturnDialog(string id) => id switch
