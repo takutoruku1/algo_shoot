@@ -70,8 +70,6 @@
 
 ## WIP
 
-- [ ] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | 2026-09-24監査(engineer)。`src/Pad.cs:111`の`FlipToken`は`src/`全体で宣言以外の参照が0件。向き反転のヒント表示は`src/HowToPlay.cs:104-105`の`TokFlip`と`src/StageZero.cs:208`の直書きで別々に重複実装済み。未使用の`FlipToken`を削除するか、`TokFlip`/`StageZero.cs`側を`Pad.FlipToken`参照へ寄せて重複を解消するか（挙動不変を維持すること）。
-
 ## BLOCKED
 
 <!-- 2026-09-24 監査モード(engineer/scenario)で追加 -->
@@ -160,6 +158,7 @@
 - [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
+- [x] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Pad.cs:110-111`の`FlipToken`静的プロパティ（宣言以外の参照0件）と直上の説明コメントを削除。向き反転表示は`TokFlip`(`HowToPlay.cs`)と`StageZero.cs:208`の既存実装のまま変更なし、挙動不変。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) コメント中のファイル:行参照ズレが2026-09-22/23の一斉修正後も新たに3箇所発生 | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Player.cs:265`「999行目」→`Player.cs:1019`、`src/EnemySpec.cs:129`「MidEnemy.cs:80-81」→`MidEnemy.cs:84-85`、`src/QaPilot.cs:321`「Player.cs:654」→`Player.cs:660`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) Shop.csのLUNATIC解放ゴールのコメントが実装(Lv3)と食い違うLv4のまま | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Shop.cs:1164`のコメント「光の出力Lv4」を、直後`:1167`の実コード`ChainLevel("shot_power", 3)`(DONE 2026-09-14でLv4→Lv3是正済み)に合わせて「Lv3」へ修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) コメント中のファイル:行参照ズレが2026-09-22の一斉修正から一部漏れている | engineer | (完了 2026-09-23) 2026-09-23監査(engineer)発見。`src/DemoPilot.cs:258`「GameManager.cs:799-801」→`GameManager.cs:796-797`、`src/DemoPilot.cs:350`「Prologue.cs:178」→`Prologue.cs:242`、`src/Bullet.cs:413`「Panel.cs:103」→`Panel.cs:109`、`src/PostBullets.cs:13`「Bullet.cs:236〜」→`Bullet.cs:114`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
