@@ -65,11 +65,12 @@
 
 <!-- 2026-09-24 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenarioは1件TODO・2件BLOCKEDへ、engineerは3件TODOへ、game-designerは1件TODOへ、qaは新規指摘0件 -->
 
-- [ ] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | 2026-09-24監査(engineer)。`src/Pad.cs:111`の`FlipToken`は`src/`全体で宣言以外の参照が0件。向き反転のヒント表示は`src/HowToPlay.cs:104-105`の`TokFlip`と`src/StageZero.cs:208`の直書きで別々に重複実装済み。未使用の`FlipToken`を削除するか、`TokFlip`/`StageZero.cs`側を`Pad.FlipToken`参照へ寄せて重複を解消するか（挙動不変を維持すること）。
 - [ ] (P2) こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る | engineer | 2026-09-24監査(scenario)。`src/Hud.cs:1142`の`string label = "お残し禁止";`（2026-09-22追加のタイマーUI、`Hud.cs:1133-1144`）が、`src/BossKoharu.cs:494`で実際にアナウンスされる現行スペル名`"全部見なきゃ"`（2026-09-06に旧名「お残し禁止」から改名済み、DONE記録あり）と食い違う。プレイヤーはスペルカードとタイマーラベルで矛盾する2つの技名を同時に見る上、「お残し禁止」は案Cで撤去済みの台所設定用語（`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:96`）。`Hud.cs:1142`の文字列を既存の承認済み名称`"全部見なきゃ"`に置換するのみ。新規文言の創作なし、ロジック無変更。
 - [ ] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | 2026-09-24監査(game-designer)。`src/GameManager.cs:816-824`のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、`src/Player.cs:1090-1100`のEndDodgeで発動する光輪(`GameManager.cs:790-792` VeilLightDuration={0,0.5,0.7}秒、`src/Player.cs:692-704`で半径内の敵弾を無条件消去+加点)により、`0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown`となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または`Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)`を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。
 
 ## WIP
+
+- [ ] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | 2026-09-24監査(engineer)。`src/Pad.cs:111`の`FlipToken`は`src/`全体で宣言以外の参照が0件。向き反転のヒント表示は`src/HowToPlay.cs:104-105`の`TokFlip`と`src/StageZero.cs:208`の直書きで別々に重複実装済み。未使用の`FlipToken`を削除するか、`TokFlip`/`StageZero.cs`側を`Pad.FlipToken`参照へ寄せて重複を解消するか（挙動不変を維持すること）。
 
 ## BLOCKED
 
