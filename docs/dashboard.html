@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 267 / 対象 268 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 268 / 対象 268 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">267</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">268</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している</span>
-          
-        </div>
-        <p class="accept">2026-09-24監査(game-designer)。<code>src/GameManager.cs:816-824</code>のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、<code>src/Player.cs:1090-1100</code>のEndDodgeで発動する光輪(<code>GameManager.cs:790-792</code> VeilLightDuration={0,0.5,0.7}秒、<code>src/Player.cs:692-704</code>で半径内の敵弾を無条件消去+加点)により、<code>0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown</code>となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または<code>Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)</code>を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-24) 2026-09-24監査(game-designer)発見。<code>src/GameManager.cs:790-811</code>の<code>VeilLightDuration</code>を、旧固定値<code>{0,0.5,0.7}</code>から、基準値<code>{0,0.12,0.20}</code>を現在の<code>DodgeCooldown</code>から算出する動的安全上限<code>DodgeCooldown-0.55(DodgeDuration)-0.05</code>でクリップするプロパティへ変更。全<code>move_speed</code>Lv(CD 0.65〜0.80)で回避サイクルの無防備な隙間が必ず0.05s以上残るようになった（旧実装は最大-0.55s＝隙間ゼロ以下で「ほぼ無敵チェーン」が成立していた）。光輪の弾消し・スコア/やさしさ加点機能・半径・<code>DodgeCooldown</code>/<code>DodgeDuration</code>自体は変更なし。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2649,18 +2649,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">0fd2b2f</span><span>2026-09-24</span><span class="s">auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する</span></li>
+      <li><span class="h">f5b83de</span><span>2026-09-24</span><span class="s">auto: こはる食事タイマーの技名表示を全部見なきゃに統一</span></li>
       <li><span class="h">db18014</span><span>2026-09-24</span><span class="s">auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する</span></li>
       <li><span class="h">c5bebf5</span><span>2026-09-24</span><span class="s">auto: Pad.csのFlipToken死にコードを削除</span></li>
       <li><span class="h">4ed42a2</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Pad.csのFlipToken死にコードを整理する</span></li>
       <li><span class="h">2a28174</span><span>2026-09-24</span><span class="s">auto: コメント中のファイル:行参照ズレ3箇所を実位置に修正</span></li>
       <li><span class="h">a2c7962</span><span>2026-09-24</span><span class="s">auto: WIP着手 - コメント中のファイル:行参照ズレ3箇所を修正する</span></li>
       <li><span class="h">6a43892</span><span>2026-09-24</span><span class="s">auto: Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正</span></li>
-      <li><span class="h">28ce815</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正</span></li>
-      <li><span class="h">e6c37ed</span><span>2026-09-24</span><span class="s">auto: 監査で5件をTODO・2件をBLOCKEDへ追加（game-designer/engineer/scenario/qa並列監査）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-24 18:55 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-24 19:03 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

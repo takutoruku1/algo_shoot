@@ -1,20 +1,13 @@
 {
-  "generated": "2026-09-24 18:55 UTC",
+  "generated": "2026-09-24 19:03 UTC",
   "counts": {
-    "todo": 1,
+    "todo": 0,
     "wip": 0,
     "blocked": 43,
-    "done": 267
+    "done": 268
   },
   "percent": 100,
-  "todo": [
-    {
-      "priority": "P2",
-      "title": "「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している",
-      "worker": null,
-      "accept": "2026-09-24監査(game-designer)。`src/GameManager.cs:816-824`のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、`src/Player.cs:1090-1100`のEndDodgeで発動する光輪(`GameManager.cs:790-792` VeilLightDuration={0,0.5,0.7}秒、`src/Player.cs:692-704`で半径内の敵弾を無条件消去+加点)により、`0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown`となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または`Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)`を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。"
-    }
-  ],
+  "todo": [],
   "wip": [],
   "blocked": [
     {
@@ -277,6 +270,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している",
+      "worker": null,
+      "accept": "(完了 2026-09-24) 2026-09-24監査(game-designer)発見。`src/GameManager.cs:790-811`の`VeilLightDuration`を、旧固定値`{0,0.5,0.7}`から、基準値`{0,0.12,0.20}`を現在の`DodgeCooldown`から算出する動的安全上限`DodgeCooldown-0.55(DodgeDuration)-0.05`でクリップするプロパティへ変更。全`move_speed`Lv(CD 0.65〜0.80)で回避サイクルの無防備な隙間が必ず0.05s以上残るようになった（旧実装は最大-0.55s＝隙間ゼロ以下で「ほぼ無敵チェーン」が成立していた）。光輪の弾消し・スコア/やさしさ加点機能・半径・`DodgeCooldown`/`DodgeDuration`自体は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る",
@@ -1882,6 +1881,16 @@
   ],
   "commits": [
     {
+      "hash": "0fd2b2f",
+      "date": "2026-09-24",
+      "subject": "auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する"
+    },
+    {
+      "hash": "f5b83de",
+      "date": "2026-09-24",
+      "subject": "auto: こはる食事タイマーの技名表示を全部見なきゃに統一"
+    },
+    {
       "hash": "db18014",
       "date": "2026-09-24",
       "subject": "auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する"
@@ -1910,16 +1919,6 @@
       "hash": "6a43892",
       "date": "2026-09-24",
       "subject": "auto: Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正"
-    },
-    {
-      "hash": "28ce815",
-      "date": "2026-09-24",
-      "subject": "auto: WIP着手 - Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正"
-    },
-    {
-      "hash": "e6c37ed",
-      "date": "2026-09-24",
-      "subject": "auto: 監査で5件をTODO・2件をBLOCKEDへ追加（game-designer/engineer/scenario/qa並列監査）"
     }
   ]
 }

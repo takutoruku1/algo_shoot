@@ -67,8 +67,6 @@
 
 ## WIP
 
-- [ ] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | 2026-09-24監査(game-designer)。`src/GameManager.cs:816-824`のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、`src/Player.cs:1090-1100`のEndDodgeで発動する光輪(`GameManager.cs:790-792` VeilLightDuration={0,0.5,0.7}秒、`src/Player.cs:692-704`で半径内の敵弾を無条件消去+加点)により、`0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown`となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または`Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)`を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。
-
 ## BLOCKED
 
 <!-- 2026-09-24 監査モード(engineer/scenario)で追加 -->
@@ -157,6 +155,7 @@
 - [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
+- [x] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | (完了 2026-09-24) 2026-09-24監査(game-designer)発見。`src/GameManager.cs:790-811`の`VeilLightDuration`を、旧固定値`{0,0.5,0.7}`から、基準値`{0,0.12,0.20}`を現在の`DodgeCooldown`から算出する動的安全上限`DodgeCooldown-0.55(DodgeDuration)-0.05`でクリップするプロパティへ変更。全`move_speed`Lv(CD 0.65〜0.80)で回避サイクルの無防備な隙間が必ず0.05s以上残るようになった（旧実装は最大-0.55s＝隙間ゼロ以下で「ほぼ無敵チェーン」が成立していた）。光輪の弾消し・スコア/やさしさ加点機能・半径・`DodgeCooldown`/`DodgeDuration`自体は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る | engineer | (完了 2026-09-24) 2026-09-24監査(scenario)発見。`src/Hud.cs:1142`の`"お残し禁止"`を、`src/BossKoharu.cs:494`のスペルカードと同じ現行名`"全部見なきゃ"`に置換。新規文言なし、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Pad.cs:110-111`の`FlipToken`静的プロパティ（宣言以外の参照0件）と直上の説明コメントを削除。向き反転表示は`TokFlip`(`HowToPlay.cs`)と`StageZero.cs:208`の既存実装のまま変更なし、挙動不変。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) コメント中のファイル:行参照ズレが2026-09-22/23の一斉修正後も新たに3箇所発生 | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Player.cs:265`「999行目」→`Player.cs:1019`、`src/EnemySpec.cs:129`「MidEnemy.cs:80-81」→`MidEnemy.cs:84-85`、`src/QaPilot.cs:321`「Player.cs:654」→`Player.cs:660`に、実物確認の上で修正。コメントのみ、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。

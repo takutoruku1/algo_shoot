@@ -787,9 +787,28 @@ public partial class GameManager : Node
     public int FocusFireMaxStack => ChainLevel("focus", 2);
     // 連鎖の光：拡散弾の跳弾回数（Lv1=1回・Lv2=2回。威力×0.4は Bullet.TryChain 側）。
     public int ChainLightBounces => ChainLevel("chain", 2);
-    // 祈りの帳：回避後の弾消し光輪（半径 r20/28px・持続 0.5/0.7s）。Lv0 は 0＝無効。
+    // 祈りの帳：回避後の弾消し光輪（半径 r20/28px）。Lv0 は 0＝無効。
     public float VeilLightRadius => new[] { 0f, 20f, 28f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
-    public float VeilLightDuration => new[] { 0f, 0.5f, 0.7f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
+    // 2026-09-24是正：旧持続値(0.5/0.7s)は「回避を連打しても弾幕をほぼ無力化できない」よう
+    // 2026-08-28にDodgeCooldownへ入れた床（無敵0.45sを引いて最低0.20sの無防備な隙間を残す）を、
+    // veil側から実質ゼロに潰していた。光輪はEndDodge（回避モーション終了=DodgeDuration=0.55s経過時,
+    // Player.cs）に発生してVeilLightDuration秒だけ持続するため、回避を連打した場合「光輪終了
+    // (0.55+V)から次回避が可能になるDodgeCooldownまで」が唯一の無防備な隙間になる。ここが0以下＝
+    // 光輪が隙間を消し切る「ほぼ無敵チェーン」だったので、現在のDodgeCooldown（身のこなしLvで
+    // 0.65〜0.80s）から動的な安全上限を引く： 上限 = DodgeCooldown − 0.55(DodgeDuration) − 0.05。
+    // 0.05sは「連打してもゼロにはしない」ための最低保証（2026-08-28の0.20s床ほど広くはしない＝
+    // veilの一撃保険としての手触りをできるだけ残すが、身のこなしを深く積むほど圧縮される＝
+    // 二系統の投資が単純加算でほぼ無敵に届かないようにする）。基準値0.12/0.20sは身のこなし未強化
+    // (Lv0, CD=0.80s)でだけそのまま通る値＝そこでは無防備な隙間0.13s/0.05sを残す。
+    public float VeilLightDuration
+    {
+        get
+        {
+            float baseV = new[] { 0f, 0.12f, 0.20f }[Mathf.Clamp(ChainLevel("veil", 2), 0, 2)];
+            float safeCap = Mathf.Max(0f, DodgeCooldown - 0.55f - 0.05f); // 0.55f = Player.DodgeDuration
+            return Mathf.Min(baseV, safeCap);
+        }
+    }
 
     // ── モード別強化（rapid/spread/homing の威力・間隔）──
     //   Player の各 Fire・modeMul が ChainLevel 経由で参照する。式はショップの効果表記と同期。
