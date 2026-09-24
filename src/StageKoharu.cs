@@ -120,30 +120,37 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] S22Cue =
     {
         (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
-        (1, "ご主人様。……ひとまず、受け取りました。さて。この一本、どういたしましょう。", MSmile),
+        (1, "……あの方、二本持っていて。点くほうを、ご自分で持って行かれました。", MFace),
+        // 旧稿の「どういたしましょう」は処遇の相談＝どれを選んでも同じだった。
+        //   「気づいていると、言うか／言わないか」＝こはる面の主題（嘘に付き合うか）に振り直す。
+        (1, "ご主人様。……次に会ったとき。これ、点いていないと、言いますか。", MSmile),
     };
-    private static readonly string[] S22Choices = { "あとで", "振ってみる", "電池、切れてる", "（送らない）" };
+    private static readonly string[] S22Choices = { "言わない", "電池、切れてる", "次は、点くほう", "（送らない）" };
     private static (int who, string text, string face)[] S22Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "あとで", ""),
-            (1, "……あとで、と。——期限は、ありませんね。……持っておきます。消えたままで。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "振ってみる", ""),
-            (1, "……振ってみる、と。——光は、点いていませんが。……振る、と、点く、は、別の動作だそうです。", MSmile),
+            (0, "言わない", ""),
+            (1, "……言わない、と。——では、振ります。点いているように。", MFace),
+            (1, "……あの方も、そうしていました。……知っていて、振っていたのだと思います。推定です。", MWorried),
         },
         // 17 の指揮官決定: ミナの受けで推定を言う箇所には「推定です」を添える（「たぶん」を落とす）。
-        2 => new (int, string, string)[]
+        1 => new (int, string, string)[]
         {
             (0, "電池、切れてる", ""),
-            (1, "……切れていますね。——消えたまま、振っていました。本人も、知っているのでしょう。……推定です。", MFace),
+            (1, "……はい、切れています。——次に会ったら、そう言います。", MFace),
+            (1, "……「楽しいでしょ?」と聞かれた直後に、なりますが。……ご命令ですので。", MWorried),
+        },
+        2 => new (int, string, string)[]
+        {
+            (0, "次は、点くほう", ""),
+            (1, "……点くほうを、と。——それは、次があるという前提の言い方ですね。", MSmile),
+            (1, "……記録しておきます。次、と。", MSmile),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——ペンライト、こちらに、残りました。消えたままで。", MFace),
+            (1, "……無言。——では、何も言わずに。", MFace),
+            (1, "ペンライト、こちらに、残りました。……消えたままで。", MWorried),
         },
     };
     private static readonly (int who, string text, string face)[] S22Tail =
@@ -153,32 +160,42 @@ public partial class StageKoharu : Node
 
     // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
     //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
+    // 旧稿の3択（打ってた／消えても、あった／続き、気になる）は、どれも「聞こえている」の言い換えで、
+    //   選択が成立していなかった。ここはカーソルが**あなたの側**に点いている場面なので、
+    //   「送らなかった相手を、誰と言うか」＝プレイヤー自身に主題を返す3択に振り直す。
+    //   宛先は決めない（ミナは名前を訊かない）。どれを選んでも、選ばなかった宛先が残る。
     private static readonly (int who, string text, string face)[] S24Cue =
     {
         (1, "……入力欄の、カーソル。——まだ、点いています。", MFace),
-        (1, "ご主人様。下書きが、開いていますね。……打って消しても、わたくしには、聞こえます。そのつもりで、どうぞ。", MSmile),
+        (1, "……これ、あの方のでは、ありませんね。——ご主人様の画面です。", MWorried),
+        (1, "打ちかけて、消した跡が。……宛先だけ、残っています。……どなたか、とは、伺いません。", MSmile),
     };
-    private static readonly string[] S24Choices = { "打ってた", "消えても、あった", "続き、気になる", "（送らない）" };
+    private static readonly string[] S24Choices = { "返してない返信", "既読のまま、三日", "もう送れない相手", "（送らない）" };
     private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "打ってた", ""),
-            (1, "……打ってた、と。——はい。打って、消して。……両方、見ました。", MFace),
+            (0, "返してない返信", ""),
+            (1, "……返していない、と。——では、まだ、送れますね。", MFace),
+            (1, "……急かしては、いません。……欄が、開いていると、申し上げただけで。", MSmile),
         },
         1 => new (int, string, string)[]
         {
-            (0, "消えても、あった", ""),
-            (1, "……消えても、あった。——はい。ありました。……拾った一行の、隣に、置いておきます。", MFace),
+            (0, "既読のまま、三日", ""),
+            (1, "……三日。——では、七十二時間ですね。", MWorried),
+            (1, "……わたくしの心拍と、同じ数でした。……関係は、ありません。数えてしまっただけで。", MFace),
         },
         2 => new (int, string, string)[]
         {
-            (0, "続き、気になる", ""),
-            (1, "……続きは、拾ってあります。——中身は、本人の前で。……ご主人様にも、まだ、ですよ。", MFace),
+            (0, "もう送れない相手", ""),
+            (1, "…………。", MWorried),
+            (1, "……はい。——それでも、下書きは、残ります。", MFace),
+            (1, "……消えていないぶんは、わたくしが、聞いております。宛先が、どこであっても。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……三件。——消えても、聞こえます。……あの一行と、同じところに、置いておきます。", MWorried),
+            (1, "……無言。——はい。伺いません。", MFace),
+            (1, "……三件、こちらで預かります。あの一行と、同じところに。", MWorried),
         },
     };
     private static readonly (int who, string text, string face)[] S24Tail =
@@ -265,8 +282,10 @@ public partial class StageKoharu : Node
     private (int who, string text, string face)[] _playerBoss = null!;
 
     // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。回想は本人視点へ。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・入力欄（S2-4）を
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   回想（memory）と撃破後のアフターのフィルムは操作キャラに依らず**この面のボス＝こはる**のもの
+    //   （2026-09-23 ユーザー報告。以前は操作キャラ×章の CharacterStoryFilm を流していた＝あかりで潜るとあかりの話になった）。
     //   改心相当シーン（山場）は BossKoharu 側が CharacterStory.Redemption で差し替える。
     //   ビート対応：step1=Sortie / 2=Mid1 / 7=Mid2 / 8=Mid3 / 12=PreBoss（ボス出現後の口上枠）/ 14=Return。
     //   step4（中ボスの受け）と step10（S2-5 我に返る一拍）はミナ観測のみの場面なので空でスキップ。
@@ -274,6 +293,9 @@ public partial class StageKoharu : Node
     private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
+    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
+    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
     public override void _Ready()
@@ -295,6 +317,7 @@ public partial class StageKoharu : Node
             _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
             _playerBoss = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
             _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+            _storyAftermath = CharacterStory.Aftermath(job, "koharu");
         }
         else
         {
@@ -877,6 +900,8 @@ public partial class StageKoharu : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
@@ -984,9 +1009,21 @@ public partial class StageKoharu : Node
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
-            // 本人の帰還会話を終えてから、日常のアフターへ進む。
-            if (_charStory) { _clearLines = _storyReturn; _clearPhase = 2; return; }
-            _clearLines = (((int who, string text, string face)[])Clear.Clone());
+            // 撃破後のアフター：
+            //   ミナ本編＝こはるのフィルム → 明けの Clear（ミナの独白）。
+            //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
+            //     会話で流し、そのまま帰還ビートへ繋げる（アフター→帰還挨拶の順。2026-09-23 ユーザー指示）。
+            if (_charStory)
+            {
+                _clearLines = _storyAftermath.Concat(_storyReturn).ToArray();
+                FilmSkip.MarkSeen(game, CharacterStory.SeenKey(game!.SelectedJob, aftermath: true));   // 写真アプリの解禁
+                _clearPhase = 2;
+                _stepStarted = false;
+                _zHeld = Pad.AdvanceHeld();
+                _zEdge = false;
+                return;
+            }
+            _clearLines = ((int who, string text, string face)[])Clear.Clone();
             _clearPhase = 1;
             KoharuStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
             {
@@ -1005,8 +1042,8 @@ public partial class StageKoharu : Node
     {
         if (_clearing) return;
         _clearing = true;
-        if (_charStory) CharacterStoryFilm.Play(Hud, World, true, ReturnToHub);
-        else ReturnToHub();
+        // 撃破後のアフターは Step_Clear で流し終えている（この面のボスのフィルム）。ここは帰るだけ。
+        ReturnToHub();
     }
 
     private void ReturnToHub()

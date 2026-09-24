@@ -326,8 +326,10 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _playerBoss = null!;
 
     // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。回想は本人視点へ。ミナの行（who=1/3）・下書き選択・S3-7 割り込みを
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択・S3-7 割り込みを
     //   すべて抑止し、ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   回想（memory）と撃破後のアフターのフィルムは操作キャラに依らず**この面のボス＝レイ**のもの
+    //   （2026-09-23 ユーザー報告。以前は操作キャラ×章の CharacterStoryFilm を流していた＝あかりで潜るとあかりの話になった）。
     //   改心相当シーン（山場）は BossRei 側が CharacterStory.Redemption で差し替える。
     //   ビート対応：step1=Sortie / 2=Mid1 / 4=Mid2 / 7=Mid3（嵐の導入枠）/ 9=PreBoss / 13=Return。
     //   step11（ボスの口上＝who=2）と引用の嵐そのもの（step18）はどちらのモードでも流す。
@@ -336,6 +338,9 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyPreBoss = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
+    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
+    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
     public override void _Ready()
@@ -361,6 +366,7 @@ public partial class StageRei : Node
             _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
             _storyPreBoss = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
             _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+            _storyAftermath = CharacterStory.Aftermath(job, "rei");
         }
         else
         {
@@ -799,6 +805,8 @@ public partial class StageRei : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
@@ -969,6 +977,8 @@ public partial class StageRei : Node
 
     private bool _clearBannerShown;
     private int _clearPhase;
+    // 明けの会話の実体。ミナ本編は null（＝Clear をそのまま）、他ジョブ潜行はアフター＋帰還ビートの連結。
+    private (int who, string text, string face)[]? _clearLines;
     private void Step_Clear(double delta)
     {
         if (!_clearBannerShown)
@@ -982,8 +992,20 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
-            // 本人の帰還会話を終えてから、日常のアフターへ進む。
-            if (_charStory) { _clearPhase = 2; return; }
+            // 撃破後のアフター：
+            //   ミナ本編＝レイのフィルム → 明けの Clear（ミナの独白）。
+            //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
+            //     会話で流し、そのまま帰還ビートへ繋げる（アフター→帰還挨拶の順。2026-09-23 ユーザー指示）。
+            if (_charStory)
+            {
+                _clearLines = _storyAftermath.Concat(_storyReturn).ToArray();
+                FilmSkip.MarkSeen(game, CharacterStory.SeenKey(game!.SelectedJob, aftermath: true));   // 写真アプリの解禁
+                _clearPhase = 2;
+                _stepStarted = false;
+                _zHeld = Pad.AdvanceHeld();
+                _zEdge = false;
+                return;
+            }
             _clearPhase = 1;
             ReiStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
             {
@@ -994,7 +1016,7 @@ public partial class StageRei : Node
             });
             return;
         }
-        if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : Clear);
+        if (_clearPhase == 2) Step_Lines(delta, _clearLines ?? Clear);
     }
 
     private bool _clearing;
@@ -1002,8 +1024,8 @@ public partial class StageRei : Node
     {
         if (_clearing) return;
         _clearing = true;
-        if (_charStory) CharacterStoryFilm.Play(Hud, World, true, ReturnToHub);
-        else ReturnToHub();
+        // 撃破後のアフターは Step_Clear で流し終えている（この面のボスのフィルム）。ここは帰るだけ。
+        ReturnToHub();
     }
 
     private void ReturnToHub()

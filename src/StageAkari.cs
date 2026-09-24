@@ -153,11 +153,14 @@ public partial class StageAkari : Node
         (4, "「送信取消。今日で十二回目。……全部、同じ人宛。」", ""),   // A42。層3
         (1, "ご主人様、これ。宙に浮いた机の上に、束が。……「メッセージの送信を取り消しました」。その一行だけが、縦に、積み上がっています。", MWorried),
         (1, "本文は、ひとつも残っていません。取り消しの行だけ。……数えました。十二。——いまの投稿と、同じ数です。", MWorried),   // 数えただけ
-        (1, "ご主人様。——拾って、いいですか。", MFace),
+        (1, "ご主人様。——拾います。……どこまで、拾いましょう。", MFace),
     };
 
     // S1-4 の下書き選択。（送らない）は言葉ではないので【散】に数えない＝表示候補の2件だけが散る。
-    private static readonly string[] S14Choices = { "ひろって", "そっとしといて", "（送らない）" };
+    //   旧稿は「ひろって／そっとしといて」で、受けが「両立します」と言ってしまう＝選択が消えていた。
+    //   拾う前提は S14Tail で動かないので、二択は「十二件ぜんぶ」か「一件だけ」かの重さの差に振り直す。
+    //   どちらを選んでも何かを取りこぼす＝手が止まる形にした。
+    private static readonly string[] S14Choices = { "十二件、ぜんぶ", "いちばん上の、一件だけ", "（送らない）" };
     // 選択ごとの受け。どのみち「そっと拾う」＝最後の締め（S14Tail）へ合流する。
     //   先頭の who=0 は台本 06 の「送った下書きの復唱」行（Hud は LineKind.Boy を「あなた」名義・
     //   立ち絵なしの下書き印で描く）。（送らない）は言葉を送っていないので復唱を置かない。
@@ -165,18 +168,21 @@ public partial class StageAkari : Node
     {
         0 => new (int, string, string)[]
         {
-            (0, "ひろって", ""),
-            (1, "……はい。そっと、拾います。……送るかどうかを決めるのは、ご本人ですので。", MFace),
+            (0, "十二件、ぜんぶ", ""),
+            (1, "……はい。十二件。——一件ずつ、抱えます。", MFace),
+            (1, "……十二回ぶん、消す直前の声を、浴びることになりますが。……浴びる、と決めましたので。", MFace),
         },
         1 => new (int, string, string)[]
         {
-            (0, "そっとしといて", ""),
-            (1, "……はい。そっと。——拾うのと、そっとしておくのは、両立します。", MFace),
+            (0, "いちばん上の、一件だけ", ""),
+            (1, "……いちばん上の、一件。——承知しました。", MFace),
+            (1, "……残りの十一件は、閉じたまま、置いていきます。……数だけ、覚えておきます。", MWorried),
         },
         // （送らない）／沈黙20秒。【濁】微増（仕様未決につき小さく）。
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——では、そっと。……二件、散りましたね。", MFace),
+            (1, "……無言。——では、一件だけ。いちばん上のを。", MFace),
+            (1, "……十一件は、閉じたまま。……二件、散りましたね。", MWorried),
         },
     };
     // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
@@ -292,14 +298,19 @@ public partial class StageAkari : Node
     private (int who, string text, string face)[] _playerBoss = null!;
 
     // ── 他ジョブ潜行（2026-09-15）──
-    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択を抑止し、回想は本人視点へ、
+    //   結び手以外で潜ったとき true。ミナの行（who=1/3）・下書き選択を抑止し、
     //   ビート枠（出撃／道中3節目／ボス前／帰還）を CharacterStory のテーブルへ全面置換する。
+    //   回想（memory）と撃破後のアフターのフィルムは操作キャラに依らず**この面のボス＝あかり**のもの
+    //   （2026-09-23 ユーザー報告。以前は操作キャラ×章の CharacterStoryFilm を流していた）。
     //   改心相当シーン（山場）は BossAkari 側が CharacterStory.Redemption で差し替える。
     private bool _charStory;
     private (int who, string text, string face)[] _storyMid1 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyMid2 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyMid3 = System.Array.Empty<(int, string, string)>();
     private (int who, string text, string face)[] _storyReturn = System.Array.Empty<(int, string, string)>();
+    // 他ジョブ潜行の撃破後アフター（CharacterStory.Aftermath＝潜行キャラ×この面のボスの9通り）。
+    //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
+    private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
 
     public override void _Ready()
     {
@@ -320,6 +331,7 @@ public partial class StageAkari : Node
             _storyMid3 = CharacterStory.Lines(job, ch, CharacterStory.Beat.Mid3);
             _playerMid = CharacterStory.Lines(job, ch, CharacterStory.Beat.PreBoss);
             _storyReturn = CharacterStory.Lines(job, ch, CharacterStory.Beat.Return);
+            _storyAftermath = CharacterStory.Aftermath(job, "akari");
         }
         else
         {
@@ -759,6 +771,8 @@ public partial class StageAkari : Node
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：板（パネル）が周回する本ボス戦の初回だけ、
@@ -805,23 +819,37 @@ public partial class StageAkari : Node
             Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
         }
-        // 本人の帰還会話を終えてから、日常のアフターへ進む。
-        if (_charStory) { Step_Lines(delta, _storyReturn); return; }
+        // 撃破後のアフター：
+        //   ミナ本編＝ClearBefore → あかりのフィルム → ClearAfter。
+        //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
+        //     会話で流してから、既存の帰還ビート（_storyReturn）へ（2026-09-23 ユーザー指示「吹き出しのやり取りだけに」）。
         if (_clearPhase == 0)
         {
-            RunLinesInPlace(delta, ClearBefore, () =>
-            {
-                _clearPhase = 1;
-                AkariStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
-                {
-                    _clearPhase = 2;
-                    _stepStarted = false;
-                    _zHeld = Pad.AdvanceHeld();
-                    _zEdge = false;
-                });
-            });
+            if (_charStory) RunLinesInPlace(delta, _storyAftermath, MarkAftermathSeenThenReturn);
+            else RunLinesInPlace(delta, ClearBefore, StartAftermathFilm);
         }
-        else if (_clearPhase == 2) Step_Lines(delta, ClearAfter);
+        else if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : ClearAfter);
+    }
+
+    // 他ジョブ潜行のアフターを流し切ったところ。写真アプリの「帰還」枚を解禁して、帰還ビートへ。
+    private void MarkAftermathSeenThenReturn()
+    {
+        var game = GetNodeOrNull<GameManager>("/root/Game");
+        if (game != null) FilmSkip.MarkSeen(game, CharacterStory.SeenKey(game.SelectedJob, aftermath: true));
+        _clearPhase = 2;
+        _stepStarted = false;
+    }
+
+    private void StartAftermathFilm()
+    {
+        _clearPhase = 1;
+        AkariStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
+        {
+            _clearPhase = 2;
+            _stepStarted = false;
+            _zHeld = Pad.AdvanceHeld();
+            _zEdge = false;
+        });
     }
 
     // ---- 6: STAGE2（こはる）へ ----
@@ -830,8 +858,8 @@ public partial class StageAkari : Node
     {
         if (_clearing) return;
         _clearing = true;
-        if (_charStory) CharacterStoryFilm.Play(Hud, World, true, ReturnToHub);
-        else ReturnToHub();
+        // 撃破後のアフターは Step_Clear で流し終えている（この面のボスのフィルム）。ここは帰るだけ。
+        ReturnToHub();
     }
 
     private void ReturnToHub()

@@ -146,6 +146,8 @@ public partial class BossRei : Enemy
     private bool _charStory;
     private (int who, string text, string face)[] _lines = Lines;
     private int _storySilenceAt = -1;
+    // 他ジョブ潜行の回想（CharacterStory.Memory）を会話枠だけで送るドライバ。null＝ミナ潜行（＝フィルム）。
+    private CharacterStoryTalk? _memoryTalk;
 
     protected override void OnEnemyReady()
     {
@@ -222,7 +224,10 @@ public partial class BossRei : Enemy
     public override void _Ready()
     {
         base._Ready();
-        // ミナ以外の潜行は、操作キャラの改心会話と回想を使う。
+        // ミナ以外の潜行は、改心のかけあい（ミナ前提）だけを操作キャラ版（CharacterStory.Redemption）へ差し替える。
+        //   戦闘中の回想（memory）と撃破後のアフターは、操作キャラに依らず**この面のボス＝レイ**のフィルムで固定
+        //   （2026-09-23 ユーザー報告「こはるの話であかりの回想／アフターが入っている」：以前は他ジョブ潜行で
+        //   CharacterStoryFilm＝操作キャラ×章のフィルムを流していたため、あかりで潜ると面を問わずあかりの話になっていた）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         _charStory = CharacterStory.DiveActive(game);
         if (_charStory)
@@ -519,6 +524,9 @@ public partial class BossRei : Enemy
     public override void _Process(double delta)
     {
         if (_posts.Active) return;
+        // 他ジョブ潜行の回想（吹き出しのみ）は自前で送る。フィルムと違い World を止めないので、
+        //   Hud.HoldBubble＝BubblePaused が弾と敵を止めている間にここで送り切る。
+        if (_memoryTalk is { Active: true }) { _memoryTalk.Update(delta); return; }
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
             _memoryPending = false;
@@ -531,8 +539,17 @@ public partial class BossRei : Enemy
                 _posts.ResumeMusic();
                 OnHpChanged();
             }
-            if (_charStory) CharacterStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
-            else ReiStoryFilm.Play(GetHud()!, GetParent(), false, ResumeBattle);
+            // ミナ潜行＝この面のボスのフィルム（操作キャラを問わない。StoryFilm.cs 冒頭の「選択の規則」参照）。
+            // 他ジョブ潜行＝一枚絵を起こさず CharacterStory.Memory（潜行キャラ×この面のボスの9通り）を会話枠で
+            //   （2026-09-23 ユーザー指示「吹き出しのやり取りだけにして」）。どちらも終わりは同じ ResumeBattle。
+            if (_charStory)
+            {
+                var game = GetNodeOrNull<GameManager>("/root/Game");
+                FilmSkip.MarkSeen(game, CharacterStory.SeenKey(game!.SelectedJob, aftermath: false));   // 写真アプリの解禁
+                _memoryTalk = CharacterStoryTalk.Start(CharacterStory.Memory(game.SelectedJob, "rei"),
+                    GetHud, ShowStoryLine, ResumeBattle);
+            }
+            else ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle);
             return;
         }
         if (!_seq && !_memoryPending && !_relayWatching && _posts.TryStart()) return;
@@ -590,6 +607,20 @@ public partial class BossRei : Enemy
             // 戦闘中のレイはガワ（笑顔固定・泣き顔なし）。割れる行だけ face 指定で中の人の泣き顔へ。
             Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face,
             _ => string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face, // ミナも行ごと表情
+        };
+        hud.ShowDialog(kind, text, portrait, otherName: "レイ");
+    }
+
+    // 他ジョブ潜行の回想の1行（CharacterStoryTalk から呼ばれる）。立ち絵の引き当ては ShowLine と同じ規則（既定はガワ）。
+    //   who は 6（潜行キャラ本人）／2（このボス）／4（Ｘ投稿。Hud 側が立ち絵を捨てる）だけ。ガワは割らない。
+    private void ShowStoryLine(Hud hud, int who, string text, string face)
+    {
+        var kind = (Hud.LineKind)who;
+        string portrait = kind switch
+        {
+            Hud.LineKind.Companion => face,
+            Hud.LineKind.Other => string.IsNullOrEmpty(face) ? RGawa : face,
+            _ => face,
         };
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }

@@ -56,6 +56,36 @@ public static class CharacterStory
         return lines;
     }
 
+    // 戦闘中の回想（memory＝HP 約50%の枠。キャラ×潜った面の9通り）。この面のボスのフィルム
+    //   （Akari/Koharu/ReiStoryFilm の memory）の代替＝他ジョブ潜行では一枚絵を起こさず吹き出しだけで流す
+    //   （2026-09-23 ユーザー指示「潜ったキャラクターとボスとのストーリーを作れ」「吹き出しのやり取りだけにして」）。
+    //   時間軸は Redemption の**前**＝戦闘の途中。呼び手は各 Boss*._Process の _memoryPending 枝。
+    public static (int who, string text, string face)[] Memory(Job job, string stageId)
+    {
+        var lines = MemoryTable(job, stageId);
+        bool placeholder = lines == null;
+        lines ??= MemoryPlaceholder(job, stageId);
+        GD.Print($"[CharStory] {Jobs.Get(job).CharacterId} memory@{stageId} lines={lines.Length}{(placeholder ? " (placeholder)" : "")}");
+        return lines;
+    }
+
+    // 撃破後のアフター（aftermath＝クリア会話の枠。同じく9通り）。時間軸は Redemption の**後**＝浄化して帰ったあと。
+    //   呼び手は各 Stage*.Step_Clear。流し終えたら既存の帰還ビート（Beat.Return）へ続ける。
+    public static (int who, string text, string face)[] Aftermath(Job job, string stageId)
+    {
+        var lines = AftermathTable(job, stageId);
+        bool placeholder = lines == null;
+        lines ??= AftermathPlaceholder(job, stageId);
+        GD.Print($"[CharStory] {Jobs.Get(job).CharacterId} aftermath@{stageId} lines={lines.Length}{(placeholder ? " (placeholder)" : "")}");
+        return lines;
+    }
+
+    // 写真アプリ（Hub の「もう一度／帰還」6枚）の解禁キー。memory/aftermath を一度でも流したら立てる。
+    //   絵はキャラ単位（cg_{id}_playable_{memory|aftermath}_v1.png）で面別ではないので、面は含めない
+    //   ＝「そのキャラで潜って回想／アフターを見た」で開く。FilmSkip.MarkSeen に相乗りして保存へ載せる。
+    public static string SeenKey(Job job, bool aftermath)
+        => $"charstory_{Jobs.Get(job).CharacterId}_{(aftermath ? "aftermath" : "memory")}";
+
     // 改心相当シーンの「ここでBGM停止」行（0始まり）。doc 第2部のト書きの位置＝この行の表示で
     //   BGM を落とし、以降の決定打を無音のまま置く（本編の BgmStopLine / SilenceAtLine と同じ流儀）。
     //   -1＝無し（未執筆アームの保険）。読み手は各 Boss*.ShowLine。
@@ -831,6 +861,286 @@ public static class CharacterStory
         (2, "……うん。……任せなさい!", RGawa),
     };
 
+    // ═══════════════════════════════════════════════════════════════════
+    // E. 他ジョブ潜行の回想（memory）とアフター（aftermath）18本（キャラ×潜った面×2種）
+    //   本文の正典：docs/20260923/潜行キャラ別_回想とアフター_本文_2026-09-23.md（scenario 執筆）。
+    //   時間軸：memory＝D 節の改心（R1〜R9）の**前**＝戦闘の途中。aftermath＝**後**＝浄化して帰ったあと。
+    //   一枚絵（StoryFilm 系）は通さない＝立ち絵と吹き出しだけ（ユーザー指示「吹き出しのやり取りだけにして」）。
+    //   決定打は R が担う設計なので、この 18 本に「ここでBGM停止」は無い（RedemptionSilenceAt 相当の表を持たない）。
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ═══════════ M1. あかり × STAGE1（あふれるわたし）の回想 ═══════════
+    // 自分の穢れとの対面。傘が二本ある理由はまだ言わない（R1 の決定打の下地）。十二の共有で同じ一人だと確定させる。
+    private static readonly (int who, string text, string face)[] Mem_Akari_OnAkari =
+    {
+        (2, "……ねえ。いま、何時?", AFace),
+        (6, "……二十三時、すぎ。", AFace),
+        (2, "そっか。……じゃあ、まだ、みんないるね。フロア。", AFace),
+        (6, "……いないよ。", AFace),
+        (2, "…………。", ACry),
+        (6, "十二回。あんたが押して、引っ込めた回数。……あたし、数えなくても言えるの。", AFace),
+        (2, "……なんで、あなたが。", ACry),
+        (6, "傘立て、見た? ……置き傘、二本ある。ずっと、二本のまま。", AFace),
+        (2, "……紺のほうは、持ち主、もう来ないよ。", ACry),
+        (6, "うん。知ってる。……それでも、二本あるんだよ。", AFace),
+    };
+
+    // ═══════════ A1. あかり × STAGE1 のアフター ═══════════
+    // 黄色い傘（AkariStoryFilm Aftermath の八百円）と心象の二本目が並ぶ。連れて帰ったことを、傘立てから紺が消えた所作だけで示す。
+    private static readonly (int who, string text, string face)[] Aft_Akari_OnAkari =
+    {
+        (6, "……雨、上がってた。外。", AFace),
+        (6, "せっかく二本さしてきたのに。……間抜けだよね、両手に傘持って、晴れてるの。", AFace),
+        (4, "「置き傘、一本、持って帰りました。……総務なので、備品の管理は、あたしの担当です。」", ""),
+        (6, "紺のほうね。……返しに行く相手は、いないんだけど。", AFace),
+        (6, "でも、置きっぱなしにしとくのと、持って帰るのは、ちがうから。", AFace),
+        (6, "玄関に、二本、立ててある。……並んでるだけで、けっこう、いいものだよ。", AFace),
+        (6, "明日も雨だって。……どっちさそっかな。", AFace),
+    };
+
+    // ═══════════ M2. あかり × STAGE2（我に返るわたし）の回想 ═══════════
+    // あかりは八年止まらなかった側。「顔を上げたら誰もいなかった」は R2 の役なのでここではぶつけない。
+    private static readonly (int who, string text, string face)[] Mem_Akari_OnKoharu =
+    {
+        (2, "……止めないで。あと、二本。今日のぶん、あと二本、見なきゃ。", KPale),
+        (6, "……何時まで?", AFace),
+        (2, "終わるまで。ぜんぶ終わるまで。", KPale),
+        (6, "……あー。……その返事、あたし、八年してた。上司に。", AFace),
+        (2, "……え?", KPale),
+        (6, "「いつ終わる?」って聞かれて、「終わるまでです」って。……かっこいいでしょ。中身ゼロだけど。", AFace),
+        (2, "……ちゃんと、やってたんでしょ。えらいじゃん。", KPale),
+        (6, "うん。えらかったよ。……八年分、えらかった。", AFace),
+        (6, "……で、その八年で、あたし、好きな人にひとことも言えなかったの。えらいのに。", AFace),
+        (2, "…………。", KPale),
+    };
+
+    // ═══════════ A2. あかり × STAGE2 のアフター ═══════════
+    // R2 で冗談に置いた備品登録「席・一名分・返却不要」を、あかり自身が現実で履行する。相手には連絡しない（心象の記憶は本人に残らない＝正典）。
+    private static readonly (int who, string text, string face)[] Aft_Akari_OnKoharu =
+    {
+        (6, "……帰り、コンビニ寄った。あったかいの買って、階段に座って飲んだ。", AFace),
+        (6, "誰も通らないとこ。備品庫の、裏の階段。", AFace),
+        (4, "「席・一名分・返却不要。……使用者、あたし。」", ""),
+        (6, "……人に作ってあげといて、自分のぶん、無いのは、ずるいでしょ。", AFace),
+        (6, "十五分。タイマーかけて、なんにもしなかった。……長かった。十五分って、あんなに長いんだ。", AFace),
+        (6, "で、終わったら、ちゃんと仕事に戻ったよ。えらい。", AFace),
+        (6, "……あの子、座れたかな。……ま、聞けないけどね。", AFace),
+    };
+
+    // ═══════════ M3. あかり × STAGE3（星逢レイ＝ガワ）の回想 ═══════════
+    // 会社用の顔・八年ものをガワに先に見せる。ガワは笑顔固定なので、崩れるのは間（沈黙）のほう。
+    private static readonly (int who, string text, string face)[] Mem_Akari_OnRei =
+    {
+        (2, "コメント、ぜんぶ読むよ! ……ほら、あなたも、なんか言って!", RGawa),
+        (6, "……じゃあ、ひとつ。……あなた、今日、何時間笑ってる?", AFace),
+        (2, "ずっと! 二時間! ……あ、待機入れたら、二時間半かな!", RGawa),
+        (6, "うん。……あたしの記録は、九時間。", AFace),
+        (2, "……えっ、すご——", RGawa),
+        (6, "定時が十八時でね。誰も帰らないの。だから、ずっと「おつかれさまです」の顔してるわけ。", AFace),
+        (6, "トイレの鏡でね、一回、戻すの。ふつうの顔に。……戻し方、忘れてた日があった。", AFace),
+        (2, "…………。", RGawa),
+        (2, "……ねえ。……それ、どうやって、思い出したの。", RGawa),
+        (6, "思い出してないよ。まだ。……いま、練習してる。", AFace),
+    };
+
+    // ═══════════ A3. あかり × STAGE3 のアフター ═══════════
+    // R3 で相手に言った処方（笑ってない時間のあったかいの）を、あかりが自分で飲む。
+    private static readonly (int who, string text, string face)[] Aft_Akari_OnRei =
+    {
+        (6, "……帰り。駅前の、あの店。", AFace),
+        (6, "カウンターしかなくてね。隣の人も、向かいの人も、みんな、笑ってないの。", AFace),
+        (6, "誰も、誰のことも見てない。……あそこ、たぶん、世界でいちばん、顔を外していい場所。", AFace),
+        (4, "「会社用の顔、置き忘れた。……取りに戻らなくていいや。明日、また作るし。」", ""),
+        (6, "あったかいの、頼んだ。……ひとつ。あたしのぶん、ひとつ。", AFace),
+        (6, "……あ、でも。……二つ頼んどけばよかったかな。", AFace),
+        (6, "……ううん。いない人のぶんは、いない人が食べるの。……あたしが代わりに食べたら、それ、ちがうでしょ。", AFace),
+    };
+
+    // ═══════════ M4. こはる × STAGE1（あふれるわたし）の回想 ═══════════
+    // こはるは「二年返せなかった側」。打って消した回数を自分から先に差し出す（R4 の下地）。
+    private static readonly (int who, string text, string face)[] Mem_Koharu_OnAkari =
+    {
+        (2, "……一通目。……二通目。……三通目——", AFace),
+        (6, "……えっと。それ、数えてるの? 送ったやつ?", KFace),
+        (2, "ちがう。消したやつ。", AFace),
+        (6, "……あー。……あたしも、それ、あるな。", KFace),
+        (2, "……子どもに、分かるわけ。", AFace),
+        (6, "十七歳。子どもです。……でも、毎晩やってるよ。打って、消すの。", KFace),
+        (2, "…………毎晩?", AFace),
+        (6, "うん。……「今日も来ました」だけ送って、あと、ぜんぶ消す。", KFace),
+        (2, "……なんで、一行だけ送るの。", AFace),
+        (6, "……一行なら、重くないかなって。……ねえ。それ、意味ある思う?", KFace),
+        (2, "…………分かん、ない。", ACry),
+    };
+
+    // ═══════════ A4. こはる × STAGE1 のアフター ═══════════
+    // 言えなかったお礼を一件だけ現実で片付ける。相手は母（KoharuStoryFilm の昼休みの話の、さらに小さい一件）。
+    private static readonly (int who, string text, string face)[] Aft_Koharu_OnAkari =
+    {
+        (6, "……ただいま、って言った。帰って。", KFace),
+        (6, "そしたらお母さん、台所から「おかえり」って。……ふつうのことなんだけど。", KFace),
+        (6, "ふつうのことにも、返事って、いるんだなって。", KFace),
+        (4, "「お母さんに、ありがとうって言った。……理由は言ってない。聞かれたけど、ごまかした。」", ""),
+        (6, "「なに、なんかやらかした?」って言われた。……失礼じゃない?", KFace),
+        (6, "……でもね。言ったあと、お母さん、けっこう長いこと、こっち見てた。", KFace),
+        (6, "返事は、「うん」だけだった。……それで、じゅうぶんだった。", KFace),
+        (6, "……あの人にも、届いてるといいな。返事の、ないほうの。", KFace),
+    };
+
+    // ═══════════ M5. こはる × STAGE2（我に返るわたし）の回想 ═══════════
+    // 自分の穢れとの対面。鏡の構図を名乗らずに一往復だけ回す（R5 冒頭「鏡、見ちゃうから」への橋）。
+    private static readonly (int who, string text, string face)[] Mem_Koharu_OnKoharu =
+    {
+        (2, "……見ないで。あたしのほう、見ないで。", KPale),
+        (6, "……見てないよ。机の上、見てる。", KFace),
+        (2, "……っ、それも、見ないで!", KPale),
+        (6, "箱、三つ。……うん、三つだね。", KFace),
+        (2, "……四つだよ。ひとつ、ベッドの下。", KPale),
+        (6, "……あ、そっか。四つか。", KFace),
+        (2, "……なんで、笑ってんの。", KPale),
+        (6, "笑ってないよ。……ちょっと、安心した。", KFace),
+        (2, "……安心?", KPale),
+        (6, "うん。……あんた、まだ、ちゃんと覚えてるんだもん。どれが好きで買ったやつか。", KFace),
+        (2, "…………。", KPale),
+    };
+
+    // ═══════════ A5. こはる × STAGE2 のアフター ═══════════
+    // 開けなかった箱を一つだけ開ける。全部は開けない（代償を残す）。
+    private static readonly (int who, string text, string face)[] Aft_Koharu_OnKoharu =
+    {
+        (6, "……帰って、箱、開けた。ひとつだけ。", KFace),
+        (6, "いちばん下の、いちばん古いやつ。……去年のやつだ、これ。", KFace),
+        (4, "「開けました。……アクリルスタンドでした。知ってた。」", ""),
+        (6, "知ってて買って、知ってて開けなかったの。……開けたら、ちゃんとうれしかった。", KFace),
+        (6, "残り三つは、そのまま。……いっぺんに開けたら、もったいないでしょ。", KFace),
+        (6, "机に一個だけ置いた。模試の横。……ちょっと、にらみ合ってる。", KFace),
+        (6, "……ふふ。……いいよ、それで。二つとも、あたしのだもん。", KFace),
+    };
+
+    // ═══════════ M6. こはる × STAGE3（星逢レイ＝ガワ）の回想 ═══════════
+    // まだ名乗らない（「その七人の中にあたしもいる」は R6 の役）。同接 7 をこはるが知っていることだけを見せる。
+    private static readonly (int who, string text, string face)[] Mem_Koharu_OnRei =
+    {
+        (2, "初見さんいらっしゃい! 今日は何の話しよっか!", RGawa),
+        (6, "……今日はね。本の話。", KFace),
+        (2, "……え?", RGawa),
+        (6, "水曜は本の話でしょ。木曜はゲーム、金曜は雑談。……日曜はお休み。", KFace),
+        (2, "……ずいぶん、詳しいのね。初見さんなのに。", RGawa),
+        (6, "……右上の数字。いま、いくつ?", KFace),
+        (2, "……七。……言わせないでよ。笑うなら笑いなさい。", RGawa),
+        (6, "笑わないよ。……七人しかいないって、思ってるでしょ。", KFace),
+        (2, "思ってるわよ。事実でしょ。", RGawa),
+        (6, "……ちがうよ。七人も、寝ないで待ってるってことだよ。", KFace),
+        (2, "…………。", RGawa),
+    };
+
+    // ═══════════ A6. こはる × STAGE3 のアフター ═══════════
+    // 正典の片方向は壊さない＝現実のレイはこはるを知らないまま。変わるのはこはるが「また来ます」を書ける側になったことだけ。
+    private static readonly (int who, string text, string face)[] Aft_Koharu_OnRei =
+    {
+        (6, "……帰って、配信、開いた。ふつうの日。ふつうの枠。", KFace),
+        (6, "「初見さんいらっしゃい」って言ってた。……いつもの。", KFace),
+        (4, "「今日も来ました。……水曜なので、本の話を聞いてます。」", ""),
+        (6, "あたしが知ってること、向こうは知らないの。……それで、いいんだよ。", KFace),
+        (6, "最後、「見ててくれた人も、ありがとう。またね。」って言ってた。……いつもの。", KFace),
+        (6, "……うん。いつもの、が、いちばんいい。", KFace),
+        (6, "で、閉じた。途中で。……明日、学校だから。", KFace),
+        (6, "……またね、って、画面に言ってから閉じた。……聞こえてないけどね。", KFace),
+    };
+
+    // ═══════════ M7. レイ × STAGE1（あふれるわたし）の回想 ═══════════
+    // R7 で語る「三年前の一行」はまだ出さない。代わりに告知から消した題名を差し出し、同じ癖を持つ者どうしと確定させる。
+    private static readonly (int who, string text, string face)[] Mem_Rei_OnAkari =
+    {
+        (2, "……送信取消。取消。取消。……ほら、消える。きれいに消える。", AFace),
+        (6, "……上手いじゃない。慣れてるわね。", RFace),
+        (2, "八年もやってれば。", AFace),
+        (6, "……わたしは三年。回数だと、たぶん、負けてないわよ。", RFace),
+        (2, "……あなたも、誰かに?", AFace),
+        (6, "ううん。全員によ。……告知って知ってる? 出す前に消すの、わたし。", RFace),
+        (2, "……なんで。宛先、いるのに。", AFace),
+        (6, "「地味だ」って言われるのが、こわかったの。……言われてもないのに、先に消してたのよ。三年。", RFace),
+        (2, "……それ。……それ、まだ、あるの? 消したやつ。", AFace),
+        (6, "あるわよ。十四件。……一件も、減ってなかった。この前までね。", RFace),
+        (2, "…………減った、の?", AFace),
+        (6, "……ええ。一件だけ。", RFace),
+    };
+
+    // ═══════════ A7. レイ × STAGE1 のアフター ═══════════
+    // 言った本人が自分の宛先を変える。三年前の名無しの一行へ返事が戻る（本人には届かない＝代償）。
+    private static readonly (int who, string text, string face)[] Aft_Rei_OnAkari =
+    {
+        (6, "……帰って、アーカイブ、掘ったの。三年前の、いちばん最初のやつ。", RFace),
+        (6, "コメント、一件だけ残ってる。「今日、誰とも話してなかった。声聞けてよかった。」", RFace),
+        (6, "……名前、見たわ。初めてちゃんと見た。……三年、一度も来てない人。", RFace),
+        (4, "「三年前のコメントに、今日、返信しました。……読まれないのは、知ってます。」", ""),
+        (6, "「こちらこそ。……あなたの一行で、三年やれました。」……それだけ。", RFace),
+        (6, "宛先は、変えてないわよ。……変えなくても、出せる日が来たってだけ。", RFace),
+        (6, "……ふふ。ほら、わたしだって、ちゃんと言えるんだから。……偉そうに人に言った手前ね。", RSmile),
+    };
+
+    // ═══════════ M8. レイ × STAGE2（我に返るわたし）の回想 ═══════════
+    // レイは部屋の主が誰か知らないまま（正典の片方向）。ペンライトに触れさせて R8 冒頭へ橋を架ける。
+    private static readonly (int who, string text, string face)[] Mem_Rei_OnKoharu =
+    {
+        (2, "……見なきゃ。ぜんぶ、見なきゃ。まだ、二十七本、残ってる。", KPale),
+        (6, "……二十七本。ずいぶん溜めたわね。……誰の。", RFace),
+        (2, "……言わない。", KPale),
+        (6, "そう。……じゃ、聞き方を変えるわ。その人、何時に始めるの。", RFace),
+        (2, "……二十時。……たまに、遅れる。", KPale),
+        (6, "……遅れるんだ。", RFace),
+        (2, "うん。……でも、ちゃんと謝るの。「ごめん、シフト伸びた」って。", KPale),
+        (6, "…………。", RFace),
+        (6, "……ねえ。その人、二十七本ぶん、謝られたいと思う?", RFace),
+        (2, "……え。", KPale),
+        (6, "溜まってる二十七本ね。……たぶん、それ、その人の宿題じゃなくて、あんたの宿題になってるのよ。", RFace),
+    };
+
+    // ═══════════ A8. レイ × STAGE2 のアフター ═══════════
+    // 三年言い続けた「またね」の意味を、初めて自覚して言う。KoharuStoryFilm の「宛先は、全員です」を送り手の側から閉じる。
+    private static readonly (int who, string text, string face)[] Aft_Rei_OnKoharu =
+    {
+        (6, "……今日の配信、いつもどおり。同接、七。", RFace),
+        (6, "でも、最後の挨拶だけ、ちょっと足したの。", RFace),
+        (4, "「見ててくれた人も、ありがとう。またね。……来られない日があっても、またね、だから。」", ""),
+        (6, "……三年、毎回言ってたのよ、「またね」って。……意味、考えたことなかった。", RFace),
+        (6, "毎日来てって意味じゃないの。来たい日に来てって意味だったの。……自分で言っといて、いま知ったわ。", RFace),
+        (6, "コメント、一件来た。「そういう言い方、うれしいです」って。……一件よ。一件。", RFace),
+        (6, "……じゅうぶんでしょ。わたし、一行で三年やった女だもの。", RSmile),
+    };
+
+    // ═══════════ M9. レイ × STAGE3（星逢レイ＝ガワ）の回想 ═══════════
+    // 自分が作ったガワとの対面。R9 の「泣く係と笑う係」の再契約の手前、契約の不平等さをガワが無自覚に露呈するところまで。
+    private static readonly (int who, string text, string face)[] Mem_Rei_OnRei =
+    {
+        (2, "きょうも元気いっぱい! 星逢レイ、はじまるよー!", RGawa),
+        (6, "……そのテンション、何時間もつの。", RFace),
+        (2, "何時間でも! だって、それが、わたしの仕事だもん!", RGawa),
+        (6, "……休憩は。", RFace),
+        (2, "いらないよ! だって、わたし、疲れないもん!", RGawa),
+        (6, "…………。", RFace),
+        (2, "……ね、おかしい? わたし、なんか、変なこと言った?", RGawa),
+        (6, "……ううん。……よくできてるわ。ほんとに。", RFace),
+        (2, "でしょ! ……ね、衣装、まだ褒めてくれてないよ。星、ちゃんとついてる?", RGawa),
+        (6, "……ついてるわよ。指定どおりの位置に。", RFace),
+        (2, "やったー! ……ね、じゃあ、笑って。そっちも。……そっち、ずっと笑ってないよ?", RGawa),
+        (6, "…………。", RFace),
+    };
+
+    // ═══════════ A9. レイ × STAGE3 のアフター ═══════════
+    // 契約を現実の運用に落とす。ガワは捨てない（正典）。泣いたのは配信を切ったあと――説明せず所作だけで置く。
+    private static readonly (int who, string text, string face)[] Aft_Rei_OnRei =
+    {
+        (6, "……帰って、配信、いつもどおりやったわ。この子で。", RFace),
+        (6, "笑うところは、ぜんぶこの子。……上手よ、ほんと。わたしより、ずっと。", RSmile),
+        (4, "「今日も来てくれてありがとう! またね!」", ""),
+        (6, "……で、切ったあと。ライト落として、ヘッドセット外して。", RFace),
+        (6, "……十五分くらい、何もしなかったの。", RCry),
+        (6, "……誰にも見せてないから。心配しないで。……分担どおりよ。", RCry),
+        (6, "そのあと、ちゃんとお風呂入って、寝たわ。……えらいでしょ。", RFace),
+        (6, "明日も、この子で話すの。……ね、相棒。今日も、よくやったわね。", RSmile),
+    };
+
     // ───────────────────────────────────────────────────────────
     // 道中ビートの引き当て（キャラ×章×ビート）。章は 1〜3＋LoopChapter(4)。
     // ───────────────────────────────────────────────────────────
@@ -931,6 +1241,40 @@ public static class CharacterStory
         _ => null,   // 想定外＝プレースホルダの保険へ
     };
 
+    // ───────────────────────────────────────────────────────────
+    // 回想（memory）の引き当て（キャラ×潜った面の9通り）。RedemptionTable と同形。
+    // ───────────────────────────────────────────────────────────
+    private static (int who, string text, string face)[]? MemoryTable(Job job, string stageId) => (job, stageId) switch
+    {
+        (Job.Melee, "akari") => Mem_Akari_OnAkari,
+        (Job.Melee, "koharu") => Mem_Akari_OnKoharu,
+        (Job.Melee, "rei") => Mem_Akari_OnRei,
+        (Job.Heal, "akari") => Mem_Koharu_OnAkari,
+        (Job.Heal, "koharu") => Mem_Koharu_OnKoharu,
+        (Job.Heal, "rei") => Mem_Koharu_OnRei,
+        (Job.Magic, "akari") => Mem_Rei_OnAkari,
+        (Job.Magic, "koharu") => Mem_Rei_OnKoharu,
+        (Job.Magic, "rei") => Mem_Rei_OnRei,
+        _ => null,   // 想定外＝プレースホルダの保険へ
+    };
+
+    // ───────────────────────────────────────────────────────────
+    // アフター（aftermath）の引き当て（キャラ×潜った面の9通り）。同上。
+    // ───────────────────────────────────────────────────────────
+    private static (int who, string text, string face)[]? AftermathTable(Job job, string stageId) => (job, stageId) switch
+    {
+        (Job.Melee, "akari") => Aft_Akari_OnAkari,
+        (Job.Melee, "koharu") => Aft_Akari_OnKoharu,
+        (Job.Melee, "rei") => Aft_Akari_OnRei,
+        (Job.Heal, "akari") => Aft_Koharu_OnAkari,
+        (Job.Heal, "koharu") => Aft_Koharu_OnKoharu,
+        (Job.Heal, "rei") => Aft_Koharu_OnRei,
+        (Job.Magic, "akari") => Aft_Rei_OnAkari,
+        (Job.Magic, "koharu") => Aft_Rei_OnKoharu,
+        (Job.Magic, "rei") => Aft_Rei_OnRei,
+        _ => null,   // 想定外＝プレースホルダの保険へ
+    };
+
     // ── プレースホルダ（[仮] 接頭辞つき）。全アーム執筆済みの現在は保険＝実プレイ経路では到達しない
     //    （CompanionDialogueQa が全章×全ビート＋9通りの [仮] 不在を機械検査する）。──
     private static (int who, string text, string face) C(string text, string face = "") => (6, text, face);   // 潜行キャラ本人
@@ -954,6 +1298,26 @@ public static class CharacterStory
         {
             B($"[仮] {BossName(stageId)}・改心相当シーン。……相手の声が、ここに入る。"),
             C($"[仮] {name}が、自分の言葉で締める。（CharacterStory.RedemptionTable にアームを足す）"),
+        };
+    }
+
+    private static (int who, string text, string face)[] MemoryPlaceholder(Job job, string stageId)
+    {
+        string name = Jobs.Get(job).CharacterName;
+        return new[]
+        {
+            B($"[仮] {BossName(stageId)}・戦闘中の回想。……相手の声が、ここに入る。"),
+            C($"[仮] {name}が、自分の話を返す。（CharacterStory.MemoryTable にアームを足す）"),
+        };
+    }
+
+    private static (int who, string text, string face)[] AftermathPlaceholder(Job job, string stageId)
+    {
+        string name = Jobs.Get(job).CharacterName;
+        return new[]
+        {
+            C($"[仮] {name}・{BossName(stageId)}の面のアフター。……帰ったあとの話が、ここに入る。"),
+            C("[仮] （scenario 執筆分と差し替え。CharacterStory.AftermathTable にアームを足す）"),
         };
     }
 

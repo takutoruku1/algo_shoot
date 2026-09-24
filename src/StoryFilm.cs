@@ -2,6 +2,18 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
+// StoryFilm : 戦闘中の回想（memory＝モノクロ）と撃破後のアフター（aftermath＝カラー）の共通基盤。
+//
+// ── 選択の規則（2026-09-23 確定）──
+//   どのフィルムを流すかは**潜っている面のボス**で決まり、操作キャラ（GameManager.SelectedJob）には依らない。
+//   STAGE1＝AkariStoryFilm／STAGE2＝KoharuStoryFilm／STAGE3＝ReiStoryFilm／FINAL＝MinaStoryFilm。
+//   呼び元は各 Boss*（memory）と各 Stage*.Step_Clear（aftermath）で、そこでは _charStory を見て分岐しない。
+//   ・経緯：他ジョブ潜行（CharacterStory）では当初「回想フィルムは流さない」、その後 cc4e3c3 で
+//     操作キャラ×章の CharacterStoryFilm へ差し替えていた。結果「あかりで STAGE2／3 に潜ると面を問わず
+//     あかりの回想・アフターになる」をユーザーが不具合として報告（「こはるの話であかりの回想シーンや
+//     アフターシーンが入ってる」「レイのときも同様」）。期待は「こはるの面ならこはるの、レイの面ならレイの」。
+//   ・他ジョブ潜行で変わるのはフィルムの**前後の会話**だけ（Clear のミナ独白 → CharacterStory の帰還ビート）。
+//   ・_Ready のログ `film=<FilmId> job=<CharacterId>` が、面×操作キャラの組み合わせ検証（StoryFilmQa --matrix）の根拠。
 public partial class StoryFilm : Node2D
 {
     protected readonly record struct Line(int Shot, string Time, string Speaker, string Text, double Hold = 0.2);
@@ -112,7 +124,7 @@ public partial class StoryFilm : Node2D
         _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
         _skip.Begin(_game, FilmId);
         GD.Print($"[{_storyName}Story] {(_aftermath ? "aftermath" : "memory")} start"
-                 + (_skip.Available ? " (skippable)" : ""));
+                 + $" film={FilmId} job={_game.JobDef.CharacterId}" + (_skip.Available ? " (skippable)" : ""));
     }
 
     public override void _Process(double delta)

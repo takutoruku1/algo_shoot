@@ -1,6 +1,12 @@
 using Godot;
 using System;
 
+// CharacterStoryFilm : 操作キャラ（あかり／こはる／レイ）×章の一枚絵フィルム（cg_*_playable_{memory,aftermath}_v1.png）。
+//   cc4e3c3（2026-09-22）で他ジョブ潜行の回想／アフターとして各 Boss*／Stage* に配線されたが、
+//   2026-09-23 のユーザー報告（「こはるの話であかりの回想／アフターが入ってる」＝あかりで潜ると面を問わず
+//   このフィルムが流れる）を受けて**配線を外した**。フィルムは面のボスで決まる（StoryFilm.cs 冒頭の規則）。
+//   本体（台本・絵・FilmId 規約）は残してある＝ステージ内からの呼び手はいま無い。再利用先（ハブ側の
+//   日常シーン等）が決まるまで削らない。削る／使うはユーザー判断。
 public partial class CharacterStoryFilm : StoryFilm
 {
     private string _characterId = "";
