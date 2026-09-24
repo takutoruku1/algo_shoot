@@ -65,9 +65,9 @@
 
 <!-- 2026-09-24 監査モード(game-designer/engineer/scenario/qa並列)で追加。scenarioは1件TODO・2件BLOCKEDへ、engineerは3件TODOへ、game-designerは1件TODOへ、qaは新規指摘0件 -->
 
-- [ ] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | 2026-09-24監査(game-designer)。`src/GameManager.cs:816-824`のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、`src/Player.cs:1090-1100`のEndDodgeで発動する光輪(`GameManager.cs:790-792` VeilLightDuration={0,0.5,0.7}秒、`src/Player.cs:692-704`で半径内の敵弾を無条件消去+加点)により、`0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown`となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または`Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)`を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。
-
 ## WIP
+
+- [ ] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | 2026-09-24監査(game-designer)。`src/GameManager.cs:816-824`のDodgeCooldown是正(2026-08-28、コメントに「無敵0.45sを引いても最低0.20s以上の無防備な隙間が必ず残る値に再調整」と明記)が、`src/Player.cs:1090-1100`のEndDodgeで発動する光輪(`GameManager.cs:790-792` VeilLightDuration={0,0.5,0.7}秒、`src/Player.cs:692-704`で半径内の敵弾を無条件消去+加点)により、`0.55(DodgeDuration)+VeilLightDuration ≥ DodgeCooldown`となる全レベルで無効化されている＝veil購入者は回避連打でほぼ無敵かつ加点も得られる。回避サイクルに必ず0.20s以上の無防備窓が残るようVeilLightDurationの値または算出式を調整する（例: 値を縮小する、または`Mathf.Max(0, DodgeCooldown - DodgeDuration - 0.20f)`を上限にした動的計算にする）。光輪自体の弾消し・加点機能は維持してよい。
 
 ## BLOCKED
 
