@@ -1139,7 +1139,7 @@ public partial class Hud : CanvasLayer
         const float w = 260f, h = 8f, y = 210f; // スペルカード(y=126〜186、ラベル分-16pxも含め余裕を取って直下)と重ならない位置
         float x = 640 - w / 2f;
         Color col = UiKit.Burn.Lerp(UiKit.Gold, _mealTimerRatio);
-        string label = "お残し禁止";
+        string label = "全部見なきゃ";
         float labelW = UiKit.TextW(UiKit.ZenBold, label, 12);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(640 - labelW / 2f, y - 16), label, 12, new Color(col, 0.9f));
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(1, 1, 1, 0.1f), 4f);

@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-24 18:54 UTC",
+  "generated": "2026-09-24 18:55 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 43,
-    "done": 266
+    "done": 267
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る",
-      "worker": "engineer",
-      "accept": "2026-09-24監査(scenario)。`src/Hud.cs:1142`の`string label = \"お残し禁止\";`（2026-09-22追加のタイマーUI、`Hud.cs:1133-1144`）が、`src/BossKoharu.cs:494`で実際にアナウンスされる現行スペル名`\"全部見なきゃ\"`（2026-09-06に旧名「お残し禁止」から改名済み、DONE記録あり）と食い違う。プレイヤーはスペルカードとタイマーラベルで矛盾する2つの技名を同時に見る上、「お残し禁止」は案Cで撤去済みの台所設定用語（`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:96`）。`Hud.cs:1142`の文字列を既存の承認済み名称`\"全部見なきゃ\"`に置換するのみ。新規文言の創作なし、ロジック無変更。"
-    },
     {
       "priority": "P2",
       "title": "「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している",
@@ -283,6 +277,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-24) 2026-09-24監査(scenario)発見。`src/Hud.cs:1142`の`\"お残し禁止\"`を、`src/BossKoharu.cs:494`のスペルカードと同じ現行名`\"全部見なきゃ\"`に置換。新規文言なし、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "Pad.cs の FlipToken が宣言のみで参照0件の死にコード",
@@ -1882,6 +1882,16 @@
   ],
   "commits": [
     {
+      "hash": "db18014",
+      "date": "2026-09-24",
+      "subject": "auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する"
+    },
+    {
+      "hash": "c5bebf5",
+      "date": "2026-09-24",
+      "subject": "auto: Pad.csのFlipToken死にコードを削除"
+    },
+    {
       "hash": "4ed42a2",
       "date": "2026-09-24",
       "subject": "auto: WIP着手 - Pad.csのFlipToken死にコードを整理する"
@@ -1910,16 +1920,6 @@
       "hash": "e6c37ed",
       "date": "2026-09-24",
       "subject": "auto: 監査で5件をTODO・2件をBLOCKEDへ追加（game-designer/engineer/scenario/qa並列監査）"
-    },
-    {
-      "hash": "bcad43e",
-      "date": "2026-09-23",
-      "subject": "auto: コメント中のファイル:行参照ズレを実位置に修正"
-    },
-    {
-      "hash": "7cf8efd",
-      "date": "2026-09-23",
-      "subject": "auto: WIP着手 - コメント中のファイル:行参照ズレを修正する"
     }
   ]
 }
