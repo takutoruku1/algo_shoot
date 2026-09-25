@@ -5,8 +5,13 @@ using System.Collections.Generic;
 //   ストーリー重視のゲーム向けに、これまで表示されたセリフ/ナレ/投稿（Hud.SetDialog を通った行）を
 //   遡って読み返せる ADV/ノベルゲームのバックログ相当。履歴の蓄積は Hud 側（static Hud.Backlog）。
 //
-//   開き方：プレイ中は専用キー/ボタン（L / Tab / 左スティック押し込み L3）で直接、またはポーズメニューから。
+//   開き方：プレイ中は専用キー/ボタン（L / Tab / パッド Back(View)）で直接、またはポーズメニューから。
 //           HowToPlay と同じくツリーをポーズして最前面で描くオーバーレイ（シーン遷移しない）。
+//   ★2026-09-26 ユーザー指示「オープニングから全シーンでログを開けるように」：
+//     開ける画面を Prologue / Final / Epilogue（＋その中のフィルム）へ広げた。これらは Hud を使わない
+//     自前レンダラなので、各シーンが行を表示するたび Hud.PushLog で会話ログへ積む（Hud.BacklogFeed.cs）。
+//     ログを開いている間はツリーポーズ＝会話送り・選択肢・フィルムの時間も止まる（戦闘画面と同じ作法）。
+//     除外はタイトルと設定だけ（会話が無い）。ログが空でも開ける（「まだ会話の記録はありません。」）。
 //   操作：↑↓ または 左スティックでスクロール、X / B / Esc で閉じる。表記は Pad に集約（KB/PS/Xbox 追従）。
 //   色分け：話者種別(LineKind: 0少年/1ミナ/2相手/3ナレ/4投稿/5中継)を Hud.KindColor に合わせる。
 public partial class Backlog : CanvasLayer
@@ -45,14 +50,18 @@ public partial class Backlog : CanvasLayer
         AddChild(_canvas);
     }
 
-    // ゲームプレイ画面でのみ専用キーで開く。タイトル/設定/カットシーンは除外（PauseMenu と同基準）。
+    // 専用キーで開ける画面か。除外はタイトルと設定だけ（会話が無い＝読み返すものが無い）。
+    //   カットシーン（Prologue/Final/Epilogue）は 2026-09-26 に含めた（ファイル頭のコメント参照）。
     private bool CanOpenHere()
     {
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
-        return !(path.Contains("TitleMenu") || path.Contains("Settings")
-              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
+        return !(path.Contains("TitleMenu") || path.Contains("Settings"));
     }
+
+    // Tab で開ける画面か。トレーニングだけ除外＝あちらは Tab がスキルパネルの開閉（TrainingRoot._Process）
+    //   なので、同じ押下でログまで開くと二重処理になる（L／パッド Back は変わらず使える）。
+    private bool TabOpensHere() => !(GetTree().CurrentScene?.SceneFilePath ?? "").Contains("Training");
 
     public void Open(System.Action? onClose = null)
     {
@@ -111,9 +120,11 @@ public partial class Backlog : CanvasLayer
             bool howOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true };
             // 開キー：L／Tab（KB）／Back・Select（パッド）。
             // パッドは L3(LeftStick)=回避と衝突するため Back を使う。
-            bool openKey = Input.IsKeyPressed(Key.L) || Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Back);
+            bool openKey = Input.IsKeyPressed(Key.L) || (Input.IsKeyPressed(Key.Tab) && TabOpensHere()) || Pad.Pressed(JoyButton.Back);
             bool openEdge = openKey && !_navHeld; _navHeld = openKey;
-            if (openEdge && !pauseOpen && !howOpen && CanOpenHere() && Hud.Backlog.Count > 0) Open();
+            // ログが空でも開く（2026-09-26）：プロローグ冒頭など「まだ何も積まれていない」場面でも
+            //   キーが効くことを示し、空の案内文を出す（以前は Hud.Backlog.Count > 0 で門を閉じていた）。
+            if (openEdge && !pauseOpen && !howOpen && CanOpenHere()) Open();
             return;
         }
 

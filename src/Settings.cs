@@ -94,12 +94,15 @@ public partial class Settings : Node2D
         // PlayStation の選択肢は廃止し、旧セーブの値(1)は「コントローラー」へ合流する。
         ctrl.Items.Add(Seg("inputdisplay", "操作表示", new[] { "キーボード", "コントローラー" }, 0, "起動直後の表記（以降は自動切替）"));
         ctrl.Items.Add(Keys("move", "移動", new[] { "↑", "↓", "←", "→" }));
-        ctrl.Items.Add(Keys("shot", "ショット", new[] { "オート" }, "自動で撃ちます（操作不要）"));
-        ctrl.Items.Add(Keys("lock", "ロックオン送り", new[] { "F" }, "左クリック短押しでも。長押しは溜め打ち"));
+        // ★2026-09-26 作者決定のキーボード割り当て：Z＝溜め打ち（旧 C）／Shift 長押し＝ロックオン・離すと解除
+        //   （旧 F 送り／G 解除。F は「次の敵へ送り」として残る）／Ctrl＝回避（旧 Alt）／M＝メニュー（旧 Esc）。
+        //   パッド・マウスは変更なし。行数はパネルの高さ（8行）に収めるため、溜め打ちはショットの行に同居させる。
+        ctrl.Items.Add(Keys("shot", "ショット / 溜め打ち", new[] { "オート", "Z 長押し" }, "光は自動。Z を長押しして離すと溜め打ち"));
+        ctrl.Items.Add(Keys("lock", "ロックオン", new[] { "Shift" }, "押しているあいだ狙う。離すと外れる。F で次の敵へ"));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
-        ctrl.Items.Add(Keys("dodge", "回避", new[] { "Alt" }, "一瞬無敵で弾を抜ける"));
+        ctrl.Items.Add(Keys("dodge", "回避", new[] { "Ctrl" }, "一瞬無敵で弾を抜ける"));
         ctrl.Items.Add(Keys("focus", "集中モード", new[] { "V" }, "ホイール／サイドボタン／LB でも"));
-        ctrl.Items.Add(Keys("pause", "ポーズ", new[] { "Esc" }));
+        ctrl.Items.Add(Keys("pause", "メニュー", new[] { "M" }, "Esc は一つ前の画面へもどる"));
 
         var a11y = C("a11y", "アクセシビリティ", "Accessibility");
         a11y.Items.Add(Toggle("reduceflash", "明滅を抑える", true, "フラッシュ表現を軽減"));
@@ -605,19 +608,19 @@ public partial class Settings : Node2D
             return rowKey switch
             {
                 "move"  => new[] { "↑", "↓", "←", "→" },
-                "shot"  => new[] { "オート" },   // 射撃ボタンは廃止（常時オート発射）
-                "lock"  => new[] { "F" },
+                "shot"  => new[] { "オート", "Z 長押し" },   // 射撃ボタンは廃止（常時オート発射）。Z 長押し＝溜め打ち
+                "lock"  => new[] { "Shift" },                // 押しているあいだロック。F で次の敵へ
                 "bomb"  => new[] { "X" },
-                "dodge" => new[] { "Alt" },
+                "dodge" => new[] { "Ctrl" },
                 "focus" => new[] { "V" },
-                "pause" => new[] { "Esc" },
+                "pause" => new[] { "M" },
                 _       => System.Array.Empty<string>(),
             };
         // パッド表記（Xbox 基準）。Player.cs の入力判定と一致させる。
         return rowKey switch
         {
             "move"  => new[] { "L" },                                    // 左スティック
-            "shot"  => new[] { "オート" },                               // 射撃ボタンは廃止（常時オート発射）
+            "shot"  => new[] { "オート", Pad.Face(JoyButton.Y) + " 長押し" }, // 射撃ボタンは廃止（常時オート発射）。Y 長押し＝溜め打ち
             "lock"  => new[] { Pad.Face(JoyButton.RightShoulder) },
             "bomb"  => new[] { Pad.Face(JoyButton.X) },
             "dodge" => new[] { Pad.Face(JoyButton.LeftStick) },

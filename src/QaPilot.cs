@@ -78,6 +78,7 @@ public partial class QaPilot : Node
     private bool _god;
     private bool _aim;
     private bool _quitOnEnd;
+    private bool _noShoot;    // --noshoot : 戦闘中は撃たない（Z は会話送りにだけ使う・aim も止める）＝「壊さないと進まない」ゲートの再現用
     private bool _skipTest;   // --skiptest : Ctrl を押しっぱなしにして既読スキップ（#22）の検証をする
     private bool _ctrlSent;   // Ctrl 押下イベントを送出済みか（1回だけ送る）
     private bool _inputTest;  // --inputtest : 操作割り当ての合成入力テスト（DriveInputTest）
@@ -150,6 +151,7 @@ public partial class QaPilot : Node
                 case "--god": _god = true; break;
                 case "--aim": _aim = true; break;
                 case "--assist": _god = true; _aim = true; break;
+                case "--noshoot": _noShoot = true; break;
                 case "--quit": _quitOnEnd = true; break;
                 case "--skiptest": _skipTest = true; break;
                 case "--inputtest": _inputTest = true; break;
@@ -286,7 +288,7 @@ public partial class QaPilot : Node
         _prevAoeHit = aoeHit;
 
         if (_god) GodClear(ppos);
-        if (_aim) AimAssist(delta, ppos);
+        if (_aim && !_noShoot) AimAssist(delta, ppos);
     }
 
     // =====================  自動操作  =====================
@@ -326,6 +328,12 @@ public partial class QaPilot : Node
     private void DriveShootAndAdvance(double delta)
     {
         bool talking = Hud.BubblePaused;
+        // --noshoot：会話中以外は Z を離したままにする（撃たない）。会話送りだけは従来どおり。
+        if (_noShoot && !talking)
+        {
+            if (_zDown) { _zDown = false; Send(new InputEventKey { Keycode = Key.Z, Pressed = false }); }
+            return;
+        }
         double period = talking ? 0.5 : 0.16;
         _zPhase += delta;
         if (_zPhase >= period) _zPhase -= period;

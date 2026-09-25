@@ -199,7 +199,8 @@ public partial class HowToCanvas : Node2D
     // ※フッタなど「いま握っているデバイス向けの案内」で使う。割り当て一覧表（3タブ）は
     //   デバイス固定で書くので、下の ControlRows(tab) が直に文字列を持つ。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    // メニュー（Esc / MENU / OPTIONS）の表記はフッタの「とじる」と共有＝下の FootCloseToken を使う。
+    // フッタの「とじる」表記は下の FootCloseToken（キーボードは Esc＝もどる）。
+    //   メニューを開くキーの表記は Pad.PauseToken（M / Menu(≡)）＝2026-09-26 に Esc から分離した。
 
     public override void _Draw()
     {
@@ -317,18 +318,27 @@ public partial class HowToCanvas : Node2D
         Add(moveTok, "移動", moveDesc, UiKit.Info, false);
         Add("オート", "撃つ", "自動で撃ちます。光を放って心を浄化する", UiKit.Purify, false);
 
-        // ロックオン送り。マウスだけ短押し／長押しの分岐があるので説明を変える。
-        string lockTok = tab switch { 1 => Pad.Face(JoyButton.RightShoulder), 2 => "左クリック", _ => "F" };
-        string lockDesc = tab == 2
-            ? "短く押すたび近い敵から順に狙う。移動は少し遅くなる"
-            : "押すたび近い敵から順に狙う。移動は少し遅くなる";
-        Add(lockTok, "ロックオン送り", lockDesc, UiKit.Purify, true);
+        // ロックオン。キーボードは Shift の押しっぱなし（2026-09-26 作者決定：F 送り／G 解除 → Shift 長押し。
+        //   押した瞬間に最寄りへロック、離した瞬間に解除。F は「次の敵へ送り」として残る）。
+        //   パッド RB／マウス左クリックは従来どおり「押すたび送り」。マウスだけ短押し／長押しの分岐があるので説明を変える。
+        string lockTok = tab switch { 1 => Pad.Face(JoyButton.RightShoulder), 2 => "左クリック", _ => "Shift 長押し" };
+        string lockDesc = tab switch
+        {
+            1 => "押すたび近い敵から順に狙う。移動は少し遅くなる",
+            2 => "短く押すたび近い敵から順に狙う。移動は少し遅くなる",
+            _ => "押しているあいだ近い敵を狙う。F で次の敵へ。移動は少し遅くなる",
+        };
+        Add(lockTok, tab == 0 ? "ロックオン" : "ロックオン送り", lockDesc, UiKit.Purify, true);
 
-        // ロックオン解除。2026-09-17 にキーボード(G)／パッド(R3)へも割り当てた（従来はマウス右クリックのみ）。
+        // ロックオン解除。キーボードは Shift を離す（2026-09-26。旧 G は廃止）。パッド R3／マウス右クリックは従来どおり。
         //   マウスの右クリックは回避と兼用＝解除の行と回避の行を別々に出し、注記で「同じボタン」と結ぶ。
-        Add(tab switch { 1 => Pad.Face(JoyButton.RightStick), 2 => "右クリック", _ => "G" }, "ロックオン解除",
-            tab == 2 ? "狙っている敵から照準を外す。回避と同じボタン"
-                     : "狙っている敵から照準を外す。放っておいても自然に外れる", UiKit.Purify, false);
+        Add(tab switch { 1 => Pad.Face(JoyButton.RightStick), 2 => "右クリック", _ => "Shift を離す" }, "ロックオン解除",
+            tab switch
+            {
+                1 => "狙っている敵から照準を外す。放っておいても自然に外れる",
+                2 => "狙っている敵から照準を外す。回避と同じボタン",
+                _ => "離した瞬間に照準が外れる",
+            }, UiKit.Purify, false);
 
         // 溜め打ち（最初から使える。2026-09-25 のユーザー決定で習得ゲートを撤廃）。
         //   ショップの「溜め打ち 二段」（n_charge）を買うと、離さずさらに溜めて 2段目が撃てる
@@ -338,11 +348,13 @@ public partial class HowToCanvas : Node2D
             ? $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}"
               + $"／さらに {game.ChargeTier2NeedSec:0.0}秒まで溜めると 威力 ×{ChargeTier.PowerMul:0.0} の大きい一発"
             : $"{chargeSec:0.0}秒ためて離す。{game!.JobDef.ChargeDescription}";
-        Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "C 長押し" },
+        // キーボードは Z 長押し（2026-09-26 作者決定。旧 C）。
+        Add(tab switch { 1 => Pad.Face(JoyButton.Y) + " 長押し", 2 => "左クリック 長押し", _ => "Z 長押し" },
             "溜め打ち", chargeDesc, UiKit.Gold, true);
 
         // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。
-        Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Alt" }, "回避",
+        //   キーボードは Ctrl（2026-09-26 作者決定。旧 Alt。会話中の Ctrl は既読スキップ＝時間が重ならないので兼用）。
+        Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Ctrl" }, "回避",
             tab == 2 ? "一瞬無敵で弾をすり抜ける。ロック解除と同じボタン" : "一瞬無敵で弾をすり抜ける。攻めの切り札",
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得 — ショップ「回避」");
 
@@ -358,10 +370,11 @@ public partial class HowToCanvas : Node2D
             "会話を送る", "1回目で全文表示、2回目で次の行へ", UiKit.Info, false);
         Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "—" : "Ctrl 長押し",
             "既読スキップ", tab == 2 ? "マウスには割り当てなし（Ctrl / " + Pad.Face(JoyButton.RightShoulder) + "）"
-                                    : "一度読んだ行だけ高速で送る", UiKit.Text2, false);
-        Add(tab == 1 ? Pad.Face(JoyButton.Start) : tab == 2 ? "—" : "Esc",
-            "メニュー", tab == 2 ? "マウスには割り当てなし（Esc / " + Pad.Face(JoyButton.Start) + "）"
-                                 : "セーブ・音量・つづける", UiKit.Text2, false);
+                                    : "会話中、一度読んだ行だけ高速で送る", UiKit.Text2, false);
+        // メニューは M（2026-09-26。旧 Esc）。Esc は「一つ前の画面へ」＝メニュー内では一段もどる。
+        Add(tab == 1 ? Pad.Face(JoyButton.Start) : tab == 2 ? "—" : "M",
+            "メニュー", tab == 2 ? "マウスには割り当てなし（M / " + Pad.Face(JoyButton.Start) + "）"
+                                 : tab == 1 ? "セーブ・音量・あそびかた" : "セーブ・音量・あそびかた。Esc で一つ前へ", UiKit.Text2, false);
         Add(tab == 1 ? "—" : "R / Shift+R",
             "やりなおす", tab == 1 ? "キーボードのみ（R＝続きから / Shift+R＝最初から）"
                                     : "R＝続きから、Shift+R＝最初から", UiKit.Text2, false);

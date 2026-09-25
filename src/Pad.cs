@@ -91,8 +91,9 @@ public static class Pad
     public const string TriggerLeftToken = "LT";
     public const string TriggerRightToken = "RT";
 
-    // ポーズ開閉の操作子表記：キーボード表示なら Esc、パッド表示なら Start(MENU/OPTIONS)。
-    public static string PauseToken => ShowKeyboard ? "Esc" : Face(JoyButton.Start);
+    // ポーズ（メニュー）開閉の操作子表記：キーボード表示なら M、パッド表示なら Start(Menu(≡))。
+    //   2026-09-26：Esc → M。Esc は全画面で「一つ前へもどる」（PauseMenu.cs 冒頭のコメント参照）。
+    public static string PauseToken => ShowKeyboard ? "M" : Face(JoyButton.Start);
     // 決定の操作子表記：キーボードなら Z、パッドなら A(〇)。
     public static string ConfirmToken => ShowKeyboard ? "Z" : Face(JoyButton.A);
 
@@ -190,7 +191,7 @@ public static class Pad
     {
         Key.W, Key.A, Key.S, Key.D, Key.Up, Key.Down, Key.Left, Key.Right,
         Key.Z, Key.X, Key.C, Key.V, Key.F, Key.G, Key.Shift, Key.Ctrl, Key.Alt,
-        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.J, Key.Tab,
+        Key.Space, Key.Enter, Key.Escape, Key.R, Key.Q, Key.T, Key.L, Key.J, Key.Tab, Key.M,
     };
 
     // 毎フレーム呼ぶ：パッド操作があれば _autoUsingPad=true、キー操作があれば false（無操作なら直前を維持）。

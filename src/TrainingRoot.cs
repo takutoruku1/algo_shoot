@@ -17,7 +17,7 @@ using System.Collections.Generic;
 //     ・自機＝矢印/WASD 移動・ショットは常時オート・X ボム・V モード切替（本編と同じ手触り）。
 //     ・スキル割り振り＝右のスキルパネルをマウスで（行クリックで付け外し／ホイールでスクロール）。
 //       キーボードは PageUp/PageDown でスクロール、[ / ] で全オフ/全解放（自機キーと衝突しない住み分け）。
-//     ・もどる＝BackSpace／パッドB または左下ボタンのクリック（Esc はポーズメニュー）。
+//     ・もどる＝Esc／BackSpace／パッドB または左下ボタンのクリック（メニューは M）。
 public partial class TrainingRoot : Node2D
 {
     public const int ScreenWidth = 384;
@@ -249,10 +249,10 @@ public partial class TrainingRoot : Node2D
         }
         _bracketHeld = br;
 
-        // もどる＝BackSpace／パッドB／左下のもどるボタン。2026-09-14 に Esc から移した：Esc はどの画面でも
-        // ポーズメニューを開く役へ一本化したため。他画面の「もどる」キー X はここでは自機のボムなので使えず、
-        // 自機キー（矢印/WASD/X/C/V/F/Alt）と衝突しない BackSpace を退出に充てた。
-        bool esc = Input.IsKeyPressed(Key.Backspace) || Pad.Pressed(JoyButton.B);
+        // もどる＝Esc／BackSpace／パッドB／左下のもどるボタン。Esc は 2026-09-26 に「一つ前の画面へ」として
+        // 戻した（メニューを開くのは M）。BackSpace は 2026-09-14 から退出に充てていたのでそのまま残す。
+        // 他画面の「もどる」キー X はここでは自機のボムなので使えない。
+        bool esc = Input.IsKeyPressed(Key.Escape) || Input.IsKeyPressed(Key.Backspace) || Pad.Pressed(JoyButton.B);
         if (esc && !_escHeld) ExitToShop();
         _escHeld = esc;
     }
@@ -385,7 +385,7 @@ public partial class TrainingRoot : Node2D
         //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／回避／ボム／浄化）。
         //   ※低速移動は 2026-09-13 に廃止。V は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: F/左クリック　溜め打ち: C/左クリック長押し　回避: Alt　ボム: X　集中モード: V/ホイール", 12, UiKit.Text3);
+            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: Shift 長押し/左クリック（F で次の敵へ）　溜め打ち: Z/左クリック長押し　回避: Ctrl　ボム: X　集中モード: V/ホイール", 12, UiKit.Text3);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
             "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
 

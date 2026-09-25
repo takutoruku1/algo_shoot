@@ -1,7 +1,12 @@
 using Godot;
 
 // PauseMenu : 全画面共通のポーズメニュー（オートロード /root/PauseMenu）。
-//   Esc で開き、ツリーをポーズして**1枚のダイアログ**を出す。
+//   M（キーボード）／Start（パッド）で開き、ツリーをポーズして**1枚のダイアログ**を出す。
+//   ★2026-09-26 ユーザー指示：開くキーを Esc → M に移し、Esc は全画面で「一つ前へもどる」に一本化した。
+//     メニュー内の Esc は上に重なるダイアログ／ページを一段ずつ閉じ、トップなら閉じる。M／Start は開閉トグル
+//     （どの階層からでもメニューごと閉じる）。閉じているときの Esc はここでは読まない＝非戦闘画面
+//     （ハブ/ショップ/記録/難易度選択/トレーニング）が各自の「もどる」として読み、戦闘中は何もしない
+//     （弾を避けている最中に Esc で面から抜ける事故を作らない。メニューは M で開く）。
 //   2026-09-17 ユーザー指示で作り直した（旧版は Top/Stage/Config の三段ページ構成）。
 //     トップ（ステージ中）: 離脱／リスタート／ログ／セーブ／ロード／タイトルへ
 //       ・離脱／リスタートは破壊的なので確認ダイアログ（はい/いいえ）を挟む。
@@ -17,8 +22,8 @@ using Godot;
 //   ステージ外（ハブ/ショップ/記録/難易度選択/トレーニング）では 離脱／リスタート／ログ が意味を持たない
 //     ので出さない（あそびかた／セーブ／ロード／タイトルへ の4行＋閉じる＋歯車だけ）。RetryEnabled 参照。
 //   セーブは手動・スロット制（自動セーブは別枠）＝ここでしか手動保存されない。
-//   タイトル/設定/あそびかた/カットシーンは対象外（Esc が既に「閉じる/戻る」の画面＝そちらを優先）。
-//   開ける画面では右下に「Esc メニュー」ヒントを常時表示する。
+//   タイトル/設定/あそびかた/カットシーンは対象外（戻り先が無い／Esc が既に「閉じる/戻る」の画面）。
+//   開ける画面では右下に「M メニュー」ヒントを常時表示する。
 //   --qa / --demo では無効（自動プレイのポーズ事故を防ぐ）。
 public partial class PauseMenu : CanvasLayer
 {
@@ -26,7 +31,7 @@ public partial class PauseMenu : CanvasLayer
     private PauseCanvas _canvas = null!;
     private bool _open;
     private int _sel;
-    private bool _navHeld, _lrHeld, _zHeld, _escHeld, _backHeld;
+    private bool _navHeld, _lrHeld, _zHeld, _escHeld, _menuHeld, _backHeld;
     private double _savedToast;
     private int _savedSlot;
     private bool _autoplay;
@@ -176,9 +181,9 @@ public partial class PauseMenu : CanvasLayer
         path.Contains("Hub") || path.Contains("Shop") || path.Contains("DiffSelect")
         || path.Contains("Records") || path.Contains("Training") || path.Contains("Customize");
 
-    // Esc でメニューを開ける画面か。除外するのは「Esc が既に閉じる/戻るを意味する画面」だけ:
+    // M／Start でメニューを開ける画面か。除外するのは「重ねる意味が無い／演出が壊れる画面」だけ:
     //   TitleMenu … ここがルート（戻り先が無い＝メニューの「タイトルへ」も無意味）
-    //   Settings  … Esc＝保存してタイトルへ戻る。音量も画面モードもこの画面自体が持つ＝重ねる意味が無い
+    //   Settings  … 音量も画面モードもこの画面自体が持つ＝重ねる意味が無い
     //   カットシーン(Prologue/Final/Epilogue/Credits) … Start/R 長押しのやりなおし導線が既にあり、
     //     BGM とフェーズタイマーが進行中。ツリーポーズを挟むと演出の整合を取り直す必要があるので触らない。
     // 上に重なるオーバーレイ（あそびかた/会話ログ）は _Process 側の overlayOpen で別途止めている。
@@ -231,27 +236,36 @@ public partial class PauseMenu : CanvasLayer
         {
             // _backHeld も含める（2026-09-22）：あそびかた／ログを X（パッド B）で閉じた同じ押下が、
             //   次のフレームで cancel エッジとして立ち、ポーズメニューまで閉じてしまっていた。
-            _escHeld = _zHeld = _navHeld = _lrHeld = _backHeld = true;
+            _escHeld = _menuHeld = _zHeld = _navHeld = _lrHeld = _backHeld = true;
             _canvas.QueueRedraw();
             return;
         }
         // 開いている間は下の画面（ショップ/ハブ/ステージ等）への入力を食う
-        // ＝「閉じる Esc/Start/Z」の同じ押下が、下の画面の もどる/決定 として二重処理されない。
+        // ＝「閉じる Esc/M/Start/Z」の同じ押下が、下の画面の もどる/決定 として二重処理されない。
         if (_open) Pad.ConsumeUi(this);
 
-        // Esc（キーボード）／Start（パッド）どちらでも開閉できる。
-        bool esc = Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.Start);
+        // M（キーボード）／Start（パッド）＝開閉トグル。Esc＝一段もどる（メニュー内だけで読む）。
+        //   閉じているときの Esc はここでは扱わない（ファイル頭のコメント参照：非戦闘画面は各自の「もどる」、
+        //   戦闘中は何もしない）。
+        bool menu = Input.IsKeyPressed(Key.M) || Pad.Pressed(JoyButton.Start);
+        bool menuEdge = menu && !_menuHeld; _menuHeld = menu;
+        bool esc = Input.IsKeyPressed(Key.Escape);
         bool escEdge = esc && !_escHeld; _escHeld = esc;
 
         if (!_open)
         {
             // 右下ヒントの左クリック。非戦闘画面かつ会話中でないときだけ受ける（HintClickable のコメント参照）。
-            if ((escEdge && CanOpenHere()) || HintClicked()) Open();
+            if ((menuEdge && CanOpenHere()) || HintClicked()) Open();
             _canvas.QueueRedraw(); // 常時ヒントの更新
             return;
         }
 
+        // M／Start をもう一度＝どの階層（確認/スロット/設定）からでもメニューごと閉じる（トグル）。
+        if (menuEdge) { Audio.Instance?.PlayUiCancel(); Close(); return; }
+
         // 共通の入力エッジ（どのページ／どのダイアログでも同じ割り当てで読む）。
+        //   cancel（X／パッド B／Esc／右クリック）は「一段もどる」：確認→閉じる、スロット→閉じる、
+        //   設定→トップ、トップ→メニューを閉じる。
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
         bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
@@ -652,17 +666,17 @@ public partial class PauseMenu : CanvasLayer
         }
     }
 
-    // 上に重なるオーバーレイ（会話ログ/操作説明）が Esc で閉じた直後、その同じ押下を
-    // こちらの開閉エッジとして拾わないための通知。押しっぱなし扱いにして1回ぶん吸収する
-    //（オーバーレイ表示中は上の早期 return で _escHeld が更新されないため、放置すると
-    //   閉じた次のフレームに Esc エッジが立ち、ポーズが勝手に開く/閉じる）。
-    public void NoteOverlayClosed() => _escHeld = true;
+    // 上に重なるオーバーレイ（会話ログ/操作説明）が Esc 等で閉じた直後、その同じ押下を
+    // こちらの もどる／開閉エッジとして拾わないための通知。押しっぱなし扱いにして1回ぶん吸収する
+    //（オーバーレイ表示中は上の早期 return で held が更新されないため、放置すると
+    //   閉じた次のフレームにエッジが立ち、ポーズが勝手に開く/閉じる）。
+    public void NoteOverlayClosed() => _escHeld = _menuHeld = true;
 
     public bool IsOpen => _open;
     public int Sel => _sel;
     public bool ShowHint => !_open && !_autoplay && CanOpenHere();
 
-    // ═══════ 右下「Esc／メニュー」ヒントのクリック対応（2026-09-17）═══════
+    // ═══════ 右下「M／メニュー」ヒントのクリック対応（2026-09-17）═══════
     //   ★戦闘画面では対応しない。理由は3つ、どれも実装上の事実:
     //     1) 戦闘中の自機はマウスカーソルへ追従する（Player.cs:597）。弾を避けて画面右下へ寄った瞬間に
     //        ポーズが開く＝避けている最中に一番やってはいけない誤爆になる。
@@ -893,9 +907,9 @@ public partial class PauseCanvas : Node2D
         }
     }
 
-    // 「Esc メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
+    // 「M メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
     //   2026-09-07: プレイ中の常駐操作ガイド（Hud.DrawControls）を撤去した際、これ1つだけを残した。
-    //   Esc（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
+    //   M（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
     //   薄く小さく（キー枠の縁とラベルのαを落とし、ラベルは FontSmall へ）。
     //   ★2026-09-17：非戦闘画面（Hub/ショップ/難易度選択/記録/トレーニング）ではここを左クリックでも
     //     開けるようにした（PauseMenu.HintClickable）。押せる画面でホバーしたときだけ下敷きを敷いて
@@ -907,7 +921,7 @@ public partial class PauseCanvas : Node2D
         float W = UiKit.DesignW, H = UiKit.DesignH;
         float y = H - 38f - 30f;
         const string label = "メニュー";
-        string keyTok = Pad.PauseToken; // 表示モードに追従（Esc / MENU / OPTIONS）
+        string keyTok = Pad.PauseToken; // 表示モードに追従（M / Menu(≡)）
         float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
         float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontSmall);
         float x = W - 24f - (keyW + 7f + labelW);

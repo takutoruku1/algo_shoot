@@ -57,6 +57,7 @@ public partial class ShopTutorial : Node2D
     private readonly System.Collections.Generic.List<string> _pages = new();
     private int _page;
     private int _pagedIdx = -1;               // _pages を構築済みの行 index（行が変わったら作り直す）
+    private int _logIdx = -1;                 // 会話ログ（Hud.Backlog）へ積んだ行 index（2026-09-26）
     private const float BodyWrapW = W - 80f - 72f;  // DrawDialog の本文折り返し幅（box幅 W-80 の内側パディング 36×2）
     private string CurPage => _pages.Count > 0 ? _pages[Mathf.Min(_page, _pages.Count - 1)] : "";
     private bool LastPage => _pages.Count == 0 || _page >= _pages.Count - 1;
@@ -86,6 +87,13 @@ public partial class ShopTutorial : Node2D
         if (_done) { QueueRedraw(); return; }
 
         EnsurePages();
+        // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（行が変わった瞬間に1回）。
+        //   who は Hud.LineKind と同じ番号なのでそのまま渡す（話者名は種別から補われる）。
+        if (_logIdx != _idx && _idx < ShopTutorialLines.Length)
+        {
+            _logIdx = _idx;
+            Hud.PushLog((Hud.LineKind)ShopTutorialLines[_idx].who, "", ShopTutorialLines[_idx].text);
+        }
         int len = CurPage.Length;
         if (_autoplay)
         {

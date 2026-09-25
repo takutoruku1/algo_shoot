@@ -126,7 +126,8 @@ public partial class Records : Node2D
         if ((prev || next) && !_navHeld) SelectStage((_sel + (prev ? 3 : 1)) % Stages.Length);
         _navHeld = prev || next;
 
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／T／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.T) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld;
         _backHeld = back;
         if ((backEdge || click == 4 || Pad.MouseRightClick()) && _t > 0.2) GoHome();

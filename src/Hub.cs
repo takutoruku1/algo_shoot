@@ -204,6 +204,7 @@ public partial class Hub : Node2D
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・ハブ小話用）。
     private int _dlgReadIdx = -1;  // 既読チェック済みの行 index
     private bool _dlgReadBefore;   // 現在行が「表示開始時点で」既読だったか
+    private int _dlgLogIdx = -1;   // 会話ログ（Hud.Backlog）へ積んだ行 index（2026-09-26。オート送りでも積む）
     private bool _ffNow;           // いま高速送り中か（▶▶表示用）
 
     private double _toastT;
@@ -845,13 +846,29 @@ public partial class Hub : Node2D
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
-        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false;
+        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1;
         _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
     }
+
+    // 会話ログの種別（本文色の出し分け用）。話者名と色は画面（DrawDialog／SpeakerFace）と同じものを渡す。
+    private static Hud.LineKind DialogLogKind(string sp) =>
+        sp.StartsWith("ミナ") ? Hud.LineKind.Mina
+        : sp == "あなた"      ? Hud.LineKind.Boy
+        : sp == "Ｘ 投稿"     ? Hud.LineKind.Post
+        : sp.StartsWith("Ｘ") ? Hud.LineKind.Narration   // Ｘ システム（画面テキスト）
+        : Hud.LineKind.Other;                            // 三人／同行キャラ
 
     private void ProcessDialogue(double delta)
     {
         DlgEnsurePages();
+        // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）。行が変わった瞬間に1回。
+        //   `{n}` の差し込みは AdvanceDialogue で行が表示される前に済む＝ここで渡す本文は画面と同じ。
+        if (_dlgLogIdx != _dlgIdx && _dlg.Length > 0 && _dlgIdx < _dlg.Length)
+        {
+            _dlgLogIdx = _dlgIdx;
+            var (sp, tx) = _dlg[_dlgIdx];
+            Hud.PushLog(DialogLogKind(sp), sp, tx, SpeakerFace(sp).col);
+        }
         int len = DlgCurPage.Length;
         if (_autoplay)
         {
@@ -1339,7 +1356,8 @@ public partial class Hub : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _photoT > 0.12) SetPhotoWallpaper(_photoSel);
 
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
         if (backEdge && _photoT > 0.12) GoHome();
     }
@@ -1686,7 +1704,8 @@ public partial class Hub : Node2D
             if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
         }
 
-        bool x = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // もどる（ホームへ）＝X／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        bool x = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool xEdge = x && !_xHeld; _xHeld = x;
         if (xEdge && _t > 0.3 && !_dived) { GoHome(); return; }
 
@@ -1830,9 +1849,9 @@ public partial class Hub : Node2D
             return;
         }
 
-        // もどる＝X／パッドB。Esc は外した（2026-09-14：Esc はどの画面でもポーズメニューを開く役に
-        // 一本化した。ここで両方に割り当てると、Esc 一発でメニューが開きつつ裏で詳細も閉じる）。
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／Esc／パッドB。Esc は 2026-09-26 に「一つ前の画面へ」として復帰（メニューを開くのは M に
+        // 移ったので、2026-09-14 の「Esc 一発でメニューが開きつつ裏で詳細も閉じる」衝突は起きない）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
         if (backEdge) { Audio.Instance?.PlayUiCancel(); _mode = Mode.Cards; }
     }
@@ -2874,8 +2893,8 @@ public partial class Hub : Node2D
             return;
         }
 
-        // もどる＝X／パッドB（Esc はポーズメニュー専用。ProcessDetail 側と同じ理由）。
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／Esc／パッドB（ProcessDetail 側と同じ。Esc は 2026-09-26 に「一つ前の画面へ」として復帰）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_xHeld; _xHeld = back;
         if (backEdge && _jobT > 0.15) { Audio.Instance?.PlayUiCancel(); _mode = _jobReturnMode; }
     }

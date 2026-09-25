@@ -48,8 +48,17 @@ public partial class PauseMenuQa : Node
             await Frames(30);
 
             Check(_pause.RetryEnabled, "stage scene enables the run-only rows");
+            // 2026-09-26：開くキーは Esc → M。Esc は「一つ前へもどる」（トップでは閉じる）。M はトグル。
+            await Press(Key.Escape);
+            Check(!_pause.IsOpen, "Esc no longer opens the pause menu");
             await OpenPause();
-            Check(_pause.IsOpen, "Esc opens the pause menu");
+            Check(_pause.IsOpen, "M opens the pause menu");
+            await Press(Key.Escape);
+            Check(!_pause.IsOpen && !GetTree().Paused, "Esc on the top page closes the menu (one step back)");
+            await OpenPause();
+            await Press(Key.M);
+            Check(!_pause.IsOpen, "M toggles the open menu closed");
+            await OpenPause();
             Check(_pause.RowCount == 7, $"in-stage top shows 7 rows (got {_pause.RowCount})");
             string labels = string.Join("/", System.Array.ConvertAll(_pause.Rows, r => r.label));
             Check(labels == "離脱/リスタート/ログ/あそびかた/セーブ/ロード/タイトルへ", $"row order/labels: {labels}");
@@ -211,7 +220,7 @@ public partial class PauseMenuQa : Node
     private async Task OpenPause()
     {
         if (_pause.IsOpen) return;
-        await Press(Key.Escape);
+        await Press(Key.M);
     }
 
     private async Task Press(Key key)

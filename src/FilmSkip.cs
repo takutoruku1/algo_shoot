@@ -25,9 +25,11 @@ using Godot;
 //
 //   キーは **X / パッド B**。他の候補が全部ふさがっていて、消去法でここに落ちる:
 //   ・Z / Enter / ui_accept / A / 左クリック … 会話送り（Pad.AdvanceHeld）。連打で話が飛ぶ。
-//   ・Esc / Start … **ポーズメニューが開く**（PauseMenu.cs:234。回想はステージシーンの上で起きるので
-//     CanOpenHere が true＝実際に開く）。回想中に Esc を押すとポーズが乗って ConsumeUi を取られ、
+//   ・M / Start … **ポーズメニューが開く**（PauseMenu._Process。回想はステージシーンの上で起きるので
+//     CanOpenHere が true＝実際に開く）。回想中に M を押すとポーズが乗って ConsumeUi を取られ、
 //     フィルムの _Process ごと止まる。スキップに使うとポーズと二重発火するので**使えない**。
+//     （2026-09-26 に開くキーが Esc → M へ移った。Esc は全画面で「一つ前へもどる」だが、戦闘シーン上では
+//       誰も読まない＝回想中の Esc は何もしない。それでも「もどる」の語感をスキップに流用はしない。）
 //     ※OpeningFilm / EndingFilm が Esc/Start をスキップに使えているのは、あちらが Prologue/Epilogue
 //       ＝CanOpenHere の除外シーンに居てポーズが開かないから。回想には同じ手が使えない。
 //   ・Ctrl / RB … 既読スキップ（Hud.SkipHeld）。

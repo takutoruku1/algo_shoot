@@ -224,6 +224,7 @@ public partial class Final : Node2D
                     _readIdx = _line;
                     _lineWasRead = _game?.IsLineRead(_talk[_line].Text) ?? false;
                     _game?.MarkLineRead(_talk[_line].Text);
+                    LogLine(_talk[_line]);   // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）
                 }
                 _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
                 if ((zEdge || _ffNow) && _lineT >= 0.25)
@@ -297,6 +298,15 @@ public partial class Final : Node2D
         size *= Mathf.Max(W / size.X, H / size.Y) * zoom;
         DrawTextureRect(texture, new Rect2((new Vector2(W, H) - size) * 0.5f, size), false,
             new Color(1f, 1f, 1f, alpha));
+    }
+
+    // 会話ログ（Hud.Backlog）へ積む。話者と縁色は DrawTalk と同じ（"地"＝ミナの語り＝ナレ扱い・話者名なし／
+    //   "あなた"＝送られた下書き＝暖色）。行の表示開始時に1回（既読ゲートと同じタイミング）。
+    private static void LogLine(DLine d)
+    {
+        bool narr = d.Who == "地", mina = d.Who == "ミナ";
+        var kind = narr ? Hud.LineKind.Narration : mina ? Hud.LineKind.Mina : Hud.LineKind.Boy;
+        Hud.PushLog(kind, narr ? "" : d.Who, d.Text, narr ? UiKit.CutNarr : mina ? Cool : Warm);
     }
 
     private void DrawTalk()

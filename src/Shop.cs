@@ -144,7 +144,7 @@ public partial class Shop : Node2D
         }
         if (_autoplay) { ExitShop(); return; }
 
-        // ポーズメニュー（Esc で重なる）を閉じた Esc/Z の同じ押下がこのフレームに漏れて
+        // ポーズメニュー（M で重なる）を閉じた Esc/M/Z の同じ押下がこのフレームに漏れて
         // 「もどる＝ショップごと閉じる」「購入」が誤発火しないよう、ゲート中は全キーを既押し扱いで食う。
         if (Pad.UiBlocked(this))
         {
@@ -185,8 +185,8 @@ public partial class Shop : Node2D
         bool zEdge = z && !_zHeld; _zHeld = z;
         if (zEdge && _t > 0.2) OnConfirm();
 
-        // X：もどる（Esc は 2026-09-14 に外した＝どの画面でもポーズメニューを開く役へ一本化）。
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // X／Esc：もどる（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューを開くのは M）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
 

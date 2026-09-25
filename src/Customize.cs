@@ -80,7 +80,8 @@ public partial class Customize : Node2D
         if (Pad.UiBlocked(this)) { _acceptHeld = _backHeld = _navHeld = true; return; }
         RegisterHotspots();
         bool accept = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         bool nav = left || right || up || down;

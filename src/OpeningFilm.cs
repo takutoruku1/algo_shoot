@@ -50,6 +50,11 @@ public partial class OpeningFilm : Node2D
         "わたしの声で、\n話したいことがあるの。",
         "……聞こえています。\nあなたが、消した言葉も。",
     };
+    // 単独の字幕（DrawOverlay が描く本文と同じ文字列。会話ログにも同じものを積む＝LogCaption）。
+    private const string HeardLine = "……聞こえました。";
+    private const string GoLine = "行きましょう。\nあの声の向こうへ。";
+    private const string WaitingLine = "まだ届いていない声が、待っている。";
+    private const string TaglineLine = "消された言葉は、消えていない。";
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
     private static readonly Rect2 Screen = new(0, 0, 1280, 720);
@@ -76,6 +81,7 @@ public partial class OpeningFilm : Node2D
     private bool _inputArmed;
     private double _skipHold, _leaveTime;
     private bool _leaving;
+    private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
     private int Shot => FindShot(Elapsed);
 
     public override void _Ready()
@@ -148,6 +154,7 @@ public partial class OpeningFilm : Node2D
         {
             double previousTime = Elapsed;
             Elapsed = Math.Min(Duration, Elapsed + delta);
+            if (Shot != _loggedShot) { _loggedShot = Shot; LogCaption(_loggedShot); }
             bool held = SkipHeld();
             if (!held) _inputArmed = true;
             _skipHold = _inputArmed && held && Elapsed >= 0.6 ? _skipHold + delta : 0;
@@ -218,6 +225,28 @@ public partial class OpeningFilm : Node2D
         FilmSkip.MarkSeen(GetNodeOrNull<GameManager>("/root/Game"), "opening");
         Completed?.Invoke();
         QueueFree();
+    }
+
+    // カットの字幕を会話ログ（L / Tab で開く Backlog）へ積む（2026-09-26）。本文は DrawOverlay と同じ文字列。
+    //   1〜3＝三人の日常の一言／4＝ミナ（無名で出るが語り手はミナ）／5〜8＝カットイン（8 はミナ）／
+    //   9・10＝地の一行（ナレ扱い）。0（下書きの「たすけて」）は打って消す映像で台詞ではないので積まない。
+    private void LogCaption(int shot)
+    {
+        if (shot is >= 1 and <= 3)
+            Hud.PushLog(Hud.LineKind.Other, _cast[shot - 1].CharacterName, DailyLines[shot - 1], Accents[shot - 1]);
+        else if (shot == 4)
+        {
+            Hud.PushLog(Hud.LineKind.Mina, "", HeardLine);
+            Hud.PushLog(Hud.LineKind.Mina, "", GoLine);
+        }
+        else if (shot is >= 5 and <= 8)
+        {
+            int i = shot - 5;
+            if (i == 3) Hud.PushLog(Hud.LineKind.Mina, "", CutinLines[i]);
+            else Hud.PushLog(Hud.LineKind.Other, _cast[i].CharacterName, CutinLines[i], Accents[i]);
+        }
+        else if (shot == 9) Hud.PushLog(Hud.LineKind.Narration, "", WaitingLine);
+        else if (shot == 10) Hud.PushLog(Hud.LineKind.Narration, "", TaglineLine);
     }
 
     private static int FindShot(double time)
@@ -745,8 +774,8 @@ public partial class OpeningFilm : Node2D
         if (shot == 4)
         {
             float a = Ease((t - 1) / 0.7f) * (1 - Ease((t - 4.2f) / 0.5f));
-            UiKit.Text(canvas, _filmFont, new Vector2(72, 125), "……聞こえました。", 29, Fade(UiKit.PurifyHi, a));
-            DrawQuote(canvas, "行きましょう。\nあの声の向こうへ。", new Vector2(72, 176), 29, a, t - 1);
+            UiKit.Text(canvas, _filmFont, new Vector2(72, 125), HeardLine, 29, Fade(UiKit.PurifyHi, a));
+            DrawQuote(canvas, GoLine, new Vector2(72, 176), 29, a, t - 1);
         }
         if (shot == 10)
         {
@@ -758,7 +787,7 @@ public partial class OpeningFilm : Node2D
             float w = UiKit.TextW(_titleFont, title, 164);
             UiKit.Text(canvas, _titleFont, new Vector2(-w / 2, -86), title, 164, Fade(new Color("f0eee8"), a));
             canvas.DrawSetTransform(Vector2.Zero);
-            string line = "消された言葉は、消えていない。";
+            string line = TaglineLine;
             UiKit.Text(canvas, _filmFont, new Vector2((1280 - UiKit.TextW(_filmFont, line, 26)) / 2, 418), line, 26,
                 Fade(UiKit.White, Ease((t - 0.6f) / 0.5f)));
         }
@@ -778,7 +807,7 @@ public partial class OpeningFilm : Node2D
         {
             float a = Ease((t - 0.5f) / 0.6f) * (1 - Ease((t - 3.5f) / 0.4f));
             DrawCaptionShade(canvas, 530, a);
-            string line = "まだ届いていない声が、待っている。";
+            string line = WaitingLine;
             UiKit.Text(canvas, _filmFont, new Vector2((1280 - UiKit.TextW(_filmFont, line, 32)) / 2, 590), line, 32, Fade(UiKit.PurifyHi, a));
         }
         float bars = shot <= 3 ? 38 : shot == 4 ? Mathf.Lerp(38, 22, Ease(t / 1.2f)) : 22;

@@ -205,8 +205,8 @@ public partial class DiffSelect : Node2D
             Dive();
         }
 
-        // もどる＝X／パッドB／右クリック（Esc は 2026-09-14 にポーズメニュー専用へ）。
-        bool back = Input.IsKeyPressed(Key.X) || Pad.Pressed(JoyButton.B)
+        // もどる＝X／Esc／パッドB／右クリック（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick();
         bool backEdge = back && !_backHeld; _backHeld = back;
         if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }

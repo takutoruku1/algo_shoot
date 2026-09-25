@@ -301,6 +301,8 @@ public partial class Epilogue : Node2D
             _readKey = readKey;
             _lineWasRead = _game?.IsLineRead(curT) ?? false;
             _game?.MarkLineRead(curT);
+            // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）。curT != null＝行フェーズ。
+            LogLine(_phase == PhGaze ? _gaze[_line] : _end[_line]);
         }
         _ffNow = curT != null && Hud.SkipHeld && _lineWasRead; // 未読行では効かない
 
@@ -578,6 +580,20 @@ public partial class Epilogue : Node2D
             Shadowed(_font, new Vector2(0, 82f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
                 UiKit.CutInk with { A = 0.96f });
         }
+    }
+
+    // 会話ログ（Hud.Backlog）へ積む。話者と縁色は DrawLineBox と同じ（"地"＝語り＝ナレ扱い・話者名なし）。
+    //   三人（あかり／こはる／レイ）は「相手」種別で、色は EdgeFor の面の色をそのまま渡す。
+    private static void LogLine(DLine d)
+    {
+        var kind = d.Who switch
+        {
+            "地"     => Hud.LineKind.Narration,
+            "ミナ"   => Hud.LineKind.Mina,
+            "あなた" => Hud.LineKind.Boy,
+            _        => Hud.LineKind.Other,
+        };
+        Hud.PushLog(kind, d.Who == "地" ? "" : d.Who, d.Text, EdgeFor(d.Who));
     }
 
     // 話者ごとの縁色。三人（あかり／こはる／レイ）は面の色を借りて、ミナと取り違えないようにする。

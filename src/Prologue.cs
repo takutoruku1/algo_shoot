@@ -428,6 +428,8 @@ public partial class Prologue : Node2D
             // 命名の点灯行に達した＝ここから名前がある。以降のミナの行の話者名は「？」から「ミナ」へ。
             //   点灯より前（route 1 の「却下します」等）はまだ名前が無いので、選択の確定時ではなくこの行で切り替える。
             if (_talk[_line].Text == IgniteLine) GameManager.MinaNamed = true;
+            // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）。
+            LogLine(_talk[_line]);
         }
         _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない＝取りこぼさない
         if ((zEdge || _ffNow) && _lineT >= 0.25)
@@ -869,6 +871,24 @@ public partial class Prologue : Node2D
         WhoPost => ("Ｘ 投稿", UiKit.Text3),
         _       => ("", Code),
     };
+
+    // 会話ログ（Hud.Backlog）へ積む。行の表示開始時に1回（DriveTalk の既読ゲートと同じタイミング＝
+    //   選択で挿し込まれた行も、ページ割りされた長い行も、1行につき1回）。話者名と色は SpeakerOf（画面の額縁）と同じ。
+    //   システム表示は画面では無名だが、ログでは「システム」と添えて起動ログだと分かるようにする。
+    //   命名前のミナは「？」のまま積む＝読み返してもその時点の見え方が残る。演出行（WhoFx）はここへ来ない
+    //   （DriveTalk が先に DriveFx へ抜ける）。本文は表示と同じ文字列をそのまま渡す。
+    private static void LogLine(DLine d)
+    {
+        var (label, col) = SpeakerOf(d);
+        var kind = d.Who switch
+        {
+            WhoYou  => Hud.LineKind.Boy,
+            WhoMina => Hud.LineKind.Mina,
+            WhoPost => Hud.LineKind.Post,
+            _       => Hud.LineKind.Narration,
+        };
+        Hud.PushLog(kind, d.Who == WhoSys ? "システム" : label, d.Text, col);
+    }
 
     // --- フェーズ3：会話ボックス ---
     private void DrawTalk()

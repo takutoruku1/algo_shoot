@@ -27,6 +27,7 @@ public partial class EndingFilm : Node2D
     private Texture2D[] _art = null!;
     private bool _inputArmed, _leaving;
     private double _skipHold, _leaveTime;
+    private int _loggedShot = -1;   // 会話ログへ字幕を積んだカット（カット切替ごとに1回）
     private int Shot
     {
         get
@@ -73,6 +74,13 @@ public partial class EndingFilm : Node2D
         else
         {
             Elapsed = Math.Min(Duration, Elapsed + delta);
+            // カットの字幕を会話ログ（L / Tab で開く Backlog）へ積む（2026-09-26）。本文・話者・色は _Draw と同じ。
+            if (Shot != _loggedShot)
+            {
+                _loggedShot = Shot;
+                string sp = Speakers[_loggedShot];
+                Hud.PushLog(sp == "ミナ" ? Hud.LineKind.Mina : Hud.LineKind.Other, sp, Lines[_loggedShot], AccentFor(sp));
+            }
             bool held = SkipHeld();
             if (!held) _inputArmed = true;
             _skipHold = _inputArmed && held && Elapsed >= 0.6 ? _skipHold + delta : 0;
@@ -148,13 +156,7 @@ public partial class EndingFilm : Node2D
 
         float captionAlpha = Ease(local / 0.7) * (1 - Ease((local - length + 0.7) / 0.7));
         float framing = shot == 9 ? 1 - Ease(local / 2.5) : 1;
-        Color accent = Speakers[shot] switch
-        {
-            "あかり" => new Color("f0c969"),
-            "こはる" => new Color("a6dac8"),
-            "レイ" => new Color("de91b9"),
-            _ => new Color("87d7ed"),
-        };
+        Color accent = AccentFor(Speakers[shot]);
         if (shot > 0 && local < 0.35)
             DrawRect(new Rect2(0, 0, 1280, 720), new Color(accent, 0.045f * (1f - Ease(local / 0.35))));
         DrawFilmChrome(shot, progress, framing, captionAlpha, accent);
@@ -176,6 +178,15 @@ public partial class EndingFilm : Node2D
         if (_leaving)
             Frame(9, 1, Ease(_leaveTime / 0.7));
     }
+
+    // 話者ごとの差し色（字幕と会話ログで共用）。
+    private static Color AccentFor(string speaker) => speaker switch
+    {
+        "あかり" => new Color("f0c969"),
+        "こはる" => new Color("a6dac8"),
+        "レイ" => new Color("de91b9"),
+        _ => new Color("87d7ed"),
+    };
 
     private void DrawFilmChrome(int shot, float progress, float framing, float captionAlpha, Color accent)
     {
