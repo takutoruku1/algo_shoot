@@ -512,7 +512,7 @@ public partial class RouteBackgroundQa : Node
         if (id == "koharu")
         {
             await Frames(55);
-            Check(Sprites(layers).Single() == art[0] && Read<int>(stage, "_step") == 5,
+            Check(Sprites(layers).Single() == art[0] && Read<int>(stage, "_step") == CameoStep(id),
                 "koharu: penlight choice stays in the midboss entrance hall");
             Write(stage, "_cPhase", 3);
             Call(stage, "Step_BossCameo", 0d);
