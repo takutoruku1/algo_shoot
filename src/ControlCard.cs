@@ -129,7 +129,7 @@ public partial class ControlCard : Control
             new Row("マウス",         "左クリック",               "短く押すたび次の敵へ"),
         }),
         // 解除は送りとは別ボタン（2026-09-17 追加）。話題を分けて、送りの直後の行で差し替える。
-        Topic.LockClear => ("ロックオン解除", "狙いを外す。放っておいても自然に外れる", UiKit.Purify, new[]
+        Topic.LockClear => ("ロックオン解除", "狙いを外す。倒せば次の敵へ勝手に移る", UiKit.Purify, new[]
         {
             new Row("キーボード",     "G",                            "送りの F のとなり"),
             new Row("コントローラー", Pad.Face(JoyButton.RightStick),  "右スティック押し込み"),

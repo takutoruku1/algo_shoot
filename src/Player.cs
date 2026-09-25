@@ -362,11 +362,16 @@ public partial class Player : Area2D
     //   解除（右クリック / G / R3）＝ ロックを外すだけ（右クリックは回避と兼用で、回避は別経路で同時に出る）。
     private void TickLockOn()
     {
-        // ── 対象の維持：倒された／浄化された／画面外へ出たらロックを落とす ──
-        // ここで落としておけば、次の送りは自動的に「一番近い敵」から始まる＝巡回位置のリセットも兼ねる。
+        // ── 対象の維持：倒された／浄化された／画面外へ出たら、**一番近い敵へ引き継ぐ** ──
+        //   2026-09-26 ユーザー指示「倒したら解除ではなく次の敵にターゲットが変わるように」。それまでは
+        //   ここで解除していたが、倒すたびに送り直す手間が要った。候補が一体も無いときだけ解除する。
         if (_locked && (!IsInstanceValid(_lockTarget!) || _lockTarget == null
                         || !LockCandidate(_lockTarget, out _)))
-        { _locked = false; _lockTarget = null; }
+        {
+            var handoff = LockCandidates();
+            _lockTarget = handoff.Count > 0 ? handoff[0] : null;
+            _locked = _lockTarget != null;
+        }
 
         // ── 解除入力＝G / パッド R3 / 右クリック ──
         //   ロックしていなければ何も起きない（右クリックの場合は回避だけが出る。回避は _PhysicsProcess 側で別に出る）。
@@ -400,14 +405,8 @@ public partial class Player : Area2D
         //   毎回ソートし直す＝敵が動けば列も変わるが、**列の中から今の対象の位置を引き直して次を取る**ので
         //   順番が入れ替わっても巡回が飛ばない（インデックスを覚えておく方式だと、敵が動いた瞬間に
         //   別の敵を指してしまう）。今の対象が列から消えていれば先頭＝最も近い敵から。
-        var cands = new System.Collections.Generic.List<Enemy>();
-        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
-            if (LockCandidate(n, out var e)) cands.Add(e);
+        var cands = LockCandidates();
         if (cands.Count == 0) { _locked = false; _lockTarget = null; return; }
-
-        var me = GlobalPosition;
-        cands.Sort((a, b) => a.GlobalPosition.DistanceSquaredTo(me)
-                              .CompareTo(b.GlobalPosition.DistanceSquaredTo(me)));
 
         int cur = _locked && _lockTarget != null ? cands.IndexOf((Enemy)_lockTarget) : -1;
         int next = (cur + 1) % cands.Count;   // cur=-1（未ロック/列外）→ 0＝最も近い敵。末尾→先頭へ一巡。
@@ -417,6 +416,18 @@ public partial class Player : Area2D
         // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。
         if (prev is Enemy pe && IsInstanceValid(pe) && !ReferenceEquals(pe, _lockTarget)) pe.QueueRedraw();
         if (Audio.Instance is { } au) au.Se(au.SfxUiMove, volDb: -18f, pitch: 1.15f);
+    }
+
+    // ロック候補を自機からの距離順に並べて返す。送り（次へ）と、対象を失ったときの引き継ぎ（先頭へ）が共有する。
+    private System.Collections.Generic.List<Enemy> LockCandidates()
+    {
+        var cands = new System.Collections.Generic.List<Enemy>();
+        foreach (Node n in GetTree().GetNodesInGroup("enemies"))
+            if (LockCandidate(n, out var e)) cands.Add(e);
+        var me = GlobalPosition;
+        cands.Sort((a, b) => a.GlobalPosition.DistanceSquaredTo(me)
+                              .CompareTo(b.GlobalPosition.DistanceSquaredTo(me)));
+        return cands;
     }
 
     // ───────── 回避（ドッジ）─────────
