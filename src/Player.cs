@@ -1752,5 +1752,31 @@ public partial class PlayerHitDot : Node2D
         DrawTextureRect(Texture, new Rect2(-center * scale, size * scale), false);
         DrawCircle(Vector2.Zero, 0.65f, new Color(0.08f, 0.08f, 0.16f, 0.8f));
         DrawCircle(Vector2.Zero, 0.38f, Colors.White);
+
+        // 強化「被弾を肩代わり」（PowerKind.Shield）を持っているあいだ、コアを丸いシールドが包む
+        //   （2026-09-26 ユーザー要望「アーマーがついていることがコアの部分で分かるように」）。
+        //   色は拾い物と同じ。1つなら一重、2つなら二重。ゆっくり呼吸させて「張ってある」ことが読めるようにする。
+        if (GetParent() is Player owner && owner.ShieldPower > 0)
+        {
+            Color sc = PowerPickupArt.ColorFor(PowerKind.Shield);
+            float r = Radius + 6.5f;
+            float breath = 0.5f + 0.5f * Mathf.Sin(_t * 3.2f);
+            DrawCircle(Vector2.Zero, r, new Color(sc, 0.14f + 0.06f * breath));
+            DrawArc(Vector2.Zero, r, 0f, Mathf.Tau, 40, new Color(sc.Lerp(Colors.White, 0.45f), 0.85f + 0.15f * breath), 1.5f, true);
+            if (owner.ShieldPower >= 2)
+                DrawArc(Vector2.Zero, r + 2.6f, 0f, Mathf.Tau, 44, new Color(sc, 0.55f + 0.2f * breath), 1.0f, true);
+        }
+    }
+
+    private float _t;
+    private int _lastShield;
+
+    public override void _Process(double delta)
+    {
+        _t += (float)delta;
+        int shield = GetParent() is Player p ? p.ShieldPower : 0;
+        // 張っているあいだは呼吸のため毎フレーム、消えた瞬間は消すために一度だけ描き直す。
+        if (shield > 0 || shield != _lastShield) QueueRedraw();
+        _lastShield = shield;
     }
 }

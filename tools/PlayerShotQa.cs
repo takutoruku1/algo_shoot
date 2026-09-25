@@ -73,6 +73,8 @@ public partial class PlayerShotQa : Node
                 foreach (var job in Jobs.All) await DemoCharge(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-tier-shot"))
                 foreach (var job in Jobs.All) await ShotChargeTiers(job);
+            else if (OS.GetCmdlineUserArgs().Contains("--shield-shot"))
+                foreach (var job in Jobs.All) await ShotShield(job);
             else if (OS.GetCmdlineUserArgs().Contains("--charge-only"))
                 foreach (var job in Jobs.All) await CheckCharge(job);
             else
@@ -152,6 +154,33 @@ public partial class PlayerShotQa : Node
         root.QueueFree();
         await Frames(5);
         _pool.DespawnAll();
+    }
+
+    // Shoot the shield ring around the core with one and two shield power-ups held (window required):
+    //     Godot --path . res://tools/qa_player_shots.tscn -- --shield-shot
+    private async Task ShotShield(JobTuning job)
+    {
+        _game.SelectedJob = job.Id;
+        var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+        GetTree().Root.AddChild(root);
+        GetTree().CurrentScene = root;
+        root.Stage.SetProcess(false);
+        var player = root.Player;
+        player.SetPhysicsProcess(false);
+        root.Hud.HoldBubble = false;
+        root.Hud.HideBubble();
+        Write(root.Hud, "_bannerTimer", 0d);
+        Write(player, "_invincible", false);
+        _pool.DespawnAll();
+        await Frames(2);
+        for (int n = 1; n <= Player.PowerLevelCap; n++)
+        {
+            Check(player.ApplyPowerup(PowerKind.Shield), $"{job.CharacterId}: shield power-up {n} applies");
+            await Frames(3);
+            await Shot($"{job.CharacterId}_shield{n}");
+        }
+        root.QueueFree();
+        await Frames(5);
     }
 
     // Shoot the two-tier charge for review: the meter at tier 1 and at tier 2, and the projectile of each.
