@@ -54,6 +54,7 @@ public partial class Bullet : Area2D
         ChargeJob = job;
         ChargeStage = Mathf.Max(ChargeTier.First, stage);
         Pierce = Jobs.Get(job).ChargePierce;
+        Material = null; // 溜め弾は通常ブレンドのまま（ChargeShotFx の見た目を変えない）
         QueueRedraw();
     }
 
@@ -246,13 +247,32 @@ public partial class Bullet : Area2D
     private static readonly Color KegareWord = new(0.96f, 0.56f, 0.78f);
     private BulletArt.PlayerVisual? _playerVisual;
 
+    // ─── 敵弾／自機弾の見分け（2026-09-26 作者指摘「どれが敵の弾か自機の弾か分かりにくい」）───
+    // シューティングの定石に揃える：敵弾＝「暗い縁取り＋白い芯」で必ず高コントラスト、
+    //   自機弾＝「縁取りなしの光の筋」。形が似ていてもこの規則だけで見分けがつく。
+    //   ・縁取り色（EnemyEdge）と白い芯（DrawEnemyCore）は全敵弾で統一＝ボス・道中・カメオ・投稿チップの芯
+    //     まで同じ。これが「敵弾のサイン」。絵と色（tint）はボスごとの個性なので触らない。
+    //   ・自機弾は加算ブレンド（PlayerGlow）で描く。キャラの結晶絵（char/player/*_shot_v1）は暗い輪郭線を
+    //     持つが、加算では暗色がほぼ消えて明部だけが発光して残る＝縁取りの無い光条になる。
+    //     溜め弾（ChargeShotFx）は従来どおり通常ブレンド（MakeCharged が外す＝見た目を変えない）。
+    //   ・当たり判定（Radius）には一切触れない。見た目だけ。
+    internal static readonly Color EnemyEdge = new(0.05f, 0.03f, 0.06f, 0.95f);
+    private static readonly Color EnemyCoreWhite = new(1f, 1f, 1f, 0.95f);
+    private const float EdgeW = 0.9f; // 弾形（絵が無い時の保険）の縁取りの太さ（world px）
+    private static readonly CanvasItemMaterial PlayerGlow = new() { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+    // 自機弾の尾（先細りの三角形・頂点色）用の共有バッファ（描画コマンド記録は Activate 時の1回＝new 割当なし）。
+    private static readonly Vector2[] _tailPts = new Vector2[3];
+    private static readonly Color[] _tailCols = new Color[3];
+    private static readonly Vector2[] _tailUvs = new Vector2[3];
+
     // ───── ポリゴン弾のGC対策：頂点バッファを static 使い回し（毎フレーム new を廃止）─────
     // 弾は飛行中に回転しない＝頂点角度は定数。単位方向テンプレを一度だけ計算し、
     // 描画時は半径 r を掛けて共有バッファへ書き込むだけ（new 割当ゼロ／再テッセレーション無し）。
     private static readonly Vector2[] _starTemplate = BuildStarTemplate(); // 10頂点の単位方向×半径比
-    private static readonly Vector2[] _starBuf = new Vector2[10];          // DrawStar 用の共有出力
+    private static readonly Vector2[] _starBuf = new Vector2[10];          // DrawStar 本体
+    private static readonly Vector2[] _starEdgeBuf = new Vector2[10];      // DrawStar 縁取り（一回り大きい星）
     private static readonly Vector2[] _diaBuf = new Vector2[4];            // DrawDiamond 本体（±s）
-    private static readonly Vector2[] _diaCoreBuf = new Vector2[4];        // DrawDiamond 芯の光（×0.5）
+    private static readonly Vector2[] _diaCoreBuf = new Vector2[4];        // DrawDiamond 縁取り（一回り大きい菱形）
     private static Vector2[] BuildStarTemplate()
     {
         var t = new Vector2[10];
@@ -290,6 +310,8 @@ public partial class Bullet : Area2D
         IsEnemy = isEnemy;
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);
         TextureFilter = isEnemy ? TextureFilterEnum.ParentNode : TextureFilterEnum.LinearWithMipmaps;
+        // 自機の通常弾だけ加算ブレンド＝縁取りの無い光条（敵弾は通常ブレンド＝暗い縁取りが立つ）。
+        Material = isEnemy ? null : PlayerGlow;
         Damage = damage;
         Radius = radius;
         Active = true;
@@ -778,13 +800,12 @@ public partial class Bullet : Area2D
             case BulletShape.Ring:    DrawRing(r, c);    break;
             case BulletShape.Needle:  DrawNeedle(r, c);  break;
             case BulletShape.Rice:    DrawRice(r, c);    break;
-            default:                  DrawOrb(r, c);     break; // 円弾＝白リング＋暗芯（芯色のみ可変）
+            default:                  DrawOrb(r, c);     break; // 円弾＝暗い縁取り＋スペル色の本体
         }
 
-        // 当たり芯（#16 見える化）：弾中心の高輝度ドット＝「刺さるのはこの点」。
-        // 言葉弾の赤コアと同じ発想を通常弾へ。弾形の色を隠さないよう小さく・白のみ（派手にしない）。
-        if (_sprite == null)
-            DrawCircle(Vector2.Zero, Mathf.Min(1.5f, r * 0.42f), new Color(1f, 1f, 1f, 0.9f), true, -1f, true);
+        // 白い芯（敵弾のサイン／#16 当たり芯の見える化）：弾中心の暗い輪＋白いドット＝「刺さるのはこの点」。
+        // 絵つき弾にも同じ芯を打つ＝絵が何であれ「暗い縁取り＋白い芯」なら敵弾、と一目で読める。
+        DrawEnemyCore(r);
 
         if (Erasable)
         {
@@ -821,17 +842,13 @@ public partial class Bullet : Area2D
         }, col);
     }
 
-    // 外周グロー（box-shadow 相当）：薄い同心円を外→内に重ねてぼかしを近似。
-    private void DrawGlow(float baseR, Color glow, float reach = 1.3f)
+    // 敵弾の白い芯：暗い輪（EnemyEdge）の上に白いドット。絵つき弾でも弾形でも同じ大きさ・同じ色＝共通のサイン。
+    //   絵（封筒・チケットなど白っぽい絵）の上でも白が沈まないよう、必ず暗い輪を挟む。2コールだけ。
+    //   （2026-09-26 まで敵弾は 5 段の同心円グロー＝発光は自機弾の語彙なので撤去。敵弾は硬い縁取りで立たせる）
+    private void DrawEnemyCore(float r)
     {
-        const int gSteps = 5;
-        for (int i = gSteps; i >= 1; i--)
-        {
-            float t = i / (float)gSteps;
-            float gr = baseR * (1f + reach * t);
-            float a = 0.16f * (1f - t) + 0.04f;
-            DrawCircle(Vector2.Zero, gr, new Color(glow.R, glow.G, glow.B, a), true, -1f, true);
-        }
+        DrawCircle(Vector2.Zero, Mathf.Max(1.4f, r * 0.44f), EnemyEdge, true, -1f, true);
+        DrawCircle(Vector2.Zero, Mathf.Max(0.85f, r * 0.27f), EnemyCoreWhite, true, -1f, true);
     }
 
     private void DrawPlayerProjectile(float r)
@@ -851,9 +868,17 @@ public partial class Bullet : Area2D
         }
         else
         {
-            float tail = r * (Accel ? 3.2f : Homing ? 2.6f : 2);
-            DrawLine(new Vector2(-r * 0.7f, 0), new Vector2(-tail, 0),
-                new Color(accent, 0.25f), Mathf.Max(0.5f, r * 0.3f), true);
+            // 尾＝細い光の筋。加算ブレンドなので薄くても発光して見える（縁取りの無い「自機弾のサイン」）。
+            //   太さ一定の線だと加算で四角い光の板に見えるので、結晶の根元から先端へ向けて細くなる三角形を
+            //   頂点色（根元＝キャラ色・先端＝透明）で1プリミティブに描く＝先へ溶ける光条。
+            float tail = r * (Accel ? 3.4f : Homing ? 3.0f : 2.8f);
+            float w = Mathf.Max(0.7f, r * 0.3f);
+            _tailPts[0] = new Vector2(-r * 0.6f, -w * 0.5f);
+            _tailPts[1] = new Vector2(-r * 0.6f, w * 0.5f);
+            _tailPts[2] = new Vector2(-tail, 0f);
+            _tailCols[0] = _tailCols[1] = new Color(accent, 0.5f);
+            _tailCols[2] = new Color(accent, 0f);
+            DrawPrimitive(_tailPts, _tailCols, _tailUvs);
         }
         float scale = r * 3.8f / Mathf.Max(art.Region.Size.X, art.Region.Size.Y);
         DrawTextureRectRegion(art.Texture,
@@ -880,79 +905,86 @@ public partial class Bullet : Area2D
 
         var half = ts * 0.5f;
         var dst = new Rect2(-half, ts);
-        // 暗色シルエット：絵の裏に一回り大きい暗い複製を4方向へずらして敷く＝縁取り。
-        // 明るい背景でも暗い背景でも、絵の外周に必ず暗線が回るので輪郭が締まる。
-        var silhouette = new Color(0.05f, 0.03f, 0.06f, 0.85f);
-        float o = 0.8f / scale;
-        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(-o, 0f), ts), false, silhouette);
-        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(o, 0f), ts), false, silhouette);
-        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, -o), ts), false, silhouette);
-        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, o), ts), false, silhouette);
+        // 暗色シルエット：絵の裏に一回り大きい暗い複製を4方向へずらして敷く＝縁取り（敵弾のサイン）。
+        // 明るい背景でも暗い背景でも、絵の外周に必ず暗線が回るので輪郭が締まる。色は全敵弾共通の EnemyEdge。
+        float o = EdgeW / scale;
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(-o, 0f), ts), false, EnemyEdge);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(o, 0f), ts), false, EnemyEdge);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, -o), ts), false, EnemyEdge);
+        DrawTextureRect(tex, new Rect2(dst.Position + new Vector2(0f, o), ts), false, EnemyEdge);
 
         // 本体。グレイズ軟化済みは白へ寄せた淡色を薄く乗せる（他の弾と同じ「和らいだ」の合図）。
         DrawTextureRect(tex, dst, false, Softened ? new Color(1f, 1f, 1f, 0.75f) : Colors.White);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 
-    // 円弾：作品準拠の「白リング＋暗芯」。芯色のみスペル色で可変（Danmaku v3 shapeInner orb）。
-    private void DrawOrb(float r, Color core)
+    // ── 弾形（絵が無い時の保険。現行の敵弾はすべて絵つき）──
+    // どれも「暗い縁取り（EnemyEdge・一回り大きい同形）→ スペル色の本体」の2層。白い芯は呼び元の DrawEnemyCore。
+    // グロー（同心円5段）は自機弾の語彙＝発光なので敵弾からは撤去した（2026-09-26）。
+
+    // 円弾：縁取り円＋本体円。
+    private void DrawOrb(float r, Color c)
     {
-        DrawGlow(r, core);
-        DrawCircle(Vector2.Zero, r, new Color(1f, 1f, 1f, 0.95f), true, -1f, true); // 白リング
-        DrawCircle(Vector2.Zero, r * 0.70f, new Color(0.086f, 0.039f, 0.071f), true, -1f, true); // 暗芯リング
-        DrawCircle(Vector2.Zero, r * 0.40f, core, true, -1f, true); // 芯色
+        DrawCircle(Vector2.Zero, r + EdgeW, EnemyEdge, true, -1f, true);
+        DrawCircle(Vector2.Zero, r, c, true, -1f, true);
     }
 
-    // 菱形：45度回転の四角＋グロー（shapeInner diamond）。頂点は static バッファへ書き込み（new 割当なし）。
+    // 菱形：45度回転の四角。頂点は static バッファへ書き込み（new 割当なし）。縁取りは頂点方向へ √2 倍だけ外へ。
     private void DrawDiamond(float r, Color c)
     {
-        DrawGlow(r, c, 1.1f);
         float s = r * 1.15f;
-        _diaBuf[0] = new Vector2(0, -s); _diaBuf[1] = new Vector2(s, 0);
-        _diaBuf[2] = new Vector2(0, s);  _diaBuf[3] = new Vector2(-s, 0);
+        SetDiamond(_diaCoreBuf, s + EdgeW * Mathf.Sqrt2);
+        DrawColoredPolygon(_diaCoreBuf, EnemyEdge);
+        SetDiamond(_diaBuf, s);
         DrawColoredPolygon(_diaBuf, c);
-        for (int i = 0; i < 4; i++) _diaCoreBuf[i] = _diaBuf[i] * 0.5f;
-        DrawColoredPolygon(_diaCoreBuf, new Color(1f, 1f, 1f, 0.85f)); // 芯の光
+    }
+    private static void SetDiamond(Vector2[] buf, float s)
+    {
+        buf[0] = new Vector2(0, -s); buf[1] = new Vector2(s, 0);
+        buf[2] = new Vector2(0, s);  buf[3] = new Vector2(-s, 0);
     }
 
-    // 星：5芒星（shapeInner star の clip-path 相当）。単位方向テンプレ×r を static バッファへ（trig も new も無し）。
+    // 星：5芒星。単位方向テンプレ×r を static バッファへ（trig も new も無し）。縁取りは尖端ぶん大きめに。
     private void DrawStar(float r, Color c)
     {
-        DrawGlow(r, c, 1.1f);
+        for (int i = 0; i < 10; i++) _starEdgeBuf[i] = _starTemplate[i] * (r + EdgeW * 1.8f);
+        DrawColoredPolygon(_starEdgeBuf, EnemyEdge);
         for (int i = 0; i < 10; i++) _starBuf[i] = _starTemplate[i] * r;
         DrawColoredPolygon(_starBuf, c);
     }
 
-    // リング：中空の輪（shapeInner ring）。
+    // リング：中空の輪。縁取りは同じ半径で太い暗線を先に引く。
     private void DrawRing(float r, Color c)
     {
-        DrawGlow(r, c, 1.0f);
-        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, c, Mathf.Max(1.4f, r * 0.42f), true);
-        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, new Color(c.R, c.G, c.B, 0.5f), 0.9f, true);
+        float w = Mathf.Max(1.4f, r * 0.42f);
+        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, EnemyEdge, w + EdgeW * 2f, true);
+        DrawArc(Vector2.Zero, r * 0.9f, 0, Mathf.Tau, 28, c, w, true);
     }
 
-    // 針：進行方向へ伸びる細い弾（shapeInner needle）。
+    // 針：進行方向へ伸びる細いカプセル（矩形＋両端の丸）。縁取りは一回り大きいカプセル。
     private void DrawNeedle(float r, Color c)
     {
         float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
         DrawSetTransform(Vector2.Zero, ang, Vector2.One);
         float len = r * 2.8f, w = r * 0.78f;
-        DrawGlow(r * 0.8f, c, 0.8f);
+        DrawCapsule(len + EdgeW * 2f, w + EdgeW * 2f, EnemyEdge);
+        DrawCapsule(len, w, c);
+        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
+    }
+    private void DrawCapsule(float len, float w, Color c)
+    {
         DrawRect(new Rect2(-len * 0.5f, -w * 0.5f, len, w), c);
         DrawCircle(new Vector2(-len * 0.5f, 0), w * 0.5f, c, true, -1f, true); // 後端の丸
         DrawCircle(new Vector2(len * 0.5f, 0), w * 0.5f, c, true, -1f, true);  // 先端の丸
-        DrawRect(new Rect2(-len * 0.5f, -w * 0.18f, len, w * 0.36f), new Color(1f, 1f, 1f, 0.55f)); // 中央のハイライト
-        DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 
-    // 粒弾：進行方向へ細長い楕円（shapeInner rice）。
+    // 粒弾：進行方向へ細長い楕円。縁取りは同じ潰し変換の中で一回り大きい円（短径側は薄めになるが保険用途）。
     private void DrawRice(float r, Color c)
     {
         float ang = Velocity.LengthSquared() > 0.01f ? Velocity.Angle() : Mathf.Pi / 2f;
-        DrawGlow(r * 0.8f, c, 0.8f);
         DrawSetTransform(Vector2.Zero, ang, new Vector2(1.15f, 0.5f));
+        DrawCircle(Vector2.Zero, r + EdgeW * 1.4f, EnemyEdge, true, -1f, true);
         DrawCircle(Vector2.Zero, r, c, true, -1f, true);
-        DrawCircle(new Vector2(-r * 0.25f, -r * 0.25f), r * 0.4f, new Color(1f, 1f, 1f, 0.7f), true, -1f, true);
         DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 }
@@ -975,9 +1007,11 @@ public partial class BulletWordCore : Node2D
         size *= CoreR * 2f * 1.35f / Mathf.Max(size.X, size.Y);
         var rect = new Rect2(-size / 2f, size);
         DrawRect(rect.Grow(2f), new Color(PunchCol, 0.9f));
-        var edge = new Color(0.06f, 0.03f, 0.08f, 0.95f);
+        // 縁取りは通常弾と同じ EnemyEdge、芯の白ドットも同じ大きさ＝投稿チップの芯も「敵弾のサイン」を共有する。
         foreach (var offset in new[] { Vector2.Left, Vector2.Right, Vector2.Up, Vector2.Down })
-            DrawTextureRect(Art, new Rect2(rect.Position + offset, size), false, edge);
+            DrawTextureRect(Art, new Rect2(rect.Position + offset, size), false, Bullet.EnemyEdge);
         DrawTextureRect(Art, rect, false);
+        DrawCircle(Vector2.Zero, Mathf.Max(1.4f, CoreR * 0.44f), Bullet.EnemyEdge, true, -1f, true);
+        DrawCircle(Vector2.Zero, Mathf.Max(0.85f, CoreR * 0.27f), new Color(1f, 1f, 1f, 0.95f), true, -1f, true);
     }
 }
