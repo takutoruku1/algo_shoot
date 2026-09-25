@@ -85,6 +85,7 @@ public partial class AkariRoot : Node2D
 
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
+        AddChild(new BubbleLayer { Name = "BubbleLayer", Hud = Hud }); // 会話の吹き出し（会話バー・一行字幕・宣告カード）＝弾・自機より奥（世界側 -7）に描く層。状態は Hud が持つ
         Hud.SetLives(Player.Lives);
 
         Stage = new StageAkari { Name = "StageAkari", Player = Player, Hud = Hud, World = World };

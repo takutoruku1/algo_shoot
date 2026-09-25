@@ -10,6 +10,11 @@ public partial class Hud : CanvasLayer
     private GameManager _game = null!;
     private HudCanvas _canvas = null!;
     private HudAddCanvas _addCanvas = null!;   // 加算ブレンド層（被弾のライフ砕け散り・2026-09-16）
+    // 会話の吹き出し（会話バー・ナレ箱・ボスの一行字幕・スペル宣告カード）を弾より奥に描く世界側の層（2026-09-26）。
+    //   作者指摘「吹き出しで自機と弾が隠れる」への対処。BubbleLayer が _Ready で自分を登録し、居る間はその3つを
+    //   DrawAll（最前面）では描かず DrawBubbles（世界の ZIndex -7）で描く。状態は従来どおりここが持つ＝二重に持たない。
+    //   居ない場面（保険）は従来どおり最前面。→ src/BubbleLayer.cs
+    public BubbleLayer? Bubbles { get; set; }
 
     // 吹き出し表示中は敵を止める（他クラスから参照）
     public static bool BubblePaused = false;
@@ -887,8 +892,11 @@ public partial class Hud : CanvasLayer
         DrawCombo(ci);
         if (_bossVisible) DrawBossCard(ci);
         // 【激情】メーターは HUD ではなく、盤面の奥（ZIndex -44）にボスの下書き（入力欄）として敷く → src/FuryDial.cs。
+        // 会話バー・ボスの一行字幕・スペル宣告カードは、BubbleLayer（世界側・弾より奥）が居ればそちらが描く
+        //（作者指摘：文字枠が自機と弾を隠す）。居ない場面（保険）だけ従来どおりここ＝最前面に描く。
+        bool sunk = Bubbles != null;
         if (_cutinTimer > 0 && _cutinTex != null) DrawSpellCutin(ci); // 袖カットイン（カードより先＝上中央カードを侵さない）
-        if (_spellTimer > 0) DrawSpellCard(ci);
+        if (!sunk && _spellTimer > 0) DrawSpellCard(ci);
         DrawShotMode(ci);
         DrawPowerups(ci);
         if (_focusHas) DrawFocusChip(ci);
@@ -900,8 +908,8 @@ public partial class Hud : CanvasLayer
         // 暗幕の上にフル輝度で読める（暗転がセリフ枠を覆って読みづらい問題への対処 #3）。
         // 弾より前だが、α上限0.55で弾は透ける。会話ボックス矩形も穴抜きの対象にして二重に保護する。
         if (_spotActive) DrawTutorialSpot(ci);
-        if (_dlgText.Length > 0) DrawDialog(ci);
-        if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
+        if (!sunk && _dlgText.Length > 0) DrawDialog(ci);
+        if (!sunk && _bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverTitle.Length > 0) DrawGameOverTitle(ci);
         if (_gameOverPrompt.Length > 0) DrawGameOverPrompt(ci);
@@ -912,6 +920,19 @@ public partial class Hud : CanvasLayer
         // フラッシュ（全画面・最前面）
         if (_flashAlpha > 0f)
             ci.DrawRect(new Rect2(Field.DLeft, 0, Field.DWidth, 720), new Color(_flashRgb.R, _flashRgb.G, _flashRgb.B, _flashAlpha));
+        UiKit.EndDesign(ci);
+    }
+
+    // ───────── 吹き出し（世界側の BubbleLayer から呼ばれる。設計座標 1280x720・弾より奥）─────────
+    //   DrawAll と同じ順（宣告カード → 会話 → 一行字幕）。見た目・位置は Hud に居た時と同じで、層だけが弾の奥。
+    //   カットシーン（CinematicMode）は弾が無いので従来どおり DrawAll（最前面）が描き、ここでは何も描かない。
+    public void DrawBubbles(CanvasItem ci)
+    {
+        if (CinematicMode) return;
+        UiKit.BeginDesign(ci);
+        if (_spellTimer > 0) DrawSpellCard(ci);
+        if (_dlgText.Length > 0) DrawDialog(ci);
+        if (_bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         UiKit.EndDesign(ci);
     }
 
@@ -1214,7 +1235,7 @@ public partial class Hud : CanvasLayer
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
-    private void DrawSpellCard(HudCanvas ci)
+    private void DrawSpellCard(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
         double age = SpellShowDur - _spellTimer;
 
@@ -1679,7 +1700,7 @@ public partial class Hud : CanvasLayer
         ci.DrawTextureRect(_draftArt, new Rect2(leftCenter + new Vector2(0, -size.Y / 2f), size), false);
     }
 
-    private void DrawDialog(HudCanvas ci)
+    private void DrawDialog(CanvasItem ci)   // CanvasItem＝HudCanvas（カットシーン・保険）と BubbleLayer（戦闘中）の両方から描ける
     {
         // 現在ページのテキストを、その表示済み文字数ぶんだけ描く（全ボックス 2行固定＝DlgMaxLines）。
         string page = CurPageText;
@@ -1822,7 +1843,7 @@ public partial class Hud : CanvasLayer
     private const float NarrWrapW = NarrBoxW - 80f;          // ナレ本文（箱の内側・左右40pxずつ空ける）
     private static float DlgWrapW(float textX) => DlgBoxX + DlgBoxW - textX - 30f; // セリフ（バーの内側）
 
-    private void DrawBossLine(HudCanvas ci)
+    private void DrawBossLine(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
         if (BubblePaused || CinematicMode) return;
         float enter = Ease((float)(_bossLineDuration - _bossLineTimer) / 0.2f);
