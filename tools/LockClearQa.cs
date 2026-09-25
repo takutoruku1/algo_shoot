@@ -81,12 +81,12 @@ public partial class LockClearQa : Node
         Check("F2 で対象が次の敵へ", player.LockedOn && !ReferenceEquals(player.LockTarget, t1));
 
         // ③ G で解除
-        await Tap(Key.G);
-        Check("G で解除", !player.LockedOn);
+        await Tap(Key.Shift);
+        Check("Shift を離して解除", !player.LockedOn);
 
         // ④ 未ロックで G → 何も起きない（例外も落ちない・ロックも付かない）
-        await Tap(Key.G);
-        Check("未ロックの G は無反応", !player.LockedOn);
+        await Tap(Key.Shift);
+        Check("未ロックの Shift 押し離しは無反応", !player.LockedOn);
 
         // ⑤ 解除後にもう一度 F → 一番近い敵から再開できる
         await Tap(Key.F);
@@ -94,9 +94,9 @@ public partial class LockClearQa : Node
         Check("再ロックは最も近い敵", ReferenceEquals(player.LockTarget, e1));
 
         // ⑥ ロック中に G を押しっぱなし → 1回ぶんしか効かない（リピートで暴発しない）
-        await Hold(Key.G, 20);
+        await Hold(Key.Shift, 20);
         await Tap(Key.F);
-        Check("G 押し離しのあと F で再ロック", player.LockedOn);
+        Check("Shift 押し離しのあと F で再ロック", player.LockedOn);
 
         root.QueueFree(); await Frames(5);
     }

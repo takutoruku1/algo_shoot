@@ -423,18 +423,10 @@ public partial class FuryDial : Node2D
             : Vector2.Zero;
         Rect2 box = new Rect2(Box.Position + shake, Box.Size);
 
-        // ── 入力欄の地と縁 ──
-        //   縁：凪 0.26 → 激情 0.34（危険域は炎上赤で脈打ち 0.40..0.55）／無感情は薄れて 0.12、危険域では
-        //   消えかける（0.05..0.20 でゆっくり呼吸＝縁が消えては戻る。空の欄とカーソルだけが残る）。
-        float frameA = Mathf.Lerp(0.26f, 0.34f, rage) * (1f - 0.55f * numb);
-        Color frameC = Frame.Lerp(Rage, rage * 0.7f).Lerp(Numb, numb);
-        if (rageEdge > 0.001f) { frameA = Mathf.Lerp(frameA, 0.40f + 0.15f * pulse, rageEdge); frameC = frameC.Lerp(Rage, rageEdge); }
-        if (numbEdge > 0.001f) frameA = Mathf.Lerp(frameA, 0.05f + 0.15f * breath, numbEdge);
-        float paperA = 0.12f * (1f - 0.6f * numb) * (1f - 0.5f * numbEdge);
-        UiKit.Box(this, box, new Color(Paper, paperA * a), 4f, new Color(frameC, frameA * a), 1f);
-        // 危険域（激情）：縁の外側にもう一段、赤い縁が滲む（塗りは持たない）。
-        if (rageEdge > 0.001f)
-            UiKit.Box(this, box.Grow(1.5f), null, 5f, new Color(Rage, (0.18f + 0.14f * pulse) * rageEdge * a), 1f);
+        // ── 入力欄の地と縁：描かない ──
+        //   2026-09-26 ユーザー「枠いらないかも。枠はみ出しているし」。激情で文字が欄から溢れる作りなので、
+        //   枠があると壊れて見える。地も縁も置かず、見出しと本文とカーソルだけを背景に直接沈める。
+        //   危険域の合図は本文の揺れ・色（激情）と、消えていく文字（無感情）と、画面全体の Wash が担う。
 
         // ── 見出し「下書き」──
         float labelA = 0.50f * (1f - 0.60f * numb) * a;

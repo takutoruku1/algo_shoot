@@ -360,6 +360,9 @@ public partial class Player : Area2D
     // ロックの送り／解除と対象の維持。
     //   送り（左クリック短押し / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
     //   解除（右クリック / G / R3）＝ ロックを外すだけ（右クリックは回避と兼用で、回避は別経路で同時に出る）。
+    private bool _shiftLockHeld;     // 前フレームの Shift（押した瞬間＝ロック／離した瞬間＝解除 のエッジ検出）
+    private bool _chargeKeyLocked;   // 会話中に押された Z／Y を、離すまで溜め打ち入力として読まない（会話送りの同じ押下で暴発しない）
+
     private void TickLockOn()
     {
         // ── 対象の維持：倒された／浄化された／画面外へ出たら、**一番近い敵へ引き継ぐ** ──
@@ -383,9 +386,15 @@ public partial class Player : Area2D
         //     「送り=RB / 解除=R3」で右手にロックオン操作をまとめられる。
         //     （RB 長押しは既読スキップ、LB=集中、L3=回避、X=ボム、Y=溜め、A=送り、B=ゲームオーバーの抜ける、
         //       Start=メニュー で埋まっている。R3 は旧「やさしさ全開」の枠だが、その機能ごと撤去済み＝完全に空き。）
-        bool clearKey = Input.IsKeyPressed(Key.G) || Pad.Pressed(JoyButton.RightStick)
-                        || Pad.MouseRightDown();
-        if (clearKey && !_lockClearHeld && !Hud.BubblePaused && _locked)
+        //   ★2026-09-26 ユーザー指示でキーボードは **Shift 長押し＝ロック／Shift を離す＝解除** に変更。
+        //     G は外した。Shift を押した瞬間に（未ロックなら）最寄りへロック、離した瞬間に解除。押している
+        //     あいだの F は従来どおり「次の敵へ送り」。パッド（RB 送り／R3 解除）とマウスは従来どおり。
+        bool shiftKey = Input.IsKeyPressed(Key.Shift);
+        bool shiftEdge = shiftKey && !_shiftLockHeld;
+        bool shiftRelease = !shiftKey && _shiftLockHeld;
+        _shiftLockHeld = shiftKey;
+        bool clearKey = Pad.Pressed(JoyButton.RightStick) || Pad.MouseRightDown();
+        if (((clearKey && !_lockClearHeld) || shiftRelease) && !Hud.BubblePaused && _locked)
         {
             _locked = false; _lockTarget = null;
             if (Audio.Instance is { } auc) auc.Se(auc.SfxUiMove, volDb: -18f, pitch: 0.85f);
@@ -396,7 +405,7 @@ public partial class Player : Area2D
         // 左クリックは TickMouseHold が短押し／長押しに振り分けたうえで、短押しの解放フレームにだけ
         // _mouseTapFire を立てる（長押しは溜め打ちへ行き、ここには来ない）。F / R1 は従来どおり押下エッジ。
         bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
-        bool edge = (key && !_lockHeld) || _mouseTapFire;
+        bool edge = (key && !_lockHeld) || _mouseTapFire || (shiftEdge && !_locked);
         _lockHeld = key;
         _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
         if (!edge || Hud.BubblePaused || _gameOver) return;
@@ -644,7 +653,8 @@ public partial class Player : Area2D
         // マウス時は右クリックが回避。
         // 右クリックは**回避とロック解除を兼ねる**（2026-09-08 ユーザー指示。両方が同時に起きてよい）。
         // 解除そのものは TickLockOn 側で拾う＝ここは回避だけを見る。
-        bool dodgeKey = Input.IsKeyPressed(Key.Alt) || Pad.Pressed(JoyButton.LeftStick)
+        // キーボードは Ctrl（2026-09-26 ユーザー指示。それまでは Alt）。会話中の Ctrl は既読スキップ＝時間が重ならない。
+        bool dodgeKey = Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.LeftStick)
                         || (mouse && Pad.MouseRightDown());
         if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
         {
@@ -751,7 +761,12 @@ public partial class Player : Area2D
         _flipHeld = flipKey;
 
         // 溜め打ちの入力は常時生きている（2026-09-25 のユーザー決定＝習得ゲート廃止）。
-        bool chargeKeyRaw = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
+        //   キーボードは Z（2026-09-26 ユーザー指示。それまでは C）。Z は会話送りと同じキーなので、会話中に
+        //   押された押下は離すまで溜めとして読まない（最後の一行を送った指がそのまま溜め始めるのを防ぐ）。
+        bool chargeRawAny = Input.IsKeyPressed(Key.Z) || Pad.Pressed(JoyButton.Y);
+        if (Hud.BubblePaused && chargeRawAny) _chargeKeyLocked = true;
+        else if (!chargeRawAny) _chargeKeyLocked = false;
+        bool chargeKeyRaw = chargeRawAny && !_chargeKeyLocked;
         bool chargeKey = chargeKeyRaw || _mouseChargeHold;
         bool shoot = !Hud.BubblePaused && _dodgeTimer <= 0f && !_gameOver && !chargeKey;
         if (shoot && _fireCooldown <= 0f)
@@ -780,7 +795,7 @@ public partial class Player : Area2D
             TryBomb();
         _bombHeld = bombKey;
 
-        // 溜め打ち（C / パッドY 長押し、または左クリック長押し）：最初から常時使える。
+        // 溜め打ち（Z / パッドY 長押し、または左クリック長押し）：最初から常時使える。
         //   届く前に離した／会話に入った／被弾した場合は黙って捨てる（暴発させない）。
         //   左クリック（_mouseChargeHold）だけは充填の起点が違う：短押し判定の 0.25 秒が過ぎてから
         //   数え始めると、Cキーより 0.25 秒ぶん遅れて完了して手触りが噛み合わない。押下からの経過

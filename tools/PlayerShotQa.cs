@@ -136,10 +136,10 @@ public partial class PlayerShotQa : Node
         for (int take = 0; take < 2; take++)
         {
             int hp = target.Hp;
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
             await Frames(54);
             Check(root.Player.ChargeFull, "demo reaches full charge using live input");
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
             await Frames(10);
             await Shot($"{job.CharacterId}_charge_impact_{take}");
             await Frames(44);
@@ -175,7 +175,7 @@ public partial class PlayerShotQa : Node
         await Frames(2);
 
         // Hold to tier 1, shoot the meter, then keep holding to tier 2 and shoot it again.
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.61);
         for (int i = 0; i < 8; i++) { player._PhysicsProcess(0.016); await Frames(1); }
@@ -185,7 +185,7 @@ public partial class PlayerShotQa : Node
         for (int i = 0; i < 8; i++) { player._PhysicsProcess(0.016); await Frames(1); }
         Check(player.ChargeStage == ChargeTier.Second, $"{job.CharacterId}: meter shot is tier 2");
         await Shot($"{job.CharacterId}_tier2_meter");
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.01);
         _pool.DespawnAll();
@@ -221,19 +221,19 @@ public partial class PlayerShotQa : Node
         Write(root.Hud, "_bannerTimer", 0d);
         Write(player, "_invincible", false);
         _pool.DespawnAll();
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.3);
         Check(player.ChargeRatio > 0.4f && !player.ChargeFull,
-            $"{job.CharacterId}: half charge is not ready (ratio={player.ChargeRatio}, need={_game.ChargeNeedSec}, paused={Hud.BubblePaused}, key={Input.IsKeyPressed(Key.C)})");
+            $"{job.CharacterId}: half charge is not ready (ratio={player.ChargeRatio}, need={_game.ChargeNeedSec}, paused={Hud.BubblePaused}, key={Input.IsKeyPressed(Key.Z)})");
         Check(Active().Length == 0, "normal fire stops on the first charging frame");
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.01);
         Check(Active().All(b => !b.Charged), "early release does not fire");
         Check(Active().Any(), "early release resumes normal fire");
         _pool.DespawnAll();
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = true });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.61);
         Check(player.ChargeFull && Active().Length == 0, "normal fire stays stopped until the full charge is released");
@@ -243,7 +243,7 @@ public partial class PlayerShotQa : Node
             "ready burst happens once per hold");
         _pool.DespawnAll();
         await Shot($"{job.CharacterId}_charge_ready");
-        Input.ParseInputEvent(new InputEventKey { Keycode = Key.C, Pressed = false });
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Z, Pressed = false });
         Input.FlushBufferedEvents();
         player._PhysicsProcess(0.01);
         var charges = CheckChargeVolley(player);
@@ -476,7 +476,7 @@ public partial class PlayerShotQa : Node
         {
             InputEvent evt = input switch
             {
-                "keyboard" => new InputEventKey { Keycode = Key.C, Pressed = down },
+                "keyboard" => new InputEventKey { Keycode = Key.Z, Pressed = down },
                 _ => new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = down },
             };
             Input.ParseInputEvent(evt);
@@ -612,7 +612,7 @@ public partial class PlayerShotQa : Node
             }
         }
         _pool.DespawnAll();
-        Call(root.Player, "FireCharge");
+        Call(root.Player, "FireCharge", ChargeTier.First); // FireCharge(int stage) に追随（引数なしは反射で落ちる）
         CheckChargeVolley(root.Player);
         _pool.DespawnAll();
         Write(root.Player, "_facing", -1);
