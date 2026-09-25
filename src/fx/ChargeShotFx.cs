@@ -124,23 +124,50 @@ public partial class ChargeShotFx : Node2D
         Color color = art.Accent;
         bool tier2 = stage >= ChargeTier.Second;
         float length = Mathf.Min(tier2 ? 104 : 72, 20 + age * 650);
-        for (int strand = 0; strand < 3; strand++)
+        if (job == Job.Heal)
         {
-            for (int i = 0; i < Curve.Length; i++)
+            // こはる：波打つ尾は付けない。ペンライトを振った残光＝まっすぐ細って消える一本の光条にする
+            //   （2026-09-25 ユーザー「にょろにょろがださい」）。根元が太く白く、先端へ向けて色だけが残る。
+            int segs = Curve.Length - 1;
+            for (int i = 0; i < segs; i++)
             {
-                float t = (float)i / (Curve.Length - 1);
-                float amplitude = job == Job.Melee ? 5 : job == Job.Heal ? 9 : 6;
-                float wave = Mathf.Sin(t * 8 - age * 25 + strand * Mathf.Tau / 3);
-                Curve[i] = new Vector2(-length * t, wave * amplitude * t);
+                float t0 = (float)i / segs, t1 = (float)(i + 1) / segs;
+                float fade = 1 - t0;
+                var a = new Vector2(-length * t0, 0);
+                var b = new Vector2(-length * t1, 0);
+                canvas.DrawLine(a, b, new Color(color, 0.16f * fade), 7f * fade + 1.5f, true);
+                canvas.DrawLine(a, b, new Color(color, 0.42f * fade), 3f * fade + 0.8f, true);
+                canvas.DrawLine(a, b, new Color(color.Lerp(Colors.White, 0.6f), 0.85f * fade * fade), 1.2f * fade + 0.4f, true);
             }
-            canvas.DrawPolyline(Curve, new Color(color, 0.18f), 4.5f, true);
-            canvas.DrawPolyline(Curve, new Color(color.Lerp(Colors.White, 0.35f), 0.65f - strand * 0.12f), 1.3f, true);
+            // 尾に沿って小さなハートが二列で流れていく（揺らさない＝振った光の軌跡に乗って後ろへ抜ける）。
+            for (int i = 0; i < 4; i++)
+            {
+                float t = Mathf.PosMod(age * 2.4f + i * 0.25f, 1);
+                float lane = (i % 2 == 0 ? 1 : -1) * radius * 0.45f * t;
+                var at = new Vector2(-length * t, lane);
+                Emblem(canvas, art, job, at, 3 + 4 * (1 - t), 0, (1 - t) * 0.8f);
+            }
         }
-        for (int i = 0; i < 4; i++)
+        else
         {
-            float t = Mathf.PosMod(age * 2.4f + i * 0.25f, 1);
-            var at = new Vector2(-length * t, Mathf.Sin(t * 9 + i * 1.7f) * radius * t);
-            Emblem(canvas, art, job, at, 4 + 5 * (1 - t), age * 2 + i, (1 - t) * 0.85f);
+            for (int strand = 0; strand < 3; strand++)
+            {
+                for (int i = 0; i < Curve.Length; i++)
+                {
+                    float t = (float)i / (Curve.Length - 1);
+                    float amplitude = job == Job.Melee ? 5 : 6;
+                    float wave = Mathf.Sin(t * 8 - age * 25 + strand * Mathf.Tau / 3);
+                    Curve[i] = new Vector2(-length * t, wave * amplitude * t);
+                }
+                canvas.DrawPolyline(Curve, new Color(color, 0.18f), 4.5f, true);
+                canvas.DrawPolyline(Curve, new Color(color.Lerp(Colors.White, 0.35f), 0.65f - strand * 0.12f), 1.3f, true);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                float t = Mathf.PosMod(age * 2.4f + i * 0.25f, 1);
+                var at = new Vector2(-length * t, Mathf.Sin(t * 9 + i * 1.7f) * radius * t);
+                Emblem(canvas, art, job, at, 4 + 5 * (1 - t), age * 2 + i, (1 - t) * 0.85f);
+            }
         }
         DrawCore(canvas, art, new Vector2(-5, 0), radius * 5.4f, 0.18f);
         DrawCore(canvas, art, Vector2.Zero, radius * 4.4f, 1);
