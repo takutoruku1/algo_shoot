@@ -15,8 +15,10 @@ public partial class ChargeShotFx : Node2D
     private float Duration => (Base == Beat.Ready ? 0.22f : Base == Beat.Release ? 0.32f : 0.42f) * (Tier2 ? 1.5f : 1f);
     private static readonly Vector2[] Curve = new Vector2[25];
     private static readonly Vector2[] Star = new Vector2[10];
-    // 2段目の色（金）。キャラ色（BulletArt.PlayerColor）と必ず別の色にする＝どのジョブでも「2段目だ」と読める。
-    public static readonly Color Tier2Gold = new("ffd782");
+    // 2段目の色。キャラ色（BulletArt.PlayerColor）と必ず別の色にする＝どのジョブでも「2段目だ」と読める。
+    //   2026-09-25 ユーザー「溜めの弾の見た目がダサい」：濃い金＋棘＋巻きつく弧をやめ、淡い暖白の
+    //   細い輪だけにした。2段目の印は「輪が一本増える」で足りる＝飾りで盛らない。
+    public static readonly Color Tier2Gold = new("ffeccb");
 
     public override void _Ready()
     {
@@ -47,11 +49,9 @@ public partial class ChargeShotFx : Node2D
         for (int i = 0; i < 3; i++)
             DrawArc(Vector2.Zero, radius - i * 2, t * 0.8f + i * 2.1f,
                 t * 0.8f + i * 2.1f + 1.65f, 22, new Color(color, fade * 0.8f), 1.4f - i * 0.3f, true);
-        // 2段目だけの上乗せ：逆回りの金の二重輪。既存の弧と回る向きが逆＝重なっても混ざらない。
+        // 2段目だけの上乗せ：外側に淡い輪が一本、全周で広がる（巻きつく弧にはしない）。
         if (Tier2)
-            for (int i = 0; i < 2; i++)
-                DrawArc(Vector2.Zero, radius * (1.18f + i * 0.16f), -t * 1.4f + i * Mathf.Pi,
-                    -t * 1.4f + i * Mathf.Pi + 2.4f, 26, new Color(Tier2Gold, fade * 0.9f), 2.2f - i * 0.8f, true);
+            DrawArc(Vector2.Zero, radius * 1.22f, 0, Mathf.Tau, 40, new Color(Tier2Gold, fade * 0.6f), 1.3f, true);
         DrawSetTransform(Vector2.Zero);
         int count = Base == Beat.Impact || Tier2 ? 10 : 6;
         for (int i = 0; i < count; i++)
@@ -100,19 +100,14 @@ public partial class ChargeShotFx : Node2D
             canvas.DrawLine(new Vector2(-19, 0), new Vector2(19, 0), new Color(color, pulse), 0.6f, true);
             canvas.DrawLine(new Vector2(0, -15), new Vector2(0, 15), new Color(Colors.White, pulse), 0.6f, true);
         }
-        // 2段目ぶんの金の輪。溜まるほど締まっていき、満ちると太く・速く脈打つ＝「もう一段ある／満ちた」。
+        // 2段目ぶんの輪。溜まるほど締まっていき、満ちると少し太く・ゆっくり脈打つ＝「もう一段ある／満ちた」。
+        //   棘（スポーク）は付けない＝照準器に見えるのをやめる。
         if (ratio2 > 0)
         {
-            float ring = Mathf.Lerp(30, 17, ratio2);
+            float ring = Mathf.Lerp(30, 19, ratio2);
             bool full2 = ratio2 >= 1;
-            float a2 = full2 ? 0.75f + Mathf.Sin(time * 16) * 0.25f : 0.35f + ratio2 * 0.4f;
-            canvas.DrawArc(Vector2.Zero, ring, 0, Mathf.Tau, 30, new Color(Tier2Gold, a2), full2 ? 2.6f : 1.4f, true);
-            for (int i = 0; i < 5; i++)
-            {
-                float angle = -time * 2.6f + i * Mathf.Tau / 5;
-                var at = Vector2.FromAngle(angle) * ring;
-                canvas.DrawLine(at, at * (full2 ? 0.7f : 0.85f), new Color(Tier2Gold, a2), 1.2f, true);
-            }
+            float a2 = full2 ? 0.55f + Mathf.Sin(time * 9) * 0.15f : 0.22f + ratio2 * 0.28f;
+            canvas.DrawArc(Vector2.Zero, ring, 0, Mathf.Tau, 40, new Color(Tier2Gold, a2), full2 ? 1.8f : 1.1f, true);
         }
         canvas.DrawSetTransform(Vector2.Zero);
     }
@@ -173,11 +168,12 @@ public partial class ChargeShotFx : Node2D
         DrawCore(canvas, art, Vector2.Zero, radius * 4.4f, 1);
         canvas.DrawLine(new Vector2(radius * 0.7f, 0), new Vector2(radius * 2.6f, 0),
             new Color(Colors.White, 0.9f), 1, true);
-        // 2段目の徽章＝核を巻く金の二重輪。飛んでいる弾を見ただけでどちらの一発か分かる。
+        // 2段目の徽章＝核の外に淡い輪が一本、静かに乗る。回る弧だと核に巻きついて見えるので回さない。
         if (tier2)
-            for (int i = 0; i < 2; i++)
-                canvas.DrawArc(Vector2.Zero, radius * (1.5f + i * 0.55f), age * 7 + i * Mathf.Pi,
-                    age * 7 + i * Mathf.Pi + 4.2f, 24, new Color(Tier2Gold, 0.85f - i * 0.3f), 2f - i * 0.7f, true);
+        {
+            canvas.DrawArc(Vector2.Zero, radius * 1.5f, 0, Mathf.Tau, 40, new Color(Tier2Gold, 0.62f), 1.3f, true);
+            canvas.DrawArc(Vector2.Zero, radius * 1.85f, 0, Mathf.Tau, 40, new Color(Tier2Gold, 0.2f), 0.9f, true);
+        }
     }
 
     private static void DrawCore(Node2D canvas, BulletArt.PlayerVisual art, Vector2 at, float size, float alpha)

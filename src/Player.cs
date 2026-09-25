@@ -1668,7 +1668,7 @@ public partial class Player : Area2D
             // 受け皿（薄い弧・全周）＋ 充填ぶん（上から時計回りに伸びる）
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.18f), 1.4f);
             Color cc = ChargeFull2
-                ? new Color(1f, 0.86f, 0.42f, 0.8f + 0.2f * Mathf.Sin(_bobTime * 26f)) // 二段満：金に速く脈打つ
+                ? new Color(1f, 0.93f, 0.8f, 0.8f + 0.2f * Mathf.Sin(_bobTime * 14f)) // 二段満：暖白にゆっくり脈打つ
                 : ChargeFull
                     ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
                     : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
@@ -1677,17 +1677,10 @@ public partial class Player : Area2D
             // 2段目の弧（外側）。1段目が満ちた瞬間に受け皿が現れ、そこから同じ向きに伸びる。
             if (ChargeFull && ChargeNeed2 > ChargeNeed)
             {
-                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 28, new Color(1f, 0.86f, 0.42f, 0.22f), 1.2f);
+                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 28, new Color(1f, 0.93f, 0.8f, 0.18f), 1.2f);
                 DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * ChargeRatio2, 28,
-                    new Color(1f, 0.86f, 0.42f, ChargeFull2 ? 0.95f : 0.8f), 2.0f);
-                // 満ちたら弧の外を棘が回る＝白い脈打ち（1段）と見分けがつく「もう一段ぶん」の合図。
-                if (ChargeFull2)
-                    for (int i = 0; i < 6; i++)
-                    {
-                        float a = _bobTime * 3.2f + i * Mathf.Tau / 6f;
-                        var d = Vector2.FromAngle(a);
-                        DrawLine(at + d * 11.5f, at + d * 14.5f, new Color(1f, 0.92f, 0.6f, 0.85f), 1.3f, true);
-                    }
+                    new Color(1f, 0.93f, 0.8f, ChargeFull2 ? 0.9f : 0.7f), 1.8f);
+                // 棘は付けない（2026-09-25）。「もう一段ぶん」は外側の弧が満ちて脈打つことで足りる。
             }
         }
 
