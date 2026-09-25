@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 public partial class RouteBackgroundQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+    // 中ボス（cameo）が生える step。こはるは 2026-09-25 の s2_1 挿入で 5 → 6 にずれた（StageKoharu.cs のチェックポイント分岐と同じ値）。
+    private static int CameoStep(string id) => id switch { "akari" => 3, "koharu" => 6, _ => 5 };
+
     private static void Write(object obj, string field, object value)
         => obj.GetType().GetField(field, Private)!.SetValue(obj, value);
     private static T Read<T>(object obj, string field)
@@ -467,7 +470,7 @@ public partial class RouteBackgroundQa : Node
     {
         bg.BeginRoute();
         await Frames(55);
-        Write(stage, "_step", id == "akari" ? 3 : 5);
+        Write(stage, "_step", CameoStep(id));
         Write(stage, "_stepStarted", false);
         Call(stage, "Step_BossCameo", 0d);
         await Frames(55);
@@ -535,7 +538,7 @@ public partial class RouteBackgroundQa : Node
         root.GetNode<Player>("World/Player").SetPhysicsProcess(false);
         var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
         stage.SetProcess(false);
-        Check(Read<int>(stage, "_step") == (id == "akari" ? 3 : 5), $"{id}: midboss checkpoint selects cameo step");
+        Check(Read<int>(stage, "_step") == CameoStep(id), $"{id}: midboss checkpoint selects cameo step");
         stage._Process(0d);
         await Frames(60);
         var layers = root.GetNode<BgLayers>("StageBackground/BgLayers");
