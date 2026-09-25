@@ -121,18 +121,12 @@ public partial class ChargeShotFx : Node2D
         float length = Mathf.Min(tier2 ? 104 : 72, 20 + age * 650);
         if (job == Job.Heal)
         {
-            // こはる：波打つ尾は付けない。ペンライトを振った残光＝まっすぐ細って消える一本の光条にする
-            //   （2026-09-25 ユーザー「にょろにょろがださい」）。根元が太く白く、先端へ向けて色だけが残る。
-            int segs = Curve.Length - 1;
-            for (int i = 0; i < segs; i++)
+            // こはる：線の尾は引かない（2026-09-25 ユーザー「にょろにょろがださい」→「線もださい」）。
+            //   ハートの残像を後ろへ薄く置くだけ＝光の筋ではなく、飛んだ跡が残る見え方にする。
+            for (int k = 1; k <= 6; k++)
             {
-                float t0 = (float)i / segs, t1 = (float)(i + 1) / segs;
-                float fade = 1 - t0;
-                var a = new Vector2(-length * t0, 0);
-                var b = new Vector2(-length * t1, 0);
-                canvas.DrawLine(a, b, new Color(color, 0.16f * fade), 7f * fade + 1.5f, true);
-                canvas.DrawLine(a, b, new Color(color, 0.42f * fade), 3f * fade + 0.8f, true);
-                canvas.DrawLine(a, b, new Color(color.Lerp(Colors.White, 0.6f), 0.85f * fade * fade), 1.2f * fade + 0.4f, true);
+                float t = k / 6f;
+                DrawCore(canvas, art, new Vector2(-length * 0.55f * t, 0), radius * 4.4f * (1 - t * 0.55f), 0.26f * (1 - t));
             }
             // 尾に沿って小さなハートが二列で流れていく（揺らさない＝振った光の軌跡に乗って後ろへ抜ける）。
             for (int i = 0; i < 4; i++)
@@ -166,8 +160,9 @@ public partial class ChargeShotFx : Node2D
         }
         DrawCore(canvas, art, new Vector2(-5, 0), radius * 5.4f, 0.18f);
         DrawCore(canvas, art, Vector2.Zero, radius * 4.4f, 1);
-        canvas.DrawLine(new Vector2(radius * 0.7f, 0), new Vector2(radius * 2.6f, 0),
-            new Color(Colors.White, 0.9f), 1, true);
+        if (job != Job.Heal)
+            canvas.DrawLine(new Vector2(radius * 0.7f, 0), new Vector2(radius * 2.6f, 0),
+                new Color(Colors.White, 0.9f), 1, true);
         // 2段目の徽章＝核の外に淡い輪が一本、静かに乗る。回る弧だと核に巻きついて見えるので回さない。
         if (tier2)
         {
