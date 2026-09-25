@@ -75,6 +75,7 @@ public partial class ReiRoot : Node2D
         AddChild(new StageImagery { Name = "Imagery", Kind = StageImagery.StageKind.Rei }); // 配信のコメント欄・白飛びの「登録者 2,000」
         AddChild(new WorldGrade { Name = "WorldGrade" }); // 進行度で「汚染→浄化」を4段階にくっきり切替（節目の色グレーディング）
         AddChild(new MurkVignette { Name = "MurkVignette" }); // 高汚染で端から寄る濁りビネット（弾より奥・中央は抜け）
+        AddChild(new FuryDial { Name = "FuryDial" }); // 【激情】＝ボスの下書き（入力欄）＋画面の色連動（盤面の奥 -44/-46・弾より遥かに奥）
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);

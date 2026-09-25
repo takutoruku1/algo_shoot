@@ -35,6 +35,7 @@ public partial class MinaRoot : Node2D
         World.AddChild(new FxLayer { Name = "FxLayer" });
         AddChild(new GameCamera { Name = "GameCamera" });
         AddChild(new MurkVignette { Name = "MurkVignette" }); // FINAL=汚染頂点：端から寄る濁りビネット（弾より奥・中央は抜け）
+        AddChild(new FuryDial { Name = "FuryDial" }); // 【激情】＝ボスの下書き（入力欄）＋画面の色連動（盤面の奥 -44/-46・弾より遥かに奥）
 
         Player = new Player { Name = "Player" };
         World.AddChild(Player);
