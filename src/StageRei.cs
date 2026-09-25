@@ -307,6 +307,12 @@ public partial class StageRei : Node
     {
         (4, "「次は、本気のあなたと。——逃げたら、承知しないから。」", ""),   // 救済後
         (1, "右上の数字が、「4」に。……ひとつ、増えました。", MSmile),
+        // 2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.3(c)）：S3-2 の受け「こちらは、向こう側の数に、入りませんので」の反転。
+        //   ミナは画面の内側だから同接に入らない。入るのは画面の外＝ご主人様。「誰が増えたかは言わない」は守る（レイが問い、ミナは答えない）。
+        //   ★の行は迷い秒ゲート（s3_5c で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
+        (2, "……四。……あんたは、数に入らないんでしょう。……なら、増えたの、誰。", RFace),
+        (1, "……集計は、向こう側の、ものですので。", MFace),
+        (2, ClearHesitated, RFace),          // ★s3_5c で迷ったときだけ
         (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),   // 「今日も来ました」。説明しない
         (1, "……そういえば。今日の空は、晴れていましたか。", MFace),   // 空の問い・三度目
         (1, "……いえ。もう、聞きません。三度、聞きました。", MDoubt),
@@ -319,6 +325,10 @@ public partial class StageRei : Node
         (1, "……光が、顔のあたりから、こぼれています。……原因は、不明です。", "res://char/mina_tears.png"),
         (1, "……集計には、入れません。……入れ方が、分かりませんので。", "res://char/mina_tears.png"),
     };
+    // 迷い秒ゲートの行（★）。s3_5c で迷っていなければ Clear から外して流す。
+    private const string ClearHesitated = "……即答されてたら、たぶん、信じてなかった。";
+    private static (int who, string text, string face)[] ClearFor(GameManager? game)
+        => ChoiceEffects.Hesitated(game, "s3_5c") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
 
     // ───────── S3-7 戦闘中の割り込み（仮台本 07。ユーザー承認済み・2026-09-05）─────────
     // ボス HP 20〜50% で一度だけ。弾が止まり、画面が鈍色に沈む（SetQuietVeil）。
@@ -1014,7 +1024,8 @@ public partial class StageRei : Node
 
     private bool _clearBannerShown;
     private int _clearPhase;
-    // 明けの会話の実体。ミナ本編は null（＝Clear をそのまま）、他ジョブ潜行はアフター＋帰還ビートの連結。
+    // 明けの会話の実体。ミナ本編は ClearFor（迷い秒ゲートの★行を s3_5c の迷いで残す／外す。2026-09-26）、
+    //   他ジョブ潜行はアフター＋帰還ビートの連結。null なら Clear をそのまま。
     private (int who, string text, string face)[]? _clearLines;
     private void Step_Clear(double delta)
     {
@@ -1043,6 +1054,7 @@ public partial class StageRei : Node
                 _zEdge = false;
                 return;
             }
+            _clearLines = ClearFor(game);
             _clearPhase = 1;
             ReiStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
             {

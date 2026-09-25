@@ -57,6 +57,14 @@ public static class ChoiceEffects
         "rei" => string.IsNullOrEmpty(SentWordAt(game, "s3_2")) ? -1 : 0,     // （1）同接
         _ => -1,
     };
+
+    // ── 迷い秒ゲート（docs/20260926/主人公の存在_診断と本文 §4）──
+    //   その id で、最初の選択（p2）より長く迷ったか。E6 の対句（Epilogue）と同じ基準（docs/20260924 §2.4）。
+    //   上げ下げには使わない＝クリア後にボスの1行が挿さるだけ。台帳を読むだけの純関数で、新しい状態は持たない。
+    //   ボスから入場して選択を通っていない（HasChoiceAt=false）なら false。
+    //   id: あかり=s1_4／こはる=s2_4／レイ=s3_5c。
+    public static bool Hesitated(GameManager? game, string id)
+        => game != null && game.HasChoiceAt(id) && game.HesitationAt(id) > game.HesitationAt("p2");
 }
 
 // GameManager の追記ぶん（本体ファイルは別担当が編集中のため partial で分ける）。

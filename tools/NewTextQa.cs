@@ -1,9 +1,12 @@
 using Godot;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
 // NewTextQa : 2026-09-25 追加ぶん（s2_1 の step 挿入・中ボス第一声の差分・【激情】初期値）の自動検証。
+//   2026-09-26 に「主人公の存在」17 行（docs/20260926/主人公の存在_診断と本文）の静的検査（5）を追加。
 //   実行: Godot --headless --path . res://tools/qa_newtext.tscn -- --qa-newtext
 //   ※セーブを書くので APPDATA を隔離した状態で走らせること。
 public partial class NewTextQa : Node
@@ -149,6 +152,96 @@ public partial class NewTextQa : Node
                 Check("こはる初期値レンジ下端 -30", Mathf.IsEqualApprox(lo, -30f), $"実測 {lo}");
                 Check("こはる初期値レンジ上端 +20", Mathf.IsEqualApprox(hi, 20f), $"実測 {hi}");
                 Check("InitialClamp は 30 のまま", Mathf.IsEqualApprox(Fury.InitialClamp, 30f), $"実測 {Fury.InitialClamp}");
+            }
+
+            // ── 5) 主人公の存在（2026-09-26 docs/20260926/主人公の存在_診断と本文 §3-4）──
+            //   足した 17 行のうち静的に検められるぶん（クリア後の並び・迷い秒ゲートの純関数・RECLOSE／挑発／F3／P2 受け）。
+            //   実際に画面へ流れるところは tools/qa_hero_lines.tscn（HeroLinesQa）が撮る。
+            {
+                const BindingFlags Static = BindingFlags.Static | BindingFlags.NonPublic;
+                static (int who, string text, string face)[] Lines(Type t, string m, GameManager? g)
+                    => ((int who, string text, string face)[])t.GetMethod(m, Static)!.Invoke(null, new object?[] { g })!;
+                static string[] Strs(Type t, string f) => (string[])t.GetField(f, Static)!.GetValue(null)!;
+                static string Join((int who, string text, string face)[] a) => string.Join(" / ", a.Select(l => $"{l.who}:{l.text}"));
+
+                // 迷い秒ゲート（ChoiceEffects.Hesitated）：未通過→false／p2 以下→false／p2 より長い→true／game 無し→false。
+                game.ResetPersistent();
+                game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                Check("Hesitated: 未通過の id は false", !ChoiceEffects.Hesitated(game, "s1_4"));
+                game.RecordChoice("s1_4", "十二件、ぜんぶ", System.Array.Empty<string>(), 4f);
+                Check("Hesitated: p2 と同秒は false", !ChoiceEffects.Hesitated(game, "s1_4"));
+                game.RecordChoice("s1_4", "十二件、ぜんぶ", System.Array.Empty<string>(), 4.5f);
+                Check("Hesitated: p2 より長ければ true", ChoiceEffects.Hesitated(game, "s1_4"));
+                Check("Hesitated: game 無しは false", !ChoiceEffects.Hesitated(null, "s1_4"));
+
+                // クリア後の並び：錨の行の直後に、ゲート有り／無しで期待どおりの行が続く（★以外は必ず出る）。
+                foreach (var (type, id, anchor, star, withGate, noGate) in new (Type, string, string, string, (int, string)[], (int, string)[])[]
+                {
+                    (typeof(StageAkari), "s1_4", "……あったかい声が、した。……知らない声なのに。変なの。",
+                        "……ねえ。あのとき、すぐ決めなかったでしょ。……うん。それで、いい。",
+                        new[] { (2, "……ねえ。あのとき、すぐ決めなかったでしょ。……うん。それで、いい。"), (2, "……知らない声のくせに。……言い方だけ、どこかで、聞いたことある。"), (1, "……言い方は、わたくしのです。……たぶん。"), (1, "……♥が、ひとつ。") },
+                        new[] { (2, "……知らない声のくせに。……言い方だけ、どこかで、聞いたことある。"), (1, "……言い方は、わたくしのです。……たぶん。"), (1, "……♥が、ひとつ。") }),
+                    (typeof(StageKoharu), "s2_4", "入力欄に、一行、増えました。……読み上げは、しません。もう、送られたものですので。",
+                        "……迷ってくれたよね。あたし、それ、見てたよ。",
+                        new[] { (2, "……迷ってくれたよね。あたし、それ、見てたよ。"), (2, "……あの手。……ペンライト、ちゃんと振ってた。……点いてなくても。"), (1, "……ご主人様。外の世界は、今日はどんな天気ですか。") },
+                        new[] { (2, "……あの手。……ペンライト、ちゃんと振ってた。……点いてなくても。"), (1, "……ご主人様。外の世界は、今日はどんな天気ですか。") }),
+                    (typeof(StageRei), "s3_5c", "右上の数字が、「4」に。……ひとつ、増えました。",
+                        "……即答されてたら、たぶん、信じてなかった。",
+                        new[] { (2, "……四。……あんたは、数に入らないんでしょう。……なら、増えたの、誰。"), (1, "……集計は、向こう側の、ものですので。"), (2, "……即答されてたら、たぶん、信じてなかった。"), (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。") },
+                        new[] { (2, "……四。……あんたは、数に入らないんでしょう。……なら、増えたの、誰。"), (1, "……集計は、向こう側の、ものですので。"), (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。") }),
+                })
+                {
+                    foreach (bool gate in new[] { true, false })
+                    {
+                        game.ResetPersistent();
+                        game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                        game.RecordChoice(id, "x", System.Array.Empty<string>(), gate ? 9f : 1f);
+                        var lines = Lines(type, "ClearFor", game);
+                        int at = System.Array.FindIndex(lines, l => l.text == anchor);
+                        var want = gate ? withGate : noGate;
+                        var got = at >= 0 ? lines.Skip(at + 1).Take(want.Length).Select(l => (l.who, l.text)).ToArray() : System.Array.Empty<(int, string)>();
+                        Check($"{type.Name} ClearFor(迷い{(gate ? "有" : "無")}) 錨の直後の並び", got.SequenceEqual(want), Join(lines));
+                        Check($"{type.Name} ClearFor(迷い{(gate ? "有" : "無")}) ★の有無", lines.Any(l => l.text == star) == gate, Join(lines));
+                    }
+                    // ボスから入場（選択未通過）でも★は出ない。
+                    game.ResetPersistent();
+                    Check($"{type.Name} ClearFor(未通過) ★なし", !Lines(type, "ClearFor", game).Any(l => l.text == star));
+                }
+                // あかり：フィルム前／後の割り目は「……♥が、ひとつ。」の手前（旧 Take(2) のベタ書きを廃止）。
+                foreach (bool gate in new[] { true, false })
+                {
+                    game.ResetPersistent();
+                    game.RecordChoice("p2", "おはよう", System.Array.Empty<string>(), 4f);
+                    game.RecordChoice("s1_4", "x", System.Array.Empty<string>(), gate ? 9f : 1f);
+                    var all = Lines(typeof(StageAkari), "ClearFor", game);
+                    var before = Lines(typeof(StageAkari), "ClearBeforeFor", game);
+                    var after = Lines(typeof(StageAkari), "ClearAfterFor", game);
+                    Check($"あかり 割り目(迷い{(gate ? "有" : "無")}) 前半の末尾＝ミナ「たぶん」", before.Length == (gate ? 5 : 4) && before[^1].text == "……言い方は、わたくしのです。……たぶん。", Join(before));
+                    Check($"あかり 割り目(迷い{(gate ? "有" : "無")}) 後半の先頭＝「♥が、ひとつ」", after.Length > 0 && after[0].text == "……♥が、ひとつ。" && before.Concat(after).SequenceEqual(all), Join(after));
+                }
+
+                // RECLOSE（index 2 に挿入・最終形は最後のまま）／レイの挑発 3 本目／F3 レイの 1 行。
+                var ra = Strs(typeof(BossAkari), "RecloseLines");
+                Check("あかり RECLOSE[2]＝後ろの人／[3]＝返して", ra.Length == 4 && ra[2] == "……読んでるの、あなただけじゃ、ないでしょ。……後ろの人。ねえ、そっちも、返して。" && ra[3] == "……返して。読んだなら、返してよ。", string.Join(" / ", ra));
+                var rk = Strs(typeof(BossKoharu), "RecloseLines");
+                Check("こはる RECLOSE[2]＝そっちの手／[3]＝楽しいってば", rk.Length == 4 && rk[2] == "……ねえ。いま動いてるの、そっちの手じゃ、ないでしょ。……あたし、手は、見るもん。" && rk[3] == "……なんでもない。楽しいってば。", string.Join(" / ", rk));
+                var rr = Strs(typeof(BossRei), "RecloseLines");
+                Check("レイ RECLOSE[2]＝あんたの後ろ／[3]＝見てて", rr.Length == 4 && rr[2] == "……あんたの後ろ。初見さん、いるでしょう? ……いらっしゃい。" && rr[3] == "見てて。……ちゃんと、見ててよ。", string.Join(" / ", rr));
+                var tr = Strs(typeof(BossRei), "TauntLines");
+                Check("レイ 挑発[2]＝手、止まってる", tr.Length == 3 && tr[2] == "……手、止まってる。……見てるだけの人、ひとり、増えたのね。", string.Join(" / ", tr));
+                var f3 = ((int who, string text, string face)[])typeof(BossMina).GetField("Lines", Static)!.GetValue(null)!;
+                int f3At = System.Array.FindIndex(f3, l => l.text == "知ってる。あんたの声だった。");
+                Check("F3 「あんたの声だった」の直後＝レイ「そっくりよ」", f3.Length == 6 && f3At >= 0 && f3[f3At + 1] == (2, "……あんたの言い方。……この人に、そっくりよ。", "res://char/v3/rei_face.png"), Join(f3));
+
+                // P2 の受け：「敬っている〜」の直後に「いまの言い回し」（ミナ）。Prologue はシーンを起こさず、
+                //   未初期化オブジェクトで P2Reply（Godot 側に触らない純関数）だけを呼ぶ。終了処理（finalizer）は抑止しておく。
+                var pro = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Prologue));
+                GC.SuppressFinalize(pro);
+                var reply = (System.Collections.IList)typeof(Prologue).GetMethod("P2Reply", Private)!.Invoke(pro, new object[] { "おはよう" })!;
+                var texts = new List<(int who, string text)>();
+                foreach (var d in reply) texts.Add(((int)d!.GetType().GetField("Who")!.GetValue(d)!, (string)d.GetType().GetField("Text")!.GetValue(d)!));
+                int p2At = texts.FindIndex(t => t.text == "……敬っている、とは言っていませんが。");
+                Check("P2 受け 「敬っている〜」の直後＝「いまの言い回し」", p2At >= 0 && p2At + 1 < texts.Count && texts[p2At + 1] == (1, "……いまの言い回し。……どこで覚えたのか、記録に、ありません。"), string.Join(" / ", texts.Select(t => t.text)));
             }
         }
         catch (Exception e)

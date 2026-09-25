@@ -94,6 +94,9 @@ public partial class BossMina : Enemy
     {
         (1, "……今のは。業務報告では、ありません。", "res://char/mina_tears.png"),
         (2, "知ってる。あんたの声だった。", "res://char/v3/rei_face.png"),
+        // 12 設定シート（承認済み）に書かれて未実装だった行（2026-09-26 docs/20260926 §3.4）。「この人」＝自機の「あなたの光」（StageMina）。
+        //   一面目にあかりが言いかけたこと（H1r「誰かに似てる」）を、気づかれたかった人が三面あとに言い切る。
+        (2, "……あんたの言い方。……この人に、そっくりよ。", "res://char/v3/rei_face.png"),
         (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_tears.png"),
         (2, "何回だって言いなさい。聞くから。", "res://char/v3/rei_face.png"),
         (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_tears.png"),

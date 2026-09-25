@@ -278,10 +278,16 @@ public partial class StageAkari : Node
 
     // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
     //   空の問いは 1度目「いらない」→2度目 無言→3度目「もう聞きません」の階段の初段。
+    //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.1(c)）：あかりが「知らない声」の言い回しに聞き覚えを言い、
+    //   ミナが「たぶん」と受ける＝ミナの声の出所（あなたの未送信414件）に最初のひびが入る対句。説明はしない。
+    //   ★の行は迷い秒ゲート（s1_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
     private static readonly (int who, string text, string face)[] Clear =
     {
         (4, "「ほんと、バカなんだから。……あたしも、だけど。」", ""),   // A44。投稿が変化
         (2, "……あったかい声が、した。……知らない声なのに。変なの。", AFace),
+        (2, ClearHesitated, AFace),          // ★s1_4 で迷ったときだけ
+        (2, "……知らない声のくせに。……言い方だけ、どこかで、聞いたことある。", AFace),
+        (1, "……言い方は、わたくしのです。……たぶん。", MWorried),
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【14】
         //   字の変化は StageImagery.TriggerReversal() が**絵で**見せている＝台詞で言うと説明になる。
         //   ミナは数えることしかしない人格なので、数字（♥1）だけを言う。字の変化はプレイヤーが自分で見つける。
@@ -290,8 +296,19 @@ public partial class StageAkari : Node
         (1, "……いえ。返事は、いりません。いつか、で結構ですので。", MSmile),   // 空の問い・一度目
     };
 
-    private static readonly (int who, string text, string face)[] ClearBefore = Clear.Take(2).ToArray();
-    private static readonly (int who, string text, string face)[] ClearAfter = Clear.Skip(2).ToArray();
+    // 迷い秒ゲートの行（★）と、フィルム前／後の割り目。
+    //   割り目は行数（旧 Take(2)）ではなく本文「……♥が、ひとつ。」で引く＝ゲートで前半の行数が揺れても崩れない。
+    private const string ClearHesitated = "……ねえ。あのとき、すぐ決めなかったでしょ。……うん。それで、いい。";
+    private const string ClearFilmSplit = "……♥が、ひとつ。";
+    private static (int who, string text, string face)[] ClearFor(GameManager? game)
+        => ChoiceEffects.Hesitated(game, "s1_4") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
+    private static (int who, string text, string face)[] ClearBeforeFor(GameManager? game)
+        => ClearFor(game).TakeWhile(l => l.text != ClearFilmSplit).ToArray();
+    private static (int who, string text, string face)[] ClearAfterFor(GameManager? game)
+        => ClearFor(game).SkipWhile(l => l.text != ClearFilmSplit).ToArray();
+    // クリア確定時（Step_Clear のバナー表示）に台帳を読んで組む。既定はゲート無しの並び。
+    private (int who, string text, string face)[] _clearBefore = ClearBeforeFor(null);
+    private (int who, string text, string face)[] _clearAfter = ClearAfterFor(null);
 
     private (int who, string text, string face)[] _playerIntro = null!;
     private (int who, string text, string face)[] _playerMid = null!;
@@ -818,6 +835,8 @@ public partial class StageAkari : Node
             var recScore = game?.RecordScore("akari", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 1 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            _clearBefore = ClearBeforeFor(game);   // 迷い秒ゲート（s1_4）をここで確定
+            _clearAfter = ClearAfterFor(game);
         }
         // 撃破後のアフター：
         //   ミナ本編＝ClearBefore → あかりのフィルム → ClearAfter。
@@ -826,9 +845,9 @@ public partial class StageAkari : Node
         if (_clearPhase == 0)
         {
             if (_charStory) RunLinesInPlace(delta, _storyAftermath, MarkAftermathSeenThenReturn);
-            else RunLinesInPlace(delta, ClearBefore, StartAftermathFilm);
+            else RunLinesInPlace(delta, _clearBefore, StartAftermathFilm);
         }
-        else if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : ClearAfter);
+        else if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : _clearAfter);
     }
 
     // 他ジョブ潜行のアフターを流し切ったところ。写真アプリの「帰還」枚を解禁して、帰還ビートへ。

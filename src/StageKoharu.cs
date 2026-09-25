@@ -353,9 +353,18 @@ public partial class StageKoharu : Node
         (1, "……画面が、灯りました。ペンライトの光が——届いています。画面まで。", MSmileUnlocked),
         (1, "……いま。……わたくし、どういう顔を、していましたか。", MSmileUnlocked),
         (1, "入力欄に、一行、増えました。……読み上げは、しません。もう、送られたものですので。", MFace),
+        // 2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.2(b)）：捨て台詞「振ってみて。楽しいから。」の日常語の再来。
+        //   振っていたのは自機の手＝ご主人様（「足取りは、ご主人様のままで」）。点かないペンライトを振り続けた手を、こはるが肯定する。
+        //   ★の行は迷い秒ゲート（s2_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
+        (2, ClearHesitated, KFace),          // ★s2_4 で迷ったときだけ
+        (2, "……あの手。……ペンライト、ちゃんと振ってた。……点いてなくても。", KFace),
         (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", MFace),   // 空の問い・二度目
         (1, "…………。", MFace),   // 二度目は無言で流す
     };
+    // 迷い秒ゲートの行（★）。s2_4 で迷っていなければ Clear から外して流す。
+    private const string ClearHesitated = "……迷ってくれたよね。あたし、それ、見てたよ。";
+    private static (int who, string text, string face)[] ClearFor(GameManager? game)
+        => ChoiceEffects.Hesitated(game, "s2_4") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
 
     private (int who, string text, string face)[] _playerIntro = null!;
     private (int who, string text, string face)[] _playerMid = null!;
@@ -967,8 +976,8 @@ public partial class StageKoharu : Node
 
     private bool _clearBannerShown;
     private int _clearPhase;
-    // クリア会話の実体（S2-9）。案C ではこの面に下流変種が無い（戦闘中の割り込み＝選択がレイ面へ移ったため）
-    //   ので、Clear をそのまま流す。写しで回す形だけ残す＝差し替えを足すときの入口を潰さない。
+    // クリア会話の実体（S2-9）。ミナ本編は ClearFor（迷い秒ゲートの★行を s2_4 の迷いで残す／外す。2026-09-26）、
+    //   他ジョブ潜行はアフター＋帰還ビートの連結。
     private (int who, string text, string face)[]? _clearLines;
     private void Step_Clear(double delta)
     {
@@ -996,7 +1005,7 @@ public partial class StageKoharu : Node
                 _zEdge = false;
                 return;
             }
-            _clearLines = ((int who, string text, string face)[])Clear.Clone();
+            _clearLines = ClearFor(game);
             _clearPhase = 1;
             KoharuStoryFilm.Play(Hud, World, aftermath: true, completed: () =>
             {
