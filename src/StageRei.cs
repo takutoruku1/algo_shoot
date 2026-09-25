@@ -411,12 +411,12 @@ public partial class StageRei : Node
         if (Hud != null) Hud.TutorialActive = false;
 
         // [一時/デバッグ] --boss : 道中を飛ばしてボス戦から始める（予測攻撃のテストプレイ用）。
+        //                --storm : 引用の嵐（step 18）から始める（剥がし切りの待ちを QA --noshoot で見る用）。
         foreach (var a in OS.GetCmdlineUserArgs())
-            if (a == "--boss")
-            {
-                _step = 10; // Step_BossSpawn へ直行
-                break;
-            }
+        {
+            if (a == "--boss") { _step = 10; break; }    // Step_BossSpawn へ直行
+            if (a == "--storm") { _step = 18; break; }   // Step_QuoteStorm へ直行
+        }
 
         // チェックポイント入口（DiffSelect が SelectedEntry をセット）。道中＆イントロを飛ばしてその戦闘から始める。
         // 中ボスから＝Step_BossCameo(5)／ボスから＝Step_BossSpawn(10)。
@@ -722,7 +722,8 @@ public partial class StageRei : Node
     // ───────── S3-5b 引用の嵐（仮台本 11。ユーザー承認済み・2026-09-05）─────────
     // 十七枚・3段階・約50秒。QuoteStorm が飛来／貼りつき／剥がし／本人の返信の縮み／下書きまでを持つ。
     // ここでは「嵐の間だけ道中弾を薄くする」（11 の骨子1＝密度は道中Bの六割）と、終わりの受け渡しだけを見る。
-    // 剥がし漏らしの罰は無く、声が止まった後は必ず剥がし切れる（QuoteStorm 側で保証）＝ここに保険は要らない。
+    // 剥がし漏らしの罰は無く、声が止まった後は撃ち残しが勝手に剥がれ落ちて終わる（QuoteStorm 側で保証）＝
+    //   剥がし切りを進行条件にしない（2026-09-26 作者指示）。ここに保険は要らない。
     private QuoteStorm? _storm;
     private void Step_QuoteStorm(double delta)
     {

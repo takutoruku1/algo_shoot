@@ -13,11 +13,13 @@ using System.Collections.Generic;
 //   3. 貼りつき … 到達位置で速度 0。核はここで降ろす（Bullet.MakeHarmless）＝貼りついたあとは当たらない。
 //   4. 剥がす   … 撃つと剥がれる（祈り弾と同じ Erasable の経路）。剥がれるときは灰色の紙片（FxLayer.PaperScrap）。
 //   5. 声が飽きる … 三段階が終わると飛来がぱたりと止まる（「はい次の話題」で去る）。以後は増えない。
-//   6. 下書き   … すべて剥がすと、送られなかった一行が残り、ミナが拾う。
+//                 撃ち残しは、ここから一拍おいて勝手に紙片になって落ちる＝剥がし切りを遊び手に強いない
+//                 （2026-09-26 作者指示「壊さないと先に進まないコメントを出さない」。剥がすのは自由、進行は待たない）。
+//   6. 下書き   … すべて剥がれると、送られなかった一行が残り、ミナが拾う。
 //
 // 境界（11 の「やらないこと」）:
 //   ・剥がし漏らしの罰は無い（ゲージ減算・汚染加算・咎めを置かない）。
-//   ・声が止まった後は必ず剥がし切れる（新規飛来なし＋撃ち残しは終了時に自動で剥がれる＝取り残しで詰まない）。
+//   ・声が止まった後は必ず終わる（新規飛来なし＋撃ち残しは自動で剥がれる＝取り残しで詰まない・待たされない）。
 //   ・引用側を裁かない。剥がしても紙片が落ちるだけで、罰や反撃の演出は付けない。
 //   ・ホラーにしない。画面は暗くしない。引用が積もって投稿とガワが見えなくなることだけが恐さの源。
 public partial class QuoteStorm : Node2D
@@ -79,7 +81,7 @@ public partial class QuoteStorm : Node2D
     public const string DraftLine = "もう、いいかな";
 
     // ───────── 状態 ─────────
-    // Phase: 段階1〜3 の飛来 → 声が止まる（Silence）→ 剥がし切り（Peel）→ 下書き（Draft）→ 終了（Done）。
+    // Phase: 段階1〜3 の飛来 → 声が止まる（Silence＝残りが勝手に剥がれ落ちる）→ 下書き（Draft）→ 終了（Done）。
     private enum Phase { Storm, Silence, Draft, Done }
     private Phase _phase = Phase.Storm;
     private int _stage;                 // 0..2（飛来中の段階）
@@ -92,10 +94,16 @@ public partial class QuoteStorm : Node2D
     public int QuoteCount { get; private set; }         // 貼りついた総枚数（システム帯「引用: n」）
     public bool Finished => _phase == Phase.Done;       // 剥がし切って下書きまで出し終えたか
 
-    // 貼りついた引用（Bullet と、その表示名・貼りついた位置）。剥がれた（Despawn された）ものは毎フレーム掃除する。
-    private readonly List<(Bullet b, string handle)> _stuck = new();
+    // 貼りついた引用（Bullet と、その文面）。剥がれた（Despawn された）ものは毎フレーム掃除する。
+    private readonly List<(Bullet b, Quote q)> _stuck = new();
     // 飛来中の引用（到達位置に着いたら貼りつける）。
-    private readonly List<(Bullet b, string handle, Vector2 dst)> _flying = new();
+    private readonly List<(Bullet b, Quote q, Vector2 dst)> _flying = new();
+
+    // その Bullet が「まだこの引用のまま」か。プールは LIFO なので、剥がれた直後の Bullet が同じ物理フレーム内に
+    //   道中弾として再利用されると参照だけが生き残り、Active だけ見ていると他人の弾を引用と取り違える
+    //   （＝いつまでも「貼りついている」ことになって場面が終わらない）。文面と Erasable（Activate が毎回落とす）で見分ける。
+    private static bool IsChip(Bullet b, Quote q)
+        => IsInstanceValid(b) && b.Active && b.Erasable && b.Word == q.Body;
 
     private readonly RandomNumberGenerator _rng = new();
     private Hud? _hud;
@@ -135,7 +143,7 @@ public partial class QuoteStorm : Node2D
         switch (_phase)
         {
             case Phase.Storm:   TickStorm(delta); break;
-            case Phase.Silence: TickSilence(); break;
+            case Phase.Silence: TickSilence(delta); break;
             case Phase.Draft:   TickDraft(); break;
         }
         QueueRedraw();
@@ -163,32 +171,42 @@ public partial class QuoteStorm : Node2D
         // 段階3 の最後の一枚（「はい次の話題」）を出し切った＝飛来が止まる。以後は増えない。
         _phase = Phase.Silence;
         _phaseT = 0;
+        _peelT = PeelLead;
         ShowReply();                     // 4行目＝空欄（返信欄が開いて、閉じる）
+        if (QaPilot.Verbose) GD.Print($"[QuoteStorm] silence t={_elapsed:0.0} stuck={_stuck.Count} flying={_flying.Count}");
     }
 
-    // ───────── 声が止まったあと：剥がし切り ─────────
-    // ここから先は新規飛来なし＝プレイヤーは必ず剥がし切れる。撃ち残しがあっても、
-    // 11 の出口（「剥がし切れないまま終わる分岐は作らない」）どおり、時間で自動的に剥がれて必ず下書きへ出る。
-    private const double SilenceGrace = 10.0;   // 11 の「剥がし切り 40〜50秒」＝約10秒
-    private void TickSilence()
+    // ───────── 声が止まったあと：残りは勝手に剥がれ落ちる ─────────
+    // ここに「剥がし切るまで待つ」は置かない（2026-09-26 作者指示：壊さないと先に進まないコメントを出さない）。
+    //   飛来が止まったら、撃ち残しは一拍おいて1枚ずつ紙片になって落ちる（声が飽きて散った、の絵）＝
+    //   遊び手が一枚も撃たなくても場面は同じ尺で下書きへ出る。撃てば早く剥がれる、それだけ。
+    //   旧: 10 秒の猶予（SilenceGrace）のあいだ剥がし切りを待っていた＝道中がここで止まって見えた。
+    private const double PeelLead = 0.6;        // 返信欄が閉じてから落ち始めるまでの一拍
+    private const double PeelStep = 0.28;       // 自動で剥がれる間隔（ぱらぱら）
+    private const double FlyWait = 1.8 + 0.5;   // 最後の一枚の飛行（1.8 秒）を待つ上限。過ぎたら飛行中扱いのまま落とす
+    private double _peelT;                      // 次の自動剥がれまでの残り
+    private void TickSilence(double delta)
     {
-        // まだ飛行中の最後の一枚が貼りつくのを待ってから判定する。
-        if (_flying.Count > 0) return;
+        // 最後の一枚が貼りつくのを待つ（上限つき＝取り違えた参照が残っても場面は終わる）。着いてから一拍。
+        if (_flying.Count > 0 && _phaseT < FlyWait) { _peelT = PeelLead; return; }
 
-        if (_stuck.Count == 0) { EnterDraft(); return; }
+        if (_stuck.Count == 0 && _flying.Count == 0) { EnterDraft(); return; }
 
-        // 猶予を過ぎたら残りを1枚ずつ自動で剥がす（罰ではなく「必ず終わる」ための保険）。
-        if (_phaseT >= SilenceGrace)
-        {
-            var (b, _) = _stuck[_stuck.Count - 1];
-            if (IsInstanceValid(b) && b.Active)
-            {
-                FxLayer.Instance?.PaperScrap(b.GlobalPosition);
-                GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
-            }
-            _stuck.RemoveAt(_stuck.Count - 1);
-            _phaseT = SilenceGrace - 0.28;   // 残りも同じ間隔でぱらぱら落とす
-        }
+        _peelT -= delta;
+        if (_peelT > 0) return;
+        _peelT = PeelStep;
+        PeelOne();
+    }
+
+    // 残りの引用を新しいほうから1枚、紙片にして落とす（罰ではなく「必ず終わる」ための送り）。
+    private void PeelOne()
+    {
+        Bullet b; Quote q;
+        if (_stuck.Count > 0) { (b, q) = _stuck[^1]; _stuck.RemoveAt(_stuck.Count - 1); }
+        else { (b, q, _) = _flying[^1]; _flying.RemoveAt(_flying.Count - 1); }
+        if (!IsChip(b, q)) return;
+        FxLayer.Instance?.PaperScrap(b.GlobalPosition);
+        GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
     }
 
     private void EnterDraft()
@@ -197,12 +215,15 @@ public partial class QuoteStorm : Node2D
         _phaseT = 0;
         // 剥がした下には、まだ同じ笑顔のガワ。カードの下に薄い字で一行（この Node2D が描く）。
         _hud?.ShowBossLine("", $"下書き: {DraftLine}", new Color(0.72f, 0.70f, 0.76f), 3.2);
+        if (QaPilot.Verbose) GD.Print($"[QuoteStorm] draft t={_elapsed:0.0}");
     }
 
     // 下書きを読ませる間だけ留まってから終わる（この後の台詞は StageRei が続ける）。
     private void TickDraft()
     {
-        if (_phaseT >= 3.2) _phase = Phase.Done;
+        if (_phaseT < 3.2) return;
+        _phase = Phase.Done;
+        if (QaPilot.Verbose) GD.Print($"[QuoteStorm] done t={_elapsed:0.0}");
     }
 
     // ───────── 引用チップの飛来と貼りつき ─────────
@@ -232,7 +253,7 @@ public partial class QuoteStorm : Node2D
         b.SetWord(q.Body, q.Handle, new Color(0.55f, 0.55f, 0.60f), murk: true,
             coreArt: BulletArt.Get("rei_film"));
         b.MakeErasable();                 // 撃つと剥がれる（祈り弾と同じ経路）
-        _flying.Add((b, q.Handle, dst));
+        _flying.Add((b, q, dst));
         QuoteCount++;
         ShowCounter();
     }
@@ -242,8 +263,8 @@ public partial class QuoteStorm : Node2D
     {
         for (int i = _flying.Count - 1; i >= 0; i--)
         {
-            var (b, h, dst) = _flying[i];
-            if (!IsInstanceValid(b) || !b.Active) { _flying.RemoveAt(i); continue; }   // 飛行中に撃たれた
+            var (b, q, dst) = _flying[i];
+            if (!IsChip(b, q)) { _flying.RemoveAt(i); continue; }   // 飛行中に撃たれた（or プールで別の弾になった）
             if (b.GlobalPosition.X > dst.X + 1.5f) continue;
 
             b.GlobalPosition = dst;
@@ -251,7 +272,7 @@ public partial class QuoteStorm : Node2D
             b.BoundsMargin = Bullet.DefaultBoundsMargin;
             b.MakeHarmless();             // 11：核は飛行中だけ。貼りついたあとは当たらない
             _flying.RemoveAt(i);
-            _stuck.Add((b, h));
+            _stuck.Add((b, q));
         }
     }
 
@@ -261,9 +282,9 @@ public partial class QuoteStorm : Node2D
     {
         for (int i = _stuck.Count - 1; i >= 0; i--)
         {
-            var (b, _) = _stuck[i];
-            if (IsInstanceValid(b) && b.Active) continue;
-            if (IsInstanceValid(b)) FxLayer.Instance?.PaperScrap(b.GlobalPosition);
+            var (b, q) = _stuck[i];
+            if (IsChip(b, q)) continue;
+            if (IsInstanceValid(b) && !b.Active) FxLayer.Instance?.PaperScrap(b.GlobalPosition);   // 別の弾に化けた参照には出さない
             _stuck.RemoveAt(i);
         }
     }
@@ -309,8 +330,8 @@ public partial class QuoteStorm : Node2D
     public void Dismiss()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        foreach (var (b, _) in _stuck) if (IsInstanceValid(b) && b.Active) pool?.Despawn(b);
-        foreach (var (b, _, _) in _flying) if (IsInstanceValid(b) && b.Active) pool?.Despawn(b);
+        foreach (var (b, q) in _stuck) if (IsChip(b, q)) pool?.Despawn(b);
+        foreach (var (b, q, _) in _flying) if (IsChip(b, q)) pool?.Despawn(b);
         _stuck.Clear();
         _flying.Clear();
         QueueFree();
