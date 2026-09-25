@@ -481,25 +481,25 @@ public partial class ScoreShardQa : Node
             }
             await Frames(40);
             long beforePickup = game.Score;
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.D, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, Pressed = true });
             await Frames(100);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.D, Pressed = false });
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.W, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Up, Pressed = true });
             await Frames(35);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.W, Pressed = false });
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Up, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Down, Pressed = true });
             await Frames(70);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.W, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Down, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Up, Pressed = true });
             await Frames(35);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.W, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Up, Pressed = false });
             await Frames(25);
             Check(game.Score > beforePickup, "movie demonstrates proximity pickups");
             if (wave == 0)
             {
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.A, Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Left, Pressed = true });
                 await Frames(100);
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.A, Pressed = false });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Left, Pressed = false });
             }
         }
         await Frames(30);

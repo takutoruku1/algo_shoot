@@ -313,7 +313,7 @@ public partial class HowToCanvas : Node2D
         void Add(string tok, string name, string desc, Color accent, bool hot, string locked = "")
             => rows.Add((tok, name, desc, accent, hot, locked));
 
-        string moveTok = tab switch { 1 => "L スティック / 十字キー", 2 => "カーソル", _ => "矢印 / WASD" };
+        string moveTok = tab switch { 1 => "L スティック / 十字キー", 2 => "カーソル", _ => "矢印" };
         string moveDesc = tab == 2 ? "マウスカーソルの位置へ寄っていく" : "上下左右に動く";
         Add(moveTok, "移動", moveDesc, UiKit.Info, false);
         Add("オート", "撃つ", "自動で撃ちます。光を放って心を浄化する", UiKit.Purify, false);
@@ -325,18 +325,18 @@ public partial class HowToCanvas : Node2D
         string lockDesc = tab switch
         {
             1 => "押すたび近い敵から順に狙う。移動は少し遅くなる",
-            2 => "短く押すたび近い敵から順に狙う。移動は少し遅くなる",
-            _ => "押しているあいだ近い敵を狙う。F で次の敵へ。移動は少し遅くなる",
+            2 => "短く押すと近い敵を狙う。狙っているあいだはホイールで前 / 次の敵へ。移動は少し遅くなる",
+            _ => "押しているあいだ近い敵を狙う。A / S で前 / 次の敵へ。移動は少し遅くなる",
         };
         Add(lockTok, tab == 0 ? "ロックオン" : "ロックオン送り", lockDesc, UiKit.Purify, true);
 
         // ロックオン解除。キーボードは Shift を離す（2026-09-26。旧 G は廃止）。パッド R3／マウス右クリックは従来どおり。
         //   マウスの右クリックは回避と兼用＝解除の行と回避の行を別々に出し、注記で「同じボタン」と結ぶ。
-        Add(tab switch { 1 => Pad.Face(JoyButton.RightStick), 2 => "右クリック", _ => "Shift を離す" }, "ロックオン解除",
+        Add(tab switch { 1 => Pad.Face(JoyButton.RightStick), 2 => "左クリック", _ => "Shift を離す" }, "ロックオン解除",
             tab switch
             {
-                1 => "狙っている敵から照準を外す。放っておいても自然に外れる",
-                2 => "狙っている敵から照準を外す。回避と同じボタン",
+                1 => "狙っている敵から照準を外す。倒せば次の敵へ勝手に移る",
+                2 => "狙っているときにもう一度短く押すと外れる",
                 _ => "離した瞬間に照準が外れる",
             }, UiKit.Purify, false);
 
@@ -355,7 +355,7 @@ public partial class HowToCanvas : Node2D
         // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。
         //   キーボードは Ctrl（2026-09-26 作者決定。旧 Alt。会話中の Ctrl は既読スキップ＝時間が重ならないので兼用）。
         Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Ctrl" }, "回避",
-            tab == 2 ? "一瞬無敵で弾をすり抜ける。ロック解除と同じボタン" : "一瞬無敵で弾をすり抜ける。攻めの切り札",
+            "一瞬無敵で弾をすり抜ける。攻めの切り札",
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得 — ショップ「回避」");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },

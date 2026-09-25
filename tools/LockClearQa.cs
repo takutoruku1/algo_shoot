@@ -72,13 +72,13 @@ public partial class LockClearQa : Node
         GD.Print($"[LC] start lockedOn={player.LockedOn} BubblePaused={Hud.BubblePaused}");
 
         // ① F で送り → ロック成立
-        await Tap(Key.F);
-        Check("F1 でロック成立", player.LockedOn);
+        await Tap(Key.S);
+        Check("S1 でロック成立", player.LockedOn);
         var t1 = player.LockTarget;
 
         // ② もう一度 F → 別の敵へ送られる（隣接キーの既存動作が壊れていない確認）
-        await Tap(Key.F);
-        Check("F2 で対象が次の敵へ", player.LockedOn && !ReferenceEquals(player.LockTarget, t1));
+        await Tap(Key.S);
+        Check("S2 で対象が次の敵へ", player.LockedOn && !ReferenceEquals(player.LockTarget, t1));
 
         // ③ G で解除
         await Tap(Key.Shift);
@@ -89,14 +89,14 @@ public partial class LockClearQa : Node
         Check("未ロックの Shift 押し離しは無反応", !player.LockedOn);
 
         // ⑤ 解除後にもう一度 F → 一番近い敵から再開できる
-        await Tap(Key.F);
-        Check("解除後の F で再ロック", player.LockedOn);
+        await Tap(Key.S);
+        Check("解除後の S で再ロック", player.LockedOn);
         Check("再ロックは最も近い敵", ReferenceEquals(player.LockTarget, e1));
 
         // ⑥ ロック中に G を押しっぱなし → 1回ぶんしか効かない（リピートで暴発しない）
         await Hold(Key.Shift, 20);
-        await Tap(Key.F);
-        Check("Shift 押し離しのあと F で再ロック", player.LockedOn);
+        await Tap(Key.S);
+        Check("Shift 押し離しのあと S で再ロック", player.LockedOn);
 
         root.QueueFree(); await Frames(5);
     }

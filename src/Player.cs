@@ -361,6 +361,7 @@ public partial class Player : Area2D
     //   送り（左クリック短押し / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
     //   解除（右クリック / G / R3）＝ ロックを外すだけ（右クリックは回避と兼用で、回避は別経路で同時に出る）。
     private bool _shiftLockHeld;     // 前フレームの Shift（押した瞬間＝ロック／離した瞬間＝解除 のエッジ検出）
+    private bool _lockPrevHeld;      // 前フレームの A（前の敵へ送りのエッジ検出）
     private bool _chargeKeyLocked;   // 会話中に押された Z／Y を、離すまで溜め打ち入力として読まない（会話送りの同じ押下で暴発しない）
 
     private void TickLockOn()
@@ -386,39 +387,60 @@ public partial class Player : Area2D
         //     「送り=RB / 解除=R3」で右手にロックオン操作をまとめられる。
         //     （RB 長押しは既読スキップ、LB=集中、L3=回避、X=ボム、Y=溜め、A=送り、B=ゲームオーバーの抜ける、
         //       Start=メニュー で埋まっている。R3 は旧「やさしさ全開」の枠だが、その機能ごと撤去済み＝完全に空き。）
-        //   ★2026-09-26 ユーザー指示でキーボードは **Shift 長押し＝ロック／Shift を離す＝解除** に変更。
-        //     G は外した。Shift を押した瞬間に（未ロックなら）最寄りへロック、離した瞬間に解除。押している
-        //     あいだの F は従来どおり「次の敵へ送り」。パッド（RB 送り／R3 解除）とマウスは従来どおり。
+        //   ★2026-09-26 ユーザー指示（割り当て）
+        //     キーボード … Shift 長押し＝ロック（最寄り）／Shift を離す＝解除。A＝前の敵／S＝次の敵。F・G は外した。
+        //     マウス     … 左クリック（短押し）＝ロック、もう一度押すと解除。ロック中はホイール 上＝次／下＝前。
+        //                  右クリックはロックに関わらない（回避だけ）。
+        //     パッド     … RB＝次／R3＝解除（従来どおり）。
         bool shiftKey = Input.IsKeyPressed(Key.Shift);
         bool shiftEdge = shiftKey && !_shiftLockHeld;
         bool shiftRelease = !shiftKey && _shiftLockHeld;
         _shiftLockHeld = shiftKey;
-        bool clearKey = Pad.Pressed(JoyButton.RightStick) || Pad.MouseRightDown();
-        if (((clearKey && !_lockClearHeld) || shiftRelease) && !Hud.BubblePaused && _locked)
+        bool tap = _mouseTapFire;
+        _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
+        bool wasLocked = _locked;
+
+        // ── 解除＝パッド R3 ／ Shift を離す ／ ロック中の左クリック ──
+        bool clearKey = Pad.Pressed(JoyButton.RightStick);
+        bool clearEdge = (clearKey && !_lockClearHeld) || shiftRelease || (tap && wasLocked);
+        _lockClearHeld = clearKey;
+        if (clearEdge && !Hud.BubblePaused && wasLocked)
         {
             _locked = false; _lockTarget = null;
             if (Audio.Instance is { } auc) auc.Se(auc.SfxUiMove, volDb: -18f, pitch: 0.85f);
         }
-        _lockClearHeld = clearKey;
 
-        // ── 送り入力＝左クリック（短押し）/ F / パッド R1 ──
-        // 左クリックは TickMouseHold が短押し／長押しに振り分けたうえで、短押しの解放フレームにだけ
-        // _mouseTapFire を立てる（長押しは溜め打ちへ行き、ここには来ない）。F / R1 は従来どおり押下エッジ。
-        bool key = Input.IsKeyPressed(Key.F) || Pad.Pressed(JoyButton.RightShoulder);
-        bool edge = (key && !_lockHeld) || _mouseTapFire || (shiftEdge && !_locked);
-        _lockHeld = key;
-        _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
-        if (!edge || Hud.BubblePaused || _gameOver) return;
+        // ── 取得（未ロック→最寄り）と送り（前／次） ──
+        //   取得：Shift を押した瞬間／未ロック時の左クリック。送り：S・RB＝次、A＝前、ロック中のホイール。
+        //   ホイールは集中モード（TryFocusMode）の入力でもあるので、ロック中に送りへ使ったぶんはここで消費する。
+        bool aKey = Input.IsKeyPressed(Key.A);
+        bool nextKey = Input.IsKeyPressed(Key.S) || Pad.Pressed(JoyButton.RightShoulder);
+        bool prevEdge = aKey && !_lockPrevHeld;
+        bool nextEdge = nextKey && !_lockHeld;
+        _lockPrevHeld = aKey;
+        _lockHeld = nextKey;
+        int step = 0;
+        if (nextEdge) step = +1;
+        else if (prevEdge) step = -1;
+        else if (!wasLocked && (tap || shiftEdge)) step = +1;
+        else if (wasLocked && _locked)
+        {
+            float wheel = Pad.WheelDelta();
+            if (wheel > 0f) { step = +1; Pad.ConsumeWheelTurn(); }
+            else if (wheel < 0f) { step = -1; Pad.ConsumeWheelTurn(); }
+        }
+        if (step == 0 || Hud.BubblePaused || _gameOver) return;
 
-        // ── 候補を自機からの距離順に並べ、「今の対象の次」を取る ──
-        //   毎回ソートし直す＝敵が動けば列も変わるが、**列の中から今の対象の位置を引き直して次を取る**ので
+        // ── 候補を自機からの距離順に並べ、「今の対象の前／次」を取る ──
+        //   毎回ソートし直す＝敵が動けば列も変わるが、**列の中から今の対象の位置を引き直して隣を取る**ので
         //   順番が入れ替わっても巡回が飛ばない（インデックスを覚えておく方式だと、敵が動いた瞬間に
         //   別の敵を指してしまう）。今の対象が列から消えていれば先頭＝最も近い敵から。
         var cands = LockCandidates();
         if (cands.Count == 0) { _locked = false; _lockTarget = null; return; }
 
         int cur = _locked && _lockTarget != null ? cands.IndexOf((Enemy)_lockTarget) : -1;
-        int next = (cur + 1) % cands.Count;   // cur=-1（未ロック/列外）→ 0＝最も近い敵。末尾→先頭へ一巡。
+        int n = cands.Count;
+        int next = cur < 0 ? 0 : ((cur + step) % n + n) % n;   // 未ロック/列外→最寄り。端は反対側へ一巡。
         var prev = _lockTarget;
         _lockTarget = cands[next];
         _locked = true;
@@ -630,12 +652,7 @@ public partial class Player : Area2D
         if (!Hud.BubblePaused && !_gameOver)
         {
             dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
-            // WASD でも動けるように。矢印キーは「↑+←+Z」など3キー同時押しが
-            // 安価なキーボードでゴースト（入力が消える）するため、代替手段を用意する。
-            Vector2 wasd = new Vector2(
-                (Input.IsKeyPressed(Key.D) ? 1f : 0f) - (Input.IsKeyPressed(Key.A) ? 1f : 0f),
-                (Input.IsKeyPressed(Key.S) ? 1f : 0f) - (Input.IsKeyPressed(Key.W) ? 1f : 0f));
-            if (wasd != Vector2.Zero) dir = wasd;
+            // WASD 移動は 2026-09-26 ユーザー指示で廃止（A／S はロックオンの前／次に割り当てた）。移動は矢印のみ。
             dir = dir.LimitLength(1f);
         }
         // 速度は1本（低速移動は 2026-09-13 に廃止）。機動力強化(MoveSpeedMul)と

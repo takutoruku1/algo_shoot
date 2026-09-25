@@ -272,10 +272,10 @@ public partial class BossPostsQa : Node
             {
                 player.SetPhysicsProcess(true);
                 await Frames(3);
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
                 await Frames(4);
                 Check(player.LockTarget == boss, $"{job}: lock follows post");
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = false });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
                 for (int frame = 0; frame < 1200 && Read<int>(post, "_ink") == 16; frame++) await Frames(1);
                 player.SetPhysicsProcess(false);
                 Check(Read<int>(post, "_ink") < 16, $"{job}: actual shooting hits post");

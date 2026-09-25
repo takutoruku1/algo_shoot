@@ -142,10 +142,10 @@ public partial class AkariPostQa : Node
             {
                 root.Player.SetPhysicsProcess(true);
                 await Frames(3);
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = true });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
                 await Frames(3);
                 Check(root.Player.LockTarget == boss, $"{job}: lock-on follows the post surface");
-                Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = false });
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
                 await Frames(120);
                 root.Player.SetPhysicsProcess(false);
                 Check(Read<int>(post, "_ink") < 16, $"{job}: actual player shots damage the post");
@@ -283,9 +283,9 @@ public partial class AkariPostQa : Node
             Check(post.Index == i, $"movie revision {i + 1}");
             await Frames(i == 4 ? 100 : 68);
             root.Player.SetPhysicsProcess(true);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = true });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
             await Frames(2);
-            Input.ParseInputEvent(new InputEventKey { Keycode = Key.F, Pressed = false });
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
             int frames = 0;
             while (IsInstanceValid(post) && !Read<bool>(post, "_broken") && frames++ < 600) await Frames(1);
             Check(frames < 600, "actual player shots destroy the revision");
