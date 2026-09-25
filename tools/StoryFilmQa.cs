@@ -106,7 +106,7 @@ public partial class StoryFilmQa : Node
                 return;
             }
             await Frames(15);
-            await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
+            await AdvanceUntil(() => Read<int>(stage, "_step") == BossWaitStep(stageName));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
             // 撃破後演出（BossPostSequence＝下書きの札を自機が撃って割る）は、自機を動かさないこの走行では
             //   札が割れず、ボスの会話送りが _posts.Active で止まる（こはる／レイ）。フィルムの検証には
@@ -330,7 +330,7 @@ public partial class StoryFilmQa : Node
             var player = world.GetNode<Player>("Player");
             player.SetPhysicsProcess(false);
             Hud.ClearBacklog();
-            await AdvanceUntil(() => Read<int>(stage, "_step") == (rei ? 12 : 13));
+            await AdvanceUntil(() => Read<int>(stage, "_step") == BossWaitStep(stageName));
             var boss = world.GetNode<Enemy>($"Boss{stageName}");
             // 撃破後演出（BossPostSequence＝下書きの札を自機が撃って割る）は、自機を動かさないこの走行では
             //   札が割れず、ボスの会話送りが _posts.Active で止まる（こはる／レイ）。フィルムの検証には
@@ -460,6 +460,16 @@ public partial class StoryFilmQa : Node
         GD.Print($"[StoryQA] {stageName} MATRIX ALL PASS");
         GetTree().Quit();
     }
+
+    // 各面の Step_BossWait（ボス戦本体）の _step。ここまで送ってから HP を削る＝ボス前の会話が閉じた状態で
+    //   回想が即座に起きる。こはるは 2026-09-25 の S2-1b（Step_Schedule＝case 3）挿入で 13→14 にずれた
+    //   （13 は _playerBoss の会話中＝BubblePaused で回想が保留され「HP threshold starts flashback」が落ちていた）。
+    private static int BossWaitStep(string stageName) => stageName switch
+    {
+        "Rei" => 12,      // StageRei.cs   case 12: Step_BossWait
+        "Koharu" => 14,   // StageKoharu.cs case 14: Step_BossWait
+        _ => 13,          // StageAkari.cs  case 13: Step_BossWait
+    };
 
     private async Task Frames(int count)
     {

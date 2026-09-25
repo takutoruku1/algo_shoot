@@ -16,6 +16,9 @@ using System;
 //     ボス本体の _Process は回り続けるので、呼び元は毎フレーム Update を叩くだけでよい。
 //   ・送りは Pad.AdvanceHeld（Z/Enter/ui_accept/Pad A/左クリック）。既読スキップ（Hud.FastForwarding）と
 //     自動送り（Hud.AutoAdvance）にも各 Stage*/Boss* の会話と同じ条件で乗る＝QA の自動走行でも詰まらない。
+//   ・戦闘の最中に挟む回想なので、会話中は Hud.BattleMemoryTempo を立てる＝文字送りが速く、初見でも
+//     Ctrl／RB 押しっぱなしで早送りできる（2026-09-26 作者指摘「まだ戦っている最中なのに長すぎる」。
+//     詳細は Hud 側のコメント。実測は tools/MemoryTempoQa.cs）。
 public class CharacterStoryTalk
 {
     private readonly (int who, string text, string face)[] _lines;
@@ -45,6 +48,7 @@ public class CharacterStoryTalk
         if (host == null || lines.Length == 0) { completed(); return null; }
         var talk = new CharacterStoryTalk(lines, hud, show, completed);
         host.HoldBubble = true;
+        host.BattleMemoryTempo = true;
         talk.ShowLine(host);
         return talk;
     }
@@ -82,7 +86,7 @@ public class CharacterStoryTalk
     private void Finish(Hud? hud)
     {
         _done = true;
-        if (hud != null) { hud.HoldBubble = false; hud.HideBubble(); }
+        if (hud != null) { hud.HoldBubble = false; hud.BattleMemoryTempo = false; hud.HideBubble(); }
         _completed();
     }
 }

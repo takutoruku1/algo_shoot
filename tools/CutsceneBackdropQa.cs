@@ -74,7 +74,8 @@ public partial class CutsceneBackdropQa : Node
             await Frames(1);
             var film = GetTree().GetFirstNodeInGroup("storyfilm") as StoryFilm;
             Check(film != null, "memory film started");
-            // フェード中の各フレームを刻んで撮る。FadeTime=0.65s ＝ 60fps で約39フレーム。
+            // フェード中の各フレームを刻んで撮る。memory の FadeTime=0.45s ＝ 60fps で約27フレーム
+            //   （2026-09-26 に 0.65s から詰めた。aftermath は 0.65s のまま）。45 フレーム見れば明けきった後まで含む。
             //   ★透けの判定は画面の彩度で取る（理由は Colorfulness のコメント）。
             float worst = 0;
             string worstAt = "";

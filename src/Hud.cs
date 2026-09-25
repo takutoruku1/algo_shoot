@@ -187,6 +187,17 @@ public partial class Hud : CanvasLayer
     private string CurPageText => (_dlgPages.Count > 0 && _dlgPage < _dlgPages.Count) ? _dlgPages[_dlgPage] : _dlgText;
     private bool OnLastPage => _dlgPages.Count == 0 || _dlgPage >= _dlgPages.Count - 1;
     private const float CharsPerSec = 48f;
+    // ───────── 戦闘中の回想のテンポ（2026-09-26 作者指摘「まだ戦っている最中なのに長すぎる」）─────────
+    //   ボス戦の途中（HP 閾値）に戦闘を止めて挟む回想＝StoryFilm の memory／CharacterStoryTalk の間だけ立てる。
+    //   立っている間は
+    //   ・タイプライターの文字送りを MemoryRevealScale 倍にする（既定 48cps → 72cps）。
+    //   ・FastForwarding が既読条件（_dlgReadBefore）を要らなくなる＝初見でも Ctrl／RB 押しっぱなしで早送り。
+    //     本作の既読スキップは「未読行では効かない＝取りこぼさせない」が原則だが、戦闘の最中に挟む回想は
+    //     プレイヤーが**戻りたい戦闘**を待たせている。押し続けている人にだけ道を開ける（行は全部バックログに
+    //     残る）。撃破後のアフター（StoryFilm の aftermath）や道中の会話には及ばない。
+    //   立てる／降ろすのは回想の駆動側（StoryFilm._Ready／Restore、CharacterStoryTalk.Start／Finish）。
+    public bool BattleMemoryTempo;
+    private const float MemoryRevealScale = 1.5f;
     // 現在行の種類（タイプ送り音の音色＝話者を決める）。LineKind を取らない経路は既定＝Narration（無音）。
     private LineKind _dlgKind = LineKind.Narration;
     private int _typePrevRevealed;      // 直前フレームの revealed 整数部（新しく出た文字を差分検出）
@@ -320,7 +331,8 @@ public partial class Hud : CanvasLayer
         // タイプライター送り（現在ページ内の文字数を進める）
         if (_messageTimer > 0 && _dlgText.Length > 0 && _dlgRevealed < CurPageText.Length)
         {
-            _dlgRevealed = Mathf.Min(CurPageText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec));
+            _dlgRevealed = Mathf.Min(CurPageText.Length, _dlgRevealed + (float)delta * (_game?.MsgCharsPerSec ?? CharsPerSec)
+                                                                       * (BattleMemoryTempo ? MemoryRevealScale : 1f));
             // 文字が新たに出た瞬間だけ、TypeStride 文字に1回、話者の音色で送り音（Voiceバス）。
             // ナレ（Narration）は PlayType 側で無音。即時全文表示（RevealDialogNow）は差分が一気に増えるが
             // 「1ストライド境界を跨いだか」だけで判定するので、増分の数だけ連打しない＝大量再生を防ぐ。
@@ -626,11 +638,12 @@ public partial class Hud : CanvasLayer
     // ───────── 既読スキップ（2周目の高速送り・Epic G #22）─────────
     //   Ctrl（左右どちらも）/ パッド RB を「押しっぱなし」の間、既読の行だけ高速送りする。
     //   未読行では効かない＝誤スキップで物語を取りこぼさせない（判定は行単位・表示前の既読状態）。
+    //   例外は戦闘中の回想（BattleMemoryTempo）だけ＝初見でも押しっぱなしで早送りできる（理由はそこのコメント）。
     //   Ctrl は既読スキップ専用（やさしさ全開は撤去済み＝衝突する相手がいない）。
     //   DemoPilot/QaPilot は Z/X と移動軸しか送出しない＝自動プレイの会話送りとは干渉しない。
     private bool _dlgReadBefore;   // 現在行が「表示された時点で」既読だったか（SetDialog で確定）
     public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
-    public bool FastForwarding => SkipHeld && _dlgReadBefore && _messageTimer > 0 && _dlgText.Length > 0;
+    public bool FastForwarding => SkipHeld && (_dlgReadBefore || BattleMemoryTempo) && _messageTimer > 0 && _dlgText.Length > 0;
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; _startStage = 0; }
 

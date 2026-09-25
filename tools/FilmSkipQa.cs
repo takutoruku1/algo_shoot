@@ -95,8 +95,9 @@ public partial class FilmSkipQa : Node
         Check(IsInstanceValid(film) && !ended && !Read<bool>(film!, "_leaving", typeof(StoryFilm)),
               "holding skip during the first viewing does nothing");
 
-        // ②最後まで通すと記録が立つ。新規セーブでは既読スキップ（Ctrl）が効かない
-        //   （Hud.FastForwarding は「その行が表示時点で既読」を要求する）ので Z を叩いて送り切る。
+        // ②最後まで通すと記録が立つ。「初見を最後まで読んだ」を再現するため Z を叩いて送り切る
+        //   （戦闘中の回想は 2026-09-26 から初見でも Ctrl 押しっぱなしで早送りできるが＝Hud.BattleMemoryTempo、
+        //   ここで見たいのは X 長押しの既読スキップの開閉なので使わない）。
         await AdvanceUntil(() => ended, film!);
         await Frames(5);
         Check(ended && game.IsIdleDialogSeen(key), "finishing the flashback records it as seen");

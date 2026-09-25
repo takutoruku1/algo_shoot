@@ -30,7 +30,16 @@ public partial class StoryFilm : Node2D
     protected int _line, _shot;
     protected double _fadeT, _lineT, _readT, _shotT, _blendT;
     protected bool _started;
-    protected const double FadeTime = 0.65;
+    // ───────── テンポ（2026-09-26 作者指摘「まだ戦っている最中なのに長すぎる。テンポが悪い」）─────────
+    //   戦闘を止めて挟む memory は、撃破後に落ち着いて見せる aftermath より間（ま）を詰める。
+    //   台詞本文・行数・絵・レイアウトは触らず、時間だけを変える（詰めた根拠と実測は tools/MemoryTempoQa.cs）。
+    //   ・FadeTime … 入り／明けのフェード秒。memory 0.45（旧 0.65）／aftermath 0.65
+    //   ・TimeLead … 時制の見出しだけを見せる一拍。memory 0.6（旧 1.05）／aftermath 1.05
+    //   ・AutoRead … 自動送り（Settings の AutoAdvanceDialog）で、全文が出てから次へ送るまでの秒。
+    //                memory 1.0（旧 1.4）／aftermath 1.4
+    //   文字送りの速さ（1.5 倍）と、初見でも Ctrl／RB 押しっぱなしで早送りできる件は Hud.BattleMemoryTempo。
+    protected double FadeTime => _aftermath ? 0.65 : 0.45;
+    private double AutoRead => _aftermath ? 1.4 : 1.0;
     // 背後（StageBackground/BgLayers のボスイラスト）を塞ぐ不透明の黒板。
     //   このノードの Modulate フェードはレターボックスの帯にも等しく乗る＝入り／明けの 0.65 秒は
     //   画面全体が半透明になり、背後のボス背景がそのまま透けていた（2026-09-22 実機指摘）。
@@ -64,7 +73,7 @@ public partial class StoryFilm : Node2D
     private string _timeShown = "";       // 直近に見出しを出した Time。同じ時制が続く行では出し直さない
     private double _timeT;                // 見出しの経過秒
     private double _timeHold;             // セリフを出すまで待つ秒（0＝もう出した）
-    private const double TimeLead = 1.05; // 見出しだけを見せる一拍
+    private double TimeLead => _aftermath ? 1.05 : 0.6; // 見出しだけを見せる一拍（memory は詰める。上の「テンポ」参照）
     private const double TimeLife = 3.2;  // 見出しが消えるまで（セリフと重なって余韻を残す）
     private const double TimeWipe = 0.42; // 罫が伸びて字が出るまで
 
@@ -91,6 +100,8 @@ public partial class StoryFilm : Node2D
         _hud.SuppressCallouts = true;
         _hud.HideBubble();
         _hud.HoldBubble = true;
+        // 戦闘中の回想だけ、文字送りを速め・初見でも押しっぱなし早送りを許す（Hud.BattleMemoryTempo）。
+        _hud.BattleMemoryTempo = !_aftermath;
         _hud.SetCinematicMode(true, accent: StoryAccent());
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         foreach (Node hazard in GetTree().GetNodesInGroup("aoe"))
@@ -169,7 +180,8 @@ public partial class StoryFilm : Node2D
             // オートは一拍を待たせる（そのための自動送り）。押した人と既読スキップだけ即座に明ける。
             //   FastForwarding は「表示中の行が既読」で立つフラグ＝ここでは直前の行を見ているが、
             //   既読スキップ中に見出しで止まらないという意図どおりに働く。
-            if (_timeT >= _timeHold || edge || _hud.FastForwarding) ShowLineText();
+            //   memory の1行目は直前の行が無い（＝FastForwarding が立たない）ので、押しっぱなし自体を見る。
+            if (_timeT >= _timeHold || edge || _hud.FastForwarding || (!_aftermath && Hud.SkipHeld)) ShowLineText();
             return;
         }
         if (_hud.DialogRevealed) _readT += delta;
@@ -179,7 +191,7 @@ public partial class StoryFilm : Node2D
             _readT = 0;
         }
         else if (_lineT >= _lines[_line].Hold && _hud.DialogRevealed
-                 && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readT >= 1.4)))
+                 && (edge || _hud.FastForwarding || (_hud.AutoAdvance && _readT >= AutoRead)))
         {
             _line++;
             if (_line == _lines.Length) BeginLeave();
@@ -395,6 +407,7 @@ public partial class StoryFilm : Node2D
         if (IsInstanceValid(_hud))
         {
             _hud.HoldBubble = false;
+            _hud.BattleMemoryTempo = false;
             _hud.HideBubble();
             _hud.SetCinematicMode(false);
             _hud.SuppressCallouts = _suppressed;
