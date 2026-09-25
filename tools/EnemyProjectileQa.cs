@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -280,9 +281,64 @@ public partial class EnemyProjectileQa : Node
         await Frames(2);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         using var image = viewport.GetTexture().GetImage();
+        // -- --dump-masks : 縁の見た目を目で確かめる用。96px の描画結果と、絵ごとに生成した線／光のマスクを PNG に落とす。
+        if (OS.GetCmdlineUserArgs().Contains("--dump-masks"))
+        {
+            string dump = ProjectSettings.GlobalizePath("res://build/qa_story/enemy_projectiles/masks");
+            DirAccess.MakeDirRecursiveAbsolute(dump);
+            image.SavePng($"{dump}/{name}_render.png");
+            var sil = Bullet.SilhouetteOf(art);
+            sil.Rim.GetImage().SavePng($"{dump}/{name}_rim.png");
+            sil.Glow.GetImage().SavePng($"{dump}/{name}_glow.png");
+        }
         Check(image.GetPixel(48, 48).A > 0.8f, $"{name}: illustrated hit center is visible");
-        Check(image.GetPixel(62, 48).A == 0f && image.GetPixel(48, 62).A == 0f,
-            $"{name}: no circular glow beyond the illustration");
+
+        // 縁の規則（2026-09-26 蛍光縁）：絵の輪郭から外へ「明るいネオン線（不透明）→ 同じ色相の半透明の光 → 無」
+        // の順に並ぶこと。線も光も絵の形に沿う（丸いグローではない）＝絵から pad+2px 離れた点は完全に透明。
+        // 距離は「絵の α≥0.5 画素までの最短距離（world px）」を絵の画像から直接測り、右と下の 2 方向で検査する
+        // （縦長・横長の絵では、丸い光なら短辺側の far 点を覆ってしまう）。
+        const float r = 8f;
+        float rimW = Bullet.RimFrac * r * 2f * Bullet.SpriteFit, pad = Bullet.GlowFrac * r * 2f * Bullet.SpriteFit;
+        using var src = art.GetImage();
+        float k = Mathf.Min(1f, 96f / Mathf.Max(src.GetWidth(), src.GetHeight()));
+        if (k < 1f) src.Resize(Mathf.RoundToInt(src.GetWidth() * k), Mathf.RoundToInt(src.GetHeight() * k), Image.Interpolation.Bilinear);
+        float scale = r * 2f * Bullet.SpriteFit / Mathf.Max(src.GetWidth(), src.GetHeight());
+        var solid = new List<Vector2>();
+        for (int y = 0; y < src.GetHeight(); y++)
+            for (int x = 0; x < src.GetWidth(); x++)
+                if (src.GetPixel(x, y).A >= 0.5f)
+                    solid.Add(new Vector2(48f + (x + 0.5f - src.GetWidth() / 2f) * scale, 48f + (y + 0.5f - src.GetHeight() / 2f) * scale));
+        float Dist(Vector2 p)
+        {
+            float best = float.MaxValue;
+            foreach (var s in solid) best = Mathf.Min(best, p.DistanceSquaredTo(s));
+            return Mathf.Sqrt(best);
+        }
+        // 中心から dir へ 0.25px 刻みに進み、この方向で最後に絵へ触れた点より外で、絵からの距離が minDist 以上に
+        // なった最初の点を含む画素を返す（絵の中心が透明な絵＝二つの泡などでは、中心の白い芯を拾わないように）。
+        Color Sample(Vector2 dir, float minDist)
+        {
+            var center = new Vector2(48f, 48f);
+            float lastInside = 0f;
+            for (float t = 0f; t < 40f; t += 0.25f)
+                if (Dist(center + dir * t) < 0.5f) lastInside = t;
+            for (float t = lastInside; ; t += 0.25f)
+            {
+                var q = center + dir * t;
+                if (Dist(q) >= minDist) return image.GetPixel(Mathf.FloorToInt(q.X), Mathf.FloorToInt(q.Y));
+            }
+        }
+        foreach (var (dir, label) in new[] { (Vector2.Right, "right"), (Vector2.Down, "down") })
+        {
+            Color line = Sample(dir, 1.0f);          // 線の帯（絵の縁から 1〜2px。線幅 2.2px）：不透明で明るく、色がある
+            Color glow = Sample(dir, rimW + 0.9f);   // 線のすぐ外（光の帯の内側）：半透明で線と同じ色相
+            Color far = Sample(dir, pad + 2f);       // 光の帯の外：完全に透明（丸いグローならここが覆われる）
+            Check(line.A > 0.6f && line.Luminance > 0.3f && line.S > 0.25f,
+                $"{name}: bright neon line just outside the illustration ({label}: {line})");
+            Check(glow.A > 0.06f && glow.A < 0.85f && glow.S > 0.5f && Mathf.Abs(Mathf.Wrap(glow.H - line.H, -0.5f, 0.5f)) < 0.08f,
+                $"{name}: translucent glow of the same hue beyond the line ({label}: {glow})");
+            Check(far.A == 0f, $"{name}: light follows the outline and ends within {pad + 2f:0.0}px — no round glow ({label})");
+        }
         bullet.Deactivate();
         viewport.QueueFree();
         await Frames(2);
