@@ -1657,9 +1657,9 @@ public partial class Player : Area2D
         // ── 溜め打ち（#6）の充填表示：自機の頭上に小さな弧。0→1 で伸び、満ちたら白く脈打つ ──
         //   常設のリングは 2026-09-08 に「何のためにあるか分からない」と消したばかりなので、
         //   ここは**押しているあいだだけ**出す＝溜めていることと満ちたことだけを、その瞬間に返す。
-        //   ★2段階チャージ（2026-09-25）：1段目が満ちたら**外側にもう一本の弧**が現れて、そこから
-        //     2段目が伸びる＝「まだ先がある」が弧の本数で読める。2段目が満ちると弧が金色になって
-        //     速く脈打ち、その外側を棘が回る（1段目の白い脈打ちとは必ず別の見た目にする）。
+        //   ★2段階チャージ（2026-09-25）：輪は一本。1周目が1段目、満ちたら白く脈打つ。そのまま押し続けると
+        //     **同じ輪の上を暖白がもう一周**伸びる＝2段目（ユーザー「丸ゲージは2周たまるように」）。
+        //     外側の輪・金・棘は置かない。2周目が満ちたら暖白にゆっくり脈打つ。
         if (_chargeT > 0f && !Hud.BubblePaused && !_gameOver)
         {
             ChargeShotFx.DrawGather(this, _game!.SelectedJob, ShotDir * 20, ShotDir, ChargeRatio, _bobTime, ChargeRatio2);
@@ -1667,20 +1667,21 @@ public partial class Player : Area2D
             var at = new Vector2(0f, -24f);
             // 受け皿（薄い弧・全周）＋ 充填ぶん（上から時計回りに伸びる）
             DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 24, new Color(1f, 1f, 1f, 0.18f), 1.4f);
-            Color cc = ChargeFull2
-                ? new Color(1f, 0.93f, 0.8f, 0.8f + 0.2f * Mathf.Sin(_bobTime * 14f)) // 二段満：暖白にゆっくり脈打つ
-                : ChargeFull
-                    ? new Color(1f, 1f, 1f, 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f)) // 満：白く脈打つ＝「離せ」
-                    : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
-            DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * cr, 24, cc, 2.2f);
-            if (ChargeFull) DrawCircle(at, 2.2f, cc);
-            // 2段目の弧（外側）。1段目が満ちた瞬間に受け皿が現れ、そこから同じ向きに伸びる。
-            if (ChargeFull && ChargeNeed2 > ChargeNeed)
+            // 1周目＝1段目。満ちたら白く脈打つ＝「離せ」。2周目に入ったら下地として静かに残る。
+            bool lap2 = ChargeFull && ChargeNeed2 > ChargeNeed;
+            Color c1 = ChargeFull
+                ? new Color(1f, 1f, 1f, lap2 ? 0.55f : 0.75f + 0.25f * Mathf.Sin(_bobTime * 18f))
+                : new Color(BulletArt.PlayerColor(_game!.SelectedJob), 0.9f);
+            DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * cr, 24, c1, 2.2f);
+            if (ChargeFull && !lap2) DrawCircle(at, 2.2f, c1);
+            // 2周目＝2段目。同じ輪の上を暖白がもう一度、上から伸びる。満ちたら暖白にゆっくり脈打つ。
+            if (lap2)
             {
-                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau, 28, new Color(1f, 0.93f, 0.8f, 0.18f), 1.2f);
-                DrawArc(at, 9.8f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * ChargeRatio2, 28,
-                    new Color(1f, 0.93f, 0.8f, ChargeFull2 ? 0.9f : 0.7f), 1.8f);
-                // 棘は付けない（2026-09-25）。「もう一段ぶん」は外側の弧が満ちて脈打つことで足りる。
+                Color c2 = ChargeFull2
+                    ? new Color(1f, 0.93f, 0.8f, 0.8f + 0.2f * Mathf.Sin(_bobTime * 14f))
+                    : new Color(1f, 0.93f, 0.8f, 0.95f);
+                DrawArc(at, 6.5f, -Mathf.Pi / 2f, -Mathf.Pi / 2f + Mathf.Tau * ChargeRatio2, 24, c2, 2.6f);
+                if (ChargeFull2) DrawCircle(at, 2.2f, c2);
             }
         }
 

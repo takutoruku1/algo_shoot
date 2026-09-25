@@ -192,8 +192,9 @@ public static class ChargeTier
     //   「倍待って倍痛い」が素直に読める値として ×2.0 を初期値に置く。
     public const float DefaultPowerMul = 2.0f;
     // 2段目の弾半径倍率（見た目と当たり判定の両方。Bullet.Radius が描画も判定も決める）。
-    //   ×1.6＝結び手 9→14.4px。自機(36px)より小さく保ちつつ、並べれば一目で「太い」と分かる。
-    public const float DefaultRadiusMul = 1.6f;
+    //   ×1.25＝結び手 9→11.25px。×1.6 は「最大溜めがでかすぎる」（2026-09-25 ユーザー）ので縮めた。
+    //   並べれば太いと分かる程度に留め、画面で浮かない大きさにする。
+    public const float DefaultRadiusMul = 1.25f;
     // 2段目で当てたときの【激情】変化量の倍率。★受け皿だけ用意し、実際に動かすのは次段（FuryMeter.cs 参照）。
     public const float DefaultFuryMul = 2.0f;
 
