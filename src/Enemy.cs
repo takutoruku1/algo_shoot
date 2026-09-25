@@ -1501,8 +1501,8 @@ public partial class Enemy : Area2D
     public override void _Draw()
     {
         DrawShield();
-        if (GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this)
-            DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank);
+        bool locked = GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this;
+        if (locked) DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank);
 
         // 改心フラッシュ（やさしい色：淡ピンク→淡紫に着地）
         if (_flashing)
@@ -1520,13 +1520,16 @@ public partial class Enemy : Area2D
             var color = new Color(new Color("e9d28b").Lerp(Colors.White, hit), 0.65f + 0.15f * pulse);
             float w = Mathf.Max(BodyRadius + 3, BodyDisplayH * 0.24f);
             float h = Mathf.Max(BodyHalfH + 3, BodyDisplayH * 0.35f);
-            for (int x = -1; x <= 1; x += 2)
-            for (int y = -1; y <= 1; y += 2)
-            {
-                var corner = new Vector2(x * w, y * h);
-                DrawLine(corner, corner - new Vector2(x * 4, 0), color, 1f + hit * 0.5f);
-                DrawLine(corner, corner - new Vector2(0, y * 4), color, 1f + hit * 0.5f);
-            }
+            // 四隅の枠はロックオン中だけ（2026-09-26 ユーザー「ロックオンしてないときにボスを囲う枠は出さない」）。
+            //   無防備窓の残り時間バーは枠ではなく計器なので、ロックに関係なく出す。
+            if (locked)
+                for (int x = -1; x <= 1; x += 2)
+                for (int y = -1; y <= 1; y += 2)
+                {
+                    var corner = new Vector2(x * w, y * h);
+                    DrawLine(corner, corner - new Vector2(x * 4, 0), color, 1f + hit * 0.5f);
+                    DrawLine(corner, corner - new Vector2(0, y * 4), color, 1f + hit * 0.5f);
+                }
             var bar = new Rect2(-w, h + 4, w * 2, 1.4f);
             DrawRect(bar.Grow(0.8f), new Color("211e25"));
             DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * remaining, bar.Size.Y)), color);
