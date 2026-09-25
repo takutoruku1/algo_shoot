@@ -608,7 +608,7 @@ public partial class Hud : CanvasLayer
             else if (draftMark) textX = x + 10f + DraftMarkW + 20f;
             wrapW = DlgWrapW(textX);                        // DrawDialog の本文幅と同じ式（DlgBoxX/W 由来）
         }
-        _dlgPages.AddRange(UiKit.Paginate(UiKit.DialogBody, _dlgText, wrapW, DlgMaxLines));
+        _dlgPages.AddRange(UiKit.Paginate(UiKit.BattleBody, _dlgText, wrapW, DlgMaxLines));   // DrawDialog と同じ書体・サイズで割る
     }
 
     // 会話送り（ステージの Step_Lines から使う）：現在ページを出し切った かつ 最終ページなら「この行は読了＝次の行へ」。
@@ -1759,8 +1759,8 @@ public partial class Hud : CanvasLayer
             // ナレーション：中央寄せの淡いテロップ（バー無し）。行間を足して詰まりを解消。2行に統一。
             UiKit.Box(ci, new Rect2(NarrBoxX, 590, NarrBoxW, 96), new Color(0.04f, 0.03f, 0.07f, 0.7f), 12f);
             UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-                new Vector2(NarrBoxX + 40, 606 + UiKit.Zen.GetAscent(UiKit.FontBody)), NarrWrapW,
-                UiKit.FontBody, new Color(0.9f, 0.9f, 0.95f), n, extraLeading: UiKit.DialogBody.ExtraLeading);
+                new Vector2(NarrBoxX + 40, 602 + UiKit.Zen.GetAscent(UiKit.FontBattle)), NarrWrapW,
+                UiKit.FontBattle, new Color(0.9f, 0.9f, 0.95f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
             if (FastForwarding) DrawSkipChip(ci, new Vector2(NarrBoxX + NarrBoxW - 20, 598));
             if (morePages && ((int)(_t * 2f) % 2) == 0)
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(NarrBoxX + NarrBoxW - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
@@ -1808,11 +1808,11 @@ public partial class Hud : CanvasLayer
         }
         if (_dlgSpeaker.Length > 0)
             UiKit.Draw(ci, UiKit.DialogSpeaker, new Vector2(textX, y + 16), _dlgSpeaker, _dlgSpeakerCol);
-        // 本文：DialogBody（17px・行間1.55倍）。全ボックス 2行固定（DlgMaxLines）＝はみ出し防止＋箇所ごとの行数差を解消。
-        //   折り返し幅は BuildDialogPages と同じ式（DlgWrapW）。式を1か所にしてページ分割とのズレを断つ。
+        // 本文：BattleBody（22px・行間1.5倍。2026-09-26 に 17px から拡大）。全ボックス 2行固定（DlgMaxLines）
+        //   ＝はみ出し防止＋箇所ごとの行数差を解消。折り返し幅は BuildDialogPages と同じ式（DlgWrapW）。
         UiKit.TypewriterLines(ci, UiKit.Zen, lines,
-            new Vector2(textX, y + 48 + UiKit.Zen.GetAscent(UiKit.FontBody)), DlgWrapW(textX),
-            UiKit.FontBody, new Color(0.95f, 0.95f, 0.98f), n, extraLeading: UiKit.DialogBody.ExtraLeading);
+            new Vector2(textX, y + 48 + UiKit.Zen.GetAscent(UiKit.FontBattle)), DlgWrapW(textX),
+            UiKit.FontBattle, new Color(0.95f, 0.95f, 0.98f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
         // 既読高速送り中の控えめな表示（バー右上・#22）。
         if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
         // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。
@@ -1862,8 +1862,9 @@ public partial class Hud : CanvasLayer
         float enter = Ease((float)(_bossLineDuration - _bossLineTimer) / 0.2f);
         float a = Mathf.Clamp((float)_bossLineTimer / 0.3f, 0f, 1f) * enter * _calloutA;
         const float w = 736f;
-        var lines = UiKit.WrapLines(UiKit.ZenBold, _bossLine, 20, w - 44);
-        float h = 43f + lines.Count * 26f;
+        // 本文 24px（2026-09-26 に 20 から拡大）。行送り 31。
+        var lines = UiKit.WrapLines(UiKit.ZenBold, _bossLine, 24, w - 44);
+        float h = 43f + lines.Count * 31f;
         float x = Field.DCenterX - w / 2f + (1f - enter) * 18f, y = 605f - h;
         ci.DrawRect(new Rect2(x, y, w, h), new Color(0.04f, 0.055f, 0.07f, 0.86f * a));
         ci.DrawLine(new Vector2(x, y), new Vector2(x, y + h), new Color(_bossLineCol, a), 3f);
@@ -1871,7 +1872,7 @@ public partial class Hud : CanvasLayer
         if (_bossLineBreak)
             UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 177, y + 10), "SHIELD BREAK", 16, new Color("c7f4f1", a));
         for (int i = 0; i < lines.Count; i++)
-            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 33 + i * 26), lines[i], 20, new Color("f5f8fa", a));
+            UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 33 + i * 31), lines[i], 24, new Color("f5f8fa", a));
         float remaining = Mathf.Clamp((float)(_bossLineTimer / _bossLineDuration), 0f, 1f);
         ci.DrawLine(new Vector2(x, y + h), new Vector2(x + w, y + h), new Color(_bossLineCol, 0.15f * a), 1f);
         ci.DrawLine(new Vector2(x, y + h), new Vector2(x + w * remaining, y + h), new Color(_bossLineCol, 0.65f * a), 1f);

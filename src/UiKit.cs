@@ -83,6 +83,10 @@ public static class UiKit
     public static TextStyle PanelValueMid   => new(Mono, 18, 0f, 1f);      // 数値（中）：コンボ / 残バー / 浄化 %
     public static TextStyle PanelLabel      => new(ZenBold, 15, 0f, 1f);   // セクション見出し：LIFE / BOMB / SCORE / TIME / 浄化
     public static TextStyle DialogBody      => new(Zen, FontBody, 0f, 1.55f);// 本文・セリフ・ナレ
+    // 戦闘中（盤面下の会話バー・ナレのテロップ）の本文。弾を避けながら読む枠なので一回り大きい
+    //   （2026-09-26 ユーザー「シューティング中の吹き出しの文字をもっと大きく」：17 → 22）。
+    public const int FontBattle = 22;
+    public static TextStyle BattleBody      => new(Zen, FontBattle, 0f, 1.5f);
     public static TextStyle DialogSpeaker   => new(ZenBold, FontSpeaker, 0f, 1f); // 話者名
     public static TextStyle SmallLabel      => new(ZenBold, FontSmall, 0f, 1f);   // 小ラベル：キーバッジ・炎上の内訳
     public static TextStyle SmallValue      => new(Mono, FontSmall, 0f, 1f);      // 小さい「値」：残バー数・リプ数（数値は Mono に残す）
