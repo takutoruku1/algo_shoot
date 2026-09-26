@@ -1498,6 +1498,10 @@ public partial class Enemy : Area2D
             new Color(Colors.White, 0.88f));
     }
 
+    // 頭上ゲージ（BossGauge）の置き場。四隅の枠（下の _Draw）と同じ寸法式から「枠の上辺の少し上」と「枠幅ほど」を出す。
+    public float GaugeTop => -Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.35f) - 8f;
+    public float GaugeWidth => Mathf.Clamp(Mathf.Max(BodyRadius * 2f + 6f, BodyDisplayH * 0.5f), 26f, 56f);
+
     public override void _Draw()
     {
         DrawShield();

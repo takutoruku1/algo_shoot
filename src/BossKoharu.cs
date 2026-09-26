@@ -271,7 +271,7 @@ public partial class BossKoharu : Enemy
         // cruise_speed / accel_time / stance_*）。こはるは「軽く小刻み・攻撃前に一瞬止まる」＝
         // accel_time が小さく（キビキビ）、構え（stance_windup）が長めで本動作が短く鋭い。
         _mover.Configure("koharu", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("我に返るわたし", BossHandles.KoharuMain);
+        GetHud()?.ShowBossBar("我に返るわたし", BossHandles.KoharuMain, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 【激情】メーター開始。初期値は道中（s2_2/s2_4）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("koharu");

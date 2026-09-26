@@ -155,7 +155,7 @@ public partial class CameoBoss : Enemy
         SetSpellVisual(Theme.SpellShape, Theme.SpellTint);
 
         // カメオ用ボスバー（本戦ボスと同じ複数ゲージ式）。本ボス前なので時系列は重ならない。
-        GetHud()?.ShowBossBar(Theme.DisplayName, Theme.Handle);
+        GetHud()?.ShowBossBar(Theme.DisplayName, Theme.Handle, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
 
         // 登場の第一声（弾を止めない一行オーバーレイ）。

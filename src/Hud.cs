@@ -789,9 +789,23 @@ public partial class Hud : CanvasLayer
     }
 
     public void ShowBossBar(string bossName) => ShowBossBar(bossName, "");
+
+    // 頭上ゲージ（BossGauge）が読む状態のスナップショット。Tint はスペル色（未設定なら穢れ色）。
+    public readonly record struct BossGaugeState(bool Visible, float Frac, int Index, int Total, Color Tint, float Fade, float Flash, float Purify);
+    public BossGaugeState GaugeState => new(_bossVisible, _bossFrac, _bossBarIndex, _bossBarsTotal, _bossTint ?? UiKit.Kegare,
+        (float)_bossCardFade, Mathf.Max(0f, (float)(_bossBarFlash / BossBarFlashDur)), (float)_bossPurify);
+    private BossGauge? _bossGauge;
+
     // handle を明示すると固有ハンドルで表示（X世界観の没入＝§11）。空なら名前から自動生成（日本語名は @boss）。
-    public void ShowBossBar(string bossName, string handle)
+    // owner＝バーの主（ボス／中ボス本体）。渡されたら頭上ゲージをその子として付ける（2026-09-27）。
+    //   前のゲージ（中ボス→本ボス等）が残っていれば外す。owner 無し（旧呼び出し）なら状態だけ更新する。
+    public void ShowBossBar(string bossName, string handle, Enemy? owner = null)
     {
+        if (owner != null)
+        {
+            if (_bossGauge != null && IsInstanceValid(_bossGauge)) _bossGauge.QueueFree();
+            _bossGauge = BossGauge.Attach(this, owner);
+        }
         _bossName = bossName; _bossVisible = true;
         _bossTint = null; _bossBarFlash = 0; // 次のボスへ前ボスのスペル色/フラッシュを持ち越さない
         _bossPurify = 0; _bossCardFade = 1f; // 前のボスの「浄化しきった見送り」を持ち越さない
@@ -907,7 +921,8 @@ public partial class Hud : CanvasLayer
         DrawTimer(ci);
         DrawLockOn(ci);
         DrawCombo(ci);
-        if (_bossVisible) DrawBossCard(ci);
+        // ボスの体力は画面上端のカード（DrawBossCard）ではなく、ボス本体の頭上の簡略ゲージ（src/BossGauge.cs）が描く
+        //   （2026-09-27 作者指示）。状態はこの Hud が持ち、BossGauge は GaugeState を読む。DrawBossCard は呼ばない。
         // 【激情】メーターは HUD ではなく、盤面の奥（ZIndex -44）にボスの下書き（入力欄）として敷く → src/FuryDial.cs。
         // 会話バー・ボスの一行字幕・スペル宣告カードは、BubbleLayer（世界側・弾より奥）が居ればそちらが描く
         //（作者指摘：文字枠が自機と弾を隠す）。居ない場面（保険）だけ従来どおりここ＝最前面に描く。

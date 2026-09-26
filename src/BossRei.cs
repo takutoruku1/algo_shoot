@@ -249,7 +249,7 @@ public partial class BossRei : Enemy
         // 出ない＝横移動をほぼ捨て（stance_edge_x/track_w が小さい）、傾き（lean_max）で表情を作る。
         // 数値は config/boss_stats.ini の [rei] 節（cruise_speed / stance_* 一式）。
         _mover.Configure("rei", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("星逢レイ", BossHandles.ReiMain);
+        GetHud()?.ShowBossBar("星逢レイ", BossHandles.ReiMain, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 【激情】メーター開始。初期値は道中（s3_2/s3_5c）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("rei");

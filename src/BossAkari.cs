@@ -208,7 +208,7 @@ public partial class BossAkari : Enemy
         // cruise_speed / accel_time / stance_*）。あかりは「座ったまま滑る」＝重く（accel_time 大）、
         // 上下に揺れない（hover_amp 0）。
         _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
-        GetHud()?.ShowBossBar("あふれるわたし", BossHandles.AkariBar);
+        GetHud()?.ShowBossBar("あふれるわたし", BossHandles.AkariBar, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
         // 【激情】メーター開始。初期値は道中（p4/s1_4/s1_5/s1_2）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("akari");
