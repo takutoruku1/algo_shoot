@@ -387,6 +387,19 @@ public partial class StageRei : Node
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
+    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
+    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／嵐の前後の受け／ボス口上／クリアの独白）と
+    //   S3-7 の戦闘中割り込みを踏まず、波→中ボス→波→引用の嵐→波→本ボス→クリア を切れ目なく繋ぐ。
+    //   引用の嵐（step 18）は射撃ギミックなので残す。回想・アフターも流さない（改心会話は BossRei）。
+    //   チュートリアル系の once（StageTutorial.Take*）も消費しない。従来難易度は _lunatic=false で従来の分岐のまま。
+    private bool _lunatic;
+    // 会話・選択の step 一覧（1 イントロ／2 s3_2／4 道中A後の観測／9 s3_5c／11 ボス口上）。
+    //   7（嵐の接続）と 19（嵐の受け）は飛び先が 18／8 なので Step_MidStory／Step_StormAfter の側で飛ばす。
+    private static bool IsTalkStep(int step) => step is 1 or 2 or 4 or 9 or 11;
+    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
+    private const double LunaticClearHold = 3.0;
+    private double _lunaticClearT;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -398,6 +411,7 @@ public partial class StageRei : Node
         // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面は初回でも本編からテンポよく始まる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
+        _lunatic = game?.IsLunatic == true;
         // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
         //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
         _charStory = CharacterStory.DiveActive(game);
@@ -444,6 +458,8 @@ public partial class StageRei : Node
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
         _zHeld = Pad.AdvanceHeld();
+        // ルナティックはイントロを流さない＝ここで once を消費させず、_Process の先頭で step 1 を飛ばす。
+        if (_lunatic) return;
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
         //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
@@ -469,6 +485,8 @@ public partial class StageRei : Node
         // 案C の場面の並び（仮台本 07 の S3-1〜S3-9）を、step 構成を変えずにそのまま流し込む。
         //   配信枠（S3-1・S3-2）→ 道中A（S3-3）→ 中ボス＝中の人（S3-4）→ 引用の嵐の接続（S3-5a/5b）→
         //   呑みこまれる部屋（S3-5c）→ ボス＝ガワ（S3-6）。改心（S3-8）は BossRei 側。
+        // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
+        while (_lunatic && IsTalkStep(_step)) Advance();
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
@@ -682,7 +700,8 @@ public partial class StageRei : Node
         // ２段階ゲート：①規定数を浄化（or 目標到達でスポーナ自動停止）したらスポーンだけ止める（残ザコは消さない）→②画面のザコを全滅させてから次へ。
         // StageCleared を OR に入れるのは保険：浄化総数が目標(StageTarget)に達すると Spawner が自動停止し、
         // それ以上湧かない＝この波の規定数(MidWaveX)に届かないことがある。その場合も残ザコを倒し切って次へ進める（ソフトロック回避）。
-        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveA || game.StageCleared))
+        // ルナティックは Spawner が目標で止まらない（IgnoreStageCleared）ので、この保険は使わず規定数を必ず出す（波を飛ばさない）。
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveA || (game.StageCleared && !_lunatic)))
         {
             _spawner?.Stop();
             _spawner = null!; // 後半で新規に湧かせるため解放
@@ -707,7 +726,7 @@ public partial class StageRei : Node
             StartMidwaveSpawner(0.35f);
         }
         // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅でミッドシナリオへ。
-        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveB || game.StageCleared))
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveB || (game.StageCleared && !_lunatic)))
         {
             _spawner?.Stop();
             _spawner = null!;
@@ -725,6 +744,8 @@ public partial class StageRei : Node
     //   他ジョブ潜行中は接続もミナ観測なので道中3ビートへ置換（嵐の本体＝ゲームプレイはそのまま流す）。
     private void Step_MidStory(double delta)
     {
+        // ルナティック：接続の会話は流さず、嵐の本体（18）へ直行。
+        if (_lunatic) { _step = 18; _stepStarted = false; return; }
         Step_Lines(delta, _charStory ? _storyMid3 : MidStory);
         if (_step > 7) { _step = 18; _stepStarted = false; }
     }
@@ -761,6 +782,8 @@ public partial class StageRei : Node
     //   他ジョブ潜行中は受けもミナ観測なのでスキップ（空配列＝即 Advance）。
     private void Step_StormAfter(double delta)
     {
+        // ルナティック：受けの会話は流さず、道中C（8）へ直行。
+        if (_lunatic) { _step = 8; _stepStarted = false; return; }
         Step_Lines(delta, _charStory ? NoLines : StormAfter);
         if (_step > 19) { _step = 8; _stepStarted = false; }
     }
@@ -776,7 +799,7 @@ public partial class StageRei : Node
             StartMidwaveSpawner(0.7f);
         }
         // ２段階ゲート：①規定数浄化（or 目標到達）でスポーン停止（残ザコは消さない）→②全滅で本ボスへ。
-        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveC || game.StageCleared))
+        if (!_waveSpawnDone && game != null && (game.PurifiedCount - _waveBase >= MidWaveC || (game.StageCleared && !_lunatic)))
         {
             _spawner?.Stop();
             _spawner = null!;
@@ -838,7 +861,8 @@ public partial class StageRei : Node
     {
         if (_spawner != null) return;
         (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginRoute();
-        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity };
+        // ルナティック：浄化目標に達しても湧きを止めない（嵐の途中で目標に達して以降が敵ゼロになるのを断つ。Spawner 側のコメント参照）。
+        _spawner = new Spawner { Name = "Spawner", World = World, Theme = StageTheme.Rei, StartIntensity = startIntensity, IgnoreStageCleared = _lunatic };
         AddChild(_spawner);
         _spawner.Begin();
     }
@@ -857,8 +881,8 @@ public partial class StageRei : Node
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
-            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。
-            _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
+            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。ルナティックは口上ごと出さない＝消費もしない。
+            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
             Advance();
         }
     }
@@ -891,8 +915,8 @@ public partial class StageRei : Node
             }
             return; // 撃破後は割り込みの判定に入らない
         }
-        // S3-7 割り込み（ミナの状態報告＋下書き選択）はミナ前提＝他ジョブ潜行中は発火させない。
-        if (!_midStoryShown && !_charStory && !Hud.BubblePaused)
+        // S3-7 割り込み（ミナの状態報告＋下書き選択）はミナ前提＝他ジョブ潜行中は発火させない。ルナティックも同じ（戦闘を止めない）。
+        if (!_midStoryShown && !_charStory && !_lunatic && !Hud.BubblePaused)
         {
             float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
             // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりは _midStoryShown が保証）
@@ -1040,6 +1064,8 @@ public partial class StageRei : Node
             var recScore = game?.RecordScore("rei", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 3 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            // ルナティック：アフター（フィルム→独白）は流さない。下のホールドでリザルトを読ませてから帰る。
+            if (_lunatic) return;
             // 撃破後のアフター：
             //   ミナ本編＝レイのフィルム → 明けの Clear（ミナの独白）。
             //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
@@ -1063,6 +1089,12 @@ public partial class StageRei : Node
                 _zHeld = Pad.AdvanceHeld();
                 _zEdge = false;
             });
+            return;
+        }
+        if (_lunatic)
+        {
+            _lunaticClearT += delta;
+            if (_lunaticClearT >= LunaticClearHold) Advance();
             return;
         }
         if (_clearPhase == 2) Step_Lines(delta, _clearLines ?? Clear);

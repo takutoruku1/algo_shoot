@@ -67,12 +67,22 @@ public partial class StageMina : Node
     };
     private (int who, string text, string face)[] _intro = System.Array.Empty<(int, string, string)>();
 
+    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
+    //   GameManager.IsLunatic のとき true。F1 の導入会話を流さず、タイトルカードのあと即・残響の波→ミナ戦へ。
+    //   段間のカットシーン（MinaPhaseScene）と回想・邂逅の会話は BossMina 側が畳む。
+    //   撃破後は MinaStoryFilm（アフター）も Final（F4）も Epilogue も流さず、記録だけ確定して FINAL CLEAR のリザルトを置き、
+    //   通常ならエピローグの末尾（Epilogue.PhEnd）が着地する先＝タイトルへ直行する。従来難易度は _lunatic=false で従来のまま。
+    private bool _lunatic;
+    private const double LunaticClearHold = 3.0;   // リザルトのバナーを読む間
+    private double _lunaticClearT;
+
     public override void _Ready()
     {
         _rng.Randomize();
         _step = 1;
         World.ProcessMode = ProcessModeEnum.Disabled;
         var game = GetNodeOrNull<GameManager>("/root/Game");
+        _lunatic = game?.IsLunatic == true;
         game?.SetStageTarget(EnemyTable.CharactersFor(StageTheme.Mina).Count + 1);
         // 導入は S3-7 の分岐受け1行だけが可変。
         // ★FINAL はジョブに関わらず常にミナ本編（2026-09-15 ユーザー承認仕様）。
@@ -116,12 +126,14 @@ public partial class StageMina : Node
             if (_titleThumpT >= 1.25) { _titleThump = true; GameCamera.Instance?.Shake(2.6f, 0.34f); }
         }
         if (Hud.EpicBannerActive) return;
+        // ルナティック：導入（F1）は流さない。Step_Lines が担っていた World の起動だけ肩代わりして残響の波へ。
+        if (_lunatic && _step == 1) { World.ProcessMode = ProcessModeEnum.Inherit; Advance(); }
         switch (_step)
         {
             case 1: Step_Lines(delta, _intro); break;
             case 2: Step_BossSpawn(); break;
             case 3: Step_BossWait(delta); break;
-            case 4: Step_Transition(); break;
+            case 4: if (_lunatic) Step_LunaticFinish(delta); else Step_Transition(); break;
         }
         // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
         // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
@@ -256,6 +268,30 @@ public partial class StageMina : Node
         // 撃破＝穢れを祓った。本決着（対話で帰還）は Final へ委ねる。
         // 暗転してから渡す（ボス背景のフラッシュ止め・2026-09-22。StageRei と同じ理由）。
         GameManager.FadeToScene(this, "res://Final.tscn");
+    }
+
+    // ルナティックの締め：アフター（MinaStoryFilm）も Final（F4）も Epilogue も流さない。
+    //   記録は Step_Transition と同じ作法で確定し、他の面と同じ様式のリザルト（FINAL CLEAR＋TIME/SCORE）を
+    //   LunaticClearHold 秒置いてから、通常ならエピローグの末尾が着地する先（タイトル）へ暗転して直行する。
+    private void Step_LunaticFinish(double delta)
+    {
+        if (!_returnShown)
+        {
+            _returnShown = true;
+            var game = GetNodeOrNull<GameManager>("/root/Game");
+            float clearTime = (float)_stageElapsed;
+            var rec = game?.RecordClearTime("final", game.Difficulty, clearTime) ?? (true, (float?)null);
+            long score = game?.Score ?? 0;
+            var recScore = game?.RecordScore("final", game.Difficulty, score) ?? (true, (long?)null);
+            game?.AutoSave(); // 記録を永続化（FINAL は CompleteStage を通らないためここで保存）。
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            Hud.ShowClearBanner("FINAL CLEAR", clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
+            return;
+        }
+        _lunaticClearT += delta;
+        if (_lunaticClearT < LunaticClearHold || _clearing) return;
+        _clearing = true;
+        GameManager.FadeToScene(this, "res://TitleMenu.tscn");
     }
 
     // 投稿弾（暴走中に渦巻く悲鳴の言葉）の周期/tick 用アキュムレータ。湧き処理は PostBullets.Tick に集約。

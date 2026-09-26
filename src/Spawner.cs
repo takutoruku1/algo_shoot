@@ -18,6 +18,10 @@ public partial class Spawner : Node
     // 道中の“波ごとの圧”を変える起点。0=ふつうに緩く立ち上がる、1=最初から最大密度。
     // 道中を三部構成にして「後半ほど詰めてくる」緩急を作るため、後続の波で上げて渡す（§3 緩急）。
     public float StartIntensity = 0f;
+    // 浄化目標(StageCleared)に達しても止めない（ルナティック専用・2026-09-26）。レイ面の引用の嵐は「規定数で止める」
+    //   ゲートを持たず嵐が終わるまで湧き続けるので、湧き間隔の詰まったルナティックでは嵐の途中で目標に達して
+    //   自動停止し、以降の嵐〜道中C が敵ゼロの空白になる（QA 実測 17.6 秒）。既定 false＝従来難易度は従来どおり。
+    public bool IgnoreStageCleared;
 
     private const float SpawnX = Field.Right + 14f;   // 盤面の右外
     private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
@@ -81,7 +85,7 @@ public partial class Spawner : Node
         if (!Active) return;
 
         var game = GetNodeOrNull<GameManager>("/root/Game");
-        if (game != null && game.StageCleared) { Stop(); return; }
+        if (game != null && game.StageCleared && !IgnoreStageCleared) { Stop(); return; }
 
         _t += delta;
         _cd -= delta;

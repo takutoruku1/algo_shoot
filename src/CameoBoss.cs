@@ -337,6 +337,16 @@ public partial class CameoBoss : Enemy
         GetHud()?.HideBossBar(); // 撃破でバーを必ず Hide（本ボスバーと競合しない）
         GetNodeOrNull<GameManager>("/root/Game")?.RewardCameoDefeat();
         Audio.Instance?.PlayRedeem(0);
+        // ルナティック（2026-09-26）：捨て台詞を流し切る（DefeatLineDur×行数）のを待たず、字幕だけ残してその場で着地
+        //   ＝Finished が即立ち、Stage は同じフレームで次の波を立てられる（道中に空白を作らない）。字幕は弾を止めない。
+        if (GameManager.LunaticActive)
+        {
+            int idx = 0;
+            string? first = NextBossLine(Theme.DefeatLines, ref idx);
+            if (first != null) GetHud()?.ShowBossLine(Theme.DisplayName, first, UiKit.Kegare, DefeatLineDur);
+            EndCryNow();
+            return;
+        }
         _defeatSeq = true; _defeatIdx = -1; _defeatT = DefeatLineDur; // 即・最初の行へ
     }
 

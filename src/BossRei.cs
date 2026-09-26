@@ -511,7 +511,9 @@ public partial class BossRei : Enemy
         Audio.Instance?.PlayRedeem(0);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
+        //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ
+        //   （ガワ割れ ShellPeel は決定打の行で起こす演出なので、会話ごと出さない＝post の中の人へ直接着地）。
+        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -538,6 +540,9 @@ public partial class BossRei : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;   // S3-7 割り込みの前提フラグ（他ジョブ時は StageRei 側で割り込み自体を抑止）
+            // ルナティック：回想を挟まない。フィルム明けの復帰（第二形態・保留していた閾値の拾い直し）だけをその場で通す
+            //   ＝弾幕も曲も途切れない（S3-7 の割り込みは StageRei 側がルナティックで抑止）。
+            if (GameManager.LunaticActive) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             void ResumeBattle()
             {

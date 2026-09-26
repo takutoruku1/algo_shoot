@@ -82,6 +82,21 @@ public partial class AkariPostQa : Node
         var caster = Read<AreaSpellCaster>(boss, "_caster");
         caster.SetProcess(false);
         caster.CancelPendingAttacks();
+        if (diff == GameManager.Diff.Lunatic)
+        {
+            // ルナティック（2026-09-26 純粋STG化）：投稿の割り込みは出さない＝門は最初から全部開いていて、
+            //   大ダメージは境界で止まらず一撃で改心へ。札も下書きの一枚絵も立たず、改心の会話も無い（戦闘を止めない）。
+            Check(Read<int>(boss, "_postsBroken") == 5, $"{diff}/{job}: Lunatic opens every post gate up front");
+            boss.DealDirectDamage(99999);
+            await Frames(3);
+            Check(boss.IsPurified && GetTree().GetFirstNodeInGroup("boss_post") == null
+                  && GetTree().GetFirstNodeInGroup("boss_draft") == null && GetTree().GetFirstNodeInGroup("storyfilm") == null,
+                $"{diff}/{job}: Lunatic burst goes straight to redemption (no post, draft or memory)");
+            Check(!Hud.BubblePaused && !root.Hud.CinematicMode, $"{diff}/{job}: Lunatic redemption never pauses combat");
+            root.QueueFree();
+            await Frames(8);
+            return;
+        }
         bool story = diff == GameManager.Diff.Normal && job == Job.Tank;
         if (!story)
         {

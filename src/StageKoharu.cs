@@ -387,6 +387,17 @@ public partial class StageKoharu : Node
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
     private static readonly (int who, string text, string face)[] NoLines = System.Array.Empty<(int, string, string)>();
 
+    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
+    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／入力欄／ボス口上／クリアの独白）を
+    //   踏まず、波→中ボス→波→本ボス→クリア を切れ目なく繋ぐ。回想・撃破後のアフターも流さない（改心会話は BossKoharu）。
+    //   チュートリアル系の once（StageTutorial.Take*）も消費しない。従来難易度は _lunatic=false で従来の分岐のまま。
+    private bool _lunatic;
+    // 会話・選択の step 一覧（1 イントロ／2 Mid／3 予定表 s2_1／5 中ボスの受け／8 教室／9 入力欄 s2_4／11 MidEnd／13 ボス口上）。
+    private static bool IsTalkStep(int step) => step is 1 or 2 or 3 or 5 or 8 or 9 or 11 or 13;
+    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
+    private const double LunaticClearHold = 3.0;
+    private double _lunaticClearT;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -394,6 +405,7 @@ public partial class StageKoharu : Node
         // 道中（A+B+C 三波）＋ボスで浄化カプセルが満ちる。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
+        _lunatic = game?.IsLunatic == true;
         // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
         //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
         _charStory = CharacterStory.DiveActive(game);
@@ -438,6 +450,8 @@ public partial class StageKoharu : Node
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
         _zHeld = Pad.AdvanceHeld();
+        // ルナティックはイントロを流さない＝ここで once を消費させず、_Process の先頭で step 1 を飛ばす。
+        if (_lunatic) return;
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾へ繋ぐ
         //   （通常進行では STAGE1 で消費済み＝ここは --stage 直行などの保険。StageAkari と同じ流儀）。
         if (_step == 1) _playerIntro = _playerIntro.Concat(StageTutorial.TakeRoute(game)).ToArray();
@@ -464,6 +478,8 @@ public partial class StageKoharu : Node
         //   我に返る一拍（S2-5）→ 消えた画面の前の部屋でボス（S2-6）。
         //   場所の入れ替えは Step_MidwaveB（部屋→教室）と Step_MidwaveC（教室→部屋）が層セットごと担う。
         // ボス戦中割り込み（会話2択）は案C ではレイ面（S3-7）が本籍なので、この面には無い。
+        // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
+        while (_lunatic && IsTalkStep(_step)) Advance();
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
@@ -919,8 +935,8 @@ public partial class StageKoharu : Node
             }
             // ★S2-2 の下書き選択（17）＝押しつけられたペンライト。撃破を確認した直後、ショップ離脱の前に置く
             //   （離脱の後ろに置くと初回は飛んでしまう＝17 の実装メモ）。流し切るまでここで留まる。
-            //   他ジョブ潜行中は下書き選択ごと抑止（きっかけ・受けともミナ前提）＝撃破後すぐ次へ。
-            if (!_charStory && !RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
+            //   他ジョブ潜行中は下書き選択ごと抑止（きっかけ・受けともミナ前提）＝撃破後すぐ次へ。ルナティックも同じ。
+            if (!_lunatic && !_charStory && !RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
             // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
             if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
@@ -942,8 +958,8 @@ public partial class StageKoharu : Node
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
-            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。
-            _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
+            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。ルナティックは口上ごと出さない＝消費もしない。
+            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
             Advance();
         }
     }
@@ -991,6 +1007,8 @@ public partial class StageKoharu : Node
             var recScore = game?.RecordScore("koharu", game.Difficulty, score) ?? (true, (long?)null);
             Hud.ShowClearBanner("STAGE 2 CLEAR", _clearTime, rec.isBest, rec.prev, score, recScore.isBest, recScore.prev);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
+            // ルナティック：アフター（フィルム→独白）は流さない。下のホールドでリザルトを読ませてから帰る。
+            if (_lunatic) return;
             // 撃破後のアフター：
             //   ミナ本編＝こはるのフィルム → 明けの Clear（ミナの独白）。
             //   他ジョブ潜行＝一枚絵を起こさず CharacterStory.Aftermath（潜行キャラ×この面のボスの9通り）を
@@ -1014,6 +1032,12 @@ public partial class StageKoharu : Node
                 _zHeld = Pad.AdvanceHeld();
                 _zEdge = false;
             });
+            return;
+        }
+        if (_lunatic)
+        {
+            _lunaticClearT += delta;
+            if (_lunaticClearT >= LunaticClearHold) Advance();
             return;
         }
         if (_clearPhase == 2) Step_Lines(delta, _clearLines!);

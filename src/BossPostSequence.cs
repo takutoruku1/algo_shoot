@@ -29,6 +29,10 @@ public partial class BossPostSequence : Node
             _suspend = suspend, _resume = resume,
             _thresholds = thresholds ?? new[] { .8f, .6f, .4f, .2f, .01f },
         };
+        // ルナティック（2026-09-26）：投稿の割り込み（ボスが隠れて札を撃たせる読みの間＋最後の下書きの一枚絵 BossDraftScene）は
+        //   出さない＝ボス戦を止めない。しきい値を空にすると Pending／Floor が立たず、HP は素通しで 0 まで削れる
+        //   （StoryFilmQa が同じ止め方をしている）。あかりは別実装（BossAkari._postsBroken）で同じことをする。
+        if (GameManager.LunaticActive) sequence._thresholds = Array.Empty<float>();
         boss.AddChild(sequence);
         return sequence;
     }

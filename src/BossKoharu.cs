@@ -708,7 +708,8 @@ public partial class BossKoharu : Enemy
         Audio.Instance?.PlayRedeem(2);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
+        //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
+        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -736,6 +737,9 @@ public partial class BossKoharu : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
+            // ルナティック：回想を挟まない。フィルム明けの復帰（保留していた閾値の拾い直し）だけをその場で通す
+            //   ＝弾幕も曲も途切れない。
+            if (GameManager.LunaticActive) { OnHpChanged(); return; }
             _caster.CancelPendingAttacks();
             void ResumeBattle()
             {

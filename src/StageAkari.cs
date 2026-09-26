@@ -329,6 +329,18 @@ public partial class StageAkari : Node
     //   フィルムの代わりに会話で流し、そのあと _storyReturn（帰還ビート）へ続ける。
     private (int who, string text, string face)[] _storyAftermath = System.Array.Empty<(int, string, string)>();
 
+    // ── ルナティック（2026-09-26 作者指示「回想・エンディング・選択肢はカット、常に敵が出続け、ボス戦は止まらない」）──
+    //   GameManager.IsLunatic のとき true。会話 step（イントロ／小話／下書き選択／ボス口上／クリアの独白）を踏まず、
+    //   波→中ボス→波→本ボス→クリア を切れ目なく繋ぐ。回想・撃破後のアフターも流さない（ボス側の改心会話は BossAkari）。
+    //   チュートリアル系の once（StageTutorial.Take*）も消費しない＝見せていないものを既読にしない。
+    //   従来難易度は _lunatic=false で従来の分岐をそのまま通る。
+    private bool _lunatic;
+    // 会話・選択の step 一覧（1 イントロ／4 s1_5／6 s1_2／8 S1-4 束／10 MidEnd／12 ボス口上）。ルナティックはここを飛ばす。
+    private static bool IsTalkStep(int step) => step is 1 or 4 or 6 or 8 or 10 or 12;
+    // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
+    private const double LunaticClearHold = 3.0;
+    private double _lunaticClearT;
+
     public override void _Ready()
     {
         _rng.Randomize();
@@ -336,6 +348,7 @@ public partial class StageAkari : Node
         // 道中（肩慣らし0＋A+B+C 三波）＋ボスで浄化カプセルが満ちる（部屋が晴れる）。
         var game = GetNodeOrNull<GameManager>("/root/Game");
         var job = game?.SelectedJob ?? Job.Tank;
+        _lunatic = game?.IsLunatic == true;
         // 会話の実体：結び手＝ミナ本編（従来）／他ジョブ＝キャラ専用ストーリー（章は GameManager が管理）。
         //   ※旧 CompanionDialogue.Add（本編＋同行3行）はステージ内では廃止＝全面置換に一本化（2026-09-15）。
         _charStory = CharacterStory.DiveActive(game);
@@ -374,6 +387,8 @@ public partial class StageAkari : Node
             game.SelectedEntry = game.DebugAlwaysBoss ? GameManager.StageEntry.Boss : GameManager.StageEntry.Start;
         }
         _zHeld = Pad.AdvanceHeld();
+        // ルナティックはイントロを流さない＝ここで once を消費させず、_Process の先頭で step 1 を飛ばす。
+        if (_lunatic) return;
         // 初見チュートリアル（2026-09-16）：セーブで最初の道中入りに一度だけ、イントロ末尾＝道中開始の
         //   直前にミナの説明を流す。_step==1 確定後に繋ぐ＝チェックポイント入口（中ボス/ボスから）では
         //   イントロごと飛ぶので消費しない。結び手のみ・once はセーブ単位（StageTutorial が一括で判定）。
@@ -407,6 +422,8 @@ public partial class StageAkari : Node
         // 型崩し（S2）：あかりは“カメオ先出し”。着地後の肩慣らし波（6体・圧ゼロ）を捌いていると、
         // 6体目を浄化した瞬間にあかりが割り込んで飛び出してくる（「既読3秒」の性格＝向こうから会いに来る）。
         // 3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
+        // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
+        while (_lunatic && IsTalkStep(_step)) Advance();
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
@@ -794,7 +811,8 @@ public partial class StageAkari : Node
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
             // 初見チュートリアル（2026-09-16）：板（パネル）が周回する本ボス戦の初回だけ、
             //   ボスの口上の末尾にミナの説明を繋ぐ。消費はこの瞬間＝道中で倒れても初ボス到達まで温存。
-            _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
+            //   ルナティックは口上ごと出さない＝消費もしない。
+            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
             Advance(); // 出現と同時に説明会話へ（会話中はボス停止・雨も止む）
         }
     }
@@ -837,6 +855,13 @@ public partial class StageAkari : Node
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll(); // クリア時に自弾・残弾を一掃(#17)
             _clearBefore = ClearBeforeFor(game);   // 迷い秒ゲート（s1_4）をここで確定
             _clearAfter = ClearAfterFor(game);
+        }
+        // ルナティック：アフター（独白→フィルム→独白）は流さない。リザルトを読む間だけ置いてハブへ。
+        if (_lunatic)
+        {
+            _lunaticClearT += delta;
+            if (_lunaticClearT >= LunaticClearHold) Advance();
+            return;
         }
         // 撃破後のアフター：
         //   ミナ本編＝ClearBefore → あかりのフィルム → ClearAfter。

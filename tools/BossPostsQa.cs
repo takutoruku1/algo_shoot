@@ -210,6 +210,33 @@ public partial class BossPostsQa : Node
         Call(caster, "CancelPendingAttacks");
         var sequence = boss.GetNode<BossPostSequence>("PostSequence");
         var realm = root.GetNode<BossRealmFx>("BossRealmFx");
+        if (diff == GameManager.Diff.Lunatic)
+        {
+            // ルナティック（2026-09-26 純粋STG化）：投稿の割り込みは出さない＝しきい値が空で Pending が立たず、
+            //   大ダメージは境界で止まらず改心まで通る。途中に札・回想・段間カットシーン・下書きの一枚絵のどれも立たない。
+            //   ミナだけは段（衣装）の境界で止まる＝段間はカットシーン無しで次フレームに武装し直すので、段ごとに撃ち直す。
+            Check(!sequence.Pending && sequence.Floor == 0, $"{id}/{diff}/{job}: Lunatic post gates are empty");
+            for (int attempt = 0; attempt < 12 && !boss.IsPurified; attempt++)
+            {
+                if (caster is MinaPhaseAttacks mina)
+                    typeof(MinaPhaseAttacks).GetProperty("OpenerCompleted")!.SetValue(mina, true);
+                boss.DealDirectDamage(99999);
+                await Frames(3);
+                Check(GetTree().GetFirstNodeInGroup("boss_post") == null && GetTree().GetFirstNodeInGroup("storyfilm") == null
+                      && GetTree().GetFirstNodeInGroup("mina_phase_scene") == null && GetTree().GetFirstNodeInGroup("boss_draft") == null
+                      && !hud.CinematicMode && !Hud.BubblePaused,
+                    $"{id}/{diff}/{job}: nothing interrupts the burst (attempt {attempt}, hp {boss.HpRatio:0.00})");
+            }
+            Check(boss.IsPurified, $"{id}/{diff}/{job}: Lunatic burst reaches redemption without a post");
+            Check(boss is not BossMina mina2 || mina2.EncounterPhase == 4, "Lunatic Mina still passes through all four costumes");
+            Check(world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode != ProcessModeEnum.Disabled, "combat owners stay live");
+            Pool.DespawnAll();
+            root.QueueFree();
+            await Frames(8);
+            Check(GetTree().GetFirstNodeInGroup("boss_post") == null && GetTree().GetFirstNodeInGroup("boss_realm") == null,
+                "leaving encounter removes post and realm state");
+            return;
+        }
         bool pictures = diff == GameManager.Diff.Normal && job == Job.Tank;
         int memories = 0, phases = 0;
         for (int index = 0; index < 5; index++)

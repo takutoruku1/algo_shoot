@@ -196,6 +196,10 @@ public partial class BossAkari : Enemy
             _lines = CharacterStory.Redemption(game!.SelectedJob, "akari");
             _storySilenceAt = CharacterStory.RedemptionSilenceAt(game.SelectedJob, "akari");
         }
+        // ルナティック（2026-09-26）：投稿の割り込み（ボスが隠れて札を撃たせる読みの間＋下書きの一枚絵）は出さない
+        //   ＝ボス戦を止めない。全部「割った後」にしておくと _postPending が立たず LimitBodyDamage も素通し
+        //   （BossPostSequence のしきい値空と同じ止め方）。回想と改心会話は _Process／OnCryStart 側で畳む。
+        if (GameManager.LunaticActive) _postsBroken = PostThresholds.Length;
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
         Audio.Instance?.StartAkariMusic(0);
         _realm = new BossRealmFx { Name = "BossRealmFx", Story = BossPostStory.Get("akari") };
@@ -518,7 +522,8 @@ public partial class BossAkari : Enemy
         Audio.Instance?.PlayRedeem(1);
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || _lines.Length == 0) { EndCryNow(); return; }
+        //   ルナティックも同じ経路＝改心のかけあい（弾を止める会話）を出さず、その場で着地して Finished へ。
+        if (hud == null || _lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -547,6 +552,15 @@ public partial class BossAkari : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
+            // ルナティック：回想を挟まない。フィルム明けの復帰（第二形態→宣告→保留していた閾値の拾い直し）だけをその場で通す
+            //   ＝弾幕も曲も途切れない。
+            if (GameManager.LunaticActive)
+            {
+                AdvanceForm2();
+                ApplySpell();
+                OnHpChanged();
+                return;
+            }
             _caster.CancelPendingAttacks();
             void ResumeBattle()
             {

@@ -146,6 +146,12 @@ public partial class GameManager : Node
     // 同時に画面へ出せるザコの上限（Spawner の過密ガード）。間隔だけ縮めても上限で頭打ちになるので対で動かす。
     public int MaxAliveEnemies => Difficulty switch { Diff.Easy => 6, Diff.Hard => 10, Diff.Lunatic => 12, _ => 8 };
     public string DiffName => Difficulty switch { Diff.Easy => "EASY", Diff.Hard => "HARD", Diff.Lunatic => "LUNATIC", _ => "NORMAL" };
+    // ルナティック（難易度選択の「底まで」）＝物語ギミックを全部切った、止まらない純粋シューティング（2026-09-26 作者指示）。
+    //   回想フィルム・撃破後のアフター・下書き選択・戦闘を止める会話（HoldBubble）・ボス投稿の割り込み・
+    //   フィナーレの段間カットシーン・エンディング（Final/Epilogue）を出さず、道中→中ボス→道中→ボス→クリアを切れ目なく繋ぐ。
+    //   判定はこの1本に集約する（各 Stage*/Boss* が参照）。Easy/Normal/Hard の経路はこの判定が false のまま＝従来どおり。
+    public bool IsLunatic => Difficulty == Diff.Lunatic;
+    public static bool LunaticActive => Instance?.IsLunatic == true;
 
     // ── 撃破時に散る「心の欠片」の難易度倍率（2026-09-17 ユーザー要望）──
     //   粒の個数と、欠片が運ぶスコア総量の両方に掛ける（FxLayer.PurifyBurst）。

@@ -312,6 +312,9 @@ public partial class BossMina : Enemy
         ChangeBattleCostume(CostumePath(_pattern, "idle"), CostumePath(_pattern, "attack"));
         if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
         ApplySpell();
+        // ルナティック（2026-09-26）：段間のカットシーン（弾を止める会話）は出さない。Transitioning のまま返せば
+        //   次の _Process が「CinematicMode でない」を見て CompletePhaseTransition を呼ぶ＝衣装替えと次段の武装だけが走る。
+        if (GameManager.LunaticActive) return;
         MinaPhaseScene.Play(GetHud()!, GetParent(), _pattern, CompletePhaseTransition);
     }
 
@@ -367,7 +370,8 @@ public partial class BossMina : Enemy
         }
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
-        if (hud == null || Lines.Length == 0) { EndCryNow(); return; }
+        //   ルナティックも同じ経路＝邂逅（F3）の会話を出さず、その場で着地して Finished へ。
+        if (hud == null || Lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -397,6 +401,14 @@ public partial class BossMina : Enemy
         {
             _memoryPending = false;
             _memoryPlayed = true;
+            // ルナティック：回想を挟まない。フィルム明けの復帰（撃破済みなら改心へ／戦闘中なら閾値の拾い直し）だけをその場で通す。
+            if (GameManager.LunaticActive)
+            {
+                _fireT = _fireT2 = 0;
+                if (IsPurified) OnCryStart();
+                else OnHpChanged();
+                return;
+            }
             _caster.CancelPendingAttacks();
             MinaStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
             {
