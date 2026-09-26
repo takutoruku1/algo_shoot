@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 // MenuKeysQa : 2026-09-26 のキー変更（M＝メニュー／Esc＝一つ前へ／会話ログを全シーンで）の自動検証＋スクショ。
 //   ・プロローグ冒頭で L を押すとログが開く（空でも開く）→ Esc で閉じる → 会話行が積まれる → 再び開ける
-//   ・戦闘中：Esc は何もしない／M でメニューが開き、Esc で一段ずつ戻って閉じる／M はトグル
+//   ・戦闘中：Esc／M でメニューが開き（Esc は 2026-09-27 から）、Esc で一段ずつ戻って閉じる／M はトグル
 //   ・ハブ：SNS カードで Esc → ホームへ。ホームで Esc → 何もしない。会話行が積まれる
 //   ・ショップ：Esc でハブへ
 //   実行: Godot --path . res://tools/qa_menu_keys.tscn（ウィンドウ表示。APPDATA を build/qa_story/menu_appdata へ
@@ -68,10 +68,16 @@ public partial class MenuKeysQa : Node
             await Press(Key.Escape);
             await Frames(4);
             Check(!log.IsOpen && !GetTree().Paused, "Esc closes the backlog during the prologue");
+            // 2026-09-27：カットシーンでもメニューが開く（M／Esc）。閉じれば会話はそのまま続く。
             await Press(Key.M);
-            Check(!pause.IsOpen, "M does not open the pause menu in the prologue (cutscene stays excluded)");
+            Check(pause.IsOpen && GetTree().Paused, "M opens the pause menu in the prologue (2026-09-27)");
+            await Press(Key.M);
+            Check(!pause.IsOpen && !GetTree().Paused, "M closes it again");
             await Press(Key.Escape);
-            Check(GetTree().CurrentScene == pro && Read<int>(pro, "_phase") == 3, "Esc does nothing in the prologue talk");
+            Check(pause.IsOpen && GetTree().Paused, "Esc opens the pause menu in the prologue talk");
+            await Press(Key.Escape);
+            Check(!pause.IsOpen && GetTree().CurrentScene == pro && Read<int>(pro, "_phase") == 3,
+                "Esc closes it and the prologue talk continues");
             pro.QueueFree();
             await Frames(3);
 
@@ -81,7 +87,9 @@ public partial class MenuKeysQa : Node
             GetTree().CurrentScene = (Node)stage;
             await Frames(30);
             await Press(Key.Escape);
-            Check(!pause.IsOpen && GetTree().CurrentScene == stage, "Esc in battle does nothing (no menu, no leave)");
+            Check(pause.IsOpen && GetTree().CurrentScene == stage, "Esc in battle opens the menu (2026-09-27)");
+            await Press(Key.Escape);
+            Check(!pause.IsOpen && !GetTree().Paused, "Esc closes it again");
             await Press(Key.M);
             Check(pause.IsOpen && GetTree().Paused, "M opens the pause menu in battle");
             await Shot("stage_menu_open");

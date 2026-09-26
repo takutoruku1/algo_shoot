@@ -49,8 +49,11 @@ public partial class PauseMenuQa : Node
 
             Check(_pause.RetryEnabled, "stage scene enables the run-only rows");
             // 2026-09-26：開くキーは Esc → M。Esc は「一つ前へもどる」（トップでは閉じる）。M はトグル。
+            // 2026-09-27：戦闘画面では Esc でも開く（スマホ系の画面だけは Esc＝もどる のまま）。
             await Press(Key.Escape);
-            Check(!_pause.IsOpen, "Esc no longer opens the pause menu");
+            Check(_pause.IsOpen, "Esc opens the pause menu in a stage (2026-09-27)");
+            await Press(Key.Escape);
+            Check(!_pause.IsOpen, "Esc on the top page closes it again");
             await OpenPause();
             Check(_pause.IsOpen, "M opens the pause menu");
             await Press(Key.Escape);

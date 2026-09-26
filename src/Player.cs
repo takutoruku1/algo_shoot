@@ -366,7 +366,13 @@ public partial class Player : Area2D
     // ロックの送り／解除と対象の維持。
     //   送り（左クリック短押し / F / R1）＝ 自機からの距離順で「今の対象の次」へ。一巡したら先頭（最も近い敵）へ。
     //   解除（右クリック / G / R3）＝ ロックを外すだけ（右クリックは回避と兼用で、回避は別経路で同時に出る）。
-    private bool _shiftLockHeld;     // 前フレームの Shift（押した瞬間＝ロック／離した瞬間＝解除 のエッジ検出）
+    private bool _shiftLockHeld;     // 前フレームの Shift（押した瞬間＝ロック のエッジ検出）
+    // Shift 由来のロックか（2026-09-27 作者指摘「ロックしたまま会話に入ると、明けてから Shift を放しても外れない」）。
+    //   旧版は「Shift を離した瞬間」のエッジで解除していたが、そのエッジは会話中（BubblePaused）に捨てられ、
+    //   _shiftLockHeld だけが更新される＝会話明けにはもう「離した瞬間」が来ず、ロックが残り続けた。
+    //   → Shift で武装した（または武装中に Shift を押し直した）ロックは**レベル**で見る：Shift が上がっていれば
+    //     会話中でも会話明けでもその場で解除する。S・A・RB・左クリックで武装したロックは false（Shift と無関係）。
+    private bool _lockByShift;
     private bool _lockPrevHeld;      // 前フレームの A（前の敵へ送りのエッジ検出）
     private bool _chargeKeyLocked;   // 会話中に押された Z／Y を、離すまで溜め打ち入力として読まない（会話送りの同じ押下で暴発しない）
 
@@ -424,7 +430,6 @@ public partial class Player : Area2D
         //     パッド     … RB＝次／R3＝解除（従来どおり）。
         bool shiftKey = Input.IsKeyPressed(Key.Shift);
         bool shiftEdge = shiftKey && !_shiftLockHeld;
-        bool shiftRelease = !shiftKey && _shiftLockHeld;
         _shiftLockHeld = shiftKey;
         bool tap = _mouseTapFire;
         _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
@@ -433,12 +438,20 @@ public partial class Player : Area2D
 
         // ── 解除＝パッド R3 ／ Shift を離す ／ モード中の左クリック ──
         //   解除はモード（_lockArmed）ごと落とす。待機中（対象なし）でも同じ入力で切れる。
-        bool clearKey = Pad.Pressed(JoyButton.RightStick);
-        bool clearEdge = (clearKey && !_lockClearHeld) || shiftRelease || (tap && wasArmed);
-        _lockClearHeld = clearKey;
-        if (clearEdge && !Hud.BubblePaused && wasArmed)
+        //   Shift は**レベル**で見る（_lockByShift のコメント参照）＝会話中に離しても、会話明けに離しても外れる。
+        //   会話中に外れたときは音を鳴らさない（止まっている画面で操作音だけが鳴らないように）。
+        if (shiftEdge && wasArmed && !Hud.BubblePaused && !_gameOver) _lockByShift = true;
+        if (wasArmed && _lockByShift && !shiftKey)
         {
-            _locked = false; _lockTarget = null; _lockArmed = false;
+            _locked = false; _lockTarget = null; _lockArmed = false; _lockByShift = false;
+            if (!Hud.BubblePaused && Audio.Instance is { } aus) aus.Se(aus.SfxUiMove, volDb: -18f, pitch: 0.85f);
+        }
+        bool clearKey = Pad.Pressed(JoyButton.RightStick);
+        bool clearEdge = (clearKey && !_lockClearHeld) || (tap && wasArmed);
+        _lockClearHeld = clearKey;
+        if (clearEdge && !Hud.BubblePaused && _lockArmed)   // _lockArmed＝上の Shift 解除で既に落ちていれば二重に鳴らさない
+        {
+            _locked = false; _lockTarget = null; _lockArmed = false; _lockByShift = false;
             if (Audio.Instance is { } auc) auc.Se(auc.SfxUiMove, volDb: -18f, pitch: 0.85f);
         }
 
@@ -475,6 +488,7 @@ public partial class Player : Area2D
             if (!wasArmed)
             {
                 _lockArmed = true;
+                _lockByShift = shiftEdge;   // Shift で入った待機だけ、Shift を離せば切れる
                 if (Audio.Instance is { } aw) aw.Se(aw.SfxUiMove, volDb: -18f, pitch: 1.15f);
             }
             return;
@@ -486,6 +500,7 @@ public partial class Player : Area2D
         var prev = _lockTarget;
         _lockTarget = cands[next];
         _locked = true;
+        if (!wasArmed) _lockByShift = shiftEdge;   // 武装した入力が Shift か（S・A・RB・クリックなら false）
         _lockArmed = true;
         // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。
         if (prev is Enemy pe && IsInstanceValid(pe) && !ReferenceEquals(pe, _lockTarget)) pe.QueueRedraw();

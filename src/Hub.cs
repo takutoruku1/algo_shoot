@@ -107,6 +107,11 @@ public partial class Hub : Node2D
 
     private int _sel;
     private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _jHeld, _dived;
+    // SNS 画面でキーボード／パッドのカーソルがフッタに降りているとき、その項目番号（-1＝カード側）。
+    //   2026-09-27 作者指摘「キーボード操作でアカウントを開くを選択できない」：フッタはマウス専用で、
+    //   キー導線の J／RB は画面のどこにも表示されていなかった（FooterItems の key を DrawFooter が捨てていた）。
+    //   → ←→（または最後のカードで ↓）でフッタへ降り、←→で項目を選んで Z で押せるようにした。↑でカードへ戻る。
+    private int _footSel = -1;
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
@@ -1088,6 +1093,7 @@ public partial class Hub : Node2D
         _shopNudge = false;   // 自分で押せた＝誘導の役目は終わり（どのアプリを開いても降ろす）
         if (index == 0)
         {
+            _footSel = -1;   // SNS は毎回カード側から始める
             _mode = Mode.SnsOpening;
             _snsOpeningT = 0;
             _cardsEnteredT = _t;
@@ -1652,8 +1658,12 @@ public partial class Hub : Node2D
         UiKit.Hotspot(HeaderJobRect(), JobOpenId);
         int hov = UiKit.HoveredId();
         // ホバー追従はカード側のみ（フッタはボタン＝ホバーで選択を動かさない。下敷きは DrawFooter が hov で描く）。
-        if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && hov != _sel) { _sel = hov; Audio.Instance?.PlayUiMove(); }
+        if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && (hov != _sel || _footSel >= 0))
+        {
+            _sel = hov; _footSel = -1; Audio.Instance?.PlayUiMove();
+        }
         int clk = UiKit.ClickedId(Pad.MouseClick());
+        if (_footSel >= footItems.Count) _footSel = footItems.Count - 1;   // 「返信」の出入りで数が変わっても外へ出さない
         if (clk == JobOpenId && _t > 0.3)
         {
             OpenJob();
@@ -1667,18 +1677,44 @@ public partial class Hub : Node2D
             return; // フッタを押したフレームはカード確定へ流さない
         }
 
+        // ↑↓：カード送り。最後のカードで ↓、またはどこでも ←→ でフッタへ降りる（着地は「アカウント」）。
+        //   フッタ上では ←→ で項目を巡り、↑ でカードへ戻る（カードの選択は降りる前のまま）。
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
-        if ((up || down) && !_navHeld && _entries.Length > 0)
+        bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+        if ((up || down || left || right) && !_navHeld)
         {
-            if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
-            if (down) _sel = (_sel + 1) % _entries.Length;
-            UpdateFeedScrollTarget();
-            Audio.Instance?.PlayUiMove();
+            if (_footSel >= 0)
+            {
+                if (up) { _footSel = -1; Audio.Instance?.PlayUiMove(); }
+                else if (left || right)
+                {
+                    _footSel = (_footSel + (left ? -1 : 1) + footItems.Count) % footItems.Count;
+                    Audio.Instance?.PlayUiMove();
+                }
+            }
+            else if (left || right || (down && _sel >= _entries.Length - 1))
+            {
+                _footSel = System.Math.Max(0, footItems.FindIndex(f => f.act == FootAct.Job));
+                Audio.Instance?.PlayUiMove();
+            }
+            else if (_entries.Length > 0)
+            {
+                if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
+                if (down) _sel = _sel + 1;
+                UpdateFeedScrollTarget();
+                Audio.Instance?.PlayUiMove();
+            }
         }
-        _navHeld = up || down;
+        _navHeld = up || down || left || right;
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
+        // フッタにカーソルがあるときの Z＝その項目をクリックしたのと同じ（カードの確定へは流さない）。
+        if (_footSel >= 0 && zEdge)
+        {
+            FooterClick(footItems[_footSel].act);
+            return;
+        }
         // マウス：カードクリックで選択＋ダイブ（KB の Z と同じ確定経路）。clk はカード id のみ（フッタは上で処理済み）。
         bool dive = zEdge && _t > 0.3;
         if (clk >= 0 && clk < _entries.Length && _t > 0.3) { _sel = clk; dive = true; }
@@ -2190,7 +2226,7 @@ public partial class Hub : Node2D
             float h = CardHeight(_entries[i]);
             float cy = FeedTop + CardTop(i) - _feedScroll;
             if (cy + h < FeedTop || cy > FeedBottom) continue;
-            bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel;
+            bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel && _footSel < 0;
             float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.04f) / 0.20f, 0f, 1f);
             DrawCard(_entries[i], cy, h, sel, sel ? _selT : 0f, alpha * ep);
         }
@@ -2540,12 +2576,17 @@ public partial class Hub : Node2D
         var items = FooterItems();
         for (int i = 0; i < items.Count; i++)
         {
-            var (_, label, accent, act) = items[i];
+            var (key, label, accent, act) = items[i];
             var rect = FooterItemRect(i);
-            bool hovered = UiKit.HoveredId() == FooterIdBase + i;
+            // マウスのホバーと、キーボード／パッドのカーソル（_footSel）を同じ見え方にする。
+            bool hovered = UiKit.HoveredId() == FooterIdBase + i || (_mode == Mode.Cards && _footSel == i);
             bool nudge = act == FootAct.Job && AccountNudge;
             Color col = accent || nudge ? UiKit.Purify : hovered ? UiKit.White : UiKit.Text3;
-            if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
+            // キーボード／パッドのカーソルはカードの選択枠と同じ浄化色の縁で見せる（マウスのホバーより強く＝
+            //   「いまカーソルがここにある」がカードから降りた瞬間に分かる）。
+            if (_mode == Mode.Cards && _footSel == i)
+                UiKit.Box(this, rect, new Color(UiKit.Purify, 0.10f), 8f, new Color(UiKit.Purify, 0.6f), 1f);
+            else if (hovered) UiKit.Box(this, rect, new Color(1, 1, 1, 0.05f), 8f);
             Vector2 c = rect.Position + new Vector2(rect.Size.X / 2f, 18f);
             // アカウント追加の説明を読んだ直後だけの誘導（2026-09-23）：フッタ「アカウント」の顔アイコンから
             //   外へ広がりながら薄くなる輪を2枚ずらして重ねる＝ホームの強化アイコン（_shopNudge）と同じ作法。
@@ -2559,7 +2600,13 @@ public partial class Hub : Node2D
                 }
             }
             DrawFooterIcon(act, c, col);
-            UiKit.Text(this, UiKit.Zen, rect.Position + new Vector2(0, 38f), label, 12, col, HorizontalAlignment.Center, rect.Size.X);
+            // ラベルの右にキー表記（J／RB 等）を小さく添える＝キーボード・パッドだけでも押し方が分かる
+            //   （2026-09-27：それまでは key を捨てていて、J で開けることが画面のどこにも出ていなかった）。
+            float labelW = UiKit.TextW(UiKit.Zen, label, 12), keyW = UiKit.TextW(UiKit.Mono, key, 10);
+            float lx = rect.Position.X + (rect.Size.X - labelW - 5f - keyW) / 2f;
+            UiKit.Text(this, UiKit.Zen, new Vector2(lx, rect.Position.Y + 38f), label, 12, col);
+            UiKit.Text(this, UiKit.Mono, new Vector2(lx + labelW + 5f, rect.Position.Y + 40f), key, 10,
+                new Color(hovered ? UiKit.Text2 : UiKit.Text4, 1f));
         }
     }
 

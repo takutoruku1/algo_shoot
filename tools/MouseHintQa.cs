@@ -197,7 +197,7 @@ public partial class MouseHintQa : Node
 
         // 戦闘画面（Akari）＝押せない・光らない。
         await SwapScene("res://Akari.tscn");
-        Check(pause.ShowHint, "a stage still shows the Esc hint");
+        Check(!pause.ShowHint, "a stage no longer draws the menu hint (2026-09-27)");
         Check(!pause.HintClickable, "a stage does NOT make the Esc hint clickable");
         Check(!Probe(hint, false, () => pause.HintHovered), "hovering the hint in battle does not light it up");
         Check(!Probe(hint, true, pause.HintClicked), "clicking the hint spot in battle does NOT open the pause menu");

@@ -301,8 +301,16 @@ public static class Pad
     //   ※マウス左クリックはボタンUI(ホットスポット)を持つ画面では誤爆しうるが、会話専用画面(ステージ会話/
     //     カットシーン/Hud会話)では画面全体が「送り」なので問題ない。ホットスポットを持つ画面(Shop/メニュー)は
     //     この AdvanceHeld ではなく個別のクリック結線(フェーズ2/3)を使う。
+    //   ※会話ボックスのボタン列（AUTO/SKIP/LOG/MENU・src/DialogToolbar.cs）にカーソルが乗っている間の左クリックは
+    //     送りに数えない＝ボタンを押したつもりで1行進む二重処理を防ぐ（Hud が毎フレーム CaptureMouse を立てる）。
     public static bool AdvanceHeld() =>
         Input.IsKeyPressed(Key.Z) || Input.IsKeyPressed(Key.Enter)
         || Input.IsActionPressed("ui_accept") || Pressed(JoyButton.A)
-        || MouseDown();
+        || (MouseDown() && !MouseCaptured);
+
+    // マウスを UI 部品が握っているフレーム（Hud の会話ボタン列のホバー）。立てた次フレームまで有効＝
+    //   読み手（各ステージの _Process）と Hud の処理順に依らず同じ押下を取りこぼさない。立て続けなければ自然に切れる。
+    private static long _mouseCapturedFrame = -10;
+    public static void CaptureMouse() => _mouseCapturedFrame = (long)Engine.GetProcessFrames();
+    public static bool MouseCaptured => (long)Engine.GetProcessFrames() - _mouseCapturedFrame <= 1;
 }

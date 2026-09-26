@@ -167,11 +167,13 @@ public partial class Final : Node2D
         if (_cueResolveDone) _resolveT += delta;
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        // ポーズメニュー／会話ログを閉じた Z の同じ押下を、会話送りとして二重に拾わない（Pad.UiBlocked。2026-09-27）。
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
 
         // R / Start 長押し(0.45s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
-        // カットシーンはポーズメニュー対象外なので Start をここで使える。
+        // パッドの Start はここで使える：カットシーンでもポーズメニューは開く（2026-09-27）が、開くのは Esc／M だけで
+        //   Start はカットシーンでは読まない（PauseMenu.IsCutscene）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
             GetTree().ReloadCurrentScene();

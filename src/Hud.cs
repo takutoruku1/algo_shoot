@@ -324,6 +324,9 @@ public partial class Hud : CanvasLayer
         if (_bossBarFlash > 0) _bossBarFlash -= delta; // バー1本割れの白フラッシュ減衰（#26）
         if (_lifeShatterT > 0) _lifeShatterT -= delta; // ライフ砕け散りの残り時間（2026-09-16）
 
+        // 会話ボックスのボタン列（AUTO/SKIP/LOG/MENU）。SKIP ラッチの自動解除も含むので FastForwarding を読む前に回す。
+        TickDialogToolbar(delta);
+
         // 既読高速送り中は現在ページを即時全表示し、後続ページも自動で進める（行送り自体は Step_Lines が FastForwarding を見て進める）。
         if (FastForwarding)
         {
@@ -416,6 +419,7 @@ public partial class Hud : CanvasLayer
     public override void _ExitTree()
     {
         BubblePaused = false;
+        SkipLatched = false;   // SKIP ラッチはシーンを跨がない（次のシーンの既読行を勝手に飛ばさない）
         // 面を抜ける（リトライ・ハブ帰還・タイトル）ときは【激情】も必ず畳む。改心を見ずに抜けた場合に
         //   FuryActive が立ったまま残ると、次の画面まで縦メーターが付いてくる。
         GameManager.Instance?.EndFury();
@@ -645,7 +649,9 @@ public partial class Hud : CanvasLayer
     //   Ctrl は既読スキップ専用（やさしさ全開は撤去済み＝衝突する相手がいない）。
     //   DemoPilot/QaPilot は Z/X と移動軸しか送出しない＝自動プレイの会話送りとは干渉しない。
     private bool _dlgReadBefore;   // 現在行が「表示された時点で」既読だったか（SetDialog で確定）
-    public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder);
+    //   SkipLatched … 会話ボックス上の SKIP ボタン（S／RB 押し離し／クリック）のラッチ。ON の間は押しっぱなしと同じ扱い
+    //   ＝Prologue／Epilogue／StoryFilm など SkipHeld を読む側は無改造で追従する。切れ方は src/DialogToolbar.cs。
+    public static bool SkipHeld => Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.RightShoulder) || SkipLatched;
     public bool FastForwarding => SkipHeld && (_dlgReadBefore || BattleMemoryTempo) && _messageTimer > 0 && _dlgText.Length > 0;
 
     public void ShowBanner(string text) { _bannerText = text; _bannerTimer = 5.0; _bannerTime = ""; _bannerBest = ""; _bannerScore = ""; _bannerScoreBest = ""; _epic = false; _bannerRewardLife = false; _bannerRewardBomb = false; _startStage = 0; }
@@ -910,7 +916,7 @@ public partial class Hud : CanvasLayer
         UiKit.BeginDesign(ci);
         if (CinematicMode)
         {
-            if (_dlgText.Length > 0) DrawDialog(ci);
+            if (_dlgText.Length > 0) { DrawDialog(ci); DrawDialogToolbar(ci); }
             UiKit.EndDesign(ci);
             return;
         }
@@ -941,6 +947,8 @@ public partial class Hud : CanvasLayer
         // 弾より前だが、α上限0.55で弾は透ける。会話ボックス矩形も穴抜きの対象にして二重に保護する。
         if (_spotActive) DrawTutorialSpot(ci);
         if (!sunk && _dlgText.Length > 0) DrawDialog(ci);
+        // ボタン列は会話バーが弾の奥（BubbleLayer）に沈んでいても最前面のここに描く＝弾に隠れずクリックできる。
+        if (_dlgText.Length > 0) DrawDialogToolbar(ci);
         if (!sunk && _bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverTitle.Length > 0) DrawGameOverTitle(ci);
@@ -1791,8 +1799,8 @@ public partial class Hud : CanvasLayer
             UiKit.TypewriterLines(ci, UiKit.Zen, lines,
                 new Vector2(FilmTextX, 588 + UiKit.Zen.GetAscent(FilmBody.Size)), FilmWrapWidth,
                 FilmBody.Size, new Color(0.965f, 0.97f, 0.99f), n, extraLeading: FilmBody.ExtraLeading);
-            if (FastForwarding) DrawSkipChip(ci, new Vector2(1168, 546));
-            else if (morePages) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14,
+            // 既読早送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」チップは出さない（二重表示を避ける）。
+            if (morePages && !FastForwarding) UiKit.Text(ci, UiKit.Zen, new Vector2(1136, 664), "▼", 14,
                 _hasCinematicAccent ? new Color(_cinematicAccent, 0.9f) : Colors.White);
             return;
         }
@@ -1804,7 +1812,6 @@ public partial class Hud : CanvasLayer
             UiKit.TypewriterLines(ci, UiKit.Zen, lines,
                 new Vector2(NarrBoxX + 40, 602 + UiKit.Zen.GetAscent(UiKit.FontBattle)), NarrWrapW,
                 UiKit.FontBattle, new Color(0.9f, 0.9f, 0.95f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
-            if (FastForwarding) DrawSkipChip(ci, new Vector2(NarrBoxX + NarrBoxW - 20, 598));
             if (morePages && ((int)(_t * 2f) % 2) == 0)
                 UiKit.Text(ci, UiKit.ZenBold, new Vector2(NarrBoxX + NarrBoxW - 32, 590 + 96 - 26), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
             return;
@@ -1856,8 +1863,6 @@ public partial class Hud : CanvasLayer
         UiKit.TypewriterLines(ci, UiKit.Zen, lines,
             new Vector2(textX, y + 48 + UiKit.Zen.GetAscent(UiKit.FontBattle)), DlgWrapW(textX),
             UiKit.FontBattle, new Color(0.95f, 0.95f, 0.98f), n, extraLeading: UiKit.BattleBody.ExtraLeading);
-        // 既読高速送り中の控えめな表示（バー右上・#22）。
-        if (FastForwarding) DrawSkipChip(ci, new Vector2(x + w - 20, y + 12));
         // ページ継続サイン：後続ページがあるとき「▼」を点滅（Zで続きへ）。
         if (morePages && ((int)(_t * 2f) % 2) == 0)
             UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + w - 34, y + h - 30), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));

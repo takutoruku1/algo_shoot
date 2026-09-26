@@ -329,6 +329,9 @@ public partial class Prologue : Node2D
     public override void _Process(double delta)
     {
         if (_phase == 6) return;
+        // ポーズメニュー（2026-09-27 からカットシーンでも開く）／会話ログを閉じた Z・X の同じ押下が、ここで
+        //   会話送り・受講確認の「いいえ」として二重処理されないよう食う（Pad.UiBlocked＝閉じたフレームと次の1フレーム）。
+        if (Pad.UiBlocked(this)) { _zHeld = _backHeld = _lrHeld = _askNavHeld = true; QueueRedraw(); return; }
         _t += delta;
 
         // 会話送り／各フェーズの決定：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも進める共通ヘルパ（マウス対応 P2）。
@@ -337,7 +340,8 @@ public partial class Prologue : Node2D
         _zHeld = z;
 
         // R / Start 長押し(0.45s)で最初から（即発は誤爆で読み進みを失いやすい→長押し化）。
-        // カットシーンはポーズメニュー対象外なので Start をここで使える。
+        // パッドの Start はここで使える：カットシーンでもポーズメニューは開く（2026-09-27）が、開くのは Esc／M だけで
+        //   Start はカットシーンでは読まない（PauseMenu.IsCutscene）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
             GetTree().ReloadCurrentScene();

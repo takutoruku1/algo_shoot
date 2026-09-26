@@ -279,11 +279,13 @@ public partial class Epilogue : Node2D
         _lineT += delta;
         // 会話送り／各フェーズの決定：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも進める共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
-        bool zEdge = z && !_zHeld;
+        // ポーズメニュー／会話ログを閉じた Z の同じ押下を、会話送りとして二重に拾わない（Pad.UiBlocked。2026-09-27）。
+        bool zEdge = z && !_zHeld && !Pad.UiBlocked(this);
         _zHeld = z;
 
         // R / Start 長押し(0.45s)：スタッフロール以降は「タイトルへ」、それ以前は最初から(Prologue)
-        // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ここはポーズ対象外なので Start 可）。
+        // ＝演出のやり直し（即発は誤爆で読み進みを失いやすい→長押し化。ポーズメニューはカットシーンでは
+        //   Esc／M だけで開き、パッドの Start は読まない＝ここで Start を使える。2026-09-27）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
             GetTree().ChangeSceneToFile(_phase >= PhRoll ? "res://TitleMenu.tscn" : "res://Prologue.tscn");

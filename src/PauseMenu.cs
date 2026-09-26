@@ -4,9 +4,10 @@ using Godot;
 //   M（キーボード）／Start（パッド）で開き、ツリーをポーズして**1枚のダイアログ**を出す。
 //   ★2026-09-26 ユーザー指示：開くキーを Esc → M に移し、Esc は全画面で「一つ前へもどる」に一本化した。
 //     メニュー内の Esc は上に重なるダイアログ／ページを一段ずつ閉じ、トップなら閉じる。M／Start は開閉トグル
-//     （どの階層からでもメニューごと閉じる）。閉じているときの Esc はここでは読まない＝非戦闘画面
-//     （ハブ/ショップ/記録/難易度選択/トレーニング）が各自の「もどる」として読み、戦闘中は何もしない
-//     （弾を避けている最中に Esc で面から抜ける事故を作らない。メニューは M で開く）。
+//     （どの階層からでもメニューごと閉じる）。閉じているときの Esc は非戦闘画面
+//     （ハブ/ショップ/記録/難易度選択/トレーニング）が各自の「もどる」として読む。
+//     （→ 2026-09-27 に戦闘画面・カットシーンでは Esc でも開くよう戻した。下の★参照。離脱は確認を挟むので
+//       Esc 一発で面から抜ける事故にはならない。）
 //   2026-09-17 ユーザー指示で作り直した（旧版は Top/Stage/Config の三段ページ構成）。
 //     トップ（ステージ中）: 離脱／リスタート／ログ／セーブ／ロード／タイトルへ
 //       ・離脱／リスタートは破壊的なので確認ダイアログ（はい/いいえ）を挟む。
@@ -22,9 +23,20 @@ using Godot;
 //   ステージ外（ハブ/ショップ/記録/難易度選択/トレーニング）では 離脱／リスタート／ログ が意味を持たない
 //     ので出さない（あそびかた／セーブ／ロード／タイトルへ の4行＋閉じる＋歯車だけ）。RetryEnabled 参照。
 //   セーブは手動・スロット制（自動セーブは別枠）＝ここでしか手動保存されない。
-//   タイトル/設定/あそびかた/カットシーンは対象外（戻り先が無い／Esc が既に「閉じる/戻る」の画面）。
-//   開ける画面では右下に「M メニュー」ヒントを常時表示する。
+//   タイトル/設定/あそびかた/スタッフロールは対象外（戻り先が無い／Esc が既に「閉じる/戻る」の画面）。
+//   非戦闘のスマホ系画面では右下に「M メニュー」ヒントを常時表示する（戦闘画面・カットシーンでは出さない）。
 //   --qa / --demo では無効（自動プレイのポーズ事故を防ぐ）。
+//   ★2026-09-27 ユーザー指示（5件）で次を変えた:
+//     ・Esc でも開く（「シューティング中は ESC でポーズ。スマホの選択画面以外は同様。オープニングやエンディングも」）。
+//       開いた後の Esc は従来どおり「一段もどる」。スマホ系（ハブ/ショップ/難易度選択/記録/トレーニング/カスタマイズ）
+//       では Esc の意味を変えない＝各画面の「もどる」のまま（EscOpensHere）。M／Start はそこでも従来どおり開く。
+//     ・カットシーン（Prologue / Final / Epilogue）でも開く。ツリーポーズでフェーズタイマー・タイプライタ・
+//       オートリードが止まるだけ（BGM は他画面と同じく流したまま）。Credits は除外のまま。
+//       ただしパッドの Start はカットシーンでは開かない＝そこでは「長押しでさいしょから」（RetryHold）に使われている。
+//       オープニング／エンディングのムービー（OpeningFilm/EndingFilm）は再生中 Pad.ConsumeUi で入力を握るので開かない
+//       （絵が BGM に同期している＝止めると音と絵がずれる。Esc は元からそこでは長押しスキップ）。
+//     ・右下の常駐ヒント「M メニュー」は非戦闘画面だけに出す（戦闘画面・カットシーンでは描かない）。
+//     ・「タイトルへ」とウィンドウの×（Alt+F4）で「セーブしますか？」の3択（QuitAsk）を挟む。
 public partial class PauseMenu : CanvasLayer
 {
     private GameManager _game = null!;
@@ -63,7 +75,12 @@ public partial class PauseMenu : CanvasLayer
     private static readonly (Act act, string label)[] OutsideRows =
         System.Array.FindAll(AllRows, e => e.act is Act.HowTo or Act.Save or Act.Load or Act.Title);
 
-    public (Act act, string label)[] Rows => RetryEnabled ? AllRows : OutsideRows;
+    // カットシーン（Prologue/Final/Epilogue）で出す行＝「離脱」を落としたもの（物語の途中でハブへ抜けさせない）。
+    //   リスタート（＝そのシーンの最初から）とログは意味を持つので残す。
+    private static readonly (Act act, string label)[] CutsceneRows =
+        System.Array.FindAll(AllRows, e => e.act != Act.Leave);
+
+    public (Act act, string label)[] Rows => !RetryEnabled ? OutsideRows : InCutscene ? CutsceneRows : AllRows;
 
     // 項目リストの下に続く「閉じる」「歯車」も、矢印キー/パッドで選べる仮想行として扱う
     //   ＝カーソルは 0..RowCount-1 が項目、RowCount が閉じる、RowCount+1 が歯車。
@@ -134,7 +151,57 @@ public partial class PauseMenu : CanvasLayer
             for (int i = 0; i < GameManager.SlotCount; i++)
                 if (SlotFilled(i + 1)) { _slotSel = i; break; }
     }
-    private void CloseSlots() { _slotOpen = false; }
+    // スロットを閉じる（キャンセル・×）。「セーブしますか？」から来ていたなら、その問いへ戻す
+    //   （セーブ先を選び直したい／やっぱりセーブしない、を同じ画面で選べるように）。
+    private void CloseSlots()
+    {
+        _slotOpen = false;
+        if (_afterSave is { } k) { _afterSave = null; _askOpen = true; _askKind = k; }
+    }
+
+    // ───────── 「セーブしますか？」ダイアログ（タイトルへ／ウィンドウを閉じる）─────────
+    //   2026-09-27 ユーザー指示「タイトルへ戻るタイミング、ウインドウを閉じるタイミングでセーブをするかを確認する
+    //   ダイアログと、セーブをするダイアログに遷移できるようにして」。
+    //   3択＝セーブする（→ スロット選択 → 保存したらそのままタイトルへ／終了）／セーブしない（→ そのまま）／キャンセル。
+    //   セーブできない画面（トレーニング＝SaveEnabled=false）は「セーブしない／キャンセル」の2択。
+    //   操作は確認ダイアログと同じ：←→/↑↓ で選ぶ、Z/Enter/パッドA/クリックで決定、X/Esc/パッドB/右クリック＝キャンセル。
+    //   既定は先頭（セーブする）＝うっかり Z でもスロット選択が開くだけで、何も失わない。
+    public enum QuitKind { Title, Exit }
+    public enum AskChoice { Save, NoSave, Cancel }
+    private bool _askOpen;
+    private QuitKind _askKind;
+    private int _askSel;
+    private bool _askFromClose;     // ×ボタンから（メニューを開いていない状態から）出した問いか＝キャンセルでメニューごと閉じる
+    private QuitKind? _afterSave;   // スロット選択が「セーブしますか？」から来ている間だけ非 null＝保存したらこの遷移へ
+    private bool _closePending;     // オーバーレイ（あそびかた/ログ）表示中に×が来た＝閉じたら問いを出す
+    public bool AskOpen => _askOpen;
+    public QuitKind AskKind => _askKind;
+    public int AskSel => _askSel;
+    public bool QuitRequested { get; private set; }   // QA 用：終了を実行したか（QuitOverride があるときも立つ）
+    public System.Action? QuitOverride;                // QA 用：実際に終了させずに差し替える
+
+    public AskChoice[] AskChoices => SaveEnabled
+        ? new[] { AskChoice.Save, AskChoice.NoSave, AskChoice.Cancel }
+        : new[] { AskChoice.NoSave, AskChoice.Cancel };
+
+    public string AskText => SaveEnabled
+        ? (_askKind == QuitKind.Exit ? "終了する前に、セーブしますか？" : "タイトルへ戻る前に、セーブしますか？")
+        : (_askKind == QuitKind.Exit ? "セーブせずに終了しますか？" : "セーブせずにタイトルへ戻りますか？");
+
+    public string AskLabel(AskChoice c) => c switch
+    {
+        AskChoice.Save   => _askKind == QuitKind.Exit ? "セーブして終了" : "セーブする",
+        AskChoice.NoSave => _askKind == QuitKind.Exit ? "セーブせずに終了" : "セーブしない",
+        _                => "キャンセル",
+    };
+
+    private void OpenAsk(QuitKind kind, bool fromClose)
+    {
+        Audio.Instance?.PlayUiMove();
+        _confirmOpen = false; _slotOpen = false; _afterSave = null;
+        _askOpen = true; _askKind = kind; _askSel = 0; _askFromClose = fromClose;
+        _navHeld = _lrHeld = true; _zHeld = true; _backHeld = true;   // 開いた押下を決定/キャンセルに流さない
+    }
 
     // 表示用にキャッシュした音量（0..100）。Open 時に保存値から読む。
     private readonly float[] _vol = new float[VolRows.Length];
@@ -152,6 +219,50 @@ public partial class PauseMenu : CanvasLayer
         }
         _canvas = new PauseCanvas { Menu = this };
         AddChild(_canvas);
+        // ウィンドウの×／Alt+F4 を即終了させず、_Notification で受けて「セーブしますか？」を挟む。
+        //   自動プレイ（--qa/--demo）は従来どおり即終了（誰も答えないダイアログで止まらないように）。
+        if (!_autoplay) GetTree().AutoAcceptQuit = false;
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == (int)NotificationWMCloseRequest) OnCloseRequested();
+    }
+
+    // ウィンドウを閉じる要求。ゲームが始まっていない画面（タイトル/設定/スタッフロール）は確認せず終了。
+    //   それ以外はツリーをポーズしてメニューの上に「セーブしますか？」を出す（戦闘中に弾に当たらないように）。
+    //   メニューが既に開いていれば、そのまま上に重ねる。
+    private void OnCloseRequested()
+    {
+        if (_autoplay || !CloseAsksHere()) { DoQuit(); return; }
+        if (_askOpen && _askKind == QuitKind.Exit) return;   // 既に問いを出している（×の連打）
+        // あそびかた／会話ログが上に乗っている間は、こちらのダイアログを重ねても入力が届かない
+        //   （オーバーレイが入力を握る）。閉じた時点で問いを出す（_Process 側で拾う）。
+        if (OverlayOpen()) { _closePending = true; return; }
+        bool wasOpen = _open;
+        if (!_open) Open();
+        OpenAsk(QuitKind.Exit, fromClose: !wasOpen);
+        _canvas.QueueRedraw();
+    }
+
+    // ×で確認を挟む画面か。ゲームが始まっていない画面（タイトル/設定/スタッフロール）と、シーンが無い状態は即終了。
+    private bool CloseAsksHere()
+    {
+        string path = GetTree().CurrentScene?.SceneFilePath ?? "";
+        if (string.IsNullOrEmpty(path)) return false;
+        return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits"));
+    }
+
+    private bool OverlayOpen() =>
+        GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
+        || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true };
+
+    // 実際の終了。QA は QuitOverride で差し替えて、終了させずに QuitRequested だけ確かめる。
+    private void DoQuit()
+    {
+        QuitRequested = true;
+        if (QuitOverride != null) { QuitOverride(); return; }
+        GetTree().Quit();
     }
 
     // デバッグ限定：--pause-shot の状態へ飛ぶ（最初の _Process で1回だけ）。撮影用なので何も実行しない。
@@ -187,12 +298,29 @@ public partial class PauseMenu : CanvasLayer
     //   カットシーン(Prologue/Final/Epilogue/Credits) … Start/R 長押しのやりなおし導線が既にあり、
     //     BGM とフェーズタイマーが進行中。ツリーポーズを挟むと演出の整合を取り直す必要があるので触らない。
     // 上に重なるオーバーレイ（あそびかた/会話ログ）は _Process 側の overlayOpen で別途止めている。
+    //   ★2026-09-27：カットシーンのうち Prologue / Final / Epilogue は開けるようにした（ユーザー指示「オープニングや
+    //     エンディングも ESC で開けるように」）。ツリーポーズで _Process ごと止まるだけ＝フェーズタイマー・タイプライタ・
+    //     オートリードは止まって、閉じれば続きから進む。Credits（スタッフロール）は除外のまま。
     private bool CanOpenHere()
     {
         string path = GetTree().CurrentScene?.SceneFilePath ?? "";
         if (string.IsNullOrEmpty(path)) return false;
-        return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits")
-              || path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue"));
+        return !(path.Contains("TitleMenu") || path.Contains("Settings") || path.Contains("Credits"));
+    }
+
+    // カットシーン（Prologue/Final/Epilogue）か。パッドの Start はここでは「長押しでさいしょから」（RetryHold）なので
+    //   メニューを開かない。メニューの行も「離脱」を落とす（物語の途中でハブへ抜ける導線は作らない）。
+    private static bool IsCutscene(string path) =>
+        path.Contains("Prologue") || path.Contains("Final") || path.Contains("Epilogue");
+    private bool InCutscene => IsCutscene(GetTree().CurrentScene?.SceneFilePath ?? "");
+
+    // 閉じているときの Esc でメニューを開く画面か（2026-09-27）。戦闘画面・カットシーンでは開く。
+    //   スマホ系（ハブ/ショップ/難易度選択/記録/トレーニング/カスタマイズ）は Esc が各自の「もどる」
+    //   （ハブのホームでは何もしない）なので、ここでは読まない＝意味を変えない。
+    public bool EscOpensHere()
+    {
+        if (!CanOpenHere()) return false;
+        return !IsNonCombatMenuScreen(GetTree().CurrentScene?.SceneFilePath ?? "");
     }
 
     // スロットセーブを出す画面か。トレーニングだけ false＝試用で付け外しした強化がディスクへ漏れない
@@ -230,8 +358,7 @@ public partial class PauseMenu : CanvasLayer
         // 会話ログのオーバーレイが上に開いている間／閉じた直後フレーム(UiBlocked)は、
         // ポーズメニュー側の入力を止める（Esc/Z の二重処理でメニューまで連鎖して閉じるのを防ぐ）。
         // held は「既押し」扱いにして、同じ押下がエッジとして立たないよう食っておく。
-        bool overlayOpen = GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
-                        || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true };
+        bool overlayOpen = OverlayOpen();
         if (overlayOpen || Pad.UiBlocked(this))
         {
             // _backHeld も含める（2026-09-22）：あそびかた／ログを X（パッド B）で閉じた同じ押下が、
@@ -244,10 +371,13 @@ public partial class PauseMenu : CanvasLayer
         // ＝「閉じる Esc/M/Start/Z」の同じ押下が、下の画面の もどる/決定 として二重処理されない。
         if (_open) Pad.ConsumeUi(this);
 
-        // M（キーボード）／Start（パッド）＝開閉トグル。Esc＝一段もどる（メニュー内だけで読む）。
-        //   閉じているときの Esc はここでは扱わない（ファイル頭のコメント参照：非戦闘画面は各自の「もどる」、
-        //   戦闘中は何もしない）。
-        bool menu = Input.IsKeyPressed(Key.M) || Pad.Pressed(JoyButton.Start);
+        // オーバーレイ表示中に×が来ていた＝閉じたので、いま問いを出す。
+        if (_closePending) { _closePending = false; OnCloseRequested(); }
+
+        // M（キーボード）／Start（パッド）＝開閉トグル。Esc＝閉じているときは開く（EscOpensHere の画面だけ）、
+        //   開いているときは一段もどる。スマホ系の画面の Esc は各自の「もどる」なので、ここでは開かない。
+        //   パッドの Start はカットシーンでは読まない（そこでは「長押しでさいしょから」）。
+        bool menu = Input.IsKeyPressed(Key.M) || (Pad.Pressed(JoyButton.Start) && !InCutscene);
         bool menuEdge = menu && !_menuHeld; _menuHeld = menu;
         bool esc = Input.IsKeyPressed(Key.Escape);
         bool escEdge = esc && !_escHeld; _escHeld = esc;
@@ -255,7 +385,7 @@ public partial class PauseMenu : CanvasLayer
         if (!_open)
         {
             // 右下ヒントの左クリック。非戦闘画面かつ会話中でないときだけ受ける（HintClickable のコメント参照）。
-            if ((menuEdge && CanOpenHere()) || HintClicked()) Open();
+            if ((menuEdge && CanOpenHere()) || (escEdge && EscOpensHere()) || HintClicked()) Open();
             _canvas.QueueRedraw(); // 常時ヒントの更新
             return;
         }
@@ -274,6 +404,7 @@ public partial class PauseMenu : CanvasLayer
 
         // 上に重ねたダイアログが優先（確認 → スロット選択 → ページ本体）。
         if (_confirmOpen) { ProcessConfirm(zEdge, cancel); _canvas.QueueRedraw(); return; }
+        if (_askOpen) { ProcessAsk(zEdge, cancel); _canvas.QueueRedraw(); return; }
         if (_slotOpen) { ProcessSlots(zEdge, cancel); _canvas.QueueRedraw(); return; }
         if (_page == Page.Settings) ProcessSettings(zEdge, cancel);
         else ProcessTop(zEdge, cancel);
@@ -358,10 +489,78 @@ public partial class PauseMenu : CanvasLayer
                 OpenSlots(forSave: false);
                 return;
             default:
-                Audio.Instance?.PlayUiConfirm();
-                _game?.AutoSave(); Close(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); // タイトルへ（離脱時オートセーブ）
+                // タイトルへ：先に「セーブしますか？」を挟む（2026-09-27）。遷移そのものは FinishQuit。
+                OpenAsk(QuitKind.Title, fromClose: false);
                 return;
         }
+    }
+
+    // ───────── 「セーブしますか？」 ─────────
+    private void ProcessAsk(bool zEdge, bool cancel)
+    {
+        var choices = AskChoices;
+        int n = choices.Length;
+        if (_askSel >= n) _askSel = 0;
+        UiKit.BeginHotspots(Pad.MousePos());
+        for (int i = 0; i < n; i++) UiKit.Hotspot(AskBtnRect(i, n), i);
+        int hov = UiKit.HoveredId();
+        if (Pad.UsingMouse && hov >= 0 && hov != _askSel) { _askSel = hov; Audio.Instance?.PlayUiMove(); }
+        int clk = UiKit.ClickedId(Pad.MouseClick());
+
+        // 横並びの3ボタン＝←→ が素直。↑↓ でも同じ向きに巡る（確認ダイアログと同じく、どのキーでも迷わない）。
+        bool prev = Input.IsActionPressed("ui_left") || Input.IsActionPressed("ui_up");
+        bool next = Input.IsActionPressed("ui_right") || Input.IsActionPressed("ui_down");
+        if ((prev || next) && !_navHeld)
+        {
+            _askSel = (_askSel + (prev ? n - 1 : 1)) % n;
+            Audio.Instance?.PlayUiMove();
+        }
+        _navHeld = prev || next;
+        _lrHeld = prev || next;
+
+        if (clk >= 0) { _askSel = clk; RunAsk(choices[clk]); return; }
+        if (zEdge) { RunAsk(choices[_askSel]); return; }
+        if (cancel) RunAsk(AskChoice.Cancel);
+    }
+
+    private void RunAsk(AskChoice c)
+    {
+        var kind = _askKind;
+        switch (c)
+        {
+            case AskChoice.Save:
+                // スロット選択へ。保存したら RunSlot が FinishQuit へ流す。キャンセルならこの問いへ戻る（CloseSlots）。
+                _askOpen = false;
+                _afterSave = kind;
+                OpenSlots(forSave: true);
+                return;
+            case AskChoice.NoSave:
+                Audio.Instance?.PlayUiConfirm();
+                _askOpen = false;
+                FinishQuit(kind);
+                return;
+            default:
+                Audio.Instance?.PlayUiCancel();
+                _askOpen = false;
+                // ×から出した問いのキャンセル＝メニューごと閉じて、元の画面へそのまま戻す。
+                if (_askFromClose) Close();
+                return;
+        }
+    }
+
+    // タイトルへ戻る／終了する。タイトルへは従来どおり離脱時オートセーブ（スロット0＝手動スロットとは別枠）を打つ。
+    //   終了も同じ扱いにそろえる（トレーニング中は AutoSaveEnabled=false なので何も書かれない）。
+    private void FinishQuit(QuitKind kind)
+    {
+        _game?.AutoSave();
+        if (kind == QuitKind.Exit)
+        {
+            if (QuitOverride != null) Close();   // QA：終了しない代わりにメニューを畳んで元の状態へ戻す
+            DoQuit();
+            return;
+        }
+        Close();
+        GetTree().ChangeSceneToFile("res://TitleMenu.tscn");
     }
 
     // ───────── 確認ダイアログ ─────────
@@ -444,6 +643,13 @@ public partial class PauseMenu : CanvasLayer
         {
             Audio.Instance?.PlayUiConfirm();
             _game?.SaveToSlot(slot);             // スロットへ保存（上書き）
+            // 「セーブしますか？」から来たセーブ＝保存したらそのままタイトルへ／終了（トーストは出さない＝すぐ遷移する）。
+            if (_afterSave is { } after)
+            {
+                _afterSave = null; _slotOpen = false;
+                FinishQuit(after);
+                return;
+            }
             _savedSlot = slot; _savedToast = 1.8;
             CloseSlots();
             return;
@@ -610,6 +816,19 @@ public partial class PauseMenu : CanvasLayer
         return new Rect2(yes ? left + bw + gap : left, y + h - 62f, bw, 42f);
     }
 
+    // ── 「セーブしますか？」のジオメトリ（確認ダイアログと同じ作り・横並び最大3ボタン）──
+    public const float AskW = 580f, AskH = 170f;
+    public static (float x, float y, float w, float h) AskBox()
+        => ((UiKit.DesignW - AskW) / 2f, (UiKit.DesignH - AskH) / 2f, AskW, AskH);
+
+    public static Rect2 AskBtnRect(int i, int n)
+    {
+        var (x, y, w, h) = AskBox();
+        const float bw = 164f, gap = 16f;   // 「セーブせずに終了」（8字×17px）が余裕を持って収まる幅
+        float left = x + (w - bw * n - gap * (n - 1)) / 2f;
+        return new Rect2(left + i * (bw + gap), y + h - 62f, bw, 42f);
+    }
+
     // ── スロット選択のジオメトリ（タイトルの「つづきから」と同じ寸法体系）──
     public const float SlotW = 460f;
     public static float SlotBoxH => 82f + GameManager.SlotCount * 56f;
@@ -633,8 +852,9 @@ public partial class PauseMenu : CanvasLayer
         Audio.Instance?.PlayUiCancel(); // ポーズ＝開く合図（柔らかい下降）
         _open = true; _sel = 0;
         _page = Page.Top;   // 開くたびトップから（前回どこを見ていたかは引きずらない）
-        _confirmOpen = false; _slotOpen = false;
+        _confirmOpen = false; _slotOpen = false; _askOpen = false; _afterSave = null;
         _navHeld = false; _lrHeld = false; _zHeld = false; _backHeld = true;   // back は開幕の押下を食う
+        _escHeld = true;   // Esc で開いた同じ押下を「一段もどる」として拾って即閉じしない
         for (int i = 0; i < VolRows.Length; i++) _vol[i] = AudioConfig.Get(VolRows[i].Key); // 保存値を読む
         // 画面モードは保存値ではなく実ウィンドウ状態から読む（Settings.SyncModeFromWindow と同じ理由＝
         // 表示と実状態を食い違わせない）。
@@ -648,7 +868,7 @@ public partial class PauseMenu : CanvasLayer
     private void Close()
     {
         _open = false;
-        _confirmOpen = false; _slotOpen = false;
+        _confirmOpen = false; _slotOpen = false; _askOpen = false; _afterSave = null;
         GetTree().Paused = false;
         _canvas.QueueRedraw();
     }
@@ -674,7 +894,17 @@ public partial class PauseMenu : CanvasLayer
 
     public bool IsOpen => _open;
     public int Sel => _sel;
-    public bool ShowHint => !_open && !_autoplay && CanOpenHere();
+    // 右下の「M メニュー」ヒントは非戦闘のスマホ系画面だけ（2026-09-27 ユーザー指示「シューティング中の ESC メニューの
+    //   表示は削除して」）。戦闘画面・トレーニング・カットシーンでは描かない（そこでは Esc／M で開ける）。
+    public bool ShowHint
+    {
+        get
+        {
+            if (_open || _autoplay || !CanOpenHere()) return false;
+            string path = GetTree().CurrentScene?.SceneFilePath ?? "";
+            return IsNonCombatMenuScreen(path) && !path.Contains("Training");
+        }
+    }
 
     // ═══════ 右下「M／メニュー」ヒントのクリック対応（2026-09-17）═══════
     //   ★戦闘画面では対応しない。理由は3つ、どれも実装上の事実:
@@ -791,7 +1021,26 @@ public partial class PauseCanvas : Node2D
 
         // 上に重なるダイアログ（確認 → スロット）。暗幕を1枚追加して手前に描く。
         if (Menu.ConfirmOpen) DrawConfirm();
+        else if (Menu.AskOpen) DrawAsk();
         else if (Menu.SlotOpen) DrawSlotPicker();
+    }
+
+    // 「セーブしますか？」（タイトルへ／ウィンドウを閉じる）。確認ダイアログと同じ箱・同じボタン。
+    //   セーブ系は浄化色、セーブしない（＝進行を書かずに抜ける）は Burn 色で「取り返しのつかない側」を見せる。
+    private void DrawAsk()
+    {
+        DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), new Color(0, 0, 0, 0.45f));
+        var (x, y, w, h) = PauseMenu.AskBox();
+        UiKit.Box(this, new Rect2(x, y, w, h), new Color(0.07f, 0.055f, 0.115f, 0.99f), 16f, new Color(UiKit.Purify, 0.6f), 1.4f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 40f), Menu.AskText, UiKit.FontBody, UiKit.White,
+            HorizontalAlignment.Center, w);
+        var choices = Menu.AskChoices;
+        for (int i = 0; i < choices.Length; i++)
+        {
+            var c = choices[i];
+            DrawButton(PauseMenu.AskBtnRect(i, choices.Length), Menu.AskLabel(c), Menu.AskSel == i,
+                c == PauseMenu.AskChoice.NoSave ? UiKit.Burn : UiKit.Purify);
+        }
     }
 
     // 箱の見出し帯（タイトル文字＋区切り線）。全ページ共通。

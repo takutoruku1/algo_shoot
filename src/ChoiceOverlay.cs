@@ -89,6 +89,8 @@ public partial class ChoiceOverlay : Control
 
     public override void _Ready()
     {
+        // 選択肢が出ている間は会話ボックスの SKIP（Hud.SkipLatched）を自動で切る。Hud がこのグループで有無を見る。
+        AddToGroup("choice_overlay");
         // 実画面(384x216)全域に重ねる。描画は UiKit.BeginDesign で設計座標(1280x720)に変換して行う。
         Size = new Vector2(384f, 216f);
         MouseFilter = MouseFilterEnum.Ignore;

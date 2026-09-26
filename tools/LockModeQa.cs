@@ -126,6 +126,49 @@ public partial class LockModeQa : Node
         await Tap(Key.Shift);
         Check("追尾中に Shift を離すと解除", !player.LockedOn && !player.LockArmed);
 
+        // ── ①' Shift でロックしたまま会話に入る（2026-09-27 作者指摘）──
+        //   会話中に Shift を離す → 会話が明けたとき、ロックは残っていない。
+        KeyEvent(Key.Shift, true);
+        await Frames(4);
+        Check("Shift 押下でロック", player.LockedOn && player.LockArmed);
+        _keepBubble = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog(Hud.LineKind.Other, "……会話中に Shift を離す。", "", "レイ");
+        await Frames(4);
+        Check("Shift を押したまま会話で止まる", Hud.BubblePaused);
+        KeyEvent(Key.Shift, false);
+        await Frames(4);
+        _keepBubble = false;
+        hud.HoldBubble = false; hud.HideBubble();
+        await Frames(4);
+        Check("会話中に Shift を離した → 会話明けにロックは残らない", !Hud.BubblePaused && !player.LockedOn && !player.LockArmed);
+        //   会話の間ずっと Shift を押したまま → 会話明けに離す → 外れる（エッジを会話に食われない）。
+        KeyEvent(Key.Shift, true);
+        await Frames(4);
+        _keepBubble = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog(Hud.LineKind.Other, "……Shift を押したまま会話。", "", "レイ");
+        await Frames(4);
+        Check("会話中も Shift 押しっぱなしならロックは保つ", Hud.BubblePaused && player.LockArmed);
+        _keepBubble = false;
+        hud.HoldBubble = false; hud.HideBubble();
+        await Frames(4);
+        KeyEvent(Key.Shift, false);
+        await Frames(4);
+        Check("会話明けに Shift を離すと解除", !player.LockedOn && !player.LockArmed);
+        //   S で付けたロックは Shift と無関係＝Shift を触らなければ会話を挟んでも保つ。
+        await Tap(Key.S);
+        _keepBubble = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog(Hud.LineKind.Other, "……S のロックは残る。", "", "レイ");
+        await Frames(4);
+        _keepBubble = false;
+        hud.HoldBubble = false; hud.HideBubble();
+        await Frames(4);
+        Check("S のロックは会話を挟んでも保つ", player.LockedOn && player.LockArmed);
+        await Tap(Key.Shift);
+        Check("S のロック中に Shift を押し離し → 解除（従来どおり）", !player.LockedOn && !player.LockArmed);
+
         // ── ② 会話停止中は自機を吹き出しの奥へ ──
         Check("平常時の Z は 10", player.ZIndex == 10);
         // 自機を会話ボックス（設計 y 520..690・盤面中央）の上に置く
@@ -161,6 +204,9 @@ public partial class LockModeQa : Node
     }
 
     private async Task Tap(Key k) => await Hold(k, 4);
+
+    private static void KeyEvent(Key k, bool pressed)
+        => Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = pressed });
 
     private async Task Hold(Key k, int frames)
     {
