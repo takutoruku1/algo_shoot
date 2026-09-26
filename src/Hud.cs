@@ -1868,14 +1868,6 @@ public partial class Hud : CanvasLayer
             UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + w - 34, y + h - 30), "▼", UiKit.FontLabel, new Color(1f, 1f, 1f, 0.7f));
     }
 
-    // 既読スキップ中インジケータ「▶▶」（右上アンカー基準・控えめ）。他シーンの独自レンダラからも呼べるよう static。
-    public static void DrawSkipChip(CanvasItem ci, Vector2 rightTop)
-    {
-        const string t = "▶▶";
-        float tw = UiKit.TextW(UiKit.ZenBold, t, 14);
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(rightTop.X - tw, rightTop.Y), t, 14, new Color(UiKit.Info, 0.75f));
-    }
-
     // R 長押しリトライの進捗チップ（下部中央・設計座標）。長押し中だけ出て、離すと消える
     // ＝「押した瞬間に何が起きるか」を見せつつキャンセルの余地を残す（誤爆防止の長押し化とセット）。
     // カットシーン（Prologue/Final/Epilogue）の独自レンダラからも呼べるよう static。

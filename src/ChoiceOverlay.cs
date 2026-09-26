@@ -19,6 +19,7 @@ public partial class ChoiceOverlay : Control
     // 生成フレームからの押しっぱなしをエッジ扱いしない（直前の会話送りZで即決させない）。
     private bool _navHeld = true;
     private bool _zHeld = true;
+    private ulong _lastFrame;     // 前回 _Process を回したフレーム（ツリーポーズ明けの検出用）
 
     // 決定後の解散演出（この間に Decided はまだ立てない）。
     private bool _deciding;
@@ -134,6 +135,12 @@ public partial class ChoiceOverlay : Control
 
     public override void _Process(double delta)
     {
+        // ツリーポーズ（ポーズメニュー／会話ログ）明けの最初のフレーム：止まっていた間の押下を知らないので、
+        //   いま押されている Z／↑↓ は「既押し」扱いにする（会話ログの自前ポーズは閉じキーを離してから解けるため、
+        //   UiBlocked の2フレームを過ぎてから再開することがある＝下の UiBlocked だけでは拾えない）。
+        ulong frame = Engine.GetProcessFrames();
+        if (_lastFrame != 0 && frame - _lastFrame > 1) _zHeld = _navHeld = true;
+        _lastFrame = frame;
         _t += delta;
         QueueRedraw();
         if (Decided) return;
@@ -152,6 +159,11 @@ public partial class ChoiceOverlay : Control
             if (_decideT >= DissolveDur) Decided = true; // 解散が終わってから決定を通知（連続性の担保）
             return;
         }
+
+        // ポーズメニュー／会話ログを閉じた直後（Pad.UiBlocked＝閉じたフレームと次の1フレーム）は入力を読まない。
+        //   閉じるのに使った Z／Enter／A と ↑↓ は「既押し」扱いにする＝離して押し直すまで決定・移動にならない
+        //   （ポーズ中は本 _Process ごと止まって _zHeld が古いまま＝放っておくと閉じた同じ押下で下の選択肢が確定していた）。
+        if (Pad.UiBlocked(this)) { _zHeld = _navHeld = true; return; }
 
         // 出現完了までは決定を受け付けない（アンティシペーション）。--shot 検証時のみ撮影窓ぶん延長。
         bool appeared = _t >= (_shotHold ? ShotHoldGate : AppearDur);

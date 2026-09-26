@@ -57,7 +57,18 @@ public partial class Epilogue : Node2D
     // スタッフロール(PhRoll)は対象外（CurLineText が null＝会話行フェーズのみ効く）。
     private int _readKey = -1;     // 既読チェック済みの行キー（phase×1000+line。フェーズ跨ぎの index 重複を区別）
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
-    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+    private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
+
+    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。枠（DrawLineBox の CutBox）は
+    //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
+    private readonly DialogToolbar _toolbar = new();
+    private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
+    // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ。
+    //   E6 の選択と、最後の END の一行（送るとタイトルへ抜ける）は対象外＝そこは自分の手で。
+    private const double AutoAfterReveal = 1.0;
+    private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
+    // 会話ボックスが出ているか（DrawNarration／DrawEnd が枠を描く条件と同じ）＝ボタン列を出す／受け付ける条件。
+    private bool TalkBoxShown => (_phase == PhGaze || _phase == PhEnd) && _e6Choice == null && CurLineText() != null;
 
     // 配色は UiKit のカットシーントークンへ集約（3画面で同値のコピーだったものを参照に置換）。
     private static readonly Color Cool = UiKit.CutMina;   // ミナ
@@ -274,6 +285,9 @@ public partial class Epilogue : Node2D
 
     public override void _Process(double delta)
     {
+        // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。ムービー中も
+        //   毎フレーム回す＝会話が途切れたら SKIP ラッチが切れる。パッド Start はここでは短押し＝MENU／長押し＝最初から。
+        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
         if (_phase == PhFilm) { _zHeld = Pad.AdvanceHeld(); return; }
         _t += delta;
         _lineT += delta;
@@ -310,12 +324,18 @@ public partial class Epilogue : Node2D
             LogLine(_phase == PhGaze ? _gaze[_line] : _end[_line]);
         }
         _ffNow = curT != null && Hud.SkipHeld && _lineWasRead; // 未読行では効かない
+        // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
+        bool lastEndLine = _phase == PhEnd && _e6ChoiceLine < 0 && _line >= _end.Count - 1;
+        if (curT != null && !lastEndLine && _reveal >= pageLen && (_game?.AutoAdvanceDialog ?? false)) _autoT += delta;
+        else _autoT = 0;
+        bool autoGo = _autoT >= AutoAfterReveal;
 
         switch (_phase)
         {
             case PhGaze:   // E5b 見上げる（夜）
-                if ((zEdge || _ffNow) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)  // _ffNow=既読スキップ（Ctrl/RB長押し・既読行のみ・#22）
                 {
+                    _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; } // 1回目で現在ページ全文（早送り）
                     else if (!LastPage) { NextPage(); }                          // 後続ページがあれば続きへ
                     else
@@ -361,8 +381,9 @@ public partial class Epilogue : Node2D
                 }
                 // 「本日の業務は、以上です。」を送り切って選択点に着いたら提示する。
                 if (_e6ChoiceLine >= 0 && _line >= _e6ChoiceLine) { ShowE6Choice(); break; }
-                if ((zEdge || _ffNow) && _lineT >= 0.25)
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)
                 {
+                    _autoT = 0;
                     if (curT != null && _reveal < pageLen) { _reveal = pageLen; }
                     else if (!LastPage) { NextPage(); }
                     else
@@ -447,6 +468,14 @@ public partial class Epilogue : Node2D
                 if (ShowingGoodbye) DrawArt(_goodbye, GoodbyeAlpha);
                 DrawEnd();
                 break;
+        }
+
+        // 会話ボックスのボタン列（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        if (TalkBoxShown)
+        {
+            UiKit.BeginDesign(this);
+            _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+            UiKit.EndDesign(this);
         }
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
@@ -644,10 +673,7 @@ public partial class Epilogue : Node2D
             shown = Mathf.Clamp((int)_reveal, 0, page.Length);
         }
         UiKit.TypewriterLines(this, font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody, ink, shown, align);
-        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
-        if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
-                new Color(Cool, 0.8f));
+        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」は出さない（_Draw で描く）。
         // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
         // ナレは現在ページを即表示するので、フェード完了で点滅（タイプライター完了を待たない）。
         bool ready = narr ? _lineT >= 0.35 : _reveal >= page.Length;

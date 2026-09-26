@@ -371,10 +371,11 @@ public partial class HowToCanvas : Node2D
         Add(tab == 1 ? Pad.Face(JoyButton.RightShoulder) + " 長押し" : tab == 2 ? "—" : "Ctrl 長押し",
             "既読スキップ", tab == 2 ? "マウスには割り当てなし（Ctrl / " + Pad.Face(JoyButton.RightShoulder) + "）"
                                     : "会話中、一度読んだ行だけ高速で送る", UiKit.Text2, false);
-        // メニューは M（2026-09-26。旧 Esc）。Esc は「一つ前の画面へ」＝メニュー内では一段もどる。
-        Add(tab == 1 ? Pad.Face(JoyButton.Start) : tab == 2 ? "—" : "M",
-            "メニュー", tab == 2 ? "マウスには割り当てなし（M / " + Pad.Face(JoyButton.Start) + "）"
-                                 : tab == 1 ? "セーブ・音量・あそびかた" : "セーブ・音量・あそびかた。Esc で一つ前へ", UiKit.Text2, false);
+        // メニューは M / Esc（2026-09-27。Esc でも開く＝PauseMenu.EscOpensHere）。ただしスマホ系の画面（ハブ/ショップ等）の
+        //   Esc は従来どおり「もどる」。メニューの中の Esc は一段もどる。
+        Add(tab == 1 ? Pad.Face(JoyButton.Start) : tab == 2 ? "—" : "M / Esc",
+            "メニュー", tab == 2 ? "マウスには割り当てなし（M / Esc / " + Pad.Face(JoyButton.Start) + "）"
+                                 : tab == 1 ? "セーブ・音量・あそびかた" : "メニュー内の Esc は一段もどる（スマホの画面の Esc はもどる）", UiKit.Text2, false);
         Add(tab == 1 ? "—" : "R / Shift+R",
             "やりなおす", tab == 1 ? "キーボードのみ（R＝続きから / Shift+R＝最初から）"
                                     : "R＝続きから、Shift+R＝最初から", UiKit.Text2, false);
@@ -396,6 +397,16 @@ public partial class HowToCanvas : Node2D
         // 会話中の2択（ChoiceOverlay）は全デバイス共通の操作なので1行案内。
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 22f),
             "◇ 会話中の2択：↑↓ / マウスで選ぶ、" + Pad.ConfirmToken + " で決定", UiKit.FontLabel, UiKit.PurifyHi,
+            HorizontalAlignment.Left, w);
+        // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。割り当てはタブの機種で出す。
+        string toolbar = tab switch
+        {
+            1 => $"◇ 会話ボックス上のボタン：{Pad.Face(JoyButton.Y)} 自動送り / {Pad.Face(JoyButton.RightShoulder)} 短押し 既読スキップ / "
+                 + $"{Pad.Face(JoyButton.Back)} ログ / {Pad.Face(JoyButton.Start)} メニュー",
+            2 => "◇ 会話ボックス上のボタン（AUTO / SKIP / LOG / MENU）：クリックで押せる",
+            _ => "◇ 会話ボックス上のボタン：A 自動送り / S 既読スキップ / L ログ / M メニュー（クリックでも押せる）",
+        };
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 44f), toolbar, UiKit.FontLabel, UiKit.PurifyHi,
             HorizontalAlignment.Left, w);
     }
 

@@ -40,7 +40,17 @@ public partial class Final : Node2D
     // 既読スキップ（#22）：Ctrl/RB 長押しで「既読の行だけ」高速送り（本編HUDと同じ作法・独自レンダラ側の実装）。
     private int _readIdx = -1;     // 既読チェック済みの行 index
     private bool _lineWasRead;     // 現在行が「表示開始時点で」既読だったか
-    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+    private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
+
+    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。枠（DrawTalk の CutBox）は
+    //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
+    private readonly DialogToolbar _toolbar = new();
+    private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
+    // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ（下書き選択は対象外＝沈黙20秒のまま）。
+    private const double AutoAfterReveal = 1.0;
+    private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
+    // 会話ボックスが出ているか（DrawTalk が枠を描く条件と同じ）＝ボタン列を出す／受け付ける条件。
+    private bool TalkBoxShown => _phase == 1 && _choice == null && _line < _talk.Count;
 
     // ───────── 音楽的解決の同期（光田設計 §7「無音→解決音」）─────────
     //   濁った BgmBoss を全編流すと感情が音楽的に解決しないので、ここで「沈黙→主題の解決変奏」を作る。
@@ -162,6 +172,9 @@ public partial class Final : Node2D
 
     public override void _Process(double delta)
     {
+        // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。
+        //   パッド Start はここでは短押し＝MENU／長押し＝最初から（RetryHold）。
+        _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
         _t += delta;
         _cameraT += delta;
         if (_cueResolveDone) _resolveT += delta;
@@ -229,8 +242,12 @@ public partial class Final : Node2D
                     LogLine(_talk[_line]);   // 会話ログ（L / Tab で開く Backlog）へ、表示を始めた行を積む（2026-09-26）
                 }
                 _ffNow = Hud.SkipHeld && _lineWasRead; // 未読行では効かない
-                if ((zEdge || _ffNow) && _lineT >= 0.25)
+                // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
+                if (_reveal >= len && (_game?.AutoAdvanceDialog ?? false)) _autoT += delta; else _autoT = 0;
+                bool autoGo = _autoT >= AutoAfterReveal;
+                if ((zEdge || _ffNow || autoGo) && _lineT >= 0.25)
                 {
+                    _autoT = 0;
                     if (_reveal < len) { _reveal = len; _holdT = 0; } // 1回目で現在ページ全文（早送り）＝句点ホールドも飛ばす
                     else if (!LastPage) { NextPage(); _lineT = 0; }   // 後続ページがあれば続きへ（既読FFも同経路で全ページ抜ける）
                     else
@@ -284,6 +301,14 @@ public partial class Final : Node2D
             DrawArt(_rooftop, 1f, Mathf.SmoothStep(0f, 1f, (float)_t / 2.5f));
         else DrawTalk();
 
+        // 会話ボックスのボタン列（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        if (TalkBoxShown)
+        {
+            UiKit.BeginDesign(this);
+            _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+            UiKit.EndDesign(this);
+        }
+
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
         if (_retry.Progress > 0f)
         {
@@ -332,10 +357,7 @@ public partial class Final : Node2D
         int shown = Mathf.Clamp((int)_reveal, 0, page.Length);
         UiKit.TypewriterLines(this, _font, lines, new Vector2(24, boxTop + 27f), W - 56, UiKit.CutBody,
             UiKit.CutInk, shown);
-        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
-        if (_ffNow)
-            DrawString(UiKit.ZenBold, new Vector2(W - 42, boxTop + 12), "▶▶", HorizontalAlignment.Left, -1, UiKit.CutSpeaker,
-                new Color(Cool, 0.8f));
+        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」は出さない（_Draw で描く）。
         // 送り三角は現在ページの全文表示後だけ点滅（本編と同じ作法。後続ページも同じ▼で示す）。
         if (_reveal >= page.Length && ((int)(_t * 2f) % 2) == 0)
             DrawString(_font, new Vector2(W - 26, H - 16), "▼", HorizontalAlignment.Left, -1, UiKit.CutNote,

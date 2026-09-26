@@ -210,7 +210,17 @@ public partial class Hub : Node2D
     private int _dlgReadIdx = -1;  // 既読チェック済みの行 index
     private bool _dlgReadBefore;   // 現在行が「表示開始時点で」既読だったか
     private int _dlgLogIdx = -1;   // 会話ログ（Hud.Backlog）へ積んだ行 index（2026-09-26。オート送りでも積む）
-    private bool _ffNow;           // いま高速送り中か（▶▶表示用）
+    private bool _ffNow;           // いま高速送り中か（ボタン列の SKIP 点灯用）
+
+    // 会話ボックス上辺のボタン列（AUTO / SKIP / LOG / MENU・src/DialogToolbar.cs）。アンカーは DialogBox の右上（880,428）。
+    //   ハブはカットシーンではない＝MENU のパッド Start・キー M は PauseMenu が自前で読む（ここは足さない）。
+    private readonly DialogToolbar _toolbar = new();
+    private static Rect2 DialogBox => new(PhoneX, 428f, PhoneW, 276f);   // DrawDialog の枠と同じ1本
+    private static Vector2 ToolbarAnchor => new(DialogBox.End.X, DialogBox.Position.Y);
+    private bool DialogShown => _mode == Mode.Dialogue && !_dived && _dlg.Length > 0;
+    // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ（--demo/--qa の _autoplay とは別）。
+    private const double AutoAfterReveal = 1.0;
+    private double _dlgAutoT;      // 現在ページを全文表示してからの経過（AUTO 用）
 
     private double _toastT;
     private string _toast = "", _toastSub = "";
@@ -799,6 +809,9 @@ public partial class Hub : Node2D
 
     public override void _Process(double delta)
     {
+        // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。会話の外でも毎フレーム回す
+        //   ＝会話が閉じたら SKIP ラッチが切れる。
+        _toolbar.Tick(this, delta, DialogShown, ToolbarAnchor, unreadLine: !_dlgReadBefore);
         _t += delta;
         string sideStory = SideStoryId();
         if (_sideStoryId != sideStory)
@@ -851,7 +864,7 @@ public partial class Hub : Node2D
         // `{n}` の差し込みで中身を書き換えるので、静的な台詞データを直接持たず必ず写しで回す
         //（そのまま持つと差し込んだ実測値が静的配列に焼き付き、次の再訪でも同じ数字が出てしまう）。
         _dlg = ((string sp, string tx)[])lines.Clone(); _dlgIdx = 0; _dlgLineT = 0; _dlgReveal = 0; _dlgReplyId = replyId;
-        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1;
+        _dlgReadIdx = -1; _dlgReadBefore = false; _ffNow = false; _dlgLogIdx = -1; _dlgAutoT = 0;
         _dlgPages.Clear(); _dlgPage = 0; _dlgPagedIdx = -1;
     }
 
@@ -900,6 +913,14 @@ public partial class Hub : Node2D
         {
             _dlgReveal = len;
             if (_dlgLineT >= 0.15) { _dlgLineT = 0; if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue(); return; }
+        }
+        // AUTO（会話ボックスの AUTO ボタン／設定の「オート会話送り」）：現在ページの全文表示後 AutoAfterReveal 秒で送る。
+        if (_dlgReveal >= len && (_game?.AutoAdvanceDialog ?? false)) _dlgAutoT += delta; else _dlgAutoT = 0;
+        if (_dlgAutoT >= AutoAfterReveal)
+        {
+            _dlgAutoT = 0;
+            if (!DlgLastPage) DlgNextPage(); else AdvanceDialogue();
+            return;
         }
         // 会話送り：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも送れる共通ヘルパ（マウス対応 P2）。
         // 会話中はカードのホットスポットを登録しない＝画面全体が「送り」になり、クリック誤爆は起きない。
@@ -1947,6 +1968,8 @@ public partial class Hub : Node2D
         else if (_mode == Mode.Cards) DrawFooter();
         DrawToast();
         DrawContaminationOverlay();
+        // 会話ボックスのボタン列（最前面）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        if (DialogShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
         UiKit.EndDesign(this);
     }
 
@@ -2990,7 +3013,7 @@ public partial class Hub : Node2D
     {
         var (sp, tx) = _dlg[Mathf.Clamp(_dlgIdx, 0, _dlg.Length - 1)];
         var (spFace, spc, spTop) = SpeakerFace(sp);
-        var box = new Rect2(PhoneX, 428f, PhoneW, 276f);
+        var box = DialogBox;
         UiKit.Box(this, box, PhoneBg, 8f, new Color(spc, 0.5f), 1f);
         // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
         //   spTop < 0＝顔の無い話者（Ｘ 投稿／Ｘ システム）＝アバターを描かず、話者名を左端へ寄せる。
@@ -3011,8 +3034,7 @@ public partial class Hub : Node2D
         UiKit.TypewriterLines(this, UiKit.Zen, lines,
             new Vector2(box.Position.X + 24, box.Position.Y + 90 + UiKit.Zen.GetAscent(UiKit.FontHeading)),
             DlgBodyWrapW, UiKit.FontHeading, new Color(0.95f, 0.95f, 0.98f), shown);
-        // 既読高速送り中の控えめな表示（ボックス右上・#22）。
-        if (_ffNow) Hud.DrawSkipChip(this, new Vector2(box.Position.X + box.Size.X - 20, box.Position.Y + 14));
+        // 既読高速送り中の表示は上辺のボタン列（SKIP の点灯）が担う＝旧「▶▶」チップは出さない（_Draw の最後で描く）。
         // 送り表示は現在ページの全文表示後だけ点滅。後続ページなら「▼ つづき」、最終ページなら「Z すすむ ▸」。
         if (!_autoplay && _dlgReveal >= page.Length)
         {

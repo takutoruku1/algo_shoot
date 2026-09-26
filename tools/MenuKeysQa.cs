@@ -109,6 +109,23 @@ public partial class MenuKeysQa : Node
             await Press(Key.Escape);
             await Frames(4);
             Check(!log.IsOpen && !pause.IsOpen, "Esc closes the backlog without opening the menu");
+            // 選択肢の表示中にメニューを開き、「閉じる」を Z で決定して閉じる。その同じ Z の押下で、下の選択肢が
+            //   確定してはいけない（2026-09-27：ChoiceOverlay が Pad.UiBlocked／ポーズ明けを見るようにした）。
+            var choice = ChoiceOverlay.Show(((Node)stage).GetNode<Hud>("Hud"), new[] { "はい", "いいえ" }, 0, onBoard: true);
+            await Frames(60);   // 出現（AppearDur 0.7s）を待つ＝決定を受け付ける状態にしてから試す
+            await Press(Key.M);
+            Check(pause.IsOpen && choice.IsInsideTree(), "M opens the menu over a shown choice");
+            Write(pause, "_sel", pause.CloseIndex);
+            await Press(Key.Z);
+            await Frames(40);   // 解散演出（0.5s）ぶん待っても Decided が立たないこと
+            Check(!pause.IsOpen && !GetTree().Paused, "Z on 閉じる closes the menu");
+            Check(!choice.Decided && !Read<bool>(choice, "_deciding"),
+                "closing the menu with Z does not confirm the choice underneath");
+            await Press(Key.Z);
+            await Frames(40);
+            Check(choice.Decided, "a fresh Z press still confirms the choice afterwards");
+            choice.QueueFree();
+            await Frames(3);
             stage.QueueFree();
             await Frames(3);
 

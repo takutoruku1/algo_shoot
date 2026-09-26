@@ -847,7 +847,8 @@ public partial class PauseMenu : CanvasLayer
         return new Rect2(x + w - 56f, y + 12f, 40f, 40f);
     }
 
-    private void Open()
+    // public＝会話ボックスの MENU ボタン（DialogToolbar.OpenPauseFromToolbar）からも直接呼ぶ。
+    public void Open()
     {
         Audio.Instance?.PlayUiCancel(); // ポーズ＝開く合図（柔らかい下降）
         _open = true; _sel = 0;
