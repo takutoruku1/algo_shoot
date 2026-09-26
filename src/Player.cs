@@ -251,7 +251,13 @@ public partial class Player : Area2D
     //     ロック中だけ ShotDir が上書きされる）。
     //   ・ロック中は移動が遅くなる（LockMoveMul）＝照準を任せるあいだは足が重い、という取引。
     private const float LockMoveMul = 0.8f;   // ロック中の移動速度倍率（ユーザー決定の目安 0.8）
-    private bool _locked;                     // ロックオン中か
+    private bool _locked;                     // ロックオン中か（対象を実際に掴んでいる）
+    // ロックオン**モード**（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで」）。
+    //   _locked が「今この敵を掴んでいる」なのに対し、こちらは「狙う意思」。対象が倒れた・画面外へ出た・
+    //   ウェーブの合間で敵が一体も居ない、のどれでも落とさず、次に現れた最寄りの敵へ自動で付く。
+    //   落ちるのは解除入力（Shift を離す／ロック中の左クリック／R3）だけ。HUD のサイドパネルがこれを表示する。
+    private bool _lockArmed;
+    public bool LockArmed => _lockArmed;
     private bool _lockHeld = true;            // 送りのエッジ検出（_flipHeld と同じ理由で true 始まり）
     private bool _mouseLockLocked = false;    // 会話送りのクリックが会話明けにロック送りへ流れ込むのを止めるゲート（離すまで送らない）
 
@@ -364,6 +370,22 @@ public partial class Player : Area2D
     private bool _lockPrevHeld;      // 前フレームの A（前の敵へ送りのエッジ検出）
     private bool _chargeKeyLocked;   // 会話中に押された Z／Y を、離すまで溜め打ち入力として読まない（会話送りの同じ押下で暴発しない）
 
+    // ── 会話で戦闘が止まっているあいだは、自機を吹き出しの奥へ回す（2026-09-26 作者指摘）──
+    //   戦闘中の吹き出しは弾より奥（BubbleLayer・ZIndex -7）に描くので、自機（ZNormal=10）が文字の上に乗ると
+    //   「動かせないのに読めない」。止まっている間だけ Z を吹き出しの下（-8）へ落とし、明けたら戻す。
+    //   弾は触らない＝止まった弾の位置は吹き出し越しに見せておく。BubbleLayer の無い場面（カットシーン等）は
+    //   吹き出しが最前面（Hud）に描かれるので何もしない。子（当たり判定の点・シールド）は相対 Z で一緒に沈む。
+    private const int ZNormal = 10, ZBehindBubble = -8;
+    private bool _behindBubble;
+    private void TickBubbleDepth()
+    {
+        bool want = Hud.BubblePaused && !_gameOver
+                    && GetTree().GetFirstNodeInGroup("hud") is Hud h && h.Bubbles != null;
+        if (want == _behindBubble) return;
+        _behindBubble = want;
+        ZIndex = want ? ZBehindBubble : ZNormal;
+    }
+
     private void TickLockOn()
     {
         // ── 対象の維持：倒された／浄化された／画面外へ出たら、**一番近い敵へ引き継ぐ** ──
@@ -375,6 +397,14 @@ public partial class Player : Area2D
             var handoff = LockCandidates();
             _lockTarget = handoff.Count > 0 ? handoff[0] : null;
             _locked = _lockTarget != null;
+            // 候補が一体も居なくても _lockArmed は落とさない＝「待機」。下の再取得が次の敵を拾う。
+        }
+        // ── 待機からの再取得：モードが立っていて対象が無ければ、現れた最寄りの敵へ自動で付く ──
+        //   会話中でも付けておく（明けた瞬間から狙えている）。音は鳴らさない（倒したときの引き継ぎと同じ扱い）。
+        if (_lockArmed && !_locked && !_gameOver)
+        {
+            var again = LockCandidates();
+            if (again.Count > 0) { _lockTarget = again[0]; _locked = true; }
         }
 
         // ── 解除入力＝G / パッド R3 / 右クリック ──
@@ -399,14 +429,16 @@ public partial class Player : Area2D
         bool tap = _mouseTapFire;
         _mouseTapFire = false;   // 1フレームぶんのパルス＝読んだら必ず落とす
         bool wasLocked = _locked;
+        bool wasArmed = _lockArmed;
 
-        // ── 解除＝パッド R3 ／ Shift を離す ／ ロック中の左クリック ──
+        // ── 解除＝パッド R3 ／ Shift を離す ／ モード中の左クリック ──
+        //   解除はモード（_lockArmed）ごと落とす。待機中（対象なし）でも同じ入力で切れる。
         bool clearKey = Pad.Pressed(JoyButton.RightStick);
-        bool clearEdge = (clearKey && !_lockClearHeld) || shiftRelease || (tap && wasLocked);
+        bool clearEdge = (clearKey && !_lockClearHeld) || shiftRelease || (tap && wasArmed);
         _lockClearHeld = clearKey;
-        if (clearEdge && !Hud.BubblePaused && wasLocked)
+        if (clearEdge && !Hud.BubblePaused && wasArmed)
         {
-            _locked = false; _lockTarget = null;
+            _locked = false; _lockTarget = null; _lockArmed = false;
             if (Audio.Instance is { } auc) auc.Se(auc.SfxUiMove, volDb: -18f, pitch: 0.85f);
         }
 
@@ -422,7 +454,7 @@ public partial class Player : Area2D
         int step = 0;
         if (nextEdge) step = +1;
         else if (prevEdge) step = -1;
-        else if (!wasLocked && (tap || shiftEdge)) step = +1;
+        else if (!wasArmed && (tap || shiftEdge)) step = +1;
         else if (wasLocked && _locked)
         {
             float wheel = Pad.WheelDelta();
@@ -436,7 +468,17 @@ public partial class Player : Area2D
         //   順番が入れ替わっても巡回が飛ばない（インデックスを覚えておく方式だと、敵が動いた瞬間に
         //   別の敵を指してしまう）。今の対象が列から消えていれば先頭＝最も近い敵から。
         var cands = LockCandidates();
-        if (cands.Count == 0) { _locked = false; _lockTarget = null; return; }
+        if (cands.Count == 0)
+        {
+            // 敵が居ない盤面で狙う入力＝モードだけ立てて「待機」に入る（次に現れた敵へ自動で付く）。
+            _locked = false; _lockTarget = null;
+            if (!wasArmed)
+            {
+                _lockArmed = true;
+                if (Audio.Instance is { } aw) aw.Se(aw.SfxUiMove, volDb: -18f, pitch: 1.15f);
+            }
+            return;
+        }
 
         int cur = _locked && _lockTarget != null ? cands.IndexOf((Enemy)_lockTarget) : -1;
         int n = cands.Count;
@@ -444,6 +486,7 @@ public partial class Player : Area2D
         var prev = _lockTarget;
         _lockTarget = cands[next];
         _locked = true;
+        _lockArmed = true;
         // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。
         if (prev is Enemy pe && IsInstanceValid(pe) && !ReferenceEquals(pe, _lockTarget)) pe.QueueRedraw();
         if (Audio.Instance is { } au) au.Se(au.SfxUiMove, volDb: -18f, pitch: 1.15f);
@@ -625,7 +668,7 @@ public partial class Player : Area2D
         // Pool 取得
         _pool = GetNode<BulletPool>("/root/Pool");
 
-        ZIndex = 10;
+        ZIndex = ZNormal;
 
         // 被弾点は専用の子ノードで、スプライトより前に描く（下の PlayerHitDot の説明を参照）。
         // ZAsRelative（既定 true）なので ZIndex=1 は「自機 10 に対し +1＝11」の意味になる。
@@ -646,6 +689,7 @@ public partial class Player : Area2D
         // マウス操作中か（Pad が座標・ボタン・ホイールから毎フレーム判定。KB/パッドを触れば false に落ちる）。
         // ポーズ中は _PhysicsProcess 自体が止まり、会話中は下の BubblePaused ゲートで無効化される。
         bool mouse = Pad.UsingMouse;
+        TickBubbleDepth();
 
         // 移動入力。会話中（吹き出し表示中）・ゲームオーバー後は動けない。
         Vector2 dir = Vector2.Zero;

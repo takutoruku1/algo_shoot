@@ -260,7 +260,10 @@ public partial class Hud : CanvasLayer
     // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "C"; // 溜め打ち（長押し）
+    private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "Z"; // 溜め打ち（長押し。2026-09-26 C→Z）
+    // ロックオン：Shift 長押し / パッド RB / マウス左クリック（Player.TickLockOn の判定と一致させる）。
+    private static string TokLock   => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder)
+                                     : Pad.UsingMouse ? "左クリック" : "Shift";
     // 集中モード：V / パッド LB / マウスのホイール回転・サイドボタン（Player.cs の判定と一致させる）。
     // 単体チップは代表1表記なので、直近デバイスに合わせて1つだけ出す（マウス時は KB 表記へ落ちないよう明示）。
     private static string TokFocus  => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
@@ -902,6 +905,7 @@ public partial class Hud : CanvasLayer
         DrawPurify(ci);
         DrawScore(ci);
         DrawTimer(ci);
+        DrawLockOn(ci);
         DrawCombo(ci);
         if (_bossVisible) DrawBossCard(ci);
         // 【激情】メーターは HUD ではなく、盤面の奥（ZIndex -44）にボスの下書き（入力欄）として敷く → src/FuryDial.cs。
@@ -986,8 +990,11 @@ public partial class Hud : CanvasLayer
     private const float RowPurify = 350f;
     private const float RowScore = 428f;
     private const float RowTime = 519f;
-    private const float RowCombo = 576f;
-    private const float RowFocus = 649f;
+    // 2026-09-26: TIME の下に LOCK-ON 行を足した（作者指示「ステータス欄でロックオンモードが分かるように」）。
+    //   COMBO 576→606・集中 649→660 に詰めて場所を空けた（集中のバーの下端 698 ＜ 720）。
+    private const float RowLock = 576f;
+    private const float RowCombo = 606f;
+    private const float RowFocus = 660f;
 
     // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
     private const float KeyBadgeH = 21f;
@@ -1134,6 +1141,27 @@ public partial class Hud : CanvasLayer
         string t = UiKit.FormatTime(_elapsed);
         UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(PanelX, RowTime), "TIME", SideMuted);
         UiKit.DrawRight(ci, UiKit.PanelValueMid, PanelX + PanelInnerW, RowTime - 2f, t, SideInk);
+    }
+
+    // ロックオンモードの行（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで、
+    //   ステータス欄でロックオンモードかを分かるように」）。Player.LockArmed（狙う意思）と LockedOn（今掴んでいる）を分けて出す。
+    //   OFF ＝ 灰 ／ 待機（モードは立っているが画面に敵が居ない）＝ 青緑でゆっくり明滅 ／ 追尾中 ＝ ジョブ色。
+    //   待機は盤面に照準マーカーが出ないので、ここが唯一の手がかり。
+    private void DrawLockOn(HudCanvas ci)
+    {
+        var player = GetTree().GetFirstNodeInGroup("player") as Player;
+        bool armed = player?.LockArmed ?? false;
+        bool on = player?.LockedOn ?? false;
+        float x = PanelX, y = RowLock, w = PanelInnerW;
+        Color accent = on ? AccountAccent : armed ? SideTeal : SideMuted;
+        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "LOCK-ON", accent);
+        float lw = UiKit.TrackedW(UiKit.PanelLabel, "LOCK-ON");
+        KeyBadge(ci, new Vector2(x + lw + 12f, y - 2f), TokLock, SideMuted, sidebar: true);
+        string status = on ? "追尾中" : armed ? "待機" : "OFF";
+        float a = armed && !on ? 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
+        float sw = UiKit.TrackedW(UiKit.SmallLabel, status);
+        ci.DrawCircle(new Vector2(x + w - sw - 14f, y + 10f), 4f, new Color(accent, armed ? a : 0.35f));
+        UiKit.DrawRight(ci, UiKit.SmallLabel, x + w, y + 2f, status, new Color(accent, a));
     }
 
     private void DrawCombo(HudCanvas ci)
