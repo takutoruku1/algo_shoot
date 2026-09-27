@@ -119,9 +119,11 @@ public partial class MinaRoot : Node2D
         bool gameOver = (Player?.Lives ?? 1) <= 0;
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R), instant: gameOver))
         {
+            // ゲームオーバー中のみ Shift で分岐：R単体＝ボスから再開（StageMina._step=3 に乗る＝導入と
+            //   残響の三波を飛ばしてミナ戦から。今ランでボス未到達なら PrepareBossRetry が予約しない
+            //   ＝最初から）／Shift+R＝最初から（従来どおり。SelectedEntry に触らない）。
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
-                GetNode<GameManager>("/root/Game").PrepareBossRetry(bossCheckpoint: false);
-            // FINAL はチェックポイント対象外なので、残響戦を含めて最初から再開する。
+                GetNode<GameManager>("/root/Game").PrepareBossRetry();
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             GetTree().ReloadCurrentScene();
             return;

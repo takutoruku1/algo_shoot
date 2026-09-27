@@ -247,6 +247,8 @@ public partial class GameManager : Node
     //   SelectedEntry は「ラン単位」＝非セーブ。DiffSelect がダイブ直前にセットし、Stage が _Ready で読む。
     //   解放ゲート：MidBoss は中ボス撃破で解放（IsMidBossCleared）、Boss はステージクリアで解放（IsStageCleared）。
     //   AfterMidBoss は DiffSelect には出さない“続きから再開”専用（初回ショップ導線がプログラム的にセット）。
+    //   FINAL（MinaBattle）は中ボスを持たないので Start と Boss の2つだけ。Boss はゲームオーバーの
+    //   「ボスから」だけが立てる＝道中（残響の三波・約70秒）を飛ばしてミナ戦から再開する（2026-09-27）。
     public enum StageEntry { Start, MidBoss, Boss, AfterMidBoss }
     public StageEntry SelectedEntry = StageEntry.Start;
 
@@ -1960,7 +1962,10 @@ public partial class GameManager : Node
         {
             case 0:   // ボスからやり直す＝R 単体と同じ経路（SelectedEntry を Boss にしてシーン再読込）
                       //   ボス未到達でここへは来ない（2択のとき sel は 1 から）。来ても PrepareBossRetry が弾く。
-                game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot);
+                      //   FINAL（MinaRoot）も 2026-09-27 からボス入口を持つ＝残響の三波（約70秒）を飛ばして
+                      //   ミナ戦から再開する。入口を持たないのは練習（Stage0Root）だけで、そちらは本ボスが
+                      //   居ないので BossReached が立たず、この行にも来ない。
+                game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot or MinaRoot);
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                 root.GetTree().ReloadCurrentScene();
                 return true;

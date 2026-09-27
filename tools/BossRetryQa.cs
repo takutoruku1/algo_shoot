@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 //   ・2026-09-23：「ボスから」は**今ランでボス戦に到達したとき**だけ出ること（GameManager.BossReached）。
 //       未到達＝2択（最初から／抜ける）・R 単体も最初から（スコア 0）。到達＝従来の3択。
 //       到達の印は各 Stage の Step_BossSpawn が立てる＝入口 Boss で建てて回すと立ち、入口 MidBoss（中ボス cameo）では立たない。
+//   ・2026-09-27：FINAL（MinaBattle）も「ボスから」の対象になった＝道中（残響の三波・約70秒）を飛ばして
+//       step 3＝Step_BossSpawn からミナ戦で再開する。ボス出現前（残響戦）で倒れたら従来どおり出さない。
 //   Freeze で Stage の step は回らないので、主ループでは NotifyBossReached を QA が直接立てる。
 public partial class BossRetryQa : Node
 {
@@ -136,6 +138,37 @@ public partial class BossRetryQa : Node
                 Hud.BubblePaused = false;
             }
 
+            // FINAL も実経路で確かめる：入口 Boss なら _Ready が導入と残響の三波を飛ばして step 3 へ着き、
+            //   最初のフレームで Step_BossSpawn がミナを建てて NotifyBossReached を呼ぶ。入口 Start では
+            //   タイトルカード（5.2 秒）で止まっている＝ボス未到達＝「ボスから」は出ない（2択のまま）。
+            foreach (var (entry, reached) in new[] { (GameManager.StageEntry.Start, false), (GameManager.StageEntry.Boss, true) })
+            {
+                _game.SelectedEntry = entry;
+                var root = GD.Load<PackedScene>("res://MinaBattle.tscn").Instantiate<Node2D>();
+                GetTree().Root.AddChild(root);
+                GetTree().CurrentScene = root;
+                await Frames(3);
+                var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+                int step = Read<int>(stage, "_step");
+                Check(_game.BossReached == reached, $"FINAL entry {entry}: BossReached={reached} through the real stage step");
+                Check(reached ? step >= BossStepOf("MinaBattle") : step == 1,
+                    $"FINAL entry {entry}: starts at {(reached ? "the boss" : "the intro")} (step {step})");
+                Check((root.GetNode<Node2D>("World").GetNodeOrNull<BossMina>("BossMina") != null) == reached,
+                    $"FINAL entry {entry}: Mina herself is {(reached ? "already on the field" : "still absent")}");
+                Check(root.GetNode<Hud>("Hud").EpicBannerActive != reached,
+                    $"FINAL entry {entry}: the FINAL title card {(reached ? "is skipped on a boss retry" : "plays on a fresh dive")}");
+                Freeze(root);
+                Property(_game, "Score", 10000L);
+                root = await RetryChoice(root, 0, mouse: false);
+                Check(_game.Score == (reached ? 5000 : 0),
+                    $"FINAL entry {entry}: first choice {(reached ? "retries Mina for half the score" : "starts over for free")}");
+                CheckEntry(root, "MinaBattle", boss: reached);
+                root.QueueFree();
+                await Frames(3);
+                GameManager.ClearGameOverChoice(null);
+                Hud.BubblePaused = false;
+            }
+
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
                 if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -212,6 +245,12 @@ public partial class BossRetryQa : Node
                 Check(image.SavePng(ProjectSettings.GlobalizePath($"res://build/qa_story/boss_retry/{capture}_{size.X}x{size.Y}.png")) == Error.Ok, $"retry screenshot {capture}");
             }
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            // 撮影で実フレームを跨いだので、確定の押下を入れる前にフレーム台帳（_lastFrame）を合わせ直す。
+            //   ChoiceOverlay は「_Process が飛んだ＝ポーズ明け」を見たら、いま押している Z/ui_accept を
+            //   既押し扱いにする（5f40cc1・閉じ押下での誤決定対策）。ここは QA が手で _Process を回すので
+            //   撮影の待ちフレームぶんが丸ごと「飛んだ」ように見え、直後の押下がエッジとして読まれなくなる。
+            //   何も押していない状態で1回通しておけば、次の押下は素直にエッジになる。
+            choice._Process(0d);
         }
         Property(choice, "Selected", selected);
         if (mouse)
@@ -251,18 +290,21 @@ public partial class BossRetryQa : Node
         return await Reloaded(root);
     }
 
+    // ボス入口が着地する step は面ごとに違う（本編3面の Step_BossSpawn＝10 以降／FINAL＝3）。
+    private static int BossStepOf(string scene) => scene == "MinaBattle" ? 3 : 10;
+
     private void CheckEntry(Node2D root, string scene, bool boss)
     {
-        bool checkpointStage = scene is "Akari" or "Koharu" or "Rei";
+        bool checkpointStage = scene is "Akari" or "Koharu" or "Rei" or "MinaBattle";
         if (checkpointStage)
         {
             var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
             int step = Read<int>(stage, "_step");
-            Check(boss ? step >= 10 : step == 1, $"{scene}: retry keeps the requested entry point");
+            Check(boss ? step >= BossStepOf(scene) : step == 1, $"{scene}: retry keeps the requested entry point");
         }
-        // 再読込は ResetRun で印を下ろす。ボス入口（3ステージ）なら Reloaded が待った数フレームの間に
+        // 再読込は ResetRun で印を下ろす。ボス入口（本編3面と FINAL）なら Reloaded が待った数フレームの間に
         //   Step_BossSpawn が実経路で立て直す＝ボス戦で倒れ続けても「ボスから」が消えない。
-        //   最初から／FINAL・練習（bossCheckpoint:false＝入口 Start）では下りたまま。
+        //   最初から／練習（Stage0＝本ボスを持たない）では下りたまま。
         Check(_game.BossReached == (boss && checkpointStage), $"{scene}: boss-reached flag after reload follows the entry point");
         Check(_game.SelectedEntry == GameManager.StageEntry.Start, "entry selection does not leak into another stage");
     }
