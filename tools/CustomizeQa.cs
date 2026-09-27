@@ -232,7 +232,10 @@ public partial class CustomizeQa : Node
             {
                 Call(player, "ApplySpinFrame", Mathf.Tau * (i + 0.1f) / 8);
                 Check(sprite.Texture.ResourcePath == outfit.PosePath($"spin_{i:00}"), "dodge retains equipped costume");
-                Check(Mathf.IsEqualApprox(sprite.Scale.Y * sprite.Texture.GetHeight(), 36), "dodge scale remains stable");
+                // 戦闘中の自機は 2026-09-27 から「中身（不透明部分）の高さ」を 36px に正規化する（Player.ScaleFor →
+                // UiKit.PortraitScale）。追加衣装の素材は余白つきでテクスチャ全体の高さでは 36 にならないため、中身で測る。
+                Check(Mathf.IsEqualApprox(sprite.Scale.Y * UiKit.ContentRect(sprite.Texture).Size.Y, 36),
+                    "dodge scale remains stable");
             }
             Call(player, "SpawnTrail");
             Check(Read<List<Sprite2D>>(player, "_trail").Last().Texture.ResourcePath.Contains("costume_v1"), "afterimage retains outfit");

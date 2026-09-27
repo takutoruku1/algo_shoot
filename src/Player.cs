@@ -311,9 +311,48 @@ public partial class Player : Area2D
     }
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
     private string _aimNow = "";
-    // ── 表示スケールの単一ソース（2026-09-08）──
-    // 全ポーズを事前に余白トリム済みなので、実行時の画素走査なしで表示高を統一できる。
-    private static float ScaleFor(Texture2D tex) => 36f / tex.GetHeight();
+    // ── 表示スケール／位置の単一ソース（2026-09-08 初版 → 2026-09-27 中身基準へ改訂）──
+    // 旧版は「全ポーズを事前に余白トリム済み」を前提に 36/テクスチャ高 で済ませていたが、追加衣装
+    //   （char/player/<id>/costume_v1/*）は 720 前後のキャンバスに余白つきで入っていてその前提が崩れる。
+    //   実測（tools/PlayerScaleQa.cs）では中身の高さが 29.2〜35.6px（既定衣装は 36.0px）＝衣装を替えると自機が
+    //   最大 19% 小さく見え、ポーズを送るあいだに見た目の中心が横へ最大 8.2px・足元が縦へ最大 2.8px ブレていた
+    //   （当たり半径 2px の自機で）。
+    //   → カスタマイズ／ショップのプレビューと同じ方式にそろえる：**中身（不透明部分）の高さ**を DisplayH に
+    //     正規化し（ScaleFor）、**中身の中心**をスプライトの中心へ寄せる（FitOffsetFor）。中身の高さが一定なら
+    //     「中身の中心を合わせる」＝「足元が常に DisplayH/2 下に来る」なので、これ1本で大きさ・中心・足元が揃う。
+    //   既定衣装は中身＝テクスチャ全体（全ポーズで実測済み）なので、倍率は 36/高さ・Offset は (0,0)＝
+    //     従来の見え方そのまま＝プレイ感は変わらない。
+    private const float DisplayH = 36f;   // 表示する「中身」の高さ(px)。弾幕向けに小さめという意味は据え置き
+    private static float ScaleFor(Texture2D tex) => UiKit.PortraitScale(tex, DisplayH);
+
+    // そのテクスチャの「中身の中心」をスプライトの中心へ寄せる Offset（テクスチャ画素・反転前）。
+    private static Vector2 FitOffsetFor(Texture2D tex)
+    {
+        var c = UiKit.ContentRect(tex);
+        return tex.GetSize() * 0.5f - ((Vector2)c.Position + (Vector2)c.Size * 0.5f);
+    }
+
+    // 現テクスチャの Offset（反転前）。テクスチャを差し替えるたびに入れ直す（毎フレーム走査はしない）。
+    private Vector2 _bodyFit = Vector2.Zero;
+
+    // 中身基準の倍率と Offset を、いまの _sprite.Texture から入れ直す。
+    //   スケールは _baseScaleX に残す＝リアクション（squash/stretch）が毎フレームここを基準に上書きする。
+    private void ApplyBodyFit()
+    {
+        if (_sprite == null || _sprite.Texture == null) return;
+        _baseScaleX = ScaleFor(_sprite.Texture);
+        _bodyFit = FitOffsetFor(_sprite.Texture);
+        _sprite.Scale = new Vector2(_baseScaleX, _baseScaleX);
+        ApplyBodyOffset();
+    }
+
+    // Offset を今の向きに合わせて入れる。FlipH は絵を「描画箱の中心」で折り返す＝Offset.X の効きも反転するので、
+    //   反転時は符号を戻して中身の中心を動かさない（Enemy.ApplyBodyOffset と同じ作法）。
+    private void ApplyBodyOffset()
+    {
+        if (_sprite == null) return;
+        _sprite.Offset = _sprite.FlipH ? new Vector2(-_bodyFit.X, _bodyFit.Y) : _bodyFit;
+    }
 
     private Texture2D AimTexture(string dir) => _aimTex[dir];
 
@@ -668,12 +707,9 @@ public partial class Player : Area2D
                 // 背景に合わせ、なめらか高精細で小さく表示（リニア縮小）
                 TextureFilter = CanvasItem.TextureFilterEnum.Linear
             };
-            // 表示高さ約36px（弾幕向けに小さめ）。基準は絵の中身の高さ（ScaleFor）。
-            {
-                float scale = ScaleFor(tex);
-                _sprite.Scale = new Vector2(scale, scale);
-                _baseScaleX = scale; // 縦軸スピンの cos 駆動はこの素値を基準にする（向きは FlipH 固定＝符号は常に正）。
-            }
+            // 中身の高さ 36px（弾幕向けに小さめ）＋中身の中心をスプライトの中心へ。
+            // _baseScaleX も同時に決まる＝縦軸スピンの駆動はこの素値を基準にする（向きは FlipH 固定＝符号は常に正）。
+            ApplyBodyFit();
             AddChild(_sprite);
         }
 
@@ -684,6 +720,11 @@ public partial class Player : Area2D
             _spinTex[i] = ResourceLoader.Load<Texture2D>(costume.PosePath($"spin_{i:00}"));
         foreach (string direction in new[] { "u", "ur", "r", "dr", "d" })
             _aimTex[direction] = ResourceLoader.Load<Texture2D>(costume.PosePath($"aim_{direction}"));
+        // 中身の実測（UiKit.ContentRect）は絵1枚につき初回だけ画素を走査する。素材を読み込むこのフレームで
+        // まとめて済ませ、回避の初回や初ロックオンの最中に走査が入って1フレーム跳ねるのを避ける
+        //（2周目以降はパスをキーにしたキャッシュが返る＝ここも含めてタダになる）。
+        foreach (var poseTex in _spinTex) if (poseTex != null) UiKit.ContentRect(poseTex);
+        foreach (var poseTex in _aimTex.Values) if (poseTex != null) UiKit.ContentRect(poseTex);
 
         // 被弾検出（敵 / 敵弾）
         AreaEntered += OnAreaEntered;
@@ -1044,7 +1085,7 @@ public partial class Player : Area2D
                 {
                     _aimNow = aimDir;
                     _sprite.Texture = aimDir.Length > 0 ? AimTexture(aimDir) : _idleTex;
-                    _baseScaleX = ScaleFor(_sprite.Texture);
+                    ApplyBodyFit();   // 照準の絵ごとに中身の高さ・中心が違う＝差し替えるたびに入れ直す
                 }
                 // 左半分の方向は右向きの絵を左右反転して作る。**向き反転（_facing）とは別系統**で、
                 // ここでは _facing に一切書かない＝上の FlipH 代入の結果を、この1フレームぶんだけ上書きする。
@@ -1125,6 +1166,9 @@ public partial class Player : Area2D
                     _sprite.SelfModulate = new Color(0.8f, 1.1f, 1.4f).Lerp(new Color(1.4f, 1.6f, 2.0f), gl);
                 }
             }
+            // 向き（FlipH）はこの1フレームの中で何度も決まり直す（_facing / 照準の左右 / スピンのコマ流用）。
+            // 中身を中心に据える Offset は符号が向きに依るので、全部確定した最後にまとめて入れ直す。
+            ApplyBodyOffset();
         }
 
         // ヒットボックス点を毎フレーム更新描画
@@ -1348,7 +1392,8 @@ public partial class Player : Area2D
         //   ・DodgeCdMul     : 語り手 ×1.15（近づかれたら逃げる手段が薄い）
         //   ・CloseDodgeCdMul: 灯し手だけ、敵に Jobs.CloseRange(48px) 以内で ×0.75
         //                      ＝「危険地帯に居るほど抜ける手段が回る」。踏み込んだ瞬間の CD にだけ効く。
-        //   ・DodgeDistMul   : 結び手 ×0.9（避けるのではなく耐える）
+        //   ・DodgeDistMul   : 結び手 ×0.8・灯し手 ×1.5・祈り手 ×1.1・語り手 ×0.55（2026-09-27 に4人とも振り直し）
+        //                      ＝避けて動くのが灯し手、その場で耐えるのが結び手と語り手。祈り手はその中間。
         var jd = _game?.JobDef;
         float cdMul = (jd?.DodgeCdMul ?? 1f)
                     * ((jd != null && jd.CloseDodgeCdMul < 1f && IsNearEnemy(Jobs.CloseRange)) ? jd.CloseDodgeCdMul : 1f);
@@ -1399,12 +1444,9 @@ public partial class Player : Area2D
         // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
         // 着地フレーム(00)がちゃんと左向きに戻る（向きが回避で壊れない）。
         _sprite.FlipH = _dodgeFlip ^ (_facing < 0);
-        // フレーム差し替えごとに正規化スケールを再計算（基準は絵の中身の高さ＝ScaleFor）。
-        {
-            float scale = ScaleFor(tex);
-            _baseScaleX = scale;
-            _sprite.Scale = new Vector2(scale, scale);
-        }
+        // コマ差し替えごとに倍率と Offset を入れ直す（基準は絵の中身＝ScaleFor / FitOffsetFor）。
+        // これでコマが変わっても中身の高さ・水平中心・足元が動かない＝回避中に絵が横へ跳ねない。
+        ApplyBodyFit();
     }
 
     // 回避終了：必ず正面フレーム(00)・FlipH=現在の向き・Rotation=0・idle テクスチャへ戻す。中途半端なフレームで固定しない。
@@ -1424,13 +1466,9 @@ public partial class Player : Area2D
         {
             _sprite.FlipH = _facing < 0; // 回避前後で向きを保つ（false 決め打ちだと左向きが右向きに戻ってしまう）
             _sprite.Rotation = 0f; // 直立・正位置へ（次フレームから通常バンク／idle が滑らかに引き継ぐ）
-            if (_idleTex != null)
-            {
-                _sprite.Texture = _idleTex;
-                _baseScaleX = ScaleFor(_idleTex);
-            }
-            // スケールを素値へきっちり戻す（Scale.X=Scale.Y=baseScale）。
-            _sprite.Scale = new Vector2(_baseScaleX, _baseScaleX);
+            if (_idleTex != null) _sprite.Texture = _idleTex;
+            // スケールと Offset を素値へきっちり戻す（Scale.X=Scale.Y=baseScale・中身の中心が自機の中心）。
+            ApplyBodyFit();
         }
     }
 
@@ -1459,6 +1497,7 @@ public partial class Player : Area2D
         s.Texture = _sprite.Texture;   // その瞬間のスピンフレームを写す＝“回ってる残像”になる
         s.Scale = _sprite.Scale;
         s.FlipH = _sprite.FlipH;       // フレームごとの左右反転も写す（真横以降の FlipH 流用フレームを正しく残す）
+        s.Offset = _sprite.Offset;     // 中身を中心に据える Offset も写す（写さないと残像だけ余白ぶん横へずれる）
         s.Rotation = _sprite.Rotation; // 回避中は 0（直立）＝側転痕は残らない
         s.GlobalPosition = _sprite.GlobalPosition;
         s.SelfModulate = new Color(0.7f, 0.9f, 1.2f); // 薄い青白の分身

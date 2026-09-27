@@ -178,9 +178,14 @@ public partial class PlayerJobQa : Node
         }
     }
 
+    // ここが待つのは**物理フレーム**（2026-09-27 修正）。このQAが見る状態（照準ポーズの差し替え・回避・移動）は
+    //   すべて Player._PhysicsProcess が書くのに、旧版は描画フレーム（ProcessFrame）を数えていた。描画が 60fps より
+    //   速く回る走行では 3 描画フレームのあいだに物理が1回も進まないことがあり、「的を動かした直後の照準ポーズ」が
+    //   まだ前のコマのまま読まれて落ちる（実際に落ちた: 4キャラのうち1キャラの2方向目だけ、走行ごとに別のキャラ）。
+    //   物理フレームで数えれば待ち時間は必ず count/60 秒以上になり、描画の速さに結果が依らない。
     private async Task Frames(int count)
     {
-        for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
     }
 
     private async Task Finish()
