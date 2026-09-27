@@ -1502,6 +1502,30 @@ public partial class Enemy : Area2D
     public float GaugeTop => -Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.35f) - 8f;
     public float GaugeWidth => Mathf.Clamp(Mathf.Max(BodyRadius * 2f + 6f, BodyDisplayH * 0.5f), 26f, 56f);
 
+    // 頭上ゲージの塗り分け（2026-09-27 作者指示「無敵のタイミングと、BREAK時のHPバー色分けしたい」）。
+    //   Hud.GaugeState は「1本ぶんの割合・残本数」しか持たないので、今殴れるかどうかはボス本体から直接読む。
+    //   GaugeVulnerable：BREAK（割れた一拍）と EXPOSED（無防備窓）＝殴れる時間。SHIELDED／RECLOSE は無敵。
+    public bool GaugeVulnerable => !_purified && _phase is BossPhase.Break or BossPhase.Exposed;
+    private const double GaugeFreshDur = 0.35;     // 割れた瞬間のゲージの明滅の減衰
+    // BREAK に入ってからの経過が短いほど 1→0。EXPOSED は BREAK の尺（BreakCueDur）を足して同じ時計で続ける
+    //   （BreakCueDur 0.45 > 0.35 なので EXPOSED ではもう 0＝割れた一拍だけ光る）。
+    public float GaugeBreakFresh
+    {
+        get
+        {
+            if (!GaugeVulnerable) return 0f;
+            double since = _phase == BossPhase.Break ? _phaseT : BreakCueDur + _phaseT;
+            return Mathf.Clamp(1f - (float)(since / GaugeFreshDur), 0f, 1f);
+        }
+    }
+    // 無防備窓の残り割合（本体まわりのタイマーバーと同じ式）。BREAK 中は 1、無敵中は 0。
+    public float GaugeWindowLeft => _purified ? 0f : _phase switch
+    {
+        BossPhase.Break => 1f,
+        BossPhase.Exposed => Mathf.Clamp(1f - (float)(_phaseT / VulnDur), 0f, 1f),
+        _ => 0f,
+    };
+
     public override void _Draw()
     {
         DrawShield();

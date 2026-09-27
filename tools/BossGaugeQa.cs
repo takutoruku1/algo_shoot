@@ -13,6 +13,9 @@ using System.Threading.Tasks;
 //   ④ HideBossBar：顔あり＝改心の見送り（Purify 0→1 → Fade 1→0 → 非表示）／顔なし＝即非表示
 //   ⑤ ボスを消せばゲージも消える
 //   ⑥ （--bg-shot のみ）スクショ＋画面上端に旧カードの暗い箱が出ていないことのピクセル確認
+//   ⑦ 塗りの色分け（2026-09-27 追加）：_phase／_phaseT を反射で Shielded→Break→Exposed→Reclose と切り替え、
+//      BossGauge.LastFillKind が invuln／break／break／invuln、Enemy.GaugeVulnerable／GaugeWindowLeft／GaugeBreakFresh が
+//      状態どおりか。--bg-shot では gauge_invuln／gauge_break と、ゲージ部分の3倍拡大 gauge_zoom_* も撮る。
 //   使い方（実セーブを汚さないよう APPDATA=build/qa_story/boss_gauge_appdata を渡す）：
 //     ヘッドレス : Godot --headless --path . res://tools/qa_boss_gauge.tscn
 //     スクショ付き（窓あり。Shot はヘッドレスで固まる）:
@@ -21,6 +24,13 @@ public partial class BossGaugeQa : Node
 {
     private const BindingFlags P = BindingFlags.Instance | BindingFlags.NonPublic;
     private static void Write(object o, string n, object v) => o.GetType().GetField(n, P)!.SetValue(o, v);
+    // Enemy の private（_phase／_phaseT）は基底に宣言されているので、派生（CameoBoss）から上へたどって探す。
+    private static FieldInfo BaseField(object o, string n)
+    {
+        for (var t = o.GetType(); t != null; t = t.BaseType)
+            if (t.GetField(n, P | BindingFlags.DeclaredOnly) is { } f) return f;
+        throw new MissingFieldException(o.GetType().Name, n);
+    }
 
     private int _fail;
     private bool _shot;
@@ -105,6 +115,9 @@ public partial class BossGaugeQa : Node
         hud.UpdateBossBar(0, 1, 0.5f);
         await Shot("mid_half");
 
+        // ── ⑦ 塗りの色分け：無敵＝灰＋斜線／BREAK＝金 ──
+        await PhaseColors(hud, cameo);
+
         // ── ④ 2体目（本ボス相当）：自身の _Ready で ShowBossBar(..., this) ──
         _pin[cameo] = new Vector2(Field.CenterX - 60, 150);   // 1体目は脇へどける
         var old = g1.Length == 1 ? g1[0] : null;
@@ -148,6 +161,90 @@ public partial class BossGaugeQa : Node
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         root.QueueFree(); await Frames(5);
     }
+
+    private async Task PhaseColors(Hud hud, CameoBoss boss)
+    {
+        var g = Gauges(boss).FirstOrDefault();
+        Check("⑦ 中ボスにゲージが付いている", g != null);
+        if (g == null) return;
+        var fPhase = BaseField(boss, "_phase");
+        var fPhaseT = BaseField(boss, "_phaseT");
+        var enumT = fPhase.FieldType;
+        object Ph(string n) => Enum.Parse(enumT, n);
+        hud.UpdateBossBar(1, 3, 0.7f);
+
+        // 世界の CanvasModulate（夜の冷色 Tint）を SelfModulate の逆数で打ち消している（BubbleLayer と同じ）。
+        var cm = boss.GetParent()?.GetParent()?.GetChildren().OfType<CanvasModulate>().FirstOrDefault();
+        if (cm != null)
+        {
+            var back = g.SelfModulate * cm.Color;
+            GD.Print($"[BG] info Tint={cm.Color} SelfModulate={g.SelfModulate}");
+            Check($"Tint を打ち消している（SelfModulate×Tint={back}）", back.IsEqualApprox(Colors.White) || cm.Color.IsEqualApprox(Colors.White));
+        }
+
+        // 各状態に入れて 2 フレーム後に読む。Break の _phaseT 0 は BreakCueDur(0.45s) 内・Reclose の 0 は 1.35s 内なので自動遷移しない。
+        async Task Enter(string phase, double t)
+        {
+            fPhase.SetValue(boss, Ph(phase)); fPhaseT.SetValue(boss, t);
+            await Frames(2);
+        }
+
+        await Enter("Shielded", 0.0);
+        Check($"Shielded：LastFillKind=invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
+        Check($"Shielded：GaugeVulnerable=false（{boss.GaugeVulnerable}）", !boss.GaugeVulnerable);
+        Check($"Shielded：GaugeWindowLeft=0（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 0f);
+        await Shot("gauge_invuln");
+        await Zoom(g, "gauge_zoom_invuln");
+
+        await Enter("Break", 0.0);
+        Check($"Break：LastFillKind=break（{g.LastFillKind}）", g.LastFillKind == "break");
+        Check($"Break：GaugeVulnerable=true（{boss.GaugeVulnerable}）", boss.GaugeVulnerable);
+        Check($"Break：GaugeWindowLeft=1（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 1f);
+        Check($"Break 直後：GaugeBreakFresh が立っている（{boss.GaugeBreakFresh:0.00}）", boss.GaugeBreakFresh > 0.5f);
+
+        await Enter("Exposed", 4.0 * 0.4);   // 無防備窓（VulnDur=4.0s）の残り 60%
+        float left = boss.GaugeWindowLeft;
+        Check($"Exposed：LastFillKind=break（{g.LastFillKind}）", g.LastFillKind == "break");
+        Check($"Exposed：GaugeVulnerable=true（{boss.GaugeVulnerable}）", boss.GaugeVulnerable);
+        Check($"Exposed：GaugeWindowLeft が 0..1 で約 0.6（{left:0.000}）", left >= 0f && left <= 1f && Mathf.Abs(left - 0.6f) < 0.05f);
+        Check($"Exposed：GaugeBreakFresh は減衰済み（{boss.GaugeBreakFresh:0.00}）", boss.GaugeBreakFresh == 0f);
+        fPhaseT.SetValue(boss, 1.6);   // 撮影前に 60% へ戻す（2 フレームぶん進んでいる）
+        await Shot("gauge_break");
+        await Zoom(g, "gauge_zoom_break");
+
+        await Enter("Reclose", 0.0);
+        Check($"Reclose：LastFillKind=invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
+        Check($"Reclose：GaugeVulnerable=false（{boss.GaugeVulnerable}）", !boss.GaugeVulnerable);
+        Check($"Reclose：GaugeWindowLeft=0（{boss.GaugeWindowLeft:0.00}）", boss.GaugeWindowLeft == 0f);
+
+        await Enter("Shielded", 0.0);   // 以降の項目のために盾へ戻す
+        Check($"盾へ戻すと invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
+    }
+
+    // ゲージ部分（バー＋残本数の点）をスクショから切り出して 3 倍（最近傍）で保存する。
+    private async Task Zoom(BossGauge g, string name)
+    {
+        if (!_shot || OwnerOf(g) is not Enemy owner) return;
+        await Frames(1);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var image = GetViewport().GetTexture().GetImage();
+        var vis = GetViewport().GetVisibleRect().Size;
+        float sx = image.GetWidth() / vis.X, sy = image.GetHeight() / vis.Y;
+        float w = owner.GaugeWidth, top = owner.GaugeTop;
+        var xf = g.GetGlobalTransformWithCanvas();
+        var a = xf * new Vector2(-w / 2f - 4f, top - 3f);
+        var b = xf * new Vector2(w / 2f + 4f, top + 9f);
+        int x0 = Mathf.Clamp((int)(Mathf.Min(a.X, b.X) * sx), 0, image.GetWidth() - 1);
+        int y0 = Mathf.Clamp((int)(Mathf.Min(a.Y, b.Y) * sy), 0, image.GetHeight() - 1);
+        int x1 = Mathf.Clamp((int)Mathf.Ceil(Mathf.Max(a.X, b.X) * sx), x0 + 1, image.GetWidth());
+        int y1 = Mathf.Clamp((int)Mathf.Ceil(Mathf.Max(a.Y, b.Y) * sy), y0 + 1, image.GetHeight());
+        using var crop = image.GetRegion(new Rect2I(x0, y0, x1 - x0, y1 - y0));
+        crop.Resize(crop.GetWidth() * 3, crop.GetHeight() * 3, Image.Interpolation.Nearest);
+        GD.Print($"[BG] info {name}: 切り抜き ({x0},{y0}) {x1 - x0}x{y1 - y0} px → {crop.GetWidth()}x{crop.GetHeight()}");
+        Check($"screenshot {name}", crop.SavePng($"{_out}/{name}.png") == Error.Ok);
+    }
+
+    private static Enemy? OwnerOf(BossGauge g) => g.GetParent() as Enemy;
 
     private async Task HideWithFace(Hud hud, Enemy owner)
     {
