@@ -31,12 +31,11 @@ public static class UiKit
 
     // ── カットシーン（Prologue/Final/Epilogue）配色トークン ──
     //   3画面それぞれに同値の Cool/Warm/Ink/Code が独立コピーされていたのを一本化。
-    //   既存トークンに寄せられるものは寄せる（アクセント＝Light、bootログ緑＝Ok）。
+    //   既存トークンに寄せられるものは寄せる（bootログ緑＝Ok）。
     public static readonly Color CutInk    = new("eef0fa"); // 本文
     public static readonly Color CutInk2   = new("a8b0c8"); // 注記・ヒント
     public static readonly Color CutMina   = Info;          // ミナ（見出しシアン）
     public static readonly Color CutWarm   = new("ffd98c"); // 少年（暖色）
-    public static readonly Color CutAccent = Light;         // #ffd98a アクセント
     public static readonly Color CutCode   = Ok;            // bootログ緑
     public static readonly Color CutNarr   = new("9ea3b8"); // 語り（話者名なし）の縁色
 
@@ -70,7 +69,6 @@ public static class UiKit
     //   Tracking : 1文字ごとに足す横アキ(px・設計座標)。短い英字ラベルは開けないと詰まって見える。
     //   Leading  : 行送りの倍率（1.0 = フォント既定の行高）。単行の役割では 1.0 のまま。
     //   使い方 :  UiKit.Draw(ci, UiKit.PanelLabel, pos, "LIFE", col);            // 字間つき1行
-    //             UiKit.DrawMulti(ci, UiKit.DialogBody, pos, text, col, width);  // 行間つき複数行
     public readonly record struct TextStyle(FontFile Font, int Size, float Tracking, float Leading)
     {
         // このスタイルの行送り(px)。MultiLeading の extraLeading へ渡す差分も添える。
@@ -124,19 +122,11 @@ public static class UiKit
     public static float Draw(CanvasItem ci, TextStyle st, Vector2 topLeft, string s, Color c)
         => Tracked(ci, st.Font, topLeft, s, st.Size, c, st.Tracking);
 
-    // 役割スタイルで1行（中央寄せ・cx が中心）。
-    public static float DrawCentered(CanvasItem ci, TextStyle st, float cx, float top, string s, Color c)
-        => Tracked(ci, st.Font, new Vector2(cx - TrackedW(st, s) / 2f, top), s, st.Size, c, st.Tracking);
-
     // 役割スタイルで1行（右寄せ・right が右端）。数値の桁が伸びても右端が動かない。
     public static float DrawRight(CanvasItem ci, TextStyle st, float right, float top, string s, Color c)
         => Tracked(ci, st.Font, new Vector2(right - TrackedW(st, s), top), s, st.Size, c, st.Tracking);
 
-    // 役割スタイルで複数行（行間 = Leading 倍。折り返しは width）。返り値は使った総高さ。
-    public static float DrawMulti(CanvasItem ci, TextStyle st, Vector2 topLeft, string s, Color c, float width, int maxLines = -1)
-        => MultiLeading(ci, st.Font, topLeft, s, st.Size, c, width, st.ExtraLeading, maxLines);
-
-    // 役割スタイルでページ分割（DrawMulti と同じ折り返し結果になる）。
+    // 役割スタイルでページ分割（MultiLeading と同じ折り返し結果になる）。
     public static System.Collections.Generic.List<string> Paginate(TextStyle st, string s, float width, int maxLines)
         => Paginate(st.Font, s, st.Size, width, maxLines);
 

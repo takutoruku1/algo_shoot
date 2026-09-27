@@ -56,15 +56,6 @@ public static class Pad
     //   Godot の JoyButton はもともと物理配置が Xbox 系で固定なので、表記を Xbox に揃えると
     //   「物理ボタン＝画面の文字」が常に一致し、変換表が要らなくなる（PS 表記だけが中間層だった）。
     //   切替スイッチそのものを無くすことで、画面ごとの書き分けも起きない＝全画面が Face() を通る。
-    // ※ ButtonStyle / Style は旧セーブ（padstyle）と旧呼び出しのために形だけ残すが、
-    //   表記には一切影響しない（Face は Style を読まない）。
-    public enum ButtonStyle { Xbox, PlayStation }
-
-    public static ButtonStyle Style
-    {
-        get => ButtonStyle.Xbox;   // 常に Xbox 表記
-        set { }                    // 旧 Settings の切替からの代入を黙って捨てる（後方互換）
-    }
 
     // JoyButton → Xbox 表記の文字列。HUD・あそびかた・各 UI の操作子トークンが必ずここを通る。
     public static string Face(JoyButton b) => b switch
@@ -86,11 +77,6 @@ public static class Pad
         _ => b.ToString(),
     };
 
-    // トリガー（LT / RT）はボタンではなく軸（JoyAxis.TriggerLeft/Right）なので Face の対象外。
-    // 表記が要る画面はこの2つを使う（現状ゲームプレイでの割り当ては無い）。
-    public const string TriggerLeftToken = "LT";
-    public const string TriggerRightToken = "RT";
-
     // ポーズ（メニュー）開閉の操作子表記：キーボード表示なら M、パッド表示なら Start(Menu(≡))。
     //   2026-09-26：Esc → M。Esc は全画面で「一つ前へもどる」（PauseMenu.cs 冒頭のコメント参照）。
     public static string PauseToken => ShowKeyboard ? "M" : Face(JoyButton.Start);
@@ -108,14 +94,11 @@ public static class Pad
     public static string BombToken   => ShowKeyboard ? "X" : Face(JoyButton.X);
     // Flip … F(KB) / RB(パッド＝R1)。射撃方向を右⇔左にトグルする向き反転ボタン。
     public static string FlipToken   => ShowKeyboard ? "F" : Face(JoyButton.RightShoulder);
-    // 移動（方向）。キーボードは矢印、パッドは左スティック表記。
-    public static string MoveToken   => ShowKeyboard ? "↑↓←→" : "L";
 
     // ───────── 永続化 ─────────
     // 旧キー padstyle(0=Xbox/1=PS) と新キー inputdisplay(0=KB/1=PS/2=Xbox)。
     // ★表記の Xbox 一本化（2026-09-13）で、どちらも「表記スタイル」としては意味を失った。
     //   読み込みで落ちないよう受け付けるだけにして、値は無視する（＝壊れない・書き戻しもしない）。
-    public const string SettingKey = "padstyle";        // 旧：パッド表記スタイル（現在は無視）
     public const string DisplayKey = "inputdisplay";    // 新：操作表示モード(0=KB/1=PS/2=Xbox)
 
     // 操作表示モード ⇄ inputdisplay の整数の対応。
@@ -133,31 +116,6 @@ public static class Pad
         2 => DisplayMode.PadXbox,
         _ => DisplayMode.Auto,
     };
-
-    // 操作表示モードを設定し、user://settings.json の inputdisplay へ即保存（タイトルの3択から呼ぶ）。
-    // 既存の他キーは保持してマージ書き込みする（Settings.Save と同じファイル・整合）。
-    public static void SetDisplayAndSave(DisplayMode m)
-    {
-        Display = m;
-        // 表記の初期デバイスもここから種まき（以降は PollDevice が直近デバイスで上書きし続ける）。
-        _autoUsingPad = m == DisplayMode.PadPlayStation || m == DisplayMode.PadXbox;
-        const string path = "user://settings.json";
-        var data = new Godot.Collections.Dictionary();
-        if (FileAccess.FileExists(path))
-        {
-            using var rf = FileAccess.Open(path, FileAccess.ModeFlags.Read);
-            if (rf != null)
-            {
-                var json = new Json();
-                if (json.Parse(rf.GetAsText()) == Error.Ok && json.Data.VariantType == Variant.Type.Dictionary)
-                    data = json.Data.AsGodotDictionary();
-            }
-        }
-        int v = DisplayToInt(m);
-        if (v >= 0) data[DisplayKey] = v; // Auto(-1) は保存しない
-        using var wf = FileAccess.Open(path, FileAccess.ModeFlags.Write);
-        wf?.StoreString(Json.Stringify(data));
-    }
 
     // 保存済みの設定を復元（起動時に1回、Audio._Ready から呼ぶ）。
     public static void ApplySaved()

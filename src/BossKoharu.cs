@@ -801,7 +801,7 @@ public partial class BossKoharu : Enemy
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        // 旧稿の記憶フラッシュ（StageImagery.TriggerMemoryFlash）は呼ばない。案C の改心は回想ではなく
+        // 旧稿の記憶フラッシュ（StageImagery 側・撤去済み）は呼ばない。案C の改心は回想ではなく
         // 「S2-4 で消えた一行を、本人の前で返す」なので、台所の回想の画は場面と食い違う。
         // 決定打の手前で音を落とす（台本の「ここでBGM停止。無音のまま」）。
         //   本編＝本文一致（BgmStopLine）／改心相当シーン＝ト書きの行番号（CharacterStory.RedemptionSilenceAt）。

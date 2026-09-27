@@ -1598,10 +1598,6 @@ public partial class Enemy : Area2D
         //   紛らわしいうえ意味が読めなかった。波紋そのものは剥がし切った瞬間に出るので情報は失われない。
     }
 
-    private static readonly string[] KindWords = { "ありがとう", "だいじょうぶ", "きみは悪くないよ", "ごめんね", "また話そう" };
-    private static readonly RandomNumberGenerator _kw = new RandomNumberGenerator();
-    private static string PickKindWord() => KindWords[_kw.RandiRange(0, KindWords.Length - 1)];
-
     private void DrawPerson(Color body, bool happy)
     {
         DrawCircle(new Vector2(0, 2), BodyRadius, body);                       // 体

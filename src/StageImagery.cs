@@ -21,7 +21,10 @@ public partial class StageImagery : Node2D
     private const float W = 384f, H = 216f;
     private FontFile _font = null!;
     private double _t;
-    private double _flashT;   // Akari の記憶フラッシュ（>0 の間だけ描画）
+    // Akari の記憶フラッシュ（>0 の間だけ描画）。焚き口 TriggerMemoryFlash は 2026-09-28 に撤去した
+    //   （案C の改心は回想ではないので 2026-09-06 に BossAkari 側の呼び出しが外れ、以後ずっと呼び手が無かった）。
+    //   交差点の画（DrawAkari の分岐）ごと消すかは、差し替えの背景演出を決めてから判断する＝いまは 0 のまま出ない。
+    private double _flashT;
     private float _bulletDamp = 1f; // 弾密度が高いほど背景を引く係数（致命情報を最前面の明るさに＝§3 視認性）
     private double _revT = -1;      // S3 画の反転：<0=未発火。TriggerReversal() から 0 で進行を始める
     private const float RevDur = 12f; // 反転の全尺（改心直後の会話〜帰還ビートの背景でゆっくり満ちる）
@@ -32,17 +35,6 @@ public partial class StageImagery : Node2D
         ZAsRelative = false;
         AddToGroup("imagery");
         _font = UiKit.Zen; // 非ピクセル（滑らかゴシック）
-    }
-
-    // 雨の交差点のフラッシュを一瞬焚く（旧稿の伏線：あかりとの記憶）。
-    //   専用SE（雨＋遠いクラクション＋言いかけて切れる一音）を白フラッシュと同フレームで鳴らす（音と画の同期）。
-    //   案C（仮台本 06）の改心は回想ではなく「取り消されていない一通がひらく」なので、
-    //   2026-09-06 に BossAkari 側の呼び出しを外した＝現在この経路の呼び手はいない。
-    //   交差点の画（DrawAkari の分岐）ごと消すかどうかは、差し替えの背景演出を決めてから判断する。
-    public void TriggerMemoryFlash()
-    {
-        _flashT = 2.4;
-        Audio.Instance?.PlayMemoryFlash();
     }
 
     // S3 画の反転：改心成立（cry→post 遷移）の瞬間に各ボスの OnCryEnd から呼ばれる。

@@ -165,7 +165,7 @@ public sealed class DialogToolbar
     }
 
     // AUTO：設定の「オート会話送り」と同じ値を反転し、同じ user://settings.json の "auto" へ保存する
-    //   （Settings.Save と同じファイル・同じキー。他キーは保ったままマージ書き＝Pad.SetDisplayAndSave と同じ作法）。
+    //   （Settings.Save と同じファイル・同じキー。他キーは保ったままマージ書きする）。
     public static void ToggleAutoAdvance(GameManager? game)
     {
         if (game == null) return;

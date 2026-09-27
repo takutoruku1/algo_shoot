@@ -193,7 +193,7 @@ public partial class Audio : Node
     public AudioStreamWav RedeemRei = null!, RedeemAkari = null!, RedeemKoharu = null!, RedeemHikage = null!;
 
     // あかり戦の記憶フラッシュ（雨の交差点。言いかけた唇。クラクション）専用SE。
-    //   StageImagery.TriggerMemoryFlash()（白フラッシュ 2.4s）と同フレームで鳴らす（設計 §4 画と音の同期）。
+    //   画の白フラッシュ（2.4s）と同フレームで鳴らす（設計 §4 画と音の同期）。焚き口は撤去済み＝現在の呼び手は無い。
     public AudioStreamWav SfxMemoryFlash = null!;
 
     public override void _Ready()
@@ -630,7 +630,7 @@ public partial class Audio : Node
     }
 
     // ───────── 記憶フラッシュ（あかり戦：雨の交差点）─────────
-    //   StageImagery.TriggerMemoryFlash()（白フラッシュ 2.4s）と同フレームで一度だけ鳴らす。
+    //   画の白フラッシュ（2.4s）と同フレームで一度だけ鳴らす。焚き口の撤去（2026-09-28）で現在の呼び手は無い。
     //   雨のスウェル＋遠いクラクション二度鳴き＋言いかけて切れる木管の一音（"す——"）。
     //   会話中（BubblePaused）に焚かれる語りの音なので控えめ＝タイプ音や次の行を潰さない。
     public void PlayMemoryFlash()

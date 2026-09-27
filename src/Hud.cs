@@ -55,7 +55,6 @@ public partial class Hud : CanvasLayer
     private float _bossFrac = 1f;          // 現在の1本ぶん（0〜1）。窓ごとに1本削れて次の本へリフィル。
     private int _bossBarIndex;             // 残バーの先頭インデックス（0始まり）
     private int _bossBarsTotal = 1;        // 総バー数
-    private long _bossReplies = 2847;
 
     // ── ボスカードのYアイコン（2026-09-17）──
     //   ボスバーのアバターは長らく「穢れ色の無地の円」で、Xのプロフィールカードを模した意匠なのに
@@ -257,7 +256,7 @@ public partial class Hud : CanvasLayer
     }
     public void ClearSpot() => _spotActive = false;
 
-    // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッドは Pad.Style に従い Xbox/PS 表記）。
+    // 操作子トークン（操作表示モードで KB / パッドを出し分け。パッド表記は Pad.Face の Xbox 基準に一本化）。
     // 単体チップ（BOMB残数横・モード切替・スキル）用＝代表1表記。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     private static string TokCharge => Pad.UsingPad ? Pad.Face(JoyButton.Y)           : "Z"; // 溜め打ち（長押し。2026-09-26 C→Z）
@@ -860,15 +859,6 @@ public partial class Hud : CanvasLayer
         return tex;
     }
 
-    // アカウント色（Hub.AccountColor と同じ）。浄化しきった縁の色に使う。
-    private static Color BossAccent(string id) => id switch
-    {
-        "mina" => UiKit.Mina,
-        "rei" => new Color(0.90f, 0.52f, 0.38f),
-        "akari" => new Color(0.40f, 0.62f, 0.88f),
-        "koharu" => new Color(0.46f, 0.74f, 0.52f),
-        _ => UiKit.Kegare,
-    };
     // 1本リフィル方式：メインバーは「現在の1本ぶん」を 0〜1 で描く。残バー数は pip と「残/総」で示す。
     public void UpdateBossBar(int barIndex, int totalBars, float frac)
     {
@@ -930,8 +920,8 @@ public partial class Hud : CanvasLayer
         DrawTimer(ci);
         DrawLockOn(ci);
         DrawCombo(ci);
-        // ボスの体力は画面上端のカード（DrawBossCard）ではなく、ボス本体の頭上の簡略ゲージ（src/BossGauge.cs）が描く
-        //   （2026-09-27 作者指示）。状態はこの Hud が持ち、BossGauge は GaugeState を読む。DrawBossCard は呼ばない。
+        // ボスの体力は画面上端のカードではなく、ボス本体の頭上の簡略ゲージ（src/BossGauge.cs）が描く
+        //   （2026-09-27 作者指示）。状態はこの Hud が持ち、BossGauge は GaugeState を読む。旧カードの描画は撤去済み。
         // 【激情】メーターは HUD ではなく、盤面の奥（ZIndex -44）にボスの下書き（入力欄）として敷く → src/FuryDial.cs。
         // 会話バー・ボスの一行字幕・スペル宣告カードは、BubbleLayer（世界側・弾より奥）が居ればそちらが描く
         //（作者指摘：文字枠が自機と弾を隠す）。居ない場面（保険）だけ従来どおりここ＝最前面に描く。
@@ -1194,103 +1184,6 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, cbY, w, cbH), SideRule, 2f);
         if (comboRatio > 0)
             UiKit.Box(ci, new Rect2(x, cbY, w * comboRatio, cbH), UiKit.Burn.Lerp(SideRose, comboRatio), 2f);
-    }
-
-    private void DrawBossCard(HudCanvas ci)
-    {
-        // 盤面の上端に残す唯一の常設UI（docs/20260906/HUD整理_案.md §4）。中心は盤面の中心、
-        // 高さ 60→44・y 60→8 に詰めて、ボスの真上の薄い帯だけを使う。幅は盤面幅の 8 割。
-        // 2026-09-16: y 8→24（内部座標で約5px下げ）。上端に張り付いて見づらい実機指摘への対処。
-        //   中ボス（CameoBoss）も本ボスもこのカード共通＝両方下がる。スペル宣告カード（DrawSpellCard）の
-        //   y も連動して 66→82 に下げた。
-        float w = Mathf.Min(560f, Field.DWidth * 0.8f), x = Field.DCenterX - w / 2f, y = 24f, h = 44f;
-        float ca = (float)_bossCardFade;   // 改心の見送りでカードごと引く不透明
-        UiKit.Box(ci, new Rect2(x, y, w, h), new Color(18 / 255f, 12 / 255f, 22 / 255f, 0.62f * ca), 16f, new Color(UiKit.Kegare, 0.4f * ca), 1.2f);
-        DrawBossAvatar(ci, new Vector2(x + 34, y + h / 2f), ca);
-        // 名前＋ハンドル＋リプ
-        float tx = x + 70;
-        var rose = new Color("f0a8cf") with { A = ca };
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, y + 4), _bossName, 17, UiKit.White with { A = ca });
-        float nw = UiKit.TextW(UiKit.ZenBold, _bossName, 17);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx + nw + 10, y + 7), _bossHandle, 13, UiKit.Text3 with { A = ca });
-        // 残バー数（=index+1）と総バー数。リプ数は総HP比で減らす（演出）。
-        int barsLeft = _bossBarIndex + 1;
-        float overall = (_bossBarIndex + _bossFrac) / _bossBarsTotal;
-        string rep = UiKit.Abbrev((long)(_bossReplies * overall));
-        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 7, rep, rose);
-        // 穢れバー（現在の1本ぶん）＋残バー数の● pip。
-        // バー/pip の色は現行スペルの色に連動（#26 フェーズ移行の可視化。未設定なら既定の穢れ色）。
-        Color barCol = (_bossTint ?? UiKit.Kegare) with { A = ca };
-        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(tx, y + 25), "穢れ", rose);
-        float pipsW = _bossBarsTotal * 9f;
-        float barX = tx + UiKit.TrackedW(UiKit.SmallLabel, "穢れ") + 8f, barW = w - (barX - x) - 66 - pipsW, barY = y + 28;
-        UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1, 1, 1, 0.07f * ca), 5f);
-        if (_bossFrac > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * _bossFrac, 10f), barCol, 5f);
-        // バー1本割れの白フラッシュ（割れた一拍を「ゲージが光る」で読ませる）。
-        if (_bossBarFlash > 0)
-        {
-            float f = (float)(_bossBarFlash / BossBarFlashDur);
-            UiKit.Box(ci, new Rect2(barX, barY, barW, 10f), new Color(1f, 1f, 1f, 0.7f * f * ca), 5f);
-        }
-        // 残バー pip（左から「残っている本数」を満たす）。
-        float pipX = barX + barW + 8f;
-        for (int i = 0; i < _bossBarsTotal; i++)
-            ci.DrawCircle(new Vector2(pipX + i * 9f + 3f, barY + 5f), 3f,
-                i < barsLeft ? barCol : barCol with { A = 0.22f * ca });
-        // 「残/総」表示。
-        UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 24, $"{barsLeft}/{_bossBarsTotal}", rose);
-    }
-
-    // ── ボスカードのアバター（Y のプロフィールアイコン）──
-    // 2026-09-17: ここは長らく「穢れ色の無地の円」だった。X のプロフィールカードを模した意匠なのに、
-    //   本来アイコンが入る座が空で、誰と戦っているのかが名前の文字だけに頼っていた。
-    //   ハブの投稿カードと同じ顔素材・同じ UiKit.FaceAvatar（円クリップ＋topCrop の顔位置合わせ）で
-    //   出し、「TL で見たあのアカウントが、いま目の前で暴れている」を結ぶ。
-    //
-    // 穢れの表現（＝平常時のハブのアイコンと必ず見分けが付くこと）：
-    //   ① 顔の上に穢れ色のベール（乗算寄りの暗い紫を被せて沈める）＝顔は判るが血の気が無い
-    //   ② リングは穢れ色（アカウント色ではない）＝ハブの平常アイコンは各自のアカウント色
-    //   ③ 背面の穢れグロウが呼吸で脈打つ＝「まだ穢れている」
-    // 改心（HideBossBar）後：_bossPurify 0→1 でベールが剥がれ、リングが穢れ色→アカウント色へ、
-    //   グロウが穢れ色→浄化色へ抜ける。顔が晴れる一拍を見せてからカードごと引く。
-    private void DrawBossAvatar(HudCanvas ci, Vector2 ac, float ca)
-    {
-        const float R = 22f;
-        var face = BossFace(_bossFaceId);
-        float p = (float)_bossPurify;                      // 0=穢れたまま 1=浄化しきり
-        float pe = p * p * (3f - 2f * p);                  // smoothstep（剥がれ際を滑らかに）
-
-        // 背面グロウ。穢れの間は脈打ち、浄化で色が抜けて広がる。
-        Color glowCol = UiKit.Kegare.Lerp(UiKit.PurifyHi, pe);
-        float pulse = 0.4f + 0.10f * Mathf.Sin((float)_t * 3.2f) * (1f - pe);
-        UiKit.RadialGlow(ci, ac, (28f + 10f * pe), glowCol, (pulse + 0.35f * pe) * ca);
-
-        if (face == null)
-        {
-            // 顔素材が無いボス（W0 ヒカゲ等）は従来どおりの無地の穢れ円。
-            ci.DrawCircle(ac, R, new Color(0.35f, 0.13f, 0.27f, ca));
-        }
-        else
-        {
-            // 顔本体。リングは穢れ色→アカウント色へ。topCrop はハブと同じ実測値＝頭が切れない。
-            Color ring = UiKit.Kegare.Lerp(BossAccent(_bossFaceId), pe);
-            UiKit.FaceAvatar(ci, ac, R, face, ring, false, 0f, ca, _t);
-            // 穢れのベール：顔の上に穢れ色を被せて血の気を落とす。浄化で引いていく。
-            //   濃さは 0.38。実測（2026-09-17 スクショ）で 0.52 だと髪の暗いレイ／こはるが
-            //   シルエットに潰れて誰か判らなくなった。顔が判る／でも明らかに病んでいる、の境目がここ。
-            float veil = 0.38f * (1f - pe);
-            if (veil > 0.002f) ci.DrawCircle(ac, R, new Color(0.34f, 0.07f, 0.26f, veil * ca));
-            // 浄化しきった瞬間の白い抜け（顔が晴れる一拍）。中盤で最大、終わりに消える。
-            float flash = Mathf.Sin(pe * Mathf.Pi);
-            if (flash > 0.01f) ci.DrawCircle(ac, R, new Color(UiKit.PurifyHi, 0.40f * flash * ca));
-        }
-
-        // 認証バッジ（右下）。顔と重なる位置だが X の実物と同じ置き方で、r=9 は顔の縁にかかるだけ。
-        //   下敷きを一段暗く敷いてから穢れ色→浄化色の丸を置き、✓ が顔の柄に埋もれないようにする。
-        Vector2 bc = ac + new Vector2(15, 15);
-        ci.DrawCircle(bc, 10.5f, new Color(0.07f, 0.05f, 0.10f, 0.9f * ca));
-        ci.DrawCircle(bc, 9f, UiKit.Kegare.Lerp(UiKit.Purify, pe) with { A = ca });
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(ac.X + 11, ac.Y + 6), "✓", 11, UiKit.White with { A = ca });
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
