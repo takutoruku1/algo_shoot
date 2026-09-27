@@ -12,8 +12,11 @@ using System.Threading.Tasks;
 //   (d) J／C／T／R を押しても何も起きない（ホーム・SNS・詳細）
 //   (e) 画面下端のヒント帯が描かれる（Hub.HintBarRect／HintBarDrawnRect）。会話中は出ない。パッド表記は 十字／A／B／≡
 //   (f) Hub では PauseMenu の右下チップ（ShowHint）を出さない
-//   窓ありで `-- --hk-shot` を付けると build/shots_hub_keys/ に sns_card_buttons／footer_focus／home と
-//   ヒント帯の3倍切り抜き hint_zoom（パッド表記は hint_zoom_pad）を保存する。
+//   (g) 先頭のカードで ↑ → ヘッダー（使用中のアカウント）にフォーカス → Z でアカウント切り替え（フッタ経由と同じ状態）。
+//       ↓ で先頭のカードへ戻る。ヘッダーにいる間はヒント帯の先頭が [↓] もどる に変わり、カードのボタンは消える
+//   (h) 全クリア後の FINAL カード（ミナ自身の投稿）は [ダイブ] だけ（返信なし）。Z → 詳細 → Z で FINAL へ潜る
+//   窓ありで `-- --hk-shot` を付けると build/shots_hub_keys/ に sns_card_buttons／footer_focus／home／
+//   header_focus／final_card_focus とヒント帯の3倍切り抜き hint_zoom（パッド表記は hint_zoom_pad）を保存する。
 public partial class HubKeysQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -167,6 +170,35 @@ public partial class HubKeysQa : Node
             Check(Mode(hub) == "Cards", "X closes account switching");
             await Keypress(Key.Up);
             Check(Read<int>(hub, "_footSel") < 0 && Read<int>(hub, "_sel") == last, "↑ from the footer returns to the last card");
+            // フッタ経由で開いたアカウント切り替えの状態（戻り先・カーソル）を控えておく＝ヘッダー経由と比べる。
+            string footJobReturn = Read<object>(hub, "_jobReturnMode").ToString()!;
+
+            // (g) 先頭のカードで ↑ → ヘッダー。
+            for (int guard = 0; guard < 60 && Read<int>(hub, "_sel") > 0; guard++) await Keypress(Key.Up);
+            Check(Read<int>(hub, "_sel") == 0 && !Read<bool>(hub, "_headFocus"), "arrows reach the first card (not the header yet)");
+            await Keypress(Key.Up);
+            Check(Read<bool>(hub, "_headFocus") && Read<int>(hub, "_sel") == 0 && Read<int>(hub, "_footSel") < 0,
+                "(g) ↑ on the first card focuses the header account");
+            Check(!(bool)Call(hub, "CardButtonsShown", 0)!, "(g) the card selection is hidden while the header is focused");
+            await CheckHint(hub, "header", "↓", "アカウント切り替え");
+            var headItems = ((string token, string label)[])Call(hub, "HintItems")!;
+            Check(headItems[0] == ("↓", "もどる") && headItems[1] == ("Z", "アカウント切り替え") && headItems[2] == ("Esc", "ホームへ"),
+                "(g) header hint reads [↓] もどる [Z] アカウント切り替え [Esc] ホームへ [M] メニュー");
+            await Shot("header_focus");
+            await Keypress(Key.Up);
+            Check(Read<bool>(hub, "_headFocus") && Read<int>(hub, "_sel") == 0, "(g) ↑ on the header stays on the header (no wrap)");
+            await Keypress(Key.Left);
+            Check(Read<bool>(hub, "_headFocus") && Mode(hub) == "Cards", "(g) ← on the header does nothing");
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == footJobReturn,
+                $"(g) Z on the header opens account switching (return mode {footJobReturn}, same as the footer)");
+            await Seconds(0.3);
+            await Keypress(Key.X);
+            Check(Mode(hub) == "Cards" && Read<bool>(hub, "_headFocus"), "X closes account switching back onto the header");
+            await Keypress(Key.Down);
+            Check(!Read<bool>(hub, "_headFocus") && Read<int>(hub, "_sel") == 0 && Read<int>(hub, "_footSel") < 0,
+                "(g) ↓ on the header returns to the first card");
+            await CheckHint(hub, "sns after header", "↑↓", "ボタン");
 
             // (e) パッド表記：十字／A／B／≡。
             SetPad(true);
@@ -185,6 +217,49 @@ public partial class HubKeysQa : Node
             // X／Esc でホームへ。
             await Keypress(Key.Escape);
             Check(Mode(hub) == "Home", "Esc on the timeline returns home");
+
+            // ── (h) 全クリア後の FINAL カード ──
+            //   本編3面をクリア済みにして Hub を開き直す（カードの並びは _Ready で組まれる）。
+            //   FINAL 初挑戦は結び手（ミナ）では潜れない（IsMinaLockedForFinal）ので、あかりのアカウントで入る。
+            foreach (var st in GameManager.Stages) Read<HashSet<string>>(game, "_cleared").Add(st.Id);
+            Check(game.AllStoryCleared, "all story stages cleared");
+            game.SelectedJob = Job.Melee;
+            Check(game.IsJobUnlocked(Job.Melee), "akari's account is unlocked");
+            hub.QueueFree();
+            await Frames(2);
+            hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
+            GetTree().Root.AddChild(hub);
+            GetTree().CurrentScene = hub;
+            hub.GetType().GetField("_idleTalkPending", Private)!.SetValue(hub, false);
+            SetPad(false);
+            await Frames(10);
+            await Seconds(0.5);
+            Check(Mode(hub) == "Home", "(h) reopened hub starts on the phone home");
+            await Keypress(Key.Z);
+            for (int i = 0; i < 600 && Mode(hub) == "SnsOpening"; i++) await Frames(1);
+            await Seconds(0.4);
+            Check(Mode(hub) == "Cards", "(h) SNS timeline is open");
+            int fin = IndexOf(hub, "final");
+            Check(fin >= 0, "(h) the FINAL card is on the timeline");
+            for (int guard = 0; guard < 60 && Read<int>(hub, "_sel") != fin; guard++)
+                await Keypress(Read<int>(hub, "_sel") < fin ? Key.Down : Key.Up);
+            await Seconds(0.3);   // フィードのスクロールが寄り切るのを待つ
+            Check(Read<int>(hub, "_sel") == fin && (bool)Call(hub, "CardButtonsShown", fin)!, "(h) FINAL card focused with buttons shown");
+            var fdive = (Rect2)Call(hub, "CardBtnRect", fin, 0)!;
+            var fcard = (Rect2)Call(hub, "CardHitRect", fin)!;
+            int fcount = (int)hub.GetType().GetMethod("CardBtnCount", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, new[] { Read<Array>(hub, "_entries").GetValue(fin)! })!;
+            Check(fdive.HasArea() && fcard.Encloses(fdive) && fcount == 1,
+                $"(h) FINAL card has a [dive] button inside the card and no [reply] ({fdive}, count {fcount})");
+            Check(fdive.End.X >= fcard.End.X - 30f, "(h) the lone [dive] sits at the right edge of the card");
+            await Keypress(Key.Right);
+            Check(Read<int>(hub, "_cardBtn") == 0, "(h) → keeps the cursor on [dive] (no reply on FINAL)");
+            await Shot("final_card_focus");
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "Detail", "(h) Z on FINAL [dive] opens the FINAL sheet");
+            await Keypress(Key.Z);
+            Check(Read<bool>(hub, "_dived") && game.PendingStageScene == "res://MinaBattle.tscn",
+                "(h) Z on the FINAL sheet starts the FINAL dive (MinaBattle.tscn)");
 
             GD.Print("[HubKeysQA] ALL PASS");
             GetTree().Quit(0);

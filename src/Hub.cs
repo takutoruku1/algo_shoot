@@ -122,6 +122,11 @@ public partial class Hub : Node2D
     //   同日の作者指摘「J とか C とか X とか書いてあるけど操作性悪すぎでしょ」で J／RB の直行は廃止し、
     //   カード上の ←→ はカード下部のボタン切り替え（_cardBtn）に回した＝フッタへ降りるのは「最後のカードで ↓」だけ。
     private int _footSel = -1;
+    // SNS 画面でキーボード／パッドのカーソルがヘッダー（使用中のアカウント）に上がっているか。
+    //   2026-09-27 作者指摘「上のアカウントがキーボードだと選べないよ」：ヘッダーはクリックで開くだけで、
+    //   キーのカーソルが乗らなかった。→ 先頭のカードで ↑ でヘッダーへ上がり、Z でアカウント切り替え
+    //   （フッタ「アカウント」と同じ OpenJob）、↓ で先頭のカードへ戻る。以前の「先頭で ↑＝最後のカードへ回る」はやめた。
+    private bool _headFocus;
     // 選択中の声のカードの下部ボタン（0＝ダイブ／1＝返信）。←→ で切り替え、Z で実行。
     //   返信が使えない（CanReplySel が偽）ときは返信を薄く描き、カーソルは乗せない。
     //   カードの選択が変わったら必ずダイブへ戻す（_cardBtnFor で検出）。
@@ -1137,6 +1142,7 @@ public partial class Hub : Node2D
         if (index == 0)
         {
             _footSel = -1;   // SNS は毎回カード側から始める
+            _headFocus = false;
             _mode = Mode.SnsOpening;
             _snsOpeningT = 0;
             _cardsEnteredT = _t;
@@ -1695,7 +1701,7 @@ public partial class Hub : Node2D
         // 選択中の声のカードの [ダイブ] [返信]。カードより後に登録＝重なりはボタンが勝つ（後勝ち）。
         //   フィードの窓からはみ出たぶんは切る（CardHitRect と同じ考え方＝フッタ・ヘッダの上で拾わない）。
         if (CardButtonsShown(_sel))
-            for (int b = 0; b < 2; b++)
+            for (int b = 0; b < CardBtnCount(_entries[_sel]); b++)
             {
                 var br = CardBtnRect(_sel, b).Intersection(FeedRect);
                 if (br.HasArea()) UiKit.Hotspot(br, CardBtnIdBase + b);
@@ -1706,9 +1712,9 @@ public partial class Hub : Node2D
         UiKit.Hotspot(HeaderJobRect(), JobOpenId);
         int hov = UiKit.HoveredId();
         // ホバー追従はカード側のみ（フッタはボタン＝ホバーで選択を動かさない。下敷きは DrawFooter が hov で描く）。
-        if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && (hov != _sel || _footSel >= 0))
+        if (Pad.UsingMouse && hov >= 0 && hov < _entries.Length && (hov != _sel || _footSel >= 0 || _headFocus))
         {
-            _sel = hov; _footSel = -1; Audio.Instance?.PlayUiMove();
+            _sel = hov; _footSel = -1; _headFocus = false; Audio.Instance?.PlayUiMove();
         }
         int clk = UiKit.ClickedId(Pad.MouseClick());
         if (_footSel >= footItems.Count) _footSel = footItems.Count - 1;
@@ -1731,14 +1737,24 @@ public partial class Hub : Node2D
             return; // フッタを押したフレームはカード確定へ流さない
         }
 
-        // ↑↓：カード送り。最後のカードで ↓ でフッタへ降りる（着地は「アカウント」）。
+        // ↑↓：カード送り。最後のカードで ↓ でフッタへ降りる（着地は「アカウント」）。先頭のカードで ↑ でヘッダーへ上がる。
         //   ←→：カード上では下部ボタン [ダイブ] [返信] の切り替え（2026-09-27。以前はフッタへ降りる操作だった）。
         //   フッタ上では ←→ で項目を巡り、↑ でカードへ戻る（カードの選択は降りる前のまま）。
+        //   ヘッダー上では ↓ で先頭のカードへ戻る（←→ は何もしない＝項目は1つだけ）。
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
         if ((up || down || left || right) && !_navHeld)
         {
-            if (_footSel >= 0)
+            if (_headFocus)
+            {
+                if (down)
+                {
+                    _headFocus = false; _sel = 0;
+                    UpdateFeedScrollTarget();
+                    Audio.Instance?.PlayUiMove();
+                }
+            }
+            else if (_footSel >= 0)
             {
                 if (up) { _footSel = -1; Audio.Instance?.PlayUiMove(); }
                 else if (left || right)
@@ -1752,11 +1768,17 @@ public partial class Hub : Node2D
                 _footSel = System.Math.Max(0, footItems.FindIndex(f => f.act == FootAct.Job));
                 Audio.Instance?.PlayUiMove();
             }
+            else if (up && _sel <= 0)
+            {
+                _headFocus = true;
+                _feedScrollTarget = 0f;   // ヘッダーの真下＝先頭のカードが見えている状態で上がる
+                Audio.Instance?.PlayUiMove();
+            }
             else if (up || down)
             {
                 if (_entries.Length > 0)
                 {
-                    if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
+                    if (up) _sel = _sel - 1;
                     if (down) _sel = _sel + 1;
                     UpdateFeedScrollTarget();
                     Audio.Instance?.PlayUiMove();
@@ -1780,6 +1802,12 @@ public partial class Hub : Node2D
             FooterClick(footItems[_footSel].act);
             return;
         }
+        // ヘッダーにカーソルがあるときの Z＝ヘッダーをクリックしたのと同じ（フッタ「アカウント」と同じ OpenJob）。
+        if (_headFocus && zEdge)
+        {
+            if (_t > 0.3 && !_dived) FooterClick(FootAct.Job);
+            return;
+        }
         // キーの Z はカーソルのあるボタンを押す。返信を選んでいれば返信、それ以外は下のダイブ経路へ。
         if (zEdge && _t > 0.3 && CardButtonsShown(_sel) && _cardBtn == 1)
         {
@@ -1788,7 +1816,7 @@ public partial class Hub : Node2D
         }
         // マウス：カードクリックで選択＋ダイブ（KB の Z と同じ確定経路）。clk はカード id のみ（フッタは上で処理済み）。
         bool dive = zEdge && _t > 0.3;
-        if (clk >= 0 && clk < _entries.Length && _t > 0.3) { _sel = clk; dive = true; }
+        if (clk >= 0 && clk < _entries.Length && _t > 0.3) { _sel = clk; _headFocus = false; dive = true; }
         if (dive && _sel >= 0 && _sel < _entries.Length)
         {
             var e = _entries[_sel];
@@ -2039,6 +2067,10 @@ public partial class Hub : Node2D
             Mode.Home => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") }
                 : new[] { ("↑↓←→", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") },
+            // ヘッダー（使用中のアカウント）にカーソル：↓ で先頭のカードへ戻る／Z で切り替えを開く。
+            Mode.Cards when _headFocus => pad
+                ? new[] { ("十字", "もどる"), (ok, "アカウント切り替え"), (back, "ホームへ"), (menu, "メニュー") }
+                : new[] { ("↓", "もどる"), (ok, "アカウント切り替え"), (back, "ホームへ"), (menu, "メニュー") },
             Mode.Cards when _footSel >= 0 => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") }
                 : new[] { ("←→", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") },
@@ -2365,7 +2397,7 @@ public partial class Hub : Node2D
             float h = CardHeight(_entries[i]);
             float cy = FeedTop + CardTop(i) - _feedScroll;
             if (cy + h < FeedTop || cy > FeedBottom) continue;
-            bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel && _footSel < 0;
+            bool sel = (_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey) && i == _sel && _footSel < 0 && !_headFocus;
             float ep = Mathf.Clamp(((float)(_t - _cardsEnteredT) - i * 0.04f) / 0.20f, 0f, 1f);
             DrawCard(_entries[i], cy, h, sel, sel ? _selT : 0f, alpha * ep);
         }
@@ -2448,7 +2480,7 @@ public partial class Hub : Node2D
             }
         }
         if (buttons)
-            for (int b = 0; b < 2; b++) DrawCardButton(e, b, cy, h, alpha);
+            for (int b = 0; b < CardBtnCount(e); b++) DrawCardButton(e, b, cy, h, alpha);
     }
 
     // ───────── 声のカードの下部ボタン [ダイブ] [返信]（2026-09-27）─────────
@@ -2462,22 +2494,28 @@ public partial class Hub : Node2D
     private static Rect2 FeedRect => new(PhoneX, FeedTop, PhoneW, FeedBottom - FeedTop);
 
     // いまカード i に下部ボタンを出すか（選択中・カード側にカーソル・潜れる声のカード）。
-    private bool CardButtonsShown(int i) => _mode == Mode.Cards && !_autoplay && i == _sel && _footSel < 0 && IsVoice(i);
+    private bool CardButtonsShown(int i) => _mode == Mode.Cards && !_autoplay && i == _sel && _footSel < 0 && !_headFocus && IsVoice(i);
+
+    // カードに出すボタンの数。FINAL（ミナ自身の投稿）は返信の相手がいない＝[ダイブ] だけ（2026-09-27）。
+    //   返信を薄く並べると「いつか返信できる」と読めてしまうので、枠ごと出さない。
+    private static int CardBtnCount(Entry e) => e.IsFinal ? 1 : 2;
 
     // カード i のボタン b の矩形（右下寄せ。メトリクス行の右側＝ビュー数を畳んだ場所）。
-    private Rect2 CardBtnRect(int i, int b) => CardBtnRectAt(FeedTop + CardTop(i) - _feedScroll, CardHeight(_entries[i]), b);
+    private Rect2 CardBtnRect(int i, int b) => CardBtnRectAt(FeedTop + CardTop(i) - _feedScroll, CardHeight(_entries[i]), b,
+        CardBtnCount(_entries[i]) == 1);
 
     // 上端 cy・高さ h のカードに置くボタン b の矩形（描画と当たり判定の単一ソース）。
-    private static Rect2 CardBtnRectAt(float cy, float h, int b)
+    //   solo＝ボタンが [ダイブ] 1つだけ（FINAL）。そのときは右端へ寄せる（返信の空き枠を残さない）。
+    private static Rect2 CardBtnRectAt(float cy, float h, int b, bool solo = false)
     {
         float right = PhoneX + PhoneW - CardBtnRight;
-        float x = b == 1 ? right - CardBtnW[1] : right - CardBtnW[1] - CardBtnGap - CardBtnW[0];
+        float x = b == 1 || solo ? right - CardBtnW[b] : right - CardBtnW[1] - CardBtnGap - CardBtnW[0];
         return new Rect2(x, cy + h - CardBtnBottom - CardBtnH, CardBtnW[b], CardBtnH);
     }
 
     private void DrawCardButton(Entry e, int b, float cy, float h, float alpha)
     {
-        var r = CardBtnRectAt(cy, h, b);
+        var r = CardBtnRectAt(cy, h, b, CardBtnCount(e) == 1);
         bool enabled = b == 0 || CanReplySel();
         bool focus = enabled && _cardBtn == b;
         bool hovered = UiKit.HoveredId() == CardBtnIdBase + b;
@@ -2887,7 +2925,11 @@ public partial class Hub : Node2D
         bool header = rect.Size.Y > 40f;
         float tx = header ? 62f : 44f;
         int nameSize = header ? 19 : 14;
-        if (UiKit.HoveredId() == JobOpenId) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
+        // キーボード／パッドのカーソルがヘッダーにあるとき＝フッタのカーソルと同じ浄化色の縁と薄い塗り（2026-09-27）。
+        //   マウスのホバーは従来どおり白の下敷きだけ（カーソルの方が強く見える＝フッタと同じ強弱）。
+        if (header && _headFocus && _mode == Mode.Cards)
+            UiKit.Box(this, rect, new Color(UiKit.Purify, 0.10f * alpha), 8f, new Color(UiKit.Purify, 0.6f * alpha), 1f);
+        else if (UiKit.HoveredId() == JobOpenId) UiKit.Box(this, rect, new Color(1, 1, 1, 0.06f * alpha), 8f);
         UiKit.FaceAvatar(this, rect.Position + new Vector2(header ? 28f : 20f, rect.Size.Y / 2f), header ? 20f : 15f,
             _playerFaces[job.CharacterId], acc, false, 0f, alpha, _t);
         UiKit.Text(this, UiKit.ZenBold, rect.Position + new Vector2(tx, header ? 6f : 2f), job.CharacterName, nameSize, new Color(UiKit.White, alpha));
