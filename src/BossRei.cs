@@ -624,7 +624,7 @@ public partial class BossRei : Enemy
     }
 
     // 他ジョブ潜行の回想の1行（CharacterStoryTalk から呼ばれる）。立ち絵の引き当ては ShowLine と同じ規則（既定はガワ）。
-    //   who は 6（潜行キャラ本人）／2（このボス）／4（Ｘ投稿。Hud 側が立ち絵を捨てる）だけ。ガワは割らない。
+    //   who は 6（潜行キャラ本人）／2（このボス）／4（Ｙ投稿。Hud 側が立ち絵を捨てる）だけ。ガワは割らない。
     private void ShowStoryLine(Hud hud, int who, string text, string face)
     {
         var kind = (Hud.LineKind)who;

@@ -516,7 +516,7 @@ public partial class StageRei : Node
             case 18: Step_QuoteStorm(delta); break;                // 十七枚・3段階・約50秒（QuoteStorm が持つ）
             case 19: Step_StormAfter(delta); break;                // 剥がし切りの受け → 道中C へ
         }
-        // ボス戦中の“雨弾”は、X投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
+        // ボス戦中の“雨弾”は、Y投稿モチーフの言葉弾（投稿弾）だけ降らせ、ただの常時落下弾は止める（ユーザー要望）。
         // 投稿弾の湧きは全ボス共通ヘルパ PostBullets.Tick に集約（難易度で数がスケール）。
         // 案C：レイ面の言葉弾は PostPool のレイのテーマ（09 の R01〜R43 由来の 8 文字弾）から引く＝
         // この面のテーマ語だけが、層1（配信の日常）：層2（病みサイン）：層3（本人）＝5:4:1 で降る。
@@ -1119,7 +1119,7 @@ public partial class StageRei : Node
         GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
-    // 投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
+    // 投稿弾（Y投稿モチーフ＝ティッカー連動の言葉弾）の周期/tick 用アキュムレータ。
     // 実際の湧き処理は全ボス共通ヘルパ PostBullets.Tick（難易度で数がスケール）に集約済み。
     // 面固有の語プールは PostPool.Theme.Rei（wiki/08_仮台本/09 の「言葉弾の文言リスト」レイの行）へ移した。
     private int _wordTick;

@@ -135,7 +135,7 @@ public partial class StageMina : Node
             case 3: Step_BossWait(delta); break;
             case 4: if (_lunatic) Step_LunaticFinish(delta); else Step_Transition(); break;
         }
-        // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
+        // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
         // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
         // ボス本体(BossMina)のスペル/予測線/パネル弾はそのまま。
         if (_bossActive && !_boss.IsPurified && !Hud.BubblePaused && !_boss.AoeGateActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Final, fallSpeed: 56f,

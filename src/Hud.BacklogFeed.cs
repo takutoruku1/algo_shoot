@@ -8,7 +8,7 @@ using Godot;
 //   公開の呼び口を1つ足すだけ＝積み方（空行は捨てる／直前と同一の行は弾く／上限 200 行）は Hud と同じ。
 public partial class Hud
 {
-    // 1行を会話ログへ積む。speaker が空なら種別から補う（ミナ＝MinaLabel／投稿＝「Ｘ 投稿」／ナレ＝「ナレーション」）。
+    // 1行を会話ログへ積む。speaker が空なら種別から補う（ミナ＝MinaLabel／投稿＝「Ｙ 投稿」／ナレ＝「ナレーション」）。
     //   color が未指定（default）なら種別の既定色（KindColor）。各画面の表示直後に、表示した行と同じ本文で呼ぶこと。
     public static void PushLog(LineKind kind, string speaker, string text, Color color = default)
     {

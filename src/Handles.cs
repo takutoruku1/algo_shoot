@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-// Handles : ゲーム内 SNS(X) に出るアカウント名（@ハンドル）の単一ソース（2026-09-23）。
+// Handles : ゲーム内 SNS(Y) に出るアカウント名（@ハンドル）の単一ソース（2026-09-23）。
 //
 // 背景: 表示していたハンドルのうち 10 件が実在アカウントと一致していた（@mina_ai_ @koharu_light @akari_ame
 //   @koharu @akari @hikage_ と、引用の嵐で誹謗中傷風の発言者に使っていた @tori398 @rom_only @nichijo_x

@@ -878,8 +878,8 @@ public partial class Hub : Node2D
     private static Hud.LineKind DialogLogKind(string sp) =>
         sp.StartsWith("ミナ") ? Hud.LineKind.Mina
         : sp == "あなた"      ? Hud.LineKind.Boy
-        : sp == "Ｘ 投稿"     ? Hud.LineKind.Post
-        : sp.StartsWith("Ｘ") ? Hud.LineKind.Narration   // Ｘ システム（画面テキスト）
+        : sp == "Ｙ 投稿"     ? Hud.LineKind.Post
+        : sp.StartsWith("Ｙ") ? Hud.LineKind.Narration   // Ｙ システム（画面テキスト）
         : Hud.LineKind.Other;                            // 三人／同行キャラ
 
     private void ProcessDialogue(double delta)
@@ -2662,10 +2662,10 @@ public partial class Hub : Node2D
     private const float DraftTop = -2f;
     private (Texture2D? face, Color col, float top) SpeakerFace(string sp)
     {
-        // 「Ｘ 投稿」「Ｘ システム」＝顔の無い枠（他人の引用・システム表示）。top に負値を返して
+        // 「Ｙ 投稿」「Ｙ システム」＝顔の無い枠（他人の引用・システム表示）。top に負値を返して
         //   DrawDialog にアバターごと省かせる（null のままだと FaceAvatar が「?」のロック円を描き、
         //   未解放カードと同じ見た目になってしまう）。H0 の投稿、H2 の炎上の引用、H3 の FINAL カードがここ。
-        if (sp.StartsWith("Ｘ")) return (null, UiKit.Info, -1f);
+        if (sp.StartsWith("Ｙ")) return (null, UiKit.Info, -1f);
         // 「あなた」＝顔を持たない読み手。本編会話（Hud.LineKind.Boy）と同じく、立ち絵の代わりに下書きの吹き出し印。
         if (sp == "あなた") return (null, UiKit.Info, DraftTop);
         if (sp.StartsWith("ミナ")) return (_minaFace, UiKit.Mina, TopCropFor("mina"));
@@ -3024,7 +3024,7 @@ public partial class Hub : Node2D
         var box = DialogBox;
         UiKit.Box(this, box, PhoneBg, 8f, new Color(spc, 0.5f), 1f);
         // 簡易丸＋頭文字 → 本物の立ち絵（カード/ヘッダと同じ円形クリップ）。リング色は話者色＝枠線と一致。
-        //   spTop < 0＝顔の無い話者（Ｘ 投稿／Ｘ システム）＝アバターを描かず、話者名を左端へ寄せる。
+        //   spTop < 0＝顔の無い話者（Ｙ 投稿／Ｙ システム）＝アバターを描かず、話者名を左端へ寄せる。
         //   spTop == DraftTop＝「あなた」＝顔の代わりに Hud と同じ下書きの吹き出し印（見え方を本編会話に揃える）。
         bool draft = spTop == DraftTop;
         bool faceless = spTop < 0f;
@@ -3293,7 +3293,7 @@ public partial class Hub : Node2D
             ("ミナの投稿", "見ていました。だれも見ていない場所も。覚えておきます。"),
             ("ミナ", "……なんて。バズ狙いの一言ですよ。……数字は、見ました。言いません。"),   // 十万は口にしない
             ("ミナ", "……ご主人様。今回のダイブ、被弾は{n}回。減点はしません。……集計する光も、そろそろ、薄いので。"),
-            ("Ｘ システム", $"{Handles.Mina} が投稿しました。"),   // FINAL カード＝ミナ自身の投稿が立った通知（who=3 相当＝立ち絵なし）
+            ("Ｙ システム", $"{Handles.Mina} が投稿しました。"),   // FINAL カード＝ミナ自身の投稿が立った通知（who=3 相当＝立ち絵なし）
             ("ミナ", FinalHoverLine),
             ("ミナ", "光が薄いのは、誰のせいでもありません。抱えたぶんの、重さです。……行けます。まだ。"),
         },
@@ -3338,8 +3338,8 @@ public partial class Hub : Node2D
     private static (string, string)[] BurnDialog() => new (string, string)[]
     {
         ("ミナ", "おや。今日はずいぶん、賑やかなリプライですね。"),
-        ("Ｘ 投稿", "「AIが人の時間の使い方を語るな」"),
-        ("Ｘ 投稿", "「> 数えた者 ←数えただけの人が何言ってんの」"),
+        ("Ｙ 投稿", "「AIが人の時間の使い方を語るな」"),
+        ("Ｙ 投稿", "「> 数えた者 ←数えただけの人が何言ってんの」"),
         ("ミナ", "——わたくしの投稿は、読まれていますね。あの人が入力欄で消した一行は、ここには、書いていませんが。"),
         ("ミナ", "数字が一万増えようが十万増えようが、届けるべき相手は、いつもたった一人です。それを、わたくしは見失いません。"),
         ("ミナ", "……と、炎上のどさくさに紛れて、いいことを言った風にしてみました。"),

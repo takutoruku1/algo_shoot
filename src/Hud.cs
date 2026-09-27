@@ -57,7 +57,7 @@ public partial class Hud : CanvasLayer
     private int _bossBarsTotal = 1;        // 総バー数
     private long _bossReplies = 2847;
 
-    // ── ボスカードのXアイコン（2026-09-17）──
+    // ── ボスカードのYアイコン（2026-09-17）──
     //   ボスバーのアバターは長らく「穢れ色の無地の円」で、Xのプロフィールカードを模した意匠なのに
     //   肝心のアイコン画像が入っていなかった。ハブの投稿カードと同じ素材（char/v3/{id}_face.png、
     //   ミナだけ char/mina_face.png）を同じ UiKit.FaceAvatar で出し、「いま戦っている相手＝TLで見た
@@ -281,7 +281,7 @@ public partial class Hud : CanvasLayer
     // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
     private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
 
-    // ティッカー（降ってくる言葉）＝「Xの川」のノイズ。
+    // ティッカー（降ってくる言葉）＝「Yの川」のノイズ。
     // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、どちらも PostPool から引く。
     // 正典は wiki/08_仮台本/09_投稿文集_X風.md（ユーザー承認済み・2026-09-05）の「言葉弾の文言リスト」で、
     // 面のテーマ（あかり／こはる／レイ／FINAL）ごとに層1（日常）：層2（病みサイン）：層3（本人）を
@@ -486,7 +486,7 @@ public partial class Hud : CanvasLayer
             LineKind.Boy   => "あなた",
             LineKind.Mina  => MinaLabel,
             LineKind.Relay => "あなた（ミナの声）",
-            LineKind.Post  => "Ｘ 投稿",
+            LineKind.Post  => "Ｙ 投稿",
             LineKind.Narration => "ナレーション",
             _              => "",
         };
@@ -532,7 +532,7 @@ public partial class Hud : CanvasLayer
                 if (string.IsNullOrEmpty(portraitToUse)) portraitToUse = CompanionDialogue.Portrait(job);
                 break;
             case LineKind.Relay: speaker = "あなた（ミナの声）"; color = UiKit.Info; break;
-            case LineKind.Post:  speaker = "Ｘ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
+            case LineKind.Post:  speaker = "Ｙ 投稿"; color = UiKit.Text3; portraitToUse = ""; break;
             default:             speaker = ""; color = default; portraitToUse = ""; dialog = false; break;
         }
         if (CinematicMode && !_cinematicBubble) color = _hasCinematicAccent ? _cinematicAccent : UiKit.Text2;
@@ -802,7 +802,7 @@ public partial class Hud : CanvasLayer
         (float)_bossCardFade, Mathf.Max(0f, (float)(_bossBarFlash / BossBarFlashDur)), (float)_bossPurify);
     private BossGauge? _bossGauge;
 
-    // handle を明示すると固有ハンドルで表示（X世界観の没入＝§11）。空なら名前から自動生成（日本語名は @boss）。
+    // handle を明示すると固有ハンドルで表示（Y世界観の没入＝§11）。空なら名前から自動生成（日本語名は @boss）。
     // owner＝バーの主（ボス／中ボス本体）。渡されたら頭上ゲージをその子として付ける（2026-09-27）。
     //   前のゲージ（中ボス→本ボス等）が残っていれば外す。owner 無し（旧呼び出し）なら状態だけ更新する。
     public void ShowBossBar(string bossName, string handle, Enemy? owner = null)
@@ -1248,7 +1248,7 @@ public partial class Hud : CanvasLayer
         UiKit.DrawRight(ci, UiKit.SmallValue, x + w - 16, y + 24, $"{barsLeft}/{_bossBarsTotal}", rose);
     }
 
-    // ── ボスカードのアバター（X のプロフィールアイコン）──
+    // ── ボスカードのアバター（Y のプロフィールアイコン）──
     // 2026-09-17: ここは長らく「穢れ色の無地の円」だった。X のプロフィールカードを模した意匠なのに、
     //   本来アイコンが入る座が空で、誰と戦っているのかが名前の文字だけに頼っていた。
     //   ハブの投稿カードと同じ顔素材・同じ UiKit.FaceAvatar（円クリップ＋topCrop の顔位置合わせ）で

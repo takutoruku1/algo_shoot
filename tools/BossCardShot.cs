@@ -2,7 +2,7 @@ using Godot;
 using System.Reflection;
 using System.Threading.Tasks;
 
-// BossCardShot : ボスHPカード（Hud.DrawBossCard）のアバター＝Xアイコン表示の見た目確認用スクショ取り（2026-09-17）。
+// BossCardShot : ボスHPカード（Hud.DrawBossCard）のアバター＝Yアイコン表示の見た目確認用スクショ取り（2026-09-17）。
 //   実戦に到達させると各ボスまで数分かかるので、ステージを1つ立てて Hud だけを直接叩き、
 //   ・4本ボス（あかり／こはる／レイ／ミナ=FINAL）＋中ボス（カメオ）の handle でカードを出す
 //   ・改心（HideBossBar）後の「穢れが晴れる」経過も撮る

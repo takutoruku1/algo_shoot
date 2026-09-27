@@ -275,7 +275,7 @@ public partial class CompanionDialogueQa : Node
                     Check(silence >= 0 && silence < story.Length, $"{job.CharacterId} redemption@{stage} BGM-stop line is in range");
                     count += story.Length;
                     // 回想（memory）とアフター（aftermath）の9通り。2026-09-23 に一枚絵（StoryFilm）をやめて
-                    //   吹き出しだけになった枚。who は 6（潜行キャラ本人）／2（相手ボス）／4（Ｘ投稿）のみで、
+                    //   吹き出しだけになった枚。who は 6（潜行キャラ本人）／2（相手ボス）／4（Ｙ投稿）のみで、
                     //   ミナの声（who=1/3）も「あなた」（0）も中継（5）も一行も無いことを、改心と同形で検める。
                     foreach (var (kind, scene) in new[] { ("memory", CharacterStory.Memory(job.Id, stage)),
                                                           ("aftermath", CharacterStory.Aftermath(job.Id, stage)) })
@@ -284,7 +284,7 @@ public partial class CompanionDialogueQa : Node
                             && scene.All(l => !string.IsNullOrWhiteSpace(l.text)),
                             $"{job.CharacterId} {kind}@{stage} speaks only as 6/2/4");
                         Check(scene.All(l => !l.text.StartsWith("[仮]")), $"{job.CharacterId} {kind}@{stage} is authored (no placeholder)");
-                        // Ｘ投稿（who=4）は立ち絵を持たない（face=""）。それ以外は全行 face 指定あり。
+                        // Ｙ投稿（who=4）は立ち絵を持たない（face=""）。それ以外は全行 face 指定あり。
                         Check(scene.All(l => l.who == 4 ? l.face.Length == 0 : l.face.Length > 0),
                             $"{job.CharacterId} {kind}@{stage} portraits follow the who rule");
                         count += scene.Length;

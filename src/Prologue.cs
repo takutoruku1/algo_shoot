@@ -251,7 +251,7 @@ public partial class Prologue : Node2D
 
     // P4 の導入（タイムライン→『たすけて』・選択の直前まで）。
     //   2026-09-07 ユーザー指示で作り直し：
-    //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｘ の通知カードを出す（PostToast）。
+    //   ①タイムラインの3投稿は会話バーに文字を流すのをやめ、画面中央に Ｙ の通知カードを出す（PostToast）。
     //   ②『たすけて』は説明せず、絵で見せる——中央のカードの本文が「たすけて」と打たれては消える、を
     //     三度くり返し、最後に「元気です。」が打たれて送信される。ミナは声の聞こえた投稿を指すだけ。
     //   演出行（WhoFx）は会話バーに何も出さず、済んだら自動で次へ進む（Z を待たない）。
@@ -302,7 +302,7 @@ public partial class Prologue : Node2D
     // 命名の点灯行（P3Reply が全ルート共通で積む唯一の行）。この行に達した瞬間から話者名が「ミナ」になる。
     private const string IgniteLine = "[ M I N A ]";
 
-    // ════════════════════ P4 の演出（中央の Ｘ 通知カード）════════════════════
+    // ════════════════════ P4 の演出（中央の Ｙ 通知カード）════════════════════
     // 演出行（WhoFx）の Text がそのままトリガ名。DriveFx がこれで分岐する。
     private const string FxPost1 = "fx:post1", FxPost2 = "fx:post2", FxPost3 = "fx:post3", FxErase = "fx:erase";
     private const string FxFirstStage = "fx:first_stage";
@@ -894,12 +894,12 @@ public partial class Prologue : Node2D
     // 行の書体：システム表示（起動ログ・[ M I N A ]）だけ等幅＝端末の生ログに見せる（Epilogue の作法と同じ）。
     private static Font FontFor(DLine d) => d.Who == WhoSys ? (Font)UiKit.Mono : UiKit.Zen;
 
-    // 話者ラベルと額縁の色。ミナ＝シアン／あなた＝暖色／投稿＝Ｘ投稿（Hud と同じ Text3）／システム＝コード緑。
+    // 話者ラベルと額縁の色。ミナ＝シアン／あなた＝暖色／投稿＝Ｙ投稿（Hud と同じ Text3）／システム＝コード緑。
     private static (string label, Color col) SpeakerOf(DLine d) => d.Who switch
     {
         WhoMina => (Hud.MinaLabel, Cool),   // 命名前は「？」（GameManager.MinaNamed）
         WhoYou  => ("あなた", Warm),
-        WhoPost => ("Ｘ 投稿", UiKit.Text3),
+        WhoPost => ("Ｙ 投稿", UiKit.Text3),
         _       => ("", Code),
     };
 
@@ -956,7 +956,7 @@ public partial class Prologue : Node2D
     {
         if (_font == null) return;
         float a = Mathf.Clamp((float)_t / 1.0f, 0f, 1f);
-        DrawString(_font, new Vector2(0, 78f), "X — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
+        DrawString(_font, new Vector2(0, 78f), "Y — タイムライン", HorizontalAlignment.Center, W, UiKit.CutClimax,
             new Color(0.9f, 0.92f, 1f, a));
         DrawString(_font, new Vector2(0, 104f), "STAGE 1 : あかり", HorizontalAlignment.Center, W, UiKit.CutBody,
             new Color(Cool.R, Cool.G, Cool.B, a * 0.9f));

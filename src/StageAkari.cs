@@ -445,7 +445,7 @@ public partial class StageAkari : Node
             case 14: Step_Clear(delta); break;
             case 15: Step_Transition(); break;
         }
-        // ボス戦中の ambient は、全ボス共通の投稿弾（X投稿モチーフ＝ティッカー連動の言葉弾）に統一。
+        // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフ＝ティッカー連動の言葉弾）に統一。
         // 旧「ただの自責の雨（落下弾）」は止め、Rei と同じく投稿弾のみ降らせる（難易度で数がスケール）。
         // あかり面は PostPool のあかりのテーマ（09 の A01〜A40 由来の 8 文字弾）を引く。
         // 下を流れるコメント（ティッカー）も同じプールを見る＝そのまま降る一体感は保つ。

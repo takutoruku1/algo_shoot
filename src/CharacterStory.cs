@@ -23,7 +23,7 @@ using Godot;
 //
 // ── who の約束（Hud.LineKind と同値）──
 //   6=潜行キャラ本人（話者名は素の名前。face 指定行は表情差分、空欄はジョブの立ち絵＝Hud.ShowDialog 参照）／
-//   2=相手ボス／4=Ｘ投稿（face="" 固定）。1（ミナ）と 3（ナレ＝ミナの肉声）と 0/5 はこのテーブルでは使用禁止
+//   2=相手ボス／4=Ｙ投稿（face="" 固定）。1（ミナ）と 3（ナレ＝ミナの肉声）と 0/5 はこのテーブルでは使用禁止
 //   （CompanionDialogueQa が全テーブルを機械検査する）。
 public static class CharacterStory
 {

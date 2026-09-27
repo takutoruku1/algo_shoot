@@ -1,6 +1,6 @@
 using Godot;
 
-// PostBullets : 全ボス戦“共通”の「投稿弾」ambient（X投稿モチーフ＝ティッカー連動の言葉弾）。
+// PostBullets : 全ボス戦“共通”の「投稿弾」ambient（Y投稿モチーフ＝ティッカー連動の言葉弾）。
 //
 // 由来：もとは StageRei だけで「ボス戦中に下を流れるコメント（Hud.TickerWords）が弾になって降ってくる」
 // 演出を出していた（StageRei.Rain の wordsOnly 分岐）。これを 4 ステージ（Rei/Akari/Koharu/Mina）で
