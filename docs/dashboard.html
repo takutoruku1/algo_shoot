@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 269 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 270 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">269</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">270</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p3">P3</span>
-          <span class="task-title">仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存</span>
-          <span class="worker">scenario</span>
-        </div>
-        <p class="accept">2026-09-27監査(scenario)。<code>wiki/08_仮台本/11_引用ポストの嵐.md:3,148</code>は「検討中の草稿（非正典・未承認）」「実装とは一致しない」のままだが、<code>src/StageRei.cs:13</code>は「引用の嵐（S3-5b）本体は…ユーザー承認済み・2026-09-05」と明記し投稿文言(<code>StageRei.cs:142</code>)も11:49と一字一句一致、<code>DEV_QUEUE.md</code>DONE(完了2026-09-07)にも承認済み仮台本として実装記録あり。同様に<code>wiki/08_仮台本/09_投稿文集_X風.md:3</code>「実装された文言ではない」も、<code>src/Epilogue.cs:155-157</code>の3行が09の確定文言(A46/K45/R50)と一字一句一致し<code>DEV_QUEUE.md</code>DONE(完了2026-09-11)で実装記録済み。将来の監査が運用ルール8(未承認は台詞変更BLOCKED送り)の判断をこのバナーの自己申告だけで誤る恐れがある。既存BLOCKED(wiki/README・03/04配下・仮台本05/06/07/08/12のバナー)とは対象ファイルが09・11で別のため重複ではない。受入条件: 台詞・物語内容自体の新規創作や変更を伴わない範囲で、11のバナーは「実装済み(2026-09-05承認・StageRei.cs実装済み)」へ、09のバナーは「A46/K45/R50等の確定文言部分は実装済み(Epilogue.cs)、他の層は引き続き検討中」のように事実訂正する。書き分けの粒度に実装判断の余地が大きいと感じた場合は着手せず<code>## BLOCKED</code>へ「要ユーザー判断（バナー文言の書き分け範囲）」として移してよい。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">(完了 2026-09-27) 2026-09-27監査(scenario)発見。台詞・物語内容の新規創作/変更は無し、注記文言の事実訂正のみ。<code>wiki/08_仮台本/11_引用ポストの嵐.md:3</code>の冒頭バナーを「検討中の草稿（非正典・未承認）」→「実装済み（2026-09-05ユーザー承認。本体は<code>src/StageRei.cs</code>に実装済み）」へ、<code>:148</code>末尾の出典コメントも実装済みである旨へ更新。<code>wiki/08_仮台本/09_投稿文集_X風.md:3</code>の冒頭バナーを「検討中の草稿。実装された文言ではない。」→「一部実装済み・一部検討中の草稿。層3のうちスタッフロール投稿(A46/K45/R50)は<code>src/Epilogue.cs</code>に確定文言として実装済み、それ以外(層1/2素材・投稿プール機構等)は引き続き検討中」へ書き分け。<code>src/</code>側は無変更。<strong>検証</strong>: .mdファイルのみの変更のためビルド不要（指揮官確認: 差分内容がコメント/注記の事実訂正のみで台詞本文は不変であることを確認済み）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2665,18 +2665,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">b263a8a</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 仮台本09・11の自己申告バナーを事実訂正する</span></li>
+      <li><span class="h">611a7ed</span><span>2026-09-27</span><span class="s">auto: 拡散威力II／誘導威力IIの整数丸めを是正</span></li>
       <li><span class="h">ea8e0dc</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 拡散威力II／誘導威力IIの整数丸めを是正する</span></li>
       <li><span class="h">ceed7ae</span><span>2026-09-27</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">ec6246a</span><span>2026-09-24</span><span class="s">auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正</span></li>
       <li><span class="h">0fd2b2f</span><span>2026-09-24</span><span class="s">auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する</span></li>
       <li><span class="h">f5b83de</span><span>2026-09-24</span><span class="s">auto: こはる食事タイマーの技名表示を全部見なきゃに統一</span></li>
       <li><span class="h">db18014</span><span>2026-09-24</span><span class="s">auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する</span></li>
-      <li><span class="h">c5bebf5</span><span>2026-09-24</span><span class="s">auto: Pad.csのFlipToken死にコードを削除</span></li>
-      <li><span class="h">4ed42a2</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Pad.csのFlipToken死にコードを整理する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-27 18:36 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-27 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
