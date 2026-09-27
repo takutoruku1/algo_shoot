@@ -339,7 +339,7 @@ public partial class Prologue : Node2D
     public override void _Process(double delta)
     {
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。オープニング中も
-        //   毎フレーム回す＝会話が終わったら SKIP ラッチが切れる。パッド Start はここでは短押し＝MENU／長押し＝最初から。
+        //   毎フレーム回す（SKIP ラッチは会話が終わっても切らない＝右上の印のため）。パッド Start はここでは短押し＝MENU／長押し＝最初から。
         _toolbar.Tick(this, delta, TalkBoxShown, ToolbarAnchor, unreadLine: !_lineWasRead, startTapOpensMenu: true);
         if (_phase == 6) return;
         // ポーズメニュー（2026-09-27 からカットシーンでも開く）／会話ログを閉じた Z・X の同じ押下が、ここで
@@ -757,13 +757,12 @@ public partial class Prologue : Node2D
             case 5: DrawTutorialAsk(); break;
         }
 
-        // 会話ボックスのボタン列（設計座標・枠と立ち絵より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
-        if (TalkBoxShown)
-        {
-            UiKit.BeginDesign(this);
-            _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
-            UiKit.EndDesign(this);
-        }
+        // 会話ボックスのボタン列とラッチの印（設計座標・枠と立ち絵より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        UiKit.BeginDesign(this);
+        if (TalkBoxShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+        // 会話ボックスが出ていない間も SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
+        _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));
+        UiKit.EndDesign(this);
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
         if (_retry.Progress > 0f)

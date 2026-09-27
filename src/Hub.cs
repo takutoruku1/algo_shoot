@@ -816,7 +816,7 @@ public partial class Hub : Node2D
     public override void _Process(double delta)
     {
         // ボタン列は Pad.AdvanceHeld を読む前に回す（ボタン上のクリックを会話送りに数えない）。会話の外でも毎フレーム回す
-        //   ＝会話が閉じたら SKIP ラッチが切れる。
+        //   （SKIP ラッチは会話が閉じても切らない＝画面を跨いで残し、右上に印を出す）。
         _toolbar.Tick(this, delta, DialogShown, ToolbarAnchor, unreadLine: !_dlgReadBefore);
         _t += delta;
         string sideStory = SideStoryId();
@@ -1975,7 +1975,9 @@ public partial class Hub : Node2D
         DrawToast();
         DrawContaminationOverlay();
         // 会話ボックスのボタン列（最前面）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        //   会話の外で SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
         if (DialogShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+        _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));
         UiKit.EndDesign(this);
     }
 

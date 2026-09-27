@@ -419,7 +419,7 @@ public partial class Hud : CanvasLayer
     public override void _ExitTree()
     {
         BubblePaused = false;
-        SkipLatched = false;   // SKIP ラッチはシーンを跨がない（次のシーンの既読行を勝手に飛ばさない）
+        // SKIP ラッチ（SkipLatched）はここでは切らない＝画面が替わっても保つ（2026-09-27。切れ方は src/DialogToolbar.cs）。
         // 面を抜ける（リトライ・ハブ帰還・タイトル）ときは【激情】も必ず畳む。改心を見ずに抜けた場合に
         //   FuryActive が立ったまま残ると、次の画面まで縦メーターが付いてくる。
         GameManager.Instance?.EndFury();
@@ -916,7 +916,8 @@ public partial class Hud : CanvasLayer
         UiKit.BeginDesign(ci);
         if (CinematicMode)
         {
-            if (_dlgText.Length > 0) { DrawDialog(ci); DrawDialogToolbar(ci); }
+            if (_dlgText.Length > 0) DrawDialog(ci);
+            DrawDialogToolbar(ci);   // ボックスがあればボタン列、無ければ SKIP ラッチ中の右上の印
             UiKit.EndDesign(ci);
             return;
         }
@@ -948,7 +949,8 @@ public partial class Hud : CanvasLayer
         if (_spotActive) DrawTutorialSpot(ci);
         if (!sunk && _dlgText.Length > 0) DrawDialog(ci);
         // ボタン列は会話バーが弾の奥（BubbleLayer）に沈んでいても最前面のここに描く＝弾に隠れずクリックできる。
-        if (_dlgText.Length > 0) DrawDialogToolbar(ci);
+        //   ボックスが無い間は SKIP ラッチ中の印（盤面の右上）をここで描く。
+        DrawDialogToolbar(ci);
         if (!sunk && _bossLineTimer > 0 && _bossLine.Length > 0) DrawBossLine(ci);
         if (_bannerTimer > 0) DrawBanner(ci);
         if (_gameOverTitle.Length > 0) DrawGameOverTitle(ci);

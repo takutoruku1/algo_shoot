@@ -301,13 +301,12 @@ public partial class Final : Node2D
             DrawArt(_rooftop, 1f, Mathf.SmoothStep(0f, 1f, (float)_t / 2.5f));
         else DrawTalk();
 
-        // 会話ボックスのボタン列（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
-        if (TalkBoxShown)
-        {
-            UiKit.BeginDesign(this);
-            _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
-            UiKit.EndDesign(this);
-        }
+        // 会話ボックスのボタン列とラッチの印（設計座標・枠より手前）。SKIP はラッチ中か、押しっぱなしの早送り中に点ける。
+        UiKit.BeginDesign(this);
+        if (TalkBoxShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
+        // 会話ボックスが出ていない間も SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
+        _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));
+        UiKit.EndDesign(this);
 
         // R/Start 長押しリトライの充填チップ（押している間だけ・設計座標で描く）。
         if (_retry.Progress > 0f)

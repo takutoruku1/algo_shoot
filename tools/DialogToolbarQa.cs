@@ -7,16 +7,23 @@ using System.Threading.Tasks;
 //   Akari シーンを立ち上げ、戦闘を止めたまま hud.HoldBubble=true で会話ボックスを出して、キー割り当てを検証する。
 //     (e) ボックス非表示のとき A／S は何もしない
 //     (a) A で GameManager.AutoAdvanceDialog が反転（user://settings.json の "auto" にも保存）
-//     (b) S で SkipLatched：未読行では即 OFF／既読行では ON のまま FastForwarding が真／次の未読行・選択肢・
-//         ボックスを閉じる、のそれぞれで自動 OFF
+//     (b) S で SkipLatched：未読行では即 OFF／既読行では ON のまま FastForwarding が真／次の未読行（iii）・
+//         選択肢（iv）で自動 OFF
+//     (i) ラッチ ON のままボックスを閉じて 2 秒待っても ON（2026-09-27：画面が替わっても保つ）。
+//         その間は盤面の右上に「▶▶」の印（v）＝SkipLatchMarkVisible と描いた矩形（Field.DRight-16, 14 が右上）
+//     (ii) ラッチ ON のまま別シーン（Akari→Rei。Hud も作り直し）へ移っても ON で、既読の会話を出すと
+//         入力なしで FastForwarding が真・印は消える
 //     (c) L で Backlog.IsOpen ／ (d) M で PauseMenu.IsOpen、MENU クリック経路（PauseMenu.Open の Call）も開く
 //     (g) ボタン列にマウスが乗っている間は左クリックが会話送り（Pad.AdvanceHeld）に数えられない
+//     (vi) ボタン矩形：30×26・間隔 6・ボックス上辺に 10 食い込み・右端から 18 内側（戦闘の会話バーで実寸を突き合わせる）
 //     (h) Hud を通らない画面（Prologue／Epilogue／Hub の会話）にもボタン列が出て、枠の上辺右寄せに並び、
-//         A で AUTO（全文表示後に自動で送る）、S で SKIP（未読行で即 OFF／既読行で早送り／選択肢・未読行・会話の終わりで OFF）
+//         A で AUTO（全文表示後に自動で送る）、S で SKIP（未読行で即 OFF／既読行で早送り／選択肢・未読行で OFF。
+//         ハブは会話を閉じても ON のまま右上に印）
 //   起動: --headless --path . res://tools/qa_dialog_toolbar.tscn
 //         窓あり＋撮影: res://tools/qa_dialog_toolbar.tscn -- --dt-shot [--dt-out <dir>]
-//           戦闘会話（AUTO 点灯）・ナレーション（SKIP 点灯）・カットシーン（StoryFilm 回想）・
-//           プロローグ（AUTO 点灯）・ハブの返信会話（AUTO 点灯）の5枚を保存する。
+//           戦闘会話（AUTO 点灯）・ボタン列の3倍切り抜き（toolbar_zoom／ホバーの吹き出し付き toolbar_zoom_hover）・
+//           ナレーション（SKIP 点灯）・カットシーン（StoryFilm 回想）・ボックス無し＋ラッチ ON の右上の印（toolbar_latch_mark）・
+//           プロローグ（AUTO 点灯）・ハブの返信会話（AUTO 点灯）を保存する。
 //   APPDATA は build/qa_story/ 配下へ隔離して走らせる（settings.json／既読を本番に書かない）。
 public partial class DialogToolbarQa : Node
 {
@@ -123,12 +130,23 @@ public partial class DialogToolbarQa : Node
             readField.SetValue(hud, true);
             await Tap(Key.S);
             Check(Hud.SkipLatched, "(b) latch re-armed again");
+
+            // (i) ボックスを閉じてもラッチは残る ／ (v) その間は盤面の右上に印
             hud.HideBubble();
-            await Seconds(0.35);
-            Check(!Hud.SkipLatched, "(b) closing the box turns the latch off");
+            await Seconds(2.0);
+            Check(Hud.SkipLatched, "(i) latch stays ON 2s after the box closed");
+            Check(hud.SkipLatchMarkVisible, "(v) latch mark is shown while no box is up");
+            var markExpect = DialogToolbar.LatchMarkRect(new Vector2(Field.DRight - 16f, 14f));
+            Check(hud.SkipLatchMarkDrawnRect == markExpect && markExpect.Size.Y == 18f,
+                $"(v) latch mark drawn at the board's top-right {hud.SkipLatchMarkDrawnRect}");
+
+            // (iii) 未読行に当たると切れる（ここでは (c) 用の三行目＝未読）
+            hud.ShowDialog(Hud.LineKind.Mina, $"ツールバー検証の三行目です。{stamp}");
+            await Frames(3);
+            Check(!Hud.SkipLatched, "(iii) an unread line turns the latch off");
+            Check(!hud.SkipLatchMarkVisible, "(v) no latch mark while the box is up / latch is off");
 
             // (c) LOG ＝ L
-            hud.ShowDialog(Hud.LineKind.Mina, $"ツールバー検証の三行目です。{stamp}");
             await Seconds(0.45);
             await Tap(Key.L);
             Check(backlog.IsOpen, "(c) L opens the backlog while the box is shown");
@@ -162,13 +180,50 @@ public partial class DialogToolbarQa : Node
             Check(r0.End.X < r3.Position.X && Mathf.IsEqualApprox(r0.Position.Y, r3.Position.Y), "(g) AUTO..MENU laid out left to right on one row");
             Check(r3.End.X <= Hud.DlgBoxX + Hud.DlgBoxW && r3.Position.Y < 520f && r3.End.Y > 520f, "(g) row sits right-aligned and bites into the box's top edge");
             GD.Print($"[Toolbar] rects AUTO={r0} MENU={r3}");
+            // (vi) 新しい寸法（戦闘の会話バー＝右上 (DlgBoxX+DlgBoxW, 520)）
+            float ax = Hud.DlgBoxX + Hud.DlgBoxW;
+            Check(r3 == new Rect2(ax - 18f - 30f, 504f, 30f, 26f), $"(vi) MENU rect is 30x26, 18 in from the right, 10 into the top edge ({r3})");
+            Check(r0 == new Rect2(ax - 18f - 30f - 3f * 36f, 504f, 30f, 26f), $"(vi) AUTO rect sits 3 buttons (30+6) to the left ({r0})");
+            Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 6f, "(vi) 6px gap between buttons");
 
             if (shot) await Shots(game, hud, world, readField, stamp);
 
             hud.HoldBubble = false;
             hud.HideBubble();
             await Frames(3);
+
+            // (ii) ラッチ ON のまま別シーン（Akari→Rei）へ。Hud は作り直しになるが static のラッチは残る
+            Hud.SkipLatched = true;
             root.QueueFree();
+            await Frames(5);
+            Check(Hud.SkipLatched, "(ii) latch survives the old scene (and its Hud) leaving the tree");
+            var rei = GD.Load<PackedScene>("res://Rei.tscn").Instantiate<Node2D>();
+            await Frames(1);
+            GetTree().Root.AddChild(rei);
+            GetTree().CurrentScene = rei;
+            var hud2 = rei.GetNode<Hud>("Hud");
+            rei.SetProcess(false);
+            rei.GetNode<Node>("StageRei").SetProcess(false);
+            rei.GetNode<Node2D>("World").GetNode<Player>("Player").SetPhysicsProcess(false);
+            hud2.HideBubble();   // 面の入りの行（未読なら正しくラッチを切る）を検証から外す
+            await Frames(5);
+            Check(hud2 != hud && Hud.SkipLatched, "(ii) latch is still ON in the next scene's new Hud");
+            Check(hud2.SkipLatchMarkVisible, "(ii) new Hud shows the latch mark while no box is up");
+            if (shot) { await Seconds(0.8); await Save("toolbar_latch_mark"); }
+            string readLine = $"シーンを跨いだ既読の一行です。{stamp}";
+            game.MarkLineRead(readLine);
+            hud2.HoldBubble = true;
+            hud2.ShowDialog(Hud.LineKind.Mina, readLine);
+            await Frames(3);
+            Check(Hud.SkipLatched && hud2.FastForwarding, "(ii) a read line in the new scene fast-forwards with no input");
+            Check(!hud2.SkipLatchMarkVisible, "(ii) latch mark hides once the box is up");
+            hud2.ShowDialog(Hud.LineKind.Mina, $"シーンを跨いだ未読の一行です。{stamp}");
+            await Frames(3);
+            Check(!Hud.SkipLatched, "(iii) the first unread line in the new scene turns the latch off");
+            hud2.HoldBubble = false;
+            hud2.HideBubble();
+            await Frames(3);
+            rei.QueueFree();
             await Frames(5);
 
             // (h) Hud を通らない画面
@@ -194,6 +249,17 @@ public partial class DialogToolbarQa : Node
         hud.ShowDialog(Hud.LineKind.Mina, "……この投稿、下書きのほうが本音だね。消されたほうの言葉、ちゃんと読んだよ。");
         await Seconds(1.6);
         await Save("toolbar_battle");
+        // 1b) ボタン列の3倍切り抜き（AUTO・SKIP 点灯＝ON と OFF を1枚で見比べる）／マウスを乗せて吹き出し付き
+        readField.SetValue(hud, true);
+        await Tap(Key.S);
+        await Seconds(0.4);
+        await SaveZoom("toolbar_zoom", hud.ToolbarRect(DialogToolbar.Auto), hud.ToolbarRect(DialogToolbar.Menu));
+        GetViewport().WarpMouse(hud.ToolbarRect(DialogToolbar.Log).GetCenter() * UiKit.Scale);
+        await Seconds(0.3);
+        GD.Print($"[Toolbar] hover after warp = {hud.DialogToolbarHover}");
+        await SaveZoom("toolbar_zoom_hover", hud.ToolbarRect(DialogToolbar.Auto), hud.ToolbarRect(DialogToolbar.Menu));
+        GetViewport().WarpMouse(new Vector2(200f, 100f));
+        await Tap(Key.S);   // ラッチを戻す（残すと下のナレ・回想まで早送りされる）
         // 2) ナレーション（SKIP 点灯）
         game.AutoAdvanceDialog = false;
         hud.ShowMessage("タイムラインの底で、誰にも届かなかった下書きが、まだ光っている。");
@@ -202,6 +268,7 @@ public partial class DialogToolbarQa : Node
         await Tap(Key.S);
         await Seconds(0.6);
         await Save("toolbar_narration");
+        await Tap(Key.S);   // ラッチを戻す（画面を跨いで残るので、回想フィルムを早送りさせない）
         hud.HideBubble();
         await Seconds(0.4);
         // 3) カットシーン（StoryFilm＝CinematicMode の会話）
@@ -357,12 +424,16 @@ public partial class DialogToolbarQa : Node
         await Frames(3);
         Check(Read<int>(hub, "_dlgIdx") > idx1, "(h) hub: SKIP fast-forwards the read line");
         Check(!Hud.SkipLatched, "(h) hub: the next unread line turns the latch off");
-        // 会話を閉じてもラッチは残らない（場が消えて LatchGoneGrace 後に切れる）
+        // 会話を閉じてもラッチは残り（画面を跨いで保つ）、会話の外では画面右上に印を出す
         for (int i = 0; i < 60 && Shown(hub, "DialogShown"); i++) await Tap(Key.Z);
         Check(!Shown(hub, "DialogShown"), "(h) hub: dialogue closed");
-        Hud.SkipLatched = true;   // 会話の外で立っていたら（場が消えている）
-        await Seconds(0.35);
-        Check(!Hud.SkipLatched, "(h) hub: closing the dialogue turns the latch off");
+        Hud.SkipLatched = true;   // 会話の外で立っていたら
+        await Seconds(0.5);
+        var tb = Read<DialogToolbar>(hub, "_toolbar");
+        Check(Hud.SkipLatched, "(h) hub: the latch stays ON outside the dialogue");
+        Check(tb.LatchMarkVisible && tb.LatchMarkDrawnRect == DialogToolbar.LatchMarkRect(new Vector2(UiKit.DesignW - 16f, 14f)),
+            $"(h) hub: latch mark drawn at the screen's top-right {tb.LatchMarkDrawnRect}");
+        Hud.SkipLatched = false;
         hub.QueueFree();
         await Frames(5);
     }
@@ -374,6 +445,22 @@ public partial class DialogToolbarQa : Node
         string path = $"{_out}/{name}.png";
         image.SavePng(path);
         GD.Print($"[Toolbar] SHOT {path}");
+    }
+
+    // ボタン列（first..last の矩形）の周り（上は吹き出しの分まで）を切り抜いて3倍に拡大して保存する。
+    //   設計座標→画像ピクセルは窓の実寸で換算（1280 幅なら等倍）。
+    private async Task SaveZoom(string name, Rect2 first, Rect2 last)
+    {
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        var image = GetViewport().GetTexture().GetImage();
+        float k = image.GetWidth() / UiKit.DesignW;
+        var design = new Rect2(first.Position.X - 12f, first.Position.Y - 34f, last.End.X - first.Position.X + 24f, first.Size.Y + 46f);
+        var px = new Rect2I((int)(design.Position.X * k), (int)(design.Position.Y * k), (int)(design.Size.X * k), (int)(design.Size.Y * k));
+        var crop = image.GetRegion(px);
+        crop.Resize(crop.GetWidth() * 3, crop.GetHeight() * 3, Image.Interpolation.Nearest);
+        string path = $"{_out}/{name}.png";
+        crop.SavePng(path);
+        GD.Print($"[Toolbar] SHOT {path} ({px} x3)");
     }
 
     private static bool? ReadSettingsAuto()

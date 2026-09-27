@@ -403,7 +403,7 @@ public partial class HowToCanvas : Node2D
         {
             1 => $"◇ 会話ボックス上のボタン：{Pad.Face(JoyButton.Y)} 自動送り / {Pad.Face(JoyButton.RightShoulder)} 短押し 既読スキップ / "
                  + $"{Pad.Face(JoyButton.Back)} ログ / {Pad.Face(JoyButton.Start)} メニュー",
-            2 => "◇ 会話ボックス上のボタン（AUTO / SKIP / LOG / MENU）：クリックで押せる",
+            2 => "◇ 会話ボックス上のボタン（▶ 自動送り / ▶▶ 既読スキップ / ログ / メニュー）：クリックで押せる",
             _ => "◇ 会話ボックス上のボタン：A 自動送り / S 既読スキップ / L ログ / M メニュー（クリックでも押せる）",
         };
         UiKit.Text(this, UiKit.Zen, new Vector2(x, ny + 44f), toolbar, UiKit.FontLabel, UiKit.PurifyHi,
