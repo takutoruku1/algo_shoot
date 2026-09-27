@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 268 / 対象 268 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 268 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">268</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,7 +145,23 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-27監査(game-designer)。<code>src/Player.cs:847</code>の<code>Fire()</code>で<code>dmg</code>を先に整数丸めした後、<code>src/Player.cs:941 FireSpread()</code>の<code>sdmg</code>と<code>:958 FireHoming()</code>の<code>hdmg</code>がその整数値へ<code>SpreadPowerMul</code>(<code>GameManager.cs:818</code>: 0.50/0.56/0.62)・<code>HomingPowerMul</code>(<code>GameManager.cs:821</code>: 0.85/0.95/1.05)を掛けて再度丸める二重丸めになっており、通常プレイの<code>dmg</code>帯(1〜5程度)ではLv1→Lv2で実ダメージが変化しない組み合わせが生じる(例: dmg=4のとき拡散は3段とも2、誘導はLv1/Lv2とも4)。同画面の<code>rapid_power</code>(<code>Player.cs:896</code>)・<code>accel_power</code>(<code>Player.cs:916</code>)は丸めずに整数加算する式のため同型の問題が起きておらず実装方式が不統一。修正はbaseダメージをfloatで保持し各モード倍率を掛けてから最後に1回だけ丸める、または<code>SpreadPowerMul</code>/<code>HomingPowerMul</code>テーブルの段間刻み幅を広げるのいずれかでよい。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(<code>Enemy.cs</code>のボス無防備窓クランプが原因)とは発生箇所・原因が別(ショップ側威力計算式そのものの丸め誤差)のため重複ではない。弾の量・弾速による難易度調整方針やHP方針には触れない数値修正の範囲。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-27監査(scenario)。<code>wiki/08_仮台本/11_引用ポストの嵐.md:3,148</code>は「検討中の草稿（非正典・未承認）」「実装とは一致しない」のままだが、<code>src/StageRei.cs:13</code>は「引用の嵐（S3-5b）本体は…ユーザー承認済み・2026-09-05」と明記し投稿文言(<code>StageRei.cs:142</code>)も11:49と一字一句一致、<code>DEV_QUEUE.md</code>DONE(完了2026-09-07)にも承認済み仮台本として実装記録あり。同様に<code>wiki/08_仮台本/09_投稿文集_X風.md:3</code>「実装された文言ではない」も、<code>src/Epilogue.cs:155-157</code>の3行が09の確定文言(A46/K45/R50)と一字一句一致し<code>DEV_QUEUE.md</code>DONE(完了2026-09-11)で実装記録済み。将来の監査が運用ルール8(未承認は台詞変更BLOCKED送り)の判断をこのバナーの自己申告だけで誤る恐れがある。既存BLOCKED(wiki/README・03/04配下・仮台本05/06/07/08/12のバナー)とは対象ファイルが09・11で別のため重複ではない。受入条件: 台詞・物語内容自体の新規創作や変更を伴わない範囲で、11のバナーは「実装済み(2026-09-05承認・StageRei.cs実装済み)」へ、09のバナーは「A46/K45/R50等の確定文言部分は実装済み(Epilogue.cs)、他の層は引き続き検討中」のように事実訂正する。書き分けの粒度に実装判断の余地が大きいと感じた場合は着手せず<code>## BLOCKED</code>へ「要ユーザー判断（バナー文言の書き分け範囲）」として移してよい。</p>
+      </li></ol>
   </section>
 
   <section>
@@ -2649,6 +2665,7 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ec6246a</span><span>2026-09-24</span><span class="s">auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正</span></li>
       <li><span class="h">0fd2b2f</span><span>2026-09-24</span><span class="s">auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する</span></li>
       <li><span class="h">f5b83de</span><span>2026-09-24</span><span class="s">auto: こはる食事タイマーの技名表示を全部見なきゃに統一</span></li>
       <li><span class="h">db18014</span><span>2026-09-24</span><span class="s">auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する</span></li>
@@ -2656,11 +2673,10 @@
       <li><span class="h">4ed42a2</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Pad.csのFlipToken死にコードを整理する</span></li>
       <li><span class="h">2a28174</span><span>2026-09-24</span><span class="s">auto: コメント中のファイル:行参照ズレ3箇所を実位置に修正</span></li>
       <li><span class="h">a2c7962</span><span>2026-09-24</span><span class="s">auto: WIP着手 - コメント中のファイル:行参照ズレ3箇所を修正する</span></li>
-      <li><span class="h">6a43892</span><span>2026-09-24</span><span class="s">auto: Shop.csのLUNATIC解放ゴールのコメントLv4→Lv3修正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-24 19:03 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-27 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
