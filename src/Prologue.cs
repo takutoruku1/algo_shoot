@@ -1,7 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 
-// Prologue : 案C プロローグ「起動」（wiki/08_仮台本/06 の P0〜P4）。
+// Prologue : 案C プロローグ「起動」（docs/20260928/wiki_仮台本_退避/06 の P0〜P4）。
 // コードレイン（緑モノスペースが上昇／MINAの4行英文を可読限界以下で一瞬フラッシュ）
 // → identity は [ deferred ] のまま保留 → 光の点灯（ミナ）
 // → P2 目覚めと最初の言葉（3択）→ P3 命名（3択・全ルート MINA へ収束・ここで [ M I N A ] 点灯）

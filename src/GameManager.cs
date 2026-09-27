@@ -968,9 +968,9 @@ public partial class GameManager : Node
     public bool HasChargeTier2 => Has("n_charge");
     // 2段目が満ちるまでの長押し秒（合計）。未所持なら 1段目と同じ＝それ以上は溜まらない。
     public float ChargeTier2NeedSec => HasChargeTier2 ? ChargeNeedSec * ChargeTier.HoldMul : ChargeNeedSec;
-    // #11 集中モード（Vキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
+    // #11 集中モード（Cキー・敵側の時間だけ×0.35／1.5秒／CD20秒）。
     public bool HasFocusMode => Has("n_slow");
-    // #2 回避（Alt / L3 / 右クリック・無敵 0.45秒）。未所持のあいだ Player.TryDodge は即 return し、
+    // #2 回避（Space / L3 / 右クリック・無敵 0.45秒）。未所持のあいだ Player.TryDodge は即 return し、
     //   あそびかた／操作カードの回避行は未取得として薄く出る＝解禁が画面で見える。
     //   ★名前と型（bool HasDodge）は Player.cs・StageZero.cs・HowToPlay.cs が読むので変えない。
     public bool HasDodge => Has("n_dodge");
