@@ -55,6 +55,12 @@ public partial class Enemy : Area2D
     protected bool FaceLeft = true; // 進行方向(左=プレイヤー側)を向く。素材は右向きなので反転。
     private Sprite2D _bodySprite = null!;
     private bool _hasBodyTex;
+    // 世界の色味（各ステージ Root の CanvasModulate＝夜の冷色 Tint）。本体スプライトはこれを 1/Tint で
+    // 完全に打ち消して、どのステージでも昼の素材そのままの明るさで立たせる（2026-09-27 作者指示
+    // 「自キャラ／敵もどのステージでも明るくしてほしい」。強さは TintLift.EnemyBody=1）。
+    // 置き先は _bodySprite.Modulate＝差し替えクロスフェードのα（SelfModulate）と別枠にして混ぜない。
+    // 敵弾（ネオン縁）・投稿チップ（Panel）・演出粒は従来どおり Tint を受けたまま＝夜の空気は背景が担う。
+    private CanvasModulate? _worldTint;
 
     // ─── 姿勢ごとの表示オフセット（v3 の本体は姿勢ごとに絵の幅が違う）───
     //   BossParts.BodyOffsets の表から引く名前（"akari"/"koharu"/"rei"/"cameo"）。空なら従来どおり中央揃え。
@@ -302,6 +308,8 @@ public partial class Enemy : Area2D
         _maxHp = BarCount * BarHp;
         _hp = _maxHp;
         SetupBodySprite();
+        _worldTint = TintLift.Find(this);
+        ApplyTintLift();   // 初フレームから明るく出す（以降は _PhysicsProcess が毎フレーム引き直す）
         // ボス/カメオ（HPバー方式）は登場演出から始める：盾(パネル)は着地後に展開（焦らし→開放）。
         // 立ち絵が無い場合は演出をスキップして従来どおり即展開（プレースホルダで滑空しても見得にならない）。
         if (BarCount > 0 && _hasBodyTex) BeginEntrance();
@@ -477,6 +485,16 @@ public partial class Enemy : Area2D
         _bodySprite.Scale = new Vector2(s, s);
         ApplyBodyOffset();
         AddChild(_bodySprite);
+    }
+
+    // 本体（と改心差し替え中の退避スプライト）へ Tint の打ち消しを入れる。α は 1 固定＝
+    // クロスフェード（SelfModulate のα）や退場フェード（Enemy 自身の Modulate のα）には触らない。
+    private void ApplyTintLift()
+    {
+        if (!_hasBodyTex || _bodySprite == null) return;
+        var lift = TintLift.Of(_worldTint, TintLift.EnemyBody);
+        _bodySprite.Modulate = lift;
+        if (_fadeSprite != null) _fadeSprite.Modulate = lift;
     }
 
     protected virtual (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
@@ -1139,6 +1157,7 @@ public partial class Enemy : Area2D
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
+        ApplyTintLift();   // 退避スプライトは Modulate を引き継がないので、ここで新旧そろえて明るさを入れる
 
         // squash→pop を起動（_PhysicsProcess で進める）。
         _swapAnim = true;
@@ -1335,6 +1354,10 @@ public partial class Enemy : Area2D
 
     public override void _PhysicsProcess(double delta)
     {
+        // 世界の Tint の打ち消しは状態に関わらず毎フレーム引き直す（Tint は Warmth で動き、ボスの realm 暴露では
+        // 白へ抜ける）。登場演出・改心・退場・会話中の early-return より前に置く＝どの状態でも暗く沈ませない。
+        ApplyTintLift();
+
         // 差し替えアニメ（クロスフェード＋squash→pop）は状態に関わらず常に進める。
         if (_swapAnim) { TickSwapAnim(delta); QueueRedraw(); }
 

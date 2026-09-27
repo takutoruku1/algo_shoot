@@ -157,6 +157,13 @@ public partial class Player : Area2D
     private Sprite2D _sprite = null!;
     private bool _hasTexture = false;
 
+    // 世界の色味（各ステージ Root の CanvasModulate＝夜の冷色 Tint）。盤面のスプライトは例外なくこれで沈むので、
+    // 自機の本体スプライトだけは 1/Tint を掛けて打ち消し、どのステージでも昼の素材そのままの明るさで見せる
+    //（2026-09-27 作者指示「自キャラ／敵もどのステージでも明るくしてほしい」。強さは TintLift.PlayerBody=1）。
+    // 置き先は _sprite.Modulate＝状態の色（汚染ティント・グレイズ残光・回避発光）が使う SelfModulate とは
+    // 別枠にして混ぜない。α は触らない＝被弾点滅は従来どおり Player 自身の Modulate が握る。
+    private CanvasModulate? _worldTint;
+
     // ───────── マウス操作（キーボード/パッドへ純粋に追加）─────────
     // 弾幕STG標準のカーソル追従。直近デバイスがマウスのとき（Pad.UsingMouse）だけ有効＝
     // キーボード/パッドを触った瞬間に Pad 側で false へ落ちるので、カーソルが画面内にあっても引っ張られない。
@@ -670,6 +677,9 @@ public partial class Player : Area2D
             AddChild(_sprite);
         }
 
+        // 世界の Tint を掴む（見つからない面＝FINAL などは null＝補正なし）。実際の打ち消しは毎フレーム。
+        _worldTint = TintLift.Find(this);
+
         for (int i = 0; i < _spinTex.Length; i++)
             _spinTex[i] = ResourceLoader.Load<Texture2D>(costume.PosePath($"spin_{i:00}"));
         foreach (string direction in new[] { "u", "ur", "r", "dr", "d" })
@@ -1076,6 +1086,9 @@ public partial class Player : Area2D
                 }
                 _sprite.Scale = scl;
             }
+            // 世界の Tint（夜の冷色）の打ち消し。状態の色（下の SelfModulate 群）とは別枠の Modulate に置くので、
+            // 汚染・グレイズ残光・回避発光をどう塗り替えても「明るさの底上げ」だけは毎フレーム保たれる。
+            _sprite.Modulate = TintLift.Of(_worldTint, TintLift.PlayerBody);
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
             _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
             // 残光（_grazeFlash）はグレイズ境界リングを廃止した（2026-09-08）ぶん、絵そのものの発光で返す。
@@ -1818,15 +1831,24 @@ public partial class Player : Area2D
 }
 
 // Keep the emblem above the animated sprite and anchored to the collision body.
+// 色味：この点だけは**どのステージでも完全に明るい**（2026-09-27 作者指摘「少なくとも自機の当たり判定は
+//   分かるよう明るい方がいい」）。盤面に居るので各 Root の CanvasModulate（夜の冷色 Tint）で芯の色が
+//   青く濁る＝暗い背景に溶ける。BossGauge と同じく 1/Tint を SelfModulate に置いて打ち消す
+//   （強さ TintLift.PlayerCore=1＝完全）。シールドの泡（ShieldPower>0 の輪）も同じ _Draw の中なので一緒に効く。
+//   大きさ・形・当たり判定そのものは一切触っていない＝変わるのは見え方だけ。
+//   α には入れない＝被弾点滅（親 Player の Modulate のα）はそのまま芯にも乗る。
 public partial class PlayerHitDot : Node2D
 {
     public float Radius = 2f;
     public string CharacterId = "mina";
     public Texture2D Texture { get; private set; } = null!;
     private Vector2 _jewelCenter;
+    private CanvasModulate? _worldTint;   // 世界の色味（無い面は null＝打ち消し不要）
 
     public override void _Ready()
     {
+        _worldTint = TintLift.Find(this);
+        SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);   // 初フレームから明るく出す
         Texture = GD.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_core_v1.png");
         TextureFilter = TextureFilterEnum.Linear;
         // The flame and ribbon are asymmetric; center the jewel, not their image bounds.
@@ -1870,6 +1892,8 @@ public partial class PlayerHitDot : Node2D
     public override void _Process(double delta)
     {
         _t += (float)delta;
+        // Tint は Warmth で暖色へ動き、ボスの realm 暴露では白へ抜けるので毎フレーム引き直す（BossGauge と同じ）。
+        SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);
         int shield = GetParent() is Player p ? p.ShieldPower : 0;
         // 張っているあいだは呼吸のため毎フレーム、消えた瞬間は消すために一度だけ描き直す。
         if (shield > 0 || shield != _lastShield) QueueRedraw();
