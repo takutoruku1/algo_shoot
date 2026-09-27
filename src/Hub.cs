@@ -1484,7 +1484,7 @@ public partial class Hub : Node2D
             var badge = new Rect2(image.End.X - bw - 8f, image.Position.Y + 8f, bw, 26f);
             UiKit.Box(this, badge, new Color(wallpaper ? entry.Accent : PhoneBg, 0.90f * a), 6f,
                 new Color(entry.Accent, 0.55f * a), 1f);
-            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 5f), wallpaper ? "現在の背景" : $"{Pad.ConfirmToken} 背景にする", 12,
+            UiKit.Text(this, UiKit.ZenBold, badge.Position + new Vector2(0, 5f), wallpaper ? "現在の背景" : "背景にする", 12,
                 new Color(wallpaper ? new Color(0.02f, 0.025f, 0.03f) : UiKit.White, a), HorizontalAlignment.Center, badge.Size.X);
         }
         UiKit.Text(this, UiKit.Mono, hero.Position + new Vector2(20f, 158f), acquired ? entry.Sub : "LOCKED", 12,
@@ -1494,9 +1494,7 @@ public partial class Hub : Node2D
 
         DrawRect(new Rect2(PhoneX, PhotoGridBottom, PhoneW, H - PhotoGridBottom), PhoneBg);
         DrawPhotoScrollHint(a);
-        string hint = $"{Pad.ConfirmToken} 背景にする　{Pad.CancelToken} もどる";
-        UiKit.Text(this, UiKit.Zen, new Vector2(PhoneX, 666f), hint, 14, new Color(UiKit.Text2, 0.78f * a),
-            HorizontalAlignment.Center, PhoneW);
+        // キーの案内（旧「Z 背景にする　X もどる」の行）は右下のヒント帯（HintItems の Mode.Photos）へ移した。
         UiKit.Box(this, new Rect2(PhoneX + (PhoneW - 116f) / 2f, H - 18f, 116f, 3f), new Color(UiKit.White, 0.65f * a), 1.5f);
     }
 
@@ -2027,7 +2025,8 @@ public partial class Hub : Node2D
     //   キー表記をやめ、操作は「矢印で選ぶ・Z で決める・Esc／X でもどる」に絞って、その案内を画面下端の右寄せ1行に出す。
     //   PauseMenu の右下「M メニュー」チップは Hub では出さない（この帯に含めた。クリックで開く役目も HintMenuClicked が継ぐ）。
     //   会話中（返信・小話）はボタン列（DialogToolbar）があるので出さない。
-    private static Vector2 HintAnchor => new(UiKit.DesignW - 16f, UiKit.DesignH - 12f);
+    //   ★同日、ショップ／記録／カスタマイズ／難易度選択／写真アプリも同じ帯へ揃えた（位置・下敷きは UiKit.HintBarPlate に共通化）。
+    private static Vector2 HintAnchor => UiKit.HintAnchor;
 
     // いまのモードで出す項目（空＝出さない）。パッド表示は 十字／A／B／≡。
     private (string token, string label)[] HintItems()
@@ -2049,7 +2048,10 @@ public partial class Hub : Node2D
             Mode.Detail or Mode.Job => pad
                 ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") }
                 : new[] { ("↑↓", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") },
-            Mode.Photos => new[] { (menu, "メニュー") },
+            // 写真アプリ：矢印で写真を選び Z で背景にする（写真の上の「Z 背景にする」の文字は外し、案内はこの帯だけ）。
+            Mode.Photos => pad
+                ? new[] { ("十字", "えらぶ"), (ok, "背景にする"), (back, "もどる"), (menu, "メニュー") }
+                : new[] { ("↑↓←→", "えらぶ"), (ok, "背景にする"), (back, "もどる"), (menu, "メニュー") },
             _ => System.Array.Empty<(string, string)>(),
         };
     }
@@ -2081,14 +2083,10 @@ public partial class Hub : Node2D
     {
         var items = HintItems();
         HintBarDrawnRect = items.Length == 0 ? new Rect2() : HintBarRect;
-        if (items.Length == 0) return;
         // 帯の下敷き（暗い角丸の板）。SNS のキーボード表記は項目が5つで右の余白（約370px）に収まらず、
         //   スマホ本体の右下へ少しかかる。板を敷いて「画面の上に浮いた案内」として読ませる（地の絵や枠線と混ざらない）。
-        UiKit.Box(this, HintBarRect.Grow(6f), new Color(0.05f, 0.06f, 0.08f, 0.88f), 9f, new Color(1, 1, 1, 0.07f), 1f);
-        // マウスが「メニュー」に乗っているときだけ下敷きを敷く＝押せることを見せる（旧チップの作法）。
-        if (Pad.UsingMouse && HintMenuRect().HasPoint(Pad.MousePos()))
-            UiKit.Box(this, HintMenuRect().Grow(4f), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
-        UiKit.HintBar(this, HintAnchor, items);
+        //   マウスが「メニュー」に乗っているときだけその項目に下敷きを敷く＝押せることを見せる（旧チップの作法）。
+        UiKit.HintBarPlate(this, HintAnchor, items, "メニュー");
     }
 
     private void DrawSidePanels(float alpha)

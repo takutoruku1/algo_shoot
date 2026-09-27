@@ -626,11 +626,15 @@ public static class UiKit
     //   2026-09-27 作者指示「スマホの操作で J とか C とか X とか書いてあるけど操作性悪すぎでしょ」を受けて新設。
     //   項目ごとにキー文字を貼るのをやめ、操作の案内は画面下端の1行（HintBar）にまとめる。その1行の部品。
     //   ・キーボード表示：角丸のキー。上面＋下側 2px の側面（影）＋上端 1px のハイライト＝「押せる鍵」の形。
-    //   ・パッド表示（Pad.UsingPad）：A／B／X／Y（〇／×／□／△）は丸ボタン、LB／RB／L1／R1／LT／RT は横長のピル、
-    //     ≡（Menu）は丸に三本線、「十字」は十字キーの形。
+    //   ・パッド表示（Pad.UsingPad）：A／B／X／Y（〇／×／□／△）は丸ボタン、LB／RB／L1／R1／LT／RT／L3／R3／
+    //     L／R（スティック）／View は横長のピル、≡（Menu）は丸に三本線、「十字」は十字キーの形。
     //   ・矢印クラスタ（↑↓←→／↑↓／←→）は1つの横長キャップにまとめ、矢印はベクタで描く
     //     （フォントの矢印は 12px だと線が細く小さく、キーの面の中で読みにくかった）。
-    //   既存の Key（上）／Hud.KeyBadge はまだ残す（別作業で置き換える）。
+    //   ・マウス（左クリック／右クリック／中クリック／ホイール）は文字ではなく小さなマウスの絵（該当ボタンを Info で塗る）。
+    //   ★同日、全画面のキー表記（Hud のサイドパネル・あそびかた・操作カード・設定・トレーニング）をこれに揃えた。
+    //     旧 Hud.KeyBadge／HowToPlay.KeyBadge は削除。旧 Key（上）はクレジットの案内だけが使う。
+    //   pad 引数：null＝いまの表示（Pad.UsingPad）に従う。あそびかたのコントローラー表のように、表示と無関係に
+    //     「その機種の絵」で描きたい所だけ true／false を渡す。
     private static readonly Color CapSide   = new(0.10f, 0.11f, 0.13f);   // 側面（下 2px の影）
     private static readonly Color CapTop    = new(0.18f, 0.19f, 0.22f);   // 上面（Hud.SideRaised 相当）
     private static readonly Color CapBorder = new(0.30f, 0.32f, 0.36f);   // 枠
@@ -639,12 +643,15 @@ public static class UiKit
     private const float CapSideH = 2f;
 
     // パッドの丸ボタンとして描くトークンか。A／B／X／Y は文字だけではキーボードの同名キーと区別できないので、
-    //   Pad.UsingPad のときだけ丸にする。PS の記号（〇×□△）は記号そのものがパッドの印なので常に丸。
-    private static bool CapIsPadFace(string t) =>
-        t is "〇" or "○" or "×" or "□" or "△" || (Pad.UsingPad && t is "A" or "B" or "X" or "Y");
-    private static bool CapIsPill(string t) => Pad.UsingPad && t is "LB" or "RB" or "L1" or "R1" or "LT" or "RT";
+    //   パッド表示のときだけ丸にする。PS の記号（〇×□△）は記号そのものがパッドの印なので常に丸。
+    private static bool CapIsPadFace(string t, bool pad) =>
+        t is "〇" or "○" or "×" or "□" or "△" || (pad && t is "A" or "B" or "X" or "Y");
+    private static bool CapIsPill(string t, bool pad) =>
+        pad && t is "LB" or "RB" or "L1" or "R1" or "LT" or "RT" or "L3" or "R3" or "L" or "R" or "View";
     private static bool CapIsMenu(string t) => t is "≡" or "Menu(≡)";
     private static bool CapIsDpad(string t) => t is "十字" or "十字キー";
+    // マウスの絵で描くトークンか（Hud.TokLock＝左クリック／TokFocus＝ホイール、あそびかたのマウス表 等）。
+    public static bool CapIsMouse(string t) => t is "左クリック" or "右クリック" or "中クリック" or "ホイール";
     // 矢印だけでできたトークン（↑↓←→ の並び）か。
     private static bool CapIsArrows(string t)
     {
@@ -653,6 +660,9 @@ public static class UiKit
         return true;
     }
     private const float ArrowSlot = 9f, ArrowGap = 3f;
+    // 高さ 22 を基準にした拡大率（文字・矢印・十字の太さを高さに比例させる）。
+    private static float CapK(float h) => h / 22f;
+    private static int CapSize(float h) => Mathf.Max(9, Mathf.RoundToInt(CapFontSize * CapK(h)));
 
     // キャップの文字に使うフォント：Mono で全部描ける（英数・矢印）なら Mono、かなを含めば ZenBold。
     private static FontFile CapFont(string t)
@@ -662,25 +672,38 @@ public static class UiKit
     }
 
     // キャップの幅（KeyCap が描く幅と同一式）。
-    public static float KeyCapW(string token, float h = 22f)
+    public static float KeyCapW(string token, float h = 22f, bool? pad = null)
     {
-        if (CapIsPadFace(token) || CapIsMenu(token)) return h;
+        bool p = pad ?? Pad.UsingPad;
+        float k = CapK(h);
+        if (CapIsMouse(token)) return Mathf.Round(h * 0.8f);
+        if (CapIsPadFace(token, p) || CapIsMenu(token)) return h;
         if (CapIsDpad(token)) return h + 4f;
-        if (CapIsPill(token)) return Mathf.Max(h * 1.6f, TextW(Mono, token, CapFontSize - 1) + 16f);
-        if (CapIsArrows(token)) return Mathf.Max(h, token.Length * ArrowSlot + (token.Length - 1) * ArrowGap + 10f);
-        return Mathf.Max(h, TextW(CapFont(token), token, CapFontSize) + 10f);
+        if (CapIsPill(token, p)) return Mathf.Max(h * 1.6f, TextW(Mono, token, CapSize(h) - 1) + 16f);
+        if (CapIsArrows(token)) return Mathf.Max(h, (token.Length * ArrowSlot + (token.Length - 1) * ArrowGap) * k + 10f);
+        return Mathf.Max(h, TextW(CapFont(token), token, CapSize(h)) + 10f);
     }
 
     // 22px の角丸キーキャップ。pos＝左上。上面ハイライト＋下側の影で「押せる鍵」の形。文字は中央。
     //   pressed=true で面が 1px 沈み（側面 1px）、上面がアクセント色（Info）へ寄る。描いた幅を返す。
-    public static float KeyCap(CanvasItem ci, Vector2 pos, string token, float h = 22f, bool pressed = false, float alpha = 1f)
+    public static float KeyCap(CanvasItem ci, Vector2 pos, string token, float h = 22f, bool pressed = false, float alpha = 1f,
+        bool? pad = null)
     {
-        float w = KeyCapW(token, h);
-        Color A(Color c, float k = 1f) => new(c, c.A * k * alpha);
+        bool p = pad ?? Pad.UsingPad;
+        float w = KeyCapW(token, h, p);
+        float k = CapK(h);
+        Color A(Color c, float kk = 1f) => new(c, c.A * kk * alpha);
         float sink = pressed ? 1f : 0f;
         Color top = pressed ? CapTop.Lerp(Info, 0.45f) : CapTop;
+        int fs = CapSize(h);
 
-        if (CapIsPadFace(token) || CapIsMenu(token))
+        if (CapIsMouse(token))
+        {
+            DrawMouseCap(ci, pos, token, w, h, sink, top, alpha);
+            return w;
+        }
+
+        if (CapIsPadFace(token, p) || CapIsMenu(token))
         {
             // 丸ボタン：下に 2px（押下時 1px）ずらした影の円 → 面の円 → 縁 → 上寄りの薄いハイライト弧。
             float r = h / 2f;
@@ -697,14 +720,15 @@ public static class UiKit
             }
             string glyph = token == "○" ? "〇" : token;
             FontFile gf = CapFont(glyph);
-            float asc = gf.GetAscent(CapFontSize), desc = gf.GetDescent(CapFontSize);
-            ci.DrawString(gf, new Vector2(pos.X, c.Y + (asc - desc) / 2f), glyph, HorizontalAlignment.Center, w, CapFontSize,
+            float asc = gf.GetAscent(fs), desc = gf.GetDescent(fs);
+            ci.DrawString(gf, new Vector2(pos.X, c.Y + (asc - desc) / 2f), glyph, HorizontalAlignment.Center, w, fs,
                 A(PadFaceColor(glyph)));
             return w;
         }
 
         // 角丸キー（ピルは角を高さの半分まで丸める）。側面＝全高の箱、上面＝下 2px（押下時 1px）を残した箱。
-        float rad = CapIsPill(token) ? h / 2f : 5f;
+        bool pill = CapIsPill(token, p);
+        float rad = pill ? h / 2f : 5f;
         Box(ci, new Rect2(pos.X, pos.Y + sink, w, h - sink), A(CapSide), rad);
         var face = new Rect2(pos.X, pos.Y + sink, w, h - CapSideH);
         Box(ci, face, A(top), rad, A(CapBorder), 1f);
@@ -713,36 +737,93 @@ public static class UiKit
         {
             // 十字キー：中心に太さ 4px の十字（縦棒＋横棒）。文字より形のほうが一目で分かる。
             var c = face.GetCenter();
-            float arm = (face.Size.Y - 6f) / 2f;
-            ci.DrawRect(new Rect2(c.X - 2f, c.Y - arm, 4f, arm * 2f), A(CapInk, 0.9f));
-            ci.DrawRect(new Rect2(c.X - arm, c.Y - 2f, arm * 2f, 4f), A(CapInk, 0.9f));
+            float arm = (face.Size.Y - 6f) / 2f, t = Mathf.Max(3f, 4f * k);
+            ci.DrawRect(new Rect2(c.X - t / 2f, c.Y - arm, t, arm * 2f), A(CapInk, 0.9f));
+            ci.DrawRect(new Rect2(c.X - arm, c.Y - t / 2f, arm * 2f, t), A(CapInk, 0.9f));
             return w;
         }
         if (CapIsArrows(token))
         {
-            // 矢印を左から等間隔に。軸 1.6px ＋ 先端の三角（半幅 2.7px）。枠の中央に並びごと寄せる。
+            // 矢印を左から等間隔に。軸 1.6px ＋ 先端の三角（半幅 2.7px）。枠の中央に並びごと寄せる（寸法は高さに比例）。
             var mid = face.GetCenter();
-            float span = token.Length * ArrowSlot + (token.Length - 1) * ArrowGap;
-            float ax = mid.X - span / 2f + ArrowSlot / 2f;
-            const float half = 5f, head = 3.2f, hw = 2.7f;
+            float slot = ArrowSlot * k, gap = ArrowGap * k;
+            float span = token.Length * slot + (token.Length - 1) * gap;
+            float ax = mid.X - span / 2f + slot / 2f;
+            float half = 5f * k, head = 3.2f * k, hw = 2.7f * k;
             foreach (char ch in token)
             {
                 var c = new Vector2(ax, mid.Y);
                 Vector2 d = ch switch { '↑' => Vector2.Up, '↓' => Vector2.Down, '←' => Vector2.Left, _ => Vector2.Right };
                 Vector2 n = new(-d.Y, d.X);
                 Vector2 tip = c + d * half, baseC = tip - d * head;
-                ci.DrawLine(c - d * half, baseC, A(CapInk), 1.6f, true);
+                ci.DrawLine(c - d * half, baseC, A(CapInk), Mathf.Max(1.2f, 1.6f * k), true);
                 ci.DrawColoredPolygon(new[] { tip, baseC + n * hw, baseC - n * hw }, A(CapInk));
-                ax += ArrowSlot + ArrowGap;
+                ax += slot + gap;
             }
             return w;
         }
-        FontFile f = CapIsPill(token) ? Mono : CapFont(token);
-        int size = CapIsPill(token) ? CapFontSize - 1 : CapFontSize;
+        FontFile f = pill ? Mono : CapFont(token);
+        int size = pill ? fs - 1 : fs;
         float a2 = f.GetAscent(size), d2 = f.GetDescent(size);
         ci.DrawString(f, new Vector2(face.Position.X, face.Position.Y + (face.Size.Y + a2 - d2) / 2f), token,
             HorizontalAlignment.Center, w, size, A(CapInk));
         return w;
+    }
+
+    // マウスの絵（高さ h・幅 KeyCapW）。楕円の胴＋左右ボタンの境の横線＋中央の縦線＋中央上の縦長ホイール。
+    //   該当するボタン（左／右＝その半分の上側、中クリック／ホイール＝ホイール）を Info で塗る。
+    //   キーキャップと同じく下 2px に影を落とし、pressed で 1px 沈む＝並べたときに段差が揃う。
+    private static void DrawMouseCap(CanvasItem ci, Vector2 pos, string token, float w, float h, float sink, Color top, float alpha)
+    {
+        Color A(Color c) => new(c, c.A * alpha);
+        var body = new Rect2(pos.X + 1f, pos.Y + sink, w - 2f, h - CapSideH);
+        Vector2 c = body.GetCenter();
+        float rx = body.Size.X / 2f, ry = body.Size.Y / 2f;
+        const int Seg = 28;
+        Vector2 P(Vector2 cc, float a) => cc + new Vector2(rx * Mathf.Cos(a), ry * Mathf.Sin(a));
+        Vector2[] Ellipse(Vector2 cc)
+        {
+            var pts = new Vector2[Seg];
+            for (int i = 0; i < Seg; i++) pts[i] = P(cc, Mathf.Tau * i / Seg);
+            return pts;
+        }
+        ci.DrawColoredPolygon(Ellipse(c + new Vector2(0, CapSideH - sink)), A(CapSide));
+        ci.DrawColoredPolygon(Ellipse(c), A(top));
+
+        // 左右ボタンの境（中心より少し上）。s＝境の高さ（胴の半径に対する比。負＝上）。小さいとき（h≦24）は
+        //   ボタンの面を広く取るため中心まで下げる＝塗った側が 20px でも読める。
+        float s = h <= 24f ? 0f : -0.12f, splitY = c.Y + ry * s;
+        float a0 = Mathf.Pi - Mathf.Asin(s);          // 左の弧の始点（境の左端）
+        float a1 = Mathf.Tau + Mathf.Asin(s);         // 右の弧の終点（境の右端）
+        Vector2[] Region(float from, float to, bool splitFirst)
+        {
+            var pts = new System.Collections.Generic.List<Vector2>();
+            if (splitFirst) pts.Add(new Vector2(c.X, splitY));
+            const int n = 10;
+            for (int i = 0; i <= n; i++) pts.Add(P(c, Mathf.Lerp(from, to, i / (float)n)));
+            if (!splitFirst) pts.Add(new Vector2(c.X, splitY));
+            return pts.ToArray();
+        }
+        Color on = new(Info, 0.95f);
+        if (token == "左クリック") ci.DrawColoredPolygon(Region(a0, Mathf.Pi * 1.5f, true), A(on));
+        else if (token == "右クリック") ci.DrawColoredPolygon(Region(Mathf.Pi * 1.5f, a1, false), A(on));
+
+        var outline = Ellipse(c);
+        var closed = new Vector2[Seg + 1];
+        System.Array.Copy(outline, closed, Seg);
+        closed[Seg] = outline[0];
+        ci.DrawPolyline(closed, A(CapBorder), 1f, true);
+        float dx = rx * Mathf.Sqrt(1f - s * s);
+        ci.DrawLine(new Vector2(c.X - dx, splitY), new Vector2(c.X + dx, splitY), A(CapBorder), 1f, true);
+        ci.DrawLine(new Vector2(c.X, c.Y - ry), new Vector2(c.X, splitY), A(CapBorder), 1f, true);
+
+        // ホイール（中央の小さな縦長）。中クリック／ホイールなら Info、ほかは縁寄りの色で形だけ。
+        bool wheel = token is "中クリック" or "ホイール";
+        float ww = Mathf.Max(2f, rx * 0.36f), wh = ry * 0.46f;
+        var wr = new Rect2(c.X - ww / 2f, c.Y - ry * 0.78f, ww, wh);
+        //   塗るときは縁を描かない（幅 3px ほどなので 1px の縁で塗りが消える）。
+        if (wheel) Box(ci, wr.Grow(0.5f), A(on), ww / 2f);
+        else Box(ci, wr, A(CapTop.Lerp(CapBorder, 0.6f)), ww / 2f, A(CapBorder), 1f);
     }
 
     // パッドの面ボタンの文字色（Xbox：A 緑・B 赤・X 青・Y 黄／PS：〇 赤・× 青・□ 桃・△ 緑）。
@@ -758,6 +839,69 @@ public static class UiKit
         "△" => new Color(0.36f, 0.80f, 0.70f),
         _ => CapInk,
     };
+
+    // ── キャップの並び（1つの操作に割り当たったキー群）──
+    //   spec は表や案内に書いてきた文字列そのまま（例 "Z / Enter / Space"・"Shift 長押し"・"R / Shift+R"・
+    //   "L スティック / 十字キー"・"左クリック 長押し"・"オート"）。これを読んで:
+    //     ・" / " で区切った並記 → キャップを 4px 間隔で並べる（区切りの「/」は描かない）
+    //     ・空白で区切った語のうち、キー名（英数記号・矢印・十字・≡・マウス・パッド記号）→ キャップ、
+    //       それ以外の語（長押し／を離す／スティック／オート／— 等）→ 小さな文字で添える
+    //     ・"Shift+R" のような同時押し → キャップ「+」キャップ
+    //   ci=null なら描かずに幅だけ返す（KeyCapRowW）。ink は添え文字の色。
+    private static bool CapIsKeyWord(string w)
+    {
+        if (w.Length == 0) return false;
+        if (CapIsMouse(w) || CapIsDpad(w) || CapIsArrows(w) || CapIsMenu(w)) return true;
+        if (w is "〇" or "○" or "×" or "□" or "△") return true;
+        foreach (char ch in w) if (ch <= ' ' || ch > '~') return false;
+        return true;
+    }
+    private const float CapRowGap = 4f;
+
+    public static float KeyCapRowW(string spec, float h = 22f, bool? pad = null) => KeyCapRow(null, Vector2.Zero, spec, h, 1f, pad);
+
+    public static float KeyCapRow(CanvasItem? ci, Vector2 pos, string spec, float h = 22f, float alpha = 1f, bool? pad = null,
+        Color? ink = null, bool pressed = false)
+    {
+        int ts = Mathf.Max(10, Mathf.RoundToInt(12f * CapK(h)));
+        float asc = ZenBold.GetAscent(ts), desc = ZenBold.GetDescent(ts);
+        // 添え文字はキャップの上面（側面 2px を除いた高さ）の縦中央に揃える。
+        float baseY = pos.Y + (h - CapSideH + asc - desc) / 2f;
+        Color inkC = ink ?? Text2;
+        Color col = new(inkC, inkC.A * alpha);
+        float x = pos.X;
+        float Word(string text)
+        {
+            if (ci != null) ci.DrawString(ZenBold, new Vector2(x, baseY), text, HorizontalAlignment.Left, -1, ts, col);
+            return TextW(ZenBold, text, ts);
+        }
+        float Cap(string token) =>
+            ci != null ? KeyCap(ci, new Vector2(x, pos.Y), token, h, pressed, alpha, pad) : KeyCapW(token, h, pad);
+        bool firstGroup = true;
+        foreach (string group in spec.Split(" / "))
+        {
+            if (!firstGroup) x += CapRowGap;
+            firstGroup = false;
+            bool firstWord = true;
+            foreach (string word in group.Split(' ', System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!firstWord) x += CapRowGap;
+                firstWord = false;
+                if (word.Length > 1 && word.Contains('+') && CapIsKeyWord(word))
+                {
+                    var keys = word.Split('+');
+                    for (int i = 0; i < keys.Length; i++)
+                    {
+                        if (i > 0) { x += 2f; x += Word("+"); x += 2f; }
+                        x += Cap(keys[i]);
+                    }
+                }
+                else if (CapIsKeyWord(word)) x += Cap(word);
+                else x += Word(word);
+            }
+        }
+        return x - pos.X;
+    }
 
     // ヒント帯の寸法（HintBar と当たり判定で共有）。
     private const float HintCapH = 22f, HintItemGap = 18f, HintLabelGap = 6f;
@@ -793,5 +937,66 @@ public static class UiKit
             ci.DrawString(ZenBold, new Vector2(r.Position.X + cw + HintLabelGap, baseY), items[i].label,
                 HorizontalAlignment.Left, -1, HintLabelSize, Text2);
         }
+    }
+
+    // ── スマホ系画面（ハブ・ショップ・記録・カスタマイズ・難易度選択）の右下ヒント帯（2026-09-27）──
+    //   どの画面も同じ位置（右下 (1264, 708) 基準）・同じ下敷き・同じ作法で出す。PauseMenu の右下「M メニュー」
+    //   チップはこの帯に統合して廃止した（帯の「メニュー」がクリックでも開く）。
+    public static Vector2 HintAnchor => new(DesignW - 16f, DesignH - 12f);
+
+    // 帯の外接矩形（項目が無ければ大きさ 0）。
+    public static Rect2 HintBarBounds(Vector2 rightBottom, (string token, string label)[] items)
+    {
+        if (items.Length == 0) return new Rect2();
+        var rects = HintBarRects(rightBottom, items);
+        return rects[0].Merge(rects[^1]);
+    }
+
+    // label の項目の矩形（その項目が無ければ大きさ 0）。
+    public static Rect2 HintItemRect(Vector2 rightBottom, (string token, string label)[] items, string label)
+    {
+        var rects = HintBarRects(rightBottom, items);
+        for (int i = 0; i < items.Length; i++) if (items[i].label == label) return rects[i];
+        return new Rect2();
+    }
+
+    // label の項目がこのフレームに左クリックされたか（クリックで押せる項目＝「メニュー」等の判定に使う）。
+    public static bool HintItemClicked(Vector2 rightBottom, (string token, string label)[] items, string label)
+    {
+        var r = HintItemRect(rightBottom, items, label);
+        return r.HasArea() && Pad.MouseClick() && r.HasPoint(Pad.MousePos());
+    }
+
+    // 帯を下敷きごと描く。clickable に挙げた項目にマウスが乗っているときだけ、その項目に明るい下敷きを敷く
+    //   ＝押せることを見せる（旧チップの作法）。
+    public static void HintBarPlate(CanvasItem ci, Vector2 rightBottom, (string token, string label)[] items, params string[] clickable)
+    {
+        if (items.Length == 0) return;
+        Box(ci, HintBarBounds(rightBottom, items).Grow(6f), new Color(0.05f, 0.06f, 0.08f, 0.88f), 9f, new Color(1, 1, 1, 0.07f), 1f);
+        if (Pad.UsingMouse)
+            foreach (string label in clickable)
+            {
+                var r = HintItemRect(rightBottom, items, label);
+                if (r.HasArea() && r.HasPoint(Pad.MousePos()))
+                    Box(ci, r.Grow(4f), new Color(Purify, 0.14f), 8f, new Color(Info, 0.5f), 1f);
+            }
+        HintBar(ci, rightBottom, items);
+    }
+
+    // スマホ系画面の定番の並び。パッド＝十字／A／B／≡、キーボード＝矢印／Z／Esc／M。
+    //   nav＝キーボードの「えらぶ」の矢印（"↑↓" 等。空なら「えらぶ」を出さない）、ok＝決定のラベル（空なら出さない）、
+    //   back＝もどるのラベル（空なら出さない）。extra はキーボードだけに足す項目（「←→ きりかえ」等）で、えらぶの直後に入る
+    //   （パッドは十字1つで上下左右を兼ねるので足さない）。
+    public static (string token, string label)[] PhoneHints(string nav, string ok, string back,
+        params (string token, string label)[] extra)
+    {
+        bool pad = Pad.UsingPad;
+        var list = new System.Collections.Generic.List<(string, string)>();
+        if (nav.Length > 0) list.Add((pad ? "十字" : nav, "えらぶ"));
+        if (!pad) list.AddRange(extra);
+        if (ok.Length > 0) list.Add((pad ? "A" : "Z", ok));
+        if (back.Length > 0) list.Add((pad ? "B" : "Esc", back));
+        list.Add((pad ? "≡" : "M", "メニュー"));
+        return list.ToArray();
     }
 }

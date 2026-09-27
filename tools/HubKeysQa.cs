@@ -66,7 +66,7 @@ public partial class HubKeysQa : Node
             await Seconds(0.5);   // Hub の入力ゲート（_t > 0.3）を実時間で越える
 
             // ── (f) PauseMenu の右下チップは Hub では出さない ──
-            Check(!pause.ShowHint && !pause.HintClickable, "(f) Hub hides the PauseMenu corner chip (the hint bar carries M)");
+            Check(!pause.ShowHint, "(f) Hub hides the PauseMenu corner chip (the hint bar carries M)");
 
             // ── ホーム ──
             Check(Mode(hub) == "Home", "hub starts on the phone home");

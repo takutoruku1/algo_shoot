@@ -152,15 +152,15 @@ public partial class Settings : Node2D
         x = FootHintAdvance(x, "←→", "調整");
         x = FootHintAdvance(x, catTok, "カテゴリ");
         string key = Pad.CancelToken;
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float kw = UiKit.KeyCapRowW(key, FootCapH);
         float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
-        return new Rect2(x, fy - 16f, kw + 8f + lw + 8f, 32f);
+        return new Rect2(x - 4f, fy - 16f, kw + 8f + lw + 12f, 32f);
     }
 
     // FootHint が返す「次の x」だけを、描画せずに求める（FootHint 本体と同一式）。
     private static float FootHintAdvance(float x, string key, string label)
     {
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float kw = UiKit.KeyCapRowW(key, FootCapH);
         return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 
@@ -586,18 +586,18 @@ public partial class Settings : Node2D
 
     private void DrawKeys(Def d, float right, float cy)
     {
-        float h = 32f, gap = 6f;
+        // 2026-09-27：文字の枠から UiKit.KeyCapRow（押せる鍵の形・パッドは丸ボタン／ピル）へ。ハブのヒント帯・あそびかたと同じ表現。
+        float h = 26f, gap = 8f;
         // 表記は Pad に集約：操作表示モード(KB/PS/Xbox)に応じて各操作のキー/ボタン表記を出し分ける。
         // d.Keys（BuildDefaults の静的キーボード表記）は KB 表示時のフォールバックにのみ使う。
         string[] toks = KeyTokens(d.Key);
-        // 右端から逆順に配置
+        // 右端から逆順に配置（1トークン＝キャップ＋添え文字の並び。「オート」「長押し」は添え文字）
         float x = right;
         for (int i = toks.Length - 1; i >= 0; i--)
         {
-            float kw = Mathf.Max(32f, UiKit.TextW(UiKit.Mono, toks[i], UiKit.FontLabel) + 18f);
+            float kw = UiKit.KeyCapRowW(toks[i], h);
             x -= kw;
-            UiKit.Box(this, new Rect2(x, cy - h / 2f, kw, h), new Color(1, 1, 1, 0.07f), 7f, new Color(1, 1, 1, 0.18f), 1f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(x, cy - 9), toks[i], UiKit.FontLabel, new Color("e8e2f0"), HorizontalAlignment.Center, kw);
+            UiKit.KeyCapRow(this, new Vector2(x, cy - h / 2f), toks[i], h, ink: new Color("e8e2f0"));
             x -= gap;
         }
     }
@@ -611,7 +611,7 @@ public partial class Settings : Node2D
         if (Pad.ShowKeyboard)
             return rowKey switch
             {
-                "move"  => new[] { "↑", "↓", "←", "→" },
+                "move"  => new[] { "↑↓←→" },
                 "shot"  => new[] { "オート", "Z 長押し" },   // 射撃ボタンは廃止（常時オート発射）。Z 長押し＝溜め打ち
                 "lock"  => new[] { "Shift" },                // 押しているあいだロック。F で次の敵へ
                 "bomb"  => new[] { "X" },
@@ -634,14 +634,12 @@ public partial class Settings : Node2D
         };
     }
 
-    // hot=true はマウスホバー中（クリックできるヒントだけが取りうる状態）＝縁と文字を一段明るく。
+    // hot=true はマウスホバー中（クリックできるヒントだけが取りうる状態）＝キャップを沈め、文字を一段明るく。
+    //   キーは UiKit.KeyCapRow（2026-09-27。"Q E" は2つのキャップ、"↑↓" は1つの矢印キャップ）。
+    private const float FootCapH = 22f;
     private float FootHint(float x, float y, string key, string label, bool hot = false)
     {
-        UiKit.Key(this, new Vector2(x, y - 12), key,
-            hot ? new Color(UiKit.Purify, 0.16f) : new Color(1, 1, 1, 0.07f),
-            hot ? new Color(UiKit.Info, 0.6f) : new Color(1, 1, 1, 0.16f),
-            hot ? UiKit.PurifyHi : UiKit.Text2);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
+        float kw = UiKit.KeyCapRow(this, new Vector2(x, y - 12), key, FootCapH, pressed: hot);
         UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, hot ? UiKit.Info : UiKit.Text3);
         return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }

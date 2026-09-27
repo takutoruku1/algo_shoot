@@ -276,7 +276,8 @@ public partial class Hud : CanvasLayer
     //   「教える画面」専用になった。本番の盤面には操作の案内を一切出さない（Esc メニューと
     //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
-    private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
+    //   2026-09-27：帯のキーは UiKit.KeyCapRow で描く＝" / " の並記はキャップを並べ、矢印は1つのキャップにまとめる。
+    private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"             : "↑↓←→ / WASD";
     // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     // 回避ダッシュは Player.cs では Space / Pad L3(LeftStick) の2系統（2026-09-27 に Ctrl → Space）。Tok* と違い“全部”を見せる版。
@@ -1022,20 +1023,10 @@ public partial class Hud : CanvasLayer
     private const float RowCombo = 606f;
     private const float RowFocus = 660f;
 
-    // 操作子バッジの寸法（先に幅を測ってレイアウトする呼び出し側と KeyBadge 本体で必ず同じ式を使う）。
-    private const float KeyBadgeH = 21f;
-    private static float KeyBadgeW(string token) => UiKit.TrackedW(UiKit.SmallLabel, token) + 14f;
-
-    // 操作子バッジ（小さなキー枠）。情報の隣に添えて「どのボタンか」を一目で示す。描いた幅を返す。
-    private float KeyBadge(HudCanvas ci, Vector2 p, string token, Color accent, float a = 1f, bool sidebar = false)
-    {
-        // キー名は英字ラベル＝小ラベル(ZenBold 13・字間+0.5)。旧 Mono 11 は実効3.3pxで読めなかった。
-        float w = KeyBadgeW(token), h = KeyBadgeH;
-        UiKit.Box(ci, new Rect2(p.X, p.Y, w, h), sidebar ? SideRaised : new Color(0.10f, 0.09f, 0.16f, 0.92f * a),
-            4f, sidebar ? SideRule : new Color(accent, 0.75f * a), 1f);
-        UiKit.Draw(ci, UiKit.SmallLabel, new Vector2(p.X + 7, p.Y + 3), token, new Color(accent, 0.98f * a));
-        return w;
-    }
+    // 操作子のキーキャップ（情報の隣に添えて「どのボタンか」を一目で示す）。2026-09-27 に旧 KeyBadge（文字の枠）から
+    //   UiKit.KeyCap（押せる鍵の形・パッドは丸ボタン／ピル・マウスは絵）へ置き換えた＝ハブのヒント帯と同じ表現。
+    //   高さ 20（行の文字 13〜15px に並ぶ大きさ）。サイドパネルの地（SideBg）に対して明るすぎないよう α を少し落とす。
+    private const float SideCapH = 20f, SideCapAlpha = 0.9f;
 
     private void DrawLifeBomb(HudCanvas ci)
     {
@@ -1060,8 +1051,8 @@ public partial class Hud : CanvasLayer
                 new Color(1, 1, 1, i < _lives ? 1f : 0.22f));
         }
         UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y + 78f), "BOMB", SideMuted);
-        float badgeW = KeyBadgeW(TokBomb);
-        KeyBadge(ci, new Vector2(x + w - badgeW, y + 77f), TokBomb, SideMuted, sidebar: true);
+        float capW = UiKit.KeyCapW(TokBomb, SideCapH);
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 77f), TokBomb, SideCapH, alpha: SideCapAlpha);
         float bStep = Mathf.Min(44f, w / Mathf.Max(1, maxBombs));
         var bombSize = _bombMark.GetSize();
         bombSize *= Mathf.Min(40f, bStep - 4f) / Mathf.Max(bombSize.X, bombSize.Y);
@@ -1182,7 +1173,8 @@ public partial class Hud : CanvasLayer
         Color accent = on ? AccountAccent : armed ? SideTeal : SideMuted;
         UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "LOCK-ON", accent);
         float lw = UiKit.TrackedW(UiKit.PanelLabel, "LOCK-ON");
-        KeyBadge(ci, new Vector2(x + lw + 12f, y - 2f), TokLock, SideMuted, sidebar: true);
+        // ロックオンの意思（LockArmed）が立っている間はキャップを沈める＝「いま押さえている」ことを鍵の形でも見せる。
+        UiKit.KeyCap(ci, new Vector2(x + lw + 12f, y - 1f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
         string status = on ? "追尾中" : armed ? "待機" : "OFF";
         float a = armed && !on ? 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
         float sw = UiKit.TrackedW(UiKit.SmallLabel, status);
@@ -1490,7 +1482,7 @@ public partial class Hud : CanvasLayer
         Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
         string status = _focusOn ? "発動中" : _focusReady ? "READY" : "充填中";
         float x = PanelX, y = RowFocus, w = PanelInnerW;
-        KeyBadge(ci, new Vector2(x, y), TokFocus, accent, sidebar: true);
+        UiKit.KeyCap(ci, new Vector2(x, y), TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
         UiKit.DrawRight(ci, UiKit.SmallLabel, x + w, y + 2f, status, accent);
         float barY = y + 34f, barH = 4f;
         UiKit.Box(ci, new Rect2(x, barY, w, barH), SideRule, 2f);
@@ -1570,7 +1562,8 @@ public partial class Hud : CanvasLayer
         float pulse = 0.6f + 0.4f * Mathf.Sin((float)_t * 4f);
 
         float labelW = UiKit.TextW(UiKit.ZenBold, info.label, labelSize);
-        float badgeW = KeyBadgeW(info.tok);
+        const float capH = 22f;
+        float badgeW = UiKit.KeyCapRowW(info.tok, capH);
         const float gap = 12f, padX = 16f, h = 30f;
         float contentW = labelW + gap + badgeW;
         float w = contentW + padX * 2f;
@@ -1579,8 +1572,8 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), new Color(0.06f, 0.05f, 0.10f, 0.88f), 10f,
             new Color(info.accent, 0.4f + 0.4f * pulse), 1.3f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padX, y + 7), info.label, labelSize, new Color(0.94f, 0.92f, 0.99f));
-        // キーバッジ（KeyBadge と同寸・縦中央寄せ）。KB なら複数キーがトークン内に並ぶ。
-        KeyBadge(ci, new Vector2(x + padX + labelW + gap, y + (h - KeyBadgeH) / 2f), info.tok, info.accent);
+        // キーキャップの並び（縦中央寄せ）。KB なら複数キーがキャップを並べて全部見える（「オート」は添え文字）。
+        UiKit.KeyCapRow(ci, new Vector2(x + padX + labelW + gap, y + (h - capH) / 2f), info.tok, capH, ink: info.accent);
     }
 
     // チュートリアルのスポット暗転：全画面を暗幕で覆い、_spotRect だけ避けて帯で描く（MurkVignette の四分割テクの矩形版）。

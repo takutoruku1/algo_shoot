@@ -381,14 +381,7 @@ public partial class TrainingRoot : Node2D
         UiKit.Text(_uiLayer, UiKit.ZenBlack, new Vector2(40, 36), "トレーニング（試し打ち）", 26, UiKit.White);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, 72), "スキルは無料で付け外し・試用のみ。もどると本番の状態はそのまま（保存されません）。", 12, UiKit.Text2);
 
-        // 操作ヒント（左下）。案C は教え役を置かない＝説明は単語＋キーバッジだけで足りる形にする
-        //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／回避／ボム／浄化）。
-        //   ※低速移動は 2026-09-13 に廃止。C は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
-        //   ※2026-09-27：回避 Ctrl → Space、集中モード V → C（左手の定位置 Shift／Z／X／C／Space）。
-        UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: Shift 長押し/左クリック（F で次の敵へ）　溜め打ち: Z/左クリック長押し　回避: Space　ボム: X　集中モード: C/ホイール", 12, UiKit.Text3);
-        UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
-            "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
+        DrawControlHints();
 
         // ── DPS/与ダメ計（画面上部中央。自機・ダミー（画面中ほど）と重ならない帯に置く＝三者とも見える）──
         var box = new Rect2(430, 88, 344, 122);
@@ -404,6 +397,42 @@ public partial class TrainingRoot : Node2D
         string modeName = _game?.ShotModeName(_game.SelectedShotMode) ?? "連射";
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(box.Position.X + 18, box.Position.Y + 100),
             $"{job.CharacterName}（{modeName}）", 13, UiKit.Text2);
+    }
+
+    // 操作ヒント（左下）。案C は教え役を置かない＝説明は単語＋キーだけで足りる形にする
+    //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／回避／ボム／浄化）。
+    //   ※低速移動は 2026-09-13 に廃止。C は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
+    //   ※2026-09-27：回避 Ctrl → Space、集中モード V → C（左手の定位置 Shift／Z／X／C／Space）。
+    //   ※2026-09-27：文字の羅列（「移動: 矢印/WASD　…」）から [見出し][キーキャップ] の並びへ（UiKit.KeyCapRow）。
+    //     戦闘画面なのでスマホ系のヒント帯は出さない。キーはいまの表示（KB／パッド）に合わせ、マウスは絵で添える。
+    //     ロックオンの送りはキーボードでは A／S（Player.TickLockOn。旧表記「F で次の敵へ」は実装と食い違っていた）。
+    private void DrawControlHints()
+    {
+        bool pad = Pad.UsingPad;
+        var rows = new[]
+        {
+            pad
+                ? new[] { ("移動", "L スティック / 十字"), ("ショット", "オート"), ("ロックオン", "RB"), ("溜め打ち", "Y 長押し") }
+                : new[] { ("移動", "↑↓←→ / WASD"), ("ショット", "オート"), ("ロックオン", "Shift 長押し / 左クリック"),
+                          ("前 / 次の敵", "A / S"), ("溜め打ち", "Z 長押し / 左クリック 長押し") },
+            pad
+                ? new[] { ("回避", "L3"), ("ボム", "X"), ("集中モード", "LB"), ("スキル開閉", "Tab"), ("全解放 / 全オフ", "] / [") }
+                : new[] { ("回避", "Space / 右クリック"), ("ボム", "X / 中クリック"), ("集中モード", "C / ホイール"),
+                          ("スキル開閉", "Tab"), ("全解放 / 全オフ", "] / [") },
+        };
+        const float capH = 20f;
+        for (int r = 0; r < rows.Length; r++)
+        {
+            float x = 40f, top = H - 100f + r * 26f;
+            float asc = UiKit.ZenBold.GetAscent(12), desc = UiKit.ZenBold.GetDescent(12);
+            foreach (var (label, keys) in rows[r])
+            {
+                _uiLayer.DrawString(UiKit.ZenBold, new Vector2(x, top + (capH - 2f + asc - desc) / 2f), label,
+                    HorizontalAlignment.Left, -1, 12, UiKit.Text3);
+                x += UiKit.TextW(UiKit.ZenBold, label, 12) + 6f;
+                x += UiKit.KeyCapRow(_uiLayer, new Vector2(x, top), keys, capH, ink: UiKit.Text3) + 18f;
+            }
+        }
     }
 
     // 独り言トースト（小話4）。DPS計器（x430-774,y88-210）の真下・スキルパネル（開時 x850〜）より

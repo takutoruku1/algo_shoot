@@ -95,7 +95,7 @@ public partial class CustomizeQa : Node
             await Frames(4);
             Write(menu, "_time", 3.0);
             Check(Read<JobTuning[]>(menu, "_characters").Length == 4, "rescued accounts appear in wardrobe");
-            Check(GetNode<PauseMenu>("/root/PauseMenu").HintClickable, "customization is a non-combat menu");
+            Check(!GetNode<PauseMenu>("/root/PauseMenu").ShowHint && menu.HintBarRect.HasArea(), "customization shows the hint bar instead of the pause chip");
             Click(menu, new Vector2(156, 116));
             ClickItem(menu, 0);
             Click(menu, new Vector2(945, 630));

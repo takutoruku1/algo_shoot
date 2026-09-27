@@ -261,7 +261,8 @@ public partial class StageZero : Node
                     // 散らばって標的が尽きたら固め直し（詰み防止）。
                     else if (!bombed && CountLiveEnemies() == 0)
                         SpawnBombCluster();
-                    Hud.SetTutorialHint($"Ｘ のボムで、三体まとめて（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
+                    // キーは真上の指示帯（Hud.DrawTutorialKeys のキーキャップ）が示す。文面には書かない（旧「Ｘ の」はパッドでも X と読めて紛らわしかった）。
+                    Hud.SetTutorialHint($"ボムで、三体まとめて（{Mathf.Min(caught, BombKillNeed)}/{BombKillNeed}）");
                     if (caught >= BombKillNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();

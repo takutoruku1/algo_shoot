@@ -177,14 +177,23 @@ public partial class RecordsStyleQa : Node
         Check(GetTree().CurrentScene is Hub, $"home button returns to the smartphone home (scene={GetTree().CurrentScene?.SceneFilePath})");
         GetTree().CurrentScene.QueueFree();
         await Frames(4);
+        // 2026-09-27：項目ごとの文字キーを廃止＝T ではもどらない。もどるは Esc／X（パッド B）。
         records = await Open();
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.T, Pressed = true });
         Input.FlushBufferedEvents();
         records._Process(0.016);
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.T, Pressed = false });
         Input.FlushBufferedEvents();
+        records._Process(0.016);
         await Frames(6);
-        Check(GetTree().CurrentScene is Hub, "existing T shortcut still returns home");
+        Check(GetTree().CurrentScene == records && !Read<bool>(records, "_leaving"), "T no longer returns home (letter shortcut retired)");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+        Input.FlushBufferedEvents();
+        records._Process(0.016);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.Escape, Pressed = false });
+        Input.FlushBufferedEvents();
+        await Frames(6);
+        Check(GetTree().CurrentScene is Hub, "Esc returns home");
         GetTree().CurrentScene.QueueFree();
         await Frames(4);
     }

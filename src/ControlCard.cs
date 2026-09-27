@@ -22,6 +22,7 @@ using Godot;
 //   ■ 表記の出典
 //     キー名は「あそびかた」画面（HowToPlay.DrawPageControls・3タブ表）と同じ文字列を使う。
 //     実装が正典なので、ここで新しいキー名を発明しない。パッド表記は Pad.Face（Xbox 固定）経由。
+//     描き方も同じ UiKit.KeyCapRow（キーキャップ／パッドの丸ボタン・ピル／マウスの絵。2026-09-27）。
 public partial class ControlCard : Control
 {
     // 話題（会話の行に対応）。None = カードを出さない行。
@@ -36,6 +37,7 @@ public partial class ControlCard : Control
     private double _t;                   // 明滅用の時間
 
     private const float FadeIn = 0.22f, Swap = 0.16f, FadeOut = 0.22f;
+    private const float CapH = 28f;   // 割り当て表のキーキャップの高さ（カードの本文 16px に並ぶ大きさ）
 
     // 盤面中央のカード矩形（設計座標）。会話ボックス（y520..690）の上に余白 68px を残す。
     private const float CardW = 812f, CardH = 302f, CardY = 150f;
@@ -112,7 +114,7 @@ public partial class ControlCard : Control
     {
         Topic.Move => ("移動", "盤面のどこへでも動けます", UiKit.Info, new[]
         {
-            new Row("キーボード",     "矢印",                   "上下左右に動く"),
+            new Row("キーボード",     "↑↓←→",                   "上下左右に動く"),
             new Row("コントローラー", "L スティック / 十字キー", "上下左右に動く"),
             new Row("マウス",         "カーソル",                "カーソルの位置へ寄っていく"),
         }),
@@ -196,15 +198,18 @@ public partial class ControlCard : Control
                       new Color(accent, 0.30f * a), 1.1f);
             UiKit.Text(this, UiKit.ZenBold, new Vector2(cx, colY + 14f), rows[i].device, UiKit.FontLabel,
                        new Color(UiKit.Text3, a), HorizontalAlignment.Center, colW);
-            // キーバッジ（列の中央・HowToPlay.KeyBadge と同じ意匠／可変幅）。
-            float bw = UiKit.TextW(UiKit.Mono, rows[i].tok, UiKit.FontBody) + 24f;
+            // キーキャップの並び（列の中央。2026-09-27 に文字のバッジから UiKit.KeyCapRow へ＝あそびかたの表と同じ絵）。
+            //   コントローラーの列（i==1）はいまの表示が KB でもパッドの絵（丸ボタン／ピル）で描く。
+            //   キャップの後ろに板を敷き、今の話題だけその縁をゆっくり明滅させて視線を集める。
+            bool padCol = i == 1;
+            float capW = UiKit.KeyCapRowW(rows[i].tok, CapH, padCol);
+            float bw = capW + 24f;
             float bx = cx + (colW - bw) / 2f, by = colY + 48f;
-            // 今の話題だけ、バッジの縁をゆっくり明滅させて視線を集める。
             float pulse = 0.6f + 0.4f * Mathf.Sin((float)_t * 3.2f);
-            UiKit.Box(this, new Rect2(bx, by, bw, 38f), new Color(0.10f, 0.09f, 0.16f, 0.95f * a), 8f,
+            UiKit.Box(this, new Rect2(bx, by, bw, 44f), new Color(0.10f, 0.09f, 0.16f, 0.95f * a), 8f,
                       new Color(accent, (0.55f + 0.35f * pulse) * a), 1.3f);
-            UiKit.Text(this, UiKit.Mono, new Vector2(bx, by + 9f), rows[i].tok, UiKit.FontBody,
-                       new Color(accent, a), HorizontalAlignment.Center, bw);
+            UiKit.KeyCapRow(this, new Vector2(bx + 12f, by + (44f - CapH) / 2f + 1f), rows[i].tok, CapH, a, padCol,
+                            new Color(accent, 1f));
             if (rows[i].note.Length > 0)
                 UiKit.Text(this, UiKit.Zen, new Vector2(cx + 10f, colY + 102f), rows[i].note, UiKit.FontSmall,
                            new Color(UiKit.Text4, a), HorizontalAlignment.Center, colW - 20f);

@@ -173,22 +173,17 @@ public partial class MouseHintQa : Node
         await Frames(4);
     }
 
-    // ── 右下「Esc／メニュー」ヒント：非戦闘画面では押せて、戦闘画面では押せない ──
+    // ── 右下のヒント帯の「メニュー」：スマホ系の画面ではクリックで開く。PauseMenu の右下チップはどこにも出ない ──
+    //   2026-09-27：チップを廃止し、Hub／ショップ／記録／カスタマイズ／難易度選択の右下ヒント帯（UiKit.HintBarPlate）に
+    //   「M メニュー」を統合した。各画面は UiKit.HintItemClicked(…, "メニュー") を _Process で読んで Open() する。
     private async Task TestPauseHint()
     {
         var pause = GetNode<PauseMenu>("/root/PauseMenu");
         pause.GetType().GetField("_autoplay", Private)!.SetValue(pause, false);
-        Vector2 hint = PauseMenu.HintRect().GetCenter();
 
-        // ★PauseMenu._Process は冒頭で Pad.PollMouse を呼び、仕込んだ座標を実マウスで上書きする。
-        //   そこで判定の実体（_Process が唯一通る HintClicked / HintHovered）を直に確かめる。
-        bool Probe(Vector2 p, bool click, System.Func<bool> read)
-        { SetMouse(p, click); bool v = read(); ClearMouse(); return v; }
-
-        // Hub は右下チップを出さない（2026-09-27。画面下端のヒント帯に「M メニュー」を含めた）。
-        //   帯の「メニュー」項目のクリック判定（Hub.HintMenuClicked）が同じ役目を引き継ぐ。
+        // Hub（帯の判定は Hub.HintMenuClicked）。
         await SwapScene("res://Hub.tscn");
-        Check(!pause.ShowHint && !pause.HintClickable, "Hub does not draw the PauseMenu corner chip (the hint bar has M)");
+        Check(!pause.ShowHint, "Hub does not draw the PauseMenu corner chip (the hint bar has M)");
         var hub = (Hub)GetTree().CurrentScene;
         var hubMenu = (Rect2)typeof(Hub).GetMethod("HintMenuRect", Private)!.Invoke(hub, null)!;
         bool HubClick(Vector2 p, bool click)
@@ -197,29 +192,33 @@ public partial class MouseHintQa : Node
         Check(!HubClick(hubMenu.GetCenter(), false), "hovering メニュー on the Hub hint bar does not open the menu");
         Check(!HubClick(hubMenu.GetCenter() - new Vector2(hubMenu.Size.X + 30f, 0), true), "clicking the next hint item does not open the menu");
 
-        // 右下チップを出す非戦闘画面（記録）。
-        await SwapScene("res://Records.tscn");
-        Check(pause.ShowHint, "Records shows the Esc hint");
-        Check(pause.HintClickable, "Records makes the Esc hint clickable");
-        Check(Probe(hint, false, () => pause.HintHovered), "hovering the hint on Records lights it up");
-        Check(Probe(hint, true, pause.HintClicked), "clicking the Esc hint on Records opens the pause menu");
-        // ヒントのすぐ外（左へ 40px）は反応しない＝矩形がキーキャップ＋ラベル帯に収まっている。
-        Check(!Probe(hint - new Vector2(80, 0), true, pause.HintClicked), "clicking just outside the hint does nothing");
-        Check(!Probe(hint, false, pause.HintClicked), "hovering the hint without clicking does not open the menu");
+        // 記録・ショップ・難易度選択：帯の「メニュー」をクリックすると実際に _Process 経由でメニューが開く。
+        GetNode<GameManager>("/root/Game").PendingStageScene = "res://Akari.tscn";
+        foreach (var path in new[] { "res://Records.tscn", "res://Shop.tscn", "res://DiffSelect.tscn" })
+        {
+            await SwapScene(path);
+            var scene = GetTree().CurrentScene;
+            scene.GetType().GetField("_autoplay", Private)?.SetValue(scene, false);
+            scene.GetType().GetField("_t", Private)?.SetValue(scene, 1.0);
+            Check(!pause.ShowHint, $"{path}: no PauseMenu corner chip");
+            var hi = scene.GetType().GetMethod("HintItems", Private | Stat)!;
+            var items = ((string token, string label)[])hi.Invoke(hi.IsStatic ? null : scene, null)!;
+            var menuRect = UiKit.HintItemRect(UiKit.HintAnchor, items, "メニュー");
+            Check(menuRect.HasArea(), $"{path}: the hint bar has メニュー");
+            // すぐ上（帯の外）をクリックしても開かない。左隣は難易度選択では「もどる」（押せる項目）なので使わない。
+            Tick(scene, menuRect.GetCenter() - new Vector2(0, 30f), true);
+            Check(!pause.IsOpen, $"{path}: clicking just above メニュー does not open the menu");
+            Tick(scene, menuRect.GetCenter(), false);
+            Check(!pause.IsOpen, $"{path}: hovering メニュー does not open the menu");
+            Tick(scene, menuRect.GetCenter(), true);
+            Check(pause.IsOpen, $"{path}: clicking メニュー on the hint bar opens the pause menu");
+            pause.GetType().GetMethod("Close", Private | BindingFlags.Public)!.Invoke(pause, null);
+            await Frames(3);
+        }
 
-        // 戦闘画面（Akari）＝押せない・光らない。
+        // 戦闘画面（Akari）＝チップも帯も出ない。
         await SwapScene("res://Akari.tscn");
-        Check(!pause.ShowHint, "a stage no longer draws the menu hint (2026-09-27)");
-        Check(!pause.HintClickable, "a stage does NOT make the Esc hint clickable");
-        Check(!Probe(hint, false, () => pause.HintHovered), "hovering the hint in battle does not light it up");
-        Check(!Probe(hint, true, pause.HintClicked), "clicking the hint spot in battle does NOT open the pause menu");
-
-        // 会話中（Hud.BubblePaused）は非戦闘画面でも押せない。
-        await SwapScene("res://Records.tscn");
-        Hud.BubblePaused = true;
-        Check(!pause.HintClickable, "a dialogue bubble disables the hint click");
-        Check(!Probe(hint, true, pause.HintClicked), "clicking during dialogue does NOT open the pause menu");
-        Hud.BubblePaused = false;
+        Check(!pause.ShowHint, "a stage does not draw the menu hint");
         await Frames(2);
     }
 
@@ -267,7 +266,6 @@ public partial class MouseHintQa : Node
 
         Inside(HowToPlay.CloseHintRect(), "HowTo とじる");
         Inside(Backlog.CloseHintRect(), "Backlog とじる");
-        Inside(PauseMenu.HintRect(), "PauseMenu hint");
         for (int i = 0; i < HowToPlay.TabCount; i++) Inside(HowToPlay.TabRect(i), $"HowTo tab {i}");
         for (int i = 0; i < HowToPlay.PageCount; i++) Inside(HowToPlay.DotRect(i), $"HowTo dot {i}");
 
@@ -276,12 +274,13 @@ public partial class MouseHintQa : Node
         Inside(settingsBack, "Settings もどる");
         Inside(diffBack, "DiffSelect もどる");
 
-        // 右下ヒントが、非戦闘画面のどのクリック要素とも重ならないこと（ショップの戻る／ハブのフッタ）。
-        var hint = PauseMenu.HintRect();
-        Check(!hint.Intersects(new Rect2(72f, 660f, 172f, 36f)), "hint does not overlap the Shop back button");
+        // 右下のヒント帯の「メニュー」（スマホ系画面で共通の位置）が、ほかのクリック要素と重ならないこと。
+        var hint = UiKit.HintItemRect(UiKit.HintAnchor, UiKit.PhoneHints("↑↓", "けってい", "もどる", ("←→", "きりかえ")), "メニュー");
+        Inside(hint, "hint bar メニュー");
+        Check(!hint.Intersects(new Rect2(48f, 664f, 156f, 36f)), "hint does not overlap the Shop back button");
         Check(!hint.Intersects(new Rect2(400f, 653f, 480f, 60f)), "hint does not overlap the Hub footer row");
         Check(!hint.Intersects(new Rect2(40f, UiKit.DesignH - 52f, 168f, 34f)), "hint does not overlap the Training back button");
-        Check(!hint.Intersects(diffBack), "hint does not overlap the DiffSelect もどる");
+        Check(!hint.Intersects(diffBack), "hint メニュー does not overlap the DiffSelect もどる");
         Check(!hint.Intersects(settingsBack), "hint does not overlap the Settings もどる");
     }
 
@@ -322,12 +321,11 @@ public partial class MouseHintQa : Node
         log.GetType().GetMethod("Close", Private)!.Invoke(log, null);
         await Frames(6);
 
-        // ── 右下「Esc／メニュー」ヒント：記録（押せる）とステージ（押せない）。Hub は 2026-09-27 からヒント帯に移った ──
+        // ── 右下のヒント帯の「メニュー」：記録（押せる）。PauseMenu のチップは 2026-09-27 に廃止＝帯に統合 ──
         await SwapScene("res://Records.tscn");
-        await ShotHover(pauseCanvas, PauseMenu.HintRect().GetCenter(), "pausehint_records_hover");
-        await ShotHover(pauseCanvas, new Vector2(20, 20), "pausehint_records_idle");
-        await SwapScene("res://Akari.tscn");
-        await ShotHover(pauseCanvas, PauseMenu.HintRect().GetCenter(), "pausehint_stage_hover");
+        var recItems = UiKit.PhoneHints("←→", "", "もどる");
+        await ShotHover(GetTree().CurrentScene, UiKit.HintItemRect(UiKit.HintAnchor, recItems, "メニュー").GetCenter(), "hintbar_records_hover");
+        await ShotHover(GetTree().CurrentScene, new Vector2(20, 20), "hintbar_records_idle");
 
         // ── 設定／難易度選択：フッタ「もどる」のホバー ──
         await SwapScene("res://Settings.tscn");

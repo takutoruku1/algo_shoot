@@ -7,7 +7,8 @@ using Godot;
 //   単体シーンとしては生きているので、デバッグ起動（DiffSelect.tscn を直接実行）と
 //   スクショ検証（--diff=N）でこれまでどおり使える。消さずに残すのはそのため。
 //   潜り方の段の名前・一言はハブ側（Hub.Tiers）と同じ語彙に揃える（数値・実装は不変）。
-//   4ティア＋弾密度メーター。選択＝シアン／底まで解禁＝紫。↑↓ 潜り方・Z 潜る・X もどる。
+//   4ティア＋弾密度メーター。選択＝シアン／底まで解禁＝紫。↑↓ 潜り方・Z 潜る・Esc／X もどる。
+//   キーの案内は 2026-09-27 に左下のフッタ行から右下のヒント帯（UiKit.HintBarPlate。スマホ系画面と共通）へ移した。
 public partial class DiffSelect : Node2D
 {
     private GameManager _game = null!;
@@ -127,27 +128,13 @@ public partial class DiffSelect : Node2D
         return new Rect2(padX, rowTop + i * (rowH + gap), rowW, rowH);
     }
 
-    // フッタ「もどる」のクリック矩形（Records.BackHintRect と同じ作法）。_Draw のフッタは Hint を
-    //   左から並べていくので、手前2つ（↑↓ 潜り方／Z 潜る）の送り幅を同じ式で足して3つ目の左端を出す。
-    //   ※手前2つは操作説明なのでクリック対象にしない（ショップの「箱がボタン／素の文字が説明」の流儀）。
-    private const int IdBack = 100;
-    private static Rect2 BackHintRect()
-    {
-        float padX = 56f, fy = H - 56f;
-        float x = padX;
-        x = HintAdvance(x, "↑↓", "潜り方");
-        x = HintAdvance(x, "Z", "潜る");
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, "X", 12) + 12f);
-        float lw = UiKit.TextW(UiKit.Zen, "もどる", UiKit.FontLabel);
-        return new Rect2(x, fy - 16f, kw + 8f + lw + 8f, 32f);
-    }
+    // 右下のヒント帯（↑↓ えらぶ／Z 潜る／Esc もどる／M メニュー。パッドは 十字／A／B／≡）。
+    //   「もどる」と「メニュー」はクリックでも押せる（旧フッタの「もどる」ボタンの役目を帯が継ぐ）。
+    private static (string token, string label)[] HintItems() => UiKit.PhoneHints("↑↓", "潜る", "もどる");
 
-    // Hint が返す「次の x」だけを、描画せずに求める（Hint 本体と同一式）。
-    private static float HintAdvance(float x, string key, string label)
-    {
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
-    }
+    // 帯の「もどる」項目のクリック矩形（旧フッタの BackHintRect と同じ名前で QA が読む）。
+    private const int IdBack = 100;
+    private static Rect2 BackHintRect() => UiKit.HintItemRect(UiKit.HintAnchor, HintItems(), "もどる");
 
     public override void _Process(double delta)
     {
@@ -159,6 +146,14 @@ public partial class DiffSelect : Node2D
         if (Pad.UiBlocked(this))
         {
             _navHeld = _zHeld = _backHeld = true;
+            QueueRedraw();
+            return;
+        }
+
+        // 右下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは廃止＝帯に統合。Hub と同じ作法）。
+        if (UiKit.HintItemClicked(UiKit.HintAnchor, HintItems(), "メニュー"))
+        {
+            GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
             QueueRedraw();
             return;
         }
@@ -260,16 +255,10 @@ public partial class DiffSelect : Node2D
         for (int i = 0; i < Tiers.Length; i++)
             DrawTier(i, padX, rowTop + i * (rowH + gap), rowW, rowH);
 
-        // ── フッタ ──
+        // ── フッタ（区切り線だけ。キーの案内は右下のヒント帯）──
         float fy = H - 56f;
         DrawRect(new Rect2(padX, fy - 14, W - padX * 2, 1f), new Color(1, 1, 1, 0.08f));
-        float fx = padX;
-        fx = Hint(fx, fy, "↑↓", "潜り方", false);
-        fx = Hint(fx, fy, "Z", "潜る", true);
-        // 「もどる」だけクリックできる＝ホバー中は下敷きを敷いて明るくする（手前2つは操作説明）。
-        bool backHov = UiKit.HoveredId() == IdBack;
-        if (backHov) UiKit.Box(this, BackHintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
-        Hint(fx, fy, "X", "もどる", backHov);
+        UiKit.HintBarPlate(this, UiKit.HintAnchor, HintItems(), "もどる", "メニュー");
 
         UiKit.EndDesign(this);
     }
@@ -408,15 +397,5 @@ public partial class DiffSelect : Node2D
         UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 16 + 30, qy + 7), "ミナ", UiKit.FontLabel, UiKit.Mina);
         UiKit.Text(this, UiKit.Zen, new Vector2(x + 16 + 30, qy + 22), quip, UiKit.FontLabel, locked ? UiKit.Text3 : UiKit.Text2,
             HorizontalAlignment.Left, w - 32 - 30 - 14);
-    }
-
-    private float Hint(float x, float y, string key, string label, bool accent)
-    {
-        Color kbg = accent ? new Color(UiKit.Purify, 0.12f) : new Color(1, 1, 1, 0.07f);
-        Color kbd = accent ? new Color(UiKit.Info, 0.5f) : new Color(1, 1, 1, 0.16f);
-        UiKit.Key(this, new Vector2(x, y - 12), key, kbg, kbd, accent ? UiKit.PurifyHi : UiKit.Text2);
-        float kw = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, key, 12) + 12f);
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + kw + 8, y - 8), label, UiKit.FontLabel, accent ? UiKit.Info : UiKit.Text3);
-        return x + kw + 8 + UiKit.TextW(UiKit.Zen, label, UiKit.FontLabel) + 24f;
     }
 }

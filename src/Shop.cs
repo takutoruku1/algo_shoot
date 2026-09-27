@@ -1,5 +1,9 @@
 using Godot;
 
+// Shop : 強化ショップ（一本道の強化リスト＋詳細パネル）。
+//   操作（2026-09-27 に統一）：↑↓ で段を選び、←→ で詳細パネルの [強化する] [ためし撃ち] を切り替えて Z。Esc／X でもどる。
+//   旧 T（トレーニングへ）の文字キーは廃止＝ためし撃ちは詳細パネルのボタンから行く。キーの案内は右下のヒント帯だけ。
+//   マウスは従来どおり：段クリックで選択／同じ段の再クリックで購入、ボタンはクリックで即発火。
 public partial class Shop : Node2D
 {
     private GameManager _game = null!;
@@ -60,11 +64,14 @@ public partial class Shop : Node2D
 
     private Texture2D? _playerShot;
 
-    // フォーカス＝列のインデックス（0..13）。この画面には列以外の選択対象が無い＝番号体系はこれだけ。
+    // フォーカス＝列のインデックス（0..13）。
     private int _sel;
+    // 詳細パネルのボタンのフォーカス（0＝強化する／1＝ためし撃ち）。←→ で切り替え、Z で押す。
+    private int _act;
+    public int Action => _act;
 
     // 入力エッジ
-    private bool _navHeld, _zHeld, _backHeld, _trainHeld;
+    private bool _navHeld, _zHeld, _backHeld, _lrHeld;
     private double _t, _toastT;
     private string _toast = "";
     private Color _toastCol = UiKit.Info;
@@ -148,7 +155,15 @@ public partial class Shop : Node2D
         // 「もどる＝ショップごと閉じる」「購入」が誤発火しないよう、ゲート中は全キーを既押し扱いで食う。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _backHeld = _trainHeld = true;
+            _navHeld = _zHeld = _backHeld = _lrHeld = true;
+            QueueRedraw();
+            return;
+        }
+
+        // 右下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは廃止＝帯に統合。Hub と同じ作法）。
+        if (UiKit.HintItemClicked(UiKit.HintAnchor, HintItems(), "メニュー"))
+        {
+            GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
             QueueRedraw();
             return;
         }
@@ -169,9 +184,9 @@ public partial class Shop : Node2D
             }
         }
 
-        // カーソル移動：一本道なので上下だけ（左右も同じ意味に割り当てる＝どのキーでも動く）。
-        bool up = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_left");
-        bool down = Input.IsActionPressed("ui_down") || Input.IsActionPressed("ui_right");
+        // カーソル移動：↑↓ で段（一本道）。
+        bool up = Input.IsActionPressed("ui_up");
+        bool down = Input.IsActionPressed("ui_down");
         bool any = up || down;
         if (any && !_navHeld)
         {
@@ -180,20 +195,29 @@ public partial class Shop : Node2D
         }
         _navHeld = any;
 
-        // Z：買う。
+        // ←→：詳細パネルのボタン [強化する] [ためし撃ち] を切り替える（2026-09-27。旧 T キーの置き換え）。
+        bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
+        bool lr = left || right;
+        if (lr && !_lrHeld)
+        {
+            int nx = left ? 0 : 1;
+            if (nx != _act) { _act = nx; Audio.Instance?.PlayUiMove(); }
+        }
+        _lrHeld = lr;
+
+        // Z：フォーカス中のボタンを押す（強化する＝買う／ためし撃ち＝トレーニングへ）。
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
-        if (zEdge && _t > 0.2) OnConfirm();
+        if (zEdge && _t > 0.2)
+        {
+            if (_act == 1) EnterTraining();
+            else OnConfirm();
+        }
 
         // X／Esc：もどる（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューを開くのは M）。
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
         if (backEdge && _t > 0.2) { Audio.Instance?.PlayUiCancel(); ExitShop(); }
-
-        // T：トレーニング（試し打ち場）へ。
-        bool train = Input.IsKeyPressed(Key.T);
-        bool trainEdge = train && !_trainHeld; _trainHeld = train;
-        if (trainEdge && _t > 0.2) EnterTraining();
 
         QueueRedraw();
     }
@@ -293,9 +317,20 @@ public partial class Shop : Node2D
         DrawDetail();
         DrawFooter();
         DrawToast();
+        // 右下のヒント帯（退店の一言を待つあいだとオートプレイ中は出さない）。
+        UiKit.HintBarPlate(this, UiKit.HintAnchor, HintItems(), "メニュー");
 
         UiKit.EndDesign(this);
     }
+
+    // 右下のヒント帯の項目。キーボード：↑↓ えらぶ／←→ きりかえ／Z けってい／Esc もどる／M メニュー。
+    //   パッド：十字 えらぶ／A けってい／B もどる／≡ メニュー。
+    private (string token, string label)[] HintItems() =>
+        _autoplay || _exitPending ? System.Array.Empty<(string, string)>()
+            : UiKit.PhoneHints("↑↓", "けってい", "もどる", ("←→", "きりかえ"));
+
+    // ヒント帯の外接矩形（QA 用。出していなければ大きさ 0）。
+    public Rect2 HintBarRect => UiKit.HintBarBounds(UiKit.HintAnchor, HintItems());
 
     private void DrawBg()
     {
@@ -421,7 +456,11 @@ public partial class Shop : Node2D
         long cost = _game.GetUpgradeCost(d.Id);
         bool enough = _game.Impression >= cost;
         _buyBtnActive = !owned && unlocked && enough;
-        _buyBtnRect = new Rect2(DetailX, 486, DetailW, 56);
+        // [強化する] と [ためし撃ち] を横に並べる（←→ で切り替えて Z。2026-09-27 に旧フッタの「ためし撃ち」をここへ移した）。
+        const float TrainW = 176f, BtnGap = 12f;
+        _buyBtnRect = new Rect2(DetailX, 486, DetailW - TrainW - BtnGap, 56);
+        _trainBtnRect = new Rect2(DetailX + DetailW - TrainW, 486, TrainW, 56);
+        float buyW = _buyBtnRect.Size.X;
         bool hover = _buyBtnActive && UiKit.Hotspot(_buyBtnRect, HsBuy);
         Color fill = _buyBtnActive ? (hover ? new Color("c2f3e1") : Owned) : Raised;
         Color foreground = _buyBtnActive ? Surface : Muted;
@@ -435,15 +474,26 @@ public partial class Shop : Node2D
             UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 24, 500), label, 20, foreground);
             string price = Money(cost);
             float pw = UiKit.TextW(UiKit.Mono, price, 20);
-            UiKit.Heart(this, new Vector2(DetailX + DetailW - pw - 74, 514), 7, foreground);
-            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + DetailW - pw - 54, 500), price, 20, foreground);
-            DrawArrow(new Vector2(DetailX + DetailW - 26, 514), foreground, 0.8f);
+            UiKit.Heart(this, new Vector2(DetailX + buyW - pw - 74, 514), 7, foreground);
+            UiKit.Text(this, UiKit.Mono, new Vector2(DetailX + buyW - pw - 54, 500), price, 20, foreground);
+            DrawArrow(new Vector2(DetailX + buyW - 26, 514), foreground, 0.8f);
         }
         else
         {
             UiKit.Text(this, UiKit.ZenBold, new Vector2(DetailX + 20, 502), label, 17,
-                unlocked && !owned ? Deny : Muted, HorizontalAlignment.Center, DetailW - 40);
+                unlocked && !owned ? Deny : Muted, HorizontalAlignment.Center, buyW - 40);
         }
+
+        // ためし撃ち（トレーニングへ）。枠だけの控えめなボタン＝主役は [強化する]。
+        bool trainHover = UiKit.Hotspot(_trainBtnRect, HsTrain);
+        bool trainOn = trainHover || (!Pad.UsingMouse && _act == 1);
+        UiKit.Box(this, _trainBtnRect, trainOn ? new Color("26302f") : Raised, 8, trainOn ? Owned : Line, 1);
+        DrawUpgradeMark("n_hitbox", new Vector2(_trainBtnRect.Position.X + 30, 514), trainOn ? Ink : Muted, 0.8f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(_trainBtnRect.Position.X + 52, 502), "ためし撃ち", 17, trainOn ? Ink : Muted);
+
+        // キーボード／パッドのフォーカス枠（マウス操作中は出さない＝ホバーの明るさで足りる）。
+        if (!Pad.UsingMouse)
+            UiKit.Box(this, (_act == 0 ? _buyBtnRect : _trainBtnRect).Grow(4), Colors.Transparent, 10, Ink, 1.5f);
 
         int count = 0;
         for (int i = 0; i < Steps; i++) if (IsOwned(i)) count++;
@@ -586,12 +636,7 @@ public partial class Shop : Node2D
         DrawArrow(new Vector2(68, FooterY + 18), backHover ? Ink : Muted, -0.8f);
         UiKit.Text(this, UiKit.ZenBold, new Vector2(92, FooterY + 6),
             string.IsNullOrEmpty(_game.PendingResumeScene) ? "ホーム" : "もどる", 17, backHover ? Ink : Muted);
-
-        _trainBtnRect = new Rect2(980, FooterY, 168, 36);
-        bool trainHover = UiKit.Hotspot(_trainBtnRect, HsTrain);
-        if (trainHover) UiKit.Box(this, _trainBtnRect, Raised, 6);
-        DrawUpgradeMark("n_hitbox", new Vector2(1002, FooterY + 18), trainHover ? Ink : Muted, 0.8f);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(1026, FooterY + 6), "ためし撃ち", 17, trainHover ? Ink : Muted);
+        // 右側はヒント帯（_Draw の末尾）。旧「ためし撃ち」ボタンは詳細パネルの [強化する] の隣へ移した。
     }
 
     private void DrawToast()

@@ -173,6 +173,25 @@ public partial class ShopStyleQa : Node
         shop._Process(1.0 / 60);
         Check(game.GetUpgradeLevel("n_dodge") == 1 && game.Impression == 2650, "keyboard purchase works");
         await Frames(2);
+        // 2026-09-27：T（トレーニングへ）の文字キーは廃止。→ で [ためし撃ち] にフォーカスを移して Z で行く。
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.T, Pressed = true });
+        Input.FlushBufferedEvents();
+        shop._Process(1.0 / 60);
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.T, Pressed = false });
+        Input.FlushBufferedEvents();
+        shop._Process(1.0 / 60);
+        await Frames(3);
+        Check(GetTree().CurrentScene == shop, "T no longer opens practice");
+        Input.ActionPress("ui_right");
+        shop._Process(1.0 / 60);
+        Input.ActionRelease("ui_right");
+        shop._Process(1.0 / 60);
+        Check(shop.Action == 1 && Read<int>(shop, "_sel") == 2, "right moves focus to the practice button without changing the row");
+        Input.ActionPress("ui_left");
+        shop._Process(1.0 / 60);
+        Input.ActionRelease("ui_left");
+        shop._Process(1.0 / 60);
+        Check(shop.Action == 0, "left returns focus to the purchase button");
         Click(shop, Read<Rect2>(shop, "_trainBtnRect"), -102);
         await Frames(5);
         Check(GetTree().CurrentScene is TrainingRoot, "training button opens practice");

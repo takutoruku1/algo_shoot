@@ -384,9 +384,9 @@ public partial class PauseMenu : CanvasLayer
 
         if (!_open)
         {
-            // 右下ヒントの左クリック。非戦闘画面かつ会話中でないときだけ受ける（HintClickable のコメント参照）。
-            if ((menuEdge && CanOpenHere()) || (escEdge && EscOpensHere()) || HintClicked()) Open();
-            _canvas.QueueRedraw(); // 常時ヒントの更新
+            // 右下のチップは廃止（ShowHint のコメント参照）。クリックで開く役目は各画面のヒント帯が継ぐ。
+            if ((menuEdge && CanOpenHere()) || (escEdge && EscOpensHere())) Open();
+            _canvas.QueueRedraw();
             return;
         }
 
@@ -895,72 +895,20 @@ public partial class PauseMenu : CanvasLayer
 
     public bool IsOpen => _open;
     public int Sel => _sel;
-    // 右下の「M メニュー」ヒントは非戦闘のスマホ系画面だけ（2026-09-27 ユーザー指示「シューティング中の ESC メニューの
-    //   表示は削除して」）。戦闘画面・トレーニング・カットシーンでは描かない（そこでは Esc／M で開ける）。
-    //   ★2026-09-27：Hub も外した。Hub は画面下端のヒント帯（UiKit.HintBar）に「M メニュー」を含めたので二重になる
-    //     （帯の「メニュー」はクリックでも開く＝Hub.HintMenuClicked が引き継ぐ）。ショップ等は別作業で揃えるまで残す。
-    public bool ShowHint
-    {
-        get
-        {
-            if (_open || _autoplay || !CanOpenHere()) return false;
-            string path = GetTree().CurrentScene?.SceneFilePath ?? "";
-            return IsNonCombatMenuScreen(path) && !path.Contains("Training") && !path.Contains("Hub");
-        }
-    }
-
-    // ═══════ 右下「M／メニュー」ヒントのクリック対応（2026-09-17）═══════
-    //   ★戦闘画面では対応しない。理由は3つ、どれも実装上の事実:
-    //     1) 戦闘中の自機はマウスカーソルへ追従する（Player.cs:597）。弾を避けて画面右下へ寄った瞬間に
-    //        ポーズが開く＝避けている最中に一番やってはいけない誤爆になる。
-    //     2) 戦闘中の左クリックはロックオン送り（HowToPlay のマウスタブ参照）。右下だけ意味が変わる
-    //        ボタンを置くと、狙いを送ったつもりでメニューが開く。
-    //     3) ホットスポットは UiKit のグローバル単一レジストリ。戦闘中に毎フレーム BeginHotspots を
-    //        呼ぶと、同フレームで登録している ChoiceOverlay（ゲームオーバー3択）と互いの登録を潰し合う。
-    //   → 非戦闘画面（Hub/ショップ/難易度選択/記録/トレーニング）でだけ押せるようにする。この5画面は
-    //     どれも自前で BeginHotspots を呼ぶ「唯一の登録者」なので、ここは共有レジストリに載せず
-    //     Rect2.HasPoint 直書きで判定する（OpeningFilm / TrainingRoot と同じ既存の流儀）。
-    //     クリックの二重処理は Open() の Pad.ConsumeUi → 各画面の Pad.UiBlocked 早期 return が防ぐ。
-    //   会話中（Hud.BubblePaused）は左クリックが会話送り（Pad.AdvanceHeld）なので無効にする。
-    public bool HintClickable
-    {
-        get
-        {
-            if (!ShowHint) return false;
-            // 上にオーバーレイ（あそびかた/会話ログ）が乗っている間は押せない＝暗幕の下で光らせない
-            //（_Process 側は overlayOpen で早期 return するのでクリックは元から通らないが、
-            //  描画だけは続くので HintHovered をここで止める）。
-            if (GetNodeOrNull<HowToPlay>("/root/HowTo") is { IsOpen: true }
-                || GetNodeOrNull<Backlog>("/root/Backlog") is { IsOpen: true }) return false;
-            string path = GetTree().CurrentScene?.SceneFilePath ?? "";
-            return IsNonCombatMenuScreen(path) && !Hud.BubblePaused;
-        }
-    }
-
-    // ヒントの当たり矩形（PauseCanvas.DrawHint と同一式＝キーキャップ＋ラベル帯だけ。周囲へは広げない）。
-    public static Rect2 HintRect()
-    {
-        float W = UiKit.DesignW, H = UiKit.DesignH;
-        float y = H - 38f - 30f;
-        string keyTok = Pad.PauseToken;
-        float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
-        float labelW = UiKit.TextW(UiKit.ZenBold, "メニュー", UiKit.FontSmall);
-        float x = W - 24f - (keyW + 7f + labelW);
-        return new Rect2(x - 4f, y - 3f, keyW + 7f + labelW + 8f, 30f);
-    }
-
-    // ヒントにマウスが乗っているか（描画のハイライト用）。押せない画面では常に false＝光らせない。
-    public bool HintHovered => HintClickable && HintRect().HasPoint(Pad.MousePos());
-
-    // このフレームにヒントが左クリックされたか。_Process と QA が同じ1本の判定を通る。
-    public bool HintClicked() => HintHovered && Pad.MouseClick();
+    // 右下の「M メニュー」チップは 2026-09-27 に廃止した。
+    //   戦闘画面・トレーニング・カットシーンでは同日のユーザー指示「シューティング中の ESC メニューの表示は削除して」で
+    //   既に描いておらず、スマホ系の画面（Hub／ショップ／難易度選択／記録／カスタマイズ）は画面右下のヒント帯
+    //   （UiKit.HintBarPlate）に「M メニュー」を含めた＝二重になる。帯の「メニュー」はクリックでも開く
+    //   （各画面が UiKit.HintItemClicked で受けて Open() を呼ぶ。旧チップのクリックの役目もそこが継ぐ）。
+    //   描く画面はもう無いが、QA が「どの画面でも出ていない」ことを確かめられるよう、問いだけ残す。
+    public bool ShowHint => false;
     public bool SlotFilled(int slot) => _game?.SlotExists(slot) ?? false;
     public string SavedText => _savedToast > 0 ? $"スロット{_savedSlot}にセーブしました" : "";
     // 描画用：音量行の現在値（0..100）。
     public float VolValue(int i) => i >= 0 && i < _vol.Length ? _vol[i] : 0f;
 }
 
-// ポーズメニュー＆ヒントの描画（CanvasLayer の子。設計座標 1280x720）。
+// ポーズメニューの描画（CanvasLayer の子。設計座標 1280x720）。右下のヒントチップは 2026-09-27 に廃止。
 public partial class PauseCanvas : Node2D
 {
     public PauseMenu Menu = null!;
@@ -973,7 +921,6 @@ public partial class PauseCanvas : Node2D
     {
         if (Menu == null) return;
         if (Menu.IsOpen) { UiKit.BeginDesign(this); DrawPauseMenu(); UiKit.EndDesign(this); }
-        else if (Menu.ShowHint) { UiKit.BeginDesign(this); DrawHint(); UiKit.EndDesign(this); }
     }
 
     // 選択行のハイライト（枠＋▸）。全ページで同じ見え方にするためここに集約する。
@@ -1157,31 +1104,5 @@ public partial class PauseCanvas : Node2D
                 exists ? "セーブあり" : "空き", UiKit.FontBody, exists ? UiKit.Info : UiKit.Text4,
                 HorizontalAlignment.Right, 132);
         }
-    }
-
-    // 「M メニュー」ヒント（画面右下・ティッカーの上）。常時表示。
-    //   2026-09-07: プレイ中の常駐操作ガイド（Hud.DrawControls）を撤去した際、これ1つだけを残した。
-    //   M（メニュー）の存在を知らせる唯一の手がかりなので消さない。ただし弾の視認を妨げないよう
-    //   薄く小さく（キー枠の縁とラベルのαを落とし、ラベルは FontSmall へ）。
-    //   ★2026-09-17：非戦闘画面（Hub/ショップ/難易度選択/記録/トレーニング）ではここを左クリックでも
-    //     開けるようにした（PauseMenu.HintClickable）。押せる画面でホバーしたときだけ下敷きを敷いて
-    //     明るくし、「押せる」ことと「いま触れている」ことを見せる。戦闘中は押せないので光りもしない
-    //     ＝見た目が変わらない＝弾の視認を邪魔しない。
-    private const float HintAlpha = 0.85f;
-    private void DrawHint()
-    {
-        float W = UiKit.DesignW, H = UiKit.DesignH;
-        float y = H - 38f - 30f;
-        const string label = "メニュー";
-        string keyTok = Pad.PauseToken; // 表示モードに追従（M / Menu(≡)）
-        float keyW = Mathf.Max(24f, UiKit.TextW(UiKit.Mono, keyTok, 11) + 12f);
-        float labelW = UiKit.TextW(UiKit.ZenBold, label, UiKit.FontSmall);
-        float x = W - 24f - (keyW + 7f + labelW);
-        bool hov = Menu.HintHovered;
-        if (hov) UiKit.Box(this, PauseMenu.HintRect(), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
-        UiKit.Key(this, new Vector2(x, y), keyTok, new Color(1, 1, 1, hov ? 0.10f : 0.04f),
-            new Color(UiKit.Info, hov ? 0.6f : 0.22f), new Color(hov ? UiKit.PurifyHi : UiKit.Info, hov ? 1f : HintAlpha));
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + keyW + 7f, y + 5f), label, UiKit.FontSmall,
-            new Color(hov ? UiKit.White : UiKit.Text2, hov ? 1f : HintAlpha));
     }
 }

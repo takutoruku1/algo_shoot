@@ -61,19 +61,12 @@ public partial class HowToPlay : CanvasLayer
         return new Rect2(c.X - 11f, c.Y - 11f, 22f, 22f);
     }
 
-    // フッタの「とじる」矩形（Records.BackHintRect と同じ考え方＝キー表記＋ラベルの帯だけを取る）。
-    //   フッタ行は中央寄せの1本の文字列なので、「とじる」の実描画位置を同じ式で再現して切り出す。
+    // フッタの「とじる」矩形（Records.BackHintRect と同じ考え方＝キーキャップ＋ラベルの帯だけを取る）。
+    //   フッタ行は中央寄せの1行なので、「とじる」の実描画位置を HowToCanvas.FootLayout の同じ式で再現して切り出す。
     public static Rect2 CloseHintRect()
     {
-        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 96f;
-        string page = (Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→")
-                      + HowToCanvas.FootGap;
-        string close = HowToCanvas.FootCloseToken + " とじる";
-        float pageW = UiKit.TextW(UiKit.Mono, page, UiKit.FontSmall);
-        float closeW = UiKit.TextW(UiKit.Mono, close, UiKit.FontSmall);
-        float lineX = x + (w - (pageW + closeW)) / 2f;   // 中央寄せ1行の左端
-        float ty = y + h - 32f;
-        return new Rect2(lineX + pageW - 6f, ty - 6f, closeW + 12f, UiKit.Mono.GetHeight(UiKit.FontSmall) + 12f);
+        var (_, closeX, top, closeW) = HowToCanvas.FootLayout();
+        return new Rect2(closeX - 6f, top - 5f, closeW + 12f, HowToCanvas.FootCapH + 10f);
     }
 
     // スクリーンショット用（--shot --howto N）：起動直後にこのページを開いたまま固定する。
@@ -199,7 +192,7 @@ public partial class HowToCanvas : Node2D
     // ※フッタなど「いま握っているデバイス向けの案内」で使う。割り当て一覧表（3タブ）は
     //   デバイス固定で書くので、下の ControlRows(tab) が直に文字列を持つ。
     private static string TokBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    // フッタの「とじる」表記は下の FootCloseToken（キーボードは Esc＝もどる）。
+    // フッタの「とじる」表記は下の FootCloseToken（キーボードは Esc＝もどる、パッドは B）。
     //   メニューを開くキーの表記は Pad.PauseToken（M / Menu(≡)）＝2026-09-26 に Esc から分離した。
 
     public override void _Draw()
@@ -246,27 +239,44 @@ public partial class HowToCanvas : Node2D
         else DrawPageItems(x + 32, bodyY, w - 64);
 
         // ── フッタ（操作ヒント）──
+        //   [←→] タブ・ページ　[Esc] とじる を中央寄せ1行で（2026-09-27 にキーを UiKit.KeyCap へ）。
         //   「とじる」だけはクリックできる＝ホバーで明るくして押せることを示す（左の「タブ・ページ」は
         //   純粋な操作説明なので触れない＝ショップの「箱がボタン／素の文字は説明」の流儀）。
-        string pageTok = (Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→")
-                         + FootGap;
-        string closeTok = FootCloseToken + " とじる";
-        float pageW = UiKit.TextW(UiKit.Mono, pageTok, UiKit.FontSmall);
-        float closeW = UiKit.TextW(UiKit.Mono, closeTok, UiKit.FontSmall);
-        float lineX = x + (w - (pageW + closeW)) / 2f;
-        float fy = y + h - 32;
+        var (pageX, closeX, top, _) = FootLayout();
         bool closeHov = hov == HowToPlay.IdClose;
         if (closeHov)
             UiKit.Box(this, HowToPlay.CloseHintRect(), new Color(UiKit.Purify, 0.14f), 7f, new Color(UiKit.Info, 0.5f), 1f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(lineX, fy), pageTok, UiKit.FontSmall, UiKit.Text3);
-        UiKit.Text(this, UiKit.Mono, new Vector2(lineX + pageW, fy), closeTok, UiKit.FontSmall,
-            closeHov ? UiKit.PurifyHi : UiKit.Text3);
+        float pw = UiKit.KeyCapRow(this, new Vector2(pageX, top), FootPageToken, FootCapH);
+        FootLabel(pageX + pw + FootLabelGap, top, FootPageLabel, UiKit.Text3);
+        float cw = UiKit.KeyCap(this, new Vector2(closeX, top), FootCloseToken, FootCapH);
+        FootLabel(closeX + cw + FootLabelGap, top, "とじる", closeHov ? UiKit.PurifyHi : UiKit.Text3);
     }
 
-    // フッタ1行を「ページ送りの説明」と「とじる（クリック可）」に割るための共有トークン。
-    //   HowToPlay.CloseHintRect が同じ式で矩形を再現するので、ここを変えたら向こうも自動で追従する。
-    public const string FootGap = " タブ・ページ    ";
-    public static string FootCloseToken => Pad.UsingPad ? Pad.Face(JoyButton.Start) : "Esc";
+    private void FootLabel(float x, float top, string label, Color col)
+    {
+        float asc = UiKit.Zen.GetAscent(UiKit.FontSmall), desc = UiKit.Zen.GetDescent(UiKit.FontSmall);
+        DrawString(UiKit.Zen, new Vector2(x, top + (FootCapH - 2f + asc - desc) / 2f), label, HorizontalAlignment.Left, -1,
+            UiKit.FontSmall, col);
+    }
+
+    // フッタ1行の寸法（描画と HowToPlay.CloseHintRect が同じ式を通る）。
+    //   戻り値：ページ送りの左端・「とじる」のキャップ左端・キャップ上端・「とじる」項目（キャップ＋ラベル）の幅。
+    public const float FootCapH = 22f;
+    private const float FootLabelGap = 6f, FootItemGap = 28f;
+    private const string FootPageLabel = "タブ・ページ";
+    private static string FootPageToken => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder) + " / " + Pad.Face(JoyButton.RightShoulder) : "←→";
+    // とじるキー：キーボードは Esc、パッドは B（HowToPlay._Process が読むのは X／Esc／B／右クリック。
+    //   旧表記の Menu(≡) はこの画面では読まれていなかった）。
+    public static string FootCloseToken => Pad.UsingPad ? Pad.Face(JoyButton.B) : "Esc";
+    public static (float pageX, float closeX, float top, float closeW) FootLayout()
+    {
+        float pad = 64f, x = pad, y = 48f, w = UiKit.DesignW - pad * 2f, h = UiKit.DesignH - 96f;
+        float pageW = UiKit.KeyCapRowW(FootPageToken, FootCapH) + FootLabelGap + UiKit.TextW(UiKit.Zen, FootPageLabel, UiKit.FontSmall);
+        float closeW = UiKit.KeyCapW(FootCloseToken, FootCapH) + FootLabelGap + UiKit.TextW(UiKit.Zen, "とじる", UiKit.FontSmall);
+        float lineX = x + (w - (pageW + FootItemGap + closeW)) / 2f;   // 中央寄せ1行の左端
+        float top = y + h - 36f;
+        return (lineX, lineX + pageW + FootItemGap, top, closeW);
+    }
 
     // ───────── デバイスタブの見出し（操作ページの上端）─────────
     //   3つ並べ、選択中だけ塗りとアクセント色を強める。切替そのものは ←→ / LB・RB のページ送り
@@ -313,7 +323,7 @@ public partial class HowToCanvas : Node2D
         void Add(string tok, string name, string desc, Color accent, bool hot, string locked = "")
             => rows.Add((tok, name, desc, accent, hot, locked));
 
-        string moveTok = tab switch { 1 => "L スティック / 十字キー", 2 => "カーソル", _ => "矢印" };
+        string moveTok = tab switch { 1 => "L スティック / 十字キー", 2 => "カーソル", _ => "↑↓←→" };
         string moveDesc = tab == 2 ? "マウスカーソルの位置へ寄っていく" : "上下左右に動く";
         Add(moveTok, "移動", moveDesc, UiKit.Info, false);
         Add("オート", "撃つ", "自動で撃ちます。光を放って心を浄化する", UiKit.Purify, false);
@@ -388,7 +398,7 @@ public partial class HowToCanvas : Node2D
             int col = i / half, idx = i % half;
             float rx = x + col * (colW + 24f);
             float ry = y + idx * rowH;
-            DrawControlRow(rx, ry, colW, rows[i].tok, rows[i].name, rows[i].desc, rows[i].accent, rows[i].hot, rows[i].locked);
+            DrawControlRow(rx, ry, colW, rows[i].tok, rows[i].name, rows[i].desc, rows[i].accent, rows[i].hot, tab == 1, rows[i].locked);
         }
 
         // 念押し：光はオート発射＝撃つボタンが無いことを明示する。
@@ -411,14 +421,17 @@ public partial class HowToCanvas : Node2D
             HorizontalAlignment.Left, w);
     }
 
-    // locked（未取得の入手条件）が空でなければ薄く描く：バッジ・名前・説明のαを落とし、★の位置に条件を出す。
-    private void DrawControlRow(float x, float y, float w, string tok, string name, string desc, Color accent, bool hot, string locked = "")
+    // locked（未取得の入手条件）が空でなければ薄く描く：キー・名前・説明のαを落とし、★の位置に条件を出す。
+    //   pad＝コントローラー表（いまの表示が KB でも A／B／X／Y を丸ボタン、LB／RB／L3 をピルで描く）。
+    private void DrawControlRow(float x, float y, float w, string tok, string name, string desc, Color accent, bool hot, bool pad,
+        string locked = "")
     {
         float h = 52f;
         bool dim = locked.Length > 0;
         if (hot) UiKit.Box(this, new Rect2(x, y, w, h), new Color(accent, 0.10f), 10f, new Color(accent, 0.55f), 1.2f);
-        // キーバッジ（可変幅）
-        float badgeW = KeyBadge(new Vector2(x + 8, y + 6), tok, accent, dim ? 0.45f : 1f);
+        // キーキャップの並び（2026-09-27 に旧 KeyBadge＝文字の枠から UiKit.KeyCapRow へ。並記は 4px 間隔でキャップを並べ、
+        //   「長押し」「を離す」等の語は添え文字、マウスは絵）。高さ 24 を行の上寄せ（y+6）に置く＝名前の行と揃う。
+        float badgeW = UiKit.KeyCapRow(this, new Vector2(x + 8, y + 6), tok, 24f, dim ? 0.45f : 1f, pad, new Color(accent, 1f));
         float tx = x + 8 + badgeW + 14f;
         UiKit.Text(this, UiKit.ZenBold, new Vector2(tx, y + 6), name, UiKit.FontBody,
                    dim ? UiKit.Text4 : hot ? new Color(accent, 1f) : UiKit.White);
@@ -436,15 +449,6 @@ public partial class HowToCanvas : Node2D
         }
     }
 
-    // 可変幅キーバッジ（やや大きめ／HowTo 用。高さ22）。Hud.KeyBadge と同じ意匠。alpha は未取得行の薄表示用。
-    private float KeyBadge(Vector2 p, string token, Color accent, float alpha = 1f)
-    {
-        float w = UiKit.TextW(UiKit.Mono, token, UiKit.FontLabel) + 16, h = 28;
-        UiKit.Box(this, new Rect2(p.X, p.Y, w, h), new Color(0.10f, 0.09f, 0.16f, 0.95f * alpha), 6f, new Color(accent, 0.8f * alpha), 1.2f);
-        UiKit.Text(this, UiKit.Mono, new Vector2(p.X, p.Y + 6), token, UiKit.FontLabel, new Color(accent, alpha), HorizontalAlignment.Center, w);
-        return w;
-    }
-
     // ───────── ページ4：画面の見かた（凡例・各1行）─────────
     private void DrawPageHud(float x, float y, float w)
     {
@@ -458,7 +462,8 @@ public partial class HowToCanvas : Node2D
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
             // ★2026-09-17 経済改修：通貨は撃破時ではなく「散った欠片を拾ったとき」に入る。
             //   拾う動作が報酬だと一目で分かる説明にする（実装と表記の一致＝§3 わかりやすさ）。
-            (0, "浄化した心",  "通貨。浄化でこぼれた欠片を拾うと貯まる。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
+            // ショップはハブのスマホのアプリから開く（旧「ハブで X」の文字キーは廃止済み）。
+            (0, "浄化した心",  "通貨。浄化でこぼれた欠片を拾うと貯まる。ショップ（ハブのスマホ）でミナを強化できる", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
         };
@@ -534,7 +539,7 @@ public partial class HowToCanvas : Node2D
              "ピンチの保険。" + TokBomb + " で画面の弾を消し無敵に。残数は限られる。",
              UiKit.Mina),
             ("弾強化",
-             "ハブで " + TokBomb + " →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾） を解放・強化。",
+             "ハブのスマホ →ショップ。「浄化した心」で 連射 / 拡散 / ホーミング / 加速球（タメて撃つロケット弾） を解放・強化。",
              UiKit.Gold),
             // 後方弾カード：2026-09-15 後方弾の廃止（Player.cs 側で発射停止）に合わせて削除。
             ("浄化と汚染",

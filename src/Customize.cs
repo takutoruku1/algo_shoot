@@ -2,6 +2,10 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
+// Customize : カスタマイズアプリ（カーソル／コスチュームの購入・装備）。
+//   操作（2026-09-27 に統一）：↑↓ で段（カテゴリ → キャラ → ポーズ → アイテム → 購入／装備ボタン）を選び、
+//   ←→ でその段の中を選ぶ。Z でフォーカス中の物を押す（カテゴリ／キャラ／ポーズの段は Z でも次へ切り替わる、
+//   アイテムの段とボタンは購入／装備）。Esc／X でもどる（購入確認中はキャンセル）。キーの案内は右下のヒント帯だけ。
 public partial class Customize : Node2D
 {
     private static readonly Color Bg = new("161b20"), Raised = new("242c33"), Ink = new("edf3f5"), Muted = new("a8b5bc");
@@ -94,6 +98,12 @@ public partial class Customize : Node2D
             else Leave();
             return;
         }
+        // 右下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは廃止＝帯に統合。Hub と同じ作法）。
+        if (UiKit.HintItemClicked(UiKit.HintAnchor, HintItems(), "メニュー"))
+        {
+            GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
+            return;
+        }
         if (_pendingPurchase != null)
         {
             if (navEdge) _confirmYes = !_confirmYes;
@@ -128,8 +138,26 @@ public partial class Customize : Node2D
             }
             Audio.Instance?.PlayUiMove();
         }
-        if (acceptEdge && _focus >= 3) ActivateSelected();
+        if (acceptEdge)
+        {
+            // Z＝フォーカス中の物を押す。カテゴリ／キャラ／ポーズの段は「次へ切り替え」（→ と同じ）、
+            //   アイテムの段とボタンは購入／装備。文字キーを使わず、フォーカス＋Z だけで全部届く。
+            if (_focus == 0) { _tab = (_tab + 1) % 2; RefreshItems(); Audio.Instance?.PlayUiMove(); }
+            else if (_focus == 1) { _character = (_character + 1) % _characters.Length; RefreshItems(); Audio.Instance?.PlayUiMove(); }
+            else if (_focus == 2) { _pose = (_pose + 1) % 3; Audio.Instance?.PlayUiMove(); }
+            else ActivateSelected();
+        }
     }
+
+    // 右下のヒント帯。キーボード：↑↓ えらぶ／←→ きりかえ／Z けってい／Esc もどる／M メニュー。
+    //   購入確認中は ←→ えらぶ／Z けってい／Esc キャンセル。パッドは 十字／A／B／≡。
+    private (string token, string label)[] HintItems() =>
+        _leaving ? System.Array.Empty<(string, string)>()
+        : _pendingPurchase != null ? UiKit.PhoneHints("←→", "けってい", "キャンセル")
+        : UiKit.PhoneHints("↑↓", "けってい", "もどる", ("←→", "きりかえ"));
+
+    // ヒント帯の外接矩形（QA 用。出していなければ大きさ 0）。
+    public Rect2 HintBarRect => UiKit.HintBarBounds(UiKit.HintAnchor, HintItems());
 
     private void ActivateSelected()
     {
@@ -252,6 +280,7 @@ public partial class Customize : Node2D
             equipped || !affordable ? Muted : Bg, HorizontalAlignment.Center, ActionRect.Size.X);
         UiKit.Text(this, UiKit.Zen, new Vector2(48, 680), _tab == 1 ? "戦闘用コスチューム  /  能力補正なし" : "マウスカーソル", 12, Muted);
         if (_pendingPurchase != null) DrawConfirmation();
+        UiKit.HintBarPlate(this, UiKit.HintAnchor, HintItems(), "メニュー");
         UiKit.EndDesign(this);
     }
 

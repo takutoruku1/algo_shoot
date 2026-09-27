@@ -1,5 +1,8 @@
 using Godot;
 
+// Records : 記録アプリ（ステージごとの最速タイム・最高スコア）。
+//   操作（2026-09-27 に統一）：←→（↑↓ も同じ）でステージを選ぶ。Esc／X／パッド B でもどる。
+//   旧 T（もどる）の文字キーと、フッタの「ホームに戻る [X]」のキー表記は廃止。キーの案内は右下のヒント帯だけ。
 public partial class Records : Node2D
 {
     private GameManager _game = null!;
@@ -114,6 +117,14 @@ public partial class Records : Node2D
             return;
         }
 
+        // 右下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは廃止＝帯に統合。Hub と同じ作法）。
+        if (UiKit.HintItemClicked(UiKit.HintAnchor, HintItems(), "メニュー"))
+        {
+            GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
+            QueueRedraw();
+            return;
+        }
+
         UiKit.BeginHotspots(Pad.MousePos());
         for (int i = 0; i < Stages.Length; i++) UiKit.Hotspot(TabRect(i), i);
         UiKit.Hotspot(HomeRect, 4);
@@ -126,8 +137,9 @@ public partial class Records : Node2D
         if ((prev || next) && !_navHeld) SelectStage((_sel + (prev ? 3 : 1)) % Stages.Length);
         _navHeld = prev || next;
 
-        // もどる＝X／T／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
-        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.T) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
+        // もどる＝X／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        //   旧 T は 2026-09-27 に廃止（項目ごとの文字キーをやめ、もどるは Esc／X に一本化）。
+        bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld;
         _backHeld = back;
         if ((backEdge || click == 4 || Pad.MouseRightClick()) && _t > 0.2) GoHome();
@@ -148,8 +160,17 @@ public partial class Records : Node2D
         DrawBests();
         DrawTable();
         DrawFooter();
+        UiKit.HintBarPlate(this, UiKit.HintAnchor, HintItems(), "メニュー");
         UiKit.EndDesign(this);
     }
+
+    // 右下のヒント帯。キーボード：←→ えらぶ／Esc もどる／M メニュー。パッド：十字 えらぶ／B もどる／≡ メニュー。
+    //   この画面には「決定」が無い（選ぶだけで中身が切り替わる）ので けってい は出さない。
+    private (string token, string label)[] HintItems() =>
+        _autoplay || _leaving ? System.Array.Empty<(string, string)>() : UiKit.PhoneHints("←→", "", "もどる");
+
+    // ヒント帯の外接矩形（QA 用。出していなければ大きさ 0）。
+    public Rect2 HintBarRect => UiKit.HintBarBounds(UiKit.HintAnchor, HintItems());
 
     private void DrawHeader()
     {
@@ -269,8 +290,11 @@ public partial class Records : Node2D
 
     private void DrawFooter()
     {
+        // 「ホームに戻る」はクリックできるボタン（キーの表記は外した＝右下のヒント帯の もどる に一本化）。
         if (_hover == 4) UiKit.Box(this, HomeRect, new Color("2a3335"), 6);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(64, 670), "ホームに戻る", 16, Ink);
-        UiKit.Key(this, new Vector2(199, 670), Pad.CancelToken, Surface, Line, Muted);
+        Vector2 arrow = new(70, 682);
+        DrawLine(arrow + new Vector2(-8, 0), arrow + new Vector2(8, 0), Ink, 1.8f, true);
+        DrawPolyline(new[] { arrow + new Vector2(-2, -6), arrow + new Vector2(-8, 0), arrow + new Vector2(-2, 6) }, Ink, 1.8f, true);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(88, 670), "ホームに戻る", 16, Ink);
     }
 }
