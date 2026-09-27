@@ -134,9 +134,10 @@ public partial class HubJobQa : Node
                     $"{job.CharacterId} dedicated SNS icon is available before stage clears");
                 var box = ((float x, float y, float w, float h))Call(hub, "JobBox")!;
                 string stats = (string)typeof(Hub).GetMethod("JobStats", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
-                Check(stats == System.FormattableString.Invariant($"♥{job.MaxLifeDelta:+0;-0;+0}／移動×{job.MoveMul:0.##}／回避距離×{job.DodgeDistMul:0.##}")
-                    && UiKit.TextW(UiKit.Zen, stats, 14) <= box.w - 124f,
-                    $"{job.CharacterId} shows only the actual life, movement and dodge modifiers on one line");
+                // 2026-09-27: 段の1行は「撃ち方／火力」に変わり、♥・移動・回避は下の詳細パネルが持つ。
+                Check(stats == $"{Jobs.ModeName(job.Mode)}／火力 {Jobs.PowerLabel(job)}"
+                    && UiKit.TextW(UiKit.Zen, stats, 12) <= box.w - 124f,
+                    $"{job.CharacterId} shows its shot mode and firepower on the row in one line");
                 string handle = (string)typeof(Hub).GetMethod("AccountHandle", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { job })!;
                 string expectedHandle = job.Id == Job.Tank ? Handles.Mina : Array.Find(GameManager.Stages, s => s.Id == job.CharacterId)!.Handle;
                 Check(handle == expectedHandle && UiKit.TextW(UiKit.Mono, handle, 11) <= 96f,

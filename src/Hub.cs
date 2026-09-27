@@ -127,6 +127,8 @@ public partial class Hub : Node2D
     //   キーのカーソルが乗らなかった。→ 先頭のカードで ↑ でヘッダーへ上がり、Z でアカウント切り替え
     //   （フッタ「アカウント」と同じ OpenJob）、↓ で先頭のカードへ戻る。以前の「先頭で ↑＝最後のカードへ回る」はやめた。
     private bool _headFocus;
+    // キャラ切り替えボタン（左パネルの左下・スマホの左隣）のキー Tab／パッド Y の押しっぱなし（エッジ判定用）。
+    private bool _tabHeld;
     // 選択中の声のカードの下部ボタン（0＝ダイブ／1＝返信）。←→ で切り替え、Z で実行。
     //   返信が使えない（CanReplySel が偽）ときは返信を薄く描き、カーソルは乗せない。
     //   カードの選択が変わったら必ずダイブへ戻す（_cardBtnFor で検出）。
@@ -296,6 +298,7 @@ public partial class Hub : Node2D
     {
         _game = GetNodeOrNull<GameManager>("/root/Game")!;
         _zHeld = Pad.AdvanceHeld();
+        _tabHeld = SwitchKeyDown();
         _customizeIcon = GD.Load<Texture2D>("res://char/ui/cursor_refrain_v1.png");
         BuildNightBg();
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
@@ -853,7 +856,7 @@ public partial class Hub : Node2D
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _xHeld = true;
+            _navHeld = _zHeld = _xHeld = _tabHeld = true;
             QueueRedraw();
             return;
         }
@@ -865,6 +868,7 @@ public partial class Hub : Node2D
             QueueRedraw();
             return;
         }
+        if (ProcessSwitchButton()) { QueueRedraw(); return; }
         if (_mode == Mode.Dialogue) { ProcessDialogue(delta); QueueRedraw(); return; }
         if (_mode == Mode.Detail) { ProcessDetail(delta); QueueRedraw(); return; }
         if (_mode == Mode.Job) { ProcessJob(delta); QueueRedraw(); return; }
@@ -1888,8 +1892,11 @@ public partial class Hub : Node2D
     {
         _detailT += delta;
         var e = _entries[Mathf.Clamp(_sel, 0, _entries.Length - 1)];
-        // FINAL は潜り方を選ばせない（従来の FINAL の扱いを踏襲＝深さは選ばずそのまま内側へ）。
-        bool tiers = !e.IsFinal;
+        // 2026-09-27 作者指示「MINA に難易度選択できるように追加して」＝FINAL も本編3面と同じく段を選ぶ。
+        //   （それまでは FINAL だけ段を出さず、前回の難易度のまま内側へ入っていた。）
+        //   段を出さないのは「そもそも潜れない」ときだけ＝FINAL 初挑戦をミナで開いている場合。
+        //   そこでは深さを選ばせても意味が無く、代わりに理由とアカウント選択の導線を出す（下の NeedsFinalAccount）。
+        bool tiers = !NeedsFinalAccount;
 
         // マウス：潜り方の段と「とじる」を登録（DiffSelect / Shop と同じ作法）。
         //   ホバーで選択が移るのは解放済みの段だけ＝未解放（底まで）にはカーソルを乗せない。
@@ -2024,13 +2031,18 @@ public partial class Hub : Node2D
         UiKit.BeginDesign(this);
         DrawRect(new Rect2(0, 0, W, H), new Color(0.025f, 0.03f, 0.04f, _hasNightBg ? 0.48f : 1f));
         bool home = _mode == Mode.Home || _mode == Mode.HomeReveal || _mode == Mode.SnsOpening
-            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home && !_homeRevealPending);
+            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home && !_homeRevealPending)
+            || (_mode == Mode.Job && _jobReturnMode == Mode.Home);
+        // 写真アプリから開いたキャラ切り替え（と、その直後の同行キャラの一言）は写真の上に重ねる。
+        bool photos = _mode == Mode.Photos || (_mode == Mode.Job && _jobReturnMode == Mode.Photos)
+            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Photos);
         bool focusedOverlay = _mode == Mode.Dialogue || _mode == Mode.Detail || _mode == Mode.Job;
         DrawSidePanels(focusedOverlay ? 0.34f : 1f);
+        DrawSwitchButton();
         DrawRect(new Rect2(PhoneX - 1f, 0, PhoneW + 2f, H), new Color("353b43"));
         DrawRect(new Rect2(PhoneX, 0, PhoneW, H), PhoneBg);
         if (home) DrawHome();
-        else if (_mode == Mode.Photos) DrawPhotos();
+        else if (photos) DrawPhotos();
         else DrawTimeline(_mode == Mode.Cards || _dlgSeenKey == SnsIntroSeenKey ? 1f : 0.22f);
         if (_mode == Mode.HomeReveal) DrawHomeReveal();
         else if (_mode == Mode.SnsOpening) DrawSnsOpening();
@@ -2131,7 +2143,8 @@ public partial class Hub : Node2D
     private string SideStoryId()
     {
         bool home = _mode is Mode.Home or Mode.HomeReveal or Mode.SnsOpening or Mode.Photos
-            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home);
+            || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home)
+            || (_mode == Mode.Job && _jobReturnMode is Mode.Home or Mode.Photos);
         if (!home && IsVoice(_sel)) return _entries[_sel].Id;
         foreach (var entry in _entries)
             if (entry.Sort == Kind.Voice && entry.Unlocked && !IsClearedForDisplay(entry.Id)) return entry.Id;
@@ -2222,16 +2235,89 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.Zen, new Vector2(46, 128), "同行中", 13, new Color("bee8dc", alpha));
         UiKit.Text(this, _sideNameFont, new Vector2(42, 548), job.CharacterName, 46, new Color("fff7ea", alpha));
         UiKit.Text(this, _sideTitleFont, new Vector2(46, 614), AccountHandle(job), 24, new Color("bddde4", alpha));
+        // 仲間のアバター列は、左下のキャラ切り替えボタン（DrawSwitchButton）の右隣へ寄せる（2026-09-27）。
+        //   4人そろっても「仲間 4」までスマホ本体（PhoneX）の手前に収まるよう、半径 14・間隔 34 に詰めた。
+        var btn = SwitchButtonRect();
+        float rowY = btn.GetCenter().Y, ax = btn.End.X + CompanionRowGap + CompanionR;
         int count = 0;
         foreach (var companion in Jobs.All)
         {
             if (!_game.IsJobUnlocked(companion.Id)) continue;
-            UiKit.FaceAvatar(this, new Vector2(61 + count * 44, 680), 15, _playerFaces[companion.CharacterId],
+            UiKit.FaceAvatar(this, new Vector2(ax + count * CompanionStep, rowY), CompanionR, _playerFaces[companion.CharacterId],
                 JobColor(companion.Id), false, 0, alpha * (companion.Id == job.Id ? 1 : 0.55f), _t);
             count++;
         }
-        UiKit.Text(this, UiKit.Zen, new Vector2(44 + count * 44, 669), $"仲間 {count}", 13,
+        UiKit.Text(this, UiKit.Zen, new Vector2(CompanionLabelX(count), rowY - 11f), $"仲間 {count}", 13,
             new Color(UiKit.Text2, alpha));
+    }
+
+    // ───────── キャラ切り替えボタン（2026-09-27 作者指示「スマホの画面でキャラ切り替えボタンを画面の左下に」）─────────
+    //   置き場所は左パネルの左下＝スマホ本体の左隣（スマホの中のフッタではない）。押すと OpenJob（フッタ「アカウント」・
+    //   ヘッダーと同じアカウント切り替え）。キーは Tab／パッド Y、マウスはクリック。切り替え画面で押し直すと閉じる（トグル）。
+    //   効くのはホーム／SNS／投稿詳細／写真アプリ（と開いた切り替え画面）。会話中・アプリ起動の演出中は薄くして反応させない。
+    //   ボタンに Tab（パッドは Y の丸ボタン）のキャップを描いてあるので、ヒント帯には足さない。
+    //   Hub では Tab が会話ログを開かない（Backlog.TabOpensHere）。ログは L／パッド View で開く。
+    //   パッド Y は会話中だけ会話ボックスの AUTO（DialogToolbar）。会話中はこのボタンが効かないので取り合わない。
+    private const float SwitchBtnX = 36f, SwitchBtnY = 668f, SwitchBtnH = 34f;
+    private const float SwitchPadL = 10f, SwitchGap = 8f, SwitchPadR = 14f, SwitchCapH = 22f;
+    private const int SwitchLabelSize = 14;
+    private const string SwitchLabel = "キャラ切り替え";
+    private const float CompanionR = 14f, CompanionStep = 34f, CompanionRowGap = 14f;
+    // キャップの枠＝キーボードの Tab とパッドの Y の広いほう。表記が切り替わってもボタンの幅（と右のアバター列）は動かない。
+    private static float SwitchCapSlot => Mathf.Max(UiKit.KeyCapW("Tab", SwitchCapH, false), UiKit.KeyCapW("Y", SwitchCapH, true));
+    private static Rect2 SwitchButtonRect() => new(SwitchBtnX, SwitchBtnY,
+        SwitchPadL + SwitchCapSlot + SwitchGap + UiKit.TextW(UiKit.ZenBold, SwitchLabel, SwitchLabelSize) + SwitchPadR, SwitchBtnH);
+    // 「仲間 N」の左端（アバター count 人の右）。QA が右端の収まりを測るのにも使う。
+    private static float CompanionLabelX(int count) =>
+        SwitchButtonRect().End.X + CompanionRowGap + CompanionR + (count - 1) * CompanionStep + CompanionR + 8f;
+    private static bool SwitchKeyDown() => Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Y);
+    private bool SwitchAvailable => !_dived && !_autoplay
+        && _mode is Mode.Home or Mode.Cards or Mode.Detail or Mode.Photos or Mode.Job;
+    private bool SwitchHovered => Pad.UsingMouse && SwitchButtonRect().HasPoint(Pad.MousePos());
+
+    // Tab／Y／クリックで開く（切り替え画面の中なら閉じる）。処理したフレームは true＝各モードの入力へ流さない。
+    private bool ProcessSwitchButton()
+    {
+        bool key = SwitchKeyDown();
+        bool edge = key && !_tabHeld; _tabHeld = key;
+        bool click = Pad.MouseClick() && SwitchButtonRect().HasPoint(Pad.MousePos());
+        return (edge || click) && PressSwitchButton();
+    }
+
+    // ボタンを押したときの処理（キー・クリック共通。QA も直接呼ぶ）。効かない状態なら何もせず false。
+    private bool PressSwitchButton()
+    {
+        if (!SwitchAvailable || _t <= 0.3) return false;
+        if (_mode == Mode.Job)
+        {
+            if (_jobT <= 0.15) return false;   // 開いた直後の押し直しは拾わない（シートの展開と同じゲート）
+            Audio.Instance?.PlayUiCancel();
+            _mode = _jobReturnMode; _xHeld = true;
+            return true;
+        }
+        OpenJob();
+        return true;
+    }
+
+    private void DrawSwitchButton()
+    {
+        if (_autoplay) return;
+        var r = SwitchButtonRect();
+        bool on = SwitchAvailable, open = _mode == Mode.Job, hover = on && SwitchHovered;
+        float a = on ? 1f : 0.35f;
+        // 角丸の板。ホバーで明るく、切り替え画面を開いている間とホバー中は浄化色の枠（ヘッダー・フッタのカーソルと同じ色）。
+        Color bg = hover ? new Color(0.17f, 0.21f, 0.25f, 0.92f) : new Color(0.07f, 0.09f, 0.11f, 0.80f);
+        Color border = hover || open ? new Color(UiKit.Purify, 0.95f) : new Color(1, 1, 1, 0.16f);
+        UiKit.Box(this, r, new Color(bg, bg.A * a), 8f, new Color(border, border.A * a), hover || open ? 1.5f : 1f);
+        bool pad = Pad.UsingPad;
+        string token = pad ? "Y" : "Tab";
+        float slot = SwitchCapSlot, cw = UiKit.KeyCapW(token, SwitchCapH, pad);
+        var capPos = new Vector2(r.Position.X + SwitchPadL + (slot - cw) / 2f, r.Position.Y + (r.Size.Y - SwitchCapH) / 2f);
+        UiKit.KeyCap(this, capPos, token, SwitchCapH, pressed: on && _tabHeld, alpha: a, pad: pad);
+        var font = UiKit.ZenBold;
+        float ty = r.Position.Y + (r.Size.Y - font.GetHeight(SwitchLabelSize)) / 2f;
+        UiKit.Text(this, font, new Vector2(r.Position.X + SwitchPadL + slot + SwitchGap, ty), SwitchLabel, SwitchLabelSize,
+            new Color(hover || open ? UiKit.White : UiKit.Text2, a));
     }
 
     private void DrawSignalSidePanel(float alpha)
@@ -2870,11 +2956,12 @@ public partial class Hub : Node2D
     // ───────── 2-b: 投稿詳細（開いたカード）─────────
     // 本文／消された行の伏字／ミナの一言／難易度4段を1枚に置く。段を押した時点でそのままダイブする
     //   （2026-09-17 ユーザー指示で「潜る」ボタンと「潜り方」の見出しを廃止＝押す場所は段だけ）。
-    //   FINAL は段を出さず、従来の FINAL の見出し（穢れ色・「限界」）の扱いを踏襲する。
+    //   FINAL も段を出す（2026-09-27 作者指示）。出さないのは潜れないとき＝FINAL 初挑戦をミナで開いた場合だけ。
+    //   見出しの扱い（穢れ色・「限界」）は従来どおり。
     private void DrawDetail()
     {
         var e = _entries[Mathf.Clamp(_sel, 0, _entries.Length - 1)];
-        bool tiers = !e.IsFinal;
+        bool tiers = !NeedsFinalAccount;
         float a = Mathf.Clamp((float)_detailT / 0.18f, 0f, 1f);
         var (cx, cy, cw, ch) = DetailBox(tiers);
         Color acc = e.IsFinal ? UiKit.Kegare : AccountColor(e.Id);
@@ -2998,9 +3085,14 @@ public partial class Hub : Node2D
         _ => UiKit.Mina,
     };
 
+    // 段の高さと、選択中の段の性能を出す詳細パネルの高さ（2026-09-27）。
+    //   段は「誰か」だけを言う高さまで詰め（旧100→62）、浮いたぶんを詳細パネルへ回す＝
+    //   1行に数値を詰め込まず、選んだ1人ぶんだけを大きく読ませる（ショップの詳細欄と同じ作法）。
+    private const float JobRowH = 62f, JobPanelH = 246f, JobPanelGap = 10f;
+
     private (float cx, float cy, float cw, float ch) JobBox()
     {
-        float height = 142f + _jobChoices.Length * 100f;
+        float height = 68f + _jobChoices.Length * JobRowH + JobPanelGap + JobPanelH + 74f;
         return (PhoneX, H - 16f - height, PhoneW, height);
     }
 
@@ -3009,7 +3101,14 @@ public partial class Hub : Node2D
     private Rect2 JobHitRect(int i)
     {
         var (cx, cy, cw, _) = JobBox();
-        return new Rect2(cx + 24f, cy + 68f + i * 100f, cw - 48f, 100f);
+        return new Rect2(cx + 24f, cy + 68f + i * JobRowH, cw - 48f, JobRowH);
+    }
+
+    // 選択中の段の性能を出す詳細パネル（段の並びの直下）。
+    private Rect2 JobPanelRect()
+    {
+        var (cx, cy, cw, _) = JobBox();
+        return new Rect2(cx + 24f, cy + 68f + _jobChoices.Length * JobRowH + JobPanelGap, cw - 48f, JobPanelH);
     }
 
     private Rect2 JobCloseRect()
@@ -3070,7 +3169,8 @@ public partial class Hub : Node2D
         // 自分で開けた＝アカウント追加の誘導は役目を終える（フッタ／ヘッダ／詳細 どこから開いても降ろす）。
         _previewAccountNudge = false;
         if (_game != null) _game.AccountNudgePending = false;
-        _jobReturnMode = _mode == Mode.Detail ? Mode.Detail : Mode.Cards;
+        // 戻り先＝開いた画面。キャラ切り替えボタン（Tab／Y）はホームと写真アプリからも開くので、そこへ帰す。
+        _jobReturnMode = _mode is Mode.Detail or Mode.Home or Mode.Photos ? _mode : Mode.Cards;
         _mode = Mode.Job;
         _jobT = 0;
         // カーソルは今のジョブに置く＝「いま何を選んでいるか」が開いた瞬間に分かる（Detail の _tierSel と同じ）。
@@ -3178,13 +3278,148 @@ public partial class Hub : Node2D
             var r = JobHitRect(i);
             DrawJobRow(i, cur, r.Position.X, r.Position.Y, r.Size.X, r.Size.Y, a);
         }
+        DrawJobPanel(JobPanelRect(), _jobChoices[_jobSel], a);
         var job = _jobChoices[_jobSel];
-        string label = job.Id == cur ? (_jobReturnMode == Mode.Detail ? "投稿に戻る" : "タイムラインに戻る") : $"{job.CharacterName}に切り替え";
+        // 「戻る」の行き先は開いた画面（キャラ切り替えボタンならホーム／写真からも開く）。
+        string back = _jobReturnMode switch
+        {
+            Mode.Detail => "投稿に戻る", Mode.Home => "ホームに戻る", Mode.Photos => "写真に戻る", _ => "タイムラインに戻る",
+        };
+        string label = job.Id == cur ? back : $"{job.CharacterName}に切り替え";
         DrawPrimaryButton(JobConfirmRect(), label, JobConfirmId, JobColor(job.Id), a);
     }
 
-    private static string JobStats(JobTuning job) => System.FormattableString.Invariant(
-        $"♥{job.MaxLifeDelta:+0;-0;+0}／移動×{job.MoveMul:0.##}／回避距離×{job.DodgeDistMul:0.##}");
+    // 段に添える1行の要約（撃ち方＋火力）。細かい数値は下の詳細パネルが持つ＝ここは「どの撃ち方か」だけ。
+    private static string JobStats(JobTuning job)
+        => $"{Jobs.ModeName(job.Mode)}／火力 {Jobs.PowerLabel(job)}";
+
+    // 詳細パネルの「体の目安」＝4人で必ず差が出る4項目（2026-09-27 に移動・回避距離をキャラごとに振った）。
+    //   ★この4つは基準値と同じでも落とさない＝並べたときに序列（誰が速い／硬い）が読めることが目的。
+    //   返り値：(ラベル, 値, 良し悪し)。良し悪しは色分けだけに使う（+1=強み色／-1=弱み色／0=基準）。
+    private static (string label, string value, int sign)[] JobVitals(JobTuning j) => new[]
+    {
+        ("♥", System.FormattableString.Invariant($"{j.MaxLifeDelta:+0;-0;±0}"),
+            j.MaxLifeDelta > 0 ? 1 : j.MaxLifeDelta < 0 ? -1 : 0),
+        // 倍率は 0.00 固定で出す（×1 と ×0.96 が並ぶと桁が揃わず、序列が目で追えない）。
+        ("移動", System.FormattableString.Invariant($"×{j.MoveMul:0.00}"),
+            j.MoveMul > 1.001f ? 1 : j.MoveMul < 0.999f ? -1 : 0),
+        ("回避距離", System.FormattableString.Invariant($"×{j.DodgeDistMul:0.00}"),
+            j.DodgeDistMul > 1.001f ? 1 : j.DodgeDistMul < 0.999f ? -1 : 0),
+        // 回避の戻り＝再使用までの待ち。小さいほど速く回れるので、符号は倍率と逆向きに読む。
+        ("回避の戻り", System.FormattableString.Invariant($"×{j.DodgeCdMul:0.00}"),
+            j.DodgeCdMul < 0.999f ? 1 : j.DodgeCdMul > 1.001f ? -1 : 0),
+    };
+
+    // 詳細パネルに並べる「強み」。上の4項目（♥・移動・回避距離・回避の戻り）は必ず別枠で出すので、
+    //   ここは「その人しか持っていない性質」だけを拾う＝同じことを二度書かない。
+    //   ★文言はここで作るが、判定に使う数値は必ず JobTuning のフィールドを読む（生の係数を書かない）。
+    private static System.Collections.Generic.List<string> JobPros(JobTuning j)
+    {
+        var l = new System.Collections.Generic.List<string>();
+        if (j.HitInvulSec > 1.201f) l.Add(System.FormattableString.Invariant($"被弾後の無敵が長い {j.HitInvulSec:0.0}秒"));
+        if (j.NoHitKnockback) l.Add("被弾でのけぞらない");
+        if (j.CloseDodgeCdMul < 0.999f) l.Add(System.FormattableString.Invariant($"密着中は回避が軽い ×{j.CloseDodgeCdMul:0.##}"));
+        if (j.CritEnabled && j.CritMult > 1.26f)
+            l.Add(System.FormattableString.Invariant($"密着クリティカル ×{j.CritMult:0.##}（上限{j.CritCap}）"));
+        if (j.FarMult > 1.001f) l.Add(System.FormattableString.Invariant($"{Jobs.FarRange:0}px より遠い敵に ×{j.FarMult:0.##}"));
+        if (j.DrainPerLife > 0) l.Add($"{j.DrainPerLife}体 浄化するごとに♥+1");
+        if (j.BombOnBreak) l.Add("BREAK ごとにボム+1");
+        if (j.VeilFloorRadius > 0f)
+            l.Add(System.FormattableString.Invariant($"祈りの帳を常時 {j.VeilFloorRadius:0}px／{j.VeilFloorDuration:0.0}秒"));
+        return l;
+    }
+
+    // 同じく「弱み」。伏せると選んだあとで裏切られるので、下がっている性質は必ず出す。
+    private static System.Collections.Generic.List<string> JobCons(JobTuning j)
+    {
+        var l = new System.Collections.Generic.List<string>();
+        if (!j.CritEnabled) l.Add("密着クリティカルなし");
+        if (j.HitInvulSec < 1.199f) l.Add(System.FormattableString.Invariant($"被弾後の無敵が短い {j.HitInvulSec:0.0}秒"));
+        return l;
+    }
+
+    // 詳細パネル：撃ち方／火力／溜め打ち を上段に、体の目安（4項目）を中段に、強み・弱みを下段に。
+    //   文字の右端は必ず内側（pad を引いた幅）に収める＝UiKit.Multi の折り返し幅をそこに合わせる。
+    private void DrawJobPanel(Rect2 r, JobTuning jd, float alpha)
+    {
+        Color acc = JobColor(jd.Id);
+        UiKit.Box(this, r, new Color(acc, 0.07f * alpha), 8f, new Color(acc, 0.35f * alpha), 1f);
+        const float pad = 14f;
+        float x = r.Position.X + pad, y = r.Position.Y + 10f, innerW = r.Size.X - pad * 2f;
+
+        // 撃ち方＝この画面で一番大きな選択理由なので、名前をチップで出して右に一言を添える。
+        string mode = Jobs.ModeName(jd.Mode);
+        float chipW = UiKit.TextW(UiKit.ZenBold, mode, 15) + 20f;
+        UiKit.Box(this, new Rect2(x, y, chipW, 24f), new Color(acc, 0.26f * alpha), 6f);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y + 3f), mode, 15, new Color(UiKit.White, alpha),
+            HorizontalAlignment.Center, chipW);
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + chipW + 10f, y + 4f), Jobs.ModeNote(jd.Mode), 13,
+            new Color(UiKit.Text2, alpha));
+        y += 32f;
+
+        // 火力（PowerMul）と溜め打ち（ChargeDescription＋ChargePower/Ways）。ラベル幅をそろえて縦線を通す。
+        const float labelW = 52f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y), "火力", 13, new Color(UiKit.Text3, alpha));
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + labelW, y), Jobs.PowerLabel(jd), 14,
+            new Color(jd.PowerMul > 1.001f ? UiKit.Light : jd.PowerMul < 0.999f ? UiKit.Text3 : UiKit.White, alpha));
+        y += 22f;
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y), "溜め", 13, new Color(UiKit.Text3, alpha));
+        UiKit.Multi(this, UiKit.Zen, new Vector2(x + labelW, y), Jobs.ChargeLabel(jd), 13,
+            new Color(UiKit.Text2, alpha), innerW - labelW, 2);
+        y += 26f;
+        DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.08f * alpha));
+        y += 9f;
+
+        // 体の目安。4項目を等幅の列に並べる＝人を替えたときに同じ位置で数字だけが動く（序列が目で読める）。
+        var vitals = JobVitals(jd);
+        float colW = innerW / vitals.Length;
+        for (int i = 0; i < vitals.Length; i++)
+        {
+            var (label, value, sign) = vitals[i];
+            Color vc = sign > 0 ? UiKit.Ok : sign < 0 ? UiKit.Hp : UiKit.Text2;
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + i * colW, y), label, 11, new Color(UiKit.Text4, alpha),
+                HorizontalAlignment.Center, colW);
+            UiKit.Text(this, UiKit.ZenBold, new Vector2(x + i * colW, y + 14f), value, 15, new Color(vc, alpha),
+                HorizontalAlignment.Center, colW);
+        }
+        y += 38f;
+        // 回避距離だけ一言を添える（2026-09-27）。4人で 0.55〜1.50 と開きが大きく、
+        //   倍率だけでは「踏み込む足」なのか「その場でやり過ごす無敵」なのかが読めないため。
+        //   列の下に薄い線を引いて、その下に「回避距離：…」と左寄せで1行。数字の並びを乱さない。
+        DrawRect(new Rect2(x, y, innerW, 1f), new Color(1, 1, 1, 0.06f * alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 6f), "回避距離", 11, new Color(UiKit.Text4, alpha));
+        UiKit.Text(this, UiKit.Zen, new Vector2(x + 52f, y + 5f), Jobs.DodgeDistNote(jd), 12,
+            new Color(UiKit.Text2, alpha));
+        y += 26f;
+
+        // 強み・弱み。ここは「その人しか持っていない性質」だけ＝空なら上の4項目を見ろ、と言う
+        //   （♥-1 を抱えた あかりに「弱み 特になし」と書くと、すぐ上の赤い -1 と矛盾する）。
+        //   行数は最大4／2（パネル高 JobPanelH で足りる範囲）。溢れたら後ろを切る＝はみ出さない。
+        y = DrawJobTraits(x, y, innerW, "強み", JobPros(jd), UiKit.Ok, alpha, 4, "上の数値のとおり");
+        DrawJobTraits(x, y + 2f, innerW, "弱み", JobCons(jd), UiKit.Hp, alpha, 2, "上の数値のとおり");
+    }
+
+    // 「強み」「弱み」の1ブロック。見出しの色で強弱を分け、各行は中黒つきの1行に収める。
+    private float DrawJobTraits(float x, float y, float innerW, string head, System.Collections.Generic.List<string> items,
+        Color headColor, float alpha, int maxLines, string empty)
+    {
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x, y), head, 12, new Color(headColor, alpha));
+        const float headW = 36f;
+        if (items.Count == 0)
+        {
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + headW, y), empty, 12, new Color(UiKit.Text4, alpha));
+            return y + 18f;
+        }
+        int n = Mathf.Min(items.Count, maxLines);
+        for (int i = 0; i < n; i++)
+        {
+            string s = "・" + items[i];
+            // 行がパネル内に収まらない長さになったら、ここで丸める（右端をはみ出させない）。
+            while (s.Length > 4 && UiKit.TextW(UiKit.Zen, s, 12) > innerW - headW) s = s[..^2] + "…";
+            UiKit.Text(this, UiKit.Zen, new Vector2(x + headW, y + i * 17f), s, 12, new Color(UiKit.Text2, alpha));
+        }
+        return y + n * 17f + 2f;
+    }
 
     private void DrawJobRow(int i, Job cur, float x, float y, float w, float h, float alpha)
     {
@@ -3193,10 +3428,12 @@ public partial class Hub : Node2D
         Color acc = JobColor(jd.Id);
         if (sel) DrawRect(new Rect2(x, y, w, h), new Color(acc, 0.07f * alpha));
         DrawRect(new Rect2(x, y + h - 1f, w, 1f), new Color(1, 1, 1, 0.07f * alpha));
-        UiKit.FaceAvatar(this, new Vector2(x + 32f, y + 34f), 24f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
-        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 76f, y + 9f), jd.CharacterName, 18, new Color(UiKit.White, alpha));
+        UiKit.FaceAvatar(this, new Vector2(x + 32f, y + 30f), 21f, _playerFaces[jd.CharacterId], acc, false, 0f, alpha, _t);
+        UiKit.Text(this, UiKit.ZenBold, new Vector2(x + 76f, y + 8f), jd.CharacterName, 18, new Color(UiKit.White, alpha));
         UiKit.Text(this, UiKit.Mono, new Vector2(x + 76f, y + 34f), AccountHandle(jd), 12, new Color(UiKit.Text3, alpha));
-        UiKit.Text(this, UiKit.Zen, new Vector2(x + 76f, y + 65f), JobStats(jd), 14, new Color(UiKit.Text2, alpha));
+        // 段は「誰か」＋撃ち方/火力の一言だけ。右寄せでチェック印（now）の手前に収める＝行の高さを増やさない。
+        UiKit.Text(this, UiKit.Zen, new Vector2(x, y + 36f), JobStats(jd), 12,
+            new Color(sel ? UiKit.Text2 : UiKit.Text4, alpha), HorizontalAlignment.Right, w - 34f);
         if (now)
         {
             Vector2 p = new(x + w - 20f, y + 21f);

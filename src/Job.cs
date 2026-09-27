@@ -95,7 +95,7 @@ public static class Jobs
             HitInvulSec = 1.8f,        // 1.2→1.8。連鎖被弾を潰す
             NoHitKnockback = true,     // 踏みとどまり＝手触りの本体
             MoveMul = 0.88f,
-            DodgeDistMul = 0.9f,
+            DodgeDistMul = 0.8f,       // 2026-09-27 0.9→0.8。ほぼその場＝避けずに耐えるのが本分
         },
 
         // ── 灯し手（近接・加速球）＝無防備窓の瞬間火力 ──
@@ -107,6 +107,8 @@ public static class Jobs
             ChargeDescription = "高威力の加速弾",
             ChargePower = 18, ChargeSpeed = 960f, ChargeRadius = 12f, ChargePierce = 1,
             MaxLifeDelta = -1,
+            MoveMul = 1.12f,           // 2026-09-27 機動の序列を作る：4人で一番速い＝踏み込んで殴る型の足
+            DodgeDistMul = 1.5f,       // 同上（1.2→1.5）。4人中最長＝一息で踏み込み、一息で離脱する近接の足
             CritMult = 2.0f,           // 他ジョブ ×1.25 に対し ×2.0
             CritCap = 8,               // 本体1ヒット上限(8)と同値＝クリの伸びしろを潰さない
             CloseDodgeCdMul = 0.75f,   // 48px以内に居る間だけ回避CDが縮む
@@ -126,6 +128,8 @@ public static class Jobs
             // ×0.8 なら 0.85×0.8=0.68＝実効で最遅を保ちつつ、強化が伸びた終盤でも
             // 語り手(0.50×1.0、遠隔で×1.3)・結び手(1.0)との序列が入れ替わらない。
             PowerMul = 0.8f,
+            MoveMul = 0.96f,           // 2026-09-27 機動の序列：あかり(1.12)とレイ(0.92)の間＝平均。速さでは選ばせない
+            DodgeDistMul = 1.1f,       // 同上（1.0→1.1）。標準よりわずかに伸びる＝避けも回復も人並みにできる
             DrainPerLife = 24,         // 浄化ドレイン。満タン時はカウンタを進めない（GameManager 側で担保）
             BombOnBreak = true,
             VeilFloorRadius = 14f,     // veil 未購入でも「小さく」常時（Lv1=20px より小さい＝購入の意味を残す）
@@ -141,6 +145,11 @@ public static class Jobs
             ChargeDescription = "5方向の拡散弾",
             ChargeWays = 5, ChargeSpreadDegrees = 64f,
             ChargePower = 3, ChargeSpeed = 540f, ChargeRadius = 6f, ChargePierce = 1,
+            MaxLifeDelta = +1,         // 2026-09-27 「近づかれたら終わり」を少しだけ許す＝耐久の序列でミナの次に置く
+            MoveMul = 0.92f,           // 同上。足を止めて撃つ砲台＝ミナ(0.88)より速いが こはる(0.96) より遅い
+            // 同上（0.8→0.55）。4人中最短＝ほとんど動かない。無敵（DodgeIFrame 0.45秒は4人共通）だけ
+            //   もらって足は止めたまま撃つ＝「逃げるな、離れて撃て」を距離で言う。
+            DodgeDistMul = 0.55f,
             CritEnabled = false,       // 密着クリ無効（近接の鏡像）
             FarMult = 1.3f,
             DodgeCdMul = 1.15f,
@@ -149,6 +158,52 @@ public static class Jobs
 
     // 全ジョブ（ハブの選択画面・デバッグ表示が並べる順。Tank が先頭＝初期選択）。
     public static JobTuning[] All => Table;
+
+    // ───────── 画面表示用のヘルパ（2026-09-27 作者指示「アカウント切り替えに火力の記載を追加」）─────────
+    //   数値は上の Table が正典。ここは「そこに入っている値を日本語にするだけ」＝Hub 側に生の係数を書かない。
+    //   基準値（PowerMul=1.0 等）と同じ項目を落とすかどうかは呼び出し側が決める＝差のある項目だけ並べられる。
+
+    // 撃ち方（ShotMode）の呼び名。GameManager.ShotModeName と同じ役割だが、行に並べる短さを優先する
+    //   （「ホーミング」「加速球」→「追尾」「加速」。アイコン＋短い語でそろえるため）。
+    public static string ModeName(GameManager.ShotMode m) => m switch
+    {
+        GameManager.ShotMode.Spread => "拡散",
+        GameManager.ShotMode.Homing => "追尾",
+        GameManager.ShotMode.Accel => "加速",
+        _ => "連射",
+    };
+
+    // 撃ち方の一言。何が得意な撃ち方なのかだけを言う（倍率は別項目が持つ）。
+    public static string ModeNote(GameManager.ShotMode m) => m switch
+    {
+        GameManager.ShotMode.Spread => "扇状に広く。面の制圧",
+        GameManager.ShotMode.Homing => "勝手に追う。狙いが楽",
+        GameManager.ShotMode.Accel => "伸びるほど速い。一点突破",
+        _ => "素直な直射。手数で押す",
+    };
+
+    // 火力（PowerMul）の一言。1.0＝基準なので「標準」と出す（空欄にすると読み手が不安になる）。
+    public static string PowerLabel(JobTuning j) =>
+        j.PowerMul > 1.001f ? System.FormattableString.Invariant($"高い ×{j.PowerMul:0.##}")
+        : j.PowerMul < 0.999f ? System.FormattableString.Invariant($"低い ×{j.PowerMul:0.##}")
+        : "標準";
+
+    // 溜め打ちの一言。ChargeDescription（「直線を貫く高速弾」等）に威力と発数を添える。
+    public static string ChargeLabel(JobTuning j)
+    {
+        string s = j.ChargeDescription.Length > 0 ? j.ChargeDescription : "溜め打ち";
+        string ways = j.ChargeWays > 1 ? System.FormattableString.Invariant($"×{j.ChargeWays}発") : "";
+        return System.FormattableString.Invariant($"{s}（威力{j.ChargePower}{ways}）");
+    }
+
+    // 回避距離の一言（2026-09-27 作者指示「回避距離をキャラクター毎にすこし極端に」）。
+    //   4人で 0.55〜1.50 と約2.7倍の開きがあるので、倍率だけでなく「どう動くのか」を言葉でも添える。
+    //   無敵時間（DodgeIFrame）は4人共通なので、短い側でも「その場ですり抜ける」ことは言い落とさない。
+    public static string DodgeDistNote(JobTuning j) =>
+        j.DodgeDistMul >= 1.35f ? "踏み込みも離脱も速い"
+        : j.DodgeDistMul >= 1.05f ? "標準よりわずかに伸びる"
+        : j.DodgeDistMul >= 0.75f ? "ほぼその場。耐えて捌く"
+        : "ほとんど動かない。無敵だけもらう";
 
     public static JobTuning Get(Job j)
     {

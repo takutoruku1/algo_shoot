@@ -15,13 +15,23 @@ using System.Threading.Tasks;
 //   (g) 先頭のカードで ↑ → ヘッダー（使用中のアカウント）にフォーカス → Z でアカウント切り替え（フッタ経由と同じ状態）。
 //       ↓ で先頭のカードへ戻る。ヘッダーにいる間はヒント帯の先頭が [↓] もどる に変わり、カードのボタンは消える
 //   (h) 全クリア後の FINAL カード（ミナ自身の投稿）は [ダイブ] だけ（返信なし）。Z → 詳細 → Z で FINAL へ潜る
+//   (i)〜(iv) 左下のキャラ切り替えボタン（スマホの左隣・2026-09-27）
+//   (i)  ホームで Tab → アカウント切り替え、もう一度 Tab で閉じる（写真アプリでも同じ）。Tab で会話ログは開かない（L は開く）
+//   (ii) SNS のカード上・投稿詳細でも Tab で開き、Tab で元の画面へ戻る
+//   (iii) 会話中は Tab でもボタンでも開かない（ボタンは薄い）
+//   (iv) ボタンの矩形は左下（x<400・y>600）、仲間のアバター列も x<400 に収まる。クリック（PressSwitchButton）で開閉
 //   窓ありで `-- --hk-shot` を付けると build/shots_hub_keys/ に sns_card_buttons／footer_focus／home／
-//   header_focus／final_card_focus とヒント帯の3倍切り抜き hint_zoom（パッド表記は hint_zoom_pad）を保存する。
+//   header_focus／final_card_focus とヒント帯の3倍切り抜き hint_zoom（パッド表記は hint_zoom_pad）、
+//   キャラ切り替えボタンの switch_button／switch_button_hover／switch_button_dialogue／switch_open_home／
+//   switch_open_photos と3倍切り抜き switch_button_zoom／switch_button_hover_zoom／switch_button_zoom_pad を保存する。
 public partial class HubKeysQa : Node
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private static T Read<T>(object obj, string name) => (T)obj.GetType().GetField(name, Private)!.GetValue(obj)!;
     private static object? Call(object obj, string name, params object[] args) => obj.GetType().GetMethod(name, Private)!.Invoke(obj, args);
+    private static T Prop<T>(object obj, string name) => (T)obj.GetType().GetProperty(name, Private)!.GetValue(obj)!;
+    private static object? CallStatic(string name, params object[] args) =>
+        typeof(Hub).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, args);
     private static string Mode(Hub hub) => Read<object>(hub, "_mode").ToString()!;
     private static void Check(bool ok, string message)
     {
@@ -130,6 +140,16 @@ public partial class HubKeysQa : Node
             await Keypress(Key.Z);
             Check(Mode(hub) == "Dialogue" && Read<string?>(hub, "_dlgReplyId") == GameManager.FirstStageId,
                 "(a) Z on [reply] opens the reply conversation");
+            // (iii) 会話中は Tab でキャラ切り替えを開かない。ハブでは Tab で会話ログも開かない（ログは L）。
+            //   ボタンは薄く（SwitchAvailable が偽）、押しても何も起きない。
+            var backlog = GetNode<Backlog>("/root/Backlog");
+            Check(!Prop<bool>(hub, "SwitchAvailable"), "(iii) the switch button is disabled during the conversation");
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Dialogue" && !backlog.IsOpen && !GetTree().Paused,
+                "(iii) Tab during the conversation opens neither account switching nor the log");
+            Check(!(bool)Call(hub, "PressSwitchButton")! && Mode(hub) == "Dialogue",
+                "(iii) pressing the switch button during the conversation does nothing");
+            await Shot("switch_button_dialogue");
             await Frames(3);
             Check(!hub.HintBarRect.HasArea(), "(e) no hint bar while the reply conversation is open");
             if (_shots || DisplayServer.GetName() != "headless")
@@ -217,6 +237,101 @@ public partial class HubKeysQa : Node
             // X／Esc でホームへ。
             await Keypress(Key.Escape);
             Check(Mode(hub) == "Home", "Esc on the timeline returns home");
+
+            // ── (i)〜(iv) 左下のキャラ切り替えボタン（Tab／パッド Y／クリック）──
+            // (iv) ボタンは左パネルの左下（スマホ本体 x=400 の左隣）。右隣の仲間のアバター列も「仲間 4」まで x<400 に収まる。
+            var sw = (Rect2)CallStatic("SwitchButtonRect")!;
+            Check(sw.HasArea() && sw.Position.X >= 0f && sw.End.X < 400f && sw.Position.Y > 600f && sw.End.Y <= UiKit.DesignH,
+                $"(iv) the switch button sits at the bottom-left, left of the phone ({sw})");
+            int allJobs = Jobs.All.Length;
+            float labelEnd = (float)CallStatic("CompanionLabelX", allJobs)! + UiKit.TextW(UiKit.Zen, $"仲間 {allJobs}", 13);
+            Check(labelEnd < 400f, $"(iv) the companion row (all {allJobs}) and its label end left of the phone (x {labelEnd:0.0})");
+            Check(Prop<bool>(hub, "SwitchAvailable"), "(iv) the switch button is live on home");
+            await Frames(3);
+            await Shot("switch_button");
+            var swArea = new Rect2(sw.Position, new Vector2(399f - sw.Position.X, sw.Size.Y));
+            await ShotZoom("switch_button_zoom", swArea);
+            if (_shots)
+            {
+                // ホバー：マウスをボタンの中央へ置く（窓ありのときだけ。ヘッドレスではカーソルが動かない）。
+                //   マウス座標の取り込み（Pad.PollMouse）は PauseMenu が毎フレーム回すが、この QA は PauseMenu を止めているので自前で回す。
+                GetViewport().WarpMouse(sw.GetCenter() * UiKit.Scale);
+                await PollMouseFrames(4);
+                typeof(Pad).GetField("_usingMouse", BindingFlags.Static | BindingFlags.NonPublic)!.SetValue(null, true);
+                await PollMouseFrames(4);
+                Check(Prop<bool>(hub, "SwitchHovered"), "(iv) the mouse over the button hovers it");
+                await Shot("switch_button_hover");
+                await ShotZoom("switch_button_hover_zoom", swArea);
+                GetViewport().WarpMouse(new Vector2(640f, 90f) * UiKit.Scale);
+                await PollMouseFrames(4);
+                SetPad(true);
+                await Frames(3);
+                await ShotZoom("switch_button_zoom_pad", swArea);
+                SetPad(false);
+                await Frames(3);
+            }
+            // (iv) クリック＝判定関数を直接呼ぶ（ヘッドレスではマウスの位置が取れない）。もう一度で閉じる。
+            Check((bool)Call(hub, "PressSwitchButton")! && Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == "Home",
+                "(iv) clicking the switch button opens account switching over home");
+            await Seconds(0.3);
+            Check((bool)Call(hub, "PressSwitchButton")! && Mode(hub) == "Home", "(iv) clicking it again closes back to home");
+
+            // (i) ホームで Tab → 切り替え画面（ログは開かない）。もう一度 Tab で閉じる。
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == "Home" && !backlog.IsOpen,
+                "(i) Tab on home opens account switching (not the log)");
+            await Seconds(0.3);
+            await Shot("switch_open_home");
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Home" && !backlog.IsOpen, "(i) Tab again closes account switching back to home");
+
+            // 写真アプリでも Tab で開いて閉じる（戻り先は写真アプリ）。
+            for (int guard = 0; guard < 6 && Read<int>(hub, "_homeSel") != 3; guard++) await Keypress(Key.Right);
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "Photos", "the photos app opens from home");
+            await Seconds(0.3);
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == "Photos", "Tab in the photos app opens account switching");
+            await Seconds(0.3);
+            await Shot("switch_open_photos");
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Photos", "Tab again returns to the photos app");
+            await Keypress(Key.Escape);
+            Check(Mode(hub) == "Home", "Esc leaves the photos app");
+            for (int guard = 0; guard < 6 && Read<int>(hub, "_homeSel") != 0; guard++) await Keypress(Key.Left);
+
+            // (ii) SNS のカード上でも Tab で開く（戻り先はタイムライン・カードの選択はそのまま）。投稿詳細からも開く。
+            await Keypress(Key.Z);
+            for (int i = 0; i < 600 && Mode(hub) == "SnsOpening"; i++) await Frames(1);
+            await Seconds(0.4);
+            Check(Mode(hub) == "Cards", "(ii) SNS timeline is open again");
+            for (int guard = 0; guard < 40 && Read<int>(hub, "_sel") != akari; guard++)
+                await Keypress(Read<int>(hub, "_sel") < akari ? Key.Down : Key.Up);
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == "Cards" && !backlog.IsOpen,
+                "(ii) Tab on a timeline card opens account switching");
+            await Seconds(0.3);
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Cards" && Read<int>(hub, "_sel") == akari, "(ii) Tab again returns to the same card");
+            await Keypress(Key.Z);
+            Check(Mode(hub) == "Detail", "(ii) Z on [dive] opens the difficulty sheet");
+            await Seconds(0.3);
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Job" && Read<object>(hub, "_jobReturnMode").ToString() == "Detail", "(ii) Tab on the difficulty sheet opens account switching");
+            await Seconds(0.3);
+            await Keypress(Key.Tab);
+            Check(Mode(hub) == "Detail", "(ii) Tab again returns to the difficulty sheet");
+            await Keypress(Key.Escape);
+            await Keypress(Key.Escape);
+            Check(Mode(hub) == "Home", "back to home");
+            // L は従来どおりハブでも会話ログを開く（Tab だけがボタンに回った）。
+            await Keypress(Key.L);
+            await Frames(3);
+            Check(backlog.IsOpen, "L still opens the conversation log on the hub");
+            await Keypress(Key.L);
+            for (int i = 0; i < 20 && GetTree().Paused; i++) await Frames(1);
+            Check(!backlog.IsOpen && !GetTree().Paused, "L closes the log again");
+            await Frames(3);
 
             // ── (h) 全クリア後の FINAL カード ──
             //   本編3面をクリア済みにして Hub を開き直す（カードの並びは _Ready で組まれる）。
@@ -311,6 +426,11 @@ public partial class HubKeysQa : Node
         await Frames(4);
         Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
         await Frames(3);
+    }
+
+    private async Task PollMouseFrames(int count)
+    {
+        for (int i = 0; i < count; i++) { Pad.PollMouse(GetViewport()); await Frames(1); }
     }
 
     private async Task Seconds(double s) => await ToSignal(GetTree().CreateTimer(s), SceneTreeTimer.SignalName.Timeout);

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 //   遡って読み返せる ADV/ノベルゲームのバックログ相当。履歴の蓄積は Hud 側（static Hud.Backlog）。
 //
 //   開き方：プレイ中は専用キー/ボタン（L / Tab / パッド Back(View)）で直接、またはポーズメニューから。
+//           Tab はトレーニングとハブでは開かない（TabOpensHere。それぞれ Tab に別の役がある）。
 //           HowToPlay と同じくツリーをポーズして最前面で描くオーバーレイ（シーン遷移しない）。
 //   ★2026-09-26 ユーザー指示「オープニングから全シーンでログを開けるように」：
 //     開ける画面を Prologue / Final / Epilogue（＋その中のフィルム）へ広げた。これらは Hud を使わない
@@ -59,9 +60,16 @@ public partial class Backlog : CanvasLayer
         return !(path.Contains("TitleMenu") || path.Contains("Settings"));
     }
 
-    // Tab で開ける画面か。トレーニングだけ除外＝あちらは Tab がスキルパネルの開閉（TrainingRoot._Process）
-    //   なので、同じ押下でログまで開くと二重処理になる（L／パッド Back は変わらず使える）。
-    private bool TabOpensHere() => !(GetTree().CurrentScene?.SceneFilePath ?? "").Contains("Training");
+    // Tab で開ける画面か。トレーニングとハブを除外＝どちらも Tab が自分の操作に割り当ててあり、同じ押下で
+    //   ログまで開くと二重処理になる（L／パッド Back は変わらず使える）。
+    //   ・トレーニング … スキルパネルの開閉（TrainingRoot._Process）
+    //   ・ハブ（スマホの画面） … 左下のキャラ切り替えボタン（Hub.ProcessSwitchButton。2026-09-27）。ハブの会話中も
+    //     Tab ではログを開かない（ボタンは会話中は効かない＝Tab は何も起こさない）。
+    private bool TabOpensHere()
+    {
+        string path = GetTree().CurrentScene?.SceneFilePath ?? "";
+        return !(path.Contains("Training") || path.EndsWith("/Hub.tscn"));
+    }
 
     public void Open(System.Action? onClose = null)
     {
