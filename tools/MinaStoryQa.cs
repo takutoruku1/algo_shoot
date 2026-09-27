@@ -67,8 +67,10 @@ public partial class MinaStoryQa : Node
             var echoPaths = new System.Collections.Generic.HashSet<string>();
             foreach (var node in world.GetChildren())
                 if (node is MidEnemy echo) { echoes.Add(echo); echoPaths.Add(echo.GetNode<Sprite2D>("Body").Texture.ResourcePath); }
-            Check(echoes.Count == 3 && echoPaths.Count == 3 && !Read<Spawner>(stage, "_echoSpawner").Active,
-                "all three Mina enemies spawn once before the boss");
+            // 道中の頭は必ず残響3種が一体ずつ出る（Spawner の introducing）。2026-09-27 に道中が三波 66 体へ
+            //   伸びたので、3体出た時点ではスポナーはまだ走っている（＝Active のまま）。
+            Check(echoes.Count == 3 && echoPaths.Count == 3 && Read<Spawner>(stage, "_echoSpawner").Active,
+                "the route opens with all three Mina echoes, one each");
             foreach (var spec in EnemyTable.CharactersFor(StageTheme.Mina))
                 Check(echoPaths.Contains(spec.PreTexPath), "Mina echo uses the correct stage illustration");
             Check(!game.StageCleared && world.GetNodeOrNull<BossMina>("BossMina") == null,
@@ -79,9 +81,9 @@ public partial class MinaStoryQa : Node
             await Frames(5);
             Check(!game.StageCleared && Read<int>(stage, "_step") == 2, "one echo cannot complete the final stage");
             foreach (var echo in echoes) if (IsInstanceValid(echo)) echo.Purify();
-            await WaitUntil(() => Read<int>(stage, "_step") == 3, 120);
+            await SkipEchoWaves(game, stage);
             await Frames(3);
-            Check(!game.StageCleared && game.PurifiedCount == 3 && game.StageTarget == 4,
+            Check(!game.StageCleared && game.PurifiedCount == game.StageTarget - 1,
                 "only the boss remains in final-stage progress");
             foreach (var node in world.GetChildren())
                 Check(node is not MidEnemy && node is not Ripple, "echoes and purification waves do not leak into the boss fight");
@@ -240,6 +242,24 @@ public partial class MinaStoryQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    // FINAL の道中（step 2）は 2026-09-27 に残響の三波（計 EchoWaves ぶん）へ伸びた。この QA が見たいのは
+    //   立ち絵・ボス・回想なので、道中は浄化数を直に積んで波のゲートだけ通す（実際に倒すと1分かかる）。
+    //   目標(StageTarget)は跨がない＝StageCleared を立てずにボス出現まで送る（進行の意味を変えない）。
+    private async Task SkipEchoWaves(GameManager game, Node stage)
+    {
+        var purified = typeof(GameManager).GetProperty("PurifiedCount")!;
+        for (int i = 0; i < 900 && Read<int>(stage, "_step") == 2; i++)
+        {
+            // 最後の波は「予定数が湧き切ってから」ボスへ渡すので、湧きの予定数も出た数まで詰める
+            //   （この走行は自機を止めているので敵が死なず、同時上限で湧きが頭打ちになって永久に届かない）。
+            if (Read<Spawner?>(stage, "_echoSpawner") is { } wave && IsInstanceValid(wave))
+                wave.SpawnLimit = Math.Max(1, wave.SpawnedCount);
+            purified.SetValue(game, Math.Min(game.PurifiedCount + 1, game.StageTarget - 1));
+            await Frames(1);
+        }
+        Check(Read<int>(stage, "_step") == 3, "the echo waves hand over to the boss");
     }
 
     private async Task Frames(int count)

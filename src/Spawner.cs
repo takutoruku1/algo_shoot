@@ -22,6 +22,11 @@ public partial class Spawner : Node
     //   ゲートを持たず嵐が終わるまで湧き続けるので、湧き間隔の詰まったルナティックでは嵐の途中で目標に達して
     //   自動停止し、以降の嵐〜道中C が敵ゼロの空白になる（QA 実測 17.6 秒）。既定 false＝従来難易度は従来どおり。
     public bool IgnoreStageCleared;
+    // この波は CharactersFor(Theme) の種だけを湧かせる（FINAL 専用・2026-09-27）。
+    //   EnemyTable.For に Mina の行は無いので、FINAL で普通に回すと 4 割の枠と引用リプ／バズ壁が
+    //   Default の絵（アンチくん／うつむきさん）で出てしまう＝ミナの内側に他の面の敵が混ざる。
+    //   true なら残響3種だけを順に繰り返す（作者指示「敵は残響のまま・新しい敵種は作らない」）。
+    public bool CharactersOnly;
 
     private const float SpawnX = Field.Right + 14f;   // 盤面の右外
     private const float RampDur = 28f;    // この秒数で最大密度に（道中を“密度の変化”で見せる：60→28で立ち上がりを早く）
@@ -129,7 +134,7 @@ public partial class Spawner : Node
             // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
             // 盤面のやや左に陣取って“読める形”で圧をかける＝左端の安置化を構造的に崩す。
             // 自機は着座Xより左へ回り込めるので、撃ち返して倒せる（2026-09-08 の FlankCampXK 変更）。
-            if (!introducing && ramp >= FlankRampGate && _rng.Randf() < FlankRate)
+            if (!introducing && !CharactersOnly && ramp >= FlankRampGate && _rng.Randf() < FlankRate)
             {
                 me.Configure(EnemyTable.Flanker(Theme));
                 bool top = _rng.Randf() < 0.5f;
@@ -140,7 +145,7 @@ public partial class Spawner : Node
                     new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
             }
             // 盾もち「バズ壁」：波B/C（StartIntensity>=0.3）のみ。右から出て場の中ほどに陣取る壁。
-            else if (!introducing && StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
+            else if (!introducing && !CharactersOnly && StartIntensity >= BuzzWallMinIntensity && _rng.Randf() < BuzzWallRate)
             {
                 me.Configure(EnemyTable.BuzzWall(Theme));
                 pos = new Vector2(SpawnX, y);
@@ -156,7 +161,7 @@ public partial class Spawner : Node
             else
             {
                 var (shooter, drift) = EnemyTable.For(Theme);
-                bool character = introducing || (characters.Count > 0 && _rng.Randf() < 0.6f);
+                bool character = introducing || (characters.Count > 0 && (CharactersOnly || _rng.Randf() < 0.6f));
                 me.Configure(character ? characters[_characterIndex++ % characters.Count] : drifter ? drift : shooter);
                 // 出現エッジを散らす（難易度別。PickEdge / 各 Spawn*Edge を参照）。
                 Vector2 camp;

@@ -94,7 +94,21 @@ public partial class FinalCompanionQa : Node
         Write(player, "_invincibleTimer", 999f);
         await WaitUntil(() => Read<Spawner?>(stage, "_echoSpawner") is { SpawnedCount: 3 }, 800);
         foreach (var node in world.GetChildren()) if (node is MidEnemy echo) echo.Purify();
-        await WaitUntil(() => Read<int>(stage, "_step") == 3, 200);
+        // 道中（step 2）は 2026-09-27 に残響の三波へ伸びた。この QA が見たいのは段間と撃破後の会話なので、
+        //   浄化数を直に積んで波のゲートだけ通す（目標 StageTarget は跨がない＝StageCleared は立てない）。
+        var purifiedProp = typeof(GameManager).GetProperty("PurifiedCount")!;
+        for (int i = 0; i < 900 && Read<int>(stage, "_step") == 2; i++)
+        {
+            // 最後の波は予定数が湧き切るまでボスへ渡らない。この走行は自機を止めていて敵が死なないので、
+            //   同時上限で湧きが頭打ちになる＝予定数にも届かない。湧きの予定数も出た数まで詰めて通す。
+            if (Read<Spawner?>(stage, "_echoSpawner") is { } wave && IsInstanceValid(wave))
+                wave.SpawnLimit = Math.Max(1, wave.SpawnedCount);
+            purifiedProp.SetValue(game, Math.Min(game.PurifiedCount + 1, game.StageTarget - 1));
+            await Frames(1);
+        }
+        // 道中（step 2）→ ボス出現（step 3＝Step_BossSpawn）はチェックポイント入口「ボスから」の追加で
+        //   別 step に割れた。step が 3 になったフレームではまだミナが建っていないので、ノードを待つ。
+        await WaitUntil(() => world.GetNodeOrNull<BossMina>("BossMina") != null, 200);
         var boss = world.GetNode<BossMina>("BossMina");
         await Frames(30);
         var caster = Read<MinaPhaseAttacks>(boss, "_caster");
