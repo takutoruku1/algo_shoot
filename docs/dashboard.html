@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 268 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 269 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">268</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">269</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
   </div>
 
@@ -148,14 +148,6 @@
     <ol class="tasks">
       <li class="task ">
         <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正</span>
-          <span class="worker">engineer</span>
-        </div>
-        <p class="accept">2026-09-27監査(game-designer)。<code>src/Player.cs:847</code>の<code>Fire()</code>で<code>dmg</code>を先に整数丸めした後、<code>src/Player.cs:941 FireSpread()</code>の<code>sdmg</code>と<code>:958 FireHoming()</code>の<code>hdmg</code>がその整数値へ<code>SpreadPowerMul</code>(<code>GameManager.cs:818</code>: 0.50/0.56/0.62)・<code>HomingPowerMul</code>(<code>GameManager.cs:821</code>: 0.85/0.95/1.05)を掛けて再度丸める二重丸めになっており、通常プレイの<code>dmg</code>帯(1〜5程度)ではLv1→Lv2で実ダメージが変化しない組み合わせが生じる(例: dmg=4のとき拡散は3段とも2、誘導はLv1/Lv2とも4)。同画面の<code>rapid_power</code>(<code>Player.cs:896</code>)・<code>accel_power</code>(<code>Player.cs:916</code>)は丸めずに整数加算する式のため同型の問題が起きておらず実装方式が不統一。修正はbaseダメージをfloatで保持し各モード倍率を掛けてから最後に1回だけ丸める、または<code>SpreadPowerMul</code>/<code>HomingPowerMul</code>テーブルの段間刻み幅を広げるのいずれかでよい。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(<code>Enemy.cs</code>のボス無防備窓クランプが原因)とは発生箇所・原因が別(ショップ側威力計算式そのものの丸め誤差)のため重複ではない。弾の量・弾速による難易度調整方針やHP方針には触れない数値修正の範囲。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
           <span class="chip chip-p3">P3</span>
           <span class="task-title">仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存</span>
           <span class="worker">scenario</span>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-27) 2026-09-27監査(game-designer)発見。<code>src/Player.cs:847</code>の<code>Fire()</code>で威力計算を<code>dmgF</code>(丸め前のfloat基礎威力)として保持し、既存の整数<code>dmg</code>(連射/加速球/拡散サブ用、式は不変)はそこから1回だけ丸めて生成するよう変更。<code>FireSpread</code>/<code>FireHoming</code>の引数を<code>int dmg</code>→<code>float dmg</code>(<code>dmgF</code>をそのまま受け取る)に変更し、<code>SpreadPowerMul</code>/<code>HomingPowerMul</code>を掛けた後で初めて丸めるようにしたことで二重丸めを解消（旧実装はint化した<code>dmg</code>に倍率を掛けて再度丸めるため、通常プレイの<code>dmg</code>帯でLv1→Lv2の差が丸めに吸収され消えていた）。<code>FireRapid</code>/<code>FireAccel</code>/拡散サブ・他の威力ノードの式・弾量/弾速/HP方針は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2665,18 +2665,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ea8e0dc</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 拡散威力II／誘導威力IIの整数丸めを是正する</span></li>
+      <li><span class="h">ceed7ae</span><span>2026-09-27</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">ec6246a</span><span>2026-09-24</span><span class="s">auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正</span></li>
       <li><span class="h">0fd2b2f</span><span>2026-09-24</span><span class="s">auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する</span></li>
       <li><span class="h">f5b83de</span><span>2026-09-24</span><span class="s">auto: こはる食事タイマーの技名表示を全部見なきゃに統一</span></li>
       <li><span class="h">db18014</span><span>2026-09-24</span><span class="s">auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する</span></li>
       <li><span class="h">c5bebf5</span><span>2026-09-24</span><span class="s">auto: Pad.csのFlipToken死にコードを削除</span></li>
       <li><span class="h">4ed42a2</span><span>2026-09-24</span><span class="s">auto: WIP着手 - Pad.csのFlipToken死にコードを整理する</span></li>
-      <li><span class="h">2a28174</span><span>2026-09-24</span><span class="s">auto: コメント中のファイル:行参照ズレ3箇所を実位置に修正</span></li>
-      <li><span class="h">a2c7962</span><span>2026-09-24</span><span class="s">auto: WIP着手 - コメント中のファイル:行参照ズレ3箇所を修正する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-27 18:32 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-27 18:36 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

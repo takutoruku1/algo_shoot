@@ -844,7 +844,10 @@ public partial class Player : Area2D
         // フォロワー由来の火力バフ（FollowerPowerMul・上限+50%）をここで実配線＝拡散力(fol_gain)が“火力の遠回り投資”として生きる。
         Vector2 muzzle = GlobalPosition + ShotDir * 20f;
         // 集中の光（focus_fire）：同じ敵に当て続けた集中ボーナス（+0〜+Lv）を基礎威力へ上乗せ。
-        int dmg = Mathf.Max(1, Mathf.RoundToInt((1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f))) + FocusFireBonus;
+        // dmgF は丸め前のfloat基礎威力。拡散/誘導はこれへ直接 SpreadPowerMul/HomingPowerMul を掛けて
+        // 「1回だけ」丸める（dmg=int版を先に丸めてから掛けると二重丸めで整数域の強化が消える＝是正）。
+        float dmgF = Mathf.Max(1f, (1 + (_game?.ShotDamageBonus ?? 0)) * (_game?.FollowerPowerMul ?? 1f)) + FocusFireBonus;
+        int dmg = Mathf.RoundToInt(dmgF); // 連射/加速球/拡散サブは従来通りこの整数値を使う（式は不変）
 
         // 選択中のショットモードで発射パターンを分岐（設計書 §3）。
         // fired: 実際に弾をスポーンしたか。加速球は同時タメ上限でスキップする場合があり、
@@ -852,8 +855,8 @@ public partial class Player : Area2D
         bool fired = true;
         switch (_game?.SelectedShotMode ?? GameManager.ShotMode.Rapid)
         {
-            case GameManager.ShotMode.Spread: FireSpread(muzzle, dmg); break;
-            case GameManager.ShotMode.Homing: FireHoming(muzzle, dmg); break;
+            case GameManager.ShotMode.Spread: FireSpread(muzzle, dmgF); break;
+            case GameManager.ShotMode.Homing: FireHoming(muzzle, dmgF); break;
             case GameManager.ShotMode.Accel:  fired = FireAccel(muzzle, dmg); break;
             default:                          FireRapid(muzzle, dmg);  break;
         }
@@ -935,9 +938,10 @@ public partial class Player : Area2D
     // 拡散：射撃方向（ShotAngle）を基準に扇状 n-way（±35°）。1発威力 ×SpreadPowerMul（0.50→0.56→0.62・拡散威力ノードで是正）。
     // 連鎖の光（chain）：拡散弾のみ跳弾数を付与（ヒット時に Bullet.TryChain が跳ねる。跳弾も花弁形を引き継ぐ）。
     // 見た目＝花弁（BulletShape.Petal・短く幅広）＝扇に開いた瞬間、水色の花になる（数の圧を面で見せる）。
-    private void FireSpread(Vector2 muzzle, int dmg)
+    private void FireSpread(Vector2 muzzle, float dmg)
     {
         int n = Mathf.Max(5, _game?.SpreadWays ?? 5);
+        // dmg は丸め前のfloat基礎威力（Fire()参照）＝ここで初めて丸めるので、Lv差が整数ダメージへ反映される。
         int sdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.SpreadPowerMul ?? 0.50f)));
         int chain = _game?.ChainLightBounces ?? 0;
         for (int i = 0; i < n; i++)
@@ -952,9 +956,10 @@ public partial class Player : Area2D
     // ホーミング：追尾弾を扇状に放ち、射撃方向（ShotAngle）側の穢れへ曲射。弾速200。追尾数 2→3→4（誘導Lv）。
     // 1発威力 ×HomingPowerMul（0.85→0.95→1.05・誘導威力ノードで是正）。誘導速射なら旋回を上書き（200）。
     // 見た目＝彗星シーカー（BulletShape.Seeker・フィン＋短い尾）＝曲がって追う軌跡が尾で映える。
-    private void FireHoming(Vector2 muzzle, int dmg)
+    private void FireHoming(Vector2 muzzle, float dmg)
     {
         int shots = Mathf.Max(1, _game?.HomingShots ?? 2);
+        // dmg は丸め前のfloat基礎威力（Fire()参照）＝ここで初めて丸めるので、Lv差が整数ダメージへ反映される。
         int hdmg = Mathf.Max(1, Mathf.RoundToInt(dmg * (_game?.HomingPowerMul ?? 0.85f)));
         int turn = _game?.HomingTurnRateOverride ?? 0; // 0=Bullet 既定（150）を使う
         for (int i = 0; i < shots; i++)

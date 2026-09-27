@@ -71,8 +71,6 @@
 
 ## WIP
 
-- [ ] (P2) 拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正 | engineer | 2026-09-27監査(game-designer)。`src/Player.cs:847`の`Fire()`で`dmg`を先に整数丸めした後、`src/Player.cs:941 FireSpread()`の`sdmg`と`:958 FireHoming()`の`hdmg`がその整数値へ`SpreadPowerMul`(`GameManager.cs:818`: 0.50/0.56/0.62)・`HomingPowerMul`(`GameManager.cs:821`: 0.85/0.95/1.05)を掛けて再度丸める二重丸めになっており、通常プレイの`dmg`帯(1〜5程度)ではLv1→Lv2で実ダメージが変化しない組み合わせが生じる(例: dmg=4のとき拡散は3段とも2、誘導はLv1/Lv2とも4)。同画面の`rapid_power`(`Player.cs:896`)・`accel_power`(`Player.cs:916`)は丸めずに整数加算する式のため同型の問題が起きておらず実装方式が不統一。修正はbaseダメージをfloatで保持し各モード倍率を掛けてから最後に1回だけ丸める、または`SpreadPowerMul`/`HomingPowerMul`テーブルの段間刻み幅を広げるのいずれかでよい。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs`のボス無防備窓クランプが原因)とは発生箇所・原因が別(ショップ側威力計算式そのものの丸め誤差)のため重複ではない。弾の量・弾速による難易度調整方針やHP方針には触れない数値修正の範囲。
-
 ## BLOCKED
 
 <!-- 2026-09-24 監査モード(engineer/scenario)で追加 -->
@@ -161,6 +159,7 @@
 - [ ] 仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存 | scenario | 要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar("星逢レイ", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar("我に返るわたし", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。
 
 ## DONE
+- [x] (P2) 拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正 | engineer | (完了 2026-09-27) 2026-09-27監査(game-designer)発見。`src/Player.cs:847`の`Fire()`で威力計算を`dmgF`(丸め前のfloat基礎威力)として保持し、既存の整数`dmg`(連射/加速球/拡散サブ用、式は不変)はそこから1回だけ丸めて生成するよう変更。`FireSpread`/`FireHoming`の引数を`int dmg`→`float dmg`(`dmgF`をそのまま受け取る)に変更し、`SpreadPowerMul`/`HomingPowerMul`を掛けた後で初めて丸めるようにしたことで二重丸めを解消（旧実装はint化した`dmg`に倍率を掛けて再度丸めるため、通常プレイの`dmg`帯でLv1→Lv2の差が丸めに吸収され消えていた）。`FireRapid`/`FireAccel`/拡散サブ・他の威力ノードの式・弾量/弾速/HP方針は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) 「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している | game-designer→engineer | (完了 2026-09-24) 2026-09-24監査(game-designer)発見。`src/GameManager.cs:790-811`の`VeilLightDuration`を、旧固定値`{0,0.5,0.7}`から、基準値`{0,0.12,0.20}`を現在の`DodgeCooldown`から算出する動的安全上限`DodgeCooldown-0.55(DodgeDuration)-0.05`でクリップするプロパティへ変更。全`move_speed`Lv(CD 0.65〜0.80)で回避サイクルの無防備な隙間が必ず0.05s以上残るようになった（旧実装は最大-0.55s＝隙間ゼロ以下で「ほぼ無敵チェーン」が成立していた）。光輪の弾消し・スコア/やさしさ加点機能・半径・`DodgeCooldown`/`DodgeDuration`自体は変更なし。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P2) こはるボス戦「食事タイマー」バーの技名表示が現行スペル名と食い違い同一攻撃に2つの矛盾する名前が出る | engineer | (完了 2026-09-24) 2026-09-24監査(scenario)発見。`src/Hud.cs:1142`の`"お残し禁止"`を、`src/BossKoharu.cs:494`のスペルカードと同じ現行名`"全部見なきゃ"`に置換。新規文言なし、ロジック無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。
 - [x] (P3) Pad.cs の FlipToken が宣言のみで参照0件の死にコード | engineer | (完了 2026-09-24) 2026-09-24監査(engineer)発見。`src/Pad.cs:110-111`の`FlipToken`静的プロパティ（宣言以外の参照0件）と直上の説明コメントを削除。向き反転表示は`TokFlip`(`HowToPlay.cs`)と`StageZero.cs:208`の既存実装のまま変更なし、挙動不変。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。

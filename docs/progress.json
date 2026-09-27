@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-27 18:32 UTC",
+  "generated": "2026-09-27 18:36 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 43,
-    "done": 268
+    "done": 269
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正",
-      "worker": "engineer",
-      "accept": "2026-09-27監査(game-designer)。`src/Player.cs:847`の`Fire()`で`dmg`を先に整数丸めした後、`src/Player.cs:941 FireSpread()`の`sdmg`と`:958 FireHoming()`の`hdmg`がその整数値へ`SpreadPowerMul`(`GameManager.cs:818`: 0.50/0.56/0.62)・`HomingPowerMul`(`GameManager.cs:821`: 0.85/0.95/1.05)を掛けて再度丸める二重丸めになっており、通常プレイの`dmg`帯(1〜5程度)ではLv1→Lv2で実ダメージが変化しない組み合わせが生じる(例: dmg=4のとき拡散は3段とも2、誘導はLv1/Lv2とも4)。同画面の`rapid_power`(`Player.cs:896`)・`accel_power`(`Player.cs:916`)は丸めずに整数加算する式のため同型の問題が起きておらず実装方式が不統一。修正はbaseダメージをfloatで保持し各モード倍率を掛けてから最後に1回だけ丸める、または`SpreadPowerMul`/`HomingPowerMul`テーブルの段間刻み幅を広げるのいずれかでよい。既存BLOCKED「パネル持ち敵にダメージ強化が一切効いていない」(`Enemy.cs`のボス無防備窓クランプが原因)とは発生箇所・原因が別(ショップ側威力計算式そのものの丸め誤差)のため重複ではない。弾の量・弾速による難易度調整方針やHP方針には触れない数値修正の範囲。"
-    },
     {
       "priority": "P3",
       "title": "仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存",
@@ -283,6 +277,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "拡散威力II／誘導威力IIの整数丸めで実質無価値な「見えない強化」を是正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-27) 2026-09-27監査(game-designer)発見。`src/Player.cs:847`の`Fire()`で威力計算を`dmgF`(丸め前のfloat基礎威力)として保持し、既存の整数`dmg`(連射/加速球/拡散サブ用、式は不変)はそこから1回だけ丸めて生成するよう変更。`FireSpread`/`FireHoming`の引数を`int dmg`→`float dmg`(`dmgF`をそのまま受け取る)に変更し、`SpreadPowerMul`/`HomingPowerMul`を掛けた後で初めて丸めるようにしたことで二重丸めを解消（旧実装はint化した`dmg`に倍率を掛けて再度丸めるため、通常プレイの`dmg`帯でLv1→Lv2の差が丸めに吸収され消えていた）。`FireRapid`/`FireAccel`/拡散サブ・他の威力ノードの式・弾量/弾速/HP方針は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P2",
       "title": "「祈りの帳」(veil_light)が回避連打の無防備窓を消し2026-08-28のドッジクールダウン是正を無効化している",
@@ -1894,6 +1894,16 @@
   ],
   "commits": [
     {
+      "hash": "ea8e0dc",
+      "date": "2026-09-27",
+      "subject": "auto: WIP着手 - 拡散威力II／誘導威力IIの整数丸めを是正する"
+    },
+    {
+      "hash": "ceed7ae",
+      "date": "2026-09-27",
+      "subject": "auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
+    },
+    {
       "hash": "ec6246a",
       "date": "2026-09-24",
       "subject": "auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正"
@@ -1922,16 +1932,6 @@
       "hash": "4ed42a2",
       "date": "2026-09-24",
       "subject": "auto: WIP着手 - Pad.csのFlipToken死にコードを整理する"
-    },
-    {
-      "hash": "2a28174",
-      "date": "2026-09-24",
-      "subject": "auto: コメント中のファイル:行参照ズレ3箇所を実位置に修正"
-    },
-    {
-      "hash": "a2c7962",
-      "date": "2026-09-24",
-      "subject": "auto: WIP着手 - コメント中のファイル:行参照ズレ3箇所を修正する"
     }
   ]
 }
