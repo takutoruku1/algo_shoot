@@ -69,6 +69,12 @@ public partial class Hub : Node2D
     private const string LockedName = "???";
     private const string LockedHandle = "@???";
     // FINAL（ミナ自身の内側）のシーン。カード生成・プレビュー・自動ダイブの3か所が同じ文字列を書いていたので定数へ。
+    // FINAL カードの本文（2026-09-27 作者指摘「説明的すぎる・意味がわからない」で全面改稿）。
+    //   これはミナ自身の投稿＝三人の下書きを預かりきった彼女の「下書き」が、本人の覚えのないまま投稿に立ったもの。
+    //   汚染・限界・ダイブといった仕組みの言葉は書かない。重さを「書かない」と言いながら消せない、で限界を見せる。
+    public const string FinalTweet = "三人ぶん、預かりました。重い、とは書きません。……消し方が、わかりません。";
+    // FINAL カードに添えるミナの一言（ホバー行と H3 帰還の行で共通）。説明ではなく、本人の覚えがないことだけを言う。
+    public const string FinalHoverLine = "……投稿した覚えが、ありません。";
     private const string FinalScene = "res://MinaBattle.tscn";
 
     // ───────── 3-1: 潜り方（難易度）の4段 ─────────
@@ -504,7 +510,7 @@ public partial class Hub : Node2D
             list.Add(new Entry
             {
                 IsFinal = true, Id = "final", Scene = FinalScene, Name = "ミナ", Handle = Handles.Mina,
-                Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
+                Tweet = FinalTweet, Initial = "ミ",
                 Unlocked = true, Cleared = false,
                 Sort = Kind.Voice, RelT = "now",
             });
@@ -676,7 +682,7 @@ public partial class Hub : Node2D
                 {
                     IsFinal = true, Id = "final", Scene = FinalScene,
                     Name = "ミナ", Handle = Handles.Mina,
-                    Tweet = "——汚染が、限界へ。ミナ自身の内側へダイブする。", Initial = "ミ",
+                    Tweet = FinalTweet, Initial = "ミ",
                     Unlocked = true, Cleared = false,
                     Sort = Kind.Voice, RelT = "now",
                 });
@@ -2387,7 +2393,7 @@ public partial class Hub : Node2D
     private string HoverLineFor(Entry e)
     {
         if (e.Sort == Kind.Filler) return MobLineFor(e);      // 埋め草＝声の聞こえない側の一言
-        if (e.IsFinal) return "……ご主人様。次のカードは——わたくしの、内側です。";   // H3 帰還の行
+        if (e.IsFinal) return FinalHoverLine;   // H3 帰還の行と同じ（投稿した覚えがない＝内側で何かが起きている）
         if (e.Cleared) return "";                                                     // 届いた投稿には、もう言うことがない
         // あかりの初回＝H0（仮台本 06）の2行目をそのまま置く。旧実装の入場ダイアログの代わり。
         if (e.Id == "akari") return "……この投稿の下からも、聞こえます。";
@@ -3285,8 +3291,8 @@ public partial class Hub : Node2D
             ("ミナの投稿", "見ていました。だれも見ていない場所も。覚えておきます。"),
             ("ミナ", "……なんて。バズ狙いの一言ですよ。……数字は、見ました。言いません。"),   // 十万は口にしない
             ("ミナ", "……ご主人様。今回のダイブ、被弾は{n}回。減点はしません。……集計する光も、そろそろ、薄いので。"),
-            ("Ｘ システム", "FINAL  ——汚染が、限界へ。"),   // FINAL カードの文言（who=3 相当＝立ち絵なし）
-            ("ミナ", "……ご主人様。次のカードは——わたくしの、内側です。"),
+            ("Ｘ システム", $"{Handles.Mina} が投稿しました。"),   // FINAL カード＝ミナ自身の投稿が立った通知（who=3 相当＝立ち絵なし）
+            ("ミナ", FinalHoverLine),
             ("ミナ", "光が薄いのは、誰のせいでもありません。抱えたぶんの、重さです。……行けます。まだ。"),
         },
         // H1 帰還・あかり後（仮台本 wiki/08_仮台本/06。ユーザー承認済み・2026-09-05）。
