@@ -1090,7 +1090,10 @@ public partial class Player : Area2D
             // 汚染・グレイズ残光・回避発光をどう塗り替えても「明るさの底上げ」だけは毎フレーム保たれる。
             _sprite.Modulate = TintLift.Of(_worldTint, TintLift.PlayerBody);
             // 汚染ティント（光が濁っていく。被弾点滅のαとは独立に SelfModulate へ）。
-            _sprite.SelfModulate = CleanTint.Lerp(MurkTint, _corruption);
+            //   ★濁りは残すが**暗くはしない**（2026-09-27 作者指示「ステージによって明度を下げないで／
+            //     キャラクターの明度を」）。TintLift.KeepBright が色相・彩度（チャンネル比）はそのままに、
+            //     輝度だけ下限 CharacterMinLuma(0.85) へ正規化する＝レイ面の終盤（汚染0.80）でも自機は沈まない。
+            _sprite.SelfModulate = TintLift.KeepBright(CleanTint.Lerp(MurkTint, _corruption));
             // 残光（_grazeFlash）はグレイズ境界リングを廃止した（2026-09-08）ぶん、絵そのものの発光で返す。
             // TutorialGlow() がステージ0で「自機を光らせて目立たせる」のに同じ値を使うので、
             // リングと一緒に消すとチュートリアルの誘導が黙って死ぬ。行き先だけ絵側へ移した。

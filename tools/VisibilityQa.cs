@@ -153,14 +153,12 @@ public partial class VisibilityQa : Node
         Check($"{c.Id} ボスに本体スプライトがある（{boss.GetType().Name}）", bossBody != null);
         if (bossBody != null)
             CheckLift(c.Id, $"ボスの本体 Body.Modulate（{boss.GetType().Name}）", bossBody.Modulate, tint, TintLift.EnemyBody);
-        // 状態の色（SelfModulate）には手を入れていない＝汚染ティント・差し替えクロスフェードの土台はそのまま。
-        //   ★あかり 0／こはる 0.18／レイ 0.45（道中で 0.80 まで濃くなる）／FINAL 0。Tint を打ち消しても
-        //     この濁りは残る＝面によって自機の明るさは違う。撤去は作者判断なのでここでは「意図どおり残っている」を見る。
+        // ── 汚染ティント（Player._corruption → SelfModulate）は「濁らせるが暗くしない」か ──
+        //   面ごとの濃さ：あかり 0.00→0.18／こはる 0.18→0.45／レイ 0.45→0.80／FINAL 0。
+        //   TintLift.KeepBright が輝度だけ下限 0.85 へ正規化する＝色相・彩度（チャンネル比）は素の濁りのまま。
         float corr = Read<float>(player, "_corruption");
-        var corrTint = CorruptTint(corr);
-        GD.Print($"[VIS] info {c.Id}: 汚染ティント _corruption={corr:0.00} → SelfModulate={Fmt(corrTint)}（Tint とは別系統・今回は触らない）");
-        Check($"{c.Id} 自機の SelfModulate は汚染ティントのまま（{Fmt(body.SelfModulate)} 期待 {Fmt(corrTint)}）",
-            Near(body.SelfModulate, corrTint, 0.01f));
+        CheckCorruption(c.Id, body, corr);
+        var corrTint = body.SelfModulate;   // 実際に掛かっている濁り（下限つき）。以降の画素比較の期待値に使う
         if (zakoBody != null)
             Check($"{c.Id} 敵の SelfModulate はクロスフェード用のまま（{Fmt(zakoBody.SelfModulate)} α={zakoBody.SelfModulate.A:0.00}）",
                 zakoBody.SelfModulate.IsEqualApprox(Colors.White));
@@ -175,6 +173,9 @@ public partial class VisibilityQa : Node
 
         // ── ⑤ スクショ（窓ありのみ）──
         await Shots(c.Id, player, dot, body, tint, corrTint, new[] { (Enemy)zako, boss });
+
+        // ── ⑥ レイ面だけ：道中の終盤（汚染 0.80）でも自機が沈まないか ──
+        if (c.Id == "rei") await CorruptShots(c.Id, root, player, dot, body, new[] { (Enemy)zako, boss });
 
         foreach (var k in _pin.Keys.ToArray()) _pin.Remove(k);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
@@ -216,6 +217,23 @@ public partial class VisibilityQa : Node
         cameo.QueueFree();
         await Frames(3);
         if (_hud != null && IsInstanceValid(_hud)) _hud.HideBossBar();
+    }
+
+    // 汚染ティントの検証：濁り（色相・彩度）は素のまま／輝度は下限 CharacterMinLuma を割らない。
+    private void CheckCorruption(string stage, Sprite2D body, float corruption)
+    {
+        var raw = CorruptTint(corruption);              // 明度の下限を入れる前の濁り（＝旧来の見え方）
+        var want = TintLift.KeepBright(raw);            // 下限つき
+        var now = body.SelfModulate;
+        float yr = TintLift.Luma(raw), yn = TintLift.Luma(now);
+        GD.Print($"[VIS] info {stage}: 汚染 _corruption={corruption:0.00} 素の濁り={Fmt(raw)}（輝度 {yr:0.000}）"
+            + $" → 実際={Fmt(now)}（輝度 {yn:0.000}／下限 {TintLift.CharacterMinLuma:0.00}）");
+        Check($"{stage} 汚染の濁りは残しつつ輝度が下限を割らない（{yn:0.000} >= {TintLift.CharacterMinLuma:0.00}）",
+            yn >= TintLift.CharacterMinLuma - 0.002f && Near(now, want, 0.005f));
+        // 色相・彩度＝チャンネル比が素の濁りと同じか（暗さだけを直し、色は動かしていない）。
+        bool ratio = Mathf.Abs(now.R * raw.G - now.G * raw.R) < 0.002f
+                     && Mathf.Abs(now.B * raw.G - now.G * raw.B) < 0.002f;
+        Check($"{stage} 濁りの色味は変えていない（R:G:B の比が素の濁りと一致）", ratio);
     }
 
     // 補正 × Tint が狙いどおりか。強さ 1 なら「Tint を完全に打ち消して白」。
@@ -319,6 +337,53 @@ public partial class VisibilityQa : Node
         }
         GetTree().Paused = false;
         Freeze(player, dot, enemies, false);
+    }
+
+    // ── レイ面の終盤（汚染 0.80）の撮り比べ：濁りの色は同じまま、暗さだけが直っているか ──
+    //   Root の _Process が毎フレーム汚染を書き戻す（StageProgress から算出）ので、入れる前に止める。
+    private const float DeepCorruption = 0.80f;   // レイ面の終盤（設計書 4-b: 0.45→0.80）
+    private async Task CorruptShots(string id, Node2D root, Player player, PlayerHitDot dot, Sprite2D body, Enemy[] enemies)
+    {
+        if (!_shot) return;
+        // 直前のシールド検証で張った泡（半径 8.5px の白い円）は胴の計測窓に丸ごと重なるので外す。
+        //   ShieldPower は private set の自動プロパティ＝反射でセッタを呼ぶ。芯は次フレームに描き直される。
+        typeof(Player).GetProperty("ShieldPower")!.SetValue(player, 0);
+        root.SetProcess(false);
+        Write(player, "_corruption", DeepCorruption);
+        await Frames(6);   // 泡が消え、自機の _PhysicsProcess が SelfModulate へ反映するまで
+        Check($"{id} 計測前にシールドの泡を外した（ShieldPower={player.ShieldPower}）", player.ShieldPower == 0);
+        CheckCorruption($"{id}/汚染{DeepCorruption:0.00}", body, DeepCorruption);
+        var raw = CorruptTint(DeepCorruption);            // 明度の下限なし＝この追加対応の前の見え方
+        var want = TintLift.KeepBright(raw);              // 下限あり＝今の見え方
+
+        GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+        GetTree().Paused = true;
+        Freeze(player, dot, enemies, true);
+        Pose(player, body);
+        body.SelfModulate = raw;
+        Color before;
+        using (var img = await Grab())
+        {
+            Zoom(img, player, $"hitdot_{id}_corrupt_before");
+            (before, _, _) = Measure(img, body);
+        }
+        body.SelfModulate = want;
+        using (var img = await Grab())
+        {
+            Save(img, $"stage_{id}_corrupt_after");
+            Zoom(img, player, $"hitdot_{id}_corrupt_after");
+            var (screen, source, n) = Measure(img, body);
+            float ys = TintLift.Luma(source), yb = TintLift.Luma(before), ya = TintLift.Luma(screen);
+            GD.Print($"[VIS] info {id}/汚染{DeepCorruption:0.00}: 自機の胴（不透明 {n} 画素）素材={Fmt(source)}（輝度 {ys:0.000}）"
+                + $" 修正前={Fmt(before)}（輝度 {yb:0.000}） 修正後={Fmt(screen)}（輝度 {ya:0.000}）");
+            GD.Print($"[VIS] info {id}/汚染{DeepCorruption:0.00}: 素材比の輝度 修正前={yb / ys:0.000} → 修正後={ya / ys:0.000}");
+            Check($"{id} 汚染 {DeepCorruption:0.00} でも自機は素材比 0.80 以上の輝度（{ya / ys:0.000}）", ya / ys >= 0.80f);
+            Check($"{id} 汚染 {DeepCorruption:0.00} は下限なしより明るい（{yb / ys:0.000} → {ya / ys:0.000}）", ya > yb + 0.05f);
+            Check($"{id} 汚染 {DeepCorruption:0.00} の見え方は「素材×下限つき濁り」と一致（差<0.06）", Near(screen, Mul(source, want), 0.06f));
+        }
+        GetTree().Paused = false;
+        Freeze(player, dot, enemies, false);
+        root.SetProcess(true);
     }
 
     // 無敵点滅の「消えている側」で撮らない／計測しない。物理を止めてから呼ぶので、以降は誰も書き戻さない。

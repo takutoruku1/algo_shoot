@@ -24,6 +24,28 @@ public static class TintLift
     public const float PlayerCore = 1f;   // 当たり判定の芯＋シールドの泡（PlayerHitDot）
     public const float EnemyBody = 1f;    // 敵の本体スプライト（ザコ・中ボス・ボス共通。Enemy の "Body"）
 
+    // ── キャラの明度の下限（2026-09-27 作者指示「ステージによって明度を下げないで／キャラクターの明度を」）──
+    //   ミナの汚染ティント（Player._corruption → スプライトの SelfModulate）は「光が濁っていく」物語の表現で、
+    //   面が進むほど濃くなる：あかり 0.00→0.18 ／ こはる 0.18→0.45 ／ レイ 0.45→0.80 ／ FINAL 0。
+    //   これは色を濁らせるだけでなく**明るさも落とす**ので、上の Tint を完全に打ち消しても
+    //   「レイ面だけ自機が暗い」（素材比 0.74→終盤 0.54）が残り、作者の指摘そのものが解消しない。
+    //   そこで「色相・彩度（チャンネル間の比）はそのまま、輝度だけ下限まで持ち上げる」正規化を掛ける＝
+    //   **濁って見えるが、暗くはならない**。濁りを消す（1.0 にする）と汚染ゲージの表現が死ぬので、
+    //   その境目としてここに置く。輝度は Rec.709（人が感じる明るさに近い重み）。
+    public const float CharacterMinLuma = 0.85f;
+    public static float Luma(Color c) => 0.2126f * c.R + 0.7152f * c.G + 0.0722f * c.B;
+
+    // 輝度が下限を割る色を、チャンネル比を保ったまま下限まで持ち上げる（下限以上なら素通り＝色は不変）。
+    //   1 を超えるチャンネルはそのまま返す＝乗算先が白に飽和するだけで、色かぶりの向きは変わらない。
+    //   α は触らない（点滅・フェードは別系統）。
+    public static Color KeepBright(Color c)
+    {
+        float y = Luma(c);
+        if (y >= CharacterMinLuma || y <= 0.001f) return c;
+        float k = CharacterMinLuma / y;
+        return new Color(c.R * k, c.G * k, c.B * k, c.A);
+    }
+
     // 祖先をたどって「その世界の Tint」を探す（各 Root の "Tint" / Main の "WorldTint"）。
     //   BossGauge._Ready と同じ探し方＝自分の親から上へ、各階層の子に居る CanvasModulate を拾う。
     //   見つからない場面（MinaBattle＝FINAL は Tint を置かない、カットシーン等）は null＝補正不要。
