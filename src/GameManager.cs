@@ -185,11 +185,11 @@ public partial class GameManager : Node
     public bool IsLunaticUnlocked => Followers >= LunaticFollowerReq || Has("n_power_2x");
 
     // ───── 回避 ─────
-    //   回避（Alt / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
+    //   回避（Space / L3 / 右クリック）は 2026-09-22 からショップの段 #2「回避」（n_dodge）で覚える
     //   （それまでは 1面クリアの物語報酬＝GrantDodge／セーブキー "hasDodge"。旧セーブは LoadFromSlot が
     //   n_dodge の所持へ読み替える）。所持判定 HasDodge は強化効果アクセサの並び（ChargeNeedSec の隣）。
 
-    // ───── 集中モード（一本道 #11「集中モード」・Vキー）─────
+    // ───── 集中モード（一本道 #11「集中モード」・Cキー）─────
     //   Engine.TimeScale は使わない（自機・HUD・音・演出まで巻き込み、ヒットストップとも二重に掛かる）。
     //   代わりに「敵側だけが読む delta 係数」をここに一本置き、敵・敵弾・予兆・嵐がそれを掛けて時間を進める。
     //   ＝自機の操作感は等速のまま、向かってくるものだけが遅くなる。
@@ -641,7 +641,7 @@ public partial class GameManager : Node
     private Dictionary<string, int> _upgrades = new();
 
     // 強化カタログ（§①-4）。効果は下の各アクセサで定義。
-    // ★2026-09-13：分岐する木（70ノード・排他・振り直し）を畳み、一本道13段に作り直した。
+    // ★2026-09-13：分岐する木（70ノード・排他・振り直し）を畳み、一本道14段に作り直した。
     //   買える段は常にひとつ＝「次の一手」を選ばせない。順序条件は ParentId（直前の段）だけ。
     public sealed class UpgradeDef
     {

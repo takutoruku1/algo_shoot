@@ -102,7 +102,7 @@ public partial class Settings : Node2D
         //   ★2026-09-27：左手の定位置（小指 Shift／薬指 Z／中指 X／人差し指 C／親指 Space）に合わせ、
         //     回避 Ctrl → Space、集中モード V → C。Ctrl は会話中の既読スキップだけに残る。
         ctrl.Items.Add(Keys("shot", "ショット / 溜め打ち", new[] { "オート", "Z 長押し" }, "光は自動。Z を長押しして離すと溜め打ち"));
-        ctrl.Items.Add(Keys("lock", "ロックオン", new[] { "Shift" }, "押しているあいだ狙う。離すと外れる。F で次の敵へ"));
+        ctrl.Items.Add(Keys("lock", "ロックオン", new[] { "Shift" }, "押しているあいだ狙う。離すと外れる。A で前、S で次の敵へ"));
         ctrl.Items.Add(Keys("bomb", "ボム", new[] { "X" }));
         ctrl.Items.Add(Keys("dodge", "回避", new[] { "Space" }, "一瞬無敵で弾を抜ける"));
         ctrl.Items.Add(Keys("focus", "集中モード", new[] { "C" }, "ホイール／サイドボタン／LB でも"));
@@ -613,7 +613,7 @@ public partial class Settings : Node2D
             {
                 "move"  => new[] { "↑↓←→" },
                 "shot"  => new[] { "オート", "Z 長押し" },   // 射撃ボタンは廃止（常時オート発射）。Z 長押し＝溜め打ち
-                "lock"  => new[] { "Shift" },                // 押しているあいだロック。F で次の敵へ
+                "lock"  => new[] { "Shift" },                // 押しているあいだロック。A で前、S で次の敵へ
                 "bomb"  => new[] { "X" },
                 "dodge" => new[] { "Space" },
                 "focus" => new[] { "C" },

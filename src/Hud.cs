@@ -276,7 +276,7 @@ public partial class Hud : CanvasLayer
     //   「あそびかた」で見られる＝弾に案内を重ねない。ユーザー実機指摘「操作の UI がじゃま」）。
     private static string AllShot  => "オート";                                        // 射撃ボタン廃止＝常時オート射撃
     //   2026-09-27：帯のキーは UiKit.KeyCapRow で描く＝" / " の並記はキャップを並べ、矢印は1つのキャップにまとめる。
-    private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"             : "↑↓←→ / WASD";
+    private static string AllMove  => Pad.UsingPad ? "L スティック / 十字"             : "↑↓←→";
     // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
     // 回避ダッシュは Player.cs では Space / Pad L3(LeftStick) の2系統（2026-09-27 に Ctrl → Space）。Tok* と違い“全部”を見せる版。
