@@ -548,10 +548,19 @@ public partial class Player : Area2D
 
     // 集中の光：敵/パネルの消費点から「この敵本体に1発当たった」を受け取る。
     // Lv0 は完全 no-op。対象が変わったら数え直し（ボーナスは Fire() 側で FocusFireBonus として乗る）。
+    //   ★前の対象が倒れた／消えた後の乗り換えは数え直さずに持ち越す（2026-09-27 作者報告「倒して切り替わった
+    //     瞬間に、また一から設置している」）。ロックの引き継ぎ（TickLockOn）で次の敵へ移るたびにゼロへ戻ると、
+    //     倒すほど火力が落ちる。数え直すのは「まだ生きている別の敵」へ撃ち替えたときだけ。
     public void NotifyShotHit(Node2D target)
     {
         if ((_game?.FocusFireMaxStack ?? 0) <= 0 || target == null) return;
-        if (!ReferenceEquals(target, _focusTarget)) { _focusTarget = target; _focusHits = 0; }
+        if (!ReferenceEquals(target, _focusTarget))
+        {
+            bool prevGone = _focusTarget == null || !IsInstanceValid(_focusTarget)
+                            || (_focusTarget is Enemy fe && fe.IsPurified);
+            _focusTarget = target;
+            if (!prevGone) _focusHits = 0;
+        }
         _focusHits++;
     }
     // 現在の集中ボーナス（+0〜+Lv）。FocusFireHitsPerStack 発ごとに1段上がる。

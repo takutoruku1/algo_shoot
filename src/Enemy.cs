@@ -1021,11 +1021,14 @@ public partial class Enemy : Area2D
 
         // 戦闘終了の瞬間：残弾を片付ける（改心の会話に弾が飛び続けないように）。
         //   2026-09-22 ユーザー指示：ボス／中ボスは敵弾も同時に消す。撃破の瞬間から改心の一拍・会話まで
-        //   数秒あり、その間も飛び続ける残弾で被弾していた。ザコは自機弾のみ（撃破ごとに盤面の弾幕が
-        //   消えると道中が成立しない）。改心後の遅延発射は FireBullet 側で握りつぶす。
-        var pool = GetNodeOrNull<BulletPool>("/root/Pool");
-        if (PurifyGrade != FxLayer.PurifyTier.Zako) pool?.DespawnAll();
-        else pool?.DespawnPlayerBullets(preserveCharged: true);
+        //   数秒あり、その間も飛び続ける残弾で被弾していた。改心後の遅延発射は FireBullet 側で握りつぶす。
+        //   ★ザコは何も消さない（2026-09-27 作者報告「ロックして照射、倒して切り替わった瞬間に球が消えて、
+        //     また一から設置している」）。以前はザコ1体ごとに盤面の自機弾を全消ししていた（溜め弾だけ残す）ため、
+        //     引き継ぎ先へ飛んでいた弾・あかりのタメ中の加速球（自機の前に「設置」された球）が撃破のたびに消え、
+        //     撃ち込みが毎回ゼロからになっていた。ザコには改心の会話が無い＝片付ける理由が無い
+        //     （敵弾を消さないのも従来どおり＝撃破ごとに盤面の弾幕が消えると道中が成立しない）。
+        //     会話へ入る区切り（ウェーブ明け・考察）は各 Stage が DespawnAll を自前で呼んでいる。
+        if (PurifyGrade != FxLayer.PurifyTier.Zako) GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
 
         // 接触で自機を傷つけないようにする。浄化は被弾シグナル中に走ることがあるため遅延設定。
         SetDeferred(Area2D.PropertyName.Monitorable, false);
