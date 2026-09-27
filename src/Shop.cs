@@ -509,20 +509,24 @@ public partial class Shop : Node2D
         }
     }
 
+    // 自機の立ち絵の枠と、中身（不透明部分）の高さ・足元の基準線（2026-09-27）。
+    //   枠いっぱいにテクスチャを合わせるのではなく「中身の高さ」を CharContentH にそろえ、足元を枠の
+    //   下端の 2px 上に置く＝素材の透明余白の量が違ってもキャラの見かけの大きさが変わらない。
+    private static readonly Rect2 CharArea = new(948, 110, 284, 244);
+    private const float CharContentH = 240f;
+    private static Vector2 CharFoot => new(CharArea.GetCenter().X, CharArea.End.Y - 2);
+
     private void DrawCharacter()
     {
-        var area = new Rect2(948, 110, 284, 244);
+        var area = CharArea;
         Color accent = CompanionDialogue.Accent(_game.SelectedJob);
         DrawLine(new Vector2(964, 134), new Vector2(980, 134), new Color(accent, 0.65f), 1);
         DrawLine(new Vector2(964, 134), new Vector2(964, 150), new Color(accent, 0.65f), 1);
         DrawLine(new Vector2(1216, 330), new Vector2(1200, 330), new Color(accent, 0.65f), 1);
         DrawLine(new Vector2(1216, 330), new Vector2(1216, 314), new Color(accent, 0.65f), 1);
         if (_playerShot == null) return;
-        Vector2 size = _playerShot.GetSize();
-        float scale = Mathf.Min(228 / size.X, 244 / size.Y);
-        size *= scale;
-        var rect = new Rect2(area.GetCenter() - size / 2, size);
-        DrawTextureRect(_playerShot, rect, false);
+        // カスタマイズ画面と同じ直し方（UiKit.DrawPortrait 参照）。
+        UiKit.DrawPortrait(this, _playerShot, CharFoot, CharContentH);
         if (_buyFxT > 0)
         {
             float k = 1 - (float)(_buyFxT / 0.7);

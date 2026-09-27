@@ -197,15 +197,32 @@ public partial class Customize : Node2D
         GetTree().ChangeSceneToFile("res://Hub.tscn");
     }
 
-    private void Art(string path, Rect2 area, bool flip = false)
+    // カーソルのアイコン（余白の無い小さな絵）はテクスチャ全体を枠へフィットさせる。立ち絵は Portrait を使う。
+    private void Art(string path, Rect2 area)
     {
         var texture = Texture(path);
         float scale = Mathf.Min(area.Size.X / texture.GetWidth(), area.Size.Y / texture.GetHeight());
         var size = texture.GetSize() * scale;
-        var rect = new Rect2(area.GetCenter() - size / 2f, size);
-        if (flip) { rect.Position += new Vector2(rect.Size.X, 0); rect.Size = new Vector2(-rect.Size.X, rect.Size.Y); }
-        DrawTextureRect(texture, rect, false);
+        DrawTextureRect(texture, new Rect2(area.GetCenter() - size / 2f, size), false);
     }
+
+    // 立ち絵の大きさをそろえる基準（2026-09-27 作者指摘「キャラクターのサイズが違う」「回避時の位置がおかしい」）。
+    //   素材ごとに透明余白の量が違うので、テクスチャ全体ではなく「中身（不透明部分）の高さ」をそろえ、
+    //   「中身の足元」を固定の基準線に置く（UiKit.DrawPortrait* 参照）。
+    //   ★倍率はそのアイテムの idle から一度だけ決め、全ポーズで流用する。回避（spin_NN）は姿勢で中身の高さが
+    //     変わるため、その絵の高さでそろえると回避のあいだだけキャラが伸び縮みしてしまう。
+    //   中身の高さ 380：いちばん横に広い絵（ミナの星巡り・照準）でも幅 336 < 枠 342、いちばん背の高い絵
+    //     （レイの追加衣装・回避）でも高さ 389 < 枠 400 に収まる最大級の値。
+    private static readonly Rect2 PreviewFrame = new(134, 178, 342, 400);
+    private const float PreviewContentH = 380f, ThumbContentH = 86f;
+    // 足元の基準線＝枠の水平中心・枠の下端の 4px 上。ポーズを替えてもここは動かない。
+    private static readonly Vector2 PreviewFoot = new(PreviewFrame.GetCenter().X, PreviewFrame.End.Y - 4);
+    // 一覧のサムネ枠（カードの上部 70×100）。
+    private static Rect2 ThumbBox(Rect2 card) => new(card.Position.X + (card.Size.X - 70) / 2, card.Position.Y + 16, 70, 100);
+
+    private void Portrait(CosmeticItem item, string pose, Vector2 foot, float contentHeight, bool flip = false)
+        => UiKit.DrawPortraitScaled(this, Texture(item.PosePath(pose)), foot,
+            UiKit.PortraitScale(Texture(item.PosePath("idle")), contentHeight), flip);
 
     private void Label(Rect2 rect, string text, bool active, bool focused, int size = 16)
     {
@@ -240,7 +257,7 @@ public partial class Customize : Node2D
             int frame = (int)(_time * 6) % 8;
             int[] spin = { 0, 1, 2, 3, 4, 3, 2, 1 };
             string pose = _pose == 0 ? "idle" : _pose == 1 ? "aim_ur" : $"spin_{spin[frame]:00}";
-            Art(Selected.PosePath(pose), new Rect2(134, 178, 342, 400), _pose == 2 && frame >= 5);
+            Portrait(Selected, pose, PreviewFoot, PreviewContentH, _pose == 2 && frame >= 5);
             for (int i = 0; i < 3; i++)
                 Label(PoseRect(i), new[] { "通常", "照準", "回避" }[i], _pose == i,
                     !Pad.UsingMouse && _focus == 2 && _pose == i || _hover == 400 + i, 13);
@@ -263,7 +280,11 @@ public partial class Customize : Node2D
             Rect2 rect = ItemRect(i);
             bool selected = i == _selected;
             UiKit.Box(this, rect, selected ? Raised : Bg, 6, selected ? accent : new Color("343e45"), selected ? 2 : 1);
-            Art(_items[i].PosePath("idle"), new Rect2(rect.Position + new Vector2((rect.Size.X - 70) / 2, 16), new Vector2(70, 100)));
+            Rect2 thumb = ThumbBox(rect);
+            // 立ち絵は中身の高さ＋足元基準でそろえる。カーソルは立ち絵ではない（矢印の小さな絵）ので枠フィットのまま。
+            if (_items[i].Kind == CosmeticKind.Costume)
+                Portrait(_items[i], "idle", new Vector2(thumb.GetCenter().X, thumb.End.Y - 2), ThumbContentH);
+            else Art(_items[i].PosePath("idle"), thumb);
             UiKit.Multi(this, UiKit.ZenBold, rect.Position + new Vector2(14, 134), _items[i].Name, 17,
                 selected ? Ink : Muted, rect.Size.X - 28, 2);
             if (_game.CosmeticEquipped(_items[i].Id))

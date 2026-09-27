@@ -485,6 +485,105 @@ public static class UiKit
         return tex;
     }
 
+    // ══════════════════════ 立ち絵（中身の高さでそろえ、足元を基準線に置く）══════════════════════
+    //   2026-09-27 作者指摘「服のショップで、キャラクターのサイズが違うからサイズを統一して」
+    //   「ショップの回避時の位置がおかしいんだな」への土台。
+    //   自機の絵は2系統あり、既定衣装（char/player/<id>/<id>_*.png）は絵の外接で切り詰め済み、
+    //   追加衣装（char/player/<id>/costume_v1/*.png）は 720 前後のキャンバスに大きな透明余白つきで入っている。
+    //   テクスチャ全体を枠へ Mathf.Min でフィットさせると
+    //     ・余白の量だけ見かけの大きさが変わる（衣装を替えるとキャラが縮む＝「サイズが違う」）
+    //     ・ポーズごとにキャンバス寸法も中身の位置も違うので、回避アニメで倍率と中心が毎フレーム飛ぶ
+    //   → 不透明部分の矩形（ContentRect）を測り、「中身の高さ」で倍率を決め、「中身の足元」を基準線に置く。
+    //
+    //   素材の縁にはごく薄い（α 1〜15/255）汚れが散っていて、α>0 で測る Image.GetUsedRect() だと余白を
+    //   落としきれない（こはるの雨上がり・回避 spin_00 は α>0 なら高さ 720＝キャンバス全体、実際の絵は 672）。
+    //   画面には出ない濃さなので、この値より濃い画素だけを中身として数える。
+    public const float ContentAlphaCut = 0.05f;
+
+    // 測った結果はリソースパスをキーに持ち続ける（GetImage() は数百万画素の走査＝毎フレーム呼んではいけない）。
+    private static readonly System.Collections.Generic.Dictionary<string, Rect2I> _contentRects = new();
+    // 実測した回数（QA 用。同じ絵を何度描いてもここは増えない＝キャッシュが効いている）。
+    public static int ContentRectScans { get; private set; }
+
+    // テクスチャの「中身」＝不透明部分の外接矩形（テクスチャ画素座標）。測れなければテクスチャ全体。
+    public static Rect2I ContentRect(Texture2D tex)
+    {
+        string key = tex.ResourcePath.Length > 0 ? tex.ResourcePath : "#" + tex.GetInstanceId();
+        if (_contentRects.TryGetValue(key, out var hit)) return hit;
+        var rect = MeasureContent(tex);
+        _contentRects[key] = rect;
+        return rect;
+    }
+
+    private static Rect2I MeasureContent(Texture2D tex)
+    {
+        var full = new Rect2I(0, 0, tex.GetWidth(), tex.GetHeight());
+        using var img = tex.GetImage();
+        if (img == null) return full;
+        ContentRectScans++;
+        if (img.IsCompressed() && img.Decompress() != Error.Ok) return full;
+        if (img.GetFormat() != Image.Format.Rgba8) img.Convert(Image.Format.Rgba8);
+        int w = img.GetWidth(), h = img.GetHeight();
+        byte[] data = img.GetData();
+        if (data.Length < w * h * 4) return full;
+        byte cut = (byte)Mathf.RoundToInt(ContentAlphaCut * 255f);
+        int x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w * 4 + 3;   // その行の先頭画素のαのバイト位置
+            for (int x = 0; x < w; x++)
+            {
+                if (data[row + x * 4] <= cut) continue;
+                if (x < x0) x0 = x;
+                if (x > x1) x1 = x;
+                if (y < y0) y0 = y;
+                y1 = y;
+            }
+        }
+        return x1 < 0 ? full : new Rect2I(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+    }
+
+    // 中身の高さを contentHeight にそろえる倍率。ポーズを替えても大きさを動かしたくないときは、
+    //   その絵ではなく idle でこれを求めて DrawPortraitScaled へ渡す（回避の絵は姿勢で中身の高さが変わるため）。
+    public static float PortraitScale(Texture2D tex, float contentHeight)
+    {
+        var c = ContentRect(tex);
+        return c.Size.Y > 0 ? contentHeight / c.Size.Y : 1f;
+    }
+
+    // 中身の高さを contentHeight にそろえて描く。中身の水平中心が baselineCenter.X、
+    //   中身の下端（足元）が baselineCenter.Y に来る。返り値は中身が画面上で占める矩形。
+    public static Rect2 DrawPortrait(CanvasItem ci, Texture2D tex, Vector2 baselineCenter, float contentHeight, bool flip = false)
+        => DrawPortraitScaled(ci, tex, baselineCenter, PortraitScale(tex, contentHeight), flip);
+
+    // 描かずに「中身が画面上で占める矩形」だけを返す（枠からのはみ出しを見る QA・当たり確認用）。
+    //   左右反転しても中身の中心が基準線に居続けるので、この矩形は flip に依らない。
+    public static Rect2 PortraitRect(Texture2D tex, Vector2 baselineCenter, float scale)
+    {
+        var c = ContentRect(tex);
+        return new Rect2(baselineCenter.X - c.Size.X * scale / 2f, baselineCenter.Y - c.Size.Y * scale,
+            c.Size.X * scale, c.Size.Y * scale);
+    }
+
+    // 倍率を外から渡す版。返り値は PortraitRect と同じ「中身が画面上で占める矩形」。
+    public static Rect2 DrawPortraitScaled(CanvasItem ci, Texture2D tex, Vector2 baselineCenter, float scale, bool flip = false)
+    {
+        var c = ContentRect(tex);
+        var size = tex.GetSize() * scale;
+        var pos = new Vector2(
+            baselineCenter.X - (c.Position.X + c.Size.X / 2f) * scale,   // 中身の水平中心を基準線の X へ
+            baselineCenter.Y - (c.Position.Y + c.Size.Y) * scale);       // 中身の下端（足元）を基準線の Y へ
+        // 左右反転は「中身の中心」を軸に折り返す（テクスチャ枠の中心で折ると余白の差だけ中心がずれる）。
+        //   ★DrawTextureRect は size.X が負でも position はそのまま＝「position から |size.X| ぶん右へ、
+        //     UV だけ反転して」描く（RendererCanvasCull::canvas_item_add_texture_rect が size.X を正に直して
+        //     FLIP_H を立てるだけ）。position を「右端」にずらす昔ながらの書き方だと絵が幅1枚ぶん右へ飛ぶ。
+        var draw = flip
+            ? new Rect2(2f * baselineCenter.X - pos.X - size.X, pos.Y, -size.X, size.Y)
+            : new Rect2(pos, size);
+        ci.DrawTextureRect(tex, draw, false);
+        return PortraitRect(tex, baselineCenter, scale);
+    }
+
     // ── アバター（丸＋頭文字）──
     public static void Avatar(CanvasItem ci, Vector2 center, float r, Color col, string initial)
     {
