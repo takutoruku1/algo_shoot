@@ -27,7 +27,7 @@ public partial class Player : Area2D
 
     // ボム入力のエッジ検出用
     private bool _bombHeld = false;
-    // 集中モード（V）入力のエッジ検出用。発動の可否は GameManager.TryFocusMode が持つ。
+    // 集中モード（C）入力のエッジ検出用。発動の可否は GameManager.TryFocusMode が持つ。
     private bool _focusModeHeld = false;
 
     // 初回に HUD へ現在モードを通知したか（V の切替ローテは 2026-09-13 に廃止＝エッジ検出はもう要らない）。
@@ -375,6 +375,8 @@ public partial class Player : Area2D
     private bool _lockByShift;
     private bool _lockPrevHeld;      // 前フレームの A（前の敵へ送りのエッジ検出）
     private bool _chargeKeyLocked;   // 会話中に押された Z／Y を、離すまで溜め打ち入力として読まない（会話送りの同じ押下で暴発しない）
+    private bool _dodgeKeyLocked;    // 会話中に押された Space を、離すまで回避入力として読まない（Space は会話送りの ui_accept と共用）
+    private bool _bubblePausedPrev;  // 前フレームの Hud.BubblePaused（会話を閉じたのと同じフレームの Space も会話送りとして扱う）
 
     // ── 会話で戦闘が止まっているあいだは、自機を吹き出しの奥へ回す（2026-09-26 作者指摘）──
     //   戦闘中の吹き出しは弾より奥（BubbleLayer・ZIndex -7）に描くので、自機（ZNormal=10）が文字の上に乗ると
@@ -724,13 +726,21 @@ public partial class Player : Area2D
         TickLockOn();
         if (LockedOn) speed *= LockMoveMul;
 
-        // 回避入力＝ALT（左Alt想定）/ パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
+        // 回避入力＝Space / パッド L3。空き弾の無い瞬間に「攻めで抜ける」短い無敵ダッシュ。
         // 方向は移動入力があればその方向へ変位ダッシュ、無ければその場回避（変位ゼロ＝スピン＆無敵だけ）。
         // マウス時は右クリックが回避。
         // 右クリックは**回避とロック解除を兼ねる**（2026-09-08 ユーザー指示。両方が同時に起きてよい）。
         // 解除そのものは TickLockOn 側で拾う＝ここは回避だけを見る。
-        // キーボードは Ctrl（2026-09-26 ユーザー指示。それまでは Alt）。会話中の Ctrl は既読スキップ＝時間が重ならない。
-        bool dodgeKey = Input.IsKeyPressed(Key.Ctrl) || Pad.Pressed(JoyButton.LeftStick)
+        // キーボードは Space（2026-09-27 作者指示「左手は Shift／Z／X／C／Space の構え」＝親指。旧 Ctrl は
+        //   Shift 長押しと同じ小指で衝突していた。Ctrl は会話中の既読スキップだけに残す）。
+        //   Space は会話送り（ui_accept）と同じキー＝会話中に押された押下は離すまで回避として読まない
+        //   （Z の _chargeKeyLocked と同じ作法）。会話を閉じたのと同じフレームの押下も前フレームの
+        //   BubblePaused で拾う＝最後の一行を送った親指が、明けた瞬間に回避を暴発させない。
+        bool spaceRaw = Input.IsKeyPressed(Key.Space);
+        if ((Hud.BubblePaused || _bubblePausedPrev) && spaceRaw) _dodgeKeyLocked = true;
+        else if (!spaceRaw) _dodgeKeyLocked = false;
+        _bubblePausedPrev = Hud.BubblePaused;
+        bool dodgeKey = (spaceRaw && !_dodgeKeyLocked) || Pad.Pressed(JoyButton.LeftStick)
                         || (mouse && Pad.MouseRightDown());
         if (dodgeKey && !_dodgeHeld && !Hud.BubblePaused)
         {
@@ -902,13 +912,14 @@ public partial class Player : Area2D
         else _chargeT = 0f;
         _chargeHeld = chargeKey;
 
-        // 集中モード（V / マウスのホイール回転・サイドボタン / パッド L1）：#10「集中モード」。
+        // 集中モード（C / マウスのホイール回転・サイドボタン / パッド L1）：#10「集中モード」。
+        //   キーボードは C（2026-09-27 作者指示。旧 V＝左手の定位置 Shift／Z／X／C／Space から外れていた）。
         //   敵側の時間だけ ×0.35 に落とす（1.5秒・CD20秒）。
         //   時計は実時間で送る＝自機側の delta。Engine.TimeScale は触らない（GameManager.EnemyTimeScale 参照）。
         //   L1 は低速移動の廃止（2026-09-13）で空いた枠。ホイールは戦闘中これまで未使用だった
         //   （ショット切替はジョブ導入で廃止済み）。サイドボタンは XButton1/2 の両方を拾う。
         _game?.TickFocusMode(dt);
-        bool focusKey = Input.IsKeyPressed(Key.V) || Pad.Pressed(JoyButton.LeftShoulder)
+        bool focusKey = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.LeftShoulder)
                         || Pad.MouseSideDown();
         bool focusEdge = focusKey && !_focusModeHeld;
         // ホイールは押下状態を持たない＝1回転ぶんのパルス。読んだ時点でラッチを落とす（連続発動しない）。

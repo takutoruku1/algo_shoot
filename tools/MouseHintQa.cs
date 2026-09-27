@@ -185,12 +185,24 @@ public partial class MouseHintQa : Node
         bool Probe(Vector2 p, bool click, System.Func<bool> read)
         { SetMouse(p, click); bool v = read(); ClearMouse(); return v; }
 
-        // 非戦闘画面（Hub）。
+        // Hub は右下チップを出さない（2026-09-27。画面下端のヒント帯に「M メニュー」を含めた）。
+        //   帯の「メニュー」項目のクリック判定（Hub.HintMenuClicked）が同じ役目を引き継ぐ。
         await SwapScene("res://Hub.tscn");
-        Check(pause.ShowHint, "Hub shows the Esc hint");
-        Check(pause.HintClickable, "Hub makes the Esc hint clickable");
-        Check(Probe(hint, false, () => pause.HintHovered), "hovering the hint on Hub lights it up");
-        Check(Probe(hint, true, pause.HintClicked), "clicking the Esc hint on Hub opens the pause menu");
+        Check(!pause.ShowHint && !pause.HintClickable, "Hub does not draw the PauseMenu corner chip (the hint bar has M)");
+        var hub = (Hub)GetTree().CurrentScene;
+        var hubMenu = (Rect2)typeof(Hub).GetMethod("HintMenuRect", Private)!.Invoke(hub, null)!;
+        bool HubClick(Vector2 p, bool click)
+        { SetMouse(p, click); bool v = (bool)typeof(Hub).GetMethod("HintMenuClicked", Private)!.Invoke(hub, null)!; ClearMouse(); return v; }
+        Check(hubMenu.HasArea() && HubClick(hubMenu.GetCenter(), true), "clicking メニュー on the Hub hint bar opens the pause menu");
+        Check(!HubClick(hubMenu.GetCenter(), false), "hovering メニュー on the Hub hint bar does not open the menu");
+        Check(!HubClick(hubMenu.GetCenter() - new Vector2(hubMenu.Size.X + 30f, 0), true), "clicking the next hint item does not open the menu");
+
+        // 右下チップを出す非戦闘画面（記録）。
+        await SwapScene("res://Records.tscn");
+        Check(pause.ShowHint, "Records shows the Esc hint");
+        Check(pause.HintClickable, "Records makes the Esc hint clickable");
+        Check(Probe(hint, false, () => pause.HintHovered), "hovering the hint on Records lights it up");
+        Check(Probe(hint, true, pause.HintClicked), "clicking the Esc hint on Records opens the pause menu");
         // ヒントのすぐ外（左へ 40px）は反応しない＝矩形がキーキャップ＋ラベル帯に収まっている。
         Check(!Probe(hint - new Vector2(80, 0), true, pause.HintClicked), "clicking just outside the hint does nothing");
         Check(!Probe(hint, false, pause.HintClicked), "hovering the hint without clicking does not open the menu");
@@ -203,7 +215,7 @@ public partial class MouseHintQa : Node
         Check(!Probe(hint, true, pause.HintClicked), "clicking the hint spot in battle does NOT open the pause menu");
 
         // 会話中（Hud.BubblePaused）は非戦闘画面でも押せない。
-        await SwapScene("res://Hub.tscn");
+        await SwapScene("res://Records.tscn");
         Hud.BubblePaused = true;
         Check(!pause.HintClickable, "a dialogue bubble disables the hint click");
         Check(!Probe(hint, true, pause.HintClicked), "clicking during dialogue does NOT open the pause menu");
@@ -310,10 +322,10 @@ public partial class MouseHintQa : Node
         log.GetType().GetMethod("Close", Private)!.Invoke(log, null);
         await Frames(6);
 
-        // ── 右下「Esc／メニュー」ヒント：Hub（押せる）とステージ（押せない）──
-        await SwapScene("res://Hub.tscn");
-        await ShotHover(pauseCanvas, PauseMenu.HintRect().GetCenter(), "pausehint_hub_hover");
-        await ShotHover(pauseCanvas, new Vector2(20, 20), "pausehint_hub_idle");
+        // ── 右下「Esc／メニュー」ヒント：記録（押せる）とステージ（押せない）。Hub は 2026-09-27 からヒント帯に移った ──
+        await SwapScene("res://Records.tscn");
+        await ShotHover(pauseCanvas, PauseMenu.HintRect().GetCenter(), "pausehint_records_hover");
+        await ShotHover(pauseCanvas, new Vector2(20, 20), "pausehint_records_idle");
         await SwapScene("res://Akari.tscn");
         await ShotHover(pauseCanvas, PauseMenu.HintRect().GetCenter(), "pausehint_stage_hover");
 

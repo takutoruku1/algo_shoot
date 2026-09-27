@@ -164,7 +164,7 @@ public partial class HubJobQa : Node
             {
                 await Keypress(Key.X);
                 clearedStages.Add(GameManager.Stages[i].Id);
-                await Keypress(Key.J);
+                await OpenAccountsByKeys(hub);
                 var choices = Read<JobTuning[]>(hub, "_jobChoices");
                 Check(choices.Length == i + 2 && choices[^1].CharacterId == GameManager.Stages[i].Id,
                     "each rescue adds exactly its character to the account list");
@@ -224,16 +224,22 @@ public partial class HubJobQa : Node
                     && !Read<bool>(hub, "_dived"), "stage and difficulty remain selected");
                 await Frames(20);
             }
+            // 2026-09-27：J の直行は廃止（詳細からはボタンのクリックだけ）。J は何も起こさない。
             await Keypress(Key.J);
-            Check(Mode(hub) == "Job", "J also opens types from the detail screen");
+            Check(Mode(hub) == "Detail", "J no longer opens types from the detail screen");
+            Click(hub, (Rect2)Call(hub, "DetailJobRect", true)!, "ProcessDetail", 0.01);
+            Check(Mode(hub) == "Job", "the detail button opens types again");
+            await Frames(20);
             await KeyAction("ui_down");
             await Keypress(Key.X);
             Check(Mode(hub) == "Detail" && game.SelectedJob == Job.Magic, "keyboard cancel keeps the selected job");
-            await Keypress(Key.J);
+            Click(hub, (Rect2)Call(hub, "DetailJobRect", true)!, "ProcessDetail", 0.01);
+            await Frames(20);
             Click(hub, (Rect2)Call(hub, "JobCloseRect")!, "ProcessJob", 0.01);
             Check(Mode(hub) == "Detail", "close button returns to the originating detail screen");
             await Frames(10);
-            await Keypress(Key.J);
+            Click(hub, (Rect2)Call(hub, "DetailJobRect", true)!, "ProcessDetail", 0.01);
+            await Frames(20);
             game.JobForcedByCmdline = true;
             await KeyAction("ui_down");
             await Keypress(Key.Z);
@@ -251,9 +257,10 @@ public partial class HubJobQa : Node
             await Keypress(Key.X);
             Check(Mode(hub) == "Cards", "detail still closes to stage selection");
             await Shot("cards_small");
-            await Keypress(Key.J);
+            await OpenAccountsByKeys(hub);
+            Check(Mode(hub) == "Job", "the footer account item opens types from the card screen");
             await Keypress(Key.X);
-            Check(Mode(hub) == "Cards", "existing card-screen shortcut still returns to cards");
+            Check(Mode(hub) == "Cards", "closing the footer-opened types returns to cards");
 
             foreach (var job in Jobs.All)
             {
@@ -541,6 +548,22 @@ public partial class HubJobQa : Node
         PadField("_mL", false);
         PadField("_mLPrev", false);
         PadField("_usingMouse", false);
+    }
+
+    // キーボードだけでアカウント切り替えを開く（2026-09-27 に J の直行を廃止した代わりの経路）：
+    //   最後のカードへ移って ↓ でフッタ「アカウント」、Z で押す。カードの選択は開いた後に元へ戻す
+    //   （以降の手順が「選んでいた投稿」を前提にしているため）。
+    private async Task OpenAccountsByKeys(Hub hub)
+    {
+        int sel = Read<int>(hub, "_sel");
+        Write(hub, "_footSel", -1);
+        Write(hub, "_sel", Read<Array>(hub, "_entries").Length - 1);
+        await Frames(2);
+        await KeyAction("ui_down");
+        Check(Read<int>(hub, "_footSel") >= 0, "↓ on the last card reaches the footer");
+        await Keypress(Key.Z);
+        Write(hub, "_sel", sel);
+        Write(hub, "_footSel", -1);
     }
 
     private async Task Keypress(Key key)

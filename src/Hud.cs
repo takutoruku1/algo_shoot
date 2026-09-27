@@ -264,10 +264,11 @@ public partial class Hud : CanvasLayer
     // ロックオン：Shift 長押し / パッド RB / マウス左クリック（Player.TickLockOn の判定と一致させる）。
     private static string TokLock   => Pad.UsingPad ? Pad.Face(JoyButton.RightShoulder)
                                      : Pad.UsingMouse ? "左クリック" : "Shift";
-    // 集中モード：V / パッド LB / マウスのホイール回転・サイドボタン（Player.cs の判定と一致させる）。
+    // 集中モード：C / パッド LB / マウスのホイール回転・サイドボタン（Player.cs の判定と一致させる）。
+    //   キーボードは 2026-09-27 に V → C（左手の定位置 Shift／Z／X／C／Space の人差し指）。
     // 単体チップは代表1表記なので、直近デバイスに合わせて1つだけ出す（マウス時は KB 表記へ落ちないよう明示）。
     private static string TokFocus  => Pad.UsingPad ? Pad.Face(JoyButton.LeftShoulder)
-                                     : Pad.UsingMouse ? "ホイール" : "V";
+                                     : Pad.UsingMouse ? "ホイール" : "C";
 
     // 操作子トークン（全割り当て版）：選択中の表示モードに属する割り当てを“全部”並べる。
     // 練習面（StageZero）の指示帯（DrawTutorialKeys）が使う。視認性のため区切りは細い「/」。
@@ -278,8 +279,8 @@ public partial class Hud : CanvasLayer
     private static string AllMove  => Pad.UsingPad ? "L"                              : "矢印 / WASD";
     // ※低速移動（旧 AllFocus＝Shift / LB）は 2026-09-13 ユーザー決定で機能ごと廃止した。
     private static string AllBomb  => Pad.UsingPad ? Pad.Face(JoyButton.X)            : "X";
-    // 回避ダッシュは Player.cs では Alt / Pad L3(LeftStick) の2系統。Tok* と違い“全部”を見せる版。
-    private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Alt";
+    // 回避ダッシュは Player.cs では Space / Pad L3(LeftStick) の2系統（2026-09-27 に Ctrl → Space）。Tok* と違い“全部”を見せる版。
+    private static string AllDodge => Pad.UsingPad ? Pad.Face(JoyButton.LeftStick)    : "Space";
 
     // ティッカー（降ってくる言葉）＝「Yの川」のノイズ。
     // 「下に流れているコメント」と「投稿弾」が同じ“声”を出すため、どちらも PostPool から引く。

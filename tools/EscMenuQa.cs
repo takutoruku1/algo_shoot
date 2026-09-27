@@ -11,8 +11,10 @@ using System.Threading.Tasks;
 //   (e) 同ダイアログのキャンセル → メニューへ戻る／スロットのキャンセル → 問いへ戻る
 //   (f) ウィンドウの×（NotificationWMCloseRequest）→ 問いが出る／キャンセルで元へ／セーブせずに終了で終了要求
 //       （QuitOverride で差し替えて実際には終了させない）。タイトル画面では即終了、トレーニングは2択
-//   (g) 右下ヒント「M メニュー」は戦闘画面では描かない（ShowHint==false）、ハブでは描く
-//   (h) ハブの SNS でキーボードだけでアカウント切り替えに到達する（→ でフッタ／最後のカードで ↓ → Z）
+//   (g) 右下ヒント「M メニュー」は戦闘画面では描かない（ShowHint==false）。ハブも描かない（2026-09-27。
+//       ハブは画面下端のヒント帯＝Hub.HintBarRect に「M メニュー」を含めた）
+//   (h) ハブの SNS でキーボードだけでアカウント切り替えに到達する（最後のカードで ↓ → フッタ → Z）。
+//       カード上の ←→ はカード下部のボタン切り替えに使うのでフッタへは降りない。J の直行は廃止
 //   実行: APPDATA=build/qa_story/escmenu_appdata で
 //         Godot --headless --path . res://tools/qa_esc_menu.tscn
 //         （--qa は付けない＝PauseMenu が自動プレイ扱いで無効になるため）
@@ -193,7 +195,8 @@ public partial class EscMenuQa : Node
         var hub = await Swap("res://Hub.tscn", 40);
         Write(hub, "_mode", HubMode("Home"));
         await Frames(3);
-        Check(_pause.ShowHint, "(g) hub: the M-menu hint is drawn");
+        Check(!_pause.ShowHint && ((Hub)hub).HintBarRect.HasArea(),
+            "(g) hub: no corner chip; M メニュー lives on the hub's hint bar");
         await Press(Key.Escape);
         Check(!_pause.IsOpen && Read<object>(hub, "_mode").Equals(HubMode("Home")), "(c) hub home: Esc does not open the menu");
         await Press(Key.M);
@@ -213,8 +216,13 @@ public partial class EscMenuQa : Node
         Write(hub, "_footSel", -1);
         await Frames(3);
         await Action("ui_right");
+        Check(Read<int>(hub, "_footSel") == -1, "(h) → on a card stays on the card (it switches the card buttons)");
+        var entries = Read<Array>(hub, "_entries");
+        Write(hub, "_sel", entries.Length - 1);
+        await Frames(2);
+        await Action("ui_down");
         int fs = Read<int>(hub, "_footSel");
-        Check(fs >= 0, $"(h) → moves the cursor down to the footer (footSel={fs})");
+        Check(fs >= 0, $"(h) ↓ on the last card moves the cursor down to the footer (footSel={fs})");
         await Shot("hub_footer_account");
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").Equals(HubMode("Job")), "(h) Z on the footer opens the account switcher");
@@ -224,11 +232,8 @@ public partial class EscMenuQa : Node
         await Action("ui_up");
         Check(Read<int>(hub, "_footSel") == -1, "(h) ↑ returns the cursor to the cards");
 
-        var entries = Read<Array>(hub, "_entries");
-        Write(hub, "_sel", entries.Length - 1);
-        await Frames(2);
         await Action("ui_down");
-        Check(Read<int>(hub, "_footSel") >= 0, "(h) ↓ on the last card also reaches the footer");
+        Check(Read<int>(hub, "_footSel") >= 0, "(h) ↓ on the last card reaches the footer again");
         await Action("ui_left");
         await Action("ui_right");
         Check(Read<int>(hub, "_footSel") == fs, "(h) ←→ cycles the footer items back to アカウント");
@@ -240,9 +245,8 @@ public partial class EscMenuQa : Node
         Check(Read<object>(hub, "_mode").Equals(HubMode("Cards")) && !_pause.IsOpen, "(h) Esc closes the switcher (menu stays shut)");
         Write(hub, "_footSel", -1);
         await Press(Key.J);
-        Check(Read<object>(hub, "_mode").Equals(HubMode("Job")), "(h) J still opens the switcher directly");
+        Check(Read<object>(hub, "_mode").Equals(HubMode("Cards")), "(h) J no longer opens the switcher (2026-09-27)");
         await Seconds(0.25);
-        await Press(Key.X);
         Free(hub);
         await Frames(3);
     }

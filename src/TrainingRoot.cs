@@ -193,7 +193,7 @@ public partial class TrainingRoot : Node2D
         bool moving = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down") != Vector2.Zero
             || Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.D);
         bool acting = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept")
-            || Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.V);
+            || Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.C);
         if (moving || acting)
         {
             _idleTimer = 0;
@@ -383,9 +383,10 @@ public partial class TrainingRoot : Node2D
 
         // 操作ヒント（左下）。案C は教え役を置かない＝説明は単語＋キーバッジだけで足りる形にする
         //   （語は Hud.DrawTutorialKeys の見出しに揃える：移動／ショット／回避／ボム／浄化）。
-        //   ※低速移動は 2026-09-13 に廃止。V は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
+        //   ※低速移動は 2026-09-13 に廃止。C は「モード切替」ではなく集中モード（切替はジョブ導入で廃止済み）。
+        //   ※2026-09-27：回避 Ctrl → Space、集中モード V → C（左手の定位置 Shift／Z／X／C／Space）。
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 96),
-            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: Shift 長押し/左クリック（F で次の敵へ）　溜め打ち: Z/左クリック長押し　回避: Ctrl　ボム: X　集中モード: V/ホイール", 12, UiKit.Text3);
+            "移動: 矢印/WASD　ショット: オート（浄化も同じ）　ロックオン: Shift 長押し/左クリック（F で次の敵へ）　溜め打ち: Z/左クリック長押し　回避: Space　ボム: X　集中モード: C/ホイール", 12, UiKit.Text3);
         UiKit.Text(_uiLayer, UiKit.Zen, new Vector2(40, H - 76),
             "スキル割り振り: Tab で開閉（開いたら行をクリックで付け外し・ホイールでスクロール）　全解放/全オフ: ] / [", 12, UiKit.Text3);
 

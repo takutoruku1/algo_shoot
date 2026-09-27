@@ -897,13 +897,15 @@ public partial class PauseMenu : CanvasLayer
     public int Sel => _sel;
     // 右下の「M メニュー」ヒントは非戦闘のスマホ系画面だけ（2026-09-27 ユーザー指示「シューティング中の ESC メニューの
     //   表示は削除して」）。戦闘画面・トレーニング・カットシーンでは描かない（そこでは Esc／M で開ける）。
+    //   ★2026-09-27：Hub も外した。Hub は画面下端のヒント帯（UiKit.HintBar）に「M メニュー」を含めたので二重になる
+    //     （帯の「メニュー」はクリックでも開く＝Hub.HintMenuClicked が引き継ぐ）。ショップ等は別作業で揃えるまで残す。
     public bool ShowHint
     {
         get
         {
             if (_open || _autoplay || !CanOpenHere()) return false;
             string path = GetTree().CurrentScene?.SceneFilePath ?? "";
-            return IsNonCombatMenuScreen(path) && !path.Contains("Training");
+            return IsNonCombatMenuScreen(path) && !path.Contains("Training") && !path.Contains("Hub");
         }
     }
 

@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 //      次に現れた最寄りの敵へ自動で付く。落ちるのは解除入力だけ。
 //   ② 会話停止中の自機の奥回し — 作者指摘「吹き出しの上に乗っていたら、動かせないのに読めなくなる」。
 //      Hud.BubblePaused のあいだだけ Player.ZIndex が吹き出し（BubbleLayer -7）の下（-8）へ落ち、明けたら 10 に戻る。
+//   ③ 左手の構え（2026-09-27 作者指示「左手は Shift／Z／X／C／Space」）— 回避は Space、集中モードは C。
+//      Ctrl／V は戦闘操作から外れた。Space は会話送りと共用なので、会話中に押された Space は離すまで回避にならない
+//      （会話を閉じたのと同じフレームの押下も含む）。離して押し直せば回避が出る。
 //   使い方：
 //     ヘッドレス : Godot --headless --path . res://tools/qa_lock_mode.tscn
 //     スクショ付き（窓あり。Shot はヘッドレスで固まる）:
@@ -168,6 +171,53 @@ public partial class LockModeQa : Node
         Check("S のロックは会話を挟んでも保つ", player.LockedOn && player.LockArmed);
         await Tap(Key.Shift);
         Check("S のロック中に Shift を押し離し → 解除（従来どおり）", !player.LockedOn && !player.LockArmed);
+
+        // ── ③ 回避＝Space（会話送りの押下は離すまで読まない）／集中モード＝C ──
+        game.TrainingSetUpgrade("n_dodge", true);
+        game.TrainingSetUpgrade("n_slow", true);
+        await Frames(60);   // 直前の操作で回避のクールダウンが残っていないように待つ
+        int d0 = player.DodgeCount;
+        await Tap(Key.Ctrl);
+        Check("Ctrl では回避しない（既読スキップ専用）", player.DodgeCount == d0);
+        //   会話中に Space を押す → そのまま会話を閉じる → 押している間は回避しない。
+        _keepBubble = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog(Hud.LineKind.Other, "……Space で会話を送る。", "", "レイ");
+        await Frames(4);
+        KeyEvent(Key.Space, true);
+        await Frames(4);
+        Check("会話中の Space では回避しない", Hud.BubblePaused && player.DodgeCount == d0);
+        _keepBubble = false;
+        hud.HoldBubble = false; hud.HideBubble();
+        await Frames(8);
+        Check("会話中に押した Space を押したまま会話が明けても回避しない", !Hud.BubblePaused && player.DodgeCount == d0);
+        KeyEvent(Key.Space, false);
+        await Frames(4);
+        Check("離しただけでは回避しない", player.DodgeCount == d0);
+        //   会話を閉じたのと同じフレームに押された Space（最後の一行を送った押下）も回避にしない。
+        _keepBubble = true;
+        hud.HoldBubble = true;
+        hud.ShowDialog(Hud.LineKind.Other, "……最後の一行。", "", "レイ");
+        await Frames(4);
+        _keepBubble = false;
+        //   キーは次の入力フラッシュまで Input に届かないので、先に流してから閉じる＝「押下が見えている
+        //   フレームに会話が閉じた」を作る（実機では Hud が押下を読んで閉じるので、この順が本物）。
+        KeyEvent(Key.Space, true);
+        Input.FlushBufferedEvents();
+        hud.HoldBubble = false; hud.HideBubble();
+        await Frames(8);
+        Check("会話を閉じた同じフレームの Space でも回避しない", !Hud.BubblePaused && player.DodgeCount == d0);
+        KeyEvent(Key.Space, false);
+        await Frames(4);
+        await Tap(Key.Space);
+        Check("離して押し直すと Space で回避する", player.DodgeCount == d0 + 1);
+        //   集中モードは C（V は外れた）。
+        bool focusBefore = game.FocusModeActive;
+        await Tap(Key.V);
+        Check("V では集中モードにならない", !focusBefore && !game.FocusModeActive);
+        await Tap(Key.C);
+        Check("C で集中モード", game.FocusModeActive);
+        await Frames(120);   // 集中モード（1.5秒）を明けさせてから次へ
 
         // ── ② 会話停止中は自機を吹き出しの奥へ ──
         Check("平常時の Z は 10", player.ZIndex == 10);

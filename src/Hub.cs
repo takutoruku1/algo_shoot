@@ -2,10 +2,12 @@ using Godot;
 
 // Hub : タイムラインハブ（ステージ間の中枢）。RefrainHTML のデザイン言語で非ピクセル化。
 //   - ヘッダ：使用中のアカウント（アバター/名前/フォロワー/インプレ/汚染）。
-//   - 角丸ガラスの投稿カード（声/届いた/限界 のピル）を ↑↓ で選び Z で潜る（通常は難易度選択を挟む）。
+//   - 角丸ガラスの投稿カード（声/届いた/限界 のピル）を ↑↓ で選び、カード下部の [ダイブ] [返信] を ←→ で選んで Z
+//     （ダイブは難易度選択を挟む）。操作は「矢印で選ぶ・Z で決める・Esc／X でもどる」だけ（2026-09-27。項目ごとの
+//     文字キー J／C／T／R は廃止）。操作の案内は画面下端のヒント帯（UiKit.HintBar）1行にまとめる。
 //     カードは下から滑り込む流入アニメ（帰還投稿後は「タイムライン更新」として再流入）。
 //     エンゲージ数はクリア状態・フォロワー数と連動し、クリア済カードにはミナの自動投稿がスレッド返信風にぶら下がる。
-//   - クリア帰還でミナの会話＋自動投稿。クリア済カードで C：コメント返信（1回）。
+//   - クリア帰還でミナの会話＋自動投稿。クリア済カードの [返信]：コメント返信（1回）。
 //   - 全クリアで FINAL カード（枠とピルは穢れ色・フォロワー/インプレの生値を語ラベル付きで出す）。autoplay は会話を自動送り→自動ダイブ。
 public partial class Hub : Node2D
 {
@@ -112,12 +114,18 @@ public partial class Hub : Node2D
     private Texture2D?[] _mobIcons = System.Array.Empty<Texture2D?>();
 
     private int _sel;
-    private bool _navHeld, _zHeld, _xHeld, _cHeld, _tHeld, _jHeld, _dived;
+    private bool _navHeld, _zHeld, _xHeld, _dived;
     // SNS 画面でキーボード／パッドのカーソルがフッタに降りているとき、その項目番号（-1＝カード側）。
     //   2026-09-27 作者指摘「キーボード操作でアカウントを開くを選択できない」：フッタはマウス専用で、
     //   キー導線の J／RB は画面のどこにも表示されていなかった（FooterItems の key を DrawFooter が捨てていた）。
-    //   → ←→（または最後のカードで ↓）でフッタへ降り、←→で項目を選んで Z で押せるようにした。↑でカードへ戻る。
+    //   → 最後のカードで ↓ でフッタへ降り、←→で項目を選んで Z で押せるようにした。↑でカードへ戻る。
+    //   同日の作者指摘「J とか C とか X とか書いてあるけど操作性悪すぎでしょ」で J／RB の直行は廃止し、
+    //   カード上の ←→ はカード下部のボタン切り替え（_cardBtn）に回した＝フッタへ降りるのは「最後のカードで ↓」だけ。
     private int _footSel = -1;
+    // 選択中の声のカードの下部ボタン（0＝ダイブ／1＝返信）。←→ で切り替え、Z で実行。
+    //   返信が使えない（CanReplySel が偽）ときは返信を薄く描き、カーソルは乗せない。
+    //   カードの選択が変わったら必ずダイブへ戻す（_cardBtnFor で検出）。
+    private int _cardBtn, _cardBtnFor = -1;
     private double _t, _cardsEnteredT;
     private float _selT; // 選択補間 0→1（0.12s で寄る・(B)手触り）
     private int _selAnim = -1; // 補間中の選択インデックス（_sel 変化で 0 にリセット）
@@ -840,7 +848,15 @@ public partial class Hub : Node2D
         // ポーズメニューを閉じた Esc/Z の同じ押下が漏れて 決定/会話送り/リロード が誤発火しないよう食う（Pad.UiBlocked）。
         if (Pad.UiBlocked(this))
         {
-            _navHeld = _zHeld = _xHeld = _cHeld = _tHeld = _jHeld = true;
+            _navHeld = _zHeld = _xHeld = true;
+            QueueRedraw();
+            return;
+        }
+        // 画面下のヒント帯の「メニュー」は左クリックでも開く（PauseMenu の右下チップは Hub では出さない＝
+        //   ヒント帯に含めたので二重になる。チップが持っていたクリックの役目をここで引き継ぐ）。
+        if (HintMenuClicked())
+        {
+            GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.Open();
             QueueRedraw();
             return;
         }
@@ -1159,7 +1175,7 @@ public partial class Hub : Node2D
         if (_snsOpeningT < SnsOpenDuration + (NeedsSnsIntro ? 0.5 : 0)) return;
         _mode = Mode.Cards;
         _zHeld = Pad.AdvanceHeld();
-        _navHeld = _xHeld = _cHeld = _tHeld = _jHeld = true;
+        _navHeld = _xHeld = true;
         if (NeedsSnsIntro)
         {
             StartDialogue(SnsIntro, null, noPost: true, seenKey: SnsIntroSeenKey);
@@ -1664,9 +1680,8 @@ public partial class Hub : Node2D
     private void ProcessCards()
     {
         if (_autoplay) { if (_t - _cardsEnteredT >= AutoDiveDelay) DiveAuto(); return; }
-
-        // R＝タイムラインの再読込。パッドの Start はポーズメニュー（開閉）と衝突するため外した。
-        if (Input.IsKeyPressed(Key.R)) { GetTree().ReloadCurrentScene(); return; }
+        // R（タイムラインの再読込）は 2026-09-27 に廃止（スマホの操作を 矢印＋Z＋Esc／X に絞った）。
+        NormalizeCardBtn();
 
         float wheel = Pad.WheelDelta();
         if (wheel != 0f && FeedMaxScroll() > 0f)
@@ -1679,6 +1694,14 @@ public partial class Hub : Node2D
         UiKit.BeginHotspots(Pad.MousePos());
         for (int i = 0; i < _entries.Length; i++)
             if (CardHitRect(i).HasArea()) UiKit.Hotspot(CardHitRect(i), i);
+        // 選択中の声のカードの [ダイブ] [返信]。カードより後に登録＝重なりはボタンが勝つ（後勝ち）。
+        //   フィードの窓からはみ出たぶんは切る（CardHitRect と同じ考え方＝フッタ・ヘッダの上で拾わない）。
+        if (CardButtonsShown(_sel))
+            for (int b = 0; b < 2; b++)
+            {
+                var br = CardBtnRect(_sel, b).Intersection(FeedRect);
+                if (br.HasArea()) UiKit.Hotspot(br, CardBtnIdBase + b);
+            }
         var footItems = FooterItems();
         for (int i = 0; i < footItems.Count; i++)
             UiKit.Hotspot(FooterItemRect(i), FooterIdBase + i);
@@ -1690,10 +1713,16 @@ public partial class Hub : Node2D
             _sel = hov; _footSel = -1; Audio.Instance?.PlayUiMove();
         }
         int clk = UiKit.ClickedId(Pad.MouseClick());
-        if (_footSel >= footItems.Count) _footSel = footItems.Count - 1;   // 「返信」の出入りで数が変わっても外へ出さない
+        if (_footSel >= footItems.Count) _footSel = footItems.Count - 1;
         if (clk == JobOpenId && _t > 0.3)
         {
             OpenJob();
+            return;
+        }
+        // カード下部のボタンのクリック＝キーで選んで Z を押したのと同じ（PressCardButton）。
+        if (clk == CardBtnIdBase || clk == CardBtnIdBase + 1)
+        {
+            if (_t > 0.3) PressCardButton(clk - CardBtnIdBase);
             return;
         }
         // フッタボタンのクリック → 対応アクション（強化=ショップ入口が主目的。返信/記録も同じ導線）。
@@ -1704,7 +1733,8 @@ public partial class Hub : Node2D
             return; // フッタを押したフレームはカード確定へ流さない
         }
 
-        // ↑↓：カード送り。最後のカードで ↓、またはどこでも ←→ でフッタへ降りる（着地は「アカウント」）。
+        // ↑↓：カード送り。最後のカードで ↓ でフッタへ降りる（着地は「アカウント」）。
+        //   ←→：カード上では下部ボタン [ダイブ] [返信] の切り替え（2026-09-27。以前はフッタへ降りる操作だった）。
         //   フッタ上では ←→ で項目を巡り、↑ でカードへ戻る（カードの選択は降りる前のまま）。
         bool up = Input.IsActionPressed("ui_up"), down = Input.IsActionPressed("ui_down");
         bool left = Input.IsActionPressed("ui_left"), right = Input.IsActionPressed("ui_right");
@@ -1719,20 +1749,30 @@ public partial class Hub : Node2D
                     Audio.Instance?.PlayUiMove();
                 }
             }
-            else if (left || right || (down && _sel >= _entries.Length - 1))
+            else if (down && _sel >= _entries.Length - 1)
             {
                 _footSel = System.Math.Max(0, footItems.FindIndex(f => f.act == FootAct.Job));
                 Audio.Instance?.PlayUiMove();
             }
-            else if (_entries.Length > 0)
+            else if (up || down)
             {
-                if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
-                if (down) _sel = _sel + 1;
-                UpdateFeedScrollTarget();
-                Audio.Instance?.PlayUiMove();
+                if (_entries.Length > 0)
+                {
+                    if (up) _sel = (_sel - 1 + _entries.Length) % _entries.Length;
+                    if (down) _sel = _sel + 1;
+                    UpdateFeedScrollTarget();
+                    Audio.Instance?.PlayUiMove();
+                }
+            }
+            else if (CardButtonsShown(_sel))
+            {
+                // ボタンは2つだけ＝←→どちらでも反対側へ。返信が使えないときは動かない（薄いボタンは選べない）。
+                int nb = _cardBtn == 0 ? 1 : 0;
+                if (nb == 0 || CanReplySel()) { _cardBtn = nb; Audio.Instance?.PlayUiMove(); }
             }
         }
         _navHeld = up || down || left || right;
+        NormalizeCardBtn();
 
         bool z = Input.IsKeyPressed(Key.Z) || Input.IsActionPressed("ui_accept") || Pad.Pressed(JoyButton.A);
         bool zEdge = z && !_zHeld; _zHeld = z;
@@ -1740,6 +1780,12 @@ public partial class Hub : Node2D
         if (_footSel >= 0 && zEdge)
         {
             FooterClick(footItems[_footSel].act);
+            return;
+        }
+        // キーの Z はカーソルのあるボタンを押す。返信を選んでいれば返信、それ以外は下のダイブ経路へ。
+        if (zEdge && _t > 0.3 && CardButtonsShown(_sel) && _cardBtn == 1)
+        {
+            PressCardButton(1);
             return;
         }
         // マウス：カードクリックで選択＋ダイブ（KB の Z と同じ確定経路）。clk はカード id のみ（フッタは上で処理済み）。
@@ -1759,31 +1805,33 @@ public partial class Hub : Node2D
             }
         }
 
-        bool c = Input.IsKeyPressed(Key.C) || Pad.Pressed(JoyButton.Y);
-        bool cEdge = c && !_cHeld; _cHeld = c;
-        if (cEdge && CanReplySel())
-        {
-            var lines = ReplyDialog(_entries[_sel].Id);
-            if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
-        }
-
         // もどる（ホームへ）＝X／Esc／パッドB（Esc は 2026-09-26 に「一つ前の画面へ」として復帰。メニューは M）。
+        //   2026-09-27：C（返信）・T（記録）・J／RB（アカウント）の直行キーは廃止。返信はカードの [返信]、
+        //   記録はホームの記録アプリ、アカウントはフッタから開く（どれも矢印＋Z で届く）。
         bool x = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool xEdge = x && !_xHeld; _xHeld = x;
         if (xEdge && _t > 0.3 && !_dived) { GoHome(); return; }
-
-        // T：クリアタイムの記録画面へ（戻ると Hub に復帰）。一面クリアするまでは開かない。
-        bool tk = Input.IsKeyPressed(Key.T) || Pad.Pressed(JoyButton.LeftShoulder);
-        bool tEdge = tk && !_tHeld; _tHeld = tk;
-        if (tEdge && _t > 0.3 && !_dived && RecordsUnlocked) OpenHomeApp(2);
-
-        // J / RB：ジョブ選択。画面遷移ではなくハブの上に開く（Detail と同じ扱い）＝解禁ゲート無し。
-        bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);
-        bool jEdge = jk && !_jHeld; _jHeld = jk;
-        if (jEdge && _t > 0.3 && !_dived) OpenJob();
     }
 
-    // フッタボタン（マウス）押下のアクション。キー導線（X=強化 / T=記録 / C=返信）と同じ処理へ合流する。
+    // カード下部ボタンのカーソルを正す：カードの選択が変わったらダイブへ戻し、返信が使えなくなったら（返信を
+    //   済ませた・声のないカードへ移った）ダイブへ落とす。
+    private void NormalizeCardBtn()
+    {
+        if (_cardBtnFor != _sel) { _cardBtnFor = _sel; _cardBtn = 0; }
+        if (_cardBtn == 1 && !CanReplySel()) _cardBtn = 0;
+    }
+
+    // カード下部のボタンを押す（キーの Z とクリックの共通経路）。0＝ダイブ（投稿詳細＝難易度選択を開く）／1＝返信。
+    private void PressCardButton(int b)
+    {
+        if (!CardButtonsShown(_sel)) return;
+        if (b == 0) { OpenDetail(); return; }
+        if (!CanReplySel()) { Audio.Instance?.PlayUiDeny(); return; }
+        var lines = ReplyDialog(_entries[_sel].Id);
+        if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
+    }
+
+    // フッタボタン（マウス／キーのカーソル）押下のアクション。
     private void FooterClick(FootAct act)
     {
         if (_t <= 0.3 || _dived) return;
@@ -1791,13 +1839,6 @@ public partial class Hub : Node2D
         {
             case FootAct.Home:
                 GoHome();
-                break;
-            case FootAct.Reply:
-                if (CanReplySel())
-                {
-                    var lines = ReplyDialog(_entries[_sel].Id);
-                    if (lines.Length > 0) { Audio.Instance?.PlayUiConfirm(); StartDialogue(lines, _entries[_sel].Id); }
-                }
                 break;
             case FootAct.Job:
                 OpenJob();
@@ -1839,9 +1880,8 @@ public partial class Hub : Node2D
             if (TierOpen(hi) && hi != _tierSel) { _tierSel = hi; Audio.Instance?.PlayUiMove(); }
         }
         int dclk = UiKit.ClickedId(Pad.MouseClick());
-        bool jk = Input.IsKeyPressed(Key.J) || Pad.Pressed(JoyButton.RightShoulder);
-        bool jEdge = jk && !_jHeld; _jHeld = jk;
-        if (dclk == JobOpenId || jEdge)
+        // アカウント切り替えはここではクリックだけ（J／RB の直行は 2026-09-27 に廃止。キーではフッタから開く）。
+        if (dclk == JobOpenId)
         {
             OpenJob();
             return;
@@ -1978,7 +2018,77 @@ public partial class Hub : Node2D
         //   会話の外で SKIP ラッチが立っていれば画面右上に「▶▶」の印（ラッチは画面を跨いで残る）。
         if (DialogShown) _toolbar.Draw(this, ToolbarAnchor, _game?.AutoAdvanceDialog ?? false, Hud.SkipLatched || _ffNow);
         _toolbar.DrawLatchMark(this, new Vector2(UiKit.DesignW - 16f, 14f));
+        DrawHintBar();
         UiKit.EndDesign(this);
+    }
+
+    // ───────── 画面下端のヒント帯（2026-09-27）─────────
+    //   作者指摘「スマホの操作で J とか C とか X とか書いてあるけど操作性悪すぎでしょ」。項目ごとに散らしていた
+    //   キー表記をやめ、操作は「矢印で選ぶ・Z で決める・Esc／X でもどる」に絞って、その案内を画面下端の右寄せ1行に出す。
+    //   PauseMenu の右下「M メニュー」チップは Hub では出さない（この帯に含めた。クリックで開く役目も HintMenuClicked が継ぐ）。
+    //   会話中（返信・小話）はボタン列（DialogToolbar）があるので出さない。
+    private static Vector2 HintAnchor => new(UiKit.DesignW - 16f, UiKit.DesignH - 12f);
+
+    // いまのモードで出す項目（空＝出さない）。パッド表示は 十字／A／B／≡。
+    private (string token, string label)[] HintItems()
+    {
+        if (_dived || _autoplay) return System.Array.Empty<(string, string)>();
+        bool pad = Pad.UsingPad;
+        string ok = pad ? "A" : "Z", back = pad ? "B" : "Esc", menu = pad ? "≡" : "M";
+        return _mode switch
+        {
+            Mode.Home => pad
+                ? new[] { ("十字", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") }
+                : new[] { ("↑↓←→", "えらぶ"), (ok, "ひらく"), (menu, "メニュー") },
+            Mode.Cards when _footSel >= 0 => pad
+                ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") }
+                : new[] { ("←→", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") },
+            Mode.Cards => pad
+                ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") }
+                : new[] { ("↑↓", "えらぶ"), ("←→", "ボタン"), (ok, "けってい"), (back, "ホームへ"), (menu, "メニュー") },
+            Mode.Detail or Mode.Job => pad
+                ? new[] { ("十字", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") }
+                : new[] { ("↑↓", "えらぶ"), (ok, "けってい"), (back, "もどる"), (menu, "メニュー") },
+            Mode.Photos => new[] { (menu, "メニュー") },
+            _ => System.Array.Empty<(string, string)>(),
+        };
+    }
+
+    // ヒント帯の外接矩形（出していないときは大きさ0）。QA と当たり判定が読む。
+    public Rect2 HintBarRect
+    {
+        get
+        {
+            var items = HintItems();
+            if (items.Length == 0) return new Rect2();
+            var rects = UiKit.HintBarRects(HintAnchor, items);
+            return rects[0].Merge(rects[^1]);
+        }
+    }
+    // 最後に描いたヒント帯の矩形（_Draw が実際に描いたか。描かなかったフレームは大きさ0）。
+    public Rect2 HintBarDrawnRect { get; private set; }
+
+    // 「メニュー」項目（帯の右端）の矩形。
+    private Rect2 HintMenuRect()
+    {
+        var items = HintItems();
+        return items.Length == 0 ? new Rect2() : UiKit.HintBarRects(HintAnchor, items)[^1];
+    }
+
+    private bool HintMenuClicked() => Pad.MouseClick() && HintMenuRect().HasPoint(Pad.MousePos());
+
+    private void DrawHintBar()
+    {
+        var items = HintItems();
+        HintBarDrawnRect = items.Length == 0 ? new Rect2() : HintBarRect;
+        if (items.Length == 0) return;
+        // 帯の下敷き（暗い角丸の板）。SNS のキーボード表記は項目が5つで右の余白（約370px）に収まらず、
+        //   スマホ本体の右下へ少しかかる。板を敷いて「画面の上に浮いた案内」として読ませる（地の絵や枠線と混ざらない）。
+        UiKit.Box(this, HintBarRect.Grow(6f), new Color(0.05f, 0.06f, 0.08f, 0.88f), 9f, new Color(1, 1, 1, 0.07f), 1f);
+        // マウスが「メニュー」に乗っているときだけ下敷きを敷く＝押せることを見せる（旧チップの作法）。
+        if (Pad.UsingMouse && HintMenuRect().HasPoint(Pad.MousePos()))
+            UiKit.Box(this, HintMenuRect().Grow(4f), new Color(UiKit.Purify, 0.14f), 8f, new Color(UiKit.Info, 0.5f), 1f);
+        UiKit.HintBar(this, HintAnchor, items);
     }
 
     private void DrawSidePanels(float alpha)
@@ -2307,13 +2417,15 @@ public partial class Hub : Node2D
 
         UiKit.Multi(this, UiKit.Zen, new Vector2(x + 24f, cy + 75f), e.Tweet, 17,
             new Color(UiKit.Text2, e.Unlocked ? alpha : alpha * 0.45f), w - 48f, 2);
+        bool buttons = sel && voice && e.Unlocked && _mode == Mode.Cards && !_autoplay;
         bool hoverHere = sel && e.Unlocked && HoverLineFor(e).Length > 0;
         if (voice && e.Unlocked)
         {
             if (e.Cleared && !e.IsFinal) DrawMinaReply(e.Id, x, cy, w, h, alpha);
             else if (hoverHere) DrawHoverLine(e, x, cy, w, h, alpha);
             else RedactedBars(x + 24f, cy + 136f, w - 48f, alpha);
-            if (!e.IsFinal && !hoverHere) DrawCardBest(e.Id, x + w - 24f, cy + 179f, alpha);
+            // ボタンを出している間は BEST を少し上げる（下のボタン列と文字が触れないように）。
+            if (!e.IsFinal && !hoverHere) DrawCardBest(e.Id, x + w - 24f, cy + (buttons ? 173f : 179f), alpha);
         }
         else if (e.Redacted) RedactedBars(x + 24f, cy + 103f, w - 48f, alpha);
 
@@ -2333,9 +2445,54 @@ public partial class Hub : Node2D
                 ex = Metric(ex, ey, 0, e.Replies, new Color(UiKit.Text3, alpha));
                 ex = Metric(ex, ey, 1, e.Reposts, new Color(UiKit.Ok, alpha));
                 ex = Metric(ex, ey, 2, e.Likes, new Color(UiKit.Hp, alpha));
-                if (!filler) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text3, alpha));
+                // ボタンを出している間はビュー数を畳む（右側をボタンに明け渡す）。
+                if (!filler && !buttons) Metric(ex, ey, 3, ViewsFor(e), new Color(UiKit.Text3, alpha));
             }
         }
+        if (buttons)
+            for (int b = 0; b < 2; b++) DrawCardButton(e, b, cy, h, alpha);
+    }
+
+    // ───────── 声のカードの下部ボタン [ダイブ] [返信]（2026-09-27）─────────
+    //   作者指摘「スマホの操作で J とか C とか書いてあるけど操作性悪すぎでしょ」で、項目ごとの文字キーをやめ、
+    //   カードの上で選べる形にした。選択中の声のカードだけに出す（選ぶ前から全カードに並べると TL が操作パネルになる）。
+    //   ←→ で切り替え・Z で実行。マウスはクリック（ホバーではカーソルを動かさない＝フッタと同じ作法）。
+    private const int CardBtnIdBase = 11000;
+    private const float CardBtnH = 26f, CardBtnGap = 8f, CardBtnRight = 22f, CardBtnBottom = 10f;
+    private static readonly float[] CardBtnW = { 88f, 76f };
+    private static readonly string[] CardBtnLabel = { "ダイブ", "返信" };
+    private static Rect2 FeedRect => new(PhoneX, FeedTop, PhoneW, FeedBottom - FeedTop);
+
+    // いまカード i に下部ボタンを出すか（選択中・カード側にカーソル・潜れる声のカード）。
+    private bool CardButtonsShown(int i) => _mode == Mode.Cards && !_autoplay && i == _sel && _footSel < 0 && IsVoice(i);
+
+    // カード i のボタン b の矩形（右下寄せ。メトリクス行の右側＝ビュー数を畳んだ場所）。
+    private Rect2 CardBtnRect(int i, int b) => CardBtnRectAt(FeedTop + CardTop(i) - _feedScroll, CardHeight(_entries[i]), b);
+
+    // 上端 cy・高さ h のカードに置くボタン b の矩形（描画と当たり判定の単一ソース）。
+    private static Rect2 CardBtnRectAt(float cy, float h, int b)
+    {
+        float right = PhoneX + PhoneW - CardBtnRight;
+        float x = b == 1 ? right - CardBtnW[1] : right - CardBtnW[1] - CardBtnGap - CardBtnW[0];
+        return new Rect2(x, cy + h - CardBtnBottom - CardBtnH, CardBtnW[b], CardBtnH);
+    }
+
+    private void DrawCardButton(Entry e, int b, float cy, float h, float alpha)
+    {
+        var r = CardBtnRectAt(cy, h, b);
+        bool enabled = b == 0 || CanReplySel();
+        bool focus = enabled && _cardBtn == b;
+        bool hovered = UiKit.HoveredId() == CardBtnIdBase + b;
+        Color acc = b == 0 ? (e.IsFinal ? UiKit.Kegare : UiKit.Purify) : UiKit.Info;
+        float a = alpha * (enabled ? 1f : 0.35f);
+        // フォーカス＝フッタのカーソルと同じ浄化色の縁と薄い塗り。ホバーは白の下敷きだけ。
+        if (focus) UiKit.Box(this, r, new Color(acc, 0.16f * a), CardBtnH / 2f, new Color(acc, 0.85f * a), 1.4f);
+        else UiKit.Box(this, r, new Color(1, 1, 1, (hovered && enabled ? 0.08f : 0.03f) * a), CardBtnH / 2f,
+            new Color(UiKit.Text4, 0.55f * a), 1f);
+        Color ink = focus ? UiKit.White : enabled ? (hovered ? UiKit.White : UiKit.Text2) : UiKit.Text4;
+        float asc = UiKit.ZenBold.GetAscent(14), desc = UiKit.ZenBold.GetDescent(14);
+        DrawString(UiKit.ZenBold, new Vector2(r.Position.X, r.Position.Y + (r.Size.Y + asc - desc) / 2f), CardBtnLabel[b],
+            HorizontalAlignment.Center, r.Size.X, 14, new Color(ink, a));
     }
 
     // カードの左バー／アバターのリング色。埋め草は色を持たない他人＝くすんだ灰。
@@ -2578,21 +2735,21 @@ public partial class Hub : Node2D
     //   ・「えらぶ」はナビ表示のみ＝クリック対象外。「ダイブ」はカードクリックで足りるので表示のみ。
     //   ・レイアウトは DrawFooter と単一ソース化（FooterItems を DrawFooter とホットスポット登録で共用）。
     //     フッタ id は カード id(0..entries) と衝突しないよう FooterIdBase から採番する。
-    private enum FootAct { Reply, Job, Home }
+    private enum FootAct { Job, Home }
     private const int FooterIdBase = 10000;
 
-    // 現在のフッタ項目（表示順）。key/label/accent＝見た目、act＝クリック時のアクション（None=表示のみ）。
-    private System.Collections.Generic.List<(string key, string label, bool accent, FootAct act)> FooterItems()
+    // 現在のフッタ項目（表示順）。label/accent＝見た目、act＝クリック時のアクション。
+    //   2026-09-27：キー表記（X／C／J）を貼るのをやめ、「ホーム」「アカウント」の2項目だけにした。
+    //   返信はカード下部の [返信] へ移った。キーの案内は画面下端のヒント帯が持つ。
+    private System.Collections.Generic.List<(string label, bool accent, FootAct act)> FooterItems()
     {
-        var list = new System.Collections.Generic.List<(string, string, bool, FootAct)>
-        {
-            (Pad.CancelToken, "ホームに戻る", false, FootAct.Home),
-        };
-        if (CanReplySel()) list.Add((Pad.EquipToken, "返信", false, FootAct.Reply));
         // ジョブは解禁ゲート無し＝初回訪問から出す（設計書 §6：ショップは1面ボスまで開かないので、
-        //   ハブに置かないと最初のダイブ前に一度も選べない）。強化・記録より前に置く＝潜る前に決める順。
-        list.Add((JobKeyToken, "アカウント", false, FootAct.Job));
-        return list;
+        //   ハブに置かないと最初のダイブ前に一度も選べない）。
+        return new System.Collections.Generic.List<(string, bool, FootAct)>
+        {
+            ("ホーム", false, FootAct.Home),
+            ("アカウント", false, FootAct.Job),
+        };
     }
 
     private Rect2 FooterItemRect(int i)
@@ -2607,7 +2764,7 @@ public partial class Hub : Node2D
         var items = FooterItems();
         for (int i = 0; i < items.Count; i++)
         {
-            var (key, label, accent, act) = items[i];
+            var (label, accent, act) = items[i];
             var rect = FooterItemRect(i);
             // マウスのホバーと、キーボード／パッドのカーソル（_footSel）を同じ見え方にする。
             bool hovered = UiKit.HoveredId() == FooterIdBase + i || (_mode == Mode.Cards && _footSel == i);
@@ -2631,13 +2788,9 @@ public partial class Hub : Node2D
                 }
             }
             DrawFooterIcon(act, c, col);
-            // ラベルの右にキー表記（J／RB 等）を小さく添える＝キーボード・パッドだけでも押し方が分かる
-            //   （2026-09-27：それまでは key を捨てていて、J で開けることが画面のどこにも出ていなかった）。
-            float labelW = UiKit.TextW(UiKit.Zen, label, 12), keyW = UiKit.TextW(UiKit.Mono, key, 10);
-            float lx = rect.Position.X + (rect.Size.X - labelW - 5f - keyW) / 2f;
-            UiKit.Text(this, UiKit.Zen, new Vector2(lx, rect.Position.Y + 38f), label, 12, col);
-            UiKit.Text(this, UiKit.Mono, new Vector2(lx + labelW + 5f, rect.Position.Y + 40f), key, 10,
-                new Color(hovered ? UiKit.Text2 : UiKit.Text4, 1f));
+            // キー表記は貼らない（2026-09-27 作者指示。案内は画面下端のヒント帯に1行でまとめた）。
+            UiKit.Text(this, UiKit.Zen, new Vector2(rect.Position.X, rect.Position.Y + 38f), label, 12, col,
+                HorizontalAlignment.Center, rect.Size.X);
         }
     }
 
@@ -2795,8 +2948,6 @@ public partial class Hub : Node2D
     // ラン中は開かない：この画面はハブのシーンにしか存在せず、ステージ側に SelectedJob を書く導線も無い
     //   （grep 済み：GameManager / TrainingRoot 以外に代入無し）＝「選んだらそのランは変えられない」。
     private const int JobIdBase = 21000, JobCloseId = 21900, JobConfirmId = 21901;
-    // キー表記は Pad の共通トークンに無い枠（J / RB）。ハブの既存割り当て（Z/X/C/T/R）と衝突しない。
-    private static string JobKeyToken => Pad.ShowKeyboard ? "J" : Pad.Face(JoyButton.RightShoulder);
 
     // ジョブの色。既存の語彙から取る＝灯し手=灯(Light)／祈り手=浄化(Purify)／結び手=ミナ紫／語り手=金。
     private static Color JobColor(Job j) => j switch
@@ -2861,10 +3012,6 @@ public partial class Hub : Node2D
                 DrawPolyline(new[] { c + new Vector2(-8, -3), c + new Vector2(-8, 9), c + new Vector2(-3, 9), c + new Vector2(-3, 2),
                     c + new Vector2(3, 2), c + new Vector2(3, 9), c + new Vector2(8, 9), c + new Vector2(8, -3) }, color, 1.8f, true);
                 break;
-            case FootAct.Reply:
-                UiKit.Box(this, new Rect2(c - new Vector2(10, 8), new Vector2(20, 14)), Colors.Transparent, 4f, color, 1.5f);
-                DrawPolyline(new[] { c + new Vector2(-5, 6), c + new Vector2(-5, 10), c + new Vector2(0, 6) }, color, 1.5f, true);
-                break;
         }
     }
 
@@ -2880,7 +3027,7 @@ public partial class Hub : Node2D
     {
         if (_dived) return;
         Audio.Instance?.PlayUiConfirm();
-        // 自分で開けた＝アカウント追加の誘導は役目を終える（フッタ／ヘッダ／J どこから開いても降ろす）。
+        // 自分で開けた＝アカウント追加の誘導は役目を終える（フッタ／ヘッダ／詳細 どこから開いても降ろす）。
         _previewAccountNudge = false;
         if (_game != null) _game.AccountNudgePending = false;
         _jobReturnMode = _mode == Mode.Detail ? Mode.Detail : Mode.Cards;

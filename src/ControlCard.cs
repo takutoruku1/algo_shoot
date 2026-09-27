@@ -144,11 +144,12 @@ public partial class ControlCard : Control
             new Row("コントローラー", Pad.Face(JoyButton.X), "残数は左の BOMB 欄"),
             new Row("マウス",         "中クリック",   "残数は左の BOMB 欄"),
         }),
-        // 回避（ショップ「回避」で覚える）。割り当ては Player.cs の回避入力＝Ctrl / L3 / 右クリック（HowToPlay と同表記）。
-        //   キーボードは 2026-09-26 に Alt → Ctrl。マウスの右クリックはロックオン解除と兼用＝解除カードの注記と対にする。
+        // 回避（ショップ「回避」で覚える）。割り当ては Player.cs の回避入力＝Space / L3 / 右クリック（HowToPlay と同表記）。
+        //   キーボードは 2026-09-26 に Alt → Ctrl、2026-09-27 に Ctrl → Space（左手の親指）。
+        //   マウスの右クリックはロックオン解除と兼用＝解除カードの注記と対にする。
         Topic.Dodge => ("回避", "一瞬だけ駆け抜ける。そのあいだは何も当たらない", UiKit.Gold, new[]
         {
-            new Row("キーボード",     "Ctrl",                         "移動方向へ。無ければその場"),
+            new Row("キーボード",     "Space",                        "移動方向へ。無ければその場"),
             new Row("コントローラー", Pad.Face(JoyButton.LeftStick),   "左スティック押し込み"),
             new Row("マウス",         "右クリック",                    "カーソル方向へ。無ければその場"),
         }),

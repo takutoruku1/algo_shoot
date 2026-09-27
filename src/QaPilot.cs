@@ -28,7 +28,7 @@ using System.Collections.Generic;
 // ゲームオーバー中は合成R（1回目＝チェックポイントから再開）／Shift+R（2回目以降＝最初から）を
 // 自動で叩いて復帰を検証する（DriveDeathRetry）。死なない限り発火しないので通常の --assist 走行には影響しない。
 //
-// 移動/Z(撃つ)/X(ボム)に加え、回避(Alt)・溜め打ち(C)・集中モード(V)も周期的に送出する
+// 移動/Z(撃つ)/X(ボム)に加え、回避(Space)・集中モード(C)も周期的に送出する
 // （DriveFocusDodge）。StageZero（Stage0.tscn）のチュートリアル各フェーズを
 // SafetyTimeout頼みでなく実入力で通すのが主目的。
 // ※低速(Shift)の合成入力は、低速移動の廃止（2026-09-13）に伴い撤去した。
@@ -50,16 +50,14 @@ public partial class QaPilot : Node
     private const double DeathRetryDelay = 0.6;   // ゲームオーバー検知〜合成R押下までの待ち（HUDの抜けプロンプトが出揃うのを待つ）
 
     // Dodge(回避) 等の合成入力周期（DriveFocusDodge）。※低速(Shift)の周期は廃止に伴い削除。
-    private const double DodgePeriod = 2.2;       // 回避(Alt)を叩く周期
+    private const double DodgePeriod = 2.2;       // 回避(Space)を叩く周期
     private const double TapHoldDuration = 0.12;  // 叩く系キーの押下保持時間（DriveBomb の X と同じ値）
-    // 溜め打ち（C 長押し）は 2026-09-25 から最初から使える。集中モード（V）＝一本道14段の #11 は
-    //   持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。2026-09-22 から 1面クリア報酬では
-    //   なくショップ品目＝買うまで Alt は不発）。
-    private const double ChargePeriod = 4.0;      // 溜め打ちを試す周期
-    // 押している時間。1段目（Player.ChargeNeed=0.6s）は必ず超え、2段目（ChargeTier 既定 1.2s）には
-    //   届かない長さ＝自動走行では従来どおり1段目の弾が出る（2段目の検証は PlayerShotQa が持つ）。
-    private const double ChargeHoldDuration = 0.8;
-    private const double SlowPeriod = 9.0;        // 集中モード(V)を叩く周期（CD20秒より短くてよい＝空振りは無害）
+    // 集中モード（C）＝一本道14段の #11 は持っていなければ押しても無害に流れる（回避＝#2 n_dodge も同じ。
+    //   2026-09-22 から 1面クリア報酬ではなくショップ品目＝買うまで Space は不発）。
+    // 溜め打ちの合成は 2026-09-27 に外した：キーが Z（撃つ／会話送りのパルスと同じキー）に移ったので長押しを
+    //   作れず、旧キー C は集中モードに割り当て直された（送り続けると集中モードを連打してしまう）。
+    //   溜め打ちの検証は PlayerShotQa が持つ。
+    private const double SlowPeriod = 9.0;        // 集中モード(C)を叩く周期（CD20秒より短くてよい＝空振りは無害）
 
     // プレイ領域（Player.cs と一致）
     private const float MinX = 0f, MaxX = 384f, MinY = 0f, MaxY = 216f;
@@ -105,9 +103,7 @@ public partial class QaPilot : Node
     // ---- Dodge パルス状態（DriveFocusDodge）----
     private bool _dodgeKeyDown;
     private double _dodgePhase;
-    // ---- 溜め打ち(C)／集中モード(V) パルス状態（同上）----
-    private bool _chargeDown;
-    private double _chargePhase;
+    // ---- 集中モード(C) パルス状態（同上）----
     private bool _slowDown;
     private double _slowPhase;
 
@@ -362,10 +358,10 @@ public partial class QaPilot : Node
         }
     }
 
-    // Dodge(回避)・溜め打ち(C)・集中モード(V) の合成入力。DriveMovement/Shoot/Bomb に加えて
+    // Dodge(回避)・集中モード(C) の合成入力。DriveMovement/Shoot/Bomb に加えて
     // 周期的に叩くことで、StageZero チュートリアルの回避3回判定を SafetyTimeout(60s)の保険待ちでは
     // なく実入力で通す（他ステージでは無害に流す）。
-    //   回避＝Alt を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
+    //   回避＝Space を周期的に短く叩く（DriveBomb と同じ「押す→少し後で離す」パターンで確実にエッジを拾わせる）。
     // ゲームオーバー中／会話中は新規に送らない。
     private void DriveFocusDodge(double delta)
     {
@@ -373,7 +369,7 @@ public partial class QaPilot : Node
         bool gameOver = player != null && player.Lives <= 0;
         bool idle = gameOver || Hud.BubblePaused;
 
-        // ---- Dodge（回避・Alt）：周期的に叩く（押しっぱなし中の解除は idle でも必ず行う）----
+        // ---- Dodge（回避・Space）：周期的に叩く（押しっぱなし中の解除は idle でも必ず行う）----
         _dodgePhase += delta;
         if (_dodgeKeyDown)
         {
@@ -381,36 +377,17 @@ public partial class QaPilot : Node
             {
                 _dodgeKeyDown = false;
                 _dodgePhase = 0;
-                Send(new InputEventKey { Keycode = Key.Alt, Pressed = false });
+                Send(new InputEventKey { Keycode = Key.Space, Pressed = false });
             }
         }
         else if (!idle && _dodgePhase >= DodgePeriod)
         {
             _dodgeKeyDown = true;
             _dodgePhase = 0;
-            Send(new InputEventKey { Keycode = Key.Alt, Pressed = true });
+            Send(new InputEventKey { Keycode = Key.Space, Pressed = true });
         }
 
-        // ---- 溜め打ち（C）：ChargeHoldDuration だけ**押しっぱなし**にしてから離す（離した瞬間に発射）----
-        //   Alt/X の「叩く」とは違い、Player.ChargeNeed(0.6s) を超える保持が要る＝レベル入力で送る。
-        _chargePhase += delta;
-        if (_chargeDown)
-        {
-            if (idle || _chargePhase >= ChargeHoldDuration)
-            {
-                _chargeDown = false;
-                _chargePhase = 0;
-                Send(new InputEventKey { Keycode = Key.C, Pressed = false });
-            }
-        }
-        else if (!idle && _chargePhase >= ChargePeriod)
-        {
-            _chargeDown = true;
-            _chargePhase = 0;
-            Send(new InputEventKey { Keycode = Key.C, Pressed = true });
-        }
-
-        // ---- 集中モード（V）：叩く。未所持／CD中は GameManager.TryFocusMode が false を返すだけ＝無害 ----
+        // ---- 集中モード（C）：叩く。未所持／CD中は GameManager.TryFocusMode が false を返すだけ＝無害 ----
         _slowPhase += delta;
         if (_slowDown)
         {
@@ -418,14 +395,14 @@ public partial class QaPilot : Node
             {
                 _slowDown = false;
                 _slowPhase = 0;
-                Send(new InputEventKey { Keycode = Key.V, Pressed = false });
+                Send(new InputEventKey { Keycode = Key.C, Pressed = false });
             }
         }
         else if (!idle && _slowPhase >= SlowPeriod)
         {
             _slowDown = true;
             _slowPhase = 0;
-            Send(new InputEventKey { Keycode = Key.V, Pressed = true });
+            Send(new InputEventKey { Keycode = Key.C, Pressed = true });
         }
     }
 
@@ -662,7 +639,7 @@ public partial class QaPilot : Node
         // 集中モード（n_slow）を持っていないとホイールが不発で終わり、「割り当てが効いていない」のか
         // 「未取得で正しく不発」なのか区別できない。テスト中だけ直に付ける
         //（TrainingSetUpgrade は購入パスを通さない直書き。--inputtest でしか呼ばない＝通常走行は無傷）。
-        // 回避（n_dodge・2026-09-22 からショップ品目）も同じ理由で付ける＝右クリック／Alt が「未取得で不発」に落ちない。
+        // 回避（n_dodge・2026-09-22 からショップ品目）も同じ理由で付ける＝右クリック／Space が「未取得で不発」に落ちない。
         // 溜め打ちは 2026-09-25 から最初から使える＝付ける必要はないが、n_charge（＝2段階チャージ）も
         // 付けておく＝「買ってあるのに2段目が開かない」退行をこの走行でも踏める。
         if (!_itSetup && game != null)

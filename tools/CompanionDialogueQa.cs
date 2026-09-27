@@ -476,8 +476,9 @@ public partial class CompanionDialogueQa : Node
         await Frames(5);
         Check(Read<object>(hub, "_mode").ToString() == "Cards", "rescued characters enter SNS through its home app");
         long followers = game.Followers, impression = game.Impression;
-        await Press(Key.J);
-        Check(Read<object>(hub, "_mode").ToString() == "Job", "keyboard opens character selection");
+        // 2026-09-27：J の直行は廃止。キーボードは「最後のカードで ↓ → フッタ「アカウント」 → Z」で開く。
+        await OpenAccountsByKeys(hub);
+        Check(Read<object>(hub, "_mode").ToString() == "Job", "keyboard opens character selection from the footer");
         var accounts = Read<JobTuning[]>(hub, "_jobChoices");
         Check(accounts.Length == 2 && accounts[0].Id == Job.Tank && accounts[1].Id == job.Id,
             "only Mina and the rescued character are listed");
@@ -496,7 +497,7 @@ public partial class CompanionDialogueQa : Node
             "selection returns to cards without posting or rewards");
         game.ResetIdleDialogSeen();
         Check(game.IsIdleDialogSeen($"once_companion_select_{job.CharacterId}"), "selection greeting survives small-talk pool resets");
-        await Press(Key.J);
+        await OpenAccountsByKeys(hub);
         Write(hub, "_jobT", 1d);
         await Press(Key.Z);
         Check(Read<object>(hub, "_mode").ToString() == "Cards", "repeat selection does not force another greeting");
@@ -506,8 +507,13 @@ public partial class CompanionDialogueQa : Node
         Write(hub, "_tierSel", (int)GameManager.Diff.Hard);
         int selectedStage = Read<int>(hub, "_sel");
         await Frames(12);
+        // 投稿詳細からのアカウント切り替えはボタン（クリック）だけになった（J の直行は 2026-09-27 に廃止）。
+        //   押下の経路（Hub.ProcessDetail の dclk == JobOpenId → OpenJob）と同じ OpenJob を直に呼ぶ。
         await Press(Key.J);
-        Check(Read<object>(hub, "_mode").ToString() == "Job", "detail shortcut opens character selection");
+        Check(Read<object>(hub, "_mode").ToString() == "Detail", "J no longer opens character selection from detail");
+        Call(hub, "OpenJob");
+        await Frames(2);
+        Check(Read<object>(hub, "_mode").ToString() == "Job", "detail account button opens character selection");
         for (int i = 0; i < accountIndex; i++) await Press(Key.Down);
         Write(hub, "_jobT", 1d);
         await Press(Key.Z);
@@ -598,6 +604,16 @@ public partial class CompanionDialogueQa : Node
             await Press(Key.Z);
         }
         Check(Read<object>(hub, "_mode").ToString() != "Dialogue", "hub conversation can be completed with confirm");
+    }
+
+    // キーボードだけでアカウント切り替えを開く：最後のカードへ移って ↓ でフッタ「アカウント」、Z で押す。
+    private async Task OpenAccountsByKeys(Hub hub)
+    {
+        Write(hub, "_footSel", -1);
+        Write(hub, "_sel", Read<Array>(hub, "_entries").Length - 1);
+        await Frames(2);
+        await Press(Key.Down);
+        await Press(Key.Z);
     }
 
     private async Task Press(Key key)

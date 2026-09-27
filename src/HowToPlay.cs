@@ -353,16 +353,17 @@ public partial class HowToCanvas : Node2D
             "溜め打ち", chargeDesc, UiKit.Gold, true);
 
         // 回避（ショップの「回避」＝n_dodge で覚える。2026-09-22 に1面クリア報酬から変更）。マウスは右クリック（ロック解除と兼用）。
-        //   キーボードは Ctrl（2026-09-26 作者決定。旧 Alt。会話中の Ctrl は既読スキップ＝時間が重ならないので兼用）。
-        Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Ctrl" }, "回避",
+        //   キーボードは Space（2026-09-27 作者指示。左手の親指。旧 Ctrl は Shift 長押しと同じ小指で衝突していた）。
+        //   Space は会話送りと共用だが、会話中は回避が効かず、会話を送った押下は離すまで回避に読まない（Player）。
+        Add(tab switch { 1 => Pad.Face(JoyButton.LeftStick), 2 => "右クリック", _ => "Space" }, "回避",
             "一瞬無敵で弾をすり抜ける。攻めの切り札",
             UiKit.Gold, hasDodge, hasDodge ? "" : "未習得 — ショップ「回避」");
 
         Add(tab switch { 1 => Pad.Face(JoyButton.X), 2 => "中クリック", _ => "X" },
             "ボム", "画面の弾を消し短時間無敵。残数ぶん", UiKit.Mina, false);
 
-        // 集中モード（ショップの「集中モード」＝n_slow で覚える）。
-        Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "ホイール / サイドボタン", _ => "V" },
+        // 集中モード（ショップの「集中モード」＝n_slow で覚える）。キーボードは C（2026-09-27。旧 V）。
+        Add(tab switch { 1 => Pad.Face(JoyButton.LeftShoulder), 2 => "ホイール / サイドボタン", _ => "C" },
             "集中モード", "敵の時間だけが遅くなる。1.5秒", UiKit.Purify, hasFocus,
             hasFocus ? "" : "未習得 — ショップ「集中モード」");
 
