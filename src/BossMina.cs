@@ -102,6 +102,40 @@ public partial class BossMina : Enemy
         (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_tears.png"),
     };
 
+    // F3 の返し手は潜行キャラ本人（2026-09-27 作者報告「ミナ戦であかりを使ってクリアしたときにレイがでてくる」）。
+    //   段間の MinaPhaseScene は (Job, phase) で潜行キャラが答えるのに、撃破直後のここだけレイ固定だった
+    //   ＝あかり／こはるで潜ると、四段ずっと隣にいた子が消え、撃破の瞬間にレイの立ち絵と名前が出ていた。
+    //   結び手（Tank）とレイ（Magic）は上の Lines のまま。ミナの3行は共通で、返しの3行だけ本人の口調に置き換える。
+    //   who=6（Companion）＝話者名と縁色は Hud が潜行キャラから引く（MinaPhaseScene と同じ見え方）。
+    //   「そっくり」の行は、H1r で「誰かに似てる」と言いかけたのがあかり本人なので、あかりは自分の言葉を言い切る形にする。
+    private const string AkariFace = "res://char/v3/akari_face.png";
+    private const string KoharuFace = "res://char/v3/koharu_face.png";
+    private static readonly (int who, string text, string face)[] AkariLines =
+    {
+        Lines[0],
+        (6, "知ってる。ミナの声だった。", AkariFace),
+        (6, "……やっぱり。ミナの言い方、この人に、そっくり。", AkariFace),
+        Lines[3],
+        (6, "何回でも言って。今度は、あたしが聞く番。", AkariFace),
+        Lines[5],
+    };
+    private static readonly (int who, string text, string face)[] KoharuLines =
+    {
+        Lines[0],
+        (6, "うん、知ってる。ミナの声だったもん。", KoharuFace),
+        (6, "……ミナの言い方ね。この人と、おんなじなの。", KoharuFace),
+        Lines[3],
+        (6, "何回でも言っていいよ。言えるまで、隣にいるから。", KoharuFace),
+        Lines[5],
+    };
+    public static (int who, string text, string face)[] RedemptionLines(Job job) => job switch
+    {
+        Job.Melee => AkariLines,
+        Job.Heal => KoharuLines,
+        _ => Lines,
+    };
+    private (int who, string text, string face)[] _f3 = Lines;   // OnCryStart で潜行キャラから引き直す
+
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [mina]）で上書き可。第3引数＝現行既定値。
@@ -371,7 +405,8 @@ public partial class BossMina : Enemy
         // 会話を出せない状況（Hud が取れない／台詞が無い）なら会話に入らず即着地させる
         //   ＝送るものが無いのに EndCryNow を待ち続けて Finished が立たない詰まりを断つ。
         //   ルナティックも同じ経路＝邂逅（F3）の会話を出さず、その場で着地して Finished へ。
-        if (hud == null || Lines.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
+        _f3 = RedemptionLines(GetNodeOrNull<GameManager>("/root/Game")?.SelectedJob ?? Job.Tank);
+        if (hud == null || _f3.Length == 0 || GameManager.LunaticActive) { EndCryNow(); return; }
         hud.HoldBubble = true;
         _seq = true; _line = 0; _lineT = 0;
         ShowLine();
@@ -443,7 +478,7 @@ public partial class BossMina : Enemy
             {
                 _lineT = 0; _line++;
                 NotifyCryProgress(); // 送れている間は保険タイムアウトを起こさない
-                if (_line >= Lines.Length)
+                if (_line >= _f3.Length)
                 {
                     _seq = false;
                     var hud = GetHud();
@@ -457,11 +492,12 @@ public partial class BossMina : Enemy
 
     private void ShowLine()
     {
-        var (who, text, face) = Lines[_line];
+        var (who, text, face) = _f3[_line];
         var hud = GetHud();
         if (hud == null) return;
         var kind = (Hud.LineKind)who;
-        // F3 に出るのは ミナ(1) と レイ(2)。who=2 の話者名は otherName で決まるので「レイ」を渡す。
+        // F3 に出るのは ミナ(1) と返し手。結び手／レイ潜行はレイ(2)＝話者名は otherName で決まるので「レイ」を渡す。
+        //   あかり／こはる潜行は本人(6)＝話者名は Hud が潜行キャラから引く（otherName は使われない）。
         string portrait = string.IsNullOrEmpty(face) ? "res://char/mina_face.png" : face; // 行ごと差し替え可（他ステージと同方式）
         hud.ShowDialog(kind, text, portrait, otherName: "レイ");
     }

@@ -133,8 +133,11 @@ public partial class GameManager : Node
     // 「♥はどのステージを選択しても3個スタート、ボムは1個。強化したら♥が増えてくシステムなので」）。
     // 難易度の賭け金は弾速・弾数・出現密度の側だけが担う。伸びる経路は
     // ショップの「ハート +1」×2段・「ボム +1」と、ジョブ補正（結び手+2/灯し手-1）。
+    // 2026-09-27 ユーザー決定: ボムの基礎値は 1 → 2（「ボムが最初一個になっているが二個にして」）。
+    //   ショップの「ボム +1」は据え置き＝強化後は 3 個。祈り手の BREAK 供給（AddBombOnBreak）と
+    //   ♥取得時の補充（1573行）も上限 StartBombs を見ているので、この1行だけで全経路に届く。
     public static int BaseLivesFor(Diff d) => 3;
-    public static int BaseBombsFor(Diff d) => 1;
+    public static int BaseBombsFor(Diff d) => 2;
     public float BulletSpeedMul => Difficulty switch { Diff.Easy => 0.62f, Diff.Hard => 1.05f, Diff.Lunatic => 1.18f, _ => 0.85f };
     // 難易度は敵の体力ではなく「弾の数」で調整する（やさしいほど弾が少ない）。
     public float BulletCountMul => Difficulty switch { Diff.Easy => 0.38f, Diff.Hard => 1.1f, Diff.Lunatic => 1.9f, _ => 0.7f };
