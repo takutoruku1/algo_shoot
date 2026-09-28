@@ -428,3 +428,60 @@ JASRAC等への登録／YouTube Content ID 登録／直リンク使用）にい�
 主役性を奪う（style §7）。よって **`Audio.StoryBgm("mina", aftermath:true)` は `null` を返し、
 `StoryFilm` は従来どおり `StopMusic` して沈黙のまま通す**。
 「配線漏れ」と誤解されないよう、`Audio.StoryBgm()` と `StoryFilm._Ready()` の両方にコメントを残した。
+
+---
+
+## 9. FINAL 道中への再配置（2026-09-29・composer）
+
+**背景**: 作者指示「全体的に雰囲気が変わったので、適したBGMがあたっているか確認して必要に応じてBGMを変更してほしい」。
+監査の全文は `docs/20260929/BGM見直し_2026-09-29.md`。**新規調達はしていない**（ライセンス作業は発生していない）。
+
+### 9.1 FINAL の道中が無音だった（穴の正体）
+
+`src/StageMina.cs` の `_Ready` が `StopMusic(1.2f)` で曲を落としてから、次に音楽が立つのは
+`src/BossMina.cs` の `Music(BgmBossMina)` である。その間の `Step_Route`（残響の三波）に
+音楽の呼び出しが**1行も無かった**。元の設計では「F1 導入を沈黙に委ねる」意図の数秒だったが、
+**2026-09-27 に道中が 6.7 秒 → 三波66体へ延長**され、`tools/FinalRouteQa` の実測で
+**Normal 67.7 秒 / Lunatic 47.3 秒**。意図した余白が10倍に伸び、戦闘区間が丸ごと無音になっていた。
+
+### 9.2 使った曲＝「Frozen Forest」の**再配置**（新規調達ではない）
+
+| 項目 | 内容 |
+|---|---|
+| スロット | **`bgm_final_route`（新規。未調達の間は `audio/bgm_boss_hikage.ogg` を流用）** |
+| 曲 | Frozen Forest — PeriTune（CC BY 4.0）※§6 で 2026-07-20 に取得済みの既存曲 |
+| 元の用途 | `bgm_boss_hikage`＝W0 中ボス「ヒカゲ」戦 |
+| なぜ空いているか | `src/GameManager.cs` `public const bool TutorialEnabled = false;`（2026-09-06 ユーザー指示で練習面を非表示）。タイトルの「チュートリアル」項目が `Items` から落ち、プロローグの受講確認も出ない＝**`Stage0.tscn` へ到達する導線が無い**。結果、`bgm_stage_w0`（Roll Roll Roll）と `bgm_boss_hikage`（Frozen Forest）の2本が**現行の導線で一度も鳴らない** |
+| 選定根拠（§3-⑩ の記録との突き合わせ） | ・「氷・**ガラス系シンセ**+ピアノ」＝ミナのライトモチーフの音色指定（澄んだガラス/グロッケン）と一致<br>・「**冷たいが敵意ではない**」＝残響はミナ自身の声。倒す敵ではなく祓う対象<br>・「**平坦な持久曲**」＝66体の弾幕の下で被弾・浄化の SE を潰さない<br>・**86.4 秒・公式ループ版**＝道中 47〜68 秒を1周で賄い、継ぎ目が無い |
+| 加工 | **無し**（既存の `audio/bgm_boss_hikage.ogg` をそのまま参照。ゲイン -3.0dB・-13.6 LUFS・loop=true は §6 のまま） |
+| 実効音量 | `MusicTargetDb()` が実音源として **-10dB** を乗せる＝他の道中曲と同じ土俵 |
+| ライセンス | **追加の義務は無い**。PeriTune / CC BY 4.0（2021-11-24 公開＝旧規約の CC-BY 側）。`config/credits.ini` [音楽] に表記済み＝**追記不要**（使用箇所が増えても表記内容は同一） |
+| 実装 | `src/Audio.cs` `BgmFinalRoute` ＋ `LoadBgmFinalRoute()`。①`res://audio/bgm_final_route.ogg` があればそれを優先 → ②無ければ `bgm_boss_hikage.ogg` を **`CacheMode.Ignore` で別インスタンス**として読む（`BgmBossHikage` と区別でき、ヒカゲ戦の扱いを一切変えない）→ ③どちらも読めなければ合成 `BgmBoss`。鳴らすのは `src/StageMina.cs` `Step_Route()` の頭で `Music(BgmFinalRoute, 2.4f)` |
+| 汚染ローパス | **掛けていない**（`_Process` の `inStage` に入れていない）。FINAL は `Contamination=1.0` かつ道中の頭は `Warmth=0` ＝ `murk=1.0` ＝カットオフ **800Hz**。この値は本作でまだ一度も鳴っておらず（ボス戦中は `murk≈0.70`＝6.9kHz）、未試聴で踏み込みすぎるため。濁らせたい場合は `inStage` に `\|\| _currentMusic == BgmFinalRoute` を足すだけ |
+
+**専用曲を採るときの発注仕様**: BPM 90–110 ／ 短調 or 無調寄り ／ ガラス・氷・グロッケン系の澄んだ音色を核に
+＋低音の持続 ／ LRA 3 以下の平坦さ ／ 山は作らない（山は直後の Dramatic5 が持つ）／ **75 秒以上・完全ループ**／
+-14〜-17 LUFS ／ 商用可・**改変可（必須）**・ゲーム組込可。
+`audio/bgm_final_route.ogg` として置くだけで自動的にそちらが鳴る（コード変更不要）。
+
+### 9.3 同時に直した配線（曲の増減なし）
+
+- **ルナティックでボステーマが開くようにした**。ボス曲は「投稿の札を割った数（深度 0..5）」でローパスと音量が開く設計
+  （`src/Audio.Posts.cs` 2400→18000Hz・-4.5→0dB ／ `src/Audio.Akari.cs` 1800→16500Hz・-5→0dB）だが、
+  ルナティックは札の割り込みごと畳むため深度が 0 で固定され、**4ボスとも曲がこもったまま最後まで鳴っていた**。
+  `src/BossPostSequence.cs`（しきい値が空なら深度5）と `src/BossAkari.cs`（`StartAkariMusic(0)` → `StartAkariMusic(_postsBroken)`）で解消。
+- **FINAL のステージ id を `Audio` に控えるようにした**（`SetStageId("mina")` ／ `StageBgm()` に `"mina"`）。
+  `MinaRoot` は `BeginStageRun` を通らないため、FINAL でゲームオーバーから残機が戻ると
+  **前の面の道中曲が蘇り得た**。
+- **設定画面をタイトル曲の継続に戻した**（`src/Settings.cs`）。§7 の設計方針「薄いサブ画面は親の曲を継続」に
+  実装が従っておらず、タイトル→設定→タイトルで曲が二度入れ替わっていた。
+
+### 9.4 検証
+
+`tools/BgmAssignmentQa.cs` ＋ `tools/qa_bgm_assignment.tscn` を新設（`godot --headless res://tools/qa_bgm_assignment.tscn`）。
+全スロットの実音源ロード／ループ設定／`StageBgm`・`StoryBgm` のマップ／**音源ファイルの重複**／
+FINAL 道中で曲が鳴ること／ルナティックでボス曲が開き切っていること／設定画面の曲継続を機械的に見る。
+`qa_lunatic -- --stages akari`・`qa_epilogue`・`qa_final_route` も通した（全 PASS）。
+
+> ⚠️ **担当（AI）は音を聴いていない。** 上記の判断はすべて、この台帳と `BGM/candidates.md` に
+> **文章で記録された曲の性格**と、実装が示す場面の中身との突き合わせによる。最終判断は作者の耳に委ねる。

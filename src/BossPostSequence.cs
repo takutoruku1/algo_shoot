@@ -44,7 +44,12 @@ public partial class BossPostSequence : Node
         ResumeMusic();
     }
 
-    public void ResumeMusic() => Audio.Instance?.StartPostMusic(_story.Id, Count, 0.8f);
+    // ボステーマを張り直す。深度＝割った札の数（0 でこもり、5 で開き切る）。
+    //   ルナティックはしきい値を空にして投稿の割り込みごと畳むので Count は永久に 0 のまま
+    //   ＝そのまま渡すとボス戦のあいだ曲が 2400Hz のローパス＋-4.5dB でこもりっぱなしになる
+    //   （こはる／レイ／ミナ戦。2026-09-29 修正）。札の段が存在しない＝開き切った状態で鳴らす。
+    public void ResumeMusic()
+        => Audio.Instance?.StartPostMusic(_story.Id, _thresholds.Length == 0 ? 5 : Count, 0.8f);
 
     public bool BombHit()
     {

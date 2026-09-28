@@ -125,12 +125,14 @@ public partial class Audio : Node
     //   ロード失敗時は従来のコード合成 BuildBgmFinalResolve()（主題 M.I.N.A. の解決変奏）にフォールバック。
     public AudioStream BgmFinalResolve = null!;
 
-    // エピローグ E5b「見上げる／歩く」のオルゴール（未調達）。
+    // エピローグ E5b「見上げる／歩く」のオルゴール。
     //   台本 08 E5b 演出の指定：オルゴール音色・夜→明け方の静けさ・泣かせにかからない・
-    //   ループ不要（一度きりで終わってよい）・70〜90秒。候補は BGM/candidates.md「⑬ bgm_epilogue_walk」。
-    //   **曲がまだ決まっていない**ので、いまは res://audio/bgm_epilogue_walk.ogg を置くだけの器にしてある。
-    //   ファイルが無ければ null のまま＝E5b は無音で通る（Epilogue 側が null を受けて何も鳴らさない）。
-    //   採用曲が決まったら ogg をこの名前で置くだけで鳴る（コード変更不要）。
+    //   ループ不要（一度きりで終わってよい）・70〜90秒。
+    //   **採用済み＝「夕べの星」（甘茶の音楽工房・2026-09-08 ユーザー決定）**。
+    //   res://audio/bgm_epilogue_walk.ogg（原曲 157.4s → 0..74.65s・-3.7dB＝-17.6 LUFS・import loop=false）。
+    //   選定の経緯は BGM/candidates.md ⑬、切り出しとライセンスの根拠は BGM/acquisition_list.md §6.1。
+    //   ※ファイルが無ければ null のまま＝E5b は無音で通る（Epilogue 側が null を受けて何も鳴らさない）。
+    //     合成フォールバックは置かない＝「無い曲を代わりの音で埋めない」（LoadBgmEpilogueWalk 参照）。
     //   再生は MusicOnce()＝1周で無音に落ちる（台本の「…………。」で完全停止する扱いは Epilogue 側）。
     public AudioStream? BgmEpilogueWalk;
 
@@ -187,6 +189,33 @@ public partial class Audio : Node
     //   ロード失敗時は合成 BuildBgmBossHikage()（モチーフが影に沈む変奏）にフォールバック。
     //   出所・加工内容は LoadBgmBossHikage() のコメント参照。
     public AudioStream BgmBossHikage = null!;
+
+    // FINAL の道中（残響の三波）＝ミナの内側を進む区間の曲（2026-09-29 追加）。
+    //   経緯: 2026-09-27 に FINAL の道中が「残響3体・実測 6.7 秒」から「三波66体・実測 64〜71 秒
+    //   （ルナティック 43〜48 秒）」へ延びた（StageMina.EchoWaves）。それまでこの区間は
+    //   StageMina._Ready の StopMusic から BossMina の BgmBossMina までの“数秒の無音”で、
+    //   F1 導入（タイトルカード＋壊れた声）を沈黙に委ねる意図の一部だった。尺が10倍になった結果、
+    //   **戦闘している70秒が丸ごと無音**になっていた＝意図した余白ではなく穴（style §7 は
+    //   「無音は決定打の直前に置く」であって、戦闘区間を無音にする話ではない）。
+    //   ★F1 導入の沈黙はそのまま残し、**道中（Step_Route）の頭から**この曲を立てる。
+    //   曲: 未調達の間は res://audio/bgm_boss_hikage.ogg（PeriTune「Frozen Forest」CC BY 4.0）を
+    //   **別インスタンスで**流用する。ヒカゲ戦（W0 中ボス）は GameManager.TutorialEnabled=false で
+    //   到達不能＝この曲は現行の導線では一度も鳴らないスロットなので、重複ではなく**再配置**になる。
+    //   選定根拠（BGM/acquisition_list.md §3-⑩ の記録と突き合わせ）:
+    //     ・「氷・ガラス系シンセ+ピアノ」… ミナのライトモチーフの音色指定（澄んだガラス/グロッケン）と一致
+    //     ・「冷たいが敵意ではない」… 残響はミナ自身の声＝倒す敵ではなく祓う対象（世界観の整合）
+    //     ・「平坦な持久曲」… 66体の弾幕の下で SE（被弾・浄化）を潰さない（style §5）
+    //     ・86.4 秒・公式ループ版… 道中 64〜71 秒を1周で賄い、継ぎ目が無い（style §9）
+    //   別インスタンス（CacheMode.Ignore）にしている理由は2つ:
+    //     ①MusicTargetDb が BgmBossHikage と区別できる（どちらも実音源なので現状は同じ -10dB だが、
+    //       専用曲を入れたときに片方だけ音量を動かせる）
+    //     ②_Process の汚染 LowPass の対象（inStage）に **入れない**。FINAL は Contamination=1.0 で
+    //       道中の頭は Warmth=0＝murk=1.0＝カットオフ 800Hz まで落ちる設定で、この値は本作で
+    //       一度も鳴ったことがない（ボス戦中は Warmth≈0.99 で murk≈0.70＝6.9kHz）。
+    //       高域に芯のある曲を 800Hz で潰すのは未試聴で踏み込みすぎるので、まずは素で鳴らす。
+    //       （濁らせたくなったら _Process の inStage に `|| _currentMusic == BgmFinalRoute` を足すだけ）
+    //   専用曲を採るときは res://audio/bgm_final_route.ogg を置くだけで自動的にそちらが鳴る。
+    public AudioStream BgmFinalRoute = null!;
 
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
     //   4ボスとも主題 M.I.N.A.（C/E/D/G）の構成音に解決する＝Epilogue で主題に溶ける布石。
@@ -266,6 +295,8 @@ public partial class Audio : Node
         BgmBossKoharu = LoadBgmBossKoharu();
         BgmBossMina   = LoadBgmBossMina();
         BgmBossHikage = LoadBgmBossHikage();
+        // FINAL 道中。最終フォールバックが BgmBoss なので必ず BgmBoss の後に読む。
+        BgmFinalRoute = LoadBgmFinalRoute();
         RedeemRei    = BuildRedeem(0);
         RedeemAkari  = BuildRedeem(1);
         RedeemKoharu = BuildRedeem(2);
@@ -458,6 +489,10 @@ public partial class Audio : Node
     //   「残機が戻った／改心に入った」でシーンを変えずに選択が引っ込んだときだけ道中曲へ戻すため、
     //   ゲームオーバー曲に切り替わっていた場合に限って復帰させる目印が要る。
     public bool IsPlayingGameOver => _currentMusic != null && _currentMusic == BgmGameOver;
+
+    // いま何か曲が鳴っているか。**親画面の曲を継続する**サブ画面（設定など）が
+    //   「鳴っていれば触らない／単体起動で無音のときだけ自分で立てる」を書くために使う。
+    public bool HasMusic => _currentMusic != null;
 
     // ───────── 1周だけ鳴らして無音に落ちる再生（Epilogue E5b のオルゴール）─────────
     //   Music() はループ前提（曲尾で止めずに鳴らしっぱなし）なので、「1周で終わって無音」を
@@ -1350,6 +1385,30 @@ public partial class Audio : Node
         return BuildBgmBossHikage();
     }
 
+    // ───────── BgmFinalRoute のロード（FINAL 道中＝残響の三波）─────────
+    //   ①専用曲 res://audio/bgm_final_route.ogg があればそれ（将来の差し替え口。置くだけで鳴る）。
+    //   ②無ければ res://audio/bgm_boss_hikage.ogg（Frozen Forest）を **CacheMode.Ignore で別インスタンス**
+    //     としてロードする。同じファイルでも別リソースになるので、MusicTargetDb と _Process（汚染 LowPass）
+    //     が BgmBossHikage と区別できる＝ヒカゲ戦の扱いを一切変えずに FINAL 道中だけ調整できる。
+    //     流用の根拠は BgmFinalRoute フィールドのコメント（ヒカゲ戦は現行導線から到達不能＝再配置）。
+    //   ③どちらも読めなければ合成 BgmBoss（濁り切った未完）。無音にはしない。
+    private AudioStream LoadBgmFinalRoute()
+    {
+        const string own = "res://audio/bgm_final_route.ogg";
+        if (ResourceLoader.Exists(own))
+        {
+            var dedicated = ResourceLoader.Load<AudioStream>(own);
+            if (dedicated is AudioStreamOggVorbis dogg) { dogg.Loop = true; return dogg; }
+            if (dedicated != null) return dedicated;
+        }
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_boss_hikage.ogg", "",
+                                                 ResourceLoader.CacheMode.Ignore);
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s;
+        GD.PushWarning("BgmFinalRoute: 実音源をロードできず、合成 BgmBoss にフォールバック");
+        return BgmBoss;
+    }
+
     // ───────── BgmFinalResolve のロード（Final 挿入歌の実音源 → 失敗時は合成 BuildBgmFinalResolve へフォールバック）─────────
     //   res://audio/bgm_final_resolve.ogg（原曲 Morning_Light_on_Glass 29.4秒の末尾フェードをトリムした
     //   0..27.0秒・-3dB・極小フェード・loop=true）を読む。頭からフルレベルで鳴る曲だが、入りは
@@ -1459,6 +1518,10 @@ public partial class Audio : Node
         "akari" => BgmStageAkari,
         "koharu" => BgmStageKoharu,
         "tutorial" => BgmStageW0,
+        // FINAL（ミナの内側）の道中＝残響の三波。StageMina が自分で鳴らす（導入の無音を挟むので
+        //   BeginStageRun を通らない）が、ゲームオーバーから残機が戻ったときの復帰（ResumeStageMusic）は
+        //   ここを引く＝FINAL で他の面の道中曲が蘇る事故を断つ。
+        "mina" => BgmFinalRoute,
         _ => BgmStage,
     };
 
@@ -1469,6 +1532,10 @@ public partial class Audio : Node
         CurrentStageId = stageId;
         Music(StageBgm(stageId));
     }
+
+    // 曲は鳴らさず「いまどの面か」だけ控える。FINAL のように**面の頭を無音で始める**場所用。
+    //   ResumeStageMusic()／StageBgm() が正しい道中曲を引けるようにするのが目的。
+    public void SetStageId(string stageId) => CurrentStageId = stageId;
 
     // 中ボス（カメオ）撃破後など、道中へ戻るときに「今のステージの道中曲」へ復帰する。
     //   ステージ id を覚えていない（直接シーン起動等）ときは従来の合成 BgmStage に戻す。

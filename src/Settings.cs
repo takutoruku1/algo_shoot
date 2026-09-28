@@ -37,7 +37,14 @@ public partial class Settings : Node2D
     {
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a == "--demo" || a == "--qa") { _autoplay = true; break; }
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmMenu);
+        // 設定は**親画面（タイトル）の曲を継続する**（2026-09-14 の設計方針「独立した画面は固有曲／
+        //   薄いサブ画面は親の曲を継続」。BGM/candidates.md ⑭〜⑲ の設計方針節）。
+        //   ここは以前 Music(BgmMenu) を決め打ちしていたが、設定へ入れるのはタイトルからだけなので
+        //   （TitleMenu.cs の Item.Settings が唯一の導線）、結果は「見上げた空 → 巡る思い出 → 見上げた空」
+        //   ＝開いて閉じるだけで曲が二度入れ替わっていた（2026-09-29 修正）。
+        //   単体起動（デバッグ／QA で Settings.tscn を直接開く）だけは無音になるので、そのときに限り
+        //   タイトル曲を立てる。
+        if (Audio.Instance is { HasMusic: false } audio) audio.Music(audio.BgmTitle);
         BuildDefaults();
         LoadSettings();
         SyncModeFromWindow();

@@ -120,6 +120,11 @@ public partial class StageMina : Node
         //   「ボスから」再開は導入を踏まない＝沈黙にする区間が無い（次フレームの BossMina が
         //   BgmBossMina を張る）ので止めない＝ゲームオーバー曲からボス曲へ直に渡す。
         if (_step == 1) Audio.Instance?.StopMusic(fade: 1.2f);
+        // FINAL は BeginStageRun を通らない（面の頭を無音で始めるので道中曲を即鳴らせない）ため、
+        //   Audio が覚えている「いまの面」が前の面（rei 等）のまま残る。そのままだとゲームオーバーで
+        //   残機が戻ったときの復帰（GameManager.ClearGameOverChoice → ResumeStageMusic）が
+        //   **別の面の道中曲**を蘇らせる。ここで id だけ入れ替える（曲は鳴らさない）。
+        Audio.Instance?.SetStageId("mina");
     }
 
     public override void _Process(double delta)
@@ -250,6 +255,13 @@ public partial class StageMina : Node
             _stepStarted = true;
             _wave = 0;
             _waveBase = game.PurifiedCount;
+            // 残響の道中に曲を立てる（2026-09-29）。導入（F1）の沈黙はそのまま残し、**戦闘が始まる
+            //   この瞬間から**鳴らす＝「無音に委ねる」のは台詞のほうで、66体と撃ち合う 64〜71 秒
+            //   （ルナティック 43〜48 秒）ではない。フェードを長め（2.4秒）に取り、曲が立ち上がるのではなく
+            //   残響が滲み出してくるように入れる（波Aのコメント「残響が滲み出す」と揃える）。
+            //   曲の正体と選定根拠は Audio.BgmFinalRoute のコメント。BossMina が BgmBossMina へ
+            //   クロスフェードして引き取る＝道中→ボスの段差はそこで一度だけ付く。
+            Audio.Instance?.Music(Audio.Instance.BgmFinalRoute, 2.4f);
             StartEchoWave();
         }
         if (Hud.BubblePaused) return;

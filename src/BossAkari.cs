@@ -201,7 +201,12 @@ public partial class BossAkari : Enemy
         //   （BossPostSequence のしきい値空と同じ止め方）。回想と改心会話は _Process／OnCryStart 側で畳む。
         if (GameManager.LunaticActive) _postsBroken = PostThresholds.Length;
         // ボス登場＝道中BGMからあかり固有テーマへクロスフェード（フレーズが途中で切れる＝未完）。
-        Audio.Instance?.StartAkariMusic(0);
+        //   深度は「割った札の数」＝_postsBroken（通常は 0 から始まり、札を割るたび開いていく）。
+        //   ここを 0 決め打ちにすると、**ルナティックでは札を1枚も割らない**（しきい値を空にして
+        //   投稿の割り込みごと畳んでいる）ため深度が 0 のまま固定され、あかり戦のあいだ曲が
+        //   1800Hz のローパス＋-5dB でこもりっぱなしになる（2026-09-29 修正）。
+        //   ルナティックは上で _postsBroken を満数にしてあるので、そのまま渡せば開き切った状態で鳴る。
+        Audio.Instance?.StartAkariMusic(_postsBroken);
         _realm = new BossRealmFx { Name = "BossRealmFx", Story = BossPostStory.Get("akari") };
         GetParent().GetParent().AddChild(_realm);
         // 移動：スペルごとの立ち位置＋状態機械（待機→構え→攻撃→余韻）。数値は INI（[akari] の
