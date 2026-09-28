@@ -275,6 +275,8 @@ public partial class MidEnemy : Enemy
 
         PreTexPath = _spec.PreTexPath;
         PostTexPath = _spec.PostTexPath;
+        // 素材の基準向き（true＝右向きに描かれている＝自機側を向かせるには反転が要る）。
+        // 実際にどちらを向くかは基底 Enemy.TickFacing が自機の位置から毎フレーム決め、この基準と合成する。
         FaceLeft = _spec.FlipH;
         // 盾の絵は面ごとに Panel 側が解決する（Panel.ResolveTexPath）。ここでは指定しない。
         BodyDisplayH = _spec.Humanoid ? 30f : 23f;

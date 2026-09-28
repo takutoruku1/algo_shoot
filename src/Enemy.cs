@@ -52,9 +52,30 @@ public partial class Enemy : Area2D
     protected string CryTexPath = "";
     protected double CryHoldDur = 0;
     protected float BodyDisplayH = 40f;
-    protected bool FaceLeft = true; // 進行方向(左=プレイヤー側)を向く。素材は右向きなので反転。
+    // ★FaceLeft＝「素材の基準向き」。true なら素材は**右向き**に描かれていて、自機側(左)を向かせるには
+    //   反転が要る（＝初期 FlipH の値そのもの）。false は素材が最初から左を向いている
+    //   （人型12種はこちら。EnemyTable.Character の flipH 既定＝false／レイ「匿名の人」だけ true）。
+    //   下の向き更新はこれを「基準」として自機の左右と合成する（SetFacingLeft）。
+    protected bool FaceLeft = true;
     private Sprite2D _bodySprite = null!;
     private bool _hasBodyTex;
+
+    // ─── 向き：敵は常に自機の方を向く（2026-09-28 作者指示「通りすぎたとき／うしろから出たときも同様」）───
+    //   それまで向きは出現時の FaceLeft で固定だった＝自機を追い越しても、自機の背後（左）から湧いても
+    //   背中を向けたまま撃っていた。決め方を「進行方向」ではなく**自機の位置**に変え、毎フレーム引き直す。
+    //   ★見た目だけ。弾の発射方向・移動・当たり判定・弾幕の幾何には一切触らない
+    //     （向きを読むのは _bodySprite.FlipH と BossParts.SetFlip の描画2か所だけ）。
+    //   ボス/中ボスは BossMover が同じ規則（自機の側・ただし 40px/0.6秒の保持つき）で向きを握るので、
+    //   ApplyBossMotion が FacePlayer を false にして二重に書かないようにする。
+    protected bool FacePlayer = true;
+    private bool _artFacesRight;   // SetupBodySprite が FaceLeft から控える「素材の基準向き」
+    // ヒステリシス（チラつき止め）。自機との x 差がこの値を超えたときだけ向きを変える＝
+    //   ±FacingDeadzone の帯の中では今の向きを保つ（反転には 2×＝24px の移動が要る）。
+    //   12px の根拠：着座中のザコは自分の癖で camp.X の周囲 ±CampDriftMax(9px) を横に漂う
+    //   （MidEnemy.CampHorizontalDrift）。9px 以下にすると「自機が止まっているのに敵が自分で揺れて
+    //   左右が入れ替わる」＝自発的なパタパタが起きる。12px ならそれを確実に外し、
+    //   ザコの表示幅（20〜30px）の半分弱＝「はっきり反対側に来た」と読める最短の幅に収まる。
+    private const float FacingDeadzone = 12f;
     // 世界の色味（各ステージ Root の CanvasModulate＝夜の冷色 Tint）。本体スプライトはこれを 1/Tint で
     // 完全に打ち消して、どのステージでも昼の素材そのままの明るさで立たせる（2026-09-27 作者指示
     // 「自キャラ／敵もどのステージでも明るくしてほしい」。強さは TintLift.EnemyBody=1）。
@@ -423,6 +444,39 @@ public partial class Enemy : Area2D
         _bodySprite.Rotation = _bank;
     }
 
+    // 自機の位置から向きを決め直す（毎フレーム）。進行方向では決めない＝追い越されても、
+    // 自機の背後（左）から湧いても、必ず自機の方へ体を向ける。
+    //   ・|自機x − 自分x| が FacingDeadzone 以下なら据え置き（ほぼ同じ x でのパタパタ防止）。
+    //   ・浄化後（IsPurified）は更新しない＝改心の絵と左への退場は演出のまま固定（Redeem で左に寄せる）。
+    //   ・登場演出中・大泣き中・会話中（BubblePaused）は _PhysicsProcess がここまで来ない＝演出は不変。
+    private void TickFacing()
+    {
+        if (!FacePlayer || _purified || !_hasBodyTex || _bodySprite == null) return;
+        if (GetTree().GetFirstNodeInGroup("player") is not Node2D pl) return;
+        float dx = pl.GlobalPosition.X - GlobalPosition.X;
+        if (Mathf.Abs(dx) <= FacingDeadzone) return;
+        SetFacingLeft(dx < 0f);
+    }
+
+    // 向きを立ち絵へ反映する。FlipH は「自機の左右」と「素材の基準向き(_artFacesRight)」の合成で決まる
+    //   ＝左向きに描かれた素材（人型12種）も右向き素材（アンチくん・道具・レイ匿名）も同じ規則で自機を向く。
+    // 動かすのは描画だけ：FlipH と、反転で符号が入れ替わる Offset、部品層の反転。
+    // 当たり判定（Area2D の GlobalPosition・_bodyShape）と弾の発射は一切触らない。
+    private void SetFacingLeft(bool faceLeft)
+    {
+        bool flip = faceLeft == _artFacesRight;
+        if (_bodySprite.FlipH == flip) return;
+        _bodySprite.FlipH = flip;
+        ApplyBodyOffset();   // 反転は Offset.x の効きも反転する＝入れ直して足元と中心を動かさない
+        // 差し替えクロスフェード中の旧絵も一緒に向ける（片方だけ残ると二枚の顔が逆向きに重なる）。
+        if (_fadeSprite != null)
+        {
+            _fadeSprite.FlipH = flip;
+            _fadeSprite.Offset = new Vector2(-_fadeSprite.Offset.X, _fadeSprite.Offset.Y);
+        }
+        _parts?.SetFlip(flip);
+    }
+
     protected virtual void OnEnemyReady() { }
 
     // ─── スペルカードの弾形・色（RefrainHTML Danmaku v3）───
@@ -488,6 +542,7 @@ public partial class Enemy : Area2D
         var t = ResourceLoader.Load<Texture2D>(PreTexPath);
         if (t == null) return;
         _hasBodyTex = true;
+        _artFacesRight = FaceLeft;   // 素材の基準向きを控える（以後 FaceLeft はこの意味でしか使わない）
         _bodySprite = new Sprite2D
         {
             Name = "Body",
@@ -495,7 +550,7 @@ public partial class Enemy : Area2D
             Centered = true,
             TextureFilter = CanvasItem.TextureFilterEnum.Linear, // 高解像度素材を滑らかに縮小
             ZIndex = -1, // パネルより奥
-            FlipH = FaceLeft, // 素材は右向き→左(進行方向)へ反転
+            FlipH = FaceLeft, // 出現時は自機側(左)を向く＝右向き素材だけ反転（TickFacing が毎フレーム引き直す）
         };
         float s = BodyDisplayH / t.GetHeight() * GetBodyFrame(t).Scale;
         _baseScale = s;
@@ -992,6 +1047,7 @@ public partial class Enemy : Area2D
     protected void ApplyBossMotion(Vector2 visualOffset, float lean, bool faceLeft, Vector2? squash = null)
     {
         AutoBank = false; // 姿勢はこちら(BossMover.Lean)が握る＝基底の自動バンクと競合させない
+        FacePlayer = false; // 向きも同じくこちら（BossMover.TickFacing＝40px/0.6秒の保持つき）が握る
         if (!_hasBodyTex || _bodySprite == null) return;
         _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
         // 差し替えアニメ中は _PhysicsProcess 側が Position/Scale を握る（pop の持ち上げを潰さない）。
@@ -1106,6 +1162,10 @@ public partial class Enemy : Area2D
         // 改心の着地は直立で（移動バンクの傾きを残さない）。差し替え前に戻す＝旧絵(fade)ごと素直に立つ。
         _bank = 0f;
         if (AutoBank && _hasBodyTex && _bodySprite != null) _bodySprite.Rotation = 0f;
+        // 向きも改心の一拍で左（＝これから歩いて去る方向）へ寄せ、以後 TickFacing は _purified で素通りする。
+        // 自機を向いたまま固まると、笑顔で左へ歩くのに体は右を向いたまま＝後ろ向きに退場してしまう。
+        // ボス/カメオ（FacePlayer=false）は従来どおり BossMover が最後に決めた向きのまま静止する。
+        if (FacePlayer && _hasBodyTex && _bodySprite != null) SetFacingLeft(true);
 
         // 3段階対応：Cry の尺が設定されていれば先に大泣きを見せてから笑顔へ。
         // 専用立ち絵が無いボス（こはる等）でも会話に入れるよう、CryHoldDur のみで判定する
@@ -1445,6 +1505,7 @@ public partial class Enemy : Area2D
 
         UpdateMovement(edelta);
         TickAutoBank(edelta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
+        TickFacing();         // 自機の方を向く（ボス/カメオは ApplyBossMotion が握る＝FacePlayer=false で素通り）
         if (GlobalPosition.X < OffLeftX) QueueFree();
     }
 
