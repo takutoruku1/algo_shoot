@@ -369,11 +369,26 @@ public partial class EnemyRosterQa : Node
 
     private Bullet[] EnemyBullets() => GetTree().GetNodesInGroup("enemy_bullets").OfType<Bullet>().Where(b => b.Active).ToArray();
 
+    // 敵弾は「敵の中心に湧いて、本来の発射点まで飛んでから」パターンへ移る（Bullet.MakeLeadIn・2026-09-28）。
+    // 弾幕の幾何（配置・弾速）を見る検査はその導入区間を消化してから行う＝以降の判定は従来と同じ座標で回る。
+    // 導入を終えたフレームは速度を適用せず発射点で止まるので、ここを抜けた時点の位置＝本来の発射点ちょうど。
+    private static Bullet[] SettleLeadIn(Bullet[] bullets)
+    {
+        foreach (var b in bullets)
+            for (int i = 0; i < 64 && b.LeadIn; i++) b._PhysicsProcess(1.0 / 60.0);
+        return bullets;
+    }
+
     private async Task CheckCameoAttacks(GameManager game, Node stage, Player player, Hud hud, string scene)
     {
         var pool = GetNode<BulletPool>("/root/Pool");
         Write(stage, "_stepStarted", false);
+        // 中ボスの登場カットシーン（CameoIntroScene）は会話送りを待つ＝ここでは通り抜けられない。
+        // ルナティック経路はカットシーンを流さずその場で中ボスを出すので、この一歩だけ借りて弾幕に入る
+        //（ここで見るのは弾の絵・弾数・弾速で、登場演出は qa_cameo_intro の担当）。
+        Write(stage, "_lunatic", true);
         Call(stage, "Step_BossCameo", 0d);
+        Write(stage, "_lunatic", false);
         var cameo = Read<CameoBoss>(stage, "_cameo");
         await Frames(60);
         cameo.SetPhysicsProcess(false);
@@ -507,7 +522,7 @@ public partial class EnemyRosterQa : Node
                 Call(enemy, "TickFire", 2.0d);
                 for (int i = 0; i < 3 && Read<int>(enemy, "_salvoRemaining") > 0; i++)
                     Call(enemy, "TickFire", 2.0d);
-                var bullets = EnemyBullets();
+                var bullets = SettleLeadIn(EnemyBullets());
                 int Expected(int n) => game.ScaleBullets(n);
                 int count = spec.Pattern switch
                 {

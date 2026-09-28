@@ -132,6 +132,52 @@ public partial class Bullet : Area2D
     // タメ中か（Accel かつ未発進）の外部参照用。Player 側の同時タメ弾数カウント（上限化）に使う。
     public bool AccelCharging => Accel && !_accelDone;
 
+    // ─── 導入区間（敵弾の“出どころ”を見せる・2026-09-28）───
+    //   作者報告「敵のたまが、アンチャーから少し離れた位置から予兆なくわいて攻撃している」への対処。
+    //   敵弾は必ず**敵の中心**に湧き、そこから「本来の発射点」まで自分で飛んでいってから
+    //   従来どおりのパターンの速度・軌道へ移る。＝弾が湧く瞬間は必ず体の上、というのを構造で保証する。
+    //   ★パターンの幾何（最終的な弾の位置・向き・速さ）は一切変わらない：
+    //     到達点は Enemy.FireBullet が受け取った pos そのもの、Velocity は導入中も触らない。
+    //     変わるのは「そこへ至るまでの見せ方」と、到達が LeadMaxDur 以内だけ遅れることの2点。
+    //   ★当たり判定は導入中も生きている（位置だけを毎フレーム置き換える＝無敵の弾を作らない）。
+    //   ★パターンの時計（_age）は導入中は止める＝MakeAccel/MakeDecel の待ち時間は「発射点に着いてから」。
+    public bool LeadIn => _leadElapsed < _leadDur;
+    // 導入区間の“移動の速さ”(px/s)。ずれが小さいほど短く済む＝ほとんどのパターンは実質ゼロ秒で通り抜ける。
+    // 150 は道中弾の弾速帯（34〜130px/s）のすぐ上＝「弾が飛んでいる」と読める速さ。
+    public const float LeadSpeed = 150f;
+    // 導入にかけてよい最長秒。0.22s＝約13フレームで、どれだけ離れた発射点でも間延びしない上限。
+    // （逆算すると 24px のずれで 0.16s、48px で上限 0.22s。作者の目安 0.12〜0.22 秒の範囲に収まる）
+    public const float LeadMaxDur = 0.22f;
+    // このpx未満のずれは導入を作らず発射点へ直接置く（＝従来と完全に同一の挙動）。
+    // 立ち絵の呼吸・生命感モーションぶん（最大 3px 前後）の誤差で全弾に導入が付くのを防ぐ。
+    public const float LeadMinDist = 3f;
+    private float _leadDur;       // 導入の全長（秒）。0＝導入なし
+    private float _leadElapsed;   // 導入の経過秒（_leadDur で頭打ち。到達後も絵の自転へ足し続ける）
+    private Vector2 _leadFrom;    // 湧いた点＝敵の中心
+    private Vector2 _leadTo;      // 本来の発射点（パターンが指定した座標）
+
+    // 導入区間を付ける（Spawn 直後に呼ぶ。弾は既に敵の中心に居る前提）。
+    // ずれが LeadMinDist 未満なら導入を作らず to へ直接置く＝従来どおり。戻り値＝導入を付けたか。
+    public bool MakeLeadIn(Vector2 to)
+    {
+        float dist = GlobalPosition.DistanceTo(to);
+        if (dist < LeadMinDist) { GlobalPosition = to; return false; }
+        _leadFrom = GlobalPosition;
+        _leadTo = to;
+        _leadDur = Mathf.Min(dist / LeadSpeed, LeadMaxDur);
+        _leadElapsed = 0f;
+        return true;
+    }
+
+    // 導入区間を捨てて発射点へ即座に着かせる＝導入を入れる前の挙動に戻す。
+    //   外から毎フレーム位置を握る弾（ぶら下げる祈り弾など）と、修正前後の比較スクショ（tools/EnemyFireShot）用。
+    public void CancelLeadIn()
+    {
+        if (!LeadIn) return;
+        GlobalPosition = _leadTo;
+        _leadElapsed = _leadDur;
+    }
+
     // ホーミング（自機ショットの誘導モード・設計書 §3-2③）。進行方向側の穢れ標的へ最大旋回角つきで曲射。
     public bool Homing;
     // バックファイア（後方弾）フラグ：標的探索は基本 Velocity の向きで決めるため、これは
@@ -476,6 +522,8 @@ public partial class Bullet : Area2D
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
         // 減速弾のフラグ群も同様にリセット（持ち越すと別の弾が勝手に失速する）。
         Decel = false; _decelDelay = 0f; _slowSpeed = 0f; _fromSpeed = 0f; _decelDir = Vector2.Zero;
+        // 導入区間（中心→発射点）も再利用時に必ず落とす（持ち越すと別の弾が前の発射点へ吸い寄せられる）。
+        _leadDur = 0f; _leadElapsed = 0f; _leadFrom = Vector2.Zero; _leadTo = Vector2.Zero;
 
         // 言葉弾（投稿チップ）の層と当たり芯の子も再利用時にリセット。
         // SetWord が ZIndex -12（チップは弾より奥）へ沈めるので、通常弾は必ず 0 へ戻す。
@@ -691,6 +739,25 @@ public partial class Bullet : Area2D
         }
         double edelta = delta * ets;
 
+        // ─── 導入区間：敵の中心 →「本来の発射点」へ、弾自身が飛んで入る ───
+        // 体から離れた空中に湧かせない（＝「予兆なくわいて攻撃している」の原因を断つ）。
+        // 位置だけを置き換える＝当たり判定は生きたまま。Velocity には触らないので、
+        // 到達後はパターンが指定したとおりの速度・軌道がそのまま始まる。
+        if (LeadIn)
+        {
+            // 経過を _leadDur で頭打ちにして進める＝最後のフレームで必ず x==1 に届き、
+            // 端数が残って「発射点に着いているのに導入が終わらない」が起きない。
+            _leadElapsed = Mathf.Min(_leadElapsed + (float)edelta, _leadDur);
+            float x = _leadElapsed / _leadDur;
+            // ease-out（1-(1-x)^2）＝体から勢いよく出て、発射点では減速してパターンの速度へ受け渡す
+            //（遠い発射点でも「飛んできて止まった」に見え、瞬間移動にはならない）。
+            GlobalPosition = x >= 1f ? _leadTo : _leadFrom.Lerp(_leadTo, 1f - (1f - x) * (1f - x));
+            // 絵の自転だけは導入中も進める（_age は止めるので _leadElapsed で足す＝到達時に角度が飛ばない）。
+            if (_sprite != null && _spriteRotSpeed != 0f)
+                Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
+            return;
+        }
+
         // 経過時間を進める（会話停止中は上で return 済み＝弾停止と整合）。
         _age += (float)edelta;
         if (Charged) QueueRedraw();
@@ -722,7 +789,7 @@ public partial class Bullet : Area2D
         // （揺れは回転に含めず、ここでは回転のみ＝当たり判定は中心円のままで一切動かない）。
         // 同心円で描く当たり芯・祈り弾のハロは回しても見た目が変わらないので、絵だけが回って見える。
         if (_sprite != null && _spriteRotSpeed != 0f)
-            Rotation = _age * _spriteRotSpeed + _spriteSway;
+            Rotation = (_age + _leadElapsed) * _spriteRotSpeed + _spriteSway;
 
         // ホーミング：右側の最寄りの穢れ標的へ向きを補間（速度の大きさは一定）。
         if (Homing && !IsEnemy)

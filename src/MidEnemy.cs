@@ -1025,9 +1025,11 @@ public partial class MidEnemy : Enemy
             }
             _salvoRemaining = Mathf.Max(1, _memoryTraceCount);
         }
-        FxLayer.Instance?.AimFlash(_characterOrigin, CurTint);
+        // 予兆は「体」と「弾が並ぶ点」の両方に出す。弾は必ず体の中心から出て、光った点へ飛んでいく
+        //（＝光り方と弾の出方が一致する。体だけが光って離れた場所に湧く、が起きない）。
+        FxLayer.Instance?.AimFlash(ShotCenter, CurTint);
         foreach (var origin in MemoryOrigins())
-            if (origin != _characterOrigin) FxLayer.Instance?.AimFlash(origin, CurTint);
+            if (origin.DistanceTo(ShotCenter) >= Bullet.LeadMinDist) FxLayer.Instance?.AimFlash(origin, CurTint);
     }
 
     private System.Collections.Generic.IEnumerable<Vector2> CharacterShotOrigins()
@@ -1258,7 +1260,7 @@ public partial class MidEnemy : Enemy
     private void BeginSharp3()
     {
         _telegraphT = 0.4;
-        FxLayer.Instance?.AimFlash(GlobalPosition, new Color(0.95f, 0.50f, 0.70f));
+        FxLayer.Instance?.AimFlash(ShotCenter, new Color(0.95f, 0.50f, 0.70f));
         SquishBody(); // 本体が一瞬縮む（予告の溜め）
     }
     private void FireSharp3()
@@ -1332,7 +1334,9 @@ public partial class MidEnemy : Enemy
         var pool = Pool; if (pool == null) return;
         foreach (var off in PrayerOffsets)
         {
-            var b = FireBullet(pool, GlobalPosition + off, Vector2.Zero, 3.4f, 1);
+            // 祈り弾は「撃つ弾」ではなく本体にぶら下げて運ぶ荷物＝毎フレーム TickPrayerCarry が位置を握る。
+            // 中心からの導入区間を付けると運搬の追従と取り合いになるので、最初から鎖の位置へ置く。
+            var b = FireBullet(pool, GlobalPosition + off, Vector2.Zero, 3.4f, 1, fromCenter: false);
             if (b == null) continue;
             b.MakeErasable(); // 自機弾で消せる＝消すと AddPrayerCleared（既存経路）
             _carried.Add(b);

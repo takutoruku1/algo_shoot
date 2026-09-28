@@ -276,7 +276,10 @@ public partial class CameoBoss : Enemy
         for (int i = 0; i < k; i++)
         {
             float x = 20f + 344f * (i + 0.5f) / Mathf.Max(1, k);
-            FireBullet(pool, new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd), 3.2f);
+            // 上端の外（y=-6）から降ってくる帯＝「空から落ちてくる」演出。画面の縁から入ってくるので
+            // 出どころは読める（体から離れた空中に湧く問題とは別物）＝中心からの導入区間は付けない。
+            FireBullet(pool, new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd), 3.2f, 1,
+                fromCenter: false);
         }
     }
 

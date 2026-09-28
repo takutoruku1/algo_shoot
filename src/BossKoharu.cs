@@ -430,7 +430,9 @@ public partial class BossKoharu : Enemy
             for (int col = 0; col < _mealCols; col++)
             {
                 var pos = new Vector2(MealLeft + col * colStep, 44f + row * rowStep);
-                var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f);
+                // 配膳は「盤面の右半分に格子で並ぶ」こと自体がギミック（食べ残しを数える）＝
+                // 体から飛び出す導入区間は付けない。並んだ瞬間に格子が読めることを優先する。
+                var b = FireBullet(pool, pos, new Vector2(0f, _mealFallSpeed), 3.6f, 1, fromCenter: false);
                 b.MakeErasable();
                 _meal.Add(b);
             }

@@ -86,6 +86,8 @@ public partial class EnemyProjectileQa : Node
         var specs = EnemyTable.CharactersFor(theme).Concat(new[] { shooter, drifter, EnemyTable.Flanker(theme) });
         if (theme == StageTheme.Koharu) specs = specs.Append(EnemyTable.PrayerCarrier());
         foreach (var spec in specs) await CheckEnemy(world, spec);
+        // 弾の「出どころ」はテーマに依らない共通仕様なので、盤面が一式そろう最初の面で全パターンを一度だけ見る。
+        if (theme == StageTheme.Akari) await CheckShotOrigins(world);
 
         Enemy boss = theme switch
         {
@@ -139,7 +141,12 @@ public partial class EnemyProjectileQa : Node
         {
             var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
             Write(stage, "_stepStarted", false);
+            // 中ボスの登場カットシーン（CameoIntroScene）は会話送りを待つ＝ここでは通り抜けられない。
+            // ルナティック経路はカットシーンを流さずその場で中ボスを出すので、この一歩だけ借りて弾幕に入る
+            //（弾の絵・当たり・弾速の検査が目的で、登場演出は qa_cameo_intro の担当）。
+            Write(stage, "_lunatic", true);
             Call(stage, "Step_BossCameo", 0d);
+            Write(stage, "_lunatic", false);
             var cameo = Read<CameoBoss>(stage, "_cameo");
             cameo.SetPhysicsProcess(false);
             Hud.BubblePaused = false;
@@ -194,6 +201,229 @@ public partial class EnemyProjectileQa : Node
         root.QueueFree();
         await Frames(5);
         Hud.BubblePaused = false;
+    }
+
+    // ─── 弾の「出どころ」（2026-09-28 作者報告への検査）───
+    //   報告：「敵のたまが、アンチャーから少し離れた位置から予兆なくわいて攻撃している」。
+    //   直した形：敵弾は必ず敵の中心（Enemy.ShotCenter）に湧き、そこから本来の発射点まで自分で
+    //   飛んでいってから（Bullet.MakeLeadIn）従来どおりのパターンの速度・軌道へ移る。
+    //   ここでは AttackPattern を1つ残らず列挙し、種ごとに
+    //     ① 生成直後の弾は敵の中心から OriginTolerance(4px) 以内＝体から離れた空中に湧かない
+    //     ② 導入区間は瞬間移動でもフェードでもなく毎フレーム発射点へ近づく／その間も当たり判定が生きている
+    //     ③ 導入を終えた弾は本来の発射点・本来の速度にちょうど到達している＝弾幕の幾何（避け方）は不変
+    //   を見る。取りこぼすと意味がないので、列挙に漏れが無いことも検査する。
+    private const float OriginTolerance = 4f;
+
+    // ロスターに載っている全 EnemySpec（全テーマの撃つ種/撃たない種・人型12種・引用リプ・バズ壁・祈り運び）。
+    private static IEnumerable<EnemySpec> AllSpecs()
+    {
+        foreach (var theme in Enum.GetValues<StageTheme>())
+        {
+            var (shooter, drifter) = EnemyTable.For(theme);
+            yield return shooter;
+            yield return drifter;
+            foreach (var character in EnemyTable.CharactersFor(theme)) yield return character;
+            yield return EnemyTable.Flanker(theme);
+            yield return EnemyTable.BuzzWall(theme);
+        }
+        yield return EnemyTable.PrayerCarrier();
+    }
+
+    private async Task CheckShotOrigins(Node2D world)
+    {
+        var specs = AllSpecs().ToArray();
+        var patterns = Enum.GetValues<AttackPattern>();
+        Check(patterns.All(p => specs.Any(s => s.Pattern == p)),
+            $"all {patterns.Length} attack patterns are covered by the roster");
+        foreach (var pattern in patterns)
+            await CheckPatternOrigin(world, specs.First(s => s.Pattern == pattern));
+    }
+
+    private async Task CheckPatternOrigin(Node2D world, EnemySpec spec)
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        string label = $"origin/{spec.Pattern}";
+        var enemy = new MidEnemy();
+        enemy.Configure(spec);
+        world.AddChild(enemy);
+        enemy.GlobalPosition = new Vector2(Field.Right - 90f, 118f);
+        enemy.SetPhysicsProcess(false);
+        Pool.DespawnAll();
+        try
+        {
+            // 撃たない種（盾専念のバズ壁／パターン無し）：黙っていることそのものが仕様。
+            if (spec.Pattern is AttackPattern.None or AttackPattern.BuzzWall)
+            {
+                Call(enemy, "TickFire", 900d);
+                Check(Bullets().Length == 0, $"{label}: stays silent by design");
+                return;
+            }
+            // 祈り運び：撃つのではなく本体にぶら下げて運ぶ荷物＝鎖の位置に生まれるのが仕様。
+            //   毎フレーム TickPrayerCarry が位置を握るので、中心からの導入区間は付けない（例外）。
+            if (spec.Pattern == AttackPattern.KoharuPrayerCarry)
+            {
+                Call(enemy, "SpawnCarriedPrayers");
+                var carried = Bullets();
+                Check(carried.Length == 3 && carried.All(b => b.Erasable && !b.LeadIn
+                        && b.GlobalPosition.Y > enemy.ShotCenter.Y
+                        && b.GlobalPosition.Y - enemy.ShotCenter.Y <= 40f),
+                    $"{label}: carried prayers hang on the chain below the body (cargo, not a shot)");
+                return;
+            }
+            if (spec.Pattern >= AttackPattern.AkariDeadline)
+            {
+                // 記憶の残響だけは「自分が通った道」が発射点＝足跡を仕込んでから撃たせる
+                //（居座りを止めている QA では足跡が溜まらず、いちばん遠い発射点の検査にならない）。
+                if (spec.Pattern == AttackPattern.MinaMemory) SeedTrail(enemy);
+                Call(enemy, "BeginCharacterAttack");
+                for (int salvo = 0; Read<int>(enemy, "_salvoRemaining") > 0 && salvo < 8; salvo++)
+                {
+                    Pool.DespawnAll();
+                    Call(enemy, "FireCharacterSalvo");
+                    await CheckLeadIn(enemy, $"{label}/salvo{salvo}");
+                    CheckGeometry(enemy, game, spec.Pattern, $"{label}/salvo{salvo}");
+                }
+                return;
+            }
+            // 予告なしで直接撃つ種（道具6種・アンチくん・引用リプ）。どれも発射点＝本体の現在地。
+            Write(enemy, "_burstDir", new Vector2(-1f, 0f)); // ロックオン連射の弾速が 0 にならないように
+            Call(enemy, spec.Pattern switch
+            {
+                AttackPattern.ReiLockBurst => "FireBurstShot", AttackPattern.ReiPulseRing => "FirePulseRing",
+                AttackPattern.AkariScatter => "FireScatter", AttackPattern.AkariDrop => "FireDrop",
+                AttackPattern.KoharuSharp3 => "FireSharp3", AttackPattern.KoharuSimmer => "FireSimmer",
+                AttackPattern.FlankAim => "FireFlank", AttackPattern.DefaultAim => "FireDefaultAim",
+                _ => throw new Exception($"{label}: no firing entry point"),
+            });
+            await CheckLeadIn(enemy, label);
+        }
+        finally
+        {
+            enemy.QueueFree();
+            Pool.DespawnAll();
+            await Frames(2);
+        }
+    }
+
+    // 「記憶の残響」の足跡を仕込む（QA では本体を動かさないので自然には溜まらない）。
+    // 本体から 20〜50px 離れた点＝導入区間がいちばん長く働くケースを作る。
+    private static void SeedTrail(MidEnemy enemy)
+    {
+        var trail = Read<Vector2[]>(enemy, "_trail");
+        for (int i = 0; i < trail.Length; i++)
+            trail[i] = enemy.GlobalPosition + new Vector2(-6f - i * 3f, 34f - i * 6f);
+        Write(enemy, "_trailCount", trail.Length);
+        Write(enemy, "_trailHead", 0);
+    }
+
+    // 1回ぶんの斉射について「中心に湧いた → 飛んで発射点へ着いた → 速度は撃った時のまま」を見る。
+    private async Task CheckLeadIn(MidEnemy enemy, string label)
+    {
+        var bullets = Bullets();
+        Check(bullets.Length > 0, $"{label}: the attack actually fires");
+        Vector2 centre = enemy.ShotCenter;
+        float worst = bullets.Max(b => b.GlobalPosition.DistanceTo(centre));
+        Check(worst <= OriginTolerance,
+            $"{label}: every shot is born on the enemy centre (worst {worst:0.00}px <= {OriginTolerance}px)");
+        // 本来の発射点と、着く前の速度を控える（導入は Velocity を触らない＝幾何が変わらないの検算）。
+        var leading = bullets.Select(b => b.LeadIn).ToArray();
+        var targets = bullets.Select(b => Read<Vector2>(b, "_leadTo")).ToArray();
+        var speeds = bullets.Select(b => b.Velocity).ToArray();
+        // 以降はこちらで1フレームずつ送る（エンジン側に動かされない）。Activate の遅延セットだけ1フレーム流す。
+        foreach (var b in bullets) b.SetPhysicsProcess(false);
+        await Frames(1);
+        for (int i = 0; i < bullets.Length; i++)
+        {
+            var b = bullets[i];
+            if (!leading[i]) continue;
+            // 導入中の弾も当たる（無敵の弾を作らない）。
+            Check(b.Active && b.Visible && b.Monitorable && b.Monitoring
+                && b.GetChildren().OfType<CollisionShape2D>().All(c => !c.Disabled),
+                $"{label}: the shot can still be hit and can still hit while it leaves the body");
+            // 瞬間移動でもフェードでもなく「飛んでいく」＝毎フレーム必ず発射点へ近づき、ずっと見えている。
+            float travel = b.GlobalPosition.DistanceTo(targets[i]);
+            float prev = travel;
+            int steps = 0;
+            bool flies = true;
+            while (b.LeadIn && steps++ < 64)
+            {
+                b._PhysicsProcess(1.0 / 60.0);
+                float now = b.GlobalPosition.DistanceTo(targets[i]);
+                flies &= now < prev && b.Visible && b.Active;
+                prev = now;
+            }
+            Check(flies && steps > 1 && steps <= Mathf.CeilToInt(Bullet.LeadMaxDur * 60f) + 1,
+                $"{label}: flies {travel:0}px out of the body over {steps} frames"
+                + $" (visible the whole way, never longer than {Bullet.LeadMaxDur:0.00}s)");
+            Check(b.GlobalPosition.DistanceTo(targets[i]) < 0.01f && b.Velocity.IsEqualApprox(speeds[i]),
+                $"{label}: lands on the pattern's own firing point at the pattern's own speed");
+        }
+    }
+
+    // 弾幕の幾何（＝避け方）が変わっていないこと。設計値そのものを書いて、着いた先の並びと照合する。
+    private void CheckGeometry(MidEnemy enemy, GameManager game, AttackPattern pattern, string label)
+    {
+        foreach (var b in Bullets()) while (b.LeadIn) b._PhysicsProcess(1.0 / 60.0);
+        var bullets = Bullets();
+        var at = Read<Vector2>(enemy, "_characterOrigin");
+        var xs = bullets.Select(b => b.GlobalPosition.X).ToArray();
+        var ys = bullets.Select(b => b.GlobalPosition.Y).OrderBy(y => y).ToArray();
+        switch (pattern)
+        {
+            // 切り抜きの人：本体の上下 24px の2点から挟み込む。
+            case AttackPattern.ReiClipper:
+                Check(xs.All(x => Mathf.Abs(x - at.X) < 0.01f) && ys.Distinct().Count() == 2
+                    && Mathf.Abs(ys.First() - (at.Y - 24f)) < 0.01f
+                    && Mathf.Abs(ys.Last() - (at.Y + 24f)) < 0.01f,
+                    $"{label}: keeps the ±24px pincer around the body");
+                break;
+            // 空席の人：縦一列の壁。1箇所だけ隙間が空く（隙間＝隣り合う間隔のちょうど2倍）。
+            case AttackPattern.AkariVacant:
+            {
+                int slots = Math.Max(3, game.ScaleBullets(5));
+                float spacing = Math.Max(16f, 96f / (slots - 1));
+                var gaps = ys.Zip(ys.Skip(1), (a, b) => b - a).ToArray();
+                Check(bullets.Length == slots - 1 && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
+                    && Mathf.Abs(ys.Last() - ys.First() - spacing * (slots - 1)) < 0.01f
+                    && Mathf.Abs(gaps.Max() - spacing * 2f) < 0.01f,
+                    $"{label}: keeps the {slots - 1}-slot wall and its single {spacing * 2f:0}px escape gap");
+                break;
+            }
+            // 数字の人：本体の 24px 上、横 80px に広げた列から降る。
+            case AttackPattern.ReiMetrics:
+            {
+                int count = Math.Max(2, game.ScaleBullets(4));
+                float row = Mathf.Max(Field.Top + 16f, at.Y - 24f);
+                float mid = Mathf.Clamp(at.X, Field.Left + 52f, Field.Right - 52f);
+                Check(bullets.Length == count && ys.All(y => Mathf.Abs(y - row) < 0.01f)
+                    && Mathf.Abs(xs.Min() - (mid - 40f)) < 0.01f && Mathf.Abs(xs.Max() - (mid + 40f)) < 0.01f,
+                    $"{label}: keeps the 80px-wide ranking row 24px above the body");
+                break;
+            }
+            // 荷物の人：縦 22px 間隔で積んだ置き弾。
+            case AttackPattern.KoharuParcel:
+            {
+                int parcels = Math.Max(1, game.ScaleBullets(2));
+                Check(bullets.Length == parcels && xs.All(x => Mathf.Abs(x - at.X) < 0.01f)
+                    && (parcels == 1 || Mathf.Abs(ys.Last() - ys.First() - 22f * (parcels - 1)) < 0.01f),
+                    $"{label}: keeps the 22px parcel stack");
+                break;
+            }
+            // 記憶の残響：自機ではなく「自分が通った道」へ置く＝仕込んだ足跡の上に必ず落ちる。
+            case AttackPattern.MinaMemory:
+            {
+                var trail = Read<Vector2[]>(enemy, "_trail");
+                Check(bullets.All(b => trail.Any(p => p.DistanceTo(b.GlobalPosition) < 0.01f)
+                        && b.GlobalPosition.DistanceTo(enemy.ShotCenter) > Bullet.LeadMinDist),
+                    $"{label}: still lands on a place the enemy actually walked, away from the body");
+                break;
+            }
+            // 残り（扇・単発）は本体の発射点から出るだけ＝CheckLeadIn の到達検査で十分。
+            default:
+                Check(bullets.All(b => b.GlobalPosition.DistanceTo(at) < 0.01f),
+                    $"{label}: fires from the telegraphed point on the body");
+                break;
+        }
     }
 
     private async Task CheckEnemy(Node2D world, EnemySpec spec)

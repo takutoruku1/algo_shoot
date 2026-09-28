@@ -441,10 +441,27 @@ public partial class Enemy : Area2D
         CurShape = shape; CurTint = tint; CurTintSet = true;
         CurSprite = sprite; CurSpriteRot = spriteRot;
     }
+    // 敵弾の「出どころ」＝見えている体の中心（2026-09-28）。
+    //   当たり判定の芯（GlobalPosition）に、立ち絵が動いているぶん（_bodySprite.Position＝ボスの呼吸/浮遊、
+    //   道中ザコの生命感モーション）を足した点。＝弾はいつでも絵の真ん中から出る。
+    // ★BossParts の姿勢オフセット（_bodySprite.Offset）は足さない：あれは「姿勢ごとに絵の枠が変わるぶん
+    //   足元を揃える」補正で、体そのものは動いていない（足すと攻撃姿勢の一瞬だけ出どころがずれる）。
+    public Vector2 ShotCenter => _hasBodyTex && _bodySprite != null
+        ? GlobalPosition + _bodySprite.Position
+        : GlobalPosition;
+
     // 現在のスペルの弾形・色（と絵）で敵弾を1発撃つ（各ボスの pool.Spawn 置き換え用）。
-    protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1)
+    //   湧き位置は必ず ShotCenter。パターンが指定した発射点(pos)へは、弾自身が短い導入区間で
+    //   飛んでいってから本来の速度・軌道へ移る（Bullet.MakeLeadIn）。ずれが 3px 未満なら導入は付かない
+    //   ＝中心から撃っている大多数のパターンは従来と完全に同一。
+    //   fromCenter:false は「その場所に出ること自体が意味を持つ」置き弾（配膳の格子・上端からの雨・
+    //   ぶら下げる祈り弾）専用。体から出す演出を付けるとギミックが壊れるものだけに使う。
+    protected Bullet FireBullet(BulletPool pool, Vector2 pos, Vector2 vel, float radius = 3.4f, int dmg = 1,
+        bool fromCenter = true)
     {
-        var b = pool.Spawn(pos, vel, isEnemy: true, radius, dmg, CurShape, CurTintSet ? CurTint : (Color?)null);
+        var b = pool.Spawn(fromCenter ? ShotCenter : pos, vel, isEnemy: true, radius, dmg,
+            CurShape, CurTintSet ? CurTint : (Color?)null);
+        if (fromCenter) b.MakeLeadIn(pos);
         if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
