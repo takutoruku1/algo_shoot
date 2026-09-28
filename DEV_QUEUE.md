@@ -69,9 +69,9 @@
 
 <!-- 2026-09-28 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、scenario/engineerはそれぞれ独立に同一件をBLOCKEDへ(1件に統合)、qaは新規指摘0件(全パスclean run) -->
 
-- [ ] (P2) 炎上デバフが選択不能な強制適用で、必ず物語上の最難関ステージ(レイ/STAGE3)を直撃する | game-designer | `src/GameManager.cs:383` `ShouldBurnAfter(clearedStageId) => clearedStageId == "koharu" && !_burnHappened` はプレイヤーの選択を一切介さず、こはる面(STAGE2、`GameManager.cs:201`)クリア後に自動発火する。`GameManager.cs:397-399` `BeginStageRun`のコメント「炎上は『次の1ステージだけ』」の通り、次にダイブする1ステージにのみ適用されるが、新面順(`GameManager.cs:198-203`あかり→こはる→レイ)では通常進行の「次の1ステージ」は必ずレイ(STAGE3、最終通常面)になる。効果は`GameManager.cs:768`(稼ぎ×0.6=-40%)・`:774`(発射間隔×1.3=+30%、実質DPS-23%)・`:776`(移動速度×0.9=-10%)の三重デバフで、Trigger時にHub側で告知はされる(`Hub.cs:443`)ものの回避・軽減の手段がゼロ。しかもレイ面は既存BLOCKED「DemoPilotがSTAGE3道中(MidWaveA密度ランプ/CameoBoss長期戦)で複数の独立AIが早期死亡」で難度が高いと判明済みの面であり、そこに強制で火力・機動を削り、かつ次のFINAL前の資金源(-40%)まで絞る設計は理不尽さが重なっている。受入条件: (a)戦闘関連の2軸(発射間隔+30%/移動-10%)を撤廃し経済ペナルティ(稼ぎ-40%)のみに絞る、または(b)三値を`+15%/-5%/-20%`程度へ半減する、のいずれかで「物語上の一撃」と「触っていて理不尽」の釣り合いを取る。セリフ・演出(`Hub.cs:1283 BurnDialog`)には触れず、`GameManager.cs:768,774,776`の係数のみ調整するスコープ。
-
 ## WIP
+
+- [ ] (P2) 炎上デバフが選択不能な強制適用で、必ず物語上の最難関ステージ(レイ/STAGE3)を直撃する | game-designer | `src/GameManager.cs:383` `ShouldBurnAfter(clearedStageId) => clearedStageId == "koharu" && !_burnHappened` はプレイヤーの選択を一切介さず、こはる面(STAGE2、`GameManager.cs:201`)クリア後に自動発火する。`GameManager.cs:397-399` `BeginStageRun`のコメント「炎上は『次の1ステージだけ』」の通り、次にダイブする1ステージにのみ適用されるが、新面順(`GameManager.cs:198-203`あかり→こはる→レイ)では通常進行の「次の1ステージ」は必ずレイ(STAGE3、最終通常面)になる。効果は`GameManager.cs:768`(稼ぎ×0.6=-40%)・`:774`(発射間隔×1.3=+30%、実質DPS-23%)・`:776`(移動速度×0.9=-10%)の三重デバフで、Trigger時にHub側で告知はされる(`Hub.cs:443`)ものの回避・軽減の手段がゼロ。しかもレイ面は既存BLOCKED「DemoPilotがSTAGE3道中(MidWaveA密度ランプ/CameoBoss長期戦)で複数の独立AIが早期死亡」で難度が高いと判明済みの面であり、そこに強制で火力・機動を削り、かつ次のFINAL前の資金源(-40%)まで絞る設計は理不尽さが重なっている。受入条件: (a)戦闘関連の2軸(発射間隔+30%/移動-10%)を撤廃し経済ペナルティ(稼ぎ-40%)のみに絞る、または(b)三値を`+15%/-5%/-20%`程度へ半減する、のいずれかで「物語上の一撃」と「触っていて理不尽」の釣り合いを取る。セリフ・演出(`Hub.cs:1283 BurnDialog`)には触れず、`GameManager.cs:768,774,776`の係数のみ調整するスコープ。
 
 ## BLOCKED
 
