@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 270 / 対象 270 タスク<br>保留 43 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 271 / 対象 271 タスク<br>保留 44 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">270</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">271</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
     <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">43</div><div class="state-l">保留</div></div>
+    <div class="state blocked"><div class="state-n">44</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -151,6 +151,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">炎上デバフが選択不能な強制適用で、必ず物語上の最難関ステージ(レイ/STAGE3)を直撃する</span>
+          <span class="worker">game-designer</span>
+        </div>
+        <p class="accept">(完了 2026-09-28) 2026-09-28監査(game-designer)発見。<code>src/GameManager.cs:383</code>の<code>ShouldBurnAfter</code>は選択不能な強制発火で、新面順(あかり→こはる→レイ)では必ず既存BLOCKEDで高難度と判明済みのレイ面(STAGE3)を直撃していた。<code>src/GameManager.cs:774</code>の<code>FireIntervalMul</code>と<code>:776</code>の<code>MoveSpeedMul</code>から炎上時の倍率(<code>BurningThisRun ? 1.3f/0.9f : 1f</code>)をそれぞれ削除し、戦闘（発射間隔・移動速度）には一切影響しないようにした。<code>:768</code>の<code>TotalImpressionMul</code>の経済ペナルティ(稼ぎ×0.6=-40%)はそのまま維持（受入条件(a)を採用）。<code>BurningThisRun</code>フィールド自体・発火ロジック(<code>ShouldBurnAfter</code>/<code>TriggerBurn</code>/<code>BeginStageRun</code>)・Hub側のセリフ演出(<code>BurnDialog</code>)は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2319,6 +2327,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title">FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している</span>
+          
+        </div>
+        <p class="accept">要ユーザー判断（背景を見せる順序という物語内容の変更を伴う）。2026-09-28監査(scenario/engineer独立発見)。<code>src/MinaRoot.cs:77</code>のコメント「追体験：歴代ボス背景の巡り（レイ→あかり→こはる→ミナ）」と<code>:88-93</code>の<code>Journey</code>配列(<code>rei(HP80%)→akari(58%)→koharu(36%)</code>)は案C以前の旧面順のまま。現行正典面順(<code>GameManager.cs:198-203</code>: あかり→こはる→レイ、2026-09-05ユーザー承認)と不一致。加えて「少年が通ってきた道が背中側から手繰り寄せられる」(<code>MinaRoot.cs:78,84</code>)という意匠なら本来は現行順の逆(レイ→こはる→あかり)になるはずで、実装の「レイ→あかり→こはる」はどちらの筋にも一致しない中途半端な状態。<code>git log</code>確認: <code>Journey</code>配列は<code>9664271</code>(MinaBattle初期実装、案C以前)由来で、面順が現行へ変わった後に追従した形跡が無い。既存BLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しない」（MinaBattle自体の存続要否）とは別角度の指摘（MinaBattleを維持する場合に限り顕在化する演出内部の面順矛盾）で重複ではないが、その存続判断が先に要る点は同じ。かつFINAL＝プレイヤーが実際にプレイ中に見る演出であり、ドキュメント上の乖離より露出度が高い。要ユーザー判断: (a) MinaBattle存続が決まった上で、あかり→こはる→レイ or レイ→こはる→あかりのどちらの順で<code>Journey</code>配列(<code>MinaRoot.cs:88-93</code>)とコメント(<code>:77</code>)を修正するか指定する、(b) MinaBattle自体を撤廃するなら本件は自動的に解消として対応不要にする。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">StageMina.csのコメントが指す伏線回収セリフ「いなくならないって、書いたくせに」がEpilogue.csのどこにも実在しない</span>
           <span class="worker">scenario</span>
         </div>
@@ -2665,18 +2681,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">20ff1c1</span><span>2026-09-28</span><span class="s">auto: WIP着手 - 炎上デバフの三重ペナルティを是正する</span></li>
+      <li><span class="h">155fa6a</span><span>2026-09-28</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
+      <li><span class="h">ea4b1ac</span><span>2026-09-27</span><span class="s">auto: 仮台本09・11の自己申告バナーを事実訂正</span></li>
       <li><span class="h">b263a8a</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 仮台本09・11の自己申告バナーを事実訂正する</span></li>
       <li><span class="h">611a7ed</span><span>2026-09-27</span><span class="s">auto: 拡散威力II／誘導威力IIの整数丸めを是正</span></li>
       <li><span class="h">ea8e0dc</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 拡散威力II／誘導威力IIの整数丸めを是正する</span></li>
       <li><span class="h">ceed7ae</span><span>2026-09-27</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">ec6246a</span><span>2026-09-24</span><span class="s">auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正</span></li>
-      <li><span class="h">0fd2b2f</span><span>2026-09-24</span><span class="s">auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する</span></li>
-      <li><span class="h">f5b83de</span><span>2026-09-24</span><span class="s">auto: こはる食事タイマーの技名表示を全部見なきゃに統一</span></li>
-      <li><span class="h">db18014</span><span>2026-09-24</span><span class="s">auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-27 18:39 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-28 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

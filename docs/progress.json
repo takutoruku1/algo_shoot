@@ -1,15 +1,21 @@
 {
-  "generated": "2026-09-27 18:39 UTC",
+  "generated": "2026-09-28 18:50 UTC",
   "counts": {
     "todo": 0,
     "wip": 0,
-    "blocked": 43,
-    "done": 270
+    "blocked": 44,
+    "done": 271
   },
   "percent": 100,
   "todo": [],
   "wip": [],
   "blocked": [
+    {
+      "priority": null,
+      "title": "FINAL「暴走したミナ」内での歴代ボス背景“追体験”演出(MinaRoot.Journey)が案C以前の旧面順のまま実装され、演出コメント自身の論理(道を遡る)とも矛盾している",
+      "worker": null,
+      "accept": "要ユーザー判断（背景を見せる順序という物語内容の変更を伴う）。2026-09-28監査(scenario/engineer独立発見)。`src/MinaRoot.cs:77`のコメント「追体験：歴代ボス背景の巡り（レイ→あかり→こはる→ミナ）」と`:88-93`の`Journey`配列(`rei(HP80%)→akari(58%)→koharu(36%)`)は案C以前の旧面順のまま。現行正典面順(`GameManager.cs:198-203`: あかり→こはる→レイ、2026-09-05ユーザー承認)と不一致。加えて「少年が通ってきた道が背中側から手繰り寄せられる」(`MinaRoot.cs:78,84`)という意匠なら本来は現行順の逆(レイ→こはる→あかり)になるはずで、実装の「レイ→あかり→こはる」はどちらの筋にも一致しない中途半端な状態。`git log`確認: `Journey`配列は`9664271`(MinaBattle初期実装、案C以前)由来で、面順が現行へ変わった後に追従した形跡が無い。既存BLOCKED「案C正典にはミナ本人とのラスボス戦(StageMina/MinaBattle)が存在しない」（MinaBattle自体の存続要否）とは別角度の指摘（MinaBattleを維持する場合に限り顕在化する演出内部の面順矛盾）で重複ではないが、その存続判断が先に要る点は同じ。かつFINAL＝プレイヤーが実際にプレイ中に見る演出であり、ドキュメント上の乖離より露出度が高い。要ユーザー判断: (a) MinaBattle存続が決まった上で、あかり→こはる→レイ or レイ→こはる→あかりのどちらの順で`Journey`配列(`MinaRoot.cs:88-93`)とコメント(`:77`)を修正するか指定する、(b) MinaBattle自体を撤廃するなら本件は自動的に解消として対応不要にする。"
+    },
     {
       "priority": null,
       "title": "StageMina.csのコメントが指す伏線回収セリフ「いなくならないって、書いたくせに」がEpilogue.csのどこにも実在しない",
@@ -270,6 +276,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "炎上デバフが選択不能な強制適用で、必ず物語上の最難関ステージ(レイ/STAGE3)を直撃する",
+      "worker": "game-designer",
+      "accept": "(完了 2026-09-28) 2026-09-28監査(game-designer)発見。`src/GameManager.cs:383`の`ShouldBurnAfter`は選択不能な強制発火で、新面順(あかり→こはる→レイ)では必ず既存BLOCKEDで高難度と判明済みのレイ面(STAGE3)を直撃していた。`src/GameManager.cs:774`の`FireIntervalMul`と`:776`の`MoveSpeedMul`から炎上時の倍率(`BurningThisRun ? 1.3f/0.9f : 1f`)をそれぞれ削除し、戦闘（発射間隔・移動速度）には一切影響しないようにした。`:768`の`TotalImpressionMul`の経済ペナルティ(稼ぎ×0.6=-40%)はそのまま維持（受入条件(a)を採用）。`BurningThisRun`フィールド自体・発火ロジック(`ShouldBurnAfter`/`TriggerBurn`/`BeginStageRun`)・Hub側のセリフ演出(`BurnDialog`)は無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官確認）。"
+    },
     {
       "priority": "P3",
       "title": "仮台本09・11の自己申告バナー「検討中の草稿・非正典」が一部確定・実装済みの内容と矛盾したまま残存",
@@ -1893,6 +1905,21 @@
   ],
   "commits": [
     {
+      "hash": "20ff1c1",
+      "date": "2026-09-28",
+      "subject": "auto: WIP着手 - 炎上デバフの三重ペナルティを是正する"
+    },
+    {
+      "hash": "155fa6a",
+      "date": "2026-09-28",
+      "subject": "auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
+    },
+    {
+      "hash": "ea4b1ac",
+      "date": "2026-09-27",
+      "subject": "auto: 仮台本09・11の自己申告バナーを事実訂正"
+    },
+    {
       "hash": "b263a8a",
       "date": "2026-09-27",
       "subject": "auto: WIP着手 - 仮台本09・11の自己申告バナーを事実訂正する"
@@ -1916,21 +1943,6 @@
       "hash": "ec6246a",
       "date": "2026-09-24",
       "subject": "auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正"
-    },
-    {
-      "hash": "0fd2b2f",
-      "date": "2026-09-24",
-      "subject": "auto: WIP着手 - 祈りの帳(veil_light)の回避連打ほぼ無敵を是正する"
-    },
-    {
-      "hash": "f5b83de",
-      "date": "2026-09-24",
-      "subject": "auto: こはる食事タイマーの技名表示を全部見なきゃに統一"
-    },
-    {
-      "hash": "db18014",
-      "date": "2026-09-24",
-      "subject": "auto: WIP着手 - こはる食事タイマーの技名表示を全部見なきゃに統一する"
     }
   ]
 }

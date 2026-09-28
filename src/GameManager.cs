@@ -770,10 +770,12 @@ public partial class GameManager : Node
     // ── 強化効果アクセサ（Player/Hud が STEP3 で参照する）──
     //   単Lvノード方式：Lv 取得元を GetUpgradeLevel("x")→ChainLevel("x", n) に差替え。式は不変。
     public int ShotDamageBonus => ChainLevel("shot_power", 4);                            // 弾ダメージ +Lv
-    // 発射間隔×（連射強化で短縮、炎上中は +30% 延長＝弱体）。
-    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * ChainLevel("fire_rate", 4)) * (BurningThisRun ? 1.3f : 1f);
-    // 移動速度×（機動強化で増、炎上中は -10%）。
-    public float MoveSpeedMul => (1f + 0.12f * ChainLevel("move_speed", 3)) * (BurningThisRun ? 0.9f : 1f);
+    // 発射間隔×（連射強化で短縮）。
+    // 2026-09-28是正: 炎上デバフは選択不能な強制イベントで、新面順では必ず次面（既存BLOCKEDで高難度と判明済みのレイ面/STAGE3）を直撃していた。
+    // 戦闘影響（発射間隔・移動速度）は撤廃し、経済ペナルティ（TotalImpressionMul）のみに絞る。
+    public float FireIntervalMul => Mathf.Max(0.4f, 1f - 0.08f * ChainLevel("fire_rate", 4));
+    // 移動速度×（機動強化で増）。炎上デバフは経済のみに絞ったため、ここには掛からない（上記コメント参照）。
+    public float MoveSpeedMul => (1f + 0.12f * ChainLevel("move_speed", 3));
     public float HitRadiusMul => Mathf.Max(0.4f, 1f - 0.12f * ChainLevel("hitbox", 3));
     // 3→2圧縮系（max_life/bomb_count/bomb_power/fol_gain/combo_hold）は効果表どおり段2=+2/×1.30 等。
     // 式は不変で ChainLevel 直結（没収は移行側の min(n,2) で担保。効果は末尾段が旧最終より一段控えめになる）。
