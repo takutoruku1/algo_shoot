@@ -89,8 +89,14 @@ public partial class Final : Node2D
         _received = GD.Load<Texture2D>("res://char/bg2/ending/cg_final_received_v1.png");
         _rooftop = GD.Load<Texture2D>("res://char/bg2/ending/cg_ep_rest.png");
         _zHeld = Pad.AdvanceHeld();
-        // 主題の濁り＝緊張のボスBGM（短調寄り・不協和の変奏）。挿入歌の一点投入はphase5。
-        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmBoss);
+        // F4 の地の音。旋律を立てないアンビエントで「世界の底」だけを鳴らし、テキストに主役を渡す。
+        //   2026-09-29 まではここが合成 BgmBoss（6.4秒の正弦波ループ）だった（ボス曲を実音源へ差し替えた
+        //   ときの積み残しで、Final だけ取り残されていた）。頭から CueSilenceLine までは AUTO 送りの
+        //   実測で 35.0 秒＝5.5 周（下書き選択の沈黙20秒を含む。即決なら 14.5 秒＝2.3 周）、
+        //   手動送りなら 45〜60 秒の見込み。曲の正体と選定根拠は Audio.BgmFinalCutscene のコメント。
+        //   ★この曲は「消すために鳴らしている」＝CueSilenceLine の StopMusic で消えた瞬間の無音が決定打。
+        //     平坦な曲を選んであるのは、盛り上がりの途中でぶつ切りにしないため。挿入歌の一点投入は phase1 末。
+        if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmFinalCutscene);
         // 汚染ゲージの終着点：黒く溶ける。
         _game = GetNodeOrNull<GameManager>("/root/Game");
         _game?.SetContamination(1f);

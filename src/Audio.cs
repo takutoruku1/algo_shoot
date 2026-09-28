@@ -217,6 +217,37 @@ public partial class Audio : Node
     //   専用曲を採るときは res://audio/bgm_final_route.ogg を置くだけで自動的にそちらが鳴る。
     public AudioStream BgmFinalRoute = null!;
 
+    // F4（Final のカットシーン）＝作品の頂点を読ませる区間の曲（2026-09-29 追加）。
+    //   経緯: ここは `src/Final.cs` の _Ready から **合成 BgmBoss（BuildBgmBoss＝1.6秒×4小節＝6.4秒の
+    //   正弦波ループ）** を流していた。もともと「実音源へ差し替えるまでの置き」で、BossMina.cs の
+    //   「（Final/ヒカゲの汎用 BgmBoss は据え置き）」は**差し替えの積み残しの記録**である
+    //   （ヒカゲ側はその後 Frozen Forest が入り、Final だけ取り残された）。
+    //   実測（tools/BgmAssignmentQa。AUTO 送り＝全文表示後1.0秒・文字送り48字/秒を仮定した**下限値**）:
+    //   頭 → CueSilenceLine が **34.7 秒**（うち下書き選択の沈黙20秒自動送信が 20.5 秒。
+    //   選択を即決すると 14.3 秒）＝ 6.4 秒ループが **2.2〜5.4 周**。人間の手動送りでは必ずこれより長い。
+    //   周回数そのものより、**他の全場面が実音源で固めてある中でここだけ正弦波の合成ループ**という
+    //   非対称が問題（FINAL 道中が無音だったのと同じ、差し替えの巻き添えで開いた穴）。
+    //   静かなテキスト場面は音が剥き出しになるので、6.4 秒ごとに同じ音形が戻るのは特に目立つ。
+    //   曲: 未調達の間は res://audio/bgm_prologue.ogg（甘茶「オーヴⅡ」）を **別インスタンスで**流用する。
+    //   選定根拠（BGM/candidates.md ⑮ の記録と突き合わせ）:
+    //     ・「Prologue は**テキストが主役**。旋律のある曲を敷くと文字と競合する。アンビエントで
+    //       **世界の底の音**だけを鳴らすのが正しい」＝採用理由がそのまま F4 の条件（F4 も独自レンダラの
+    //       テキスト主役カットシーン・手動送り）
+    //     ・**LRA 2.0（全候補中2位の平坦さ）／旋律が立たない**＝山を作らないので、CueSilenceLine の
+    //       StopMusic が「盛り上がりの途中でぶつ切り」にならず、**消した落差が素直に出る**
+    //       （ここを殺さないことが絶対条件。§7 無音→挿入歌の一点投入）
+    //     ・148.0 秒＝F4 の大半を1周で賄う（ループも焼いてある）
+    //     ・呼応: プロローグ（ミナが起動した場所の音）が頂点で戻る。しかも F4 には
+    //       「四百十四件。……わたくしが、生まれる前から、ここにあった声です。」＝**起動ログ 414 を
+    //       数字だけ回収する行**がある。言葉の回収と音の回収が同じ行で重なる（style §1）
+    //   ★ MusicTargetDb では **0dB 側**に入れる（メニュー一族と同じ土俵）。挿入曲 BgmFinalResolve も
+    //     0dB なので、無音を挟んだ前後で音量の段差が出ない。道中曲の -10dB を乗せると沈んでしまう。
+    //   ★ 汚染 LowPass（_Process の inStage）には **入れない**。F4 は Contamination=1.0 だが
+    //     画のほうに濁り（MurkVignette）が無いカットシーンで、音だけ濁らせると画と合わない。
+    //     無音は StopMusic 一つの所作で作るほうが落差が立つ（濁りパッドの消え際と二重にしない）。
+    //   専用曲を採るときは res://audio/bgm_final_cutscene.ogg を置くだけで自動的にそちらが鳴る。
+    public AudioStream BgmFinalCutscene = null!;
+
     // 改心の「解決音（完）」。OnCryStart で戦闘BGMから温かくクロスフェードして鳴らす一節。
     //   4ボスとも主題 M.I.N.A.（C/E/D/G）の構成音に解決する＝Epilogue で主題に溶ける布石。
     public AudioStreamWav RedeemRei = null!, RedeemAkari = null!, RedeemKoharu = null!, RedeemHikage = null!;
@@ -295,8 +326,9 @@ public partial class Audio : Node
         BgmBossKoharu = LoadBgmBossKoharu();
         BgmBossMina   = LoadBgmBossMina();
         BgmBossHikage = LoadBgmBossHikage();
-        // FINAL 道中。最終フォールバックが BgmBoss なので必ず BgmBoss の後に読む。
-        BgmFinalRoute = LoadBgmFinalRoute();
+        // FINAL 道中と F4 カットシーン。最終フォールバックが BgmBoss なので必ず BgmBoss の後に読む。
+        BgmFinalRoute    = LoadBgmFinalRoute();
+        BgmFinalCutscene = LoadBgmFinalCutscene();
         RedeemRei    = BuildRedeem(0);
         RedeemAkari  = BuildRedeem(1);
         RedeemKoharu = BuildRedeem(2);
@@ -415,6 +447,10 @@ public partial class Audio : Node
         // 挿入歌（Final の解決）は BgmMenu と同じ 0dB＝無音から ppp で立ち上がったのち満ちて、
         //   Epilogue の BgmMenu（0dB）へ同じ土俵・同じ和声圏で段差なく橋渡しする。
         if (stream == BgmFinalResolve) return 0f;
+        // F4 のカットシーン曲も同じ 0dB。**無音を挟んで直後に BgmFinalResolve（0dB）が来る**ので、
+        //   ここだけ実音源として -10dB を乗せると、沈黙の前後で土俵が変わって落差の意味が濁る。
+        //   音源側（オーヴⅡ＝-17.7 LUFS）は BgmMenu と同じラウドネスに揃っているので 0dB が正。
+        if (stream == BgmFinalCutscene) return 0f;
         // E5b のオルゴール（夕べの星）も同じ理由で 0dB。カットシーン専用の一点物で、
         //   鳴り終わった無音のあと E6 で BgmMenu が戻る＝BgmMenu と同じ土俵に置かないと段差が出る。
         //   音源側を BgmMenu と同じ -17.6 LUFS へマスタリング済みなので、ここで下げると逆に沈む。
@@ -1406,6 +1442,30 @@ public partial class Audio : Node
         if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
         if (s != null) return s;
         GD.PushWarning("BgmFinalRoute: 実音源をロードできず、合成 BgmBoss にフォールバック");
+        return BgmBoss;
+    }
+
+    // ───────── BgmFinalCutscene のロード（F4＝Final のカットシーン）─────────
+    //   ①専用曲 res://audio/bgm_final_cutscene.ogg があればそれ（将来の差し替え口。置くだけで鳴る）。
+    //   ②無ければ res://audio/bgm_prologue.ogg（オーヴⅡ）を **CacheMode.Ignore で別インスタンス**として読む。
+    //     同じファイルでも別リソースになるので、MusicTargetDb と _Process（汚染 LowPass）が
+    //     BgmPrologue と区別できる＝プロローグの扱いを一切変えずに F4 だけ調整できる。
+    //     流用の根拠は BgmFinalCutscene フィールドのコメント。
+    //   ③どちらも読めなければ従来どおり合成 BgmBoss（＝この変更前の音）。無音にはしない。
+    private AudioStream LoadBgmFinalCutscene()
+    {
+        const string own = "res://audio/bgm_final_cutscene.ogg";
+        if (ResourceLoader.Exists(own))
+        {
+            var dedicated = ResourceLoader.Load<AudioStream>(own);
+            if (dedicated is AudioStreamOggVorbis dogg) { dogg.Loop = true; return dogg; }
+            if (dedicated != null) return dedicated;
+        }
+        var s = ResourceLoader.Load<AudioStream>("res://audio/bgm_prologue.ogg", "",
+                                                 ResourceLoader.CacheMode.Ignore);
+        if (s is AudioStreamOggVorbis ogg) { ogg.Loop = true; return ogg; }
+        if (s != null) return s;
+        GD.PushWarning("BgmFinalCutscene: 実音源をロードできず、合成 BgmBoss にフォールバック");
         return BgmBoss;
     }
 
