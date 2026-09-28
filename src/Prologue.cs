@@ -13,7 +13,8 @@ public partial class Prologue : Node2D
     private const float W = 384f, H = 216f;
 
     private FontFile _font = null!;
-    private Texture2D[] _backgrounds = System.Array.Empty<Texture2D>();
+    private OpeningBackdrop _backdropArt = null!;
+    private double _backdropTime;
     private int _backdrop, _previousBackdrop;
     private float _backdropMix = 1f;
     private float _choiceShade;
@@ -122,14 +123,7 @@ public partial class Prologue : Node2D
     public override void _Ready()
     {
         TextureFilter = TextureFilterEnum.Linear;
-        const string bg = "res://char/bg2/prologue/";
-        _backgrounds = new[]
-        {
-            GD.Load<Texture2D>(bg + "bg_p1_boot.png"),
-            GD.Load<Texture2D>(bg + "bg_p2_awakening.png"),
-            GD.Load<Texture2D>(bg + "bg_p4_timeline.png"),
-            GD.Load<Texture2D>(bg + "bg_p4_unsent.png"),
-        };
+        _backdropArt = new OpeningBackdrop();
         _font = UiKit.Mono; // 滑らかな等幅フォント（コードレイン／識別表示）。非ピクセル化。
         // 冒頭専用曲「オーヴⅡ」（2026-09-14〜。従来は BgmMenu の使い回し）。
         //   Prologue はテキストが主役なので、旋律の立たないアンビエントで「世界の底の音」だけを敷く。
@@ -346,6 +340,7 @@ public partial class Prologue : Node2D
         //   会話送り・受講確認の「いいえ」として二重処理されないよう食う（Pad.UiBlocked＝閉じたフレームと次の1フレーム）。
         if (Pad.UiBlocked(this)) { _zHeld = _backHeld = _lrHeld = _askNavHeld = true; QueueRedraw(); return; }
         _t += delta;
+        _backdropTime += delta;
 
         // 会話送り／各フェーズの決定：Z/Enter/ui_accept/Pad A に加えマウス左クリックでも進める共通ヘルパ（マウス対応 P2）。
         bool z = Pad.AdvanceHeld();
@@ -357,7 +352,7 @@ public partial class Prologue : Node2D
         //   Start はカットシーンでは読まない（PauseMenu.IsCutscene）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
-            GetTree().ReloadCurrentScene();
+            GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;
         }
 
@@ -380,7 +375,7 @@ public partial class Prologue : Node2D
                     if (g != null) g.Difficulty = (GameManager.Diff)_diffSel;
                 }
                 _lrHeld = left || right;
-                if (zEdge && _t > 0.6) GetTree().ChangeSceneToFile("res://Hub.tscn");
+                if (zEdge && _t > 0.6) GameManager.FadeToScene(this, "res://Hub.tscn");
                 break;
             case 5: // 受講確認（既プレイ時のみ）：↑↓で はい/いいえ、Z決定、X=いいえ。
                 bool au = Input.IsActionPressed("ui_up") || Input.IsActionPressed("ui_left");
@@ -397,12 +392,12 @@ public partial class Prologue : Node2D
                 if (zEdge && _t > 0.2)
                 {
                     Audio.Instance?.PlayUiConfirm();
-                    GetTree().ChangeSceneToFile(_askSel == 0 ? "res://Stage0.tscn" : "res://Hub.tscn");
+                    GameManager.FadeToScene(this, _askSel == 0 ? "res://Stage0.tscn" : "res://Hub.tscn");
                 }
                 else if (backEdge)
                 {
                     Audio.Instance?.PlayUiCancel();
-                    GetTree().ChangeSceneToFile("res://Hub.tscn"); // X＝受けない
+                    GameManager.FadeToScene(this, "res://Hub.tscn"); // X＝受けない
                 }
                 break;
         }
@@ -685,7 +680,7 @@ public partial class Prologue : Node2D
         {
             // 非表示中はハブへ直行。表示中の未受講は、これまでどおり確認を出さずステージ0へ。
             _started = true;
-            GetTree().ChangeSceneToFile(tutorial ? "res://Stage0.tscn" : "res://Hub.tscn");
+            GameManager.FadeToScene(this, tutorial ? "res://Stage0.tscn" : "res://Hub.tscn");
             return;
         }
         // 受講済み：確認フェーズへ（シーン遷移はそこで決める）。
@@ -712,20 +707,9 @@ public partial class Prologue : Node2D
     private void DrawBackdrop()
     {
         float blend = _backdropMix * _backdropMix * (3f - 2f * _backdropMix);
-        if (blend < 1f) DrawBackgroundArt(_previousBackdrop);
-        DrawBackgroundArt(_backdrop, blend);
+        _backdropArt.Draw(this, new Rect2(0, 0, W, H), _backdrop, _previousBackdrop, blend, (float)_backdropTime);
         if (_choiceShade > 0f)
             DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.02f, 0.035f, _choiceShade * 0.78f));
-    }
-
-    private void DrawBackgroundArt(int index, float alpha = 1f)
-    {
-        var texture = _backgrounds[index];
-        Vector2 size = texture.GetSize();
-        size *= Mathf.Max(W / size.X, H / size.Y);
-        float light = index == 0 ? 0.65f : 1f;
-        DrawTextureRect(texture, new Rect2((new Vector2(W, H) - size) * 0.5f, size),
-            false, new Color(light, light, light, alpha));
     }
 
     public override void _Draw()

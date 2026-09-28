@@ -319,7 +319,7 @@ public partial class TrainingRoot : Node2D
         RestoreMeta();
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();
-        GetTree().ChangeSceneToFile("res://Shop.tscn");
+        GameManager.FadeToScene(this, "res://Shop.tscn");
     }
 
     private void RestoreMeta()

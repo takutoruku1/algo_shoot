@@ -211,8 +211,8 @@ public partial class MinaPhaseQa : Node
                 else
                 {
                     playerLines++;
-                    Check(kind == (job == Job.Tank ? Hud.LineKind.Boy : Hud.LineKind.Companion)
-                        && speaker == (job == Job.Tank ? "あなた" : Jobs.Get(job).CharacterName),
+                    Check(job != Job.Tank && kind == Hud.LineKind.Companion
+                        && speaker == Jobs.Get(job).CharacterName,
                         $"{job}/{phase}/{index}: only the entered character replies");
                     if (job != Job.Tank)
                         Check(Read<Texture2D>(root.Hud, "_dlgPortrait").ResourcePath == CompanionDialogue.Portrait(job),
@@ -229,7 +229,8 @@ public partial class MinaPhaseQa : Node
                 for (int x = 0; x < 1280; x += 5)
                     sameStage &= current.GetPixel(x, y) == first.GetPixel(x, y);
                 Check(sameStage, "changing speakers never adds a waist-up illustration over the stage");
-                if (playerLines == 1 && kind != Hud.LineKind.Mina && phase is 1 or 4)
+                if ((job == Job.Tank ? index == lines.Length - 1 : playerLines == 1 && kind != Hud.LineKind.Mina)
+                    && phase is 1 or 4)
                 {
                     await Shot($"dialogue_{job}_{phase}_1280x720");
                     DisplayServer.WindowSetSize(new Vector2I(540, 960));
@@ -238,7 +239,11 @@ public partial class MinaPhaseQa : Node
                     await Frames(8);
                 }
             }
-            Check(minaLines > 0 && playerLines > 0, "every phase is a two-way conversation");
+            Check(minaLines > 0 && (job == Job.Tank ? playerLines == 0 : playerLines > 0),
+                job == Job.Tank ? "Mina addresses the player without scripting an unchosen reply"
+                    : "the selected companion still answers Mina");
+            Check(lines.Cast<object>().Any(l => ((string)l.GetType().GetProperty("Text")!.GetValue(l)!).Contains("ご主人様")),
+                "the player remains part of Mina's relationship arc");
             Call(scene, "BeginLeave");
             scene._Process(0.6);
             await Frames(3);
@@ -297,7 +302,10 @@ public partial class MinaPhaseQa : Node
             }
             if (phase == 4)
             {
-                await AdvanceUntil(() => Read<int>(scene!, "_line") == 5);
+                int plea = Array.FindIndex(Read<Array>(scene!, "_lines").Cast<object>().ToArray(),
+                    l => (string)l.GetType().GetProperty("Text")!.GetValue(l)! == "わたくしを……助けて、ください。");
+                Check(plea >= 0, "the final plea remains in the dialogue");
+                await AdvanceUntil(() => Read<int>(scene!, "_line") == plea);
                 await Frames(45);
             }
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
@@ -316,7 +324,9 @@ public partial class MinaPhaseQa : Node
             Check(!boss.Transitioning && !root.Hud.CinematicMode && root.World.ProcessMode == ProcessModeEnum.Inherit,
                 "transformation returns to playable combat");
             Call(root, "TickJourney");
-            await Frames(90);
+            var journey = root.GetNode<BgLayers>("JourneyBackground/BgLayers");
+            await WaitUntil(() => !Read<bool>(journey, "_swapping"), 300);
+            await Frames(2);
             var sprite = boss.GetNode<Sprite2D>("Body");
             Hud.BubblePaused = true;
             boss._PhysicsProcess(0.6d);
@@ -328,9 +338,10 @@ public partial class MinaPhaseQa : Node
             Check(sprite.Texture.ResourcePath == BossMina.CostumePath(phase, "idle"), "casting returns to the same costume");
             using (var pixels = sprite.Texture.GetImage())
                 Check(pixels.DetectAlpha() != Image.AlphaMode.None, "costume retains actual transparent alpha");
-            var layers = root.GetNode<BgLayers>("JourneyBackground/BgLayers").GetChildren().OfType<Sprite2D>().ToArray();
+            var layers = journey.GetChildren().OfType<Sprite2D>().ToArray();
             Check(phase == 4 ? layers.Length == 0 : layers.Length == 1
-                && layers[0].Texture.ResourcePath == BossMina.PhaseBackground(phase), "arena follows the active costume phase");
+                && layers[0].Texture.ResourcePath == BossMina.PhaseBackground(phase),
+                $"arena follows phase {phase}: {string.Join(", ", layers.Select(l => l.Texture.ResourcePath))}");
             await Shot($"phase_{phase}_battle");
             caster.BeginPhase(phase);
             caster._Process(2d);

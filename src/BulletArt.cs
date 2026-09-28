@@ -62,6 +62,12 @@ public static class BulletArt
         if (_cache.TryGetValue(name, out var t)) return t;
         t = name switch
         {
+            "akari_sticky" => new AtlasTexture
+            {
+                Atlas = Get("akari_sticky_v2"),
+                Region = UiKit.ContentRect(Get("akari_sticky_v2")!),
+                FilterClip = true,
+            },
             "rei_comment" => Atlas("rei_projectiles_v1", 0),
             "rei_subscriber" => Atlas("rei_projectiles_v1", 1),
             "rei_microphone" => Atlas("rei_projectiles_v1", 2),

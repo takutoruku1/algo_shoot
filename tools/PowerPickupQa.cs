@@ -90,6 +90,16 @@ public partial class PowerPickupQa : Node
                 $"{kind}: distinct generated illustration");
             Check(ReferenceEquals(texture, PowerPickupArt.TextureFor(kind)), "texture cached");
         }
+        using var barrier = GD.Load<Texture2D>("res://char/player/shield_barrier_v1.png").GetImage();
+        Check(barrier.GetWidth() == 256 && barrier.HasMipmaps(), "player barrier uses bounded mipmapped artwork");
+        Check(barrier.GetPixel(0, 0).A == 0 && barrier.GetPixel(255, 255).A == 0,
+            "player barrier has a transparent background");
+        float centerAlpha = 0;
+        for (int y = 90; y < 166; y++)
+            for (int x = 90; x < 166; x++) centerAlpha += barrier.GetPixel(x, y).A;
+        Check(centerAlpha / (76 * 76) < 0.01f, "barrier leaves the character and collision core clear");
+        Check(barrier.GetPixel(128, 20).A > 0.3f && barrier.GetPixel(30, 128).A > 0.3f,
+            "barrier has a visible enclosing rim");
     }
 
     private async Task<AkariRoot> NewRoot(Job job = Job.Tank)
@@ -128,6 +138,9 @@ public partial class PowerPickupQa : Node
         int startingLives = p.Lives;
         long money = _game.Impression;
         int hits = _game.RunHitCount;
+        var shield = Read<CanvasTexture>(p.GetNode<PlayerHitDot>("HitDot"), "_shieldTexture");
+        Check(shield.DiffuseTexture.ResourcePath == "res://char/player/shield_barrier_v1.png",
+            $"{job.CharacterId}: equipped shield uses the barrier illustration");
         Check(Enum.GetValues<PowerKind>().All(k => p.PowerLevel(k) == 0), $"{job.CharacterId}: new run has no temporary buffs");
         for (int level = 0; level <= 2; level++)
         {
@@ -166,6 +179,9 @@ public partial class PowerPickupQa : Node
         _game.TrainingSetAllUpgrades(false);
         foreach (var kind in new[] { PowerKind.Life, PowerKind.Shield })
             for (int level = 0; level < 2; level++) Check(p.ApplyPowerup(kind), $"{kind}: stack {level + 1}");
+        await Frames(2);
+        Check(Read<int>(p.GetNode<PlayerHitDot>("HitDot"), "_lastShield") == 2,
+            "barrier redraw tracks both equipped charges");
         foreach (var kind in Enum.GetValues<PowerKind>())
             Check(!p.ApplyPowerup(kind) && p.PowerLevel(kind) == 2, $"{kind}: third stack rejected");
         Check(p.Lives == startingLives + 2 && p.MaxLives == startingLives + 2 && !p.AddLife(), "two bonus lives, capped healing");
@@ -187,6 +203,9 @@ public partial class PowerPickupQa : Node
                 && Read<bool>(p, "_hitInvincible"), "shield grants normal hit invulnerability without graze farming");
             p.TakeHit();
             Check(p.ShieldPower == left && p.Lives == startingLives + 2, "one contact cannot consume two shields");
+            await Frames(2);
+            Check(Read<int>(p.GetNode<PlayerHitDot>("HitDot"), "_lastShield") == left,
+                $"barrier redraw tracks consumption to {left} charges");
         }
         Vulnerable(p);
         p.TakeHit();
@@ -406,12 +425,18 @@ public partial class PowerPickupQa : Node
         foreach (var job in Jobs.All)
         {
             var root = await NewRoot(job.Id);
-            foreach (var kind in Enum.GetValues<PowerKind>())
-                for (int i = 0; i < 2; i++) root.Player.ApplyPowerup(kind);
             root.Player.Position = new Vector2(174, 119);
             Write(root.Player, "_invincible", false);
             root.Player.Modulate = Colors.White;
             root.Player.GetNode<Sprite2D>("Sprite").Visible = true;
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            for (int level = 0; level <= 2; level++)
+            {
+                if (level > 0) root.Player.ApplyPowerup(PowerKind.Shield);
+                await Shot($"{job.CharacterId}_shield_{level}", level);
+            }
+            foreach (var kind in Enum.GetValues<PowerKind>())
+                for (int i = 0; i < 2; i++) root.Player.ApplyPowerup(kind);
             var fx = FxLayer.Instance!;
             fx.ScoreDrops.SetPhysicsProcess(false);
             Read<RandomNumberGenerator>(fx, "_rng").Seed = 713;
@@ -437,6 +462,16 @@ public partial class PowerPickupQa : Node
                 await Shot($"{job.CharacterId}_{size.X}x{size.Y}");
             }
             foreach (var b in Shots()) b.SetPhysicsProcess(true);
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            for (int left = 1; left >= 0; left--)
+            {
+                Vulnerable(root.Player);
+                root.Player.TakeHit();
+                await Frames(30);
+                root.Player.Modulate = Colors.White;
+                root.Player.GetNode<Sprite2D>("Sprite").Visible = true;
+                await Shot($"{job.CharacterId}_shield_remaining_{left}", left);
+            }
             await Close(root);
         }
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -452,7 +487,7 @@ public partial class PowerPickupQa : Node
         for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
     }
 
-    private async Task Shot(string name)
+    private async Task Shot(string name, int? shieldLevel = null)
     {
         await Frames(4);
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
@@ -462,6 +497,23 @@ public partial class PowerPickupQa : Node
         for (int y = 0; y < image.GetHeight(); y += 8)
             for (int x = 0; x < image.GetWidth(); x += 8) colors.Add(image.GetPixel(x, y).ToRgba32());
         Check(colors.Count > 100, "rendered viewport is nonblank");
+        if (shieldLevel > 0)
+        {
+            // Sample the right rim, clear of the character, at the fixed preview position (174, 119).
+            float warmth = 0;
+            int samples = 0;
+            for (float y = 114; y <= 124; y += 0.5f)
+                for (float x = 187; x <= 189; x += 0.5f)
+                {
+                    var pixel = image.GetPixel(Mathf.FloorToInt(x * image.GetWidth() / 384f),
+                        Mathf.FloorToInt(y * image.GetHeight() / 216f));
+                    warmth += pixel.R - pixel.B;
+                    samples++;
+                }
+            warmth /= samples;
+            Check(shieldLevel == 2 ? warmth > 0.08f : warmth < 0.02f,
+                $"{name}: rendered rim is {(shieldLevel == 2 ? "gold" : "cool white")} ({warmth:F3})");
+        }
     }
 
     public partial class PickupSheet : Node2D

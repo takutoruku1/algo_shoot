@@ -14,11 +14,10 @@ using Godot;
 //   LOG 横線  | 会話ログ（Backlog）                                          | L  | View                    | クリック
 //   MENU 歯車 | ポーズメニュー（PauseMenu）                                   | M  | Menu(≡)                 | クリック
 //
-//   ・見た目（2026-09-27 作者指示「ボタンの UI がださい」→ 参考のノベルゲーム風に作り直し）：文字ラベルは無く、
-//     30×26 の角丸ボタンにベクタのアイコン（▶／▶▶／横線3本／歯車）だけを描く（フォント文字は使わない）。
+//   ・見た目：30×26 の角丸ボタンに、銀・ミントのガラスと金縁の透過イラストを描く。
 //     キー文字はボタンにも吹き出しにも載せない（作者指示。キーの案内は「あそびかた」＝HowToPlay だけが担う）。
 //     名前はマウスを乗せたときの吹き出しで出す。ON（AUTO 有効／SKIP ラッチ・早送り中）は
-//     地を Info で塗りつぶし、グリフを濃色に反転する。キー操作とクリックは上の表のとおり効く。
+//     地と枠をミント色で点灯する。キー操作とクリックは上の表のとおり効く。
 //   ・LOG／MENU のキー（L／Tab／View、M／Start）は Backlog／PauseMenu が全画面で自前に読んでいる＝ここでは読まない
 //     （読むと同じ押下で二度開く）。ここが足すのはクリックだけ。
 //     例外：カットシーン（Prologue／Final／Epilogue）のパッド Start は「長押しでさいしょから」（RetryHold）で、
@@ -57,9 +56,17 @@ public sealed class DialogToolbar
     private const double BreathPeriod = 2.4;   // ON の地の呼吸（α 0.85〜1.0）の周期
     private const int TipSize = 11;            // 吹き出しの字（ZenBold）
 
-    // 色（既存トークンから）。OFF＝暗い地・淡い枠・明るいグリフ ／ ON＝Info の塗りに濃色のグリフ。
     private static readonly Color OffBg = new(0.06f, 0.07f, 0.10f, 0.85f);
-    private static readonly Color OnInk = new(0.06f, 0.09f, 0.12f);
+    private static readonly string[] IconPaths = {
+        "res://char/ui/dialog_auto_v1.png", "res://char/ui/dialog_skip_v1.png",
+        "res://char/ui/dialog_log_v1.png", "res://char/ui/dialog_menu_v1.png",
+    };
+    // Source bounds exclude transparent margins; scale with the importer's size limit.
+    private static readonly Rect2[] IconRegions = {
+        new(224, 156, 820, 944), new(104, 312, 1068, 648),
+        new(244, 136, 784, 992), new(76, 88, 1104, 1080),
+    };
+    private static readonly CanvasTexture?[] Icons = new CanvasTexture?[Count];
 
     private bool _autoHeld = true, _skipHeld = true, _rbHeld = true, _startHeld = true;   // 起動時の押しっぱなしをエッジにしない
     private bool _rbArmed, _startArmed;   // RB／Start をボックス表示中に押し始めたか（押し離しの切替はそのときだけ）
@@ -221,79 +228,33 @@ public sealed class DialogToolbar
     {
         if (!LatchMarkVisible || !Hud.SkipLatched) { LatchMarkDrawnRect = default; return; }
         var r = LatchMarkRect(topRight);
-        var c = new Color(UiKit.Info, MarkAlpha);
-        float tw = r.Size.X / 2f;
-        // 半透明なので重ねない（重ねると重なりだけ濃くなる）＝突き合わせて並べる。
-        Triangle(ci, r.Position, tw, MarkH, c, false);
-        Triangle(ci, r.Position + new Vector2(tw, 0f), tw, MarkH, c, false);
+        DrawIcon(ci, r, Skip, new Color(1, 1, 1, MarkAlpha));
         LatchMarkDrawnRect = r;
     }
 
     private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath)
     {
-        Color bg = on ? new Color(UiKit.Info, breath) : OffBg;
+        Color bg = on ? new Color(UiKit.Info.Darkened(0.72f), breath) : OffBg;
         if (hover) bg = new Color(bg.Lerp(Colors.White, 0.10f), bg.A);
         Color border = on ? UiKit.Info.Lightened(0.3f) : hover ? UiKit.Text3 : UiKit.Text4;
-        Color ink = on ? OnInk : hover ? Colors.White : UiKit.Text2;
-        UiKit.Box(ci, r, bg, Radius, border, 1f);
-
-        // グリフはボタンの中心に置く（キー文字は載せない＝アイコンだけ）。
-        var c = r.GetCenter();
-        switch (i)
-        {
-            case Auto:
-            {
-                // 右向き三角 1 つ（高さ 11）。三角の重心は底辺から幅の 1/3 なので、底辺を中心の少し左に置く。
-                float h = 11f, w = h * 0.866f;
-                Triangle(ci, new Vector2(c.X - w * 0.4f, c.Y - h / 2f), w, h, ink, true);
-                break;
-            }
-            case Skip:
-            {
-                // 右向き三角 2 つ（各 高さ 10）、横に 1px 重ねて並べる。
-                float h = 10f, w = h * 0.866f, x0 = c.X - (w * 2f - 1f) / 2f;
-                Triangle(ci, new Vector2(x0, c.Y - h / 2f), w, h, ink, true);
-                Triangle(ci, new Vector2(x0 + w - 1f, c.Y - h / 2f), w, h, ink, true);
-                break;
-            }
-            case Log:
-                // 横線 3 本（幅 12・太さ 1.6・間隔 3.5）＝「ログ＝一覧」。
-                for (int k = -1; k <= 1; k++)
-                    ci.DrawLine(new Vector2(c.X - 6f, c.Y + k * 3.5f), new Vector2(c.X + 6f, c.Y + k * 3.5f), ink, 1.6f, true);
-                break;
-            default:
-                Gear(ci, c, ink);
-                break;
-        }
+        UiKit.Box(ci, r, bg, Radius, border, on ? 1.5f : 1f);
+        float light = on || hover ? 1f : 0.86f;
+        DrawIcon(ci, new Rect2(r.Position + new Vector2(4, 3), r.Size - new Vector2(8, 6)), i,
+            new Color(light, light, light));
     }
 
-    // 右向き三角（topLeft＝外接矩形の左上）。aa＝縁に細い AA 線を足す（不透明のグリフだけ。半透明だと縁が濃くなる）。
-    private static void Triangle(CanvasItem ci, Vector2 topLeft, float w, float h, Color col, bool aa)
+    private static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate)
     {
-        var pts = new[] { topLeft, new Vector2(topLeft.X + w, topLeft.Y + h / 2f), new Vector2(topLeft.X, topLeft.Y + h) };
-        ci.DrawColoredPolygon(pts, col);
-        if (aa) ci.DrawPolyline(new[] { pts[0], pts[1], pts[2], pts[0] }, col, 0.6f, true);
-    }
-
-    // 歯車（外径 12・歯 8・穴 径 4。指定は径 3 だが、等倍では AA で埋まって穴に見えなかったので 1px 広げた）。胴は太い円弧 1 周＝穴が本当に抜ける（地の色で上塗りしない＝半透明の地でも透けない）。
-    //   歯は胴の外周に台形を 8 本立てる。
-    private static void Gear(CanvasItem ci, Vector2 c, Color ink)
-    {
-        const float rOut = 6f, rBody = 4.6f, rHole = 2f;
-        ci.DrawArc(c, (rBody + rHole) / 2f, 0f, Mathf.Tau, 28, ink, rBody - rHole, true);
-        for (int k = 0; k < 8; k++)
-        {
-            float a = k * Mathf.Tau / 8f + Mathf.Pi / 8f;
-            var pts = new[]
-            {
-                c + Vector2.FromAngle(a - 0.36f) * (rBody - 0.6f),
-                c + Vector2.FromAngle(a - 0.21f) * rOut,
-                c + Vector2.FromAngle(a + 0.21f) * rOut,
-                c + Vector2.FromAngle(a + 0.36f) * (rBody - 0.6f),
-            };
-            ci.DrawColoredPolygon(pts, ink);
-            ci.DrawPolyline(new[] { pts[1], pts[2] }, ink, 0.6f, true);
-        }
+        var texture = Icons[i] ??= new CanvasTexture {
+            DiffuseTexture = GD.Load<Texture2D>(IconPaths[i]),
+            TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
+        };
+        var region = IconRegions[i];
+        float importScale = texture.GetWidth() / 1254f;
+        region.Position *= importScale;
+        region.Size *= importScale;
+        var size = region.Size * Mathf.Min(bounds.Size.X / region.Size.X, bounds.Size.Y / region.Size.Y);
+        ci.DrawTextureRectRegion(texture, new Rect2(bounds.GetCenter() - size / 2f, size), region, modulate);
     }
 
     // ホバー中のボタンの名前（ボタンの真上に小さな暗い箱）。

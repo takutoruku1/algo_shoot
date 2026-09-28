@@ -560,7 +560,7 @@ public partial class PauseMenu : CanvasLayer
             return;
         }
         Close();
-        GetTree().ChangeSceneToFile("res://TitleMenu.tscn");
+        GameManager.FadeToScene(this, "res://TitleMenu.tscn");
     }
 
     // ───────── 確認ダイアログ ─────────
@@ -596,14 +596,14 @@ public partial class PauseMenu : CanvasLayer
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Close();
-            GetTree().ReloadCurrentScene();
+            GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
         }
         else // Act.Leave ＝ハブへもどる。GameManager の抜け処理と同型（AutoSave→DespawnAll→Hub.tscn）。
         {
             _game?.AutoSave();
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Close();
-            GetTree().ChangeSceneToFile("res://Hub.tscn");
+            GameManager.FadeToScene(this, "res://Hub.tscn");
         }
     }
 
@@ -664,7 +664,7 @@ public partial class PauseMenu : CanvasLayer
         {
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
             Close();
-            GetTree().ChangeSceneToFile("res://Hub.tscn");
+            GameManager.FadeToScene(this, "res://Hub.tscn");
         }
     }
 

@@ -1064,7 +1064,7 @@ public partial class Hub : Node2D
         _game.ShopTutorialSeen = true;   // 一度きり（直後の AutoSave で永続化）
         _game.AutoSave();
         _dived = true;                   // 遷移中は入力を食う（多重遷移よけ。他の導線と同じ作法）
-        GetTree().ChangeSceneToFile("res://ShopTutorial.tscn");
+        GameManager.FadeToScene(this, "res://ShopTutorial.tscn");
         return true;
     }
 
@@ -2022,7 +2022,7 @@ public partial class Hub : Node2D
         if (_game != null && _game.SelectedJob != Job.Tank && GameManager.StageIdForScene(scene) != null)
             _game.RegisterCharacterDive(_game.SelectedJob);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile(scene);
+        GameManager.FadeToScene(this, scene);
     }
 
     // ───────── 描画 ─────────

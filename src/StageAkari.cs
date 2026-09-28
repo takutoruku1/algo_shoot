@@ -56,6 +56,7 @@ public partial class StageAkari : Node
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
+    private bool _cameoIntroStarted, _cameoIntroDone;
 
     // S1-1 フロア・導入（仮台本 06）。雨の、誰もいない退勤後のオフィス。
     //   一面目なので「飛んでくるのは言葉であって本人ではない／奥の本人へ届けに行く」という
@@ -131,7 +132,7 @@ public partial class StageAkari : Node
     //   顔は「画面の光を浴びた」akari_face_lit（片手のスマホの光が顔に当たっている状態）。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た来た。ねえ、あなた、あたしの、読んだ? 返事、まだ? 見たよね? ね?", AFaceLit),   // 第一声
+        (2, "あ、来た！　読んだよね？　返事、まだ？", AFaceLit),
     };
     // RECLOSE（サイクルごとに順送り）。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
@@ -288,6 +289,8 @@ public partial class StageAkari : Node
         (2, ClearHesitated, AFace),          // ★s1_4 で迷ったときだけ
         (2, "……知らない声のくせに。……言い方だけ、どこかで、聞いたことある。", AFace),
         (1, "……言い方は、わたくしのです。……たぶん。", MWorried),
+        (2, "……その向こうにも、読んでる人がいるんだね。あの人の返事は、代わりにくれなくていいから。", AFace),
+        (2, "いまのあたしの言葉を、あなたに渡しておく。……聞いてくれて、ありがと。これは、消さない。", AFace),
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【14】
         //   字の変化は StageImagery.TriggerReversal() が**絵で**見せている＝台詞で言うと説明になる。
         //   ミナは数えることしかしない人格なので、数字（♥1）だけを言う。字の変化はプレイヤーが自分で見つける。
@@ -758,6 +761,16 @@ public partial class StageAkari : Node
     // 撃破（HP/サイクル削り切り＝改心）して捨て台詞を流し切る（Finished）まで Stage は進まない。保険退場は無し。
     private void Step_BossCameo(double delta)
     {
+        if (!_lunatic && !_cameoIntroDone)
+        {
+            if (!_cameoIntroStarted)
+            {
+                _cameoIntroStarted = true;
+                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
+                CameoIntroScene.Play(Hud, World, "akari", CameoTalk1, () => _cameoIntroDone = true);
+            }
+            return;
+        }
         if (!_stepStarted)
         {
             _stepStarted = true;
@@ -776,7 +789,8 @@ public partial class StageAkari : Node
                     Fire = CameoFireTheme.AkariGrief,
                     Aura = FxLayer.BossAura.Akari,
                     Bgm = Audio.Instance?.BgmBossAkari,
-                    IntroLines = CameoTalk1, TauntLines = CameoTalk3, DefeatLines = CameoPost,
+                    IntroLines = _lunatic ? CameoTalk1 : System.Array.Empty<(int, string, string)>(),
+                    TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
             World.AddChild(_cameo);
@@ -809,11 +823,13 @@ public partial class StageAkari : Node
             GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            // 初見チュートリアル（2026-09-16）：板（パネル）が周回する本ボス戦の初回だけ、
-            //   ボスの口上の末尾にミナの説明を繋ぐ。消費はこの瞬間＝道中で倒れても初ボス到達まで温存。
-            //   ルナティックは口上ごと出さない＝消費もしない。
-            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
-            Advance(); // 出現と同時に説明会話へ（会話中はボス停止・雨も止む）
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            Advance();
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "akari", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            });
         }
     }
 

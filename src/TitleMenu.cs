@@ -55,6 +55,8 @@ public partial class TitleMenu : Node2D
     private FontFile _titleFont = null!, _menuFont = null!;
     private float _selectionY;
     private Sprite2D _illustration = null!;
+    private Sprite2D _photoPost = null!, _draftPost = null!;
+    private readonly Vector2[] _messageThread = new Vector2[49];
     private ShaderMaterial _illustrationMaterial = null!;
     private float _illustrationScale;
     private Vector2 _parallax;
@@ -94,10 +96,11 @@ public partial class TitleMenu : Node2D
 
     private void BuildKeyVisual()
     {
-        var texture = GD.Load<Texture2D>("res://char/bg2/title/title_mina_v2.png");
+        var texture = GD.Load<Texture2D>("res://char/bg2/title/title_mina_v3.png");
         float cover = Mathf.Max(UiKit.DesignW / texture.GetWidth(), UiKit.DesignH / texture.GetHeight());
         _illustrationScale = cover * UiKit.Scale;
         _illustrationMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/title_kv.gdshader") };
+        _illustrationMaterial.SetShaderParameter("clean_plate", GD.Load<Texture2D>("res://char/bg2/title/title_clean_v3.png"));
         _illustration = new Sprite2D
         {
             Name = "TitleIllustration",
@@ -107,6 +110,25 @@ public partial class TitleMenu : Node2D
             TextureFilter = CanvasItem.TextureFilterEnum.Linear,
         };
         AddChild(_illustration);
+        _photoPost = new Sprite2D
+        {
+            Name = "PhotoPost",
+            Texture = GD.Load<Texture2D>("res://char/bg2/title/title_photo_v3.png"),
+            RegionEnabled = true,
+            RegionRect = new Rect2(492, 42, 280, 421),
+            Scale = Vector2.One * 0.885f,
+            Modulate = new Color(0.88f, 0.88f, 0.88f),
+        };
+        _draftPost = new Sprite2D
+        {
+            Name = "DraftPost",
+            Texture = GD.Load<Texture2D>("res://char/bg2/title/title_draft_v3.png"),
+            RegionEnabled = true,
+            RegionRect = new Rect2(482, 341, 448, 334),
+            Scale = Vector2.One * 0.755f,
+        };
+        _illustration.AddChild(_photoPost);
+        _illustration.AddChild(_draftPost);
         UpdateIllustration(0);
     }
 
@@ -127,6 +149,20 @@ public partial class TitleMenu : Node2D
         _illustration.Position = (new Vector2(640, 360 * zoom - 3.5f) + drift + _parallax * new Vector2(1, 0.55f)) * UiKit.Scale;
         _illustration.Scale = Vector2.One * _illustrationScale * zoom;
         _illustrationMaterial.SetShaderParameter("time_sec", time);
+        _illustrationMaterial.SetShaderParameter("ambient_time_sec", time);
+        _illustrationMaterial.SetShaderParameter("depth_offset", _parallax / new Vector2(UiKit.DesignW, UiKit.DesignH));
+        UpdatePostMotion(time);
+    }
+
+    private void UpdatePostMotion(float time)
+    {
+        Vector2 center = _illustration.Texture.GetSize() / 2;
+        _photoPost.Position = new Vector2(617, 228) - center
+            + new Vector2(Mathf.Sin(time * 0.43f) * 10f, Mathf.Sin(time * 0.51f) * 16f) + _parallax * 1.2f;
+        _photoPost.Rotation = Mathf.Sin(time * 0.29f) * 0.009f;
+        _draftPost.Position = new Vector2(610, 491) - center
+            + new Vector2(-Mathf.Sin(time * 0.39f) * 8f, -Mathf.Sin(time * 0.64f) * 11f) + _parallax * 1.8f;
+        _draftPost.Rotation = -Mathf.Sin(time * 0.37f) * 0.007f;
     }
 
     public override void _Process(double delta)
@@ -272,7 +308,7 @@ public partial class TitleMenu : Node2D
     }
 
     private void Toast(string msg) { _toast = msg; _toastT = 2.0; }
-    private void Go(string scene) { if (_dived) return; _dived = true; GetTree().ChangeSceneToFile(scene); }
+    private void Go(string scene) { if (_dived) return; _dived = true; GameManager.FadeToScene(this, scene); }
     private int FirstSlot()
     {
         for (int i = 0; i <= GameManager.SlotCount; i++) // 0(オート)..3
@@ -283,8 +319,9 @@ public partial class TitleMenu : Node2D
     public override void _Draw()
     {
         UiKit.BeginDesign(this);
-        UiKit.HGradient(this, new Rect2(0, 0, 750, UiKit.DesignH),
-            new Color(Ink, 0.8f), new Color(Ink, 0));
+        DrawMessageThread();
+        UiKit.HGradient(this, new Rect2(0, 0, 900, UiKit.DesignH),
+            new Color(Ink, 0.92f), new Color(Ink, 0));
         UiKit.VGradient(this, new Rect2(0, 545, UiKit.DesignW, 175),
             new[] { new Color(Ink, 0), new Color(Ink, 0.62f), new Color(Ink, 0.88f) }, new[] { 0f, 0.58f, 1f });
 
@@ -297,6 +334,43 @@ public partial class TitleMenu : Node2D
         DrawToast();
         if (_picking) DrawSlotPicker();
         UiKit.EndDesign(this);
+    }
+
+    private void DrawMessageThread()
+    {
+        Vector2 start = _draftPost.ToGlobal(new Vector2(737, 548) - _draftPost.RegionRect.GetCenter()) / UiKit.Scale;
+        Vector2 end = _illustration.ToGlobal(new Vector2(871, 619) - _illustration.Texture.GetSize() / 2) / UiKit.Scale;
+        Vector2 span = end - start;
+        Vector2 first = start + span * 0.34f + new Vector2(0, -14);
+        Vector2 second = end - span * 0.32f + new Vector2(0, 12);
+        float time = (float)_t;
+        for (int i = 0; i < _messageThread.Length; i++)
+        {
+            float p = i / (float)(_messageThread.Length - 1), q = 1 - p;
+            _messageThread[i] = q * q * q * start + 3 * q * q * p * first
+                + 3 * q * p * p * second + p * p * p * end
+                + new Vector2(0, Mathf.Sin(p * Mathf.Tau * 1.5f - time * 0.7f) * Mathf.Sin(p * Mathf.Pi) * 3);
+        }
+        var gold = new Color("f5d4a0");
+        DrawPolyline(_messageThread, new Color(gold, 0.07f), 6, true);
+        DrawPolyline(_messageThread, new Color(gold, 0.14f), 3, true);
+        DrawPolyline(_messageThread, new Color(gold, 0.52f), 1, true);
+        float travel = Mathf.PosMod(time / 6.5f, 1);
+        for (int i = 1; i < _messageThread.Length; i++)
+        {
+            float p = i / (float)(_messageThread.Length - 1);
+            float light = Mathf.Exp(-Mathf.Pow((p - travel) / 0.09f, 2)) * Mathf.Sin(travel * Mathf.Pi);
+            DrawLine(_messageThread[i - 1], _messageThread[i], new Color(1, 0.94f, 0.78f, light * 0.85f), 1.8f, true);
+        }
+        for (int i = 0; i < 7; i++)
+        {
+            float p = Mathf.PosMod(time * 0.15f + i * 0.137f, 1);
+            float index = p * (_messageThread.Length - 1);
+            int at = Mathf.Min((int)index, _messageThread.Length - 2);
+            Vector2 point = _messageThread[at].Lerp(_messageThread[at + 1], index - at)
+                + new Vector2(0, Mathf.Sin(time * 0.6f + i * 2.1f) * 9 * Mathf.Sin(p * Mathf.Pi));
+            DrawLine(point, point + new Vector2(2, -1), new Color(gold, Mathf.Sin(p * Mathf.Pi) * 0.55f), 1, true);
+        }
     }
 
     private void DrawTitleBlock()

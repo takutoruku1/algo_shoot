@@ -331,6 +331,13 @@ public partial class Enemy : Area2D
         SetupBodySprite();
         _worldTint = TintLift.Find(this);
         ApplyTintLift();   // 初フレームから明るく出す（以降は _PhysicsProcess が毎フレーム引き直す）
+        if (_maxHp > 0)
+        {
+            // Same layer as the body, after it in tree order, but below the later BREAK label and bullets.
+            _shieldLayer = new Node2D { Name = "Shield", ZIndex = -1 };
+            AddChild(_shieldLayer);
+            _shieldLayer.Draw += () => DrawShield(_shieldLayer);
+        }
         // ボス/カメオ（HPバー方式）は登場演出から始める：盾(パネル)は着地後に展開（焦らし→開放）。
         // 立ち絵が無い場合は演出をスキップして従来どおり即展開（プレースホルダで滑空しても見得にならない）。
         if (BarCount > 0 && _hasBodyTex) BeginEntrance();
@@ -664,6 +671,7 @@ public partial class Enemy : Area2D
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
+        _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(1.6f, 0.14f);
         Audio.Instance?.PlaySpell();
@@ -676,6 +684,7 @@ public partial class Enemy : Area2D
     private void EnterExposed()
     {
         _phase = BossPhase.Exposed; _phaseT = 0;
+        _shieldLayer?.QueueRedraw();
         _windowDamage = 0;            // 窓キャップを新しい窓ぶんリセット
         _windowCapNotified = false;
         _bodyHitCd = 0;
@@ -692,6 +701,7 @@ public partial class Enemy : Area2D
     private void EnterReclose()
     {
         _phase = BossPhase.Reclose; _phaseT = 0;
+        _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossReclose(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(0.7f, 0.08f);
         // 本体を再び無敵化（自機弾を拾わない）。
@@ -704,6 +714,7 @@ public partial class Enemy : Area2D
     private void EnterShielded()
     {
         _phase = BossPhase.Shielded; _phaseT = 0;
+        _shieldLayer?.QueueRedraw();
         if (_panels.Count == 0)
         {
             SpawnPanels(); // パネル一括再生成
@@ -1108,6 +1119,7 @@ public partial class Enemy : Area2D
     {
         if (_purified) return;
         _purified = true;
+        _shieldLayer?.QueueRedraw();
         RemoveFromGroup("enemies");
 
         // 戦闘終了の瞬間：残弾を片付ける（改心の会話に弾が飛び続けないように）。
@@ -1431,6 +1443,7 @@ public partial class Enemy : Area2D
 
     public override void _PhysicsProcess(double delta)
     {
+        _shieldLayer?.QueueRedraw();
         // 世界の Tint の打ち消しは状態に関わらず毎フレーム引き直す（Tint は Warmth で動き、ボスの realm 暴露では
         // 白へ抜ける）。登場演出・改心・退場・会話中の early-return より前に置く＝どの状態でも暗く沈ませない。
         ApplyTintLift();
@@ -1490,7 +1503,11 @@ public partial class Enemy : Area2D
         double edelta = GameManager.EnemyDelta(delta);
 
         // 無防備窓サイクルの進行（BubblePaused でも止めない＝合図/窓が固まらないように）。
-        if (_maxHp > 0) TickBossPhase(edelta);
+        if (_maxHp > 0)
+        {
+            if (!Hud.BubblePaused) _shieldTime += (float)edelta;
+            TickBossPhase(edelta);
+        }
 
         // ロックオンの照準マーカー（_Draw）を回すための再描画（2026-09-08）。
         //   ザコ（_maxHp==0）は普段いっさい QueueRedraw を呼ばない＝ロック対象を雑魚まで広げた今、
@@ -1537,34 +1554,82 @@ public partial class Enemy : Area2D
 
     protected virtual void UpdateMovement(double delta) { }
 
-    private static Texture2D? _shieldArt;
-    private void DrawShield()
+    private static CanvasTexture? _shieldArt;
+    private static CanvasTexture? _majorShieldArt;
+    private Node2D? _shieldLayer;
+    private float _shieldTime;
+    private void DrawShield(Node2D layer)
     {
         if (_maxHp <= 0 || _purified || _entering) return;
         bool breaking = _phase == BossPhase.Break;
-        if (!breaking && (_phase != BossPhase.Shielded || _panels.Count == 0)) return;
-        _shieldArt ??= GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png");
-        float h = BodyDisplayH + 12f;
-        var size = new Vector2(h * 1.15f, h);
-        float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0022f);
-        var tint = new Color("d6e9fa");
-        float alpha = 0.22f + pulse * 0.04f;
-        if (!breaking)
+        bool reforming = _phase == BossPhase.Reclose;
+        if (!breaking && !reforming && (_phase != BossPhase.Shielded || _panels.Count == 0)) return;
+        bool major = PurifyGrade == FxLayer.PurifyTier.Boss;
+        CanvasTexture art;
+        if (major)
+            art = _majorShieldArt ??= new CanvasTexture
+            {
+                DiffuseTexture = GD.Load<Texture2D>("res://char/ui/boss_shield_major_v1.png"),
+                TextureFilter = TextureFilterEnum.LinearWithMipmaps,
+            };
+        else
+            art = _shieldArt ??= new CanvasTexture
+            {
+                DiffuseTexture = GD.Load<Texture2D>("res://char/ui/boss_shield_v1.png"),
+                TextureFilter = TextureFilterEnum.LinearWithMipmaps,
+            };
+        float h = BodyDisplayH + (major ? 14f : 12f);
+        float pulse = 0.5f + 0.5f * Mathf.Sin(_shieldTime * 2.8f);
+        float build = reforming ? Mathf.Clamp((float)(_phaseT / (RecloseLineDur + RespawnGap)), 0, 1) : 1f;
+        var size = new Vector2(h * (major ? 1f : 1.15f), h) * (0.9f + 0.1f * build);
+        var lift = TintLift.Of(_worldTint, TintLift.EnemyBody);
+        var tint = (major ? Colors.White : new Color("91dfff")) * lift;
+        float alpha = (major ? 0.82f + pulse * 0.08f : 0.64f + pulse * 0.08f) * (0.3f + 0.7f * build);
+        if (breaking)
         {
-            DrawTextureRect(_shieldArt, new Rect2(-size / 2f, size), false, new Color(tint, alpha));
+            float t = Mathf.Clamp((float)(_phaseT / BreakCueDur), 0, 1);
+            int rows = major ? 4 : 3;
+            var grid = new Vector2(2, rows);
+            var source = art.GetSize() / grid;
+            var piece = size / grid;
+            for (int y = 0; y < rows; y++)
+                for (int x = 0; x < 2; x++)
+                {
+                    var direction = new Vector2(x == 0 ? -1 : 1, (y + 0.5f) / rows * 2f - 1f);
+                    var center = -size / 2 + piece * (new Vector2(x, y) + Vector2.One * 0.5f);
+                    center += direction * t * (major ? 16f : 9f);
+                    layer.DrawSetTransform(center, direction.X * t * (major ? 0.34f : 0.12f));
+                    layer.DrawTextureRectRegion(art, new Rect2(-piece / 2, piece),
+                        new Rect2(source * new Vector2(x, y), source), new Color(tint, 0.95f * (1f - t)));
+                }
+            layer.DrawSetTransform(Vector2.Zero);
             return;
         }
-        float t = Mathf.Clamp((float)(_phaseT / BreakCueDur), 0, 1);
-        var source = _shieldArt.GetSize() / new Vector2(2, 3);
-        var piece = size / new Vector2(2, 3);
-        for (int y = 0; y < 3; y++)
-            for (int x = 0; x < 2; x++)
-            {
-                var offset = new Vector2(x == 0 ? -1 : 1, y - 1) * t * 6f;
-                var position = -size / 2 + piece * new Vector2(x, y) + offset;
-                DrawTextureRectRegion(_shieldArt, new Rect2(position, piece),
-                    new Rect2(source * new Vector2(x, y), source), new Color(tint, 0.6f * (1f - t)));
-            }
+        if (major)
+        {
+            var glow = size * (1.04f + pulse * 0.015f);
+            layer.DrawTextureRect(art, new Rect2(-glow / 2, glow), false, new Color(tint, alpha * 0.22f));
+        }
+        layer.DrawTextureRect(art, new Rect2(-size / 2, size), false, new Color(tint, alpha));
+        if (!major) return;
+        var gold = new Color("ffe5a3") * lift;
+        for (int i = 0; i < 6; i++)
+        {
+            float angle = _shieldTime * 0.38f + i * Mathf.Tau / 6;
+            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f, new Color(gold, alpha * 0.2f), 2.8f);
+            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f, new Color(gold, alpha), 0.9f);
+        }
+        for (int i = 0; i < 3; i++)
+            DrawShieldArc(layer, size * new Vector2(0.43f, 0.43f), -_shieldTime * 0.5f + i * Mathf.Tau / 3,
+                0.32f, new Color(gold, alpha * 0.65f), 0.7f);
+    }
+
+    private static void DrawShieldArc(Node2D layer, Vector2 radius, float start, float span, Color color, float width)
+    {
+        var points = new Vector2[13];
+        for (int i = 0; i < points.Length; i++)
+            points[i] = Vector2.FromAngle(start + span * i / (points.Length - 1)) * radius;
+        layer.DrawPolyline(points, color, width, true);
     }
 
     private void DrawLockOn(Job job)
@@ -1632,7 +1697,6 @@ public partial class Enemy : Area2D
 
     public override void _Draw()
     {
-        DrawShield();
         bool locked = GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this;
         if (locked) DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank);
 

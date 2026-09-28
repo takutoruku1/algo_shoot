@@ -167,7 +167,7 @@ public partial class Settings : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
-        if (_autoplay) { GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); return; }
+        if (_autoplay) { GameManager.FadeToScene(this, "res://TitleMenu.tscn"); return; }
 
         // マウス：フレーム頭でホットスポットをクリア。設定はポーズ対象外（CanOpenHere=false）＝唯一の登録者。
         UiKit.BeginHotspots(Pad.MousePos());
@@ -207,7 +207,7 @@ public partial class Settings : Node2D
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick(); // 右クリック＝もどる
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); Save(); GameManager.FadeToScene(this, "res://TitleMenu.tscn"); }
 
         QueueRedraw();
     }

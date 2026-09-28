@@ -198,7 +198,7 @@ public partial class BossRetryQa : Node
 
     private async Task<Node2D> Reloaded(Node2D previous)
     {
-        await Frames(4);
+        await QaSceneTransition.Wait(this, 4);
         var root = (Node2D)GetTree().CurrentScene;
         Check(root != previous, "scene was actually reloaded");
         Freeze(root);

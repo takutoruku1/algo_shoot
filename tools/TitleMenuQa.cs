@@ -33,9 +33,18 @@ public partial class TitleMenuQa : Node
             var title = await OpenTitle();
             Check(!Read<bool>(title, "_hasSave") && Read<int>(title, "_sel") == 0, "new player starts on new game");
             var illustration = title.GetNode<Sprite2D>("TitleIllustration");
-            Check(illustration.Texture.GetWidth() >= 1280 && illustration.Texture.ResourcePath.EndsWith("title_mina_v2.png"), "new key visual is loaded at full resolution");
+            Check(illustration.Texture.GetWidth() >= 1280 && illustration.Texture.ResourcePath.EndsWith("title_mina_v3.png"), "SNS key visual is loaded at full resolution");
             Check(illustration.Material is ShaderMaterial && ((ShaderMaterial)illustration.Material).Shader.ResourcePath == "res://shaders/title_kv.gdshader",
                 "key visual uses the localized wind shader");
+            foreach (string layer in new[] { "PhotoPost", "DraftPost" })
+            {
+                var part = illustration.GetNode<Sprite2D>(layer);
+                using var pixels = part.Texture.GetImage();
+                Check(part.RegionEnabled && pixels.GetPixel(0, 0).A == 0 && pixels.GetPixel(1100, 400).A == 0,
+                    $"{layer} is a separate transparent sprite without Mina or background");
+                Check(pixels.GetPixel((int)part.RegionRect.GetCenter().X, (int)part.RegionRect.GetCenter().Y).A > 0.9f,
+                    $"{layer} has an opaque post surface");
+            }
             var titleFont = Read<FontFile>(title, "_titleFont");
             var menuFont = Read<FontFile>(title, "_menuFont");
             Check(UiKit.TextW(titleFont, "Refrain", 184) + 88 < 620, "wordmark stays clear of Mina");
@@ -70,6 +79,10 @@ public partial class TitleMenuQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(10);
             await VerifyIllustrationMotion(title, illustration);
+            await VerifyTimelineMotion(title, illustration);
+            if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--motion") >= 0) await CaptureMotion(title);
+            // Window resizing can move the real pointer across menu rows before the input tests.
+            Set(title, "_sel", 0);
             await KeyPress(Key.Down);
             Check(Read<int>(title, "_sel") == 1, "keyboard changes menu selection");
             await KeyPress(Key.Z);
@@ -159,7 +172,7 @@ public partial class TitleMenuQa : Node
                 Check(Difference(still, later, new Rect2I(755, 130, 170, 130)) < 0.0001f, "wind does not deform the face");
                 Check(Difference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "wind does not deform the extended hand");
                 Check(Difference(still, later, new Rect2I(890, 350, 90, 60)) < 0.0001f, "wind does not deform the hand on her chest");
-                Check(Difference(still, later, new Rect2I(430, 395, 140, 120)) < 0.0001f, "wind does not bend the buildings");
+                Check(Difference(still, later, new Rect2I(430, 395, 140, 120)) < 0.0001f, "wind does not bend the timeline posts");
                 Check(Difference(still, later, new Rect2I(1120, 330, 140, 150)) > 0.0005f, "upper hair strands move");
                 Check(Difference(still, later, new Rect2I(1160, 570, 100, 80)) > 0.0005f, "trailing hair and ribbon move");
                 Check(Difference(still, later, new Rect2I(840, 625, 100, 70)) > 0.0001f, "apron hem moves gently");
@@ -193,6 +206,85 @@ public partial class TitleMenuQa : Node
         Check(Read<Vector2>(title, "_parallax").Length() <= new Vector2(3.5f, 2f).Length() + 0.001f, "pointer parallax is bounded");
         Check(Row(0) == row, "animated artwork never moves menu hitboxes");
         typeof(Pad).GetField("_usingMouse", Static)!.SetValue(null, false);
+        title.SetProcess(true);
+    }
+
+    private async Task VerifyTimelineMotion(TitleMenu title, Sprite2D illustration)
+    {
+        title.SetProcess(false);
+        Set(title, "_t", 8.0);
+        Set(title, "_talkT", 0.0);
+        Set(title, "_parallax", Vector2.Zero);
+        Set(title, "_sel", 0);
+        Set(title, "_selectionY", Row(0).GetCenter().Y);
+        title._Process(0);
+        var material = (ShaderMaterial)illustration.Material;
+        material.SetShaderParameter("ambient_time_sec", 0f);
+        typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { 0f });
+        title.QueueRedraw();
+        using var still = await Capture();
+        foreach (float time in new[] { 2.2f, 4.6f, 8.1f })
+        {
+            material.SetShaderParameter("ambient_time_sec", time);
+            typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { time });
+            title.QueueRedraw();
+            using var later = await Capture();
+            Check(Difference(still, later, new Rect2I(755, 130, 170, 130)) < 0.0001f, "timeline motion preserves Mina's face");
+            Check(Difference(still, later, new Rect2I(680, 450, 100, 85)) < 0.0001f, "timeline motion preserves the extended hand");
+            Check(Difference(still, later, new Rect2I(890, 350, 90, 60)) < 0.0001f, "timeline motion preserves the hand on her chest");
+            Check(Difference(still, later, new Rect2I(395, 80, 150, 215)) > 0.0005f, "photo post floats independently");
+            Check(Difference(still, later, new Rect2I(350, 330, 215, 105)) > 0.0005f, "unsent draft floats independently");
+            Check(Difference(still, later, new Rect2I(470, 510, 145, 90)) > 0.0002f, "distant timeline has a slower drift");
+        }
+        material.SetShaderParameter("ambient_time_sec", 3.2f);
+        await Shot("title_ambient_motion");
+        material.SetShaderParameter("ambient_time_sec", 0f);
+        material.SetShaderParameter("depth_offset", new Vector2(3.5f / 1280, 2f / 720));
+        Set(title, "_parallax", new Vector2(3.5f, 2f));
+        typeof(TitleMenu).GetMethod("UpdatePostMotion", Private)!.Invoke(title, new object[] { 0f });
+        title.QueueRedraw();
+        using (var shifted = await Capture())
+        {
+            Check(Difference(still, shifted, new Rect2I(395, 80, 150, 215)) > 0.0005f, "pointer adds relative depth to the posts");
+            Check(Difference(still, shifted, new Rect2I(755, 130, 170, 130)) < 0.0001f, "depth parallax does not warp Mina's face");
+            int labelPixels = 0, changedPixels = 0;
+            for (int y = 369; y < 393; y++)
+                for (int x = 130; x < 260; x++)
+                {
+                    Color p = still.GetPixel(x, y), q = shifted.GetPixel(x, y);
+                    if (p.R < 0.95f || p.G < 0.92f || p.B < 0.90f) continue;
+                    labelPixels++;
+                    if (Mathf.Abs(p.R - q.R) + Mathf.Abs(p.G - q.G) + Mathf.Abs(p.B - q.B) > 0.015f) changedPixels++;
+                }
+            Check(labelPixels > 50 && changedPixels == 0, "menu lettering stays fixed over the moving background");
+        }
+        material.SetShaderParameter("depth_offset", Vector2.Zero);
+        Set(title, "_parallax", Vector2.Zero);
+        title.SetProcess(true);
+    }
+
+    private async Task CaptureMotion(TitleMenu title)
+    {
+        string folder = $"{_out}/motion";
+        DirAccess.MakeDirRecursiveAbsolute(folder);
+        title.SetProcess(false);
+        DisplayServer.WindowSetSize(new Vector2I(960, 540));
+        await Frames(10);
+        bool saved = true;
+        for (int i = 0; i < 180; i++)
+        {
+            typeof(Pad).GetField("_usingMouse", Static)!.SetValue(null, false);
+            Set(title, "_t", 8.0 + i / 15.0);
+            Set(title, "_talkT", 0.0);
+            Set(title, "_sel", 0);
+            Set(title, "_selectionY", Row(0).GetCenter().Y);
+            title._Process(0);
+            using var frame = await Capture();
+            saved &= frame.SavePng($"{folder}/frame_{i:D3}.png") == Error.Ok;
+        }
+        Check(saved, "12-second title animation preview captured");
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        await Frames(10);
         title.SetProcess(true);
     }
 

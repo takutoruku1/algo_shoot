@@ -40,7 +40,7 @@ public partial class CreditsRouteQa : Node
         // ② その項目を決定すると Credits.tscn へ行く（Confirm を直に叩く＝入力合成に依らない）
         typeof(TitleMenu).GetField("_sel", Private)!.SetValue(title, creditsAt);
         typeof(TitleMenu).GetMethod("Confirm", Private)!.Invoke(title, null);
-        await Frames(30);
+        await QaSceneTransition.Wait(this);
         string scene = GetTree().CurrentScene?.SceneFilePath ?? "";
         Check("クレジット画面へ遷移", scene == "res://Credits.tscn", $"遷移先={scene}");
 
@@ -80,7 +80,7 @@ public partial class CreditsRouteQa : Node
         Input.ParseInputEvent(ev);
         await Frames(10);
         Input.ParseInputEvent(new InputEventKey { Keycode = Key.Escape, PhysicalKeycode = Key.Escape, Pressed = false });
-        await Frames(10);
+        await QaSceneTransition.Wait(this);
         string back = GetTree().CurrentScene?.SceneFilePath ?? "";
         Check("X/Esc でタイトルへ戻る", back == "res://TitleMenu.tscn", $"戻り先={back}");
 

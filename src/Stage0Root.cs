@@ -79,7 +79,7 @@ public partial class Stage0Root : Node2D
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
                 GetNode<GameManager>("/root/Game").PrepareBossRetry(bossCheckpoint: false);
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            GetTree().ReloadCurrentScene();
+            GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;
         }
         Hud?.SetRetryHold(_retry.Progress);

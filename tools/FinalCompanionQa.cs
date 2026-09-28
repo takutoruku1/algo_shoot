@@ -110,7 +110,8 @@ public partial class FinalCompanionQa : Node
         //   別 step に割れた。step が 3 になったフレームではまだミナが建っていないので、ノードを待つ。
         await WaitUntil(() => world.GetNodeOrNull<BossMina>("BossMina") != null, 200);
         var boss = world.GetNode<BossMina>("BossMina");
-        await Frames(30);
+        await AdvanceUntil(() => GetTree().GetFirstNodeInGroup("boss_intro") == null
+            && Read<int>(stage, "_step") == 4);
         var caster = Read<MinaPhaseAttacks>(boss, "_caster");
         caster.SetProcess(false);
         caster.CancelPendingAttacks();

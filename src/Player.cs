@@ -311,43 +311,18 @@ public partial class Player : Area2D
     }
     private readonly System.Collections.Generic.Dictionary<string, Texture2D> _aimTex = new();
     private string _aimNow = "";
-    // ── 表示スケール／位置の単一ソース（2026-09-08 初版 → 2026-09-27 中身基準へ改訂）──
-    // 旧版は「全ポーズを事前に余白トリム済み」を前提に 36/テクスチャ高 で済ませていたが、追加衣装
-    //   （char/player/<id>/costume_v1/*）は 720 前後のキャンバスに余白つきで入っていてその前提が崩れる。
-    //   実測（tools/PlayerScaleQa.cs）では中身の高さが 29.2〜35.6px（既定衣装は 36.0px）＝衣装を替えると自機が
-    //   最大 19% 小さく見え、ポーズを送るあいだに見た目の中心が横へ最大 8.2px・足元が縦へ最大 2.8px ブレていた
-    //   （当たり半径 2px の自機で）。
-    //   → カスタマイズ／ショップのプレビューと同じ方式にそろえる：**中身（不透明部分）の高さ**を DisplayH に
-    //     正規化し（ScaleFor）、**中身の中心**をスプライトの中心へ寄せる（FitOffsetFor）。中身の高さが一定なら
-    //     「中身の中心を合わせる」＝「足元が常に DisplayH/2 下に来る」なので、これ1本で大きさ・中心・足元が揃う。
-    //   既定衣装は中身＝テクスチャ全体（全ポーズで実測済み）なので、倍率は 36/高さ・Offset は (0,0)＝
-    //     従来の見え方そのまま＝プレイ感は変わらない。
-    private const float DisplayH = 36f;   // 表示する「中身」の高さ(px)。弾幕向けに小さめという意味は据え置き
-    private static float ScaleFor(Texture2D tex) => UiKit.PortraitScale(tex, DisplayH);
-
-    // そのテクスチャの「中身の中心」をスプライトの中心へ寄せる Offset（テクスチャ画素・反転前）。
-    private static Vector2 FitOffsetFor(Texture2D tex)
-    {
-        var c = UiKit.ContentRect(tex);
-        return tex.GetSize() * 0.5f - ((Vector2)c.Position + (Vector2)c.Size * 0.5f);
-    }
-
-    // 現テクスチャの Offset（反転前）。テクスチャを差し替えるたびに入れ直す（毎フレーム走査はしない）。
     private Vector2 _bodyFit = Vector2.Zero;
 
-    // 中身基準の倍率と Offset を、いまの _sprite.Texture から入れ直す。
-    //   スケールは _baseScaleX に残す＝リアクション（squash/stretch）が毎フレームここを基準に上書きする。
     private void ApplyBodyFit()
     {
         if (_sprite == null || _sprite.Texture == null) return;
-        _baseScaleX = ScaleFor(_sprite.Texture);
-        _bodyFit = FitOffsetFor(_sprite.Texture);
+        var fit = PlayerArt.Fit(_sprite.Texture);
+        _baseScaleX = fit.Scale();
+        _bodyFit = _sprite.Texture.GetSize() * 0.5f - fit.Anchor;
         _sprite.Scale = new Vector2(_baseScaleX, _baseScaleX);
         ApplyBodyOffset();
     }
 
-    // Offset を今の向きに合わせて入れる。FlipH は絵を「描画箱の中心」で折り返す＝Offset.X の効きも反転するので、
-    //   反転時は符号を戻して中身の中心を動かさない（Enemy.ApplyBodyOffset と同じ作法）。
     private void ApplyBodyOffset()
     {
         if (_sprite == null) return;
@@ -1085,7 +1060,7 @@ public partial class Player : Area2D
                 {
                     _aimNow = aimDir;
                     _sprite.Texture = aimDir.Length > 0 ? AimTexture(aimDir) : _idleTex;
-                    ApplyBodyFit();   // 照準の絵ごとに中身の高さ・中心が違う＝差し替えるたびに入れ直す
+                    ApplyBodyFit();
                 }
                 // 左半分の方向は右向きの絵を左右反転して作る。**向き反転（_facing）とは別系統**で、
                 // ここでは _facing に一切書かない＝上の FlipH 代入の結果を、この1フレームぶんだけ上書きする。
@@ -1444,7 +1419,6 @@ public partial class Player : Area2D
         // スピンのフレーム流用反転と自機の向き(_facing)を XOR で合成＝左向きのままスピンしても
         // 着地フレーム(00)がちゃんと左向きに戻る（向きが回避で壊れない）。
         _sprite.FlipH = _dodgeFlip ^ (_facing < 0);
-        // コマ差し替えごとに倍率と Offset を入れ直す（基準は絵の中身＝ScaleFor / FitOffsetFor）。
         // これでコマが変わっても中身の高さ・水平中心・足元が動かない＝回避中に絵が横へ跳ねない。
         ApplyBodyFit();
     }
@@ -1884,6 +1858,7 @@ public partial class PlayerHitDot : Node2D
     public float Radius = 2f;
     public string CharacterId = "mina";
     public Texture2D Texture { get; private set; } = null!;
+    private CanvasTexture _shieldTexture = null!;
     private Vector2 _jewelCenter;
     private CanvasModulate? _worldTint;   // 世界の色味（無い面は null＝打ち消し不要）
 
@@ -1893,6 +1868,11 @@ public partial class PlayerHitDot : Node2D
         SelfModulate = TintLift.Of(_worldTint, TintLift.PlayerCore);   // 初フレームから明るく出す
         Texture = GD.Load<Texture2D>($"res://char/player/{CharacterId}/{CharacterId}_core_v1.png");
         TextureFilter = TextureFilterEnum.Linear;
+        _shieldTexture = new CanvasTexture
+        {
+            DiffuseTexture = GD.Load<Texture2D>("res://char/player/shield_barrier_v1.png"),
+            TextureFilter = TextureFilterEnum.LinearWithMipmaps,
+        };
         // The flame and ribbon are asymmetric; center the jewel, not their image bounds.
         _jewelCenter = new Vector2(0.5f, CharacterId switch
         {
@@ -1905,6 +1885,22 @@ public partial class PlayerHitDot : Node2D
 
     public override void _Draw()
     {
+        if (GetParent() is Player owner && owner.ShieldPower > 0)
+        {
+            float breath = Mathf.Sin(_t * 2.4f);
+            Vector2 shell = new Vector2(36f, 42f) * (1f + 0.018f * breath);
+            bool reinforced = owner.ShieldPower >= 2;
+            if (reinforced)
+            {
+                Vector2 outer = shell * 1.08f;
+                DrawTextureRect(_shieldTexture, new Rect2(-outer * 0.5f, outer), false,
+                    new Color(1f, 0.68f, 0.12f, 0.42f + 0.04f * breath));
+            }
+            DrawTextureRect(_shieldTexture, new Rect2(-shell * 0.5f, shell), false,
+                reinforced ? new Color(1f, 0.8f, 0.24f, 0.8f + 0.06f * breath)
+                    : new Color(1f, 1f, 1f, 0.56f + 0.06f * breath));
+        }
+
         Vector2 size = Texture.GetSize();
         Vector2 center = size * _jewelCenter;
         float extent = Mathf.Max(Mathf.Max(center.X, size.X - center.X), Mathf.Max(center.Y, size.Y - center.Y));
@@ -1912,20 +1908,6 @@ public partial class PlayerHitDot : Node2D
         DrawTextureRect(Texture, new Rect2(-center * scale, size * scale), false);
         DrawCircle(Vector2.Zero, 0.65f, new Color(0.08f, 0.08f, 0.16f, 0.8f));
         DrawCircle(Vector2.Zero, 0.38f, Colors.White);
-
-        // 強化「被弾を肩代わり」（PowerKind.Shield）を持っているあいだ、コアを丸いシールドが包む
-        //   （2026-09-26 ユーザー要望「アーマーがついていることがコアの部分で分かるように」）。
-        //   色は拾い物と同じ。1つなら一重、2つなら二重。ゆっくり呼吸させて「張ってある」ことが読めるようにする。
-        if (GetParent() is Player owner && owner.ShieldPower > 0)
-        {
-            Color sc = PowerPickupArt.ColorFor(PowerKind.Shield);
-            float r = Radius + 6.5f;
-            float breath = 0.5f + 0.5f * Mathf.Sin(_t * 3.2f);
-            DrawCircle(Vector2.Zero, r, new Color(sc, 0.14f + 0.06f * breath));
-            DrawArc(Vector2.Zero, r, 0f, Mathf.Tau, 40, new Color(sc.Lerp(Colors.White, 0.45f), 0.85f + 0.15f * breath), 1.5f, true);
-            if (owner.ShieldPower >= 2)
-                DrawArc(Vector2.Zero, r + 2.6f, 0f, Mathf.Tau, 44, new Color(sc, 0.55f + 0.2f * breath), 1.0f, true);
-        }
     }
 
     private float _t;

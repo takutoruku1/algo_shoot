@@ -41,7 +41,7 @@ public partial class BossSpellQa : Node
             }
             if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
                 await CheckKoharuBody(game);
-            else if (OS.GetCmdlineUserArgs().Contains("--break"))
+            else if (OS.GetCmdlineUserArgs().Contains("--break") || OS.GetCmdlineUserArgs().Contains("--shields"))
                 await CheckBreakEffect(game);
             else if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
                 await CheckBossBackgrounds(game);
@@ -278,7 +278,7 @@ public partial class BossSpellQa : Node
         //   Luminance, not pure white: the boss's break-cue disc (white, alpha 0.5, ZIndex 0, shaded) sits over the
         //   middle letters and the stage CanvasModulate cools it to about (0.80, 0.84, 0.96); the label itself is
         //   unshaded, so the outer letters stay pure white. Body/hair under the disc stay below 0.75.
-        int[] WhitePixels(Image image, BossBreakFx effect)
+        int[] WhitePixels(Image image, BossBreakFx effect, Image? background = null)
         {
             float scale = image.GetWidth() / 384f;
             var advances = Read<float[]>(effect, "_advances");
@@ -288,11 +288,14 @@ public partial class BossSpellQa : Node
                 for (int y = (int)((effect.Position.Y - 14) * scale); y < (effect.Position.Y + 14) * scale; y++)
                     for (int x = (int)(left * scale); x < (left + advances[i]) * scale; x++)
                     {
-                        if (image.GetPixel(x, y).Luminance > 0.82f) white[i]++;
+                        if (image.GetPixel(x, y).Luminance > 0.82f
+                            && (background == null || background.GetPixel(x, y).Luminance <= 0.82f)) white[i]++;
                     }
             return white;
         }
         string Phase(Enemy boss) => Read<object>(boss, "_phase", typeof(Enemy)).ToString()!;
+        FxLayer.P CloneParticle(FxLayer.P particle) =>
+            (FxLayer.P)typeof(object).GetMethod("MemberwiseClone", Private)!.Invoke(particle, null)!;
         foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle", "Hikage", "Cameo" })
         {
             game.SelectedJob = Job.Heal;
@@ -335,6 +338,15 @@ public partial class BossSpellQa : Node
             root.GetNode<StageBackground>("StageBackground").EnterBoss();
             await Frames(150);
             Pool.DespawnAll();
+            if (OS.GetCmdlineUserArgs().Contains("--shields"))
+            {
+                root.ProcessMode = ProcessModeEnum.Disabled;
+                await CheckShieldAppearance(scene, boss);
+                root.QueueFree();
+                await Frames(5);
+                Engine.TimeScale = 1;
+                continue;
+            }
             Write(hud, "_flashAlpha", 0f);
             long score = game.Score;
             int bombs = game.Bombs;
@@ -352,6 +364,9 @@ public partial class BossSpellQa : Node
             int bodyZ = body.ZAsRelative ? boss.ZIndex + body.ZIndex : body.ZIndex;
             Check(effect.ZIndex == bodyZ && effect.GetParent() == world && effect.GetIndex() > boss.GetIndex(),
                 "BREAK label shares the body sprite layer and follows the boss in World, so it draws over the body");
+            var shieldLayer = boss.GetNode<Node2D>("Shield");
+            Check(shieldLayer.ZIndex == body.ZIndex && shieldLayer.GetIndex() > body.GetIndex(),
+                "shield is above its body, below the BREAK label and enemy bullets");
             Check(!Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p").Any(p => p.Text == "BREAK!"),
                 "old floating damage-number label is not duplicated");
             boss.Purify();
@@ -367,36 +382,50 @@ public partial class BossSpellQa : Node
             effect.PlaceOn(boss.Position, Read<float>(boss, "BodyDisplayH", typeof(Enemy)));
             Check(Mathf.Abs(effect.Position.Y - Mathf.Clamp(boss.Position.Y, Field.Top + 25f, Field.Bottom - 25f)) < 0.5f,
                 "BREAK label sits on the boss body, not above it");
+            var renderMode = root.ProcessMode;
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            var particles = Read<System.Collections.Generic.List<FxLayer.P>>(FxLayer.Instance, "_p");
+            var initialParticles = particles.Select(CloneParticle).ToArray();
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
             {
                 DisplayServer.WindowSetSize(size);
                 foreach (float time in new[] { 0.07f, 0.22f, 0.48f })
                 {
                     Write(effect, "_age", time);
-                    // 0.22 秒＝5文字が据わった瞬間。文字の列ごとに「演出なし→あり」の明画素の差分を取り（ミナの白い
-                    //   衣装や合図リングの白は両方に入るので相殺）、合計と最小列の両方を見る。本体の絵に埋もれて
-                    //   "BR AK" しか読めなかった退行（2026-09-22）は、合計が全文字が見えていた水準（7100〜8400 @1280
-                    //   ≒ 650〜750/unit²）の 5〜6 割に落ち、中央の E 列が平均の 2 割未満（多くは 0）になる。
-                    //   全文字が見えていれば最小列は平均の 45% 以上（ミナの白衣装の上が最小）。画素は面積比なので scale²。
-                    int[] background = Array.Empty<int>();
-                    if (time == 0.22f)
-                    {
-                        using var blank = await Render(effect, false);
-                        background = WhitePixels(blank, effect);
-                    }
+                    // The frozen boss and the BREAK label must render the same point in the shatter animation.
+                    typeof(Enemy).GetField("_phaseT", Private)!.SetValue(boss, (double)time);
+                    boss.QueueRedraw();
+                    shieldLayer.QueueRedraw();
+                    // Keep the impact flash on the same clock instead of freezing its brightest first frame across resizes.
+                    particles.Clear();
+                    particles.AddRange(initialParticles.Select(CloneParticle));
+                    FxLayer.Instance._Process(time);
+                    // Count newly white pixels, not net white area: the dark text outline also covers bright armor beneath it.
+                    using var background = time == 0.22f ? await Render(effect, false) : null;
                     using var image = await Render(effect, true);
                     Check(image.SavePng($"{output}/{scene}_{size.X}_{time:0.00}.png") == Error.Ok, "rendered animation keyframe");
                     if (time == 0.22f)
                     {
                         float scale = image.GetWidth() / 384f;
-                        int[] letters = WhitePixels(image, effect).Zip(background, (lit, dark) => lit - dark).ToArray();
+                        int[] letters = WhitePixels(image, effect, background);
                         int total = letters.Sum();
-                        GD.Print($"[BossSpellQA] {scene}/{size.X}: BREAK white pixels {total} = {string.Join("+", letters)} (background {background.Sum()})");
+                        GD.Print($"[BossSpellQA] {scene}/{size.X}: BREAK white pixels {total} = {string.Join("+", letters)}");
                         Check(total > 550 * scale * scale && letters.Min() > total * 0.3f / letters.Length,
                             $"{scene}/{size}: all five BREAK letters are drawn over the boss body, not buried in it");
+                        if (scene == "Akari" && size.X == 1280)
+                        {
+                            effect.ZIndex = bodyZ - 1;
+                            using var buried = await Render(effect, true);
+                            int[] hidden = WhitePixels(buried, effect, background);
+                            int hiddenTotal = hidden.Sum();
+                            Check(hiddenTotal <= 550 * scale * scale || hidden.Min() <= hiddenTotal * 0.3f / hidden.Length,
+                                "negative control detects BREAK text buried behind the body");
+                            effect.ZIndex = bodyZ;
+                        }
                     }
                 }
             }
+            root.ProcessMode = renderMode;
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             Write(effect, "_age", 0.1f);
             effect.SetProcess(true);
@@ -405,6 +434,7 @@ public partial class BossSpellQa : Node
             Check(Read<float>(effect, "_age") == 0.1f, "pause menu freezes the animation");
             GetTree().Paused = false;
             effect.SetProcess(false);
+            typeof(Enemy).GetField("_phaseT", Private)!.SetValue(boss, 0d);
             BaseCall(boss, "TickBossPhase", 0.449d);
             Check(Phase(boss) == "Break", "break cue remains 0.45 seconds");
             BaseCall(boss, "TickBossPhase", 0.002d);
@@ -425,6 +455,104 @@ public partial class BossSpellQa : Node
             await Frames(5);
             Engine.TimeScale = 1;
         }
+    }
+
+    private async Task CheckShieldAppearance(string scene, Enemy boss)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/boss_shields");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        void Set(string field, object value) => typeof(Enemy).GetField(field, Private)!.SetValue(boss, value);
+        void Phase(string phase, double age = 0)
+        {
+            var field = typeof(Enemy).GetField("_phase", Private)!;
+            field.SetValue(boss, Enum.Parse(field.FieldType, phase));
+            Set("_phaseT", age);
+        }
+        async Task<Image> Render(bool enabled, string? name = null)
+        {
+            Set("_entering", !enabled);
+            boss.QueueRedraw();
+            boss.GetNode<Node2D>("Shield").QueueRedraw();
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            var image = GetViewport().GetTexture().GetImage();
+            if (name != null) Check(image.SavePng($"{output}/{scene}_{name}.png") == Error.Ok, $"{scene}: {name} rendered");
+            return image;
+        }
+        (int changed, float brightness, float warmth) Compare(Image a, Image b, float radius)
+        {
+            float scale = a.GetWidth() / GetViewport().GetVisibleRect().Size.X;
+            Vector2 at = boss.GetGlobalTransformWithCanvas().Origin * scale;
+            int count = 0;
+            float brightness = 0, warmth = 0;
+            int r = Mathf.CeilToInt(radius * scale);
+            for (int y = Mathf.Max(0, (int)at.Y - r); y < Mathf.Min(a.GetHeight(), (int)at.Y + r); y++)
+                for (int x = Mathf.Max(0, (int)at.X - r); x < Mathf.Min(a.GetWidth(), (int)at.X + r); x++)
+                {
+                    var before = a.GetPixel(x, y);
+                    var after = b.GetPixel(x, y);
+                    var delta = after - before;
+                    if (Mathf.Abs(delta.R) + Mathf.Abs(delta.G) + Mathf.Abs(delta.B) < 0.12f) continue;
+                    count++;
+                    brightness += after.Luminance - before.Luminance;
+                    warmth += delta.R - delta.B;
+                }
+            return (count, count == 0 ? 0 : brightness / count, count == 0 ? 0 : warmth / count);
+        }
+        bool major = scene != "Cameo";
+        string asset = major ? "boss_shield_major_v1.png" : "boss_shield_v1.png";
+        using (var art = GD.Load<Texture2D>($"res://char/ui/{asset}").GetImage())
+            Check(art.GetWidth() == 512 && art.HasMipmaps() && art.GetPixel(256, 256).A < 0.01f
+                && art.GetPixel(0, 0).A == 0, $"{scene}: bounded shield art with a clear center and real alpha");
+        float h = Read<float>(boss, "BodyDisplayH", typeof(Enemy));
+        float hp = boss.HpRatio;
+        var shape = Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Shape;
+        Set("_shieldTime", 0.3f);
+        Phase("Shielded");
+        using var blank = await Render(false);
+        using var active = await Render(true, "active");
+        var visible = Compare(blank, active, h);
+        float pixelScale = active.GetWidth() / 384f;
+        Check(visible.changed > 150 * pixelScale * pixelScale && visible.brightness > 0.1f,
+            $"{scene}: clearly visible shield ({visible.changed} pixels, brightness +{visible.brightness:F3})");
+        Check(major ? visible.warmth > 0.08f : visible.warmth < -0.03f,
+            $"{scene}: distinct {(major ? "red-gold major" : "blue-white midboss")} style ({visible.warmth:F3})");
+        Check(Compare(blank, active, 3).changed == 0, $"{scene}: central body remains unobscured");
+        Set("_shieldTime", 1.8f);
+        using var animated = await Render(true, "motion");
+        Check(Compare(active, animated, h).changed > 15 * pixelScale * pixelScale,
+            $"{scene}: shield animation visibly changes rendered pixels");
+        float clock = Read<float>(boss, "_shieldTime", typeof(Enemy));
+        await Frames(5);
+        Check(Read<float>(boss, "_shieldTime", typeof(Enemy)) == clock, $"{scene}: disabled world freezes shield time");
+        Phase("Break", 0.18);
+        using (var broken = await Render(true, "break")) { }
+        Phase("Exposed", 1.0);
+        using (var exposedOff = await Render(false))
+        using (var exposedOn = await Render(true, "exposed"))
+            Check(Compare(exposedOff, exposedOn, h).changed == 0, $"{scene}: no barrier in vulnerability window");
+        Phase("Reclose", 0.05);
+        using var reformStart = await Render(true, "reform_start");
+        Phase("Reclose", 1.25);
+        using var reformEnd = await Render(true, "reform_end");
+        var start = Compare(blank, reformStart, h);
+        var end = Compare(blank, reformEnd, h);
+        Check(end.changed * end.brightness > start.changed * start.brightness * 1.5f,
+            $"{scene}: invulnerable reclose visibly rebuilds its barrier");
+        Phase("Shielded");
+        Set("_purified", true);
+        using (var purifiedOff = await Render(false))
+        using (var purifiedOn = await Render(true))
+            Check(Compare(purifiedOff, purifiedOn, h).changed == 0, $"{scene}: no shield after purification");
+        Set("_purified", false);
+        foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            using var resized = await Render(true, $"active_{size.X}x{size.Y}");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        Check(boss.HpRatio == hp && Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Shape == shape,
+            $"{scene}: presentation leaves HP and collision unchanged");
     }
 
     private async Task CheckReiClipLines(GameManager game, AreaSpellCaster caster, Hud hud, Node2D world, Player player)

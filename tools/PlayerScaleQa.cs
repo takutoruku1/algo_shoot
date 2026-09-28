@@ -5,30 +5,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
-// 検証ハーネス（QA・2026-09-27）：戦闘中の自機を「中身（不透明部分）の高さ」でそろえ、「中身の水平中心と
-//   足元」をポーズ・衣装に依らず固定した改修（Player.DisplayH / ScaleFor / FitOffsetFor / ApplyBodyFit /
-//   ApplyBodyOffset）を確かめる。発端は追加衣装（char/player/<id>/costume_v1）の素材に透明余白があり、
-//   旧方式（36/テクスチャ高・Offset なし）だと
-//     ・中身の高さが 29.2〜35.6px（既定衣装は 36.0px）＝衣装を替えると自機が最大 19% 小さく見える
-//     ・回避8コマの間に見た目の中心が横へ、足元が縦へブレる（当たり半径 2px の自機に対して無視できない）
-//   という状態だったこと。カスタマイズ／ショップのプレビュー（UiKit.ContentRect / PortraitScale）と同じ土台に寄せた。
-//
-//   見るもの（4キャラ × 既定/追加衣装 × 全ポーズ＝通常・照準5方向・回避8コマ・各左右反転）:
-//     (a) 中身の高さが 36px（±0.5px）
-//     (b) 同じキャラ・同じ衣装ならポーズを替えても中身の水平中心と下端（足元）が動かない（±0.5px）
-//         ＝中身の中心が自機のグローバル座標（当たり判定の芯）に乗り続ける
-//     (c) 既定衣装は修正前と完全に同じ＝倍率が 36/テクスチャ高 と一致し Offset が (0,0)、中身の外接が
-//         旧方式の計算と一致する（修正前の数値をハードコードせず「旧式の式と一致」で押さえる＝プレイ感は不変）
-//     (d) 当たり判定（HitShape 半径・レイヤー/マスク・PlayerHitDot の位置と半径・グレイズ円）が不変
-//     (e) 回避の残像（SpawnTrail）が倍率・反転・Offset を写している（写さないと残像だけ余白ぶん横へずれる）
-//   旧方式の外接も同じ走行で計算して出す＝「修正前どれだけブレていたか」を同じログで突き合わせられる。
-//
-//   使い方（実セーブを汚さないよう APPDATA=build/qa_story/playerscale_appdata を渡す）:
-//     ヘッドレス : Godot --headless --path . res://tools/qa_player_scale.tscn
-//     撮影つき（窓あり。ヘッドレスでは描画結果を読めない）:
-//                  Godot --path . res://tools/qa_player_scale.tscn -- --pls-shot [--pls-out <絶対パス>]
-//       → build/shots_player_scale/dodge_strip_<id>.png       追加衣装の回避8コマ（足元の基準線を横断で引く）
-//          build/shots_player_scale/costume_compare_<id>.png   既定（上段）／追加（下段）の通常＋照準5方向
 public partial class PlayerScaleQa : Node
 {
     private const BindingFlags IPriv = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -36,8 +12,8 @@ public partial class PlayerScaleQa : Node
     private static void Write(object o, string n, object v) => o.GetType().GetField(n, IPriv)!.SetValue(o, v);
     private static object? Call(object o, string n, params object[] a) => o.GetType().GetMethod(n, IPriv)!.Invoke(o, a);
 
-    private const float DisplayH = 36f;   // 期待する中身の高さ（Player.DisplayH と同じ意味の値）
-    private const float Tol = 0.5f;       // 高さ・中心・足元の許容(px)
+    private const float DisplayH = 36f;
+    private const float Tol = 0.05f;
     private const byte InkCut = 12;       // 画素で測るときの α しきい（UiKit.ContentAlphaCut=0.05 相当）
 
     // 全ポーズの素材名（Cosmetics.PosePath に渡す綴り）。
@@ -78,6 +54,9 @@ public partial class PlayerScaleQa : Node
         try
         {
             await Run();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await Frames(4);
             GD.Print(_fail == 0 ? "[PLS] DONE ok" : $"[PLS] DONE fail={_fail}");
             GetTree().Quit(_fail == 0 ? 0 : 1);
         }
@@ -121,42 +100,53 @@ public partial class PlayerScaleQa : Node
         await Frames(4);
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         Audio.Instance?.StopMusic(0);
+        foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
+        {
+            audio.Stop();
+            audio.Stream = null;
+        }
+        _kept.Clear();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        await Frames(4);
     }
 
     private static CosmeticItem Costume(JobTuning job, bool paid) => paid
         ? Array.Find(Cosmetics.All, i => i.Kind == CosmeticKind.Costume && i.Character == job.Id && i.Price > 0)!
         : Cosmetics.DefaultCostume(job.Id);
 
-    // ── 素材の中身（ContentRect）と、旧方式で出ていた見かけの高さ ──
-    //   既定衣装は生成時に切り詰め済み（中身＝テクスチャ全体）＝旧方式でもぴったり 36px。この事実が
-    //   「既定衣装のプレイ感は変わらない」の根拠なので、全ポーズぶん明示的に押さえる。
     private void MaterialInfo()
     {
         foreach (var job in Jobs.All)
             foreach (bool paid in new[] { false, true })
             {
                 var item = Costume(job, paid);
-                float lo = float.MaxValue, hi = 0f;
-                int trimmed = 0;
+                float expectedHead = PlayerArt.Fit(GD.Load<Texture2D>(Cosmetics.DefaultCostume(job.Id).PosePath("idle"))).GameHeadHeight;
                 foreach (string pose in Poses)
                 {
                     var tex = GD.Load<Texture2D>(item.PosePath(pose));
-                    var c = UiKit.ContentRect(tex);
-                    float oldH = c.Size.Y * (DisplayH / tex.GetHeight());   // 旧方式での中身の高さ
-                    lo = Mathf.Min(lo, oldH); hi = Mathf.Max(hi, oldH);
-                    if (c == new Rect2I(0, 0, tex.GetWidth(), tex.GetHeight())) trimmed++;
-                    else if (paid)
-                        GD.Print($"[PLS] info 素材 {Label(item)} {pose}: tex {tex.GetWidth()}x{tex.GetHeight()} "
-                            + $"中身 {c.Size.X}x{c.Size.Y}@({c.Position.X},{c.Position.Y}) 旧方式の見かけ高 {oldH:0.00}px");
+                    var fit = PlayerArt.Fit(tex);
+                    Check($"{item.Id}/{pose}: calibrated head inside image",
+                        fit.HeadHeight > 0 && fit.Crown.X > 0 && fit.Crown.X < tex.GetWidth()
+                        && fit.Crown.Y >= 0 && fit.Crown.Y + fit.HeadHeight < tex.GetHeight());
+                    Check($"{item.Id}/{pose}: same head scale across costumes",
+                        Mathf.IsEqualApprox(fit.GameHeadHeight, expectedHead));
+                    foreach (bool flip in new[] { false, true })
+                    {
+                        CheckPreview(tex, new Rect2(134, 178, 342, 400), new Vector2(305, 378), 250, flip);
+                        if (pose == "idle")
+                            CheckPreview(tex, new Rect2(0, 0, 110, 100), new Vector2(55, 50), 86, flip);
+                    }
                 }
-                if (paid)
-                    Check($"{Label(item)}：追加衣装の素材は余白つき（旧方式の見かけ高 {lo:0.00}〜{hi:0.00}px）",
-                        trimmed == 0 && lo < DisplayH - 0.05f);
-                else
-                    Check($"{Label(item)}：既定衣装の素材は全{Poses.Length}ポーズ切り詰め済み＝旧方式でも 36px"
-                        + $"（見かけ高 {lo:0.00}〜{hi:0.00}px）",
-                        trimmed == Poses.Length && Mathf.Abs(lo - DisplayH) < 0.01f && Mathf.Abs(hi - DisplayH) < 0.01f);
             }
+    }
+
+    private void CheckPreview(Texture2D tex, Rect2 frame, Vector2 center, float height, bool flip)
+    {
+        var rect = PlayerArt.TextureRect(tex, center, height, flip);
+        var bounds = new Rect2(rect.Position, rect.Size.Abs());
+        Check($"{tex.ResourcePath.GetFile()}: preview inside frame ({height}, flip={flip})",
+            frame.Grow(1f).Encloses(bounds));
     }
 
     // ── 1キャラ1衣装ぶん：全ポーズを出して中身の外接を測る ──
@@ -254,44 +244,28 @@ public partial class PlayerScaleQa : Node
         _kept[$"{job.CharacterId}_{(paid ? "costume" : "default")}"] = samples;
     }
 
-    // ── (a)(b)(c)：測った外接から判定と、修正前との突き合わせ ──
     private void Verdict(string label, bool paid, List<Sample> samples)
     {
-        // 自機のグローバル座標を原点にした相対値で見る（中身の中心が当たり判定の芯に乗り続けるか）。
-        float hLo = float.MaxValue, hHi = 0f, cLo = float.MaxValue, cHi = float.MinValue, fLo = float.MaxValue, fHi = float.MinValue;
-        float ohLo = float.MaxValue, ohHi = 0f, ocLo = float.MaxValue, ocHi = float.MinValue, ofLo = float.MaxValue, ofHi = float.MinValue;
         foreach (var s in samples)
         {
-            float c = s.Now.GetCenter().X - s.At.X, f = s.Now.End.Y - s.At.Y;
-            hLo = Mathf.Min(hLo, s.Now.Size.Y); hHi = Mathf.Max(hHi, s.Now.Size.Y);
-            cLo = Mathf.Min(cLo, c); cHi = Mathf.Max(cHi, c);
-            fLo = Mathf.Min(fLo, f); fHi = Mathf.Max(fHi, f);
-            float oc = s.Old.GetCenter().X - s.At.X, of = s.Old.End.Y - s.At.Y;
-            ohLo = Mathf.Min(ohLo, s.Old.Size.Y); ohHi = Mathf.Max(ohHi, s.Old.Size.Y);
-            ocLo = Mathf.Min(ocLo, oc); ocHi = Mathf.Max(ocHi, oc);
-            ofLo = Mathf.Min(ofLo, of); ofHi = Mathf.Max(ofHi, of);
-            // (a) 中身の高さ
-            Check($"{label} {s.Tag}：中身の高さが {DisplayH:0} px（{s.Now.Size.Y:0.###} 倍率 {s.Scale:0.0000} "
-                + $"Offset {Fmt(s.Offset)}）", Mathf.Abs(s.Now.Size.Y - DisplayH) <= Tol);
-            // (b) 中身の中心が自機の芯（＝当たり判定の中心）に乗っている＝中心も足元も動かない
-            Check($"{label} {s.Tag}：中身の水平中心 {c:0.###} ／ 足元 {f:0.###}（期待 0 ／ {DisplayH / 2f:0.#}）",
-                Mathf.Abs(c) <= Tol && Mathf.Abs(f - DisplayH / 2f) <= Tol);
-            // (c) 既定衣装は修正前とまったく同じ（倍率＝36/テクスチャ高・Offset なし・外接が旧式の計算と一致）
-            if (!paid)
-                Check($"{label} {s.Tag}：修正前と同じ（倍率 {s.Scale:0.00000} == 36/{s.Tex.GetHeight()}・Offset (0,0)・外接一致）",
-                    Mathf.IsEqualApprox(s.Scale, DisplayH / s.Tex.GetHeight()) && s.Offset == Vector2.Zero
-                    && s.Now.Position.IsEqualApprox(s.Old.Position) && s.Now.Size.IsEqualApprox(s.Old.Size));
+            var fit = PlayerArt.Fit(s.Tex);
+            var crown = fit.Crown - s.Tex.GetSize() * 0.5f;
+            if (s.Flip) crown.X = -crown.X;
+            var drawnCrown = (crown + s.Offset) * s.Scale;
+            Check($"{label} {s.Tag}: head height {fit.HeadHeight * s.Scale:0.###}",
+                Mathf.Abs(fit.HeadHeight * s.Scale - fit.GameHeadHeight) <= Tol);
+            Check($"{label} {s.Tag}: body anchor follows head, not props",
+                Mathf.Abs(drawnCrown.X) <= Tol
+                && Mathf.Abs(drawnCrown.Y + fit.GameHeadHeight * 1.35f) <= Tol);
+            Check($"{label} {s.Tag}: bounded gameplay silhouette",
+                s.Now.Size.Y < 54f && s.Now.Size.X < 48f);
+
+            var preview = PlayerArt.TextureRect(s.Tex, s.At, DisplayH, s.Flip);
+            var gameplay = new Rect2(s.At + (s.Offset - s.Tex.GetSize() * 0.5f) * s.Scale, s.Tex.GetSize() * s.Scale);
+            Check($"{label} {s.Tag}: customization and gameplay use identical framing",
+                preview.Position.IsEqualApprox(gameplay.Position)
+                && preview.Size.Abs().IsEqualApprox(gameplay.Size));
         }
-        // ポーズを替えたときのブレ幅（修正後／修正前）。報告の表はこの行を並べたもの。
-        GD.Print($"[PLS] info ブレ幅 {label}（{samples.Count} ポーズ）"
-            + $" 中身の高さ {hLo:0.00}〜{hHi:0.00}px／中心 {cHi - cLo:0.00}px／足元 {fHi - fLo:0.00}px"
-            + $"　←旧方式 高さ {ohLo:0.00}〜{ohHi:0.00}px／中心 {ocHi - ocLo:0.00}px／足元 {ofHi - ofLo:0.00}px");
-        Check($"{label}：ポーズを替えても中身の水平中心が動かない（ブレ {cHi - cLo:0.###}px 旧 {ocHi - ocLo:0.###}px）",
-            cHi - cLo <= Tol);
-        Check($"{label}：ポーズを替えても足元が動かない（ブレ {fHi - fLo:0.###}px 旧 {ofHi - ofLo:0.###}px）",
-            fHi - fLo <= Tol);
-        Check($"{label}：中身の高さがポーズを通して同一（{hLo:0.###}〜{hHi:0.###}px 旧 {ohLo:0.###}〜{ohHi:0.###}px）",
-            hHi - hLo <= Tol);
     }
 
     // 描画後のスプライトから「中身」の外接をワールド座標で引く。
@@ -332,13 +306,19 @@ public partial class PlayerScaleQa : Node
 
     private async Task Strips()
     {
+        await Strip("all_costumes",
+            Jobs.All.Select(job => _kept[$"{job.CharacterId}_default"].First(s => s.Tag == "idle"))
+                .Concat(Jobs.All.Select(job => _kept[$"{job.CharacterId}_costume"].First(s => s.Tag == "idle")))
+                .ToList(), 4);
         var aim = new[] { "idle", "aim_u", "aim_ur", "aim_r", "aim_dr", "aim_d" };
         foreach (var job in Jobs.All)
         {
             var costume = _kept[$"{job.CharacterId}_costume"];
             var dflt = _kept[$"{job.CharacterId}_default"];
             // 回避8コマ（追加衣装）。旧方式でいちばん跳ねていた並び。
-            await Strip($"dodge_strip_{job.CharacterId}", Pick(costume, Enumerable.Range(0, 8).Select(i => $"spin{i}")), 8);
+            await Strip($"dodge_strip_{job.CharacterId}",
+                Pick(dflt, Enumerable.Range(0, 8).Select(i => $"spin{i}"))
+                .Concat(Pick(costume, Enumerable.Range(0, 8).Select(i => $"spin{i}"))).ToList(), 8);
             // 既定（上段）／追加（下段）の通常＋照準5方向。大きさがそろっているか。
             await Strip($"costume_compare_{job.CharacterId}",
                 Pick(dflt, aim).Concat(Pick(costume, aim)).ToList(), aim.Length);

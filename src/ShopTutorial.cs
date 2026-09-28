@@ -138,7 +138,7 @@ public partial class ShopTutorial : Node2D
             //   ShopNudgePending がハブに「ホームで開いて強化アイコンを誘導せよ」と伝える。
             if (_game != null) _game.ShopNudgePending = true;
             Audio.Instance?.PlayUiConfirm();
-            GetTree().ChangeSceneToFile("res://Hub.tscn");
+            GameManager.FadeToScene(this, "res://Hub.tscn");
         }
     }
 

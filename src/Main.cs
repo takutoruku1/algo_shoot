@@ -104,6 +104,6 @@ public partial class Main : Node2D
     {
         // オートロードのプールに残る弾をクリアしてからシーン再読込。
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ReloadCurrentScene();
+        GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
     }
 }

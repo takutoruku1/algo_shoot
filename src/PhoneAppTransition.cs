@@ -7,22 +7,24 @@ public partial class PhoneAppTransition : CanvasLayer
     private static readonly Vector2 ScreenSize = new(UiKit.DesignW, UiKit.DesignH);
     private static readonly Rect2 PhoneRect = new(400, 0, 480, 720);
     private ImageTexture _snapshot = null!;
-    private string _destination = "";
     private TransitionCanvas _canvas = null!;
-    private Node2D? _app;
     private float _time;
-    private bool _changing;
+    public bool LoadingVisible => _time >= TurnDuration;
+    public bool Expanded => _time >= Duration;
+    public Rect2 LoadingBounds => AppRect(_time);
 
     public static void Open(Node from, string destination)
     {
+        if (LoadingScreen.IsActive) return;
         using var image = from.GetViewport().GetTexture().GetImage();
         var transition = new PhoneAppTransition
         {
             Name = "PhoneAppTransition", Layer = 120, ProcessPriority = -100,
-            _snapshot = ImageTexture.CreateFromImage(image), _destination = destination,
+            ProcessMode = ProcessModeEnum.Always,
+            _snapshot = ImageTexture.CreateFromImage(image),
         };
         from.GetTree().Root.AddChild(transition);
-        Pad.ConsumeUi(transition);
+        LoadingScreen.Open(from, destination, transition);
     }
 
     public override void _Ready()
@@ -50,50 +52,12 @@ public partial class PhoneAppTransition : CanvasLayer
 
     public override void _Process(double delta)
     {
-        Pad.ConsumeUi(this);
-        if (!_changing || _app != null) _time += (float)delta;
-        if (_time >= TurnDuration && !_changing)
-        {
-            _time = TurnDuration;
-            _changing = true;
-            ChangeApp();
-        }
-        if (_app != null)
-        {
-            ApplyAppTransform();
-            if (_time >= Duration)
-            {
-                _app.Position = Vector2.Zero;
-                _app.Scale = Vector2.One;
-                QueueFree();
-            }
-        }
+        _time = Mathf.Min(Duration, _time + (float)(delta / Engine.TimeScale));
         _canvas.QueueRedraw();
-    }
-
-    private async void ChangeApp()
-    {
-        var tree = GetTree();
-        tree.ChangeSceneToFile(_destination);
-        await ToSignal(tree, SceneTree.SignalName.SceneChanged);
-        _app = (Node2D)tree.CurrentScene;
-        ApplyAppTransform();
-    }
-
-    private void ApplyAppTransform()
-    {
-        Rect2 rect = AppRect(_time);
-        _app!.Position = rect.Position * UiKit.Scale;
-        _app.Scale = rect.Size / ScreenSize;
     }
 
     public override void _ExitTree()
     {
-        if (IsInstanceValid(_app))
-        {
-            _app!.Position = Vector2.Zero;
-            _app.Scale = Vector2.One;
-        }
         _snapshot.Dispose();
     }
 
@@ -127,12 +91,10 @@ public partial class PhoneAppTransition : CanvasLayer
             DrawBackdrop(canvas, new Rect2(0, rect.End.Y, ScreenSize.X, ScreenSize.Y - rect.End.Y), dim);
             DrawBackdrop(canvas, new Rect2(0, rect.Position.Y, rect.Position.X, rect.Size.Y), dim);
             DrawBackdrop(canvas, new Rect2(rect.End.X, rect.Position.Y, ScreenSize.X - rect.End.X, rect.Size.Y), dim);
-            float cover = 1 - Ease((_time - TurnDuration) / 0.2f);
             canvas.DrawSetTransform(ScreenSize / 2 * UiKit.Scale, Mathf.Pi / 2, Vector2.One * UiKit.Scale);
             Vector2 turnedSize = new(rect.Size.Y, rect.Size.X);
             canvas.DrawTextureRectRegion(_snapshot, new Rect2(-turnedSize / 2, turnedSize),
-                new Rect2(PhoneRect.Position / ScreenSize * _snapshot.GetSize(), PhoneRect.Size / ScreenSize * _snapshot.GetSize()),
-                new Color(1, 1, 1, cover));
+                new Rect2(PhoneRect.Position / ScreenSize * _snapshot.GetSize(), PhoneRect.Size / ScreenSize * _snapshot.GetSize()));
             UiKit.BeginDesign(canvas);
             float edge = 1 - Ease((_time - TurnDuration) / ExpandDuration);
             UiKit.Box(canvas, rect, null, 8 * edge, new Color(0.7f, 0.82f, 0.87f, edge * 0.8f), 1.5f);

@@ -121,7 +121,7 @@ public partial class PauseMenuQa : Node
             Check(_pause.SlotOpen, "an empty slot cannot be loaded (picker stays open)");
             SetSlotSel(1);                // スロット2＝保存済み
             await Press(Key.Z);
-            await Frames(30);
+            await QaSceneTransition.Wait(this);
             Check(game.Impression != 12345, $"loading slot 2 restored the saved state (Impression={game.Impression})");
             Check((GetTree().CurrentScene?.SceneFilePath ?? "").Contains("Hub"),
                 $"loading moves to the hub like タイトル/つづきから (scene={GetTree().CurrentScene?.SceneFilePath})");

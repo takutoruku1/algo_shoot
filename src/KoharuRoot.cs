@@ -115,7 +115,7 @@ public partial class KoharuRoot : Node2D
                 g?.PrepareBossRetry();
             }
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            GetTree().ReloadCurrentScene();
+            GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;
         }
         Hud?.SetRetryHold(_retry.Progress);

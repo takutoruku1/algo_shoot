@@ -52,6 +52,7 @@ public partial class StageKoharu : Node
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // こはる＝無力・他責で、弾は“落ちる祈り”。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
+    private bool _cameoIntroStarted, _cameoIntroDone;
 
     // S2-1 部屋・導入（仮台本 07）。電気を消した部屋。配信画面の光だけ。棚のグッズ、机の下の箱。
     //   炎上はまだ無い。【濁】兆候。ミナは投稿の下の小さな声を見つけるが、中身は S2-4 まで言わない。
@@ -97,7 +98,7 @@ public partial class StageKoharu : Node
     //   明るさと蒼白を往復する。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "あ、来た来た。……「あたし、なにしてんだろ」って顔、してた? ……してないよ。してないってば。", KFace),   // 第一声
+        (2, "あ、来た！　今日も全部、見なきゃ！", KFace),
     };
     // RECLOSE（サイクルごとに順送り）。「やめないで……止まったら」の型。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
@@ -115,24 +116,23 @@ public partial class StageKoharu : Node
     //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（選んでいなければ既存が出る）。
     //   s2_2 は中ボス撃破の直後・s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
     //   中ボスは本ボス本人の先出し＝「ボス戦で会う前から、もう聞かれていた」という画になる。
-    //   3本とも「あ、来た来た。」の書き出しを保つ＝既存の第一声と同じ入り方で、引用だけが増えて見える。
 
     // 「一日、空けて」
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
     {
-        (2, "あ、来た来た。……「一日、空けて」って、言ってたでしょ。……どこ空けんの? 空いてないってば、どこも。", KFace),
+        (2, "「一日、空けて」？　空いてないってば！", KFace),
     };
 
     // 「三本、飲んでから」
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Drink =
     {
-        (2, "あ、来た来た。……「三本、飲んでから」? ……飲んだよ。……うそ。開けてない。……開けてないけど、買ったもん。", KFace),
+        (2, "「三本、飲んでから」？　買ったもん！", KFace),
     };
 
     // 「全部に丸がついてる」
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Circles =
     {
-        (2, "あ、来た来た。……「全部に丸がついてる」って。……でしょ? ぜんぶだよ。ぜんぶ、ちゃんと。……ちゃんとしてるでしょ?", KFace),
+        (2, "「全部に丸がついてる」！　完璧でしょ？", KFace),
     };
 
     // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
@@ -358,6 +358,8 @@ public partial class StageKoharu : Node
         //   ★の行は迷い秒ゲート（s2_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
         (2, ClearHesitated, KFace),          // ★s2_4 で迷ったときだけ
         (2, "……あの手。……ペンライト、ちゃんと振ってた。……点いてなくても。", KFace),
+        (2, "画面の向こうの、あなた。……あたし、ちゃんとしてないとこまで見られちゃったね。", KFace),
+        (2, "でも今、話しかけたい。できた話ばっかりじゃなくても、また聞いてほしいな。", KFace),
         (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", MFace),   // 空の問い・二度目
         (1, "…………。", MFace),   // 二度目は無言で流す
     };
@@ -894,6 +896,17 @@ public partial class StageKoharu : Node
     // 撃破（HP/サイクル削り切り＝改心）して捨て台詞を流し切る（Finished）まで Stage は進まない。保険退場は無し。
     private void Step_BossCameo(double delta)
     {
+        if (!_lunatic && !_cameoIntroDone)
+        {
+            if (!_cameoIntroStarted)
+            {
+                _cameoIntroStarted = true;
+                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
+                CameoIntroScene.Play(Hud, World, "koharu", CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    () => _cameoIntroDone = true);
+            }
+            return;
+        }
         if (!_stepStarted)
         {
             _stepStarted = true;
@@ -915,7 +928,7 @@ public partial class StageKoharu : Node
                     Aura = FxLayer.BossAura.Koharu,
                     Bgm = Audio.Instance?.BgmBossKoharu,
                     // 第一声は s2_1（壁の予定表・step 3）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
-                    IntroLines = CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    IntroLines = _lunatic ? CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")) : System.Array.Empty<(int, string, string)>(),
                     TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
@@ -957,10 +970,13 @@ public partial class StageKoharu : Node
             GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
-            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。ルナティックは口上ごと出さない＝消費もしない。
-            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
             Advance();
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "koharu", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            });
         }
     }
 

@@ -160,11 +160,11 @@ public partial class CustomizeQa : Node
             Check(Read<int>(hub, "_homeSel") == 4, "down reaches the customization app on the second row");
             await Shot("home");
             Call(hub, "OpenHomeApp", 4);
-            await Frames(80);
+            await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene is Customize, "home icon opens customization app");
             var opened = (Customize)GetTree().CurrentScene;
             Call(opened, "Leave");
-            await Frames(5);
+            await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene is Hub, "back returns to phone home");
             GetTree().CurrentScene.QueueFree();
             await Frames(4);
@@ -232,10 +232,9 @@ public partial class CustomizeQa : Node
             {
                 Call(player, "ApplySpinFrame", Mathf.Tau * (i + 0.1f) / 8);
                 Check(sprite.Texture.ResourcePath == outfit.PosePath($"spin_{i:00}"), "dodge retains equipped costume");
-                // 戦闘中の自機は 2026-09-27 から「中身（不透明部分）の高さ」を 36px に正規化する（Player.ScaleFor →
-                // UiKit.PortraitScale）。追加衣装の素材は余白つきでテクスチャ全体の高さでは 36 にならないため、中身で測る。
-                Check(Mathf.IsEqualApprox(sprite.Scale.Y * UiKit.ContentRect(sprite.Texture).Size.Y, 36),
-                    "dodge scale remains stable");
+                var fit = PlayerArt.Fit(sprite.Texture);
+                Check(Mathf.IsEqualApprox(sprite.Scale.Y * fit.HeadHeight, fit.GameHeadHeight),
+                    "dodge head scale remains stable");
             }
             Call(player, "SpawnTrail");
             Check(Read<List<Sprite2D>>(player, "_trail").Last().Texture.ResourcePath.Contains("costume_v1"), "afterimage retains outfit");

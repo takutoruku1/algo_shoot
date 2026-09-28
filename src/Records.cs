@@ -100,7 +100,7 @@ public partial class Records : Node2D
         if (_leaving) return;
         _leaving = true;
         Audio.Instance?.PlayUiCancel();
-        GetTree().ChangeSceneToFile("res://Hub.tscn");
+        GameManager.FadeToScene(this, "res://Hub.tscn");
     }
 
     public override void _Process(double delta)

@@ -5,25 +5,6 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
-// 検証ハーネス（QA・2026-09-27）：作者指摘「服のショップで、キャラクターのサイズが違うからサイズを統一して」
-//   「ショップの回避時の位置がおかしいんだな」への対応＝立ち絵を「中身（不透明部分）の高さ」でそろえ、
-//   「中身の足元」を固定の基準線に置く方式（UiKit.ContentRect / PortraitScale / DrawPortrait*）を確かめる。
-//   ① ContentRect が素材の余白を落としている（既定衣装＝生成時に切り詰め済み／追加衣装＝720 前後の余白つき）。
-//      薄い縁の汚れ（α 1〜15/255）で Image.GetUsedRect() が過大になる絵があることも数値で残す。
-//   ② カスタマイズの大プレビュー：8アイテム（4キャラ × 既定/追加衣装）で idle の中身の高さが同一（±1px）。
-//   ③ 同じアイテムならポーズ（通常／照準／回避5コマ）を替えても倍率と足元 Y が動かない。
-//   ④ どのポーズでも中身が枠（Customize.PreviewFrame）からはみ出さない。
-//   ⑤ 一覧のサムネ（Customize.ThumbBox）とショップの自機枠（Shop.CharArea）も同じ条件を満たす。
-//   ⑥ ContentRect がキャッシュされている（2周目は UiKit.ContentRectScans が増えない＝GetImage() を呼び直さない）。
-//   ⑦ （--ps-shot のみ・窓あり）カスタマイズ 4キャラ×3ポーズ＝12枚とショップ 4枚を撮り、横に並べた比較画像
-//      （compare_idle / compare_dodge / compare_costume / compare_poses_<id> / compare_shop）を合成する。
-//      合成画像には足元の基準線を横断で引く＝そろっていなければ一目で分かる。
-//      さらに「実際に DrawPortraitScaled が塗った画素の外接」をマゼンタ下地の上で測り、計算どおりの
-//      位置・大きさか（左右反転しても中身の中心が動かないか）を画素で押さえる。
-//   使い方（実セーブを汚さないよう APPDATA=build/qa_story/portrait_appdata を渡す）:
-//     ヘッドレス : Godot --headless --path . res://tools/qa_portrait_size.tscn
-//     撮影つき（窓あり。ヘッドレスでは画面が撮れない）:
-//                  Godot --path . res://tools/qa_portrait_size.tscn -- --ps-shot [--ps-out <絶対パス>]
 public partial class PortraitSizeQa : Node2D
 {
     private const BindingFlags SPriv = BindingFlags.Static | BindingFlags.NonPublic;
@@ -46,8 +27,8 @@ public partial class PortraitSizeQa : Node2D
     private string _out = "build/shots_portrait";
     // 画素で測るとき用：マゼンタ下地の上に立ち絵1枚だけを描く板（この QA ノード自身が描く）。
     private Texture2D? _probeTex;
-    private Vector2 _probeFoot;
-    private float _probeScale = 1f;
+    private Vector2 _probeCenter;
+    private float _probeHeight = 1f;
     private bool _probeFlip;
     private static readonly Color Plate = new(1f, 0f, 1f);
 
@@ -56,7 +37,7 @@ public partial class PortraitSizeQa : Node2D
         if (_probeTex == null) return;
         UiKit.BeginDesign(this);
         DrawRect(new Rect2(0, 0, UiKit.DesignW, UiKit.DesignH), Plate);
-        UiKit.DrawPortraitScaled(this, _probeTex, _probeFoot, _probeScale, _probeFlip);
+        PlayerArt.Draw(this, _probeTex, _probeCenter, _probeHeight, _probeFlip);
         UiKit.EndDesign(this);
     }
 
@@ -97,7 +78,7 @@ public partial class PortraitSizeQa : Node2D
         float previewH = Stat<float>(typeof(Customize), "PreviewContentH");
         float thumbH = Stat<float>(typeof(Customize), "ThumbContentH");
         var frame = Stat<Rect2>(typeof(Customize), "PreviewFrame");
-        var foot = Stat<Vector2>(typeof(Customize), "PreviewFoot");
+        var foot = Stat<Vector2>(typeof(Customize), "PreviewCenter");
         GD.Print($"[PS] info カスタマイズ：枠={Fmt(frame)} 中身の高さ={previewH:0.#} 足元={foot.X:0.#},{foot.Y:0.#} サムネの中身の高さ={thumbH:0.#}");
 
         int scansBefore = UiKit.ContentRectScans;
@@ -159,31 +140,26 @@ public partial class PortraitSizeQa : Node2D
     // ── ②③④ 大プレビュー ──
     private void CheckPreview(float previewH, Rect2 frame, Vector2 foot)
     {
-        var idleHeights = new List<float>();
         foreach (var item in Costumes)
-        {
-            var idle = GD.Load<Texture2D>(item.PosePath("idle"));
-            float scale = UiKit.PortraitScale(idle, previewH);
             foreach (string pose in Poses)
-            {
-                var tex = GD.Load<Texture2D>(item.PosePath(pose));
-                // 画面側と同じ呼び方：倍率は idle で一度だけ決め、全ポーズで流用する。
-                float poseScale = UiKit.PortraitScale(idle, previewH);
-                var rect = UiKit.PortraitRect(tex, foot, poseScale);
-                var c = UiKit.ContentRect(tex);
-                var old = OldFit(tex, c, frame);
-                GD.Print($"[PS] info {Label(item)} {pose}: 中身={c.Size.X}x{c.Size.Y}@({c.Position.X},{c.Position.Y}) "
-                    + $"倍率={poseScale:0.0000} 画面={Fmt(rect)}  ／旧方式 倍率={old.Scale:0.0000} 高さ={old.Rect.Size.Y:0.#} 足元Y={old.Rect.End.Y:0.#}");
-                Check($"{Label(item)} {pose}：倍率が idle と同じ（{poseScale:0.0000}）", Mathf.IsEqualApprox(poseScale, scale));
-                Check($"{Label(item)} {pose}：足元 Y が動かない（{rect.End.Y:0.###} 期待 {foot.Y:0.###}）",
-                    Mathf.Abs(rect.End.Y - foot.Y) < 0.01f);
-                Check($"{Label(item)} {pose}：中身が枠からはみ出さない（画面 {Fmt(rect)} ⊂ 枠 {Fmt(frame)}）", Inside(rect, frame));
-                if (pose == "idle") idleHeights.Add(rect.Size.Y);
-            }
-        }
-        float lo = idleHeights.Min(), hi = idleHeights.Max();
-        Check($"8アイテム（4キャラ×既定/追加衣装）の idle の中身の高さが同一（{lo:0.###}〜{hi:0.###} 期待 {previewH:0.###}）",
-            hi - lo < 1f && Mathf.Abs(hi - previewH) < 0.01f);
+                foreach (bool flip in new[] { false, true })
+                {
+                    var tex = GD.Load<Texture2D>(item.PosePath(pose));
+                    var fit = PlayerArt.Fit(tex);
+                    var rect = PlayerBounds(tex, foot, previewH, flip);
+                    Check($"{item.Id}/{pose}: preview fits", Inside(rect, frame));
+                    Check($"{item.Id}/{pose}: preview keeps calibrated head size",
+                        Mathf.IsEqualApprox(fit.Scale(previewH) * fit.HeadHeight, fit.GameHeadHeight * previewH / 36f));
+                }
+    }
+
+    private static Rect2 PlayerBounds(Texture2D tex, Vector2 center, float height, bool flip = false)
+    {
+        var draw = PlayerArt.TextureRect(tex, center, height, flip);
+        var content = UiKit.ContentRect(tex);
+        float scale = PlayerArt.Fit(tex).Scale(height);
+        float x = flip ? tex.GetWidth() - content.End.X : content.Position.X;
+        return new Rect2(draw.Position + new Vector2(x, content.Position.Y) * scale, (Vector2)content.Size * scale);
     }
 
     // ── ⑤a 一覧のサムネ ──
@@ -195,7 +171,6 @@ public partial class PortraitSizeQa : Node2D
         await Frames(4);
         Write(menu, "_tab", 1);
         Call(menu, "RefreshItems");   // 段を切り替えたら必ず一覧も作り直す（画面側と同じ順）
-        var heights = new List<float>();
         foreach (var job in Jobs.All)
         {
             int ci = Array.FindIndex(Read<JobTuning[]>(menu, "_characters"), j => j.Id == job.Id);
@@ -208,14 +183,10 @@ public partial class PortraitSizeQa : Node2D
                 var card = (Rect2)Call(menu, "ItemRect", i)!;
                 var box = (Rect2)typeof(Customize).GetMethod("ThumbBox", SPriv)!.Invoke(null, new object[] { card })!;
                 var tex = GD.Load<Texture2D>(items[i].PosePath("idle"));
-                var rect = UiKit.PortraitRect(tex, new Vector2(box.GetCenter().X, box.End.Y - 2),
-                    UiKit.PortraitScale(tex, thumbH));
-                heights.Add(rect.Size.Y);
+                var rect = PlayerBounds(tex, box.GetCenter(), thumbH);
                 Check($"サムネ {Label(items[i])}：枠 {Fmt(box)} に収まる（画面 {Fmt(rect)}）", Inside(rect, box));
             }
         }
-        Check($"サムネの中身の高さが全アイテムで同一（{heights.Min():0.###}〜{heights.Max():0.###} 期待 {thumbH:0.###}）",
-            heights.Max() - heights.Min() < 1f && Mathf.Abs(heights.Max() - thumbH) < 0.01f);
         // カーソルは立ち絵ではないので枠フィットのまま（中身の高さでそろえると 34x40 の矢印が枠からはみ出す）。
         Write(menu, "_tab", 0);
         Call(menu, "RefreshItems");
@@ -361,14 +332,13 @@ public partial class PortraitSizeQa : Node2D
         foreach (var item in Costumes)
             foreach (var (pose, flip) in new[] { ("idle", false), ("spin_02", false), ("spin_02", true) })
             {
-                var idle = GD.Load<Texture2D>(item.PosePath("idle"));
                 _probeTex = GD.Load<Texture2D>(item.PosePath(pose));
-                _probeFoot = foot;
-                _probeScale = UiKit.PortraitScale(idle, previewH);
+                _probeCenter = foot;
+                _probeHeight = previewH;
                 _probeFlip = flip;
                 QueueRedraw();
                 using var img = await Grab();
-                var want = UiKit.PortraitRect(_probeTex, foot, _probeScale);
+                var want = PlayerBounds(_probeTex, foot, _probeHeight, flip);
                 var got = InkRect(img);
                 // 拡大補間の縁と、α が閾値ぎりぎりの画素ぶんの誤差を見込む。
                 float d = Mathf.Max(
@@ -380,14 +350,6 @@ public partial class PortraitSizeQa : Node2D
         Visible = false;
         QueueRedraw();
         await Frames(2);
-    }
-
-    // ── 旧方式（テクスチャ全体を枠へ Mathf.Min でフィットし、枠の中心に置く）の再現。比較のため数値だけ出す ──
-    private static (float Scale, Rect2 Rect) OldFit(Texture2D tex, Rect2I c, Rect2 area)
-    {
-        float scale = Mathf.Min(area.Size.X / tex.GetWidth(), area.Size.Y / tex.GetHeight());
-        var pos = area.GetCenter() - tex.GetSize() * scale / 2f;
-        return (scale, new Rect2(pos.X + c.Position.X * scale, pos.Y + c.Position.Y * scale, c.Size.X * scale, c.Size.Y * scale));
     }
 
     // ショップの旧方式は枠より狭い 228 を横の上限に使っていた（Shop.DrawCharacter の元コード）。

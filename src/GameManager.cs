@@ -1967,11 +1967,11 @@ public partial class GameManager : Node
                       //   居ないので BossReached が立たず、この行にも来ない。
                 game?.PrepareBossRetry(bossCheckpoint: root is AkariRoot or KoharuRoot or ReiRoot or MinaRoot);
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                root.GetTree().ReloadCurrentScene();
+                GameManager.FadeToScene(root, root.GetTree().CurrentScene.SceneFilePath);
                 return true;
             case 1:   // 最初からやり直す＝Shift+R と同じ経路（SelectedEntry に触らない）
                 root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-                root.GetTree().ReloadCurrentScene();
+                GameManager.FadeToScene(root, root.GetTree().CurrentScene.SceneFilePath);
                 return true;
             default:  // ステージから抜ける＝Q と同じ経路
                 ExitToHub(root, game, hud);
@@ -2015,99 +2015,8 @@ public partial class GameManager : Node
         game?.AutoSave();
         root.GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
         Audio.Instance?.PlayUiCancel();
-        root.GetTree().ChangeSceneToFile("res://Hub.tscn");
+        GameManager.FadeToScene(root, "res://Hub.tscn");
     }
 
-    // ───────── シーン遷移の暗幕（2026-09-22）─────────
-    // ChangeSceneToFile は**その場で**現シーンを捨てて次を建てるので、切り替えの1フレームに
-    //   直前の画面（＝ボス撃破後もボス背景が出たままのステージ。StageBackground は EnterBoss 後
-    //   Mode.Boss から戻らない）がそのまま映り、ボスのイラストがフラッシュして見えていた。
-    //   ユーザー実機指摘「ステージ切り替えとかで（ボスのステージイラストが）表示される」。
-    //
-    // 対処：遷移の前に全画面の黒を張って**暗転しきってから**シーンを差し替える。
-    //   ・幕は GameManager（Autoload）が自前の CanvasLayer に持つ＝シーンの解放に巻き込まれない。
-    //     呼び出し側のシーンに ColorRect を生やすと ChangeSceneToFile で一緒に消えて意味が無い。
-    //   ・新シーンの _Ready が走ったあとに幕を引く（明転）。遷移先が自前のフェードインを持つ画面
-    //     （Prologue 等）でも、黒→絵 の順序は壊れない。
-    //   ・Layer を極端に上げて PauseMenu/Hud より手前に置く。ProcessMode=Always＝ツリー停止中でも進む。
-    private SceneCurtain _curtainLayer = null!;
-    private ColorRect _curtain = null!;
-    private string _curtainDest = "";
-    private double _curtainT;
-    private int _curtainPhase;   // 0=休止 1=暗転中 2=遷移直後の明転
-    private const double CurtainFall = 0.24, CurtainRise = 0.3;
-
-    // 暗転してからシーンを切り替える。dest は res:// のシーンパス。
-    //   既に暗転中なら二重には受けない（連打・二重遷移の保険）。
-    public void FadeToScene(string dest)
-    {
-        if (_curtainPhase == 1) return;
-        _curtainDest = dest;
-        _curtainPhase = 1;
-        _curtainT = 0;
-        EnsureCurtain();
-        _curtain.Visible = true;
-    }
-
-    // 呼び出し側が Node しか持っていない場所からの入り口（静的ヘルパ）。
-    //   Autoload が居なければ従来どおり即遷移する＝幕のために進行を止めない。
-    public static void FadeToScene(Node from, string dest)
-    {
-        var game = Instance ?? from.GetNodeOrNull<GameManager>("/root/Game");
-        if (game != null) game.FadeToScene(dest);
-        else from.GetTree().ChangeSceneToFile(dest);
-    }
-
-    private void EnsureCurtain()
-    {
-        if (IsInstanceValid(_curtainLayer)) return;
-        // 幕は GameManager 自身の _Process ではなく、この CanvasLayer が自前で進める。
-        //   カットシーン（StoryFilm/MinaPhaseScene）は GameManager.ProcessMode を Disabled に落とすので、
-        //   GameManager の _Process に相乗りすると暗転の途中で幕が凍りつく可能性がある。
-        _curtainLayer = new SceneCurtain { Name = "SceneCurtain", Layer = 256, Owner_ = this };
-        AddChild(_curtainLayer);
-        _curtain = new ColorRect
-        {
-            Name = "Curtain",
-            Color = new Color(0, 0, 0, 0),
-            Size = new Vector2(384, 216),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Visible = false,
-        };
-        _curtainLayer.AddChild(_curtain);
-        _curtainLayer.ProcessMode = ProcessModeEnum.Always;
-    }
-
-    // SceneCurtain が毎フレーム呼ぶ。暗転しきったフレームで ChangeSceneToFile し、次から明転へ。
-    internal void TickCurtain(double delta)
-    {
-        if (_curtainPhase == 0) return;
-        _curtainT += delta;
-        if (_curtainPhase == 1)
-        {
-            float k = Mathf.Clamp((float)(_curtainT / CurtainFall), 0, 1);
-            _curtain.Color = new Color(0, 0, 0, k);
-            if (k < 1) return;
-            // 暗転しきった。ここで初めてシーンを差し替える＝切り替わりの瞬間は黒一色。
-            GetTree().ChangeSceneToFile(_curtainDest);
-            _curtainPhase = 2;
-            _curtainT = 0;
-            return;
-        }
-        // 明転。新シーンの _Ready はもう走っている。
-        float r = Mathf.Clamp((float)(_curtainT / CurtainRise), 0, 1);
-        _curtain.Color = new Color(0, 0, 0, 1 - r);
-        if (r < 1) return;
-        _curtain.Visible = false;
-        _curtainPhase = 0;
-    }
-}
-
-// シーン遷移の暗幕を載せる CanvasLayer。幕の時間を**自分で**進めるためだけに _Process を持つ。
-//   GameManager._Process に相乗りしない理由は EnsureCurtain のコメント参照
-//   （カットシーンが GameManager.ProcessMode を Disabled に落とすため）。
-public partial class SceneCurtain : CanvasLayer
-{
-    public GameManager Owner_ = null!;
-    public override void _Process(double delta) => Owner_?.TickCurtain(delta);
+    public static void FadeToScene(Node from, string dest) => LoadingScreen.Open(from, dest);
 }

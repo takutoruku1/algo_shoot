@@ -125,7 +125,7 @@ public partial class MinaRoot : Node2D
             if (gameOver && !Input.IsKeyPressed(Key.Shift))
                 GetNode<GameManager>("/root/Game").PrepareBossRetry();
             GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-            GetTree().ReloadCurrentScene();
+            GameManager.FadeToScene(this, GetTree().CurrentScene.SceneFilePath);
             return;
         }
         Hud?.SetRetryHold(_retry.Progress);

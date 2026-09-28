@@ -68,7 +68,8 @@ public partial class OpeningFilm : Node2D
     private readonly (Vector2[] Points, int[] Triangles)[] _postMeshes = new (Vector2[], int[])[4];
     private static readonly Rect2 PostRect = new(-155, -95, 310, 190);
     private JobTuning[] _cast = null!;
-    private Texture2D _city = null!, _light = null!, _space = null!, _message = null!;
+    private Texture2D _city = null!, _light = null!, _message = null!;
+    private OpeningBackdrop _space = null!;
     private Texture2D _post = null!;
     private Texture2D _phoneArt = null!;
     private FontFile _filmFont = null!, _titleFont = null!;
@@ -111,7 +112,7 @@ public partial class OpeningFilm : Node2D
         }
         _city = GD.Load<Texture2D>("res://char/bg2/title/L1_far.png");
         _light = GD.Load<Texture2D>("res://char/bg2/title/L4_light_warm.png");
-        _space = GD.Load<Texture2D>("res://char/bg2/prologue/bg_p4_unsent.png");
+        _space = new OpeningBackdrop();
         _phoneArt = GD.Load<Texture2D>("res://char/bg2/opening/op_phone_v1.png");
         _phoneTime = DateTime.Now.ToString("HH:mm");
         _message = GD.Load<Texture2D>("res://char/v3/fx/rei/bubble_empty_1.png");
@@ -296,8 +297,8 @@ public partial class OpeningFilm : Node2D
         if (shot == 0)
         {
             float pull = Ease((t - 6.1f) / 2.4f);
-            Background(_space, 1.18f - pull * 0.1f, new Vector2(-38 + pull * 30, 10), alpha * (0.42f + pull * 0.3f));
-            DrawRect(Screen, new Color(0.015f, 0.022f, 0.025f, alpha * (0.78f - pull * 0.2f)));
+            _space.Draw(this, Screen, 3, 3, 1f, (float)Elapsed, alpha * (0.65f + pull * 0.2f));
+            DrawRect(Screen, new Color(0.015f, 0.022f, 0.025f, alpha * (0.5f - pull * 0.15f)));
             DrawPhone(t, alpha);
         }
         else if (shot <= 3)

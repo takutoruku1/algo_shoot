@@ -1,0 +1,13 @@
+{
+  "tool": "image_gen built-in",
+  "use_case": "style-transfer",
+  "output": "char/v3/mina_conversation_v1.png",
+  "scope": "CameoIntroScene only; existing Mina artwork remains unchanged.",
+  "references": [
+    "char/mina_worried.png",
+    "char/v3/akari_face.png",
+    "char/v3/koharu_face.png",
+    "char/v3/rei_gawa.png"
+  ],
+  "prompt": "Use case: style-transfer.\nAsset type: transparent waist-up conversation standing portrait for the Japanese game Refrain, NOT a gameplay sprite.\nInput images: Image 1 is the EDIT TARGET, Mina with long silver-white hair, blue eyes and a navy-and-white maid uniform. Images 2 (Akari), 3 (Koharu) and 4 (Rei) are STYLE REFERENCES ONLY; do not put any of them in the output.\nPrimary request: redraw Mina so she looks painted by the very same artist as the three reference conversation portraits, especially Akari in image 2. Keep Mina recognizably the same person and retain her existing costume design, long silver-white hair, front braids, white frilled maid headdress, navy dress, white apron and collar, navy neck bow, oval blue brooch. Do not redesign the character or change her apparent age.\nStyle: clean, restrained hand-drawn 2D Japanese anime visual-novel standing art. Match the other three characters' thin consistent charcoal/brown contours, simple grouped hair masses, flat base colors and clear single-step cel shadows. Less intricate hair detail than image 1, no airbrushed or glossy volumetric shading. Match Akari's natural face proportions, modest eye size and mature facial contour; no chibi head. No 3D or doll-like finish. Skin should have the warm neutral tone of image 2, not icy violet lighting.\nPose and expression: upright relaxed waist-up pose, face nearly frontal with a slight turn toward the viewer's right, quietly attentive and approachable, mouth gently relaxed, not smiling broadly and not frightened, droopy, tearful or glaring. Maintain Mina's reserved personality. Natural shoulders and body proportions consistent with the references.\nComposition: one character only, centered, vertical 2:3 portrait, complete headdress and hair sides visible with very small transparent margins. Crop naturally at waist at the bottom, matching the waist-up framing of image 2. Shoulders and both upper arms visible. The illustration must be usable over the in-game room background at approximately 420 pixels high beside the references.\nBackground: genuinely transparent PNG with clean alpha outside the character and between hair strands. No painted checkerboard, no solid color background, no scenery, no vignette, no ground shadow, no halo, no mist, no decorative frame. No text, watermark, signature or extra objects. Preserve only the character."
+}

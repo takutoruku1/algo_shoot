@@ -296,6 +296,9 @@ public partial class StageMina : Node
             GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "mina", System.Array.Empty<(int, string, string)>(), () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+            });
         }
     }
 

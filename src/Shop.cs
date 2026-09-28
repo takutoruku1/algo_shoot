@@ -146,7 +146,7 @@ public partial class Shop : Node2D
         {
             _exitDelayT -= delta;
             QueueRedraw();
-            if (_exitDelayT <= 0) GetTree().ChangeSceneToFile(_pendingExitDest);
+            if (_exitDelayT <= 0) GameManager.FadeToScene(this, _pendingExitDest);
             return;
         }
         if (_autoplay) { ExitShop(); return; }
@@ -243,7 +243,7 @@ public partial class Shop : Node2D
     private void EnterTraining()
     {
         Audio.Instance?.PlayUiConfirm();
-        GetTree().ChangeSceneToFile("res://Training.tscn");
+        GameManager.FadeToScene(this, "res://Training.tscn");
     }
 
     // Z（または「買う」ボタン／選択中の段の再クリック）で呼ばれる。買えない理由はトーストで返す。

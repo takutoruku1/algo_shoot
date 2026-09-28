@@ -133,7 +133,7 @@ public partial class Credits : Node2D
     public override void _Process(double delta)
     {
         _t += delta;
-        if (_autoplay) { GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); return; }
+        if (_autoplay) { GameManager.FadeToScene(this, "res://TitleMenu.tscn"); return; }
         // 上のオーバーレイを閉じた Esc 等の同じ押下が「もどる」として漏れないよう食う（Records と同じ防御）。
         if (Pad.UiBlocked(this)) { _backHeld = true; QueueRedraw(); return; }
 
@@ -151,7 +151,7 @@ public partial class Credits : Node2D
 
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B);
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GameManager.FadeToScene(this, "res://TitleMenu.tscn"); }
 
         QueueRedraw();
     }

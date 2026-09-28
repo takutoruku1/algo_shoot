@@ -204,7 +204,7 @@ public partial class DiffSelect : Node2D
         bool back = Input.IsKeyPressed(Key.X) || Input.IsKeyPressed(Key.Escape) || Pad.Pressed(JoyButton.B)
                     || Pad.MouseRightClick();
         bool backEdge = back && !_backHeld; _backHeld = back;
-        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GetTree().ChangeSceneToFile("res://Hub.tscn"); }
+        if ((backEdge || clickBack) && _t > 0.2) { Audio.Instance?.PlayUiCancel(); GameManager.FadeToScene(this, "res://Hub.tscn"); }
 
         QueueRedraw();
     }
@@ -223,7 +223,7 @@ public partial class DiffSelect : Node2D
         if (_game != null && _game.SelectedJob != Job.Tank && GameManager.StageIdForScene(scene) != null)
             _game.RegisterCharacterDive(_game.SelectedJob);
         GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
-        GetTree().ChangeSceneToFile(scene);
+        GameManager.FadeToScene(this, scene);
     }
 
     public override void _Draw()

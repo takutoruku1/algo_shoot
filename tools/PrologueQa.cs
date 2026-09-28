@@ -29,6 +29,13 @@ public partial class PrologueQa : Node
             GetNode<GameManager>("/root/Game").MsgCharsPerSec = 300;
             await Frames(1);
 
+            if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--backdrop"))
+            {
+                await CheckBackdrop();
+                await Finish();
+                return;
+            }
+
             if (Array.Exists(OS.GetCmdlineUserArgs(), arg => arg == "--erase"))
             {
                 var erase = GD.Load<PackedScene>("res://Prologue.tscn").Instantiate<Prologue>();
@@ -65,9 +72,10 @@ public partial class PrologueQa : Node
                 GetTree().Root.AddChild(pro);
                 GetTree().CurrentScene = pro;
                 await Frames(60);
-                var backgrounds = Read<Texture2D[]>(pro, "_backgrounds");
-                Check(backgrounds.Length == 4, "four opening backgrounds loaded");
-                foreach (var texture in backgrounds)
+                var artwork = Read<OpeningBackdrop>(pro, "_backdropArt");
+                var layers = Read<Texture2D[]>(artwork, "_cards");
+                Check(layers.Length == 3, "inactive, timeline and unsent card layers loaded");
+                foreach (var texture in layers)
                     Check(texture.ResourcePath.StartsWith("res://char/bg2/prologue/") && texture.GetWidth() > 1000,
                         $"background resource {texture.ResourcePath}");
 
@@ -141,7 +149,8 @@ public partial class PrologueQa : Node
                     && Read<string>(toast, "_handle") == GameManager.Stages[0].Handle);
                 var firstPost = Read<PostToast>(pro, "_toast");
                 Check(Read<string>(firstPost, "_body") == GameManager.Stages[0].Tweet, "opening shows the first stage's actual SNS post");
-                Check(Read<Texture2D>(firstPost, "_iconTex").ResourcePath.Contains("/player/akari/"), "first stage post uses Akari's portrait");
+                Check(Read<Texture2D>(firstPost, "_iconTex").ResourcePath == CompanionDialogue.AccountIcon(GameManager.FirstStageId),
+                    "first stage post uses the current SNS account portrait");
                 if (route == 0) await Shot("first_stage_post");
                 await AdvanceUntil(() => Read<int>(pro, "_phase") == 6);
                 Check(GameManager.MinaNamed && pro.GetNodeOrNull<OpeningFilm>("OpeningFilm") != null,
@@ -294,25 +303,77 @@ public partial class PrologueQa : Node
             if (Read<int>(pro, "_phase") == 1) Check(new Rect2(0, 0, 384, 216).Encloses(device), "resting device fits the viewport");
             return;
         }
-        var backgrounds = Read<Texture2D[]>(pro, "_backgrounds");
-        int index = Read<int>(pro, "_backdrop"), previous = Read<int>(pro, "_previousBackdrop");
-        using var reference = backgrounds[index].GetImage();
-        using var old = backgrounds[previous].GetImage();
-        float k = Read<float>(pro, "_backdropMix");
-        k = k * k * (3f - 2f * k);
-        int matches = 0, samples = 0;
-        foreach (float y in new[] { 0.03f, 0.2f, 0.45f, 0.65f })
-            foreach (float x in new[] { 0.015f, 0.985f })
-            {
-                Color a = image.GetPixel((int)(image.GetWidth() * x), (int)(image.GetHeight() * y));
-                Color b = reference.GetPixel((int)(reference.GetWidth() * x), (int)(reference.GetHeight() * y));
-                Color c = old.GetPixel((int)(old.GetWidth() * x), (int)(old.GetHeight() * y));
-                b *= index == 0 ? 0.65f : 1f;
-                c *= previous == 0 ? 0.65f : 1f;
-                Color expected = c.Lerp(b, k);
-                if (Mathf.Abs(a.R - expected.R) + Mathf.Abs(a.G - expected.G) + Mathf.Abs(a.B - expected.B) < 0.12f) matches++;
-                samples++;
-            }
-        Check(matches >= samples - 1, $"{name} renders the expected full-bleed background ({matches}/{samples})");
+        CheckEdges(image, name);
     }
+
+    private static void CheckEdges(Image image, string name)
+    {
+        foreach (float y in new[] { 0.03f, 0.2f, 0.45f, 0.65f })
+            foreach (float x in new[] { 0.001f, 0.999f })
+            {
+                Color pixel = image.GetPixel((int)(image.GetWidth() * x), (int)(image.GetHeight() * y));
+                if (pixel.R + pixel.G + pixel.B < 0.025f)
+                    throw new Exception($"{name}: uncovered edge at {x}, {y}");
+            }
+        Check(true, $"{name}: illustrated background covers the moving edges");
+    }
+
+    private async Task CheckBackdrop()
+    {
+        var preview = new OpeningBackdropPreview();
+        AddChild(preview);
+        foreach (var texture in Read<Texture2D[]>(preview.Artwork, "_cards"))
+        {
+            using var source = texture.GetImage();
+            Check(source.DetectAlpha() != Image.AlphaMode.None, "card artwork has real transparency");
+            Check(source.GetPixel(source.GetWidth() / 2, source.GetHeight() / 2).A == 0,
+                "card layers leave the dialogue character area transparent");
+        }
+        for (int phase = 0; phase < 4; phase++)
+        {
+            preview.Phase = phase;
+            preview.Time = 0;
+            preview.QueueRedraw();
+            await Shot($"layered_{phase}_start");
+            using var first = GetViewport().GetTexture().GetImage();
+            CheckEdges(first, $"layered {phase} start");
+            preview.Time = 3.2f;
+            preview.QueueRedraw();
+            await Shot($"layered_{phase}_moving");
+            using var second = GetViewport().GetTexture().GetImage();
+            CheckEdges(second, $"layered {phase} moving");
+            int changed = 0;
+            for (int y = first.GetHeight() / 5; y < first.GetHeight() * 3 / 4; y += 4)
+                for (int x = first.GetWidth() / 10; x < first.GetWidth() / 3; x += 4)
+                {
+                    Color a = first.GetPixel(x, y), b = second.GetPixel(x, y);
+                    if (Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B) > 0.06f) changed++;
+                }
+            Check(changed > 50, $"phase {phase} produces visible parallax ({changed} changed samples)");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(960, 540));
+        preview.Phase = 2;
+        await Frames(3);
+        string frames = $"{_out}/motion";
+        DirAccess.MakeDirRecursiveAbsolute(frames);
+        for (int i = 0; i < 120; i++)
+        {
+            preview.Time = i / 15f;
+            preview.QueueRedraw();
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            if (image.SavePng($"{frames}/frame_{i:000}.png") != Error.Ok)
+                throw new Exception($"Could not save motion frame {i}");
+        }
+        Check(true, "120 motion-preview frames captured at 960x540");
+        preview.QueueFree();
+    }
+}
+
+public partial class OpeningBackdropPreview : Node2D
+{
+    public OpeningBackdrop Artwork { get; } = new();
+    public int Phase;
+    public float Time;
+    public override void _Draw() => Artwork.Draw(this, new Rect2(0, 0, 384, 216), Phase, Phase, 1f, Time);
 }

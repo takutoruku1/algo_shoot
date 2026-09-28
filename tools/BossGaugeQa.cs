@@ -117,11 +117,18 @@ public partial class BossGaugeQa : Node
 
         // ── ⑦ 塗りの色分け：無敵＝灰＋斜線／BREAK＝金 ──
         await PhaseColors(hud, cameo);
+        await DamageTrail(hud, g1[0]);
 
         // ── ④ 2体目（本ボス相当）：自身の _Ready で ShowBossBar(..., this) ──
         _pin[cameo] = new Vector2(Field.CenterX - 60, 150);   // 1体目は脇へどける
         var old = g1.Length == 1 ? g1[0] : null;
-        var second = SpawnCameo(root, "SecondBoss", new Vector2(Field.CenterX + 40, 100));
+        var second = new BossAkari { Name = "SecondBoss" };
+        root.World.AddChild(second);
+        second.SetPhysicsProcess(false);
+        var caster = (AreaSpellCaster)BaseField(second, "_caster").GetValue(second)!;
+        caster.SetProcess(false);
+        caster.CancelPendingAttacks();
+        _pin[second] = new Vector2(Field.CenterX + 40, 100);
         // 同フレーム内では QueueFree 済みでもまだ木に居る。次フレーム以降で無効になっていること。
         await Frames(3);
         Check("1体目のゲージは QueueFree されて無効", old == null || !IsInstanceValid(old));
@@ -133,7 +140,19 @@ public partial class BossGaugeQa : Node
         s = hud.GaugeState;
         Check($"本ボス相当 6本中4本目（{s.Index + 1}/{s.Total} {s.Frac:0.00}）", s.Index == 3 && s.Total == 6 && Mathf.IsEqualApprox(s.Frac, 0.7f));
         await Shot("main_4of6");
+        await Zoom(g2[0], "main_zoom");
         await BandControl("main_4of6");
+        if (_shot)
+        {
+            foreach (Vector2I size in new[] { new Vector2I(960, 540), new(1920, 1080), new(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Frames(3);
+                await Shot($"main_{size.X}x{size.Y}");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            await Frames(3);
+        }
 
         // ── ⑤ HideBossBar：顔あり（BossHandles.AkariBar）＝改心の見送り ──
         await HideWithFace(hud, second);
@@ -219,6 +238,35 @@ public partial class BossGaugeQa : Node
 
         await Enter("Shielded", 0.0);   // 以降の項目のために盾へ戻す
         Check($"盾へ戻すと invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
+    }
+
+    private async Task DamageTrail(Hud hud, BossGauge gauge)
+    {
+        float Trail() => (float)BaseField(gauge, "_trail").GetValue(gauge)!;
+        hud.UpdateBossBar(1, 3, 1);
+        await Frames(2);
+        hud.UpdateBossBar(1, 3, 0.45f);
+        await Frames(2);
+        Check("damage trail holds the old health without delaying the actual health", Trail() > 0.9f && hud.GaugeState.Frac == 0.45f);
+        await Shot("damage_trail");
+        await Zoom(gauge, "damage_trail_zoom");
+        await Wait(0.6);
+        Check("damage trail settles to the current health", Mathf.IsEqualApprox(Trail(), 0.45f));
+        hud.UpdateBossBar(0, 3, 0.8f);
+        await Frames(2);
+        Check("new health bar resets the damage trail", Mathf.IsEqualApprox(Trail(), 0.8f));
+        for (int i = 0; i < 6; i++)
+        {
+            hud.UpdateBossBar(0, 3, 0.7f - i * 0.1f);
+            await Wait(0.1);
+        }
+        Check("continuous hits do not keep the damage trail full", Trail() < 0.6f);
+        foreach (float health in new[] { 0.0001f, 0f, 1f })
+        {
+            hud.UpdateBossBar(0, 1, health);
+            await Frames(2);
+            await Shot($"health_{health:0.0000}");
+        }
     }
 
     // ゲージ部分（バー＋残本数の点）をスクショから切り出して 3 倍（最近傍）で保存する。

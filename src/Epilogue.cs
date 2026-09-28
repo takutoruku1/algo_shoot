@@ -222,6 +222,9 @@ public partial class Epilogue : Node2D
         // H2r「ありがと、知らない人。」（Hub・ミナ宛）の日常語の再来。同じ言葉のまま宛先だけがご主人様に変わる
         //   （2026-09-26 docs/20260926 §3.5）。曲停止行は本文一致（SilenceLine）なので挿入で番号はずれない。
         G("こはる", "……ミナの後ろの人も、聞いてるんでしょ。——ありがと、知らない人。");
+        G("こはる", "名前、まだ知らないけど。今度は、なんでもない昼休みの話も、あなたにしたいな。");
+        G("あかり", "……あなたに、またね。すぐ返事がなくても、今度は、このまま置いておくね。");
+        G("レイ", "画面の向こうのあんたにも。次は、数字の話じゃなくて、本の続きを。……またね。");
         G("ミナ", "…………。");                                       // ここで曲を完全停止（無音）
         G("ミナ", "膨らんで、壊れてしまう前に。……拾えるところにいたい、と思います。");
         G("ミナ", "——できることは、数えることと、覚えていることだけ、ですが。");
@@ -302,7 +305,7 @@ public partial class Epilogue : Node2D
         //   Esc／M だけで開き、パッドの Start は読まない＝ここで Start を使える。2026-09-27）。
         if (_retry.Update(delta, Input.IsKeyPressed(Key.R) || Pad.Pressed(JoyButton.Start)))
         {
-            GetTree().ChangeSceneToFile(_phase >= PhRoll ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
+            GameManager.FadeToScene(this, _phase >= PhRoll ? "res://TitleMenu.tscn" : "res://Prologue.tscn");
             return;
         }
 
@@ -391,7 +394,7 @@ public partial class Epilogue : Node2D
                         _lineT = 0; _reveal = 0; _page = 0; _pagedKey = -1;
                         // 未提示の選択点に着いたら会話の途中＝次フレームの提示に譲る（Final F4 と同じ作法）。
                         if (_line < _end.Count - 1 || _e6ChoiceLine >= 0) _line++;
-                        else { GetTree().ChangeSceneToFile("res://TitleMenu.tscn"); return; }
+                        else { GameManager.FadeToScene(this, "res://TitleMenu.tscn"); return; }
                     }
                 }
                 break;

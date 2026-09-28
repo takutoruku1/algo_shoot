@@ -50,6 +50,7 @@ public partial class StageRei : Node
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // 撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険タイマー退場は廃止（撃たないと進めない）。
     private CameoBoss _cameo = null!;
+    private bool _cameoIntroStarted, _cameoIntroDone;
 
     // 操作チュートリアルは独立ステージ0（StageZero）へ一本化した（A案）。レイ面からは撤去済み。
 
@@ -119,7 +120,7 @@ public partial class StageRei : Node
     //   捨て台詞も笑顔のまま。第一声→RECLOSE（順送り）→捨て台詞、の三段で CameoBoss に渡す。
     private static readonly (int who, string text, string face)[] CameoTalk1 =
     {
-        (2, "……だれ? あなた。……わたしの配信、見に来た人?", RFace),   // 第一声。中の人。笑っていない
+        (2, "……だれ？　配信なら、終わったけど。", RFace),
     };
     // RECLOSE（サイクルごとに順送り）。切り替わったあとは笑顔のまま崩れない。
     private static readonly (int who, string text, string face)[] CameoTalk3 =
@@ -142,19 +143,19 @@ public partial class StageRei : Node
     // 「同接、9」
     private static readonly (int who, string text, string face)[] CameoTalk1_S32Count =
     {
-        (2, "……だれ? あなた。……「同接、9」って、言ってたでしょ。……数えたの、あなたなの?", RFace),
+        (2, "「同接、9」……数えたの、あなた？", RFace),
     };
 
     // 「ちゃんと見てる」
     private static readonly (int who, string text, string face)[] CameoTalk1_S32Watch =
     {
-        (2, "……だれ? あなた。……「ちゃんと見てる」って、さっき。……誰に言ったの、それ。わたしじゃ、ないわよね。", RFace),
+        (2, "「ちゃんと見てる」って。誰のこと？", RFace),
     };
 
     // 「見えてる」
     private static readonly (int who, string text, string face)[] CameoTalk1_S32See =
     {
-        (2, "……だれ? あなた。……「見えてる」って、言ってたわね。……見えてるなら、なんで、こっちは来ないのよ。", RFace),
+        (2, "「見えてる」なら、こっちに来なさいよ。", RFace),
     };
 
     // 中ボスの第一声を s3_2 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
@@ -313,6 +314,8 @@ public partial class StageRei : Node
         (2, "……四。……あんたは、数に入らないんでしょう。……なら、増えたの、誰。", RFace),
         (1, "……集計は、向こう側の、ものですので。", MFace),
         (2, ClearHesitated, RFace),          // ★s3_5c で迷ったときだけ
+        (2, "画面の向こうのあんた。……次は、好きな本の話も聞いてよ。数字が増える話じゃないけど。", RFace),
+        (2, "いまのは、初見さん向けの挨拶じゃないから。また話したい相手に、言ってるの。", RFace),
         (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),   // 「今日も来ました」。説明しない
         (1, "……そういえば。今日の空は、晴れていましたか。", MFace),   // 空の問い・三度目
         (1, "……いえ。もう、聞きません。三度、聞きました。", MDoubt),
@@ -816,6 +819,17 @@ public partial class StageRei : Node
     // 撃破（HP/サイクル削り切り＝改心）して捨て台詞を流し切る（Finished）まで Stage は進まない。保険退場は無し。
     private void Step_BossCameo(double delta)
     {
+        if (!_lunatic && !_cameoIntroDone)
+        {
+            if (!_cameoIntroStarted)
+            {
+                _cameoIntroStarted = true;
+                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
+                CameoIntroScene.Play(Hud, World, "rei", CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    () => _cameoIntroDone = true);
+            }
+            return;
+        }
         if (!_stepStarted)
         {
             _stepStarted = true;
@@ -837,7 +851,7 @@ public partial class StageRei : Node
                     Aura = FxLayer.BossAura.Rei,
                     Bgm = Audio.Instance?.BgmBossRei,
                     // 第一声は s3_2（step 2 末尾）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
-                    IntroLines = CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                    IntroLines = _lunatic ? CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")) : System.Array.Empty<(int, string, string)>(),
                     TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
@@ -880,10 +894,13 @@ public partial class StageRei : Node
             GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
             GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            // 初見チュートリアル（2026-09-16）：本ボス戦の初回だけ口上の末尾にミナの説明を繋ぐ
-            //   （通常進行では STAGE1 で消費済み＝保険。StageAkari と同じ流儀）。ルナティックは口上ごと出さない＝消費もしない。
-            if (!_lunatic) _playerBoss = _playerBoss.Concat(StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"))).ToArray();
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
             Advance();
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "rei", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            });
         }
     }
 

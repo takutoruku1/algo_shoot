@@ -31,6 +31,7 @@ public partial class CompanionDialogueQa : Node
             await Frames(2);
             if (OS.GetCmdlineUserArgs().Contains("--portraits-only")) await CheckPortraits(game);
             else if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--scripts-only")) CheckScripts();
             else
             {
                 bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
@@ -249,6 +250,7 @@ public partial class CompanionDialogueQa : Node
 
     private static void CheckScripts()
     {
+        CheckPlayerConnection();
         int count = 0;
         foreach (var job in Jobs.All)
         {
@@ -305,6 +307,38 @@ public partial class CompanionDialogueQa : Node
             }
         }
         GD.Print($"[CompanionQA] {count} story/menu lines, plus the tutorial scene");
+    }
+
+    private static void CheckPlayerConnection()
+    {
+        foreach (var job in Jobs.All.Where(j => j.Id != Job.Tank))
+        {
+            string address = job.Id == Job.Magic ? "あんた" : "あなた";
+            for (int chapter = 1; chapter <= CharacterStory.LoopChapter; chapter++)
+            {
+                foreach (var beat in new[] { CharacterStory.Beat.Sortie, CharacterStory.Beat.Return })
+                {
+                    var lines = CharacterStory.Lines(job.Id, chapter, beat);
+                    Check(lines.Any(l => l.who == 6 && l.text.Contains(address)),
+                        $"{job.CharacterId}/{chapter}/{beat}: speaks to the player, not just another heroine");
+                    Check(lines.All(l => l.who is 6 or 4), $"{job.CharacterId}/{chapter}/{beat}: never scripts the player's reply");
+                }
+            }
+            foreach (string stage in new[] { "akari", "koharu", "rei" })
+            {
+                var memory = CharacterStory.Memory(job.Id, stage);
+                Check(memory[0].who == 6 && (memory[0].text.Contains(address) || memory[0].text.Contains("画面の向こう")),
+                    $"{job.CharacterId}/memory@{stage}: frames the recollection as a present-day disclosure");
+                Check(CharacterStory.Aftermath(job.Id, stage).Any(l => l.who == 6 && l.text.Contains(address)),
+                    $"{job.CharacterId}/aftermath@{stage}: shares the change with the player");
+            }
+        }
+        foreach (var stage in new[] { typeof(StageAkari), typeof(StageKoharu), typeof(StageRei) })
+        {
+            var clear = Data<(int who, string text, string face)[]>(stage, "Clear");
+            Check(clear.Any(l => l.who == 2 && l.text.Contains("向こう")) && clear.All(l => l.who != 0),
+                $"{stage.Name}/clear: heroine addresses the player without an invented response");
+        }
     }
 
     // 初見チュートリアル（src/StageTutorial.cs・2026-09-16〜22）の本文を private static から引く。

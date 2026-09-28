@@ -68,12 +68,14 @@ public partial class PhoneAppTransitionQa : Node
                     Check(GetTree().CurrentScene == hub, "rotation finishes before changing scenes");
                     await Shot($"{type.Name}_turn_{size.X}x{size.Y}");
                     await Frames(24);
-                    var app = GetTree().CurrentScene as Node2D;
-                    Check(app?.GetType() == type && app.Scale.X < 1 && app.Scale.Y < 1,
-                        $"{type.Name} appears inside the expanding landscape phone");
+                    var phone = GetNode<PhoneAppTransition>("/root/PhoneAppTransition");
+                    Check(LoadingScreen.IsActive && GetTree().CurrentScene == hub && phone.LoadingVisible
+                        && phone.LoadingBounds.Size.X < 1280, $"{type.Name} loads inside the expanding landscape phone");
                     await Shot($"{type.Name}_expand_{size.X}x{size.Y}");
-                    await Frames(38);
-                    Check(GetTree().CurrentScene == app && app!.Scale == Vector2.One && app.Position == Vector2.Zero
+                    for (int frame = 0; frame < 1800 && LoadingScreen.IsActive; frame++) await Frames(1);
+                    await Frames(20);
+                    var app = GetTree().CurrentScene as Node2D;
+                    Check(!LoadingScreen.IsActive && app?.GetType() == type && app.Scale == Vector2.One && app.Position == Vector2.Zero
                         && GetNodeOrNull<PhoneAppTransition>("/root/PhoneAppTransition") == null,
                         $"{type.Name} transition cleans up and restores exact input coordinates");
                     Check(!GetNode<PauseMenu>("/root/PauseMenu").IsOpen && wallet == game.Impression,
@@ -113,7 +115,7 @@ public partial class PhoneAppTransitionQa : Node
 
     private static void SetKeys(bool pressed)
     {
-        foreach (Key key in new[] { Key.Z, Key.X, Key.Escape })
+        foreach (Key key in new[] { Key.Z, Key.X, Key.Escape, Key.M })
             Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = pressed });
     }
 

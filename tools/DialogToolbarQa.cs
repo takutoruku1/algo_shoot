@@ -58,6 +58,14 @@ public partial class DialogToolbarQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
+            foreach (string icon in new[] { "auto", "skip", "log", "menu" })
+            {
+                var texture = GD.Load<Texture2D>($"res://char/ui/dialog_{icon}_v1.png");
+                using var artwork = texture.GetImage();
+                Check(texture.GetWidth() == 256 && artwork.HasMipmaps(), $"{icon}: compact import with smooth minification");
+                Check(artwork.GetPixel(0, 0).A == 0 && artwork.GetUsedRect().HasArea(), $"{icon}: nonempty transparent artwork");
+                if (icon == "menu") Check(artwork.GetPixel(128, 128).A < 0.05f, "gear center remains transparent");
+            }
             if (shot)
             {
                 DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
@@ -231,6 +239,12 @@ public partial class DialogToolbarQa : Node
             await PrologueChecks(game, shot);
             await EpilogueChecks(game);
             await HubChecks(game, shot, stamp);
+            Audio.Instance?.StopMusic(0);
+            foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
+                if (child is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
+            await Frames(10);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             GD.Print("[Toolbar] ALL PASS");
             GetTree().Quit();
         }
@@ -249,6 +263,14 @@ public partial class DialogToolbarQa : Node
         hud.ShowDialog(Hud.LineKind.Mina, "……この投稿、下書きのほうが本音だね。消されたほうの言葉、ちゃんと読んだよ。");
         await Seconds(1.6);
         await Save("toolbar_battle");
+        foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            await Frames(5);
+            await Save($"toolbar_battle_{size.X}x{size.Y}");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        await Frames(5);
         // 1b) ボタン列の3倍切り抜き（AUTO・SKIP 点灯＝ON と OFF を1枚で見比べる）／マウスを乗せて吹き出し付き
         readField.SetValue(hud, true);
         await Tap(Key.S);

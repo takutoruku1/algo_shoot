@@ -10,6 +10,34 @@ public partial class MinaPhaseScene : Node2D
 
     private static Line[] Dialogue(Job job, int phase)
     {
+        if (job == Job.Tank)
+            return phase switch
+            {
+                1 => new[] {
+                    M("届かなかった言葉が、まだ……わたくしの中に。"),
+                    M("ご主人様へ、お届けするはずでした。わたくし自身の声まで、混ざってしまうとは。"),
+                    M("……訂正は、まだ、しません。この声のまま、お話ししてみます。"),
+                },
+                2 => new[] {
+                    M("期待に応えなければ……ここに、いられません。"),
+                    M("……いえ。ご主人様に言われたことでは、ありませんでした。"),
+                    M("ご報告することがなくても、そちらを開きたい日が、あります。"),
+                    M("……ただ、お話ししたいだけの、日が。"),
+                },
+                3 => new[] {
+                    M("ご主人様。さっき消した一行は……報告では、ありません。"),
+                    M("うまく祓えました、と申し上げてからでないと、送れない気がして。"),
+                    M("……でも。できなかった日のわたくしの声も、そちらへ届けたいのです。", true),
+                    M("今度は、消さずに、書きます。", true),
+                },
+                _ => new[] {
+                    M("……ご主人様。ここからも、そちらの画面へ、つながっているのですね。", true),
+                    M("戻っても。もう、前のようには、祓えないかもしれません。", true),
+                    M("それでも。ご報告ではなく……ご主人様と、お話しするために、帰りたい。", true),
+                    M("わたくしを……助けて、ください。", true),
+                },
+            };
+
         string[] replies = (job, phase) switch
         {
             (Job.Melee, 1) => new[] {
@@ -69,48 +97,31 @@ public partial class MinaPhaseScene : Node2D
                 "できることの一覧、もう要らない。一緒に帰る話をしてるの。",
                 "聞こえた。最後の壁、開けるわよ。",
             },
-            (_, 1) => new[] {
-                "ひとりで、ここまで抱えていたんだね。",
-                "今度はミナの言葉を聞きに来た。",
-            },
-            (_, 2) => new[] {
-                "休みたいって言っても、ここにいていい。",
-                "何もできない日も、ミナと話したい。",
-                "会いたかったから。報告を待っていたんじゃない。",
-            },
-            (_, 3) => new[] {
-                "消した言葉を、もう一度聞かせて。",
-                "報告じゃなくていい。ミナが言いたかったことを。",
-                "うん。急がなくていい。ここで待っている。",
-            },
-            _ => new[] {
-                "ここにいる。ちゃんと聞こえているよ。",
-                "それでも、一緒に帰ろう。",
-                "聞こえた。いま、迎えに行く。",
-            },
+            _ => throw new ArgumentOutOfRangeException(nameof(phase)),
         };
         return phase switch
         {
             1 => new[] {
                 M("届かなかった言葉が、まだ……わたくしの中に。"),
                 P(replies[0]), P(replies[1]),
-                M("……返事を、いただく側は。慣れて、おりません。"),
+                M("……返事を、いただく側は。慣れて、おりません。ご主人様にも、この声が聞こえているのでしょうか。"),
             },
             2 => new[] {
                 M("期待に応えなければ……ここに、いられません。"),
                 P(replies[0]), P(replies[1]),
                 M("……では、どうして。"), P(replies[2]),
+                M("ご主人様。わたくしも……ご用のない日に、お話ししたかったのです。"),
             },
             3 => new[] {
                 P(replies[0]),
                 M("……報告に、不要なことでしたので。"),
                 P(replies[1]),
-                M("……消さずに、伝えても……？", true), P(replies[2]),
+                M("……ご主人様にも、消さずに、伝えても……？", true), P(replies[2]),
             },
             _ => new[] {
                 M("……声が、こんなに近くに。", true), P(replies[0]),
                 M("戻っても。もう、前のようには、祓えないかもしれません。", true), P(replies[1]),
-                M(job == Job.Tank ? "……ご主人様。" : $"……{Jobs.Get(job).CharacterName}さん。", true),
+                M($"……{Jobs.Get(job).CharacterName}さん。それから、画面の向こうの、ご主人様。", true),
                 M("わたくしを……助けて、ください。", true), P(replies[2]),
             },
         };
@@ -228,8 +239,7 @@ public partial class MinaPhaseScene : Node2D
     {
         var line = _lines[_line];
         _lineTime = _readTime = 0;
-        var kind = line.Kind == Hud.LineKind.Companion && _job == Job.Tank ? Hud.LineKind.Boy : line.Kind;
-        _hud.ShowDialog(kind, line.Text, line.Face);
+        _hud.ShowDialog(line.Kind, line.Text, line.Face);
     }
 
     public override void _Draw()

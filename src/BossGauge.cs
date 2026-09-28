@@ -19,14 +19,17 @@ public partial class BossGauge : Node2D
     private Hud? _hud;
     private Enemy? _owner;
 
-    private const float BarH = 2.6f;     // バーの高さ（world px。設計座標で約 9px）
-    private const float PipPitch = 3.4f; // 残本数の点の間隔
-    private const float PipR = 1.1f;
+    private const float BarH = 3.8f;
+    private const float DamageHold = 0.12f;
+    private readonly Vector2[] _plate = new Vector2[6], _outline = new Vector2[7];
+    private readonly Vector2[] _diamond = new Vector2[4], _diamondOutline = new Vector2[5];
+    private float _trail, _lastFrac, _damageHold;
+    private int _barIndex = -1, _barTotal;
 
-    private static readonly Color InvulnFill = new(0.60f, 0.63f, 0.68f);
-    private const float InvulnAlpha = 0.55f;
+    private static readonly Color Plate = new("0b1015"), Rail = new("56676d"), Track = new("1c272e");
+    private static readonly Color InvulnFill = new("899ba5"), DamageFill = new("b88186");
     private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.6f);
-    private const float HatchW = 0.8f, HatchPitch = 3f;
+    private const float HatchW = 0.65f, HatchPitch = 3.8f;
     // BREAK の金。本体まわりの無防備窓タイマーバー（e9d28b）より少し暖かく濃い＝Tint を打ち消した上で「金」と読める色。
     private static readonly Color BreakFill = new("f0c85a");
 
@@ -61,6 +64,29 @@ public partial class BossGauge : Node2D
             SelfModulate = new Color(1f / Mathf.Max(c.R, 0.05f), 1f / Mathf.Max(c.G, 0.05f), 1f / Mathf.Max(c.B, 0.05f), 1f);
         }
         else SelfModulate = Colors.White;
+        if (_hud != null)
+        {
+            var s = _hud.GaugeState;
+            // A refill belongs to a new bar; never carry damage from the previous life into it.
+            if (!s.Visible || s.Index != _barIndex || s.Total != _barTotal || s.Frac > _lastFrac)
+            {
+                _trail = s.Frac;
+                _damageHold = 0;
+            }
+            else
+            {
+                if (s.Frac < _lastFrac)
+                {
+                    if (_trail <= _lastFrac) _damageHold = DamageHold;
+                    _trail = Mathf.Max(_trail, _lastFrac);
+                }
+                if (_damageHold > 0) _damageHold -= (float)delta;
+                else _trail = Mathf.MoveToward(_trail, s.Frac, (float)delta * 1.8f);
+            }
+            _lastFrac = s.Frac;
+            _barIndex = s.Index;
+            _barTotal = s.Total;
+        }
         QueueRedraw();
     }
 
@@ -80,38 +106,98 @@ public partial class BossGauge : Node2D
         Color fillCol = kind switch
         {
             "purify" => new Color(tint, a),
-            "invuln" => new Color(InvulnFill, InvulnAlpha * a),
+            "invuln" => new Color(InvulnFill, 0.8f * a),
             // 割れた一拍（GaugeBreakFresh 1→0）は白へ寄せて光り、あとは 1.5Hz の脈で α 0.85〜1.0。
             _ => new Color(BreakFill.Lerp(Colors.White, 0.8f * _owner.GaugeBreakFresh),
                 (0.85f + 0.15f * (0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * 1.5f))) * a),
         };
 
         var bar = new Rect2(-w / 2f, top, w, BarH);
-        DrawRect(bar.Grow(1f), new Color(0.13f, 0.12f, 0.15f, 0.85f * a));          // 台座
-        DrawRect(bar, new Color(1f, 1f, 1f, 0.07f * a));                            // 空のトラック
+        Color edge = kind == "invuln" ? Rail : fillCol;
+        bool major = _owner is not CameoBoss;
+        DrawPlate(bar.Grow(1.8f), new Color(Plate, 0.96f * a), new Color(edge, 0.72f * a));
+        DrawPlate(bar, new Color(Track, a));
+        if (_trail > s.Frac && s.Purify <= 0)
+            DrawPlate(new Rect2(bar.Position, new Vector2(w * _trail, BarH)), new Color(DamageFill, 0.65f * a));
         if (s.Frac > 0f)
         {
             var fill = new Rect2(bar.Position, new Vector2(w * s.Frac, BarH));
-            DrawRect(fill, fillCol);
-            if (kind == "invuln") DrawHatch(fill, a);
-            DrawRect(new Rect2(fill.Position, new Vector2(fill.Size.X, 0.8f)), new Color(1f, 1f, 1f, 0.35f * a)); // 上端のハイライト
+            DrawPlate(fill, fillCol);
+            if (kind == "invuln" && fill.Size.X > 4f)
+                DrawHatch(new Rect2(fill.Position + new Vector2(1.9f, 0.4f), fill.Size - new Vector2(3.8f, 0.8f)), a);
+            if (fill.Size.X > 3f)
+                DrawLine(fill.Position + new Vector2(1.5f, 0.65f), new Vector2(fill.End.X - 1.5f, top + 0.65f),
+                    new Color(Colors.White, 0.46f * a), 0.45f, true);
+            if (s.Frac < 0.995f && fill.Size.X > 2f)
+                DrawLine(new Vector2(fill.End.X - 0.5f, top + 1.1f), new Vector2(fill.End.X - 0.5f, top + BarH - 1.1f),
+                    new Color(Colors.White, 0.86f * a), 0.65f, true);
         }
-        // バー1本割れの白フラッシュ（Hud.FlashBossBarBreak）
-        if (s.Flash > 0f) DrawRect(bar, new Color(1f, 1f, 1f, 0.75f * s.Flash * a));
+        for (int i = 1; i < 4; i++)
+        {
+            float x = bar.Position.X + w * i / 4;
+            DrawLine(new Vector2(x, top + BarH - 0.6f), new Vector2(x, top + BarH + 0.9f),
+                new Color(Plate, 0.8f * a), 0.6f, true);
+        }
+        for (int side = -1; side <= 1; side += 2)
+        {
+            float x = side * (w / 2 + 2.5f), mid = top + BarH / 2;
+            DrawLine(new Vector2(x, mid - 2), new Vector2(x + side * 1.5f, mid), new Color(edge, a), 0.8f, true);
+            DrawLine(new Vector2(x + side * 1.5f, mid), new Vector2(x, mid + 2), new Color(edge, a), 0.8f, true);
+            if (major)
+                DrawLine(new Vector2(side * (w / 2 - 7), top - 3), new Vector2(side * (w / 2 - 1), top - 3),
+                    new Color(tint, 0.65f * a), 0.65f, true);
+        }
+        if (s.Flash > 0f)
+        {
+            DrawPlate(bar, new Color(Colors.White, 0.7f * s.Flash * a));
+            float travel = (1 - s.Flash) * 5;
+            for (int side = -1; side <= 1; side += 2)
+                DrawLine(new Vector2(side * (w / 2 + travel), top - 2), new Vector2(side * (w / 2 + travel + 2), top - 3),
+                    new Color(tint.Lightened(0.4f), s.Flash * a), 0.7f, true);
+        }
 
-        // 残本数の点（左から「残っている本数」を満たす）。1本だけのボスは点を出さない（バーだけで足りる）。
         if (s.Total > 1)
         {
             int left = s.Index + 1;
-            float x0 = -(s.Total - 1) * PipPitch / 2f;
-            float py = top + BarH + 3.2f;
+            float pitch = Mathf.Min(4.3f, (w - 4) / s.Total);
+            float radius = Mathf.Min(1.25f, pitch * 0.31f);
+            float x0 = -(s.Total - 1) * pitch / 2f;
+            float py = top + BarH + 3.4f;
             for (int i = 0; i < s.Total; i++)
             {
-                var c = new Vector2(x0 + i * PipPitch, py);
-                DrawCircle(c, PipR + 0.6f, new Color(0.13f, 0.12f, 0.15f, 0.8f * a));   // 台座（空の点も数えられるように）
-                DrawCircle(c, PipR, i < left ? new Color(tint, a) : new Color(tint, 0.4f * a));
+                var center = new Vector2(x0 + i * pitch, py);
+                bool current = i == s.Index;
+                DrawCrystal(center, radius + 0.6f, new Color(Plate, 0.9f * a), new Color(Plate, 0));
+                DrawCrystal(center, radius,
+                    i < left ? new Color(current ? fillCol : tint, a) : new Color(Track, a),
+                    new Color(current ? Colors.White : i < left ? tint : Rail, (current ? 0.8f : 0.6f) * a));
             }
         }
+    }
+
+    private void DrawPlate(Rect2 rect, Color fill, Color? edge = null)
+    {
+        float cut = Mathf.Min(rect.Size.Y / 2, rect.Size.X / 2);
+        float x = rect.Position.X, y = rect.Position.Y, right = rect.End.X, bottom = rect.End.Y;
+        _plate[0] = new Vector2(x + cut, y); _plate[1] = new Vector2(right - cut, y);
+        _plate[2] = new Vector2(right, y + rect.Size.Y / 2); _plate[3] = new Vector2(right - cut, bottom);
+        _plate[4] = new Vector2(x + cut, bottom); _plate[5] = new Vector2(x, y + rect.Size.Y / 2);
+        DrawColoredPolygon(_plate, fill);
+        if (edge is not Color line) return;
+        for (int i = 0; i < 6; i++) _outline[i] = _plate[i];
+        _outline[6] = _plate[0];
+        DrawPolyline(_outline, line, 0.55f, true);
+    }
+
+    private void DrawCrystal(Vector2 center, float radius, Color fill, Color edge)
+    {
+        _diamond[0] = center + new Vector2(0, -radius); _diamond[1] = center + new Vector2(radius, 0);
+        _diamond[2] = center + new Vector2(0, radius); _diamond[3] = center + new Vector2(-radius, 0);
+        DrawColoredPolygon(_diamond, fill);
+        if (edge.A <= 0) return;
+        for (int i = 0; i < 4; i++) _diamondOutline[i] = _diamond[i];
+        _diamondOutline[4] = _diamond[0];
+        DrawPolyline(_diamondOutline, edge, 0.45f, true);
     }
 
     // 45° の斜線（右上がり）を矩形 r の中だけに引く。x+y=k の直線を k を HatchPitch 刻みで動かし、

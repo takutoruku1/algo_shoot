@@ -1,7 +1,148 @@
 {
-  "tool": "image_gen",
-  "reference": "char/player/akari/akari_idle_v2.png",
-  "source": "char/raw/costume_akari_v1.png",
-  "prompt": "Use case: stylized-concept. Production transparent sprite sheet for the Japanese anime shooting game Refrain. The reference is the current playable character: PRESERVE face, hairstyle, hair color, eye color, chibi body proportions, gentle expression, polished cel-shaded linework and shading. Change ONLY clothing and accessories to the described new costume. This is one 3-column by 4-row sprite sheet, portrait 1536x2048 pixels or larger at exactly 3:4 canvas aspect. Exactly equal rectangular cells, 12 cells. Each figure is a FULL BODY isolated sprite centered in its own cell; shoes, hair, hands never clipped. Consistent head size and body scale between every pose. Each figure occupies 80% of cell height, transparent margin on all sides. No cell borders or text. Real transparent RGBA background, not a checkerboard. No backdrop, effects or shadows outside the figures.\nCells left to right, top to bottom:\n0 normal gameplay pose, three-quarter view facing right with a light floating bent-leg posture;\n1 aiming straight up, body remains upright, hands reaching upward;\n2 aiming upper-right at 45 degrees, body remains upright;\n3 aiming horizontally right, body upright;\n4 aiming lower-right at 45 degrees, body upright;\n5 aiming downward, body upright;\n6 dodge spinning upright FRONT VIEW;\n7 dodge spinning upright right THREE-QUARTER FRONT VIEW;\n8 dodge spinning upright RIGHT PROFILE;\n9 dodge spinning upright right THREE-QUARTER BACK VIEW;\n10 dodge spinning upright FULL BACK VIEW;\n11 empty transparent cell.\nThe last five are turntable frames of one upright pose, not somersaults or tilted cards. Match the same costume details on front and back across all 11 sprites. No copies of the original outfit, no labels, no letters, no watermark, no detached body parts.\nAKARI new costume 'Day-off Letter': light jade-green cropped hooded jacket worn open over an ivory blouse, high-waisted navy pleated skirt, white socks and clean ivory sneakers, a small rectangular cross-body envelope bag with a copper clasp. Keep her orange short ponytail, purple eyes and adult-office-worker chibi identity. Remove the office lanyard and trousers. She holds her smartphone in the aiming hand in all six gameplay poses, pointing it in the listed direction; during turntable dodge keep it close to the chest. Cheerful, practical weekend outfit, NOT a magical-girl uniform. Modest clothing. Extra transparent margins between cells; keep every hand and shoe inside its own cell.",
-  "processing": "tools/finish_customize_assets.ps1; user approved splitting, alpha preparation, resizing and transparent margins."
+  "tool": "image_gen (built-in)",
+  "reference": [
+    "char/raw/costume_akari_v1.png",
+    "char/player/akari/akari_idle_v2.png"
+  ],
+  "source": "char/raw/costume_akari_v2.png",
+  "prompt": "Use case: identity-preserve. Edit/rebuild the provided costume sprite sheet for the Japanese bullet-hell game Refrain. Input image 1 is the edit target: preserve its clothing design, hairstyle, eye color and accessories. Input image 2 is the authoritative anatomy/linework reference: copy its exact chibi head-to-body ratio, face shape, head size relative to torso, thigh/shin length and shoe size. Do not make a taller fashion illustration.\nDeliver one transparent RGBA 3-column x 4-row sprite sheet, portrait 3:4 aspect, ideally 1536x2048. Exactly 11 whole-body sprites and the bottom-right cell empty. Equal cells; no labels, grids, borders, particles, floor, ground shadow, platform, checkerboard or background. Every sprite has the SAME head diameter and body scale; keep crowns/hips at the same local height across all cells, leaving upper space for aiming props. Props/raised hands must NOT cause a smaller person. Leave safe transparent gutters.\nEVERY POSE MUST LEVITATE IN MIDAIR, not stand, walk, run or jump off a surface. Both feet are unsupported, toes relaxed/downward, knees softly bent backward, ankles at different heights, cloth and hair gently buoyant. Use the anatomy reference's suspended bent-knee posture for all front/side aiming poses. Even straight-up/down aiming and front/back dodge frames must not have parallel straight weight-bearing legs or level soles. Aerial rotation stays upright about the vertical axis, never somersaulting.\nCell order left to right, top to bottom: 0 idle three-quarter right, 1 aim vertically up, 2 aim diagonally upper-right, 3 aim right, 4 aim diagonally lower-right, 5 aim vertically down, 6 dodge front, 7 dodge right-front three-quarter, 8 dodge right profile, 9 dodge right-back three-quarter, 10 dodge back, 11 empty. In cells 0-5 keep torso upright and head in a consistent near-three-quarter view; aim with arm/prop, not camera perspective. Cells 6-10 are the SAME floating bent-knee pose rotating, arms held close to chest. Match head diameter and limb lengths in every view. Clean professional anime cel shading, crisp readable edges at small gameplay scale, true transparent alpha.\n\nAKARI costume 'Day-off Letter': jade-green cropped hooded jacket, ivory blouse, navy pleated skirt, ivory low-top sneakers with white socks, cream envelope crossbody bag with copper clasp. Orange short side ponytail, purple eyes. Match the head/body proportions of the office outfit reference, not a standing schoolgirl. Hold smartphone close in idle/dodge and aim smartphone in the listed directions. Both knees and feet float behind the hips, keep modest skirt coverage, no floor contact in ANY cell.",
+  "poses": [
+    "idle",
+    "aim_u",
+    "aim_ur",
+    "aim_r",
+    "aim_dr",
+    "aim_d",
+    "spin_00",
+    "spin_01",
+    "spin_02",
+    "spin_03",
+    "spin_04"
+  ],
+  "regions": [
+    [
+      109,
+      24,
+      199,
+      345
+    ],
+    [
+      437,
+      26,
+      201,
+      341
+    ],
+    [
+      775,
+      26,
+      238,
+      343
+    ],
+    [
+      83,
+      378,
+      248,
+      352
+    ],
+    [
+      443,
+      378,
+      222,
+      350
+    ],
+    [
+      800,
+      382,
+      197,
+      348
+    ],
+    [
+      79,
+      743,
+      196,
+      343
+    ],
+    [
+      435,
+      741,
+      210,
+      345
+    ],
+    [
+      808,
+      745,
+      191,
+      347
+    ],
+    [
+      113,
+      1089,
+      182,
+      342
+    ],
+    [
+      465,
+      1092,
+      186,
+      339
+    ]
+  ],
+  "head_landmarks_source": [
+    [
+      235,
+      28,
+      129
+    ],
+    [
+      556,
+      30,
+      130
+    ],
+    [
+      898,
+      30,
+      132
+    ],
+    [
+      212,
+      382,
+      134
+    ],
+    [
+      567,
+      383,
+      132
+    ],
+    [
+      919,
+      387,
+      137
+    ],
+    [
+      192,
+      747,
+      132
+    ],
+    [
+      559,
+      745,
+      137
+    ],
+    [
+      922,
+      749,
+      132
+    ],
+    [
+      197,
+      1094,
+      132
+    ],
+    [
+      551,
+      1096,
+      132
+    ]
+  ],
+  "processing": "tools/finish_customize_assets.ps1 -CostumesOnly; approved cropping, alpha preservation, resizing and transparent margins only."
 }

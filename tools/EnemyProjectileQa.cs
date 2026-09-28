@@ -32,13 +32,25 @@ public partial class EnemyProjectileQa : Node
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
             foreach (string name in new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film",
-                "mina_eraser", "mina_memory", "mina_unanswered", "mina_butterfly", "koharu_star_pin" })
+                "mina_eraser", "mina_memory", "mina_unanswered", "mina_butterfly", "koharu_star_pin", "akari_sticky" })
             {
                 var art = BulletArt.Get(name)!;
                 using var image = art.GetImage();
                 Check(art is AtlasTexture && image.DetectAlpha() != Image.AlphaMode.None
                     && image.GetUsedRect().Size == image.GetSize(), $"{name}: tightly framed transparent illustration");
                 Check(ReferenceEquals(art, BulletArt.Get(name)), $"{name}: cached texture");
+                if (name == "akari_sticky")
+                {
+                    int opaque = 0, total = 0;
+                    for (int y = 0; y < image.GetHeight(); y += 3)
+                        for (int x = 0; x < image.GetWidth(); x += 3)
+                        {
+                            if (image.GetPixel(x, y).A > 0.5f) opaque++;
+                            total++;
+                        }
+                    Check((float)opaque / total is > 0.25f and < 0.72f,
+                        $"Akari paper has a compact torn silhouette, not a solid square (coverage={(float)opaque / total:0.000}, size={image.GetSize()}, region={((AtlasTexture)art).Region})");
+                }
                 await CheckPixels(name, art);
             }
             foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
@@ -114,6 +126,15 @@ public partial class EnemyProjectileQa : Node
                 Call(boss, "ApplySpell");
                 Call(boss, "FirePattern", 3d);
                 CheckIllustrated($"{theme}/{diff}/phase{phase}");
+                if (theme == StageTheme.Akari && phase == 0)
+                {
+                    var shots = Bullets();
+                    float speed = (float)typeof(Enemy).GetField("EnemyBulletSpeed", Private)!.GetValue(boss)!;
+                    Check(shots.Length == game.ScaleBullets(Read<int>(boss, "_fanCount"))
+                        && shots.All(b => b.Radius == 3f && Mathf.IsEqualApprox(b.Velocity.Length(), speed * game.BulletSpeedMul)
+                            && ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariSticky)),
+                        $"Akari/{diff}: folded paper fan preserves count, speed and hit radius");
+                }
                 if (theme == StageTheme.Rei)
                     Check(Bullets().All(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"),
                         BulletArt.Get(new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film" }[phase]))),
@@ -132,6 +153,10 @@ public partial class EnemyProjectileQa : Node
             Pool.DespawnAll();
             Call(boss, "FireFinale", Pool, 3d);
             CheckIllustrated($"{theme}/{diff}/finale");
+            if (theme == StageTheme.Akari)
+                Check(Bullets().Any(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariSticky))
+                    && Bullets().Any(b => ReferenceEquals(Read<Texture2D>(b, "_sprite"), BulletArt.AkariDocs)),
+                    $"Akari/{diff}: finale uses folded paper without replacing the document spiral");
         }
         Pool.DespawnAll();
         boss.QueueFree();
