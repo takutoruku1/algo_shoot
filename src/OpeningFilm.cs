@@ -57,6 +57,8 @@ public partial class OpeningFilm : Node2D
     private const string TaglineLine = "消された言葉は、消えていない。";
     private static readonly Color[] Accents = { new("f0c969"), new("a6dac8"), new("de91b9"), new("87d7ed") };
     private static readonly Vector2[] PortraitFocus = { new(0.52f, 0.24f), new(0.64f, 0.25f), new(0.51f, 0.24f), new(0.45f, 0.2f) };
+    private static readonly Vector2[] DailyFocus = { new(0.73f, 0.32f), new(0.35f, 0.32f), new(0.73f, 0.32f) };
+    private const float RecallBeat = 0.42f;
     private static readonly Rect2 Screen = new(0, 0, 1280, 720);
     private static readonly Rect2 SkipRect = new(1110, 657, 140, 45);
     private static readonly Vector2 PhoneTextPosition = new(-108, -108);
@@ -68,7 +70,7 @@ public partial class OpeningFilm : Node2D
     private readonly (Vector2[] Points, int[] Triangles)[] _postMeshes = new (Vector2[], int[])[4];
     private static readonly Rect2 PostRect = new(-155, -95, 310, 190);
     private JobTuning[] _cast = null!;
-    private Texture2D _city = null!, _light = null!, _message = null!;
+    private Texture2D _message = null!;
     private OpeningBackdrop _space = null!;
     private Texture2D _post = null!;
     private Texture2D _phoneArt = null!;
@@ -110,8 +112,6 @@ public partial class OpeningFilm : Node2D
             for (int layer = 0; layer < layers.Length; layer++)
                 _routes[i, layer] = GD.Load<Texture2D>($"res://char/bg2/route/{id}_{layers[layer]}.png");
         }
-        _city = GD.Load<Texture2D>("res://char/bg2/title/L1_far.png");
-        _light = GD.Load<Texture2D>("res://char/bg2/title/L4_light_warm.png");
         _space = new OpeningBackdrop();
         _phoneArt = GD.Load<Texture2D>("res://char/bg2/opening/op_phone_v1.png");
         _phoneTime = DateTime.Now.ToString("HH:mm");
@@ -197,8 +197,7 @@ public partial class OpeningFilm : Node2D
                 if (Crossed(start + 2.12)) Audio.Instance?.PlayChargeRelease(_cast[i].Id);
             }
         }
-        if (Crossed(Cuts[9])) Audio.Instance?.PlayPurify();
-        if (Crossed(Cuts[9] + 2.8)) Audio.Instance?.PlayChargeRelease(Job.Tank);
+        if (Crossed(Cuts[9] + RecallBeat * 3)) Audio.Instance?.PlayCalm();
         if (Crossed(Cuts[10] + 0.16)) Audio.Instance?.PlayPurify();
         if (Crossed(Duration - 1.3)) Audio.Instance?.StopMusic(1.3f);
     }
@@ -267,8 +266,19 @@ public partial class OpeningFilm : Node2D
     private void UpdateMina()
     {
         int shot = Shot;
-        _mina.Visible = shot == 4;
+        _mina.Visible = shot is 4 or 9;
         if (!_mina.Visible) return;
+        if (shot == 9)
+        {
+            float time = (float)(Elapsed - Cuts[9]);
+            float reveal = Ease((time - 1.15f) / 1.1f);
+            _mina.Position = new Vector2(Mathf.Lerp(690, 620, reveal), Mathf.Lerp(444, 432, reveal));
+            _mina.Scale = Vector2.One * Mathf.Lerp(0.83f, 0.77f, reveal);
+            _wind.SetShaderParameter("motion_time", (float)Elapsed);
+            _wind.SetShaderParameter("blink", Ease(Mathf.Max(0, 1 - Mathf.Abs(time - 3.1f) / 0.13f)));
+            _wind.SetShaderParameter("opacity", Ease((time - 1.2f) / 0.4f) * (1 - Ease((time - 3.6f) / 0.4f)));
+            return;
+        }
         float t = (float)(Elapsed - Cuts[4]);
         float p = Ease(t / 5f);
         // The camera pulls back; only the shader animates the character's loose parts.
@@ -310,8 +320,8 @@ public partial class OpeningFilm : Node2D
         }
         else if (shot == 4)
         {
-            Background(_city, 1.12f, new Vector2(-20 + t * 7, 25 - t * 4), alpha);
-            Background(_light, 1.17f, new Vector2(-40 + t * 15, 0), alpha * 0.55f);
+            _space.Draw(this, Screen, 2, 1, Ease(t / 1.2f), (float)Elapsed, alpha);
+            DrawRect(Screen, new Color(0.015f, 0.025f, 0.03f, alpha * 0.18f));
             DrawVoices(t, alpha);
         }
         else if (shot <= 8)
@@ -323,10 +333,10 @@ public partial class OpeningFilm : Node2D
         }
         else
         {
-            Background(_city, 1.1f, new Vector2((float)Elapsed * 2 - 55, 18), alpha);
-            Background(_light, 1.16f, new Vector2((float)Elapsed * 6 - 175, -6), alpha * 0.8f);
+            _space.Draw(this, Screen, 3, 3, 1f, (float)Elapsed, alpha);
+            DrawRect(Screen, new Color(0.015f, 0.025f, 0.03f, alpha * 0.18f));
             if (shot == 9)
-                DrawTogether(t, alpha);
+                DrawUnheardVoices(t, alpha);
         }
     }
 
@@ -503,17 +513,26 @@ public partial class OpeningFilm : Node2D
         DrawShotArt(index, center, (64 + time * 38) * scale, index == 1 ? Mathf.Pi : 0, alpha * fade);
     }
 
-    private void DrawTogether(float t, float alpha)
+    private static int RecallIndex(float time) => Mathf.Clamp((int)(time / RecallBeat), 0, 2);
+
+    private void DrawUnheardVoices(float t, float alpha)
     {
-        float launch = Mathf.Pow(Mathf.Max(0, t - 2.8f) / 1.2f, 2);
-        for (int i = 0; i < 4; i++)
-        {
-            float arrive = Ease((t - i * 0.14f) / 0.65f);
-            Vector2 p = new(180 + i * 295 - (1 - arrive) * 250 + launch * (1650 - i * 190),
-                330 + (i % 2) * 35 - t * 7 - launch * 190);
-            DrawFlight(i, p, i == 3 ? 390 : 350, alpha * arrive);
-            DrawShotArt(i, p + new Vector2(115, 35), 50, -0.1f, alpha * arrive);
-        }
+        float fade = 1 - Ease((t - RecallBeat * 3) / 0.3f);
+        if (fade <= 0) return;
+        int index = RecallIndex(t);
+        float local = t - index * RecallBeat;
+        if (index > 0 && local < 0.12f) DrawDailyCloseup(index - 1, RecallBeat, alpha * fade);
+        DrawDailyCloseup(index, local, alpha * fade * (index == 0 ? 1 : Ease(local / 0.12f)));
+    }
+
+    private void DrawDailyCloseup(int index, float t, float alpha)
+    {
+        var texture = _daily[index];
+        Vector2 size = texture.GetSize() * (1280f / texture.GetWidth()) * (1.65f + t * 0.08f);
+        Vector2 focus = new Vector2(640, 310) + new Vector2((index == 1 ? -1 : 1) * t * 25, -t * 12);
+        Vector2 origin = (focus - size * DailyFocus[index]).Clamp(Screen.Size - size, Vector2.Zero);
+        DrawTextureRect(texture, new Rect2(origin, size), false, Fade(Colors.White, alpha));
+        DrawRect(Screen, new Color(0.015f, 0.025f, 0.03f, alpha * 0.15f));
     }
 
     private void Background(Texture2D texture, float zoom, Vector2 offset, float alpha)
@@ -767,6 +786,12 @@ public partial class OpeningFilm : Node2D
     {
         int shot = Shot;
         float t = (float)(Elapsed - Cuts[shot]);
+        if (shot is 4 or 9)
+        {
+            float shade = shot == 9 ? Ease((t - 1.2f) / 0.4f) : 1;
+            UiKit.HGradient(canvas, new Rect2(0, 0, 620, 720),
+                new Color(0.015f, 0.025f, 0.03f, shade * 0.75f), new Color(0.015f, 0.025f, 0.03f, 0));
+        }
         if (shot is >= 1 and <= 3)
         {
             int i = shot - 1;
@@ -809,10 +834,8 @@ public partial class OpeningFilm : Node2D
         }
         if (shot == 9)
         {
-            float a = Ease((t - 0.5f) / 0.6f) * (1 - Ease((t - 3.5f) / 0.4f));
-            DrawCaptionShade(canvas, 530, a);
-            string line = WaitingLine;
-            UiKit.Text(canvas, _filmFont, new Vector2((1280 - UiKit.TextW(_filmFont, line, 32)) / 2, 590), line, 32, Fade(UiKit.PurifyHi, a));
+            float a = Ease((t - 1.35f) / 0.4f) * (1 - Ease((t - 3.6f) / 0.4f));
+            DrawQuote(canvas, WaitingLine.Replace("、", "、\n"), new Vector2(72, 145), 36, a, t - 1.35f);
         }
         float bars = shot <= 3 ? 38 : shot == 4 ? Mathf.Lerp(38, 22, Ease(t / 1.2f)) : 22;
         canvas.DrawRect(new Rect2(0, 0, 1280, bars), Colors.Black);

@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 //         入力なしで FastForwarding が真・印は消える
 //     (c) L で Backlog.IsOpen ／ (d) M で PauseMenu.IsOpen、MENU クリック経路（PauseMenu.Open の Call）も開く
 //     (g) ボタン列にマウスが乗っている間は左クリックが会話送り（Pad.AdvanceHeld）に数えられない
-//     (vi) ボタン矩形：64×56・間隔 8・ボックス上辺に 6 食い込み・右端から 18 内側（戦闘の会話バーで実寸を突き合わせる）
+//     (vi) ボタン矩形：36×30・間隔 4・ボックス上辺に 3 食い込み・右端から 12 内側。
 //     (h) Hud を通らない画面（Prologue／Epilogue／Hub の会話）にもボタン列が出て、枠の上辺右寄せに並び、
 //         A で AUTO（全文表示後に自動で送る）、S で SKIP（未読行で即 OFF／既読行で早送り／選択肢・未読行で OFF。
 //         ハブは会話を閉じても ON のまま右上に印）
@@ -58,7 +58,7 @@ public partial class DialogToolbarQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated user data");
-            foreach (string icon in new[] { "auto", "skip", "log", "menu" })
+            foreach (string icon in new[] { "auto", "skip", "log", "menu", "auto_on", "skip_on" })
             {
                 var texture = GD.Load<Texture2D>($"res://char/ui/dialog_{icon}_v1.png");
                 using var artwork = texture.GetImage();
@@ -190,16 +190,18 @@ public partial class DialogToolbarQa : Node
             GD.Print($"[Toolbar] rects AUTO={r0} MENU={r3}");
             // (vi) 新しい寸法（戦闘の会話バー＝右上 (DlgBoxX+DlgBoxW, 520)）
             float ax = Hud.DlgBoxX + Hud.DlgBoxW;
-            Check(r3 == new Rect2(ax - 18f - 64f, 470f, 64f, 56f), $"(vi) MENU rect is 64x56, 18 in from the right, 6 into the top edge ({r3})");
-            Check(r0 == new Rect2(ax - 18f - 64f - 3f * 72f, 470f, 64f, 56f), $"(vi) AUTO rect sits 3 buttons (64+8) to the left ({r0})");
-            Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 8f, "(vi) 8px gap between buttons");
+            Check(r3 == new Rect2(ax - 12f - 36f, 493f, 36f, 30f), $"(vi) MENU rect is compact and aligned ({r3})");
+            Check(r0 == new Rect2(ax - 12f - 36f - 3f * 40f, 493f, 36f, 30f), $"(vi) AUTO rect sits 3 buttons (36+4) to the left ({r0})");
+            Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 4f, "(vi) 4px gap between buttons");
+            Check(r3.End.X - r0.Position.X == 156f, "(vi) toolbar occupies only 156px before its thin rim");
             var boundsField = typeof(DialogToolbar).GetField("IconRegions", PrivateStatic)!;
             var regions = (Rect2[])boundsField.GetValue(null)!;
             for (int i = 0; i < regions.Length; i++)
             {
-                Vector2 bounds = hud.ToolbarRect(i).Size - new Vector2(8, 8);
+                Vector2 bounds = new(24, 20);
                 Vector2 size = regions[i].Size * Mathf.Min(bounds.X / regions[i].Size.X, bounds.Y / regions[i].Size.Y);
-                Check(size.Y >= 33 && size.X >= 37, $"(vi) illustration {i} retains visible detail at {size}");
+                Check(size.Y >= 14 && size.Y <= 20 && size.X >= 15 && size.X <= 24,
+                    $"(vi) illustration {i} stays small and legible at {size}");
             }
             var boardChoices = ChoiceOverlay.Show(root, ChoiceEffects.SkyChoices, 3, onBoard: true);
             await Frames(3);
@@ -272,6 +274,7 @@ public partial class DialogToolbarQa : Node
 
     private async Task Shots(GameManager game, Hud hud, Node2D world, FieldInfo readField, string stamp)
     {
+        await SelectedStateShots(game, hud, readField);
         // 1) 戦闘会話（AUTO 点灯）
         game.AutoAdvanceDialog = true;
         hud.ShowDialog(Hud.LineKind.Mina, "……この投稿、下書きのほうが本音だね。消されたほうの言葉、ちゃんと読んだよ。");
@@ -315,6 +318,58 @@ public partial class DialogToolbarQa : Node
         await Seconds(2.0);
         await Save("toolbar_cinematic");
         GD.Print($"[Toolbar] shots saved to {_out} (film done={done})");
+    }
+
+    private async Task SelectedStateShots(GameManager game, Hud hud, FieldInfo readField)
+    {
+        game.AutoAdvanceDialog = false;
+        Hud.SkipLatched = false;
+        hud.ShowDialog(Hud.LineKind.Mina, "……ご主人様。聞こえています。");
+        readField.SetValue(hud, true);
+        GetViewport().WarpMouse(new Vector2(200, 100));
+        await Seconds(0.45);
+        await SaveZoom("toolbar_off", hud.ToolbarRect(0), hud.ToolbarRect(3));
+        using var off = GetViewport().GetTexture().GetImage();
+        foreach (int button in new[] { DialogToolbar.Auto, DialogToolbar.Skip })
+        {
+            var rect = hud.ToolbarRect(button);
+            await Click(rect.GetCenter());
+            Check(button == DialogToolbar.Auto ? game.AutoAdvanceDialog : Hud.SkipLatched,
+                $"button {button}: compact hitbox toggles on with a mouse click");
+            GetViewport().WarpMouse(new Vector2(200, 100));
+            await Frames(3);
+            await SaveZoom(button == DialogToolbar.Auto ? "toolbar_auto_on" : "toolbar_skip_on", hud.ToolbarRect(0), hud.ToolbarRect(3));
+            using var on = GetViewport().GetTexture().GetImage();
+            Rect2I icon = new((int)rect.Position.X + 6, (int)rect.Position.Y + 4, 24, 20);
+            int changed = 0;
+            for (int y = icon.Position.Y; y < icon.End.Y; y++)
+                for (int x = icon.Position.X; x < icon.End.X; x++)
+                {
+                    Color color = on.GetPixel(x, y), before = off.GetPixel(x, y);
+                    bool selectedColor = button == DialogToolbar.Auto
+                        ? color.G > color.R + 0.18f && color.B > color.R + 0.1f
+                        : color.R > color.B + 0.25f && color.G > color.B + 0.12f;
+                    if (selectedColor && Math.Abs(color.R - before.R) + Math.Abs(color.G - before.G)
+                        + Math.Abs(color.B - before.B) > 0.3f) changed++;
+                }
+            Check(changed >= 18, $"button {button}: dedicated selected illustration visibly changes color ({changed} pixels)");
+            await Click(rect.GetCenter());
+            Check(button == DialogToolbar.Auto ? !game.AutoAdvanceDialog : !Hud.SkipLatched,
+                $"button {button}: second click restores the inactive state");
+        }
+        GetViewport().WarpMouse(new Vector2(200, 100));
+    }
+
+    private async Task Click(Vector2 designPosition)
+    {
+        Vector2 position = designPosition * UiKit.Scale;
+        GetViewport().WarpMouse(position);
+        await Frames(3);
+        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = position });
+        await Frames(3);
+        Check(Pad.MouseCaptured && !Pad.AdvanceHeld(), "toolbar click does not advance the dialogue");
+        Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = position });
+        await Frames(3);
     }
 
     // (h-1) プロローグ：会話フェーズ（_phase 3）でボタン列が出る。A＝AUTO で送られる、S＝既読で早送り→選択肢で OFF。

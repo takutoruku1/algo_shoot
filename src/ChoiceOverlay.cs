@@ -26,10 +26,6 @@ public partial class ChoiceOverlay : Control
     private double _decideT;
     private float _trailAcc;
 
-    private bool _inputSeen;
-    private float _hintA;
-    private Vector2 _lastMouse;
-
     // 光の粒（解散の散り・昇りのトレイル）。設計座標で保持・描画。
     private struct Mote { public Vector2 P, V; public float Life, Max, R; public Color C; }
     private readonly List<Mote> _motes = new();
@@ -94,7 +90,6 @@ public partial class ChoiceOverlay : Control
         _font.Oversampling = 2;
         _font.SubpixelPositioning = TextServer.SubpixelPositioning.Auto;
         _rng.Randomize();
-        _lastMouse = Pad.MousePos();
         if (!_shotHoldChecked)
         {
             _shotHoldChecked = true;
@@ -206,13 +201,6 @@ public partial class ChoiceOverlay : Control
             StartDissolve();
             return;
         }
-
-        var mp = Pad.MousePos();
-        bool mouseMoved = (mp - _lastMouse).Length() > 6f;
-        _lastMouse = mp;
-        if (nav || z || click || mouseMoved) _inputSeen = true;
-        float target = (_inputSeen ? 0.55f : 1f) * Mathf.Clamp((float)_t / VignetteIn, 0f, 1f);
-        _hintA = Mathf.MoveToward(_hintA, target, dt * 3f);
 
     }
 
@@ -353,11 +341,6 @@ public partial class ChoiceOverlay : Control
 
             if (focus > 0.01f)
             {
-                Vector2 arrow = new(row.End.X - 33, row.GetCenter().Y);
-                Color color = new(edge, alpha * focus);
-                DrawLine(arrow - new Vector2(20, 0), arrow, color, 1.5f, true);
-                DrawLine(arrow - new Vector2(6, 5), arrow, color, 1.5f, true);
-                DrawLine(arrow - new Vector2(6, -5), arrow, color, 1.5f, true);
                 DrawTextureRect(_lineTex, new Rect2(row.Position.X + 12, row.End.Y - 2, row.Size.X - 24, 2), false,
                     new Color(Paper, alpha * focus * (0.35f + pulse * 0.2f)));
             }
@@ -378,12 +361,6 @@ public partial class ChoiceOverlay : Control
                 mote.P + new Vector2(0, mote.R * 2), mote.P - new Vector2(mote.R, 0) }, new Color(mote.C, alpha));
         }
 
-        if (_hintA > 0.01f && !_deciding && !_cinematic)
-        {
-            string hint = "↑↓ / マウス えらぶ　" + Pad.ConfirmToken + " けってい";
-            UiKit.Text(this, UiKit.Zen, new Vector2(_fieldLeft, 467), hint, UiKit.FontSmall,
-                new Color(Muted, 0.8f * _hintA), HorizontalAlignment.Center, _fieldWidth);
-        }
         UiKit.EndDesign(this);
     }
 }

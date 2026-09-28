@@ -157,6 +157,20 @@ public partial class OpeningFilmQa : Node
             var mina = Read<Sprite2D>(film, "_mina");
             using (var cutout = mina.Texture.GetImage())
                 Check(cutout.GetPixel(0, 0).A == 0 && cutout.GetPixel(1000, 300).A > 0.95f, "Mina is a real transparent character layer");
+            var recall = typeof(OpeningFilm).GetMethod("RecallIndex", BindingFlags.Static | BindingFlags.NonPublic)!;
+            foreach (var (time, index) in new[] { (0.2f, 0), (0.6f, 1), (1.0f, 2) })
+                Check((int)recall.Invoke(null, new object[] { time })! == index,
+                    "closing recalls each person's separate everyday scene");
+            var space = Read<OpeningBackdrop>(film, "_space");
+            Check(Read<Texture2D>(space, "_depth").ResourcePath.EndsWith("timeline_depth_v2.png"),
+                "Mina and the closing belong to the prologue's SNS space");
+            foreach (string line in "まだ届いていない声が、\n待っている。".Split('\n'))
+                Check(UiKit.TextW(filmFont, line, 36) <= 510, "invitation caption leaves Mina's face and hand clear");
+            Seek(film, cuts[9] + 2.5);
+            Check(mina.Visible && Read<ShaderMaterial>(film, "_wind").GetShaderParameter("opacity").AsDouble() > 0.99,
+                "closing shows the detailed reaching portrait, not a four-fighter lineup");
+            Seek(film, cuts[10] + 0.5);
+            Check(!mina.Visible, "invitation leaves cleanly before the title");
             for (int i = 0; i < 3; i++)
             {
                 Vector2I size = i == 0 ? new(1280, 720) : i == 1 ? new(960, 540) : new(540, 960);
@@ -168,7 +182,9 @@ public partial class OpeningFilmQa : Node
                     (10.2, "phone_signal"),
                     (cuts[1] + 1.7, "akari"), (cuts[2] + 1.7, "koharu"), (cuts[3] + 1.7, "rei"),
                     (cuts[4] + 2.55, "mina_wind"), (cuts[5] + 1.7, "akari_action"), (cuts[6] + 1.7, "koharu_action"),
-                    (cuts[7] + 1.7, "rei_action"), (cuts[8] + 1.7, "mina_action"), (cuts[9] + 2.5, "together"), (cuts[10] + 1.7, "title") })
+                    (cuts[7] + 1.7, "rei_action"), (cuts[8] + 1.7, "mina_action"),
+                    (cuts[9] + 0.2, "recall_akari"), (cuts[9] + 0.6, "recall_koharu"), (cuts[9] + 1.0, "recall_rei"),
+                    (cuts[9] + 1.45, "invitation_enter"), (cuts[9] + 2.5, "invitation"), (cuts[10] + 1.7, "title") })
                 {
                     Seek(film, time);
                     await Shot($"{name}_{size.X}x{size.Y}");
@@ -210,7 +226,13 @@ public partial class OpeningFilmQa : Node
                     $"{cast[i].CharacterId} post shatters visibly");
             }
             Seek(film, cuts[9] + 3.4);
-            await Shot("together_launch");
+            await Shot("invitation_hold");
+            Seek(film, cuts[9] + 1.65);
+            using var invitationEnter = await Capture();
+            Seek(film, cuts[9] + 2.5);
+            using var invitationHold = await Capture();
+            Check(Difference(invitationEnter, invitationHold, new Rect2I(620, 90, 560, 500)) > 0.01f,
+                "invitation camera and portrait visibly settle");
             Seek(film, cuts[4] + 4.65);
             await Shot("mina_dive");
 

@@ -471,7 +471,6 @@ public partial class ChoiceOverlayQa : Node
         choice = ChoiceOverlay.Show(hud, (string[])typeof(StageAkari).GetField("S15Choices", Static)!.GetValue(null)!, 1, onBoard: true);
         choice.SetProcess(false);
         Set(choice, "_t", 2.0);
-        Set(choice, "_hintA", 1f);
         foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
         {
             DisplayServer.WindowSetSize(size);

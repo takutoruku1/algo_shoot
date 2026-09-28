@@ -17,7 +17,7 @@ using Godot;
 //   ・見た目：一体の金属調の台座に、銀・ミントのガラスと金縁の透過イラストを描く。
 //     キー文字はボタンにも吹き出しにも載せない（作者指示。キーの案内は「あそびかた」＝HowToPlay だけが担う）。
 //     名前はマウスを乗せたときの吹き出しで出す。ON（AUTO 有効／SKIP ラッチ・早送り中）は
-//     下辺のラインをミント色で点灯する。キー操作とクリックは上の表のとおり効く。
+//     専用のミント色／琥珀色イラストへ切り替え、枠も点灯する。キー操作とクリックは上の表のとおり効く。
 //   ・LOG／MENU のキー（L／Tab／View、M／Start）は Backlog／PauseMenu が全画面で自前に読んでいる＝ここでは読まない
 //     （読むと同じ押下で二度開く）。ここが足すのはクリックだけ。
 //     例外：カットシーン（Prologue／Final／Epilogue）のパッド Start は「長押しでさいしょから」（RetryHold）で、
@@ -44,10 +44,10 @@ public sealed class DialogToolbar
     private static readonly string[] Tips = { "自動送り", "既読スキップ", "ログ", "メニュー" };
     public const int Auto = 0, Skip = 1, Log = 2, Menu = 3;
     private const int Count = 4;
-    public const float W = 64f, H = 56f;       // ボタンの寸法（設計座標）
-    private const float Gap = 8f;              // ボタン同士の間隔
-    private const float Bite = 6f;             // ボックス上辺へ食い込ませる量
-    private const float Inset = 18f;           // ボックス右端からの引っ込み
+    public const float W = 36f, H = 30f;       // ボタンの寸法（設計座標）
+    private const float Gap = 4f;              // ボタン同士の間隔
+    private const float Bite = 3f;             // ボックス上辺へ食い込ませる量
+    private const float Inset = 12f;           // ボックス右端からの引っ込み
     private const double Grace = 0.3;          // ボックスが出てからキー入力を受け付けるまで
     private const double TapMax = 0.3;         // RB／Start をこれより短く押し離したらボタン扱い（長押しは従来の意味）
     private const float MarkH = 18f;           // ラッチ中の右上の印「▶▶」の高さ
@@ -57,6 +57,7 @@ public sealed class DialogToolbar
 
     private static readonly Color Metal = new("c4b998");
     private static readonly Color Active = new("a4e9d9");
+    private static readonly Color SkipActive = new("f4bf62");
     private static readonly string[] IconPaths = {
         "res://char/ui/dialog_auto_v1.png", "res://char/ui/dialog_skip_v1.png",
         "res://char/ui/dialog_log_v1.png", "res://char/ui/dialog_menu_v1.png",
@@ -67,6 +68,10 @@ public sealed class DialogToolbar
         new(244, 136, 784, 992), new(76, 88, 1104, 1080),
     };
     private static readonly CanvasTexture?[] Icons = new CanvasTexture?[Count];
+    private static readonly string[] ActiveIconPaths = {
+        "res://char/ui/dialog_auto_on_v1.png", "res://char/ui/dialog_skip_on_v1.png",
+    };
+    private static readonly CanvasTexture?[] ActiveIcons = new CanvasTexture?[2];
 
     private bool _autoHeld = true, _skipHeld = true, _rbHeld = true, _startHeld = true;   // 起動時の押しっぱなしをエッジにしない
     private bool _rbArmed, _startArmed;   // RB／Start をボックス表示中に押し始めたか（押し離しの切替はそのときだけ）
@@ -216,6 +221,8 @@ public sealed class DialogToolbar
             {
                 Auto => autoOn,
                 Skip => skipOn,
+                Log => ci.GetNodeOrNull<Backlog>("/root/Backlog")?.IsOpen == true,
+                Menu => ci.GetNodeOrNull<PauseMenu>("/root/PauseMenu")?.IsOpen == true,
                 _ => false,
             };
             DrawButton(ci, ButtonRect(anchor, i), i, on, Hover == i, breath);
@@ -229,18 +236,18 @@ public sealed class DialogToolbar
     {
         if (!LatchMarkVisible || !Hud.SkipLatched) { LatchMarkDrawnRect = default; return; }
         var r = LatchMarkRect(topRight);
-        DrawIcon(ci, r, Skip, new Color(1, 1, 1, MarkAlpha));
+        DrawIcon(ci, r, Skip, new Color(1, 1, 1, MarkAlpha), active: true);
         LatchMarkDrawnRect = r;
     }
 
     private static void DrawDock(CanvasItem ci, Vector2 anchor)
     {
         Rect2 first = ButtonRect(anchor, Auto), last = ButtonRect(anchor, Menu);
-        float left = first.Position.X - 9, right = last.End.X + 9;
-        float top = first.Position.Y - 4, bottom = first.End.Y + 5;
+        float left = first.Position.X - 5, right = last.End.X + 5;
+        float top = first.Position.Y - 2, bottom = first.End.Y + 2;
         var rim = new[] {
-            new Vector2(left, bottom), new Vector2(left, top + 7), new Vector2(left + 7, top),
-            new Vector2(right - 7, top), new Vector2(right, top + 7), new Vector2(right, bottom),
+            new Vector2(left, bottom), new Vector2(left, top + 4), new Vector2(left + 4, top),
+            new Vector2(right - 4, top), new Vector2(right, top + 4), new Vector2(right, bottom),
         };
         ci.DrawColoredPolygon(rim, new Color(0.035f, 0.044f, 0.045f, 0.96f));
         ci.DrawPolyline(rim, new Color(Metal, 0.28f), 1, true);
@@ -255,25 +262,25 @@ public sealed class DialogToolbar
 
     private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath)
     {
+        Color tint = i == Skip ? SkipActive : Active;
+        bool pressed = hover && Input.IsMouseButtonPressed(MouseButton.Left);
         if (on || hover)
         {
-            Color tint = on ? Active : Metal;
-            UiKit.VGradient(ci, new Rect2(r.Position, r.Size + new Vector2(0, 2)),
-                new[] { new Color(tint, 0), new Color(tint, on ? 0.13f * breath : 0.08f) },
-                new[] { 0f, 1f });
-            var left = new Vector2(r.Position.X + 4, r.End.Y + 1);
-            var right = new Vector2(r.End.X - 4, left.Y);
-            if (on) ci.DrawLine(left, right, new Color(Active, 0.12f * breath), 5, true);
-            ci.DrawLine(left, right, new Color(tint, on ? breath : 0.55f), 1, true);
+            UiKit.Box(ci, r.Grow(-1), new Color(tint, pressed ? 0.28f : on ? 0.13f * breath : 0.07f),
+                3f, new Color(tint, on ? 0.8f * breath : 0.35f), on ? 1.5f : 1f);
         }
-        DrawIcon(ci, new Rect2(r.Position + new Vector2(4, 2), r.Size - new Vector2(8, 8)), i,
-            Colors.White);
+        Color ink = i >= Log && (on || hover) ? tint : Colors.White;
+        ink.A = on || hover ? 1f : 0.78f;
+        DrawIcon(ci, new Rect2(r.Position + new Vector2(6, 4 + (pressed ? 1 : 0)), new Vector2(24, 20)), i,
+            ink, active: on && i <= Skip);
     }
 
-    private static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate)
+    private static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate, bool active = false)
     {
-        var texture = Icons[i] ??= new CanvasTexture {
-            DiffuseTexture = GD.Load<Texture2D>(IconPaths[i]),
+        var icons = active ? ActiveIcons : Icons;
+        var paths = active ? ActiveIconPaths : IconPaths;
+        var texture = icons[i] ??= new CanvasTexture {
+            DiffuseTexture = GD.Load<Texture2D>(paths[i]),
             TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
         };
         var region = IconRegions[i];
