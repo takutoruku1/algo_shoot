@@ -1513,7 +1513,7 @@ public partial class Player : Area2D
 
         // b.Active を必須にする。プールへ返却済み（=非アクティブ）の弾が
         // 当たり判定だけ残っていても被弾しないようにする。
-        if (area is Bullet b && b.IsEnemy && b.Active)
+        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending)
         {
             TakeHit();
             // 当たった敵弾は消す
@@ -1525,7 +1525,7 @@ public partial class Player : Area2D
     // グレイズ（敵弾のかすり）検出 → 加点。
     private void OnGrazeAreaEntered(Area2D area)
     {
-        if (area is Bullet b && b.IsEnemy && b.Active && !b.Grazed)
+        if (area is Bullet b && b.IsEnemy && b.Active && !b.OverheadPending && !b.Grazed)
         {
             b.Grazed = true; // どちらの分岐でも立てて二重取りを防ぐ
             // あかりの「キミ弾」：かすった弾だけ減速×0.75＋淡色化（フラグ弾のみ・判定不変）。

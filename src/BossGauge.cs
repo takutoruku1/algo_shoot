@@ -2,14 +2,14 @@ using Godot;
 
 // ボス／中ボスの体力ゲージ（2026-09-27 作者指示「画面上部じゃなくて、簡略化して、実際に動いてるボスの上部に表示」）。
 //   画面上端のカード（Hud.DrawBossCard＝アイコン・名前・ハンドル・リプ数・穢れバー・pip・残/総）をやめ、
-//   ボス本体の頭上に「いまの1本」のバーと「残り本数」の点だけを置く。
+//   ボス本体の頭上に「いまの1本」のバーと「残り本数」の結晶を置く。
 //   ボスの子ノードなので、位置・表示／非表示（投稿で隠れる等）・Modulate のフェードはボスに追従し、
 //   ボスが消えれば一緒に消える。状態（1本ぶんの割合・残本数・スペル色・割れフラッシュ・改心の見送り）は
 //   従来どおり Hud が持つ＝各ボスの UpdateBossBar／SetBossBarTint／FlashBossBarBreak／HideBossBar は変えていない。
 //   Z は絶対 11（自機 10・弾 0 より手前）＝弾幕の中でも読める。
 // 塗りの色分け（2026-09-27 作者指示「無敵のタイミングと、BREAK時のHPバー色分けしたい」）：
 //   無敵（SHIELDED／RECLOSE）＝灰＋45°の斜線ハッチ（「今は通らない」）。
-//   BREAK（BREAK／EXPOSED）＝金（本体まわりの無防備窓タイマーバーの e9d28b より少し暖かい f0c85a）。割れた一拍は白へ寄せて光り、あとは脈打つ。
+//   BREAK（BREAK／EXPOSED）＝金。割れた一拍は白へ寄せて光り、あとは脈打つ。
 //   改心の見送り中は従来どおり浄化色へ抜ける（上の2色より優先）。フェーズ色（スペル色）は残本数の点に残す。
 //   殴れるかどうかは Hud.GaugeState ではなくボス本体（Enemy.GaugeVulnerable／GaugeBreakFresh）から直接読む。
 // 色味：ゲージは盤面側に居るので、各 Root の CanvasModulate（夜の冷色 Tint）で金がくすんで黄土色に沈む。
@@ -23,6 +23,8 @@ public partial class BossGauge : Node2D
     private const float DamageHold = 0.12f;
     private readonly Vector2[] _plate = new Vector2[6], _outline = new Vector2[7];
     private readonly Vector2[] _diamond = new Vector2[4], _diamondOutline = new Vector2[5];
+    private readonly Vector2[] _shield = new Vector2[5], _shieldOutline = new Vector2[6];
+    private readonly Vector2[] _shieldCrack = new Vector2[4];
     private float _trail, _lastFrac, _damageHold;
     private int _barIndex = -1, _barTotal;
 
@@ -30,8 +32,8 @@ public partial class BossGauge : Node2D
     private static readonly Color InvulnFill = new("899ba5"), DamageFill = new("b88186");
     private static readonly Color HatchCol = new(0.10f, 0.10f, 0.12f, 0.6f);
     private const float HatchW = 0.65f, HatchPitch = 3.8f;
-    // BREAK の金。本体まわりの無防備窓タイマーバー（e9d28b）より少し暖かく濃い＝Tint を打ち消した上で「金」と読める色。
     private static readonly Color BreakFill = new("f0c85a");
+    private static readonly Color ReformFill = new("76cfe0"), WindowWarning = new("ff9870");
 
     private double _t;   // BREAK 中の脈の時計
     private CanvasModulate? _tint;   // 祖先のどこかに居る世界の色味（無ければ打ち消し不要）
@@ -96,7 +98,7 @@ public partial class BossGauge : Node2D
         var s = _hud.GaugeState;
         if (!s.Visible || s.Fade <= 0f) return;
 
-        float top = _owner.GaugeTop, w = _owner.GaugeWidth, a = s.Fade;
+        float top = _owner.GaugeTop - 6f, w = _owner.GaugeWidth, a = s.Fade;
         // 改心の見送り：穢れ色（スペル色）→浄化色へ抜けてから薄れる（旧カードのアイコンと同じ段取り）。
         Color tint = s.Tint.Lerp(UiKit.PurifyHi, s.Purify);
 
@@ -172,6 +174,61 @@ public partial class BossGauge : Node2D
                     i < left ? new Color(current ? fillCol : tint, a) : new Color(Track, a),
                     new Color(current ? Colors.White : i < left ? tint : Rail, (current ? 0.8f : 0.6f) * a));
             }
+        }
+        if (s.Purify <= 0f && (_owner.GaugeVulnerable || _owner.GaugeReforming))
+            DrawRecoveryGauge(_owner, a);
+    }
+
+    private void DrawRecoveryGauge(Enemy owner, float alpha)
+    {
+        bool reforming = owner.GaugeReforming;
+        float fraction = reforming ? owner.GaugeReformProgress : owner.GaugeWindowLeft;
+        bool warning = !reforming && fraction < 0.25f;
+        float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * Mathf.Tau * (warning ? 4f : 1.5f));
+        Color accent = reforming ? ReformFill : warning ? WindowWarning : BreakFill;
+        float w = owner.GaugeWidth, y = owner.GaugeBottom;
+        var track = new Rect2(-w / 2 + 8f, y, w - 8f, 2.8f);
+        DrawPlate(track.Grow(1.3f), new Color(Plate, 0.96f * alpha), new Color(accent, 0.55f * alpha));
+
+        const int cells = 5;
+        const float gap = 1.1f;
+        float cellWidth = (track.Size.X - gap * (cells - 1)) / cells;
+        for (int i = 0; i < cells; i++)
+        {
+            var cell = new Rect2(track.Position + new Vector2(i * (cellWidth + gap), 0), new Vector2(cellWidth, track.Size.Y));
+            DrawPlate(cell, new Color(Track, alpha));
+            float charge = Mathf.Clamp(fraction * cells - i, 0f, 1f);
+            if (charge <= 0f) continue;
+            var fill = new Rect2(cell.Position, new Vector2(cellWidth * charge, cell.Size.Y));
+            DrawPlate(fill, new Color(accent, (warning ? 0.65f + 0.35f * pulse : 0.92f) * alpha));
+            if (fill.Size.X > 1.4f)
+                DrawLine(fill.Position + new Vector2(0.7f, 0.65f), new Vector2(fill.End.X - 0.7f, y + 0.65f),
+                    new Color(Colors.White, 0.5f * alpha), 0.4f, true);
+        }
+
+        var center = new Vector2(-w / 2 + 2.5f, y + 1.3f);
+        _shield[0] = center + new Vector2(-2.7f, -2.9f);
+        _shield[1] = center + new Vector2(2.7f, -2.9f);
+        _shield[2] = center + new Vector2(2.3f, 0.8f);
+        _shield[3] = center + new Vector2(0, 3f);
+        _shield[4] = center + new Vector2(-2.3f, 0.8f);
+        DrawColoredPolygon(_shield, new Color(Plate, 0.96f * alpha));
+        for (int i = 0; i < 5; i++) _shieldOutline[i] = _shield[i];
+        _shieldOutline[5] = _shield[0];
+        DrawPolyline(_shieldOutline, new Color(accent, (0.7f + 0.3f * pulse) * alpha), 0.7f, true);
+        if (reforming)
+        {
+            float scan = Mathf.Lerp(center.Y + 1.4f, center.Y - 1.8f, fraction);
+            DrawLine(new Vector2(center.X - 1.5f, scan), new Vector2(center.X + 1.5f, scan),
+                new Color(accent.Lightened(0.3f), alpha), 0.65f, true);
+        }
+        else
+        {
+            _shieldCrack[0] = center + new Vector2(0.7f, -1.8f);
+            _shieldCrack[1] = center + new Vector2(-0.6f, -0.1f);
+            _shieldCrack[2] = center + new Vector2(0.6f, 0.2f);
+            _shieldCrack[3] = center + new Vector2(-0.7f, 1.7f);
+            DrawPolyline(_shieldCrack, new Color(accent, alpha), 0.65f, true);
         }
     }
 

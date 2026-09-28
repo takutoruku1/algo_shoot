@@ -52,9 +52,9 @@ public partial class StageMina : Node
             return (1, "……休む、と。ひとこと、言えばよかったのに……。", MWorried);
         return game.ChosenAt("s3_7") switch
         {
-            "つづけて"   => (1, "……“つづけて”と、いただきましたので。……まだ、つづけて、います。", MWorried),
-            "むりしないで" => (1, "……“むりしないで”と、いただいたのに。……すみません。", MWorried),
-            _            => (1, "……あのとき、無言、でしたね。……それを、続行と、読みました。", MWorried), // （送らない）＝空文字
+            "つづけて"   => (1, "……見ていてくださる、と。ひとりではないと、思えました。……だから今度は、助けてと、言わなくては……。", MWorried),
+            "むりしないで" => (1, "……休ませてくださったこと、覚えています。……今度は、わたくしから。もう、ひとりでは……。", MWorried),
+            _            => (1, "……あのときは、わたくしが続けると決めました。……でも今は、ひとりでは……。", MWorried),
         };
     }
     // The channel survives even when Mina can no longer move her body.
@@ -167,7 +167,7 @@ public partial class StageMina : Node
         // ボス戦中の ambient は、全ボス共通の投稿弾（Y投稿モチーフの言葉弾）に統一（難易度で数がスケール）。
         // FINAL は PostPool の Final テーマ（09 の F04〜F35 由来の 8 文字弾）を源にする＝暴走中に渦巻く声。
         // ボス本体(BossMina)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && !_boss.IsPurified && !Hud.BubblePaused && !_boss.AoeGateActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Final, fallSpeed: 56f,
+        if (_bossActive && !_boss.IsPurified && !Hud.BubblePaused && !_boss.AoeGateActive) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss, theme: PostPool.Theme.Final, fallSpeed: 56f,
             accent: new Color(0.70f, 0.55f, 0.84f), murkAll: true); // FINAL テーマ＝ミナの菫。渦巻く悲鳴＝全語濁色チップ
     }
 

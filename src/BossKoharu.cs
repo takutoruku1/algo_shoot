@@ -217,6 +217,7 @@ public partial class BossKoharu : Enemy
 
         // v3 の本体（エフェクト無し・720px）。視線の線・後光・ペンライトの光は BossParts が重ねる。
         PreTexPath = "res://char/v3/boss_koharu_body_idle.png";
+        DownTexPath = BossDownArt.Path("koharu");
         AttackTexPath = "res://char/v3/boss_koharu_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
@@ -273,7 +274,7 @@ public partial class BossKoharu : Enemy
         _mover.Configure("koharu", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("我に返るわたし", BossHandles.KoharuMain, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        // 【激情】メーター開始。初期値は道中（s2_2/s2_4）の選択から決まる（FuryMeter.cs）。
+        // 【激情】メーター開始。初期値は予定表（s2_1）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("koharu");
         ApplySpell();
 

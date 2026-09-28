@@ -166,6 +166,7 @@ public partial class BossMina : Enemy
         _spiralSpeed = BossTuning.F("mina", "spiral_speed", 92f);
 
         PreTexPath = "res://char/v3/boss_mina_body_idle.png";
+        DownTexPath = BossDownArt.Path("mina");
         AttackTexPath = "res://char/v3/boss_mina_body_attack.png";
         // 改心の三段：穢れ(pre)→泣き(cry＝穢れ半剥がれ・決壊の涙)→清浄(post)。
         // cry は邂逅の会話尺いっぱい保持し、EndCryNow で post（本来の姿）へ着地（他ボスと同作法）。
@@ -343,7 +344,8 @@ public partial class BossMina : Enemy
         _caster.CancelPendingAttacks();
         _pattern++;
         _fireT = _fireT2 = 0;
-        ChangeBattleCostume(CostumePath(_pattern, "idle"), CostumePath(_pattern, "attack"));
+        ChangeBattleCostume(CostumePath(_pattern, "idle"), CostumePath(_pattern, "attack"),
+            BossDownArt.Path($"mina_{Costumes[_pattern]}"));
         if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
         ApplySpell();
         // ルナティック（2026-09-26）：段間のカットシーン（弾を止める会話）は出さない。Transitioning のまま返せば

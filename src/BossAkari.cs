@@ -150,6 +150,7 @@ public partial class BossAkari : Enemy
         _corridorHp = BossTuning.F("akari", "corridor_hp", 0.52f);
 
         PreTexPath = "res://char/v3/boss_akari_body_idle_v3.png";
+        DownTexPath = BossDownArt.Path("akari");
         AttackTexPath = "res://char/v3/boss_akari_body_attack_v3.png";
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
@@ -215,7 +216,7 @@ public partial class BossAkari : Enemy
         _mover.Configure("akari", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("あふれるわたし", BossHandles.AkariBar, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        // 【激情】メーター開始。初期値は道中（p4/s1_4/s1_5/s1_2）の選択から決まる（FuryMeter.cs）。
+        // 【激情】メーター開始。初期値は道中（p4/s1_4/s1_5）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("akari");
         ApplySpell();
 

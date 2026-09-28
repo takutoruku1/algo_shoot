@@ -100,6 +100,7 @@ public partial class StageRei : Node
         (1, "……机の上の、伏せたスマホが。いま、一度だけ、光りました。——誰も、拾いません。", MWorried),
         (1, "右上の数字。「8」。……減りました。うち一つは、机の上の端末——つけっぱなしの、この部屋のものです。", MFace),
         (1, "わたくしの光と、あの数字と、どちらが薄いか。……比べません。どちらも、集計はしますが。", MSmile),
+        (1, "……画面を見ていても、向こうの人数には入りません。——ここにある声を、祓います。", MFace),
     };
 
     // S3-3 道中A／BossTalk（仮台本 07）。削除済みの一行を投稿の下に聞く（中身は S3-8 まで言わない）。
@@ -133,39 +134,6 @@ public partial class StageRei : Node
         (2, "逃げたら……承知しないんだから。", RSmile),   // 捨て台詞。笑顔のまま
     };
 
-    // レイ面・中ボスの第一声（s3_2 差分・2026-09-25）。s3_2（step 2 末尾）は中ボス（step 5）より前に通る。
-    //   ★この選択はミナが自分のことで聞いた問いへの返答＝レイ宛ではない。それを本人が引用してくる
-    //     ＝部屋の中の独り言まで聞かれていた、という画になる。
-    //   第一声は「中の人・笑っていない」の位置（RFace）を保つ＝ここで配信用の笑顔にはしない
-    //   （RSmile へ切り替わるのは RECLOSE 以降＝CameoTalk3）。
-    //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（（送らない）なら既存が出る）。
-
-    // 「同接、9」
-    private static readonly (int who, string text, string face)[] CameoTalk1_S32Count =
-    {
-        (2, "「同接、9」……数えたの、あなた？", RFace),
-    };
-
-    // 「ちゃんと見てる」
-    private static readonly (int who, string text, string face)[] CameoTalk1_S32Watch =
-    {
-        (2, "「ちゃんと見てる」って。誰のこと？", RFace),
-    };
-
-    // 「見えてる」
-    private static readonly (int who, string text, string face)[] CameoTalk1_S32See =
-    {
-        (2, "「見えてる」なら、こっちに来なさいよ。", RFace),
-    };
-
-    // 中ボスの第一声を s3_2 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
-    private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s3_2") ?? "") switch
-    {
-        "同接、9" => CameoTalk1_S32Count,
-        "ちゃんと見てる" => CameoTalk1_S32Watch,
-        "見えてる" => CameoTalk1_S32See,
-        _ => CameoTalk1,
-    };
 
     // S3-4 のミナの観測（仮台本 07）。CameoBoss は who=2（本人）の行だけを一行オーバーレイで流すので、
     //   本人の合間に入るミナの行はオーバーレイに乗らない。中ボスの直前／直後に開く step が受け皿になる
@@ -213,54 +181,10 @@ public partial class StageRei : Node
         (1, "画面が、部屋を、呑みこんでいきます。……奥に、笑顔だけが。", MFace),
     };
 
-    // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    // レイ面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
-    //   s3_2 … Mid（step 2）の末尾。効果＝次のハブの再訪小話が「同接」に固定＋一語混ざる。
-    //   s3_5c … MidEnd（step 9）の一行目の直後。効果＝E4 の開示に一行（送られたか、散ったか）。
-
-    // S3-2 小話・暗い画面。炎上で光の薄いミナが、この面で初めて、自分のことで一度だけ聞く。
-    private static readonly (int who, string text, string face)[] S32Cue =
-    {
-        (1, "……ご主人様。この部屋、そちらから、見えていますか。——わたくしの光が、少し、暗いので。", MDoubt),
-    };
-    private static readonly string[] S32Choices = { "見えてる", "ちゃんと見てる", "同接、9", "（送らない）" };
-    private static (int who, string text, string face)[] S32Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[]
-        {
-            (0, "見えてる", ""),
-            (1, "……見えてる、と。——では、このままで。暗いのは、こちらの都合ですので。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "ちゃんと見てる", ""),
-            (1, "……ちゃんと、と。——一語、多いですね。……多いぶんは、集計に、入れておきます。", MSmile),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, "同接、9", ""),
-            (1, "……九。——右上の数字は、動きません。こちらは、向こう側の数に、入りませんので。……こちらで、ひとつ、数えておきます。", MSmile),
-        },
-        _ => new (int, string, string)[]
-        {
-            (1, "……無言。——見えているかは、観測できません。……暗いまま、続けます。", MFace),
-        },
-    };
-    private static readonly (int who, string text, string face)[] S32Tail =
-    {
-        (1, "——祓います。「見て」の声を。……見ているのは、こちらですが。", MFace),
-    };
-    // step 2 のきっかけ＝S3-2 の小話をそのまま流し切ってから、暗い画面の一行。毎フレーム組み直さない。
-    private static readonly (int who, string text, string face)[] MidThenS32 = Mid.Concat(S32Cue).ToArray();
 
     // S3-5c 道中C・三つの席。ふざけ枠の代わりに**ミナ自身の下書き**を三つめに混ぜる（どれかは言わない）。
     //   表記（です・ます）で気づける。「見ています」は S3-8 の決定打「見ていました。」の現在形。
     //   きっかけ＝MidEnd の一行目＋この報告。文言は MidEnd から切り出す（二重に持たない）。
-    // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【16】
-    //   旧稿は「わたくしのを、混ぜてあります」と先に宣言していた＝探すゲームになり、
-    //   受けの「気づいて、いただけましたか。それとも、偶然でしょうか。」が答え合わせに落ちていた。
-    //   宣言を落とすと、「見ています」を選んだ人だけが不意打ちを食らう形になり、
-    //   レイの「気づいてよ」とミナの「気づいて、いただけましたか」が同じ面で重なる。
     private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
     {
         (1, "……ご主人様。下書きが、三件。開いています。", MFace),
@@ -271,22 +195,21 @@ public partial class StageRei : Node
         0 => new (int, string, string)[]
         {
             (0, "見てる", ""),
-            (1, "……見てる、と。——はい。……わたくしのは、散りました。自分のぶんは、自分で、拾っておきます。", MFace),
+            (1, "……見てる、と。——はい。顔を上げたときに、その一言があるのは、心強いです。", MFace),
         },
         1 => new (int, string, string)[]
         {
             (0, "ここにいる", ""),
-            (1, "……ここにいる、と。——席が、ひとつ、こちらに。……わたくしのは、散りました。自分で、拾っておきます。", MFace),
+            (1, "……ここにいる、と。——では、そちらにも一席。わたくしも、隣に。……少し、落ち着きました。", MSmile),
         },
-        // 三つめがミナの一件。気づくかどうかも、この場面の遊び（ミナはどれが自分のかを言わない）。
         2 => new (int, string, string)[]
         {
             (0, "見ています", ""),
-            (1, "……それ、わたくしのです。——気づいて、いただけましたか。それとも、偶然でしょうか。……どちらでも。送られました。", MFace),
+            (1, "……ありがとうございます。——その言い方、わたくしの下書きと、同じでした。……並んで、見ているみたいですね。", MSmile),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……三件、散りました。うち、一件は、わたくしのです。——同じ棚に、置いておきます。", MWorried),
+            (1, "……はい。言葉にしないまま、見ていても。わたくしは、ここにいます。", MFace),
         },
     };
     // 締めは 07 の残り2行を流用（MidEnd の二行目・三行目）。
@@ -302,7 +225,6 @@ public partial class StageRei : Node
     };
 
     // S3-9 クリア（仮台本 07）。同接が「4」になる（誰が増えたかは言わない）。
-    //   空の問い・三度目＝「もう聞きません」で階段を閉じる（1度目「いらない」→2度目 無言→3度目）。
     //   【濁】危険域手前。「三人分」はここで初めて言う（S3-7 では「二人ぶん」に留めてある）。
     private static readonly (int who, string text, string face)[] Clear =
     {
@@ -318,7 +240,9 @@ public partial class StageRei : Node
         (2, "いまのは、初見さん向けの挨拶じゃないから。また話したい相手に、言ってるの。", RFace),
         (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),   // 「今日も来ました」。説明しない
         (1, "……そういえば。今日の空は、晴れていましたか。", MFace),   // 空の問い・三度目
-        (1, "……いえ。もう、聞きません。三度、聞きました。", MDoubt),
+    };
+    private static readonly (int who, string text, string face)[] ClearTail =
+    {
         (1, "三人分の祈りを、抱えてしまったので。……この重さくらい、わたくしが、持ちます。", MWorried),   // 【濁】危険域手前
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘（足すべき）
         //   「泣く」はレイ面クリアで獲得する設計なのに、本文のどこにも獲得が書かれていなかった
@@ -346,7 +270,6 @@ public partial class StageRei : Node
         (1, "——ひとつ、ご報告を。わたくしの光、二割ほど、濁っています。", MDoubt),
         (1, "二人ぶんの声と、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。", MFace),
     };
-    // 下書き選択（温度で割った3択。既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる）。
     private static readonly string[] S37Choices = { "つづけて", "むりしないで", "（送らない）" };
     // 受け（仮台本 07）。送った2件は復唱（who=0）してから受ける＝S1-4 と同じ流儀。
     private static (int who, string text, string face)[] S37Reply(int sel) => sel switch
@@ -354,19 +277,22 @@ public partial class StageRei : Node
         0 => new (int, string, string)[]
         {
             (0, "つづけて", ""),
-            (1, "……はい。“つづけて”と、いただきました。——では、つづけます。", MFace),   // F1 導入でこの語を一度だけ引用する
+            (1, "……はい。見ていてください。——苦しくなったら、今度は、わたくしから言います。", MFace),
         },
         1 => new (int, string, string)[]
         {
             (0, "むりしないで", ""),
-            (1, "……無理は、しません。無理でないところまでを、ぜんぶ、やります。", MFace),
+            (1, "……はい。少し、手を休めます。……言ってくださって、ありがとうございます。", MWorried),
+            (1, "……戻りました。全部を一度に、抱えなくても。ここからは、一つずつ。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——続行、と読みます。", MFace),   // （送らない）＝沈黙20秒でもここ
+            (1, "……答えは、急がなくて結構です。わたくしも、少し休みます。", MFace),
+            (1, "……まだ、届けたい声があります。続けるのは、わたくしが決めます。苦しいときは、そう伝えます。", MFace),
         },
     };
-    private const float S37SkipContam = 0.02f;   // （送らない）で【濁】微増（S1-4 と同値）
+    private double _s37RestRemaining;
+    private int _s37RestLine;
 
     private (int who, string text, string face)[] _playerIntro = null!;
     private (int who, string text, string face)[] _playerMid = null!;
@@ -396,7 +322,7 @@ public partial class StageRei : Node
     //   引用の嵐（step 18）は射撃ギミックなので残す。回想・アフターも流さない（改心会話は BossRei）。
     //   チュートリアル系の once（StageTutorial.Take*）も消費しない。従来難易度は _lunatic=false で従来の分岐のまま。
     private bool _lunatic;
-    // 会話・選択の step 一覧（1 イントロ／2 s3_2／4 道中A後の観測／9 s3_5c／11 ボス口上）。
+    // 会話・選択の step 一覧（1 イントロ／2 道中会話／4 道中A後の観測／9 s3_5c／11 ボス口上）。
     //   7（嵐の接続）と 19（嵐の受け）は飛び先が 18／8 なので Step_MidStory／Step_StormAfter の側で飛ばす。
     private static bool IsTalkStep(int step) => step is 1 or 2 or 4 or 9 or 11;
     // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
@@ -493,9 +419,8 @@ public partial class StageRei : Node
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
-            // ★S3-2 の下書き選択（17）＝小話の末尾に「見えていますか」 → 選択 → 受け＋締め
             //   他ジョブ潜行中は下書き選択ごと抑止（ミナ前提）＝専用ストーリーの道中ビートに置換。
-            case 2: if (_charStory) Step_Lines(delta, _storyMid1); else Step_Choice(delta, "s3_2", MidThenS32, S32Choices, S32Reply, S32Tail); break;
+            case 2: Step_Lines(delta, _charStory ? _storyMid1 : Mid); break;
             case 3: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
             case 4: Step_Lines(delta, _playerMid); break;
             case 5: Step_BossCameo(delta); break;         // S3-4 中ボス＝中の人（笑顔へ切り替わる）
@@ -527,7 +452,7 @@ public partial class StageRei : Node
         // 安置リレー「最終選考」中（宣告〜最終着弾）は降らせない＝安置円の中に言葉弾が刺さって
         // 「安置なのに被弾」になる理不尽を断つ（あかり面の CorridorRun 中ゲートと同じ流儀）。
         if (_bossActive && !(IsInstanceValid(_boss) && (_boss.AoeGateActive || _boss.PostSequenceActive)))
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Rei, fallSpeed: 46f,
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Rei, fallSpeed: 46f,
                 accent: new Color(0.62f, 0.70f, 0.92f)); // レイ面テーマ＝ランキングの銀青（穢れ桃より画面に馴染む）
     }
 
@@ -600,7 +525,6 @@ public partial class StageRei : Node
                 {
                     _cStarted = true;
                     _cChoiceT = 0;
-                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
                     _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _cChoiceT += delta;
@@ -825,7 +749,7 @@ public partial class StageRei : Node
             {
                 _cameoIntroStarted = true;
                 (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
-                CameoIntroScene.Play(Hud, World, "rei", CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
+                CameoIntroScene.Play(Hud, World, "rei", CameoTalk1,
                     () => _cameoIntroDone = true);
             }
             return;
@@ -850,8 +774,7 @@ public partial class StageRei : Node
                     Fire = CameoFireTheme.ReiAggressive,
                     Aura = FxLayer.BossAura.Rei,
                     Bgm = Audio.Instance?.BgmBossRei,
-                    // 第一声は s3_2（step 2 末尾）の選択で差し替わる。選んでいなければ CameoTalk1（2026-09-25）。
-                    IntroLines = _lunatic ? CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")) : System.Array.Empty<(int, string, string)>(),
+                    IntroLines = _lunatic ? CameoTalk1 : System.Array.Empty<(int, string, string)>(),
                     TauntLines = CameoTalk3, DefeatLines = CameoPost,
                 },
             };
@@ -983,8 +906,7 @@ public partial class StageRei : Node
 
     // ───── S3-7 の下書き選択（3択。こはる面の Step_MidChoice を案C の温度3択へ組み直したもの）─────
     //   Pre 最終行「……つづけて、いいですか。」のバブルを保持したまま（＝BubblePaused 継続で弾・敵は
-    //   停止のまま）ChoiceOverlay を重ねる。既定カーソルは末尾＝（送らない）で、沈黙20秒の自動決定も
-    //   そこへ落ちる（台本どおり）。
+    //   停止のまま）ChoiceOverlay を重ねる。
     // 自動プレイ互換（--qa/--demo）: QaPilot/DemoPilot は BubblePaused 中 Z をパルスし続けるため、
     //   既定カーソルのまま1パルスで即決される＝ここで詰まらない（3択どれでも同じ step 17 へ収束する）。
     private ChoiceOverlay? _midChoice;
@@ -1015,9 +937,9 @@ public partial class StageRei : Node
         var others = new System.Collections.Generic.List<string>();
         for (int i = 0; i < S37Choices.Length - 1; i++) if (i != sel) others.Add(S37Choices[i]);
         game?.RecordChoice("s3_7", sent ? S37Choices[sel] : "", others, (float)_s37ChoiceT);
-        // （送らない）＝返事をせずに見送った ぶんだけ、ミナの光がわずかに濁る。
-        if (!sent) game?.SetContamination((game.Contamination) + S37SkipContam);
         _s37After = S37Reply(sel);
+        _s37RestRemaining = sel == 0 ? 0 : 2.0;
+        _s37RestLine = sel == 1 ? 1 : 0;
     }
 
     // 受けを流し切ったら鈍色の膜を明けて戦闘へ戻す（→ case 12 の Step_BossWait）。
@@ -1025,9 +947,14 @@ public partial class StageRei : Node
     //   ボス戦の step へ戻す（割り込みは一度きり＝_midStoryShown が再突入を止める）。
     private void Step_MidChoiceAfter(double delta)
     {
-        if (!_stepStarted) SetQuietVeil(false);   // 会話の余韻を残してそっと戻す（1.4s）
+        if (_stepStarted && _introLine == _s37RestLine && _s37RestRemaining > 0)
+        {
+            if (Hud.DialogRevealed) _s37RestRemaining = System.Math.Max(0, _s37RestRemaining - delta);
+            _lineHold = 0;
+            return;
+        }
         Step_Lines(delta, _s37After);
-        if (_step > 17) { _step = 12; _stepStarted = true; }   // ボス戦は継続中＝入り直さない
+        if (_step > 17) { SetQuietVeil(false); _step = 12; _stepStarted = true; }
     }
 
     // ───── S3-7「静けさの溜め」（こはる面から移植）─────
@@ -1114,7 +1041,12 @@ public partial class StageRei : Node
             if (_lunaticClearT >= LunaticClearHold) Advance();
             return;
         }
-        if (_clearPhase == 2) Step_Lines(delta, _clearLines ?? Clear);
+        if (_clearPhase == 2)
+        {
+            if (_charStory) Step_Lines(delta, _clearLines!);
+            else Step_Choice(delta, "s3_sky", _clearLines!, ChoiceEffects.SkyChoices,
+                ChoiceEffects.SkyReply, ClearTail);
+        }
     }
 
     private bool _clearing;

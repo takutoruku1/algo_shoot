@@ -1,0 +1,158 @@
+{
+  "tool": "built-in image_gen",
+  "postprocess": "Existing key_trim_scale.ps1: alpha-preserving crop and uniform resize only.",
+  "characters": [
+    {
+      "id": "akari",
+      "source": "char/raw/boss_down_akari_v1.png",
+      "generatedSource": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a0095c9c-6b66-4a3f-8c0b-f753c996c705.png",
+      "prompt": "Use case: identity-preserve. Create production SHIELD-BROKEN / STAGGERED full-body sprites for the Japanese shooting game Refrain, by changing the pose of the referenced existing characters. Strictly preserve each reference's exact chibi proportions, face design, hair color, eye color, clothing, footwear, accessories, line weight, cel shading and color palette. These are temporary vulnerable combat poses, NOT death, purification, celebration, sleep or an attack. They must read unmistakably as DOWN: head bowed forward, eyes mostly closed in fatigue, shoulders dropped, curved slumping torso, elbows slack, knees folded and body sagging in midair. Hands stay anatomically connected and both legs and shoes remain visible. No dramatic pain, blood, wounds, torn clothing, sexual framing or exposure. Modest normal game sprite view. No floor, ground shadow, platform or kneeling on a surface; they remain suspended in the game's aerial battlefield. Hair and clothing follow the slack body downward, not an attacking wind. No shield, magic circle, bright glow, streaks, sparks, text or UI; effects will be handled by the game. THREE-QUARTER VIEW facing the same direction as each reference (toward viewer's right for most), entire figure from crown to shoes in safe transparent margins. True transparent RGBA background, NO gray/white matte, checkerboard or background lighting. Clean standalone sprites, sharp edges with no colored halos. Keep heads at exactly the same size across the sheet; do not stretch the body to fill a cell.\nDeliver a TWO-COLUMN ONE-ROW transparent sprite sheet, 1536x1024 landscape. Exactly TWO sprites, equal cells with generous empty gutter, no labels. Both are AKARI in the ivory gold-trimmed office sorceress coat, black trousers, navy pumps, white shirt, navy tie, lanyard, orange side ponytail with ivory-gold ribbon, dangling cyan ribbons. LEFT uses input1 main boss appearance (pale cyan blue eyes if a sliver is visible), clearly slumped sideways with head down and hands no longer clutching both knees; her phone hangs loosely beside her right thigh, knees bent together behind and below the body. RIGHT uses input2 midboss appearance (purple eyes if visible), less curled but visibly buckling forward, one slack hand over her bent knee and lowered phone in the other. Both retain the SAME outfit and proportions as their respective reference. No magical effects. NOT the alert phone-reading pose of the reference. The down pose needs a clearly new silhouette with lowered head and limp shoulders.",
+      "sprites": [
+        {
+          "output": "char/v3/down/akari_v1.png",
+          "region": [
+            90,
+            46,
+            644,
+            935
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/akari_mid_v1.png",
+          "region": [
+            838,
+            73,
+            572,
+            912
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "koharu",
+      "source": "char/raw/boss_down_koharu_v1.png",
+      "generatedSource": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-31daed76-c539-4aa7-890e-5b8b25ff2c6c.png",
+      "prompt": "Use case: identity-preserve. Create production SHIELD-BROKEN / STAGGERED full-body sprites for the Japanese shooting game Refrain, by changing the pose of the referenced existing characters. Strictly preserve each reference's exact chibi proportions, face design, hair color, eye color, clothing, footwear, accessories, line weight, cel shading and color palette. These are temporary vulnerable combat poses, NOT death, purification, celebration, sleep or an attack. They must read unmistakably as DOWN: head bowed forward, eyes mostly closed in fatigue, shoulders dropped, curved slumping torso, elbows slack, knees folded and body sagging in midair. Hands stay anatomically connected and both legs and shoes remain visible. No dramatic pain, blood, wounds, torn clothing, sexual framing or exposure. Modest normal game sprite view. No floor, ground shadow, platform or kneeling on a surface; they remain suspended in the game's aerial battlefield. Hair and clothing follow the slack body downward, not an attacking wind. No shield, magic circle, bright glow, streaks, sparks, text or UI; effects will be handled by the game. THREE-QUARTER VIEW facing the same direction as each reference (toward viewer's right for most), entire figure from crown to shoes in safe transparent margins. True transparent RGBA background, NO gray/white matte, checkerboard or background lighting. Clean standalone sprites, sharp edges with no colored halos. Keep heads at exactly the same size across the sheet; do not stretch the body to fill a cell.\nDeliver a TWO-COLUMN ONE-ROW transparent sprite sheet, 1536x1024 landscape. Exactly TWO sprites, equal cells with generous gutter, no labels. Both are KOHARU: charcoal-teal bob with a low side ponytail, white barrette with mauve stripe, amber eyes, white capelet with lavender edging and silver square buckle, black coat-dress with white piping over mauve pleated skirt, mauve necktie, white socks, brown loafers, long purple ribbons with pale mint lining. Input1 is MAIN BOSS appearance; LEFT sprite preserves it while her whole torso droops forward, head bowed with eyes tightly closed, both knees visibly bent underneath, the lavender penlight/staff lowered diagonally close to her folded legs and not projecting like an attack. One hand loosely holds the shaft, other hand resting limply over her knee. Input2 is MIDBOSS appearance; RIGHT sprite retains that smaller compact chibi silhouette, legs fold back, head hangs down toward one shoulder, the penlight lowered and both elbows slack. Distinctly defeated posture in both, not the tense upright standing reference. No glow or aura from the staff. Keep face features, limb lengths, costume and proportions from the references unchanged.",
+      "sprites": [
+        {
+          "output": "char/v3/down/koharu_v1.png",
+          "region": [
+            101,
+            46,
+            652,
+            900
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/koharu_mid_v1.png",
+          "region": [
+            842,
+            146,
+            601,
+            827
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "rei",
+      "source": "char/raw/boss_down_rei_v1.png",
+      "generatedSource": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-f5d4ab56-53cf-4b8a-b794-18883292f0ab.png",
+      "prompt": "Use case: identity-preserve. Create production SHIELD-BROKEN / STAGGERED full-body sprites for the Japanese shooting game Refrain, by changing the pose of the referenced existing characters. Strictly preserve each reference's exact chibi proportions, face design, hair color, eye color, clothing, footwear, accessories, line weight, cel shading and color palette. These are temporary vulnerable combat poses, NOT death, purification, celebration, sleep or an attack. They must read unmistakably as DOWN: head bowed forward, eyes mostly closed in fatigue, shoulders dropped, curved slumping torso, elbows slack, knees folded and body sagging in midair. Hands stay anatomically connected and both legs and shoes remain visible. No dramatic pain, blood, wounds, torn clothing, sexual framing or exposure. Modest normal game sprite view. No floor, ground shadow, platform or kneeling on a surface; they remain suspended in the game's aerial battlefield. Hair and clothing follow the slack body downward, not an attacking wind. No shield, magic circle, bright glow, streaks, sparks, text or UI; effects will be handled by the game. THREE-QUARTER VIEW facing the same direction as each reference (toward viewer's right for most), entire figure from crown to shoes in safe transparent margins. True transparent RGBA background, NO gray/white matte, checkerboard or background lighting. Clean standalone sprites, sharp edges with no colored halos. Keep heads at exactly the same size across the sheet; do not stretch the body to fill a cell.\nDeliver a THREE-COLUMN ONE-ROW transparent sprite sheet, 1536x1024 landscape. Exactly THREE whole-body sprites, equal cells with generous transparent gutters and no labels. All are REI but must retain their distinct designs. LEFT: input1 MAIN BOSS Vtuber avatar, long indigo hair tipped purple and gold, large gold star hairclip, violet eyes, white/purple idol dress with gold stars, layered skirt, white purple-trim boots. Her head droops, eyes closed, torso folds forward slightly, both arms hang loosely beside thighs, knees fold under her modestly covered skirt; NOT a happy dance. CENTER: input2 SECOND-FORM main boss, exactly same costume and silhouette as left INCLUDING the established thin gold cracks across one cheek and bodice (not glowing lightning, no shards), identical defeated pose and head size; do not reveal the real person yet. RIGHT: input3 MIDBOSS real-world Rei, short dark navy hair, purple eyes, gray zip hoodie, white undershirt, black trousers, dark sneakers, headphones around neck, phone held limply pointed down. Her shoulders slump, eyes closed, head down, both knees weakly folded, arms slack. This right character has NO idol costume, starclip, long hair, gold cracks or magical transformation. All three floats suspended without a surface, exhausted but alive.",
+      "sprites": [
+        {
+          "output": "char/v3/down/rei_v1.png",
+          "region": [
+            0,
+            97,
+            548,
+            849
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/rei_form2_v1.png",
+          "region": [
+            548,
+            99,
+            559,
+            851
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/rei_mid_v1.png",
+          "region": [
+            1160,
+            134,
+            366,
+            799
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "mina",
+      "source": "char/raw/boss_down_mina_v1.png",
+      "generatedSource": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-f309f34c-081c-44f5-9eb6-d1d5f6b67a4e.png",
+      "prompt": "Use case: identity-preserve. Create production SHIELD-BROKEN / STAGGERED full-body sprites for the Japanese shooting game Refrain, by changing the pose of the referenced existing characters. Strictly preserve each reference's exact chibi proportions, face design, hair color, eye color, clothing, footwear, accessories, line weight, cel shading and color palette. These are temporary vulnerable combat poses, NOT death, purification, celebration, sleep or an attack. They must read unmistakably as DOWN: head bowed forward, eyes mostly closed in fatigue, shoulders dropped, curved slumping torso, elbows slack, knees folded and body sagging in midair. Hands stay anatomically connected and both legs and shoes remain visible. No dramatic pain, blood, wounds, torn clothing, sexual framing or exposure. Modest normal game sprite view. No floor, ground shadow, platform or kneeling on a surface; they remain suspended in the game's aerial battlefield. Hair and clothing follow the slack body downward, not an attacking wind. No shield, magic circle, bright glow, streaks, sparks, text or UI; effects will be handled by the game. THREE-QUARTER VIEW facing the same direction as each reference (toward viewer's right for most), entire figure from crown to shoes in safe transparent margins. True transparent RGBA background, NO gray/white matte, checkerboard or background lighting. Clean standalone sprites, sharp edges with no colored halos. Keep heads at exactly the same size across the sheet; do not stretch the body to fill a cell.\nDeliver a THREE-COLUMN TWO-ROW transparent sprite sheet, 1536x1024 landscape. Exactly FIVE whole-body sprites, bottom-right cell completely empty. Generous clear gutters; hair and skirts MUST NOT cross cells or canvas. The FIVE are the same final boss MINA in her five battle costumes. Keep long BLACK/charcoal hair and BLUE eyes in EVERY cell, never turn the hair white. Keep the frilled white headband and blue oval throat jewel in all five. All five have IDENTICAL head size, chibi proportions and the SAME exhausted DOWN pose: head bowed with shut eyes, torso curled forward, shoulders sagging, both hands resting limply together across her lap, knees weakly bent and feet drawn underneath. Hair drapes in a compact drooping silhouette. No aggressive reach, posing for camera, clasped prayer, crying streams or purification. Full modest skirts cover her lap, both lower legs and shoes remain visible.\nCell order reading across:\nTOP LEFT input1: original navy-purple and white maid boss dress, dark purple corruption markings remain only ON the cloth, navy shoes, white stockings.\nTOP MIDDLE input2 rain: charcoal long office coat with silver edging/buttons over white ruffled skirt, burgundy tie, black stockings, black Mary Jane shoes and small envelope motifs.\nTOP RIGHT input3 screen: deep teal sailor-style frilled dress, ivory sailor collar, coral-pink ribbons, teal Mary Jane shoes, white stockings.\nBOTTOM LEFT input4 stream: white gold-trim shoulder cape and vest, black and gold skirt, burgundy cape lining, star ornaments, black stockings and star-buckle shoes.\nBOTTOM MIDDLE input5 home: ivory-white lace dress with high lace collar, burgundy and teal narrow ribbons, white stockings, ivory Mary Jane shoes with gold clasps. STILL BLACK HAIR.\nDo not mix costumes between cells. Reference images 2-5 each show two normal/attack examples; use their outfit design only, NOT their poses or background. The new illustrations must be genuine clean transparent cutouts without glows or gradient backdrops.",
+      "sprites": [
+        {
+          "output": "char/v3/down/mina_v1.png",
+          "region": [
+            27,
+            5,
+            475,
+            510
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/mina_rain_v1.png",
+          "region": [
+            552,
+            10,
+            463,
+            505
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/mina_screen_v1.png",
+          "region": [
+            1072,
+            10,
+            454,
+            510
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/mina_stream_v1.png",
+          "region": [
+            32,
+            523,
+            461,
+            496
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/mina_home_v1.png",
+          "region": [
+            559,
+            522,
+            458,
+            497
+          ],
+          "targetHeight": 720
+        }
+      ]
+    }
+  ]
+}

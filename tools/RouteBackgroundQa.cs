@@ -38,7 +38,9 @@ public partial class RouteBackgroundQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--ui-refresh"))
+            if (OS.GetCmdlineUserArgs().Contains("--weather"))
+                await CheckWeather(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--ui-refresh"))
                 await CheckPresentation(game);
             else if (OS.GetCmdlineUserArgs().Contains("--start-banner") || OS.GetCmdlineUserArgs().Contains("--start-banner-demo"))
                 await CheckStartBanners(game);
@@ -60,6 +62,182 @@ public partial class RouteBackgroundQa : Node
             GD.PushError($"[RouteQA] FAIL {e}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckWeather(GameManager game)
+    {
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/weather");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        ProcessMode = ProcessModeEnum.Always;
+        static float Ink(Image image, int top = 0, int bottom = 216)
+        {
+            float ink = 0;
+            for (int y = top; y < bottom; y++)
+                for (int x = (int)Field.Left; x < (int)Field.Right; x++) ink += image.GetPixel(x, y).A;
+            return ink / ((bottom - top) * Field.Width);
+        }
+        foreach (var kind in Enum.GetValues<ScrollFx.StageKind>())
+        {
+            game.ResetRun();
+            Hud.BubblePaused = false;
+            var viewport = new SubViewport { Size = new Vector2I(384, 216), World2D = new World2D(),
+                TransparentBg = true, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+                ProcessMode = ProcessModeEnum.Pausable };
+            AddChild(viewport);
+            var fx = new ScrollFx { Kind = kind, SkipScrollTexture = true };
+            viewport.AddChild(fx);
+            fx.SetProcess(false);
+            var layers = fx.GetChildren().OfType<ScrollFx.Layer>().ToArray();
+            Check(layers.Length == 2 && layers.All(l => l.ZIndex < -50 && !l.ZAsRelative),
+                $"{kind}: two depth layers behind characters, bullets and dialogue");
+            void DrawAt(double time)
+            {
+                Write(fx, "_t", time);
+                foreach (var layer in layers) layer.QueueRedraw();
+            }
+            DrawAt(3.25);
+            using var first = await Render(viewport);
+            float ink = Ink(first);
+            first.SavePng($"{output}/{kind}_isolated.png");
+            Check(ink > 0.0005f && ink < 0.045f, $"{kind}: visible but restrained atmosphere ({ink:F5})");
+            float center = Ink(first, 76, 140);
+            float edges = (Ink(first, 8, 62) + Ink(first, 154, 208)) * 0.5f;
+            Check(center < edges, $"{kind}: central combat lane stays quieter ({center:F5} < {edges:F5})");
+            foreach (var layer in layers)
+            {
+                foreach (var other in layers) other.Visible = other == layer;
+                using var oneLayer = await Render(viewport);
+                Check(Ink(oneLayer) > 0.0001f, $"{kind}/{layer.Name}: depth layer is nonblank");
+            }
+            foreach (var layer in layers) layer.Show();
+            DrawAt(3.5);
+            using var moved = await Render(viewport);
+            float motion = 0;
+            for (int y = 0; y < 216; y++)
+                for (int x = 120; x < 384; x++) motion += ColorDistance(first.GetPixel(x, y), moved.GetPixel(x, y));
+            Check(motion > 5, $"{kind}: animation changes rendered pixels ({motion:F1})");
+            DrawAt(3.25);
+            using var repeated = await Render(viewport);
+            Check(first.GetData().SequenceEqual(repeated.GetData()), $"{kind}: deterministic rendering");
+            Hud.BubblePaused = true;
+            fx._Process(1);
+            Check(Read<double>(fx, "_t") == 3.25, $"{kind}: conversation freezes weather");
+            Hud.BubblePaused = false;
+            fx.SetProcess(true);
+            GetTree().Paused = true;
+            await Frames(4);
+            Check(Read<double>(fx, "_t") == 3.25, $"{kind}: pause menu freezes weather");
+            fx.SetProcess(false);
+            GetTree().Paused = false;
+            fx._Process(0.25);
+            Check(Read<double>(fx, "_t") == 3.5, $"{kind}: resumes without catch-up jump");
+            var density = new Node();
+            AddChild(density);
+            for (int i = 0; i < 120; i++)
+            {
+                var marker = new Node(); density.AddChild(marker); marker.AddToGroup("enemy_bullets");
+            }
+            fx._Process(1);
+            Check(Read<float>(fx, "_bulletDamp") < 0.4f, $"{kind}: dense bullet patterns dim weather smoothly");
+            DrawAt(3.25);
+            using var dense = await Render(viewport);
+            Check(Ink(dense) < ink * 0.45f, $"{kind}: density protection changes actual pixels");
+            density.QueueFree();
+            await Frames(2);
+            fx._Process(2);
+            Check(Read<float>(fx, "_bulletDamp") > 0.99f, $"{kind}: weather recovers after bullets clear");
+            typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget);
+            double before = Read<double>(fx, "_t");
+            fx._Process(0.1);
+            Check(Math.Abs(Read<double>(fx, "_t") - before - 0.055) < 0.00001,
+                $"{kind}: purification slows motion without rewinding it");
+            fx._Process(4);
+            using var clear = await Render(viewport);
+            Check(Ink(clear) < 0.00001f, $"{kind}: purification clears atmosphere");
+            viewport.QueueFree();
+            await Frames(3);
+        }
+
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
+        {
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.SetProcess(false);
+            ((Node)root.GetType().GetProperty("Stage")!.GetValue(root)!).SetProcess(false);
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var player = world.GetNode<Player>("Player");
+            player.SetPhysicsProcess(false);
+            player.Position = new Vector2(174, 126);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Write(hud, "_bannerTimer", 0d);
+            hud._Process(0);
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            Hud.BubblePaused = false;
+            var fx = root.GetNode<ScrollFx>("ScrollFx");
+            Check(fx.Kind.ToString() == (scene == "MinaBattle" ? "Mina" : scene), $"{scene}: correct weather wired in real stage");
+            Write(fx, "_t", 3.25d);
+            foreach (var layer in fx.GetChildren().OfType<ScrollFx.Layer>()) layer.QueueRedraw();
+            async Task Capture(string name)
+            {
+                await Frames(4);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                using var pixels = GetViewport().GetTexture().GetImage();
+                Check(pixels.SavePng($"{output}/{scene}_{name}.png") == Error.Ok, $"{scene}: screenshot {name}");
+            }
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                await Capture($"route_{size.X}x{size.Y}");
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            for (int i = 0; i < 4; i++)
+            {
+                Write(fx, "_t", 3.25d + i * 0.25d);
+                foreach (var layer in fx.GetChildren().OfType<ScrollFx.Layer>()) layer.QueueRedraw();
+                await Capture($"motion_{i}");
+            }
+            var bg = root.GetNode<StageBackground>("StageBackground");
+            var backgroundLayers = bg.GetNode<BgLayers>("BgLayers");
+            if (scene != "MinaBattle")
+            {
+                bg.BeginMidboss();
+                backgroundLayers._Process(2);
+                Check(Sprites(backgroundLayers).Single().Texture.ResourcePath.Contains("/midboss/"),
+                    $"{scene}: weather preserves the midboss room transition");
+                await Capture("midboss");
+                bg.BeginRoute();
+                backgroundLayers._Process(2);
+                Check(Sprites(backgroundLayers).Length == 3, $"{scene}: route returns without adding weather layers");
+            }
+            bg.EnterBoss();
+            backgroundLayers._Process(2);
+            Check(Sprites(backgroundLayers).Single().Texture.ResourcePath.Contains("/boss/"),
+                $"{scene}: weather preserves the boss room transition");
+            Enemy boss = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                "Rei" => new BossRei(), _ => new BossMina() };
+            world.AddChild(boss);
+            boss.Position = new Vector2(306, 100);
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 0d });
+            typeof(Enemy).GetMethod("TickEntrance", Private)!.Invoke(boss, new object[] { 2d });
+            Hud.BubblePaused = false;
+            for (int i = 0; i < 18; i++)
+            {
+                var b = Pool.Spawn(new Vector2(211 + i % 6 * 21, 80 + i / 6 * 26), Vector2.Zero, true);
+                b.SetPhysicsProcess(false);
+                b.SetProcess(false);
+            }
+            await Capture("boss_bullets");
+            Pool.DespawnAll();
+            root.QueueFree();
+            await Frames(5);
+            Hud.BubblePaused = false;
         }
     }
 

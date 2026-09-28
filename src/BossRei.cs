@@ -188,6 +188,8 @@ public partial class BossRei : Enemy
 
         // v3 の本体＝ガワ（エフェクト無し・720px）。飾り枠・吹き出し・光の帯は BossParts が重ねる。
         PreTexPath = "res://char/v3/boss_rei_body_idle.png";
+        DownTexPath = BossDownArt.Path("rei");
+        Form2DownTexPath = BossDownArt.Path("rei_form2");
         AttackTexPath = "res://char/v3/boss_rei_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
         // 改心の三段：ガワ(pre＝待機)→中の人が泣いている(cry)→中の人(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
@@ -217,11 +219,8 @@ public partial class BossRei : Enemy
         //（docs/20260906/astra_試行_ガワ割れ.md 案1・ユーザー決定 2026-09-06）。
         // 中の人は決定打の時点で既にガワの背後に立っている＝変身ではなく、隠れていた人が現れる。
         PeelCryBodySwap = true;
-        // 改心後の中の人を長く見せる（DEV_QUEUE P2）。既定（余韻 0.6s → 0.9s でフェード）だと
-        // 割れたガワの下から出てきた姿が 1.5 秒ほどで消える。余韻を 3.6s に伸ばし、歩きも 90→28px/s
-        // へ落として、画面外へ抜ける前に「出てきた人」を見せ切る（フェードの尺は共通のまま）。
+        // ガワの下から現れた姿を見せる余韻は、他の敵より長く保つ。
         PurifiedExitHoldOverride = 3.6;
-        PurifiedExitSpeedOverride = 28.0;
     }
 
     public override void _Ready()
@@ -251,7 +250,7 @@ public partial class BossRei : Enemy
         _mover.Configure("rei", new Vector2(Field.BossCenterX, Field.BossZoneCenterY), Field.BossZoneHalfW, Field.BossZoneHalfH);
         GetHud()?.ShowBossBar("星逢レイ", BossHandles.ReiMain, this);
         GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
-        // 【激情】メーター開始。初期値は道中（s3_2/s3_5c）の選択から決まる（FuryMeter.cs）。
+        // 【激情】メーター開始。初期値は道中（s3_5c）の選択から決まる（FuryMeter.cs）。
         GetNodeOrNull<GameManager>("/root/Game")?.BeginFury("rei");
         ApplySpell();
 

@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 //   (b) 自機と x がほぼ同じでも毎フレーム反転しない（ヒステリシス＝Enemy.FacingDeadzone の帯）
 //   (c) 反転の前後で「絵の中身」の水平中心と足元が動かない（UiKit.ContentRect 基準）
 //   (d) 当たり判定（半径・レイヤー・マスク・本体位置）と弾の湧き位置・発射方向が向きに影響されない
-//   (e) 浄化後は向きが更新されない（改心の絵と左への退場は演出のまま）
+//   (e) 浄化後は位置・向きを保ち、その場でフェードして消える
 //   (f) 上記がザコ全種（人型12種＋道具6種＋アンチくん＋回り込み／バズ壁／祈り運び、
 //       さらに別クラスの基本種 GlyphMote / PageShard）で成り立つ
 //   (g) 中ボス（CameoBoss＝BossMover 側の向き）も自機と左右が入れ替われば向き直す
@@ -139,6 +139,14 @@ public partial class EnemyFacingQa : Node
             await CheckBasic(world, player, new GlyphMote(), "GlyphMote");
             await CheckBasic(world, player, new PageShard(), "PageShard");
 
+            var held = new GlyphMote();
+            world.AddChild(held);
+            held.SetPhysicsProcess(false);
+            held.GlobalPosition = new Vector2(Field.Left - 28f, Anchor.Y);
+            Write(held, "PurifiedExitHoldOverride", 3.6, typeof(Enemy));
+            await CheckExit(held, player, "extended hold near left edge", 3.6);
+            await Frames(2);
+
             await CheckCameo(stage, player);
 
             if (!Headless) await Shots(world, player, stage);
@@ -245,19 +253,53 @@ public partial class EnemyFacingQa : Node
                 $"{name}: the volley keeps the same origins, speeds and directions");
         }
 
-        // ── (e) 浄化後は向きが更新されない（左＝退場の向きで固定される）──
-        player.GlobalPosition = new Vector2(Anchor.X - SideDx, Anchor.Y);
-        Tick(enemy, Anchor, 2);
-        enemy.Purify();
-        Check(enemy.IsPurified && body.FlipH == ExpectFlip(true, artRight),
-            $"{name}: purification settles the sprite towards its exit");
         player.GlobalPosition = new Vector2(Anchor.X + SideDx, Anchor.Y);
-        Tick(enemy, Anchor, 20);
-        Check(body.FlipH == ExpectFlip(true, artRight), $"{name}: a purified character no longer turns");
+        Tick(enemy, Anchor, 2);
+        await CheckExit(enemy, player, name);
 
-        enemy.QueueFree();
         pool.DespawnAll();
         await Frames(2);
+    }
+
+    private async Task CheckExit(Enemy enemy, Player player, string name, double hold = 0.6)
+    {
+        Vector2 at = enemy.GlobalPosition;
+        var body = enemy.GetNode<Sprite2D>("Body");
+        bool flip = body.FlipH;
+        if (enemy.HasHpBar) CallBase(enemy, typeof(Enemy), "Redeem");
+        else enemy.Purify();
+        Check(enemy.IsPurified && !enemy.IsInGroup("enemies"), $"{name}: defeat removes target eligibility");
+        Check(body.FlipH == flip, $"{name}: defeat preserves the facing direction");
+        if (Read<bool>(enemy, "_crying", typeof(Enemy)))
+        {
+            enemy._PhysicsProcess(0.2);
+            Check(enemy.GlobalPosition.IsEqualApprox(at), $"{name}: defeat dialogue stays at the defeat position");
+            CallBase(enemy, typeof(Enemy), "FinishCry");
+        }
+        await Frames(2);
+        Check(!enemy.Monitorable && Read<CollisionShape2D>(enemy, "_bodyShape", typeof(Enemy)).Disabled,
+            $"{name}: contact collision is disabled");
+
+        player.GlobalPosition = new Vector2(at.X - SideDx, at.Y);
+        bool stationary = true, sameFacing = true, monotonic = true, fading = false, holds = true;
+        float lastAlpha = enemy.Modulate.A;
+        double elapsed = 0;
+        for (int i = 0; i < 110 && !enemy.IsQueuedForDeletion(); i++)
+        {
+            enemy._PhysicsProcess(0.05);
+            elapsed += 0.05;
+            float alpha = enemy.Modulate.A;
+            stationary &= enemy.GlobalPosition.IsEqualApprox(at);
+            sameFacing &= body.FlipH == flip;
+            monotonic &= alpha <= lastAlpha + 0.0001f;
+            fading |= alpha > 0 && alpha < 1;
+            if (elapsed < hold - 0.01) holds &= Mathf.IsEqualApprox(alpha, 1);
+            lastAlpha = alpha;
+        }
+        Check(stationary && sameFacing, $"{name}: no translation or turn throughout disappearance");
+        Check(holds && monotonic && fading, $"{name}: existing hold and smooth fade are preserved");
+        Check(enemy.IsQueuedForDeletion() && Mathf.Abs((float)(elapsed - hold - 0.9)) < 0.06f,
+            $"{name}: despawns after the fade ({elapsed:0.00}s)");
     }
 
     // 当たり判定と弾の湧き位置のスナップショット（向きで動いてはいけない値だけ）。
@@ -299,7 +341,7 @@ public partial class EnemyFacingQa : Node
         player.GlobalPosition = new Vector2(Anchor.X + SideDx, Anchor.Y);
         Tick(enemy, Anchor, 2);
         Check(!body.FlipH, $"{name}: turns around once the player passes it");
-        enemy.QueueFree();
+        await CheckExit(enemy, player, name);
         await Frames(2);
     }
 
@@ -324,7 +366,16 @@ public partial class EnemyFacingQa : Node
         player.GlobalPosition = new Vector2(Field.Left + 16f, 150f);
         Tick(cameo, hold, 60);
         Check(body.FlipH, "cameo turns back when the sides swap again");
-        cameo.QueueFree();
+        cameo.SetProcess(false);
+        await CheckExit(cameo, player, "cameo");
+        Write(stage, "_cameo", null!);
+        await Frames(3);
+
+        var entering = await SpawnCameo(stage, new Vector2(300f, 92f));
+        entering.SetProcess(false);
+        Write(entering, "_entering", true, typeof(Enemy));
+        Write(entering, "_entInit", false, typeof(Enemy));
+        await CheckExit(entering, player, "defeat during entrance");
         Write(stage, "_cameo", null!);
         await Frames(3);
     }

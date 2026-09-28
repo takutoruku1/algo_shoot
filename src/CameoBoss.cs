@@ -128,6 +128,12 @@ public partial class CameoBoss : Enemy
         BarCount = Mathf.Max(1, BossTuning.I("cameo", "hp_bars", CameoBars)); // HPバー方式ON（総HP=BarHp×本数）
 
         PreTexPath = Theme.PreTex;
+        DownTexPath = BossDownArt.Path(Theme.Fire switch
+        {
+            CameoFireTheme.AkariGrief => "akari_mid",
+            CameoFireTheme.KoharuFalling => "koharu_mid",
+            _ => "rei_mid",
+        });
         CryTexPath = Theme.CryTex;
         PostTexPath = Theme.PostTex;
         BodyDisplayH = CameoBodyH;
@@ -273,14 +279,14 @@ public partial class CameoBoss : Enemy
 
     private void RainDown(BulletPool pool, int k, float spd)
     {
+        var bullets = new Bullet[k];
         for (int i = 0; i < k; i++)
         {
             float x = 20f + 344f * (i + 0.5f) / Mathf.Max(1, k);
-            // 上端の外（y=-6）から降ってくる帯＝「空から落ちてくる」演出。画面の縁から入ってくるので
-            // 出どころは読める（体から離れた空中に湧く問題とは別物）＝中心からの導入区間は付けない。
-            FireBullet(pool, new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd), 3.2f, 1,
+            bullets[i] = FireBullet(pool, new Vector2(x, -6f), new Vector2(_rng.RandfRange(-8f, 8f), spd), 3.2f, 1,
                 fromCenter: false);
         }
+        OverheadCast.Begin(this, bullets, CurSprite, CurTint);
     }
 
     private void FanDown(BulletPool pool, int fan, float spreadDeg, float spd)

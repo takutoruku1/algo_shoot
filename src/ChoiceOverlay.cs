@@ -24,13 +24,10 @@ public partial class ChoiceOverlay : Control
     // 決定後の解散演出（この間に Decided はまだ立てない）。
     private bool _deciding;
     private double _decideT;
-    private bool _quiet;          // 沈黙の自動決定＝少し静かに（音を絞り・粒を減らす）
     private float _trailAcc;
 
-    // 操作ヒント（出現直後から表示・入力が始まったら薄める）と沈黙タイマー（14秒で灯り・20秒で自動決定）。
     private bool _inputSeen;
     private float _hintA;
-    private double _silenceT;
     private Vector2 _lastMouse;
 
     // 光の粒（解散の散り・昇りのトレイル）。設計座標で保持・描画。
@@ -48,8 +45,6 @@ public partial class ChoiceOverlay : Control
     private const float ShotHoldGate = 4.0f;  // --shot 時の決定ゲート（撮影窓の確保）
     private const float DissolveDur = 0.5f;   // 決定→解散（この後に Decided）
     private const float VignetteIn = 0.3f;    // ビネットのフェードイン
-    private const double SilenceWarm = 14.0;  // ここから「ひきさがる」が灯りはじめる
-    private const double SilenceAuto = 20.0;  // 自動決定
     private const int MaxChoices = 4;         // 想定する上限（これを超えると下が吹き出しに掛かる）
 
     // On-board choices must stay clear of the permanent left HUD.
@@ -65,7 +60,6 @@ public partial class ChoiceOverlay : Control
     private static readonly Color Rose = new("f2b9ad");
 
     // N択（2〜MaxChoices）を出す。choices の並びがそのまま上から下の並びで、Selected はその添字。
-    // 沈黙の自動決定は常に**末尾**が選ばれる＝呼び出し側は「引き下がる/何もしない」側を最後に置くこと。
     //
     // onBoard: true＝盤面のある画面（道中の会話。Hud にぶら下げる呼び出し）＝盤面(Field)の中心へ出す。
     //          false＝盤面の無い画面（Prologue/Final/Epilogue のカットシーン）＝画面全体の中心へ出す。
@@ -154,7 +148,7 @@ public partial class ChoiceOverlay : Control
         {
             _decideT += delta;
             _trailAcc += dt;
-            float step = _quiet ? 0.05f : 0.025f;
+            const float step = 0.025f;
             while (_trailAcc >= step) { _trailAcc -= step; SpawnTrail(); }
             if (_decideT >= DissolveDur) Decided = true; // 解散が終わってから決定を通知（連続性の担保）
             return;
@@ -197,7 +191,7 @@ public partial class ChoiceOverlay : Control
         if (click && hov >= 0 && _t >= 0.25 && appeared)
         {
             Selected = hov;
-            StartDissolve(quiet: false);
+            StartDissolve();
             return;
         }
 
@@ -209,43 +203,30 @@ public partial class ChoiceOverlay : Control
         _zHeld = z;
         if (zEdge && _t >= 0.25 && appeared)
         {
-            StartDissolve(quiet: false);
+            StartDissolve();
             return;
         }
 
-        // ── 操作ヒント（出現直後から表示・入力が始まったら薄める）と沈黙タイマー ──
         var mp = Pad.MousePos();
         bool mouseMoved = (mp - _lastMouse).Length() > 6f;
         _lastMouse = mp;
-        if (nav || z || click || mouseMoved) { _inputSeen = true; _silenceT = 0; }
-        else _silenceT += delta;
+        if (nav || z || click || mouseMoved) _inputSeen = true;
         float target = (_inputSeen ? 0.55f : 1f) * Mathf.Clamp((float)_t / VignetteIn, 0f, 1f);
         _hintA = Mathf.MoveToward(_hintA, target, dt * 3f);
 
-        // 沈黙も選択：20秒で「ひきさがる」（末尾）を自動決定。演出は通常決定と同じ・少し静かに。
-        if (_silenceT >= SilenceAuto)
-        {
-            Selected = _choices.Length - 1;
-            StartDissolve(quiet: true);
-        }
     }
 
-    private void StartDissolve(bool quiet)
+    private void StartDissolve()
     {
         _deciding = true;
         _decideT = 0;
-        _quiet = quiet;
         _trailAcc = 0;
-        if (Audio.Instance is { } au)
-        {
-            if (quiet) au.VoiceSe(au.TypMina, volDb: -26f);
-            else au.PlayType(Hud.LineKind.Mina);
-        }
+        Audio.Instance?.PlayType(Hud.LineKind.Mina);
         for (int i = 0; i < _choices.Length; i++)
         {
             if (i == Selected) continue;
             Rect2 row = RowRect(i);
-            for (int j = 0; j < (quiet ? 3 : 9); j++)
+            for (int j = 0; j < 9; j++)
                 AddMote(new Vector2(_rng.RandfRange(row.Position.X + 20, row.End.X - 20), row.End.Y),
                     new Vector2(_rng.RandfRange(-12, 12), _rng.RandfRange(-35, -14)), Ice);
         }
@@ -356,13 +337,11 @@ public partial class ChoiceOverlay : Control
             Rect2 row = VisualRow(i, dis);
             Vector2[] outline = Outline(row);
             float focus = chosen ? 1 : _focus[i];
-            float warm = !_deciding && i == _choices.Length - 1
-                ? Mathf.Clamp((float)((_silenceT - SilenceWarm) / (SilenceAuto - SilenceWarm)), 0, 1) : 0;
-            Color edge = Ice.Lerp(Rose, Mathf.Max(focus, warm));
+            Color edge = Ice.Lerp(Rose, focus);
             float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * 1.8f);
             DrawColoredPolygon(outline[..^1], new Color(Ink, alpha * (0.8f + 0.14f * focus)));
             DrawTextureRect(_lineTex, row, false, new Color(edge, alpha * (0.035f + focus * 0.065f)));
-            DrawPolyline(outline, new Color(edge, alpha * (0.18f + focus * 0.46f + warm * 0.15f)), 1, true);
+            DrawPolyline(outline, new Color(edge, alpha * (0.18f + focus * 0.46f)), 1, true);
             DrawLine(row.Position + new Vector2(8, 0), row.Position + new Vector2(56, 0),
                 new Color(edge, alpha * (0.25f + focus * 0.65f)), 2, true);
             DrawLine(row.End - new Vector2(56, 0), row.End - new Vector2(8, 0),
@@ -386,7 +365,7 @@ public partial class ChoiceOverlay : Control
             {
                 float sweep = Mathf.Clamp(dis / 0.6f, 0, 1);
                 float x = Mathf.Lerp(row.Position.X + 12, row.End.X - 12, sweep);
-                float flash = Mathf.Sin(sweep * Mathf.Pi) * alpha * (_quiet ? 0.25f : 0.65f);
+                float flash = Mathf.Sin(sweep * Mathf.Pi) * alpha * 0.65f;
                 DrawLine(new Vector2(x - 5, row.Position.Y + 6), new Vector2(x + 5, row.End.Y - 6), new Color(Paper, flash), 2, true);
                 DrawTextureRect(_lineTex, new Rect2(x - 24, row.Position.Y + 4, 48, row.Size.Y - 8), false, new Color(Rose, flash * 0.18f));
             }

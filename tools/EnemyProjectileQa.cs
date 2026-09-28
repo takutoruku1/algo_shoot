@@ -31,32 +31,37 @@ public partial class EnemyProjectileQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            foreach (string name in new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film",
-                "mina_eraser", "mina_memory", "mina_unanswered", "mina_butterfly", "koharu_star_pin", "akari_sticky" })
+            if (OS.GetCmdlineUserArgs().Contains("--overhead"))
+                await CheckOverhead(game);
+            else
             {
-                var art = BulletArt.Get(name)!;
-                using var image = art.GetImage();
-                Check(art is AtlasTexture && image.DetectAlpha() != Image.AlphaMode.None
-                    && image.GetUsedRect().Size == image.GetSize(), $"{name}: tightly framed transparent illustration");
-                Check(ReferenceEquals(art, BulletArt.Get(name)), $"{name}: cached texture");
-                if (name == "akari_sticky")
+                foreach (string name in new[] { "rei_comment", "rei_subscriber", "rei_microphone", "rei_film",
+                    "mina_eraser", "mina_memory", "mina_unanswered", "mina_butterfly", "koharu_star_pin", "akari_sticky" })
                 {
-                    int opaque = 0, total = 0;
-                    for (int y = 0; y < image.GetHeight(); y += 3)
-                        for (int x = 0; x < image.GetWidth(); x += 3)
-                        {
-                            if (image.GetPixel(x, y).A > 0.5f) opaque++;
-                            total++;
-                        }
-                    Check((float)opaque / total is > 0.25f and < 0.72f,
-                        $"Akari paper has a compact torn silhouette, not a solid square (coverage={(float)opaque / total:0.000}, size={image.GetSize()}, region={((AtlasTexture)art).Region})");
+                    var art = BulletArt.Get(name)!;
+                    using var image = art.GetImage();
+                    Check(art is AtlasTexture && image.DetectAlpha() != Image.AlphaMode.None
+                        && image.GetUsedRect().Size == image.GetSize(), $"{name}: tightly framed transparent illustration");
+                    Check(ReferenceEquals(art, BulletArt.Get(name)), $"{name}: cached texture");
+                    if (name == "akari_sticky")
+                    {
+                        int opaque = 0, total = 0;
+                        for (int y = 0; y < image.GetHeight(); y += 3)
+                            for (int x = 0; x < image.GetWidth(); x += 3)
+                            {
+                                if (image.GetPixel(x, y).A > 0.5f) opaque++;
+                                total++;
+                            }
+                        Check((float)opaque / total is > 0.25f and < 0.72f,
+                            $"Akari paper has a compact torn silhouette, not a solid square (coverage={(float)opaque / total:0.000}, size={image.GetSize()}, region={((AtlasTexture)art).Region})");
+                    }
+                    await CheckPixels(name, art);
                 }
-                await CheckPixels(name, art);
+                foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
+                    (StageTheme.Rei, "Rei"), (StageTheme.Mina, "MinaBattle") })
+                    await CheckStage(game, theme, scene);
+                CheckReuse();
             }
-            foreach (var (theme, scene) in new[] { (StageTheme.Akari, "Akari"), (StageTheme.Koharu, "Koharu"),
-                (StageTheme.Rei, "Rei"), (StageTheme.Mina, "MinaBattle") })
-                await CheckStage(game, theme, scene);
-            CheckReuse();
             Audio.Instance?.StopMusic(0);
             foreach (var node in GetNode<Audio>("/root/Audio").GetChildren())
                 if (node is AudioStreamPlayer audio) { audio.Stop(); audio.Stream = null; }
@@ -72,6 +77,213 @@ public partial class EnemyProjectileQa : Node
             GD.PushError($"[EnemyProjectileQA] FAIL {ex}");
             GetTree().Paused = false;
             GetTree().Quit(1);
+        }
+    }
+
+    private async Task CheckOverhead(GameManager game)
+    {
+        ProcessMode = ProcessModeEnum.Always;
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/overhead");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        var spawnPost = typeof(PostBullets).GetMethod("SpawnOne", BindingFlags.Static | BindingFlags.NonPublic)!;
+        foreach (var (scene, cameo) in new[] { ("Akari", false), ("Koharu", false), ("Rei", false),
+            ("MinaBattle", false), ("Akari", true), ("Koharu", true) })
+        {
+            string label = scene + (cameo ? "_midboss" : "_boss");
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            game.Difficulty = GameManager.Diff.Normal;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            var world = root.GetNode<Node2D>("World");
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            var player = world.GetNode<Player>("Player");
+            player.Position = new Vector2(Field.Left + 45, 145);
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Enemy source;
+            if (cameo)
+            {
+                Write(stage, "_stepStarted", false);
+                Write(stage, "_lunatic", true);
+                Call(stage, "Step_BossCameo", 0d);
+                Write(stage, "_lunatic", false);
+                source = Read<CameoBoss>(stage, "_cameo");
+            }
+            else
+            {
+                source = scene switch { "Akari" => new BossAkari(), "Koharu" => new BossKoharu(),
+                    "Rei" => new BossRei(), _ => new BossMina() };
+                world.AddChild(source);
+                root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            }
+            root.GetNode<StageBackground>("StageBackground").GetNode<BgLayers>("BgLayers")._Process(2);
+            source.Position = new Vector2(Field.Right - 65, 105);
+            var entrance = typeof(Enemy).GetMethod("TickEntrance", Private)!;
+            entrance.Invoke(source, new object[] { 0d });
+            entrance.Invoke(source, new object[] { 2d });
+            hud.HideSpellCard();
+            Write(hud, "_bannerTimer", 0d);
+            Write(hud, "_cutinTimer", 0d);
+            Write(hud, "_bossLineTimer", 0d);
+            Hud.BubblePaused = false;
+            hud._Process(0);
+            Pool.DespawnAll();
+            var theme = scene switch { "Akari" => PostPool.Theme.Akari, "Koharu" => PostPool.Theme.Koharu,
+                "Rei" => PostPool.Theme.Rei, _ => PostPool.Theme.Final };
+            var accent = scene switch { "Akari" => new Color("78a6d9"), "Koharu" => new Color("d99970"),
+                "Rei" => new Color("9eb3eb"), _ => new Color("b38cd6") };
+            using var rng = new RandomNumberGenerator { Seed = 953 };
+            OverheadCast[] Casts() => world.GetChildren().OfType<OverheadCast>().Where(c => !c.IsQueuedForDeletion()).ToArray();
+            void Spawn()
+            {
+                if (cameo)
+                {
+                    var art = scene == "Akari" ? BulletArt.AkariDocs : BulletArt.KoharuPenlight;
+                    typeof(Enemy).GetMethod("SetSpellVisual", Private)!.Invoke(source,
+                        new object?[] { BulletShape.Needle, accent, art, 24f });
+                    Call(source, "RainDown", Pool, game.ScaleBullets(scene == "Akari" ? 7 : 8), 72f);
+                }
+                else spawnPost.Invoke(null, new object?[] { Pool, rng, theme, 46f, accent, false, true, source });
+                foreach (var bullet in Bullets()) bullet.SetPhysicsProcess(false);
+            }
+            async Task Clear()
+            {
+                Pool.DespawnAll();
+                foreach (var cast in Casts()) cast.QueueFree();
+                await Frames(2);
+            }
+            async Task<Image> Capture(string name)
+            {
+                foreach (var cast in Casts()) cast.QueueRedraw();
+                await Frames(3);
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                var pixels = GetViewport().GetTexture().GetImage();
+                Check(pixels.SavePng($"{output}/{label}_{name}.png") == Error.Ok, $"{label}: screenshot {name}");
+                return pixels;
+            }
+            foreach (var diff in Enum.GetValues<GameManager.Diff>())
+            {
+                await Clear();
+                game.Difficulty = diff;
+                Spawn();
+                var bullets = Bullets();
+                var cast = Casts().Single();
+                var positions = bullets.Select(b => b.Position).ToArray();
+                var velocities = bullets.Select(b => b.Velocity).ToArray();
+                Check(bullets.Length == (cameo ? game.ScaleBullets(scene == "Akari" ? 7 : 8) : 1),
+                    $"{label}/{diff}: original shot count");
+                Check(bullets.All(b => b.OverheadPending && !b.Visible && b.CollisionLayer == 0 && b.CollisionMask == 0),
+                    $"{label}/{diff}: windup is invisible and harmless, not a new moving hitbox");
+                int lives = player.Lives, grazes = game.GrazeCount;
+                Call(player, "OnAreaEntered", bullets[0]);
+                Call(player, "OnGrazeAreaEntered", bullets[0]);
+                Check(player.Lives == lives && game.GrazeCount == grazes, $"{label}/{diff}: stale overlaps cannot hit or reward during windup");
+                foreach (var bullet in bullets) bullet._PhysicsProcess(0.3);
+                cast._PhysicsProcess(0.28);
+                Check(bullets.Select(b => b.Position).SequenceEqual(positions) && bullets.All(b => b.OverheadPending),
+                    $"{label}/{diff}: charges before any bullet drops");
+                Hud.BubblePaused = true;
+                cast._PhysicsProcess(3);
+                Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.28f), $"{label}/{diff}: dialogue freezes cast");
+                Hud.BubblePaused = false;
+                cast.ProcessMode = ProcessModeEnum.Pausable;
+                GetTree().Paused = true;
+                await Frames(3);
+                Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.28f), $"{label}/{diff}: pause freezes cast");
+                cast.ProcessMode = ProcessModeEnum.Inherit;
+                GetTree().Paused = false;
+                Write(game, "_focusModeT", 2f);
+                cast._PhysicsProcess(0.1);
+                Check(Mathf.IsEqualApprox(Read<float>(cast, "_time"), 0.28f + 0.1f * GameManager.FocusModeScale),
+                    $"{label}/{diff}: cast follows bullet focus time");
+                Write(game, "_focusModeT", 0f);
+                cast._PhysicsProcess(0.4);
+                Check(bullets.All(b => !b.OverheadPending && b.Visible && b.CollisionLayer == 8
+                    && b.CollisionMask == (b.Erasable ? 3u : 1u)),
+                    $"{label}/{diff}: exact collision masks return on release");
+                Check(bullets.Select(b => b.Position).SequenceEqual(positions) && bullets.Select(b => b.Velocity).SequenceEqual(velocities)
+                    && bullets.All(b => b.Radius == (cameo ? 3.2f : 3f)), $"{label}/{diff}: fall origin, velocity and radius preserved");
+                if (!cameo)
+                {
+                    await Clear();
+                    double timer = 0;
+                    for (int i = 0; i < 30; i++)
+                    {
+                        int tick = 6;
+                        PostBullets.Tick(stage, rng, 1, ref timer, ref tick, source, theme, 46, accent);
+                    }
+                    int cap = diff switch { GameManager.Diff.Easy => 4, GameManager.Diff.Hard => 10,
+                        GameManager.Diff.Lunatic => 14, _ => 7 };
+                    Check(Bullets().Length == cap && Bullets().Count(b => b.WordAching) <= 1,
+                        $"{label}/{diff}: reserved posts obey density and aching-post caps");
+                }
+            }
+            await Clear();
+            game.Difficulty = GameManager.Diff.Normal;
+            Spawn();
+            var canceled = Casts().Single();
+            Pool.DespawnAll();
+            var reused = Pool.Spawn(new Vector2(180, 110), new Vector2(60, 0), false);
+            canceled._PhysicsProcess(1);
+            Check(reused.Active && reused.Visible && !reused.OverheadPending && reused.CollisionLayer == 2
+                && reused.Position == new Vector2(180, 110), $"{label}: clearing and pool reuse cannot resurrect or hide a shot");
+            await Clear();
+            Spawn();
+            var defeated = Casts().Single();
+            typeof(Enemy).GetField("_purified", Private)!.SetValue(source, true);
+            defeated._PhysicsProcess(1);
+            Check(Bullets().Length == 0, $"{label}: defeat cancels pending fire");
+            typeof(Enemy).GetField("_purified", Private)!.SetValue(source, false);
+            await Clear();
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                Spawn();
+                if (Bullets().Any(b => b.Position.X > Field.Left + 28 && b.Position.X < Field.Right - 28)) break;
+                await Clear();
+            }
+            var visual = Casts().Single();
+            visual._PhysicsProcess(0.16);
+            using (await Capture("send")) { }
+            visual._PhysicsProcess(0.30);
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540), new Vector2I(540, 960) })
+            {
+                DisplayServer.WindowSetSize(size);
+                using (await Capture($"gate_{size.X}x{size.Y}")) { }
+            }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            using var on = await Capture("charge");
+            visual.Hide();
+            using var off = await Capture("baseline");
+            int topPixels = 0, pathPixels = 0;
+            for (int y = 0; y < 350; y++)
+                for (int x = 400; x < 1280; x++)
+                {
+                    var a = on.GetPixel(x, y); var b = off.GetPixel(x, y);
+                    float d = Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B);
+                    if (d > 0.05f) { if (y < 100) topPixels++; else pathPixels++; }
+                }
+            Check(topPixels > 150 && pathPixels > 30, $"{label}: visible overhead source and connecting trail ({topPixels}/{pathPixels})");
+            visual.Show();
+            visual._PhysicsProcess(0.15);
+            foreach (var bullet in Bullets()) bullet._PhysicsProcess(0.24);
+            using (await Capture("release")) { }
+            visual._PhysicsProcess(1);
+            await Frames(2);
+            Check(!IsInstanceValid(visual), $"{label}: launch afterglow cleans itself up");
+            await Clear();
+            Spawn();
+            source.QueueFree();
+            foreach (var cast in Casts()) cast._PhysicsProcess(1);
+            Check(Bullets().Length == 0, $"{label}: source removal cancels pending shots");
+            root.QueueFree();
+            await Frames(4);
+            Check(GetTree().GetNodesInGroup("overhead_casts").Count == 0, $"{label}: no emitter leaks between stages");
+            Hud.BubblePaused = false;
         }
     }
 
@@ -159,8 +371,6 @@ public partial class EnemyProjectileQa : Node
                     $"Akari/{diff}: finale uses folded paper without replacing the document spiral");
         }
         Pool.DespawnAll();
-        boss.QueueFree();
-        await Frames(2);
         game.Difficulty = GameManager.Diff.Normal;
         if (theme != StageTheme.Mina)
         {
@@ -187,12 +397,17 @@ public partial class EnemyProjectileQa : Node
         };
         var spawn = typeof(PostBullets).GetMethod("SpawnOne", BindingFlags.Static | BindingFlags.NonPublic)!;
         using var rng = new RandomNumberGenerator { Seed = 953 };
-        spawn.Invoke(null, new object?[] { Pool, rng, postTheme, 46f, null, false, true });
+        spawn.Invoke(null, new object?[] { Pool, rng, postTheme, 46f, null, false, true, boss });
         var post = Bullets().Single();
+        var overhead = GetTree().GetNodesInGroup("overhead_casts").OfType<OverheadCast>()
+            .Single(c => post.IsHeldBy(c));
+        overhead._PhysicsProcess(OverheadCast.Windup);
         var core = Read<BulletWordCore>(post, "_wordCore");
         Check(ReferenceEquals(core.Art, BulletArt.PostCore(postTheme)) && core.CoreR == post.Radius
             && core.Visible, $"{theme}/post: themed core preserves hit radius");
         Pool.DespawnAll();
+        boss.QueueFree();
+        await Frames(2);
         if (theme == StageTheme.Rei)
         {
             var storm = new QuoteStorm();

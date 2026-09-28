@@ -444,17 +444,6 @@ public partial class Hub : Node2D
         var idle = IdleDialogs(lastCleared);
         for (int i = 0; i < idle.Length; i++)
             pool.Add(($"idle_{lastCleared}_{i}", idle[i]));
-        // 道中の下書き選択（17）で送っていれば、その面の再訪小話を1本に固定して先に出す
-        //   （S1-2 →「雨粒」／S3-2 →「同接」）。送った言葉が本文に一語混ざる。
-        //   既読になれば通常の抽選プールへ戻る＝同じ小話を延々出さない（実質「次のハブで一度」）。
-        int pin = ChoiceEffects.PinnedIdleIndex(_game, lastCleared);
-        if (pin >= 0 && pin < idle.Length && !_game!.IsIdleDialogSeen($"idle_{lastCleared}_{pin}"))
-        {
-            string key = $"idle_{lastCleared}_{pin}";
-            _game.MarkIdleDialogSeen(key);
-            StartDialogue(FillDives(PinnedIdle(_game, lastCleared, idle[pin])), null);
-            return;
-        }
         string companionKey = $"companion_hub_{_game!.JobDef.CharacterId}";
         var companion = CompanionDialogue.MenuLines(_game.SelectedJob, CompanionDialogue.Menu.Hub);
         if (companion.Length > 0 && !_game.IsIdleDialogSeen(companionKey))
@@ -1261,7 +1250,7 @@ public partial class Hub : Node2D
         new("mina_phase_clap", "消えない拍手", "Mina Phase", BossMina.PhaseBackground(2), PhotoFull, new Color("ee9bb7"), MinaPhaseKeys(2)),
         new("mina_phase_mask", "仮面の向こう", "Mina Phase", BossMina.PhaseBackground(3), PhotoFull, new Color("f0d98a"), MinaPhaseKeys(3)),
         new("mina_phase_voice", "わたしの声", "Mina Phase", BossMina.PhaseBackground(4), PhotoFull, new Color("85e8d0"), MinaPhaseKeys(4)),
-        new("ending", "覚えている声", "Ending", "res://char/bg2/ending/cg_ep_together_v1.png", PhotoFull, new Color("ffd98a"), K("ending")),
+        new("ending", "覚えている声", "Ending", "res://char/bg2/ending/cg_ep_together_v2.png", PhotoFull, new Color("ffd98a"), K("ending")),
     };
 
     private const int PhotoIdBase = 23000, PhotoCloseId = 23900;
@@ -3771,30 +3760,6 @@ public partial class Hub : Node2D
         ("ミナ", "ご報告。この騒ぎで、次のダイブは光が少し薄くなります。数字は、重いので。"),
     };
 
-    // ───────── 道中の下書き選択（17）が再訪小話へ効く一行 ─────────
-    //   正典: wiki/08_仮台本/17_道中の選択肢_案C.md（ユーザー承認済み・2026-09-06）の各場面の「効果」。
-    //   固定した小話（あかり＝雨粒／レイ＝同接）に、送った言葉を一語混ぜた行を差し込む。
-    //   差し込み位置は台本どおり（あかり＝末尾の「……いまの間、{n}秒。」の前／レイ＝二行目の直後）。
-    //   小話本体の文言は一字も変えない。
-    private static (string, string)[] PinnedIdle(GameManager? game, string stageId, (string, string)[] lines)
-    {
-        string word = ChoiceEffects.SentWordAt(game, stageId == "akari" ? "s1_2" : "s3_2");
-        if (string.IsNullOrEmpty(word)) return lines;
-        var list = new System.Collections.Generic.List<(string, string)>(lines);
-        if (stageId == "akari")
-        {
-            list.Insert(System.Math.Max(0, list.Count - 1),
-                ("ミナ", $"……あのフロアで、雨の話に「{word}」と、お返事をいただきましたので。——集計に、入れてあります。"));
-        }
-        else
-        {
-            // 「同接、9」だけは、こちらの集計（一）と突き合わせて返す（台本の指定）。
-            list.Insert(System.Math.Min(2, list.Count), word == "同接、9"
-                ? ("ミナ", "……九、と、いただきましたが。——こちらの集計では、一です。")
-                : ("ミナ", $"……あの部屋で、「{word}」と、いただきましたので。暗いまま、続けました。"));
-        }
-        return list.ToArray();
-    }
 
     // 17（道中の選択肢 案C）: S1-5 で送っていれば、ミナ側の一行の直後にもう一行足す。
     //   あかりの返信「……なんでだろ。あなたの言い方、誰かに似てる。」は一字も変えない。

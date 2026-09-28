@@ -398,17 +398,6 @@ public partial class StageImagery : Node2D
                      quote: quote);
         }
 
-        // 雨（細い横斜線）。画面（X）越しに降る雨の教室の湿度を残すが、進行＝横流れを優先＝左へ強く流す。
-        // 縦の落下が主役にならないよう α は控えめ(0.07)、横へ寝た斜め(左:下 ≈ 4:1)。
-        var rain = new Color(0.7f, 0.8f, 1f, 0.07f * fade);
-        float rainSpan = W + 12f;
-        for (int i = 0; i < 26; i++)
-        {
-            float rx = rainSpan - ((i * 53 + (float)(_t * 150.0)) % rainSpan); // 半減（画面酔い対策）
-            float ry = (i * 71) % (int)H;
-            DrawLine(new Vector2(rx, ry), new Vector2(rx - 9f, ry + 2.5f), rain, 1f);
-        }
-
         // 送信取消の下書き（道中の演出・2026-09-06 作り直し＝案 a）。白い板は使わない。
         //   文字だけが極薄い水色〜灰で背景に直接浮かび、言い切る前に末尾から一文字ずつ欠けていく（取り消し）。
         //   文字の下には入力欄の名残の極細線。文字が全部欠けたあと、線だけが残って薄れる。

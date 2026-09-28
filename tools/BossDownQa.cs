@@ -1,0 +1,312 @@
+using Godot;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+
+public partial class BossDownQa : Node
+{
+    private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+    private const string Out = "res://build/qa_story/boss_down/shots";
+    private readonly record struct Pose(Texture2D Texture, Vector2 Scale, Vector2 Offset, bool Flip);
+    private readonly List<(string Id, Pose Idle, Pose Down)> _samples = new();
+    private AkariRoot _root = null!;
+    private bool _shots;
+    private BulletPool Pool => GetNode<BulletPool>("/root/Pool");
+    private static FieldInfo FieldOf(object value, string name)
+    {
+        for (var type = value.GetType(); type != null; type = type.BaseType)
+            if (type.GetField(name, Private) is { } field) return field;
+        throw new MissingFieldException(name);
+    }
+    private static T Read<T>(object value, string name) => (T)FieldOf(value, name).GetValue(value)!;
+    private static void Write(object value, string name, object data) => FieldOf(value, name).SetValue(value, data);
+    private static object? Call(object value, string name, params object[] args)
+    {
+        for (var type = value.GetType(); type != null; type = type.BaseType)
+            if (type.GetMethod(name, Private) is { } method) return method.Invoke(value, args);
+        throw new MissingMethodException(name);
+    }
+    private static void Check(bool pass, string label)
+    {
+        if (!pass) throw new Exception(label);
+        GD.Print($"[BossDownQA] PASS {label}");
+    }
+    private static Sprite2D Body(Enemy boss) => boss.GetNode<Sprite2D>("Body");
+    private static Pose Capture(Enemy boss)
+    {
+        var s = Body(boss);
+        return new Pose(s.Texture, s.Scale, s.Offset, s.FlipH);
+    }
+
+    public override async void _Ready()
+    {
+        try
+        {
+            Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
+            _shots = OS.GetCmdlineUserArgs().Contains("--down-shots");
+            var game = GetNode<GameManager>("/root/Game");
+            game.AutoSaveEnabled = false;
+            game.ResetPersistent();
+            game.Difficulty = GameManager.Diff.Normal;
+            if (_shots)
+            {
+                DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(Out));
+                DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
+            await Frames(1);
+            _root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(_root);
+            GetTree().CurrentScene = _root;
+            _root.SetProcess(false);
+            _root.Stage.SetProcess(false);
+            _root.Player.ProcessMode = ProcessModeEnum.Disabled;
+            Write(_root.Player, "_invincible", true);
+            Write(_root.Player, "_invincibleTimer", 999f);
+            _root.Player.GlobalPosition = new Vector2(Field.Left + 30, 165);
+            ClearDialog();
+            _root.GetNode<StageBackground>("StageBackground").EnterBoss();
+            await Frames(3);
+
+            foreach (var id in new[] { "akari", "koharu", "rei", "mina", "akari_mid", "koharu_mid", "rei_mid" })
+            {
+                Enemy boss = id switch
+                {
+                    "akari" => new BossAkari(), "koharu" => new BossKoharu(),
+                    "rei" => new BossRei(), "mina" => new BossMina(), _ => Cameo(id),
+                };
+                boss.ProcessMode = ProcessModeEnum.Disabled;
+                _root.World.AddChild(boss);
+                boss.GlobalPosition = new Vector2(Field.BossCenterX, 100);
+                Call(boss, "TickEntrance", 0d);
+                Call(boss, "TickEntrance", 100d);
+                Call(boss, "TickSwapAnim", 1d);
+                await Frames(3);
+                await Cycle(boss, id);
+
+                if (id is "akari" or "koharu" or "rei")
+                {
+                    Strip(boss);
+                    Check((bool)Call(boss, "AdvanceForm2")!, id + " second form starts while down");
+                    string down = BossDownArt.Path(id == "rei" ? "rei_form2" : id);
+                    Check(Body(boss).Texture.ResourcePath == down, id + " second form keeps down pose");
+                    Call(boss, "EnterReclose");
+                    Call(boss, "EnterShielded");
+                    Call(boss, "TickSwapAnim", 1d);
+                    await Cycle(boss, id == "rei" ? "rei_form2" : id, keepSample: id == "rei");
+                }
+                if (boss is BossMina mina)
+                {
+                    foreach (var costume in new[] { "rain", "screen", "stream", "home" })
+                    {
+                        Strip(mina);
+                        game.Difficulty = GameManager.Diff.Lunatic;
+                        Call(mina, "BeginPhaseTransition");
+                        game.Difficulty = GameManager.Diff.Normal;
+                        Check(Body(mina).Texture.ResourcePath == BossDownArt.Path("mina_" + costume), costume + " changes costume while down");
+                        Call(mina, "CompletePhaseTransition");
+                        Read<MinaPhaseAttacks>(mina, "_caster").CancelPendingAttacks();
+                        Call(mina, "EnterReclose");
+                        Call(mina, "EnterShielded");
+                        Call(mina, "TickSwapAnim", 1d);
+                        await Cycle(mina, "mina_" + costume);
+                    }
+                }
+                await LiveCycle(boss, id);
+                Strip(boss);
+                Call(boss, "Redeem");
+                Check(!Read<bool>(boss, "_bodyDown"), id + " purification leaves down state");
+                string cry = Body(boss).Texture.ResourcePath;
+                Check(!cry.Contains("/down/"), id + " purification uses existing story art");
+                Call(boss, "TriggerAttackPose");
+                Call(boss, "TickAttackPose", 1d);
+                Check(Body(boss).Texture.ResourcePath == cry, id + " attack timer cannot overwrite story art");
+                if (boss is BossRei)
+                {
+                    Check(cry.EndsWith("boss_rei_body_idle2.png"), "Rei preserves her cracked shell until story reveal");
+                    Call(boss, "BreakCryBodyNow");
+                    Call(boss, "TickShellPeel", 3d);
+                    Check(Body(boss).Texture.ResourcePath == Read<string>(boss, "CryTexPath"), "Rei delayed transformation still works");
+                }
+                ClearDialog();
+                boss.QueueFree();
+                await Frames(4);
+                Pool.DespawnAll();
+            }
+            Check(_samples.Count == 12, "all twelve down illustrations exercised");
+            if (_shots) await Comparison();
+            _root.QueueFree();
+            await Frames(6);
+            Pool.DespawnAll();
+            Audio.Instance?.StopMusic(0);
+            foreach (var player in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
+            { player.Stop(); player.Stream = null; }
+            await Frames(4);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            await Frames(4);
+            GD.Print("[BossDownQA] ALL PASS");
+            GetTree().Quit();
+        }
+        catch (Exception e) { GD.PushError($"[BossDownQA] FAIL {e}"); GetTree().Quit(1); }
+    }
+
+    private void ClearDialog()
+    {
+        _root.Hud.HoldBubble = false;
+        _root.Hud.HideBubble();
+        _root.Hud.SuppressCallouts = false;
+    }
+    private static CameoBoss Cameo(string id)
+    {
+        string file = id == "akari_mid" ? "akari_mid_v2" : id;
+        return new CameoBoss { Theme = new CameoTheme
+        {
+            DisplayName = id, Handle = id,
+            PreTex = $"res://char/v3/{file}.png", CryTex = $"res://char/v3/{id}.png", PostTex = $"res://char/v3/{id}.png",
+            Fire = id == "akari_mid" ? CameoFireTheme.AkariGrief : id == "koharu_mid" ? CameoFireTheme.KoharuFalling : CameoFireTheme.ReiAggressive,
+            SpellTint = Colors.White, Face = "",
+            IntroLines = Array.Empty<(int, string, string)>(), TauntLines = Array.Empty<(int, string, string)>(),
+            DefeatLines = Array.Empty<(int, string, string)>(),
+        } };
+    }
+    private static void Strip(Enemy boss)
+    {
+        foreach (var panel in Read<List<Panel>>(boss, "_panels").ToArray())
+        { boss.OnPanelStripped(panel); panel.QueueFree(); }
+    }
+    private async Task Cycle(Enemy boss, string id, bool keepSample = true)
+    {
+        ClearDialog();
+        var normal = Capture(boss);
+        var shape = Read<CollisionShape2D>(boss, "_bodyShape");
+        var shapeResource = shape.Shape;
+        var shapeTransform = shape.Transform;
+        Call(boss, "TriggerAttackPose");
+        Strip(boss);
+        string down = BossDownArt.Path(id);
+        Check(Read<bool>(boss, "_bodyDown") && Body(boss).Texture.ResourcePath == down, id + " shield break immediately selects down art");
+        Check(Read<double>(boss, "_attackPoseT") == 0, id + " cancels pending attack pose");
+        Call(boss, "TriggerAttackPose");
+        Call(boss, "TickAttackPose", 1d);
+        Call(boss, "TickSwapAnim", 1d);
+        Check(Body(boss).Texture.ResourcePath == down, id + " attacks cannot replace down art");
+        Check(shape.Shape == shapeResource && shape.Transform == shapeTransform, id + " collision geometry unchanged");
+        var parts = boss.GetNodeOrNull<Node2D>("Parts");
+        Check(parts == null || !parts.Visible, id + " offensive ornaments hidden during down");
+        Call(boss, "ApplyBossMotion", new Vector2(0, 1), 0.2f, true, null!);
+        Check(Mathf.Abs(Body(boss).Rotation) <= 0.031f, id + " restrained down motion");
+        Call(boss, "ApplyBossMotion", Vector2.Zero, 0f, false, null!);
+        Check(float.IsFinite(Body(boss).Offset.X) && Body(boss).Scale.X > 0, id + " mirrored pose remains valid");
+        Call(boss, "ApplyBossMotion", Vector2.Zero, 0f, true, null!);
+        if (keepSample)
+        {
+            var downPose = Capture(boss);
+            _samples.Add((id, normal, downPose));
+            var (idleHead, downHead) = id switch
+            {
+                "akari" => (230f, 258f), "koharu" => (228f, 268f),
+                "rei" or "rei_form2" => (217f, 247f), "mina" => (295f, 325f),
+                "mina_rain" => (299f, 325f), "mina_screen" => (333f, 325f),
+                "mina_stream" => (329f, 328f), "mina_home" => (351f, 328f),
+                "akari_mid" => (115f, 268f), "koharu_mid" => (110f, 274f),
+                _ => (132f, 271f),
+            };
+            float ratio = downHead * downPose.Scale.X / (idleHead * normal.Scale.X);
+            Check(Mathf.Abs(ratio - 1) < 0.035f, $"{id} head size matches idle ({ratio:F3})");
+        }
+        Call(boss, "TickBossPhase", 0.46d);
+        await Frames(2);
+        Check(boss.Monitoring && boss.GetCollisionMaskValue(2) && !shape.Disabled, id + " exposed hitbox opens normally");
+        ClearDialog();
+        int hp = Read<int>(boss, "_hp");
+        var bullet = Pool.Spawn(new Vector2(-100, -100), Vector2.Zero, false, damage: 1);
+        Call(boss, "OnBodyHitByPlayerBullet", bullet);
+        Check(Read<int>(boss, "_hp") < hp, id + " player shot still damages down boss");
+        Call(boss, "TickBossPhase", 3.9d);
+        Check(Body(boss).Texture.ResourcePath == down && boss.GaugeVulnerable, id + " down persists through exposed window");
+        Call(boss, "TickBossPhase", 0.11d);
+        Check(!Read<bool>(boss, "_bodyDown") && Body(boss).Texture.ResourcePath == Read<string>(boss, "PreTexPath"), id + " reclose restores current idle costume");
+        Check(!boss.GetCollisionMaskValue(2) && (parts == null || parts.Visible), id + " shield and ornament visibility recover");
+        Call(boss, "TickBossPhase", 1.36d);
+        Check(Read<List<Panel>>(boss, "_panels").Count > 0, id + " shields respawn for next cycle");
+        Call(boss, "TickSwapAnim", 1d);
+        Pool.DespawnAll();
+        await Frames(2);
+    }
+
+    private async Task LiveCycle(Enemy boss, string id)
+    {
+        ClearDialog();
+        Strip(boss);
+        boss.ProcessMode = ProcessModeEnum.Inherit;
+        boss.SetProcess(false);
+        boss.SetPhysicsProcess(true);
+        foreach (var child in boss.GetChildren())
+            if (child is AreaSpellCaster or MinaPhaseAttacks) child.SetProcess(false);
+        await Frames(100);
+        Check(Read<bool>(boss, "_bodyDown") && boss.GaugeVulnerable, id + " live physics holds down during combat");
+        Pool.DespawnAll();
+        _root.Hud.HideSpellCard();
+        if (_shots)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using var image = GetViewport().GetTexture().GetImage();
+            Check(image.SavePng($"{Out}/{id}_battle.png") == Error.Ok, id + " battle screenshot saved");
+        }
+        for (int i = 0; i < 600 && Read<bool>(boss, "_bodyDown"); i++) await Frames(1);
+        Check(!Read<bool>(boss, "_bodyDown"), id + " live physics recovers from down without intervention");
+        boss.ProcessMode = ProcessModeEnum.Disabled;
+        Call(boss, "EnterShielded");
+        Pool.DespawnAll();
+    }
+
+    private async Task Comparison()
+    {
+        var viewport = new SubViewport { Size = new Vector2I(1440, 990), TransparentBg = false,
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Always, Disable3D = true };
+        AddChild(viewport);
+        viewport.AddChild(new ColorRect { Size = new Vector2(1440, 990), Color = new Color("20232a") });
+        var ordered = _samples.OrderBy(s => s.Id.Contains("_mid") ? 2 : s.Id.StartsWith("mina_") ? 1 : 0).ToArray();
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            var item = ordered[i];
+            var origin = new Vector2(i % 4 * 360, i / 4 * 330);
+            var label = new Label { Text = item.Id.ToUpperInvariant(), Position = origin + new Vector2(14, 10) };
+            label.AddThemeFontSizeOverride("font_size", 19);
+            viewport.AddChild(label);
+            var states = new Label { Text = "NORMAL                 DOWN", Position = origin + new Vector2(38, 43) };
+            states.AddThemeFontSizeOverride("font_size", 15);
+            viewport.AddChild(states);
+            int column = 0;
+            foreach (var pose in new[] { item.Idle, item.Down })
+            {
+                viewport.AddChild(new Sprite2D { Texture = pose.Texture, Offset = pose.Offset, FlipH = pose.Flip,
+                    Scale = pose.Scale * 2.6f, Position = origin + new Vector2(90 + column++ * 180, 192),
+                    TextureFilter = CanvasItem.TextureFilterEnum.Linear });
+                using var art = pose.Texture.GetImage();
+                Check(art.GetUsedRect().HasArea() && art.GetPixel(0, 0).A < 0.05f, item.Id + " nonblank transparent texture");
+            }
+        }
+        await Frames(3);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var render = viewport.GetTexture().GetImage();
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            int pixels = 0;
+            for (int y = i / 4 * 330 + 80; y < i / 4 * 330 + 300; y += 3)
+            for (int x = i % 4 * 360 + 190; x < i % 4 * 360 + 350; x += 3)
+                if ((render.GetPixel(x, y) - new Color("20232a")).R > 0.12f) pixels++;
+            Check(pixels > 70, ordered[i].Id + " down sprite renders nonblank");
+        }
+        Check(render.SavePng($"{Out}/comparison.png") == Error.Ok, "comparison screenshot saved");
+        viewport.QueueFree();
+        await Frames(2);
+    }
+    private async Task Frames(int count)
+    {
+        for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    }
+}

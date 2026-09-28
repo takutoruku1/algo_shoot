@@ -4,7 +4,6 @@ using System.Collections.Generic;
 // Final : FINAL F4「頂点」（案C・仮台本 docs/20260928/wiki_仮台本_退避/08。ユーザー承認済み・2026-09-05）。
 // 戦闘で解決しない本作ルールの総決算。ミナの語りのあとに最後の下書き選択が出る。
 // 戻ってくるのは【初】＝あなたが冒頭 P2 で最初に散らした言葉。なぜその言葉かは知らされない。
-// 沈黙 20 秒でその言葉がひとりでに灯って送られる（既読プレイでも短縮しない）。
 public partial class Final : Node2D
 {
     private const float W = 384f, H = 216f;
@@ -46,7 +45,7 @@ public partial class Final : Node2D
     //   384×216 の世界座標なので、右上 (W-14, H-58) を UiKit.Scale で割って設計座標のアンカーにする（≒1233,527）。
     private readonly DialogToolbar _toolbar = new();
     private static readonly Vector2 ToolbarAnchor = new Vector2(W - 14f, H - 58f) / UiKit.Scale;
-    // AUTO（GameManager.AutoAdvanceDialog）：現在ページの全文表示後、この秒数で次へ（下書き選択は対象外＝沈黙20秒のまま）。
+    // AUTOでも下書きの送信はプレイヤーの決定を待つ。
     private const double AutoAfterReveal = 1.0;
     private double _autoT;         // 現在ページを全文表示してからの経過（AUTO 用）
     // 会話ボックスが出ているか（DrawTalk が枠を描く条件と同じ）＝ボタン列を出す／受け付ける条件。
@@ -60,6 +59,7 @@ public partial class Final : Node2D
     //   行は本文一致で検出（配列順を変えても壊れない）。各フェード尺は下の定数で実機調整できる。
     private const string CueSilenceLine = "…………。";                        // この行で完全無音（BGM 停止）
     private const string CueResolveLine = "……その言葉。……ええ。届きました。"; // この行と同時に解決音
+    private const string CueKeepLine = "……これは、わたくしが持って帰ります。";
     private const float SilenceFade   = 1.4f;  // BgmBoss を細らせて無音にする尺（「1拍」の沈黙の入り）
     private const float ResolveFade   = 4.0f;  // 解決音 ppp の立ち上がり（沈黙→解決の落差を活かす）
     private bool _cueSilenceDone;              // 二重発火を防ぐワンショット
@@ -91,9 +91,7 @@ public partial class Final : Node2D
         _zHeld = Pad.AdvanceHeld();
         // F4 の地の音。旋律を立てないアンビエントで「世界の底」だけを鳴らし、テキストに主役を渡す。
         //   2026-09-29 まではここが合成 BgmBoss（6.4秒の正弦波ループ）だった（ボス曲を実音源へ差し替えた
-        //   ときの積み残しで、Final だけ取り残されていた）。頭から CueSilenceLine までは AUTO 送りの
-        //   実測で 35.0 秒＝5.5 周（下書き選択の沈黙20秒を含む。即決なら 14.5 秒＝2.3 周）、
-        //   手動送りなら 45〜60 秒の見込み。曲の正体と選定根拠は Audio.BgmFinalCutscene のコメント。
+        //   ときの積み残しで、Final だけ取り残されていた）。
         //   ★この曲は「消すために鳴らしている」＝CueSilenceLine の StopMusic で消えた瞬間の無音が決定打。
         //     平坦な曲を選んであるのは、盛り上がりの途中でぶつ切りにしないため。挿入歌の一点投入は phase1 末。
         if (Audio.Instance != null) Audio.Instance.Music(Audio.Instance.BgmFinalCutscene);
@@ -125,53 +123,46 @@ public partial class Final : Node2D
 
     // ───────── F4 の下書き選択（頂点）─────────
     //   戻ってくるのは【初】＝GameManager.FirstScattered（冒頭 P2 で最初に散らした言葉）。
-    //   並びは（送らない）が先頭で、末尾＝【初】。ChoiceOverlay の沈黙タイマーは末尾を自動決定するので、
-    //   14 秒で【初】が灯りはじめ、20 秒でひとりでに送られる（08 の指定どおり）。
-    //   （送らない）を選んだら一度だけ受けて、同じ【初】を1択で再提示＝必ず送らせる。
     //   このとき言葉は散らないので【散】には計上しない（05「F4 は例外で計上しない」）。
     private const string FirstWordFallback = "ミナ";   // 【初】が空（旧セーブ・ボス直行）のときに戻す言葉
     private string FirstWord => string.IsNullOrEmpty(_game?.FirstScattered) ? FirstWordFallback : _game!.FirstScattered;
     private int _choiceLine = -1;      // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _choice;
     private double _choiceT;           // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
-    private bool _refused;             // （送らない）を一度受けた＝次は1択で必ず送らせる
 
     private void ShowFinalChoice()
     {
         _choiceT = 0;
-        // 一度断られたあとは1択（【初】だけ）。初回は（送らない）が先頭・【初】が末尾。
-        _choice = ChoiceOverlay.Show(this,
-            _refused ? new[] { FirstWord } : new[] { "（送らない）", FirstWord },
-            defaultSel: _refused ? 0 : 1, cinematic: true);
+        _choice = ChoiceOverlay.Show(this, new[] { "（送らない）", FirstWord }, defaultSel: 1, cinematic: true);
     }
 
-    // 選択の確定。送ったら以降の受けを挿し込み、（送らない）なら一度だけ受けて再提示する。
     private void ApplyFinalChoice(int sel)
     {
-        bool sent = _refused || sel == 1;
+        bool sent = sel == 1;
+        string word = FirstWord;
+        _game?.RecordChoice("f4", sent ? word : "", System.Array.Empty<string>(), (float)_choiceT);
+        _choiceLine = -1;
+        var after = new List<DLine>();
         if (!sent)
         {
-            // 一度だけ受けて、同じ【初】を1択で再提示（必ず送る）。言葉は散らない＝記録もしない。
-            _refused = true;
-            _talk.Insert(_line, new DLine { Who = "ミナ", Text = "……いいえ。それだけは、もう、散らせません。" });
-            _choiceLine = _line + 1;   // 受けを1行送ってから再提示（同フレームで出し直さない）
-            _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;
-            return;
+            after.Add(new DLine { Who = "ミナ", Text = "……はい。今は、送らないままで。" });
+            after.Add(new DLine { Who = "ミナ", Text = CueSilenceLine });
+            after.Add(new DLine { Who = "ミナ", Text = "あのとき、拾っておいた言葉が。……わたくしの中にも、残っていました。" });
+            after.Add(new DLine { Who = "ミナ", Text = $"「{word}」。……まだ、ここにありました。" });
+            after.Add(new DLine { Who = "ミナ", Text = CueKeepLine });
         }
-        string word = FirstWord;
-        // 【終】＝最後に送った言葉（E2 の合言葉・E7 の一行）。【散】は F4 では計上しない＝others は空。
-        _game?.RecordChoice("f4", word, System.Array.Empty<string>(), (float)_choiceT);
-        _choiceLine = -1;
-        var after = new List<DLine>
+        else
         {
-            new() { Who = "あなた", Text = word },
-            new() { Who = "ミナ",  Text = CueSilenceLine },                  // 絶句＝ここで BGM 停止。無音
-            new() { Who = "ミナ",  Text = CueResolveLine },                  // 正体は言わない。届いたことだけ
-            // 最後の軽口。送信文字列の実数だけを差し込む観測（人格の断定は置かない）。
-            new() { Who = "ミナ",  Text = $"……{word.Length}文字。……ふふ。相変わらず、短いですね。" },
+            after.Add(new DLine { Who = "あなた", Text = word });
+            after.Add(new DLine { Who = "ミナ", Text = CueSilenceLine });
+            after.Add(new DLine { Who = "ミナ", Text = CueResolveLine });
+            after.Add(new DLine { Who = "ミナ", Text = $"……{word.Length}文字。……ふふ。相変わらず、短いですね。" });
+        }
+        after.AddRange(new DLine[]
+        {
             new() { Who = "ミナ",  Text = "今日は、もう、休ませてください。……戻ったら、わたくしの見た空を、ご主人様にお話ししたいです。" },
             new() { Who = "地",   Text = "——それから、わたくしは。帰るほうへ、自分で泳いでいきました。" },
-        };
+        });
         _talk.InsertRange(_line, after);
         _pagedLine = -1; _page = 0; _reveal = 0; _lineT = 0; _readIdx = -1;
     }
@@ -203,8 +194,7 @@ public partial class Final : Node2D
         {
             case 0: if (_t >= 3.2 || zEdge) NextPhase(); break;
             case 1:                                                       // 対話（手動送り）
-                // 下書き選択の提示中は会話送りを止め、決定だけを待つ（既読スキップも効かせない
-                //   ＝08「既読プレイでも短縮しない」。沈黙20秒の自動送信は ChoiceOverlay 側が持つ）。
+                // 既読スキップでもプレイヤーの送信は代行しない。
                 if (_choice != null)
                 {
                     _choiceT += delta;
@@ -290,7 +280,7 @@ public partial class Final : Node2D
 
         // ③ 「……その言葉。……ええ。届きました。」の表示と同時に、主題の解決変奏を ppp で立ち上げる。
         //    直前で StopMusic 済み＝無音からの立ち上がり。落差が決定打。
-        if (!_cueResolveDone && text == CueResolveLine)
+        if (!_cueResolveDone && (text == CueResolveLine || text == CueKeepLine))
         {
             _cueResolveDone = true;
             audio?.PlayFinalResolve(fade: ResolveFade);

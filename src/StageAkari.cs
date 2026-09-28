@@ -123,6 +123,7 @@ public partial class StageAkari : Node
         (1, "「気づいてほしい、でも気づかれたら困る」……そういう声が、「同じ部署」という言葉と、いっしょに流れていきます。", MFace),   // A28
         (1, "……返事の声だけが、ここまで来ても、ひとつも、ありません。", MWorried),
         (1, "取り消されたぶんの言葉を、ぜんぶ、浴びていきます。ひとつ残らず。——そう、決めました。", MFace),   // 改心の「証人」の仕込み
+        (1, "……雨は、まだ、止みませんね。——先へ。", MFace),
     };
 
     // S1-5 中ボス あかり（仮台本 06）。先出しの本人。退勤後のカーディガンに社員証、片手のスマホの光が顔に当たっている。
@@ -179,7 +180,6 @@ public partial class StageAkari : Node
             (1, "……いちばん上の、一件。——承知しました。", MFace),
             (1, "……残りの十一件は、閉じたまま、置いていきます。……数だけ、覚えておきます。", MWorried),
         },
-        // （送らない）／沈黙20秒。【濁】微増（仕様未決につき小さく）。
         _ => new (int, string, string)[]
         {
             (1, "……無言。——では、一件だけ。いちばん上のを。", MFace),
@@ -193,11 +193,7 @@ public partial class StageAkari : Node
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    // あかり面は2か所。どちらも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
     //   s1_5 … 中ボスの捨て台詞の直後（Mid の頭＝step 4）。効果＝ハブ返信（ミナ→@akari）に一語混ざる。
-    //   s1_2 … 雨の言いかけ（step 6 の末尾）。効果＝次のハブの再訪小話が「雨粒」に固定＋一語混ざる。
-    // 17 の実装メモ (b) を採る＝S1-2 の選択は step 6（S1-7 向かいの席）へずらし、道中Aを挟んで
-    //   二つの選択が同じ会話に同居しないようにする（05「1会話につき1回」）。台本もこの置き方で成立する。
 
     // S1-5 中ボス・ね?。既定カーソルは末尾＝（送らない）。
     private static readonly string[] S15Choices = { "宛先、ちがう", "ぜったい", "傘、忘れてる", "（送らない）" };
@@ -229,41 +225,6 @@ public partial class StageAkari : Node
         (1, "……雨の奥からは、返事がありません。——先へ、まいりましょう。", MFace),
     };
 
-    // S1-2 小話・雨（step 6 の末尾へずらし）。ミナが一度だけ、返事を待つ。問いの形にはしない。
-    private static readonly (int who, string text, string face)[] S12Cue =
-    {
-        (1, "……ご主人様は。——雨。", MFace),
-    };
-    private static readonly string[] S12Choices = { "べつに", "きらいじゃない", "置き傘、三本目", "（送らない）" };
-    private static (int who, string text, string face)[] S12Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[]
-        {
-            (0, "べつに", ""),
-            (1, "……べつに。——三文字。……このフロアで、はじめて拾った、返事の形です。", MFace),
-        },
-        1 => new (int, string, string)[]
-        {
-            (0, "きらいじゃない", ""),
-            (1, "……きらいじゃない、と。——わたくしと、同じ集計です。……それだけ、記録しておきます。", MSmile),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, "置き傘、三本目", ""),
-            (1, "……三本目。——傘立てに、空きは、あります。……色だけ、あとで教えてください。二本とも、違う色ですので。", MSmile),
-        },
-        _ => new (int, string, string)[]
-        {
-            (1, "……無言。——雨の音だけ、続いています。", MFace),
-        },
-    };
-    private static readonly (int who, string text, string face)[] S12Tail =
-    {
-        (1, "——では、先へ。声を、祓いながら。", MFace),
-    };
-    // step 6 のきっかけ＝S1-7 道中B をそのまま流し切ってから、雨の言いかけ1行。毎フレーム組み直さない。
-    private static readonly (int who, string text, string face)[] BossTalkThenS12 = BossTalk.Concat(S12Cue).ToArray();
-
     // S1-8 小話 MidEnd（仮台本 06）。投稿の直後、通知の吹き出しが「1」のまま四つ同じ形で降ってくる。
     //   フロアが「すき」で埋まっていく。ボス戦直前の引き。
     private static readonly (int who, string text, string face)[] MidEnd =
@@ -278,7 +239,6 @@ public partial class StageAkari : Node
     };
 
     // S1-11 クリア（仮台本 06）。あかりの投稿が変わる。空の問い（一度目）。
-    //   空の問いは 1度目「いらない」→2度目 無言→3度目「もう聞きません」の階段の初段。
     //   2026-09-26（docs/20260926/主人公の存在_診断と本文 §3.1(c)）：あかりが「知らない声」の言い回しに聞き覚えを言い、
     //   ミナが「たぶん」と受ける＝ミナの声の出所（あなたの未送信414件）に最初のひびが入る対句。説明はしない。
     //   ★の行は迷い秒ゲート（s1_4 で p2 より長く迷ったときだけ＝ChoiceEffects.Hesitated）。実行時に ClearFor が残す／外す。
@@ -296,7 +256,6 @@ public partial class StageAkari : Node
         //   ミナは数えることしかしない人格なので、数字（♥1）だけを言う。字の変化はプレイヤーが自分で見つける。
         (1, "……♥が、ひとつ。", MFace),   // 読み上げるだけ。解釈しない
         (1, "ねえ、ご主人様。外の世界は、今日はどんな天気ですか。", MFace),
-        (1, "……いえ。返事は、いりません。いつか、で結構ですので。", MSmile),   // 空の問い・一度目
     };
 
     // 迷い秒ゲートの行（★）と、フィルム前／後の割り目。
@@ -338,7 +297,7 @@ public partial class StageAkari : Node
     //   チュートリアル系の once（StageTutorial.Take*）も消費しない＝見せていないものを既読にしない。
     //   従来難易度は _lunatic=false で従来の分岐をそのまま通る。
     private bool _lunatic;
-    // 会話・選択の step 一覧（1 イントロ／4 s1_5／6 s1_2／8 S1-4 束／10 MidEnd／12 ボス口上）。ルナティックはここを飛ばす。
+    // 会話・選択の step 一覧（1 イントロ／4 s1_5／6 道中会話／8 S1-4 束／10 MidEnd／12 ボス口上）。ルナティックはここを飛ばす。
     private static bool IsTalkStep(int step) => step is 1 or 4 or 6 or 8 or 10 or 12;
     // ルナティックのクリア：アフターの代わりに、リザルトのバナーを読む間だけ置いてから帰る。
     private const double LunaticClearHold = 3.0;
@@ -436,8 +395,7 @@ public partial class StageAkari : Node
             //   他ジョブ潜行中は下書き選択ごと抑止（ミナ前提）＝専用ストーリーの道中ビートに置換。
             case 4: if (_charStory) Step_Lines(delta, _storyMid1); else Step_Choice(delta, "s1_5", MidPre, S15Choices, S15Reply, S15Tail, Mid); break;
             case 5: Step_MidwaveA(delta); break;          // 道中ザコ戦A（導入）
-            // ★S1-2 の下書き選択（17）＝道中Bの末尾に雨の言いかけ → 選択 → 受け＋締め
-            case 6: if (_charStory) Step_Lines(delta, _storyMid2); else Step_Choice(delta, "s1_2", BossTalkThenS12, S12Choices, S12Reply, S12Tail); break;
+            case 6: Step_Lines(delta, _charStory ? _storyMid2 : BossTalk); break;
             case 7: Step_MidwaveB(delta); break;          // 道中ザコ戦B（やや詰める）
             case 8: if (_charStory) Step_Lines(delta, _storyMid3); else Step_MidStory(delta); break;   // ★S1-4 束（下書き選択）＝ボス前の溜め
             case 9: Step_MidwaveC(delta); break;          // 道中ザコ戦C（終盤＝最大密度の山）
@@ -455,7 +413,7 @@ public partial class StageAkari : Node
         // ボス本体(BossAkari)のスペル/予測線/パネル弾はそのまま。
         // イライラ棒「雨の帰り道」（CorridorRun 展開中）は降らせない＝通路避けに弾を重ねる理不尽を断つ。
         if (_bossActive && _boss?.PostSequenceActive != true && GetTree().GetFirstNodeInGroup("corridor") == null)
-            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Akari, fallSpeed: 48f,
+            PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Akari, fallSpeed: 48f,
                 accent: new Color(0.47f, 0.65f, 0.85f)); // あかり面テーマ＝雨の青（教室の雨弾幕と同系）
     }
 
@@ -527,7 +485,6 @@ public partial class StageAkari : Node
     private double _s14ChoiceT;                       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）
     private (int who, string text, string face)[] _s14After = System.Array.Empty<(int, string, string)>();
     private int _s14Phase;                            // 0=問いかけまで / 1=選択提示中 / 2=受け＋締め
-    private const float S14SkipContam = 0.02f;        // （送らない）で汚染を微増（仕様未決につき小さく）
     private void Step_MidStory(double delta)
     {
         switch (_s14Phase)
@@ -543,7 +500,6 @@ public partial class StageAkari : Node
                 {
                     _stepStarted = true;
                     _s14ChoiceT = 0;
-                    // 既定カーソルは末尾＝（送らない）。ChoiceOverlay の沈黙20秒の自動決定もここへ落ちる（台本どおり）。
                     _s14Choice = ChoiceOverlay.Show(Hud, S14Choices, defaultSel: S14Choices.Length - 1, onBoard: true);
                 }
                 _s14ChoiceT += delta;
@@ -570,8 +526,6 @@ public partial class StageAkari : Node
         var others = new System.Collections.Generic.List<string>();
         for (int i = 0; i < S14Choices.Length - 1; i++) if (i != sel) others.Add(S14Choices[i]);
         game?.RecordChoice("s1_4", sent ? S14Choices[sel] : "", others, (float)_s14ChoiceT);
-        // （送らない）＝声を掛けずに見送った ぶんだけ、ミナの光がわずかに濁る。
-        if (!sent) game?.SetContamination((game.Contamination) + S14SkipContam);
         _s14After = S14Reply(sel).Concat(S14Tail).ToArray();
     }
 
@@ -602,7 +556,6 @@ public partial class StageAkari : Node
                 {
                     _stepStarted = true;
                     _choiceT = 0;
-                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
                     _choice = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _choiceT += delta;
@@ -888,7 +841,12 @@ public partial class StageAkari : Node
             if (_charStory) RunLinesInPlace(delta, _storyAftermath, MarkAftermathSeenThenReturn);
             else RunLinesInPlace(delta, _clearBefore, StartAftermathFilm);
         }
-        else if (_clearPhase == 2) Step_Lines(delta, _charStory ? _storyReturn : _clearAfter);
+        else if (_clearPhase == 2)
+        {
+            if (_charStory) Step_Lines(delta, _storyReturn);
+            else Step_Choice(delta, "s1_sky", _clearAfter, ChoiceEffects.SkyChoices,
+                ChoiceEffects.SkyReply, System.Array.Empty<(int, string, string)>());
+        }
     }
 
     // 他ジョブ潜行のアフターを流し切ったところ。写真アプリの「帰還」枚を解禁して、帰還ビートへ。

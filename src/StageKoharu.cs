@@ -114,47 +114,41 @@ public partial class StageKoharu : Node
 
     // こはる面・中ボスの第一声（s2_1 差分・2026-09-25）。道中の新規選択（壁の予定表・step 3）を拾う。
     //   既存 CameoTalk1 は置き換えず、選んでいたときだけ差し替える（選んでいなければ既存が出る）。
-    //   s2_2 は中ボス撃破の直後・s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
+    //   s2_4 は step 9 なので、中ボスより前にあるのは s2_1 だけ。
     //   中ボスは本ボス本人の先出し＝「ボス戦で会う前から、もう聞かれていた」という画になる。
 
-    // 「一日、空けて」
     private static readonly (int who, string text, string face)[] CameoTalk1_S21Rest =
     {
-        (2, "「一日、空けて」？　空いてないってば！", KFace),
+        (2, "「少し休んでほしい」？　でも、休んだら……置いてかれちゃう。", KPale),
     };
 
-    // 「三本、飲んでから」
-    private static readonly (int who, string text, string face)[] CameoTalk1_S21Drink =
+    private static readonly (int who, string text, string face)[] CameoTalk1_S21Keep =
     {
-        (2, "「三本、飲んでから」？　買ったもん！", KFace),
+        (2, "「好きな時間は残して」……うん。好きなの。そこまで、なくしたくない。", KLit),
     };
 
-    // 「全部に丸がついてる」
-    private static readonly (int who, string text, string face)[] CameoTalk1_S21Circles =
+    private static readonly (int who, string text, string face)[] CameoTalk1_S21Ask =
     {
-        (2, "「全部に丸がついてる」！　完璧でしょ？", KFace),
+        (2, "「本人はどうしたい」……って？　あたしは……今日も、見たい。", KFace),
     };
 
     // 中ボスの第一声を s2_1 の選択から選ぶ。選んでいない／（送らない）なら既存の CameoTalk1（フォールバック）。
     private static (int who, string text, string face)[] CameoIntroFor(GameManager? game) => (game?.ChosenAt("s2_1") ?? "") switch
     {
-        "一日、空けて" => CameoTalk1_S21Rest,
-        "三本、飲んでから" => CameoTalk1_S21Drink,
-        "全部に丸がついてる" => CameoTalk1_S21Circles,
+        "少し休んでほしい" => CameoTalk1_S21Rest,
+        "好きな時間は残して" => CameoTalk1_S21Keep,
+        "本人はどうしたい" => CameoTalk1_S21Ask,
         _ => CameoTalk1,
     };
 
     // ───────── 道中の下書き選択（正典: wiki/08_仮台本/17_道中の選択肢_案C.md・承認 2026-09-06）─────────
-    // こはる面は3か所。どれも「3択＋（送らない）」で、（送らない）は【濁】+0.02（ChoiceEffects.SkipContam）。
     //   s2_1 … 道中A（部屋）の末尾（step 3・中ボスより前）。効果＝【激情】初期値（FuryMeter.InitialKoharu）。
-    //   s2_2 … 中ボスの捨て台詞の直後（step 6 の撃破後・ショップ離脱の前）。効果＝スコア +500。
     //   s2_4 … 入力欄の場面の末尾（step 9・欄を閉じる前）。効果＝ここで散った語が F4 の悲鳴の枠の先頭へ。
 
     // ───── S2-1b 予定表（新規・2026-09-25）─────
     // 道中A（部屋）の末尾。壁の配信予定表。日付にぜんぶ丸。直近三日は書き足した時間が増えている。
     //   丸のついていない一日には「模試」。下のかごに、開けていない栄養ドリンクが三本。
     //   主題は「休むこと」＝こはるの本音（「もう疲れた、休みたい」）に道中で唯一まっすぐ触れる場所。
-    //   s2_2（嘘に付き合うか）・s2_4（プレイヤー自身の宛先）とは主題が重ならない。
     //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
     private static readonly (int who, string text, string face)[] S21Cue =
     {
@@ -162,33 +156,33 @@ public partial class StageKoharu : Node
         (1, "丸の下に、小さい字で、時間が足してあります。……直近の三日。足された時間が、日ごとに、増えています。", MFace),
         (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", MWorried),
         (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", MWorried),
-        (1, "ご主人様。……この予定表に、何も入れない日を、一日、足しますか。", MFace),
+        (1, "ご主人様。……あの方に、何と声をかけましょう。予定表は、こちらで決めずに。", MFace),
     };
-    private static readonly string[] S21Choices = { "一日、空けて", "三本、飲んでから", "全部に丸がついてる", "（送らない）" };
+    private static readonly string[] S21Choices = { "少し休んでほしい", "好きな時間は残して", "本人はどうしたい", "（送らない）" };
     private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "一日、空けて", ""),
-            (1, "……一日、と。——では、どこに足しましょう。丸のない日は、もう、埋まっていますが。", MWorried),
-            (1, "……間に、一行、引いておきます。何も書かない一行を。……読める方が、いらっしゃるかは、分かりません。", MWorried),
+            (0, S21Choices[0], ""),
+            (1, "……はい。休んでほしい、と。予定をこなした数ではなく、あの方のことを。", MFace),
+            (1, "……会えたら、伝えましょう。空ける日は、一緒に探せますので。", MWorried),
         },
         1 => new (int, string, string)[]
         {
-            (0, "三本、飲んでから", ""),
-            (1, "……三本。——承知しました。かごの位置を、手の届くところへ。", MFace),
-            (1, "……買った方は、飲むつもりだったのだと思います。推定です。……買うところまでは、できておられますので。", MFace),
+            (0, S21Choices[1], ""),
+            (1, "……好きな時間まで、消さなくていい。——そう、伝えてみます。", MFace),
+            (1, "全部を見ることと、好きでいることは。……同じでなくても、よいのですね。", MFace),
         },
         2 => new (int, string, string)[]
         {
-            (0, "全部に丸がついてる", ""),
-            (1, "……はい。ぜんぶに、丸。——欠けは、ありません。", MSmile),
-            (1, "……欠けがない、というのは。……ひとつも、抜いていない、ということですね。", MWorried),
+            (0, S21Choices[2], ""),
+            (1, "……はい。あの方の答えは、まだ聞いていませんでした。", MFace),
+            (1, "予定表に書かれていないほうも、聞きに行きましょう。", MFace),
         },
         _ => new (int, string, string)[]
         {
-            (1, "……無言。——では、足しません。予定表は、このままで。", MFace),
-            (1, "……三件、こちらで預かります。……かごの三本と、同じ数でした。", MWorried),
+            (1, "……はい。今すぐ、答えを出さなくても。", MFace),
+            (1, "まずは、あの方の声を聞いてきます。予定表は、変えずに。", MFace),
         },
     };
     private static readonly (int who, string text, string face)[] S21Tail =
@@ -196,86 +190,46 @@ public partial class StageKoharu : Node
         (1, "——先へ。予定表は、壁に、残しておきます。……消す権利は、こちらにありませんので。", MFace),
     };
 
-    // S2-2 中ボス・ペンライト。押しつけられたのは、消えたままのほう。受け取りの返事だけをあなたに回す。
-    private static readonly (int who, string text, string face)[] S22Cue =
+    private static readonly (int who, string text, string face)[] PenlightTalk =
     {
         (1, "……押しつけられました。ペンライト。——消えたままの、ほうです。", MFace),
         (1, "……あの方、二本持っていて。点くほうを、ご自分で持って行かれました。", MFace),
-        // 旧稿の「どういたしましょう」は処遇の相談＝どれを選んでも同じだった。
-        //   「気づいていると、言うか／言わないか」＝こはる面の主題（嘘に付き合うか）に振り直す。
-        (1, "ご主人様。……次に会ったとき。これ、点いていないと、言いますか。", MSmile),
-    };
-    private static readonly string[] S22Choices = { "言わない", "電池、切れてる", "次は、点くほう", "（送らない）" };
-    private static (int who, string text, string face)[] S22Reply(int sel) => sel switch
-    {
-        0 => new (int, string, string)[]
-        {
-            (0, "言わない", ""),
-            (1, "……言わない、と。——では、振ります。点いているように。", MFace),
-            (1, "……あの方も、そうしていました。……知っていて、振っていたのだと思います。推定です。", MWorried),
-        },
-        // 17 の指揮官決定: ミナの受けで推定を言う箇所には「推定です」を添える（「たぶん」を落とす）。
-        1 => new (int, string, string)[]
-        {
-            (0, "電池、切れてる", ""),
-            (1, "……はい、切れています。——次に会ったら、そう言います。", MFace),
-            (1, "……「楽しいでしょ?」と聞かれた直後に、なりますが。……ご命令ですので。", MWorried),
-        },
-        2 => new (int, string, string)[]
-        {
-            (0, "次は、点くほう", ""),
-            (1, "……点くほうを、と。——それは、次があるという前提の言い方ですね。", MSmile),
-            (1, "……記録しておきます。次、と。", MSmile),
-        },
-        _ => new (int, string, string)[]
-        {
-            (1, "……無言。——では、何も言わずに。", MFace),
-            (1, "ペンライト、こちらに、残りました。……消えたままで。", MWorried),
-        },
-    };
-    private static readonly (int who, string text, string face)[] S22Tail =
-    {
-        (1, "——先へ。「むだだ」の声を、祓いながら。", MFace),
+        (1, "……消えたままでも、振ってみます。——先へ。", MFace),
     };
 
     // S2-4 直後・カーソル。入力欄は閉じず、カーソルだけが点いたまま、あなたの下書きが開く。
     //   P4 で言った「消された言葉は、消えていない」が、ここでは、あなたの側に向く。宛先は決めない。
-    // 旧稿の3択（打ってた／消えても、あった／続き、気になる）は、どれも「聞こえている」の言い換えで、
-    //   選択が成立していなかった。ここはカーソルが**あなたの側**に点いている場面なので、
-    //   「送らなかった相手を、誰と言うか」＝プレイヤー自身に主題を返す3択に振り直す。
-    //   宛先は決めない（ミナは名前を訊かない）。どれを選んでも、選ばなかった宛先が残る。
     private static readonly (int who, string text, string face)[] S24Cue =
     {
         (1, "……入力欄の、カーソル。——まだ、点いています。", MFace),
         (1, "……これ、あの方のでは、ありませんね。——ご主人様の画面です。", MWorried),
-        (1, "打ちかけて、消した跡が。……宛先だけ、残っています。……どなたか、とは、伺いません。", MSmile),
+        (1, "……打ちかけて、消すこと。ご主人様にも、ありますか。……話せるぶんだけで、結構です。", MFace),
     };
-    private static readonly string[] S24Choices = { "返してない返信", "既読のまま、三日", "もう送れない相手", "（送らない）" };
+    private static readonly string[] S24Choices = { "何て返せばいいか、分からない", "自分には、まだ分からない", "今は、話したくない", "（送らない）" };
     private static (int who, string text, string face)[] S24Reply(int sel) => sel switch
     {
         0 => new (int, string, string)[]
         {
-            (0, "返してない返信", ""),
-            (1, "……返していない、と。——では、まだ、送れますね。", MFace),
-            (1, "……急かしては、いません。……欄が、開いていると、申し上げただけで。", MSmile),
+            (0, S24Choices[0], ""),
+            (1, "……はい。返したくても、言葉が見つからないことが。", MFace),
+            (1, "今の一行は、受け取りました。……続きは、急がなくて結構です。", MSmile),
         },
         1 => new (int, string, string)[]
         {
-            (0, "既読のまま、三日", ""),
-            (1, "……三日。——では、七十二時間ですね。", MWorried),
-            (1, "……わたくしの心拍と、同じ数でした。……関係は、ありません。数えてしまっただけで。", MFace),
+            (0, S24Choices[1], ""),
+            (1, "……はい。ご主人様の経験まで、こちらで決めるところでした。", MFace),
+            (1, "知らない声を、ここで一緒に聞いていただければ。……それで、うれしいです。", MSmile),
         },
         2 => new (int, string, string)[]
         {
-            (0, "もう送れない相手", ""),
-            (1, "…………。", MWorried),
-            (1, "……はい。——それでも、下書きは、残ります。", MFace),
-            (1, "……消えていないぶんは、わたくしが、聞いております。宛先が、どこであっても。", MFace),
+            (0, S24Choices[2], ""),
+            (1, "……承知しました。今は、伺いません。", MFace),
+            (1, "話さないでおく言葉も、ご主人様のものですので。", MFace),
         },
         _ => new (int, string, string)[]
         {
             (1, "……無言。——はい。伺いません。", MFace),
-            (1, "……三件、こちらで預かります。あの一行と、同じところに。", MWorried),
+            (1, "……こちらで答えを埋めずに、閉じておきますね。", MFace),
         },
     };
     private static readonly (int who, string text, string face)[] S24Tail =
@@ -361,7 +315,6 @@ public partial class StageKoharu : Node
         (2, "画面の向こうの、あなた。……あたし、ちゃんとしてないとこまで見られちゃったね。", KFace),
         (2, "でも今、話しかけたい。できた話ばっかりじゃなくても、また聞いてほしいな。", KFace),
         (1, "……ご主人様。外の世界は、今日はどんな天気ですか。", MFace),   // 空の問い・二度目
-        (1, "…………。", MFace),   // 二度目は無言で流す
     };
     // 迷い秒ゲートの行（★）。s2_4 で迷っていなければ Clear から外して流す。
     private const string ClearHesitated = "……迷ってくれたよね。あたし、それ、見てたよ。";
@@ -511,7 +464,7 @@ public partial class StageKoharu : Node
         // こはる面は PostPool のこはるのテーマ（09 の K09〜K38 由来の 8 文字弾）を源にする＝
         // その面のテーマ語が降る一体感。層の比率は 09 のとおり 3:6:1（層2 が最も厚い面）。
         // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && _boss?.PostSequenceActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
+        if (_bossActive && _boss?.PostSequenceActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
             accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝配信画面の琥珀。全語が悲鳴＝濁色チップ
     }
 
@@ -697,7 +650,7 @@ public partial class StageKoharu : Node
         System.Func<int, (int who, string text, string face)[]> reply,
         (int who, string text, string face)[] tail)
     {
-        // 同じヘルパを面内の2か所（s2_2 / s2_4）で使い回すので、id が変わったら頭から。
+        // 別の選択へ進んだら、前の会話の進行状態を持ち越さない。
         if (_cId != id) { _cId = id; _cPhase = 0; _cStarted = false; }
         if (_cPhase == 3) return true;
         switch (_cPhase)
@@ -710,16 +663,12 @@ public partial class StageKoharu : Node
                 {
                     _cStarted = true;
                     _cChoiceT = 0;
-                    // 既定カーソルは末尾＝（送らない）。沈黙20秒の自動決定もここへ落ちる（台本どおり）。
                     _cOverlay = ChoiceOverlay.Show(Hud, choices, defaultSel: choices.Length - 1, onBoard: true);
                 }
                 _cChoiceT += delta;
                 if (_cOverlay == null || !_cOverlay.Decided) return false;
                 int sel = _cOverlay.Selected;
                 ChoiceEffects.Record(GetNodeOrNull<GameManager>("/root/Game"), id, choices, sel, (float)_cChoiceT);
-                if (id == "s2_2" && sel < choices.Length - 1)
-                    // 消えたペンライトを受け取ったぶん（三つのどれでも同じ値。どの言葉かには付けない）。
-                    GetNodeOrNull<GameManager>("/root/Game")?.AddScoreFromChoice(ChoiceEffects.ReceivedScore);
                 _cAfter = reply(sel).Concat(tail).ToArray();
                 _cOverlay.QueueFree();
                 _cOverlay = null;
@@ -800,8 +749,6 @@ public partial class StageKoharu : Node
 
     // ───── S2-1b 壁の予定表（step 3・2026-09-25 追加）─────
     //   道中A（部屋）の Mid を流し切った直後・道中ザコ戦Aの前に、下書き選択 s2_1 だけを流す step。
-    //   RunChoice は _cId が変われば頭から流れる作りなので、3か所目になっても機構の変更は要らない。
-    //   他ジョブ潜行中（_charStory）は既存2か所と同様に選択ごと抑止＝きっかけ・受けともミナ前提。
     private void Step_Schedule(double delta)
     {
         if (!_stepStarted)
@@ -945,17 +892,21 @@ public partial class StageKoharu : Node
                 Hud.HideBossBar();                                   // バー出っ放しにしない（後で本ボスが再表示）
                 GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
                 if (IsInstanceValid(_cameo)) _cameo.QueueFree();
+                _cStarted = false;
             }
-            // ★S2-2 の下書き選択（17）＝押しつけられたペンライト。撃破を確認した直後、ショップ離脱の前に置く
-            //   （離脱の後ろに置くと初回は飛んでしまう＝17 の実装メモ）。流し切るまでここで留まる。
-            //   他ジョブ潜行中は下書き選択ごと抑止（きっかけ・受けともミナ前提）＝撃破後すぐ次へ。ルナティックも同じ。
-            if (!_lunatic && !_charStory && !RunChoice(delta, "s2_2", S22Cue, S22Choices, S22Reply, S22Tail)) return;
+            if (!_lunatic && !_charStory)
+            {
+                if (!RunChoiceLines(delta, PenlightTalk)) return;
+                Hud.HoldBubble = false;
+                Hud.HideBubble();
+                GetNodeOrNull<GameManager>("/root/Game")?.AddScoreShard(500);
+            }
             // 中ボス撃破フック：撃破記録（「中ボスから」入口の解放）。ショップ説明は最初の面のボス撃破後へ移した（2026-09-07）。
             if (CheckpointFlow.OnMidBossCleared(this, "koharu", false)) return;
             Advance();
         }
     }
-    private bool _cameoCleaned;   // 撃破直後の片付けを一度だけ（選択で留まる間に繰り返さない）
+    private bool _cameoCleaned;   // 撃破直後の片付けを一度だけ（会話で留まる間に繰り返さない）
 
     private void Step_BossSpawn()
     {
@@ -1056,7 +1007,12 @@ public partial class StageKoharu : Node
             if (_lunaticClearT >= LunaticClearHold) Advance();
             return;
         }
-        if (_clearPhase == 2) Step_Lines(delta, _clearLines!);
+        if (_clearPhase == 2)
+        {
+            if (_charStory) Step_Lines(delta, _clearLines!);
+            else if (RunChoice(delta, "s2_sky", _clearLines!, ChoiceEffects.SkyChoices,
+                ChoiceEffects.SkyReply, NoLines)) Advance();
+        }
     }
 
     private bool _clearing;

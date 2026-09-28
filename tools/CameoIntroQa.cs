@@ -38,10 +38,10 @@ public partial class CameoIntroQa : Node
                 await Bypass(id, GameManager.StageEntry.Boss, GameManager.Diff.Normal);
                 await RouteEntry(id);
             }
-            foreach (string chosen in new[] { "一日、空けて", "三本、飲んでから", "全部に丸がついてる" })
+            foreach (string chosen in new[] { "少し休んでほしい", "好きな時間は残して", "本人はどうしたい" })
                 await ChoiceReaction("koharu", "s2_1", chosen);
             foreach (string chosen in new[] { "同接、9", "ちゃんと見てる", "見えてる" })
-                await ChoiceReaction("rei", "s3_2", chosen);
+                await RemovedChoiceReaction(chosen);
             await EarlyExit();
             await ReplaySkip();
             await ManualAdvance();
@@ -208,6 +208,17 @@ public partial class CameoIntroQa : Node
         var lines = Read<(int who, string text, string face)[]>(intro, "_lines");
         Check(lines[0].text.Contains(chosen), "earlier choice still changes boss's opening line");
         Check(!Read<FilmSkip>(intro, "_skip").Available, "unread choice reaction cannot be skipped as an old film");
+        await Clean(root);
+    }
+
+    private async Task RemovedChoiceReaction(string chosen)
+    {
+        _game.RecordChoice("s3_2", chosen, Array.Empty<string>(), 1);
+        var root = Load("rei", Job.Tank, GameManager.StageEntry.MidBoss);
+        await Frames(3);
+        var intro = (CameoIntroScene)GetTree().GetFirstNodeInGroup("cameo_intro");
+        var lines = Read<(int who, string text, string face)[]>(intro, "_lines");
+        Check(lines[0].text == "……だれ？　配信なら、終わったけど。", "Rei no longer quotes a removed choice from old saves");
         await Clean(root);
     }
 

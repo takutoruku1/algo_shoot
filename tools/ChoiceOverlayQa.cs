@@ -36,6 +36,10 @@ public partial class ChoiceOverlayQa : Node
             await Frames(3);
             await Layouts();
             await Inputs();
+            NarrativeReplies();
+            await RoutePacing();
+            await SkyRoutes();
+            await RestRoutes();
             await Screens();
             _root.QueueFree();
             _root = null!;
@@ -86,8 +90,8 @@ public partial class ChoiceOverlayQa : Node
 
     private async Task Layouts()
     {
-        foreach (Type type in new[] { typeof(Prologue), typeof(StageAkari), typeof(StageKoharu), typeof(StageRei), typeof(Epilogue), typeof(GameManager) })
-            foreach (var field in type.GetFields(Static))
+        foreach (Type type in new[] { typeof(Prologue), typeof(StageAkari), typeof(StageKoharu), typeof(StageRei), typeof(Epilogue), typeof(GameManager), typeof(ChoiceEffects) })
+            foreach (var field in type.GetFields(Static | BindingFlags.Public))
             {
                 if (field.FieldType != typeof(string[]) || !field.Name.EndsWith("Choices")) continue;
                 var labels = (string[])field.GetValue(null)!;
@@ -167,15 +171,19 @@ public partial class ChoiceOverlayQa : Node
 
         choice = Open(new[] { "ここにいる", "（送らない）" });
         choice._Process(0.8);
-        Set(choice, "_silenceT", 19.9);
+        choice._Process(25);
+        Check(choice.Selected == 0 && !choice.Decided && !Read<bool>(choice, "_deciding"), "thinking for 25 seconds does not choose silence");
         Input.ActionPress("ui_down");
         choice._Process(0.2);
         Input.ActionRelease("ui_down");
-        Check(Read<double>(choice, "_silenceT") == 0 && !Read<bool>(choice, "_deciding"), "interaction resets the silence timer");
         choice._Process(0.01);
-        Set(choice, "_silenceT", 19.95);
-        choice._Process(0.1);
-        Check(choice.Selected == 1 && Read<bool>(choice, "_quiet"), "silence still selects the final response quietly");
+        choice._Process(60);
+        Check(choice.Selected == 1 && !choice.Decided && !Read<bool>(choice, "_deciding"), "highlighting silence for a minute does not confirm it");
+        Input.ActionPress("ui_accept");
+        choice._Process(0.01);
+        Input.ActionRelease("ui_accept");
+        choice._Process(0.6);
+        Check(choice.Decided && choice.Selected == 1, "silence requires an explicit confirmation");
         choice.QueueFree();
         await Frames(2);
 
@@ -185,10 +193,217 @@ public partial class ChoiceOverlayQa : Node
         GetTree().Paused = true;
         double time = Read<double>(choice, "_t");
         await Frames(12);
-        Check(Read<double>(choice, "_t") == time, "pause freezes choice animation and timeout");
+        Check(Read<double>(choice, "_t") == time, "pause freezes choice animation");
         GetTree().Paused = false;
         choice.QueueFree();
         await Frames(2);
+    }
+
+    private static (int who, string text, string face)[] Reply(Type type, string method, int selected)
+        => ((int, string, string)[])type.GetMethod(method, Static)!.Invoke(null, new object[] { selected })!;
+
+    private void NarrativeReplies()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        game.SetContamination(0.4f);
+        foreach (Type type in new[] { typeof(StageAkari), typeof(StageKoharu), typeof(StageRei) })
+            foreach (var field in type.GetFields(Static))
+            {
+                if (field.FieldType != typeof(string[]) || !field.Name.EndsWith("Choices")) continue;
+                var choices = (string[])field.GetValue(null)!;
+                for (int sel = 0; sel < choices.Length; sel++)
+                {
+                    ChoiceEffects.Record(game, "qa_reply", choices, sel, 30);
+                    Check(Mathf.IsEqualApprox(game.Contamination, 0.4f), $"{field.Name}/{sel}: no contamination penalty");
+                    var reply = Reply(type, field.Name.Replace("Choices", "Reply"), sel);
+                    Check(Array.Exists(reply, l => l.who == 1), $"{field.Name}/{sel}: Mina acknowledges the response");
+                    Check(sel == choices.Length - 1
+                        ? !Array.Exists(reply, l => l.who == 0)
+                        : Array.Exists(reply, l => l.who == 0 && l.text == choices[sel]),
+                        $"{field.Name}/{sel}: player speech matches the selected text");
+                }
+            }
+        for (int sel = 0; sel < 4; sel++)
+        {
+            var reply = Reply(typeof(StageRei), "S35cReply", sel);
+            Check(!Array.Exists(reply, l => l.text.Contains("散りました") || l.text.Contains("気づいて、いただけ")),
+                $"S35c/{sel}: no hidden right-answer reproach");
+        }
+        float? rei = null;
+        foreach (string word in new[] { "見てる", "ここにいる", "見ています" })
+        {
+            game.RecordChoice("s3_5c", word, Array.Empty<string>(), 1);
+            float value = Fury.InitialFor(game, "rei");
+            Check(rei == null || Mathf.IsEqualApprox(rei.Value, value), "supportive Rei replies receive equal treatment");
+            rei = value;
+        }
+        var koharuChoices = (string[])typeof(StageKoharu).GetField("S21Choices", Static)!.GetValue(null)!;
+        foreach (string word in koharuChoices[..^1])
+        {
+            game.RecordChoice("s2_1", word, Array.Empty<string>(), 1);
+            var lines = ((int, string, string)[])typeof(StageKoharu).GetMethod("CameoIntroFor", Static)!.Invoke(null, new object[] { game })!;
+            Check(lines[0].Item2.Contains(word), $"Koharu remembers the new response: {word}");
+        }
+    }
+
+    private async Task RoutePacing()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        foreach (Type type in new[] { typeof(StageAkari), typeof(StageKoharu), typeof(StageRei) })
+            Check(Array.FindAll(type.GetFields(Static), f => f.FieldType == typeof(string[]) && f.Name.EndsWith("Choices")).Length == 2,
+                $"{type.Name}: exactly two route choices remain");
+        foreach (var route in new[] { ("Akari", 6, "s1_2"), ("Koharu", 6, "s2_2"), ("Rei", 2, "s3_2") })
+            foreach (Job job in new[] { Job.Tank, Job.Melee })
+            {
+                _root.QueueFree();
+                await Frames(3);
+                game.ResetPersistent();
+                game.AutoSaveEnabled = false;
+                game.SelectedJob = job;
+                game.SelectedEntry = GameManager.StageEntry.Start;
+                game.Difficulty = GameManager.Diff.Normal;
+                _root = GD.Load<PackedScene>($"res://{route.Item1}.tscn").Instantiate<Node2D>();
+                GetTree().Root.AddChild(_root);
+                GetTree().CurrentScene = _root;
+                var stage = _root.GetNode<Node>("Stage" + route.Item1);
+                stage.SetProcess(false);
+                _root.GetNode("World").ProcessMode = ProcessModeEnum.Disabled;
+                var hud = _root.GetNode<Hud>("Hud");
+                hud.HoldBubble = false;
+                hud.HideBubble();
+                Set(stage, "_step", route.Item2);
+                Set(stage, "_stepStarted", route.Item1 == "Koharu");
+                if (route.Item1 == "Koharu")
+                {
+                    Set(stage, "_cameoIntroDone", true);
+                    // The preceding schedule used the same in-place dialogue cursor.
+                    Set(stage, "_cStarted", true);
+                    Set(stage, "_cLine", 99);
+                }
+                long score = game.Score;
+                int ticks = 0;
+                for (; ticks < 50 && Read<int>(stage, "_step") == route.Item2; ticks++)
+                {
+                    hud.RevealDialogNow();
+                    Set(stage, "_zHeld", false);
+                    Input.ActionPress("ui_accept");
+                    stage._Process(1.5);
+                    Input.ActionRelease("ui_accept");
+                    Check(GetTree().GetFirstNodeInGroup("choice_overlay") == null
+                        && hud.GetNodeOrNull<ChoiceOverlay>("ChoiceOverlay") == null,
+                        $"{route.Item1}/{job}: ordinary dialogue never opens a choice");
+                    await Frames(1);
+                }
+                Check(Read<int>(stage, "_step") == route.Item2 + 1 && !hud.HoldBubble && !Hud.BubblePaused,
+                    $"{route.Item1}/{job}: dialogue proceeds to the next battle and releases pause");
+                Check(!game.HasChoiceAt(route.Item3), $"{route.Item3}: no invented response is recorded");
+                if (route.Item1 == "Koharu")
+                {
+                    Check(game.Score - score == (job == Job.Tank ? 500 : 0), "penlight reward is paid once, only on Mina's route");
+                    Check(job != Job.Tank || ticks >= 4, "all three penlight lines play after resetting the old cursor");
+                    stage._Process(0.1);
+                    Check(game.Score - score == (job == Job.Tank ? 500 : 0), "next battle does not pay the reward again");
+                }
+            }
+    }
+
+    private async Task SkyRoutes()
+    {
+        var game = GetNode<GameManager>("/root/Game");
+        game.SelectedJob = Job.Tank;
+        game.SelectedEntry = GameManager.StageEntry.Start;
+        GameManager.MinaNamed = true;
+        foreach (var route in new[] { ("Akari", "StageAkari", 14), ("Koharu", "StageKoharu", 15), ("Rei", "StageRei", 13) })
+            for (int sel = 0; sel < ChoiceEffects.SkyChoices.Length; sel++)
+            {
+                _root.QueueFree();
+                await Frames(2);
+                _root = GD.Load<PackedScene>($"res://{route.Item1}.tscn").Instantiate<Node2D>();
+                GetTree().Root.AddChild(_root);
+                GetTree().CurrentScene = _root;
+                var stage = _root.GetNode<Node>(route.Item2);
+                stage.SetProcess(false);
+                _root.GetNode("World").ProcessMode = ProcessModeEnum.Disabled;
+                var hud = _root.GetNode<Hud>("Hud");
+                Set(stage, "_clearBannerShown", true);
+                Set(stage, "_clearPhase", 2);
+                Set(stage, "_step", route.Item3);
+                Set(stage, "_stepStarted", false);
+                string method = route.Item1 == "Akari" ? "ClearAfterFor" : "ClearFor";
+                var lines = stage.GetType().GetMethod(method, Static)!.Invoke(null, new object[] { game })!;
+                Set(stage, route.Item1 == "Akari" ? "_clearAfter" : "_clearLines", lines);
+                var tick = stage.GetType().GetMethod("Step_Clear", Private)!;
+                bool selected = false;
+                for (int i = 0; i < 120 && Read<int>(stage, "_step") == route.Item3; i++)
+                {
+                    hud.RevealDialogNow();
+                    Set(stage, "_lineHold", 2.0);
+                    Set(stage, "_zEdge", true);
+                    tick.Invoke(stage, new object[] { 1.5 });
+                    if (!selected && hud.GetNodeOrNull<ChoiceOverlay>("ChoiceOverlay") is { } choice)
+                    {
+                        selected = true;
+                        choice.SetProcess(false);
+                        choice._Process(0.8);
+                        choice._Process(25);
+                        Check(!choice.Decided && Hud.BubblePaused, $"{route.Item1}: sky question waits for the player");
+                        if (sel == 0)
+                        {
+                            foreach (Vector2I size in new[] { new Vector2I(1280, 720), new(540, 960) })
+                            {
+                                DisplayServer.WindowSetSize(size);
+                                await Frames(3);
+                                await Shot($"sky_{route.Item1}_{size.X}x{size.Y}");
+                            }
+                            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                        }
+                        Click(choice, Row(choice, sel).GetCenter());
+                        choice._Process(0.6);
+                    }
+                    await Frames(1);
+                }
+                string id = route.Item1 == "Akari" ? "s1_sky" : route.Item1 == "Koharu" ? "s2_sky" : "s3_sky";
+                Check(selected && game.HasChoiceAt(id) && game.ChosenAt(id) == (sel < 3 ? ChoiceEffects.SkyChoices[sel] : ""),
+                    $"{route.Item1}/{sel}: weather answer is recorded accurately");
+                Check(Read<int>(stage, "_step") == route.Item3 + 1 && !hud.HoldBubble,
+                    $"{route.Item1}/{sel}: clear dialogue finishes without a stuck choice");
+            }
+    }
+
+    private async Task RestRoutes()
+    {
+        var stage = _root.GetNode<StageRei>("StageRei");
+        var hud = _root.GetNode<Hud>("Hud");
+        var game = GetNode<GameManager>("/root/Game");
+        for (int sel = 0; sel < 3; sel++)
+        {
+            Set(stage, "_step", 17);
+            Set(stage, "_stepStarted", false);
+            stage.GetType().GetMethod("SetQuietVeil", Private)!.Invoke(stage, new object[] { true });
+            float contamination = game.Contamination;
+            stage.GetType().GetMethod("ApplyS37Choice", Private)!.Invoke(stage, new object[] { sel });
+            Check(Mathf.IsEqualApprox(game.Contamination, contamination), "S37 silence does not increase contamination");
+            int resting = 0;
+            for (int i = 0; i < 60 && Read<int>(stage, "_step") == 17; i++)
+            {
+                hud.RevealDialogNow();
+                Set(stage, "_lineHold", 2.0);
+                Set(stage, "_zEdge", true);
+                double before = Read<double>(stage, "_s37RestRemaining");
+                stage.GetType().GetMethod("Step_MidChoiceAfter", Private)!.Invoke(stage, new object[] { 0.1 });
+                if (Read<double>(stage, "_s37RestRemaining") < before)
+                {
+                    resting++;
+                    Check(Hud.BubblePaused && hud.SuppressCallouts, "combat stays paused throughout Mina's rest");
+                }
+                await Frames(1);
+            }
+            Check(Read<int>(stage, "_step") == 12 && !hud.SuppressCallouts && !hud.HoldBubble,
+                $"S37/{sel}: returns to battle without leaking the pause");
+            Check(sel == 0 ? resting == 0 : resting >= 19, $"S37/{sel}: respects the requested two-second rest");
+            var quote = ((int, string, string))typeof(StageMina).GetMethod("S37Quote", Static)!.Invoke(null, new object[] { game })!;
+            Check(!quote.Item2.Contains("すみません") && !quote.Item2.Contains("続行と"), "final recall does not blame concern or silence");
+        }
     }
 
     private async Task Screens()
@@ -234,7 +449,7 @@ public partial class ChoiceOverlayQa : Node
         hud.HoldBubble = true;
         hud.ShowDialog(Hud.LineKind.Mina, "……返事を、ひとつ。あなたなら、どんな言葉にしますか。", "res://char/mina_face.png");
         hud.RevealDialogNow();
-        choice = ChoiceOverlay.Show(hud, (string[])typeof(StageAkari).GetField("S12Choices", Static)!.GetValue(null)!, 1, onBoard: true);
+        choice = ChoiceOverlay.Show(hud, (string[])typeof(StageAkari).GetField("S15Choices", Static)!.GetValue(null)!, 1, onBoard: true);
         choice.SetProcess(false);
         Set(choice, "_t", 2.0);
         Set(choice, "_hintA", 1f);
@@ -267,18 +482,10 @@ public partial class ChoiceOverlayQa : Node
         Click(choice, Row(choice, 0).GetCenter());
         choice._Process(0.6);
         ((Final)_root)._Process(0.01);
-        Check(Read<bool>(_root, "_refused"), "final refusal keeps its original branch");
-        Set(_root, "_line", Read<int>(_root, "_choiceLine"));
-        ((Final)_root)._Process(0.01);
-        choice = Read<ChoiceOverlay>(_root, "_choice");
-        choice.SetProcess(false);
-        choice._Process(0.8);
-        Check(Read<string[]>(choice, "_choices").Length == 1, "final story can still offer one response");
-        await Shot("final_single_choice");
-        Click(choice, Row(choice, 0).GetCenter());
-        choice._Process(0.6);
-        ((Final)_root)._Process(0.01);
-        Check(GetNode<GameManager>("/root/Game").HasChoiceAt("f4"), "single response completes the final branch");
+        Check(Read<int>(_root, "_choiceLine") == -1 && Read<ChoiceOverlay?>(_root, "_choice") == null,
+            "final refusal is accepted without forcing a second choice");
+        Check(GetNode<GameManager>("/root/Game").HasChoiceAt("f4")
+            && GetNode<GameManager>("/root/Game").ChosenAt("f4") == "", "final refusal is recorded without an invented message");
         _root.QueueFree();
         await Frames(3);
 

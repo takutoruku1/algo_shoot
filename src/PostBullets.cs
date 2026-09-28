@@ -68,11 +68,11 @@ public static class PostBullets
     //   murkAll  : プール全語を穢れ系＝濁色チップにする（こはる/ミナの悲鳴プール用）。
     //              false のときも層2（病みサイン）の語は語単位で濁す（PostPool.IsMurk）。
     public static void Tick(Node node, RandomNumberGenerator rng, double delta,
-        ref double rainT, ref int wordTick,
+        ref double rainT, ref int wordTick, Enemy source,
         PostPool.Theme? theme = null, float fallSpeed = 46f,
         Color? accent = null, bool murkAll = false)
     {
-        if (Hud.BubblePaused) return; // 会話中（バブル）は投稿弾を止める。
+        if (Hud.BubblePaused || !GodotObject.IsInstanceValid(source) || source.IsPurified || source.IsQueuedForDeletion()) return;
 
         var pool = node.GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
@@ -100,7 +100,7 @@ public static class PostBullets
         // 層1 へ落とす＝「TL の中に一本だけ沈んでいる」を保ち、敵弾の視認性も侵さない。
         bool achingRoom = !AnyAchingPost(pool);
         for (int i = 0; i < salvo; i++)
-            if (SpawnOne(pool, rng, th, fallSpeed, accent, murkAll, achingRoom)) achingRoom = false;
+            if (SpawnOne(pool, rng, th, fallSpeed, accent, murkAll, achingRoom, source)) achingRoom = false;
     }
 
     // 画面上で生きている投稿弾（Word 付きの敵弾）の数。MaxOnScreen キャップ判定用。
@@ -127,7 +127,7 @@ public static class PostBullets
     // 語は PostPool から「面のテーマ×層」で引く（層の比率は 09 の言葉弾の行＝RollLayer）。
     // 戻り値＝層2（病みポスト）として出したか（同時1枚キャップの消費判定）。
     private static bool SpawnOne(BulletPool pool, RandomNumberGenerator rng,
-        PostPool.Theme theme, float fallSpeed, Color? accent, bool murkAll, bool achingRoom)
+        PostPool.Theme theme, float fallSpeed, Color? accent, bool murkAll, bool achingRoom, Enemy source)
     {
         var layer = PostPool.RollLayer(theme, rng);
         // 層2 の枠が埋まっていれば層1 へ落とす（層2 が消えるのではなく「次の1枚まで待つ」）。
@@ -142,6 +142,7 @@ public static class PostBullets
         b.SetWord(w, "", accent, murkAll || PostPool.IsMurk(w), aching, BulletArt.PostCore(theme));
         // 撃って「届ける」＝祈り弾と同じ経路（自機弾を拾う mask を開く）。報酬側は Bullet が WordAching で分ける。
         if (aching) b.MakeErasable();
+        OverheadCast.Begin(source, new[] { b }, BulletArt.PostCore(theme), accent ?? UiKit.Kegare);
         return aching;
     }
 }

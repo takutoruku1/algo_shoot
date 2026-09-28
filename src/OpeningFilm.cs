@@ -561,6 +561,9 @@ public partial class OpeningFilm : Node2D
                 {
                     float open = Ease((t - Math.Abs(panel - 1) * 0.13f) / 0.43f) * (1 - leave);
                     float height = open * 676;
+                    // 開き始めの一拍は高さがほぼ 0＝面積ゼロの縮退ポリゴンになり、三角形分割が落ちる
+                    //   （Invalid polygon data）。1px 未満のパネルは絵として見えないのでそのまま飛ばす。
+                    if (height < 1f) continue;
                     DrawPortrait(2, new Vector2(694 - t * 24, 215 - t * 9), 1080 + t * 30,
                         RectPolygon(new Rect2(285 + panel * 255, 360 - height / 2, 255, height)), alpha * open);
                 }

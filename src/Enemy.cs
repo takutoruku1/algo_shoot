@@ -89,6 +89,9 @@ public partial class Enemy : Area2D
     //   どの姿勢でも足元が同じ画面位置に来るようにする。★当たり判定（_bodyShape・GlobalPosition）は不変。
     protected string BodyOffsetName = "";
     private BossParts.Pose _bodyPose = BossParts.Pose.Idle;
+    protected string DownTexPath = "";
+    protected string Form2DownTexPath = "";
+    private bool _bodyDown;
 
     // ─── 改心の絵だけ縮める倍率（既定 1＝待機と同じ表示高）───
     //   レイだけ cry/post が「ガワの中の人」で、ガワ（待機）と同じ高さで出すと同一人物の等身が破綻する。
@@ -183,7 +186,7 @@ public partial class Enemy : Area2D
     private readonly List<Panel> _panels = new List<Panel>();
     private bool _purified;
     private bool _bombPurify; // この浄化がボム由来か。報酬側のボムキャップ判定にだけ使う（演出・消滅処理は一切不変）
-    private bool _becameFollower; // この本人がフォロワーに化けた＝退場（左流れ）をスキップして二重表示を防ぐ
+    private bool _becameFollower; // フォロワーへの引き継ぎ後に本体を残して二重表示しない。
     private bool _crying;     // 大泣き中（3段階浄化の中間）
     private double _cryT;
     // ── 改心（cry）の保険タイムアウト（softlock 防止）──
@@ -202,20 +205,14 @@ public partial class Enemy : Area2D
     private const double CryStallLimit = 90.0;
     private const double CryHardLimit = 600.0;
     private double _cryTotalT;
-    // 浄化後の退場：旧仕様（-30px/s で画面外まで歩く）は最大10秒超も“撃っても当たらない敵”が見え続けて
-    // 誤認源だった（QA発見）。速めに歩かせ、余韻の後にフェードアウトで「もう敵ではない」を視覚的に明示する。
-    // 盤面の左外へ抜けきったら破棄（従来の -24f ＝ Field.Left-24）。パネル裏に残り続けない。
     private const float OffLeftX = Field.Left - 24f;
 
-    private const float PurifiedExitSpeed = 90f;   // 退場の歩き速度（旧30）
-    private const double PurifiedExitHold = 0.6;   // 改心の余韻＝不透明のまま歩く秒数（笑顔を見せる間）
+    private const double PurifiedExitHold = 0.6;
     private const double PurifiedExitFade = 0.9;   // その後この秒数で透明化して消える
     // 派生ごとの上書き（0以下＝既定値を使う）。レイ面のように「改心で出てきた姿を見せたい」ボスは
     //   Hold を伸ばして、割れたガワの下から出た中の人が数秒で消えてしまうのを防ぐ。
     protected double PurifiedExitHoldOverride;
-    protected double PurifiedExitSpeedOverride;
     private double ExitHold => PurifiedExitHoldOverride > 0 ? PurifiedExitHoldOverride : PurifiedExitHold;
-    private float ExitSpeed => PurifiedExitSpeedOverride > 0 ? (float)PurifiedExitSpeedOverride : PurifiedExitSpeed;
     private double _purifiedExitT;
     private bool _flashing;
     private double _flashT;
@@ -559,7 +556,7 @@ public partial class Enemy : Area2D
             ZIndex = -1, // パネルより奥
             FlipH = FaceLeft, // 出現時は自機側(左)を向く＝右向き素材だけ反転（TickFacing が毎フレーム引き直す）
         };
-        float s = BodyDisplayH / t.GetHeight() * GetBodyFrame(t).Scale;
+        float s = BodyDisplayH / t.GetHeight() * ResolveBodyFrame(t).Scale;
         _baseScale = s;
         _bodySprite.Scale = new Vector2(s, s);
         ApplyBodyOffset();
@@ -579,12 +576,26 @@ public partial class Enemy : Area2D
     protected virtual (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
         => (1f, BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose));
 
+    private (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
+        => texture.ResourcePath == DownTexPath || texture.ResourcePath == Form2DownTexPath
+            ? BossDownArt.Frame(texture) : GetBodyFrame(texture);
+
+    private void SetDownBody(bool down)
+    {
+        if (string.IsNullOrEmpty(DownTexPath)) return;
+        _bodyDown = down;
+        _attackPoseT = 0;
+        if (_parts != null) _parts.Visible = !down;
+        if (!down) SetBodyPose(_form2 ? BossParts.Pose.Form2 : BossParts.Pose.Idle);
+        SwapBody(down ? DownTexPath : PreTexPath);
+    }
+
     // 現在の姿勢（_bodyPose）のオフセットを本体スプライトへ入れる。
     // FlipH は Offset の x も一緒に反転させるので、反転時は符号を戻して見た目の位置を合わせる。
     private void ApplyBodyOffset()
     {
         if (_bodySprite == null) return;
-        Vector2 o = GetBodyFrame(_bodySprite.Texture).Offset;
+        Vector2 o = ResolveBodyFrame(_bodySprite.Texture).Offset;
         // 縮めた絵の足元合わせ：素材はどれも足元まで詰めてある（不透明域が下端）ので、
         // 中央基準のまま倍率を下げると足元が (1-倍率)/2 ぶん浮く。その差を Offset(画像画素) で押し下げる。
         //   浮き = 表示高×(1-倍率)/2 [画面px] → 画像画素に直すと 高さ×(1-倍率)/(2×倍率)。
@@ -604,6 +615,7 @@ public partial class Enemy : Area2D
     // 併せて部品層に「発射」を伝える（予備動作→前方へ流す）。素材が無ければ何もしない。
     protected void TriggerAttackPose()
     {
+        if (_bodyDown) return;
         _parts?.OnAttackStart();
         if (string.IsNullOrEmpty(AttackTexPath) || _purified || _crying) return;
         if (_attackPoseT > 0) { _attackPoseT = AttackPoseDur; return; } // 連射中は延長するだけ（絵がバタつかない）
@@ -623,7 +635,7 @@ public partial class Enemy : Area2D
         _attackPoseT -= delta;
         if (_attackPoseT > 0) return;
         _attackPoseT = 0;
-        if (_purified || _crying) return; // 改心後の絵（cry/post）を攻撃の戻しで壊さない
+        if (_purified || _crying || _bodyDown) return;
         SetBodyPose(_form2 ? BossParts.Pose.Form2 : BossParts.Pose.Idle);
         SwapBody(PreTexPath);
     }
@@ -671,6 +683,7 @@ public partial class Enemy : Area2D
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
+        SetDownBody(true);
         _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(1.6f, 0.14f);
@@ -701,6 +714,7 @@ public partial class Enemy : Area2D
     private void EnterReclose()
     {
         _phase = BossPhase.Reclose; _phaseT = 0;
+        if (_bodyDown) SetDownBody(false);
         _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossReclose(GlobalPosition, BodyDisplayH);
         GameCamera.Instance?.Shake(0.7f, 0.08f);
@@ -881,7 +895,12 @@ public partial class Enemy : Area2D
         PreTexPath = Form2TexPath;                       // 以後の待機はすべて第二形態
         // 攻撃の一拍の最中なら絵は差し替えない（攻撃絵の上に待機絵を被せない）。
         // _attackPoseT が切れたとき TickAttackPose が新しい PreTexPath＝第二形態へ戻す。
-        if (_attackPoseT <= 0)
+        if (!string.IsNullOrEmpty(Form2DownTexPath)) DownTexPath = Form2DownTexPath;
+        if (_bodyDown)
+        {
+            SetDownBody(true);
+        }
+        else if (_attackPoseT <= 0)
         {
             SetBodyPose(BossParts.Pose.Form2);
             SwapBody(PreTexPath);
@@ -1060,6 +1079,12 @@ public partial class Enemy : Area2D
         AutoBank = false; // 姿勢はこちら(BossMover.Lean)が握る＝基底の自動バンクと競合させない
         FacePlayer = false; // 向きも同じくこちら（BossMover.TickFacing＝40px/0.6秒の保持つき）が握る
         if (!_hasBodyTex || _bodySprite == null) return;
+        if (_bodyDown)
+        {
+            visualOffset *= 0.35f;
+            lean *= 0.15f;
+            squash = Vector2.One;
+        }
         _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
         // 差し替えアニメ中は _PhysicsProcess 側が Position/Scale を握る（pop の持ち上げを潰さない）。
         if (!_swapAnim)
@@ -1105,11 +1130,13 @@ public partial class Enemy : Area2D
     protected int DamageToHpFloor(int damage, float ratio)
         => Mathf.Clamp(damage, 0, Mathf.Max(0, _hp - Mathf.RoundToInt(_maxHp * ratio)));
 
-    protected void ChangeBattleCostume(string idle, string attack)
+    protected void ChangeBattleCostume(string idle, string attack, string down)
     {
         PreTexPath = idle;
         AttackTexPath = attack;
+        DownTexPath = down;
         _attackPoseT = 0;
+        if (_bodyDown) { SetDownBody(true); return; }
         SetBodyPose(BossParts.Pose.Idle);
         SwapBody(idle);
     }
@@ -1118,7 +1145,12 @@ public partial class Enemy : Area2D
     private void Redeem()
     {
         if (_purified) return;
+        if (_bodyDown && DeferCryBodySwap) SetDownBody(false);
+        _bodyDown = false;
+        _attackPoseT = 0;
+        if (_parts != null) _parts.Visible = true;
         _purified = true;
+        _entering = false;
         _shieldLayer?.QueueRedraw();
         RemoveFromGroup("enemies");
 
@@ -1174,11 +1206,6 @@ public partial class Enemy : Area2D
         // 改心の着地は直立で（移動バンクの傾きを残さない）。差し替え前に戻す＝旧絵(fade)ごと素直に立つ。
         _bank = 0f;
         if (AutoBank && _hasBodyTex && _bodySprite != null) _bodySprite.Rotation = 0f;
-        // 向きも改心の一拍で左（＝これから歩いて去る方向）へ寄せ、以後 TickFacing は _purified で素通りする。
-        // 自機を向いたまま固まると、笑顔で左へ歩くのに体は右を向いたまま＝後ろ向きに退場してしまう。
-        // ボス/カメオ（FacePlayer=false）は従来どおり BossMover が最後に決めた向きのまま静止する。
-        if (FacePlayer && _hasBodyTex && _bodySprite != null) SetFacingLeft(true);
-
         // 3段階対応：Cry の尺が設定されていれば先に大泣きを見せてから笑顔へ。
         // 専用立ち絵が無いボス（こはる等）でも会話に入れるよう、CryHoldDur のみで判定する
         //（SwapBody は内部で _hasBodyTex を確認するため、立ち絵が無ければ素通りする）。
@@ -1242,7 +1269,7 @@ public partial class Enemy : Area2D
 
         // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
         _bodySprite.Texture = t;
-        _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * GetBodyFrame(t).Scale;
+        _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * ResolveBodyFrame(t).Scale;
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
         ApplyBodyOffset(); // 新しい姿勢の足元が待機と同じ画面位置に来るよう入れ直す
         _bodySprite.SelfModulate = new Color(1f, 1f, 1f, _fadeSprite != null ? 0f : 1f);
@@ -1264,11 +1291,11 @@ public partial class Enemy : Area2D
 
         // Back/Out 風：行き過ぎてから戻す。t=0 で +(SquashScale-1)、t=1 で ±0 に収束。
         float over = BackOut(u);                 // 0→1（途中で >1 にオーバーシュート）
-        float scaleMul = Mathf.Lerp(SquashScale, 1f, over);
+        float scaleMul = _bodyDown ? 1f : Mathf.Lerp(SquashScale, 1f, over);
         _bodySprite.Scale = new Vector2(_baseScale * scaleMul, _baseScale * scaleMul);
 
         // pop の持ち上げ：序盤に最大、終盤で 0（sin の山）。呼吸オフセットへ加算。
-        float lift = -PopLiftPx * Mathf.Sin(u * Mathf.Pi);
+        float lift = _bodyDown ? -2f * (1f - u) : -PopLiftPx * Mathf.Sin(u * Mathf.Pi);
         _bodySprite.Position = _motionOffset + new Vector2(0f, lift);
 
         // クロスフェード：旧(_fadeSprite)をα落とし、新(_bodySprite)をα上げ。
@@ -1487,13 +1514,11 @@ public partial class Enemy : Area2D
             // フォロワー化した本人は、その場に湧いた Follower が見た目を引き継ぐので本体は即退場
             //（救った娘が去りつつ別の娘がくっつく“二重表示”を防ぐ＝救った本人がそのまま付くように見える）。
             if (_becameFollower) { QueueFree(); return; }
-            // それ以外：笑顔の味方コメントとして左へ歩いて退場。余韻（Hold）で笑顔を見せてからフェードアウト＝
-            // 衝突無効の“亡霊”が撃てる敵に見え続けないよう、透明化で「もう敵ではない」を示す。
+            // 判定のない敵が再び攻撃しているように見えないよう、撃破位置でフェードする。
             _purifiedExitT += delta;
-            GlobalPosition += new Vector2(-ExitSpeed * (float)delta, 0f);
             float exitA = 1f - Mathf.Clamp((float)((_purifiedExitT - ExitHold) / PurifiedExitFade), 0f, 1f);
             Modulate = new Color(Modulate.R, Modulate.G, Modulate.B, exitA);
-            if (exitA <= 0f || GlobalPosition.X < OffLeftX) QueueFree();
+            if (exitA <= 0f) QueueFree();
             return;
         }
 
@@ -1670,6 +1695,10 @@ public partial class Enemy : Area2D
     // 頭上ゲージ（BossGauge）の置き場。四隅の枠（下の _Draw）と同じ寸法式から「枠の上辺の少し上」と「枠幅ほど」を出す。
     public float GaugeTop => -Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.35f) - 8f;
     public float GaugeWidth => Mathf.Clamp(Mathf.Max(BodyRadius * 2f + 6f, BodyDisplayH * 0.5f), 26f, 56f);
+    public float GaugeBottom => Mathf.Max(BodyHalfH + 3f, BodyDisplayH * 0.55f) + 7f;
+    public bool GaugeReforming => !_purified && !_entering && _phase == BossPhase.Reclose;
+    public float GaugeReformProgress => GaugeReforming
+        ? Mathf.Clamp((float)(_phaseT / (RecloseLineDur + RespawnGap)), 0f, 1f) : 0f;
 
     // 頭上ゲージの塗り分け（2026-09-27 作者指示「無敵のタイミングと、BREAK時のHPバー色分けしたい」）。
     //   Hud.GaugeState は「1本ぶんの割合・残本数」しか持たないので、今殴れるかどうかはボス本体から直接読む。
@@ -1710,14 +1739,12 @@ public partial class Enemy : Area2D
 
         if (!_purified && _maxHp > 0 && _phase is BossPhase.Break or BossPhase.Exposed)
         {
-            float remaining = _phase == BossPhase.Break ? 1f : Mathf.Clamp(1f - (float)(_phaseT / VulnDur), 0, 1);
             float pulse = 0.5f + 0.5f * Mathf.Sin((float)_phaseT * Mathf.Tau * 1.5f);
             float hit = Mathf.Clamp((float)(_hitFlashT / HitFlashDur), 0, 1);
             var color = new Color(new Color("e9d28b").Lerp(Colors.White, hit), 0.65f + 0.15f * pulse);
             float w = Mathf.Max(BodyRadius + 3, BodyDisplayH * 0.24f);
             float h = Mathf.Max(BodyHalfH + 3, BodyDisplayH * 0.35f);
             // 四隅の枠はロックオン中だけ（2026-09-26 ユーザー「ロックオンしてないときにボスを囲う枠は出さない」）。
-            //   無防備窓の残り時間バーは枠ではなく計器なので、ロックに関係なく出す。
             if (locked)
                 for (int x = -1; x <= 1; x += 2)
                 for (int y = -1; y <= 1; y += 2)
@@ -1726,9 +1753,6 @@ public partial class Enemy : Area2D
                     DrawLine(corner, corner - new Vector2(x * 4, 0), color, 1f + hit * 0.5f);
                     DrawLine(corner, corner - new Vector2(0, y * 4), color, 1f + hit * 0.5f);
                 }
-            var bar = new Rect2(-w, h + 4, w * 2, 1.4f);
-            DrawRect(bar.Grow(0.8f), new Color("211e25"));
-            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * remaining, bar.Size.Y)), color);
         }
 
         // スプライトが無い時だけプレースホルダ図形を描く

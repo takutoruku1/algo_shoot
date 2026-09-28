@@ -73,18 +73,24 @@ public partial class EpilogueQa : Node
                 await Select(overlay, 0);
                 await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
                 Check(game.LastSentWord == "まだ送っていない", "F4 refusal does not send a word");
-                await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") != null);
-                Check(Read<bool>(final, "_refused"), "F4 refusal offers the first word again");
+                Check(Read<int>(final, "_choiceLine") == -1 && game.HasChoiceAt("f4") && game.ChosenAt("f4") == "",
+                    "F4 refusal is final and is recorded as silence");
+                var talk = Read<IList>(final, "_talk");
+                for (int i = Read<int>(final, "_line"); i < talk.Count; i++)
+                    Check((string)talk[i]!.GetType().GetField("Who")!.GetValue(talk[i])! != "あなた",
+                        "refusal never invents player dialogue");
             }
             if (route == 2)
             {
-                // 沈黙20秒の自動送信は実時間で進むので、フレーム数ではなく経過秒で待つ
-                //   （高リフレッシュ環境だと 1250F が 20 秒に満たず取りこぼす）。
                 await Seconds(21);
-                Check(Read<ChoiceOverlay?>(final, "_choice") == null, "F4 silence sends after twenty seconds");
+                Check(Read<ChoiceOverlay?>(final, "_choice") == overlay && !overlay.Decided
+                    && game.LastSentWord == "まだ送っていない", "F4 waits for a decision after twenty seconds");
             }
-            else await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
-            Check(game.LastSentWord == "おかえり", $"F4 route {route} sends the original word");
+            if (route != 1)
+            {
+                await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") == null);
+                Check(game.LastSentWord == "おかえり", $"F4 route {route} sends the original word after confirmation");
+            }
             Check(!Read<bool>(final, "_cueResolveDone"), "Mina does not smile before receiving the word");
             await AdvanceUntil(() => Read<bool>(final, "_cueResolveDone"));
             // 受け取りCGのディゾルブ（Final._Draw の _resolveT / 2.4）が出切るまで待つ。
@@ -106,8 +112,12 @@ public partial class EpilogueQa : Node
                 using var returning = await Shot("final_rooftop");
                 MatchArt(returning, Read<Texture2D>(final, "_rooftop"), new Rect2(0, 0, 1280, 720));
             }
-            await AdvanceUntil(() => GetTree().CurrentScene.SceneFilePath == "res://Epilogue.tscn");
+            await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Epilogue.tscn");
+            await QaSceneTransition.Wait(this);
             Check(!IsInstanceValid(final), "Final reaches the illustrated epilogue");
+            Check(Read<string>(GetTree().CurrentScene, "_rollLast") == "おかえり",
+                "credits echo the returned word on both final routes");
+            if (route == 1) Check(game.LastSentWord == "まだ送っていない", "credits preserve the refusal's actual send history");
             GetTree().CurrentScene.QueueFree();
             await Frames(3);
         }
@@ -139,6 +149,8 @@ public partial class EpilogueQa : Node
         await Frames(30);
         foreach (string field in new[] { "_skyDawn", "_rest", "_goodbye", "_together" })
             Check(Read<Texture2D>(ep, field).ResourcePath.StartsWith("res://char/bg2/ending/"), $"{field} loads ending art");
+        foreach (string field in new[] { "_skyDawn", "_goodbye", "_together" })
+            Check(Read<Texture2D>(ep, field).ResourcePath.EndsWith("_v2.png"), $"{field} uses the matched dawn artwork");
 
         if (choice == 0)
         {
@@ -200,12 +212,13 @@ public partial class EpilogueQa : Node
         {
             await Frames(80);
             using var end = await Shot("end");
+            MatchArt(end, Read<Texture2D>(ep, "_goodbye"), new Rect2(0, 0, 1280, 720));
             DisplayServer.WindowSetSize(new Vector2I(960, 540));
             await Frames(15);
             using var small = await Shot("end_small");
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
         }
-        await AdvanceUntil(() => GetTree().CurrentScene.SceneFilePath == "res://TitleMenu.tscn");
+        await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://TitleMenu.tscn");
         Check(!IsInstanceValid(ep), $"E6 choice {choice} returns to title");
         GetTree().CurrentScene.QueueFree();
         await Frames(3);
@@ -216,6 +229,8 @@ public partial class EpilogueQa : Node
         Check(film.GetChildCount() == 0, "film has no walking sprites or articulated body parts");
         film.SetProcess(false);
         var art = Read<Texture2D[]>(film, "_art");
+        foreach (int shot in new[] { 6, 7, 8, 9 })
+            Check(art[shot].ResourcePath.EndsWith("_v2.png"), $"film cut {shot} uses the matched dawn artwork");
         var cuts = (double[])typeof(EndingFilm).GetField("Cuts", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         var lines = (string[])typeof(EndingFilm).GetField("Lines", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         for (int shot = 0; shot < art.Length; shot++)
@@ -232,7 +247,7 @@ public partial class EpilogueQa : Node
                 DisplayServer.WindowSetSize(new Vector2I(width, width * 9 / 16));
                 await Frames(5);
                 using var image = await Shot($"film_{shot:D2}_{width}");
-                MatchArt(image, art[shot], rect);
+                MatchArt(image, art[shot], rect, fullBleed: true);
             }
         }
         DisplayServer.WindowSetSize(new Vector2I(1280, 720));
@@ -321,11 +336,11 @@ public partial class EpilogueQa : Node
     private static float Difference(Color a, Color b)
         => Mathf.Abs(a.R - b.R) + Mathf.Abs(a.G - b.G) + Mathf.Abs(a.B - b.B);
 
-    private static void MatchArt(Image rendered, Texture2D texture, Rect2 rect)
+    private static void MatchArt(Image rendered, Texture2D texture, Rect2 rect, bool fullBleed = false)
     {
         using var reference = texture.GetImage();
         int count = 0, matches = 0;
-        foreach (float y in new[] { 0.1f, 0.2f, 0.4f, 0.6f })
+        foreach (float y in fullBleed ? new[] { 0.035f, 0.07f, 0.1f, 0.2f, 0.4f, 0.6f } : new[] { 0.1f, 0.2f, 0.4f, 0.6f })
             foreach (float x in new[] { 0.06f, 0.2f, 0.4f, 0.46f, 0.53f, 0.6f, 0.8f, 0.94f })
             {
                 int px = (int)(rendered.GetWidth() * x), py = (int)(rendered.GetHeight() * y);

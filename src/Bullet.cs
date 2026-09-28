@@ -129,6 +129,30 @@ public partial class Bullet : Area2D
     private Vector2 _accelDir;   // 発進方向（単位ベクトル・MakeAccel で確定）。タメ中の微速もこの向き。
     private bool _accelDone;     // 既に発進へ切り替えたか（毎フレーム上書きしない＝1回だけ切替）
     private float _age;          // このアクティブ化からの経過秒（加速判定用。会話停止中は進めない）
+    private OverheadCast? _overheadCast;
+    private uint _overheadLayer, _overheadMask;
+    public bool OverheadPending => _overheadCast != null;
+
+    internal void HoldForOverhead(OverheadCast cast)
+    {
+        if (!Active) return;
+        _overheadCast = cast;
+        _overheadLayer = CollisionLayer;
+        _overheadMask = CollisionMask;
+        CollisionLayer = CollisionMask = 0;
+        Visible = false;
+    }
+
+    internal bool IsHeldBy(OverheadCast cast) => Active && _overheadCast == cast;
+
+    internal void ReleaseFromOverhead(OverheadCast cast)
+    {
+        if (!IsHeldBy(cast)) return;
+        _overheadCast = null;
+        CollisionLayer = _overheadLayer;
+        CollisionMask = _overheadMask;
+        Visible = true;
+    }
     // タメ中か（Accel かつ未発進）の外部参照用。Player 側の同時タメ弾数カウント（上限化）に使う。
     public bool AccelCharging => Accel && !_accelDone;
 
@@ -492,6 +516,7 @@ public partial class Bullet : Area2D
         Damage = damage;
         Radius = radius;
         Active = true;
+        _overheadCast = null;
         Grazed = false;
         Pierce = 0; // 貫通数も再利用時に持ち越さない（付与は各 Fire 側）
         Charged = false;
@@ -575,6 +600,7 @@ public partial class Bullet : Area2D
     public void Deactivate()
     {
         Active = false;
+        _overheadCast = null;
         Velocity = Vector2.Zero;
 
         // グループから外す（プール返却時）
@@ -659,7 +685,7 @@ public partial class Bullet : Area2D
     // 自機弾も消費する＝雨を受け止めるぶん本体への火力が落ちる（受け皿のコスト＝リスクとリターン）。
     private void OnAreaEntered(Area2D area)
     {
-        if (!Active || !IsEnemy || !Erasable) return;
+        if (!Active || OverheadPending || !IsEnemy || !Erasable) return;
         if (area is Bullet pb && !pb.IsEnemy && pb.Active)
         {
             var pool = GetNodeOrNull<BulletPool>("/root/Pool");
@@ -723,6 +749,8 @@ public partial class Bullet : Area2D
     {
         if (!Active)
             return;
+
+        if (OverheadPending) return;
 
         // 会話中（吹き出し表示中）は飛んでいる弾も止める＝攻撃を停止
         if (Hud.BubblePaused)

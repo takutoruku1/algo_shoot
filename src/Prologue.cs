@@ -107,7 +107,6 @@ public partial class Prologue : Node2D
     // ════════════════════ 下書き選択（P2・P3・P4）════════════════════
     // 選択は _talk の途中に「差し込み点」として置く：_line がここに来たら ChoiceOverlay を出し、
     // 決まったら「送った言葉（who=0）＋分岐ぶんの受け」を _talk のその位置へ挿し込んで会話を続ける。
-    // 沈黙14秒で末尾が灯り20秒で末尾が決まる（ChoiceOverlay の実装値をそのまま使う）。
     private ChoiceOverlay? _choice;
     private string _choiceId = ""; // RecordChoice の id（p2/p3/p4）
     private double _choiceT;       // 提示からの経過＝迷い秒数（RecordChoice へ渡す）

@@ -76,12 +76,14 @@ public partial class Epilogue : Node2D
 
     // E7 スタッフロール（タイムライン式）。三人の「その後のタイムライン」→クレジット→【終】の余韻。
     //   投稿3行は 12 のスタッフロール投稿（順は面の順）。末尾の枠は「そして、ご主人様へ。／【終】」
-    //   （＝E6 で送った言葉…だが E6 は E7 の**後**に来るので、ここに載るのは F4 で送った言葉＝【初】）。
+    //   F4 で送らなかった場合は、ミナが持ち帰った言葉を返す。送信履歴は変えない。
     //   実行時に組む（【終】が入るため静的配列にできない）。
     private string[] _roll = System.Array.Empty<string>();
     private void BuildRoll()
     {
         string last = (_game?.LastSentWord ?? "").Trim();
+        if (_game != null && _game.HasChoiceAt("f4") && _game.ChosenAt("f4").Length == 0)
+            last = _game.FirstScattered.Trim();
         _roll = new[]
         {
             "", "", "", "",
@@ -172,7 +174,6 @@ public partial class Epilogue : Node2D
     //   受けは【迷】＝今回の迷い秒数を P2 と比べて3分岐する
     //   （短ければ P2 の実測秒数をそのまま差し込む対句、長ければ集計の一言、無言なら集計に入れておく）。
     //   （送らない）は【終】を更新しない。END の一行は分岐しない。
-    //   沈黙20秒の自動決定は末尾＝（送らない）へ落ちる（ChoiceOverlay の既定挙動が台本と一致）。
     private static readonly string[] E6Choices = { "また来る", "ありがとう", "（送らない）" };
     private int _e6ChoiceLine = -1;   // ここに着いたら選択を出す（-1＝提示済み）
     private ChoiceOverlay? _e6Choice;
@@ -242,7 +243,6 @@ public partial class Epilogue : Node2D
     private void ShowE6Choice()
     {
         _e6ChoiceT = 0;
-        // 沈黙20秒の自動決定は末尾へ落ちるので、（送らない）を末尾に置く（台本どおり）。
         // カットシーン＝盤面が無いので onBoard は既定(false)＝画面全体の中心へ。
         _e6Choice = ChoiceOverlay.Show(this, E6Choices, defaultSel: E6Choices.Length - 1, cinematic: true);
     }
@@ -440,10 +440,10 @@ public partial class Epilogue : Node2D
     private void BuildSky()
     {
         const string dir = "res://char/bg2/ending/";
-        _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn.png");
+        _skyDawn = GD.Load<Texture2D>(dir + "bg_ep_dawn_v2.png");
         _rest = GD.Load<Texture2D>(dir + "cg_ep_rest.png");
-        _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye.png");
-        _together = GD.Load<Texture2D>(dir + "cg_ep_together_v1.png");
+        _goodbye = GD.Load<Texture2D>(dir + "cg_ep_goodbye_v2.png");
+        _together = GD.Load<Texture2D>(dir + "cg_ep_together_v2.png");
     }
 
     private void DrawArt(Texture2D texture, float alpha = 1f, float zoom = 1f)
@@ -503,8 +503,7 @@ public partial class Epilogue : Node2D
     {
         if (_font == null) return;
         // ロール中は空を沈める（文字が最優先）。明け方の空はそのまま後ろに残す。
-        DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.55f));
-        DrawRollAtmosphere();
+        DrawRect(new Rect2(0, 0, W, H), new Color(0.02f, 0.03f, 0.06f, 0.40f));
         for (int i = 0; i < _roll.Length; i++)
         {
             float y = H + i * RollLineH - (float)_t * RollSpeed;
@@ -520,8 +519,6 @@ public partial class Epilogue : Node2D
             int sz = !head && !post && line == _rollLast ? UiKit.CutClimax : UiKit.CutBody;
             if (sz == UiKit.CutClimax)
             {
-                float glow = 1f - Mathf.Clamp(Mathf.Abs(y - H * 0.5f) / 110f, 0f, 1f);
-                UiKit.RadialGlow(this, new Vector2(W * 0.5f, y - 5f), 90f, Cool, 0.16f * glow);
                 c = UiKit.CutInk with { A = 1f };
             }
             // 「職種\t担当者」の2欄行は、欄の境（RollGutter）で左右に振り分けて描く。
@@ -566,28 +563,6 @@ public partial class Epilogue : Node2D
         }
     }
 
-    private void DrawRollAtmosphere()
-    {
-        float breath = 0.55f + 0.45f * Mathf.Sin((float)_t * 0.55f);
-        UiKit.RadialGlow(this, new Vector2(W * 0.5f, 18f), 170f, Cool, 0.10f + 0.035f * breath);
-        UiKit.VGradient(this, new Rect2(0, 0, W, 72),
-            new[] { new Color(Cool, 0.18f), new Color(0.02f, 0.03f, 0.06f, 0f) },
-            new[] { 0f, 1f });
-        for (int i = 0; i < 7; i++)
-        {
-            float x = 26f + i * 58f + Mathf.Sin((float)_t * 0.23f + i * 1.7f) * 6f;
-            float a = (0.035f + 0.018f * Mathf.Sin((float)_t * 0.4f + i)) * (i % 2 == 0 ? 1f : 0.65f);
-            DrawLine(new Vector2(x, 0), new Vector2(x - 44f, H - 28f), new Color(0.78f, 0.93f, 1f, a), 1f);
-        }
-        for (int i = 0; i < 20; i++)
-        {
-            float x = (i * 73f + 19f) % W;
-            float y = (float)((i * 31.0 + _t * (4.5 + i % 4)) % (H - 34f));
-            float a = 0.10f + 0.06f * Mathf.Sin((float)_t * 0.7f + i);
-            DrawCircle(new Vector2(x, y), 0.55f + (i % 3) * 0.25f, new Color(0.92f, 0.97f, 1f, a));
-        }
-    }
-
     // タイプライターで送る現在行のテキスト（会話フェーズのみ。スタッフロールは対象外）。
     private string? CurLineText()
     {
@@ -609,11 +584,7 @@ public partial class Epilogue : Node2D
         // END は最後の1行だけ。選択がまだ出ていない間（＝末尾が「本日の業務は、以上です。」）は出さない。
         if (_e6ChoiceLine < 0 && _line >= _end.Count - 1)
         {
-            float pulse = 0.55f + 0.45f * Mathf.Sin((float)_t * 1.7f);
-            UiKit.RadialGlow(this, new Vector2(W * 0.5f, 76f), 116f, Cool, 0.18f + 0.05f * pulse);
-            UiKit.HGradient(this, new Rect2(86, 100, W * 0.5f - 86, 1), Cool with { A = 0f }, Cool with { A = 0.72f });
-            UiKit.HGradient(this, new Rect2(W * 0.5f, 100, W * 0.5f - 86, 1), Cool with { A = 0.72f }, Cool with { A = 0f });
-            Shadowed(_font, new Vector2(0, 82f), "END", HorizontalAlignment.Center, W, UiKit.CutClimax,
+            Shadowed(_font, new Vector2(32f, 82f), "END", HorizontalAlignment.Left, 110f, UiKit.CutClimax,
                 UiKit.CutInk with { A = 0.96f });
         }
     }

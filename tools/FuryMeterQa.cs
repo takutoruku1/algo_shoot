@@ -39,14 +39,25 @@ public partial class FuryMeterQa : Node
             Put(game!, "p4", "だれの声");
             Put(game!, "s1_4", "十二件、ぜんぶ");
             Put(game!, "s1_5", "傘、忘れてる");
-            Put(game!, "s1_2", "置き傘、三本目");
-            Put(game!, "s2_4", "返してない返信");
-            Put(game!, "s3_2", "同接、9");
+            Put(game!, "s2_1", "好きな時間は残して");
             Put(game!, "s3_5c", "見ています");
             float up1 = Fury.InitialFor(game, "akari");
             float up2 = Fury.InitialFor(game, "koharu");
             float up3 = Fury.InitialFor(game, "rei");
             Check(up1 > 0 && up2 > 0 && up3 > 0, $"max-up choices lean + (akari={up1} koharu={up2} rei={up3})");
+            Check(up1 == 27 && up2 == 6 && up3 == 4, "only retained choices contribute to initial fury");
+            foreach (var (key, word, boss, expected) in new[]
+            {
+                ("s1_2", "置き傘、三本目", "akari", up1),
+                ("s2_2", "言わない", "koharu", up2),
+                ("s3_2", "同接、9", "rei", up3),
+            })
+            {
+                Put(game!, key, word);
+                Check(Fury.InitialFor(game, boss) == expected, $"{key}: old saved answer no longer changes fury");
+                Put(game!, key, "");
+                Check(Fury.InitialFor(game, boss) == expected, $"{key}: old silence no longer changes fury");
+            }
 
             // ── (c) 上限クランプ ──
             Check(up1 <= Fury.InitialClamp && up2 <= Fury.InitialClamp && up3 <= Fury.InitialClamp,
@@ -54,7 +65,7 @@ public partial class FuryMeterQa : Node
             Check(up1 < Fury.RageEdge && up3 < Fury.RageEdge, "max-up never reaches the rage edge (+90)");
 
             // ── (b') 下げ切り（全部「送らない」＝台帳に空文字で積まれる）──
-            foreach (string id in new[] { "p4", "s1_4", "s1_5", "s1_2", "s2_2", "s2_4", "s3_2", "s3_5c" })
+            foreach (string id in new[] { "p4", "s1_4", "s1_5", "s2_1", "s2_4", "s3_5c" })
                 Put(game!, id, "");
             Put(game!, "p4", "見なかったことにする");
             float dn1 = Fury.InitialFor(game, "akari");

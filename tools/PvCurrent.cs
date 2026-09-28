@@ -175,7 +175,7 @@ public partial class PvCurrent : Node2D
     private void Ending(float t)
     {
         float p = Seg(t, 38.5f, 5.8f);
-        DrawCover(T("res://char/bg2/ending/cg_ep_together_v1.png"), Fade(p), 1.08f, 0, -12f);
+        DrawCover(T("res://char/bg2/ending/cg_ep_together_v2.png"), Fade(p), 1.08f, 0, -12f);
         DrawCover(T("res://char/bg2/ending/cg_final_received_v1.png"), 0.42f * Smooth(Mathf.Clamp((p - 0.46f) / 0.40f, 0f, 1f)) * Fade(p), 1.02f, 190f, 0f);
         DrawRect(new Rect2(0, 0, W, H), new Color(0, 0, 0, 0.36f));
         Caption(86, 480, "救いは、スコアでは終わらない。", 44, UiKit.ZenBlack, new Color(1f, 0.98f, 0.92f, Fade(p)));

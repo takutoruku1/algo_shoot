@@ -83,7 +83,7 @@ public partial class BossGaugeQa : Node
 
         // ── ① 中ボス（CameoBoss）を StageAkari.Step_BossCameo と同じ作り方で出す ──
         var cameo = SpawnCameo(root, "AkariCameo", new Vector2(Field.CenterX + 40, 100));
-        await Frames(6);
+        await Frames(80);
         var g1 = Gauges(cameo);
         Check($"中ボスの子に BossGauge が1つ（{g1.Length}）", g1.Length == 1);
         var s = hud.GaugeState;
@@ -117,6 +117,7 @@ public partial class BossGaugeQa : Node
 
         // ── ⑦ 塗りの色分け：無敵＝灰＋斜線／BREAK＝金 ──
         await PhaseColors(hud, cameo);
+        await RecoveryGauge(hud, cameo, "mid");
         await DamageTrail(hud, g1[0]);
 
         // ── ④ 2体目（本ボス相当）：自身の _Ready で ShowBossBar(..., this) ──
@@ -124,10 +125,14 @@ public partial class BossGaugeQa : Node
         var old = g1.Length == 1 ? g1[0] : null;
         var second = new BossAkari { Name = "SecondBoss" };
         root.World.AddChild(second);
-        second.SetPhysicsProcess(false);
+        second.GlobalPosition = new Vector2(Field.CenterX + 40, 100);
         var caster = (AreaSpellCaster)BaseField(second, "_caster").GetValue(second)!;
         caster.SetProcess(false);
         caster.CancelPendingAttacks();
+        await Frames(160);
+        second.SetPhysicsProcess(false);
+        hud.HideSpellCard();
+        cameo.Hide();
         _pin[second] = new Vector2(Field.CenterX + 40, 100);
         // 同フレーム内では QueueFree 済みでもまだ木に居る。次フレーム以降で無効になっていること。
         await Frames(3);
@@ -142,8 +147,13 @@ public partial class BossGaugeQa : Node
         await Shot("main_4of6");
         await Zoom(g2[0], "main_zoom");
         await BandControl("main_4of6");
+        await RecoveryGauge(hud, second, "main");
         if (_shot)
         {
+            var phase = BaseField(second, "_phase");
+            phase.SetValue(second, Enum.Parse(phase.FieldType, "Reclose"));
+            BaseField(second, "_phaseT").SetValue(second, 0.675);
+            second.GetNode<Node2D>("Shield").QueueRedraw();
             foreach (Vector2I size in new[] { new Vector2I(960, 540), new(1920, 1080), new(540, 960) })
             {
                 DisplayServer.WindowSetSize(size);
@@ -152,6 +162,8 @@ public partial class BossGaugeQa : Node
             }
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(3);
+            phase.SetValue(second, Enum.Parse(phase.FieldType, "Shielded"));
+            second.GetNode<Node2D>("Shield").QueueRedraw();
         }
 
         // ── ⑤ HideBossBar：顔あり（BossHandles.AkariBar）＝改心の見送り ──
@@ -240,6 +252,54 @@ public partial class BossGaugeQa : Node
         Check($"盾へ戻すと invuln（{g.LastFillKind}）", g.LastFillKind == "invuln");
     }
 
+    private async Task RecoveryGauge(Hud hud, Enemy boss, string prefix)
+    {
+        bool physics = boss.IsPhysicsProcessing();
+        boss.SetPhysicsProcess(false);
+        // 物理を止めた＝TickEntrance が回らないので登場フラグが立ちっぱなしになる。GaugeReforming は
+        //   それを見て黙る（登場中はゲージを出さない）ので、_purified と同じく直に倒してから状態を作る。
+        BaseField(boss, "_entering").SetValue(boss, false);
+        var phase = BaseField(boss, "_phase");
+        var time = BaseField(boss, "_phaseT");
+        var gauge = Gauges(boss).Single();
+        hud.HideSpellCard();
+        async Task Enter(string name, double t)
+        {
+            phase.SetValue(boss, Enum.Parse(phase.FieldType, name));
+            time.SetValue(boss, t);
+            boss.QueueRedraw();
+            boss.GetNode<Node2D>("Shield").QueueRedraw();
+            await Frames(2);
+        }
+
+        await Enter("Break", 0);
+        Check($"{prefix}: broken shield starts with a full attack window", boss.GaugeWindowLeft == 1f && !boss.GaugeReforming);
+        await Shot($"{prefix}_recovery_break");
+        await Zoom(gauge, $"{prefix}_recovery_break_zoom", recovery: true);
+        foreach (double t in new[] { 1.6, 3.4, 4.0 })
+        {
+            await Enter("Exposed", t);
+            Check($"{prefix}: window at {t}s is exact", Mathf.IsEqualApprox(boss.GaugeWindowLeft, 1f - (float)t / 4f));
+            await Shot($"{prefix}_recovery_window_{t:0.0}");
+        }
+        foreach (double t in new[] { 0.0, 0.675, 1.35 })
+        {
+            await Enter("Reclose", t);
+            Check($"{prefix}: reformation at {t}s is exact", boss.GaugeReforming && !boss.GaugeVulnerable
+                && boss.GaugeWindowLeft == 0 && Mathf.IsEqualApprox(boss.GaugeReformProgress, (float)(t / 1.35)));
+            await Shot($"{prefix}_recovery_reform_{t:0.000}");
+            if (t == 0.675) await Zoom(gauge, $"{prefix}_recovery_reform_zoom", recovery: true);
+        }
+        BaseField(boss, "_purified").SetValue(boss, true);
+        Check($"{prefix}: purified boss has no recovery indicator", !boss.GaugeVulnerable && !boss.GaugeReforming && boss.GaugeReformProgress == 0);
+        await Shot($"{prefix}_recovery_purified");
+        BaseField(boss, "_purified").SetValue(boss, false);
+        await Enter("Shielded", 0);
+        Check($"{prefix}: shielded boss has no recovery indicator", !boss.GaugeVulnerable && !boss.GaugeReforming && boss.GaugeReformProgress == 0);
+        await Shot($"{prefix}_recovery_done");
+        boss.SetPhysicsProcess(physics);
+    }
+
     private async Task DamageTrail(Hud hud, BossGauge gauge)
     {
         float Trail() => (float)BaseField(gauge, "_trail").GetValue(gauge)!;
@@ -269,8 +329,7 @@ public partial class BossGaugeQa : Node
         }
     }
 
-    // ゲージ部分（バー＋残本数の点）をスクショから切り出して 3 倍（最近傍）で保存する。
-    private async Task Zoom(BossGauge g, string name)
+    private async Task Zoom(BossGauge g, string name, bool recovery = false)
     {
         if (!_shot || OwnerOf(g) is not Enemy owner) return;
         await Frames(1);
@@ -278,10 +337,10 @@ public partial class BossGaugeQa : Node
         using var image = GetViewport().GetTexture().GetImage();
         var vis = GetViewport().GetVisibleRect().Size;
         float sx = image.GetWidth() / vis.X, sy = image.GetHeight() / vis.Y;
-        float w = owner.GaugeWidth, top = owner.GaugeTop;
+        float w = owner.GaugeWidth, top = recovery ? owner.GaugeBottom : owner.GaugeTop;
         var xf = g.GetGlobalTransformWithCanvas();
-        var a = xf * new Vector2(-w / 2f - 4f, top - 3f);
-        var b = xf * new Vector2(w / 2f + 4f, top + 9f);
+        var a = xf * new Vector2(-w / 2f - 6f, top - (recovery ? 4f : 10f));
+        var b = xf * new Vector2(w / 2f + 6f, top + 8f);
         int x0 = Mathf.Clamp((int)(Mathf.Min(a.X, b.X) * sx), 0, image.GetWidth() - 1);
         int y0 = Mathf.Clamp((int)(Mathf.Min(a.Y, b.Y) * sy), 0, image.GetHeight() - 1);
         int x1 = Mathf.Clamp((int)Mathf.Ceil(Mathf.Max(a.X, b.X) * sx), x0 + 1, image.GetWidth());
