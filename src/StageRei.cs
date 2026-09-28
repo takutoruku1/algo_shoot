@@ -7,7 +7,7 @@ using System.Linq;
 //   7・18・19: 引用の嵐の接続（S3-5a/5b）→ 嵐の本体（十七枚・3段階・約50秒）→ 剥がし切りの受け
 //   8〜9: 道中C → 呑みこまれる部屋（S3-5c）
 //   10〜12: ボス＝ガワ出現・ボス戦（S3-6）。戦闘中の割り込み（S3-7「つづけて／むりしないで」）は
-//           ボスHP 20〜50% で一度だけ step 15〜17 へ抜けて戻る。改心（S3-8）は BossRei が担う。
+//           回想から続けて step 15〜17 を流す。改心（S3-8）は BossRei が担う。
 //   13〜14: クリア（S3-9）→ ハブへ（本編の最終面。全クリアで FINAL カード）
 // 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S3-1〜S3-9。
 public partial class StageRei : Node
@@ -258,15 +258,13 @@ public partial class StageRei : Node
         => ChoiceEffects.Hesitated(game, "s3_5c") ? Clear : Clear.Where(l => l.text != ClearHesitated).ToArray();
 
     // ───────── S3-7 戦闘中の割り込み（仮台本 07。ユーザー承認済み・2026-09-05）─────────
-    // ボス HP 20〜50% で一度だけ。弾が止まり、画面が鈍色に沈む（SetQuietVeil）。
+    // 回想の終了から選択への受け渡しでは、戦闘とBGMを再開しない。
     // 問うのはミナ自身の状態＝あなたの過去は問わない。「三人分」は S3-9 に取ってあるので、
     // ここは「二人ぶんと、貼られた引用と、いまの声」に留める。
     // 機構（Step_LinesHold／Step_MidChoice／SetQuietVeil）はこはる面から移植したもので、案C でこの仕掛けの
     //   本籍がレイ面になったため、こはる面側の到達不能になった現物は撤去した（2026-09-24）＝正典はここ。
     private static readonly (int who, string text, string face)[] MidChoicePre =
     {
-        (1, "……ご主人様。弾がやんでも——聞こえます。画面の向こうで、まだ、コメントを読み上げている声が。", MWorried),
-        (1, "笑顔のまま、こちらへ撃っているんですね。……笑顔は、一度も、崩れていません。", MWorried),
         (1, "——ひとつ、ご報告を。わたくしの光、二割ほど、濁っています。", MDoubt),
         (1, "二人ぶんの声と、貼られた引用と、いまの声を、浴びすぎました。……つづけて、いいですか。", MFace),
     };
@@ -431,10 +429,10 @@ public partial class StageRei : Node
             case 9: if (_charStory) Step_Lines(delta, _storyPreBoss); else Step_Choice(delta, "s3_5c", S35cCue, S35cChoices, S35cReply, S35cTail); break;
             case 10: Step_BossSpawn(); break;
             case 11: Step_Lines(delta, _playerBoss); break;
-            case 12: Step_BossWait(delta); break;         // S3-6 ボス戦（S3-7 の割り込みをここから抜く）
+            case 12: Step_BossWait(delta); break;         // S3-6 ボス戦
             case 13: Step_Clear(delta); break;            // S3-9 クリア
             case 14: Step_Transition(); break;
-            // S3-7 戦闘中の割り込み（ボスHP 20〜50% で一度）。Step_BossWait が 15 へ飛ばし、
+            // S3-7 は回想の完了から続けて入り、
             //   17 の受けを流し切ると 12（ボス戦）へ戻る。バブルは 15→16→17 の間ずっと保持される。
             case 15: Step_LinesHold(delta, MidChoicePre); break;   // 問いかけまで（バブルを閉じない）
             case 16: Step_MidChoice(delta); break;                 // 下書き選択（つづけて／むりしないで／（送らない））
@@ -809,7 +807,7 @@ public partial class StageRei : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
-            _boss = new BossRei { Name = "BossRei" };
+            _boss = new BossRei { Name = "BossRei", MemoryFollowUp = BeginMemoryFollowUp };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
@@ -831,11 +829,49 @@ public partial class StageRei : Node
     // 撃破前は一切計らないので長期戦を打ち切ることはなく、通常プレイでは発動しない。
     private const double BossFinishGrace = 150.0;
     private double _postDefeatT;
-    // S3-7 戦闘中の割り込み：ボスHPが 20〜50% の窓に入った一度だけ step 15 へ抜ける。
-    //   ・ボム等で一気に削られ窓を飛ばしたら、割り込み無しで素直に進む＝進行不能なし。
-    //   ・Hud.BubblePaused 中（ボス自身の改心かけあい等）は発火しない＝会話の二重表示を防ぐ。
-    //   ・撃破後（IsPurified）は判定に入らない＝改心の会話に割り込まない。
     private bool _midStoryShown;
+    private System.Action? _resumeAfterMemory;
+    private ProcessModeEnum _memoryWorldMode, _memoryGameMode;
+    private GameManager? _memoryGame;
+
+    private void BeginMemoryFollowUp(System.Action resumeBattle)
+    {
+        if (_midStoryShown || _charStory || _lunatic)
+        {
+            resumeBattle();
+            return;
+        }
+        _midStoryShown = true;
+        _resumeAfterMemory = resumeBattle;
+        _memoryWorldMode = World.ProcessMode;
+        World.ProcessMode = ProcessModeEnum.Disabled;
+        _memoryGame = GetNode<GameManager>("/root/Game");
+        _memoryGameMode = _memoryGame.ProcessMode;
+        _memoryGame.ProcessMode = ProcessModeEnum.Disabled;
+        _step = 15; _stepStarted = false;
+        _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+        SetQuietVeil(true);
+        Step_LinesHold(0, MidChoicePre);
+    }
+
+    private void FinishMemoryFollowUp(bool resumeBattle)
+    {
+        if (_resumeAfterMemory == null) return;
+        var resume = _resumeAfterMemory;
+        _resumeAfterMemory = null;
+        if (IsInstanceValid(World)) World.ProcessMode = _memoryWorldMode;
+        if (IsInstanceValid(_memoryGame)) _memoryGame!.ProcessMode = _memoryGameMode;
+        if (IsInstanceValid(Hud))
+        {
+            Hud.HoldBubble = false;
+            Hud.HideBubble();
+            Hud.SuppressCallouts = false;
+        }
+        if (resumeBattle) resume();
+    }
+
+    public override void _ExitTree() => FinishMemoryFollowUp(false);
+
     private void Step_BossWait(double delta)
     {
         if (!IsInstanceValid(_boss) || _boss.Finished)
@@ -855,19 +891,9 @@ public partial class StageRei : Node
             }
             return; // 撃破後は割り込みの判定に入らない
         }
-        // S3-7 割り込み（ミナの状態報告＋下書き選択）はミナ前提＝他ジョブ潜行中は発火させない。ルナティックも同じ（戦闘を止めない）。
-        if (!_midStoryShown && !_charStory && !_lunatic && !Hud.BubblePaused)
-        {
-            float frac = (_boss.CurrentBarIndex + _boss.CurrentBarFrac) / Mathf.Max(1, _boss.TotalBars);
-            // --choice デバッグ起動中は HP 窓を待たずに即発火（選択シーンの確認用。一度きりは _midStoryShown が保証）
-            bool debugNow = GetNodeOrNull<GameManager>("/root/Game")?.DebugChoiceNow == true;
-            if ((_boss.MemoryPlayed && frac <= 0.5f && frac >= 0.2f) || debugNow)
-            {
-                _midStoryShown = true;
-                _step = 15; _stepStarted = false;
-                SetQuietVeil(true);    // 静けさの溜め＝画面をわずかに鈍色へ沈める（弾停止はエンジン側）
-            }
-        }
+        if (!_midStoryShown && !_charStory && !_lunatic && !Hud.BubblePaused
+            && GetNode<GameManager>("/root/Game").DebugChoiceNow)
+            BeginMemoryFollowUp(() => { });
     }
 
     // Step_Lines の「最終行のバブルを閉じない」変種（会話選択用。こはる面から移植）。
@@ -954,7 +980,12 @@ public partial class StageRei : Node
             return;
         }
         Step_Lines(delta, _s37After);
-        if (_step > 17) { SetQuietVeil(false); _step = 12; _stepStarted = true; }
+        if (_step > 17)
+        {
+            SetQuietVeil(false);
+            _step = 12; _stepStarted = true;
+            FinishMemoryFollowUp(true);
+        }
     }
 
     // ───── S3-7「静けさの溜め」（こはる面から移植）─────

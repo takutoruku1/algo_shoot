@@ -14,10 +14,10 @@ using Godot;
 //   LOG 横線  | 会話ログ（Backlog）                                          | L  | View                    | クリック
 //   MENU 歯車 | ポーズメニュー（PauseMenu）                                   | M  | Menu(≡)                 | クリック
 //
-//   ・見た目：30×26 の角丸ボタンに、銀・ミントのガラスと金縁の透過イラストを描く。
+//   ・見た目：一体の金属調の台座に、銀・ミントのガラスと金縁の透過イラストを描く。
 //     キー文字はボタンにも吹き出しにも載せない（作者指示。キーの案内は「あそびかた」＝HowToPlay だけが担う）。
 //     名前はマウスを乗せたときの吹き出しで出す。ON（AUTO 有効／SKIP ラッチ・早送り中）は
-//     地と枠をミント色で点灯する。キー操作とクリックは上の表のとおり効く。
+//     下辺のラインをミント色で点灯する。キー操作とクリックは上の表のとおり効く。
 //   ・LOG／MENU のキー（L／Tab／View、M／Start）は Backlog／PauseMenu が全画面で自前に読んでいる＝ここでは読まない
 //     （読むと同じ押下で二度開く）。ここが足すのはクリックだけ。
 //     例外：カットシーン（Prologue／Final／Epilogue）のパッド Start は「長押しでさいしょから」（RetryHold）で、
@@ -44,10 +44,9 @@ public sealed class DialogToolbar
     private static readonly string[] Tips = { "自動送り", "既読スキップ", "ログ", "メニュー" };
     public const int Auto = 0, Skip = 1, Log = 2, Menu = 3;
     private const int Count = 4;
-    public const float W = 30f, H = 26f;       // ボタンの寸法（設計座標）
-    private const float Radius = 6f;           // 角丸
-    private const float Gap = 6f;              // ボタン同士の間隔
-    private const float Bite = 10f;            // ボックス上辺へ食い込ませる量
+    public const float W = 64f, H = 56f;       // ボタンの寸法（設計座標）
+    private const float Gap = 8f;              // ボタン同士の間隔
+    private const float Bite = 6f;             // ボックス上辺へ食い込ませる量
     private const float Inset = 18f;           // ボックス右端からの引っ込み
     private const double Grace = 0.3;          // ボックスが出てからキー入力を受け付けるまで
     private const double TapMax = 0.3;         // RB／Start をこれより短く押し離したらボタン扱い（長押しは従来の意味）
@@ -56,7 +55,8 @@ public sealed class DialogToolbar
     private const double BreathPeriod = 2.4;   // ON の地の呼吸（α 0.85〜1.0）の周期
     private const int TipSize = 11;            // 吹き出しの字（ZenBold）
 
-    private static readonly Color OffBg = new(0.06f, 0.07f, 0.10f, 0.85f);
+    private static readonly Color Metal = new("c4b998");
+    private static readonly Color Active = new("a4e9d9");
     private static readonly string[] IconPaths = {
         "res://char/ui/dialog_auto_v1.png", "res://char/ui/dialog_skip_v1.png",
         "res://char/ui/dialog_log_v1.png", "res://char/ui/dialog_menu_v1.png",
@@ -207,6 +207,7 @@ public sealed class DialogToolbar
     //   autoOn … AUTO の点灯（自動送りが有効） ／ skipOn … SKIP の点灯（ラッチ中、または押しっぱなしの早送り中）。
     public void Draw(CanvasItem ci, Vector2 anchor, bool autoOn, bool skipOn)
     {
+        DrawDock(ci, anchor);
         // ON の地の呼吸（控えめ。α 0.85〜1.0）。
         float breath = 0.925f + 0.075f * Mathf.Sin((float)(Time.GetTicksMsec() / 1000.0 / BreathPeriod) * Mathf.Tau);
         for (int i = 0; i < Count; i++)
@@ -232,15 +233,41 @@ public sealed class DialogToolbar
         LatchMarkDrawnRect = r;
     }
 
+    private static void DrawDock(CanvasItem ci, Vector2 anchor)
+    {
+        Rect2 first = ButtonRect(anchor, Auto), last = ButtonRect(anchor, Menu);
+        float left = first.Position.X - 9, right = last.End.X + 9;
+        float top = first.Position.Y - 4, bottom = first.End.Y + 5;
+        var rim = new[] {
+            new Vector2(left, bottom), new Vector2(left, top + 7), new Vector2(left + 7, top),
+            new Vector2(right - 7, top), new Vector2(right, top + 7), new Vector2(right, bottom),
+        };
+        ci.DrawColoredPolygon(rim, new Color(0.035f, 0.044f, 0.045f, 0.96f));
+        ci.DrawPolyline(rim, new Color(Metal, 0.28f), 1, true);
+        ci.DrawLine(new Vector2(left + 7, top + 1), new Vector2(right - 7, top + 1),
+            new Color(Colors.White, 0.07f), 1, true);
+        ci.DrawLine(new Vector2(left + 6, bottom), new Vector2(right - 6, bottom),
+            new Color(Metal, 0.42f), 1, true);
+        float divider = ButtonRect(anchor, Skip).End.X + Gap / 2f;
+        ci.DrawLine(new Vector2(divider, top + 11), new Vector2(divider, bottom - 10),
+            new Color(Metal, 0.23f), 1, true);
+    }
+
     private static void DrawButton(CanvasItem ci, Rect2 r, int i, bool on, bool hover, float breath)
     {
-        Color bg = on ? new Color(UiKit.Info.Darkened(0.72f), breath) : OffBg;
-        if (hover) bg = new Color(bg.Lerp(Colors.White, 0.10f), bg.A);
-        Color border = on ? UiKit.Info.Lightened(0.3f) : hover ? UiKit.Text3 : UiKit.Text4;
-        UiKit.Box(ci, r, bg, Radius, border, on ? 1.5f : 1f);
-        float light = on || hover ? 1f : 0.86f;
-        DrawIcon(ci, new Rect2(r.Position + new Vector2(4, 3), r.Size - new Vector2(8, 6)), i,
-            new Color(light, light, light));
+        if (on || hover)
+        {
+            Color tint = on ? Active : Metal;
+            UiKit.VGradient(ci, new Rect2(r.Position, r.Size + new Vector2(0, 2)),
+                new[] { new Color(tint, 0), new Color(tint, on ? 0.13f * breath : 0.08f) },
+                new[] { 0f, 1f });
+            var left = new Vector2(r.Position.X + 4, r.End.Y + 1);
+            var right = new Vector2(r.End.X - 4, left.Y);
+            if (on) ci.DrawLine(left, right, new Color(Active, 0.12f * breath), 5, true);
+            ci.DrawLine(left, right, new Color(tint, on ? breath : 0.55f), 1, true);
+        }
+        DrawIcon(ci, new Rect2(r.Position + new Vector2(4, 2), r.Size - new Vector2(8, 8)), i,
+            Colors.White);
     }
 
     private static void DrawIcon(CanvasItem ci, Rect2 bounds, int i, Color modulate)
@@ -264,7 +291,7 @@ public sealed class DialogToolbar
         float h = 20f, w = UiKit.TextW(f, tip, TipSize) + 14f;
         float x = Mathf.Min(btn.GetCenter().X - w / 2f, UiKit.DesignW - 4f - w);
         var r = new Rect2(x, btn.Position.Y - 5f - h, w, h);
-        UiKit.Box(ci, r, new Color(0.03f, 0.035f, 0.05f, 0.94f), 5f, new Color(UiKit.Text4, 0.7f), 1f);
+        UiKit.Box(ci, r, new Color(0.035f, 0.044f, 0.045f, 0.96f), 2f, new Color(Metal, 0.4f), 1f);
         float top = r.Position.Y + (h - f.GetHeight(TipSize)) / 2f;
         UiKit.Text(ci, f, new Vector2(r.Position.X + 7f, top), tip, TipSize, UiKit.Text2);
     }

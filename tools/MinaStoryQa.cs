@@ -91,6 +91,8 @@ public partial class MinaStoryQa : Node
             var boss = world.GetNode<BossMina>("BossMina");
             Write(player, "_invincible", true);
             Write(player, "_invincibleTimer", 999f);
+            await AdvanceUntil(() => !hud.CinematicMode && !Hud.BubblePaused);
+            Check(world.ProcessMode == ProcessModeEnum.Inherit, "boss entrance releases combat before the memory threshold");
             await Frames(80);
             Check(boss.GetNode<Sprite2D>("Body").Texture.ResourcePath.Contains("boss_mina"), "new boss illustration loaded");
             foreach (string pose in new[] { "idle", "attack", "cry", "post" })
@@ -156,7 +158,7 @@ public partial class MinaStoryQa : Node
             await Frames(25);
             Check(Read<double>(film!, "_shotT", typeof(StoryFilm)) == motion, "backlog pauses flashback");
             Call(backlog, "Close");
-            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 14);
+            await AdvanceUntil(() => Read<int>(film!, "_line", typeof(StoryFilm)) == 6);
             await Frames(100);
             await Shot("unsent_request_to_rest", true);
             if (!lethal) boss.SetProcess(false);
@@ -221,13 +223,13 @@ public partial class MinaStoryQa : Node
                       && game.ProcessMode != ProcessModeEnum.Disabled, "aborted movie restores processing");
                 stage.SetProcess(true);
             }
-            await AdvanceUntil(() => GetTree().CurrentScene.SceneFilePath == "res://Final.tscn");
+            await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Final.tscn");
             Check(!Hud.BubblePaused, "return film releases pause before final choice");
             var final = GetTree().CurrentScene;
             await AdvanceUntil(() => Read<ChoiceOverlay?>(final, "_choice") != null);
             await Frames(60);
             await Shot("final_word_choice", false);
-            await AdvanceUntil(() => GetTree().CurrentScene.SceneFilePath == "res://Epilogue.tscn");
+            await AdvanceUntil(() => GetTree().CurrentScene?.SceneFilePath == "res://Epilogue.tscn");
             var epilogue = GetTree().CurrentScene;
             await AdvanceUntil(() => Read<int>(epilogue, "_line") == 12);
             await Frames(120);

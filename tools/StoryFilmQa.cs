@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -18,6 +19,10 @@ public partial class StoryFilmQa : Node
         if (!condition) throw new Exception(message);
         GD.Print($"[StoryQA] PASS {message}");
     }
+
+    private static int[] FilmShots(StoryFilm film)
+        => Read<Array>(film, "_lines").Cast<object>()
+            .Select(line => (int)line.GetType().GetProperty("Shot")!.GetValue(line)!).Distinct().ToArray();
 
     public override async void _Ready()
     {
@@ -75,7 +80,7 @@ public partial class StoryFilmQa : Node
                     var artFilm = (StoryFilm)GetTree().GetFirstNodeInGroup("storyfilm");
                     Check(Read<string>(artFilm, "_atlasPath").EndsWith("_story_atlas_v2.png"), "runtime uses the repaired atlas");
                     Check(Read<int>(artFilm, "_atlasRows") == 4, "original eight-shot layout retained");
-                    for (int shot = aftermath ? 5 : 0; shot <= (aftermath ? 7 : 4); shot++)
+                    foreach (int shot in FilmShots(artFilm))
                     {
                         await AdvanceUntil(() => Read<int>(artFilm, "_shot") == shot);
                         await Frames(65);
@@ -171,18 +176,32 @@ public partial class StoryFilmQa : Node
             Call(backlog, "Close");
             await Frames(30);
             Check(!GetTree().Paused, "backlog restores normal playback");
-            await AdvanceUntil(() => Read<int>(film!, "_shot") == 1);
-            await Frames(60);
-            await Shot("memory_pressure", grayscale: true);
-            if (koharu || rei)
-                for (int shot = 2; shot <= 4; shot++)
-                {
-                    await AdvanceUntil(() => Read<int>(film!, "_shot") == shot);
-                    await Frames(60);
-                    await Shot($"memory_scene_{shot}", grayscale: true);
-                }
+            foreach (int shot in FilmShots(film!).Skip(1))
+            {
+                await AdvanceUntil(() => Read<int>(film!, "_shot") == shot);
+                await Frames(60);
+                await Shot($"memory_scene_{shot}", grayscale: true);
+            }
             await AdvanceUntil(() => !IsInstanceValid(film));
-            Check(!hud.CinematicMode && (rei || !Hud.BubblePaused) && world.ProcessMode == ProcessModeEnum.Inherit
+            if (rei)
+            {
+                Check(!hud.CinematicMode && Hud.BubblePaused && Read<int>(stage, "_step") == 15,
+                    "memory hands directly into Mina's report without a battle frame");
+                Check(world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
+                    "memory follow-up retains world and combo pause");
+                await Frames(45);
+                Check(player.GlobalPosition == position && boss.HpRatio == hp
+                      && Read<double>(boss, "_phaseT", typeof(Enemy)) == phaseT
+                      && Read<double>(stage, "_stageElapsed") == elapsed
+                      && Read<double>(game, "_comboTimer") == comboTime,
+                    "report keeps movement, damage and all battle clocks frozen");
+                Check(!Read<bool>(boss, "_form2", typeof(Enemy)) && !Read<bool>(boss, "_relayFired")
+                      && !Read<bool>(boss, "_accelerated"), "battle transitions wait until the choice is resolved");
+                await Shot("memory_followup", grayscale: false);
+                await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
+                Check(!hud.SuppressCallouts, "Mina choice releases callouts");
+            }
+            Check(!hud.CinematicMode && !Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Inherit
                   && game.ProcessMode == gameMode, "flashback restores world and HUD");
             if (koharu)
             {
@@ -206,11 +225,6 @@ public partial class StoryFilmQa : Node
                           && Read<bool>(boss, "_accelerated"), "large damage resumes all crossed thresholds");
                     Check(((BossRei)boss).AoeGateActive, "relay telegraph starts after memory");
                     await WaitUntil(() => !((BossRei)boss).AoeGateActive, 1600);
-                }
-                else
-                {
-                    await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
-                    Check(!Hud.BubblePaused && !hud.SuppressCallouts, "Mina choice completes after memory and restores battle");
                 }
             }
             else Check(Read<bool>(boss, "_form2", typeof(Enemy)) && Read<bool>(boss, "_corridorFired"), "second form and corridor begin after the memory");
@@ -354,6 +368,8 @@ public partial class StoryFilmQa : Node
                     "world and game timers disabled during memory");
                 if (report) { await Frames(90); using var shot = await Shot("memory", grayscale: true); }
                 await AdvanceUntil(() => !IsInstanceValid(film));
+                if (rei)
+                    await AdvanceUntil(() => Read<bool>(stage, "_midStoryShown") && Read<int>(stage, "_step") == 12);
                 Check(!hud.CinematicMode && world.ProcessMode == ProcessModeEnum.Inherit
                       && game.ProcessMode != ProcessModeEnum.Disabled, "memory restores combat");
             }
@@ -523,6 +539,16 @@ public partial class StoryFilmQa : Node
     {
         var grade = Read<ShaderMaterial>(film, "_grade", typeof(StoryFilm));
         if (grade.GetShaderParameter("blend_amount").AsSingle() < 1f || film.Modulate.A < 1f) return;
+        bool quietHeader = true;
+        var skip = Read<FilmSkip>(film, "_skip", typeof(StoryFilm));
+        int right = skip.Available ? 995 : 1220;
+        for (int y = 22; y < 50; y++)
+            for (int x = 710; x < right; x++)
+            {
+                var pixel = rendered.GetPixel(x * rendered.GetWidth() / 1280, y * rendered.GetHeight() / 720);
+                quietHeader &= Math.Max(pixel.R, Math.Max(pixel.G, pixel.B)) < 0.16f;
+            }
+        Check(quietHeader, "upper-right header has no frame counter or progress ticks");
         var texture = grade.GetShaderParameter("scene_texture").AsGodotObject() as Texture2D;
         var region = grade.GetShaderParameter("scene_region").AsVector4();
         int shot = Read<int>(film, "_shot", typeof(StoryFilm));

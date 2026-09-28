@@ -337,25 +337,6 @@ public partial class StoryFilm : Node2D
         UiKit.Text(this, UiKit.Mono, new Vector2(64, 24), mode, 18, new Color(accent, 0.96f));
         UiKit.Text(this, UiKit.ZenBold, new Vector2(64 + chipW, 25), $"  {StoryLabel()} / {modeJ}", 16, new Color(UiKit.Text2, 0.9f));
 
-        float metaRight = _skip.Available ? 990f : 1194f;
-        string progress = $"{_line + 1:00}/{_lines.Length:00}";
-        float progressW = UiKit.TextW(UiKit.Mono, progress, 18);
-        UiKit.Text(this, UiKit.Mono, new Vector2(metaRight - progressW, 25), progress, 18, new Color(UiKit.Text2, 0.86f));
-        DrawProgressTicks(accent, accent2, metaRight - 58f);
-    }
-
-    private void DrawProgressTicks(Color accent, Color accent2, float right)
-    {
-        int count = Math.Max(1, _lines.Length);
-        float w = 206f, x0 = right - w, y = 37f;
-        DrawRect(new Rect2(x0, y, w, 1.4f), new Color(1, 1, 1, 0.11f));
-        for (int i = 0; i < count; i++)
-        {
-            float x = x0 + w * i / Math.Max(1, count - 1);
-            float h = i == _line ? 12f : i < _line ? 8f : 5f;
-            Color c = i <= _line ? accent.Lerp(accent2, count <= 1 ? 0 : i / (float)(count - 1)) : new Color(UiKit.Text4, 0.32f);
-            DrawRect(new Rect2(x - 1.2f, y - h * 0.5f, 2.4f, h), c);
-        }
     }
 
     // 時制の見出し（字幕）。会話欄の話者名の行（Hud のシネマ表示は 112,542 に話者名を描く）に、

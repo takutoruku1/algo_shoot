@@ -129,6 +129,12 @@ public partial class MemoryTempoQa : Node
                         await Frames(20);
                     }
                     allFf &= r.FfOk;
+                    if (!survey)
+                    {
+                        bool final = label.StartsWith("mina_memory");
+                        Check(r.Lines <= (final ? 10 : 6), $"{label}: only the central memory interrupts combat");
+                        Check(r.Auto <= (final ? 21 : 13), $"{label}: auto playback fits the battle pause budget ({r.Auto:0.0}s)");
+                    }
                     rows.Add(r.Row());
                 }
 

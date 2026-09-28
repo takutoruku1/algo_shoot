@@ -375,8 +375,18 @@ public partial class ChoiceOverlayQa : Node
         var stage = _root.GetNode<StageRei>("StageRei");
         var hud = _root.GetNode<Hud>("Hud");
         var game = GetNode<GameManager>("/root/Game");
+        var world = _root.GetNode<Node2D>("World");
+        var gameMode = game.ProcessMode;
+        var begin = stage.GetType().GetMethod("BeginMemoryFollowUp", Private)!;
         for (int sel = 0; sel < 3; sel++)
         {
+            Set(stage, "_midStoryShown", false);
+            world.ProcessMode = ProcessModeEnum.Inherit;
+            int resumed = 0;
+            begin.Invoke(stage, new object[] { (Action)(() => resumed++) });
+            Check(Read<int>(stage, "_step") == 15 && Hud.BubblePaused && hud.SuppressCallouts
+                && world.ProcessMode == ProcessModeEnum.Disabled && game.ProcessMode == ProcessModeEnum.Disabled,
+                $"S37/{sel}: film hand-off starts dialogue with no combat gap");
             Set(stage, "_step", 17);
             Set(stage, "_stepStarted", false);
             stage.GetType().GetMethod("SetQuietVeil", Private)!.Invoke(stage, new object[] { true });
@@ -400,10 +410,19 @@ public partial class ChoiceOverlayQa : Node
             }
             Check(Read<int>(stage, "_step") == 12 && !hud.SuppressCallouts && !hud.HoldBubble,
                 $"S37/{sel}: returns to battle without leaking the pause");
+            Check(resumed == 1 && world.ProcessMode == ProcessModeEnum.Inherit && game.ProcessMode == gameMode,
+                $"S37/{sel}: restores processing and resumes battle exactly once");
             Check(sel == 0 ? resting == 0 : resting >= 19, $"S37/{sel}: respects the requested two-second rest");
             var quote = ((int, string, string))typeof(StageMina).GetMethod("S37Quote", Static)!.Invoke(null, new object[] { game })!;
             Check(!quote.Item2.Contains("すみません") && !quote.Item2.Contains("続行と"), "final recall does not blame concern or silence");
         }
+        Set(stage, "_midStoryShown", false);
+        world.ProcessMode = ProcessModeEnum.Pausable;
+        begin.Invoke(stage, new object[] { (Action)(() => throw new Exception("aborted follow-up resumed combat")) });
+        stage.QueueFree();
+        await Frames(2);
+        Check(world.ProcessMode == ProcessModeEnum.Pausable && game.ProcessMode == gameMode
+            && !Hud.BubblePaused && !hud.SuppressCallouts, "aborted follow-up restores the original process modes and HUD");
     }
 
     private async Task Screens()

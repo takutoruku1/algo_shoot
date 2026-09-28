@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 //         入力なしで FastForwarding が真・印は消える
 //     (c) L で Backlog.IsOpen ／ (d) M で PauseMenu.IsOpen、MENU クリック経路（PauseMenu.Open の Call）も開く
 //     (g) ボタン列にマウスが乗っている間は左クリックが会話送り（Pad.AdvanceHeld）に数えられない
-//     (vi) ボタン矩形：30×26・間隔 6・ボックス上辺に 10 食い込み・右端から 18 内側（戦闘の会話バーで実寸を突き合わせる）
+//     (vi) ボタン矩形：64×56・間隔 8・ボックス上辺に 6 食い込み・右端から 18 内側（戦闘の会話バーで実寸を突き合わせる）
 //     (h) Hud を通らない画面（Prologue／Epilogue／Hub の会話）にもボタン列が出て、枠の上辺右寄せに並び、
 //         A で AUTO（全文表示後に自動で送る）、S で SKIP（未読行で即 OFF／既読行で早送り／選択肢・未読行で OFF。
 //         ハブは会話を閉じても ON のまま右上に印）
@@ -190,9 +190,23 @@ public partial class DialogToolbarQa : Node
             GD.Print($"[Toolbar] rects AUTO={r0} MENU={r3}");
             // (vi) 新しい寸法（戦闘の会話バー＝右上 (DlgBoxX+DlgBoxW, 520)）
             float ax = Hud.DlgBoxX + Hud.DlgBoxW;
-            Check(r3 == new Rect2(ax - 18f - 30f, 504f, 30f, 26f), $"(vi) MENU rect is 30x26, 18 in from the right, 10 into the top edge ({r3})");
-            Check(r0 == new Rect2(ax - 18f - 30f - 3f * 36f, 504f, 30f, 26f), $"(vi) AUTO rect sits 3 buttons (30+6) to the left ({r0})");
-            Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 6f, "(vi) 6px gap between buttons");
+            Check(r3 == new Rect2(ax - 18f - 64f, 470f, 64f, 56f), $"(vi) MENU rect is 64x56, 18 in from the right, 6 into the top edge ({r3})");
+            Check(r0 == new Rect2(ax - 18f - 64f - 3f * 72f, 470f, 64f, 56f), $"(vi) AUTO rect sits 3 buttons (64+8) to the left ({r0})");
+            Check(hud.ToolbarRect(1).Position.X - hud.ToolbarRect(0).End.X == 8f, "(vi) 8px gap between buttons");
+            var boundsField = typeof(DialogToolbar).GetField("IconRegions", PrivateStatic)!;
+            var regions = (Rect2[])boundsField.GetValue(null)!;
+            for (int i = 0; i < regions.Length; i++)
+            {
+                Vector2 bounds = hud.ToolbarRect(i).Size - new Vector2(8, 8);
+                Vector2 size = regions[i].Size * Mathf.Min(bounds.X / regions[i].Size.X, bounds.Y / regions[i].Size.Y);
+                Check(size.Y >= 33 && size.X >= 37, $"(vi) illustration {i} retains visible detail at {size}");
+            }
+            var boardChoices = ChoiceOverlay.Show(root, ChoiceEffects.SkyChoices, 3, onBoard: true);
+            await Frames(3);
+            var rows = Read<Rect2[]>(boardChoices, "_rows");
+            Check(rows[^1].End.Y + 8 <= r0.Position.Y - 4, "(vi) toolbar dock stays below all four choices");
+            boardChoices.QueueFree();
+            await Frames(3);
 
             if (shot) await Shots(game, hud, world, readField, stamp);
 

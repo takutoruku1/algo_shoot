@@ -7,7 +7,7 @@ using Godot;
 public partial class BossRei : Enemy
 {
     public bool Finished { get; private set; }
-    public bool MemoryPlayed => _memoryPlayed;
+    public System.Action<System.Action>? MemoryFollowUp { get; set; }
 
     private readonly BossMover _mover = new BossMover();
     // 旧・徘徊速度。移動は BossMover の cruise_speed（ini [rei]）が握るので、これは
@@ -538,7 +538,7 @@ public partial class BossRei : Enemy
         if (_memoryPending && !_seq && !IsPurified && !Hud.BubblePaused)
         {
             _memoryPending = false;
-            _memoryPlayed = true;   // S3-7 割り込みの前提フラグ（他ジョブ時は StageRei 側で割り込み自体を抑止）
+            _memoryPlayed = true;
             // ルナティック：回想を挟まない。フィルム明けの復帰（第二形態・保留していた閾値の拾い直し）だけをその場で通す
             //   ＝弾幕も曲も途切れない（S3-7 の割り込みは StageRei 側がルナティックで抑止）。
             if (GameManager.LunaticActive) { OnHpChanged(); return; }
@@ -560,7 +560,11 @@ public partial class BossRei : Enemy
                 _memoryTalk = CharacterStoryTalk.Start(CharacterStory.Memory(game.SelectedJob, "rei"),
                     GetHud, ShowStoryLine, ResumeBattle);
             }
-            else ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: ResumeBattle);
+            else ReiStoryFilm.Play(GetHud()!, GetParent(), aftermath: false, completed: () =>
+            {
+                if (MemoryFollowUp != null) MemoryFollowUp(ResumeBattle);
+                else ResumeBattle();
+            });
             return;
         }
         if (!_seq && !_memoryPending && !_relayWatching && _posts.TryStart()) return;
