@@ -1,0 +1,12 @@
+{
+  "tool": "image_gen built-in",
+  "use_case": "precise-object-edit",
+  "output": "char/v3/mina_conversation_worried_v1.png",
+  "scope": "Prologue dialogue; neutral uses the existing shooting conversation portrait without changing it.",
+  "references": [
+    "char/v3/mina_conversation_v1.png",
+    "char/mina_worried.png"
+  ],
+  "prompt": "Use case: precise-object-edit.\nAsset type: registered expression variant of Mina's in-game waist-up conversation portrait for the Japanese game Refrain.\nInput 1 is the EDIT TARGET and authoritative finished drawing. Input 2 is an EXPRESSION-INTENT reference only: the old worried version. Do not copy image 2's glossy rendering, proportions or costume differences.\nCreate a worried/concerned expression for the exact same Mina in image 1. Change only her eyebrows and mouth, with a very subtle concerned adjustment to the eyelids if needed. Slightly raise the inner eyebrows and gently part the small mouth, as if she has heard someone's unsent cry for help and is quietly concerned. Keep the emotion restrained: not crying, not panicking, not frightened, not smiling or glaring. Her blue eyes remain open, directed toward the viewer, with the same simple irises and half-lidded character identity.\nPreserve the exact canvas 1024x1536, camera, face/head size and angle, face contour, body proportions, pose, hair silhouette and every clothing detail of image 1. The white long hair, bangs and side strands, maid headdress, navy uniform, white apron, blue rectangular brooch, sleeve shapes and bottom waist crop MUST remain aligned with image 1, so dialogue can switch between the two expressions without a jump or change of size. Preserve its thin charcoal/brown linework, warm skin tone, flat colors and simple cel shadows. No glossy or painterly restyling, no new ornaments, no new pose or hand gesture.\nOutput one 1024x1536 PNG with a genuinely transparent alpha background, preserving all transparent gaps. The gray/black glow seen in the reference preview is not a backdrop; do not paint it. No solid fill, vignette, cloud, halo, gradient, checkerboard, text or watermark. Only a matching concerned-expression cutout.",
+  "finishing": "Native generated 1024x1536 PNG with alpha, copied without image processing."
+}

@@ -66,10 +66,8 @@ public partial class Hub : Node2D
         }
     }
 
-    // 出会う前の相手の伏せ名（カードの名前・ハンドル欄）。アバターの「?」・本文の伏字と同じ語彙で、
-    //   「誰かは分からないが、投稿はそこに並んでいる」だけを言う。新しい意匠は作らない。
+    // サイドバーの未解放ステージ名。タイムラインには未解放の投稿を置かない。
     private const string LockedName = "???";
-    private const string LockedHandle = "@???";
     // FINAL（ミナ自身の内側）のシーン。カード生成・プレビュー・自動ダイブの3か所が同じ文字列を書いていたので定数へ。
     // FINAL カードの本文（2026-09-27 作者指摘「説明的すぎる・意味がわからない」で全面改稿）。
     //   これはミナ自身の投稿＝三人の下書きを預かりきった彼女の「下書き」が、本人の覚えのないまま投稿に立ったもの。
@@ -488,29 +486,23 @@ public partial class Hub : Node2D
         long fol = _game?.Followers ?? 0;
         foreach (var s in GameManager.Stages)
         {
-            bool cleared = _game?.IsStageCleared(s.Id) ?? false;
-            bool unlocked = _game?.IsStageUnlocked(s.Id) ?? true;
+            if (!IsStageUnlockedForDisplay(s.Id)) continue;
+            bool cleared = IsClearedForDisplay(s.Id);
             string name = s.Title.Contains("—") ? s.Title.Split('—')[^1].Trim() : s.Title;
             var (rep, rt, lk) = counts.TryGetValue(s.Id, out var c) ? c : (0L, 0L, 0L);
             // クリア＝浄化が届いた投稿は伸びる（ミナのフォロワー数と連動。数字に物語の意味を持たせる）。
             if (cleared)
                 ApplyClearBoost(ref rep, ref rt, ref lk, fol, _game?.HasReplied(s.Id) ?? false);
-            // まだ出会っていない相手は、名前・ハンドル・本文を伏せる（2026-09-07）。
-            //   名前が読めると「次に誰が来るか」が最初に割れる＝出会いの驚きが無くなる。
-            //   伏せ方は既存の語彙のまま：アバターは FaceAvatar の「?」ロック円（Unlocked=false で出る）、
-            //   本文の位置には RedactedBars の伏字が乗る（DrawCard が Tweet 空でも伏字を描く）。
-            //   解放された時点で本物の名前・ハンドル・本文が出る＝あかりは初回から今までどおり。
             list.Add(new Entry
             {
                 IsFinal = false, Id = s.Id, Scene = s.Scene,
-                Name = unlocked ? name : LockedName, Handle = unlocked ? s.Handle : LockedHandle,
-                Tweet = unlocked ? s.Tweet : "", Initial = unlocked && name.Length > 0 ? name.Substring(0, 1) : "?",
-                Unlocked = unlocked, Cleared = cleared,
+                Name = name, Handle = s.Handle, Tweet = s.Tweet, Initial = name.Substring(0, 1),
+                Unlocked = true, Cleared = cleared,
                 Replies = rep, Reposts = rt, Likes = lk,
                 Sort = Kind.Voice, RelT = RelTime(s.Id),
             });
         }
-        if (_game?.AllStoryCleared ?? false)
+        if (System.Array.TrueForAll(GameManager.Stages, s => IsClearedForDisplay(s.Id)))
         {
             list.Add(new Entry
             {
@@ -523,45 +515,26 @@ public partial class Hub : Node2D
         _entries = Interleave(list).ToArray();
     }
 
-    // ───────── 2-b: タイムラインを本物の feed にする ─────────
-    // 三人（＋FINAL）の投稿の間に、他人の投稿を混ぜて並べる。遊び手のやることが
-    //   「一枚しかないカードで Z を押す」から「並んだ投稿の中から、声のする一本を見つける」に変わる。
-    //
-    // 埋め草の文面は PostPool の層1（日常）／層2（病みサイン）から引く＝道中の言葉弾・背景カードと同じ語彙
-    //   （正典 wiki/08_仮台本/09_投稿文集_Y風.md。ここで新しい文面は書かない）。
-    //   面のテーマは、その投稿が挟まる位置の前後にいるヒロインに合わせる＝TL がその晩の面の色に寄る。
-    // ハンドル・表示名・相対時刻・エンゲージ数は StageImagery の背景カードと同じ決定論生成（Frac(Sin)）で散らす。
-    //   毎入場で並びが変わらない＝カーソルの記憶が効く（種は面の解放状況から起こす）。
-    private const int FillerMin = 6, FillerMax = 10;
+    private const int FillersPerBatch = 3;
 
     private System.Collections.Generic.List<Entry> Interleave(System.Collections.Generic.List<Entry> voices)
     {
         var feed = new System.Collections.Generic.List<Entry>();
-        // 先頭にミナの最新投稿を固定ポストとして置く（potin: これは「自分の TL だ」と言う一行）。
         var pinned = PinnedPost();
         if (pinned != null) feed.Add(pinned.Value);
-
-        // 埋め草の本数は解放が進むほど増やす（初回の TL は薄く、三人ぶん出そろうと賑やかになる）。
-        int cleared = 0;
-        foreach (var v in voices) if (v.Cleared) cleared++;
-        int fillers = Mathf.Clamp(FillerMin + cleared * 2, FillerMin, FillerMax);
-
-        // 種＝解放状況（クリア数と声の本数）。同じ状況なら毎回同じ TL が並ぶ。
-        var rng = new RandomNumberGenerator { Seed = (ulong)(0x5F1D + cleared * 977 + voices.Count * 31) };
-        int idx = 0;   // 決定論生成の通し番号（ハンドル/表示名/時刻/数字の種）
-
-        // 声の前後に埋め草を配る。声と声の間に 1〜2 本ずつ、余りは末尾へ。
-        int left = fillers;
-        for (int i = 0; i < voices.Count; i++)
+        // 解放ごとに新着を上へ追加し、既存の投稿は内容・順序を保つ。
+        for (int i = voices.Count - 1; i >= 0; i--)
         {
-            int here = (i < voices.Count - 1) ? Mathf.Min(left, 1 + rng.RandiRange(0, 1)) : left;
-            // 最後の声の後ろは 2 本までにして、声が画面の下に埋もれないようにする。
-            if (i == voices.Count - 1) here = Mathf.Min(here, 2);
-            for (int k = 0; k < here; k++) feed.Add(Filler(ThemeNear(voices, i), rng, idx++));
-            left -= here;
-            feed.Add(voices[i]);
+            Entry voice = voices[i];
+            int batch = voice.IsFinal ? GameManager.Stages.Length
+                : System.Array.FindIndex(GameManager.Stages, stage => stage.Id == voice.Id);
+            var rng = new RandomNumberGenerator { Seed = (ulong)(0x5F1D + batch * 977) };
+            for (int k = 0; k < FillersPerBatch; k++)
+            {
+                if (k == 2) feed.Add(voice);
+                feed.Add(Filler(ThemeNear(voices, i), rng, batch * FillersPerBatch + k));
+            }
         }
-        for (int k = 0; k < left && k < 2; k++) feed.Add(Filler(ThemeNear(voices, voices.Count - 1), rng, idx++));
         return feed;
     }
 
@@ -585,7 +558,7 @@ public partial class Hub : Node2D
     {
         var layer = PostPool.RollLayer(theme, rng);
         if (layer == PostPool.Layer.L3) layer = PostPool.Layer.L1;
-        string body = PostPool.Draw(theme, layer, rng);
+        string body = PostPool.DrawStable(theme, layer, rng);
         return new Entry
         {
             IsFinal = false, Id = $"filler{i}", Scene = "", Name = FillerName(i), Handle = FillerHandle(i),
@@ -625,11 +598,19 @@ public partial class Hub : Node2D
         _ => _game?.IsStageCleared(id) ?? false,
     };
 
+    private bool IsStageUnlockedForDisplay(string id) => _previewState switch
+    {
+        "all" or "final" => true,
+        "lock" => id == GameManager.FirstStageId,
+        "first" => System.Array.FindIndex(GameManager.Stages, stage => stage.Id == id) <= 1,
+        _ => _game?.IsStageUnlocked(id) ?? true,
+    };
+
     // ── 埋め草のメタ生成（StageImagery.cs の背景カードと同じ決定論式。並びは通し番号 i で固定）──
     private static float Frac(float v) => v - Mathf.Floor(v);
     // 埋め草の表示名・@ハンドル・アイコンは src/SnsVoices.cs の1枚の表から引く（道中の背景カード
     //   ＝StageImagery.cs と同じ表・同じ式）。表示名／ハンドル／アイコンは必ず同じ添字＝同じ人には
-    //   毎回同じ名前と同じ顔が付く。通し番号 i は Interleave() が振る（並びは解放状況で固定）。
+    //   毎回同じ名前と同じ顔が付く。通し番号 i は解放時の投稿グループ内で固定する。
     private static int FillerVoice(int i) => (int)(Frac(Mathf.Sin(i * 45.3f) * 10247.7f) * SnsVoices.Count) % SnsVoices.Count;
     private static string FillerHandle(int i)
     {
@@ -649,7 +630,7 @@ public partial class Hub : Node2D
         return kind switch { 0 => (long)(r * 6f), 1 => (long)(r * 9f), _ => (long)(r * 48f) };
     }
 
-    // クリア済投稿のエンゲージ伸長（浄化が届いた投稿は伸びる）。BuildEntries と ApplyPreview で共用。
+    // クリア済投稿はフォロワー数と返信に応じて反応が伸びる。
     private static void ApplyClearBoost(ref long rep, ref long rt, ref long lk, long fol, bool replied)
     {
         lk = lk * 4 + fol * 2; rt = rt * 3 + fol / 4; rep = rep * 2 + fol / 8;
@@ -664,90 +645,8 @@ public partial class Hub : Node2D
     private void ApplyPreview()
     {
         if (_previewState == null) return;
-        // 2-b: プレビューは「声」の側だけを組み替え、埋め草と固定ポストは Interleave に組み直させる。
-        var list = new System.Collections.Generic.List<Entry>();
-        foreach (var e in _entries) if (e.Sort == Kind.Voice && !e.IsFinal) list.Add(e);
-
-        switch (_previewState)
-        {
-            case "all":
-            case "final":
-                for (int i = 0; i < list.Count; i++)
-                {
-                    var e = list[i]; e.Unlocked = true;
-                    if (!e.Cleared) // 実セーブで未クリアの分だけ、クリア連動のエンゲージ伸長も表示に反映
-                    {
-                        long rep = e.Replies, rt = e.Reposts, lk = e.Likes;
-                        ApplyClearBoost(ref rep, ref rt, ref lk, _game?.Followers ?? 0, false);
-                        e.Replies = rep; e.Reposts = rt; e.Likes = lk;
-                    }
-                    e.Cleared = true; list[i] = e;
-                }
-                list.Add(new Entry
-                {
-                    IsFinal = true, Id = "final", Scene = FinalScene,
-                    Name = "ミナ", Handle = Handles.Mina,
-                    Tweet = FinalTweet, Initial = "ミ",
-                    Unlocked = true, Cleared = false,
-                    Sort = Kind.Voice, RelT = "now",
-                });
-                break;
-            case "lock":
-                for (int i = 0; i < list.Count; i++)
-                {
-                    var e = list[i];
-                    e.Cleared = false;
-                    e.Unlocked = (i == 0); // 1枚目だけ「声」
-                    list[i] = e;
-                }
-                break;
-            case "first":
-                // 1面クリア直後：あかり＝届いた／こはる＝次の声／レイ＝まだ聞こえない。
-                //   ミナの固定ポストが feed 最上段に載った状態の見え方（2-b）。
-                for (int i = 0; i < list.Count; i++)
-                {
-                    var e = list[i];
-                    e.Cleared = i == 0;
-                    e.Unlocked = i <= 1;
-                    if (e.Cleared)
-                    {
-                        long rep = e.Replies, rt = e.Reposts, lk = e.Likes;
-                        ApplyClearBoost(ref rep, ref rt, ref lk, _game?.Followers ?? 0, false);
-                        e.Replies = rep; e.Reposts = rt; e.Likes = lk;
-                    }
-                    list[i] = e;
-                }
-                break;
-        }
-        // プレビューは Unlocked を後から書き換えるので、伏せ名（BuildEntries で入れた ??? ）を
-        //   最終的な解放状態に合わせて貼り直す＝プレビューでも「解放＝本名／未解放＝???」が一致する。
-        for (int i = 0; i < list.Count; i++)
-        {
-            var e = list[i];
-            foreach (var s in GameManager.Stages)
-            {
-                if (s.Id != e.Id) continue;
-                string real = s.Title.Contains("—") ? s.Title.Split('—')[^1].Trim() : s.Title;
-                e.Name = e.Unlocked ? real : LockedName;
-                e.Handle = e.Unlocked ? s.Handle : LockedHandle;
-                e.Tweet = e.Unlocked ? s.Tweet : "";
-                e.Initial = e.Unlocked && real.Length > 0 ? real.Substring(0, 1) : "?";
-                break;
-            }
-            list[i] = e;
-        }
-        _entries = Interleave(list).ToArray();
-        // カーソルは本番と同じ考え方で置く（埋め草の上には置かない）。
-        //   final = 最後の声（FINAL カード）／それ以外 = 最初の「まだ届いていない声」＝次に潜る投稿。
-        _sel = 0;
-        bool last = _previewState == "final";
-        for (int i = 0; i < _entries.Length; i++)
-        {
-            if (_entries[i].Sort != Kind.Voice) continue;
-            if (last) { _sel = i; continue; }
-            if (_entries[i].Unlocked && !_entries[i].Cleared) { _sel = i; break; }
-            if (_sel == 0) _sel = i;   // 未クリアの声が無ければ最初の声へ落とす
-        }
+        BuildEntries();
+        _sel = DefaultSelection();
     }
 
     // SNSアイコンと会話の表情差分は別々に保持する。
@@ -809,11 +708,9 @@ public partial class Hub : Node2D
     //   ＝入場して Z、で潜れる導線（2 押し）が feed になっても崩れない。
     private int DefaultSelection()
     {
-        string? next = _game?.NextUnclearedStageId();
-        if (next != null)
-            for (int i = 0; i < _entries.Length; i++)
-                if (_entries[i].Sort == Kind.Voice && !_entries[i].IsFinal && _entries[i].Id == next) return i;
-        for (int i = _entries.Length - 1; i >= 0; i--)
+        for (int i = 0; i < _entries.Length; i++)
+            if (_entries[i].Sort == Kind.Voice && !_entries[i].Cleared) return i;
+        for (int i = 0; i < _entries.Length; i++)
             if (_entries[i].Sort == Kind.Voice) return i;
         return 0;
     }
@@ -985,6 +882,7 @@ public partial class Hub : Node2D
             _game?.AutoSave();
             _mode = _dlgReturnMode;
             _cardsEnteredT = _t;
+            if (_mode == Mode.Cards) UpdateFeedScrollTarget();
             return;
         }
         // トーストは X の通知文の型で出す（2-a）。数値は残すが、主語は「誰に届いたか」に置き換える。
@@ -2135,11 +2033,7 @@ public partial class Hub : Node2D
             || (_mode == Mode.Dialogue && _dlgReturnMode == Mode.Home)
             || (_mode == Mode.Job && _jobReturnMode is Mode.Home or Mode.Photos);
         if (!home && IsVoice(_sel)) return _entries[_sel].Id;
-        foreach (var entry in _entries)
-            if (entry.Sort == Kind.Voice && entry.Unlocked && !IsClearedForDisplay(entry.Id)) return entry.Id;
-        for (int i = _entries.Length - 1; i >= 0; i--)
-            if (IsVoice(i)) return _entries[i].Id;
-        return GameManager.FirstStageId;
+        return _entries[DefaultSelection()].Id;
     }
 
     // サイドパネル立ち絵の「顔」（画像ピクセル）：eyes＝両目の中点、face＝目線から顎までの高さ。
@@ -2450,14 +2344,17 @@ public partial class Hub : Node2D
 
     private float _feedScroll, _feedScrollTarget;
     private const float WheelStep = 90f;        // ホイール1ノッチあたりのスクロール量（設計座標）
+    private float FeedViewHeight => ((_mode == Mode.SnsOpening && NeedsSnsIntro)
+        || (_mode == Mode.Dialogue && _dlgSeenKey == SnsIntroSeenKey)
+        ? DialogBox.Position.Y : FeedBottom) - FeedTop;
     private float FeedMaxScroll()
     {
-        return Mathf.Max(0f, CardTop(_entries.Length) - (FeedBottom - FeedTop));
+        return Mathf.Max(0f, CardTop(_entries.Length) - FeedViewHeight);
     }
     // 選択が画面外へ出ないところまでだけスクロールを動かす（上下に 1 枚ぶんの余白を残して先を見せる）。
     private void UpdateFeedScrollTarget()
     {
-        float viewH = FeedBottom - FeedTop;
+        float viewH = FeedViewHeight;
         float y0 = CardTop(_sel), y1 = y0 + CardHeight(_entries[_sel]);
         const float margin = 36f;
         if (y0 - margin < _feedScrollTarget) _feedScrollTarget = y0 - margin;
@@ -2485,7 +2382,7 @@ public partial class Hub : Node2D
     {
         float max = FeedMaxScroll();
         if (max <= 0f) return;
-        float viewH = FeedBottom - top;
+        float viewH = FeedViewHeight;
         float th = Mathf.Max(28f, viewH * viewH / (viewH + max));
         float ty = top + (viewH - th) * Mathf.Clamp(_feedScroll / max, 0f, 1f);
         UiKit.Box(this, new Rect2(PhoneX + PhoneW - 4f, ty, 2f, th), new Color(UiKit.Text3, 0.45f * alpha), 1f);

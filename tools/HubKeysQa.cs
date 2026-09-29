@@ -110,6 +110,7 @@ public partial class HubKeysQa : Node
             Check((bool)Call(hub, "CardButtonsShown", akari)! && Read<int>(hub, "_cardBtn") == 0,
                 "(a) the selected voice card shows [dive] [reply] with dive focused");
             Check((bool)Call(hub, "CanReplySel")!, "akari's card can be replied to");
+            await Frames(30);
             var dive = (Rect2)Call(hub, "CardBtnRect", akari, 0)!;
             var reply = (Rect2)Call(hub, "CardBtnRect", akari, 1)!;
             var card = (Rect2)Call(hub, "CardHitRect", akari)!;
@@ -336,12 +337,12 @@ public partial class HubKeysQa : Node
             // ── (h) 全クリア後の FINAL カード ──
             //   本編3面をクリア済みにして Hub を開き直す（カードの並びは _Ready で組まれる）。
             //   FINAL 初挑戦は結び手（ミナ）では潜れない（IsMinaLockedForFinal）ので、あかりのアカウントで入る。
+            hub.QueueFree();
+            await Frames(2);
             foreach (var st in GameManager.Stages) Read<HashSet<string>>(game, "_cleared").Add(st.Id);
             Check(game.AllStoryCleared, "all story stages cleared");
             game.SelectedJob = Job.Melee;
             Check(game.IsJobUnlocked(Job.Melee), "akari's account is unlocked");
-            hub.QueueFree();
-            await Frames(2);
             hub = GD.Load<PackedScene>("res://Hub.tscn").Instantiate<Hub>();
             GetTree().Root.AddChild(hub);
             GetTree().CurrentScene = hub;

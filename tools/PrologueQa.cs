@@ -65,6 +65,7 @@ public partial class PrologueQa : Node
                 return;
             }
 
+            CheckMinaArtwork();
             for (int route = 0; route < 3; route++)
             {
                 GetNode<GameManager>("/root/Game").ResetPersistent();
@@ -72,6 +73,8 @@ public partial class PrologueQa : Node
                 GetTree().Root.AddChild(pro);
                 GetTree().CurrentScene = pro;
                 await Frames(60);
+                Check(pro.TextureFilter == CanvasItem.TextureFilterEnum.LinearWithMipmaps,
+                    "high-resolution conversation art uses the shooting scene's downsampling filter");
                 var artwork = Read<OpeningBackdrop>(pro, "_backdropArt");
                 var layers = Read<Texture2D[]>(artwork, "_cards");
                 Check(layers.Length == 3, "inactive, timeline and unsent card layers loaded");
@@ -116,6 +119,19 @@ public partial class PrologueQa : Node
                     DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                     await Frames(15);
                 }
+                await AdvanceUntil(() => CurrentDialogue(pro).Text.Contains("「ご主人様」"));
+                Check(CurrentDialogue(pro).Face == "res://char/v3/mina_conversation_v1.png",
+                    $"route {route} addresses the player with the shooting conversation portrait");
+                if (route == 0)
+                {
+                    await Frames(60);
+                    await Shot("mina_master", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                    await Frames(15);
+                    await Shot("mina_master_small", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                    await Frames(15);
+                }
                 await AdvanceUntil(() => Read<ChoiceOverlay?>(pro, "_choice") != null);
                 Check(Read<int>(pro, "_backdrop") == 1, "naming keeps the awakening background");
                 await Choose(pro, route);
@@ -126,6 +142,19 @@ public partial class PrologueQa : Node
                 await Frames(80);
                 Check(Read<PostToast?>(pro, "_toast") != null, "timeline post remains visible over the illustration");
                 if (route == 0) await Shot("timeline", pro);
+                await AdvanceUntil(() => CurrentDialogue(pro).Face == "res://char/v3/mina_conversation_worried_v1.png");
+                Check(CurrentDialogue(pro).Text.Contains("消したはずの言葉"),
+                    $"route {route} switches to the matching concerned expression for the unheard voice");
+                if (route == 0)
+                {
+                    await Frames(60);
+                    await Shot("mina_worried", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                    await Frames(15);
+                    await Shot("mina_worried_small", pro);
+                    DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+                    await Frames(15);
+                }
                 await AdvanceUntil(() => Read<int>(pro, "_backdrop") == 3);
                 Check(Read<float>(pro, "_backdropMix") < 1f, "erased draft starts its own crossfade");
                 await CheckErasePacing(pro, route == 0);
@@ -175,6 +204,39 @@ public partial class PrologueQa : Node
             GD.PushError($"[PrologueQA] FAIL {ex}");
             GetTree().Quit(1);
         }
+    }
+
+    private static (string Text, string Face) CurrentDialogue(Prologue pro)
+    {
+        var entry = Read<System.Collections.IList>(pro, "_talk")[Read<int>(pro, "_line")]!;
+        return ((string)entry.GetType().GetField("Text")!.GetValue(entry)!,
+            (string)entry.GetType().GetField("Face")!.GetValue(entry)!);
+    }
+
+    private static void CheckMinaArtwork()
+    {
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        string neutralPath = (string)typeof(Prologue).GetField("FMina", flags)!.GetRawConstantValue()!;
+        string worriedPath = (string)typeof(Prologue).GetField("FMinaWorried", flags)!.GetRawConstantValue()!;
+        Check(neutralPath == "res://char/v3/mina_conversation_v1.png", "prologue reuses the shooting conversation portrait");
+        Check(worriedPath == "res://char/v3/mina_conversation_worried_v1.png", "prologue uses the matching worried variant");
+        using var neutral = GD.Load<Texture2D>(neutralPath).GetImage();
+        using var worried = GD.Load<Texture2D>(worriedPath).GetImage();
+        Check(neutral.GetSize() == new Vector2I(1024, 1536) && worried.GetSize() == neutral.GetSize(),
+            "Mina's expression variants share the same canvas and framing");
+        Check(neutral.HasMipmaps() && worried.HasMipmaps(), "both expressions retain smooth reduced-size rendering");
+        int overlap = 0, union = 0;
+        for (int y = 0; y < neutral.GetHeight(); y += 8)
+            for (int x = 0; x < neutral.GetWidth(); x += 8)
+            {
+                bool a = neutral.GetPixel(x, y).A > 0.5f, b = worried.GetPixel(x, y).A > 0.5f;
+                if (a || b) union++;
+                if (a && b) overlap++;
+            }
+        Check((float)overlap / union > 0.98f, "expression switches keep Mina's silhouette and proportions aligned");
+        Check(neutral.GetPixel(0, 0).A == 0 && worried.GetPixel(0, 0).A == 0
+            && neutral.GetPixel(500, 600).A > 0.95f && worried.GetPixel(500, 600).A > 0.95f,
+            "both dialogue portraits have transparent surroundings and an opaque face");
     }
 
     private async Task CheckErasePacing(Prologue pro, bool screenshots)

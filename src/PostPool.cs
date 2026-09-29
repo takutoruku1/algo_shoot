@@ -124,6 +124,13 @@ public static class PostPool
         return w;
     }
 
+    // 固定タイムラインの文面は、戦闘中の抽選履歴で変えない。
+    internal static string DrawStable(Theme theme, Layer layer, RandomNumberGenerator rng)
+    {
+        var pool = PoolWithCommon(theme, layer);
+        return pool[rng.RandiRange(0, pool.Length - 1)];
+    }
+
     // 履歴をリセットする（ステージ入場時。前の面の履歴で最初の数枚が偏らないように）。
     public static void ResetHistory() => _recent.Clear();
 

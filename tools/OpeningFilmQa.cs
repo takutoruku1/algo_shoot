@@ -156,7 +156,14 @@ public partial class OpeningFilmQa : Node
                 && UiKit.TextW(titleFont, "Refrain", 164) < 1000, "name and title fit the cinematic frame");
             var mina = Read<Sprite2D>(film, "_mina");
             using (var cutout = mina.Texture.GetImage())
-                Check(cutout.GetPixel(0, 0).A == 0 && cutout.GetPixel(1000, 300).A > 0.95f, "Mina is a real transparent character layer");
+            using (var blinkArt = Read<ShaderMaterial>(film, "_wind").GetShaderParameter("blink_texture").As<Texture2D>().GetImage())
+            {
+                Check(cutout.GetSize() == new Vector2I(1536, 1024) && blinkArt.GetSize() == cutout.GetSize(),
+                    "Mina's new portrait and blink frame preserve the wind shader registration");
+                Check(cutout.GetPixel(0, 0).A == 0 && cutout.GetPixel(1000, 300).A > 0.95f
+                    && blinkArt.GetPixel(0, 0).A == 0 && blinkArt.GetPixel(1000, 300).A > 0.95f,
+                    "Mina and her blink are real transparent character layers");
+            }
             var recall = typeof(OpeningFilm).GetMethod("RecallIndex", BindingFlags.Static | BindingFlags.NonPublic)!;
             foreach (var (time, index) in new[] { (0.2f, 0), (0.6f, 1), (1.0f, 2) })
                 Check((int)recall.Invoke(null, new object[] { time })! == index,
@@ -250,6 +257,9 @@ public partial class OpeningFilmQa : Node
             wind.SetShaderParameter("blink", 1);
             using var blink = await Capture();
             Check(Difference(moved, blink, new Rect2I(803, 233, 88, 65)) > 0.001f, "blink uses the closed-eyes drawing");
+            Check(Difference(moved, blink, new Rect2I(750, 360, 150, 250)) < 0.0001f,
+                "blinking does not swap Mina's body or outfit");
+            await Shot("mina_blink");
             film.QueueFree();
             await Frames(3);
 

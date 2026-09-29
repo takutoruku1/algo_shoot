@@ -644,7 +644,10 @@ public partial class Enemy : Area2D
     {
         for (int i = 0; i < PanelCount; i++)
             SpawnOnePanel(Mathf.Tau * i / Mathf.Max(1, PanelCount));
+        if (_maxHp > 0) OnShieldFormed();
     }
+
+    protected virtual void OnShieldFormed() { }
 
     private void SpawnOnePanel(float baseAngle)
     {

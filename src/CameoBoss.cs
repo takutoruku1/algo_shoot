@@ -112,6 +112,83 @@ public partial class CameoBoss : Enemy
     private int _defeatIdx;
     private double _defeatT;
 
+    private const string ShieldIntroKey = "once_midboss_shield";
+    private bool _shieldIntroduced;
+    private CharacterStoryTalk? _shieldTalk;
+    private Hud? _shieldTalkHud;
+
+    protected override void OnShieldFormed()
+    {
+        bool reformed = _shieldIntroduced;
+        _shieldIntroduced = true;
+        var game = GameManager.Instance;
+        var hud = GetHud();
+        if (hud == null) return;
+        var job = game?.SelectedJob ?? Job.Tank;
+        if (!reformed && game != null && !GameManager.LunaticActive && !game.IsIdleDialogSeen(ShieldIntroKey))
+        {
+            // Wait until the real panels exist, and keep them intact while the player reads.
+            SetPanelsInvulnerable(true);
+            GetNodeOrNull<BulletPool>("/root/Pool")?.DespawnAll();
+            _shieldTalkHud = hud;
+            _shieldTalk = CharacterStoryTalk.Start(ShieldIntroLines(job), () => _shieldTalkHud,
+                (host, who, text, face) => host.ShowDialog((Hud.LineKind)who, text, face), () =>
+                {
+                    SetPanelsInvulnerable(false);
+                    game.MarkIdleDialogSeen(ShieldIntroKey);
+                    _shieldTalkHud = null;
+                });
+            return;
+        }
+        string line = (job, reformed) switch
+        {
+            (Job.Melee, false) => "シールドだね。まずは周りの板を全部砕こう！",
+            (Job.Heal, false) => "シールドがある！　まずは周りの板を全部砕こう。",
+            (Job.Magic, false) => "シールドね。まずは周りの板を全部砕くわよ。",
+            (Job.Tank, false) => "シールドです。まずは周りの板をすべて砕きましょう。",
+            (Job.Melee, true) => "シールドが戻った。もう一度、板を砕こう！",
+            (Job.Heal, true) => "またシールドだ……！　もう一度、板を砕こう。",
+            (Job.Magic, true) => "シールドを張り直したわね。もう一度、板からよ。",
+            _ => "シールドが戻りました。もう一度、周りの板を。",
+        };
+        hud.ShowBossLine(Jobs.Get(job).CharacterName, line, CompanionDialogue.Accent(job), 2.8);
+    }
+
+    private static (int who, string text, string face)[] ShieldIntroLines(Job job)
+    {
+        var (shield, panels, opening) = job switch
+        {
+            Job.Melee => ("あの板がシールドになってる。\nこのままじゃ、本体まで届かないね。",
+                "周りの板を全部砕けば、シールドが剥がれるよ。",
+                "張り直される前に、本体を狙おう！"),
+            Job.Heal => ("周りの板が、シールドを張ってる……！\nこれじゃ、本体に攻撃が届かない。",
+                "まずは板を全部砕こう。そうすれば、シールドが剥がれるよ。",
+                "張り直される前に、本体を狙うんだね！"),
+            Job.Magic => ("周りの板がシールドを張ってるわ。\n今は、本体を狙っても届かない。",
+                "板を全部砕けば、シールドは剥がれる。",
+                "張り直される前に、本体を狙うわよ。"),
+            _ => ("あの板が、シールドを張っています。\n本体には、まだ攻撃が届きません。",
+                "周りの板をすべて砕けば、シールドが剥がれます。",
+                "張り直される前に、本体を狙いましょう。"),
+        };
+        int who = (int)(job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion);
+        string face = job == Job.Tank ? "res://char/v3/mina_conversation_v1.png" : CompanionDialogue.Portrait(job);
+        return new[] { (who, shield, face), (who, panels, face), (who, opening, face) };
+    }
+
+    protected override void OnBreakCue()
+    {
+        var job = GameManager.Instance?.SelectedJob ?? Job.Tank;
+        string line = job switch
+        {
+            Job.Melee => "シールドが剥がれた！　今なら、本体に届くよ！",
+            Job.Heal => "シールドが剥がれたよ！　いま、本体を狙って！",
+            Job.Magic => "シールドが剥がれたわ。今のうちに、本体を狙って。",
+            _ => "シールドが剥がれました。今なら、本体に届きます。",
+        };
+        ShowBreakCueLine(Jobs.Get(job).CharacterName, line, CompanionDialogue.Accent(job));
+    }
+
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [cameo]＝3ステージの中ボス共通）で上書き可。
@@ -372,6 +449,11 @@ public partial class CameoBoss : Enemy
 
     public override void _Process(double delta)
     {
+        if (_shieldTalk is { Active: true })
+        {
+            if (!Pad.UiBlocked(this)) _shieldTalk.Update(delta);
+            return;
+        }
         if (!_defeatSeq) return;
         _defeatT += delta;
         if (_defeatT < DefeatLineDur) return;
@@ -386,6 +468,16 @@ public partial class CameoBoss : Enemy
             return;
         }
         GetHud()?.ShowBossLine(Theme.DisplayName, line, UiKit.Kegare, DefeatLineDur);
+    }
+
+    public override void _ExitTree()
+    {
+        if (_shieldTalk is { Active: true } && IsInstanceValid(_shieldTalkHud))
+        {
+            _shieldTalkHud!.HoldBubble = false;
+            _shieldTalkHud.BattleMemoryTempo = false;
+            _shieldTalkHud.HideBubble();
+        }
     }
 
     private Hud? GetHud() => GetTree().GetFirstNodeInGroup("hud") as Hud;

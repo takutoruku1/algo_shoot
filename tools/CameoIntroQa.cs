@@ -46,6 +46,7 @@ public partial class CameoIntroQa : Node
             await ReplaySkip();
             await ManualAdvance();
             await RealtimeCadence();
+            await ShieldReplayAndAbort();
             Pool.DespawnAll();
             Audio.Instance?.StopMusic(0);
             foreach (var audio in GetNode<Audio>("/root/Audio").GetChildren().OfType<AudioStreamPlayer>())
@@ -82,6 +83,7 @@ public partial class CameoIntroQa : Node
 
     private async Task Encounter(string id, Job job)
     {
+        Read<System.Collections.Generic.HashSet<string>>(_game, "_idleDialogSeen").Remove("once_midboss_shield");
         Input.ActionPress("ui_accept");
         var root = Load(id, job, GameManager.StageEntry.MidBoss);
         var stage = Stage(root, id);
@@ -185,16 +187,114 @@ public partial class CameoIntroQa : Node
         var bosses = GetTree().GetNodesInGroup("enemies").OfType<CameoBoss>().ToArray();
         Check(bosses.Length == 1 && bosses[0].Theme.IntroLines.Length == 0, "exactly one boss spawns without repeating the opening line");
         Check(GetTree().GetFirstNodeInGroup("cameo_intro") == null, "intro does not restart when battle ticks");
+        await ShieldLesson(bosses[0], hud, id, job);
         await Clean(root);
+    }
+
+    private async Task ShieldLesson(CameoBoss boss, Hud hud, string id, Job job)
+    {
+        Check(!Hud.BubblePaused, "shield explanation waits for the visible battle entrance");
+        await Frames(65);
+        boss.SetProcess(false);
+        var talk = Read<CharacterStoryTalk>(boss, "_shieldTalk");
+        var panels = boss.GetChildren().OfType<Panel>().ToArray();
+        Check(talk.Active && panels.Length == 3 && Hud.BubblePaused && !hud.CinematicMode,
+            $"{id}/{job}: explanation accompanies the actual shield and its three panels");
+        Check(hud.DialogToolbarVisible && hud.HoldBubble, "shield lesson uses the shared dialogue toolbar");
+        Vector2 position = boss.GlobalPosition;
+        foreach (var panel in panels) panel.WeakenByRipple();
+        await Frames(8);
+        Check(panels.All(p => IsInstanceValid(p) && p.Invulnerable) && boss.GlobalPosition == position,
+            "movement and panel destruction remain blocked during the explanation");
+        Check(!Pool.GetChildren().OfType<Bullet>().Any(b => b.Active), "battle cannot fire over the shield explanation");
+        boss._Process(5);
+        Check(Read<int>(talk, "_line") == 0 && !_game.IsIdleDialogSeen("once_midboss_shield"),
+            "first-time explanation waits for input and is not marked complete prematurely");
+        var backlog = GetNode<Backlog>("/root/Backlog");
+        backlog.Open();
+        boss._Process(5);
+        Check(Read<int>(talk, "_line") == 0, "backlog blocks shield dialogue progression");
+        typeof(Backlog).GetMethod("Close", Private)!.Invoke(backlog, null);
+        var lines = Read<(int who, string text, string face)[]>(talk, "_lines");
+        Check(lines.Length == 3 && lines[0].text.Contains("本体") && lines[1].text.Contains("砕")
+            && lines[1].text.Contains("シールド") && lines[2].text.Contains("張り直"),
+            "lesson explains protection, panel destruction and the temporary damage window in order");
+        _game.AutoAdvanceDialog = job is Job.Tank or Job.Heal;
+        Hud.SkipLatched = job == Job.Magic;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            Check(Read<string>(hud, "_dlgText") == lines[i].text
+                && Read<Hud.LineKind>(hud, "_dlgKind") == (job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion),
+                "selected character delivers each shield instruction");
+            Check(Read<System.Collections.Generic.List<string>>(hud, "_dlgPages").Count == 1,
+                "instruction fits one page so AUTO and SKIP never stall");
+            hud.RevealDialogNow();
+            if (job == Job.Tank && i == 0) await Shot($"{id}_shield_intro");
+            if (job == Job.Melee) Input.ActionPress("ui_accept");
+            boss._Process(1.5);
+            Input.ActionRelease("ui_accept");
+            boss._Process(0.01);
+        }
+        Hud.SkipLatched = false;
+        _game.AutoAdvanceDialog = false;
+        Check(!talk.Active && !Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+            && panels.All(p => !p.Invulnerable) && _game.IsIdleDialogSeen("once_midboss_shield"),
+            "manual, AUTO or SKIP completion restores combat and records the one-time lesson");
+        foreach (var panel in panels) panel.Shatter();
+        await Frames(18);
+        Check(Read<string>(hud, "_bossLine").Contains("シールドが剥がれ")
+            && Read<string>(hud, "_bossLine").Contains("本体") && Read<bool>(hud, "_bossLineBreak"),
+            "actual shield break names the shield and tells the player to target the body");
+        if (job == Job.Tank)
+        {
+            await Shot($"{id}_shield_break");
+            for (int i = 0; i < 480 && !boss.GetChildren().OfType<Panel>().Any(); i++) await Frames(1);
+            Check(boss.GetChildren().OfType<Panel>().Count() == 3 && !Hud.BubblePaused && !talk.Active
+                && Read<string>(hud, "_bossLine").Contains("シールドが戻"),
+                "regeneration announces the restored shield without replaying the paused lesson");
+        }
+    }
+
+    private async Task ShieldReplayAndAbort()
+    {
+        Read<System.Collections.Generic.HashSet<string>>(_game, "_idleDialogSeen").Remove("once_midboss_shield");
+        foreach (bool replay in new[] { false, true })
+        {
+            if (replay) _game.MarkIdleDialogSeen("once_midboss_shield");
+            var root = Load("akari", Job.Tank, GameManager.StageEntry.MidBoss);
+            var stage = Stage(root, "akari");
+            Write(stage, "_cameoIntroDone", true);
+            await Frames(65);
+            stage.SetProcess(false);
+            var boss = GetTree().GetNodesInGroup("enemies").OfType<CameoBoss>().Single();
+            var hud = root.GetNode<Hud>("Hud");
+            if (replay)
+                Check(!Hud.BubblePaused && Read<CharacterStoryTalk?>(boss, "_shieldTalk") == null
+                    && Read<string>(hud, "_bossLine").Contains("シールド"),
+                    "later encounters use a short shield cue without pausing combat");
+            else
+            {
+                Check(Hud.BubblePaused, "unread lesson starts again after an interrupted encounter");
+                boss.QueueFree();
+                await Frames(3);
+                Check(!Hud.BubblePaused && !hud.HoldBubble && !hud.BattleMemoryTempo
+                    && !_game.IsIdleDialogSeen("once_midboss_shield"),
+                    "interrupted lesson releases its pause without marking the tutorial complete");
+            }
+            await Clean(root);
+        }
     }
 
     private async Task Bypass(string id, GameManager.StageEntry entry, GameManager.Diff difficulty)
     {
+        if (difficulty == GameManager.Diff.Lunatic)
+            Read<System.Collections.Generic.HashSet<string>>(_game, "_idleDialogSeen").Remove("once_midboss_shield");
         var root = Load(id, Job.Tank, entry, difficulty);
-        await Frames(5);
+        await Frames(difficulty == GameManager.Diff.Lunatic ? 65 : 5);
         Check(GetTree().GetFirstNodeInGroup("cameo_intro") == null, $"{id}/{entry}/{difficulty}: unrelated entry skips new intro");
         if (difficulty == GameManager.Diff.Lunatic)
-            Check(!Hud.BubblePaused && GetTree().GetNodesInGroup("enemies").OfType<CameoBoss>().Count() == 1,
+            Check(!Hud.BubblePaused && !_game.IsIdleDialogSeen("once_midboss_shield")
+                && GetTree().GetNodesInGroup("enemies").OfType<CameoBoss>().Count() == 1,
                 "Lunatic enters battle immediately without story pause");
         await Clean(root);
     }
