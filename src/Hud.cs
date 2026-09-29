@@ -1366,14 +1366,14 @@ public partial class Hud : CanvasLayer
         if (contam > 0) UiKit.Box(ci, new Rect2(barX, barY, barW * contam, 6f), Fa(UiKit.Kegare), 3f);
     }
 
-    // 炎上デバフの常設インジケータ（マクロ目標の直下）。炎上run中は発射間隔×1.3/移動速度×0.9/獲得インプレ×0.6が
-    // ステージ全体に常時掛かる（GameManager.FireIntervalMul/MoveSpeedMul/TotalImpressionMul）。
-    // ラベルにも度合いを明記し、「炎上中」とだけ出て弱体の中身が見えない状態を解消する。
+    // 炎上デバフの常設インジケータ（マクロ目標の直下）。炎上run中は獲得インプレ×0.6（稼ぎ-40%）の
+    // 経済ペナルティのみがステージ全体に常時掛かる（GameManager.TotalImpressionMul）。戦闘影響（発射間隔・
+    // 移動速度）は撤廃済み。ラベルにも度合いを明記し、「炎上中」とだけ出て弱体の中身が見えない状態を解消する。
     // やさしさゲージ／ショットモードチップと同じ常設バッジ様式で出す。
     private void DrawBurning(HudCanvas ci)
     {
         if (!(_game?.BurningThisRun ?? false)) return;
-        const string label = "炎上中：発射間隔+30%・移動-10%・稼ぎ-40%";
+        const string label = "炎上中：稼ぎ-40%";
         const float padL = 16f, h = 24f;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 14;
         // DrawSkill（y=216, h=24, 直下の充填バーが≈245.5まで）と重ならないよう、3px空けてその下に配置。

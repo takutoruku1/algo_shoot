@@ -126,16 +126,16 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 271 / 対象 271 タスク<br>保留 44 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 272 / 対象 273 タスク<br>保留 45 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">271</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">272</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">44</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">45</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,12 +145,28 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">ドッジグレイズ(回避よけ、通常の5倍スコア+稼ぎ増)の存在とリターンがチュートリアル・説明文のどこにも伝わらない</span>
+          
+        </div>
+        <p class="accept">2026-09-29監査(game-designer)発見。<code>src/GameManager.cs:1373-1389 AddDodgeGraze()</code>は回避無敵中の被弾かすりをScore+50(通常グレイズ<code>:1363-1371</code>のScore+10の5倍)・インプレ基礎+2として実装済みだが、<code>src/HowToPlay.cs:165</code>の回避ダッシュ説明は「一瞬無敵で弾をすり抜ける。攻めの切り札」のみでリターンに触れず、チュートリアル<code>src/StageZero.cs</code>の回避フェーズ(:222-248)も進捗ヒント<code>:240</code>「いろんな方向に 回避してみよう」のみで、練習弾<code>SpawnSlowBullets()</code>(:546-556、固定4レーンy=40,76,112,148)はグレイズ半径(<code>Player.cs:272</code>付近<code>GrazeRadius</code>)内を通過する保証がなく、プレイヤーが金色+Nの実演出を見ないまま終わりうる。受入条件: (1)<code>src/HowToPlay.cs:165</code>のDescを「一瞬無敵で弾をすり抜ける。弾に寄るほど得点・稼ぎが伸びる」等リターンに触れる文言へ変更（既存レイアウト幅に収まるか要確認）。(2)<code>src/StageZero.cs:240</code>の進捗ヒントを「弾のすぐそばで 回避してみよう（近いほど高得点）」等へ変更。(3)<code>src/StageZero.cs:546-556 SpawnSlowBullets()</code>のレーン間隔・自機からの距離を、回避成功時にグレイズ半径内を確実に通過するよう詰める（例: レーン間隔36→24、開始距離90→60）。キャラ台詞の新規創作は伴わないため台詞承認ゲート対象外。着手時は<code>play-game</code>/<code>qa-autoplay</code>での実機確認を必須にする(StageZeroは生intフェーズ番号ステートマシンのため既存caseの文言・数値差し替えに留めフェーズ番号は変更しないこと)。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">炎上デバフのToast/HUD表示が直前の是正(6088185)で嘘になっている</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-09-29) 2026-09-29監査(engineer)発見。<code>src/GameManager.cs:774,778</code>は2026-09-28のDONEタスクで炎上時の戦闘デバフ(発射間隔+30%・移動-10%)を撤廃し経済ペナルティ(稼ぎ-40%)のみに絞ったが、告知文言2箇所が旧仕様のまま残存していた。<code>src/Hub.cs:443</code>のToast「炎上中…次のダイブは発射間隔+30%・移動-10%・稼ぎ-40%になります」を「炎上中…次のダイブは稼ぎ-40%になります」へ、<code>src/Hud.cs:1376</code>の常設バッジ定数<code>label</code>(旧「炎上中：発射間隔+30%・移動-10%・稼ぎ-40%」)を「炎上中：稼ぎ-40%」へ、直上のコメント(<code>:1369-1371</code>、発射間隔×1.3/移動速度×0.9への言及)も実態(獲得インプレ×0.6=稼ぎ-40%のみ、戦闘影響は撤廃済み)に合わせて書き換えた。文字列3箇所とその直上コメントの修正のみでロジック・演出色・バッジ位置は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（本人確認）。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2335,6 +2351,14 @@
       <li class="task is-blocked">
         <div class="task-head">
           <span class="chip chip-none">—</span>
+          <span class="task-title"><code>docs/ストーリー見直しロードマップ.md</code>と<code>docs/タッグ見直し_シナリオUI提案.md</code>が案C承認(2026-09-05)後も無警告のまま「少年実在」前提の内容を残している</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">要ユーザー判断（非正典化の記述範囲・少年実在セリフ案の扱いを伴う）。2026-09-29監査(scenario)発見。<code>docs/ストーリー見直しロードマップ.md:24-33</code>は少年の死のタイムラインを「正典v3・確定・ユーザー承認済み」と明記したまま案C言及が0件(grep確認)。<code>docs/タッグ見直し_シナリオUI提案.md:91-134</code>は少年実在前提の新規セリフ案をC#コードスニペット形式で提示したまま(例<code>:96</code>)。同格の設定文書<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md:15-19</code>・<code>docs/【MASTER】設定資料統合版.md:12-16</code>には既に「案C未反映＝非正典」警告バナーが追加済みだが、この2ファイルだけ是正が漏れている(保守は案C承認前日2026-09-04で停止)。既存BLOCKED「正典を指す上位ドキュメント群」(<code>docs/STORY.md</code>等3ファイル限定、2026-09-12発見)とは対象ファイルが異なり重複ではない。要ユーザー判断: (a)両ファイル冒頭に既存2ファイルと同形式の非正典警告バナーを追記してよいか、(b)<code>タッグ見直し_シナリオUI提案.md</code>の少年実在セリフ案を丸ごと非正典化して残すか・案C向けに書き直すか・削除するか。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
           <span class="task-title">StageMina.csのコメントが指す伏線回収セリフ「いなくならないって、書いたくせに」がEpilogue.csのどこにも実在しない</span>
           <span class="worker">scenario</span>
         </div>
@@ -2681,18 +2705,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">148cef9</span><span>2026-09-29</span><span class="s">auto: WIP着手 - 炎上デバフのToast/HUD表示を実態に合わせて是正する</span></li>
+      <li><span class="h">0cee702</span><span>2026-09-29</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
+      <li><span class="h">6088185</span><span>2026-09-28</span><span class="s">auto: 炎上デバフの三重ペナルティを是正（戦闘影響を撤廃、経済のみに）</span></li>
       <li><span class="h">20ff1c1</span><span>2026-09-28</span><span class="s">auto: WIP着手 - 炎上デバフの三重ペナルティを是正する</span></li>
       <li><span class="h">155fa6a</span><span>2026-09-28</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">ea4b1ac</span><span>2026-09-27</span><span class="s">auto: 仮台本09・11の自己申告バナーを事実訂正</span></li>
       <li><span class="h">b263a8a</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 仮台本09・11の自己申告バナーを事実訂正する</span></li>
       <li><span class="h">611a7ed</span><span>2026-09-27</span><span class="s">auto: 拡散威力II／誘導威力IIの整数丸めを是正</span></li>
-      <li><span class="h">ea8e0dc</span><span>2026-09-27</span><span class="s">auto: WIP着手 - 拡散威力II／誘導威力IIの整数丸めを是正する</span></li>
-      <li><span class="h">ceed7ae</span><span>2026-09-27</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
-      <li><span class="h">ec6246a</span><span>2026-09-24</span><span class="s">auto: 祈りの帳(veil_light)の回避連打ほぼ無敵チェーンを是正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-28 18:50 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-29 18:26 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
