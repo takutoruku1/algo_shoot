@@ -242,8 +242,10 @@ public partial class CameoIntroQa : Node
             "manual, AUTO or SKIP completion restores combat and records the one-time lesson");
         foreach (var panel in panels) panel.Shatter();
         await Frames(18);
-        Check(Read<string>(hud, "_bossLine").Contains("シールドが剥がれ")
-            && Read<string>(hud, "_bossLine").Contains("本体") && Read<bool>(hud, "_bossLineBreak"),
+        var cue = hud.Bubbles!.ShieldBreak;
+        Check(cue.Active && Read<string>(cue, "_line").Contains("シールド")
+            && Read<string>(cue, "_line").Contains("本体")
+            && Read<string>(cue, "_speaker") == Jobs.Get(job).CharacterName,
             "actual shield break names the shield and tells the player to target the body");
         if (job == Job.Tank)
         {

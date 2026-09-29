@@ -37,9 +37,21 @@ public partial class AreaSpellCaster : Node2D
 
     private double _castT, _fireT;
     private bool _pending;
+    private BossEdgeVolley? _edgeVolley;
+    private int _edgeSequence;
+    private bool _nextEdge = true;
+    public bool EdgeAttackActive => _edgeVolley != null && IsInstanceValid(_edgeVolley)
+        && !_edgeVolley.Finished && !_edgeVolley.IsQueuedForDeletion();
+
+    private void CancelEdgeAttack()
+    {
+        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
+        _edgeVolley = null;
+    }
 
     public void CancelPendingAttacks()
     {
+        CancelEdgeAttack();
         _pending = _aoePending = false;
         _pendArt = AreaStrike.Art.None;
         _chainRemain = 0;
@@ -78,7 +90,12 @@ public partial class AreaSpellCaster : Node2D
 
     // ボス側の専用ギミック（こはる「お残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
     // 外部ゲート。予約済み(_pending)の発火・タイマーも保留し、解除後にそのまま再開する（破棄はしない）。
-    public bool Suppressed;
+    private bool _suppressed;
+    public bool Suppressed
+    {
+        get => _suppressed;
+        set { _suppressed = value; if (value) CancelEdgeAttack(); }
+    }
 
     // ── 安置リレー（レイ「最終選考」／ミナ強化枠で共用）──
     //   全画面AOEを hops 回連結する。各ホップ：予兆(1.6s×WarnMul)→着弾0.2s→生存確認の間(0.35s)→次ホップ。
@@ -102,6 +119,7 @@ public partial class AreaSpellCaster : Node2D
     public void CastFullscreen(bool wide)
     {
         if (AoeActive) return; // 多重予約しない（HP閾値の同フレーム多重発火対策）
+        CancelEdgeAttack();
         _aoeTight = !wide;
         _aoePending = true;
         _aoeFireT = AoeFireDelay;
@@ -114,6 +132,7 @@ public partial class AreaSpellCaster : Node2D
     public void CastFullscreenChain(int hops, float hopMin, float hopMax)
     {
         if (AoeActive) return; // 多重予約しない
+        CancelEdgeAttack();
         _chainTotal = _chainRemain = Mathf.Max(1, hops);
         _chainHopMin = hopMin; _chainHopMax = hopMax;
         _chainPrevDir = Vector2.Zero;
@@ -322,6 +341,7 @@ public partial class AreaSpellCaster : Node2D
         // 予約済み（宣告→出現待ち）の発火も破棄する。出現済みの予兆は AreaStrike 側が owner 浄化で自滅する。
         if (_owner != null && _owner.IsPurified)
         {
+            CancelEdgeAttack();
             _pending = false;
             _aoePending = false; // 予約中の全画面AOEも破棄（出現済みは AreaStrike が owner 浄化で自滅）
             _chainRemain = 0;    // 進行中の安置リレーも打ち切る（改心後にホップが続かないように）
@@ -336,7 +356,7 @@ public partial class AreaSpellCaster : Node2D
 
         // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
         TickFullscreen(delta);
-        if (AoeActive) return;
+        if (AoeActive || EdgeAttackActive) return;
 
         if (_pending)
         {
@@ -345,8 +365,21 @@ public partial class AreaSpellCaster : Node2D
             return;
         }
         _castT += delta;
-        if (_castT >= _interval) { _castT = 0; Cast(); }
+        if (_castT < _interval) return;
+        if (_nextEdge && (_key is "akari" or "koharu" or "rei") && _owner != null)
+        {
+            if (_owner.GaugeVulnerable || _owner.GaugeReforming || !_owner.Visible) return;
+            foreach (var node in GetTree().GetNodesInGroup("aoe"))
+                if (!node.IsQueuedForDeletion()) return;
+            _edgeVolley = BossEdgeVolley.Begin(_owner, _key, _edgeSequence++);
+            (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(_disp, _handle, _edgeVolley.SpellName, _tint);
+        }
+        else Cast();
+        _nextEdge = !_nextEdge;
+        _castT = 0;
     }
+
+    public override void _ExitTree() => CancelEdgeAttack();
 
     // 技名を宣告（Xツイート風スペルカード）→ 溜めて予兆を出す。
     private void Cast()

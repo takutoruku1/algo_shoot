@@ -693,7 +693,8 @@ public partial class Enemy : Area2D
         Audio.Instance?.PlaySpell();
         // 祈り手（Heal）だけ BREAK 成立ごとに BOMB+1（設計書 §2）。他ジョブでは何も起きない。
         GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossBreak();
-        OnBreakCue(); // 共通実装＝自機キャラ別の合図（派生が上書きする戦いもある）
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.Bubbles?.ShieldBreak.Show(this,
+            GameManager.Instance?.SelectedJob ?? Job.Tank);
         QueueRedraw();
     }
 
@@ -1028,41 +1029,6 @@ public partial class Enemy : Area2D
         _bodyShape?.SetDeferred(CollisionShape2D.PropertyName.Disabled, !v);
     }
 
-    // 合図・弱気セリフの派生フック。
-    // BREAK 合図は「自機が誰か」で変わる（2026-09-22 ユーザー要望）。剥がれたのは板ではなくその子の
-    // 虚勢なので、それを見た反応は、同じ壁を持っていた側かどうかで変わる＝話者は潜っている本人。
-    //   ミナで潜行＝ミナ（who=1 相当）／あかり・こはる・レイで潜行＝その本人（who=6 Companion 相当）。
-    // 相手が誰かでは変えない（掛け合わせにすると 4×6 になり、窓ごとの短い合図には過剰）。
-    // RECLOSE は派生がキャラ別（＝相手側）の弱気セリフを出す＝こちらとは軸が違う。
-    // どちらも ShowBossLine 経由＝弾を止めない（テンポ維持）。
-    protected virtual void OnBreakCue()
-    {
-        var job = GameManager.Instance?.SelectedJob ?? Job.Tank;
-        ShowBreakCueLine(Jobs.Get(job).CharacterName, BreakCueLineFor(job),
-                         CompanionDialogue.Accent(job));
-    }
-
-    // 自機キャラごとの BREAK 合図。18〜24字＝窓（4.45秒）で読み切れる尺に収める。
-    //   ミナ  ：証人。観測したことだけを言い、意味は付けない。
-    //   あかり：既読と返事の側の語彙。取り消してきた本人だから、剥がれた下を「待っている顔」と読む。
-    //   こはる：止まったら我に返る側。相手の手が止まったことに、自分の経験で気づく。
-    //   レイ  ：ガワを着続ける側。剥がれることを怖がってきた本人なので、正面からは言わない。
-    private static string BreakCueLineFor(Job job) => job switch
-    {
-        Job.Melee => "剥がれた。……その下、あたしが知ってる顔だ。",
-        Job.Heal  => "崩れた。……手、止まってる。いまだよ、いま!",
-        Job.Magic => "剥がれたわね。……こっちは、見ないであげる。",
-        _         => "剥がれました。——奥に、送られなかった分が。",
-    };
-
-    // BREAK 合図を表示するヘルパー（派生から呼ぶ）。尺は合図のタメ＋無防備窓いっぱい＝窓が閉じるまで読める。
-    // 色は自機キャラのアクセント（Hud の Companion 行と同じ CompanionDialogue.Accent）を既定にし、
-    // ミナが絡まない戦い（ヒカゲ）だけ呼び出し側が差し替える。
-    protected void ShowBreakCueLine(string speaker, string text, Color? col = null)
-    {
-        (GetTree().GetFirstNodeInGroup("hud") as Hud)?
-            .ShowBossLine(speaker, text, col ?? UiKit.Mina, BreakCueDur + VulnDur, shieldBreak: true);
-    }
     protected virtual void OnRecloseLine() { }
 
     // RECLOSE セリフを表示するヘルパー（派生から呼ぶ）。サイクルごとに index を進め、超えたら最後を使い回す。

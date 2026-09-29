@@ -6,6 +6,7 @@ using Godot;
 // 浄化後は改心の姿を見せながら、ミナ自身が決定打を届ける（案C。S1-10）。フォロワーにはしない。
 public partial class BossAkari : Enemy
 {
+    public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
@@ -362,6 +363,7 @@ public partial class BossAkari : Enemy
         _mover.MoveZoneTo(new Vector2(AwayX, Field.BossZoneCenterY), 4f, 6f, DashSpeed); // 画面右外へ退場（性格は保つ）
         SetPanelsInvulnerable(true);   // 退場中の剥がし事故＝BREAK空撃ちを防ぐ
         SetBodyContactEnabled(false);  // 退場/帰還は DashSpeed=320px/s で場を横切る＝通路中の自機を轢かない
+        _caster.CancelPendingAttacks();
         _caster.SetProcess(false);     // 通常テレグラフの宣告も止める（通路に集中させる）
         _corridor = new CorridorRun { Boss = this };
         GetParent().AddChild(_corridor);
@@ -371,6 +373,7 @@ public partial class BossAkari : Enemy
     // 攻撃パターン（セリフを挟むたびに _pattern が変わる）。
     private void FirePattern(double delta)
     {
+        if (_caster != null && _caster.EdgeAttackActive) return;
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         if (_finale) { FireFinale(pool, delta); return; }

@@ -156,6 +156,11 @@ public partial class MinaPhaseQa : Node
         await Frames(3);
         Check(!Read<CollisionShape2D>(boss, "_bodyShape", typeof(Enemy)).Disabled,
             "ordinary combat restores body contact");
+        // Finish the damage window before the costume tests assert the idle pose.
+        var tickPhase = typeof(Enemy).GetMethod("TickBossPhase", Private)!;
+        tickPhase.Invoke(boss, new object[] { 5d });
+        tickPhase.Invoke(boss, new object[] { 2d });
+        Check(!boss.GaugeVulnerable && !boss.GaugeReforming, "attack test restores the shielded phase");
     }
 
     private static Vector2 NearestSafe(Vector2 start, AreaStrike[] zones)

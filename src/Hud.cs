@@ -720,19 +720,17 @@ public partial class Hud : CanvasLayer
         else _bannerScoreBest = "";
     }
 
-    // 無防備窓サイクル用の短い字幕（弾を止めない＝テンポ維持）。BREAK の合図・RECLOSE の弱気セリフに使う。
+    // ボスの短い字幕。BREAK の合図は ShieldBreakCallout に分け、敵の台詞で上書きしない。
     // 通常の会話バブル(ShowDialog)は BubblePaused を立てて弾を止めるため、これとは別経路。
     private string _bossLine = "";
     private string _bossLineSpeaker = "";
     private Color _bossLineCol = Colors.White;
     private double _bossLineTimer;
     private double _bossLineDuration;
-    private bool _bossLineBreak;
-    public void ShowBossLine(string speaker, string text, Color col, double dur, bool shieldBreak = false)
+    public void ShowBossLine(string speaker, string text, Color col, double dur)
     {
         _bossLineSpeaker = speaker; _bossLine = text; _bossLineCol = col; _bossLineTimer = dur;
         _bossLineDuration = dur;
-        _bossLineBreak = shieldBreak;
     }
 
     // スペル発動を X のスペル宣言ツイート風に告知（弾幕パターン切替時に各ボスから呼ぶ）。
@@ -1787,7 +1785,7 @@ public partial class Hud : CanvasLayer
 
     private void DrawBossLine(CanvasItem ci)   // CanvasItem＝HudCanvas（保険）と BubbleLayer（通常）の両方から描ける
     {
-        if (BubblePaused || CinematicMode) return;
+        if (BubblePaused || CinematicMode || (Bubbles?.ShieldBreak.Active ?? false)) return;
         float enter = Ease((float)(_bossLineDuration - _bossLineTimer) / 0.2f);
         float a = Mathf.Clamp((float)_bossLineTimer / 0.3f, 0f, 1f) * enter * _calloutA;
         const float w = 736f;
@@ -1798,8 +1796,6 @@ public partial class Hud : CanvasLayer
         ci.DrawRect(new Rect2(x, y, w, h), new Color(0.04f, 0.055f, 0.07f, 0.86f * a));
         ci.DrawLine(new Vector2(x, y), new Vector2(x, y + h), new Color(_bossLineCol, a), 3f);
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 9), _bossLineSpeaker, 15, new Color(_bossLineCol, a));
-        if (_bossLineBreak)
-            UiKit.Text(ci, UiKit.Mono, new Vector2(x + w - 177, y + 10), "SHIELD BREAK", 16, new Color("c7f4f1", a));
         for (int i = 0; i < lines.Count; i++)
             UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 20, y + 33 + i * 31), lines[i], 24, new Color("f5f8fa", a));
         float remaining = Mathf.Clamp((float)(_bossLineTimer / _bossLineDuration), 0f, 1f);

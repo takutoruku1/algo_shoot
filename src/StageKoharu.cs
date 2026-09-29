@@ -464,7 +464,7 @@ public partial class StageKoharu : Node
         // こはる面は PostPool のこはるのテーマ（09 の K09〜K38 由来の 8 文字弾）を源にする＝
         // その面のテーマ語が降る一体感。層の比率は 09 のとおり 3:6:1（層2 が最も厚い面）。
         // ボス本体(BossKoharu)のスペル/予測線/パネル弾はそのまま。
-        if (_bossActive && _boss?.PostSequenceActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
+        if (_bossActive && _boss?.PostSequenceActive != true && _boss?.EdgeAttackActive != true) PostBullets.Tick(this, _rng, delta, ref _rainT, ref _wordTick, source: _boss!, theme: PostPool.Theme.Koharu, fallSpeed: 44f,
             accent: new Color(0.85f, 0.60f, 0.44f), murkAll: true); // こはる面テーマ＝配信画面の琥珀。全語が悲鳴＝濁色チップ
     }
 

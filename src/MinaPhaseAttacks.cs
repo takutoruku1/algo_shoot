@@ -9,6 +9,9 @@ public partial class MinaPhaseAttacks : Node
     private int _phase, _wave;
     private double _wait, _cooldown;
     private Vector2 _lastSafe;
+    private BossEdgeVolley? _edgeVolley;
+    private bool _nextEdge;
+    private int _edgeSequence;
     public bool Active { get; private set; }
     public bool OpenerCompleted { get; private set; }
 
@@ -23,12 +26,15 @@ public partial class MinaPhaseAttacks : Node
     {
         CancelPendingAttacks();
         _phase = phase;
+        _nextEdge = false;
         OpenerCompleted = false;
         _cooldown = 1.2;
     }
 
     public void CancelPendingAttacks()
     {
+        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
+        _edgeVolley = null;
         foreach (var strike in _strikes)
             if (IsInstanceValid(strike)) strike.QueueFree();
         _strikes.Clear();
@@ -46,9 +52,19 @@ public partial class MinaPhaseAttacks : Node
         delta = GameManager.EnemyDelta(delta);
         if (!Active)
         {
+            if (_boss.GaugeVulnerable || _boss.GaugeReforming) return;
             _cooldown -= delta;
             if (_cooldown > 0) return;
             Active = true;
+            if (_nextEdge && OpenerCompleted)
+            {
+                _edgeVolley = BossEdgeVolley.Begin(_boss, "mina", _edgeSequence++);
+                _boss.SetBodyContactEnabled(false);
+                _boss.ShowSignaturePose();
+                (GetTree().GetFirstNodeInGroup("hud") as Hud)?.AnnounceSpell(
+                    "ミナ", BossHandles.MinaBattle, _edgeVolley.SpellName, BossMina.PhaseTint(_phase));
+                return;
+            }
             _wave = 0;
             _wait = 0.8;
             _lastSafe = Vector2.Zero;
@@ -59,6 +75,16 @@ public partial class MinaPhaseAttacks : Node
                 "ミナ", BossHandles.MinaBattle, SignatureName(_phase), BossMina.PhaseTint(_phase));
             return;
         }
+        if (_edgeVolley != null)
+        {
+            if (IsInstanceValid(_edgeVolley) && !_edgeVolley.Finished && !_edgeVolley.IsQueuedForDeletion()) return;
+            _edgeVolley = null;
+            Active = false;
+            _nextEdge = false;
+            _cooldown = 3;
+            _boss.SetBodyContactEnabled(true);
+            return;
+        }
         _strikes.RemoveAll(s => !IsInstanceValid(s) || s.IsQueuedForDeletion());
         if (_strikes.Count > 0) return;
         _wait -= delta;
@@ -67,6 +93,7 @@ public partial class MinaPhaseAttacks : Node
         {
             Active = false;
             OpenerCompleted = true;
+            _nextEdge = true;
             _cooldown = _phase == 4 ? 6 : 9;
             _boss.SetBodyContactEnabled(true);
             return;
@@ -191,6 +218,7 @@ public partial class MinaPhaseAttacks : Node
 
     public override void _ExitTree()
     {
+        if (_edgeVolley != null && IsInstanceValid(_edgeVolley)) _edgeVolley.Cancel();
         foreach (var strike in _strikes)
             if (IsInstanceValid(strike)) strike.QueueFree();
     }

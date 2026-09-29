@@ -30,6 +30,7 @@ public partial class Bullet : Area2D
     public bool IsEnemy;
     public int Damage;
     public bool Active;
+    public ulong ActivationId { get; private set; }
     public bool Grazed;  // グレイズ済みか（重複加点防止）
     // QA検証ログ（集中モードで遅くなったこと）を弾1発につき一度だけ出すためのワンショット。Activate で戻る。
     private bool _slowLogged;
@@ -507,6 +508,7 @@ public partial class Bullet : Area2D
     public void Activate(Vector2 pos, Vector2 vel, bool isEnemy, float radius, int damage,
         BulletShape shape = BulletShape.Orb, Color? tint = null, bool homing = false, bool backwardHoming = false)
     {
+        ActivationId++;
         Velocity = vel;
         IsEnemy = isEnemy;
         _playerVisual = isEnemy ? null : BulletArt.PlayerShot(GameManager.Instance!.SelectedJob);

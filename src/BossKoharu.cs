@@ -7,6 +7,7 @@ using Godot;
 // 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S2-7・S2-8。
 public partial class BossKoharu : Enemy
 {
+    public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     public bool Finished { get; private set; }
 
     private readonly BossMover _mover = new BossMover();
@@ -306,6 +307,7 @@ public partial class BossKoharu : Enemy
 
     private void FirePattern(double delta)
     {
+        if (_caster != null && _caster.EdgeAttackActive) return;
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
         // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。

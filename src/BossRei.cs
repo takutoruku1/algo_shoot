@@ -36,7 +36,7 @@ public partial class BossRei : Enemy
     public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
     // 安置リレー/全画面AOEの宣告〜最終着弾中か。StageRei が投稿弾（言葉弾）の湧きを止めるゲートに参照する
     //（安置円の中に言葉弾が刺さって「安置なのに被弾」になる理不尽を断つ）。
-    public bool AoeGateActive => _caster != null && _caster.AoeActive;
+    public bool AoeGateActive => _caster != null && (_caster.AoeActive || _caster.EdgeAttackActive);
     // ── 安置リレー「最終選考」（HP26%ワンショット）──
     //   全画面AOEの安置を2〜4回連結し、緑リングを頼りに走り継がせる終盤の山場。
     //   完走判定＝開始/終了時の Player.Lives 比較（被弾してもリレー自体は止まらない）。
@@ -309,7 +309,7 @@ public partial class BossRei : Enemy
     private void TickPressure(double delta)
     {
         if (_tauntCd > 0) _tauntCd -= delta;
-        if (_caster != null && _caster.AoeActive) return; // 安置リレー中＝走るのが正解の時間。逃げ腰を咎めない
+        if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) return; // 回避に集中する時間は逃げ腰を咎めない
         if (!IsShieldPhase) return; // 殴れない時間（合図/窓/セリフ）は与ダメゼロを咎めない
         _noDmgT += delta;
         int want = _noDmgT < _pressureDelay ? 0
@@ -340,7 +340,7 @@ public partial class BossRei : Enemy
         if (pool == null) return;
         // 安置リレー（最終選考）の宣告〜最終着弾中は通常弾を止める（避け先＝安置へ集中させる）。
         // このあいだは「宣告付きの大技」の立ち位置＝中央の高めに据わって動かない（見せ場を固定する）。
-        if (_caster != null && _caster.AoeActive) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
+        if (_caster != null && (_caster.AoeActive || _caster.EdgeAttackActive)) { _mover.SetNextAttack(BossMover.Attack.Spell); return; }
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
         // 「また逃げる」圧：リング系は弾数+_pressure、自機狙いは扇の枚数が増える（Aimed 内）。

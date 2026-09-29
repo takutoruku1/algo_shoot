@@ -13,6 +13,7 @@ public partial class BossDownQa : Node
     private readonly List<(string Id, Pose Idle, Pose Down)> _samples = new();
     private AkariRoot _root = null!;
     private bool _shots;
+    private bool _breakShots;
     private BulletPool Pool => GetNode<BulletPool>("/root/Pool");
     private static FieldInfo FieldOf(object value, string name)
     {
@@ -45,10 +46,12 @@ public partial class BossDownQa : Node
         try
         {
             Check(OS.GetUserDataDir().Replace('\\', '/').Contains("/build/qa_story/"), "isolated save data");
-            _shots = OS.GetCmdlineUserArgs().Contains("--down-shots");
+            _breakShots = OS.GetCmdlineUserArgs().Contains("--break-shots");
+            _shots = _breakShots || OS.GetCmdlineUserArgs().Contains("--down-shots");
             var game = GetNode<GameManager>("/root/Game");
             game.AutoSaveEnabled = false;
             game.ResetPersistent();
+            game.MarkIdleDialogSeen("once_midboss_shield");
             game.Difficulty = GameManager.Diff.Normal;
             if (_shots)
             {
@@ -84,6 +87,14 @@ public partial class BossDownQa : Node
                 Call(boss, "TickEntrance", 100d);
                 Call(boss, "TickSwapAnim", 1d);
                 await Frames(3);
+                if (_breakShots)
+                {
+                    await CheckBreakCallout(boss, id, game);
+                    boss.QueueFree();
+                    await Frames(4);
+                    Pool.DespawnAll();
+                    continue;
+                }
                 await Cycle(boss, id);
 
                 if (id is "akari" or "koharu" or "rei")
@@ -135,8 +146,11 @@ public partial class BossDownQa : Node
                 await Frames(4);
                 Pool.DespawnAll();
             }
-            Check(_samples.Count == 12, "all twelve down illustrations exercised");
-            if (_shots) await Comparison();
+            if (!_breakShots)
+            {
+                Check(_samples.Count == 12, "all twelve down illustrations exercised");
+                if (_shots) await Comparison();
+            }
             _root.QueueFree();
             await Frames(6);
             Pool.DespawnAll();
@@ -158,6 +172,77 @@ public partial class BossDownQa : Node
         _root.Hud.HoldBubble = false;
         _root.Hud.HideBubble();
         _root.Hud.SuppressCallouts = false;
+    }
+
+    private async Task CheckBreakCallout(Enemy boss, string id, GameManager game)
+    {
+        var cue = _root.Hud.Bubbles!.ShieldBreak;
+        Check(cue.ZIndex < -12 && !cue.ZAsRelative, "break portraits stay behind bullets and attack telegraphs");
+        foreach (var job in Jobs.All)
+        {
+            game.SelectedJob = job.Id;
+            ClearDialog();
+            Call(boss, "EnterShielded");
+            Strip(boss);
+            Call(boss, "EnterExposed");
+            _root.Hud.HideSpellCard();
+            _root.Hud.ShowBossLine("Enemy", "A competing enemy line", Colors.Red, 4);
+            await Frames(24);
+            Check(cue.Active && !Hud.BubblePaused && Read<Enemy>(cue, "_owner") == boss,
+                $"{id}/{job.CharacterId}: real shield destruction shows a nonblocking callout");
+            Check(Read<string>(cue, "_speaker") == job.CharacterName
+                && Read<string>(cue, "_line").Contains("シールド") && Read<string>(cue, "_line").Contains("本体"),
+                "the selected player explains the opening, independently of enemy dialogue");
+            var portrait = Read<Texture2D>(cue, "_portrait");
+            Check(!portrait.ResourcePath.Contains("player") && !portrait.ResourcePath.Contains("boss")
+                && UiKit.ContentRect(portrait).HasArea(), "callout uses nonblank standing artwork, not a shooting sprite");
+            Check(UiKit.WrapLines(UiKit.ZenBold, Read<string>(cue, "_line"), 24, 540).Count == 2,
+                "character dialogue fits two lines");
+            if (id == "akari")
+            {
+                await SaveBreakShot($"break_{job.CharacterId}");
+                if (job.Id == Job.Magic) await CheckBreakLayering(cue);
+                DisplayServer.WindowSetSize(new Vector2I(960, 540));
+                await Frames(5);
+                await SaveBreakShot($"break_{job.CharacterId}_small");
+                DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            }
+            Call(boss, "EnterReclose");
+            Check(!cue.Active, "the chance disappears immediately when the damage window closes early");
+            Call(boss, "EnterShielded");
+            Strip(boss);
+            Check(cue.Active, "the next break starts a fresh callout");
+            _root.Hud.SuppressCallouts = true;
+            await Frames(2);
+            Check(!cue.Active, "story interruptions clear the callout");
+            _root.Hud.SuppressCallouts = false;
+            Check(!cue.Active, "an old chance never reappears after an interruption");
+            Call(boss, "EnterReclose");
+        }
+    }
+
+    private async Task SaveBreakShot(string name)
+    {
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using var frame = GetViewport().GetTexture().GetImage();
+        Check(frame.SavePng($"{Out}/{name}.png") == Error.Ok, name + " screenshot saved");
+    }
+
+    private async Task CheckBreakLayering(ShieldBreakCallout cue)
+    {
+        var strike = new AreaStrike();
+        strike.Configure(AreaStrike.Shape.Circle, 24, 24, 10, new Color("ed715d"), Colors.White);
+        _root.World.AddChild(strike);
+        strike.GlobalPosition = new Vector2(155, 146);
+        strike.SetProcess(false);
+        var bullet = Pool.Spawn(new Vector2(157, 137), Vector2.Zero, true);
+        bullet.SetProcess(false);
+        Check(strike.ZIndex > cue.ZIndex && bullet.ZIndex > cue.ZIndex, "real AOE and hostile bullet render above the portrait");
+        await Frames(4);
+        await SaveBreakShot("break_rei_attacks_foreground");
+        strike.QueueFree();
+        Pool.Despawn(bullet);
+        await Frames(2);
     }
     private static CameoBoss Cameo(string id)
     {
@@ -248,6 +333,7 @@ public partial class BossDownQa : Node
             if (child is AreaSpellCaster or MinaPhaseAttacks) child.SetProcess(false);
         await Frames(100);
         Check(Read<bool>(boss, "_bodyDown") && boss.GaugeVulnerable, id + " live physics holds down during combat");
+        Check(_root.Hud.Bubbles!.ShieldBreak.Active, id + " opportunity callout follows the live damage window");
         Pool.DespawnAll();
         _root.Hud.HideSpellCard();
         if (_shots)
@@ -258,6 +344,7 @@ public partial class BossDownQa : Node
         }
         for (int i = 0; i < 600 && Read<bool>(boss, "_bodyDown"); i++) await Frames(1);
         Check(!Read<bool>(boss, "_bodyDown"), id + " live physics recovers from down without intervention");
+        Check(!_root.Hud.Bubbles!.ShieldBreak.Active, id + " opportunity callout ends with the live damage window");
         boss.ProcessMode = ProcessModeEnum.Disabled;
         Call(boss, "EnterShielded");
         Pool.DespawnAll();

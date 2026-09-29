@@ -26,6 +26,7 @@ using Godot;
 public partial class BubbleLayer : Node2D
 {
     public Hud Hud = null!;
+    public ShieldBreakCallout ShieldBreak { get; private set; } = null!;
     private CanvasModulate? _tint;   // 同じ Root に居る世界の色味（無ければ打ち消し不要）
 
     public override void _Ready()
@@ -36,6 +37,7 @@ public partial class BubbleLayer : Node2D
         foreach (var n in GetParent().GetChildren())
             if (n is CanvasModulate cm) { _tint = cm; break; }
         Hud.Bubbles = this;
+        AddChild(ShieldBreak = new ShieldBreakCallout { Name = "ShieldBreak", Hud = Hud });
     }
 
     public override void _ExitTree()

@@ -48,6 +48,7 @@ public partial class BossSpellQa : Node
             else
             {
                 bool clipsOnly = OS.GetCmdlineUserArgs().Contains("--rei-clips");
+                bool edgesOnly = OS.GetCmdlineUserArgs().Contains("--edges");
                 foreach (string scene in clipsOnly ? new[] { "Rei" } : new[] { "Akari", "Koharu", "Rei", "MinaBattle" })
                 {
                     game.Difficulty = GameManager.Diff.Normal;
@@ -72,6 +73,15 @@ public partial class BossSpellQa : Node
                     root.GetNode<StageBackground>("StageBackground").EnterBoss();
                     await Frames(250);
                     boss.SetPhysicsProcess(false);
+                    if (edgesOnly)
+                    {
+                        await CheckEdgeVolleys(game, scene, boss, hud, world, player);
+                        root.QueueFree();
+                        await Frames(5);
+                        Pool.DespawnAll();
+                        Hud.BubblePaused = false;
+                        continue;
+                    }
                     if (boss is BossMina mina)
                     {
                         var caster = Read<MinaPhaseAttacks>(mina, "_caster");
@@ -100,7 +110,7 @@ public partial class BossSpellQa : Node
                     Pool.DespawnAll();
                     Hud.BubblePaused = false;
                 }
-                await CheckSafeZonePixels();
+                if (!edgesOnly) await CheckSafeZonePixels();
             }
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())
@@ -118,6 +128,149 @@ public partial class BossSpellQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckEdgeVolleys(GameManager game, string scene, Enemy boss, Hud hud, Node2D world, Player player)
+    {
+        string key = scene == "MinaBattle" ? "mina" : scene.ToLowerInvariant();
+        var caster = Read<Node>(boss, "_caster");
+        caster.SetProcess(false);
+        void CancelCaster()
+        {
+            if (caster is AreaSpellCaster area) area.CancelPendingAttacks();
+            else ((MinaPhaseAttacks)caster).CancelPendingAttacks();
+        }
+        CancelCaster();
+        await ClearStrikes(world);
+        Pool.DespawnAll();
+        var expected = key switch
+        {
+            "akari" => new[] { BossEdgeVolley.Edge.Top, BossEdgeVolley.Edge.Bottom },
+            "koharu" => new[] { BossEdgeVolley.Edge.Right, BossEdgeVolley.Edge.Left },
+            "rei" => new[] { BossEdgeVolley.Edge.Left, BossEdgeVolley.Edge.Right, BossEdgeVolley.Edge.Top },
+            _ => new[] { BossEdgeVolley.Edge.Top, BossEdgeVolley.Edge.Right, BossEdgeVolley.Edge.Bottom, BossEdgeVolley.Edge.Left },
+        };
+        foreach (var diff in Enum.GetValues<GameManager.Diff>())
+            for (int i = 0; i < expected.Length; i++)
+            {
+                game.Difficulty = diff;
+                player.GlobalPosition = new Vector2(Field.CenterX, 114);
+                var volley = BossEdgeVolley.Begin(boss, key, i);
+                volley.SetPhysicsProcess(false);
+                Check(volley.Side == expected[i], $"{key}/{diff}/{i}: stage-specific edge order");
+                double warning = Read<double>(volley, "_warning");
+                var gates = Read<Vector2[]>(volley, "_gates");
+                Vector2 direction = Read<Vector2>(volley, "_direction");
+                Check(gates.All(p => p.X >= Field.Left && p.X <= Field.Right && p.Y >= Field.Top && p.Y <= Field.Bottom),
+                    "all emitters stay inside the playfield, outside the HUD panel");
+                Check(gates.Zip(gates.Skip(1), (a, b) => a.DistanceTo(b)).All(gap => gap >= 22), "dodge gaps remain open");
+                Check(gates.Any(p => Mathf.Abs((p - player.GlobalPosition).Cross(direction)) < 0.1f),
+                    "a warned lane targets the player rather than leaving an automatic center safe lane");
+                Check(warning >= 1.15 && Bullets().Length == 0, "warning starts with no damaging projectiles");
+                volley._PhysicsProcess(warning * 0.5);
+                Check(Bullets().Length == 0, "no early firing during warning");
+                if (diff == GameManager.Diff.Normal)
+                {
+                    await Shot($"edge_{key}_{volley.Side}_warning");
+                    hud.HoldBubble = true;
+                    hud.ShowDialog(Hud.LineKind.Mina, "Pause QA");
+                    await Frames(1);
+                    double time = Read<double>(volley, "_time");
+                    volley._PhysicsProcess(5);
+                    Check(Read<double>(volley, "_time") == time && Bullets().Length == 0, "dialogue freezes warning and firing");
+                    hud.HoldBubble = false;
+                    hud.HideBubble();
+                    await Frames(1);
+                }
+                volley._PhysicsProcess(warning * 0.5 + 0.01);
+                var first = Bullets();
+                Check(first.Length == gates.Length && first.All(b => Read<Texture2D?>(b, "_sprite") != null),
+                    "first row uses character projectile art");
+                Check(first.All(b => gates.Any(g => g.IsEqualApprox(b.GlobalPosition)) && b.Velocity.Normalized().IsEqualApprox(direction)),
+                    "projectiles originate at the warning and move in the announced direction");
+                foreach (var bullet in first) bullet.SetPhysicsProcess(false);
+                var bulletBefore = first[0].GlobalPosition;
+                first[0]._PhysicsProcess(0.1);
+                Check((first[0].GlobalPosition - bulletBefore).Dot(direction) > 0, "live projectile travels inward");
+                foreach (var bullet in first) bullet._PhysicsProcess(0.28);
+                volley._PhysicsProcess(0.28);
+                foreach (var bullet in Bullets()) bullet._PhysicsProcess(0.28);
+                volley._PhysicsProcess(0.28);
+                foreach (var bullet in Bullets()) bullet.SetPhysicsProcess(false);
+                Check(Bullets().Length == gates.Length * 3, "three rows release sequentially");
+                if (diff == GameManager.Diff.Normal)
+                {
+                    foreach (var bullet in Bullets()) bullet._PhysicsProcess(0.2);
+                    await Shot($"edge_{key}_{volley.Side}_fire");
+                }
+                if (diff == GameManager.Diff.Easy)
+                {
+                    foreach (var bullet in Bullets()) bullet._PhysicsProcess(10);
+                    volley._PhysicsProcess(0.1);
+                    Check(volley.Finished, "combat gate ends after the last row leaves the screen");
+                }
+                else volley.Cancel();
+                Check(Bullets().Length == 0, "cancelling removes this attack's projectiles");
+                foreach (var bullet in Pool.GetChildren().OfType<Bullet>()) bullet.SetPhysicsProcess(true);
+                await Frames(2);
+            }
+        game.Difficulty = GameManager.Diff.Normal;
+        var canceled = BossEdgeVolley.Begin(boss, key, 0);
+        canceled.SetPhysicsProcess(false);
+        canceled._PhysicsProcess(1.5);
+        var reused = Bullets()[0];
+        Pool.Despawn(reused);
+        var unrelated = Pool.Spawn(new Vector2(Field.CenterX, 80), Vector2.Down * 20, true);
+        Check(unrelated == reused, "test reuses an owned pool slot");
+        canceled.Cancel();
+        Check(unrelated.Active, "cleanup preserves a recycled, unrelated bullet");
+        Pool.DespawnAll();
+        await Frames(2);
+
+        var interrupted = BossEdgeVolley.Begin(boss, key, 0);
+        interrupted.SetPhysicsProcess(false);
+        interrupted._PhysicsProcess(1.5);
+        typeof(Enemy).GetMethod("EnterBreak", Private)!.Invoke(boss, null);
+        interrupted._PhysicsProcess(0.01);
+        Check(interrupted.Finished && Bullets().Length == 0, "shield break cancels attack and pending rows");
+        typeof(Enemy).GetMethod("EnterShielded", Private)!.Invoke(boss, null);
+        await Frames(2);
+
+        if (caster is AreaSpellCaster areaCaster)
+        {
+            Write(areaCaster, "_nextEdge", true);
+            areaCaster._Process(100);
+            Check(areaCaster.EdgeAttackActive, "normal boss scheduler starts edge attack");
+            Call(boss, "FirePattern", 10d);
+            Check(Bullets().Length == 0, "normal boss bullets stop during edge warning");
+            areaCaster.Suppressed = true;
+            Check(!areaCaster.EdgeAttackActive, "bespoke boss gimmick cancels edge attack");
+            areaCaster.Suppressed = false;
+            areaCaster.CancelPendingAttacks();
+            Write(areaCaster, "_nextEdge", true);
+            areaCaster._Process(100);
+            if (key == "rei")
+            {
+                areaCaster.CastFullscreenChain(2, 70, 100);
+                Check(!areaCaster.EdgeAttackActive && areaCaster.AoeActive, "fullscreen relay replaces edge attack without overlap");
+            }
+        }
+        else
+        {
+            var minaCaster = (MinaPhaseAttacks)caster;
+            typeof(MinaPhaseAttacks).GetProperty("OpenerCompleted")!.SetValue(minaCaster, true);
+            Write(minaCaster, "_nextEdge", true);
+            minaCaster._Process(100);
+            Check(minaCaster.Active && Read<BossEdgeVolley>(minaCaster, "_edgeVolley") != null,
+                "Mina scheduler alternates signature AOE and edge attack");
+            Check(((BossMina)boss).AoeGateActive, "Mina normal and ambient bullets are gated");
+            minaCaster.BeginPhase(1);
+            Check(!minaCaster.Active && !minaCaster.OpenerCompleted, "costume transition cancels volley and retains mandatory signature");
+        }
+        CancelCaster();
+        await Frames(2);
+        Check(!world.GetChildren().OfType<BossEdgeVolley>().Any() && Bullets().Length == 0,
+            "post/scene cancellation leaves no emitters or bullets");
     }
 
     private async Task CheckKoharuBody(GameManager game)

@@ -363,21 +363,6 @@ public partial class BossMina : Enemy
         GetHud()?.FlashBossBarBreak();
     }
 
-    // BREAK 合図：FINAL はどのアカウントで潜っても常にミナ本編なので、基底の「自機キャラ別」は使わない。
-    // ここは段ごとに救援へ来た三人（とミナ自身）が呼びかける形で固定する。
-    protected override void OnBreakCue()
-    {
-        var (name, line) = _pattern switch
-        {
-            1 => ("あかり", "届いてる。もう一歩、こっちへ！"),
-            2 => ("こはる", "その声、消さないで。ちゃんと聞いてるよ！"),
-            3 => ("レイ", "顔、上げて。ここからは一人でやらせない。"),
-            4 => ("ミナ", "……聞こえています。帰り道を、開いてください！"),
-            _ => ("ミナ", "……いけません。まだ、近づいては……。"),
-        };
-        GetHud()?.ShowBossLine(name, line, UiKit.Purify, 3.2, shieldBreak: true);
-    }
-
     private static readonly string[] RecloseLines =
     {
         "この重さは、わたくしが……。",

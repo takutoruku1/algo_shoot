@@ -176,19 +176,6 @@ public partial class CameoBoss : Enemy
         return new[] { (who, shield, face), (who, panels, face), (who, opening, face) };
     }
 
-    protected override void OnBreakCue()
-    {
-        var job = GameManager.Instance?.SelectedJob ?? Job.Tank;
-        string line = job switch
-        {
-            Job.Melee => "シールドが剥がれた！　今なら、本体に届くよ！",
-            Job.Heal => "シールドが剥がれたよ！　いま、本体を狙って！",
-            Job.Magic => "シールドが剥がれたわ。今のうちに、本体を狙って。",
-            _ => "シールドが剥がれました。今なら、本体に届きます。",
-        };
-        ShowBreakCueLine(Jobs.Get(job).CharacterName, line, CompanionDialogue.Accent(job));
-    }
-
     protected override void OnEnemyReady()
     {
         // 主要バランス値は INI（config/boss_stats.ini [cameo]＝3ステージの中ボス共通）で上書き可。

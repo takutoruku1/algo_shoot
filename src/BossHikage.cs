@@ -157,10 +157,6 @@ public partial class BossHikage : Enemy
 
     protected override void OnHpChanged() => GetHud()?.UpdateBossBar(CurrentBarIndex, TotalBars, CurrentBarFrac);
 
-    // BREAK 合図：ヒカゲ戦にミナは絡まないため、話者なしの合図にする（共通の「ミナが煽る」は使わない）。
-    protected override void OnBreakCue()
-        => ShowBreakCueLine("", "いまだ──黒い炎を、撃ち抜け!", UiKit.Kegare);
-
     protected override void OnCryStart()
     {
         var hud = GetHud();
