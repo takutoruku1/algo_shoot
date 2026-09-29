@@ -162,7 +162,7 @@ public partial class HowToCanvas : Node2D
             (TokMove,  "移動",        "上下左右に動く",                              UiKit.Info,   false),
             (TokShot,  "撃つ",        "自動で撃ちます。光を放って心を浄化する",          UiKit.Purify, false),
             (TokFocus, "低速移動",    "ゆっくり精密に動く。当たり判定が見やすい",        UiKit.Info,   false),
-            (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。攻めの切り札",          UiKit.Gold,   true),
+            (TokDodge, "回避ダッシュ","一瞬無敵で弾をすり抜ける。弾に寄るほど得点・稼ぎが伸びる",UiKit.Gold,   true),
             (TokFlip,  "向き反転",    "押すたび撃つ方向が 右⇔左 に切り替わる",           UiKit.Gold,   true),
             (TokBomb,  "ボム",        "画面の弾を消し短時間無敵。残数ぶん",             UiKit.Mina,   false),
             (TokMode,  "ショット切替","連射↔拡散↔ホーミング↔加速球（解放後）",           UiKit.Gold,   true),

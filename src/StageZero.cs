@@ -237,7 +237,7 @@ public partial class StageZero : Node
                 if (_refill > 1.6 && CountEnemyBullets() < 4) { _refill = 0; SpawnSlowBullets(); }
                 {
                     int dodged = (Player?.DodgeCount ?? 0) - _t4DodgeBase;
-                    Hud.SetTutorialHint($"いろんな方向に 回避してみよう（{Mathf.Min(dodged, DodgeNeed)}/{DodgeNeed}）");
+                    Hud.SetTutorialHint($"弾のすぐそばで 回避してみよう（近いほど高得点）（{Mathf.Min(dodged, DodgeNeed)}/{DodgeNeed}）");
                     if (dodged >= DodgeNeed || _phaseTime > SafetyTimeout)
                     {
                         Hud.ClearTutorialHint();
@@ -550,8 +550,9 @@ public partial class StageZero : Node
         float px = Player?.GlobalPosition.X ?? CenterX;
         for (int i = 0; i < 4; i++)
         {
-            float y = 40f + i * 36f;
-            pool.Spawn(new Vector2(Mathf.Min(370f, px + 90f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1);
+            float y = 40f + i * 24f;
+            // グレイズ半径(Player.GrazeRadius=11px)内を確実にかすめるよう、レーン間隔・開始距離を詰めてある。
+            pool.Spawn(new Vector2(Mathf.Min(370f, px + 60f + i * 12f), y), new Vector2(-30f, 0f), isEnemy: true, 3f, 1);
         }
     }
 
