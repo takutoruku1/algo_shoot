@@ -73,9 +73,9 @@
 
 <!-- 2026-09-30 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ・1件BLOCKEDへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P2) ボム多体浄化の報酬キャップ超過を画面上で告知 | game-designer→engineer | 2026-09-30監査(game-designer)。`src/GameManager.cs:1337`の`BombPurifyRewardCap=3`を超えた4体目以降の浄化は`AddPurify(..., fromBomb=true)`(`:1344,1351-1352`)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(`grep "MAX" src/GameManager.cs`にボム文脈の一致なし。対照的にボス無防備窓の`ExposedDamageCap`超過は`Enemy.cs:654-659`で金色「MAX」の`DamageNumber`を明示している)。`AddPurify`の`!rewarded`分岐に、`Enemy.cs:658`と同じ`FxLayer.DamageNumber`呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。
-
 ## WIP
+
+- [ ] (P2) ボム多体浄化の報酬キャップ超過を画面上で告知 | game-designer→engineer | 2026-09-30監査(game-designer)。`src/GameManager.cs:1337`の`BombPurifyRewardCap=3`を超えた4体目以降の浄化は`AddPurify(..., fromBomb=true)`(`:1344,1351-1352`)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(`grep "MAX" src/GameManager.cs`にボム文脈の一致なし。対照的にボス無防備窓の`ExposedDamageCap`超過は`Enemy.cs:654-659`で金色「MAX」の`DamageNumber`を明示している)。`AddPurify`の`!rewarded`分岐に、`Enemy.cs:658`と同じ`FxLayer.DamageNumber`呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。
 
 ## BLOCKED
 
