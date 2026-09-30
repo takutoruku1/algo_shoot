@@ -73,11 +73,12 @@
 
 <!-- 2026-09-30 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは2件TODOへ、engineerは1件TODOへ・1件BLOCKEDへ、scenario/qaは新規指摘0件(qaは全パスclean run) -->
 
-- [ ] (P2) DemoPilot.csのコメント内file:line参照ズレ修正 | engineer | 2026-09-30監査(engineer)。`src/DemoPilot.cs:258`のコメント「前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。」が指す`GameManager.cs:796-797`は現在はVeilLightDuration/EndDodgeの解説コメント(回避無敵の話)に変わっており、`BackfireDamage`/`BackfireInterval`が実際に定義されているのは`GameManager.cs:832-833`(2026-09-30時点で確認済み)。コメントの参照行番号を`832-833`へ機械的に修正する。ロジック変更なし。
 - [ ] (P2) 「集中の光」(focus_fire)のスタックをHUDで可視化 | game-designer→engineer | 2026-09-30監査(game-designer)。`src/Player.cs:262,291`の`FocusFireBonus`(同じ敵に`FocusFireHitsPerStack=8`ヒットごとに威力+1。Lv1で最大+1・Lv2で最大+2、ショップでの投資は800G+1280G=計2080G)がプレイ中まったく可視化されていない(`grep "FocusFire" src/Hud.cs`は0件、`src/HowToPlay.cs`にも言及なし)。同系の`SetFollowerProgress`/`SetAccelCharge`と同型のHUD配線パターンで現在のスタック数(被弾でリセットされる`Player.cs:1353-1355`ことも含む)を示すミニインジケーターを追加し、`src/HowToPlay.cs`のアップグレード紹介欄(`:251`周辺)にも「同じ敵を狙い続けると威力が上がる(被弾でリセット)」の1行を追加する。新規メカニクスの追加は行わず、既存の`FocusFireBonus`の値を表示するだけに留める。
 - [ ] (P2) ボム多体浄化の報酬キャップ超過を画面上で告知 | game-designer→engineer | 2026-09-30監査(game-designer)。`src/GameManager.cs:1337`の`BombPurifyRewardCap=3`を超えた4体目以降の浄化は`AddPurify(..., fromBomb=true)`(`:1344,1351-1352`)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(`grep "MAX" src/GameManager.cs`にボム文脈の一致なし。対照的にボス無防備窓の`ExposedDamageCap`超過は`Enemy.cs:654-659`で金色「MAX」の`DamageNumber`を明示している)。`AddPurify`の`!rewarded`分岐に、`Enemy.cs:658`と同じ`FxLayer.DamageNumber`呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。
 
 ## WIP
+
+- [ ] (P2) DemoPilot.csのコメント内file:line参照ズレ修正 | engineer | 2026-09-30監査(engineer)。`src/DemoPilot.cs:258`のコメント「前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。」が指す`GameManager.cs:796-797`は現在はVeilLightDuration/EndDodgeの解説コメント(回避無敵の話)に変わっており、`BackfireDamage`/`BackfireInterval`が実際に定義されているのは`GameManager.cs:832-833`(2026-09-30時点で確認済み)。コメントの参照行番号を`832-833`へ機械的に修正する。ロジック変更なし。
 
 ## BLOCKED
 
