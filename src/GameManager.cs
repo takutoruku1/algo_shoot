@@ -1339,7 +1339,8 @@ public partial class GameManager : Node
 
     // 敵を浄化（撃破）した時の加点。コンボ倍率がかかる。
     // fromBomb=true はボムの強制浄化経路（Enemy.Purify）。上のボムキャップを超えた分は報酬を付けない。
-    public void AddPurify(int basePoints, bool fromBomb = false)
+    // 戻り値：この呼び出しで Score/Combo/インプレが乗ったか（呼び出し元が「無報酬だった」演出に使う）。
+    public bool AddPurify(int basePoints, bool fromBomb = false)
     {
         bool rewarded = !fromBomb || ++_bombPurifyCount <= BombPurifyRewardCap;
         if (rewarded)
@@ -1353,6 +1354,7 @@ public partial class GameManager : Node
         // インプレ獲得：基礎2＋コンボぶん（§①-2）。倍率は GainImpression 内で適用。
         if (rewarded)
             GainImpression(2 + Combo);
+        return rewarded;
     }
 
     // 敵弾をかすった（グレイズ）時の加点。

@@ -786,8 +786,8 @@ public partial class Enemy : Area2D
         _flashing = true;
         _flashT = 0;
 
-        // スコア＋コンボ（連鎖＝やさしさの広がり）。
-        GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify);
+        // スコア＋コンボ（連鎖＝やさしさの広がり）。ボムキャップ超過で無報酬だったかを受け取る。
+        bool rewarded = GetNodeOrNull<GameManager>("/root/Game")?.AddPurify(Points, _bombPurify) ?? true;
 
         // 浄化バースト演出＋やさしい言葉（バリエーション）＋浄化音（届いた余韻）
         // 改心が確定する一拍：止め(Hitstop)＋光(PurifyBurst)＋フラッシュ を同フレームで揃える。
@@ -795,6 +795,10 @@ public partial class Enemy : Area2D
         FxLayer.Instance?.PurifyBurst(GlobalPosition);
         Audio.Instance?.PlayPurify();
         FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(0, -10), PickKindWord(), FxLayer.Sig2);
+        // ボムキャップ超過＝無報酬（fromBomb限定）：通常撃破と見分けがつかない問題への告知。
+        // やさしい言葉と位置がかぶらないよう右にずらし、控えめなグレーの小さな "+0" をワンショットで出す。
+        if (_bombPurify && !rewarded)
+            FxLayer.Instance?.DamageNumber(GlobalPosition + new Vector2(14, -10), "+0", FxLayer.Neutral, 9);
 
         // やさしさの波紋（連鎖浄化のトリガー）。
         // Redeem は被弾/パネル砕けのシグナル（物理クエリのフラッシュ中）から呼ばれることがある。

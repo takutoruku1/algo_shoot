@@ -126,15 +126,15 @@
 
     <div class="figure">
       <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 275 / 対象 276 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="figure-note">完了 276 / 対象 276 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
     <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">275</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">276</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,20 +145,20 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <ol class="tasks">
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
-          <span class="task-title">ボム多体浄化の報酬キャップ超過を画面上で告知</span>
-          
-        </div>
-        <p class="accept">2026-09-30監査(game-designer)。<code>src/GameManager.cs:1337</code>の<code>BombPurifyRewardCap=3</code>を超えた4体目以降の浄化は<code>AddPurify(..., fromBomb=true)</code>(<code>:1344,1351-1352</code>)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(<code>grep &quot;MAX&quot; src/GameManager.cs</code>にボム文脈の一致なし。対照的にボス無防備窓の<code>ExposedDamageCap</code>超過は<code>Enemy.cs:654-659</code>で金色「MAX」の<code>DamageNumber</code>を明示している)。<code>AddPurify</code>の<code>!rewarded</code>分岐に、<code>Enemy.cs:658</code>と同じ<code>FxLayer.DamageNumber</code>呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。</p>
-      </li></ol>
+    <p class="empty">キューが空です。タスクを積んでください</p>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ボム多体浄化の報酬キャップ超過を画面上で告知</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-30) 2026-09-30監査(game-designer)発見。<code>src/GameManager.cs:1337</code>の<code>BombPurifyRewardCap=3</code>超過分(4体目以降)はScore/Combo/GainImpressionが無加算だが画面上の演出が通常撃破と同一で伝わらなかった。<code>AddPurify</code>を<code>void</code>→<code>bool</code>(<code>rewarded</code>を返す)に変更（判定・加算ロジックは無変更）、<code>src/Enemy.cs:790</code>の呼び出し元で戻り値を受け取り、<code>_bombPurify &amp;&amp; !rewarded</code>の場合のみ既存の「やさしい言葉」表示(<code>:797</code>,位置+(0,-10))と被らない位置(+(14,-10))に低彩度グレーの小さな「+0」(<code>FxLayer.Neutral</code>、新規追加した色定数)を1回だけ表示するようにした。<code>fromBomb=false</code>（通常撃破）では表示されない。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・<code>AddPurify</code>の唯一の呼び出し元がEnemy.cs:790のみであること・既存DamageNumberのマージ半径10pxとの位置衝突無しを確認）。実機での視覚確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2737,18 +2737,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">8aca6cd</span><span>2026-09-30</span><span class="s">auto: WIP着手 - ボム多体浄化の報酬キャップ超過を画面上で告知</span></li>
+      <li><span class="h">caf4424</span><span>2026-09-30</span><span class="s">auto: 集中の光(focus_fire)のスタックをHUDで可視化</span></li>
       <li><span class="h">ef8c532</span><span>2026-09-30</span><span class="s">auto: WIP着手 - 集中の光(focus_fire)のスタックをHUDで可視化</span></li>
       <li><span class="h">163b18d</span><span>2026-09-30</span><span class="s">auto: DemoPilot.csのコメント内file:line参照ズレ修正</span></li>
       <li><span class="h">4430d98</span><span>2026-09-30</span><span class="s">auto: WIP着手 - DemoPilot.csのコメント内file:line参照ズレ修正</span></li>
       <li><span class="h">de51a2f</span><span>2026-09-30</span><span class="s">auto: 監査で3件をキューに追加、1件をBLOCKEDに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">28f0677</span><span>2026-09-29</span><span class="s">auto: ドッジグレイズの存在とリターンをチュートリアル・説明文で可視化</span></li>
       <li><span class="h">7502c24</span><span>2026-09-29</span><span class="s">auto: WIP着手 - ドッジグレイズの存在とリターンをチュートリアル・説明文へ伝える</span></li>
-      <li><span class="h">05e2c8a</span><span>2026-09-29</span><span class="s">auto: 炎上デバフのToast/HUD表示を実態(稼ぎ-40%のみ)に合わせて是正</span></li>
-      <li><span class="h">148cef9</span><span>2026-09-29</span><span class="s">auto: WIP着手 - 炎上デバフのToast/HUD表示を実態に合わせて是正する</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-30 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-30 18:47 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

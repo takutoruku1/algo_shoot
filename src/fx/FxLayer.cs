@@ -23,6 +23,7 @@ public partial class FxLayer : Node2D
     public static readonly Color Sig     = new Color("8a6fd6");
     public static readonly Color Sig2    = new Color("c3a9f0");
     public static readonly Color Gold    = new Color("ffd98a");
+    public static readonly Color Neutral = new Color("8a8a96"); // 無報酬告知（ボムキャップ超過"+0"）専用の低彩度グレー
 
     public enum T { Spark, Mote, Glow, Shard, Petal, HeartP, Ring, Dmg, Sigil, BombRing, Rain, Steam, Feather, Sym, AimLine }
 
