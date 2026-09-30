@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-30 18:36 UTC",
+  "generated": "2026-09-30 18:38 UTC",
   "counts": {
-    "todo": 3,
+    "todo": 2,
     "wip": 0,
     "blocked": 46,
-    "done": 273
+    "done": 274
   },
   "percent": 99,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "DemoPilot.csのコメント内file:line参照ズレ修正",
-      "worker": "engineer",
-      "accept": "2026-09-30監査(engineer)。`src/DemoPilot.cs:258`のコメント「前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。」が指す`GameManager.cs:796-797`は現在はVeilLightDuration/EndDodgeの解説コメント(回避無敵の話)に変わっており、`BackfireDamage`/`BackfireInterval`が実際に定義されているのは`GameManager.cs:832-833`(2026-09-30時点で確認済み)。コメントの参照行番号を`832-833`へ機械的に修正する。ロジック変更なし。"
-    },
     {
       "priority": "P2",
       "title": "「集中の光」(focus_fire)のスタックをHUDで可視化",
@@ -307,6 +301,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "DemoPilot.csのコメント内file:line参照ズレ修正",
+      "worker": "engineer",
+      "accept": "(完了 2026-09-30) 2026-09-30監査(engineer)発見。`src/DemoPilot.cs:258`のコメントが指す`GameManager.cs:796-797`は既にVeilLightDuration/EndDodgeの解説コメントに変わっており、`BackfireDamage`/`BackfireInterval`の実際の定義先である`GameManager.cs:832-833`へ参照行番号のみを修正した。コメント文字列1箇所の変更のみでロジック・他コメントは無変更。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error。"
+    },
     {
       "priority": "P1",
       "title": "ドッジグレイズ(回避よけ、通常の5倍スコア+稼ぎ増)の存在とリターンがチュートリアル・説明文のどこにも伝わらない",
@@ -1948,6 +1948,16 @@
   ],
   "commits": [
     {
+      "hash": "4430d98",
+      "date": "2026-09-30",
+      "subject": "auto: WIP着手 - DemoPilot.csのコメント内file:line参照ズレ修正"
+    },
+    {
+      "hash": "de51a2f",
+      "date": "2026-09-30",
+      "subject": "auto: 監査で3件をキューに追加、1件をBLOCKEDに追加（game-designer/engineer/scenario/qa並列監査）"
+    },
+    {
       "hash": "28f0677",
       "date": "2026-09-29",
       "subject": "auto: ドッジグレイズの存在とリターンをチュートリアル・説明文で可視化"
@@ -1976,16 +1986,6 @@
       "hash": "6088185",
       "date": "2026-09-28",
       "subject": "auto: 炎上デバフの三重ペナルティを是正（戦闘影響を撤廃、経済のみに）"
-    },
-    {
-      "hash": "20ff1c1",
-      "date": "2026-09-28",
-      "subject": "auto: WIP着手 - 炎上デバフの三重ペナルティを是正する"
-    },
-    {
-      "hash": "155fa6a",
-      "date": "2026-09-28",
-      "subject": "auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
     }
   ]
 }

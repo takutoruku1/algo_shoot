@@ -255,7 +255,7 @@ public partial class DemoPilot : Node
 
     // =====================  向き反転（背後の敵への対処）  =====================
     //
-    // 前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。
+    // 前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:832-833)より大幅に強い。
     // ところが従来の DemoPilot は HomeX(=104) を基準にした前方限定の回避・攻撃ロジックしか持たず、
     // 引用リプ(FlankAim。FlankCampX=40。Spawner.cs:112-123)のように自機の背後に居座る敵はバックファイア
     // 任せ＝削り切りが遅く被弾リスクの露出時間が伸びていた。
