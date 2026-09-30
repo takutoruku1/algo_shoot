@@ -653,6 +653,8 @@ public partial class Player : Area2D
             (float)_accelCharging.Count / AccelChargeCap);
         // HUDの操作ガイド「回避」点灯にCD状態を反映（CD中は淡色）。スキルと同じ毎フレーム通知の流儀。
         (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetDodgeReady(DodgeReady);
+        // HUDに集中の光（focus_fire）の現在スタック/上限を反映。未購入(max<=0)ならHud側が枠自体を隠す。
+        (GetTree().GetFirstNodeInGroup("hud") as Hud)?.SetFocusFireStack(FocusFireBonus, _game?.FocusFireMaxStack ?? 0);
 
         // やさしさ全開＝手動発動（満タン時に Ctrl / R3）。自動発動をやめ“使う”判断を委ねる。
         // Space は ui_accept（＝ショット）と重複し誤発動するため Ctrl（左右どちらも）に変更。

@@ -249,6 +249,7 @@ public partial class HowToCanvas : Node2D
             (1, "SCORE",       "遊びの得点。ハイスコアを狙える",                       UiKit.Gold),
             (0, "浄化した心",  "通貨。ショップ（ハブで " + TokBomb + "）でミナを強化できる", UiKit.Hp),
             (1, "フォロワー",  "届けた証。増えるほど全弾ダメージが微増（上限+50%）とインプレに上乗せ", UiKit.Info),
+            (1, "集中打撃",    "同じ敵を狙い続けると威力が上がる（被弾でリセット）",     UiKit.Gold),
             (1, "TIME",        "クリアタイム。記録に挑戦",                            UiKit.Text2),
         };
         float rowH = 40f;

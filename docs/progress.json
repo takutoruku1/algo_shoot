@@ -1,19 +1,13 @@
 {
-  "generated": "2026-09-30 18:38 UTC",
+  "generated": "2026-09-30 18:43 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 46,
-    "done": 274
+    "done": 275
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P2",
-      "title": "「集中の光」(focus_fire)のスタックをHUDで可視化",
-      "worker": null,
-      "accept": "2026-09-30監査(game-designer)。`src/Player.cs:262,291`の`FocusFireBonus`(同じ敵に`FocusFireHitsPerStack=8`ヒットごとに威力+1。Lv1で最大+1・Lv2で最大+2、ショップでの投資は800G+1280G=計2080G)がプレイ中まったく可視化されていない(`grep \"FocusFire\" src/Hud.cs`は0件、`src/HowToPlay.cs`にも言及なし)。同系の`SetFollowerProgress`/`SetAccelCharge`と同型のHUD配線パターンで現在のスタック数(被弾でリセットされる`Player.cs:1353-1355`ことも含む)を示すミニインジケーターを追加し、`src/HowToPlay.cs`のアップグレード紹介欄(`:251`周辺)にも「同じ敵を狙い続けると威力が上がる(被弾でリセット)」の1行を追加する。新規メカニクスの追加は行わず、既存の`FocusFireBonus`の値を表示するだけに留める。"
-    },
     {
       "priority": "P2",
       "title": "ボム多体浄化の報酬キャップ超過を画面上で告知",
@@ -301,6 +295,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P2",
+      "title": "「集中の光」(focus_fire)のスタックをHUDで可視化",
+      "worker": null,
+      "accept": "(完了 2026-09-30) 2026-09-30監査(game-designer)発見。`src/Player.cs:262`の`FocusFireBonus`(同じ敵に8ヒットごとに威力+1、Lv1最大+1/Lv2最大+2)がプレイ中まったく可視化されていなかった。`src/Player.cs:656-658`の毎フレームHUD通知ブロックに`Hud.SetFocusFireStack(FocusFireBonus, _game?.FocusFireMaxStack ?? 0)`呼び出しを追加（既存の`SetDodgeReady`/`SetAccelCharge`と同じ毎フレームpushパターン）。`src/Hud.cs`に`_focusStack`/`_focusMax`フィールド・`SetFocusFireStack()`・`DrawFocusFire()`(左列DrawBurning直下y=277、focus_fire未購入時=`_focusMax<=0`は`DrawAll`の呼び出し条件で非表示)を追加。`src/HowToPlay.cs:252`のフォロワー説明行の直後に「集中打撃：同じ敵を狙い続けると威力が上がる（被弾でリセット）」を追加。新規の当たり判定・ゲームプレイロジックは追加せず、既存プロパティの値をHUDへ表示するのみ。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・`FocusFireMaxStack`/`FocusFireBonus`の参照整合性・y座標の他バッジとの衝突無しを確認）。実機でのドット表示・レイアウト目視確認は未実施。"
+    },
     {
       "priority": "P2",
       "title": "DemoPilot.csのコメント内file:line参照ズレ修正",
@@ -1948,6 +1948,16 @@
   ],
   "commits": [
     {
+      "hash": "ef8c532",
+      "date": "2026-09-30",
+      "subject": "auto: WIP着手 - 集中の光(focus_fire)のスタックをHUDで可視化"
+    },
+    {
+      "hash": "163b18d",
+      "date": "2026-09-30",
+      "subject": "auto: DemoPilot.csのコメント内file:line参照ズレ修正"
+    },
+    {
       "hash": "4430d98",
       "date": "2026-09-30",
       "subject": "auto: WIP着手 - DemoPilot.csのコメント内file:line参照ズレ修正"
@@ -1976,16 +1986,6 @@
       "hash": "148cef9",
       "date": "2026-09-29",
       "subject": "auto: WIP着手 - 炎上デバフのToast/HUD表示を実態に合わせて是正する"
-    },
-    {
-      "hash": "0cee702",
-      "date": "2026-09-29",
-      "subject": "auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
-    },
-    {
-      "hash": "6088185",
-      "date": "2026-09-28",
-      "subject": "auto: 炎上デバフの三重ペナルティを是正（戦闘影響を撤廃、経済のみに）"
     }
   ]
 }

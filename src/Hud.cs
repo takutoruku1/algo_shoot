@@ -129,6 +129,11 @@ public partial class Hud : CanvasLayer
     private bool _accelGaugeVisible;
     private float _accelChargeRatio; // 0=タメ枠に空きあり／1=満杯（新規スポーンをスキップ中）
 
+    // 集中の光（focus_fire）：同じ敵に連続ヒットで積む威力段の現在値（Player.NotifyShotHit/TakeHitで増減）。
+    // Player から毎フレーム push（SetAccelCharge等と同じパターン）。_focusMax<=0＝未購入としてDrawFocusFireが隠す。
+    private int _focusStack;
+    private int _focusMax;
+
     // こはる面「お残し禁止」スペルの食事タイマー（BossKoharu.TickMeal の _mealPhase==2 から毎フレーム通知）。
     // 唯一の告知だったスペル名カード（5秒で消える）の後、時間切れ(8秒)までの残り3秒間に進行度の手がかりが
     // 無かったため新設。SpecialCdRatio/ComboTimeRatio と同じ矩形バー様式・画面上部中央（ボスカード/スペルカードの直下）。
@@ -739,6 +744,9 @@ public partial class Hud : CanvasLayer
     // Player.cs から毎フレーム通知：加速球モード選択中(visible)かどうかと、タメ枠の使用率(0..1)。
     public void SetAccelCharge(bool visible, float chargeRatio) { _accelGaugeVisible = visible; _accelChargeRatio = Mathf.Clamp(chargeRatio, 0f, 1f); }
     public void SetDodgeReady(bool ready) => _dodgeReady = ready;
+    // Player.cs から毎フレーム通知：集中の光（focus_fire）の現在ボーナス段/上限段。cur・maxとも0なら未購入扱いでDrawFocusFireが隠す。
+    // maxはこのプレイヤーが所持するfocus_fireのレベル（Lv1=1/Lv2=2）に一致。被弾でcurが0に落ちる＝Player.cs TakeHit側のリセットがそのまま反映される。
+    public void SetFocusFireStack(int cur, int max) { _focusMax = Mathf.Max(0, max); _focusStack = Mathf.Clamp(cur, 0, _focusMax); }
 
     // 現在のショットモードを設定。announce=true で切替トーストを表示。
     public void SetShotMode(GameManager.ShotMode m, bool announce)
@@ -820,6 +828,7 @@ public partial class Hud : CanvasLayer
         DrawGoal(ci);
         DrawBurning(ci);
         if (_skillHas) DrawSkill(ci);
+        if (_focusMax > 0) DrawFocusFire(ci);
         DrawTicker(ci);
         if (_quotePost.Length > 0) DrawQuoteCard(ci);
         if (_tutorialHint.Length > 0) DrawTutorialHint(ci);
@@ -1382,6 +1391,29 @@ public partial class Hud : CanvasLayer
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Burn, 0.35f + 0.25f * pulse)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Burn));
         UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.Burn));
+    }
+
+    // 集中の光（focus_fire）の現在スタック（左列・DrawBurningの直下）。focus_fire未購入(_focusMax<=0)は
+    // DrawAll側の呼び出し条件で隠す＝ショップ未投資のプレイヤーには余計な空枠を見せない。
+    // 点灯ドット数＝現在のFocusFireBonus（同じ敵にFocusFireHitsPerStackヒットごとに+1、被弾でPlayer.cs側が0に戻す）。
+    private void DrawFocusFire(HudCanvas ci)
+    {
+        const string label = "集中打撃";
+        const float padL = 16f, h = 24f, dotR = 3.2f, dotGap = 10f;
+        float pipW = 16 + (_focusMax - 1) * dotGap;
+        float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 10 + pipW + 10;
+        // DrawBurning（y=249, h=24）の直下、3px空けて配置。炎上中/未表示のどちらでも位置は固定でズレない。
+        float x = 22, y = 277;
+        UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Gold, 0.4f)), 1f);
+        ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Gold));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + padL + 10, y + 5), label, 13, Fa(UiKit.Gold));
+        float dotX = x + padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 10;
+        float dotY = y + h / 2f;
+        for (int i = 0; i < _focusMax; i++)
+        {
+            bool lit = i < _focusStack;
+            ci.DrawCircle(new Vector2(dotX + 8 + i * dotGap, dotY), dotR, Fa(lit ? UiKit.Gold : new Color(UiKit.Gold, 0.22f)));
+        }
     }
 
     // やさしさ全開の瞬間トースト（DrawShotModeToast と同系。中央上に短時間）。

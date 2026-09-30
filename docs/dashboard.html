@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">99<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 274 / 対象 276 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="pct">100<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 275 / 対象 276 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">274</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">275</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">1</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -149,14 +149,6 @@
       <li class="task ">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
-          <span class="task-title">「集中の光」(focus_fire)のスタックをHUDで可視化</span>
-          
-        </div>
-        <p class="accept">2026-09-30監査(game-designer)。<code>src/Player.cs:262,291</code>の<code>FocusFireBonus</code>(同じ敵に<code>FocusFireHitsPerStack=8</code>ヒットごとに威力+1。Lv1で最大+1・Lv2で最大+2、ショップでの投資は800G+1280G=計2080G)がプレイ中まったく可視化されていない(<code>grep &quot;FocusFire&quot; src/Hud.cs</code>は0件、<code>src/HowToPlay.cs</code>にも言及なし)。同系の<code>SetFollowerProgress</code>/<code>SetAccelCharge</code>と同型のHUD配線パターンで現在のスタック数(被弾でリセットされる<code>Player.cs:1353-1355</code>ことも含む)を示すミニインジケーターを追加し、<code>src/HowToPlay.cs</code>のアップグレード紹介欄(<code>:251</code>周辺)にも「同じ敵を狙い続けると威力が上がる(被弾でリセット)」の1行を追加する。新規メカニクスの追加は行わず、既存の<code>FocusFireBonus</code>の値を表示するだけに留める。</p>
-      </li>
-      <li class="task ">
-        <div class="task-head">
-          <span class="chip chip-p2">P2</span>
           <span class="task-title">ボム多体浄化の報酬キャップ超過を画面上で告知</span>
           
         </div>
@@ -167,6 +159,14 @@
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「集中の光」(focus_fire)のスタックをHUDで可視化</span>
+          
+        </div>
+        <p class="accept">(完了 2026-09-30) 2026-09-30監査(game-designer)発見。<code>src/Player.cs:262</code>の<code>FocusFireBonus</code>(同じ敵に8ヒットごとに威力+1、Lv1最大+1/Lv2最大+2)がプレイ中まったく可視化されていなかった。<code>src/Player.cs:656-658</code>の毎フレームHUD通知ブロックに<code>Hud.SetFocusFireStack(FocusFireBonus, _game?.FocusFireMaxStack ?? 0)</code>呼び出しを追加（既存の<code>SetDodgeReady</code>/<code>SetAccelCharge</code>と同じ毎フレームpushパターン）。<code>src/Hud.cs</code>に<code>_focusStack</code>/<code>_focusMax</code>フィールド・<code>SetFocusFireStack()</code>・<code>DrawFocusFire()</code>(左列DrawBurning直下y=277、focus_fire未購入時=<code>_focusMax&lt;=0</code>は<code>DrawAll</code>の呼び出し条件で非表示)を追加。<code>src/HowToPlay.cs:252</code>のフォロワー説明行の直後に「集中打撃：同じ敵を狙い続けると威力が上がる（被弾でリセット）」を追加。新規の当たり判定・ゲームプレイロジックは追加せず、既存プロパティの値をHUDへ表示するのみ。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・<code>FocusFireMaxStack</code>/<code>FocusFireBonus</code>の参照整合性・y座標の他バッジとの衝突無しを確認）。実機でのドット表示・レイアウト目視確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p2">P2</span>
@@ -2737,18 +2737,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">ef8c532</span><span>2026-09-30</span><span class="s">auto: WIP着手 - 集中の光(focus_fire)のスタックをHUDで可視化</span></li>
+      <li><span class="h">163b18d</span><span>2026-09-30</span><span class="s">auto: DemoPilot.csのコメント内file:line参照ズレ修正</span></li>
       <li><span class="h">4430d98</span><span>2026-09-30</span><span class="s">auto: WIP着手 - DemoPilot.csのコメント内file:line参照ズレ修正</span></li>
       <li><span class="h">de51a2f</span><span>2026-09-30</span><span class="s">auto: 監査で3件をキューに追加、1件をBLOCKEDに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
       <li><span class="h">28f0677</span><span>2026-09-29</span><span class="s">auto: ドッジグレイズの存在とリターンをチュートリアル・説明文で可視化</span></li>
       <li><span class="h">7502c24</span><span>2026-09-29</span><span class="s">auto: WIP着手 - ドッジグレイズの存在とリターンをチュートリアル・説明文へ伝える</span></li>
       <li><span class="h">05e2c8a</span><span>2026-09-29</span><span class="s">auto: 炎上デバフのToast/HUD表示を実態(稼ぎ-40%のみ)に合わせて是正</span></li>
       <li><span class="h">148cef9</span><span>2026-09-29</span><span class="s">auto: WIP着手 - 炎上デバフのToast/HUD表示を実態に合わせて是正する</span></li>
-      <li><span class="h">0cee702</span><span>2026-09-29</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
-      <li><span class="h">6088185</span><span>2026-09-28</span><span class="s">auto: 炎上デバフの三重ペナルティを是正（戦闘影響を撤廃、経済のみに）</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-30 18:38 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-30 18:43 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
