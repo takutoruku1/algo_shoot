@@ -1,13 +1,32 @@
 {
-  "generated": "2026-09-29 18:31 UTC",
+  "generated": "2026-09-30 18:36 UTC",
   "counts": {
-    "todo": 0,
+    "todo": 3,
     "wip": 0,
-    "blocked": 45,
+    "blocked": 46,
     "done": 273
   },
-  "percent": 100,
-  "todo": [],
+  "percent": 99,
+  "todo": [
+    {
+      "priority": "P2",
+      "title": "DemoPilot.csのコメント内file:line参照ズレ修正",
+      "worker": "engineer",
+      "accept": "2026-09-30監査(engineer)。`src/DemoPilot.cs:258`のコメント「前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。」が指す`GameManager.cs:796-797`は現在はVeilLightDuration/EndDodgeの解説コメント(回避無敵の話)に変わっており、`BackfireDamage`/`BackfireInterval`が実際に定義されているのは`GameManager.cs:832-833`(2026-09-30時点で確認済み)。コメントの参照行番号を`832-833`へ機械的に修正する。ロジック変更なし。"
+    },
+    {
+      "priority": "P2",
+      "title": "「集中の光」(focus_fire)のスタックをHUDで可視化",
+      "worker": null,
+      "accept": "2026-09-30監査(game-designer)。`src/Player.cs:262,291`の`FocusFireBonus`(同じ敵に`FocusFireHitsPerStack=8`ヒットごとに威力+1。Lv1で最大+1・Lv2で最大+2、ショップでの投資は800G+1280G=計2080G)がプレイ中まったく可視化されていない(`grep \"FocusFire\" src/Hud.cs`は0件、`src/HowToPlay.cs`にも言及なし)。同系の`SetFollowerProgress`/`SetAccelCharge`と同型のHUD配線パターンで現在のスタック数(被弾でリセットされる`Player.cs:1353-1355`ことも含む)を示すミニインジケーターを追加し、`src/HowToPlay.cs`のアップグレード紹介欄(`:251`周辺)にも「同じ敵を狙い続けると威力が上がる(被弾でリセット)」の1行を追加する。新規メカニクスの追加は行わず、既存の`FocusFireBonus`の値を表示するだけに留める。"
+    },
+    {
+      "priority": "P2",
+      "title": "ボム多体浄化の報酬キャップ超過を画面上で告知",
+      "worker": null,
+      "accept": "2026-09-30監査(game-designer)。`src/GameManager.cs:1337`の`BombPurifyRewardCap=3`を超えた4体目以降の浄化は`AddPurify(..., fromBomb=true)`(`:1344,1351-1352`)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(`grep \"MAX\" src/GameManager.cs`にボム文脈の一致なし。対照的にボス無防備窓の`ExposedDamageCap`超過は`Enemy.cs:654-659`で金色「MAX」の`DamageNumber`を明示している)。`AddPurify`の`!rewarded`分岐に、`Enemy.cs:658`と同じ`FxLayer.DamageNumber`呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。"
+    }
+  ],
   "wip": [],
   "blocked": [
     {
@@ -279,6 +298,12 @@
       "title": "仮台本12「判断が要る点#2」（ボス名・技名の「仮置き」表記）が実装確定後も未更新のまま残存",
       "worker": "scenario",
       "accept": "要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典`wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は`src/BossRei.cs:183`（`ShowBossBar(\"星逢レイ\", ...)`）・`src/BossKoharu.cs:193`（`ShowBossBar(\"我に返るわたし\", ...)`）で既に確定済み、技名4種も`DEV_QUEUE.md`DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: `wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197`の「迷う」「仮置き」の記述を、実装確定済みである旨（`BossRei.cs:183`＝星逢レイ、`BossKoharu.cs:193`＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。"
+    },
+    {
+      "priority": null,
+      "title": "Koharu面等で低確率(3回中1回相当)に再現するSIGABRTクラッシュ(Godot mono GC/ファイナライザ競合)が未起票のまま放置",
+      "worker": "engineer",
+      "accept": "要ユーザー判断（通常プレイでの再現性を切り分けないと対応方針が決まらない）。2026-09-30監査(engineer)発見。DONE(完了2026-09-16、Training.tscnクラッシュ対応)の検証記録内で担当engineer自身が「`FATAL: csharp_lang && !csharp_lang->script_bindings.is_empty()`というGodot 4.6.3 mono側のGC/ファイナライザスレッド競合クラッシュは、Training固有ではなく低確率ながら他ステージ(Koharu、`InputEventAction`過多が支配的要因)でも未修正コードのまま3回中1回再現した」「他ステージ側の低確率フレークは本タスクの受入条件外のため未着手（別途起票が要るなら追記する）」と明記したまま、その\"別途起票\"が一度も行われていなかった。当該修正`src/UiKit.cs:281-296 Box()`(StyleBoxFlatのstatic再利用化)はTrainingで支配的だった別要因(過剰生成)を潰しただけで、Koharu側の\"InputEventAction過多\"という別要因には対応していない(`src/QaPilot.cs:279-280`/`src/DemoPilot.cs:339-340`のInputEventAction送出箇所は変更なしで現存、2026-09-30確認)。既存BLOCKED「高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ(Rei/Lunatic)」とは症状(SIGABRT vs SIGSEGV)・再現条件(bot高頻度入力 vs CPU競合下の複数プロセス同時実行)が異なる別問題で重複ではない。要ユーザー判断: 通常プレイ(人間操作、bot高頻度入力ではない環境)でも同条件が再現するか確認してから、(a)原因調査・対処に着手する、(b)bot特有の事象として許容し対応不要とする、のいずれか指定してほしい。再現条件の切り分け自体がGodotエンジン内部の調査を要し1タスクの規模を超えるため自動着手不可。"
     }
   ],
   "done": [
@@ -1923,6 +1948,11 @@
   ],
   "commits": [
     {
+      "hash": "28f0677",
+      "date": "2026-09-29",
+      "subject": "auto: ドッジグレイズの存在とリターンをチュートリアル・説明文で可視化"
+    },
+    {
       "hash": "7502c24",
       "date": "2026-09-29",
       "subject": "auto: WIP着手 - ドッジグレイズの存在とリターンをチュートリアル・説明文へ伝える"
@@ -1956,11 +1986,6 @@
       "hash": "155fa6a",
       "date": "2026-09-28",
       "subject": "auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）"
-    },
-    {
-      "hash": "ea4b1ac",
-      "date": "2026-09-27",
-      "subject": "auto: 仮台本09・11の自己申告バナーを事実訂正"
     }
   ]
 }

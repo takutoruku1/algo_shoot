@@ -125,17 +125,17 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 273 / 対象 273 タスク<br>保留 45 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 273 / 対象 276 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
     <div class="state done"><div class="state-n">273</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
-    <div class="state blocked"><div class="state-n">45</div><div class="state-l">保留</div></div>
+    <div class="state todo"><div class="state-n">3</div><div class="state-l">残り</div></div>
+    <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
   <section>
@@ -145,7 +145,31 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">DemoPilot.csのコメント内file:line参照ズレ修正</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">2026-09-30監査(engineer)。<code>src/DemoPilot.cs:258</code>のコメント「前方射撃(Fire)は後方射撃(FireBackfire、1dmg/0.9s。GameManager.cs:796-797)より大幅に強い。」が指す<code>GameManager.cs:796-797</code>は現在はVeilLightDuration/EndDodgeの解説コメント(回避無敵の話)に変わっており、<code>BackfireDamage</code>/<code>BackfireInterval</code>が実際に定義されているのは<code>GameManager.cs:832-833</code>(2026-09-30時点で確認済み)。コメントの参照行番号を<code>832-833</code>へ機械的に修正する。ロジック変更なし。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">「集中の光」(focus_fire)のスタックをHUDで可視化</span>
+          
+        </div>
+        <p class="accept">2026-09-30監査(game-designer)。<code>src/Player.cs:262,291</code>の<code>FocusFireBonus</code>(同じ敵に<code>FocusFireHitsPerStack=8</code>ヒットごとに威力+1。Lv1で最大+1・Lv2で最大+2、ショップでの投資は800G+1280G=計2080G)がプレイ中まったく可視化されていない(<code>grep &quot;FocusFire&quot; src/Hud.cs</code>は0件、<code>src/HowToPlay.cs</code>にも言及なし)。同系の<code>SetFollowerProgress</code>/<code>SetAccelCharge</code>と同型のHUD配線パターンで現在のスタック数(被弾でリセットされる<code>Player.cs:1353-1355</code>ことも含む)を示すミニインジケーターを追加し、<code>src/HowToPlay.cs</code>のアップグレード紹介欄(<code>:251</code>周辺)にも「同じ敵を狙い続けると威力が上がる(被弾でリセット)」の1行を追加する。新規メカニクスの追加は行わず、既存の<code>FocusFireBonus</code>の値を表示するだけに留める。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p2">P2</span>
+          <span class="task-title">ボム多体浄化の報酬キャップ超過を画面上で告知</span>
+          
+        </div>
+        <p class="accept">2026-09-30監査(game-designer)。<code>src/GameManager.cs:1337</code>の<code>BombPurifyRewardCap=3</code>を超えた4体目以降の浄化は<code>AddPurify(..., fromBomb=true)</code>(<code>:1344,1351-1352</code>)でScore/Combo/GainImpressionが無加算になるが、爆発演出・撃破エフェクトが通常撃破と同一で「なぜ増えなかったか」が画面上から一切伝わらない(<code>grep &quot;MAX&quot; src/GameManager.cs</code>にボム文脈の一致なし。対照的にボス無防備窓の<code>ExposedDamageCap</code>超過は<code>Enemy.cs:654-659</code>で金色「MAX」の<code>DamageNumber</code>を明示している)。<code>AddPurify</code>の<code>!rewarded</code>分岐に、<code>Enemy.cs:658</code>と同じ<code>FxLayer.DamageNumber</code>呼び出しパターンで控えめな告知(例: 通常の金色と揃えない灰色トーンの小さな「+0」)を1回だけ追加する。判定・報酬ロジック自体(アンチファーム設計の意図)は変更しない。</p>
+      </li></ol>
   </section>
 
   <section>
@@ -2699,12 +2723,21 @@
           <span class="worker">scenario</span>
         </div>
         <p class="accept">要ユーザー判断（注記文言の記述範囲判断を伴う）。2026-09-23監査(scenario)。正典<code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197</code>「レイは...『星逢レイ』そのもの…にする案で書いた。『ガワのわたし』と迷う。こはるは『とまれないわたし』を『我に返るわたし』に仮置きした。技の名四つも仮置きで...選び直してよい。」が未決事項のまま残る。実装は<code>src/BossRei.cs:183</code>（<code>ShowBossBar(&quot;星逢レイ&quot;, ...)</code>）・<code>src/BossKoharu.cs:193</code>（<code>ShowBossBar(&quot;我に返るわたし&quot;, ...)</code>）で既に確定済み、技名4種も<code>DEV_QUEUE.md</code>DONE(完了2026-09-06、STAGE3レイ/STAGE2こはる各ボス実装タスク)に確定記録済み。既存BLOCKED(2026-09-14、同ファイル判断点#4/line199)とは対象が別項目(#2/line197)で重複ではない。要ユーザー判断: <code>wiki/08_仮台本/12_キャラ設定シートv2_社会人版.md:197</code>の「迷う」「仮置き」の記述を、実装確定済みである旨（<code>BossRei.cs:183</code>＝星逢レイ、<code>BossKoharu.cs:193</code>＝我に返るわたし）へ更新してよいか。新規セリフ創作は伴わない。</p>
+      </li>
+      <li class="task is-blocked">
+        <div class="task-head">
+          <span class="chip chip-none">—</span>
+          <span class="task-title">Koharu面等で低確率(3回中1回相当)に再現するSIGABRTクラッシュ(Godot mono GC/ファイナライザ競合)が未起票のまま放置</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">要ユーザー判断（通常プレイでの再現性を切り分けないと対応方針が決まらない）。2026-09-30監査(engineer)発見。DONE(完了2026-09-16、Training.tscnクラッシュ対応)の検証記録内で担当engineer自身が「<code>FATAL: csharp_lang &amp;&amp; !csharp_lang-&gt;script_bindings.is_empty()</code>というGodot 4.6.3 mono側のGC/ファイナライザスレッド競合クラッシュは、Training固有ではなく低確率ながら他ステージ(Koharu、<code>InputEventAction</code>過多が支配的要因)でも未修正コードのまま3回中1回再現した」「他ステージ側の低確率フレークは本タスクの受入条件外のため未着手（別途起票が要るなら追記する）」と明記したまま、その&quot;別途起票&quot;が一度も行われていなかった。当該修正<code>src/UiKit.cs:281-296 Box()</code>(StyleBoxFlatのstatic再利用化)はTrainingで支配的だった別要因(過剰生成)を潰しただけで、Koharu側の&quot;InputEventAction過多&quot;という別要因には対応していない(<code>src/QaPilot.cs:279-280</code>/<code>src/DemoPilot.cs:339-340</code>のInputEventAction送出箇所は変更なしで現存、2026-09-30確認)。既存BLOCKED「高負荷並列実行時のみ観測されたエンジン側SIGSEGVクラッシュ(Rei/Lunatic)」とは症状(SIGABRT vs SIGSEGV)・再現条件(bot高頻度入力 vs CPU競合下の複数プロセス同時実行)が異なる別問題で重複ではない。要ユーザー判断: 通常プレイ(人間操作、bot高頻度入力ではない環境)でも同条件が再現するか確認してから、(a)原因調査・対処に着手する、(b)bot特有の事象として許容し対応不要とする、のいずれか指定してほしい。再現条件の切り分け自体がGodotエンジン内部の調査を要し1タスクの規模を超えるため自動着手不可。</p>
       </li></ol>
   </section>
 
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">28f0677</span><span>2026-09-29</span><span class="s">auto: ドッジグレイズの存在とリターンをチュートリアル・説明文で可視化</span></li>
       <li><span class="h">7502c24</span><span>2026-09-29</span><span class="s">auto: WIP着手 - ドッジグレイズの存在とリターンをチュートリアル・説明文へ伝える</span></li>
       <li><span class="h">05e2c8a</span><span>2026-09-29</span><span class="s">auto: 炎上デバフのToast/HUD表示を実態(稼ぎ-40%のみ)に合わせて是正</span></li>
       <li><span class="h">148cef9</span><span>2026-09-29</span><span class="s">auto: WIP着手 - 炎上デバフのToast/HUD表示を実態に合わせて是正する</span></li>
@@ -2712,11 +2745,10 @@
       <li><span class="h">6088185</span><span>2026-09-28</span><span class="s">auto: 炎上デバフの三重ペナルティを是正（戦闘影響を撤廃、経済のみに）</span></li>
       <li><span class="h">20ff1c1</span><span>2026-09-28</span><span class="s">auto: WIP着手 - 炎上デバフの三重ペナルティを是正する</span></li>
       <li><span class="h">155fa6a</span><span>2026-09-28</span><span class="s">auto: 監査で2件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
-      <li><span class="h">ea4b1ac</span><span>2026-09-27</span><span class="s">auto: 仮台本09・11の自己申告バナーを事実訂正</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-09-29 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-09-30 18:36 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>
