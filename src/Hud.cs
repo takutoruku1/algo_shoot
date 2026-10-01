@@ -1402,7 +1402,7 @@ public partial class Hud : CanvasLayer
         const float padL = 16f, h = 24f, dotR = 3.2f, dotGap = 10f;
         float pipW = 16 + (_focusMax - 1) * dotGap;
         float w = padL + 10 + UiKit.TextW(UiKit.ZenBold, label, 13) + 10 + pipW + 10;
-        // DrawBurning（y=249, h=24）の直下、3px空けて配置。炎上中/未表示のどちらでも位置は固定でズレない。
+        // DrawBurning（y=249, h=24）の直下、4px空けて配置。炎上中/未表示のどちらでも位置は固定でズレない。
         float x = 22, y = 277;
         UiKit.Box(ci, new Rect2(x, y, w, h), Fa(new Color(16 / 255f, 14 / 255f, 26 / 255f, 0.6f)), 11f, Fa(new Color(UiKit.Gold, 0.4f)), 1f);
         ci.DrawCircle(new Vector2(x + padL, y + h / 2f), 4.5f, Fa(UiKit.Gold));
