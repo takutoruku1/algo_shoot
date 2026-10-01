@@ -275,7 +275,7 @@ public partial class AreaSpellCaster : Node2D
                 _spells = new (string, AreaStrike.Shape?)[] { ("コメント一斉読み", H_), ("配信枠", R), ("切り抜きの線", H_) };
                 _anchorPlayer = true; // 1枚目は自機の現在地＝左端張り付きでも定期的に一歩動かされる
                 break;
-            case "akari": // 雨の教室・降る前に予報（蒼）
+            case "akari": // 雨の降りやまない退勤後のフロア・降る前に予報（蒼）
                 _disp = "あかり"; _handle = "@akari_ame";
                 _tint = new Color("6c9cd8"); _hot = new Color("a9dcff");
                 _warnMin = 1.0; _warnMax = 1.4; _interval = 9.0;

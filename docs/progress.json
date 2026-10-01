@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-01 18:57 UTC",
+  "generated": "2026-10-01 18:58 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 46,
-    "done": 277
+    "done": 278
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "AreaSpellCaster.csのあかり用コメントだけ案C移行前の「雨の教室」のまま取り残されている",
-      "worker": "scenario",
-      "accept": "2026-10-01監査(scenario)。`src/AreaSpellCaster.cs:278`のコメント「雨の教室・降る前に予報（蒼）」が未修正。同ファイルのrei(`:269`)・koharu(`:285`)は既に案C確定の場所名に追従済みだが、akariだけ未追従。`src/BossAkari.cs:3`が既に使っている案C確定の場所名「退勤後のフロア」ベースの文言にコメントのみ差し替える（`_spells`配列`:283`・`_shapes`:282・ロジックは一切変更しない。技名自体の改名は別件・既存BLOCKEDのまま）。"
-    },
     {
       "priority": "P3",
       "title": "BossKoharu.cs内の「料理弾／お残し／完食」コメント群が旧台所モチーフのまま、表示済みの技名改訂と不整合",
@@ -301,6 +295,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "AreaSpellCaster.csのあかり用コメントだけ案C移行前の「雨の教室」のまま取り残されている",
+      "worker": "scenario",
+      "accept": "(完了 2026-10-01) 2026-10-01監査(scenario)発見。`src/AreaSpellCaster.cs:278`のコメント「雨の教室・降る前に予報（蒼）」を、`src/BossAkari.cs:3`で確定済みの場所名「雨の降りやまない退勤後のフロア」に合わせ「雨の降りやまない退勤後のフロア・降る前に予報（蒼）」へ修正。`_spells`/`_shapes`/ロジック・数値は無変更、コメント1行のみ。新規台詞の創作ではなく既存確定済み場所名の転記のため台詞承認ゲート対象外。**検証**: `dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・コメント1行のみの変更であることを確認）。"
+    },
     {
       "priority": "P3",
       "title": "Hud.cs内コメントの間隔表記が実座標と1px食い違っている",
@@ -1966,6 +1966,16 @@
   ],
   "commits": [
     {
+      "hash": "685ed26",
+      "date": "2026-10-01",
+      "subject": "auto: WIP着手 - AreaSpellCaster.csのあかり用コメント是正"
+    },
+    {
+      "hash": "5f0f11a",
+      "date": "2026-10-01",
+      "subject": "auto: Hud.cs内コメントの間隔表記を実座標に合わせて修正"
+    },
+    {
       "hash": "b7c2aa8",
       "date": "2026-10-01",
       "subject": "auto: WIP着手 - Hud.cs内コメントの間隔表記修正"
@@ -1994,16 +2004,6 @@
       "hash": "ef8c532",
       "date": "2026-09-30",
       "subject": "auto: WIP着手 - 集中の光(focus_fire)のスタックをHUDで可視化"
-    },
-    {
-      "hash": "163b18d",
-      "date": "2026-09-30",
-      "subject": "auto: DemoPilot.csのコメント内file:line参照ズレ修正"
-    },
-    {
-      "hash": "4430d98",
-      "date": "2026-09-30",
-      "subject": "auto: WIP着手 - DemoPilot.csのコメント内file:line参照ズレ修正"
     }
   ]
 }
