@@ -31,7 +31,7 @@ public partial class BossKoharu : Enemy
     private const string KPale = "res://char/v3/koharu_face_pale.png";
     private const string MWorried = "res://char/mina_worried.png";
 
-    // 予測攻撃キャスター（通常テレグラフ。「お残し禁止」中は Suppressed で一時停止する）。
+    // 予測攻撃キャスター（通常テレグラフ。「見残し禁止」中は Suppressed で一時停止する）。
     private AreaSpellCaster _caster = null!;
 
     // ── INI 外出しのバランス値（config/boss_stats.ini [koharu]。読めなければ現行既定値）──
@@ -39,29 +39,29 @@ public partial class BossKoharu : Enemy
     private int _ringCount = 16, _fanCount = 9, _aimedWing = 1; // wing=way数の片翼（3way→1）
     private float _ringSpeed = 70f, _aimedSpeed = 96f, _spiralSpeed = 88f;
 
-    // ── 「お残し禁止」（HP52%ワンショットスペル）──
-    //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“料理弾”3列×8＝24発を配膳
+    // ── 「見残し禁止」（HP52%ワンショットスペル）──
+    //   通常弾とテレグラフを止めて宣告 → 画面右半分（ボス側）に“アーカイブ弾”3列×8＝24発を提示
     //  （消せる祈り弾 MakeErasable・降下12px/s）。8秒以内に撃って消した分は祈り弾の既存経路で
     //   そのまま報われる（Bullet.OnAreaEntered → GameManager.AddPrayerCleared: +15点・やさしさ+0.02）。
     //   残した弾は時間切れで 0.06s 間隔で順に自機狙いニードル（130px/s）に変わって飛んでくる。
-    //   完食（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
+    //   見届け達成（被弾なし・ボムなしで全24発を撃ち消す）＝こはるの動的セリフ＋回復ハート1個
     //  （報酬の流儀はレイの安置リレー完走報酬 BossRei.TickRelayWatch に合わせる。♥上限時はスコアで返す）。
     //   テーマ＝「アーカイブ、ぜんぶ見て」：前へ出て見るほど見残し（＝後の弾）が減って安全
-    //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“食べて”いない＝完食報酬なし。
+    //   ＋ゲージも伸びる（リスクとリターン）。ボムで薙ぎ払うと弾は消えるが“見届けて”いない＝見届け達成報酬なし。
     private bool _mealFired;         // 発火ワンショット
-    private int _mealPhase;          // 0=非活性 / 1=宣告→配膳待ち / 2=食事時間(8s) / 3=お残し→ニードル変換中
+    private int _mealPhase;          // 0=非活性 / 1=宣告→提示待ち / 2=視聴時間(8s) / 3=見残し→ニードル変換中
     private double _mealT;
-    private int _mealStartLives, _mealStartBombs;  // 完食報酬の判定スナップショット（被弾なし・ボムなし）
-    private readonly System.Collections.Generic.List<Bullet> _meal = new();     // 配膳した料理弾
-    private readonly System.Collections.Generic.List<Bullet> _mealLeft = new(); // 時間切れ時のお残し（変換待ち行列）
+    private int _mealStartLives, _mealStartBombs;  // 見届け達成報酬の判定スナップショット（被弾なし・ボムなし）
+    private readonly System.Collections.Generic.List<Bullet> _meal = new();     // 提示したアーカイブ弾
+    private readonly System.Collections.Generic.List<Bullet> _mealLeft = new(); // 時間切れ時の見残し（変換待ち行列）
     // 主要パラメータは INI（config/boss_stats.ini [koharu] meal_*）で上書き可。初期値＝現行値。
     private float _mealHp = 0.52f;         // 発動HP割合
-    private int _mealRows = 3, _mealCols = 8; // 配膳の行×列（3×8=24発）
-    private double _mealServeDelay = 0.9;  // 宣告→配膳の溜め
-    private double _mealWindow = 8.0;      // 食事時間
-    private double _mealConvStep = 0.06;   // お残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
-    private float _mealFallSpeed = 12f;    // 料理弾の降下速度（ゆっくり＝狙って食べられる）
-    private float _mealNeedleSpeed = 130f; // お残しニードルの速度
+    private int _mealRows = 3, _mealCols = 8; // 提示の行×列（3×8=24発）
+    private double _mealServeDelay = 0.9;  // 宣告→提示の溜め
+    private double _mealWindow = 8.0;      // 視聴時間
+    private double _mealConvStep = 0.06;   // 見残し→ニードル変換の間隔（順に“飛んでくる”連鎖感）
+    private float _mealFallSpeed = 12f;    // アーカイブ弾の降下速度（ゆっくり＝狙って見届けられる）
+    private float _mealNeedleSpeed = 130f; // 見残しニードルの速度
     private static readonly Color MealNeedleTint = new("d6443f"); // 深紅（「みんな見てる」の色）
 
     // ── 「五徳の十字火」（HP28%ワンショットスペル・B-4②）──
@@ -69,7 +69,7 @@ public partial class BossKoharu : Enemy
     //   第二十字（BeamSeg±45°・深紅のX）。第二十字を“同心”にするのは回避の読みやすさのため：
     //   第一十字の安全地帯（対角）へ逃げた自機を、同じ中心のX字が正確に追う＝「次は軸方向へ戻る」と
     //   いう読み筋が幾何で明示される。自機の最新位置に置き直す案は、回避移動中の頭上に湧いて
-    //   残り猶予が読めない理不尽が出るため不採用。進行中は通常弾とテレグラフを止める（お残し禁止と同じ流儀）。
+    //   残り猶予が読めない理不尽が出るため不採用。進行中は通常弾とテレグラフを止める（見残し禁止と同じ流儀）。
     private bool _gotoFired;      // 発火ワンショット
     private int _gotoPhase;       // 0=なし / 1=宣告→第一十字待ち / 2=第二十字待ち / 3=着弾待ち（ゲート解除待ち）
     private double _gotoT;
@@ -217,7 +217,7 @@ public partial class BossKoharu : Enemy
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return;
-        // 「お残し禁止」「五徳の十字火」進行中は通常弾を止める（食べる/避けるに集中させる。レイの安置リレーと同じ流儀）。
+        // 「見残し禁止」「五徳の十字火」進行中は通常弾を止める（見る/避けるに集中させる。レイの安置リレーと同じ流儀）。
         if (_mealPhase != 0 || _gotoPhase != 0) return;
         if (_finale) { FireFinale(pool, delta); return; }
         _fireT += delta;
@@ -239,7 +239,7 @@ public partial class BossKoharu : Enemy
     }
 
     // 弾サイズ階層（#攻撃種ごとのサイズ差）：密集バラマキ(Ring)=小／連続糸(Spiral)=極小／
-    //   自機狙いの精密弾(Aimed)=大／受け止め・撃ち返しの対象弾(FanDown祈り弾／配膳／お残しニードル)=中。
+    //   自機狙いの精密弾(Aimed)=大／受け止め・撃ち返しの対象弾(FanDown祈り弾／アーカイブ弾／見残しニードル)=中。
     //   当たり芯ドットは全形状共通描画＝大きくしても被弾点は埋もれない。
     private void Ring(BulletPool pool, int k, float spd)
     {
@@ -254,7 +254,7 @@ public partial class BossKoharu : Enemy
     // 「祈り弾」ギミック（#12 機構側／#20）：下方向の扇＝画面から落ちてくる光は、自機弾で“受け止め”られる。
     // 消すと双方消滅＋やさしさ微加算（GameManager.AddPrayerCleared）。自機・フォロワーの弾列が受け皿になる。
     // FanDown はスペル「みんな見てる」(pattern1)とフィナーレでしか撃たない＝スペル限定が自然に成立。
-    // サイズは「受け止める対象」であることが一目でわかる中サイズ（配膳の料理弾 ServeMeal と同格）。
+    // サイズは「受け止める対象」であることが一目でわかる中サイズ（提示したアーカイブ弾 ServeMeal と同格）。
     private void FanDown(BulletPool pool)
     {
         int k = Dn(_fanCount);
@@ -267,19 +267,19 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 「お残し禁止」の進行。UpdateMovement 経由＝会話中(BubblePaused)は弾もタイマーも一緒に止まる。
+    // 「見残し禁止」の進行。UpdateMovement 経由＝会話中(BubblePaused)は弾もタイマーも一緒に止まる。
     private void TickMeal(double delta)
     {
         if (_mealPhase == 0) return;
         _mealT += delta;
         switch (_mealPhase)
         {
-            case 1: // 宣告 → 配膳
+            case 1: // 宣告 → 提示
                 if (_mealT < _mealServeDelay) return;
                 if (!ServeMeal()) { FinishMeal(fullEat: false); return; } // Pool不在（起こらない保険）＝中断
                 _mealPhase = 2; _mealT = 0;
                 return;
-            case 2: // 食事時間：完食は即判定。時間切れでお残しを回収して変換へ。
+            case 2: // 視聴時間：見届け達成は即判定。時間切れで見残しを回収して変換へ。
                 // 残り時間を毎フレームHudへ通知（唯一の告知だったスペル名カード=5sが消えた後の残り3秒間、
                 // 進行度が一切見えなかった問題の対処。0=満タン開始 → 1=時間切れ寸前）。
                 GetHud()?.SetMealTimer(true, (float)(1.0 - _mealT / _mealWindow));
@@ -293,7 +293,7 @@ public partial class BossKoharu : Enemy
                 _mealPhase = 3; _mealT = 0;
                 GetHud()?.ShowBossLine("こはる", "……見なかったところ、あるでしょ。……ぜんぶ、見てほしいのに。", UiKit.Kegare, 2.0);
                 return;
-            default: // 3: お残し→自機狙いニードル（0.06s間隔で順に）。変換待ちの間も撃って食べれば減らせる。
+            default: // 3: 見残し→自機狙いニードル（0.06s間隔で順に）。変換待ちの間も撃って見れば減らせる。
                 var pool = GetNodeOrNull<BulletPool>("/root/Pool");
                 var pl = GetTree().GetFirstNodeInGroup("player") as Node2D;
                 while (_mealT >= _mealConvStep && _mealLeft.Count > 0)
@@ -301,12 +301,12 @@ public partial class BossKoharu : Enemy
                     _mealT -= _mealConvStep;
                     var b = _mealLeft[0];
                     _mealLeft.RemoveAt(0);
-                    if (pool == null || !IsInstanceValid(b) || !b.Active || !b.Erasable) continue; // 変換待ち中に食べた/消えた分
+                    if (pool == null || !IsInstanceValid(b) || !b.Active || !b.Erasable) continue; // 変換待ち中に見届けた/消えた分
                     Vector2 at = b.GlobalPosition;
                     pool.Despawn(b);
                     Vector2 d = pl != null ? pl.GlobalPosition - at : new Vector2(-1, 0);
                     d = d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(-1, 0);
-                    // お残し→撃ち返しニードルは中サイズ（3.0→3.8）＝「食べ残すと反撃が来る」の脅威を弾の大きさでも語る。
+                    // 見残し→撃ち返しニードルは中サイズ（3.0→3.8）＝「見残すと反撃が来る」の脅威を弾の大きさでも語る。
                     pool.Spawn(at, d * _mealNeedleSpeed, true, 3.8f, 1, BulletShape.Needle, MealNeedleTint);
                 }
                 if (_mealLeft.Count == 0) FinishMeal(fullEat: false);
@@ -314,17 +314,17 @@ public partial class BossKoharu : Enemy
         }
     }
 
-    // 配膳：画面右半分（ボス側＝前へ出るほど早く食べ進められる）に 3列×8＝24発の“料理弾”を並べる。
-    // 祈り弾（MakeErasable）＝自機弾で消す→AddPrayerCleared の既存経路がそのまま「食べた」報酬になる。
+    // 提示：画面右半分（ボス側＝前へ出るほど早く見進められる）に 3列×8＝24発の“アーカイブ弾”を並べる。
+    // 祈り弾（MakeErasable）＝自機弾で消す→AddPrayerCleared の既存経路がそのまま「見届けた」報酬になる。
     // Y=44/64/84 開始＋降下12px/s：8秒（＋難易度の弾速倍率）でも下端216pxに届かず画面外に落ちない
-    // ＝「勝手に消えて完食扱い」の事故を構造で防ぐ。INIで行列数を増やしても、格子の間隔を画面内に
+    // ＝「勝手に消えて見届け達成扱い」の事故を構造で防ぐ。INIで行列数を増やしても、格子の間隔を画面内に
     // 収まるようクランプして同じ保証を維持する（右端356px・開始Y上限94px）。
     private bool ServeMeal()
     {
         var pool = GetNodeOrNull<BulletPool>("/root/Pool");
         if (pool == null) return false;
         _meal.Clear();
-        SetSpellVisual(Spells[0].shape, Spells[0].tint); // 料理弾＝琥珀の円弾（「ぜんぶ食べて」の色）
+        SetSpellVisual(Spells[0].shape, Spells[0].tint); // アーカイブ弾＝琥珀の円弾（「ぜんぶ見て」の色）
         float colStep = _mealCols > 1 ? Mathf.Min(20f, (356f - 214f) / (_mealCols - 1)) : 0f;
         float rowStep = _mealRows > 1 ? Mathf.Min(20f, (94f - 44f) / (_mealRows - 1)) : 0f;
         for (int row = 0; row < _mealRows; row++)
@@ -338,8 +338,8 @@ public partial class BossKoharu : Enemy
         return true;
     }
 
-    // まだ画面に残っている配膳弾（＝見ていないアーカイブ）の数。プール再利用対策：参照が生きたまま別の弾に転用されても、
-    // Activate が Erasable を必ずリセットするため「Active かつ Erasable」だけが本物の料理弾
+    // まだ画面に残っている提示弾（＝見ていないアーカイブ）の数。プール再利用対策：参照が生きたまま別の弾に転用されても、
+    // Activate が Erasable を必ずリセットするため「Active かつ Erasable」だけが本物のアーカイブ弾
     //（ギミック中は FanDown が撃たない＝他に Erasable を立てる者がいない）。
     private int CountMealAlive()
     {
@@ -361,7 +361,7 @@ public partial class BossKoharu : Enemy
         SetSpellVisual(cur.shape, cur.tint); // 弾形・色を通常スペルへ戻す（宣告カードは再掲しない）
         if (!fullEat) return;
         if (GetTree().GetFirstNodeInGroup("player") is not Player pl) return;
-        // “食べた”証明＝被弾なし・ボムなし（ボムで消しても弾は消えるが「食べて」いない＝褒めない。
+        // “見届けた”証明＝被弾なし・ボムなし（ボムで消しても弾は消えるが「見届けて」いない＝褒めない。
         // 撃ち消しぶんの AddPrayerCleared は入っているので無報酬にはならない）。
         bool noHit = _mealStartLives >= 0 && pl.Lives >= _mealStartLives;
         bool noBomb = _mealStartBombs >= 0 && (GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? _mealStartBombs) >= _mealStartBombs;
@@ -483,19 +483,19 @@ public partial class BossKoharu : Enemy
             _beatsFired++;
             ApplySpell();
         }
-        // 「お残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
+        // 「見残し禁止」：HP52%（INI: meal_hp）を割った瞬間に一度だけ（パターン切替50%の直前＝中盤の山）。
         if (!_mealFired && HpRatio <= _mealHp)
         {
             _mealFired = true;
             _mealPhase = 1; _mealT = 0;
             _mealStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
             _mealStartBombs = GetNodeOrNull<GameManager>("/root/Game")?.Bombs ?? -1;
-            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（配膳の上に予兆を重ねない）
+            if (_caster != null) _caster.Suppressed = true; // 通常テレグラフも保留（提示の上に予兆を重ねない）
             GetHud()?.AnnounceSpell("こはる", "@koharu_light", "全部見なきゃ", Spells[0].tint);
             GetHud()?.ShowBossLine("こはる", "アーカイブ、ぜんぶ残ってるから。ぜんぶ、見て。ね?", UiKit.Kegare, 2.2);
         }
         // 「五徳の十字火」：HP28%（INI: goto_hp）を割った瞬間に一度だけ（第4スペル切替26%の直前＝終盤入りの合図）。
-        // お残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
+        // 見残し禁止の進行中は持ち越し（次の OnHpChanged で発火）＝ワンショットギミック同士を重ねない。
         if (!_gotoFired && _mealPhase == 0 && HpRatio <= _gotoHp)
         {
             _gotoFired = true;
