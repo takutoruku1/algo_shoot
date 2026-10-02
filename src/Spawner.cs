@@ -32,6 +32,8 @@ public partial class Spawner : Node
     private const float FlankRunBottomY = 200f;  // 下端走行レーンY
     private const float FlankCampTopY = 64f;     // 上から回った個体の着座Y
     private const float FlankCampBottomY = 152f; // 下から回った個体の着座Y
+    private const float FlankCampYJitter = 10f;  // 着座Yに加える乱数オフセット幅（±）＝複数体が完全重複しないようばらける
+    private const int FlankMaxAlive = 2;         // 同時出現の上限（居座り型のため無制限だと圧が蓄積する）
 
     // ── 盾もち種「バズ壁」（BuzzWall）の調整値（全テーマ・波B/C限定）──
     // 撃たない・遅い・硬い（パネル5枚×インク3）＝剥がし切るDPSチェックで優先順位判断を生む
@@ -94,6 +96,17 @@ public partial class Spawner : Node
         return false;
     }
 
+    // "enemies" グループ内に生存中の回り込み「引用リプ」が規定数以上いるか（同時出現を FlankMaxAlive 体に制限するための判定）。
+    private bool HasAliveFlanker()
+    {
+        int count = 0;
+        foreach (var n in GetTree().GetNodesInGroup("enemies"))
+        {
+            if (n is MidEnemy me && me.IsFlanker && ++count >= FlankMaxAlive) return true;
+        }
+        return false;
+    }
+
     private void SpawnOne()
     {
         float y = _rng.RandfRange(46f, 172f);
@@ -113,15 +126,16 @@ public partial class Spawner : Node
             float ramp = Mathf.Clamp((float)_t / RampDur, 0f, 1f);
             // 第4種：回り込み「引用リプ」。ランプ後半のみ FlankRate で湧く（全テーマ共通・スキンは撃つ種を流用）。
             // 左端に張り付く自機の背後から“読める形”で圧をかける＝左端の安置化を構造的に崩す。
-            if (ramp >= FlankRampGate && _rng.Randf() < FlankRate)
+            if (ramp >= FlankRampGate && _rng.Randf() < FlankRate && !HasAliveFlanker())
             {
                 me.Configure(EnemyTable.Flanker(Theme));
                 bool top = _rng.Randf() < 0.5f;
                 float runY = top ? FlankRunTopY : FlankRunBottomY;
                 pos = new Vector2(SpawnX, runY);
+                // 着座Yに乱数オフセット＝同じ top/bottom 抽選の個体でも完全に重ならない。
+                float campY = (top ? FlankCampTopY : FlankCampBottomY) + _rng.RandfRange(-FlankCampYJitter, FlankCampYJitter);
                 // 経由点＝走行レーン終端（端を走り切る）→ 着座点＝自機後方。2区間の直進で経路が読める。
-                me.SetFlankEntry(new Vector2(FlankCampX, runY),
-                    new Vector2(FlankCampX, top ? FlankCampTopY : FlankCampBottomY));
+                me.SetFlankEntry(new Vector2(FlankCampX, runY), new Vector2(FlankCampX, campY));
             }
             // 盾もち「バズ壁」：波B/C（StartIntensity>=0.3）のみ。右から出て場の中ほどに陣取る壁。
             // 倒すまで居座る性質上、複数体が同時に湧くと湧き枠を静かに食い潰す（無視するほど蓄積する）ため、

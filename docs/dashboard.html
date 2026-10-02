@@ -125,16 +125,16 @@
     </div>
 
     <div class="figure">
-      <span class="pct">100<span class="pct-unit">%</span></span>
-      <span class="figure-note">完了 279 / 対象 279 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
+      <span class="pct">99<span class="pct-unit">%</span></span>
+      <span class="figure-note">完了 280 / 対象 282 タスク<br>保留 46 件は人間の判断待ちのため対象外</span>
     </div>
-    <div class="rail" role="img" aria-label="進捗 100パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
+    <div class="rail" role="img" aria-label="進捗 99パーセント"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span></div>
   </header>
 
   <div class="states">
-    <div class="state done"><div class="state-n">279</div><div class="state-l">完了</div></div>
+    <div class="state done"><div class="state-n">280</div><div class="state-l">完了</div></div>
     <div class="state wip"><div class="state-n">0</div><div class="state-l">作業中</div></div>
-    <div class="state todo"><div class="state-n">0</div><div class="state-l">残り</div></div>
+    <div class="state todo"><div class="state-n">2</div><div class="state-l">残り</div></div>
     <div class="state blocked"><div class="state-n">46</div><div class="state-l">保留</div></div>
   </div>
 
@@ -145,12 +145,36 @@
 
   <section>
     <h2>キュー（上から消化）</h2>
-    <p class="empty">キューが空です。タスクを積んでください</p>
+    <ol class="tasks">
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」が5ファイル7箇所に残存）</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept"><code>src/BossKoharu.cs</code>は2026-10-01のDONE是正(commit <code>c7b341d</code>)で台所モチーフを一掃し同一スペルを「見残し禁止」で統一(<code>BossKoharu.cs:34,42,49,72,220,242,270,282,296,309,486,498</code>等)したが、同じメカニクスを指す<code>src/AreaSpellCaster.cs:65,327</code>・<code>src/EnemySpec.cs:28</code>(<code>KoharuPrayerCarry</code>の説明)・<code>src/Hud.cs:137,1142</code>(<code>_mealTimerVisible</code>/<code>DrawMealTimer</code>の説明コメント)・<code>src/MidEnemy.cs:411</code>・<code>src/Spawner.cs:42</code>の計7箇所は旧称「お残し禁止」のまま改名が伝播していない。プレイヤー表示文字列(<code>BossKoharu.cs:494</code>の<code>&quot;全部見なきゃ&quot;</code>)は既に統一済みなので対象はコメント文言のみ。上記7箇所のコメント内「お残し禁止」→「見残し禁止」への機械的置換のみ、フィールド名・ロジック・表示文言は無変更。</p>
+      </li>
+      <li class="task ">
+        <div class="task-head">
+          <span class="chip chip-p3">P3</span>
+          <span class="task-title">docs/キャラ設定_02_ミナ_改訂版.md・docs/キャラ設定_03_あかり.md・docs/シナリオ_プロローグ_起動.md・docs/20260613/MINA_システム拡張設計書_v1.mdに案C非正典バナーを追記</span>
+          <span class="worker">scenario</span>
+        </div>
+        <p class="accept">2026-09-22にDONE化された<code>docs/GAME_DESIGN.md:3-6</code>・<code>docs/CONCEPT_V2.md:3-7</code>・<code>docs/統合企画書_最新版.md:1,5,8-10</code>・<code>docs/【最新】世界観・ストーリー・キャラ設定まとめ.md</code>・<code>docs/【MASTER】設定資料統合版.md</code>と同形式の「⚠⚠ 本書は2026-09-05承認の『案C』を未反映＝更に非正典」バナーを、上記4ファイル冒頭の既存バナー直後に追記し、現行正典<code>wiki/08_仮台本/05・06・07・08・12</code>を指し示す。<code>docs/キャラ設定_02_ミナ_改訂版.md:1-11</code>は正典v3バナーのみで案C言及0件、<code>docs/キャラ設定_03_あかり.md:1-8</code>も同様、<code>docs/シナリオ_プロローグ_起動.md:1-6</code>も同様、<code>docs/20260613/MINA_システム拡張設計書_v1.md:1-10</code>に至っては非正典バナー自体が一切無い（grep確認済み）。本文・既存バナーは無変更、新規セリフ・物語内容の創作なし（過去の同種DONEタスク群<code>DEV_QUEUE.md:203,208,209,318,319,344</code>と同じ機械的注記追加のパターン踏襲、台詞変更を伴わないため承認ゲート対象外）。</p>
+      </li></ol>
   </section>
 
   <section>
     <h2>完了</h2>
     <ol class="tasks">
+      <li class="task is-done">
+        <div class="task-head">
+          <span class="chip chip-p1">P1</span>
+          <span class="task-title">回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加</span>
+          <span class="worker">engineer</span>
+        </div>
+        <p class="accept">(完了 2026-10-02) 2026-10-02監査(game-designer)発見。<code>src/Spawner.cs:30,33-34</code>の着座座標が定数で複数体が完全重複する問題を是正。<code>FlankCampYJitter=10f</code>/<code>FlankMaxAlive=2</code>定数を追加(<code>Spawner.cs:35-36</code>)、<code>HasAliveFlanker()</code>をBuzzWallの<code>HasAliveBuzzWall()</code>と同じ書式で追加(<code>:96-104</code>)しFlank抽選条件に<code>&amp;&amp; !HasAliveFlanker()</code>を付与(<code>:124</code>)、着座Y算出時に<code>_rng.RandfRange(-FlankCampYJitter, FlankCampYJitter)</code>を加算(<code>:128-131</code>、top=54〜74/bottom=142〜162でMidEnemy側クランプ範囲28〜188に収まる)。<code>MidEnemy.cs:78</code>に<code>IsFlanker</code>プロパティを追加（Spawner側の同時数判定用）。FlankRate・居座り挙動・プレイヤー表示文言は無変更。<strong>検証</strong>: <code>dotnet build algo_shoot.sln</code> 0 Warning/0 Error（指揮官が差分レビュー・ロジック構造とプレイヤー表示文言が不変、クランプ範囲内に収まることを確認）。実機での視覚確認は未実施。</p>
+      </li>
       <li class="task is-done">
         <div class="task-head">
           <span class="chip chip-p3">P3</span>
@@ -2761,18 +2785,18 @@
   <section>
     <h2>直近のコミット</h2>
     <ul class="log">
+      <li><span class="h">65cc7c2</span><span>2026-10-02</span><span class="s">auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限</span></li>
+      <li><span class="h">a4eead4</span><span>2026-10-02</span><span class="s">auto: 監査で3件をキューに追加（game-designer/engineer/scenario/qa並列監査）</span></li>
+      <li><span class="h">c7b341d</span><span>2026-10-01</span><span class="s">auto: BossKoharu.cs内コメントの旧台所モチーフを現行コンセプトへ一括是正</span></li>
       <li><span class="h">05bb8de</span><span>2026-10-01</span><span class="s">auto: WIP着手 - BossKoharu.cs内コメントの旧台所モチーフ是正</span></li>
       <li><span class="h">e6935e6</span><span>2026-10-01</span><span class="s">auto: AreaSpellCaster.csのあかり用コメントを案C確定の場所名に修正</span></li>
       <li><span class="h">685ed26</span><span>2026-10-01</span><span class="s">auto: WIP着手 - AreaSpellCaster.csのあかり用コメント是正</span></li>
       <li><span class="h">5f0f11a</span><span>2026-10-01</span><span class="s">auto: Hud.cs内コメントの間隔表記を実座標に合わせて修正</span></li>
       <li><span class="h">b7c2aa8</span><span>2026-10-01</span><span class="s">auto: WIP着手 - Hud.cs内コメントの間隔表記修正</span></li>
-      <li><span class="h">62280b2</span><span>2026-10-01</span><span class="s">auto: 監査で3件をキューに追加、既存BLOCKED1件に対象漏れを追記（game-designer/engineer/scenario/qa並列監査）</span></li>
-      <li><span class="h">bb118c8</span><span>2026-09-30</span><span class="s">auto: ボム多体浄化の報酬キャップ超過を画面上で告知</span></li>
-      <li><span class="h">8aca6cd</span><span>2026-09-30</span><span class="s">auto: WIP着手 - ボム多体浄化の報酬キャップ超過を画面上で告知</span></li>
     </ul>
   </section>
 
-  <footer>生成 2026-10-01 19:02 UTC — DEV_QUEUE.md より自動生成</footer>
+  <footer>生成 2026-10-02 18:31 UTC — DEV_QUEUE.md より自動生成</footer>
 </div>
 
 <script>

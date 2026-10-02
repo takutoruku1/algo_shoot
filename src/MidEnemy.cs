@@ -77,6 +77,10 @@ public partial class MidEnemy : Enemy
     // （無視され続けると倒すまで居座り続ける性質上、複数体が同時に湧くと湧き枠を静かに食い潰すため）。
     public bool IsBuzzWallCamper => _spec.Pattern == AttackPattern.BuzzWall;
 
+    // このインスタンスが回り込み「引用リプ」（FlankAim）かどうか。Spawner が同時湧き数を制限するため参照する
+    // （居座り型なので無制限だと複数体が自機後方に積み上がる）。
+    public bool IsFlanker => _spec.Pattern == AttackPattern.FlankAim;
+
     protected override void OnEnemyReady()
     {
         Points = _spec.Points;
