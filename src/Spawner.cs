@@ -41,7 +41,7 @@ public partial class Spawner : Node
     private const float BuzzWallRate = 0.06f;         // テーマ湧きのうちこの割合で出現
     private const float BuzzWallMinIntensity = 0.3f;  // StartIntensity がこれ以上＝波B(0.35)/C(0.7)のみ
     // ── 祈り運び種（KoharuPrayerCarry・こはる面専用）の調整値 ──
-    // 消せる祈り弾を3発ぶら下げて横断するボーナス種＝ボス戦「お残し禁止」の練習台。
+    // 消せる祈り弾を3発ぶら下げて横断するボーナス種＝ボス戦「見残し禁止」の練習台。
     private const float PrayerCarrierRate = 0.10f;    // こはるテーマ湧きのうちこの割合で出現
 
     private double _t;   // Begin からの経過（StartIntensity ぶん前倒しした実効時間）

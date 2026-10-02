@@ -1,19 +1,13 @@
 {
-  "generated": "2026-10-02 18:31 UTC",
+  "generated": "2026-10-02 18:33 UTC",
   "counts": {
-    "todo": 2,
+    "todo": 1,
     "wip": 0,
     "blocked": 46,
-    "done": 280
+    "done": 281
   },
-  "percent": 99,
+  "percent": 100,
   "todo": [
-    {
-      "priority": "P3",
-      "title": "こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」が5ファイル7箇所に残存）",
-      "worker": "engineer",
-      "accept": "`src/BossKoharu.cs`は2026-10-01のDONE是正(commit `c7b341d`)で台所モチーフを一掃し同一スペルを「見残し禁止」で統一(`BossKoharu.cs:34,42,49,72,220,242,270,282,296,309,486,498`等)したが、同じメカニクスを指す`src/AreaSpellCaster.cs:65,327`・`src/EnemySpec.cs:28`(`KoharuPrayerCarry`の説明)・`src/Hud.cs:137,1142`(`_mealTimerVisible`/`DrawMealTimer`の説明コメント)・`src/MidEnemy.cs:411`・`src/Spawner.cs:42`の計7箇所は旧称「お残し禁止」のまま改名が伝播していない。プレイヤー表示文字列(`BossKoharu.cs:494`の`\"全部見なきゃ\"`)は既に統一済みなので対象はコメント文言のみ。上記7箇所のコメント内「お残し禁止」→「見残し禁止」への機械的置換のみ、フィールド名・ロジック・表示文言は無変更。"
-    },
     {
       "priority": "P3",
       "title": "docs/キャラ設定_02_ミナ_改訂版.md・docs/キャラ設定_03_あかり.md・docs/シナリオ_プロローグ_起動.md・docs/20260613/MINA_システム拡張設計書_v1.mdに案C非正典バナーを追記",
@@ -301,6 +295,12 @@
     }
   ],
   "done": [
+    {
+      "priority": "P3",
+      "title": "こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」が5ファイル7箇所に残存）",
+      "worker": "engineer",
+      "accept": "(完了 2026-10-02) 2026-10-02監査(engineer)発見。`src/BossKoharu.cs`は2026-10-01のDONE是正(commit `c7b341d`)で「見残し禁止」に統一済みだったが、同じメカニクスを指す`src/AreaSpellCaster.cs:65,327`・`src/EnemySpec.cs:28`(`KoharuPrayerCarry`)・`src/Hud.cs:137,1142`(`_mealTimerVisible`/`DrawMealTimer`)・`src/MidEnemy.cs:415`・`src/Spawner.cs:44`の計7箇所に旧称「お残し禁止」が残存していたのをコメント文言のみ「見残し禁止」へ機械的置換。フィールド名・ロジック・プレイヤー表示文字列（`BossKoharu.cs:494`の`\"全部見なきゃ\"`含む）は無変更。**検証**: 置換前後で`grep -rn \"お残し禁止\" src/`が7件→0件になったことを確認、`dotnet build algo_shoot.sln` 0 Warning/0 Error（指揮官が差分レビュー・コメント行のみの変更であることを確認）。"
+    },
     {
       "priority": "P1",
       "title": "回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加",
@@ -1984,6 +1984,16 @@
   ],
   "commits": [
     {
+      "hash": "5679bdf",
+      "date": "2026-10-02",
+      "subject": "auto: WIP着手 - こはるボス「見残し禁止」スペルの呼称統一"
+    },
+    {
+      "hash": "efb9bc0",
+      "date": "2026-10-02",
+      "subject": "auto: 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加"
+    },
+    {
       "hash": "65cc7c2",
       "date": "2026-10-02",
       "subject": "auto: WIP着手 - 回り込み「引用リプ」(FlankAim)の着座点乱数化・同時出現制限"
@@ -2012,16 +2022,6 @@
       "hash": "685ed26",
       "date": "2026-10-01",
       "subject": "auto: WIP着手 - AreaSpellCaster.csのあかり用コメント是正"
-    },
-    {
-      "hash": "5f0f11a",
-      "date": "2026-10-01",
-      "subject": "auto: Hud.cs内コメントの間隔表記を実座標に合わせて修正"
-    },
-    {
-      "hash": "b7c2aa8",
-      "date": "2026-10-01",
-      "subject": "auto: WIP着手 - Hud.cs内コメントの間隔表記修正"
     }
   ]
 }

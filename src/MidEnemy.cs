@@ -412,7 +412,7 @@ public partial class MidEnemy : Enemy
     // 消せる「祈り弾」(MakeErasable)を3発ぶら下げて画面を横断する。祈り弾を自機弾で撃つと既存経路
     //（Bullet.OnAreaEntered → GameManager.AddPrayerCleared）でそのまま報われる。本体を撃ち落とすと
     // 残りの祈り弾もまとめて受け止め扱い（AddPrayerCleared＋花びら）。撃ち漏らして左へ抜けられたら
-    // 祈り弾ごと消える（報酬なし）＝ボス戦「お残し禁止」を道中で遊びながら教える練習台。
+    // 祈り弾ごと消える（報酬なし）＝ボス戦「見残し禁止」を道中で遊びながら教える練習台。
     private static readonly Vector2[] PrayerOffsets =  // ぶら下げ位置（本体からの相対・下へ短い鎖）
         { new(0f, 15f), new(3f, 26f), new(6f, 37f) };
     // 祈り弾をぶら下げ始めるX。出現直後（x=398＝画面右外）に生むと、Bullet の画面外カリング

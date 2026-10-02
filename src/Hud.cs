@@ -134,7 +134,7 @@ public partial class Hud : CanvasLayer
     private int _focusStack;
     private int _focusMax;
 
-    // こはる面「お残し禁止」スペルの食事タイマー（BossKoharu.TickMeal の _mealPhase==2 から毎フレーム通知）。
+    // こはる面「見残し禁止」スペルの食事タイマー（BossKoharu.TickMeal の _mealPhase==2 から毎フレーム通知）。
     // 唯一の告知だったスペル名カード（5秒で消える）の後、時間切れ(8秒)までの残り3秒間に進行度の手がかりが
     // 無かったため新設。SpecialCdRatio/ComboTimeRatio と同じ矩形バー様式・画面上部中央（ボスカード/スペルカードの直下）。
     private bool _mealTimerVisible;
@@ -1139,7 +1139,7 @@ public partial class Hud : CanvasLayer
         ci.DrawSetTransform(Vector2.Zero, 0f, new Vector2(UiKit.Scale, UiKit.Scale));
     }
 
-    // こはる面「お残し禁止」の食事タイマー（BossKoharu.TickMeal の _mealPhase==2 が毎フレーム SetMealTimer で通知）。
+    // こはる面「見残し禁止」の食事タイマー（BossKoharu.TickMeal の _mealPhase==2 が毎フレーム SetMealTimer で通知）。
     //   スペル名カード（DrawSpellCard・上のy=126〜186、5秒で消える）の直下に薄いバーを常設し、時間切れ(8秒)
     //   までの残り3秒間もSpecialCdRatio/ComboTimeRatioと同じ矩形バー様式で進行度を見せ続ける。
     //   満タン(琥珀寄りのGold)→時間切れ間際(炎上赤Burn)へ色を補間し、ニードル反撃が迫る切迫感を添える。

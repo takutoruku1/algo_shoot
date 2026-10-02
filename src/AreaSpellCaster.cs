@@ -62,7 +62,7 @@ public partial class AreaSpellCaster : Node2D
     // 「生存確認の間」も含めて最終ホップの着弾終了まで true を保つ（被弾でスキップさせない）。
     public bool AoeActive => _aoePending || _chainRemain > 0 || (_aoeStrike != null && IsInstanceValid(_aoeStrike));
 
-    // ボス側の専用ギミック（こはる「お残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
+    // ボス側の専用ギミック（こはる「見残し禁止」等）の間、通常ランダム枠の宣告/発火を一時停止する
     // 外部ゲート。予約済み(_pending)の発火・タイマーも保留し、解除後にそのまま再開する（破棄はしない）。
     public bool Suppressed;
 
@@ -324,7 +324,7 @@ public partial class AreaSpellCaster : Node2D
         }
 
         if (Hud.BubblePaused) return; // 会話中は出さない
-        if (Suppressed) return;       // ボス側ギミック中（お残し禁止 等）は宣告も発火も保留
+        if (Suppressed) return;       // ボス側ギミック中（見残し禁止 等）は宣告も発火も保留
 
         // 全画面AOEの予約を進める（専用経路）。AOE進行中は通常ランダム枠は止める（弾幕の過密回避）。
         TickFullscreen(delta);
