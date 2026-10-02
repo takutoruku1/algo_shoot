@@ -77,13 +77,13 @@
 
 <!-- 2026-10-02 監査モード(game-designer/engineer/scenario/qa並列)で追加。game-designerは1件TODOへ、engineerは1件TODOへ、scenarioは1件TODOへ、qaは新規指摘0件(全パスclean run) -->
 
-- [ ] (P1) 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加 | engineer | `src/Spawner.cs:30,33-34`の`FlankCampX=40f`/`FlankCampTopY=64f`/`FlankCampBottomY=152f`が定数（乱数なし）で、`:116-125`の`SetFlankEntry`により同じ`top`抽選結果の個体は必ず同一座標(40,64)または(40,152)に着座し複数体が完全に重なる（`src/MidEnemy.cs:174-227`で居座り中は`camp`座標に固定）。対照的に通常ザコの居座り点(`Spawner.cs:146-164`)は`_rng.RandfRange`でばらけている非対称な実装漏れ。加えて`FlankRate=0.15`(`Spawner.cs:28`)はBuzzWallの`BuzzWallRate=0.06`(`:39`、2026-09-19に0.10→0.06へ減量済み)より高いのに、BuzzWallの同時1体制限`HasAliveBuzzWall()`(`:88-95`)に相当するガードがFlankAimには無い(`grep "HasAliveFlank" src/`で0件)。是正: `FlankCampTopY`/`FlankCampBottomY`(または`FlankCampX`)に`_rng.RandfRange(-10f,10f)`程度のオフセットを着座時に加え、`HasAliveFlanker()`をBuzzWallと同じ書式で追加して同時出現を1〜2体に制限する。プレイヤー表示文言・ロジック構造は不変。
 - [ ] (P3) こはるボス「見残し禁止」スペルの呼称統一（旧称「お残し禁止」が5ファイル7箇所に残存） | engineer | `src/BossKoharu.cs`は2026-10-01のDONE是正(commit `c7b341d`)で台所モチーフを一掃し同一スペルを「見残し禁止」で統一(`BossKoharu.cs:34,42,49,72,220,242,270,282,296,309,486,498`等)したが、同じメカニクスを指す`src/AreaSpellCaster.cs:65,327`・`src/EnemySpec.cs:28`(`KoharuPrayerCarry`の説明)・`src/Hud.cs:137,1142`(`_mealTimerVisible`/`DrawMealTimer`の説明コメント)・`src/MidEnemy.cs:411`・`src/Spawner.cs:42`の計7箇所は旧称「お残し禁止」のまま改名が伝播していない。プレイヤー表示文字列(`BossKoharu.cs:494`の`"全部見なきゃ"`)は既に統一済みなので対象はコメント文言のみ。上記7箇所のコメント内「お残し禁止」→「見残し禁止」への機械的置換のみ、フィールド名・ロジック・表示文言は無変更。
 - [ ] (P3) docs/キャラ設定_02_ミナ_改訂版.md・docs/キャラ設定_03_あかり.md・docs/シナリオ_プロローグ_起動.md・docs/20260613/MINA_システム拡張設計書_v1.mdに案C非正典バナーを追記 | scenario | 2026-09-22にDONE化された`docs/GAME_DESIGN.md:3-6`・`docs/CONCEPT_V2.md:3-7`・`docs/統合企画書_最新版.md:1,5,8-10`・`docs/【最新】世界観・ストーリー・キャラ設定まとめ.md`・`docs/【MASTER】設定資料統合版.md`と同形式の「⚠⚠ 本書は2026-09-05承認の『案C』を未反映＝更に非正典」バナーを、上記4ファイル冒頭の既存バナー直後に追記し、現行正典`wiki/08_仮台本/05・06・07・08・12`を指し示す。`docs/キャラ設定_02_ミナ_改訂版.md:1-11`は正典v3バナーのみで案C言及0件、`docs/キャラ設定_03_あかり.md:1-8`も同様、`docs/シナリオ_プロローグ_起動.md:1-6`も同様、`docs/20260613/MINA_システム拡張設計書_v1.md:1-10`に至っては非正典バナー自体が一切無い（grep確認済み）。本文・既存バナーは無変更、新規セリフ・物語内容の創作なし（過去の同種DONEタスク群`DEV_QUEUE.md:203,208,209,318,319,344`と同じ機械的注記追加のパターン踏襲、台詞変更を伴わないため承認ゲート対象外）。
 
 
 ## WIP
 
+- [ ] (P1) 回り込み「引用リプ」(FlankAim)の着座点に乱数オフセットと同時出現数制限を追加 | engineer | `src/Spawner.cs:30,33-34`の`FlankCampX=40f`/`FlankCampTopY=64f`/`FlankCampBottomY=152f`が定数（乱数なし）で、`:116-125`の`SetFlankEntry`により同じ`top`抽選結果の個体は必ず同一座標(40,64)または(40,152)に着座し複数体が完全に重なる（`src/MidEnemy.cs:174-227`で居座り中は`camp`座標に固定）。対照的に通常ザコの居座り点(`Spawner.cs:146-164`)は`_rng.RandfRange`でばらけている非対称な実装漏れ。加えて`FlankRate=0.15`(`Spawner.cs:28`)はBuzzWallの`BuzzWallRate=0.06`(`:39`、2026-09-19に0.10→0.06へ減量済み)より高いのに、BuzzWallの同時1体制限`HasAliveBuzzWall()`(`:88-95`)に相当するガードがFlankAimには無い(`grep "HasAliveFlank" src/`で0件)。是正: `FlankCampTopY`/`FlankCampBottomY`(または`FlankCampX`)に`_rng.RandfRange(-10f,10f)`程度のオフセットを着座時に加え、`HasAliveFlanker()`をBuzzWallと同じ書式で追加して同時出現を1〜2体に制限する。プレイヤー表示文言・ロジック構造は不変。
 
 
 ## BLOCKED
