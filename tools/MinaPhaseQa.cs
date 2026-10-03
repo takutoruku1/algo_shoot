@@ -326,8 +326,11 @@ public partial class MinaPhaseQa : Node
                 game.AutoAdvanceDialog = false;
             }
             else await AdvanceUntil(() => !IsInstanceValid(scene));
+            await WaitUntil(() => !boss.Transitioning, 240);
             Check(!boss.Transitioning && !root.Hud.CinematicMode && root.World.ProcessMode == ProcessModeEnum.Inherit,
                 "transformation returns to playable combat");
+            caster.SetProcess(false);
+            caster.CancelPendingAttacks();
             Call(root, "TickJourney");
             var journey = root.GetNode<BgLayers>("JourneyBackground/BgLayers");
             await WaitUntil(() => !Read<bool>(journey, "_swapping"), 300);
@@ -335,12 +338,13 @@ public partial class MinaPhaseQa : Node
             var sprite = boss.GetNode<Sprite2D>("Body");
             Hud.BubblePaused = true;
             boss._PhysicsProcess(0.6d);
-            Check(sprite.Texture.ResourcePath == BossMina.CostumePath(phase, "idle"), "new idle costume remains equipped");
+            Check(sprite.Texture.ResourcePath == BossMina.BattleCostumePath(phase, "idle"), "new idle costume remains equipped");
+            Check(boss.IsDragonForm == (phase >= BossMina.DragonPhase), "dragon form starts at the second HP transition");
             boss.ShowSignaturePose();
-            Check(sprite.Texture.ResourcePath == BossMina.CostumePath(phase, "attack"), "new costume also has a casting pose");
+            Check(sprite.Texture.ResourcePath == BossMina.BattleCostumePath(phase, "attack"), "new costume also has a casting pose");
             boss._PhysicsProcess(0.6d);
             Hud.BubblePaused = false;
-            Check(sprite.Texture.ResourcePath == BossMina.CostumePath(phase, "idle"), "casting returns to the same costume");
+            Check(sprite.Texture.ResourcePath == BossMina.BattleCostumePath(phase, "idle"), "casting returns to the same costume");
             using (var pixels = sprite.Texture.GetImage())
                 Check(pixels.DetectAlpha() != Image.AlphaMode.None, "costume retains actual transparent alpha");
             var layers = journey.GetChildren().OfType<Sprite2D>().ToArray();
@@ -348,6 +352,7 @@ public partial class MinaPhaseQa : Node
                 && layers[0].Texture.ResourcePath == BossMina.PhaseBackground(phase),
                 $"arena follows phase {phase}: {string.Join(", ", layers.Select(l => l.Texture.ResourcePath))}");
             await Shot($"phase_{phase}_battle");
+            if (phase == BossMina.DragonPhase) await CheckDragonArt(root, boss);
             caster.BeginPhase(phase);
             caster._Process(2d);
             caster._Process(1d);
@@ -393,6 +398,52 @@ public partial class MinaPhaseQa : Node
         await AdvanceUntil(() => !IsInstanceValid(draft));
         Check(boss.IsPurified && !caster.Active && root.World.GetChildren().OfType<AreaStrike>().Count() == 0,
             "defeat cancels every signature and enters the final conversation");
+        Check(!boss.IsDragonForm && boss.GetNode<Sprite2D>("Body").Texture.ResourcePath == BossMina.CostumePath(4, "idle"),
+            "redemption restores Mina's human story illustration");
+    }
+
+    private async Task CheckDragonArt(MinaRoot root, BossMina boss)
+    {
+        var sprite = boss.GetNode<Sprite2D>("Body");
+        var idleScale = sprite.Scale;
+        var poseNames = new[] { "idle", "attack", "down" };
+        var cores = new[] { new Vector2(624, 626), new Vector2(612, 588), new Vector2(637, 545) };
+        for (int i = 0; i < poseNames.Length; i++)
+        {
+            if (i == 1) boss.ShowSignaturePose();
+            if (i == 2) typeof(Enemy).GetMethod("SetDownBody", Private)!.Invoke(boss, new object[] { true });
+            typeof(Enemy).GetMethod("TickSwapAnim", Private)!.Invoke(boss, new object[] { 1d });
+            string expected = i == 2 ? BossDownArt.BreathingPath(BossMina.BattleDownPath(2), 0) : BossMina.BattleCostumePath(2, poseNames[i]);
+            Check(sprite.Texture.ResourcePath == expected, "dragon " + poseNames[i] + " equipped");
+            if (i != 2) Check(sprite.Scale.IsEqualApprox(idleScale), "pose changes preserve the full-canvas scale");
+            var localCore = i == 2 ? new Vector2(408, 263) * (720f / 517f) - sprite.Texture.GetSize() / 2f
+                : sprite.Texture.GetSize() * (cores[i] / new Vector2(1536, 1024) - new Vector2(.5f, .5f));
+            if (sprite.FlipH) localCore.X = -localCore.X;
+            Check((localCore + sprite.Offset).Length() < .01f, "chest jewel stays registered on the boss hitbox");
+            using var pixels = sprite.Texture.GetImage();
+            Check(pixels.DetectAlpha() != Image.AlphaMode.None, "dragon " + poseNames[i] + " has transparent surroundings");
+            await Shot("dragon_" + poseNames[i]);
+        }
+        boss.ShowSignaturePose();
+        Check(sprite.Texture.ResourcePath == BossDownArt.BreathingPath(BossMina.BattleDownPath(2), 0), "attacking cannot override dragon down art");
+        typeof(Enemy).GetMethod("SetDownBody", Private)!.Invoke(boss, new object[] { false });
+        typeof(Enemy).GetMethod("TickSwapAnim", Private)!.Invoke(boss, new object[] { 1d });
+        var playerPosition = root.Player.GlobalPosition;
+        foreach (bool faceLeft in new[] { true, false })
+        {
+            root.Player.GlobalPosition = new Vector2(faceLeft ? Field.Left : Field.Right, 150);
+            for (int step = 0; step < 360; step++) Call(boss, "UpdateMovement", 1d / 60d);
+            Check(sprite.FlipH != faceLeft, "dragon art faces the player on either side");
+            var rect = sprite.GetRect();
+            var corners = new[] { rect.Position, rect.End, new Vector2(rect.End.X, rect.Position.Y),
+                new Vector2(rect.Position.X, rect.End.Y) }.Select(sprite.ToGlobal);
+            Check(corners.All(p => p.X >= Field.Left && p.X <= Field.Right && p.Y >= 20 && p.Y <= Field.Bottom),
+                "moving dragon wings remain inside the playfield and below the boss HUD");
+        }
+        root.Player.GlobalPosition = playerPosition;
+        Call(boss, "UpdateMovement", 1d / 60d);
+        Pool.DespawnAll();
+        Check(sprite.Texture.ResourcePath == BossMina.BattleCostumePath(2, "idle"), "recovery restores dragon flight art");
     }
 
     private async Task BreakPost(int index)

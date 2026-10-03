@@ -47,7 +47,8 @@ public partial class MinaPhaseAttacks : Node
 
     public override void _Process(double delta)
     {
-        if (_boss.IsPurified) { CancelPendingAttacks(); return; }
+        if (_boss.IsPurified || _boss.GaugeVulnerable || _boss.GaugeReforming)
+        { CancelPendingAttacks(); return; }
         if (Hud.BubblePaused || _boss.Transitioning) return;
         delta = GameManager.EnemyDelta(delta);
         if (!Active)

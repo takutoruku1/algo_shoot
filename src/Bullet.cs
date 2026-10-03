@@ -61,6 +61,7 @@ public partial class Bullet : Area2D
 
     // A piercing charge must not hit the same moving shield/body twice.
     public bool RegisterChargeHit(Node target) => !Charged || _chargeHits.Add(target.GetInstanceId());
+    public bool HasChargeHit(Node target) => Charged && _chargeHits.Contains(target.GetInstanceId());
 
     public void ChargeImpact(Vector2 position)
     {
@@ -211,6 +212,7 @@ public partial class Bullet : Area2D
     // 旋回角の上書き（0=既定 HomingTurnRate を使う）。誘導速射・後方追尾で個別に旋回を上げる。
     public int TurnRateOverride;
     private Node2D? _homeTarget;
+    private Panel? _homeUnfolder;
     private const float HomingTurnRate = 150f; // deg/s（“曲がって当たる”手応え側へ。漂う弾は HomingLife で始末する）
     private float _retargetT;                  // 標的の再探索クールダウン（RetargetInterval ごとに乗り換え判定）
     private const float RetargetInterval = 0.25f; // 全探索は 0.25s に1回だけ＝毎フレーム探索より軽い
@@ -544,6 +546,7 @@ public partial class Bullet : Area2D
         BackwardHoming = backwardHoming; // 再利用時に持ち越さない（既定 false）
         TurnRateOverride = 0;            // 旋回上書きも再利用時にリセット（付与は Spawn 後に設定）
         _homeTarget = null;
+        _homeUnfolder = null;
         _retargetT = 0f;                 // 再探索タイマーも持ち越さない（次フレームで即1回探索）
         // 加速球フラグ群も再利用時に必ずリセット（プール再利用で持ち越すと別の弾が誤加速する）。
         Accel = false; _accelDone = false; _accelDelay = 0f; _fastSpeed = 0f; _accelDir = Vector2.Zero; _age = 0f;
@@ -882,7 +885,15 @@ public partial class Bullet : Area2D
         float spd = Velocity.Length();
         if (spd < 0.01f) return;
         float cur = Velocity.Angle();
-        float want = (tgt.GlobalPosition - GlobalPosition).Angle();
+        Vector2 aim = tgt.GlobalPosition;
+        if (tgt is Enemy boss && boss.UnfolderStyle != UnfolderKind.None)
+        {
+            var player = GetTree().GetFirstNodeInGroup("player") as Player;
+            var preferred = player?.LockTarget == boss ? player.LockedUnfolder : _homeUnfolder;
+            _homeUnfolder = boss.SelectUnfolder(GlobalPosition, preferred, this);
+            if (_homeUnfolder != null) aim = _homeUnfolder.GlobalPosition;
+        }
+        float want = (aim - GlobalPosition).Angle();
         float turn = TurnRateOverride > 0 ? TurnRateOverride : HomingTurnRate; // 誘導速射・後方追尾で旋回を上げる
         float maxStep = Mathf.DegToRad(turn) * delta;
         float na = cur + Mathf.Clamp(Mathf.AngleDifference(cur, want), -maxStep, maxStep);

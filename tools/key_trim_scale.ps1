@@ -9,7 +9,8 @@ param(
   [int]$Outline = 0,
   [int[]]$Region = @(),
   [switch]$Despill,
-  [switch]$KeepCanvas
+  [switch]$KeepCanvas,
+  [switch]$LargestComponent
 )
 $cs = @'
 using System;
@@ -18,7 +19,7 @@ using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 public static class KeyTrimScale {
-  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline, int[] region, bool despill, bool keepCanvas){
+  public static string Run(string inPath, string outPath, string key, int targetH, int levels, int outline, int[] region, bool despill, bool keepCanvas, bool largestComponent = false){
     using(var src0=new Bitmap(inPath)){
       int w=src0.Width,h=src0.Height;
       int cropX=0,cropY=0;
@@ -61,6 +62,34 @@ public static class KeyTrimScale {
             if(buf[p+1]<=Math.Max(buf[p],buf[p+2])+4)continue;
             buf[p+1]=Math.Max(buf[p],buf[p+2]);
           }
+        }
+      }
+      if(largestComponent){
+        // Adjacent sprite cells can contain a neighbour's hair tip outside the intended silhouette.
+        int[] labels=new int[w*h], queue=new int[w*h]; int next=0,best=0,bestCount=0;
+        for(int i=0;i<labels.Length;i++){
+          if(labels[i]!=0||buf[i*4+3]<64)continue;
+          int head=0,tail=0; labels[i]=++next;queue[tail++]=i;
+          while(head<tail){
+            int k=queue[head++],x=k%w,y=k/w;
+            for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){
+              int xx=x+dx,yy=y+dy;
+              if(xx<0||xx>=w||yy<0||yy>=h)continue;
+              int j=yy*w+xx;
+              if(labels[j]!=0||buf[j*4+3]<64)continue;
+              labels[j]=next;queue[tail++]=j;
+            }
+          }
+          if(tail>bestCount){best=next;bestCount=tail;}
+        }
+        for(int y=0;y<h;y++)for(int x=0;x<w;x++){
+          int i=y*w+x;bool keep=labels[i]==best;
+          if(labels[i]==0&&buf[i*4+3]>0)
+            for(int dy=-2;dy<=2&&!keep;dy++)for(int dx=-2;dx<=2;dx++){
+              int xx=x+dx,yy=y+dy;
+              if(xx>=0&&xx<w&&yy>=0&&yy<h&&labels[yy*w+xx]==best){keep=true;break;}
+            }
+          if(!keep)buf[i*4]=buf[i*4+1]=buf[i*4+2]=buf[i*4+3]=0;
         }
       }
       Marshal.Copy(buf,0,d.Scan0,n); bmp.UnlockBits(d);
@@ -129,4 +158,4 @@ if ($PSEdition -eq 'Core') {
   $references += @('System.Runtime.dll', 'System.Runtime.InteropServices.dll', 'System.Private.Windows.Core.dll', 'System.Private.Windows.GdiPlus.dll') | ForEach-Object { Join-Path $PSHOME $_ }
 }
 Add-Type -TypeDefinition $cs -ReferencedAssemblies $references -ErrorAction Stop
-[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline,$Region,$Despill.IsPresent,$KeepCanvas.IsPresent)
+[KeyTrimScale]::Run($In,$Out,$Key,$TargetH,$Levels,$Outline,$Region,$Despill.IsPresent,$KeepCanvas.IsPresent,$LargestComponent.IsPresent)

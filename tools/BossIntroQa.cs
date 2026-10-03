@@ -95,15 +95,33 @@ public partial class BossIntroQa : Node
         Check(intro != null && _game.BossReached, $"{id}/{job}: boss entry opens exchange and preserves retry checkpoint");
         intro!.SetProcess(false);
         stage.SetProcess(false);
+        Check(!Read<bool>(intro, "_arrived") && Read<Enemy?>(stage, "_boss") == null,
+            "boss body waits until the approach cue and fade are over");
+        int cueActor = job != Job.Tank ? 6 : id == "mina" ? 0 : 1;
+        Check(Read<string>(hud, "_dlgText").Length > 0 && hud.DialogRevealed
+            && (int)Read<Hud.LineKind>(hud, "_dlgKind") == cueActor,
+            "selected character speaks before the room changes");
+        var bg = root.GetNode<StageBackground>("StageBackground");
+        Check(Read<object>(bg, "_mode").ToString() != "Boss", "boss room is not shown during the approach");
+        if (job == Job.Tank) await Shot($"{id}_approach");
         Check(GetTree().GetFirstNodeInGroup("cameo_intro") == null, "main boss is distinct from the midboss introduction");
-        Check(hud.CinematicMode && Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Disabled
+        Check(!hud.CinematicMode && Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Disabled
             && _game.ProcessMode == ProcessModeEnum.Disabled, "battle and clocks are paused");
         Check(!Pool.GetChildren().OfType<Bullet>().Any(b => b.Active), "bullets cleared before conversation");
-        var boss = Read<Enemy>(stage, "_boss");
-        Vector2 bossPosition = boss.Position;
         double elapsed = Read<double>(stage, "_stageElapsed");
         stage._Process(10);
         Check(elapsed == Read<double>(stage, "_stageElapsed"), "stage clock does not advance during exchange");
+        intro._Process(2.0);
+        Check(!Read<bool>(intro, "_arrived") && Read<Enemy?>(stage, "_boss") == null,
+            "held fire cannot bypass the anticipation beat or spawn the boss");
+        intro._Process(0.25);
+        Check(!Read<bool>(intro, "_arrived") && Read<string>(hud, "_dlgText").Length == 0,
+            "cue closes before the brief fade");
+        intro._Process(0.45);
+        Check(Read<bool>(intro, "_arrived") && hud.CinematicMode && Read<object>(bg, "_mode").ToString() == "Boss",
+            "boss room appears under the completed fade");
+        var boss = Read<Enemy>(stage, "_boss");
+        Vector2 bossPosition = boss.Position;
         double spellTimer = Read<double>(hud, "_spellTimer");
         if (id != "mina") Check(spellTimer > 0, "opening spell declaration survives cinematic setup");
         var lines = Read<(int who, string text, string face)[]>(intro, "_lines");

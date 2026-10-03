@@ -6,6 +6,7 @@ using Godot;
 // 浄化後は改心の姿を見せながら、ミナ自身が決定打を届ける（案C。S1-10）。フォロワーにはしない。
 public partial class BossAkari : Enemy
 {
+    public override UnfolderKind UnfolderStyle => UnfolderKind.Akari;
     public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     public bool Finished { get; private set; }
 
@@ -126,7 +127,7 @@ public partial class BossAkari : Enemy
         BodyRadius = BossTuning.F("akari", "body_radius", 19f);
         BodyHalfH = BossTuning.F("akari", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("akari", "panel_count", 5); // 自責の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("akari", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
+        PanelInk = BossTuning.I("akari", "panel_ink", 10);
         OrbitRadius = BossTuning.F("akari", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("akari", "spin_speed", 0.9f);
         PanelsFire = false;      // 攻撃は本体の自責弾
@@ -153,13 +154,14 @@ public partial class BossAkari : Enemy
         PreTexPath = "res://char/v3/boss_akari_body_idle_v3.png";
         DownTexPath = BossDownArt.Path("akari");
         AttackTexPath = "res://char/v3/boss_akari_body_attack_v3.png";
+        RecoveryTexPath = "res://char/v3/boss_motion/akari_recover_v1.png";
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
         // 描き下ろしの *_body_cry.png（720px・エフェクトなし）に差し替えた。倍率・アンカーは待機と同じ。
-        // 第二形態（2026-09-07）＝待つのをやめて顔を上げ、取り消した一通が溢れている姿。
-        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.52）。攻撃・被弾の絵は流用する。
-        Form2TexPath = "res://char/v3/boss_akari_body_form2_v3.png";
+        Form2TexPath = BossAnimalArt.Path("akari", "idle");
+        Form2AttackTexPath = BossAnimalArt.Path("akari", "attack");
+        Form2DownTexPath = BossAnimalArt.Path("akari", "down");
         CryTexPath = "res://char/v3/boss_akari_body_cry_v2.png";
         PostTexPath = "res://char/v3/enemy_akari_post.png";
         // パネルは専用素材なし → Panel のプレースホルダ（黒い「・・・」吹き出し）を使う
@@ -235,7 +237,7 @@ public partial class BossAkari : Enemy
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Akari, GlobalPosition, (float)delta, 32f);
         if (_corridorPhase != 0) { TickCorridor(); return; } // 通路中は撃たない（避けに集中させる）
         FirePattern(delta);
@@ -312,7 +314,9 @@ public partial class BossAkari : Enemy
             return;
         }
         RestoreAfterPost();
+        RallyShield();
         ApplySpell();
+        OnHpChanged();
     }
 
     private void RestoreAfterPost()
@@ -491,10 +495,11 @@ public partial class BossAkari : Enemy
             _corridorFired = true;
             StartCorridor();
         }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
-        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
+        if (!_finale && HpRatio <= 0.20f && _postsBroken >= 4)
         {
             _finale = true;
+            _fireT = _fireT2 = 0;
+            RallyShield();
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("あかり", BossHandles.AkariSpell, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }

@@ -32,7 +32,7 @@ public partial class KoharuStoryFilm : StoryFilm
         new(7, "翌朝・高校の教室", "隣の生徒", "いいよ。あたしも最初、ここで止まった。"),
         new(7, "翌朝・高校の教室", "隣の生徒", "この式から、一緒にやってみよ。"),
         new(7, "翌朝・高校の教室", "こはる", "……うん。ありがと。"),
-        new(7, "翌朝・高校の教室", "", "……今度は、分からないところに、指が置かれました。写されたのは、答えの手前からです。"),
+        new(7, "翌朝・高校の教室", "", "……今度は、分からないところに、指が置かれました。ノートには、答えだけでなく、解き方も書かれていきます。"),
     };
 
     public static void Play(Hud hud, Node world, bool aftermath, Action completed)

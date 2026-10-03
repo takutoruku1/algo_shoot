@@ -5,6 +5,32 @@ using System.Linq;
 
 public partial class CameoIntroScene : Node2D
 {
+    private static (Hud.LineKind who, string text, string face) ApproachLine(Job job, string id, bool boss)
+    {
+        string signal = (boss, id) switch
+        {
+            (false, "akari") => "……雨の向こうに、スマホの光。",
+            (false, "koharu") => "……奥から、急ぐような足音。",
+            (false, "rei") => "……画面の外に、人影。",
+            (true, "akari") => "……雨音より近くに、あかりの声。",
+            (true, "koharu") => "……光の集まる場所に、こはるの声。",
+            (true, "rei") => "……画面の奥から、レイの声。",
+            (true, "mina") => "……ミナの声が、すぐそこに。",
+            _ => throw new ArgumentOutOfRangeException(nameof(id)),
+        };
+        if (job == Job.Tank && id == "mina")
+            return (Hud.LineKind.Boy, "ミナの声だ。……今度は、こちらから会いに行こう。", "");
+        string reply = job switch
+        {
+            Job.Tank => "ご主人様。……ここからは、ゆっくり。",
+            Job.Melee => "……一緒に、近づこう。",
+            Job.Heal => "……待って。ひと呼吸だけ。",
+            _ => "……いたわね。目を離さないで。",
+        };
+        return (job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion,
+            signal + "\n" + reply, job == Job.Tank ? "res://char/v3/mina_conversation_v1.png" : CompanionDialogue.Portrait(job));
+    }
+
     private static string Post(string id) => id switch
     {
         "akari" => "今日も終電。待ってる間だけ、誰か話そ。\n……返信は、いつでもいいけど。",
@@ -107,6 +133,7 @@ public partial class CameoIntroScene : Node2D
     private GameManager _game = null!;
     private string _id = "", _name = "";
     private Action _completed = null!;
+    private Action _arriving = null!;
     private (int who, string text, string face)[] _opening = null!, _lines = null!;
     private Texture2D _background = null!, _enemyPortrait = null!;
     private Texture2D? _playerPortrait;
@@ -116,6 +143,9 @@ public partial class CameoIntroScene : Node2D
     private readonly FilmSkip _skip = new();
     private string _filmId = "";
     private bool _held, _started, _postClosing, _talking, _leaving, _restored, _suppressed, _bossIntro;
+    private bool _arrived;
+    private const double ApproachHold = 2.2, ApproachFade = 0.45;
+    private double _approachTime;
     private int _line;
     private double _time, _postTime, _lineTime, _talkTime, _exitTime;
     private string EnemyName => _id != "mina" && Jobs.Get(_game.SelectedJob).CharacterId == _id ? $"投稿の中の{_name}" : _name;
@@ -126,14 +156,15 @@ public partial class CameoIntroScene : Node2D
             Name = "CameoIntroScene", ZIndex = -10, TextureFilter = TextureFilterEnum.LinearWithMipmaps,
             _hud = hud, _world = world,
             _id = id, _opening = opening, _completed = completed,
+            _arriving = () => (hud.GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss(),
         });
 
     public static void PlayBoss(Hud hud, Node world, string id,
-        (int who, string text, string face)[] opening, Action completed)
+        (int who, string text, string face)[] opening, Action completed, Action arriving)
         => hud.AddChild(new CameoIntroScene {
             Name = "BossIntroScene", ZIndex = -10, TextureFilter = TextureFilterEnum.LinearWithMipmaps,
             _hud = hud, _world = world, _bossIntro = true,
-            _id = id, _opening = opening, _completed = completed,
+            _id = id, _opening = opening, _completed = completed, _arriving = arriving,
         });
 
     public override void _Ready()
@@ -161,10 +192,12 @@ public partial class CameoIntroScene : Node2D
         _hud.HoldBubble = true;
         _hud.HideBubble();
         if (!_bossIntro) _hud.HideSpellCard();
-        _hud.SetCinematicMode(true);
+        _hud.SetCinematicMode(false);
         GetNode<BulletPool>("/root/Pool").DespawnAll();
         _held = Pad.AdvanceHeld();
-        _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
+        var cue = ApproachLine(_game.SelectedJob, _id, _bossIntro);
+        _hud.ShowDialog(cue.who, cue.text, cue.face);
+        _hud.RevealDialogNow();
         _filmId = $"{group}_{_id}_{Jobs.Get(_game.SelectedJob).CharacterId}";
         _skip.Begin(_lines.All(line => _game.IsLineRead(line.text)) ? _game : null, _filmId);
     }
@@ -175,9 +208,12 @@ public partial class CameoIntroScene : Node2D
         bool held = Pad.AdvanceHeld();
         bool edge = held && !_held;
         _held = held;
-        _time += delta;
         QueueRedraw();
-        if (!_leaving && _skip.Update(delta)) Leave();
+        if (!_leaving && _skip.Update(delta))
+        {
+            if (!_arrived) Arrive();
+            Leave();
+        }
         if (_leaving)
         {
             _exitTime += delta;
@@ -188,6 +224,14 @@ public partial class CameoIntroScene : Node2D
             QueueFree();
             return;
         }
+        if (!_arrived)
+        {
+            _approachTime += delta;
+            if (_approachTime >= ApproachHold) _hud.HideBubble();
+            if (_approachTime >= ApproachHold + ApproachFade) Arrive();
+            return;
+        }
+        _time += delta;
         if (!_started)
         {
             if (_time < 0.45) return;
@@ -226,6 +270,15 @@ public partial class CameoIntroScene : Node2D
         }
     }
 
+    private void Arrive()
+    {
+        _arrived = true;
+        _hud.HideBubble();
+        _hud.SetCinematicMode(true);
+        _backdrop = CutsceneBackdrop.Attach(_hud, ZIndex);
+        _arriving();
+    }
+
     private void ShowLine()
     {
         _lineTime = 0;
@@ -247,6 +300,15 @@ public partial class CameoIntroScene : Node2D
 
     public override void _Draw()
     {
+        if (!_arrived)
+        {
+            float fade = Mathf.SmoothStep(0, 1, Mathf.Clamp((float)((_approachTime - ApproachHold) / ApproachFade), 0, 1));
+            DrawRect(new Rect2(0, 0, 384, 216), new Color(0, 0, 0, fade));
+            UiKit.BeginDesign(this);
+            _skip.Draw(this);
+            UiKit.EndDesign(this);
+            return;
+        }
         float alpha = _leaving ? 1 - Mathf.Clamp((float)(_exitTime / 0.45), 0, 1) : Mathf.Clamp((float)(_time / 0.45), 0, 1);
         float scale = Mathf.Max(384f / _background.GetWidth(), 216f / _background.GetHeight());
         var size = _background.GetSize() * scale;

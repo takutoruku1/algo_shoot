@@ -32,6 +32,11 @@ public partial class CompanionDialogueQa : Node
             if (OS.GetCmdlineUserArgs().Contains("--portraits-only")) await CheckPortraits(game);
             else if (OS.GetCmdlineUserArgs().Contains("--timers-only")) await CheckStageTimers(game);
             else if (OS.GetCmdlineUserArgs().Contains("--scripts-only")) CheckScripts();
+            else if (OS.GetCmdlineUserArgs().Contains("--clarity"))
+            {
+                CheckScripts();
+                await CheckClarityRendering(game);
+            }
             else
             {
                 bool menusOnly = Array.IndexOf(OS.GetCmdlineUserArgs(), "--menus-only") >= 0;
@@ -251,6 +256,7 @@ public partial class CompanionDialogueQa : Node
     private static void CheckScripts()
     {
         CheckPlayerConnection();
+        CheckClarity();
         int count = 0;
         foreach (var job in Jobs.All)
         {
@@ -307,6 +313,78 @@ public partial class CompanionDialogueQa : Node
             }
         }
         GD.Print($"[CompanionQA] {count} story/menu lines, plus the tutorial scene");
+    }
+
+    private static void CheckClarity()
+    {
+        foreach (var stage in new[] { typeof(StageAkari), typeof(StageKoharu), typeof(StageRei) })
+        {
+            var intro = Data<(int who, string text, string face)[]>(stage, "Intro");
+            Check(intro.Any(l => l.text.Contains("送れなかった") || l.text.Contains("送る前に消した")),
+                $"{stage.Name}: identifies unsent words instead of an unexplained layer beneath a post");
+        }
+        var schedule = Data<(int who, string text, string face)[]>(typeof(StageKoharu), "S21Cue");
+        Check(schedule[0].text.Contains("ほとんど") && schedule[2].text.Contains("丸のない日"),
+            "Koharu's schedule leaves room for the exam day");
+        foreach (var job in Jobs.All)
+            Check(BossMina.RedemptionLines(job.Id).Any(l => l.text.Contains("画面の向こう")),
+                $"{job.CharacterId}: Mina's resemblance explicitly refers to the player");
+        var mina = (Array)typeof(MinaPhaseScene).GetMethod("Dialogue", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, new object[] { Job.Tank, 2 })!;
+        Check(mina.Cast<object>().Any(l => ((string)l.GetType().GetProperty("Text")!.GetValue(l)!)
+            .Contains("ご主人様に話しかけたい")), "Mina explicitly names whom she wants to talk to");
+        var aftermath = CharacterStory.Aftermath(Job.Heal, "rei");
+        Check(aftermath.Any(l => l.text.Contains("そこまで待たなくてもいい"))
+            && aftermath.Any(l => l.text.Contains("閉じた。途中で")),
+            "Koharu can close the stream without first hearing its ending");
+        Check(CompanionDialogue.MenuText(Job.Magic, CompanionDialogue.Menu.TrainShoot).Contains("的に届きました"),
+            "training hit dialogue describes a hit, not a miss");
+    }
+
+    private async Task CheckClarityRendering(GameManager game)
+    {
+        var samples = new (string name, Job job, (int who, string text, string face) line)[]
+        {
+            ("akari_unsent", Job.Tank, Data<(int, string, string)[]>(typeof(StageAkari), "Intro")[1]),
+            ("koharu_schedule", Job.Tank, Data<(int, string, string)[]>(typeof(StageKoharu), "S21Cue")[4]),
+            ("rei_viewers", Job.Tank, Data<(int who, string text, string face)[]>(typeof(StageRei), "Intro")
+                .Single(l => l.text.Contains("視聴者数"))),
+            ("akari_consultation", Job.Melee, CharacterStory.Lines(Job.Melee, 1, CharacterStory.Beat.Mid3)[1]),
+            ("koharu_pause", Job.Heal, CharacterStory.Aftermath(Job.Heal, "rei")[5]),
+            ("mina_player", Job.Magic, BossMina.RedemptionLines(Job.Magic)[2]),
+        };
+        foreach (var sample in samples)
+        {
+            game.SelectedJob = sample.job;
+            var root = GD.Load<PackedScene>("res://Akari.tscn").Instantiate<AkariRoot>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.Stage.SetProcess(false);
+            root.World.ProcessMode = ProcessModeEnum.Disabled;
+            var hud = root.Hud;
+            hud.HoldBubble = true;
+            hud.ShowDialog((Hud.LineKind)sample.line.who, sample.line.text, sample.line.face, otherName: "レイ");
+            var pages = Read<List<string>>(hud, "_dlgPages");
+            Check(string.Concat(pages).Where(c => !char.IsWhiteSpace(c))
+                .SequenceEqual(sample.line.text.Where(c => !char.IsWhiteSpace(c))),
+                $"{sample.name}: pagination retains the entire sentence");
+            for (int page = 0; page < pages.Count; page++)
+            {
+                hud.RevealDialogNow();
+                foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
+                {
+                    DisplayServer.WindowSetSize(size);
+                    await Frames(20);
+                    await Shot($"clarity_{sample.name}_{page}_{size.X}");
+                }
+                if (page + 1 < pages.Count) hud.RevealDialogNow();
+            }
+            Check(hud.DialogRevealed && Hud.BubblePaused, $"{sample.name}: all pages remain readable while combat is paused");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            await RemoveScene(root);
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
     }
 
     private static void CheckPlayerConnection()

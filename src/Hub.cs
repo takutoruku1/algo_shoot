@@ -2118,8 +2118,6 @@ public partial class Hub : Node2D
         UiKit.Text(this, UiKit.Zen, new Vector2(46, 128), "同行中", 13, new Color("bee8dc", alpha));
         UiKit.Text(this, _sideNameFont, new Vector2(42, 548), job.CharacterName, 46, new Color("fff7ea", alpha));
         UiKit.Text(this, _sideTitleFont, new Vector2(46, 614), AccountHandle(job), 24, new Color("bddde4", alpha));
-        // 仲間のアバター列は、左下のキャラ切り替えボタン（DrawSwitchButton）の右隣へ寄せる（2026-09-27）。
-        //   4人そろっても「仲間 4」までスマホ本体（PhoneX）の手前に収まるよう、半径 14・間隔 34 に詰めた。
         var btn = SwitchButtonRect();
         float rowY = btn.GetCenter().Y, ax = btn.End.X + CompanionRowGap + CompanionR;
         int count = 0;
@@ -2130,7 +2128,7 @@ public partial class Hub : Node2D
                 JobColor(companion.Id), false, 0, alpha * (companion.Id == job.Id ? 1 : 0.55f), _t);
             count++;
         }
-        UiKit.Text(this, UiKit.Zen, new Vector2(CompanionLabelX(count), rowY - 11f), $"仲間 {count}", 13,
+        UiKit.Text(this, UiKit.Zen, new Vector2(CompanionLabelX(count), rowY - 11f), job.CharacterName, 13,
             new Color(UiKit.Text2, alpha));
     }
 
@@ -2150,7 +2148,6 @@ public partial class Hub : Node2D
     private static float SwitchCapSlot => Mathf.Max(UiKit.KeyCapW("Tab", SwitchCapH, false), UiKit.KeyCapW("Y", SwitchCapH, true));
     private static Rect2 SwitchButtonRect() => new(SwitchBtnX, SwitchBtnY,
         SwitchPadL + SwitchCapSlot + SwitchGap + UiKit.TextW(UiKit.ZenBold, SwitchLabel, SwitchLabelSize) + SwitchPadR, SwitchBtnH);
-    // 「仲間 N」の左端（アバター count 人の右）。QA が右端の収まりを測るのにも使う。
     private static float CompanionLabelX(int count) =>
         SwitchButtonRect().End.X + CompanionRowGap + CompanionR + (count - 1) * CompanionStep + CompanionR + 8f;
     private static bool SwitchKeyDown() => Input.IsKeyPressed(Key.Tab) || Pad.Pressed(JoyButton.Y);
@@ -2563,7 +2560,7 @@ public partial class Hub : Node2D
         if (e.IsFinal) return FinalHoverLine;   // H3 帰還の行と同じ（投稿した覚えがない＝内側で何かが起きている）
         if (e.Cleared) return "";                                                     // 届いた投稿には、もう言うことがない
         // あかりの初回＝H0（仮台本 06）の2行目をそのまま置く。旧実装の入場ダイアログの代わり。
-        if (e.Id == "akari") return "……この投稿の下からも、聞こえます。";
+        if (e.Id == "akari") return "……送れなかった言葉も、聞こえます。";
         // こはる・レイは帰還小話の「次の声も、もう、聞こえています。」（H1 帰還の最終行）を引く。
         return "次の声も、もう、聞こえています。";
     }
@@ -3383,10 +3380,10 @@ public partial class Hub : Node2D
             // （2）笑顔
             new (string, string)[]
             {
-                ("ミナ", "ご主人様。わたくし、笑顔の練習をしてみました。……顔がありませんので、成果は、不明です。"),
+                ("ミナ", "ご主人様。わたくし、笑顔の練習をしてみました。……自分では、表情が見えませんので、成果は、不明です。"),
                 ("ミナ", "あの部屋で、笑っていない顔と、笑っている顔を、ひとつずつ、見ました。"),   // 中ボスの切り替わりの拾い直し。同一人物とは言わない
                 ("ミナ", "……切り替わるのに、一秒九。……戻るところは、見ていません。"),
-                ("ミナ", "わたくしのは、切り替わりません。……たぶん、ずっと、これです。"),
+                ("ミナ", "……いまのわたくしは、どんな顔をしていますか。笑えていると、よいのですが。"),
             },
         },
         // H1r 再訪小話・あかり後（仮台本 06 が書いている2本）。相方は「あなた」＝返事をしない相手なので、
@@ -3583,13 +3580,11 @@ public partial class Hub : Node2D
 
     // アカウント追加の説明（docs/20260923/アカウント追加説明_本文_2026-09-23.md・A案 あかり固有）。
     //   H1（あかり後）の「被弾は{n}回でした」の直後に初回だけ差す（差し込みは _Ready の帰還会話側）。
-    //   キー名・数値は言わない。「アカウント」はフッタの語そのまま。「足取りは、ご主人様のままで」は
-    //   初回切り替え時の掛け合い（CompanionDialogue Select）と同じ言い方＝あとで流れる会話と噛み合う。
     private static readonly (string, string)[] AccountIntroAkari =
     {
         ("ミナ", "ご報告。アカウントが、ひとつ、増えています。……名義は、わたくしではありません。あの方です。"),
-        ("ミナ", "SNSの下、「アカウント」から、切り替えられます。切り替えた回は、あの方が潜ります。足取りは、ご主人様のままで。"),
-        ("ミナ", "光の形も、そこで語られる話も、あの方のものになります。……戻すのも、同じ場所からです。"),
+        ("ミナ", "SNSの下の「アカウント」で、潜る方を切り替えられます。身体を動かすのは、引き続き、ご主人様です。"),
+        ("ミナ", "放つ光も、ダイブ中にお話しする内容も、その方によって変わります。……わたくしに戻すときも、同じ場所からどうぞ。"),
     };
 
     private static (string, string)[] ReturnDialog(string id) => id switch
@@ -3654,7 +3649,7 @@ public partial class Hub : Node2D
         ("ミナ", "数字が一万増えようが十万増えようが、届けるべき相手は、いつもたった一人です。それを、わたくしは見失いません。"),
         ("ミナ", "……と、炎上のどさくさに紛れて、いいことを言った風にしてみました。"),
         ("ミナ", "返信の下書き、四件。……一件も、送っていません。集計だけ、しておきます。"),
-        ("ミナ", "ご報告。この騒ぎで、次のダイブは光が少し薄くなります。数字は、重いので。"),
+            ("ミナ", "ご報告。この騒ぎで、少し疲れてしまいました。……次のダイブでは、光が弱まります。"),
     };
 
 

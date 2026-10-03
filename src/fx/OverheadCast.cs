@@ -42,7 +42,8 @@ public partial class OverheadCast : Node2D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (!IsInstanceValid(_source) || _source.IsQueuedForDeletion() || _source.IsPurified)
+        if (!IsInstanceValid(_source) || _source.IsQueuedForDeletion() || _source.IsPurified
+            || _source.GaugeVulnerable || _source.GaugeReforming)
         {
             Cancel();
             return;

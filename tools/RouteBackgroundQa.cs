@@ -38,7 +38,9 @@ public partial class RouteBackgroundQa : Node
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
             DisplayServer.WindowSetSize(new Vector2I(1280, 720));
             await Frames(1);
-            if (OS.GetCmdlineUserArgs().Contains("--weather"))
+            if (OS.GetCmdlineUserArgs().Contains("--route-length"))
+                await CheckPreCameoRoutes(game);
+            else if (OS.GetCmdlineUserArgs().Contains("--weather"))
                 await CheckWeather(game);
             else if (OS.GetCmdlineUserArgs().Contains("--ui-refresh"))
                 await CheckPresentation(game);
@@ -63,6 +65,81 @@ public partial class RouteBackgroundQa : Node
             GetTree().Paused = false;
             GetTree().Quit(1);
         }
+    }
+
+    private async Task CheckPreCameoRoutes(GameManager game)
+    {
+        game.SetProcess(false);
+        game.Difficulty = GameManager.Diff.Normal;
+        foreach (var (scene, waveStep, count, oldCount, target) in new[] {
+            ("Akari", 2, 30, 6, 70), ("Koharu", 4, 36, 15, 67), ("Rei", 3, 36, 15, 83) })
+        {
+            game.SelectedEntry = GameManager.StageEntry.Start;
+            var root = GD.Load<PackedScene>($"res://{scene}.tscn").Instantiate<Node2D>();
+            GetTree().Root.AddChild(root);
+            GetTree().CurrentScene = root;
+            root.ProcessMode = ProcessModeEnum.Disabled;
+            var stage = (Node)root.GetType().GetProperty("Stage")!.GetValue(root)!;
+            var hud = root.GetNode<Hud>("Hud");
+            hud.HoldBubble = false;
+            hud.HideBubble();
+            hud.SetCinematicMode(false);
+            Hud.BubblePaused = false;
+            game.TickProgress(Field.CenterX, 0f);
+            string method = scene == "Akari" ? "Step_MidWave0" : "Step_MidwaveA";
+            Write(stage, "_step", waveStep);
+            Write(stage, "_stepStarted", false);
+            Call(stage, method, 0d);
+            var spawner = Read<Spawner>(stage, "_spawner");
+            Read<RandomNumberGenerator>(spawner, "_rng").Seed = 2345;
+            Check(game.StageTarget == target, $"{scene}: purification target includes the longer approach");
+            Check(spawner.Active && spawner.StartIntensity == 0f, $"{scene}: approach keeps the gentle opening density");
+            double beforePause = Read<double>(spawner, "_t");
+            Hud.BubblePaused = true;
+            spawner._Process(10d);
+            Check(spawner.SpawnedCount == 0 && Read<double>(spawner, "_t") == beforePause,
+                $"{scene}: dialogue cannot advance the spawn clock");
+            Hud.BubblePaused = false;
+
+            double elapsed = 0d, oldEnd = 0d;
+            int killed = 0;
+            while (Read<int>(stage, "_step") == waveStep && elapsed < 120d)
+            {
+                const double dt = 1d / 60d;
+                elapsed += dt;
+                spawner._Process(dt);
+                var enemies = GetTree().GetNodesInGroup("enemies").OfType<MidEnemy>().ToArray();
+                foreach (var enemy in enemies)
+                {
+                    killed++;
+                    enemy.QueueFree();
+                }
+                typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, killed);
+                if (enemies.Length > 0) await Frames(1);
+                if (killed == oldCount && oldEnd == 0d) oldEnd = elapsed;
+                Call(stage, method, dt);
+                if (killed < count)
+                    CheckRouteContinues();
+            }
+            Check(killed == count && Read<int>(stage, "_step") == waveStep + 1 && !spawner.Active,
+                $"{scene}: exactly {count} immediate defeats hand over to the existing dialogue");
+            Check(oldEnd > 0d && elapsed >= oldEnd + 12d && elapsed < 75d,
+                $"{scene}: simulated instant-defeat approach {oldEnd:F1}s -> {elapsed:F1}s");
+            Check(!game.StageCleared, $"{scene}: later waves remain available after the longer approach");
+            root.QueueFree();
+            await Frames(3);
+            Pool.DespawnAll();
+            Hud.BubblePaused = false;
+
+            void CheckRouteContinues()
+            {
+                if (Read<int>(stage, "_step") != waveStep || !spawner.Active)
+                    throw new Exception($"{scene}: approach ended early after {killed}/{count} defeats");
+            }
+        }
+        foreach (string scene in new[] { "Akari", "Koharu", "Rei" })
+            await CheckMidbossEntry(game, scene, scene.ToLowerInvariant());
+        game.SetProcess(true);
     }
 
     private async Task CheckWeather(GameManager game)
@@ -651,6 +728,7 @@ public partial class RouteBackgroundQa : Node
         Write(stage, "_step", CameoStep(id));
         Write(stage, "_stepStarted", false);
         Call(stage, "Step_BossCameo", 0d);
+        (GetTree().GetFirstNodeInGroup("cameo_intro") as CameoIntroScene)?._Process(2.7);
         await Frames(55);
         var art = Sprites(layers);
         Check(art.Length == 1 && art[0].Texture.ResourcePath == $"res://char/bg2/midboss/{id}_v1.png"
@@ -718,6 +796,7 @@ public partial class RouteBackgroundQa : Node
         stage.SetProcess(false);
         Check(Read<int>(stage, "_step") == CameoStep(id), $"{id}: midboss checkpoint selects cameo step");
         stage._Process(0d);
+        (GetTree().GetFirstNodeInGroup("cameo_intro") as CameoIntroScene)?._Process(2.7);
         await Frames(60);
         var layers = root.GetNode<BgLayers>("StageBackground/BgLayers");
         Check(Sprites(layers).Length == 1 && Sprites(layers)[0].Texture.ResourcePath == $"res://char/bg2/midboss/{id}_v1.png"

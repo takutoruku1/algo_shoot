@@ -45,10 +45,9 @@ public partial class StageKoharu : Node
     // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    // M2バランス：道中ザコ総数を レイ面と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
-    private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
-    private const int MidWaveB = 14;  // チラ見せ後。やや詰めて始める。旧18（-4）
-    private const int MidWaveC = 16;  // 終盤。最大密度＝ボス直前の山（合計45体。ミッドシナリオはボス戦中に割込み）。旧21（-5）
+    private const int MidWaveA = 36;
+    private const int MidWaveB = 14;
+    private const int MidWaveC = 16;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // こはる＝無力・他責で、弾は“落ちる祈り”。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -61,7 +60,7 @@ public partial class StageKoharu : Node
     {
         (1, "ご主人様。……暗いですね。電気の消えた部屋に、画面の光だけ。", MFace),
         (4, "「今日の配信も最高だった。これで、明日も学校、行ける。」", ""),   // 層1。本人の主投稿。明るい
-        (1, "……にぎやかな投稿ですね。——この投稿の下からも、聞こえます。……ずいぶん、小さな声が。", MWorried),   // 中身は言わない
+        (1, "……楽しそうな投稿ですね。でも、送る前に消した言葉も、聞こえます。……ずいぶん、小さな声で。", MWorried),
         (1, "壁一面が、画面。中で、笑っている人がひとり。……こちらへ向いて、笑っています。", MFace),   // 映るのはガワの笑顔だけ
         (1, "机の下に、箱が三つ。……開けられた跡は、ひとつだけ。", MFace),
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 構造指摘（足すべき）＋【9】
@@ -71,7 +70,7 @@ public partial class StageKoharu : Node
         //     観測の帰結として降りる形へ。レイ面と同文だった問題も同時に解消。
         (1, "……小さいのに、消えません。……どう、処理すべきか。", MWorried),
         (1, "……困り、ますね。……いまのは、適切な語ではありません。訂正します。", MWorried),   // 「困る」の獲得
-        (1, "……この声は、ここからでは、届きません。——降ります。", MFace),
+        (1, "……ここから呼びかけても、あの方には届きません。もっと近くへ、まいりましょう。", MFace),
     };
 
     // S2-3 Mid（部屋）＋ Chat1（軽口）（仮台本 07）。ペンライトの光が画面に届かない。
@@ -79,7 +78,7 @@ public partial class StageKoharu : Node
     private static readonly (int who, string text, string face)[] Mid =
     {
         (1, "ペンライトの光が、画面に向かって、振られています。……届いていません。画面まで。", MWorried),
-        (1, "ここの声は……「むだだ」と、繰り返しています。合間に、「今日も明るいね」と、「模試、どうだった」が。同じ色の声で。", MFace),   // 学校の声と家の声
+        (1, "「むだだ」という声の合間に、学校や家でかけられた言葉も。「今日も明るいね」「模試、どうだった」。……繰り返し、響いています。", MFace),
         (1, "わたくしも振ってみたいのですが。……どちらへ振るのでしょう。集計するより、難しそうです。", MSmile),
     };
 
@@ -152,11 +151,11 @@ public partial class StageKoharu : Node
     //   ミナは価値判断をしない＝集計の結果だけを差し出して、あなたに聞く。
     private static readonly (int who, string text, string face)[] S21Cue =
     {
-        (1, "壁に、予定表が。日付に、丸。……ぜんぶの日に、丸がついています。", MFace),
+        (1, "壁に、配信の予定表が。……ほとんどの日に、丸がついています。", MFace),
         (1, "丸の下に、小さい字で、時間が足してあります。……直近の三日。足された時間が、日ごとに、増えています。", MFace),
         (1, "丸のない日が、一日。……そこには、丸の代わりに、二文字。「模試」。", MWorried),
         (1, "……かごに、栄養ドリンクが三本。買われたまま、開けられていません。", MWorried),
-        (1, "ご主人様。……あの方に、何と声をかけましょう。予定表は、こちらで決めずに。", MFace),
+        (1, "ご主人様。……あの方に、何と声をかけましょう。休む日を、こちらで勝手に決めるわけにはいきませんので。", MFace),
     };
     private static readonly string[] S21Choices = { "少し休んでほしい", "好きな時間は残して", "本人はどうしたい", "（送らない）" };
     private static (int who, string text, string face)[] S21Reply(int sel) => sel switch
@@ -177,7 +176,7 @@ public partial class StageKoharu : Node
         {
             (0, S21Choices[2], ""),
             (1, "……はい。あの方の答えは、まだ聞いていませんでした。", MFace),
-            (1, "予定表に書かれていないほうも、聞きに行きましょう。", MFace),
+            (1, "本当は、どう過ごしたいのか。……ご本人に、聞きに行きましょう。", MFace),
         },
         _ => new (int, string, string)[]
         {
@@ -266,7 +265,7 @@ public partial class StageKoharu : Node
         (1, "……消えていきます。一文字ずつ。", MWorried),
         (3, "今日も来ました|", ""),
         (1, "……「今日も来ました」。それだけが、残って——送られました。", MFace),
-        (1, "消えたほうの一行は、拾っておきます。……中身は、本人の前で。", MFace),   // S2-8 まで温存
+        (1, "送る前に消した言葉も、覚えておきます。……ご本人に会えたら、確かめましょう。", MFace),
         (1, "……画面の中の笑顔は、いまの一行を、読んだでしょうか。——観測できません。向こう側ですので。", MFace),   // レイの側は言わない
     };
 
@@ -848,7 +847,6 @@ public partial class StageKoharu : Node
             if (!_cameoIntroStarted)
             {
                 _cameoIntroStarted = true;
-                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
                 CameoIntroScene.Play(Hud, World, "koharu", CameoIntroFor(GetNodeOrNull<GameManager>("/root/Game")),
                     () => _cameoIntroDone = true);
             }
@@ -913,21 +911,25 @@ public partial class StageKoharu : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "koharu", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            }, SpawnBoss);
+            else SpawnBoss();
+        }
+
+        void SpawnBoss()
+        {
             _boss = new BossKoharu { Name = "BossKoharu" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
-            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
-            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
-            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
-            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            var opening = _playerBoss;
-            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
-            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "koharu", opening, () => {
-                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
-                Step_Lines(0, _playerBoss);
-            });
         }
     }
 

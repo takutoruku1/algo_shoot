@@ -5,12 +5,19 @@ using Godot;
 // HPを削り切る＝穢れを祓い、核が開く。短い邂逅（F3）のあと、Final（F4 の頂点）へ。
 public partial class BossMina : Enemy
 {
+    public override UnfolderKind UnfolderStyle => UnfolderKind.Mina;
+    public override int UnfolderStage => EncounterPhase;
     public bool Finished { get; private set; }
     public bool MemoryPlayed => _memoryPlayed;
     public bool AoeGateActive => PostSequenceActive || Transitioning || _memoryPending || PhasePending || (_caster != null && _caster.Active);
     public bool PostSequenceActive => _posts != null && (_posts.Active || _posts.Pending);
     public bool Transitioning { get; private set; }
     public int EncounterPhase => _pattern;
+    public const int DragonPhase = 2;
+    public bool IsDragonForm => _pattern >= DragonPhase && !IsPurified;
+    private BossTransformation.Frame? _dragonBefore;
+    private double _wingTime;
+    private Texture2D[]? _wingFrames;
     private bool PhasePending => _pattern < PhaseThresholds.Length && HpRatio <= PhaseThresholds[_pattern];
     private bool _memoryPending, _memoryPlayed;
 
@@ -44,11 +51,68 @@ public partial class BossMina : Enemy
     public static string CostumePath(int phase, string pose) => phase == 0
         ? $"res://char/v3/boss_mina_body_{pose}.png"
         : $"res://char/v3/mina_phases/{Costumes[phase]}_{pose}.tres";
+    public static string BattleCostumePath(int phase, string pose) => phase >= DragonPhase
+        ? $"res://char/v3/mina_dragon/mina_dragon_{pose}_v1.png" : CostumePath(phase, pose);
+    public static string BattleDownPath(int phase) => phase >= DragonPhase
+        ? BattleCostumePath(phase, "down") : BossDownArt.Path(phase == 0 ? "mina" : $"mina_{Costumes[phase]}");
     public static string PhaseBackground(int phase) => $"res://char/bg2/boss/{phase switch
         { 1 => "akari", 2 => "koharu", 3 => "rei", _ => "mina" }}_v1.png";
     public static string PhaseName(int phase) => Spells[phase].name;
     public static Color PhaseTint(int phase) => Spells[phase].tint;
     public void ShowSignaturePose() => TriggerAttackPose();
+
+    protected override (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
+    {
+        Vector2 core;
+        switch (texture.ResourcePath)
+        {
+            case "res://char/v3/mina_dragon/mina_dragon_idle_v1.png": core = new Vector2(624, 626); break;
+            case "res://char/v3/mina_dragon/mina_dragon_attack_v1.png": core = new Vector2(612, 588); break;
+            case "res://char/v3/mina_dragon/mina_dragon_down_v1.png": core = new Vector2(637, 545); break;
+            case "res://char/v3/mina_dragon/mina_dragon_flap_up_v1.png": core = new Vector2(690, 700); break;
+            case "res://char/v3/mina_dragon/mina_dragon_flap_level_v1.png": core = new Vector2(656, 610); break;
+            case "res://char/v3/mina_dragon/mina_dragon_flap_low_v1.png": core = new Vector2(642, 570); break;
+            default: return base.ResolveBodyFrame(texture);
+        }
+        // Register every flying pose on the chest jewel, not the moving wing bounds.
+        return (1.85f, texture.GetSize() * (new Vector2(0.5f, 0.5f) - core / new Vector2(1536, 1024)));
+    }
+
+    private Rect2 DragonFlightBounds
+    {
+        get
+        {
+            float span = BodyDisplayH * 1.85f;
+            var start = new Vector2(Field.Left + span, Field.Top + 24f + span * 0.7f);
+            var end = new Vector2(Field.Right - span, Field.Bottom - 16f - span * 0.5f);
+            return new Rect2(start, end - start);
+        }
+    }
+
+    private Vector2 KeepDragonInField(Vector2 position)
+    {
+        var bounds = DragonFlightBounds;
+        return new Vector2(Mathf.Clamp(position.X, bounds.Position.X, bounds.End.X),
+            Mathf.Clamp(position.Y, bounds.Position.Y, bounds.End.Y));
+    }
+
+    protected override void TickBodyMotion(double delta)
+    {
+        if (!IsDragonForm || !BodyMotionReady || BodyAttacking || Transitioning || PostSequenceActive) return;
+        _wingFrames ??= new[]
+        {
+            GD.Load<Texture2D>(BattleCostumePath(2, "flap_up")),
+            GD.Load<Texture2D>(BattleCostumePath(2, "flap_level")),
+            GD.Load<Texture2D>(BattleCostumePath(2, "flap_low")),
+        };
+        _wingTime += delta;
+        float beat = (float)(_wingTime % 0.96);
+        int frame = beat < .26f ? 0 : beat < .40f ? 1 : beat < .64f ? 2 : 1;
+        SetMotionFrame(_wingFrames[frame]);
+        // Lift follows the downstroke; the hitbox remains at the flight-path position.
+        BodySprite.Position = new Vector2(0, -1.2f * Mathf.Sin((beat - .40f) / .96f * Mathf.Tau));
+        BodySprite.Rotation = 0;
+    }
 
     private static readonly (string name, BulletShape shape, Color tint)[] Spells =
     {
@@ -94,9 +158,7 @@ public partial class BossMina : Enemy
     {
         (1, "……今のは。業務報告では、ありません。", "res://char/mina_tears.png"),
         (2, "知ってる。あんたの声だった。", "res://char/v3/rei_face.png"),
-        // 12 設定シート（承認済み）に書かれて未実装だった行（2026-09-26 docs/20260926 §3.4）。「この人」＝自機の「あなたの光」（StageMina）。
-        //   一面目にあかりが言いかけたこと（H1r「誰かに似てる」）を、気づかれたかった人が三面あとに言い切る。
-        (2, "……あんたの言い方。……この人に、そっくりよ。", "res://char/v3/rei_face.png"),
+        (2, "……あんたの言い方。画面の向こうの、あの人に、そっくりよ。", "res://char/v3/rei_face.png"),
         (1, "……助けてって。言っても、よかったのですね。", "res://char/mina_tears.png"),
         (2, "何回だって言いなさい。聞くから。", "res://char/v3/rei_face.png"),
         (1, "……では、もう一度。いっしょに、帰りたいです。", "res://char/mina_tears.png"),
@@ -114,7 +176,7 @@ public partial class BossMina : Enemy
     {
         Lines[0],
         (6, "知ってる。ミナの声だった。", AkariFace),
-        (6, "……やっぱり。ミナの言い方、この人に、そっくり。", AkariFace),
+        (6, "……やっぱり。ミナの言い方、画面の向こうの、あの人にそっくり。", AkariFace),
         Lines[3],
         (6, "何回でも言って。今度は、あたしが聞く番。", AkariFace),
         Lines[5],
@@ -123,7 +185,7 @@ public partial class BossMina : Enemy
     {
         Lines[0],
         (6, "うん、知ってる。ミナの声だったもん。", KoharuFace),
-        (6, "……ミナの言い方ね。この人と、おんなじなの。", KoharuFace),
+        (6, "……ミナの言い方ね。画面の向こうの、あの人とおんなじなの。", KoharuFace),
         Lines[3],
         (6, "何回でも言っていいよ。言えるまで、隣にいるから。", KoharuFace),
         Lines[5],
@@ -143,7 +205,7 @@ public partial class BossMina : Enemy
         BodyRadius = BossTuning.F("mina", "body_radius", 16f);
         BodyHalfH = BossTuning.F("mina", "body_half_h", 20f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("mina", "panel_count", 6); // 渦巻く悲鳴の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("mina", "panel_ink", 4); // 2→4（B-5: 終盤の強化に対しラスボスを最も厚く）
+        PanelInk = BossTuning.I("mina", "panel_ink", 10);
         OrbitRadius = BossTuning.F("mina", "orbit_radius", 32f);
         SpinSpeed = BossTuning.F("mina", "spin_speed", 1.0f);
         PanelsFire = false;
@@ -208,18 +270,21 @@ public partial class BossMina : Enemy
 
     protected override void UpdateMovement(double delta)
     {
+        if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
         if (_caster.Active || Transitioning || _memoryPending || PhasePending)
         {
             // EnterExposed can re-enable the body during a signature's safe-zone relay.
             if (_caster.Active) SetBodyContactEnabled(false);
-            ApplyBossMotion(new Vector2(0, Mathf.Sin((float)Time.GetTicksMsec() * 0.003f) * 0.8f), 0, true);
+            ApplyBossMotion(new Vector2(0, Mathf.Sin((float)Time.GetTicksMsec() * 0.003f) * 0.8f), 0, !IsDragonForm);
             FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 48f);
             return;
         }
         // 自機の位置を渡す＝鏡写しの追従（track_gain 1.0／縦も gain_y 0.85 で高さを合わせる）と、反転の判定に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        if (IsDragonForm) GlobalPosition = KeepDragonInField(GlobalPosition);
+        ApplyBossMotion(_mover.VisualOffset, IsDragonForm ? 0 : _mover.Lean,
+            IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Mina, GlobalPosition, (float)delta, 36f);
         FirePattern(delta);
     }
@@ -344,8 +409,17 @@ public partial class BossMina : Enemy
         _caster.CancelPendingAttacks();
         _pattern++;
         _fireT = _fireT2 = 0;
-        ChangeBattleCostume(CostumePath(_pattern, "idle"), CostumePath(_pattern, "attack"),
-            BossDownArt.Path($"mina_{Costumes[_pattern]}"));
+        if (_pattern == DragonPhase)
+        {
+            _dragonBefore = BossTransformation.Frame.Capture(BodySprite);
+            var bounds = DragonFlightBounds;
+            _mover.MoveZoneTo(bounds.GetCenter(), bounds.Size.X * 0.5f, bounds.Size.Y * 0.5f,
+                BossTuning.F("mina", "cruise_speed", 26f));
+            GlobalPosition = KeepDragonInField(GlobalPosition);
+        }
+        ChangeBattleCostume(BattleCostumePath(_pattern, "idle"), BattleCostumePath(_pattern, "attack"),
+            BattleDownPath(_pattern));
+        ApplyBossMotion(Vector2.Zero, 0, IsDragonForm ? !_mover.FacingLeft : _mover.FacingLeft);
         if (_pattern == 4) CryTexPath = CostumePath(4, "idle");
         ApplySpell();
         // ルナティック（2026-09-26）：段間のカットシーン（弾を止める会話）は出さない。Transitioning のまま返せば
@@ -357,6 +431,12 @@ public partial class BossMina : Enemy
     private void CompletePhaseTransition()
     {
         if (!IsInsideTree() || IsQueuedForDeletion()) return;
+        if (_dragonBefore is { } previous)
+        {
+            _dragonBefore = null;
+            RevealForm(previous, CompletePhaseTransition);
+            return;
+        }
         Transitioning = false;
         _caster.BeginPhase(_pattern);
         _zHeld = Pad.AdvanceHeld();
@@ -380,6 +460,7 @@ public partial class BossMina : Enemy
     protected override void OnCryStart()
     {
         _caster.CancelPendingAttacks();
+        ApplyBossMotion(Vector2.Zero, 0, _mover.FacingLeft);
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）

@@ -1,0 +1,42 @@
+{
+  "generator": "built-in image_gen",
+  "date": "2026-10-03",
+  "design": "char/concepts/mina_dragon_wings_v9/mina_dragon_wings_v9.png",
+  "assets": [
+    {
+      "pose": "idle",
+      "output": "mina_dragon_idle_v1.png",
+      "source": "char/concepts/mina_dragon_wings_v9/mina_dragon_wings_v9.png",
+      "core": [
+        624,
+        626
+      ]
+    },
+    {
+      "pose": "attack",
+      "output": "mina_dragon_attack_v1.png",
+      "source": "exec-7c2a5363-0a8c-4d55-963e-eeed9e8177bc.png",
+      "core": [
+        612,
+        588
+      ],
+      "prompt": "Use case: precise-object-edit / game pose variant.\nImage 1 is the FINAL APPROVED Mina dragon design. Create ONE ATTACK-CASTING pose of this exact same character for a 2D shooting game sprite.\n\nKeep the same 1536x1024 canvas and scale. Pin the blue chest gem approximately at (620,625), and keep the head at the same scale and near its existing position. Preserve the short sturdy compact body, two arms, two bent legs, enormous wing-dominant silhouette, feminine half-lidded blue eyes and black fringe.\nPose change: a forceful airborne attack. Lift her chin slightly, narrow the eyes with resolve, open the dragon muzzle just enough for a short commanding cry (no huge toothy monster mouth), extend the nearer hand forward to the image-left with spread claws, pull the other hand close to the chest. Give the wings a stronger downward press with visible tension while keeping all tips safely inside the canvas; the dragon is flying, never standing. Keep body/head size fixed, avoid foreshortening that enlarges her face. Do not add a projectile, beam, aura, smoke or particles; attacks will be drawn by the game.\n\nDESIGN LOCK: every wing bay has continuous white scalloped maid-frill edging and a thin pale-blue border including the small wing under the chin. No missing strips or holes in the navy wing membranes. Exactly one matching ivory-tipped curved claw above each navy bow and blue-gem wrist: the screen-left claw curves inward toward screen-right and the screen-right claw curves inward toward screen-left. Preserve navy bow ornaments, blue diamonds, dark blue-black body, small white accents, the SAME long flowing tail and the large blue diamond forming its actual endpoint. No extra horns, extra fingers/limbs, extra pattern, muscles or armor. No anatomical redesign.\nMatch the approved linework, colors and shading exactly. Full character and all ornaments visible with clear margins. Solid opaque pure chroma GREEN (#00FF00) background for keying, no transparency, checkerboard, shadow or glow. Green only in genuine exterior negative spaces, never inside the wing membrane. ONE sprite, no labels or extra poses."
+    },
+    {
+      "pose": "down",
+      "output": "mina_dragon_down_v1.png",
+      "source": "exec-99ae3d1e-2ef3-4c70-82cd-373beac94421.png",
+      "core": [
+        637,
+        545
+      ],
+      "prompt": "Use case: precise-object-edit / game pose variant.\nImage 1 is the FINAL APPROVED Mina dragon. Create ONE SHIELD-BROKEN / STAGGERED pose of this exact same character for a 2D shooting game. It is a brief exhausted airborne state, NOT death or a character redesign.\n\nUse the SAME 1536x1024 canvas, character scale, head size, compact sturdy body, and long tail length. Keep the blue chest gem approximately at (620,625) so this frame registers with the idle sprite. Dip her head slightly and close her eyes with a strained expression. Relax both hands downward and bend both legs loosely beneath her. Let the enormous wings droop in a recognizable weakened half-spread, with their wrists a little lower and the membranes relaxed but still extended enough to support flight. Keep the body in midair: no ground, no standing, no lying flat, no wounds, no tears or extra effects. Maintain the small torso and huge wing-to-body ratio; do not enlarge the body to fill space left by drooping wings. Slightly lower the head, but do not scale it.\n\nPreserve ALL design: black fringe, Mina's delicate feminine face and blue eye color where visible, black/midnight-navy coloring, limited ivory-white accents, navy ribbon bows and blue diamonds on wing wrists, exactly one mirrored inward-curving ivory-tipped claw per wrist, continuous white scalloped frill edging with pale-blue borders on EVERY wing bay including directly under the face, solid navy membranes without holes. Same long tail with the large sapphire diamond forming its terminal endpoint. Same refined anime linework and shading.\nKeep all wing tips, claws, ribbons and tail jewel inside the frame with margins. Solid opaque pure chroma GREEN (#00FF00) background, green ONLY outside the silhouette and legitimate empty spaces, never inside the membranes. No transparency, checkerboard, shadow, glow, text, labels or extra poses. ONE sprite."
+    }
+  ],
+  "postprocessing": {
+    "script": "tools/key_trim_scale.ps1",
+    "TargetH": 720,
+    "KeepCanvas": true,
+    "scope": "Resize and transparent background cleanup only; pose and illustration changes by image_gen."
+  }
+}

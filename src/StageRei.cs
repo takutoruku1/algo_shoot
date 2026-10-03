@@ -36,11 +36,9 @@ public partial class StageRei : Node
     private Spawner _spawner = null!;
     private int _waveBase;
     private bool _waveSpawnDone;       // 道中ステップ内：規定数を浄化してスポーン停止済み（あとは残ザコ全滅待ち）。各ステップ開始でリセット。
-    // レイ面の緩和（難易度高すぎ）：道中ザコ総数を 60→45（約25%減）。過密な導入Aを多めに削り、
-    // 終盤Cは最大密度の山として残す（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
-    private const int MidWaveA = 15;  // 導入（チラ見せ前）。緩く立ち上がる。旧21（-6）
-    private const int MidWaveB = 14;  // チラ見せ後。StartIntensity を上げてやや詰めて始める。旧18（-4）
-    private const int MidWaveC = 16;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧21（-5）
+    private const int MidWaveA = 36;
+    private const int MidWaveB = 14;
+    private const int MidWaveC = 16;
     // 引用の嵐（step 18）で薄く回す道中弾ぶんの見込み体数。この波は「規定数で止める」ゲートを持たず
     // 嵐が終わるまで湧き続けるので、浄化目標(StageTarget)に含めていないと嵐の途中で目標に達し、
     // Spawner が StageCleared で自動停止して以降ずっと敵ゼロになる（＝道中Cが空になる進行不能ぎみの間）。
@@ -83,8 +81,8 @@ public partial class StageRei : Node
         (1, "……ご主人様。潜ります。", MFace),
         (1, "……光の出力、平常の八割ほど。——問題ありません。集計の話です。", MDoubt),   // 弱体化は数字で置く
         (4, "「今日も20時から! 初見さん大歓迎。コメント、全部読みます。」", ""),   // 層1。配信中の声
-        (1, "……明るい投稿ですね。——この投稿の下からも、聞こえます。……こちらは、明るくない声が。", MWorried),   // 中身は言わない
-        (1, "狭い部屋です。壁一面が、配信の画面。右上の数字は「11」。……画面の中で、星逢レイが、等身大より大きく、笑っています。", MFace),
+        (1, "……明るい投稿ですね。でも、送れなかった言葉からは、疲れた声が聞こえます。", MWorried),
+        (1, "狭い部屋です。壁一面が、配信の画面。視聴者数は「11」。……画面の中で、星逢レイが、等身大より大きく、笑っています。", MFace),
         (1, "コメント欄が、流れています。……ひとつだけ、同じ場所に、同じ一行。「今日も来ました」。", MFace),   // こはるの結線。名前は出さない
         (1, "……この部屋の奥に、声のもとが。——行きます。", MFace),
     };
@@ -95,10 +93,10 @@ public partial class StageRei : Node
     private static readonly (int who, string text, string face)[] Mid =
     {
         (1, "ここの声は……「気づいて」「見て」と、画面の外へ向かって、言っています。", MFace),
-        (1, "合間に、「ふーん」。……同じ色の声で。", MFace),   // 家の声
+        (1, "……その合間に、誰かの「ふーん」という、そっけない返事も。", MFace),
         (4, "「登録者2000人、ありがとう。……去年の今日も、2000人。」", ""),   // 層2
         (1, "……机の上の、伏せたスマホが。いま、一度だけ、光りました。——誰も、拾いません。", MWorried),
-        (1, "右上の数字。「8」。……減りました。うち一つは、机の上の端末——つけっぱなしの、この部屋のものです。", MFace),
+        (1, "視聴者数が「8」に。……減りました。そのうち一人分は、ご本人が確認用につけている、この端末です。", MFace),
         (1, "わたくしの光と、あの数字と、どちらが薄いか。……比べません。どちらも、集計はしますが。", MSmile),
         (1, "……画面を見ていても、向こうの人数には入りません。——ここにある声を、祓います。", MFace),
     };
@@ -110,7 +108,7 @@ public partial class StageRei : Node
     {
         (4, "「企画メモ、下書き十四件。……出せるの、ゼロ件。」", ""),   // 層2
         (1, "……十四件。集計に、入れておきます。", MFace),   // 評価しない。H3r 小話（1）で拾う
-        (1, "投稿の下に——一行。削除済みの、一行があります。……中身は、本人の前で。", MWorried),
+        (1, "公開する前に消した下書きが、一行。……ご本人に会えたら、確かめましょう。", MWorried),
         (1, "コメント欄の、あの一行。……まだ、同じ場所にあります。", MFace),
         (1, "……画面の笑顔が、いま、コメントをひとつ、読み上げました。……声は、明るいです。", MFace),
         (1, "——来ます。画面の外から、足音が。……画面の中の笑顔は、動きません。", MWorried),
@@ -167,7 +165,7 @@ public partial class StageRei : Node
     {
         (1, "…………。", MWorried),
         (1, "……剥がし切りました。下に、送られなかった下書きが、一件。", MFace),
-        (1, "薄い字で、一行。……拾います。中身は、本人の前で。", MFace),
+        (1, "薄い字で、一行。……覚えておきます。ご本人に、この言葉のことを聞くために。", MFace),
         (1, "覚えておきます。……返しに行く先は、もう分かっていますので。", MFace),
     };
 
@@ -187,7 +185,7 @@ public partial class StageRei : Node
     //   きっかけ＝MidEnd の一行目＋この報告。文言は MidEnd から切り出す（二重に持たない）。
     private static readonly (int who, string text, string face)[] S35cCue = MidEnd.Take(1).Concat(new (int, string, string)[]
     {
-        (1, "……ご主人様。下書きが、三件。開いています。", MFace),
+        (1, "……ご主人様。レイさんへ、何と伝えましょう。お返事の下書きが、三つあります。", MFace),
     }).ToArray();
     private static readonly string[] S35cChoices = { "見てる", "ここにいる", "見ています", "（送らない）" };
     private static (int who, string text, string face)[] S35cReply(int sel) => sel switch
@@ -746,7 +744,6 @@ public partial class StageRei : Node
             if (!_cameoIntroStarted)
             {
                 _cameoIntroStarted = true;
-                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
                 CameoIntroScene.Play(Hud, World, "rei", CameoTalk1,
                     () => _cameoIntroDone = true);
             }
@@ -807,21 +804,25 @@ public partial class StageRei : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "rei", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            }, SpawnBoss);
+            else SpawnBoss();
+        }
+
+        void SpawnBoss()
+        {
             _boss = new BossRei { Name = "BossRei", MemoryFollowUp = BeginMemoryFollowUp };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
-            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
-            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
-            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
-            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            var opening = _playerBoss;
-            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
-            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "rei", opening, () => {
-                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
-                Step_Lines(0, _playerBoss);
-            });
         }
     }
 

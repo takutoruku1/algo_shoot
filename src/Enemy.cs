@@ -48,6 +48,7 @@ public partial class Enemy : Area2D
     // PreTexPath をこれに差し替える＝以後の待機はすべて第二形態になる（攻撃の一拍から戻る先も同じ）。
     // 空なら第二形態は起きない＝設定していないボス（ヒカゲ・ミナ・カメオ・ザコ）は完全に不変。
     protected string Form2TexPath = "";
+    protected string Form2AttackTexPath = "";
     // 任意：浄化の瞬間に一時表示する「大泣き」スプライト。設定すると pre→cry→(CryHoldDur秒)→post の3段階に。
     protected string CryTexPath = "";
     protected double CryHoldDur = 0;
@@ -92,6 +93,8 @@ public partial class Enemy : Area2D
     protected string DownTexPath = "";
     protected string Form2DownTexPath = "";
     private bool _bodyDown;
+    private double _downBreathT;
+    private Texture2D[]? _downBreathFrames;
 
     // ─── 改心の絵だけ縮める倍率（既定 1＝待機と同じ表示高）───
     //   レイだけ cry/post が「ガワの中の人」で、ガワ（待機）と同じ高さで出すと同一人物の等身が破綻する。
@@ -114,6 +117,12 @@ public partial class Enemy : Area2D
     // 撃った瞬間に AttackTexPath へ差し替え、AttackPoseDur 秒たったら待機（PreTexPath）へ戻す。
     // 差し替えは既存の SwapBody（クロスフェード＋squash→pop）をそのまま使う。
     protected string AttackTexPath = "";
+    protected string RecoveryTexPath = "";
+    protected Sprite2D BodySprite => _bodySprite;
+    protected bool BodyMotionReady => !_bodyDown && !_purified && !_crying && !_entering && !_swapAnim;
+    protected bool BodyAttacking => _attackPoseT > 0;
+    private BossTransformation? _transformation;
+    public bool Transforming => IsInstanceValid(_transformation) && !_transformation!.IsQueuedForDeletion();
     private double _attackPoseT;
     private const double AttackPoseDur = 0.55;
 
@@ -468,7 +477,7 @@ public partial class Enemy : Area2D
     // 当たり判定（Area2D の GlobalPosition・_bodyShape）と弾の発射は一切触らない。
     private void SetFacingLeft(bool faceLeft)
     {
-        bool flip = faceLeft == _artFacesRight;
+        bool flip = faceLeft == (BossAnimalArt.Contains(_bodySprite.Texture) ? false : _artFacesRight);
         if (_bodySprite.FlipH == flip) return;
         _bodySprite.FlipH = flip;
         ApplyBodyOffset();   // 反転は Offset.x の効きも反転する＝入れ直して足元と中心を動かさない
@@ -523,7 +532,7 @@ public partial class Enemy : Area2D
         if (CurSprite != null) b.SetSprite(CurSprite, CurSpriteRot);
         // 改心後の遅延発射は表示・衝突させずに返す（撃破の瞬間に消した弾が後追いで湧かない）。
         //   BulletPool.Spawn の BubblePaused と同じ作法＝呼び元が b を触っても落ちない。
-        if (_purified) pool.Despawn(b);
+        if (_purified || GaugeVulnerable || GaugeReforming) pool.Despawn(b);
         return b;
     }
 
@@ -576,18 +585,40 @@ public partial class Enemy : Area2D
     protected virtual (float Scale, Vector2 Offset) GetBodyFrame(Texture2D texture)
         => (1f, BossParts.BodyOffsetFor(BodyOffsetName, _bodyPose));
 
-    private (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
-        => texture.ResourcePath == DownTexPath || texture.ResourcePath == Form2DownTexPath
+    protected virtual (float Scale, Vector2 Offset) ResolveBodyFrame(Texture2D texture)
+        => BossAnimalArt.Contains(texture) ? BossAnimalArt.Frame(texture)
+            : BossDownArt.IsBreathing(texture) || texture.ResourcePath == DownTexPath || texture.ResourcePath == Form2DownTexPath
             ? BossDownArt.Frame(texture) : GetBodyFrame(texture);
 
     private void SetDownBody(bool down)
     {
         if (string.IsNullOrEmpty(DownTexPath)) return;
         _bodyDown = down;
+        _downBreathT = 0;
         _attackPoseT = 0;
-        if (_parts != null) _parts.Visible = !down;
+        if (_parts != null) _parts.Visible = !down && !BossAnimalArt.Contains(_bodySprite.Texture);
         if (!down) SetBodyPose(_form2 ? BossParts.Pose.Form2 : BossParts.Pose.Idle);
-        SwapBody(down ? DownTexPath : PreTexPath);
+        if (down)
+        {
+            _downBreathFrames = new[]
+            {
+                GD.Load<Texture2D>(BossDownArt.BreathingPath(DownTexPath, 0)),
+                GD.Load<Texture2D>(BossDownArt.BreathingPath(DownTexPath, 1)),
+                GD.Load<Texture2D>(BossDownArt.BreathingPath(DownTexPath, 2)),
+            };
+            ApplyBossMotion(Vector2.Zero, 0, _bodySprite.FlipH);
+            SwapBody(_downBreathFrames[0].ResourcePath);
+        }
+        else SwapBody(PreTexPath);
+    }
+
+    private void TickDownBreathing(double delta)
+    {
+        if (!_bodyDown || _swapAnim || _downBreathFrames == null) return;
+        _downBreathT += delta;
+        float beat = (float)(_downBreathT % .94);
+        int frame = beat < .16f ? 0 : beat < .30f ? 1 : beat < .46f ? 2 : beat < .68f ? 1 : 0;
+        SetMotionFrame(_downBreathFrames[frame]);
     }
 
     // 現在の姿勢（_bodyPose）のオフセットを本体スプライトへ入れる。
@@ -618,7 +649,13 @@ public partial class Enemy : Area2D
         if (_bodyDown) return;
         _parts?.OnAttackStart();
         if (string.IsNullOrEmpty(AttackTexPath) || _purified || _crying) return;
-        if (_attackPoseT > 0) { _attackPoseT = AttackPoseDur; return; } // 連射中は延長するだけ（絵がバタつかない）
+        if (_attackPoseT > 0)
+        {
+            _attackPoseT = AttackPoseDur;
+            SetBodyPose(BossParts.Pose.Attack);
+            SetMotionFrame(ResourceLoader.Load<Texture2D>(AttackTexPath));
+            return;
+        }
         _attackPoseT = AttackPoseDur;
         SetBodyPose(BossParts.Pose.Attack);
         SwapBody(AttackTexPath);
@@ -633,12 +670,38 @@ public partial class Enemy : Area2D
     {
         if (_attackPoseT <= 0) return;
         _attackPoseT -= delta;
-        if (_attackPoseT > 0) return;
+        if (_attackPoseT > 0)
+        {
+            if (_attackPoseT <= 0.2 && !_form2 && !_purified && !_crying && !_bodyDown && RecoveryTexPath.Length > 0)
+            {
+                SetBodyPose(BossParts.Pose.Idle);
+                SetMotionFrame(ResourceLoader.Load<Texture2D>(RecoveryTexPath));
+            }
+            return;
+        }
         _attackPoseT = 0;
         if (_purified || _crying || _bodyDown) return;
         SetBodyPose(_form2 ? BossParts.Pose.Form2 : BossParts.Pose.Idle);
         SwapBody(PreTexPath);
     }
+
+    protected void SetMotionFrame(Texture2D texture)
+    {
+        if (_bodySprite.Texture == texture) return;
+        if (BossAnimalArt.Contains(_bodySprite.Texture) != BossAnimalArt.Contains(texture))
+            _bodySprite.FlipH = !_bodySprite.FlipH;
+        _bodySprite.Texture = texture;
+        _baseScale = BodyDisplayH / texture.GetHeight() * _bodyScaleMul * ResolveBodyFrame(texture).Scale;
+        _bodySprite.Scale = Vector2.One * _baseScale;
+        ApplyBodyOffset();
+    }
+
+    protected virtual void TickBodyMotion(double delta) { }
+
+    protected void RevealForm(BossTransformation.Frame previous, System.Action? completed = null)
+        => _transformation = BossTransformation.Play(this, previous, completed);
+
+    internal void FinishFormReveal() => TickSwapAnim(1d);
 
     private void SpawnPanels()
     {
@@ -648,6 +711,40 @@ public partial class Enemy : Area2D
     }
 
     protected virtual void OnShieldFormed() { }
+
+    public virtual UnfolderKind UnfolderStyle => UnfolderKind.None;
+    public virtual int UnfolderStage => 0;
+    public bool UnfoldersActive => !_purified && !_entering && IsVisibleInTree() && _phase == BossPhase.Shielded;
+
+    public Panel? SelectUnfolder(Vector2 from, Panel? current, Bullet? shot = null)
+    {
+        if (UnfolderStyle == UnfolderKind.None || !UnfoldersActive) return null;
+        bool Eligible(Panel p) => p.CanLock && (shot == null || !shot.HasChargeHit(p));
+        if (current != null && IsInstanceValid(current) && _panels.Contains(current) && Eligible(current))
+            return current;
+        Panel? best = null;
+        float nearest = float.MaxValue;
+        foreach (var panel in _panels)
+        {
+            if (!Eligible(panel)) continue;
+            float distance = panel.GlobalPosition.DistanceSquaredTo(from);
+            if (distance < nearest) { best = panel; nearest = distance; }
+        }
+        return best;
+    }
+
+    public Panel? CycleUnfolder(Panel? current, int step, Vector2 from)
+    {
+        var first = SelectUnfolder(from, current);
+        if (first == null) return null;
+        int at = _panels.IndexOf(first);
+        for (int i = 1; i <= _panels.Count; i++)
+        {
+            var panel = _panels[(at + (i * step) % _panels.Count + _panels.Count) % _panels.Count];
+            if (panel.CanLock) return panel;
+        }
+        return first;
+    }
 
     private void SpawnOnePanel(float baseAngle)
     {
@@ -686,6 +783,10 @@ public partial class Enemy : Area2D
     private void EnterBreak()
     {
         _phase = BossPhase.Break; _phaseT = 0;
+        var pool = GetNode<BulletPool>("/root/Pool");
+        foreach (var node in GetTree().GetNodesInGroup("enemy_bullets"))
+            if (node is Bullet bullet && bullet.Active) pool.Despawn(bullet);
+        OnShieldBroken();
         SetDownBody(true);
         _shieldLayer?.QueueRedraw();
         FxLayer.Instance?.BossBreak(GlobalPosition, BodyDisplayH);
@@ -697,6 +798,8 @@ public partial class Enemy : Area2D
             GameManager.Instance?.SelectedJob ?? Job.Tank);
         QueueRedraw();
     }
+
+    protected virtual void OnShieldBroken() { }
 
     private void EnterExposed()
     {
@@ -741,10 +844,17 @@ public partial class Enemy : Area2D
         QueueRedraw();
     }
 
+    protected void RallyShield()
+    {
+        // A new story beat must not inherit the previous beat's damage window.
+        if (!_purified && _maxHp > 0 && _phase is BossPhase.Break or BossPhase.Exposed)
+            EnterReclose();
+    }
+
     // 無防備窓中：本体に当たった自機弾の威力ぶん本体HPを削る。
     private void OnBodyHitByPlayerBullet(Area2D area)
     {
-        if (_phase != BossPhase.Exposed || _purified) return;
+        if (_phase != BossPhase.Exposed || _purified || Transforming) return;
         if (area is Bullet b && !b.IsEnemy && b.Active)
         {
             if (!b.RegisterChargeHit(this)) return;
@@ -870,22 +980,6 @@ public partial class Enemy : Area2D
         if (_hasBodyTex) { _swapAnim = true; _swapAnimT = 0; } // 一拍の弾み（演出過多にしない＝これ以上足さない）
     }
 
-    // ─── 第二形態（2026-09-07）───
-    //   テーマ「下書き＝本音／投稿＝仮初の自分」を形態に乗せる。一形態＝仮初の自分で戦い、
-    //   第二形態＝繕っていたものが剥がれて本音が露出した姿。壊れて中身が出るのではない。
-    //
-    //   派生ボスが OnHpChanged の既存の閾値ブロック（PatternThresholds の中盤＝index 1）から
-    //   一度だけ呼ぶ。新しい閾値も新しい仕組みも足さない＝発動する HP は既存のスペル切替と同じ節目。
-    //
-    //   やること:
-    //     ・本体の待機絵を Form2TexPath へ差し替える（既存の SwapBody＝クロスフェード＋squash→pop）
-    //     ・PreTexPath 自体を差し替える＝攻撃の一拍から戻る先も第二形態になる（TickAttackPose）
-    //     ・姿勢を Pose.Form2 にする＝足元が待機と同じ画面位置に来る（BossParts.BodyOffsets）
-    //     ・部品層を派手にする（BossParts.EnterForm2）
-    //     ・節目の一拍は既存の語彙（Hud.Flash ＋ PlaySpell ＋ 軽い Shake）だけ
-    //   やらないこと: 当たり判定・HP・弾幕の値は一切動かさない。ヒットストップも入れない
-    //  （弾を止めると弾幕の読みが切れる＝派手さのために可読性を落とさない）。
-    //   ★戻り値 true＝この呼び出しで実際に移行した（派生が宣告などを足したいとき用）。
     private bool _form2;
     protected bool IsForm2 => _form2;
     protected bool AdvanceForm2()
@@ -894,32 +988,27 @@ public partial class Enemy : Area2D
         if (_purified || _crying) return false;          // 改心の三段に割り込ませない
         if (string.IsNullOrEmpty(Form2TexPath)) return false;
         if (!ResourceLoader.Exists(Form2TexPath)) return false; // 絵が無ければ黙って起きない
+        var previous = BossTransformation.Frame.Capture(_bodySprite);
         _form2 = true;
+        _attackPoseT = 0;
 
-        PreTexPath = Form2TexPath;                       // 以後の待機はすべて第二形態
-        // 攻撃の一拍の最中なら絵は差し替えない（攻撃絵の上に待機絵を被せない）。
-        // _attackPoseT が切れたとき TickAttackPose が新しい PreTexPath＝第二形態へ戻す。
+        PreTexPath = Form2TexPath;
+        if (Form2AttackTexPath.Length > 0) AttackTexPath = Form2AttackTexPath;
         if (!string.IsNullOrEmpty(Form2DownTexPath)) DownTexPath = Form2DownTexPath;
         if (_bodyDown)
         {
             SetDownBody(true);
         }
-        else if (_attackPoseT <= 0)
+        else
         {
             SetBodyPose(BossParts.Pose.Form2);
             SwapBody(PreTexPath);
         }
-        else
-        {
-            _bodyPose = BossParts.Pose.Form2;            // 戻ったときのオフセットだけ先に決めておく
-        }
 
         _parts?.EnterForm2();
+        if (_parts != null && BossAnimalArt.Contains(_bodySprite.Texture)) _parts.Visible = false;
 
-        var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
-        hud?.Flash();
-        Audio.Instance?.PlaySpell();
-        GameCamera.Instance?.Shake(2.0f, 0.12f);
+        RevealForm(previous);
         return true;
     }
 
@@ -930,7 +1019,7 @@ public partial class Enemy : Area2D
     //   virtual：トレーニングのダミー(TrainingDummy)がボム直撃を自前HPへ通すために上書きする（本編挙動は不変）。
     public virtual void Purify()
     {
-        if (_purified) return;
+        if (_purified || Transforming) return;
         if (_maxHp > 0)
         {
             if (_phase == BossPhase.Exposed) { BombStrike(); return; }
@@ -952,6 +1041,7 @@ public partial class Enemy : Area2D
     public const int BombStrikeBase = 20;
     private void BombStrike()
     {
+        if (Transforming) return;
         var game = GetNodeOrNull<GameManager>("/root/Game");
         int dmg = Mathf.RoundToInt(BombStrikeBase * (game?.BombPowerMul ?? 1f));
         dmg = Mathf.Min(dmg, WindowCap - _windowDamage); // 窓キャップの残り許容内でだけ通す
@@ -995,7 +1085,7 @@ public partial class Enemy : Area2D
     // バー割れ演出・OnHpChanged・Redeem は弾ヒット/ボム直撃と同じ帳簿を通す（設計を二重化しない）。
     public void DealDirectDamage(int dmg)
     {
-        if (_purified || _maxHp <= 0 || dmg <= 0) return;
+        if (_purified || Transforming || _maxHp <= 0 || dmg <= 0) return;
         dmg = LimitBodyDamage(dmg);
         if (dmg <= 0) return;
         int prevBarsLeft = (_hp + BarHp - 1) / BarHp;
@@ -1050,8 +1140,8 @@ public partial class Enemy : Area2D
         if (!_hasBodyTex || _bodySprite == null) return;
         if (_bodyDown)
         {
-            visualOffset *= 0.35f;
-            lean *= 0.15f;
+            visualOffset = Vector2.Zero;
+            lean = 0;
             squash = Vector2.One;
         }
         _motionOffset = visualOffset; // 呼吸/浮遊。pop の持ち上げはこれへ加算するため保持。
@@ -1237,6 +1327,8 @@ public partial class Enemy : Area2D
         }
 
         // 本体を新テクスチャへ。基準スケールを更新し、α0 から上げ始める。
+        if (old != null && BossAnimalArt.Contains(old) != BossAnimalArt.Contains(t))
+            _bodySprite.FlipH = !_bodySprite.FlipH;
         _bodySprite.Texture = t;
         _baseScale = BodyDisplayH / t.GetHeight() * _bodyScaleMul * ResolveBodyFrame(t).Scale;
         _bodySprite.Scale = new Vector2(_baseScale, _baseScale);
@@ -1514,7 +1606,15 @@ public partial class Enemy : Area2D
 
         if (Hud.BubblePaused) return; // 吹き出し表示中は動かない（襲ってこない）
 
+        if (GaugeVulnerable)
+        {
+            ApplyBossMotion(Vector2.Zero, 0, _bodySprite.FlipH);
+            TickDownBreathing(edelta);
+            return;
+        }
+        if (GaugeReforming) return;
         UpdateMovement(edelta);
+        TickBodyMotion(edelta);
         TickAutoBank(edelta); // ザコの移動バンク（ボス/生命感モーション持ちは AutoBank=false で素通り）
         TickFacing();         // 自機の方を向く（ボス/カメオは ApplyBossMotion が握る＝FacePlayer=false で素通り）
         if (GlobalPosition.X < OffLeftX) QueueFree();
@@ -1579,6 +1679,14 @@ public partial class Enemy : Area2D
         var lift = TintLift.Of(_worldTint, TintLift.EnemyBody);
         var tint = (major ? Colors.White : new Color("91dfff")) * lift;
         float alpha = (major ? 0.82f + pulse * 0.08f : 0.64f + pulse * 0.08f) * (0.3f + 0.7f * build);
+        float integrity = 1f;
+        if (_phase == BossPhase.Shielded)
+        {
+            int remainingInk = 0;
+            foreach (var panel in _panels) remainingInk += panel.Ink;
+            integrity = Mathf.Clamp(remainingInk / (float)(PanelCount * PanelInk), 0f, 1f);
+            alpha *= Mathf.Lerp(0.45f, 1f, integrity);
+        }
         if (breaking)
         {
             float t = Mathf.Clamp((float)(_phaseT / BreakCueDur), 0, 1);
@@ -1610,8 +1718,8 @@ public partial class Enemy : Area2D
         for (int i = 0; i < 6; i++)
         {
             float angle = _shieldTime * 0.38f + i * Mathf.Tau / 6;
-            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f, new Color(gold, alpha * 0.2f), 2.8f);
-            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f, new Color(gold, alpha), 0.9f);
+            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f * integrity, new Color(gold, alpha * 0.2f), 2.8f);
+            DrawShieldArc(layer, size * new Vector2(0.49f, 0.47f), angle, 0.4f * integrity, new Color(gold, alpha), 0.9f);
         }
         for (int i = 0; i < 3; i++)
             DrawShieldArc(layer, size * new Vector2(0.43f, 0.43f), -_shieldTime * 0.5f + i * Mathf.Tau / 3,
@@ -1626,10 +1734,11 @@ public partial class Enemy : Area2D
         layer.DrawPolyline(points, color, width, true);
     }
 
-    private void DrawLockOn(Job job)
+    private void DrawLockOn(Job job, Panel? panel)
     {
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.0034f);
-        float r = Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse;
+        float r = panel == null ? Mathf.Max(BodyHalfH, BodyRadius) + 9f + pulse : 13f + pulse;
+        DrawSetTransform(panel?.Position ?? Vector2.Zero);
         var color = new Color(BulletArt.PlayerColor(job), 0.65f + pulse * 0.2f);
         for (int i = 0; i < 4; i++)
         {
@@ -1659,6 +1768,7 @@ public partial class Enemy : Area2D
         float size = job == Job.Magic ? 13f : 12f;
         DrawTextureRect(art, new Rect2(-size / 2, -r - size - 3, size, size), false,
             new Color(Colors.White, 0.88f));
+        DrawSetTransform(Vector2.Zero);
     }
 
     // 頭上ゲージ（BossGauge）の置き場。四隅の枠（下の _Draw）と同じ寸法式から「枠の上辺の少し上」と「枠幅ほど」を出す。
@@ -1696,7 +1806,8 @@ public partial class Enemy : Area2D
     public override void _Draw()
     {
         bool locked = GetTree().GetFirstNodeInGroup("player") is Player lp && lp.LockTarget == this;
-        if (locked) DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank);
+        if (locked) DrawLockOn(GameManager.Instance?.SelectedJob ?? Job.Tank,
+            (GetTree().GetFirstNodeInGroup("player") as Player)?.LockedUnfolder);
 
         // 改心フラッシュ（やさしい色：淡ピンク→淡紫に着地）
         if (_flashing)

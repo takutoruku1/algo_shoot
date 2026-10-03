@@ -240,13 +240,17 @@ public partial class HubKeysQa : Node
             Check(Mode(hub) == "Home", "Esc on the timeline returns home");
 
             // ── (i)〜(iv) 左下のキャラ切り替えボタン（Tab／パッド Y／クリック）──
-            // (iv) ボタンは左パネルの左下（スマホ本体 x=400 の左隣）。右隣の仲間のアバター列も「仲間 4」まで x<400 に収まる。
+            // (iv) ボタンとアバター列・選択キャラ名がスマホ本体の左に収まる。
             var sw = (Rect2)CallStatic("SwitchButtonRect")!;
             Check(sw.HasArea() && sw.Position.X >= 0f && sw.End.X < 400f && sw.Position.Y > 600f && sw.End.Y <= UiKit.DesignH,
                 $"(iv) the switch button sits at the bottom-left, left of the phone ({sw})");
             int allJobs = Jobs.All.Length;
-            float labelEnd = (float)CallStatic("CompanionLabelX", allJobs)! + UiKit.TextW(UiKit.Zen, $"仲間 {allJobs}", 13);
-            Check(labelEnd < 400f, $"(iv) the companion row (all {allJobs}) and its label end left of the phone (x {labelEnd:0.0})");
+            foreach (var job in Jobs.All)
+                for (int count = 1; count <= allJobs; count++)
+                {
+                    float labelEnd = (float)CallStatic("CompanionLabelX", count)! + UiKit.TextW(UiKit.Zen, job.CharacterName, 13);
+                    Check(labelEnd < 400f, $"(iv) {job.CharacterName} with {count} avatars fits left of the phone (x {labelEnd:0.0})");
+                }
             Check(Prop<bool>(hub, "SwitchAvailable"), "(iv) the switch button is live on home");
             await Frames(3);
             await Shot("switch_button");

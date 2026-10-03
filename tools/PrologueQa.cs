@@ -143,7 +143,7 @@ public partial class PrologueQa : Node
                 Check(Read<PostToast?>(pro, "_toast") != null, "timeline post remains visible over the illustration");
                 if (route == 0) await Shot("timeline", pro);
                 await AdvanceUntil(() => CurrentDialogue(pro).Face == "res://char/v3/mina_conversation_worried_v1.png");
-                Check(CurrentDialogue(pro).Text.Contains("消したはずの言葉"),
+                Check(CurrentDialogue(pro).Text.Contains("投稿しようとして、送れなかった言葉が聞こえます。"),
                     $"route {route} switches to the matching concerned expression for the unheard voice");
                 if (route == 0)
                 {
@@ -155,6 +155,10 @@ public partial class PrologueQa : Node
                     DisplayServer.WindowSetSize(new Vector2I(1280, 720));
                     await Frames(15);
                 }
+                await AdvanceUntil(() => CurrentDialogue(pro).Text == "……何か、迷っていたようです。");
+                Check(Read<int>(pro, "_backdrop") == 2
+                    && CurrentDialogue(pro).Face == "res://char/v3/mina_conversation_worried_v1.png",
+                    $"route {route} explains the hesitation before revealing the erased draft");
                 await AdvanceUntil(() => Read<int>(pro, "_backdrop") == 3);
                 Check(Read<float>(pro, "_backdropMix") < 1f, "erased draft starts its own crossfade");
                 await CheckErasePacing(pro, route == 0);

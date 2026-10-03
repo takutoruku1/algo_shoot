@@ -9,8 +9,8 @@ public partial class BossSpellQa : Node
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private static T Read<T>(object obj, string name, Type? type = null)
         => (T)(type ?? obj.GetType()).GetField(name, Private)!.GetValue(obj)!;
-    private static void Write(object obj, string name, object value)
-        => obj.GetType().GetField(name, Private)!.SetValue(obj, value);
+    private static void Write(object obj, string name, object value, Type? type = null)
+        => (type ?? obj.GetType()).GetField(name, Private)!.SetValue(obj, value);
     private static void Call(object obj, string name, params object[] args)
         => obj.GetType().GetMethod(name, Private)!.Invoke(obj, args);
     private static void Check(bool ok, string message)
@@ -41,7 +41,8 @@ public partial class BossSpellQa : Node
             }
             if (OS.GetCmdlineUserArgs().Contains("--koharu-body"))
                 await CheckKoharuBody(game);
-            else if (OS.GetCmdlineUserArgs().Contains("--break") || OS.GetCmdlineUserArgs().Contains("--shields"))
+            else if (OS.GetCmdlineUserArgs().Contains("--break") || OS.GetCmdlineUserArgs().Contains("--shields")
+                || OS.GetCmdlineUserArgs().Contains("--unfolders"))
                 await CheckBreakEffect(game);
             else if (OS.GetCmdlineUserArgs().Contains("--backgrounds"))
                 await CheckBossBackgrounds(game);
@@ -491,10 +492,11 @@ public partial class BossSpellQa : Node
             root.GetNode<StageBackground>("StageBackground").EnterBoss();
             await Frames(150);
             Pool.DespawnAll();
-            if (OS.GetCmdlineUserArgs().Contains("--shields"))
+            if (OS.GetCmdlineUserArgs().Contains("--shields") || OS.GetCmdlineUserArgs().Contains("--unfolders"))
             {
                 root.ProcessMode = ProcessModeEnum.Disabled;
-                await CheckShieldAppearance(scene, boss);
+                if (OS.GetCmdlineUserArgs().Contains("--unfolders")) await CheckUnfolders(scene, boss, player);
+                else await CheckShieldAppearance(scene, boss);
                 root.QueueFree();
                 await Frames(5);
                 Engine.TimeScale = 1;
@@ -610,6 +612,170 @@ public partial class BossSpellQa : Node
         }
     }
 
+    private async Task CheckUnfolders(string scene, Enemy boss, Player player)
+    {
+        var panels = boss.GetChildren().OfType<Panel>().ToArray();
+        Write(boss, "_entering", false, typeof(Enemy));
+        Hud.BubblePaused = false;
+        if (boss.UnfolderStyle == UnfolderKind.None)
+        {
+            Check(boss.SelectUnfolder(player.GlobalPosition, null) == null, $"{scene}: existing lock-on is unchanged");
+            return;
+        }
+        string output = ProjectSettings.GlobalizePath("res://build/qa_story/unfolders");
+        DirAccess.MakeDirRecursiveAbsolute(output);
+        var game = GetNode<GameManager>("/root/Game");
+        Write(player, "_locked", true);
+        Write(player, "_lockArmed", true);
+        Write(player, "_lockByShift", false);
+        Write(player, "_lockTarget", boss);
+        Check(panels.All(p => p.Ink == 10 && p.CanLock), $"{scene}: shield durability matches precise panel aiming");
+        using (var art = GD.Load<Texture2D>(UnfolderMotion.TexturePath(boss.UnfolderStyle)).GetImage())
+            Check(art.GetWidth() == 256 && art.GetHeight() == 256 && art.HasMipmaps() && art.GetPixel(0, 0).A == 0
+                && art.GetPixel(128, 128).A > 0.5f, $"{scene}: real alpha and an opaque target core");
+        Check(panels.All(p => p.GetChildren().OfType<Sprite2D>().Single().Texture.ResourcePath
+            == UnfolderMotion.TexturePath(boss.UnfolderStyle)), $"{scene}: dedicated artwork is live");
+        Check(panels.All(p => ((CircleShape2D)p.GetChildren().OfType<CollisionShape2D>().Single().Shape).Radius == 3f),
+            $"{scene}: decoration does not enlarge the collision shape");
+        foreach (int tier in new[] { -1, 0, ChargeTier.First, ChargeTier.Second })
+        {
+            var test = Pool.Spawn(player.GlobalPosition, Vector2.Right * 300, false, 3, 20);
+            if (tier == -1) test.MakeAccel(12, 640, 0.5f);
+            else if (tier > 0) test.MakeCharged(Job.Tank, tier);
+            int cost = tier == -1 ? 2 : tier == 0 ? 1 : tier == ChargeTier.First ? 3 : 5;
+            Call(panels[0], "OnAreaEntered", test);
+            Check(panels[0].Ink == 10 - cost, $"{scene}: shot tier {tier} strips {cost} durability");
+            panels[0].Ink = 10;
+            Pool.DespawnAll();
+        }
+        foreach (var panel in panels) panel._PhysicsProcess(0.2);
+
+        var target = player.LockedUnfolder!;
+        Check(target != null && player.LockTarget == boss, $"{scene}: boss identity remains stable while aiming at a panel");
+        var playerPosition = player.GlobalPosition;
+        player.GlobalPosition = boss.GlobalPosition + new Vector2(70, 50);
+        Check(player.LockedUnfolder == target, $"{scene}: proximity changes cannot steal the lock");
+        player.GlobalPosition = playerPosition;
+        Check(player.ShotDir.DistanceTo((target!.GlobalPosition - player.GlobalPosition).Normalized()) < 0.001f,
+            $"{scene}: shot direction aims at the real panel");
+        Check(boss.CycleUnfolder(boss.CycleUnfolder(target, 1, playerPosition), -1, playerPosition) == target,
+            $"{scene}: forward/backward cycling is reversible");
+        Call(player, "TickLockOn");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = true });
+        Input.FlushBufferedEvents();
+        Call(player, "TickLockOn");
+        Check(player.LockTarget == boss && player.LockedUnfolder != target, $"{scene}: next-target input cycles boss panels");
+        Input.ParseInputEvent(new InputEventKey { Keycode = Key.S, Pressed = false });
+        Input.FlushBufferedEvents();
+        Call(player, "TickLockOn");
+        target = player.LockedUnfolder!;
+
+        var shot = Pool.Spawn(player.GlobalPosition, Vector2.Right * 200, false, 3, 4, homing: true);
+        shot.MakeCharged(Job.Heal);
+        Write(shot, "_homeTarget", boss);
+        Call(shot, "SteerToTarget", 0.02f);
+        Check(Read<Panel>(shot, "_homeUnfolder") == target, $"{scene}: homing respects the selected real panel");
+        shot.RegisterChargeHit(target);
+        Call(shot, "SteerToTarget", 0.02f);
+        Check(Read<Panel>(shot, "_homeUnfolder") != target, $"{scene}: a piercing charge does not circle an already-hit panel");
+        Pool.DespawnAll();
+
+        async Task<Image> Capture(string suffix)
+        {
+            boss.QueueRedraw();
+            foreach (var panel in panels) panel.QueueRedraw();
+            await Frames(3);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            var image = GetViewport().GetTexture().GetImage();
+            Check(image.SavePng($"{output}/{scene}_{suffix}.png") == Error.Ok, $"{scene}: {suffix} captured");
+            return image;
+        }
+        using var before = await Capture("start");
+        if (boss is BossMina) Write(boss, "_pattern", 4);
+        var start = target.Position;
+        bool moved = false, warped = false, warned = false, echoes = false;
+        for (int frame = 0; frame < 360; frame++)
+        {
+            var previous = target.Position;
+            foreach (var panel in panels) panel._PhysicsProcess(1d / 60);
+            var pose = Read<UnfolderPose>(target, "_pose");
+            warned |= pose.WarpCue > 0.01f;
+            echoes |= pose.EchoAlpha > 0.1f;
+            if (boss.UnfolderStyle == UnfolderKind.Rei && pose.WarpCue > 0.5f)
+                CheckSilent(panels.All(p => p.Position.DistanceTo(pose.WarpTo) > 6),
+                    "Rei's warp forecast must not coincide with an occupied slot");
+            moved |= start.DistanceTo(target.Position) > 10;
+            if (previous.DistanceTo(target.Position) > 25 && frame > 0)
+            {
+                Check(warned, $"{scene}: teleport follows a visible warning");
+                warped = true;
+            }
+            CheckSilent(player.LockedUnfolder == target && player.LockAimPosition.DistanceTo(target.GlobalPosition) < 0.001f,
+                "lock must follow the same panel through motion/teleport");
+            CheckSilent(panels.All(p => Field.Rect.HasPoint(p.GlobalPosition)), "all targets stay inside the playfield");
+            if (frame == 119 || frame == 275) { using var snap = await Capture($"motion_{frame}"); }
+        }
+        Check(moved, $"{scene}: motion changes actual target coordinates");
+        Check(boss.GetChildren().OfType<Panel>().Count() == panels.Length, $"{scene}: clones add no colliders or lock candidates");
+        if (boss.UnfolderStyle is UnfolderKind.Rei or UnfolderKind.Mina)
+            Check(warped, $"{scene}: warp pattern is exercised");
+        if (boss.UnfolderStyle is UnfolderKind.Koharu or UnfolderKind.Mina)
+            Check(echoes, $"{scene}: mirror pattern is exercised");
+        using var after = await Capture("end");
+        int changed = 0;
+        for (int y = 0; y < before.GetHeight(); y += 2)
+        for (int x = before.GetWidth() / 2; x < before.GetWidth(); x += 2)
+            if (Mathf.Abs(before.GetPixel(x, y).Luminance - after.GetPixel(x, y).Luminance) > 0.1f) changed++;
+        Check(changed > 150, $"{scene}: motion visibly changes rendered pixels ({changed})");
+        var frozen = target.Position;
+        Hud.BubblePaused = true;
+        target._PhysicsProcess(1);
+        Check(target.Position == frozen, $"{scene}: dialogue freezes the motion and warp clock");
+        Hud.BubblePaused = false;
+        boss.SetPanelsInvulnerable(true);
+        Check(player.LockedUnfolder == null && player.LockAimPosition == boss.GlobalPosition,
+            $"{scene}: story/post surface takes priority over hidden panels");
+        boss.SetPanelsInvulnerable(false);
+        foreach (var size in new[] { new Vector2I(960, 540), new Vector2I(540, 960) })
+        {
+            DisplayServer.WindowSetSize(size);
+            using var resized = await Capture($"active_{size.X}x{size.Y}");
+        }
+        DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+        if (boss is BossMina)
+        {
+            for (int phase = 0; phase < 5; phase++)
+            {
+                Write(boss, "_pattern", phase);
+                foreach (var panel in panels) panel._PhysicsProcess(0);
+                using var form = await Capture($"phase_{phase}");
+            }
+        }
+        var bossPosition = boss.GlobalPosition;
+        foreach (var edge in new[] { new Vector2(Field.Left + 10, 20), new Vector2(Field.Right - 10, Field.Bottom - 20) })
+        {
+            boss.GlobalPosition = edge;
+            foreach (var panel in panels) panel._PhysicsProcess(0);
+            Check(panels.All(p => p.GlobalPosition.X >= Field.Left + 12 && p.GlobalPosition.X <= Field.Right - 12
+                && p.GlobalPosition.Y >= Field.Top + 12 && p.GlobalPosition.Y <= Field.Bottom - 12),
+                $"{scene}: orbit and teleport stay out of the HUD and screen edges");
+        }
+        boss.GlobalPosition = bossPosition;
+        foreach (var panel in panels) panel._PhysicsProcess(0);
+        target = player.LockedUnfolder!;
+        target.Shatter();
+        Check(player.LockedUnfolder != null && player.LockedUnfolder != target, $"{scene}: broken panel hands off immediately");
+        foreach (var panel in panels) panel.Shatter();
+        Check(player.LockedUnfolder == null && player.LockTarget == boss && player.LockAimPosition == boss.GlobalPosition
+            && boss.GaugeVulnerable, $"{scene}: shield break hands the lock to the exposed body");
+        await Frames(2);
+    }
+
+    private static void CheckSilent(bool ok, string message)
+    {
+        if (!ok) throw new Exception(message);
+    }
+
     private async Task CheckShieldAppearance(string scene, Enemy boss)
     {
         string output = ProjectSettings.GlobalizePath("res://build/qa_story/boss_shields");
@@ -671,6 +837,17 @@ public partial class BossSpellQa : Node
         Check(major ? visible.warmth > 0.08f : visible.warmth < -0.03f,
             $"{scene}: distinct {(major ? "red-gold major" : "blue-white midboss")} style ({visible.warmth:F3})");
         Check(Compare(blank, active, 3).changed == 0, $"{scene}: central body remains unobscured");
+        var panels = boss.GetChildren().OfType<Panel>().Select(p => (panel: p, ink: p.Ink)).ToArray();
+        foreach (var (panel, ink) in panels) { panel.Ink = Mathf.Max(1, ink / 3); panel.QueueRedraw(); }
+        using (var worn = await Render(true, "worn"))
+        {
+            var wear = Compare(active, worn, h);
+            Check(wear.changed > 30 * pixelScale * pixelScale && wear.brightness < -0.02f,
+                $"{scene}: shield visibly weakens as its panels lose durability");
+            Check(Compare(blank, worn, h).changed > 30 * pixelScale * pixelScale,
+                $"{scene}: weakened shield remains visible until break");
+        }
+        foreach (var (panel, ink) in panels) { panel.Ink = ink; panel.QueueRedraw(); }
         Set("_shieldTime", 1.8f);
         using var animated = await Render(true, "motion");
         Check(Compare(active, animated, h).changed > 15 * pixelScale * pixelScale,

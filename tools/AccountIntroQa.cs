@@ -28,7 +28,7 @@ public partial class AccountIntroQa : Node
     }
 
     private const string IntroHead = "ご報告。アカウントが、ひとつ、増えています。……名義は、わたくしではありません。あの方です。";
-    private const string IntroLast = "光の形も、そこで語られる話も、あの方のものになります。……戻すのも、同じ場所からです。";
+    private const string IntroLast = "放つ光も、ダイブ中にお話しする内容も、その方によって変わります。……わたくしに戻すときも、同じ場所からどうぞ。";
     private const string SeenKey = "once_account_intro";
 
     private int _fail;

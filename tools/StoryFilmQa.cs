@@ -282,6 +282,7 @@ public partial class StoryFilmQa : Node
             Write(stage, "_stepStarted", false);
             stage.SetProcess(true);
             await AdvanceUntil(() => GetTree().CurrentScene != root);
+            await QaSceneTransition.Wait(this);
             Check(GetTree().CurrentScene.SceneFilePath is "res://ShopTutorial.tscn" or "res://Hub.tscn", "normal clear transition completes");
             Audio.Instance?.StopMusic(0);
             foreach (var child in GetNode<Audio>("/root/Audio").GetChildren())

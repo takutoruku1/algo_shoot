@@ -1,0 +1,245 @@
+{
+  "generator": "built-in image_gen",
+  "display_scale": 0.68,
+  "scale_reference": "Existing Mina dragon: match head and torso, not decorative wings or tails.",
+  "originals": [
+    {
+      "id": "akari",
+      "source": "exec-a49e35de-9f82-47c1-9f06-9386ea8ad9ed.png",
+      "regions": [
+        [
+          5,
+          45,
+          660,
+          662
+        ],
+        [
+          670,
+          0,
+          930,
+          620
+        ],
+        [
+          1610,
+          60,
+          553,
+          634
+        ]
+      ],
+      "cores": [
+        [
+          280,
+          365
+        ],
+        [
+          290,
+          360
+        ],
+        [
+          255,
+          350
+        ]
+      ],
+      "unit": 0.15141955835962145
+    },
+    {
+      "id": "koharu",
+      "source": "exec-e4727518-62ba-4697-aa47-84e7048c2f0a.png",
+      "regions": [
+        [
+          10,
+          0,
+          680,
+          724
+        ],
+        [
+          610,
+          20,
+          960,
+          630
+        ],
+        [
+          1510,
+          115,
+          662,
+          609
+        ]
+      ],
+      "cores": [
+        [
+          240,
+          445
+        ],
+        [
+          400,
+          430
+        ],
+        [
+          350,
+          320
+        ]
+      ],
+      "unit": 0.14367816091954022
+    },
+    {
+      "id": "rei",
+      "source": "exec-87989e13-6a99-445e-88b6-3caa12d62d78.png",
+      "regions": [
+        [
+          40,
+          40,
+          750,
+          602
+        ],
+        [
+          20,
+          633,
+          790,
+          640
+        ],
+        [
+          150,
+          1275,
+          590,
+          630
+        ]
+      ],
+      "cores": [
+        [
+          300,
+          270
+        ],
+        [
+          300,
+          340
+        ],
+        [
+          210,
+          240
+        ]
+      ],
+      "unit": 0.17452006980802792
+    }
+  ],
+  "breathing": {
+    "source": "exec-dc862ca4-a19c-4c5f-9298-563f80284bda.png",
+    "prompt": "Use case: identity-preserve. Asset: a 3 by 3 animation sprite sheet for Refrain, matching three existing approved animal boss designs. Input 1: Akari fox sheet, use ONLY the rightmost exhausted curled pose as the design and pose baseline. Input 2: Koharu deer sheet, use ONLY the rightmost slumped airborne pose. Input 3: Rei star bird sheet, use ONLY the bottommost drooping-wing pose. Keep all three exact animal identities, colors, facial features, proportions and decorative motifs, with the same delicate anime linework and soft cel shading. Do not redesign them or make human characters. Create three in-place shoulder-breathing animation drawings per animal. Exactly 9 whole sprites, equal square cells on a 3x3 grid on a truly transparent-alpha background, wide clear gutters between every cell. Row 1 is the same Akari fox in all 3 cells; row 2 the same Koharu deer; row 3 the same Rei bird. All face left, same camera and identical overall scale within each row. Column 1: breath out, shoulders slumped, head gently hanging. Column 2: inhale, raise shoulders slightly around the neck and expand the upper chest slightly, maintaining pelvis and feet positions. Column 3: peak strained inhale, shoulders visibly lifted a little further, head tiny upward tilt, mouth slightly open with exhausted eyes. Very subtle local anatomical animation, NOT three different poses, NOT full-body translation, rotation, squash or zoom. Decorative tails, antlers and wing outlines must stay stable in size and position; torso and shoulder movement about 2-3% of character height. Fox retains envelopes and cyan ribbons on its tails, deer retains crystalline mint/violet antlers and violet ribbons, bird retains indigo/purple feather gradient and gold stars with wings drooping. Every head, antler, envelope, feather and tail fully inside its own cell with 10% margin. No ground, shadow, particles, text, labels, background or glows outside the silhouettes. High resolution clean cutout.",
+    "poses": [
+      {
+        "id": "akari",
+        "regions": [
+          [
+            20,
+            15,
+            395,
+            395
+          ],
+          [
+            430,
+            15,
+            385,
+            395
+          ],
+          [
+            875,
+            15,
+            379,
+            395
+          ]
+        ],
+        "cores": [
+          [
+            185,
+            245
+          ],
+          [
+            180,
+            245
+          ],
+          [
+            182,
+            245
+          ]
+        ],
+        "unit": 0.24
+      },
+      {
+        "id": "koharu",
+        "regions": [
+          [
+            0,
+            412,
+            445,
+            423
+          ],
+          [
+            462,
+            412,
+            402,
+            423
+          ],
+          [
+            872,
+            412,
+            382,
+            423
+          ]
+        ],
+        "cores": [
+          [
+            257,
+            288
+          ],
+          [
+            226,
+            288
+          ],
+          [
+            220,
+            288
+          ]
+        ],
+        "unit": 0.2079207920792079
+      },
+      {
+        "id": "rei",
+        "regions": [
+          [
+            20,
+            835,
+            418,
+            419
+          ],
+          [
+            450,
+            833,
+            414,
+            421
+          ],
+          [
+            862,
+            830,
+            392,
+            424
+          ]
+        ],
+        "cores": [
+          [
+            160,
+            195
+          ],
+          [
+            157,
+            197
+          ],
+          [
+            158,
+            200
+          ]
+        ],
+        "unit": 0.2575
+      }
+    ]
+  },
+  "processing": "Existing key_trim_scale.ps1: alpha preserved, region crop, largest component, keep canvas, height 720. No redrawing."
+}

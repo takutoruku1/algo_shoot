@@ -15,6 +15,13 @@ public partial class Panel : Area2D
     private float _baseAngle, _orbitRadius, _spinSpeed, _spin, _fireInterval;
     private bool _fires;
     private bool _dead;
+    private int _maxInk;
+    private float _motionTime;
+    private UnfolderPose _pose;
+    private CanvasModulate? _worldTint;
+    public bool CanLock => !_dead && !Invulnerable && !IsQueuedForDeletion();
+    private bool BossStyle => _owner.UnfolderStyle != UnfolderKind.None;
+    private float DisplayHeight => BossStyle ? 22f : DisplayH;
     private CollisionShape2D _shape = null!;
     private string _texPath = "";
     private Sprite2D _sprite = null!;
@@ -37,12 +44,13 @@ public partial class Panel : Area2D
         _fires = false;
         _fireInterval = fireInterval;
         Ink = ink;
+        _maxInk = ink;
         _texPath = texPath;
     }
 
     // 面ごとの盾の絵（案C・2026-09-06）。心のないコメントが投稿の穢れを守っている、という意味を面の闇で読ませる。
     //   あかり: 送信取消（取り消し線の入った紙飛行機）／こはる: 視線（目）／レイ: 低評価（下向きの親指）／FINAL・その他: 非表示の返信（…）。
-    // 器は共通の暗い吹き出し（藍黒＋淡い藤の縁＋白い記号の 3 色）。剥がれ具合は DrawInkNotches のドットで示す。
+    // 器は共通の暗い吹き出し（藍黒＋淡い藤の縁＋白い記号の 3 色）。剥がれ具合は DrawInkNotches の残量表示で示す。
     // ボス・中ボス・道中の敵・カメオはすべて同じ面の絵を使う（Enemy 側が PanelTexPath を空で渡すとここで決まる）。
     public static string ResolveTexPath(string scenePath)
     {
@@ -58,6 +66,12 @@ public partial class Panel : Area2D
 
     public override void _Ready()
     {
+        if (BossStyle)
+        {
+            _worldTint = TintLift.Find(this);
+            Modulate = TintLift.Of(_worldTint, TintLift.EnemyBody);
+            TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+        }
         CollisionLayer = 16; // パネル
         CollisionMask = 2;   // 自機弾
         Monitoring = true;
@@ -67,7 +81,8 @@ public partial class Panel : Area2D
         AreaEntered += OnAreaEntered;
 
         // 吹き出しスプライト。未指定なら面ごとの盾（ResolveTexPath）を引く。読めなければ _Draw のプレースホルダ。
-        if (string.IsNullOrEmpty(_texPath)) _texPath = ResolveTexPath(GetTree().CurrentScene?.SceneFilePath ?? "");
+        if (BossStyle) _texPath = UnfolderMotion.TexturePath(_owner.UnfolderStyle);
+        else if (string.IsNullOrEmpty(_texPath)) _texPath = ResolveTexPath(GetTree().CurrentScene?.SceneFilePath ?? "");
         if (!string.IsNullOrEmpty(_texPath))
         {
             var t = ResourceLoader.Load<Texture2D>(_texPath);
@@ -78,9 +93,9 @@ public partial class Panel : Area2D
                 {
                     Texture = t,
                     Centered = true,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Linear,
+                    TextureFilter = BossStyle ? TextureFilterEnum.LinearWithMipmaps : TextureFilterEnum.Linear,
                 };
-                float s = DisplayH * _displayScale / t.GetHeight();
+                float s = DisplayHeight * _displayScale / t.GetHeight();
                 _sprite.Scale = new Vector2(s, s);
                 AddChild(_sprite);
             }
@@ -91,14 +106,37 @@ public partial class Panel : Area2D
 
     private void UpdateOrbit(double delta)
     {
+        if (BossStyle)
+        {
+            if (_owner.UnfoldersActive && !Invulnerable) _motionTime += (float)delta;
+            _pose = UnfolderMotion.Sample(_owner.UnfolderStyle, _motionTime * _spinSpeed, _baseAngle, _orbitRadius, _owner.UnfolderStage);
+            if (_owner.UnfoldersActive)
+                _pose = _pose with
+                {
+                    Position = Bound(_pose.Position), EchoA = Bound(_pose.EchoA), EchoB = Bound(_pose.EchoB),
+                    WarpFrom = Bound(_pose.WarpFrom), WarpTo = Bound(_pose.WarpTo),
+                };
+            Position = _pose.Position;
+            if (_sprite != null) _sprite.Rotation = _pose.Tilt;
+            QueueRedraw();
+            return;
+        }
         _spin += _spinSpeed * (float)delta;
         float a = _baseAngle + _spin;
         Position = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * _orbitRadius;
     }
 
+    private Vector2 Bound(Vector2 local)
+    {
+        var world = _owner.GlobalPosition + local;
+        return new Vector2(Mathf.Clamp(world.X, Field.Left + 13, Field.Right - 13),
+            Mathf.Clamp(world.Y, Field.Top + 13, Field.Bottom - 13)) - _owner.GlobalPosition;
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         if (_dead) return;
+        if (BossStyle) Modulate = TintLift.Of(_worldTint, TintLift.EnemyBody);
         // 発光の減衰は旋回停止中も進める（吹き出しが出た瞬間に白いまま固まるのを防ぐ）。
         if (_hitFlashT > 0)
         {
@@ -115,22 +153,15 @@ public partial class Panel : Area2D
         // 発射は本体側へ移管済み（_fires は常に false）。ここでは旋回＝盾の挙動のみ。
     }
 
-    // ───── 盾のインク削り量（設計書 §4「前提工事」・2026-09-13）─────
-    //   旧実装は「1ヒット＝1インク」で弾の威力を一切見なかった。そのため
-    //   ①火力へ投資しても盾剥がしが速くならない ②弾数の多いモードほど盾剥がしが速い、という
-    //   設計意図と無関係な序列（拡散9wayが最速・加速球の単発が最遅）が生まれていた。
-    //
-    //   係数の決め方：**拡散の1発＝1インク**を基準に据える（設計書の指定）。
-    //   拡散弾の威力は base×SpreadPowerMul(0.50〜0.62) なので、光の出力を最大(shot_power Lv4)まで
-    //   伸ばしても 1〜3 にしか届かない。そこで「威力2ごとに+1インク」の刻みを置く：
-    //       cost = 1 + (Damage - 1) / 2   （整数除算＝切り捨て）
-    //   結果（Damage → cost）: 1,2→1 ／ 3,4→2 ／ 5,6→3 ／ 7,8→4。
-    //   ・未強化（全モードとも Damage=1）では cost=1＝**現状の剥がし所要時間と完全に一致**する。
-    //   ・強化最大でも拡散は 3→2インク止まり（従来比2倍）、加速球の単発は 8→4インク（従来比4倍）で、
-    //     「単発が重いモードほど盾に強い」＝狙いどおりの序列へ反転する。
-    //   ・パネルの Ink は 2〜4（ボス別）なので、最大強化の加速球でようやく1発剥がしに届く＝
-    //     序盤〜中盤のテンポは温存したまま、終盤の火力投資がボス戦でも見える形で返る。
-    private static int InkCost(int damage) => 1 + Mathf.Max(0, damage - 1) / 2;
+    private int InkCost(Bullet bullet)
+    {
+        int cost = 1 + Mathf.Max(0, bullet.Damage - 1) / 2;
+        if (!_owner.HasHpBar) return cost;
+        // Keep charge tiers stronger without letting a high-power projectile erase a boss panel.
+        int normalCap = BossStyle && !bullet.Accel ? 1 : 2;
+        int cap = !bullet.Charged ? normalCap : bullet.ChargeStage >= ChargeTier.Second ? 5 : 3;
+        return Mathf.Min(cost, cap);
+    }
 
     private void OnAreaEntered(Area2D area)
     {
@@ -146,13 +177,13 @@ public partial class Panel : Area2D
             else GetNodeOrNull<BulletPool>("/root/Pool")?.Despawn(b);
             // 集中の光（focus_fire）：パネル越しの撃ち込みも「同じ敵に当て続けている」に数える。
             (GetTree().GetFirstNodeInGroup("player") as Player)?.NotifyShotHit(_owner);
-            Ink -= InkCost(b.Damage);
+            Ink -= InkCost(b);
             if (Ink <= 0) Shatter();
             else
             {
                 // 剥がしの途中経過にも手応えを返す（本体ヒットと同じ「当てた→返る」の非対称を解消）。
                 // 発光(_hitFlashT)はテクスチャ付きのみ。QueueRedraw は残Ink表示の更新用
-                // （テクスチャ無しは _Draw の同心円縮小、テクスチャ付きは DrawInkNotches のドット数）。
+                // （テクスチャ無しは _Draw の同心円縮小、テクスチャ付きは DrawInkNotches の残量表示）。
                 QueueRedraw();
                 _hitFlashT = HitFlashDur;
                 Audio.Instance?.PlayStrip(light: true);
@@ -192,7 +223,8 @@ public partial class Panel : Area2D
     public override void _Draw()
     {
         if (_dead) return;
-        if (_hasTex) { DrawInkNotches(); return; } // 絵付きパネルは残Ink数のドットだけ重ね描き
+        if (BossStyle && _hasTex && _owner.UnfoldersActive && !Invulnerable) DrawMotion();
+        if (_hasTex) { DrawInkNotches(); return; } // 絵付きパネルは残量表示だけ重ね描き
         float r = 3.2f + Ink * 0.8f;  // インクが多いほど大きい
 
         // 外周グロー（box-shadow 相当）。
@@ -212,15 +244,23 @@ public partial class Panel : Area2D
         DrawCircle(new Vector2(2f, 0f), 0.7f, BubbleDot, true, -1f, true);
     }
 
-    // 絵付きパネル用：残Ink数ぶんの小ドットをテクスチャ上端の外側に横並びで重ね描きする。
-    // 一撃フラッシュ(_hitFlashT)は一瞬(0.09秒)で消えるため、これが「あと何発耐えるか」を
-    // 剥がれる直前まで示し続ける唯一の持続表示になる（Ink が減るたびドットも1つ減る）。
     private void DrawInkNotches()
     {
         if (Ink <= 0) return;
+        float halfH = DisplayHeight * _displayScale * 0.5f;
+        // High durability must not stretch the indicator across neighboring panels.
+        if (_maxInk > 4)
+        {
+            float width = 12f * _displayScale;
+            var track = new Rect2(-width * 0.5f, -halfH - 3f, width, 1.4f);
+            DrawRect(track.Grow(0.5f), MaroonCore);
+            DrawRect(track, new Color(KegareRim, 0.3f));
+            track.Size = new Vector2(width * Ink / _maxInk, track.Size.Y);
+            DrawRect(track, BubbleDot);
+            return;
+        }
         const float dotR = 0.9f;
         const float spacing = 3.0f;
-        float halfH = DisplayH * _displayScale * 0.5f; // スプライトの実表示高さの半分
         float y = -(halfH + dotR + 1.5f);              // 絵柄を隠さないよう少し上に浮かせる
         float startX = -(Ink - 1) * spacing * 0.5f;
         for (int i = 0; i < Ink; i++)
@@ -228,6 +268,37 @@ public partial class Panel : Area2D
             var p = new Vector2(startX + i * spacing, y);
             DrawCircle(p, dotR + 0.4f, new Color(KegareRim, 0.9f), true, -1f, true); // 縁（設計色）
             DrawCircle(p, dotR, BubbleDot, true, -1f, true);                         // 本体
+        }
+    }
+
+    private void DrawMotion()
+    {
+        var tint = UnfolderMotion.ColorFor(_owner.UnfolderStyle);
+        var size = _sprite.Texture.GetSize() * _sprite.Scale;
+        void Echo(Vector2 at, float alpha)
+        {
+            if (alpha <= 0.01f) return;
+            DrawTextureRect(_sprite.Texture, new Rect2(at - Position - size * 0.5f, size), false,
+                new Color(tint, alpha));
+        }
+        Echo(_pose.EchoA, _pose.EchoAlpha);
+        Echo(_pose.EchoB, _pose.EchoAlpha);
+        if (_pose.WarpCue > 0)
+        {
+            var to = _pose.WarpTo - Position;
+            Echo(_pose.WarpTo, 0.1f + _pose.WarpCue * 0.18f);
+            float extent = 13f - _pose.WarpCue * 3f;
+            for (int i = 0; i < 4; i++)
+            {
+                var axis = Vector2.FromAngle(i * Mathf.Pi / 2 + Mathf.Pi / 4);
+                var corner = to + axis * extent;
+                DrawLine(corner, corner - axis * 3, new Color(tint, 0.3f + _pose.WarpCue * 0.4f), 0.8f, true);
+            }
+        }
+        if (_pose.WarpFlash > 0)
+        {
+            Echo(_pose.WarpFrom, _pose.WarpFlash * 0.25f);
+            DrawLine(_pose.WarpFrom - Position, Vector2.Zero, new Color(tint, _pose.WarpFlash * 0.3f), 0.8f, true);
         }
     }
 }

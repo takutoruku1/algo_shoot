@@ -1,0 +1,19 @@
+{
+  "generator": "built-in image_gen",
+  "date": "2026-10-03",
+  "status": "continuous_under_chin_wing_trim_concept_not_integrated",
+  "reference": "char/concepts/mina_dragon_wings_v8/mina_dragon_wings_v8_final_green.png",
+  "output": "char/concepts/mina_dragon_wings_v9/mina_dragon_wings_v9.png",
+  "source": "exec-bb5e9455-0645-41fc-9986-83a4b973b4c7.png",
+  "prompt": "Use case: precise-object-edit. Image 1 is the exact Mina dragon to edit. Fix ONE missing piece of the wing's white scalloped edging, immediately BELOW HER FACE.\n\nOn this 1536x1024 canvas, the small dark-navy wing panel under the jaw, left of the blue chest jewel and behind the extended hand, has a bare dark lower edge around x532-581,y598-640. All neighboring wing bays have an ivory-white scalloped maid-frill hem, but this last small bay incorrectly does not. CONTINUE THE EXISTING WHITE SCALLOPED WING HEM across that bare dark lower edge, from the neighboring small white trim below the chin, toward the body. Add a narrow ivory-white strip with the SAME tiny rounded frill pattern, pale-blue inner outline, line thickness and shading as the adjacent trim. It should clearly read as the final connected segment of the wing decoration. Stop where the foreground neck/arm naturally occludes the wing. Do not create a neck collar, scarf, white chest bib or broad white patch. Do not paint over the face, hand or body. Keep the navy membrane above the trim opaque.\n\nThis is a SMALL LOCAL BORDER REPAIR. Preserve everything else exactly: all other wing motifs, inward-pointing mirrored wrist claws, wing size and pose, solid repaired membranes, face, short sturdy body, ribbons, long tail and large terminal blue jewel. Do not change colors or proportions.\nKeep the flat opaque pure-green background for production keying, exactly like the input. Same full composition and 1536x1024 landscape canvas. No transparency, checkerboard, text or new objects.",
+  "postprocessing": {
+    "script": "tools/key_trim_scale.ps1",
+    "parameters": {
+      "Key": "green",
+      "TargetH": 1024,
+      "Despill": true,
+      "KeepCanvas": true
+    },
+    "scope": "Background removal only"
+  }
+}

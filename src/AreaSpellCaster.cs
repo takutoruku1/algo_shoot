@@ -339,12 +339,9 @@ public partial class AreaSpellCaster : Node2D
         _owner ??= GetParent() as Enemy;
         // ボスが浄化（改心）されたら、以降は宣告も予兆出現もしない＝攻撃が終わった後に技が残らない。
         // 予約済み（宣告→出現待ち）の発火も破棄する。出現済みの予兆は AreaStrike 側が owner 浄化で自滅する。
-        if (_owner != null && _owner.IsPurified)
+        if (_owner != null && (_owner.IsPurified || _owner.GaugeVulnerable || _owner.GaugeReforming))
         {
-            CancelEdgeAttack();
-            _pending = false;
-            _aoePending = false; // 予約中の全画面AOEも破棄（出現済みは AreaStrike が owner 浄化で自滅）
-            _chainRemain = 0;    // 進行中の安置リレーも打ち切る（改心後にホップが続かないように）
+            CancelPendingAttacks();
             return;
         }
 

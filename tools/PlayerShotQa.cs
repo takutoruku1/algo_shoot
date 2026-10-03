@@ -374,7 +374,7 @@ public partial class PlayerShotQa : Node
         var panelHit = typeof(Panel).GetMethod("OnAreaEntered", Private)!;
         panelHit.Invoke(panel, new object[] { charge });
         panelHit.Invoke(panel, new object[] { charge });
-        int ink = 1 + (expected.damage - 1) / 2;
+        int ink = Mathf.Min(3, 1 + (expected.damage - 1) / 2);
         Check(panel.Ink == 20 - ink && charge.Active && charge.Pierce == expected.pierce - 1,
             "charge strips character-specific ink and hits each shield only once");
         for (int i = 0; i < expected.pierce; i++)
@@ -396,6 +396,27 @@ public partial class PlayerShotQa : Node
         Check(charge.Active, "defeating a small enemy preserves the piercing charge");
         _pool.DespawnAll();
         Check(!charge.Active, "boss and scene cleanup still remove charges");
+        var ordinary = new Enemy();
+        Write(ordinary, "PanelCount", 0);
+        root.World.AddChild(ordinary);
+        ordinary.SetPhysicsProcess(false);
+        ordinary.SetProcess(false);
+        foreach (var owner in new[] { enemy, ordinary })
+        foreach (int tier in new[] { 0, ChargeTier.First, ChargeTier.Second })
+        {
+            var shield = new Panel();
+            shield.Setup(owner, 0, 18, 0, false, 0, 20);
+            owner.AddChild(shield);
+            shield.SetPhysicsProcess(false);
+            var shot = _pool.Spawn(player.Position, Vector2.Right * 360, false, 3, 20);
+            if (tier > 0) shot.MakeCharged(_game.SelectedJob, tier);
+            panelHit.Invoke(shield, new object[] { shot });
+            int cost = owner == ordinary ? 10 : tier == 0 ? 2 : tier == ChargeTier.First ? 3 : 5;
+            Check(shield.Ink == 20 - cost, $"shield damage: boss={owner == enemy} tier={tier} cost={cost}");
+            shield.QueueFree();
+            _pool.DespawnAll();
+        }
+        ordinary.QueueFree();
         enemy.QueueFree();
         await Frames(5);
 

@@ -7,6 +7,7 @@ using Godot;
 // 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S2-7・S2-8。
 public partial class BossKoharu : Enemy
 {
+    public override UnfolderKind UnfolderStyle => UnfolderKind.Koharu;
     public bool EdgeAttackActive => _caster != null && _caster.EdgeAttackActive;
     public bool Finished { get; private set; }
 
@@ -184,7 +185,7 @@ public partial class BossKoharu : Enemy
         BodyRadius = BossTuning.F("koharu", "body_radius", 19f);
         BodyHalfH = BossTuning.F("koharu", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("koharu", "panel_count", 5); // 「むだだ」等の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("koharu", "panel_ink", 3); // 2→3（B-5: 中盤でシールド段が痩せない用）
+        PanelInk = BossTuning.I("koharu", "panel_ink", 10);
         OrbitRadius = BossTuning.F("koharu", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("koharu", "spin_speed", 0.85f);
         PanelsFire = false;
@@ -220,13 +221,14 @@ public partial class BossKoharu : Enemy
         PreTexPath = "res://char/v3/boss_koharu_body_idle.png";
         DownTexPath = BossDownArt.Path("koharu");
         AttackTexPath = "res://char/v3/boss_koharu_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
+        RecoveryTexPath = "res://char/v3/boss_motion/koharu_recover_v1.png";
         // 改心の三段：穢れ(pre＝待機)→泣き(cry＝専用の泣き顔)→改心後(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用で笑顔のままだった＝撃破しても穢れのままに見えたので、
         // 描き下ろしの *_body_cry.png（720px・エフェクトなし）に差し替えた。倍率・アンカーは待機と同じ。
-        // 第二形態（2026-09-07）＝明るい子の顔が剥がれ、送れなかった手が止まったまま露出した姿。
-        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.50）。攻撃・被弾の絵は流用する。
-        Form2TexPath = "res://char/v3/boss_koharu_body_idle2.png";
+        Form2TexPath = BossAnimalArt.Path("koharu", "idle");
+        Form2AttackTexPath = BossAnimalArt.Path("koharu", "attack");
+        Form2DownTexPath = BossAnimalArt.Path("koharu", "down");
         CryTexPath = "res://char/v3/boss_koharu_body_cry.png";
         PostTexPath = "res://char/v3/enemy_koharu_post.png";
         // 表示高は ini（body_display_h）。v3 の本体はエフェクト込みで焼いていないぶん、旧52だと小さく見える。
@@ -285,7 +287,9 @@ public partial class BossKoharu : Enemy
         _posts = BossPostSequence.Attach(this, "koharu", _caster, _caster.CancelPendingAttacks, () =>
         {
             _fireT = _fireT2 = 0;
+            RallyShield();
             ApplySpell();
+            OnHpChanged();
         });
 
         // 部品の演出層（char/v3/fx/koharu/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
@@ -293,12 +297,22 @@ public partial class BossKoharu : Enemy
         AttachParts("koharu", idleTexW: 626f, attackTexW: 585f);
     }
 
+    protected override void OnShieldBroken()
+    {
+        _mealPhase = _gotoPhase = 0;
+        _mealT = _gotoT = 0;
+        _meal.Clear();
+        _mealLeft.Clear();
+        _caster.Suppressed = false;
+        _caster.CancelPendingAttacks();
+    }
+
     protected override void UpdateMovement(double delta)
     {
         // 自機の位置を渡す＝自機狙いの追従（x と y の両方に寄る）と、反転の判定（40px 以上・0.6秒）に使う。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Koharu, GlobalPosition, (float)delta, 32f);
         TickMeal(delta);
         TickGoto(delta);
@@ -655,13 +669,12 @@ public partial class BossKoharu : Enemy
             // 形態変化も同じ保留に乗る＝宣言カードと形態変化が潰し合わない。
             if (_beatsFired == 2) AdvanceForm2();
         }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。finale_cap（既定0.26）は Min なので
-        // 下げる方向にしか効かず、Easy(2本)は式の 25% が採用される＝第4スペル切替(26%)の 2HP 下で発火し、
-        // 上の ApplySpell の宣言をほぼ同時に上書きする（Easy は第4スペルを畳んでフィナーレへ直行＝レイ／あかりの Easy と同じ構造）。
-        // ワンショットギミックの進行中は保留（holds）＝食事の終了／X着弾の後にフィナーレのカードが出る。
-        if (!holds && !_finale && HpRatio <= Mathf.Min(0.5f / Mathf.Max(1, TotalBars), _finaleCap))
+        if (!holds && !_finale && HpRatio <= Mathf.Min(0.20f, _finaleCap)
+            && (GameManager.LunaticActive || _posts.Count >= 4))
         {
             _finale = true;
+            _fireT = _fireT2 = 0;
+            RallyShield();
             GetHud()?.SetBossBarTint(Spells[0].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("こはる", BossHandles.KoharuMain, Spells[0].name + "＋" + Spells[1].name, Spells[0].tint);
         }

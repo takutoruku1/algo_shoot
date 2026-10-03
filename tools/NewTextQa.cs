@@ -231,7 +231,7 @@ public partial class NewTextQa : Node
                 Check("レイ 挑発[2]＝手、止まってる", tr.Length == 3 && tr[2] == "……手、止まってる。……見てるだけの人、ひとり、増えたのね。", string.Join(" / ", tr));
                 var f3 = ((int who, string text, string face)[])typeof(BossMina).GetField("Lines", Static)!.GetValue(null)!;
                 int f3At = System.Array.FindIndex(f3, l => l.text == "知ってる。あんたの声だった。");
-                Check("F3 「あんたの声だった」の直後＝レイ「そっくりよ」", f3.Length == 6 && f3At >= 0 && f3[f3At + 1] == (2, "……あんたの言い方。……この人に、そっくりよ。", "res://char/v3/rei_face.png"), Join(f3));
+                Check("F3 「あんたの声だった」の直後＝レイ「そっくりよ」", f3.Length == 6 && f3At >= 0 && f3[f3At + 1] == (2, "……あんたの言い方。画面の向こうの、あの人に、そっくりよ。", "res://char/v3/rei_face.png"), Join(f3));
 
                 // P2 の受け：「敬っている〜」の直後に「いまの言い回し」（ミナ）。Prologue はシーンを起こさず、
                 //   未初期化オブジェクトで P2Reply（Godot 側に触らない純関数）だけを呼ぶ。終了処理（finalizer）は抑止しておく。

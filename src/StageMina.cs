@@ -299,18 +299,23 @@ public partial class StageMina : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから・スコア半分消費」はこれが立っている
+            //   ときだけ出る）。残響戦（ボス出現前）で倒れたときは出さない＝到達していないボスからは再開できない。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "mina", System.Array.Empty<(int, string, string)>(), () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+            }, SpawnBoss);
+            else SpawnBoss();
+        }
+
+        void SpawnBoss()
+        {
             _boss = new BossMina { Name = "BossMina" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
-            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから・スコア半分消費」はこれが立っている
-            //   ときだけ出る）。残響戦（ボス出現前）で倒れたときは出さない＝到達していないボスからは再開できない。
-            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
             (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
-            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "mina", System.Array.Empty<(int, string, string)>(), () => {
-                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
-            });
         }
     }
 

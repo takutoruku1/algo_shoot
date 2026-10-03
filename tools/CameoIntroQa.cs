@@ -95,12 +95,29 @@ public partial class CameoIntroQa : Node
         Check(intro != null && GetTree().GetNodesInGroup("enemies").Count == 0, $"{id}/{job}: post scene precedes midboss spawn");
         intro!.SetProcess(false);
         stage.SetProcess(false);
-        Check(hud.CinematicMode && Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Disabled
+        Check(!Read<bool>(intro, "_arrived") && Read<PostToast?>(intro, "_post") == null,
+            "arrival cue precedes the post and room change");
+        Check(Read<string>(hud, "_dlgText").Length > 0 && hud.DialogRevealed
+            && Read<Hud.LineKind>(hud, "_dlgKind") == (job == Job.Tank ? Hud.LineKind.Mina : Hud.LineKind.Companion),
+            "selected character gives a fully readable approach cue");
+        var bg = root.GetNode<StageBackground>("StageBackground");
+        Check(Read<object>(bg, "_mode").ToString() == "Route", "approach retains the route background");
+        if (job == Job.Tank) await Shot($"{id}_approach");
+        Check(!hud.CinematicMode && Hud.BubblePaused && world.ProcessMode == ProcessModeEnum.Disabled
             && _game.ProcessMode == ProcessModeEnum.Disabled, "dialogue owns the pause for world and game clocks");
         Check(!Pool.GetChildren().OfType<Bullet>().Any(b => b.Active), "no bullets during post or dialogue");
         double elapsed = Read<double>(stage, "_stageElapsed");
         stage._Process(10);
         Check(elapsed == Read<double>(stage, "_stageElapsed"), "stage timer remains frozen");
+        intro._Process(2.0);
+        Check(!Read<bool>(intro, "_arrived") && Read<string>(hud, "_dlgText").Length > 0,
+            "held fire cannot skip the anticipation beat");
+        intro._Process(0.25);
+        Check(!Read<bool>(intro, "_arrived") && Read<string>(hud, "_dlgText").Length == 0,
+            "cue closes before the brief fade");
+        intro._Process(0.45);
+        Check(Read<bool>(intro, "_arrived") && hud.CinematicMode && Read<object>(bg, "_mode").ToString() == "Midboss",
+            "room changes only after the anticipation beat");
         intro._Process(0.6);
         intro._Process(0.7);
         Check(!Read<bool>(intro, "_postClosing"), "held advance from previous battle cannot skip the post");
@@ -384,6 +401,7 @@ public partial class CameoIntroQa : Node
         var intro = (CameoIntroScene)GetTree().GetFirstNodeInGroup("cameo_intro");
         intro.SetProcess(false);
         Stage(root, "akari").SetProcess(false);
+        intro._Process(2.7);
         intro._Process(0.5);
         intro._Process(0.7);
         Input.ActionPress("ui_accept");
@@ -418,8 +436,8 @@ public partial class CameoIntroQa : Node
         var intro = (CameoIntroScene)GetTree().GetFirstNodeInGroup("cameo_intro");
         Stage(root, "akari").SetProcess(false);
         int frames = 0;
-        while (IsInstanceValid(intro) && frames < 660) { await Frames(1); frames++; }
-        Check(!IsInstanceValid(intro) && frames > 360 && frames < 600,
+        while (IsInstanceValid(intro) && frames < 840) { await Frames(1); frames++; }
+        Check(!IsInstanceValid(intro) && frames > 510 && frames < 780,
             $"real-time intro lasts {frames / 60f:F2}s with auto advance off and slowest text speed");
         _game.MsgCharsPerSec = 300;
         await Clean(root);

@@ -1,0 +1,376 @@
+{
+  "generator": "image_gen.imagegen",
+  "processing": "tools/key_trim_scale.ps1, Key none, KeepCanvas, TargetH 720; LargestComponent separates adjacent silhouettes without drawing changes",
+  "characters": [
+    {
+      "id": "akari",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a04b28cc-e311-42b1-ac5e-78c1bce3b887.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/akari_breath_0_v1.png",
+          "region": [
+            3,
+            0,
+            516,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/akari_breath_1_v1.png",
+          "region": [
+            513,
+            0,
+            519,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/akari_breath_2_v1.png",
+          "region": [
+            1014,
+            0,
+            522,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "koharu",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-245e9e76-a15e-450b-8044-ba766d80160c.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available. IMPORTANT: Leave at least 30 pixels of transparent space on both sides of EVERY cell. Each sprite must fit completely within its own column, including ribbons. Keep the wand held in the same place across the three frames, moving only the shoulder/collar/upper chest anatomy.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/koharu_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            512,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/koharu_breath_1_v1.png",
+          "region": [
+            512,
+            0,
+            512,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/koharu_breath_2_v1.png",
+          "region": [
+            1024,
+            0,
+            512,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "rei",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-d0688960-37bf-480d-ac06-4f18b73e5c97.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. A 2x2 grid on a SQUARE 1536x1536 canvas. TOP LEFT=Frame1, TOP RIGHT=Frame2, BOTTOM LEFT=Frame3, BOTTOM RIGHT=EMPTY. on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. IMPORTANT: SQUARE CANVAS. Each full body must fit in 600x650 pixels within its 768x768 cell. Huge clear transparent gutters, hair ends never touch another sprite.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/rei_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_breath_1_v1.png",
+          "region": [
+            627,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_breath_2_v1.png",
+          "region": [
+            0,
+            627,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "mina",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-eae78a34-15b2-4be1-abc1-9e892998fbb4.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available. Use the dark-haired Mina maid design exactly. Her hands remain on her lap, legs fixed; the puff sleeves and BOTH shoulders clearly lift under her hair while inhaling. Leave clear transparent gutters at column boundaries.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/mina_breath_0_v1.png",
+          "region": [
+            1,
+            0,
+            520,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_breath_1_v1.png",
+          "region": [
+            515,
+            0,
+            509,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_breath_2_v1.png",
+          "region": [
+            1017,
+            0,
+            519,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "akari_mid",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-77b7108d-0cbf-4afa-b307-cba1d7db5732.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available. IMPORTANT: Each character should occupy at most 85% of cell width. Keep shoes, hair and costume within each cell. Character is Akari's midboss form, keep this exact open jacket and both hanging legs (do not switch to the seated one-knee-raised main boss pose).",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/akari_mid_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            516,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/akari_mid_breath_1_v1.png",
+          "region": [
+            507,
+            0,
+            520,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/akari_mid_breath_2_v1.png",
+          "region": [
+            1023,
+            0,
+            513,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "koharu_mid",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-6eb73bdf-253e-457d-a161-42bffefaf648.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available. Character is Koharu's midboss form. Wand stays nearly HORIZONTAL on lap as in reference, hands/feet anchored. Do not change the face or costume. Please keep at least 25px empty space between sprite silhouettes.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/koharu_mid_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            510,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/koharu_mid_breath_1_v1.png",
+          "region": [
+            508,
+            0,
+            521,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/koharu_mid_breath_2_v1.png",
+          "region": [
+            1029,
+            0,
+            507,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "rei_mid",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-dc528bd6-dbe4-48e3-aa8b-0313dd04bd4e.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. Three equal-width columns left to right on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. Output wide landscape 1536x1024 if available. Character is Rei's real-world midboss hoodie/headphones form. Keep her phone hanging at the same side and feet fixed. Hood, shoulder seams and upper sleeves lift distinctly during the breath, head barely moves. Empty margins around each figure.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/rei_mid_breath_0_v1.png",
+          "region": [
+            86,
+            0,
+            430,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_mid_breath_1_v1.png",
+          "region": [
+            556,
+            0,
+            417,
+            1024
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_mid_breath_2_v1.png",
+          "region": [
+            1053,
+            0,
+            401,
+            1024
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "rei_form2",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-a52a6a2f-4163-4f02-bf39-4f0ed989d738.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. A 2x2 grid on a SQUARE 1536x1536 canvas. TOP LEFT=Frame1, TOP RIGHT=Frame2, BOTTOM LEFT=Frame3, BOTTOM RIGHT=EMPTY. on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. IMPORTANT: SQUARE CANVAS. Each full body must fit in 600x650 pixels within its 768x768 cell. Huge clear transparent gutters, hair ends never touch another sprite. IMPORTANT: Maintain these exact gold cracks on the evolved Rei costume across all three cells. No overlap, top left lowered shoulders, top right halfway inhale, bottom left shoulders lifted under the hair; bottom right stays empty.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/rei_form2_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_form2_breath_1_v1.png",
+          "region": [
+            627,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/rei_form2_breath_2_v1.png",
+          "region": [
+            0,
+            627,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "mina_rain",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-726fea93-d253-4801-829f-797a2d625bf7.png",
+      "prompt": "Edit the attached exact game sprite into a registered 3-frame animation sprite sheet of exhausted SHOULDER BREATHING while shield-broken. A 2x2 grid on a SQUARE 1536x1536 canvas. TOP LEFT=Frame1, TOP RIGHT=Frame2, BOTTOM LEFT=Frame3, BOTTOM RIGHT=EMPTY. on transparent background, no text, no grid lines. All three are the SAME exact character, same costume, same drawing style, same camera, same head size, same scale. Full body fits with safe margin. SAME pelvis, foot and crown coordinates within every cell, minimal head drift. Do not translate, rotate or squash the whole sprite. The shoulder girdle and upper chest must be DRAWN differently. Frame1: sagging exhale, shoulders lowered, elbows hang heavy, tiny open panting mouth, closed exhausted eyes. Frame2: halfway inhale, BOTH shoulders visibly rising toward ears, collar and sleeves crease upward, upper ribcage expands slightly, waist and legs stay in place. Frame3: peak strained inhale, BOTH shoulders clearly shrugged up near ears, raised collar, upper arms draw up slightly, mouth small open 'ha'. Lift shoulders a clearly readable amount about 1/8 head height from frame1 to3. Restrained, exhausted not comic. In-between forms follow same anatomy, NOT three duplicate sprites. Preserve all costume motifs and lower-body silhouette; no weapons firing, particles, letters, breath clouds or ground. Use crisp matching anime cel shading. Exact equal cells and no crossing cell boundaries. IMPORTANT: SQUARE CANVAS. Each full body must fit in 600x650 pixels within its 768x768 cell. Huge clear transparent gutters, hair ends never touch another sprite. Character is Mina with black hair, RAIN costume, preserve black raincoat, silver piping, burgundy neck ribbon, black boots. No idol/maid costume substitution. Hands rest together on lap, knees and feet fixed, shoulder shrug raises coat collar. Keep the 2x2 arrangement with bottom right EMPTY.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/mina_rain_breath_0_v1.png",
+          "region": [
+            0,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_rain_breath_1_v1.png",
+          "region": [
+            627,
+            0,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_rain_breath_2_v1.png",
+          "region": [
+            0,
+            627,
+            627,
+            627
+          ],
+          "targetHeight": 720
+        }
+      ]
+    },
+    {
+      "id": "mina_dragon",
+      "source": "C:/Users/takut/.codex/generated_images/01a09a43-c0cc-7680-801d-568b0dbd7f24/exec-9926c96b-f218-48f1-9679-0b76cf3f4532.png",
+      "prompt": "Edit this exact approved Mina dragon into a THREE-frame exhausted shoulder-breathing animation sprite sheet. PORTRAIT canvas 1024x1536, 3 equal horizontal ROWS, one complete wide dragon per row, completely transparent background with at least 30px clear margins between rows. Same camera and scale, no rotation or banking, same anchored hips/tail/feet/head coordinates within each row. She is stunned with closed eyes and a slightly open exhausted mouth, NOT attacking. TOP frame exhale: shoulders low, arms hang heavy, neck slumps. MIDDLE frame midway inhale: BOTH shoulder joints where her arms and wings meet her upper chest lift visibly, collar fur creases upward, chest lifts a little, arms drawn upward at the shoulder. BOTTOM peak inhale: both shoulders visibly hunch up toward her lowered head as she pants hard, chest slightly fuller. Tail, hips and feet remain fixed; do not translate, squash, rotate, enlarge or bob the entire body. Actual three different shoulder anatomy drawings, not copies. Wings hang exhausted and remain wide, subtle shoulder-root movement only, no flight stroke during down. Preserve exact feminine face, navy/black body and wing membranes, blue piping, white scalloped maid-frill band inside all wing bays including below chin, navy ribbons and blue diamond jewels at wing wrists, mirror-paired inward curved ivory claws, long tail and big diamond tail tip. No redesign, no extra legs, no floor, effects or text. Match the source crisp anime game sprite shading. All three entire silhouettes fit in their rows.",
+      "sprites": [
+        {
+          "output": "char/v3/down/breathing/mina_dragon_breath_0_v1.png",
+          "region": [
+            0,
+            11,
+            1024,
+            517
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_dragon_breath_1_v1.png",
+          "region": [
+            0,
+            518,
+            1024,
+            511
+          ],
+          "targetHeight": 720
+        },
+        {
+          "output": "char/v3/down/breathing/mina_dragon_breath_2_v1.png",
+          "region": [
+            0,
+            1014,
+            1024,
+            512
+          ],
+          "targetHeight": 720
+        }
+      ]
+    }
+  ]
+}

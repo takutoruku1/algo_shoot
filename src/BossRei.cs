@@ -6,6 +6,7 @@ using Godot;
 // 台詞の正典: docs/20260928/wiki_仮台本_退避/07_粗い台本_案C_2_こはるとレイ.md（ユーザー承認済み・2026-09-05）の S3-6・S3-8。
 public partial class BossRei : Enemy
 {
+    public override UnfolderKind UnfolderStyle => UnfolderKind.Rei;
     public bool Finished { get; private set; }
     public System.Action<System.Action>? MemoryFollowUp { get; set; }
 
@@ -159,7 +160,7 @@ public partial class BossRei : Enemy
         BodyRadius = BossTuning.F("rei", "body_radius", 19f);
         BodyHalfH = BossTuning.F("rei", "body_half_h", 23f);   // 縦長カプセル（絵の形に沿わせる）
         PanelCount = BossTuning.I("rei", "panel_count", 5); // 「二番」の言葉（黒い吹き出し）
-        PanelInk = BossTuning.I("rei", "panel_ink", 2);
+        PanelInk = BossTuning.I("rei", "panel_ink", 10);
         OrbitRadius = BossTuning.F("rei", "orbit_radius", 26f);
         SpinSpeed = BossTuning.F("rei", "spin_speed", 0.9f);
         PanelsFire = false;
@@ -189,16 +190,15 @@ public partial class BossRei : Enemy
         // v3 の本体＝ガワ（エフェクト無し・720px）。飾り枠・吹き出し・光の帯は BossParts が重ねる。
         PreTexPath = "res://char/v3/boss_rei_body_idle.png";
         DownTexPath = BossDownArt.Path("rei");
-        Form2DownTexPath = BossDownArt.Path("rei_form2");
         AttackTexPath = "res://char/v3/boss_rei_body_attack.png"; // 撃つ一拍だけ差し替えて戻る
+        RecoveryTexPath = "res://char/v3/boss_motion/rei_recover_v1.png";
         // 改心の三段：ガワ(pre＝待機)→中の人が泣いている(cry)→中の人(post)。
         // cry は会話の間ずっと保持し、手動送りし切った EndCryNow で post へ着地する。
         // 旧 *_body_hit.png は被弾リアクション用でガワのまま笑っていた＝ガワが割れた感じが出なかったので、
         // 描き下ろしの *_body_cry.png（720px・中の人・エフェクトなし）に差し替えた。
-        // 第二形態（2026-09-07）＝ガワにひびが入り、割れ目から中の人の光が漏れている姿。
-        // 「割れる」のは改心の決定打（ShellPeelFx）に取っておく＝ここでは割らず、中の人も出さない。
-        // 発動は下の OnHpChanged の閾値ブロック（PatternThresholds[1]=0.50）。攻撃・被弾の絵は流用する。
-        Form2TexPath = "res://char/v3/boss_rei_body_idle2.png";
+        Form2TexPath = BossAnimalArt.Path("rei", "idle");
+        Form2AttackTexPath = BossAnimalArt.Path("rei", "attack");
+        Form2DownTexPath = BossAnimalArt.Path("rei", "down");
         CryTexPath = "res://char/v3/boss_rei_body_cry.png";
         PostTexPath = "res://char/v3/boss_rei_post.png";
         // レイだけ cry/post が「ガワの中の人」＝ガワと同じ表示高で出すと同一人物の等身が破綻する。
@@ -261,7 +261,9 @@ public partial class BossRei : Enemy
         _posts = BossPostSequence.Attach(this, "rei", _caster, _caster.CancelPendingAttacks, () =>
         {
             _fireT = _fireT2 = 0;
+            RallyShield();
             ApplySpell();
+            OnHpChanged();
         });
 
         // 部品の演出層（char/v3/fx/rei/*.png）を本体の子として1個ぶら下げる。当たり判定は持たない。
@@ -274,7 +276,7 @@ public partial class BossRei : Enemy
         // 自機の位置は毎フレーム渡す（自機狙いの追従＝x と y の両方、向きの反転判定に要る）。
         if (GetTree().GetFirstNodeInGroup("player") is Node2D pl) _mover.SetPlayerPos(pl.GlobalPosition);
         GlobalPosition = _mover.Step(GlobalPosition, delta);
-        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, _mover.FacingLeft, _mover.SquashScale);
+        ApplyBossMotion(_mover.VisualOffset, _mover.Lean, IsForm2 ? !_mover.FacingLeft : _mover.FacingLeft, _mover.SquashScale);
         FxLayer.Instance?.EmitBossAura(FxLayer.BossAura.Rei, GlobalPosition, (float)delta, 32f);
         TickRelayWatch();
         TickPressure(delta);
@@ -457,10 +459,11 @@ public partial class BossRei : Enemy
             _relayWatching = true;
             _relayStartLives = (GetTree().GetFirstNodeInGroup("player") as Player)?.Lives ?? -1;
         }
-        // フィナーレ発火＝最後のバーの残り50%（finaleRatio = 0.5 / バー本数）。
-        if (!_finale && HpRatio <= 0.5f / Mathf.Max(1, TotalBars))
+        if (!_finale && HpRatio <= 0.20f && (GameManager.LunaticActive || _posts.Count >= 4))
         {
             _finale = true;
+            _fireT = _fireT2 = 0;
+            RallyShield();
             GetHud()?.SetBossBarTint(Spells[2].tint); // フィナーレ色（#26）
             GetHud()?.AnnounceSpell("レイ", BossHandles.ReiMain, Spells[2].name + "＋" + Spells[3].name, Spells[2].tint);
         }
@@ -501,6 +504,8 @@ public partial class BossRei : Enemy
 
     protected override void OnCryStart()
     {
+        if (IsForm2 && DeferCryBodySwap)
+            SetMotionFrame(ResourceLoader.Load<Texture2D>("res://char/v3/boss_rei_body_idle2.png"));
         var hud = GetHud();
         hud?.HideBossBar();
         hud?.HideSpellCard(); // 宣告カードの残留を断つ（改心会話中はタイマー停止＝自然には消えない）

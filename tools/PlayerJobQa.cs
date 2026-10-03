@@ -206,7 +206,19 @@ public partial class PlayerJobQa : Node
     {
         string output = ProjectSettings.GlobalizePath("res://build/qa_story/sidebar");
         DirAccess.MakeDirRecursiveAbsolute(output);
-        using var overview = Image.CreateEmpty(373 * Jobs.All.Length, 720, false, Image.Format.Rgba8);
+        int panelWidth = Mathf.CeilToInt(Field.PanelW);
+        using var overview = Image.CreateEmpty(panelWidth * Jobs.All.Length, 720, false, Image.Format.Rgba8);
+        Check(Field.PanelW == 208f && Field.DLeft > Field.PanelW && Field.DLeft - Field.PanelW < 16f,
+            "sidebar keeps a readable compact width with the playfield immediately beside it");
+        for (int count = 1; count <= 12; count++)
+            for (int slot = 0; slot < count; slot++)
+                foreach (bool bomb in new[] { false, true })
+                {
+                    var rect = Hud.ResourceMarkRect(slot, count, bomb);
+                    Check(rect.Position.X >= 44 && rect.End.X <= Field.PanelW - 18
+                        && rect.Position.Y >= (bomb ? 252 : 146) && rect.End.Y <= (bomb ? 307 : 201),
+                        $"{(bomb ? "BOMB" : "LIFE")} {slot + 1}/{count} fits its fixed resource area");
+                }
         game.SetProcess(false);
         int row = 0;
         foreach (var job in Jobs.All)
@@ -228,7 +240,11 @@ public partial class PlayerJobQa : Node
             typeof(GameManager).GetProperty("PurifiedCount")!.SetValue(game, game.StageTarget / 2);
             Write(game, "_comboTimer", 1.6);
             var faces = Read<Dictionary<Job, Texture2D>>(root.Hud, "_accountFaces");
-            Check(faces[job.Id].ResourcePath == CompanionDialogue.Portrait(job.Id), "account portrait matches the playable character");
+            Check(faces[job.Id].ResourcePath == CompanionDialogue.AccountPortrait(job.Id), "account portrait matches the playable character");
+            string handle = (string)typeof(Hud).GetProperty("AccountHandle", Private)!.GetValue(root.Hud)!;
+            Check(60 + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 15 <= Field.PanelW - 18
+                && 60 + UiKit.TextW(UiKit.Mono, handle, 10) <= Field.PanelW - 18,
+                "profile name and handle fit the single account header");
             var marks = Read<Dictionary<Job, Texture2D>>(root.Hud, "_lifeMarks");
             Check(marks[job.Id].ResourcePath == $"res://char/player/{job.CharacterId}/{job.CharacterId}_core_v1.png",
                 $"{job.CharacterId}: LIFE uses the same emblem as the player");
@@ -238,6 +254,22 @@ public partial class PlayerJobQa : Node
                 Check(bombImage.DetectAlpha() != Image.AlphaMode.None && bombImage.GetPixel(0, 0).A == 0,
                     "bomb illustration has a genuinely transparent background");
             int cap = root.Player.Lives;
+            var startPosition = root.Player.GlobalPosition;
+            root.Player.ProcessMode = ProcessModeEnum.Always;
+            root.Player.GlobalPosition = new Vector2(Field.Left + 8f, 120f);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Left, PhysicalKeycode = Key.Left, Pressed = true });
+            await Frames(45);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Left, PhysicalKeycode = Key.Left, Pressed = false });
+            Check(Mathf.IsEqualApprox(root.Player.GlobalPosition.X, Field.Left),
+                $"{job.CharacterId} can use the expanded field without entering the sidebar");
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, PhysicalKeycode = Key.Right, Pressed = true });
+            await Frames(8);
+            Input.ParseInputEvent(new InputEventKey { Keycode = Key.Right, PhysicalKeycode = Key.Right, Pressed = false });
+            Check(root.Player.GlobalPosition.X > Field.Left + 1f, $"{job.CharacterId} can leave the new left boundary");
+            await Frames(8);
+            root.Player.ProcessMode = ProcessModeEnum.Inherit;
+            root.Player.GlobalPosition = startPosition;
+            root.Hud.SetFocusMode(true, true, false, 1f);
             foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(960, 540) })
             {
                 DisplayServer.WindowSetSize(size);
@@ -246,15 +278,34 @@ public partial class PlayerJobQa : Node
                 Call(root.Player, "SetSpriteVisible", true);
                 root.Hud.SetLives(cap);
                 using var full = await Capture("full");
-                var background = full.GetPixel(Mathf.RoundToInt(12f * size.X / 1280f), Mathf.RoundToInt(400f * size.Y / 720f));
+                Check(full.GetPixel(1, Mathf.RoundToInt(180f * size.Y / 720f)).R < 0.3f,
+                    "full health never uses the low-life warning stripe, including Akari");
+                var background = full.GetPixel(Mathf.RoundToInt(4f * size.X / 1280f), Mathf.RoundToInt(400f * size.Y / 720f));
                 Check(background.R > 0.10f && background.R < 0.25f && Mathf.Abs(background.R - background.B) < 0.04f,
                     "sidebar uses a charcoal surface instead of white or pure black");
-                if (size.X == 1280) overview.BlitRect(full, new Rect2I(0, 0, 373, 720), new Vector2I(row * 373, 0));
+                bool quietThread = true;
+                float scale = size.X / 1280f;
+                foreach (int postY in new[] { 100, 206, 310, 390, 468, 530, 600, 662 })
+                    for (int x = 8; x <= 36; x += 4)
+                        for (int y = postY + 6; y < postY + 40; y += 4)
+                        {
+                            if (x >= 18 && x <= 26) continue;
+                            var pixel = full.GetPixel(Mathf.RoundToInt(x * scale), Mathf.RoundToInt(y * scale));
+                            quietThread &= Mathf.Abs(pixel.R - background.R) + Mathf.Abs(pixel.G - background.G)
+                                + Mathf.Abs(pixel.B - background.B) < 0.02f;
+                        }
+                Check(quietThread, "thread uses a quiet gutter without repeated account avatars");
+                if (size.X == 1280)
+                {
+                    full.Convert(Image.Format.Rgba8);
+                    overview.BlitRect(full, new Rect2I(0, 0, panelWidth, 720), new Vector2I(row * panelWidth, 0));
+                }
                 Check(Light(full, cap - 1, cap) > 0.025f, $"{job.CharacterId} {size}: LIFE marks contrast with the sidebar background");
                 Write(root.Player, "_invincible", false);
                 root.Player.TakeHit();
                 Check(root.Player.Lives == cap - 1 && Read<int>(root.Hud, "_lives") == cap - 1,
                     "damage updates the existing life count");
+                await Frames(36);
                 using var hurt = await Capture("hurt");
                 Check(Light(hurt, cap - 1, cap) < Light(full, cap - 1, cap) * 0.55f
                     && Light(hurt, 0, cap) > Light(full, 0, cap) * 0.85f,
@@ -264,12 +315,16 @@ public partial class PlayerJobQa : Node
                 Check(Mathf.Abs(Light(healed, cap - 1, cap) - Light(full, cap - 1, cap)) < 0.01f,
                     "healing restores the same emblem at the same position and size");
                 root.Hud.SetLives(0);
+                await Frames(36);
                 using var empty = await Capture("empty");
+                Check(empty.GetPixel(1, Mathf.RoundToInt(180f * size.Y / 720f)).R > 0.6f,
+                    "depleted health uses the warning stripe");
                 Check(Light(empty, 0, cap) < Light(full, 0, cap) * 0.55f, "zero lives leaves dim marks instead of hearts");
                 root.Hud.SetLives(12);
                 using var packed = await Capture("packed");
                 Check(Light(packed, 11, 12) > 0.015f, "high life counts still fit inside the panel");
                 root.Hud.SetLives(cap);
+                Write(root.Hud, "_lifeShatterT", 0d);
                 int bombs = game.Bombs;
                 Check(Light(full, 0, bombs, bomb: true) > 0.025f, "bomb silhouette remains visible at HUD size");
                 Check(game.UseBomb() && game.Bombs == bombs - 1, "using a bomb consumes the existing inventory");
@@ -292,14 +347,14 @@ public partial class PlayerJobQa : Node
                 root.Hud.SetFocusMode(false, false, false, 0f);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 0);
                 using var noExtras = await Capture("no_extras");
-                Check(RegionDifference(full, noExtras, new Rect2I(26, 574, 321, 44)) > 0.01f
-                    && RegionDifference(full, noExtras, new Rect2I(26, 647, 321, 42)) > 0.01f,
-                    "combo and focus rows only appear while applicable");
-                Check(RegionDifference(full, noExtras, new Rect2I(26, 156, 321, 90)) < 0.001f,
+                Check(RegionDifference(full, noExtras, new Rect2I(44, 616, 146, 35)) > 0.01f
+                    && RegionDifference(full, noExtras, new Rect2I(0, 662, 208, 58)) > 0.01f,
+                    "combo post updates to zero and unowned focus remains hidden");
+                Check(RegionDifference(full, noExtras, new Rect2I(0, 100, 208, 106)) < 0.001f,
                     "conditional rows do not shift the resource layout");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, long.MaxValue);
                 using var wideScore = await Capture("wide_score");
-                Check(RegionDifference(noExtras, wideScore, new Rect2I(348, 452, 24, 55)) < 0.001f,
+                Check(RegionDifference(noExtras, wideScore, new Rect2I(191, 424, 16, 36)) < 0.001f,
                     "maximum score fits before the sidebar edge");
                 typeof(GameManager).GetProperty("Score")!.SetValue(game, 127840L);
                 typeof(GameManager).GetProperty("Combo")!.SetValue(game, 12);
@@ -314,6 +369,19 @@ public partial class PlayerJobQa : Node
                     return image;
                 }
             }
+            DisplayServer.WindowSetSize(new Vector2I(1280, 720));
+            foreach (var kind in Enum.GetValues<PowerKind>())
+                for (int level = 0; level < Player.PowerLevelCap; level++) root.Player.ApplyPowerup(kind);
+            var lockTarget = new Node2D { Position = new Vector2(Field.Right - 60, 100) };
+            root.World.AddChild(lockTarget);
+            Write(root.Player, "_lockTarget", lockTarget);
+            Write(root.Player, "_lockArmed", true);
+            Write(root.Player, "_locked", true);
+            Check(root.Player.LockedOn, "lock status preview uses a live target");
+            await Frames(4);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using (var image = GetViewport().GetTexture().GetImage())
+                Check(image.SavePng($"{output}/{job.CharacterId}_all_powerups.png") == Error.Ok, "upgrades and lock status fit the compact header");
             root.QueueFree();
             await Task.Delay(150);
             await Frames(5);
@@ -325,10 +393,9 @@ public partial class PlayerJobQa : Node
         static float Light(Image image, int slot, int count = 5, bool bomb = false)
         {
             float scale = image.GetWidth() / 1280f;
-            float step = Mathf.Min(bomb ? 44f : 42f, 321f / count);
-            float cx = 26f + slot * step + step / 2f;
-            float cy = bomb ? 298f : 220f;
-            var paper = image.GetPixel(Mathf.RoundToInt(355f * scale), Mathf.RoundToInt(cy * scale));
+            var rect = Hud.ResourceMarkRect(slot, count, bomb);
+            float cx = rect.GetCenter().X, cy = rect.GetCenter().Y;
+            var paper = image.GetPixel(Mathf.RoundToInt((Field.PanelW - 6f) * scale), Mathf.RoundToInt(cy * scale));
             float sum = 0;
             int samples = 0;
             for (int y = Mathf.RoundToInt((cy - 12f) * scale); y < (cy + 12f) * scale; y++)

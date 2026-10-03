@@ -968,11 +968,12 @@ public partial class Hud : CanvasLayer
         UiKit.EndDesign(ci);
     }
 
-    private static readonly Color SideSurface = new("242629");
-    private static readonly Color SideRaised = new("2c2f33");
-    private static readonly Color SideInk = new("f0f1f3");
-    private static readonly Color SideMuted = new("adb5bd");
-    private static readonly Color SideRule = new("40464d");
+    private static readonly Color SideSurface = new("1e2023");
+    private static readonly Color SideRaised = new("292d31");
+    private static readonly Color SideInk = new("e7e9ea");
+    private static readonly Color SideMuted = new("9ca6af");
+    private static readonly Color SideRule = new("33383d");
+    private static readonly Color SideBlue = new("61b9ea");
     private static readonly Color SideTeal = new("7bcbbc");
     private static readonly Color SideRose = new("f28bab");
     private Color AccountAccent => _game.SelectedJob switch
@@ -988,28 +989,52 @@ public partial class Hud : CanvasLayer
     {
         const float pw = Field.PanelW;
         ci.DrawRect(new Rect2(0, 0, pw, UiKit.DesignH), SideSurface);
-        ci.DrawRect(new Rect2(0, 0, pw, 156f), SideRaised.Lerp(AccountAccent, 0.05f));
-        ci.DrawRect(new Rect2(0, 0, pw, 4f), AccountAccent);
-        ci.DrawRect(new Rect2(0, 156f, pw, 1f), SideRule);
+        var cover = _accountFaces[_game.SelectedJob];
+        float sourceHeight = cover.GetWidth() * 32f / pw;
+        ci.DrawRect(new Rect2(0, 0, pw, 32), SideRaised);
+        ci.DrawTextureRectRegion(cover, new Rect2(0, 0, pw, 32),
+            new Rect2(0, (cover.GetHeight() - sourceHeight) * 0.5f, cover.GetWidth(), sourceHeight),
+            new Color(0.8f, 0.8f, 0.8f));
         ci.DrawRect(new Rect2(pw - 1f, 0, 1f, UiKit.DesignH), SideRule);
-        ci.DrawRect(new Rect2(pw, 0, 8f, UiKit.DesignH), new Color(0, 0, 0, 0.12f));
+        ci.DrawRect(new Rect2(pw, 0, Field.DLeft - pw, UiKit.DesignH), new Color(0, 0, 0, 0.12f));
         ci.DrawRect(new Rect2(Field.DLeft, 0, 1f, UiKit.DesignH), new Color(1f, 1f, 1f, 0.07f));
-        ci.DrawRect(new Rect2(PanelX, 330f, PanelInnerW, 1f), SideRule);
-        ci.DrawRect(new Rect2(PanelX, 411f, PanelInnerW, 1f), SideRule);
-        ci.DrawRect(new Rect2(PanelX, 554f, PanelInnerW, 1f), SideRule);
+        ci.DrawRect(new Rect2(0, RowLifeBomb, pw - 1f, 1), SideRule);
+        ci.DrawLine(new Vector2(22f, RowLifeBomb + 28f),
+            new Vector2(22f, (_focusHas ? RowFocus : RowCombo) + 28f), new Color(SideRule, 0.65f), 1f);
+        foreach (float y in new[] { RowLifeBomb, RowBomb, RowPurify, RowScore, RowTime, RowLock, RowCombo, RowFocus })
+        {
+            if (y == RowFocus && !_focusHas) continue;
+            if (y != RowLifeBomb)
+                ci.DrawRect(new Rect2(PostX, y, PostInnerW, 1), new Color(SideRule, 0.65f));
+            ci.DrawCircle(new Vector2(22f, y + 28f), 2f, SideMuted.Darkened(0.45f));
+        }
     }
 
-    private const float PanelX = 26f;
-    private const float PanelInnerW = Field.PanelW - PanelX * 2f;
-    private const float RowLifeBomb = 180f;
-    private const float RowPurify = 350f;
-    private const float RowScore = 428f;
-    private const float RowTime = 519f;
-    // 2026-09-26: TIME の下に LOCK-ON 行を足した（作者指示「ステータス欄でロックオンモードが分かるように」）。
-    //   COMBO 576→606・集中 649→660 に詰めて場所を空けた（集中のバーの下端 698 ＜ 720）。
-    private const float RowLock = 576f;
-    private const float RowCombo = 606f;
-    private const float RowFocus = 660f;
+    private const float PanelX = 18f;
+    private const float PostX = 44f;
+    private const float PostInnerW = Field.PanelW - PostX - PanelX;
+    private const float RowLifeBomb = 100f;
+    private const float RowBomb = 206f;
+    private const float RowPurify = 310f;
+    private const float RowScore = 390f;
+    private const float RowTime = 468f;
+    private const float RowLock = 530f;
+    private const float RowCombo = 600f;
+    private const float RowFocus = 662f;
+    internal static Rect2 BombHudRect => new(0, RowBomb, Field.PanelW, RowPurify - RowBomb);
+    internal static Rect2 PurifyHudRect => new(0, RowPurify, Field.PanelW, RowScore - RowPurify);
+
+    private string AccountHandle => _game.SelectedJob == Job.Tank ? Handles.Mina
+        : System.Array.Find(GameManager.Stages, stage => stage.Id == _game.JobDef.CharacterId)!.Handle;
+
+    internal static Rect2 ResourceMarkRect(int slot, int count, bool bomb = false)
+    {
+        int columns = Mathf.Max(5, Mathf.CeilToInt(count / 2f));
+        float step = PostInnerW / columns;
+        float size = Mathf.Min(27f, step - 2f);
+        return new Rect2(PostX + (slot % columns) * step + (step - size) * 0.5f,
+            (bomb ? RowBomb : RowLifeBomb) + 46f + (slot / columns) * 28f, size, size);
+    }
 
     // 操作子のキーキャップ（情報の隣に添えて「どのボタンか」を一目で示す）。2026-09-27 に旧 KeyBadge（文字の枠）から
     //   UiKit.KeyCap（押せる鍵の形・パッドは丸ボタン／ピル・マウスは絵）へ置き換えた＝ハブのヒント帯と同じ表現。
@@ -1021,34 +1046,34 @@ public partial class Hud : CanvasLayer
         int maxLives = Mathf.Max(_lives, (GetTree().GetFirstNodeInGroup("player") as Player)?.MaxLives ?? _game.StartLives);
         int bombs = _game?.Bombs ?? 0;
         int maxBombs = Mathf.Max(bombs, _game?.StartBombs ?? 4);
-        bool low = _lives <= 2;
+        bool low = _lives <= 2 && _lives < maxLives;
 
-        float x = PanelX, y = RowLifeBomb, w = PanelInnerW;
-        Color lifeColor = low ? SideRose : SideMuted;
-        if (low) ci.DrawRect(new Rect2(0, y - 4, 4f, 62f), SideRose);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "LIFE", lifeColor);
-        UiKit.DrawRight(ci, UiKit.SmallValue, x + w, y + 2f, $"{_lives:D2} / {maxLives:D2}", lifeColor);
-        float hStep = Mathf.Min(42f, w / Mathf.Max(1, maxLives));
-        var mark = _lifeMarks[_game!.SelectedJob];
-        var markSize = mark.GetSize();
-        markSize *= Mathf.Min(38f, hStep - 4f) / Mathf.Max(markSize.X, markSize.Y);
-        for (int i = 0; i < maxLives; i++)
-        {
-            var center = new Vector2(x + i * hStep + hStep / 2f, y + 40f);
-            ci.DrawTextureRect(mark, new Rect2(center - markSize / 2f, markSize), false,
-                new Color(1, 1, 1, i < _lives ? 1f : 0.22f));
-        }
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y + 78f), "BOMB", SideMuted);
+        float x = PostX, y = RowLifeBomb, w = PostInnerW;
+        Color lifeColor = low ? SideRose : SideInk;
+        if (low) ci.DrawRect(new Rect2(0, y + 5, 3f, 96f), SideRose);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 18), "ライフ", 13, SideMuted);
+        string capacity = $" / {maxLives}";
+        float capacityW = UiKit.TextW(UiKit.Mono, capacity, 14);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 21), capacity, 14, SideMuted, HorizontalAlignment.Right, w);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 15), _lives.ToString(), 22, lifeColor,
+            HorizontalAlignment.Right, w - capacityW - 4f);
+        DrawResourceMarks(ci, _lifeMarks[_game!.SelectedJob], _lives, maxLives, false);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, RowBomb + 18), "ボム", 13, SideMuted);
         float capW = UiKit.KeyCapW(TokBomb, SideCapH);
-        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 77f), TokBomb, SideCapH, alpha: SideCapAlpha);
-        float bStep = Mathf.Min(44f, w / Mathf.Max(1, maxBombs));
-        var bombSize = _bombMark.GetSize();
-        bombSize *= Mathf.Min(40f, bStep - 4f) / Mathf.Max(bombSize.X, bombSize.Y);
-        for (int i = 0; i < maxBombs; i++)
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, RowBomb + 16f), TokBomb, SideCapH, alpha: SideCapAlpha);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, RowBomb + 16f), bombs.ToString(), 20, SideInk,
+            HorizontalAlignment.Right, w - capW - 8f);
+        DrawResourceMarks(ci, _bombMark, bombs, maxBombs, true);
+    }
+
+    private static void DrawResourceMarks(CanvasItem ci, Texture2D texture, int value, int count, bool bomb)
+    {
+        for (int i = 0; i < count; i++)
         {
-            var center = new Vector2(x + i * bStep + bStep / 2f, y + 118f);
-            ci.DrawTextureRect(_bombMark, new Rect2(center - bombSize / 2f, bombSize), false,
-                new Color(1, 1, 1, i < bombs ? 1f : 0.22f));
+            var cell = ResourceMarkRect(i, count, bomb);
+            var size = texture.GetSize() * (cell.Size.X / Mathf.Max(texture.GetWidth(), texture.GetHeight()));
+            ci.DrawTextureRect(texture, new Rect2(cell.GetCenter() - size / 2, size), false,
+                new Color(1, 1, 1, i < value ? 1f : 0.22f));
         }
     }
 
@@ -1088,8 +1113,7 @@ public partial class Hud : CanvasLayer
         UiKit.BeginDesign(ci);
         // 消えたマークの中心＝DrawLifeBomb と同じレイアウト式（レイアウト変更に自動追随）。
         int maxLives = Mathf.Max(_lives, (GetTree().GetFirstNodeInGroup("player") as Player)?.MaxLives ?? _game.StartLives);
-        float hStep = Mathf.Min(42f, PanelInnerW / Mathf.Max(1, maxLives));
-        var center = new Vector2(PanelX + _lifeLostIndex * hStep + hStep / 2f, RowLifeBomb + 40f);
+        var center = ResourceMarkRect(_lifeLostIndex, maxLives).GetCenter();
         float t = 1f - (float)(_lifeShatterT / LifeShatterDur);   // 0→1
         float fly = 1f - Mathf.Pow(1f - t, 3f);                   // out-cubic＝はじけて減速
         float a = (1f - t) * (1f - t);                            // 早めに減衰＝派手にしない
@@ -1098,14 +1122,16 @@ public partial class Hud : CanvasLayer
         if (t < 0.35f)
         {
             float g = 1f - t / 0.35f;
-            UiKit.RadialGlow(ci, center, 10f + 24f * g, col, 0.45f * g);
+            float radius = Mathf.Min(10f + 14f * g, Mathf.Min(center.X, Field.PanelW - center.X) - 2f);
+            UiKit.RadialGlow(ci, center, radius, col, 0.45f * g);
         }
         // 欠片：小さな回転矩形が外へ飛びつつ、わずかに落ちて薄れる（「こぼれた」感）。
         foreach (var s in _lifeShards)
         {
-            var pos = center + new Vector2(Mathf.Cos(s.Ang), Mathf.Sin(s.Ang)) * (s.Spd * fly)
+            var pos = center + new Vector2(Mathf.Cos(s.Ang), Mathf.Sin(s.Ang)) * (s.Spd * fly * 0.4f)
                       + new Vector2(0f, 14f * t * t);
             float sz = s.Size * (1f - 0.5f * t);
+            if (pos.X - sz < 1f || pos.X + sz > Field.PanelW - 1f) continue;
             ci.DrawSetTransform(pos * UiKit.Scale, s.Rot + s.Spin * t, new Vector2(UiKit.Scale, UiKit.Scale));
             ci.DrawRect(new Rect2(-sz / 2f, -sz / 2f, sz, sz), new Color(col, a));
         }
@@ -1116,36 +1142,49 @@ public partial class Hud : CanvasLayer
     {
         float prog = _game?.StageProgress ?? 0f;
         bool full = prog >= 0.999f;
-        float x = PanelX, y = RowPurify, w = PanelInnerW;
+        float x = PostX, y = RowPurify, w = PostInnerW;
         // Keep the forward-position pulse on the fill without flashing the whole sidebar.
         float posF = _game?.CurrentPosFactor ?? 1.075f;
         float lean = Mathf.Clamp((posF - 0.55f) / 1.05f, 0f, 1f); // 左端0 → 右端1
         float pulseHz = Mathf.Lerp(2.4f, 7.0f, lean);
         float pulse = 0.5f + 0.5f * Mathf.Sin((float)_t * pulseHz);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "浄化", SideTeal);
-        UiKit.DrawRight(ci, UiKit.PanelValueMid, x + w, y - 1f, $"{Mathf.RoundToInt(prog * 100f)}%", SideTeal);
-        UiKit.Box(ci, new Rect2(x, y + 34f, w, 8f), SideRule, 4f);
-        if (prog > 0)
-            UiKit.Box(ci, new Rect2(x, y + 34f, w * prog, 8f),
-                full ? SideTeal : SideTeal.Lerp(new Color("9bdfd0"), pulse * lean * 0.5f), 4f);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 14f), "浄化", 13, SideMuted);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 40f), $"{Mathf.RoundToInt(prog * 100f)}%", 20, SideTeal,
+            HorizontalAlignment.Right, w);
+        DrawMeter(ci, new Rect2(x, y + 54f, w - 56f, 4f), prog,
+            full ? SideTeal : SideTeal.Lerp(new Color("b3f0dc"), pulse * lean * 0.3f));
+    }
+
+    private static void DrawMeter(CanvasItem ci, Rect2 rect, float ratio, Color accent)
+    {
+        UiKit.Box(ci, rect, SideRule, rect.Size.Y / 2f);
+        float width = rect.Size.X * Mathf.Clamp(ratio, 0, 1);
+        if (width > 0)
+            UiKit.Box(ci, new Rect2(rect.Position, new Vector2(width, rect.Size.Y)), accent,
+                Mathf.Min(width, rect.Size.Y) / 2f);
     }
 
     private void DrawScore(HudCanvas ci)
     {
         long score = _game?.Score ?? 0;
-        string scoreStr = score.ToString("000,000");
-        float x = PanelX, y = RowScore;
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "SCORE", SideMuted);
-        int size = 36;
-        while (size > 13 && UiKit.TextW(UiKit.Mono, scoreStr, size) > PanelInnerW) size--;
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 29f), scoreStr, size, SideInk);
+        string scoreStr = UiKit.FormatScore(score);
+        if (UiKit.TextW(UiKit.ZenBold, scoreStr, 14) > PostInnerW)
+            scoreStr = score.ToString("0.##E+0", System.Globalization.CultureInfo.InvariantCulture);
+        float x = PostX, y = RowScore;
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 14f), "スコア", 13, SideMuted);
+        int size = 24;
+        while (size > 14 && UiKit.TextW(UiKit.ZenBold, scoreStr, size) > PostInnerW) size--;
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 35f), scoreStr, size, SideInk);
     }
 
     private void DrawTimer(HudCanvas ci)
     {
         string t = UiKit.FormatTime(_elapsed);
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(PanelX, RowTime), "TIME", SideMuted);
-        UiKit.DrawRight(ci, UiKit.PanelValueMid, PanelX + PanelInnerW, RowTime - 2f, t, SideInk);
+        UiKit.Text(ci, UiKit.Zen, new Vector2(PostX, RowTime + 26f), "経過", 13, SideMuted);
+        int size = 17;
+        while (size > 10 && UiKit.TextW(UiKit.Mono, t, size) > PostInnerW - 44f) size--;
+        UiKit.Text(ci, UiKit.Mono, new Vector2(PostX, RowTime + 24f), t, size, SideInk,
+            HorizontalAlignment.Right, PostInnerW);
     }
 
     // ロックオンモードの行（2026-09-26 作者指示「画面から敵が消えてもロックオン解除しないで、
@@ -1157,31 +1196,30 @@ public partial class Hud : CanvasLayer
         var player = GetTree().GetFirstNodeInGroup("player") as Player;
         bool armed = player?.LockArmed ?? false;
         bool on = player?.LockedOn ?? false;
-        float x = PanelX, y = RowLock, w = PanelInnerW;
+        float x = PostX, y = RowLock, w = PostInnerW;
         Color accent = on ? AccountAccent : armed ? SideTeal : SideMuted;
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "LOCK-ON", accent);
-        float lw = UiKit.TrackedW(UiKit.PanelLabel, "LOCK-ON");
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 12f), "ロックオン", 13, SideMuted);
         // ロックオンの意思（LockArmed）が立っている間はキャップを沈める＝「いま押さえている」ことを鍵の形でも見せる。
-        UiKit.KeyCap(ci, new Vector2(x + lw + 12f, y - 1f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
-        string status = on ? "追尾中" : armed ? "待機" : "OFF";
+        float capW = UiKit.KeyCapW(TokLock, SideCapH);
+        UiKit.KeyCap(ci, new Vector2(x + w - capW, y + 12f), TokLock, SideCapH, pressed: armed, alpha: SideCapAlpha);
+        string status = on ? "追尾中" : armed ? "待機中" : "オフ";
         float a = armed && !on ? 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin((float)_t * 4f)) : 1f;
-        float sw = UiKit.TrackedW(UiKit.SmallLabel, status);
-        ci.DrawCircle(new Vector2(x + w - sw - 14f, y + 10f), 4f, new Color(accent, armed ? a : 0.35f));
-        UiKit.DrawRight(ci, UiKit.SmallLabel, x + w, y + 2f, status, new Color(accent, a));
+        ci.DrawCircle(new Vector2(x + 2.5f, y + 49f), 2.5f, new Color(accent, armed ? a : 0.35f));
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x + 13f, y + 39f), status, 13, new Color(accent, a));
     }
 
     private void DrawCombo(HudCanvas ci)
     {
         int combo = _game?.Combo ?? 0;
-        if (combo < 2) return;
-        float x = PanelX, y = RowCombo, w = PanelInnerW;
-        UiKit.Draw(ci, UiKit.PanelLabel, new Vector2(x, y), "COMBO", SideRose);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y - 7f), $"×{combo:D2}", 28, SideRose, HorizontalAlignment.Right, w);
-        float comboRatio = Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f);
-        float cbY = y + 34f, cbH = 4f;
-        UiKit.Box(ci, new Rect2(x, cbY, w, cbH), SideRule, 2f);
-        if (comboRatio > 0)
-            UiKit.Box(ci, new Rect2(x, cbY, w * comboRatio, cbH), UiKit.Burn.Lerp(SideRose, comboRatio), 2f);
+        float x = PostX, y = RowCombo, w = PostInnerW;
+        UiKit.Text(ci, UiKit.Zen, new Vector2(x, y + 21f), "コンボ", 13, SideMuted);
+        string value = $"×{combo:D2}";
+        int size = 22;
+        while (size > 10 && UiKit.TextW(UiKit.Mono, value, size) > w - 58f) size--;
+        UiKit.Text(ci, UiKit.Mono, new Vector2(x, y + 16f), value, size, combo >= 2 ? SideRose : SideMuted,
+            HorizontalAlignment.Right, w);
+        float comboRatio = combo >= 2 ? Mathf.Clamp(_game?.ComboTimeRatio ?? 0f, 0f, 1f) : 0f;
+        DrawMeter(ci, new Rect2(x, y + 46f, w, 3f), comboRatio, SideRose);
     }
 
     // スペル宣言オーバーレイ（X のスペル発動ツイート＋通知）。ボスカードの直下に出る。
@@ -1371,14 +1409,11 @@ public partial class Hud : CanvasLayer
     private void DrawFocusChip(HudCanvas ci)
     {
         Color accent = _focusOn ? AccountAccent : (_focusReady ? SideTeal : SideMuted);
-        string status = _focusOn ? "発動中" : _focusReady ? "READY" : "充填中";
-        float x = PanelX, y = RowFocus, w = PanelInnerW;
-        UiKit.KeyCap(ci, new Vector2(x, y), TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
-        UiKit.DrawRight(ci, UiKit.SmallLabel, x + w, y + 2f, status, accent);
-        float barY = y + 34f, barH = 4f;
-        UiKit.Box(ci, new Rect2(x, barY, w, barH), SideRule, 2f);
-        if (_focusRatio > 0)
-            UiKit.Box(ci, new Rect2(x, barY, w * _focusRatio, barH), accent, 2f);
+        string status = _focusOn ? "発動中" : _focusReady ? "発動可能" : "充填中";
+        float x = PostX, y = RowFocus, w = PostInnerW;
+        UiKit.KeyCap(ci, new Vector2(x, y + 20f), TokFocus, SideCapH, pressed: _focusOn, alpha: SideCapAlpha);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(x, y + 21f), status, 14, accent, HorizontalAlignment.Right, w);
+        DrawMeter(ci, new Rect2(x, y + 47f, w, 3f), _focusRatio, accent);
     }
 
     private void DrawPowerups(HudCanvas ci)
@@ -1389,10 +1424,10 @@ public partial class Hud : CanvasLayer
             var kind = (PowerKind)i;
             int level = player.PowerLevel(kind);
             if (level == 0) continue;
-            float x = PanelX + i * (PanelInnerW / 4f);
-            PowerPickupArt.Draw(ci, new Rect2(x, 119f, 25f, 25f), kind);
+            float x = 22f + i * 25f;
+            PowerPickupArt.Draw(ci, new Rect2(x - 9f, 73f, 18f, 18f), kind);
             for (int pip = 0; pip < Player.PowerLevelCap; pip++)
-                ci.DrawRect(new Rect2(x + 32f + pip * 10f, 130f, 6f, 10f),
+                ci.DrawRect(new Rect2(x - 5f + pip * 6f, 94f, 4f, 2f),
                     pip < level ? PowerPickupArt.ColorFor(kind) : SideRule);
         }
     }
@@ -1400,12 +1435,15 @@ public partial class Hud : CanvasLayer
     private void DrawShotMode(HudCanvas ci)
     {
         var job = _game.JobDef;
-        string handle = job.Id == Job.Tank ? Handles.Mina
-            : System.Array.Find(GameManager.Stages, stage => stage.Id == job.CharacterId)!.Handle;
-        UiKit.FaceAvatar(ci, new Vector2(PanelX + 34f, 80f), 33f, _accountFaces[job.Id], AccountAccent, false, 0f);
-        float tx = PanelX + 86f;
-        UiKit.Text(ci, UiKit.ZenBold, new Vector2(tx, 57f), job.CharacterName, 24, SideInk);
-        UiKit.Text(ci, UiKit.Mono, new Vector2(tx, 90f), handle, 12, SideMuted);
+        ci.DrawCircle(new Vector2(30f, 36f), 23f, SideSurface);
+        UiKit.FaceAvatar(ci, new Vector2(30f, 36f), 19f, _accountFaces[job.Id], SideSurface, false, 0f);
+        UiKit.Text(ci, UiKit.ZenBold, new Vector2(60f, 31f), job.CharacterName, 19, SideInk);
+        UiKit.VerifiedBadge(ci, new Vector2(60f + UiKit.TextW(UiKit.ZenBold, job.CharacterName, 19) + 10f, 44f),
+            5f, SideBlue);
+        UiKit.Text(ci, UiKit.Mono, new Vector2(60f, 56f), AccountHandle, 10, SideMuted);
+        string status = _gameOverTitle.Length > 0 ? "終了" : BubblePaused ? "対話中" : "ダイブ中";
+        UiKit.Text(ci, UiKit.Zen, new Vector2(120f, 78f), status, 11, SideMuted,
+            HorizontalAlignment.Right, Field.PanelW - PanelX - 120f);
     }
 
     // モード切替トースト（画面中央上に短時間スウィープ＝Shot Upgrades の modeSweep 相当）。

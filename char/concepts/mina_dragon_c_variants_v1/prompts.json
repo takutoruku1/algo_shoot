@@ -1,0 +1,30 @@
+{
+  "generator": "built-in image_gen",
+  "date": "2026-10-03",
+  "status": "pose_and_wing_studies_not_integrated",
+  "reference": "char/concepts/mina_dragon_v1/mina_dragon_c.png",
+  "common_prompt": "Use case: identity-preserve, controlled game character concept variation.\nEdit target: the attached approved-direction C candidate of Mina as a dragon. This image is the sole visual baseline. Create ONE close alternative, not a different creature or new art style. Preserve her exact recognizable face, blue eye shape and reserved determined expression, head size, horn/crest shapes, compact head-to-body ratio, black/navy body, ivory throat and belly, blue diamond chest gem, claw style, delicate linework, soft cel shading and level of detail. She must remain the SAME Mina dragon.\nKeep the approved BIPEDAL anatomy: chest over waist over pelvis, two legs below the pelvis, two separate arms with clearly articulated wrists and fingered HANDS. The arms are not forefeet. Exactly two wings grow independently from the back. Keep her two knees bent beneath her while airborne, not four feet supporting a horizontal animal. Do not turn her into a quadruped, a wyvern, a human in costume, a baby dragon, or a giant realistic monster. Do not reduce her face or enlarge her torso. Preserve the current degree of stylization.\nShe is exerting herself to fly by forceful wingbeats. Show the wing joints, shoulder effort and membrane tension, not a passive floating pose. Keep the general upright three-quarter left-facing orientation and compact curved tail of C. No new equipment, weapons, hair, clothing, frills attached as fabric, aura or magical particles. The broad black/navy and ivory areas of the WINGS carry Mina's identity. Preserve all existing character features except the specific allowed variation below.\nOutput a single full-body transparent-alpha PNG concept. Entire wings, horns, hands, feet and tail inside frame with clear margin. No scene, ground shadow, glow, gradient backdrop, text or borders. Keep the visual body and head scale comparable to C and leave enough room for wing motion.\n",
+  "candidates": [
+    {
+      "id": "C1",
+      "name": "deep_downstroke",
+      "output": "char/concepts/mina_dragon_c_variants_v1/mina_dragon_c1.png",
+      "source": "exec-a371c878-30d3-4919-8834-b84cc2cf3b79.png",
+      "variant_prompt": "ALLOWED VARIATION C1 - DEEP POWERFUL DOWNSTROKE. Preserve C's wing surface design and colors. Keep the farther wing raised behind her, but swing the nearer wing significantly farther DOWN and slightly toward the viewer: its main support bends at the elbow, the leading edge presses forward, its tip travels below her waist, and the membrane visibly bows and trails under air resistance. Lift the chest and near shoulder slightly with the effort, deepen the existing mild torso twist without making the torso horizontal. Keep one hand reaching ahead and the other near the chest as in C; hands must remain readable independently from the wings. Her tail curls back compactly. This is the same C design caught at a stronger, more forceful point of its asymmetric wingbeat. Do not change the face or introduce new wing markings."
+    },
+    {
+      "id": "C2",
+      "name": "scalloped_wing_pattern",
+      "output": "char/concepts/mina_dragon_c_variants_v1/mina_dragon_c2.png",
+      "source": "exec-92e3f3e4-5761-46a8-b893-af2d488f9668.png",
+      "variant_prompt": "ALLOWED VARIATION C2 - MINA WING MOTIF REFINEMENT. Keep C's asymmetrical turning flight pose, facial identity and body proportions very close. Modify only the wing contour and graphic pattern in a restrained way: retain clearly triangular dragon wing finger supports and pointed tips, but make the trailing membrane segments slightly fuller and softly scalloped. Refine the navy-to-ivory boundary into a flowing rhythm of broad curved lobes suggesting the white hem of Mina's apron. These are natural colored markings INSIDE the wing membranes, not real fabric, not sewn-on ruffles, no dress or costume. Maintain approximately the same black/white ratio as C and retain the few blue diamond accents; do not add busy ornament. Near wing pressing down, far wing flexed high, membrane trailing edges slightly bent by airflow. Still a dragon wing, never butterfly wings or feathers. This is a close softer-pattern alternative to C, not a redesign."
+    },
+    {
+      "id": "C3",
+      "name": "upstroke_turn",
+      "output": "char/concepts/mina_dragon_c_variants_v1/mina_dragon_c3.png",
+      "source": "exec-31a6218f-c768-470c-8931-db5be2943ff6.png",
+      "variant_prompt": "ALLOWED VARIATION C3 - BANKING UPSTROKE. Preserve C's existing face and wing colors, patterns and outline vocabulary. Show a different active beat of the same turning flight: sweep the near wing HIGH and slightly forward with the elbow strongly bent and its large ivory underside visible; keep the farther wing lower and drawn back. This reverses C's wing-angle rhythm while keeping the same creature. Shoulders visibly rise with effort, chest and waist twist subtly in opposing directions, head remains directed left toward the target. The two knees bend under the pelvis, not in a running or leaping ground pose. One hand is extended for balance, the other stays close to her chest, and the tail makes a tighter S-curve to counter the bank without becoming longer. Dynamic powerful wing propulsion, not static symmetrical display. Keep comparable body and face scale, do not turn the body into a long horizontal beast."
+    }
+  ]
+}

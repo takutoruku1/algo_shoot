@@ -283,6 +283,16 @@ public partial class Player : Area2D
     private Node2D? _lockTarget;              // 現在のロック先（雑魚・中ボス・ボスのいずれか）
     public bool LockedOn => _locked && IsInstanceValid(_lockTarget!) && _lockTarget != null;
     public Node2D? LockTarget => LockedOn ? _lockTarget : null;
+    private Panel? _lockUnfolder;
+    public Panel? LockedUnfolder
+    {
+        get
+        {
+            _lockUnfolder = LockTarget is Enemy boss ? boss.SelectUnfolder(GlobalPosition, _lockUnfolder) : null;
+            return _lockUnfolder;
+        }
+    }
+    public Vector2 LockAimPosition => LockedUnfolder?.GlobalPosition ?? LockTarget?.GlobalPosition ?? GlobalPosition;
 
     // ロック中の狙い方向（自機→ボス）。ロックしていなければ従来どおり左右のみ。
     private Vector2 AimVec
@@ -290,7 +300,7 @@ public partial class Player : Area2D
         get
         {
             if (!LockedOn) return new Vector2(_facing, 0f);
-            var d = _lockTarget!.GlobalPosition - GlobalPosition;
+            var d = LockAimPosition - GlobalPosition;
             return d.LengthSquared() > 0.01f ? d.Normalized() : new Vector2(_facing, 0f);
         }
     }
@@ -523,6 +533,8 @@ public partial class Player : Area2D
         var prev = _lockTarget;
         _lockTarget = cands[next];
         _locked = true;
+        if (n == 1 && prev == _lockTarget && _lockTarget is Enemy boss)
+            _lockUnfolder = boss.CycleUnfolder(LockedUnfolder, step, GlobalPosition);
         if (!wasArmed) _lockByShift = shiftEdge;   // 武装した入力が Shift か（S・A・RB・クリックなら false）
         _lockArmed = true;
         // 対象が変わったら前の敵の照準マーカーを消す（雑魚は毎フレーム再描画しないので明示的に促す）。

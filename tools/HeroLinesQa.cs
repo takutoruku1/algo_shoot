@@ -96,7 +96,7 @@ public partial class HeroLinesQa : Node
         await Drop(root);
     }
 
-    // ── FINAL F3（レイ「……あんたの言い方。……この人に、そっくりよ。」）──
+    // ── FINAL F3（レイがミナとプレイヤーの言い方を重ねる）──
     //   BossPostsQa と同じ据え付けで BossMina を立て、回想は済んだことにして OnCryStart を直接呼ぶ
     //   ＝BossMina.Lines の会話ドライバ（_seq）が実際に立ち、Z 送りで 3 行目に届く。
     private async Task FinalRei(GameManager game)
@@ -139,7 +139,7 @@ public partial class HeroLinesQa : Node
         Check("F3 会話ドライバが立つ（_seq, _line=0）", Read<bool>(boss, "_seq") && Read<int>(boss, "_line") == 0,
             $"seq={Read<bool>(boss, "_seq")} line={Read<int>(boss, "_line")}");
         var lines = ((int who, string text, string face)[])typeof(BossMina).GetField("Lines", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
-        const string want = "……あんたの言い方。……この人に、そっくりよ。";
+        const string want = "……あんたの言い方。画面の向こうの、あの人に、そっくりよ。";
         int at = Array.FindIndex(lines, l => l.text == want);
         Check("F3 レイの行が Lines の index 2", at == 2, $"index={at}");
         bool reached = await AdvanceTo(() => Read<int>(boss, "_line") == at && hud.DialogRevealed);

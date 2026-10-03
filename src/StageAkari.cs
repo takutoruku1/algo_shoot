@@ -42,17 +42,12 @@ public partial class StageAkari : Node
     private const string AFace = "res://char/v3/akari_face.png";
     private const string AFaceLit = "res://char/v3/akari_face_lit.png";
 
-    // 道中ザコ戦（Spawner）。三部構成で「後半ほど圧が上がる」緩急を作る。あかりは型崩し（S2）で“カメオ先出し”：
-    //   肩慣らし0（圧ゼロ）→ チラ見せ（6体目の浄化で割り込み）→ 小話 → 前半A（緩い導入）→ 考察 → 後半B（やや詰める）→ ミッドシナリオ（溜め）→ 終盤C（最大密度）→ 本ボス。
-    // 体数より“密度と変化”で長さを作る（§3 緩急）：3波で圧と構成を変えて間延びさせない。
     private Spawner _spawner = null!;
     private int _waveBase;
-    // M2バランス：道中ザコ総数を レイ面と同じ 60→45 に緩和（A>B<C のクレッシェンドは維持）。旧値: A21/B18/C21。
-    // M3：Intro直後にいきなり中ボスの唐突さを解消するため、カメオ前に“肩慣らし”0波を挿入。総数45は維持（6+12+13+14）。
-    private const int MidWave0 = 6;   // 肩慣らし（Intro直後・StartIntensity 0）。6体目の浄化でカメオが割り込む。
-    private const int MidWaveA = 12;  // 導入（チラ見せ＝先出しの後）。緩く立ち上がる。旧15（-3）
-    private const int MidWaveB = 13;  // 考察の後。やや詰めて始める。旧14（-1）
-    private const int MidWaveC = 14;  // ミッドシナリオ後の終盤。最大密度＝ボス直前の山（合計45体）。旧16（-2）
+    private const int MidWave0 = 30;
+    private const int MidWaveA = 12;
+    private const int MidWaveB = 13;
+    private const int MidWaveC = 14;
     // ボスの“チラ見せ”（カメオ）＝本戦ボスと同じ土台の短いミニボス戦（CameoBoss＝Enemy 派生・シールド制）。
     // あかり＝怯え・自責で、攻撃も悲嘆寄り。撃破（HP/サイクル削り切り＝改心）まで Stage は進まない。保険退場は廃止。
     private CameoBoss _cameo = null!;
@@ -65,7 +60,7 @@ public partial class StageAkari : Node
     private static readonly (int who, string text, string face)[] Intro =
     {
         (4, "「すき、すき、すき。……ひとつでいいから、本物になって。」", ""),   // A35。H0 と同文
-        (1, "……いいねが、ひとつ。——この投稿の下から、まだ、聞こえます。", MFace),   // 中身は言わない
+        (1, "……いいねが、ひとつ。この方にも、投稿しようとして、送れなかった言葉があるようです。", MFace),
         (1, "着きました。……雨が、降りやみません。誰もいない、退勤後のフロア。机も、椅子も——天井へ、落ちていく。", MFace),
         (1, "雨の中を、通知の吹き出しが、いくつも漂っています。数字は、どれも「1」。", MFace),
         // ユーザー承認済み: docs/20260914/ストーリー添削_2026-09-14.md 【11】
@@ -97,7 +92,7 @@ public partial class StageAkari : Node
         (1, "……あの人、降りやまない雨の奥へ。逃げるみたいに、消えてしまいました。", MWorried),   // S1-5
         // ここから 17 の S1-5（きっかけ2行）。捨て台詞「ぜったいだよ?」の問いだけが残る。宛先はミナが決めない。
         (1, "……「ぜったいだよ?」。——問いだけが、残っています。宛先は、こちらでは、ありませんが。", MWorried),
-        (1, "ご主人様。下書きが、開いています。……宛先は、わたくしが、決めません。", MFace),
+        (1, "ご主人様。お返事の下書きが、開いています。……誰に何を伝えるかは、お任せします。", MFace),
     };
     private static readonly (int who, string text, string face)[] Mid =
     {
@@ -183,7 +178,7 @@ public partial class StageAkari : Node
         _ => new (int, string, string)[]
         {
             (1, "……無言。——では、一件だけ。いちばん上のを。", MFace),
-            (1, "……十一件は、閉じたまま。……二件、散りましたね。", MWorried),
+            (1, "……残りの十一件は、閉じたままにしておきます。", MWorried),
         },
     };
     // 選択の受けの後に必ず流す締め（中ボスが来る予感）。
@@ -381,15 +376,12 @@ public partial class StageAkari : Node
         bool z = Pad.AdvanceHeld();
         _zEdge = z && !_zHeld;
         _zHeld = z;
-        // 型崩し（S2）：あかりは“カメオ先出し”。着地後の肩慣らし波（6体・圧ゼロ）を捌いていると、
-        // 6体目を浄化した瞬間にあかりが割り込んで飛び出してくる（「既読3秒」の性格＝向こうから会いに来る）。
-        // 3ステージ同型（小話→道中→考察→カメオ）の反復を崩す。
         // ルナティック：会話・選択の step は踏まずに次の戦闘 step へ（同じフレームで次の波が立つ＝空白を作らない）。
         while (_lunatic && IsTalkStep(_step)) Advance();
         switch (_step)
         {
             case 1: Step_Lines(delta, _playerIntro); break;
-            case 2: Step_MidWave0(delta); break;          // 肩慣らし波（6体・圧ゼロ）＝カメオへの布石
+            case 2: Step_MidWave0(delta); break;
             case 3: Step_BossCameo(delta); break;         // ボスのチラ見せ（先出し＝あかりから割り込んで来る）
             // ★S1-5 の下書き選択（17）＝中ボスの受け2行＋問い → 選択 → 受け＋締め → S1-2 の小話
             //   他ジョブ潜行中は下書き選択ごと抑止（ミナ前提）＝専用ストーリーの道中ビートに置換。
@@ -614,8 +606,6 @@ public partial class StageAkari : Node
         }
     }
 
-    // ---- 肩慣らし波（Intro直後・圧ゼロ）：MidWave0体の浄化で、待ち構えていたあかりが“割り込んで”カメオ出現 ----
-    // いきなり中ボスの唐突さを消しつつ、「向こうから来る」性格は保つ（会話は挟まず即カメオ＝割り込み感）。
     private void Step_MidWave0(double delta)
     {
         var game = GetNodeOrNull<GameManager>("/root/Game");
@@ -625,7 +615,6 @@ public partial class StageAkari : Node
             _waveBase = game?.PurifiedCount ?? 0;
             StartMidwaveSpawner();
         }
-        // 規定数浄化（or 目標到達）で残ザコ・残弾を片付け、間を置かずカメオへ＝“6体目の瞬間に割り込む”。
         if (game != null && (game.PurifiedCount - _waveBase >= MidWave0 || game.StageCleared))
         {
             _spawner?.Stop(); _spawner = null!;
@@ -720,7 +709,6 @@ public partial class StageAkari : Node
             if (!_cameoIntroStarted)
             {
                 _cameoIntroStarted = true;
-                (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.BeginMidboss();
                 CameoIntroScene.Play(Hud, World, "akari", CameoTalk1, () => _cameoIntroDone = true);
             }
             return;
@@ -769,21 +757,25 @@ public partial class StageAkari : Node
         if (!_stepStarted)
         {
             _stepStarted = true;
+            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
+            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
+            var opening = _playerBoss;
+            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "akari", opening, () => {
+                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
+                Step_Lines(0, _playerBoss);
+            }, SpawnBoss);
+            else SpawnBoss();
+        }
+
+        void SpawnBoss()
+        {
             _boss = new BossAkari { Name = "BossAkari" };
             World.AddChild(_boss);
             _boss.GlobalPosition = new Vector2(SpawnX, 70f);
             _bossActive = true;
-            // 今ランでボス戦に到達した印（ゲームオーバーの「ボスから」はこれが立っているときだけ出る。中ボスでは立てない）。
-            GetNodeOrNull<GameManager>("/root/Game")?.NotifyBossReached();
-            // 本ボス突入：道中の横スクロール背景 → ボス専用背景へ切替（中ボス/カメオでは呼ばない）。
-            GetTree().GetFirstNodeInGroup("stagebg")?.Call("EnterBoss");
-            var opening = _playerBoss;
-            if (!_lunatic) _playerBoss = StageTutorial.TakeBoss(GetNodeOrNull<GameManager>("/root/Game"));
+            (GetTree().GetFirstNodeInGroup("stagebg") as StageBackground)?.EnterBoss();
             Advance();
-            if (!_lunatic) CameoIntroScene.PlayBoss(Hud, World, "akari", opening, () => {
-                _zHeld = Pad.AdvanceHeld(); _zEdge = false;
-                Step_Lines(0, _playerBoss);
-            });
         }
     }
 

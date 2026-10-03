@@ -256,7 +256,8 @@ public partial class Prologue : Node2D
         L(WhoMina, "家賃の方は、ご自分で褒めているぶん、収支は合っているものと推定します。", FMina),
         L(WhoFx, FxPost3, ""),
         L(WhoMina, "……。", FMina),                                            // 漫才のリズムが一拍止まる
-        L(WhoMina, "三つめの方。……投稿の下から、消したはずの言葉が、重なって聞こえます。", FMinaWorried),
+        L(WhoMina, "三つめの方。……投稿しようとして、送れなかった言葉が聞こえます。", FMinaWorried),
+        L(WhoMina, "……何か、迷っていたようです。", FMinaWorried),
         L(WhoFx, FxErase, ""),                                                 // 打って消して、書き直して、送る
         L(WhoMina, "……この投稿です。いまの声が、聞こえたのは。", FMinaWorried),
     };
@@ -277,8 +278,8 @@ public partial class Prologue : Node2D
             r.Add(L(WhoMina, "……はい。では、見なかったことに。——ただ、ひとつだけ、ご報告が。", FMinaWorried));
         r.AddRange(new List<DLine>
         {
-            L(WhoMina, "消された言葉は、消えていないのです。", FMina),
-            L(WhoMina, "……まだ、そこに、います。", FMina),
+            L(WhoMina, "文字を消しても、伝えたかった気持ちは、残っているのですね。", FMina),
+            L(WhoMina, "……わたくしには、その声が聞こえます。", FMina),
             L(WhoMina, "あの声は——わたくしが、覚えておきます。", FMina),        // 「覚えている係」の初出＝決定打
             L(WhoMina, "……以上、初回の観測報告です。", FMina),                  // 余白（落差で決定打を残す）
             L(WhoFx, FxFirstStage, ""),
@@ -286,7 +287,7 @@ public partial class Prologue : Node2D
         });
         bool tutorial = GameManager.TutorialEnabled;
         if (tutorial)
-            r.Add(L(WhoMina, "潜ります。……その前に、この身体で何が出来るのか。まだ、なにも、試していませんので。", FMina));
+            r.Add(L(WhoMina, "あの方の心へ、潜ります。……その前に、この身体の動かし方を、確かめておきましょう。", FMina));
         return r;
     }
 

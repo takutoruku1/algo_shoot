@@ -161,8 +161,9 @@ public partial class AreaStrike : Node2D, IAoeHazard
     public override void _Process(double delta)
     {
         // 発生源が着弾前に消えた／浄化されたら、予測線ごとキャンセル（倒せば攻撃も消える）。
-        if (!_struck && _cancelOnOwnerLoss
-            && (_owner == null || !IsInstanceValid(_owner) || (_owner is Enemy e && e.IsPurified)))
+        if (_cancelOnOwnerLoss
+            && (_owner == null || !IsInstanceValid(_owner)
+                || (_owner is Enemy e && (e.IsPurified || e.GaugeVulnerable || e.GaugeReforming))))
         {
             QueueFree();
             return;

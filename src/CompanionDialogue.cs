@@ -45,7 +45,7 @@ public static class CompanionDialogue
     {
         (Job.Melee, "tutorial", Beat.Intro) => new[] {
             P("あたしの声、そっちに届いてる？　……こんなふうに、並べるんだ。"),
-            M("はい。回線に映した姿です。歩く先は、ご主人様に。言葉は、あなたのままで。"),
+            M("はい。回線に映した、あなたのお姿です。身体の操作は、ご主人様に。お話は、あなたの言葉でどうぞ。"),
             P("じゃあ、よろしく。黙ってついてくだけには、しないから。"),
         },
         (Job.Heal, "tutorial", Beat.Intro) => new[] {
@@ -254,7 +254,7 @@ public static class CompanionDialogue
         (Job.Magic, Menu.TrainEnter) => new[] { M("本番ではありません。"), P("じゃあ、失敗も編集しないわ。") },
         (Job.Melee, Menu.TrainShoot) => new[] { M("いま、届きました。"), P("うん。宛先、間違えなかった。") },
         (Job.Heal, Menu.TrainShoot) => new[] { M("先ほどより、落ち着いて。"), P("うん。一個ずつ、見えてきた。") },
-        (Job.Magic, Menu.TrainShoot) => new[] { M("いまの一発は、外へ。"), P("見てた？　……もう一回ね。") },
+        (Job.Magic, Menu.TrainShoot) => new[] { M("いまの一発、的に届きました。"), P("見てた？　……もう一回ね。") },
         (Job.Melee, Menu.TrainIdle) => new[] { M("休憩になさいますか。"), P("うん。今日は、断らない。") },
         (Job.Heal, Menu.TrainIdle) => new[] { M("的は、逃げません。"), P("じゃあ、お茶。戻ったら続きね。") },
         (Job.Magic, Menu.TrainIdle) => new[] { M("声を、休めても。"), P("……ありがと。少し、そうする。") },
